@@ -188,6 +188,12 @@
 <!-- toasts -->
 <div class="toasts"
      x-data="{ toasts: [] }"
+     x-init="
+        {% for message in messages %}
+        toasts.push({ id: Date.now() + Math.random() + {{ forloop.counter }}, message: '{{ message.message|escapejs }}', type: '{% if message.tags == "error" %}err{% elif message.tags == "success" %}ok{% else %}info{% endif %}' });
+        {% endfor %}
+        {% if messages %}setTimeout(() => { toasts = [] }, 3200);{% endif %}
+     "
      @toast.window="
         const item = { id: Date.now() + Math.random(), message: $event.detail.message, type: $event.detail.type || 'ok' };
         toasts.push(item);

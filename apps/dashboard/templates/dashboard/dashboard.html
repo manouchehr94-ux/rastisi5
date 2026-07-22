@@ -1,0 +1,142 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian dashboard_extras %}
+
+{% block title %}داشبورد | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}داشبورد{% endblock %}
+{% block page_sub %}نمای کلی عملکرد فروشگاه — {{ today_jalali|default:"" }}{% endblock %}
+
+{% block content %}
+<div class="grid g-4" style="margin-bottom:18px">
+  <div class="card stat">
+    <div class="ic" style="background:var(--primary-soft);color:var(--primary)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+    </div>
+    <div><div class="val">{{ stat_cards.today_sales|toman_raw }}</div><div class="lbl">فروش امروز (تومان)</div></div>
+    {% if stat_cards.today_sales_trend %}
+    <span class="trend {% if stat_cards.today_sales_trend.up %}up{% else %}down{% endif %}">{% if stat_cards.today_sales_trend.up %}▲{% else %}▼{% endif %} {{ stat_cards.today_sales_trend.pct_display }}٪ نسبت به دیروز</span>
+    {% else %}
+    <span class="trend flat">داده‌ی دیروز برای مقایسه نیست</span>
+    {% endif %}
+  </div>
+
+  <div class="card stat">
+    <div class="ic" style="background:var(--blue-soft);color:var(--blue)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 01-8 0"/></svg>
+    </div>
+    <div><div class="val">{{ stat_cards.today_orders|fa_number }}</div><div class="lbl">سفارشات جدید امروز</div></div>
+    {% if stat_cards.today_orders_trend %}
+    <span class="trend {% if stat_cards.today_orders_trend.up %}up{% else %}down{% endif %}">{% if stat_cards.today_orders_trend.up %}▲{% else %}▼{% endif %} {{ stat_cards.today_orders_trend.pct_display }}٪ نسبت به دیروز</span>
+    {% else %}
+    <span class="trend flat">داده‌ی دیروز برای مقایسه نیست</span>
+    {% endif %}
+  </div>
+
+  <div class="card stat">
+    <div class="ic" style="background:var(--green-soft);color:var(--green)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+    </div>
+    <div><div class="val">{{ stat_cards.customers_total|fa_number }}</div><div class="lbl">مشتریان ثبت‌نام‌شده</div></div>
+    {% if stat_cards.customers_trend %}
+    <span class="trend {% if stat_cards.customers_trend.up %}up{% else %}down{% endif %}">{% if stat_cards.customers_trend.up %}▲{% else %}▼{% endif %} {{ stat_cards.customers_trend.pct_display }}٪ این ماه</span>
+    {% else %}
+    <span class="trend flat">{{ stat_cards.customers_new_this_month|fa_number }} مشتری جدید این ماه</span>
+    {% endif %}
+  </div>
+
+  <div class="card stat">
+    <div class="ic" style="background:var(--amber-soft);color:var(--amber)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+    </div>
+    <div><div class="val">{{ stat_cards.low_stock_count|fa_number }}</div><div class="lbl">کالاهای رو به اتمام</div></div>
+    <span class="trend down">نیاز به شارژ موجودی</span>
+  </div>
+</div>
+
+<div class="grid g-2-1" style="margin-bottom:18px">
+  <div class="card" x-data="{ range: 'month' }">
+    <div class="card-head">
+      <div><h3>روند فروش</h3><div class="hint">مجموع فروش پرداخت‌شده بر حسب تومان</div></div>
+      <div class="tabs">
+        <button type="button" class="tab" :class="{ active: range === 'week' }"
+                @click="range = 'week'" hx-get="{% url 'dashboard:sales-chart' %}?range=week" hx-target="#salesChartBody" hx-swap="innerHTML">هفته</button>
+        <button type="button" class="tab" :class="{ active: range === 'month' }"
+                @click="range = 'month'" hx-get="{% url 'dashboard:sales-chart' %}?range=month" hx-target="#salesChartBody" hx-swap="innerHTML">ماه</button>
+        <button type="button" class="tab" :class="{ active: range === 'year' }"
+                @click="range = 'year'" hx-get="{% url 'dashboard:sales-chart' %}?range=year" hx-target="#salesChartBody" hx-swap="innerHTML">سال</button>
+      </div>
+    </div>
+    <div class="card-body"><div id="salesChartBody">{{ sales_chart_svg|safe }}</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>وضعیت سفارشات</h3><span class="hint">این ماه</span></div>
+    <div class="card-body" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+      <div>{{ donut_svg|safe }}</div>
+      <div class="legend">
+        {% for row in donut_legend %}
+        <div class="li"><span class="sw" style="background:{{ row.color }}"></span>{{ row.label }}<b>{{ row.value|fa_number }}</b></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid g-2" style="margin-bottom:18px">
+  <div class="card">
+    <div class="card-head"><h3>آخرین سفارشات</h3><a class="btn btn-sm" href="#">مشاهده همه</a></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>کد سفارش</th><th>مشتری</th><th>مبلغ</th><th>وضعیت</th></tr></thead>
+      <tbody>
+        {% for order in recent_orders %}
+        <tr>
+          <td><b dir="ltr">{{ order.code }}</b></td>
+          <td>{{ order.customer.full_name }}</td>
+          <td>{{ order.grand_total|toman }}</td>
+          <td><span class="badge {{ order.status|order_status_badge }}">{{ order.get_status_display }}</span></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="color:var(--muted)">هنوز سفارشی ثبت نشده است</td></tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>پرفروش‌ترین کالاها</h3><span class="hint">۳۰ روز گذشته</span></div>
+    <div class="card-body">
+      {% for row in top_products %}
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 0;{% if not forloop.last %}border-bottom:1px dashed var(--border){% endif %}">
+        <div class="thumb" style="background:{{ row.product__tint|default:'var(--primary-soft)' }}">{{ row.product__icon|default:"🛍️" }}</div>
+        <div style="flex:1;min-width:0">
+          <b style="font-size:12.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ row.product__name }}</b>
+          <div class="progress" style="margin-top:5px"><i style="width:{{ row.progress_pct }}%"></i></div>
+        </div>
+        <b style="font-size:12px;color:var(--primary);white-space:nowrap">{{ row.total_sold|fa_number }} عدد</b>
+      </div>
+      {% empty %}
+      <p style="color:var(--muted);font-size:13px">در ۳۰ روز گذشته فروشی ثبت نشده است</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>⚠️ هشدار موجودی کم</h3><a class="btn btn-sm" href="#">مدیریت کالاها</a></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>کالا</th><th>دسته‌بندی</th><th>موجودی فعلی</th><th>حد نصاب</th><th>وضعیت</th></tr></thead>
+    <tbody>
+      {% for row in low_stock_rows %}
+      <tr>
+        <td><div class="prod-cell"><div class="thumb" style="background:{{ row.product.tint|default:'var(--primary-soft)' }}">{{ row.product.icon|default:"🛍️" }}</div><div><b>{{ row.product.name }}</b><small dir="ltr">{{ row.product.sku }}</small></div></div></td>
+        <td>{{ row.category_chain }}</td>
+        <td><b>{{ row.product.stock|fa_number }}</b></td>
+        <td>{{ low_stock_threshold|fa_number }}</td>
+        <td><span class="badge {{ row.badge_cls }}">{{ row.badge_label }}</span></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="color:var(--muted)">همه‌ی کالاها موجودی کافی دارند 🎉</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

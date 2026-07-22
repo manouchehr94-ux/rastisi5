@@ -1,0 +1,259 @@
+"""سرویس داده‌ی داشبورد پنل مدیریت — همه‌چیز از دیتابیس، بدون داده‌ی هاردکد.
+
+مطابق docs/spec/02-BUILD-INSTRUCTIONS.md مرحله‌ی ۱۱: کارت‌های آمار، نمودار
+فروش (روزانه/ماهانه)، نمودار دایره‌ای وضعیت سفارش‌ها، پرفروش‌ترین‌های ۳۰ روز
+اخیر (از OrderItem واقعی، نه فیلد استاتیک sold_count)، آخرین سفارش‌ها و
+هشدار موجودی کم.
+"""
+
+from datetime import timedelta
+
+import jdatetime
+from django.db.models import Count, Sum
+from django.db.models.functions import TruncDate, TruncMonth
+from django.utils import timezone
+
+from apps.catalog.models import Product
+from apps.core.utils import to_fa_digits
+from apps.customers.models import Customer
+from apps.orders.models import Order, OrderItem
+
+LOW_STOCK_THRESHOLD = 10
+
+PERSIAN_WEEKDAYS = ["شنبه", "یک‌شنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنج‌شنبه", "جمعه"]
+PERSIAN_MONTHS = [
+    "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
+    "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند",
+]
+
+ORDER_STATUS_BADGE = {
+    Order.Status.PENDING: "b-amber",
+    Order.Status.PROCESSING: "b-blue",
+    Order.Status.SHIPPED: "b-cyan",
+    Order.Status.DELIVERED: "b-green",
+    Order.Status.CANCELED: "b-red",
+}
+PAYMENT_STATUS_BADGE = {
+    Order.PaymentStatus.PENDING: "b-amber",
+    Order.PaymentStatus.PAID: "b-green",
+    Order.PaymentStatus.FAILED: "b-red",
+    Order.PaymentStatus.REFUNDED: "b-purple",
+}
+
+
+def _to_jalali(date_obj):
+    return jdatetime.date.fromgregorian(date=date_obj)
+
+
+def _add_months(date_obj, delta: int):
+    """اولین روز ماه را delta ماه جابه‌جا می‌کند (میلادی، برای گروه‌بندی صحیح بدون وابستگی به طول ماه)."""
+    month_index = date_obj.month - 1 + delta
+    year = date_obj.year + month_index // 12
+    month = month_index % 12 + 1
+    return date_obj.replace(year=year, month=month, day=1)
+
+
+def _pct_change(current, previous):
+    """درصد تغییر؛ اگر مقدار پایه صفر باشد، عددی گمراه‌کننده تولید نمی‌کند."""
+    if previous == 0:
+        return None
+    return (current - previous) / previous * 100
+
+
+def _trend(current, previous):
+    """خروجی آماده‌ی نمایش: درصد تغییر (رشته‌ی فارسی آماده) + جهت، یا None اگر قابل مقایسه نباشد."""
+    pct = _pct_change(current, previous)
+    if pct is None:
+        return None
+    display = to_fa_digits(f"{abs(pct):.1f}".replace(".", "٫"))
+    return {"pct_display": display, "up": pct >= 0}
+
+
+def _paid_totals_by_day(start_date, end_date):
+    rows = (
+        Order.objects.filter(
+            payment_status=Order.PaymentStatus.PAID,
+            created_at__date__gte=start_date, created_at__date__lte=end_date,
+        )
+        .annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(total=Sum("grand_total"))
+    )
+    return {row["day"]: row["total"] for row in rows}
+
+
+def _paid_totals_by_month(start_date):
+    rows = (
+        Order.objects.filter(payment_status=Order.PaymentStatus.PAID, created_at__date__gte=start_date)
+        .annotate(month=TruncMonth("created_at"))
+        .values("month")
+        .annotate(total=Sum("grand_total"))
+    )
+    return {row["month"].date(): row["total"] for row in rows}
+
+
+def sales_chart_data(range_key: str = "month"):
+    """داده و برچسب‌های نمودار روند فروش را برای بازه‌ی هفته/ماه/سال برمی‌گرداند."""
+    today = timezone.localdate()
+
+    if range_key == "week":
+        days = [today - timedelta(days=i) for i in range(6, -1, -1)]
+        totals = _paid_totals_by_day(days[0], days[-1])
+        data = [float(totals.get(d, 0) or 0) for d in days]
+        labels = [PERSIAN_WEEKDAYS[_to_jalali(d).weekday()] for d in days]
+        return data, labels
+
+    if range_key == "year":
+        first_month = _add_months(today.replace(day=1), -11)
+        totals = _paid_totals_by_month(first_month)
+        months = [_add_months(first_month, i) for i in range(12)]
+        data = [float(totals.get(m, 0) or 0) for m in months]
+        labels = [PERSIAN_MONTHS[_to_jalali(m).month - 1] for m in months]
+        return data, labels
+
+    # پیش‌فرض: ۳۰ روز گذشته
+    days = [today - timedelta(days=i) for i in range(29, -1, -1)]
+    totals = _paid_totals_by_day(days[0], days[-1])
+    data = [float(totals.get(d, 0) or 0) for d in days]
+    labels = [to_fa_digits(_to_jalali(d).day) for d in days]
+    return data, labels
+
+
+def order_status_breakdown():
+    """تعداد سفارش‌ها به تفکیک وضعیت، در ماه جاری."""
+    today = timezone.localdate()
+    month_start = today.replace(day=1)
+    counts = dict.fromkeys(Order.Status.values, 0)
+    rows = Order.objects.filter(created_at__date__gte=month_start).values("status").annotate(total=Count("id"))
+    for row in rows:
+        counts[row["status"]] = row["total"]
+    return counts
+
+
+def stat_cards():
+    today = timezone.localdate()
+    yesterday = today - timedelta(days=1)
+    month_start = today.replace(day=1)
+
+    today_sales = float(_paid_totals_by_day(today, today).get(today, 0) or 0)
+    yesterday_sales = float(_paid_totals_by_day(yesterday, yesterday).get(yesterday, 0) or 0)
+
+    today_orders = Order.objects.filter(created_at__date=today).count()
+    yesterday_orders = Order.objects.filter(created_at__date=yesterday).count()
+
+    customers_total = Customer.objects.count()
+    customers_new_this_month = Customer.objects.filter(created_at__date__gte=month_start).count()
+    customers_before = customers_total - customers_new_this_month
+
+    low_stock_count = Product.objects.filter(
+        status=Product.Status.ACTIVE, stock__lte=LOW_STOCK_THRESHOLD,
+    ).count()
+
+    return {
+        "today_sales": today_sales,
+        "today_sales_trend": _trend(today_sales, yesterday_sales),
+        "today_orders": today_orders,
+        "today_orders_trend": _trend(today_orders, yesterday_orders),
+        "customers_total": customers_total,
+        "customers_new_this_month": customers_new_this_month,
+        "customers_trend": _trend(customers_new_this_month, customers_before),
+        "low_stock_count": low_stock_count,
+    }
+
+
+def recent_orders(limit: int = 6):
+    return (
+        Order.objects.select_related("customer")
+        .order_by("-created_at")[:limit]
+    )
+
+
+def top_selling_products(limit: int = 5, days: int = 30):
+    since = timezone.now() - timedelta(days=days)
+    rows = list(
+        OrderItem.objects.filter(order__created_at__gte=since, product__isnull=False)
+        .exclude(order__status=Order.Status.CANCELED)
+        .values("product_id", "product__name", "product__icon", "product__tint")
+        .annotate(total_sold=Sum("quantity"))
+        .order_by("-total_sold")[:limit]
+    )
+    max_sold = max((row["total_sold"] for row in rows), default=0)
+    for row in rows:
+        row["progress_pct"] = round(row["total_sold"] / max_sold * 100) if max_sold else 0
+    return rows
+
+
+def category_chain(category):
+    if category is None:
+        return "—"
+    if category.parent:
+        return f"{category.parent.name} › {category.name}"
+    return category.name
+
+
+def low_stock_products(limit: int = 20):
+    products = (
+        Product.objects.filter(status=Product.Status.ACTIVE, stock__lte=LOW_STOCK_THRESHOLD)
+        .select_related("category", "category__parent")
+        .order_by("stock")[:limit]
+    )
+    rows = []
+    for product in products:
+        if product.stock == 0:
+            badge_cls, badge_label = "b-red", "ناموجود"
+        elif product.stock <= 5:
+            badge_cls, badge_label = "b-red", "بحرانی"
+        else:
+            badge_cls, badge_label = "b-amber", "رو به اتمام"
+        rows.append({
+            "product": product,
+            "category_chain": category_chain(product.category),
+            "badge_cls": badge_cls, "badge_label": badge_label,
+        })
+    return rows
+
+
+DONUT_STATUS_ORDER = [
+    (Order.Status.DELIVERED, "تحویل شده", "#10b981"),
+    (Order.Status.PROCESSING, "در حال پردازش", "#3b82f6"),
+    (Order.Status.SHIPPED, "ارسال شده", "#06b6d4"),
+    (Order.Status.PENDING, "در انتظار پرداخت", "#f59e0b"),
+    (Order.Status.CANCELED, "لغو شده", "#ef4444"),
+]
+
+
+def _today_jalali_display():
+    from apps.core.utils import to_fa_digits
+
+    today = timezone.localdate()
+    jalali = _to_jalali(today)
+    weekday = PERSIAN_WEEKDAYS[jalali.weekday()]
+    month = PERSIAN_MONTHS[jalali.month - 1]
+    return f"{weekday} {to_fa_digits(jalali.day)} {month} {to_fa_digits(jalali.year)}"
+
+
+def build_dashboard_context():
+    from .charts import build_donut_chart_svg, build_line_chart_svg
+
+    cards = stat_cards()
+    data, labels = sales_chart_data("month")
+    status_counts = order_status_breakdown()
+
+    donut_items = [
+        {"label": label, "value": status_counts.get(status, 0), "color": color}
+        for status, label, color in DONUT_STATUS_ORDER
+    ]
+
+    return {
+        "stat_cards": cards,
+        "sales_chart_svg": build_line_chart_svg(data, labels),
+        "donut_svg": build_donut_chart_svg(donut_items),
+        "donut_legend": donut_items,
+        "recent_orders": recent_orders(),
+        "top_products": top_selling_products(),
+        "low_stock_rows": low_stock_products(),
+        "low_stock_threshold": LOW_STOCK_THRESHOLD,
+        "nav_product_count": Product.objects.count(),
+        "nav_pending_order_count": Order.objects.filter(status=Order.Status.PENDING).count(),
+        "today_jalali": _today_jalali_display(),
+    }
