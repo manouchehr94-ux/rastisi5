@@ -1,0 +1,25 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}گزارش‌های حرفه‌ای | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}گزارش‌های حرفه‌ای{% endblock %}
+{% block page_sub %}خلاصه‌ی فروش، محصولات و مشتریان بر اساس بازه‌ی زمانی{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom:18px" x-data="{ range: '{{ range_key }}' }">
+  <div class="card-body" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <span style="font-size:12.5px;font-weight:700">بازه گزارش:</span>
+    <div class="tabs" id="reportRange">
+      {% for value, label in range_filters %}
+      <button type="button" class="tab" :class="{ active: range === '{{ value }}' }"
+              @click="range = '{{ value }}'"
+              hx-get="{% url 'dashboard:report-body' %}?range={{ value }}" hx-target="#reportsBody" hx-swap="innerHTML">{{ label }}</button>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div id="reportsBody">
+  {% include "dashboard/partials/reports_body.html" %}
+</div>
+{% endblock %}

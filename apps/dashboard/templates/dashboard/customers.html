@@ -1,0 +1,19 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}مشتری‌ها | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}مشتری‌ها{% endblock %}
+{% block page_sub %}فهرست مشتریان و سابقه‌ی خرید آن‌ها{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <input class="inp" id="custSearch" name="q" value="{{ q }}" placeholder="جستجوی نام، موبایل یا شهر..." style="width:260px"
+           hx-get="{% url 'dashboard:customer-table' %}" hx-target="#customersTableWrap" hx-swap="innerHTML"
+           hx-trigger="keyup changed delay:300ms">
+  </div>
+  <div class="table-wrap" id="customersTableWrap">
+    {% include "dashboard/partials/customers_table_inner.html" %}
+  </div>
+</div>
+{% endblock %}

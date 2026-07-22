@@ -1,0 +1,71 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian dashboard_extras %}
+
+{% block title %}{{ customer.full_name }} | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}{{ customer.full_name }}{% endblock %}
+{% block page_sub %}پروفایل مشتری و سابقه‌ی سفارش‌ها{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:14px">
+  <a class="btn btn-sm" href="{% url 'dashboard:customer-list' %}">→ بازگشت به فهرست مشتری‌ها</a>
+</div>
+
+<div class="grid g-2" style="gap:16px;margin-bottom:16px">
+  <div class="card">
+    <div class="card-head"><h3>👤 مشخصات</h3>
+      {% if customer.is_vip %}<span class="badge b-purple">مشتری ویژه VIP</span>{% else %}<span class="badge b-gray">عادی</span>{% endif %}
+    </div>
+    <div class="card-body" style="font-size:12.5px;line-height:2">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <div class="avatar" style="width:48px;height:48px;font-size:16px">{{ customer.full_name|slice:":2" }}</div>
+        <div><b style="font-size:14px;display:block">{{ customer.full_name }}</b><span dir="ltr">{{ customer.phone }}</span></div>
+      </div>
+      {% if customer.email %}ایمیل: <span dir="ltr">{{ customer.email }}</span><br>{% endif %}
+      شهر: {{ customer.city|default:"—" }}<br>
+      تاریخ عضویت: {{ customer.created_at|jalali }}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>📦 خلاصه‌ی خرید</h3></div>
+    <div class="card-body" style="display:flex;gap:22px;flex-wrap:wrap">
+      <div><div class="val" style="font-size:20px;font-weight:800">{{ orders.count|fa_number }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">تعداد سفارش</div></div>
+      <div><div class="val" style="font-size:20px;font-weight:800">{{ paid_total|default:0|toman }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">مجموع خرید پرداخت‌شده</div></div>
+    </div>
+  </div>
+</div>
+
+{% if customer.addresses.all %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3>📍 آدرس‌ها</h3></div>
+  <div class="card-body">
+    {% for address in customer.addresses.all %}
+    <div style="padding:8px 0;{% if not forloop.last %}border-bottom:1px dashed var(--border){% endif %};font-size:12.5px">
+      <b>{{ address.receiver_name }}</b>{% if address.is_default %} <span class="badge b-blue">پیش‌فرض</span>{% endif %}<br>
+      {{ address.province }}، {{ address.city }} — {{ address.full_address }}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head"><h3>سفارش‌های مشتری</h3></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>کد سفارش</th><th>تاریخ</th><th>مبلغ کل</th><th>پرداخت</th><th>وضعیت سفارش</th><th>عملیات</th></tr></thead>
+    <tbody>
+      {% for order in orders %}
+      <tr>
+        <td><b dir="ltr">{{ order.code }}</b></td>
+        <td>{{ order.created_at|jalali }}</td>
+        <td><b>{{ order.grand_total|toman }}</b></td>
+        <td><span class="badge {{ order.payment_status|payment_status_badge }}">{{ order.get_payment_status_display }}</span></td>
+        <td><span class="badge {{ order.status|order_status_badge }}">{{ order.get_status_display }}</span></td>
+        <td><a class="btn btn-sm" href="{% url 'dashboard:order-detail' order.code %}">👁️ مشاهده</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">این مشتری هنوز سفارشی ثبت نکرده است</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

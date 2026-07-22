@@ -1,0 +1,107 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}تنظیمات | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}تنظیمات{% endblock %}
+{% block page_sub %}اطلاعات فروشگاه، درگاه‌های پرداخت، ارسال و قواعد مالی{% endblock %}
+
+{% block content %}
+<div class="grid g-2" style="margin-bottom:18px">
+  <div class="card">
+    <div class="card-head"><h3>🏦 درگاه‌های پرداخت</h3></div>
+    <div class="card-body">
+      {% for gateway in gateways %}
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;{% if not forloop.last %}border-bottom:1px solid var(--border){% endif %}">
+        <div style="display:flex;gap:11px;align-items:center">
+          <div style="width:40px;height:40px;border-radius:11px;background:var(--bg);display:grid;place-items:center;font-size:19px">{{ gateway.icon|default:"💳" }}</div>
+          <div><b style="font-size:13px">{{ gateway.name }}</b><div style="font-size:11.5px;color:var(--muted)">{{ gateway.description }}</div></div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" {% if gateway.is_active %}checked{% endif %}
+                 hx-post="{% url 'dashboard:settings-gateway-toggle' gateway.pk %}" hx-trigger="change" hx-swap="none">
+          <span></span>
+        </label>
+      </div>
+      {% empty %}
+      <p style="font-size:12.5px;color:var(--muted)">درگاهی ثبت نشده است.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>🚚 روش‌های ارسال</h3></div>
+    <div class="card-body">
+      {% for method in shipping_methods %}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;{% if not forloop.last %}border-bottom:1px solid var(--border){% endif %}">
+        <div><b style="font-size:13px">{{ method.name }}</b><div style="font-size:11.5px;color:var(--muted)">{{ method.description }} — {{ method.cost|toman }}</div></div>
+        <label class="switch">
+          <input type="checkbox" {% if method.is_active %}checked{% endif %}
+                 hx-post="{% url 'dashboard:settings-shipping-toggle' method.pk %}" hx-trigger="change" hx-swap="none">
+          <span></span>
+        </label>
+      </div>
+      {% empty %}
+      <p style="font-size:12.5px;color:var(--muted)">روش ارسالی ثبت نشده است.</p>
+      {% endfor %}
+      <div class="form-group" style="margin-top:14px">
+        <label>ارسال رایگان برای خرید بالای</label>
+        <div class="inp" style="background:var(--bg);cursor:default">{{ shop.free_shipping_threshold|toman }}</div>
+        <small style="color:var(--muted);font-size:11px">این مقدار از بخش «تنظیمات مالی» قابل ویرایش است.</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid g-2">
+  <div class="card">
+    <div class="card-head"><h3>🏪 اطلاعات فروشگاه</h3></div>
+    <div class="card-body">
+      <form method="post" action="{% url 'dashboard:settings-shop-info' %}">
+        {% csrf_token %}
+        <div class="form-row">
+          <div class="form-group">
+            <label>نام فروشگاه</label>
+            {{ shop_form.name }}
+            {% for error in shop_form.name.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
+          </div>
+          <div class="form-group"><label>شماره تماس</label>{{ shop_form.contact_phone }}</div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>ایمیل فروشگاه</label>
+            {{ shop_form.contact_email }}
+            {% for error in shop_form.contact_email.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
+          </div>
+          <div class="form-group"><label>شعار فروشگاه</label>{{ shop_form.tagline }}</div>
+        </div>
+        <div class="form-group"><label>آدرس</label>{{ shop_form.contact_address }}</div>
+        <div class="form-group"><label>توضیحات فروشگاه (درباره ما)</label>{{ shop_form.description }}</div>
+        <button type="submit" class="btn btn-primary">ذخیره اطلاعات</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>💰 تنظیمات مالی و مالیات</h3></div>
+    <div class="card-body">
+      <form method="post" action="{% url 'dashboard:settings-finance' %}">
+        {% csrf_token %}
+        <div class="form-row">
+          <div class="form-group">
+            <label>نرخ مالیات (٪)</label>
+            {{ finance_form.tax_percent }}
+            {% for error in finance_form.tax_percent.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
+          </div>
+          <div class="form-group">
+            <label>آستانه‌ی ارسال رایگان (تومان)</label>
+            {{ finance_form.free_shipping_threshold }}
+            {% for error in finance_form.free_shipping_threshold.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
+          </div>
+        </div>
+        <p style="font-size:11.5px;color:var(--muted);margin-bottom:14px">این دو مقدار همان‌هایی هستند که سرویس قیمت‌گذاری سایت (سبد خرید و تسویه‌حساب) واقعاً استفاده می‌کند.</p>
+        <button type="submit" class="btn btn-primary">ذخیره</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

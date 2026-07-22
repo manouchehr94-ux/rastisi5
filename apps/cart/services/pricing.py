@@ -6,13 +6,10 @@
 
 from decimal import ROUND_HALF_UP, Decimal
 
-from django.conf import settings
 from django.utils import timezone
 
 from apps.cart.models import Coupon
-
-DEFAULT_FREE_SHIPPING_THRESHOLD = Decimal("500000")
-DEFAULT_TAX_PERCENT = Decimal("9")
+from apps.core.models import ShopSettings
 
 
 def product_final_price(product) -> Decimal:
@@ -21,11 +18,13 @@ def product_final_price(product) -> Decimal:
 
 
 def _free_shipping_threshold() -> Decimal:
-    return Decimal(getattr(settings, "SHOP_FREE_SHIPPING_THRESHOLD", DEFAULT_FREE_SHIPPING_THRESHOLD))
+    """آستانه‌ی ارسال رایگان — همان مقداری که در پنل مدیریت › تنظیمات ثبت شده (apps.core.models.ShopSettings)."""
+    return ShopSettings.load().free_shipping_threshold
 
 
 def _tax_percent() -> Decimal:
-    return Decimal(getattr(settings, "SHOP_TAX_PERCENT", DEFAULT_TAX_PERCENT))
+    """نرخ مالیات — همان مقداری که در پنل مدیریت › تنظیمات ثبت شده (apps.core.models.ShopSettings)."""
+    return ShopSettings.load().tax_percent
 
 
 def _round(amount: Decimal) -> Decimal:

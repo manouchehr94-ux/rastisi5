@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+
 from django import forms
 
 from apps.catalog.models import Category, Product
@@ -17,6 +19,20 @@ class NumericCleanMixin:
             value = int(raw)
         except ValueError:
             raise forms.ValidationError("باید یک عدد صحیح باشد")
+        if min_value is not None and value < min_value:
+            raise forms.ValidationError(f"باید حداقل {min_value} باشد")
+        if max_value is not None and value > max_value:
+            raise forms.ValidationError(f"باید حداکثر {max_value} باشد")
+        return value
+
+    def _clean_decimal(self, field_name, *, min_value=None, max_value=None):
+        raw = normalize_digits(self.cleaned_data.get(field_name, "")).strip()
+        if raw == "":
+            raise forms.ValidationError("این فیلد الزامی است")
+        try:
+            value = Decimal(raw)
+        except InvalidOperation:
+            raise forms.ValidationError("باید یک عدد باشد")
         if min_value is not None and value < min_value:
             raise forms.ValidationError(f"باید حداقل {min_value} باشد")
         if max_value is not None and value > max_value:
@@ -90,3 +106,37 @@ class SubCategoryForm(forms.Form):
 class CategoryEditForm(forms.Form):
     name = forms.CharField(label="نام", max_length=120)
     icon = forms.CharField(label="آیکون (ایموجی)", max_length=10, required=False)
+
+
+class ShopInfoForm(forms.Form):
+    name = forms.CharField(label="نام فروشگاه", max_length=150, widget=forms.TextInput(attrs={"class": "inp"}))
+    tagline = forms.CharField(
+        label="شعار فروشگاه", max_length=200, required=False, widget=forms.TextInput(attrs={"class": "inp"})
+    )
+    contact_phone = forms.CharField(
+        label="شماره تماس", max_length=30, required=False,
+        widget=forms.TextInput(attrs={"class": "inp", "dir": "ltr"}),
+    )
+    contact_email = forms.EmailField(
+        label="ایمیل فروشگاه", required=False, widget=forms.EmailInput(attrs={"class": "inp", "dir": "ltr"})
+    )
+    contact_address = forms.CharField(
+        label="آدرس", max_length=300, required=False,
+        widget=forms.Textarea(attrs={"class": "inp", "rows": 2}),
+    )
+    description = forms.CharField(
+        label="توضیحات فروشگاه", required=False, widget=forms.Textarea(attrs={"class": "inp", "rows": 3})
+    )
+
+
+class FinanceSettingsForm(NumericCleanMixin, forms.Form):
+    tax_percent = forms.CharField(label="نرخ مالیات (٪)", widget=forms.TextInput(attrs={"class": "inp"}))
+    free_shipping_threshold = forms.CharField(
+        label="آستانه‌ی ارسال رایگان (تومان)", widget=forms.TextInput(attrs={"class": "inp"})
+    )
+
+    def clean_tax_percent(self):
+        return self._clean_decimal("tax_percent", min_value=0, max_value=100)
+
+    def clean_free_shipping_threshold(self):
+        return self._clean_int("free_shipping_threshold", min_value=0)

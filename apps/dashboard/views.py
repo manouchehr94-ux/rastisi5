@@ -2,17 +2,27 @@ import json
 
 from django.contrib import messages
 from django.db.models import ProtectedError
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
 from apps.catalog.models import Category, Product
+from apps.core.models import ShopSettings
+from apps.customers.models import Customer
 from apps.orders.models import Order, Transaction
 from apps.orders.services.order_service import change_order_status
 
 from .decorators import staff_required
-from .forms import CategoryEditForm, MainCategoryForm, ProductForm, SubCategoryForm
-from .services import dashboard_service
+from .forms import (
+    CategoryEditForm,
+    FinanceSettingsForm,
+    MainCategoryForm,
+    ProductForm,
+    ShopInfoForm,
+    SubCategoryForm,
+)
+from .services import customers_admin_service, dashboard_service, report_service, settings_admin_service
 from .services.catalog_admin_service import (
     PRODUCT_STATUS_FILTERS,
     CategoryDeleteError,
@@ -377,3 +387,128 @@ def payment_list(request):
 @staff_required
 def payment_table(request):
     return render(request, "dashboard/partials/payments_table_inner.html", _payment_list_context(request))
+
+
+# ---------------------------------------------------------------- مشتریان
+
+
+def _customer_list_context(request):
+    q = request.GET.get("q", "").strip()
+    return {"customers": customers_admin_service.annotated_customers(q=q), "q": q}
+
+
+@staff_required
+def customer_list(request):
+    context = _customer_list_context(request)
+    context["active_page"] = "customers"
+    return render(request, "dashboard/customers.html", context)
+
+
+@staff_required
+def customer_table(request):
+    return render(request, "dashboard/partials/customers_table_inner.html", _customer_list_context(request))
+
+
+@staff_required
+def customer_detail(request, pk):
+    customer = get_object_or_404(Customer, pk=pk)
+    orders = customers_admin_service.customer_orders(customer)
+    context = {
+        "customer": customer,
+        "orders": orders,
+        "paid_total": customers_admin_service.customer_paid_total(orders),
+        "active_page": "customers",
+    }
+    return render(request, "dashboard/customer_detail.html", context)
+
+
+# -------------------------------------------------------- گزارش‌های حرفه‌ای
+
+
+@staff_required
+def report_list(request):
+    context = report_service.build_report_context(request.GET.get("range", "30"))
+    context["active_page"] = "reports"
+    return render(request, "dashboard/reports.html", context)
+
+
+@staff_required
+def report_partial(request):
+    context = report_service.build_report_context(request.GET.get("range", "30"))
+    return render(request, "dashboard/partials/reports_body.html", context)
+
+
+# ------------------------------------------------------------------ تنظیمات
+
+
+def _settings_context(request, *, shop_form=None, finance_form=None):
+    shop = ShopSettings.load()
+    return {
+        "shop": shop,
+        "shop_form": shop_form or ShopInfoForm(initial={
+            "name": shop.name, "tagline": shop.tagline, "contact_phone": shop.contact_phone,
+            "contact_email": shop.contact_email, "contact_address": shop.contact_address,
+            "description": shop.description,
+        }),
+        "finance_form": finance_form or FinanceSettingsForm(initial={
+            "tax_percent": shop.tax_percent, "free_shipping_threshold": shop.free_shipping_threshold,
+        }),
+        "gateways": settings_admin_service.active_gateways_context(),
+        "shipping_methods": settings_admin_service.shipping_methods_context(),
+        "active_page": "settings",
+    }
+
+
+@staff_required
+def settings_home(request):
+    return render(request, "dashboard/settings.html", _settings_context(request))
+
+
+@require_POST
+@staff_required
+def settings_shop_info(request):
+    form = ShopInfoForm(request.POST)
+    if form.is_valid():
+        shop = ShopSettings.load()
+        for field in ["name", "tagline", "contact_phone", "contact_email", "contact_address", "description"]:
+            setattr(shop, field, form.cleaned_data[field])
+        shop.save()
+        messages.success(request, "اطلاعات فروشگاه ذخیره شد")
+        return redirect("dashboard:settings")
+    return render(request, "dashboard/settings.html", _settings_context(request, shop_form=form))
+
+
+@require_POST
+@staff_required
+def settings_finance(request):
+    form = FinanceSettingsForm(request.POST)
+    if form.is_valid():
+        shop = ShopSettings.load()
+        shop.tax_percent = form.cleaned_data["tax_percent"]
+        shop.free_shipping_threshold = form.cleaned_data["free_shipping_threshold"]
+        shop.save()
+        messages.success(request, "تنظیمات مالی ذخیره شد")
+        return redirect("dashboard:settings")
+    return render(request, "dashboard/settings.html", _settings_context(request, finance_form=form))
+
+
+@require_POST
+@staff_required
+def settings_gateway_toggle(request, pk):
+    gateway = settings_admin_service.toggle_gateway(pk)
+    state = "فعال" if gateway.is_active else "غیرفعال"
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = json.dumps({"toast": {"message": f"درگاه «{gateway.name}» {state} شد", "type": "info"}})
+    return response
+
+
+@require_POST
+@staff_required
+def settings_shipping_toggle(request, pk):
+    method = settings_admin_service.toggle_shipping_method(pk)
+    state = "فعال" if method.is_active else "غیرفعال"
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = json.dumps({
+        "toast": {"message": f"روش ارسال «{method.name}» {state} شد", "type": "info"},
+    })
+    return response

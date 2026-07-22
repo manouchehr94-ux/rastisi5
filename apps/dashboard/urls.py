@@ -30,4 +30,17 @@ urlpatterns = [
 
     path("payments/", views.payment_list, name="payment-list"),
     path("payments/table/", views.payment_table, name="payment-table"),
+
+    path("customers/", views.customer_list, name="customer-list"),
+    path("customers/table/", views.customer_table, name="customer-table"),
+    path("customers/<int:pk>/", views.customer_detail, name="customer-detail"),
+
+    path("reports/", views.report_list, name="report-list"),
+    path("reports/body/", views.report_partial, name="report-body"),
+
+    path("settings/", views.settings_home, name="settings"),
+    path("settings/shop-info/", views.settings_shop_info, name="settings-shop-info"),
+    path("settings/finance/", views.settings_finance, name="settings-finance"),
+    path("settings/gateways/<int:pk>/toggle/", views.settings_gateway_toggle, name="settings-gateway-toggle"),
+    path("settings/shipping/<int:pk>/toggle/", views.settings_shipping_toggle, name="settings-shipping-toggle"),
 ]

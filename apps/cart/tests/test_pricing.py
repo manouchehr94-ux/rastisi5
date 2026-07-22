@@ -1,11 +1,12 @@
 from decimal import Decimal
 
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.utils import timezone
 
 from apps.catalog.models import Category, Product, Vendor
 from apps.cart.models import Cart, CartItem, Coupon
 from apps.cart.services.pricing import cart_totals, coupon_is_applicable, product_final_price
+from apps.core.models import ShopSettings
 from apps.orders.models import ShippingMethod
 
 
@@ -121,8 +122,13 @@ class PricingServiceTests(TestCase):
         )
         self.assertFalse(coupon_is_applicable(coupon, Decimal("100000")))
 
-    @override_settings(SHOP_TAX_PERCENT=5, SHOP_FREE_SHIPPING_THRESHOLD=1_000_000)
-    def test_tax_and_threshold_are_configurable_via_settings(self):
+    def test_tax_and_threshold_are_configurable_via_shop_settings(self):
+        """نرخ مالیات و آستانه‌ی ارسال رایگان از همان ShopSettings خوانده می‌شوند که پنل مدیریت ویرایش می‌کند."""
+        shop = ShopSettings.load()
+        shop.tax_percent = Decimal("5")
+        shop.free_shipping_threshold = Decimal("1000000")
+        shop.save()
+
         self._add_item(price=100_000, quantity=1)
         totals = cart_totals(self.cart, shipping_method=self.shipping)
         self.assertEqual(totals["tax"], Decimal("5000"))

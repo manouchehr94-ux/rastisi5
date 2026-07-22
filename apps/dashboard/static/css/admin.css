@@ -178,6 +178,13 @@ body.admin-body{
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:5px 11px;font-size:12px;font-weight:600}
 .chip .rm{color:var(--red);cursor:pointer;font-weight:800}
 
+.switch{position:relative;width:44px;height:24px;flex-shrink:0;display:inline-block}
+.switch input{display:none}
+.switch span{position:absolute;inset:0;background:var(--border);border-radius:20px;transition:.2s;cursor:pointer}
+.switch span::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;right:3px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.switch input:checked + span{background:var(--green)}
+.switch input:checked + span::after{transform:translateX(-20px)}
+
 .timeline{position:relative;padding-right:20px}
 .timeline::before{content:'';position:absolute;right:5px;top:6px;bottom:6px;width:2px;background:var(--border)}
 .tl-item{position:relative;padding:0 0 16px 0}

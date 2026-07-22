@@ -1,14 +1,16 @@
-from django.conf import settings
+from apps.core.models import ShopSettings
 
 
 def shop_settings(request):
-    """هویت و تنظیمات عمومی پلتفرم — در همه‌ی تمپلیت‌ها بدون پاس‌دادن دستی در دسترس است."""
+    """هویت و تنظیمات عمومی پلتفرم — از همان رکورد ShopSettings که پنل مدیریت › تنظیمات ویرایش می‌کند."""
+    shop = ShopSettings.load()
     return {
-        "SHOP_NAME": getattr(settings, "SHOP_NAME", "فروشگاه اینترنتی"),
-        "SHOP_TAGLINE": getattr(settings, "SHOP_TAGLINE", ""),
-        "SHOP_CONTACT_PHONE": getattr(settings, "SHOP_CONTACT_PHONE", ""),
-        "SHOP_CONTACT_EMAIL": getattr(settings, "SHOP_CONTACT_EMAIL", ""),
-        "SHOP_CONTACT_ADDRESS": getattr(settings, "SHOP_CONTACT_ADDRESS", ""),
-        "SHOP_FREE_SHIPPING_THRESHOLD": getattr(settings, "SHOP_FREE_SHIPPING_THRESHOLD", 0),
-        "SHOP_TAX_PERCENT": getattr(settings, "SHOP_TAX_PERCENT", 9),
+        "SHOP_NAME": shop.name,
+        "SHOP_TAGLINE": shop.tagline,
+        "SHOP_CONTACT_PHONE": shop.contact_phone,
+        "SHOP_CONTACT_EMAIL": shop.contact_email,
+        "SHOP_CONTACT_ADDRESS": shop.contact_address,
+        "SHOP_DESCRIPTION": shop.description,
+        "SHOP_FREE_SHIPPING_THRESHOLD": shop.free_shipping_threshold,
+        "SHOP_TAX_PERCENT": shop.tax_percent,
     }
