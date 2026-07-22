@@ -1,0 +1,31 @@
+{% load persian %}
+<form class="acc-form" hx-post="{% url 'customers:account-profile-update' %}" hx-target="#account-profile" hx-swap="innerHTML">
+  {% csrf_token %}
+  <div class="fg">
+    <label>شماره موبایل (شناسه‌ی ورود)</label>
+    <input class="inp" value="{{ customer.phone }}" dir="ltr" disabled>
+  </div>
+  <div class="frow">
+    <div class="fg">
+      <label>نام و نام خانوادگی *</label>
+      <input class="inp" name="full_name" value="{{ profile_form.full_name.value|default_if_none:'' }}">
+      {% for err in profile_form.full_name.errors %}<div class="coup-err">{{ err }}</div>{% endfor %}
+    </div>
+    <div class="fg">
+      <label>شهر</label>
+      <input class="inp" name="city" value="{{ profile_form.city.value|default_if_none:'' }}">
+    </div>
+  </div>
+  <div class="fg">
+    <label>ایمیل</label>
+    <input class="inp" type="email" name="email" value="{{ profile_form.email.value|default_if_none:'' }}" dir="ltr">
+    {% for err in profile_form.email.errors %}<div class="coup-err">{{ err }}</div>{% endfor %}
+  </div>
+  <button type="submit" class="btn btn-primary">ذخیره‌ی تغییرات</button>
+</form>
+
+<div class="acc-stats">
+  <div class="acc-stat"><b>{{ customer.orders_count|fa_number }}</b><span>تعداد سفارش</span></div>
+  <div class="acc-stat"><b>{{ customer.total_spent|toman }}</b><span>مجموع خرید</span></div>
+  <div class="acc-stat"><b>{% if customer.is_vip %}ویژه 🌟{% else %}عادی{% endif %}</b><span>سطح مشتری</span></div>
+</div>

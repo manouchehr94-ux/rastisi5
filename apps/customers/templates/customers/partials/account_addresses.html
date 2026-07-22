@@ -1,0 +1,63 @@
+{% load persian %}
+<div class="addr-list">
+  {% for address in addresses %}
+  <div class="addr-card{% if address.is_default %} is-default{% endif %}">
+    {% if address.is_default %}<span class="addr-badge">پیش‌فرض</span>{% endif %}
+    <b>{{ address.receiver_name }}</b>
+    <div class="addr-meta">{{ address.province }}، {{ address.city }} — {{ address.full_address }}</div>
+    <div class="addr-meta" dir="ltr" style="text-align:start">{{ address.phone }}{% if address.postal_code %} · {{ address.postal_code|fa_number }}{% endif %}</div>
+    <div class="addr-actions">
+      {% if not address.is_default %}
+      <button type="button" hx-post="{% url 'customers:address-set-default' address.id %}" hx-target="#account-addresses" hx-swap="innerHTML">تنظیم به‌عنوان پیش‌فرض</button>
+      {% endif %}
+      <button type="button" class="danger" hx-post="{% url 'customers:address-delete' address.id %}" hx-target="#account-addresses" hx-swap="innerHTML">حذف</button>
+    </div>
+  </div>
+  {% empty %}
+  <p style="color:var(--muted);font-size:13px">هنوز آدرسی ثبت نکرده‌اید.</p>
+  {% endfor %}
+</div>
+
+<div class="card" style="margin-top:18px">
+  <div class="card-h"><span class="ic">➕</span>افزودن آدرس جدید</div>
+  <div class="card-b">
+    <form hx-post="{% url 'customers:address-add' %}" hx-target="#account-addresses" hx-swap="innerHTML">
+      {% csrf_token %}
+      <div class="frow">
+        <div class="fg">
+          <label>نام گیرنده *</label>
+          <input class="inp" name="receiver_name" value="{{ address_form.receiver_name.value|default_if_none:'' }}">
+          {% for err in address_form.receiver_name.errors %}<div class="coup-err">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="fg">
+          <label>شماره موبایل گیرنده *</label>
+          <input class="inp" name="phone" value="{{ address_form.phone.value|default_if_none:'' }}" dir="ltr">
+          {% for err in address_form.phone.errors %}<div class="coup-err">{{ err }}</div>{% endfor %}
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fg">
+          <label>استان *</label>
+          <input class="inp" name="province" value="{{ address_form.province.value|default_if_none:'' }}">
+          {% for err in address_form.province.errors %}<div class="coup-err">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="fg">
+          <label>شهر *</label>
+          <input class="inp" name="city" value="{{ address_form.city.value|default_if_none:'' }}">
+          {% for err in address_form.city.errors %}<div class="coup-err">{{ err }}</div>{% endfor %}
+        </div>
+      </div>
+      <div class="fg">
+        <label>کد پستی</label>
+        <input class="inp" name="postal_code" value="{{ address_form.postal_code.value|default_if_none:'' }}" dir="ltr">
+        {% for err in address_form.postal_code.errors %}<div class="coup-err">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="fg" style="margin-bottom:0">
+        <label>آدرس پستی کامل *</label>
+        <textarea class="inp" name="full_address" rows="2">{{ address_form.full_address.value|default_if_none:'' }}</textarea>
+        {% for err in address_form.full_address.errors %}<div class="coup-err">{{ err }}</div>{% endfor %}
+      </div>
+      <button type="submit" class="btn btn-primary" style="margin-top:14px">ثبت آدرس</button>
+    </form>
+  </div>
+</div>

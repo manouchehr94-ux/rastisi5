@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from apps.cart.models import Coupon
 from apps.cart.services.pricing import cart_totals, coupon_is_applicable
+from apps.customers.models import Address
 from apps.orders.models import PaymentGateway, ShippingMethod
 
 SESSION_KEY = "checkout"
@@ -117,6 +118,60 @@ def apply_coupon(request, cart, code: str) -> tuple[bool, str]:
 def remove_coupon(request) -> None:
     _state(request).pop("coupon_code", None)
     request.session.modified = True
+
+
+class CheckoutError(Exception):
+    """خطای قابل‌نمایش به کاربر هنگام نهایی‌سازی سفارش."""
+
+
+def _resolve_or_create_address(customer, address_data: dict) -> Address:
+    is_first = not customer.addresses.exists()
+    return Address.objects.create(
+        customer=customer,
+        receiver_name=address_data["receiver_name"],
+        phone=address_data["phone"],
+        province=address_data["province"],
+        city=address_data["city"],
+        postal_code=address_data.get("postal_code", ""),
+        full_address=address_data["full_address"],
+        is_default=is_first,
+    )
+
+
+def finalize_order(request, cart, customer):
+    """سفارش را از روی سبد و آدرس ذخیره‌شده در session می‌سازد، سبد را خالی و session را پاک می‌کند."""
+    from apps.orders.services.order_service import create_order_from_cart
+
+    if cart is None or not cart.items.exists():
+        raise CheckoutError("سبد خرید شما خالی است")
+
+    address_data = get_address(request)
+    if not address_data.get("full_address"):
+        raise CheckoutError("لطفاً ابتدا اطلاعات گیرنده را تکمیل کنید")
+
+    vendor = cart.items.select_related("product__vendor").first().product.vendor
+    shipping_method = get_selected_shipping_method(request)
+    payment_gateway = get_selected_payment_gateway(request)
+    if shipping_method is None:
+        raise CheckoutError("هیچ روش ارسال فعالی موجود نیست")
+    if payment_gateway is None:
+        raise CheckoutError("هیچ درگاه پرداخت فعالی موجود نیست")
+
+    coupon = get_applied_coupon(request, cart)
+    address = _resolve_or_create_address(customer, address_data)
+
+    try:
+        order = create_order_from_cart(
+            cart, customer=customer, vendor=vendor, address=address,
+            shipping_method=shipping_method, payment_gateway=payment_gateway,
+            coupon=coupon, note=address_data.get("note", ""),
+        )
+    except ValueError as exc:
+        raise CheckoutError(str(exc)) from exc
+
+    cart.items.all().delete()
+    request.session.pop(SESSION_KEY, None)
+    return order
 
 
 def build_context(request, cart) -> dict:

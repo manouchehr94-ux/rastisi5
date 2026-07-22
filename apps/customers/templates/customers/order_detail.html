@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% load static persian %}
+
+{% block title %}
+{% if order %}سفارش {{ order.code }}{% else %}سفارش یافت نشد{% endif %} | {{ SHOP_NAME }}
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/cart.css' %}">
+<link rel="stylesheet" href="{% static 'css/checkout.css' %}">
+<link rel="stylesheet" href="{% static 'css/account.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="breadcrumb">
+    <a href="/">خانه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <a href="{% url 'customers:account' %}">حساب کاربری</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span style="color:var(--ink)">{% if order %}{{ order.code }}{% else %}سفارش{% endif %}</span>
+  </div>
+
+  {% if not can_view %}
+  <div class="card empty" style="margin:20px 0 60px">
+    <div class="em">👤</div>
+    <h3>ابتدا وارد حساب کاربری خود شوید</h3>
+    <p>برای مشاهده‌ی جزئیات سفارش باید وارد حساب کاربری شوید.</p>
+    <button type="button" class="btn btn-primary" @click="loginOpen = true">ورود / ثبت‌نام</button>
+  </div>
+  {% elif not order %}
+  <div class="card empty" style="margin:20px 0 60px">
+    <div class="em">📦</div>
+    <h3>سفارشی با این شناسه پیدا نشد</h3>
+    <a class="btn btn-primary" href="{% url 'customers:account' %}">بازگشت به حساب کاربری</a>
+  </div>
+  {% else %}
+  <div class="acc-head">
+    <h1 dir="ltr" style="text-align:start">{{ order.code }}</h1>
+    <p>
+      <span class="badge badge-{{ order.status }}">{{ order.get_status_display }}</span>
+      <span class="badge badge-pay-{{ order.payment_status }}">{{ order.get_payment_status_display }}</span>
+      — ثبت‌شده در {{ order.created_at|jalali }}
+    </p>
+  </div>
+
+  <div class="co-grid">
+    <div class="col-main">
+      <div class="card">
+        <div class="card-h"><span class="ic">🛍️</span>اقلام سفارش</div>
+        <div class="card-b" style="padding-top:4px">
+          {% for item in order.items.all %}
+          <div class="citem">
+            <div class="info">
+              <b>{{ item.product_name }}</b>
+              <div class="meta"><span>{{ item.quantity|fa_number }} عدد × {{ item.unit_price|toman }}</span></div>
+            </div>
+            <div class="right"><div class="lp">{{ item.line_total|toman }}</div></div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><span class="ic">📍</span>آدرس گیرنده</div>
+        <div class="card-b">
+          <b>{{ order.address.receiver_name }}</b>
+          <div class="addr-meta">{{ order.address.province }}، {{ order.address.city }} — {{ order.address.full_address }}</div>
+          <div class="addr-meta" dir="ltr" style="text-align:start">{{ order.address.phone }}</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><span class="ic">🕓</span>تاریخچه‌ی وضعیت</div>
+        <div class="card-b">
+          {% for h in order.status_history.all %}
+          <div class="citem">
+            <div class="info">
+              <b>{% if h.from_status %}{{ h.get_from_status_display }} ← {% endif %}{{ h.get_to_status_display }}</b>
+              {% if h.note %}<div class="meta"><span>{{ h.note }}</span></div>{% endif %}
+            </div>
+            <div class="right"><div class="lp" style="font-weight:600;font-size:11.5px;color:var(--muted)">{{ h.created_at|jalali }}</div></div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-sum">
+      <div class="card">
+        <div class="card-h"><span class="ic">🧾</span>خلاصه‌ی مالی</div>
+        <div class="card-b">
+          <div class="totals">
+            <div class="ln"><span>جمع کالاها</span><b>{{ order.items_total|toman }}</b></div>
+            {% if order.product_discount > 0 %}<div class="ln disc"><span>تخفیف کالاها</span><b>− {{ order.product_discount|toman }}</b></div>{% endif %}
+            {% if order.coupon_discount > 0 %}<div class="ln disc"><span>کد تخفیف</span><b>− {{ order.coupon_discount|toman }}</b></div>{% endif %}
+            <div class="ln"><span>هزینه ارسال ({{ order.shipping_method.name }})</span><b>{{ order.shipping_cost|toman }}</b></div>
+            <div class="ln"><span>مالیات</span><b>{{ order.tax|toman }}</b></div>
+            <div class="ln grand"><span>مبلغ نهایی</span><span class="v">{{ order.grand_total|toman }}</span></div>
+          </div>
+          <div style="margin-top:14px;font-size:12.5px;color:var(--muted)">روش پرداخت: {{ order.payment_gateway.name }}</div>
+          <a class="btn btn-ghost btn-block" style="margin-top:14px;height:44px" href="{% url 'catalog:product-list' %}">بازگشت به فروشگاه</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

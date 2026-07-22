@@ -20,7 +20,7 @@ class CreateOrderFromCartTests(TestCase):
         self.category = Category.objects.create(name="دیجیتال", slug="digital-os")
         self.product = Product.objects.create(
             vendor=self.vendor, category=self.category, name="هدفون", slug="headphone-os",
-            sku="SKU-OS1", price=Decimal("1000000"), discount_percent=10,
+            sku="SKU-OS1", price=Decimal("1000000"), discount_percent=10, stock=10,
         )
         self.shipping = ShippingMethod.objects.create(name="پست", slug="post-os", cost=Decimal("45000"))
         self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-os")

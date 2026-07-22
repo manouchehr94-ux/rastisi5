@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load static persian %}
+
+{% block title %}{% if order.payment_status == "paid" %}پرداخت موفق{% else %}پرداخت ناموفق{% endif %} | {{ SHOP_NAME }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/cart.css' %}">
+<link rel="stylesheet" href="{% static 'css/checkout.css' %}">
+{% endblock %}
+
+{% block header %}
+<div class="top"><div class="wrap">
+  <a class="logo" href="/">
+    <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 00-1 3.73V8L3 14v2h18v-2L13 8V6.73A2 2 0 0012 3z"/></svg></span>
+    <span><b>{{ SHOP_NAME }}</b><small>تسویه‌حساب امن</small></span>
+  </a>
+  <span class="secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>اتصال امن (SSL)</span>
+</div></div>
+
+<div class="stepper-bar"><div class="steps">
+  <div class="step done"><span class="num">۱</span>سبد خرید</div><span class="line done"></span>
+  <div class="step done"><span class="num">۲</span>پرداخت</div><span class="line done"></span>
+  <div class="step active"><span class="num">۳</span>پایان</div>
+</div></div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="content"><div class="wrap">
+  <div class="res-wrap">
+    <div class="res">
+      <div class="res-top {% if order.payment_status == 'paid' %}ok{% else %}no{% endif %}">
+        <div class="chk">
+          {% if order.payment_status == "paid" %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+          {% else %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          {% endif %}
+        </div>
+        {% if order.payment_status == "paid" %}
+        <h2>پرداخت با موفقیت انجام شد</h2>
+        <p>سفارش شما ثبت شد و پس از پردازش ارسال می‌گردد. از خریدتان سپاسگزاریم 🌹</p>
+        {% else %}
+        <h2>پرداخت ناموفق بود</h2>
+        <p>تراکنش تأیید نشد. هیچ مبلغی از حساب شما کسر نشده است.</p>
+        {% endif %}
+      </div>
+      <div class="res-b">
+        <div class="res-rows">
+          <div class="r"><span>شناسه‌ی سفارش</span><b dir="ltr">{{ order.code }}</b></div>
+          {% with tx=order.transactions.first %}
+          {% if tx %}
+          <div class="r"><span>شناسه‌ی تراکنش</span><b dir="ltr">{{ tx.code }}</b></div>
+          {% if tx.ref_id %}<div class="r"><span>شماره ارجاع بانکی</span><b dir="ltr">{{ tx.ref_id|fa_number }}</b></div>{% endif %}
+          {% endif %}
+          {% endwith %}
+          <div class="r"><span>درگاه پرداخت</span><b>{{ order.payment_gateway.name }}</b></div>
+          <div class="r"><span>مبلغ</span><b>{{ order.grand_total|toman }}</b></div>
+        </div>
+        <div class="acts">
+          {% if order.payment_status == "paid" %}
+          <a class="btn btn-primary" href="{% url 'customers:account-order-detail' order.code %}">پیگیری سفارش</a>
+          <a class="btn btn-ghost" href="{% url 'catalog:product-list' %}">بازگشت به فروشگاه</a>
+          {% else %}
+          <a class="btn btn-primary" href="{% url 'orders:checkout-step1' %}">تلاش دوباره</a>
+          <a class="btn btn-ghost" href="{% url 'catalog:product-list' %}">بازگشت به فروشگاه</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+{% endblock %}

@@ -1,13 +1,27 @@
 import json
 
-from django.shortcuts import get_object_or_404, render
+from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from apps.cart.models import CartItem
 from apps.cart.services.cart_service import get_cart
 
 from .forms import CheckoutAddressForm
+from .models import Order
 from .services import checkout_service
+from .services.payment_service import simulate_payment
+
+
+def _get_own_order(request, code, queryset=None):
+    if not (request.user.is_authenticated and hasattr(request.user, "customer_profile")):
+        raise Http404
+    queryset = Order.objects.all() if queryset is None else queryset
+    order = queryset.filter(code=code, customer=request.user.customer_profile).first()
+    if order is None:
+        raise Http404
+    return order
 
 
 def _render_body(request, cart, *, address_form=None, coupon_input="", coupon_error=""):
@@ -34,21 +48,77 @@ def checkout_step1(request):
 
 
 @require_POST
-def checkout_address_save(request):
+def checkout_pay(request):
+    """اعتبارسنجی آدرس + ساخت سفارش از سبد + هدایت به شروع پرداخت.
+
+    اگر کاربر مهمان باشد (Order.customer الزامی است)، آدرس در session ذخیره
+    و مودال ورود باز می‌شود؛ ادامه‌ی پرداخت پس از ورود ممکن است.
+    """
     cart = get_cart(request, create=True)
     form = CheckoutAddressForm(request.POST)
-    if form.is_valid():
-        checkout_service.save_address(request, form.cleaned_data)
+    if not form.is_valid():
         return _dynamic_response(
             request, cart,
-            toast_message="اطلاعات گیرنده ذخیره شد — درگاه پرداخت در مرحله‌ی بعد تکمیل می‌شود",
+            toast_message="لطفاً خطاهای فرم را برطرف کنید", toast_type="err",
+            address_form=form,
+        )
+
+    checkout_service.save_address(request, form.cleaned_data)
+
+    if not (request.user.is_authenticated and hasattr(request.user, "customer_profile")):
+        response = _render_body(request, cart, address_form=CheckoutAddressForm(initial=form.cleaned_data))
+        response["HX-Trigger"] = json.dumps({
+            "toast": {"message": "برای تکمیل خرید ابتدا وارد حساب کاربری شوید", "type": "info"},
+            "open-login": {},
+        })
+        return response
+
+    try:
+        order = checkout_service.finalize_order(request, cart, request.user.customer_profile)
+    except checkout_service.CheckoutError as exc:
+        return _dynamic_response(
+            request, cart, toast_message=str(exc), toast_type="err",
             address_form=CheckoutAddressForm(initial=form.cleaned_data),
         )
-    return _dynamic_response(
-        request, cart,
-        toast_message="لطفاً خطاهای فرم را برطرف کنید", toast_type="err",
-        address_form=form,
+
+    response = HttpResponse(status=200)
+    response["HX-Redirect"] = reverse("orders:payment-start", args=[order.code])
+    return response
+
+
+def payment_start(request, code):
+    """نقطه‌ی شروع پرداخت — جای اتصال درگاه واقعی بانکی در آینده.
+
+    فعلاً مستقیم به callback با نتیجه‌ی موفق هدایت می‌شود؛ وقتی درگاه واقعی
+    وصل شود، این ویو باید کاربر را به آدرس درگاه بانکی هدایت کند و درگاه پس
+    از پرداخت به payment_callback برمی‌گردد.
+    """
+    order = _get_own_order(request, code)
+    if order.payment_status != Order.PaymentStatus.PENDING:
+        return redirect("customers:account-order-detail", code=order.code)
+    return redirect("orders:payment-callback", code=order.code, status="success")
+
+
+def payment_callback(request, code, status):
+    """نقطه‌ی بازگشت درگاه پرداخت — بعداً درگاه واقعی با امضای معتبر به همین آدرس برمی‌گردد.
+
+    پردازش idempotent است: اگر سفارش قبلاً پردازش شده باشد، فقط به صفحه‌ی
+    نتیجه هدایت می‌شود بدون ثبت تراکنش تکراری.
+    """
+    order = _get_own_order(request, code)
+    if order.payment_status == Order.PaymentStatus.PENDING:
+        simulate_payment(order, status == "success")
+    return redirect("orders:payment-result", code=order.code)
+
+
+def payment_result(request, code):
+    order = _get_own_order(
+        request, code,
+        queryset=Order.objects.select_related("shipping_method", "payment_gateway").prefetch_related(
+            "items", "transactions"
+        ),
     )
+    return render(request, "orders/payment_result.html", {"order": order})
 
 
 @require_POST

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load static persian %}
+
+{% block title %}حساب کاربری | {{ SHOP_NAME }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/product_card.css' %}">
+<link rel="stylesheet" href="{% static 'css/product_detail.css' %}">
+<link rel="stylesheet" href="{% static 'css/cart.css' %}">
+<link rel="stylesheet" href="{% static 'css/checkout.css' %}">
+<link rel="stylesheet" href="{% static 'css/account.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="breadcrumb">
+    <a href="/">خانه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span style="color:var(--ink)">حساب کاربری</span>
+  </div>
+
+  {% if not can_view %}
+  <div class="card empty" style="margin:20px 0 60px">
+    <div class="em">👤</div>
+    <h3>ابتدا وارد حساب کاربری خود شوید</h3>
+    <p>برای مشاهده‌ی سفارش‌ها، آدرس‌ها و اطلاعات پروفایل باید وارد حساب کاربری شوید.</p>
+    <button type="button" class="btn btn-primary" @click="loginOpen = true">ورود / ثبت‌نام</button>
+  </div>
+  {% else %}
+  <div class="acc-head">
+    <h1>حساب کاربری</h1>
+    <p>خوش آمدید، {{ customer.full_name }}</p>
+  </div>
+
+  <div class="pdp-tabs" x-data="{ tab: 'profile' }" style="margin-top:0">
+    <div class="tabline">
+      <button type="button" class="t" :class="{ active: tab === 'profile' }" @click="tab = 'profile'">پروفایل</button>
+      <button type="button" class="t" :class="{ active: tab === 'orders' }" @click="tab = 'orders'">سفارش‌های من</button>
+      <button type="button" class="t" :class="{ active: tab === 'addresses' }" @click="tab = 'addresses'">آدرس‌ها</button>
+      <a class="t" href="{% url 'customers:wishlist' %}">علاقه‌مندی‌ها</a>
+    </div>
+
+    <div class="tabpane" :class="{ active: tab === 'profile' }" id="account-profile">
+      {% include "customers/partials/account_profile.html" %}
+    </div>
+
+    <div class="tabpane" :class="{ active: tab === 'orders' }">
+      {% if orders %}
+      <div class="ord-table">
+        <div class="ord-row ord-head">
+          <span>کد سفارش</span><span>تاریخ</span><span>مبلغ نهایی</span><span>وضعیت سفارش</span><span>وضعیت پرداخت</span><span></span>
+        </div>
+        {% for order in orders %}
+        <div class="ord-row">
+          <span dir="ltr">{{ order.code }}</span>
+          <span>{{ order.created_at|jalali }}</span>
+          <span>{{ order.grand_total|toman }}</span>
+          <span><span class="badge badge-{{ order.status }}">{{ order.get_status_display }}</span></span>
+          <span><span class="badge badge-pay-{{ order.payment_status }}">{{ order.get_payment_status_display }}</span></span>
+          <span><a class="t" style="padding:0" href="{% url 'customers:account-order-detail' order.code %}">جزئیات</a></span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="color:var(--muted);font-size:13px">هنوز سفارشی ثبت نکرده‌اید.</p>
+      {% endif %}
+    </div>
+
+    <div class="tabpane" :class="{ active: tab === 'addresses' }" id="account-addresses">
+      {% include "customers/partials/account_addresses.html" %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,11 +1,16 @@
 import json
 
-from django.shortcuts import get_object_or_404, render
+from django.contrib.auth import login as auth_login
+from django.contrib.auth import logout as auth_logout
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.catalog.models import Product
+from apps.orders.models import Order
 
-from .models import Wishlist
+from .forms import AddressForm, LoginForm, ProfileForm, SignupForm
+from .models import Address, Wishlist
+from .services import auth_service
 
 
 def _can_use_wishlist(request):
@@ -53,3 +58,181 @@ def wishlist_toggle(request, slug):
     )
     response["HX-Trigger"] = json.dumps({"toast": {"message": message, "type": "ok"}})
     return response
+
+
+def _auth_forms_context(*, login_form=None, signup_form=None, active_tab="in"):
+    return {
+        "login_form": login_form or LoginForm(),
+        "signup_form": signup_form or SignupForm(),
+        "active_tab": active_tab,
+    }
+
+
+@require_POST
+def login_view(request):
+    form = LoginForm(request.POST)
+    if form.is_valid():
+        user = auth_service.authenticate_customer(
+            request, phone=form.cleaned_data["phone"], password=form.cleaned_data["password"]
+        )
+        if user is not None:
+            # ادغام سبد مهمان باید پیش از auth_login انجام شود چون login()
+            # برای جلوگیری از session fixation، کلید session را عوض می‌کند.
+            auth_service.merge_guest_cart(request, user.customer_profile)
+            auth_login(request, user)
+            response = render(request, "customers/partials/auth_forms.html", _auth_forms_context())
+            response["HX-Refresh"] = "true"
+            return response
+        form.add_error(None, "شماره موبایل یا رمز عبور اشتباه است")
+
+    response = render(
+        request, "customers/partials/auth_forms.html",
+        _auth_forms_context(login_form=form, active_tab="in"),
+    )
+    response["HX-Trigger"] = json.dumps({"toast": {"message": "ورود ناموفق بود", "type": "err"}})
+    return response
+
+
+@require_POST
+def signup_view(request):
+    form = SignupForm(request.POST)
+    if form.is_valid():
+        try:
+            customer = auth_service.signup(
+                full_name=form.cleaned_data["full_name"],
+                phone=form.cleaned_data["phone"],
+                password=form.cleaned_data["password"],
+            )
+        except auth_service.AuthError as exc:
+            form.add_error(None, str(exc))
+        else:
+            user = auth_service.authenticate_customer(
+                request, phone=form.cleaned_data["phone"], password=form.cleaned_data["password"]
+            )
+            auth_service.merge_guest_cart(request, customer)
+            auth_login(request, user)
+            response = render(request, "customers/partials/auth_forms.html", _auth_forms_context())
+            response["HX-Refresh"] = "true"
+            return response
+
+    response = render(
+        request, "customers/partials/auth_forms.html",
+        _auth_forms_context(signup_form=form, active_tab="up"),
+    )
+    response["HX-Trigger"] = json.dumps({"toast": {"message": "ثبت‌نام ناموفق بود", "type": "err"}})
+    return response
+
+
+@require_POST
+def logout_view(request):
+    auth_logout(request)
+    return redirect("catalog:home")
+
+
+def _account_context(request, *, profile_form=None, address_form=None):
+    customer = request.user.customer_profile
+    return {
+        "can_view": True,
+        "customer": customer,
+        "profile_form": profile_form or ProfileForm(initial={
+            "full_name": customer.full_name, "email": customer.email, "city": customer.city,
+        }),
+        "address_form": address_form or AddressForm(),
+        "orders": Order.objects.filter(customer=customer).select_related("shipping_method").order_by("-created_at"),
+        "addresses": customer.addresses.all(),
+    }
+
+
+def account_home(request):
+    if not _can_use_wishlist(request):
+        return render(request, "customers/account.html", {"can_view": False})
+    return render(request, "customers/account.html", _account_context(request))
+
+
+@require_POST
+def account_profile_update(request):
+    customer = request.user.customer_profile
+    form = ProfileForm(request.POST)
+    if form.is_valid():
+        customer.full_name = form.cleaned_data["full_name"]
+        customer.email = form.cleaned_data["email"]
+        customer.city = form.cleaned_data["city"]
+        customer.save(update_fields=["full_name", "email", "city", "updated_at"])
+        response = render(
+            request, "customers/partials/account_profile.html",
+            {"customer": customer, "profile_form": ProfileForm(initial=form.cleaned_data)},
+        )
+        response["HX-Trigger"] = json.dumps({"toast": {"message": "پروفایل به‌روزرسانی شد", "type": "ok"}})
+        return response
+    response = render(
+        request, "customers/partials/account_profile.html", {"customer": customer, "profile_form": form}
+    )
+    response["HX-Trigger"] = json.dumps({"toast": {"message": "لطفاً خطاهای فرم را برطرف کنید", "type": "err"}})
+    return response
+
+
+@require_POST
+def address_add(request):
+    customer = request.user.customer_profile
+    form = AddressForm(request.POST)
+    if form.is_valid():
+        is_first = not customer.addresses.exists()
+        Address.objects.create(customer=customer, is_default=is_first, **form.cleaned_data)
+        response = render(
+            request, "customers/partials/account_addresses.html",
+            {"addresses": customer.addresses.all(), "address_form": AddressForm()},
+        )
+        response["HX-Trigger"] = json.dumps({"toast": {"message": "آدرس جدید ثبت شد", "type": "ok"}})
+        return response
+    response = render(
+        request, "customers/partials/account_addresses.html",
+        {"addresses": customer.addresses.all(), "address_form": form},
+    )
+    response["HX-Trigger"] = json.dumps({"toast": {"message": "لطفاً خطاهای فرم را برطرف کنید", "type": "err"}})
+    return response
+
+
+@require_POST
+def address_delete(request, address_id):
+    customer = request.user.customer_profile
+    address = get_object_or_404(Address, pk=address_id, customer=customer)
+    was_default = address.is_default
+    address.delete()
+    if was_default:
+        fallback = customer.addresses.first()
+        if fallback:
+            fallback.is_default = True
+            fallback.save(update_fields=["is_default", "updated_at"])
+    response = render(
+        request, "customers/partials/account_addresses.html",
+        {"addresses": customer.addresses.all(), "address_form": AddressForm()},
+    )
+    response["HX-Trigger"] = json.dumps({"toast": {"message": "آدرس حذف شد", "type": "info"}})
+    return response
+
+
+@require_POST
+def address_set_default(request, address_id):
+    customer = request.user.customer_profile
+    address = get_object_or_404(Address, pk=address_id, customer=customer)
+    customer.addresses.exclude(pk=address.pk).update(is_default=False)
+    address.is_default = True
+    address.save(update_fields=["is_default", "updated_at"])
+    response = render(
+        request, "customers/partials/account_addresses.html",
+        {"addresses": customer.addresses.all(), "address_form": AddressForm()},
+    )
+    response["HX-Trigger"] = json.dumps({"toast": {"message": "آدرس پیش‌فرض تغییر کرد", "type": "ok"}})
+    return response
+
+
+def account_order_detail(request, code):
+    if not _can_use_wishlist(request):
+        return render(request, "customers/order_detail.html", {"can_view": False})
+    order = get_object_or_404(
+        Order.objects.select_related("shipping_method", "payment_gateway").prefetch_related(
+            "items", "status_history", "transactions"
+        ),
+        code=code, customer=request.user.customer_profile,
+    )
+    return render(request, "customers/order_detail.html", {"can_view": True, "order": order})

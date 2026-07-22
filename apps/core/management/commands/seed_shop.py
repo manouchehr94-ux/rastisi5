@@ -446,7 +446,7 @@ class Command(BaseCommand):
                 "flow": ["pay_success", "shipped"],
             },
             {
-                "customer": "mohammad_karimi", "items": [("HA-RICE-002", 1), ("HA-TEA-003", 1)],
+                "customer": "mohammad_karimi", "items": [("HA-RICE-002", 1), ("HA-IRON-001", 1)],
                 "coupon": "STYLE20", "shipping": "peyk", "gateway": "mellat",
                 "flow": ["pay_success"],
             },
@@ -456,7 +456,7 @@ class Command(BaseCommand):
                 "flow": [],
             },
             {
-                "customer": "reza_nouri", "items": [("FR-APPLE-001", 2), ("FR-TOMATO-003", 3)],
+                "customer": "reza_nouri", "items": [("FR-APPLE-001", 2), ("FR-BANANA-002", 3)],
                 "coupon": "DIGI50", "shipping": "post", "gateway": "zarin",
                 "flow": ["pay_fail", "cancel"],
             },

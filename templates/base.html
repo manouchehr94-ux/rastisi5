@@ -38,10 +38,23 @@
     <button type="submit">جستجو</button>
   </form>
   <div class="h-actions">
+    {% if request.user.is_authenticated %}
+    <a class="login-btn" href="{% url 'customers:account' %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>{{ request.user.customer_profile.full_name|default:"حساب من" }}</span>
+    </a>
+    <form method="post" action="{% url 'customers:logout' %}" style="display:contents">
+      {% csrf_token %}
+      <button type="submit" class="h-btn" title="خروج">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </form>
+    {% else %}
     <button type="button" class="login-btn" @click="loginOpen = true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <span>ورود | ثبت‌نام</span>
     </button>
+    {% endif %}
     <a class="h-btn" href="{% url 'customers:wishlist' %}" title="علاقه‌مندی‌ها">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
       <span class="cnt" id="wishlist-count">{{ wishlist_count|fa_number }}</span>
@@ -159,22 +172,15 @@
 
 <!-- login modal -->
 <div class="overlay" :class="{ open: loginOpen }" x-cloak @click.self="loginOpen = false" @keydown.escape.window="loginOpen = false">
-  <div class="modal" x-data="{ tab: 'in' }">
+  <div class="modal">
     <div class="mhead">
       <button type="button" class="x" @click="loginOpen = false">✕</button>
       <div class="mark">👤</div>
       <h3>ورود به {{ SHOP_NAME }}</h3>
       <small>سلام! خوش آمدید</small>
     </div>
-    <div class="mtabs">
-      <button type="button" :class="{ active: tab === 'in' }" @click="tab = 'in'">ورود</button>
-      <button type="button" :class="{ active: tab === 'up' }" @click="tab = 'up'">ثبت‌نام</button>
-    </div>
-    <div class="mbody">
-      <div class="fg"><label>شماره موبایل</label><input type="text" placeholder="09xxxxxxxxx" dir="ltr"></div>
-      <div class="fg" x-show="tab === 'up'" x-cloak><label>نام و نام خانوادگی</label><input type="text" placeholder="نام شما"></div>
-      <div class="fg"><label>رمز عبور</label><input type="password" placeholder="••••••••"></div>
-      <button type="button" class="btn btn-primary" @click="loginOpen = false" x-text="tab === 'in' ? 'ورود به حساب' : 'ثبت‌نام'"></button>
+    <div id="auth-modal-body">
+      {% include "customers/partials/auth_forms.html" %}
     </div>
   </div>
 </div>

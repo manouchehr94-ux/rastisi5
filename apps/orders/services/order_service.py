@@ -6,8 +6,10 @@
 import random
 
 from django.db import transaction
+from django.db.models import F
 
 from apps.cart.services.pricing import cart_totals
+from apps.catalog.models import Product
 from apps.orders.models import Order, OrderItem, OrderStatusHistory
 
 ORDER_CODE_PREFIX = "DM"
@@ -48,6 +50,10 @@ def create_order_from_cart(cart, *, customer, vendor, address, shipping_method, 
     if not items:
         raise ValueError("سبد خرید خالی است")
 
+    for item in items:
+        if item.quantity > item.product.stock:
+            raise ValueError(f"موجودی «{item.product.name}» کافی نیست")
+
     totals = cart_totals(cart, coupon=coupon, shipping_method=shipping_method)
 
     order = Order.objects.create(
@@ -78,6 +84,7 @@ def create_order_from_cart(cart, *, customer, vendor, address, shipping_method, 
             unit_price=unit_price,
             line_total=unit_price * item.quantity,
         )
+        Product.objects.filter(pk=item.product_id).update(stock=F("stock") - item.quantity)
 
     OrderStatusHistory.objects.create(
         order=order, from_status="", to_status=order.status, note="سفارش ثبت شد"
