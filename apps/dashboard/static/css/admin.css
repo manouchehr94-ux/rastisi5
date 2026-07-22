@@ -103,6 +103,7 @@ body.admin-body{
 .card-body{padding:16px 18px}
 
 .grid{display:grid;gap:18px}
+.grid>.card{min-width:0}
 .g-4{grid-template-columns:repeat(4,1fr)}
 .g-3{grid-template-columns:repeat(3,1fr)}
 .g-2{grid-template-columns:repeat(2,1fr)}
