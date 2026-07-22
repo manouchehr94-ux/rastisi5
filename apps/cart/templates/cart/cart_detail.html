@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}سبد خرید | {{ SHOP_NAME }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/cart.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="breadcrumb">
+    <a href="/">خانه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span style="color:var(--ink)">سبد خرید</span>
+  </div>
+
+  <div id="cart-container">
+    {% include "cart/partials/cart_page_body.html" %}
+  </div>
+</div>
+{% endblock %}

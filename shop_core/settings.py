@@ -70,6 +70,8 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.shop_settings",
                 "apps.catalog.context_processors.nav_categories",
+                "apps.cart.context_processors.cart_badge",
+                "apps.customers.context_processors.wishlist_membership",
             ],
         },
     },

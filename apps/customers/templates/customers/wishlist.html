@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}علاقه‌مندی‌های من | {{ SHOP_NAME }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/product_card.css' %}">
+<link rel="stylesheet" href="{% static 'css/cart.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="breadcrumb">
+    <a href="/">خانه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span style="color:var(--ink)">علاقه‌مندی‌های من</span>
+  </div>
+
+  <div class="section">
+    <div class="sec-head"><h2><span class="bar"></span>علاقه‌مندی‌های من</h2></div>
+
+    {% if not can_view %}
+    <div class="empty">
+      <div class="em">🔒</div>
+      <h3>ابتدا وارد حساب کاربری خود شوید</h3>
+      <p>برای مشاهده و مدیریت علاقه‌مندی‌های خود باید وارد حساب کاربری‌تان شوید.</p>
+      <button type="button" class="btn btn-primary" @click="loginOpen = true">ورود به حساب</button>
+    </div>
+    {% elif products %}
+    <div class="grid g4">
+      {% for product in products %}
+      {% include "catalog/partials/product_card.html" %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="em">💜</div>
+      <h3>لیست علاقه‌مندی‌های شما خالی است</h3>
+      <p>محصولات موردعلاقه‌ی خود را با ضربه روی نماد قلب ذخیره کنید.</p>
+      <a class="btn btn-primary" href="{% url 'catalog:product-list' %}">مشاهده محصولات فروشگاه</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

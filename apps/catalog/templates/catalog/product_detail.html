@@ -63,64 +63,67 @@
         <span>|</span><span>{{ product.sold_count|fa_number }} فروش</span>
       </div>
 
-      {% for attribute, items in variant_groups.items %}
-      <div class="opt-block" x-data="{ selected: '{{ items.0.value|escapejs }}' }">
-        <div class="lbl">{{ attribute }}: <span x-text="selected"></span></div>
-        {% if items.0.value_hex %}
-        <div class="swatches">
-          {% for v in items %}
-          <div class="swatch" :class="{ active: selected === '{{ v.value|escapejs }}' }" style="background:{{ v.value_hex }}"
-               title="{{ v.value }}" @click="selected = '{{ v.value|escapejs }}'"></div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="sizes">
-          {% for v in items %}
-          <button type="button" class="size" :class="{ active: selected === '{{ v.value|escapejs }}' }" @click="selected = '{{ v.value|escapejs }}'">
-            {{ v.value }}{% if v.extra_price > 0 %} (+{{ v.extra_price|toman }}){% endif %}
-          </button>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-      {% endfor %}
-
-      <div class="pricebox">
-        <div class="row1">
-          {% if product.discount_percent > 0 %}
-          <span class="save">صرفه‌جویی {{ savings|toman }}</span>
-          <span class="old">{{ product.price|toman }}</span>
-          {% endif %}
-        </div>
-        <div class="now">{{ product.final_price|toman }}</div>
-        <div class="stock">
-          {% if product.stock > 0 %}
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
-          موجود در انبار — آماده ارسال
+      <form hx-post="{% url 'cart:add' product.slug %}" hx-swap="none">
+        {% csrf_token %}
+        {% for attribute, items in variant_groups.items %}
+        <div class="opt-block" x-data="{ selectedId: {{ items.0.id }}, selectedValue: '{{ items.0.value|escapejs }}' }">
+          <div class="lbl">{{ attribute }}: <span x-text="selectedValue"></span></div>
+          {% if forloop.first %}<input type="hidden" name="variant_id" :value="selectedId">{% endif %}
+          {% if items.0.value_hex %}
+          <div class="swatches">
+            {% for v in items %}
+            <div class="swatch" :class="{ active: selectedId === {{ v.id }} }" style="background:{{ v.value_hex }}"
+                 title="{{ v.value }}" @click="selectedId = {{ v.id }}; selectedValue = '{{ v.value|escapejs }}'"></div>
+            {% endfor %}
+          </div>
           {% else %}
-          <span style="color:var(--pink)">ناموجود</span>
+          <div class="sizes">
+            {% for v in items %}
+            <button type="button" class="size" :class="{ active: selectedId === {{ v.id }} }"
+                    @click="selectedId = {{ v.id }}; selectedValue = '{{ v.value|escapejs }}'">
+              {{ v.value }}{% if v.extra_price > 0 %} (+{{ v.extra_price|toman }}){% endif %}
+            </button>
+            {% endfor %}
+          </div>
           {% endif %}
         </div>
-      </div>
+        {% endfor %}
 
-      <div class="qty" x-data="{ qty: 1, maxQty: {{ product.stock|default:0 }} }">
-        <span class="lbl">تعداد:</span>
-        <div class="stepper">
-          <button type="button" @click="qty = Math.max(1, qty - 1)">−</button>
-          <input :value="qty" readonly>
-          <button type="button" @click="qty = Math.min(Math.max(maxQty, 1), qty + 1)">+</button>
+        <div class="pricebox">
+          <div class="row1">
+            {% if product.discount_percent > 0 %}
+            <span class="save">صرفه‌جویی {{ savings|toman }}</span>
+            <span class="old">{{ product.price|toman }}</span>
+            {% endif %}
+          </div>
+          <div class="now">{{ product.final_price|toman }}</div>
+          <div class="stock">
+            {% if product.stock > 0 %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+            موجود در انبار — آماده ارسال
+            {% else %}
+            <span style="color:var(--pink)">ناموجود</span>
+            {% endif %}
+          </div>
         </div>
-      </div>
 
-      <div class="pdp-actions">
-        <button type="button" class="btn btn-primary" {% if product.stock == 0 %}disabled{% endif %}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
-          افزودن به سبد خرید
-        </button>
-        <button type="button" class="wish" title="افزودن به علاقه‌مندی‌ها">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
-        </button>
-      </div>
+        <div class="qty" x-data="{ qty: 1, maxQty: {{ product.stock|default:0 }} }">
+          <span class="lbl">تعداد:</span>
+          <div class="stepper">
+            <button type="button" @click="qty = Math.max(1, qty - 1)">−</button>
+            <input name="quantity" :value="qty" readonly>
+            <button type="button" @click="qty = Math.min(Math.max(maxQty, 1), qty + 1)">+</button>
+          </div>
+        </div>
+
+        <div class="pdp-actions">
+          <button type="submit" class="btn btn-primary" {% if product.stock == 0 %}disabled{% endif %}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+            افزودن به سبد خرید
+          </button>
+          {% include "customers/partials/wishlist_button.html" with button_class="wish" %}
+        </div>
+      </form>
 
       <div class="guarantee">
         <div class="g"><span class="ic">🛡️</span>ضمانت اصالت کالا</div>

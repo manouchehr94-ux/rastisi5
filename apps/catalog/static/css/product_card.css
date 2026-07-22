@@ -3,6 +3,9 @@
   هر صفحه‌ی دیگری که از catalog/partials/product_card.html استفاده کند.
   کپی دقیق از docs/spec/shop-frontend.html.
 */
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.sec-head h2{font-size:19px;font-weight:900;display:flex;align-items:center;gap:9px}
+.sec-head h2 .bar{width:5px;height:22px;border-radius:4px;background:linear-gradient(var(--violet),var(--violet-3))}
 .grid{display:grid;gap:16px}
 .g4{grid-template-columns:repeat(4,1fr)}
 .g3{grid-template-columns:repeat(3,1fr)}

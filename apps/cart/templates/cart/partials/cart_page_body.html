@@ -1,0 +1,72 @@
+{% load persian %}
+{% if not cart or item_count == 0 %}
+<div class="empty">
+  <div class="em">🛒</div>
+  <h3>سبد خرید شما خالی است</h3>
+  <p>برای ادامه، ابتدا کالاهای موردنظر را از فروشگاه به سبد خرید اضافه کنید.</p>
+  <a class="btn btn-primary" href="{% url 'catalog:product-list' %}">مشاهده محصولات فروشگاه</a>
+</div>
+{% else %}
+<div class="co-grid">
+  <div class="col-main">
+    <div class="card">
+      <div class="card-h"><span class="ic">🛍️</span>کالاهای سبد خرید (<span>{{ item_count|fa_number }}</span> قلم)</div>
+      <div class="card-b">
+        {% for item in cart.items.all %}
+        <div class="citem">
+          <div class="thumb" style="background:{{ item.product.tint|default:'#eceef3' }}">{{ item.product.icon|default:"🛍️" }}</div>
+          <div class="info">
+            <b>{{ item.product.name }}</b>
+            {% if item.variant %}
+            <div class="meta">
+              <span>{% if item.variant.value_hex %}<span class="sw" style="background:{{ item.variant.value_hex }}"></span>{% endif %}{{ item.variant.attribute }}: {{ item.variant.value }}</span>
+            </div>
+            {% endif %}
+          </div>
+          <div class="right">
+            <div class="lp">
+              {{ item.product.final_price|toman }}
+              {% if item.product.discount_percent > 0 %}<small>{{ item.product.price|toman }}</small>{% endif %}
+            </div>
+            <div class="stepper">
+              <button type="button" hx-post="{% url 'cart:item-update' item.id %}" hx-vals='{"quantity": {{ item.quantity|add:"-1" }}}' hx-target="#cart-container" hx-swap="innerHTML">−</button>
+              <input value="{{ item.quantity|fa_number }}" readonly>
+              <button type="button" hx-post="{% url 'cart:item-update' item.id %}" hx-vals='{"quantity": {{ item.quantity|add:"1" }}}' hx-target="#cart-container" hx-swap="innerHTML">+</button>
+            </div>
+            <button type="button" class="rm" hx-post="{% url 'cart:item-remove' item.id %}" hx-target="#cart-container" hx-swap="innerHTML">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+              حذف
+            </button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sum">
+    <div class="card">
+      <div class="card-h"><span class="ic">🧾</span>خلاصه سفارش</div>
+      <div class="card-b">
+        <div class="totals">
+          <div class="ln"><span>جمع کالاها</span><b>{{ totals.items_total|toman }}</b></div>
+          {% if totals.product_discount > 0 %}
+          <div class="ln disc"><span>تخفیف کالاها</span><b>− {{ totals.product_discount|toman }}</b></div>
+          {% endif %}
+          <div class="ln"><span>مالیات بر ارزش افزوده</span><b>{{ totals.tax|toman }}</b></div>
+          <div class="ln grand"><span>جمع قابل پرداخت</span><span class="v">{{ totals.grand_total|toman }}</span></div>
+        </div>
+        {% if totals.product_discount > 0 %}
+        <div class="save-note">🎁 شما در این سبد {{ totals.product_discount|toman }} صرفه‌جویی کردید!</div>
+        {% endif %}
+        <a href="#" class="btn btn-primary btn-block" style="margin-top:14px;height:52px;display:flex">ادامه و تسویه‌حساب</a>
+        <div class="trust">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          هزینه‌ی نهایی و ارسال در مرحله‌ی تسویه‌حساب محاسبه می‌شود
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% include "cart/partials/header_counts_oob.html" %}

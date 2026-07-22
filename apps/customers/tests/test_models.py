@@ -4,7 +4,7 @@ from django.test import TestCase
 
 from apps.catalog.models import Category, Product, Vendor
 
-from .models import Address, Customer, Wishlist
+from apps.customers.models import Address, Customer, Wishlist
 
 User = get_user_model()
 

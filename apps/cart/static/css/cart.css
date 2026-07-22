@@ -1,0 +1,55 @@
+/*
+  صفحه‌ی سبد خرید — کپی دقیق از docs/spec/shop-checkout.html (اقلام سبد،
+  استپر تعداد، خلاصه‌ی سفارش) تا وفاداری بصری کامل حفظ شود.
+*/
+.breadcrumb{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);padding:18px 0;flex-wrap:wrap}
+.breadcrumb a:hover{color:var(--violet)}
+.breadcrumb svg{width:13px;height:13px;opacity:.6}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card-h{padding:15px 18px;border-bottom:1px solid var(--line);font-size:15px;font-weight:800;display:flex;align-items:center;gap:9px}
+.card-h .ic{font-size:18px}
+.card-b{padding:18px}
+
+.co-grid{display:grid;grid-template-columns:1fr 372px;gap:20px;align-items:start;padding-bottom:60px}
+.col-main{display:flex;flex-direction:column;gap:18px}
+.col-sum{position:sticky;top:96px;display:flex;flex-direction:column;gap:16px}
+
+.citem{display:flex;gap:13px;padding:14px 0;border-bottom:1px solid var(--line)}
+.citem:last-child{border-bottom:0}
+.citem .thumb{width:74px;height:74px;border-radius:14px;display:grid;place-items:center;font-size:38px;flex-shrink:0}
+.citem .info{flex:1;min-width:0}
+.citem .info b{font-size:13.5px;display:block;line-height:1.6}
+.citem .info .meta{font-size:11.5px;color:var(--muted);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap}
+.citem .info .meta span{display:flex;align-items:center;gap:4px}
+.citem .info .meta .sw{width:12px;height:12px;border-radius:50%;border:1px solid var(--line)}
+.citem .right{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:8px}
+.citem .lp{font-weight:900;font-size:14px}
+.citem .lp small{display:block;font-size:11px;color:var(--muted);text-decoration:line-through;font-weight:500;text-align:left}
+.citem .rm{color:var(--muted);font-size:11.5px;display:flex;align-items:center;gap:4px}
+.citem .rm:hover{color:var(--pink)}
+.citem .rm svg{width:14px;height:14px}
+.stepper{display:flex;align-items:center;border:1.5px solid var(--line);border-radius:11px;overflow:hidden}
+.stepper button{width:34px;height:34px;font-size:16px;color:var(--violet);font-weight:800}
+.stepper button:hover{background:var(--violet-softer)}
+.stepper input{width:38px;height:34px;text-align:center;border:0;outline:0;font-weight:800;background:transparent}
+
+.totals .ln{display:flex;justify-content:space-between;padding:7px 0;font-size:13px}
+.totals .ln.disc{color:var(--pink)}
+.totals .ln.free{color:var(--green)}
+.totals .grand{border-top:2px dashed var(--line);margin-top:8px;padding-top:13px;font-size:16px;font-weight:900}
+.totals .grand .v{color:var(--violet)}
+.save-note{background:var(--pink-soft);color:var(--pink);border-radius:11px;padding:9px 13px;font-size:12px;font-weight:700;margin-top:10px;text-align:center}
+.trust{display:flex;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-size:11px;margin-top:12px}
+.trust svg{width:14px;height:14px;color:var(--green)}
+.btn-block{width:100%;align-items:center;justify-content:center}
+
+.empty{text-align:center;padding:60px 20px}
+.empty .em{font-size:70px;margin-bottom:10px}
+.empty h3{font-size:18px;margin-bottom:8px}
+.empty p{color:var(--muted);font-size:13px;margin-bottom:20px}
+
+@media(max-width:880px){
+  .co-grid{grid-template-columns:1fr}
+  .col-sum{position:static}
+}

@@ -11,7 +11,8 @@
 <script src="{% static 'js/htmx.min.js' %}" defer></script>
 <script src="{% static 'js/alpine.min.js' %}" defer></script>
 </head>
-<body x-data="{ loginOpen: false, mobileNavOpen: true, catMenuOpen: false }">
+<body x-data="{ loginOpen: false, mobileNavOpen: true, catMenuOpen: false }" @open-login.window="loginOpen = true">
+{% csrf_token %}
 
 {% block header %}
 <div class="announce"><div class="wrap">
@@ -41,13 +42,13 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <span>ورود | ثبت‌نام</span>
     </button>
-    <a class="h-btn" href="#" title="علاقه‌مندی‌ها">
+    <a class="h-btn" href="{% url 'customers:wishlist' %}" title="علاقه‌مندی‌ها">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
-      <span class="cnt" id="wishlist-count">۰</span>
+      <span class="cnt" id="wishlist-count">{{ wishlist_count|fa_number }}</span>
     </a>
-    <a class="h-btn" href="#" title="سبد خرید">
+    <a class="h-btn" href="{% url 'cart:detail' %}" title="سبد خرید">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
-      <span class="cnt" id="cart-count">۰</span>
+      <span class="cnt" id="cart-count">{{ cart_count|fa_number }}</span>
     </a>
   </div>
 </div></header>
@@ -191,6 +192,17 @@
          x-text="(t.type === 'err' ? '⚠️ ' : t.type === 'info' ? 'ℹ️ ' : '✅ ') + t.message"></div>
   </template>
 </div>
+
+<script>
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+}
+document.body.addEventListener('htmx:configRequest', (event) => {
+  event.detail.headers['X-CSRFToken'] = getCookie('csrftoken');
+});
+</script>
 
 {% block extra_js %}{% endblock %}
 </body>

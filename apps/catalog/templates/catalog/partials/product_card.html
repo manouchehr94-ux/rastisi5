@@ -2,9 +2,7 @@
 <a class="pcard" href="{% url 'catalog:product-detail' product.slug %}">
   <div class="img" style="background:{{ product.tint|default:'#eceef3' }}">
     <span class="emo">{{ product.icon|default:"🛍️" }}</span>
-    <button type="button" class="heart" title="افزودن به علاقه‌مندی‌ها" onclick="event.preventDefault();event.stopPropagation()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
-    </button>
+    {% include "customers/partials/wishlist_button.html" %}
     <div class="badges">
       {% if product.discount_percent > 0 %}<span class="pill pill-disc">{{ product.discount_percent|fa_number }}٪</span>{% endif %}
       {% if product.tag == "new" %}
@@ -16,7 +14,8 @@
       {% endif %}
     </div>
     <div class="addbar">
-      <button type="button" onclick="event.preventDefault();event.stopPropagation()">
+      <button type="button" hx-post="{% url 'cart:add' product.slug %}" hx-vals='{"quantity": 1}' hx-swap="none"
+              onclick="event.preventDefault();event.stopPropagation()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
         افزودن به سبد خرید
       </button>
