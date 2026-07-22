@@ -7,7 +7,7 @@ from django.test import TestCase
 from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
 
-from .models import Order, OrderItem, OrderStatusHistory, PaymentGateway, ShippingMethod, Transaction
+from apps.orders.models import Order, OrderItem, OrderStatusHistory, PaymentGateway, ShippingMethod, Transaction
 
 User = get_user_model()
 

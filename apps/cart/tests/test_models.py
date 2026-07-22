@@ -7,7 +7,7 @@ from django.test import TestCase
 from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
 
-from .models import Cart, CartItem, Coupon
+from apps.cart.models import Cart, CartItem, Coupon
 
 User = get_user_model()
 
