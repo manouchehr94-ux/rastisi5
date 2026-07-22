@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>پنل مدیریت فروشگاه | دیجی‌مارکت</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f3f5fb; --card:#ffffff; --text:#1e293b; --muted:#64748b; --border:#e5e9f2;
+    --primary:#4f46e5; --primary-2:#7c3aed; --primary-soft:#eef0fe; --primary-text:#4338ca;
+    --green:#10b981; --green-soft:#d9f6ec; --amber:#f59e0b; --amber-soft:#fdf1da;
+    --red:#ef4444; --red-soft:#fde5e5; --blue:#3b82f6; --blue-soft:#e3edfd;
+    --cyan:#06b6d4; --cyan-soft:#dcf5fa; --purple:#8b5cf6; --purple-soft:#efe7fd;
+    --sidebar:#101629; --sidebar-2:#1a2138; --sidebar-text:#9aa3bd; --sidebar-active:#ffffff;
+    --shadow:0 1px 3px rgba(16,24,40,.06), 0 6px 18px rgba(16,24,40,.05);
+    --radius:16px;
+  }
+  body[data-theme="dark"]{
+    --bg:#0b1020; --card:#141a30; --text:#e6eaf5; --muted:#8f98b3; --border:#232b47;
+    --primary-soft:#26274f; --primary-text:#a5b4fc;
+    --green-soft:#0f3a2c; --amber-soft:#3d2f0d; --red-soft:#431d1d; --blue-soft:#16304f;
+    --cyan-soft:#0d3a44; --purple-soft:#2f2450;
+    --shadow:0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Vazirmatn','Segoe UI',Tahoma,sans-serif;
+    background:var(--bg); color:var(--text); font-size:14px; line-height:1.7;
+    transition:background .25s, color .25s;
+  }
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#b9c0d4;border-radius:8px}
+  body[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#33405f}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit}
+
+  /* ---------- layout ---------- */
+  .app{display:flex; min-height:100vh}
+  .sidebar{
+    width:250px; flex-shrink:0; background:linear-gradient(180deg,var(--sidebar),#0b1020);
+    color:var(--sidebar-text); position:fixed; inset:0 auto 0 0; right:0; z-index:60;
+    display:flex; flex-direction:column; transition:transform .3s;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:20px 18px;border-bottom:1px solid rgba(255,255,255,.06)}
+  .brand .logo{
+    width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:#fff;
+    background:linear-gradient(135deg,var(--primary),var(--primary-2)); font-weight:800; font-size:18px;
+    box-shadow:0 6px 16px rgba(99,80,238,.45);
+  }
+  .brand b{color:#fff;font-size:16px;display:block;line-height:1.3}
+  .brand span{font-size:11px;color:#7d87a3}
+  .nav{flex:1;overflow-y:auto;padding:12px 10px}
+  .nav-label{font-size:11px;color:#5e6885;padding:14px 12px 6px;letter-spacing:.4px}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;margin:2px 0;
+    color:var(--sidebar-text);font-size:13.5px;font-weight:500;transition:.18s;border:1px solid transparent;
+  }
+  .nav-item svg{width:19px;height:19px;flex-shrink:0}
+  .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+  .nav-item.active{
+    background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;
+    box-shadow:0 6px 16px rgba(99,80,238,.4);
+  }
+  .nav-item .badge-nav{margin-right:auto;background:var(--red);color:#fff;font-size:10.5px;padding:1px 7px;border-radius:20px;font-weight:700}
+  .sidebar-foot{padding:14px;border-top:1px solid rgba(255,255,255,.06)}
+  .sidebar-foot .card-mini{background:var(--sidebar-2);border-radius:12px;padding:11px 12px;display:flex;align-items:center;gap:10px}
+  .avatar{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#ef4444);display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0}
+
+  .main{flex:1;margin-right:250px;display:flex;flex-direction:column;min-width:0}
+  .topbar{
+    position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--bg) 82%, transparent);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:14px;padding:13px 26px;
+  }
+  .topbar h1{font-size:18px;font-weight:800}
+  .topbar .sub{font-size:11.5px;color:var(--muted)}
+  .search-box{
+    margin-right:auto;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);
+    border-radius:12px;padding:8px 13px;width:270px;color:var(--muted);
+  }
+  .search-box input{border:0;outline:0;background:transparent;width:100%;color:var(--text);font-size:13px}
+  .icon-btn{
+    width:40px;height:40px;border-radius:12px;border:1px solid var(--border);background:var(--card);
+    display:grid;place-items:center;color:var(--muted);position:relative;transition:.18s;
+  }
+  .icon-btn:hover{color:var(--primary);border-color:var(--primary)}
+  .icon-btn .dot{position:absolute;top:8px;left:9px;width:8px;height:8px;border-radius:50%;background:var(--red);border:2px solid var(--card)}
+  .burger{display:none}
+
+  .content{padding:24px 26px 60px;max-width:1400px;width:100%}
+  .page{display:none;animation:fade .3s ease}
+  .page.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  /* ---------- components ---------- */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .card-head h3{font-size:15px;font-weight:700}
+  .card-head .hint{font-size:12px;color:var(--muted)}
+  .card-body{padding:16px 18px}
+
+  .grid{display:grid;gap:18px}
+  .g-4{grid-template-columns:repeat(4,1fr)}
+  .g-3{grid-template-columns:repeat(3,1fr)}
+  .g-2{grid-template-columns:repeat(2,1fr)}
+  .g-2-1{grid-template-columns:2fr 1fr}
+  .g-1-2{grid-template-columns:1fr 2fr}
+
+  .stat{padding:18px;display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden}
+  .stat .ic{width:44px;height:44px;border-radius:13px;display:grid;place-items:center}
+  .stat .ic svg{width:22px;height:22px}
+  .stat .val{font-size:23px;font-weight:800}
+  .stat .lbl{font-size:12.5px;color:var(--muted);font-weight:500}
+  .stat .trend{font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;width:fit-content}
+  .trend.up{color:var(--green);background:var(--green-soft)}
+  .trend.down{color:var(--red);background:var(--red-soft)}
+
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;border-radius:11px;padding:9px 16px;font-size:13px;font-weight:600;
+    border:1px solid var(--border);background:var(--card);color:var(--text);transition:.18s;
+  }
+  .btn:hover{border-color:var(--primary);color:var(--primary)}
+  .btn svg{width:16px;height:16px}
+  .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;border:0;box-shadow:0 6px 14px rgba(99,80,238,.35)}
+  .btn-primary:hover{color:#fff;filter:brightness(1.07)}
+  .btn-danger{color:var(--red);border-color:var(--red-soft);background:var(--red-soft);border:0}
+  .btn-sm{padding:6px 11px;font-size:12px;border-radius:9px}
+
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;min-width:640px}
+  th{font-size:11.5px;color:var(--muted);font-weight:600;text-align:right;padding:11px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+  td{padding:13px 14px;border-bottom:1px solid var(--border);font-size:13px;white-space:nowrap;vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  tbody tr{transition:background .15s}
+  tbody tr:hover{background:var(--primary-soft)}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 11px;border-radius:20px;font-size:11.5px;font-weight:700}
+  .badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+  .b-green{background:var(--green-soft);color:var(--green)}
+  .b-amber{background:var(--amber-soft);color:var(--amber)}
+  .b-red{background:var(--red-soft);color:var(--red)}
+  .b-blue{background:var(--blue-soft);color:var(--blue)}
+  .b-cyan{background:var(--cyan-soft);color:var(--cyan)}
+  .b-purple{background:var(--purple-soft);color:var(--purple)}
+  .b-gray{background:var(--border);color:var(--muted)}
+
+  .thumb{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;font-size:19px;background:var(--primary-soft);flex-shrink:0}
+  .prod-cell{display:flex;align-items:center;gap:11px}
+  .prod-cell b{display:block;font-size:13px}
+  .prod-cell small{color:var(--muted);font-size:11px}
+
+  .form-group{margin-bottom:14px}
+  .form-group label{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--muted)}
+  .inp{
+    width:100%;padding:10px 13px;border-radius:11px;border:1.5px solid var(--border);background:var(--bg);
+    color:var(--text);font-size:13px;outline:0;transition:.15s;
+  }
+  .inp:focus{border-color:var(--primary);background:var(--card)}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+  .tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .tab{padding:7px 15px;border-radius:10px;font-size:12.5px;font-weight:600;border:1px solid var(--border);background:var(--card);color:var(--muted);transition:.15s}
+  .tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
+  .tab .cnt{opacity:.75;font-size:11px;margin-right:4px}
+
+  .switch{position:relative;width:44px;height:24px;flex-shrink:0}
+  .switch input{display:none}
+  .switch span{position:absolute;inset:0;background:var(--border);border-radius:20px;transition:.2s;cursor:pointer}
+  .switch span::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;right:3px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  .switch input:checked + span{background:var(--green)}
+  .switch input:checked + span::after{transform:translateX(-20px)}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(10,14,30,.55);backdrop-filter:blur(3px);z-index:100;display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto}
+  .overlay.open{display:flex}
+  .modal{background:var(--card);border-radius:18px;width:100%;max-width:560px;box-shadow:0 25px 60px rgba(0,0,0,.35);animation:pop .25s ease;border:1px solid var(--border)}
+  .modal.wide{max-width:760px}
+  @keyframes pop{from{opacity:0;transform:scale(.94) translateY(10px)}to{opacity:1;transform:none}}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:17px 20px;border-bottom:1px solid var(--border)}
+  .modal-head h3{font-size:15.5px;font-weight:800}
+  .modal-body{padding:20px}
+  .modal-foot{padding:15px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-start;gap:10px}
+  .x-btn{width:32px;height:32px;border-radius:9px;border:0;background:var(--bg);color:var(--muted);font-size:15px;display:grid;place-items:center}
+  .x-btn:hover{background:var(--red-soft);color:var(--red)}
+
+  /* toast */
+  .toasts{position:fixed;bottom:22px;left:22px;z-index:200;display:flex;flex-direction:column;gap:10px}
+  .toast{background:var(--card);border:1px solid var(--border);border-right:4px solid var(--green);border-radius:12px;padding:12px 16px;font-size:13px;font-weight:600;box-shadow:var(--shadow);display:flex;gap:9px;align-items:center;animation:slideIn .3s ease;min-width:230px}
+  .toast.err{border-right-color:var(--red)}
+  .toast.info{border-right-color:var(--blue)}
+  @keyframes slideIn{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+
+  .progress{height:8px;background:var(--bg);border-radius:10px;overflow:hidden}
+  .progress i{display:block;height:100%;border-radius:10px;background:linear-gradient(90deg,var(--primary),var(--primary-2))}
+
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:5px 11px;font-size:12px;font-weight:600}
+  .chip .rm{color:var(--red);cursor:pointer;font-weight:800}
+
+  .cat-block{border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;background:var(--card)}
+  .cat-head{display:flex;align-items:center;gap:10px}
+  .cat-head .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:18px;background:var(--primary-soft)}
+  .cat-head b{font-size:14px}
+  .cat-head small{display:block;color:var(--muted);font-size:11.5px}
+  .subs{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border)}
+
+  .timeline{position:relative;padding-right:20px}
+  .timeline::before{content:'';position:absolute;right:5px;top:6px;bottom:6px;width:2px;background:var(--border)}
+  .tl-item{position:relative;padding:0 0 16px 0}
+  .tl-item::before{content:'';position:absolute;right:-19px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--primary);border:2px solid var(--card)}
+  .tl-item.done::before{background:var(--green)}
+  .tl-item b{font-size:12.5px;display:block}
+  .tl-item small{color:var(--muted);font-size:11px}
+
+  .legend{display:flex;flex-direction:column;gap:9px}
+  .legend .li{display:flex;align-items:center;gap:9px;font-size:12.5px}
+  .legend .sw{width:12px;height:12px;border-radius:4px}
+  .legend b{margin-right:auto}
+
+  /* invoice print area */
+  .invoice{background:#fff;color:#1e293b;border:1px solid var(--border);border-radius:14px;padding:26px;font-size:13px}
+  .invoice table{min-width:0}
+  .invoice th{color:#64748b}
+  .invoice .tot-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px}
+  .invoice .tot-row.grand{border-top:2px solid #1e293b;margin-top:8px;padding-top:12px;font-weight:800;font-size:15px}
+
+  @media print{
+    body *{visibility:hidden}
+    #printArea, #printArea *{visibility:visible}
+    #printArea{position:absolute;inset:0;width:100%}
+  }
+
+  @media (max-width:1100px){
+    .g-4{grid-template-columns:repeat(2,1fr)}
+    .g-3,.g-2,.g-2-1,.g-1-2{grid-template-columns:1fr}
+  }
+  @media (max-width:860px){
+    .sidebar{transform:translateX(100%)}
+    .sidebar.open{transform:none}
+    .main{margin-right:0}
+    .burger{display:grid}
+    .search-box{display:none}
+    .content{padding:18px 14px 50px}
+    .topbar{padding:12px 14px}
+    .form-row{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="logo">د</div>
+      <div><b>دیجی‌مارکت</b><span>پنل مدیریت فروشگاه</span></div>
+    </div>
+    <nav class="nav">
+      <div class="nav-label">منوی اصلی</div>
+      <a class="nav-item active" data-page="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        داشبورد
+      </a>
+      <a class="nav-item" data-page="products">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4v10l8 4 8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/></svg>
+        کالاها
+        <span class="badge-nav" id="navProdCount">۱۴</span>
+      </a>
+      <a class="nav-item" data-page="categories">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M13 6h8M13 18h8M13 12h8"/></svg>
+        گروه‌بندی کالاها
+      </a>
+      <a class="nav-item" data-page="orders">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 01-8 0"/></svg>
+        سفارشات
+        <span class="badge-nav" id="navOrderCount">۵</span>
+      </a>
+      <a class="nav-item" data-page="invoices">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6M9 9h1"/></svg>
+        فاکتورها
+      </a>
+      <a class="nav-item" data-page="customers">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        مشتری‌ها
+      </a>
+      <div class="nav-label">مالی</div>
+      <a class="nav-item" data-page="payments">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>
+        پرداخت‌ها
+      </a>
+      <a class="nav-item" data-page="reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+        گزارش‌های حرفه‌ای
+      </a>
+      <div class="nav-label">سیستم</div>
+      <a class="nav-item" data-page="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33h0a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51h0a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        تنظیمات
+      </a>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="card-mini">
+        <div class="avatar">م‌ر</div>
+        <div style="min-width:0">
+          <b style="color:#fff;font-size:12.5px;display:block">محمد رستمی</b>
+          <span style="font-size:11px">مدیر کل فروشگاه</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn burger" onclick="document.getElementById('sidebar').classList.toggle('open')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+      <div>
+        <h1 id="pageTitle">داشبورد</h1>
+        <div class="sub" id="pageSub">نمای کلی عملکرد فروشگاه — سه‌شنبه ۳۰ تیر ۱۴۰۵</div>
+      </div>
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input placeholder="جستجوی سریع... (کالا، سفارش، مشتری)">
+      </div>
+      <button class="icon-btn" id="themeBtn" title="حالت شب / روز">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      </button>
+      <button class="icon-btn" title="اعلان‌ها"><span class="dot"></span>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+      </button>
+    </header>
+
+    <main class="content">
+
+      <!-- ============ DASHBOARD ============ -->
+      <section class="page active" id="page-dashboard">
+        <div class="grid g-4" style="margin-bottom:18px">
+          <div class="card stat">
+            <div class="ic" style="background:var(--primary-soft);color:var(--primary)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
+            <div><div class="val">۴۸٬۶۵۰٬۰۰۰</div><div class="lbl">فروش امروز (تومان)</div></div>
+            <span class="trend up">▲ ۱۲٫۵٪ نسبت به دیروز</span>
+          </div>
+          <div class="card stat">
+            <div class="ic" style="background:var(--blue-soft);color:var(--blue)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 01-8 0"/></svg>
+            </div>
+            <div><div class="val">۳۷</div><div class="lbl">سفارشات جدید امروز</div></div>
+            <span class="trend up">▲ ۸٫۱٪ نسبت به دیروز</span>
+          </div>
+          <div class="card stat">
+            <div class="ic" style="background:var(--green-soft);color:var(--green)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            </div>
+            <div><div class="val">۲٬۸۴۱</div><div class="lbl">مشتریان ثبت‌نام‌شده</div></div>
+            <span class="trend up">▲ ۴٫۳٪ این ماه</span>
+          </div>
+          <div class="card stat">
+            <div class="ic" style="background:var(--amber-soft);color:var(--amber)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+            </div>
+            <div><div class="val">۶</div><div class="lbl">کالاهای رو به اتمام</div></div>
+            <span class="trend down">نیاز به شارژ موجودی</span>
+          </div>
+        </div>
+
+        <div class="grid g-2-1" style="margin-bottom:18px">
+          <div class="card">
+            <div class="card-head">
+              <div><h3>روند فروش</h3><div class="hint">مجموع فروش بر حسب تومان</div></div>
+              <div class="tabs" id="salesTabs">
+                <button class="tab" data-range="week">هفته</button>
+                <button class="tab active" data-range="month">ماه</button>
+                <button class="tab" data-range="year">سال</button>
+              </div>
+            </div>
+            <div class="card-body"><div id="salesChart"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>وضعیت سفارشات</h3><span class="hint">این ماه</span></div>
+            <div class="card-body" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+              <div id="donutChart"></div>
+              <div class="legend" id="donutLegend"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid g-2" style="margin-bottom:18px">
+          <div class="card">
+            <div class="card-head"><h3>آخرین سفارشات</h3><a class="btn btn-sm" data-goto="orders">مشاهده همه</a></div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>کد سفارش</th><th>مشتری</th><th>مبلغ</th><th>وضعیت</th></tr></thead>
+              <tbody id="recentOrders"></tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>پرفروش‌ترین کالاها</h3><span class="hint">۳۰ روز گذشته</span></div>
+            <div class="card-body" id="topProducts"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>⚠️ هشدار موجودی کم</h3><a class="btn btn-sm" data-goto="products">مدیریت کالاها</a></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>کالا</th><th>دسته‌بندی</th><th>موجودی فعلی</th><th>حد نصاب</th><th>وضعیت</th></tr></thead>
+            <tbody id="lowStock"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ============ PRODUCTS ============ -->
+      <section class="page" id="page-products">
+        <div class="card">
+          <div class="card-head">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <input class="inp" id="prodSearch" placeholder="جستجوی کالا..." style="width:220px">
+              <select class="inp" id="prodCatFilter" style="width:170px"></select>
+              <select class="inp" id="prodStatusFilter" style="width:140px">
+                <option value="">همه وضعیت‌ها</option>
+                <option value="active">فعال</option>
+                <option value="inactive">غیرفعال</option>
+                <option value="out">ناموجود</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" onclick="openProductModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              افزودن کالای جدید
+            </button>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>کالا</th><th>دسته‌بندی</th><th>قیمت</th><th>موجودی</th><th>فروش رفته</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+            <tbody id="productsBody"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ============ CATEGORIES ============ -->
+      <section class="page" id="page-categories">
+        <div class="grid g-1-2">
+          <div>
+            <div class="card" style="margin-bottom:18px">
+              <div class="card-head"><h3>➕ افزودن گروه اصلی</h3></div>
+              <div class="card-body">
+                <div class="form-group"><label>نام گروه</label><input class="inp" id="newCatName" placeholder="مثلاً: لوازم جانبی"></div>
+                <div class="form-group"><label>آیکون (ایموجی)</label><input class="inp" id="newCatIcon" placeholder="📦" value="📁"></div>
+                <button class="btn btn-primary" onclick="addCategory(null)">ثبت گروه</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3>➕ افزودن زیرگروه</h3></div>
+              <div class="card-body">
+                <div class="form-group"><label>گروه والد</label><select class="inp" id="subParent"></select></div>
+                <div class="form-group"><label>نام زیرگروه</label><input class="inp" id="newSubName" placeholder="مثلاً: هدفون و هندزفری"></div>
+                <button class="btn btn-primary" onclick="addSubCategory()">ثبت زیرگروه</button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="card" style="margin-bottom:18px">
+              <div class="card-body" style="display:flex;gap:22px;flex-wrap:wrap">
+                <div><div class="val" style="font-size:20px;font-weight:800" id="statMainCats">۰</div><div class="lbl" style="font-size:12px;color:var(--muted)">گروه اصلی</div></div>
+                <div><div class="val" style="font-size:20px;font-weight:800" id="statSubCats">۰</div><div class="lbl" style="font-size:12px;color:var(--muted)">زیرگروه</div></div>
+                <div><div class="val" style="font-size:20px;font-weight:800" id="statCatProds">۰</div><div class="lbl" style="font-size:12px;color:var(--muted)">کالای دسته‌بندی‌شده</div></div>
+              </div>
+            </div>
+            <div id="categoriesList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ORDERS ============ -->
+      <section class="page" id="page-orders">
+        <div class="card">
+          <div class="card-head">
+            <div class="tabs" id="orderTabs"></div>
+            <div style="display:flex;gap:10px">
+              <input class="inp" id="orderSearch" placeholder="جستجوی کد سفارش یا مشتری..." style="width:230px">
+              <button class="btn" onclick="exportCSV('orders')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                خروجی اکسل
+              </button>
+            </div>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>کد سفارش</th><th>مشتری</th><th>تاریخ</th><th>اقلام</th><th>مبلغ کل</th><th>پرداخت</th><th>وضعیت سفارش</th><th>عملیات</th></tr></thead>
+            <tbody id="ordersBody"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ============ INVOICES ============ -->
+      <section class="page" id="page-invoices">
+        <div class="card">
+          <div class="card-head">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <input class="inp" id="invSearch" placeholder="جستجوی شماره فاکتور یا مشتری..." style="width:240px">
+              <select class="inp" id="invStatusFilter" style="width:150px">
+                <option value="">همه</option><option value="paid">پرداخت‌شده</option><option value="pending">در انتظار</option><option value="refunded">مسترد شده</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:16px;font-size:12.5px;font-weight:700">
+              <span>مجموع فاکتورها: <b id="invCount">۰</b></span>
+              <span>مجموع مبلغ: <b id="invTotal" style="color:var(--green)">۰</b></span>
+            </div>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>شماره فاکتور</th><th>سفارش</th><th>مشتری</th><th>تاریخ صدور</th><th>مالیات (۹٪)</th><th>مبلغ نهایی</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+            <tbody id="invoicesBody"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ============ CUSTOMERS ============ -->
+      <section class="page" id="page-customers">
+        <div class="card">
+          <div class="card-head">
+            <input class="inp" id="custSearch" placeholder="جستجوی نام، موبایل یا شهر..." style="width:260px">
+            <button class="btn btn-primary" onclick="openCustomerModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              افزودن مشتری
+            </button>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>مشتری</th><th>شهر</th><th>تعداد سفارش</th><th>مجموع خرید</th><th>تاریخ عضویت</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+            <tbody id="customersBody"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ============ PAYMENTS ============ -->
+      <section class="page" id="page-payments">
+        <div class="grid g-3" style="margin-bottom:18px">
+          <div class="card stat">
+            <div class="ic" style="background:var(--green-soft);color:var(--green)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+            </div>
+            <div><div class="val">۱٬۲۸۴٬۵۰۰٬۰۰۰</div><div class="lbl">مجموع پرداخت‌های موفق (تومان)</div></div>
+            <span class="trend up">▲ ۱۸٫۲٪ رشد ماهانه</span>
+          </div>
+          <div class="card stat">
+            <div class="ic" style="background:var(--amber-soft);color:var(--amber)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <div><div class="val">۱۲</div><div class="lbl">پرداخت در انتظار تأیید</div></div>
+            <span class="trend down">به ارزش ۱۸٬۴۰۰٬۰۰۰ تومان</span>
+          </div>
+          <div class="card stat">
+            <div class="ic" style="background:var(--red-soft);color:var(--red)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+            </div>
+            <div><div class="val">۳٫۲٪</div><div class="lbl">نرخ تراکنش‌های ناموفق</div></div>
+            <span class="trend up">▼ ۰٫۸٪ بهبود</span>
+          </div>
+        </div>
+
+        <div class="grid g-2" style="margin-bottom:18px">
+          <div class="card">
+            <div class="card-head"><h3>🏦 درگاه‌های پرداخت</h3></div>
+            <div class="card-body" id="gatewaysBody"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>⚙️ تنظیمات درگاه فعال</h3></div>
+            <div class="card-body">
+              <div class="form-group"><label>مرچنت کد (Merchant Code)</label><input class="inp" value="a1b2c3d4-5678-90ef-ghij-klmnopqrstuv" dir="ltr"></div>
+              <div class="form-row">
+                <div class="form-group"><label>حداقل مبلغ پرداخت</label><input class="inp" value="۵۰٬۰۰۰ تومان"></div>
+                <div class="form-group"><label>حداکثر مبلغ پرداخت</label><input class="inp" value="۵۰۰٬۰۰۰٬۰۰۰ تومان"></div>
+              </div>
+              <div class="form-group" style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);padding:12px 14px;border-radius:12px">
+                <div><b style="font-size:13px">بازگشت خودکار وجه</b><div style="font-size:11.5px;color:var(--muted)">در صورت لغو سفارش، وجه به‌صورت خودکار مسترد شود</div></div>
+                <label class="switch"><input type="checkbox" checked><span></span></label>
+              </div>
+              <button class="btn btn-primary" style="margin-top:14px" onclick="toast('تنظیمات درگاه ذخیره شد')">ذخیره تنظیمات</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>آخرین تراکنش‌ها</h3>
+            <div style="display:flex;gap:10px">
+              <select class="inp" id="txStatusFilter" style="width:140px">
+                <option value="">همه وضعیت‌ها</option><option value="ok">موفق</option><option value="pending">در انتظار</option><option value="fail">ناموفق</option>
+              </select>
+              <button class="btn" onclick="exportCSV('transactions')">خروجی اکسل</button>
+            </div>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>کد پیگیری</th><th>سفارش</th><th>مشتری</th><th>مبلغ</th><th>درگاه</th><th>تاریخ</th><th>وضعیت</th></tr></thead>
+            <tbody id="txBody"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ============ REPORTS ============ -->
+      <section class="page" id="page-reports">
+        <div class="card" style="margin-bottom:18px">
+          <div class="card-body" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:12.5px;font-weight:700">بازه گزارش:</span>
+            <div class="tabs" id="reportRange">
+              <button class="tab" data-r="7">۷ روز اخیر</button>
+              <button class="tab active" data-r="30">۳۰ روز اخیر</button>
+              <button class="tab" data-r="90">۳ ماه اخیر</button>
+              <button class="tab" data-r="365">یک سال اخیر</button>
+            </div>
+            <div style="margin-right:auto;display:flex;gap:10px">
+              <button class="btn" onclick="exportCSV('orders')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>خروجی سفارشات</button>
+              <button class="btn btn-primary" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>چاپ گزارش</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid g-4" style="margin-bottom:18px">
+          <div class="card stat"><div class="lbl" style="font-size:12.5px;color:var(--muted)">فروش کل بازه</div><div class="val" id="rSales">۴۸۶٬۲۰۰٬۰۰۰</div><span class="trend up">▲ ۲۲٪</span></div>
+          <div class="card stat"><div class="lbl" style="font-size:12.5px;color:var(--muted)">تعداد سفارشات</div><div class="val" id="rOrders">۱٬۲۴۶</div><span class="trend up">▲ ۱۴٪</span></div>
+          <div class="card stat"><div class="lbl" style="font-size:12.5px;color:var(--muted)">میانگین ارزش سبد</div><div class="val" id="rAvg">۳۹۰٬۲۰۰</div><span class="trend up">▲ ۶٪</span></div>
+          <div class="card stat"><div class="lbl" style="font-size:12.5px;color:var(--muted)">نرخ تبدیل بازدید به خرید</div><div class="val" id="rConv">۳٫۸٪</div><span class="trend down">▼ ۰٫۴٪</span></div>
+        </div>
+
+        <div class="grid g-2" style="margin-bottom:18px">
+          <div class="card">
+            <div class="card-head"><h3>📈 نمودار فروش در بازه</h3><span class="hint" id="rChartHint">۳۰ روز اخیر</span></div>
+            <div class="card-body"><div id="reportChart"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>📊 سهم دسته‌بندی‌ها از فروش</h3></div>
+            <div class="card-body" id="catSalesBars"></div>
+          </div>
+        </div>
+
+        <div class="grid g-2">
+          <div class="card">
+            <div class="card-head"><h3>🏆 محصولات پرفروش</h3></div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>رتبه</th><th>کالا</th><th>تعداد فروش</th><th>درآمد</th><th>سهم از فروش</th></tr></thead>
+              <tbody id="topProductsReport"></tbody>
+            </table></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>⭐ برترین مشتریان</h3></div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>رتبه</th><th>مشتری</th><th>سفارشات</th><th>مجموع خرید</th><th>سطح</th></tr></thead>
+              <tbody id="topCustomersReport"></tbody>
+            </table></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SETTINGS ============ -->
+      <section class="page" id="page-settings">
+        <div class="grid g-2">
+          <div class="card">
+            <div class="card-head"><h3>🏪 اطلاعات فروشگاه</h3></div>
+            <div class="card-body">
+              <div class="form-row">
+                <div class="form-group"><label>نام فروشگاه</label><input class="inp" value="فروشگاه اینترنتی دیجی‌مارکت"></div>
+                <div class="form-group"><label>شماره تماس</label><input class="inp" value="۰۲۱-۹۱۰۰۸۸۷۷" dir="ltr"></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label>ایمیل فروشگاه</label><input class="inp" value="info@digimarket.ir" dir="ltr"></div>
+                <div class="form-group"><label>دامنه سایت</label><input class="inp" value="www.digimarket.ir" dir="ltr"></div>
+              </div>
+              <div class="form-group"><label>آدرس</label><textarea class="inp" rows="2">تهران، خیابان ولیعصر، برج نگین، طبقه ۱۲، واحد ۴</textarea></div>
+              <div class="form-group"><label>توضیحات فروشگاه (درباره ما)</label><textarea class="inp" rows="3">دیجی‌مارکت، عرضه‌کننده انواع کالای دیجیتال با گارانتی اصالت و ارسال سریع به سراسر کشور.</textarea></div>
+              <button class="btn btn-primary" onclick="toast('اطلاعات فروشگاه ذخیره شد')">ذخیره اطلاعات</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="card" style="margin-bottom:18px">
+              <div class="card-head"><h3>💰 تنظیمات مالی و مالیات</h3></div>
+              <div class="card-body">
+                <div class="form-group" style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);padding:12px 14px;border-radius:12px">
+                  <div><b style="font-size:13px">فعال‌سازی مالیات بر ارزش افزوده</b><div style="font-size:11.5px;color:var(--muted)">روی تمامی فاکتورها اعمال می‌شود</div></div>
+                  <label class="switch"><input type="checkbox" checked><span></span></label>
+                </div>
+                <div class="form-row" style="margin-top:14px">
+                  <div class="form-group"><label>نرخ مالیات (٪)</label><input class="inp" value="۹"></div>
+                  <div class="form-group"><label>پیشوند شماره فاکتور</label><input class="inp" value="INV-1405-" dir="ltr"></div>
+                </div>
+                <div class="form-group"><label>واحد پول</label>
+                  <select class="inp"><option>تومان</option><option>ریال</option></select>
+                </div>
+                <button class="btn btn-primary" onclick="toast('تنظیمات مالی ذخیره شد')">ذخیره</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><h3>🚚 روش‌های ارسال</h3></div>
+              <div class="card-body">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)">
+                  <div><b style="font-size:13px">پست پیشتاز</b><div style="font-size:11.5px;color:var(--muted)">۲ تا ۴ روز کاری — ۴۵٬۰۰۰ تومان</div></div>
+                  <label class="switch"><input type="checkbox" checked><span></span></label>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)">
+                  <div><b style="font-size:13px">تیپاکس (پس‌کرایه)</b><div style="font-size:11.5px;color:var(--muted)">۱ تا ۳ روز کاری — ۶۵٬۰۰۰ تومان</div></div>
+                  <label class="switch"><input type="checkbox" checked><span></span></label>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)">
+                  <div><b style="font-size:13px">پیک موتوری (تهران)</b><div style="font-size:11.5px;color:var(--muted)">تحویل همان روز — ۸۰٬۰۰۰ تومان</div></div>
+                  <label class="switch"><input type="checkbox" checked><span></span></label>
+                </div>
+                <div class="form-group" style="margin-top:14px"><label>ارسال رایگان برای خرید بالای</label><input class="inp" value="۵۰۰٬۰۰۰ تومان"></div>
+                <button class="btn btn-primary" onclick="toast('روش‌های ارسال ذخیره شد')">ذخیره</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ================= MODALS ================= -->
+<div class="overlay" id="productModal">
+  <div class="modal">
+    <div class="modal-head"><h3 id="productModalTitle">افزودن کالای جدید</h3><button class="x-btn" onclick="closeModal('productModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>نام کالا *</label><input class="inp" id="pName" placeholder="مثلاً: هدفون بی‌سیم مدل X20"></div>
+      <div class="form-row">
+        <div class="form-group"><label>کد کالا (SKU)</label><input class="inp" id="pSku" placeholder="DM-1001" dir="ltr"></div>
+        <div class="form-group"><label>زیرگروه کالا *</label><select class="inp" id="pCat"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>قیمت (تومان) *</label><input class="inp" id="pPrice" type="number" placeholder="1250000"></div>
+        <div class="form-group"><label>تخفیف (٪)</label><input class="inp" id="pDiscount" type="number" value="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>موجودی انبار</label><input class="inp" id="pStock" type="number" placeholder="0"></div>
+        <div class="form-group"><label>وضعیت</label>
+          <select class="inp" id="pStatus"><option value="active">فعال</option><option value="inactive">غیرفعال</option></select>
+        </div>
+      </div>
+      <div class="form-group"><label>توضیحات کوتاه</label><textarea class="inp" id="pDesc" rows="2" placeholder="توضیحات اختیاری..."></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" onclick="saveProduct()">ذخیره کالا</button>
+      <button class="btn" onclick="closeModal('productModal')">انصراف</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="customerModal">
+  <div class="modal">
+    <div class="modal-head"><h3>افزودن مشتری جدید</h3><button class="x-btn" onclick="closeModal('customerModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>نام و نام خانوادگی *</label><input class="inp" id="cName" placeholder="مثلاً: علی رضایی"></div>
+        <div class="form-group"><label>شماره موبایل *</label><input class="inp" id="cPhone" placeholder="0912xxxxxxx" dir="ltr"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>ایمیل</label><input class="inp" id="cEmail" placeholder="example@mail.com" dir="ltr"></div>
+        <div class="form-group"><label>شهر</label><input class="inp" id="cCity" placeholder="تهران"></div>
+      </div>
+      <div class="form-group"><label>آدرس</label><textarea class="inp" id="cAddr" rows="2"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" onclick="saveCustomer()">ثبت مشتری</button>
+      <button class="btn" onclick="closeModal('customerModal')">انصراف</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="orderModal">
+  <div class="modal wide">
+    <div class="modal-head"><h3 id="orderModalTitle">جزئیات سفارش</h3><button class="x-btn" onclick="closeModal('orderModal')">✕</button></div>
+    <div class="modal-body" id="orderModalBody"></div>
+  </div>
+</div>
+
+<div class="overlay" id="invoiceModal">
+  <div class="modal wide">
+    <div class="modal-head"><h3>پیش‌نمایش فاکتور</h3><button class="x-btn" onclick="closeModal('invoiceModal')">✕</button></div>
+    <div class="modal-body" id="printArea"></div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" onclick="window.print()">🖨️ چاپ فاکتور</button>
+      <button class="btn" onclick="closeModal('invoiceModal')">بستن</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ================= DATA ================= */
+const faD='۰۱۲۳۴۵۶۷۸۹';
+const fa=n=>String(n).replace(/\d/g,d=>faD[d]);
+const money=n=>Number(n).toLocaleString('fa-IR')+' تومان';
+const moneyRaw=n=>Number(n).toLocaleString('fa-IR');
+
+let categories=[
+  {id:'c1',name:'کالای دیجیتال',icon:'📱',parent:null},
+  {id:'c11',name:'گوشی موبایل',icon:'',parent:'c1'},
+  {id:'c12',name:'تبلت',icon:'',parent:'c1'},
+  {id:'c13',name:'لپ‌تاپ',icon:'',parent:'c1'},
+  {id:'c14',name:'قطعات کامپیوتر',icon:'',parent:'c1'},
+  {id:'c2',name:'صوتی و تصویری',icon:'🎧',parent:null},
+  {id:'c21',name:'هدفون و هندزفری',icon:'',parent:'c2'},
+  {id:'c22',name:'اسپیکر',icon:'',parent:'c2'},
+  {id:'c3',name:'لوازم جانبی',icon:'🔌',parent:null},
+  {id:'c31',name:'پاوربانک و شارژر',icon:'',parent:'c3'},
+  {id:'c32',name:'کابل و مبدل',icon:'',parent:'c3'},
+  {id:'c4',name:'ساعت و پوشیدنی',icon:'⌚',parent:null},
+  {id:'c41',name:'ساعت هوشمند',icon:'',parent:'c4'},
+];
+
+let products=[
+  {id:1,name:'گوشی موبایل شیائومی Redmi Note 13',sku:'DM-1001',cat:'c11',price:12850000,discount:8,stock:42,sold:318,status:'active',icon:'📱'},
+  {id:2,name:'لپ‌تاپ ایسوس VivoBook 15',sku:'DM-1002',cat:'c13',price:38900000,discount:5,stock:14,sold:96,status:'active',icon:'💻'},
+  {id:3,name:'هدفون بی‌سیم سونی WH-1000XM5',sku:'DM-1003',cat:'c21',price:15750000,discount:0,stock:27,sold:204,status:'active',icon:'🎧'},
+  {id:4,name:'ساعت هوشمند اپل واچ Series 9',sku:'DM-1004',cat:'c41',price:28400000,discount:10,stock:9,sold:152,status:'active',icon:'⌚'},
+  {id:5,name:'تبلت سامسونگ Galaxy Tab A9',sku:'DM-1005',cat:'c12',price:9650000,discount:0,stock:31,sold:88,status:'active',icon:'📲'},
+  {id:6,name:'پاوربانک انکر ۲۰۰۰۰ میلی‌آمپر',sku:'DM-1006',cat:'c31',price:1890000,discount:15,stock:64,sold:512,status:'active',icon:'🔋'},
+  {id:7,name:'اسپیکر بلوتوثی JBL Flip 6',sku:'DM-1007',cat:'c22',price:6450000,discount:0,stock:4,sold:167,status:'active',icon:'🔊'},
+  {id:8,name:'حافظه SSD سامسونگ ۱ ترابایت',sku:'DM-1008',cat:'c14',price:5280000,discount:12,stock:53,sold:289,status:'active',icon:'💾'},
+  {id:9,name:'کیبورد مکانیکی ردراگون K552',sku:'DM-1009',cat:'c14',price:2350000,discount:0,stock:0,sold:143,status:'active',icon:'⌨️'},
+  {id:10,name:'ماوس گیمینگ لاجیتک G502',sku:'DM-1010',cat:'c14',price:3120000,discount:6,stock:38,sold:197,status:'active',icon:'🖱️'},
+  {id:11,name:'کابل تایپ‌سی باسئوس ۱۰۰ وات',sku:'DM-1011',cat:'c32',price:385000,discount:0,stock:120,sold:634,status:'active',icon:'🔌'},
+  {id:12,name:'هندزفری بلوتوثی کیو‌سی‌وای T13',sku:'DM-1012',cat:'c21',price:980000,discount:20,stock:76,sold:458,status:'active',icon:'🎵'},
+  {id:13,name:'مانیتور ال‌جی ۲۷ اینچ UltraGear',sku:'DM-1013',cat:'c14',price:17600000,discount:0,stock:11,sold:54,status:'inactive',icon:'🖥️'},
+  {id:14,name:'شارژر دیواری فست‌شارژ ۶۵ وات',sku:'DM-1014',cat:'c31',price:1150000,discount:0,stock:2,sold:391,status:'active',icon:'⚡'},
+];
+
+let customers=[
+  {id:1,name:'علی رضایی',phone:'0912-345-6789',email:'ali.rezaei@gmail.com',city:'تهران',orders:24,spent:186400000,joined:'۱۴۰۲/۰۳/۱۵',vip:true},
+  {id:2,name:'مریم احمدی',phone:'0935-111-2233',email:'m.ahmadi@yahoo.com',city:'اصفهان',orders:17,spent:94200000,joined:'۱۴۰۲/۰۷/۰۲',vip:true},
+  {id:3,name:'حسین کریمی',phone:'0913-876-5432',email:'h.karimi@gmail.com',city:'مشهد',orders:9,spent:41800000,joined:'۱۴۰۳/۰۱/۲۰',vip:false},
+  {id:4,name:'زهرا محمدی',phone:'0919-222-3344',email:'z.mohammadi@gmail.com',city:'شیراز',orders:31,spent:228900000,joined:'۱۴۰۱/۱۱/۰۸',vip:true},
+  {id:5,name:'رضا نادری',phone:'0901-555-6677',email:'r.naderi@outlook.com',city:'تبریز',orders:6,spent:23500000,joined:'۱۴۰۳/۰۶/۱۴',vip:false},
+  {id:6,name:'سارا یوسفی',phone:'0938-777-8899',email:'s.yousefi@gmail.com',city:'کرج',orders:12,spent:67300000,joined:'۱۴۰۲/۱۲/۰۱',vip:false},
+  {id:7,name:'محمد حسینی',phone:'0914-333-4455',email:'m.hosseini@gmail.com',city:'قم',orders:4,spent:15900000,joined:'۱۴۰۴/۰۲/۲۵',vip:false},
+  {id:8,name:'نگار صادقی',phone:'0902-999-0011',email:'n.sadeghi@gmail.com',city:'اهواز',orders:19,spent:112700000,joined:'۱۴۰۲/۰۵/۳۰',vip:true},
+];
+
+const orderStatuses={
+  pending:{label:'در انتظار پرداخت',cls:'b-amber'},
+  processing:{label:'در حال پردازش',cls:'b-blue'},
+  shipped:{label:'ارسال شده',cls:'b-cyan'},
+  delivered:{label:'تحویل شده',cls:'b-green'},
+  canceled:{label:'لغو شده',cls:'b-red'},
+};
+const payStatuses={ok:{label:'پرداخت موفق',cls:'b-green'},pending:{label:'در انتظار',cls:'b-amber'},fail:{label:'ناموفق',cls:'b-red'},refund:{label:'مسترد شده',cls:'b-purple'}};
+
+let orders=[
+  {id:'DM-10254',cust:'علی رضایی',date:'۱۴۰۵/۰۴/۳۰',items:[{p:1,q:1},{p:6,q:2}],status:'pending',pay:'pending',addr:'تهران، سعادت‌آباد، بلوار دریا، پلاک ۱۲'},
+  {id:'DM-10253',cust:'مریم احمدی',date:'۱۴۰۵/۰۴/۳۰',items:[{p:3,q:1}],status:'processing',pay:'ok',addr:'اصفهان، خیابان چهارباغ بالا، کوچه نرگس'},
+  {id:'DM-10252',cust:'زهرا محمدی',date:'۱۴۰۵/۰۴/۲۹',items:[{p:4,q:1},{p:12,q:1}],status:'shipped',pay:'ok',addr:'شیراز، معالی‌آباد، خیابان پزشکان'},
+  {id:'DM-10251',cust:'حسین کریمی',date:'۱۴۰۵/۰۴/۲۹',items:[{p:8,q:2},{p:10,q:1}],status:'processing',pay:'ok',addr:'مشهد، احمدآباد، خیابان رضا'},
+  {id:'DM-10250',cust:'سارا یوسفی',date:'۱۴۰۵/۰۴/۲۸',items:[{p:2,q:1}],status:'delivered',pay:'ok',addr:'کرج، عظیمیه، بلوار مطهری'},
+  {id:'DM-10249',cust:'رضا نادری',date:'۱۴۰۵/۰۴/۲۸',items:[{p:7,q:1},{p:11,q:3}],status:'delivered',pay:'ok',addr:'تبریز، ولیعصر، خیابان فروغی'},
+  {id:'DM-10248',cust:'نگار صادقی',date:'۱۴۰۵/۰۴/۲۷',items:[{p:5,q:1},{p:14,q:1}],status:'canceled',pay:'fail',addr:'اهواز، کیانپارس، خیابان ۱۱'},
+  {id:'DM-10247',cust:'محمد حسینی',date:'۱۴۰۵/۰۴/۲۷',items:[{p:9,q:1},{p:10,q:2}],status:'delivered',pay:'ok',addr:'قم، بلوار امین، کوچه ۴'},
+  {id:'DM-10246',cust:'علی رضایی',date:'۱۴۰۵/۰۴/۲۶',items:[{p:13,q:1}],status:'shipped',pay:'ok',addr:'تهران، سعادت‌آباد، بلوار دریا، پلاک ۱۲'},
+  {id:'DM-10245',cust:'مریم احمدی',date:'۱۴۰۵/۰۴/۲۵',items:[{p:6,q:3},{p:12,q:2}],status:'delivered',pay:'ok',addr:'اصفهان، خیابان چهارباغ بالا، کوچه نرگس'},
+];
+
+let transactions=[
+  {id:'TX-88452',order:'DM-10253',cust:'مریم احمدی',amount:15750000,gw:'زرین‌پال',date:'۱۴۰۵/۰۴/۳۰',status:'ok'},
+  {id:'TX-88451',order:'DM-10252',cust:'زهرا محمدی',amount:29380000,gw:'پی‌پینگ',date:'۱۴۰۵/۰۴/۲۹',status:'ok'},
+  {id:'TX-88450',order:'DM-10251',cust:'حسین کریمی',amount:13680000,gw:'زرین‌پال',date:'۱۴۰۵/۰۴/۲۹',status:'ok'},
+  {id:'TX-88449',order:'DM-10254',cust:'علی رضایی',amount:16630000,gw:'زرین‌پال',date:'۱۴۰۵/۰۴/۳۰',status:'pending'},
+  {id:'TX-88448',order:'DM-10248',cust:'نگار صادقی',amount:10800000,gw:'بانک ملت',date:'۱۴۰۵/۰۴/۲۷',status:'fail'},
+  {id:'TX-88447',order:'DM-10250',cust:'سارا یوسفی',amount:36955000,gw:'پی‌پینگ',date:'۱۴۰۵/۰۴/۲۸',status:'ok'},
+  {id:'TX-88446',order:'DM-10247',cust:'محمد حسینی',amount:8590000,gw:'زرین‌پال',date:'۱۴۰۵/۰۴/۲۷',status:'ok'},
+  {id:'TX-88445',order:'DM-10246',cust:'علی رضایی',amount:17600000,gw:'بانک ملت',date:'۱۴۰۵/۰۴/۲۶',status:'refund'},
+];
+
+const gateways=[
+  {name:'زرین‌پال',desc:'درگاه اصلی فروشگاه — کارمزد ۱٪',on:true,icon:'🟡'},
+  {name:'پی‌پینگ',desc:'مناسب خریدهای اقساطی — کارمزد ۱٫۲٪',on:true,icon:'🟢'},
+  {name:'بانک ملت (به‌پرداخت)',desc:'درگاه مستقیم بانکی — کارمزد ۰٫۸٪',on:true,icon:'🔴'},
+  {name:'پرداخت در محل',desc:'فقط شهرهای تهران و کرج',on:false,icon:'🚚'},
+  {name:'کیف پول داخلی',desc:'اعتبار مشتریان باشگاه وفاداری',on:true,icon:'👛'},
+];
+
+/* ================= HELPERS ================= */
+const catName=id=>{const c=categories.find(x=>x.id===id);return c?c.name:'—'};
+const catChain=id=>{const c=categories.find(x=>x.id===id);if(!c)return'—';const p=categories.find(x=>x.id===c.parent);return p?p.name+' / '+c.name:c.name};
+const prod=id=>products.find(p=>p.id===id);
+const finalPrice=p=>Math.round(p.price*(1-(p.discount||0)/100));
+const orderTotal=o=>o.items.reduce((s,it)=>{const p=prod(it.p);return s+(p?finalPrice(p)*it.q:0)},0);
+const tax=v=>Math.round(v*0.09);
+
+function toast(msg,type='ok'){
+  const t=document.createElement('div');
+  t.className='toast '+type;
+  t.innerHTML=(type==='err'?'⚠️':type==='info'?'ℹ️':'✅')+' '+msg;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .4s';setTimeout(()=>t.remove(),400)},2800);
+}
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open')}));
+
+/* ================= NAVIGATION ================= */
+const titles={
+  dashboard:['داشبورد','نمای کلی عملکرد فروشگاه — سه‌شنبه ۳۰ تیر ۱۴۰۵'],
+  products:['مدیریت کالاها','افزودن، ویرایش و مدیریت موجودی محصولات'],
+  categories:['گروه‌بندی کالاها','مدیریت گروه‌ها و زیرگروه‌های محصولات'],
+  orders:['مدیریت سفارشات','پیگیری و مدیریت سفارشات مشتریان'],
+  invoices:['فاکتورها','مشاهده و چاپ فاکتورهای فروش'],
+  customers:['مشتری‌ها','مدیریت اطلاعات و سوابق خرید مشتریان'],
+  payments:['پرداخت‌ها','درگاه‌های پرداخت و تراکنش‌های مالی'],
+  reports:['گزارش‌های حرفه‌ای','تحلیل فروش، محصولات و مشتریان'],
+  settings:['تنظیمات فروشگاه','پیکربندی فروشگاه، مالیات و ارسال'],
+};
+function goto(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===page));
+  document.getElementById('pageTitle').textContent=titles[page][0];
+  document.getElementById('pageSub').textContent=titles[page][1];
+  document.getElementById('sidebar').classList.remove('open');
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.nav-item[data-page]').forEach(n=>n.addEventListener('click',()=>goto(n.dataset.page)));
+document.addEventListener('click',e=>{const g=e.target.closest('[data-goto]');if(g)goto(g.dataset.goto)});
+
+/* theme */
+document.getElementById('themeBtn').addEventListener('click',()=>{
+  const b=document.body;
+  b.dataset.theme=b.dataset.theme==='dark'?'':'dark';
+});
+
+/* ================= CHARTS (SVG) ================= */
+function lineChart(el,data,labels,color='#4f46e5'){
+  const W=640,H=250,pl=14,pr=14,pt=16,pb=30;
+  const max=Math.max(...data)*1.15,min=0;
+  const xs=i=>pl+i*(W-pl-pr)/(data.length-1);
+  const ys=v=>pt+(H-pt-pb)*(1-(v-min)/(max-min));
+  const pts=data.map((v,i)=>[xs(i),ys(v)]);
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area=line+' L '+xs(data.length-1)+' '+(H-pb)+' L '+xs(0)+' '+(H-pb)+' Z';
+  const grid=[0,.25,.5,.75,1].map(t=>{
+    const y=pt+(H-pt-pb)*t;
+    const val=Math.round(max*(1-t));
+    return `<line x1="${pl}" y1="${y}" x2="${W-pr}" y2="${y}" stroke="var(--border)" stroke-dasharray="4 4"/><text x="${W-pr}" y="${y-4}" font-size="9" fill="var(--muted)" text-anchor="end">${moneyRaw(val)}</text>`;
+  }).join('');
+  const lbls=labels.map((l,i)=>{
+    if(labels.length>14&&i%Math.ceil(labels.length/10)!==0)return'';
+    return `<text x="${xs(i)}" y="${H-10}" font-size="9.5" fill="var(--muted)" text-anchor="middle">${l}</text>`;
+  }).join('');
+  const dots=pts.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="var(--card)" stroke="${color}" stroke-width="2"><title>${labels[i]}: ${money(data[i])}</title></circle>`).join('');
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:inherit">
+    <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${color}" stop-opacity=".28"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+    ${grid}<path d="${area}" fill="url(#lg)"/><path d="${line}" fill="none" stroke="${color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>${dots}${lbls}
+  </svg>`;
+}
+function donut(el,items){
+  const total=items.reduce((s,i)=>s+i.value,0);let off=0;const r=62,c=2*Math.PI*r;
+  const segs=items.map(i=>{
+    const frac=i.value/total,dash=frac*c;
+    const s=`<circle cx="80" cy="80" r="${r}" fill="none" stroke="${i.color}" stroke-width="20" stroke-dasharray="${dash} ${c-dash}" stroke-dashoffset="${-off}" transform="rotate(-90 80 80)"><title>${i.label}: ${fa(i.value)} (${fa(Math.round(frac*100))}٪)</title></circle>`;
+    off+=dash;return s;
+  }).join('');
+  el.innerHTML=`<svg viewBox="0 0 160 160" style="width:165px;height:165px">${segs}
+    <text x="80" y="76" text-anchor="middle" font-size="21" font-weight="800" fill="var(--text)">${fa(total)}</text>
+    <text x="80" y="95" text-anchor="middle" font-size="10" fill="var(--muted)">سفارش</text></svg>`;
+}
+
+/* ================= DASHBOARD ================= */
+const salesData={
+  week:{data:[32,41,38,52,47,63,49].map(v=>v*1000000),labels:['شنبه','یک‌شنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنج‌شنبه','جمعه']},
+  month:{data:[28,35,31,42,38,45,52,48,55,61,57,66,63,71,68,74,69,78,82,76,85,88,92,84,90,95,87,98,102,96].map(v=>v*1000000),labels:Array.from({length:30},(_,i)=>fa(i+1))},
+  year:{data:[620,580,710,690,760,830,790,880,940,900,980,1050].map(v=>v*1000000),labels:['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند']},
+};
+function renderSalesChart(range='month'){
+  const d=salesData[range];
+  lineChart(document.getElementById('salesChart'),d.data,d.labels);
+}
+document.getElementById('salesTabs').addEventListener('click',e=>{
+  const b=e.target.closest('.tab');if(!b)return;
+  document.querySelectorAll('#salesTabs .tab').forEach(t=>t.classList.remove('active'));
+  b.classList.add('active');renderSalesChart(b.dataset.range);
+});
+
+function renderDashboard(){
+  renderSalesChart('month');
+  const st={pending:0,processing:0,shipped:0,delivered:0,canceled:0};
+  orders.forEach(o=>st[o.status]++);
+  donut(document.getElementById('donutChart'),[
+    {label:'تحویل شده',value:st.delivered,color:'#10b981'},
+    {label:'در حال پردازش',value:st.processing,color:'#3b82f6'},
+    {label:'ارسال شده',value:st.shipped,color:'#06b6d4'},
+    {label:'در انتظار پرداخت',value:st.pending,color:'#f59e0b'},
+    {label:'لغو شده',value:st.canceled,color:'#ef4444'},
+  ]);
+  document.getElementById('donutLegend').innerHTML=[
+    ['تحویل شده',st.delivered,'#10b981'],['در حال پردازش',st.processing,'#3b82f6'],
+    ['ارسال شده',st.shipped,'#06b6d4'],['در انتظار پرداخت',st.pending,'#f59e0b'],['لغو شده',st.canceled,'#ef4444']
+  ].map(([l,v,c])=>`<div class="li"><span class="sw" style="background:${c}"></span>${l}<b>${fa(v)}</b></div>`).join('');
+
+  document.getElementById('recentOrders').innerHTML=orders.slice(0,6).map(o=>{
+    const s=orderStatuses[o.status];
+    return `<tr><td><b>${fa(o.id)}</b></td><td>${o.cust}</td><td>${money(orderTotal(o))}</td><td><span class="badge ${s.cls}">${s.label}</span></td></tr>`;
+  }).join('');
+
+  const top=[...products].sort((a,b)=>b.sold-a.sold).slice(0,5);
+  const maxSold=Math.max(...top.map(p=>p.sold));
+  document.getElementById('topProducts').innerHTML=top.map((p,i)=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:9px 0;${i<4?'border-bottom:1px dashed var(--border)':''}">
+      <div class="thumb">${p.icon}</div>
+      <div style="flex:1;min-width:0"><b style="font-size:12.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</b>
+        <div class="progress" style="margin-top:5px"><i style="width:${Math.round(p.sold/maxSold*100)}%"></i></div>
+      </div>
+      <b style="font-size:12px;color:var(--primary)">${fa(p.sold)} عدد</b>
+    </div>`).join('');
+
+  document.getElementById('lowStock').innerHTML=products.filter(p=>p.stock<=10).sort((a,b)=>a.stock-b.stock).map(p=>{
+    const b=p.stock===0?['b-red','ناموجود']:p.stock<=5?['b-red','بحرانی']:['b-amber','رو به اتمام'];
+    return `<tr><td><div class="prod-cell"><div class="thumb">${p.icon}</div><div><b>${p.name}</b><small>${fa(p.sku)}</small></div></div></td>
+      <td>${catChain(p.cat)}</td><td><b>${fa(p.stock)}</b></td><td>${fa(10)}</td><td><span class="badge ${b[0]}">${b[1]}</span></td></tr>`;
+  }).join('');
+}
+
+/* ================= PRODUCTS ================= */
+let editingProduct=null;
+function renderProducts(){
+  const q=(document.getElementById('prodSearch').value||'').trim();
+  const cat=document.getElementById('prodCatFilter').value;
+  const st=document.getElementById('prodStatusFilter').value;
+  let list=products.filter(p=>
+    (!q||p.name.includes(q)||p.sku.toLowerCase().includes(q.toLowerCase()))&&
+    (!cat||p.cat===cat||(categories.find(c=>c.id===cat)&&categories.find(c=>c.id===cat).parent===null&&p.cat.startsWith(cat)))&&
+    (!st||(st==='out'?p.stock===0:p.status===st))
+  );
+  document.getElementById('productsBody').innerHTML=list.length?list.map(p=>{
+    const stB=p.stock===0?['b-red','ناموجود']:p.status==='inactive'?['b-gray','غیرفعال']:['b-green','فعال'];
+    return `<tr>
+      <td><div class="prod-cell"><div class="thumb">${p.icon}</div><div><b>${p.name}</b><small>SKU: ${fa(p.sku)}</small></div></div></td>
+      <td>${catChain(p.cat)}</td>
+      <td><b>${money(finalPrice(p))}</b>${p.discount?`<br><small style="color:var(--red);text-decoration:line-through">${moneyRaw(p.price)}</small>`:''}</td>
+      <td><b>${fa(p.stock)}</b></td>
+      <td>${fa(p.sold)}</td>
+      <td><span class="badge ${stB[0]}">${stB[1]}</span></td>
+      <td>
+        <button class="btn btn-sm" onclick="openProductModal(${p.id})">✏️ ویرایش</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteProduct(${p.id})">🗑️</button>
+      </td></tr>`;
+  }).join(''):`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">کالایی یافت نشد</td></tr>`;
+  document.getElementById('navProdCount').textContent=fa(products.length);
+}
+function fillCatSelect(sel,onlySubs=false){
+  let html='';
+  categories.filter(c=>!c.parent&&!onlySubs).forEach(c=>{
+    html+=`<optgroup label="${c.icon} ${c.name}">`;
+    categories.filter(s=>s.parent===c.id).forEach(s=>html+=`<option value="${s.id}">${s.name}</option>`);
+    if(!categories.some(s=>s.parent===c.id))html+=`<option value="${c.id}">${c.name} (بدون زیرگروه)</option>`;
+    html+=`</optgroup>`;
+  });
+  sel.innerHTML=html;
+}
+function openProductModal(id=null){
+  editingProduct=id;
+  fillCatSelect(document.getElementById('pCat'));
+  document.getElementById('productModalTitle').textContent=id?'ویرایش کالا':'افزودن کالای جدید';
+  if(id){
+    const p=prod(id);
+    pName.value=p.name;pSku.value=p.sku;pCat.value=p.cat;pPrice.value=p.price;pDiscount.value=p.discount||0;pStock.value=p.stock;pStatus.value=p.status;pDesc.value='';
+  }else{[pName,pSku,pPrice,pDesc].forEach(i=>i.value='');pDiscount.value=0;pStock.value='';pStatus.value='active';}
+  openModal('productModal');
+}
+function saveProduct(){
+  const name=pName.value.trim(),price=+pPrice.value,cat=pCat.value;
+  if(!name||!price){toast('نام کالا و قیمت الزامی است','err');return}
+  const icons={'c11':'📱','c12':'📲','c13':'💻','c14':'🖥️','c21':'🎧','c22':'🔊','c31':'🔋','c32':'🔌','c41':'⌚'};
+  if(editingProduct){
+    Object.assign(prod(editingProduct),{name,sku:pSku.value.trim()||'DM-'+editingProduct,cat,price,discount:+pDiscount.value,stock:+pStock.value||0,status:pStatus.value});
+    toast('کالا با موفقیت ویرایش شد');
+  }else{
+    const id=Math.max(...products.map(p=>p.id))+1;
+    products.push({id,name,sku:pSku.value.trim()||'DM-'+(1000+id),cat,price,discount:+pDiscount.value,stock:+pStock.value||0,sold:0,status:pStatus.value,icon:icons[cat]||'📦'});
+    toast('کالای جدید با موفقیت اضافه شد');
+  }
+  closeModal('productModal');renderProducts();fillCatFilters();
+}
+function deleteProduct(id){
+  if(confirm('آیا از حذف این کالا مطمئن هستید؟')){
+    products=products.filter(p=>p.id!==id);renderProducts();toast('کالا حذف شد','info');
+  }
+}
+function fillCatFilters(){
+  const f=document.getElementById('prodCatFilter');
+  const cur=f.value;
+  f.innerHTML='<option value="">همه دسته‌ها</option>'+categories.filter(c=>!c.parent).map(c=>
+    `<option value="${c.id}">${c.icon} ${c.name}</option>`+categories.filter(s=>s.parent===c.id).map(s=>`<option value="${s.id}">— ${s.name}</option>`).join('')
+  ).join('');
+  f.value=cur;
+}
+['prodSearch','prodStatusFilter'].forEach(id=>document.getElementById(id).addEventListener('input',renderProducts));
+document.getElementById('prodCatFilter').addEventListener('change',renderProducts);
+
+/* ================= CATEGORIES ================= */
+function renderCategories(){
+  const mains=categories.filter(c=>!c.parent);
+  document.getElementById('categoriesList').innerHTML=mains.map(c=>{
+    const subs=categories.filter(s=>s.parent===c.id);
+    const prodCount=products.filter(p=>p.cat===c.id||subs.some(s=>s.id===p.cat)).length;
+    return `<div class="cat-block">
+      <div class="cat-head">
+        <div class="ic">${c.icon}</div>
+        <div style="flex:1"><b>${c.name}</b><small>${fa(subs.length)} زیرگروه — ${fa(prodCount)} کالا</small></div>
+        <button class="btn btn-sm btn-danger" onclick="deleteCategory('${c.id}')">حذف گروه</button>
+      </div>
+      <div class="subs">
+        ${subs.map(s=>`<span class="chip">${s.name}<span class="rm" onclick="deleteSub('${s.id}')" title="حذف زیرگروه">✕</span></span>`).join('')||'<span style="color:var(--muted);font-size:12px">زیرگروهی ثبت نشده است</span>'}
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('statMainCats').textContent=fa(mains.length);
+  document.getElementById('statSubCats').textContent=fa(categories.length-mains.length);
+  document.getElementById('statCatProds').textContent=fa(products.length);
+  const sp=document.getElementById('subParent');
+  sp.innerHTML=mains.map(c=>`<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+}
+function addCategory(){
+  const name=document.getElementById('newCatName').value.trim();
+  if(!name){toast('نام گروه را وارد کنید','err');return}
+  categories.push({id:'c'+Date.now(),name,icon:document.getElementById('newCatIcon').value||'📁',parent:null});
+  document.getElementById('newCatName').value='';
+  renderCategories();toast('گروه «'+name+'» اضافه شد');
+}
+function addSubCategory(){
+  const name=document.getElementById('newSubName').value.trim();
+  const parent=document.getElementById('subParent').value;
+  if(!name){toast('نام زیرگروه را وارد کنید','err');return}
+  categories.push({id:'c'+Date.now(),name,icon:'',parent});
+  document.getElementById('newSubName').value='';
+  renderCategories();toast('زیرگروه «'+name+'» اضافه شد');
+}
+function deleteCategory(id){
+  if(confirm('با حذف این گروه، تمام زیرگروه‌های آن نیز حذف می‌شود. ادامه می‌دهید؟')){
+    categories=categories.filter(c=>c.id!==id&&c.parent!==id);
+    renderCategories();toast('گروه حذف شد','info');
+  }
+}
+function deleteSub(id){categories=categories.filter(c=>c.id!==id);renderCategories();toast('زیرگروه حذف شد','info')}
+
+/* ================= ORDERS ================= */
+let orderFilter='all';
+function renderOrderTabs(){
+  const counts={all:orders.length};
+  Object.keys(orderStatuses).forEach(k=>counts[k]=orders.filter(o=>o.status===k).length);
+  document.getElementById('orderTabs').innerHTML=
+    `<button class="tab ${orderFilter==='all'?'active':''}" data-f="all">همه<span class="cnt">(${fa(counts.all)})</span></button>`+
+    Object.entries(orderStatuses).map(([k,v])=>
+      `<button class="tab ${orderFilter===k?'active':''}" data-f="${k}">${v.label}<span class="cnt">(${fa(counts[k])})</span></button>`
+    ).join('');
+}
+document.getElementById('orderTabs').addEventListener('click',e=>{
+  const b=e.target.closest('.tab');if(!b)return;orderFilter=b.dataset.f;renderOrders();
+});
+document.getElementById('orderSearch').addEventListener('input',renderOrders);
+function renderOrders(){
+  renderOrderTabs();
+  const q=(document.getElementById('orderSearch').value||'').trim();
+  const list=orders.filter(o=>(orderFilter==='all'||o.status===orderFilter)&&(!q||o.id.includes(q)||o.cust.includes(q)));
+  document.getElementById('ordersBody').innerHTML=list.length?list.map(o=>{
+    const s=orderStatuses[o.status],ps=payStatuses[o.pay];
+    return `<tr>
+      <td><b>${fa(o.id)}</b></td><td>${o.cust}</td><td>${fa(o.date)}</td>
+      <td>${fa(o.items.reduce((s,i)=>s+i.q,0))} قلم</td>
+      <td><b>${money(orderTotal(o))}</b></td>
+      <td><span class="badge ${ps.cls}">${ps.label}</span></td>
+      <td><span class="badge ${s.cls}">${s.label}</span></td>
+      <td><button class="btn btn-sm" onclick="viewOrder('${o.id}')">👁️ مشاهده</button></td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">سفارشی یافت نشد</td></tr>`;
+  document.getElementById('navOrderCount').textContent=fa(orders.filter(o=>o.status==='pending'||o.status==='processing').length);
+}
+function viewOrder(id){
+  const o=orders.find(x=>x.id===id);if(!o)return;
+  const total=orderTotal(o),s=orderStatuses[o.status],ps=payStatuses[o.pay];
+  const steps=[['pending','ثبت و انتظار پرداخت'],['processing','پردازش و بسته‌بندی'],['shipped','ارسال مرسوله'],['delivered','تحویل به مشتری']];
+  const idx=o.status==='canceled'?-1:steps.findIndex(x=>x[0]===o.status);
+  document.getElementById('orderModalTitle').textContent='جزئیات سفارش '+fa(o.id);
+  document.getElementById('orderModalBody').innerHTML=`
+    <div class="grid g-2" style="gap:16px;margin-bottom:16px">
+      <div style="background:var(--bg);border-radius:13px;padding:14px">
+        <b style="font-size:12.5px;display:block;margin-bottom:7px">👤 اطلاعات مشتری</b>
+        <div style="font-size:12.5px;line-height:2">${o.cust}<br>${fa(o.date)}<br>📍 ${o.addr}</div>
+      </div>
+      <div style="background:var(--bg);border-radius:13px;padding:14px">
+        <b style="font-size:12.5px;display:block;margin-bottom:7px">📦 وضعیت سفارش</b>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><span class="badge ${s.cls}">${s.label}</span><span class="badge ${ps.cls}">${ps.label}</span></div>
+        <div class="timeline">
+          ${steps.map((st,i)=>`<div class="tl-item ${i<=idx?'done':''}"><b>${st[1]}</b><small>${i<=idx?'انجام شد':i===idx+1?'در انتظار انجام':'—'}</small></div>`).join('')}
+          ${o.status==='canceled'?'<div class="tl-item"><b style="color:var(--red)">سفارش لغو شد</b></div>':''}
+        </div>
+      </div>
+    </div>
+    <table><thead><tr><th>کالا</th><th>قیمت واحد</th><th>تعداد</th><th>جمع</th></tr></thead><tbody>
+      ${o.items.map(it=>{const p=prod(it.p);return `<tr><td><div class="prod-cell"><div class="thumb">${p.icon}</div><b>${p.name}</b></div></td><td>${money(finalPrice(p))}</td><td>${fa(it.q)}</td><td><b>${money(finalPrice(p)*it.q)}</b></td></tr>`}).join('')}
+    </tbody></table>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px">
+      <div style="width:260px">
+        <div class="tot-row" style="display:flex;justify-content:space-between;padding:4px 0"><span>جمع کالاها:</span><span>${money(total)}</span></div>
+        <div class="tot-row" style="display:flex;justify-content:space-between;padding:4px 0"><span>مالیات (۹٪):</span><span>${money(tax(total))}</span></div>
+        <div class="tot-row" style="display:flex;justify-content:space-between;padding:4px 0"><span>هزینه ارسال:</span><span>رایگان</span></div>
+        <div class="tot-row" style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid var(--border);margin-top:6px;font-weight:800;font-size:15px"><span>مبلغ نهایی:</span><span style="color:var(--primary)">${money(total+tax(total))}</span></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:12.5px;font-weight:700">تغییر وضعیت سفارش:</label>
+      <select class="inp" style="width:190px" id="newOrderStatus">
+        ${Object.entries(orderStatuses).map(([k,v])=>`<option value="${k}" ${o.status===k?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary" onclick="changeOrderStatus('${o.id}')">ثبت تغییرات</button>
+    </div>`;
+  openModal('orderModal');
+}
+function changeOrderStatus(id){
+  orders.find(o=>o.id===id).status=document.getElementById('newOrderStatus').value;
+  closeModal('orderModal');renderOrders();renderDashboard();
+  toast('وضعیت سفارش '+fa(id)+' به‌روزرسانی شد');
+}
+
+/* ================= INVOICES ================= */
+function renderInvoices(){
+  const q=(document.getElementById('invSearch').value||'').trim();
+  const st=document.getElementById('invStatusFilter').value;
+  const list=orders.filter(o=>{
+    const invSt=o.pay==='ok'?'paid':o.pay==='refund'?'refunded':'pending';
+    return (!q||o.id.includes(q)||o.cust.includes(q))&&(!st||invSt===st);
+  });
+  let tot=0;
+  document.getElementById('invoicesBody').innerHTML=list.map((o,i)=>{
+    const total=orderTotal(o)+tax(orderTotal(o));
+    const invSt=o.pay==='ok'?['paid','پرداخت‌شده','b-green']:o.pay==='refund'?['refunded','مسترد شده','b-purple']:['pending','در انتظار','b-amber'];
+    tot+=total;
+    return `<tr>
+      <td><b>INV-1405-${fa(String(100+i).padStart(3,'0'))}</b></td>
+      <td>${fa(o.id)}</td><td>${o.cust}</td><td>${fa(o.date)}</td>
+      <td>${money(tax(orderTotal(o)))}</td><td><b>${money(total)}</b></td>
+      <td><span class="badge ${invSt[2]}">${invSt[1]}</span></td>
+      <td><button class="btn btn-sm" onclick="viewInvoice('${o.id}',${i})">🖨️ مشاهده و چاپ</button></td>
+    </tr>`;
+  }).join('')||`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">فاکتوری یافت نشد</td></tr>`;
+  document.getElementById('invCount').textContent=fa(list.length);
+  document.getElementById('invTotal').textContent=money(tot);
+}
+['invSearch','invStatusFilter'].forEach(id=>document.getElementById(id).addEventListener('input',renderInvoices));
+function viewInvoice(orderId,idx){
+  const o=orders.find(x=>x.id===orderId);const total=orderTotal(o);
+  document.getElementById('printArea').innerHTML=`
+    <div class="invoice">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #e5e9f2;padding-bottom:16px;margin-bottom:16px">
+        <div style="display:flex;gap:12px;align-items:center">
+          <div style="width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;display:grid;place-items:center;font-size:24px;font-weight:800">د</div>
+          <div><b style="font-size:17px">فروشگاه اینترنتی دیجی‌مارکت</b><div style="font-size:11.5px;color:#64748b">تهران، خیابان ولیعصر، برج نگین — ۰۲۱-۹۱۰۰۸۸۷۷ — info@digimarket.ir</div></div>
+        </div>
+        <div style="text-align:left;font-size:12px">
+          <b style="font-size:15px;color:#4f46e5">فاکتور فروش</b><br>
+          شماره: <b>INV-1405-${fa(String(100+idx).padStart(3,'0'))}</b><br>تاریخ: ${fa(o.date)}
+        </div>
+      </div>
+      <div style="display:flex;gap:30px;font-size:12px;margin-bottom:16px">
+        <div><b>خریدار:</b> ${o.cust}</div>
+        <div><b>سفارش:</b> ${fa(o.id)}</div>
+        <div><b>آدرس ارسال:</b> ${o.addr}</div>
+      </div>
+      <table style="border:1px solid #e5e9f2;border-radius:10px;overflow:hidden">
+        <thead style="background:#f6f7fc"><tr><th>ردیف</th><th>شرح کالا</th><th>تعداد</th><th>قیمت واحد</th><th>جمع کل</th></tr></thead>
+        <tbody>${o.items.map((it,i)=>{const p=prod(it.p);return `<tr><td>${fa(i+1)}</td><td>${p.name} <small style="color:#94a3b8">(${fa(p.sku)})</small></td><td>${fa(it.q)}</td><td>${moneyRaw(finalPrice(p))}</td><td><b>${moneyRaw(finalPrice(p)*it.q)}</b></td></tr>`}).join('')}</tbody>
+      </table>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px">
+        <div style="width:270px;font-size:12.5px">
+          <div class="tot-row"><span>جمع کل کالاها:</span><b>${money(total)}</b></div>
+          <div class="tot-row"><span>تخفیف:</span><b style="color:#ef4444">۰ تومان</b></div>
+          <div class="tot-row"><span>مالیات بر ارزش افزوده (۹٪):</span><b>${money(tax(total))}</b></div>
+          <div class="tot-row"><span>هزینه ارسال:</span><b>رایگان</b></div>
+          <div class="tot-row grand"><span>مبلغ قابل پرداخت:</span><span style="color:#4f46e5">${money(total+tax(total))}</span></div>
+        </div>
+      </div>
+      <div style="margin-top:22px;padding-top:14px;border-top:1px dashed #cbd5e1;font-size:11px;color:#64748b;text-align:center">
+        از خرید شما سپاسگزاریم 🌹 — کالاهای دیجی‌مارکت دارای ۷ روز ضمانت بازگشت و گارانتی اصالت هستند.
+      </div>
+    </div>`;
+  openModal('invoiceModal');
+}
+
+/* ================= CUSTOMERS ================= */
+function renderCustomers(){
+  const q=(document.getElementById('custSearch').value||'').trim();
+  const list=customers.filter(c=>!q||c.name.includes(q)||c.phone.includes(q)||c.city.includes(q));
+  document.getElementById('customersBody').innerHTML=list.length?list.map(c=>{
+    const ini=c.name.split(' ').map(w=>w[0]).slice(0,2).join('');
+    return `<tr>
+      <td><div class="prod-cell"><div class="avatar">${ini}</div><div><b>${c.name}</b><small>${fa(c.phone)} — <span dir="ltr">${c.email}</span></small></div></div></td>
+      <td>${c.city}</td><td>${fa(c.orders)}</td><td><b>${money(c.spent)}</b></td><td>${fa(c.joined)}</td>
+      <td>${c.vip?'<span class="badge b-purple">مشتری ویژه VIP</span>':'<span class="badge b-gray">عادی</span>'}</td>
+      <td><button class="btn btn-sm" onclick="toast('جزئیات مشتری به‌زودی','info')">👁️</button></td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">مشتری‌ای یافت نشد</td></tr>`;
+}
+document.getElementById('custSearch').addEventListener('input',renderCustomers);
+function openCustomerModal(){[cName,cPhone,cEmail,cCity,cAddr].forEach(i=>i.value='');openModal('customerModal')}
+function saveCustomer(){
+  const name=cName.value.trim(),phone=cPhone.value.trim();
+  if(!name||!phone){toast('نام و شماره موبایل الزامی است','err');return}
+  customers.unshift({id:Date.now(),name,phone,email:cEmail.value||'—',city:cCity.value||'تهران',orders:0,spent:0,joined:'۱۴۰۵/۰۴/۳۰',vip:false});
+  closeModal('customerModal');renderCustomers();toast('مشتری «'+name+'» ثبت شد');
+}
+
+/* ================= PAYMENTS ================= */
+function renderPayments(){
+  document.getElementById('gatewaysBody').innerHTML=gateways.map((g,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;${i<gateways.length-1?'border-bottom:1px solid var(--border)':''}">
+      <div style="display:flex;gap:11px;align-items:center">
+        <div style="width:40px;height:40px;border-radius:11px;background:var(--bg);display:grid;place-items:center;font-size:19px">${g.icon}</div>
+        <div><b style="font-size:13px">${g.name}</b><div style="font-size:11.5px;color:var(--muted)">${g.desc}</div></div>
+      </div>
+      <label class="switch"><input type="checkbox" ${g.on?'checked':''} onchange="toast('درگاه ${g.name} '+(this.checked?'فعال':'غیرفعال')+' شد','info')"><span></span></label>
+    </div>`).join('');
+  renderTx();
+}
+function renderTx(){
+  const st=document.getElementById('txStatusFilter').value;
+  const list=transactions.filter(t=>!st||(st==='ok'?t.status==='ok':st==='pending'?t.status==='pending':st==='fail'?(t.status==='fail'||t.status==='refund'):false));
+  document.getElementById('txBody').innerHTML=list.length?list.map(t=>{
+    const s=payStatuses[t.status];
+    return `<tr><td><b dir="ltr">${t.id}</b></td><td>${fa(t.order)}</td><td>${t.cust}</td><td><b>${money(t.amount)}</b></td><td>${t.gw}</td><td>${fa(t.date)}</td><td><span class="badge ${s.cls}">${s.label}</span></td></tr>`;
+  }).join(''):`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">تراکنشی یافت نشد</td></tr>`;
+}
+document.getElementById('txStatusFilter').addEventListener('change',renderTx);
+
+/* ================= REPORTS ================= */
+const reportRanges={
+  '7':{sales:96800000,orders:284,avg:340800,conv:'3.6٪',hint:'۷ روز اخیر',chart:[9,12,11,15,13,18,22].map(v=>v*1000000),labels:['شنبه','یک‌شنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنج‌شنبه','جمعه']},
+  '30':{sales:486200000,orders:1246,avg:390200,conv:'3.8٪',hint:'۳۰ روز اخیر',chart:[28,35,31,42,38,45,52,48,55,61,57,66,63,71,68,74,69,78,82,76,85,88,92,84,90,95,87,98,102,96].map(v=>v*1000000),labels:Array.from({length:30},(_,i)=>fa(i+1))},
+  '90':{sales:1342000000,orders:3520,avg:381200,conv:'4.1٪',hint:'۳ ماه اخیر',chart:Array.from({length:12},(_,i)=>(90+i*8+Math.sin(i)*10)*1000000),labels:Array.from({length:12},(_,i)=>'هفته '+fa(i+1))},
+  '365':{sales:5240000000,orders:13860,avg:378100,conv:'3.9٪',hint:'یک سال اخیر',chart:[320,290,380,410,450,430,480,520,490,540,580,650].map(v=>v*1000000),labels:['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند']},
+};
+function renderReports(r='30'){
+  const d=reportRanges[r];
+  rSales.textContent=moneyRaw(d.sales);rOrders.textContent=fa(d.orders.toLocaleString('en-US'));
+  rAvg.textContent=moneyRaw(d.avg);rConv.textContent=fa(d.conv);
+  document.getElementById('rChartHint').textContent=d.hint;
+  lineChart(document.getElementById('reportChart'),d.chart,d.labels,'#7c3aed');
+  const cats=[['کالای دیجیتال',42,'#4f46e5'],['صوتی و تصویری',23,'#06b6d4'],['لوازم جانبی',18,'#10b981'],['ساعت و پوشیدنی',11,'#f59e0b'],['سایر',6,'#94a3b8']];
+  document.getElementById('catSalesBars').innerHTML=cats.map(([n,p,c])=>`
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><b>${n}</b><span style="font-weight:700">${fa(p)}٪ — ${moneyRaw(Math.round(d.sales*p/100))} تومان</span></div>
+      <div class="progress"><i style="width:${p}%;background:${c}"></i></div>
+    </div>`).join('');
+  const top=[...products].sort((a,b)=>b.sold*finalPrice(b)-a.sold*finalPrice(a)).slice(0,6);
+  const maxRev=top[0].sold*finalPrice(top[0]);
+  document.getElementById('topProductsReport').innerHTML=top.map((p,i)=>{
+    const rev=p.sold*finalPrice(p);
+    return `<tr><td><b style="color:${i<3?'var(--amber)':'var(--muted)'}">${['🥇','🥈','🥉'][i]||fa(i+1)}</b></td>
+      <td><div class="prod-cell"><div class="thumb">${p.icon}</div><b>${p.name}</b></div></td>
+      <td>${fa(p.sold)}</td><td><b>${money(rev)}</b></td>
+      <td style="min-width:120px"><div class="progress"><i style="width:${Math.round(rev/maxRev*100)}%"></i></div></td></tr>`;
+  }).join('');
+  const tc=[...customers].sort((a,b)=>b.spent-a.spent).slice(0,6);
+  document.getElementById('topCustomersReport').innerHTML=tc.map((c,i)=>{
+    const ini=c.name.split(' ').map(w=>w[0]).slice(0,2).join('');
+    const lvl=c.spent>150000000?['الماسی','b-purple']:c.spent>70000000?['طلایی','b-amber']:['نقره‌ای','b-gray'];
+    return `<tr><td><b style="color:${i<3?'var(--amber)':'var(--muted)'}">${['🥇','🥈','🥉'][i]||fa(i+1)}</b></td>
+      <td><div class="prod-cell"><div class="avatar">${ini}</div><b>${c.name}</b></div></td>
+      <td>${fa(c.orders)}</td><td><b>${money(c.spent)}</b></td><td><span class="badge ${lvl[1]}">مشتری ${lvl[0]}</span></td></tr>`;
+  }).join('');
+}
+document.getElementById('reportRange').addEventListener('click',e=>{
+  const b=e.target.closest('.tab');if(!b)return;
+  document.querySelectorAll('#reportRange .tab').forEach(t=>t.classList.remove('active'));
+  b.classList.add('active');renderReports(b.dataset.r);
+});
+
+/* ================= EXPORT ================= */
+function exportCSV(type){
+  let rows=[];
+  if(type==='orders'){
+    rows=[['کد سفارش','مشتری','تاریخ','مبلغ کل (تومان)','وضعیت پرداخت','وضعیت سفارش']];
+    orders.forEach(o=>rows.push([o.id,o.cust,o.date,orderTotal(o),payStatuses[o.pay].label,orderStatuses[o.status].label]));
+  }else if(type==='transactions'){
+    rows=[['کد پیگیری','سفارش','مشتری','مبلغ (تومان)','درگاه','تاریخ','وضعیت']];
+    transactions.forEach(t=>rows.push([t.id,t.order,t.cust,t.amount,t.gw,t.date,payStatuses[t.status].label]));
+  }
+  const csv='\uFEFF'+rows.map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=type==='orders'?'orders-export.csv':'transactions-export.csv';
+  a.click();toast('فایل خروجی با موفقیت دانلود شد');
+}
+
+/* ================= INIT ================= */
+fillCatFilters();
+renderDashboard();renderProducts();renderCategories();renderOrders();
+renderInvoices();renderCustomers();renderPayments();renderReports('30');
+</script>
+</body>
+</html>

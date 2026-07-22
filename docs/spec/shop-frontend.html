@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>دیجی‌استایل | فروشگاه آنلاین پوشاک و اکسسوری</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --violet:#6d28d9; --violet-2:#7c3aed; --violet-3:#8b5cf6; --violet-soft:#f1ecfd; --violet-softer:#f7f3fe;
+  --pink:#ff4d77; --pink-soft:#ffe7ee; --ink:#241c3a; --muted:#8b86a3; --line:#ece8f6;
+  --bg:#f7f5fc; --card:#ffffff; --green:#16a34a; --green-soft:#e6f6ec; --amber:#f59e0b;
+  --shadow:0 2px 6px rgba(80,50,160,.06), 0 10px 30px rgba(80,50,160,.07);
+  --radius:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Vazirmatn','Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:14px;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#d8cff0;border-radius:10px}
+a{color:inherit;text-decoration:none}button{font-family:inherit;cursor:pointer;border:0;background:none}
+img{max-width:100%}
+.wrap{max-width:1240px;margin:0 auto;padding:0 18px}
+.hidden{display:none!important}
+
+/* ===== top announcement ===== */
+.announce{background:linear-gradient(90deg,var(--violet),var(--violet-3));color:#fff;font-size:12px}
+.announce .wrap{display:flex;align-items:center;justify-content:space-between;height:38px;gap:10px}
+.announce a{opacity:.92}.announce a:hover{opacity:1}
+.announce .links{display:flex;gap:16px}
+
+/* ===== header ===== */
+.header{position:sticky;top:0;z-index:60;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 2px 10px rgba(80,50,160,.04)}
+.header .wrap{display:flex;align-items:center;gap:18px;height:74px}
+.logo{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.logo .mark{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,var(--violet),var(--violet-3));display:grid;place-items:center;color:#fff;box-shadow:0 8px 18px rgba(124,58,237,.35)}
+.logo .mark svg{width:24px;height:24px}
+.logo b{font-size:18px;font-weight:900;display:block;line-height:1.2}
+.logo small{font-size:11px;color:var(--muted)}
+.search{flex:1;display:flex;align-items:center;background:var(--violet-softer);border:1.5px solid transparent;border-radius:14px;padding:0 6px 0 0;height:46px;transition:.2s;max-width:560px}
+.search:focus-within{border-color:var(--violet-3);background:#fff;box-shadow:0 0 0 4px rgba(124,58,237,.1)}
+.search svg{width:18px;height:18px;color:var(--muted);margin:0 12px}
+.search input{flex:1;border:0;outline:0;background:transparent;font-size:13.5px;color:var(--ink)}
+.search button{background:linear-gradient(135deg,var(--violet),var(--violet-3));color:#fff;height:34px;padding:0 18px;border-radius:10px;font-size:13px;font-weight:700}
+.h-actions{display:flex;align-items:center;gap:8px;margin-right:auto}
+.h-btn{position:relative;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);display:grid;place-items:center;color:var(--ink);transition:.18s}
+.h-btn:hover{border-color:var(--violet-3);color:var(--violet);background:var(--violet-softer)}
+.h-btn svg{width:20px;height:20px}
+.h-btn .cnt{position:absolute;top:-6px;left:-6px;background:var(--pink);color:#fff;font-size:10.5px;font-weight:800;min-width:18px;height:18px;border-radius:10px;display:grid;place-items:center;padding:0 4px;border:2px solid #fff}
+.login-btn{display:flex;align-items:center;gap:7px;border:1.5px solid var(--violet-3);color:var(--violet);height:44px;padding:0 16px;border-radius:12px;font-weight:700;font-size:13px;transition:.18s}
+.login-btn:hover{background:var(--violet);color:#fff}
+.login-btn svg{width:18px;height:18px}
+.burger{display:none}
+
+/* ===== nav ===== */
+.nav{background:#fff;border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:6px;height:50px;overflow-x:auto}
+.nav .cat-btn{display:flex;align-items:center;gap:8px;background:var(--violet-soft);color:var(--violet);height:36px;padding:0 16px;border-radius:10px;font-weight:700;font-size:13px;flex-shrink:0}
+.nav .cat-btn svg{width:16px;height:16px}
+.nav a.nl{padding:0 13px;height:36px;display:flex;align-items:center;border-radius:10px;font-size:13px;font-weight:600;color:#4b4560;white-space:nowrap;transition:.15s}
+.nav a.nl:hover{background:var(--violet-softer);color:var(--violet)}
+.nav a.nl.hot{color:var(--pink)}
+.nav .nav-spacer{flex:1}
+.nav .nav-hot{display:flex;align-items:center;gap:6px;color:var(--pink);font-weight:800;font-size:13px;white-space:nowrap}
+
+/* ===== buttons ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:11px 22px;font-weight:700;font-size:13.5px;transition:.18s}
+.btn svg{width:18px;height:18px}
+.btn-primary{background:linear-gradient(135deg,var(--violet),var(--violet-3));color:#fff;box-shadow:0 8px 20px rgba(124,58,237,.3)}
+.btn-primary:hover{filter:brightness(1.07);transform:translateY(-1px)}
+.btn-ghost{background:#fff;color:var(--violet);border:1.5px solid var(--violet-3)}
+.btn-ghost:hover{background:var(--violet-soft)}
+.btn-light{background:rgba(255,255,255,.18);color:#fff;border:1.5px solid rgba(255,255,255,.4)}
+.btn-light:hover{background:rgba(255,255,255,.28)}
+
+/* ===== hero ===== */
+.hero{padding:22px 0 6px}
+.hero-inner{position:relative;border-radius:26px;overflow:hidden;background:linear-gradient(120deg,#7b54e6,#9a78f0 55%,#b59bf6);padding:46px;display:grid;grid-template-columns:1.1fr .9fr;gap:30px;align-items:center;color:#fff;min-height:330px}
+.hero-inner::before,.hero-inner::after{content:'';position:absolute;border-radius:50%;background:rgba(255,255,255,.12)}
+.hero-inner::before{width:280px;height:280px;top:-90px;left:-60px}
+.hero-inner::after{width:180px;height:180px;bottom:-70px;left:30%}
+.hero-text{position:relative;z-index:2}
+.hero-tag{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);padding:6px 14px;border-radius:30px;font-size:12px;font-weight:700;margin-bottom:16px}
+.hero-text h1{font-size:30px;font-weight:900;line-height:1.5;margin-bottom:14px;max-width:480px}
+.hero-text p{font-size:14px;opacity:.92;max-width:430px;margin-bottom:24px}
+.hero-btns{display:flex;gap:12px;flex-wrap:wrap}
+.hero-visual{position:relative;z-index:2;display:grid;place-items:center}
+.hero-frame{width:240px;height:260px;background:rgba(255,255,255,.16);border:1.5px solid rgba(255,255,255,.3);border-radius:24px;display:grid;place-items:center;font-size:120px;backdrop-filter:blur(2px);box-shadow:0 20px 50px rgba(60,30,120,.3)}
+.float-card{position:absolute;background:#fff;color:var(--ink);border-radius:14px;padding:10px 14px;box-shadow:0 12px 30px rgba(60,30,120,.25);font-size:12px;font-weight:700;display:flex;align-items:center;gap:9px}
+.float-card .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:17px}
+.fc1{top:8px;right:-6px}.fc1 .ic{background:var(--pink-soft)}
+.fc2{bottom:30px;left:-14px}.fc2 .ic{background:var(--green-soft)}
+.fc3{bottom:-12px;right:24px}.fc3 .ic{background:var(--violet-soft)}
+.float-card small{display:block;color:var(--muted);font-weight:500;font-size:10.5px}
+
+/* ===== category strip ===== */
+.catstrip{margin:22px 0}
+.catstrip-inner{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center;padding:18px 22px}
+.catstrip-promo{display:flex;align-items:center;gap:12px;padding-left:20px;border-left:1px dashed var(--line)}
+.catstrip-promo .ic{width:46px;height:46px;border-radius:13px;background:var(--violet-soft);color:var(--violet);display:grid;place-items:center}
+.catstrip-promo .ic svg{width:22px;height:22px}
+.catstrip-promo b{font-size:13.5px;display:block}
+.catstrip-promo small{color:var(--muted);font-size:11.5px}
+.cat-icons{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.cat-ic{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:7px;padding:6px 12px;border-radius:14px;transition:.18s;min-width:78px}
+.cat-ic:hover{background:var(--violet-softer);transform:translateY(-2px)}
+.cat-ic .c{width:52px;height:52px;border-radius:50%;background:var(--violet-soft);display:grid;place-items:center;font-size:24px;transition:.18s}
+.cat-ic:hover .c{background:var(--violet);box-shadow:0 8px 18px rgba(124,58,237,.3)}
+.cat-ic span{font-size:11.5px;font-weight:600;color:#4b4560}
+
+/* ===== section head ===== */
+.section{margin:34px 0}
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.sec-head h2{font-size:19px;font-weight:900;display:flex;align-items:center;gap:9px}
+.sec-head h2 .bar{width:5px;height:22px;border-radius:4px;background:linear-gradient(var(--violet),var(--violet-3))}
+.sec-head .more{color:var(--violet);font-weight:700;font-size:13px;display:flex;align-items:center;gap:5px}
+.sec-head .more svg{width:16px;height:16px}
+.tabs{display:flex;gap:6px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:4px}
+.tab{padding:7px 15px;border-radius:9px;font-size:12.5px;font-weight:700;color:var(--muted);transition:.15s}
+.tab.active{background:var(--violet);color:#fff}
+
+/* ===== product grid & card ===== */
+.grid{display:grid;gap:16px}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+.pcard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:.2s;display:flex;flex-direction:column;cursor:pointer}
+.pcard:hover{box-shadow:var(--shadow);transform:translateY(-3px);border-color:#ddd2f5}
+.pcard .img{position:relative;aspect-ratio:1/1;display:grid;place-items:center;font-size:70px;overflow:hidden}
+.pcard .img .emo{transition:transform .3s}
+.pcard:hover .img .emo{transform:scale(1.08)}
+.pcard .heart{position:absolute;top:10px;left:10px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center;color:var(--muted);transition:.15s;backdrop-filter:blur(2px)}
+.pcard .heart:hover{color:var(--pink);background:#fff}
+.pcard .heart.on{color:var(--pink)}
+.pcard .heart svg{width:17px;height:17px}
+.pcard .badges{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.pill{font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:8px}
+.pill-disc{background:var(--pink);color:#fff}
+.pill-new{background:var(--violet);color:#fff}
+.pill-hot{background:var(--amber);color:#fff}
+.pcard .addbar{position:absolute;left:0;right:0;bottom:0;transform:translateY(100%);transition:.25s;padding:10px}
+.pcard:hover .addbar{transform:none}
+.pcard .addbar button{width:100%;background:linear-gradient(135deg,var(--violet),var(--violet-3));color:#fff;height:38px;border-radius:10px;font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:7px}
+.pcard .addbar button svg{width:16px;height:16px}
+.pcard .body{padding:13px 14px 15px;display:flex;flex-direction:column;gap:7px;flex:1}
+.pcard .brand{font-size:11px;color:var(--muted)}
+.pcard .name{font-size:13px;font-weight:600;line-height:1.6;height:42px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.pcard .rate{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
+.stars{color:var(--amber);letter-spacing:1px;font-size:12px}
+.pcard .price{margin-top:auto;display:flex;align-items:flex-end;justify-content:space-between;gap:8px;padding-top:8px;border-top:1px dashed var(--line)}
+.pcard .price .now{font-size:15px;font-weight:900}
+.pcard .price .now small{font-size:10px;font-weight:600;color:var(--muted)}
+.pcard .price .old{font-size:11px;color:var(--muted);text-decoration:line-through}
+
+/* ===== dark promo banner ===== */
+.promo-dark{position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(100deg,#2a2440,#3b2f63);color:#fff;display:grid;grid-template-columns:1.3fr 1fr;align-items:center;padding:34px 40px;gap:20px}
+.promo-dark::after{content:'🛍️';position:absolute;left:30px;top:50%;transform:translateY(-50%);font-size:150px;opacity:.1}
+.promo-dark h3{font-size:23px;font-weight:900;margin-bottom:8px}
+.promo-dark p{opacity:.85;font-size:13px;margin-bottom:18px;max-width:380px}
+.promo-dark .mini{background:#fff;color:var(--ink);border-radius:16px;padding:12px;display:flex;gap:12px;align-items:center;max-width:300px;position:relative;z-index:2}
+.promo-dark .mini .im{width:62px;height:62px;border-radius:12px;background:var(--violet-soft);display:grid;place-items:center;font-size:32px}
+.promo-dark .mini .now{font-weight:900;font-size:15px;color:var(--pink)}
+.promo-dark .mini .old{font-size:11px;color:var(--muted);text-decoration:line-through}
+
+/* ===== category tiles ===== */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.tile{position:relative;border-radius:20px;overflow:hidden;min-height:200px;padding:24px;color:#fff;display:flex;flex-direction:column;justify-content:flex-end;transition:.25s}
+.tile:hover{transform:translateY(-3px)}
+.tile .wm{position:absolute;top:10px;left:14px;font-size:90px;opacity:.22}
+.tile::after{content:'';position:absolute;inset:0;background:linear-gradient(transparent 30%,rgba(0,0,0,.45))}
+.tile>*{position:relative;z-index:2}
+.tile h4{font-size:16px;font-weight:800;margin-bottom:10px}
+.tile .btn{width:fit-content;padding:8px 16px;font-size:12px;background:rgba(255,255,255,.92);color:var(--ink)}
+.t1{background:linear-gradient(135deg,#0ea5a3,#13c2c2)}
+.t2{background:linear-gradient(135deg,#334155,#475569)}
+.t3{background:linear-gradient(135deg,#e0567f,#f06595)}
+
+/* ===== cream banner ===== */
+.cream{position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(100deg,#f3e9d8,#efe2cb);display:grid;grid-template-columns:1fr 1fr;align-items:center;padding:36px 40px;gap:20px}
+.cream h3{font-size:22px;font-weight:900;color:#5b4326;margin-bottom:10px}
+.cream p{color:#8a6f4c;font-size:13px;margin-bottom:18px;max-width:360px}
+.cream .rack{font-size:74px;letter-spacing:6px;text-align:center;filter:drop-shadow(0 8px 16px rgba(120,90,40,.2))}
+
+/* ===== special offers ===== */
+.special-wrap{display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+.special-card{position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(160deg,var(--violet),var(--violet-3));color:#fff;padding:26px 22px;display:flex;flex-direction:column;gap:14px;min-height:100%}
+.special-card h3{font-size:18px;font-weight:900}
+.special-card p{font-size:12.5px;opacity:.9}
+.countdown{display:flex;gap:8px;margin:6px 0}
+.cd-box{background:rgba(255,255,255,.16);border-radius:12px;padding:8px 0;width:54px;text-align:center}
+.cd-box b{font-size:20px;font-weight:900;display:block}
+.cd-box small{font-size:9.5px;opacity:.85}
+.special-card .btn{margin-top:auto}
+
+/* ===== original section ===== */
+.orig{border-radius:24px;overflow:hidden;background:linear-gradient(120deg,#3a2a22,#5b4030);color:#fff;padding:30px;display:grid;grid-template-columns:.85fr 1.1fr 1fr;gap:22px;align-items:stretch}
+.orig .photo{border-radius:18px;background:linear-gradient(135deg,#7a5640,#9c7253);display:grid;place-items:center;font-size:120px;min-height:240px}
+.orig .mid{display:flex;flex-direction:column;justify-content:center}
+.orig .mid h3{font-size:23px;font-weight:900;line-height:1.6;margin-bottom:12px}
+.orig .mid p{opacity:.85;font-size:13px;margin-bottom:18px}
+.orig .right{display:flex;flex-direction:column;gap:12px}
+.orig .stat{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px}
+.orig .stat b{font-size:22px;font-weight:900;display:block}
+.orig .stat small{opacity:.8;font-size:11.5px}
+.orig .promo{background:#fff;color:var(--ink);border-radius:14px;padding:14px;flex:1}
+.orig .promo b{font-size:13px;display:block;margin-bottom:4px}
+.orig .promo small{color:var(--muted);font-size:11.5px}
+.orig .promo .row{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.orig .promo .pc{font-size:34px}
+
+/* ===== blog ===== */
+.blog-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:.2s}
+.blog-card:hover{box-shadow:var(--shadow);transform:translateY(-3px)}
+.blog-card .th{height:130px;display:grid;place-items:center;font-size:46px}
+.blog-card .bd{padding:14px 16px}
+.blog-card .meta{font-size:11px;color:var(--muted);display:flex;gap:10px;margin-bottom:7px}
+.blog-card .meta .cat{color:var(--violet);font-weight:700}
+.blog-card h4{font-size:13.5px;font-weight:700;line-height:1.7;margin-bottom:8px}
+.blog-card .read{color:var(--violet);font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px}
+.blog-card .read svg{width:14px;height:14px}
+
+/* ===== features ===== */
+.features{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:34px 0}
+.feat{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:20px;display:flex;align-items:center;gap:13px}
+.feat .ic{width:50px;height:50px;border-radius:14px;background:var(--violet-soft);color:var(--violet);display:grid;place-items:center;flex-shrink:0}
+.feat .ic svg{width:24px;height:24px}
+.feat b{font-size:13.5px;display:block}
+.feat small{color:var(--muted);font-size:11.5px}
+
+/* ===== footer ===== */
+.footer{background:#fff;border-top:1px solid var(--line);margin-top:40px}
+.footer .news{background:linear-gradient(120deg,var(--violet),var(--violet-3));color:#fff;border-radius:20px;padding:28px 32px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-top:-46px;position:relative;z-index:5;box-shadow:0 16px 40px rgba(124,58,237,.25)}
+.footer .news h3{font-size:18px;font-weight:900;margin-bottom:4px}
+.footer .news p{font-size:12.5px;opacity:.9}
+.footer .news form{display:flex;gap:8px;flex:1;max-width:420px}
+.footer .news input{flex:1;height:46px;border-radius:12px;border:0;padding:0 16px;font-size:13px;outline:0}
+.footer .news button{background:#fff;color:var(--violet);height:46px;padding:0 22px;border-radius:12px;font-weight:800;font-size:13px}
+.footer .cols{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:30px;padding:50px 0 30px}
+.footer .about .logo{margin-bottom:14px}
+.footer .about p{font-size:12.5px;color:var(--muted);line-height:2}
+.footer .socials{display:flex;gap:9px;margin-top:16px}
+.footer .socials a{width:38px;height:38px;border-radius:11px;background:var(--violet-softer);display:grid;place-items:center;color:var(--violet);transition:.15s}
+.footer .socials a:hover{background:var(--violet);color:#fff}
+.footer .socials svg{width:18px;height:18px}
+.footer h5{font-size:14px;font-weight:800;margin-bottom:14px}
+.footer ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+.footer ul a{font-size:12.5px;color:var(--muted);transition:.15s}
+.footer ul a:hover{color:var(--violet)}
+.footer .copy{border-top:1px solid var(--line);padding:18px 0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.footer .copy .pay{display:flex;gap:8px}
+.footer .copy .pay span{background:var(--violet-softer);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;color:var(--violet)}
+
+/* ===================== PRODUCT PAGE ===================== */
+.breadcrumb{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);padding:18px 0;flex-wrap:wrap}
+.breadcrumb a:hover{color:var(--violet)}
+.breadcrumb svg{width:13px;height:13px;opacity:.6}
+.pdp{display:grid;grid-template-columns:1fr 1fr;gap:34px;align-items:start;padding-bottom:10px}
+.gallery{position:sticky;top:140px}
+.gallery .main{position:relative;aspect-ratio:1/1;border-radius:22px;display:grid;place-items:center;font-size:170px;border:1px solid var(--line)}
+.gallery .main .pill-disc{position:absolute;top:16px;right:16px;font-size:13px;padding:6px 12px}
+.gallery .main .zoom{position:absolute;bottom:16px;left:16px;width:40px;height:40px;border-radius:11px;background:rgba(255,255,255,.9);display:grid;place-items:center;color:var(--muted)}
+.gallery .main .zoom svg{width:18px;height:18px}
+.gallery .thumbs{display:flex;gap:10px;margin-top:12px}
+.gallery .thumbs .th{width:74px;height:74px;border-radius:14px;display:grid;place-items:center;font-size:34px;border:2px solid var(--line);cursor:pointer;transition:.15s}
+.gallery .thumbs .th.active{border-color:var(--violet)}
+.gallery .thumbs .th:hover{border-color:var(--violet-3)}
+.pinfo h1{font-size:21px;font-weight:800;line-height:1.7;margin-bottom:12px}
+.pinfo .topline{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:16px;font-size:12.5px;color:var(--muted)}
+.pinfo .topline .brand{display:flex;align-items:center;gap:6px;font-weight:700;color:var(--ink)}
+.pinfo .topline .brand svg{width:15px;height:15px;color:var(--violet)}
+.pinfo .topline .rate{display:flex;align-items:center;gap:5px}
+.pinfo .mini-acts{margin-right:auto;display:flex;gap:6px}
+.pinfo .mini-acts button{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:10px;padding:6px 11px;font-size:11.5px;font-weight:600;color:var(--muted);transition:.15s}
+.pinfo .mini-acts button:hover{color:var(--pink);border-color:var(--pink)}
+.pinfo .mini-acts button svg{width:15px;height:15px}
+.opt-block{margin-bottom:16px}
+.opt-block .lbl{font-size:13px;font-weight:700;margin-bottom:9px}
+.opt-block .lbl span{color:var(--muted);font-weight:500}
+.swatches{display:flex;gap:9px}
+.swatch{width:34px;height:34px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1.5px var(--line);cursor:pointer;position:relative;transition:.15s}
+.swatch.active{box-shadow:0 0 0 2px var(--violet)}
+.sizes{display:flex;gap:9px;flex-wrap:wrap}
+.size{min-width:46px;height:40px;border:1.5px solid var(--line);border-radius:11px;font-size:13px;font-weight:700;color:#4b4560;transition:.15s;padding:0 12px}
+.size:hover{border-color:var(--violet-3)}
+.size.active{border-color:var(--violet);background:var(--violet-soft);color:var(--violet)}
+.pricebox{background:var(--violet-softer);border:1px solid var(--line);border-radius:18px;padding:18px;margin:6px 0 16px}
+.pricebox .row1{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.pricebox .save{background:var(--pink-soft);color:var(--pink);font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:8px}
+.pricebox .old{color:var(--muted);text-decoration:line-through;font-size:13px}
+.pricebox .now{font-size:26px;font-weight:900}
+.pricebox .now small{font-size:13px;font-weight:600;color:var(--muted)}
+.pricebox .stock{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--green);font-weight:700;margin-top:6px}
+.pricebox .stock svg{width:15px;height:15px}
+.qty{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.qty .lbl{font-size:13px;font-weight:700}
+.stepper{display:flex;align-items:center;border:1.5px solid var(--line);border-radius:12px;overflow:hidden}
+.stepper button{width:40px;height:40px;font-size:18px;color:var(--violet);font-weight:800}
+.stepper button:hover{background:var(--violet-softer)}
+.stepper input{width:46px;height:40px;text-align:center;border:0;outline:0;font-weight:800;font-size:15px;background:transparent}
+.pdp-actions{display:flex;gap:10px;margin-bottom:18px}
+.pdp-actions .btn-primary{flex:1;height:50px;font-size:15px}
+.pdp-actions .wish{width:50px;height:50px;border:1.5px solid var(--line);border-radius:12px;display:grid;place-items:center;color:var(--muted);transition:.15s}
+.pdp-actions .wish:hover,.pdp-actions .wish.on{color:var(--pink);border-color:var(--pink)}
+.pdp-actions .wish svg{width:21px;height:21px}
+.guarantee{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.guarantee .g{border:1px solid var(--line);border-radius:13px;padding:12px;text-align:center;font-size:11.5px;font-weight:600;color:#4b4560}
+.guarantee .g .ic{font-size:20px;display:block;margin-bottom:5px}
+
+/* tabs */
+.pdp-tabs{margin:34px 0}
+.tabline{display:flex;gap:6px;border-bottom:2px solid var(--line);margin-bottom:22px;overflow-x:auto}
+.tabline .t{padding:12px 20px;font-size:14px;font-weight:700;color:var(--muted);border-bottom:2.5px solid transparent;margin-bottom:-2px;white-space:nowrap}
+.tabline .t.active{color:var(--violet);border-color:var(--violet)}
+.tabpane{display:none}.tabpane.active{display:block;animation:fade .3s}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.desc-text{font-size:13.5px;color:#4b4560;line-height:2.2;max-width:820px}
+.desc-text ul{margin:14px 0;padding-right:20px}
+.desc-text li{margin-bottom:7px}
+.spec-table{width:100%;border-collapse:collapse;max-width:760px}
+.spec-table tr:nth-child(odd){background:var(--violet-softer)}
+.spec-table td{padding:12px 16px;font-size:13px;border-bottom:1px solid var(--line)}
+.spec-table td:first-child{color:var(--muted);font-weight:600;width:38%}
+.review-sum{display:grid;grid-template-columns:240px 1fr;gap:30px;align-items:center;background:var(--violet-softer);border-radius:18px;padding:24px;margin-bottom:22px}
+.review-sum .big{text-align:center}
+.review-sum .big b{font-size:46px;font-weight:900;color:var(--violet);display:block;line-height:1}
+.review-sum .big .stars{font-size:18px;margin:6px 0}
+.review-sum .big small{color:var(--muted);font-size:12px}
+.rbar{display:flex;align-items:center;gap:10px;font-size:12px;margin-bottom:7px}
+.rbar .track{flex:1;height:8px;background:#e6e0f5;border-radius:6px;overflow:hidden}
+.rbar .track i{display:block;height:100%;background:var(--amber);border-radius:6px}
+.review{border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:14px}
+.review .head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.review .av{width:40px;height:40px;border-radius:50%;background:var(--violet-soft);color:var(--violet);display:grid;place-items:center;font-weight:800}
+.review .head b{font-size:13px;display:block}
+.review .head small{color:var(--muted);font-size:11px}
+.review .head .stars{margin-right:auto}
+.review p{font-size:13px;color:#4b4560;line-height:2}
+.review-form{background:#fff;border:1px solid var(--line);border-radius:18px;padding:20px;margin-top:8px}
+.review-form h4{font-size:14px;margin-bottom:14px}
+.review-form .inp,.review-form textarea{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:11px 14px;font-size:13px;outline:0;background:var(--bg);transition:.15s;font-family:inherit}
+.review-form .inp:focus,.review-form textarea:focus{border-color:var(--violet);background:#fff}
+.review-form textarea{resize:vertical;min-height:90px;margin:12px 0}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(36,28,58,.5);backdrop-filter:blur(3px);z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+.overlay.open{display:flex}
+.modal{background:#fff;border-radius:22px;width:100%;max-width:420px;overflow:hidden;animation:pop .25s}
+@keyframes pop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+.modal .mhead{background:linear-gradient(135deg,var(--violet),var(--violet-3));color:#fff;padding:24px;text-align:center;position:relative}
+.modal .mhead .mark{width:54px;height:54px;border-radius:16px;background:rgba(255,255,255,.2);display:grid;place-items:center;margin:0 auto 10px;font-size:26px}
+.modal .mhead h3{font-size:17px;font-weight:800}
+.modal .mhead small{opacity:.9;font-size:12px}
+.modal .x{position:absolute;top:14px;left:14px;width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.2);color:#fff;font-size:14px}
+.modal .mtabs{display:flex;border-bottom:1px solid var(--line)}
+.modal .mtabs button{flex:1;padding:13px;font-weight:700;font-size:13px;color:var(--muted);border-bottom:2.5px solid transparent}
+.modal .mtabs button.active{color:var(--violet);border-color:var(--violet)}
+.modal .mbody{padding:22px}
+.modal .fg{margin-bottom:13px}
+.modal .fg label{display:block;font-size:12px;font-weight:600;margin-bottom:6px;color:var(--muted)}
+.modal .fg input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:11px 14px;font-size:13px;outline:0;background:var(--bg)}
+.modal .fg input:focus{border-color:var(--violet);background:#fff}
+.modal .mbody .btn{width:100%;height:48px;margin-top:6px}
+
+/* toast */
+.toasts{position:fixed;bottom:22px;left:22px;z-index:200;display:flex;flex-direction:column;gap:10px}
+.toast{background:#fff;border:1px solid var(--line);border-right:4px solid var(--green);border-radius:13px;padding:12px 16px;font-size:13px;font-weight:600;box-shadow:var(--shadow);display:flex;gap:9px;align-items:center;animation:slideIn .3s;min-width:240px}
+.toast.err{border-right-color:var(--pink)}.toast.info{border-right-color:var(--violet)}
+@keyframes slideIn{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+
+/* responsive */
+@media(max-width:1000px){
+  .g4{grid-template-columns:repeat(3,1fr)}
+  .hero-inner{grid-template-columns:1fr;text-align:center}
+  .hero-text h1{margin-inline:auto}.hero-text p{margin-inline:auto}.hero-btns{justify-content:center}
+  .hero-visual{order:-1}.hero-frame{width:180px;height:200px;font-size:90px}
+  .promo-dark,.cream{grid-template-columns:1fr;text-align:center}
+  .promo-dark .mini,.cream .rack{margin-inline:auto}
+  .tiles{grid-template-columns:1fr}
+  .special-wrap{grid-template-columns:1fr}
+  .orig{grid-template-columns:1fr}
+  .pdp{grid-template-columns:1fr}.gallery{position:static}
+  .features{grid-template-columns:repeat(2,1fr)}
+  .footer .cols{grid-template-columns:1fr 1fr}
+  .review-sum{grid-template-columns:1fr}
+}
+@media(max-width:680px){
+  .search{display:none}.burger{display:grid}
+  .g4,.g3{grid-template-columns:repeat(2,1fr)}
+  .header .wrap{gap:10px}
+  .hero-inner{padding:28px 22px}
+  .catstrip-inner{grid-template-columns:1fr}
+  .catstrip-promo{border-left:0;border-bottom:1px dashed var(--line);padding:0 0 14px}
+  .features{grid-template-columns:1fr}
+  .footer .cols{grid-template-columns:1fr}
+  .login-btn span{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== announcement ===== -->
+<div class="announce"><div class="wrap">
+  <span>🚚 ارسال رایگان برای سفارش‌های بالای ۵۰ هزار تومان</span>
+  <div class="links"><a href="#">پیگیری سفارش</a><a href="#">سوالات متداول</a><a href="#">۰۲۱-۹۱۰۰۸۸۷۷</a></div>
+</div></div>
+
+<!-- ===== header ===== -->
+<header class="header"><div class="wrap">
+  <button class="h-btn burger" onclick="document.querySelector('.nav').classList.toggle('hidden')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="#" onclick="goHome();return false">
+    <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 00-1 3.73V8L3 14v2h18v-2L13 8V6.73A2 2 0 0012 3z"/></svg></span>
+    <span><b>دیجی‌استایل</b><small>فروشگاه پوشاک و اکسسوری</small></span>
+  </a>
+  <div class="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input placeholder="جستجوی کالا، برند و دسته‌بندی...">
+    <button>جستجو</button>
+  </div>
+  <div class="h-actions">
+    <button class="login-btn" onclick="openLogin()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>ورود | ثبت‌نام</span>
+    </button>
+    <button class="h-btn" title="علاقه‌مندی‌ها" onclick="toast('لیست علاقه‌مندی‌ها','info')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
+      <span class="cnt" id="wishCount">۰</span>
+    </button>
+    <button class="h-btn" title="سبد خرید" onclick="toast('سبد خرید شما','info')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+      <span class="cnt" id="cartCount">۰</span>
+    </button>
+  </div>
+</div></header>
+
+<!-- ===== nav ===== -->
+<nav class="nav"><div class="wrap">
+  <button class="cat-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>دسته‌بندی کالاها</button>
+  <a class="nl" href="#">جدیدترین‌ها</a>
+  <a class="nl" href="#">پرفروش‌ترین‌ها</a>
+  <a class="nl hot" href="#">🔥 تخفیف‌ها و پیشنهادها</a>
+  <a class="nl" href="#">برندها</a>
+  <a class="nl" href="#">وبلاگ</a>
+  <a class="nl" href="#">تماس با ما</a>
+  <span class="nav-spacer"></span>
+  <span class="nav-hot">⚡ فروش ویژه آخر هفته</span>
+</div></nav>
+
+<!-- ===================== HOME VIEW ===================== -->
+<div id="view-home">
+<div class="wrap">
+
+  <!-- hero -->
+  <section class="hero"><div class="hero-inner">
+    <div class="hero-text">
+      <span class="hero-tag">🌸 کالکشن بهار و تابستان ۱۴۰۵</span>
+      <h1>مراقب استایل خودت باش، با پوشاک باکیفیت و اورجینال</h1>
+      <p>جدیدترین مدل‌های لباس، کفش و اکسسوری با ضمانت اصالت کالا و ارسال سریع به سراسر کشور.</p>
+      <div class="hero-btns">
+        <button class="btn btn-light" onclick="document.getElementById('sec-new').scrollIntoView({behavior:'smooth'})">مشاهده محصولات</button>
+        <button class="btn btn-light" onclick="document.getElementById('sec-special').scrollIntoView({behavior:'smooth'})">تخفیف‌های ویژه</button>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="hero-frame">👗</div>
+      <div class="float-card fc1"><span class="ic">🏷️</span><div>تا ۷۰٪ تخفیف<small>روی selectedها</small></div></div>
+      <div class="float-card fc2"><span class="ic">⭐</span><div>۴.۸ از ۵<small>رضایت مشتریان</small></div></div>
+      <div class="float-card fc3"><span class="ic">🚚</span><div>ارسال سریع<small>تحویل ۲۴ ساعته</small></div></div>
+    </div>
+  </div></section>
+
+  <!-- category strip -->
+  <section class="catstrip"><div class="catstrip-inner">
+    <div class="catstrip-promo">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg></span>
+      <div><b>تضمین بهترین قیمت</b><small>محصولات اورجینال با گارانتی</small></div>
+    </div>
+    <div class="cat-icons" id="catIcons"></div>
+  </div></section>
+
+  <!-- best sellers -->
+  <section class="section" id="sec-best">
+    <div class="sec-head">
+      <h2><span class="bar"></span>محصولات پرفروش</h2>
+      <div class="tabs" id="bestTabs">
+        <button class="tab active" data-f="sold">پرفروش‌ترین</button>
+        <button class="tab" data-f="new">جدیدترین</button>
+        <button class="tab" data-f="view">پربازدید</button>
+        <button class="tab" data-f="disc">تخفیف‌دار</button>
+      </div>
+    </div>
+    <div class="grid g4" id="gridBest"></div>
+  </section>
+
+  <!-- dark promo -->
+  <section class="section"><div class="promo-dark">
+    <div>
+      <h3>آخرین تخفیف‌ها را از دست ندهید!</h3>
+      <p>فقط تا پایان هفته، مجموعه‌ای از پرفروش‌ترین محصولات با تخفیف‌های استثنایی در انتظار شماست.</p>
+      <button class="btn btn-light" onclick="document.getElementById('sec-special').scrollIntoView({behavior:'smooth'})">مشاهده تخفیف‌ها</button>
+    </div>
+    <div class="mini">
+      <div class="im">🧥</div>
+      <div><div style="font-size:12px;font-weight:700">کاپشن چرم مردانه</div><div class="old">۴۵۰۰۰۰۰ تومان</div><div class="now">۳٬۷۰٬۰۰ تومان</div></div>
+    </div>
+  </div></section>
+
+  <!-- category tiles -->
+  <section class="section"><div class="tiles">
+    <div class="tile t1"><span class="wm">🏃♀️</span><h4>دسته‌بندی برای خانم‌های ورزشکار</h4><button class="btn">مشاهده محصولات</button></div>
+    <div class="tile t2"><span class="wm">🤵</span><h4>دسته‌بندی برای آقایان شیک‌پوش</h4><button class="btn">مشاهده محصولات</button></div>
+    <div class="tile t3"><span class="wm">👠</span><h4>دسته‌بندی برای خانم‌های شیک</h4><button class="btn">مشاهده محصولات</button></div>
+  </div></section>
+
+  <!-- new arrivals -->
+  <section class="section" id="sec-new">
+    <div class="sec-head"><h2><span class="bar"></span>محصولات جدید</h2><a class="more" href="#">مشاهده همه<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></a></div>
+    <div class="grid g4" id="gridNew"></div>
+  </section>
+
+  <!-- cream banner -->
+  <section class="section"><div class="cream">
+    <div><h3>محصولات با تناژ رنگی کرم و قهوه‌ای</h3><p>مجموعه‌ای گرم و مینیمال از لباس‌های پاییزی با رنگ‌های خنثی و همیشه مد روز.</p><button class="btn btn-ghost">مشاهده مجموعه</button></div>
+    <div class="rack">🧥 👔  🧥 </div>
+  </div></section>
+
+  <!-- special offers -->
+  <section class="section" id="sec-special">
+    <div class="sec-head"><h2><span class="bar"></span>تخفیفات ویژه</h2></div>
+    <div class="special-wrap">
+      <div class="grid g2" id="gridSpecial"></div>
+      <div class="special-card">
+        <h3>⚡ پیشنهاد شگفت‌انگیز</h3>
+        <p>تخفیف‌های ویژه فقط تا پایان زمان‌شمار زیر فعال هستند. عجله کنید!</p>
+        <div class="countdown" id="countdown">
+          <div class="cd-box"><b id="cdH">۰۰</b><small>ساعت</small></div>
+          <div class="cd-box"><b id="cdM">۰۰</b><small>دقیقه</small></div>
+          <div class="cd-box"><b id="cdS">۰۰</b><small>ثانیه</small></div>
+        </div>
+        <button class="btn btn-light" onclick="toast('تمام تخفیف‌های ویژه','info')">مشاهده همه</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- original section -->
+  <section class="section"><div class="orig">
+    <div class="right">
+      <div class="stat"><b>+۲۵۰K</b><small>مشتری راضی در سراسر کشور</small></div>
+      <div class="promo"><b>اشتراک ویژه باشگاه مشتریان</b><small>با عضویت، از تخفیف‌های اختصاصی بهره‌مند شوید</small>
+        <div class="row"><span class="pc">🎁</span><button class="btn btn-primary" style="padding:8px 16px;font-size:12px" onclick="toast('عضویت با موفقیت ثبت شد')">عضویت رایگان</button></div>
+      </div>
+      <div class="promo" style="display:flex;align-items:center;gap:12px"><span class="pc">🧥</span><div><b>کالکشن پاییزه</b><small>مدل‌های جدید رسید</small></div></div>
+    </div>
+    <div class="mid">
+      <h3>لباس‌های اورجینال و باکیفیت را با قیمت مناسب از ما بخواهید!</h3>
+      <p>تمامی محصولات دیجی‌استایل دارای ضمانت اصالت، گارانتی سلامت فیزیکی و امکان بازگشت تا ۷ روز هستند.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-light" onclick="document.getElementById('sec-best').scrollIntoView({behavior:'smooth'})">مشاهده محصولات</button><button class="btn btn-light">درباره ما</button></div>
+    </div>
+    <div class="photo">🤵</div>
+  </div></section>
+
+  <!-- blog -->
+  <section class="section">
+    <div class="sec-head"><h2><span class="bar"></span>آخرین مطالب وبلاگ</h2><a class="more" href="#">همه مطالب<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></a></div>
+    <div class="grid" style="grid-template-columns:repeat(5,1fr)" id="blogGrid"></div>
+  </section>
+
+  <!-- features -->
+  <div class="features">
+    <div class="feat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span><div><b>ارسال سریع</b><small>به سراسر کشور</small></div></div>
+    <div class="feat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><div><b>ضمانت اصالت</b><small>کالای اورجینال</small></div></div>
+    <div class="feat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></span><div><b>پشتیبانی ۲۴/۷</b><small>پاسخگویی همه‌روزه</small></div></div>
+    <div class="feat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg></span><div><b>۷ روز ضمانت بازگشت</b><small>بدون دردسر</small></div></div>
+  </div>
+
+</div>
+
+<!-- footer -->
+<footer class="footer"><div class="wrap">
+  <div class="news">
+    <div><h3>📬 عضویت در خبرنامه</h3><p>از جدیدترین تخفیف‌ها و محصولات باخبر شوید</p></div>
+    <form onsubmit="toast('ایمیل شما با موفقیت ثبت شد');this.reset();return false"><input type="email" placeholder="ایمیل خود را وارد کنید" required><button type="submit">عضویت</button></form>
+  </div>
+  <div class="cols">
+    <div class="about">
+      <a class="logo" href="#" onclick="goHome();return false"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 00-1 3.73V8L3 14v2h18v-2L13 8V6.73A2 2 0 0012 3z"/></svg></span><span><b>دیجی‌استایل</b></span></a>
+      <p>دیجی‌استایل، فروشگاه آنلاین پوشاک، کفش و اکسسوری با بیش از ۲۵ هزار مشتری راضی. ما اصالت کالا و رضایت شما را تضمین می‌کنیم.</p>
+      <div class="socials">
+        <a href="#"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.2c3.2 0 3.6 0 4.9.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.86s0 3.6-.07 4.86c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.27.06-1.65.07-4.86.07s-3.6 0-4.86-.07c-1.17-.05-1.8-.25-2.23-.41a3.7 3.7 0 01-1.38-.9 3.7 3.7 0 01-.9-1.38c-.16-.42-.36-1.06-.41-2.23C2.21 15.6 2.2 15.2 2.2 12s0-3.6.07-4.86c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41C8.4 2.21 8.8 2.2 12 2.2zm0 3.65A6.15 6.15 0 1018.15 12 6.15 6.15 0 0012 5.85zm0 10.15A4 4 0 1116 12a4 4 0 01-4 4zm6.4-10.4a1.44 1.44 0 11-1.44-1.44 1.44 1.44 0 011.44 1.44z"/></svg></a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 10-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0022 12z"/></svg></a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 3a10.9 10.9 0 01-3.14 1.53 4.48 4.48 0 00-7.86 3v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z"/></svg></a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.5 5.5l-3 14c-.2 1-.8 1.2-1.7.7l-4.5-3.3-2.2 2.1c-.2.2-.4.4-.9.4l.3-4.6 8.4-7.6c.4-.3-.1-.5-.6-.2L6.9 13.3l-4.5-1.4c-1-.3-1-1 .2-1.4l17.5-6.8c.8-.3 1.5.2 1.4 1.8z"/></svg></a>
+      </div>
+    </div>
+    <div><h5>دسترسی سریع</h5><ul><li><a href="#">صفحه اصلی</a></li><li><a href="#">فروشگاه</a></li><li><a href="#">تخفیف‌ها</a></li><li><a href="#">وبلاگ</a></li><li><a href="#">تماس با ما</a></li></ul></div>
+    <div><h5>خدمات مشتریان</h5><ul><li><a href="#">پیگیری سفارش</a></li><li><a href="#">شرایط بازگشت کالا</a></li><li><a href="#">سوالات متداول</a></li><li><a href="#">حریم خصوصی</a></li><li><a href="#">قوانین و مقررات</a></li></ul></div>
+    <div><h5>تماس با ما</h5><ul><li><a href="#">📍 تهران، خیابان ولیعصر</a></li><li><a href="#">📞 ۰۲۱-۹۱۰۸۸۷</a></li><li><a href="#">✉️ info@digistyle.ir</a></li><li><a href="#">🕘 شنبه تا پنج‌شنبه ۹-۱۸</a></li></ul></div>
+  </div>
+  <div class="copy">
+    <span>© ۱۴۰۵ تمامی حقوق برای فروشگاه دیجی‌استایل محفوظ است.</span>
+    <div class="pay"><span>اینماد</span><span>ساماندهی</span><span>زرین‌پال</span></div>
+  </div>
+</div></footer>
+</div>
+
+<!-- ===================== PRODUCT VIEW ===================== -->
+<div id="view-product" class="hidden"><div class="wrap">
+  <div class="breadcrumb">
+    <a href="#" onclick="goHome();return false">خانه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <a href="#" onclick="goHome();return false">فروشگاه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span id="bcCat">دسته‌بندی</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span id="bcName" style="color:var(--ink)">محصول</span>
+  </div>
+
+  <div class="pdp">
+    <!-- gallery -->
+    <div class="gallery">
+      <div class="main" id="galMain"><span id="galEmo">🧥</span>
+        <span class="pill pill-disc hidden" id="galDisc"></span>
+        <span class="zoom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/></svg></span>
+      </div>
+      <div class="thumbs" id="galThumbs"></div>
+    </div>
+    <!-- info -->
+    <div class="pinfo">
+      <h1 id="pTitle">نام محصول</h1>
+      <div class="topline">
+        <span class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg><span id="pBrand">برند</span></span>
+        <span class="rate"><span class="stars" id="pStars">★★★★★</span><span id="pRate">۴.</span> (<span id="pReviews">۱۲۸</span> نظر)</span>
+        <span>|</span><span><span id="pSold">۳۴۰</span> فروش</span>
+        <div class="mini-acts">
+          <button onclick="toast('به لیست مقایسه افزوده شد','info')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 3h5v5M8 3H3v5M21 3l-7 7M3 21l7-7"/></svg>مقایسه</button>
+          <button onclick="toast('لینک محصول کپی شد','info')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>اشتراک</button>
+        </div>
+      </div>
+
+      <div class="opt-block" id="colorBlock">
+        <div class="lbl">رنگ: <span id="colorName">—</span></div>
+        <div class="swatches" id="swatches"></div>
+      </div>
+      <div class="opt-block" id="sizeBlock">
+        <div class="lbl">سایز: <span id="sizeName">—</span> <a href="#" style="color:var(--violet);font-size:11px" onclick="toast('راهنمای سایز','info');return false">(راهنمای انتخاب سایز)</a></div>
+        <div class="sizes" id="sizes"></div>
+      </div>
+
+      <div class="pricebox">
+        <div class="row1">
+          <span class="save hidden" id="pSave"></span>
+          <span class="old" id="pOld"></span>
+        </div>
+        <div class="now"><span id="pNow">۰</span> <small>تومان</small></div>
+        <div class="stock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>موجود در انبار — آماده ارسال</div>
+      </div>
+
+      <div class="qty">
+        <span class="lbl">تعداد:</span>
+        <div class="stepper">
+          <button onclick="step(-1)">−</button>
+          <input id="qty" value="1" readonly>
+          <button onclick="step(1)">+</button>
+        </div>
+      </div>
+
+      <div class="pdp-actions">
+        <button class="btn btn-primary" onclick="addToCartPDP()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+          افزودن به سبد خرید
+        </button>
+        <button class="wish" id="pdpWish" onclick="toggleWishPDP()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg></button>
+      </div>
+
+      <div class="guarantee">
+        <div class="g"><span class="ic">🛡️</span>ضمانت اصالت کالا</div>
+        <div class="g"><span class="ic">🚚</span>ارسال سریع و بیمه‌شده</div>
+        <div class="g"><span class="ic">↩️</span>۷ روز ضمانت بازگشت</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tabs -->
+  <div class="pdp-tabs">
+    <div class="tabline" id="tabline">
+      <button class="t active" data-t="desc">توضیحات محصول</button>
+      <button class="t" data-t="spec">مشخصات فنی</button>
+      <button class="t" data-t="review">نظرات کاربران</button>
+    </div>
+    <div class="tabpane active" id="pane-desc">
+      <div class="desc-text" id="descText"></div>
+    </div>
+    <div class="tabpane" id="pane-spec"><table class="spec-table" id="specTable"></table></div>
+    <div class="tabpane" id="pane-review">
+      <div class="review-sum">
+        <div class="big"><b id="rvAvg">۴.۷</b><div class="stars">★★★★★</div><small>از مجموع <span id="rvCnt">۱۲۸</span> نظر</small></div>
+        <div id="rvBars"></div>
+      </div>
+      <div id="rvList"></div>
+      <div class="review-form">
+        <h4>✍️ نظر خود را ثبت کنید</h4>
+        <div class="stars" style="font-size:22px;cursor:pointer" id="rvStars">★★★★☆</div>
+        <textarea placeholder="تجربه خود را از این محصول بنویسید..."></textarea>
+        <button class="btn btn-primary" style="height:44px" onclick="toast('نظر شما پس از بررسی ثبت خواهد شد')">ثبت نظر</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- related -->
+  <div class="section">
+    <div class="sec-head"><h2><span class="bar"></span>محصولات مرتبط</h2></div>
+    <div class="grid g4" id="gridRelated"></div>
+  </div>
+</div></div>
+
+<!-- login modal -->
+<div class="overlay" id="loginModal">
+  <div class="modal">
+    <div class="mhead"><button class="x" onclick="closeLogin()">✕</button><div class="mark">👤</div><h3>ورود به دیجی‌استایل</h3><small>سلام! خوش آمدید</small></div>
+    <div class="mtabs"><button class="active" data-m="in">ورود</button><button data-m="up">ثبت‌نام</button></div>
+    <div class="mbody">
+      <div class="fg"><label>شماره موبایل یا ایمیل</label><input placeholder="09xxxxxxxxx"></div>
+      <div class="fg"><label>رمز عبور</label><input type="password" placeholder="••••••••"></div>
+      <button class="btn btn-primary" onclick="closeLogin();toast('با موفقیت وارد شدید')">ورود به حساب</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+const faD='۰۱۲۳۴۵۶۷۸۹';
+const fa=n=>String(n).replace(/\d/g,d=>faD[d]);
+const money=n=>Number(n).toLocaleString('fa-IR');
+const el=id=>document.getElementById(id);
+const stars=r=>'★★★★★☆☆☆☆☆'.slice(5-Math.round(r),10-Math.round(r));
+
+let cartCount=0; const wish=new Set(); let currentProduct=null;
+
+/* ---------- data ---------- */
+const cats=[['لباس زنانه','👗'],['لباس مردانه','🧥'],['پیراهن','👔'],['تی‌شرت','👕'],['شلوار','👖'],['کفش','👟'],['ساعت','⌚'],['عینک','🕶️'],['کیف','👜'],['اکسسوری','🧢']];
+
+const P=[
+ {id:1,name:'کاپشن چرم مردانه مدل کلاسیک',brand:'پیرامونت',cat:'لباس مردانه',price:3750000,old:4500000,disc:17,rating:4.7,reviews:128,sold:340,views:5200,emoji:'🧥',tint:'#eceef3',tag:'hot',size:1,colors:[['مشکی','#1f2937'],['قهوه‌ای','#7c4a2d'],['عسلی','#b9772f']]},
+ {id:2,name:'پولوشرت مردانه یقه‌دار سبز نعنایی',brand:'یونیک',cat:'تی‌شرت',price:980000,old:980000,disc:0,rating:4.5,reviews:86,sold:210,views:3100,emoji:'👕',tint:'#e7f6ee',tag:'new',size:1,colors:[['سبز','#3fae6b'],['سفید','#f1f1f1'],['سرمه‌ای','#23407a']]},
+ {id:3,name:'هودی مشکی یونی‌سکس کلاه‌دار',brand:'استریت',cat:'لباس مردانه',price:1450000,old:1800000,disc:20,rating:4.8,reviews:204,sold:480,views:7400,emoji:'🧥',tint:'#e9ebf1',tag:'sale',size:1,colors:[['مشکی','#1f2937'],['خاکستری','#9aa0ad'],['زرشکی','#7d2238']]},
+ {id:4,name:'بافت یقه‌گرد زنانه رنگ کرم',brand:'مادو',cat:'لباس زنانه',price:1280000,old:1280000,disc:0,rating:4.4,reviews:62,sold:150,views:2400,emoji:'🧥',tint:'#f6efe2',tag:'',size:1,colors:[['کرم','#e7d6b3'],['صورتی','#e8a9bd'],['طوسی','#b9bcc6']]},
+ {id:5,name:'پیراهن چهارخانه مردانه آستین‌بلند',brand:'کلاسیک‌من',cat:'پیراهن',price:890000,old:990000,disc:10,rating:4.3,reviews:48,sold:95,views:1800,emoji:'👔',tint:'#eef0f6',tag:'',size:1,colors:[['سرمه‌ای','#23407a'],['قرمز','#b13b3b'],['سبز','#3f6b4a']]},
+ {id:6,name:'تی‌شرت زنانه طرح‌دار صورتی',brand:'بلوم',cat:'لباس زنانه',price:620000,old:620000,disc:0,rating:4.6,reviews:140,sold:300,views:4300,emoji:'👚',tint:'#fdeaf0',tag:'new',size:1,colors:[['صورتی','#ef7fa6'],['یاسی','#b59bf6'],['سفید','#f1f1f1']]},
+ {id:7,name:'شلوار جین مردانه اسلیم فیت آبی',brand:'لیوایز',cat:'شلوار',price:1850000,old:1850000,disc:0,rating:4.5,reviews:97,sold:260,views:3600,emoji:'👖',tint:'#e6f0fd',tag:'',size:1,colors:[['آبی','#3a6ea5'],['مشکی','#1f2937'],['ذغالی','#444b57']]},
+ {id:8,name:'بوت چرم زنانه پاشنه‌دار مشکی',brand:'الدو',cat:'کفش',price:2650000,old:3100000,disc:15,rating:4.7,reviews:73,sold:120,views:2900,emoji:'🥾',tint:'#efe9fb',tag:'sale',size:1,colors:[['مشکی','#1f2937'],['قهوه‌ای','#7c4a2d']]},
+ {id:9,name:'ساعت مچی کاسیو کلاسیک فلزی',brand:'کاسیو',cat:'ساعت',price:3250000,old:3700000,disc:12,rating:4.9,reviews:256,sold:410,views:8100,emoji:'⌚',tint:'#fbf6df',tag:'hot',size:0,colors:[['نقره‌ای','#c4c8d0'],['طلایی','#d6b25a']]},
+ {id:10,name:'ساعت مچی طلایی زنانه بند چرم',brand:'گس',cat:'ساعت',price:4150000,old:4150000,disc:0,rating:4.6,reviews:54,sold:88,views:2100,emoji:'⌚',tint:'#fdeee3',tag:'',size:0,colors:[['طلایی','#d6b25a'],['رزگلد','#d99a82']]},
+ {id:11,name:'عینک آفتابی پلاروید یو‌وی۴۰',brand:'ری‌بن',cat:'عینک',price:1950000,old:2600000,disc:25,rating:4.4,reviews:112,sold:175,views:3900,emoji:'🕶️',tint:'#e6f0fd',tag:'sale',size:0,colors:[['مشکی','#1f2937'],['لاکی','#5a2230'],['قهوه‌ای','#7c4a2d']]},
+ {id:12,name:'کیف دوشی زنانه چرم طبیعی',brand:'چارلز',cat:'کیف',price:2280000,old:2280000,disc:0,rating:4.8,reviews:168,sold:230,views:4700,emoji:'👜',tint:'#fdeaf0',tag:'new',size:0,colors:[['مشکی','#1f2937'],['کرم','#e7d6b3'],['زرشکی','#7d2238']]},
+ {id:13,name:'شلوارک کتان مردانه تابستانه',brand:'یونیک',cat:'شلوار',price:740000,old:740000,disc:0,rating:4.2,reviews:39,sold:70,views:1500,emoji:'🩳',tint:'#f6efe2',tag:'',size:1,colors:[['کرم','#e7d6b3'],['سبز','#6b8a5a'],['سرمه‌ای','#23407a']]},
+ {id:14,name:'کتانی اسپرت مردانه سفید',brand:'نایکی',cat:'کفش',price:3450000,old:4200000,disc:18,rating:4.8,reviews:221,sold:390,views:6800,emoji:'👟',tint:'#eceef3',tag:'hot',size:1,colors:[['سفید','#f1f1f1'],['مشکی','#1f2937'],['طوسی','#b9bcc6']]},
+ {id:15,name:'پیراهن مردانه سفید اسلیم فیت',brand:'کلاسیک‌من',cat:'پیراهن',price:1120000,old:1120000,disc:0,rating:4.5,reviews:64,sold:110,views:2200,emoji:'👔',tint:'#eef0f6',tag:'',size:1,colors:[['سفید','#f1f1f1'],['آبی‌روشن','#bcd2ee']]},
+ {id:16,name:'شومیز زنانه آستین‌بلند سفید',brand:'بلوم',cat:'لباس زنانه',price:980000,old:980000,disc:0,rating:4.6,reviews:91,sold:140,views:3000,emoji:'👚',tint:'#eef0f6',tag:'new',size:1,colors:[['سفید','#f1f1f1'],['کرم','#e7d6b3'],['صورتی','#ef7fa6']]},
+];
+const blogs=[
+ {cat:'مد و استایل',title:'۱۰ ترکیب رنگی برتر برای استایل پاییزی',date:'۲۸ تیر ۱۴۰۵',emo:'🍂',tint:'#f6efe2'},
+ {cat:'راهنمای خرید',title:'چگونه سایز مناسب لباس را آنلاین انتخاب کنیم؟',date:'۲۵ تیر ۱۴۰۵',emo:'📏',tint:'#efe9fb'},
+ {cat:'مراقبت لباس',title:'نکات شست‌وشو و نگهداری از لباس‌های چرم',date:'۲۲ تیر ۱۴۰۵',emo:'🧼',tint:'#e6f0fd'},
+ {cat:'ترندها',title:'ترندهای پوشاک مردانه در سال ۱۴۰۵',date:'۱۹ تیر ۱۴۵',emo:'️',tint:'#e9ebf1'},
+ {cat:'اکسسوری',title:'ست کردن ساعت و کیف با لباس رسمی',date:'۱۶ تیر ۱۴۰۵',emo:'⌚',tint:'#fdeaf0'},
+];
+
+/* ---------- renderers ---------- */
+function card(p){
+  const on=wish.has(p.id);
+  const tagPill=p.tag==='new'?'<span class="pill pill-new">جدید</span>':p.tag==='hot'?'<span class="pill pill-hot">🔥 پرفروش</span>':p.tag==='sale'?'<span class="pill pill-new" style="background:var(--pink)">حراج</span>':'';
+  const discPill=p.disc?`<span class="pill pill-disc">${fa(p.disc)}٪</span>`:'';
+  return `<div class="pcard" onclick="openProduct(${p.id})">
+    <div class="img" style="background:${p.tint}">
+      <span class="emo">${p.emoji}</span>
+      <button class="heart ${on?'on':''}" onclick="event.stopPropagation();toggleWish(${p.id},this)" style="${on?'':''}"><svg viewBox="0 0 24 24" fill="${on?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg></button>
+      <div class="badges">${discPill}${tagPill}</div>
+      <div class="addbar"><button onclick="event.stopPropagation();addCart(${p.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>افزودن به سبد خرید</button></div>
+    </div>
+    <div class="body">
+      <div class="brand">${p.brand}</div>
+      <div class="name">${p.name}</div>
+      <div class="rate"><span class="stars">${stars(p.rating)}</span>${fa(p.rating)} <span style="opacity:.6">(${fa(p.reviews)})</span></div>
+      <div class="price">
+        <div class="now">${money(p.price)} <small>تومان</small>${p.disc?`<div class="old">${money(p.old)}</div>`:''}</div>
+      </div>
+    </div>
+  </div>`;
+}
+function renderCatIcons(){el('catIcons').innerHTML=cats.map(c=>`<a class="cat-ic" href="#"><span class="c">${c[1]}</span><span>${c[0]}</span></a>`).join('')}
+function renderBest(f='sold'){
+  let list=[...P];
+  if(f==='sold')list.sort((a,b)=>b.sold-a.sold);
+  else if(f==='new')list.sort((a,b)=>b.id-a.id);
+  else if(f==='view')list.sort((a,b)=>b.views-a.views);
+  else if(f==='disc')list=list.filter(p=>p.disc).sort((a,b)=>b.disc-a.disc);
+  el('gridBest').innerHTML=list.slice(0,4).map(card).join('');
+}
+el('bestTabs').addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;document.querySelectorAll('#bestTabs .tab').forEach(t=>t.classList.remove('active'));b.classList.add('active');renderBest(b.dataset.f)});
+function renderNew(){el('gridNew').innerHTML=[...P].sort((a,b)=>b.id-a.id).slice(0,8).map(card).join('')}
+function renderSpecial(){el('gridSpecial').innerHTML=P.filter(p=>p.disc).slice(0,6).map(card).join('')}
+function renderBlog(){el('blogGrid').innerHTML=blogs.map(b=>`<a class="blog-card" href="#"><div class="th" style="background:${b.tint}">${b.emo}</div><div class="bd"><div class="meta"><span class="cat">${b.cat}</span><span>${fa(b.date)}</span></div><h4>${b.title}</h4><span class="read">ادامه مطلب<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></span></div></a>`).join('')}
+
+/* ---------- cart / wish ---------- */
+function addCart(id){cartCount++;el('cartCount').textContent=fa(cartCount);el('cartCount').animate([{transform:'scale(1.5)'},{transform:'scale(1)'}],{duration:300});toast('کالا به سبد خرید اضافه شد 🛒')}
+function toggleWish(id,btn){
+  if(wish.has(id)){wish.delete(id);btn.classList.remove('on');btn.querySelector('svg').setAttribute('fill','none');toast('از علاقه‌مندی‌ها حذف شد','info')}
+  else{wish.add(id);btn.classList.add('on');btn.querySelector('svg').setAttribute('fill','currentColor');toast('به علاقه‌مندی‌ها اضافه شد ❤️')}
+  el('wishCount').textContent=fa(wish.size);
+}
+
+/* ---------- countdown ---------- */
+let cdTarget=Date.now()+(5*3600+23*60+47)*1000;
+function tick(){
+  let d=Math.max(0,Math.floor((cdTarget-Date.now())/1000));
+  el('cdH').textContent=fa(String(Math.floor(d/3600)).padStart(2,'0'));
+  el('cdM').textContent=fa(String(Math.floor(d%3600/60)).padStart(2,'0'));
+  el('cdS').textContent=fa(String(d%60).padStart(2,'0'));
+}
+setInterval(tick,1000);tick();
+
+/* ===================== PRODUCT PAGE ===================== */
+function openProduct(id){
+  const p=P.find(x=>x.id===id);if(!p)return;currentProduct=p;
+  el('view-home').classList.add('hidden');el('view-product').classList.remove('hidden');
+  window.scrollTo(0,0);
+  el('bcCat').textContent=p.cat;el('bcName').textContent=p.name;
+  // gallery
+  el('galEmo').textContent=p.emoji;el('galMain').style.background=p.tint;
+  const d=el('galDisc');if(p.disc){d.textContent=fa(p.disc)+'٪ تخفیف';d.classList.remove('hidden')}else d.classList.add('hidden');
+  const tints=[p.tint,'#f7f3fe','#eef0f6','#f6efe2'];
+  el('galThumbs').innerHTML=tints.map((t,i)=>`<div class="th ${i===0?'active':''}" style="background:${t}" onclick="pickThumb(this,'${t}')">${p.emoji}</div>`).join('');
+  // info
+  el('pTitle').textContent=p.name;el('pBrand').textContent=p.brand;
+  el('pStars').textContent=stars(p.rating);el('pRate').textContent=fa(p.rating);el('pReviews').textContent=fa(p.reviews);el('pSold').textContent=fa(p.sold);
+  // colors
+  el('swatches').innerHTML=p.colors.map((c,i)=>`<div class="swatch ${i===0?'active':''}" style="background:${c[1]}" title="${c[0]}" onclick="pickColor(this,'${c[0]}')"></div>`).join('');
+  el('colorName').textContent=p.colors[0][0];
+  // sizes
+  if(p.size){el('sizeBlock').classList.remove('hidden');const sz=['S','M','L','XL','XXL'];el('sizes').innerHTML=sz.map((s,i)=>`<button class="size ${i===1?'active':''}" onclick="pickSize(this,'${s}')">${s}</button>`).join('');el('sizeName').textContent='M'}
+  else{el('sizeBlock').classList.add('hidden')}
+  // price
+  el('pNow').textContent=money(p.price);
+  if(p.disc){el('pOld').textContent=money(p.old)+' تومان';const sv=el('pSave');sv.textContent='صرفه‌جویی '+money(p.old-p.price)+' تومان';sv.classList.remove('hidden')}
+  else{el('pOld').textContent='';el('pSave').classList.add('hidden')}
+  el('qty').value=1;
+  // wish state
+  const w=el('pdpWish');w.classList.toggle('on',wish.has(p.id));w.querySelector('svg').setAttribute('fill',wish.has(p.id)?'currentColor':'none');
+  // desc
+  el('descText').innerHTML=`<p>محصول «<b>${p.name}</b>» از برند معتبر <b>${p.brand}</b>، یکی از انتخاب‌های پرطرفدار دسته‌بندی <b>${p.cat}</b> است که با طراحی مدرن، دوخت دقیق و متریال باکیفیت تولید شده است. این محصول با رنگ‌بندی متنوع و تناسب اندامی عالی، انتخابی ایده‌آل برای استفاده روزمره و موقعیت‌های مختلف به‌شمار می‌رود.</p>
+  <p>تمامی کالاهای عرضه‌شده در دیجی‌استایل پیش از ارسال، از نظر اصالت و سلامت فیزیکی بررسی می‌شوند و با بسته‌بندی استاندارد به دست شما می‌رسند.</p>
+  <ul><li>طراحی ارگونومیک و متناسب با اندام</li><li>متریال درجه‌یک با دوام و ماندگاری بالا</li><li>قابل شست‌وشو و نگهداری آسان</li><li>مناسب برای استفاده در فصل‌های مختلف</li><li>دارای گارانتی اصالت و سلامت فیزیکی کالا</li></ul>
+  <p>با خرید این محصول از دیجی‌استایل، از ارسال سریع، پشتیبانی ۲۴ ساعته و امکان بازگشت کالا تا ۷ روز بهره‌مند خواهید شد.</p>`;
+  // specs
+  el('specTable').innerHTML=[['برند',p.brand],['دسته‌بندی',p.cat],['رنگ‌بندی',p.colors.map(c=>c[0]).join('، ')],['سایزبندی',p.size?'S, M, L, XL, XXL':'فری‌سایز'],['مناسب برای','استفاده روزمره'],['کشور سازنده','طراحی ایران / وارداتی'],['وضعیت موجودی','موجود در انبار'],['گارانتی','۱۸ ماهه دیجی‌استایل']].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
+  // reviews
+  el('rvAvg').textContent=fa(p.rating);el('rvCnt').textContent=fa(p.reviews);
+  const bars=[[5,72],[4,18],[3,6],[2,3],[1,1]];
+  el('rvBars').innerHTML=bars.map(b=>`<div class="rbar"><span>${fa(b[0])} ★</span><div class="track"><i style="width:${b[1]}%"></i></div><span style="color:var(--muted)">${fa(b[1])}٪</span></div>`).join('');
+  el('rvList').innerHTML=[
+    {n:'سارا م.',d:'۲ روز پیش',r:5,t:'کیفیت پارچه و دوخت فوق‌العاده‌ست، دقیقاً همون چیزی بود که توی عکس دیدم. سایزبندی هم کاملاً استاندارد بود.'},
+    {n:'امیر ر.',d:'۱ هفته پیش',r:4,t:'محصول خوبیه و ارسالش هم سریع بود. فقط رنگش یک مقدار با تصویر متفاوت بود ولی در کل راضی‌ام.'}
+  ].map(v=>{const ini=v.n.split(' ').map(w=>w[0]).join('');return `<div class="review"><div class="head"><span class="av">${ini}</span><div><b>${v.n}</b><small>${fa(v.d)}</small></div><span class="stars">${stars(v.r)}</span></div><p>${v.t}</p></div>`}).join('');
+  // related
+  const rel=P.filter(x=>x.id!==p.id).sort(()=>Math.random()-.5).slice(0,4);
+  el('gridRelated').innerHTML=rel.map(card).join('');
+  // reset tabs
+  document.querySelectorAll('#tabline .t').forEach((t,i)=>t.classList.toggle('active',i===0));
+  document.querySelectorAll('.tabpane').forEach((t,i)=>t.classList.toggle('active',i===0));
+}
+function pickThumb(node,t){document.querySelectorAll('#galThumbs .th').forEach(x=>x.classList.remove('active'));node.classList.add('active');el('galMain').style.background=t}
+function pickColor(node,name){document.querySelectorAll('#swatches .swatch').forEach(x=>x.classList.remove('active'));node.classList.add('active');el('colorName').textContent=name}
+function pickSize(node,s){document.querySelectorAll('#sizes .size').forEach(x=>x.classList.remove('active'));node.classList.add('active');el('sizeName').textContent=s}
+function step(d){const i=el('qty');let v=Math.max(1,(+i.value)+d);i.value=v}
+function addCartPDP(){const q=+el('qty').value;cartCount+=q;el('cartCount').textContent=fa(cartCount);el('cartCount').animate([{transform:'scale(1.5)'},{transform:'scale(1)'}],{duration:300});toast(q+' عدد «'+currentProduct.name+'» به سبد خرید اضافه شد 🛒')}
+function toggleWishPDP(){const w=el('pdpWish');const id=currentProduct.id;
+  if(wish.has(id)){wish.delete(id);w.classList.remove('on');w.querySelector('svg').setAttribute('fill','none');toast('از علاقه‌مندی‌ها حذف شد','info')}
+  else{wish.add(id);w.classList.add('on');w.querySelector('svg').setAttribute('fill','currentColor');toast('به علاقه‌مندی‌ها اضافه شد ❤️')}
+  el('wishCount').textContent=fa(wish.size);renderNew();renderBest(document.querySelector('#bestTabs .tab.active').dataset.f);renderSpecial();
+}
+el('tabline').addEventListener('click',e=>{const b=e.target.closest('.t');if(!b)return;document.querySelectorAll('#tabline .t').forEach(t=>t.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.tabpane').forEach(p=>p.classList.remove('active'));el('pane-'+b.dataset.t).classList.add('active')});
+
+function goHome(){el('view-product').classList.add('hidden');el('view-home').classList.remove('hidden');window.scrollTo(0,0)}
+
+/* ---------- login ---------- */
+function openLogin(){el('loginModal').classList.add('open')}
+function closeLogin(){el('loginModal').classList.remove('open')}
+el('loginModal').addEventListener('click',e=>{if(e.target===el('loginModal'))closeLogin()});
+document.querySelectorAll('.modal .mtabs button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.modal .mtabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active')}));
+
+/* ---------- toast ---------- */
+function toast(msg,type='ok'){const t=document.createElement('div');t.className='toast '+type;t.innerHTML=(type==='err'?'⚠️':type==='info'?'ℹ️':'✅')+' '+msg;el('toasts').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .4s';setTimeout(()=>t.remove(),400)},2600)}
+
+/* ---------- init ---------- */
+renderCatIcons();renderBest('sold');renderNew();renderSpecial();renderBlog();
+</script>
+</body>
+</html>

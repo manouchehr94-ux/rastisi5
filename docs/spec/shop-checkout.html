@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسویه‌حساب و پرداخت امن | دیجی‌استایل</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --violet:#6d28d9;--violet-2:#7c3aed;--violet-3:#8b5cf6;--violet-soft:#f1ecfd;--violet-softer:#f7f3fe;
+  --pink:#ff4d77;--pink-soft:#ffe7ee;--ink:#241c3a;--muted:#8b86a3;--line:#ece8f6;
+  --bg:#f7f5fc;--card:#fff;--green:#16a34a;--green-soft:#e6f6ec;--red:#ef4444;--red-soft:#fdeaea;--amber:#f59e0b;
+  --shadow:0 2px 6px rgba(80,50,160,.06),0 10px 30px rgba(80,50,160,.07);--radius:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
+body{font-family:'Vazirmatn','Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:14px}
+::-webkit-scrollbar{width:10px}::-webkit-scrollbar-thumb{background:#d8cff0;border-radius:10px}
+a{color:inherit;text-decoration:none}button{font-family:inherit;cursor:pointer;border:0;background:none}
+.wrap{max-width:1180px;margin:0 auto;padding:0 18px}
+.hidden{display:none!important}
+
+/* top */
+.top{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
+.top .wrap{display:flex;align-items:center;gap:14px;height:70px}
+.logo{display:flex;align-items:center;gap:10px}
+.logo .mark{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,var(--violet),var(--violet-3));display:grid;place-items:center;color:#fff}
+.logo .mark svg{width:23px;height:23px}
+.logo b{font-size:17px;font-weight:900;display:block;line-height:1.2}.logo small{font-size:11px;color:var(--muted)}
+.top .secure{margin-right:auto;display:flex;align-items:center;gap:8px;color:var(--green);font-size:12.5px;font-weight:700;background:var(--green-soft);padding:7px 13px;border-radius:10px}
+.top .secure svg{width:16px;height:16px}
+.top .back{display:flex;align-items:center;gap:6px;color:var(--violet);font-weight:700;font-size:13px;border:1.5px solid var(--violet-3);padding:8px 15px;border-radius:11px}
+.top .back:hover{background:var(--violet-soft)}
+.top .back svg{width:16px;height:16px}
+
+/* stepper */
+.stepper-bar{background:var(--violet-softer);border-bottom:1px solid var(--line)}
+.steps{display:flex;align-items:center;justify-content:center;gap:8px;padding:16px 0;flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:9px;color:var(--muted);font-weight:700;font-size:13px}
+.step .num{width:30px;height:30px;border-radius:50%;background:#fff;border:2px solid var(--line);display:grid;place-items:center;font-size:13px;font-weight:800}
+.step.active{color:var(--violet)}.step.active .num{background:var(--violet);color:#fff;border-color:var(--violet)}
+.step.done{color:var(--green)}.step.done .num{background:var(--green);color:#fff;border-color:var(--green)}
+.step .line{width:46px;height:2px;background:var(--line)}.step.done+.line,.line.done{background:var(--green)}
+
+.content{padding:26px 0 60px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:12px 22px;font-weight:700;font-size:13.5px;transition:.18s}
+.btn svg{width:18px;height:18px}
+.btn-primary{background:linear-gradient(135deg,var(--violet),var(--violet-3));color:#fff;box-shadow:0 8px 20px rgba(124,58,237,.3)}
+.btn-primary:hover{filter:brightness(1.07);transform:translateY(-1px)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none;filter:none}
+.btn-ghost{background:#fff;color:var(--violet);border:1.5px solid var(--violet-3)}
+.btn-ghost:hover{background:var(--violet-soft)}
+.btn-block{width:100%}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card-h{padding:15px 18px;border-bottom:1px solid var(--line);font-size:15px;font-weight:800;display:flex;align-items:center;gap:9px}
+.card-h .ic{font-size:18px}
+.card-b{padding:18px}
+
+/* cart layout */
+.co-grid{display:grid;grid-template-columns:1fr 372px;gap:20px;align-items:start}
+.col-main{display:flex;flex-direction:column;gap:18px}
+.col-sum{position:sticky;top:96px;display:flex;flex-direction:column;gap:16px}
+
+/* forms */
+.fg{margin-bottom:13px}.fg label{display:block;font-size:12.5px;font-weight:700;margin-bottom:6px;color:#4b4560}
+.inp{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:11px 14px;font-size:13px;outline:0;background:var(--bg);transition:.15s;font-family:inherit}
+.inp:focus{border-color:var(--violet);background:#fff;box-shadow:0 0 0 3px rgba(124,58,237,.08)}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+
+/* cart items */
+.citem{display:flex;gap:13px;padding:14px 0;border-bottom:1px solid var(--line)}
+.citem:last-child{border-bottom:0}
+.citem .thumb{width:74px;height:74px;border-radius:14px;display:grid;place-items:center;font-size:38px;flex-shrink:0}
+.citem .info{flex:1;min-width:0}
+.citem .info b{font-size:13.5px;display:block;line-height:1.6}
+.citem .info .meta{font-size:11.5px;color:var(--muted);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap}
+.citem .info .meta span{display:flex;align-items:center;gap:4px}
+.citem .info .meta .sw{width:12px;height:12px;border-radius:50%;border:1px solid var(--line)}
+.citem .right{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:8px}
+.citem .lp{font-weight:900;font-size:14px}
+.citem .lp small{display:block;font-size:11px;color:var(--muted);text-decoration:line-through;font-weight:500;text-align:left}
+.citem .rm{color:var(--muted);font-size:11.5px;display:flex;align-items:center;gap:4px}
+.citem .rm:hover{color:var(--pink)}
+.citem .rm svg{width:14px;height:14px}
+.stepper{display:flex;align-items:center;border:1.5px solid var(--line);border-radius:11px;overflow:hidden}
+.stepper button{width:34px;height:34px;font-size:16px;color:var(--violet);font-weight:800}
+.stepper button:hover{background:var(--violet-softer)}
+.stepper input{width:38px;height:34px;text-align:center;border:0;outline:0;font-weight:800;background:transparent}
+
+/* radio cards */
+.rc{display:block;cursor:pointer;margin-bottom:10px}
+.rc:last-child{margin-bottom:0}
+.rc input{display:none}
+.rcb{display:flex;align-items:center;gap:12px;border:1.5px solid var(--line);border-radius:13px;padding:13px 15px;transition:.15s}
+.rc input:checked + .rcb{border-color:var(--violet);background:var(--violet-softer);box-shadow:0 0 0 3px rgba(124,58,237,.07)}
+.rcb .rd{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex-shrink:0;position:relative;transition:.15s}
+.rc input:checked + .rcb .rd{border-color:var(--violet)}
+.rc input:checked + .rcb .rd::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--violet)}
+.rcb .ic{width:40px;height:40px;border-radius:11px;background:var(--violet-soft);display:grid;place-items:center;font-size:19px;flex-shrink:0}
+.rcb .tx{flex:1}.rcb .tx b{font-size:13px;display:block}.rcb .tx small{color:var(--muted);font-size:11.5px}
+.rcb .pr{font-weight:800;font-size:13px;white-space:nowrap}
+.rcb .pr.free{color:var(--green)}
+
+/* coupon */
+.coupon{display:flex;gap:8px}
+.coupon .inp{flex:1}
+.coupon button{background:var(--violet-soft);color:var(--violet);font-weight:800;font-size:13px;padding:0 18px;border-radius:12px;white-space:nowrap}
+.coupon button:hover{background:var(--violet);color:#fff}
+.applied{display:flex;align-items:center;gap:8px;background:var(--green-soft);color:var(--green);border-radius:11px;padding:9px 13px;font-size:12.5px;font-weight:700;margin-top:10px}
+.applied .x{margin-right:auto;cursor:pointer;font-weight:800}
+.coup-err{color:var(--pink);font-size:11.5px;margin-top:7px;font-weight:600}
+.coup-hint{font-size:11px;color:var(--muted);margin-top:7px}
+.coup-hint code{background:var(--violet-softer);color:var(--violet);padding:1px 7px;border-radius:6px;font-weight:700}
+
+/* totals */
+.totals .ln{display:flex;justify-content:space-between;padding:7px 0;font-size:13px}
+.totals .ln.disc{color:var(--pink)}
+.totals .ln.free{color:var(--green)}
+.totals .grand{border-top:2px dashed var(--line);margin-top:8px;padding-top:13px;font-size:16px;font-weight:900}
+.totals .grand .v{color:var(--violet)}
+.save-note{background:var(--pink-soft);color:var(--pink);border-radius:11px;padding:9px 13px;font-size:12px;font-weight:700;margin-top:10px;text-align:center}
+.trust{display:flex;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-size:11px;margin-top:12px}
+.trust svg{width:14px;height:14px;color:var(--green)}
+
+/* empty */
+.empty{text-align:center;padding:60px 20px}
+.empty .em{font-size:70px;margin-bottom:10px}
+.empty h3{font-size:18px;margin-bottom:8px}
+.empty p{color:var(--muted);font-size:13px;margin-bottom:20px}
+
+/* ===== gateway ===== */
+.gw-wrap{max-width:460px;margin:0 auto}
+.gw{border-radius:22px;overflow:hidden;border:1px solid var(--line);box-shadow:0 20px 50px rgba(80,50,160,.12);background:#fff}
+.gw-h{padding:18px 22px;display:flex;align-items:center;gap:12px;color:#fff}
+.gw-h .ic{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.2);display:grid;place-items:center;font-size:22px}
+.gw-h b{font-size:15px;display:block}.gw-h small{opacity:.9;font-size:11.5px}
+.gw-h .lock{margin-right:auto;display:flex;align-items:center;gap:5px;font-size:11px;opacity:.9}
+.gw-h .lock svg{width:14px;height:14px}
+.gw-b{padding:22px}
+.gw-info{display:flex;justify-content:space-between;background:var(--violet-softer);border-radius:13px;padding:13px 15px;margin-bottom:18px;font-size:12.5px}
+.gw-info div small{display:block;color:var(--muted);font-size:11px;margin-bottom:2px}
+.gw-info .amt{font-weight:900;color:var(--violet);font-size:15px}
+.gw .fg label{font-size:12px}
+.card-input{position:relative}
+.card-input .ci{direction:ltr;text-align:left;letter-spacing:2px;font-size:16px;font-weight:700;padding:13px 14px}
+.card-input .brand{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:800;color:var(--violet);background:var(--violet-soft);padding:3px 9px;border-radius:8px}
+.bankdet{font-size:11.5px;color:var(--muted);margin-top:6px;display:flex;align-items:center;gap:6px}
+.bankdet b{color:var(--ink)}
+.gw .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.gw .sel{display:flex;gap:8px}
+.gw .sel select{flex:1;border:1.5px solid var(--line);border-radius:12px;padding:11px;font-size:13px;background:var(--bg);outline:0;font-family:inherit}
+.simfail{display:flex;align-items:center;gap:8px;background:var(--red-soft);border-radius:11px;padding:9px 13px;font-size:11.5px;color:var(--red);font-weight:600;margin:6px 0 16px}
+.simfail input{width:16px;height:16px;accent-color:var(--red)}
+.gw-btns{display:flex;gap:10px}
+.gw-btns .btn{flex:1;height:50px}
+.gw-foot{text-align:center;font-size:10.5px;color:var(--muted);padding:13px;border-top:1px solid var(--line);background:var(--violet-softer)}
+
+/* spinner overlay */
+.spin{position:fixed;inset:0;background:rgba(36,28,58,.6);backdrop-filter:blur(3px);z-index:120;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff}
+.spin.open{display:flex}
+.spin .ring{width:54px;height:54px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.spin p{font-size:14px;font-weight:700}.spin small{opacity:.8;font-size:12px}
+
+/* ===== result ===== */
+.res-wrap{max-width:520px;margin:0 auto;text-align:center}
+.res{border-radius:24px;overflow:hidden;border:1px solid var(--line);box-shadow:0 20px 50px rgba(80,50,160,.12);background:#fff}
+.res-top{padding:34px 24px 24px;color:#fff}
+.res-top.ok{background:linear-gradient(135deg,#16a34a,#22c55e)}
+.res-top.no{background:linear-gradient(135deg,#dc2626,#ef4444)}
+.res-top .chk{width:74px;height:74px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center;margin:0 auto 14px;animation:pop .4s}
+@keyframes pop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+.res-top .chk svg{width:38px;height:38px}
+.res-top h2{font-size:20px;font-weight:900;margin-bottom:6px}
+.res-top p{font-size:13px;opacity:.95}
+.res-b{padding:24px}
+.res-rows{text-align:right}
+.res-rows .r{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.res-rows .r:last-child{border-bottom:0}
+.res-rows .r span{color:var(--muted)}
+.res-rows .r b{font-weight:800}
+.res-b .acts{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.res-b .acts .btn{flex:1;min-width:140px}
+
+/* invoice print */
+.invoice{background:#fff;color:#1e293b;padding:26px;font-size:13px;text-align:right}
+.invoice table{width:100%;border-collapse:collapse;margin:14px 0}
+.invoice th,.invoice td{padding:9px 12px;border-bottom:1px solid #e5e9f2;font-size:12.5px;text-align:right}
+.invoice th{background:#f6f7fc;color:#64748b}
+.invoice .tot{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
+.invoice .tot.g{border-top:2px solid #1e293b;margin-top:8px;padding-top:12px;font-weight:800;font-size:15px}
+
+/* toast */
+.toasts{position:fixed;bottom:22px;left:22px;z-index:200;display:flex;flex-direction:column;gap:10px}
+.toast{background:#fff;border:1px solid var(--line);border-right:4px solid var(--green);border-radius:13px;padding:12px 16px;font-size:13px;font-weight:600;box-shadow:var(--shadow);display:flex;gap:9px;align-items:center;animation:slideIn .3s;min-width:240px}
+.toast.err{border-right-color:var(--red)}.toast.info{border-right-color:var(--violet)}
+@keyframes slideIn{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+
+@media print{body *{visibility:hidden}#printArea,#printArea *{visibility:visible}#printArea{position:absolute;inset:0;width:100%}}
+@media(max-width:880px){.co-grid{grid-template-columns:1fr}.col-sum{position:static}.frow{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- top -->
+<div class="top"><div class="wrap">
+  <a class="logo" href="#"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 00-1 3.73V8L3 14v2h18v-2L13 8V6.73A2 2 0 0012 3z"/></svg></span><span><b>دیجی‌استایل</b><small>تسویه‌حساب امن</small></span></a>
+  <span class="secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>اتصال امن (SSL)</span>
+  <a class="back" href="#" onclick="toShop();return false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>بازگشت به فروشگاه</a>
+</div></div>
+
+<!-- stepper -->
+<div class="stepper-bar"><div class="steps" id="steps">
+  <div class="step active" data-s="1"><span class="num">۱</span>سبد خرید</div><span class="line" data-l="1"></span>
+  <div class="step" data-s="2"><span class="num">۲</span>پرداخت</div><span class="line" data-l="2"></span>
+  <div class="step" data-s="3"><span class="num">۳</span>پایان</div>
+</div></div>
+
+<div class="content"><div class="wrap">
+
+  <!-- ============ STEP 1: CART ============ -->
+  <div id="step1">
+    <div id="emptyState" class="card empty hidden">
+      <div class="em">🛒</div><h3>سبد خرید شما خالی است</h3>
+      <p>برای ادامه، ابتدا کالاهای موردنظر را از فروشگاه به سبد خرید اضافه کنید.</p>
+      <button class="btn btn-primary" onclick="toShop()">مشاهده محصولات فروشگاه</button>
+    </div>
+
+    <div class="co-grid" id="coGrid">
+      <!-- main -->
+      <div class="col-main">
+        <div class="card">
+          <div class="card-h"><span class="ic">📍</span>اطلاعات گیرنده سفارش</div>
+          <div class="card-b">
+            <div class="frow">
+              <div class="fg"><label>نام و نام خانوادگی *</label><input class="inp" id="aName" value="علی رضایی"></div>
+              <div class="fg"><label>شماره موبایل *</label><input class="inp" id="aPhone" value="09123456789" dir="ltr"></div>
+            </div>
+            <div class="frow">
+              <div class="fg"><label>استان و شهر</label>
+                <select class="inp" id="aCity"><option>تهران</option><option>اصفهان</option><option>فارس - شیراز</option><option>خراسان رضوی - مشهد</option><option>آذربایجان شرقی - تبریز</option><option>البرز - کرج</option></select>
+              </div>
+              <div class="fg"><label>کد پستی</label><input class="inp" id="aPost" value="1415873920" dir="ltr"></div>
+            </div>
+            <div class="fg"><label>آدرس پستی کامل *</label><textarea class="inp" id="aAddr" rows="2">تهران، سعادت‌آباد، بلوار دریا، کوچه ۱۲، پلاک ۸، واحد ۳</textarea></div>
+            <div class="fg" style="margin-bottom:0"><label>توضیحات سفارش (اختیاری)</label><input class="inp" id="aNote" placeholder="مثلاً: لطفاً قبل از ارسال هماهنگ کنید"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="ic">🚚</span>روش ارسال</div>
+          <div class="card-b" id="shipList"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="ic">🛍️</span>کالاهای سبد خرید (<span id="cartN">۰</span> قلم)</div>
+          <div class="card-b" id="cartItems" style="padding-top:4px"></div>
+        </div>
+      </div>
+
+      <!-- summary -->
+      <div class="col-sum">
+        <div class="card">
+          <div class="card-h"><span class="ic">🎟️</span>کد تخفیف</div>
+          <div class="card-b">
+            <div class="coupon"><input class="inp" id="coupIn" placeholder="کد تخفیف را وارد کنید" dir="ltr"><button onclick="applyCoupon()">اعمال</button></div>
+            <div id="coupMsg"></div>
+            <div class="coup-hint">کدهای نمونه: <code>WELCOME10</code> <code>STYLE20</code> <code>DIGI50</code> <code>FREESHIP</code></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="ic">💳</span>روش پرداخت</div>
+          <div class="card-b" id="payList"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="ic">🧾</span>خلاصه سفارش</div>
+          <div class="card-b">
+            <div class="totals" id="totals"></div>
+            <div id="saveNote"></div>
+            <button class="btn btn-primary btn-block" id="proceedBtn" style="margin-top:14px;height:52px;font-size:15px" onclick="proceed()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              ادامه و پرداخت امن
+            </button>
+            <div class="trust"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>پرداخت امن و رمزنگاری‌شده — نماد اعتماد الکترونیک</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ STEP 2: GATEWAY ============ -->
+  <div id="step2" class="hidden">
+    <div class="gw-wrap"><div class="gw">
+      <div class="gw-h" id="gwHead"><span class="ic" id="gwIc">🟡</span><div><b id="gwName">درگاه پرداخت</b><small>صفحه پرداخت امن بانکی</small></div><span class="lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>SECURE</span></div>
+      <div class="gw-b">
+        <div class="gw-info">
+          <div><small>پذیرنده</small><b>فروشگاه دیجی‌استایل</b></div>
+          <div style="text-align:left"><small>مبلغ قابل پرداخت</small><span class="amt" id="gwAmt">۰ تومان</span></div>
+        </div>
+        <div class="fg">
+          <label>شماره کارت</label>
+          <div class="card-input"><input class="inp ci" id="cardNo" maxlength="19" placeholder="0000 0000 0000 0000" inputmode="numeric"><span class="brand" id="cardBrand">💳</span></div>
+          <div class="bankdet">صادرکننده: <b id="bankName">—</b></div>
+        </div>
+        <div class="grid2">
+          <div class="fg"><label>تاریخ انقضا</label><div class="sel"><select id="expM"></select><select id="expY"></select></div></div>
+          <div class="fg"><label>CVV2</label><input class="inp" id="cvv" maxlength="4" placeholder="123" dir="ltr" inputmode="numeric"></div>
+        </div>
+        <div class="fg"><label>رمز پویا (رمز دوم)</label><input class="inp" id="otp" maxlength="8" placeholder="رمز یکبارمصرف" dir="ltr" inputmode="numeric"></div>
+        <label class="simfail"><input type="checkbox" id="simFail">شبیه‌سازی تراکنش ناموفق (برای تست)</label>
+        <div class="gw-btns">
+          <button class="btn btn-primary" onclick="doPay()">پرداخت <span id="gwBtnAmt"></span></button>
+          <button class="btn btn-ghost" onclick="setStep(1)">انصراف</button>
+        </div>
+      </div>
+      <div class="gw-foot">⚠️ این صفحه یک درگاه شبیه‌سازی‌شده جهت نمایش عملکرد است. هیچ پرداخت واقعی انجام نمی‌شود.</div>
+    </div></div>
+  </div>
+
+  <!-- ============ STEP 3: RESULT ============ -->
+  <div id="step3" class="hidden">
+    <div class="res-wrap"><div class="res">
+      <div class="res-top" id="resTop"><div class="chk" id="resChk"></div><h2 id="resTitle"></h2><p id="resDesc"></p></div>
+      <div class="res-b">
+        <div class="res-rows" id="resRows"></div>
+        <div class="acts" id="resActs"></div>
+      </div>
+    </div></div>
+  </div>
+
+</div></div>
+
+<!-- spinner -->
+<div class="spin" id="spin"><div class="ring"></div><p id="spinTxt">در حال اتصال به درگاه بانک...</p><small>لطفاً صفحه را نبندید</small></div>
+
+<!-- print area -->
+<div id="printArea" class="hidden"></div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+const faD='۰۱۲۳۴۵۶۷۸۹';
+const fa=n=>String(n).replace(/\d/g,d=>faD[d]);
+const money=n=>Number(n).toLocaleString('fa-IR');
+const el=id=>document.getElementById(id);
+
+const TODAY = fa(1405)+'/'+fa(String(4).padStart(2,'0'))+'/'+fa(String(30).padStart(2,'0'));
+const TNOW = fa(String(14).padStart(2,'0'))+':'+fa(String(32).padStart(2,'0'));
+
+/* ---------- storage (graceful in sandboxed preview) ---------- */
+let cart=[];
+const SEED=[
+ {key:'s3',id:3,name:'هودی مشکی یونی‌سکس کلاه‌دار',brand:'استریت',emoji:'🧥',tint:'#e9ebf1',price:1450000,old:1800000,color:'مشکی',colorHex:'#1f2937',size:'L',qty:1},
+ {key:'s14',id:14,name:'کتانی اسپرت مردانه سفید',brand:'نایکی',emoji:'👟',tint:'#eceef3',price:3450000,old:4200000,color:'سفید',colorHex:'#f1f1f1',size:'M',qty:1},
+ {key:'s12',id:12,name:'کیف دوشی زنانه چرم طبیعی',brand:'چارلز',emoji:'👜',tint:'#fdeaf0',price:2280000,old:2280000,color:'کرم',colorHex:'#e7d6b3',size:'—',qty:2},
+];
+function loadCart(){
+  try{ if(localStorage.getItem('ds_cart')!==null){const a=JSON.parse(localStorage.getItem('ds_cart')); if(Array.isArray(a))return a;} }catch(e){}
+  return SEED.map(x=>({...x}));
+}
+function saveCart(){ try{localStorage.setItem('ds_cart',JSON.stringify(cart));}catch(e){} }
+
+/* ---------- config ---------- */
+const SHIPPING={
+  post:{name:'پست پیشتاز',desc:'تحویل ۲ تا ۴ روز کاری',cost:45000},
+  tipax:{name:'تیپاکس',desc:'تحویل ۱ تا ۳ روز کاری',cost:65000},
+  peyk:{name:'پیک موتوری (ویژه تهران)',desc:'تحویل همان روز',cost:80000},
+};
+const PAY={
+  zarin:{name:'زرین‌پال',desc:'پرداخت امن آنلاین — همه کارت‌ها',icon:'🟡',head:'#caa421'},
+  payping:{name:'پی‌پینگ',desc:'پرداخت با کیف پول و اقساط',icon:'🟢',head:'#16a34a'},
+  mellat:{name:'به‌پرداخت ملت',desc:'درگاه مستقیم بانکی',icon:'🔴',head:'#c0392b'},
+  wallet:{name:'کیف پول دیجی‌استایل',desc:'موجودی شما: '+money(1200000)+' تومان',icon:'👛',head:'#7c3aed',balance:1200000},
+};
+const COUPONS={
+  'WELCOME10':{type:'percent',val:10,label:'۱۰٪ تخفیف اولین خرید'},
+  'STYLE20':{type:'percent',val:20,label:'۲۰٪ تخفیف ویژه'},
+  'DIGI50':{type:'fixed',val:500000,label:'۵۰٬۰۰ تومان تخفیف'},
+  'FREESHIP':{type:'ship',val:0,label:'ارسال رایگان'},
+};
+const BANKS={'6037':'بانک ملی','6104':'بانک ملت','6219':'بانک سامان','5892':'بانک سپه','6274':'اقتصاد نوین','5022':'بانک پاسارگاد','6362':'بانک آینده','6393':'بانک پارسیان','5859':'بانک تجارت'};
+
+let shipKey='post', payKey='zarin', applied=null, lastOrder=null;
+
+/* ---------- render cart ---------- */
+function renderCart(){
+  el('cartN').textContent=fa(cart.reduce((s,i)=>s+i.qty,0));
+  if(cart.length===0){el('coGrid').classList.add('hidden');el('emptyState').classList.remove('hidden');el('proceedBtn').disabled=true;renderTotals();return;}
+  el('coGrid').classList.remove('hidden');el('emptyState').classList.add('hidden');
+  el('cartItems').innerHTML=cart.map((it,i)=>`
+    <div class="citem">
+      <div class="thumb" style="background:${it.tint}">${it.emoji}</div>
+      <div class="info"><b>${it.name}</b>
+        <div class="meta"><span>${it.brand}</span><span><span class="sw" style="background:${it.colorHex||'#ccc'}"></span>${it.color}</span>${it.size!=='—'?`<span>سایز: ${it.size}</span>`:''}</div>
+      </div>
+      <div class="right">
+        <div class="lp">${money(it.price)}${it.old>it.price?`<small>${money(it.old)}</small>`:''}</div>
+        <div class="stepper"><button onclick="chgQty(${i},-1)">−</button><input value="${fa(it.qty)}" readonly><button onclick="chgQty(${i},1)">+</button></div>
+        <button class="rm" onclick="removeItem(${i})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>حذف</button>
+      </div>
+    </div>`).join('');
+  renderTotals();
+}
+function chgQty(i,d){cart[i].qty=Math.max(1,cart[i].qty+d);saveCart();renderCart();}
+function removeItem(i){cart.splice(i,1);saveCart();renderCart();toast('کالا از سبد حذف شد','info');}
+
+/* ---------- shipping & payment lists ---------- */
+function renderShip(){
+  const afterProd=cart.reduce((s,i)=>s+i.price*i.qty,0);
+  el('shipList').innerHTML=Object.entries(SHIPPING).map(([k,v])=>{
+    const free = afterProd>=500000;
+    return `<label class="rc"><input type="radio" name="ship" value="${k}" ${shipKey===k?'checked':''} onchange="shipKey='${k}';renderTotals()">
+      <span class="rcb"><span class="rd"></span><span class="ic">${k==='post'?'📦':k==='tipax'?'🚀':'🛵'}</span>
+      <span class="tx"><b>${v.name}</b><small>${v.desc}</small></span>
+      <span class="pr ${free?'free':''}">${free?'رایگان':money(v.cost)}</span></span></label>`;
+  }).join('')+(afterProd>=500000?'<div style="font-size:11.5px;color:var(--green);font-weight:700;margin-top:4px">🎉 به دلیل خرید بالای ۵۰٬۰۰ تومان، ارسال برای شما رایگان شد!</div>':'');
+}
+function renderPay(){
+  el('payList').innerHTML=Object.entries(PAY).map(([k,v])=>`<label class="rc"><input type="radio" name="pay" value="${k}" ${payKey===k?'checked':''} onchange="payKey='${k}'">
+    <span class="rcb"><span class="rd"></span><span class="ic">${v.icon}</span><span class="tx"><b>${v.name}</b><small>${v.desc}</small></span></span></label>`).join('');
+}
+
+/* ---------- coupon ---------- */
+function applyCoupon(){
+  const code=(el('coupIn').value||'').trim().toUpperCase();
+  if(!code){el('coupMsg').innerHTML='<div class="coup-err">لطفاً کد تخفیف را وارد کنید</div>';return;}
+  if(!COUPONS[code]){applied=null;el('coupMsg').innerHTML='<div class="coup-err">⚠️ کد تخفیف نامعتبر است یا منقضی شده</div>';renderTotals();return;}
+  applied=code;
+  el('coupMsg').innerHTML=`<div class="applied">🎉 کد «${code}» اعمال شد — ${COUPONS[code].label}<span class="x" onclick="removeCoupon()">✕</span></div>`;
+  el('coupIn').value='';renderTotals();toast('کد تخفیف با موفقیت اعمال شد');
+}
+function removeCoupon(){applied=null;el('coupMsg').innerHTML='';renderTotals();toast('کد تخفیف حذف شد','info');}
+
+/* ---------- totals ---------- */
+function compute(){
+  const raw=cart.reduce((s,i)=>s+(i.old||i.price)*i.qty,0);
+  const afterProd=cart.reduce((s,i)=>s+i.price*i.qty,0);
+  const prodDisc=raw-afterProd;
+  let coupDisc=0;
+  if(applied){const c=COUPONS[applied]; if(c.type==='percent')coupDisc=Math.round(afterProd*c.val/100); else if(c.type==='fixed')coupDisc=Math.min(c.val,afterProd);}
+  const afterCoup=afterProd-coupDisc;
+  const freeByThreshold=afterProd>=500000;
+  const freeByCoupon=applied==='FREESHIP';
+  const shipCost=(freeByThreshold||freeByCoupon)?0:(SHIPPING[shipKey]?SHIPPING[shipKey].cost:0);
+  const tax=Math.round(afterCoup*0.09);
+  const total=afterCoup+shipCost+tax;
+  return {raw,afterProd,prodDisc,coupDisc,afterCoup,shipCost,freeByThreshold,freeByCoupon,tax,total};
+}
+function renderTotals(){
+  const t=compute();
+  let html=`<div class="ln"><span>جمع کالاها</span><b>${money(t.raw)} تومان</b></div>`;
+  if(t.prodDisc>0)html+=`<div class="ln disc"><span>تخفیف کالاها</span><b>− ${money(t.prodDisc)} تومان</b></div>`;
+  if(t.coupDisc>0)html+=`<div class="ln disc"><span>کد تخفیف (${applied})</span><b>− ${money(t.coupDisc)} تومان</b></div>`;
+  html+=`<div class="ln ${t.shipCost===0?'free':''}"><span>هزینه ارسال</span><b>${t.shipCost===0?'رایگان':money(t.shipCost)+' تومان'}</b></div>`;
+  html+=`<div class="ln"><span>مالیات بر ارزش افزوده (۹٪)</span><b>${money(t.tax)} تومان</b></div>`;
+  html+=`<div class="ln grand"><span>مبلغ قابل پرداخت</span><span class="v">${money(t.total)} تومان</span></div>`;
+  el('totals').innerHTML=html;
+  const saved=t.prodDisc+t.coupDisc;
+  el('saveNote').innerHTML=saved>0?`<div class="save-note">🎁 شما در این خرید ${money(saved)} تومان صرفه‌جویی کردید!</div>`:'';
+  el('proceedBtn').disabled = cart.length===0;
+}
+
+/* ---------- proceed ---------- */
+function proceed(){
+  if(cart.length===0){toast('سبد خرید خالی است','err');return;}
+  if(!el('aName').value.trim()||!el('aPhone').value.trim()||!el('aAddr').value.trim()){toast('لطفاً نام، موبایل و آدرس را کامل کنید','err');return;}
+  const t=compute();
+  if(payKey==='wallet'){
+    if(t.total>PAY.wallet.balance){toast('موجودی کیف پول کافی نیست — لطفاً درگاه دیگری انتخاب کنید','err');return;}
+    lastOrder={code:'DS-'+fa(Math.floor(100000+Math.random()*900000)),track:'TK'+fa(Math.floor(1000000+Math.random()*9000000)),total:t.total,gw:'کیف پول دیجی‌استایل',items:cart.map(x=>({...x})),computed:t};
+    saveCart_clear(); showResult(true); toast('پرداخت با کیف پول انجام شد'); return;
+  }
+  // go to gateway
+  const p=PAY[payKey];
+  el('gwIc').textContent=p.icon; el('gwName').textContent='درگاه '+p.name; el('gwHead').style.background='linear-gradient(135deg,'+p.head+','+p.head+'cc)';
+  el('gwAmt').textContent=money(t.total)+' تومان'; el('gwBtnAmt').textContent=money(t.total);
+  setStep(2);
+}
+
+/* ---------- gateway ---------- */
+function initGateway(){
+  el('expM').innerHTML='<option value="">ماه</option>'+Array.from({length:12},(_,i)=>`<option value="${i+1}">${fa(String(i+1).padStart(2,'0'))}</option>`).join('');
+  el('expY').innerHTML='<option value="">سال</option>'+Array.from({length:8},(_,i)=>`<option value="${1403+i}">${fa(1403+i)}</option>`).join('');
+  el('cardNo').addEventListener('input',e=>{
+    let v=e.target.value.replace(/\D/g,'').slice(0,16);
+    e.target.value=v.replace(/(.{4})/g,'$1 ').trim();
+    const b=BANKS[v.slice(0,4)];
+    el('bankName').textContent=v.length>=4?(b||'کارت بانکی معتبر'):'—';
+    el('cardBrand').textContent=v.length>=4?'💳':'';
+  });
+}
+function doPay(){
+  const digits=el('cardNo').value.replace(/\D/g,'');
+  if(digits.length!==16){toast('شماره کارت باید ۱۶ رقم باشد','err');return;}
+  if((el('cvv').value||'').length<3){toast('CVV2 نامعتبر است','err');return;}
+  if(!el('expM').value||!el('expY').value){toast('تاریخ انقضا را انتخاب کنید','err');return;}
+  if((el('otp').value||'').length<4){toast('رمز پویا نامعتبر است','err');return;}
+  const t=compute();
+  const fail=el('simFail').checked;
+  el('spinTxt').textContent='در حال اتصال به درگاه '+PAY[payKey].name+'...';
+  el('spin').classList.add('open');
+  setTimeout(()=>{el('spinTxt').textContent='در حال پردازش تراکنش...';},800);
+  setTimeout(()=>{
+    el('spin').classList.remove('open');
+    if(fail){ showResult(false); return; }
+    lastOrder={code:'DS-'+fa(Math.floor(100000+Math.random()*900000)),track:'TK'+fa(Math.floor(1000000+Math.random()*9000000)),total:t.total,gw:PAY[payKey].name,ref:fa(Math.floor(100000000+Math.random()*900000000)),items:cart.map(x=>({...x})),computed:t};
+    saveCart_clear(); showResult(true);
+  },1700);
+}
+function saveCart_clear(){ cart=[]; saveCart(); }
+
+/* ---------- result ---------- */
+function showResult(ok){
+  setStep(3);
+  const top=el('resTop'); top.className='res-top '+(ok?'ok':'no');
+  el('resChk').innerHTML = ok
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+  el('resTitle').textContent = ok?'پرداخت با موفقیت انجام شد':'پرداخت ناموفق بود';
+  el('resDesc').textContent = ok?'سفارش شما ثبت شد و پس از پردازش ارسال می‌گردد. از خریدتان سپاسگزاریم 🌹':'تراکنش از سوی بانک تأیید نشد. هیچ مبلغی از حساب شما کسر نشده است.';
+  if(ok){
+    el('resRows').innerHTML=`
+      <div class="r"><span>شماره سفارش</span><b>${lastOrder.code}</b></div>
+      <div class="r"><span>کد پیگیری</span><b>${lastOrder.track}</b></div>
+      ${lastOrder.ref?`<div class="r"><span>شماره ارجاع بانکی</span><b>${lastOrder.ref}</b></div>`:''}
+      <div class="r"><span>درگاه پرداخت</span><b>${lastOrder.gw}</b></div>
+      <div class="r"><span>مبلغ پرداختی</span><b style="color:var(--green)">${money(lastOrder.total)} تومان</b></div>
+      <div class="r"><span>تاریخ و ساعت</span><b>${TODAY} — ${TNOW}</b></div>
+      <div class="r"><span>ارسال به</span><b>${el('aCity').value}، ${el('aName').value}</b></div>`;
+    el('resActs').innerHTML=`
+      <button class="btn btn-primary" onclick="printInvoice()">🖨️ مشاهده و چاپ فاکتور</button>
+      <button class="btn btn-ghost" onclick="toShop()">بازگشت به فروشگاه</button>`;
+  }else{
+    el('resRows').innerHTML=`
+      <div class="r"><span>درگاه</span><b>${PAY[payKey].name}</b></div>
+      <div class="r"><span>مبلغ</span><b>${money(compute().total)} تومان</b></div>
+      <div class="r"><span>علت</span><b style="color:var(--red)">عدم تأیید از سوی صادرکننده کارت</b></div>
+      <div class="r"><span>وضعیت حساب</span><b style="color:var(--green)">بدون کسر وجه</b></div>`;
+    el('resActs').innerHTML=`
+      <button class="btn btn-primary" onclick="setStep(2)">تلاش مجدد پرداخت</button>
+      <button class="btn btn-ghost" onclick="setStep(1)">ویرایش سبد خرید</button>`;
+  }
+}
+
+/* ---------- invoice print ---------- */
+function printInvoice(){
+  const o=lastOrder, t=o.computed||compute();
+  el('printArea').classList.remove('hidden');
+  el('printArea').innerHTML=`<div class="invoice">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e5e9f2;padding-bottom:14px;margin-bottom:14px">
+      <div style="display:flex;gap:11px;align-items:center"><div style="width:48px;height:48px;border-radius:13px;background:linear-gradient(135deg,#6d28d9,#8b5cf6);color:#fff;display:grid;place-items:center;font-size:22px;font-weight:800">د</div><div><b style="font-size:16px">فروشگاه دیجی‌استایل</b><div style="font-size:11px;color:#64748b">تهران، خیابان ولیعصر — ۰۲۱-۹۱۰۰۸۸۷۷</div></div></div>
+      <div style="text-align:left;font-size:12px"><b style="color:#6d28d9;font-size:15px">فاکتور فروش</b><br>سفارش: <b>${o.code}</b><br>تاریخ: ${TODAY}</div>
+    </div>
+    <div style="font-size:12px;margin-bottom:8px"><b>خریدار:</b> ${el('aName').value} — ${el('aPhone').value} | <b>آدرس:</b> ${el('aCity').value}، ${el('aAddr').value}</div>
+    <table><thead><tr><th>کالا</th><th>رنگ/سایز</th><th>تعداد</th><th>قیمت واحد</th><th>جمع</th></tr></thead>
+    <tbody>${o.items.map(it=>`<tr><td>${it.name}</td><td>${it.color} / ${it.size}</td><td>${fa(it.qty)}</td><td>${money(it.price)}</td><td><b>${money(it.price*it.qty)}</b></td></tr>`).join('')}</tbody></table>
+    <div style="width:280px;margin-right:auto">
+      <div class="tot"><span>جمع کالاها:</span><b>${money(t.raw)}</b></div>
+      ${t.prodDisc>0?`<div class="tot"><span>تخفیف کالاها:</span><b>−${money(t.prodDisc)}</b></div>`:''}
+      ${t.coupDisc>0?`<div class="tot"><span>کد تخفیف:</span><b>−${money(t.coupDisc)}</b></div>`:''}
+      <div class="tot"><span>هزینه ارسال:</span><b>${t.shipCost===0?'رایگان':money(t.shipCost)}</b></div>
+      <div class="tot"><span>مالیات (۹٪):</span><b>${money(t.tax)}</b></div>
+      <div class="tot g"><span>مبلغ پرداخت‌شده:</span><span style="color:#6d28d9">${money(t.total)} تومان</span></div>
+    </div>
+    <div style="margin-top:18px;font-size:11px;color:#64748b;text-align:center;border-top:1px dashed #cbd5e1;padding-top:12px">کد پیگیری: ${o.track} — از خرید شما سپاسگزاریم 🌹</div>
+  </div>`;
+  setTimeout(()=>{window.print();},200);
+}
+
+/* ---------- steps ---------- */
+function setStep(n){
+  ['step1','step2','step3'].forEach((id,i)=>el(id).classList.toggle('hidden',i+1!==n));
+  document.querySelectorAll('#steps .step').forEach(s=>{const sn=+s.dataset.s; s.classList.toggle('active',sn===n); s.classList.toggle('done',sn<n);});
+  document.querySelectorAll('#steps .line').forEach(l=>l.classList.toggle('done',+l.dataset.l<n));
+  if(n===1){renderShip();renderCart();}
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ---------- nav & toast ---------- */
+function toShop(){toast('در حال بازگشت به فروشگاه...','info');setTimeout(()=>{try{location.href='shop-frontend.html';}catch(e){}},400);}
+function toast(msg,type='ok'){const t=document.createElement('div');t.className='toast '+type;t.innerHTML=(type==='err'?'⚠️':type==='info'?'ℹ️':'✅')+' '+msg;el('toasts').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .4s';setTimeout(()=>t.remove(),400)},2800);}
+el('coupIn').addEventListener('keydown',e=>{if(e.key==='Enter')applyCoupon();});
+
+/* ---------- init ---------- */
+cart=loadCart();
+renderShip();renderPay();renderCart();initGateway();
+</script>
+</body>
+</html>
