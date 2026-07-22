@@ -1,0 +1,30 @@
+{% if submitted %}
+<div class="review-form" style="text-align:center;color:var(--green);font-weight:700">
+  ✅ ممنون! نظر شما ثبت شد و پس از بررسی نمایش داده خواهد شد.
+</div>
+{% elif can_review %}
+<form class="review-form" hx-post="{% url 'catalog:product-review-create' product.slug %}"
+      hx-target="#review-form-container" hx-swap="innerHTML"
+      x-data="{ rating: {{ posted_rating|default:5 }} }">
+  {% csrf_token %}
+  <input type="hidden" name="rating" :value="rating">
+  <h4>✍️ نظر خود را ثبت کنید</h4>
+  {% if errors %}
+  <div style="color:var(--pink);font-size:12.5px;margin-bottom:10px">
+    {% for err in errors %}<div>{{ err }}</div>{% endfor %}
+  </div>
+  {% endif %}
+  <div class="stars" style="font-size:22px;cursor:pointer">
+    <template x-for="i in 5" :key="i">
+      <span @click="rating = i" x-text="i <= rating ? '★' : '☆'"></span>
+    </template>
+  </div>
+  <textarea name="text" placeholder="تجربه خود را از این محصول بنویسید...">{{ posted_text|default:"" }}</textarea>
+  <button type="submit" class="btn btn-primary" style="height:44px">ثبت نظر</button>
+</form>
+{% else %}
+<div class="review-form" style="text-align:center">
+  <p style="margin-bottom:12px;color:var(--muted);font-size:13px">برای ثبت نظر ابتدا وارد حساب کاربری خود شوید.</p>
+  <button type="button" class="btn btn-primary" @click="loginOpen = true">ورود به حساب</button>
+</div>
+{% endif %}

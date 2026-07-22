@@ -1,14 +1,16 @@
+import json
 from datetime import timedelta
 
 from django.core.paginator import Paginator
-from django.db.models import Avg, Max, Prefetch, Q
-from django.shortcuts import render
+from django.db.models import Avg, F, Max, Prefetch, Q
+from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from apps.blog.models import BlogPost
 from apps.customers.models import Customer
 
-from .models import Brand, Category, Product
+from .models import Brand, Category, Product, Review
 
 BEST_SORT_OPTIONS = {
     "sold": ("-sold_count", "پرفروش‌ترین"),
@@ -161,3 +163,106 @@ def product_list(request):
     if request.headers.get("HX-Request") == "true":
         return render(request, "catalog/partials/product_list_results.html", context)
     return render(request, "catalog/product_list.html", context)
+
+
+def _variant_groups(product):
+    groups = {}
+    for variant in product.variants.all().order_by("attribute", "value"):
+        groups.setdefault(variant.attribute, []).append(variant)
+    return groups
+
+
+def _gallery_slides(product):
+    images = list(product.images.all().order_by("order"))
+    if images:
+        return [{"type": "image", "url": img.image.url, "alt": img.alt or product.name} for img in images]
+
+    base_tint = product.tint or "#eceef3"
+    pseudo_tints = [base_tint, "#f7f3fe", "#eef0f6", "#f6efe2"]
+    emoji = product.icon or "🛍️"
+    return [{"type": "emoji", "tint": tint, "emoji": emoji} for tint in pseudo_tints]
+
+
+def _can_review(request):
+    return request.user.is_authenticated and hasattr(request.user, "customer_profile")
+
+
+def product_detail(request, slug):
+    product = get_object_or_404(
+        Product.objects.select_related("brand", "category", "category__parent", "vendor"),
+        slug=slug, status=Product.Status.ACTIVE,
+    )
+    Product.objects.filter(pk=product.pk).update(views_count=F("views_count") + 1)
+    product.views_count += 1
+
+    variant_groups = _variant_groups(product)
+    spec_variant_summary = {
+        attribute: "، ".join(v.value for v in items) for attribute, items in variant_groups.items()
+    }
+
+    approved_reviews = product.reviews.filter(is_approved=True).select_related("customer").order_by("-created_at")
+    review_count = approved_reviews.count()
+    rating_breakdown = []
+    for star in range(5, 0, -1):
+        count = approved_reviews.filter(rating=star).count()
+        pct = round(count * 100 / review_count) if review_count else 0
+        rating_breakdown.append({"star": star, "count": count, "pct": pct})
+
+    related_products = (
+        Product.objects.filter(status=Product.Status.ACTIVE, category=product.category)
+        .exclude(pk=product.pk)
+        .select_related("brand")[:4]
+    )
+
+    context = {
+        "product": product,
+        "variant_groups": variant_groups,
+        "spec_variant_summary": spec_variant_summary,
+        "gallery_slides": _gallery_slides(product),
+        "approved_reviews": approved_reviews,
+        "review_count": review_count,
+        "rating_breakdown": rating_breakdown,
+        "related_products": related_products,
+        "can_review": _can_review(request),
+        "savings": product.price - product.final_price,
+    }
+    return render(request, "catalog/product_detail.html", context)
+
+
+@require_POST
+def product_review_create(request, slug):
+    product = get_object_or_404(Product, slug=slug, status=Product.Status.ACTIVE)
+
+    context = {"product": product, "can_review": _can_review(request)}
+
+    if not context["can_review"]:
+        return render(request, "catalog/partials/review_form.html", context)
+
+    posted_rating = request.POST.get("rating", "")
+    text = request.POST.get("text", "").strip()
+    errors = []
+
+    rating = None
+    try:
+        rating = int(posted_rating)
+        if not 1 <= rating <= 5:
+            raise ValueError
+    except (TypeError, ValueError):
+        errors.append("امتیاز باید بین ۱ تا ۵ باشد.")
+
+    if not text:
+        errors.append("متن نظر را وارد کنید.")
+
+    if errors:
+        context.update({"errors": errors, "posted_rating": posted_rating, "posted_text": text})
+        return render(request, "catalog/partials/review_form.html", context)
+
+    Review.objects.create(
+        product=product, customer=request.user.customer_profile, rating=rating, text=text, is_approved=False
+    )
+    context["submitted"] = True
+    response = render(request, "catalog/partials/review_form.html", context)
+    response["HX-Trigger"] = json.dumps(
+        {"toast": {"message": "نظر شما ثبت شد و پس از بررسی نمایش داده می‌شود", "type": "ok"}}
+    )
+    return response

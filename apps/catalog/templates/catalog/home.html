@@ -82,7 +82,7 @@
     <div class="tile {{ tclass }}">
       <span class="wm">{{ cat.icon }}</span>
       <h4>مشاهده محصولات {{ cat.name }}</h4>
-      <a class="btn" href="#">مشاهده محصولات</a>
+      <a class="btn" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">مشاهده محصولات</a>
     </div>
     {% endfor %}
   </div></section>

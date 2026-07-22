@@ -62,11 +62,11 @@
       <div class="cat-dropdown" x-show="catMenuOpen" x-cloak @click="catMenuOpen = false">
         {% for cat in nav_categories %}
         <div class="cat-dropdown-group">
-          <div class="top"><span>{{ cat.icon }}</span><span>{{ cat.name }}</span></div>
+          <a class="top" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}"><span>{{ cat.icon }}</span><span>{{ cat.name }}</span></a>
           {% if cat.children.all %}
           <ul>
             {% for child in cat.children.all %}
-            <li><a href="#">{{ child.icon }} {{ child.name }}</a></li>
+            <li><a href="{% url 'catalog:product-list' %}?category={{ child.slug }}">{{ child.icon }} {{ child.name }}</a></li>
             {% endfor %}
           </ul>
           {% endif %}
