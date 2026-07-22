@@ -68,6 +68,8 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.core.context_processors.shop_settings",
+                "apps.catalog.context_processors.nav_categories",
             ],
         },
     },
@@ -136,3 +138,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Business defaults (Stage 2 will read these in the pricing service)
 SHOP_FREE_SHIPPING_THRESHOLD = 500_000
 SHOP_TAX_PERCENT = 9
+
+# هویت عمومی پلتفرم (نه یک فروشنده‌ی خاص) — مطابق اصل جنریک‌بودن سند مشخصات
+SHOP_NAME = "دیجی‌مارکت"
+SHOP_TAGLINE = "فروشگاه اینترنتی چندمنظوره"
+SHOP_CONTACT_PHONE = "021-91008877"
+SHOP_CONTACT_EMAIL = "info@digimarket.ir"
+SHOP_CONTACT_ADDRESS = "تهران، خیابان ولیعصر"
