@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from apps.customers.models import Customer
 
-from .models import Brand, Category, Product, ProductImage, ProductVariant, Review, Vendor
+from apps.catalog.models import Brand, Category, Product, ProductImage, ProductVariant, Review, Vendor
 
 User = get_user_model()
 

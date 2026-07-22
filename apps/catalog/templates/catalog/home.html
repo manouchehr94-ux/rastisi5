@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% load static persian %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/home.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+
+  <!-- hero -->
+  <section class="hero"><div class="hero-inner">
+    <div class="hero-text">
+      <span class="hero-tag">🛍️ {{ SHOP_TAGLINE }}</span>
+      <h1>به {{ SHOP_NAME }} خوش آمدید — هر آنچه نیاز دارید، یک‌جا</h1>
+      <p>از لوازم خانگی و دیجیتال تا لوازم‌تحریر، خواربار و پوشاک؛ با ضمانت اصالت کالا و ارسال سریع به سراسر کشور.</p>
+      <div class="hero-btns">
+        <button type="button" class="btn btn-light" onclick="document.getElementById('sec-best').scrollIntoView({behavior:'smooth'})">مشاهده محصولات</button>
+        <button type="button" class="btn btn-light" onclick="document.getElementById('sec-special').scrollIntoView({behavior:'smooth'})">پیشنهادهای ویژه</button>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="hero-frame">🛍️</div>
+      <div class="float-card fc1"><span class="ic">🏷️</span><div>تا {{ max_discount|fa_number }}٪ تخفیف<small>روی کالاهای منتخب</small></div></div>
+      <div class="float-card fc2"><span class="ic">⭐</span><div>{{ avg_rating|floatformat:1|fa_number }} از ۵<small>رضایت مشتریان</small></div></div>
+      <div class="float-card fc3"><span class="ic">🚚</span><div>ارسال سریع<small>تحویل ۲۴ ساعته</small></div></div>
+    </div>
+  </div></section>
+
+  <!-- category icon strip -->
+  <section class="catstrip"><div class="catstrip-inner">
+    <div class="catstrip-promo">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg></span>
+      <div><b>تضمین بهترین قیمت</b><small>محصولات اورجینال با گارانتی</small></div>
+    </div>
+    <div class="cat-icons">
+      {% for cat in icon_categories %}
+      <a class="cat-ic" href="#"><span class="c">{{ cat.icon }}</span><span>{{ cat.name }}</span></a>
+      {% endfor %}
+    </div>
+  </div></section>
+
+  <!-- best sellers -->
+  <section class="section" id="sec-best">
+    <div class="sec-head">
+      <h2><span class="bar"></span>محصولات پرفروش</h2>
+      <div class="tabs" x-data="{ active: '{{ sort_key }}' }">
+        {% for key, opt in best_sort_options.items %}
+        <button type="button" class="tab" :class="{ active: active === '{{ key }}' }" @click="active = '{{ key }}'"
+                hx-get="{% url 'catalog:home-best-products' %}?sort={{ key }}" hx-target="#gridBest" hx-swap="innerHTML">{{ opt.1 }}</button>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="grid g4" id="gridBest">
+      {% include "catalog/partials/product_grid.html" with products=best_products %}
+    </div>
+  </section>
+
+  <!-- dark promo banner -->
+  <section class="section"><div class="promo-dark">
+    <div>
+      <h3>آخرین تخفیف‌ها را از دست ندهید!</h3>
+      <p>فقط تا پایان هفته، مجموعه‌ای از پرفروش‌ترین محصولات با تخفیف‌های استثنایی در انتظار شماست.</p>
+      <button type="button" class="btn btn-light" onclick="document.getElementById('sec-special').scrollIntoView({behavior:'smooth'})">مشاهده تخفیف‌ها</button>
+    </div>
+    {% if highlight_product %}
+    <div class="mini">
+      <div class="im">{{ highlight_product.icon|default:"🛍️" }}</div>
+      <div>
+        <div style="font-size:12px;font-weight:700">{{ highlight_product.name }}</div>
+        <div class="old">{{ highlight_product.price|toman }}</div>
+        <div class="now">{{ highlight_product.final_price|toman }}</div>
+      </div>
+    </div>
+    {% endif %}
+  </div></section>
+
+  <!-- category tiles -->
+  <section class="section"><div class="tiles">
+    {% for cat, tclass in tiles %}
+    <div class="tile {{ tclass }}">
+      <span class="wm">{{ cat.icon }}</span>
+      <h4>مشاهده محصولات {{ cat.name }}</h4>
+      <a class="btn" href="#">مشاهده محصولات</a>
+    </div>
+    {% endfor %}
+  </div></section>
+
+  <!-- new arrivals -->
+  <section class="section" id="sec-new">
+    <div class="sec-head"><h2><span class="bar"></span>محصولات جدید</h2><a class="more" href="#">مشاهده همه<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></a></div>
+    <div class="grid g4">
+      {% include "catalog/partials/product_grid.html" with products=new_products %}
+    </div>
+  </section>
+
+  <!-- cream banner -->
+  {% if cream_category %}
+  <section class="section"><div class="cream">
+    <div>
+      <h3>مجموعه‌ی {{ cream_category.name }}</h3>
+      <p>کیفیت و تنوع در دسته‌ی {{ cream_category.name }} را تجربه کنید — انتخابی مطمئن برای خرید روزمره.</p>
+      <a class="btn btn-ghost" href="#">مشاهده مجموعه</a>
+    </div>
+    <div class="rack">{{ cream_category.icon }}</div>
+  </div></section>
+  {% endif %}
+
+  <!-- special offers -->
+  <section class="section" id="sec-special">
+    <div class="sec-head"><h2><span class="bar"></span>تخفیفات ویژه</h2></div>
+    <div class="special-wrap">
+      <div class="grid g2">
+        {% include "catalog/partials/product_grid.html" with products=discounted_products %}
+      </div>
+      <div class="special-card" x-data="countdown('{{ special_offer_deadline }}')" x-init="start()">
+        <h3>⚡ پیشنهاد شگفت‌انگیز</h3>
+        <p>تخفیف‌های ویژه فقط تا پایان زمان‌شمار زیر فعال هستند. عجله کنید!</p>
+        <div class="countdown">
+          <div class="cd-box"><b x-text="h"></b><small>ساعت</small></div>
+          <div class="cd-box"><b x-text="m"></b><small>دقیقه</small></div>
+          <div class="cd-box"><b x-text="s"></b><small>ثانیه</small></div>
+        </div>
+        <button type="button" class="btn btn-light" onclick="document.getElementById('sec-special').scrollIntoView({behavior:'smooth'})">مشاهده همه</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- stats & club -->
+  <section class="section"><div class="orig">
+    <div class="right">
+      <div class="stat"><b>{{ customers_count|fa_number }}</b><small>مشتری ثبت‌نام‌شده در {{ SHOP_NAME }}</small></div>
+      <div class="promo">
+        <b>اشتراک ویژه باشگاه مشتریان</b><small>با عضویت، از تخفیف‌های اختصاصی بهره‌مند شوید</small>
+        <div class="row"><span class="pc">🎁</span><button type="button" class="btn btn-primary" style="padding:8px 16px;font-size:12px">عضویت رایگان</button></div>
+      </div>
+      {% if most_viewed_product %}
+      <div class="promo" style="display:flex;align-items:center;gap:12px">
+        <span class="pc">{{ most_viewed_product.icon|default:"🛍️" }}</span>
+        <div><b>پربازدیدترین کالا</b><small>{{ most_viewed_product.name }}</small></div>
+      </div>
+      {% endif %}
+    </div>
+    <div class="mid">
+      <h3>هرچه نیاز دارید، در {{ SHOP_NAME }} پیدا می‌کنید</h3>
+      <p>تمامی محصولات {{ SHOP_NAME }} دارای ضمانت اصالت، گارانتی سلامت فیزیکی و امکان بازگشت تا ۷ روز هستند.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button type="button" class="btn btn-light" onclick="document.getElementById('sec-best').scrollIntoView({behavior:'smooth'})">مشاهده محصولات</button>
+        <button type="button" class="btn btn-light">درباره ما</button>
+      </div>
+    </div>
+    <div class="photo">🛍️</div>
+  </div></section>
+
+  <!-- blog -->
+  <section class="section">
+    <div class="sec-head"><h2><span class="bar"></span>آخرین مطالب وبلاگ</h2><a class="more" href="#">همه مطالب<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></a></div>
+    <div class="grid" style="grid-template-columns:repeat(5,1fr)">
+      {% for post in blog_posts %}
+      <a class="blog-card" href="#">
+        <div class="th" style="background:{{ post.tint|default:'#f1ecfd' }}">{{ post.cover_emoji|default:"📰" }}</div>
+        <div class="bd">
+          <div class="meta"><span class="cat">{{ post.category_label }}</span><span>{{ post.published_at|jalali }}</span></div>
+          <h4>{{ post.title }}</h4>
+          <span class="read">ادامه مطلب<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></span>
+        </div>
+      </a>
+      {% empty %}
+      <p style="color:var(--muted);font-size:13px">فعلاً مطلبی منتشر نشده است.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- features -->
+  <div class="features">
+    <div class="feat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span><div><b>ارسال سریع</b><small>به سراسر کشور</small></div></div>
+    <div class="feat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><div><b>ضمانت اصالت</b><small>کالای اورجینال</small></div></div>
+    <div class="feat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></span><div><b>پشتیبانی ۲۴/۷</b><small>پاسخگویی همه‌روزه</small></div></div>
+    <div class="feat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg></span><div><b>۷ روز ضمانت بازگشت</b><small>بدون دردسر</small></div></div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('countdown', (deadlineIso) => ({
+    h: '۰۰', m: '۰۰', s: '۰۰',
+    _timer: null,
+    start() {
+      const faDigits = '۰۱۲۳۴۵۶۷۸۹';
+      const toFa = (n) => String(n).padStart(2, '0').replace(/\d/g, (d) => faDigits[d]);
+      const deadline = new Date(deadlineIso).getTime();
+      const tick = () => {
+        const diff = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+        this.h = toFa(Math.floor(diff / 3600));
+        this.m = toFa(Math.floor((diff % 3600) / 60));
+        this.s = toFa(diff % 60);
+      };
+      tick();
+      this._timer = setInterval(tick, 1000);
+    },
+  }));
+});
+</script>
+{% endblock %}

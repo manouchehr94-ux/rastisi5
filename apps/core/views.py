@@ -1,5 +1,1 @@
-from django.shortcuts import render
-
-
-def placeholder(request):
-    return render(request, "core/placeholder.html")
+# این اپ فعلاً ویویی ندارد؛ صفحه‌ی اصلی در apps.catalog.views.home پیاده شده است.
