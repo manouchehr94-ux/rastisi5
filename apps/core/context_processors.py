@@ -10,4 +10,5 @@ def shop_settings(request):
         "SHOP_CONTACT_EMAIL": getattr(settings, "SHOP_CONTACT_EMAIL", ""),
         "SHOP_CONTACT_ADDRESS": getattr(settings, "SHOP_CONTACT_ADDRESS", ""),
         "SHOP_FREE_SHIPPING_THRESHOLD": getattr(settings, "SHOP_FREE_SHIPPING_THRESHOLD", 0),
+        "SHOP_TAX_PERCENT": getattr(settings, "SHOP_TAX_PERCENT", 9),
     }

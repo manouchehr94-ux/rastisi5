@@ -59,7 +59,7 @@
         {% if totals.product_discount > 0 %}
         <div class="save-note">🎁 شما در این سبد {{ totals.product_discount|toman }} صرفه‌جویی کردید!</div>
         {% endif %}
-        <a href="#" class="btn btn-primary btn-block" style="margin-top:14px;height:52px;display:flex">ادامه و تسویه‌حساب</a>
+        <a href="{% url 'orders:checkout-step1' %}" class="btn btn-primary btn-block" style="margin-top:14px;height:52px;display:flex">ادامه و تسویه‌حساب</a>
         <div class="trust">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           هزینه‌ی نهایی و ارسال در مرحله‌ی تسویه‌حساب محاسبه می‌شود

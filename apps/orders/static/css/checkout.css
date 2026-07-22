@@ -1,0 +1,63 @@
+/*
+  صفحه‌ی تسویه‌حساب — مرحله‌ی ۱ (سبد و آدرس). کپی دقیق از docs/spec/shop-checkout.html
+  (نوار بالا، نوار مراحل، فرم‌ها، کارت‌های رادیویی روش ارسال/پرداخت، کد تخفیف).
+*/
+.top{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
+.top .wrap{display:flex;align-items:center;gap:14px;height:70px}
+.top .secure{margin-right:auto;display:flex;align-items:center;gap:8px;color:var(--green);font-size:12.5px;font-weight:700;background:var(--green-soft);padding:7px 13px;border-radius:10px}
+.top .secure svg{width:16px;height:16px}
+.top .back{display:flex;align-items:center;gap:6px;color:var(--violet);font-weight:700;font-size:13px;border:1.5px solid var(--violet-3);padding:8px 15px;border-radius:11px}
+.top .back:hover{background:var(--violet-soft)}
+.top .back svg{width:16px;height:16px}
+
+.stepper-bar{background:var(--violet-softer);border-bottom:1px solid var(--line)}
+.steps{display:flex;align-items:center;justify-content:center;gap:8px;padding:16px 0;flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:9px;color:var(--muted);font-weight:700;font-size:13px}
+.step .num{width:30px;height:30px;border-radius:50%;background:var(--card);border:2px solid var(--line);display:grid;place-items:center;font-size:13px;font-weight:800}
+.step.active{color:var(--violet)}
+.step.active .num{background:var(--violet);color:#fff;border-color:var(--violet)}
+.step .line{width:46px;height:2px;background:var(--line)}
+
+.content{padding:26px 0 60px}
+
+.fg{margin-bottom:13px}
+.fg label{display:block;font-size:12.5px;font-weight:700;margin-bottom:6px;color:#4b4560}
+.inp{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:11px 14px;font-size:13px;outline:0;background:var(--bg);transition:.15s;font-family:inherit}
+.inp:focus{border-color:var(--violet);background:#fff;box-shadow:0 0 0 3px rgba(124,58,237,.08)}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+
+/* radio cards (روش ارسال/پرداخت) */
+.rc{display:block;cursor:pointer;margin-bottom:10px}
+.rc:last-child{margin-bottom:0}
+.rc input{display:none}
+.rcb{display:flex;align-items:center;gap:12px;border:1.5px solid var(--line);border-radius:13px;padding:13px 15px;transition:.15s}
+.rc input:checked + .rcb{border-color:var(--violet);background:var(--violet-softer);box-shadow:0 0 0 3px rgba(124,58,237,.07)}
+.rcb .rd{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex-shrink:0;position:relative;transition:.15s}
+.rc input:checked + .rcb .rd{border-color:var(--violet)}
+.rc input:checked + .rcb .rd::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--violet)}
+.rcb .ic{width:40px;height:40px;border-radius:11px;background:var(--violet-soft);display:grid;place-items:center;font-size:19px;flex-shrink:0}
+.rcb .tx{flex:1}
+.rcb .tx b{font-size:13px;display:block}
+.rcb .tx small{color:var(--muted);font-size:11.5px}
+.rcb .pr{font-weight:800;font-size:13px;white-space:nowrap}
+.rcb .pr.free{color:var(--green)}
+
+/* کد تخفیف */
+.coupon{display:flex;gap:8px}
+.coupon .inp{flex:1}
+.coupon button{background:var(--violet-soft);color:var(--violet);font-weight:800;font-size:13px;padding:0 18px;border-radius:12px;white-space:nowrap}
+.coupon button:hover{background:var(--violet);color:#fff}
+.applied{display:flex;align-items:center;gap:8px;background:var(--green-soft);color:var(--green);border-radius:11px;padding:9px 13px;font-size:12.5px;font-weight:700}
+.applied .x{margin-right:auto;cursor:pointer;font-weight:800}
+.coup-err{color:var(--pink);font-size:11.5px;margin-top:7px;font-weight:600}
+.coup-hint{font-size:11px;color:var(--muted);margin-top:7px}
+.coup-hint code{background:var(--violet-softer);color:var(--violet);padding:1px 7px;border-radius:6px;font-weight:700}
+
+@media(max-width:880px){
+  .frow{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .top .secure{display:none}
+  .top .back{padding:8px 10px}
+  .top .back .lbl{display:none}
+}

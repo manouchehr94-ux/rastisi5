@@ -80,6 +80,11 @@ class CartDetailViewTests(TestCase):
         self.assertEqual(totals["items_total"], Decimal("600000"))
         self.assertEqual(totals["product_discount"], Decimal("200000"))
 
+    def test_cart_with_items_links_continue_button_to_checkout(self):
+        self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 1})
+        response = self.client.get(reverse("cart:detail"))
+        self.assertContains(response, reverse("orders:checkout-step1"))
+
 
 class CartItemUpdateRemoveTests(TestCase):
     def setUp(self):
