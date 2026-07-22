@@ -1,0 +1,22 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}پرداخت‌ها | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}پرداخت‌ها{% endblock %}
+{% block page_sub %}تراکنش‌های پرداخت ثبت‌شده در سفارش‌ها{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head"><h3>آخرین تراکنش‌ها</h3>
+    <select class="inp" id="txStatusFilter" name="status" style="width:150px"
+            hx-get="{% url 'dashboard:payment-table' %}" hx-target="#txTableWrap" hx-swap="innerHTML" hx-trigger="change">
+      {% for value, label in status_filters %}
+      <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="table-wrap" id="txTableWrap">
+    {% include "dashboard/partials/payments_table_inner.html" %}
+  </div>
+</div>
+{% endblock %}

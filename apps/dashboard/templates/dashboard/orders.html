@@ -1,0 +1,30 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian dashboard_extras %}
+
+{% block title %}سفارشات | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}سفارشات{% endblock %}
+{% block page_sub %}پیگیری و مدیریت سفارش‌های ثبت‌شده{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <div class="tabs" id="orderTabs">
+      {% for value, label in status_filters %}
+      <a class="tab{% if selected_status == value %} active{% endif %}"
+         href="?status={{ value }}{% if q %}&q={{ q }}{% endif %}">
+        {{ label }}<span class="cnt">({{ status_counts|dict_get:value|fa_number }})</span>
+      </a>
+      {% endfor %}
+    </div>
+    <div style="display:flex;gap:10px">
+      <input type="hidden" id="orderStatusFilter" name="status" value="{{ selected_status }}">
+      <input class="inp" id="orderSearch" name="q" value="{{ q }}" placeholder="جستجوی کد سفارش یا مشتری..." style="width:230px"
+             hx-get="{% url 'dashboard:order-table' %}" hx-target="#ordersTableWrap" hx-swap="innerHTML"
+             hx-trigger="keyup changed delay:300ms" hx-include="#orderStatusFilter">
+    </div>
+  </div>
+  <div class="table-wrap" id="ordersTableWrap">
+    {% include "dashboard/partials/orders_table_inner.html" %}
+  </div>
+</div>
+{% endblock %}

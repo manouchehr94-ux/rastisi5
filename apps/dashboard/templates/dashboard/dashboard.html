@@ -83,13 +83,13 @@
 
 <div class="grid g-2" style="margin-bottom:18px">
   <div class="card">
-    <div class="card-head"><h3>آخرین سفارشات</h3><a class="btn btn-sm" href="#">مشاهده همه</a></div>
+    <div class="card-head"><h3>آخرین سفارشات</h3><a class="btn btn-sm" href="{% url 'dashboard:order-list' %}">مشاهده همه</a></div>
     <div class="table-wrap"><table>
       <thead><tr><th>کد سفارش</th><th>مشتری</th><th>مبلغ</th><th>وضعیت</th></tr></thead>
       <tbody>
         {% for order in recent_orders %}
         <tr>
-          <td><b dir="ltr">{{ order.code }}</b></td>
+          <td><a href="{% url 'dashboard:order-detail' order.code %}"><b dir="ltr">{{ order.code }}</b></a></td>
           <td>{{ order.customer.full_name }}</td>
           <td>{{ order.grand_total|toman }}</td>
           <td><span class="badge {{ order.status|order_status_badge }}">{{ order.get_status_display }}</span></td>

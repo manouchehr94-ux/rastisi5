@@ -1,0 +1,63 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}فاکتور {{ order.code }} | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}فاکتور سفارش <span dir="ltr">{{ order.code }}</span>{% endblock %}
+{% block page_sub %}پیش‌نمایش و چاپ فاکتور{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+  <a class="btn btn-sm" href="{% url 'dashboard:invoice-list' %}">→ بازگشت به فهرست فاکتورها</a>
+  <button type="button" class="btn btn-primary" onclick="window.print()">🖨️ چاپ فاکتور</button>
+</div>
+
+<div id="printArea">
+  <div class="invoice">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #e5e9f2;padding-bottom:16px;margin-bottom:16px">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div style="width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;display:grid;place-items:center;font-size:24px;font-weight:800">{{ SHOP_NAME|slice:":1" }}</div>
+        <div>
+          <b style="font-size:17px">{{ SHOP_NAME }}</b>
+          <div style="font-size:11.5px;color:#64748b">{{ SHOP_CONTACT_ADDRESS }}{% if SHOP_CONTACT_PHONE %} — {{ SHOP_CONTACT_PHONE }}{% endif %}{% if SHOP_CONTACT_EMAIL %} — {{ SHOP_CONTACT_EMAIL }}{% endif %}</div>
+        </div>
+      </div>
+      <div style="text-align:left;font-size:12px">
+        <b style="font-size:15px;color:#4f46e5">فاکتور فروش</b><br>
+        شماره: <b dir="ltr">{{ order.code }}</b><br>تاریخ: {{ order.created_at|jalali }}
+      </div>
+    </div>
+    <div style="display:flex;gap:30px;font-size:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div><b>خریدار:</b> {{ order.customer.full_name }}</div>
+      <div><b>آدرس ارسال:</b> {{ order.address.province }}، {{ order.address.city }} — {{ order.address.full_address }}</div>
+    </div>
+    <table style="border:1px solid #e5e9f2;border-radius:10px;overflow:hidden">
+      <thead style="background:#f6f7fc"><tr><th>ردیف</th><th>شرح کالا</th><th>تعداد</th><th>قیمت واحد</th><th>جمع کل</th></tr></thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>{{ forloop.counter|fa_number }}</td>
+          <td>{{ item.product_name }} {% if item.product %}<small style="color:#94a3b8" dir="ltr">({{ item.product.sku }})</small>{% endif %}</td>
+          <td>{{ item.quantity|fa_number }}</td>
+          <td>{{ item.unit_price|toman_raw }}</td>
+          <td><b>{{ item.line_total|toman_raw }}</b></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px">
+      <div style="width:270px;font-size:12.5px">
+        <div class="tot-row"><span>جمع کل کالاها:</span><b>{{ order.items_total|toman }}</b></div>
+        {% if order.product_discount or order.coupon_discount %}
+        <div class="tot-row"><span>تخفیف:</span><b style="color:#ef4444">−{{ order.product_discount|add:order.coupon_discount|toman }}</b></div>
+        {% endif %}
+        <div class="tot-row"><span>مالیات بر ارزش افزوده:</span><b>{{ order.tax|toman }}</b></div>
+        <div class="tot-row"><span>هزینه ارسال:</span><b>{% if order.shipping_cost %}{{ order.shipping_cost|toman }}{% else %}رایگان{% endif %}</b></div>
+        <div class="tot-row grand"><span>مبلغ قابل پرداخت:</span><span style="color:#4f46e5">{{ order.grand_total|toman }}</span></div>
+      </div>
+    </div>
+    <div style="margin-top:22px;padding-top:14px;border-top:1px dashed #cbd5e1;font-size:11px;color:#64748b;text-align:center">
+      از خرید شما سپاسگزاریم 🌹
+    </div>
+  </div>
+</div>
+{% endblock %}

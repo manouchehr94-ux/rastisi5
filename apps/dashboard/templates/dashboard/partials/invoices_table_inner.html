@@ -1,0 +1,23 @@
+{% load persian dashboard_extras %}
+<table>
+  <thead><tr><th>شماره فاکتور</th><th>مشتری</th><th>تاریخ صدور</th><th>مالیات</th><th>مبلغ نهایی</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+  <tbody>
+    {% for order in orders %}
+    <tr>
+      <td><b dir="ltr">{{ order.code }}</b></td>
+      <td>{{ order.customer.full_name }}</td>
+      <td>{{ order.created_at|jalali }}</td>
+      <td>{{ order.tax|toman }}</td>
+      <td><b>{{ order.grand_total|toman }}</b></td>
+      <td><span class="badge {{ order.payment_status|payment_status_badge }}">{{ order.get_payment_status_display }}</span></td>
+      <td><a class="btn btn-sm" href="{% url 'dashboard:invoice-detail' order.code %}">🖨️ مشاهده و چاپ</a></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">فاکتوری یافت نشد</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div id="invoicesSummary" hx-swap-oob="true" style="display:flex;gap:16px;font-size:12.5px;font-weight:700">
+  <span>مجموع فاکتورها: <b>{{ invoice_count|fa_number }}</b></span>
+  <span>مجموع مبلغ: <b style="color:var(--green)">{{ invoice_total|toman }}</b></span>
+</div>

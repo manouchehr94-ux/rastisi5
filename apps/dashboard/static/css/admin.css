@@ -178,6 +178,30 @@ body.admin-body{
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:5px 11px;font-size:12px;font-weight:600}
 .chip .rm{color:var(--red);cursor:pointer;font-weight:800}
 
+.timeline{position:relative;padding-right:20px}
+.timeline::before{content:'';position:absolute;right:5px;top:6px;bottom:6px;width:2px;background:var(--border)}
+.tl-item{position:relative;padding:0 0 16px 0}
+.tl-item::before{content:'';position:absolute;right:-19px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--primary);border:2px solid var(--card)}
+.tl-item.done::before{background:var(--green)}
+.tl-item b{font-size:12.5px;display:block}
+.tl-item small{color:var(--muted);font-size:11px}
+
+.tot-row{display:flex;justify-content:space-between;padding:4px 0;font-size:12.5px}
+.tot-row.grand{border-top:2px solid var(--border);margin-top:6px;padding-top:8px;font-weight:800;font-size:15px}
+
+/* invoice print area */
+.invoice{background:#fff;color:#1e293b;border:1px solid var(--border);border-radius:14px;padding:26px;font-size:13px}
+.invoice table{min-width:0}
+.invoice th{color:#64748b}
+.invoice .tot-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px}
+.invoice .tot-row.grand{border-top:2px solid #1e293b;margin-top:8px;padding-top:12px;font-weight:800;font-size:15px}
+
+@media print{
+  body *{visibility:hidden}
+  #printArea, #printArea *{visibility:visible}
+  #printArea{position:absolute;inset:0;width:100%}
+}
+
 .cat-block{border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;background:var(--card)}
 .cat-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .cat-head .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:18px;background:var(--primary-soft)}

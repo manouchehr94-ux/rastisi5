@@ -19,4 +19,15 @@ urlpatterns = [
     path("categories/add-sub/", views.category_add_sub, name="category-add-sub"),
     path("categories/<int:pk>/edit/", views.category_edit, name="category-edit"),
     path("categories/<int:pk>/delete/", views.category_delete, name="category-delete"),
+
+    path("orders/", views.order_list, name="order-list"),
+    path("orders/table/", views.order_table, name="order-table"),
+    path("orders/<str:code>/", views.order_detail, name="order-detail"),
+
+    path("invoices/", views.invoice_list, name="invoice-list"),
+    path("invoices/table/", views.invoice_table, name="invoice-table"),
+    path("invoices/<str:code>/", views.invoice_detail, name="invoice-detail"),
+
+    path("payments/", views.payment_list, name="payment-list"),
+    path("payments/table/", views.payment_table, name="payment-table"),
 ]

@@ -1,11 +1,14 @@
 import json
 
+from django.contrib import messages
 from django.db.models import ProtectedError
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
 from apps.catalog.models import Category, Product
+from apps.orders.models import Order, Transaction
+from apps.orders.services.order_service import change_order_status
 
 from .decorators import staff_required
 from .forms import CategoryEditForm, MainCategoryForm, ProductForm, SubCategoryForm
@@ -21,6 +24,19 @@ from .services.catalog_admin_service import (
     leaf_categories,
 )
 from .services.charts import build_line_chart_svg
+from .services.orders_admin_service import (
+    INVOICE_STATUS_FILTERS,
+    ORDER_STATUS_FILTERS,
+    TRANSACTION_STATUS_FILTERS,
+    filtered_invoices,
+    filtered_orders,
+    filtered_transactions,
+    invoice_totals,
+    next_status_options,
+    order_is_final,
+    order_status_counts,
+    order_status_steps,
+)
 
 VALID_RANGES = {"week", "month", "year"}
 
@@ -237,3 +253,127 @@ def category_delete(request, pk):
     response = render(request, "dashboard/partials/categories_body.html", _categories_context(request))
     response["HX-Trigger"] = json.dumps({"toast": {"message": f"«{name}» حذف شد", "type": "info"}})
     return response
+
+
+# --------------------------------------------------------------- سفارش‌ها
+
+
+def _order_list_context(request):
+    q = request.GET.get("q", "").strip()
+    status = request.GET.get("status", "")
+    return {
+        "orders": filtered_orders(q=q, status=status),
+        "q": q,
+        "selected_status": status,
+        "status_filters": ORDER_STATUS_FILTERS,
+        "status_counts": order_status_counts(),
+    }
+
+
+@staff_required
+def order_list(request):
+    context = _order_list_context(request)
+    context["active_page"] = "orders"
+    return render(request, "dashboard/orders.html", context)
+
+
+@staff_required
+def order_table(request):
+    return render(request, "dashboard/partials/orders_table_inner.html", _order_list_context(request))
+
+
+@staff_required
+def order_detail(request, code):
+    order = get_object_or_404(Order.objects.select_related("customer", "vendor", "shipping_method"), code=code)
+
+    if request.method == "POST":
+        to_status = request.POST.get("status", "")
+        try:
+            change_order_status(order, to_status, by=request.user)
+            messages.success(request, f"وضعیت سفارش {order.code} به‌روزرسانی شد")
+            return redirect("dashboard:order-detail", code=order.code)
+        except ValueError as exc:
+            context = _order_detail_context(order)
+            context["active_page"] = "orders"
+            context["error"] = str(exc)
+            return render(request, "dashboard/order_detail.html", context)
+
+    context = _order_detail_context(order)
+    context["active_page"] = "orders"
+    return render(request, "dashboard/order_detail.html", context)
+
+
+def _order_detail_context(order):
+    return {
+        "order": order,
+        "items": order.items.select_related("product", "variant"),
+        "status_history": order.status_history.select_related("changed_by"),
+        "next_status_options": next_status_options(order),
+        "is_final": order_is_final(order),
+        "status_steps": order_status_steps(order),
+    }
+
+
+# ---------------------------------------------------------------- فاکتورها
+
+
+def _invoice_list_context(request):
+    q = request.GET.get("q", "").strip()
+    status = request.GET.get("status", "")
+    orders_qs = filtered_invoices(q=q, status=status)
+    count, total = invoice_totals(orders_qs)
+    return {
+        "orders": orders_qs,
+        "q": q,
+        "selected_status": status,
+        "status_filters": INVOICE_STATUS_FILTERS,
+        "invoice_count": count,
+        "invoice_total": total,
+    }
+
+
+@staff_required
+def invoice_list(request):
+    context = _invoice_list_context(request)
+    context["active_page"] = "invoices"
+    return render(request, "dashboard/invoices.html", context)
+
+
+@staff_required
+def invoice_table(request):
+    return render(request, "dashboard/partials/invoices_table_inner.html", _invoice_list_context(request))
+
+
+@staff_required
+def invoice_detail(request, code):
+    order = get_object_or_404(Order.objects.select_related("customer"), code=code)
+    context = {
+        "order": order,
+        "items": order.items.select_related("product"),
+        "active_page": "invoices",
+    }
+    return render(request, "dashboard/invoice_detail.html", context)
+
+
+# ---------------------------------------------------------------- پرداخت‌ها
+
+
+def _payment_list_context(request):
+    status = request.GET.get("status", "")
+    return {
+        "transactions": filtered_transactions(status=status),
+        "selected_status": status,
+        "status_filters": TRANSACTION_STATUS_FILTERS,
+    }
+
+
+@staff_required
+def payment_list(request):
+    context = _payment_list_context(request)
+    context["active_page"] = "payments"
+    return render(request, "dashboard/payments.html", context)
+
+
+@staff_required
+def payment_table(request):
+    return render(request, "dashboard/partials/payments_table_inner.html", _payment_list_context(request))

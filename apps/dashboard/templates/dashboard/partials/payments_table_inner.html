@@ -1,0 +1,19 @@
+{% load persian dashboard_extras %}
+<table>
+  <thead><tr><th>کد پیگیری</th><th>سفارش</th><th>مشتری</th><th>مبلغ</th><th>درگاه</th><th>تاریخ</th><th>وضعیت</th></tr></thead>
+  <tbody>
+    {% for tx in transactions %}
+    <tr>
+      <td><b dir="ltr">{{ tx.code }}</b></td>
+      <td><a href="{% url 'dashboard:order-detail' tx.order.code %}" dir="ltr">{{ tx.order.code }}</a></td>
+      <td>{{ tx.order.customer.full_name }}</td>
+      <td><b>{{ tx.amount|toman }}</b></td>
+      <td>{{ tx.gateway.name }}</td>
+      <td>{{ tx.created_at|jalali }}</td>
+      <td><span class="badge {{ tx.status|transaction_status_badge }}">{{ tx.get_status_display }}</span></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">تراکنشی یافت نشد</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

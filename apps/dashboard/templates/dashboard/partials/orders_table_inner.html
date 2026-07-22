@@ -1,0 +1,20 @@
+{% load persian dashboard_extras %}
+<table>
+  <thead><tr><th>کد سفارش</th><th>مشتری</th><th>تاریخ</th><th>اقلام</th><th>مبلغ کل</th><th>پرداخت</th><th>وضعیت سفارش</th><th>عملیات</th></tr></thead>
+  <tbody>
+    {% for order in orders %}
+    <tr>
+      <td><b dir="ltr">{{ order.code }}</b></td>
+      <td>{{ order.customer.full_name }}</td>
+      <td>{{ order.created_at|jalali }}</td>
+      <td>{{ order.items.count|fa_number }} قلم</td>
+      <td><b>{{ order.grand_total|toman }}</b></td>
+      <td><span class="badge {{ order.payment_status|payment_status_badge }}">{{ order.get_payment_status_display }}</span></td>
+      <td><span class="badge {{ order.status|order_status_badge }}">{{ order.get_status_display }}</span></td>
+      <td><a class="btn btn-sm" href="{% url 'dashboard:order-detail' order.code %}">👁️ مشاهده</a></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">سفارشی یافت نشد</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
