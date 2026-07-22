@@ -1,0 +1,42 @@
+/* صفحه‌ی فهرست/جستجو/فیلتر محصولات — هم‌راستا با توکن‌های طراحی و کلاس ورودی‌های مشترک سه پروتوتایپ (.inp) */
+.breadcrumb{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);padding:18px 0;flex-wrap:wrap}
+.breadcrumb a:hover{color:var(--violet)}
+.breadcrumb svg{width:13px;height:13px;opacity:.6}
+
+.plp{display:grid;grid-template-columns:260px 1fr;gap:24px;padding-bottom:60px;align-items:start}
+.plp-filters{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;position:sticky;top:96px;display:flex;flex-direction:column;gap:14px}
+.plp-filters h3{font-size:13.5px;font-weight:800}
+.plp-fg{display:flex;flex-direction:column;gap:6px}
+.plp-fg label{font-size:12.5px;font-weight:700;color:#4b4560}
+.plp-inp{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:10px 13px;font-size:13px;outline:0;background:var(--bg);color:var(--ink);font-family:inherit;transition:.15s}
+.plp-inp:focus{border-color:var(--violet);background:#fff;box-shadow:0 0 0 3px rgba(124,58,237,.08)}
+.plp-price-row{display:flex;gap:8px;align-items:center}
+.plp-check{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer}
+.plp-check input{width:16px;height:16px;accent-color:var(--violet)}
+.plp-reset{color:var(--violet);font-size:12.5px;font-weight:700;text-align:center;padding:8px;border:1.5px solid var(--violet-3);border-radius:11px}
+.plp-reset:hover{background:var(--violet-soft)}
+
+.plp-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.plp-count{font-size:13px;color:var(--muted)}
+.plp-count b{color:var(--ink)}
+.plp-loading{font-size:12.5px;color:var(--violet);font-weight:700}
+
+.plp-empty{text-align:center;padding:60px 20px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius)}
+.plp-empty .em{font-size:56px;margin-bottom:10px}
+.plp-empty h3{font-size:16px;margin-bottom:6px}
+.plp-empty p{color:var(--muted);font-size:13px}
+
+.pagination{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:30px;flex-wrap:wrap}
+.pagination a,.pagination span{min-width:38px;height:38px;padding:0 10px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;border:1px solid var(--line);color:#4b4560}
+.pagination a:hover{border-color:var(--violet-3);color:var(--violet)}
+.pagination .current{background:var(--violet);color:#fff;border-color:var(--violet)}
+.pagination .disabled{opacity:.4;pointer-events:none}
+
+.htmx-indicator{visibility:hidden}
+.htmx-request .htmx-indicator{visibility:visible}
+.htmx-request.plp-results{opacity:.55;transition:opacity .15s}
+
+@media(max-width:860px){
+  .plp{grid-template-columns:1fr}
+  .plp-filters{position:static}
+}

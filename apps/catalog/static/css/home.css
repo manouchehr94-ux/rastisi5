@@ -49,38 +49,7 @@
 .tab{padding:7px 15px;border-radius:9px;font-size:12.5px;font-weight:700;color:var(--muted);transition:.15s}
 .tab.active{background:var(--violet);color:#fff}
 
-/* ===== product grid & card ===== */
-.grid{display:grid;gap:16px}
-.g4{grid-template-columns:repeat(4,1fr)}
-.g3{grid-template-columns:repeat(3,1fr)}
-.g2{grid-template-columns:repeat(2,1fr)}
-.pcard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:.2s;display:flex;flex-direction:column;cursor:pointer}
-.pcard:hover{box-shadow:var(--shadow);transform:translateY(-3px);border-color:#ddd2f5}
-.pcard .img{position:relative;aspect-ratio:1/1;display:grid;place-items:center;font-size:70px;overflow:hidden}
-.pcard .img .emo{transition:transform .3s}
-.pcard:hover .img .emo{transform:scale(1.08)}
-.pcard .heart{position:absolute;top:10px;left:10px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center;color:var(--muted);transition:.15s;backdrop-filter:blur(2px)}
-.pcard .heart:hover{color:var(--pink);background:#fff}
-.pcard .heart.on{color:var(--pink)}
-.pcard .heart svg{width:17px;height:17px}
-.pcard .badges{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
-.pill{font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:8px}
-.pill-disc{background:var(--pink);color:#fff}
-.pill-new{background:var(--violet);color:#fff}
-.pill-hot{background:var(--amber);color:#fff}
-.pcard .addbar{position:absolute;left:0;right:0;bottom:0;transform:translateY(100%);transition:.25s;padding:10px}
-.pcard:hover .addbar{transform:none}
-.pcard .addbar button{width:100%;background:linear-gradient(135deg,var(--violet),var(--violet-3));color:#fff;height:38px;border-radius:10px;font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:7px}
-.pcard .addbar button svg{width:16px;height:16px}
-.pcard .body{padding:13px 14px 15px;display:flex;flex-direction:column;gap:7px;flex:1}
-.pcard .brand{font-size:11px;color:var(--muted)}
-.pcard .name{font-size:13px;font-weight:600;line-height:1.6;height:42px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.pcard .rate{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
-.stars{color:var(--amber);letter-spacing:1px;font-size:12px}
-.pcard .price{margin-top:auto;display:flex;align-items:flex-end;justify-content:space-between;gap:8px;padding-top:8px;border-top:1px dashed var(--line)}
-.pcard .price .now{font-size:15px;font-weight:900}
-.pcard .price .now small{font-size:10px;font-weight:600;color:var(--muted)}
-.pcard .price .old{font-size:11px;color:var(--muted);text-decoration:line-through}
+/* گرید و کارت محصول در apps/catalog/static/css/product_card.css است (کامپوننت مشترک) */
 
 /* ===== dark promo banner ===== */
 .promo-dark{position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(100deg,#2a2440,#3b2f63);color:#fff;display:grid;grid-template-columns:1.3fr 1fr;align-items:center;padding:34px 40px;gap:20px}
@@ -158,8 +127,8 @@
 .feat small{color:var(--muted);font-size:11.5px}
 
 /* ===== responsive ===== */
+/* رسپانسیو گرید کارت محصول (.g4/.g3) در apps/catalog/static/css/product_card.css است */
 @media(max-width:1000px){
-  .g4{grid-template-columns:repeat(3,1fr)}
   .hero-inner{grid-template-columns:1fr;text-align:center}
   .hero-text h1{margin-inline:auto}.hero-text p{margin-inline:auto}.hero-btns{justify-content:center}
   .hero-visual{order:-1}.hero-frame{width:180px;height:200px;font-size:90px}
@@ -171,7 +140,6 @@
   .features{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:680px){
-  .g4,.g3{grid-template-columns:repeat(2,1fr)}
   .hero-inner{padding:28px 22px}
   .catstrip-inner{grid-template-columns:1fr}
   .catstrip-promo{border-left:0;border-bottom:1px dashed var(--line);padding:0 0 14px}

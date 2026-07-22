@@ -1,13 +1,14 @@
 from datetime import timedelta
 
-from django.db.models import Avg, Max
+from django.core.paginator import Paginator
+from django.db.models import Avg, Max, Prefetch, Q
 from django.shortcuts import render
 from django.utils import timezone
 
 from apps.blog.models import BlogPost
 from apps.customers.models import Customer
 
-from .models import Category, Product
+from .models import Brand, Category, Product
 
 BEST_SORT_OPTIONS = {
     "sold": ("-sold_count", "پرفروش‌ترین"),
@@ -74,3 +75,89 @@ def home_best_products(request):
         sort_key = DEFAULT_SORT
     context = {"products": _best_products(sort_key)}
     return render(request, "catalog/partials/product_grid.html", context)
+
+
+PRODUCTS_PER_PAGE = 12
+
+LIST_SORT_OPTIONS = {
+    "newest": ("-created_at", "جدیدترین"),
+    "price_asc": ("price", "ارزان‌ترین"),
+    "price_desc": ("-price", "گران‌ترین"),
+    "popular": ("-sold_count", "محبوب‌ترین"),
+    "rating": ("-rating", "بیشترین امتیاز"),
+}
+DEFAULT_LIST_SORT = "newest"
+
+
+def _filtered_products(request):
+    qs = Product.objects.filter(status=Product.Status.ACTIVE).select_related("brand", "category")
+
+    query = request.GET.get("q", "").strip()
+    if query:
+        qs = qs.filter(
+            Q(name__icontains=query) | Q(brand__name__icontains=query) | Q(category__name__icontains=query)
+        ).distinct()
+
+    category_slug = request.GET.get("category", "").strip()
+    if category_slug:
+        qs = qs.filter(Q(category__slug=category_slug) | Q(category__parent__slug=category_slug))
+
+    brand_slug = request.GET.get("brand", "").strip()
+    if brand_slug:
+        qs = qs.filter(brand__slug=brand_slug)
+
+    min_price = request.GET.get("min_price", "").strip()
+    if min_price.isdigit():
+        qs = qs.filter(price__gte=int(min_price))
+
+    max_price = request.GET.get("max_price", "").strip()
+    if max_price.isdigit():
+        qs = qs.filter(price__lte=int(max_price))
+
+    if request.GET.get("discounted") == "1":
+        qs = qs.filter(discount_percent__gt=0)
+
+    sort_key = request.GET.get("sort", DEFAULT_LIST_SORT)
+    if sort_key not in LIST_SORT_OPTIONS:
+        sort_key = DEFAULT_LIST_SORT
+    order_field, _ = LIST_SORT_OPTIONS[sort_key]
+    qs = qs.order_by(order_field, "id")
+
+    return qs, sort_key, query
+
+
+def _querystring_without_page(request):
+    params = request.GET.copy()
+    params.pop("page", None)
+    return params.urlencode()
+
+
+def product_list(request):
+    qs, sort_key, query = _filtered_products(request)
+
+    paginator = Paginator(qs, PRODUCTS_PER_PAGE)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    filter_categories = Category.objects.filter(parent__isnull=True, is_active=True).prefetch_related(
+        Prefetch("children", queryset=Category.objects.filter(is_active=True).order_by("order", "name"))
+    ).order_by("order", "name")
+
+    context = {
+        "page_obj": page_obj,
+        "products": page_obj.object_list,
+        "query": query,
+        "sort_key": sort_key,
+        "sort_options": LIST_SORT_OPTIONS,
+        "filter_categories": filter_categories,
+        "brands": Brand.objects.order_by("name"),
+        "selected_category": request.GET.get("category", "").strip(),
+        "selected_brand": request.GET.get("brand", "").strip(),
+        "min_price": request.GET.get("min_price", "").strip(),
+        "max_price": request.GET.get("max_price", "").strip(),
+        "discounted_only": request.GET.get("discounted") == "1",
+        "querystring": _querystring_without_page(request),
+    }
+
+    if request.headers.get("HX-Request") == "true":
+        return render(request, "catalog/partials/product_list_results.html", context)
+    return render(request, "catalog/product_list.html", context)
