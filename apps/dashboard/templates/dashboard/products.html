@@ -1,0 +1,45 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}مدیریت کالاها | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}مدیریت کالاها{% endblock %}
+{% block page_sub %}افزودن، ویرایش و مدیریت موجودی محصولات{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <input class="inp" id="prodSearch" name="q" value="{{ q }}" placeholder="جستجوی کالا..." style="width:220px"
+             hx-get="{% url 'dashboard:product-table' %}" hx-target="#productsTableWrap" hx-swap="innerHTML"
+             hx-trigger="keyup changed delay:300ms" hx-include="#prodCatFilter,#prodStatusFilter">
+      <select class="inp" id="prodCatFilter" name="category" style="width:190px"
+              hx-get="{% url 'dashboard:product-table' %}" hx-target="#productsTableWrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#prodSearch,#prodStatusFilter">
+        <option value="">همه‌ی دسته‌بندی‌ها</option>
+        {% regroup category_options by parent as category_groups %}
+        {% for group in category_groups %}
+        <optgroup label="{{ group.grouper.icon }} {{ group.grouper.name }}">
+          {% for cat in group.list %}
+          <option value="{{ cat.pk }}" {% if selected_category|stringformat:"s" == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.icon }} {{ cat.name }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+      <select class="inp" id="prodStatusFilter" name="status" style="width:140px"
+              hx-get="{% url 'dashboard:product-table' %}" hx-target="#productsTableWrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#prodSearch,#prodCatFilter">
+        {% for value, label in status_options %}
+        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="button" class="btn btn-primary" hx-get="{% url 'dashboard:product-add' %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      افزودن کالای جدید
+    </button>
+  </div>
+  <div class="table-wrap" id="productsTableWrap">
+    {% include "dashboard/partials/products_table_inner.html" %}
+  </div>
+</div>
+{% endblock %}

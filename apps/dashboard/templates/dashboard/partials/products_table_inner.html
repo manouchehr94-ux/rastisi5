@@ -1,0 +1,30 @@
+{% load persian dashboard_extras %}
+<table>
+  <thead><tr><th>کالا</th><th>دسته‌بندی</th><th>قیمت</th><th>موجودی</th><th>فروش رفته</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+  <tbody>
+    {% for product in products %}
+    <tr>
+      <td>
+        <div class="prod-cell">
+          <div class="thumb" style="background:{{ product.tint|default:'var(--primary-soft)' }}">{{ product.icon|default:"🛍️" }}</div>
+          <div><b>{{ product.name }}</b><small dir="ltr">SKU: {{ product.sku }}</small></div>
+        </div>
+      </td>
+      <td>{{ product.category|category_chain }}</td>
+      <td>
+        <b>{{ product.final_price|toman }}</b>
+        {% if product.discount_percent %}<br><small style="color:var(--red);text-decoration:line-through">{{ product.price|toman }}</small>{% endif %}
+      </td>
+      <td><b>{{ product.stock|fa_number }}</b></td>
+      <td>{{ product.sold_count|fa_number }}</td>
+      <td><span class="badge {{ product|product_status_badge }}">{{ product|product_status_label }}</span></td>
+      <td>
+        <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:product-edit' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">✏️ ویرایش</button>
+        <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:product-delete' product.pk %}" hx-target="#productsTableWrap" hx-swap="innerHTML" hx-confirm="آیا از حذف «{{ product.name }}» مطمئن هستید؟">🗑️</button>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">کالایی یافت نشد</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
