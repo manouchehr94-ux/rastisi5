@@ -1,0 +1,27 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}گزارش پیامک‌ها | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}گزارش پیامک‌ها{% endblock %}
+{% block page_sub %}تاریخچه‌ی ارسال پیامک‌ها برای پیگیری و رفع اشکال{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:14px">
+  <a class="btn btn-sm" href="{% url 'dashboard:settings' %}">→ بازگشت به تنظیمات</a>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h3>پیامک‌های ارسال‌شده</h3>
+    <select class="inp" id="smsStatusFilter" name="status" style="width:160px"
+            hx-get="{% url 'dashboard:sms-log-table' %}" hx-target="#smsLogsTableWrap" hx-swap="innerHTML" hx-trigger="change">
+      {% for value, label in status_filters %}
+      <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="table-wrap" id="smsLogsTableWrap">
+    {% include "dashboard/partials/sms_logs_table_inner.html" %}
+  </div>
+</div>
+{% endblock %}

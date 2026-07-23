@@ -9,7 +9,9 @@ import re
 from django.db import transaction
 
 from apps.orders.models import Order, Transaction
-from apps.orders.services.order_service import change_order_status
+from apps.orders.services.order_service import _order_sms_context, change_order_status
+from apps.sms.events import SmsEvent
+from apps.sms.services.sms_service import send_event_sms
 
 TRANSACTION_CODE_PREFIX = "TX"
 
@@ -81,8 +83,14 @@ def simulate_payment(order: Order, success: bool, *, gateway=None) -> Transactio
         order.payment_status = Order.PaymentStatus.PAID
         order.save(update_fields=["payment_status", "updated_at"])
         change_order_status(order, Order.Status.PROCESSING, note="پرداخت موفق — سفارش به پردازش منتقل شد")
+        transaction.on_commit(
+            lambda: send_event_sms(SmsEvent.PAYMENT_SUCCESS, order.customer.phone, _order_sms_context(order))
+        )
     else:
         order.payment_status = Order.PaymentStatus.FAILED
         order.save(update_fields=["payment_status", "updated_at"])
+        transaction.on_commit(
+            lambda: send_event_sms(SmsEvent.PAYMENT_FAILED, order.customer.phone, _order_sms_context(order))
+        )
 
     return tx

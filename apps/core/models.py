@@ -29,6 +29,18 @@ class ShopSettings(TimeStampedModel):
         "آستانه‌ی ارسال رایگان (تومان)", max_digits=12, decimal_places=0, default=500_000
     )
 
+    class SmsBackend(models.TextChoices):
+        CONSOLE = "console", "کنسول (فقط لاگ، برای توسعه)"
+        MELIPAYAMAK = "melipayamak", "ملی‌پیامک"
+
+    sms_enabled = models.BooleanField("فعال‌سازی سیستم پیامک", default=True)
+    sms_backend = models.CharField(
+        "درگاه پیامک", max_length=20, choices=SmsBackend.choices, default=SmsBackend.CONSOLE
+    )
+    sms_sender_number = models.CharField("شماره‌ی فرستنده", max_length=20, blank=True)
+    melipayamak_username = models.CharField("نام کاربری ملی‌پیامک", max_length=100, blank=True)
+    melipayamak_password = models.CharField("رمز عبور ملی‌پیامک", max_length=100, blank=True)
+
     class Meta:
         verbose_name = "تنظیمات فروشگاه"
         verbose_name_plural = "تنظیمات فروشگاه"

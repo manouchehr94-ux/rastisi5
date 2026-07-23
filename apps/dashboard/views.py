@@ -12,6 +12,9 @@ from apps.core.models import ShopSettings
 from apps.customers.models import Customer
 from apps.orders.models import Order, Transaction
 from apps.orders.services.order_service import change_order_status
+from apps.sms.events import EVENT_VARIABLES
+from apps.sms.models import SmsTemplate
+from apps.sms.services.sms_service import SmsTemplateError, send_test_sms
 
 from .decorators import staff_required
 from .forms import (
@@ -20,9 +23,18 @@ from .forms import (
     MainCategoryForm,
     ProductForm,
     ShopInfoForm,
+    SmsConnectionForm,
+    SmsTemplateForm,
+    SmsTestForm,
     SubCategoryForm,
 )
-from .services import customers_admin_service, dashboard_service, report_service, settings_admin_service
+from .services import (
+    customers_admin_service,
+    dashboard_service,
+    report_service,
+    settings_admin_service,
+    sms_admin_service,
+)
 from .services.catalog_admin_service import (
     PRODUCT_STATUS_FILTERS,
     CategoryDeleteError,
@@ -298,8 +310,9 @@ def order_detail(request, code):
 
     if request.method == "POST":
         to_status = request.POST.get("status", "")
+        tracking_code = request.POST.get("tracking_code", "").strip()
         try:
-            change_order_status(order, to_status, by=request.user)
+            change_order_status(order, to_status, by=request.user, tracking_code=tracking_code)
             messages.success(request, f"وضعیت سفارش {order.code} به‌روزرسانی شد")
             return redirect("dashboard:order-detail", code=order.code)
         except ValueError as exc:
@@ -441,7 +454,7 @@ def report_partial(request):
 # ------------------------------------------------------------------ تنظیمات
 
 
-def _settings_context(request, *, shop_form=None, finance_form=None):
+def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=None):
     shop = ShopSettings.load()
     return {
         "shop": shop,
@@ -453,6 +466,14 @@ def _settings_context(request, *, shop_form=None, finance_form=None):
         "finance_form": finance_form or FinanceSettingsForm(initial={
             "tax_percent": shop.tax_percent, "free_shipping_threshold": shop.free_shipping_threshold,
         }),
+        "sms_form": sms_form or SmsConnectionForm(initial={
+            "sms_enabled": shop.sms_enabled, "sms_backend": shop.sms_backend,
+            "sms_sender_number": shop.sms_sender_number,
+            "melipayamak_username": shop.melipayamak_username,
+            "melipayamak_password": shop.melipayamak_password,
+        }),
+        "sms_template_rows": sms_admin_service.templates_with_variables(),
+        "sms_test_form": SmsTestForm(),
         "gateways": settings_admin_service.active_gateways_context(),
         "shipping_methods": settings_admin_service.shipping_methods_context(),
         "active_page": "settings",
@@ -512,3 +533,110 @@ def settings_shipping_toggle(request, pk):
         "toast": {"message": f"روش ارسال «{method.name}» {state} شد", "type": "info"},
     })
     return response
+
+
+# --------------------------------------------------------------- پیامک
+
+
+@require_POST
+@staff_required
+def settings_sms_connection(request):
+    form = SmsConnectionForm(request.POST)
+    if form.is_valid():
+        shop = ShopSettings.load()
+        for field in [
+            "sms_enabled", "sms_backend", "sms_sender_number",
+            "melipayamak_username", "melipayamak_password",
+        ]:
+            setattr(shop, field, form.cleaned_data[field])
+        shop.save()
+        messages.success(request, "تنظیمات اتصال پیامک ذخیره شد")
+        return redirect("dashboard:settings")
+    return render(request, "dashboard/settings.html", _settings_context(request, sms_form=form))
+
+
+@staff_required
+def sms_template_form(request, pk):
+    template = get_object_or_404(SmsTemplate, pk=pk)
+
+    if request.method == "POST":
+        form = SmsTemplateForm(request.POST, event_key=template.event_key)
+        if form.is_valid():
+            template.body = form.cleaned_data["body"]
+            template.save(update_fields=["body", "updated_at"])
+            table_html = render_to_string(
+                "dashboard/partials/sms_templates_table.html",
+                {"sms_template_rows": sms_admin_service.templates_with_variables()},
+                request=request,
+            )
+            response = render(request, "dashboard/partials/oob_wrap.html", {
+                "target_id": "smsTemplatesWrap", "inner_html": table_html,
+            })
+            response["HX-Trigger"] = json.dumps({
+                "toast": {"message": "قالب پیامک ذخیره شد", "type": "ok"},
+                "modal-close": {},
+            })
+            return response
+    else:
+        form = SmsTemplateForm(event_key=template.event_key, initial={"body": template.body})
+
+    variables = EVENT_VARIABLES.get(template.event_key, {})
+    return render(
+        request, "dashboard/partials/sms_template_form.html",
+        {"form": form, "template": template, "variables": variables},
+    )
+
+
+@require_POST
+@staff_required
+def sms_template_toggle(request, pk):
+    template = get_object_or_404(SmsTemplate, pk=pk)
+    template.is_active = not template.is_active
+    template.save(update_fields=["is_active", "updated_at"])
+    state = "فعال" if template.is_active else "غیرفعال"
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = json.dumps({
+        "toast": {"message": f"پیامک «{template.title}» {state} شد", "type": "info"},
+    })
+    return response
+
+
+@require_POST
+@staff_required
+def sms_test_send(request):
+    form = SmsTestForm(request.POST)
+    event_key = request.POST.get("event_key", "")
+    if form.is_valid():
+        try:
+            log = send_test_sms(event_key=event_key, phone=form.cleaned_data["phone"])
+        except SmsTemplateError as exc:
+            messages.error(request, str(exc))
+        else:
+            if log.status == log.Status.SENT:
+                messages.success(request, f"پیامک آزمایشی ارسال شد (وضعیت: {log.get_status_display()})")
+            else:
+                messages.error(request, f"ارسال ناموفق بود: {log.error_message or 'خطای نامشخص'}")
+    else:
+        messages.error(request, "شماره موبایل معتبر نیست")
+    return redirect("dashboard:settings")
+
+
+@staff_required
+def sms_log_list(request):
+    context = {
+        "logs": sms_admin_service.filtered_logs(status=request.GET.get("status", "")),
+        "selected_status": request.GET.get("status", ""),
+        "status_filters": sms_admin_service.LOG_STATUS_FILTERS,
+        "active_page": "settings",
+    }
+    return render(request, "dashboard/sms_logs.html", context)
+
+
+@staff_required
+def sms_log_table(request):
+    context = {
+        "logs": sms_admin_service.filtered_logs(status=request.GET.get("status", "")),
+        "selected_status": request.GET.get("status", ""),
+        "status_filters": sms_admin_service.LOG_STATUS_FILTERS,
+    }
+    return render(request, "dashboard/partials/sms_logs_table_inner.html", context)

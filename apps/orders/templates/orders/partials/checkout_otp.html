@@ -1,0 +1,33 @@
+{% load persian %}
+<div class="card" style="max-width:420px;margin:0 auto;text-align:center;padding:36px 28px">
+  <div class="em" style="font-size:52px;margin-bottom:10px">📱</div>
+  <h3 style="font-size:16px;margin-bottom:8px">تأیید شماره موبایل</h3>
+  <p style="color:var(--muted);font-size:13px;margin-bottom:22px">
+    این شماره قبلاً در فروشگاه ثبت شده است. کد تأیید برای شماره‌ی
+    <b dir="ltr" style="color:var(--ink)">{{ phone }}</b> پیامک شد.
+  </p>
+
+  {% if error %}
+  <div class="coup-err" style="margin-bottom:14px">{{ error }}</div>
+  {% endif %}
+
+  <form hx-post="{% url 'orders:checkout-otp-verify' %}" hx-target="#checkout-container" hx-swap="innerHTML">
+    {% csrf_token %}
+    <div class="fg" style="text-align:right">
+      <label>کد پیامک‌شده</label>
+      <input class="inp" name="code" inputmode="numeric" maxlength="6" placeholder="- - - - - -" dir="ltr" autofocus>
+    </div>
+    <button type="submit" class="btn btn-primary btn-block" style="height:48px">تأیید و ثبت سفارش</button>
+  </form>
+
+  <div style="display:flex;justify-content:space-between;margin-top:16px;font-size:12.5px">
+    <button type="button" style="color:var(--violet-2);font-weight:700"
+            hx-post="{% url 'orders:checkout-otp-resend' %}" hx-target="#checkout-container" hx-swap="innerHTML">
+      ارسال دوباره‌ی کد
+    </button>
+    <button type="button" style="color:var(--muted)"
+            hx-post="{% url 'orders:checkout-otp-cancel' %}" hx-target="#checkout-container" hx-swap="innerHTML">
+      بازگشت و ویرایش اطلاعات
+    </button>
+  </div>
+</div>

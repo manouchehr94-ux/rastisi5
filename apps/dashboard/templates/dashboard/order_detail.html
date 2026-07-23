@@ -34,6 +34,9 @@
         <span class="badge {{ order.status|order_status_badge }}">{{ order.get_status_display }}</span>
         <span class="badge {{ order.payment_status|payment_status_badge }}">{{ order.get_payment_status_display }}</span>
       </div>
+      {% if order.tracking_code %}
+      <p style="font-size:12.5px;margin-bottom:12px">کد رهگیری مرسوله: <b dir="ltr">{{ order.tracking_code }}</b></p>
+      {% endif %}
       <div class="timeline">
         {% for step_status, step_label, done, is_next in status_steps %}
         <div class="tl-item{% if done %} done{% endif %}">
@@ -90,13 +93,14 @@
       {% elif not next_status_options %}
       <p style="font-size:12.5px;color:var(--muted)">گذار مجازی برای این سفارش تعریف نشده است.</p>
       {% else %}
-      <form method="post" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <form method="post" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap" x-data="{ newStatus: '{{ next_status_options.0.0 }}' }">
         {% csrf_token %}
-        <select class="inp" name="status" style="width:200px">
+        <select class="inp" name="status" style="width:200px" x-model="newStatus">
           {% for value, label in next_status_options %}
           <option value="{{ value }}">{{ label }}</option>
           {% endfor %}
         </select>
+        <input class="inp" name="tracking_code" style="width:200px" placeholder="کد رهگیری مرسوله" x-show="newStatus === 'shipped'" x-cloak>
         <button type="submit" class="btn btn-primary">ثبت تغییرات</button>
       </form>
       {% endif %}

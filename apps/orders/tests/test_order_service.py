@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.test import TestCase
 
 from apps.cart.models import Cart, CartItem, Coupon
@@ -8,6 +9,7 @@ from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Address, Customer
 from apps.orders.models import Order, OrderStatusHistory, PaymentGateway, ShippingMethod
 from apps.orders.services.order_service import change_order_status, create_order_from_cart
+from apps.sms.models import SmsLog, SmsTemplate
 
 User = get_user_model()
 
@@ -84,6 +86,26 @@ class CreateOrderFromCartTests(TestCase):
         self.assertEqual(coupon.used_count, 0)
         self.assertEqual(order.coupon_discount, Decimal("0"))
 
+    def test_order_placed_sms_sent_after_commit(self):
+        SmsTemplate.ensure_defaults()
+        with self.captureOnCommitCallbacks(execute=True):
+            order = self._create()
+        log = SmsLog.objects.filter(event_key="order_placed", recipient=self.customer.phone).first()
+        self.assertIsNotNone(log)
+        self.assertIn(order.code, log.message)
+
+    def test_order_placed_sms_not_sent_if_transaction_rolls_back(self):
+        """on_commit یعنی اگر تراکنش رول‌بک شود، پیامک هم نباید ارسال شود."""
+        SmsTemplate.ensure_defaults()
+        try:
+            with self.captureOnCommitCallbacks(execute=True):
+                with transaction.atomic():
+                    self._create()
+                    raise ValueError("خطای عمدی برای رول‌بک")
+        except ValueError:
+            pass
+        self.assertFalse(SmsLog.objects.filter(event_key="order_placed").exists())
+
 
 class ChangeOrderStatusTests(TestCase):
     def setUp(self):
@@ -154,3 +176,43 @@ class ChangeOrderStatusTests(TestCase):
             change_order_status(self.order, Order.Status.DELIVERED)
         count_after = OrderStatusHistory.objects.filter(order=self.order).count()
         self.assertEqual(count_before, count_after)
+
+    def test_processing_transition_sends_sms(self):
+        SmsTemplate.ensure_defaults()
+        with self.captureOnCommitCallbacks(execute=True):
+            change_order_status(self.order, Order.Status.PROCESSING)
+        self.assertTrue(
+            SmsLog.objects.filter(event_key="order_processing", recipient=self.customer.phone).exists()
+        )
+
+    def test_shipped_transition_with_tracking_code_saves_it_and_includes_in_sms(self):
+        SmsTemplate.ensure_defaults()
+        change_order_status(self.order, Order.Status.PROCESSING)
+        with self.captureOnCommitCallbacks(execute=True):
+            change_order_status(self.order, Order.Status.SHIPPED, tracking_code="TRACK-999")
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.tracking_code, "TRACK-999")
+        log = SmsLog.objects.filter(event_key="order_shipped", recipient=self.customer.phone).first()
+        self.assertIsNotNone(log)
+        self.assertIn("TRACK-999", log.message)
+
+    def test_shipped_transition_without_tracking_code_still_sends_sms(self):
+        SmsTemplate.ensure_defaults()
+        change_order_status(self.order, Order.Status.PROCESSING)
+        with self.captureOnCommitCallbacks(execute=True):
+            change_order_status(self.order, Order.Status.SHIPPED)
+        self.assertTrue(SmsLog.objects.filter(event_key="order_shipped").exists())
+
+    def test_delivered_transition_sends_sms(self):
+        SmsTemplate.ensure_defaults()
+        change_order_status(self.order, Order.Status.PROCESSING)
+        change_order_status(self.order, Order.Status.SHIPPED)
+        with self.captureOnCommitCallbacks(execute=True):
+            change_order_status(self.order, Order.Status.DELIVERED)
+        self.assertTrue(SmsLog.objects.filter(event_key="order_delivered").exists())
+
+    def test_canceled_transition_sends_sms(self):
+        SmsTemplate.ensure_defaults()
+        with self.captureOnCommitCallbacks(execute=True):
+            change_order_status(self.order, Order.Status.CANCELED)
+        self.assertTrue(SmsLog.objects.filter(event_key="order_canceled").exists())

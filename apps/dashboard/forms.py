@@ -1,11 +1,16 @@
+import re
 from decimal import Decimal, InvalidOperation
 
 from django import forms
 
 from apps.catalog.models import Category, Product
+from apps.core.models import ShopSettings
 from apps.core.utils import normalize_digits
+from apps.sms.services.sms_service import SmsTemplateError, validate_template_body
 
 from .services.catalog_admin_service import leaf_categories
+
+PHONE_RE = re.compile(r"^09\d{9}$")
 
 
 class NumericCleanMixin:
@@ -140,3 +145,48 @@ class FinanceSettingsForm(NumericCleanMixin, forms.Form):
 
     def clean_free_shipping_threshold(self):
         return self._clean_int("free_shipping_threshold", min_value=0)
+
+
+class SmsConnectionForm(forms.Form):
+    sms_enabled = forms.BooleanField(label="فعال‌سازی سیستم پیامک", required=False)
+    sms_backend = forms.ChoiceField(
+        label="درگاه پیامک", choices=ShopSettings.SmsBackend.choices, widget=forms.Select(attrs={"class": "inp"})
+    )
+    sms_sender_number = forms.CharField(
+        label="شماره‌ی فرستنده", max_length=20, required=False, widget=forms.TextInput(attrs={"class": "inp", "dir": "ltr"})
+    )
+    melipayamak_username = forms.CharField(
+        label="نام کاربری ملی‌پیامک", max_length=100, required=False,
+        widget=forms.TextInput(attrs={"class": "inp", "dir": "ltr"}),
+    )
+    melipayamak_password = forms.CharField(
+        label="رمز عبور ملی‌پیامک", max_length=100, required=False,
+        widget=forms.PasswordInput(attrs={"class": "inp", "dir": "ltr"}, render_value=True),
+    )
+
+
+class SmsTemplateForm(forms.Form):
+    body = forms.CharField(label="متن قالب", widget=forms.Textarea(attrs={"class": "inp", "rows": 4}))
+
+    def __init__(self, *args, event_key=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.event_key = event_key
+
+    def clean_body(self):
+        body = self.cleaned_data["body"].strip()
+        try:
+            validate_template_body(self.event_key, body)
+        except SmsTemplateError as exc:
+            raise forms.ValidationError(str(exc)) from exc
+        return body
+        return body
+
+
+class SmsTestForm(forms.Form):
+    phone = forms.CharField(label="شماره موبایل گیرنده‌ی آزمایشی", max_length=15, widget=forms.TextInput(attrs={"class": "inp", "dir": "ltr"}))
+
+    def clean_phone(self):
+        phone = normalize_digits(self.cleaned_data["phone"]).strip()
+        if not PHONE_RE.match(phone):
+            raise forms.ValidationError("شماره موبایل معتبر نیست (مثال: 09123456789)")
+        return phone

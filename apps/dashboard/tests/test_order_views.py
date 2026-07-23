@@ -79,6 +79,16 @@ class OrderDetailViewTests(OrderViewsTestCase):
         self.assertEqual(self.order.status, Order.Status.PENDING)
         self.assertContains(response, "مجاز نیست")
 
+    def test_shipping_with_tracking_code_saves_it_on_order(self):
+        change_order_status(self.order, Order.Status.PROCESSING)
+        response = self.client.post(
+            reverse("dashboard:order-detail", args=[self.order.code]),
+            {"status": Order.Status.SHIPPED, "tracking_code": "TRACK-ABC123"},
+        )
+        self.assertRedirects(response, reverse("dashboard:order-detail", args=[self.order.code]))
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.tracking_code, "TRACK-ABC123")
+
     def test_final_order_hides_status_change_form(self):
         change_order_status(self.order, Order.Status.CANCELED)
         response = self.client.get(reverse("dashboard:order-detail", args=[self.order.code]))

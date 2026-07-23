@@ -7,6 +7,7 @@ from apps.customers.models import Customer
 from apps.catalog.models import Vendor
 from apps.orders.models import Order, PaymentGateway, ShippingMethod, Transaction
 from apps.orders.services.payment_service import detect_bank, simulate_payment
+from apps.sms.models import SmsLog, SmsTemplate
 
 User = get_user_model()
 
@@ -74,3 +75,23 @@ class SimulatePaymentTests(TestCase):
         simulate_payment(self.order, True)
         with self.assertRaises(ValueError):
             simulate_payment(self.order, True)
+
+    def test_successful_payment_sends_payment_success_sms(self):
+        SmsTemplate.ensure_defaults()
+        with self.captureOnCommitCallbacks(execute=True):
+            simulate_payment(self.order, True)
+        self.assertTrue(
+            SmsLog.objects.filter(event_key="payment_success", recipient=self.customer.phone).exists()
+        )
+        # پرداخت موفق باعث گذار به «در حال پردازش» هم می‌شود؛ آن پیامک هم باید جدا ارسال شود.
+        self.assertTrue(
+            SmsLog.objects.filter(event_key="order_processing", recipient=self.customer.phone).exists()
+        )
+
+    def test_failed_payment_sends_payment_failed_sms(self):
+        SmsTemplate.ensure_defaults()
+        with self.captureOnCommitCallbacks(execute=True):
+            simulate_payment(self.order, False)
+        self.assertTrue(
+            SmsLog.objects.filter(event_key="payment_failed", recipient=self.customer.phone).exists()
+        )

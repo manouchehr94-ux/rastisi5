@@ -88,6 +88,7 @@ class Order(TimeStampedModel):
     grand_total = models.DecimalField("مبلغ نهایی", max_digits=14, decimal_places=0, default=0)
 
     note = models.TextField("توضیحات سفارش", blank=True)
+    tracking_code = models.CharField("کد رهگیری مرسوله", max_length=60, blank=True)
 
     class Meta:
         verbose_name = "سفارش"

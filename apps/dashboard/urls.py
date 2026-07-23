@@ -43,4 +43,11 @@ urlpatterns = [
     path("settings/finance/", views.settings_finance, name="settings-finance"),
     path("settings/gateways/<int:pk>/toggle/", views.settings_gateway_toggle, name="settings-gateway-toggle"),
     path("settings/shipping/<int:pk>/toggle/", views.settings_shipping_toggle, name="settings-shipping-toggle"),
+
+    path("settings/sms/connection/", views.settings_sms_connection, name="settings-sms-connection"),
+    path("settings/sms/templates/<int:pk>/edit/", views.sms_template_form, name="sms-template-edit"),
+    path("settings/sms/templates/<int:pk>/toggle/", views.sms_template_toggle, name="sms-template-toggle"),
+    path("settings/sms/test-send/", views.sms_test_send, name="sms-test-send"),
+    path("settings/sms/logs/", views.sms_log_list, name="sms-log-list"),
+    path("settings/sms/logs/table/", views.sms_log_table, name="sms-log-table"),
 ]

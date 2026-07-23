@@ -1,0 +1,18 @@
+{% load persian dashboard_extras %}
+<table>
+  <thead><tr><th>گیرنده</th><th>رویداد</th><th>متن</th><th>زمان</th><th>وضعیت</th><th>خطا</th></tr></thead>
+  <tbody>
+    {% for log in logs %}
+    <tr>
+      <td><b dir="ltr">{{ log.recipient }}</b></td>
+      <td>{{ log.get_event_key_display }}</td>
+      <td style="max-width:280px;white-space:normal">{{ log.message|truncatechars:80 }}</td>
+      <td>{{ log.created_at|jalali }}</td>
+      <td><span class="badge {{ log.status|sms_status_badge }}">{{ log.get_status_display }}</span></td>
+      <td style="color:var(--red);font-size:11.5px">{{ log.error_message|truncatechars:60 }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">پیامکی ثبت نشده است</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

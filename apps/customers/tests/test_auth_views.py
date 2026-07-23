@@ -7,6 +7,7 @@ from django.urls import reverse
 from apps.cart.models import Cart, CartItem
 from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
+from apps.sms.models import OtpCode, SmsTemplate
 
 User = get_user_model()
 
@@ -90,6 +91,57 @@ class LogoutViewTests(TestCase):
         response = self.client.post(reverse("customers:logout"))
         self.assertRedirects(response, reverse("catalog:home"))
         self.assertNotIn("_auth_user_id", self.client.session)
+
+
+class OtpLoginViewTests(TestCase):
+    def setUp(self):
+        SmsTemplate.ensure_defaults()
+        self.user = User.objects.create_user(username="09121118899", password="StrongPass123")
+        Customer.objects.create(user=self.user, full_name="مهسا کریمی", phone="09121118899")
+
+    def test_request_for_existing_account_moves_to_verify_stage(self):
+        response = self.client.post(reverse("customers:otp-request"), {"phone": "09121118899"})
+        self.assertContains(response, "کد تأیید")
+        self.assertTrue(OtpCode.objects.filter(phone="09121118899").exists())
+
+    def test_request_for_unknown_phone_shows_error_and_sends_nothing(self):
+        response = self.client.post(reverse("customers:otp-request"), {"phone": "09129990000"})
+        self.assertContains(response, "یافت نشد")
+        self.assertFalse(OtpCode.objects.filter(phone="09129990000").exists())
+
+    def test_verify_with_correct_code_logs_in(self):
+        self.client.post(reverse("customers:otp-request"), {"phone": "09121118899"})
+        otp = OtpCode.objects.get(phone="09121118899")
+        response = self.client.post(reverse("customers:otp-login"), {"phone": "09121118899", "code": otp.code})
+        self.assertEqual(response.headers.get("HX-Refresh"), "true")
+        self.assertIn("_auth_user_id", self.client.session)
+
+    def test_verify_with_wrong_code_shows_error_and_does_not_log_in(self):
+        self.client.post(reverse("customers:otp-request"), {"phone": "09121118899"})
+        response = self.client.post(reverse("customers:otp-login"), {"phone": "09121118899", "code": "000000"})
+        self.assertContains(response, "صحیح نیست")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_reset_view_does_not_send_a_new_code(self):
+        self.client.post(reverse("customers:otp-request"), {"phone": "09121118899"})
+        count_before = OtpCode.objects.count()
+        response = self.client.get(reverse("customers:otp-reset"))
+        self.assertContains(response, "شماره موبایل")
+        self.assertEqual(OtpCode.objects.count(), count_before)
+
+    def test_otp_login_merges_guest_cart(self):
+        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-ogc")
+        category = Category.objects.create(name="دیجیتال", slug="digital-ogc")
+        product = Product.objects.create(
+            vendor=vendor, category=category, name="کالای نمونه", slug="sample-ogc",
+            sku="SKU-OGC1", price=Decimal("70000"),
+        )
+        self.client.post(reverse("cart:add", args=[product.slug]), {"quantity": 1})
+        self.client.post(reverse("customers:otp-request"), {"phone": "09121118899"})
+        otp = OtpCode.objects.get(phone="09121118899")
+        self.client.post(reverse("customers:otp-login"), {"phone": "09121118899", "code": otp.code})
+        cart = Cart.objects.get(customer=self.user.customer_profile)
+        self.assertEqual(cart.items.first().quantity, 1)
 
 
 class HeaderAuthStateTests(TestCase):

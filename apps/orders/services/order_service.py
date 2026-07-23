@@ -10,9 +10,29 @@ from django.db.models import F
 
 from apps.cart.services.pricing import cart_totals
 from apps.catalog.models import Product
+from apps.core.utils import format_toman
 from apps.orders.models import Order, OrderItem, OrderStatusHistory
+from apps.sms.events import SmsEvent
+from apps.sms.services.sms_service import send_event_sms
 
 ORDER_CODE_PREFIX = "DM"
+
+# رویداد پیامکی متناظر با هر وضعیت مقصد سفارش (پردازش/ارسال/تحویل/لغو).
+STATUS_SMS_EVENTS = {
+    Order.Status.PROCESSING: SmsEvent.ORDER_PROCESSING,
+    Order.Status.SHIPPED: SmsEvent.ORDER_SHIPPED,
+    Order.Status.DELIVERED: SmsEvent.ORDER_DELIVERED,
+    Order.Status.CANCELED: SmsEvent.ORDER_CANCELED,
+}
+
+
+def _order_sms_context(order: Order) -> dict:
+    return {
+        "customer_name": order.customer.full_name,
+        "order_code": order.code,
+        "amount": format_toman(order.grand_total, with_unit=False),
+        "tracking_code": order.tracking_code,
+    }
 
 ALLOWED_TRANSITIONS = {
     Order.Status.PENDING: {Order.Status.PROCESSING, Order.Status.CANCELED},
@@ -94,12 +114,22 @@ def create_order_from_cart(cart, *, customer, vendor, address, shipping_method, 
         coupon.used_count += 1
         coupon.save(update_fields=["used_count"])
 
+    transaction.on_commit(
+        lambda: send_event_sms(SmsEvent.ORDER_PLACED, order.customer.phone, _order_sms_context(order))
+    )
+
     return order
 
 
 @transaction.atomic
-def change_order_status(order: Order, to_status: str, *, by=None, note: str = "") -> Order:
-    """وضعیت سفارش را تغییر می‌دهد و حتماً یک رکورد OrderStatusHistory می‌سازد."""
+def change_order_status(
+    order: Order, to_status: str, *, by=None, note: str = "", tracking_code: str = ""
+) -> Order:
+    """وضعیت سفارش را تغییر می‌دهد و حتماً یک رکورد OrderStatusHistory می‌سازد.
+
+    tracking_code فقط برای گذار به «ارسال شده» معنا دارد و روی سفارش ذخیره
+    می‌شود تا در پیامک اطلاع‌رسانی درج شود.
+    """
     from_status = order.status
 
     if from_status in FINAL_STATUSES:
@@ -111,11 +141,21 @@ def change_order_status(order: Order, to_status: str, *, by=None, note: str = ""
     if to_status not in ALLOWED_TRANSITIONS.get(from_status, set()):
         raise ValueError(f"گذار از «{from_status}» به «{to_status}» مجاز نیست")
 
+    update_fields = ["status", "updated_at"]
     order.status = to_status
-    order.save(update_fields=["status", "updated_at"])
+    if to_status == Order.Status.SHIPPED and tracking_code:
+        order.tracking_code = tracking_code
+        update_fields.append("tracking_code")
+    order.save(update_fields=update_fields)
 
     OrderStatusHistory.objects.create(
         order=order, from_status=from_status, to_status=to_status, changed_by=by, note=note
     )
+
+    sms_event = STATUS_SMS_EVENTS.get(to_status)
+    if sms_event:
+        transaction.on_commit(
+            lambda: send_event_sms(sms_event, order.customer.phone, _order_sms_context(order))
+        )
 
     return order

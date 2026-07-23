@@ -21,6 +21,15 @@ class LoginForm(PhoneCleanMixin, forms.Form):
     password = forms.CharField(label="رمز عبور", widget=forms.PasswordInput)
 
 
+class OtpRequestForm(PhoneCleanMixin, forms.Form):
+    phone = forms.CharField(label="شماره موبایل", max_length=15)
+
+
+class OtpVerifyForm(PhoneCleanMixin, forms.Form):
+    phone = forms.CharField(label="شماره موبایل", max_length=15, widget=forms.HiddenInput)
+    code = forms.CharField(label="کد تأیید", max_length=6)
+
+
 class SignupForm(PhoneCleanMixin, forms.Form):
     full_name = forms.CharField(label="نام و نام خانوادگی", max_length=150)
     phone = forms.CharField(label="شماره موبایل", max_length=15)

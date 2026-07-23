@@ -8,6 +8,7 @@ from apps.cart.models import Cart, CartItem
 from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
 from apps.customers.services import auth_service
+from apps.sms.models import SmsLog, SmsTemplate
 
 User = get_user_model()
 
@@ -27,6 +28,34 @@ class SignupServiceTests(TestCase):
     def test_signup_rejects_weak_password(self):
         with self.assertRaises(auth_service.AuthError):
             auth_service.signup(full_name="نگار احمدی", phone="09121112234", password="123")
+
+    def test_signup_sends_welcome_sms_after_commit(self):
+        SmsTemplate.ensure_defaults()
+        with self.captureOnCommitCallbacks(execute=True):
+            auth_service.signup(full_name="نگار احمدی", phone="09121112299", password="StrongPass123")
+        log = SmsLog.objects.filter(event_key="welcome", recipient="09121112299").first()
+        self.assertIsNotNone(log)
+        self.assertIn("نگار احمدی", log.message)
+
+
+class CreateAccountForGuestTests(TestCase):
+    def test_creates_user_and_customer_with_random_password(self):
+        customer = auth_service.create_account_for_guest(full_name="پویا رستمی", phone="09121112288")
+        self.assertEqual(customer.full_name, "پویا رستمی")
+        self.assertTrue(User.objects.filter(username="09121112288").exists())
+        self.assertGreaterEqual(len(customer.user.password), 20)  # هش رمز، نه رمز خام
+
+    def test_generated_password_actually_works_for_login(self):
+        # نمی‌دانیم رمز چیست، اما باید تصادفی/معتبر باشد نه رمز خالی یا قابل‌پیش‌بینی
+        customer = auth_service.create_account_for_guest(full_name="پویا رستمی", phone="09121112288")
+        self.assertFalse(customer.user.check_password(""))
+        self.assertFalse(customer.user.check_password("123456"))
+
+    def test_sends_welcome_sms_after_commit(self):
+        SmsTemplate.ensure_defaults()
+        with self.captureOnCommitCallbacks(execute=True):
+            auth_service.create_account_for_guest(full_name="پویا رستمی", phone="09121112288")
+        self.assertTrue(SmsLog.objects.filter(event_key="welcome", recipient="09121112288").exists())
 
 
 class AuthenticateCustomerTests(TestCase):

@@ -4,8 +4,13 @@
     <button type="button" :class="{ active: tab === 'up' }" @click="tab = 'up'">ثبت‌نام</button>
   </div>
 
-  <div class="mbody" x-show="tab === 'in'" x-cloak>
-    <form hx-post="{% url 'customers:login' %}" hx-target="#auth-modal-body" hx-swap="innerHTML">
+  <div class="mbody" x-show="tab === 'in'" x-cloak x-data="{ loginMode: 'password' }">
+    <div style="display:flex;gap:16px;margin-bottom:16px;font-size:12px">
+      <button type="button" @click="loginMode = 'password'" :style="loginMode === 'password' ? 'color:var(--violet);font-weight:800' : 'color:var(--muted);font-weight:700'">ورود با رمز عبور</button>
+      <button type="button" @click="loginMode = 'otp'" :style="loginMode === 'otp' ? 'color:var(--violet);font-weight:800' : 'color:var(--muted);font-weight:700'">ورود با کد یکبار مصرف</button>
+    </div>
+
+    <form x-show="loginMode === 'password'" x-cloak hx-post="{% url 'customers:login' %}" hx-target="#auth-modal-body" hx-swap="innerHTML">
       {% csrf_token %}
       {% if login_form.non_field_errors %}
       <div style="color:var(--pink);font-size:12.5px;margin-bottom:10px">
@@ -24,6 +29,10 @@
       </div>
       <button type="submit" class="btn btn-primary">ورود به حساب</button>
     </form>
+
+    <div x-show="loginMode === 'otp'" x-cloak id="otp-login-body">
+      {% include "customers/partials/otp_login_body.html" %}
+    </div>
   </div>
 
   <div class="mbody" x-show="tab === 'up'" x-cloak>

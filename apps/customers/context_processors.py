@@ -1,4 +1,4 @@
-from .forms import LoginForm, SignupForm
+from .forms import LoginForm, OtpRequestForm, SignupForm
 from .models import Wishlist
 
 
@@ -15,4 +15,7 @@ def wishlist_membership(request):
 
 def auth_forms(request):
     """فرم‌های خالی ورود/ثبت‌نام برای مودال سراسری — تا هر صفحه بدون کار اضافه آن را داشته باشد."""
-    return {"login_form": LoginForm(), "signup_form": SignupForm(), "active_tab": "in"}
+    return {
+        "login_form": LoginForm(), "signup_form": SignupForm(), "active_tab": "in",
+        "otp_stage": "request", "otp_request_form": OtpRequestForm(),
+    }

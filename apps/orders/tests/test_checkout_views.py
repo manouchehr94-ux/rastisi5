@@ -1,7 +1,7 @@
 import json
 from decimal import Decimal
 
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user, get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
@@ -9,6 +9,7 @@ from apps.cart.models import Cart, CartItem
 from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
 from apps.orders.models import Order, PaymentGateway, ShippingMethod
+from apps.sms.models import OtpCode
 
 User = get_user_model()
 
@@ -77,16 +78,74 @@ class CheckoutPayTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Order.objects.count(), 0)
 
-    def test_guest_valid_address_prompts_login_and_creates_no_order(self):
+    def test_guest_with_new_phone_creates_account_logs_in_and_creates_order(self):
+        """طبق قاعده‌ی جدید: مهمان با موبایل بدون حساب هرگز به مودال ورود هدایت نمی‌شود."""
         self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 2})
         response = self.client.post(reverse("orders:checkout-pay"), self.valid_payload)
         self.assertEqual(response.status_code, 200)
+        self.assertIn("HX-Redirect", response.headers)
+        self.assertEqual(Order.objects.count(), 1)
+
+        customer = Customer.objects.get(phone="09123456789")
+        self.assertEqual(customer.full_name, "علی رضایی")
+        self.assertEqual(Order.objects.get().customer, customer)
+        self.assertTrue(get_user(self.client).is_authenticated)
+
+    def test_guest_with_existing_phone_gets_otp_challenge_without_login_or_order(self):
+        """امنیت: هرگز نباید فقط با زدن یک شماره‌ی موجود، خودکار وارد حساب دیگری شد."""
+        owner = User.objects.create_user(username="09123456789", password="pass12345")
+        Customer.objects.create(user=owner, full_name="مالک واقعی این شماره", phone="09123456789")
+
+        self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 2})
+        response = self.client.post(reverse("orders:checkout-pay"), self.valid_payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("HX-Redirect", response.headers)
+        self.assertContains(response, "تأیید شماره موبایل")
         self.assertEqual(Order.objects.count(), 0)
-        self.assertIn("HX-Trigger", response.headers)
-        trigger = json.loads(response.headers["HX-Trigger"])
-        self.assertIn("open-login", trigger)
-        # address is preserved in session so the user can continue right after logging in
-        self.assertEqual(self.client.session["checkout"]["address"]["receiver_name"], "علی رضایی")
+        self.assertFalse(get_user(self.client).is_authenticated)
+        self.assertEqual(self.client.session["checkout_otp_phone"], "09123456789")
+
+    def test_guest_otp_verify_with_correct_code_completes_order_on_existing_account(self):
+        owner = User.objects.create_user(username="09123456789", password="pass12345")
+        customer = Customer.objects.create(user=owner, full_name="مالک واقعی این شماره", phone="09123456789")
+
+        self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 2})
+        self.client.post(reverse("orders:checkout-pay"), self.valid_payload)
+        otp = OtpCode.objects.filter(phone="09123456789").latest("created_at")
+
+        response = self.client.post(reverse("orders:checkout-otp-verify"), {"code": otp.code})
+
+        self.assertIn("HX-Redirect", response.headers)
+        order = Order.objects.get()
+        self.assertEqual(order.customer, customer)
+        self.assertTrue(get_user(self.client).is_authenticated)
+        self.assertNotIn("checkout_otp_phone", self.client.session)
+
+    def test_guest_otp_verify_with_wrong_code_shows_error_and_creates_no_order(self):
+        User.objects.create_user(username="09123456789", password="pass12345")
+        Customer.objects.create(user=User.objects.get(username="09123456789"), full_name="مالک", phone="09123456789")
+
+        self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 2})
+        self.client.post(reverse("orders:checkout-pay"), self.valid_payload)
+
+        response = self.client.post(reverse("orders:checkout-otp-verify"), {"code": "000000"})
+
+        self.assertContains(response, "صحیح نیست")
+        self.assertEqual(Order.objects.count(), 0)
+        self.assertFalse(get_user(self.client).is_authenticated)
+
+    def test_guest_otp_cancel_returns_to_address_form_without_side_effects(self):
+        User.objects.create_user(username="09123456789", password="pass12345")
+        Customer.objects.create(user=User.objects.get(username="09123456789"), full_name="مالک", phone="09123456789")
+
+        self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 2})
+        self.client.post(reverse("orders:checkout-pay"), self.valid_payload)
+
+        response = self.client.post(reverse("orders:checkout-otp-cancel"))
+
+        self.assertNotContains(response, "تأیید شماره موبایل")
+        self.assertNotIn("checkout_otp_phone", self.client.session)
 
     def test_authenticated_valid_address_creates_order_and_redirects(self):
         self._login_and_add_to_cart()

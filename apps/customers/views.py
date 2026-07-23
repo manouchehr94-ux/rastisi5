@@ -7,9 +7,10 @@ from django.views.decorators.http import require_POST
 
 from apps.catalog.models import Product
 from apps.orders.models import Order
+from apps.sms.services import otp_service
 
-from .forms import AddressForm, LoginForm, ProfileForm, SignupForm
-from .models import Address, Wishlist
+from .forms import AddressForm, LoginForm, OtpRequestForm, OtpVerifyForm, ProfileForm, SignupForm
+from .models import Address, Customer, Wishlist
 from .services import auth_service
 
 
@@ -65,6 +66,8 @@ def _auth_forms_context(*, login_form=None, signup_form=None, active_tab="in"):
         "login_form": login_form or LoginForm(),
         "signup_form": signup_form or SignupForm(),
         "active_tab": active_tab,
+        "otp_stage": "request",
+        "otp_request_form": OtpRequestForm(),
     }
 
 
@@ -120,6 +123,80 @@ def signup_view(request):
         _auth_forms_context(signup_form=form, active_tab="up"),
     )
     response["HX-Trigger"] = json.dumps({"toast": {"message": "ثبت‌نام ناموفق بود", "type": "err"}})
+    return response
+
+
+def _otp_login_context(*, stage="request", phone="", error="", request_form=None, verify_form=None):
+    return {
+        "otp_stage": stage,
+        "phone": phone,
+        "otp_error": error,
+        "otp_request_form": request_form or OtpRequestForm(),
+        "otp_verify_form": verify_form or OtpVerifyForm(initial={"phone": phone}),
+    }
+
+
+def otp_reset_view(request):
+    """بازگشت به مرحله‌ی وارد کردن شماره — بدون ارسال کد جدید."""
+    return render(request, "customers/partials/otp_login_body.html", _otp_login_context(stage="request"))
+
+
+@require_POST
+def otp_request_view(request):
+    """گام اول ورود با کد: شماره را می‌گیرد، فقط برای حساب‌های موجود کد می‌فرستد."""
+    form = OtpRequestForm(request.POST)
+    if form.is_valid():
+        phone = form.cleaned_data["phone"]
+        if not Customer.objects.filter(phone=phone).exists():
+            form.add_error("phone", "حسابی با این شماره موبایل یافت نشد")
+        else:
+            try:
+                otp_service.request_otp(phone)
+            except otp_service.OtpRateLimitError as exc:
+                form.add_error(None, str(exc))
+            else:
+                return render(
+                    request, "customers/partials/otp_login_body.html",
+                    _otp_login_context(stage="verify", phone=phone),
+                )
+
+    return render(
+        request, "customers/partials/otp_login_body.html",
+        _otp_login_context(stage="request", request_form=form),
+    )
+
+
+@require_POST
+def otp_login_view(request):
+    """گام دوم ورود با کد: تأیید کد و ورود واقعی — کنار ورود با رمز، نه جایگزین آن."""
+    form = OtpVerifyForm(request.POST)
+    if not form.is_valid():
+        return render(
+            request, "customers/partials/otp_login_body.html",
+            _otp_login_context(stage="verify", phone=request.POST.get("phone", ""), verify_form=form),
+        )
+
+    phone = form.cleaned_data["phone"]
+    try:
+        otp_service.verify_otp(phone, form.cleaned_data["code"])
+    except otp_service.OtpInvalidError as exc:
+        return render(
+            request, "customers/partials/otp_login_body.html",
+            _otp_login_context(stage="verify", phone=phone, error=str(exc)),
+        )
+
+    customer = Customer.objects.filter(phone=phone).select_related("user").first()
+    if customer is None:
+        return render(
+            request, "customers/partials/otp_login_body.html",
+            _otp_login_context(stage="request", error="حسابی با این شماره موبایل یافت نشد"),
+        )
+
+    # ادغام سبد مهمان باید پیش از auth_login انجام شود چون login() کلید session را عوض می‌کند.
+    auth_service.merge_guest_cart(request, customer)
+    auth_login(request, customer.user)
+    response = render(request, "customers/partials/auth_forms.html", _auth_forms_context())
+    response["HX-Refresh"] = "true"
     return response
 
 

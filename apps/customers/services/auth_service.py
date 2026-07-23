@@ -15,11 +15,16 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.utils.crypto import get_random_string
 
 from apps.cart.models import Cart
 from apps.customers.models import Customer
+from apps.sms.events import SmsEvent
+from apps.sms.services.sms_service import send_event_sms
 
 User = get_user_model()
+
+GUEST_PASSWORD_LENGTH = 24
 
 
 class AuthError(Exception):
@@ -36,7 +41,28 @@ def signup(*, full_name: str, phone: str, password: str) -> Customer:
         raise AuthError(" ".join(exc.messages)) from exc
 
     user = User.objects.create_user(username=phone, password=password)
-    return Customer.objects.create(user=user, full_name=full_name, phone=phone)
+    customer = Customer.objects.create(user=user, full_name=full_name, phone=phone)
+    transaction.on_commit(
+        lambda: send_event_sms(SmsEvent.WELCOME, phone, {"customer_name": full_name})
+    )
+    return customer
+
+
+@transaction.atomic
+def create_account_for_guest(*, full_name: str, phone: str) -> Customer:
+    """برای مهمانی که در تسویه‌حساب با شماره‌ی بدون حساب خرید می‌کند، حساب خودکار می‌سازد.
+
+    رمز عبور تصادفی و امن تولید می‌شود (کاربر هرگز آن را نمی‌بیند)؛ ورودهای
+    بعدی این کاربر معمولاً از طریق کد یکبار مصرف پیامکی (نه رمز) خواهد بود،
+    پس نیازی به validate_password روی رمز تصادفی خودمان نیست.
+    """
+    random_password = get_random_string(GUEST_PASSWORD_LENGTH)
+    user = User.objects.create_user(username=phone, password=random_password)
+    customer = Customer.objects.create(user=user, full_name=full_name, phone=phone)
+    transaction.on_commit(
+        lambda: send_event_sms(SmsEvent.WELCOME, phone, {"customer_name": full_name})
+    )
+    return customer
 
 
 def authenticate_customer(request, *, phone: str, password: str):
