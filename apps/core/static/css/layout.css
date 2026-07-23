@@ -25,6 +25,7 @@
 .search input{flex:1;border:0;outline:0;background:transparent;font-size:13.5px;color:var(--ink)}
 .search button{background:linear-gradient(135deg,var(--violet),var(--violet-3));color:#fff;height:34px;padding:0 18px;border-radius:10px;font-size:13px;font-weight:700}
 .h-actions{display:flex;align-items:center;gap:8px;margin-right:auto}
+.header-logout-form{display:contents}
 .h-btn{position:relative;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);display:grid;place-items:center;color:var(--ink);transition:.18s}
 .h-btn:hover{border-color:var(--violet-3);color:var(--violet);background:var(--violet-softer)}
 .h-btn svg{width:20px;height:20px}
@@ -122,5 +123,6 @@
   .header .wrap{gap:10px}
   .footer .cols{grid-template-columns:1fr}
   .login-btn span{display:none}
+  .header-logout-form{display:none}
   .cat-dropdown{grid-template-columns:1fr;right:auto;left:0}
 }
