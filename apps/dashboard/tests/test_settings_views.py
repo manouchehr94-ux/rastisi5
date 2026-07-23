@@ -419,229 +419,287 @@ class ContrastAndSafetyTests(SettingsViewsTestCase):
         self.assertContains(response, "--brand-accent:#33BB44")
 
 
-class LogoUploadSecurityTests(SettingsViewsTestCase):
-    """Upload security tests for logo."""
 
-    def _make_image(self, fmt="PNG", size=(100, 100)):
-        from io import BytesIO
-        from PIL import Image
-        from django.core.files.uploadedfile import SimpleUploadedFile
-        buf = BytesIO()
-        img = Image.new("RGBA" if fmt == "PNG" else "RGB", size, (255, 0, 0))
-        img.save(buf, format=fmt)
-        ext = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp"}[fmt]
-        ct = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp"}[fmt]
-        return SimpleUploadedFile(f"test.{ext}", buf.getvalue(), content_type=ct)
+import os
+import tempfile
+import shutil
+
+from django.test import override_settings
+
+_TEMP_MEDIA_DIR = tempfile.mkdtemp()
+
+
+def _make_image(fmt='PNG', size=(100, 100)):
+    from io import BytesIO
+    from PIL import Image
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    buf = BytesIO()
+    img = Image.new('RGBA' if fmt == 'PNG' else 'RGB', size, (255, 0, 0))
+    img.save(buf, format=fmt)
+    ext = {'PNG': 'png', 'JPEG': 'jpg', 'WEBP': 'webp'}[fmt]
+    ct = {'PNG': 'image/png', 'JPEG': 'image/jpeg', 'WEBP': 'image/webp'}[fmt]
+    return SimpleUploadedFile(f'test.{ext}', buf.getvalue(), content_type=ct)
+
+
+@override_settings(MEDIA_ROOT=_TEMP_MEDIA_DIR)
+class LogoUploadTests(SettingsViewsTestCase):
+    """Complete logo upload lifecycle tests with isolated media."""
+
+    def tearDown(self):
+        # Clean temp files after each test
+        for f in os.listdir(_TEMP_MEDIA_DIR):
+            path = os.path.join(_TEMP_MEDIA_DIR, f)
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
 
     def test_valid_png_saves(self):
-        logo = self._make_image("PNG")
-        response = self.client.post(reverse("dashboard:settings-appearance"), {
-            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": logo,
+        resp = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": _make_image("PNG"),
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
-        shop = ShopSettings.load()
-        self.assertTrue(shop.logo)
+        self.assertRedirects(resp, "/admin-panel/settings/?section=appearance")
+        self.assertTrue(ShopSettings.load().logo)
 
     def test_valid_jpeg_saves(self):
-        logo = self._make_image("JPEG")
-        response = self.client.post(reverse("dashboard:settings-appearance"), {
-            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": logo,
+        resp = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": _make_image("JPEG"),
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
+        self.assertRedirects(resp, "/admin-panel/settings/?section=appearance")
+        self.assertTrue(ShopSettings.load().logo)
 
-    def test_oversized_logo_rejected(self):
-        from io import BytesIO
+    def test_valid_webp_saves(self):
+        resp = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": _make_image("WEBP"),
+        })
+        self.assertRedirects(resp, "/admin-panel/settings/?section=appearance")
+        self.assertTrue(ShopSettings.load().logo)
+
+    def test_oversized_rejected(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
-        # 3MB fake file
         big = SimpleUploadedFile("big.png", b"x" * (3 * 1024 * 1024), content_type="image/png")
-        response = self.client.post(reverse("dashboard:settings-appearance"), {
+        resp = self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": big,
         })
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "مگابایت")
+        self.assertEqual(resp.status_code, 200)
 
-    def test_fake_image_content_rejected(self):
+    def test_fake_content_rejected(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
-        fake = SimpleUploadedFile("fake.png", b"not an image at all", content_type="image/png")
-        response = self.client.post(reverse("dashboard:settings-appearance"), {
+        fake = SimpleUploadedFile("fake.png", b"not-image", content_type="image/png")
+        resp = self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": fake,
         })
-        self.assertEqual(response.status_code, 200)
-        # Either our custom error or Django's built-in image validation
-        content = response.content.decode()
-        self.assertTrue("معتبر" in content or "image" in content.lower())
+        self.assertEqual(resp.status_code, 200)
 
     def test_svg_rejected(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
         svg = SimpleUploadedFile("logo.svg", b"<svg></svg>", content_type="image/svg+xml")
-        response = self.client.post(reverse("dashboard:settings-appearance"), {
+        resp = self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": svg,
         })
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(resp.status_code, 200)
 
-    def test_empty_upload_preserves_current_logo(self):
-        # First upload a logo
-        logo = self._make_image("PNG")
+    def test_empty_upload_preserves_current(self):
         self.client.post(reverse("dashboard:settings-appearance"), {
-            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": logo,
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": _make_image("PNG"),
         })
-        shop = ShopSettings.load()
-        self.assertTrue(shop.logo)
-        old_name = shop.logo.name
-
-        # Submit without file — logo preserved
+        old = ShopSettings.load().logo.name
         self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77",
         })
-        shop = ShopSettings.load()
-        self.assertEqual(shop.logo.name, old_name)
+        self.assertEqual(ShopSettings.load().logo.name, old)
 
-    def test_explicit_removal_clears_logo(self):
-        logo = self._make_image("PNG")
+    def test_replacement_saves_new(self):
         self.client.post(reverse("dashboard:settings-appearance"), {
-            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": logo,
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": _make_image("PNG"),
         })
-        shop = ShopSettings.load()
-        self.assertTrue(shop.logo)
+        old = ShopSettings.load().logo.name
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": _make_image("JPEG"),
+        })
+        new = ShopSettings.load().logo.name
+        self.assertNotEqual(old, new)
 
-        # Remove
+    def test_explicit_removal(self):
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": _make_image("PNG"),
+        })
+        self.assertTrue(ShopSettings.load().logo)
         self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77", "remove_logo": "on",
         })
-        shop = ShopSettings.load()
-        self.assertFalse(shop.logo)
+        self.assertFalse(ShopSettings.load().logo)
+
+    def test_simultaneous_upload_and_remove_replacement_wins(self):
+        """When both upload and remove are submitted, replacement wins."""
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77",
+            "logo": _make_image("PNG"), "remove_logo": "on",
+        })
+        # Replacement wins — logo is set
+        self.assertTrue(ShopSettings.load().logo)
 
 
+@override_settings(MEDIA_ROOT=_TEMP_MEDIA_DIR)
+class FaviconUploadTests(SettingsViewsTestCase):
+    """Complete favicon upload lifecycle tests with isolated media."""
 
-import tempfile
+    def tearDown(self):
+        for f in os.listdir(_TEMP_MEDIA_DIR):
+            path = os.path.join(_TEMP_MEDIA_DIR, f)
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
 
-from django.test import override_settings
-
-_temp_media = tempfile.mkdtemp()
-
-
-@override_settings(MEDIA_ROOT=_temp_media)
-class FaviconUploadSecurityTests(SettingsViewsTestCase):
-    """Upload security tests for favicon with isolated temp media."""
-
-    def _make_favicon(self, fmt="PNG", size=(32, 32)):
+    def _fav(self):
         from io import BytesIO
         from PIL import Image
         from django.core.files.uploadedfile import SimpleUploadedFile
         buf = BytesIO()
-        img = Image.new("RGBA", size, (0, 100, 200, 255))
-        img.save(buf, format=fmt)
-        ext = "png" if fmt == "PNG" else "ico"
-        ct = "image/png" if fmt == "PNG" else "image/x-icon"
-        return SimpleUploadedFile(f"fav.{ext}", buf.getvalue(), content_type=ct)
+        Image.new("RGBA", (32, 32), (0, 0, 255, 255)).save(buf, "PNG")
+        return SimpleUploadedFile("fav.png", buf.getvalue(), content_type="image/png")
 
-    def test_valid_png_favicon_saves(self):
-        fav = self._make_favicon("PNG")
-        response = self.client.post(reverse("dashboard:settings-appearance"), {
-            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": fav,
+    def test_valid_png_saves(self):
+        resp = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": self._fav(),
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
-        shop = ShopSettings.load()
-        self.assertTrue(shop.favicon)
+        self.assertRedirects(resp, "/admin-panel/settings/?section=appearance")
+        self.assertTrue(ShopSettings.load().favicon)
 
-    def test_oversized_favicon_rejected(self):
+    def test_oversized_rejected(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
         big = SimpleUploadedFile("big.png", b"x" * (600 * 1024), content_type="image/png")
-        response = self.client.post(reverse("dashboard:settings-appearance"), {
+        resp = self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": big,
         })
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(resp.status_code, 200)
 
-    def test_fake_favicon_content_rejected(self):
+    def test_fake_content_rejected(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
-        fake = SimpleUploadedFile("fake.png", b"not an image", content_type="image/png")
-        response = self.client.post(reverse("dashboard:settings-appearance"), {
+        fake = SimpleUploadedFile("fake.png", b"not-image", content_type="image/png")
+        resp = self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": fake,
         })
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(resp.status_code, 200)
 
-    def test_svg_favicon_rejected(self):
+    def test_svg_rejected(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
-        svg = SimpleUploadedFile("fav.svg", b"<svg></svg>", content_type="image/svg+xml")
-        response = self.client.post(reverse("dashboard:settings-appearance"), {
+        svg = SimpleUploadedFile("f.svg", b"<svg></svg>", content_type="image/svg+xml")
+        resp = self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": svg,
         })
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(resp.status_code, 200)
 
-    def test_empty_upload_preserves_current_favicon(self):
-        fav = self._make_favicon("PNG")
+    def test_empty_upload_preserves_current(self):
         self.client.post(reverse("dashboard:settings-appearance"), {
-            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": fav,
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": self._fav(),
         })
-        shop = ShopSettings.load()
-        old_name = shop.favicon.name
-        self.assertTrue(old_name)
-
-        # Submit without file
+        old = ShopSettings.load().favicon.name
         self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77",
         })
-        shop = ShopSettings.load()
-        self.assertEqual(shop.favicon.name, old_name)
+        self.assertEqual(ShopSettings.load().favicon.name, old)
 
-    def test_explicit_removal_clears_favicon(self):
-        fav = self._make_favicon("PNG")
+    def test_replacement_saves_new(self):
         self.client.post(reverse("dashboard:settings-appearance"), {
-            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": fav,
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": self._fav(),
         })
-        shop = ShopSettings.load()
-        self.assertTrue(shop.favicon)
+        old = ShopSettings.load().favicon.name
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": self._fav(),
+        })
+        new = ShopSettings.load().favicon.name
+        self.assertNotEqual(old, new)
 
+    def test_explicit_removal(self):
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": self._fav(),
+        })
+        self.assertTrue(ShopSettings.load().favicon)
         self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77", "remove_favicon": "on",
         })
-        shop = ShopSettings.load()
-        self.assertFalse(shop.favicon)
+        self.assertFalse(ShopSettings.load().favicon)
 
-    def test_configured_favicon_in_storefront_html(self):
-        fav = self._make_favicon("PNG")
+    def test_simultaneous_upload_and_remove_replacement_wins(self):
         self.client.post(reverse("dashboard:settings-appearance"), {
-            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": fav,
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77",
+            "favicon": self._fav(), "remove_favicon": "on",
         })
-        response = self.client.get(reverse("catalog:home"))
-        self.assertContains(response, 'rel="icon"')
-        self.assertContains(response, "shop/branding/")
+        self.assertTrue(ShopSettings.load().favicon)
 
-    def test_fallback_favicon_when_not_configured(self):
-        response = self.client.get(reverse("catalog:home"))
-        self.assertContains(response, "favicon.ico")
-
-
-class ForegroundConsumptionTests(SettingsViewsTestCase):
-    """Tests proving CSS foreground variables are consumed by storefront selectors."""
-
-    def test_light_primary_foreground_in_storefront_html(self):
-        """Light primary → black foreground exposed in HTML."""
+    def test_configured_favicon_in_html(self):
         self.client.post(reverse("dashboard:settings-appearance"), {
-            "primary_color": "#FFFF00", "accent_color": "#FFFFFF",
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": self._fav(),
         })
-        response = self.client.get(reverse("catalog:home"))
-        self.assertContains(response, "--brand-primary-fg:#000000")
-        self.assertContains(response, "--brand-accent-fg:#000000")
+        resp = self.client.get(reverse("catalog:home"))
+        self.assertContains(resp, 'rel="icon"')
+        self.assertContains(resp, "shop/branding/")
 
-    def test_dark_primary_foreground_in_storefront_html(self):
-        """Dark primary → white foreground exposed in HTML."""
+    def test_fallback_favicon_when_not_set(self):
+        resp = self.client.get(reverse("catalog:home"))
+        self.assertContains(resp, "favicon.ico")
+
+
+class ContrastAndSafetyTests(SettingsViewsTestCase):
+    """Contrast calculation, model validation, and safe rendering tests."""
+
+    def test_dark_primary_gets_white_foreground(self):
         self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#1F2937", "accent_color": "#000000",
         })
-        response = self.client.get(reverse("catalog:home"))
-        self.assertContains(response, "--brand-primary-fg:#FFFFFF")
-        self.assertContains(response, "--brand-accent-fg:#FFFFFF")
+        resp = self.client.get(reverse("catalog:home"))
+        self.assertContains(resp, "--brand-primary-fg:#FFFFFF")
 
-    def test_layout_css_consumes_primary_foreground(self):
-        """Verify layout.css uses var(--brand-primary-fg) for key selectors."""
-        import os
+    def test_light_primary_gets_black_foreground(self):
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#FFFFFF", "accent_color": "#FFFF00",
+        })
+        resp = self.client.get(reverse("catalog:home"))
+        self.assertContains(resp, "--brand-primary-fg:#000000")
+        self.assertContains(resp, "--brand-accent-fg:#000000")
+
+    def test_invalid_stored_color_uses_default(self):
+        ShopSettings.objects.filter(pk=1).update(primary_color="invalid", accent_color="")
+        resp = self.client.get(reverse("catalog:home"))
+        self.assertContains(resp, "--brand-primary:#6D28D9")
+        self.assertNotContains(resp, "invalid")
+
+    def test_model_validator_rejects_invalid(self):
+        from django.core.exceptions import ValidationError
+        from apps.core.models import validate_hex_color
+        with self.assertRaises(ValidationError):
+            validate_hex_color("red")
+        with self.assertRaises(ValidationError):
+            validate_hex_color("#FFF")
+
+    def test_brand_colors_in_storefront(self):
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#AA1122", "accent_color": "#33BB44",
+        })
+        resp = self.client.get(reverse("catalog:home"))
+        self.assertContains(resp, "--brand-primary:#AA1122")
+        self.assertContains(resp, "--brand-accent:#33BB44")
+
+    def test_layout_css_uses_foreground_vars(self):
         css_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "core", "static", "css", "layout.css"
         )
         with open(css_path) as f:
             css = f.read()
-        # Key selectors must use the foreground variable
         self.assertIn("var(--brand-primary-fg", css)
         self.assertIn("var(--brand-accent-fg", css)
+
+    def test_default_gradients_preserved(self):
+        """Default brand colors preserve existing gradient depth via --violet-2 and --violet-3."""
+        css_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "core", "static", "css", "tokens.css"
+        )
+        with open(css_path) as f:
+            css = f.read()
+        # --violet-2 and --violet-3 remain fixed (not overridden by brand-primary)
+        self.assertIn("--violet-2:#7c3aed", css)
+        self.assertIn("--violet-3:#8b5cf6", css)

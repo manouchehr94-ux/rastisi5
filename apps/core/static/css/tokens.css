@@ -4,7 +4,7 @@
   متغیرهای --brand-primary و --brand-accent از هویت بصری فروشگاه تزریق می‌شوند.
 */
 :root{
-  --violet:var(--brand-primary, #6d28d9); --violet-2:var(--brand-primary, #7c3aed); --violet-3:var(--brand-primary, #8b5cf6);
+  --violet:var(--brand-primary, #6d28d9); --violet-2:#7c3aed; --violet-3:#8b5cf6;
   --violet-soft:#f1ecfd; --violet-softer:#f7f5fc;
   --pink:var(--brand-accent, #ff4d77); --pink-soft:#ffe7ee;
   --ink:#241c3a; --muted:#8b86a3; --line:#ece8f6;

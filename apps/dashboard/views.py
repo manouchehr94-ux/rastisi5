@@ -729,17 +729,17 @@ def settings_appearance(request):
         shop.primary_color = form.cleaned_data["primary_color"]
         shop.accent_color = form.cleaned_data["accent_color"]
 
-        # لوگو
-        if form.cleaned_data.get("remove_logo") and shop.logo:
-            shop.logo = ""
-        elif form.cleaned_data.get("logo"):
+        # لوگو — replacement wins over removal
+        if form.cleaned_data.get("logo"):
             shop.logo = form.cleaned_data["logo"]
+        elif form.cleaned_data.get("remove_logo") and shop.logo:
+            shop.logo = ""
 
-        # فاوآیکون
-        if form.cleaned_data.get("remove_favicon") and shop.favicon:
-            shop.favicon = ""
-        elif form.cleaned_data.get("favicon"):
+        # فاوآیکون — replacement wins over removal
+        if form.cleaned_data.get("favicon"):
             shop.favicon = form.cleaned_data["favicon"]
+        elif form.cleaned_data.get("remove_favicon") and shop.favicon:
+            shop.favicon = ""
 
         shop.save()
 
