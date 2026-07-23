@@ -1,0 +1,31 @@
+{% load persian %}
+<div id="productImagesList" class="img-manage-grid">
+  {% for image in product.images.all %}
+  <div class="img-manage-item{% if image.is_cover %} is-cover{% endif %}">
+    <div class="img-manage-thumb" style="background-image:url('{{ image.thumbnail.url|default:image.image.url }}')">
+      {% if image.is_cover %}<span class="pill pill-new img-manage-cover-badge">کاور</span>{% endif %}
+    </div>
+    <input class="inp img-manage-alt" placeholder="متن جایگزین (alt)" value="{{ image.alt }}" name="alt"
+           hx-post="{% url 'dashboard:product-image-alt' product.pk image.pk %}" hx-trigger="change"
+           hx-target="#productImagesList" hx-swap="outerHTML">
+    <div class="img-manage-actions">
+      <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}
+              hx-post="{% url 'dashboard:product-image-move' product.pk image.pk %}" hx-vals='{"direction":"up"}'
+              hx-target="#productImagesList" hx-swap="outerHTML">⬆️</button>
+      <button type="button" class="btn btn-sm" title="جابه‌جایی به پایین" {% if forloop.last %}disabled{% endif %}
+              hx-post="{% url 'dashboard:product-image-move' product.pk image.pk %}" hx-vals='{"direction":"down"}'
+              hx-target="#productImagesList" hx-swap="outerHTML">⬇️</button>
+      {% if not image.is_cover %}
+      <button type="button" class="btn btn-sm" title="تعیین به‌عنوان کاور"
+              hx-post="{% url 'dashboard:product-image-set-cover' product.pk image.pk %}"
+              hx-target="#productImagesList" hx-swap="outerHTML">⭐</button>
+      {% endif %}
+      <button type="button" class="btn btn-sm btn-danger" title="حذف"
+              hx-post="{% url 'dashboard:product-image-delete' product.pk image.pk %}"
+              hx-target="#productImagesList" hx-swap="outerHTML" hx-confirm="آیا از حذف این تصویر مطمئن هستید؟">🗑️</button>
+    </div>
+  </div>
+  {% empty %}
+  <p class="img-manage-empty">هنوز تصویری برای این کالا اضافه نشده است.</p>
+  {% endfor %}
+</div>

@@ -7,21 +7,35 @@ get_or_create روی فیلد یکتا استفاده می‌شود، و بخش 
 """
 
 from decimal import Decimal
+from io import BytesIO
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
+from PIL import Image, ImageDraw
 
 from apps.blog.models import BlogPost
 from apps.cart.models import Cart, CartItem, Coupon
 from apps.catalog.models import Brand, Category, Product, ProductVariant, Vendor
+from apps.catalog.services.product_image_service import add_product_image
 from apps.customers.models import Address, Customer
 from apps.orders.models import Order, PaymentGateway, ShippingMethod
 from apps.orders.services.order_service import change_order_status, create_order_from_cart
 from apps.orders.services.payment_service import simulate_payment
 
 User = get_user_model()
+
+# محصولاتی که برای نمایش عملی گالری/کاور یک تصویر نمونه می‌گیرند — بقیه‌ی
+# محصولات عمداً بدون تصویر می‌مانند تا fallback آیکون/رنگ هم قابل مشاهده باشد.
+SEED_IMAGE_SKUS = ["HA-IRON-001", "DG-PHONE-001", "CL-SNEAKER-002", "CL-BAG-003"]
+
+
+def _darken_hex(hex_color: str, factor: float) -> tuple:
+    hex_color = hex_color.lstrip("#")
+    r, g, b = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+    return tuple(max(0, int(channel * (1 - factor))) for channel in (r, g, b))
 
 VENDOR = {"name": "فروشگاه چندمنظوره دیجی‌مارکت", "slug": "digimarket"}
 
@@ -264,6 +278,7 @@ class Command(BaseCommand):
         categories = self._seed_categories()
         brands = self._seed_brands()
         products = self._seed_products(vendor, categories, brands)
+        self._seed_product_images(products)
         customers = self._seed_customers()
         shipping_methods = self._seed_shipping_methods()
         gateways = self._seed_payment_gateways()
@@ -351,6 +366,30 @@ class Command(BaseCommand):
                     )
         self._log("کالا", created_count)
         return by_sku
+
+    def _seed_product_images(self, products):
+        """برای چند محصول منتخب یک تصویر نمونه از طریق سرویس واقعی آپلود می‌سازد (idempotent).
+
+        اگر محصولی از قبل تصویر داشته باشد رد می‌شود؛ محصولاتی که در
+        SEED_IMAGE_SKUS نیستند عمداً بدون تصویر می‌مانند تا fallback
+        آیکون/رنگ کارت محصول هم در دیتای نمونه قابل مشاهده بماند.
+        """
+        tint_by_sku = {data["sku"]: data.get("tint", "#eceef3") for data in PRODUCTS}
+        created_count = 0
+        for sku in SEED_IMAGE_SKUS:
+            product = products.get(sku)
+            if product is None or product.images.exists():
+                continue
+            base_color = tint_by_sku.get(sku, "#eceef3")
+            img = Image.new("RGB", (900, 900), base_color)
+            # دایره‌ی تیره‌تر تا تصویر نمونه از رنگ پس‌زمینه‌ی کارت (fallback) قابل‌تشخیص باشد
+            ImageDraw.Draw(img).ellipse((160, 160, 740, 740), fill=_darken_hex(base_color, 0.35))
+            buffer = BytesIO()
+            img.save(buffer, format="JPEG", quality=85)
+            file = SimpleUploadedFile(f"{product.slug}-seed.jpg", buffer.getvalue(), content_type="image/jpeg")
+            add_product_image(product, file, alt=product.name)
+            created_count += 1
+        self._log("تصویر نمونه‌ی کالا", created_count)
 
     def _seed_customers(self):
         by_username = {}

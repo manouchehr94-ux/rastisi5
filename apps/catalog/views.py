@@ -25,7 +25,7 @@ TILE_CLASSES = ["t1", "t2", "t3"]
 
 def _best_products(sort_key):
     order_field, _ = BEST_SORT_OPTIONS.get(sort_key, BEST_SORT_OPTIONS[DEFAULT_SORT])
-    qs = Product.objects.filter(status=Product.Status.ACTIVE).select_related("brand")
+    qs = Product.objects.filter(status=Product.Status.ACTIVE).select_related("brand").prefetch_related("images")
     if sort_key == "disc":
         qs = qs.filter(discount_percent__gt=0)
     return qs.order_by(order_field)[:8]
@@ -41,9 +41,10 @@ def home(request):
         .order_by("order", "name")
     )
 
-    new_products = active_products.select_related("brand").order_by("-created_at")[:8]
+    new_products = active_products.select_related("brand").prefetch_related("images").order_by("-created_at")[:8]
     discounted_products = (
-        active_products.select_related("brand").filter(discount_percent__gt=0).order_by("-discount_percent")[:6]
+        active_products.select_related("brand").prefetch_related("images")
+        .filter(discount_percent__gt=0).order_by("-discount_percent")[:6]
     )
     highlight_product = discounted_products.first()
     most_viewed_product = active_products.order_by("-views_count").first()
@@ -92,7 +93,11 @@ DEFAULT_LIST_SORT = "newest"
 
 
 def _filtered_products(request):
-    qs = Product.objects.filter(status=Product.Status.ACTIVE).select_related("brand", "category")
+    qs = (
+        Product.objects.filter(status=Product.Status.ACTIVE)
+        .select_related("brand", "category")
+        .prefetch_related("images")
+    )
 
     query = request.GET.get("q", "").strip()
     if query:
@@ -175,7 +180,15 @@ def _variant_groups(product):
 def _gallery_slides(product):
     images = list(product.images.all().order_by("order"))
     if images:
-        return [{"type": "image", "url": img.image.url, "alt": img.alt or product.name} for img in images]
+        return [
+            {
+                "type": "image",
+                "url": img.image.url,
+                "thumb_url": img.thumbnail.url if img.thumbnail else img.image.url,
+                "alt": img.alt or product.name,
+            }
+            for img in images
+        ]
 
     base_tint = product.tint or "#eceef3"
     pseudo_tints = [base_tint, "#f7f3fe", "#eef0f6", "#f6efe2"]
@@ -211,7 +224,8 @@ def product_detail(request, slug):
     related_products = (
         Product.objects.filter(status=Product.Status.ACTIVE, category=product.category)
         .exclude(pk=product.pk)
-        .select_related("brand")[:4]
+        .select_related("brand")
+        .prefetch_related("images")[:4]
     )
 
     context = {

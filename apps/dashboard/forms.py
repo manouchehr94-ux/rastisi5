@@ -190,3 +190,29 @@ class SmsTestForm(forms.Form):
         if not PHONE_RE.match(phone):
             raise forms.ValidationError("شماره موبایل معتبر نیست (مثال: 09123456789)")
         return phone
+
+
+class MultiFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultiImageField(forms.FileField):
+    """فیلد آپلود چندتایی — الگوی مستندشده‌ی Django برای FileField چندفایلی."""
+
+    widget = MultiFileInput
+
+    def clean(self, data, initial=None):
+        single_file_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            return [single_file_clean(item, initial) for item in data]
+        return single_file_clean(data, initial)
+
+
+class ProductImageUploadForm(forms.Form):
+    images = MultiImageField(
+        label="تصاویر", required=False, widget=MultiFileInput(attrs={"multiple": True, "accept": ".jpg,.jpeg,.png,.webp"})
+    )
+
+
+class ProductImageAltForm(forms.Form):
+    alt = forms.CharField(label="متن جایگزین", max_length=200, required=False)

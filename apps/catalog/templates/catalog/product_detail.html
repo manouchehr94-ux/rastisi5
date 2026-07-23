@@ -44,7 +44,7 @@
       <div class="thumbs">
         {% for slide in gallery_slides %}
         <button type="button" class="th" :class="{ active: active === {{ forloop.counter0 }} }" @click="active = {{ forloop.counter0 }}"
-                style="{% if slide.type == 'image' %}background-image:url('{{ slide.url }}');background-size:cover{% else %}background:{{ slide.tint }}{% endif %}">
+                style="{% if slide.type == 'image' %}background-image:url('{{ slide.thumb_url }}');background-size:cover{% else %}background:{{ slide.tint }}{% endif %}">
           {% if slide.type == "emoji" %}{{ slide.emoji }}{% endif %}
         </button>
         {% endfor %}

@@ -1,15 +1,32 @@
+import shutil
+import tempfile
 from io import StringIO
 
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from apps.blog.models import BlogPost
-from apps.catalog.models import Brand, Category, Product
+from apps.catalog.models import Brand, Category, Product, ProductImage
 from apps.customers.models import Customer
 from apps.orders.models import Order, PaymentGateway, ShippingMethod
 
 
 class SeedShopCommandTests(TestCase):
+    """MEDIA_ROOT موقت تا فایل‌های تصویر نمونه در media/ واقعی پروژه نوشته نشوند."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._media_root = tempfile.mkdtemp()
+        cls._media_override = override_settings(MEDIA_ROOT=cls._media_root)
+        cls._media_override.enable()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._media_override.disable()
+        shutil.rmtree(cls._media_root, ignore_errors=True)
+        super().tearDownClass()
+
     def _run(self):
         call_command("seed_shop", stdout=StringIO())
 
@@ -51,3 +68,21 @@ class SeedShopCommandTests(TestCase):
         self.assertEqual(Customer.objects.count(), 5)
         self.assertEqual(Order.objects.count(), 6)
         self.assertEqual(BlogPost.objects.count(), 4)
+
+    def test_seed_creates_sample_images_for_selected_products(self):
+        self._run()
+        self.assertEqual(ProductImage.objects.count(), 4)
+        for image in ProductImage.objects.all():
+            self.assertTrue(image.is_cover)
+            self.assertTrue(image.image.name)
+            self.assertTrue(image.thumbnail.name)
+
+    def test_seed_leaves_other_products_without_images_for_fallback(self):
+        self._run()
+        products_without_images = Product.objects.exclude(images__isnull=False).count()
+        self.assertEqual(products_without_images, Product.objects.count() - 4)
+
+    def test_seed_image_creation_is_idempotent(self):
+        self._run()
+        self._run()
+        self.assertEqual(ProductImage.objects.count(), 4)

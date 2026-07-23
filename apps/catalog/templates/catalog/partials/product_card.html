@@ -1,7 +1,13 @@
 {% load persian catalog_extras %}
 <a class="pcard" href="{% url 'catalog:product-detail' product.slug %}">
   <div class="img" style="background:{{ product.tint|default:'#eceef3' }}">
+    {% if product.cover_image %}
+    <img class="cover-photo" src="{{ product.cover_image.thumbnail.url|default:product.cover_image.image.url }}"
+         alt="{{ product.cover_image.alt|default:product.name }}"
+         style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+    {% else %}
     <span class="emo">{{ product.icon|default:"🛍️" }}</span>
+    {% endif %}
     {% include "customers/partials/wishlist_button.html" %}
     <div class="badges">
       {% if product.discount_percent > 0 %}<span class="pill pill-disc">{{ product.discount_percent|fa_number }}٪</span>{% endif %}

@@ -25,6 +25,7 @@ def wishlist_list(request):
         items = (
             Wishlist.objects.filter(customer=request.user.customer_profile)
             .select_related("product", "product__brand")
+            .prefetch_related("product__images")
             .order_by("-created_at")
         )
         products = [item.product for item in items]

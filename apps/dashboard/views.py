@@ -7,7 +7,15 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
-from apps.catalog.models import Category, Product
+from apps.catalog.models import Category, Product, ProductImage
+from apps.catalog.services.product_image_service import (
+    ProductImageError,
+    add_product_image,
+    delete_product_image,
+    move_product_image,
+    set_cover_image,
+    update_image_alt,
+)
 from apps.core.models import ShopSettings
 from apps.customers.models import Customer
 from apps.orders.models import Order, Transaction
@@ -22,6 +30,8 @@ from .forms import (
     FinanceSettingsForm,
     MainCategoryForm,
     ProductForm,
+    ProductImageAltForm,
+    ProductImageUploadForm,
     ShopInfoForm,
     SmsConnectionForm,
     SmsTemplateForm,
@@ -170,6 +180,109 @@ def product_delete(request, pk):
     response = render(request, "dashboard/partials/products_table_inner.html", _product_list_context(request))
     response["HX-Trigger"] = json.dumps({"toast": {"message": f"کالای «{name}» حذف شد", "type": "info"}})
     return response
+
+
+# ------------------------------------------------------- تصاویر کالا
+
+
+@staff_required
+def product_images(request, pk):
+    product = get_object_or_404(Product, pk=pk)
+    return render(request, "dashboard/partials/product_images_modal.html", {
+        "product": product, "upload_form": ProductImageUploadForm(),
+    })
+
+
+def _image_list_response(request, product, *, refresh_table=False):
+    list_html = render_to_string(
+        "dashboard/partials/product_images_list.html", {"product": product}, request=request,
+    )
+    if not refresh_table:
+        return HttpResponse(list_html)
+    table_html = render_to_string(
+        "dashboard/partials/products_table_inner.html", _product_list_context(request), request=request,
+    )
+    oob_html = render_to_string(
+        "dashboard/partials/oob_wrap.html", {"target_id": "productsTableWrap", "inner_html": table_html},
+    )
+    return HttpResponse(list_html + oob_html)
+
+
+@require_POST
+@staff_required
+def product_image_upload(request, pk):
+    product = get_object_or_404(Product, pk=pk)
+    form = ProductImageUploadForm(request.POST, request.FILES)
+    errors = []
+    added = 0
+
+    if form.is_valid():
+        files = form.cleaned_data.get("images") or []
+        if not files:
+            errors.append("لطفاً حداقل یک تصویر انتخاب کنید.")
+        for file in files:
+            try:
+                add_product_image(product, file)
+                added += 1
+            except ProductImageError as exc:
+                errors.append(f"{file.name}: {exc}")
+    else:
+        errors.append("فایل انتخاب‌شده معتبر نیست.")
+
+    if not errors:
+        toast = {"message": "تصویر با موفقیت اضافه شد", "type": "ok"}
+    elif added:
+        toast = {"message": f"{added} تصویر اضافه شد؛ {errors[0]}", "type": "info"}
+    else:
+        toast = {"message": errors[0], "type": "error"}
+
+    response = _image_list_response(request, product, refresh_table=True)
+    response["HX-Trigger"] = json.dumps({"toast": toast})
+    return response
+
+
+@require_POST
+@staff_required
+def product_image_delete(request, pk, image_id):
+    product = get_object_or_404(Product, pk=pk)
+    image = get_object_or_404(ProductImage, pk=image_id, product=product)
+    delete_product_image(image)
+    response = _image_list_response(request, product, refresh_table=True)
+    response["HX-Trigger"] = json.dumps({"toast": {"message": "تصویر حذف شد", "type": "info"}})
+    return response
+
+
+@require_POST
+@staff_required
+def product_image_set_cover(request, pk, image_id):
+    product = get_object_or_404(Product, pk=pk)
+    try:
+        set_cover_image(product, image_id)
+    except ProductImageError:
+        pass
+    return _image_list_response(request, product, refresh_table=True)
+
+
+@require_POST
+@staff_required
+def product_image_move(request, pk, image_id):
+    product = get_object_or_404(Product, pk=pk)
+    image = get_object_or_404(ProductImage, pk=image_id, product=product)
+    direction = request.POST.get("direction", "")
+    if direction in ("up", "down"):
+        move_product_image(image, direction)
+    return _image_list_response(request, product, refresh_table=False)
+
+
+@require_POST
+@staff_required
+def product_image_alt_update(request, pk, image_id):
+    product = get_object_or_404(Product, pk=pk)
+    image = get_object_or_404(ProductImage, pk=image_id, product=product)
+    form = ProductImageAltForm(request.POST)
+    if form.is_valid():
+        update_image_alt(image, form.cleaned_data["alt"])
+    return _image_list_response(request, product, refresh_table=False)
 
 
 # --------------------------------------------------------- دسته‌بندی‌ها

@@ -232,6 +232,17 @@ body.admin-body{
 .x-btn{width:32px;height:32px;border-radius:9px;border:0;background:var(--bg);color:var(--muted);font-size:15px;display:grid;place-items:center}
 .x-btn:hover{background:var(--red-soft);color:var(--red)}
 
+/* مدیریت تصاویر کالا */
+.img-manage-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px}
+.img-manage-item{border:1px solid var(--border);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:6px;background:var(--bg)}
+.img-manage-item.is-cover{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.img-manage-thumb{position:relative;width:100%;aspect-ratio:1/1;border-radius:9px;background-size:cover;background-position:center;background-color:var(--card)}
+.img-manage-cover-badge{position:absolute;top:6px;left:6px}
+.img-manage-alt{font-size:11px;padding:6px 8px}
+.img-manage-actions{display:flex;gap:4px;flex-wrap:wrap}
+.img-manage-actions .btn{flex:1;padding:4px 6px;font-size:12px}
+.img-manage-empty{grid-column:1/-1;text-align:center;color:var(--muted);font-size:12.5px;padding:24px 0}
+
 /* toast */
 .toasts{position:fixed;bottom:22px;left:22px;z-index:200;display:flex;flex-direction:column;gap:10px}
 .toast{background:var(--card);border:1px solid var(--border);border-right:4px solid var(--green);border-radius:12px;padding:12px 16px;font-size:13px;font-weight:600;box-shadow:var(--shadow);display:flex;gap:9px;align-items:center;animation:adminSlideIn .3s ease;min-width:230px}

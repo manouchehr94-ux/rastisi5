@@ -1,10 +1,16 @@
+import shutil
+import tempfile
 from decimal import Decimal
+from io import BytesIO
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from PIL import Image
 
 from apps.catalog.models import Category, Product, ProductVariant, Review, Vendor
+from apps.catalog.services.product_image_service import add_product_image
 from apps.customers.models import Customer
 
 User = get_user_model()
@@ -147,3 +153,42 @@ class ProductReviewCreateTests(TestCase):
             self.url, {"rating": "5", "text": "متن نظر"}, HTTP_HX_REQUEST="true"
         )
         self.assertNotContains(response, "<header")
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ProductDetailGalleryTests(TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        from django.conf import settings
+
+        shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-pdp-gallery")
+        self.category = Category.objects.create(name="دسته", slug="cat-pdp-gallery")
+        self.product = Product.objects.create(
+            vendor=self.vendor, category=self.category, name="کالای گالری", slug="gallery-product",
+            sku="SKU-GAL1", price=Decimal("100000"), icon="🎁", tint="#eceef3",
+        )
+
+    def _make_image_file(self, name="photo.jpg"):
+        buffer = BytesIO()
+        Image.new("RGB", (400, 400), "#ff0000").save(buffer, format="JPEG")
+        return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/jpeg")
+
+    def test_no_images_falls_back_to_emoji_slides(self):
+        response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+        self.assertContains(response, "🎁")
+        self.assertNotContains(response, '<img x-show')
+
+    def test_real_images_render_in_gallery(self):
+        add_product_image(self.product, self._make_image_file(), alt="عکس کالای گالری")
+        response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+        self.assertContains(response, "عکس کالای گالری")
+        self.assertContains(response, '<img x-show')
+
+    def test_gallery_thumbnail_strip_uses_thumbnail_url(self):
+        image = add_product_image(self.product, self._make_image_file())
+        response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+        self.assertContains(response, image.thumbnail.url)

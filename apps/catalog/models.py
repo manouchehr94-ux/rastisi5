@@ -129,12 +129,25 @@ class Product(TimeStampedModel):
         factor = (Decimal(100) - self.discount_percent) / Decimal(100)
         return (self.price * factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
+    @property
+    def cover_image(self):
+        """تصویر کاور کالا برای کارت محصول — از cache مربوط به prefetch_related('images') استفاده می‌کند تا N+1 پیش نیاید."""
+        images = list(self.images.all())
+        if not images:
+            return None
+        for img in images:
+            if img.is_cover:
+                return img
+        return images[0]
+
 
 class ProductImage(TimeStampedModel):
     product = models.ForeignKey(Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="images")
     image = models.ImageField("تصویر", upload_to="products/gallery/")
+    thumbnail = models.ImageField("تصویر بندانگشتی", upload_to="products/thumbnails/", null=True, blank=True)
     alt = models.CharField("متن جایگزین", max_length=200, blank=True)
     order = models.PositiveIntegerField("ترتیب", default=0)
+    is_cover = models.BooleanField("تصویر اصلی (کاور)", default=False)
 
     class Meta:
         verbose_name = "تصویر کالا"

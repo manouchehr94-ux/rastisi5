@@ -52,7 +52,11 @@ PRODUCT_STATUS_FILTERS = [
 
 
 def filtered_products(*, q: str = "", category_id: str = "", status: str = ""):
-    qs = Product.objects.select_related("category", "category__parent").order_by("-created_at")
+    qs = (
+        Product.objects.select_related("category", "category__parent")
+        .prefetch_related("images")
+        .order_by("-created_at")
+    )
     if q:
         qs = qs.filter(models.Q(name__icontains=q) | models.Q(sku__icontains=q))
     if category_id:

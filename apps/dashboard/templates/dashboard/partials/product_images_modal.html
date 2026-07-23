@@ -1,0 +1,23 @@
+{% load persian %}
+<div class="modal-head">
+  <h3>مدیریت تصاویر — {{ product.name }}</h3>
+  <button type="button" class="x-btn" @click="modalOpen = false">✕</button>
+</div>
+<div class="modal-body">
+  <form hx-post="{% url 'dashboard:product-image-upload' product.pk %}" hx-target="#productImagesList" hx-swap="outerHTML"
+        hx-encoding="multipart/form-data">
+    <div class="form-group">
+      <label>افزودن تصویر جدید (می‌توانید چند فایل را همزمان انتخاب کنید)</label>
+      <input class="inp" type="file" name="images" multiple accept=".jpg,.jpeg,.png,.webp">
+    </div>
+    <p style="font-size:11.5px;color:var(--muted);margin-bottom:10px">فرمت‌های مجاز: jpg، png، webp — حداکثر ۵ مگابایت برای هر تصویر.</p>
+    <button type="submit" class="btn btn-primary btn-sm">آپلود تصویر</button>
+  </form>
+
+  <hr style="margin:16px 0;border-color:var(--border)">
+
+  {% include "dashboard/partials/product_images_list.html" %}
+</div>
+<div class="modal-foot">
+  <button type="button" class="btn" @click="modalOpen = false">بستن</button>
+</div>
