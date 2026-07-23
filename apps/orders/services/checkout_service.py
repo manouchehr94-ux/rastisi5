@@ -6,12 +6,17 @@
 انجام می‌گیرد؛ این ماژول فقط انتخاب‌های کاربر را حل و کانتکست صفحه را می‌سازد.
 """
 
+import logging
 from decimal import Decimal
+
+from django.db import transaction
 
 from apps.cart.models import Coupon
 from apps.cart.services.pricing import cart_totals, coupon_is_applicable
 from apps.customers.models import Address
 from apps.orders.models import PaymentGateway, ShippingMethod
+
+logger = logging.getLogger(__name__)
 
 SESSION_KEY = "checkout"
 
@@ -139,7 +144,12 @@ def _resolve_or_create_address(customer, address_data: dict) -> Address:
 
 
 def finalize_order(request, cart, customer):
-    """سفارش را از روی سبد و آدرس ذخیره‌شده در session می‌سازد، سبد را خالی و session را پاک می‌کند."""
+    """سفارش را از روی سبد و آدرس ذخیره‌شده در session می‌سازد، سبد را خالی و session را پاک می‌کند.
+
+    تمام عملیات دیتابیسی (ساخت آدرس، ساخت سفارش، کاهش موجودی، پاک‌سازی سبد)
+    در یک تراکنش اتمیک انجام می‌شود. در صورت هر خطایی، همه‌ی تغییرات دیتابیسی
+    رول‌بک می‌شوند و سبد و نشست کاربر حفظ می‌شود.
+    """
     from apps.orders.services.order_service import create_order_from_cart
 
     if cart is None or not cart.items.exists():
@@ -158,18 +168,20 @@ def finalize_order(request, cart, customer):
         raise CheckoutError("هیچ درگاه پرداخت فعالی موجود نیست")
 
     coupon = get_applied_coupon(request, cart)
-    address = _resolve_or_create_address(customer, address_data)
 
     try:
-        order = create_order_from_cart(
-            cart, customer=customer, vendor=vendor, address=address,
-            shipping_method=shipping_method, payment_gateway=payment_gateway,
-            coupon=coupon, note=address_data.get("note", ""),
-        )
+        with transaction.atomic():
+            address = _resolve_or_create_address(customer, address_data)
+            order = create_order_from_cart(
+                cart, customer=customer, vendor=vendor, address=address,
+                shipping_method=shipping_method, payment_gateway=payment_gateway,
+                coupon=coupon, note=address_data.get("note", ""),
+            )
+            cart.items.all().delete()
     except ValueError as exc:
         raise CheckoutError(str(exc)) from exc
 
-    cart.items.all().delete()
+    # Session clearing happens AFTER successful database commit
     request.session.pop(SESSION_KEY, None)
     return order
 
