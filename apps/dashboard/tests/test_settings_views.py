@@ -45,14 +45,12 @@ class SettingsHomeViewTests(SettingsViewsTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "اتصال سیستم پیامک")
 
-    def test_appearance_section_shows_placeholder(self):
+    def test_appearance_section_shows_visual_identity_form(self):
         response = self.client.get(reverse("dashboard:settings") + "?section=appearance")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "به‌زودی")
-        # No functional Save button in the appearance content section
-        content = response.content.decode()
-        # The appearance partial itself contains no submit button
-        self.assertIn("شخصی‌سازی ظاهر فروشگاه", content)
+        self.assertContains(response, "هویت بصری")
+        self.assertContains(response, 'enctype="multipart/form-data"')
+        self.assertContains(response, "رنگ اصلی")
 
     def test_invalid_section_falls_back_to_general(self):
         response = self.client.get(reverse("dashboard:settings") + "?section=nonexistent")
@@ -263,3 +261,108 @@ class SettingsGeneralFormTests(SettingsViewsTestCase):
         content = response.content.decode()
         self.assertNotIn('type="hidden" name="name"', content)
         self.assertNotIn('type="hidden" name="tagline"', content)
+
+
+
+class VisualIdentityTests(SettingsViewsTestCase):
+    """Tests for visual identity settings: colors, logo, favicon."""
+
+    def test_valid_colors_save(self):
+        response = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#1F2937",
+            "accent_color": "#C59A45",
+        })
+        self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
+        shop = ShopSettings.load()
+        self.assertEqual(shop.primary_color, "#1F2937")
+        self.assertEqual(shop.accent_color, "#C59A45")
+
+    def test_lowercase_hex_normalized_to_uppercase(self):
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#aabbcc",
+            "accent_color": "#112233",
+        })
+        shop = ShopSettings.load()
+        self.assertEqual(shop.primary_color, "#AABBCC")
+        self.assertEqual(shop.accent_color, "#112233")
+
+    def test_short_hex_rejected(self):
+        response = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#FFF",
+            "accent_color": "#000000",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "#RRGGBB")
+
+    def test_non_hex_rejected(self):
+        response = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "red",
+            "accent_color": "#000000",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "#RRGGBB")
+
+    def test_css_function_rejected(self):
+        response = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "rgb(255,0,0)",
+            "accent_color": "#000000",
+        })
+        self.assertEqual(response.status_code, 200)
+
+    def test_script_payload_rejected(self):
+        response = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "<script>",
+            "accent_color": "#000000",
+        })
+        self.assertEqual(response.status_code, 200)
+        # Malicious value not stored
+        shop = ShopSettings.load()
+        self.assertNotEqual(shop.primary_color, "<script>")
+
+    def test_appearance_save_redirects_to_appearance_section(self):
+        response = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9",
+            "accent_color": "#FF4D77",
+        })
+        self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
+
+    def test_appearance_validation_error_stays_on_appearance(self):
+        response = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "invalid",
+            "accent_color": "invalid",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "رنگ‌بندی")
+
+    def test_storefront_uses_configured_colors(self):
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#112233",
+            "accent_color": "#445566",
+        })
+        response = self.client.get(reverse("catalog:home"))
+        self.assertContains(response, "--brand-primary:#112233")
+        self.assertContains(response, "--brand-accent:#445566")
+
+    def test_empty_logo_uses_fallback(self):
+        """When no logo is set, storefront uses the SVG mark fallback."""
+        response = self.client.get(reverse("catalog:home"))
+        self.assertContains(response, "class=\"mark\"")
+
+    def test_empty_favicon_uses_static_fallback(self):
+        """When no favicon is set, static favicon.ico is referenced."""
+        response = self.client.get(reverse("catalog:home"))
+        self.assertContains(response, "favicon.ico")
+
+    def test_default_colors_are_valid(self):
+        shop = ShopSettings.load()
+        import re
+        self.assertRegex(shop.primary_color, r"^#[0-9A-Fa-f]{6}$")
+        self.assertRegex(shop.accent_color, r"^#[0-9A-Fa-f]{6}$")
+
+    def test_anonymous_denied(self):
+        self.client.logout()
+        response = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#000000", "accent_color": "#000000",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)

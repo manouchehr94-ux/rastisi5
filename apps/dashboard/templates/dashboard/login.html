@@ -35,7 +35,11 @@
 <div class="login-page">
   <div class="login-card">
     <div class="login-brand">
+      {% if SHOP_LOGO %}
+      <img src="{{ SHOP_LOGO.url }}" alt="{{ SHOP_NAME|default:"فروشگاه" }}" style="max-height:46px;max-width:160px">
+      {% else %}
       <div class="logo">{{ SHOP_NAME|default:"D"|slice:":1" }}</div>
+      {% endif %}
       <div>
         <b>{{ SHOP_NAME|default:"فروشگاه" }}</b>
         <span>پنل مدیریت فروشگاه</span>

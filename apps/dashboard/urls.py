@@ -49,6 +49,7 @@ urlpatterns = [
     path("settings/", views.settings_home, name="settings"),
     path("settings/shop-info/", views.settings_shop_info, name="settings-shop-info"),
     path("settings/finance/", views.settings_finance, name="settings-finance"),
+    path("settings/appearance/", views.settings_appearance, name="settings-appearance"),
     path("settings/gateways/<int:pk>/toggle/", views.settings_gateway_toggle, name="settings-gateway-toggle"),
     path("settings/shipping/<int:pk>/toggle/", views.settings_shipping_toggle, name="settings-shipping-toggle"),
 

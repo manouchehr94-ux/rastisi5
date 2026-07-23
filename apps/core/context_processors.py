@@ -13,4 +13,9 @@ def shop_settings(request):
         "SHOP_DESCRIPTION": shop.description,
         "SHOP_FREE_SHIPPING_THRESHOLD": shop.free_shipping_threshold,
         "SHOP_TAX_PERCENT": shop.tax_percent,
+        # هویت بصری
+        "SHOP_LOGO": shop.logo if shop.logo else None,
+        "SHOP_FAVICON": shop.favicon if shop.favicon else None,
+        "SHOP_PRIMARY_COLOR": shop.primary_color or "#6D28D9",
+        "SHOP_ACCENT_COLOR": shop.accent_color or "#FF4D77",
     }

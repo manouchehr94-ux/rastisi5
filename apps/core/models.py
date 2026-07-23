@@ -41,6 +41,12 @@ class ShopSettings(TimeStampedModel):
     melipayamak_username = models.CharField("نام کاربری ملی‌پیامک", max_length=100, blank=True)
     melipayamak_password = models.CharField("رمز عبور ملی‌پیامک", max_length=100, blank=True)
 
+    # --- هویت بصری ---
+    logo = models.ImageField("لوگوی فروشگاه", upload_to="shop/branding/", blank=True)
+    favicon = models.ImageField("فاوآیکون", upload_to="shop/branding/", blank=True)
+    primary_color = models.CharField("رنگ اصلی", max_length=7, default="#6D28D9")
+    accent_color = models.CharField("رنگ مکمل", max_length=7, default="#FF4D77")
+
     class Meta:
         verbose_name = "تنظیمات فروشگاه"
         verbose_name_plural = "تنظیمات فروشگاه"
