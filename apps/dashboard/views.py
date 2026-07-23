@@ -627,9 +627,26 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
     }
 
 
+SETTINGS_SECTIONS = [
+    ("general", "عمومی", "🏪", "اطلاعات پایه و تماس فروشگاه"),
+    ("payments", "پرداخت و مالی", "💰", "درگاه‌ها و تنظیمات مالیات"),
+    ("shipping", "ارسال", "🚚", "روش‌ها و شرایط ارسال"),
+    ("sms", "پیامک", "📲", "اتصال و قالب‌های پیامک"),
+    ("appearance", "ظاهر فروشگاه", "🎨", "لوگو، رنگ‌ها و قالب"),
+]
+
+VALID_SECTION_KEYS = {s[0] for s in SETTINGS_SECTIONS}
+
+
 @staff_required
 def settings_home(request):
-    return render(request, "dashboard/settings.html", _settings_context(request))
+    section = request.GET.get("section", "general")
+    if section not in VALID_SECTION_KEYS:
+        section = "general"
+    context = _settings_context(request)
+    context["sections"] = SETTINGS_SECTIONS
+    context["active_section"] = section
+    return render(request, "dashboard/settings.html", context)
 
 
 @require_POST
@@ -642,8 +659,11 @@ def settings_shop_info(request):
             setattr(shop, field, form.cleaned_data[field])
         shop.save()
         messages.success(request, "اطلاعات فروشگاه ذخیره شد")
-        return redirect("dashboard:settings")
-    return render(request, "dashboard/settings.html", _settings_context(request, shop_form=form))
+        return redirect("/admin-panel/settings/?section=general")
+    context = _settings_context(request, shop_form=form)
+    context["sections"] = SETTINGS_SECTIONS
+    context["active_section"] = "general"
+    return render(request, "dashboard/settings.html", context)
 
 
 @require_POST
@@ -656,8 +676,11 @@ def settings_finance(request):
         shop.free_shipping_threshold = form.cleaned_data["free_shipping_threshold"]
         shop.save()
         messages.success(request, "تنظیمات مالی ذخیره شد")
-        return redirect("dashboard:settings")
-    return render(request, "dashboard/settings.html", _settings_context(request, finance_form=form))
+        return redirect("/admin-panel/settings/?section=payments")
+    context = _settings_context(request, finance_form=form)
+    context["sections"] = SETTINGS_SECTIONS
+    context["active_section"] = "payments"
+    return render(request, "dashboard/settings.html", context)
 
 
 @require_POST

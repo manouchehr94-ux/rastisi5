@@ -23,8 +23,53 @@ class SettingsHomeViewTests(SettingsViewsTestCase):
     def test_renders_settings_page(self):
         response = self.client.get(reverse("dashboard:settings"))
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "اطلاعات فروشگاه")
+
+    def test_default_section_is_general(self):
+        response = self.client.get(reverse("dashboard:settings"))
+        self.assertContains(response, "اطلاعات فروشگاه")
+
+    def test_payments_section(self):
+        response = self.client.get(reverse("dashboard:settings") + "?section=payments")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "درگاه‌های پرداخت")
         self.assertContains(response, "زرین‌پال")
+
+    def test_shipping_section(self):
+        response = self.client.get(reverse("dashboard:settings") + "?section=shipping")
+        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "پست پیشتاز")
+
+    def test_sms_section(self):
+        response = self.client.get(reverse("dashboard:settings") + "?section=sms")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "اتصال سیستم پیامک")
+
+    def test_appearance_section_shows_placeholder(self):
+        response = self.client.get(reverse("dashboard:settings") + "?section=appearance")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "به‌زودی")
+        # No functional Save button in the appearance content section
+        content = response.content.decode()
+        # The appearance partial itself contains no submit button
+        self.assertIn("شخصی‌سازی ظاهر فروشگاه", content)
+
+    def test_invalid_section_falls_back_to_general(self):
+        response = self.client.get(reverse("dashboard:settings") + "?section=nonexistent")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "اطلاعات فروشگاه")
+
+    def test_navigation_shows_all_sections(self):
+        response = self.client.get(reverse("dashboard:settings"))
+        self.assertContains(response, "عمومی")
+        self.assertContains(response, "پرداخت و مالی")
+        self.assertContains(response, "ارسال")
+        self.assertContains(response, "پیامک")
+        self.assertContains(response, "ظاهر فروشگاه")
+
+    def test_active_section_indicated(self):
+        response = self.client.get(reverse("dashboard:settings") + "?section=shipping")
+        self.assertContains(response, 'aria-current="page"')
 
     def test_anonymous_denied(self):
         self.client.logout()
@@ -39,7 +84,7 @@ class SettingsShopInfoViewTests(SettingsViewsTestCase):
             "name": "فروشگاه جدید", "tagline": "شعار جدید", "contact_phone": "021-1111",
             "contact_email": "new@example.com", "contact_address": "آدرس جدید", "description": "توضیح",
         })
-        self.assertRedirects(response, reverse("dashboard:settings"))
+        self.assertRedirects(response, "/admin-panel/settings/?section=general")
         shop = ShopSettings.load()
         self.assertEqual(shop.name, "فروشگاه جدید")
         self.assertEqual(shop.contact_email, "new@example.com")
@@ -65,7 +110,7 @@ class SettingsFinanceViewTests(SettingsViewsTestCase):
         response = self.client.post(reverse("dashboard:settings-finance"), {
             "tax_percent": "۷", "free_shipping_threshold": "۷۰۰۰۰۰",
         })
-        self.assertRedirects(response, reverse("dashboard:settings"))
+        self.assertRedirects(response, "/admin-panel/settings/?section=payments")
         shop = ShopSettings.load()
         self.assertEqual(shop.tax_percent, Decimal("7"))
         self.assertEqual(shop.free_shipping_threshold, Decimal("700000"))
@@ -96,7 +141,7 @@ class SettingsFinanceViewTests(SettingsViewsTestCase):
             "tax_percent": "150", "free_shipping_threshold": "500000",
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "حداکثر")
+        self.assertContains(response, "درگاه‌های پرداخت")  # Stays on payments section
 
 
 class SettingsGatewayToggleViewTests(SettingsViewsTestCase):

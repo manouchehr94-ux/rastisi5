@@ -1,0 +1,53 @@
+{% load persian %}
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3>📲 اتصال سیستم پیامک</h3><span class="hint">تنظیمات ارائه‌دهنده و اعتبارنامه‌ها</span></div>
+  <div class="card-body">
+    <form method="post" action="{% url 'dashboard:settings-sms-connection' %}">
+      {% csrf_token %}
+      <div class="form-group" style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);padding:12px 14px;border-radius:12px">
+        <div><b style="font-size:13px">فعال‌سازی سیستم پیامک</b><div style="font-size:11.5px;color:var(--muted)">در صورت خاموش بودن، هیچ پیامکی (حتی کد یکبار مصرف) ارسال نمی‌شود</div></div>
+        <label class="switch">{{ sms_form.sms_enabled }}<span></span></label>
+      </div>
+      <div class="form-group" style="margin-top:14px">
+        <label>درگاه پیامک</label>
+        {{ sms_form.sms_backend }}
+      </div>
+      <div class="form-group"><label>شماره‌ی فرستنده</label>{{ sms_form.sms_sender_number }}</div>
+      <div class="form-row">
+        <div class="form-group"><label>نام کاربری ملی‌پیامک</label>{{ sms_form.melipayamak_username }}</div>
+        <div class="form-group"><label>رمز عبور ملی‌پیامک</label>{{ sms_form.melipayamak_password }}</div>
+      </div>
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات اتصال</button>
+    </form>
+
+    <div style="margin-top:18px;padding-top:16px;border-top:1px dashed var(--border)">
+      <b style="font-size:12.5px;display:block;margin-bottom:8px">ارسال پیامک آزمایشی</b>
+      <form method="post" action="{% url 'dashboard:sms-test-send' %}" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:160px">
+          {{ sms_test_form.phone }}
+          {% for error in sms_test_form.phone.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
+        </div>
+        <select class="inp" name="event_key" style="width:170px">
+          {% for row in sms_template_rows %}
+          <option value="{{ row.template.event_key }}">{{ row.template.title }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn">ارسال آزمایشی</button>
+      </form>
+    </div>
+
+    <div style="margin-top:14px">
+      <a class="btn btn-sm" href="{% url 'dashboard:sms-log-list' %}">📋 مشاهده‌ی گزارش کامل پیامک‌ها</a>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>✉️ قالب‌های پیامک رویدادها</h3><span class="hint">ویرایش متن پیامک‌های خودکار</span></div>
+  <div class="card-body" style="max-height:520px;overflow-y:auto">
+    <div id="smsTemplatesWrap">
+      {% include "dashboard/partials/sms_templates_table.html" %}
+    </div>
+  </div>
+</div>
