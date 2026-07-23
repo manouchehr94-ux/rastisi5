@@ -51,7 +51,8 @@ class ProductImagesModalViewTests(ProductImageViewsTestCase):
     def test_anonymous_denied(self):
         self.client.logout()
         response = self.client.get(reverse("dashboard:product-images", args=[self.product.pk]))
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)
 
 
 class ProductImageUploadViewTests(ProductImageViewsTestCase):
@@ -105,7 +106,8 @@ class ProductImageUploadViewTests(ProductImageViewsTestCase):
             reverse("dashboard:product-image-upload", args=[self.product.pk]),
             {"images": [_make_image_file()]},
         )
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)
         self.assertEqual(self.product.images.count(), 0)
 
 

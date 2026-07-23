@@ -44,4 +44,5 @@ class SalesChartPartialViewTests(TestCase):
     def test_anonymous_cannot_fetch_chart(self):
         self.client.logout()
         response = self.client.get(reverse("dashboard:sales-chart"), {"range": "week"})
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)

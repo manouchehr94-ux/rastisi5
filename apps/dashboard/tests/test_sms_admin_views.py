@@ -40,7 +40,8 @@ class SettingsSmsConnectionViewTests(SmsAdminViewsTestCase):
     def test_anonymous_denied(self):
         self.client.logout()
         response = self.client.post(reverse("dashboard:settings-sms-connection"), {})
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)
 
 
 class SmsTemplateFormViewTests(SmsAdminViewsTestCase):
@@ -136,4 +137,5 @@ class SmsLogListViewTests(SmsAdminViewsTestCase):
     def test_anonymous_denied(self):
         self.client.logout()
         response = self.client.get(reverse("dashboard:sms-log-list"))
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)

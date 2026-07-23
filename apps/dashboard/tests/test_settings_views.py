@@ -29,7 +29,8 @@ class SettingsHomeViewTests(SettingsViewsTestCase):
     def test_anonymous_denied(self):
         self.client.logout()
         response = self.client.get(reverse("dashboard:settings"))
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)
 
 
 class SettingsShopInfoViewTests(SettingsViewsTestCase):

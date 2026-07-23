@@ -1,0 +1,80 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ورود به پنل مدیریت | {{ SHOP_NAME }}</title>
+<link rel="stylesheet" href="{% static 'css/admin.css' %}">
+<style>
+.login-page{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--sidebar),#0b1020);padding:24px;
+}
+.login-card{
+  background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+  width:100%;max-width:400px;padding:36px 32px;
+}
+.login-brand{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.login-brand .logo{
+  width:46px;height:46px;border-radius:13px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(135deg,var(--primary),var(--primary-2));font-weight:800;font-size:20px;
+  box-shadow:0 6px 16px rgba(99,80,238,.45);
+}
+.login-brand b{font-size:17px;display:block;line-height:1.3}
+.login-brand span{font-size:12px;color:var(--muted);display:block}
+.login-title{font-size:15px;font-weight:700;margin-bottom:20px;color:var(--text)}
+.login-error{
+  background:var(--red-soft);color:var(--red);font-size:12.5px;font-weight:600;
+  padding:10px 14px;border-radius:10px;margin-bottom:16px;display:flex;align-items:center;gap:8px;
+}
+.login-footer{margin-top:22px;text-align:center;font-size:12px;color:var(--muted)}
+.login-footer a{color:var(--primary);font-weight:600}
+</style>
+</head>
+<body class="admin-body">
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="logo">{{ SHOP_NAME|default:"D"|slice:":1" }}</div>
+      <div>
+        <b>{{ SHOP_NAME|default:"فروشگاه" }}</b>
+        <span>پنل مدیریت فروشگاه</span>
+      </div>
+    </div>
+
+    <div class="login-title">ورود به حساب مدیریت</div>
+
+    {% if error %}
+    <div class="login-error">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'dashboard:login' %}{% if next %}?next={{ next }}{% endif %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+
+      <div class="form-group">
+        <label>نام کاربری یا شماره موبایل</label>
+        <input class="inp" type="text" name="username" value="{{ username }}" placeholder="نام کاربری" autofocus autocomplete="username" dir="ltr">
+      </div>
+
+      <div class="form-group">
+        <label>رمز عبور</label>
+        <input class="inp" type="password" name="password" placeholder="رمز عبور" autocomplete="current-password" dir="ltr">
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;margin-top:8px;font-size:14px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+        ورود به پنل مدیریت
+      </button>
+    </form>
+
+    <div class="login-footer">
+      <a href="/">بازگشت به فروشگاه</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>

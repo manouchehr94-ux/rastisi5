@@ -39,7 +39,8 @@ class CustomerListViewTests(CustomerViewsTestCase):
     def test_anonymous_denied(self):
         self.client.logout()
         response = self.client.get(reverse("dashboard:customer-list"))
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)
 
     def test_search_filters_table(self):
         response = self.client.get(reverse("dashboard:customer-table"), {"q": "فرزانه"})
@@ -60,7 +61,8 @@ class CustomerDetailViewTests(CustomerViewsTestCase):
     def test_anonymous_denied(self):
         self.client.logout()
         response = self.client.get(reverse("dashboard:customer-detail", args=[self.customer.pk]))
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)
 
     def test_404_for_unknown_customer(self):
         response = self.client.get(reverse("dashboard:customer-detail", args=[999999]))
