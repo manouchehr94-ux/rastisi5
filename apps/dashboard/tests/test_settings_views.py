@@ -510,3 +510,138 @@ class LogoUploadSecurityTests(SettingsViewsTestCase):
         })
         shop = ShopSettings.load()
         self.assertFalse(shop.logo)
+
+
+
+import tempfile
+
+from django.test import override_settings
+
+_temp_media = tempfile.mkdtemp()
+
+
+@override_settings(MEDIA_ROOT=_temp_media)
+class FaviconUploadSecurityTests(SettingsViewsTestCase):
+    """Upload security tests for favicon with isolated temp media."""
+
+    def _make_favicon(self, fmt="PNG", size=(32, 32)):
+        from io import BytesIO
+        from PIL import Image
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        buf = BytesIO()
+        img = Image.new("RGBA", size, (0, 100, 200, 255))
+        img.save(buf, format=fmt)
+        ext = "png" if fmt == "PNG" else "ico"
+        ct = "image/png" if fmt == "PNG" else "image/x-icon"
+        return SimpleUploadedFile(f"fav.{ext}", buf.getvalue(), content_type=ct)
+
+    def test_valid_png_favicon_saves(self):
+        fav = self._make_favicon("PNG")
+        response = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": fav,
+        })
+        self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
+        shop = ShopSettings.load()
+        self.assertTrue(shop.favicon)
+
+    def test_oversized_favicon_rejected(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        big = SimpleUploadedFile("big.png", b"x" * (600 * 1024), content_type="image/png")
+        response = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": big,
+        })
+        self.assertEqual(response.status_code, 200)
+
+    def test_fake_favicon_content_rejected(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        fake = SimpleUploadedFile("fake.png", b"not an image", content_type="image/png")
+        response = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": fake,
+        })
+        self.assertEqual(response.status_code, 200)
+
+    def test_svg_favicon_rejected(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        svg = SimpleUploadedFile("fav.svg", b"<svg></svg>", content_type="image/svg+xml")
+        response = self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": svg,
+        })
+        self.assertEqual(response.status_code, 200)
+
+    def test_empty_upload_preserves_current_favicon(self):
+        fav = self._make_favicon("PNG")
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": fav,
+        })
+        shop = ShopSettings.load()
+        old_name = shop.favicon.name
+        self.assertTrue(old_name)
+
+        # Submit without file
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77",
+        })
+        shop = ShopSettings.load()
+        self.assertEqual(shop.favicon.name, old_name)
+
+    def test_explicit_removal_clears_favicon(self):
+        fav = self._make_favicon("PNG")
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": fav,
+        })
+        shop = ShopSettings.load()
+        self.assertTrue(shop.favicon)
+
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "remove_favicon": "on",
+        })
+        shop = ShopSettings.load()
+        self.assertFalse(shop.favicon)
+
+    def test_configured_favicon_in_storefront_html(self):
+        fav = self._make_favicon("PNG")
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": fav,
+        })
+        response = self.client.get(reverse("catalog:home"))
+        self.assertContains(response, 'rel="icon"')
+        self.assertContains(response, "shop/branding/")
+
+    def test_fallback_favicon_when_not_configured(self):
+        response = self.client.get(reverse("catalog:home"))
+        self.assertContains(response, "favicon.ico")
+
+
+class ForegroundConsumptionTests(SettingsViewsTestCase):
+    """Tests proving CSS foreground variables are consumed by storefront selectors."""
+
+    def test_light_primary_foreground_in_storefront_html(self):
+        """Light primary → black foreground exposed in HTML."""
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#FFFF00", "accent_color": "#FFFFFF",
+        })
+        response = self.client.get(reverse("catalog:home"))
+        self.assertContains(response, "--brand-primary-fg:#000000")
+        self.assertContains(response, "--brand-accent-fg:#000000")
+
+    def test_dark_primary_foreground_in_storefront_html(self):
+        """Dark primary → white foreground exposed in HTML."""
+        self.client.post(reverse("dashboard:settings-appearance"), {
+            "primary_color": "#1F2937", "accent_color": "#000000",
+        })
+        response = self.client.get(reverse("catalog:home"))
+        self.assertContains(response, "--brand-primary-fg:#FFFFFF")
+        self.assertContains(response, "--brand-accent-fg:#FFFFFF")
+
+    def test_layout_css_consumes_primary_foreground(self):
+        """Verify layout.css uses var(--brand-primary-fg) for key selectors."""
+        import os
+        css_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "core", "static", "css", "layout.css"
+        )
+        with open(css_path) as f:
+            css = f.read()
+        # Key selectors must use the foreground variable
+        self.assertIn("var(--brand-primary-fg", css)
+        self.assertIn("var(--brand-accent-fg", css)

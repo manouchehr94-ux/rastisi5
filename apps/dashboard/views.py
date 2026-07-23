@@ -743,15 +743,16 @@ def settings_appearance(request):
 
         shop.save()
 
-        # پاکسازی فایل‌های قبلی فقط پس از ذخیره‌ی موفق
-        from django.core.files.storage import default_storage
-        if old_logo_name and old_logo_name != shop.logo.name:
-            db_transaction.on_commit(lambda name=old_logo_name: (
-                default_storage.delete(name) if default_storage.exists(name) else None
+        # پاکسازی فایل‌های قبلی فقط پس از ذخیره‌ی موفق (Storage-safe)
+        if old_logo_name and old_logo_name != (shop.logo.name if shop.logo else ""):
+            storage = shop.logo.storage
+            db_transaction.on_commit(lambda n=old_logo_name, s=storage: (
+                s.delete(n) if s.exists(n) else None
             ))
-        if old_favicon_name and old_favicon_name != shop.favicon.name:
-            db_transaction.on_commit(lambda name=old_favicon_name: (
-                default_storage.delete(name) if default_storage.exists(name) else None
+        if old_favicon_name and old_favicon_name != (shop.favicon.name if shop.favicon else ""):
+            storage = shop.favicon.storage
+            db_transaction.on_commit(lambda n=old_favicon_name, s=storage: (
+                s.delete(n) if s.exists(n) else None
             ))
 
         messages.success(request, "هویت بصری فروشگاه ذخیره شد")
