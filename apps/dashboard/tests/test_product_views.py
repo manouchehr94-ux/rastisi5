@@ -33,7 +33,8 @@ class ProductListViewTests(ProductViewsTestCase):
     def test_anonymous_denied(self):
         self.client.logout()
         response = self.client.get(reverse("dashboard:product-list"))
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)
 
     def test_search_filters_table(self):
         response = self.client.get(reverse("dashboard:product-table"), {"q": "گوشی"})

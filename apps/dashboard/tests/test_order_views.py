@@ -39,7 +39,8 @@ class OrderListViewTests(OrderViewsTestCase):
     def test_anonymous_denied(self):
         self.client.logout()
         response = self.client.get(reverse("dashboard:order-list"))
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)
 
     def test_status_filter(self):
         change_order_status(self.order, Order.Status.PROCESSING)
@@ -102,7 +103,8 @@ class OrderDetailViewTests(OrderViewsTestCase):
     def test_anonymous_denied(self):
         self.client.logout()
         response = self.client.get(reverse("dashboard:order-detail", args=[self.order.code]))
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)
 
     def test_404_for_unknown_code(self):
         response = self.client.get(reverse("dashboard:order-detail", args=["DM-00000"]))

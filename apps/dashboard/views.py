@@ -1,6 +1,7 @@
 import json
 
 from django.contrib import messages
+from django.contrib.auth import authenticate, login as auth_login
 from django.db.models import ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -71,6 +72,39 @@ from .services.orders_admin_service import (
 )
 
 VALID_RANGES = {"week", "month", "year"}
+
+
+def admin_login(request):
+    """صفحه‌ی ورود اختصاصی پنل مدیریت — مستقل از فروشگاه."""
+    if request.user.is_authenticated and request.user.is_staff:
+        return redirect(request.GET.get("next", "/admin-panel/"))
+
+    error = ""
+    username = ""
+
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "")
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None and user.is_staff:
+            auth_login(request, user)
+            next_url = request.POST.get("next", request.GET.get("next", "/admin-panel/"))
+            # Prevent open redirect — ensure next is a relative admin path
+            if not next_url.startswith("/admin-panel/"):
+                next_url = "/admin-panel/"
+            return redirect(next_url)
+        elif user is not None and not user.is_staff:
+            error = "شما به پنل مدیریت دسترسی ندارید"
+        else:
+            error = "نام کاربری یا رمز عبور اشتباه است"
+
+    next_url = request.GET.get("next", "/admin-panel/")
+    return render(request, "dashboard/login.html", {
+        "error": error,
+        "username": username,
+        "next": next_url,
+    })
 
 
 @staff_required

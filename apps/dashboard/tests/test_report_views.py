@@ -21,7 +21,8 @@ class ReportListViewTests(ReportViewsTestCase):
     def test_anonymous_denied(self):
         self.client.logout()
         response = self.client.get(reverse("dashboard:report-list"))
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)
 
     def test_range_query_param_selects_range(self):
         response = self.client.get(reverse("dashboard:report-list"), {"range": "7"})
