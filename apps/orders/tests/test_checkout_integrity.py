@@ -113,6 +113,63 @@ class AtomicRollbackTests(_CheckoutFixture):
         # No extra address created
         self.assertEqual(Address.objects.filter(customer=self.customer).count(), 1)
 
+    def test_cart_delete_failure_rolls_back_order_and_address(self):
+        """If an error occurs after Order creation inside the atomic block, everything rolls back.
+
+        This verifies the transaction boundary covers the full block: a DatabaseError
+        or RuntimeError after create_order_from_cart but before commit will roll back
+        Order, Address, OrderItems, and stock mutations.
+        """
+        from apps.orders.services import checkout_service
+        from apps.orders.services.checkout_service import finalize_order, SESSION_KEY as SK
+
+        # Prepare session with address data (normally done by save_address)
+        session = self.client.session
+        session[SK] = {"address": self.address_payload}
+        session.save()
+
+        cart = Cart.objects.get(customer=self.customer)
+
+        # Patch cart.items.all().delete to raise INSIDE the atomic block
+        original_delete = cart.items.all().delete
+
+        call_count = [0]
+
+        def exploding_delete(*args, **kwargs):
+            # This runs inside transaction.atomic() after Order is created
+            raise RuntimeError("simulated DB failure during cart clearing")
+
+        with patch.object(
+            cart.items.all().__class__, 'delete', side_effect=exploding_delete
+        ):
+            # Call finalize_order directly to test the service layer
+            from django.test import RequestFactory
+            from django.contrib.sessions.middleware import SessionMiddleware
+            from django.contrib.auth.middleware import AuthenticationMiddleware
+
+            factory = RequestFactory()
+            request = factory.post("/checkout/pay/")
+            SessionMiddleware(lambda r: None).process_request(request)
+            request.session.update(session)
+            request.session.save()
+            request.user = self.user
+
+            with self.assertRaises(RuntimeError):
+                finalize_order(request, cart, self.customer)
+
+        # Everything rolled back
+        self.assertEqual(Order.objects.count(), 0)
+        self.assertEqual(OrderItem.objects.count(), 0)
+        self.assertEqual(Address.objects.filter(customer=self.customer).count(), 0)
+
+        # Stock unchanged
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 10)
+
+        # Cart items preserved (delete was attempted but transaction rolled back)
+        cart.refresh_from_db()
+        self.assertEqual(cart.items.count(), 1)
+
 
 class UnexpectedExceptionTests(_CheckoutFixture):
     """Unexpected exceptions produce graceful error, not raw 500."""
