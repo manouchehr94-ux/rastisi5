@@ -1,4 +1,15 @@
+import re
+
+from django.core.exceptions import ValidationError
 from django.db import models
+
+HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def validate_hex_color(value):
+    """اعتبارسنجی رنگ #RRGGBB در سطح مدل."""
+    if not HEX_COLOR_RE.match(value):
+        raise ValidationError("رنگ باید به فرمت #RRGGBB باشد")
 
 
 class TimeStampedModel(models.Model):
@@ -44,8 +55,8 @@ class ShopSettings(TimeStampedModel):
     # --- هویت بصری ---
     logo = models.ImageField("لوگوی فروشگاه", upload_to="shop/branding/", blank=True)
     favicon = models.ImageField("فاوآیکون", upload_to="shop/branding/", blank=True)
-    primary_color = models.CharField("رنگ اصلی", max_length=7, default="#6D28D9")
-    accent_color = models.CharField("رنگ مکمل", max_length=7, default="#FF4D77")
+    primary_color = models.CharField("رنگ اصلی", max_length=7, default="#6D28D9", validators=[validate_hex_color])
+    accent_color = models.CharField("رنگ مکمل", max_length=7, default="#FF4D77", validators=[validate_hex_color])
 
     class Meta:
         verbose_name = "تنظیمات فروشگاه"

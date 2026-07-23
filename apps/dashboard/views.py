@@ -717,11 +717,13 @@ def settings_shipping_toggle(request, pk):
 @staff_required
 def settings_appearance(request):
     """ذخیره تنظیمات هویت بصری: لوگو، فاوآیکون، رنگ‌ها."""
-    import os
+    from django.db import transaction as db_transaction
 
     form = VisualIdentityForm(request.POST, request.FILES)
     if form.is_valid():
         shop = ShopSettings.load()
+        old_logo_name = shop.logo.name if shop.logo else None
+        old_favicon_name = shop.favicon.name if shop.favicon else None
 
         # رنگ‌ها
         shop.primary_color = form.cleaned_data["primary_color"]
@@ -729,35 +731,29 @@ def settings_appearance(request):
 
         # لوگو
         if form.cleaned_data.get("remove_logo") and shop.logo:
-            old_path = shop.logo.path if shop.logo else None
             shop.logo = ""
-            if old_path and os.path.isfile(old_path):
-                os.remove(old_path)
         elif form.cleaned_data.get("logo"):
-            if shop.logo:
-                old_path = shop.logo.path
-                shop.logo = form.cleaned_data["logo"]
-                if os.path.isfile(old_path):
-                    os.remove(old_path)
-            else:
-                shop.logo = form.cleaned_data["logo"]
+            shop.logo = form.cleaned_data["logo"]
 
         # فاوآیکون
         if form.cleaned_data.get("remove_favicon") and shop.favicon:
-            old_path = shop.favicon.path if shop.favicon else None
             shop.favicon = ""
-            if old_path and os.path.isfile(old_path):
-                os.remove(old_path)
         elif form.cleaned_data.get("favicon"):
-            if shop.favicon:
-                old_path = shop.favicon.path
-                shop.favicon = form.cleaned_data["favicon"]
-                if os.path.isfile(old_path):
-                    os.remove(old_path)
-            else:
-                shop.favicon = form.cleaned_data["favicon"]
+            shop.favicon = form.cleaned_data["favicon"]
 
         shop.save()
+
+        # پاکسازی فایل‌های قبلی فقط پس از ذخیره‌ی موفق
+        from django.core.files.storage import default_storage
+        if old_logo_name and old_logo_name != shop.logo.name:
+            db_transaction.on_commit(lambda name=old_logo_name: (
+                default_storage.delete(name) if default_storage.exists(name) else None
+            ))
+        if old_favicon_name and old_favicon_name != shop.favicon.name:
+            db_transaction.on_commit(lambda name=old_favicon_name: (
+                default_storage.delete(name) if default_storage.exists(name) else None
+            ))
+
         messages.success(request, "هویت بصری فروشگاه ذخیره شد")
         return redirect("/admin-panel/settings/?section=appearance")
 
