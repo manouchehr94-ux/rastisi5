@@ -721,8 +721,11 @@ def settings_sms_connection(request):
             setattr(shop, field, form.cleaned_data[field])
         shop.save()
         messages.success(request, "تنظیمات اتصال پیامک ذخیره شد")
-        return redirect("dashboard:settings")
-    return render(request, "dashboard/settings.html", _settings_context(request, sms_form=form))
+        return redirect("/admin-panel/settings/?section=sms")
+    context = _settings_context(request, sms_form=form)
+    context["sections"] = SETTINGS_SECTIONS
+    context["active_section"] = "sms"
+    return render(request, "dashboard/settings.html", context)
 
 
 @staff_required
@@ -788,7 +791,7 @@ def sms_test_send(request):
                 messages.error(request, f"ارسال ناموفق بود: {log.error_message or 'خطای نامشخص'}")
     else:
         messages.error(request, "شماره موبایل معتبر نیست")
-    return redirect("dashboard:settings")
+    return redirect("/admin-panel/settings/?section=sms")
 
 
 @staff_required

@@ -89,6 +89,45 @@ class SettingsShopInfoViewTests(SettingsViewsTestCase):
         self.assertEqual(shop.name, "فروشگاه جدید")
         self.assertEqual(shop.contact_email, "new@example.com")
 
+    def test_contact_update_does_not_overwrite_store_identity(self):
+        """Updating contact fields preserves name/tagline/description."""
+        # First set known identity values
+        shop = ShopSettings.load()
+        shop.name = "نام اصلی"
+        shop.tagline = "شعار اصلی"
+        shop.description = "توضیح اصلی"
+        shop.save()
+
+        # Submit form with all fields (single form approach)
+        self.client.post(reverse("dashboard:settings-shop-info"), {
+            "name": "نام اصلی", "tagline": "شعار اصلی", "description": "توضیح اصلی",
+            "contact_phone": "021-9999", "contact_email": "updated@test.com",
+            "contact_address": "آدرس جدید",
+        })
+        shop = ShopSettings.load()
+        self.assertEqual(shop.name, "نام اصلی")
+        self.assertEqual(shop.tagline, "شعار اصلی")
+        self.assertEqual(shop.description, "توضیح اصلی")
+        self.assertEqual(shop.contact_phone, "021-9999")
+
+    def test_store_identity_update_does_not_overwrite_contact(self):
+        """Updating identity fields preserves contact fields."""
+        shop = ShopSettings.load()
+        shop.contact_phone = "021-5555"
+        shop.contact_email = "keep@test.com"
+        shop.contact_address = "آدرس حفظ"
+        shop.save()
+
+        self.client.post(reverse("dashboard:settings-shop-info"), {
+            "name": "نام جدید", "tagline": "شعار جدید", "description": "توضیح جدید",
+            "contact_phone": "021-5555", "contact_email": "keep@test.com",
+            "contact_address": "آدرس حفظ",
+        })
+        shop = ShopSettings.load()
+        self.assertEqual(shop.name, "نام جدید")
+        self.assertEqual(shop.contact_phone, "021-5555")
+        self.assertEqual(shop.contact_email, "keep@test.com")
+
     def test_updated_name_appears_on_storefront(self):
         self.client.post(reverse("dashboard:settings-shop-info"), {
             "name": "دیجی‌مارکت ویژه", "tagline": "", "contact_phone": "", "contact_email": "",
@@ -176,3 +215,51 @@ class SettingsShippingToggleViewTests(SettingsViewsTestCase):
 
         self.client.post(reverse("dashboard:settings-shipping-toggle", args=[self.shipping.pk]))
         self.assertNotIn(self.shipping, active_shipping_methods())
+
+
+
+class SettingsSMSSectionTests(SettingsViewsTestCase):
+    """SMS actions preserve the SMS section state."""
+
+    def test_sms_connection_save_redirects_to_sms_section(self):
+        response = self.client.post(reverse("dashboard:settings-sms-connection"), {
+            "sms_enabled": True, "sms_backend": "console",
+            "sms_sender_number": "", "melipayamak_username": "", "melipayamak_password": "",
+        })
+        self.assertRedirects(response, "/admin-panel/settings/?section=sms")
+
+    def test_sms_test_send_redirects_to_sms_section(self):
+        response = self.client.post(reverse("dashboard:sms-test-send"), {
+            "phone": "09121234567", "event_key": "welcome",
+        })
+        self.assertRedirects(response, "/admin-panel/settings/?section=sms")
+
+    def test_sms_section_shows_connection_form(self):
+        response = self.client.get(reverse("dashboard:settings") + "?section=sms")
+        self.assertContains(response, "فعال‌سازی سیستم پیامک")
+        self.assertContains(response, "ذخیره تنظیمات اتصال")
+
+    def test_sms_section_shows_templates(self):
+        from apps.sms.models import SmsTemplate
+        SmsTemplate.ensure_defaults()
+        response = self.client.get(reverse("dashboard:settings") + "?section=sms")
+        self.assertContains(response, "قالب‌های پیامک")
+
+
+class SettingsGeneralFormTests(SettingsViewsTestCase):
+    """General section has one unified form — no fragile hidden fields."""
+
+    def test_general_section_has_one_form_action(self):
+        """Only one form submits to settings-shop-info (no duplicate forms)."""
+        response = self.client.get(reverse("dashboard:settings") + "?section=general")
+        content = response.content.decode()
+        # Count occurrences of the form action URL
+        action_url = reverse("dashboard:settings-shop-info")
+        self.assertEqual(content.count(f'action="{action_url}"'), 1)
+
+    def test_general_section_has_no_hidden_name_field(self):
+        """No fragile hidden fields for preserving other form's values."""
+        response = self.client.get(reverse("dashboard:settings") + "?section=general")
+        content = response.content.decode()
+        self.assertNotIn('type="hidden" name="name"', content)
+        self.assertNotIn('type="hidden" name="tagline"', content)
