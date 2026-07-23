@@ -3,160 +3,67 @@
 
 {% block title %}تنظیمات | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
 {% block page_title %}تنظیمات{% endblock %}
-{% block page_sub %}اطلاعات فروشگاه، درگاه‌های پرداخت، ارسال و قواعد مالی{% endblock %}
+{% block page_sub %}مدیریت اطلاعات، پرداخت، ارسال و ظاهر فروشگاه{% endblock %}
+
+{% block extra_css %}
+<style>
+.settings-layout{display:flex;gap:20px;align-items:flex-start}
+.settings-nav{width:220px;flex-shrink:0;position:sticky;top:80px}
+.settings-nav-list{list-style:none;display:flex;flex-direction:column;gap:4px}
+.settings-nav-item{
+  display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;
+  font-size:13px;font-weight:500;color:var(--muted);transition:.18s;border:1px solid transparent;
+  text-decoration:none;
+}
+.settings-nav-item:hover{background:var(--card);color:var(--text);border-color:var(--border)}
+.settings-nav-item.active{background:var(--primary-soft);color:var(--primary-text);border-color:var(--primary-soft);font-weight:700}
+.settings-nav-item .sn-icon{font-size:17px;width:24px;text-align:center;flex-shrink:0}
+.settings-nav-item .sn-desc{font-size:11px;color:var(--muted);display:block;font-weight:400;margin-top:1px}
+.settings-content{flex:1;min-width:0}
+@media (max-width:860px){
+  .settings-layout{flex-direction:column}
+  .settings-nav{width:100%;position:static}
+  .settings-nav-list{flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:4px}
+  .settings-nav-item{white-space:nowrap;padding:9px 14px}
+  .settings-nav-item .sn-desc{display:none}
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="grid g-2" style="margin-bottom:18px">
-  <div class="card">
-    <div class="card-head"><h3>🏦 درگاه‌های پرداخت</h3></div>
-    <div class="card-body">
-      {% for gateway in gateways %}
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;{% if not forloop.last %}border-bottom:1px solid var(--border){% endif %}">
-        <div style="display:flex;gap:11px;align-items:center">
-          <div style="width:40px;height:40px;border-radius:11px;background:var(--bg);display:grid;place-items:center;font-size:19px">{{ gateway.icon|default:"💳" }}</div>
-          <div><b style="font-size:13px">{{ gateway.name }}</b><div style="font-size:11.5px;color:var(--muted)">{{ gateway.description }}</div></div>
-        </div>
-        <label class="switch">
-          <input type="checkbox" {% if gateway.is_active %}checked{% endif %}
-                 hx-post="{% url 'dashboard:settings-gateway-toggle' gateway.pk %}" hx-trigger="change" hx-swap="none">
-          <span></span>
-        </label>
-      </div>
-      {% empty %}
-      <p style="font-size:12.5px;color:var(--muted)">درگاهی ثبت نشده است.</p>
+<div class="settings-layout">
+  <!-- Settings Navigation -->
+  <nav class="settings-nav" aria-label="بخش‌های تنظیمات">
+    <ul class="settings-nav-list">
+      {% for key, label, icon, desc in sections %}
+      <li>
+        <a class="settings-nav-item{% if active_section == key %} active{% endif %}"
+           href="{% url 'dashboard:settings' %}?section={{ key }}"
+           {% if active_section == key %}aria-current="page"{% endif %}>
+          <span class="sn-icon">{{ icon }}</span>
+          <span>
+            {{ label }}
+            <span class="sn-desc">{{ desc }}</span>
+          </span>
+        </a>
+      </li>
       {% endfor %}
-    </div>
-  </div>
+    </ul>
+  </nav>
 
-  <div class="card">
-    <div class="card-head"><h3>🚚 روش‌های ارسال</h3></div>
-    <div class="card-body">
-      {% for method in shipping_methods %}
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;{% if not forloop.last %}border-bottom:1px solid var(--border){% endif %}">
-        <div><b style="font-size:13px">{{ method.name }}</b><div style="font-size:11.5px;color:var(--muted)">{{ method.description }} — {{ method.cost|toman }}</div></div>
-        <label class="switch">
-          <input type="checkbox" {% if method.is_active %}checked{% endif %}
-                 hx-post="{% url 'dashboard:settings-shipping-toggle' method.pk %}" hx-trigger="change" hx-swap="none">
-          <span></span>
-        </label>
-      </div>
-      {% empty %}
-      <p style="font-size:12.5px;color:var(--muted)">روش ارسالی ثبت نشده است.</p>
-      {% endfor %}
-      <div class="form-group" style="margin-top:14px">
-        <label>ارسال رایگان برای خرید بالای</label>
-        <div class="inp" style="background:var(--bg);cursor:default">{{ shop.free_shipping_threshold|toman }}</div>
-        <small style="color:var(--muted);font-size:11px">این مقدار از بخش «تنظیمات مالی» قابل ویرایش است.</small>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="grid g-2">
-  <div class="card">
-    <div class="card-head"><h3>🏪 اطلاعات فروشگاه</h3></div>
-    <div class="card-body">
-      <form method="post" action="{% url 'dashboard:settings-shop-info' %}">
-        {% csrf_token %}
-        <div class="form-row">
-          <div class="form-group">
-            <label>نام فروشگاه</label>
-            {{ shop_form.name }}
-            {% for error in shop_form.name.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
-          </div>
-          <div class="form-group"><label>شماره تماس</label>{{ shop_form.contact_phone }}</div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>ایمیل فروشگاه</label>
-            {{ shop_form.contact_email }}
-            {% for error in shop_form.contact_email.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
-          </div>
-          <div class="form-group"><label>شعار فروشگاه</label>{{ shop_form.tagline }}</div>
-        </div>
-        <div class="form-group"><label>آدرس</label>{{ shop_form.contact_address }}</div>
-        <div class="form-group"><label>توضیحات فروشگاه (درباره ما)</label>{{ shop_form.description }}</div>
-        <button type="submit" class="btn btn-primary">ذخیره اطلاعات</button>
-      </form>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-head"><h3>💰 تنظیمات مالی و مالیات</h3></div>
-    <div class="card-body">
-      <form method="post" action="{% url 'dashboard:settings-finance' %}">
-        {% csrf_token %}
-        <div class="form-row">
-          <div class="form-group">
-            <label>نرخ مالیات (٪)</label>
-            {{ finance_form.tax_percent }}
-            {% for error in finance_form.tax_percent.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
-          </div>
-          <div class="form-group">
-            <label>آستانه‌ی ارسال رایگان (تومان)</label>
-            {{ finance_form.free_shipping_threshold }}
-            {% for error in finance_form.free_shipping_threshold.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
-          </div>
-        </div>
-        <p style="font-size:11.5px;color:var(--muted);margin-bottom:14px">این دو مقدار همان‌هایی هستند که سرویس قیمت‌گذاری سایت (سبد خرید و تسویه‌حساب) واقعاً استفاده می‌کند.</p>
-        <button type="submit" class="btn btn-primary">ذخیره</button>
-      </form>
-    </div>
-  </div>
-</div>
-
-<div class="grid g-2" style="margin-top:18px">
-  <div class="card">
-    <div class="card-head"><h3>📲 اتصال سیستم پیامک</h3></div>
-    <div class="card-body">
-      <form method="post" action="{% url 'dashboard:settings-sms-connection' %}">
-        {% csrf_token %}
-        <div class="form-group" style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);padding:12px 14px;border-radius:12px">
-          <div><b style="font-size:13px">فعال‌سازی سیستم پیامک</b><div style="font-size:11.5px;color:var(--muted)">در صورت خاموش بودن، هیچ پیامکی (حتی کد یکبار مصرف) ارسال نمی‌شود</div></div>
-          <label class="switch">{{ sms_form.sms_enabled }}<span></span></label>
-        </div>
-        <div class="form-group" style="margin-top:14px">
-          <label>درگاه پیامک</label>
-          {{ sms_form.sms_backend }}
-        </div>
-        <div class="form-group"><label>شماره‌ی فرستنده</label>{{ sms_form.sms_sender_number }}</div>
-        <div class="form-row">
-          <div class="form-group"><label>نام کاربری ملی‌پیامک</label>{{ sms_form.melipayamak_username }}</div>
-          <div class="form-group"><label>رمز عبور ملی‌پیامک</label>{{ sms_form.melipayamak_password }}</div>
-        </div>
-        <button type="submit" class="btn btn-primary">ذخیره تنظیمات اتصال</button>
-      </form>
-
-      <div style="margin-top:18px;padding-top:16px;border-top:1px dashed var(--border)">
-        <b style="font-size:12.5px;display:block;margin-bottom:8px">ارسال پیامک آزمایشی</b>
-        <form method="post" action="{% url 'dashboard:sms-test-send' %}" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-          {% csrf_token %}
-          <div class="form-group" style="margin-bottom:0;flex:1;min-width:160px">
-            {{ sms_test_form.phone }}
-            {% for error in sms_test_form.phone.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
-          </div>
-          <select class="inp" name="event_key" style="width:170px">
-            {% for row in sms_template_rows %}
-            <option value="{{ row.template.event_key }}">{{ row.template.title }}</option>
-            {% endfor %}
-          </select>
-          <button type="submit" class="btn">ارسال آزمایشی</button>
-        </form>
-      </div>
-
-      <div style="margin-top:14px">
-        <a class="btn btn-sm" href="{% url 'dashboard:sms-log-list' %}">📋 مشاهده‌ی گزارش کامل پیامک‌ها</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-head"><h3>✉️ قالب‌های پیامک رویدادها</h3></div>
-    <div class="card-body" style="max-height:520px;overflow-y:auto">
-      <div id="smsTemplatesWrap">
-        {% include "dashboard/partials/sms_templates_table.html" %}
-      </div>
-    </div>
+  <!-- Settings Content -->
+  <div class="settings-content">
+    {% if active_section == "general" %}
+    {% include "dashboard/partials/settings_general.html" %}
+    {% elif active_section == "payments" %}
+    {% include "dashboard/partials/settings_payments.html" %}
+    {% elif active_section == "shipping" %}
+    {% include "dashboard/partials/settings_shipping.html" %}
+    {% elif active_section == "sms" %}
+    {% include "dashboard/partials/settings_sms.html" %}
+    {% elif active_section == "appearance" %}
+    {% include "dashboard/partials/settings_appearance.html" %}
+    {% endif %}
   </div>
 </div>
 {% endblock %}

@@ -1,0 +1,31 @@
+{% load persian %}
+<div class="card">
+  <div class="card-head"><h3>🚚 روش‌های ارسال</h3><span class="hint">مدیریت روش‌ها و هزینه‌های ارسال</span></div>
+  <div class="card-body">
+    {% for method in shipping_methods %}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;{% if not forloop.last %}border-bottom:1px solid var(--border){% endif %}">
+      <div>
+        <b style="font-size:13px">{{ method.name }}</b>
+        <div style="font-size:11.5px;color:var(--muted)">{{ method.description }} — {{ method.cost|toman }}</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" {% if method.is_active %}checked{% endif %}
+               hx-post="{% url 'dashboard:settings-shipping-toggle' method.pk %}" hx-trigger="change" hx-swap="none">
+        <span></span>
+      </label>
+    </div>
+    {% empty %}
+    <p style="font-size:12.5px;color:var(--muted)">روش ارسالی ثبت نشده است.</p>
+    {% endfor %}
+
+    <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--border)">
+      <div style="display:flex;align-items:center;gap:10px;background:var(--bg);padding:12px 14px;border-radius:11px">
+        <span style="font-size:17px">🎁</span>
+        <div>
+          <b style="font-size:12.5px">ارسال رایگان برای خرید بالای {{ shop.free_shipping_threshold|toman }}</b>
+          <div style="font-size:11px;color:var(--muted)">این مقدار از بخش «پرداخت و مالی» قابل ویرایش است.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

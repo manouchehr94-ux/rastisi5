@@ -1,0 +1,36 @@
+{% load persian %}
+<form method="post" action="{% url 'dashboard:settings-shop-info' %}">
+  {% csrf_token %}
+
+  <div class="card" style="margin-bottom:18px">
+    <div class="card-head"><h3>🏪 اطلاعات فروشگاه</h3><span class="hint">نام، شعار و توضیحات فروشگاه</span></div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="id_name">نام فروشگاه</label>
+          {{ shop_form.name }}
+          {% for error in shop_form.name.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
+        </div>
+        <div class="form-group"><label for="id_tagline">شعار فروشگاه</label>{{ shop_form.tagline }}</div>
+      </div>
+      <div class="form-group"><label for="id_description">توضیحات فروشگاه (درباره ما)</label>{{ shop_form.description }}</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:18px">
+    <div class="card-head"><h3>📞 اطلاعات تماس</h3><span class="hint">شماره، ایمیل و آدرس فروشگاه</span></div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group"><label for="id_contact_phone">شماره تماس</label>{{ shop_form.contact_phone }}</div>
+        <div class="form-group">
+          <label for="id_contact_email">ایمیل فروشگاه</label>
+          {{ shop_form.contact_email }}
+          {% for error in shop_form.contact_email.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
+        </div>
+      </div>
+      <div class="form-group"><label for="id_contact_address">آدرس</label>{{ shop_form.contact_address }}</div>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary">ذخیره اطلاعات فروشگاه</button>
+</form>
