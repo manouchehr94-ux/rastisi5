@@ -1,11 +1,12 @@
 /*
   توکن‌های طراحی مرکزی — دقیقاً مطابق docs/spec/01-PROJECT-SPEC.md بخش ۴.
   هیچ رنگی خارج از این متغیرها در سراسر پروژه هاردکد نشود.
+  متغیرهای --brand-primary و --brand-accent از هویت بصری فروشگاه تزریق می‌شوند.
 */
 :root{
-  --violet:#6d28d9; --violet-2:#7c3aed; --violet-3:#8b5cf6;
-  --violet-soft:#f1ecfd; --violet-softer:#f7f3fe;
-  --pink:#ff4d77; --pink-soft:#ffe7ee;
+  --violet:var(--brand-primary, #6d28d9); --violet-2:#7c3aed; --violet-3:#8b5cf6;
+  --violet-soft:#f1ecfd; --violet-softer:#f7f5fc;
+  --pink:var(--brand-accent, #ff4d77); --pink-soft:#ffe7ee;
   --ink:#241c3a; --muted:#8b86a3; --line:#ece8f6;
   --bg:#f7f5fc; --card:#ffffff;
   --green:#16a34a; --green-soft:#e6f6ec; --amber:#f59e0b;

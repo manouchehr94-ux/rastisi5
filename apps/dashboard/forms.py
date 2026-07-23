@@ -216,3 +216,80 @@ class ProductImageUploadForm(forms.Form):
 
 class ProductImageAltForm(forms.Form):
     alt = forms.CharField(label="متن جایگزین", max_length=200, required=False)
+
+
+
+# --- هویت بصری ---
+
+HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+
+ALLOWED_LOGO_TYPES = {"image/png", "image/jpeg", "image/webp"}
+ALLOWED_FAVICON_TYPES = {"image/png", "image/x-icon", "image/vnd.microsoft.icon"}
+MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2 MB
+MAX_FAVICON_SIZE = 512 * 1024  # 512 KB
+
+
+def _validate_hex_color(value):
+    """اعتبارسنجی رنگ هگزادسیمال #RRGGBB — فقط مقادیر امن."""
+    value = value.strip()
+    if not HEX_COLOR_RE.match(value):
+        raise forms.ValidationError("رنگ باید به فرمت #RRGGBB باشد (مثال: #6D28D9)")
+    return value.upper()
+
+
+def _validate_image_upload(file, allowed_types, max_size, label):
+    """اعتبارسنجی فایل تصویر: نوع، اندازه، و محتوای واقعی."""
+    if file.size > max_size:
+        max_mb = max_size / (1024 * 1024)
+        raise forms.ValidationError(f"حجم {label} نباید بیشتر از {max_mb:.0f} مگابایت باشد")
+
+    if file.content_type not in allowed_types:
+        raise forms.ValidationError(f"فرمت {label} معتبر نیست. فرمت‌های مجاز: PNG, JPEG, WebP")
+
+    # Verify actual image content
+    try:
+        from PIL import Image
+        img = Image.open(file)
+        img.verify()
+        file.seek(0)
+    except Exception:
+        raise forms.ValidationError(f"فایل {label} یک تصویر معتبر نیست")
+
+    return file
+
+
+class VisualIdentityForm(forms.Form):
+    """فرم هویت بصری فروشگاه: لوگو، فاوآیکون و رنگ‌ها."""
+
+    logo = forms.ImageField(label="لوگوی فروشگاه", required=False)
+    remove_logo = forms.BooleanField(label="حذف لوگوی فعلی", required=False)
+
+    favicon = forms.ImageField(label="فاوآیکون", required=False)
+    remove_favicon = forms.BooleanField(label="حذف فاوآیکون فعلی", required=False)
+
+    primary_color = forms.CharField(
+        label="رنگ اصلی", max_length=7,
+        widget=forms.TextInput(attrs={"class": "inp", "type": "color", "style": "width:60px;height:40px;padding:4px"}),
+    )
+    accent_color = forms.CharField(
+        label="رنگ مکمل", max_length=7,
+        widget=forms.TextInput(attrs={"class": "inp", "type": "color", "style": "width:60px;height:40px;padding:4px"}),
+    )
+
+    def clean_primary_color(self):
+        return _validate_hex_color(self.cleaned_data["primary_color"])
+
+    def clean_accent_color(self):
+        return _validate_hex_color(self.cleaned_data["accent_color"])
+
+    def clean_logo(self):
+        logo = self.cleaned_data.get("logo")
+        if logo:
+            return _validate_image_upload(logo, ALLOWED_LOGO_TYPES, MAX_LOGO_SIZE, "لوگو")
+        return logo
+
+    def clean_favicon(self):
+        favicon = self.cleaned_data.get("favicon")
+        if favicon:
+            return _validate_image_upload(favicon, ALLOWED_FAVICON_TYPES, MAX_FAVICON_SIZE, "فاوآیکون")
+        return favicon

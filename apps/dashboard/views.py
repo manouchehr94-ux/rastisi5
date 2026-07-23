@@ -38,6 +38,7 @@ from .forms import (
     SmsTemplateForm,
     SmsTestForm,
     SubCategoryForm,
+    VisualIdentityForm,
 )
 from .services import (
     customers_admin_service,
@@ -601,7 +602,7 @@ def report_partial(request):
 # ------------------------------------------------------------------ تنظیمات
 
 
-def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=None):
+def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=None, visual_form=None):
     shop = ShopSettings.load()
     return {
         "shop": shop,
@@ -618,6 +619,10 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
             "sms_sender_number": shop.sms_sender_number,
             "melipayamak_username": shop.melipayamak_username,
             "melipayamak_password": shop.melipayamak_password,
+        }),
+        "visual_form": visual_form or VisualIdentityForm(initial={
+            "primary_color": shop.primary_color or "#6D28D9",
+            "accent_color": shop.accent_color or "#FF4D77",
         }),
         "sms_template_rows": sms_admin_service.templates_with_variables(),
         "sms_test_form": SmsTestForm(),
@@ -703,6 +708,60 @@ def settings_shipping_toggle(request, pk):
         "toast": {"message": f"روش ارسال «{method.name}» {state} شد", "type": "info"},
     })
     return response
+
+
+# --------------------------------------------------------------- هویت بصری
+
+
+@require_POST
+@staff_required
+def settings_appearance(request):
+    """ذخیره تنظیمات هویت بصری: لوگو، فاوآیکون، رنگ‌ها."""
+    from django.db import transaction as db_transaction
+
+    form = VisualIdentityForm(request.POST, request.FILES)
+    if form.is_valid():
+        shop = ShopSettings.load()
+        old_logo_name = shop.logo.name if shop.logo else None
+        old_favicon_name = shop.favicon.name if shop.favicon else None
+
+        # رنگ‌ها
+        shop.primary_color = form.cleaned_data["primary_color"]
+        shop.accent_color = form.cleaned_data["accent_color"]
+
+        # لوگو — replacement wins over removal
+        if form.cleaned_data.get("logo"):
+            shop.logo = form.cleaned_data["logo"]
+        elif form.cleaned_data.get("remove_logo") and shop.logo:
+            shop.logo = ""
+
+        # فاوآیکون — replacement wins over removal
+        if form.cleaned_data.get("favicon"):
+            shop.favicon = form.cleaned_data["favicon"]
+        elif form.cleaned_data.get("remove_favicon") and shop.favicon:
+            shop.favicon = ""
+
+        shop.save()
+
+        # پاکسازی فایل‌های قبلی فقط پس از ذخیره‌ی موفق (Storage-safe)
+        if old_logo_name and old_logo_name != (shop.logo.name if shop.logo else ""):
+            storage = shop.logo.storage
+            db_transaction.on_commit(lambda n=old_logo_name, s=storage: (
+                s.delete(n) if s.exists(n) else None
+            ))
+        if old_favicon_name and old_favicon_name != (shop.favicon.name if shop.favicon else ""):
+            storage = shop.favicon.storage
+            db_transaction.on_commit(lambda n=old_favicon_name, s=storage: (
+                s.delete(n) if s.exists(n) else None
+            ))
+
+        messages.success(request, "هویت بصری فروشگاه ذخیره شد")
+        return redirect("/admin-panel/settings/?section=appearance")
+
+    context = _settings_context(request, visual_form=form)
+    context["sections"] = SETTINGS_SECTIONS
+    context["active_section"] = "appearance"
+    return render(request, "dashboard/settings.html", context)
 
 
 # --------------------------------------------------------------- پیامک

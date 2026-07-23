@@ -1,9 +1,10 @@
 {% load static persian %}<!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="rtl" style="--brand-primary:{{ SHOP_PRIMARY_COLOR }};--brand-accent:{{ SHOP_ACCENT_COLOR }};--brand-primary-fg:{{ SHOP_PRIMARY_FG }};--brand-accent-fg:{{ SHOP_ACCENT_FG }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ SHOP_NAME }} | {{ SHOP_TAGLINE }}{% endblock %}</title>
+{% if SHOP_FAVICON %}<link rel="icon" href="{{ SHOP_FAVICON.url }}">{% else %}<link rel="icon" href="{% static 'favicon.ico' %}">{% endif %}
 <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
 <link rel="stylesheet" href="{% static 'css/base.css' %}">
 <link rel="stylesheet" href="{% static 'css/layout.css' %}">
@@ -29,7 +30,11 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
   </button>
   <a class="logo" href="/">
+    {% if SHOP_LOGO %}
+    <img src="{{ SHOP_LOGO.url }}" alt="{{ SHOP_NAME }}" style="max-height:36px;max-width:140px">
+    {% else %}
     <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 00-1 3.73V8L3 14v2h18v-2L13 8V6.73A2 2 0 0012 3z"/></svg></span>
+    {% endif %}
     <span><b>{{ SHOP_NAME }}</b><small>{{ SHOP_TAGLINE }}</small></span>
   </a>
   <form class="search" action="{% url 'catalog:product-list' %}" method="get">
