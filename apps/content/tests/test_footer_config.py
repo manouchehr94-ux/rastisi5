@@ -672,3 +672,143 @@ class SingletonBehaviorTests(TestCase):
         FooterSettings.load()
         FooterSettings.load()
         self.assertEqual(FooterSettings.objects.count(), 1)
+
+
+
+
+# ================================================================ IMAGE CONTENT SECURITY TESTS
+
+
+class ImageContentSecurityTests(TestCase):
+    """تست‌های امنیت محتوای تصویر — Pillow verification."""
+
+    def _valid_png(self, name="valid.png"):
+        from io import BytesIO
+        from PIL import Image
+        buf = BytesIO()
+        Image.new("RGB", (10, 10), (255, 0, 0)).save(buf, "PNG")
+        return SimpleUploadedFile(name, buf.getvalue(), content_type="image/png")
+
+    def _valid_jpeg(self, name="valid.jpg"):
+        from io import BytesIO
+        from PIL import Image
+        buf = BytesIO()
+        Image.new("RGB", (10, 10), (0, 255, 0)).save(buf, "JPEG")
+        return SimpleUploadedFile(name, buf.getvalue(), content_type="image/jpeg")
+
+    def _valid_webp(self, name="valid.webp"):
+        from io import BytesIO
+        from PIL import Image
+        buf = BytesIO()
+        Image.new("RGB", (10, 10), (0, 0, 255)).save(buf, "WEBP")
+        return SimpleUploadedFile(name, buf.getvalue(), content_type="image/webp")
+
+    def test_valid_png_accepted(self):
+        badge = FooterTrustBadge(title="PNG", image=self._valid_png())
+        badge.full_clean()  # Should not raise
+
+    def test_valid_jpeg_accepted(self):
+        badge = FooterTrustBadge(title="JPEG", image=self._valid_jpeg())
+        badge.full_clean()
+
+    def test_valid_webp_accepted(self):
+        badge = FooterTrustBadge(title="WebP", image=self._valid_webp())
+        badge.full_clean()
+
+    def test_plain_text_named_png_rejected(self):
+        fake = SimpleUploadedFile("fake.png", b"This is plain text not an image", content_type="image/png")
+        badge = FooterTrustBadge(title="Fake", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_html_named_jpg_rejected(self):
+        html = b"<html><body><script>alert(1)</script></body></html>"
+        fake = SimpleUploadedFile("badge.jpg", html, content_type="image/jpeg")
+        badge = FooterTrustBadge(title="HTML", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_javascript_payload_named_png_rejected(self):
+        js = b"var x = 1; function hack(){}"
+        fake = SimpleUploadedFile("logo.png", js, content_type="image/png")
+        logo = FooterPaymentLogo(title="JS", image=fake)
+        with self.assertRaises(ValidationError):
+            logo.full_clean()
+
+    def test_corrupt_png_header_rejected(self):
+        # PNG magic bytes followed by garbage
+        corrupt = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        fake = SimpleUploadedFile("corrupt.png", corrupt, content_type="image/png")
+        badge = FooterTrustBadge(title="Corrupt", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_truncated_jpeg_rejected(self):
+        # JPEG SOI marker then nothing
+        truncated = b"\xff\xd8\xff\xe0" + b"\x00" * 20
+        fake = SimpleUploadedFile("trunc.jpg", truncated, content_type="image/jpeg")
+        badge = FooterTrustBadge(title="Trunc", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_svg_named_svg_rejected(self):
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg"><circle r="10"/></svg>'
+        fake = SimpleUploadedFile("badge.svg", svg, content_type="image/svg+xml")
+        badge = FooterTrustBadge(title="SVG", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_svg_renamed_to_png_rejected(self):
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg"><circle r="10"/></svg>'
+        fake = SimpleUploadedFile("sneaky.png", svg, content_type="image/png")
+        badge = FooterTrustBadge(title="SVG-PNG", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_oversized_valid_image_rejected(self):
+        from io import BytesIO
+        from PIL import Image
+        buf = BytesIO()
+        Image.new("RGB", (10, 10)).save(buf, "PNG")
+        f = SimpleUploadedFile("big.png", buf.getvalue(), content_type="image/png")
+        f.size = 6 * 1024 * 1024  # 6 MiB > 5 MiB limit
+        badge = FooterTrustBadge(title="Big", image=f)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_gif_rejected(self):
+        """GIF is not in ALLOWED_IMAGE_FORMATS."""
+        from io import BytesIO
+        from PIL import Image
+        buf = BytesIO()
+        Image.new("RGB", (10, 10)).save(buf, "GIF")
+        f = SimpleUploadedFile("anim.gif", buf.getvalue(), content_type="image/gif")
+        badge = FooterTrustBadge(title="GIF", image=f)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_invalid_create_produces_no_record(self):
+        """Invalid image on create → no database row."""
+        fake = SimpleUploadedFile("fake.png", b"not an image", content_type="image/png")
+        badge = FooterTrustBadge(title="NoRecord", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+        # Not saved
+        self.assertFalse(FooterTrustBadge.objects.filter(title="NoRecord").exists())
+
+    def test_invalid_replacement_preserves_old_value(self):
+        """Invalid replacement image → old image field preserved."""
+        badge = FooterTrustBadge.objects.create(
+            title="Keep", image=self._valid_png("keep.png"), is_active=True
+        )
+        original_name = badge.image.name
+
+        # Try to assign invalid image
+        fake = SimpleUploadedFile("bad.png", b"not an image", content_type="image/png")
+        badge.image = fake
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+        # Reload from DB - original should remain
+        badge.refresh_from_db()
+        self.assertEqual(badge.image.name, original_name)

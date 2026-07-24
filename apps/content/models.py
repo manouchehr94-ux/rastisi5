@@ -25,6 +25,9 @@ from apps.core.models import TimeStampedModel
 
 HOMEPAGE_MEDIA_MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MiB
 
+# فرمت‌های تصویر مجاز (تشخیص توسط Pillow)
+ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP"}
+
 
 def validate_image_size(value):
     """اعتبارسنجی حجم فایل تصویر — حداکثر ۵ مگابایت."""
@@ -33,6 +36,43 @@ def validate_image_size(value):
         raise ValidationError(
             f"حجم تصویر نباید بیشتر از {limit_mb:.0f} مگابایت باشد. "
             f"حجم فعلی: {value.size / (1024 * 1024):.1f} مگابایت."
+        )
+
+
+def validate_image_content(value):
+    """اعتبارسنجی محتوای واقعی فایل تصویر — باز کردن و verify با Pillow.
+
+    تضمین می‌کند:
+    - فایل یک تصویر واقعی قابل decode است (نه HTML/JS/SVG/text)
+    - فرمت تشخیص‌داده‌شده در لیست مجاز قرار دارد
+    - فایل خراب یا ناقص رد می‌شود
+    """
+    if not value:
+        return
+
+    from PIL import Image, UnidentifiedImageError
+
+    # ذخیره‌ی موقعیت فعلی stream
+    original_position = None
+    if hasattr(value, 'tell'):
+        original_position = value.tell()
+    if hasattr(value, 'seek'):
+        value.seek(0)
+
+    try:
+        img = Image.open(value)
+        detected_format = img.format
+        img.verify()
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError, Exception) as exc:
+        raise ValidationError("فایل بارگذاری‌شده یک تصویر معتبر نیست.") from exc
+    finally:
+        if original_position is not None and hasattr(value, 'seek'):
+            value.seek(original_position)
+
+    if detected_format not in ALLOWED_IMAGE_FORMATS:
+        raise ValidationError(
+            f"فرمت تصویر «{detected_format}» مجاز نیست. "
+            f"فرمت‌های مجاز: {', '.join(sorted(ALLOWED_IMAGE_FORMATS))}"
         )
 
 # طرح‌های مجاز برای لینک خارجی
@@ -254,8 +294,8 @@ class HeroSlide(TimeStampedModel, DestinationMixin):
 
     title = models.CharField("عنوان", max_length=200, blank=True)
     subtitle = models.CharField("زیرعنوان", max_length=300, blank=True)
-    desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/hero/", validators=[validate_image_size])
-    mobile_image = models.ImageField("تصویر موبایل", upload_to="homepage/hero/", blank=True, validators=[validate_image_size])
+    desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/hero/", validators=[validate_image_size, validate_image_content])
+    mobile_image = models.ImageField("تصویر موبایل", upload_to="homepage/hero/", blank=True, validators=[validate_image_size, validate_image_content])
     button_label = models.CharField("متن دکمه", max_length=60, blank=True)
     show_button = models.BooleanField("نمایش دکمه", default=False)
     is_active = models.BooleanField("فعال", default=True)
@@ -282,8 +322,8 @@ class PromotionalBanner(TimeStampedModel, DestinationMixin):
 
     title = models.CharField("عنوان", max_length=200, blank=True)
     description = models.CharField("توضیحات", max_length=500, blank=True)
-    desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/banners/", validators=[validate_image_size])
-    mobile_image = models.ImageField("تصویر موبایل", upload_to="homepage/banners/", blank=True, validators=[validate_image_size])
+    desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/banners/", validators=[validate_image_size, validate_image_content])
+    mobile_image = models.ImageField("تصویر موبایل", upload_to="homepage/banners/", blank=True, validators=[validate_image_size, validate_image_content])
     button_label = models.CharField("متن دکمه", max_length=60, blank=True)
     show_button = models.BooleanField("نمایش دکمه", default=False)
     is_active = models.BooleanField("فعال", default=True)
@@ -602,7 +642,7 @@ class FooterSettings(TimeStampedModel):
 class FooterTrustBadge(TimeStampedModel):
     """نماد اعتماد فوتر."""
     title = models.CharField("عنوان", max_length=150)
-    image = models.ImageField("تصویر", upload_to="footer/trust-badges/", validators=[validate_image_size])
+    image = models.ImageField("تصویر", upload_to="footer/trust-badges/", validators=[validate_image_size, validate_image_content])
     destination_url = models.URLField("لینک مقصد", blank=True, max_length=500)
     display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
     is_active = models.BooleanField("فعال", default=True)
@@ -628,7 +668,7 @@ class FooterTrustBadge(TimeStampedModel):
 class FooterPaymentLogo(TimeStampedModel):
     """لوگوی روش پرداخت فوتر."""
     title = models.CharField("عنوان", max_length=150)
-    image = models.ImageField("تصویر", upload_to="footer/payment-logos/", validators=[validate_image_size])
+    image = models.ImageField("تصویر", upload_to="footer/payment-logos/", validators=[validate_image_size, validate_image_content])
     display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
     is_active = models.BooleanField("فعال", default=True)
 
