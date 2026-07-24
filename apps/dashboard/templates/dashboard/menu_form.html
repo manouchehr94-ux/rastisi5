@@ -1,0 +1,33 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{% if menu %}ویرایش{% else %}افزودن{% endif %} منو | پنل مدیریت{% endblock %}
+{% block page_title %}{% if menu %}ویرایش منوی «{{ menu.title }}»{% else %}افزودن منوی جدید{% endif %}{% endblock %}
+{% block page_sub %}مشخصات منو را وارد کنید{% endblock %}
+{% block content %}
+<div class="card" style="max-width:500px">
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label>عنوان منو *</label>
+      <input type="text" name="title" value="{{ menu.title|default:'' }}" required maxlength="150">
+    </div>
+    <div class="form-group">
+      <label>مکان نمایش *</label>
+      <select name="location" required>
+        <option value="">انتخاب کنید...</option>
+        {% for val, label in locations %}
+        <option value="{{ val }}" {% if menu.location == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" name="is_active" {% if menu.is_active or not menu %}checked{% endif %}> فعال
+      </label>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">{% if menu %}ذخیره تغییرات{% else %}افزودن{% endif %}</button>
+      <a href="{% url 'dashboard:menu-list' %}" class="btn">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -99,12 +99,25 @@
       </div>
     </div>
     <div class="nav-links-scroll">
-      <a class="nl" href="#">جدیدترین‌ها</a>
-      <a class="nl" href="#">پرفروش‌ترین‌ها</a>
-      <a class="nl hot" href="#">🔥 تخفیف‌ها و پیشنهادها</a>
-      <a class="nl" href="#">برندها</a>
-      <a class="nl" href="#">وبلاگ</a>
-      <a class="nl" href="#">تماس با ما</a>
+      {% if NAV_HEADER %}
+      {% for item in NAV_HEADER.items %}
+      {% if item.children %}
+      <div class="nav-dropdown" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="if(open){open=false;$nextTick(()=>$refs.trigger{{forloop.counter}}.focus())}">
+        {% if item.url %}
+        <a class="nl" href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>
+        {% endif %}
+        <button x-ref="trigger{{forloop.counter}}" type="button" class="nav-submenu-trigger" @click="open = !open" :aria-expanded="open.toString()" aria-haspopup="true" aria-label="{% if item.url %}باز کردن زیرمنوی {{ item.title }}{% else %}{{ item.title }}{% endif %}">{% if not item.url %}{{ item.title }} {% endif %}<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+        <ul class="nav-submenu" x-show="open" x-cloak>
+          {% for child in item.children %}
+          <li><a href="{{ child.url }}" {% if child.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ child.title }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% elif item.url %}
+      <a class="nl" href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>
+      {% endif %}
+      {% endfor %}
+      {% endif %}
       <span class="nav-spacer"></span>
       <span class="nav-hot">⚡ فروش ویژه آخر هفته</span>
     </div>
@@ -140,27 +153,50 @@
       </div>
       {% endif %}
     </div>
+    {% if NAV_FOOTER_1 %}
+    <div>
+      <h5>{{ NAV_FOOTER_1.title }}</h5>
+      <ul>
+        {% for item in NAV_FOOTER_1.items %}
+        <li>
+          {% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}
+          {% if item.children %}<ul>{% for child in item.children %}<li><a href="{{ child.url }}" {% if child.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ child.title }}</a></li>{% endfor %}</ul>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% elif footer_pages_quick_access %}
     <div>
       <h5>دسترسی سریع</h5>
       <ul>
-        <li><a href="/">صفحه اصلی</a></li>
-        <li><a href="{% url 'catalog:product-list' %}">فروشگاه</a></li>
         {% for page in footer_pages_quick_access %}
         <li><a href="{{ page.get_absolute_url }}">{{ page.title }}</a></li>
         {% endfor %}
       </ul>
     </div>
+    {% endif %}
+    {% if NAV_FOOTER_2 %}
+    <div>
+      <h5>{{ NAV_FOOTER_2.title }}</h5>
+      <ul>
+        {% for item in NAV_FOOTER_2.items %}
+        <li>
+          {% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}
+          {% if item.children %}<ul>{% for child in item.children %}<li><a href="{{ child.url }}" {% if child.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ child.title }}</a></li>{% endfor %}</ul>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% elif footer_pages_customer_service %}
     <div>
       <h5>خدمات مشتریان</h5>
       <ul>
         {% for page in footer_pages_customer_service %}
         <li><a href="{{ page.get_absolute_url }}">{{ page.title }}</a></li>
         {% endfor %}
-        {% if not footer_pages_customer_service %}
-        <li><a href="#">سوالات متداول</a></li>
-        {% endif %}
       </ul>
     </div>
+    {% endif %}
     <div>
       <h5>تماس با ما</h5>
       <ul>

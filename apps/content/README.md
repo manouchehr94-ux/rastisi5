@@ -229,7 +229,6 @@
 
 ### ویژگی‌های تأخیری
 
-- مدیریت ناوبری (MenuItem)
 - ویرایشگر ریچ‌تکست و سنیتایزر
 - تاریخچه‌ی نسخه‌ها
 - سیستم حسابرسی (Audit)
@@ -357,3 +356,203 @@
 - Social sharing buttons
 - Analytics tracking
 - Multi-store support
+
+
+---
+
+## مدیریت منوهای ناوبری (Menu / MenuItem — PR #10)
+
+### بررسی کلی
+
+منوهای ناوبری فروشگاه از طریق داشبورد اختصاصی قابل مدیریت هستند. هر مکان
+(هدر، فوتر، موبایل) حداکثر یک منوی فعال دارد. آیتم‌های منو از زیرساخت
+DestinationMixin استفاده مجدد می‌کنند و حداکثر ۲ سطح سلسله‌مراتب پشتیبانی می‌شود.
+
+### مکان‌های منو
+
+| مکان | کد | توضیح |
+|------|-----|--------|
+| منوی اصلی | `header` | نوار ناوبری هدر فروشگاه |
+| ستون اول فوتر | `footer_1` | ستون لینک‌های فوتر |
+| ستون دوم فوتر | `footer_2` | ستون لینک‌های فوتر |
+| ستون سوم فوتر | `footer_3` | ستون لینک‌های فوتر |
+| منوی موبایل | `mobile` | ناوبری موبایل (ساختاری) |
+
+- محدودیت یکتایی: هر مکان فقط یک منو دارد (unique constraint)
+- مکان `mobile`: ساختاری پشتیبانی می‌شود — بصری فعال نیست (هیچ تغییری در layout موبایل)
+
+### فیلدهای مدل Menu
+
+| فیلد | نوع | توضیح |
+|------|------|--------|
+| `title` | CharField(150) | عنوان منو — الزامی |
+| `location` | CharField(20) | مکان — unique, choices |
+| `is_active` | BooleanField | فعال — default True |
+| `created_at` | DateTimeField | auto_now_add |
+| `updated_at` | DateTimeField | auto_now |
+
+### فیلدهای مدل MenuItem
+
+| فیلد | نوع | توضیح |
+|------|------|--------|
+| `menu` | ForeignKey(Menu) | منوی والد — PROTECT |
+| `parent` | ForeignKey(self) | آیتم والد — PROTECT, nullable |
+| `title` | CharField(200) | عنوان — الزامی |
+| `display_order` | PositiveIntegerField | ترتیب — default 0 |
+| `is_active` | BooleanField | فعال — default True |
+| `open_in_new_tab` | BooleanField | تب جدید — default False |
+| + فیلدهای DestinationMixin | | نوع مقصد، FK‌ها، URL خارجی |
+
+### استفاده مجدد از DestinationMixin
+
+آیتم‌های منو از همان زیرساخت مقصد امن PR #6 استفاده می‌کنند:
+- نوع‌های مقصد: none, category, product, brand, external
+- اعتبارسنجی انسجام مقصد
+- حل URL با `resolve_destination_url()`
+- امنیت URL خارجی (javascript/data/vbscript رد)
+- حذف مقصد داخلی: SET_NULL → آیتم در رندر skip می‌شود
+
+### محدودیت سلسله‌مراتب
+
+- حداکثر **۲ سطح**: آیتم سطح اول + فرزند
+- نوه (grandchild) مجاز **نیست**
+- والد باید به **همان منو** تعلق داشته باشد
+- آیتم نمی‌تواند والد **خودش** باشد
+- آیتمی که فرزند دارد نمی‌تواند خودش فرزند شود
+- روابط حلقوی رد می‌شوند
+
+### ترتیب نمایش
+
+- `display_order` صعودی
+- Tiebreaker: `id` صعودی
+- بدون drag-and-drop
+
+### رفتار فعال/غیرفعال
+
+- منوی غیرفعال: هیچ آیتمی رندر نمی‌شود
+- آیتم غیرفعال: در رندر skip می‌شود
+- والد غیرفعال: فرزندان هم رندر نمی‌شوند
+
+### سیاست حذف
+
+#### حذف منو
+- منوی دارای آیتم **قابل حذف نیست** (PROTECT دستی در view)
+- ابتدا باید آیتم‌ها حذف شوند
+- پیام خطای فارسی به مدیر نمایش داده می‌شود
+
+#### حذف آیتم والد
+- آیتم والد با فرزند **قابل حذف نیست** (on_delete=PROTECT)
+- ابتدا باید فرزندان حذف شوند
+- پیام خطای فارسی
+
+### امنیت لینک خارجی
+
+- فقط طرح‌های مجاز (https, http, mailto, tel)
+- `javascript:`, `data:`, `vbscript:` رد
+- URL نسبی پروتکل رد
+- خروجی‌ها Django auto-escape
+- هرگز `mark_safe()` روی مقادیر دیتابیس
+- `open_in_new_tab=True` → `target="_blank" rel="noopener noreferrer"`
+- `open_in_new_tab=False` → بدون `target="_blank"`
+
+### رندر هدر
+
+- منوی فعال با `location=header` رندر می‌شود
+- آیتم‌های سطح اول فعال و فرزندان فعال‌شان نمایش داده می‌شوند
+- **زیرمنو**: والد با فرزندان فعال → dropdown قابل دسترس رندر می‌شود
+  - والد با URL: لینک `<a>` + دکمه‌ی trigger جداگانه برای باز/بسته کردن زیرمنو
+  - والد بدون URL: `<button>` به‌عنوان trigger (بدون `href="#"`)
+  - فرزندان: `<ul class="nav-submenu">` با `<a>` برای هر فرزند
+- **دسترسی‌پذیری**:
+  - `aria-haspopup="true"` روی trigger
+  - `:aria-expanded="open.toString()"` — وضعیت دینامیک
+  - `aria-label` با نام منو برای trigger
+  - `@keydown.escape` → بستن زیرمنو و بازگشت فوکوس به trigger
+  - `@click.outside` → بستن زیرمنو
+  - trigger عنصر `<button>` — keyboard-focusable
+  - بدون trap فوکوس
+- اگر منوی مدیریت‌شده وجود نداشته باشد → هیچ لینک ناوبری رندر نمی‌شود (بدون fallback)
+- مقصد حل‌نشده → آیتم skip می‌شود
+- والد موقت (بدون مقصد و بدون فرزند فعال) → رندر نمی‌شود
+
+### رندر فوتر
+
+- `footer_1`, `footer_2`, `footer_3` مستقل رندر می‌شوند
+- عنوان منو به‌عنوان heading ستون فوتر استفاده می‌شود
+- **سلسله‌مراتب در فوتر پشتیبانی می‌شود**: فرزندان به‌صورت `<ul>` تودرتو رندر می‌شوند
+- والد بدون URL در فوتر: `<span>` (بدون `href="#"`)
+- فرزندان غیرفعال یا unresolvable → حذف
+- اگر منوی مدیریت‌شده وجود نداشته باشد → صفحات محتوایی (PR #7) به‌عنوان elif رندر می‌شوند
+- ستون خالی (بدون آیتم رندرشدنی) → کل ستون حذف
+
+### رندر موبایل
+
+- ساختاری پشتیبانی می‌شود (`location=mobile`)
+- بصری در این PR فعال **نیست** — منطقه‌ی بصری موبایل تغییر نکرده
+- داده در context processor موجود است (`NAV_MOBILE`)
+
+### گردش کار والد موقت (Provisional Parent)
+
+- آیتم سطح اول با `destination_type=none` قابل ذخیره است (بدون نیاز به فرزند)
+- در داشبورد نمایش داده می‌شود تا فرزند اضافه شود
+- تا زمانی که فرزند فعال و معتبر ندارد → در فروشگاه رندر **نمی‌شود**
+- پس از اضافه شدن فرزند معتبر → به‌عنوان heading زیرمنو رندر می‌شود
+- نیازی به مقصد موقت/جعلی ندارد
+
+### وضعیت خالی (Empty State)
+
+- بدون منوی هدر فعال → هیچ لینک ناوبری هدر رندر نمی‌شود (بدون fallback)
+- منوی فعال بدون آیتم رندرشدنی → هیچ لینکی تولید نمی‌شود
+- فوتر بدون منوی مدیریت‌شده → صفحات محتوایی (اگر وجود داشته باشند) رندر
+- هیچ لینک hardcoded جدیدی اضافه نشده
+- هرگز `href="#"` تولید نمی‌شود
+
+### بهینه‌سازی Query
+
+- **۲ query** برای کل ناوبری:
+  - ۱ query: منوهای فعال
+  - ۱ query: آیتم‌های فعال با `select_related` (parent, destination_category, destination_product, destination_brand) — JOIN در یک query
+- `Prefetch` با queryset سفارشی استفاده می‌شود
+- بدون N+1 روی آیتم‌ها یا مقصدها
+- تعداد query ثابت مستقل از تعداد منوها و آیتم‌ها
+- Context processor: `apps.content.context_processors.navigation_menus`
+- منوهای غیرفعال query نمی‌شوند (فقط `is_active=True`)
+
+### مسیرهای داشبورد
+
+| مسیر | عملیات |
+|------|--------|
+| `/admin-panel/menus/` | فهرست منوها |
+| `/admin-panel/menus/add/` | افزودن منو |
+| `/admin-panel/menus/<id>/edit/` | ویرایش منو |
+| `/admin-panel/menus/<id>/delete/` | حذف منو (POST) |
+| `/admin-panel/menus/<id>/toggle/` | فعال/غیرفعال (POST) |
+| `/admin-panel/menus/<id>/items/` | فهرست آیتم‌ها |
+| `/admin-panel/menus/<id>/items/add/` | افزودن آیتم |
+| `/admin-panel/menu-items/<id>/edit/` | ویرایش آیتم |
+| `/admin-panel/menu-items/<id>/delete/` | حذف آیتم (POST) |
+| `/admin-panel/menu-items/<id>/toggle/` | فعال/غیرفعال (POST) |
+
+- سطح دسترسی: `@staff_required`
+- ناوبری: سایدبار → «مدیریت منوها»
+
+### محدودیت‌های شناخته‌شده
+
+- drag-and-drop ordering پیاده‌سازی نشده
+- حداکثر ۲ سطح (بدون nesting عمیق)
+- رندر موبایل بصری فعال نیست
+- مقصد product/brand در فرم آیتم فعلاً hidden (مدل آماده)
+- تأیید حذف فقط JavaScript confirm()
+- Mega menu پشتیبانی نمی‌شود
+
+### محدودیت‌های صریح (خارج از محدوده)
+
+- Mega menus
+- Unlimited-depth trees
+- Footer Builder / Header Builder / Homepage Builder
+- Product/Category redesign
+- Multi-store support
+- Navigation analytics
+- Role-based menu visibility
+- Scheduled publishing
+- Wagtail / Generic page builder

@@ -85,4 +85,16 @@ urlpatterns = [
     path("social-links/<int:pk>/edit/", views.social_link_form, name="social-link-edit"),
     path("social-links/<int:pk>/delete/", views.social_link_delete, name="social-link-delete"),
     path("social-links/<int:pk>/toggle/", views.social_link_toggle, name="social-link-toggle"),
+
+    # --- مدیریت منوها ---
+    path("menus/", views.menu_list, name="menu-list"),
+    path("menus/add/", views.menu_form, name="menu-add"),
+    path("menus/<int:pk>/edit/", views.menu_form, name="menu-edit"),
+    path("menus/<int:pk>/delete/", views.menu_delete, name="menu-delete"),
+    path("menus/<int:pk>/toggle/", views.menu_toggle, name="menu-toggle"),
+    path("menus/<int:menu_id>/items/", views.menu_item_list, name="menu-item-list"),
+    path("menus/<int:menu_id>/items/add/", views.menu_item_form, name="menu-item-add"),
+    path("menu-items/<int:pk>/edit/", views.menu_item_form, name="menu-item-edit"),
+    path("menu-items/<int:pk>/delete/", views.menu_item_delete, name="menu-item-delete"),
+    path("menu-items/<int:pk>/toggle/", views.menu_item_toggle, name="menu-item-toggle"),
 ]
