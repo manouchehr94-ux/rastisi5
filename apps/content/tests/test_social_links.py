@@ -387,22 +387,153 @@ class SocialLinkStorefrontTests(TestCase):
         self.assertContains(response, "&lt;script&gt;")
 
     def test_empty_state_omits_wrapper(self):
-        """No active social links → socials div should be empty."""
+        """No active social links → .socials div must not render at all."""
         response = self.client.get("/")
-        content = response.content.decode()
-        # The socials div should have no <a> children
-        import re
-        socials_match = re.search(r'<div class="socials">(.*?)</div>', content, re.DOTALL)
-        if socials_match:
-            inner = socials_match.group(1).strip()
-            self.assertEqual(inner, "")
+        self.assertNotContains(response, 'class="socials"')
 
     def test_no_hardcoded_fallback(self):
         """No social links → no hardcoded href='#' social links appear."""
         response = self.client.get("/")
         content = response.content.decode()
-        # Find the .socials section and ensure no href="#"
         import re
         socials_match = re.search(r'<div class="socials">(.*?)</div>', content, re.DOTALL)
-        if socials_match:
-            self.assertNotIn('href="#"', socials_match.group(1))
+        self.assertIsNone(socials_match)
+
+    def test_only_inactive_links_omits_wrapper(self):
+        """Only inactive links exist → .socials div must not render."""
+        SocialLink.objects.create(
+            platform="telegram", title="Inactive",
+            url="https://t.me/off", is_active=False, show_in_footer=True,
+        )
+        response = self.client.get("/")
+        self.assertNotContains(response, 'class="socials"')
+
+    def test_only_header_links_omits_footer_wrapper(self):
+        """Only header-visible links exist → no footer .socials div."""
+        SocialLink.objects.create(
+            platform="telegram", title="Header Only",
+            url="https://t.me/h", is_active=True,
+            show_in_header=True, show_in_footer=False,
+        )
+        response = self.client.get("/")
+        self.assertNotContains(response, 'class="socials"')
+
+    def test_active_footer_link_renders_wrapper(self):
+        """At least one active footer link → .socials div renders."""
+        SocialLink.objects.create(
+            platform="instagram", title="IG",
+            url="https://instagram.com/x", is_active=True, show_in_footer=True,
+        )
+        response = self.client.get("/")
+        self.assertContains(response, 'class="socials"')
+
+
+# ============================================================ ICON COHERENCE TESTS
+
+
+class SocialLinkIconCoherenceTests(TestCase):
+    """تست‌های انسجام پلتفرم و آیکون."""
+
+    def test_standard_platform_derives_correct_icon(self):
+        """Instagram platform → icon_name normalized to 'instagram' on save."""
+        link = SocialLink.objects.create(
+            platform="instagram", title="IG", url="https://instagram.com/x"
+        )
+        self.assertEqual(link.icon_name, "instagram")
+
+    def test_standard_platform_conflicting_icon_normalized(self):
+        """Instagram with icon_name='youtube' → normalized to 'instagram' on save."""
+        link = SocialLink(
+            platform="instagram", title="IG",
+            url="https://instagram.com/x", icon_name="youtube",
+        )
+        link.full_clean()
+        link.save()
+        self.assertEqual(link.icon_name, "instagram")
+
+    def test_all_standard_platforms_normalize(self):
+        """Every non-CUSTOM platform normalizes icon_name to its mapping."""
+        from apps.content.models import SOCIAL_ICON_MAP
+        for platform_val, _ in SocialLink.Platform.choices:
+            if platform_val == "custom":
+                continue
+            link = SocialLink.objects.create(
+                platform=platform_val, title=f"T-{platform_val}",
+                url="https://example.com", icon_name="link",  # deliberate mismatch
+            )
+            self.assertEqual(link.icon_name, SOCIAL_ICON_MAP[platform_val])
+
+    def test_custom_platform_uses_link_icon(self):
+        """Custom platform with no icon → defaults to 'link'."""
+        link = SocialLink.objects.create(
+            platform="custom", title="Site", url="https://example.com", icon_name=""
+        )
+        self.assertEqual(link.icon_name, "link")
+
+    def test_custom_platform_valid_icon_accepted(self):
+        """Custom platform with valid icon_name 'telegram' → kept."""
+        link = SocialLink.objects.create(
+            platform="custom", title="Site", url="https://example.com", icon_name="telegram"
+        )
+        self.assertEqual(link.icon_name, "telegram")
+
+    def test_custom_platform_invalid_icon_rejected(self):
+        """Custom platform with arbitrary HTML as icon → rejected by full_clean."""
+        link = SocialLink(
+            platform="custom", title="T", url="https://example.com",
+            icon_name='<img src=x onerror=alert(1)>',
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            link.full_clean()
+        self.assertIn("icon_name", ctx.exception.message_dict)
+
+    def test_custom_platform_invalid_icon_normalized_on_save(self):
+        """Custom with invalid icon_name (bypassing clean) → normalized to 'link'."""
+        link = SocialLink(
+            platform="custom", title="T", url="https://example.com",
+            icon_name="not_valid",
+        )
+        link.save()  # bypass full_clean to test save normalization
+        self.assertEqual(link.icon_name, "link")
+
+    def test_effective_icon_standard_ignores_stored_value(self):
+        """effective_icon_name for standard platform ignores stored icon_name."""
+        link = SocialLink(
+            platform="youtube", title="T", url="https://youtube.com",
+            icon_name="instagram",  # deliberately wrong
+        )
+        self.assertEqual(link.effective_icon_name, "youtube")
+
+    def test_effective_icon_custom_uses_stored_valid(self):
+        """effective_icon_name for CUSTOM uses stored valid icon_name."""
+        link = SocialLink(
+            platform="custom", title="T", url="https://example.com",
+            icon_name="whatsapp",
+        )
+        self.assertEqual(link.effective_icon_name, "whatsapp")
+
+    def test_effective_icon_custom_invalid_falls_back(self):
+        """effective_icon_name for CUSTOM with invalid icon → 'link'."""
+        link = SocialLink(
+            platform="custom", title="T", url="https://example.com",
+            icon_name="bogus",
+        )
+        self.assertEqual(link.effective_icon_name, "link")
+
+    def test_no_raw_markup_in_icon_name(self):
+        """Template tags, CSS classes, JS cannot be stored as icon_name for standard."""
+        link = SocialLink.objects.create(
+            platform="telegram", title="T", url="https://t.me/x",
+            icon_name="<script>alert(1)</script>",
+        )
+        # Standard platform normalizes
+        self.assertEqual(link.icon_name, "telegram")
+
+    def test_dashboard_does_not_expose_icon_input(self):
+        """Dashboard form template does not have an icon_name input."""
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        User.objects.create_user(username="staff_icon", password="p!", is_staff=True)
+        self.client.login(username="staff_icon", password="p!")
+        response = self.client.get(reverse("dashboard:social-link-add"))
+        self.assertNotContains(response, 'name="icon_name"')

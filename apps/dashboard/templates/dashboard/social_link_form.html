@@ -37,7 +37,6 @@
         <input type="checkbox" name="show_in_footer" {% if link.show_in_footer or not link %}checked{% endif %}> نمایش در فوتر
       </label>
     </div>
-    <input type="hidden" name="icon_name" value="{{ link.icon_name|default:'' }}">
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">{% if link %}ذخیره تغییرات{% else %}افزودن{% endif %}</button>
       <a href="{% url 'dashboard:social-link-list' %}" class="btn">انصراف</a>

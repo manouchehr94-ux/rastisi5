@@ -1228,7 +1228,6 @@ def social_link_form(request, pk=None):
         obj.platform = request.POST.get("platform", "custom")
         obj.title = request.POST.get("title", "").strip()
         obj.url = request.POST.get("url", "").strip()
-        obj.icon_name = request.POST.get("icon_name", "").strip()
         obj.display_order = int(request.POST.get("display_order", "0") or "0")
         obj.is_active = request.POST.get("is_active") == "on"
         obj.show_in_header = request.POST.get("show_in_header") == "on"

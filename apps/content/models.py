@@ -389,18 +389,20 @@ class SocialLink(TimeStampedModel):
 
     @property
     def effective_icon_name(self) -> str:
-        """نام آیکون مؤثر — اگر دستی تنظیم نشده، از نگاشت پلتفرم."""
+        """نام آیکون مؤثر — برای پلتفرم‌های استاندارد همیشه از نگاشت پلتفرم."""
+        if self.platform != self.Platform.CUSTOM:
+            return SOCIAL_ICON_MAP.get(self.platform, "link")
         if self.icon_name and self.icon_name in SOCIAL_ICON_MAP.values():
             return self.icon_name
-        return SOCIAL_ICON_MAP.get(self.platform, "link")
+        return "link"
 
     def clean(self):
         super().clean()
         # نرمال‌سازی URL
         if self.url:
             self.url = self.url.strip()
-        # اعتبارسنجی icon_name — فقط مقادیر مجاز
-        if self.icon_name:
+        # اعتبارسنجی icon_name — فقط برای CUSTOM مهم است
+        if self.platform == self.Platform.CUSTOM and self.icon_name:
             allowed = set(SOCIAL_ICON_MAP.values())
             if self.icon_name not in allowed:
                 raise ValidationError({
@@ -411,7 +413,12 @@ class SocialLink(TimeStampedModel):
     def save(self, *args, **kwargs):
         if self.url:
             self.url = self.url.strip()
-        # اگر icon_name خالی → از پلتفرم استخراج
-        if not self.icon_name:
+        # پلتفرم‌های استاندارد: همیشه icon از نگاشت (نرمال‌سازی قطعی)
+        if self.platform != self.Platform.CUSTOM:
             self.icon_name = SOCIAL_ICON_MAP.get(self.platform, "link")
+        else:
+            # CUSTOM: اگر خالی یا نامعتبر → link
+            allowed = set(SOCIAL_ICON_MAP.values())
+            if not self.icon_name or self.icon_name not in allowed:
+                self.icon_name = "link"
         super().save(*args, **kwargs)
