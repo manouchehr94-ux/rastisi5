@@ -97,4 +97,17 @@ urlpatterns = [
     path("menu-items/<int:pk>/edit/", views.menu_item_form, name="menu-item-edit"),
     path("menu-items/<int:pk>/delete/", views.menu_item_delete, name="menu-item-delete"),
     path("menu-items/<int:pk>/toggle/", views.menu_item_toggle, name="menu-item-toggle"),
+
+    # --- تنظیمات فوتر ---
+    path("footer/settings/", views.footer_settings_page, name="footer-settings"),
+    path("footer/trust-badges/", views.footer_trust_badge_list, name="footer-trust-badge-list"),
+    path("footer/trust-badges/add/", views.footer_trust_badge_form, name="footer-trust-badge-add"),
+    path("footer/trust-badges/<int:pk>/edit/", views.footer_trust_badge_form, name="footer-trust-badge-edit"),
+    path("footer/trust-badges/<int:pk>/delete/", views.footer_trust_badge_delete, name="footer-trust-badge-delete"),
+    path("footer/trust-badges/<int:pk>/toggle/", views.footer_trust_badge_toggle, name="footer-trust-badge-toggle"),
+    path("footer/payment-logos/", views.footer_payment_logo_list, name="footer-payment-logo-list"),
+    path("footer/payment-logos/add/", views.footer_payment_logo_form, name="footer-payment-logo-add"),
+    path("footer/payment-logos/<int:pk>/edit/", views.footer_payment_logo_form, name="footer-payment-logo-edit"),
+    path("footer/payment-logos/<int:pk>/delete/", views.footer_payment_logo_delete, name="footer-payment-logo-delete"),
+    path("footer/payment-logos/<int:pk>/toggle/", views.footer_payment_logo_toggle, name="footer-payment-logo-toggle"),
 ]

@@ -77,6 +77,7 @@ TEMPLATES = [
                 "apps.customers.context_processors.auth_forms",
                 "apps.content.context_processors.footer_pages",
                 "apps.content.context_processors.navigation_menus",
+                "apps.content.context_processors.footer_settings",
             ],
         },
     },

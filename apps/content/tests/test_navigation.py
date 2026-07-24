@@ -625,6 +625,12 @@ class NavigationFallbackRemovalTests(TestCase):
 
     def test_other_non_navigation_content_remains(self):
         """Non-navigation elements (newsletter, branding) remain."""
+        from apps.content.models import FooterSettings
+        fs = FooterSettings.load()
+        fs.show_newsletter = True
+        fs.show_contact = True
+        fs.phone = "021-12345"
+        fs.save()
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "عضویت در خبرنامه")

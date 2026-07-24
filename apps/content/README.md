@@ -556,3 +556,165 @@ DestinationMixin استفاده مجدد می‌کنند و حداکثر ۲ سط
 - Role-based menu visibility
 - Scheduled publishing
 - Wagtail / Generic page builder
+
+
+
+---
+
+## تنظیمات فوتر (FooterSettings — PR #11)
+
+### تصمیم معماری
+
+فوتر فروشگاه از طریق یک رکورد singleton (`FooterSettings`) با `pk=1` مدیریت می‌شود.
+Django's `get_or_create` atomically handles concurrent first-load races — نیازی به
+مدیریت دستی `IntegrityError` نیست.
+
+### فیلدها
+
+| فیلد | نوع | توضیح |
+|------|------|--------|
+| `is_enabled` | BooleanField | فعال/غیرفعال کل فوتر |
+| `show_branding` | BooleanField | نمایش برندینگ |
+| `show_logo` | BooleanField | نمایش لوگو |
+| `description` | TextField(500) | توضیحات فوتر |
+| `show_contact` | BooleanField | نمایش اطلاعات تماس |
+| `address` | CharField(500) | آدرس |
+| `phone` | CharField(50) | تلفن — validator: ارقام، فاصله، +، -، پرانتز |
+| `secondary_phone` | CharField(50) | تلفن ثانویه — همان validator |
+| `email` | EmailField | ایمیل |
+| `working_hours` | CharField(250) | ساعات کاری |
+| `show_navigation` | BooleanField | نمایش ناوبری |
+| `show_social_links` | BooleanField | نمایش شبکه‌های اجتماعی |
+| `show_newsletter` | BooleanField | نمایش خبرنامه |
+| `newsletter_title` | CharField(150) | عنوان خبرنامه |
+| `newsletter_description` | CharField(300) | توضیح خبرنامه |
+| `show_trust_badges` | BooleanField | نمایش نمادهای اعتماد |
+| `show_payment_logos` | BooleanField | نمایش لوگوهای پرداخت |
+| `copyright_text` | CharField(300) | متن کپی‌رایت |
+
+### رفتار singleton
+
+- `load()` از `get_or_create(pk=1)` استفاده می‌کند
+- `save()` همیشه `pk=1` را اجبار می‌کند
+- حداکثر یک رکورد در دیتابیس وجود دارد
+- ذخیره با pk متفاوت → نرمال‌سازی به pk=1
+
+### نمادهای اعتماد (FooterTrustBadge)
+
+- عنوان (الزامی)، تصویر (الزامی، حداکثر 5MB)، URL مقصد (اختیاری)
+- ترتیب عددی (`display_order`)
+- فعال/غیرفعال (`is_active`)
+- URL خطرناک (`javascript:`, `data:`, `//`) رد می‌شود
+- فقط وقتی `show_trust_badges=True` و حداقل یک badge فعال وجود دارد رندر می‌شود
+
+### لوگوهای پرداخت (FooterPaymentLogo)
+
+- عنوان (الزامی)، تصویر (الزامی، حداکثر 5MB)
+- ترتیب عددی (`display_order`)
+- فعال/غیرفعال (`is_active`)
+- فقط وقتی `show_payment_logos=True` و حداقل یک logo فعال وجود دارد رندر می‌شود
+
+### اعتبارسنجی تصویر
+
+- حداکثر حجم: **5 مگابایت (5 MiB)** برای هر فایل
+- validator: `validate_image_size()` روی فیلد `image`
+- تصویر بزرگ‌تر → خطای اعتبارسنجی
+
+### چرخه‌ی زندگی رسانه (Media Lifecycle)
+
+- حذف badge/logo → فایل تصویر پس از commit حذف می‌شود
+- جایگزینی تصویر → فایل قبلی پس از commit حذف
+- شکست اعتبارسنجی → هیچ فایلی حذف نمی‌شود
+
+### مسیرهای داشبورد
+
+| مسیر | عملیات |
+|------|--------|
+| `/admin-panel/footer/settings/` | تنظیمات فوتر (GET/POST) |
+| `/admin-panel/footer/trust-badges/add/` | افزودن نماد |
+| `/admin-panel/footer/trust-badges/<id>/edit/` | ویرایش نماد |
+| `/admin-panel/footer/trust-badges/<id>/delete/` | حذف نماد (POST) |
+| `/admin-panel/footer/trust-badges/<id>/toggle/` | فعال/غیرفعال (POST) |
+| `/admin-panel/footer/payment-logos/add/` | افزودن لوگو |
+| `/admin-panel/footer/payment-logos/<id>/edit/` | ویرایش لوگو |
+| `/admin-panel/footer/payment-logos/<id>/delete/` | حذف لوگو (POST) |
+| `/admin-panel/footer/payment-logos/<id>/toggle/` | فعال/غیرفعال (POST) |
+
+- سطح دسترسی: `@staff_required`
+
+### کلیدهای قابل مشاهده (Visibility Toggles)
+
+هر بخش فوتر قابل فعال/غیرفعال‌سازی مستقل است:
+- `is_enabled`: کل فوتر
+- `show_branding`: لوگو + توضیحات
+- `show_contact`: اطلاعات تماس
+- `show_navigation`: ستون‌های لینک (منوها)
+- `show_social_links`: شبکه‌های اجتماعی
+- `show_newsletter`: بخش خبرنامه (placeholder)
+- `show_trust_badges`: نمادهای اعتماد
+- `show_payment_logos`: لوگوهای پرداخت
+
+### رندر تماس (Contact Rendering)
+
+- تلفن: `<a href="tel:...">` — فقط وقتی مقدار غیرخالی
+- ایمیل: `<a href="mailto:...">` — فقط وقتی مقدار غیرخالی
+- آدرس: متن ساده
+- ساعات کاری: متن ساده
+- هرگز `href="#"` تولید نمی‌شود
+- اعتبارسنجی تلفن: فقط ارقام، فاصله، +، -، پرانتز مجاز
+- strip خودکار فاصله‌های ابتدا/انتها در `save()`
+
+### یکپارچگی ناوبری / شبکه‌های اجتماعی / محتوا
+
+- ناوبری فوتر: از منوهای مدیریت‌شده (PR #10) استفاده می‌کند
+- شبکه‌های اجتماعی: از `SocialLink` (PR #9) با `show_in_footer=True`
+- صفحات محتوایی: از `ContentPage` (PR #7) با `show_in_footer=True`
+
+### خبرنامه (Newsletter Placeholder)
+
+- `show_newsletter=True`: بخش خبرنامه با عنوان و برچسب «به‌زودی» رندر می‌شود
+- پیاده‌سازی واقعی خبرنامه خارج از محدوده است
+
+### وضعیت خالی (Empty State)
+
+- فوتر غیرفعال → محتوای فوتر رندر نمی‌شود
+- بخش badges بدون badge فعال → بخش حذف
+- بخش logos بدون logo فعال → بخش حذف
+- copyright خالی → بخش copyright حذف (بدون fallback hardcoded)
+- هیچ مقدار hardcoded قدیمی بازنمی‌گردد
+
+### کپی‌رایت (Copyright)
+
+- اگر `copyright_text` دارای مقدار → رندر در `<span>` با auto-escape
+- اگر `copyright_text` خالی → هیچ‌چیز رندر نمی‌شود (بدون fallback)
+- هرگز `mark_safe()` استفاده نمی‌شود
+- محتوای XSS توسط Django auto-escape خنثی می‌شود
+
+### استراتژی Query (با شمارش دقیق)
+
+| شرایط | تعداد Query |
+|--------|-------------|
+| هر دو media غیرفعال | 1 (فقط settings load) |
+| badges فعال، logos غیرفعال | 2 |
+| badges غیرفعال، logos فعال | 2 |
+| هر دو media فعال | 3 |
+
+- تعداد query مستقل از تعداد badge/logo (یک query برای هر نوع)
+- `objects.none()` هیچ query اجرا نمی‌کند
+- context processor: `apps.content.context_processors.footer_settings`
+
+### محدودیت‌های شناخته‌شده
+
+- drag-and-drop ordering پیاده‌سازی نشده
+- پیش‌نمایش حجم فایل سمت کلاینت وجود ندارد
+- خبرنامه placeholder (بدون پیاده‌سازی واقعی)
+- بهینه‌سازی تصویر (resize/compress) به عهده‌ی مدیر
+
+### محدودیت‌های صریح (خارج از محدوده)
+
+- Footer Builder / Visual Editor
+- Newsletter subscription backend
+- Image CDN / optimization pipeline
+- Multi-store footer
+- A/B testing footer layouts
+- Footer analytics

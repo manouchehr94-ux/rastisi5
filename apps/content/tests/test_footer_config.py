@@ -1,0 +1,814 @@
+"""تست‌های جامع قابلیت «تنظیمات فوتر» — مدل، داشبورد، و رندر فروشگاه."""
+
+from io import BytesIO
+
+from PIL import Image
+
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
+from django.urls import reverse
+
+from apps.content.models import (
+    FooterPaymentLogo,
+    FooterSettings,
+    FooterTrustBadge,
+)
+
+User = get_user_model()
+
+
+def _make_image(name="test.png", size=(10, 10), fmt="PNG"):
+    """ساخت تصویر ساختگی برای تست."""
+    buf = BytesIO()
+    Image.new("RGB", size).save(buf, format=fmt)
+    buf.seek(0)
+    return SimpleUploadedFile(name, buf.read(), content_type="image/png")
+
+
+# ---------------------------------------------------------------- FooterSettings Model
+
+
+class FooterSettingsSingletonTests(TestCase):
+    """تست‌های singleton بودن FooterSettings."""
+
+    def test_load_creates_instance(self):
+        self.assertEqual(FooterSettings.objects.count(), 0)
+        fs = FooterSettings.load()
+        self.assertEqual(fs.pk, 1)
+        self.assertEqual(FooterSettings.objects.count(), 1)
+
+    def test_repeated_load_returns_same_row(self):
+        fs1 = FooterSettings.load()
+        fs2 = FooterSettings.load()
+        self.assertEqual(fs1.pk, fs2.pk)
+        self.assertEqual(FooterSettings.objects.count(), 1)
+
+    def test_defaults(self):
+        fs = FooterSettings.load()
+        self.assertTrue(fs.is_enabled)
+        self.assertTrue(fs.show_branding)
+        self.assertTrue(fs.show_logo)
+        self.assertTrue(fs.show_contact)
+        self.assertTrue(fs.show_navigation)
+        self.assertTrue(fs.show_social_links)
+        self.assertFalse(fs.show_newsletter)
+        self.assertFalse(fs.show_trust_badges)
+        self.assertFalse(fs.show_payment_logos)
+        self.assertEqual(fs.description, "")
+        self.assertEqual(fs.copyright_text, "")
+
+    def test_save_forces_pk_1(self):
+        fs = FooterSettings(pk=99, description="test")
+        fs.save()
+        self.assertEqual(fs.pk, 1)
+        self.assertEqual(FooterSettings.objects.count(), 1)
+
+    def test_str(self):
+        fs = FooterSettings.load()
+        self.assertEqual(str(fs), "تنظیمات فوتر")
+
+
+# ---------------------------------------------------------------- FooterTrustBadge Model
+
+
+class FooterTrustBadgeTests(TestCase):
+    """تست‌های مدل FooterTrustBadge."""
+
+    def test_valid_creation(self):
+        badge = FooterTrustBadge.objects.create(
+            title="اینماد",
+            image=_make_image("enamad.png"),
+            destination_url="https://enamad.ir",
+            display_order=1,
+        )
+        self.assertEqual(badge.title, "اینماد")
+        self.assertTrue(badge.is_active)
+        self.assertEqual(str(badge), "اینماد")
+
+    def test_title_required(self):
+        badge = FooterTrustBadge(title="", image=_make_image())
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_image_required(self):
+        badge = FooterTrustBadge(title="test")
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_dangerous_url_rejected(self):
+        badge = FooterTrustBadge(
+            title="XSS", image=_make_image(),
+            destination_url="javascript:alert(1)",
+        )
+        with self.assertRaises(ValidationError) as cm:
+            badge.full_clean()
+        self.assertIn("destination_url", cm.exception.message_dict)
+
+    def test_protocol_relative_url_rejected(self):
+        badge = FooterTrustBadge(
+            title="Protocol", image=_make_image(),
+            destination_url="//evil.com/phish",
+        )
+        with self.assertRaises(ValidationError) as cm:
+            badge.full_clean()
+        self.assertIn("destination_url", cm.exception.message_dict)
+
+    def test_blank_url_allowed(self):
+        badge = FooterTrustBadge(title="NoLink", image=_make_image(), destination_url="")
+        badge.full_clean()  # should not raise
+
+    def test_ordering(self):
+        FooterTrustBadge.objects.create(title="B", image=_make_image("b.png"), display_order=2)
+        FooterTrustBadge.objects.create(title="A", image=_make_image("a.png"), display_order=1)
+        badges = list(FooterTrustBadge.objects.values_list("title", flat=True))
+        self.assertEqual(badges, ["A", "B"])
+
+
+# ---------------------------------------------------------------- FooterPaymentLogo Model
+
+
+class FooterPaymentLogoTests(TestCase):
+    """تست‌های مدل FooterPaymentLogo."""
+
+    def test_valid_creation(self):
+        logo = FooterPaymentLogo.objects.create(
+            title="زرین‌پال", image=_make_image("zp.png"), display_order=0,
+        )
+        self.assertEqual(logo.title, "زرین‌پال")
+        self.assertTrue(logo.is_active)
+        self.assertEqual(str(logo), "زرین‌پال")
+
+    def test_title_required(self):
+        logo = FooterPaymentLogo(title="", image=_make_image())
+        with self.assertRaises(ValidationError):
+            logo.full_clean()
+
+    def test_image_required(self):
+        logo = FooterPaymentLogo(title="test")
+        with self.assertRaises(ValidationError):
+            logo.full_clean()
+
+    def test_ordering(self):
+        FooterPaymentLogo.objects.create(title="Second", image=_make_image("s.png"), display_order=5)
+        FooterPaymentLogo.objects.create(title="First", image=_make_image("f.png"), display_order=1)
+        logos = list(FooterPaymentLogo.objects.values_list("title", flat=True))
+        self.assertEqual(logos, ["First", "Second"])
+
+
+# ---------------------------------------------------------------- Dashboard Access
+
+
+@override_settings(MEDIA_ROOT="/tmp/test_media_footer")
+class DashboardAccessTests(TestCase):
+    """تست‌های دسترسی داشبورد فوتر."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user(username="admin", password="pass123", is_staff=True)
+        self.user = User.objects.create_user(username="normal", password="pass123", is_staff=False)
+
+    def test_anonymous_redirect(self):
+        url = reverse("dashboard:footer-settings")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("login", resp.url)
+
+    def test_non_staff_rejected(self):
+        self.client.login(username="normal", password="pass123")
+        url = reverse("dashboard:footer-settings")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 302)
+
+    def test_staff_allowed(self):
+        self.client.login(username="admin", password="pass123")
+        url = reverse("dashboard:footer-settings")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+
+
+# ---------------------------------------------------------------- Dashboard CRUD
+
+
+@override_settings(MEDIA_ROOT="/tmp/test_media_footer")
+class DashboardFooterCRUDTests(TestCase):
+    """تست‌های CRUD داشبورد فوتر."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user(username="admin", password="pass123", is_staff=True)
+        self.client.login(username="admin", password="pass123")
+
+    def test_settings_save(self):
+        url = reverse("dashboard:footer-settings")
+        resp = self.client.post(url, {
+            "is_enabled": "on",
+            "show_branding": "on",
+            "show_contact": "on",
+            "show_navigation": "on",
+            "show_social_links": "on",
+            "copyright_text": "My Copyright",
+            "phone": "021-12345",
+            "address": "Tehran",
+        })
+        self.assertEqual(resp.status_code, 302)
+        fs = FooterSettings.load()
+        self.assertEqual(fs.copyright_text, "My Copyright")
+        self.assertEqual(fs.phone, "021-12345")
+        self.assertEqual(fs.address, "Tehran")
+
+    def test_badge_create(self):
+        url = reverse("dashboard:footer-trust-badge-add")
+        resp = self.client.post(url, {
+            "title": "TestBadge",
+            "image": _make_image("badge.png"),
+            "display_order": "1",
+            "is_active": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(FooterTrustBadge.objects.count(), 1)
+        self.assertEqual(FooterTrustBadge.objects.first().title, "TestBadge")
+
+    def test_badge_edit(self):
+        badge = FooterTrustBadge.objects.create(title="Old", image=_make_image("old.png"))
+        url = reverse("dashboard:footer-trust-badge-edit", args=[badge.pk])
+        resp = self.client.post(url, {
+            "title": "New",
+            "display_order": "2",
+            "is_active": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        badge.refresh_from_db()
+        self.assertEqual(badge.title, "New")
+
+    def test_badge_delete(self):
+        badge = FooterTrustBadge.objects.create(title="Del", image=_make_image("del.png"))
+        url = reverse("dashboard:footer-trust-badge-delete", args=[badge.pk])
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(FooterTrustBadge.objects.count(), 0)
+
+    def test_badge_toggle(self):
+        badge = FooterTrustBadge.objects.create(title="Toggle", image=_make_image("t.png"), is_active=True)
+        url = reverse("dashboard:footer-trust-badge-toggle", args=[badge.pk])
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, 302)
+        badge.refresh_from_db()
+        self.assertFalse(badge.is_active)
+
+    def test_logo_create(self):
+        url = reverse("dashboard:footer-payment-logo-add")
+        resp = self.client.post(url, {
+            "title": "ZarinPal",
+            "image": _make_image("zp.png"),
+            "display_order": "0",
+            "is_active": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(FooterPaymentLogo.objects.count(), 1)
+
+    def test_logo_edit(self):
+        logo = FooterPaymentLogo.objects.create(title="Old", image=_make_image("old.png"))
+        url = reverse("dashboard:footer-payment-logo-edit", args=[logo.pk])
+        resp = self.client.post(url, {
+            "title": "Updated",
+            "display_order": "3",
+            "is_active": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        logo.refresh_from_db()
+        self.assertEqual(logo.title, "Updated")
+
+    def test_logo_delete(self):
+        logo = FooterPaymentLogo.objects.create(title="Del", image=_make_image("del.png"))
+        url = reverse("dashboard:footer-payment-logo-delete", args=[logo.pk])
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(FooterPaymentLogo.objects.count(), 0)
+
+    def test_logo_toggle(self):
+        logo = FooterPaymentLogo.objects.create(title="Toggle", image=_make_image("t.png"), is_active=True)
+        url = reverse("dashboard:footer-payment-logo-toggle", args=[logo.pk])
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, 302)
+        logo.refresh_from_db()
+        self.assertFalse(logo.is_active)
+
+
+# ---------------------------------------------------------------- Storefront Rendering
+
+
+@override_settings(MEDIA_ROOT="/tmp/test_media_footer")
+class StorefrontFooterRenderTests(TestCase):
+    """تست‌های رندر فوتر در فروشگاه."""
+
+    def setUp(self):
+        self.fs = FooterSettings.load()
+
+    def _get_home(self):
+        return self.client.get("/")
+
+    def test_footer_enabled(self):
+        self.fs.is_enabled = True
+        self.fs.save()
+        resp = self._get_home()
+        self.assertContains(resp, "<footer")
+
+    def test_footer_disabled(self):
+        self.fs.is_enabled = False
+        self.fs.save()
+        resp = self._get_home()
+        content = resp.content.decode()
+        # Footer tag exists but content is empty (guarded by is_enabled)
+        self.assertNotIn("copy", content.split("<footer")[1].split("</footer>")[0] if "<footer" in content else "")
+
+    def test_branding_toggle_off(self):
+        self.fs.show_branding = False
+        self.fs.save()
+        resp = self._get_home()
+        content = resp.content.decode()
+        # The "about" class div shouldn't be in the footer
+        footer_html = content.split("<footer")[1].split("</footer>")[0] if "<footer" in content else ""
+        self.assertNotIn('class="about"', footer_html)
+
+    def test_contact_toggle_off(self):
+        self.fs.show_contact = False
+        self.fs.save()
+        resp = self._get_home()
+        content = resp.content.decode()
+        footer_html = content.split("<footer")[1].split("</footer>")[0] if "<footer" in content else ""
+        self.assertNotIn("تماس با ما", footer_html)
+
+    def test_contact_with_phone(self):
+        self.fs.show_contact = True
+        self.fs.phone = "021-9999"
+        self.fs.save()
+        resp = self._get_home()
+        self.assertContains(resp, "tel:021-9999")
+
+    def test_contact_with_email(self):
+        self.fs.show_contact = True
+        self.fs.email = "info@test.ir"
+        self.fs.save()
+        resp = self._get_home()
+        self.assertContains(resp, "mailto:info@test.ir")
+
+    def test_navigation_toggle_off(self):
+        self.fs.show_navigation = False
+        self.fs.save()
+        resp = self._get_home()
+        content = resp.content.decode()
+        footer_html = content.split("<footer")[1].split("</footer>")[0] if "<footer" in content else ""
+        self.assertNotIn("NAV_FOOTER", footer_html)
+
+    def test_social_toggle_off(self):
+        self.fs.show_social_links = False
+        self.fs.save()
+        resp = self._get_home()
+        content = resp.content.decode()
+        footer_html = content.split("<footer")[1].split("</footer>")[0] if "<footer" in content else ""
+        self.assertNotIn('class="socials"', footer_html)
+
+    def test_newsletter_toggle_on(self):
+        self.fs.show_newsletter = True
+        self.fs.newsletter_title = "خبرنامه تست"
+        self.fs.save()
+        resp = self._get_home()
+        self.assertContains(resp, "خبرنامه تست")
+        self.assertContains(resp, "به‌زودی")
+
+    def test_newsletter_toggle_off(self):
+        self.fs.show_newsletter = False
+        self.fs.save()
+        resp = self._get_home()
+        content = resp.content.decode()
+        footer_html = content.split("<footer")[1].split("</footer>")[0] if "<footer" in content else ""
+        self.assertNotIn('class="news"', footer_html)
+
+    def test_trust_badges_render(self):
+        self.fs.show_trust_badges = True
+        self.fs.save()
+        FooterTrustBadge.objects.create(
+            title="Enamad", image=_make_image("enamad.png"),
+            destination_url="https://enamad.ir", is_active=True,
+        )
+        resp = self._get_home()
+        self.assertContains(resp, "trust-badges")
+        self.assertContains(resp, "https://enamad.ir")
+
+    def test_payment_logos_render(self):
+        self.fs.show_payment_logos = True
+        self.fs.save()
+        FooterPaymentLogo.objects.create(
+            title="ZarinPal", image=_make_image("zp.png"), is_active=True,
+        )
+        resp = self._get_home()
+        self.assertContains(resp, "payment-logos")
+
+    def test_empty_trust_badges_not_shown(self):
+        self.fs.show_trust_badges = True
+        self.fs.save()
+        # No badges exist
+        resp = self._get_home()
+        content = resp.content.decode()
+        footer_html = content.split("<footer")[1].split("</footer>")[0] if "<footer" in content else ""
+        self.assertNotIn("trust-badges", footer_html)
+
+    def test_empty_payment_logos_not_shown(self):
+        self.fs.show_payment_logos = True
+        self.fs.save()
+        # No logos exist
+        resp = self._get_home()
+        content = resp.content.decode()
+        footer_html = content.split("<footer")[1].split("</footer>")[0] if "<footer" in content else ""
+        self.assertNotIn("payment-logos", footer_html)
+
+    def test_no_href_hash_in_footer(self):
+        """فوتر نباید لینک‌های بی‌مقصد (href="#") داشته باشد."""
+        self.fs.show_contact = True
+        self.fs.phone = "021-1234"
+        self.fs.email = "a@b.com"
+        self.fs.address = "Test Address"
+        self.fs.save()
+        resp = self._get_home()
+        content = resp.content.decode()
+        footer_html = content.split("<footer")[1].split("</footer>")[0] if "<footer" in content else ""
+        self.assertNotIn('href="#"', footer_html)
+
+    def test_copyright_custom_text(self):
+        self.fs.copyright_text = "Custom (c) 2025"
+        self.fs.save()
+        resp = self._get_home()
+        self.assertContains(resp, "Custom (c) 2025")
+
+    def test_copyright_default_uses_shop_name(self):
+        self.fs.copyright_text = ""
+        self.fs.save()
+        resp = self._get_home()
+        # Default uses SHOP_NAME from settings
+        self.assertContains(resp, "دیجی‌مارکت")
+
+
+
+# ---------------------------------------------------------------- Query Count Tests
+
+
+class FooterQueryCountTests(TestCase):
+    """تست شمارش query فوتر."""
+
+    def test_all_disabled_single_query(self):
+        """All media sections disabled → only settings query."""
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+        from apps.content.context_processors import footer_settings
+
+        fs = FooterSettings.load()
+        fs.show_trust_badges = False
+        fs.show_payment_logos = False
+        fs.save()
+
+        class FakeRequest: pass
+
+        with CaptureQueriesContext(connection) as ctx:
+            result = footer_settings(FakeRequest())
+            # Force evaluation of lazy querysets
+            list(result["FOOTER_TRUST_BADGES"])
+            list(result["FOOTER_PAYMENT_LOGOS"])
+        self.assertEqual(len(ctx), 1)  # Only settings load
+
+    def test_badges_enabled_two_queries(self):
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+        from apps.content.context_processors import footer_settings
+
+        fs = FooterSettings.load()
+        fs.show_trust_badges = True
+        fs.show_payment_logos = False
+        fs.save()
+
+        class FakeRequest: pass
+
+        with CaptureQueriesContext(connection) as ctx:
+            result = footer_settings(FakeRequest())
+            list(result["FOOTER_TRUST_BADGES"])
+            list(result["FOOTER_PAYMENT_LOGOS"])
+        self.assertEqual(len(ctx), 2)
+
+    def test_logos_enabled_two_queries(self):
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+        from apps.content.context_processors import footer_settings
+
+        fs = FooterSettings.load()
+        fs.show_trust_badges = False
+        fs.show_payment_logos = True
+        fs.save()
+
+        class FakeRequest: pass
+
+        with CaptureQueriesContext(connection) as ctx:
+            result = footer_settings(FakeRequest())
+            list(result["FOOTER_TRUST_BADGES"])
+            list(result["FOOTER_PAYMENT_LOGOS"])
+        self.assertEqual(len(ctx), 2)
+
+    def test_both_enabled_three_queries(self):
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+        from apps.content.context_processors import footer_settings
+
+        fs = FooterSettings.load()
+        fs.show_trust_badges = True
+        fs.show_payment_logos = True
+        fs.save()
+
+        class FakeRequest: pass
+
+        with CaptureQueriesContext(connection) as ctx:
+            result = footer_settings(FakeRequest())
+            list(result["FOOTER_TRUST_BADGES"])
+            list(result["FOOTER_PAYMENT_LOGOS"])
+        self.assertEqual(len(ctx), 3)
+
+    def test_badge_count_does_not_increase_queries(self):
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+        from apps.content.context_processors import footer_settings
+
+        fs = FooterSettings.load()
+        fs.show_trust_badges = True
+        fs.show_payment_logos = False
+        fs.save()
+
+        # Create 10 badges
+        for i in range(10):
+            FooterTrustBadge.objects.create(title=f"B{i}", image=_make_image(f"b{i}.png"), is_active=True)
+
+        class FakeRequest: pass
+
+        with CaptureQueriesContext(connection) as ctx:
+            result = footer_settings(FakeRequest())
+            list(result["FOOTER_TRUST_BADGES"])
+            list(result["FOOTER_PAYMENT_LOGOS"])
+        self.assertEqual(len(ctx), 2)  # Still just 2
+
+
+# ---------------------------------------------------------------- Phone Validation Tests
+
+
+class PhoneValidationTests(TestCase):
+    """تست‌های اعتبارسنجی شماره تلفن."""
+
+    def test_valid_iranian_number(self):
+        fs = FooterSettings.load()
+        fs.phone = "021-91008877"
+        fs.full_clean()
+
+    def test_valid_international(self):
+        fs = FooterSettings.load()
+        fs.phone = "+98 21 9100 8877"
+        fs.full_clean()
+
+    def test_spaces_and_parens(self):
+        fs = FooterSettings.load()
+        fs.phone = "(021) 9100-8877"
+        fs.full_clean()
+
+    def test_whitespace_trimmed(self):
+        fs = FooterSettings.load()
+        fs.phone = "  021-91008877  "
+        fs.save()
+        fs.refresh_from_db()
+        self.assertEqual(fs.phone, "021-91008877")
+
+    def test_alphabetic_rejected(self):
+        fs = FooterSettings.load()
+        fs.phone = "call me maybe"
+        with self.assertRaises(ValidationError):
+            fs.full_clean()
+
+    def test_html_rejected(self):
+        fs = FooterSettings.load()
+        fs.phone = '<script>alert(1)</script>'
+        with self.assertRaises(ValidationError):
+            fs.full_clean()
+
+    def test_control_chars_rejected(self):
+        fs = FooterSettings.load()
+        fs.phone = "021\x00-9100"
+        with self.assertRaises(ValidationError):
+            fs.full_clean()
+
+    def test_empty_allowed(self):
+        fs = FooterSettings.load()
+        fs.phone = ""
+        fs.full_clean()  # Should not raise
+
+
+# ---------------------------------------------------------------- Copyright Behavior Tests
+
+
+class CopyrightBehaviorTests(TestCase):
+    """تست‌های رفتار کپی‌رایت."""
+
+    def test_configured_text_renders(self):
+        fs = FooterSettings.load()
+        fs.copyright_text = "تمامی حقوق محفوظ"
+        fs.save()
+        response = self.client.get("/")
+        self.assertContains(response, "تمامی حقوق محفوظ")
+
+    def test_empty_text_omits_section(self):
+        fs = FooterSettings.load()
+        fs.copyright_text = ""
+        fs.save()
+        response = self.client.get("/")
+        # Should NOT have the old hardcoded copyright
+        self.assertNotContains(response, "تمامی حقوق برای")
+
+    def test_no_auto_generated_fallback(self):
+        fs = FooterSettings.load()
+        fs.copyright_text = ""
+        fs.save()
+        response = self.client.get("/")
+        self.assertNotContains(response, "© ۱۴۰۵")
+
+    def test_text_is_escaped(self):
+        fs = FooterSettings.load()
+        fs.copyright_text = '<img src=x onerror=alert(1)>'
+        fs.save()
+        response = self.client.get("/")
+        self.assertNotContains(response, '<img src=x')
+        self.assertContains(response, "&lt;img")
+
+
+# ---------------------------------------------------------------- Singleton Behavior Tests
+
+
+class SingletonBehaviorTests(TestCase):
+    """تست‌های رفتار singleton."""
+
+    def test_first_load_creates_row(self):
+        FooterSettings.objects.all().delete()
+        fs = FooterSettings.load()
+        self.assertEqual(fs.pk, 1)
+        self.assertEqual(FooterSettings.objects.count(), 1)
+
+    def test_repeated_load_same_row(self):
+        fs1 = FooterSettings.load()
+        fs2 = FooterSettings.load()
+        self.assertEqual(fs1.pk, fs2.pk)
+        self.assertEqual(FooterSettings.objects.count(), 1)
+
+    def test_alternate_pk_normalized(self):
+        """Saving with different pk is normalized to 1."""
+        fs = FooterSettings()
+        fs.pk = 99
+        fs.save()
+        self.assertEqual(fs.pk, 1)
+        self.assertEqual(FooterSettings.objects.count(), 1)
+
+    def test_only_one_row_exists(self):
+        FooterSettings.load()
+        FooterSettings.load()
+        FooterSettings.load()
+        self.assertEqual(FooterSettings.objects.count(), 1)
+
+
+
+
+# ================================================================ IMAGE CONTENT SECURITY TESTS
+
+
+class ImageContentSecurityTests(TestCase):
+    """تست‌های امنیت محتوای تصویر — Pillow verification."""
+
+    def _valid_png(self, name="valid.png"):
+        from io import BytesIO
+        from PIL import Image
+        buf = BytesIO()
+        Image.new("RGB", (10, 10), (255, 0, 0)).save(buf, "PNG")
+        return SimpleUploadedFile(name, buf.getvalue(), content_type="image/png")
+
+    def _valid_jpeg(self, name="valid.jpg"):
+        from io import BytesIO
+        from PIL import Image
+        buf = BytesIO()
+        Image.new("RGB", (10, 10), (0, 255, 0)).save(buf, "JPEG")
+        return SimpleUploadedFile(name, buf.getvalue(), content_type="image/jpeg")
+
+    def _valid_webp(self, name="valid.webp"):
+        from io import BytesIO
+        from PIL import Image
+        buf = BytesIO()
+        Image.new("RGB", (10, 10), (0, 0, 255)).save(buf, "WEBP")
+        return SimpleUploadedFile(name, buf.getvalue(), content_type="image/webp")
+
+    def test_valid_png_accepted(self):
+        badge = FooterTrustBadge(title="PNG", image=self._valid_png())
+        badge.full_clean()  # Should not raise
+
+    def test_valid_jpeg_accepted(self):
+        badge = FooterTrustBadge(title="JPEG", image=self._valid_jpeg())
+        badge.full_clean()
+
+    def test_valid_webp_accepted(self):
+        badge = FooterTrustBadge(title="WebP", image=self._valid_webp())
+        badge.full_clean()
+
+    def test_plain_text_named_png_rejected(self):
+        fake = SimpleUploadedFile("fake.png", b"This is plain text not an image", content_type="image/png")
+        badge = FooterTrustBadge(title="Fake", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_html_named_jpg_rejected(self):
+        html = b"<html><body><script>alert(1)</script></body></html>"
+        fake = SimpleUploadedFile("badge.jpg", html, content_type="image/jpeg")
+        badge = FooterTrustBadge(title="HTML", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_javascript_payload_named_png_rejected(self):
+        js = b"var x = 1; function hack(){}"
+        fake = SimpleUploadedFile("logo.png", js, content_type="image/png")
+        logo = FooterPaymentLogo(title="JS", image=fake)
+        with self.assertRaises(ValidationError):
+            logo.full_clean()
+
+    def test_corrupt_png_header_rejected(self):
+        # PNG magic bytes followed by garbage
+        corrupt = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        fake = SimpleUploadedFile("corrupt.png", corrupt, content_type="image/png")
+        badge = FooterTrustBadge(title="Corrupt", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_truncated_jpeg_rejected(self):
+        # JPEG SOI marker then nothing
+        truncated = b"\xff\xd8\xff\xe0" + b"\x00" * 20
+        fake = SimpleUploadedFile("trunc.jpg", truncated, content_type="image/jpeg")
+        badge = FooterTrustBadge(title="Trunc", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_svg_named_svg_rejected(self):
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg"><circle r="10"/></svg>'
+        fake = SimpleUploadedFile("badge.svg", svg, content_type="image/svg+xml")
+        badge = FooterTrustBadge(title="SVG", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_svg_renamed_to_png_rejected(self):
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg"><circle r="10"/></svg>'
+        fake = SimpleUploadedFile("sneaky.png", svg, content_type="image/png")
+        badge = FooterTrustBadge(title="SVG-PNG", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_oversized_valid_image_rejected(self):
+        from io import BytesIO
+        from PIL import Image
+        buf = BytesIO()
+        Image.new("RGB", (10, 10)).save(buf, "PNG")
+        f = SimpleUploadedFile("big.png", buf.getvalue(), content_type="image/png")
+        f.size = 6 * 1024 * 1024  # 6 MiB > 5 MiB limit
+        badge = FooterTrustBadge(title="Big", image=f)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_gif_rejected(self):
+        """GIF is not in ALLOWED_IMAGE_FORMATS."""
+        from io import BytesIO
+        from PIL import Image
+        buf = BytesIO()
+        Image.new("RGB", (10, 10)).save(buf, "GIF")
+        f = SimpleUploadedFile("anim.gif", buf.getvalue(), content_type="image/gif")
+        badge = FooterTrustBadge(title="GIF", image=f)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+    def test_invalid_create_produces_no_record(self):
+        """Invalid image on create → no database row."""
+        fake = SimpleUploadedFile("fake.png", b"not an image", content_type="image/png")
+        badge = FooterTrustBadge(title="NoRecord", image=fake)
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+        # Not saved
+        self.assertFalse(FooterTrustBadge.objects.filter(title="NoRecord").exists())
+
+    def test_invalid_replacement_preserves_old_value(self):
+        """Invalid replacement image → old image field preserved."""
+        badge = FooterTrustBadge.objects.create(
+            title="Keep", image=self._valid_png("keep.png"), is_active=True
+        )
+        original_name = badge.image.name
+
+        # Try to assign invalid image
+        fake = SimpleUploadedFile("bad.png", b"not an image", content_type="image/png")
+        badge.image = fake
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
+
+        # Reload from DB - original should remain
+        badge.refresh_from_db()
+        self.assertEqual(badge.image.name, original_name)
