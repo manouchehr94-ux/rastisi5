@@ -446,3 +446,229 @@ class StorefrontFooterRenderTests(TestCase):
         resp = self._get_home()
         # Default uses SHOP_NAME from settings
         self.assertContains(resp, "دیجی‌مارکت")
+
+
+
+# ---------------------------------------------------------------- Query Count Tests
+
+
+class FooterQueryCountTests(TestCase):
+    """تست شمارش query فوتر."""
+
+    def test_all_disabled_single_query(self):
+        """All media sections disabled → only settings query."""
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+        from apps.content.context_processors import footer_settings
+
+        fs = FooterSettings.load()
+        fs.show_trust_badges = False
+        fs.show_payment_logos = False
+        fs.save()
+
+        class FakeRequest: pass
+
+        with CaptureQueriesContext(connection) as ctx:
+            result = footer_settings(FakeRequest())
+            # Force evaluation of lazy querysets
+            list(result["FOOTER_TRUST_BADGES"])
+            list(result["FOOTER_PAYMENT_LOGOS"])
+        self.assertEqual(len(ctx), 1)  # Only settings load
+
+    def test_badges_enabled_two_queries(self):
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+        from apps.content.context_processors import footer_settings
+
+        fs = FooterSettings.load()
+        fs.show_trust_badges = True
+        fs.show_payment_logos = False
+        fs.save()
+
+        class FakeRequest: pass
+
+        with CaptureQueriesContext(connection) as ctx:
+            result = footer_settings(FakeRequest())
+            list(result["FOOTER_TRUST_BADGES"])
+            list(result["FOOTER_PAYMENT_LOGOS"])
+        self.assertEqual(len(ctx), 2)
+
+    def test_logos_enabled_two_queries(self):
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+        from apps.content.context_processors import footer_settings
+
+        fs = FooterSettings.load()
+        fs.show_trust_badges = False
+        fs.show_payment_logos = True
+        fs.save()
+
+        class FakeRequest: pass
+
+        with CaptureQueriesContext(connection) as ctx:
+            result = footer_settings(FakeRequest())
+            list(result["FOOTER_TRUST_BADGES"])
+            list(result["FOOTER_PAYMENT_LOGOS"])
+        self.assertEqual(len(ctx), 2)
+
+    def test_both_enabled_three_queries(self):
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+        from apps.content.context_processors import footer_settings
+
+        fs = FooterSettings.load()
+        fs.show_trust_badges = True
+        fs.show_payment_logos = True
+        fs.save()
+
+        class FakeRequest: pass
+
+        with CaptureQueriesContext(connection) as ctx:
+            result = footer_settings(FakeRequest())
+            list(result["FOOTER_TRUST_BADGES"])
+            list(result["FOOTER_PAYMENT_LOGOS"])
+        self.assertEqual(len(ctx), 3)
+
+    def test_badge_count_does_not_increase_queries(self):
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+        from apps.content.context_processors import footer_settings
+
+        fs = FooterSettings.load()
+        fs.show_trust_badges = True
+        fs.show_payment_logos = False
+        fs.save()
+
+        # Create 10 badges
+        for i in range(10):
+            FooterTrustBadge.objects.create(title=f"B{i}", image=_make_image(f"b{i}.png"), is_active=True)
+
+        class FakeRequest: pass
+
+        with CaptureQueriesContext(connection) as ctx:
+            result = footer_settings(FakeRequest())
+            list(result["FOOTER_TRUST_BADGES"])
+            list(result["FOOTER_PAYMENT_LOGOS"])
+        self.assertEqual(len(ctx), 2)  # Still just 2
+
+
+# ---------------------------------------------------------------- Phone Validation Tests
+
+
+class PhoneValidationTests(TestCase):
+    """تست‌های اعتبارسنجی شماره تلفن."""
+
+    def test_valid_iranian_number(self):
+        fs = FooterSettings.load()
+        fs.phone = "021-91008877"
+        fs.full_clean()
+
+    def test_valid_international(self):
+        fs = FooterSettings.load()
+        fs.phone = "+98 21 9100 8877"
+        fs.full_clean()
+
+    def test_spaces_and_parens(self):
+        fs = FooterSettings.load()
+        fs.phone = "(021) 9100-8877"
+        fs.full_clean()
+
+    def test_whitespace_trimmed(self):
+        fs = FooterSettings.load()
+        fs.phone = "  021-91008877  "
+        fs.save()
+        fs.refresh_from_db()
+        self.assertEqual(fs.phone, "021-91008877")
+
+    def test_alphabetic_rejected(self):
+        fs = FooterSettings.load()
+        fs.phone = "call me maybe"
+        with self.assertRaises(ValidationError):
+            fs.full_clean()
+
+    def test_html_rejected(self):
+        fs = FooterSettings.load()
+        fs.phone = '<script>alert(1)</script>'
+        with self.assertRaises(ValidationError):
+            fs.full_clean()
+
+    def test_control_chars_rejected(self):
+        fs = FooterSettings.load()
+        fs.phone = "021\x00-9100"
+        with self.assertRaises(ValidationError):
+            fs.full_clean()
+
+    def test_empty_allowed(self):
+        fs = FooterSettings.load()
+        fs.phone = ""
+        fs.full_clean()  # Should not raise
+
+
+# ---------------------------------------------------------------- Copyright Behavior Tests
+
+
+class CopyrightBehaviorTests(TestCase):
+    """تست‌های رفتار کپی‌رایت."""
+
+    def test_configured_text_renders(self):
+        fs = FooterSettings.load()
+        fs.copyright_text = "تمامی حقوق محفوظ"
+        fs.save()
+        response = self.client.get("/")
+        self.assertContains(response, "تمامی حقوق محفوظ")
+
+    def test_empty_text_omits_section(self):
+        fs = FooterSettings.load()
+        fs.copyright_text = ""
+        fs.save()
+        response = self.client.get("/")
+        # Should NOT have the old hardcoded copyright
+        self.assertNotContains(response, "تمامی حقوق برای")
+
+    def test_no_auto_generated_fallback(self):
+        fs = FooterSettings.load()
+        fs.copyright_text = ""
+        fs.save()
+        response = self.client.get("/")
+        self.assertNotContains(response, "© ۱۴۰۵")
+
+    def test_text_is_escaped(self):
+        fs = FooterSettings.load()
+        fs.copyright_text = '<img src=x onerror=alert(1)>'
+        fs.save()
+        response = self.client.get("/")
+        self.assertNotContains(response, '<img src=x')
+        self.assertContains(response, "&lt;img")
+
+
+# ---------------------------------------------------------------- Singleton Behavior Tests
+
+
+class SingletonBehaviorTests(TestCase):
+    """تست‌های رفتار singleton."""
+
+    def test_first_load_creates_row(self):
+        FooterSettings.objects.all().delete()
+        fs = FooterSettings.load()
+        self.assertEqual(fs.pk, 1)
+        self.assertEqual(FooterSettings.objects.count(), 1)
+
+    def test_repeated_load_same_row(self):
+        fs1 = FooterSettings.load()
+        fs2 = FooterSettings.load()
+        self.assertEqual(fs1.pk, fs2.pk)
+        self.assertEqual(FooterSettings.objects.count(), 1)
+
+    def test_alternate_pk_normalized(self):
+        """Saving with different pk is normalized to 1."""
+        fs = FooterSettings()
+        fs.pk = 99
+        fs.save()
+        self.assertEqual(fs.pk, 1)
+        self.assertEqual(FooterSettings.objects.count(), 1)
+
+    def test_only_one_row_exists(self):
+        FooterSettings.load()
+        FooterSettings.load()
+        FooterSettings.load()
+        self.assertEqual(FooterSettings.objects.count(), 1)

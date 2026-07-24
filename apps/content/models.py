@@ -532,6 +532,24 @@ class MenuItem(DestinationMixin, TimeStampedModel):
 
 # ---------------------------------------------------------------- تنظیمات فوتر
 
+_PHONE_ALLOWED_RE = re.compile(r'^[\d\s+\-()]+$')
+_CONTROL_CHAR_RE = re.compile(r'[\x00-\x1f\x7f]')
+
+
+def validate_phone(value: str) -> None:
+    """اعتبارسنجی شماره تلفن — ارقام، فاصله، +، -، پرانتز مجاز."""
+    value = (value or "").strip()
+    if not value:
+        return  # blank is OK (field is optional)
+    if _CONTROL_CHAR_RE.search(value):
+        raise ValidationError("شماره تلفن نمی‌تواند شامل کاراکترهای کنترلی باشد")
+    if '<' in value or '>' in value or '&' in value:
+        raise ValidationError("شماره تلفن نمی‌تواند شامل نشانه‌گذاری HTML باشد")
+    if not _PHONE_ALLOWED_RE.match(value):
+        raise ValidationError("شماره تلفن فقط می‌تواند شامل ارقام، فاصله، +، - و پرانتز باشد")
+    if len(value) > 50:
+        raise ValidationError("شماره تلفن بسیار طولانی است")
+
 
 class FooterSettings(TimeStampedModel):
     """تنظیمات فوتر فروشگاه — رکورد تکی (singleton)."""
@@ -543,8 +561,8 @@ class FooterSettings(TimeStampedModel):
     # Contact
     show_contact = models.BooleanField("نمایش اطلاعات تماس", default=True)
     address = models.CharField("آدرس", max_length=500, blank=True)
-    phone = models.CharField("تلفن", max_length=50, blank=True)
-    secondary_phone = models.CharField("تلفن ثانویه", max_length=50, blank=True)
+    phone = models.CharField("تلفن", max_length=50, blank=True, validators=[validate_phone])
+    secondary_phone = models.CharField("تلفن ثانویه", max_length=50, blank=True, validators=[validate_phone])
     email = models.EmailField("ایمیل", blank=True)
     working_hours = models.CharField("ساعات کاری", max_length=250, blank=True)
     # Sections
@@ -574,6 +592,10 @@ class FooterSettings(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         self.pk = 1
+        if self.phone:
+            self.phone = self.phone.strip()
+        if self.secondary_phone:
+            self.secondary_phone = self.secondary_phone.strip()
         super().save(*args, **kwargs)
 
 

@@ -236,7 +236,7 @@
   </div>
   {% endif %}
   <div class="copy">
-    <span>{% if FOOTER_SETTINGS.copyright_text %}{{ FOOTER_SETTINGS.copyright_text }}{% else %}© ۱۴۰۵ تمامی حقوق برای {{ SHOP_NAME }} محفوظ است.{% endif %}</span>
+    {% if FOOTER_SETTINGS.copyright_text %}<span>{{ FOOTER_SETTINGS.copyright_text }}</span>{% endif %}
   </div>
   {% endif %}
 </div></footer>
