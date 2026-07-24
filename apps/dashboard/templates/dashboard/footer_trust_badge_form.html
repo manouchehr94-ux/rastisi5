@@ -3,34 +3,44 @@
 {% block page_title %}{% if badge %}ویرایش نماد «{{ badge.title }}»{% else %}افزودن نماد اعتماد{% endif %}{% endblock %}
 {% block page_sub %}مشخصات نماد را وارد کنید{% endblock %}
 {% block content %}
-<div class="card" style="max-width:600px">
+<div class="form-card">
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
-    <div class="form-group">
-      <label>عنوان *</label>
-      <input type="text" name="title" value="{{ badge.title|default:'' }}" required maxlength="150">
+    <div class="field-group">
+      <label class="field-label required" for="id_title">عنوان</label>
+      <input type="text" name="title" id="id_title" value="{{ badge.title|default:'' }}" required maxlength="150" class="form-input" aria-describedby="help_title{% if field_errors.title %} error_title{% endif %}" {% if field_errors.title %}aria-invalid="true"{% endif %}>
+      <span class="field-help" id="help_title">عنوان نماد برای دسترسی‌پذیری و مدیریت. مثلاً: نماد اعتماد الکترونیکی</span>
+      {% if field_errors.title %}<span class="field-error" id="error_title">{{ field_errors.title }}</span>{% endif %}
     </div>
-    <div class="form-group">
-      <label>تصویر {% if not badge %}*{% endif %}</label>
-      {% if badge and badge.image %}<p><img src="{{ badge.image.url }}" alt="{{ badge.title }}" style="max-height:60px"></p>{% endif %}
-      <input type="file" name="image" accept="image/*" {% if not badge %}required{% endif %}>
+    <div class="field-group">
+      <label class="field-label{% if not badge %} required{% endif %}" for="id_image">تصویر</label>
+      {% if badge and badge.image %}<p style="margin-bottom:8px"><img src="{{ badge.image.url }}" alt="{{ badge.title }}" style="max-height:60px;border-radius:8px"></p>{% endif %}
+      <input type="file" name="image" id="id_image" accept="image/*" {% if not badge %}required{% endif %} class="form-input" aria-describedby="help_image{% if field_errors.image %} error_image{% endif %}" {% if field_errors.image %}aria-invalid="true"{% endif %}>
+      <span class="field-help" id="help_image">تصویر نماد اعتماد. ترجیحاً با پس‌زمینه شفاف (PNG).</span>
+      {% if field_errors.image %}<span class="field-error" id="error_image">{{ field_errors.image }}</span>{% endif %}
     </div>
-    <div class="form-group">
-      <label>لینک مقصد</label>
-      <input type="url" name="destination_url" value="{{ badge.destination_url|default:'' }}" maxlength="500" dir="ltr" placeholder="https://...">
+    <div class="field-group">
+      <label class="field-label" for="id_destination_url">لینک مقصد</label>
+      <input type="url" name="destination_url" id="id_destination_url" value="{{ badge.destination_url|default:'' }}" maxlength="500" dir="ltr" placeholder="https://..." class="form-input" aria-describedby="help_destination_url{% if field_errors.destination_url %} error_destination_url{% endif %}" {% if field_errors.destination_url %}aria-invalid="true"{% endif %}>
+      <span class="field-help" id="help_destination_url">اگر کاربر روی نماد کلیک کند، به این آدرس هدایت می‌شود.</span>
+      {% if field_errors.destination_url %}<span class="field-error" id="error_destination_url">{{ field_errors.destination_url }}</span>{% endif %}
     </div>
-    <div class="form-group">
-      <label>ترتیب نمایش</label>
-      <input type="number" name="display_order" value="{{ badge.display_order|default:'0' }}" min="0">
+    <div class="field-group">
+      <label class="field-label" for="id_display_order">ترتیب نمایش</label>
+      <input type="number" name="display_order" id="id_display_order" value="{{ badge.display_order|default:'0' }}" min="0" class="form-input" style="max-width:120px" aria-describedby="help_display_order{% if field_errors.display_order %} error_display_order{% endif %}" {% if field_errors.display_order %}aria-invalid="true"{% endif %}>
+      <span class="field-help" id="help_display_order">نمادها بر اساس این عدد مرتب می‌شوند.</span>
+      {% if field_errors.display_order %}<span class="field-error" id="error_display_order">{{ field_errors.display_order }}</span>{% endif %}
     </div>
-    <div class="form-group">
-      <label style="display:flex;align-items:center;gap:6px">
-        <input type="checkbox" name="is_active" {% if badge.is_active or not badge %}checked{% endif %}> فعال
-      </label>
-    </div>
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <label class="toggle-field">
+      <input type="checkbox" name="is_active" {% if badge.is_active or not badge %}checked{% endif %}>
+      <div class="toggle-content">
+        <span class="toggle-title">فعال</span>
+        <span class="toggle-desc">فقط نمادهای فعال در فوتر نمایش داده می‌شوند.</span>
+      </div>
+    </label>
+    <div class="btn-row">
       <button type="submit" class="btn btn-primary">{% if badge %}ذخیره تغییرات{% else %}افزودن{% endif %}</button>
-      <a href="{% url 'dashboard:footer-trust-badge-list' %}" class="btn">انصراف</a>
+      <a href="{% url 'dashboard:footer-trust-badge-list' %}" class="btn btn-secondary">انصراف</a>
     </div>
   </form>
 </div>

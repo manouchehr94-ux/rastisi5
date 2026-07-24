@@ -3,10 +3,18 @@
 {% block page_title %}شبکه‌های اجتماعی{% endblock %}
 {% block page_sub %}مدیریت لینک‌های شبکه‌های اجتماعی فروشگاه{% endblock %}
 {% block content %}
+<div class="page-header">
+  <div>
+    <h2>شبکه‌های اجتماعی</h2>
+    <p class="page-desc">لینک‌های شبکه‌های اجتماعی فروشگاه را مدیریت کنید. این لینک‌ها در هدر و فوتر سایت نمایش داده می‌شوند.</p>
+  </div>
+  <a href="{% url 'dashboard:social-link-add' %}" class="btn btn-primary">لینک جدید</a>
+</div>
+
+{% if links %}
 <div class="card">
   <div class="card-head">
     <h3>لینک‌ها ({{ links|length }})</h3>
-    <a href="{% url 'dashboard:social-link-add' %}" class="btn btn-primary">لینک جدید</a>
   </div>
   <div class="table-wrap"><table>
     <thead><tr><th>پلتفرم</th><th>عنوان</th><th>آدرس</th><th>هدر</th><th>فوتر</th><th>وضعیت</th><th>ترتیب</th><th>عملیات</th></tr></thead>
@@ -26,8 +34,18 @@
         <form method="post" action="{% url 'dashboard:social-link-delete' link.pk %}" style="display:inline" onsubmit="return confirm('حذف؟')">{% csrf_token %}<button class="btn btn-sm btn-danger">حذف</button></form>
       </td>
     </tr>
-    {% empty %}<tr><td colspan="8" style="color:var(--muted)">لینکی ثبت نشده</td></tr>{% endfor %}
+    {% endfor %}
     </tbody>
   </table></div>
 </div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <span class="empty-icon">🔗</span>
+    <div class="empty-title">هنوز لینکی ثبت نشده</div>
+    <p class="empty-desc">با افزودن لینک‌های شبکه‌های اجتماعی، آیکون‌های آن‌ها در هدر و فوتر فروشگاه نمایش داده خواهند شد.</p>
+    <a href="{% url 'dashboard:social-link-add' %}" class="btn btn-primary">افزودن اولین لینک</a>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

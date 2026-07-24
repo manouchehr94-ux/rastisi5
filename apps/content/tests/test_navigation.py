@@ -225,7 +225,8 @@ class MenuDashboardAccessTests(TestCase):
         self.client.login(username="staff_nav", password="p!")
         menu = Menu.objects.create(title="T", location="header")
         response = self.client.get(reverse("dashboard:menu-delete", args=[menu.pk]))
-        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Menu.objects.filter(pk=menu.pk).exists())
 
     def test_toggle_requires_post(self):
         self.client.login(username="staff_nav", password="p!")
@@ -238,7 +239,8 @@ class MenuDashboardAccessTests(TestCase):
         menu = Menu.objects.create(title="T", location="header")
         item = MenuItem.objects.create(menu=menu, title="I", destination_type="none")
         response = self.client.get(reverse("dashboard:menu-item-delete", args=[item.pk]))
-        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(MenuItem.objects.filter(pk=item.pk).exists())
 
     def test_item_toggle_requires_post(self):
         self.client.login(username="staff_nav", password="p!")
@@ -260,7 +262,8 @@ class MenuDashboardCRUDTests(TestCase):
         response = self.client.post(reverse("dashboard:menu-add"), {
             "title": "منوی هدر", "location": "header", "is_active": "on",
         })
-        self.assertRedirects(response, reverse("dashboard:menu-list"))
+        menu = Menu.objects.get(title="منوی هدر")
+        self.assertRedirects(response, reverse("dashboard:menu-item-list", args=[menu.pk]))
         self.assertTrue(Menu.objects.filter(title="منوی هدر").exists())
 
     def test_edit_menu(self):

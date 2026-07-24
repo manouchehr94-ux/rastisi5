@@ -3,30 +3,36 @@
 {% block page_title %}{% if menu %}ویرایش منوی «{{ menu.title }}»{% else %}افزودن منوی جدید{% endif %}{% endblock %}
 {% block page_sub %}مشخصات منو را وارد کنید{% endblock %}
 {% block content %}
-<div class="card" style="max-width:500px">
+<div class="form-card">
   <form method="post">
     {% csrf_token %}
-    <div class="form-group">
-      <label>عنوان منو *</label>
-      <input type="text" name="title" value="{{ menu.title|default:'' }}" required maxlength="150">
+    <div class="field-group">
+      <label class="field-label required" for="id_title">عنوان منو</label>
+      <input type="text" name="title" id="id_title" value="{{ menu.title|default:'' }}" required maxlength="150" class="form-input" aria-describedby="help_title{% if field_errors.title %} error_title{% endif %}" {% if field_errors.title %}aria-invalid="true"{% endif %}>
+      <span class="field-help" id="help_title">نام منو برای شناسایی در پنل مدیریت. این عنوان ممکن است در سایت هم نمایش داده شود.</span>
+      {% if field_errors.title %}<span class="field-error" id="error_title">{{ field_errors.title }}</span>{% endif %}
     </div>
-    <div class="form-group">
-      <label>مکان نمایش *</label>
-      <select name="location" required>
+    <div class="field-group">
+      <label class="field-label required" for="id_location">مکان نمایش</label>
+      <select name="location" id="id_location" required class="form-select" aria-describedby="help_location{% if field_errors.location %} error_location{% endif %}" {% if field_errors.location %}aria-invalid="true"{% endif %}>
         <option value="">انتخاب کنید...</option>
         {% for val, label in locations %}
         <option value="{{ val }}" {% if menu.location == val %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
+      <span class="field-help" id="help_location">محل نمایش منو در سایت را مشخص کنید. هر محل فقط یک منوی فعال می‌تواند داشته باشد.</span>
+      {% if field_errors.location %}<span class="field-error" id="error_location">{{ field_errors.location }}</span>{% endif %}
     </div>
-    <div class="form-group">
-      <label style="display:flex;align-items:center;gap:6px">
-        <input type="checkbox" name="is_active" {% if menu.is_active or not menu %}checked{% endif %}> فعال
-      </label>
-    </div>
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <label class="toggle-field">
+      <input type="checkbox" name="is_active" {% if menu.is_active or not menu %}checked{% endif %}>
+      <div class="toggle-content">
+        <span class="toggle-title">فعال</span>
+        <span class="toggle-desc">فقط منوهای فعال در سایت نمایش داده می‌شوند. با غیرفعال کردن، منو بدون حذف پنهان می‌شود.</span>
+      </div>
+    </label>
+    <div class="btn-row">
       <button type="submit" class="btn btn-primary">{% if menu %}ذخیره تغییرات{% else %}افزودن{% endif %}</button>
-      <a href="{% url 'dashboard:menu-list' %}" class="btn">انصراف</a>
+      <a href="{% url 'dashboard:menu-list' %}" class="btn btn-secondary">انصراف</a>
     </div>
   </form>
 </div>

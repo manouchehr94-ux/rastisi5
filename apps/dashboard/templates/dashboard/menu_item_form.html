@@ -3,60 +3,78 @@
 {% block page_title %}{% if item %}ویرایش آیتم «{{ item.title }}»{% else %}افزودن آیتم به «{{ menu.title }}»{% endif %}{% endblock %}
 {% block page_sub %}{{ menu.get_location_display }}{% endblock %}
 {% block content %}
-<div class="card" style="max-width:600px">
+<div class="form-card">
   <form method="post">
     {% csrf_token %}
-    <div class="form-group">
-      <label>عنوان *</label>
-      <input type="text" name="title" value="{{ item.title|default:'' }}" required maxlength="200">
+    <div class="field-group">
+      <label class="field-label required" for="id_title">عنوان</label>
+      <input type="text" name="title" id="id_title" value="{{ item.title|default:'' }}" required maxlength="200" class="form-input" aria-describedby="help_title{% if field_errors.title %} error_title{% endif %}" {% if field_errors.title %}aria-invalid="true"{% endif %}>
+      <span class="field-help" id="help_title">متنی که کاربر در منو مشاهده می‌کند.</span>
+      {% if field_errors.title %}<span class="field-error" id="error_title">{{ field_errors.title }}</span>{% endif %}
     </div>
-    <div class="form-group">
-      <label>آیتم والد (اختیاری)</label>
-      <select name="parent">
+    <div class="field-group">
+      <label class="field-label" for="id_parent">آیتم والد (اختیاری)</label>
+      <select name="parent" id="id_parent" class="form-select" aria-describedby="help_parent{% if field_errors.parent %} error_parent{% endif %}" {% if field_errors.parent %}aria-invalid="true"{% endif %}>
         <option value="">— بدون والد (سطح اول) —</option>
         {% for p in parent_options %}
         <option value="{{ p.pk }}" {% if item.parent_id == p.pk %}selected{% endif %}>{{ p.title }}</option>
         {% endfor %}
       </select>
+      <span class="field-help" id="help_parent">اگر می‌خواهید این آیتم زیرمجموعه آیتم دیگری باشد، والد آن را انتخاب کنید.</span>
+      {% if field_errors.parent %}<span class="field-error" id="error_parent">{{ field_errors.parent }}</span>{% endif %}
     </div>
-    <div class="form-group">
-      <label>نوع مقصد</label>
-      <select name="destination_type">
+    <div class="field-group">
+      <label class="field-label" for="id_destination_type">نوع مقصد</label>
+      <select name="destination_type" id="id_destination_type" class="form-select" aria-describedby="help_destination_type{% if field_errors.destination_type %} error_destination_type{% endif %}" {% if field_errors.destination_type %}aria-invalid="true"{% endif %}>
         <option value="none" {% if item.destination_type == "none" or not item %}selected{% endif %}>بدون مقصد</option>
         <option value="category" {% if item.destination_type == "category" %}selected{% endif %}>دسته‌بندی</option>
         <option value="external" {% if item.destination_type == "external" %}selected{% endif %}>لینک خارجی</option>
       </select>
+      <span class="field-help" id="help_destination_type">مشخص کنید کلیک روی این آیتم به کجا هدایت شود: یک دسته‌بندی داخلی یا لینک خارجی.</span>
+      {% if field_errors.destination_type %}<span class="field-error" id="error_destination_type">{{ field_errors.destination_type }}</span>{% endif %}
     </div>
-    <div class="form-group">
-      <label>دسته‌بندی مقصد</label>
-      <select name="destination_category">
+    <div class="field-group">
+      <label class="field-label" for="id_destination_category">دسته‌بندی مقصد</label>
+      <select name="destination_category" id="id_destination_category" class="form-select" aria-describedby="help_destination_category{% if field_errors.destination_category %} error_destination_category{% endif %}" {% if field_errors.destination_category %}aria-invalid="true"{% endif %}>
         <option value="">—</option>
         {% for cat in categories %}
         <option value="{{ cat.pk }}" {% if item.destination_category_id == cat.pk %}selected{% endif %}>{{ cat.name }}</option>
         {% endfor %}
       </select>
+      <span class="field-help" id="help_destination_category">اگر نوع مقصد «دسته‌بندی» است، دسته مورد نظر را انتخاب کنید.</span>
+      {% if field_errors.destination_category %}<span class="field-error" id="error_destination_category">{{ field_errors.destination_category }}</span>{% endif %}
     </div>
-    <div class="form-group">
-      <label>آدرس لینک خارجی</label>
-      <input type="url" name="destination_external_url" value="{{ item.destination_external_url|default:'' }}" maxlength="500" dir="ltr" placeholder="https://...">
+    <div class="field-group">
+      <label class="field-label" for="id_destination_external_url">آدرس لینک خارجی</label>
+      <input type="url" name="destination_external_url" id="id_destination_external_url" value="{{ item.destination_external_url|default:'' }}" maxlength="500" dir="ltr" placeholder="https://..." class="form-input" aria-describedby="help_destination_external_url{% if field_errors.destination_external_url %} error_destination_external_url{% endif %}" {% if field_errors.destination_external_url %}aria-invalid="true"{% endif %}>
+      <span class="field-help" id="help_destination_external_url">اگر نوع مقصد «لینک خارجی» است، آدرس کامل URL را وارد کنید. مثلاً: https://example.com</span>
+      {% if field_errors.destination_external_url %}<span class="field-error" id="error_destination_external_url">{{ field_errors.destination_external_url }}</span>{% endif %}
     </div>
-    <div class="form-group">
-      <label>ترتیب نمایش</label>
-      <input type="number" name="display_order" value="{{ item.display_order|default:'0' }}" min="0">
+    <div class="field-group">
+      <label class="field-label" for="id_display_order">ترتیب نمایش</label>
+      <input type="number" name="display_order" id="id_display_order" value="{{ item.display_order|default:'0' }}" min="0" class="form-input" style="max-width:120px" aria-describedby="help_display_order{% if field_errors.display_order %} error_display_order{% endif %}" {% if field_errors.display_order %}aria-invalid="true"{% endif %}>
+      <span class="field-help" id="help_display_order">آیتم‌ها بر اساس این عدد مرتب می‌شوند. عدد کمتر = نمایش زودتر.</span>
+      {% if field_errors.display_order %}<span class="field-error" id="error_display_order">{{ field_errors.display_order }}</span>{% endif %}
     </div>
-    <div class="form-group" style="display:flex;gap:20px;flex-wrap:wrap">
-      <label style="display:flex;align-items:center;gap:6px">
-        <input type="checkbox" name="is_active" {% if item.is_active or not item %}checked{% endif %}> فعال
-      </label>
-      <label style="display:flex;align-items:center;gap:6px">
-        <input type="checkbox" name="open_in_new_tab" {% if item.open_in_new_tab %}checked{% endif %}> باز شدن در تب جدید
-      </label>
-    </div>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_active" {% if item.is_active or not item %}checked{% endif %}>
+      <div class="toggle-content">
+        <span class="toggle-title">فعال</span>
+        <span class="toggle-desc">فقط آیتم‌های فعال در منو نمایش داده می‌شوند.</span>
+      </div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="open_in_new_tab" {% if item.open_in_new_tab %}checked{% endif %}>
+      <div class="toggle-content">
+        <span class="toggle-title">باز شدن در تب جدید</span>
+        <span class="toggle-desc">لینک در تب جدید مرورگر باز شود. مناسب برای لینک‌های خارجی.</span>
+      </div>
+    </label>
     <input type="hidden" name="destination_product" value="">
     <input type="hidden" name="destination_brand" value="">
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="btn-row">
       <button type="submit" class="btn btn-primary">{% if item %}ذخیره تغییرات{% else %}افزودن{% endif %}</button>
-      <a href="{% url 'dashboard:menu-item-list' menu.pk %}" class="btn">انصراف</a>
+      <a href="{% url 'dashboard:menu-item-list' menu.pk %}" class="btn btn-secondary">انصراف</a>
     </div>
   </form>
 </div>

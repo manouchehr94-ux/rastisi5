@@ -20,7 +20,10 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
 
+from apps.core.views import favicon_view
+
 urlpatterns = [
+    path("favicon.ico", favicon_view, name="favicon"),
     path("admin/", admin.site.urls),
     path("", include("apps.catalog.urls")),
     path("cart/", include("apps.cart.urls")),

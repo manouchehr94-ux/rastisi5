@@ -200,7 +200,8 @@ class SocialLinkDashboardAccessTests(TestCase):
         self.client.login(username="staff_sl", password="pass!")
         link = SocialLink.objects.create(platform="telegram", title="T", url="https://t.me/x")
         response = self.client.get(reverse("dashboard:social-link-delete", args=[link.pk]))
-        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(SocialLink.objects.filter(pk=link.pk).exists())
 
     def test_toggle_requires_post(self):
         self.client.login(username="staff_sl", password="pass!")

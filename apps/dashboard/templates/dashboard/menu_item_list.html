@@ -3,19 +3,27 @@
 {% block page_title %}آیتم‌های منوی «{{ menu.title }}»{% endblock %}
 {% block page_sub %}{{ menu.get_location_display }}{% endblock %}
 {% block content %}
+<div class="page-header">
+  <div>
+    <h2>آیتم‌های منوی «{{ menu.title }}»</h2>
+    <p class="page-desc">لینک‌ها و آیتم‌های این منو را مدیریت کنید. آیتم‌ها به ترتیب عدد نمایش مرتب می‌شوند.</p>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a href="{% url 'dashboard:menu-item-add' menu.pk %}" class="btn btn-primary">آیتم جدید</a>
+    <a href="{% url 'dashboard:menu-list' %}" class="btn btn-secondary">بازگشت به منوها</a>
+  </div>
+</div>
+
+{% if organized_items %}
 <div class="card">
   <div class="card-head">
     <h3>آیتم‌ها</h3>
-    <div style="display:flex;gap:8px">
-      <a href="{% url 'dashboard:menu-item-add' menu.pk %}" class="btn btn-primary">آیتم جدید</a>
-      <a href="{% url 'dashboard:menu-list' %}" class="btn">بازگشت به منوها</a>
-    </div>
   </div>
   <div class="table-wrap"><table>
     <thead><tr><th>عنوان</th><th>مقصد</th><th>ترتیب</th><th>وضعیت</th><th>تب جدید</th><th>عملیات</th></tr></thead>
     <tbody>
     {% for level, item in organized_items %}
-    <tr{% if level == "child" %} style="background:var(--violet-softer,#f9f7ff)"{% endif %}>
+    <tr{% if level == "child" %} style="background:var(--primary-soft)"{% endif %}>
       <td>{% if level == "child" %}<span style="color:var(--muted);margin-left:4px">└─</span> {% endif %}<b>{{ item.title }}</b></td>
       <td style="font-size:12px;color:var(--muted)">{{ item.get_destination_type_display }}{% if item.destination_external_url %}: {{ item.destination_external_url|truncatechars:30 }}{% endif %}</td>
       <td>{{ item.display_order }}</td>
@@ -27,8 +35,18 @@
         <form method="post" action="{% url 'dashboard:menu-item-delete' item.pk %}" style="display:inline" onsubmit="return confirm('حذف؟')">{% csrf_token %}<button class="btn btn-sm btn-danger">حذف</button></form>
       </td>
     </tr>
-    {% empty %}<tr><td colspan="6" style="color:var(--muted)">آیتمی ثبت نشده</td></tr>{% endfor %}
+    {% endfor %}
     </tbody>
   </table></div>
 </div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <span class="empty-icon">📝</span>
+    <div class="empty-title">هنوز آیتمی ثبت نشده</div>
+    <p class="empty-desc">آیتم‌های منو (لینک‌ها) را اضافه کنید تا در محل مشخص‌شده نمایش داده شوند.</p>
+    <a href="{% url 'dashboard:menu-item-add' menu.pk %}" class="btn btn-primary">افزودن اولین آیتم</a>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

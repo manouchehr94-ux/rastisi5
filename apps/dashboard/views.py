@@ -7,6 +7,7 @@ from django.db import IntegrityError
 from django.db.models import Count, ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
@@ -1222,6 +1223,7 @@ def social_link_list(request):
 @staff_required
 def social_link_form(request, pk=None):
     link = get_object_or_404(SocialLink, pk=pk) if pk else None
+    field_errors = {}
 
     if request.method == "POST":
         obj = link or SocialLink()
@@ -1241,10 +1243,8 @@ def social_link_form(request, pk=None):
             return redirect("dashboard:social-link-list")
         except (ValidationError, IntegrityError) as exc:
             if hasattr(exc, "message_dict"):
-                msg = " ".join(
-                    v[0] if isinstance(v, list) else str(v)
-                    for v in exc.message_dict.values()
-                )
+                field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                msg = " ".join(field_errors.values())
             else:
                 msg = str(exc)
             messages.error(request, msg)
@@ -1252,13 +1252,20 @@ def social_link_form(request, pk=None):
     platforms = SocialLink.Platform.choices
     return render(request, "dashboard/social_link_form.html", {
         "link": link, "active_page": "social_links", "platforms": platforms,
+        "field_errors": field_errors,
     })
 
 
-@require_POST
 @staff_required
 def social_link_delete(request, pk):
     link = get_object_or_404(SocialLink, pk=pk)
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "لینک شبکه اجتماعی",
+            "object_name": link.title,
+            "cancel_url": reverse("dashboard:social-link-list"),
+            "active_page": "social_links",
+        })
     title = link.title
     link.delete()
     messages.success(request, f"لینک «{title}» حذف شد")
@@ -1294,6 +1301,7 @@ def menu_list(request):
 @staff_required
 def menu_form(request, pk=None):
     menu = get_object_or_404(Menu, pk=pk) if pk else None
+    field_errors = {}
 
     if request.method == "POST":
         obj = menu or Menu()
@@ -1304,17 +1312,19 @@ def menu_form(request, pk=None):
         try:
             obj.full_clean()
             obj.save()
-            action = "ویرایش" if pk else "ایجاد"
-            messages.success(request, f"منوی «{obj.title}» با موفقیت {action} شد")
-            return redirect("dashboard:menu-list")
+            if pk:
+                messages.success(request, f"منوی «{obj.title}» با موفقیت ویرایش شد")
+                return redirect("dashboard:menu-list")
+            else:
+                messages.success(request, f"منوی «{obj.title}» ایجاد شد. اکنون آیتم‌ها را اضافه کنید.")
+                return redirect("dashboard:menu-item-list", menu_id=obj.pk)
         except (ValidationError, IntegrityError) as exc:
             if hasattr(exc, "message_dict"):
-                msg = " ".join(
-                    v[0] if isinstance(v, list) else str(v)
-                    for v in exc.message_dict.values()
-                )
+                field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                msg = " ".join(field_errors.values())
             elif "UNIQUE constraint" in str(exc) or "unique" in str(exc).lower():
                 msg = "این مکان قبلاً دارای منو است. هر مکان فقط یک منو می‌تواند داشته باشد."
+                field_errors = {"location": msg}
             else:
                 msg = str(exc)
             messages.error(request, msg)
@@ -1322,13 +1332,21 @@ def menu_form(request, pk=None):
     locations = Menu.Location.choices
     return render(request, "dashboard/menu_form.html", {
         "menu": menu, "active_page": "menus", "locations": locations,
+        "field_errors": field_errors,
     })
 
 
-@require_POST
 @staff_required
 def menu_delete(request, pk):
     menu = get_object_or_404(Menu, pk=pk)
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "منو",
+            "object_name": menu.title,
+            "cancel_url": reverse("dashboard:menu-list"),
+            "consequence": "تمام آیتم‌های این منو نیز حذف خواهند شد.",
+            "active_page": "menus",
+        })
     if menu.items.exists():
         messages.error(request, f"منوی «{menu.title}» دارای آیتم است و قابل حذف نیست. ابتدا آیتم‌ها را حذف کنید.")
         return redirect("dashboard:menu-list")
@@ -1389,6 +1407,8 @@ def menu_item_form(request, menu_id=None, pk=None):
         menu = get_object_or_404(Menu, pk=menu_id)
         item = None
 
+    field_errors = {}
+
     if request.method == "POST":
         obj = item or MenuItem(menu=menu)
         obj.title = request.POST.get("title", "").strip()
@@ -1418,10 +1438,8 @@ def menu_item_form(request, menu_id=None, pk=None):
             return redirect("dashboard:menu-item-list", menu_id=menu.pk)
         except (ValidationError, IntegrityError) as exc:
             if hasattr(exc, "message_dict"):
-                msg = " ".join(
-                    v[0] if isinstance(v, list) else str(v)
-                    for v in exc.message_dict.values()
-                )
+                field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                msg = " ".join(field_errors.values())
             else:
                 msg = str(exc)
             messages.error(request, msg)
@@ -1435,14 +1453,21 @@ def menu_item_form(request, menu_id=None, pk=None):
     return render(request, "dashboard/menu_item_form.html", {
         "item": item, "menu": menu, "active_page": "menus",
         "parent_options": parent_options, "categories": categories,
+        "field_errors": field_errors,
     })
 
 
-@require_POST
 @staff_required
 def menu_item_delete(request, pk):
     item = get_object_or_404(MenuItem, pk=pk)
     menu_id = item.menu_id
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "آیتم منو",
+            "object_name": item.title,
+            "cancel_url": reverse("dashboard:menu-item-list", args=[menu_id]),
+            "active_page": "menus",
+        })
     try:
         item.delete()
         messages.success(request, f"آیتم «{item.title}» حذف شد")
@@ -1472,6 +1497,7 @@ from apps.content.models import FooterSettings, FooterTrustBadge, FooterPaymentL
 @staff_required
 def footer_settings_page(request):
     fs = FooterSettings.load()
+    field_errors = {}
 
     if request.method == "POST":
         fs.is_enabled = request.POST.get("is_enabled") == "on"
@@ -1497,13 +1523,33 @@ def footer_settings_page(request):
             fs.full_clean()
             fs.save()
             messages.success(request, "تنظیمات فوتر ذخیره شد")
+            return redirect("dashboard:footer-settings")
         except ValidationError as exc:
-            msg = str(exc.message_dict if hasattr(exc, "message_dict") else exc)
+            if hasattr(exc, "message_dict"):
+                field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                msg = " ".join(field_errors.values())
+            else:
+                msg = str(exc)
             messages.error(request, msg)
-        return redirect("dashboard:footer-settings")
+            open_sections = {"general"}
+            if hasattr(exc, "message_dict"):
+                field_section_map = {
+                    "address": "contact", "phone": "contact", "secondary_phone": "contact",
+                    "email": "contact", "working_hours": "contact",
+                    "newsletter_title": "newsletter", "newsletter_description": "newsletter",
+                    "copyright_text": "copyright",
+                }
+                for field in exc.message_dict:
+                    if field in field_section_map:
+                        open_sections.add(field_section_map[field])
+            return render(request, "dashboard/footer_settings.html", {
+                "fs": fs, "active_page": "footer", "open_sections": open_sections,
+                "field_errors": field_errors,
+            })
 
     return render(request, "dashboard/footer_settings.html", {
         "fs": fs, "active_page": "footer",
+        "field_errors": field_errors,
     })
 
 
@@ -1520,6 +1566,7 @@ def footer_trust_badge_form(request, pk=None):
     from django.db import transaction
 
     badge = get_object_or_404(FooterTrustBadge, pk=pk) if pk else None
+    field_errors = {}
 
     if request.method == "POST":
         obj = badge or FooterTrustBadge()
@@ -1549,25 +1596,30 @@ def footer_trust_badge_form(request, pk=None):
             return redirect("dashboard:footer-trust-badge-list")
         except (ValidationError, IntegrityError) as exc:
             if hasattr(exc, "message_dict"):
-                msg = " ".join(
-                    v[0] if isinstance(v, list) else str(v)
-                    for v in exc.message_dict.values()
-                )
+                field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                msg = " ".join(field_errors.values())
             else:
                 msg = str(exc)
             messages.error(request, msg)
 
     return render(request, "dashboard/footer_trust_badge_form.html", {
         "badge": badge, "active_page": "footer",
+        "field_errors": field_errors,
     })
 
 
-@require_POST
 @staff_required
 def footer_trust_badge_delete(request, pk):
     from django.db import transaction
 
     badge = get_object_or_404(FooterTrustBadge, pk=pk)
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "نماد اعتماد",
+            "object_name": badge.title,
+            "cancel_url": reverse("dashboard:footer-trust-badge-list"),
+            "active_page": "footer",
+        })
     image_name = badge.image.name if badge.image else None
     storage = badge.image.storage if badge.image else None
     title = badge.title
@@ -1606,6 +1658,7 @@ def footer_payment_logo_form(request, pk=None):
     from django.db import transaction
 
     logo = get_object_or_404(FooterPaymentLogo, pk=pk) if pk else None
+    field_errors = {}
 
     if request.method == "POST":
         obj = logo or FooterPaymentLogo()
@@ -1634,25 +1687,30 @@ def footer_payment_logo_form(request, pk=None):
             return redirect("dashboard:footer-payment-logo-list")
         except (ValidationError, IntegrityError) as exc:
             if hasattr(exc, "message_dict"):
-                msg = " ".join(
-                    v[0] if isinstance(v, list) else str(v)
-                    for v in exc.message_dict.values()
-                )
+                field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                msg = " ".join(field_errors.values())
             else:
                 msg = str(exc)
             messages.error(request, msg)
 
     return render(request, "dashboard/footer_payment_logo_form.html", {
         "logo": logo, "active_page": "footer",
+        "field_errors": field_errors,
     })
 
 
-@require_POST
 @staff_required
 def footer_payment_logo_delete(request, pk):
     from django.db import transaction
 
     logo = get_object_or_404(FooterPaymentLogo, pk=pk)
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "لوگوی پرداخت",
+            "object_name": logo.title,
+            "cancel_url": reverse("dashboard:footer-payment-logo-list"),
+            "active_page": "footer",
+        })
     image_name = logo.image.name if logo.image else None
     storage = logo.image.storage if logo.image else None
     title = logo.title
