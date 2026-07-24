@@ -169,6 +169,68 @@ class ProductImage(TimeStampedModel):
         return f"{self.product.name} — تصویر {self.order}"
 
 
+class VariantMutationError(Exception):
+    """تلاش برای تغییر فیلدهای حساس به نرمال‌سازی از مسیری که نرمال‌سازی را دور می‌زند."""
+
+
+def _normalize_variant_fields(instance: "ProductVariant") -> None:
+    """attribute/value/sku یک نمونه‌ی ProductVariant را نرمال و فیلدهای normalized_* را از روی آن‌ها محاسبه می‌کند.
+
+    هم ``ProductVariant.save()`` و هم ``ProductVariantQuerySet.bulk_create()`` از همین
+    تابع استفاده می‌کنند تا نرمال‌سازی هرگز در دو جا تکرار/ناهم‌سو نشود.
+    """
+    from apps.core.utils import normalization_key, normalize_digits
+
+    instance.attribute = (instance.attribute or "").strip()
+    instance.value = (instance.value or "").strip()
+    instance.normalized_attribute = normalization_key(instance.attribute)
+    instance.normalized_value = normalization_key(instance.value)
+    instance.sku = normalize_digits(instance.sku or "").strip()
+
+
+class ProductVariantQuerySet(models.QuerySet):
+    """کوئری‌ست اختصاصی ProductVariant — مسیرهای فله‌ای دور زننده‌ی ``save()`` را کنترل می‌کند.
+
+    ``bulk_create()`` قبل از درج، هر نمونه را نرمال می‌کند (چون Django هرگز
+    ``save()``/``clean()`` را برای bulk_create صدا نمی‌زند). ``update()`` و
+    ``bulk_update()`` تغییر مستقیم فیلدهای حساس به نرمال‌سازی را رد می‌کنند، چون
+    یک SQL UPDATE ساده نمی‌تواند normalized_attribute/normalized_value را هم‌زمان
+    و درست بازمحاسبه کند؛ برای این فیلدها باید از ``instance.save()`` یا
+    ``apps.catalog.services.variant_service`` استفاده شود.
+    """
+
+    NORMALIZATION_SENSITIVE_FIELDS = frozenset(
+        {"attribute", "value", "sku", "normalized_attribute", "normalized_value"}
+    )
+
+    def bulk_create(self, objs, *args, **kwargs):
+        objs = list(objs)
+        for obj in objs:
+            _normalize_variant_fields(obj)
+        return super().bulk_create(objs, *args, **kwargs)
+
+    def bulk_update(self, objs, fields, *args, **kwargs):
+        blocked = self.NORMALIZATION_SENSITIVE_FIELDS.intersection(fields)
+        if blocked:
+            raise VariantMutationError(
+                "فیلدهای {} را نمی‌توان با bulk_update تغییر داد؛ از instance.save() یا "
+                "apps.catalog.services.variant_service استفاده کنید.".format("، ".join(sorted(blocked)))
+            )
+        return super().bulk_update(objs, fields, *args, **kwargs)
+
+    def update(self, **kwargs):
+        blocked = self.NORMALIZATION_SENSITIVE_FIELDS.intersection(kwargs)
+        if blocked:
+            raise VariantMutationError(
+                "فیلدهای {} را نمی‌توان مستقیماً با update() تغییر داد؛ از instance.save() یا "
+                "apps.catalog.services.variant_service استفاده کنید.".format("، ".join(sorted(blocked)))
+            )
+        return super().update(**kwargs)
+
+
+ProductVariantManager = models.Manager.from_queryset(ProductVariantQuerySet)
+
+
 class ProductVariant(TimeStampedModel):
     """تنوع جنریک محصول (رنگ، سایز، وزن و...) از طریق attribute/value.
 
@@ -177,6 +239,8 @@ class ProductVariant(TimeStampedModel):
     برای جلوگیری از ثبت مقدار تکراری (با اختلاف فاصله/ارقام فارسی-لاتین)
     محاسبه و نگه‌داری می‌شوند و مستقیماً توسط کاربر ویرایش نمی‌شوند.
     """
+
+    objects = ProductVariantManager()
 
     product = models.ForeignKey(Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="variants")
     attribute = models.CharField("نام تنوع", max_length=60)
@@ -226,17 +290,7 @@ class ProductVariant(TimeStampedModel):
         self.value = value
 
     def save(self, *args, **kwargs):
-        from apps.core.utils import normalization_key, normalize_digits
-
-        # فقط فاصله‌ی اضافه حذف می‌شود؛ ارقام/حروف متن نمایشی (که ممکن است
-        # عمداً فارسی تایپ شده باشد، مثل «۱۲۸ گیگابایت») دست‌نخورده می‌ماند.
-        self.attribute = (self.attribute or "").strip()
-        self.value = (self.value or "").strip()
-        self.normalized_attribute = normalization_key(self.attribute)
-        self.normalized_value = normalization_key(self.value)
-        # کد کالا برخلاف مقدار نمایشی، طبق قرارداد بقیه‌ی فروشگاه (ProductForm.clean_sku)
-        # همیشه با ارقام لاتین نگه‌داری می‌شود.
-        self.sku = normalize_digits(self.sku or "").strip()
+        _normalize_variant_fields(self)
         super().save(*args, **kwargs)
 
 
