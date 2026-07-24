@@ -124,3 +124,102 @@ class HomepageRenderingTests(TestCase):
     def test_inactive_slide_hidden(self):
         response = self.client.get("/")
         self.assertNotContains(response, "غیرفعال")
+
+
+
+class BannerRenderingTests(TestCase):
+    def setUp(self):
+        self.banner = PromotionalBanner.objects.create(
+            title="بنر فعال", description="توضیح بنر",
+            desktop_image=_img("banner.png"), is_active=True,
+        )
+        self.inactive = PromotionalBanner.objects.create(
+            title="غیرفعال", desktop_image=_img("b2.png"), is_active=False,
+        )
+
+    def test_active_banner_on_homepage(self):
+        response = self.client.get("/")
+        self.assertContains(response, "بنر فعال")
+
+    def test_inactive_banner_hidden(self):
+        response = self.client.get("/")
+        self.assertNotContains(response, "غیرفعال")
+
+    def test_banner_description_rendered(self):
+        response = self.client.get("/")
+        self.assertContains(response, "توضیح بنر")
+
+
+class DashboardHeroCRUDTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(username="staff", password="pass!", is_staff=True)
+        self.client.login(username="staff", password="pass!")
+
+    def test_hero_list_accessible(self):
+        response = self.client.get(reverse("dashboard:hero-list"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_anonymous_denied(self):
+        self.client.logout()
+        response = self.client.get(reverse("dashboard:hero-list"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-panel/login/", response.url)
+
+    def test_create_hero(self):
+        response = self.client.post(reverse("dashboard:hero-add"), {
+            "title": "New Slide", "subtitle": "", "button_label": "",
+            "destination_type": "none", "destination_external_url": "",
+            "display_order": "0", "desktop_image": _img("new.png"),
+        })
+        self.assertRedirects(response, reverse("dashboard:hero-list"))
+        self.assertTrue(HeroSlide.objects.filter(title="New Slide").exists())
+
+    def test_toggle_hero(self):
+        slide = HeroSlide.objects.create(title="T", desktop_image=_img(), is_active=True)
+        self.client.post(reverse("dashboard:hero-toggle", args=[slide.pk]))
+        slide.refresh_from_db()
+        self.assertFalse(slide.is_active)
+
+    def test_delete_hero_post_only(self):
+        slide = HeroSlide.objects.create(title="T", desktop_image=_img())
+        response = self.client.get(reverse("dashboard:hero-delete", args=[slide.pk]))
+        self.assertEqual(response.status_code, 405)
+
+
+class DashboardBannerCRUDTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(username="staff", password="pass!", is_staff=True)
+        self.client.login(username="staff", password="pass!")
+
+    def test_banner_list_accessible(self):
+        response = self.client.get(reverse("dashboard:banner-list"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_create_banner(self):
+        response = self.client.post(reverse("dashboard:banner-add"), {
+            "title": "New Banner", "description": "", "button_label": "",
+            "destination_type": "none", "destination_external_url": "",
+            "display_order": "0", "desktop_image": _img("bn.png"),
+        })
+        self.assertRedirects(response, reverse("dashboard:banner-list"))
+        self.assertTrue(PromotionalBanner.objects.filter(title="New Banner").exists())
+
+    def test_toggle_banner(self):
+        b = PromotionalBanner.objects.create(title="B", desktop_image=_img(), is_active=True)
+        self.client.post(reverse("dashboard:banner-toggle", args=[b.pk]))
+        b.refresh_from_db()
+        self.assertFalse(b.is_active)
+
+    def test_delete_banner_post_only(self):
+        b = PromotionalBanner.objects.create(title="B", desktop_image=_img())
+        response = self.client.get(reverse("dashboard:banner-delete", args=[b.pk]))
+        self.assertEqual(response.status_code, 405)
+
+
+class EmptyStateTests(TestCase):
+    def test_homepage_works_with_no_managed_content(self):
+        """No active hero slides or banners → hardcoded fallback renders."""
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        # Fallback hero still works
+        self.assertContains(response, "خوش آمدید")
