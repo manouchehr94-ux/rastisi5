@@ -1520,10 +1520,24 @@ def footer_settings_page(request):
             fs.full_clean()
             fs.save()
             messages.success(request, "تنظیمات فوتر ذخیره شد")
+            return redirect("dashboard:footer-settings")
         except ValidationError as exc:
             msg = str(exc.message_dict if hasattr(exc, "message_dict") else exc)
             messages.error(request, msg)
-        return redirect("dashboard:footer-settings")
+            open_sections = {"general"}
+            if hasattr(exc, "message_dict"):
+                field_section_map = {
+                    "address": "contact", "phone": "contact", "secondary_phone": "contact",
+                    "email": "contact", "working_hours": "contact",
+                    "newsletter_title": "newsletter", "newsletter_description": "newsletter",
+                    "copyright_text": "copyright",
+                }
+                for field in exc.message_dict:
+                    if field in field_section_map:
+                        open_sections.add(field_section_map[field])
+            return render(request, "dashboard/footer_settings.html", {
+                "fs": fs, "active_page": "footer", "open_sections": open_sections,
+            })
 
     return render(request, "dashboard/footer_settings.html", {
         "fs": fs, "active_page": "footer",

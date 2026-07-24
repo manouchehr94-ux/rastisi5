@@ -166,6 +166,17 @@ class FaviconTests(TestCase):
         self.assertContains(resp, 'rel="icon"')
 
 
+class FaviconEndpointTests(TestCase):
+    """تست endpoint فاوآیکون."""
+    def test_favicon_ico_not_404(self):
+        resp = self.client.get("/favicon.ico")
+        self.assertIn(resp.status_code, [301, 302])
+
+    def test_favicon_redirects_to_static(self):
+        resp = self.client.get("/favicon.ico")
+        self.assertIn("favicon", resp.url or resp.get("Location", ""))
+
+
 class StaleRouteTests(TestCase):
     """تست عدم وجود مسیرهای منسوخ."""
     def setUp(self):
@@ -179,3 +190,83 @@ class StaleRouteTests(TestCase):
     def test_no_stale_banners_in_sidebar(self):
         resp = self.client.get(reverse("dashboard:dashboard"))
         self.assertNotContains(resp, 'href="/admin-panel/banners/"')
+
+
+
+class DeleteConfirmationFullTests(TestCase):
+    """تست کامل صفحات تأیید حذف برای همه منابع."""
+    def setUp(self):
+        from io import BytesIO
+        from PIL import Image
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.staff = User.objects.create_user(username="ux_del", password="p!", is_staff=True)
+        self.client.login(username="ux_del", password="p!")
+
+        buf = BytesIO()
+        Image.new("RGB", (10, 10)).save(buf, "PNG")
+        self.img = SimpleUploadedFile("t.png", buf.getvalue(), content_type="image/png")
+
+    def _assert_delete_flow(self, get_url, post_url, model_class, pk, name, list_url):
+        # GET shows confirmation, doesn't delete
+        resp = self.client.get(get_url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, name)
+        self.assertContains(resp, "تأیید حذف")
+        self.assertTrue(model_class.objects.filter(pk=pk).exists())
+        # Cancel URL present
+        self.assertContains(resp, list_url)
+        # POST deletes
+        resp = self.client.post(post_url)
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(model_class.objects.filter(pk=pk).exists())
+
+    def test_social_link_full_flow(self):
+        link = SocialLink.objects.create(platform="telegram", title="SL-Del", url="https://t.me/x")
+        url = reverse("dashboard:social-link-delete", args=[link.pk])
+        self._assert_delete_flow(url, url, SocialLink, link.pk, "SL-Del", reverse("dashboard:social-link-list"))
+
+    def test_menu_full_flow(self):
+        menu = Menu.objects.create(title="Menu-Del", location="footer_3")
+        url = reverse("dashboard:menu-delete", args=[menu.pk])
+        self._assert_delete_flow(url, url, Menu, menu.pk, "Menu-Del", reverse("dashboard:menu-list"))
+
+    def test_menu_item_full_flow(self):
+        from apps.catalog.models import Category
+        cat = Category.objects.create(name="DC", slug="dc-del")
+        menu = Menu.objects.create(title="M", location="header")
+        item = MenuItem.objects.create(menu=menu, title="Item-Del", destination_type="category", destination_category=cat)
+        url = reverse("dashboard:menu-item-delete", args=[item.pk])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Item-Del")
+        resp = self.client.post(url)
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(MenuItem.objects.filter(pk=item.pk).exists())
+
+    def test_trust_badge_full_flow(self):
+        badge = FooterTrustBadge.objects.create(title="Badge-Del", image=self.img)
+        url = reverse("dashboard:footer-trust-badge-delete", args=[badge.pk])
+        self._assert_delete_flow(url, url, FooterTrustBadge, badge.pk, "Badge-Del", reverse("dashboard:footer-trust-badge-list"))
+
+    def test_payment_logo_full_flow(self):
+        from io import BytesIO
+        from PIL import Image
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        buf = BytesIO()
+        Image.new("RGB", (10, 10)).save(buf, "PNG")
+        img2 = SimpleUploadedFile("t2.png", buf.getvalue(), content_type="image/png")
+        logo = FooterPaymentLogo.objects.create(title="Logo-Del", image=img2)
+        url = reverse("dashboard:footer-payment-logo-delete", args=[logo.pk])
+        self._assert_delete_flow(url, url, FooterPaymentLogo, logo.pk, "Logo-Del", reverse("dashboard:footer-payment-logo-list"))
+
+    def test_anonymous_blocked_all(self):
+        self.client.logout()
+        link = SocialLink.objects.create(platform="telegram", title="X", url="https://t.me/x")
+        for url in [
+            reverse("dashboard:social-link-delete", args=[link.pk]),
+        ]:
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, 302)
+            self.assertIn("/admin-panel/login/", resp.url)

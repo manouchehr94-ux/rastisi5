@@ -109,7 +109,7 @@
 
 ### دسترسی داشبورد
 
-- مسیر: `/admin-panel/hero/` و `/admin-panel/banners/`
+- مسیر: `/admin-panel/homepage/hero/` و `/admin-panel/homepage/banners/`
 - سطح دسترسی: `@staff_required`
 - ناوبری: از طریق سایدبار داشبورد → «مدیریت صفحه اصلی» → «اسلایدهای اصلی» / «بنرهای تبلیغاتی»
 

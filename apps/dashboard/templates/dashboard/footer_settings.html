@@ -54,7 +54,7 @@
     </details>
 
     <!-- بخش اطلاعات تماس -->
-    <details class="form-section">
+    <details class="form-section" {% if open_sections and "contact" in open_sections %}open{% endif %}>
       <summary class="form-section-title" style="cursor:pointer;list-style:none">اطلاعات تماس</summary>
       <p class="form-section-desc">اطلاعات تماس فروشگاه که در فوتر نمایش داده می‌شود</p>
       <label class="toggle-field">
@@ -110,7 +110,7 @@
     </details>
 
     <!-- بخش خبرنامه -->
-    <details class="form-section">
+    <details class="form-section" {% if open_sections and "newsletter" in open_sections %}open{% endif %}>
       <summary class="form-section-title" style="cursor:pointer;list-style:none">خبرنامه</summary>
       <p class="form-section-desc">تنظیمات بخش عضویت در خبرنامه</p>
       <label class="toggle-field">
@@ -161,7 +161,7 @@
     </details>
 
     <!-- بخش کپی‌رایت -->
-    <details class="form-section">
+    <details class="form-section" {% if open_sections and "copyright" in open_sections %}open{% endif %}>
       <summary class="form-section-title" style="cursor:pointer;list-style:none">کپی‌رایت</summary>
       <p class="form-section-desc">متن حقوق مالکیت معنوی پایین فوتر</p>
       <div class="field-group">
