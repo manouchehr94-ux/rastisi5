@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "apps.dashboard",
     "apps.blog",
     "apps.sms",
+    "apps.content",
 ]
 
 MIDDLEWARE = [
