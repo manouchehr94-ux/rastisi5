@@ -1,5 +1,6 @@
 from django import template
 
+from apps.catalog.models import Product
 from apps.dashboard.services.catalog_admin_service import category_chain as _category_chain
 from apps.dashboard.services.dashboard_service import ORDER_STATUS_BADGE, PAYMENT_STATUS_BADGE
 from apps.dashboard.services.orders_admin_service import TRANSACTION_STATUS_BADGE
@@ -54,3 +55,13 @@ def product_status_label(product):
     if product.status == "inactive":
         return "غیرفعال"
     return "فعال"
+
+
+@register.filter
+def product_type_badge(product_type):
+    return "b-purple" if product_type == Product.ProductType.VARIABLE else "b-blue"
+
+
+@register.filter
+def product_type_label(product_type):
+    return dict(Product.ProductType.choices).get(product_type, product_type)

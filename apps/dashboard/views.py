@@ -3,7 +3,7 @@ import json
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Count, ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,7 +11,8 @@ from django.urls import reverse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
-from apps.catalog.models import Category, Product, ProductImage
+from apps.catalog.models import Category, Product, ProductImage, ProductVariant
+from apps.catalog.services.pricing_service import resolve_effective_price
 from apps.catalog.services.product_image_service import (
     ProductImageError,
     add_product_image,
@@ -19,6 +20,16 @@ from apps.catalog.services.product_image_service import (
     move_product_image,
     set_cover_image,
     update_image_alt,
+)
+from apps.catalog.services.variant_service import (
+    ProductTypeError,
+    VariantError,
+    bulk_create_variants,
+    deactivate_variant,
+    delete_variant,
+    reorder_variants,
+    set_product_type,
+    update_variant,
 )
 from apps.core.models import ShopSettings
 from apps.customers.models import Customer
@@ -41,6 +52,8 @@ from .forms import (
     SmsTemplateForm,
     SmsTestForm,
     SubCategoryForm,
+    VariantBulkAddForm,
+    VariantEditForm,
     VisualIdentityForm,
 )
 from .services import (
@@ -178,18 +191,28 @@ def _save_product(form, product):
 @staff_required
 def product_form(request, pk=None):
     product = get_object_or_404(Product, pk=pk) if pk else None
+    is_new = product is None
 
     if request.method == "POST":
         form = ProductForm(request.POST, instance=product)
         if form.is_valid():
-            _save_product(form, product)
+            requested_type = form.cleaned_data.get("product_type") or None
+            try:
+                with transaction.atomic():
+                    product = _save_product(form, product)
+                    if requested_type and requested_type != product.product_type:
+                        set_product_type(product, requested_type)
+            except ProductTypeError as exc:
+                form.add_error(None, str(exc))
+                return render(request, "dashboard/partials/product_form.html", {"form": form, "product": product})
+
             table_html = render_to_string(
                 "dashboard/partials/products_table_inner.html", _product_list_context(request), request=request,
             )
             response = render(request, "dashboard/partials/oob_wrap.html", {
                 "target_id": "productsTableWrap", "inner_html": table_html,
             })
-            action = "ویرایش" if product else "افزوده"
+            action = "ویرایش" if not is_new else "افزوده"
             response["HX-Trigger"] = json.dumps({
                 "toast": {"message": f"کالا با موفقیت {action} شد", "type": "ok"},
                 "modal-close": {},
@@ -202,8 +225,10 @@ def product_form(request, pk=None):
                 "name": product.name, "sku": product.sku, "category": product.category_id,
                 "price": product.price, "discount_percent": product.discount_percent,
                 "stock": product.stock, "status": product.status, "icon": product.icon,
-                "description": product.description,
+                "description": product.description, "product_type": product.product_type,
             }
+        else:
+            initial = {"product_type": Product.ProductType.SIMPLE}
         form = ProductForm(instance=product, initial=initial)
 
     return render(request, "dashboard/partials/product_form.html", {"form": form, "product": product})
@@ -321,6 +346,176 @@ def product_image_alt_update(request, pk, image_id):
     if form.is_valid():
         update_image_alt(image, form.cleaned_data["alt"])
     return _image_list_response(request, product, refresh_table=False)
+
+
+# --------------------------------------------------------- تنوع کالا
+
+
+def _variant_page_context(product, *, bulk_form=None):
+    from django.db.models import Exists, OuterRef
+
+    from apps.orders.models import OrderItem
+
+    variants = list(
+        product.variants.annotate(
+            has_order_history=Exists(OrderItem.objects.filter(variant=OuterRef("pk")))
+        ).order_by("display_order", "attribute", "value")
+    )
+    for variant in variants:
+        variant.effective_price = resolve_effective_price(product, variant)
+    return {
+        "product": product,
+        "variants": variants,
+        "variant_count": len(variants),
+        "active_variant_count": sum(1 for v in variants if v.is_active),
+        "bulk_form": bulk_form or VariantBulkAddForm(),
+        "active_page": "products",
+    }
+
+
+def _get_scoped_product(pk):
+    """کالای دارای تنوع را برمی‌گرداند؛ کالای ساده نباید صفحه‌ی مدیریت تنوع فعال داشته باشد."""
+    return get_object_or_404(Product, pk=pk)
+
+
+@staff_required
+def product_variants(request, pk):
+    product = _get_scoped_product(pk)
+    return render(request, "dashboard/product_variants.html", _variant_page_context(product))
+
+
+@require_POST
+@staff_required
+def product_variant_bulk_add(request, pk):
+    product = _get_scoped_product(pk)
+    if not product.is_variable:
+        messages.error(request, "برای افزودن تنوع، ابتدا کالا را از ویرایش کالا به «دارای تنوع» تبدیل کنید.")
+        return redirect("dashboard:product-variants", pk=product.pk)
+
+    form = VariantBulkAddForm(request.POST)
+    if form.is_valid():
+        try:
+            created, skipped = bulk_create_variants(
+                product,
+                attribute=form.cleaned_data["attribute"],
+                raw_values=form.cleaned_data["raw_values"],
+                default_stock=form.cleaned_data["default_stock"],
+                default_extra_price=form.cleaned_data["default_extra_price"],
+                is_active=form.cleaned_data["is_active"],
+            )
+        except VariantError as exc:
+            form.add_error(None, str(exc))
+        else:
+            if created:
+                message = f"{len(created)} مقدار تنوع اضافه شد"
+                if skipped:
+                    message += f" — {skipped[0]}"
+                messages.success(request, message)
+                return redirect("dashboard:product-variants", pk=product.pk)
+            form.add_error(None, skipped[0] if skipped else "هیچ مقداری اضافه نشد")
+
+    return render(request, "dashboard/product_variants.html", _variant_page_context(product, bulk_form=form))
+
+
+@staff_required
+def product_variant_edit(request, pk, variant_id):
+    product = _get_scoped_product(pk)
+    variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
+
+    if request.method == "POST":
+        form = VariantEditForm(request.POST)
+        if form.is_valid():
+            try:
+                update_variant(
+                    variant,
+                    attribute=form.cleaned_data["attribute"],
+                    value=form.cleaned_data["value"],
+                    sku=form.cleaned_data["sku"],
+                    extra_price=form.cleaned_data["extra_price"],
+                    stock=form.cleaned_data["stock"],
+                    is_active=form.cleaned_data["is_active"],
+                )
+            except VariantError as exc:
+                form.add_error(None, str(exc))
+            else:
+                messages.success(request, f"مقدار تنوع «{variant.value}» با موفقیت ویرایش شد")
+                return redirect("dashboard:product-variants", pk=product.pk)
+    else:
+        form = VariantEditForm(initial={
+            "attribute": variant.attribute, "value": variant.value, "sku": variant.sku,
+            "extra_price": variant.extra_price, "stock": variant.stock, "is_active": variant.is_active,
+        })
+
+    return render(request, "dashboard/product_variant_edit.html", {
+        "product": product, "variant": variant, "form": form, "active_page": "products",
+    })
+
+
+@require_POST
+@staff_required
+def product_variant_toggle(request, pk, variant_id):
+    product = _get_scoped_product(pk)
+    variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
+
+    try:
+        if variant.is_active:
+            deactivate_variant(variant)
+            messages.info(request, f"مقدار تنوع «{variant.value}» غیرفعال شد")
+        else:
+            update_variant(variant, is_active=True)
+            messages.success(request, f"مقدار تنوع «{variant.value}» فعال شد")
+    except VariantError as exc:
+        messages.error(request, str(exc))
+
+    return redirect("dashboard:product-variants", pk=product.pk)
+
+
+@staff_required
+def product_variant_delete(request, pk, variant_id):
+    product = _get_scoped_product(pk)
+    variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
+
+    if request.method != "POST":
+        if variant.order_items.exists():
+            messages.error(
+                request,
+                f"مقدار تنوع «{variant.value}» در سفارش‌های ثبت‌شده استفاده شده و قابل حذف نیست؛ آن را غیرفعال کنید.",
+            )
+            return redirect("dashboard:product-variants", pk=product.pk)
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "مقدار تنوع",
+            "object_name": f"{variant.attribute}: {variant.value}",
+            "cancel_url": reverse("dashboard:product-variants", args=[product.pk]),
+            "active_page": "products",
+        })
+
+    try:
+        delete_variant(variant)
+        messages.success(request, f"مقدار تنوع «{variant.value}» حذف شد")
+    except VariantError as exc:
+        messages.error(request, str(exc))
+
+    return redirect("dashboard:product-variants", pk=product.pk)
+
+
+@require_POST
+@staff_required
+def product_variant_move(request, pk, variant_id):
+    product = _get_scoped_product(pk)
+    variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
+    direction = request.POST.get("direction", "")
+
+    ordered_ids = list(
+        product.variants.order_by("display_order", "attribute", "value").values_list("pk", flat=True)
+    )
+    if direction in ("up", "down") and variant.pk in ordered_ids:
+        index = ordered_ids.index(variant.pk)
+        neighbor_index = index - 1 if direction == "up" else index + 1
+        if 0 <= neighbor_index < len(ordered_ids):
+            ordered_ids[index], ordered_ids[neighbor_index] = ordered_ids[neighbor_index], ordered_ids[index]
+            reorder_variants(product, ordered_ids)
+
+    return redirect("dashboard:product-variants", pk=product.pk)
 
 
 # --------------------------------------------------------- دسته‌بندی‌ها

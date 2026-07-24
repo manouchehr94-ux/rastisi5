@@ -6,6 +6,7 @@
 """
 
 from django.db import models
+from django.db.models import Count, Q, Sum
 from django.utils.text import slugify
 
 from apps.catalog.models import Category, Product, Vendor
@@ -55,6 +56,11 @@ def filtered_products(*, q: str = "", category_id: str = "", status: str = ""):
     qs = (
         Product.objects.select_related("category", "category__parent")
         .prefetch_related("images")
+        .annotate(
+            variant_count=Count("variants", distinct=True),
+            active_variant_count=Count("variants", filter=Q(variants__is_active=True), distinct=True),
+            active_variant_stock=Sum("variants__stock", filter=Q(variants__is_active=True)),
+        )
         .order_by("-created_at")
     )
     if q:

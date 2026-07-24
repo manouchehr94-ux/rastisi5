@@ -105,7 +105,7 @@ def create_variant(
         variant.full_clean(exclude=["normalized_attribute", "normalized_value"])
     except ValidationError as exc:
         raise VariantError("؛ ".join(sum(exc.message_dict.values(), []))) from exc
-    if ProductVariant.objects.filter(
+    if is_active and ProductVariant.objects.filter(
         product=product, normalized_attribute=normalization_key(attribute),
         normalized_value=normalization_key(value), is_active=True,
     ).exists():
@@ -117,6 +117,7 @@ def create_variant(
 @transaction.atomic
 def bulk_create_variants(
     product: Product, *, attribute: str, raw_values: str, default_stock: int = 0, default_extra_price=0,
+    is_active: bool = True,
 ) -> tuple[list[ProductVariant], list[str]]:
     """چند مقدار تنوع را یک‌جا از روی ورودی سریع می‌سازد؛ رکوردهای تکراری را رد و پیام می‌دهد.
 
@@ -140,14 +141,15 @@ def bulk_create_variants(
     skipped = []
     for value in values:
         key = normalization_key(value)
-        if key in existing_keys:
+        if is_active and key in existing_keys:
             skipped.append(f"«{value}» تکراری بود و رد شد.")
             continue
         variant = create_variant(
             product, attribute=attribute, value=value,
-            stock=default_stock, extra_price=default_extra_price,
+            stock=default_stock, extra_price=default_extra_price, is_active=is_active,
         )
-        existing_keys.add(key)
+        if is_active:
+            existing_keys.add(key)
         created.append(variant)
 
     return created, skipped

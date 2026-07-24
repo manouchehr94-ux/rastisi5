@@ -113,6 +113,26 @@ class VariantCreationServiceTests(TestCase):
         with self.assertRaises(VariantError):
             bulk_create_variants(self.product, attribute="طول", raw_values="   ")
 
+    def test_bulk_create_variants_default_is_active_true(self):
+        created, _ = bulk_create_variants(self.product, attribute="طول", raw_values="30، 40")
+        self.assertTrue(all(v.is_active for v in created))
+
+    def test_bulk_create_variants_can_create_inactive(self):
+        created, skipped = bulk_create_variants(
+            self.product, attribute="طول", raw_values="30، 40", is_active=False
+        )
+        self.assertEqual(len(created), 2)
+        self.assertEqual(skipped, [])
+        self.assertTrue(all(not v.is_active for v in created))
+
+    def test_bulk_create_variants_inactive_does_not_check_existing_active_duplicates(self):
+        create_variant(self.product, attribute="طول", value="30")
+        created, skipped = bulk_create_variants(
+            self.product, attribute="طول", raw_values="30", is_active=False
+        )
+        self.assertEqual(len(created), 1)
+        self.assertEqual(skipped, [])
+
     def test_update_variant_changes_stock_and_price_adjustment(self):
         variant = create_variant(self.product, attribute="طول", value="30")
         updated = update_variant(variant, stock=25, extra_price=Decimal("15000"))

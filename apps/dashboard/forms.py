@@ -63,6 +63,11 @@ class ProductForm(NumericCleanMixin, forms.Form):
     status = forms.ChoiceField(label="وضعیت", choices=STATUS_CHOICES, initial=Product.Status.ACTIVE)
     icon = forms.CharField(label="آیکون (ایموجی)", max_length=10, required=False)
     description = forms.CharField(label="توضیحات کوتاه", widget=forms.Textarea, required=False)
+    # اختیاری است تا فرم‌های قدیمی/تست‌هایی که این فیلد را ارسال نمی‌کنند همچنان کار کنند؛
+    # وقتی خالی باشد یعنی «نوع کالا تغییر نکند» و از سرویس گذار نوع کالا استفاده نمی‌شود.
+    product_type = forms.ChoiceField(
+        label="نوع کالا", choices=Product.ProductType.choices, required=False,
+    )
 
     def __init__(self, *args, instance=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -87,6 +92,68 @@ class ProductForm(NumericCleanMixin, forms.Form):
         if not self.data.get("discount_percent", "").strip():
             return 0
         return self._clean_int("discount_percent", min_value=0, max_value=100)
+
+    def clean_stock(self):
+        if not self.data.get("stock", "").strip():
+            return 0
+        return self._clean_int("stock", min_value=0)
+
+
+class VariantBulkAddForm(NumericCleanMixin, forms.Form):
+    """اعتبارسنجی ساختاری ورودی سریع تنوع؛ تجزیه و اعتبارسنجی کسب‌وکاری در سرویس تنوع انجام می‌شود."""
+
+    attribute = forms.CharField(label="نام تنوع", max_length=60, help_text="مثلاً: رنگ، سایز، حجم، مدل")
+    raw_values = forms.CharField(
+        label="مقادیر تنوع", widget=forms.Textarea,
+        help_text="هر مقدار را در یک خط، یا با کاما/سمیکالن از هم جدا کنید.",
+    )
+    default_stock = forms.CharField(label="موجودی پیش‌فرض", required=False, initial="0")
+    default_extra_price = forms.CharField(label="تغییر قیمت پیش‌فرض (تومان)", required=False, initial="0")
+    is_active = forms.BooleanField(label="فعال باشند", required=False, initial=True)
+
+    def clean_attribute(self):
+        attribute = self.cleaned_data["attribute"].strip()
+        if not attribute:
+            raise forms.ValidationError("نام تنوع نمی‌تواند خالی باشد")
+        return attribute
+
+    def clean_default_stock(self):
+        if not self.data.get("default_stock", "").strip():
+            return 0
+        return self._clean_int("default_stock", min_value=0)
+
+    def clean_default_extra_price(self):
+        if not self.data.get("default_extra_price", "").strip():
+            return 0
+        return self._clean_decimal("default_extra_price")
+
+
+class VariantEditForm(NumericCleanMixin, forms.Form):
+    """اعتبارسنجی ساختاری ویرایش یک مقدار تنوع؛ یکتایی و نرمال‌سازی در سرویس تنوع انجام می‌شود."""
+
+    attribute = forms.CharField(label="نام تنوع", max_length=60)
+    value = forms.CharField(label="مقدار تنوع", max_length=60)
+    sku = forms.CharField(label="کد کالا (SKU)", max_length=64, required=False)
+    extra_price = forms.CharField(label="تغییر قیمت (تومان)", required=False, initial="0")
+    stock = forms.CharField(label="موجودی", required=False, initial="0")
+    is_active = forms.BooleanField(label="فعال", required=False)
+
+    def clean_attribute(self):
+        attribute = self.cleaned_data["attribute"].strip()
+        if not attribute:
+            raise forms.ValidationError("نام تنوع نمی‌تواند خالی باشد")
+        return attribute
+
+    def clean_value(self):
+        value = self.cleaned_data["value"].strip()
+        if not value:
+            raise forms.ValidationError("مقدار تنوع نمی‌تواند خالی باشد")
+        return value
+
+    def clean_extra_price(self):
+        if not self.data.get("extra_price", "").strip():
+            return 0
+        return self._clean_decimal("extra_price")
 
     def clean_stock(self):
         if not self.data.get("stock", "").strip():
