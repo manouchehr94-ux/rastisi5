@@ -84,6 +84,10 @@ class Product(TimeStampedModel):
         HOT = "hot", "پرفروش"
         SALE = "sale", "حراج"
 
+    class ProductType(models.TextChoices):
+        SIMPLE = "simple", "کالای ساده"
+        VARIABLE = "variable", "کالای دارای تنوع"
+
     vendor = models.ForeignKey(Vendor, verbose_name="فروشنده", on_delete=models.CASCADE, related_name="products")
     category = models.ForeignKey(Category, verbose_name="دسته‌بندی", on_delete=models.PROTECT, related_name="products")
     brand = models.ForeignKey(
@@ -102,6 +106,9 @@ class Product(TimeStampedModel):
 
     stock = models.PositiveIntegerField("موجودی انبار", default=0)
     status = models.CharField("وضعیت", max_length=10, choices=Status.choices, default=Status.ACTIVE)
+    product_type = models.CharField(
+        "نوع کالا", max_length=10, choices=ProductType.choices, default=ProductType.SIMPLE
+    )
 
     rating = models.DecimalField(
         "میانگین امتیاز", max_digits=3, decimal_places=2, default=0,
@@ -128,6 +135,10 @@ class Product(TimeStampedModel):
         """قیمت نهایی = price * (1 - discount_percent/100)، گرد شده."""
         factor = (Decimal(100) - self.discount_percent) / Decimal(100)
         return (self.price * factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+    @property
+    def is_variable(self):
+        return self.product_type == self.ProductType.VARIABLE
 
     @property
     def cover_image(self):
@@ -158,23 +169,211 @@ class ProductImage(TimeStampedModel):
         return f"{self.product.name} — تصویر {self.order}"
 
 
+class VariantMutationError(Exception):
+    """تلاش برای تغییر فیلدهای حساس به نرمال‌سازی از مسیری که نرمال‌سازی را دور می‌زند."""
+
+
+def _normalize_variant_fields(instance: "ProductVariant") -> None:
+    """attribute/value/sku یک نمونه‌ی ProductVariant را نرمال و فیلدهای normalized_* را از روی آن‌ها محاسبه می‌کند.
+
+    هم ``ProductVariant.save()`` و هم ``ProductVariantQuerySet.bulk_create()`` از همین
+    تابع استفاده می‌کنند تا نرمال‌سازی هرگز در دو جا تکرار/ناهم‌سو نشود.
+    """
+    from apps.core.utils import normalization_key, normalize_digits
+
+    instance.attribute = (instance.attribute or "").strip()
+    instance.value = (instance.value or "").strip()
+    instance.normalized_attribute = normalization_key(instance.attribute)
+    instance.normalized_value = normalization_key(instance.value)
+    instance.sku = normalize_digits(instance.sku or "").strip()
+
+
+class ProductVariantQuerySet(models.QuerySet):
+    """کوئری‌ست اختصاصی ProductVariant — مسیرهای فله‌ای دور زننده‌ی ``save()`` را کنترل می‌کند.
+
+    ``bulk_create()`` قبل از درج، هر نمونه را نرمال می‌کند (چون Django هرگز
+    ``save()``/``clean()`` را برای bulk_create صدا نمی‌زند). ``update()`` و
+    ``bulk_update()`` تغییر مستقیم فیلدهای حساس به نرمال‌سازی را رد می‌کنند، چون
+    یک SQL UPDATE ساده نمی‌تواند normalized_attribute/normalized_value را هم‌زمان
+    و درست بازمحاسبه کند؛ برای این فیلدها باید از ``instance.save()`` یا
+    ``apps.catalog.services.variant_service`` استفاده شود.
+    """
+
+    NORMALIZATION_SENSITIVE_FIELDS = frozenset(
+        {"attribute", "value", "sku", "normalized_attribute", "normalized_value"}
+    )
+
+    def bulk_create(self, objs, *args, **kwargs):
+        objs = list(objs)
+        for obj in objs:
+            _normalize_variant_fields(obj)
+        return super().bulk_create(objs, *args, **kwargs)
+
+    def bulk_update(self, objs, fields, *args, **kwargs):
+        blocked = self.NORMALIZATION_SENSITIVE_FIELDS.intersection(fields)
+        if blocked:
+            raise VariantMutationError(
+                "فیلدهای {} را نمی‌توان با bulk_update تغییر داد؛ از instance.save() یا "
+                "apps.catalog.services.variant_service استفاده کنید.".format("، ".join(sorted(blocked)))
+            )
+        return super().bulk_update(objs, fields, *args, **kwargs)
+
+    def update(self, **kwargs):
+        blocked = self.NORMALIZATION_SENSITIVE_FIELDS.intersection(kwargs)
+        if blocked:
+            raise VariantMutationError(
+                "فیلدهای {} را نمی‌توان مستقیماً با update() تغییر داد؛ از instance.save() یا "
+                "apps.catalog.services.variant_service استفاده کنید.".format("، ".join(sorted(blocked)))
+            )
+        return super().update(**kwargs)
+
+
+ProductVariantManager = models.Manager.from_queryset(ProductVariantQuerySet)
+
+
 class ProductVariant(TimeStampedModel):
-    """تنوع جنریک محصول (رنگ، سایز، وزن و...) از طریق attribute/value."""
+    """تنوع جنریک محصول (رنگ، سایز، وزن و...) از طریق attribute/value.
+
+    ``attribute`` نام تنوعی است که فروشنده تعریف می‌کند (مثل «طول» یا «رایحه»)
+    و در کد هاردکد نمی‌شود. ``normalized_attribute``/``normalized_value`` فقط
+    برای جلوگیری از ثبت مقدار تکراری (با اختلاف فاصله/ارقام فارسی-لاتین)
+    محاسبه و نگه‌داری می‌شوند و مستقیماً توسط کاربر ویرایش نمی‌شوند.
+    """
+
+    objects = ProductVariantManager()
 
     product = models.ForeignKey(Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="variants")
-    attribute = models.CharField("ویژگی", max_length=60)
-    value = models.CharField("مقدار", max_length=60)
+    attribute = models.CharField("نام تنوع", max_length=60)
+    value = models.CharField("مقدار تنوع", max_length=60)
+    normalized_attribute = models.CharField(max_length=80, editable=False, blank=True, default="")
+    normalized_value = models.CharField(max_length=80, editable=False, blank=True, default="")
     value_hex = models.CharField("کد رنگ (Hex)", max_length=9, blank=True)
+    sku = models.CharField("کد کالا (SKU)", max_length=64, blank=True, default="")
     stock = models.PositiveIntegerField("موجودی", default=0)
-    extra_price = models.DecimalField("مبلغ اضافه (تومان)", max_digits=12, decimal_places=0, default=0)
+    extra_price = models.DecimalField("تغییر قیمت (تومان)", max_digits=12, decimal_places=0, default=0)
+    is_active = models.BooleanField("فعال", default=True)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
 
     class Meta:
         verbose_name = "تنوع کالا"
         verbose_name_plural = "تنوع‌های کالا"
-        ordering = ["attribute", "value"]
+        ordering = ["display_order", "attribute", "value"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "normalized_attribute", "normalized_value"],
+                condition=models.Q(is_active=True),
+                name="uniq_active_variant_value_per_product",
+            ),
+            models.UniqueConstraint(
+                fields=["sku"],
+                condition=~models.Q(sku=""),
+                name="uniq_variant_sku_when_set",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.product.name} — {self.attribute}: {self.value}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        errors = {}
+        attribute = (self.attribute or "").strip()
+        value = (self.value or "").strip()
+        if not attribute:
+            errors["attribute"] = "نام تنوع نمی‌تواند خالی باشد."
+        if not value:
+            errors["value"] = "مقدار تنوع نمی‌تواند خالی باشد."
+        if errors:
+            raise ValidationError(errors)
+        self.attribute = attribute
+        self.value = value
+
+    def save(self, *args, **kwargs):
+        _normalize_variant_fields(self)
+        super().save(*args, **kwargs)
+
+
+class Specification(TimeStampedModel):
+    """مشخصه‌ی فنی توصیفی کالا (برچسب/مقدار) — انتخابی مشتری نیست، فقط اطلاعاتی."""
+
+    product = models.ForeignKey(
+        Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="specifications"
+    )
+    label = models.CharField("عنوان مشخصه", max_length=100)
+    value = models.CharField("مقدار", max_length=300, blank=True)
+    order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "مشخصه فنی"
+        verbose_name_plural = "مشخصات فنی"
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.product.name} — {self.label}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        label = (self.label or "").strip()
+        if not label:
+            raise ValidationError({"label": "عنوان مشخصه نمی‌تواند خالی باشد."})
+        self.label = label
+        self.value = (self.value or "").strip()
+
+    def save(self, *args, **kwargs):
+        self.label = (self.label or "").strip()
+        self.value = (self.value or "").strip()
+        super().save(*args, **kwargs)
+
+
+class SpecificationTemplate(TimeStampedModel):
+    """قالب مشخصات قابل‌استفاده‌ی مجدد — فهرستی از عنوان‌های پیشنهادی، نه یک اسکیمای پیچیده."""
+
+    name = models.CharField("نام قالب", max_length=100, unique=True)
+    category = models.ForeignKey(
+        Category, verbose_name="دسته‌بندی مرتبط", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="specification_templates",
+    )
+
+    class Meta:
+        verbose_name = "قالب مشخصات"
+        verbose_name_plural = "قالب‌های مشخصات"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class SpecificationTemplateField(TimeStampedModel):
+    template = models.ForeignKey(
+        SpecificationTemplate, verbose_name="قالب", on_delete=models.CASCADE, related_name="fields"
+    )
+    label = models.CharField("عنوان مشخصه", max_length=100)
+    order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "فیلد قالب مشخصات"
+        verbose_name_plural = "فیلدهای قالب مشخصات"
+        ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["template", "label"], name="uniq_template_field_label"),
+        ]
+
+    def __str__(self):
+        return f"{self.template.name} — {self.label}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        label = (self.label or "").strip()
+        if not label:
+            raise ValidationError({"label": "عنوان فیلد نمی‌تواند خالی باشد."})
+        self.label = label
+
+    def save(self, *args, **kwargs):
+        self.label = (self.label or "").strip()
+        super().save(*args, **kwargs)
 
 
 class Review(TimeStampedModel):

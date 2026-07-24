@@ -354,7 +354,7 @@ class Command(BaseCommand):
             created_count += created
             by_sku[data["sku"]] = product
 
-            if created:
+            if created and variants:
                 for variant_data in variants:
                     ProductVariant.objects.get_or_create(
                         product=product, attribute=variant_data["attribute"], value=variant_data["value"],
@@ -364,6 +364,8 @@ class Command(BaseCommand):
                             "extra_price": variant_data.get("extra_price", Decimal("0")),
                         },
                     )
+                product.product_type = Product.ProductType.VARIABLE
+                product.save(update_fields=["product_type"])
         self._log("کالا", created_count)
         return by_sku
 
