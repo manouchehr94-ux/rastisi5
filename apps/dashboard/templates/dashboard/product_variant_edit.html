@@ -1,0 +1,61 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}ویرایش تنوع | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}ویرایش مقدار تنوع{% endblock %}
+{% block page_sub %}{{ product.name }} — {{ variant.attribute }}: {{ variant.value }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:14px">
+  <a class="btn btn-sm" href="{% url 'dashboard:product-variants' product.pk %}">→ بازگشت به تنوع‌های کالا</a>
+</div>
+
+<div class="form-card">
+  {% if form.non_field_errors %}
+  <div style="color:var(--red);font-size:12.5px;margin-bottom:10px">{% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}</div>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-row">
+      <div class="form-group">
+        <label>نام تنوع *</label>
+        <input class="inp" name="attribute" value="{{ form.attribute.value|default_if_none:'' }}">
+        {% for err in form.attribute.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
+      </div>
+      <div class="form-group">
+        <label>مقدار تنوع *</label>
+        <input class="inp" name="value" value="{{ form.value.value|default_if_none:'' }}">
+        {% for err in form.value.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
+      </div>
+    </div>
+    <div class="form-group">
+      <label>کد کالا (SKU)</label>
+      <input class="inp" name="sku" value="{{ form.sku.value|default_if_none:'' }}" dir="ltr">
+      {% for err in form.sku.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>موجودی</label>
+        <input class="inp" name="stock" value="{{ form.stock.value|default:'0' }}" dir="ltr" inputmode="numeric">
+        {% for err in form.stock.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
+      </div>
+      <div class="form-group">
+        <label>تغییر قیمت (تومان)</label>
+        <input class="inp" name="extra_price" value="{{ form.extra_price.value|default:'0' }}" dir="ltr" inputmode="numeric">
+        {% for err in form.extra_price.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
+      </div>
+    </div>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_active" {% if form.is_active.value %}checked{% endif %}>
+      <div class="toggle-content">
+        <span class="toggle-title">فعال</span>
+        <span class="toggle-desc">در صورت غیرفعال بودن، این مقدار برای مشتری قابل انتخاب نیست.</span>
+      </div>
+    </label>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">ذخیره تغییرات</button>
+      <a href="{% url 'dashboard:product-variants' product.pk %}" class="btn btn-secondary">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

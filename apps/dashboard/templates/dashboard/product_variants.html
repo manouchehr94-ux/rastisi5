@@ -1,0 +1,141 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian dashboard_extras %}
+
+{% block title %}تنوع‌های {{ product.name }} | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}تنوع‌های کالا{% endblock %}
+{% block page_sub %}{{ product.name }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+  <a class="btn btn-sm" href="{% url 'dashboard:product-list' %}">→ بازگشت به فهرست کالاها</a>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <span class="badge {{ product.product_type|product_type_badge }}">{{ product.product_type|product_type_label }}</span>
+    <span style="font-size:12.5px;color:var(--muted)">{{ active_variant_count|fa_number }} از {{ variant_count|fa_number }} تنوع فعال</span>
+  </div>
+</div>
+
+{% if not product.is_variable %}
+<div class="card">
+  <div class="empty-state">
+    <span class="empty-icon">🧬</span>
+    <div class="empty-title">این کالا «ساده» است</div>
+    <div class="empty-desc">
+      کالای ساده از قیمت و موجودی خودش استفاده می‌کند و تنوعی (مثل رنگ یا سایز) ندارد.
+      برای مدیریت تنوع، ابتدا نوع این کالا را از فرم ویرایش کالا به «دارای تنوع» تغییر دهید.
+    </div>
+    <button type="button" class="btn btn-primary" hx-get="{% url 'dashboard:product-edit' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">تغییر نوع کالا</button>
+  </div>
+</div>
+{% else %}
+
+{% if not variants %}
+<div class="warning-box">
+  <strong>این کالا هنوز هیچ مقدار تنوع فعالی ندارد.</strong>
+  <p>تا وقتی حداقل یک مقدار تنوع فعال اضافه نکنید، این کالا برای مشتری قابل خرید نخواهد بود. از فرم زیر برای افزودن سریع مقادیر استفاده کنید.</p>
+</div>
+{% elif active_variant_count == 0 %}
+<div class="warning-box">
+  <strong>این کالا «دارای تنوع» است اما هیچ مقدار فعالی ندارد.</strong>
+  <p>مقادیر موجود غیرفعال هستند؛ تا فعال‌سازی حداقل یکی از آن‌ها، این کالا برای مشتری قابل خرید نخواهد بود.</p>
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3>افزودن سریع تنوع</h3><span class="hint">هر مقدار را در یک خط یا با کاما/سمیکالن جدا کنید</span></div>
+  <div class="card-body">
+    <form method="post" action="{% url 'dashboard:product-variant-bulk-add' product.pk %}">
+      {% csrf_token %}
+      {% if bulk_form.non_field_errors %}
+      <div style="color:var(--red);font-size:12.5px;margin-bottom:10px">{% for err in bulk_form.non_field_errors %}<div>{{ err }}</div>{% endfor %}</div>
+      {% endif %}
+      <div class="form-row">
+        <div class="form-group">
+          <label>نام تنوع *</label>
+          <input class="inp" name="attribute" value="{{ bulk_form.attribute.value|default_if_none:'' }}" placeholder="مثلاً: رنگ، سایز، حجم">
+          {% for err in bulk_form.attribute.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label>موجودی پیش‌فرض</label>
+          <input class="inp" name="default_stock" value="{{ bulk_form.default_stock.value|default:'0' }}" dir="ltr" inputmode="numeric">
+          {% for err in bulk_form.default_stock.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
+        </div>
+      </div>
+      <div class="form-group">
+        <label>مقادیر تنوع *</label>
+        <textarea class="inp" name="raw_values" rows="4" placeholder="قرمز&#10;آبی&#10;مشکی">{{ bulk_form.raw_values.value|default_if_none:'' }}</textarea>
+        {% for err in bulk_form.raw_values.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>تغییر قیمت پیش‌فرض (تومان)</label>
+          <input class="inp" name="default_extra_price" value="{{ bulk_form.default_extra_price.value|default:'0' }}" dir="ltr" inputmode="numeric">
+          {% for err in bulk_form.default_extra_price.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
+        </div>
+      </div>
+      <label class="toggle-field">
+        <input type="checkbox" name="is_active" {% if bulk_form.is_active.value or not bulk_form.is_bound %}checked{% endif %}>
+        <div class="toggle-content">
+          <span class="toggle-title">مقادیر به‌صورت فعال ثبت شوند</span>
+          <span class="toggle-desc">در صورت غیرفعال بودن، این مقادیر تا فعال‌سازی دستی برای مشتری قابل انتخاب نیستند.</span>
+        </div>
+      </label>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary">افزودن مقادیر</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>مقادیر تنوع موجود</h3></div>
+  {% if variants %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>ترتیب</th><th>نام تنوع</th><th>مقدار</th><th>کد کالا</th><th>قیمت نهایی</th><th>تغییر قیمت</th><th>موجودی</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+    <tbody>
+      {% for variant in variants %}
+      <tr>
+        <td>
+          <div style="display:flex;gap:2px">
+            <form method="post" action="{% url 'dashboard:product-variant-move' product.pk variant.pk %}">
+              {% csrf_token %}<input type="hidden" name="direction" value="up">
+              <button type="submit" class="btn btn-sm" {% if forloop.first %}disabled{% endif %} title="جابه‌جایی به بالا" aria-label="جابه‌جایی به بالا">▲</button>
+            </form>
+            <form method="post" action="{% url 'dashboard:product-variant-move' product.pk variant.pk %}">
+              {% csrf_token %}<input type="hidden" name="direction" value="down">
+              <button type="submit" class="btn btn-sm" {% if forloop.last %}disabled{% endif %} title="جابه‌جایی به پایین" aria-label="جابه‌جایی به پایین">▼</button>
+            </form>
+          </div>
+        </td>
+        <td>{{ variant.attribute }}</td>
+        <td>{{ variant.value }}</td>
+        <td dir="ltr" style="text-align:left">{{ variant.sku|default:"—" }}</td>
+        <td><b>{{ variant.effective_price|toman }}</b></td>
+        <td>{% if variant.extra_price %}{{ variant.extra_price|toman }}{% else %}—{% endif %}</td>
+        <td>{{ variant.stock|fa_number }}</td>
+        <td><span class="badge {% if variant.is_active %}b-green{% else %}b-gray{% endif %}">{% if variant.is_active %}فعال{% else %}غیرفعال{% endif %}</span></td>
+        <td style="white-space:nowrap">
+          <a class="btn btn-sm" href="{% url 'dashboard:product-variant-edit' product.pk variant.pk %}">✏️ ویرایش</a>
+          <form method="post" action="{% url 'dashboard:product-variant-toggle' product.pk variant.pk %}" style="display:inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm">{% if variant.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}</button>
+          </form>
+          {% if variant.has_order_history %}
+          <span class="btn btn-sm" style="opacity:.55;cursor:not-allowed" title="این مقدار در سفارشی استفاده شده و قابل حذف نیست؛ می‌توانید غیرفعالش کنید">🔒 حذف</span>
+          {% else %}
+          <a class="btn btn-sm btn-danger" href="{% url 'dashboard:product-variant-delete' product.pk variant.pk %}">🗑️ حذف</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div class="empty-state">
+    <span class="empty-icon">🧬</span>
+    <div class="empty-title">هنوز مقدار تنوعی ثبت نشده</div>
+    <div class="empty-desc">با استفاده از فرم «افزودن سریع تنوع» بالا، اولین مقادیر (مثل رنگ‌ها یا سایزها) را اضافه کنید.</div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

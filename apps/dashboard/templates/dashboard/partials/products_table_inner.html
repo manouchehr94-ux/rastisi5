@@ -1,6 +1,6 @@
 {% load persian dashboard_extras %}
 <table>
-  <thead><tr><th>کالا</th><th>دسته‌بندی</th><th>قیمت</th><th>موجودی</th><th>فروش رفته</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+  <thead><tr><th>کالا</th><th>دسته‌بندی</th><th>نوع</th><th>قیمت</th><th>موجودی</th><th>فروش رفته</th><th>وضعیت</th><th>عملیات</th></tr></thead>
   <tbody>
     {% for product in products %}
     <tr>
@@ -19,6 +19,15 @@
       </td>
       <td>{{ product.category|category_chain }}</td>
       <td>
+        <span class="badge {{ product.product_type|product_type_badge }}">{{ product.product_type|product_type_label }}</span>
+        {% if product.product_type == "variable" %}
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap">
+          {{ product.active_variant_count|fa_number }} از {{ product.variant_count|fa_number }} تنوع فعال
+          {% if product.active_variant_stock %}<br>موجودی تنوع‌ها: {{ product.active_variant_stock|fa_number }}{% endif %}
+        </div>
+        {% endif %}
+      </td>
+      <td>
         <b>{{ product.final_price|toman }}</b>
         {% if product.discount_percent %}<br><small style="color:var(--red);text-decoration:line-through">{{ product.price|toman }}</small>{% endif %}
       </td>
@@ -28,11 +37,14 @@
       <td>
         <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:product-edit' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">✏️ ویرایش</button>
         <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">🖼️ تصاویر</button>
+        {% if product.product_type == "variable" %}
+        <a class="btn btn-sm" href="{% url 'dashboard:product-variants' product.pk %}">🧬 تنوع‌ها</a>
+        {% endif %}
         <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:product-delete' product.pk %}" hx-target="#productsTableWrap" hx-swap="innerHTML" hx-confirm="آیا از حذف «{{ product.name }}» مطمئن هستید؟">🗑️</button>
       </td>
     </tr>
     {% empty %}
-    <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">کالایی یافت نشد</td></tr>
+    <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">کالایی یافت نشد</td></tr>
     {% endfor %}
   </tbody>
 </table>

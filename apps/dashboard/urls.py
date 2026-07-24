@@ -22,6 +22,13 @@ urlpatterns = [
     path("products/<int:pk>/images/<int:image_id>/move/", views.product_image_move, name="product-image-move"),
     path("products/<int:pk>/images/<int:image_id>/alt/", views.product_image_alt_update, name="product-image-alt"),
 
+    path("products/<int:pk>/variants/", views.product_variants, name="product-variants"),
+    path("products/<int:pk>/variants/bulk-add/", views.product_variant_bulk_add, name="product-variant-bulk-add"),
+    path("products/<int:pk>/variants/<int:variant_id>/edit/", views.product_variant_edit, name="product-variant-edit"),
+    path("products/<int:pk>/variants/<int:variant_id>/toggle/", views.product_variant_toggle, name="product-variant-toggle"),
+    path("products/<int:pk>/variants/<int:variant_id>/delete/", views.product_variant_delete, name="product-variant-delete"),
+    path("products/<int:pk>/variants/<int:variant_id>/move/", views.product_variant_move, name="product-variant-move"),
+
     path("categories/", views.category_list, name="category-list"),
     path("categories/add-main/", views.category_add_main, name="category-add-main"),
     path("categories/add-sub/", views.category_add_sub, name="category-add-sub"),
