@@ -14,9 +14,11 @@
 
 import re
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db import models
+from django.utils.text import slugify
 
 from apps.core.models import TimeStampedModel
 
@@ -148,3 +150,74 @@ class DestinationMixin(models.Model):
         if self.destination_external_url:
             self.destination_external_url = self.destination_external_url.strip()
         super().save(*args, **kwargs)
+
+
+
+# ---------------------------------------------------------------- صفحات محتوا
+
+RESERVED_SLUGS = frozenset([
+    "admin", "admin-panel", "products", "cart", "checkout", "account",
+    "pages", "media", "static", "api", "blog", "home",
+])
+
+
+class ContentPage(TimeStampedModel):
+    """صفحه‌ی محتوایی مدیریت‌شده — حریم خصوصی، قوانین، درباره ما و..."""
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "پیش‌نویس"
+        PUBLISHED = "published", "منتشرشده"
+
+    class FooterColumn(models.TextChoices):
+        QUICK_ACCESS = "quick_access", "دسترسی سریع"
+        CUSTOMER_SERVICE = "customer_service", "خدمات مشتریان"
+
+    title = models.CharField("عنوان", max_length=200)
+    slug = models.SlugField("اسلاگ", max_length=220, unique=True, allow_unicode=True)
+    body = models.TextField("متن صفحه", blank=True)
+    summary = models.CharField("خلاصه", max_length=300, blank=True)
+
+    status = models.CharField(
+        "وضعیت", max_length=10, choices=Status.choices, default=Status.DRAFT
+    )
+    published_at = models.DateTimeField("تاریخ انتشار", null=True, blank=True)
+    published_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="منتشرکننده",
+        on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="published_pages",
+    )
+
+    seo_title = models.CharField("عنوان SEO", max_length=200, blank=True)
+    seo_description = models.CharField("توضیحات SEO", max_length=300, blank=True)
+
+    show_in_footer = models.BooleanField("نمایش در فوتر", default=False)
+    footer_column = models.CharField(
+        "ستون فوتر", max_length=20, choices=FooterColumn.choices,
+        blank=True, default="",
+    )
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "صفحه‌ی محتوایی"
+        verbose_name_plural = "صفحات محتوایی"
+        ordering = ["display_order", "title"]
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def effective_seo_title(self):
+        return self.seo_title or self.title
+
+    @property
+    def effective_seo_description(self):
+        return self.seo_description or self.summary or ""
+
+    def clean(self):
+        super().clean()
+        if self.slug and self.slug.lower() in RESERVED_SLUGS:
+            raise ValidationError({"slug": "این اسلاگ رزرو شده و قابل استفاده نیست"})
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse("content:page-detail", args=[self.slug])
