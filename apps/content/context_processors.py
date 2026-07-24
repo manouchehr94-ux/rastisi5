@@ -55,7 +55,7 @@ def _build_menu_tree(menu):
         if url or children:
             tree.append({
                 "title": item.title,
-                "url": url,
+                "url": url,  # May be None for non-clickable parent headings
                 "open_in_new_tab": item.open_in_new_tab,
                 "children": children,
             })

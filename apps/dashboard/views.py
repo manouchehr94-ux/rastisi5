@@ -1333,7 +1333,11 @@ def menu_delete(request, pk):
         messages.error(request, f"منوی «{menu.title}» دارای آیتم است و قابل حذف نیست. ابتدا آیتم‌ها را حذف کنید.")
         return redirect("dashboard:menu-list")
     title = menu.title
-    menu.delete()
+    try:
+        menu.delete()
+    except ProtectedError:
+        messages.error(request, f"منوی «{menu.title}» دارای آیتم است و قابل حذف نیست.")
+        return redirect("dashboard:menu-list")
     messages.success(request, f"منوی «{title}» حذف شد")
     return redirect("dashboard:menu-list")
 

@@ -301,11 +301,16 @@ class MenuDashboardCRUDTests(TestCase):
 
     def test_edit_item(self):
         menu = Menu.objects.create(title="M", location="header")
-        item = MenuItem.objects.create(menu=menu, title="Old", destination_type="none")
+        cat = Category.objects.create(name="EC", slug="ec-edit")
+        item = MenuItem.objects.create(
+            menu=menu, title="Old", destination_type="category",
+            destination_category=cat,
+        )
         self.client.post(reverse("dashboard:menu-item-edit", args=[item.pk]), {
             "title": "Updated", "display_order": "5", "is_active": "on",
-            "destination_type": "none", "destination_external_url": "",
-            "destination_category": "", "destination_product": "", "destination_brand": "",
+            "destination_type": "category", "destination_category": str(cat.pk),
+            "destination_external_url": "",
+            "destination_product": "", "destination_brand": "",
             "parent": "",
         })
         item.refresh_from_db()
@@ -497,12 +502,19 @@ class NavigationStorefrontTests(TestCase):
         self.assertContains(response, "&lt;script&gt;")
 
     def test_empty_header_no_managed_links(self):
-        """No header menu → fallback links render."""
+        """No header menu → no nav links in nav-links-scroll (no hardcoded fallback)."""
         response = self.client.get("/")
-        self.assertContains(response, "جدیدترین‌ها")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # The nav-links-scroll should not contain any <a class="nl" links
+        import re
+        nav_match = re.search(r'<div class="nav-links-scroll">(.*?)</div>', content, re.DOTALL)
+        if nav_match:
+            inner = nav_match.group(1)
+            self.assertNotIn('class="nl"', inner)
 
     def test_no_hardcoded_when_managed_header(self):
-        """When managed header exists, fallback links are replaced."""
+        """When managed header exists, no fallback links appear."""
         menu = Menu.objects.create(title="H", location="header", is_active=True)
         MenuItem.objects.create(
             menu=menu, title="ManagedLink",
@@ -512,7 +524,12 @@ class NavigationStorefrontTests(TestCase):
         )
         response = self.client.get("/")
         self.assertContains(response, "ManagedLink")
-        self.assertNotContains(response, "جدیدترین‌ها")
+        content = response.content.decode()
+        # Should not have the old hardcoded "برندها" link in nav area
+        import re
+        nav_match = re.search(r'<div class="nav-links-scroll">(.*?)</div>', content, re.DOTALL)
+        if nav_match:
+            self.assertNotIn("برندها", nav_match.group(1))
 
     def test_invalid_destination_does_not_crash(self):
         """Item with deleted category → skipped, page doesn't crash."""
@@ -539,3 +556,217 @@ class NavigationStorefrontTests(TestCase):
         self.assertContains(response, "Link2")
         self.assertContains(response, "F1")
         self.assertContains(response, "F2")
+
+
+
+
+# ============================================================ FALLBACK REMOVAL TESTS
+
+
+class NavigationFallbackRemovalTests(TestCase):
+    """تست‌های حذف fallback — مدیر کنترل کامل دارد."""
+
+    def test_inactive_header_menu_no_fallback(self):
+        """Inactive header menu → no nav links at all."""
+        menu = Menu.objects.create(title="H", location="header", is_active=False)
+        MenuItem.objects.create(
+            menu=menu, title="Should Not Show",
+            destination_type="external", destination_external_url="https://x.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        self.assertNotContains(response, "Should Not Show")
+        content = response.content.decode()
+        import re
+        nav_match = re.search(r'<div class="nav-links-scroll">(.*?)</div>', content, re.DOTALL)
+        if nav_match:
+            self.assertNotIn('class="nl"', nav_match.group(1))
+
+    def test_empty_active_header_no_wrapper(self):
+        """Active header menu with no items → no nav links rendered."""
+        Menu.objects.create(title="Empty", location="header", is_active=True)
+        response = self.client.get("/")
+        content = response.content.decode()
+        import re
+        nav_match = re.search(r'<div class="nav-links-scroll">(.*?)</div>', content, re.DOTALL)
+        if nav_match:
+            self.assertNotIn('class="nl"', nav_match.group(1))
+
+    def test_no_footer_menu_no_column(self):
+        """No footer_1 menu → no column rendered for that location."""
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        # No "دسترسی سریع" default heading should appear (removed)
+        self.assertNotContains(response, "دسترسی سریع")
+
+    def test_inactive_footer_menu_no_column(self):
+        """Inactive footer menu → column not rendered."""
+        menu = Menu.objects.create(title="F1", location="footer_1", is_active=False)
+        MenuItem.objects.create(
+            menu=menu, title="Hidden",
+            destination_type="external", destination_external_url="https://x.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        self.assertNotContains(response, "Hidden")
+
+    def test_footer_menu_only_inactive_items_no_column(self):
+        """Footer menu with only inactive/unresolvable items → column not rendered."""
+        cat = Category.objects.create(name="FC", slug="fc-fr")
+        menu = Menu.objects.create(title="F1", location="footer_1", is_active=True)
+        MenuItem.objects.create(
+            menu=menu, title="Inactive",
+            destination_type="category", destination_category=cat,
+            is_active=False,
+        )
+        response = self.client.get("/")
+        # Menu title should not appear since no renderable items
+        self.assertNotContains(response, "F1")
+
+    def test_other_non_navigation_content_remains(self):
+        """Non-navigation elements (newsletter, branding) remain."""
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "عضویت در خبرنامه")
+        self.assertContains(response, "تماس با ما")
+
+
+# ============================================================ DESTINATION POLICY TESTS
+
+
+class DestinationPolicyTests(TestCase):
+    """تست‌های سیاست مقصد آیتم‌های منو."""
+
+    def setUp(self):
+        self.menu = Menu.objects.create(title="T", location="header")
+        self.category = Category.objects.create(name="DC", slug="dc-dp")
+
+    def test_leaf_with_no_destination_rejected(self):
+        """Leaf item (no parent, no children) with destination=none → rejected."""
+        item = MenuItem(menu=self.menu, title="Leaf", destination_type="none")
+        with self.assertRaises(ValidationError) as ctx:
+            item.full_clean()
+        self.assertIn("destination_type", ctx.exception.message_dict)
+
+    def test_child_with_no_destination_rejected(self):
+        """Child item with destination=none → rejected."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="P",
+            destination_type="category", destination_category=self.category,
+        )
+        child = MenuItem(
+            menu=self.menu, title="C", parent=parent, destination_type="none",
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            child.full_clean()
+        self.assertIn("destination_type", ctx.exception.message_dict)
+
+    def test_parent_without_destination_with_children_allowed(self):
+        """Parent (with children) and destination=none → allowed."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="Heading", destination_type="none",
+        )
+        # Add a child so parent has children
+        MenuItem.objects.create(
+            menu=self.menu, title="Child", parent=parent,
+            destination_type="category", destination_category=self.category,
+        )
+        # Re-validate parent — should pass since it has children
+        parent.refresh_from_db()
+        parent.full_clean()  # Should not raise
+
+    def test_parent_without_destination_without_children_rejected(self):
+        """Top-level item with no destination and no children → rejected."""
+        item = MenuItem(menu=self.menu, title="Orphan", destination_type="none")
+        with self.assertRaises(ValidationError):
+            item.full_clean()
+
+    def test_no_href_hash_in_storefront(self):
+        """Storefront must never produce href='#' for menu items."""
+        menu = Menu.objects.create(title="H", location="footer_1", is_active=True)
+        MenuItem.objects.create(
+            menu=menu, title="Valid",
+            destination_type="category", destination_category=self.category,
+            is_active=True,
+        )
+        response = self.client.get("/")
+        content = response.content.decode()
+        import re
+        footer_match = re.search(r'<h5>H</h5>(.*?)</ul>', content, re.DOTALL)
+        if footer_match:
+            self.assertNotIn('href="#"', footer_match.group(1))
+
+    def test_non_clickable_parent_renders_as_span(self):
+        """Parent with no URL renders as <span>, not <a href='#'>."""
+        # Use a location that won't conflict with setUp's header menu
+        hmenu = Menu.objects.create(title="HH", location="footer_1", is_active=True)
+        p = MenuItem.objects.create(menu=hmenu, title="HeadingItem", destination_type="none")
+        MenuItem.objects.create(
+            menu=hmenu, title="Sub", parent=p,
+            destination_type="external", destination_external_url="https://sub.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        content = response.content.decode()
+        # HeadingItem has no URL so should not produce href="#"
+        self.assertIn("HeadingItem", content)
+        self.assertNotIn('href="#">HeadingItem', content)
+
+    def test_exactly_one_destination_enforced(self):
+        """Multiple destinations still rejected by DestinationMixin validation."""
+        item = MenuItem(
+            menu=self.menu, title="Multi",
+            destination_type="category",
+            destination_category=self.category,
+            destination_external_url="https://x.com",
+        )
+        with self.assertRaises(ValidationError):
+            item.full_clean()
+
+
+# ============================================================ MENU DELETION PROTECTION TESTS
+
+
+class MenuDeletionProtectionTests(TestCase):
+    """تست‌های حفاظت حذف منو در سطح داده."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user(username="staff_del", password="p!", is_staff=True)
+        self.client.login(username="staff_del", password="p!")
+
+    def test_orm_deletion_of_populated_menu_raises_protected(self):
+        """Direct ORM deletion of menu with items → ProtectedError."""
+        menu = Menu.objects.create(title="P", location="header")
+        MenuItem.objects.create(menu=menu, title="I", destination_type="none")
+        with self.assertRaises(ProtectedError):
+            menu.delete()
+
+    def test_dashboard_deletion_of_populated_menu_blocked(self):
+        """Dashboard delete of populated menu → blocked with message."""
+        menu = Menu.objects.create(title="P", location="footer_1")
+        MenuItem.objects.create(menu=menu, title="I", destination_type="none")
+        self.client.post(reverse("dashboard:menu-delete", args=[menu.pk]))
+        self.assertTrue(Menu.objects.filter(pk=menu.pk).exists())
+
+    def test_empty_menu_deletion_succeeds(self):
+        """Empty menu can be deleted."""
+        menu = Menu.objects.create(title="E", location="footer_2")
+        self.client.post(reverse("dashboard:menu-delete", args=[menu.pk]))
+        self.assertFalse(Menu.objects.filter(pk=menu.pk).exists())
+
+    def test_items_remain_after_blocked_deletion(self):
+        """Items remain intact after blocked menu deletion."""
+        menu = Menu.objects.create(title="P", location="footer_3")
+        item = MenuItem.objects.create(menu=menu, title="I", destination_type="none")
+        self.client.post(reverse("dashboard:menu-delete", args=[menu.pk]))
+        self.assertTrue(MenuItem.objects.filter(pk=item.pk).exists())
+
+    def test_no_silent_cascade(self):
+        """PROTECT prevents cascade — items survive."""
+        menu = Menu.objects.create(title="P", location="mobile")
+        item = MenuItem.objects.create(menu=menu, title="I", destination_type="none")
+        try:
+            menu.delete()
+        except ProtectedError:
+            pass
+        self.assertTrue(MenuItem.objects.filter(pk=item.pk).exists())
