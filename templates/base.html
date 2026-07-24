@@ -131,21 +131,29 @@
 
 {% block footer %}
 <footer class="footer"><div class="wrap">
+  {% if FOOTER_SETTINGS.is_enabled %}
+  {% if FOOTER_SETTINGS.show_newsletter %}
   <div class="news">
-    <div><h3>📬 عضویت در خبرنامه</h3><p>از جدیدترین تخفیف‌ها و محصولات باخبر شوید</p></div>
+    <div><h3>{% if FOOTER_SETTINGS.newsletter_title %}{{ FOOTER_SETTINGS.newsletter_title }}{% else %}📬 عضویت در خبرنامه{% endif %}</h3><p>{% if FOOTER_SETTINGS.newsletter_description %}{{ FOOTER_SETTINGS.newsletter_description }}{% else %}از جدیدترین تخفیف‌ها و محصولات باخبر شوید{% endif %}</p></div>
     <form @submit.prevent="$el.reset()">
-      <input type="email" placeholder="ایمیل خود را وارد کنید" required>
-      <button type="submit">عضویت</button>
+      <input type="email" placeholder="ایمیل خود را وارد کنید" disabled>
+      <button type="button" disabled>به‌زودی</button>
     </form>
   </div>
+  {% endif %}
   <div class="cols">
+    {% if FOOTER_SETTINGS.show_branding %}
     <div class="about">
       <a class="logo" href="/">
+        {% if FOOTER_SETTINGS.show_logo and SHOP_LOGO %}
+        <img src="{{ SHOP_LOGO.url }}" alt="{{ SHOP_NAME }}" style="max-height:36px;max-width:140px">
+        {% else %}
         <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 00-1 3.73V8L3 14v2h18v-2L13 8V6.73A2 2 0 0012 3z"/></svg></span>
+        {% endif %}
         <span><b>{{ SHOP_NAME }}</b></span>
       </a>
-      <p>{{ SHOP_NAME }}، {{ SHOP_TAGLINE }} با ضمانت اصالت کالا و ارسال سریع به سراسر کشور — از لوازم خانگی و دیجیتال تا پوشاک و خواربار، همه‌جا یک‌جا.</p>
-      {% if SOCIAL_LINKS_FOOTER %}
+      {% if FOOTER_SETTINGS.description %}<p>{{ FOOTER_SETTINGS.description }}</p>{% else %}<p>{{ SHOP_NAME }}، {{ SHOP_TAGLINE }} با ضمانت اصالت کالا و ارسال سریع به سراسر کشور.</p>{% endif %}
+      {% if FOOTER_SETTINGS.show_social_links and SOCIAL_LINKS_FOOTER %}
       <div class="socials">
         {% for slink in SOCIAL_LINKS_FOOTER %}
         <a href="{{ slink.url }}" aria-label="{{ slink.title }}" target="_blank" rel="noopener noreferrer">{% include "partials/social_icon.html" with icon=slink.effective_icon_name %}</a>
@@ -153,6 +161,8 @@
       </div>
       {% endif %}
     </div>
+    {% endif %}
+    {% if FOOTER_SETTINGS.show_navigation %}
     {% if NAV_FOOTER_1 %}
     <div>
       <h5>{{ NAV_FOOTER_1.title }}</h5>
@@ -197,20 +207,38 @@
       </ul>
     </div>
     {% endif %}
+    {% endif %}
+    {% if FOOTER_SETTINGS.show_contact %}
     <div>
       <h5>تماس با ما</h5>
       <ul>
-        <li><a href="#">📍 {{ SHOP_CONTACT_ADDRESS }}</a></li>
-        <li><a href="#" dir="ltr">📞 {{ SHOP_CONTACT_PHONE }}</a></li>
-        <li><a href="#" dir="ltr">✉️ {{ SHOP_CONTACT_EMAIL }}</a></li>
-        <li><a href="#">🕘 شنبه تا پنج‌شنبه ۹-۱۸</a></li>
+        {% if FOOTER_SETTINGS.address %}<li><span>📍 {{ FOOTER_SETTINGS.address }}</span></li>{% endif %}
+        {% if FOOTER_SETTINGS.phone %}<li><a href="tel:{{ FOOTER_SETTINGS.phone }}" dir="ltr">📞 {{ FOOTER_SETTINGS.phone }}</a></li>{% endif %}
+        {% if FOOTER_SETTINGS.secondary_phone %}<li><a href="tel:{{ FOOTER_SETTINGS.secondary_phone }}" dir="ltr">📞 {{ FOOTER_SETTINGS.secondary_phone }}</a></li>{% endif %}
+        {% if FOOTER_SETTINGS.email %}<li><a href="mailto:{{ FOOTER_SETTINGS.email }}" dir="ltr">✉️ {{ FOOTER_SETTINGS.email }}</a></li>{% endif %}
+        {% if FOOTER_SETTINGS.working_hours %}<li><span>🕘 {{ FOOTER_SETTINGS.working_hours }}</span></li>{% endif %}
       </ul>
     </div>
+    {% endif %}
   </div>
+  {% if FOOTER_SETTINGS.show_trust_badges and FOOTER_TRUST_BADGES %}
+  <div class="trust-badges">
+    {% for badge in FOOTER_TRUST_BADGES %}
+    {% if badge.destination_url %}<a href="{{ badge.destination_url }}" target="_blank" rel="noopener noreferrer"><img src="{{ badge.image.url }}" alt="{{ badge.title }}"></a>{% else %}<img src="{{ badge.image.url }}" alt="{{ badge.title }}">{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if FOOTER_SETTINGS.show_payment_logos and FOOTER_PAYMENT_LOGOS %}
+  <div class="payment-logos">
+    {% for logo in FOOTER_PAYMENT_LOGOS %}
+    <img src="{{ logo.image.url }}" alt="{{ logo.title }}">
+    {% endfor %}
+  </div>
+  {% endif %}
   <div class="copy">
-    <span>© ۱۴۰۵ تمامی حقوق برای {{ SHOP_NAME }} محفوظ است.</span>
-    <div class="pay"><span>اینماد</span><span>ساماندهی</span><span>زرین‌پال</span></div>
+    <span>{% if FOOTER_SETTINGS.copyright_text %}{{ FOOTER_SETTINGS.copyright_text }}{% else %}© ۱۴۰۵ تمامی حقوق برای {{ SHOP_NAME }} محفوظ است.{% endif %}</span>
   </div>
+  {% endif %}
 </div></footer>
 {% endblock %}
 

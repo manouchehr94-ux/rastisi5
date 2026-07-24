@@ -1460,3 +1460,219 @@ def menu_item_toggle(request, pk):
     state = "فعال" if item.is_active else "غیرفعال"
     messages.info(request, f"آیتم «{item.title}» {state} شد")
     return redirect("dashboard:menu-item-list", menu_id=item.menu_id)
+
+
+
+
+# ---------------------------------------------------------------- تنظیمات فوتر
+
+from apps.content.models import FooterSettings, FooterTrustBadge, FooterPaymentLogo
+
+
+@staff_required
+def footer_settings_page(request):
+    fs = FooterSettings.load()
+
+    if request.method == "POST":
+        fs.is_enabled = request.POST.get("is_enabled") == "on"
+        fs.show_branding = request.POST.get("show_branding") == "on"
+        fs.show_logo = request.POST.get("show_logo") == "on"
+        fs.description = request.POST.get("description", "").strip()
+        fs.show_contact = request.POST.get("show_contact") == "on"
+        fs.address = request.POST.get("address", "").strip()
+        fs.phone = request.POST.get("phone", "").strip()
+        fs.secondary_phone = request.POST.get("secondary_phone", "").strip()
+        fs.email = request.POST.get("email", "").strip()
+        fs.working_hours = request.POST.get("working_hours", "").strip()
+        fs.show_navigation = request.POST.get("show_navigation") == "on"
+        fs.show_social_links = request.POST.get("show_social_links") == "on"
+        fs.show_newsletter = request.POST.get("show_newsletter") == "on"
+        fs.newsletter_title = request.POST.get("newsletter_title", "").strip()
+        fs.newsletter_description = request.POST.get("newsletter_description", "").strip()
+        fs.show_trust_badges = request.POST.get("show_trust_badges") == "on"
+        fs.show_payment_logos = request.POST.get("show_payment_logos") == "on"
+        fs.copyright_text = request.POST.get("copyright_text", "").strip()
+
+        try:
+            fs.full_clean()
+            fs.save()
+            messages.success(request, "تنظیمات فوتر ذخیره شد")
+        except ValidationError as exc:
+            msg = str(exc.message_dict if hasattr(exc, "message_dict") else exc)
+            messages.error(request, msg)
+        return redirect("dashboard:footer-settings")
+
+    return render(request, "dashboard/footer_settings.html", {
+        "fs": fs, "active_page": "footer",
+    })
+
+
+@staff_required
+def footer_trust_badge_list(request):
+    badges = FooterTrustBadge.objects.all().order_by("display_order", "id")
+    return render(request, "dashboard/footer_trust_badges.html", {
+        "badges": badges, "active_page": "footer",
+    })
+
+
+@staff_required
+def footer_trust_badge_form(request, pk=None):
+    from django.db import transaction
+
+    badge = get_object_or_404(FooterTrustBadge, pk=pk) if pk else None
+
+    if request.method == "POST":
+        obj = badge or FooterTrustBadge()
+        old_image_name = obj.image.name if obj.pk and obj.image else None
+
+        obj.title = request.POST.get("title", "").strip()
+        obj.destination_url = request.POST.get("destination_url", "").strip()
+        obj.display_order = int(request.POST.get("display_order", "0") or "0")
+        obj.is_active = request.POST.get("is_active") == "on"
+
+        if "image" in request.FILES:
+            obj.image = request.FILES["image"]
+
+        try:
+            obj.full_clean()
+            obj.save()
+
+            # Cleanup old image
+            if old_image_name and old_image_name != (obj.image.name if obj.image else ""):
+                storage = obj.image.storage
+                transaction.on_commit(lambda n=old_image_name, s=storage: (
+                    s.delete(n) if s.exists(n) else None
+                ))
+
+            action = "ویرایش" if pk else "ایجاد"
+            messages.success(request, f"نماد اعتماد «{obj.title}» با موفقیت {action} شد")
+            return redirect("dashboard:footer-trust-badge-list")
+        except (ValidationError, IntegrityError) as exc:
+            if hasattr(exc, "message_dict"):
+                msg = " ".join(
+                    v[0] if isinstance(v, list) else str(v)
+                    for v in exc.message_dict.values()
+                )
+            else:
+                msg = str(exc)
+            messages.error(request, msg)
+
+    return render(request, "dashboard/footer_trust_badge_form.html", {
+        "badge": badge, "active_page": "footer",
+    })
+
+
+@require_POST
+@staff_required
+def footer_trust_badge_delete(request, pk):
+    from django.db import transaction
+
+    badge = get_object_or_404(FooterTrustBadge, pk=pk)
+    image_name = badge.image.name if badge.image else None
+    storage = badge.image.storage if badge.image else None
+    title = badge.title
+    badge.delete()
+
+    if image_name and storage:
+        transaction.on_commit(lambda: (
+            storage.delete(image_name) if storage.exists(image_name) else None
+        ))
+
+    messages.success(request, f"نماد اعتماد «{title}» حذف شد")
+    return redirect("dashboard:footer-trust-badge-list")
+
+
+@require_POST
+@staff_required
+def footer_trust_badge_toggle(request, pk):
+    badge = get_object_or_404(FooterTrustBadge, pk=pk)
+    badge.is_active = not badge.is_active
+    badge.save(update_fields=["is_active", "updated_at"])
+    state = "فعال" if badge.is_active else "غیرفعال"
+    messages.info(request, f"نماد اعتماد «{badge.title}» {state} شد")
+    return redirect("dashboard:footer-trust-badge-list")
+
+
+@staff_required
+def footer_payment_logo_list(request):
+    logos = FooterPaymentLogo.objects.all().order_by("display_order", "id")
+    return render(request, "dashboard/footer_payment_logos.html", {
+        "logos": logos, "active_page": "footer",
+    })
+
+
+@staff_required
+def footer_payment_logo_form(request, pk=None):
+    from django.db import transaction
+
+    logo = get_object_or_404(FooterPaymentLogo, pk=pk) if pk else None
+
+    if request.method == "POST":
+        obj = logo or FooterPaymentLogo()
+        old_image_name = obj.image.name if obj.pk and obj.image else None
+
+        obj.title = request.POST.get("title", "").strip()
+        obj.display_order = int(request.POST.get("display_order", "0") or "0")
+        obj.is_active = request.POST.get("is_active") == "on"
+
+        if "image" in request.FILES:
+            obj.image = request.FILES["image"]
+
+        try:
+            obj.full_clean()
+            obj.save()
+
+            # Cleanup old image
+            if old_image_name and old_image_name != (obj.image.name if obj.image else ""):
+                storage = obj.image.storage
+                transaction.on_commit(lambda n=old_image_name, s=storage: (
+                    s.delete(n) if s.exists(n) else None
+                ))
+
+            action = "ویرایش" if pk else "ایجاد"
+            messages.success(request, f"لوگوی پرداخت «{obj.title}» با موفقیت {action} شد")
+            return redirect("dashboard:footer-payment-logo-list")
+        except (ValidationError, IntegrityError) as exc:
+            if hasattr(exc, "message_dict"):
+                msg = " ".join(
+                    v[0] if isinstance(v, list) else str(v)
+                    for v in exc.message_dict.values()
+                )
+            else:
+                msg = str(exc)
+            messages.error(request, msg)
+
+    return render(request, "dashboard/footer_payment_logo_form.html", {
+        "logo": logo, "active_page": "footer",
+    })
+
+
+@require_POST
+@staff_required
+def footer_payment_logo_delete(request, pk):
+    from django.db import transaction
+
+    logo = get_object_or_404(FooterPaymentLogo, pk=pk)
+    image_name = logo.image.name if logo.image else None
+    storage = logo.image.storage if logo.image else None
+    title = logo.title
+    logo.delete()
+
+    if image_name and storage:
+        transaction.on_commit(lambda: (
+            storage.delete(image_name) if storage.exists(image_name) else None
+        ))
+
+    messages.success(request, f"لوگوی پرداخت «{title}» حذف شد")
+    return redirect("dashboard:footer-payment-logo-list")
+
+
+@require_POST
+@staff_required
+def footer_payment_logo_toggle(request, pk):
+    logo = get_object_or_404(FooterPaymentLogo, pk=pk)
+    logo.is_active = not logo.is_active
+    logo.save(update_fields=["is_active", "updated_at"])
+    state = "فعال" if logo.is_active else "غیرفعال"
+    messages.info(request, f"لوگوی پرداخت «{logo.title}» {state} شد")
+    return redirect("dashboard:footer-payment-logo-list")

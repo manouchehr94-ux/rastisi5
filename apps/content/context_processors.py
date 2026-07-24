@@ -89,3 +89,25 @@ def navigation_menus(request):
         "NAV_FOOTER_3": _build_menu_tree(active_menus.get("footer_3")),
         "NAV_MOBILE": _build_menu_tree(active_menus.get("mobile")),
     }
+
+
+
+
+def footer_settings(request):
+    """تنظیمات فوتر فروشگاه — singleton + نمادها و لوگوهای پرداخت."""
+    from .models import FooterSettings, FooterTrustBadge, FooterPaymentLogo
+
+    settings_obj = FooterSettings.load()
+    context = {"FOOTER_SETTINGS": settings_obj}
+
+    if settings_obj.show_trust_badges:
+        context["FOOTER_TRUST_BADGES"] = FooterTrustBadge.objects.filter(is_active=True)
+    else:
+        context["FOOTER_TRUST_BADGES"] = FooterTrustBadge.objects.none()
+
+    if settings_obj.show_payment_logos:
+        context["FOOTER_PAYMENT_LOGOS"] = FooterPaymentLogo.objects.filter(is_active=True)
+    else:
+        context["FOOTER_PAYMENT_LOGOS"] = FooterPaymentLogo.objects.none()
+
+    return context

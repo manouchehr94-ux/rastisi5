@@ -1,0 +1,33 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{% if logo %}ویرایش{% else %}افزودن{% endif %} لوگوی پرداخت | پنل مدیریت{% endblock %}
+{% block page_title %}{% if logo %}ویرایش لوگو «{{ logo.title }}»{% else %}افزودن لوگوی پرداخت{% endif %}{% endblock %}
+{% block page_sub %}مشخصات لوگو را وارد کنید{% endblock %}
+{% block content %}
+<div class="card" style="max-width:600px">
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-group">
+      <label>عنوان *</label>
+      <input type="text" name="title" value="{{ logo.title|default:'' }}" required maxlength="150">
+    </div>
+    <div class="form-group">
+      <label>تصویر {% if not logo %}*{% endif %}</label>
+      {% if logo and logo.image %}<p><img src="{{ logo.image.url }}" alt="{{ logo.title }}" style="max-height:60px"></p>{% endif %}
+      <input type="file" name="image" accept="image/*" {% if not logo %}required{% endif %}>
+    </div>
+    <div class="form-group">
+      <label>ترتیب نمایش</label>
+      <input type="number" name="display_order" value="{{ logo.display_order|default:'0' }}" min="0">
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" name="is_active" {% if logo.is_active or not logo %}checked{% endif %}> فعال
+      </label>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">{% if logo %}ذخیره تغییرات{% else %}افزودن{% endif %}</button>
+      <a href="{% url 'dashboard:footer-payment-logo-list' %}" class="btn">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -526,3 +526,94 @@ class MenuItem(DestinationMixin, TimeStampedModel):
                 raise ValidationError({
                     "parent": "این آیتم دارای فرزند است و نمی‌تواند خودش فرزند شود"
                 })
+
+
+
+
+# ---------------------------------------------------------------- تنظیمات فوتر
+
+
+class FooterSettings(TimeStampedModel):
+    """تنظیمات فوتر فروشگاه — رکورد تکی (singleton)."""
+    # General
+    is_enabled = models.BooleanField("فعال", default=True)
+    show_branding = models.BooleanField("نمایش برندینگ", default=True)
+    show_logo = models.BooleanField("نمایش لوگو", default=True)
+    description = models.TextField("توضیحات فوتر", blank=True, max_length=500)
+    # Contact
+    show_contact = models.BooleanField("نمایش اطلاعات تماس", default=True)
+    address = models.CharField("آدرس", max_length=500, blank=True)
+    phone = models.CharField("تلفن", max_length=50, blank=True)
+    secondary_phone = models.CharField("تلفن ثانویه", max_length=50, blank=True)
+    email = models.EmailField("ایمیل", blank=True)
+    working_hours = models.CharField("ساعات کاری", max_length=250, blank=True)
+    # Sections
+    show_navigation = models.BooleanField("نمایش ناوبری", default=True)
+    show_social_links = models.BooleanField("نمایش شبکه‌های اجتماعی", default=True)
+    # Newsletter
+    show_newsletter = models.BooleanField("نمایش خبرنامه", default=False)
+    newsletter_title = models.CharField("عنوان خبرنامه", max_length=150, blank=True)
+    newsletter_description = models.CharField("توضیح خبرنامه", max_length=300, blank=True)
+    # Media
+    show_trust_badges = models.BooleanField("نمایش نمادهای اعتماد", default=False)
+    show_payment_logos = models.BooleanField("نمایش لوگوهای پرداخت", default=False)
+    # Copyright
+    copyright_text = models.CharField("متن کپی‌رایت", max_length=300, blank=True)
+
+    class Meta:
+        verbose_name = "تنظیمات فوتر"
+        verbose_name_plural = "تنظیمات فوتر"
+
+    def __str__(self):
+        return "تنظیمات فوتر"
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+
+class FooterTrustBadge(TimeStampedModel):
+    """نماد اعتماد فوتر."""
+    title = models.CharField("عنوان", max_length=150)
+    image = models.ImageField("تصویر", upload_to="footer/trust-badges/", validators=[validate_image_size])
+    destination_url = models.URLField("لینک مقصد", blank=True, max_length=500)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+    is_active = models.BooleanField("فعال", default=True)
+
+    class Meta:
+        verbose_name = "نماد اعتماد"
+        verbose_name_plural = "نمادهای اعتماد"
+        ordering = ["display_order", "id"]
+
+    def __str__(self):
+        return self.title
+
+    def clean(self):
+        super().clean()
+        if self.destination_url:
+            self.destination_url = self.destination_url.strip()
+            if DANGEROUS_SCHEME_RE.match(self.destination_url):
+                raise ValidationError({"destination_url": "طرح URL غیرمجاز است"})
+            if PROTOCOL_RELATIVE_RE.match(self.destination_url):
+                raise ValidationError({"destination_url": "آدرس نسبی پروتکل مجاز نیست"})
+
+
+class FooterPaymentLogo(TimeStampedModel):
+    """لوگوی روش پرداخت فوتر."""
+    title = models.CharField("عنوان", max_length=150)
+    image = models.ImageField("تصویر", upload_to="footer/payment-logos/", validators=[validate_image_size])
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+    is_active = models.BooleanField("فعال", default=True)
+
+    class Meta:
+        verbose_name = "لوگوی پرداخت"
+        verbose_name_plural = "لوگوهای پرداخت"
+        ordering = ["display_order", "id"]
+
+    def __str__(self):
+        return self.title

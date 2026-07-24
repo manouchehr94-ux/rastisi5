@@ -1,0 +1,32 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}لوگوهای پرداخت | پنل مدیریت{% endblock %}
+{% block page_title %}لوگوهای پرداخت{% endblock %}
+{% block page_sub %}مدیریت لوگوهای روش‌های پرداخت فوتر{% endblock %}
+{% block content %}
+<div style="margin-bottom:16px;display:flex;gap:10px">
+  <a href="{% url 'dashboard:footer-payment-logo-add' %}" class="btn btn-primary">افزودن لوگو</a>
+  <a href="{% url 'dashboard:footer-settings' %}" class="btn">بازگشت به تنظیمات فوتر</a>
+</div>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>تصویر</th><th>عنوان</th><th>ترتیب</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+    <tbody>
+      {% for logo in logos %}
+      <tr>
+        <td>{% if logo.image %}<img src="{{ logo.image.url }}" alt="{{ logo.title }}" style="max-height:40px">{% endif %}</td>
+        <td>{{ logo.title }}</td>
+        <td>{{ logo.display_order }}</td>
+        <td>{% if logo.is_active %}فعال{% else %}غیرفعال{% endif %}</td>
+        <td style="display:flex;gap:6px">
+          <a href="{% url 'dashboard:footer-payment-logo-edit' logo.pk %}" class="btn btn-sm">ویرایش</a>
+          <form method="post" action="{% url 'dashboard:footer-payment-logo-toggle' logo.pk %}">{% csrf_token %}<button class="btn btn-sm">{% if logo.is_active %}غیرفعال{% else %}فعال{% endif %}</button></form>
+          <form method="post" action="{% url 'dashboard:footer-payment-logo-delete' logo.pk %}" onsubmit="return confirm('حذف شود؟')">{% csrf_token %}<button class="btn btn-sm btn-danger">حذف</button></form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">هنوز لوگویی ثبت نشده است.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

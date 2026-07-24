@@ -1,0 +1,116 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}تنظیمات فوتر | پنل مدیریت{% endblock %}
+{% block page_title %}تنظیمات فوتر{% endblock %}
+{% block page_sub %}تنظیمات عمومی فوتر فروشگاه{% endblock %}
+{% block content %}
+<div class="card" style="max-width:700px">
+  <form method="post">
+    {% csrf_token %}
+    <fieldset>
+      <legend>عمومی</legend>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" name="is_enabled" {% if fs.is_enabled %}checked{% endif %}> فوتر فعال
+        </label>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" name="show_branding" {% if fs.show_branding %}checked{% endif %}> نمایش برندینگ
+        </label>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" name="show_logo" {% if fs.show_logo %}checked{% endif %}> نمایش لوگو
+        </label>
+      </div>
+      <div class="form-group">
+        <label>توضیحات فوتر</label>
+        <textarea name="description" maxlength="500" rows="3">{{ fs.description }}</textarea>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>اطلاعات تماس</legend>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" name="show_contact" {% if fs.show_contact %}checked{% endif %}> نمایش اطلاعات تماس
+        </label>
+      </div>
+      <div class="form-group">
+        <label>آدرس</label>
+        <input type="text" name="address" value="{{ fs.address }}" maxlength="500">
+      </div>
+      <div class="form-group">
+        <label>تلفن</label>
+        <input type="text" name="phone" value="{{ fs.phone }}" maxlength="50" dir="ltr">
+      </div>
+      <div class="form-group">
+        <label>تلفن ثانویه</label>
+        <input type="text" name="secondary_phone" value="{{ fs.secondary_phone }}" maxlength="50" dir="ltr">
+      </div>
+      <div class="form-group">
+        <label>ایمیل</label>
+        <input type="email" name="email" value="{{ fs.email }}" dir="ltr">
+      </div>
+      <div class="form-group">
+        <label>ساعات کاری</label>
+        <input type="text" name="working_hours" value="{{ fs.working_hours }}" maxlength="250">
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>بخش‌ها</legend>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" name="show_navigation" {% if fs.show_navigation %}checked{% endif %}> نمایش ناوبری
+        </label>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" name="show_social_links" {% if fs.show_social_links %}checked{% endif %}> نمایش شبکه‌های اجتماعی
+        </label>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>خبرنامه</legend>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" name="show_newsletter" {% if fs.show_newsletter %}checked{% endif %}> نمایش خبرنامه
+        </label>
+      </div>
+      <div class="form-group">
+        <label>عنوان خبرنامه</label>
+        <input type="text" name="newsletter_title" value="{{ fs.newsletter_title }}" maxlength="150">
+      </div>
+      <div class="form-group">
+        <label>توضیح خبرنامه</label>
+        <input type="text" name="newsletter_description" value="{{ fs.newsletter_description }}" maxlength="300">
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>رسانه</legend>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" name="show_trust_badges" {% if fs.show_trust_badges %}checked{% endif %}> نمایش نمادهای اعتماد
+        </label>
+        <a href="{% url 'dashboard:footer-trust-badge-list' %}" style="font-size:0.85em">مدیریت نمادها</a>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" name="show_payment_logos" {% if fs.show_payment_logos %}checked{% endif %}> نمایش لوگوهای پرداخت
+        </label>
+        <a href="{% url 'dashboard:footer-payment-logo-list' %}" style="font-size:0.85em">مدیریت لوگوها</a>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>کپی‌رایت</legend>
+      <div class="form-group">
+        <label>متن کپی‌رایت</label>
+        <input type="text" name="copyright_text" value="{{ fs.copyright_text }}" maxlength="300">
+        <small>اگر خالی باشد، نام فروشگاه + سال نمایش داده می‌شود.</small>
+      </div>
+    </fieldset>
+    <div style="margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
