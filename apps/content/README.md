@@ -4,9 +4,53 @@
 
 این اپلیکیشن مسئول زیرساخت محتوای مدیریت‌شده‌ی فروشگاه است:
 - مقصدهای امن (Safe Destination)
-- صفحات محتوایی (آینده)
+- صفحات محتوایی (ContentPage)
 - منوهای ناوبری (آینده)
 - بخش‌های صفحه اصلی (آینده)
+
+## صفحات محتوایی (ContentPage)
+
+### مالکیت و URL
+- مدل: `apps.content.models.ContentPage`
+- URL فروشگاه: `/pages/<slug>/`
+- داشبورد: `/admin-panel/pages/`
+
+### وضعیت انتشار
+- `draft`: پیش‌نویس — فقط در داشبورد قابل مشاهده
+- `published`: منتشرشده — عمومی قابل مشاهده
+
+### قوانین:
+- صفحات پیش‌نویس: 404 برای کاربران عادی
+- انتشار: `published_at` و `published_by` ثبت می‌شود
+- برگشت به پیش‌نویس: `published_at` و `published_by` پاک می‌شود
+- قید دیتابیسی: `status=published` الزاماً `published_at IS NOT NULL`
+
+### رندر متن
+- متن صفحه **plain text** است (بدون HTML)
+- رندر با `linebreaksbr` (خط‌شکن‌ها حفظ، HTML اسکیپ)
+- هیچ `|safe` یا `mark_safe` استفاده نمی‌شود
+- محتوای `<script>` و سایر HTML خطرناک اسکیپ می‌شود
+
+### SEO
+- `seo_title`: اگر خالی → fallback به `title`
+- `seo_description`: اگر خالی → بدون متا تگ
+- متا تگ `<meta name="description">` فقط وقتی توضیحات موجود رندر می‌شود
+
+### فوتر
+- `show_in_footer`: نمایش/عدم نمایش در فوتر
+- `footer_column`: ستون (دسترسی سریع / خدمات مشتریان)
+- فقط صفحات `published` در فوتر نمایش داده می‌شوند
+- URL واقعی (`get_absolute_url`) — هرگز `href="#"`
+
+### سطح دسترسی
+- داشبورد: `@staff_required`
+- عملیات مخرب (حذف/انتشار): فقط POST
+
+### محدودیت `full_clean()`
+- `save()` و `objects.create()` در Django به‌صورت خودکار `full_clean()` را صدا نمی‌زنند
+- مسیر تولیدی (داشبورد): `full_clean()` قبل از `save()` صدا زده می‌شود
+- ایجاد مستقیم ORM: ممکن است بدون اعتبارسنجی اجرا شود
+- قید دیتابیسی `content_page_published_requires_timestamp` این را تا حدی پوشش می‌دهد
 
 ## معماری مقصد امن
 

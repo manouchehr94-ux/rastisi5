@@ -18,7 +18,6 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db import models
-from django.utils.text import slugify
 
 from apps.core.models import TimeStampedModel
 
@@ -201,6 +200,15 @@ class ContentPage(TimeStampedModel):
         verbose_name = "صفحه‌ی محتوایی"
         verbose_name_plural = "صفحات محتوایی"
         ordering = ["display_order", "title"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(status="draft")
+                    | models.Q(status="published", published_at__isnull=False)
+                ),
+                name="content_page_published_requires_timestamp",
+            ),
+        ]
 
     def __str__(self):
         return self.title

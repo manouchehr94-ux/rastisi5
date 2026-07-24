@@ -2,6 +2,8 @@ import json
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.db.models import ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -930,8 +932,12 @@ def page_form(request, pk=None):
             action = "ویرایش" if pk else "ایجاد"
             messages.success(request, f"صفحه‌ی «{page.title}» با موفقیت {action} شد")
             return redirect("dashboard:page-list")
-        except Exception as exc:
-            messages.error(request, str(exc))
+        except (ValidationError, IntegrityError) as exc:
+            if hasattr(exc, "message_dict"):
+                msg = " ".join(v[0] if isinstance(v, list) else v for v in exc.message_dict.values())
+            else:
+                msg = str(exc)
+            messages.error(request, msg)
             return redirect(request.path)
 
     context = {"page": page, "active_page": "pages", "footer_columns": ContentPage.FooterColumn.choices}
