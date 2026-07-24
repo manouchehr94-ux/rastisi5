@@ -303,3 +303,115 @@ class PromotionalBanner(TimeStampedModel, DestinationMixin):
             raise ValidationError({"button_label": "وقتی دکمه فعال است، متن دکمه الزامی است"})
         if self.show_button and self.destination_type == DestinationType.NONE:
             raise ValidationError({"destination_type": "وقتی دکمه فعال است، مقصد باید انتخاب شود"})
+
+
+
+
+# ---------------------------------------------------------------- شبکه‌های اجتماعی
+
+# نگاشت پلتفرم → نام آیکون امن (بدون HTML/SVG/CSS خام)
+SOCIAL_ICON_MAP = {
+    "instagram": "instagram",
+    "telegram": "telegram",
+    "whatsapp": "whatsapp",
+    "linkedin": "linkedin",
+    "x": "x",
+    "youtube": "youtube",
+    "aparat": "aparat",
+    "facebook": "facebook",
+    "custom": "link",
+}
+
+# طرح‌های مجاز برای لینک‌های شبکه اجتماعی
+SOCIAL_LINK_ALLOWED_SCHEMES = ["https", "http"]
+
+# الگوی شناسایی URL نسبی پروتکل
+_PROTOCOL_RELATIVE_RE = re.compile(r"^//")
+
+# طرح‌های خطرناک
+_DANGEROUS_SCHEME_RE = re.compile(r"^(javascript|data|vbscript):", re.IGNORECASE)
+
+
+def validate_social_url(value: str) -> None:
+    """اعتبارسنجی URL شبکه اجتماعی — فقط http/https، بدون طرح خطرناک."""
+    value = (value or "").strip()
+    if not value:
+        raise ValidationError("آدرس لینک شبکه اجتماعی الزامی است")
+
+    if _DANGEROUS_SCHEME_RE.match(value):
+        raise ValidationError("طرح URL غیرمجاز است (javascript/data/vbscript)")
+
+    if _PROTOCOL_RELATIVE_RE.match(value):
+        raise ValidationError("آدرس نسبی پروتکل (//...) مجاز نیست")
+
+    validator = URLValidator(schemes=SOCIAL_LINK_ALLOWED_SCHEMES)
+    try:
+        validator(value)
+    except ValidationError:
+        raise ValidationError("آدرس URL معتبر نیست — فقط http و https مجاز هستند")
+
+
+class SocialLink(TimeStampedModel):
+    """لینک شبکه‌ی اجتماعی فروشگاه — قابل مدیریت از داشبورد."""
+
+    class Platform(models.TextChoices):
+        INSTAGRAM = "instagram", "اینستاگرام"
+        TELEGRAM = "telegram", "تلگرام"
+        WHATSAPP = "whatsapp", "واتساپ"
+        LINKEDIN = "linkedin", "لینکدین"
+        X = "x", "ایکس / توییتر"
+        YOUTUBE = "youtube", "یوتیوب"
+        APARAT = "aparat", "آپارات"
+        FACEBOOK = "facebook", "فیسبوک"
+        CUSTOM = "custom", "سفارشی"
+
+    platform = models.CharField(
+        "پلتفرم", max_length=20, choices=Platform.choices, default=Platform.CUSTOM,
+    )
+    title = models.CharField("عنوان (برچسب دسترسی‌پذیری)", max_length=100)
+    url = models.URLField("آدرس", max_length=500, validators=[validate_social_url])
+    icon_name = models.CharField(
+        "نام آیکون", max_length=30, blank=True,
+        help_text="اگر خالی باشد، آیکون پیش‌فرض پلتفرم استفاده می‌شود",
+    )
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+    is_active = models.BooleanField("فعال", default=True)
+    show_in_header = models.BooleanField("نمایش در هدر", default=False)
+    show_in_footer = models.BooleanField("نمایش در فوتر", default=True)
+
+    class Meta:
+        verbose_name = "لینک شبکه اجتماعی"
+        verbose_name_plural = "لینک‌های شبکه‌های اجتماعی"
+        ordering = ["display_order", "id"]
+
+    def __str__(self):
+        return f"{self.get_platform_display()} — {self.title}"
+
+    @property
+    def effective_icon_name(self) -> str:
+        """نام آیکون مؤثر — اگر دستی تنظیم نشده، از نگاشت پلتفرم."""
+        if self.icon_name and self.icon_name in SOCIAL_ICON_MAP.values():
+            return self.icon_name
+        return SOCIAL_ICON_MAP.get(self.platform, "link")
+
+    def clean(self):
+        super().clean()
+        # نرمال‌سازی URL
+        if self.url:
+            self.url = self.url.strip()
+        # اعتبارسنجی icon_name — فقط مقادیر مجاز
+        if self.icon_name:
+            allowed = set(SOCIAL_ICON_MAP.values())
+            if self.icon_name not in allowed:
+                raise ValidationError({
+                    "icon_name": f"نام آیکون «{self.icon_name}» مجاز نیست. "
+                                 f"مقادیر مجاز: {', '.join(sorted(allowed))}"
+                })
+
+    def save(self, *args, **kwargs):
+        if self.url:
+            self.url = self.url.strip()
+        # اگر icon_name خالی → از پلتفرم استخراج
+        if not self.icon_name:
+            self.icon_name = SOCIAL_ICON_MAP.get(self.platform, "link")
+        super().save(*args, **kwargs)

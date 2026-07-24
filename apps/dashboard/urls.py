@@ -78,4 +78,11 @@ urlpatterns = [
     path("homepage/banners/<int:pk>/edit/", views.banner_form, name="banner-edit"),
     path("homepage/banners/<int:pk>/delete/", views.banner_delete, name="banner-delete"),
     path("homepage/banners/<int:pk>/toggle/", views.banner_toggle, name="banner-toggle"),
+
+    # --- شبکه‌های اجتماعی ---
+    path("social-links/", views.social_link_list, name="social-link-list"),
+    path("social-links/add/", views.social_link_form, name="social-link-add"),
+    path("social-links/<int:pk>/edit/", views.social_link_form, name="social-link-edit"),
+    path("social-links/<int:pk>/delete/", views.social_link_delete, name="social-link-delete"),
+    path("social-links/<int:pk>/toggle/", views.social_link_toggle, name="social-link-toggle"),
 ]

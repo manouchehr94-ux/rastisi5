@@ -1,3 +1,4 @@
+from apps.content.models import SocialLink
 from apps.core.models import ShopSettings
 
 
@@ -52,4 +53,7 @@ def shop_settings(request):
         "SHOP_ACCENT_COLOR": accent,
         "SHOP_PRIMARY_FG": _foreground_color(primary),
         "SHOP_ACCENT_FG": _foreground_color(accent),
+        # شبکه‌های اجتماعی
+        "SOCIAL_LINKS_FOOTER": SocialLink.objects.filter(is_active=True, show_in_footer=True).order_by("display_order", "id"),
+        "SOCIAL_LINKS_HEADER": SocialLink.objects.filter(is_active=True, show_in_header=True).order_by("display_order", "id"),
     }
