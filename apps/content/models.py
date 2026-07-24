@@ -489,26 +489,20 @@ class MenuItem(DestinationMixin, TimeStampedModel):
         self._validate_destination_requirement()
 
     def _validate_destination_requirement(self):
-        """آیتم‌های فرزند و برگ باید مقصد معتبر داشته باشند.
+        """سیاست مقصد آیتم‌های منو.
 
-        سیاست:
         - فرزند (child): الزاماً باید مقصد معتبر (غیر none) داشته باشد
-        - آیتم بدون فرزند و بدون والد (leaf top-level): باید مقصد معتبر داشته باشد
-        - والد (top-level با فرزندان): مقصد اختیاری — بدون مقصد به‌عنوان heading رندر می‌شود
+        - آیتم سطح اول (top-level): مقصد اختیاری
+          - با مقصد: لینک مستقیم
+          - بدون مقصد و با فرزندان فعال: heading زیرمنو (رندر)
+          - بدون مقصد و بدون فرزند: والد موقت (ذخیره مجاز، رندر نمی‌شود)
         """
         is_child = bool(self.parent_id)
-        has_children = self.pk and self.children.exists() if self.pk else False
 
         # فرزندان الزاماً باید مقصد داشته باشند
         if is_child and self.destination_type == DestinationType.NONE:
             raise ValidationError({
                 "destination_type": "آیتم فرزند باید مقصد معتبر داشته باشد"
-            })
-
-        # آیتم سطح اول بدون فرزند (leaf) باید مقصد داشته باشد
-        if not is_child and not has_children and self.destination_type == DestinationType.NONE:
-            raise ValidationError({
-                "destination_type": "آیتم منو باید مقصد معتبر داشته باشد"
             })
 
     def _validate_hierarchy(self):

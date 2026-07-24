@@ -102,7 +102,17 @@
       {% if NAV_HEADER %}
       {% for item in NAV_HEADER.items %}
       {% if item.children %}
-      <span class="nl" tabindex="0">{{ item.title }}</span>
+      <div class="nav-dropdown" x-data="{ open: false }" @click.outside="open = false">
+        {% if item.url %}
+        <a class="nl" href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>
+        {% endif %}
+        <button type="button" class="nav-submenu-trigger" @click="open = !open" :aria-expanded="open" aria-haspopup="true">{% if not item.url %}{{ item.title }} {% endif %}<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+        <ul class="nav-submenu" x-show="open" x-cloak>
+          {% for child in item.children %}
+          <li><a href="{{ child.url }}" {% if child.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ child.title }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
       {% elif item.url %}
       <a class="nl" href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>
       {% endif %}
@@ -148,7 +158,10 @@
       <h5>{{ NAV_FOOTER_1.title }}</h5>
       <ul>
         {% for item in NAV_FOOTER_1.items %}
-        <li>{% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}</li>
+        <li>
+          {% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}
+          {% if item.children %}<ul>{% for child in item.children %}<li><a href="{{ child.url }}" {% if child.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ child.title }}</a></li>{% endfor %}</ul>{% endif %}
+        </li>
         {% endfor %}
       </ul>
     </div>
@@ -167,7 +180,10 @@
       <h5>{{ NAV_FOOTER_2.title }}</h5>
       <ul>
         {% for item in NAV_FOOTER_2.items %}
-        <li>{% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}</li>
+        <li>
+          {% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}
+          {% if item.children %}<ul>{% for child in item.children %}<li><a href="{{ child.url }}" {% if child.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ child.title }}</a></li>{% endfor %}</ul>{% endif %}
+        </li>
         {% endfor %}
       </ul>
     </div>

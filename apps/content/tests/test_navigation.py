@@ -641,12 +641,10 @@ class DestinationPolicyTests(TestCase):
         self.menu = Menu.objects.create(title="T", location="header")
         self.category = Category.objects.create(name="DC", slug="dc-dp")
 
-    def test_leaf_with_no_destination_rejected(self):
-        """Leaf item (no parent, no children) with destination=none → rejected."""
-        item = MenuItem(menu=self.menu, title="Leaf", destination_type="none")
-        with self.assertRaises(ValidationError) as ctx:
-            item.full_clean()
-        self.assertIn("destination_type", ctx.exception.message_dict)
+    def test_leaf_with_no_destination_allowed_as_provisional(self):
+        """Top-level item with destination=none → allowed (provisional parent, won't render)."""
+        item = MenuItem(menu=self.menu, title="Provisional", destination_type="none")
+        item.full_clean()  # Should NOT raise — provisional parent
 
     def test_child_with_no_destination_rejected(self):
         """Child item with destination=none → rejected."""
@@ -675,11 +673,12 @@ class DestinationPolicyTests(TestCase):
         parent.refresh_from_db()
         parent.full_clean()  # Should not raise
 
-    def test_parent_without_destination_without_children_rejected(self):
-        """Top-level item with no destination and no children → rejected."""
-        item = MenuItem(menu=self.menu, title="Orphan", destination_type="none")
-        with self.assertRaises(ValidationError):
-            item.full_clean()
+    def test_provisional_parent_does_not_render(self):
+        """Top-level with destination=none and no children → does not render."""
+        menu = Menu.objects.create(title="H", location="footer_2", is_active=True)
+        MenuItem.objects.create(menu=menu, title="Provisional", destination_type="none", is_active=True)
+        response = self.client.get("/")
+        self.assertNotContains(response, "Provisional")
 
     def test_no_href_hash_in_storefront(self):
         """Storefront must never produce href='#' for menu items."""
@@ -770,3 +769,254 @@ class MenuDeletionProtectionTests(TestCase):
         except ProtectedError:
             pass
         self.assertTrue(MenuItem.objects.filter(pk=item.pk).exists())
+
+
+
+
+# ============================================================ HIERARCHY RENDERING TESTS
+
+
+class HeaderHierarchyRenderingTests(TestCase):
+    """تست‌های رندر زیرمنوی هدر."""
+
+    def setUp(self):
+        self.category = Category.objects.create(name="HCat", slug="hcat-hr")
+        self.menu = Menu.objects.create(title="Header", location="header", is_active=True)
+
+    def test_parent_and_child_both_render(self):
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="ParentItem",
+            destination_type="category", destination_category=self.category,
+            is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="ChildItem", parent=parent,
+            destination_type="external", destination_external_url="https://child.example.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        self.assertContains(response, "ParentItem")
+        self.assertContains(response, "ChildItem")
+        self.assertContains(response, "https://child.example.com")
+
+    def test_child_order_deterministic(self):
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="P", destination_type="none", is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="ChildB", parent=parent, display_order=2,
+            destination_type="external", destination_external_url="https://b.com",
+            is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="ChildA", parent=parent, display_order=1,
+            destination_type="external", destination_external_url="https://a.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        content = response.content.decode()
+        self.assertLess(content.find("ChildA"), content.find("ChildB"))
+
+    def test_inactive_child_hidden(self):
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="P", destination_type="none", is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="ActiveChild", parent=parent,
+            destination_type="external", destination_external_url="https://a.com",
+            is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="InactiveChild", parent=parent,
+            destination_type="external", destination_external_url="https://b.com",
+            is_active=False,
+        )
+        response = self.client.get("/")
+        self.assertContains(response, "ActiveChild")
+        self.assertNotContains(response, "InactiveChild")
+
+    def test_inactive_parent_hides_children(self):
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="InactiveP", destination_type="none", is_active=False,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="ChildOfInactive", parent=parent,
+            destination_type="external", destination_external_url="https://c.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        self.assertNotContains(response, "ChildOfInactive")
+
+    def test_destinationless_parent_renders_as_button(self):
+        """Parent with no URL renders button trigger, not <a href='#'>."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="HeadingParent", destination_type="none", is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="SubItem", parent=parent,
+            destination_type="external", destination_external_url="https://sub.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        content = response.content.decode()
+        self.assertIn("HeadingParent", content)
+        self.assertIn("nav-submenu-trigger", content)
+        self.assertIn("aria-haspopup", content)
+        self.assertNotIn('href="#">HeadingParent', content)
+
+    def test_parent_with_destination_renders_as_link(self):
+        """Parent with valid URL renders as clickable <a>."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="ClickableP",
+            destination_type="category", destination_category=self.category,
+            is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="SubChild", parent=parent,
+            destination_type="external", destination_external_url="https://sub.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        content = response.content.decode()
+        self.assertIn("ClickableP", content)
+        self.assertIn("category=hcat-hr", content)
+
+    def test_no_href_hash(self):
+        """No href='#' anywhere in managed header nav."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="P", destination_type="none", is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="C", parent=parent,
+            destination_type="external", destination_external_url="https://x.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        content = response.content.decode()
+        import re
+        nav_match = re.search(r'<div class="nav-links-scroll">(.*?)</div>\s*</div>\s*</nav>', content, re.DOTALL)
+        if nav_match:
+            self.assertNotIn('href="#"', nav_match.group(1))
+
+    def test_empty_submenu_not_rendered(self):
+        """Parent with no renderable children → not rendered at all."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="EmptyP", destination_type="none", is_active=True,
+        )
+        # Add only inactive child
+        MenuItem.objects.create(
+            menu=self.menu, title="InactiveC", parent=parent,
+            destination_type="external", destination_external_url="https://x.com",
+            is_active=False,
+        )
+        response = self.client.get("/")
+        self.assertNotContains(response, "EmptyP")
+
+    def test_title_escaping_in_submenu(self):
+        """XSS in parent/child titles is escaped."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title='<img src=x onerror=alert(1)>',
+            destination_type="none", is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title='<script>xss</script>', parent=parent,
+            destination_type="external", destination_external_url="https://x.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        self.assertNotContains(response, '<img src=x')
+        self.assertNotContains(response, '<script>xss</script>')
+        self.assertContains(response, "&lt;script&gt;")
+
+
+class FooterHierarchyRenderingTests(TestCase):
+    """تست‌های رندر سلسله‌مراتب فوتر."""
+
+    def setUp(self):
+        self.category = Category.objects.create(name="FC", slug="fc-fhr")
+
+    def test_footer_child_rendered(self):
+        """Footer children render in nested <ul>."""
+        menu = Menu.objects.create(title="F1", location="footer_1", is_active=True)
+        parent = MenuItem.objects.create(
+            menu=menu, title="FParent",
+            destination_type="category", destination_category=self.category,
+            is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=menu, title="FChild", parent=parent,
+            destination_type="external", destination_external_url="https://fc.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        self.assertContains(response, "FParent")
+        self.assertContains(response, "FChild")
+        self.assertContains(response, "https://fc.com")
+
+    def test_footer_inactive_child_hidden(self):
+        menu = Menu.objects.create(title="F1", location="footer_1", is_active=True)
+        parent = MenuItem.objects.create(
+            menu=menu, title="P",
+            destination_type="category", destination_category=self.category,
+            is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=menu, title="HiddenChild", parent=parent,
+            destination_type="external", destination_external_url="https://h.com",
+            is_active=False,
+        )
+        response = self.client.get("/")
+        self.assertNotContains(response, "HiddenChild")
+
+
+class ParentCreationWorkflowTests(TestCase):
+    """تست‌های گردش کار ایجاد والد موقت."""
+
+    def setUp(self):
+        self.menu = Menu.objects.create(title="M", location="header")
+        self.category = Category.objects.create(name="WC", slug="wc-pcw")
+        self.staff = User.objects.create_user(username="staff_pcw", password="p!", is_staff=True)
+        self.client.login(username="staff_pcw", password="p!")
+
+    def test_destinationless_parent_can_be_created(self):
+        """Top-level item with destination=none can be created via dashboard."""
+        response = self.client.post(reverse("dashboard:menu-item-add", args=[self.menu.pk]), {
+            "title": "Provisional",
+            "display_order": "0", "is_active": "on",
+            "destination_type": "none", "destination_external_url": "",
+            "destination_category": "", "destination_product": "", "destination_brand": "",
+            "parent": "",
+        })
+        self.assertRedirects(response, reverse("dashboard:menu-item-list", args=[self.menu.pk]))
+        self.assertTrue(MenuItem.objects.filter(title="Provisional").exists())
+
+    def test_provisional_does_not_render_without_children(self):
+        """Provisional parent without children does not appear on storefront."""
+        self.menu.is_active = True
+        self.menu.save()
+        MenuItem.objects.create(
+            menu=self.menu, title="NoRender", destination_type="none", is_active=True,
+        )
+        response = self.client.get("/")
+        self.assertNotContains(response, "NoRender")
+
+    def test_provisional_renders_after_child_added(self):
+        """After adding a child, provisional parent renders in storefront."""
+        self.menu.is_active = True
+        self.menu.save()
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="NowVisible", destination_type="none", is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="ValidChild", parent=parent,
+            destination_type="category", destination_category=self.category,
+            is_active=True,
+        )
+        response = self.client.get("/")
+        self.assertContains(response, "NowVisible")
+        self.assertContains(response, "ValidChild")
+
+    def test_no_temporary_destination_required(self):
+        """Provisional parent does not need a placeholder destination."""
+        item = MenuItem(menu=self.menu, title="Clean", destination_type="none")
+        item.full_clean()  # Must not raise
