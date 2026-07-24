@@ -1,0 +1,50 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}صفحات محتوایی | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}صفحات محتوایی{% endblock %}
+{% block page_sub %}مدیریت صفحات اطلاع‌رسانی، قوانین و محتوای فروشگاه{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h3>صفحات ({{ pages|length }})</h3>
+    <a href="{% url 'dashboard:page-add' %}" class="btn btn-primary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      صفحه‌ی جدید
+    </a>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>عنوان</th><th>اسلاگ</th><th>وضعیت</th><th>فوتر</th><th>عملیات</th></tr></thead>
+    <tbody>
+      {% for p in pages %}
+      <tr>
+        <td><b>{{ p.title }}</b></td>
+        <td dir="ltr" style="font-size:12px;color:var(--muted)">/pages/{{ p.slug }}/</td>
+        <td>
+          {% if p.status == "published" %}
+          <span class="badge b-green">منتشرشده</span>
+          {% else %}
+          <span class="badge b-amber">پیش‌نویس</span>
+          {% endif %}
+        </td>
+        <td>{% if p.show_in_footer %}✓{% endif %}</td>
+        <td style="display:flex;gap:6px">
+          <a class="btn btn-sm" href="{% url 'dashboard:page-edit' p.pk %}">ویرایش</a>
+          <form method="post" action="{% url 'dashboard:page-publish' p.pk %}" style="display:inline">
+            {% csrf_token %}
+            <button class="btn btn-sm" type="submit">{% if p.status == "published" %}برگشت به پیش‌نویس{% else %}انتشار{% endif %}</button>
+          </form>
+          <form method="post" action="{% url 'dashboard:page-delete' p.pk %}" style="display:inline" onsubmit="return confirm('حذف شود؟')">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-danger" type="submit">حذف</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="color:var(--muted)">هنوز صفحه‌ای ایجاد نشده است</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

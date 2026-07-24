@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ SHOP_NAME }} | {{ SHOP_TAGLINE }}{% endblock %}</title>
+{% block meta_description %}{% endblock %}
 {% if SHOP_FAVICON %}<link rel="icon" href="{{ SHOP_FAVICON.url }}">{% else %}<link rel="icon" href="{% static 'favicon.ico' %}">{% endif %}
 <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
 <link rel="stylesheet" href="{% static 'css/base.css' %}">
@@ -142,20 +143,21 @@
       <h5>دسترسی سریع</h5>
       <ul>
         <li><a href="/">صفحه اصلی</a></li>
-        <li><a href="#">فروشگاه</a></li>
-        <li><a href="#">تخفیف‌ها</a></li>
-        <li><a href="#">وبلاگ</a></li>
-        <li><a href="#">تماس با ما</a></li>
+        <li><a href="{% url 'catalog:product-list' %}">فروشگاه</a></li>
+        {% for page in footer_pages_quick_access %}
+        <li><a href="{{ page.get_absolute_url }}">{{ page.title }}</a></li>
+        {% endfor %}
       </ul>
     </div>
     <div>
       <h5>خدمات مشتریان</h5>
       <ul>
-        <li><a href="#">پیگیری سفارش</a></li>
-        <li><a href="#">شرایط بازگشت کالا</a></li>
+        {% for page in footer_pages_customer_service %}
+        <li><a href="{{ page.get_absolute_url }}">{{ page.title }}</a></li>
+        {% endfor %}
+        {% if not footer_pages_customer_service %}
         <li><a href="#">سوالات متداول</a></li>
-        <li><a href="#">حریم خصوصی</a></li>
-        <li><a href="#">قوانین و مقررات</a></li>
+        {% endif %}
       </ul>
     </div>
     <div>

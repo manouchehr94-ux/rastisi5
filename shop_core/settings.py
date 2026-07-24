@@ -75,6 +75,7 @@ TEMPLATES = [
                 "apps.cart.context_processors.cart_badge",
                 "apps.customers.context_processors.wishlist_membership",
                 "apps.customers.context_processors.auth_forms",
+                "apps.content.context_processors.footer_pages",
             ],
         },
     },

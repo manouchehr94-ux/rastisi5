@@ -59,4 +59,11 @@ urlpatterns = [
     path("settings/sms/test-send/", views.sms_test_send, name="sms-test-send"),
     path("settings/sms/logs/", views.sms_log_list, name="sms-log-list"),
     path("settings/sms/logs/table/", views.sms_log_table, name="sms-log-table"),
+
+    # --- صفحات محتوایی ---
+    path("pages/", views.page_list, name="page-list"),
+    path("pages/add/", views.page_form, name="page-add"),
+    path("pages/<int:pk>/edit/", views.page_form, name="page-edit"),
+    path("pages/<int:pk>/delete/", views.page_delete, name="page-delete"),
+    path("pages/<int:pk>/publish/", views.page_publish, name="page-publish"),
 ]

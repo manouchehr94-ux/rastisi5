@@ -2,6 +2,8 @@ import json
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.db.models import ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -872,3 +874,101 @@ def sms_log_table(request):
         "status_filters": sms_admin_service.LOG_STATUS_FILTERS,
     }
     return render(request, "dashboard/partials/sms_logs_table_inner.html", context)
+
+
+
+# ---------------------------------------------------------------- صفحات محتوایی
+
+from apps.content.models import ContentPage
+
+
+@staff_required
+def page_list(request):
+    pages = ContentPage.objects.all().order_by("-created_at")
+    context = {"pages": pages, "active_page": "pages"}
+    return render(request, "dashboard/pages.html", context)
+
+
+@staff_required
+def page_form(request, pk=None):
+    from django.utils.text import slugify as django_slugify
+
+    page = get_object_or_404(ContentPage, pk=pk) if pk else None
+
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        slug = request.POST.get("slug", "").strip()
+        body = request.POST.get("body", "")
+        summary = request.POST.get("summary", "").strip()
+        seo_title = request.POST.get("seo_title", "").strip()
+        seo_description = request.POST.get("seo_description", "").strip()
+        show_in_footer = request.POST.get("show_in_footer") == "on"
+        footer_column = request.POST.get("footer_column", "")
+        display_order = int(request.POST.get("display_order", "0") or "0")
+
+        if not title:
+            messages.error(request, "عنوان صفحه الزامی است")
+            return redirect(request.path)
+
+        if not slug:
+            slug = django_slugify(title, allow_unicode=True) or "page"
+
+        if page is None:
+            page = ContentPage()
+
+        page.title = title
+        page.slug = slug
+        page.body = body
+        page.summary = summary
+        page.seo_title = seo_title
+        page.seo_description = seo_description
+        page.show_in_footer = show_in_footer
+        page.footer_column = footer_column
+        page.display_order = display_order
+
+        try:
+            page.full_clean()
+            page.save()
+            action = "ویرایش" if pk else "ایجاد"
+            messages.success(request, f"صفحه‌ی «{page.title}» با موفقیت {action} شد")
+            return redirect("dashboard:page-list")
+        except (ValidationError, IntegrityError) as exc:
+            if hasattr(exc, "message_dict"):
+                msg = " ".join(v[0] if isinstance(v, list) else v for v in exc.message_dict.values())
+            else:
+                msg = str(exc)
+            messages.error(request, msg)
+            return redirect(request.path)
+
+    context = {"page": page, "active_page": "pages", "footer_columns": ContentPage.FooterColumn.choices}
+    return render(request, "dashboard/page_form.html", context)
+
+
+@require_POST
+@staff_required
+def page_delete(request, pk):
+    page = get_object_or_404(ContentPage, pk=pk)
+    title = page.title
+    page.delete()
+    messages.success(request, f"صفحه‌ی «{title}» حذف شد")
+    return redirect("dashboard:page-list")
+
+
+@require_POST
+@staff_required
+def page_publish(request, pk):
+    from django.utils import timezone
+
+    page = get_object_or_404(ContentPage, pk=pk)
+    if page.status == ContentPage.Status.PUBLISHED:
+        page.status = ContentPage.Status.DRAFT
+        page.published_at = None
+        page.published_by = None
+        messages.info(request, f"صفحه‌ی «{page.title}» به پیش‌نویس برگشت")
+    else:
+        page.status = ContentPage.Status.PUBLISHED
+        page.published_at = timezone.now()
+        page.published_by = request.user
+        messages.success(request, f"صفحه‌ی «{page.title}» منتشر شد")
+    page.save()
+    return redirect("dashboard:page-list")

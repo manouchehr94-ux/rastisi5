@@ -1,0 +1,64 @@
+{% extends "dashboard/base_admin.html" %}
+
+{% block title %}{% if page %}ویرایش{% else %}ایجاد{% endif %} صفحه | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}{% if page %}ویرایش صفحه{% else %}صفحه‌ی جدید{% endif %}{% endblock %}
+{% block page_sub %}{% if page %}{{ page.title }}{% else %}ایجاد صفحه‌ی محتوایی جدید{% endif %}{% endblock %}
+
+{% block content %}
+<form method="post" class="card" style="max-width:800px">
+  {% csrf_token %}
+  <div class="card-body">
+    <div class="form-group">
+      <label for="id_title">عنوان صفحه</label>
+      <input class="inp" type="text" name="title" id="id_title" value="{{ page.title|default:'' }}" required>
+    </div>
+    <div class="form-group">
+      <label for="id_slug">اسلاگ (آدرس)</label>
+      <input class="inp" type="text" name="slug" id="id_slug" value="{{ page.slug|default:'' }}" dir="ltr" placeholder="خودکار از عنوان">
+    </div>
+    <div class="form-group">
+      <label for="id_summary">خلاصه</label>
+      <input class="inp" type="text" name="summary" id="id_summary" value="{{ page.summary|default:'' }}">
+    </div>
+    <div class="form-group">
+      <label for="id_body">متن صفحه</label>
+      <textarea class="inp" name="body" id="id_body" rows="12">{{ page.body|default:'' }}</textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="id_seo_title">عنوان SEO</label>
+        <input class="inp" type="text" name="seo_title" id="id_seo_title" value="{{ page.seo_title|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label for="id_seo_desc">توضیحات SEO</label>
+        <input class="inp" type="text" name="seo_description" id="id_seo_desc" value="{{ page.seo_description|default:'' }}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" name="show_in_footer" {% if page.show_in_footer %}checked{% endif %}>
+          نمایش در فوتر
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="id_footer_col">ستون فوتر</label>
+        <select class="inp" name="footer_column" id="id_footer_col">
+          <option value="">---</option>
+          {% for val, label in footer_columns %}
+          <option value="{{ val }}" {% if page.footer_column == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="id_order">ترتیب</label>
+        <input class="inp" type="number" name="display_order" id="id_order" value="{{ page.display_order|default:0 }}">
+      </div>
+    </div>
+  </div>
+  <div class="card-head" style="border-top:1px solid var(--border);border-bottom:0">
+    <button class="btn btn-primary" type="submit">{% if page %}ذخیره تغییرات{% else %}ایجاد صفحه{% endif %}</button>
+    <a class="btn" href="{% url 'dashboard:page-list' %}">انصراف</a>
+  </div>
+</form>
+{% endblock %}

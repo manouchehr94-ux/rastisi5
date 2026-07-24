@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.effective_seo_title }} | {{ SHOP_NAME }}{% endblock %}
+
+{% block meta_description %}{% if page.effective_seo_description %}<meta name="description" content="{{ page.effective_seo_description }}">{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.page-content{max-width:800px;margin:40px auto;padding:0 18px}
+.page-content h1{font-size:24px;font-weight:900;margin-bottom:16px}
+.page-content .summary{color:var(--muted);font-size:14px;margin-bottom:24px;line-height:1.8}
+.page-content .body{font-size:14px;line-height:2.2;white-space:pre-wrap;word-wrap:break-word}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-content">
+  <h1>{{ page.title }}</h1>
+  {% if page.summary %}<p class="summary">{{ page.summary }}</p>{% endif %}
+  <div class="body">{{ page.body|linebreaksbr }}</div>
+</div>
+{% endblock %}
