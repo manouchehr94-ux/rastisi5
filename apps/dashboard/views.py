@@ -1202,3 +1202,75 @@ def banner_toggle(request, pk):
     state = "فعال" if banner.is_active else "غیرفعال"
     messages.info(request, f"بنر {state} شد")
     return redirect("dashboard:banner-list")
+
+
+
+
+# ---------------------------------------------------------------- شبکه‌های اجتماعی
+
+from apps.content.models import SocialLink
+
+
+@staff_required
+def social_link_list(request):
+    links = SocialLink.objects.all().order_by("display_order", "id")
+    return render(request, "dashboard/social_links.html", {
+        "links": links, "active_page": "social_links",
+    })
+
+
+@staff_required
+def social_link_form(request, pk=None):
+    link = get_object_or_404(SocialLink, pk=pk) if pk else None
+
+    if request.method == "POST":
+        obj = link or SocialLink()
+        obj.platform = request.POST.get("platform", "custom")
+        obj.title = request.POST.get("title", "").strip()
+        obj.url = request.POST.get("url", "").strip()
+        obj.display_order = int(request.POST.get("display_order", "0") or "0")
+        obj.is_active = request.POST.get("is_active") == "on"
+        obj.show_in_header = request.POST.get("show_in_header") == "on"
+        obj.show_in_footer = request.POST.get("show_in_footer") == "on"
+
+        try:
+            obj.full_clean()
+            obj.save()
+            action = "ویرایش" if pk else "ایجاد"
+            messages.success(request, f"لینک «{obj.title}» با موفقیت {action} شد")
+            return redirect("dashboard:social-link-list")
+        except (ValidationError, IntegrityError) as exc:
+            if hasattr(exc, "message_dict"):
+                msg = " ".join(
+                    v[0] if isinstance(v, list) else str(v)
+                    for v in exc.message_dict.values()
+                )
+            else:
+                msg = str(exc)
+            messages.error(request, msg)
+
+    platforms = SocialLink.Platform.choices
+    return render(request, "dashboard/social_link_form.html", {
+        "link": link, "active_page": "social_links", "platforms": platforms,
+    })
+
+
+@require_POST
+@staff_required
+def social_link_delete(request, pk):
+    link = get_object_or_404(SocialLink, pk=pk)
+    title = link.title
+    link.delete()
+    messages.success(request, f"لینک «{title}» حذف شد")
+    return redirect("dashboard:social-link-list")
+
+
+@require_POST
+@staff_required
+def social_link_toggle(request, pk):
+    link = get_object_or_404(SocialLink, pk=pk)
+    link.is_active = not link.is_active
+    link.save(update_fields=["is_active", "updated_at"])
+    state = "فعال" if link.is_active else "غیرفعال"
+    messages.info(request, f"لینک «{link.title}» {state} شد")
+    return redirect("dashboard:social-link-list")
