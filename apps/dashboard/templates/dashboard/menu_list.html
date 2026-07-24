@@ -3,10 +3,25 @@
 {% block page_title %}مدیریت منوها{% endblock %}
 {% block page_sub %}منوهای ناوبری فروشگاه{% endblock %}
 {% block content %}
+<div class="page-header">
+  <div>
+    <h2>مدیریت منوها</h2>
+    <p class="page-desc">منوهای ناوبری فروشگاه را ایجاد و مدیریت کنید. هر منو در محل نمایش مشخصی (هدر، فوتر و...) قرار می‌گیرد.</p>
+  </div>
+  <a href="{% url 'dashboard:menu-add' %}" class="btn btn-primary">منوی جدید</a>
+</div>
+
+<div class="guidance-panel">
+  <strong>راهنمای مدیریت منوها</strong>
+  ۱. ابتدا یک منو بسازید و محل نمایش منو را مشخص کنید (هدر، فوتر یا هر دو).<br>
+  ۲. سپس آیتم‌های منو (لینک‌ها) را به آن اضافه کنید.<br>
+  ۳. آیتم‌ها می‌توانند به دسته‌بندی کالاها، صفحات داخلی یا لینک‌های خارجی اشاره کنند.
+</div>
+
+{% if menus %}
 <div class="card">
   <div class="card-head">
     <h3>منوها ({{ menus|length }})</h3>
-    <a href="{% url 'dashboard:menu-add' %}" class="btn btn-primary">منوی جدید</a>
   </div>
   <div class="table-wrap"><table>
     <thead><tr><th>عنوان</th><th>مکان</th><th>وضعیت</th><th>تعداد آیتم</th><th>عملیات</th></tr></thead>
@@ -24,8 +39,18 @@
         <form method="post" action="{% url 'dashboard:menu-delete' menu.pk %}" style="display:inline" onsubmit="return confirm('حذف منو؟')">{% csrf_token %}<button class="btn btn-sm btn-danger">حذف</button></form>
       </td>
     </tr>
-    {% empty %}<tr><td colspan="5" style="color:var(--muted)">منویی ثبت نشده</td></tr>{% endfor %}
+    {% endfor %}
     </tbody>
   </table></div>
 </div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <span class="empty-icon">📋</span>
+    <div class="empty-title">هنوز منویی ثبت نشده</div>
+    <p class="empty-desc">با ایجاد منو، می‌توانید لینک‌های ناوبری فروشگاه خود را در هدر و فوتر سایت مدیریت کنید.</p>
+    <a href="{% url 'dashboard:menu-add' %}" class="btn btn-primary">ایجاد اولین منو</a>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

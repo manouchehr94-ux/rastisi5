@@ -3,12 +3,20 @@
 {% block page_title %}نمادهای اعتماد{% endblock %}
 {% block page_sub %}مدیریت نمادهای اعتماد فوتر{% endblock %}
 {% block content %}
-<div style="margin-bottom:16px;display:flex;gap:10px">
-  <a href="{% url 'dashboard:footer-trust-badge-add' %}" class="btn btn-primary">افزودن نماد</a>
-  <a href="{% url 'dashboard:footer-settings' %}" class="btn">بازگشت به تنظیمات فوتر</a>
+<div class="page-header">
+  <div>
+    <h2>نمادهای اعتماد</h2>
+    <p class="page-desc">نمادهای اعتماد الکترونیکی (اینماد، ساماندهی و...) را مدیریت کنید. این نمادها در فوتر سایت نمایش داده می‌شوند.</p>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a href="{% url 'dashboard:footer-trust-badge-add' %}" class="btn btn-primary">افزودن نماد</a>
+    <a href="{% url 'dashboard:footer-settings' %}" class="btn btn-secondary">بازگشت به تنظیمات فوتر</a>
+  </div>
 </div>
+
+{% if badges %}
 <div class="card">
-  <table class="table">
+  <div class="table-wrap"><table>
     <thead><tr><th>تصویر</th><th>عنوان</th><th>ترتیب</th><th>وضعیت</th><th>عملیات</th></tr></thead>
     <tbody>
       {% for badge in badges %}
@@ -16,17 +24,25 @@
         <td>{% if badge.image %}<img src="{{ badge.image.url }}" alt="{{ badge.title }}" style="max-height:40px">{% endif %}</td>
         <td>{{ badge.title }}</td>
         <td>{{ badge.display_order }}</td>
-        <td>{% if badge.is_active %}فعال{% else %}غیرفعال{% endif %}</td>
+        <td>{% if badge.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">غیرفعال</span>{% endif %}</td>
         <td style="display:flex;gap:6px">
           <a href="{% url 'dashboard:footer-trust-badge-edit' badge.pk %}" class="btn btn-sm">ویرایش</a>
           <form method="post" action="{% url 'dashboard:footer-trust-badge-toggle' badge.pk %}">{% csrf_token %}<button class="btn btn-sm">{% if badge.is_active %}غیرفعال{% else %}فعال{% endif %}</button></form>
           <form method="post" action="{% url 'dashboard:footer-trust-badge-delete' badge.pk %}" onsubmit="return confirm('حذف شود؟')">{% csrf_token %}<button class="btn btn-sm btn-danger">حذف</button></form>
         </td>
       </tr>
-      {% empty %}
-      <tr><td colspan="5">هنوز نمادی ثبت نشده است.</td></tr>
       {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <span class="empty-icon">🛡️</span>
+    <div class="empty-title">هنوز نمادی ثبت نشده</div>
+    <p class="empty-desc">نمادهای اعتماد (مثل اینماد، ساماندهی و...) را اضافه کنید تا اعتماد مشتریان افزایش یابد.</p>
+    <a href="{% url 'dashboard:footer-trust-badge-add' %}" class="btn btn-primary">افزودن اولین نماد</a>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

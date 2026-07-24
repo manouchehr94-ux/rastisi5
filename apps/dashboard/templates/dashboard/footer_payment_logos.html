@@ -3,12 +3,20 @@
 {% block page_title %}لوگوهای پرداخت{% endblock %}
 {% block page_sub %}مدیریت لوگوهای روش‌های پرداخت فوتر{% endblock %}
 {% block content %}
-<div style="margin-bottom:16px;display:flex;gap:10px">
-  <a href="{% url 'dashboard:footer-payment-logo-add' %}" class="btn btn-primary">افزودن لوگو</a>
-  <a href="{% url 'dashboard:footer-settings' %}" class="btn">بازگشت به تنظیمات فوتر</a>
+<div class="page-header">
+  <div>
+    <h2>لوگوهای پرداخت</h2>
+    <p class="page-desc">لوگوهای درگاه‌های پرداخت و روش‌های پرداخت پشتیبانی‌شده را مدیریت کنید. این لوگوها در فوتر سایت نمایش داده می‌شوند.</p>
+  </div>
+  <div style="display:flex;gap:8px">
+    <a href="{% url 'dashboard:footer-payment-logo-add' %}" class="btn btn-primary">افزودن لوگو</a>
+    <a href="{% url 'dashboard:footer-settings' %}" class="btn btn-secondary">بازگشت به تنظیمات فوتر</a>
+  </div>
 </div>
+
+{% if logos %}
 <div class="card">
-  <table class="table">
+  <div class="table-wrap"><table>
     <thead><tr><th>تصویر</th><th>عنوان</th><th>ترتیب</th><th>وضعیت</th><th>عملیات</th></tr></thead>
     <tbody>
       {% for logo in logos %}
@@ -16,17 +24,25 @@
         <td>{% if logo.image %}<img src="{{ logo.image.url }}" alt="{{ logo.title }}" style="max-height:40px">{% endif %}</td>
         <td>{{ logo.title }}</td>
         <td>{{ logo.display_order }}</td>
-        <td>{% if logo.is_active %}فعال{% else %}غیرفعال{% endif %}</td>
+        <td>{% if logo.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">غیرفعال</span>{% endif %}</td>
         <td style="display:flex;gap:6px">
           <a href="{% url 'dashboard:footer-payment-logo-edit' logo.pk %}" class="btn btn-sm">ویرایش</a>
           <form method="post" action="{% url 'dashboard:footer-payment-logo-toggle' logo.pk %}">{% csrf_token %}<button class="btn btn-sm">{% if logo.is_active %}غیرفعال{% else %}فعال{% endif %}</button></form>
           <form method="post" action="{% url 'dashboard:footer-payment-logo-delete' logo.pk %}" onsubmit="return confirm('حذف شود؟')">{% csrf_token %}<button class="btn btn-sm btn-danger">حذف</button></form>
         </td>
       </tr>
-      {% empty %}
-      <tr><td colspan="5">هنوز لوگویی ثبت نشده است.</td></tr>
       {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <span class="empty-icon">💳</span>
+    <div class="empty-title">هنوز لوگویی ثبت نشده</div>
+    <p class="empty-desc">لوگوهای درگاه‌های پرداخت (زرین‌پال، ملت و...) را اضافه کنید تا در فوتر نمایش داده شوند.</p>
+    <a href="{% url 'dashboard:footer-payment-logo-add' %}" class="btn btn-primary">افزودن اولین لوگو</a>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

@@ -3,43 +3,57 @@
 {% block page_title %}{% if link %}ویرایش لینک «{{ link.title }}»{% else %}افزودن لینک شبکه اجتماعی{% endif %}{% endblock %}
 {% block page_sub %}مشخصات لینک را وارد کنید{% endblock %}
 {% block content %}
-<div class="card" style="max-width:600px">
+<div class="form-card">
   <form method="post">
     {% csrf_token %}
-    <div class="form-group">
-      <label>پلتفرم</label>
-      <select name="platform">
+    <div class="field-group">
+      <label class="field-label required">پلتفرم</label>
+      <select name="platform" class="form-select">
         {% for val, label in platforms %}
         <option value="{{ val }}" {% if link.platform == val %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
+      <span class="field-help">شبکه اجتماعی مورد نظر را انتخاب کنید. آیکون مربوطه به صورت خودکار نمایش داده می‌شود.</span>
     </div>
-    <div class="form-group">
-      <label>عنوان (برچسب دسترسی‌پذیری) *</label>
-      <input type="text" name="title" value="{{ link.title|default:'' }}" required maxlength="100">
+    <div class="field-group">
+      <label class="field-label required">عنوان (برچسب دسترسی‌پذیری)</label>
+      <input type="text" name="title" value="{{ link.title|default:'' }}" required maxlength="100" class="form-input">
+      <span class="field-help">عنوانی که برای دسترسی‌پذیری (accessibility) و هاور آیکون نمایش داده می‌شود.</span>
     </div>
-    <div class="form-group">
-      <label>آدرس (URL) *</label>
-      <input type="url" name="url" value="{{ link.url|default:'' }}" required maxlength="500" dir="ltr" placeholder="https://...">
+    <div class="field-group">
+      <label class="field-label required">آدرس (URL)</label>
+      <input type="url" name="url" value="{{ link.url|default:'' }}" required maxlength="500" dir="ltr" placeholder="https://..." class="form-input">
+      <span class="field-help">آدرس کامل صفحه شما در شبکه اجتماعی. مثلاً: https://instagram.com/your_shop</span>
     </div>
-    <div class="form-group">
-      <label>ترتیب نمایش</label>
-      <input type="number" name="display_order" value="{{ link.display_order|default:'0' }}" min="0">
+    <div class="field-group">
+      <label class="field-label">ترتیب نمایش</label>
+      <input type="number" name="display_order" value="{{ link.display_order|default:'0' }}" min="0" class="form-input" style="max-width:120px">
+      <span class="field-help">لینک‌ها بر اساس این عدد مرتب می‌شوند. عدد کمتر = نمایش زودتر.</span>
     </div>
-    <div class="form-group" style="display:flex;gap:20px;flex-wrap:wrap">
-      <label style="display:flex;align-items:center;gap:6px">
-        <input type="checkbox" name="is_active" {% if link.is_active or not link %}checked{% endif %}> فعال
-      </label>
-      <label style="display:flex;align-items:center;gap:6px">
-        <input type="checkbox" name="show_in_header" {% if link.show_in_header %}checked{% endif %}> نمایش در هدر
-      </label>
-      <label style="display:flex;align-items:center;gap:6px">
-        <input type="checkbox" name="show_in_footer" {% if link.show_in_footer or not link %}checked{% endif %}> نمایش در فوتر
-      </label>
-    </div>
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <label class="toggle-field">
+      <input type="checkbox" name="show_in_header" {% if link.show_in_header %}checked{% endif %}>
+      <div class="toggle-content">
+        <span class="toggle-title">نمایش در هدر</span>
+        <span class="toggle-desc">آیکون این شبکه اجتماعی در بالای سایت نمایش داده شود.</span>
+      </div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_in_footer" {% if link.show_in_footer or not link %}checked{% endif %}>
+      <div class="toggle-content">
+        <span class="toggle-title">نمایش در فوتر</span>
+        <span class="toggle-desc">آیکون این شبکه اجتماعی در پایین سایت نمایش داده شود.</span>
+      </div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_active" {% if link.is_active or not link %}checked{% endif %}>
+      <div class="toggle-content">
+        <span class="toggle-title">فعال</span>
+        <span class="toggle-desc">فقط لینک‌های فعال در سایت نمایش داده می‌شوند.</span>
+      </div>
+    </label>
+    <div class="btn-row">
       <button type="submit" class="btn btn-primary">{% if link %}ذخیره تغییرات{% else %}افزودن{% endif %}</button>
-      <a href="{% url 'dashboard:social-link-list' %}" class="btn">انصراف</a>
+      <a href="{% url 'dashboard:social-link-list' %}" class="btn btn-secondary">انصراف</a>
     </div>
   </form>
 </div>
