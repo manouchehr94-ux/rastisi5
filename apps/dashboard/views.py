@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
-from django.db.models import ProtectedError
+from django.db.models import Count, ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -1274,3 +1274,185 @@ def social_link_toggle(request, pk):
     state = "فعال" if link.is_active else "غیرفعال"
     messages.info(request, f"لینک «{link.title}» {state} شد")
     return redirect("dashboard:social-link-list")
+
+
+
+
+# ---------------------------------------------------------------- مدیریت منوها
+
+from apps.content.models import Menu, MenuItem
+
+
+@staff_required
+def menu_list(request):
+    menus = Menu.objects.annotate(item_count=Count("items")).order_by("location")
+    return render(request, "dashboard/menu_list.html", {
+        "menus": menus, "active_page": "menus",
+    })
+
+
+@staff_required
+def menu_form(request, pk=None):
+    menu = get_object_or_404(Menu, pk=pk) if pk else None
+
+    if request.method == "POST":
+        obj = menu or Menu()
+        obj.title = request.POST.get("title", "").strip()
+        obj.location = request.POST.get("location", "")
+        obj.is_active = request.POST.get("is_active") == "on"
+
+        try:
+            obj.full_clean()
+            obj.save()
+            action = "ویرایش" if pk else "ایجاد"
+            messages.success(request, f"منوی «{obj.title}» با موفقیت {action} شد")
+            return redirect("dashboard:menu-list")
+        except (ValidationError, IntegrityError) as exc:
+            if hasattr(exc, "message_dict"):
+                msg = " ".join(
+                    v[0] if isinstance(v, list) else str(v)
+                    for v in exc.message_dict.values()
+                )
+            elif "UNIQUE constraint" in str(exc) or "unique" in str(exc).lower():
+                msg = "این مکان قبلاً دارای منو است. هر مکان فقط یک منو می‌تواند داشته باشد."
+            else:
+                msg = str(exc)
+            messages.error(request, msg)
+
+    locations = Menu.Location.choices
+    return render(request, "dashboard/menu_form.html", {
+        "menu": menu, "active_page": "menus", "locations": locations,
+    })
+
+
+@require_POST
+@staff_required
+def menu_delete(request, pk):
+    menu = get_object_or_404(Menu, pk=pk)
+    if menu.items.exists():
+        messages.error(request, f"منوی «{menu.title}» دارای آیتم است و قابل حذف نیست. ابتدا آیتم‌ها را حذف کنید.")
+        return redirect("dashboard:menu-list")
+    title = menu.title
+    menu.delete()
+    messages.success(request, f"منوی «{title}» حذف شد")
+    return redirect("dashboard:menu-list")
+
+
+@require_POST
+@staff_required
+def menu_toggle(request, pk):
+    menu = get_object_or_404(Menu, pk=pk)
+    menu.is_active = not menu.is_active
+    menu.save(update_fields=["is_active", "updated_at"])
+    state = "فعال" if menu.is_active else "غیرفعال"
+    messages.info(request, f"منوی «{menu.title}» {state} شد")
+    return redirect("dashboard:menu-list")
+
+
+# --- آیتم‌های منو ---
+
+
+@staff_required
+def menu_item_list(request, menu_id):
+    menu = get_object_or_404(Menu, pk=menu_id)
+    items = menu.items.select_related("parent").order_by("parent__display_order", "parent__id", "display_order", "id")
+    # Organize: top-level first, then children grouped under parents
+    top_items = [i for i in items if i.parent_id is None]
+    children_map = {}
+    for i in items:
+        if i.parent_id:
+            children_map.setdefault(i.parent_id, []).append(i)
+
+    organized = []
+    for item in top_items:
+        organized.append(("top", item))
+        for child in children_map.get(item.pk, []):
+            organized.append(("child", child))
+
+    return render(request, "dashboard/menu_item_list.html", {
+        "menu": menu, "organized_items": organized, "active_page": "menus",
+    })
+
+
+@staff_required
+def menu_item_form(request, menu_id=None, pk=None):
+    from apps.catalog.models import Category
+
+    if pk:
+        item = get_object_or_404(MenuItem, pk=pk)
+        menu = item.menu
+    else:
+        menu = get_object_or_404(Menu, pk=menu_id)
+        item = None
+
+    if request.method == "POST":
+        obj = item or MenuItem(menu=menu)
+        obj.title = request.POST.get("title", "").strip()
+        obj.display_order = int(request.POST.get("display_order", "0") or "0")
+        obj.is_active = request.POST.get("is_active") == "on"
+        obj.open_in_new_tab = request.POST.get("open_in_new_tab") == "on"
+
+        # Parent
+        parent_id = request.POST.get("parent") or None
+        obj.parent_id = int(parent_id) if parent_id else None
+
+        # Destination fields
+        obj.destination_type = request.POST.get("destination_type", "none")
+        obj.destination_external_url = request.POST.get("destination_external_url", "").strip()
+        cat_id = request.POST.get("destination_category") or None
+        prod_id = request.POST.get("destination_product") or None
+        brand_id = request.POST.get("destination_brand") or None
+        obj.destination_category_id = int(cat_id) if cat_id else None
+        obj.destination_product_id = int(prod_id) if prod_id else None
+        obj.destination_brand_id = int(brand_id) if brand_id else None
+
+        try:
+            obj.full_clean()
+            obj.save()
+            action = "ویرایش" if pk else "ایجاد"
+            messages.success(request, f"آیتم «{obj.title}» با موفقیت {action} شد")
+            return redirect("dashboard:menu-item-list", menu_id=menu.pk)
+        except (ValidationError, IntegrityError) as exc:
+            if hasattr(exc, "message_dict"):
+                msg = " ".join(
+                    v[0] if isinstance(v, list) else str(v)
+                    for v in exc.message_dict.values()
+                )
+            else:
+                msg = str(exc)
+            messages.error(request, msg)
+
+    # Parent options: only top-level items of this menu (not the item itself)
+    parent_options = menu.items.filter(parent__isnull=True)
+    if pk:
+        parent_options = parent_options.exclude(pk=pk)
+
+    categories = Category.objects.filter(is_active=True).order_by("order", "name")
+    return render(request, "dashboard/menu_item_form.html", {
+        "item": item, "menu": menu, "active_page": "menus",
+        "parent_options": parent_options, "categories": categories,
+    })
+
+
+@require_POST
+@staff_required
+def menu_item_delete(request, pk):
+    item = get_object_or_404(MenuItem, pk=pk)
+    menu_id = item.menu_id
+    try:
+        item.delete()
+        messages.success(request, f"آیتم «{item.title}» حذف شد")
+    except ProtectedError:
+        messages.error(request, f"آیتم «{item.title}» دارای زیرآیتم است. ابتدا زیرآیتم‌ها را حذف کنید.")
+    return redirect("dashboard:menu-item-list", menu_id=menu_id)
+
+
+@require_POST
+@staff_required
+def menu_item_toggle(request, pk):
+    item = get_object_or_404(MenuItem, pk=pk)
+    item.is_active = not item.is_active
+    item.save(update_fields=["is_active", "updated_at"])
+    state = "فعال" if item.is_active else "غیرفعال"
+    messages.info(request, f"آیتم «{item.title}» {state} شد")
+    return redirect("dashboard:menu-item-list", menu_id=item.menu_id)

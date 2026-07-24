@@ -1,0 +1,63 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{% if item %}ویرایش{% else %}افزودن{% endif %} آیتم | پنل مدیریت{% endblock %}
+{% block page_title %}{% if item %}ویرایش آیتم «{{ item.title }}»{% else %}افزودن آیتم به «{{ menu.title }}»{% endif %}{% endblock %}
+{% block page_sub %}{{ menu.get_location_display }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:600px">
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label>عنوان *</label>
+      <input type="text" name="title" value="{{ item.title|default:'' }}" required maxlength="200">
+    </div>
+    <div class="form-group">
+      <label>آیتم والد (اختیاری)</label>
+      <select name="parent">
+        <option value="">— بدون والد (سطح اول) —</option>
+        {% for p in parent_options %}
+        <option value="{{ p.pk }}" {% if item.parent_id == p.pk %}selected{% endif %}>{{ p.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>نوع مقصد</label>
+      <select name="destination_type">
+        <option value="none" {% if item.destination_type == "none" or not item %}selected{% endif %}>بدون مقصد</option>
+        <option value="category" {% if item.destination_type == "category" %}selected{% endif %}>دسته‌بندی</option>
+        <option value="external" {% if item.destination_type == "external" %}selected{% endif %}>لینک خارجی</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>دسته‌بندی مقصد</label>
+      <select name="destination_category">
+        <option value="">—</option>
+        {% for cat in categories %}
+        <option value="{{ cat.pk }}" {% if item.destination_category_id == cat.pk %}selected{% endif %}>{{ cat.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>آدرس لینک خارجی</label>
+      <input type="url" name="destination_external_url" value="{{ item.destination_external_url|default:'' }}" maxlength="500" dir="ltr" placeholder="https://...">
+    </div>
+    <div class="form-group">
+      <label>ترتیب نمایش</label>
+      <input type="number" name="display_order" value="{{ item.display_order|default:'0' }}" min="0">
+    </div>
+    <div class="form-group" style="display:flex;gap:20px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" name="is_active" {% if item.is_active or not item %}checked{% endif %}> فعال
+      </label>
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" name="open_in_new_tab" {% if item.open_in_new_tab %}checked{% endif %}> باز شدن در تب جدید
+      </label>
+    </div>
+    <input type="hidden" name="destination_product" value="">
+    <input type="hidden" name="destination_brand" value="">
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">{% if item %}ذخیره تغییرات{% else %}افزودن{% endif %}</button>
+      <a href="{% url 'dashboard:menu-item-list' menu.pk %}" class="btn">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}آیتم‌های «{{ menu.title }}» | پنل مدیریت{% endblock %}
+{% block page_title %}آیتم‌های منوی «{{ menu.title }}»{% endblock %}
+{% block page_sub %}{{ menu.get_location_display }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h3>آیتم‌ها</h3>
+    <div style="display:flex;gap:8px">
+      <a href="{% url 'dashboard:menu-item-add' menu.pk %}" class="btn btn-primary">آیتم جدید</a>
+      <a href="{% url 'dashboard:menu-list' %}" class="btn">بازگشت به منوها</a>
+    </div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>عنوان</th><th>مقصد</th><th>ترتیب</th><th>وضعیت</th><th>تب جدید</th><th>عملیات</th></tr></thead>
+    <tbody>
+    {% for level, item in organized_items %}
+    <tr{% if level == "child" %} style="background:var(--violet-softer,#f9f7ff)"{% endif %}>
+      <td>{% if level == "child" %}<span style="color:var(--muted);margin-left:4px">└─</span> {% endif %}<b>{{ item.title }}</b></td>
+      <td style="font-size:12px;color:var(--muted)">{{ item.get_destination_type_display }}{% if item.destination_external_url %}: {{ item.destination_external_url|truncatechars:30 }}{% endif %}</td>
+      <td>{{ item.display_order }}</td>
+      <td>{% if item.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">غیرفعال</span>{% endif %}</td>
+      <td>{% if item.open_in_new_tab %}بله{% else %}خیر{% endif %}</td>
+      <td style="display:flex;gap:6px">
+        <a class="btn btn-sm" href="{% url 'dashboard:menu-item-edit' item.pk %}">ویرایش</a>
+        <form method="post" action="{% url 'dashboard:menu-item-toggle' item.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">{% if item.is_active %}غیرفعال{% else %}فعال{% endif %}</button></form>
+        <form method="post" action="{% url 'dashboard:menu-item-delete' item.pk %}" style="display:inline" onsubmit="return confirm('حذف؟')">{% csrf_token %}<button class="btn btn-sm btn-danger">حذف</button></form>
+      </td>
+    </tr>
+    {% empty %}<tr><td colspan="6" style="color:var(--muted)">آیتمی ثبت نشده</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

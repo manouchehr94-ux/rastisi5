@@ -422,3 +422,89 @@ class SocialLink(TimeStampedModel):
             if not self.icon_name or self.icon_name not in allowed:
                 self.icon_name = "link"
         super().save(*args, **kwargs)
+
+
+
+# ---------------------------------------------------------------- مدیریت منوها
+
+
+class Menu(TimeStampedModel):
+    """منوی ناوبری فروشگاه — هر مکان (header/footer/mobile) حداکثر یک منوی فعال."""
+
+    class Location(models.TextChoices):
+        HEADER = "header", "منوی اصلی"
+        FOOTER_1 = "footer_1", "ستون اول فوتر"
+        FOOTER_2 = "footer_2", "ستون دوم فوتر"
+        FOOTER_3 = "footer_3", "ستون سوم فوتر"
+        MOBILE = "mobile", "منوی موبایل"
+
+    title = models.CharField("عنوان منو", max_length=150)
+    location = models.CharField(
+        "مکان نمایش", max_length=20, choices=Location.choices, unique=True,
+    )
+    is_active = models.BooleanField("فعال", default=True)
+
+    class Meta:
+        verbose_name = "منو"
+        verbose_name_plural = "منوها"
+        ordering = ["location"]
+
+    def __str__(self):
+        return f"{self.title} ({self.get_location_display()})"
+
+
+class MenuItem(DestinationMixin, TimeStampedModel):
+    """آیتم منوی ناوبری — حداکثر ۲ سطح (والد + فرزند).
+
+    اعتبارسنجی تضمین می‌کند:
+    - والد باید به همان منو تعلق داشته باشد
+    - آیتم نمی‌تواند والد خودش باشد
+    - فرزند نمی‌تواند خودش فرزند داشته باشد (حداکثر ۲ سطح)
+    - روابط حلقوی رد می‌شوند
+    """
+
+    menu = models.ForeignKey(
+        Menu, verbose_name="منو", on_delete=models.CASCADE, related_name="items",
+    )
+    parent = models.ForeignKey(
+        "self", verbose_name="آیتم والد", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="children",
+    )
+    title = models.CharField("عنوان", max_length=200)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+    is_active = models.BooleanField("فعال", default=True)
+
+    class Meta:
+        verbose_name = "آیتم منو"
+        verbose_name_plural = "آیتم‌های منو"
+        ordering = ["display_order", "id"]
+
+    def __str__(self):
+        prefix = f"  └─ " if self.parent_id else ""
+        return f"{prefix}{self.title}"
+
+    def clean(self):
+        super().clean()
+        self._validate_hierarchy()
+
+    def _validate_hierarchy(self):
+        """اعتبارسنجی سلسله‌مراتب: حداکثر ۲ سطح، بدون حلقه."""
+        # آیتم نمی‌تواند والد خودش باشد
+        if self.parent_id and self.pk and self.parent_id == self.pk:
+            raise ValidationError({"parent": "آیتم نمی‌تواند والد خودش باشد"})
+
+        if self.parent:
+            # والد باید به همان منو تعلق داشته باشد
+            if self.parent.menu_id != self.menu_id:
+                raise ValidationError({"parent": "آیتم والد باید به همان منو تعلق داشته باشد"})
+
+            # والد نباید خودش فرزند باشد (حداکثر ۲ سطح)
+            if self.parent.parent_id is not None:
+                raise ValidationError({"parent": "حداکثر ۲ سطح مجاز است — والد انتخاب‌شده خودش فرزند است"})
+
+        # اگر این آیتم قبلاً فرزند دارد، نمی‌تواند والد بگیرد
+        if self.pk and self.parent_id:
+            if self.children.exists():
+                raise ValidationError({
+                    "parent": "این آیتم دارای فرزند است و نمی‌تواند خودش فرزند شود"
+                })

@@ -99,12 +99,18 @@
       </div>
     </div>
     <div class="nav-links-scroll">
+      {% if NAV_HEADER %}
+      {% for item in NAV_HEADER.items %}
+      <a class="nl" href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>
+      {% endfor %}
+      {% else %}
       <a class="nl" href="#">جدیدترین‌ها</a>
       <a class="nl" href="#">پرفروش‌ترین‌ها</a>
       <a class="nl hot" href="#">🔥 تخفیف‌ها و پیشنهادها</a>
       <a class="nl" href="#">برندها</a>
       <a class="nl" href="#">وبلاگ</a>
       <a class="nl" href="#">تماس با ما</a>
+      {% endif %}
       <span class="nav-spacer"></span>
       <span class="nav-hot">⚡ فروش ویژه آخر هفته</span>
     </div>
@@ -141,23 +147,35 @@
       {% endif %}
     </div>
     <div>
-      <h5>دسترسی سریع</h5>
+      <h5>{% if NAV_FOOTER_1 %}{{ NAV_FOOTER_1.title }}{% else %}دسترسی سریع{% endif %}</h5>
       <ul>
+        {% if NAV_FOOTER_1 %}
+        {% for item in NAV_FOOTER_1.items %}
+        <li><a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a></li>
+        {% endfor %}
+        {% else %}
         <li><a href="/">صفحه اصلی</a></li>
         <li><a href="{% url 'catalog:product-list' %}">فروشگاه</a></li>
         {% for page in footer_pages_quick_access %}
         <li><a href="{{ page.get_absolute_url }}">{{ page.title }}</a></li>
         {% endfor %}
+        {% endif %}
       </ul>
     </div>
     <div>
-      <h5>خدمات مشتریان</h5>
+      <h5>{% if NAV_FOOTER_2 %}{{ NAV_FOOTER_2.title }}{% else %}خدمات مشتریان{% endif %}</h5>
       <ul>
+        {% if NAV_FOOTER_2 %}
+        {% for item in NAV_FOOTER_2.items %}
+        <li><a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a></li>
+        {% endfor %}
+        {% else %}
         {% for page in footer_pages_customer_service %}
         <li><a href="{{ page.get_absolute_url }}">{{ page.title }}</a></li>
         {% endfor %}
         {% if not footer_pages_customer_service %}
         <li><a href="#">سوالات متداول</a></li>
+        {% endif %}
         {% endif %}
       </ul>
     </div>

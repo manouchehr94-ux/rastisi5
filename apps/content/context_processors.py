@@ -1,4 +1,5 @@
-from .models import ContentPage
+from .models import ContentPage, Menu, MenuItem
+from .services import resolve_destination_url
 
 
 def footer_pages(request):
@@ -13,4 +14,69 @@ def footer_pages(request):
     return {
         "footer_pages_quick_access": quick_access,
         "footer_pages_customer_service": customer_service,
+    }
+
+
+def _build_menu_tree(menu):
+    """ساخت درخت آیتم‌های فعال منو با URL حل‌شده — بدون N+1."""
+    if menu is None:
+        return None
+
+    items = list(
+        menu.items.filter(is_active=True)
+        .select_related(
+            "parent", "destination_category", "destination_product", "destination_brand"
+        )
+        .order_by("display_order", "id")
+    )
+
+    # Build tree: top-level + children
+    top_items = []
+    children_map = {}
+    for item in items:
+        if item.parent_id is None:
+            top_items.append(item)
+        else:
+            children_map.setdefault(item.parent_id, []).append(item)
+
+    tree = []
+    for item in top_items:
+        url = resolve_destination_url(item)
+        children = []
+        for child in children_map.get(item.pk, []):
+            child_url = resolve_destination_url(child)
+            if child_url:
+                children.append({
+                    "title": child.title,
+                    "url": child_url,
+                    "open_in_new_tab": child.open_in_new_tab,
+                })
+        # Include item if it has a URL or has renderable children
+        if url or children:
+            tree.append({
+                "title": item.title,
+                "url": url,
+                "open_in_new_tab": item.open_in_new_tab,
+                "children": children,
+            })
+
+    return {"title": menu.title, "items": tree} if tree else None
+
+
+def navigation_menus(request):
+    """منوهای ناوبری فعال فروشگاه — هدر، فوتر، موبایل."""
+    active_menus = {
+        m.location: m
+        for m in Menu.objects.filter(is_active=True).prefetch_related(
+            "items", "items__destination_category",
+            "items__destination_product", "items__destination_brand",
+        )
+    }
+
+    return {
+        "NAV_HEADER": _build_menu_tree(active_menus.get("header")),
+        "NAV_FOOTER_1": _build_menu_tree(active_menus.get("footer_1")),
+        "NAV_FOOTER_2": _build_menu_tree(active_menus.get("footer_2")),
+        "NAV_FOOTER_3": _build_menu_tree(active_menus.get("footer_3")),
+        "NAV_MOBILE": _build_menu_tree(active_menus.get("mobile")),
     }
