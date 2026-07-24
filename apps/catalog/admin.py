@@ -1,6 +1,17 @@
 from django.contrib import admin
 
-from .models import Brand, Category, Product, ProductImage, ProductVariant, Review, Vendor
+from .models import (
+    Brand,
+    Category,
+    Product,
+    ProductImage,
+    ProductVariant,
+    Review,
+    Specification,
+    SpecificationTemplate,
+    SpecificationTemplateField,
+    Vendor,
+)
 
 
 @admin.register(Vendor)
@@ -34,18 +45,24 @@ class ProductImageInline(admin.TabularInline):
 class ProductVariantInline(admin.TabularInline):
     model = ProductVariant
     extra = 1
+    fields = ("attribute", "value", "value_hex", "sku", "stock", "extra_price", "is_active", "display_order")
+
+
+class SpecificationInline(admin.TabularInline):
+    model = Specification
+    extra = 1
 
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = (
         "name", "sku", "vendor", "category", "price", "discount_percent",
-        "final_price", "stock", "status", "tag",
+        "final_price", "stock", "product_type", "status", "tag",
     )
-    list_filter = ("status", "tag", "category", "vendor")
+    list_filter = ("status", "product_type", "tag", "category", "vendor")
     search_fields = ("name", "sku", "slug")
     prepopulated_fields = {"slug": ("name",)}
-    inlines = [ProductImageInline, ProductVariantInline]
+    inlines = [ProductImageInline, ProductVariantInline, SpecificationInline]
 
 
 @admin.register(Review)
@@ -63,6 +80,25 @@ class ProductImageAdmin(admin.ModelAdmin):
 
 @admin.register(ProductVariant)
 class ProductVariantAdmin(admin.ModelAdmin):
-    list_display = ("product", "attribute", "value", "stock", "extra_price")
-    list_filter = ("attribute",)
-    search_fields = ("product__name", "value")
+    list_display = ("product", "attribute", "value", "sku", "stock", "extra_price", "is_active", "display_order")
+    list_filter = ("attribute", "is_active")
+    search_fields = ("product__name", "value", "sku")
+
+
+class SpecificationTemplateFieldInline(admin.TabularInline):
+    model = SpecificationTemplateField
+    extra = 1
+
+
+@admin.register(SpecificationTemplate)
+class SpecificationTemplateAdmin(admin.ModelAdmin):
+    list_display = ("name", "category")
+    list_filter = ("category",)
+    search_fields = ("name",)
+    inlines = [SpecificationTemplateFieldInline]
+
+
+@admin.register(Specification)
+class SpecificationAdmin(admin.ModelAdmin):
+    list_display = ("product", "label", "value", "order")
+    search_fields = ("product__name", "label")

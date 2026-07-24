@@ -1,5 +1,11 @@
+import re
+
 _FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹"
-_FA_TO_EN = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
+# ارقام فارسی (Extended Arabic-Indic، ۰۱۲۳۴۵۶۷۸۹) و ارقام عربی (Arabic-Indic، ٠١٢٣٤٥٦٧٨٩)
+# هر دو باید به لاتین تبدیل شوند؛ صفحه‌کلید کاربر ممکن است هرکدام را تولید کند.
+_FA_TO_EN = str.maketrans("۰۱۲۳۴۵۶۷۸۹" + "٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+_AR_TO_FA_LETTERS = str.maketrans({"ي": "ی", "ك": "ک"})
+_WHITESPACE_RE = re.compile(r"\s+")
 
 
 def normalize_digits(value: str) -> str:
@@ -7,6 +13,23 @@ def normalize_digits(value: str) -> str:
     if value is None:
         return ""
     return str(value).translate(_FA_TO_EN)
+
+
+def normalize_text(value: str) -> str:
+    """ارقام فارسی/عربی را لاتین، حروف عربی رایج (ي/ك) را فارسی، و فاصله‌های اضافه را یکدست می‌کند.
+
+    برای مقایسه‌ی متن‌های ورودی مدیر فروشگاه (نام/مقدار تنوع) استفاده می‌شود تا
+    تفاوت صرفاً در صفحه‌کلید یا فاصله باعث ثبت رکورد تکراری نشود.
+    """
+    if value is None:
+        return ""
+    text = normalize_digits(value).translate(_AR_TO_FA_LETTERS)
+    return _WHITESPACE_RE.sub(" ", text).strip()
+
+
+def normalization_key(value: str) -> str:
+    """کلید نرمال‌شده برای مقایسه‌ی بدون‌حساسیت به بزرگی/کوچکی حروف (مقادیر لاتین) و فاصله."""
+    return normalize_text(value).lower()
 
 
 def to_fa_digits(value) -> str:
