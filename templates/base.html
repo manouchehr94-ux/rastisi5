@@ -102,11 +102,11 @@
       {% if NAV_HEADER %}
       {% for item in NAV_HEADER.items %}
       {% if item.children %}
-      <div class="nav-dropdown" x-data="{ open: false }" @click.outside="open = false">
+      <div class="nav-dropdown" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="if(open){open=false;$nextTick(()=>$refs.trigger{{forloop.counter}}.focus())}">
         {% if item.url %}
         <a class="nl" href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>
         {% endif %}
-        <button type="button" class="nav-submenu-trigger" @click="open = !open" :aria-expanded="open" aria-haspopup="true">{% if not item.url %}{{ item.title }} {% endif %}<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button x-ref="trigger{{forloop.counter}}" type="button" class="nav-submenu-trigger" @click="open = !open" :aria-expanded="open.toString()" aria-haspopup="true" aria-label="{% if item.url %}باز کردن زیرمنوی {{ item.title }}{% else %}{{ item.title }}{% endif %}">{% if not item.url %}{{ item.title }} {% endif %}<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
         <ul class="nav-submenu" x-show="open" x-cloak>
           {% for child in item.children %}
           <li><a href="{{ child.url }}" {% if child.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ child.title }}</a></li>

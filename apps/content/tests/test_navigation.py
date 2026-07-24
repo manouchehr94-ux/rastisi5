@@ -1020,3 +1020,167 @@ class ParentCreationWorkflowTests(TestCase):
         """Provisional parent does not need a placeholder destination."""
         item = MenuItem(menu=self.menu, title="Clean", destination_type="none")
         item.full_clean()  # Must not raise
+
+
+
+
+# ============================================================ QUERY COUNT TESTS
+
+
+class NavigationQueryCountTests(TestCase):
+    """تست شمارش query — حداکثر ۲ query برای ناوبری."""
+
+    def setUp(self):
+        self.category = Category.objects.create(name="QC", slug="qc-qct")
+        self.menu = Menu.objects.create(title="H", location="header", is_active=True)
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="P1", destination_type="none", is_active=True,
+        )
+        for i in range(5):
+            MenuItem.objects.create(
+                menu=self.menu, title=f"C{i}", parent=parent,
+                destination_type="category", destination_category=self.category,
+                is_active=True, display_order=i,
+            )
+        # Second menu
+        self.footer = Menu.objects.create(title="F", location="footer_1", is_active=True)
+        MenuItem.objects.create(
+            menu=self.footer, title="FL",
+            destination_type="external", destination_external_url="https://f.com",
+            is_active=True,
+        )
+
+    def test_navigation_context_bounded_queries(self):
+        """Navigation context processor uses at most 2 queries regardless of item count."""
+        from django.test.utils import override_settings
+        from apps.content.context_processors import navigation_menus
+
+        class FakeRequest:
+            pass
+
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+
+        with CaptureQueriesContext(connection) as ctx:
+            result = navigation_menus(FakeRequest())
+
+        # Expected: 1 for menus + 1 for prefetched items (with select_related JOINs)
+        self.assertLessEqual(len(ctx), 2, f"Expected ≤2 queries, got {len(ctx)}")
+        # Verify data was actually loaded
+        self.assertIsNotNone(result["NAV_HEADER"])
+        self.assertEqual(len(result["NAV_HEADER"]["items"][0]["children"]), 5)
+
+
+# ============================================================ ACCESSIBILITY ATTRIBUTE TESTS
+
+
+class NavigationAccessibilityTests(TestCase):
+    """تست‌های ویژگی‌های دسترسی‌پذیری در رندر هدر."""
+
+    def setUp(self):
+        self.category = Category.objects.create(name="AC", slug="ac-nat")
+        self.menu = Menu.objects.create(title="H", location="header", is_active=True)
+
+    def test_escape_handler_present(self):
+        """Rendered markup includes @keydown.escape handler."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="DropP", destination_type="none", is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="Sub", parent=parent,
+            destination_type="external", destination_external_url="https://x.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        self.assertContains(response, "@keydown.escape")
+
+    def test_aria_expanded_present(self):
+        """Trigger has :aria-expanded binding."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="AE", destination_type="none", is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="C", parent=parent,
+            destination_type="external", destination_external_url="https://x.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        self.assertContains(response, ':aria-expanded="open.toString()"')
+
+    def test_aria_haspopup_present(self):
+        """Trigger has aria-haspopup="true"."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="HP", destination_type="none", is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="C", parent=parent,
+            destination_type="external", destination_external_url="https://x.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        self.assertContains(response, 'aria-haspopup="true"')
+
+    def test_trigger_has_accessible_label(self):
+        """Trigger button has aria-label for accessibility."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="Products", destination_type="none", is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="C", parent=parent,
+            destination_type="external", destination_external_url="https://x.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        # Destinationless parent: aria-label is the title itself
+        self.assertContains(response, 'aria-label="Products"')
+
+    def test_parent_with_url_trigger_has_submenu_label(self):
+        """Parent with URL: trigger has 'باز کردن زیرمنوی ...' label."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="Shop",
+            destination_type="category", destination_category=self.category,
+            is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="C", parent=parent,
+            destination_type="external", destination_external_url="https://x.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        content = response.content.decode()
+        self.assertIn("باز کردن زیرمنوی Shop", content)
+
+    def test_parent_link_and_trigger_are_separate(self):
+        """Parent with URL: the <a> and <button> are separate elements."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="Nav",
+            destination_type="category", destination_category=self.category,
+            is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="C", parent=parent,
+            destination_type="external", destination_external_url="https://x.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        content = response.content.decode()
+        # Should have both <a class="nl"...>Nav</a> AND <button...nav-submenu-trigger
+        import re
+        # The link
+        self.assertIn('>Nav</a>', content)
+        # The button trigger (separate)
+        self.assertIn('nav-submenu-trigger', content)
+
+    def test_focus_return_ref_present(self):
+        """x-ref on trigger is present for focus return."""
+        parent = MenuItem.objects.create(
+            menu=self.menu, title="FR", destination_type="none", is_active=True,
+        )
+        MenuItem.objects.create(
+            menu=self.menu, title="C", parent=parent,
+            destination_type="external", destination_external_url="https://x.com",
+            is_active=True,
+        )
+        response = self.client.get("/")
+        self.assertContains(response, "x-ref=")
+        self.assertContains(response, ".focus()")

@@ -18,17 +18,15 @@ def footer_pages(request):
 
 
 def _build_menu_tree(menu):
-    """ساخت درخت آیتم‌های فعال منو با URL حل‌شده — بدون N+1."""
+    """ساخت درخت آیتم‌های فعال منو با URL حل‌شده — بدون N+1.
+
+    آیتم‌ها از queryset prefetch شده خوانده می‌شوند (فقط فعال‌ها).
+    """
     if menu is None:
         return None
 
-    items = list(
-        menu.items.filter(is_active=True)
-        .select_related(
-            "parent", "destination_category", "destination_product", "destination_brand"
-        )
-        .order_by("display_order", "id")
-    )
+    # Use the prefetched items (already filtered to is_active=True)
+    items = list(menu.items.all())
 
     # Build tree: top-level + children
     top_items = []
@@ -64,12 +62,23 @@ def _build_menu_tree(menu):
 
 
 def navigation_menus(request):
-    """منوهای ناوبری فعال فروشگاه — هدر، فوتر، موبایل."""
+    """منوهای ناوبری فعال فروشگاه — هدر، فوتر، موبایل.
+
+    استراتژی Query:
+    - ۱ query برای منوهای فعال
+    - ۱ query برای آیتم‌های فعال با JOIN مقصدها (select_related)
+    جمعاً: ۲ query مستقل از تعداد منوها و آیتم‌ها.
+    """
+    from django.db.models import Prefetch
+
+    items_qs = MenuItem.objects.filter(is_active=True).select_related(
+        "parent", "destination_category", "destination_product", "destination_brand",
+    ).order_by("display_order", "id")
+
     active_menus = {
         m.location: m
         for m in Menu.objects.filter(is_active=True).prefetch_related(
-            "items", "items__destination_category",
-            "items__destination_product", "items__destination_brand",
+            Prefetch("items", queryset=items_qs),
         )
     }
 
