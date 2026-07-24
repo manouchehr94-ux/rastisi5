@@ -34,25 +34,6 @@
     </div>
     {% endwith %}
   </div></section>
-  {% else %}
-  <!-- fallback hero (hardcoded) -->
-  <section class="hero"><div class="hero-inner">
-    <div class="hero-text">
-      <span class="hero-tag">🛍️ {{ SHOP_TAGLINE }}</span>
-      <h1>به {{ SHOP_NAME }} خوش آمدید — هر آنچه نیاز دارید، یک‌جا</h1>
-      <p>از لوازم خانگی و دیجیتال تا لوازم‌تحریر، خواربار و پوشاک؛ با ضمانت اصالت کالا و ارسال سریع به سراسر کشور.</p>
-      <div class="hero-btns">
-        <button type="button" class="btn btn-light" onclick="document.getElementById('sec-best').scrollIntoView({behavior:'smooth'})">مشاهده محصولات</button>
-        <button type="button" class="btn btn-light" onclick="document.getElementById('sec-special').scrollIntoView({behavior:'smooth'})">پیشنهادهای ویژه</button>
-      </div>
-    </div>
-    <div class="hero-visual">
-      <div class="hero-frame">🛍️</div>
-      <div class="float-card fc1"><span class="ic">🏷️</span><div>تا {{ max_discount|fa_number }}٪ تخفیف<small>روی کالاهای منتخب</small></div></div>
-      <div class="float-card fc2"><span class="ic">⭐</span><div>{{ avg_rating|floatformat:1|fa_number }} از ۵<small>رضایت مشتریان</small></div></div>
-      <div class="float-card fc3"><span class="ic">🚚</span><div>ارسال سریع<small>تحویل ۲۴ ساعته</small></div></div>
-    </div>
-  </div></section>
   {% endif %}
 
   <!-- category icon strip -->
@@ -109,24 +90,6 @@
     </div>
     {% endfor %}
   </section>
-  {% else %}
-  <section class="section"><div class="promo-dark">
-    <div>
-      <h3>آخرین تخفیف‌ها را از دست ندهید!</h3>
-      <p>فقط تا پایان هفته، مجموعه‌ای از پرفروش‌ترین محصولات با تخفیف‌های استثنایی در انتظار شماست.</p>
-      <button type="button" class="btn btn-light" onclick="document.getElementById('sec-special').scrollIntoView({behavior:'smooth'})">مشاهده تخفیف‌ها</button>
-    </div>
-    {% if highlight_product %}
-    <div class="mini">
-      <div class="im">{{ highlight_product.icon|default:"🛍️" }}</div>
-      <div>
-        <div style="font-size:12px;font-weight:700">{{ highlight_product.name }}</div>
-        <div class="old">{{ highlight_product.price|toman }}</div>
-        <div class="now">{{ highlight_product.final_price|toman }}</div>
-      </div>
-    </div>
-    {% endif %}
-  </div></section>
   {% endif %}
 
   <!-- category tiles -->

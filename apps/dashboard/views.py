@@ -988,11 +988,18 @@ def hero_list(request):
 
 @staff_required
 def hero_form(request, pk=None):
+    from django.db import transaction
+
     from apps.catalog.models import Brand, Category
     slide = get_object_or_404(HeroSlide, pk=pk) if pk else None
 
     if request.method == "POST":
         obj = slide or HeroSlide()
+
+        # Capture old file names before modification
+        old_desktop_name = obj.desktop_image.name if obj.pk and obj.desktop_image else None
+        old_mobile_name = obj.mobile_image.name if obj.pk and obj.mobile_image else None
+
         obj.title = request.POST.get("title", "").strip()
         obj.subtitle = request.POST.get("subtitle", "").strip()
         obj.button_label = request.POST.get("button_label", "").strip()
@@ -1016,12 +1023,29 @@ def hero_form(request, pk=None):
             obj.desktop_image = request.FILES["desktop_image"]
         if "mobile_image" in request.FILES:
             obj.mobile_image = request.FILES["mobile_image"]
-        if request.POST.get("remove_mobile") == "on":
+        if request.POST.get("remove_mobile") == "on" and "mobile_image" not in request.FILES:
             obj.mobile_image = ""
 
         try:
             obj.full_clean()
             obj.save()
+
+            # Schedule old file cleanup after successful commit
+            storage = HeroSlide.desktop_image.field.storage
+            new_desktop_name = obj.desktop_image.name if obj.desktop_image else None
+            new_mobile_name = obj.mobile_image.name if obj.mobile_image else None
+
+            files_to_delete = []
+            if old_desktop_name and old_desktop_name != new_desktop_name:
+                files_to_delete.append(old_desktop_name)
+            if old_mobile_name and old_mobile_name != new_mobile_name:
+                files_to_delete.append(old_mobile_name)
+
+            if files_to_delete:
+                transaction.on_commit(lambda: [
+                    storage.delete(f) for f in files_to_delete if storage.exists(f)
+                ])
+
             messages.success(request, f"اسلاید «{obj.title or obj.pk}» ذخیره شد")
             return redirect("dashboard:hero-list")
         except (ValidationError, IntegrityError) as exc:
@@ -1037,11 +1061,23 @@ def hero_form(request, pk=None):
 @require_POST
 @staff_required
 def hero_delete(request, pk):
+    from django.db import transaction
+
     slide = get_object_or_404(HeroSlide, pk=pk)
-    slide.desktop_image.delete(save=False)
-    if slide.mobile_image:
-        slide.mobile_image.delete(save=False)
+    desktop_name = slide.desktop_image.name if slide.desktop_image else None
+    mobile_name = slide.mobile_image.name if slide.mobile_image else None
+    storage = slide.desktop_image.storage
+
     slide.delete()
+
+    # Delete owned files only after successful DB commit
+    def _cleanup():
+        if desktop_name and storage.exists(desktop_name):
+            storage.delete(desktop_name)
+        if mobile_name and storage.exists(mobile_name):
+            storage.delete(mobile_name)
+
+    transaction.on_commit(_cleanup)
     messages.success(request, "اسلاید حذف شد")
     return redirect("dashboard:hero-list")
 
@@ -1065,11 +1101,18 @@ def banner_list(request):
 
 @staff_required
 def banner_form(request, pk=None):
+    from django.db import transaction
+
     from apps.catalog.models import Brand, Category
     banner = get_object_or_404(PromotionalBanner, pk=pk) if pk else None
 
     if request.method == "POST":
         obj = banner or PromotionalBanner()
+
+        # Capture old file names before modification
+        old_desktop_name = obj.desktop_image.name if obj.pk and obj.desktop_image else None
+        old_mobile_name = obj.mobile_image.name if obj.pk and obj.mobile_image else None
+
         obj.title = request.POST.get("title", "").strip()
         obj.description = request.POST.get("description", "").strip()
         obj.button_label = request.POST.get("button_label", "").strip()
@@ -1091,12 +1134,29 @@ def banner_form(request, pk=None):
             obj.desktop_image = request.FILES["desktop_image"]
         if "mobile_image" in request.FILES:
             obj.mobile_image = request.FILES["mobile_image"]
-        if request.POST.get("remove_mobile") == "on":
+        if request.POST.get("remove_mobile") == "on" and "mobile_image" not in request.FILES:
             obj.mobile_image = ""
 
         try:
             obj.full_clean()
             obj.save()
+
+            # Schedule old file cleanup after successful commit
+            storage = PromotionalBanner.desktop_image.field.storage
+            new_desktop_name = obj.desktop_image.name if obj.desktop_image else None
+            new_mobile_name = obj.mobile_image.name if obj.mobile_image else None
+
+            files_to_delete = []
+            if old_desktop_name and old_desktop_name != new_desktop_name:
+                files_to_delete.append(old_desktop_name)
+            if old_mobile_name and old_mobile_name != new_mobile_name:
+                files_to_delete.append(old_mobile_name)
+
+            if files_to_delete:
+                transaction.on_commit(lambda: [
+                    storage.delete(f) for f in files_to_delete if storage.exists(f)
+                ])
+
             messages.success(request, f"بنر «{obj.title or obj.pk}» ذخیره شد")
             return redirect("dashboard:banner-list")
         except (ValidationError, IntegrityError) as exc:
@@ -1112,11 +1172,23 @@ def banner_form(request, pk=None):
 @require_POST
 @staff_required
 def banner_delete(request, pk):
+    from django.db import transaction
+
     banner = get_object_or_404(PromotionalBanner, pk=pk)
-    banner.desktop_image.delete(save=False)
-    if banner.mobile_image:
-        banner.mobile_image.delete(save=False)
+    desktop_name = banner.desktop_image.name if banner.desktop_image else None
+    mobile_name = banner.mobile_image.name if banner.mobile_image else None
+    storage = banner.desktop_image.storage
+
     banner.delete()
+
+    # Delete owned files only after successful DB commit
+    def _cleanup():
+        if desktop_name and storage.exists(desktop_name):
+            storage.delete(desktop_name)
+        if mobile_name and storage.exists(mobile_name):
+            storage.delete(mobile_name)
+
+    transaction.on_commit(_cleanup)
     messages.success(request, "بنر حذف شد")
     return redirect("dashboard:banner-list")
 

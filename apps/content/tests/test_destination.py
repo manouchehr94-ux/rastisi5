@@ -1,45 +1,51 @@
 """تست‌های زیرساخت مقصد امن — اعتبارسنجی و حل مقصد.
 
-تست‌ها با یک مدل مشخص (TestLink) که از DestinationMixin ارث‌بری می‌کند اجرا
-می‌شوند. این مدل فقط برای تست ساخته می‌شود و جدول واقعی ندارد — اعتبارسنجی
-مستقل از دیتابیس تست می‌شود.
+تست‌ها از مدل واقعی HeroSlide (که از DestinationMixin ارث‌بری می‌کند)
+برای اعتبارسنجی استفاده می‌کنند. این روش بدون مدل تستی جداگانه کار
+می‌کند و از مشکل table-collision در full suite جلوگیری می‌کند.
+
+علت: مدل تستی managed=False با FK به Category/Product/Brand باعث می‌شد
+Django delete-collector هنگام حذف Category به جدول ناموجود مراجعه کند.
 """
 
 from decimal import Decimal
+from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
-from django.urls import reverse
 
 from apps.catalog.models import Brand, Category, Product, Vendor
-from apps.content.models import DestinationMixin, DestinationType, validate_external_url
+from apps.content.models import DestinationType, HeroSlide, validate_external_url
 from apps.content.services import resolve_destination_url
 
 User = get_user_model()
 
 
-class ConcreteTestDestination(DestinationMixin):
-    """مدل مشخص تستی — بدون جدول دیتابیس، فقط برای اعتبارسنجی."""
-
-    class Meta:
-        app_label = "content"
+def _img(name="dest_test.png"):
+    """ساخت تصویر حداقلی برای فیلد اجباری desktop_image."""
+    from PIL import Image
+    buf = BytesIO()
+    Image.new("RGB", (10, 10), (200, 100, 50)).save(buf, "PNG")
+    return SimpleUploadedFile(name, buf.getvalue(), content_type="image/png")
 
 
 def _make_instance(**kwargs):
-    """ساخت یک نمونه‌ی تستی بدون ذخیره در دیتابیس."""
+    """ساخت یک HeroSlide بدون ذخیره — برای تست اعتبارسنجی DestinationMixin."""
     defaults = {
+        "title": "تست مقصد",
+        "desktop_image": _img(),
         "destination_type": DestinationType.NONE,
         "destination_category": None,
         "destination_product": None,
         "destination_brand": None,
         "destination_external_url": "",
         "open_in_new_tab": False,
+        "show_button": False,
     }
     defaults.update(kwargs)
-    obj = ConcreteTestDestination()
-    for k, v in defaults.items():
-        setattr(obj, k, v)
+    obj = HeroSlide(**defaults)
     # Set _id fields for FK validation
     if defaults.get("destination_category"):
         obj.destination_category_id = defaults["destination_category"].pk

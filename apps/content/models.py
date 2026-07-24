@@ -21,6 +21,20 @@ from django.db import models
 
 from apps.core.models import TimeStampedModel
 
+# ---------------------------------------------------------------- محدودیت حجم تصویر
+
+HOMEPAGE_MEDIA_MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MiB
+
+
+def validate_image_size(value):
+    """اعتبارسنجی حجم فایل تصویر — حداکثر ۵ مگابایت."""
+    if value and hasattr(value, 'size') and value.size > HOMEPAGE_MEDIA_MAX_UPLOAD_BYTES:
+        limit_mb = HOMEPAGE_MEDIA_MAX_UPLOAD_BYTES / (1024 * 1024)
+        raise ValidationError(
+            f"حجم تصویر نباید بیشتر از {limit_mb:.0f} مگابایت باشد. "
+            f"حجم فعلی: {value.size / (1024 * 1024):.1f} مگابایت."
+        )
+
 # طرح‌های مجاز برای لینک خارجی
 ALLOWED_SCHEMES = ["https", "http", "mailto", "tel"]
 
@@ -240,8 +254,8 @@ class HeroSlide(TimeStampedModel, DestinationMixin):
 
     title = models.CharField("عنوان", max_length=200, blank=True)
     subtitle = models.CharField("زیرعنوان", max_length=300, blank=True)
-    desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/hero/")
-    mobile_image = models.ImageField("تصویر موبایل", upload_to="homepage/hero/", blank=True)
+    desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/hero/", validators=[validate_image_size])
+    mobile_image = models.ImageField("تصویر موبایل", upload_to="homepage/hero/", blank=True, validators=[validate_image_size])
     button_label = models.CharField("متن دکمه", max_length=60, blank=True)
     show_button = models.BooleanField("نمایش دکمه", default=False)
     is_active = models.BooleanField("فعال", default=True)
@@ -268,8 +282,8 @@ class PromotionalBanner(TimeStampedModel, DestinationMixin):
 
     title = models.CharField("عنوان", max_length=200, blank=True)
     description = models.CharField("توضیحات", max_length=500, blank=True)
-    desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/banners/")
-    mobile_image = models.ImageField("تصویر موبایل", upload_to="homepage/banners/", blank=True)
+    desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/banners/", validators=[validate_image_size])
+    mobile_image = models.ImageField("تصویر موبایل", upload_to="homepage/banners/", blank=True, validators=[validate_image_size])
     button_label = models.CharField("متن دکمه", max_length=60, blank=True)
     show_button = models.BooleanField("نمایش دکمه", default=False)
     is_active = models.BooleanField("فعال", default=True)
