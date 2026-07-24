@@ -1,0 +1,38 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{% if slide %}ویرایش{% else %}افزودن{% endif %} اسلاید{% endblock %}
+{% block page_title %}{% if slide %}ویرایش اسلاید{% else %}اسلاید جدید{% endif %}{% endblock %}
+{% block content %}
+<form method="post" enctype="multipart/form-data" class="card" style="max-width:800px">
+  {% csrf_token %}
+  <div class="card-body">
+    <div class="form-row">
+      <div class="form-group"><label>عنوان</label><input class="inp" name="title" value="{{ slide.title|default:'' }}"></div>
+      <div class="form-group"><label>زیرعنوان</label><input class="inp" name="subtitle" value="{{ slide.subtitle|default:'' }}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>تصویر دسکتاپ{% if not slide %} (الزامی){% endif %}</label><input class="inp" type="file" name="desktop_image" accept=".png,.jpg,.jpeg,.webp"></div>
+      <div class="form-group"><label>تصویر موبایل</label><input class="inp" type="file" name="mobile_image" accept=".png,.jpg,.jpeg,.webp">{% if slide.mobile_image %}<label><input type="checkbox" name="remove_mobile"> حذف تصویر موبایل</label>{% endif %}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label><input type="checkbox" name="show_button" {% if slide.show_button %}checked{% endif %}> نمایش دکمه</label></div>
+      <div class="form-group"><label>متن دکمه</label><input class="inp" name="button_label" value="{{ slide.button_label|default:'' }}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>نوع مقصد</label><select class="inp" name="destination_type"><option value="none">بدون مقصد</option><option value="category" {% if slide.destination_type == "category" %}selected{% endif %}>دسته‌بندی</option><option value="external" {% if slide.destination_type == "external" %}selected{% endif %}>لینک خارجی</option></select></div>
+      <div class="form-group"><label>لینک خارجی</label><input class="inp" name="destination_external_url" value="{{ slide.destination_external_url|default:'' }}" dir="ltr"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>دسته‌بندی مقصد</label><select class="inp" name="destination_category"><option value="">---</option>{% for c in categories %}<option value="{{ c.pk }}" {% if slide.destination_category_id == c.pk %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div>
+      <div class="form-group"><label>ترتیب نمایش</label><input class="inp" type="number" name="display_order" value="{{ slide.display_order|default:0 }}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label><input type="checkbox" name="is_active" {% if slide.is_active or not slide %}checked{% endif %}> فعال</label></div>
+      <div class="form-group"><label><input type="checkbox" name="open_in_new_tab" {% if slide.open_in_new_tab %}checked{% endif %}> باز شدن در تب جدید</label></div>
+    </div>
+  </div>
+  <div class="card-head" style="border-top:1px solid var(--border);border-bottom:0">
+    <button class="btn btn-primary" type="submit">ذخیره</button>
+    <a class="btn" href="{% url 'dashboard:hero-list' %}">انصراف</a>
+  </div>
+</form>
+{% endblock %}

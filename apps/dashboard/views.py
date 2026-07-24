@@ -972,3 +972,161 @@ def page_publish(request, pk):
         messages.success(request, f"صفحه‌ی «{page.title}» منتشر شد")
     page.save()
     return redirect("dashboard:page-list")
+
+
+
+# ---------------------------------------------------------------- صفحه اصلی (اسلاید و بنر)
+
+from apps.content.models import HeroSlide, PromotionalBanner
+
+
+@staff_required
+def hero_list(request):
+    slides = HeroSlide.objects.all().order_by("display_order", "id")
+    return render(request, "dashboard/hero_list.html", {"slides": slides, "active_page": "homepage"})
+
+
+@staff_required
+def hero_form(request, pk=None):
+    from apps.catalog.models import Brand, Category
+    slide = get_object_or_404(HeroSlide, pk=pk) if pk else None
+
+    if request.method == "POST":
+        obj = slide or HeroSlide()
+        obj.title = request.POST.get("title", "").strip()
+        obj.subtitle = request.POST.get("subtitle", "").strip()
+        obj.button_label = request.POST.get("button_label", "").strip()
+        obj.show_button = request.POST.get("show_button") == "on"
+        obj.is_active = request.POST.get("is_active") == "on"
+        obj.display_order = int(request.POST.get("display_order", "0") or "0")
+        obj.destination_type = request.POST.get("destination_type", "none")
+        obj.destination_external_url = request.POST.get("destination_external_url", "").strip()
+        obj.open_in_new_tab = request.POST.get("open_in_new_tab") == "on"
+
+        # FK destinations
+        cat_id = request.POST.get("destination_category") or None
+        prod_id = request.POST.get("destination_product") or None
+        brand_id = request.POST.get("destination_brand") or None
+        obj.destination_category_id = int(cat_id) if cat_id else None
+        obj.destination_product_id = int(prod_id) if prod_id else None
+        obj.destination_brand_id = int(brand_id) if brand_id else None
+
+        # Images
+        if "desktop_image" in request.FILES:
+            obj.desktop_image = request.FILES["desktop_image"]
+        if "mobile_image" in request.FILES:
+            obj.mobile_image = request.FILES["mobile_image"]
+        if request.POST.get("remove_mobile") == "on":
+            obj.mobile_image = ""
+
+        try:
+            obj.full_clean()
+            obj.save()
+            messages.success(request, f"اسلاید «{obj.title or obj.pk}» ذخیره شد")
+            return redirect("dashboard:hero-list")
+        except (ValidationError, IntegrityError) as exc:
+            msg = str(exc.message_dict if hasattr(exc, "message_dict") else exc)
+            messages.error(request, msg)
+
+    categories = Category.objects.filter(is_active=True).order_by("order", "name")
+    return render(request, "dashboard/hero_form.html", {
+        "slide": slide, "active_page": "homepage", "categories": categories,
+    })
+
+
+@require_POST
+@staff_required
+def hero_delete(request, pk):
+    slide = get_object_or_404(HeroSlide, pk=pk)
+    slide.desktop_image.delete(save=False)
+    if slide.mobile_image:
+        slide.mobile_image.delete(save=False)
+    slide.delete()
+    messages.success(request, "اسلاید حذف شد")
+    return redirect("dashboard:hero-list")
+
+
+@require_POST
+@staff_required
+def hero_toggle(request, pk):
+    slide = get_object_or_404(HeroSlide, pk=pk)
+    slide.is_active = not slide.is_active
+    slide.save(update_fields=["is_active", "updated_at"])
+    state = "فعال" if slide.is_active else "غیرفعال"
+    messages.info(request, f"اسلاید {state} شد")
+    return redirect("dashboard:hero-list")
+
+
+@staff_required
+def banner_list(request):
+    banners = PromotionalBanner.objects.all().order_by("display_order", "id")
+    return render(request, "dashboard/banner_list.html", {"banners": banners, "active_page": "homepage"})
+
+
+@staff_required
+def banner_form(request, pk=None):
+    from apps.catalog.models import Brand, Category
+    banner = get_object_or_404(PromotionalBanner, pk=pk) if pk else None
+
+    if request.method == "POST":
+        obj = banner or PromotionalBanner()
+        obj.title = request.POST.get("title", "").strip()
+        obj.description = request.POST.get("description", "").strip()
+        obj.button_label = request.POST.get("button_label", "").strip()
+        obj.show_button = request.POST.get("show_button") == "on"
+        obj.is_active = request.POST.get("is_active") == "on"
+        obj.display_order = int(request.POST.get("display_order", "0") or "0")
+        obj.destination_type = request.POST.get("destination_type", "none")
+        obj.destination_external_url = request.POST.get("destination_external_url", "").strip()
+        obj.open_in_new_tab = request.POST.get("open_in_new_tab") == "on"
+
+        cat_id = request.POST.get("destination_category") or None
+        prod_id = request.POST.get("destination_product") or None
+        brand_id = request.POST.get("destination_brand") or None
+        obj.destination_category_id = int(cat_id) if cat_id else None
+        obj.destination_product_id = int(prod_id) if prod_id else None
+        obj.destination_brand_id = int(brand_id) if brand_id else None
+
+        if "desktop_image" in request.FILES:
+            obj.desktop_image = request.FILES["desktop_image"]
+        if "mobile_image" in request.FILES:
+            obj.mobile_image = request.FILES["mobile_image"]
+        if request.POST.get("remove_mobile") == "on":
+            obj.mobile_image = ""
+
+        try:
+            obj.full_clean()
+            obj.save()
+            messages.success(request, f"بنر «{obj.title or obj.pk}» ذخیره شد")
+            return redirect("dashboard:banner-list")
+        except (ValidationError, IntegrityError) as exc:
+            msg = str(exc.message_dict if hasattr(exc, "message_dict") else exc)
+            messages.error(request, msg)
+
+    categories = Category.objects.filter(is_active=True).order_by("order", "name")
+    return render(request, "dashboard/banner_form.html", {
+        "banner": banner, "active_page": "homepage", "categories": categories,
+    })
+
+
+@require_POST
+@staff_required
+def banner_delete(request, pk):
+    banner = get_object_or_404(PromotionalBanner, pk=pk)
+    banner.desktop_image.delete(save=False)
+    if banner.mobile_image:
+        banner.mobile_image.delete(save=False)
+    banner.delete()
+    messages.success(request, "بنر حذف شد")
+    return redirect("dashboard:banner-list")
+
+
+@require_POST
+@staff_required
+def banner_toggle(request, pk):
+    banner = get_object_or_404(PromotionalBanner, pk=pk)
+    banner.is_active = not banner.is_active
+    banner.save(update_fields=["is_active", "updated_at"])
+    state = "فعال" if banner.is_active else "غیرفعال"
+    messages.info(request, f"بنر {state} شد")
+    return redirect("dashboard:banner-list")

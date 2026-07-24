@@ -1,0 +1,29 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}اسلایدهای اصلی | پنل مدیریت{% endblock %}
+{% block page_title %}اسلایدهای صفحه اصلی{% endblock %}
+{% block page_sub %}مدیریت اسلایدهای تبلیغاتی بالای صفحه{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h3>اسلایدها ({{ slides|length }})</h3>
+    <a href="{% url 'dashboard:hero-add' %}" class="btn btn-primary">اسلاید جدید</a>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>عنوان</th><th>وضعیت</th><th>ترتیب</th><th>عملیات</th></tr></thead>
+    <tbody>
+    {% for s in slides %}
+    <tr>
+      <td><b>{{ s.title|default:"بدون عنوان" }}</b></td>
+      <td>{% if s.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">غیرفعال</span>{% endif %}</td>
+      <td>{{ s.display_order }}</td>
+      <td style="display:flex;gap:6px">
+        <a class="btn btn-sm" href="{% url 'dashboard:hero-edit' s.pk %}">ویرایش</a>
+        <form method="post" action="{% url 'dashboard:hero-toggle' s.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">{% if s.is_active %}غیرفعال{% else %}فعال{% endif %}</button></form>
+        <form method="post" action="{% url 'dashboard:hero-delete' s.pk %}" style="display:inline" onsubmit="return confirm('حذف؟')">{% csrf_token %}<button class="btn btn-sm btn-danger">حذف</button></form>
+      </td>
+    </tr>
+    {% empty %}<tr><td colspan="4" style="color:var(--muted)">اسلایدی ثبت نشده</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}
