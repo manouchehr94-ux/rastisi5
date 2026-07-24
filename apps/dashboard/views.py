@@ -7,6 +7,7 @@ from django.db import IntegrityError
 from django.db.models import Count, ProtectedError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
@@ -1255,10 +1256,16 @@ def social_link_form(request, pk=None):
     })
 
 
-@require_POST
 @staff_required
 def social_link_delete(request, pk):
     link = get_object_or_404(SocialLink, pk=pk)
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "لینک شبکه اجتماعی",
+            "object_name": link.title,
+            "cancel_url": reverse("dashboard:social-link-list"),
+            "active_page": "social_links",
+        })
     title = link.title
     link.delete()
     messages.success(request, f"لینک «{title}» حذف شد")
@@ -1304,9 +1311,12 @@ def menu_form(request, pk=None):
         try:
             obj.full_clean()
             obj.save()
-            action = "ویرایش" if pk else "ایجاد"
-            messages.success(request, f"منوی «{obj.title}» با موفقیت {action} شد")
-            return redirect("dashboard:menu-list")
+            if pk:
+                messages.success(request, f"منوی «{obj.title}» با موفقیت ویرایش شد")
+                return redirect("dashboard:menu-list")
+            else:
+                messages.success(request, f"منوی «{obj.title}» ایجاد شد. اکنون آیتم‌ها را اضافه کنید.")
+                return redirect("dashboard:menu-item-list", menu_id=obj.pk)
         except (ValidationError, IntegrityError) as exc:
             if hasattr(exc, "message_dict"):
                 msg = " ".join(
@@ -1325,10 +1335,17 @@ def menu_form(request, pk=None):
     })
 
 
-@require_POST
 @staff_required
 def menu_delete(request, pk):
     menu = get_object_or_404(Menu, pk=pk)
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "منو",
+            "object_name": menu.title,
+            "cancel_url": reverse("dashboard:menu-list"),
+            "consequence": "تمام آیتم‌های این منو نیز حذف خواهند شد.",
+            "active_page": "menus",
+        })
     if menu.items.exists():
         messages.error(request, f"منوی «{menu.title}» دارای آیتم است و قابل حذف نیست. ابتدا آیتم‌ها را حذف کنید.")
         return redirect("dashboard:menu-list")
@@ -1438,11 +1455,17 @@ def menu_item_form(request, menu_id=None, pk=None):
     })
 
 
-@require_POST
 @staff_required
 def menu_item_delete(request, pk):
     item = get_object_or_404(MenuItem, pk=pk)
     menu_id = item.menu_id
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "آیتم منو",
+            "object_name": item.title,
+            "cancel_url": reverse("dashboard:menu-item-list", args=[menu_id]),
+            "active_page": "menus",
+        })
     try:
         item.delete()
         messages.success(request, f"آیتم «{item.title}» حذف شد")
@@ -1562,12 +1585,18 @@ def footer_trust_badge_form(request, pk=None):
     })
 
 
-@require_POST
 @staff_required
 def footer_trust_badge_delete(request, pk):
     from django.db import transaction
 
     badge = get_object_or_404(FooterTrustBadge, pk=pk)
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "نماد اعتماد",
+            "object_name": badge.title,
+            "cancel_url": reverse("dashboard:footer-trust-badge-list"),
+            "active_page": "footer",
+        })
     image_name = badge.image.name if badge.image else None
     storage = badge.image.storage if badge.image else None
     title = badge.title
@@ -1647,12 +1676,18 @@ def footer_payment_logo_form(request, pk=None):
     })
 
 
-@require_POST
 @staff_required
 def footer_payment_logo_delete(request, pk):
     from django.db import transaction
 
     logo = get_object_or_404(FooterPaymentLogo, pk=pk)
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "لوگوی پرداخت",
+            "object_name": logo.title,
+            "cancel_url": reverse("dashboard:footer-payment-logo-list"),
+            "active_page": "footer",
+        })
     image_name = logo.image.name if logo.image else None
     storage = logo.image.storage if logo.image else None
     title = logo.title

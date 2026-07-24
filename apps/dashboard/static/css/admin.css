@@ -280,7 +280,7 @@ body.admin-body{
 .warning-box{background:var(--amber-soft);border:1px solid color-mix(in srgb,var(--amber) 20%,transparent);border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:12.5px;line-height:1.7}
 
 /* --- form card --- */
-.form-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;max-width:640px}
+.form-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;max-width:680px}
 
 /* --- form sections --- */
 .form-section{margin-bottom:24px;padding-bottom:20px;border-bottom:1px dashed var(--border)}
@@ -329,7 +329,9 @@ body.admin-body{
 
 /* --- responsive content width --- */
 .content{max-width:1100px}
-.form-card{max-width:640px}
+.form-card{max-width:680px}
+.form-card--wide{max-width:960px}
+.form-card--compact{max-width:540px}
 
 /* --- sidebar width fix (reduce excessive width) --- */
 .sidebar{width:230px}
