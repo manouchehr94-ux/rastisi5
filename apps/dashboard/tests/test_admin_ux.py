@@ -270,3 +270,49 @@ class DeleteConfirmationFullTests(TestCase):
             resp = self.client.get(url)
             self.assertEqual(resp.status_code, 302)
             self.assertIn("/admin-panel/login/", resp.url)
+
+
+
+class AriaInvalidTests(TestCase):
+    """تست aria-invalid برای فیلدهای نامعتبر."""
+    def setUp(self):
+        self.staff = User.objects.create_user(username="ux_aria", password="p!", is_staff=True)
+        self.client.login(username="ux_aria", password="p!")
+
+    def test_invalid_social_link_url_renders_aria_invalid(self):
+        resp = self.client.post(reverse("dashboard:social-link-add"), {
+            "platform": "custom", "title": "Test",
+            "url": "javascript:alert(1)", "display_order": "0",
+            "is_active": "on", "show_in_footer": "on",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'aria-invalid="true"')
+
+    def test_invalid_menu_location_renders_aria_invalid(self):
+        Menu.objects.create(title="Exists", location="header")
+        resp = self.client.post(reverse("dashboard:menu-add"), {
+            "title": "Dup", "location": "header", "is_active": "on",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'aria-invalid="true"')
+
+    def test_invalid_footer_phone_renders_aria_invalid(self):
+        resp = self.client.post(reverse("dashboard:footer-settings"), {
+            "is_enabled": "on", "show_branding": "on", "show_contact": "on",
+            "phone": "<script>alert(1)</script>",
+            "show_navigation": "on", "show_social_links": "on",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'aria-invalid="true"')
+
+    def test_aria_describedby_includes_error_id(self):
+        resp = self.client.post(reverse("dashboard:social-link-add"), {
+            "platform": "custom", "title": "Test",
+            "url": "not-a-url", "display_order": "0",
+            "is_active": "on", "show_in_footer": "on",
+        })
+        self.assertContains(resp, "error_url")
+
+    def test_valid_fields_no_aria_invalid(self):
+        resp = self.client.get(reverse("dashboard:social-link-add"))
+        self.assertNotContains(resp, 'aria-invalid="true"')

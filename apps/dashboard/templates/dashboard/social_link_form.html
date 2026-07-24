@@ -8,27 +8,31 @@
     {% csrf_token %}
     <div class="field-group">
       <label class="field-label required" for="id_platform">پلتفرم</label>
-      <select name="platform" id="id_platform" class="form-select" aria-describedby="help_platform">
+      <select name="platform" id="id_platform" class="form-select" aria-describedby="help_platform{% if field_errors.platform %} error_platform{% endif %}" {% if field_errors.platform %}aria-invalid="true"{% endif %}>
         {% for val, label in platforms %}
         <option value="{{ val }}" {% if link.platform == val %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
       <span class="field-help" id="help_platform">شبکه اجتماعی مورد نظر را انتخاب کنید. آیکون مربوطه به صورت خودکار نمایش داده می‌شود.</span>
+      {% if field_errors.platform %}<span class="field-error" id="error_platform">{{ field_errors.platform }}</span>{% endif %}
     </div>
     <div class="field-group">
       <label class="field-label required" for="id_title">عنوان (برچسب دسترسی‌پذیری)</label>
-      <input type="text" name="title" id="id_title" value="{{ link.title|default:'' }}" required maxlength="100" class="form-input" aria-describedby="help_title">
+      <input type="text" name="title" id="id_title" value="{{ link.title|default:'' }}" required maxlength="100" class="form-input" aria-describedby="help_title{% if field_errors.title %} error_title{% endif %}" {% if field_errors.title %}aria-invalid="true"{% endif %}>
       <span class="field-help" id="help_title">عنوانی که برای دسترسی‌پذیری (accessibility) و هاور آیکون نمایش داده می‌شود.</span>
+      {% if field_errors.title %}<span class="field-error" id="error_title">{{ field_errors.title }}</span>{% endif %}
     </div>
     <div class="field-group">
       <label class="field-label required" for="id_url">آدرس (URL)</label>
-      <input type="url" name="url" id="id_url" value="{{ link.url|default:'' }}" required maxlength="500" dir="ltr" placeholder="https://..." class="form-input" aria-describedby="help_url">
+      <input type="url" name="url" id="id_url" value="{{ link.url|default:'' }}" required maxlength="500" dir="ltr" placeholder="https://..." class="form-input" aria-describedby="help_url{% if field_errors.url %} error_url{% endif %}" {% if field_errors.url %}aria-invalid="true"{% endif %}>
       <span class="field-help" id="help_url">آدرس کامل صفحه شما در شبکه اجتماعی. مثلاً: https://instagram.com/your_shop</span>
+      {% if field_errors.url %}<span class="field-error" id="error_url">{{ field_errors.url }}</span>{% endif %}
     </div>
     <div class="field-group">
       <label class="field-label" for="id_display_order">ترتیب نمایش</label>
-      <input type="number" name="display_order" id="id_display_order" value="{{ link.display_order|default:'0' }}" min="0" class="form-input" style="max-width:120px" aria-describedby="help_display_order">
+      <input type="number" name="display_order" id="id_display_order" value="{{ link.display_order|default:'0' }}" min="0" class="form-input" style="max-width:120px" aria-describedby="help_display_order{% if field_errors.display_order %} error_display_order{% endif %}" {% if field_errors.display_order %}aria-invalid="true"{% endif %}>
       <span class="field-help" id="help_display_order">لینک‌ها بر اساس این عدد مرتب می‌شوند. عدد کمتر = نمایش زودتر.</span>
+      {% if field_errors.display_order %}<span class="field-error" id="error_display_order">{{ field_errors.display_order }}</span>{% endif %}
     </div>
     <label class="toggle-field">
       <input type="checkbox" name="show_in_header" {% if link.show_in_header %}checked{% endif %}>

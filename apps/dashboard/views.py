@@ -1223,6 +1223,7 @@ def social_link_list(request):
 @staff_required
 def social_link_form(request, pk=None):
     link = get_object_or_404(SocialLink, pk=pk) if pk else None
+    field_errors = {}
 
     if request.method == "POST":
         obj = link or SocialLink()
@@ -1242,10 +1243,8 @@ def social_link_form(request, pk=None):
             return redirect("dashboard:social-link-list")
         except (ValidationError, IntegrityError) as exc:
             if hasattr(exc, "message_dict"):
-                msg = " ".join(
-                    v[0] if isinstance(v, list) else str(v)
-                    for v in exc.message_dict.values()
-                )
+                field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                msg = " ".join(field_errors.values())
             else:
                 msg = str(exc)
             messages.error(request, msg)
@@ -1253,6 +1252,7 @@ def social_link_form(request, pk=None):
     platforms = SocialLink.Platform.choices
     return render(request, "dashboard/social_link_form.html", {
         "link": link, "active_page": "social_links", "platforms": platforms,
+        "field_errors": field_errors,
     })
 
 
@@ -1301,6 +1301,7 @@ def menu_list(request):
 @staff_required
 def menu_form(request, pk=None):
     menu = get_object_or_404(Menu, pk=pk) if pk else None
+    field_errors = {}
 
     if request.method == "POST":
         obj = menu or Menu()
@@ -1319,12 +1320,11 @@ def menu_form(request, pk=None):
                 return redirect("dashboard:menu-item-list", menu_id=obj.pk)
         except (ValidationError, IntegrityError) as exc:
             if hasattr(exc, "message_dict"):
-                msg = " ".join(
-                    v[0] if isinstance(v, list) else str(v)
-                    for v in exc.message_dict.values()
-                )
+                field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                msg = " ".join(field_errors.values())
             elif "UNIQUE constraint" in str(exc) or "unique" in str(exc).lower():
                 msg = "این مکان قبلاً دارای منو است. هر مکان فقط یک منو می‌تواند داشته باشد."
+                field_errors = {"location": msg}
             else:
                 msg = str(exc)
             messages.error(request, msg)
@@ -1332,6 +1332,7 @@ def menu_form(request, pk=None):
     locations = Menu.Location.choices
     return render(request, "dashboard/menu_form.html", {
         "menu": menu, "active_page": "menus", "locations": locations,
+        "field_errors": field_errors,
     })
 
 
@@ -1406,6 +1407,8 @@ def menu_item_form(request, menu_id=None, pk=None):
         menu = get_object_or_404(Menu, pk=menu_id)
         item = None
 
+    field_errors = {}
+
     if request.method == "POST":
         obj = item or MenuItem(menu=menu)
         obj.title = request.POST.get("title", "").strip()
@@ -1435,10 +1438,8 @@ def menu_item_form(request, menu_id=None, pk=None):
             return redirect("dashboard:menu-item-list", menu_id=menu.pk)
         except (ValidationError, IntegrityError) as exc:
             if hasattr(exc, "message_dict"):
-                msg = " ".join(
-                    v[0] if isinstance(v, list) else str(v)
-                    for v in exc.message_dict.values()
-                )
+                field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                msg = " ".join(field_errors.values())
             else:
                 msg = str(exc)
             messages.error(request, msg)
@@ -1452,6 +1453,7 @@ def menu_item_form(request, menu_id=None, pk=None):
     return render(request, "dashboard/menu_item_form.html", {
         "item": item, "menu": menu, "active_page": "menus",
         "parent_options": parent_options, "categories": categories,
+        "field_errors": field_errors,
     })
 
 
@@ -1495,6 +1497,7 @@ from apps.content.models import FooterSettings, FooterTrustBadge, FooterPaymentL
 @staff_required
 def footer_settings_page(request):
     fs = FooterSettings.load()
+    field_errors = {}
 
     if request.method == "POST":
         fs.is_enabled = request.POST.get("is_enabled") == "on"
@@ -1522,7 +1525,11 @@ def footer_settings_page(request):
             messages.success(request, "تنظیمات فوتر ذخیره شد")
             return redirect("dashboard:footer-settings")
         except ValidationError as exc:
-            msg = str(exc.message_dict if hasattr(exc, "message_dict") else exc)
+            if hasattr(exc, "message_dict"):
+                field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                msg = " ".join(field_errors.values())
+            else:
+                msg = str(exc)
             messages.error(request, msg)
             open_sections = {"general"}
             if hasattr(exc, "message_dict"):
@@ -1537,10 +1544,12 @@ def footer_settings_page(request):
                         open_sections.add(field_section_map[field])
             return render(request, "dashboard/footer_settings.html", {
                 "fs": fs, "active_page": "footer", "open_sections": open_sections,
+                "field_errors": field_errors,
             })
 
     return render(request, "dashboard/footer_settings.html", {
         "fs": fs, "active_page": "footer",
+        "field_errors": field_errors,
     })
 
 
@@ -1557,6 +1566,7 @@ def footer_trust_badge_form(request, pk=None):
     from django.db import transaction
 
     badge = get_object_or_404(FooterTrustBadge, pk=pk) if pk else None
+    field_errors = {}
 
     if request.method == "POST":
         obj = badge or FooterTrustBadge()
@@ -1586,16 +1596,15 @@ def footer_trust_badge_form(request, pk=None):
             return redirect("dashboard:footer-trust-badge-list")
         except (ValidationError, IntegrityError) as exc:
             if hasattr(exc, "message_dict"):
-                msg = " ".join(
-                    v[0] if isinstance(v, list) else str(v)
-                    for v in exc.message_dict.values()
-                )
+                field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                msg = " ".join(field_errors.values())
             else:
                 msg = str(exc)
             messages.error(request, msg)
 
     return render(request, "dashboard/footer_trust_badge_form.html", {
         "badge": badge, "active_page": "footer",
+        "field_errors": field_errors,
     })
 
 
@@ -1649,6 +1658,7 @@ def footer_payment_logo_form(request, pk=None):
     from django.db import transaction
 
     logo = get_object_or_404(FooterPaymentLogo, pk=pk) if pk else None
+    field_errors = {}
 
     if request.method == "POST":
         obj = logo or FooterPaymentLogo()
@@ -1677,16 +1687,15 @@ def footer_payment_logo_form(request, pk=None):
             return redirect("dashboard:footer-payment-logo-list")
         except (ValidationError, IntegrityError) as exc:
             if hasattr(exc, "message_dict"):
-                msg = " ".join(
-                    v[0] if isinstance(v, list) else str(v)
-                    for v in exc.message_dict.values()
-                )
+                field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                msg = " ".join(field_errors.values())
             else:
                 msg = str(exc)
             messages.error(request, msg)
 
     return render(request, "dashboard/footer_payment_logo_form.html", {
         "logo": logo, "active_page": "footer",
+        "field_errors": field_errors,
     })
 
 

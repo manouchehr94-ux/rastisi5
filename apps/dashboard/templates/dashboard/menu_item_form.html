@@ -8,47 +8,53 @@
     {% csrf_token %}
     <div class="field-group">
       <label class="field-label required" for="id_title">عنوان</label>
-      <input type="text" name="title" id="id_title" value="{{ item.title|default:'' }}" required maxlength="200" class="form-input" aria-describedby="help_title">
+      <input type="text" name="title" id="id_title" value="{{ item.title|default:'' }}" required maxlength="200" class="form-input" aria-describedby="help_title{% if field_errors.title %} error_title{% endif %}" {% if field_errors.title %}aria-invalid="true"{% endif %}>
       <span class="field-help" id="help_title">متنی که کاربر در منو مشاهده می‌کند.</span>
+      {% if field_errors.title %}<span class="field-error" id="error_title">{{ field_errors.title }}</span>{% endif %}
     </div>
     <div class="field-group">
       <label class="field-label" for="id_parent">آیتم والد (اختیاری)</label>
-      <select name="parent" id="id_parent" class="form-select" aria-describedby="help_parent">
+      <select name="parent" id="id_parent" class="form-select" aria-describedby="help_parent{% if field_errors.parent %} error_parent{% endif %}" {% if field_errors.parent %}aria-invalid="true"{% endif %}>
         <option value="">— بدون والد (سطح اول) —</option>
         {% for p in parent_options %}
         <option value="{{ p.pk }}" {% if item.parent_id == p.pk %}selected{% endif %}>{{ p.title }}</option>
         {% endfor %}
       </select>
       <span class="field-help" id="help_parent">اگر می‌خواهید این آیتم زیرمجموعه آیتم دیگری باشد، والد آن را انتخاب کنید.</span>
+      {% if field_errors.parent %}<span class="field-error" id="error_parent">{{ field_errors.parent }}</span>{% endif %}
     </div>
     <div class="field-group">
       <label class="field-label" for="id_destination_type">نوع مقصد</label>
-      <select name="destination_type" id="id_destination_type" class="form-select" aria-describedby="help_destination_type">
+      <select name="destination_type" id="id_destination_type" class="form-select" aria-describedby="help_destination_type{% if field_errors.destination_type %} error_destination_type{% endif %}" {% if field_errors.destination_type %}aria-invalid="true"{% endif %}>
         <option value="none" {% if item.destination_type == "none" or not item %}selected{% endif %}>بدون مقصد</option>
         <option value="category" {% if item.destination_type == "category" %}selected{% endif %}>دسته‌بندی</option>
         <option value="external" {% if item.destination_type == "external" %}selected{% endif %}>لینک خارجی</option>
       </select>
       <span class="field-help" id="help_destination_type">مشخص کنید کلیک روی این آیتم به کجا هدایت شود: یک دسته‌بندی داخلی یا لینک خارجی.</span>
+      {% if field_errors.destination_type %}<span class="field-error" id="error_destination_type">{{ field_errors.destination_type }}</span>{% endif %}
     </div>
     <div class="field-group">
       <label class="field-label" for="id_destination_category">دسته‌بندی مقصد</label>
-      <select name="destination_category" id="id_destination_category" class="form-select" aria-describedby="help_destination_category">
+      <select name="destination_category" id="id_destination_category" class="form-select" aria-describedby="help_destination_category{% if field_errors.destination_category %} error_destination_category{% endif %}" {% if field_errors.destination_category %}aria-invalid="true"{% endif %}>
         <option value="">—</option>
         {% for cat in categories %}
         <option value="{{ cat.pk }}" {% if item.destination_category_id == cat.pk %}selected{% endif %}>{{ cat.name }}</option>
         {% endfor %}
       </select>
       <span class="field-help" id="help_destination_category">اگر نوع مقصد «دسته‌بندی» است، دسته مورد نظر را انتخاب کنید.</span>
+      {% if field_errors.destination_category %}<span class="field-error" id="error_destination_category">{{ field_errors.destination_category }}</span>{% endif %}
     </div>
     <div class="field-group">
       <label class="field-label" for="id_destination_external_url">آدرس لینک خارجی</label>
-      <input type="url" name="destination_external_url" id="id_destination_external_url" value="{{ item.destination_external_url|default:'' }}" maxlength="500" dir="ltr" placeholder="https://..." class="form-input" aria-describedby="help_destination_external_url">
+      <input type="url" name="destination_external_url" id="id_destination_external_url" value="{{ item.destination_external_url|default:'' }}" maxlength="500" dir="ltr" placeholder="https://..." class="form-input" aria-describedby="help_destination_external_url{% if field_errors.destination_external_url %} error_destination_external_url{% endif %}" {% if field_errors.destination_external_url %}aria-invalid="true"{% endif %}>
       <span class="field-help" id="help_destination_external_url">اگر نوع مقصد «لینک خارجی» است، آدرس کامل URL را وارد کنید. مثلاً: https://example.com</span>
+      {% if field_errors.destination_external_url %}<span class="field-error" id="error_destination_external_url">{{ field_errors.destination_external_url }}</span>{% endif %}
     </div>
     <div class="field-group">
       <label class="field-label" for="id_display_order">ترتیب نمایش</label>
-      <input type="number" name="display_order" id="id_display_order" value="{{ item.display_order|default:'0' }}" min="0" class="form-input" style="max-width:120px" aria-describedby="help_display_order">
+      <input type="number" name="display_order" id="id_display_order" value="{{ item.display_order|default:'0' }}" min="0" class="form-input" style="max-width:120px" aria-describedby="help_display_order{% if field_errors.display_order %} error_display_order{% endif %}" {% if field_errors.display_order %}aria-invalid="true"{% endif %}>
       <span class="field-help" id="help_display_order">آیتم‌ها بر اساس این عدد مرتب می‌شوند. عدد کمتر = نمایش زودتر.</span>
+      {% if field_errors.display_order %}<span class="field-error" id="error_display_order">{{ field_errors.display_order }}</span>{% endif %}
     </div>
     <label class="toggle-field">
       <input type="checkbox" name="is_active" {% if item.is_active or not item %}checked{% endif %}>
