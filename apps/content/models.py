@@ -21,6 +21,20 @@ from django.db import models
 
 from apps.core.models import TimeStampedModel
 
+# ---------------------------------------------------------------- محدودیت حجم تصویر
+
+HOMEPAGE_MEDIA_MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MiB
+
+
+def validate_image_size(value):
+    """اعتبارسنجی حجم فایل تصویر — حداکثر ۵ مگابایت."""
+    if value and hasattr(value, 'size') and value.size > HOMEPAGE_MEDIA_MAX_UPLOAD_BYTES:
+        limit_mb = HOMEPAGE_MEDIA_MAX_UPLOAD_BYTES / (1024 * 1024)
+        raise ValidationError(
+            f"حجم تصویر نباید بیشتر از {limit_mb:.0f} مگابایت باشد. "
+            f"حجم فعلی: {value.size / (1024 * 1024):.1f} مگابایت."
+        )
+
 # طرح‌های مجاز برای لینک خارجی
 ALLOWED_SCHEMES = ["https", "http", "mailto", "tel"]
 
@@ -229,3 +243,63 @@ class ContentPage(TimeStampedModel):
     def get_absolute_url(self):
         from django.urls import reverse
         return reverse("content:page-detail", args=[self.slug])
+
+
+
+# ---------------------------------------------------------------- محتوای صفحه اصلی
+
+
+class HeroSlide(TimeStampedModel, DestinationMixin):
+    """اسلاید اصلی صفحه اول — تصویر + متن + دکمه‌ی CTA."""
+
+    title = models.CharField("عنوان", max_length=200, blank=True)
+    subtitle = models.CharField("زیرعنوان", max_length=300, blank=True)
+    desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/hero/", validators=[validate_image_size])
+    mobile_image = models.ImageField("تصویر موبایل", upload_to="homepage/hero/", blank=True, validators=[validate_image_size])
+    button_label = models.CharField("متن دکمه", max_length=60, blank=True)
+    show_button = models.BooleanField("نمایش دکمه", default=False)
+    is_active = models.BooleanField("فعال", default=True)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "اسلاید اصلی"
+        verbose_name_plural = "اسلایدهای اصلی"
+        ordering = ["display_order", "id"]
+
+    def __str__(self):
+        return self.title or f"اسلاید #{self.pk}"
+
+    def clean(self):
+        super().clean()
+        if self.show_button and not self.button_label:
+            raise ValidationError({"button_label": "وقتی دکمه فعال است، متن دکمه الزامی است"})
+        if self.show_button and self.destination_type == DestinationType.NONE:
+            raise ValidationError({"destination_type": "وقتی دکمه فعال است، مقصد باید انتخاب شود"})
+
+
+class PromotionalBanner(TimeStampedModel, DestinationMixin):
+    """بنر تبلیغاتی صفحه اصلی."""
+
+    title = models.CharField("عنوان", max_length=200, blank=True)
+    description = models.CharField("توضیحات", max_length=500, blank=True)
+    desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/banners/", validators=[validate_image_size])
+    mobile_image = models.ImageField("تصویر موبایل", upload_to="homepage/banners/", blank=True, validators=[validate_image_size])
+    button_label = models.CharField("متن دکمه", max_length=60, blank=True)
+    show_button = models.BooleanField("نمایش دکمه", default=False)
+    is_active = models.BooleanField("فعال", default=True)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "بنر تبلیغاتی"
+        verbose_name_plural = "بنرهای تبلیغاتی"
+        ordering = ["display_order", "id"]
+
+    def __str__(self):
+        return self.title or f"بنر #{self.pk}"
+
+    def clean(self):
+        super().clean()
+        if self.show_button and not self.button_label:
+            raise ValidationError({"button_label": "وقتی دکمه فعال است، متن دکمه الزامی است"})
+        if self.show_button and self.destination_type == DestinationType.NONE:
+            raise ValidationError({"destination_type": "وقتی دکمه فعال است، مقصد باید انتخاب شود"})

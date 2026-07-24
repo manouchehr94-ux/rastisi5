@@ -66,4 +66,16 @@ urlpatterns = [
     path("pages/<int:pk>/edit/", views.page_form, name="page-edit"),
     path("pages/<int:pk>/delete/", views.page_delete, name="page-delete"),
     path("pages/<int:pk>/publish/", views.page_publish, name="page-publish"),
+
+    # --- صفحه اصلی ---
+    path("homepage/hero/", views.hero_list, name="hero-list"),
+    path("homepage/hero/add/", views.hero_form, name="hero-add"),
+    path("homepage/hero/<int:pk>/edit/", views.hero_form, name="hero-edit"),
+    path("homepage/hero/<int:pk>/delete/", views.hero_delete, name="hero-delete"),
+    path("homepage/hero/<int:pk>/toggle/", views.hero_toggle, name="hero-toggle"),
+    path("homepage/banners/", views.banner_list, name="banner-list"),
+    path("homepage/banners/add/", views.banner_form, name="banner-add"),
+    path("homepage/banners/<int:pk>/edit/", views.banner_form, name="banner-edit"),
+    path("homepage/banners/<int:pk>/delete/", views.banner_delete, name="banner-delete"),
+    path("homepage/banners/<int:pk>/toggle/", views.banner_toggle, name="banner-toggle"),
 ]
