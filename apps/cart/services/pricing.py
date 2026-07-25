@@ -17,14 +17,14 @@ def product_final_price(product) -> Decimal:
     return product.final_price
 
 
-def _free_shipping_threshold() -> Decimal:
-    """آستانه‌ی ارسال رایگان — همان مقداری که در پنل مدیریت › تنظیمات ثبت شده (apps.core.models.ShopSettings)."""
-    return ShopSettings.load().free_shipping_threshold
+def _free_shipping_threshold(store) -> Decimal:
+    """آستانه‌ی ارسال رایگان همان Store — از apps.core.models.ShopSettings."""
+    return ShopSettings.load(store=store).free_shipping_threshold
 
 
-def _tax_percent() -> Decimal:
-    """نرخ مالیات — همان مقداری که در پنل مدیریت › تنظیمات ثبت شده (apps.core.models.ShopSettings)."""
-    return ShopSettings.load().tax_percent
+def _tax_percent(store) -> Decimal:
+    """نرخ مالیات همان Store — از apps.core.models.ShopSettings."""
+    return ShopSettings.load(store=store).tax_percent
 
 
 def _round(amount: Decimal) -> Decimal:
@@ -46,12 +46,22 @@ def coupon_is_applicable(coupon: Coupon, items_total: Decimal) -> bool:
     return True
 
 
-def cart_totals(cart, coupon: Coupon | None = None, shipping_method=None) -> dict:
+def cart_totals(cart, *, store, coupon: Coupon | None = None, shipping_method=None) -> dict:
     """جمع کامل سبد خرید را طبق قواعد کسب‌وکار محاسبه می‌کند.
+
+    ``store`` الزامی و صریح است — تنظیمات مالیات/ارسال رایگان همیشه از همان
+    Store خوانده می‌شود که فراخوان (view/سرویس) از قبل resolve کرده؛ این تابع
+    هرگز خودش از روی Host یا حالت سازگاری Store را حدس نمی‌زند.
 
     خروجی: items_total, product_discount, coupon_discount, shipping_cost,
     free_shipping (bool), tax, grand_total, coupon_applied (bool)
     """
+    if store is None:
+        raise ValueError(
+            "cart_totals() requires an explicit store; callers must resolve "
+            "it via apps.stores.resolution.resolve_store_for_service(request) "
+            "or an equivalent authoritative source before pricing a cart."
+        )
     items = list(cart.items.select_related("product").all())
 
     raw_total = Decimal("0")
@@ -75,7 +85,7 @@ def cart_totals(cart, coupon: Coupon | None = None, shipping_method=None) -> dic
 
     after_coupon = items_total - coupon_discount
 
-    free_by_threshold = items_total >= _free_shipping_threshold()
+    free_by_threshold = items_total >= _free_shipping_threshold(store)
     free_shipping = free_by_threshold or free_shipping_by_coupon
 
     if free_shipping or shipping_method is None:
@@ -83,7 +93,7 @@ def cart_totals(cart, coupon: Coupon | None = None, shipping_method=None) -> dic
     else:
         shipping_cost = shipping_method.cost
 
-    tax = _round(after_coupon * _tax_percent() / Decimal("100"))
+    tax = _round(after_coupon * _tax_percent(store) / Decimal("100"))
     grand_total = after_coupon + shipping_cost + tax
 
     return {

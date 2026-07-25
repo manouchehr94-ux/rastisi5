@@ -8,8 +8,13 @@ from apps.catalog.models import Vendor
 from apps.orders.models import Order, PaymentGateway, ShippingMethod, Transaction
 from apps.orders.services.payment_service import detect_bank, simulate_payment
 from apps.sms.models import SmsLog, SmsTemplate
+from apps.stores.models import Store
 
 User = get_user_model()
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
 
 
 class DetectBankTests(TestCase):
@@ -33,6 +38,7 @@ class DetectBankTests(TestCase):
 
 class SimulatePaymentTests(TestCase):
     def setUp(self):
+        self.store = _akhlaghi()
         self.user = User.objects.create_user(username="vahid", password="pass12345")
         self.customer = Customer.objects.create(user=self.user, full_name="وحید نوری", phone="09127770000")
         self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-pay")
@@ -45,7 +51,7 @@ class SimulatePaymentTests(TestCase):
         )
 
     def test_successful_payment_creates_ok_transaction_and_advances_order(self):
-        tx = simulate_payment(self.order, True)
+        tx = simulate_payment(self.order, True, store=self.store)
         self.order.refresh_from_db()
 
         self.assertEqual(tx.status, Transaction.Status.OK)
@@ -56,7 +62,7 @@ class SimulatePaymentTests(TestCase):
         self.assertEqual(self.order.status_history.count(), 1)
 
     def test_failed_payment_creates_fail_transaction_and_keeps_order_pending(self):
-        tx = simulate_payment(self.order, False)
+        tx = simulate_payment(self.order, False, store=self.store)
         self.order.refresh_from_db()
 
         self.assertEqual(tx.status, Transaction.Status.FAIL)
@@ -65,21 +71,21 @@ class SimulatePaymentTests(TestCase):
         self.assertEqual(self.order.status_history.count(), 0)
 
     def test_transaction_code_is_unique_across_payments(self):
-        tx1 = simulate_payment(self.order, False)
+        tx1 = simulate_payment(self.order, False, store=self.store)
         self.order.payment_status = Order.PaymentStatus.PENDING
         self.order.save(update_fields=["payment_status"])
-        tx2 = simulate_payment(self.order, False)
+        tx2 = simulate_payment(self.order, False, store=self.store)
         self.assertNotEqual(tx1.code, tx2.code)
 
     def test_cannot_pay_an_already_paid_order(self):
-        simulate_payment(self.order, True)
+        simulate_payment(self.order, True, store=self.store)
         with self.assertRaises(ValueError):
-            simulate_payment(self.order, True)
+            simulate_payment(self.order, True, store=self.store)
 
     def test_successful_payment_sends_payment_success_sms(self):
         SmsTemplate.ensure_defaults()
         with self.captureOnCommitCallbacks(execute=True):
-            simulate_payment(self.order, True)
+            simulate_payment(self.order, True, store=self.store)
         self.assertTrue(
             SmsLog.objects.filter(event_key="payment_success", recipient=self.customer.phone).exists()
         )
@@ -91,7 +97,7 @@ class SimulatePaymentTests(TestCase):
     def test_failed_payment_sends_payment_failed_sms(self):
         SmsTemplate.ensure_defaults()
         with self.captureOnCommitCallbacks(execute=True):
-            simulate_payment(self.order, False)
+            simulate_payment(self.order, False, store=self.store)
         self.assertTrue(
             SmsLog.objects.filter(event_key="payment_failed", recipient=self.customer.phone).exists()
         )

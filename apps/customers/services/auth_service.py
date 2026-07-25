@@ -32,7 +32,8 @@ class AuthError(Exception):
 
 
 @transaction.atomic
-def signup(*, full_name: str, phone: str, password: str) -> Customer:
+def signup(*, full_name: str, phone: str, password: str, store) -> Customer:
+    """``store`` الزامی است — همان Store که برای پیامک خوش‌آمدگویی استفاده می‌شود."""
     if Customer.objects.filter(phone=phone).exists() or User.objects.filter(username=phone).exists():
         raise AuthError("این شماره موبایل قبلاً ثبت‌نام کرده است")
     try:
@@ -43,24 +44,25 @@ def signup(*, full_name: str, phone: str, password: str) -> Customer:
     user = User.objects.create_user(username=phone, password=password)
     customer = Customer.objects.create(user=user, full_name=full_name, phone=phone)
     transaction.on_commit(
-        lambda: send_event_sms(SmsEvent.WELCOME, phone, {"customer_name": full_name})
+        lambda: send_event_sms(SmsEvent.WELCOME, phone, {"customer_name": full_name}, store=store)
     )
     return customer
 
 
 @transaction.atomic
-def create_account_for_guest(*, full_name: str, phone: str) -> Customer:
+def create_account_for_guest(*, full_name: str, phone: str, store) -> Customer:
     """برای مهمانی که در تسویه‌حساب با شماره‌ی بدون حساب خرید می‌کند، حساب خودکار می‌سازد.
 
     رمز عبور تصادفی و امن تولید می‌شود (کاربر هرگز آن را نمی‌بیند)؛ ورودهای
     بعدی این کاربر معمولاً از طریق کد یکبار مصرف پیامکی (نه رمز) خواهد بود،
-    پس نیازی به validate_password روی رمز تصادفی خودمان نیست.
+    پس نیازی به validate_password روی رمز تصادفی خودمان نیست. ``store``
+    الزامی است — همان Store که برای پیامک خوش‌آمدگویی استفاده می‌شود.
     """
     random_password = get_random_string(GUEST_PASSWORD_LENGTH)
     user = User.objects.create_user(username=phone, password=random_password)
     customer = Customer.objects.create(user=user, full_name=full_name, phone=phone)
     transaction.on_commit(
-        lambda: send_event_sms(SmsEvent.WELCOME, phone, {"customer_name": full_name})
+        lambda: send_event_sms(SmsEvent.WELCOME, phone, {"customer_name": full_name}, store=store)
     )
     return customer
 

@@ -93,10 +93,12 @@ class SmsTemplateToggleViewTests(SmsAdminViewsTestCase):
 
     def test_disabled_template_stops_sending(self):
         from apps.sms.services.sms_service import send_event_sms
+        from apps.stores.models import Store
 
         template = SmsTemplate.objects.get(event_key=SmsEvent.WELCOME)
         self.client.post(reverse("dashboard:sms-template-toggle", args=[template.pk]))
-        result = send_event_sms(SmsEvent.WELCOME, "09121234567", {"customer_name": "test"})
+        store = Store.objects.get(slug="akhlaghi")
+        result = send_event_sms(SmsEvent.WELCOME, "09121234567", {"customer_name": "test"}, store=store)
         self.assertIsNone(result)
 
 

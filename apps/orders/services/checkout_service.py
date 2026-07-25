@@ -15,6 +15,7 @@ from apps.cart.models import Coupon
 from apps.cart.services.pricing import cart_totals, coupon_is_applicable
 from apps.customers.models import Address
 from apps.orders.models import PaymentGateway, ShippingMethod
+from apps.stores.resolution import resolve_store_for_service
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ def get_applied_coupon(request, cart):
     if not code:
         return None
     coupon = Coupon.objects.filter(code=code).first()
-    totals = cart_totals(cart)
+    totals = cart_totals(cart, store=resolve_store_for_service(request))
     if coupon is None or not coupon_is_applicable(coupon, totals["items_total"]):
         _state(request).pop("coupon_code", None)
         request.session.modified = True
@@ -111,7 +112,7 @@ def apply_coupon(request, cart, code: str) -> tuple[bool, str]:
     if not code:
         return False, "لطفاً کد تخفیف را وارد کنید"
     coupon = Coupon.objects.filter(code=code).first()
-    totals = cart_totals(cart)
+    totals = cart_totals(cart, store=resolve_store_for_service(request))
     if coupon is None or not coupon_is_applicable(coupon, totals["items_total"]):
         return False, "کد تخفیف نامعتبر است یا منقضی شده"
     _state(request)["coupon_code"] = coupon.code
@@ -168,6 +169,7 @@ def finalize_order(request, cart, customer):
         raise CheckoutError("هیچ درگاه پرداخت فعالی موجود نیست")
 
     coupon = get_applied_coupon(request, cart)
+    store = resolve_store_for_service(request)
 
     try:
         with transaction.atomic():
@@ -175,7 +177,7 @@ def finalize_order(request, cart, customer):
             order = create_order_from_cart(
                 cart, customer=customer, vendor=vendor, address=address,
                 shipping_method=shipping_method, payment_gateway=payment_gateway,
-                coupon=coupon, note=address_data.get("note", ""),
+                coupon=coupon, note=address_data.get("note", ""), store=store,
             )
             cart.items.all().delete()
     except ValueError as exc:
@@ -200,7 +202,9 @@ def build_context(request, cart) -> dict:
         totals = dict(EMPTY_TOTALS)
         item_count = 0
     else:
-        totals = cart_totals(cart, coupon=coupon, shipping_method=selected_shipping)
+        totals = cart_totals(
+            cart, store=resolve_store_for_service(request), coupon=coupon, shipping_method=selected_shipping
+        )
         item_count = sum(item.quantity for item in cart.items.all())
 
     shipping_rows = [

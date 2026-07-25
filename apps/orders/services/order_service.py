@@ -64,8 +64,12 @@ def _snapshot_address(address) -> dict:
 
 
 @transaction.atomic
-def create_order_from_cart(cart, *, customer, vendor, address, shipping_method, payment_gateway, coupon=None, note=""):
-    """سفارش را از روی سبد خرید می‌سازد و همه‌ی مبالغ را اسنپ‌شات می‌کند."""
+def create_order_from_cart(cart, *, customer, vendor, address, shipping_method, payment_gateway, coupon=None, note="", store):
+    """سفارش را از روی سبد خرید می‌سازد و همه‌ی مبالغ را اسنپ‌شات می‌کند.
+
+    ``store`` الزامی است — همان Store که فراخوان (معمولاً
+    ``checkout_service.finalize_order``) از ``request.store`` resolve کرده؛
+    برای قیمت‌گذاری (``cart_totals``) و پیامک ثبت سفارش استفاده می‌شود."""
     items = list(cart.items.select_related("product", "variant"))
     if not items:
         raise ValueError("سبد خرید خالی است")
@@ -74,7 +78,7 @@ def create_order_from_cart(cart, *, customer, vendor, address, shipping_method, 
         if item.quantity > item.product.stock:
             raise ValueError(f"موجودی «{item.product.name}» کافی نیست")
 
-    totals = cart_totals(cart, coupon=coupon, shipping_method=shipping_method)
+    totals = cart_totals(cart, store=store, coupon=coupon, shipping_method=shipping_method)
 
     order = Order.objects.create(
         code=_generate_order_code(),
@@ -115,7 +119,9 @@ def create_order_from_cart(cart, *, customer, vendor, address, shipping_method, 
         coupon.save(update_fields=["used_count"])
 
     transaction.on_commit(
-        lambda: send_event_sms(SmsEvent.ORDER_PLACED, order.customer.phone, _order_sms_context(order))
+        lambda: send_event_sms(
+            SmsEvent.ORDER_PLACED, order.customer.phone, _order_sms_context(order), store=store
+        )
     )
 
     return order
@@ -123,12 +129,14 @@ def create_order_from_cart(cart, *, customer, vendor, address, shipping_method, 
 
 @transaction.atomic
 def change_order_status(
-    order: Order, to_status: str, *, by=None, note: str = "", tracking_code: str = ""
+    order: Order, to_status: str, *, by=None, note: str = "", tracking_code: str = "", store
 ) -> Order:
     """وضعیت سفارش را تغییر می‌دهد و حتماً یک رکورد OrderStatusHistory می‌سازد.
 
     tracking_code فقط برای گذار به «ارسال شده» معنا دارد و روی سفارش ذخیره
-    می‌شود تا در پیامک اطلاع‌رسانی درج شود.
+    می‌شود تا در پیامک اطلاع‌رسانی درج شود. ``store`` الزامی است — همان
+    Store که برای پیامکِ تغییر وضعیت استفاده می‌شود؛ این تابع خودش هرگز
+    Store را دوباره از Host یا حالت سازگاری حدس نمی‌زند.
     """
     from_status = order.status
 
@@ -155,7 +163,9 @@ def change_order_status(
     sms_event = STATUS_SMS_EVENTS.get(to_status)
     if sms_event:
         transaction.on_commit(
-            lambda: send_event_sms(sms_event, order.customer.phone, _order_sms_context(order))
+            lambda: send_event_sms(
+                sms_event, order.customer.phone, _order_sms_context(order), store=store
+            )
         )
 
     return order

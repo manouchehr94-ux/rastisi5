@@ -24,6 +24,7 @@ from apps.customers.models import Address, Customer
 from apps.orders.models import Order, PaymentGateway, ShippingMethod
 from apps.orders.services.order_service import change_order_status, create_order_from_cart
 from apps.orders.services.payment_service import simulate_payment
+from apps.stores.models import Store
 
 User = get_user_model()
 
@@ -475,6 +476,11 @@ class Command(BaseCommand):
             self._log("سفارش نمونه", 0, note="از قبل موجود بود")
             return
 
+        # این دستور همیشه فقط داده‌ی نمایشی Akhlaghi را seed می‌کند — Store
+        # به‌طور صریح با اسلاگ resolve می‌شود، نه حالت سازگاری موقت (که به
+        # درخواست HTTP نیاز دارد و اینجا اصلاً وجود ندارد).
+        store = Store.objects.get(slug="akhlaghi")
+
         plans = [
             {
                 "customer": "ali_rezaei", "items": [("DG-PHONE-001", 1), ("DG-EARBUD-002", 1)],
@@ -522,19 +528,20 @@ class Command(BaseCommand):
                 cart, customer=customer, vendor=vendor, address=address,
                 shipping_method=shipping_methods[plan["shipping"]],
                 payment_gateway=gateways[plan["gateway"]], coupon=coupon,
+                store=store,
             )
             cart.delete()
             created_count += 1
 
             for step in plan["flow"]:
                 if step == "pay_success":
-                    simulate_payment(order, True)
+                    simulate_payment(order, True, store=store)
                 elif step == "pay_fail":
-                    simulate_payment(order, False)
+                    simulate_payment(order, False, store=store)
                 elif step == "cancel":
-                    change_order_status(order, Order.Status.CANCELED, note="مشتری انصراف داد")
+                    change_order_status(order, Order.Status.CANCELED, note="مشتری انصراف داد", store=store)
                 else:
-                    change_order_status(order, step)
+                    change_order_status(order, step, store=store)
 
         self._log("سفارش نمونه", created_count)
 

@@ -12,6 +12,7 @@ from apps.cart.services.cart_service import get_cart
 from apps.customers.models import Customer
 from apps.customers.services import auth_service
 from apps.sms.services import otp_service
+from apps.stores.resolution import resolve_store_for_service
 
 from .forms import CheckoutAddressForm
 from .models import Order
@@ -109,7 +110,8 @@ def checkout_pay(request):
     if existing_customer is None:
         request.session.pop(CHECKOUT_OTP_SESSION_KEY, None)
         customer = auth_service.create_account_for_guest(
-            full_name=form.cleaned_data["receiver_name"], phone=phone
+            full_name=form.cleaned_data["receiver_name"], phone=phone,
+            store=resolve_store_for_service(request),
         )
         auth_service.merge_guest_cart(request, customer)
         auth_login(request, customer.user)
@@ -117,7 +119,7 @@ def checkout_pay(request):
         return _finalize_and_redirect(request, cart, customer)
 
     try:
-        otp_service.request_otp(phone)
+        otp_service.request_otp(phone, store=resolve_store_for_service(request))
     except otp_service.OtpRateLimitError as exc:
         return _dynamic_response(
             request, cart, toast_message=str(exc), toast_type="err",
@@ -160,7 +162,7 @@ def checkout_resend_otp(request):
     if not phone:
         return redirect("orders:checkout-step1")
     try:
-        otp_service.request_otp(phone)
+        otp_service.request_otp(phone, store=resolve_store_for_service(request))
         message, message_type = "کد جدید پیامک شد", "ok"
     except otp_service.OtpRateLimitError as exc:
         message, message_type = str(exc), "err"
@@ -197,7 +199,7 @@ def payment_callback(request, code, status):
     """
     order = _get_own_order(request, code)
     if order.payment_status == Order.PaymentStatus.PENDING:
-        simulate_payment(order, status == "success")
+        simulate_payment(order, status == "success", store=resolve_store_for_service(request))
     return redirect("orders:payment-result", code=order.code)
 
 

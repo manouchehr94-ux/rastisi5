@@ -477,6 +477,71 @@ separate call) is left to whichever PR introduces that service.
 
 ---
 
+## ADR-13: Tenant-Sensitive Services Take an Explicit Store Argument, Resolved Once at the Boundary
+
+**Context.** ADR-12's fail-closed compatibility check (§ ADR-12) meant
+`apps.cart.services.pricing` and `apps.sms.services.sms_service` — which
+still called `ShopSettings.load()` with no Store — would break the moment
+a second, real `Store` existed, even for that Store's own valid request.
+Neither `Cart`, `Order`, `Customer`, nor `SmsTemplate`/`SmsLog` carry a
+`store` FK yet (that is PR 6/7/9/10's job), so these services had no
+model-level way to derive "which Store" on their own.
+
+**Decision.** Every tenant-sensitive service function that reads
+`ShopSettings` takes a required, keyword-only `store` argument — no
+default, so a caller cannot silently omit it and fall into compatibility
+mode by accident. A new shared helper,
+`apps.stores.resolution.resolve_store_for_service(request)`, resolves the
+authoritative Store exactly once, at the HTTP boundary (a view, or a
+service function that already receives `request`): `request.store` if
+already resolved, otherwise the same `resolve_compatibility_store()`
+fail-closed check used everywhere else. The resolved, concrete `Store`
+object is then threaded down explicitly as a plain function argument
+through every deeper call (`cart_totals` → `_free_shipping_threshold`/
+`_tax_percent`; `create_order_from_cart`/`change_order_status`/
+`simulate_payment` → `send_event_sms` → `get_backend`) — none of those
+deeper functions ever call `resolve_store_for_service` or
+`resolve_compatibility_store` themselves, and none accept a caller-supplied
+Store ID from request data (POST body, query parameter) as authoritative.
+
+**Alternatives considered.** Giving `cart_totals`/`send_event_sms` an
+optional `store=None` that falls back to compatibility mode internally —
+rejected: that would re-introduce exactly the "quietly using Akhlaghi" risk
+ADR-12 exists to close off, just moved one layer deeper, and would make an
+explicit `store=None` call indistinguishable from "caller forgot to
+resolve one." Adding a `store` FK to `Cart`/`Order` now, ahead of PR 6/7,
+to give these services a model-level Store — rejected as unnecessary and
+out of scope: every call site already has an authoritative Store available
+from the triggering request, so no schema change was needed to make these
+services Store-explicit. Passing `request` itself into every deep service
+function instead of a resolved `Store` — rejected for the leaf functions
+(`cart_totals`, `send_event_sms`, etc.): they are pure business-logic
+functions with no reason to depend on Django's request object, and passing
+the already-resolved `Store` keeps them independently testable without a
+request/response cycle.
+
+**Consequences.** `apps.dashboard.views._resolve_dashboard_store`
+(introduced in PR 4) now delegates to `resolve_store_for_service` instead
+of duplicating the same "request.store, else compatibility check" logic. A
+handful of service functions without prior `request` access
+(`create_order_from_cart`, `change_order_status`, `simulate_payment`,
+`otp_service.request_otp`, `auth_service.signup`/`create_account_for_guest`)
+gained a `store` parameter; their callers across `apps.orders`,
+`apps.customers`, `apps.sms`, and `apps.dashboard` were all updated
+accordingly — none of those apps' models changed. `apps.core.management.commands.seed_shop`
+(no request context) resolves Akhlaghi explicitly by slug rather than via
+the request-shaped compatibility check, since it only ever seeds Akhlaghi
+demo data.
+
+**Deferred questions.** Whether `resolve_store_for_service` should move out
+of `apps.stores.resolution` (a module whose docstring frames it around
+"request-time" resolution, even though this function and
+`resolve_compatibility_store` are not themselves request-specific) into a
+more neutrally-named module is left open — a naming/layering question, not
+a functional one, and not worth a file move bundled into this PR.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -493,4 +558,5 @@ separate call) is left to whichever PR introduces that service.
 | Merchant funds flow directly to merchant accounts (v1) | Recorded |
 | Store is aggregate root; no generic StoreConfiguration table | Decided |
 | Store resolution is hostname-authoritative, fail-closed compatibility fallback | Decided, implemented |
-| ShopSettings/FooterSettings: OneToOneField per Store; trust badges/payment logos: direct Store FK | Decided, implemented on open PR (not merged) |
+| ShopSettings/FooterSettings: OneToOneField per Store; trust badges/payment logos: direct Store FK | Decided, implemented |
+| Tenant-sensitive services resolve Store once at the boundary, never re-derive it deeper | Decided, implemented on open PR (not merged) |

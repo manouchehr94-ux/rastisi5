@@ -729,7 +729,10 @@ def order_detail(request, code):
         to_status = request.POST.get("status", "")
         tracking_code = request.POST.get("tracking_code", "").strip()
         try:
-            change_order_status(order, to_status, by=request.user, tracking_code=tracking_code)
+            change_order_status(
+                order, to_status, by=request.user, tracking_code=tracking_code,
+                store=_resolve_dashboard_store(request),
+            )
             messages.success(request, f"وضعیت سفارش {order.code} به‌روزرسانی شد")
             return redirect("dashboard:order-detail", code=order.code)
         except ValueError as exc:
@@ -1133,7 +1136,10 @@ def sms_test_send(request):
     event_key = request.POST.get("event_key", "")
     if form.is_valid():
         try:
-            log = send_test_sms(event_key=event_key, phone=form.cleaned_data["phone"])
+            log = send_test_sms(
+                event_key=event_key, phone=form.cleaned_data["phone"],
+                store=_resolve_dashboard_store(request),
+            )
         except SmsTemplateError as exc:
             messages.error(request, str(exc))
         else:
@@ -1785,19 +1791,13 @@ from apps.content.models import FooterSettings, FooterTrustBadge, FooterPaymentL
 
 
 def _resolve_dashboard_store(request):
-    """Store مورد نیاز برای عملیات نوشتنِ داشبورد (نمادها/لوگوهای فوتر).
+    """Store مورد نیاز برای عملیات نوشتنِ داشبورد (تنظیمات/نمادها/لوگوهای
+    فوتر/سفارش/پیامک آزمایشی) — نازک‌پوششی روی
+    ``apps.stores.resolution.resolve_store_for_service``، همان قانون
+    fail-closed مشترک در کل کدبیس."""
+    from apps.stores.resolution import resolve_store_for_service
 
-    ``request.store`` (که middleware تحلیل میزبان تنظیم کرده) منبع اصلی
-    است. اگر resolve نشده باشد، از همان قانون سازگاریِ موقتِ
-    ``ShopSettings.load()``/``FooterSettings.load()`` استفاده می‌شود (دقیقاً
-    یک Store فعال با اسلاگ ``akhlaghi``) — در غیر این صورت fail-closed
-    می‌شود (``CompatibilityFallbackUnavailableError``), نه یک Store دلخواه.
-    """
-    if request.store is not None:
-        return request.store
-    from apps.stores.resolution import resolve_compatibility_store
-
-    return resolve_compatibility_store()
+    return resolve_store_for_service(request)
 
 
 @staff_required

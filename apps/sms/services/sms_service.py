@@ -39,9 +39,9 @@ def validate_template_body(event_key: str, body: str) -> None:
         )
 
 
-def get_backend() -> SmsBackend:
-    """بر اساس ShopSettings.sms_backend، پیاده‌سازی درست را می‌سازد."""
-    shop = ShopSettings.load()
+def get_backend(*, store) -> SmsBackend:
+    """بر اساس ShopSettings.sms_backend همان Store، پیاده‌سازی درست را می‌سازد."""
+    shop = ShopSettings.load(store=store)
     if shop.sms_backend == ShopSettings.SmsBackend.MELIPAYAMAK:
         return MelipayamakBackend(
             username=shop.melipayamak_username,
@@ -58,11 +58,11 @@ def _render(template: SmsTemplate, context: dict, shop_name: str) -> str:
     return template.body.format(**full_context)
 
 
-def _dispatch(*, event_key: str, phone: str, message: str) -> SmsLog:
+def _dispatch(*, event_key: str, phone: str, message: str, store) -> SmsLog:
     log = SmsLog.objects.create(
         event_key=event_key, recipient=phone, message=message, status=SmsLog.Status.PENDING,
     )
-    result = get_backend().send(to=phone, text=message)
+    result = get_backend(store=store).send(to=phone, text=message)
     log.attempt_count = 1
     if result.success:
         log.status = SmsLog.Status.SENT
@@ -75,10 +75,27 @@ def _dispatch(*, event_key: str, phone: str, message: str) -> SmsLog:
     return log
 
 
-def send_event_sms(event_key: str, phone: str, context: dict | None = None) -> SmsLog | None:
-    """پیامک یک رویداد واقعی را ارسال می‌کند. اگر سیستم/رویداد غیرفعال یا قالب نامعتبر باشد، بی‌صدا None برمی‌گرداند."""
+def send_event_sms(event_key: str, phone: str, context: dict | None = None, *, store) -> SmsLog | None:
+    """پیامک یک رویداد واقعی را برای Store مشخص ارسال می‌کند.
+
+    ``store`` الزامی و صریح است — این تابع خودش هرگز از حالت سازگاری موقت
+    (Akhlaghi) یا هر Store دیگری استفاده نمی‌کند؛ فراخوان (view/سرویس)
+    مسئول resolve کردن Store همان درخواست/رویداد است، نه این تابع.
+
+    اگر سیستم/رویداد غیرفعال یا قالب نامعتبر باشد، یا Store هنوز
+    ShopSettings نداشته باشد، بی‌صدا None برمی‌گرداند و خطا را فقط لاگ
+    می‌کند — این تابع هرگز نباید Exception پرتاب کند (جریان اصلی کسب‌وکار
+    هیچ‌وقت نباید به‌خاطر پیامک متوقف شود)."""
+    if store is None:
+        logger.error(
+            "send_event_sms called with store=None for event=%s phone=%s — "
+            "the caller must resolve an authoritative Store before sending; "
+            "no SMS is sent and no Akhlaghi/compatibility fallback is used here",
+            event_key, phone,
+        )
+        return None
     try:
-        shop = ShopSettings.load()
+        shop = ShopSettings.load(store=store)
         if not shop.sms_enabled:
             return None
 
@@ -87,9 +104,9 @@ def send_event_sms(event_key: str, phone: str, context: dict | None = None) -> S
             return None
 
         message = _render(template, context or {}, shop.name)
-        return _dispatch(event_key=event_key, phone=phone, message=message)
+        return _dispatch(event_key=event_key, phone=phone, message=message, store=store)
     except Exception:
-        logger.exception("send_event_sms failed for event=%s phone=%s", event_key, phone)
+        logger.exception("send_event_sms failed for event=%s phone=%s store=%s", event_key, phone, store.slug)
         return None
 
 
@@ -99,12 +116,13 @@ DUMMY_TEST_CONTEXT = {
 }
 
 
-def send_test_sms(*, event_key: str, phone: str) -> SmsLog:
-    """ارسال آزمایشی از پنل مدیریت — صرف‌نظر از فعال/غیرفعال بودن رویداد یا کل سیستم، برای تست واقعی اتصال به درگاه."""
+def send_test_sms(*, event_key: str, phone: str, store) -> SmsLog:
+    """ارسال آزمایشی از پنل مدیریت برای Store مشخص — صرف‌نظر از فعال/غیرفعال
+    بودن رویداد یا کل سیستم، برای تست واقعی اتصال به درگاه همان Store."""
     template = SmsTemplate.objects.filter(event_key=event_key).first()
     if template is None:
         raise SmsTemplateError("قالبی برای این رویداد یافت نشد")
 
-    shop = ShopSettings.load()
+    shop = ShopSettings.load(store=store)
     message = _render(template, DUMMY_TEST_CONTEXT, shop.name)
-    return _dispatch(event_key=event_key, phone=phone, message=message)
+    return _dispatch(event_key=event_key, phone=phone, message=message, store=store)

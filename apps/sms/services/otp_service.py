@@ -32,8 +32,11 @@ def _generate_code() -> str:
     return f"{secrets.randbelow(10 ** OTP_LENGTH):0{OTP_LENGTH}d}"
 
 
-def request_otp(phone: str) -> OtpCode:
-    """کد جدید می‌سازد و پیامک می‌کند؛ اگر تعداد درخواست‌های اخیر بیش از حد باشد خطا می‌دهد."""
+def request_otp(phone: str, *, store) -> OtpCode:
+    """کد جدید می‌سازد و پیامک می‌کند؛ اگر تعداد درخواست‌های اخیر بیش از حد باشد خطا می‌دهد.
+
+    ``store`` الزامی است — همان Store که برای پیامک کد یکبار مصرف استفاده
+    می‌شود؛ فراخوان (view) مسئول resolve کردن آن است."""
     window_start = timezone.now() - timedelta(seconds=REQUEST_WINDOW_SECONDS)
     recent_count = OtpCode.objects.filter(phone=phone, created_at__gte=window_start).count()
     if recent_count >= MAX_REQUESTS_PER_WINDOW:
@@ -43,7 +46,7 @@ def request_otp(phone: str) -> OtpCode:
     otp = OtpCode.objects.create(
         phone=phone, code=code, expires_at=timezone.now() + timedelta(seconds=OTP_TTL_SECONDS)
     )
-    send_event_sms(SmsEvent.OTP, phone, {"otp_code": code})
+    send_event_sms(SmsEvent.OTP, phone, {"otp_code": code}, store=store)
     return otp
 
 
