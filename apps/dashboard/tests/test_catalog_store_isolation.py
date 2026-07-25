@@ -82,6 +82,26 @@ class DashboardCatalogTwoStoreIsolationTests(TestCase):
         self.assertContains(response, "Product B")
         self.assertNotContains(response, "Product A")
 
+    # ------------------------------------------------------------ dashboard home widgets
+
+    def test_dashboard_home_low_stock_count_excludes_other_store(self):
+        Product.objects.filter(pk=self.product_a.pk).update(stock=1)
+        Product.objects.filter(pk=self.product_b.pk).update(stock=1)
+        response = self.client.get(reverse("dashboard:dashboard"), HTTP_HOST=HOST_B)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["stat_cards"]["low_stock_count"], 1)
+
+    def test_dashboard_home_low_stock_rows_exclude_other_store_product(self):
+        Product.objects.filter(pk=self.product_a.pk).update(stock=1)
+        Product.objects.filter(pk=self.product_b.pk).update(stock=1)
+        response = self.client.get(reverse("dashboard:dashboard"), HTTP_HOST=HOST_B)
+        self.assertContains(response, "Product B")
+        self.assertNotContains(response, "Product A")
+
+    def test_dashboard_home_nav_product_count_excludes_other_store(self):
+        response = self.client.get(reverse("dashboard:dashboard"), HTTP_HOST=HOST_B)
+        self.assertEqual(response.context["nav_product_count"], 1)
+
     # ------------------------------------------------------------ product view/edit/delete
 
     def test_product_edit_get_cross_store_returns_404(self):

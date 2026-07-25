@@ -66,11 +66,17 @@ class AkhlaghiSeedMigrationExecutorTests(TransactionTestCase):
         self.executor = MigrationExecutor(connection)
 
     def tearDown(self):
-        # Unconditionally restore the "stores" app to its latest migration
-        # state, regardless of where the test body left it, so later tests
-        # never see a stale/partial schema.
+        # Unconditionally restore every app to its latest migration state,
+        # regardless of where the test body left it, so later tests never
+        # see a stale/partial schema. Restoring only "stores"' own leaf
+        # nodes is not enough: unapplying "stores" cascades through Django's
+        # migration dependency graph to unapply every migration that
+        # declares a dependency on it (catalog/core/content's Store-scoping
+        # migrations all depend on stores.0002, since their backfills
+        # resolve Akhlaghi by querying the Store table) — those apps must
+        # be restored too, not just "stores" itself.
         self.executor.loader.build_graph()
-        targets = self.executor.loader.graph.leaf_nodes("stores")
+        targets = self.executor.loader.graph.leaf_nodes()
         self.executor.migrate(targets)
 
     def _fixture_teardown(self):

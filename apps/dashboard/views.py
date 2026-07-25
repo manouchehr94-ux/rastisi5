@@ -129,7 +129,8 @@ def admin_login(request):
 
 @staff_required
 def dashboard_home(request):
-    context = dashboard_service.build_dashboard_context()
+    store = _resolve_dashboard_store(request)
+    context = dashboard_service.build_dashboard_context(store)
     context["active_page"] = "dashboard"
     return render(request, "dashboard/dashboard.html", context)
 

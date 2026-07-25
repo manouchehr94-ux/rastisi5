@@ -636,7 +636,28 @@ argument instead of trusting every caller transitively). This is
 explicitly not full `Cart`/`Order` tenantization — that remains PR 6/PR 7's
 job.
 
-### 12.7 What this PR does not change
+### 12.7 Proven defects found and fixed by full-suite verification
+
+Running every affected app's test suite together (not one app at a time)
+surfaced two real cross-Store leaks outside `apps.catalog` itself, both
+fixed in this PR rather than deferred, since both are direct consequences
+of `Product` becoming Store-scoped:
+
+* `apps.customers.views.wishlist_toggle` resolved `Product` by slug with no
+  Store scoping — a customer browsing Store A could add Store B's product
+  to their wishlist by slug alone. Fixed with the same
+  `resolve_store_for_service(request)` + Store-scoped `get_object_or_404`
+  pattern used everywhere else.
+* `apps.dashboard.services.dashboard_service`'s `stat_cards`,
+  `low_stock_products`, and `build_dashboard_context`'s `nav_product_count`
+  queried `Product` platform-globally — every merchant's dashboard home
+  page showed a low-stock count/list and product count mixed across every
+  Store. Fixed by threading the resolved Store through all three. The
+  Order/Customer-based widgets on the same page are intentionally left
+  unscoped (Order/Customer tenant-scoping is PR 6/7/10's job, not
+  available to reference here).
+
+### 12.8 What this PR does not change
 
 No `apps.content` model (`HeroSlide`, `PromotionalBanner`, `MenuItem`) is
 touched — their `destination_category`/`destination_product`/

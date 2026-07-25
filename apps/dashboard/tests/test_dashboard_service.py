@@ -174,7 +174,7 @@ class LowStockProductsTests(TestCase):
             store=self.store, vendor=self.vendor, category=self.child, name="کالای ناموجود", slug="out-lsp",
             sku="SKU-LSP1", price=Decimal("1000"), stock=0,
         )
-        rows = dashboard_service.low_stock_products()
+        rows = dashboard_service.low_stock_products(self.store)
         self.assertEqual(rows[0]["badge_label"], "ناموجود")
         self.assertEqual(rows[0]["category_chain"], "خانه › آشپزخانه")
 
@@ -187,7 +187,7 @@ class LowStockProductsTests(TestCase):
             store=self.store, vendor=self.vendor, category=self.child, name="رو به اتمام", slug="low-lsp",
             sku="SKU-LSP3", price=Decimal("1000"), stock=8,
         )
-        rows = {row["product"].slug: row["badge_label"] for row in dashboard_service.low_stock_products()}
+        rows = {row["product"].slug: row["badge_label"] for row in dashboard_service.low_stock_products(self.store)}
         self.assertEqual(rows["critical-lsp"], "بحرانی")
         self.assertEqual(rows["low-lsp"], "رو به اتمام")
 
@@ -196,13 +196,13 @@ class LowStockProductsTests(TestCase):
             store=self.store, vendor=self.vendor, category=self.child, name="موجودی کافی", slug="plenty-lsp",
             sku="SKU-LSP4", price=Decimal("1000"), stock=50,
         )
-        rows = dashboard_service.low_stock_products()
+        rows = dashboard_service.low_stock_products(self.store)
         self.assertEqual(rows, [])
 
 
 class StatCardsTests(TestCase):
     def test_no_previous_data_yields_none_trend(self):
-        cards = dashboard_service.stat_cards()
+        cards = dashboard_service.stat_cards(_akhlaghi())
         self.assertIsNone(cards["today_sales_trend"])
         self.assertIsNone(cards["today_orders_trend"])
 
@@ -218,5 +218,5 @@ class StatCardsTests(TestCase):
             store=store, vendor=vendor, category=category, name="پرموجودی", slug="high-sct",
             sku="SKU-SCT2", price=Decimal("1000"), stock=500,
         )
-        cards = dashboard_service.stat_cards()
+        cards = dashboard_service.stat_cards(store)
         self.assertEqual(cards["low_stock_count"], 1)

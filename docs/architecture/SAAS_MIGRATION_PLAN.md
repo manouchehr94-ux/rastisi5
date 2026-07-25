@@ -277,6 +277,40 @@ rejection (`apps.dashboard.tests.test_catalog_store_isolation`), and
 cart/order cross-Store boundary tests including atomic rejection of a
 mixed-Store cart (`apps.orders.tests.test_catalog_store_boundary`).
 
+Two real, pre-existing defects surfaced only by running the *full*
+multi-app suite together (not each app in isolation) were found and fixed
+as part of this PR's verification, not deferred:
+
+* `apps.customers.views.wishlist_toggle` looked up `Product` by slug with no
+  Store scoping — a logged-in customer on Store A's storefront could add
+  Store B's product to their wishlist by slug. Fixed the same way every
+  other storefront Product lookup already was: `resolve_store_for_service(request)`
+  then a Store-scoped `get_object_or_404`. Covered by
+  `apps.customers.tests.test_wishlist_store_isolation` (real two-Store,
+  real-`StoreDomain` adversarial test).
+* `apps.dashboard.services.dashboard_service.stat_cards`/`low_stock_products`/
+  `build_dashboard_context`'s `nav_product_count` queried `Product` globally
+  — Store B's dashboard home page would show Store A's low-stock count,
+  low-stock product rows, and total product count mixed in. Fixed by
+  threading the resolved Store through all three (the Order/Customer-based
+  widgets on the same dashboard home — `sales_chart_data`,
+  `order_status_breakdown`, `recent_orders`, `top_selling_products`,
+  `nav_pending_order_count` — remain intentionally unscoped, since `Order`/
+  `Customer` are not Store-scoped yet and adding that is explicitly PR 6/
+  PR 7/PR 10's job, not this PR's). Covered by three new tests in
+  `apps.dashboard.tests.test_catalog_store_isolation`.
+
+A third, unrelated pre-existing test bug was also found and fixed:
+`apps.stores.tests.test_data_migration.AkhlaghiSeedMigrationExecutorTests`
+fully unapplies the `stores` app via `MigrationExecutor` to test the
+Akhlaghi seed migration, which — once `catalog`/`core`/`content` migrations
+started depending on `stores.0002_create_akhlaghi_store` (this PR, PR 4,
+and PR 8's predecessor work) — cascades to unapply those apps' migrations
+too. Its `tearDown()` only restored `stores`' own leaf migration nodes,
+silently leaving `catalog`/`core`/`content` schema reverted (dropped
+`store` columns) for the rest of that test run. Fixed by restoring the
+*entire* migration graph's leaf nodes in `tearDown()`, not just `stores`'.
+
 ## PR 6 — Cart and coupon ownership
 
 Scope: `apps.cart` models (cart, cart items, `Coupon`) gain Store scoping.
