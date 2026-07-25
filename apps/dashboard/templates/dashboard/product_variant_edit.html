@@ -7,7 +7,7 @@
 
 {% block content %}
 <div style="margin-bottom:14px">
-  <a class="btn btn-sm" href="{% url 'dashboard:product-variants' product.pk %}">→ بازگشت به تنوع‌های کالا</a>
+  <a class="btn btn-sm" href="{{ back_url }}">→ بازگشت به تنوع‌های کالا</a>
 </div>
 
 <div class="form-card">
@@ -16,6 +16,7 @@
   {% endif %}
   <form method="post">
     {% csrf_token %}
+    <input type="hidden" name="back_query" value="{{ back_query }}">
     <div class="form-row">
       <div class="form-group">
         <label>نام تنوع *</label>
@@ -54,7 +55,7 @@
     </label>
     <div class="btn-row">
       <button type="submit" class="btn btn-primary">ذخیره تغییرات</button>
-      <a href="{% url 'dashboard:product-variants' product.pk %}" class="btn btn-secondary">انصراف</a>
+      <a href="{{ back_url }}" class="btn btn-secondary">انصراف</a>
     </div>
   </form>
 </div>

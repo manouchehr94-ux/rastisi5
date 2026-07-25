@@ -602,7 +602,7 @@ class VariantPageUITests(VariantViewsTestCase):
     def test_empty_state_renders(self):
         self._make_variable()
         response = self.client.get(reverse("dashboard:product-variants", args=[self.product.pk]))
-        self.assertContains(response, "هنوز مقدار تنوعی ثبت نشده")
+        self.assertContains(response, "این کالا هنوز هیچ مقدار تنوعی ندارد")
 
     def test_existing_variants_render(self):
         self._make_variable()
@@ -661,7 +661,7 @@ class VariantPageUITests(VariantViewsTestCase):
         variant = create_variant(self.product, attribute="رنگ", value="قرمز")
         deactivate_variant(variant)
         response = self.client.get(reverse("dashboard:product-variants", args=[self.product.pk]))
-        self.assertContains(response, "هیچ مقدار فعالی ندارد")
+        self.assertContains(response, "هیچ مقدار فعالی وجود ندارد")
 
     def test_no_warning_when_at_least_one_active_variant(self):
         self._make_variable()
@@ -697,3 +697,364 @@ class VariantPageQueryPerformanceTests(VariantViewsTestCase):
             query_count_small, query_count_large,
             f"Query count grew from {query_count_small} to {query_count_large} as variant count increased",
         )
+
+
+# ------------------------------------------------------------ Search and filters
+
+
+class VariantSearchFilterTests(VariantViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self._make_variable()
+        self.red = create_variant(self.product, attribute="رنگ", value="قرمز", sku="SKU-RED-1")
+        self.blue = create_variant(self.product, attribute="رنگ", value="آبی", sku="SKU-BLUE-1")
+        self.size_m = create_variant(self.product, attribute="سایز", value="M", sku="SKU-SIZE-M")
+        deactivate_variant(self.size_m)
+
+    def _get(self, **params):
+        return self.client.get(reverse("dashboard:product-variants", args=[self.product.pk]), params)
+
+    def test_search_by_attribute_name(self):
+        response = self._get(q="سایز")
+        self.assertContains(response, "SKU-SIZE-M")
+        self.assertNotContains(response, "SKU-RED-1")
+
+    def test_search_by_value(self):
+        response = self._get(q="قرمز")
+        self.assertContains(response, "SKU-RED-1")
+        self.assertNotContains(response, "SKU-BLUE-1")
+
+    def test_search_by_sku(self):
+        response = self._get(q="SKU-BLUE-1")
+        self.assertContains(response, "SKU-BLUE-1")
+        self.assertNotContains(response, "SKU-RED-1")
+
+    def test_search_case_insensitive_and_partial(self):
+        response = self._get(q="blue")
+        self.assertContains(response, "SKU-BLUE-1")
+
+    def test_search_scoped_to_product(self):
+        other = self._other_product()
+        set_product_type(other, Product.ProductType.VARIABLE)
+        create_variant(other, attribute="رنگ", value="قرمز", sku="SKU-OTHER-RED")
+        response = self._get(q="قرمز")
+        self.assertContains(response, "SKU-RED-1")
+        self.assertNotContains(response, "SKU-OTHER-RED")
+
+    def test_status_filter_active_only(self):
+        response = self._get(status="active")
+        self.assertContains(response, "SKU-RED-1")
+        self.assertContains(response, "SKU-BLUE-1")
+        self.assertNotContains(response, "SKU-SIZE-M")
+
+    def test_status_filter_inactive_only(self):
+        response = self._get(status="inactive")
+        self.assertContains(response, "SKU-SIZE-M")
+        self.assertNotContains(response, "SKU-RED-1")
+
+    def test_invalid_status_filter_falls_back_to_all(self):
+        response = self._get(status="bogus")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "SKU-RED-1")
+        self.assertContains(response, "SKU-SIZE-M")
+
+    def test_search_and_status_filter_combined(self):
+        response = self._get(q="رنگ", status="active")
+        self.assertContains(response, "SKU-RED-1")
+        self.assertContains(response, "SKU-BLUE-1")
+        self.assertNotContains(response, "SKU-SIZE-M")
+
+    def test_clear_filters_link_present_when_filtered(self):
+        response = self._get(q="قرمز")
+        self.assertContains(response, "پاک‌کردن جست‌وجو و فیلتر")
+
+    def test_clear_filters_link_absent_when_unfiltered(self):
+        response = self._get()
+        self.assertNotContains(response, "پاک‌کردن جست‌وجو و فیلتر")
+
+    def test_active_filter_chip_marked_active_in_html(self):
+        response = self._get(status="active")
+        self.assertContains(response, "filter-chip active")
+
+
+# ------------------------------------------------------------ Search-empty state
+
+
+class VariantSearchEmptyStateTests(VariantViewsTestCase):
+    def test_search_no_results_shows_distinct_message(self):
+        self._make_variable()
+        create_variant(self.product, attribute="رنگ", value="قرمز")
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"q": "nonexistent-xyz"}
+        )
+        self.assertContains(response, "نتیجه‌ای یافت نشد")
+
+    def test_search_no_results_does_not_show_genuine_empty_message(self):
+        self._make_variable()
+        create_variant(self.product, attribute="رنگ", value="قرمز")
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"q": "nonexistent-xyz"}
+        )
+        self.assertNotContains(response, "این کالا هنوز هیچ مقدار تنوعی ندارد")
+
+    def test_genuine_empty_state_does_not_show_search_empty_message(self):
+        self._make_variable()
+        response = self.client.get(reverse("dashboard:product-variants", args=[self.product.pk]))
+        self.assertNotContains(response, "نتیجه‌ای یافت نشد")
+
+    def test_search_empty_state_includes_clear_link(self):
+        self._make_variable()
+        create_variant(self.product, attribute="رنگ", value="قرمز")
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"q": "nonexistent-xyz"}
+        )
+        self.assertContains(response, "پاک‌کردن جست‌وجو و فیلترها")
+
+    def test_status_filter_with_no_matches_shows_search_empty_state(self):
+        self._make_variable()
+        create_variant(self.product, attribute="رنگ", value="قرمز")
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"status": "inactive"}
+        )
+        self.assertContains(response, "نتیجه‌ای یافت نشد")
+
+
+# ------------------------------------------------------------ Summary counts stay whole-product
+
+
+class VariantSummaryCountIndependenceTests(VariantViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self._make_variable()
+        create_variant(self.product, attribute="رنگ", value="قرمز")
+        create_variant(self.product, attribute="رنگ", value="آبی")
+        inactive = create_variant(self.product, attribute="رنگ", value="سبز")
+        deactivate_variant(inactive)
+
+    def test_summary_counts_unaffected_by_search_filter(self):
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"q": "قرمز"}
+        )
+        self.assertEqual(response.context["variant_count"], 3)
+        self.assertEqual(response.context["active_variant_count"], 2)
+        self.assertEqual(response.context["inactive_variant_count"], 1)
+
+    def test_summary_counts_unaffected_by_status_filter(self):
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"status": "inactive"}
+        )
+        self.assertEqual(response.context["variant_count"], 3)
+        self.assertEqual(response.context["active_variant_count"], 2)
+
+
+# ------------------------------------------------------------ Pagination
+
+
+class VariantPaginationTests(VariantViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self._make_variable()
+        for i in range(30):
+            create_variant(self.product, attribute="رنگ", value=f"رنگ{i:02d}", sku=f"SKU-P-{i:02d}")
+
+    def test_first_page_shows_default_page_size(self):
+        response = self.client.get(reverse("dashboard:product-variants", args=[self.product.pk]))
+        self.assertEqual(len(response.context["variants"]), 25)
+
+    def test_second_page_shows_remainder(self):
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"page": 2}
+        )
+        self.assertEqual(len(response.context["variants"]), 5)
+
+    def test_invalid_page_number_falls_back_to_last_page(self):
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"page": 9999}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].number, 2)
+
+    def test_non_integer_page_falls_back_to_first_page(self):
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"page": "abc"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].number, 1)
+
+    def test_no_duplicate_or_missing_rows_across_pages(self):
+        page1 = self.client.get(reverse("dashboard:product-variants", args=[self.product.pk]))
+        page2 = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"page": 2}
+        )
+        ids_1 = {v.pk for v in page1.context["variants"]}
+        ids_2 = {v.pk for v in page2.context["variants"]}
+        self.assertEqual(len(ids_1), 25)
+        self.assertEqual(len(ids_2), 5)
+        self.assertEqual(ids_1 & ids_2, set())
+        self.assertEqual(ids_1 | ids_2, set(self.product.variants.values_list("pk", flat=True)))
+
+    def test_pagination_preserves_search_querystring(self):
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"q": "رنگ", "page": 1}
+        )
+        self.assertIn("q=", response.context["querystring"])
+        self.assertNotIn("page=", response.context["querystring"])
+
+    def test_pagination_not_shown_when_single_page(self):
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"status": "inactive"}
+        )
+        self.assertNotContains(response, 'class="pagination"')
+
+    def test_pagination_shown_when_multiple_pages(self):
+        response = self.client.get(reverse("dashboard:product-variants", args=[self.product.pk]))
+        self.assertContains(response, 'class="pagination"')
+
+
+# ------------------------------------------------------------ Ordering-lock while filtered
+
+
+class VariantOrderingLockUITests(VariantViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self._make_variable()
+        self.v1 = create_variant(self.product, attribute="رنگ", value="قرمز")
+        self.v2 = create_variant(self.product, attribute="رنگ", value="آبی")
+
+    def test_move_controls_visible_when_unfiltered(self):
+        response = self.client.get(reverse("dashboard:product-variants", args=[self.product.pk]))
+        self.assertContains(response, "جابه‌جایی به بالا")
+        self.assertFalse(response.context["ordering_locked"])
+
+    def test_move_controls_hidden_when_search_active(self):
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"q": "قرمز"}
+        )
+        self.assertNotContains(response, "جابه‌جایی به بالا")
+        self.assertTrue(response.context["ordering_locked"])
+
+    def test_move_controls_hidden_when_status_filter_active(self):
+        response = self.client.get(
+            reverse("dashboard:product-variants", args=[self.product.pk]), {"status": "active"}
+        )
+        self.assertNotContains(response, "جابه‌جایی به بالا")
+        self.assertTrue(response.context["ordering_locked"])
+
+    def test_move_endpoint_still_operates_on_full_product_order_regardless_of_filter_querystring(self):
+        url = reverse("dashboard:product-variant-move", args=[self.product.pk, self.v2.pk])
+        self.client.post(f"{url}?q=آبی", {"direction": "up"})
+        self.v1.refresh_from_db()
+        self.v2.refresh_from_db()
+        self.assertLess(self.v2.display_order, self.v1.display_order)
+
+
+# ------------------------------------------------------------ Querystring preservation across mutations
+
+
+class VariantActionQuerystringPreservationTests(VariantViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self._make_variable()
+        self.variant = create_variant(self.product, attribute="رنگ", value="قرمز")
+
+    def test_toggle_redirect_preserves_search_query(self):
+        url = reverse("dashboard:product-variant-toggle", args=[self.product.pk, self.variant.pk])
+        response = self.client.post(f"{url}?q=قرمز", {})
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("q=", response.url)
+
+    def test_toggle_redirect_preserves_status_filter(self):
+        url = reverse("dashboard:product-variant-toggle", args=[self.product.pk, self.variant.pk])
+        response = self.client.post(f"{url}?status=active", {})
+        self.assertIn("status=active", response.url)
+
+    def test_delete_redirect_preserves_query_when_blocked(self):
+        customer_user = User.objects.create_user(username="09129990003", password="pass12345")
+        customer = Customer.objects.create(user=customer_user, full_name="مشتری", phone="09129990003")
+        shipping = ShippingMethod.objects.create(name="پست", slug="post-pvv3", cost=Decimal("10000"))
+        gateway = PaymentGateway.objects.create(name="درگاه", slug="gw-pvv3")
+        order = Order.objects.create(
+            code="DM-PVV3", customer=customer, vendor=self.vendor,
+            shipping_method=shipping, payment_gateway=gateway,
+        )
+        OrderItem.objects.create(
+            order=order, product=self.product, variant=self.variant, product_name=self.product.name,
+            quantity=1, unit_price=Decimal("200000"), line_total=Decimal("200000"),
+        )
+        url = reverse("dashboard:product-variant-delete", args=[self.product.pk, self.variant.pk])
+        response = self.client.get(f"{url}?status=active")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("status=active", response.url)
+
+    def test_move_redirect_preserves_query(self):
+        create_variant(self.product, attribute="رنگ", value="آبی")
+        url = reverse("dashboard:product-variant-move", args=[self.product.pk, self.variant.pk])
+        response = self.client.post(f"{url}?status=active", {"direction": "down"})
+        self.assertIn("status=active", response.url)
+
+    def test_edit_get_back_url_includes_query(self):
+        url = reverse("dashboard:product-variant-edit", args=[self.product.pk, self.variant.pk])
+        response = self.client.get(f"{url}?q=قرمز")
+        self.assertIn("q=", response.context["back_url"])
+
+    def test_edit_success_redirect_preserves_query_via_back_query_field(self):
+        url = reverse("dashboard:product-variant-edit", args=[self.product.pk, self.variant.pk])
+        response = self.client.post(url, {
+            "attribute": "رنگ", "value": "قرمز", "sku": "", "stock": "5",
+            "extra_price": "0", "is_active": "on", "back_query": "status=active",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("status=active", response.url)
+
+    def test_edit_success_redirect_without_back_query_goes_to_plain_list(self):
+        url = reverse("dashboard:product-variant-edit", args=[self.product.pk, self.variant.pk])
+        response = self.client.post(url, {
+            "attribute": "رنگ", "value": "قرمز", "sku": "", "stock": "5",
+            "extra_price": "0", "is_active": "on",
+        })
+        self.assertRedirects(response, reverse("dashboard:product-variants", args=[self.product.pk]))
+
+
+# ------------------------------------------------------------ Query performance under filter/pagination
+
+
+class VariantPageFilteredQueryPerformanceTests(VariantViewsTestCase):
+    def test_query_count_bounded_with_search_active(self):
+        self._make_variable()
+        for i in range(20):
+            create_variant(self.product, attribute="رنگ", value=f"رنگ{i}", stock=1)
+        self.client.get(reverse("dashboard:product-variants", args=[self.product.pk]), {"q": "رنگ1"})
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(
+                reverse("dashboard:product-variants", args=[self.product.pk]), {"q": "رنگ"}
+            )
+        self.assertEqual(response.status_code, 200)
+        query_count_filtered = len(ctx)
+
+        for i in range(20, 50):
+            create_variant(self.product, attribute="رنگ", value=f"رنگ{i}", stock=1)
+
+        with CaptureQueriesContext(connection) as ctx2:
+            response = self.client.get(
+                reverse("dashboard:product-variants", args=[self.product.pk]), {"q": "رنگ"}
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(query_count_filtered, len(ctx2))
+
+    def test_query_count_bounded_across_pages(self):
+        self._make_variable()
+        for i in range(60):
+            create_variant(self.product, attribute="رنگ", value=f"رنگ{i:03d}", stock=1)
+        self.client.get(reverse("dashboard:product-variants", args=[self.product.pk]))  # warm-up
+
+        with CaptureQueriesContext(connection) as ctx_p1:
+            response = self.client.get(reverse("dashboard:product-variants", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 200)
+
+        with CaptureQueriesContext(connection) as ctx_p2:
+            response = self.client.get(
+                reverse("dashboard:product-variants", args=[self.product.pk]), {"page": 2}
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(ctx_p1), len(ctx_p2))
