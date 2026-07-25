@@ -1,83 +1,216 @@
 {% load persian %}
-<form method="post" action="{% url 'dashboard:settings-appearance' %}" enctype="multipart/form-data">
-  {% csrf_token %}
+<div
+  x-data="{
+    tokens: {
+      primary_color: '{{ visual_form.primary_color.value|default:"#6D28D9" }}',
+      accent_color: '{{ visual_form.accent_color.value|default:"#FF4D77" }}',
+      secondary_color: '{{ visual_form.secondary_color.value|default:"#7C3AED" }}',
+      background_color: '{{ visual_form.background_color.value|default:"#F7F5FC" }}',
+      surface_color: '{{ visual_form.surface_color.value|default:"#FFFFFF" }}',
+      text_color: '{{ visual_form.text_color.value|default:"#241C3A" }}',
+      muted_text_color: '{{ visual_form.muted_text_color.value|default:"#8B86A3" }}',
+    },
+    hexInputs: {},
+    hexErrors: {},
+    fieldLabels: {
+      primary_color: 'رنگ اصلی', accent_color: 'رنگ مکمل', secondary_color: 'رنگ ثانویه',
+      background_color: 'رنگ پس‌زمینه‌ی صفحه', surface_color: 'رنگ پس‌زمینه‌ی کارت‌ها',
+      text_color: 'رنگ متن اصلی', muted_text_color: 'رنگ متن کم‌رنگ',
+    },
+    init() {
+      for (const key in this.tokens) { this.hexInputs[key] = this.tokens[key]; this.hexErrors[key] = false; }
+    },
+    setToken(field, value) {
+      const v = value.trim().toUpperCase();
+      this.tokens[field] = v;
+      this.hexInputs[field] = v;
+      this.hexErrors[field] = false;
+    },
+    onHexInput(field, value) {
+      this.hexInputs[field] = value;
+      if (/^#[0-9A-Fa-f]{6}$/.test(value.trim())) {
+        this.tokens[field] = value.trim().toUpperCase();
+        this.hexErrors[field] = false;
+      } else {
+        this.hexErrors[field] = true;
+      }
+    },
+    isPresetSelected(el) {
+      return this.tokens.primary_color === el.dataset.primary.toUpperCase()
+        && this.tokens.secondary_color === el.dataset.secondary.toUpperCase()
+        && this.tokens.accent_color === el.dataset.accent.toUpperCase()
+        && this.tokens.background_color === el.dataset.background.toUpperCase();
+    },
+    applyPresetFromEl(el) {
+      this.setToken('primary_color', el.dataset.primary);
+      this.setToken('secondary_color', el.dataset.secondary);
+      this.setToken('accent_color', el.dataset.accent);
+      this.setToken('background_color', el.dataset.background);
+    },
+    hexToRgb(hex) {
+      hex = hex.replace('#', '');
+      return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
+    },
+    luminance(hex) {
+      const [r,g,b] = this.hexToRgb(hex).map(c => {
+        c = c/255; return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4);
+      });
+      return 0.2126*r + 0.7152*g + 0.0722*b;
+    },
+    foregroundFor(hex) {
+      try { return this.luminance(hex) < 0.179 ? '#FFFFFF' : '#000000'; } catch (e) { return '#FFFFFF'; }
+    },
+    mixHex(hexA, hexB, ratio) {
+      const [ra,ga,ba] = this.hexToRgb(hexA), [rb,gb,bb] = this.hexToRgb(hexB);
+      const mix = (a,b) => Math.round(a*ratio + b*(1-ratio));
+      return '#' + [mix(ra,rb), mix(ga,gb), mix(ba,bb)].map(v => v.toString(16).padStart(2,'0')).join('').toUpperCase();
+    },
+    darkenHex(hex) { return this.mixHex('#000000', hex, 0.12); },
+    previewStyle() {
+      const t = this.tokens;
+      const border = this.mixHex(t.text_color, t.surface_color, 0.12);
+      return '--tp-primary:'+t.primary_color+';--tp-primary-hover:'+this.darkenHex(t.primary_color)
+        +';--tp-secondary:'+t.secondary_color+';--tp-accent:'+t.accent_color
+        +';--tp-bg:'+t.background_color+';--tp-card:'+t.surface_color+';--tp-ink:'+t.text_color
+        +';--tp-muted:'+t.muted_text_color+';--tp-primary-fg:'+this.foregroundFor(t.primary_color)
+        +';--tp-accent-fg:'+this.foregroundFor(t.accent_color)+';--tp-line:'+border;
+    },
+  }"
+>
+  <form method="post" action="{% url 'dashboard:settings-appearance' %}" enctype="multipart/form-data">
+    {% csrf_token %}
 
-  <div class="card" style="margin-bottom:18px">
-    <div class="card-head"><h3>🖼️ لوگو و فاوآیکون</h3><span class="hint">تصاویر هویت بصری فروشگاه</span></div>
-    <div class="card-body">
-      <div class="form-row">
-        <div class="form-group">
-          <label for="id_logo">لوگوی فروشگاه</label>
-          {% if shop.logo %}
-          <div style="margin-bottom:10px;display:flex;align-items:center;gap:12px">
-            <img src="{{ shop.logo.url }}" alt="لوگوی فعلی" style="max-height:60px;max-width:160px;border-radius:8px;border:1px solid var(--border)">
-            <label style="font-size:12px;display:flex;align-items:center;gap:6px;color:var(--red);cursor:pointer">
-              {{ visual_form.remove_logo }} حذف لوگو
-            </label>
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-head"><h3>🖼️ لوگو و فاوآیکون</h3><span class="hint">تصاویر هویت بصری فروشگاه</span></div>
+      <div class="card-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="id_logo">لوگوی فروشگاه</label>
+            {% if shop.logo %}
+            <div style="margin-bottom:10px;display:flex;align-items:center;gap:12px">
+              <img src="{{ shop.logo.url }}" alt="لوگوی فعلی" style="max-height:60px;max-width:160px;border-radius:8px;border:1px solid var(--border)">
+              <label style="font-size:12px;display:flex;align-items:center;gap:6px;color:var(--red);cursor:pointer">
+                {{ visual_form.remove_logo }} حذف لوگو
+              </label>
+            </div>
+            {% endif %}
+            <input class="inp" type="file" name="logo" accept=".png,.jpg,.jpeg,.webp" id="id_logo">
+            {% for error in visual_form.logo.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
+            <small style="color:var(--muted);display:block;margin-top:4px">PNG، JPEG یا WebP — حداکثر ۲ مگابایت</small>
           </div>
-          {% endif %}
-          <input class="inp" type="file" name="logo" accept=".png,.jpg,.jpeg,.webp" id="id_logo">
-          {% for error in visual_form.logo.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
-          <small style="color:var(--muted);display:block;margin-top:4px">PNG، JPEG یا WebP — حداکثر ۲ مگابایت</small>
-        </div>
-        <div class="form-group">
-          <label for="id_favicon">فاوآیکون</label>
-          {% if shop.favicon %}
-          <div style="margin-bottom:10px;display:flex;align-items:center;gap:12px">
-            <img src="{{ shop.favicon.url }}" alt="فاوآیکون فعلی" style="width:32px;height:32px;border-radius:6px;border:1px solid var(--border)">
-            <label style="font-size:12px;display:flex;align-items:center;gap:6px;color:var(--red);cursor:pointer">
-              {{ visual_form.remove_favicon }} حذف فاوآیکون
-            </label>
+          <div class="form-group">
+            <label for="id_favicon">فاوآیکون</label>
+            {% if shop.favicon %}
+            <div style="margin-bottom:10px;display:flex;align-items:center;gap:12px">
+              <img src="{{ shop.favicon.url }}" alt="فاوآیکون فعلی" style="width:32px;height:32px;border-radius:6px;border:1px solid var(--border)">
+              <label style="font-size:12px;display:flex;align-items:center;gap:6px;color:var(--red);cursor:pointer">
+                {{ visual_form.remove_favicon }} حذف فاوآیکون
+              </label>
+            </div>
+            {% endif %}
+            <input class="inp" type="file" name="favicon" accept=".png,.ico" id="id_favicon">
+            {% for error in visual_form.favicon.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
+            <small style="color:var(--muted);display:block;margin-top:4px">PNG یا ICO — حداکثر ۵۱۲ کیلوبایت</small>
           </div>
-          {% endif %}
-          <input class="inp" type="file" name="favicon" accept=".png,.ico" id="id_favicon">
-          {% for error in visual_form.favicon.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
-          <small style="color:var(--muted);display:block;margin-top:4px">PNG یا ICO — حداکثر ۵۱۲ کیلوبایت</small>
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="card" style="margin-bottom:18px">
-    <div class="card-head"><h3>🎨 رنگ‌بندی</h3><span class="hint">رنگ‌های اصلی و مکمل برند</span></div>
-    <div class="card-body">
-      <div class="form-row">
-        <div class="form-group">
-          <label for="id_primary_color">رنگ اصلی</label>
-          <div style="display:flex;align-items:center;gap:10px">
-            {{ visual_form.primary_color }}
-            <span style="font-size:12px;color:var(--muted);direction:ltr">{{ visual_form.primary_color.value }}</span>
-          </div>
-          {% for error in visual_form.primary_color.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
-        </div>
-        <div class="form-group">
-          <label for="id_accent_color">رنگ مکمل</label>
-          <div style="display:flex;align-items:center;gap:10px">
-            {{ visual_form.accent_color }}
-            <span style="font-size:12px;color:var(--muted);direction:ltr">{{ visual_form.accent_color.value }}</span>
-          </div>
-          {% for error in visual_form.accent_color.errors %}<small style="color:var(--red)">{{ error }}</small>{% endfor %}
-        </div>
-      </div>
-      <p style="font-size:11.5px;color:var(--muted);margin-top:8px">رنگ‌ها روی دکمه‌ها، لینک‌ها و عناصر تأکیدی فروشگاه اعمال می‌شوند.</p>
-    </div>
-  </div>
-
-  <div class="card" style="margin-bottom:18px">
-    <div class="card-head"><h3>👁️ پیش‌نمایش</h3><span class="hint">نمونه ظاهر با تنظیمات فعلی</span></div>
-    <div class="card-body">
-      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:16px;background:var(--bg);border-radius:12px">
-        {% if shop.logo %}
-        <img src="{{ shop.logo.url }}" alt="لوگو" style="max-height:40px;max-width:120px">
-        {% else %}
-        <div style="width:40px;height:40px;border-radius:10px;background:{{ shop.primary_color|default:'#6D28D9' }};display:grid;place-items:center;color:#fff;font-weight:800;font-size:16px">{{ SHOP_NAME|slice:":1" }}</div>
-        {% endif %}
-        <span style="font-weight:700;font-size:15px">{{ SHOP_NAME }}</span>
-        <button type="button" class="btn btn-primary" style="background:{{ shop.primary_color|default:'#6D28D9' }};border:0">نمونه دکمه</button>
-        <span class="badge" style="background:{{ shop.accent_color|default:'#FF4D77' }}20;color:{{ shop.accent_color|default:'#FF4D77' }}">نمونه بج</span>
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-head"><h3>🎨 تم رنگی سایت</h3></div>
+      <div class="card-body">
+        <p style="font-size:12.5px;color:var(--muted)">رنگ‌های انتخابی شما در سراسر فروشگاه (هدر، دکمه‌ها، بج‌ها، کارت‌های کالا و…) اعمال می‌شود. پیش از ذخیره، نتیجه را در «پیش‌نمایش زنده» پایین همین صفحه ببینید.</p>
       </div>
     </div>
-  </div>
 
-  <button type="submit" class="btn btn-primary">ذخیره هویت بصری</button>
-</form>
+    {% if visual_form.errors %}
+    <div class="validation-summary" style="margin-bottom:18px">
+      {% for field_errors in visual_form.errors.values %}{% for error in field_errors %}<div>{{ error }}</div>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-head"><h3>پیش‌فرض‌های آماده</h3><span class="hint">با یک کلیک، رنگ‌بندی کامل را اعمال کنید</span></div>
+      <div class="card-body">
+        <div class="preset-grid" role="group" aria-label="پیش‌فرض‌های رنگی آماده">
+          {% for preset in theme_presets %}
+          <button type="button" class="preset-card"
+                  data-key="{{ preset.key }}" data-primary="{{ preset.primary }}" data-secondary="{{ preset.secondary }}"
+                  data-accent="{{ preset.accent }}" data-background="{{ preset.background }}"
+                  :class="{ selected: isPresetSelected($el) }"
+                  @click="applyPresetFromEl($el)" :aria-pressed="isPresetSelected($el)">
+            <span class="preset-check" x-show="isPresetSelected($el.closest('.preset-card'))" aria-hidden="true">✓</span>
+            <span class="preset-swatches" aria-hidden="true">
+              <span class="sw" style="background:{{ preset.primary }}"></span>
+              <span class="sw" style="background:{{ preset.secondary }}"></span>
+              <span class="sw" style="background:{{ preset.accent }}"></span>
+              <span class="sw" style="background:{{ preset.background }}"></span>
+            </span>
+            <span class="preset-label">{{ preset.label }}</span>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-head"><h3>ویرایشگر رنگ سفارشی</h3><span class="hint">هر توکن رنگی را جداگانه تنظیم کنید</span></div>
+      <div class="card-body">
+        <div class="color-field-grid">
+          <template x-for="field in ['primary_color','secondary_color','accent_color','background_color','surface_color','text_color','muted_text_color']" :key="field">
+            <div class="color-field">
+              <label x-text="fieldLabels[field]"></label>
+              <div class="cf-row">
+                <input type="color" :value="tokens[field].toLowerCase()" @input="setToken(field, $event.target.value)" :aria-label="fieldLabels[field] + ' — انتخابگر رنگ'">
+                <input type="text" class="inp" :value="hexInputs[field]" @input="onHexInput(field, $event.target.value)"
+                       maxlength="7" :aria-label="fieldLabels[field] + ' — کد هگزادسیمال'" :aria-invalid="hexErrors[field]">
+              </div>
+              <span class="cf-error" x-show="hexErrors[field]">فرمت باید #RRGGBB باشد</span>
+            </div>
+          </template>
+        </div>
+        <input type="hidden" name="primary_color" x-bind:value="tokens.primary_color">
+        <input type="hidden" name="accent_color" x-bind:value="tokens.accent_color">
+        <input type="hidden" name="secondary_color" x-bind:value="tokens.secondary_color">
+        <input type="hidden" name="background_color" x-bind:value="tokens.background_color">
+        <input type="hidden" name="surface_color" x-bind:value="tokens.surface_color">
+        <input type="hidden" name="text_color" x-bind:value="tokens.text_color">
+        <input type="hidden" name="muted_text_color" x-bind:value="tokens.muted_text_color">
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-head"><h3>پیش‌نمایش زنده</h3><span class="hint">نمونه‌ی ظاهر فروشگاه با رنگ‌های فعلی</span></div>
+      <div class="card-body">
+        <div class="theme-preview" :style="previewStyle()">
+          <div class="tp-header">
+            {% if shop.logo %}
+            <img src="{{ shop.logo.url }}" alt="لوگو" style="max-height:32px;max-width:110px">
+            {% else %}
+            <div class="tp-mark" :style="'background:' + tokens.primary_color + ';color:' + foregroundFor(tokens.primary_color)">{{ SHOP_NAME|slice:":1" }}</div>
+            {% endif %}
+            <span class="tp-shopname">{{ SHOP_NAME }}</span>
+            <button type="button" class="tp-btn-primary">مشاهده فروشگاه</button>
+          </div>
+          <div class="tp-product-card">
+            <div class="tp-product-image">
+              <span class="tp-badge tp-badge-accent">جدید</span>
+              <span class="tp-badge tp-badge-secondary">۲۰٪ تخفیف</span>
+            </div>
+            <div class="tp-product-body">
+              <div class="tp-product-title">نمونه‌ی کالا</div>
+              <div class="tp-product-desc">توضیح کوتاه محصول برای پیش‌نمایش</div>
+              <div class="tp-product-price">۲۵۰,۰۰۰ تومان</div>
+              <span class="tp-badge tp-badge-stock">موجود در انبار</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" name="action" value="save" class="btn btn-primary">ذخیره و اعمال در کل سایت</button>
+      <button type="submit" name="action" value="reset" class="btn btn-secondary" formnovalidate>بازگردانی به پیش‌فرض</button>
+    </div>
+  </form>
+</div>

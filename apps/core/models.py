@@ -57,6 +57,17 @@ class ShopSettings(TimeStampedModel):
     favicon = models.ImageField("فاوآیکون", upload_to="shop/branding/", blank=True)
     primary_color = models.CharField("رنگ اصلی", max_length=7, default="#6D28D9", validators=[validate_hex_color])
     accent_color = models.CharField("رنگ مکمل", max_length=7, default="#FF4D77", validators=[validate_hex_color])
+    secondary_color = models.CharField("رنگ ثانویه", max_length=7, default="#7C3AED", validators=[validate_hex_color])
+    background_color = models.CharField(
+        "رنگ پس‌زمینه‌ی صفحه", max_length=7, default="#F7F5FC", validators=[validate_hex_color]
+    )
+    surface_color = models.CharField(
+        "رنگ پس‌زمینه‌ی کارت‌ها", max_length=7, default="#FFFFFF", validators=[validate_hex_color]
+    )
+    text_color = models.CharField("رنگ متن اصلی", max_length=7, default="#241C3A", validators=[validate_hex_color])
+    muted_text_color = models.CharField(
+        "رنگ متن کم‌رنگ", max_length=7, default="#8B86A3", validators=[validate_hex_color]
+    )
 
     class Meta:
         verbose_name = "تنظیمات فروشگاه"

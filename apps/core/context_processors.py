@@ -1,41 +1,19 @@
 from apps.content.models import SocialLink
+from apps.core.color_utils import darken_hex, foreground_for, mix_hex, safe_hex
 from apps.core.models import ShopSettings
-
-
-def _relative_luminance(hex_color: str) -> float:
-    """محاسبه‌ی روشنایی نسبی رنگ برای تعیین متن خوانا (WCAG 2.1)."""
-    hex_color = hex_color.lstrip("#")
-    r, g, b = int(hex_color[0:2], 16) / 255, int(hex_color[2:4], 16) / 255, int(hex_color[4:6], 16) / 255
-
-    def linearize(c):
-        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-
-    return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b)
-
-
-def _foreground_color(bg_hex: str) -> str:
-    """بازگشت رنگ پیش‌زمینه امن (سفید یا سیاه) بر اساس کنتراست."""
-    try:
-        lum = _relative_luminance(bg_hex)
-        return "#FFFFFF" if lum < 0.179 else "#000000"
-    except (ValueError, IndexError):
-        return "#FFFFFF"
-
-
-def _safe_hex(value: str, default: str) -> str:
-    """بازگشت رنگ هگز معتبر یا مقدار پیش‌فرض — هرگز مقدار خام نامعتبر."""
-    import re
-    if value and re.match(r"^#[0-9A-Fa-f]{6}$", value):
-        return value
-    return default
 
 
 def shop_settings(request):
     """هویت و تنظیمات عمومی پلتفرم — از همان رکورد ShopSettings که پنل مدیریت › تنظیمات ویرایش می‌کند."""
     shop = ShopSettings.load()
 
-    primary = _safe_hex(shop.primary_color, "#6D28D9")
-    accent = _safe_hex(shop.accent_color, "#FF4D77")
+    primary = safe_hex(shop.primary_color, "#6D28D9")
+    accent = safe_hex(shop.accent_color, "#FF4D77")
+    secondary = safe_hex(shop.secondary_color, "#7C3AED")
+    background = safe_hex(shop.background_color, "#F7F5FC")
+    surface = safe_hex(shop.surface_color, "#FFFFFF")
+    text = safe_hex(shop.text_color, "#241C3A")
+    muted = safe_hex(shop.muted_text_color, "#8B86A3")
 
     return {
         "SHOP_NAME": shop.name,
@@ -51,8 +29,16 @@ def shop_settings(request):
         "SHOP_FAVICON": shop.favicon if shop.favicon else None,
         "SHOP_PRIMARY_COLOR": primary,
         "SHOP_ACCENT_COLOR": accent,
-        "SHOP_PRIMARY_FG": _foreground_color(primary),
-        "SHOP_ACCENT_FG": _foreground_color(accent),
+        "SHOP_SECONDARY_COLOR": secondary,
+        "SHOP_BACKGROUND_COLOR": background,
+        "SHOP_SURFACE_COLOR": surface,
+        "SHOP_TEXT_COLOR": text,
+        "SHOP_MUTED_TEXT_COLOR": muted,
+        "SHOP_PRIMARY_FG": foreground_for(primary),
+        "SHOP_ACCENT_FG": foreground_for(accent),
+        "SHOP_SECONDARY_FG": foreground_for(secondary),
+        "SHOP_PRIMARY_HOVER": darken_hex(primary),
+        "SHOP_BORDER_COLOR": mix_hex(text, surface, 0.12),
         # شبکه‌های اجتماعی
         "SOCIAL_LINKS_FOOTER": SocialLink.objects.filter(is_active=True, show_in_footer=True).order_by("display_order", "id"),
         "SOCIAL_LINKS_HEADER": SocialLink.objects.filter(is_active=True, show_in_header=True).order_by("display_order", "id"),

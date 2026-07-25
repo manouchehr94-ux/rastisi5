@@ -32,7 +32,9 @@ from apps.catalog.services.variant_service import (
     set_product_type,
     update_variant,
 )
+from apps.core.color_utils import safe_hex
 from apps.core.models import ShopSettings
+from apps.core.theme_presets import THEME_PRESETS, matching_preset_key
 from apps.customers.models import Customer
 from apps.orders.models import Order, OrderItem, Transaction
 from apps.orders.services.order_service import change_order_status
@@ -869,8 +871,18 @@ def report_partial(request):
 # ------------------------------------------------------------------ تنظیمات
 
 
+THEME_TOKEN_DEFAULTS = {
+    "primary_color": "#6D28D9", "accent_color": "#FF4D77", "secondary_color": "#7C3AED",
+    "background_color": "#F7F5FC", "surface_color": "#FFFFFF", "text_color": "#241C3A",
+    "muted_text_color": "#8B86A3",
+}
+
+
 def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=None, visual_form=None):
     shop = ShopSettings.load()
+    theme_values = {
+        field: safe_hex(getattr(shop, field), default) for field, default in THEME_TOKEN_DEFAULTS.items()
+    }
     return {
         "shop": shop,
         "shop_form": shop_form or ShopInfoForm(initial={
@@ -887,10 +899,12 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
             "melipayamak_username": shop.melipayamak_username,
             "melipayamak_password": shop.melipayamak_password,
         }),
-        "visual_form": visual_form or VisualIdentityForm(initial={
-            "primary_color": shop.primary_color or "#6D28D9",
-            "accent_color": shop.accent_color or "#FF4D77",
-        }),
+        "visual_form": visual_form or VisualIdentityForm(current_shop=shop, initial=theme_values),
+        "theme_presets": THEME_PRESETS,
+        "selected_preset_key": matching_preset_key(
+            primary=theme_values["primary_color"], secondary=theme_values["secondary_color"],
+            accent=theme_values["accent_color"], background=theme_values["background_color"],
+        ),
         "sms_template_rows": sms_admin_service.templates_with_variables(),
         "sms_test_form": SmsTestForm(),
         "gateways": settings_admin_service.active_gateways_context(),
@@ -900,11 +914,11 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
 
 
 SETTINGS_SECTIONS = [
-    ("general", "عمومی", "🏪", "اطلاعات پایه و تماس فروشگاه"),
-    ("payments", "پرداخت و مالی", "💰", "درگاه‌ها و تنظیمات مالیات"),
-    ("shipping", "ارسال", "🚚", "روش‌ها و شرایط ارسال"),
+    ("general", "اطلاعات فروشگاه", "🏪", "نام، شعار و اطلاعات تماس فروشگاه"),
+    ("finance", "مالی و مالیات", "💰", "نرخ مالیات و آستانه‌ی ارسال رایگان"),
+    ("delivery-payment", "ارسال و درگاه", "🚚", "روش‌های ارسال و درگاه‌های پرداخت"),
     ("sms", "پیامک", "📲", "اتصال و قالب‌های پیامک"),
-    ("appearance", "ظاهر فروشگاه", "🎨", "لوگو، رنگ‌ها و قالب"),
+    ("appearance", "تم رنگی", "🎨", "پیش‌فرض‌ها و رنگ‌بندی سفارشی فروشگاه"),
 ]
 
 VALID_SECTION_KEYS = {s[0] for s in SETTINGS_SECTIONS}
@@ -948,10 +962,10 @@ def settings_finance(request):
         shop.free_shipping_threshold = form.cleaned_data["free_shipping_threshold"]
         shop.save()
         messages.success(request, "تنظیمات مالی ذخیره شد")
-        return redirect("/admin-panel/settings/?section=payments")
+        return redirect("/admin-panel/settings/?section=finance")
     context = _settings_context(request, finance_form=form)
     context["sections"] = SETTINGS_SECTIONS
-    context["active_section"] = "payments"
+    context["active_section"] = "finance"
     return render(request, "dashboard/settings.html", context)
 
 
@@ -983,18 +997,30 @@ def settings_shipping_toggle(request, pk):
 @require_POST
 @staff_required
 def settings_appearance(request):
-    """ذخیره تنظیمات هویت بصری: لوگو، فاوآیکون، رنگ‌ها."""
+    """ذخیره تنظیمات هویت بصری: لوگو، فاوآیکون، توکن‌های رنگی تم؛ یا بازگردانی به پیش‌فرض."""
     from django.db import transaction as db_transaction
 
-    form = VisualIdentityForm(request.POST, request.FILES)
-    if form.is_valid():
+    if request.POST.get("action") == "reset":
         shop = ShopSettings.load()
+        for field, default in THEME_TOKEN_DEFAULTS.items():
+            setattr(shop, field, default)
+        shop.save()
+        messages.success(request, "رنگ‌بندی به پیش‌فرض بازگردانی شد")
+        return redirect("/admin-panel/settings/?section=appearance")
+
+    shop_for_validation = ShopSettings.load()
+    form = VisualIdentityForm(request.POST, request.FILES, current_shop=shop_for_validation)
+    if form.is_valid():
+        shop = shop_for_validation
         old_logo_name = shop.logo.name if shop.logo else None
         old_favicon_name = shop.favicon.name if shop.favicon else None
 
-        # رنگ‌ها
+        # رنگ‌ها — primary/accent همیشه اجباری‌اند؛ توکن‌های جدید فقط اگر ارسال شده باشند بازنویسی می‌شوند
         shop.primary_color = form.cleaned_data["primary_color"]
         shop.accent_color = form.cleaned_data["accent_color"]
+        for field in ("secondary_color", "background_color", "surface_color", "text_color", "muted_text_color"):
+            if form.cleaned_data.get(field):
+                setattr(shop, field, form.cleaned_data[field])
 
         # لوگو — replacement wins over removal
         if form.cleaned_data.get("logo"):
