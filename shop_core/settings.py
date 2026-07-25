@@ -49,8 +49,16 @@ INSTALLED_APPS = [
     "apps.stores",
 ]
 
+# apps.stores.middleware.StoreResolutionMiddleware runs immediately after
+# SecurityMiddleware (Django's own host/security processing) and before
+# everything else — in particular, before SessionMiddleware and
+# AuthenticationMiddleware, since Store resolution must not depend on, or
+# be confused with, session or authentication state. It only reads the
+# request's Host header; it never touches request.user or the session.
+# See docs/architecture/SAAS_ARCHITECTURE.md ("Request Store Context").
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "apps.stores.middleware.StoreResolutionMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
