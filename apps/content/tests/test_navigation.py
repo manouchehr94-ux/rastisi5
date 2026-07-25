@@ -623,8 +623,12 @@ class NavigationFallbackRemovalTests(TestCase):
             is_active=False,
         )
         response = self.client.get("/")
-        # Menu title should not appear since no renderable items
-        self.assertNotContains(response, "F1")
+        # The column heading should not render since no renderable items
+        # exist. Scoped to the actual <h5> heading markup (not a bare "F1"
+        # substring search) — a bare substring can coincidentally match
+        # inside an unrelated random token (e.g. the CSRF token) anywhere
+        # else on the page.
+        self.assertNotContains(response, "<h5>F1</h5>")
 
     def test_other_non_navigation_content_remains(self):
         """Non-navigation elements (newsletter, branding) remain."""

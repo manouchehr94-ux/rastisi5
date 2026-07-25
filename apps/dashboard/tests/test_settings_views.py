@@ -613,7 +613,7 @@ class ContrastAndSafetyTests(SettingsViewsTestCase):
         self.assertContains(resp, "--brand-accent-fg:#000000")
 
     def test_invalid_stored_color_uses_default(self):
-        ShopSettings.objects.filter(pk=1).update(primary_color="invalid", accent_color="")
+        ShopSettings.objects.filter(store__slug="akhlaghi").update(primary_color="invalid", accent_color="")
         resp = self.client.get(reverse("catalog:home"))
         self.assertContains(resp, "--brand-primary:#6D28D9")
         self.assertNotContains(resp, "invalid")
@@ -728,7 +728,7 @@ class AppearanceRenderingRegressionTests(SettingsViewsTestCase):
 
     def test_appearance_page_renders_when_legacy_blank_tokens_present(self):
         """اگر مقادیر جدید (قبل از migrate/بازسازی) خالی/نامعتبر باشند، صفحه با پیش‌فرض‌های امن رندر می‌شود."""
-        ShopSettings.objects.filter(pk=1).update(background_color="", text_color="not-a-color")
+        ShopSettings.objects.filter(store__slug="akhlaghi").update(background_color="", text_color="not-a-color")
         response = self.client.get(reverse("dashboard:settings") + "?section=appearance")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "ویرایشگر رنگ سفارشی")
@@ -929,7 +929,7 @@ class StorefrontThemeTokenInjectionTests(SettingsViewsTestCase):
         self.assertContains(response, "--brand-background:#ABCABC")
 
     def test_invalid_stored_new_token_uses_default_on_storefront(self):
-        ShopSettings.objects.filter(pk=1).update(background_color="invalid", text_color="")
+        ShopSettings.objects.filter(store__slug="akhlaghi").update(background_color="invalid", text_color="")
         response = self.client.get(reverse("catalog:home"))
         self.assertContains(response, "--brand-background:#F7F5FC")
         self.assertContains(response, "--brand-text:#241C3A")
