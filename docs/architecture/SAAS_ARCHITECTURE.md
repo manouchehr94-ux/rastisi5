@@ -1,8 +1,10 @@
 # SaaS Foundation Architecture
 
-Status: Foundation stage. PR 2 (`Store`/`StoreDomain`/`StoreMembership`) has
-merged. PR 3 (Store resolution infrastructure, §6 below) is implemented on
-branch `claude/store-resolution-infra` and open as a pull request — not yet
+Status: Foundation stage. PR 2 (`Store`/`StoreDomain`/`StoreMembership`) and
+PR 3 (Store resolution infrastructure, §6 below) have merged. PR 4 (Store
+ownership for `ShopSettings`/`FooterSettings`/`FooterTrustBadge`/
+`FooterPaymentLogo`, §9 below) is implemented on branch
+`claude/store-scope-core-settings` and open as a pull request — not yet
 merged into the canonical base branch as of this writing. See
 `SAAS_MIGRATION_PLAN.md` for the full staged sequence and current status of
 each PR.
@@ -314,11 +316,148 @@ in this PR:
   background job that touches Store-owned data must carry an explicit Store
   identifier as a job argument — never inferred from ambient/global state.
 
-## 8. What This PR Does Not Change
+## 8. What PR 3 Did Not Change
 
-This PR adds a new, self-contained `apps/stores` app. It does not add a
-`Store` foreign key to any existing model, does not change any existing
-migration, view, template, service, or middleware behavior, and does not
-change `INSTALLED_APPS` request/response behavior. The application behaves
-exactly as it did before this PR. See `SAAS_MIGRATION_PLAN.md` for the
-staged sequence that will change this incrementally.
+PR 3 added a new, self-contained `apps/stores` app. It did not add a
+`Store` foreign key to any existing model, did not change any existing
+migration, view, template, service, or middleware behavior, and did not
+change `INSTALLED_APPS` request/response behavior. The application behaved
+exactly as it did before that PR. §9 below describes the first PR that
+does add `Store` foreign keys to existing models.
+
+## 9. Store Ownership for Core Settings and Footer Configuration
+
+Implemented (PR 4 — "Tenant Ownership for Existing Core and Footer
+Settings"; see `SAAS_MIGRATION_PLAN.md` PR 4 for status).
+
+### 9.1 What became Store-owned
+
+* `apps.core.ShopSettings` — a `OneToOneField("stores.Store", related_name="shop_settings")`.
+  Exactly one row per `Store`, never a platform-wide singleton. No field was
+  renamed, moved, or removed; branding/theme tokens and SMS credentials stay
+  on this model exactly as ADR-10 recorded (splitting `ShopSettings` remains
+  a separate, later decision).
+* `apps.content.FooterSettings` — the same `OneToOneField` pattern, same
+  rationale, same "no split" constraint.
+* `apps.content.FooterTrustBadge` / `apps.content.FooterPaymentLogo` — a
+  plain (non-unique) `ForeignKey("stores.Store")` directly on each model,
+  **not** mediated through `FooterSettings`. Both models were, and remain,
+  independently queried and independently managed rows (their own dashboard
+  list/create/edit/delete/toggle views, never joined through
+  `FooterSettings` to reach them) — direct Store ownership matches how they
+  are actually used, rather than inferring ownership from the fact that the
+  storefront happens to render them inside the same footer region as
+  `FooterSettings`.
+
+`SocialLink`, `Menu`/`MenuItem`, `ContentPage`, `HeroSlide`, and
+`PromotionalBanner` explicitly did **not** gain Store ownership in this PR —
+scoping those remains PR 8's job (`SAAS_MIGRATION_PLAN.md`).
+
+### 9.2 Migration sequence
+
+Each app follows the same three-migration, expand-contract sequence used
+throughout this plan (see "Cross-cutting distinctions" in
+`SAAS_MIGRATION_PLAN.md`):
+
+1. **Schema** — add the `store` field as nullable.
+2. **Backfill** (`RunPython`, historical models via `apps.get_model`) —
+   resolve Akhlaghi by exact slug (`Store.objects.get(slug="akhlaghi")`,
+   never `.first()`, never a hard-coded primary key) and assign every
+   currently-unowned row to it. Zero or more-than-one Akhlaghi Store raises
+   `RuntimeError` — the migration refuses to guess or to silently create a
+   second Akhlaghi Store. The reverse of the backfill only clears the
+   `store` reference (`update(store=None)`) — it never deletes a
+   `ShopSettings`/`FooterSettings`/`FooterTrustBadge`/`FooterPaymentLogo`
+   row, because those are real merchant configuration data, not disposable
+   scaffolding.
+3. **Non-null enforcement** — once backfill has run, `AlterField` makes
+   `store` mandatory. Unlike PR 3's `Store` foundation, this enforcement is
+   not deferred to PR 12: with only Akhlaghi as a tenant today, the
+   backfill migration itself guarantees zero unowned rows remain before
+   this step runs, so there is no reason to leave the column nullable in
+   the interim.
+
+### 9.3 Retrieval and the temporary compatibility mode
+
+`ShopSettings.load(store=None)` and `FooterSettings.load(store=None)` share
+one contract:
+
+* **Explicit `store` given** — returns only that Store's row, or raises a
+  dedicated `*NotProvisionedError` if it has none yet. It never falls back
+  to another Store's row and never materializes one at read time.
+* **No `store` given (compatibility mode)** — delegates to the same
+  `apps.stores.resolution.resolve_compatibility_store()` fail-closed check
+  PR 3's compatibility fallback already uses (exactly one, active,
+  `"akhlaghi"`-slugged Store). The function was promoted from private
+  (`_resolve_compatibility_store`) to public for exactly this reuse — it is
+  still narrowly the "is there exactly one active Akhlaghi Store" check,
+  not a general-purpose "give me a default Store" helper, and no behavior
+  of PR 3's own hostname resolution changed. The moment a second `Store`
+  exists, this path raises `CompatibilityFallbackUnavailableError` instead
+  of guessing.
+
+This replaces the previous, permanent `get_or_create(pk=1, defaults=...)`
+singleton pattern, which is now removed from both models' runtime code:
+missing provisioning is a visible, distinct error, not something that
+silently repairs itself the next time the row is read.
+
+### 9.4 Provisioning boundary
+
+`ShopSettings.provision_for(store)` and `FooterSettings.provision_for(store)`
+are the one explicit, sanctioned way to create a new Store's settings rows.
+Both are `get_or_create`-based classmethods: atomic, idempotent, and never
+overwrite an existing row's values. Neither creates any `FooterTrustBadge`
+or `FooterPaymentLogo` rows — no default trust badges or payment logos are
+implied by provisioning a Store, since none were approved as a genuine
+default. Nothing on the read path calls `provision_for` automatically;
+provisioning a Store's settings is a distinct, explicit step, not a hidden
+side effect of the next page render.
+
+### 9.5 Request-time integration
+
+`apps.core.context_processors.shop_settings` and
+`apps.content.context_processors.footer_settings` resolve
+`ShopSettings.load(store=getattr(request, "store", None))` /
+`FooterSettings.load(store=getattr(request, "store", None))` — `request.store`
+comes only from PR 3's `StoreResolutionMiddleware`, never from the
+authenticated user or `StoreMembership`. The dashboard settings views and
+the footer trust-badge/payment-logo CRUD views follow the same rule via a
+small `_resolve_dashboard_store(request)` helper (`request.store`, falling
+back to the same compatibility check). All existing template context keys
+(store name, tagline, contact info, logo, favicon, theme color tokens, tax,
+free-shipping threshold, footer settings, trust badges, payment logos) are
+unchanged — no storefront template needed to know tenancy was added.
+
+### 9.6 Write-path isolation
+
+Every dashboard endpoint that reads, creates, edits, toggles, or deletes a
+`FooterTrustBadge`/`FooterPaymentLogo` row scopes its lookup with the
+authoritative Store from `_resolve_dashboard_store(request)` —
+`get_object_or_404(FooterTrustBadge, pk=pk, store=store)`, never a bare
+`pk` lookup. A caller-supplied object ID for another Store's row resolves
+to a 404, not the object. This is adversarially tested (a Store A dashboard
+request cannot edit, reorder, enable/disable, or delete a Store B object).
+No dashboard authorization policy changed — the existing `@staff_required`
+gate is unchanged; tenant scope was added on top of it, not instead of it.
+
+### 9.7 Explicit non-goals of this PR
+
+* No catalog, cart, order, customer, vendor, payment-gateway,
+  shipping-method, or SMS-template model gained Store ownership.
+* `SocialLink`, `Menu`/`MenuItem`, `ContentPage`, `HeroSlide`, and
+  `PromotionalBanner` were not touched.
+* `ShopSettings` was not split (ADR-10 still applies unchanged); SMS
+  credentials remain on `ShopSettings` for now (PR 9's job).
+* No dashboard tenant-switching UI was introduced, and `StoreMembership`
+  was not consulted anywhere in this PR.
+* No caching was introduced.
+
+## 10. What This PR Does Not Change
+
+Beyond §9.7: no `StoreDomain` resolution policy changed, no
+`StoreMembership`/plan/subscription/billing/platform-admin/feature-flag
+behavior changed, and no secret-encryption work was done (the
+`melipayamak_password` plaintext-rendering issue noted independently of
+this PR remains deferred to its own small security PR). See
+`SAAS_MIGRATION_PLAN.md` for the staged sequence that will change this
+incrementally.

@@ -4,8 +4,15 @@ from apps.core.models import ShopSettings
 
 
 def shop_settings(request):
-    """هویت و تنظیمات عمومی پلتفرم — از همان رکورد ShopSettings که پنل مدیریت › تنظیمات ویرایش می‌کند."""
-    shop = ShopSettings.load()
+    """هویت و تنظیمات فروشگاهِ Store جاری — از همان رکورد ShopSettings که پنل مدیریت › تنظیمات ویرایش می‌کند.
+
+    Store از ``request.store`` (که middleware مرحله‌ی تحلیل میزبان تنظیم
+    کرده) خوانده می‌شود. اگر هنوز میزبان درخواست به هیچ Store‌ای resolve
+    نشده باشد (``request.store is None``)، ``ShopSettings.load()`` بدون
+    آرگومان به حالت سازگاریِ موقت (تک‌فروشگاهی Akhlaghi) برمی‌گردد و در غیر
+    آن صورت fail-closed می‌شود — هرگز تنظیمات یک Store دیگر را برنمی‌گرداند.
+    """
+    shop = ShopSettings.load(store=getattr(request, "store", None))
 
     primary = safe_hex(shop.primary_color, "#6D28D9")
     accent = safe_hex(shop.accent_color, "#FF4D77")

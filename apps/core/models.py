@@ -6,6 +6,17 @@ from django.db import models
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
+class ShopSettingsNotProvisionedError(Exception):
+    """Raised by ``ShopSettings.load(store=...)`` when the given Store has
+    no ``ShopSettings`` row yet.
+
+    Provisioning is an explicit, separate step (``ShopSettings.provision_for``),
+    never a silent read-time side effect — this is raised instead of
+    auto-creating a row on read, so a missing row is a visible error, not a
+    quietly-materializing default.
+    """
+
+
 def validate_hex_color(value):
     """اعتبارسنجی رنگ #RRGGBB در سطح مدل."""
     if not HEX_COLOR_RE.match(value):
@@ -21,12 +32,25 @@ class TimeStampedModel(models.Model):
 
 
 class ShopSettings(TimeStampedModel):
-    """تنظیمات سراسری فروشگاه — رکورد تکی (singleton).
+    """تنظیمات هر فروشگاه — دقیقاً یک رکورد به‌ازای هر Store.
 
-    منبع واحد حقیقت برای هویت فروشگاه و قواعد قیمت‌گذاری؛ هم پنل مدیریت
-    (مرحله‌ی ۱۴) این رکورد را ویرایش می‌کند، هم سرویس pricing (مرحله‌ی ۲) و
-    context processor سراسری سایت همین رکورد را می‌خوانند — نه یک عدد جدا.
+    منبع واحد حقیقت برای هویت فروشگاه و قواعد قیمت‌گذاریِ همان Store؛ هم پنل
+    مدیریت این رکورد را ویرایش می‌کند، هم سرویس pricing و context processor
+    سراسری سایت همین رکورد را می‌خوانند — نه یک عدد جدا.
+
+    ``store`` یک ``OneToOneField`` است: دقیقاً یک ``ShopSettings`` به ازای هر
+    Store، نه یک رکورد تکی برای کل پلتفرم. برندینگ/تم (رنگ‌ها، لوگو، فاوآیکون)
+    و اطلاعات اتصال پیامک عمداً همچنان همین‌جا هستند — جداسازی این حوزه‌ها به
+    مدل‌های اختصاصی یک تصمیم معماری جداگانه‌ی بعدی است، نه بخشی از این مرحله
+    (نگاه کنید به ``docs/architecture/SAAS_DOMAIN_DECISIONS.md`` ADR-10).
     """
+
+    store = models.OneToOneField(
+        "stores.Store",
+        verbose_name="فروشگاه",
+        on_delete=models.CASCADE,
+        related_name="shop_settings",
+    )
 
     name = models.CharField("نام فروشگاه", max_length=150, default="فروشگاه اینترنتی")
     tagline = models.CharField("شعار فروشگاه", max_length=200, blank=True)
@@ -77,21 +101,65 @@ class ShopSettings(TimeStampedModel):
         return self.name
 
     @classmethod
-    def load(cls) -> "ShopSettings":
-        """رکورد تکی تنظیمات را برمی‌گرداند؛ در اولین فراخوانی از روی settings.py بوت‌استرپ می‌شود."""
-        from django.conf import settings
+    def load(cls, store=None) -> "ShopSettings":
+        """تنظیمات یک Store مشخص، یا در حالت سازگاری موقت، تنظیمات Akhlaghi.
 
-        obj, _ = cls.objects.get_or_create(pk=1, defaults={
-            "name": getattr(settings, "SHOP_NAME", "فروشگاه اینترنتی"),
-            "tagline": getattr(settings, "SHOP_TAGLINE", ""),
-            "contact_phone": getattr(settings, "SHOP_CONTACT_PHONE", ""),
-            "contact_email": getattr(settings, "SHOP_CONTACT_EMAIL", ""),
-            "contact_address": getattr(settings, "SHOP_CONTACT_ADDRESS", ""),
-            "tax_percent": getattr(settings, "SHOP_TAX_PERCENT", 9),
-            "free_shipping_threshold": getattr(settings, "SHOP_FREE_SHIPPING_THRESHOLD", 500_000),
-        })
+        ``store`` مشخص شود: فقط همان Store برگردانده می‌شود؛ اگر هنوز
+        provision نشده باشد ``ShopSettingsNotProvisionedError`` raise
+        می‌شود — هرگز تنظیمات یک Store دیگر را برنمی‌گرداند و رکورد جدید هم
+        در زمان خواندن ساخته نمی‌شود (provisioning یک قدم صریح و جداست، نه
+        اثر جانبی خواندن).
+
+        ``store`` مشخص نشود (حالت سازگاری موقت): فقط وقتی دقیقاً یک Store
+        فعال با اسلاگ ``"akhlaghi"`` در کل دیتابیس وجود داشته باشد کار
+        می‌کند؛ در غیر این صورت — صفر یا بیش از یک Store — با
+        ``apps.stores.resolution.CompatibilityFallbackUnavailableError``
+        fail-closed می‌شود (به جای حدس زدن). همان قانون fail-closed منبع
+        واحدی دارد که با تحلیل میزبان HTTP هم مشترک است
+        (``apps.stores.resolution.resolve_compatibility_store``).
+        """
+        if store is not None:
+            try:
+                return cls.objects.get(store=store)
+            except cls.DoesNotExist as exc:
+                raise ShopSettingsNotProvisionedError(
+                    f"Store {store.slug!r} has no ShopSettings row yet; "
+                    "provision it explicitly via ShopSettings.provision_for(store)."
+                ) from exc
+
+        from apps.stores.resolution import resolve_compatibility_store
+
+        compat_store = resolve_compatibility_store()
+        try:
+            return cls.objects.get(store=compat_store)
+        except cls.DoesNotExist as exc:
+            raise ShopSettingsNotProvisionedError(
+                f"Store {compat_store.slug!r} has no ShopSettings row yet; "
+                "provision it explicitly via ShopSettings.provision_for(store)."
+            ) from exc
+
+    @classmethod
+    def provision_for(cls, store) -> "ShopSettings":
+        """رکورد ShopSettings یک Store را می‌سازد؛ اگر از قبل وجود داشته باشد
+        دست‌نخورده برمی‌گردد (idempotent) — هرگز مقادیر تاجر را بازنویسی
+        نمی‌کند. مقادیر پیش‌فرض اولیه از settings.py فقط در اولین ساخت
+        اعمال می‌شوند (رفتار قبلیِ ``load()`` برای رکورد تکی، اکنون به‌ازای
+        هر Store).
+        """
+        from django.conf import settings as django_settings
+
+        obj, _ = cls.objects.get_or_create(
+            store=store,
+            defaults={
+                "name": getattr(django_settings, "SHOP_NAME", "فروشگاه اینترنتی"),
+                "tagline": getattr(django_settings, "SHOP_TAGLINE", ""),
+                "contact_phone": getattr(django_settings, "SHOP_CONTACT_PHONE", ""),
+                "contact_email": getattr(django_settings, "SHOP_CONTACT_EMAIL", ""),
+                "contact_address": getattr(django_settings, "SHOP_CONTACT_ADDRESS", ""),
+                "tax_percent": getattr(django_settings, "SHOP_TAX_PERCENT", 9),
+                "free_shipping_threshold": getattr(
+                    django_settings, "SHOP_FREE_SHIPPING_THRESHOLD", 500_000
+                ),
+            },
+        )
         return obj
-
-    def save(self, *args, **kwargs):
-        self.pk = 1
-        super().save(*args, **kwargs)

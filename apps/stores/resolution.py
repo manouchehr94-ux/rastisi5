@@ -16,7 +16,7 @@ an active Store only (``domain_is_eligible_for_routing``). A narrow,
 explicitly isolated, temporary compatibility fallback additionally allows a
 fixed allowlist of local-development hosts to resolve to the Akhlaghi Store,
 but only while the database contains exactly one, active, "akhlaghi" Store
-(``_resolve_compatibility_store``). The fallback fails closed the moment a
+(``resolve_compatibility_store``). The fallback fails closed the moment a
 second Store exists — it is not a permanent behavior.
 """
 
@@ -161,7 +161,7 @@ def _is_development_host(stripped_host: str) -> bool:
     return stripped_host.lower() in _development_host_allowlist()
 
 
-def _resolve_compatibility_store() -> Store:
+def resolve_compatibility_store() -> Store:
     """The narrow, temporary single-Store compatibility fallback.
 
     Returns the Akhlaghi Store only when ALL of the following hold:
@@ -177,6 +177,13 @@ def _resolve_compatibility_store() -> Store:
     Akhlaghi keep working locally before a real, verified ``StoreDomain``
     is provisioned for it; it is not a permanent behavior and must not be
     relied upon once a real domain exists.
+
+    Public (not host-specific) on purpose: this same "is there exactly one
+    active Akhlaghi Store" check is also the compatibility rule for
+    Store-scoped settings retrieval (``apps.core.models.ShopSettings.load()``,
+    ``apps.content.models.FooterSettings.load()``) when no explicit Store is
+    given — reusing it here keeps there being exactly one fail-closed check,
+    not two independently-maintained copies of the same safety rule.
     """
     stores = list(Store.objects.all()[:2])
     if len(stores) != 1:
@@ -207,7 +214,7 @@ def resolve_store_for_hostname(raw_host: str) -> Store:
     stripped = _strip_port(raw_host)
 
     if _is_development_host(stripped):
-        return _resolve_compatibility_store()
+        return resolve_compatibility_store()
 
     try:
         normalized = normalize_hostname(stripped)

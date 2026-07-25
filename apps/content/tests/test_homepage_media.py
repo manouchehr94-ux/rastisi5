@@ -328,11 +328,37 @@ class ImageSizeValidatorTests(TestCase):
 
 
 class TransactionSafeFileLifecycleTests(TransactionTestCase):
-    """تست‌های چرخه‌ی زندگی فایل — حذف فقط پس از commit موفق."""
+    """تست‌های چرخه‌ی زندگی فایل — حذف فقط پس از commit موفق.
+
+    ``TransactionTestCase`` flushes (truncates) every table in its own
+    teardown — including ``stores_store`` — which would otherwise
+    permanently delete the Akhlaghi Store (and, via CASCADE, its
+    ShopSettings/FooterSettings) for every later test in the same run,
+    since every page render in this test class goes through the
+    Store-aware ``shop_settings``/``footer_settings`` context processors.
+    ``_fixture_teardown`` is overridden to reseed Akhlaghi (and its
+    settings) after the base flush — deliberately not
+    ``serialized_rollback = True``, which collides with flush's own
+    ``post_migrate`` signal and raises a ``django_content_type`` duplicate-
+    key error (see ``apps.stores.tests.test_resolution`` for the same
+    lesson learned on the resolver's own migration-executor test).
+    """
 
     def setUp(self):
         self.staff = User.objects.create_user(username="staff_lc", password="pass!", is_staff=True)
         self.client.login(username="staff_lc", password="pass!")
+
+    def _fixture_teardown(self):
+        super()._fixture_teardown()
+        from apps.content.models import FooterSettings
+        from apps.core.models import ShopSettings
+        from apps.stores.models import Store
+
+        store, _ = Store.objects.get_or_create(
+            slug="akhlaghi", defaults={"name": "Akhlaghi", "status": Store.Status.ACTIVE}
+        )
+        ShopSettings.provision_for(store)
+        FooterSettings.provision_for(store)
 
     def test_hero_delete_removes_files_after_commit(self):
         """Deleting a hero removes its files via on_commit."""

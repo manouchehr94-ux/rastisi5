@@ -94,19 +94,32 @@ def navigation_menus(request):
 
 
 def footer_settings(request):
-    """تنظیمات فوتر فروشگاه — singleton + نمادها و لوگوهای پرداخت."""
+    """تنظیمات فوتر Store جاری + نمادها و لوگوهای پرداخت همان Store.
+
+    Store از ``request.store`` خوانده می‌شود؛ همان قرارداد
+    ``apps.core.context_processors.shop_settings`` — نگاه کنید به آن برای
+    شرح کامل حالت سازگاری موقت.
+    """
     from .models import FooterSettings, FooterTrustBadge, FooterPaymentLogo
 
-    settings_obj = FooterSettings.load()
+    settings_obj = FooterSettings.load(store=getattr(request, "store", None))
     context = {"FOOTER_SETTINGS": settings_obj}
 
+    # store_id (not settings_obj.store) — the FK id is already in hand from
+    # the settings_obj row itself; going through .store would trigger an
+    # extra, unnecessary query to fetch the related Store instance just to
+    # read its pk back out.
     if settings_obj.show_trust_badges:
-        context["FOOTER_TRUST_BADGES"] = FooterTrustBadge.objects.filter(is_active=True)
+        context["FOOTER_TRUST_BADGES"] = FooterTrustBadge.objects.filter(
+            store_id=settings_obj.store_id, is_active=True
+        )
     else:
         context["FOOTER_TRUST_BADGES"] = FooterTrustBadge.objects.none()
 
     if settings_obj.show_payment_logos:
-        context["FOOTER_PAYMENT_LOGOS"] = FooterPaymentLogo.objects.filter(is_active=True)
+        context["FOOTER_PAYMENT_LOGOS"] = FooterPaymentLogo.objects.filter(
+            store_id=settings_obj.store_id, is_active=True
+        )
     else:
         context["FOOTER_PAYMENT_LOGOS"] = FooterPaymentLogo.objects.none()
 

@@ -879,7 +879,7 @@ THEME_TOKEN_DEFAULTS = {
 
 
 def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=None, visual_form=None):
-    shop = ShopSettings.load()
+    shop = ShopSettings.load(store=request.store)
     theme_values = {
         field: safe_hex(getattr(shop, field), default) for field, default in THEME_TOKEN_DEFAULTS.items()
     }
@@ -940,7 +940,7 @@ def settings_home(request):
 def settings_shop_info(request):
     form = ShopInfoForm(request.POST)
     if form.is_valid():
-        shop = ShopSettings.load()
+        shop = ShopSettings.load(store=request.store)
         for field in ["name", "tagline", "contact_phone", "contact_email", "contact_address", "description"]:
             setattr(shop, field, form.cleaned_data[field])
         shop.save()
@@ -957,7 +957,7 @@ def settings_shop_info(request):
 def settings_finance(request):
     form = FinanceSettingsForm(request.POST)
     if form.is_valid():
-        shop = ShopSettings.load()
+        shop = ShopSettings.load(store=request.store)
         shop.tax_percent = form.cleaned_data["tax_percent"]
         shop.free_shipping_threshold = form.cleaned_data["free_shipping_threshold"]
         shop.save()
@@ -1001,14 +1001,14 @@ def settings_appearance(request):
     from django.db import transaction as db_transaction
 
     if request.POST.get("action") == "reset":
-        shop = ShopSettings.load()
+        shop = ShopSettings.load(store=request.store)
         for field, default in THEME_TOKEN_DEFAULTS.items():
             setattr(shop, field, default)
         shop.save()
         messages.success(request, "رنگ‌بندی به پیش‌فرض بازگردانی شد")
         return redirect("/admin-panel/settings/?section=appearance")
 
-    shop_for_validation = ShopSettings.load()
+    shop_for_validation = ShopSettings.load(store=request.store)
     form = VisualIdentityForm(request.POST, request.FILES, current_shop=shop_for_validation)
     if form.is_valid():
         shop = shop_for_validation
@@ -1065,7 +1065,7 @@ def settings_appearance(request):
 def settings_sms_connection(request):
     form = SmsConnectionForm(request.POST)
     if form.is_valid():
-        shop = ShopSettings.load()
+        shop = ShopSettings.load(store=request.store)
         for field in [
             "sms_enabled", "sms_backend", "sms_sender_number",
             "melipayamak_username", "melipayamak_password",
@@ -1784,9 +1784,25 @@ def menu_item_toggle(request, pk):
 from apps.content.models import FooterSettings, FooterTrustBadge, FooterPaymentLogo
 
 
+def _resolve_dashboard_store(request):
+    """Store مورد نیاز برای عملیات نوشتنِ داشبورد (نمادها/لوگوهای فوتر).
+
+    ``request.store`` (که middleware تحلیل میزبان تنظیم کرده) منبع اصلی
+    است. اگر resolve نشده باشد، از همان قانون سازگاریِ موقتِ
+    ``ShopSettings.load()``/``FooterSettings.load()`` استفاده می‌شود (دقیقاً
+    یک Store فعال با اسلاگ ``akhlaghi``) — در غیر این صورت fail-closed
+    می‌شود (``CompatibilityFallbackUnavailableError``), نه یک Store دلخواه.
+    """
+    if request.store is not None:
+        return request.store
+    from apps.stores.resolution import resolve_compatibility_store
+
+    return resolve_compatibility_store()
+
+
 @staff_required
 def footer_settings_page(request):
-    fs = FooterSettings.load()
+    fs = FooterSettings.load(store=request.store)
     field_errors = {}
 
     if request.method == "POST":
@@ -1845,7 +1861,8 @@ def footer_settings_page(request):
 
 @staff_required
 def footer_trust_badge_list(request):
-    badges = FooterTrustBadge.objects.all().order_by("display_order", "id")
+    store = _resolve_dashboard_store(request)
+    badges = FooterTrustBadge.objects.filter(store=store).order_by("display_order", "id")
     return render(request, "dashboard/footer_trust_badges.html", {
         "badges": badges, "active_page": "footer",
     })
@@ -1855,11 +1872,12 @@ def footer_trust_badge_list(request):
 def footer_trust_badge_form(request, pk=None):
     from django.db import transaction
 
-    badge = get_object_or_404(FooterTrustBadge, pk=pk) if pk else None
+    store = _resolve_dashboard_store(request)
+    badge = get_object_or_404(FooterTrustBadge, pk=pk, store=store) if pk else None
     field_errors = {}
 
     if request.method == "POST":
-        obj = badge or FooterTrustBadge()
+        obj = badge or FooterTrustBadge(store=store)
         old_image_name = obj.image.name if obj.pk and obj.image else None
 
         obj.title = request.POST.get("title", "").strip()
@@ -1902,7 +1920,8 @@ def footer_trust_badge_form(request, pk=None):
 def footer_trust_badge_delete(request, pk):
     from django.db import transaction
 
-    badge = get_object_or_404(FooterTrustBadge, pk=pk)
+    store = _resolve_dashboard_store(request)
+    badge = get_object_or_404(FooterTrustBadge, pk=pk, store=store)
     if request.method != "POST":
         return render(request, "dashboard/confirm_delete.html", {
             "object_type": "نماد اعتماد",
@@ -1927,7 +1946,8 @@ def footer_trust_badge_delete(request, pk):
 @require_POST
 @staff_required
 def footer_trust_badge_toggle(request, pk):
-    badge = get_object_or_404(FooterTrustBadge, pk=pk)
+    store = _resolve_dashboard_store(request)
+    badge = get_object_or_404(FooterTrustBadge, pk=pk, store=store)
     badge.is_active = not badge.is_active
     badge.save(update_fields=["is_active", "updated_at"])
     state = "فعال" if badge.is_active else "غیرفعال"
@@ -1937,7 +1957,8 @@ def footer_trust_badge_toggle(request, pk):
 
 @staff_required
 def footer_payment_logo_list(request):
-    logos = FooterPaymentLogo.objects.all().order_by("display_order", "id")
+    store = _resolve_dashboard_store(request)
+    logos = FooterPaymentLogo.objects.filter(store=store).order_by("display_order", "id")
     return render(request, "dashboard/footer_payment_logos.html", {
         "logos": logos, "active_page": "footer",
     })
@@ -1947,11 +1968,12 @@ def footer_payment_logo_list(request):
 def footer_payment_logo_form(request, pk=None):
     from django.db import transaction
 
-    logo = get_object_or_404(FooterPaymentLogo, pk=pk) if pk else None
+    store = _resolve_dashboard_store(request)
+    logo = get_object_or_404(FooterPaymentLogo, pk=pk, store=store) if pk else None
     field_errors = {}
 
     if request.method == "POST":
-        obj = logo or FooterPaymentLogo()
+        obj = logo or FooterPaymentLogo(store=store)
         old_image_name = obj.image.name if obj.pk and obj.image else None
 
         obj.title = request.POST.get("title", "").strip()
@@ -1993,7 +2015,8 @@ def footer_payment_logo_form(request, pk=None):
 def footer_payment_logo_delete(request, pk):
     from django.db import transaction
 
-    logo = get_object_or_404(FooterPaymentLogo, pk=pk)
+    store = _resolve_dashboard_store(request)
+    logo = get_object_or_404(FooterPaymentLogo, pk=pk, store=store)
     if request.method != "POST":
         return render(request, "dashboard/confirm_delete.html", {
             "object_type": "لوگوی پرداخت",
@@ -2018,7 +2041,8 @@ def footer_payment_logo_delete(request, pk):
 @require_POST
 @staff_required
 def footer_payment_logo_toggle(request, pk):
-    logo = get_object_or_404(FooterPaymentLogo, pk=pk)
+    store = _resolve_dashboard_store(request)
+    logo = get_object_or_404(FooterPaymentLogo, pk=pk, store=store)
     logo.is_active = not logo.is_active
     logo.save(update_fields=["is_active", "updated_at"])
     state = "فعال" if logo.is_active else "غیرفعال"
