@@ -8,14 +8,16 @@ from apps.cart.models import Cart, CartItem, Coupon
 from apps.catalog.models import Category, Product, Vendor
 from apps.orders.models import PaymentGateway, ShippingMethod
 from apps.orders.services import checkout_service
+from apps.stores.models import Store
 
 
 class CheckoutServiceTestCase(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-chk")
-        category = Category.objects.create(name="دیجیتال", slug="digital-chk")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-chk")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-chk")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-chk",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-chk",
             sku="SKU-CHK1", price=Decimal("400000"), discount_percent=10, stock=10,
         )
         self.cheap_shipping = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-chk", cost=45_000)

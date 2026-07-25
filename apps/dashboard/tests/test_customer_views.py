@@ -7,17 +7,19 @@ from django.urls import reverse
 from apps.catalog.models import Vendor
 from apps.customers.models import Customer
 from apps.orders.models import Order, PaymentGateway, ShippingMethod
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
 class CustomerViewsTestCase(TestCase):
     def setUp(self):
+        store = Store.objects.get(slug="akhlaghi")
         user = User.objects.create_user(username="09121180001", password="pass12345")
         self.customer = Customer.objects.create(
             user=user, full_name="فرزانه قاسمی", phone="09121180001", city="کرج", is_vip=True
         )
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-cw")
+        self.vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-cw")
         self.shipping = ShippingMethod.objects.create(name="پست", slug="post-cw", cost=Decimal("45000"))
         self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-cw")
         self.order = Order.objects.create(

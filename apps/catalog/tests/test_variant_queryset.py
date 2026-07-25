@@ -4,14 +4,20 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from apps.catalog.models import Category, Product, ProductVariant, VariantMutationError, Vendor
+from apps.stores.models import Store
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
 
 
 class VariantQuerySetFixture(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-vqs")
-        self.category = Category.objects.create(name="دسته", slug="cat-vqs")
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-vqs")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-vqs")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="شیلنگ فن‌کویل", slug="hose-vqs",
+            store=self.store, vendor=self.vendor, category=self.category, name="شیلنگ فن‌کویل", slug="hose-vqs",
             sku="SKU-HOSE-VQS", price=Decimal("200000"),
         )
 

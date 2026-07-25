@@ -14,8 +14,13 @@ from django.urls import reverse
 from apps.catalog.models import Category, Product, ProductVariant, Vendor
 from apps.customers.models import Customer
 from apps.orders.models import Order, OrderItem, PaymentGateway, ShippingMethod
+from apps.stores.models import Store
 
 User = get_user_model()
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
 
 
 def _full_inline_post_data(get_response, product, category, vendor):
@@ -56,10 +61,11 @@ class DjangoAdminVariantFixture(TestCase):
         )
         self.client.login(username="admin-diag", password="pass12345")
 
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-adm")
-        self.category = Category.objects.create(name="دسته", slug="cat-adm")
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-adm")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-adm")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="شیلنگ فن‌کویل", slug="hose-adm",
+            store=self.store, vendor=self.vendor, category=self.category, name="شیلنگ فن‌کویل", slug="hose-adm",
             sku="SKU-HOSE-ADM", price=Decimal("200000"),
         )
         self.variant = ProductVariant.objects.create(product=self.product, attribute="طول", value="30")

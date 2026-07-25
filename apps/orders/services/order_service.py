@@ -75,6 +75,11 @@ def create_order_from_cart(cart, *, customer, vendor, address, shipping_method, 
         raise ValueError("سبد خرید خالی است")
 
     for item in items:
+        if item.product.store_id != store.pk:
+            # هرگز نباید پیش بیاید — cart_add کالا را با همان Store scope
+            # می‌کند — اما این‌جا هم به‌عنوان خط دفاعی آخر بررسی می‌شود تا
+            # سفارشی هرگز از قلم‌های چندین Store مختلط ساخته نشود.
+            raise ValueError(f"کالای «{item.product.name}» متعلق به این فروشگاه نیست")
         if item.quantity > item.product.stock:
             raise ValueError(f"موجودی «{item.product.name}» کافی نیست")
 

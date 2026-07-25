@@ -7,19 +7,21 @@ from apps.catalog.models import Vendor
 from apps.customers.models import Customer
 from apps.dashboard.services.customers_admin_service import annotated_customers, customer_orders, customer_paid_total
 from apps.orders.models import Order, PaymentGateway, ShippingMethod
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
 class CustomersAdminServiceTestCase(TestCase):
     def setUp(self):
+        store = Store.objects.get(slug="akhlaghi")
         user1 = User.objects.create_user(username="09121170001", password="pass12345")
         self.customer1 = Customer.objects.create(
             user=user1, full_name="پریسا کاظمی", phone="09121170001", city="تهران", is_vip=True
         )
         user2 = User.objects.create_user(username="09121170002", password="pass12345")
         self.customer2 = Customer.objects.create(user=user2, full_name="بهروز امینی", phone="09121170002", city="یزد")
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-ca")
+        self.vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-ca")
         self.shipping = ShippingMethod.objects.create(name="پست", slug="post-ca", cost=Decimal("45000"))
         self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-ca")
         Order.objects.create(

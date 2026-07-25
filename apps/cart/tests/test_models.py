@@ -6,6 +6,7 @@ from django.test import TestCase
 
 from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
+from apps.stores.models import Store
 
 from apps.cart.models import Cart, CartItem, Coupon
 
@@ -14,10 +15,11 @@ User = get_user_model()
 
 class CartModelsTests(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-c")
-        self.category = Category.objects.create(name="پوشاک", slug="clothing-c")
+        self.store = Store.objects.get(slug="akhlaghi")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-c")
+        self.category = Category.objects.create(store=self.store, name="پوشاک", slug="clothing-c")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="هودی", slug="hoodie-c",
+            store=self.store, vendor=self.vendor, category=self.category, name="هودی", slug="hoodie-c",
             sku="SKU-C1", price=Decimal("1500000"),
         )
 

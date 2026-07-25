@@ -31,7 +31,7 @@ class OrdersAdminServiceTestCase(TestCase):
         self.store = _akhlaghi()
         user = User.objects.create_user(username="09121130001", password="pass12345")
         self.customer = Customer.objects.create(user=user, full_name="سارا احمدی", phone="09121130001")
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-oa")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-oa")
         self.shipping = ShippingMethod.objects.create(name="پست", slug="post-oa", cost=Decimal("45000"))
         self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-oa")
         self.order = Order.objects.create(

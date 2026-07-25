@@ -14,17 +14,23 @@ from apps.catalog.services.variant_service import (
 )
 from apps.customers.models import Customer
 from apps.orders.models import Order, OrderItem, PaymentGateway, ShippingMethod
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
 class VariantViewsTestCase(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-pvv")
-        self.main = Category.objects.create(name="دیجیتال", slug="main-pvv")
-        self.sub = Category.objects.create(name="موبایل", slug="sub-pvv", parent=self.main)
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-pvv")
+        self.main = Category.objects.create(store=self.store, name="دیجیتال", slug="main-pvv")
+        self.sub = Category.objects.create(store=self.store, name="موبایل", slug="sub-pvv", parent=self.main)
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.sub, name="شیلنگ فن‌کویل", slug="hose-pvv",
+            store=self.store, vendor=self.vendor, category=self.sub, name="شیلنگ فن‌کویل", slug="hose-pvv",
             sku="SKU-HOSE-PVV", price=Decimal("200000"),
         )
         self.staff = User.objects.create_user(username="09121122301", password="pass12345", is_staff=True)
@@ -36,7 +42,7 @@ class VariantViewsTestCase(TestCase):
 
     def _other_product(self):
         return Product.objects.create(
-            vendor=self.vendor, category=self.sub, name="کالای دیگر", slug="other-pvv",
+            store=self.store, vendor=self.vendor, category=self.sub, name="کالای دیگر", slug="other-pvv",
             sku="SKU-OTHER-PVV", price=Decimal("50000"),
         )
 

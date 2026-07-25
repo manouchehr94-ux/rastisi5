@@ -8,16 +8,18 @@ from django.urls import reverse
 from apps.cart.models import Cart, CartItem
 from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
 class CartAddViewTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-cav")
-        category = Category.objects.create(name="دیجیتال", slug="digital-cav")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-cav")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-cav")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-cav",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-cav",
             sku="SKU-CAV1", price=Decimal("300000"), stock=10,
         )
 
@@ -60,10 +62,11 @@ class CartAddViewTests(TestCase):
 
 class CartDetailViewTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-cdv")
-        category = Category.objects.create(name="دیجیتال", slug="digital-cdv")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-cdv")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-cdv")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-cdv",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-cdv",
             sku="SKU-CDV1", price=Decimal("400000"), discount_percent=25, stock=10,
         )
 
@@ -88,10 +91,11 @@ class CartDetailViewTests(TestCase):
 
 class CartItemUpdateRemoveTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-ciu")
-        category = Category.objects.create(name="دیجیتال", slug="digital-ciu")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-ciu")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-ciu")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-ciu",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-ciu",
             sku="SKU-CIU1", price=Decimal("100000"), stock=5,
         )
         self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 1})

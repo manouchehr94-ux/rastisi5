@@ -3,6 +3,11 @@ from decimal import Decimal
 from django.test import TestCase
 
 from apps.catalog.models import Category, Product, ProductVariant, Vendor
+from apps.stores.models import Store
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
 from apps.catalog.services.pricing_service import (
     PricingError,
     is_variant_purchasable,
@@ -12,10 +17,11 @@ from apps.catalog.services.pricing_service import (
 
 class ResolveEffectivePriceTests(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-ps")
-        self.category = Category.objects.create(name="دسته", slug="cat-ps")
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-ps")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-ps")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="شیلنگ فن‌کویل", slug="hose-ps",
+            store=self.store, vendor=self.vendor, category=self.category, name="شیلنگ فن‌کویل", slug="hose-ps",
             sku="SKU-HOSE-PS", price=Decimal("200000"),
         )
 
@@ -49,7 +55,7 @@ class ResolveEffectivePriceTests(TestCase):
 
     def test_variant_from_another_product_raises(self):
         other_product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کالای دیگر", slug="other-ps",
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای دیگر", slug="other-ps",
             sku="SKU-OTHER-PS", price=Decimal("50000"),
         )
         foreign_variant = ProductVariant.objects.create(product=other_product, attribute="رنگ", value="قرمز")
@@ -59,10 +65,11 @@ class ResolveEffectivePriceTests(TestCase):
 
 class IsVariantPurchasableTests(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-pur")
-        self.category = Category.objects.create(name="دسته", slug="cat-pur")
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-pur")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-pur")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کالا", slug="product-pur",
+            store=self.store, vendor=self.vendor, category=self.category, name="کالا", slug="product-pur",
             sku="SKU-PUR", price=Decimal("100000"),
         )
 

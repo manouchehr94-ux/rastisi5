@@ -7,6 +7,7 @@ from apps.cart.models import Cart
 from apps.cart.services.cart_service import add_item_to_cart, get_cart
 from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
+from apps.stores.models import Store
 
 User = get_user_model()
 
@@ -72,10 +73,11 @@ class GetCartTests(TestCase):
 
 class AddItemToCartTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-cs")
-        category = Category.objects.create(name="دیجیتال", slug="digital-cs")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-cs")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-cs")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-cs",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-cs",
             sku="SKU-CS1", price=Decimal("200000"), discount_percent=10,
         )
         self.cart = Cart.objects.create(session_key="test-session-cs")

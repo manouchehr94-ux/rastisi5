@@ -6,17 +6,23 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.catalog.models import Category, Product, Vendor
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
 class ProductViewsTestCase(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-pv")
-        self.main = Category.objects.create(name="دیجیتال", slug="main-pv")
-        self.sub = Category.objects.create(name="موبایل", slug="sub-pv", parent=self.main)
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-pv")
+        self.main = Category.objects.create(store=self.store, name="دیجیتال", slug="main-pv")
+        self.sub = Category.objects.create(store=self.store, name="موبایل", slug="sub-pv", parent=self.main)
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.sub, name="گوشی هوشمند", slug="phone-pv",
+            store=self.store, vendor=self.vendor, category=self.sub, name="گوشی هوشمند", slug="phone-pv",
             sku="SKU-PV1", price=Decimal("1000000"), stock=5,
         )
         self.staff = User.objects.create_user(username="09121122001", password="pass12345", is_staff=True)
@@ -47,7 +53,7 @@ class ProductListViewTests(ProductViewsTestCase):
 
     def test_out_of_stock_filter(self):
         Product.objects.create(
-            vendor=self.vendor, category=self.sub, name="کالای ناموجود", slug="oos-pv",
+            store=self.store, vendor=self.vendor, category=self.sub, name="کالای ناموجود", slug="oos-pv",
             sku="SKU-PV2", price=Decimal("1000"), stock=0,
         )
         response = self.client.get(reverse("dashboard:product-table"), {"status": "out"})

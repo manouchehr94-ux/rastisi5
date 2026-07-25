@@ -33,7 +33,8 @@ def cart_detail(request):
 
 @require_POST
 def cart_add(request, slug):
-    product = get_object_or_404(Product, slug=slug, status=Product.Status.ACTIVE)
+    store = resolve_store_for_service(request)
+    product = get_object_or_404(Product, slug=slug, store=store, status=Product.Status.ACTIVE)
 
     variant = None
     variant_id = request.POST.get("variant_id", "").strip()

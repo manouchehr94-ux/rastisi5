@@ -8,10 +8,17 @@ from apps.core.models import TimeStampedModel
 
 
 class Vendor(TimeStampedModel):
-    """فروشنده / فروشگاه — پایه‌ی چند فروشنده‌ای (Multi-Vendor Ready)."""
+    """فروشنده / فروشگاه — پایه‌ی چند فروشنده‌ای (Multi-Vendor Ready).
 
+    ``store`` مالکیت مستقیم Store است: هر فروشنده دقیقاً متعلق به یک Store
+    است (ADR-1 را نگاه کنید — Vendor خودش یک Store/tenant نیست؛ چندفروشنده‌ای
+    *درون* یک Store یک ویژگی جداگانه و آینده است، نه بخشی از این مرحله)."""
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="vendors",
+    )
     name = models.CharField("نام فروشنده", max_length=150)
-    slug = models.SlugField("اسلاگ", max_length=170, unique=True, allow_unicode=True)
+    slug = models.SlugField("اسلاگ", max_length=170, allow_unicode=True)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         verbose_name="مالک",
@@ -28,16 +35,22 @@ class Vendor(TimeStampedModel):
         verbose_name = "فروشنده"
         verbose_name_plural = "فروشندگان"
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "slug"], name="uniq_vendor_slug_per_store"),
+        ]
 
     def __str__(self):
         return self.name
 
 
 class Category(TimeStampedModel):
-    """دسته‌بندی درختی، خودارجاع (حداقل دو سطح)."""
+    """دسته‌بندی درختی، خودارجاع (حداقل دو سطح) — مالکیت مستقیم Store."""
 
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="categories",
+    )
     name = models.CharField("نام", max_length=120)
-    slug = models.SlugField("اسلاگ", max_length=140, unique=True, allow_unicode=True)
+    slug = models.SlugField("اسلاگ", max_length=140, allow_unicode=True)
     icon = models.CharField("آیکون", max_length=20, blank=True)
     parent = models.ForeignKey(
         "self",
@@ -54,20 +67,35 @@ class Category(TimeStampedModel):
         verbose_name = "دسته‌بندی"
         verbose_name_plural = "دسته‌بندی‌ها"
         ordering = ["order", "name"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "slug"], name="uniq_category_slug_per_store"),
+        ]
 
     def __str__(self):
         return self.name
 
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.parent_id and self.store_id and self.parent.store_id != self.store_id:
+            raise ValidationError({"parent": "دسته‌ی والد متعلق به فروشگاه دیگری است."})
+
 
 class Brand(TimeStampedModel):
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="brands",
+    )
     name = models.CharField("نام برند", max_length=120)
-    slug = models.SlugField("اسلاگ", max_length=140, unique=True, allow_unicode=True)
+    slug = models.SlugField("اسلاگ", max_length=140, allow_unicode=True)
     logo = models.ImageField("لوگو", upload_to="brands/logos/", null=True, blank=True)
 
     class Meta:
         verbose_name = "برند"
         verbose_name_plural = "برندها"
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "slug"], name="uniq_brand_slug_per_store"),
+        ]
 
     def __str__(self):
         return self.name
@@ -88,6 +116,9 @@ class Product(TimeStampedModel):
         SIMPLE = "simple", "کالای ساده"
         VARIABLE = "variable", "کالای دارای تنوع"
 
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="products",
+    )
     vendor = models.ForeignKey(Vendor, verbose_name="فروشنده", on_delete=models.CASCADE, related_name="products")
     category = models.ForeignKey(Category, verbose_name="دسته‌بندی", on_delete=models.PROTECT, related_name="products")
     brand = models.ForeignKey(
@@ -95,8 +126,8 @@ class Product(TimeStampedModel):
     )
 
     name = models.CharField("نام کالا", max_length=220)
-    slug = models.SlugField("اسلاگ", max_length=240, unique=True, allow_unicode=True)
-    sku = models.CharField("کد کالا (SKU)", max_length=40, unique=True)
+    slug = models.SlugField("اسلاگ", max_length=240, allow_unicode=True)
+    sku = models.CharField("کد کالا (SKU)", max_length=40)
     description = models.TextField("توضیحات", blank=True)
 
     price = models.DecimalField("قیمت پایه (تومان)", max_digits=12, decimal_places=0)
@@ -126,9 +157,30 @@ class Product(TimeStampedModel):
         verbose_name = "کالا"
         verbose_name_plural = "کالاها"
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "slug"], name="uniq_product_slug_per_store"),
+            models.UniqueConstraint(fields=["store", "sku"], name="uniq_product_sku_per_store"),
+        ]
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        """کالا نمی‌تواند به فروشنده/دسته‌بندی/برندِ متعلق به Store دیگری وصل شود.
+
+        این یک بررسی سطح دیتابیس نیست (SQLite نمی‌تواند CHECK بین‌جدولی
+        اجرا کند) — این‌جا و در لایه‌ی سرویس/فرم اعمال می‌شود."""
+        from django.core.exceptions import ValidationError
+
+        errors = {}
+        if self.vendor_id and self.store_id and self.vendor.store_id != self.store_id:
+            errors["vendor"] = "این فروشنده متعلق به فروشگاه دیگری است."
+        if self.category_id and self.store_id and self.category.store_id != self.store_id:
+            errors["category"] = "این دسته‌بندی متعلق به فروشگاه دیگری است."
+        if self.brand_id and self.store_id and self.brand.store_id != self.store_id:
+            errors["brand"] = "این برند متعلق به فروشگاه دیگری است."
+        if errors:
+            raise ValidationError(errors)
 
     @property
     def final_price(self):
@@ -178,6 +230,12 @@ def _normalize_variant_fields(instance: "ProductVariant") -> None:
 
     هم ``ProductVariant.save()`` و هم ``ProductVariantQuerySet.bulk_create()`` از همین
     تابع استفاده می‌کنند تا نرمال‌سازی هرگز در دو جا تکرار/ناهم‌سو نشود.
+
+    ``store`` هم همیشه این‌جا از روی ``product.store`` بازمحاسبه می‌شود —
+    عمداً یک فیلد مستقل قابل‌ویرایش نیست (``ProductVariantQuerySet`` تغییر
+    مستقیم آن را هم مثل بقیه‌ی فیلدهای حساس مسدود می‌کند)، تا کالای دیگر
+    هرگز نتواند تنوعِ Store دیگری را «تصاحب» کند؛ تنها راه تغییر مالکیت
+    Store یک تنوع، تغییر مالکیت خود کالا است.
     """
     from apps.core.utils import normalization_key, normalize_digits
 
@@ -186,6 +244,7 @@ def _normalize_variant_fields(instance: "ProductVariant") -> None:
     instance.normalized_attribute = normalization_key(instance.attribute)
     instance.normalized_value = normalization_key(instance.value)
     instance.sku = normalize_digits(instance.sku or "").strip()
+    instance.store_id = instance.product.store_id
 
 
 class ProductVariantQuerySet(models.QuerySet):
@@ -200,7 +259,7 @@ class ProductVariantQuerySet(models.QuerySet):
     """
 
     NORMALIZATION_SENSITIVE_FIELDS = frozenset(
-        {"attribute", "value", "sku", "normalized_attribute", "normalized_value"}
+        {"attribute", "value", "sku", "normalized_attribute", "normalized_value", "store", "store_id"}
     )
 
     def bulk_create(self, objs, *args, **kwargs):
@@ -243,6 +302,13 @@ class ProductVariant(TimeStampedModel):
     objects = ProductVariantManager()
 
     product = models.ForeignKey(Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="variants")
+    # مالکیت Store این‌جا مستقل نیست — همیشه از product.store کپی می‌شود
+    # (نگاه کنید به _normalize_variant_fields). فقط برای این وجود دارد که
+    # یکتاییِ SKU بتواند در سطح دیتابیس به‌ازای هر Store اجرا شود؛ Django's
+    # UniqueConstraint نمی‌تواند از یک join (product__store) عبور کند.
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="product_variants",
+    )
     attribute = models.CharField("نام تنوع", max_length=60)
     value = models.CharField("مقدار تنوع", max_length=60)
     normalized_attribute = models.CharField(max_length=80, editable=False, blank=True, default="")
@@ -265,7 +331,7 @@ class ProductVariant(TimeStampedModel):
                 name="uniq_active_variant_value_per_product",
             ),
             models.UniqueConstraint(
-                fields=["sku"],
+                fields=["store", "sku"],
                 condition=~models.Q(sku=""),
                 name="uniq_variant_sku_when_set",
             ),

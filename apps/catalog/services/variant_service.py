@@ -53,13 +53,16 @@ def parse_bulk_values(raw: str) -> list[str]:
 
 
 def generate_variant_sku(product: Product, value: str) -> str:
-    """کد کالای پیش‌فرض برای یک مقدار تنوع می‌سازد: <SKU کالا>-<مقدار اسلاگ‌شده>، با پسوند عددی در تعارض."""
+    """کد کالای پیش‌فرض برای یک مقدار تنوع می‌سازد: <SKU کالا>-<مقدار اسلاگ‌شده>، با پسوند عددی در تعارض.
+
+    یکتایی SKU در محدوده‌ی همان Store بررسی می‌شود — دو Store مختلف
+    می‌توانند SKU یکسان داشته باشند."""
     base = f"{product.sku}-{slugify(value, allow_unicode=True)}".strip("-").upper()
     if not base:
         base = f"{product.sku}-VAR"
     candidate = base
     counter = 2
-    while ProductVariant.objects.filter(sku=candidate).exists():
+    while ProductVariant.objects.filter(store_id=product.store_id, sku=candidate).exists():
         candidate = f"{base}-{counter}"
         counter += 1
     return candidate
@@ -70,10 +73,10 @@ def _next_display_order(product: Product) -> int:
     return (last.display_order + 1) if last else 0
 
 
-def _check_sku_unique(sku: str, *, exclude_pk=None):
+def _check_sku_unique(sku: str, *, store, exclude_pk=None):
     if not sku:
         return
-    qs = ProductVariant.objects.filter(sku=sku)
+    qs = ProductVariant.objects.filter(store=store, sku=sku)
     if exclude_pk is not None:
         qs = qs.exclude(pk=exclude_pk)
     if qs.exists():
@@ -91,13 +94,13 @@ def create_variant(
     if not sku:
         sku = generate_variant_sku(product, value)
     else:
-        _check_sku_unique(sku)
+        _check_sku_unique(sku, store=product.store)
 
     if stock < 0:
         raise VariantError("موجودی نمی‌تواند منفی باشد.")
 
     variant = ProductVariant(
-        product=product, attribute=attribute, value=value, stock=stock,
+        product=product, store=product.store, attribute=attribute, value=value, stock=stock,
         extra_price=extra_price, sku=sku, value_hex=value_hex, is_active=is_active,
         display_order=display_order if display_order is not None else _next_display_order(product),
     )
@@ -178,7 +181,7 @@ def update_variant(
     if sku is not None:
         sku = normalize_text(sku)
         if sku != variant.sku:
-            _check_sku_unique(sku, exclude_pk=variant.pk)
+            _check_sku_unique(sku, store=variant.product.store, exclude_pk=variant.pk)
         variant.sku = sku
 
     try:
@@ -245,6 +248,8 @@ def copy_variant_structure(source: Product, target: Product) -> list[ProductVari
     """
     if source.pk == target.pk:
         raise VariantError("کالای مبدأ و مقصد نمی‌توانند یکسان باشند.")
+    if source.store_id != target.store_id:
+        raise VariantError("کالای مبدأ و مقصد باید متعلق به یک فروشگاه باشند.")
 
     created = []
     for source_variant in source.variants.filter(is_active=True).order_by("display_order", "attribute", "value"):

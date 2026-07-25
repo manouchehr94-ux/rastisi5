@@ -12,22 +12,28 @@ from PIL import Image
 from apps.catalog.models import Category, Product, ProductVariant, Review, Vendor
 from apps.catalog.services.product_image_service import add_product_image
 from apps.customers.models import Customer
+from apps.stores.models import Store
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
 
 User = get_user_model()
 
 
 class ProductDetailViewTests(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-pdp")
-        self.top_category = Category.objects.create(name="دیجیتال", slug="digital-pdp", icon="📱")
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-pdp")
+        self.top_category = Category.objects.create(store=self.store, name="دیجیتال", slug="digital-pdp", icon="📱")
         self.category = Category.objects.create(
-            name="موبایل", slug="mobile-pdp", icon="📱", parent=self.top_category
+            store=self.store, name="موبایل", slug="mobile-pdp", icon="📱", parent=self.top_category
         )
         self.sibling_category = Category.objects.create(
-            name="لوازم جانبی", slug="accessories-pdp", icon="🎧", parent=self.top_category
+            store=self.store, name="لوازم جانبی", slug="accessories-pdp", icon="🎧", parent=self.top_category
         )
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="گوشی نمونه", slug="sample-phone-pdp",
+            store=self.store, vendor=self.vendor, category=self.category, name="گوشی نمونه", slug="sample-phone-pdp",
             sku="SKU-PDP1", description="توضیح کامل محصول", price=Decimal("10000000"),
             discount_percent=10, stock=5, rating=Decimal("4.5"), reviews_count=2, views_count=100,
         )
@@ -41,12 +47,12 @@ class ProductDetailViewTests(TestCase):
             product=self.product, attribute="حافظه", value="۱۲۸ گیگابایت", stock=5, extra_price=Decimal("500000")
         )
         self.other_product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="گوشی دیگر", slug="other-phone-pdp",
+            store=self.store, vendor=self.vendor, category=self.category, name="گوشی دیگر", slug="other-phone-pdp",
             sku="SKU-PDP2", price=Decimal("5000000"),
         )
         self.unrelated_product = Product.objects.create(
-            vendor=self.vendor, category=self.sibling_category, name="هندزفری نمونه", slug="sample-earbud-pdp",
-            sku="SKU-PDP3", price=Decimal("1000000"),
+            store=self.store, vendor=self.vendor, category=self.sibling_category, name="هندزفری نمونه",
+            slug="sample-earbud-pdp", sku="SKU-PDP3", price=Decimal("1000000"),
         )
 
         self.user = User.objects.create_user(username="reviewer_pdp", password="pass12345")
@@ -105,10 +111,11 @@ class ProductDetailViewTests(TestCase):
 
 class ProductReviewCreateTests(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-rv")
-        self.category = Category.objects.create(name="دیجیتال", slug="digital-rv", icon="📱")
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-rv")
+        self.category = Category.objects.create(store=self.store, name="دیجیتال", slug="digital-rv", icon="📱")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کالای نمونه", slug="sample-product-rv",
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای نمونه", slug="sample-product-rv",
             sku="SKU-RV1", price=Decimal("100000"),
         )
         self.user = User.objects.create_user(username="reviewer_rv", password="pass12345")
@@ -165,10 +172,11 @@ class ProductDetailGalleryTests(TestCase):
         super().tearDownClass()
 
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-pdp-gallery")
-        self.category = Category.objects.create(name="دسته", slug="cat-pdp-gallery")
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-pdp-gallery")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-pdp-gallery")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کالای گالری", slug="gallery-product",
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای گالری", slug="gallery-product",
             sku="SKU-GAL1", price=Decimal("100000"), icon="🎁", tint="#eceef3",
         )
 

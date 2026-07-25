@@ -524,3 +524,133 @@ an authoritative Store resolvable from the triggering request. SMS
 credentials remain on `ShopSettings` (PR 9's job); no encryption-at-rest
 work was done. `Cart`/`Order`/`Customer` themselves remain unscoped until
 PR 6/7/10.
+
+## 12. Catalog Tenant Boundary Hardening
+
+Implemented (PR 5 — see `SAAS_MIGRATION_PLAN.md` for status).
+
+### 12.1 Aggregate Root vs. child-through-parent vs. redundant child
+
+This PR introduces a three-way classification for every model a Store-scoped
+domain touches, used to decide whether it needs its own `store` FK at all:
+
+* **Aggregate Root** — independently queryable and mutable outside its
+  "parent's" own scoped lookups (has its own dashboard CRUD, its own
+  storefront URL, or its own uniqueness constraint that must hold
+  per-Store). Gets a direct `store` FK.
+* **Store-owned child through an authoritative parent** — only ever
+  reached, listed, or mutated via a parent that is itself Store-owned and
+  already enforces the relationship (e.g. `product.images.all()`); adding a
+  redundant `store` FK here would be pure duplication with no new
+  invariant to enforce. No `store` FK.
+* **Redundant child with an explicit DB-level invariant** — a child that is
+  reached only through its parent in every code path, but needs its own
+  `store` FK anyway because a real database constraint cannot otherwise be
+  expressed (typically because the constraint would need to span a join,
+  which SQLite's `UniqueConstraint` cannot do). Requires: the field is never
+  independently settable by any caller, is always recomputed from the
+  parent at save time, and any bulk-mutation path is guarded against
+  setting it directly.
+
+### 12.2 Catalog ownership graph
+
+| Model | Classification | Ownership |
+|---|---|---|
+| `Vendor` | Aggregate Root | direct `store` FK |
+| `Category` | Aggregate Root | direct `store` FK |
+| `Brand` | Aggregate Root | direct `store` FK |
+| `Product` | Aggregate Root | direct `store` FK |
+| `ProductVariant` | Redundant child (SKU uniqueness needs a non-join DB constraint) | denormalized `store` FK, always mirrors `product.store`, never independently editable |
+| `ProductImage` | Child through `Product` | no `store` FK |
+| `Specification` | Child through `Product` | no `store` FK |
+| `Review` | Child through `Product` | no `store` FK |
+| `SpecificationTemplate` / `SpecificationTemplateField` | Deferred — zero merchant-facing exposure today (Django admin only) | no `store` FK, explicitly out of scope for this PR |
+
+`Vendor` becoming a Store-owned Aggregate Root (rather than a tenant
+concept of its own) settles `SAAS_DOMAIN_DECISIONS.md` ADR-1: a Vendor is
+still not a `Store` — multi-vendor-within-a-Store remains a distinct,
+unbuilt future feature — but it is now unambiguously owned by exactly one
+Store, like every other catalog Aggregate Root.
+
+### 12.3 Why SQLite forces a denormalized field on `ProductVariant`
+
+A per-Store-unique SKU constraint on `ProductVariant` is naturally
+"`(product__store, sku)` must be unique," but Django's `UniqueConstraint`
+can only reference columns physically present on the constrained table —
+it cannot span the `product__store` join. The only way to get a real,
+DB-enforced, Store-scoped SKU constraint in SQLite is to duplicate `store`
+onto `ProductVariant` itself. To keep this from becoming a second,
+independently-driftable source of truth, `_normalize_variant_fields`
+recomputes `variant.store_id = variant.product.store_id` unconditionally on
+every `save()`/`bulk_create()` path (the same normalization pass that
+already owns `attribute`/`value`/`sku` casing/digit normalization), and the
+variant queryset blocks any `update()`/`bulk_update()` that tries to touch
+`store`/`store_id` directly — exactly the same guard already protecting
+`attribute`/`value`/`sku`/`normalized_attribute`/`normalized_value`. The
+only way to change a variant's Store is to change its Product's Store.
+
+### 12.4 Application-layer cross-FK consistency
+
+SQLite cannot express a `CHECK` constraint spanning two tables, so
+"`product.vendor.store == product.store`" (and the equivalent for
+`category`/`brand`, and `category.parent.store == category.store`) is
+enforced in `Product.clean()`/`Category.clean()` instead — intentional,
+not an oversight, and exercised both directly (model-level tests) and
+indirectly (`ProductForm`/`SubCategoryForm` scope every relation
+`ModelChoiceField`'s queryset to the resolved Store first, so a crafted
+POST referencing another Store's category/vendor/brand/parent is rejected
+by Django's own "not a valid choice" validation before `clean()` would even
+need to run — `clean()` remains the defense-in-depth layer for any path
+that bypasses the form, such as a management command or a future API).
+
+### 12.5 Query conversion surface
+
+Every production access path that reads or writes `Vendor`/`Category`/
+`Brand`/`Product`/`ProductVariant` now resolves its Store the same way PR
+4.1 established — once, at the boundary, via
+`resolve_store_for_service(request)` (storefront, cart) or
+`_resolve_dashboard_store(request)` (dashboard, itself a thin wrapper over
+the same function) — and threads it down as a plain argument, never
+re-deriving it deeper in a service. This covers: `apps.catalog.views`
+(`home`, `product_list`, `product_detail`, `product_review_create`, the
+`_best_products`/`_filtered_products` helpers), `apps.catalog.context_processors.nav_categories`,
+`apps.cart.views.cart_add`, `apps.orders.services.order_service.create_order_from_cart`
+(a new defensive per-line Store check — see §12.6), and every catalog
+dashboard view/service in `apps.dashboard` (`catalog_admin_service`'s slug
+generation, default-vendor lookup, category tree, and product filtering;
+every product/category/image/variant CRUD view).
+
+### 12.6 Cart/order boundary — no new Cart/Order schema
+
+Consistent with PR 4.1's precedent, this PR does **not** add a `store` FK
+to `Cart` or `Order` — `apps.cart.views.cart_add` already scopes its
+`Product` lookup by the resolved Store (`get_object_or_404(Product, slug=slug, store=store, ...)`),
+so no cart line can reference another Store's Product through the normal
+add-to-cart path. `create_order_from_cart` adds one small, explicit,
+documented defensive check anyway — rejecting any cart line whose
+`product.store_id` does not match the order's Store — as a last line of
+defense against a cart line that reached this function through some path
+other than `cart_add` (there is currently no such path; the check exists
+for the same reason PR 4.1's SMS/pricing functions validate their `store`
+argument instead of trusting every caller transitively). This is
+explicitly not full `Cart`/`Order` tenantization — that remains PR 6/PR 7's
+job.
+
+### 12.7 What this PR does not change
+
+No `apps.content` model (`HeroSlide`, `PromotionalBanner`, `MenuItem`) is
+touched — their `destination_category`/`destination_product`/
+`destination_brand` FKs remain unscoped, and are explicitly PR 8's job; this
+is a real, documented cross-boundary risk now that the catalog objects
+those FKs point to are Store-scoped (a content author could, today,
+attach a destination pointing at any Store's category/product/brand and no
+Store check would catch it), but fixing it means Store-scoping the content
+models themselves, which is out of this PR's scope. No generic
+repository/service layer was introduced. No Inventory Ledger was
+introduced — price and stock remain plain fields on `Product`/
+`ProductVariant`, exactly as before. No import/export feature exists in
+this codebase today (confirmed absent by inspection, not built here). No
+Django admin (`/admin/`) tenant-isolation querying was added — consistent
+with ADR-8, admin gained only the minimal `store` field exposure needed to
+keep its existing CRUD functional now that `store` is a required field, not
+Store-scoped querysets or `formfield_for_foreignkey` filtering.

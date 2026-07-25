@@ -24,10 +24,10 @@ class CreateOrderFromCartTests(TestCase):
         self.store = _akhlaghi()
         self.user = User.objects.create_user(username="hasan", password="pass12345")
         self.customer = Customer.objects.create(user=self.user, full_name="حسن کریمی", phone="09121230000")
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-os")
-        self.category = Category.objects.create(name="دیجیتال", slug="digital-os")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-os")
+        self.category = Category.objects.create(store=self.store, name="دیجیتال", slug="digital-os")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="هدفون", slug="headphone-os",
+            store=self.store, vendor=self.vendor, category=self.category, name="هدفون", slug="headphone-os",
             sku="SKU-OS1", price=Decimal("1000000"), discount_percent=10, stock=10,
         )
         self.shipping = ShippingMethod.objects.create(name="پست", slug="post-os", cost=Decimal("45000"))
@@ -120,7 +120,7 @@ class ChangeOrderStatusTests(TestCase):
         self.user = User.objects.create_user(username="mina", password="pass12345")
         self.staff = User.objects.create_user(username="admin1", password="pass12345", is_staff=True)
         self.customer = Customer.objects.create(user=self.user, full_name="مینا صادقی", phone="09129990000")
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-cs")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-cs")
         self.shipping = ShippingMethod.objects.create(name="پست", slug="post-cs", cost=Decimal("45000"))
         self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-cs")
         self.order = Order.objects.create(

@@ -20,6 +20,11 @@ from apps.catalog.services.product_image_service import (
     update_image_alt,
     validate_image_file,
 )
+from apps.stores.models import Store
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
 
 
 def _make_image_file(name="photo.jpg", size=(800, 600), fmt="JPEG", color="#ff0000"):
@@ -39,12 +44,13 @@ class ProductImageServiceTestCase(TestCase):
         super().tearDownClass()
 
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه نمونه", slug="pi-shop")
+        self.store = _akhlaghi()
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه نمونه", slug="pi-shop")
         from apps.catalog.models import Category
 
-        category = Category.objects.create(name="دسته", slug="pi-cat")
+        category = Category.objects.create(store=self.store, name="دسته", slug="pi-cat")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="pi-product",
+            store=self.store, vendor=vendor, category=category, name="کالای نمونه", slug="pi-product",
             sku="PI-SKU-1", price=Decimal("100000"),
         )
 

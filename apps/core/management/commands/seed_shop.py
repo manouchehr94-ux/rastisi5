@@ -275,16 +275,20 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
-        vendor = self._seed_vendor()
-        categories = self._seed_categories()
-        brands = self._seed_brands()
-        products = self._seed_products(vendor, categories, brands)
+        # این دستور همیشه فقط داده‌ی نمایشی Akhlaghi را seed می‌کند — Store
+        # به‌طور صریح با اسلاگ resolve می‌شود، نه حالت سازگاری موقت (که به
+        # درخواست HTTP نیاز دارد و اینجا اصلاً وجود ندارد).
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = self._seed_vendor(store)
+        categories = self._seed_categories(store)
+        brands = self._seed_brands(store)
+        products = self._seed_products(store, vendor, categories, brands)
         self._seed_product_images(products)
         customers = self._seed_customers()
         shipping_methods = self._seed_shipping_methods()
         gateways = self._seed_payment_gateways()
         coupons = self._seed_coupons()
-        self._seed_orders(vendor, customers, products, shipping_methods, gateways, coupons)
+        self._seed_orders(store, vendor, customers, products, shipping_methods, gateways, coupons)
         self._seed_blog_posts()
         self._recompute_customer_stats()
 
@@ -296,25 +300,26 @@ class Command(BaseCommand):
         ))
 
     # ------------------------------------------------------------------
-    def _seed_vendor(self):
+    def _seed_vendor(self, store):
         vendor, created = Vendor.objects.get_or_create(
-            slug=VENDOR["slug"], defaults={"name": VENDOR["name"], "is_active": True}
+            store=store, slug=VENDOR["slug"], defaults={"name": VENDOR["name"], "is_active": True}
         )
         self._log("فروشنده", 1 if created else 0)
         return vendor
 
-    def _seed_categories(self):
+    def _seed_categories(self, store):
         by_slug = {}
         created_count = 0
         for order, top in enumerate(CATEGORIES):
             parent, created = Category.objects.get_or_create(
-                slug=top["slug"], defaults={"name": top["name"], "icon": top["icon"], "order": order}
+                store=store, slug=top["slug"],
+                defaults={"name": top["name"], "icon": top["icon"], "order": order},
             )
             created_count += created
             by_slug[top["slug"]] = parent
             for child_order, child in enumerate(top.get("children", [])):
                 child_obj, child_created = Category.objects.get_or_create(
-                    slug=child["slug"],
+                    store=store, slug=child["slug"],
                     defaults={
                         "name": child["name"], "icon": child["icon"],
                         "parent": parent, "order": child_order,
@@ -325,17 +330,19 @@ class Command(BaseCommand):
         self._log("دسته‌بندی", created_count)
         return by_slug
 
-    def _seed_brands(self):
+    def _seed_brands(self, store):
         by_slug = {}
         created_count = 0
         for data in BRANDS:
-            brand, created = Brand.objects.get_or_create(slug=data["slug"], defaults={"name": data["name"]})
+            brand, created = Brand.objects.get_or_create(
+                store=store, slug=data["slug"], defaults={"name": data["name"]}
+            )
             created_count += created
             by_slug[data["slug"]] = brand
         self._log("برند", created_count)
         return by_slug
 
-    def _seed_products(self, vendor, categories, brands):
+    def _seed_products(self, store, vendor, categories, brands):
         by_sku = {}
         created_count = 0
         for source in PRODUCTS:
@@ -346,7 +353,7 @@ class Command(BaseCommand):
             brand = brands[brand_slug] if brand_slug else None
 
             product, created = Product.objects.get_or_create(
-                sku=data["sku"],
+                store=store, sku=data["sku"],
                 defaults={
                     **{k: v for k, v in data.items() if k != "sku"},
                     "vendor": vendor, "category": category, "brand": brand,
@@ -471,15 +478,10 @@ class Command(BaseCommand):
         self._log("کد تخفیف", created_count)
         return by_code
 
-    def _seed_orders(self, vendor, customers, products, shipping_methods, gateways, coupons):
+    def _seed_orders(self, store, vendor, customers, products, shipping_methods, gateways, coupons):
         if Order.objects.filter(vendor=vendor).exists():
             self._log("سفارش نمونه", 0, note="از قبل موجود بود")
             return
-
-        # این دستور همیشه فقط داده‌ی نمایشی Akhlaghi را seed می‌کند — Store
-        # به‌طور صریح با اسلاگ resolve می‌شود، نه حالت سازگاری موقت (که به
-        # درخواست HTTP نیاز دارد و اینجا اصلاً وجود ندارد).
-        store = Store.objects.get(slug="akhlaghi")
 
         plans = [
             {

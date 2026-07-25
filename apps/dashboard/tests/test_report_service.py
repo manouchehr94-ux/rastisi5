@@ -15,19 +15,25 @@ from apps.dashboard.services.report_service import (
     top_products_report,
 )
 from apps.orders.models import Order, OrderItem, PaymentGateway, ShippingMethod
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
 class ReportServiceTestCase(TestCase):
     def setUp(self):
+        self.store = _akhlaghi()
         user = User.objects.create_user(username="09121190001", password="pass12345")
         self.customer = Customer.objects.create(user=user, full_name="آرش ولی‌زاده", phone="09121190001")
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-rs")
-        self.main_cat = Category.objects.create(name="دیجیتال", slug="main-rs")
-        self.category = Category.objects.create(name="موبایل", slug="sub-rs", parent=self.main_cat)
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-rs")
+        self.main_cat = Category.objects.create(store=self.store, name="دیجیتال", slug="main-rs")
+        self.category = Category.objects.create(store=self.store, name="موبایل", slug="sub-rs", parent=self.main_cat)
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="گوشی", slug="phone-rs",
+            store=self.store, vendor=self.vendor, category=self.category, name="گوشی", slug="phone-rs",
             sku="SKU-RS1", price=Decimal("1000000"), icon="📱",
         )
         self.shipping = ShippingMethod.objects.create(name="پست", slug="post-rs", cost=Decimal("45000"))

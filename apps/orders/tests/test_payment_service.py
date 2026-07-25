@@ -41,7 +41,7 @@ class SimulatePaymentTests(TestCase):
         self.store = _akhlaghi()
         self.user = User.objects.create_user(username="vahid", password="pass12345")
         self.customer = Customer.objects.create(user=self.user, full_name="وحید نوری", phone="09127770000")
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-pay")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-pay")
         self.shipping = ShippingMethod.objects.create(name="پست", slug="post-pay", cost=Decimal("45000"))
         self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-pay")
         self.order = Order.objects.create(

@@ -10,7 +10,7 @@ PR 2  — Store, StoreDomain and StoreMembership foundation         [this PR]
 PR 3   — Store resolution infrastructure in compatibility mode
 PR 4   — Core settings and footer settings ownership
 PR 4.1 — Explicit Store context propagation for pricing and SMS
-PR 5   — Catalog ownership and constraints
+PR 5   — Catalog ownership and constraints                        [this PR]
 PR 6  — Cart and coupon ownership
 PR 7  — Order, shipping and payment-domain separation
 PR 8  — Content, navigation, homepage, blog and media ownership
@@ -121,13 +121,9 @@ is where `ShopSettings` is actually split into domain-specific models
 (identity/commerce-defaults, branding/theme, and extracting SMS
 credentials), per ADR-10.
 
-## PR 4.1 — Explicit Store Context Propagation for Pricing and SMS [this PR]
+## PR 4.1 — Explicit Store Context Propagation for Pricing and SMS [done]
 
-Status note: implemented on branch `claude/store-context-service-propagation`
-and open as a pull request against the branch PR 4 merged into — not yet
-merged into the canonical base branch as of this writing. "This PR" here
-means exactly that, not "already merged." Update this to "[done]" only once
-the PR opening this section has actually merged.
+Status note: merged into the canonical base branch (PR #20).
 
 Scope: PR 4 made `ShopSettings.load()` fail closed (instead of silently
 returning Akhlaghi's row regardless of Store count) once a second Store
@@ -193,21 +189,93 @@ remains PR 6/PR 7/PR 10's job — this PR only ensures the settings those
 domains *read* are resolved explicitly, not that the domains' own rows are
 Store-scoped.
 
-## PR 5 — Catalog ownership and constraints
+## PR 5 — Catalog Tenant Boundary Assessment and Hardening [this PR]
 
-Scope: resolve the Vendor/Store domain question from
-`SAAS_DOMAIN_DECISIONS.md` ADR-1 (dedicated catalog-domain review, may be
-its own preceding PR if the decision is non-trivial). Add nullable `store`
-FK to `Category`, `Brand`, `Product` (and re-evaluate whether `Vendor`
-itself becomes Store-scoped based on that review). Re-derive global
-uniqueness constraints (`slug`, `sku`) as Store-scoped uniqueness where
-appropriate — this is a behavior change requiring its own migration and
-explicit sign-off, since today's `Product.slug`/`sku` and `Category.slug`/
-`Brand.slug` are platform-global unique. Data migration backfills existing
-rows to Akhlaghi. Query conversion for catalog views, nav context
-processor, product listing/detail. Verification: existing catalog test
-suite green plus new Store-scoping tests plus adversarial
-cross-Store-access tests.
+Status note: implemented on branch `claude/catalog-tenant-boundary` and open
+as a pull request against the branch PR 4.1 merged into — not yet merged
+into the canonical base branch as of this writing. "This PR" here means
+exactly that, not "already merged." Update this to "[done]" only once the PR
+opening this section has actually merged.
+
+Scope: resolves the Vendor/Store domain question from
+`SAAS_DOMAIN_DECISIONS.md` ADR-1 — **Vendor becomes a Store-owned Aggregate
+Root** (direct `store` FK), settling ADR-1's "Vendor is not itself a tenant;
+multi-vendor-within-a-Store remains a separate future feature" framing.
+`Category`, `Brand`, `Product` each gain a direct, non-nullable `store` FK
+(all three are independently queryable/mutable Aggregate Roots — see
+`SAAS_ARCHITECTURE.md` §12 for the full ownership-graph classification).
+`ProductVariant` gains a denormalized, never-independently-editable `store`
+FK — not because it is an Aggregate Root (it is Store-owned strictly
+through its `Product` parent), but because SQLite's `UniqueConstraint`
+cannot span the `product__store` join, so a Store-scoped SKU-uniqueness
+constraint is only expressible at the DB level with `store` duplicated onto
+the child row; `_normalize_variant_fields` always recomputes it from
+`product.store_id` on every save/bulk_create path, and the variant
+queryset's mutation guard blocks any direct `update()`/`bulk_update()` of
+`store`/`store_id`, so a variant can never be "moved" to another Store
+except by changing its Product's own ownership. `ProductImage`,
+`Specification`, and `Review` remain Store-owned *through* `Product` with
+no redundant FK of their own — none is independently queryable/mutable
+outside its parent Product's own scoped lookups.
+`SpecificationTemplate`/`SpecificationTemplateField` are explicitly
+deferred (zero dashboard/merchant-facing exposure today — reachable only
+via Django admin, itself an out-of-scope surface per ADR-8).
+
+Global uniqueness on `Vendor.slug`, `Category.slug`, `Brand.slug`,
+`Product.slug`, `Product.sku`, and `ProductVariant.sku` (when set) is
+re-derived as `UniqueConstraint(fields=["store", <field>])` — two different
+Stores may now legitimately reuse the same slug/SKU; the same Store still
+cannot. Staged migration sequence (`catalog/migrations/0006`-`0008`):
+nullable `AddField` + constraint swap, a `RunPython` backfill resolving
+Akhlaghi by exact slug (`Store.objects.get(slug="akhlaghi")`, never
+`.first()`, `RuntimeError` on zero/multiple matches — reverse only clears
+`store` references, never deletes a Vendor/Category/Brand/Product/Variant
+row), then non-null enforcement. Query conversion covers every production
+access path: storefront (`home`, `product_list`, `product_detail`,
+`product_review_create`, the nav-categories context processor), dashboard
+(product/category list/add/edit/delete, image upload/delete/reorder/cover/
+alt-text, variant list/bulk-add/edit/toggle/delete/reorder,
+`catalog_admin_service`'s slug generation/vendor-default/category-tree/
+product-filter helpers), `apps.cart.views.cart_add` (Product lookup now
+Store-scoped), and `apps.orders.services.order_service.create_order_from_cart`
+(a new defensive per-line check rejects a cart line whose Product does not
+belong to the order's Store — a last line of defense; the real boundary is
+`cart_add` never letting such a line exist in the first place). Model-level
+`clean()` methods on `Product`/`Category` reject a `vendor`/`category`/
+`brand`/`parent` relation from a different Store than the record itself
+(SQLite cannot express a cross-table CHECK constraint for this, so it is
+application-layer, exercised both by direct model tests and by dashboard
+form submission); `ProductForm`/`SubCategoryForm` scope every relation
+`ModelChoiceField`'s queryset to the resolved Store, so a crafted POST
+referencing another Store's category/parent is rejected by Django's own
+"not a valid choice" validation before it ever reaches the view's save
+path. `Vendor`/`Category`/`Brand`/`Product` admin classes (Django's
+`/admin/`, not the merchant dashboard) gained a `store` list/filter column
+and a `store`-locked-on-edit mixin — required only so the now-mandatory
+field doesn't break existing admin CRUD; no tenant-isolation querying was
+added to Django admin itself, consistent with ADR-8's already-accepted
+"platform-operator tool, `is_staff`-gated only" scope.
+
+Not done in this PR: no generic repository/service layer, no
+`apps.content` (`HeroSlide`/`PromotionalBanner`/`MenuItem`) Store-scoping
+(their `destination_category`/`destination_product`/`destination_brand`
+FKs remain unscoped — explicitly PR 8's job), no Cart/Order model changes
+beyond the one defensive check described above (full tenantization remains
+PR 6/PR 7's job), no Inventory Ledger (price/stock remain plain fields on
+`Product`/`ProductVariant`, as today), and no import/export feature (none
+exists in this codebase currently — confirmed absent, not built here).
+Verification: full existing catalog/dashboard/cart/orders/core/content/
+customers/stores suites green (every pre-existing test file that
+constructed a `Vendor`/`Category`/`Brand`/`Product`/`ProductVariant`
+without a `store` was updated to supply one, following the same
+`_akhlaghi()` helper convention PR 4/PR 4.1 established) plus new
+Store-scoping and adversarial cross-Store-access tests: real two-Store,
+real-`StoreDomain`, distinct-`Host` storefront isolation
+(`apps.catalog.tests.test_store_isolation`), dashboard cross-Store
+view/edit/delete/toggle/media/variant denial and crafted-POST relation
+rejection (`apps.dashboard.tests.test_catalog_store_isolation`), and
+cart/order cross-Store boundary tests including atomic rejection of a
+mixed-Store cart (`apps.orders.tests.test_catalog_store_boundary`).
 
 ## PR 6 — Cart and coupon ownership
 

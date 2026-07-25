@@ -18,14 +18,14 @@ def _akhlaghi():
 class PricingServiceTests(TestCase):
     def setUp(self):
         self.store = _akhlaghi()
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-p")
-        self.category = Category.objects.create(name="پوشاک", slug="clothing-p")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-p")
+        self.category = Category.objects.create(store=self.store, name="پوشاک", slug="clothing-p")
         self.shipping = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-p", cost=Decimal("45000"))
         self.cart = Cart.objects.create(session_key="guest-p")
 
     def _add_item(self, price, discount_percent=0, quantity=1, sku="SKU-P"):
         product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کالای نمونه",
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای نمونه",
             slug=f"{sku}-slug", sku=sku, price=Decimal(price), discount_percent=discount_percent,
         )
         return CartItem.objects.create(
@@ -34,7 +34,7 @@ class PricingServiceTests(TestCase):
 
     def test_product_final_price_delegates_to_model_property(self):
         product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کالا", slug="p-final",
+            store=self.store, vendor=self.vendor, category=self.category, name="کالا", slug="p-final",
             sku="SKU-FINAL", price=Decimal("200000"), discount_percent=25,
         )
         self.assertEqual(product_final_price(product), Decimal("150000"))
@@ -160,46 +160,50 @@ class PricingTwoStoreIsolationTests(TestCase):
         shop_b.free_shipping_threshold = Decimal("100000")
         shop_b.save()
 
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-two-store")
-        self.category = Category.objects.create(name="پوشاک", slug="clothing-two-store")
+        self.vendor_a = Vendor.objects.create(store=self.store_a, name="فروشگاه", slug="shop-two-store-a")
+        self.category_a = Category.objects.create(store=self.store_a, name="پوشاک", slug="clothing-two-store-a")
+        self.vendor_b = Vendor.objects.create(store=self.store_b, name="فروشگاه B", slug="shop-two-store-b")
+        self.category_b = Category.objects.create(store=self.store_b, name="پوشاک B", slug="clothing-two-store-b")
         self.cart_a = Cart.objects.create(session_key="guest-a")
         self.cart_b = Cart.objects.create(session_key="guest-b")
 
-    def _add_item(self, cart, price, sku):
+    def _add_item(self, cart, price, sku, *, store):
+        vendor = self.vendor_a if store == self.store_a else self.vendor_b
+        category = self.category_a if store == self.store_a else self.category_b
         product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کالای نمونه",
+            store=store, vendor=vendor, category=category, name="کالای نمونه",
             slug=f"{sku}-slug", sku=sku, price=Decimal(price),
         )
         CartItem.objects.create(cart=cart, product=product, quantity=1, unit_price=product.final_price)
 
     def test_store_a_pricing_uses_store_a_settings(self):
-        self._add_item(self.cart_a, 200_000, "TWO-A")
+        self._add_item(self.cart_a, 200_000, "TWO-A", store=self.store_a)
         totals = cart_totals(self.cart_a, store=self.store_a)
         self.assertEqual(totals["tax"], Decimal("18000"))  # 9% of 200,000
         self.assertFalse(totals["free_shipping"])  # below 500,000 threshold
 
     def test_store_b_pricing_uses_store_b_settings(self):
-        self._add_item(self.cart_b, 200_000, "TWO-B")
+        self._add_item(self.cart_b, 200_000, "TWO-B", store=self.store_b)
         totals = cart_totals(self.cart_b, store=self.store_b)
         self.assertEqual(totals["tax"], Decimal("40000"))  # 20% of 200,000
         self.assertTrue(totals["free_shipping"])  # above 100,000 threshold
 
     def test_distinct_tax_and_shipping_produce_distinct_results(self):
-        self._add_item(self.cart_a, 200_000, "TWO-C")
-        self._add_item(self.cart_b, 200_000, "TWO-D")
+        self._add_item(self.cart_a, 200_000, "TWO-C", store=self.store_a)
+        self._add_item(self.cart_b, 200_000, "TWO-D", store=self.store_b)
         totals_a = cart_totals(self.cart_a, store=self.store_a)
         totals_b = cart_totals(self.cart_b, store=self.store_b)
         self.assertNotEqual(totals_a["tax"], totals_b["tax"])
         self.assertNotEqual(totals_a["free_shipping"], totals_b["free_shipping"])
 
     def test_store_b_never_receives_store_a_settings(self):
-        self._add_item(self.cart_b, 200_000, "TWO-E")
+        self._add_item(self.cart_b, 200_000, "TWO-E", store=self.store_b)
         totals = cart_totals(self.cart_b, store=self.store_b)
         # If Store A's settings had leaked in, tax would be 18000 (9%), not 40000 (20%).
         self.assertEqual(totals["tax"], Decimal("40000"))
 
     def test_explicit_store_none_is_rejected_not_silently_defaulted(self):
-        self._add_item(self.cart_a, 200_000, "TWO-F")
+        self._add_item(self.cart_a, 200_000, "TWO-F", store=self.store_a)
         with self.assertRaises(ValueError):
             cart_totals(self.cart_a, store=None)
 
@@ -207,6 +211,6 @@ class PricingTwoStoreIsolationTests(TestCase):
         """با وجود دو Store (که حالت سازگاری موقت را غیرفعال می‌کند)، مسیر
         Store صریح باید همچنان کار کند — قطع سازگاری موقت نباید مسیر معتبر
         Store B را هم بشکند."""
-        self._add_item(self.cart_b, 200_000, "TWO-G")
+        self._add_item(self.cart_b, 200_000, "TWO-G", store=self.store_b)
         totals = cart_totals(self.cart_b, store=self.store_b)
         self.assertTrue(totals["free_shipping"])

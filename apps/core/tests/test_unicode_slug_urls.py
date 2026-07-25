@@ -14,16 +14,18 @@ from django.test import TestCase
 from django.urls import resolve, reverse
 
 from apps.catalog.models import Category, Product, Vendor
+from apps.stores.models import Store
 
 PERSIAN_SLUG = "پکیج-ایران-رادیاتور-m24"
 
 
 class UnicodeSlugUrlTests(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشنده", slug="vendor-uslug")
-        self.category = Category.objects.create(name="دسته", slug="cat-uslug")
+        self.store = Store.objects.get(slug="akhlaghi")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشنده", slug="vendor-uslug")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-uslug")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="پکیج ایران رادیاتور M24",
+            store=self.store, vendor=self.vendor, category=self.category, name="پکیج ایران رادیاتور M24",
             slug=PERSIAN_SLUG, sku="SKU-USLUG-1", price=Decimal("1000000"),
         )
 
@@ -54,7 +56,7 @@ class UnicodeSlugUrlTests(TestCase):
     def test_ascii_slug_still_resolves(self):
         """مبدل جدید نباید اسلاگ‌های ASCII قدیمی را بشکند."""
         ascii_product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="Ascii Product",
+            store=self.store, vendor=self.vendor, category=self.category, name="Ascii Product",
             slug="ascii-product-1", sku="SKU-USLUG-2", price=Decimal("500000"),
         )
         url = reverse("catalog:product-detail", args=[ascii_product.slug])

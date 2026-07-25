@@ -122,10 +122,10 @@ class MergeGuestCartTests(TestCase):
     def setUp(self):
         self.store = _akhlaghi()
         self.factory = RequestFactory()
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-mg")
-        category = Category.objects.create(name="دیجیتال", slug="digital-mg")
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-mg")
+        category = Category.objects.create(store=self.store, name="دیجیتال", slug="digital-mg")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-mg",
+            store=self.store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-mg",
             sku="SKU-MG1", price=Decimal("100000"),
         )
         self.customer = auth_service.signup(

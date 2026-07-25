@@ -14,25 +14,39 @@ from .models import (
 )
 
 
+class StoreLockedOnEditMixin:
+    """پس از ایجاد رکورد، فیلد «فروشگاه» فقط-خواندنی می‌شود تا مالکیت Store از
+    طریق این پنل عملیاتی (که خودِ ADR-8 بازرسی/عملیات پلتفرم است، نه محل
+    اجرای قواعد چندمستأجری) جابه‌جا نشود؛ هنگام ایجاد رکورد جدید همچنان
+    باید صراحتاً انتخاب شود.
+    """
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is None:
+            return self.readonly_fields
+        return (*self.readonly_fields, "store")
+
+
 @admin.register(Vendor)
-class VendorAdmin(admin.ModelAdmin):
-    list_display = ("name", "owner", "is_active", "created_at")
-    list_filter = ("is_active",)
+class VendorAdmin(StoreLockedOnEditMixin, admin.ModelAdmin):
+    list_display = ("name", "store", "owner", "is_active", "created_at")
+    list_filter = ("is_active", "store")
     search_fields = ("name", "slug")
     prepopulated_fields = {"slug": ("name",)}
 
 
 @admin.register(Category)
-class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("name", "parent", "order", "is_active")
-    list_filter = ("is_active", "parent")
+class CategoryAdmin(StoreLockedOnEditMixin, admin.ModelAdmin):
+    list_display = ("name", "store", "parent", "order", "is_active")
+    list_filter = ("is_active", "store", "parent")
     search_fields = ("name", "slug")
     prepopulated_fields = {"slug": ("name",)}
 
 
 @admin.register(Brand)
-class BrandAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+class BrandAdmin(StoreLockedOnEditMixin, admin.ModelAdmin):
+    list_display = ("name", "store")
+    list_filter = ("store",)
     search_fields = ("name", "slug")
     prepopulated_fields = {"slug": ("name",)}
 
@@ -72,12 +86,12 @@ class SpecificationInline(admin.TabularInline):
 
 
 @admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
+class ProductAdmin(StoreLockedOnEditMixin, admin.ModelAdmin):
     list_display = (
-        "name", "sku", "vendor", "category", "price", "discount_percent",
+        "name", "store", "sku", "vendor", "category", "price", "discount_percent",
         "final_price", "stock", "product_type", "status", "tag",
     )
-    list_filter = ("status", "product_type", "tag", "category", "vendor")
+    list_filter = ("status", "product_type", "tag", "store", "category", "vendor")
     search_fields = ("name", "sku", "slug")
     prepopulated_fields = {"slug": ("name",)}
     # نوع کالا (ساده/دارای تنوع) فقط از طریق apps.catalog.services.variant_service.set_product_type

@@ -6,6 +6,7 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from apps.customers.models import Customer
+from apps.stores.models import Store
 
 from apps.catalog.models import (
     Brand,
@@ -23,17 +24,25 @@ from apps.catalog.models import (
 User = get_user_model()
 
 
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
 class CatalogModelsTests(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه نمونه", slug="sample-shop")
-        self.category = Category.objects.create(name="لوازم خانگی", slug="home-appliances", icon="🏠")
-        self.subcategory = Category.objects.create(
-            name="آشپزخانه", slug="kitchen", icon="🍳", parent=self.category
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه نمونه", slug="sample-shop")
+        self.category = Category.objects.create(
+            store=self.store, name="لوازم خانگی", slug="home-appliances", icon="🏠"
         )
-        self.brand = Brand.objects.create(name="برند نمونه", slug="sample-brand")
+        self.subcategory = Category.objects.create(
+            store=self.store, name="آشپزخانه", slug="kitchen", icon="🍳", parent=self.category
+        )
+        self.brand = Brand.objects.create(store=self.store, name="برند نمونه", slug="sample-brand")
 
     def _make_product(self, **kwargs):
         defaults = dict(
+            store=self.store,
             vendor=self.vendor,
             category=self.category,
             brand=self.brand,
@@ -95,14 +104,15 @@ class CatalogModelsTests(TestCase):
 
 class ProductVariantConstraintTests(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه نمونه", slug="sample-shop-pv")
-        self.category = Category.objects.create(name="لوازم خانگی", slug="home-appliances-pv")
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه نمونه", slug="sample-shop-pv")
+        self.category = Category.objects.create(store=self.store, name="لوازم خانگی", slug="home-appliances-pv")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="شیلنگ فن‌کویل", slug="hose-pv",
+            store=self.store, vendor=self.vendor, category=self.category, name="شیلنگ فن‌کویل", slug="hose-pv",
             sku="SKU-HOSE-PV", price=Decimal("200000"),
         )
         self.other_product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کالای دیگر", slug="other-pv",
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای دیگر", slug="other-pv",
             sku="SKU-OTHER-PV", price=Decimal("100000"),
         )
 
@@ -172,10 +182,11 @@ class ProductVariantConstraintTests(TestCase):
 
 class SpecificationModelTests(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه نمونه", slug="sample-shop-spec")
-        self.category = Category.objects.create(name="لوازم خودرو", slug="auto-parts-spec")
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه نمونه", slug="sample-shop-spec")
+        self.category = Category.objects.create(store=self.store, name="لوازم خودرو", slug="auto-parts-spec")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="لنت ترمز", slug="brake-pad-spec",
+            store=self.store, vendor=self.vendor, category=self.category, name="لنت ترمز", slug="brake-pad-spec",
             sku="SKU-BRAKE-SPEC", price=Decimal("350000"),
         )
 
@@ -196,7 +207,8 @@ class SpecificationModelTests(TestCase):
 
 class SpecificationTemplateModelTests(TestCase):
     def setUp(self):
-        self.category = Category.objects.create(name="لوازم خودرو", slug="auto-parts-tpl")
+        self.store = _akhlaghi()
+        self.category = Category.objects.create(store=self.store, name="لوازم خودرو", slug="auto-parts-tpl")
         self.template = SpecificationTemplate.objects.create(name="قطعات خودرو", category=self.category)
 
     def test_template_field_requires_label(self):
@@ -215,3 +227,159 @@ class SpecificationTemplateModelTests(TestCase):
         SpecificationTemplateField.objects.create(template=self.template, label="جنس")
         field = SpecificationTemplateField.objects.create(template=other_template, label="جنس")
         self.assertEqual(field.template, other_template)
+
+
+class CatalogTwoStoreUniquenessTests(TestCase):
+    """اثبات این‌که یکتاییِ اسلاگ/SKU در سطح هر Store اجرا می‌شود، نه در کل
+    پلتفرم — دو Store می‌توانند مقدار یکسان داشته باشند، یک Store هرگز
+    نمی‌تواند دو رکورد با مقدار یکسان داشته باشد."""
+
+    def setUp(self):
+        self.store_a = _akhlaghi()
+        self.store_b = Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
+
+    def test_two_stores_may_use_the_same_vendor_slug(self):
+        Vendor.objects.create(store=self.store_a, name="A", slug="shared-vendor")
+        vendor_b = Vendor.objects.create(store=self.store_b, name="B", slug="shared-vendor")
+        self.assertEqual(vendor_b.slug, "shared-vendor")
+
+    def test_same_store_cannot_reuse_vendor_slug(self):
+        Vendor.objects.create(store=self.store_a, name="A", slug="dup-vendor")
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Vendor.objects.create(store=self.store_a, name="A2", slug="dup-vendor")
+
+    def test_two_stores_may_use_the_same_category_slug(self):
+        Category.objects.create(store=self.store_a, name="A", slug="shared-category")
+        category_b = Category.objects.create(store=self.store_b, name="B", slug="shared-category")
+        self.assertEqual(category_b.slug, "shared-category")
+
+    def test_same_store_cannot_reuse_category_slug(self):
+        Category.objects.create(store=self.store_a, name="A", slug="dup-category")
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Category.objects.create(store=self.store_a, name="A2", slug="dup-category")
+
+    def test_two_stores_may_use_the_same_brand_slug(self):
+        Brand.objects.create(store=self.store_a, name="A", slug="shared-brand")
+        brand_b = Brand.objects.create(store=self.store_b, name="B", slug="shared-brand")
+        self.assertEqual(brand_b.slug, "shared-brand")
+
+    def test_same_store_cannot_reuse_brand_slug(self):
+        Brand.objects.create(store=self.store_a, name="A", slug="dup-brand")
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Brand.objects.create(store=self.store_a, name="A2", slug="dup-brand")
+
+    def _vendor_and_category(self, store, suffix):
+        vendor = Vendor.objects.create(store=store, name=f"V{suffix}", slug=f"v-{suffix}")
+        category = Category.objects.create(store=store, name=f"C{suffix}", slug=f"c-{suffix}")
+        return vendor, category
+
+    def test_two_stores_may_use_the_same_product_slug_and_sku(self):
+        vendor_a, category_a = self._vendor_and_category(self.store_a, "a")
+        vendor_b, category_b = self._vendor_and_category(self.store_b, "b")
+        Product.objects.create(
+            store=self.store_a, vendor=vendor_a, category=category_a, name="A",
+            slug="shared-product", sku="SHARED-SKU", price=Decimal("100000"),
+        )
+        product_b = Product.objects.create(
+            store=self.store_b, vendor=vendor_b, category=category_b, name="B",
+            slug="shared-product", sku="SHARED-SKU", price=Decimal("200000"),
+        )
+        self.assertEqual(product_b.slug, "shared-product")
+        self.assertEqual(product_b.sku, "SHARED-SKU")
+
+    def test_same_store_cannot_reuse_product_slug(self):
+        vendor_a, category_a = self._vendor_and_category(self.store_a, "slugdup")
+        Product.objects.create(
+            store=self.store_a, vendor=vendor_a, category=category_a, name="A",
+            slug="dup-product", sku="SKU-DUP-1", price=Decimal("100000"),
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Product.objects.create(
+                    store=self.store_a, vendor=vendor_a, category=category_a, name="A2",
+                    slug="dup-product", sku="SKU-DUP-2", price=Decimal("100000"),
+                )
+
+    def test_same_store_cannot_reuse_product_sku(self):
+        vendor_a, category_a = self._vendor_and_category(self.store_a, "skudup")
+        Product.objects.create(
+            store=self.store_a, vendor=vendor_a, category=category_a, name="A",
+            slug="sku-dup-1", sku="SKU-DUP-SAME", price=Decimal("100000"),
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Product.objects.create(
+                    store=self.store_a, vendor=vendor_a, category=category_a, name="A2",
+                    slug="sku-dup-2", sku="SKU-DUP-SAME", price=Decimal("100000"),
+                )
+
+    def test_two_stores_may_use_the_same_variant_sku(self):
+        vendor_a, category_a = self._vendor_and_category(self.store_a, "va")
+        vendor_b, category_b = self._vendor_and_category(self.store_b, "vb")
+        product_a = Product.objects.create(
+            store=self.store_a, vendor=vendor_a, category=category_a, name="A",
+            slug="variant-host-a", sku="VARIANT-HOST-A", price=Decimal("100000"),
+        )
+        product_b = Product.objects.create(
+            store=self.store_b, vendor=vendor_b, category=category_b, name="B",
+            slug="variant-host-b", sku="VARIANT-HOST-B", price=Decimal("100000"),
+        )
+        ProductVariant.objects.create(product=product_a, attribute="رنگ", value="قرمز", sku="SHARED-VAR-SKU")
+        variant_b = ProductVariant.objects.create(
+            product=product_b, attribute="رنگ", value="قرمز", sku="SHARED-VAR-SKU"
+        )
+        self.assertEqual(variant_b.sku, "SHARED-VAR-SKU")
+        self.assertEqual(variant_b.store_id, self.store_b.pk)
+
+    def test_same_store_cannot_reuse_variant_sku_across_products(self):
+        vendor_a, category_a = self._vendor_and_category(self.store_a, "vardup")
+        product1 = Product.objects.create(
+            store=self.store_a, vendor=vendor_a, category=category_a, name="A",
+            slug="vardup-1", sku="VARDUP-SKU-1", price=Decimal("100000"),
+        )
+        product2 = Product.objects.create(
+            store=self.store_a, vendor=vendor_a, category=category_a, name="B",
+            slug="vardup-2", sku="VARDUP-SKU-2", price=Decimal("100000"),
+        )
+        ProductVariant.objects.create(product=product1, attribute="رنگ", value="قرمز", sku="DUP-VAR-SKU")
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                ProductVariant.objects.create(product=product2, attribute="رنگ", value="آبی", sku="DUP-VAR-SKU")
+
+    def test_product_rejects_category_from_another_store(self):
+        vendor_a, category_a = self._vendor_and_category(self.store_a, "mismatch")
+        _, category_b = self._vendor_and_category(self.store_b, "mismatch")
+        product = Product(
+            store=self.store_a, vendor=vendor_a, category=category_b, name="Mismatch",
+            slug="mismatch-product", sku="MISMATCH-SKU", price=Decimal("100000"),
+        )
+        with self.assertRaises(ValidationError):
+            product.full_clean(exclude=["slug"])
+
+    def test_product_rejects_vendor_from_another_store(self):
+        vendor_b, _ = self._vendor_and_category(self.store_b, "vendormismatch")
+        _, category_a = self._vendor_and_category(self.store_a, "vendormismatch")
+        product = Product(
+            store=self.store_a, vendor=vendor_b, category=category_a, name="Mismatch",
+            slug="mismatch-product-2", sku="MISMATCH-SKU-2", price=Decimal("100000"),
+        )
+        with self.assertRaises(ValidationError):
+            product.full_clean(exclude=["slug"])
+
+    def test_category_rejects_parent_from_another_store(self):
+        parent_b = Category.objects.create(store=self.store_b, name="ParentB", slug="parent-b-mismatch")
+        child = Category(store=self.store_a, name="ChildA", slug="child-a-mismatch", parent=parent_b)
+        with self.assertRaises(ValidationError):
+            child.full_clean()
+
+    def test_missing_store_rejected_for_product(self):
+        vendor_a, category_a = self._vendor_and_category(self.store_a, "nostore")
+        product = Product(
+            vendor=vendor_a, category=category_a, name="NoStore",
+            slug="no-store-product", sku="NO-STORE-SKU", price=Decimal("100000"),
+        )
+        with self.assertRaises(ValidationError):
+            product.full_clean(exclude=["slug"])
