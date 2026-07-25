@@ -138,3 +138,16 @@ class StoreResolutionEndToEndSmokeTests(TestCase):
             response = client.get("/", HTTP_HOST="localhost")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.wsgi_request.store.slug, "akhlaghi")
+
+    def test_disallowed_host_through_the_real_middleware_chain_does_not_500(self):
+        # A Host header Django itself disallows, exercised through the real,
+        # fully configured MIDDLEWARE chain (not a direct middleware call).
+        # Django's own DisallowedHost handling (a SuspiciousOperation
+        # subclass) converts this to a clean 400 response — it must not
+        # surface as an unhandled exception/500, and StoreResolutionMiddleware
+        # (which runs before whatever else might call get_host() again) must
+        # not make this any worse.
+        with self.settings(ALLOWED_HOSTS=["testserver"]):
+            client = Client()
+            response = client.get("/", HTTP_HOST="totally-disallowed-host.evil")
+        self.assertEqual(response.status_code, 400)

@@ -1,3 +1,4 @@
+from django.core.exceptions import ImproperlyConfigured
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
@@ -9,6 +10,7 @@ from apps.stores.resolution import (
     InvalidHostnameError,
     StoreNotResolvedError,
     UnknownStoreDomainError,
+    _is_development_host,
     _strip_port,
     domain_is_eligible_for_routing,
     require_resolved_store,
@@ -223,6 +225,80 @@ class CompatibilityModeTests(TestCase):
             resolve_store_for_hostname("localhost")
         self.assertIsNone(resolve_store_for_hostname_or_none("localhost"))
 
+    def test_fallback_refused_when_second_store_is_inactive(self):
+        # The "exactly one Store" rule must count every Store row regardless
+        # of status — a second Store that is merely provisioning/suspended/
+        # closed (not active) must still disable the fallback. This guards
+        # against a regression where the count is mistakenly filtered to
+        # active Stores only, which would incorrectly keep the fallback
+        # available as long as Akhlaghi alone was active.
+        self._akhlaghi()
+        Store.objects.create(
+            name="Second", slug="second-store", status=Store.Status.PROVISIONING
+        )
+        with self.assertRaises(CompatibilityFallbackUnavailableError):
+            resolve_store_for_hostname("localhost")
+
+    def test_fallback_refused_when_second_store_is_suspended(self):
+        self._akhlaghi()
+        Store.objects.create(
+            name="Second", slug="second-store", status=Store.Status.SUSPENDED
+        )
+        with self.assertRaises(CompatibilityFallbackUnavailableError):
+            resolve_store_for_hostname("localhost")
+
+    def test_fallback_refused_when_second_store_is_closed(self):
+        self._akhlaghi()
+        Store.objects.create(
+            name="Second", slug="second-store", status=Store.Status.CLOSED
+        )
+        with self.assertRaises(CompatibilityFallbackUnavailableError):
+            resolve_store_for_hostname("localhost")
+
+    def test_hostname_ending_in_localhost_is_not_treated_as_a_development_host(self):
+        # "localhost.example.com" must never be confused with "localhost"
+        # via a substring/suffix match — only an exact match to an allowlist
+        # entry may take the compatibility path. Guards against a regression
+        # to e.g. `.endswith()`/`in` substring matching, which an attacker
+        # could exploit by registering a hostname like this to try to reach
+        # the compatibility fallback instead of the authoritative lookup.
+        self._akhlaghi()
+        self.assertFalse(_is_development_host("localhost.example.com"))
+        with self.assertRaises(UnknownStoreDomainError):
+            resolve_store_for_hostname("localhost.example.com")
+
+    def test_hostname_ending_in_loopback_ip_is_not_treated_as_a_development_host(self):
+        self._akhlaghi()
+        self.assertFalse(_is_development_host("127.0.0.1.example.com"))
+        with self.assertRaises(UnknownStoreDomainError):
+            resolve_store_for_hostname("127.0.0.1.example.com")
+
+    def test_development_host_shadows_a_real_storedomain_with_the_same_hostname(self):
+        # "127.0.0.1" is, unusually, a syntactically valid hostname per
+        # normalize_hostname (four numeric labels joined by dots), so it is
+        # theoretically possible to create a real, verified StoreDomain row
+        # for it. The development-host allowlist check runs BEFORE, and
+        # instead of, the authoritative StoreDomain lookup (by design — see
+        # resolution.py's module docstring), so such a row is unreachable
+        # via resolution: the compatibility path always wins for this exact
+        # string, and the authoritative lookup is never even attempted. No
+        # legitimate merchant would ever use a loopback IP as a real custom
+        # domain, so this is accepted as a documented quirk, not a tenant-
+        # isolation risk — this test pins that the *current* documented
+        # behavior does not silently change.
+        from unittest import mock
+
+        akhlaghi = self._akhlaghi()
+        _make_verified_domain(akhlaghi, "127.0.0.1")
+
+        with mock.patch(
+            "apps.stores.models.StoreDomain.objects.select_related"
+        ) as select_related_spy:
+            resolved = resolve_store_for_hostname("127.0.0.1")
+
+        self.assertEqual(resolved.pk, akhlaghi.pk)
+        select_related_spy.assert_not_called()
+
     def test_fallback_refused_if_sole_store_is_not_akhlaghi(self):
         Store.objects.filter(slug=AKHLAGHI_SLUG).delete()
         Store.objects.create(name="Not Akhlaghi", slug="not-akhlaghi", status=Store.Status.ACTIVE)
@@ -250,6 +326,30 @@ class CompatibilityModeTests(TestCase):
         # hostname *syntax* validation outright (never reaches the StoreDomain
         # lookup at all) — proving it was only ever resolvable via the
         # explicitly isolated compatibility path, never as a "real" hostname.
+        with self.assertRaises(InvalidHostnameError):
+            resolve_store_for_hostname("localhost")
+
+    @override_settings(STORES_DEVELOPMENT_HOST_ALLOWLIST="prod.example.com")
+    def test_bare_string_allowlist_setting_fails_loudly_not_silently(self):
+        # A bare string is iterable character-by-character in Python. If
+        # this were accepted as-is, "prod.example.com" would silently
+        # decompose into single-character "hosts" ('p', 'r', 'o', ...) that
+        # can never match a real Host header — a silent misconfiguration
+        # that quietly disables the allowlist instead of doing what whoever
+        # set it obviously intended. This must fail loudly instead.
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_store_for_hostname("localhost")
+
+    @override_settings(STORES_DEVELOPMENT_HOST_ALLOWLIST=["Custom-Dev-Host"])
+    def test_allowlist_entries_are_matched_case_insensitively(self):
+        akhlaghi = self._akhlaghi()
+        self.assertEqual(
+            resolve_store_for_hostname("custom-dev-host").pk, akhlaghi.pk
+        )
+
+    @override_settings(STORES_DEVELOPMENT_HOST_ALLOWLIST=[])
+    def test_empty_allowlist_disables_compatibility_mode_entirely(self):
+        self._akhlaghi()
         with self.assertRaises(InvalidHostnameError):
             resolve_store_for_hostname("localhost")
 
@@ -382,3 +482,96 @@ class QueryCountTests(TestCase):
     def test_invalid_hostname_is_zero_queries(self):
         with self.assertNumQueries(0):
             resolve_store_for_hostname_or_none("https://bad/path")
+
+
+class UnexpectedErrorPropagationTests(TestCase):
+    """An unexpected database/programming error must propagate, not be
+    silently converted into "unknown tenant". Only StoreResolutionError
+    subclasses (and DisallowedHost, one layer up) are ever swallowed."""
+
+    def setUp(self):
+        self.store = Store.objects.create(name="Store A", slug="store-a", status=Store.Status.ACTIVE)
+        _make_verified_domain(self.store, "a.example.com")
+
+    def test_unexpected_database_error_propagates_from_hostname_lookup(self):
+        from django.db import DatabaseError
+        from unittest import mock
+
+        with mock.patch(
+            "apps.stores.models.StoreDomain.objects.select_related",
+            side_effect=DatabaseError("connection lost"),
+        ):
+            with self.assertRaises(DatabaseError):
+                resolve_store_for_hostname("a.example.com")
+
+    def test_unexpected_database_error_is_not_converted_to_none_by_or_none_wrapper(self):
+        from django.db import DatabaseError
+        from unittest import mock
+
+        with mock.patch(
+            "apps.stores.models.StoreDomain.objects.select_related",
+            side_effect=DatabaseError("connection lost"),
+        ):
+            with self.assertRaises(DatabaseError):
+                resolve_store_for_hostname_or_none("a.example.com")
+
+    def test_unexpected_database_error_propagates_through_request_resolution(self):
+        from django.db import DatabaseError
+        from django.test import RequestFactory
+        from unittest import mock
+
+        request = RequestFactory().get("/", HTTP_HOST="a.example.com")
+        with override_settings(ALLOWED_HOSTS=["a.example.com"]):
+            with mock.patch(
+                "apps.stores.models.StoreDomain.objects.select_related",
+                side_effect=DatabaseError("connection lost"),
+            ):
+                with self.assertRaises(DatabaseError):
+                    resolve_store_for_request(request)
+
+
+@override_settings(ALLOWED_HOSTS=["trusted.example.com"])
+class ForwardedHostTests(TestCase):
+    """USE_X_FORWARDED_HOST is False by default in this project (verified:
+    not set in shop_core/settings.py, so Django's own default applies), so
+    request.get_host() currently uses only the real Host header — an
+    X-Forwarded-Host header is inert. This is documented as a required
+    operational precondition in SAAS_ARCHITECTURE.md: enabling
+    USE_X_FORWARDED_HOST is only safe if the reverse proxy is trusted to
+    set/strip that header, since it would otherwise let any client
+    influence Store resolution directly."""
+
+    def setUp(self):
+        self.trusted_store = Store.objects.create(
+            name="Trusted", slug="trusted-store", status=Store.Status.ACTIVE
+        )
+        _make_verified_domain(self.trusted_store, "trusted.example.com")
+
+    def test_x_forwarded_host_is_ignored_by_default(self):
+        from django.test import RequestFactory
+
+        request = RequestFactory().get(
+            "/", HTTP_HOST="trusted.example.com", HTTP_X_FORWARDED_HOST="attacker.example.com"
+        )
+        resolved = resolve_store_for_request(request)
+        self.assertEqual(resolved.pk, self.trusted_store.pk)
+
+    @override_settings(
+        ALLOWED_HOSTS=["trusted.example.com", "attacker.example.com"],
+        USE_X_FORWARDED_HOST=True,
+    )
+    def test_x_forwarded_host_is_honored_once_explicitly_enabled(self):
+        # This demonstrates the risk, it does not endorse enabling the
+        # setting without a trusted proxy: once USE_X_FORWARDED_HOST=True,
+        # Django's own get_host() prefers X-Forwarded-Host over Host, so an
+        # untrusted client that can reach the app directly (bypassing any
+        # proxy) could influence Store resolution. Deployers must only set
+        # USE_X_FORWARDED_HOST=True behind a proxy that strips/overwrites
+        # any client-supplied X-Forwarded-Host.
+        from django.test import RequestFactory
+
+        request = RequestFactory().get(
+            "/", HTTP_HOST="attacker.example.com", HTTP_X_FORWARDED_HOST="trusted.example.com"
+        )
+        resolved = resolve_store_for_request(request)
+        self.assertEqual(resolved.pk, self.trusted_store.pk)

@@ -58,7 +58,13 @@ admin registrations, migrations (schema + the Akhlaghi data migration),
 and tests. No existing app is modified. See the PR's own report for exact
 file list.
 
-## PR 3 — Store Resolution Infrastructure in Compatibility Mode [done]
+## PR 3 — Store Resolution Infrastructure in Compatibility Mode [this PR]
+
+Status note: implemented on branch `claude/store-resolution-infra`; not yet
+merged into the canonical base branch as of this writing. This document is
+part of that same, still-open pull request — "this PR" here means exactly
+that, not "already merged." Update this to "[done]" only once the PR
+opening this section has actually merged.
 
 Scope, and *only* scope: `apps.stores.resolution` resolves "which Store
 does this request belong to" from `StoreDomain.hostname` (authoritative

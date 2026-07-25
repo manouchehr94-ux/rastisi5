@@ -1,6 +1,11 @@
 # SaaS Foundation Architecture
 
-Status: Foundation stage (PR 2 of the staged migration plan — see `SAAS_MIGRATION_PLAN.md`).
+Status: Foundation stage. PR 2 (`Store`/`StoreDomain`/`StoreMembership`) has
+merged. PR 3 (Store resolution infrastructure, §6 below) is implemented on
+branch `claude/store-resolution-infra` and open as a pull request — not yet
+merged into the canonical base branch as of this writing. See
+`SAAS_MIGRATION_PLAN.md` for the full staged sequence and current status of
+each PR.
 
 ## 1. Platform vs. Store
 
@@ -168,12 +173,25 @@ allowlist of development hosts (`localhost`, `127.0.0.1`, `[::1]`,
 `testserver` — Django's own test-client host) to resolve to the Akhlaghi
 Store, but **only** when all of the following hold at resolution time:
 
-* no `StoreDomain` matched (the allowlist check happens instead of, not in
-  addition to, the authoritative lookup — these hosts are not, and must
-  never become, real `StoreDomain` rows);
-* exactly one `Store` exists in the entire database;
-* that Store's slug is `"akhlaghi"`;
-* that Store is `ACTIVE`.
+* the (port-stripped) host is an **exact** match to an entry in the
+  development-host allowlist — checked first, and *instead of* the
+  authoritative `StoreDomain` lookup, not after it fails. A real, verified
+  `StoreDomain` row happening to exist for one of these exact strings
+  (e.g. `"127.0.0.1"`, which is unusually a syntactically valid hostname)
+  would never be consulted — the compatibility path always wins for an
+  exact allowlist match, and the authoritative lookup is never attempted
+  for it. No legitimate merchant would ever use a loopback address as a
+  real custom domain, so this is an accepted, tested quirk of the
+  isolation design, not a tenant-isolation risk;
+* the match is exact, never a substring or suffix — `localhost.example.com`
+  and `127.0.0.1.example.com` are *not* development hosts and go through
+  the authoritative path like any other hostname (adversarially tested);
+* exactly one `Store` exists in the entire database, **regardless of that
+  Store's own status** — a second Store that is merely provisioning,
+  suspended, or closed still disables the fallback, exactly like an active
+  one (adversarially tested per status);
+* that sole Store's slug is `"akhlaghi"`;
+* that sole Store is `ACTIVE`.
 
 **This is temporary and fails closed, not a permanent behavior.** The
 instant a second `Store` is created anywhere on the platform, the fallback
@@ -181,6 +199,16 @@ stops resolving anything — it does not fall back to "the first Store" or
 any other heuristic; it raises internally and callers see `None`. This
 property is directly tested (`apps.stores.tests.test_resolution.
 CompatibilityModeTests`) and must not be weakened by any later change.
+
+**Allowlist configuration safety.** `STORES_DEVELOPMENT_HOST_ALLOWLIST`
+must be a list/tuple/set of hostnames. A bare string is rejected with
+`django.core.exceptions.ImproperlyConfigured` rather than silently accepted
+— Python iterates a string character-by-character, so a naive
+`STORES_DEVELOPMENT_HOST_ALLOWLIST = "prod.example.com"` would otherwise
+silently decompose into single-character "hosts" that can never match a
+real Host header, quietly disabling the allowlist instead of doing what
+was obviously intended. Misconfiguration fails loudly (every request
+raises) rather than failing silently.
 
 ### 6.4 Separation from authentication and authorization
 
@@ -222,7 +250,39 @@ authentication state, since neither has run yet when this middleware
 executes — the ordering itself enforces the §6.4 separation, rather than
 relying on code review to keep it that way.
 
-### 6.6 Explicit non-goals of this PR
+### 6.6 Reverse-proxy trust boundary (operational precondition, not code in this PR)
+
+Resolution trusts `request.get_host()` completely — Django's own Host-header
+parsing and `ALLOWED_HOSTS` validation. That trust model has one sharp edge
+that is not, and cannot be, fixed by application code alone: Django's
+`USE_X_FORWARDED_HOST` setting. Verified in this repository's
+`shop_core/settings.py`: it is **not set**, so Django's default (`False`)
+applies, and `get_host()` uses only the actual `Host` header — an
+`X-Forwarded-Host` header is inert (directly demonstrated by
+`apps.stores.tests.test_resolution.ForwardedHostTests.
+test_x_forwarded_host_is_ignored_by_default`).
+
+If this platform is ever deployed behind a reverse proxy and
+`USE_X_FORWARDED_HOST = True` is set to make `get_host()` see the proxy's
+original-request hostname, `get_host()` switches to preferring
+`X-Forwarded-Host` over `Host`
+(`test_x_forwarded_host_is_honored_once_explicitly_enabled` demonstrates
+this with Django's own machinery, unmodified by this PR). **This is only
+safe if the proxy is trusted to set or strip that header on every request
+it forwards** — otherwise any client that can reach the application
+directly (or send an arbitrary `X-Forwarded-Host` through a
+misconfigured/permissive proxy) can influence Store resolution as
+completely as if `ALLOWED_HOSTS` didn't exist. This is a deployment/proxy
+configuration responsibility, not something `apps.stores.resolution` can
+verify at runtime — do not enable `USE_X_FORWARDED_HOST` without first
+confirming the fronting proxy strips client-supplied `X-Forwarded-Host`
+headers.
+
+`SECURE_PROXY_SSL_HEADER` is unrelated to this concern — it affects only
+`request.is_secure()`/scheme detection, not `get_host()` or Store
+resolution, and is also unset in this repository today.
+
+### 6.7 Explicit non-goals of this PR
 
 * No `Store` foreign key was added to any existing commerce/content model.
 * `ShopSettings`/`FooterSettings` were not split or tenant-scoped.

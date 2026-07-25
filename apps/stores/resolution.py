@@ -21,7 +21,7 @@ second Store exists — it is not a permanent behavior.
 """
 
 from django.conf import settings as django_settings
-from django.core.exceptions import DisallowedHost, ValidationError
+from django.core.exceptions import DisallowedHost, ImproperlyConfigured, ValidationError
 
 from .hostnames import normalize_hostname
 from .models import Store, StoreDomain
@@ -141,6 +141,19 @@ def _development_host_allowlist():
     configured = getattr(
         django_settings, "STORES_DEVELOPMENT_HOST_ALLOWLIST", DEFAULT_DEVELOPMENT_HOST_ALLOWLIST
     )
+    # A bare string is iterable character-by-character in Python. Silently
+    # accepting one here would decompose e.g. "prod.example.com" into
+    # single-character "hosts" that can never match a real Host header —
+    # not a security hole by itself (no real request ever has a one-
+    # character Host), but a silent misconfiguration that quietly disables
+    # the allowlist instead of doing what whoever set it obviously intended.
+    # Fail loudly instead: a bare string is always a configuration mistake.
+    if isinstance(configured, str):
+        raise ImproperlyConfigured(
+            "STORES_DEVELOPMENT_HOST_ALLOWLIST must be a list/tuple/set of "
+            "hostnames, not a bare string (a string would be iterated "
+            "character-by-character)."
+        )
     return frozenset(h.lower() for h in configured)
 
 
