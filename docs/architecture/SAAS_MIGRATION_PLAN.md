@@ -58,33 +58,50 @@ admin registrations, migrations (schema + the Akhlaghi data migration),
 and tests. No existing app is modified. See the PR's own report for exact
 file list.
 
-## PR 3 — Store resolution infrastructure in compatibility mode
+## PR 3 — Store Resolution Infrastructure in Compatibility Mode [this PR]
 
-Scope, and *only* scope: a mechanism to resolve "which Store does this
-request belong to" from `StoreDomain` (and, for local development, a
-documented fallback such as a header/query param/settings default), attach
-it to the request as `request.store` (or equivalent), and a Store-scoped
-queryset/service helper library that later PRs will use. Explicitly
-**compatibility mode**: resolution failing or returning no Store must not
-break any existing view, because no existing model is Store-scoped yet.
-Must not add `Store` FKs to any existing model. Must include tests that a
-missing/ambiguous Store context degrades safely rather than silently
-defaulting to a fabricated global Store. Verification gates: full existing
-suite green, plus new resolver tests.
+Status note: implemented on branch `claude/store-resolution-infra`; not yet
+merged into the canonical base branch as of this writing. This document is
+part of that same, still-open pull request — "this PR" here means exactly
+that, not "already merged." Update this to "[done]" only once the PR
+opening this section has actually merged.
 
-## PR 4 — Core settings and footer settings ownership
+Scope, and *only* scope: `apps.stores.resolution` resolves "which Store
+does this request belong to" from `StoreDomain.hostname` (authoritative
+path) with a narrow, explicitly isolated, fail-closed compatibility
+fallback for a fixed local-development host allowlist while Akhlaghi is
+the platform's sole Store. `StoreResolutionMiddleware` attaches the result
+to `request.store` once per request, positioned before
+`SessionMiddleware`/`AuthenticationMiddleware` in `MIDDLEWARE`. No `Store`
+FK was added to any existing model; no existing view, template, or
+business query changed. See `SAAS_ARCHITECTURE.md` §6 and
+`SAAS_DOMAIN_DECISIONS.md` ADR-11 for the full design. Verification gates
+(all green): full existing suite, plus new resolver/middleware tests
+including adversarial cross-Store and caller-controlled-input isolation
+tests.
+
+## PR 4 — Tenant-scope existing core settings, without splitting them
 
 Scope: add a nullable `store` FK to `apps.core.ShopSettings` and
-`apps.content.FooterSettings`/`FooterTrustBadge`/`FooterPaymentLogo` (schema
-migration), backfill existing singleton row(s) to the Akhlaghi Store (data
-migration), keep the current `ShopSettings.load()`/singleton-per-Store
-pattern working during compatibility (a Store's settings still resolve via
-`get_or_create` but keyed by Store instead of a hardcoded `pk=1`). Query
-conversion for the context processors (`apps.core.context_processors`,
-`apps.content.context_processors`) to resolve via `request.store` (built in
-PR 3) instead of the global singleton. Non-null enforcement deferred to
-PR 12. Rollback: schema migration reverses cleanly (drop column); data
-migration reverse is a documented no-op (do not delete the settings row).
+`apps.content.FooterSettings`/`FooterTrustBadge`/`FooterPaymentLogo`
+**as they exist today — no field reorganization, no model split** (see
+`SAAS_DOMAIN_DECISIONS.md` ADR-10: splitting `ShopSettings` by domain is a
+deliberately separate, later decision, not bundled into tenant-scoping it).
+Backfill existing singleton row(s) to the Akhlaghi Store via
+`Store.objects.get(slug="akhlaghi")` (data migration). Keep
+`ShopSettings.load()`/`FooterSettings.load()` working during compatibility
+— resolve via the Store obtained from PR 3's resolver
+(`request.store`/`resolve_store_for_hostname`), falling back to the
+Akhlaghi Store only under the same narrow, fail-closed conditions PR 3's
+compatibility mode already defines, never a bare `get_or_create(pk=1)`.
+Query conversion for the context processors (`apps.core.context_processors`,
+`apps.content.context_processors`) to resolve via `request.store` instead
+of the global singleton. Non-null enforcement deferred to PR 12. Rollback:
+schema migration reverses cleanly (drop column); data migration reverse is
+a documented no-op (do not delete the settings row). A **separate, later
+PR** — not this one — is where `ShopSettings` is actually split into
+domain-specific models (identity/commerce-defaults, branding/theme, and
+extracting SMS credentials), per ADR-10.
 
 ## PR 5 — Catalog ownership and constraints
 

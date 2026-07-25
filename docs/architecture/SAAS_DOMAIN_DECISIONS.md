@@ -299,6 +299,112 @@ necessary as the platform grows.
 
 ---
 
+## ADR-10: Store Configuration Is Modeled as Direct Domain Models, Not a Generic StoreConfiguration Table
+
+**Context.** `apps.core.ShopSettings` today bundles four unrelated
+concerns in one singleton row: store identity/contact, tax/shipping
+defaults, SMS provider credentials, and branding/theme tokens. A dedicated
+Store Configuration Architecture Assessment evaluated five alternatives
+(one god model; a generic `StoreConfiguration` aggregate table plus
+domain-specific one-to-ones; `Store` as aggregate root with direct
+domain-specific models and no umbrella table; JSON documents; a relational
++ namespaced-JSON hybrid) against this repository's actual field inventory
+— not generic SaaS theory.
+
+**Decision.** `Store` is the aggregate root. No generic `StoreConfiguration`
+database table is introduced. Configuration domains are modeled as direct,
+independently-owned models attached straight to `Store` (mirroring how
+`FooterSettings`, `SocialLink`, and `Menu` already exist as separate
+top-level models today, not sub-documents of one settings blob). Domain
+models are introduced incrementally, driven by fields that actually exist
+in the codebase — not speculatively for every domain named in the platform
+roadmap (SEO, notifications, checkout rules, order numbering, invoicing,
+and email do not have a single field in this codebase today, so no models
+are created for them yet). Current `ShopSettings` is **not split** in the
+resolution-infrastructure PR that introduced this ADR; a future PR will
+tenant-scope it as-is (add a `store` FK, no field reorganization), with any
+eventual split treated as its own, separately-reviewed decision.
+
+**Alternatives considered.** See the full assessment for the five-way
+comparison; in short: one god model was rejected as reproducing the exact
+problem this ADR exists to prevent; a generic `StoreConfiguration`
+aggregate table was rejected because it would add a table with no real
+column content of its own, existing only to be pointed at; JSON-only was
+rejected because this codebase's existing settings fields all have strict,
+already-relied-upon per-field validation (hex colors, decimal ranges,
+choices) that JSON would weaken.
+
+**Consequences.** Splitting `ShopSettings` (identity/commerce-defaults vs.
+branding/theme vs. SMS credentials) is deferred to a dedicated future PR,
+sequenced after the tenant-scoping-without-split PR described in
+`SAAS_MIGRATION_PLAN.md`. The merchant-facing admin UI's existing five
+sections (general, finance, delivery-payment, sms, appearance) remain the
+UX contract regardless of how many models eventually back them — database
+table boundaries must never dictate a fragmented admin experience.
+
+**Deferred questions.** Exact field boundary between "identity" and
+"commerce-defaults" if/when `ShopSettings` is split; timing of the SMS
+credential extraction (a real, already-identified plaintext-handling issue
+independent of tenancy); whether feature flags/experimental configuration
+ever gets a minimal JSON column on `Store` itself, once such fields
+actually exist.
+
+---
+
+## ADR-11: Store Resolution Is Hostname-Authoritative, With a Fail-Closed Compatibility Fallback
+
+**Context.** Every future Store-scoped model, view, and service needs a
+single, trustworthy answer to "which Store is this request for?" before
+any of them can be built safely. `StoreDomain` existed as a data model
+since the foundation PR but nothing consumed it.
+
+**Decision.** `apps.stores.resolution` is the sole authoritative resolver:
+it maps `request.get_host()` → normalized hostname (via the existing
+`normalize_hostname`) → `StoreDomain.hostname` lookup → the associated
+`Store`, gated by a routing-eligibility policy (Store `ACTIVE` and domain
+`VERIFIED` — see `SAAS_ARCHITECTURE.md` §6.2). `StoreResolutionMiddleware`
+runs this once per request and attaches the result to `request.store`
+(`Store` or `None`), positioned before `SessionMiddleware` and
+`AuthenticationMiddleware` in `MIDDLEWARE` so tenant resolution is
+structurally independent of session/auth state, not just independent by
+convention. A narrow, explicitly isolated, temporary compatibility fallback
+lets a fixed development-host allowlist resolve to the Akhlaghi Store, but
+only while exactly one, active, `"akhlaghi"`-slugged Store exists — it
+fails closed the instant a second Store is created, rather than falling
+back to "the first Store" or any other heuristic.
+
+**Alternatives considered.** Deriving Store from the authenticated user's
+`StoreMembership` — rejected for storefront resolution: a storefront
+visitor is usually unauthenticated, and even when authenticated, "which
+Store am I browsing" must not depend on "which Store(s) am I staff of" —
+those are different questions (tenant resolution vs. authorization, see
+`SAAS_ARCHITECTURE.md` §6.4). Accepting a caller-supplied Store ID (query
+param, header, session key) — rejected outright as trivially spoofable;
+verified directly by adversarial tests
+(`apps.stores.tests.test_resolution.IsolationAdversarialTests`). A single
+`Store.objects.first()`-style fallback — rejected; this is precisely the
+class of singleton assumption flagged as unsafe in the prior Tenant
+Ownership assessment, and the narrow, multi-condition compatibility check
+in this ADR exists specifically to avoid it.
+
+**Consequences.** No existing view, template, or business query was
+changed — `request.store` is set on every request but consumed nowhere
+yet. A Django system check for "middleware omitted" or "unsafe
+compatibility configuration in production" was considered and explicitly
+declined for this PR: no such setting (e.g. a "strict tenant mode" flag)
+exists yet to check against, and the compatibility fallback's own
+multi-condition gate already fails closed structurally, so no additional
+check could add a reliable, non-noisy signal beyond what the fallback's own
+logic already guarantees.
+
+**Deferred questions.** When request-time resolution becomes a *hard*
+requirement for a given model (i.e., when its own PR removes any
+compatibility fallback) is decided per-model, not by this ADR. Whether a
+future "strict tenant mode" setting is introduced, and a matching system
+check with it, is left open.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -313,3 +419,5 @@ necessary as the platform grows.
 | PaymentProvider vs StorePaymentConfiguration split | Recorded, not implemented |
 | Platform operators ≠ unrestricted merchant-data access | Recorded, not enforced |
 | Merchant funds flow directly to merchant accounts (v1) | Recorded |
+| Store is aggregate root; no generic StoreConfiguration table | Decided |
+| Store resolution is hostname-authoritative, fail-closed compatibility fallback | Decided, implemented |

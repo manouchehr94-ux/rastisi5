@@ -1,6 +1,11 @@
 # SaaS Foundation Architecture
 
-Status: Foundation stage (PR 2 of the staged migration plan — see `SAAS_MIGRATION_PLAN.md`).
+Status: Foundation stage. PR 2 (`Store`/`StoreDomain`/`StoreMembership`) has
+merged. PR 3 (Store resolution infrastructure, §6 below) is implemented on
+branch `claude/store-resolution-infra` and open as a pull request — not yet
+merged into the canonical base branch as of this writing. See
+`SAAS_MIGRATION_PLAN.md` for the full staged sequence and current status of
+each PR.
 
 ## 1. Platform vs. Store
 
@@ -116,13 +121,177 @@ Isolation is layered:
 
 ## 6. Request Store Context
 
-A future PR ("Store resolution infrastructure in compatibility mode", see
-`SAAS_MIGRATION_PLAN.md`) will introduce a mechanism for resolving which
-Store a given request belongs to (via `StoreDomain` or another explicit
-signal) and attaching it to the request in a way services can consume. This
-PR does **not** implement that middleware, host resolution, or any
-`request.store` attribute. `StoreDomain` is created now only as a data model
-so that later resolution work has a stable schema to resolve against.
+Implemented (PR — "Store Resolution Infrastructure in Compatibility Mode").
+
+### 6.1 Resolution flow
+
+`apps.stores.resolution` is the single authoritative module that decides
+"which Store does this request belong to." `StoreResolutionMiddleware`
+(`apps.stores.middleware`) runs this resolution once per request and
+attaches the result to `request.store` (a `Store` instance, or `None`).
+
+The resolution source of truth is **the HTTP `Host` header, resolved
+through `StoreDomain`** — nothing else. Concretely, for a given
+`request.get_host()` value:
+
+1. the port is stripped safely (including bracketed IPv6 literals);
+2. if the resulting host is on the (small, centralized, overridable)
+   development-host allowlist, the request goes through the compatibility
+   fallback (§6.3) instead of the authoritative path below;
+3. otherwise, the host is normalized via the existing authoritative
+   `apps.stores.hostnames.normalize_hostname`;
+4. the normalized hostname is looked up against `StoreDomain.hostname`
+   (globally unique, so this lookup can never be ambiguous);
+5. a match resolves only if it passes the **routing eligibility policy**
+   (§6.2); anything else — no match, or a match that fails eligibility —
+   resolves to `None` for callers that want a non-raising result, or a
+   specific, distinguishable exception for callers (tests, future services)
+   that need to know why.
+
+Hostname is the authoritative **storefront** tenant source: a caller can
+never supply a Store ID, and resolution never consults the authenticated
+user, session state, `Vendor`, `Product`, `Cart`, `StoreMembership`, or any
+other business data. See §6.4 for why that separation matters.
+
+### 6.2 Routing eligibility policy
+
+A `StoreDomain` may route a request only when **both**:
+
+* its Store's `status` is `ACTIVE` (not `provisioning`, `suspended`, or `closed`);
+* its own `verification_status` is `VERIFIED` (not `unverified`, `pending`, or `failed`).
+
+This is deliberately conservative: an unverified, pending, or failed domain,
+or a domain whose Store is not active, never resolves — even though the
+hostname row genuinely exists. This is the same "fail closed rather than
+guess" posture the compatibility fallback also follows (§6.3).
+
+### 6.3 Temporary Akhlaghi / local-development compatibility mode
+
+Akhlaghi must keep working locally before it has a real, verified
+`StoreDomain`. A narrow, explicitly isolated fallback allows a fixed
+allowlist of development hosts (`localhost`, `127.0.0.1`, `[::1]`,
+`testserver` — Django's own test-client host) to resolve to the Akhlaghi
+Store, but **only** when all of the following hold at resolution time:
+
+* the (port-stripped) host is an **exact** match to an entry in the
+  development-host allowlist — checked first, and *instead of* the
+  authoritative `StoreDomain` lookup, not after it fails. A real, verified
+  `StoreDomain` row happening to exist for one of these exact strings
+  (e.g. `"127.0.0.1"`, which is unusually a syntactically valid hostname)
+  would never be consulted — the compatibility path always wins for an
+  exact allowlist match, and the authoritative lookup is never attempted
+  for it. No legitimate merchant would ever use a loopback address as a
+  real custom domain, so this is an accepted, tested quirk of the
+  isolation design, not a tenant-isolation risk;
+* the match is exact, never a substring or suffix — `localhost.example.com`
+  and `127.0.0.1.example.com` are *not* development hosts and go through
+  the authoritative path like any other hostname (adversarially tested);
+* exactly one `Store` exists in the entire database, **regardless of that
+  Store's own status** — a second Store that is merely provisioning,
+  suspended, or closed still disables the fallback, exactly like an active
+  one (adversarially tested per status);
+* that sole Store's slug is `"akhlaghi"`;
+* that sole Store is `ACTIVE`.
+
+**This is temporary and fails closed, not a permanent behavior.** The
+instant a second `Store` is created anywhere on the platform, the fallback
+stops resolving anything — it does not fall back to "the first Store" or
+any other heuristic; it raises internally and callers see `None`. This
+property is directly tested (`apps.stores.tests.test_resolution.
+CompatibilityModeTests`) and must not be weakened by any later change.
+
+**Allowlist configuration safety.** `STORES_DEVELOPMENT_HOST_ALLOWLIST`
+must be a list/tuple/set of hostnames. A bare string is rejected with
+`django.core.exceptions.ImproperlyConfigured` rather than silently accepted
+— Python iterates a string character-by-character, so a naive
+`STORES_DEVELOPMENT_HOST_ALLOWLIST = "prod.example.com"` would otherwise
+silently decompose into single-character "hosts" that can never match a
+real Host header, quietly disabling the allowlist instead of doing what
+was obviously intended. Misconfiguration fails loudly (every request
+raises) rather than failing silently.
+
+### 6.4 Separation from authentication and authorization
+
+Tenant resolution, authentication, authorization, and data filtering are
+four separate concerns, and this PR implements **only the first**:
+
+* **Tenant resolution** (this middleware) — which Store is this request for?
+* **Authentication** (`AuthenticationMiddleware`) — who is the user?
+* **Authorization** (not implemented anywhere yet) — what may they do in
+  this Store?
+* **Data filtering** (not implemented anywhere yet) — which rows may this
+  operation read or mutate?
+
+`StoreResolutionMiddleware` never reads `request.user`, never touches the
+session, never consults `StoreMembership`, and never makes an authorization
+decision or redirects — it only ever sets `request.store`. Nothing in the
+codebase consumes `request.store` yet; it is infrastructure for future PRs.
+
+### 6.5 Middleware ordering
+
+```python
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "apps.stores.middleware.StoreResolutionMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+```
+
+`StoreResolutionMiddleware` runs immediately after `SecurityMiddleware`
+(Django's own host/security processing) and, critically, **before**
+`SessionMiddleware` and `AuthenticationMiddleware`. This is deliberate: it
+structurally guarantees Store resolution cannot depend on session or
+authentication state, since neither has run yet when this middleware
+executes — the ordering itself enforces the §6.4 separation, rather than
+relying on code review to keep it that way.
+
+### 6.6 Reverse-proxy trust boundary (operational precondition, not code in this PR)
+
+Resolution trusts `request.get_host()` completely — Django's own Host-header
+parsing and `ALLOWED_HOSTS` validation. That trust model has one sharp edge
+that is not, and cannot be, fixed by application code alone: Django's
+`USE_X_FORWARDED_HOST` setting. Verified in this repository's
+`shop_core/settings.py`: it is **not set**, so Django's default (`False`)
+applies, and `get_host()` uses only the actual `Host` header — an
+`X-Forwarded-Host` header is inert (directly demonstrated by
+`apps.stores.tests.test_resolution.ForwardedHostTests.
+test_x_forwarded_host_is_ignored_by_default`).
+
+If this platform is ever deployed behind a reverse proxy and
+`USE_X_FORWARDED_HOST = True` is set to make `get_host()` see the proxy's
+original-request hostname, `get_host()` switches to preferring
+`X-Forwarded-Host` over `Host`
+(`test_x_forwarded_host_is_honored_once_explicitly_enabled` demonstrates
+this with Django's own machinery, unmodified by this PR). **This is only
+safe if the proxy is trusted to set or strip that header on every request
+it forwards** — otherwise any client that can reach the application
+directly (or send an arbitrary `X-Forwarded-Host` through a
+misconfigured/permissive proxy) can influence Store resolution as
+completely as if `ALLOWED_HOSTS` didn't exist. This is a deployment/proxy
+configuration responsibility, not something `apps.stores.resolution` can
+verify at runtime — do not enable `USE_X_FORWARDED_HOST` without first
+confirming the fronting proxy strips client-supplied `X-Forwarded-Host`
+headers.
+
+`SECURE_PROXY_SSL_HEADER` is unrelated to this concern — it affects only
+`request.is_secure()`/scheme detection, not `get_host()` or Store
+resolution, and is also unset in this repository today.
+
+### 6.7 Explicit non-goals of this PR
+
+* No `Store` foreign key was added to any existing commerce/content model.
+* `ShopSettings`/`FooterSettings` were not split or tenant-scoped.
+* No caching was introduced — resolution is a bounded query every time
+  (see the PR's own report for exact query counts).
+* No DNS/HTTP domain-verification networking.
+* No dashboard authorization changes, and `StoreMembership` is not consulted.
+* No second real Store was provisioned, and no production domain was
+  invented for Akhlaghi.
 
 ## 7. Media, Cache, Session and Background-Job Isolation Principles
 
