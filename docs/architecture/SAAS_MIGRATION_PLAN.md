@@ -58,13 +58,9 @@ admin registrations, migrations (schema + the Akhlaghi data migration),
 and tests. No existing app is modified. See the PR's own report for exact
 file list.
 
-## PR 3 — Store Resolution Infrastructure in Compatibility Mode [this PR]
+## PR 3 — Store Resolution Infrastructure in Compatibility Mode [done]
 
-Status note: implemented on branch `claude/store-resolution-infra`; not yet
-merged into the canonical base branch as of this writing. This document is
-part of that same, still-open pull request — "this PR" here means exactly
-that, not "already merged." Update this to "[done]" only once the PR
-opening this section has actually merged.
+Status note: merged into the canonical base branch.
 
 Scope, and *only* scope: `apps.stores.resolution` resolves "which Store
 does this request belong to" from `StoreDomain.hostname` (authoritative
@@ -80,28 +76,53 @@ business query changed. See `SAAS_ARCHITECTURE.md` §6 and
 including adversarial cross-Store and caller-controlled-input isolation
 tests.
 
-## PR 4 — Tenant-scope existing core settings, without splitting them
+## PR 4 — Tenant-scope existing core settings, without splitting them [this PR]
 
-Scope: add a nullable `store` FK to `apps.core.ShopSettings` and
-`apps.content.FooterSettings`/`FooterTrustBadge`/`FooterPaymentLogo`
-**as they exist today — no field reorganization, no model split** (see
-`SAAS_DOMAIN_DECISIONS.md` ADR-10: splitting `ShopSettings` by domain is a
-deliberately separate, later decision, not bundled into tenant-scoping it).
-Backfill existing singleton row(s) to the Akhlaghi Store via
-`Store.objects.get(slug="akhlaghi")` (data migration). Keep
-`ShopSettings.load()`/`FooterSettings.load()` working during compatibility
-— resolve via the Store obtained from PR 3's resolver
-(`request.store`/`resolve_store_for_hostname`), falling back to the
-Akhlaghi Store only under the same narrow, fail-closed conditions PR 3's
-compatibility mode already defines, never a bare `get_or_create(pk=1)`.
-Query conversion for the context processors (`apps.core.context_processors`,
-`apps.content.context_processors`) to resolve via `request.store` instead
-of the global singleton. Non-null enforcement deferred to PR 12. Rollback:
-schema migration reverses cleanly (drop column); data migration reverse is
-a documented no-op (do not delete the settings row). A **separate, later
-PR** — not this one — is where `ShopSettings` is actually split into
-domain-specific models (identity/commerce-defaults, branding/theme, and
-extracting SMS credentials), per ADR-10.
+Status note: implemented on branch `claude/store-scope-core-settings` and
+open as a pull request against the branch PR 3 merged into — not yet merged
+into the canonical base branch as of this writing. "This PR" here means
+exactly that, not "already merged." Update this to "[done]" only once the
+PR opening this section has actually merged.
+
+Scope: add a `store` FK to `apps.core.ShopSettings` (`OneToOneField`) and
+`apps.content.FooterSettings` (`OneToOneField`) /`FooterTrustBadge`/
+`FooterPaymentLogo` (plain `ForeignKey`, direct ownership — not mediated
+through `FooterSettings`, since both are independently queried/managed
+today) **as they exist today — no field reorganization, no model split**
+(see `SAAS_DOMAIN_DECISIONS.md` ADR-10 and ADR-12: splitting `ShopSettings`
+by domain is a deliberately separate, later decision, not bundled into
+tenant-scoping it). Each app's migration is staged in three steps: nullable
+schema `AddField`, a `RunPython` backfill resolving Akhlaghi via
+`Store.objects.get(slug="akhlaghi")` (never `.first()`, fails loudly on
+zero or multiple matches), then `AlterField` to enforce non-null — done in
+this PR, not deferred to PR 12, since the backfill guarantees zero unowned
+rows before enforcement runs. `ShopSettings.load(store=...)`/
+`FooterSettings.load(store=...)` accept an explicit Store (authoritative,
+never returns another Store's row, raises a dedicated
+`*NotProvisionedError` instead of auto-creating one) or fall back to the
+same `resolve_compatibility_store()` fail-closed check PR 3's compatibility
+mode already defines when no Store is given — never a bare
+`get_or_create(pk=1)`, which is removed from both models' runtime code
+entirely. A new, explicit `provision_for(store)` classmethod on each model
+is the one sanctioned way to create a new Store's settings rows
+(idempotent, never overwrites existing values, never invoked implicitly on
+read). Query conversion for the context processors
+(`apps.core.context_processors`, `apps.content.context_processors`) and the
+dashboard settings/footer views to resolve via `request.store` instead of
+the global singleton, including Store-scoped `get_object_or_404` lookups
+for the trust-badge/payment-logo CRUD endpoints. Rollback: each schema
+migration's `AlterField`/`AddField` reverses via Django's own framework
+defaults; each backfill migration's reverse only clears the `store`
+reference (`update(store=None)`) — never deletes a settings/badge/logo row.
+Verification gates (all green): full existing suite (apps.stores,
+apps.core, apps.content, apps.dashboard.tests.test_settings_views, and the
+full project suite), plus new per-Store isolation tests including real
+two-Host integration coverage (verified `StoreDomain` rows, real Django
+test `Client` requests, no `request.store` mocking) and adversarial
+dashboard write-isolation tests. A **separate, later PR** — not this one —
+is where `ShopSettings` is actually split into domain-specific models
+(identity/commerce-defaults, branding/theme, and extracting SMS
+credentials), per ADR-10.
 
 ## PR 5 — Catalog ownership and constraints
 

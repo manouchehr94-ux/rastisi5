@@ -7,16 +7,24 @@ from PIL import Image
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.content.models import (
     FooterPaymentLogo,
     FooterSettings,
+    FooterSettingsNotProvisionedError,
     FooterTrustBadge,
 )
+from apps.stores.models import Store
+from apps.stores.resolution import CompatibilityFallbackUnavailableError
 
 User = get_user_model()
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
 
 
 def _make_image(name="test.png", size=(10, 10), fmt="PNG"):
@@ -30,22 +38,36 @@ def _make_image(name="test.png", size=(10, 10), fmt="PNG"):
 # ---------------------------------------------------------------- FooterSettings Model
 
 
-class FooterSettingsSingletonTests(TestCase):
-    """تست‌های singleton بودن FooterSettings."""
+class FooterSettingsExplicitStoreTests(TestCase):
+    def test_load_with_explicit_store_returns_that_stores_row(self):
+        akhlaghi = _akhlaghi()
+        fs = FooterSettings.load(store=akhlaghi)
+        self.assertEqual(fs.store_id, akhlaghi.pk)
 
-    def test_load_creates_instance(self):
-        self.assertEqual(FooterSettings.objects.count(), 0)
+    def test_load_with_explicit_store_missing_row_raises_domain_error(self):
+        store_b = Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
+        with self.assertRaises(FooterSettingsNotProvisionedError):
+            FooterSettings.load(store=store_b)
+
+    def test_load_with_explicit_store_never_returns_another_stores_row(self):
+        store_b = Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
+        FooterSettings.provision_for(store_b)
+
+        akhlaghi = _akhlaghi()
+        fs_a = FooterSettings.load(store=akhlaghi)
+        fs_b = FooterSettings.load(store=store_b)
+        self.assertNotEqual(fs_a.pk, fs_b.pk)
+
+
+class FooterSettingsCompatibilityModeTests(TestCase):
+    def test_load_with_no_store_returns_akhlaghi_when_sole_active_store(self):
+        akhlaghi = _akhlaghi()
         fs = FooterSettings.load()
-        self.assertEqual(fs.pk, 1)
-        self.assertEqual(FooterSettings.objects.count(), 1)
+        self.assertEqual(fs.store_id, akhlaghi.pk)
 
-    def test_repeated_load_returns_same_row(self):
-        fs1 = FooterSettings.load()
-        fs2 = FooterSettings.load()
-        self.assertEqual(fs1.pk, fs2.pk)
-        self.assertEqual(FooterSettings.objects.count(), 1)
-
-    def test_defaults(self):
+    def test_bootstrapped_via_the_data_migration(self):
+        # The Akhlaghi row was created by the backfill migration, not
+        # lazily by load() — every field keeps its model-level default.
         fs = FooterSettings.load()
         self.assertTrue(fs.is_enabled)
         self.assertTrue(fs.show_branding)
@@ -59,15 +81,55 @@ class FooterSettingsSingletonTests(TestCase):
         self.assertEqual(fs.description, "")
         self.assertEqual(fs.copyright_text, "")
 
-    def test_save_forces_pk_1(self):
-        fs = FooterSettings(pk=99, description="test")
-        fs.save()
-        self.assertEqual(fs.pk, 1)
-        self.assertEqual(FooterSettings.objects.count(), 1)
+    def test_repeated_load_returns_same_row(self):
+        fs1 = FooterSettings.load()
+        fs2 = FooterSettings.load()
+        self.assertEqual(fs1.pk, fs2.pk)
+
+    def test_compatibility_mode_fails_closed_when_second_store_exists(self):
+        Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
+        with self.assertRaises(CompatibilityFallbackUnavailableError):
+            FooterSettings.load()
 
     def test_str(self):
         fs = FooterSettings.load()
         self.assertEqual(str(fs), "تنظیمات فوتر")
+
+
+class FooterSettingsProvisionForTests(TestCase):
+    def test_provision_for_creates_a_row_for_a_new_store(self):
+        store_b = Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
+        fs = FooterSettings.provision_for(store_b)
+        self.assertEqual(fs.store_id, store_b.pk)
+
+    def test_provision_for_is_idempotent(self):
+        store_b = Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
+        first = FooterSettings.provision_for(store_b)
+        second = FooterSettings.provision_for(store_b)
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(FooterSettings.objects.filter(store=store_b).count(), 1)
+
+    def test_provision_for_never_overwrites_existing_values(self):
+        store_b = Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
+        fs = FooterSettings.provision_for(store_b)
+        fs.copyright_text = "متن سفارشی"
+        fs.save()
+
+        reprovisioned = FooterSettings.provision_for(store_b)
+        self.assertEqual(reprovisioned.copyright_text, "متن سفارشی")
+
+
+class FooterSettingsOneToOneConstraintTests(TestCase):
+    def test_duplicate_footersettings_for_same_store_rejected(self):
+        akhlaghi = _akhlaghi()
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                FooterSettings.objects.create(store=akhlaghi)
+
+    def test_second_store_may_have_its_own_row(self):
+        store_b = Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
+        FooterSettings.objects.create(store=store_b)
+        self.assertEqual(FooterSettings.objects.count(), 2)
 
 
 # ---------------------------------------------------------------- FooterTrustBadge Model
@@ -76,8 +138,12 @@ class FooterSettingsSingletonTests(TestCase):
 class FooterTrustBadgeTests(TestCase):
     """تست‌های مدل FooterTrustBadge."""
 
+    def setUp(self):
+        self.store = _akhlaghi()
+
     def test_valid_creation(self):
         badge = FooterTrustBadge.objects.create(
+            store=self.store,
             title="اینماد",
             image=_make_image("enamad.png"),
             destination_url="https://enamad.ir",
@@ -88,18 +154,18 @@ class FooterTrustBadgeTests(TestCase):
         self.assertEqual(str(badge), "اینماد")
 
     def test_title_required(self):
-        badge = FooterTrustBadge(title="", image=_make_image())
+        badge = FooterTrustBadge(store=self.store, title="", image=_make_image())
         with self.assertRaises(ValidationError):
             badge.full_clean()
 
     def test_image_required(self):
-        badge = FooterTrustBadge(title="test")
+        badge = FooterTrustBadge(store=self.store, title="test")
         with self.assertRaises(ValidationError):
             badge.full_clean()
 
     def test_dangerous_url_rejected(self):
         badge = FooterTrustBadge(
-            title="XSS", image=_make_image(),
+            store=self.store, title="XSS", image=_make_image(),
             destination_url="javascript:alert(1)",
         )
         with self.assertRaises(ValidationError) as cm:
@@ -108,7 +174,7 @@ class FooterTrustBadgeTests(TestCase):
 
     def test_protocol_relative_url_rejected(self):
         badge = FooterTrustBadge(
-            title="Protocol", image=_make_image(),
+            store=self.store, title="Protocol", image=_make_image(),
             destination_url="//evil.com/phish",
         )
         with self.assertRaises(ValidationError) as cm:
@@ -116,14 +182,19 @@ class FooterTrustBadgeTests(TestCase):
         self.assertIn("destination_url", cm.exception.message_dict)
 
     def test_blank_url_allowed(self):
-        badge = FooterTrustBadge(title="NoLink", image=_make_image(), destination_url="")
+        badge = FooterTrustBadge(store=self.store, title="NoLink", image=_make_image(), destination_url="")
         badge.full_clean()  # should not raise
 
     def test_ordering(self):
-        FooterTrustBadge.objects.create(title="B", image=_make_image("b.png"), display_order=2)
-        FooterTrustBadge.objects.create(title="A", image=_make_image("a.png"), display_order=1)
-        badges = list(FooterTrustBadge.objects.values_list("title", flat=True))
+        FooterTrustBadge.objects.create(store=self.store, title="B", image=_make_image("b.png"), display_order=2)
+        FooterTrustBadge.objects.create(store=self.store, title="A", image=_make_image("a.png"), display_order=1)
+        badges = list(FooterTrustBadge.objects.filter(store=self.store).values_list("title", flat=True))
         self.assertEqual(badges, ["A", "B"])
+
+    def test_store_is_required(self):
+        badge = FooterTrustBadge(title="NoStore", image=_make_image())
+        with self.assertRaises(ValidationError):
+            badge.full_clean()
 
 
 # ---------------------------------------------------------------- FooterPaymentLogo Model
@@ -132,28 +203,31 @@ class FooterTrustBadgeTests(TestCase):
 class FooterPaymentLogoTests(TestCase):
     """تست‌های مدل FooterPaymentLogo."""
 
+    def setUp(self):
+        self.store = _akhlaghi()
+
     def test_valid_creation(self):
         logo = FooterPaymentLogo.objects.create(
-            title="زرین‌پال", image=_make_image("zp.png"), display_order=0,
+            store=self.store, title="زرین‌پال", image=_make_image("zp.png"), display_order=0,
         )
         self.assertEqual(logo.title, "زرین‌پال")
         self.assertTrue(logo.is_active)
         self.assertEqual(str(logo), "زرین‌پال")
 
     def test_title_required(self):
-        logo = FooterPaymentLogo(title="", image=_make_image())
+        logo = FooterPaymentLogo(store=self.store, title="", image=_make_image())
         with self.assertRaises(ValidationError):
             logo.full_clean()
 
     def test_image_required(self):
-        logo = FooterPaymentLogo(title="test")
+        logo = FooterPaymentLogo(store=self.store, title="test")
         with self.assertRaises(ValidationError):
             logo.full_clean()
 
     def test_ordering(self):
-        FooterPaymentLogo.objects.create(title="Second", image=_make_image("s.png"), display_order=5)
-        FooterPaymentLogo.objects.create(title="First", image=_make_image("f.png"), display_order=1)
-        logos = list(FooterPaymentLogo.objects.values_list("title", flat=True))
+        FooterPaymentLogo.objects.create(store=self.store, title="Second", image=_make_image("s.png"), display_order=5)
+        FooterPaymentLogo.objects.create(store=self.store, title="First", image=_make_image("f.png"), display_order=1)
+        logos = list(FooterPaymentLogo.objects.filter(store=self.store).values_list("title", flat=True))
         self.assertEqual(logos, ["First", "Second"])
 
 
@@ -195,6 +269,7 @@ class DashboardFooterCRUDTests(TestCase):
     """تست‌های CRUD داشبورد فوتر."""
 
     def setUp(self):
+        self.store = _akhlaghi()
         self.staff = User.objects.create_user(username="admin", password="pass123", is_staff=True)
         self.client.login(username="admin", password="pass123")
 
@@ -211,7 +286,7 @@ class DashboardFooterCRUDTests(TestCase):
             "address": "Tehran",
         })
         self.assertEqual(resp.status_code, 302)
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         self.assertEqual(fs.copyright_text, "My Copyright")
         self.assertEqual(fs.phone, "021-12345")
         self.assertEqual(fs.address, "Tehran")
@@ -225,11 +300,13 @@ class DashboardFooterCRUDTests(TestCase):
             "is_active": "on",
         })
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(FooterTrustBadge.objects.count(), 1)
-        self.assertEqual(FooterTrustBadge.objects.first().title, "TestBadge")
+        self.assertEqual(FooterTrustBadge.objects.filter(store=self.store).count(), 1)
+        created = FooterTrustBadge.objects.get(store=self.store)
+        self.assertEqual(created.title, "TestBadge")
+        self.assertEqual(created.store_id, self.store.pk)
 
     def test_badge_edit(self):
-        badge = FooterTrustBadge.objects.create(title="Old", image=_make_image("old.png"))
+        badge = FooterTrustBadge.objects.create(store=self.store, title="Old", image=_make_image("old.png"))
         url = reverse("dashboard:footer-trust-badge-edit", args=[badge.pk])
         resp = self.client.post(url, {
             "title": "New",
@@ -241,14 +318,14 @@ class DashboardFooterCRUDTests(TestCase):
         self.assertEqual(badge.title, "New")
 
     def test_badge_delete(self):
-        badge = FooterTrustBadge.objects.create(title="Del", image=_make_image("del.png"))
+        badge = FooterTrustBadge.objects.create(store=self.store, title="Del", image=_make_image("del.png"))
         url = reverse("dashboard:footer-trust-badge-delete", args=[badge.pk])
         resp = self.client.post(url)
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(FooterTrustBadge.objects.count(), 0)
 
     def test_badge_toggle(self):
-        badge = FooterTrustBadge.objects.create(title="Toggle", image=_make_image("t.png"), is_active=True)
+        badge = FooterTrustBadge.objects.create(store=self.store, title="Toggle", image=_make_image("t.png"), is_active=True)
         url = reverse("dashboard:footer-trust-badge-toggle", args=[badge.pk])
         resp = self.client.post(url)
         self.assertEqual(resp.status_code, 302)
@@ -264,10 +341,10 @@ class DashboardFooterCRUDTests(TestCase):
             "is_active": "on",
         })
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(FooterPaymentLogo.objects.count(), 1)
+        self.assertEqual(FooterPaymentLogo.objects.filter(store=self.store).count(), 1)
 
     def test_logo_edit(self):
-        logo = FooterPaymentLogo.objects.create(title="Old", image=_make_image("old.png"))
+        logo = FooterPaymentLogo.objects.create(store=self.store, title="Old", image=_make_image("old.png"))
         url = reverse("dashboard:footer-payment-logo-edit", args=[logo.pk])
         resp = self.client.post(url, {
             "title": "Updated",
@@ -279,19 +356,134 @@ class DashboardFooterCRUDTests(TestCase):
         self.assertEqual(logo.title, "Updated")
 
     def test_logo_delete(self):
-        logo = FooterPaymentLogo.objects.create(title="Del", image=_make_image("del.png"))
+        logo = FooterPaymentLogo.objects.create(store=self.store, title="Del", image=_make_image("del.png"))
         url = reverse("dashboard:footer-payment-logo-delete", args=[logo.pk])
         resp = self.client.post(url)
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(FooterPaymentLogo.objects.count(), 0)
 
     def test_logo_toggle(self):
-        logo = FooterPaymentLogo.objects.create(title="Toggle", image=_make_image("t.png"), is_active=True)
+        logo = FooterPaymentLogo.objects.create(store=self.store, title="Toggle", image=_make_image("t.png"), is_active=True)
         url = reverse("dashboard:footer-payment-logo-toggle", args=[logo.pk])
         resp = self.client.post(url)
         self.assertEqual(resp.status_code, 302)
         logo.refresh_from_db()
         self.assertFalse(logo.is_active)
+
+
+# ---------------------------------------------------------------- Dashboard Write Isolation (adversarial)
+
+
+@override_settings(
+    MEDIA_ROOT="/tmp/test_media_footer",
+    ALLOWED_HOSTS=["store-a.example.com"],
+)
+class DashboardFooterCrossStoreIsolationTests(TestCase):
+    """A Store A dashboard request must never mutate Store B's footer rows.
+
+    Once a second Store exists, the compatibility fallback correctly fails
+    closed (see apps.stores.resolution) — so "a Store A request" here means
+    a request through a verified StoreDomain for Store A, exactly as it
+    would work in production, not an unresolved/compat-mode request.
+    """
+
+    HOST_A = "store-a.example.com"
+
+    def setUp(self):
+        from django.utils import timezone
+
+        from apps.stores.models import StoreDomain
+
+        self.store_a = _akhlaghi()
+        self.store_b = Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
+        StoreDomain.objects.create(
+            store=self.store_a, hostname=self.HOST_A, is_primary=True,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+        self.staff = User.objects.create_user(username="admin", password="pass123", is_staff=True)
+        self.client.login(username="admin", password="pass123")
+
+    def _post(self, url, data=None):
+        return self.client.post(url, data or {}, HTTP_HOST=self.HOST_A)
+
+    def _get(self, url):
+        return self.client.get(url, HTTP_HOST=self.HOST_A)
+
+    def test_store_a_request_cannot_edit_store_b_badge(self):
+        badge_b = FooterTrustBadge.objects.create(store=self.store_b, title="B-Badge", image=_make_image("b.png"))
+        url = reverse("dashboard:footer-trust-badge-edit", args=[badge_b.pk])
+        resp = self._post(url, {"title": "Hijacked", "display_order": "0", "is_active": "on"})
+        self.assertEqual(resp.status_code, 404)
+        badge_b.refresh_from_db()
+        self.assertEqual(badge_b.title, "B-Badge")
+
+    def test_store_a_request_cannot_delete_store_b_badge(self):
+        badge_b = FooterTrustBadge.objects.create(store=self.store_b, title="B-Badge", image=_make_image("b.png"))
+        url = reverse("dashboard:footer-trust-badge-delete", args=[badge_b.pk])
+        resp = self._post(url)
+        self.assertEqual(resp.status_code, 404)
+        self.assertTrue(FooterTrustBadge.objects.filter(pk=badge_b.pk).exists())
+
+    def test_store_a_request_cannot_toggle_store_b_badge(self):
+        badge_b = FooterTrustBadge.objects.create(
+            store=self.store_b, title="B-Badge", image=_make_image("b.png"), is_active=True
+        )
+        url = reverse("dashboard:footer-trust-badge-toggle", args=[badge_b.pk])
+        resp = self._post(url)
+        self.assertEqual(resp.status_code, 404)
+        badge_b.refresh_from_db()
+        self.assertTrue(badge_b.is_active)
+
+    def test_store_a_request_cannot_edit_store_b_payment_logo(self):
+        logo_b = FooterPaymentLogo.objects.create(store=self.store_b, title="B-Logo", image=_make_image("b.png"))
+        url = reverse("dashboard:footer-payment-logo-edit", args=[logo_b.pk])
+        resp = self._post(url, {"title": "Hijacked", "display_order": "0", "is_active": "on"})
+        self.assertEqual(resp.status_code, 404)
+        logo_b.refresh_from_db()
+        self.assertEqual(logo_b.title, "B-Logo")
+
+    def test_store_a_request_cannot_delete_store_b_payment_logo(self):
+        logo_b = FooterPaymentLogo.objects.create(store=self.store_b, title="B-Logo", image=_make_image("b.png"))
+        url = reverse("dashboard:footer-payment-logo-delete", args=[logo_b.pk])
+        resp = self._post(url)
+        self.assertEqual(resp.status_code, 404)
+        self.assertTrue(FooterPaymentLogo.objects.filter(pk=logo_b.pk).exists())
+
+    def test_store_a_request_cannot_toggle_store_b_payment_logo(self):
+        logo_b = FooterPaymentLogo.objects.create(
+            store=self.store_b, title="B-Logo", image=_make_image("b.png"), is_active=True
+        )
+        url = reverse("dashboard:footer-payment-logo-toggle", args=[logo_b.pk])
+        resp = self._post(url)
+        self.assertEqual(resp.status_code, 404)
+        logo_b.refresh_from_db()
+        self.assertTrue(logo_b.is_active)
+
+    def test_badge_list_shows_only_current_store_rows(self):
+        FooterTrustBadge.objects.create(store=self.store_a, title="A-Badge", image=_make_image("a.png"))
+        FooterTrustBadge.objects.create(store=self.store_b, title="B-Badge", image=_make_image("b.png"))
+        url = reverse("dashboard:footer-trust-badge-list")
+        resp = self._get(url)
+        titles = {b.title for b in resp.context["badges"]}
+        self.assertEqual(titles, {"A-Badge"})
+
+    def test_payment_logo_list_shows_only_current_store_rows(self):
+        FooterPaymentLogo.objects.create(store=self.store_a, title="A-Logo", image=_make_image("a.png"))
+        FooterPaymentLogo.objects.create(store=self.store_b, title="B-Logo", image=_make_image("b.png"))
+        url = reverse("dashboard:footer-payment-logo-list")
+        resp = self._get(url)
+        titles = {l.title for l in resp.context["logos"]}
+        self.assertEqual(titles, {"A-Logo"})
+
+    def test_identical_titles_allowed_across_stores(self):
+        FooterTrustBadge.objects.create(store=self.store_a, title="Same Title", image=_make_image("a.png"))
+        FooterTrustBadge.objects.create(store=self.store_b, title="Same Title", image=_make_image("b.png"))
+        self.assertEqual(FooterTrustBadge.objects.filter(title="Same Title").count(), 2)
+
+    def test_identical_display_order_allowed_across_stores(self):
+        FooterTrustBadge.objects.create(store=self.store_a, title="A", image=_make_image("a.png"), display_order=1)
+        FooterTrustBadge.objects.create(store=self.store_b, title="B", image=_make_image("b.png"), display_order=1)
+        self.assertEqual(FooterTrustBadge.objects.filter(display_order=1).count(), 2)
 
 
 # ---------------------------------------------------------------- Storefront Rendering
@@ -302,7 +494,8 @@ class StorefrontFooterRenderTests(TestCase):
     """تست‌های رندر فوتر در فروشگاه."""
 
     def setUp(self):
-        self.fs = FooterSettings.load()
+        self.store = _akhlaghi()
+        self.fs = FooterSettings.load(store=self.store)
 
     def _get_home(self):
         return self.client.get("/")
@@ -388,7 +581,7 @@ class StorefrontFooterRenderTests(TestCase):
         self.fs.show_trust_badges = True
         self.fs.save()
         FooterTrustBadge.objects.create(
-            title="Enamad", image=_make_image("enamad.png"),
+            store=self.store, title="Enamad", image=_make_image("enamad.png"),
             destination_url="https://enamad.ir", is_active=True,
         )
         resp = self._get_home()
@@ -399,7 +592,7 @@ class StorefrontFooterRenderTests(TestCase):
         self.fs.show_payment_logos = True
         self.fs.save()
         FooterPaymentLogo.objects.create(
-            title="ZarinPal", image=_make_image("zp.png"), is_active=True,
+            store=self.store, title="ZarinPal", image=_make_image("zp.png"), is_active=True,
         )
         resp = self._get_home()
         self.assertContains(resp, "payment-logos")
@@ -448,12 +641,89 @@ class StorefrontFooterRenderTests(TestCase):
         self.assertContains(resp, "دیجی‌مارکت")
 
 
+# ---------------------------------------------------------------- Storefront Isolation (adversarial)
+
+
+class StorefrontFooterHostIsolationTests(TestCase):
+    """Real resolver + middleware + context-processor coverage: Host A must
+    render Store A's footer, Host B must render Store B's, and neither
+    leaks into the other. No request.store mocking — full request/response
+    cycle via the Django test client with distinct Host headers."""
+
+    def setUp(self):
+        from django.utils import timezone
+
+        from apps.stores.models import StoreDomain
+
+        self.store_a = _akhlaghi()
+        self.store_b = Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
+        StoreDomain.objects.create(
+            store=self.store_a, hostname="store-a.example.com", is_primary=True,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+        StoreDomain.objects.create(
+            store=self.store_b, hostname="store-b.example.com", is_primary=True,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+
+        from apps.core.models import ShopSettings
+
+        # ShopSettings is also loaded by the (unmodified) core context
+        # processor on every page render — Store B needs one provisioned
+        # too, or rendering "/" for Store B would raise
+        # ShopSettingsNotProvisionedError.
+        ShopSettings.provision_for(self.store_b)
+
+        self.fs_a = FooterSettings.load(store=self.store_a)
+        self.fs_a.copyright_text = "Copyright A"
+        self.fs_a.save()
+
+        self.fs_b = FooterSettings.provision_for(self.store_b)
+        self.fs_b.copyright_text = "Copyright B"
+        self.fs_b.save()
+
+    @override_settings(ALLOWED_HOSTS=["store-a.example.com", "store-b.example.com"])
+    def test_host_a_renders_store_a_footer(self):
+        resp = self.client.get("/", HTTP_HOST="store-a.example.com")
+        self.assertContains(resp, "Copyright A")
+        self.assertNotContains(resp, "Copyright B")
+
+    @override_settings(ALLOWED_HOSTS=["store-a.example.com", "store-b.example.com"])
+    def test_host_b_renders_store_b_footer(self):
+        resp = self.client.get("/", HTTP_HOST="store-b.example.com")
+        self.assertContains(resp, "Copyright B")
+        self.assertNotContains(resp, "Copyright A")
+
+    @override_settings(ALLOWED_HOSTS=["store-a.example.com", "store-b.example.com", "unknown.example.com"])
+    def test_unknown_host_does_not_receive_either_stores_footer(self):
+        from django.test import Client
+
+        # Unresolved Store + 2 Stores existing → fail closed (no context
+        # processor can silently pick one), so neither tenant's copyright
+        # text is ever exposed to a request that couldn't be resolved to
+        # anyone. Client(raise_request_exception=False) is required here
+        # because the default test Client re-raises view-level exceptions
+        # to the caller instead of returning a response object.
+        client = Client(raise_request_exception=False)
+        resp = client.get("/", HTTP_HOST="unknown.example.com")
+        self.assertEqual(resp.status_code, 500)
+        self.assertNotIn(b"Copyright A", resp.content)
+        self.assertNotIn(b"Copyright B", resp.content)
+
 
 # ---------------------------------------------------------------- Query Count Tests
 
 
 class FooterQueryCountTests(TestCase):
-    """تست شمارش query فوتر."""
+    """تست شمارش query فوتر — با یک Store از پیش resolve‌شده (نه compatibility
+    mode)، دقیقاً مطابق رفتار واقعی middleware برای یک درخواست معمولی."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+
+    class _FakeRequest:
+        def __init__(self, store):
+            self.store = store
 
     def test_all_disabled_single_query(self):
         """All media sections disabled → only settings query."""
@@ -461,15 +731,13 @@ class FooterQueryCountTests(TestCase):
         from django.db import connection
         from apps.content.context_processors import footer_settings
 
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.show_trust_badges = False
         fs.show_payment_logos = False
         fs.save()
 
-        class FakeRequest: pass
-
         with CaptureQueriesContext(connection) as ctx:
-            result = footer_settings(FakeRequest())
+            result = footer_settings(self._FakeRequest(self.store))
             # Force evaluation of lazy querysets
             list(result["FOOTER_TRUST_BADGES"])
             list(result["FOOTER_PAYMENT_LOGOS"])
@@ -480,15 +748,13 @@ class FooterQueryCountTests(TestCase):
         from django.db import connection
         from apps.content.context_processors import footer_settings
 
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.show_trust_badges = True
         fs.show_payment_logos = False
         fs.save()
 
-        class FakeRequest: pass
-
         with CaptureQueriesContext(connection) as ctx:
-            result = footer_settings(FakeRequest())
+            result = footer_settings(self._FakeRequest(self.store))
             list(result["FOOTER_TRUST_BADGES"])
             list(result["FOOTER_PAYMENT_LOGOS"])
         self.assertEqual(len(ctx), 2)
@@ -498,15 +764,13 @@ class FooterQueryCountTests(TestCase):
         from django.db import connection
         from apps.content.context_processors import footer_settings
 
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.show_trust_badges = False
         fs.show_payment_logos = True
         fs.save()
 
-        class FakeRequest: pass
-
         with CaptureQueriesContext(connection) as ctx:
-            result = footer_settings(FakeRequest())
+            result = footer_settings(self._FakeRequest(self.store))
             list(result["FOOTER_TRUST_BADGES"])
             list(result["FOOTER_PAYMENT_LOGOS"])
         self.assertEqual(len(ctx), 2)
@@ -516,15 +780,13 @@ class FooterQueryCountTests(TestCase):
         from django.db import connection
         from apps.content.context_processors import footer_settings
 
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.show_trust_badges = True
         fs.show_payment_logos = True
         fs.save()
 
-        class FakeRequest: pass
-
         with CaptureQueriesContext(connection) as ctx:
-            result = footer_settings(FakeRequest())
+            result = footer_settings(self._FakeRequest(self.store))
             list(result["FOOTER_TRUST_BADGES"])
             list(result["FOOTER_PAYMENT_LOGOS"])
         self.assertEqual(len(ctx), 3)
@@ -534,22 +796,36 @@ class FooterQueryCountTests(TestCase):
         from django.db import connection
         from apps.content.context_processors import footer_settings
 
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.show_trust_badges = True
         fs.show_payment_logos = False
         fs.save()
 
         # Create 10 badges
         for i in range(10):
-            FooterTrustBadge.objects.create(title=f"B{i}", image=_make_image(f"b{i}.png"), is_active=True)
-
-        class FakeRequest: pass
+            FooterTrustBadge.objects.create(store=self.store, title=f"B{i}", image=_make_image(f"b{i}.png"), is_active=True)
 
         with CaptureQueriesContext(connection) as ctx:
-            result = footer_settings(FakeRequest())
+            result = footer_settings(self._FakeRequest(self.store))
             list(result["FOOTER_TRUST_BADGES"])
             list(result["FOOTER_PAYMENT_LOGOS"])
         self.assertEqual(len(ctx), 2)  # Still just 2
+
+    def test_compatibility_mode_costs_one_extra_query_when_store_unresolved(self):
+        """Documents the real, accepted query-count cost of compatibility
+        mode: resolving "no explicit Store" still requires one bounded
+        query (apps.stores.resolution.resolve_compatibility_store) before
+        the settings row itself can be fetched — 2 queries total instead of
+        1, for the settings load alone."""
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+
+        class _UnresolvedRequest:
+            store = None
+
+        with CaptureQueriesContext(connection) as ctx:
+            FooterSettings.load(store=_UnresolvedRequest.store)
+        self.assertEqual(len(ctx), 2)
 
 
 # ---------------------------------------------------------------- Phone Validation Tests
@@ -558,48 +834,51 @@ class FooterQueryCountTests(TestCase):
 class PhoneValidationTests(TestCase):
     """تست‌های اعتبارسنجی شماره تلفن."""
 
+    def setUp(self):
+        self.store = _akhlaghi()
+
     def test_valid_iranian_number(self):
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.phone = "021-91008877"
         fs.full_clean()
 
     def test_valid_international(self):
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.phone = "+98 21 9100 8877"
         fs.full_clean()
 
     def test_spaces_and_parens(self):
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.phone = "(021) 9100-8877"
         fs.full_clean()
 
     def test_whitespace_trimmed(self):
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.phone = "  021-91008877  "
         fs.save()
         fs.refresh_from_db()
         self.assertEqual(fs.phone, "021-91008877")
 
     def test_alphabetic_rejected(self):
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.phone = "call me maybe"
         with self.assertRaises(ValidationError):
             fs.full_clean()
 
     def test_html_rejected(self):
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.phone = '<script>alert(1)</script>'
         with self.assertRaises(ValidationError):
             fs.full_clean()
 
     def test_control_chars_rejected(self):
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.phone = "021\x00-9100"
         with self.assertRaises(ValidationError):
             fs.full_clean()
 
     def test_empty_allowed(self):
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.phone = ""
         fs.full_clean()  # Should not raise
 
@@ -610,15 +889,18 @@ class PhoneValidationTests(TestCase):
 class CopyrightBehaviorTests(TestCase):
     """تست‌های رفتار کپی‌رایت."""
 
+    def setUp(self):
+        self.store = _akhlaghi()
+
     def test_configured_text_renders(self):
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.copyright_text = "تمامی حقوق محفوظ"
         fs.save()
         response = self.client.get("/")
         self.assertContains(response, "تمامی حقوق محفوظ")
 
     def test_empty_text_omits_section(self):
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.copyright_text = ""
         fs.save()
         response = self.client.get("/")
@@ -626,14 +908,14 @@ class CopyrightBehaviorTests(TestCase):
         self.assertNotContains(response, "تمامی حقوق برای")
 
     def test_no_auto_generated_fallback(self):
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.copyright_text = ""
         fs.save()
         response = self.client.get("/")
         self.assertNotContains(response, "© ۱۴۰۵")
 
     def test_text_is_escaped(self):
-        fs = FooterSettings.load()
+        fs = FooterSettings.load(store=self.store)
         fs.copyright_text = '<img src=x onerror=alert(1)>'
         fs.save()
         response = self.client.get("/")
@@ -641,46 +923,14 @@ class CopyrightBehaviorTests(TestCase):
         self.assertContains(response, "&lt;img")
 
 
-# ---------------------------------------------------------------- Singleton Behavior Tests
-
-
-class SingletonBehaviorTests(TestCase):
-    """تست‌های رفتار singleton."""
-
-    def test_first_load_creates_row(self):
-        FooterSettings.objects.all().delete()
-        fs = FooterSettings.load()
-        self.assertEqual(fs.pk, 1)
-        self.assertEqual(FooterSettings.objects.count(), 1)
-
-    def test_repeated_load_same_row(self):
-        fs1 = FooterSettings.load()
-        fs2 = FooterSettings.load()
-        self.assertEqual(fs1.pk, fs2.pk)
-        self.assertEqual(FooterSettings.objects.count(), 1)
-
-    def test_alternate_pk_normalized(self):
-        """Saving with different pk is normalized to 1."""
-        fs = FooterSettings()
-        fs.pk = 99
-        fs.save()
-        self.assertEqual(fs.pk, 1)
-        self.assertEqual(FooterSettings.objects.count(), 1)
-
-    def test_only_one_row_exists(self):
-        FooterSettings.load()
-        FooterSettings.load()
-        FooterSettings.load()
-        self.assertEqual(FooterSettings.objects.count(), 1)
-
-
-
-
 # ================================================================ IMAGE CONTENT SECURITY TESTS
 
 
 class ImageContentSecurityTests(TestCase):
     """تست‌های امنیت محتوای تصویر — Pillow verification."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
 
     def _valid_png(self, name="valid.png"):
         from io import BytesIO
@@ -704,34 +954,34 @@ class ImageContentSecurityTests(TestCase):
         return SimpleUploadedFile(name, buf.getvalue(), content_type="image/webp")
 
     def test_valid_png_accepted(self):
-        badge = FooterTrustBadge(title="PNG", image=self._valid_png())
+        badge = FooterTrustBadge(store=self.store, title="PNG", image=self._valid_png())
         badge.full_clean()  # Should not raise
 
     def test_valid_jpeg_accepted(self):
-        badge = FooterTrustBadge(title="JPEG", image=self._valid_jpeg())
+        badge = FooterTrustBadge(store=self.store, title="JPEG", image=self._valid_jpeg())
         badge.full_clean()
 
     def test_valid_webp_accepted(self):
-        badge = FooterTrustBadge(title="WebP", image=self._valid_webp())
+        badge = FooterTrustBadge(store=self.store, title="WebP", image=self._valid_webp())
         badge.full_clean()
 
     def test_plain_text_named_png_rejected(self):
         fake = SimpleUploadedFile("fake.png", b"This is plain text not an image", content_type="image/png")
-        badge = FooterTrustBadge(title="Fake", image=fake)
+        badge = FooterTrustBadge(store=self.store, title="Fake", image=fake)
         with self.assertRaises(ValidationError):
             badge.full_clean()
 
     def test_html_named_jpg_rejected(self):
         html = b"<html><body><script>alert(1)</script></body></html>"
         fake = SimpleUploadedFile("badge.jpg", html, content_type="image/jpeg")
-        badge = FooterTrustBadge(title="HTML", image=fake)
+        badge = FooterTrustBadge(store=self.store, title="HTML", image=fake)
         with self.assertRaises(ValidationError):
             badge.full_clean()
 
     def test_javascript_payload_named_png_rejected(self):
         js = b"var x = 1; function hack(){}"
         fake = SimpleUploadedFile("logo.png", js, content_type="image/png")
-        logo = FooterPaymentLogo(title="JS", image=fake)
+        logo = FooterPaymentLogo(store=self.store, title="JS", image=fake)
         with self.assertRaises(ValidationError):
             logo.full_clean()
 
@@ -739,7 +989,7 @@ class ImageContentSecurityTests(TestCase):
         # PNG magic bytes followed by garbage
         corrupt = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
         fake = SimpleUploadedFile("corrupt.png", corrupt, content_type="image/png")
-        badge = FooterTrustBadge(title="Corrupt", image=fake)
+        badge = FooterTrustBadge(store=self.store, title="Corrupt", image=fake)
         with self.assertRaises(ValidationError):
             badge.full_clean()
 
@@ -747,21 +997,21 @@ class ImageContentSecurityTests(TestCase):
         # JPEG SOI marker then nothing
         truncated = b"\xff\xd8\xff\xe0" + b"\x00" * 20
         fake = SimpleUploadedFile("trunc.jpg", truncated, content_type="image/jpeg")
-        badge = FooterTrustBadge(title="Trunc", image=fake)
+        badge = FooterTrustBadge(store=self.store, title="Trunc", image=fake)
         with self.assertRaises(ValidationError):
             badge.full_clean()
 
     def test_svg_named_svg_rejected(self):
         svg = b'<svg xmlns="http://www.w3.org/2000/svg"><circle r="10"/></svg>'
         fake = SimpleUploadedFile("badge.svg", svg, content_type="image/svg+xml")
-        badge = FooterTrustBadge(title="SVG", image=fake)
+        badge = FooterTrustBadge(store=self.store, title="SVG", image=fake)
         with self.assertRaises(ValidationError):
             badge.full_clean()
 
     def test_svg_renamed_to_png_rejected(self):
         svg = b'<svg xmlns="http://www.w3.org/2000/svg"><circle r="10"/></svg>'
         fake = SimpleUploadedFile("sneaky.png", svg, content_type="image/png")
-        badge = FooterTrustBadge(title="SVG-PNG", image=fake)
+        badge = FooterTrustBadge(store=self.store, title="SVG-PNG", image=fake)
         with self.assertRaises(ValidationError):
             badge.full_clean()
 
@@ -772,7 +1022,7 @@ class ImageContentSecurityTests(TestCase):
         Image.new("RGB", (10, 10)).save(buf, "PNG")
         f = SimpleUploadedFile("big.png", buf.getvalue(), content_type="image/png")
         f.size = 6 * 1024 * 1024  # 6 MiB > 5 MiB limit
-        badge = FooterTrustBadge(title="Big", image=f)
+        badge = FooterTrustBadge(store=self.store, title="Big", image=f)
         with self.assertRaises(ValidationError):
             badge.full_clean()
 
@@ -783,14 +1033,14 @@ class ImageContentSecurityTests(TestCase):
         buf = BytesIO()
         Image.new("RGB", (10, 10)).save(buf, "GIF")
         f = SimpleUploadedFile("anim.gif", buf.getvalue(), content_type="image/gif")
-        badge = FooterTrustBadge(title="GIF", image=f)
+        badge = FooterTrustBadge(store=self.store, title="GIF", image=f)
         with self.assertRaises(ValidationError):
             badge.full_clean()
 
     def test_invalid_create_produces_no_record(self):
         """Invalid image on create → no database row."""
         fake = SimpleUploadedFile("fake.png", b"not an image", content_type="image/png")
-        badge = FooterTrustBadge(title="NoRecord", image=fake)
+        badge = FooterTrustBadge(store=self.store, title="NoRecord", image=fake)
         with self.assertRaises(ValidationError):
             badge.full_clean()
         # Not saved
@@ -799,7 +1049,7 @@ class ImageContentSecurityTests(TestCase):
     def test_invalid_replacement_preserves_old_value(self):
         """Invalid replacement image → old image field preserved."""
         badge = FooterTrustBadge.objects.create(
-            title="Keep", image=self._valid_png("keep.png"), is_active=True
+            store=self.store, title="Keep", image=self._valid_png("keep.png"), is_active=True
         )
         original_name = badge.image.name
 

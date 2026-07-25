@@ -6,7 +6,7 @@ from .models import ShopSettings
 
 def favicon_view(request):
     """Redirect /favicon.ico to configured or default favicon."""
-    shop = ShopSettings.load()
+    shop = ShopSettings.load(store=getattr(request, "store", None))
     if shop.favicon:
         return HttpResponseRedirect(shop.favicon.url)
     return HttpResponseRedirect(static("favicon.ico"))

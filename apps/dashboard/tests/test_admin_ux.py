@@ -200,8 +200,11 @@ class DeleteConfirmationFullTests(TestCase):
         from PIL import Image
         from django.core.files.uploadedfile import SimpleUploadedFile
 
+        from apps.stores.models import Store
+
         self.staff = User.objects.create_user(username="ux_del", password="p!", is_staff=True)
         self.client.login(username="ux_del", password="p!")
+        self.store = Store.objects.get(slug="akhlaghi")
 
         buf = BytesIO()
         Image.new("RGB", (10, 10)).save(buf, "PNG")
@@ -245,7 +248,7 @@ class DeleteConfirmationFullTests(TestCase):
         self.assertFalse(MenuItem.objects.filter(pk=item.pk).exists())
 
     def test_trust_badge_full_flow(self):
-        badge = FooterTrustBadge.objects.create(title="Badge-Del", image=self.img)
+        badge = FooterTrustBadge.objects.create(store=self.store, title="Badge-Del", image=self.img)
         url = reverse("dashboard:footer-trust-badge-delete", args=[badge.pk])
         self._assert_delete_flow(url, url, FooterTrustBadge, badge.pk, "Badge-Del", reverse("dashboard:footer-trust-badge-list"))
 
@@ -257,7 +260,7 @@ class DeleteConfirmationFullTests(TestCase):
         buf = BytesIO()
         Image.new("RGB", (10, 10)).save(buf, "PNG")
         img2 = SimpleUploadedFile("t2.png", buf.getvalue(), content_type="image/png")
-        logo = FooterPaymentLogo.objects.create(title="Logo-Del", image=img2)
+        logo = FooterPaymentLogo.objects.create(store=self.store, title="Logo-Del", image=img2)
         url = reverse("dashboard:footer-payment-logo-delete", args=[logo.pk])
         self._assert_delete_flow(url, url, FooterPaymentLogo, logo.pk, "Logo-Del", reverse("dashboard:footer-payment-logo-list"))
 

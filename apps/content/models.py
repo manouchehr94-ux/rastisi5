@@ -591,8 +591,23 @@ def validate_phone(value: str) -> None:
         raise ValidationError("شماره تلفن بسیار طولانی است")
 
 
+class FooterSettingsNotProvisionedError(Exception):
+    """Raised by ``FooterSettings.load(store=...)`` when the given Store has
+    no ``FooterSettings`` row yet. See ``apps.core.models.ShopSettingsNotProvisionedError``
+    for the same rationale: provisioning is explicit, never a read-time side effect.
+    """
+
+
 class FooterSettings(TimeStampedModel):
-    """تنظیمات فوتر فروشگاه — رکورد تکی (singleton)."""
+    """تنظیمات فوتر — دقیقاً یک رکورد به‌ازای هر Store (نه یک رکورد سراسری)."""
+
+    store = models.OneToOneField(
+        "stores.Store",
+        verbose_name="فروشگاه",
+        on_delete=models.CASCADE,
+        related_name="footer_settings",
+    )
+
     # General
     is_enabled = models.BooleanField("فعال", default=True)
     show_branding = models.BooleanField("نمایش برندینگ", default=True)
@@ -626,12 +641,41 @@ class FooterSettings(TimeStampedModel):
         return "تنظیمات فوتر"
 
     @classmethod
-    def load(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
+    def load(cls, store=None):
+        """همان قرارداد ``ShopSettings.load()`` — نگاه کنید به آن برای شرح کامل.
+
+        ``store`` مشخص شود: فقط تنظیمات فوتر همان Store. ``store`` مشخص
+        نشود: حالت سازگاری موقت (دقیقاً یک Store فعال با اسلاگ
+        ``"akhlaghi"``) که در غیر این صورت fail-closed می‌شود.
+        """
+        if store is not None:
+            try:
+                return cls.objects.get(store=store)
+            except cls.DoesNotExist as exc:
+                raise FooterSettingsNotProvisionedError(
+                    f"Store {store.slug!r} has no FooterSettings row yet; "
+                    "provision it explicitly via FooterSettings.provision_for(store)."
+                ) from exc
+
+        from apps.stores.resolution import resolve_compatibility_store
+
+        compat_store = resolve_compatibility_store()
+        try:
+            return cls.objects.get(store=compat_store)
+        except cls.DoesNotExist as exc:
+            raise FooterSettingsNotProvisionedError(
+                f"Store {compat_store.slug!r} has no FooterSettings row yet; "
+                "provision it explicitly via FooterSettings.provision_for(store)."
+            ) from exc
+
+    @classmethod
+    def provision_for(cls, store):
+        """رکورد FooterSettings یک Store را idempotent می‌سازد؛ مقادیر
+        موجود را هرگز بازنویسی نمی‌کند."""
+        obj, _ = cls.objects.get_or_create(store=store)
         return obj
 
     def save(self, *args, **kwargs):
-        self.pk = 1
         if self.phone:
             self.phone = self.phone.strip()
         if self.secondary_phone:
@@ -640,7 +684,14 @@ class FooterSettings(TimeStampedModel):
 
 
 class FooterTrustBadge(TimeStampedModel):
-    """نماد اعتماد فوتر."""
+    """نماد اعتماد فوتر — مالکیت مستقیم Store (بدون رابطه با FooterSettings)."""
+
+    store = models.ForeignKey(
+        "stores.Store",
+        verbose_name="فروشگاه",
+        on_delete=models.CASCADE,
+        related_name="footer_trust_badges",
+    )
     title = models.CharField("عنوان", max_length=150)
     image = models.ImageField("تصویر", upload_to="footer/trust-badges/", validators=[validate_image_size, validate_image_content])
     destination_url = models.URLField("لینک مقصد", blank=True, max_length=500)
@@ -666,7 +717,14 @@ class FooterTrustBadge(TimeStampedModel):
 
 
 class FooterPaymentLogo(TimeStampedModel):
-    """لوگوی روش پرداخت فوتر."""
+    """لوگوی روش پرداخت فوتر — مالکیت مستقیم Store (بدون رابطه با FooterSettings)."""
+
+    store = models.ForeignKey(
+        "stores.Store",
+        verbose_name="فروشگاه",
+        on_delete=models.CASCADE,
+        related_name="footer_payment_logos",
+    )
     title = models.CharField("عنوان", max_length=150)
     image = models.ImageField("تصویر", upload_to="footer/payment-logos/", validators=[validate_image_size, validate_image_content])
     display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)

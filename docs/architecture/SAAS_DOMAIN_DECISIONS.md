@@ -340,7 +340,10 @@ sequenced after the tenant-scoping-without-split PR described in
 `SAAS_MIGRATION_PLAN.md`. The merchant-facing admin UI's existing five
 sections (general, finance, delivery-payment, sms, appearance) remain the
 UX contract regardless of how many models eventually back them — database
-table boundaries must never dictate a fragmented admin experience.
+table boundaries must never dictate a fragmented admin experience. The
+tenant-scoping-without-split PR referenced above is PR 4
+(`SAAS_MIGRATION_PLAN.md`); see ADR-12 for the specific ownership shape it
+gave `ShopSettings`/`FooterSettings`/`FooterTrustBadge`/`FooterPaymentLogo`.
 
 **Deferred questions.** Exact field boundary between "identity" and
 "commerce-defaults" if/when `ShopSettings` is split; timing of the SMS
@@ -405,6 +408,75 @@ check with it, is left open.
 
 ---
 
+## ADR-12: `ShopSettings`/`FooterSettings` Are One-Row-Per-Store; Trust Badges and Payment Logos Own Their Store Directly
+
+**Context.** ADR-10 decided `ShopSettings` and `FooterSettings` would
+eventually be tenant-scoped without a field split. PR 4
+(`SAAS_MIGRATION_PLAN.md`) is the PR that actually does this, and had to
+answer two concrete questions ADR-10 left open: (1) what field/constraint
+shape enforces "one row per Store" instead of "one row for the whole
+platform," and (2) whether `FooterTrustBadge`/`FooterPaymentLogo` should
+gain their own `store` FK or be reached only through `FooterSettings`.
+
+**Decision.** `ShopSettings.store` and `FooterSettings.store` are each a
+`OneToOneField("stores.Store")` — the database itself enforces at most one
+row per Store, not just applic­ation-level convention. `FooterTrustBadge`
+and `FooterPaymentLogo` each get a plain, non-unique
+`ForeignKey("stores.Store")` directly, independent of `FooterSettings`:
+inspection of every call site showed both are queried and managed
+independently today (their own dashboard list/create/edit/delete/toggle
+views, filtered directly by `store`, never joined through
+`FooterSettings`) — inferring their ownership from the fact that the
+storefront renders them inside the same footer region as `FooterSettings`
+would have been ownership-by-visual-adjacency, not ownership-by-actual-use.
+Retrieval for both settings models follows one shared contract:
+`load(store=...)` (explicit, authoritative, raises a dedicated
+`*NotProvisionedError` rather than ever returning another Store's row or
+auto-creating one) and `load()` (temporary compatibility mode, delegating
+to PR 3's `resolve_compatibility_store()` fail-closed check). Provisioning
+a new Store's rows is a separate, explicit, idempotent `provision_for(store)`
+classmethod — never a signal, never invoked implicitly on read.
+
+**Alternatives considered.** A shared, unique `store` FK plus
+`FooterTrustBadge`/`FooterPaymentLogo` reached only via
+`FooterSettings.trust_badges`/`payment_logos` reverse relations — rejected
+because it does not match how these models are actually used in this
+codebase today and would require a speculative redesign of their own
+dashboard views as part of a PR whose stated scope is tenant-scoping, not
+redesigning. Enforcing "one row per Store" purely at the application layer
+(`unique=True` alone, or a service-layer check) instead of a
+`OneToOneField` — rejected: a plain unique constraint plus a bug in the
+service layer could still create a second row per Store, whereas
+`OneToOneField`'s own DB-level unique index makes that a hard constraint
+violation, not a bug waiting to happen. Auto-provisioning a Store's
+settings via `get_or_create()` inside `load()` itself — rejected outright
+per this PR's own governing instructions: that would permanently hide a
+genuinely missing provisioning step behind a silent read-time side effect,
+the same failure mode the removed platform-wide `get_or_create(pk=1)`
+singleton exhibited, just re-scoped per-Store instead of fixed.
+
+**Consequences.** The previous `save()` override that forced `pk=1` on
+every `ShopSettings`/`FooterSettings` instance is removed entirely from
+both models — a Store's settings row can have any primary key, and no code
+anywhere may assume otherwise. `resolve_compatibility_store()` was promoted
+from a resolver-module-private helper (`_resolve_compatibility_store`) to
+a public function specifically so this compatibility contract has exactly
+one implementation, shared by hostname resolution (PR 3) and settings
+retrieval (PR 4) — not two independently-maintained copies of the same
+fail-closed rule that could quietly drift apart. `SocialLink`, `Menu`,
+`ContentPage`, `HeroSlide`, and `PromotionalBanner` were deliberately left
+un-scoped in this PR; that remains PR 8's job.
+
+**Deferred questions.** Whether `FooterTrustBadge`/`FooterPaymentLogo`
+should ever gain a display-order uniqueness constraint per Store (today,
+duplicate `display_order` values within a Store are allowed and broken
+only by `id` as a tiebreaker) is left open — no requirement for it exists
+today. Whether provisioning should ever be triggered automatically as part
+of a future "create Store" service/admin action (rather than an explicit,
+separate call) is left to whichever PR introduces that service.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -421,3 +493,4 @@ check with it, is left open.
 | Merchant funds flow directly to merchant accounts (v1) | Recorded |
 | Store is aggregate root; no generic StoreConfiguration table | Decided |
 | Store resolution is hostname-authoritative, fail-closed compatibility fallback | Decided, implemented |
+| ShopSettings/FooterSettings: OneToOneField per Store; trust badges/payment logos: direct Store FK | Decided, implemented on open PR (not merged) |
