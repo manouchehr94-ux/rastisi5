@@ -5,10 +5,12 @@
 */
 :root{
   --violet:var(--brand-primary, #6d28d9); --violet-2:#7c3aed; --violet-3:#8b5cf6;
+  --violet-hover:var(--brand-primary-hover, #5b21b6);
   --violet-soft:#f1ecfd; --violet-softer:#f7f5fc;
   --pink:var(--brand-accent, #ff4d77); --pink-soft:#ffe7ee;
-  --ink:#241c3a; --muted:#8b86a3; --line:#ece8f6;
-  --bg:#f7f5fc; --card:#ffffff;
+  --secondary:var(--brand-secondary, #7c3aed);
+  --ink:var(--brand-text, #241c3a); --muted:var(--brand-muted, #8b86a3); --line:var(--brand-border, #ece8f6);
+  --bg:var(--brand-background, #f7f5fc); --card:var(--brand-surface, #ffffff);
   --green:#16a34a; --green-soft:#e6f6ec; --amber:#f59e0b;
   --shadow:0 2px 6px rgba(80,50,160,.06), 0 10px 30px rgba(80,50,160,.07);
   --radius:18px;

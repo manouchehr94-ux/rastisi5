@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from django import forms
 
 from apps.catalog.models import Category, Product
+from apps.core.color_utils import contrast_ratio, safe_hex
 from apps.core.models import ShopSettings
 from apps.core.utils import normalize_digits
 from apps.sms.services.sms_service import SmsTemplateError, validate_template_body
@@ -325,8 +326,20 @@ def _validate_image_upload(file, allowed_types, max_size, label):
     return file
 
 
+def _color_field(label, required=False):
+    return forms.CharField(
+        label=label, max_length=7, required=required,
+        widget=forms.TextInput(attrs={"class": "inp", "type": "color", "style": "width:60px;height:40px;padding:4px"}),
+    )
+
+
 class VisualIdentityForm(forms.Form):
-    """فرم هویت بصری فروشگاه: لوگو، فاوآیکون و رنگ‌ها."""
+    """فرم هویت بصری فروشگاه: لوگو، فاوآیکون و توکن‌های رنگی تم.
+
+    ``primary_color``/``accent_color`` همیشه اجباری‌اند (سازگاری با فرم قدیمی).
+    توکن‌های جدید تم (ثانویه، پس‌زمینه، سطح، متن، متن کم‌رنگ) اختیاری‌اند — اگر
+    ارسال نشوند، مقدار فعلی/پیش‌فرض فروشگاه دست‌نخورده می‌ماند (view تصمیم می‌گیرد).
+    """
 
     logo = forms.ImageField(label="لوگوی فروشگاه", required=False)
     remove_logo = forms.BooleanField(label="حذف لوگوی فعلی", required=False)
@@ -334,20 +347,45 @@ class VisualIdentityForm(forms.Form):
     favicon = forms.ImageField(label="فاوآیکون", required=False)
     remove_favicon = forms.BooleanField(label="حذف فاوآیکون فعلی", required=False)
 
-    primary_color = forms.CharField(
-        label="رنگ اصلی", max_length=7,
-        widget=forms.TextInput(attrs={"class": "inp", "type": "color", "style": "width:60px;height:40px;padding:4px"}),
-    )
-    accent_color = forms.CharField(
-        label="رنگ مکمل", max_length=7,
-        widget=forms.TextInput(attrs={"class": "inp", "type": "color", "style": "width:60px;height:40px;padding:4px"}),
-    )
+    primary_color = _color_field("رنگ اصلی", required=True)
+    accent_color = _color_field("رنگ مکمل", required=True)
+    secondary_color = _color_field("رنگ ثانویه")
+    background_color = _color_field("رنگ پس‌زمینه‌ی صفحه")
+    surface_color = _color_field("رنگ پس‌زمینه‌ی کارت‌ها")
+    text_color = _color_field("رنگ متن اصلی")
+    muted_text_color = _color_field("رنگ متن کم‌رنگ")
+
+    def __init__(self, *args, current_shop=None, **kwargs):
+        """``current_shop`` مقادیر فعلیِ فیلدهای ارسال‌نشده را برای بررسی کنتراست کامل می‌کند."""
+        self._current_shop = current_shop
+        super().__init__(*args, **kwargs)
 
     def clean_primary_color(self):
         return _validate_hex_color(self.cleaned_data["primary_color"])
 
     def clean_accent_color(self):
         return _validate_hex_color(self.cleaned_data["accent_color"])
+
+    def _clean_optional_color(self, field_name):
+        value = self.cleaned_data.get(field_name, "").strip()
+        if not value:
+            return ""
+        return _validate_hex_color(value)
+
+    def clean_secondary_color(self):
+        return self._clean_optional_color("secondary_color")
+
+    def clean_background_color(self):
+        return self._clean_optional_color("background_color")
+
+    def clean_surface_color(self):
+        return self._clean_optional_color("surface_color")
+
+    def clean_text_color(self):
+        return self._clean_optional_color("text_color")
+
+    def clean_muted_text_color(self):
+        return self._clean_optional_color("muted_text_color")
 
     def clean_logo(self):
         logo = self.cleaned_data.get("logo")
@@ -360,3 +398,27 @@ class VisualIdentityForm(forms.Form):
         if favicon:
             return _validate_image_upload(favicon, ALLOWED_FAVICON_TYPES, MAX_FAVICON_SIZE, "فاوآیکون")
         return favicon
+
+    def clean(self):
+        """کنتراست متن اصلی/کم‌رنگ در برابر پس‌زمینه و سطح را روی ترکیب نهایی (نه فقط فیلدهای تازه) بررسی می‌کند."""
+        cleaned = super().clean()
+        if self.errors:
+            return cleaned
+
+        shop = self._current_shop
+        text = cleaned.get("text_color") or (safe_hex(shop.text_color, "#241C3A") if shop else "#241C3A")
+        background = cleaned.get("background_color") or (safe_hex(shop.background_color, "#F7F5FC") if shop else "#F7F5FC")
+        surface = cleaned.get("surface_color") or (safe_hex(shop.surface_color, "#FFFFFF") if shop else "#FFFFFF")
+        muted = cleaned.get("muted_text_color") or (safe_hex(shop.muted_text_color, "#8B86A3") if shop else "#8B86A3")
+
+        failures = []
+        if contrast_ratio(text, background) < 4.5:
+            failures.append("رنگ متن اصلی در برابر پس‌زمینه‌ی صفحه خوانا نیست (کنتراست کمتر از ۴.۵)")
+        if contrast_ratio(text, surface) < 4.5:
+            failures.append("رنگ متن اصلی در برابر پس‌زمینه‌ی کارت‌ها خوانا نیست (کنتراست کمتر از ۴.۵)")
+        if contrast_ratio(muted, surface) < 3.0:
+            failures.append("رنگ متن کم‌رنگ در برابر پس‌زمینه‌ی کارت‌ها خوانا نیست (کنتراست کمتر از ۳)")
+
+        if failures:
+            raise forms.ValidationError(failures)
+        return cleaned

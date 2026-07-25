@@ -7,63 +7,48 @@
 
 {% block extra_css %}
 <style>
-.settings-layout{display:flex;gap:20px;align-items:flex-start}
-.settings-nav{width:220px;flex-shrink:0;position:sticky;top:80px}
-.settings-nav-list{list-style:none;display:flex;flex-direction:column;gap:4px}
+.settings-nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:16px}
 .settings-nav-item{
-  display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;
-  font-size:13px;font-weight:500;color:var(--muted);transition:.18s;border:1px solid transparent;
-  text-decoration:none;
+  display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:999px;
+  font-size:13px;font-weight:600;color:var(--muted);transition:.18s;border:1px solid var(--border);
+  text-decoration:none;background:var(--card);white-space:nowrap;
 }
-.settings-nav-item:hover{background:var(--card);color:var(--text);border-color:var(--border)}
-.settings-nav-item.active{background:var(--primary-soft);color:var(--primary-text);border-color:var(--primary-soft);font-weight:700}
-.settings-nav-item .sn-icon{font-size:17px;width:24px;text-align:center;flex-shrink:0}
-.settings-nav-item .sn-desc{font-size:11px;color:var(--muted);display:block;font-weight:400;margin-top:1px}
-.settings-content{flex:1;min-width:0}
+.settings-nav-item:hover{border-color:var(--primary);color:var(--primary)}
+.settings-nav-item.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.settings-nav-item .sn-icon{font-size:15px}
+.settings-content{min-width:0}
 @media (max-width:860px){
-  .settings-layout{flex-direction:column}
-  .settings-nav{width:100%;position:static}
-  .settings-nav-list{flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:4px}
-  .settings-nav-item{white-space:nowrap;padding:9px 14px}
-  .settings-nav-item .sn-desc{display:none}
+  .settings-nav{flex-wrap:nowrap;overflow-x:auto;padding-bottom:12px}
 }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="settings-layout">
-  <!-- Settings Navigation -->
-  <nav class="settings-nav" aria-label="بخش‌های تنظیمات">
-    <ul class="settings-nav-list">
-      {% for key, label, icon, desc in sections %}
-      <li>
-        <a class="settings-nav-item{% if active_section == key %} active{% endif %}"
-           href="{% url 'dashboard:settings' %}?section={{ key }}"
-           {% if active_section == key %}aria-current="page"{% endif %}>
-          <span class="sn-icon">{{ icon }}</span>
-          <span>
-            {{ label }}
-            <span class="sn-desc">{{ desc }}</span>
-          </span>
-        </a>
-      </li>
-      {% endfor %}
-    </ul>
-  </nav>
+<!-- Settings Navigation (pill tabs) -->
+<nav class="settings-nav" aria-label="بخش‌های تنظیمات">
+  {% for key, label, icon, desc in sections %}
+  <a class="settings-nav-item{% if active_section == key %} active{% endif %}"
+     href="{% url 'dashboard:settings' %}?section={{ key }}"
+     title="{{ desc }}"
+     {% if active_section == key %}aria-current="page"{% endif %}>
+    <span class="sn-icon">{{ icon }}</span>
+    <span>{{ label }}</span>
+  </a>
+  {% endfor %}
+</nav>
 
-  <!-- Settings Content -->
-  <div class="settings-content">
-    {% if active_section == "general" %}
-    {% include "dashboard/partials/settings_general.html" %}
-    {% elif active_section == "payments" %}
-    {% include "dashboard/partials/settings_payments.html" %}
-    {% elif active_section == "shipping" %}
-    {% include "dashboard/partials/settings_shipping.html" %}
-    {% elif active_section == "sms" %}
-    {% include "dashboard/partials/settings_sms.html" %}
-    {% elif active_section == "appearance" %}
-    {% include "dashboard/partials/settings_appearance.html" %}
-    {% endif %}
-  </div>
+<!-- Settings Content -->
+<div class="settings-content">
+  {% if active_section == "general" %}
+  {% include "dashboard/partials/settings_general.html" %}
+  {% elif active_section == "finance" %}
+  {% include "dashboard/partials/settings_finance.html" %}
+  {% elif active_section == "delivery-payment" %}
+  {% include "dashboard/partials/settings_delivery_payment.html" %}
+  {% elif active_section == "sms" %}
+  {% include "dashboard/partials/settings_sms.html" %}
+  {% elif active_section == "appearance" %}
+  {% include "dashboard/partials/settings_appearance.html" %}
+  {% endif %}
 </div>
 {% endblock %}
