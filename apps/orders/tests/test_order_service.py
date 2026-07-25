@@ -10,12 +10,18 @@ from apps.customers.models import Address, Customer
 from apps.orders.models import Order, OrderStatusHistory, PaymentGateway, ShippingMethod
 from apps.orders.services.order_service import change_order_status, create_order_from_cart
 from apps.sms.models import SmsLog, SmsTemplate
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
 class CreateOrderFromCartTests(TestCase):
     def setUp(self):
+        self.store = _akhlaghi()
         self.user = User.objects.create_user(username="hasan", password="pass12345")
         self.customer = Customer.objects.create(user=self.user, full_name="حسن کریمی", phone="09121230000")
         self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-os")
@@ -39,6 +45,7 @@ class CreateOrderFromCartTests(TestCase):
         return create_order_from_cart(
             self.cart, customer=self.customer, vendor=self.vendor, address=self.address,
             shipping_method=self.shipping, payment_gateway=self.gateway, coupon=coupon,
+            store=self.store,
         )
 
     def test_create_order_snapshots_amounts_and_items(self):
@@ -68,7 +75,7 @@ class CreateOrderFromCartTests(TestCase):
         with self.assertRaises(ValueError):
             create_order_from_cart(
                 empty_cart, customer=self.customer, vendor=self.vendor, address=self.address,
-                shipping_method=self.shipping, payment_gateway=self.gateway,
+                shipping_method=self.shipping, payment_gateway=self.gateway, store=self.store,
             )
 
     def test_create_order_increments_coupon_used_count_when_applied(self):
@@ -109,6 +116,7 @@ class CreateOrderFromCartTests(TestCase):
 
 class ChangeOrderStatusTests(TestCase):
     def setUp(self):
+        self.store = _akhlaghi()
         self.user = User.objects.create_user(username="mina", password="pass12345")
         self.staff = User.objects.create_user(username="admin1", password="pass12345", is_staff=True)
         self.customer = Customer.objects.create(user=self.user, full_name="مینا صادقی", phone="09129990000")
@@ -122,7 +130,7 @@ class ChangeOrderStatusTests(TestCase):
         )
 
     def test_pending_to_processing_is_allowed(self):
-        change_order_status(self.order, Order.Status.PROCESSING, by=self.staff, note="تأیید شد")
+        change_order_status(self.order, Order.Status.PROCESSING, by=self.staff, note="تأیید شد", store=self.store)
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.PROCESSING)
         history = self.order.status_history.latest("created_at")
@@ -132,64 +140,64 @@ class ChangeOrderStatusTests(TestCase):
         self.assertEqual(history.note, "تأیید شد")
 
     def test_full_happy_path_transition(self):
-        change_order_status(self.order, Order.Status.PROCESSING)
-        change_order_status(self.order, Order.Status.SHIPPED)
-        change_order_status(self.order, Order.Status.DELIVERED)
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
+        change_order_status(self.order, Order.Status.SHIPPED, store=self.store)
+        change_order_status(self.order, Order.Status.DELIVERED, store=self.store)
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.DELIVERED)
         self.assertEqual(self.order.status_history.count(), 3)
 
     def test_canceled_allowed_from_pending(self):
-        change_order_status(self.order, Order.Status.CANCELED)
+        change_order_status(self.order, Order.Status.CANCELED, store=self.store)
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.CANCELED)
 
     def test_canceled_allowed_from_processing(self):
-        change_order_status(self.order, Order.Status.PROCESSING)
-        change_order_status(self.order, Order.Status.CANCELED)
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
+        change_order_status(self.order, Order.Status.CANCELED, store=self.store)
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.CANCELED)
 
     def test_skipping_a_stage_is_not_allowed(self):
         with self.assertRaises(ValueError):
-            change_order_status(self.order, Order.Status.DELIVERED)
+            change_order_status(self.order, Order.Status.DELIVERED, store=self.store)
 
     def test_same_status_transition_raises(self):
         with self.assertRaises(ValueError):
-            change_order_status(self.order, Order.Status.PENDING)
+            change_order_status(self.order, Order.Status.PENDING, store=self.store)
 
     def test_delivered_is_final(self):
-        change_order_status(self.order, Order.Status.PROCESSING)
-        change_order_status(self.order, Order.Status.SHIPPED)
-        change_order_status(self.order, Order.Status.DELIVERED)
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
+        change_order_status(self.order, Order.Status.SHIPPED, store=self.store)
+        change_order_status(self.order, Order.Status.DELIVERED, store=self.store)
         with self.assertRaises(ValueError):
-            change_order_status(self.order, Order.Status.CANCELED)
+            change_order_status(self.order, Order.Status.CANCELED, store=self.store)
 
     def test_canceled_is_final(self):
-        change_order_status(self.order, Order.Status.CANCELED)
+        change_order_status(self.order, Order.Status.CANCELED, store=self.store)
         with self.assertRaises(ValueError):
-            change_order_status(self.order, Order.Status.PROCESSING)
+            change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
 
     def test_invalid_transition_does_not_create_history(self):
         count_before = OrderStatusHistory.objects.filter(order=self.order).count()
         with self.assertRaises(ValueError):
-            change_order_status(self.order, Order.Status.DELIVERED)
+            change_order_status(self.order, Order.Status.DELIVERED, store=self.store)
         count_after = OrderStatusHistory.objects.filter(order=self.order).count()
         self.assertEqual(count_before, count_after)
 
     def test_processing_transition_sends_sms(self):
         SmsTemplate.ensure_defaults()
         with self.captureOnCommitCallbacks(execute=True):
-            change_order_status(self.order, Order.Status.PROCESSING)
+            change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
         self.assertTrue(
             SmsLog.objects.filter(event_key="order_processing", recipient=self.customer.phone).exists()
         )
 
     def test_shipped_transition_with_tracking_code_saves_it_and_includes_in_sms(self):
         SmsTemplate.ensure_defaults()
-        change_order_status(self.order, Order.Status.PROCESSING)
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
         with self.captureOnCommitCallbacks(execute=True):
-            change_order_status(self.order, Order.Status.SHIPPED, tracking_code="TRACK-999")
+            change_order_status(self.order, Order.Status.SHIPPED, tracking_code="TRACK-999", store=self.store)
         self.order.refresh_from_db()
         self.assertEqual(self.order.tracking_code, "TRACK-999")
         log = SmsLog.objects.filter(event_key="order_shipped", recipient=self.customer.phone).first()
@@ -198,21 +206,21 @@ class ChangeOrderStatusTests(TestCase):
 
     def test_shipped_transition_without_tracking_code_still_sends_sms(self):
         SmsTemplate.ensure_defaults()
-        change_order_status(self.order, Order.Status.PROCESSING)
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
         with self.captureOnCommitCallbacks(execute=True):
-            change_order_status(self.order, Order.Status.SHIPPED)
+            change_order_status(self.order, Order.Status.SHIPPED, store=self.store)
         self.assertTrue(SmsLog.objects.filter(event_key="order_shipped").exists())
 
     def test_delivered_transition_sends_sms(self):
         SmsTemplate.ensure_defaults()
-        change_order_status(self.order, Order.Status.PROCESSING)
-        change_order_status(self.order, Order.Status.SHIPPED)
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
+        change_order_status(self.order, Order.Status.SHIPPED, store=self.store)
         with self.captureOnCommitCallbacks(execute=True):
-            change_order_status(self.order, Order.Status.DELIVERED)
+            change_order_status(self.order, Order.Status.DELIVERED, store=self.store)
         self.assertTrue(SmsLog.objects.filter(event_key="order_delivered").exists())
 
     def test_canceled_transition_sends_sms(self):
         SmsTemplate.ensure_defaults()
         with self.captureOnCommitCallbacks(execute=True):
-            change_order_status(self.order, Order.Status.CANCELED)
+            change_order_status(self.order, Order.Status.CANCELED, store=self.store)
         self.assertTrue(SmsLog.objects.filter(event_key="order_canceled").exists())

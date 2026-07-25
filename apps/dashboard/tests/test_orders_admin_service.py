@@ -17,12 +17,18 @@ from apps.dashboard.services.orders_admin_service import (
     order_status_counts,
     order_status_steps,
 )
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
 class OrdersAdminServiceTestCase(TestCase):
     def setUp(self):
+        self.store = _akhlaghi()
         user = User.objects.create_user(username="09121130001", password="pass12345")
         self.customer = Customer.objects.create(user=user, full_name="سارا احمدی", phone="09121130001")
         self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-oa")
@@ -51,7 +57,7 @@ class FilteredOrdersTests(OrdersAdminServiceTestCase):
         self.assertEqual(set(result), {self.order, self.order2})
 
     def test_filter_by_status(self):
-        change_order_status(self.order, Order.Status.PROCESSING)
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
         result = filtered_orders(status=Order.Status.PROCESSING)
         self.assertEqual(list(result), [self.order])
 
@@ -63,7 +69,7 @@ class OrderStatusCountsTests(OrdersAdminServiceTestCase):
         self.assertEqual(counts[Order.Status.PENDING], 2)
 
     def test_counts_reflect_status_change(self):
-        change_order_status(self.order, Order.Status.CANCELED)
+        change_order_status(self.order, Order.Status.CANCELED, store=self.store)
         counts = order_status_counts()
         self.assertEqual(counts[Order.Status.CANCELED], 1)
         self.assertEqual(counts[Order.Status.PENDING], 1)
@@ -76,9 +82,9 @@ class NextStatusOptionsTests(OrdersAdminServiceTestCase):
         self.assertIn(Order.Status.CANCELED, options)
 
     def test_delivered_offers_nothing(self):
-        change_order_status(self.order, Order.Status.PROCESSING)
-        change_order_status(self.order, Order.Status.SHIPPED)
-        change_order_status(self.order, Order.Status.DELIVERED)
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
+        change_order_status(self.order, Order.Status.SHIPPED, store=self.store)
+        change_order_status(self.order, Order.Status.DELIVERED, store=self.store)
         self.assertEqual(next_status_options(self.order), [])
 
 
@@ -87,7 +93,7 @@ class OrderIsFinalTests(OrdersAdminServiceTestCase):
         self.assertFalse(order_is_final(self.order))
 
     def test_canceled_is_final(self):
-        change_order_status(self.order, Order.Status.CANCELED)
+        change_order_status(self.order, Order.Status.CANCELED, store=self.store)
         self.assertTrue(order_is_final(self.order))
 
 
@@ -99,14 +105,14 @@ class OrderStatusStepsTests(OrdersAdminServiceTestCase):
         self.assertFalse(steps[1][2])
 
     def test_processing_marks_pending_done(self):
-        change_order_status(self.order, Order.Status.PROCESSING)
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
         steps = order_status_steps(self.order)
         self.assertTrue(steps[0][2])
         self.assertTrue(steps[1][2])
         self.assertFalse(steps[2][2])
 
     def test_canceled_marks_nothing_done(self):
-        change_order_status(self.order, Order.Status.CANCELED)
+        change_order_status(self.order, Order.Status.CANCELED, store=self.store)
         steps = order_status_steps(self.order)
         self.assertFalse(any(done for _, _, done, _ in steps))
 

@@ -8,6 +8,7 @@ from django.views.decorators.http import require_POST
 from apps.catalog.models import Product
 from apps.orders.models import Order
 from apps.sms.services import otp_service
+from apps.stores.resolution import resolve_store_for_service
 
 from .forms import AddressForm, LoginForm, OtpRequestForm, OtpVerifyForm, ProfileForm, SignupForm
 from .models import Address, Customer, Wishlist
@@ -106,6 +107,7 @@ def signup_view(request):
                 full_name=form.cleaned_data["full_name"],
                 phone=form.cleaned_data["phone"],
                 password=form.cleaned_data["password"],
+                store=resolve_store_for_service(request),
             )
         except auth_service.AuthError as exc:
             form.add_error(None, str(exc))
@@ -152,7 +154,7 @@ def otp_request_view(request):
             form.add_error("phone", "حسابی با این شماره موبایل یافت نشد")
         else:
             try:
-                otp_service.request_otp(phone)
+                otp_service.request_otp(phone, store=resolve_store_for_service(request))
             except otp_service.OtpRateLimitError as exc:
                 form.add_error(None, str(exc))
             else:

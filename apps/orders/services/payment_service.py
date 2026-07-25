@@ -58,12 +58,15 @@ def _generate_ref_id() -> str:
 
 
 @transaction.atomic
-def simulate_payment(order: Order, success: bool, *, gateway=None) -> Transaction:
+def simulate_payment(order: Order, success: bool, *, gateway=None, store) -> Transaction:
     """درگاه پرداخت شبیه‌سازی‌شده — بدون اتصال واقعی به بانک.
 
     در صورت موفقیت: تراکنش ok ثبت می‌شود، payment_status سفارش paid می‌شود
     و سفارش به وضعیت processing منتقل می‌شود (با ثبت در OrderStatusHistory).
     در صورت شکست: تراکنش fail ثبت می‌شود و payment_status سفارش failed می‌شود.
+
+    ``store`` الزامی است — همان Store که برای پیامک‌های موفقیت/شکست پرداخت
+    و برای ``change_order_status`` استفاده می‌شود.
     """
     if order.payment_status == Order.PaymentStatus.PAID:
         raise ValueError("این سفارش قبلاً پرداخت شده است")
@@ -82,15 +85,21 @@ def simulate_payment(order: Order, success: bool, *, gateway=None) -> Transactio
     if success:
         order.payment_status = Order.PaymentStatus.PAID
         order.save(update_fields=["payment_status", "updated_at"])
-        change_order_status(order, Order.Status.PROCESSING, note="پرداخت موفق — سفارش به پردازش منتقل شد")
+        change_order_status(
+            order, Order.Status.PROCESSING, note="پرداخت موفق — سفارش به پردازش منتقل شد", store=store
+        )
         transaction.on_commit(
-            lambda: send_event_sms(SmsEvent.PAYMENT_SUCCESS, order.customer.phone, _order_sms_context(order))
+            lambda: send_event_sms(
+                SmsEvent.PAYMENT_SUCCESS, order.customer.phone, _order_sms_context(order), store=store
+            )
         )
     else:
         order.payment_status = Order.PaymentStatus.FAILED
         order.save(update_fields=["payment_status", "updated_at"])
         transaction.on_commit(
-            lambda: send_event_sms(SmsEvent.PAYMENT_FAILED, order.customer.phone, _order_sms_context(order))
+            lambda: send_event_sms(
+                SmsEvent.PAYMENT_FAILED, order.customer.phone, _order_sms_context(order), store=store
+            )
         )
 
     return tx

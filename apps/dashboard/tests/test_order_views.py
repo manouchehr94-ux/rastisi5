@@ -8,12 +8,18 @@ from apps.catalog.models import Vendor
 from apps.customers.models import Customer
 from apps.orders.models import Order, PaymentGateway, ShippingMethod
 from apps.orders.services.order_service import change_order_status
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
 class OrderViewsTestCase(TestCase):
     def setUp(self):
+        self.store = _akhlaghi()
         user = User.objects.create_user(username="09121140001", password="pass12345")
         self.customer = Customer.objects.create(user=user, full_name="نگار مرادی", phone="09121140001")
         self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-ov")
@@ -43,7 +49,7 @@ class OrderListViewTests(OrderViewsTestCase):
         self.assertIn("/admin-panel/login/", response.url)
 
     def test_status_filter(self):
-        change_order_status(self.order, Order.Status.PROCESSING)
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
         response = self.client.get(reverse("dashboard:order-table"), {"status": Order.Status.PENDING})
         self.assertNotContains(response, "DM-77777")
 
@@ -81,7 +87,7 @@ class OrderDetailViewTests(OrderViewsTestCase):
         self.assertContains(response, "مجاز نیست")
 
     def test_shipping_with_tracking_code_saves_it_on_order(self):
-        change_order_status(self.order, Order.Status.PROCESSING)
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
         response = self.client.post(
             reverse("dashboard:order-detail", args=[self.order.code]),
             {"status": Order.Status.SHIPPED, "tracking_code": "TRACK-ABC123"},
@@ -91,12 +97,12 @@ class OrderDetailViewTests(OrderViewsTestCase):
         self.assertEqual(self.order.tracking_code, "TRACK-ABC123")
 
     def test_final_order_hides_status_change_form(self):
-        change_order_status(self.order, Order.Status.CANCELED)
+        change_order_status(self.order, Order.Status.CANCELED, store=self.store)
         response = self.client.get(reverse("dashboard:order-detail", args=[self.order.code]))
         self.assertNotContains(response, "ثبت تغییرات")
 
     def test_status_history_displayed(self):
-        change_order_status(self.order, Order.Status.PROCESSING, note="بررسی شد")
+        change_order_status(self.order, Order.Status.PROCESSING, note="بررسی شد", store=self.store)
         response = self.client.get(reverse("dashboard:order-detail", args=[self.order.code]))
         self.assertContains(response, "بررسی شد")
 

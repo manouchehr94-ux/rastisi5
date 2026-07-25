@@ -262,6 +262,29 @@ def resolve_store_for_request(request):
     return resolve_store_for_hostname_or_none(raw_host)
 
 
+def resolve_store_for_service(request) -> Store:
+    """The authoritative Store for a service call triggered by an HTTP request.
+
+    Returns ``request.store`` if the resolution middleware already resolved
+    one for this request; otherwise falls back to the same narrow,
+    fail-closed compatibility check every other caller uses
+    (``resolve_compatibility_store``) — never a bare ``Store.objects.first()``
+    or any other guess. Raises ``CompatibilityFallbackUnavailableError`` if
+    neither source yields a Store.
+
+    Call this ONCE, at the HTTP boundary (a view, or a request-aware service
+    function), then pass the concrete ``Store`` object down explicitly to
+    deeper service functions (pricing, SMS, order creation, ...) as a
+    required argument. Those deeper functions must never re-derive a Store
+    from the Host themselves — resolution happens here, exactly once per
+    request, not repeatedly deep inside domain services.
+    """
+    store = getattr(request, "store", None)
+    if store is not None:
+        return store
+    return resolve_compatibility_store()
+
+
 def require_resolved_store(request) -> Store:
     """For future Store-aware service code: return ``request.store``, or raise.
 

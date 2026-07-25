@@ -7,9 +7,10 @@ own stated scope.
 ```text
 PR 1  — Documentation and baseline locks                         [this PR, combined with PR 2]
 PR 2  — Store, StoreDomain and StoreMembership foundation         [this PR]
-PR 3  — Store resolution infrastructure in compatibility mode
-PR 4  — Core settings and footer settings ownership
-PR 5  — Catalog ownership and constraints
+PR 3   — Store resolution infrastructure in compatibility mode
+PR 4   — Core settings and footer settings ownership
+PR 4.1 — Explicit Store context propagation for pricing and SMS
+PR 5   — Catalog ownership and constraints
 PR 6  — Cart and coupon ownership
 PR 7  — Order, shipping and payment-domain separation
 PR 8  — Content, navigation, homepage, blog and media ownership
@@ -76,13 +77,9 @@ business query changed. See `SAAS_ARCHITECTURE.md` §6 and
 including adversarial cross-Store and caller-controlled-input isolation
 tests.
 
-## PR 4 — Tenant-scope existing core settings, without splitting them [this PR]
+## PR 4 — Tenant-scope existing core settings, without splitting them [done]
 
-Status note: implemented on branch `claude/store-scope-core-settings` and
-open as a pull request against the branch PR 3 merged into — not yet merged
-into the canonical base branch as of this writing. "This PR" here means
-exactly that, not "already merged." Update this to "[done]" only once the
-PR opening this section has actually merged.
+Status note: merged into the canonical base branch.
 
 Scope: add a `store` FK to `apps.core.ShopSettings` (`OneToOneField`) and
 `apps.content.FooterSettings` (`OneToOneField`) /`FooterTrustBadge`/
@@ -124,6 +121,78 @@ is where `ShopSettings` is actually split into domain-specific models
 (identity/commerce-defaults, branding/theme, and extracting SMS
 credentials), per ADR-10.
 
+## PR 4.1 — Explicit Store Context Propagation for Pricing and SMS [this PR]
+
+Status note: implemented on branch `claude/store-context-service-propagation`
+and open as a pull request against the branch PR 4 merged into — not yet
+merged into the canonical base branch as of this writing. "This PR" here
+means exactly that, not "already merged." Update this to "[done]" only once
+the PR opening this section has actually merged.
+
+Scope: PR 4 made `ShopSettings.load()` fail closed (instead of silently
+returning Akhlaghi's row regardless of Store count) once a second Store
+exists — correct for isolation, but it also meant every no-Store production
+caller (`apps.cart.services.pricing`, `apps.sms.services.sms_service`, and
+their transitive callers across `apps.orders` and `apps.customers`) would
+either hard-fail (pricing) or silently no-op (SMS, which already treats
+every internal failure as non-fatal by design) the moment a real second
+Store existed — even for that second Store's own, otherwise-valid,
+already-resolved request. This PR does not tenant-scope `Cart`, `Order`,
+`Customer`, or `SmsTemplate`/`SmsLog` (no `store` FK was added to any of
+them — none proved necessary); it makes every service function that reads
+`ShopSettings` require an explicit, already-resolved `store` argument
+instead of ever calling `ShopSettings.load()` with none.
+
+**New shared boundary helper.** `apps.stores.resolution.resolve_store_for_service(request)`
+returns `request.store` if the resolution middleware already resolved one,
+otherwise falls back to the same `resolve_compatibility_store()` fail-closed
+check used everywhere else — resolved exactly once, at the HTTP boundary
+(a view, or a request-aware service function that already has `request`),
+never re-derived deeper inside a domain service. `apps.dashboard.views._resolve_dashboard_store`
+(introduced in PR 4) now delegates to this same function instead of
+duplicating the logic.
+
+**Pricing.** `apps.cart.services.pricing.cart_totals`/`_free_shipping_threshold`/
+`_tax_percent` now take a required, keyword-only `store` (no default — an
+explicit `store=None` raises `ValueError` immediately, it is never silently
+treated as "use compatibility mode"). Every production caller
+(`apps.cart.views`, `apps.orders.services.checkout_service`,
+`apps.orders.services.order_service.create_order_from_cart`) resolves
+`store` via `resolve_store_for_service(request)` (or, for
+`apps.core.management.commands.seed_shop`, which has no request, via an
+explicit `Store.objects.get(slug="akhlaghi")` — this command only ever
+seeds Akhlaghi demo data, so resolving it by slug is more honest than
+routing a non-request script through the request-shaped compatibility
+check) and threads the concrete `Store` object down explicitly.
+
+**SMS.** `apps.sms.services.sms_service.send_event_sms`/`get_backend`/
+`send_test_sms` take the same required, keyword-only `store`. Every
+production caller across `apps.orders.services.order_service`,
+`apps.orders.services.payment_service`, `apps.orders.views`,
+`apps.sms.services.otp_service`, `apps.customers.services.auth_service`,
+`apps.customers.views`, and `apps.dashboard.views` was updated to resolve
+and pass an explicit `store` — sourced from `request.store`/
+`resolve_store_for_service(request)` at the view layer, or threaded through
+as a parameter into deeper service functions (`change_order_status`,
+`simulate_payment`, `create_order_from_cart`) that don't have `request`
+directly. `transaction.on_commit` closures capture `store` by value at
+scheduling time, so the Store used for a deferred SMS send is always the
+one resolved when the triggering request was handled, not re-derived later.
+An explicit `store=None` at `send_event_sms` logs a clear error and returns
+`None` (consistent with this function's existing "never raise" contract) —
+it never silently falls back to Akhlaghi or any other Store.
+
+**Not done in this PR:** no `Cart`, `Order`, `Customer`, `SmsTemplate`, or
+`SmsLog` model gained a `store` FK — none of the touched code paths needed
+one to become Store-explicit, since the Store is already resolvable from
+the triggering request at every call site. Plaintext SMS credentials
+(`ShopSettings.melipayamak_username`/`password`) remain on `ShopSettings`
+exactly as PR 9 will address; no encryption-at-rest or credential-model
+work was done here. `Cart`/`Order`/`Customer` tenant ownership itself
+remains PR 6/PR 7/PR 10's job — this PR only ensures the settings those
+domains *read* are resolved explicitly, not that the domains' own rows are
+Store-scoped.
+
 ## PR 5 — Catalog ownership and constraints
 
 Scope: resolve the Vendor/Store domain question from
@@ -145,7 +214,11 @@ cross-Store-access tests.
 Scope: `apps.cart` models (cart, cart items, `Coupon`) gain Store scoping.
 Coupon code uniqueness re-derived as Store-scoped if currently global.
 Query conversion for cart views/services. Adversarial tests: a coupon code
-valid in Store A must not validate against Store B's cart.
+valid in Store A must not validate against Store B's cart. Note: PR 4.1
+already made `apps.cart.services.pricing` take an explicit `store` argument
+(resolved from the request, not re-derived here) — this PR is where `Cart`
+itself finally gains a `store` FK and its own query scoping, building on
+that already-explicit pricing call chain rather than duplicating it.
 
 ## PR 7 — Order, shipping and payment-domain separation
 
@@ -173,7 +246,11 @@ Store-dimensioned) before schema changes. Plaintext SMS credentials
 (`ShopSettings.melipayamak_username/password`, moved to
 `StorePaymentConfiguration`-equivalent for SMS in PR 4/9) are flagged for
 the encryption-at-rest work — selecting and installing an encryption
-library requires its own ADR and is not bundled into this PR.
+library requires its own ADR and is not bundled into this PR. Note: PR 4.1
+already made every production caller of `apps.sms.services.sms_service`
+pass an explicit, already-resolved `store` (never a bare
+`ShopSettings.load()`) — this PR is where `SmsTemplate`/`SmsLog` themselves
+gain a `store` FK, on top of that already-explicit call chain.
 
 ## PR 10 — Customer identity and Store customer profile
 

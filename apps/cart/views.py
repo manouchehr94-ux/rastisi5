@@ -5,12 +5,14 @@ from django.views.decorators.http import require_POST
 
 from apps.catalog.models import Product, ProductVariant
 
+from apps.stores.resolution import resolve_store_for_service
+
 from .models import CartItem
 from .services.cart_service import add_item_to_cart, get_cart
 from .services.pricing import cart_totals
 
 
-def _cart_context(cart):
+def _cart_context(request, cart):
     if cart is None:
         totals = {
             "items_total": 0, "product_discount": 0, "coupon_discount": 0,
@@ -18,14 +20,15 @@ def _cart_context(cart):
         }
         item_count = 0
     else:
-        totals = cart_totals(cart)
+        store = resolve_store_for_service(request)
+        totals = cart_totals(cart, store=store)
         item_count = sum(item.quantity for item in cart.items.all())
     return {"cart": cart, "totals": totals, "item_count": item_count}
 
 
 def cart_detail(request):
     cart = get_cart(request, create=True)
-    return render(request, "cart/cart_detail.html", _cart_context(cart))
+    return render(request, "cart/cart_detail.html", _cart_context(request, cart))
 
 
 @require_POST
@@ -69,7 +72,7 @@ def cart_item_update(request, item_id):
     item.quantity = quantity
     item.save(update_fields=["quantity", "updated_at"])
 
-    return render(request, "cart/partials/cart_page_body.html", _cart_context(cart))
+    return render(request, "cart/partials/cart_page_body.html", _cart_context(request, cart))
 
 
 @require_POST
@@ -77,7 +80,7 @@ def cart_item_remove(request, item_id):
     cart = get_cart(request, create=True)
     item = get_object_or_404(CartItem, pk=item_id, cart=cart)
     item.delete()
-    return render(request, "cart/partials/cart_page_body.html", _cart_context(cart))
+    return render(request, "cart/partials/cart_page_body.html", _cart_context(request, cart))
 
 
 def _header_counts_context(request):

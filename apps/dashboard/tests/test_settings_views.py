@@ -161,6 +161,7 @@ class SettingsFinanceViewTests(SettingsViewsTestCase):
         from apps.cart.models import Cart, CartItem
         from apps.cart.services.pricing import cart_totals
         from apps.catalog.models import Category, Product, Vendor
+        from apps.stores.models import Store
 
         self.client.post(reverse("dashboard:settings-finance"), {
             "tax_percent": "5", "free_shipping_threshold": "1000000",
@@ -173,7 +174,8 @@ class SettingsFinanceViewTests(SettingsViewsTestCase):
         )
         cart = Cart.objects.create(session_key="guest-sf")
         CartItem.objects.create(cart=cart, product=product, quantity=1, unit_price=product.final_price)
-        totals = cart_totals(cart, shipping_method=self.shipping)
+        store = Store.objects.get(slug="akhlaghi")
+        totals = cart_totals(cart, store=store, shipping_method=self.shipping)
         self.assertEqual(totals["tax"], D("5000"))
 
     def test_out_of_range_tax_percent_rejected(self):

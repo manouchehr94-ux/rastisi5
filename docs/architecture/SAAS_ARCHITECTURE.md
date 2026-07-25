@@ -1,11 +1,12 @@
 # SaaS Foundation Architecture
 
-Status: Foundation stage. PR 2 (`Store`/`StoreDomain`/`StoreMembership`) and
-PR 3 (Store resolution infrastructure, §6 below) have merged. PR 4 (Store
-ownership for `ShopSettings`/`FooterSettings`/`FooterTrustBadge`/
-`FooterPaymentLogo`, §9 below) is implemented on branch
-`claude/store-scope-core-settings` and open as a pull request — not yet
-merged into the canonical base branch as of this writing. See
+Status: Foundation stage. PR 2 (`Store`/`StoreDomain`/`StoreMembership`), PR 3
+(Store resolution infrastructure, §6 below), and PR 4 (Store ownership for
+`ShopSettings`/`FooterSettings`/`FooterTrustBadge`/`FooterPaymentLogo`, §9
+below) have merged. PR 4.1 (explicit Store context propagation for pricing
+and SMS, §11 below) is implemented on branch
+`claude/store-context-service-propagation` and open as a pull request — not
+yet merged into the canonical base branch as of this writing. See
 `SAAS_MIGRATION_PLAN.md` for the full staged sequence and current status of
 each PR.
 
@@ -461,3 +462,65 @@ behavior changed, and no secret-encryption work was done (the
 this PR remains deferred to its own small security PR). See
 `SAAS_MIGRATION_PLAN.md` for the staged sequence that will change this
 incrementally.
+
+## 11. Explicit Store Context Propagation for Pricing and SMS
+
+Implemented (PR 4.1 — see `SAAS_MIGRATION_PLAN.md` for status).
+
+### 11.1 The problem PR 4 left open
+
+§9.3 made `ShopSettings.load()` fail closed instead of silently returning
+Akhlaghi's row once a second `Store` exists — correct for isolation, but it
+meant every production caller that still called `ShopSettings.load()` with
+no Store (`apps.cart.services.pricing`, `apps.sms.services.sms_service`)
+would break — hard-failing (pricing) or silently no-op'ing (SMS) — the
+moment a real second Store existed, even for that Store's own,
+already-resolved, otherwise-valid request.
+
+### 11.2 Store authority rules
+
+An authoritative `Store` for a tenant-sensitive service call may only come
+from: an already Store-owned aggregate or related object; `request.store`
+at the HTTP boundary; an explicit `Store` argument supplied by a trusted
+caller that already resolved one; or a job payload whose Store identity was
+recorded server-side (no such jobs exist in this codebase — see §7). A
+caller-supplied `store_id` (POST body, query parameter, or any other
+client-controlled input) is never authoritative, and an already-resolved
+explicit Store is never silently replaced by the Akhlaghi compatibility
+fallback.
+
+### 11.3 Resolve once, at the boundary
+
+`apps.stores.resolution.resolve_store_for_service(request)` is the shared
+helper: returns `request.store` if already resolved, otherwise falls back
+to the same `resolve_compatibility_store()` check used everywhere else.
+Called exactly once per request — at a view, or at a service function that
+already receives `request` (e.g. `apps.orders.services.checkout_service`'s
+functions) — never re-derived deeper inside a domain service. Deeper,
+non-request-aware service functions (`cart_totals`, `send_event_sms`,
+`create_order_from_cart`, `change_order_status`, `simulate_payment`,
+`otp_service.request_otp`, `auth_service.signup`/`create_account_for_guest`)
+take a required, keyword-only `store` argument instead — no default, so a
+caller cannot silently omit it and fall into compatibility mode by
+accident. `apps.dashboard.views._resolve_dashboard_store` (from PR 4) now
+delegates to this same shared function.
+
+### 11.4 Deterministic failure, never a cross-Store fallback
+
+`cart_totals`/`_free_shipping_threshold`/`_tax_percent` raise `ValueError`
+immediately if `store` is `None` — pricing failures are never swallowed.
+`send_event_sms` logs a clear error and returns `None` for `store=None`,
+consistent with its pre-existing "never raise" contract (SMS is
+fire-and-forget by design) — it never falls back to Akhlaghi or guesses
+another Store. `transaction.on_commit` closures capture the resolved
+`store` by value at scheduling time, so a deferred SMS send always uses the
+Store that was resolved when the triggering request was handled.
+
+### 11.5 What this PR does not change
+
+No `store` FK was added to `Cart`, `Order`, `Customer`, `SmsTemplate`, or
+`SmsLog` — none proved necessary, since every touched call site already had
+an authoritative Store resolvable from the triggering request. SMS
+credentials remain on `ShopSettings` (PR 9's job); no encryption-at-rest
+work was done. `Cart`/`Order`/`Customer` themselves remain unscoped until
+PR 6/7/10.

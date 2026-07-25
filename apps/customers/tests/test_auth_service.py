@@ -9,59 +9,87 @@ from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
 from apps.customers.services import auth_service
 from apps.sms.models import SmsLog, SmsTemplate
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
 class SignupServiceTests(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+
     def test_signup_creates_user_and_customer(self):
-        customer = auth_service.signup(full_name="نگار احمدی", phone="09121112233", password="StrongPass123")
+        customer = auth_service.signup(
+            full_name="نگار احمدی", phone="09121112233", password="StrongPass123", store=self.store
+        )
         self.assertEqual(customer.full_name, "نگار احمدی")
         self.assertTrue(User.objects.filter(username="09121112233").exists())
         self.assertTrue(customer.user.check_password("StrongPass123"))
 
     def test_signup_rejects_duplicate_phone(self):
-        auth_service.signup(full_name="نگار احمدی", phone="09121112233", password="StrongPass123")
+        auth_service.signup(
+            full_name="نگار احمدی", phone="09121112233", password="StrongPass123", store=self.store
+        )
         with self.assertRaises(auth_service.AuthError):
-            auth_service.signup(full_name="نگار دیگر", phone="09121112233", password="AnotherPass123")
+            auth_service.signup(
+                full_name="نگار دیگر", phone="09121112233", password="AnotherPass123", store=self.store
+            )
 
     def test_signup_rejects_weak_password(self):
         with self.assertRaises(auth_service.AuthError):
-            auth_service.signup(full_name="نگار احمدی", phone="09121112234", password="123")
+            auth_service.signup(
+                full_name="نگار احمدی", phone="09121112234", password="123", store=self.store
+            )
 
     def test_signup_sends_welcome_sms_after_commit(self):
         SmsTemplate.ensure_defaults()
         with self.captureOnCommitCallbacks(execute=True):
-            auth_service.signup(full_name="نگار احمدی", phone="09121112299", password="StrongPass123")
+            auth_service.signup(
+                full_name="نگار احمدی", phone="09121112299", password="StrongPass123", store=self.store
+            )
         log = SmsLog.objects.filter(event_key="welcome", recipient="09121112299").first()
         self.assertIsNotNone(log)
         self.assertIn("نگار احمدی", log.message)
 
 
 class CreateAccountForGuestTests(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+
     def test_creates_user_and_customer_with_random_password(self):
-        customer = auth_service.create_account_for_guest(full_name="پویا رستمی", phone="09121112288")
+        customer = auth_service.create_account_for_guest(
+            full_name="پویا رستمی", phone="09121112288", store=self.store
+        )
         self.assertEqual(customer.full_name, "پویا رستمی")
         self.assertTrue(User.objects.filter(username="09121112288").exists())
         self.assertGreaterEqual(len(customer.user.password), 20)  # هش رمز، نه رمز خام
 
     def test_generated_password_actually_works_for_login(self):
         # نمی‌دانیم رمز چیست، اما باید تصادفی/معتبر باشد نه رمز خالی یا قابل‌پیش‌بینی
-        customer = auth_service.create_account_for_guest(full_name="پویا رستمی", phone="09121112288")
+        customer = auth_service.create_account_for_guest(
+            full_name="پویا رستمی", phone="09121112288", store=self.store
+        )
         self.assertFalse(customer.user.check_password(""))
         self.assertFalse(customer.user.check_password("123456"))
 
     def test_sends_welcome_sms_after_commit(self):
         SmsTemplate.ensure_defaults()
         with self.captureOnCommitCallbacks(execute=True):
-            auth_service.create_account_for_guest(full_name="پویا رستمی", phone="09121112288")
+            auth_service.create_account_for_guest(full_name="پویا رستمی", phone="09121112288", store=self.store)
         self.assertTrue(SmsLog.objects.filter(event_key="welcome", recipient="09121112288").exists())
 
 
 class AuthenticateCustomerTests(TestCase):
     def setUp(self):
+        self.store = _akhlaghi()
         self.factory = RequestFactory()
-        self.customer = auth_service.signup(full_name="رضا کریمی", phone="09121112255", password="StrongPass123")
+        self.customer = auth_service.signup(
+            full_name="رضا کریمی", phone="09121112255", password="StrongPass123", store=self.store
+        )
 
     def _request(self):
         request = self.factory.post("/")
@@ -92,6 +120,7 @@ class AuthenticateCustomerTests(TestCase):
 
 class MergeGuestCartTests(TestCase):
     def setUp(self):
+        self.store = _akhlaghi()
         self.factory = RequestFactory()
         vendor = Vendor.objects.create(name="فروشگاه", slug="shop-mg")
         category = Category.objects.create(name="دیجیتال", slug="digital-mg")
@@ -99,7 +128,9 @@ class MergeGuestCartTests(TestCase):
             vendor=vendor, category=category, name="کالای نمونه", slug="sample-mg",
             sku="SKU-MG1", price=Decimal("100000"),
         )
-        self.customer = auth_service.signup(full_name="یاسمن", phone="09121112277", password="StrongPass123")
+        self.customer = auth_service.signup(
+            full_name="یاسمن", phone="09121112277", password="StrongPass123", store=self.store
+        )
 
     def _guest_request_with_cart(self, quantity=1):
         request = self.factory.post("/")
