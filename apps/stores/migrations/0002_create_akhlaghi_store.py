@@ -29,20 +29,6 @@ def create_akhlaghi_store(apps, schema_editor):
     )
 
 
-def remove_akhlaghi_store(apps, schema_editor):
-    """Reverse: remove only the specific Store row this migration created.
-
-    This never touches Users or any other business data — it deletes at
-    most one row, matched by the exact slug this migration is responsible
-    for. If memberships or domains were later attached to this Store by a
-    subsequent migration/PR, the FK ``on_delete=CASCADE`` means reversing
-    this migration also removes those — which is expected, since a
-    membership/domain has no meaning without its Store.
-    """
-    Store = apps.get_model("stores", "Store")
-    Store.objects.filter(slug=AKHLAGHI_STORE_SLUG).delete()
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -50,5 +36,22 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(create_akhlaghi_store, remove_akhlaghi_store),
+        # Reverse is intentionally migrations.RunPython.noop, not a delete.
+        #
+        # An earlier version of this migration reversed by deleting the Store
+        # row matched by slug. That looked safe in isolation, but
+        # StoreDomain/StoreMembership both use on_delete=CASCADE from Store
+        # (a domain or membership has no meaning without its Store — see
+        # ADR-2/ADR-4 in docs/architecture/SAAS_DOMAIN_DECISIONS.md). Once any
+        # later PR attaches real domains, memberships, or — eventually —
+        # Store-owned business records to this Store, an "innocuous" reverse
+        # of this seed migration would cascade-delete all of it. A seed
+        # migration for a live tenant must never be the thing that silently
+        # deletes that tenant's dependent data as a side effect of an
+        # unrelated rollback elsewhere in the migration graph. Making the
+        # reverse a no-op means unapplying this migration only changes
+        # Django's recorded migration state; it never deletes the Store or
+        # anything the Store owns. Recovering a genuinely-unwanted seed Store
+        # is an explicit, manual, reviewed action, not an automatic one.
+        migrations.RunPython(create_akhlaghi_store, migrations.RunPython.noop),
     ]

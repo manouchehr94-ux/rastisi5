@@ -34,14 +34,14 @@ class Store(StoresTimestampedModel):
     Every future commerce record must be either platform-global by explicit
     design, or owned directly or indirectly by exactly one Store. ``Store``
     is a new, independent domain entity — it is not ``apps.catalog.Vendor``
-    and does not replace it. See
-    ``docs/architecture/SAAS_DOMAIN_DECISIONS.md`` (ADR-1) for why the two
-    are kept separate.
+    and does not replace it. See ``docs/architecture/SAAS_DOMAIN_DECISIONS.md``
+    (ADR-1) for why the two are kept separate.
 
-    This model intentionally has no owner field: Store ownership is
+    This model intentionally has no owner field — Store ownership is
     represented exclusively through an active ``StoreMembership`` with
-    ``role=OWNER`` (ADR-2), no billing/subscription/theme/payment fields,
-    and no domain fields (``StoreDomain`` is a separate model on purpose).
+    ``role=OWNER`` (ADR-2). It also has no billing/subscription/theme/payment
+    fields, and no domain fields (``StoreDomain`` is a separate model on
+    purpose).
     """
 
     class Status(models.TextChoices):
@@ -81,16 +81,130 @@ class Store(StoresTimestampedModel):
         return self.name
 
 
+class StoreDomainMutationError(Exception):
+    """Raised when a bulk/queryset write path would bypass StoreDomain's
+    authoritative hostname normalization.
+
+    ``StoreDomain.hostname`` must always be the normalized, canonical form
+    produced by ``normalize_hostname``. ``QuerySet.update()`` issues a raw SQL
+    UPDATE and ``QuerySet.bulk_create()`` issues a raw SQL INSERT — both
+    bypass ``Model.save()``/``Model.clean()`` entirely, so without this guard
+    either path could silently persist a raw, un-normalized, or
+    differently-cased hostname and defeat the uniqueness guarantee. Use
+    ``instance.save()`` (directly, or via ``StoreDomain.objects.create()``,
+    which calls it) instead.
+    """
+
+
+def _verification_lifecycle_errors(instance):
+    """Field-error dict for any StoreDomain verification-lifecycle incoherence.
+
+    Mirrors the DB-level ``CheckConstraint``s declared on
+    ``StoreDomain.Meta.constraints`` so ``clean()``/bulk validation raise an
+    early, well-labeled ``ValidationError`` instead of relying only on a raw
+    ``IntegrityError`` from the database. Rules enforced (see
+    ``docs/architecture/SAAS_DOMAIN_DECISIONS.md`` ADR-5):
+
+    * ``VERIFIED`` requires ``verified_at``.
+    * Any non-``VERIFIED`` status must not retain ``verified_at``.
+    * ``PENDING`` requires ``verification_requested_at``.
+    * ``PENDING`` requires a non-empty ``verification_token``.
+    """
+    errors = {}
+    status = instance.verification_status
+    verified = instance.VerificationStatus.VERIFIED
+    pending = instance.VerificationStatus.PENDING
+
+    if status == verified and instance.verified_at is None:
+        errors.setdefault("verified_at", []).append(
+            "دامنه‌ی تأییدشده باید زمان تأیید داشته باشد."
+        )
+    if status != verified and instance.verified_at is not None:
+        errors.setdefault("verified_at", []).append(
+            "فقط دامنه‌ی تأییدشده می‌تواند زمان تأیید داشته باشد."
+        )
+    if status == pending and instance.verification_requested_at is None:
+        errors.setdefault("verification_requested_at", []).append(
+            "دامنه‌ی در انتظار تأیید باید زمان درخواست تأیید داشته باشد."
+        )
+    if status == pending and not instance.verification_token:
+        errors.setdefault("verification_token", []).append(
+            "دامنه‌ی در انتظار تأیید باید توکن تأیید داشته باشد."
+        )
+    return errors
+
+
+def _normalize_and_validate_domain(instance):
+    """Normalize ``hostname`` and validate verification-lifecycle coherence.
+
+    Shared by ``StoreDomain.clean()`` and ``StoreDomainQuerySet.bulk_create()``
+    so there is exactly one place that decides what counts as a valid
+    StoreDomain, instead of two independently-maintained copies of the same
+    rules that could drift apart.
+    """
+    errors = {}
+
+    if instance.hostname:
+        try:
+            instance.hostname = normalize_hostname(instance.hostname)
+        except ValidationError as exc:
+            errors["hostname"] = exc.messages
+
+    errors.update(_verification_lifecycle_errors(instance))
+
+    if errors:
+        raise ValidationError(errors)
+
+
+class StoreDomainQuerySet(models.QuerySet):
+    """Enforces StoreDomain's hostname-normalization guarantee on bulk paths.
+
+    This is deliberately narrow: it does not turn ``StoreDomain.objects``
+    into a tenant-scoping default manager (it never filters rows by Store),
+    it only protects the ``hostname`` write path, which is the one field
+    whose canonical form cannot be expressed as a plain database constraint.
+    """
+
+    def update(self, **kwargs):
+        if "hostname" in kwargs:
+            raise StoreDomainMutationError(
+                "hostname را نمی‌توان مستقیماً با update() تغییر داد؛ "
+                "چون این مسیر نرمال‌سازی instance.save() را دور می‌زند. "
+                "از instance.save() استفاده کنید."
+            )
+        return super().update(**kwargs)
+
+    def bulk_create(self, objs, *args, **kwargs):
+        objs = list(objs)
+        for obj in objs:
+            _normalize_and_validate_domain(obj)
+        return super().bulk_create(objs, *args, **kwargs)
+
+
+StoreDomainManager = models.Manager.from_queryset(StoreDomainQuerySet)
+
+
 class StoreDomain(StoresTimestampedModel):
     """A hostname bound to a Store.
 
     ``hostname`` always holds the normalized, canonical form produced by
-    ``apps.stores.hostnames.normalize_hostname`` — never a raw URL. See
-    ``docs/architecture/SAAS_DOMAIN_DECISIONS.md`` (ADR-4, ADR-5) for the
+    ``apps.stores.hostnames.normalize_hostname`` — never a raw URL. This is
+    enforced on every write path this app exposes:
+
+    * ``instance.save()`` and ``full_clean()`` normalize/validate directly.
+    * ``StoreDomain.objects.bulk_create()`` normalizes and validates every
+      instance before insertion (``StoreDomainQuerySet.bulk_create``).
+    * ``StoreDomain.objects.filter(...).update(hostname=...)`` is rejected
+      outright with ``StoreDomainMutationError``, because a raw SQL UPDATE
+      cannot re-run the Python-level IDNA normalization.
+
+    See ``docs/architecture/SAAS_DOMAIN_DECISIONS.md`` (ADR-4, ADR-5) for the
     normalization and verification-lifecycle decisions. This model does not
     implement DNS/HTTP verification networking or request-time host
     resolution — those are later, separate PRs.
     """
+
+    objects = StoreDomainManager()
 
     class VerificationStatus(models.TextChoices):
         UNVERIFIED = "unverified", "تأییدنشده"
@@ -142,6 +256,26 @@ class StoreDomain(StoresTimestampedModel):
                 condition=~models.Q(verification_token=""),
                 name="uniq_verification_token_when_set",
             ),
+            models.CheckConstraint(
+                check=~models.Q(verification_status="verified")
+                | models.Q(verified_at__isnull=False),
+                name="verified_status_requires_verified_at",
+            ),
+            models.CheckConstraint(
+                check=models.Q(verification_status="verified")
+                | models.Q(verified_at__isnull=True),
+                name="only_verified_domains_have_verified_at",
+            ),
+            models.CheckConstraint(
+                check=~models.Q(verification_status="pending")
+                | models.Q(verification_requested_at__isnull=False),
+                name="pending_status_requires_verification_requested_at",
+            ),
+            models.CheckConstraint(
+                check=~models.Q(verification_status="pending")
+                | ~models.Q(verification_token=""),
+                name="pending_status_requires_verification_token",
+            ),
         ]
         indexes = [
             models.Index(fields=["store", "is_primary"], name="idx_domain_store_primary"),
@@ -153,22 +287,7 @@ class StoreDomain(StoresTimestampedModel):
 
     def clean(self):
         super().clean()
-        errors = {}
-
-        if self.hostname:
-            try:
-                self.hostname = normalize_hostname(self.hostname)
-            except ValidationError as exc:
-                errors["hostname"] = exc.messages
-
-        if (
-            self.verification_status == self.VerificationStatus.VERIFIED
-            and self.verified_at is None
-        ):
-            errors["verified_at"] = "دامنه‌ی تأییدشده باید زمان تأیید داشته باشد."
-
-        if errors:
-            raise ValidationError(errors)
+        _normalize_and_validate_domain(self)
 
     def save(self, *args, **kwargs):
         if self.hostname:
@@ -185,6 +304,16 @@ class StoreMembership(StoresTimestampedModel):
     core invariants only; invitation delivery, tokenized acceptance, owner
     transfer, authorization decorators, and dashboard integration are later,
     separate PRs.
+
+    ``user`` uses ``on_delete=PROTECT``, not ``CASCADE``: since ownership
+    lives exclusively in this table, silently deleting a User's membership
+    rows as a side effect of deleting the User could delete a Store's only
+    active Owner membership without anyone deciding that should happen,
+    leaving the Store orphaned. Formal account deletion for a user who holds
+    one or more memberships therefore requires a future, explicit
+    membership-revocation/ownership-transfer service to run first — this PR
+    does not implement that service, so such a deletion currently raises
+    ``ProtectedError`` and must be handled by the caller.
     """
 
     class Role(models.TextChoices):
@@ -209,7 +338,7 @@ class StoreMembership(StoresTimestampedModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         verbose_name="کاربر",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="store_memberships",
     )
     role = models.CharField("نقش", max_length=20, choices=Role.choices)

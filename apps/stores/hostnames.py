@@ -1,10 +1,14 @@
 """Authoritative hostname normalization for ``StoreDomain``.
 
 This is the single reusable normalization function for Store domains. It is
-called from the model write path (``StoreDomain.save()``/``clean()``) so
-that no code path — admin, shell, data migration, or a future API — can
-persist an un-normalized or malformed hostname. Do not duplicate this logic
-elsewhere; import and call this function instead.
+called from every write path ``apps.stores.models.StoreDomain`` exposes:
+``instance.save()``/``clean()`` for direct writes, and
+``StoreDomainQuerySet.bulk_create()`` for bulk inserts. Plain
+``QuerySet.update(hostname=...)`` cannot be normalized this way — a raw SQL
+UPDATE never runs Python code — so it is rejected outright by
+``StoreDomainQuerySet.update()`` with ``StoreDomainMutationError`` instead of
+being allowed to silently persist a raw value. Do not duplicate this
+normalization logic elsewhere; import and call this function instead.
 
 Unicode / IDNA decision: internationalized domains are accepted, but are
 always normalized to their ASCII-compatible (Punycode) form via Python's

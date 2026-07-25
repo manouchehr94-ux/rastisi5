@@ -68,6 +68,20 @@ query is expected to return at most one row (enforced by a partial unique
 constraint, see ADR-3), but the enforcement mechanism is the constraint, not
 a denormalized field.
 
+Because ownership lives exclusively in `StoreMembership`, deleting a `User`
+must not be allowed to silently delete their membership rows — that could
+delete a Store's only active Owner membership as a side effect of an
+unrelated user-deletion action, orphaning the Store. `StoreMembership.user`
+therefore uses `on_delete=PROTECT`, not `CASCADE`: deleting a User who still
+holds any membership raises `ProtectedError` rather than deleting the
+membership row. `StoreMembership.store` still uses `CASCADE` — a membership
+has no meaning without its Store, so deleting the Store deleting its
+memberships is correct. `StoreMembership.invited_by` remains `SET_NULL`,
+since losing a record of *who sent an invitation* is not a safety concern.
+Formal user-account deletion for a user who holds memberships requires a
+future, explicit membership-revocation/ownership-transfer service to run
+first; this PR does not implement that service.
+
 ---
 
 ## ADR-3: Store Has One Explicit Status Field
@@ -104,16 +118,26 @@ loosely (schemes, paths, credentials, ports embedded in a "hostname" field).
 (lowercased, trimmed, trailing dot removed, validated as a syntactically
 valid hostname). Scheme, path, query, fragment, credentials, and port are
 rejected at write time by the model's `clean()`/normalization path, not only
-by a form. Hostname is platform-globally unique. At most one
-`is_primary=True` `StoreDomain` per Store is enforced by a partial
-(conditional) database `UniqueConstraint`.
+by a form. This guarantee covers `instance.save()`, `full_clean()`, and
+`StoreDomain.objects.bulk_create()` (which normalizes and validates each
+instance before insertion, since `bulk_create()` never calls `save()`).
+`StoreDomain.objects.filter(...).update(hostname=...)` is the one write path
+that cannot be normalized this way — a raw SQL `UPDATE` runs no Python code —
+so it is rejected outright with `StoreDomainMutationError` rather than being
+allowed to persist an un-normalized value. Hostname is platform-globally
+unique. At most one `is_primary=True` `StoreDomain` per Store is enforced by
+a partial (conditional) database `UniqueConstraint`.
 
 **Alternatives considered.** Storing a full URL and parsing it downstream
 wherever needed — rejected: this multiplies the number of places that must
 agree on what counts as "the same domain," which is exactly the kind of
 duplicate-source-of-truth problem this program is meant to avoid.
 Form-level-only validation — rejected: bypassable via the admin, shell, data
-migrations, or a future API, so it is not authoritative.
+migrations, or a future API, so it is not authoritative. Relying on
+`Model.save()`/`clean()` alone — rejected once identified that
+`QuerySet.update()` and `QuerySet.bulk_create()` bypass both entirely; a
+dedicated `StoreDomainQuerySet` closes that gap for `bulk_create()` and
+blocks the un-normalizable `update(hostname=...)` path outright.
 
 **Consequences.** Internationalized (IDN) domains are accepted only as their
 ASCII-compatible (Punycode/IDNA) form; normalization decodes/encodes
@@ -137,10 +161,28 @@ verification flow (token issuance, retry, expiry) exists.
 **Decision.** `StoreDomain` carries `verification_status`
 (`unverified`/`pending`/`verified`/`failed`), a `verification_token`,
 `verification_requested_at`, and `verified_at`. No DNS/HTTP verification
-networking is implemented; only the model foundation.
+networking is implemented; only the model foundation. Coherence between
+these four fields is enforced twice, deliberately: as database
+`CheckConstraint`s (authoritative — hold even against direct SQL or a bug in
+application code) and mirrored in `clean()` (defense in depth, for a
+friendlier `ValidationError` before the database is even touched). The
+enforced rules are exactly:
+
+* `verified` requires `verified_at` to be set.
+* Any non-`verified` status must **not** retain `verified_at` (so a domain
+  that later moves from `verified` to `failed` must have `verified_at`
+  cleared by the caller, not left stale).
+* `pending` requires `verification_requested_at` to be set.
+* `pending` requires a non-empty `verification_token`.
+* The existing uniqueness rule for non-empty `verification_token` values is
+  unchanged.
 
 **Consequences.** A later PR can implement the actual verification checker
-against this schema without another migration to add lifecycle fields.
+against this schema without another migration to add lifecycle fields. The
+rules above are intentionally the minimum needed for internal coherence of
+the four fields — they are not a claim that the verification *process*
+(retry limits, token expiry, re-verification after a hostname change) is
+fully modeled; that is still future work for the verification-checker PR.
 
 ---
 

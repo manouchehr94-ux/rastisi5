@@ -164,21 +164,39 @@ class StoreMembershipTests(TestCase):
         with self.assertRaises(ValidationError):
             membership.full_clean()
 
-    def test_user_deletion_cascades_membership(self):
-        StoreMembership.objects.create(
-            store=self.store_a, user=self.user_1, role=StoreMembership.Role.ANALYST
-        )
-        self.user_1.delete()
-        self.assertFalse(
-            StoreMembership.objects.filter(store=self.store_a).exists()
-        )
+    def test_deleting_a_user_with_a_membership_raises_protected_error(self):
+        from django.db.models import ProtectedError
 
-    def test_user_deletion_does_not_delete_store(self):
         StoreMembership.objects.create(
             store=self.store_a, user=self.user_1, role=StoreMembership.Role.ANALYST
         )
-        self.user_1.delete()
+        with self.assertRaises(ProtectedError):
+            self.user_1.delete()
+
+    def test_deleting_a_user_with_a_membership_leaves_store_intact(self):
+        from django.db.models import ProtectedError
+
+        StoreMembership.objects.create(
+            store=self.store_a, user=self.user_1, role=StoreMembership.Role.ANALYST
+        )
+        with self.assertRaises(ProtectedError):
+            self.user_1.delete()
         self.assertTrue(Store.objects.filter(pk=self.store_a.pk).exists())
+
+    def test_deleting_a_user_with_a_membership_leaves_membership_intact(self):
+        from django.db.models import ProtectedError
+
+        membership = StoreMembership.objects.create(
+            store=self.store_a, user=self.user_1, role=StoreMembership.Role.ANALYST
+        )
+        with self.assertRaises(ProtectedError):
+            self.user_1.delete()
+        self.assertTrue(StoreMembership.objects.filter(pk=membership.pk).exists())
+
+    def test_deleting_a_user_with_no_membership_succeeds(self):
+        user = User.objects.create_user(username="lonely-user", password="pass12345")
+        user.delete()
+        self.assertFalse(User.objects.filter(username="lonely-user").exists())
 
     def test_store_deletion_cascades_memberships(self):
         StoreMembership.objects.create(
