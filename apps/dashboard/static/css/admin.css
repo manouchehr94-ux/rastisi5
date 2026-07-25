@@ -346,4 +346,47 @@ body.admin-body{
 /* --- sidebar width fix (reduce excessive width) --- */
 .sidebar{width:230px}
 .main{margin-right:230px}
+
+/* ========== VARIATION-MANAGEMENT PAGE (scoped) ========== */
+
+/* summary strip re-uses .grid/.stat from the dashboard KPI cards */
+.variant-summary .stat{padding:14px 16px;gap:4px}
+.variant-summary .stat .val{font-size:18px}
+.variant-summary .stat .lbl{font-size:11.5px}
+
+/* search + status filter toolbar */
+.variant-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)}
+.variant-toolbar .inp{width:240px}
+.variant-toolbar .filter-group{display:flex;gap:6px;flex-wrap:wrap}
+.variant-toolbar .filter-chip{padding:7px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--card);color:var(--muted);transition:.15s}
+.variant-toolbar .filter-chip:hover{border-color:var(--primary);color:var(--primary)}
+.variant-toolbar .filter-chip.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.variant-toolbar .clear-filters{font-size:12px;color:var(--muted);text-decoration:underline;margin-right:auto}
+@media (max-width:560px){.variant-toolbar .inp{width:100%}}
+
+/* variant table refinements (scoped to this table only) */
+/* توجه: هدر چسبان (sticky thead) عمداً استفاده نشد — چون ارتفاع .topbar واکنش‌گرا
+   است (در breakpointهای مختلف تغییر می‌کند) و یک top ثابت باعث هم‌پوشانی هدر با
+   اولین ردیف جدول و مسدودشدن کلیک روی دکمه‌های آن ردیف می‌شد (در آزمایش مرورگر
+   تأیید شد). طبق دستورالعمل، چون این ویژگی به‌طور قابل‌اعتماد کار نکرد حذف شد. */
+.variant-table td.num,.variant-table th.num{font-variant-numeric:tabular-nums;text-align:center}
+.variant-table td.identity b{font-size:13.5px}
+.variant-table td.identity small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.variant-table .order-controls{display:inline-flex;gap:2px}
+.variant-table .order-controls button{width:26px;height:26px;padding:0;display:grid;place-items:center;font-size:11px}
+
+/* compact row actions — a real accessible dropdown (Alpine x-anchor) was tried and
+   dropped: browser testing showed unreliable positioning (menu rendered off-screen
+   on narrow viewports), which is worse than no menu at all. Icon-only buttons with
+   title+aria-label keep the row compact without that risk (task explicitly allows
+   this fallback when a robust menu isn't reliably achievable). */
+.v-actions{white-space:nowrap}
+.v-actions .btn-sm{width:32px;height:32px;padding:0;display:inline-grid;place-items:center;font-size:14px}
+
+/* pagination */
+.pagination{display:flex;align-items:center;justify-content:center;gap:6px;padding:16px;flex-wrap:wrap}
+.pagination a,.pagination span{min-width:34px;height:34px;padding:0 8px;display:inline-flex;align-items:center;justify-content:center;border-radius:9px;font-size:12.5px;font-weight:600;border:1px solid var(--border);color:var(--text)}
+.pagination a:hover{border-color:var(--primary);color:var(--primary)}
+.pagination span.current{background:var(--primary);border-color:var(--primary);color:#fff}
+.pagination span.disabled{color:var(--muted);opacity:.5}
 @media (max-width:860px){.main{margin-right:0}}

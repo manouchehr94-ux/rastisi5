@@ -8,10 +8,7 @@
 {% block content %}
 <div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
   <a class="btn btn-sm" href="{% url 'dashboard:product-list' %}">→ بازگشت به فهرست کالاها</a>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <span class="badge {{ product.product_type|product_type_badge }}">{{ product.product_type|product_type_label }}</span>
-    <span style="font-size:12.5px;color:var(--muted)">{{ active_variant_count|fa_number }} از {{ variant_count|fa_number }} تنوع فعال</span>
-  </div>
+  <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:product-edit' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">✏️ ویرایش کالا</button>
 </div>
 
 {% if not product.is_variable %}
@@ -20,122 +17,212 @@
     <span class="empty-icon">🧬</span>
     <div class="empty-title">این کالا «ساده» است</div>
     <div class="empty-desc">
-      کالای ساده از قیمت و موجودی خودش استفاده می‌کند و تنوعی (مثل رنگ یا سایز) ندارد.
-      برای مدیریت تنوع، ابتدا نوع این کالا را از فرم ویرایش کالا به «دارای تنوع» تغییر دهید.
+      این کالا اکنون از قیمت و موجودی ساده‌ی خودش استفاده می‌کند و تا وقتی به «دارای تنوع» تبدیل نشود،
+      مدیریت تنوع برای آن ممکن نیست.
     </div>
-    <button type="button" class="btn btn-primary" hx-get="{% url 'dashboard:product-edit' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">تغییر نوع کالا</button>
+    <button type="button" class="btn btn-primary" hx-get="{% url 'dashboard:product-edit' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">تبدیل به کالای دارای تنوع</button>
   </div>
 </div>
 {% else %}
 
-{% if not variants %}
-<div class="warning-box">
-  <strong>این کالا هنوز هیچ مقدار تنوع فعالی ندارد.</strong>
-  <p>تا وقتی حداقل یک مقدار تنوع فعال اضافه نکنید، این کالا برای مشتری قابل خرید نخواهد بود. از فرم زیر برای افزودن سریع مقادیر استفاده کنید.</p>
+<!-- خلاصه‌ی وضعیت کالا -->
+<div class="grid g-4 variant-summary" style="margin-bottom:16px">
+  <div class="card stat">
+    <span class="lbl">نوع کالا</span>
+    <span class="badge {{ product.product_type|product_type_badge }}" style="width:fit-content">{{ product.product_type|product_type_label }}</span>
+    {% if product.sku %}<span class="lbl" dir="ltr" style="text-align:right">SKU: {{ product.sku }}</span>{% endif %}
+  </div>
+  <div class="card stat">
+    <span class="val">{{ product.price|toman }}</span>
+    <span class="lbl">قیمت پایه‌ی کالا</span>
+  </div>
+  <div class="card stat">
+    <span class="val">{{ variant_count|fa_number }}</span>
+    <span class="lbl">{{ active_variant_count|fa_number }} فعال · {{ inactive_variant_count|fa_number }} غیرفعال</span>
+  </div>
+  <div class="card stat">
+    <span class="val">{{ active_variant_stock|fa_number }}</span>
+    <span class="lbl">موجودی مجموع مقادیر فعال</span>
+  </div>
+</div>
+
+{% if not variants and not is_filtered %}
+  {% if variant_count == 0 %}
+  <div class="warning-box">
+    <strong>این کالا هنوز هیچ مقدار تنوعی ندارد.</strong>
+    <p>این کالا «دارای تنوع» تنظیم شده، اما هنوز مقداری (مثل رنگ یا سایز) برایش ثبت نشده. از فرم «افزودن سریع تنوع» زیر شروع کنید.</p>
+  </div>
+  {% endif %}
+{% elif not variants and is_filtered %}
+<div class="card" style="margin-bottom:16px">
+  <div class="empty-state">
+    <span class="empty-icon">🔍</span>
+    <div class="empty-title">نتیجه‌ای یافت نشد</div>
+    <div class="empty-desc">هیچ مقدار تنوعی با این جست‌وجو/فیلتر مطابقت ندارد.</div>
+    <a href="{% url 'dashboard:product-variants' product.pk %}" class="btn btn-secondary">پاک‌کردن جست‌وجو و فیلترها</a>
+  </div>
 </div>
 {% elif active_variant_count == 0 %}
 <div class="warning-box">
-  <strong>این کالا «دارای تنوع» است اما هیچ مقدار فعالی ندارد.</strong>
-  <p>مقادیر موجود غیرفعال هستند؛ تا فعال‌سازی حداقل یکی از آن‌ها، این کالا برای مشتری قابل خرید نخواهد بود.</p>
+  <strong>هیچ مقدار فعالی وجود ندارد — این کالا فعلاً برای مشتری قابل خرید نیست.</strong>
 </div>
 {% endif %}
 
 <div class="card" style="margin-bottom:16px">
-  <div class="card-head"><h3>افزودن سریع تنوع</h3><span class="hint">هر مقدار را در یک خط یا با کاما/سمیکالن جدا کنید</span></div>
+  <div class="card-head"><h3>افزودن سریع تنوع</h3><span class="hint">۱) نام ویژگی ۲) مقادیر ۳) تنظیمات پیش‌فرض ۴) ایجاد</span></div>
   <div class="card-body">
     <form method="post" action="{% url 'dashboard:product-variant-bulk-add' product.pk %}">
       {% csrf_token %}
       {% if bulk_form.non_field_errors %}
-      <div style="color:var(--red);font-size:12.5px;margin-bottom:10px">{% for err in bulk_form.non_field_errors %}<div>{{ err }}</div>{% endfor %}</div>
+      <div class="validation-summary">{% for err in bulk_form.non_field_errors %}<div>{{ err }}</div>{% endfor %}</div>
       {% endif %}
-      <div class="form-row">
-        <div class="form-group">
-          <label>نام تنوع *</label>
-          <input class="inp" name="attribute" value="{{ bulk_form.attribute.value|default_if_none:'' }}" placeholder="مثلاً: رنگ، سایز، حجم">
-          {% for err in bulk_form.attribute.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
-        </div>
-        <div class="form-group">
-          <label>موجودی پیش‌فرض</label>
-          <input class="inp" name="default_stock" value="{{ bulk_form.default_stock.value|default:'0' }}" dir="ltr" inputmode="numeric">
-          {% for err in bulk_form.default_stock.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
-        </div>
+      <div class="form-group">
+        <label for="id_attribute">۱. نام ویژگی *</label>
+        <input class="inp" id="id_attribute" name="attribute" value="{{ bulk_form.attribute.value|default_if_none:'' }}" placeholder="مثلاً: رنگ، سایز، حجم، مدل">
+        <small style="color:var(--muted);font-size:11.5px">این نام برای همه‌ی مقادیری که پایین اضافه می‌کنید یکسان است.</small>
+        {% for err in bulk_form.attribute.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
       </div>
       <div class="form-group">
-        <label>مقادیر تنوع *</label>
-        <textarea class="inp" name="raw_values" rows="4" placeholder="قرمز&#10;آبی&#10;مشکی">{{ bulk_form.raw_values.value|default_if_none:'' }}</textarea>
+        <label for="id_raw_values">۲. مقادیر ویژگی *</label>
+        <textarea class="inp" id="id_raw_values" name="raw_values" rows="4" placeholder="قرمز&#10;آبی&#10;مشکی">{{ bulk_form.raw_values.value|default_if_none:'' }}</textarea>
+        <small style="color:var(--muted);font-size:11.5px">هر مقدار را در یک خط بنویسید، یا با کاما (،) از هم جدا کنید.</small>
         {% for err in bulk_form.raw_values.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>تغییر قیمت پیش‌فرض (تومان)</label>
-          <input class="inp" name="default_extra_price" value="{{ bulk_form.default_extra_price.value|default:'0' }}" dir="ltr" inputmode="numeric">
+          <label for="id_default_stock">۳. موجودی اولیه برای هر مقدار</label>
+          <input class="inp" id="id_default_stock" name="default_stock" value="{{ bulk_form.default_stock.value|default:'0' }}" dir="ltr" inputmode="numeric">
+          {% for err in bulk_form.default_stock.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label for="id_default_extra_price">تغییر قیمت برای هر مقدار (تومان)</label>
+          <input class="inp" id="id_default_extra_price" name="default_extra_price" value="{{ bulk_form.default_extra_price.value|default:'0' }}" dir="ltr" inputmode="numeric">
+          <small style="color:var(--muted);font-size:11.5px">نسبت به قیمت پایه‌ی کالا؛ می‌تواند صفر یا منفی هم باشد.</small>
           {% for err in bulk_form.default_extra_price.errors %}<span class="field-error">{{ err }}</span>{% endfor %}
         </div>
       </div>
       <label class="toggle-field">
         <input type="checkbox" name="is_active" {% if bulk_form.is_active.value or not bulk_form.is_bound %}checked{% endif %}>
         <div class="toggle-content">
-          <span class="toggle-title">مقادیر به‌صورت فعال ثبت شوند</span>
+          <span class="toggle-title">۴. پس از ایجاد فعال باشند</span>
           <span class="toggle-desc">در صورت غیرفعال بودن، این مقادیر تا فعال‌سازی دستی برای مشتری قابل انتخاب نیستند.</span>
         </div>
       </label>
       <div class="btn-row">
-        <button type="submit" class="btn btn-primary">افزودن مقادیر</button>
+        <button type="submit" class="btn btn-primary">➕ ایجاد مقادیر</button>
       </div>
     </form>
   </div>
 </div>
 
+{% if variant_count > 0 %}
 <div class="card">
-  <div class="card-head"><h3>مقادیر تنوع موجود</h3></div>
+  <div class="card-head"><h3>مقادیر تنوع</h3></div>
+
+  <div class="variant-toolbar">
+    <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;flex:1">
+      <input class="inp" type="search" name="q" value="{{ search_query }}" placeholder="جست‌وجو در نام ویژگی، مقدار یا کد کالا..." aria-label="جست‌وجوی تنوع">
+      {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+      <button type="submit" class="btn btn-sm">جست‌وجو</button>
+    </form>
+    <div class="filter-group" role="group" aria-label="فیلتر وضعیت">
+      <a class="filter-chip{% if not status_filter %} active{% endif %}" href="?{% if search_query %}q={{ search_query }}{% endif %}">همه</a>
+      <a class="filter-chip{% if status_filter == 'active' %} active{% endif %}" href="?status=active{% if search_query %}&q={{ search_query }}{% endif %}">فعال</a>
+      <a class="filter-chip{% if status_filter == 'inactive' %} active{% endif %}" href="?status=inactive{% if search_query %}&q={{ search_query }}{% endif %}">غیرفعال</a>
+    </div>
+    {% if is_filtered %}
+    <a class="clear-filters" href="{% url 'dashboard:product-variants' product.pk %}">پاک‌کردن جست‌وجو و فیلتر</a>
+    {% endif %}
+  </div>
+
+  {% if is_filtered %}
+  <div class="info-box" style="margin:14px 18px 0">ترتیب جابه‌جایی روی کل مقادیر کالا اعمال می‌شود، نه فقط نتایج فیلترشده؛ برای همین دکمه‌های جابه‌جایی هنگام جست‌وجو/فیلتر نمایش داده نمی‌شوند.</div>
+  {% endif %}
+
   {% if variants %}
-  <div class="table-wrap"><table>
-    <thead><tr><th>ترتیب</th><th>نام تنوع</th><th>مقدار</th><th>کد کالا</th><th>قیمت نهایی</th><th>تغییر قیمت</th><th>موجودی</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+  <div class="table-wrap"><table class="variant-table">
+    <thead><tr>
+      {% if not ordering_locked %}<th>ترتیب</th>{% endif %}
+      <th>ویژگی و مقدار</th>
+      <th class="num">قیمت نهایی</th>
+      <th class="num">تغییر قیمت</th>
+      <th class="num">موجودی</th>
+      <th>وضعیت</th>
+      <th>عملیات</th>
+    </tr></thead>
     <tbody>
       {% for variant in variants %}
       <tr>
+        {% if not ordering_locked %}
         <td>
-          <div style="display:flex;gap:2px">
-            <form method="post" action="{% url 'dashboard:product-variant-move' product.pk variant.pk %}">
+          <div class="order-controls">
+            <form method="post" action="{% url 'dashboard:product-variant-move' product.pk variant.pk %}?{{ full_querystring }}">
               {% csrf_token %}<input type="hidden" name="direction" value="up">
-              <button type="submit" class="btn btn-sm" {% if forloop.first %}disabled{% endif %} title="جابه‌جایی به بالا" aria-label="جابه‌جایی به بالا">▲</button>
+              <button type="submit" class="btn btn-sm" {% if variant.pk == global_first_id %}disabled{% endif %} title="جابه‌جایی به بالا" aria-label="جابه‌جایی «{{ variant.value }}» به بالا">▲</button>
             </form>
-            <form method="post" action="{% url 'dashboard:product-variant-move' product.pk variant.pk %}">
+            <form method="post" action="{% url 'dashboard:product-variant-move' product.pk variant.pk %}?{{ full_querystring }}">
               {% csrf_token %}<input type="hidden" name="direction" value="down">
-              <button type="submit" class="btn btn-sm" {% if forloop.last %}disabled{% endif %} title="جابه‌جایی به پایین" aria-label="جابه‌جایی به پایین">▼</button>
+              <button type="submit" class="btn btn-sm" {% if variant.pk == global_last_id %}disabled{% endif %} title="جابه‌جایی به پایین" aria-label="جابه‌جایی «{{ variant.value }}» به پایین">▼</button>
             </form>
           </div>
         </td>
-        <td>{{ variant.attribute }}</td>
-        <td>{{ variant.value }}</td>
-        <td dir="ltr" style="text-align:left">{{ variant.sku|default:"—" }}</td>
-        <td><b>{{ variant.effective_price|toman }}</b></td>
-        <td>{% if variant.extra_price %}{{ variant.extra_price|toman }}{% else %}—{% endif %}</td>
-        <td>{{ variant.stock|fa_number }}</td>
+        {% endif %}
+        <td class="identity">
+          <b>{{ variant.value }}</b>
+          <small>{{ variant.attribute }}{% if variant.sku %} · <span dir="ltr">{{ variant.sku }}</span>{% endif %}</small>
+        </td>
+        <td class="num"><b>{{ variant.effective_price|toman }}</b></td>
+        <td class="num">{% if variant.extra_price %}{{ variant.extra_price|toman }}{% else %}—{% endif %}</td>
+        <td class="num">{{ variant.stock|fa_number }}</td>
         <td><span class="badge {% if variant.is_active %}b-green{% else %}b-gray{% endif %}">{% if variant.is_active %}فعال{% else %}غیرفعال{% endif %}</span></td>
-        <td style="white-space:nowrap">
-          <a class="btn btn-sm" href="{% url 'dashboard:product-variant-edit' product.pk variant.pk %}">✏️ ویرایش</a>
-          <form method="post" action="{% url 'dashboard:product-variant-toggle' product.pk variant.pk %}" style="display:inline">
+        <td class="v-actions">
+          <a class="btn btn-sm" href="{% url 'dashboard:product-variant-edit' product.pk variant.pk %}?back_query={{ full_querystring|urlencode }}"
+             title="ویرایش" aria-label="ویرایش {{ variant.attribute }}: {{ variant.value }}">✏️</a>
+          <form method="post" action="{% url 'dashboard:product-variant-toggle' product.pk variant.pk %}?{{ full_querystring }}" style="display:inline-block">
             {% csrf_token %}
-            <button type="submit" class="btn btn-sm">{% if variant.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}</button>
+            <button type="submit" class="btn btn-sm"
+                    title="{% if variant.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}"
+                    aria-label="{% if variant.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %} {{ variant.attribute }}: {{ variant.value }}">
+              {% if variant.is_active %}⏸️{% else %}▶️{% endif %}
+            </button>
           </form>
           {% if variant.has_order_history %}
-          <span class="btn btn-sm" style="opacity:.55;cursor:not-allowed" title="این مقدار در سفارشی استفاده شده و قابل حذف نیست؛ می‌توانید غیرفعالش کنید">🔒 حذف</span>
+          <span class="btn btn-sm" style="opacity:.55;cursor:not-allowed" tabindex="0"
+                title="این مقدار در سفارشی استفاده شده و قابل حذف نیست؛ می‌توانید غیرفعالش کنید"
+                aria-label="حذف {{ variant.attribute }}: {{ variant.value }} غیرممکن است — در سفارشی استفاده شده">🔒</span>
           {% else %}
-          <a class="btn btn-sm btn-danger" href="{% url 'dashboard:product-variant-delete' product.pk variant.pk %}">🗑️ حذف</a>
+          <a class="btn btn-sm btn-danger" href="{% url 'dashboard:product-variant-delete' product.pk variant.pk %}?{{ full_querystring }}"
+             title="حذف" aria-label="حذف {{ variant.attribute }}: {{ variant.value }}">🗑️</a>
           {% endif %}
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table></div>
-  {% else %}
-  <div class="empty-state">
-    <span class="empty-icon">🧬</span>
-    <div class="empty-title">هنوز مقدار تنوعی ثبت نشده</div>
-    <div class="empty-desc">با استفاده از فرم «افزودن سریع تنوع» بالا، اولین مقادیر (مثل رنگ‌ها یا سایزها) را اضافه کنید.</div>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="pagination">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}{% if querystring %}&{{ querystring }}{% endif %}">قبلی</a>
+    {% else %}
+    <span class="disabled">قبلی</span>
+    {% endif %}
+    {% for num in page_obj.paginator.page_range %}
+      {% if num == page_obj.number %}
+      <span class="current">{{ num|fa_number }}</span>
+      {% else %}
+      <a href="?page={{ num }}{% if querystring %}&{{ querystring }}{% endif %}">{{ num|fa_number }}</a>
+      {% endif %}
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% if querystring %}&{{ querystring }}{% endif %}">بعدی</a>
+    {% else %}
+    <span class="disabled">بعدی</span>
+    {% endif %}
   </div>
   {% endif %}
+  {% endif %}
 </div>
+{% endif %}
 {% endif %}
 {% endblock %}

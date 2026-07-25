@@ -3,8 +3,9 @@ import json
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import Count, ProtectedError
+from django.db.models import Count, Exists, OuterRef, ProtectedError, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -33,7 +34,7 @@ from apps.catalog.services.variant_service import (
 )
 from apps.core.models import ShopSettings
 from apps.customers.models import Customer
-from apps.orders.models import Order, Transaction
+from apps.orders.models import Order, OrderItem, Transaction
 from apps.orders.services.order_service import change_order_status
 from apps.sms.events import EVENT_VARIABLES
 from apps.sms.models import SmsTemplate
@@ -350,27 +351,84 @@ def product_image_alt_update(request, pk, image_id):
 
 # --------------------------------------------------------- تنوع کالا
 
+VARIANTS_PER_PAGE = 25
 
-def _variant_page_context(product, *, bulk_form=None):
-    from django.db.models import Exists, OuterRef
 
-    from apps.orders.models import OrderItem
+def _variant_status_filter(request):
+    status = request.GET.get("status", "").strip()
+    return status if status in ("active", "inactive") else ""
 
-    variants = list(
-        product.variants.annotate(
-            has_order_history=Exists(OrderItem.objects.filter(variant=OuterRef("pk")))
-        ).order_by("display_order", "attribute", "value")
+
+def _variant_search_query(request):
+    return request.GET.get("q", "").strip()
+
+
+def _variant_page_context(request, product, *, bulk_form=None):
+    """کانتکست کامل صفحه‌ی مدیریت تنوع: جست‌وجو، فیلتر وضعیت و صفحه‌بندی — همه محدود به همین کالا.
+
+    شمارش‌های خلاصه (کل/فعال/غیرفعال/موجودی) همیشه روی کل تنوع‌های کالا محاسبه می‌شوند،
+    نه فقط نتایج جست‌وجو/صفحه‌ی جاری، تا کارت‌های خلاصه گمراه‌کننده نشوند.
+    ترتیب جابه‌جایی (بالا/پایین) همیشه روی ترتیب کامل کالا عمل می‌کند، نه ترتیب محلیِ
+    نتیجه‌ی فیلترشده یا صفحه‌ی جاری — برای همین وقتی جست‌وجو یا فیلتر فعال است،
+    دکمه‌های جابه‌جایی در قالب مخفی می‌شوند (ordering_locked) تا معنای «بالا/پایین»
+    هرگز به‌صورت خاموش به ترتیب محلی صفحه تبدیل نشود.
+    """
+    q = _variant_search_query(request)
+    status = _variant_status_filter(request)
+    is_filtered = bool(q or status)
+
+    base_qs = product.variants.all()
+    variant_count = base_qs.count()
+    active_variant_count = base_qs.filter(is_active=True).count()
+    inactive_variant_count = variant_count - active_variant_count
+    active_variant_stock = base_qs.filter(is_active=True).aggregate(total=Sum("stock"))["total"] or 0
+
+    filtered_qs = base_qs.annotate(
+        has_order_history=Exists(OrderItem.objects.filter(variant=OuterRef("pk")))
     )
+    if q:
+        filtered_qs = filtered_qs.filter(Q(attribute__icontains=q) | Q(value__icontains=q) | Q(sku__icontains=q))
+    if status:
+        filtered_qs = filtered_qs.filter(is_active=(status == "active"))
+    filtered_qs = filtered_qs.order_by("display_order", "attribute", "value")
+
+    paginator = Paginator(filtered_qs, VARIANTS_PER_PAGE)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    variants = list(page_obj.object_list)
     for variant in variants:
         variant.effective_price = resolve_effective_price(product, variant)
+
+    global_ids = list(base_qs.order_by("display_order", "attribute", "value").values_list("pk", flat=True))
+
+    querystring_params = request.GET.copy()
+    querystring_params.pop("page", None)
+
     return {
         "product": product,
         "variants": variants,
-        "variant_count": len(variants),
-        "active_variant_count": sum(1 for v in variants if v.is_active),
+        "page_obj": page_obj,
+        "variant_count": variant_count,
+        "active_variant_count": active_variant_count,
+        "inactive_variant_count": inactive_variant_count,
+        "active_variant_stock": active_variant_stock,
         "bulk_form": bulk_form or VariantBulkAddForm(),
         "active_page": "products",
+        "search_query": q,
+        "status_filter": status,
+        "is_filtered": is_filtered,
+        "ordering_locked": is_filtered,
+        "global_first_id": global_ids[0] if global_ids else None,
+        "global_last_id": global_ids[-1] if global_ids else None,
+        "querystring": querystring_params.urlencode(),
+        "full_querystring": request.GET.urlencode(),
     }
+
+
+def _variant_list_redirect(request, product):
+    """بازگشت به صفحه‌ی تنوع‌ها با حفظ جست‌وجو/فیلتر/صفحه‌ی جاری (از querystring همان درخواست)."""
+    url = reverse("dashboard:product-variants", args=[product.pk])
+    query = request.GET.urlencode()
+    return redirect(f"{url}?{query}" if query else url)
 
 
 def _get_scoped_product(pk):
@@ -381,7 +439,7 @@ def _get_scoped_product(pk):
 @staff_required
 def product_variants(request, pk):
     product = _get_scoped_product(pk)
-    return render(request, "dashboard/product_variants.html", _variant_page_context(product))
+    return render(request, "dashboard/product_variants.html", _variant_page_context(request, product))
 
 
 @require_POST
@@ -414,7 +472,9 @@ def product_variant_bulk_add(request, pk):
                 return redirect("dashboard:product-variants", pk=product.pk)
             form.add_error(None, skipped[0] if skipped else "هیچ مقداری اضافه نشد")
 
-    return render(request, "dashboard/product_variants.html", _variant_page_context(product, bulk_form=form))
+    return render(
+        request, "dashboard/product_variants.html", _variant_page_context(request, product, bulk_form=form)
+    )
 
 
 @staff_required
@@ -439,15 +499,21 @@ def product_variant_edit(request, pk, variant_id):
                 form.add_error(None, str(exc))
             else:
                 messages.success(request, f"مقدار تنوع «{variant.value}» با موفقیت ویرایش شد")
-                return redirect("dashboard:product-variants", pk=product.pk)
+                back_url = reverse("dashboard:product-variants", args=[product.pk])
+                back_query = request.POST.get("back_query", "")
+                return redirect(f"{back_url}?{back_query}" if back_query else back_url)
     else:
         form = VariantEditForm(initial={
             "attribute": variant.attribute, "value": variant.value, "sku": variant.sku,
             "extra_price": variant.extra_price, "stock": variant.stock, "is_active": variant.is_active,
         })
 
+    back_url = reverse("dashboard:product-variants", args=[product.pk])
+    back_query = request.GET.urlencode() or request.POST.get("back_query", "")
     return render(request, "dashboard/product_variant_edit.html", {
         "product": product, "variant": variant, "form": form, "active_page": "products",
+        "back_url": f"{back_url}?{back_query}" if back_query else back_url,
+        "back_query": back_query,
     })
 
 
@@ -467,7 +533,7 @@ def product_variant_toggle(request, pk, variant_id):
     except VariantError as exc:
         messages.error(request, str(exc))
 
-    return redirect("dashboard:product-variants", pk=product.pk)
+    return _variant_list_redirect(request, product)
 
 
 @staff_required
@@ -481,11 +547,14 @@ def product_variant_delete(request, pk, variant_id):
                 request,
                 f"مقدار تنوع «{variant.value}» در سفارش‌های ثبت‌شده استفاده شده و قابل حذف نیست؛ آن را غیرفعال کنید.",
             )
-            return redirect("dashboard:product-variants", pk=product.pk)
+            return _variant_list_redirect(request, product)
+        cancel_url = reverse("dashboard:product-variants", args=[product.pk])
+        if request.GET.urlencode():
+            cancel_url = f"{cancel_url}?{request.GET.urlencode()}"
         return render(request, "dashboard/confirm_delete.html", {
             "object_type": "مقدار تنوع",
             "object_name": f"{variant.attribute}: {variant.value}",
-            "cancel_url": reverse("dashboard:product-variants", args=[product.pk]),
+            "cancel_url": cancel_url,
             "active_page": "products",
         })
 
@@ -495,7 +564,7 @@ def product_variant_delete(request, pk, variant_id):
     except VariantError as exc:
         messages.error(request, str(exc))
 
-    return redirect("dashboard:product-variants", pk=product.pk)
+    return _variant_list_redirect(request, product)
 
 
 @require_POST
@@ -515,7 +584,7 @@ def product_variant_move(request, pk, variant_id):
             ordered_ids[index], ordered_ids[neighbor_index] = ordered_ids[neighbor_index], ordered_ids[index]
             reorder_variants(product, ordered_ids)
 
-    return redirect("dashboard:product-variants", pk=product.pk)
+    return _variant_list_redirect(request, product)
 
 
 # --------------------------------------------------------- دسته‌بندی‌ها
