@@ -1,13 +1,13 @@
 # سند مرجع جامع پروژه فروشگاه‌ساز اخلاقی
 
-> **نام پیشنهادی در Repository:** `docs/00_PROJECT_MASTER_REFERENCE.md`  
-> **وضعیت سند:** مرجع راهبردی و فنی فعال  
-> **نسخه:** 1.0  
-> **تاریخ وضعیت:** پس از Merge شدن PR #21  
-> **پروژه:** CLOAUD-AKHLAGHI  
-> **نوع محصول:** پلتفرم فروشگاه‌ساز چندمستاجره مبتنی بر Django  
-> **نخستین فروشگاه واقعی:** اخلاقی (`Akhlaghi`)  
-> **زبان اصلی محصول:** فارسی، راست‌چین، موبایل‌محور  
+> **نام پیشنهادی در Repository:** `docs/00_PROJECT_MASTER_REFERENCE.md`<br>
+> **وضعیت سند:** مرجع راهبردی و فنی فعال<br>
+> **نسخه:** 1.0<br>
+> **تاریخ وضعیت:** پس از Merge شدن PR #21<br>
+> **پروژه:** CLOAUD-AKHLAGHI<br>
+> **نوع محصول:** پلتفرم فروشگاه‌ساز چندمستاجره مبتنی بر Django<br>
+> **نخستین فروشگاه واقعی:** اخلاقی (`Akhlaghi`)<br>
+> **زبان اصلی محصول:** فارسی، راست‌چین، موبایل‌محور<br>
 > **وضعیت فعلی:** زیرساخت چندمستاجری و مرز کاتالوگ تثبیت شده؛ تطبیق قابلیت‌های واقعی Repository با نقشه محصول در جریان است.
 
 ---
@@ -1312,6 +1312,19 @@ SQLite برای توسعه و تست فعلی پذیرفته است، اما م�
 
 هر قابلیت concurrency-sensitive باید حداقل یک بار روی PostgreSQL تست شود.
 
+> **الحاقیه (پس از PR — Production Configuration Foundation، ۱۴۰۵/۰۵/۰۴):**
+> موارد زیر از فهرست بالا اکنون از طریق environment variable قابل‌پیکربندی
+> شده‌اند (پیش‌فرض توسعه/تست بدون تغییر باقی مانده است):
+> `DJANGO_SECRET_KEY`، `DJANGO_DEBUG`، `DJANGO_ALLOWED_HOSTS`،
+> `DJANGO_CSRF_TRUSTED_ORIGINS`، تنظیمات HTTPS/secure-cookie/HSTS،
+> `DATABASE_URL` (PostgreSQL از طریق `psycopg`)، `DJANGO_STATIC_ROOT`،
+> `DJANGO_MEDIA_ROOT`، و یک پیکربندی `LOGGING` حداقلی. جزئیات کامل و راهنمای
+> استقرار در `docs/deployment/PRODUCTION_CONFIGURATION.md` و
+> `.env.example` است. **این تغییر پایه‌ی پیکربندی است، نه آمادگی کامل
+> Production** — موارد زیر همچنان ناتمام‌اند: انتقال واقعی به PostgreSQL در
+> یک محیط واقعی، select_for_update/inventory locking، backup/restore
+> تست‌شده، CI/CD، health checks عملیاتی، و انتخاب ارائه‌دهنده‌ی هاست.
+
 ---
 
 # 22. تست اجباری
@@ -1790,7 +1803,7 @@ Content Boundary
 | Page builder | Absent |
 | Merchant RBAC | Absent/Foundational model only |
 | SaaS billing | Absent |
-| Production hardening | Not complete |
+| Production hardening | Partial — configuration foundation implemented (env-driven settings, PostgreSQL-capable DB, logging); PostgreSQL deployment, Order/dashboard Store boundary, checkout idempotency, Zibal, Enamad, backups, and hosting selection still pending |
 
 ---
 

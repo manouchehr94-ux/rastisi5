@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import Mock, patch
 
 from django.test import TestCase
@@ -10,6 +11,21 @@ class ConsoleBackendTests(TestCase):
         result = ConsoleBackend().send(to="09121234567", text="سلام")
         self.assertTrue(result.success)
         self.assertEqual(result.provider_ref_id, "console")
+
+    def test_does_not_log_message_text_at_info_level_or_above(self):
+        """The console backend's logged text can contain an OTP code (the
+        default OTP template embeds {otp_code} directly in the SMS body) —
+        it must never be emitted at INFO or above, since INFO is the
+        production-default DJANGO_LOG_LEVEL and would otherwise leak OTP
+        codes into the production console log stream. It may still log at
+        DEBUG, for local development visibility."""
+        logger_name = "apps.sms.services.backends"
+        with self.assertNoLogs(logger_name, level="INFO"):
+            ConsoleBackend().send(to="09121234567", text="کد ورود شما: 123456")
+
+        with self.assertLogs(logger_name, level="DEBUG") as captured:
+            ConsoleBackend().send(to="09121234567", text="کد ورود شما: 123456")
+        self.assertTrue(any("123456" in message for message in captured.output))
 
 
 class MelipayamakBackendTests(TestCase):
