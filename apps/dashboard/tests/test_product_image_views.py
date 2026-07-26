@@ -11,6 +11,7 @@ from PIL import Image
 
 from apps.catalog.models import Category, Product, ProductImage, Vendor
 from apps.catalog.services.product_image_service import add_product_image
+from apps.stores.models import Store
 
 User = get_user_model()
 
@@ -31,10 +32,11 @@ class ProductImageViewsTestCase(TestCase):
         super().tearDownClass()
 
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-piv")
-        self.category = Category.objects.create(name="دسته", slug="cat-piv")
+        self.store = Store.objects.get(slug="akhlaghi")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-piv")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-piv")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کالای تصویری", slug="piv-product",
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای تصویری", slug="piv-product",
             sku="SKU-PIV1", price=Decimal("500000"), stock=5,
         )
         self.staff = User.objects.create_user(username="09121133001", password="pass12345", is_staff=True)

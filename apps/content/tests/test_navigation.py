@@ -11,8 +11,13 @@ from django.urls import reverse
 
 from apps.catalog.models import Category, Product, Vendor
 from apps.content.models import DestinationType, Menu, MenuItem
+from apps.stores.models import Store
 
 User = get_user_model()
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
 
 
 # ============================================================ MENU MODEL TESTS
@@ -58,8 +63,8 @@ class MenuModelTests(TestCase):
 class MenuItemModelTests(TestCase):
     def setUp(self):
         self.menu = Menu.objects.create(title="Header", location="header")
-        self.vendor = Vendor.objects.create(name="V", slug="v-nav")
-        self.category = Category.objects.create(name="Cat", slug="cat-nav")
+        self.vendor = Vendor.objects.create(store=_akhlaghi(), name="V", slug="v-nav")
+        self.category = Category.objects.create(store=_akhlaghi(), name="Cat", slug="cat-nav")
 
     def test_valid_top_level_item(self):
         item = MenuItem.objects.create(
@@ -293,7 +298,7 @@ class MenuDashboardCRUDTests(TestCase):
 
     def test_create_item(self):
         menu = Menu.objects.create(title="M", location="header")
-        cat = Category.objects.create(name="C", slug="c-nav-crud")
+        cat = Category.objects.create(store=_akhlaghi(), name="C", slug="c-nav-crud")
         response = self.client.post(reverse("dashboard:menu-item-add", args=[menu.pk]), {
             "title": "New Item", "display_order": "0", "is_active": "on",
             "destination_type": "category", "destination_category": str(cat.pk),
@@ -304,7 +309,7 @@ class MenuDashboardCRUDTests(TestCase):
 
     def test_edit_item(self):
         menu = Menu.objects.create(title="M", location="header")
-        cat = Category.objects.create(name="EC", slug="ec-edit")
+        cat = Category.objects.create(store=_akhlaghi(), name="EC", slug="ec-edit")
         item = MenuItem.objects.create(
             menu=menu, title="Old", destination_type="category",
             destination_category=cat,
@@ -378,7 +383,7 @@ class MenuDashboardCRUDTests(TestCase):
 
 class NavigationStorefrontTests(TestCase):
     def setUp(self):
-        self.category = Category.objects.create(name="Electronics", slug="electronics-nav")
+        self.category = Category.objects.create(store=_akhlaghi(), name="Electronics", slug="electronics-nav")
 
     def test_header_menu_renders(self):
         menu = Menu.objects.create(title="Header", location="header", is_active=True)
@@ -615,7 +620,7 @@ class NavigationFallbackRemovalTests(TestCase):
 
     def test_footer_menu_only_inactive_items_no_column(self):
         """Footer menu with only inactive/unresolvable items → column not rendered."""
-        cat = Category.objects.create(name="FC", slug="fc-fr")
+        cat = Category.objects.create(store=_akhlaghi(), name="FC", slug="fc-fr")
         menu = Menu.objects.create(title="F1", location="footer_1", is_active=True)
         MenuItem.objects.create(
             menu=menu, title="Inactive",
@@ -652,7 +657,7 @@ class DestinationPolicyTests(TestCase):
 
     def setUp(self):
         self.menu = Menu.objects.create(title="T", location="header")
-        self.category = Category.objects.create(name="DC", slug="dc-dp")
+        self.category = Category.objects.create(store=_akhlaghi(), name="DC", slug="dc-dp")
 
     def test_leaf_with_no_destination_allowed_as_provisional(self):
         """Top-level item with destination=none → allowed (provisional parent, won't render)."""
@@ -793,7 +798,7 @@ class HeaderHierarchyRenderingTests(TestCase):
     """تست‌های رندر زیرمنوی هدر."""
 
     def setUp(self):
-        self.category = Category.objects.create(name="HCat", slug="hcat-hr")
+        self.category = Category.objects.create(store=_akhlaghi(), name="HCat", slug="hcat-hr")
         self.menu = Menu.objects.create(title="Header", location="header", is_active=True)
 
     def test_parent_and_child_both_render(self):
@@ -946,7 +951,7 @@ class FooterHierarchyRenderingTests(TestCase):
     """تست‌های رندر سلسله‌مراتب فوتر."""
 
     def setUp(self):
-        self.category = Category.objects.create(name="FC", slug="fc-fhr")
+        self.category = Category.objects.create(store=_akhlaghi(), name="FC", slug="fc-fhr")
 
     def test_footer_child_rendered(self):
         """Footer children render in nested <ul>."""
@@ -987,7 +992,7 @@ class ParentCreationWorkflowTests(TestCase):
 
     def setUp(self):
         self.menu = Menu.objects.create(title="M", location="header")
-        self.category = Category.objects.create(name="WC", slug="wc-pcw")
+        self.category = Category.objects.create(store=_akhlaghi(), name="WC", slug="wc-pcw")
         self.staff = User.objects.create_user(username="staff_pcw", password="p!", is_staff=True)
         self.client.login(username="staff_pcw", password="p!")
 
@@ -1044,7 +1049,7 @@ class NavigationQueryCountTests(TestCase):
     """تست شمارش query — حداکثر ۲ query برای ناوبری."""
 
     def setUp(self):
-        self.category = Category.objects.create(name="QC", slug="qc-qct")
+        self.category = Category.objects.create(store=_akhlaghi(), name="QC", slug="qc-qct")
         self.menu = Menu.objects.create(title="H", location="header", is_active=True)
         parent = MenuItem.objects.create(
             menu=self.menu, title="P1", destination_type="none", is_active=True,
@@ -1091,7 +1096,7 @@ class NavigationAccessibilityTests(TestCase):
     """تست‌های ویژگی‌های دسترسی‌پذیری در رندر هدر."""
 
     def setUp(self):
-        self.category = Category.objects.create(name="AC", slug="ac-nat")
+        self.category = Category.objects.create(store=_akhlaghi(), name="AC", slug="ac-nat")
         self.menu = Menu.objects.create(title="H", location="header", is_active=True)
 
     def test_escape_handler_present(self):

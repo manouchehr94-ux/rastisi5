@@ -8,18 +8,20 @@ from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
 
 from apps.orders.models import Order, OrderItem, OrderStatusHistory, PaymentGateway, ShippingMethod, Transaction
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
 class OrdersModelsTests(TestCase):
     def setUp(self):
+        self.store = Store.objects.get(slug="akhlaghi")
         self.user = User.objects.create_user(username="reza", password="pass12345")
         self.customer = Customer.objects.create(user=self.user, full_name="رضا محمدی", phone="09123334455")
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-o")
-        self.category = Category.objects.create(name="کفش", slug="shoes-o")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-o")
+        self.category = Category.objects.create(store=self.store, name="کفش", slug="shoes-o")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کتانی", slug="sneaker-o",
+            store=self.store, vendor=self.vendor, category=self.category, name="کتانی", slug="sneaker-o",
             sku="SKU-O1", price=Decimal("2000000"),
         )
         self.shipping = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-o", cost=45_000)

@@ -7,6 +7,7 @@ from django.urls import reverse
 from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Address, Customer
 from apps.orders.models import Order, PaymentGateway, ShippingMethod
+from apps.stores.models import Store
 
 User = get_user_model()
 
@@ -111,10 +112,12 @@ class AccountOrderDetailViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="09121118855", password="pass12345")
         self.customer = Customer.objects.create(user=self.user, full_name="کاربر", phone="09121118855")
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-aod")
-        category = Category.objects.create(name="دیجیتال", slug="digital-aod")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-aod")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-aod")
         Product.objects.create(
-            vendor=vendor, category=category, name="کالا", slug="sample-aod", sku="SKU-AOD1", price=Decimal("100000")
+            store=store, vendor=vendor, category=category, name="کالا", slug="sample-aod",
+            sku="SKU-AOD1", price=Decimal("100000"),
         )
         shipping = ShippingMethod.objects.create(name="پست", slug="post-aod", cost=45_000)
         gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-aod")

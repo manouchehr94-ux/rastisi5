@@ -8,6 +8,7 @@ from apps.cart.models import Cart, CartItem
 from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
 from apps.sms.models import OtpCode, SmsTemplate
+from apps.stores.models import Store
 
 User = get_user_model()
 
@@ -35,10 +36,11 @@ class SignupViewTests(TestCase):
         self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_signup_merges_guest_cart(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-sgc")
-        category = Category.objects.create(name="دیجیتال", slug="digital-sgc")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-sgc")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-sgc")
         product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-sgc",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-sgc",
             sku="SKU-SGC1", price=Decimal("100000"),
         )
         self.client.post(reverse("cart:add", args=[product.slug]), {"quantity": 2})
@@ -71,10 +73,11 @@ class LoginViewTests(TestCase):
         self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_login_merges_guest_cart(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-lgc")
-        category = Category.objects.create(name="دیجیتال", slug="digital-lgc")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-lgc")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-lgc")
         product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-lgc",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-lgc",
             sku="SKU-LGC1", price=Decimal("50000"),
         )
         self.client.post(reverse("cart:add", args=[product.slug]), {"quantity": 3})
@@ -130,10 +133,11 @@ class OtpLoginViewTests(TestCase):
         self.assertEqual(OtpCode.objects.count(), count_before)
 
     def test_otp_login_merges_guest_cart(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-ogc")
-        category = Category.objects.create(name="دیجیتال", slug="digital-ogc")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-ogc")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-ogc")
         product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-ogc",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-ogc",
             sku="SKU-OGC1", price=Decimal("70000"),
         )
         self.client.post(reverse("cart:add", args=[product.slug]), {"quantity": 1})

@@ -39,6 +39,21 @@ multi-vendor Stores") before catalog ownership is migrated (PR 5).
 multiple internal sellers? Is single-seller-per-Store the only supported
 model for the first SaaS version? These are explicitly out of scope here.
 
+**Resolution (PR 5 — Catalog Tenant Boundary Assessment and Hardening).**
+`Vendor` becomes a Store-owned Aggregate Root: a direct, non-nullable
+`store` FK, with `slug` uniqueness re-derived as Store-scoped
+(`UniqueConstraint(fields=["store", "slug"])` instead of platform-global
+`unique=True`). This settles the "final meaning" question deferred above as
+narrowly as the evidence supports: `Vendor` is not itself a tenant, and
+multi-vendor-within-a-Store (a Store hosting more than one internal seller)
+remains a distinct, unbuilt future feature — today's dashboard has no UI to
+create a second `Vendor` for a Store at all (only `seed_shop` or Django
+admin can). What this resolves is narrower and more urgent: every `Vendor`
+row must belong to exactly one Store, so that Store A can never see,
+reassign, or collide slugs with Store B's Vendor. Full multi-vendor-per-
+Store product ownership semantics remain deferred, unchanged from this
+ADR's original scope.
+
 ---
 
 ## ADR-2: Store Ownership Uses StoreMembership, Not a Store.owner Field
@@ -273,6 +288,22 @@ data."
 
 **Deferred questions.** Concrete mechanism (separate permission model,
 audit-logged elevated access, etc.) — not decided here.
+
+**Addendum (PR 5 — Catalog Tenant Boundary Assessment and Hardening).**
+This ADR's "not implemented, not to be assumed safe" framing was
+subsequently misquoted in `SAAS_MIGRATION_PLAN.md` as an "already-accepted"
+scope — it was not; the text above has always meant the opposite. Once PR 5
+gave `Product`/`Category`/`Brand`/`Vendor` a real, non-nullable `store` FK,
+the gap this ADR describes stopped being latent (there was only ever one
+Store's catalog data to leak before) and became a live cross-Store exposure
+the moment any second Store's dashboard staff existed, since
+`apps.dashboard`'s `is_staff`-gated authorization and Django's own
+`AdminSite` shared the identical flag. PR 5 closes the immediate exposure,
+without resolving this ADR's deferred questions: Django Admin is now
+restricted to active superusers only (`apps.stores.admin_permissions`).
+Platform-operator tooling still has no Store-scoped, audited,
+narrower-than-superuser capability — that remains exactly as open as this
+ADR originally left it, and is still PR 11's job.
 
 ---
 

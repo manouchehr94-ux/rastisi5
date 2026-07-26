@@ -166,15 +166,15 @@ class SettingsFinanceViewTests(SettingsViewsTestCase):
         self.client.post(reverse("dashboard:settings-finance"), {
             "tax_percent": "5", "free_shipping_threshold": "1000000",
         })
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-sf")
-        category = Category.objects.create(name="دسته", slug="cat-sf")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-sf")
+        category = Category.objects.create(store=store, name="دسته", slug="cat-sf")
         product = Product.objects.create(
-            vendor=vendor, category=category, name="کالا", slug="prod-sf",
+            store=store, vendor=vendor, category=category, name="کالا", slug="prod-sf",
             sku="SKU-SF1", price=D("100000"),
         )
         cart = Cart.objects.create(session_key="guest-sf")
         CartItem.objects.create(cart=cart, product=product, quantity=1, unit_price=product.final_price)
-        store = Store.objects.get(slug="akhlaghi")
         totals = cart_totals(cart, store=store, shipping_method=self.shipping)
         self.assertEqual(totals["tax"], D("5000"))
 

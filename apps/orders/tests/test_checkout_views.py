@@ -10,16 +10,18 @@ from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
 from apps.orders.models import Order, PaymentGateway, ShippingMethod
 from apps.sms.models import OtpCode
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
 class CheckoutStep1ViewTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-cov")
-        category = Category.objects.create(name="دیجیتال", slug="digital-cov")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-cov")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-cov")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-cov",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-cov",
             sku="SKU-COV1", price=Decimal("400000"), discount_percent=25, stock=10,
         )
         self.shipping = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-cov", cost=45_000)
@@ -42,10 +44,11 @@ class CheckoutStep1ViewTests(TestCase):
 
 class CheckoutPayTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-cas")
-        category = Category.objects.create(name="دیجیتال", slug="digital-cas")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-cas")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-cas")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-cas",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-cas",
             sku="SKU-CAS1", price=Decimal("200000"), stock=10,
         )
         self.shipping = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-cas", cost=45_000)
@@ -184,10 +187,11 @@ class CheckoutPayTests(TestCase):
 
 class PaymentFlowTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-pf")
-        category = Category.objects.create(name="دیجیتال", slug="digital-pf")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-pf")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-pf")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-pf",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-pf",
             sku="SKU-PF1", price=Decimal("200000"), stock=10,
         )
         ShippingMethod.objects.create(name="پست پیشتاز", slug="post-pf", cost=45_000)
@@ -245,10 +249,11 @@ class PaymentFlowTests(TestCase):
 
 class CheckoutItemAndSelectionViewTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-cis")
-        category = Category.objects.create(name="دیجیتال", slug="digital-cis")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-cis")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-cis")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-cis",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-cis",
             sku="SKU-CIS1", price=Decimal("100000"), stock=5,
         )
         self.cheap = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-cis", cost=45_000)
@@ -283,10 +288,11 @@ class CheckoutCouponViewTests(TestCase):
     def setUp(self):
         from apps.cart.models import Coupon
 
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-ccv")
-        category = Category.objects.create(name="دیجیتال", slug="digital-ccv")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-ccv")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-ccv")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-ccv",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-ccv",
             sku="SKU-CCV1", price=Decimal("300000"),
         )
         ShippingMethod.objects.create(name="پست پیشتاز", slug="post-ccv", cost=45_000)

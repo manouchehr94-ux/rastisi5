@@ -3,6 +3,7 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from apps.catalog.models import Category, Product, Vendor
+from apps.stores.models import Store
 
 from apps.customers.models import Address, Customer, Wishlist
 
@@ -33,10 +34,12 @@ class CustomersModelsTests(TestCase):
         self.assertIn(address, self.customer.addresses.all())
 
     def test_wishlist_unique_together(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-w")
-        category = Category.objects.create(name="دیجیتال", slug="digital-w")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-w")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-w")
         product = Product.objects.create(
-            vendor=vendor, category=category, name="گوشی", slug="phone-w", sku="SKU-W1", price=5_000_000
+            store=store, vendor=vendor, category=category, name="گوشی", slug="phone-w",
+            sku="SKU-W1", price=5_000_000,
         )
         Wishlist.objects.create(customer=self.customer, product=product)
         with self.assertRaises(IntegrityError):

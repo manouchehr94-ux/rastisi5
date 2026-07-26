@@ -70,21 +70,28 @@ class ProductForm(NumericCleanMixin, forms.Form):
         label="نوع کالا", choices=Product.ProductType.choices, required=False,
     )
 
-    def __init__(self, *args, instance=None, **kwargs):
+    def __init__(self, *args, store, instance=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.instance = instance
-        self.fields["category"].queryset = leaf_categories()
+        self.store = store
+        self.fields["category"].queryset = leaf_categories(store)
 
     def clean_sku(self):
         sku = normalize_digits(self.cleaned_data["sku"]).strip()
         if not sku:
             raise forms.ValidationError("کد کالا الزامی است")
-        qs = Product.objects.filter(sku=sku)
+        qs = Product.objects.filter(store=self.store, sku=sku)
         if self.instance is not None:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
             raise forms.ValidationError("این کد کالا قبلاً استفاده شده است")
         return sku
+
+    def clean_category(self):
+        category = self.cleaned_data["category"]
+        if category.store_id != self.store.pk:
+            raise forms.ValidationError("این دسته‌بندی متعلق به فروشگاه دیگری است")
+        return category
 
     def clean_price(self):
         return self._clean_int("price", min_value=1)
@@ -169,11 +176,17 @@ class MainCategoryForm(forms.Form):
 
 class SubCategoryForm(forms.Form):
     parent = forms.ModelChoiceField(
-        label="گروه والد", queryset=Category.objects.filter(parent__isnull=True).order_by("order", "name"),
+        label="گروه والد", queryset=Category.objects.none(),
         error_messages={"required": "انتخاب گروه والد الزامی است"},
     )
     name = forms.CharField(label="نام زیرگروه", max_length=120)
     icon = forms.CharField(label="آیکون (ایموجی)", max_length=10, required=False)
+
+    def __init__(self, *args, store, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["parent"].queryset = Category.objects.filter(
+            store=store, parent__isnull=True
+        ).order_by("order", "name")
 
 
 class CategoryEditForm(forms.Form):

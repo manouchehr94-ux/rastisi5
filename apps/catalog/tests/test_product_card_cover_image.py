@@ -10,6 +10,11 @@ from PIL import Image
 
 from apps.catalog.models import Category, Product, Vendor
 from apps.catalog.services.product_image_service import add_product_image
+from apps.stores.models import Store
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
 
 
 def _make_image_file(name="photo.jpg"):
@@ -28,10 +33,11 @@ class ProductCoverImageTestCase(TestCase):
         super().tearDownClass()
 
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-cover")
-        self.category = Category.objects.create(name="دسته", slug="cat-cover")
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-cover")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-cover")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کالای کاور", slug="cover-product",
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای کاور", slug="cover-product",
             sku="SKU-COVER1", price=Decimal("150000"), icon="🧸", tint="#fde68a", status=Product.Status.ACTIVE,
         )
 

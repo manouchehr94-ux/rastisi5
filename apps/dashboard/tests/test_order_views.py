@@ -22,7 +22,7 @@ class OrderViewsTestCase(TestCase):
         self.store = _akhlaghi()
         user = User.objects.create_user(username="09121140001", password="pass12345")
         self.customer = Customer.objects.create(user=user, full_name="نگار مرادی", phone="09121140001")
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-ov")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-ov")
         self.shipping = ShippingMethod.objects.create(name="پست", slug="post-ov", cost=Decimal("45000"))
         self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-ov")
         self.order = Order.objects.create(

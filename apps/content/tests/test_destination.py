@@ -19,6 +19,7 @@ from django.test import TestCase
 from apps.catalog.models import Brand, Category, Product, Vendor
 from apps.content.models import DestinationType, HeroSlide, validate_external_url
 from apps.content.services import resolve_destination_url
+from apps.stores.models import Store
 
 User = get_user_model()
 
@@ -60,14 +61,15 @@ class DestinationValidationTests(TestCase):
     """اعتبارسنجی انسجام مقصد."""
 
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشنده", slug="vendor-dv")
-        self.category = Category.objects.create(name="دسته", slug="cat-dv")
+        store = Store.objects.get(slug="akhlaghi")
+        self.vendor = Vendor.objects.create(store=store, name="فروشنده", slug="vendor-dv")
+        self.category = Category.objects.create(store=store, name="دسته", slug="cat-dv")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category,
+            store=store, vendor=self.vendor, category=self.category,
             name="محصول", slug="prod-dv", sku="DV-1",
             price=Decimal("100000"), stock=10,
         )
-        self.brand = Brand.objects.create(name="برند", slug="brand-dv")
+        self.brand = Brand.objects.create(store=store, name="برند", slug="brand-dv")
 
     def test_none_with_no_destination_passes(self):
         obj = _make_instance(destination_type=DestinationType.NONE)
@@ -206,14 +208,15 @@ class DestinationResolverTests(TestCase):
     """تست‌های حل‌کننده‌ی مقصد."""
 
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشنده", slug="vendor-dr")
-        self.category = Category.objects.create(name="دسته", slug="cat-dr")
+        store = Store.objects.get(slug="akhlaghi")
+        self.vendor = Vendor.objects.create(store=store, name="فروشنده", slug="vendor-dr")
+        self.category = Category.objects.create(store=store, name="دسته", slug="cat-dr")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category,
+            store=store, vendor=self.vendor, category=self.category,
             name="محصول", slug="prod-dr", sku="DR-1",
             price=Decimal("100000"), stock=10,
         )
-        self.brand = Brand.objects.create(name="برند", slug="brand-dr")
+        self.brand = Brand.objects.create(store=store, name="برند", slug="brand-dr")
 
     def test_category_resolves(self):
         obj = _make_instance(

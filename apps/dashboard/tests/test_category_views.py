@@ -6,14 +6,22 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.catalog.models import Category, Product, Vendor
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
 class CategoryViewsTestCase(TestCase):
     def setUp(self):
-        self.main = Category.objects.create(name="گروه اصلی", slug="main-cv", icon="📦")
-        self.sub = Category.objects.create(name="زیرگروه", slug="sub-cv", parent=self.main, icon="📱")
+        self.store = _akhlaghi()
+        self.main = Category.objects.create(store=self.store, name="گروه اصلی", slug="main-cv", icon="📦")
+        self.sub = Category.objects.create(
+            store=self.store, name="زیرگروه", slug="sub-cv", parent=self.main, icon="📱"
+        )
         self.staff = User.objects.create_user(username="09121123001", password="pass12345", is_staff=True)
         self.client.login(username="09121123001", password="pass12345")
 
@@ -105,9 +113,9 @@ class CategoryDeleteViewTests(CategoryViewsTestCase):
         self.assertIn("زیرگروه", trigger["toast"]["message"])
 
     def test_cannot_delete_category_with_products(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-cd")
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-cd")
         Product.objects.create(
-            vendor=vendor, category=self.sub, name="محصول", slug="prod-cd",
+            store=self.store, vendor=vendor, category=self.sub, name="محصول", slug="prod-cd",
             sku="SKU-CDV1", price=Decimal("1000"),
         )
         response = self.client.post(reverse("dashboard:category-delete", args=[self.sub.pk]))

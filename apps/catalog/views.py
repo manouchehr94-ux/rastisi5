@@ -11,6 +11,7 @@ from apps.blog.models import BlogPost
 from apps.content.models import HeroSlide, PromotionalBanner
 from apps.content.services import resolve_destination_url
 from apps.customers.models import Customer
+from apps.stores.resolution import resolve_store_for_service
 
 from .models import Brand, Category, Product, Review
 
@@ -25,20 +26,26 @@ DEFAULT_SORT = "sold"
 TILE_CLASSES = ["t1", "t2", "t3"]
 
 
-def _best_products(sort_key):
+def _best_products(store, sort_key):
     order_field, _ = BEST_SORT_OPTIONS.get(sort_key, BEST_SORT_OPTIONS[DEFAULT_SORT])
-    qs = Product.objects.filter(status=Product.Status.ACTIVE).select_related("brand").prefetch_related("images")
+    qs = (
+        Product.objects.filter(store=store, status=Product.Status.ACTIVE)
+        .select_related("brand").prefetch_related("images")
+    )
     if sort_key == "disc":
         qs = qs.filter(discount_percent__gt=0)
     return qs.order_by(order_field)[:8]
 
 
 def home(request):
-    active_products = Product.objects.filter(status=Product.Status.ACTIVE)
+    store = resolve_store_for_service(request)
+    active_products = Product.objects.filter(store=store, status=Product.Status.ACTIVE)
 
-    top_categories = list(Category.objects.filter(parent__isnull=True, is_active=True).order_by("order", "name"))
+    top_categories = list(
+        Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
+    )
     icon_categories = (
-        Category.objects.filter(parent__isnull=False, is_active=True)
+        Category.objects.filter(store=store, parent__isnull=False, is_active=True)
         .select_related("parent")
         .order_by("order", "name")
     )
@@ -56,7 +63,7 @@ def home(request):
     context = {
         "sort_key": DEFAULT_SORT,
         "best_sort_options": BEST_SORT_OPTIONS,
-        "best_products": _best_products(DEFAULT_SORT),
+        "best_products": _best_products(store, DEFAULT_SORT),
         "top_categories": top_categories,
         "tiles": list(zip(top_categories[:3], TILE_CLASSES)),
         "cream_category": top_categories[3] if len(top_categories) > 3 else None,
@@ -81,10 +88,11 @@ def home(request):
 
 
 def home_best_products(request):
+    store = resolve_store_for_service(request)
     sort_key = request.GET.get("sort", DEFAULT_SORT)
     if sort_key not in BEST_SORT_OPTIONS:
         sort_key = DEFAULT_SORT
-    context = {"products": _best_products(sort_key)}
+    context = {"products": _best_products(store, sort_key)}
     return render(request, "catalog/partials/product_grid.html", context)
 
 
@@ -100,9 +108,9 @@ LIST_SORT_OPTIONS = {
 DEFAULT_LIST_SORT = "newest"
 
 
-def _filtered_products(request):
+def _filtered_products(request, store):
     qs = (
-        Product.objects.filter(status=Product.Status.ACTIVE)
+        Product.objects.filter(store=store, status=Product.Status.ACTIVE)
         .select_related("brand", "category")
         .prefetch_related("images")
     )
@@ -148,13 +156,14 @@ def _querystring_without_page(request):
 
 
 def product_list(request):
-    qs, sort_key, query = _filtered_products(request)
+    store = resolve_store_for_service(request)
+    qs, sort_key, query = _filtered_products(request, store)
 
     paginator = Paginator(qs, PRODUCTS_PER_PAGE)
     page_obj = paginator.get_page(request.GET.get("page"))
 
-    filter_categories = Category.objects.filter(parent__isnull=True, is_active=True).prefetch_related(
-        Prefetch("children", queryset=Category.objects.filter(is_active=True).order_by("order", "name"))
+    filter_categories = Category.objects.filter(store=store, parent__isnull=True, is_active=True).prefetch_related(
+        Prefetch("children", queryset=Category.objects.filter(store=store, is_active=True).order_by("order", "name"))
     ).order_by("order", "name")
 
     context = {
@@ -164,7 +173,7 @@ def product_list(request):
         "sort_key": sort_key,
         "sort_options": LIST_SORT_OPTIONS,
         "filter_categories": filter_categories,
-        "brands": Brand.objects.order_by("name"),
+        "brands": Brand.objects.filter(store=store).order_by("name"),
         "selected_category": request.GET.get("category", "").strip(),
         "selected_brand": request.GET.get("brand", "").strip(),
         "min_price": request.GET.get("min_price", "").strip(),
@@ -209,9 +218,10 @@ def _can_review(request):
 
 
 def product_detail(request, slug):
+    store = resolve_store_for_service(request)
     product = get_object_or_404(
         Product.objects.select_related("brand", "category", "category__parent", "vendor"),
-        slug=slug, status=Product.Status.ACTIVE,
+        slug=slug, store=store, status=Product.Status.ACTIVE,
     )
     Product.objects.filter(pk=product.pk).update(views_count=F("views_count") + 1)
     product.views_count += 1
@@ -230,7 +240,7 @@ def product_detail(request, slug):
         rating_breakdown.append({"star": star, "count": count, "pct": pct})
 
     related_products = (
-        Product.objects.filter(status=Product.Status.ACTIVE, category=product.category)
+        Product.objects.filter(store=store, status=Product.Status.ACTIVE, category=product.category)
         .exclude(pk=product.pk)
         .select_related("brand")
         .prefetch_related("images")[:4]
@@ -253,7 +263,8 @@ def product_detail(request, slug):
 
 @require_POST
 def product_review_create(request, slug):
-    product = get_object_or_404(Product, slug=slug, status=Product.Status.ACTIVE)
+    store = resolve_store_for_service(request)
+    product = get_object_or_404(Product, slug=slug, store=store, status=Product.Status.ACTIVE)
 
     context = {"product": product, "can_review": _can_review(request)}
 

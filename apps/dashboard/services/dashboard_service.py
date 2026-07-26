@@ -4,7 +4,13 @@
 فروش (روزانه/ماهانه)، نمودار دایره‌ای وضعیت سفارش‌ها، پرفروش‌ترین‌های ۳۰ روز
 اخیر (از OrderItem واقعی، نه فیلد استاتیک sold_count)، آخرین سفارش‌ها و
 هشدار موجودی کم.
-"""
+
+توابع مبتنی بر Product (``stat_cards``, ``low_stock_products``,
+``build_dashboard_context``'s ``nav_product_count``) با Store مشخص‌شده
+scope می‌شوند. توابع مبتنی بر Order/Customer (``sales_chart_data``,
+``order_status_breakdown``, ``recent_orders``, ``top_selling_products``,
+``nav_pending_order_count``) عمداً scope نشده‌اند — Order/Customer در این PR
+(محدوده‌ی کاتالوگ) هنوز Store-scoped نیستند."""
 
 from datetime import timedelta
 
@@ -130,7 +136,7 @@ def order_status_breakdown():
     return counts
 
 
-def stat_cards():
+def stat_cards(store):
     today = timezone.localdate()
     yesterday = today - timedelta(days=1)
     month_start = today.replace(day=1)
@@ -146,7 +152,7 @@ def stat_cards():
     customers_before = customers_total - customers_new_this_month
 
     low_stock_count = Product.objects.filter(
-        status=Product.Status.ACTIVE, stock__lte=LOW_STOCK_THRESHOLD,
+        store=store, status=Product.Status.ACTIVE, stock__lte=LOW_STOCK_THRESHOLD,
     ).count()
 
     return {
@@ -191,9 +197,9 @@ def category_chain(category):
     return category.name
 
 
-def low_stock_products(limit: int = 20):
+def low_stock_products(store, limit: int = 20):
     products = (
-        Product.objects.filter(status=Product.Status.ACTIVE, stock__lte=LOW_STOCK_THRESHOLD)
+        Product.objects.filter(store=store, status=Product.Status.ACTIVE, stock__lte=LOW_STOCK_THRESHOLD)
         .select_related("category", "category__parent")
         .order_by("stock")[:limit]
     )
@@ -232,10 +238,10 @@ def _today_jalali_display():
     return f"{weekday} {to_fa_digits(jalali.day)} {month} {to_fa_digits(jalali.year)}"
 
 
-def build_dashboard_context():
+def build_dashboard_context(store):
     from .charts import build_donut_chart_svg, build_line_chart_svg
 
-    cards = stat_cards()
+    cards = stat_cards(store)
     data, labels = sales_chart_data("month")
     status_counts = order_status_breakdown()
 
@@ -251,9 +257,9 @@ def build_dashboard_context():
         "donut_legend": donut_items,
         "recent_orders": recent_orders(),
         "top_products": top_selling_products(),
-        "low_stock_rows": low_stock_products(),
+        "low_stock_rows": low_stock_products(store),
         "low_stock_threshold": LOW_STOCK_THRESHOLD,
-        "nav_product_count": Product.objects.count(),
+        "nav_product_count": Product.objects.filter(store=store).count(),
         "nav_pending_order_count": Order.objects.filter(status=Order.Status.PENDING).count(),
         "today_jalali": _today_jalali_display(),
     }

@@ -6,16 +6,18 @@ from django.urls import reverse
 
 from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer, Wishlist
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
 class WishlistToggleTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-wl")
-        category = Category.objects.create(name="دیجیتال", slug="digital-wl")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-wl")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-wl")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-wl",
+            store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-wl",
             sku="SKU-WL1", price=Decimal("150000"),
         )
         self.url = reverse("customers:wishlist-toggle", args=[self.product.slug])
@@ -62,14 +64,15 @@ class WishlistToggleTests(TestCase):
 
 class WishlistListViewTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-wll")
-        category = Category.objects.create(name="دیجیتال", slug="digital-wll")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-wll")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-wll")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای مورد علاقه", slug="sample-wll",
+            store=store, vendor=vendor, category=category, name="کالای مورد علاقه", slug="sample-wll",
             sku="SKU-WLL1", price=Decimal("150000"),
         )
         self.other_product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای دیگر", slug="sample-wll-2",
+            store=store, vendor=vendor, category=category, name="کالای دیگر", slug="sample-wll-2",
             sku="SKU-WLL2", price=Decimal("50000"),
         )
 

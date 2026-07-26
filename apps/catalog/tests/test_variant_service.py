@@ -3,6 +3,11 @@ from decimal import Decimal
 from django.test import TestCase
 
 from apps.catalog.models import Category, Product, ProductVariant, Vendor
+from apps.stores.models import Store
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
 from apps.catalog.services import variant_service
 from apps.catalog.services.variant_service import (
     ProductTypeError,
@@ -59,14 +64,15 @@ class BulkValueParserTests(TestCase):
 
 class VariantCreationServiceTests(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-vs")
-        self.category = Category.objects.create(name="دسته", slug="cat-vs")
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-vs")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-vs")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="شیلنگ فن‌کویل", slug="hose-vs",
+            store=self.store, vendor=self.vendor, category=self.category, name="شیلنگ فن‌کویل", slug="hose-vs",
             sku="SKU-HOSE-VS", price=Decimal("200000"),
         )
         self.other_product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کالای دیگر", slug="other-vs",
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای دیگر", slug="other-vs",
             sku="SKU-OTHER-VS", price=Decimal("50000"),
         )
 
@@ -255,10 +261,11 @@ class VariantCreationServiceTests(TestCase):
 
 class ProductTypeTransitionTests(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-pt")
-        self.category = Category.objects.create(name="دسته", slug="cat-pt")
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-pt")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-pt")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category, name="کالا", slug="product-pt",
+            store=self.store, vendor=self.vendor, category=self.category, name="کالا", slug="product-pt",
             sku="SKU-PT", price=Decimal("100000"),
         )
 

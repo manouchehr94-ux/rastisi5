@@ -25,6 +25,7 @@ from apps.orders.models import Order, OrderItem, PaymentGateway, ShippingMethod,
 from apps.orders.services.checkout_service import SESSION_KEY
 from apps.sms.models import OtpCode, SmsLog, SmsTemplate
 from apps.sms.services.backends import SmsSendResult
+from apps.stores.models import Store
 
 User = get_user_model()
 
@@ -33,10 +34,11 @@ class _CheckoutFixture(TestCase):
     """Shared setup for checkout integrity tests."""
 
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-ci")
-        self.category = Category.objects.create(name="دیجیتال", slug="digital-ci")
+        self.store = Store.objects.get(slug="akhlaghi")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-ci")
+        self.category = Category.objects.create(store=self.store, name="دیجیتال", slug="digital-ci")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category,
+            store=self.store, vendor=self.vendor, category=self.category,
             name="هدفون بلوتوثی", slug="headphone-ci", sku="SKU-CI",
             price=Decimal("500000"), discount_percent=10, stock=10,
         )
@@ -234,10 +236,11 @@ class NewPhoneGuestCartTests(TestCase):
     """New-phone guest: Cart merged, account created, order correct."""
 
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-ng")
-        self.category = Category.objects.create(name="دیجیتال", slug="digital-ng")
+        store = Store.objects.get(slug="akhlaghi")
+        self.vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-ng")
+        self.category = Category.objects.create(store=store, name="دیجیتال", slug="digital-ng")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category,
+            store=store, vendor=self.vendor, category=self.category,
             name="ماوس", slug="mouse-ng", sku="SKU-NG",
             price=Decimal("300000"), stock=10,
         )
@@ -305,10 +308,11 @@ class ExistingPhoneOTPRegressionTests(TestCase):
     """Existing-phone OTP path still works after the fix."""
 
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-otp")
-        self.category = Category.objects.create(name="دیجیتال", slug="digital-otp")
+        store = Store.objects.get(slug="akhlaghi")
+        self.vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-otp")
+        self.category = Category.objects.create(store=store, name="دیجیتال", slug="digital-otp")
         self.product = Product.objects.create(
-            vendor=self.vendor, category=self.category,
+            store=store, vendor=self.vendor, category=self.category,
             name="کیبورد", slug="keyboard-otp", sku="SKU-OTP",
             price=Decimal("800000"), stock=8,
         )

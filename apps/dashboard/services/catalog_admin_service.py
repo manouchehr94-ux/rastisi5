@@ -3,6 +3,11 @@
 مطابق docs/spec/02-BUILD-INSTRUCTIONS.md مرحله‌ی ۱۲. تولید اسلاگ یکتا و
 حذف امن دسته‌بندی (بدون یتیم‌شدن محصول/زیرگروه) اینجا متمرکز شده‌اند تا در
 ویو تکرار نشوند.
+
+همه‌ی توابع این ماژول ``store`` را صریح می‌گیرند — Category/Brand/Vendor/Product
+اکنون مالکیت مستقیم Store دارند؛ هیچ‌کدام از این توابع هرگز خودشان Store را
+از Host یا حالت سازگاری حدس نمی‌زنند (فراخوان — ویو/فرم — مسئول resolve
+کردن Store است).
 """
 
 from django.db import models
@@ -18,11 +23,14 @@ class CategoryDeleteError(Exception):
     """دسته‌بندی به دلیل داشتن کالا یا زیرگروه قابل حذف نیست."""
 
 
-def generate_unique_slug(model, name: str, *, instance=None) -> str:
+def generate_unique_slug(model, name: str, *, store, instance=None) -> str:
+    """اسلاگ یکتا در محدوده‌ی همین Store می‌سازد — دو Store مختلف می‌توانند
+    اسلاگ یکسان داشته باشند، اما یک Store هرگز نمی‌تواند دو رکورد با یک
+    اسلاگ داشته باشد."""
     base = slugify(name, allow_unicode=True) or "item"
     slug = base
     counter = 2
-    qs = model.objects.all()
+    qs = model.objects.filter(store=store)
     if instance is not None and instance.pk:
         qs = qs.exclude(pk=instance.pk)
     while qs.filter(slug=slug).exists():
@@ -31,14 +39,17 @@ def generate_unique_slug(model, name: str, *, instance=None) -> str:
     return slug
 
 
-def default_vendor():
-    return Vendor.objects.filter(is_active=True).first() or Vendor.objects.first()
+def default_vendor(store):
+    """فروشنده‌ی پیش‌فرض همین Store برای اختصاص به کالای تازه — یا ``None``
+    اگر هنوز هیچ فروشنده‌ای برای این Store ساخته نشده باشد (فراخوان باید
+    این حالت را صریح مدیریت کند، نه این‌که بی‌صدا کالا بدون فروشنده بماند)."""
+    return Vendor.objects.filter(store=store, is_active=True).first() or Vendor.objects.filter(store=store).first()
 
 
-def leaf_categories():
-    """فقط زیرگروه‌ها (دسته‌هایی که والد دارند) — چون کالا باید به زیرگروه وصل شود."""
+def leaf_categories(store):
+    """فقط زیرگروه‌های همین Store (دسته‌هایی که والد دارند) — چون کالا باید به زیرگروه وصل شود."""
     return (
-        Category.objects.filter(parent__isnull=False)
+        Category.objects.filter(store=store, parent__isnull=False)
         .select_related("parent")
         .order_by("parent__order", "parent__name", "order", "name")
     )
@@ -52,9 +63,10 @@ PRODUCT_STATUS_FILTERS = [
 ]
 
 
-def filtered_products(*, q: str = "", category_id: str = "", status: str = ""):
+def filtered_products(store, *, q: str = "", category_id: str = "", status: str = ""):
     qs = (
-        Product.objects.select_related("category", "category__parent")
+        Product.objects.filter(store=store)
+        .select_related("category", "category__parent")
         .prefetch_related("images")
         .annotate(
             variant_count=Count("variants", distinct=True),
@@ -84,15 +96,16 @@ def category_chain(category):
     return category.name
 
 
-def category_tree_context():
-    """درخت دوسطحی دسته‌بندی‌ها با شمار زیرگروه و کالای هر گروه اصلی، برای صفحه‌ی دسته‌بندی‌ها."""
-    mains = list(Category.objects.filter(parent__isnull=True).order_by("order", "name"))
+def category_tree_context(store):
+    """درخت دوسطحی دسته‌بندی‌های همین Store با شمار زیرگروه و کالا، برای صفحه‌ی دسته‌بندی‌ها."""
+    mains = list(Category.objects.filter(store=store, parent__isnull=True).order_by("order", "name"))
     children_by_parent = {}
-    for child in Category.objects.filter(parent__isnull=False).order_by("order", "name"):
+    for child in Category.objects.filter(store=store, parent__isnull=False).order_by("order", "name"):
         children_by_parent.setdefault(child.parent_id, []).append(child)
 
     product_counts = dict(
-        Product.objects.values("category_id").annotate(total=models.Count("id")).values_list("category_id", "total")
+        Product.objects.filter(store=store)
+        .values("category_id").annotate(total=models.Count("id")).values_list("category_id", "total")
     )
 
     rows = []
@@ -110,12 +123,16 @@ def category_tree_context():
         "rows": rows,
         "main_count": len(mains),
         "sub_count": sum(len(r["subs"]) for r in rows),
-        "categorized_product_count": Product.objects.count(),
+        "categorized_product_count": Product.objects.filter(store=store).count(),
     }
 
 
 def can_delete_category(category) -> None:
-    """اگر دسته کالا یا زیرگروه داشته باشد، خطای قابل‌نمایش می‌دهد (بدون یتیم‌شدن داده)."""
+    """اگر دسته کالا یا زیرگروه داشته باشد، خطای قابل‌نمایش می‌دهد (بدون یتیم‌شدن داده).
+
+    ``category`` از قبل باید با Store درخواست‌کننده تطبیق داده شده باشد
+    (فراخوان مسئول آن است)؛ این تابع فقط زیرگروه/کالای همان دسته‌ی مشخص را
+    بررسی می‌کند، نه کل دیتابیس."""
     if category.children.exists():
         raise CategoryDeleteError(
             f"گروه «{category.name}» دارای زیرگروه است؛ ابتدا زیرگروه‌ها را حذف کنید."

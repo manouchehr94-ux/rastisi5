@@ -20,6 +20,7 @@ from apps.content.models import (
     validate_image_size,
 )
 from apps.content.services import resolve_destination_url
+from apps.stores.models import Store
 
 User = get_user_model()
 
@@ -78,8 +79,9 @@ class HeroSlideModelTests(TestCase):
         self.assertEqual(slides, ["A", "B"])
 
     def test_destination_resolves(self):
-        vendor = Vendor.objects.create(name="V", slug="v")
-        cat = Category.objects.create(name="C", slug="c")
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="V", slug="v")
+        cat = Category.objects.create(store=store, name="C", slug="c")
         slide = HeroSlide(
             title="T", desktop_image=_img(), show_button=True,
             button_label="مشاهده", destination_type=DestinationType.CATEGORY,

@@ -35,7 +35,8 @@ def wishlist_list(request):
 
 @require_POST
 def wishlist_toggle(request, slug):
-    product = get_object_or_404(Product, slug=slug, status=Product.Status.ACTIVE)
+    store = resolve_store_for_service(request)
+    product = get_object_or_404(Product, slug=slug, store=store, status=Product.Status.ACTIVE)
 
     if not _can_use_wishlist(request):
         response = render(request, "customers/partials/wishlist_button.html", {"product": product})

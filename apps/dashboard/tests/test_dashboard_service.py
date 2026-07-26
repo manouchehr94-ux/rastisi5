@@ -9,16 +9,22 @@ from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
 from apps.orders.models import Order, OrderItem, PaymentGateway, ShippingMethod
 from apps.dashboard.services import dashboard_service
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
 class SalesChartDataTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-scd")
-        category = Category.objects.create(name="دیجیتال", slug="digital-scd")
+        self.store = _akhlaghi()
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-scd")
+        category = Category.objects.create(store=self.store, name="دیجیتال", slug="digital-scd")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالای نمونه", slug="sample-scd",
+            store=self.store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-scd",
             sku="SKU-SCD1", price=Decimal("100000"),
         )
         user = User.objects.create_user(username="09121120001", password="pass12345")
@@ -70,10 +76,12 @@ class SalesChartDataTests(TestCase):
 
 class OrderStatusBreakdownTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-osb")
-        category = Category.objects.create(name="دیجیتال", slug="digital-osb")
+        self.store = _akhlaghi()
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-osb")
+        category = Category.objects.create(store=self.store, name="دیجیتال", slug="digital-osb")
         self.product = Product.objects.create(
-            vendor=vendor, category=category, name="کالا", slug="sample-osb", sku="SKU-OSB1", price=Decimal("1000")
+            store=self.store, vendor=vendor, category=category, name="کالا", slug="sample-osb",
+            sku="SKU-OSB1", price=Decimal("1000"),
         )
         user = User.objects.create_user(username="09121120002", password="pass12345")
         self.customer = Customer.objects.create(user=user, full_name="م", phone="09121120002")
@@ -105,14 +113,15 @@ class OrderStatusBreakdownTests(TestCase):
 
 class TopSellingProductsTests(TestCase):
     def setUp(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-tsp")
-        category = Category.objects.create(name="دیجیتال", slug="digital-tsp")
+        self.store = _akhlaghi()
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-tsp")
+        category = Category.objects.create(store=self.store, name="دیجیتال", slug="digital-tsp")
         self.p1 = Product.objects.create(
-            vendor=vendor, category=category, name="کالای پرفروش", slug="best-tsp",
+            store=self.store, vendor=vendor, category=category, name="کالای پرفروش", slug="best-tsp",
             sku="SKU-TSP1", price=Decimal("50000"),
         )
         self.p2 = Product.objects.create(
-            vendor=vendor, category=category, name="کالای کم‌فروش", slug="worst-tsp",
+            store=self.store, vendor=vendor, category=category, name="کالای کم‌فروش", slug="worst-tsp",
             sku="SKU-TSP2", price=Decimal("50000"),
         )
         user = User.objects.create_user(username="09121120003", password="pass12345")
@@ -155,57 +164,59 @@ class TopSellingProductsTests(TestCase):
 
 class LowStockProductsTests(TestCase):
     def setUp(self):
-        self.vendor = Vendor.objects.create(name="فروشگاه", slug="shop-lsp")
-        self.parent = Category.objects.create(name="خانه", slug="home-lsp")
-        self.child = Category.objects.create(name="آشپزخانه", slug="kitchen-lsp", parent=self.parent)
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-lsp")
+        self.parent = Category.objects.create(store=self.store, name="خانه", slug="home-lsp")
+        self.child = Category.objects.create(store=self.store, name="آشپزخانه", slug="kitchen-lsp", parent=self.parent)
 
     def test_zero_stock_is_out_of_stock_badge(self):
         Product.objects.create(
-            vendor=self.vendor, category=self.child, name="کالای ناموجود", slug="out-lsp",
+            store=self.store, vendor=self.vendor, category=self.child, name="کالای ناموجود", slug="out-lsp",
             sku="SKU-LSP1", price=Decimal("1000"), stock=0,
         )
-        rows = dashboard_service.low_stock_products()
+        rows = dashboard_service.low_stock_products(self.store)
         self.assertEqual(rows[0]["badge_label"], "ناموجود")
         self.assertEqual(rows[0]["category_chain"], "خانه › آشپزخانه")
 
     def test_critical_vs_low_thresholds(self):
         Product.objects.create(
-            vendor=self.vendor, category=self.child, name="بحرانی", slug="critical-lsp",
+            store=self.store, vendor=self.vendor, category=self.child, name="بحرانی", slug="critical-lsp",
             sku="SKU-LSP2", price=Decimal("1000"), stock=3,
         )
         Product.objects.create(
-            vendor=self.vendor, category=self.child, name="رو به اتمام", slug="low-lsp",
+            store=self.store, vendor=self.vendor, category=self.child, name="رو به اتمام", slug="low-lsp",
             sku="SKU-LSP3", price=Decimal("1000"), stock=8,
         )
-        rows = {row["product"].slug: row["badge_label"] for row in dashboard_service.low_stock_products()}
+        rows = {row["product"].slug: row["badge_label"] for row in dashboard_service.low_stock_products(self.store)}
         self.assertEqual(rows["critical-lsp"], "بحرانی")
         self.assertEqual(rows["low-lsp"], "رو به اتمام")
 
     def test_products_above_threshold_are_excluded(self):
         Product.objects.create(
-            vendor=self.vendor, category=self.child, name="موجودی کافی", slug="plenty-lsp",
+            store=self.store, vendor=self.vendor, category=self.child, name="موجودی کافی", slug="plenty-lsp",
             sku="SKU-LSP4", price=Decimal("1000"), stock=50,
         )
-        rows = dashboard_service.low_stock_products()
+        rows = dashboard_service.low_stock_products(self.store)
         self.assertEqual(rows, [])
 
 
 class StatCardsTests(TestCase):
     def test_no_previous_data_yields_none_trend(self):
-        cards = dashboard_service.stat_cards()
+        cards = dashboard_service.stat_cards(_akhlaghi())
         self.assertIsNone(cards["today_sales_trend"])
         self.assertIsNone(cards["today_orders_trend"])
 
     def test_low_stock_count_reflects_threshold(self):
-        vendor = Vendor.objects.create(name="فروشگاه", slug="shop-sct")
-        category = Category.objects.create(name="دیجیتال", slug="digital-sct")
+        store = _akhlaghi()
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-sct")
+        category = Category.objects.create(store=store, name="دیجیتال", slug="digital-sct")
         Product.objects.create(
-            vendor=vendor, category=category, name="کم‌موجودی", slug="low-sct",
+            store=store, vendor=vendor, category=category, name="کم‌موجودی", slug="low-sct",
             sku="SKU-SCT1", price=Decimal("1000"), stock=5,
         )
         Product.objects.create(
-            vendor=vendor, category=category, name="پرموجودی", slug="high-sct",
+            store=store, vendor=vendor, category=category, name="پرموجودی", slug="high-sct",
             sku="SKU-SCT2", price=Decimal("1000"), stock=500,
         )
-        cards = dashboard_service.stat_cards()
+        cards = dashboard_service.stat_cards(store)
         self.assertEqual(cards["low_stock_count"], 1)

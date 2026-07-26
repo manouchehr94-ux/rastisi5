@@ -236,7 +236,8 @@ class DeleteConfirmationFullTests(TestCase):
 
     def test_menu_item_full_flow(self):
         from apps.catalog.models import Category
-        cat = Category.objects.create(name="DC", slug="dc-del")
+        from apps.stores.models import Store
+        cat = Category.objects.create(store=Store.objects.get(slug="akhlaghi"), name="DC", slug="dc-del")
         menu = Menu.objects.create(title="M", location="header")
         item = MenuItem.objects.create(menu=menu, title="Item-Del", destination_type="category", destination_category=cat)
         url = reverse("dashboard:menu-item-delete", args=[item.pk])

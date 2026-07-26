@@ -4,35 +4,41 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.catalog.models import Brand, Category, Product
+from apps.stores.models import Store
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
 
 
 class ProductListViewTests(TestCase):
     def setUp(self):
-        self.top_category = Category.objects.create(name="لوازم خانگی", slug="home-plp", icon="🏠")
+        self.store = _akhlaghi()
+        self.top_category = Category.objects.create(store=self.store, name="لوازم خانگی", slug="home-plp", icon="🏠")
         self.sub_category = Category.objects.create(
-            name="آشپزخانه", slug="kitchen-plp", icon="🍳", parent=self.top_category
+            store=self.store, name="آشپزخانه", slug="kitchen-plp", icon="🍳", parent=self.top_category
         )
-        self.other_top = Category.objects.create(name="دیجیتال", slug="digital-plp", icon="📱")
+        self.other_top = Category.objects.create(store=self.store, name="دیجیتال", slug="digital-plp", icon="📱")
         self.other_sub = Category.objects.create(
-            name="موبایل", slug="mobile-plp", icon="📱", parent=self.other_top
+            store=self.store, name="موبایل", slug="mobile-plp", icon="📱", parent=self.other_top
         )
 
         self.vendor = self._make_vendor()
-        self.brand_a = Brand.objects.create(name="پارس خزر", slug="pars-khazar-plp")
-        self.brand_b = Brand.objects.create(name="شیائومی", slug="xiaomi-plp")
+        self.brand_a = Brand.objects.create(store=self.store, name="پارس خزر", slug="pars-khazar-plp")
+        self.brand_b = Brand.objects.create(store=self.store, name="شیائومی", slug="xiaomi-plp")
 
         self.rice_cooker = Product.objects.create(
-            vendor=self.vendor, category=self.sub_category, brand=self.brand_a,
+            store=self.store, vendor=self.vendor, category=self.sub_category, brand=self.brand_a,
             name="پلوپز پارس خزر", slug="rice-cooker-plp", sku="SKU-PLP1",
             price=Decimal("3000000"), discount_percent=0, sold_count=10, rating=Decimal("4.0"),
         )
         self.phone = Product.objects.create(
-            vendor=self.vendor, category=self.other_sub, brand=self.brand_b,
+            store=self.store, vendor=self.vendor, category=self.other_sub, brand=self.brand_b,
             name="گوشی شیائومی", slug="phone-plp", sku="SKU-PLP2",
             price=Decimal("10000000"), discount_percent=15, sold_count=50, rating=Decimal("4.8"),
         )
         self.cheap_pen = Product.objects.create(
-            vendor=self.vendor, category=self.sub_category, brand=None,
+            store=self.store, vendor=self.vendor, category=self.sub_category, brand=None,
             name="خودکار ارزان", slug="pen-plp", sku="SKU-PLP3",
             price=Decimal("50000"), discount_percent=0, sold_count=1, rating=Decimal("3.0"),
         )
@@ -40,7 +46,7 @@ class ProductListViewTests(TestCase):
     def _make_vendor(self):
         from apps.catalog.models import Vendor
 
-        return Vendor.objects.create(name="فروشگاه", slug="shop-plp")
+        return Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-plp")
 
     def test_list_returns_all_active_products_by_default(self):
         response = self.client.get(reverse("catalog:product-list"))
@@ -101,7 +107,7 @@ class ProductListViewTests(TestCase):
         vendor = self.vendor
         for i in range(15):
             Product.objects.create(
-                vendor=vendor, category=self.sub_category, name=f"کالای اضافه {i}",
+                store=self.store, vendor=vendor, category=self.sub_category, name=f"کالای اضافه {i}",
                 slug=f"extra-plp-{i}", sku=f"SKU-EXTRA-{i}", price=Decimal("10000"),
             )
         response = self.client.get(reverse("catalog:product-list"))

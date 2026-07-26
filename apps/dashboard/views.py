@@ -129,7 +129,8 @@ def admin_login(request):
 
 @staff_required
 def dashboard_home(request):
-    context = dashboard_service.build_dashboard_context()
+    store = _resolve_dashboard_store(request)
+    context = dashboard_service.build_dashboard_context(store)
     context["active_page"] = "dashboard"
     return render(request, "dashboard/dashboard.html", context)
 
@@ -148,15 +149,16 @@ def sales_chart_partial(request):
 
 
 def _product_list_context(request):
+    store = _resolve_dashboard_store(request)
     q = request.GET.get("q", "").strip()
     category_id = request.GET.get("category", "")
     status = request.GET.get("status", "")
     return {
-        "products": filtered_products(q=q, category_id=category_id, status=status),
+        "products": filtered_products(store, q=q, category_id=category_id, status=status),
         "q": q,
         "selected_category": category_id,
         "selected_status": status,
-        "category_options": leaf_categories(),
+        "category_options": leaf_categories(store),
         "status_options": PRODUCT_STATUS_FILTERS,
     }
 
@@ -173,11 +175,20 @@ def product_table(request):
     return render(request, "dashboard/partials/products_table_inner.html", _product_list_context(request))
 
 
-def _save_product(form, product):
+class NoVendorForStoreError(Exception):
+    """این Store هنوز هیچ فروشنده‌ای ندارد؛ کالای جدید بدون فروشنده قابل ساخت نیست."""
+
+
+def _save_product(form, product, *, store):
     data = form.cleaned_data
     if product is None:
-        product = Product(vendor=default_vendor())
-        product.slug = generate_unique_slug(Product, data["name"])
+        vendor = default_vendor(store)
+        if vendor is None:
+            raise NoVendorForStoreError(
+                "برای این فروشگاه هنوز هیچ فروشنده‌ای ثبت نشده است؛ ابتدا یک فروشنده بسازید."
+            )
+        product = Product(store=store, vendor=vendor)
+        product.slug = generate_unique_slug(Product, data["name"], store=store)
     product.name = data["name"]
     product.sku = data["sku"]
     product.category = data["category"]
@@ -187,26 +198,33 @@ def _save_product(form, product):
     product.status = data["status"]
     product.icon = data["icon"] or "🛍️"
     product.description = data["description"]
+    product.full_clean(exclude=["slug"])
     product.save()
     return product
 
 
 @staff_required
 def product_form(request, pk=None):
-    product = get_object_or_404(Product, pk=pk) if pk else None
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store) if pk else None
     is_new = product is None
 
     if request.method == "POST":
-        form = ProductForm(request.POST, instance=product)
+        form = ProductForm(request.POST, instance=product, store=store)
         if form.is_valid():
             requested_type = form.cleaned_data.get("product_type") or None
             try:
                 with transaction.atomic():
-                    product = _save_product(form, product)
+                    product = _save_product(form, product, store=store)
                     if requested_type and requested_type != product.product_type:
                         set_product_type(product, requested_type)
-            except ProductTypeError as exc:
+            except (ProductTypeError, NoVendorForStoreError) as exc:
                 form.add_error(None, str(exc))
+                return render(request, "dashboard/partials/product_form.html", {"form": form, "product": product})
+            except ValidationError as exc:
+                for field, messages in exc.message_dict.items():
+                    for message in messages:
+                        form.add_error(field if field in form.fields else None, message)
                 return render(request, "dashboard/partials/product_form.html", {"form": form, "product": product})
 
             table_html = render_to_string(
@@ -232,7 +250,7 @@ def product_form(request, pk=None):
             }
         else:
             initial = {"product_type": Product.ProductType.SIMPLE}
-        form = ProductForm(instance=product, initial=initial)
+        form = ProductForm(instance=product, initial=initial, store=store)
 
     return render(request, "dashboard/partials/product_form.html", {"form": form, "product": product})
 
@@ -240,7 +258,8 @@ def product_form(request, pk=None):
 @require_POST
 @staff_required
 def product_delete(request, pk):
-    product = get_object_or_404(Product, pk=pk)
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
     name = product.name
     product.delete()
     response = render(request, "dashboard/partials/products_table_inner.html", _product_list_context(request))
@@ -253,7 +272,8 @@ def product_delete(request, pk):
 
 @staff_required
 def product_images(request, pk):
-    product = get_object_or_404(Product, pk=pk)
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
     return render(request, "dashboard/partials/product_images_modal.html", {
         "product": product, "upload_form": ProductImageUploadForm(),
     })
@@ -277,7 +297,8 @@ def _image_list_response(request, product, *, refresh_table=False):
 @require_POST
 @staff_required
 def product_image_upload(request, pk):
-    product = get_object_or_404(Product, pk=pk)
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
     form = ProductImageUploadForm(request.POST, request.FILES)
     errors = []
     added = 0
@@ -310,7 +331,8 @@ def product_image_upload(request, pk):
 @require_POST
 @staff_required
 def product_image_delete(request, pk, image_id):
-    product = get_object_or_404(Product, pk=pk)
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
     image = get_object_or_404(ProductImage, pk=image_id, product=product)
     delete_product_image(image)
     response = _image_list_response(request, product, refresh_table=True)
@@ -321,7 +343,8 @@ def product_image_delete(request, pk, image_id):
 @require_POST
 @staff_required
 def product_image_set_cover(request, pk, image_id):
-    product = get_object_or_404(Product, pk=pk)
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
     try:
         set_cover_image(product, image_id)
     except ProductImageError:
@@ -332,7 +355,8 @@ def product_image_set_cover(request, pk, image_id):
 @require_POST
 @staff_required
 def product_image_move(request, pk, image_id):
-    product = get_object_or_404(Product, pk=pk)
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
     image = get_object_or_404(ProductImage, pk=image_id, product=product)
     direction = request.POST.get("direction", "")
     if direction in ("up", "down"):
@@ -343,7 +367,8 @@ def product_image_move(request, pk, image_id):
 @require_POST
 @staff_required
 def product_image_alt_update(request, pk, image_id):
-    product = get_object_or_404(Product, pk=pk)
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
     image = get_object_or_404(ProductImage, pk=image_id, product=product)
     form = ProductImageAltForm(request.POST)
     if form.is_valid():
@@ -433,21 +458,21 @@ def _variant_list_redirect(request, product):
     return redirect(f"{url}?{query}" if query else url)
 
 
-def _get_scoped_product(pk):
-    """کالای دارای تنوع را برمی‌گرداند؛ کالای ساده نباید صفحه‌ی مدیریت تنوع فعال داشته باشد."""
-    return get_object_or_404(Product, pk=pk)
+def _get_scoped_product(request, pk):
+    """کالای همین Store را برمی‌گرداند — نه کالای ساده/متعلق به Store دیگر."""
+    return get_object_or_404(Product, pk=pk, store=_resolve_dashboard_store(request))
 
 
 @staff_required
 def product_variants(request, pk):
-    product = _get_scoped_product(pk)
+    product = _get_scoped_product(request, pk)
     return render(request, "dashboard/product_variants.html", _variant_page_context(request, product))
 
 
 @require_POST
 @staff_required
 def product_variant_bulk_add(request, pk):
-    product = _get_scoped_product(pk)
+    product = _get_scoped_product(request, pk)
     if not product.is_variable:
         messages.error(request, "برای افزودن تنوع، ابتدا کالا را از ویرایش کالا به «دارای تنوع» تبدیل کنید.")
         return redirect("dashboard:product-variants", pk=product.pk)
@@ -481,7 +506,7 @@ def product_variant_bulk_add(request, pk):
 
 @staff_required
 def product_variant_edit(request, pk, variant_id):
-    product = _get_scoped_product(pk)
+    product = _get_scoped_product(request, pk)
     variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
 
     if request.method == "POST":
@@ -522,7 +547,7 @@ def product_variant_edit(request, pk, variant_id):
 @require_POST
 @staff_required
 def product_variant_toggle(request, pk, variant_id):
-    product = _get_scoped_product(pk)
+    product = _get_scoped_product(request, pk)
     variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
 
     try:
@@ -540,7 +565,7 @@ def product_variant_toggle(request, pk, variant_id):
 
 @staff_required
 def product_variant_delete(request, pk, variant_id):
-    product = _get_scoped_product(pk)
+    product = _get_scoped_product(request, pk)
     variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
 
     if request.method != "POST":
@@ -572,7 +597,7 @@ def product_variant_delete(request, pk, variant_id):
 @require_POST
 @staff_required
 def product_variant_move(request, pk, variant_id):
-    product = _get_scoped_product(pk)
+    product = _get_scoped_product(request, pk)
     variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
     direction = request.POST.get("direction", "")
 
@@ -593,9 +618,10 @@ def product_variant_move(request, pk, variant_id):
 
 
 def _categories_context(request, *, main_form=None, sub_form=None):
-    context = category_tree_context()
+    store = _resolve_dashboard_store(request)
+    context = category_tree_context(store)
     context["main_form"] = main_form or MainCategoryForm()
-    context["sub_form"] = sub_form or SubCategoryForm()
+    context["sub_form"] = sub_form or SubCategoryForm(store=store)
     return context
 
 
@@ -609,12 +635,13 @@ def category_list(request):
 @require_POST
 @staff_required
 def category_add_main(request):
+    store = _resolve_dashboard_store(request)
     form = MainCategoryForm(request.POST)
     if form.is_valid():
         name = form.cleaned_data["name"]
         Category.objects.create(
-            name=name, icon=form.cleaned_data["icon"] or "📁",
-            slug=generate_unique_slug(Category, name),
+            store=store, name=name, icon=form.cleaned_data["icon"] or "📁",
+            slug=generate_unique_slug(Category, name, store=store),
         )
         response = render(request, "dashboard/partials/categories_body.html", _categories_context(request))
         response["HX-Trigger"] = json.dumps({"toast": {"message": f"گروه «{name}» اضافه شد", "type": "ok"}})
@@ -629,12 +656,13 @@ def category_add_main(request):
 @require_POST
 @staff_required
 def category_add_sub(request):
-    form = SubCategoryForm(request.POST)
+    store = _resolve_dashboard_store(request)
+    form = SubCategoryForm(request.POST, store=store)
     if form.is_valid():
         name = form.cleaned_data["name"]
         Category.objects.create(
-            name=name, icon=form.cleaned_data["icon"], parent=form.cleaned_data["parent"],
-            slug=generate_unique_slug(Category, name),
+            store=store, name=name, icon=form.cleaned_data["icon"], parent=form.cleaned_data["parent"],
+            slug=generate_unique_slug(Category, name, store=store),
         )
         response = render(request, "dashboard/partials/categories_body.html", _categories_context(request))
         response["HX-Trigger"] = json.dumps({"toast": {"message": f"زیرگروه «{name}» اضافه شد", "type": "ok"}})
@@ -648,7 +676,8 @@ def category_add_sub(request):
 
 @staff_required
 def category_edit(request, pk):
-    category = get_object_or_404(Category, pk=pk)
+    store = _resolve_dashboard_store(request)
+    category = get_object_or_404(Category, pk=pk, store=store)
 
     if request.method == "POST":
         form = CategoryEditForm(request.POST)
@@ -672,7 +701,8 @@ def category_edit(request, pk):
 @require_POST
 @staff_required
 def category_delete(request, pk):
-    category = get_object_or_404(Category, pk=pk)
+    store = _resolve_dashboard_store(request)
+    category = get_object_or_404(Category, pk=pk, store=store)
     try:
         can_delete_category(category)
     except CategoryDeleteError as exc:
