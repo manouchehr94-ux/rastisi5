@@ -20,7 +20,7 @@ class PricingServiceTests(TestCase):
         self.store = _akhlaghi()
         self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-p")
         self.category = Category.objects.create(store=self.store, name="پوشاک", slug="clothing-p")
-        self.shipping = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-p", cost=Decimal("45000"))
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست پیشتاز", slug="post-p", cost=Decimal("45000"))
         self.cart = Cart.objects.create(session_key="guest-p")
 
     def _add_item(self, price, discount_percent=0, quantity=1, sku="SKU-P"):

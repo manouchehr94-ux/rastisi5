@@ -36,10 +36,10 @@ class ReportServiceTestCase(TestCase):
             store=self.store, vendor=self.vendor, category=self.category, name="گوشی", slug="phone-rs",
             sku="SKU-RS1", price=Decimal("1000000"), icon="📱",
         )
-        self.shipping = ShippingMethod.objects.create(name="پست", slug="post-rs", cost=Decimal("45000"))
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-rs")
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-rs", cost=Decimal("45000"))
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-rs")
         self.order = Order.objects.create(
-            code="DM-rs1", customer=self.customer, vendor=self.vendor, address={},
+            code="DM-rs1", store=self.store, customer=self.customer, vendor=self.vendor, address={},
             shipping_method=self.shipping, payment_gateway=self.gateway,
             grand_total=Decimal("1000000"), payment_status=Order.PaymentStatus.PAID,
         )
@@ -58,7 +58,7 @@ class RangeSummaryTests(ReportServiceTestCase):
 
     def test_out_of_range_orders_excluded(self):
         old_order = Order.objects.create(
-            code="DM-rs-old", customer=self.customer, vendor=self.vendor, address={},
+            code="DM-rs-old", store=self.store, customer=self.customer, vendor=self.vendor, address={},
             shipping_method=self.shipping, payment_gateway=self.gateway,
             grand_total=Decimal("500000"), payment_status=Order.PaymentStatus.PAID,
         )

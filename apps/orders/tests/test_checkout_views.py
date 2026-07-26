@@ -24,8 +24,8 @@ class CheckoutStep1ViewTests(TestCase):
             store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-cov",
             sku="SKU-COV1", price=Decimal("400000"), discount_percent=25, stock=10,
         )
-        self.shipping = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-cov", cost=45_000)
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-cov")
+        self.shipping = ShippingMethod.objects.create(store=store, name="پست پیشتاز", slug="post-cov", cost=45_000)
+        self.gateway = PaymentGateway.objects.create(store=store, name="زرین‌پال", slug="zarin-cov")
 
     def test_empty_cart_shows_empty_state(self):
         response = self.client.get(reverse("orders:checkout-step1"))
@@ -51,8 +51,8 @@ class CheckoutPayTests(TestCase):
             store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-cas",
             sku="SKU-CAS1", price=Decimal("200000"), stock=10,
         )
-        self.shipping = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-cas", cost=45_000)
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-cas")
+        self.shipping = ShippingMethod.objects.create(store=store, name="پست پیشتاز", slug="post-cas", cost=45_000)
+        self.gateway = PaymentGateway.objects.create(store=store, name="زرین‌پال", slug="zarin-cas")
         self.valid_payload = {
             "receiver_name": "علی رضایی", "phone": "09123456789", "province": "تهران",
             "city": "تهران", "postal_code": "1415873920",
@@ -194,8 +194,8 @@ class PaymentFlowTests(TestCase):
             store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-pf",
             sku="SKU-PF1", price=Decimal("200000"), stock=10,
         )
-        ShippingMethod.objects.create(name="پست پیشتاز", slug="post-pf", cost=45_000)
-        PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-pf")
+        ShippingMethod.objects.create(store=store, name="پست پیشتاز", slug="post-pf", cost=45_000)
+        PaymentGateway.objects.create(store=store, name="زرین‌پال", slug="zarin-pf")
         user = User.objects.create_user(username="09121110099", password="pass12345")
         Customer.objects.create(user=user, full_name="سارا محمدی", phone="09121110099")
         self.client.login(username="09121110099", password="pass12345")
@@ -256,10 +256,10 @@ class CheckoutItemAndSelectionViewTests(TestCase):
             store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-cis",
             sku="SKU-CIS1", price=Decimal("100000"), stock=5,
         )
-        self.cheap = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-cis", cost=45_000)
-        self.expensive = ShippingMethod.objects.create(name="پیک موتوری", slug="peyk-cis", cost=80_000)
-        self.gateway1 = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-cis")
-        self.gateway2 = PaymentGateway.objects.create(name="پی‌پینگ", slug="payping-cis")
+        self.cheap = ShippingMethod.objects.create(store=store, name="پست پیشتاز", slug="post-cis", cost=45_000)
+        self.expensive = ShippingMethod.objects.create(store=store, name="پیک موتوری", slug="peyk-cis", cost=80_000)
+        self.gateway1 = PaymentGateway.objects.create(store=store, name="زرین‌پال", slug="zarin-cis")
+        self.gateway2 = PaymentGateway.objects.create(store=store, name="پی‌پینگ", slug="payping-cis")
         self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 1})
         self.item = CartItem.objects.first()
 
@@ -295,8 +295,8 @@ class CheckoutCouponViewTests(TestCase):
             store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-ccv",
             sku="SKU-CCV1", price=Decimal("300000"),
         )
-        ShippingMethod.objects.create(name="پست پیشتاز", slug="post-ccv", cost=45_000)
-        PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-ccv")
+        ShippingMethod.objects.create(store=store, name="پست پیشتاز", slug="post-ccv", cost=45_000)
+        PaymentGateway.objects.create(store=store, name="زرین‌پال", slug="zarin-ccv")
         self.coupon = Coupon.objects.create(code="SAVE10", type=Coupon.Type.PERCENT, value=Decimal("10"))
         self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 1})
 

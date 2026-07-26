@@ -32,15 +32,15 @@ class OrdersAdminServiceTestCase(TestCase):
         user = User.objects.create_user(username="09121130001", password="pass12345")
         self.customer = Customer.objects.create(user=user, full_name="سارا احمدی", phone="09121130001")
         self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-oa")
-        self.shipping = ShippingMethod.objects.create(name="پست", slug="post-oa", cost=Decimal("45000"))
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-oa")
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-oa", cost=Decimal("45000"))
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-oa")
         self.order = Order.objects.create(
-            code="DM-11111", customer=self.customer, vendor=self.vendor, address={},
+            code="DM-11111", store=self.store, customer=self.customer, vendor=self.vendor, address={},
             shipping_method=self.shipping, payment_gateway=self.gateway,
             items_total=Decimal("100000"), grand_total=Decimal("100000"),
         )
         self.order2 = Order.objects.create(
-            code="DM-22222", customer=self.customer, vendor=self.vendor, address={},
+            code="DM-22222", store=self.store, customer=self.customer, vendor=self.vendor, address={},
             shipping_method=self.shipping, payment_gateway=self.gateway,
             items_total=Decimal("200000"), grand_total=Decimal("200000"),
             payment_status=Order.PaymentStatus.PAID,
@@ -49,28 +49,28 @@ class OrdersAdminServiceTestCase(TestCase):
 
 class FilteredOrdersTests(OrdersAdminServiceTestCase):
     def test_search_by_code(self):
-        result = filtered_orders(q="11111")
+        result = filtered_orders(store=self.store, q="11111")
         self.assertEqual(list(result), [self.order])
 
     def test_search_by_customer_name(self):
-        result = filtered_orders(q="سارا")
+        result = filtered_orders(store=self.store, q="سارا")
         self.assertEqual(set(result), {self.order, self.order2})
 
     def test_filter_by_status(self):
         change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
-        result = filtered_orders(status=Order.Status.PROCESSING)
+        result = filtered_orders(store=self.store, status=Order.Status.PROCESSING)
         self.assertEqual(list(result), [self.order])
 
 
 class OrderStatusCountsTests(OrdersAdminServiceTestCase):
     def test_counts_include_total_under_empty_key(self):
-        counts = order_status_counts()
+        counts = order_status_counts(store=self.store)
         self.assertEqual(counts[""], 2)
         self.assertEqual(counts[Order.Status.PENDING], 2)
 
     def test_counts_reflect_status_change(self):
         change_order_status(self.order, Order.Status.CANCELED, store=self.store)
-        counts = order_status_counts()
+        counts = order_status_counts(store=self.store)
         self.assertEqual(counts[Order.Status.CANCELED], 1)
         self.assertEqual(counts[Order.Status.PENDING], 1)
 
@@ -119,17 +119,17 @@ class OrderStatusStepsTests(OrdersAdminServiceTestCase):
 
 class FilteredInvoicesTests(OrdersAdminServiceTestCase):
     def test_filter_by_payment_status(self):
-        result = filtered_invoices(status=Order.PaymentStatus.PAID)
+        result = filtered_invoices(store=self.store, status=Order.PaymentStatus.PAID)
         self.assertEqual(list(result), [self.order2])
 
     def test_no_filter_returns_all(self):
-        result = filtered_invoices()
+        result = filtered_invoices(store=self.store)
         self.assertEqual(set(result), {self.order, self.order2})
 
 
 class InvoiceTotalsTests(OrdersAdminServiceTestCase):
     def test_totals_sum_grand_total(self):
-        count, total = invoice_totals(filtered_invoices())
+        count, total = invoice_totals(filtered_invoices(store=self.store))
         self.assertEqual(count, 2)
         self.assertEqual(total, Decimal("300000"))
 
@@ -144,7 +144,7 @@ class FilteredTransactionsTests(OrdersAdminServiceTestCase):
             code="TX-22222", order=self.order2, gateway=self.gateway,
             amount=Decimal("200000"), status=Transaction.Status.FAIL,
         )
-        result = filtered_transactions(status=Transaction.Status.OK)
+        result = filtered_transactions(store=self.store, status=Transaction.Status.OK)
         self.assertEqual(result.count(), 1)
         self.assertEqual(result.first().code, "TX-11111")
 
@@ -153,4 +153,4 @@ class FilteredTransactionsTests(OrdersAdminServiceTestCase):
             code="TX-33333", order=self.order, gateway=self.gateway,
             amount=Decimal("100000"), status=Transaction.Status.PENDING,
         )
-        self.assertEqual(filtered_transactions().count(), 1)
+        self.assertEqual(filtered_transactions(store=self.store).count(), 1)

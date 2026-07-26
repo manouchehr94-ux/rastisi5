@@ -24,12 +24,13 @@ class OrdersModelsTests(TestCase):
             store=self.store, vendor=self.vendor, category=self.category, name="کتانی", slug="sneaker-o",
             sku="SKU-O1", price=Decimal("2000000"),
         )
-        self.shipping = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-o", cost=45_000)
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-o")
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست پیشتاز", slug="post-o", cost=45_000)
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-o")
 
     def _make_order(self, code="DM-10001"):
         return Order.objects.create(
             code=code,
+            store=self.store,
             customer=self.customer,
             vendor=self.vendor,
             address={"receiver_name": "رضا محمدی", "city": "تهران"},

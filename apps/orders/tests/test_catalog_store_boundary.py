@@ -125,8 +125,8 @@ class CreateOrderFromCartCrossStoreProductTests(TestCase):
             customer=self.customer, receiver_name="مشتری", phone="09121230099",
             province="تهران", city="تهران", postal_code="1111111111", full_address="خیابان آزادی",
         )
-        self.shipping = ShippingMethod.objects.create(name="پست", slug="post-cobsvc", cost=Decimal("45000"))
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-cobsvc")
+        self.shipping = ShippingMethod.objects.create(store=self.store_a, name="پست", slug="post-cobsvc", cost=Decimal("45000"))
+        self.gateway = PaymentGateway.objects.create(store=self.store_a, name="زرین‌پال", slug="zarin-cobsvc")
 
     def test_order_creation_rejects_cart_line_from_another_store(self):
         cart = Cart.objects.create(customer=self.customer)

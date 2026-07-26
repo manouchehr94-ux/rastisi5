@@ -506,10 +506,10 @@ class VariantDeleteViewTests(VariantViewsTestCase):
     def _make_sold_variant(self):
         customer_user = User.objects.create_user(username="09129990001", password="pass12345")
         customer = Customer.objects.create(user=customer_user, full_name="مشتری", phone="09129990001")
-        shipping = ShippingMethod.objects.create(name="پست", slug="post-pvv", cost=Decimal("10000"))
-        gateway = PaymentGateway.objects.create(name="درگاه", slug="gw-pvv")
+        shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-pvv", cost=Decimal("10000"))
+        gateway = PaymentGateway.objects.create(store=self.store, name="درگاه", slug="gw-pvv")
         order = Order.objects.create(
-            code="DM-PVV1", customer=customer, vendor=self.vendor,
+            code="DM-PVV1", store=self.store, customer=customer, vendor=self.vendor,
             shipping_method=shipping, payment_gateway=gateway,
         )
         sold_variant = create_variant(self.product, attribute="رنگ", value="آبی")
@@ -646,10 +646,10 @@ class VariantPageUITests(VariantViewsTestCase):
         self._make_variable()
         customer_user = User.objects.create_user(username="09129990002", password="pass12345")
         customer = Customer.objects.create(user=customer_user, full_name="مشتری", phone="09129990002")
-        shipping = ShippingMethod.objects.create(name="پست", slug="post-pvv2", cost=Decimal("10000"))
-        gateway = PaymentGateway.objects.create(name="درگاه", slug="gw-pvv2")
+        shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-pvv2", cost=Decimal("10000"))
+        gateway = PaymentGateway.objects.create(store=self.store, name="درگاه", slug="gw-pvv2")
         order = Order.objects.create(
-            code="DM-PVV2", customer=customer, vendor=self.vendor,
+            code="DM-PVV2", store=self.store, customer=customer, vendor=self.vendor,
             shipping_method=shipping, payment_gateway=gateway,
         )
         sold_variant = create_variant(self.product, attribute="رنگ", value="آبی")
@@ -977,10 +977,10 @@ class VariantActionQuerystringPreservationTests(VariantViewsTestCase):
     def test_delete_redirect_preserves_query_when_blocked(self):
         customer_user = User.objects.create_user(username="09129990003", password="pass12345")
         customer = Customer.objects.create(user=customer_user, full_name="مشتری", phone="09129990003")
-        shipping = ShippingMethod.objects.create(name="پست", slug="post-pvv3", cost=Decimal("10000"))
-        gateway = PaymentGateway.objects.create(name="درگاه", slug="gw-pvv3")
+        shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-pvv3", cost=Decimal("10000"))
+        gateway = PaymentGateway.objects.create(store=self.store, name="درگاه", slug="gw-pvv3")
         order = Order.objects.create(
-            code="DM-PVV3", customer=customer, vendor=self.vendor,
+            code="DM-PVV3", store=self.store, customer=customer, vendor=self.vendor,
             shipping_method=shipping, payment_gateway=gateway,
         )
         OrderItem.objects.create(

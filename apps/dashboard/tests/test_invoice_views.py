@@ -14,21 +14,21 @@ User = get_user_model()
 
 class InvoiceViewsTestCase(TestCase):
     def setUp(self):
-        store = Store.objects.get(slug="akhlaghi")
+        self.store = store = Store.objects.get(slug="akhlaghi")
         user = User.objects.create_user(username="09121150001", password="pass12345")
         self.customer = Customer.objects.create(user=user, full_name="کیوان رستمی", phone="09121150001")
         self.vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-iv")
-        self.shipping = ShippingMethod.objects.create(name="پست", slug="post-iv", cost=Decimal("45000"))
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-iv")
+        self.shipping = ShippingMethod.objects.create(store=store, name="پست", slug="post-iv", cost=Decimal("45000"))
+        self.gateway = PaymentGateway.objects.create(store=store, name="زرین‌پال", slug="zarin-iv")
         self.paid_order = Order.objects.create(
-            code="DM-88881", customer=self.customer, vendor=self.vendor,
+            code="DM-88881", store=store, customer=self.customer, vendor=self.vendor,
             address={"province": "تهران", "city": "تهران", "full_address": "میدان آزادی"},
             shipping_method=self.shipping, payment_gateway=self.gateway,
             items_total=Decimal("100000"), grand_total=Decimal("109000"), tax=Decimal("9000"),
             payment_status=Order.PaymentStatus.PAID,
         )
         self.pending_order = Order.objects.create(
-            code="DM-88882", customer=self.customer, vendor=self.vendor, address={},
+            code="DM-88882", store=store, customer=self.customer, vendor=self.vendor, address={},
             shipping_method=self.shipping, payment_gateway=self.gateway,
             items_total=Decimal("50000"), grand_total=Decimal("54500"), tax=Decimal("4500"),
         )

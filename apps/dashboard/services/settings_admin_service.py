@@ -8,26 +8,30 @@ apps.orders.services.checkout_service برای فهرست گزینه‌های ت
 می‌کند — هیچ مقدار جدا و بی‌اثری اینجا ساخته نشده.
 """
 
+from django.shortcuts import get_object_or_404
+
 from apps.orders.models import PaymentGateway, ShippingMethod
 
 
-def active_gateways_context():
-    return PaymentGateway.objects.order_by("name")
+def active_gateways_context(*, store):
+    return PaymentGateway.objects.filter(store=store).order_by("name")
 
 
-def shipping_methods_context():
-    return ShippingMethod.objects.order_by("cost")
+def shipping_methods_context(*, store):
+    return ShippingMethod.objects.filter(store=store).order_by("cost")
 
 
-def toggle_gateway(pk: int) -> PaymentGateway:
-    gateway = PaymentGateway.objects.get(pk=pk)
+def toggle_gateway(pk: int, *, store) -> PaymentGateway:
+    """۴۰۴ استاندارد (نه استثنای بدون‌مدیریت) برای درگاه متعلق به Store دیگر."""
+    gateway = get_object_or_404(PaymentGateway, pk=pk, store=store)
     gateway.is_active = not gateway.is_active
     gateway.save(update_fields=["is_active", "updated_at"])
     return gateway
 
 
-def toggle_shipping_method(pk: int) -> ShippingMethod:
-    method = ShippingMethod.objects.get(pk=pk)
+def toggle_shipping_method(pk: int, *, store) -> ShippingMethod:
+    """۴۰۴ استاندارد (نه استثنای بدون‌مدیریت) برای روش ارسال متعلق به Store دیگر."""
+    method = get_object_or_404(ShippingMethod, pk=pk, store=store)
     method.is_active = not method.is_active
     method.save(update_fields=["is_active", "updated_at"])
     return method

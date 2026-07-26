@@ -231,10 +231,10 @@ class SoldVariantCannotBeDeletedThroughAdminTests(DjangoAdminVariantFixture):
         super().setUp()
         user = User.objects.create_user(username="09121112233adm", password="pass12345")
         customer = Customer.objects.create(user=user, full_name="مشتری", phone="09121112233")
-        shipping = ShippingMethod.objects.create(name="پست", slug="post-adm", cost=Decimal("10000"))
-        gateway = PaymentGateway.objects.create(name="درگاه", slug="gw-adm")
+        shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-adm", cost=Decimal("10000"))
+        gateway = PaymentGateway.objects.create(store=self.store, name="درگاه", slug="gw-adm")
         self.order = Order.objects.create(
-            code="DM-ADMXYZ", customer=customer, vendor=self.vendor,
+            code="DM-ADMXYZ", store=self.store, customer=customer, vendor=self.vendor,
             shipping_method=shipping, payment_gateway=gateway,
         )
         self.sold_variant = ProductVariant.objects.create(product=self.product, attribute="طول", value="50")

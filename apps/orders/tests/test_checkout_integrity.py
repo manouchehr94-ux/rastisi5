@@ -42,8 +42,8 @@ class _CheckoutFixture(TestCase):
             name="هدفون بلوتوثی", slug="headphone-ci", sku="SKU-CI",
             price=Decimal("500000"), discount_percent=10, stock=10,
         )
-        self.shipping = ShippingMethod.objects.create(name="پست", slug="post-ci", cost=Decimal("45000"))
-        self.gateway = PaymentGateway.objects.create(name="درگاه", slug="gw-ci")
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-ci", cost=Decimal("45000"))
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="درگاه", slug="gw-ci")
         self.address_payload = {
             "receiver_name": "تست کاربر", "phone": "09121111111",
             "province": "تهران", "city": "تهران",
@@ -244,8 +244,8 @@ class NewPhoneGuestCartTests(TestCase):
             name="ماوس", slug="mouse-ng", sku="SKU-NG",
             price=Decimal("300000"), stock=10,
         )
-        ShippingMethod.objects.create(name="پست", slug="post-ng", cost=Decimal("45000"))
-        PaymentGateway.objects.create(name="درگاه", slug="gw-ng")
+        ShippingMethod.objects.create(store=store, name="پست", slug="post-ng", cost=Decimal("45000"))
+        PaymentGateway.objects.create(store=store, name="درگاه", slug="gw-ng")
 
     def test_guest_cart_merged_to_new_customer(self):
         # Add to cart as guest
@@ -316,8 +316,8 @@ class ExistingPhoneOTPRegressionTests(TestCase):
             name="کیبورد", slug="keyboard-otp", sku="SKU-OTP",
             price=Decimal("800000"), stock=8,
         )
-        ShippingMethod.objects.create(name="پست", slug="post-otp", cost=Decimal("45000"))
-        PaymentGateway.objects.create(name="درگاه", slug="gw-otp")
+        ShippingMethod.objects.create(store=store, name="پست", slug="post-otp", cost=Decimal("45000"))
+        PaymentGateway.objects.create(store=store, name="درگاه", slug="gw-otp")
         self.owner = User.objects.create_user(username="09121111111", password="Pass12345!")
         self.existing_customer = Customer.objects.create(
             user=self.owner, full_name="صاحب حساب", phone="09121111111"

@@ -573,6 +573,156 @@ a functional one, and not worth a file move bundled into this PR.
 
 ---
 
+## ADR-14: `Order` Gets a Direct `store` FK (Redundant Store-Owned Child), Not Just `vendor.store`
+
+**Context.** PR#20/ADR-13 deliberately gave `Cart`/`Order` no `store` FK,
+since every call site already had an authoritative `Store` available from
+the triggering request and `Order.vendor` (itself Store-scoped since PR#21)
+made the ownership derivable. PR23 found this indirection was a real,
+exploited gap in practice: `apps.dashboard.services.orders_admin_service`/
+`customers_admin_service` queried `Order.objects`/`Transaction.objects`
+completely unscoped by Store — the exact bug class ADR-13 and PR#21 already
+fixed once for catalog, recurring here because there was no `Order.store`
+column to filter on directly, only a join through `vendor__store` that
+every call site would have had to remember to add correctly, forever.
+
+**Decision.** `Order.store` is now a direct, required
+(`on_delete=PROTECT`) foreign key to `Store` — the same "Redundant
+Store-owned Child" category as `apps.catalog.ProductVariant.store` (see
+`00_PROJECT_MASTER_REFERENCE.md` §8's four-category ownership model): the
+authoritative source is still `Order.vendor.store`, but a direct column
+exists because per-Store filtering/reporting on `Order` is a proven,
+constant need (every dashboard order/invoice/payment/customer query), not
+a hypothetical one. `on_delete=PROTECT` — not `CASCADE` like catalog's
+Store-owned content — because an `Order` is an immutable financial/
+historical record; deleting a `Store` must never silently delete its order
+history. The invariant `order.store_id == order.vendor.store_id` is
+enforced at two layers: `apps.orders.services.order_service.create_order_from_cart`
+(the sole Production write path for `Order` creation) raises `ValueError`
+on mismatch before ever touching the database, and `Order.clean()` is a
+second, model-level defensive check mirroring `apps.catalog.models.Product.clean()`'s
+already-established pattern. A database-level `CheckConstraint` was
+considered and rejected — Django's `CheckConstraint` cannot compare two
+different tables' columns, and neither SQLite nor the project's intended
+production database (PostgreSQL) supports a cross-table CHECK constraint
+either, so no implementation would actually provide DB-level enforcement
+here; claiming one exists would be a false statement about the schema.
+
+**Migration.** Staged exactly like catalog's original backfill
+(`0006`→`0007`→`0008`): `0003_store_scope_orders_schema` (nullable FK +
+new `idempotency_key`/`OrderItem.sku`/`OrderItem.variant_label` fields +
+`PaymentGateway`/`ShippingMethod.store`, also nullable, plus their new
+per-Store slug-uniqueness constraints) → `0004_backfill_orders_store`
+(data migration) → `0005_store_scope_orders_enforce_not_null` (NOT NULL).
+Unlike catalog's original backfill, `Order.store` did **not** need an
+Akhlaghi-guess fallback: every existing `Order` already had a required,
+non-null `vendor`, and every `Vendor` already had a required, non-null
+`store` (enforced since catalog's own `0008`) — so the backfill derives
+`Order.store` deterministically from `Order.vendor.store` for every row,
+never guessing or falling back to Akhlaghi. `PaymentGateway`/
+`ShippingMethod` had no prior Store relationship at all (the same
+situation catalog's `Vendor`/`Category`/`Brand` were originally in), so
+their backfill does use the Akhlaghi-exact-slug-or-fail pattern, identical
+in shape to `apps/catalog/migrations/0007_backfill_catalog_store.py`.
+
+**Alternatives considered.** Leaving `Order` without a direct `store` field
+and instead auditing every dashboard query to join through `vendor__store`
+correctly — rejected: this is exactly the "remember to do it everywhere,
+forever" pattern that already failed once (the gap this ADR fixes). Giving
+`Transaction` its own direct `store` FK too — rejected as unnecessary
+duplication: `Transaction.order` is a required FK, and `Order.store` is
+now itself required and authoritative, so `Transaction`'s Store is already
+unambiguously reachable via `transaction.order.store`; dashboard payment
+queries filter via `order__store=store` rather than a redundant column.
+
+**Consequences.** `apps.dashboard.services.orders_admin_service`,
+`customers_admin_service`, and `settings_admin_service` all now require an
+explicit `store` keyword argument, resolved once per request via
+`apps.dashboard.views._resolve_dashboard_store` (already the established
+pattern), and every dashboard order/invoice/payment/customer/gateway/
+shipping list, detail, and mutation endpoint is Store-scoped — a Store A
+user requesting a Store B `Order`/`Transaction`/gateway/shipping-method by
+ID or code now gets the repository's standard safe denial (404), not the
+object. `Customer` deliberately still has no `store` field (see ADR-6,
+still deferred) — `customers_admin_service.annotated_customers` instead
+scopes by the existing `orders__store` relationship, so a customer is only
+visible in a given Store's dashboard if they have at least one `Order`
+there, and their `order_count`/`paid_total` aggregates are computed with
+that same Store filter, never a global total.
+
+---
+
+## ADR-15: Checkout Idempotency — a Server-Held Token on `Cart`, Not a Client-Echoed Field or a Random-Code `.exists()` Check
+
+**Context.** The pre-PR23 order-code generator
+(`f"{ORDER_CODE_PREFIX}-{random.randint(10000, 99999)}"`, checked via a
+plain, non-locked `Order.objects.filter(code=code).exists()`) was never a
+real idempotency mechanism — it only avoided colliding on the *code*
+string; nothing prevented two Orders being created from one legitimate
+checkout submission (double-click, browser retry, network retry). A real
+mechanism was needed that: requires no client cooperation (nothing a
+compromised or buggy client could omit, forge, or replay across a
+different Cart/Store); works identically on SQLite (tests) and PostgreSQL
+(production) without relying on Redis or a process-local lock (both
+explicitly out of scope for this PR); and closes the concurrent-race
+window, not just the easy sequential-retry case.
+
+**Decision.** `Cart` gained a `checkout_token` field
+(`secrets.token_urlsafe(32)`, generated server-side, once, lazily, the
+first time `apps.orders.services.checkout_service.get_or_create_checkout_token`
+is called for that Cart — never read from or influenced by client input).
+Because every checkout attempt for the same guest session or logged-in
+Customer resolves the *same* `Cart` row (the existing, unchanged
+`apps.cart.services.cart_service.get_cart` lookup), a double-click or
+retry naturally reads back the identical token with zero new state to
+manage and nothing for a client to submit or tamper with. `Order` gained a
+matching `idempotency_key` (blank-by-default, uniqueness enforced only
+when set — the same `condition=~Q(field="")` partial-uniqueness pattern
+already used for `ProductVariant.sku`, so the many existing tests/services
+that create Orders without a token are entirely unaffected).
+`apps.orders.services.checkout_service.finalize_order` checks for an
+existing `Order` with that token *before* checking whether the Cart is
+empty (a same-Cart replay after a first, already-successful submission
+would otherwise see an emptied cart and wrongly report "cart is empty"
+instead of returning the original Order). `apps.orders.services.order_service.create_order_from_cart`
+itself repeats that check, then — for the genuine concurrent-race window,
+where two requests both pass that check before either commits — wraps
+only the `Order.objects.create(...)` call in a nested `transaction.atomic()`
+savepoint and catches `IntegrityError`: the losing request's savepoint
+rolls back (not the whole transaction), and it re-queries and returns the
+winning request's `Order` instead of raising, creating a duplicate, or
+double-decrementing stock (the item/stock loop never runs for the losing
+attempt, since the `Order.objects.create()` call happens first and fails
+before it).
+
+**Alternatives considered.** A hidden form field echoed back by the
+client — rejected: requires template changes, and trusts a client-supplied
+value's *presence* even if not its content, for no benefit over reading
+the value straight off the server-held `Cart` row the request already
+resolves. A dedicated `CheckoutAttempt` model — rejected as unnecessary
+duplication: `Cart.checkout_token` + `Order.idempotency_key` already give
+a complete request → in-flight-attempt → completed-Order chain without a
+third table. A process-local lock (e.g. a `threading.Lock` keyed by
+Cart ID) — rejected per this PR's explicit scope: it wouldn't work across
+multiple application processes/workers in real production deployment, and
+the database-level unique-constraint approach above is strictly stronger
+(works correctly regardless of process/worker topology) at no extra cost.
+
+**Consequences.** A "true" concurrent-race test cannot be exercised
+deterministically against SQLite (its whole-database write lock
+effectively serializes concurrent writers rather than reproducing
+PostgreSQL's row-level contention) — `apps/orders/tests/test_checkout_correctness.py::CheckoutIdempotencyServiceTests.test_concurrent_race_simulated_via_preexisting_conflicting_order`
+instead deterministically pre-creates the "winning" Order with the same
+key and asserts the losing call's `IntegrityError`-catch-and-refetch path
+behaves correctly — this exercises the exact code path a real race would
+hit, without depending on real thread/process timing. Verifying the
+mechanism's behavior under genuine PostgreSQL row-level lock contention is
+listed as a pre-launch verification item, not something SQLite testing can
+substitute for (see `00_PROJECT_MASTER_REFERENCE.md`'s SQLite-vs-PostgreSQL
+concurrency-limitation note).
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -590,4 +740,6 @@ a functional one, and not worth a file move bundled into this PR.
 | Store is aggregate root; no generic StoreConfiguration table | Decided |
 | Store resolution is hostname-authoritative, fail-closed compatibility fallback | Decided, implemented |
 | ShopSettings/FooterSettings: OneToOneField per Store; trust badges/payment logos: direct Store FK | Decided, implemented |
-| Tenant-sensitive services resolve Store once at the boundary, never re-derive it deeper | Decided, implemented on open PR (not merged) |
+| Tenant-sensitive services resolve Store once at the boundary, never re-derive it deeper | Decided, implemented |
+| `Order` gets a direct `store` FK (redundant, PROTECT) alongside `vendor` | Decided, implemented |
+| Checkout idempotency via server-held `Cart.checkout_token` + `Order.idempotency_key` | Decided, implemented |

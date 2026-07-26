@@ -7,6 +7,7 @@
 """
 
 import logging
+import secrets
 from decimal import Decimal
 
 from django.db import transaction
@@ -14,10 +15,12 @@ from django.db import transaction
 from apps.cart.models import Coupon
 from apps.cart.services.pricing import cart_totals, coupon_is_applicable
 from apps.customers.models import Address
-from apps.orders.models import PaymentGateway, ShippingMethod
+from apps.orders.models import Order, PaymentGateway, ShippingMethod
 from apps.stores.resolution import resolve_store_for_service
 
 logger = logging.getLogger(__name__)
+
+CHECKOUT_TOKEN_BYTES = 32
 
 SESSION_KEY = "checkout"
 
@@ -49,16 +52,17 @@ def save_address(request, cleaned_data) -> None:
     request.session.modified = True
 
 
-def active_shipping_methods():
-    return list(ShippingMethod.objects.filter(is_active=True))
+def active_shipping_methods(*, store):
+    return list(ShippingMethod.objects.filter(is_active=True, store=store))
 
 
-def active_payment_gateways():
-    return list(PaymentGateway.objects.filter(is_active=True))
+def active_payment_gateways(*, store):
+    return list(PaymentGateway.objects.filter(is_active=True, store=store))
 
 
 def get_selected_shipping_method(request):
-    methods = active_shipping_methods()
+    store = resolve_store_for_service(request)
+    methods = active_shipping_methods(store=store)
     if not methods:
         return None
     selected_id = _state(request).get("shipping_method_id")
@@ -69,14 +73,18 @@ def get_selected_shipping_method(request):
 
 
 def set_shipping_method(request, method_id) -> None:
-    method = ShippingMethod.objects.filter(pk=method_id, is_active=True).first()
+    """یک POST دستکاری‌شده هرگز نمی‌تواند روش ارسال متعلق به Store دیگری را
+    انتخاب کند — استخر گزینه‌های مجاز همیشه با ``store`` فعلی فیلتر می‌شود."""
+    store = resolve_store_for_service(request)
+    method = ShippingMethod.objects.filter(pk=method_id, is_active=True, store=store).first()
     if method:
         _state(request)["shipping_method_id"] = method.pk
         request.session.modified = True
 
 
 def get_selected_payment_gateway(request):
-    gateways = active_payment_gateways()
+    store = resolve_store_for_service(request)
+    gateways = active_payment_gateways(store=store)
     if not gateways:
         return None
     selected_id = _state(request).get("payment_gateway_id")
@@ -87,10 +95,26 @@ def get_selected_payment_gateway(request):
 
 
 def set_payment_gateway(request, gateway_id) -> None:
-    gateway = PaymentGateway.objects.filter(pk=gateway_id, is_active=True).first()
+    """یک POST دستکاری‌شده هرگز نمی‌تواند درگاه پرداخت متعلق به Store دیگری
+    را انتخاب کند — استخر گزینه‌های مجاز همیشه با ``store`` فعلی فیلتر می‌شود."""
+    store = resolve_store_for_service(request)
+    gateway = PaymentGateway.objects.filter(pk=gateway_id, is_active=True, store=store).first()
     if gateway:
         _state(request)["payment_gateway_id"] = gateway.pk
         request.session.modified = True
+
+
+def get_or_create_checkout_token(cart) -> str:
+    """کلید idempotency ثبت سفارش برای این سبد — سرور‌محور، بدون نیاز به
+    مشارکت کاربر (نه فیلد مخفی فرم، نه ورودی جدا). چون هر درخواست تسویه‌حساب
+    (اعم از کلیک دوم/retry شبکه) همان Cart را دوباره resolve می‌کند
+    (``apps.cart.services.cart_service.get_cart``)، همین یک کلید ذخیره‌شده
+    روی خودِ Cart برای تمام تلاش‌های متوالی/هم‌زمانِ همان کاربر یکسان
+    می‌ماند — بدون این‌که کلاینت هیچ مقداری بفرستد یا کنترل کند."""
+    if not cart.checkout_token:
+        cart.checkout_token = secrets.token_urlsafe(CHECKOUT_TOKEN_BYTES)
+        cart.save(update_fields=["checkout_token", "updated_at"])
+    return cart.checkout_token
 
 
 def get_applied_coupon(request, cart):
@@ -150,10 +174,26 @@ def finalize_order(request, cart, customer):
     تمام عملیات دیتابیسی (ساخت آدرس، ساخت سفارش، کاهش موجودی، پاک‌سازی سبد)
     در یک تراکنش اتمیک انجام می‌شود. در صورت هر خطایی، همه‌ی تغییرات دیتابیسی
     رول‌بک می‌شوند و سبد و نشست کاربر حفظ می‌شود.
+
+    idempotency: کلید تسویه‌حساب همین Cart (``get_or_create_checkout_token``)
+    پیش از هر بررسیِ خالی/پر بودنِ سبد چک می‌شود — چون یک ارسال دوباره‌ی
+    متوالی (کلیک دوم بعد از این‌که درخواست اول موفق شده) دقیقاً همین Cart را
+    دوباره resolve می‌کند در حالی که آیتم‌هایش از قبل توسط همان درخواست اول
+    پاک شده‌اند؛ اگر بررسی «سبد خالی است» زودتر از بررسی idempotency انجام
+    می‌شد، این حالت به‌اشتباه خطا نشان می‌داد به‌جای بازگرداندن سفارشِ همان
+    درخواست اول.
     """
     from apps.orders.services.order_service import create_order_from_cart
 
-    if cart is None or not cart.items.exists():
+    if cart is None:
+        raise CheckoutError("سبد خرید شما خالی است")
+
+    token = get_or_create_checkout_token(cart)
+    existing_order = Order.objects.filter(idempotency_key=token).first()
+    if existing_order is not None:
+        return existing_order
+
+    if not cart.items.exists():
         raise CheckoutError("سبد خرید شما خالی است")
 
     address_data = get_address(request)
@@ -178,6 +218,7 @@ def finalize_order(request, cart, customer):
                 cart, customer=customer, vendor=vendor, address=address,
                 shipping_method=shipping_method, payment_gateway=payment_gateway,
                 coupon=coupon, note=address_data.get("note", ""), store=store,
+                idempotency_key=token,
             )
             cart.items.all().delete()
     except ValueError as exc:
@@ -191,9 +232,10 @@ def finalize_order(request, cart, customer):
 def build_context(request, cart) -> dict:
     """کانتکست کامل صفحه‌ی تسویه‌حساب مرحله‌ی ۱ را می‌سازد."""
     is_empty = cart is None or not cart.items.exists()
+    store = resolve_store_for_service(request)
 
-    shipping_methods = active_shipping_methods()
-    payment_gateways = active_payment_gateways()
+    shipping_methods = active_shipping_methods(store=store)
+    payment_gateways = active_payment_gateways(store=store)
     selected_shipping = None if is_empty else get_selected_shipping_method(request)
     selected_payment = None if is_empty else get_selected_payment_gateway(request)
     coupon = None if is_empty else get_applied_coupon(request, cart)
