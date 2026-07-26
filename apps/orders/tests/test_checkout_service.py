@@ -13,16 +13,16 @@ from apps.stores.models import Store
 
 class CheckoutServiceTestCase(TestCase):
     def setUp(self):
-        store = Store.objects.get(slug="akhlaghi")
+        self.store = store = Store.objects.get(slug="akhlaghi")
         vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-chk")
         category = Category.objects.create(store=store, name="دیجیتال", slug="digital-chk")
         self.product = Product.objects.create(
             store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-chk",
             sku="SKU-CHK1", price=Decimal("400000"), discount_percent=10, stock=10,
         )
-        self.cheap_shipping = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-chk", cost=45_000)
-        self.expensive_shipping = ShippingMethod.objects.create(name="پیک موتوری", slug="peyk-chk", cost=80_000)
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-chk")
+        self.cheap_shipping = ShippingMethod.objects.create(store=store, name="پست پیشتاز", slug="post-chk", cost=45_000)
+        self.expensive_shipping = ShippingMethod.objects.create(store=store, name="پیک موتوری", slug="peyk-chk", cost=80_000)
+        self.gateway = PaymentGateway.objects.create(store=store, name="زرین‌پال", slug="zarin-chk")
         self.coupon = Coupon.objects.create(code="TESTCOUP", type=Coupon.Type.PERCENT, value=Decimal("10"))
 
         self.factory = RequestFactory()

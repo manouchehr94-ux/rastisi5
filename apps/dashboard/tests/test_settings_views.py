@@ -9,14 +9,16 @@ from django.urls import reverse
 
 from apps.core.models import ShopSettings
 from apps.orders.models import PaymentGateway, ShippingMethod
+from apps.stores.models import Store
 
 User = get_user_model()
 
 
 class SettingsViewsTestCase(TestCase):
     def setUp(self):
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-sv", is_active=True)
-        self.shipping = ShippingMethod.objects.create(name="پست پیشتاز", slug="post-sv", is_active=True)
+        self.store = Store.objects.get(slug="akhlaghi")
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-sv", is_active=True)
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست پیشتاز", slug="post-sv", is_active=True)
         self.staff = User.objects.create_user(username="09121192001", password="pass12345", is_staff=True)
         self.client.login(username="09121192001", password="pass12345")
 
@@ -199,7 +201,7 @@ class SettingsGatewayToggleViewTests(SettingsViewsTestCase):
         from apps.orders.services.checkout_service import active_payment_gateways
 
         self.client.post(reverse("dashboard:settings-gateway-toggle", args=[self.gateway.pk]))
-        self.assertNotIn(self.gateway, active_payment_gateways())
+        self.assertNotIn(self.gateway, active_payment_gateways(store=self.store))
 
     def test_get_not_allowed(self):
         response = self.client.get(reverse("dashboard:settings-gateway-toggle", args=[self.gateway.pk]))
@@ -217,7 +219,7 @@ class SettingsShippingToggleViewTests(SettingsViewsTestCase):
         from apps.orders.services.checkout_service import active_shipping_methods
 
         self.client.post(reverse("dashboard:settings-shipping-toggle", args=[self.shipping.pk]))
-        self.assertNotIn(self.shipping, active_shipping_methods())
+        self.assertNotIn(self.shipping, active_shipping_methods(store=self.store))
 
 
 

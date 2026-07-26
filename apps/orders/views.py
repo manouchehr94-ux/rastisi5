@@ -1,6 +1,7 @@
 import json
 import logging
 
+from django.conf import settings
 from django.contrib.auth import login as auth_login
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -184,7 +185,14 @@ def payment_start(request, code):
     فعلاً مستقیم به callback با نتیجه‌ی موفق هدایت می‌شود؛ وقتی درگاه واقعی
     وصل شود، این ویو باید کاربر را به آدرس درگاه بانکی هدایت کند و درگاه پس
     از پرداخت به payment_callback برمی‌گردد.
+
+    این شبیه‌سازی فقط وقتی ``settings.PAYMENTS_SIMULATION_ENABLED`` باشد در
+    دسترس است (پیش‌فرض توسعه/تست: فعال؛ پیش‌فرض هر استقراری با
+    ``DJANGO_DEBUG=False``: غیرفعال) — تا این مسیرِ «همیشه موفق» هرگز در یک
+    استقرار واقعیِ بدون درگاه پرداخت واقعی در دسترس نباشد.
     """
+    if not settings.PAYMENTS_SIMULATION_ENABLED:
+        raise Http404
     order = _get_own_order(request, code)
     if order.payment_status != Order.PaymentStatus.PENDING:
         return redirect("customers:account-order-detail", code=order.code)
@@ -196,7 +204,16 @@ def payment_callback(request, code, status):
 
     پردازش idempotent است: اگر سفارش قبلاً پردازش شده باشد، فقط به صفحه‌ی
     نتیجه هدایت می‌شود بدون ثبت تراکنش تکراری.
+
+    ``status`` یک segment مسیر است — یعنی کاملاً از سمت کلاینت قابل‌کنترل —
+    و تا وصل‌شدن درگاه واقعی (Zibal، PR بعدی) هیچ تأیید واقعی‌ای روی آن انجام
+    نمی‌شود. به همین دلیل این ویو هم دقیقاً مثل ``payment_start`` پشت
+    ``settings.PAYMENTS_SIMULATION_ENABLED`` است — در یک استقرار واقعی
+    (``DJANGO_DEBUG=False``) کاملاً غیرقابل‌دسترس می‌ماند، نه فقط «مستندشده
+    به‌عنوان placeholder».
     """
+    if not settings.PAYMENTS_SIMULATION_ENABLED:
+        raise Http404
     order = _get_own_order(request, code)
     if order.payment_status == Order.PaymentStatus.PENDING:
         simulate_payment(order, status == "success", store=resolve_store_for_service(request))

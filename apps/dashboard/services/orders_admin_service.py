@@ -22,8 +22,8 @@ TRANSACTION_STATUS_BADGE = {
 }
 
 
-def filtered_orders(*, q: str = "", status: str = ""):
-    qs = Order.objects.select_related("customer").order_by("-created_at")
+def filtered_orders(*, store, q: str = "", status: str = ""):
+    qs = Order.objects.filter(store=store).select_related("customer").order_by("-created_at")
     if q:
         qs = qs.filter(Q(code__icontains=q) | Q(customer__full_name__icontains=q) | Q(customer__phone__icontains=q))
     if status:
@@ -31,11 +31,11 @@ def filtered_orders(*, q: str = "", status: str = ""):
     return qs
 
 
-def order_status_counts() -> dict:
-    """شمارش سفارش‌ها به تفکیک وضعیت؛ کلید «» (رشته‌ی خالی) برابر با مجموع همه است."""
+def order_status_counts(*, store) -> dict:
+    """شمارش سفارش‌های همین Store به تفکیک وضعیت؛ کلید «» (رشته‌ی خالی) برابر با مجموع همه است."""
     counts = dict.fromkeys(Order.Status.values, 0)
     counts[""] = 0
-    rows = Order.objects.values("status").annotate(total=Count("id"))
+    rows = Order.objects.filter(store=store).values("status").annotate(total=Count("id"))
     for row in rows:
         counts[row["status"]] = row["total"]
         counts[""] += row["total"]
@@ -70,8 +70,8 @@ def order_status_steps(order: Order):
     ]
 
 
-def filtered_invoices(*, q: str = "", status: str = ""):
-    qs = filtered_orders(q=q)
+def filtered_invoices(*, store, q: str = "", status: str = ""):
+    qs = filtered_orders(store=store, q=q)
     if status:
         qs = qs.filter(payment_status=status)
     return qs
@@ -83,8 +83,10 @@ def invoice_totals(orders_qs):
     return count, total
 
 
-def filtered_transactions(*, status: str = ""):
-    qs = Transaction.objects.select_related("order", "order__customer", "gateway").order_by("-created_at")
+def filtered_transactions(*, store, status: str = ""):
+    qs = Transaction.objects.filter(order__store=store).select_related(
+        "order", "order__customer", "gateway"
+    ).order_by("-created_at")
     if status:
         qs = qs.filter(status=status)
     return qs

@@ -30,8 +30,8 @@ class CreateOrderFromCartTests(TestCase):
             store=self.store, vendor=self.vendor, category=self.category, name="هدفون", slug="headphone-os",
             sku="SKU-OS1", price=Decimal("1000000"), discount_percent=10, stock=10,
         )
-        self.shipping = ShippingMethod.objects.create(name="پست", slug="post-os", cost=Decimal("45000"))
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-os")
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-os", cost=Decimal("45000"))
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-os")
         self.address = Address.objects.create(
             customer=self.customer, receiver_name="حسن کریمی", phone="09121230000",
             province="تهران", city="تهران", postal_code="1111111111", full_address="خیابان آزادی",
@@ -121,10 +121,10 @@ class ChangeOrderStatusTests(TestCase):
         self.staff = User.objects.create_user(username="admin1", password="pass12345", is_staff=True)
         self.customer = Customer.objects.create(user=self.user, full_name="مینا صادقی", phone="09129990000")
         self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-cs")
-        self.shipping = ShippingMethod.objects.create(name="پست", slug="post-cs", cost=Decimal("45000"))
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-cs")
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-cs", cost=Decimal("45000"))
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-cs")
         self.order = Order.objects.create(
-            code="DM-55555", customer=self.customer, vendor=self.vendor, address={},
+            code="DM-55555", store=self.store, customer=self.customer, vendor=self.vendor, address={},
             shipping_method=self.shipping, payment_gateway=self.gateway,
             items_total=Decimal("100000"), grand_total=Decimal("100000"),
         )

@@ -728,14 +728,15 @@ def category_delete(request, pk):
 
 
 def _order_list_context(request):
+    store = _resolve_dashboard_store(request)
     q = request.GET.get("q", "").strip()
     status = request.GET.get("status", "")
     return {
-        "orders": filtered_orders(q=q, status=status),
+        "orders": filtered_orders(store=store, q=q, status=status),
         "q": q,
         "selected_status": status,
         "status_filters": ORDER_STATUS_FILTERS,
-        "status_counts": order_status_counts(),
+        "status_counts": order_status_counts(store=store),
     }
 
 
@@ -753,15 +754,17 @@ def order_table(request):
 
 @staff_required
 def order_detail(request, code):
-    order = get_object_or_404(Order.objects.select_related("customer", "vendor", "shipping_method"), code=code)
+    store = _resolve_dashboard_store(request)
+    order = get_object_or_404(
+        Order.objects.select_related("customer", "vendor", "shipping_method"), code=code, store=store
+    )
 
     if request.method == "POST":
         to_status = request.POST.get("status", "")
         tracking_code = request.POST.get("tracking_code", "").strip()
         try:
             change_order_status(
-                order, to_status, by=request.user, tracking_code=tracking_code,
-                store=_resolve_dashboard_store(request),
+                order, to_status, by=request.user, tracking_code=tracking_code, store=store,
             )
             messages.success(request, f"وضعیت سفارش {order.code} به‌روزرسانی شد")
             return redirect("dashboard:order-detail", code=order.code)
@@ -791,9 +794,10 @@ def _order_detail_context(order):
 
 
 def _invoice_list_context(request):
+    store = _resolve_dashboard_store(request)
     q = request.GET.get("q", "").strip()
     status = request.GET.get("status", "")
-    orders_qs = filtered_invoices(q=q, status=status)
+    orders_qs = filtered_invoices(store=store, q=q, status=status)
     count, total = invoice_totals(orders_qs)
     return {
         "orders": orders_qs,
@@ -819,7 +823,8 @@ def invoice_table(request):
 
 @staff_required
 def invoice_detail(request, code):
-    order = get_object_or_404(Order.objects.select_related("customer"), code=code)
+    store = _resolve_dashboard_store(request)
+    order = get_object_or_404(Order.objects.select_related("customer"), code=code, store=store)
     context = {
         "order": order,
         "items": order.items.select_related("product"),
@@ -832,9 +837,10 @@ def invoice_detail(request, code):
 
 
 def _payment_list_context(request):
+    store = _resolve_dashboard_store(request)
     status = request.GET.get("status", "")
     return {
-        "transactions": filtered_transactions(status=status),
+        "transactions": filtered_transactions(store=store, status=status),
         "selected_status": status,
         "status_filters": TRANSACTION_STATUS_FILTERS,
     }
@@ -856,8 +862,9 @@ def payment_table(request):
 
 
 def _customer_list_context(request):
+    store = _resolve_dashboard_store(request)
     q = request.GET.get("q", "").strip()
-    return {"customers": customers_admin_service.annotated_customers(q=q), "q": q}
+    return {"customers": customers_admin_service.annotated_customers(store=store, q=q), "q": q}
 
 
 @staff_required
@@ -874,8 +881,13 @@ def customer_table(request):
 
 @staff_required
 def customer_detail(request, pk):
-    customer = get_object_or_404(Customer, pk=pk)
-    orders = customers_admin_service.customer_orders(customer)
+    """مشتری فقط اگر حداقل یک Order در همین Store داشته باشد قابل‌دسترسی
+    است — Customer فیلد store ندارد (تصمیم عمدی، نگاه کنید به
+    customers_admin_service)، پس مرز دسترسی از طریق رابطه‌ی Order اعمال
+    می‌شود، نه یک فیلد مستقیم روی Customer."""
+    store = _resolve_dashboard_store(request)
+    customer = get_object_or_404(Customer.objects.filter(orders__store=store).distinct(), pk=pk)
+    orders = customers_admin_service.customer_orders(customer, store=store)
     context = {
         "customer": customer,
         "orders": orders,
@@ -912,7 +924,8 @@ THEME_TOKEN_DEFAULTS = {
 
 
 def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=None, visual_form=None):
-    shop = ShopSettings.load(store=request.store)
+    store = _resolve_dashboard_store(request)
+    shop = ShopSettings.load(store=store)
     theme_values = {
         field: safe_hex(getattr(shop, field), default) for field, default in THEME_TOKEN_DEFAULTS.items()
     }
@@ -940,8 +953,8 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
         ),
         "sms_template_rows": sms_admin_service.templates_with_variables(),
         "sms_test_form": SmsTestForm(),
-        "gateways": settings_admin_service.active_gateways_context(),
-        "shipping_methods": settings_admin_service.shipping_methods_context(),
+        "gateways": settings_admin_service.active_gateways_context(store=store),
+        "shipping_methods": settings_admin_service.shipping_methods_context(store=store),
         "active_page": "settings",
     }
 
@@ -1005,7 +1018,7 @@ def settings_finance(request):
 @require_POST
 @staff_required
 def settings_gateway_toggle(request, pk):
-    gateway = settings_admin_service.toggle_gateway(pk)
+    gateway = settings_admin_service.toggle_gateway(pk, store=_resolve_dashboard_store(request))
     state = "فعال" if gateway.is_active else "غیرفعال"
     response = HttpResponse(status=204)
     response["HX-Trigger"] = json.dumps({"toast": {"message": f"درگاه «{gateway.name}» {state} شد", "type": "info"}})
@@ -1015,7 +1028,7 @@ def settings_gateway_toggle(request, pk):
 @require_POST
 @staff_required
 def settings_shipping_toggle(request, pk):
-    method = settings_admin_service.toggle_shipping_method(pk)
+    method = settings_admin_service.toggle_shipping_method(pk, store=_resolve_dashboard_store(request))
     state = "فعال" if method.is_active else "غیرفعال"
     response = HttpResponse(status=204)
     response["HX-Trigger"] = json.dumps({

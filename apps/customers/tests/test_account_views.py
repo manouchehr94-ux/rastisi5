@@ -119,10 +119,11 @@ class AccountOrderDetailViewTests(TestCase):
             store=store, vendor=vendor, category=category, name="کالا", slug="sample-aod",
             sku="SKU-AOD1", price=Decimal("100000"),
         )
-        shipping = ShippingMethod.objects.create(name="پست", slug="post-aod", cost=45_000)
-        gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-aod")
+        shipping = ShippingMethod.objects.create(store=store, name="پست", slug="post-aod", cost=45_000)
+        gateway = PaymentGateway.objects.create(store=store, name="زرین‌پال", slug="zarin-aod")
         self.order = Order.objects.create(
-            code="DM-99001", customer=self.customer, vendor=vendor, address={"receiver_name": "کاربر", "city": "تهران"},
+            code="DM-99001", store=store, customer=self.customer, vendor=vendor,
+            address={"receiver_name": "کاربر", "city": "تهران"},
             shipping_method=shipping, payment_gateway=gateway,
             items_total=Decimal("100000"), grand_total=Decimal("145000"),
         )

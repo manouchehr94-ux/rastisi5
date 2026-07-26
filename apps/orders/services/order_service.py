@@ -5,11 +5,11 @@
 
 import random
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import F
 
 from apps.cart.services.pricing import cart_totals
-from apps.catalog.models import Product
+from apps.catalog.models import Product, ProductVariant
 from apps.core.utils import format_toman
 from apps.orders.models import Order, OrderItem, OrderStatusHistory
 from apps.sms.events import SmsEvent
@@ -63,57 +63,160 @@ def _snapshot_address(address) -> dict:
     }
 
 
+def _variant_label(variant) -> str:
+    if variant is None:
+        return ""
+    return f"{variant.attribute}: {variant.value}"
+
+
+def _lock_and_revalidate_items(items, *, store):
+    """قفل و بازاعتبارسنجی نهاییِ هر قلم سبد، درست پیش از ساخت سفارش (بخش ۷/۹).
+
+    فقط بررسی cart_add (زمان افزودن به سبد) کافی نیست — بین افزودن به سبد و
+    نهایی‌شدن سفارش ممکن است کالا/تنوع غیرفعال یا حذف شده باشد، یا موجودی
+    توسط سفارش‌های هم‌زمان دیگر مصرف شده باشد. ``select_for_update()`` روی
+    ردیف‌های Product/ProductVariant را به ترتیب پایدار (بر اساس pk) قفل
+    می‌کند — هم برای جلوگیری از race شرط موجودی (بخش ۹) و هم برای این‌که دو
+    تراکنش هم‌زمان با محصولات مشترک هرگز در ترتیب متفاوتی قفل نگیرند
+    (کاهش ریسک deadlock). روی SQLite هم بدون خطا اجرا می‌شود (قفل واقعیِ
+    سطح ردیف روی SQLite معنایی ندارد چون کل دیتابیس هنگام نوشتن قفل
+    می‌شود، اما این تابع همان رفتار/تست را روی هر دو backend حفظ می‌کند —
+    رفتار concurrency واقعی فقط روی PostgreSQL معتبر است، نه SQLite).
+    """
+    product_ids = sorted({item.product_id for item in items})
+    locked_products = {
+        p.pk: p
+        for p in Product.objects.select_for_update().filter(pk__in=product_ids).order_by("pk")
+    }
+
+    variant_ids = sorted({item.variant_id for item in items if item.variant_id})
+    locked_variants = {
+        v.pk: v
+        for v in ProductVariant.objects.select_for_update().filter(pk__in=variant_ids).order_by("pk")
+    } if variant_ids else {}
+
+    for item in items:
+        product = locked_products.get(item.product_id)
+        if product is None:
+            raise ValueError("یکی از کالاهای سبد خرید دیگر موجود نیست")
+        if product.store_id != store.pk:
+            # هرگز نباید پیش بیاید — cart_add کالا را با همان Store scope
+            # می‌کند — اما این‌جا هم به‌عنوان خط دفاعی آخر بررسی می‌شود تا
+            # سفارشی هرگز از قلم‌های چندین Store مختلط ساخته نشود.
+            raise ValueError(f"کالای «{product.name}» متعلق به این فروشگاه نیست")
+        if product.status != Product.Status.ACTIVE:
+            raise ValueError(f"کالای «{product.name}» دیگر برای فروش موجود نیست")
+
+        if item.variant_id:
+            variant = locked_variants.get(item.variant_id)
+            if (
+                variant is None
+                or variant.product_id != product.pk
+                or not variant.is_active
+                or variant.store_id != store.pk
+            ):
+                raise ValueError(f"تنوع انتخاب‌شده برای «{product.name}» دیگر معتبر نیست")
+
+        if item.quantity > product.stock:
+            raise ValueError(f"موجودی «{product.name}» کافی نیست")
+
+    return locked_products, locked_variants
+
+
 @transaction.atomic
-def create_order_from_cart(cart, *, customer, vendor, address, shipping_method, payment_gateway, coupon=None, note="", store):
+def create_order_from_cart(
+    cart, *, customer, vendor, address, shipping_method, payment_gateway,
+    coupon=None, note="", store, idempotency_key="",
+):
     """سفارش را از روی سبد خرید می‌سازد و همه‌ی مبالغ را اسنپ‌شات می‌کند.
 
     ``store`` الزامی است — همان Store که فراخوان (معمولاً
     ``checkout_service.finalize_order``) از ``request.store`` resolve کرده؛
-    برای قیمت‌گذاری (``cart_totals``) و پیامک ثبت سفارش استفاده می‌شود."""
+    برای قیمت‌گذاری (``cart_totals``) و پیامک ثبت سفارش استفاده می‌شود.
+
+    ``idempotency_key`` اختیاری است (خالی یعنی بدون کنترل idempotency — برای
+    فراخوان‌های مستقیم/تست). وقتی مقدار دارد (معمولاً
+    ``Cart.checkout_token`` — نگاه کنید به
+    ``checkout_service.get_or_create_checkout_token``)، این تابع:
+
+    * ابتدا بررسی می‌کند آیا سفارشی با همین کلید از قبل ساخته شده — اگر بله،
+      همان سفارش موجود را برمی‌گرداند (بدون کاهش دوباره‌ی موجودی، بدون قلم
+      تکراری) — این حالت «ارسال دوباره‌ی متوالی» (double-click بعد از این‌که
+      درخواست اول کامل شده) را می‌پوشاند؛
+    * سپس، هنگام درج خودِ Order، به یکتاییِ سطح دیتابیس
+      (``uniq_order_idempotency_key_when_set``) تکیه می‌کند: اگر هم‌زمان دو
+      درخواست با همین کلید هر دو از بررسی اول عبور کرده باشند (race واقعی)،
+      فقط یکی می‌تواند درج را کامل کند؛ درخواستِ بازنده با ``IntegrityError``
+      داخل یک savepoint (نه کل تراکنش) مواجه و بلافاصله همان سفارشِ برنده را
+      واکشی و برمی‌گرداند — بدون تلاش دوباره برای ساخت قلم‌ها یا کاهش موجودی.
+    """
+    if idempotency_key:
+        existing = Order.objects.filter(idempotency_key=idempotency_key).first()
+        if existing is not None:
+            return existing
+
+    if vendor.store_id != store.pk:
+        # حفظ عدم‌تطابق Order.store/Order.vendor.store در همان مسیر تولید
+        # Production (بخش ۱ — این تنها مسیر ساخت Order در Production است).
+        raise ValueError("این فروشنده متعلق به این فروشگاه نیست")
+
     items = list(cart.items.select_related("product", "variant"))
     if not items:
         raise ValueError("سبد خرید خالی است")
 
-    for item in items:
-        if item.product.store_id != store.pk:
-            # هرگز نباید پیش بیاید — cart_add کالا را با همان Store scope
-            # می‌کند — اما این‌جا هم به‌عنوان خط دفاعی آخر بررسی می‌شود تا
-            # سفارشی هرگز از قلم‌های چندین Store مختلط ساخته نشود.
-            raise ValueError(f"کالای «{item.product.name}» متعلق به این فروشگاه نیست")
-        if item.quantity > item.product.stock:
-            raise ValueError(f"موجودی «{item.product.name}» کافی نیست")
+    locked_products, locked_variants = _lock_and_revalidate_items(items, store=store)
 
     totals = cart_totals(cart, store=store, coupon=coupon, shipping_method=shipping_method)
 
-    order = Order.objects.create(
-        code=_generate_order_code(),
-        customer=customer,
-        vendor=vendor,
-        address=_snapshot_address(address),
-        shipping_method=shipping_method,
-        payment_gateway=payment_gateway,
-        coupon=coupon,
-        items_total=totals["items_total"],
-        product_discount=totals["product_discount"],
-        coupon_discount=totals["coupon_discount"],
-        shipping_cost=totals["shipping_cost"],
-        tax=totals["tax"],
-        grand_total=totals["grand_total"],
-        note=note,
-    )
+    try:
+        with transaction.atomic():
+            order = Order.objects.create(
+                code=_generate_order_code(),
+                store=store,
+                customer=customer,
+                vendor=vendor,
+                idempotency_key=idempotency_key,
+                address=_snapshot_address(address),
+                shipping_method=shipping_method,
+                payment_gateway=payment_gateway,
+                coupon=coupon,
+                items_total=totals["items_total"],
+                product_discount=totals["product_discount"],
+                coupon_discount=totals["coupon_discount"],
+                shipping_cost=totals["shipping_cost"],
+                tax=totals["tax"],
+                grand_total=totals["grand_total"],
+                note=note,
+            )
+    except IntegrityError:
+        if idempotency_key:
+            existing = Order.objects.filter(idempotency_key=idempotency_key).first()
+            if existing is not None:
+                return existing
+        raise
 
     for item in items:
-        unit_price = item.product.final_price
+        product = locked_products[item.product_id]
+        variant = locked_variants.get(item.variant_id) if item.variant_id else None
+        unit_price = product.final_price
         OrderItem.objects.create(
             order=order,
-            product=item.product,
-            variant=item.variant,
-            product_name=item.product.name,
+            product=product,
+            variant=variant,
+            product_name=product.name,
+            sku=product.sku,
+            variant_label=_variant_label(variant),
             quantity=item.quantity,
             unit_price=unit_price,
             line_total=unit_price * item.quantity,
         )
-        Product.objects.filter(pk=item.product_id).update(stock=F("stock") - item.quantity)
+        updated = Product.objects.filter(pk=item.product_id, stock__gte=item.quantity).update(
+            stock=F("stock") - item.quantity
+        )
+        if updated == 0:
+            # با قفل قبلی، این عملاً نباید پیش بیاید — فقط به‌عنوان بیمه‌ی
+            # اضافی در برابر منفی‌شدن موجودی نگه داشته شده.
+            raise ValueError(f"موجودی «{product.name}» کافی نیست")
 
     OrderStatusHistory.objects.create(
         order=order, from_status="", to_status=order.status, note="سفارش ثبت شد"

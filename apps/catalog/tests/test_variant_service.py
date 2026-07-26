@@ -188,10 +188,10 @@ class VariantCreationServiceTests(TestCase):
         User = get_user_model()
         user = User.objects.create_user(username="09121112233", password="pass12345")
         customer = Customer.objects.create(user=user, full_name="مشتری", phone="09121112233")
-        shipping = ShippingMethod.objects.create(name="پست", slug="post-vs", cost=Decimal("10000"))
-        gateway = PaymentGateway.objects.create(name="درگاه", slug="gw-vs")
+        shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-vs", cost=Decimal("10000"))
+        gateway = PaymentGateway.objects.create(store=self.store, name="درگاه", slug="gw-vs")
         order = Order.objects.create(
-            code="DM-11111", customer=customer, vendor=self.vendor, shipping_method=shipping,
+            code="DM-11111", store=self.store, customer=customer, vendor=self.vendor, shipping_method=shipping,
             payment_gateway=gateway,
         )
         OrderItem.objects.create(

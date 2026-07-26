@@ -9,6 +9,11 @@ class Cart(TimeStampedModel):
         null=True, blank=True, related_name="carts",
     )
     session_key = models.CharField("کلید نشست (مهمان)", max_length=40, blank=True)
+    # کلید idempotency تسویه‌حساب — سرور‌محور تولید می‌شود، هیچ‌وقت از ورودی
+    # کاربر خوانده نمی‌شود. نگاه کنید به
+    # apps.orders.services.checkout_service.get_or_create_checkout_token
+    # و apps.orders.services.order_service.create_order_from_cart.
+    checkout_token = models.CharField("کلید تسویه‌حساب", max_length=64, blank=True, default="")
 
     class Meta:
         verbose_name = "سبد خرید"

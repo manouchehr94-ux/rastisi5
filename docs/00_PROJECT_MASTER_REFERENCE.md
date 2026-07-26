@@ -404,6 +404,21 @@ User
 
 تمام Viewها و Serviceهای حساس باید علاوه بر Store isolation، permission key مناسب را enforce کنند.
 
+> **الحاقیه (پس از PR — Order Boundary and Checkout Integrity، ۱۴۰۵/۰۵/۰۴):**
+> این PR شکاف Store-isolation (نه شکاف نقش/Permission بالا) را برای
+> سفارش/فاکتور/پرداخت/مشتری/درگاه/روش‌ارسال بست: `apps.dashboard.services.orders_admin_service`،
+> `customers_admin_service`، و `settings_admin_service` اکنون همگی یک
+> `store` صریح می‌گیرند (همان الگویی که در PR#21 برای کاتالوگ اعمال شد)،
+> و اندپوینت‌های جزئیات/جهش (`order-detail`، `invoice-detail`،
+> `customer-detail`، `settings-gateway-toggle`، `settings-shipping-toggle`)
+> هرکدام مستقل عضویت Store را enforce می‌کنند — نه فقط صفحات فهرست. **این
+> محدودیت §10.2 را برطرف نمی‌کند** — همچنان هر `is_staff=True` (بدون توجه
+> به این‌که برای کدام Store) به `/admin-panel/` هر Store دسترسی دارد؛ این
+> PR فقط تضمین می‌کند وقتی چنین کاربری به یک Store خاص از طریق Host وارد
+> می‌شود، داده‌های Storeهای دیگر را نمی‌بیند — نه این‌که کدام کاربر اصلاً
+> باید به کدام Store دسترسی داشته باشد. حل کامل §10.2 (`StoreMembership`
+> role-based authorization) هنوز کار آینده است.
+
 ---
 
 # 11. وضعیت دامنه‌ها
@@ -522,6 +537,16 @@ User
 
 **Partial — معماری مالکیت حل‌نشده**
 
+> **الحاقیه (پس از PR — Order Boundary and Checkout Integrity، ۱۴۰۵/۰۵/۰۴):**
+> این PR عمداً uniqueness یا مدل Customer را تغییر نداد (طبق تصمیم بالا).
+> در عوض، دید داشبورد به مشتریان از طریق رابطه‌ی موجود `Order.store` محدود
+> شد: `customers_admin_service.annotated_customers` فقط مشتریانی را نشان
+> می‌دهد که حداقل یک Order در همان Store دارند، و `order_count`/
+> `paid_total` هر مشتری فقط شامل سفارش‌های همان Store است — مشتری‌ای که از
+> هر دو Store خرید کرده در هر دو داشبورد دیده می‌شود، اما با مجموع‌های
+> کاملاً جداگانه. این یک راه‌حل موقت در سطح Query است، نه پاسخ به تصمیم
+> معماریِ بالا؛ همان دو گزینه هنوز باز و منتظر ADR است.
+
 ---
 
 ## 11.4 Cart و Pricing
@@ -592,6 +617,22 @@ User
 
 **Partial — اولویت بسیار بالا**
 
+> **الحاقیه (پس از PR — Order Boundary and Checkout Integrity، ۱۴۰۵/۰۵/۰۴):**
+> موارد زیر از فهرست «ناقص» بالا اکنون پیاده‌سازی شده‌اند:
+> **مالکیت مستقیم Store** (`Order.store`، FK مستقیم و اجباری، علاوه بر
+> `vendor`؛ نگاه کنید به ADR-14 در `SAAS_DOMAIN_DECISIONS.md`)؛
+> **قفل concurrency و رزرو موجودی** (`select_for_update` + کاهش شرطی
+> موجودی درون تراکنش، در `order_service._lock_and_revalidate_items`)؛
+> **اسنپ‌شات مالی کامل‌تر** (`OrderItem.sku`/`variant_label` اضافه شد)؛
+> **audit تاریخچه‌ی وضعیت** (بدون تغییر مستقیم مجاز از Django Admin — نگاه
+> کنید به بخش Admin پایین‌تر). هنوز ناتمام: order number مستقل به‌ازای هر
+> Store (کد سفارش هنوز سراسری پلتفرم است، نه per-Store)، fulfillment
+> workflow کامل، cancellation/refund رسمی، invoice lifecycle، export،
+> return/exchange، fraud controls. **idempotency ثبت سفارش** با
+> `Cart.checkout_token`/`Order.idempotency_key` پیاده‌سازی شد (ADR-15) —
+> این یک قابلیت جدید بود که در فهرست اصلی «ناقص» بالا صراحتاً ذکر نشده
+> بود اما به‌عنوان یک الزام امنیتی مجزا شناسایی و بسته شد.
+
 ---
 
 ## 11.6 Payment
@@ -625,6 +666,18 @@ User
 
 **Prototype/Partial — برای Production آماده نیست**
 
+> **الحاقیه (پس از PR — Order Boundary and Checkout Integrity، ۱۴۰۵/۰۵/۰۴):**
+> `PaymentGateway` اکنون مالکیت مستقیم Store دارد (FK اجباری، یکتاییِ
+> اسلاگ per-Store)؛ داشبورد فقط درگاه‌های همان Store را فهرست/toggle
+> می‌کند و درخواست جعلی برای درگاه Store دیگر ۴۰۴ می‌گیرد. **این هنوز به
+> معنای آماده‌بودن برای Production نیست** — درگاه پرداخت واقعی (Zibal)،
+> اعتبارنامه‌ی رمزنگاری‌شده، callback واقعی، idempotency در سطح بانک،
+> reconciliation و refund همچنان در فهرست «ناقص» بالا باقی می‌مانند و
+> موضوع PR بعدی‌اند. جریان پرداخت فعلی همچنان صرفاً شبیه‌سازی‌شده است و
+> اکنون به‌صراحت پشت `settings.PAYMENTS_SIMULATION_ENABLED` قرار دارد (که
+> در استقرار واقعی با `DJANGO_DEBUG=False` به‌صورت پیش‌فرض غیرفعال است) —
+> نه فقط مستنداً placeholder، بلکه واقعاً غیرقابل‌دسترس در Production.
+
 ---
 
 ## 11.7 Shipping
@@ -652,6 +705,13 @@ User
 ### وضعیت
 
 **Basic only**
+
+> **الحاقیه (پس از PR — Order Boundary and Checkout Integrity، ۱۴۰۵/۰۵/۰۴):**
+> `ShippingMethod` اکنون مالکیت مستقیم Store دارد (همان الگوی
+> `PaymentGateway` بالا) — چک‌اوت فقط روش‌های ارسال فعالِ همان Store را
+> می‌پذیرد و یک POST دستکاری‌شده نمی‌تواند روش ارسال Store دیگر را انتخاب
+> کند. zone/region rules، carrier adapters، partial shipment و بقیه‌ی
+> فهرست «ناقص» بالا همچنان پابرجاست.
 
 ---
 
@@ -1325,6 +1385,20 @@ SQLite برای توسعه و تست فعلی پذیرفته است، اما م�
 > یک محیط واقعی، select_for_update/inventory locking، backup/restore
 > تست‌شده، CI/CD، health checks عملیاتی، و انتخاب ارائه‌دهنده‌ی هاست.
 
+> **الحاقیه ۲ (پس از PR — Order Boundary and Checkout Integrity، ۱۴۰۵/۰۵/۰۴):**
+> `select_for_update()` اکنون در `order_service._lock_and_revalidate_items`
+> پیاده‌سازی شده — روی ردیف‌های Product/ProductVariant، به ترتیب پایدار
+> بر اساس pk (کاهش ریسک deadlock)، پیش از بازاعتبارسنجی موجودی/وضعیت/مالکیت
+> Store. **این هنوز به معنای اثبات‌شده‌بودن رفتار concurrency روی Production
+> نیست** — SQLite (که کل تست‌ها روی آن اجرا می‌شوند) به‌جای قفل واقعیِ سطح
+> ردیف، کل دیتابیس را هنگام نوشتن قفل می‌کند؛ یعنی دو تراکنشِ «هم‌زمان» روی
+> SQLite در عمل به‌صورت متوالی اجرا می‌شوند، نه واقعاً هم‌زمان. تست
+> `apps/orders/tests/test_checkout_correctness.py::CheckoutIdempotencyServiceTests.test_concurrent_race_simulated_via_preexisting_conflicting_order`
+> مسیر race را به‌صورت قطعی (نه با thread واقعی) شبیه‌سازی می‌کند تا کد
+> واقعی catch/refetch را تست کند، اما این جایگزین تست واقعی روی PostgreSQL
+> تحت بار هم‌زمان واقعی نیست — همچنان در فهرست تأییدهای پیش از عرضه باقی
+> می‌ماند.
+
 ---
 
 # 22. تست اجباری
@@ -1793,9 +1867,9 @@ Content Boundary
 | Theme/appearance | Partial |
 | Customer | Partial |
 | Cart | Partial |
-| Orders | Partial |
-| Payment | Prototype/Partial |
-| Shipping | Basic |
+| Orders | Partial — direct Store ownership + concurrency locking + checkout idempotency implemented; order-number-per-Store, fulfillment/refund/invoice-lifecycle still pending |
+| Payment | Prototype/Partial — Store-owned PaymentGateway; simulation now gated off in production (`PAYMENTS_SIMULATION_ENABLED`); real gateway (Zibal) still pending |
+| Shipping | Basic — Store-owned ShippingMethod; zone/carrier/fulfillment still pending |
 | SMS | Partial |
 | Discounts | Basic |
 | Reporting | Basic |
@@ -1803,7 +1877,7 @@ Content Boundary
 | Page builder | Absent |
 | Merchant RBAC | Absent/Foundational model only |
 | SaaS billing | Absent |
-| Production hardening | Partial — configuration foundation implemented (env-driven settings, PostgreSQL-capable DB, logging); PostgreSQL deployment, Order/dashboard Store boundary, checkout idempotency, Zibal, Enamad, backups, and hosting selection still pending |
+| Production hardening | Partial — configuration foundation (env-driven settings, PostgreSQL-capable DB, logging) AND Order/dashboard Store boundary AND checkout idempotency/inventory-locking now implemented; PostgreSQL deployment against a real instance, Zibal, Enamad, backups, and hosting selection still pending |
 
 ---
 

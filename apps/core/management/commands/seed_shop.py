@@ -285,8 +285,8 @@ class Command(BaseCommand):
         products = self._seed_products(store, vendor, categories, brands)
         self._seed_product_images(products)
         customers = self._seed_customers()
-        shipping_methods = self._seed_shipping_methods()
-        gateways = self._seed_payment_gateways()
+        shipping_methods = self._seed_shipping_methods(store)
+        gateways = self._seed_payment_gateways(store)
         coupons = self._seed_coupons()
         self._seed_orders(store, vendor, customers, products, shipping_methods, gateways, coupons)
         self._seed_blog_posts()
@@ -433,12 +433,12 @@ class Command(BaseCommand):
         self._log("مشتری", created_count)
         return by_username
 
-    def _seed_shipping_methods(self):
+    def _seed_shipping_methods(self, store):
         by_slug = {}
         created_count = 0
         for data in SHIPPING_METHODS:
             method, created = ShippingMethod.objects.get_or_create(
-                slug=data["slug"],
+                store=store, slug=data["slug"],
                 defaults={
                     "name": data["name"], "description": data["description"],
                     "cost": data["cost"], "icon": data["icon"], "is_active": True,
@@ -449,12 +449,12 @@ class Command(BaseCommand):
         self._log("روش ارسال", created_count)
         return by_slug
 
-    def _seed_payment_gateways(self):
+    def _seed_payment_gateways(self, store):
         by_slug = {}
         created_count = 0
         for data in PAYMENT_GATEWAYS:
             gateway, created = PaymentGateway.objects.get_or_create(
-                slug=data["slug"],
+                store=store, slug=data["slug"],
                 defaults={
                     "name": data["name"], "description": data["description"],
                     "icon": data["icon"], "fee_percent": data["fee_percent"], "is_active": True,

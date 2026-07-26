@@ -29,12 +29,12 @@ class SalesChartDataTests(TestCase):
         )
         user = User.objects.create_user(username="09121120001", password="pass12345")
         self.customer = Customer.objects.create(user=user, full_name="مشتری تست", phone="09121120001")
-        self.shipping = ShippingMethod.objects.create(name="پست", slug="post-scd", cost=Decimal("0"))
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-scd")
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-scd", cost=Decimal("0"))
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-scd")
 
     def _make_paid_order(self, amount, when=None):
         order = Order.objects.create(
-            code=f"DM-{Order.objects.count() + 90000}", customer=self.customer, vendor=self.product.vendor,
+            code=f"DM-{Order.objects.count() + 90000}", store=self.store, customer=self.customer, vendor=self.product.vendor,
             address={}, shipping_method=self.shipping, payment_gateway=self.gateway,
             grand_total=Decimal(amount), payment_status=Order.PaymentStatus.PAID,
         )
@@ -62,7 +62,7 @@ class SalesChartDataTests(TestCase):
 
     def test_unpaid_orders_are_excluded_from_sales(self):
         Order.objects.create(
-            code="DM-91111", customer=self.customer, vendor=self.product.vendor, address={},
+            code="DM-91111", store=self.store, customer=self.customer, vendor=self.product.vendor, address={},
             shipping_method=self.shipping, payment_gateway=self.gateway,
             grand_total=Decimal("999999"), payment_status=Order.PaymentStatus.PENDING,
         )
@@ -85,12 +85,12 @@ class OrderStatusBreakdownTests(TestCase):
         )
         user = User.objects.create_user(username="09121120002", password="pass12345")
         self.customer = Customer.objects.create(user=user, full_name="م", phone="09121120002")
-        self.shipping = ShippingMethod.objects.create(name="پست", slug="post-osb", cost=0)
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-osb")
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-osb", cost=0)
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-osb")
 
     def _order(self, status, code):
         return Order.objects.create(
-            code=code, customer=self.customer, vendor=self.product.vendor, address={},
+            code=code, store=self.store, customer=self.customer, vendor=self.product.vendor, address={},
             shipping_method=self.shipping, payment_gateway=self.gateway,
             grand_total=Decimal("1000"), status=status,
         )
@@ -126,12 +126,12 @@ class TopSellingProductsTests(TestCase):
         )
         user = User.objects.create_user(username="09121120003", password="pass12345")
         self.customer = Customer.objects.create(user=user, full_name="م", phone="09121120003")
-        self.shipping = ShippingMethod.objects.create(name="پست", slug="post-tsp", cost=0)
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-tsp")
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-tsp", cost=0)
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-tsp")
 
     def _order_with_item(self, product, quantity, status=Order.Status.DELIVERED, days_ago=1):
         order = Order.objects.create(
-            code=f"DM-{93000 + Order.objects.count()}", customer=self.customer, vendor=product.vendor,
+            code=f"DM-{93000 + Order.objects.count()}", store=self.store, customer=self.customer, vendor=product.vendor,
             address={}, shipping_method=self.shipping, payment_gateway=self.gateway,
             grand_total=Decimal("1000"), status=status,
         )

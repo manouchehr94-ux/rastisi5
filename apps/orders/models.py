@@ -5,8 +5,11 @@ from apps.core.models import TimeStampedModel
 
 
 class ShippingMethod(TimeStampedModel):
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="shipping_methods",
+    )
     name = models.CharField("نام روش ارسال", max_length=100)
-    slug = models.SlugField("اسلاگ", max_length=120, unique=True, allow_unicode=True)
+    slug = models.SlugField("اسلاگ", max_length=120, allow_unicode=True)
     description = models.CharField("توضیحات", max_length=200, blank=True)
     cost = models.DecimalField("هزینه (تومان)", max_digits=12, decimal_places=0, default=0)
     icon = models.CharField("آیکون", max_length=20, blank=True)
@@ -19,14 +22,20 @@ class ShippingMethod(TimeStampedModel):
         verbose_name = "روش ارسال"
         verbose_name_plural = "روش‌های ارسال"
         ordering = ["cost"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "slug"], name="uniq_shippingmethod_slug_per_store"),
+        ]
 
     def __str__(self):
         return self.name
 
 
 class PaymentGateway(TimeStampedModel):
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="payment_gateways",
+    )
     name = models.CharField("نام درگاه", max_length=100)
-    slug = models.SlugField("اسلاگ", max_length=120, unique=True, allow_unicode=True)
+    slug = models.SlugField("اسلاگ", max_length=120, allow_unicode=True)
     description = models.CharField("توضیحات", max_length=200, blank=True)
     icon = models.CharField("آیکون", max_length=20, blank=True)
     fee_percent = models.DecimalField("کارمزد (٪)", max_digits=5, decimal_places=2, default=0)
@@ -36,6 +45,9 @@ class PaymentGateway(TimeStampedModel):
         verbose_name = "درگاه پرداخت"
         verbose_name_plural = "درگاه‌های پرداخت"
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "slug"], name="uniq_paymentgateway_slug_per_store"),
+        ]
 
     def __str__(self):
         return self.name
@@ -56,11 +68,29 @@ class Order(TimeStampedModel):
         REFUNDED = "refunded", "مسترد شده"
 
     code = models.CharField("شناسه‌ی سفارش", max_length=20, unique=True)
+    # مالکیت Store مستقیم و صریح — نه فقط از طریق vendor.store. هر Order باید
+    # دقیقاً یک Store داشته باشد که با vendor.store یکی است (این عدم‌تطابق در
+    # لایه‌ی سرویس/فرم بررسی می‌شود؛ CheckConstraint نمی‌تواند بین دو جدول
+    # مقایسه کند — نگاه کنید به clean() پایین‌تر و
+    # apps.orders.services.order_service.create_order_from_cart).
+    # on_delete=PROTECT (نه CASCADE مثل کاتالوگ) چون سفارش یک رکورد مالی/
+    # تاریخی است؛ حذف یک Store هرگز نباید سفارش‌های آن را هم بی‌صدا حذف کند.
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.PROTECT, related_name="orders"
+    )
     customer = models.ForeignKey(
         "customers.Customer", verbose_name="مشتری", on_delete=models.PROTECT, related_name="orders"
     )
     vendor = models.ForeignKey(
         "catalog.Vendor", verbose_name="فروشنده", on_delete=models.PROTECT, related_name="orders"
+    )
+
+    # کلید یکتای درخواست تسویه‌حساب — برای idempotency ثبت سفارش (بخش ۸ مرحله‌ی
+    # ۳). خالی یعنی «بدون کلید» (مثلاً ساخت مستقیم از تست/مهاجرت)؛ یکتایی فقط
+    # وقتی مقدار دارد اجرا می‌شود (uniq_order_idempotency_key_when_set پایین‌تر) —
+    # دقیقاً همان الگوی ProductVariant.sku (uniq_variant_sku_when_set).
+    idempotency_key = models.CharField(
+        "کلید یکتای درخواست تسویه‌حساب", max_length=64, blank=True, default=""
     )
 
     address = models.JSONField("آدرس (اسنپ‌شات)", default=dict)
@@ -94,9 +124,31 @@ class Order(TimeStampedModel):
         verbose_name = "سفارش"
         verbose_name_plural = "سفارش‌ها"
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["idempotency_key"],
+                condition=~models.Q(idempotency_key=""),
+                name="uniq_order_idempotency_key_when_set",
+            ),
+        ]
 
     def __str__(self):
         return self.code
+
+    def clean(self):
+        """سفارش باید دقیقاً هم‌راستا با Store فروشنده‌اش باشد.
+
+        این یک بررسی سطح دیتابیس نیست (CheckConstraint نمی‌تواند بین دو جدول
+        Order و Vendor مقایسه کند) — دقیقاً همان محدودیت مستندشده در
+        ``apps.catalog.models.Product.clean()``. اجرای واقعی و قطعی این
+        عدم‌تطابق در لایه‌ی سرویس است
+        (``apps.orders.services.order_service.create_order_from_cart``) که
+        تنها مسیر تولید Order در Production است؛ این متد لایه‌ی دومِ دفاعی
+        برای فرم/Admin/بررسی صریح است."""
+        from django.core.exceptions import ValidationError
+
+        if self.vendor_id and self.store_id and self.vendor.store_id != self.store_id:
+            raise ValidationError({"vendor": "این فروشنده متعلق به فروشگاه دیگری است."})
 
 
 class OrderItem(TimeStampedModel):
@@ -110,6 +162,11 @@ class OrderItem(TimeStampedModel):
         null=True, blank=True, related_name="order_items",
     )
     product_name = models.CharField("نام کالا (اسنپ‌شات)", max_length=220)
+    # اسنپ‌شات‌های اضافی (بخش ۱۰) — تا حذف/تغییر Product یا ProductVariant
+    # اصلی هرگز نمایش تاریخی این ردیف را عوض نکند. خالی یعنی «بدون تنوع» یا
+    # «SKU نداشت» (هر دو معتبر و مورد انتظارند، نه یک حالت خطا).
+    sku = models.CharField("کد کالا (SKU) (اسنپ‌شات)", max_length=64, blank=True, default="")
+    variant_label = models.CharField("تنوع انتخاب‌شده (اسنپ‌شات)", max_length=150, blank=True, default="")
     quantity = models.PositiveIntegerField("تعداد", default=1)
     unit_price = models.DecimalField("قیمت واحد", max_digits=12, decimal_places=0)
     line_total = models.DecimalField("جمع ردیف", max_digits=12, decimal_places=0)

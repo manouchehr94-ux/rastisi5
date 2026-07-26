@@ -51,6 +51,22 @@ ALLOWED_HOSTS = resolve_allowed_hosts(DEBUG)
 # submit cross-origin POSTs, e.g. "https://example.com,https://www.example.com".
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", default=())
 
+# Gates apps.orders' simulated payment flow (apps/orders/views.py
+# payment_start/payment_callback) — there is no real payment gateway yet
+# (Zibal integration is a later PR), and payment_callback's "success"/"fail"
+# result is a client-controlled URL path segment, so this simulation must
+# never be reachable once a deployment is real. Deliberately a SEPARATE flag
+# from DEBUG, not `settings.DEBUG` directly: Django's test runner forces
+# `settings.DEBUG = False` for the whole test session regardless of this
+# file's DEBUG value (see django.test.utils.setup_test_environment), which
+# would otherwise silently disable the existing 1500+ checkout/payment tests
+# the moment this gate was added. This flag is computed once, at import
+# time, from DEBUG's real configured value before any test runner can touch
+# it — so it correctly stays enabled for local dev/tests and correctly
+# defaults to disabled whenever DJANGO_DEBUG=False is set in the real
+# deployment environment (before the process even starts).
+PAYMENTS_SIMULATION_ENABLED = env_bool("PAYMENTS_SIMULATION_ENABLED", default=DEBUG)
+
 
 # Application definition
 

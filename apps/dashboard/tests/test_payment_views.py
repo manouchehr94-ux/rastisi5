@@ -14,14 +14,14 @@ User = get_user_model()
 
 class PaymentViewsTestCase(TestCase):
     def setUp(self):
-        store = Store.objects.get(slug="akhlaghi")
+        self.store = store = Store.objects.get(slug="akhlaghi")
         user = User.objects.create_user(username="09121160001", password="pass12345")
         self.customer = Customer.objects.create(user=user, full_name="الهام یوسفی", phone="09121160001")
         self.vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-pw")
-        self.shipping = ShippingMethod.objects.create(name="پست", slug="post-pw", cost=Decimal("45000"))
-        self.gateway = PaymentGateway.objects.create(name="زرین‌پال", slug="zarin-pw")
+        self.shipping = ShippingMethod.objects.create(store=store, name="پست", slug="post-pw", cost=Decimal("45000"))
+        self.gateway = PaymentGateway.objects.create(store=store, name="زرین‌پال", slug="zarin-pw")
         self.order = Order.objects.create(
-            code="DM-99991", customer=self.customer, vendor=self.vendor, address={},
+            code="DM-99991", store=store, customer=self.customer, vendor=self.vendor, address={},
             shipping_method=self.shipping, payment_gateway=self.gateway,
             items_total=Decimal("100000"), grand_total=Decimal("100000"),
         )
