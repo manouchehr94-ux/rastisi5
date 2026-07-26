@@ -671,7 +671,39 @@ repository/service layer was introduced. No Inventory Ledger was
 introduced — price and stock remain plain fields on `Product`/
 `ProductVariant`, exactly as before. No import/export feature exists in
 this codebase today (confirmed absent by inspection, not built here). No
-Django admin (`/admin/`) tenant-isolation querying was added — consistent
-with ADR-8, admin gained only the minimal `store` field exposure needed to
-keep its existing CRUD functional now that `store` is a required field, not
-Store-scoped querysets or `formfield_for_foreignkey` filtering.
+Django admin (`/admin/`) tenant-isolation querying (Store-scoped querysets
+or `formfield_for_foreignkey` filtering) was added — the catalog
+`ModelAdmin`s gained only the minimal `store` field exposure needed to keep
+existing CRUD functional now that `store` is a required field. See §12.9 for
+why unscoped admin access to this now-real multi-Store data could not be
+left as-is.
+
+### 12.9 Django Admin restricted to superusers only
+
+Independent post-merge-request review of this PR found that
+`apps.dashboard`'s `staff_required` decorator and Django's own `AdminSite`
+shared the identical `is_staff` gate, with no other distinction — meaning
+any account given merchant-dashboard access could also reach `/admin/` and
+see or mutate **every Store's** catalog data through the unscoped
+`ModelAdmin`s described above. ADR-8 already recorded this class of gap as
+a known, deferred, *unresolved* security boundary — not, as an earlier
+draft of this section implied, an accepted design. Before this PR, the gap
+was latent (only Akhlaghi's catalog data ever existed to leak); this PR is
+what makes it real, since it is what first makes genuine multi-Store
+catalog data coexist.
+
+Remediation (same PR, not deferred): `apps.stores.admin_permissions`
+overrides `has_permission` on the one `django.contrib.admin.site` instance
+every app's `admin.py` registers onto by default (`apps.catalog`,
+`apps.stores`, `apps.orders`, `apps.blog`, `apps.customers`, `apps.cart`),
+restricting it to `request.user.is_active and request.user.is_superuser`.
+Installed once, centrally, via `StoresConfig.ready()` — no per-`ModelAdmin`
+patch, no new `AdminSite` subclass, no change to `shop_core/urls.py`'s
+`admin.site.urls` mount, and no change to the merchant dashboard's own
+`is_staff` contract (a Store's dashboard staff keep using the dashboard
+exactly as before; they simply can no longer also reach `/admin/`). This is
+still not Store-aware admin scoping — a platform superuser sees every
+Store's data in `/admin/` undifferentiated, same as always — it only closes
+the specific "merchant staff leaks into platform admin" path.
+`StoreMembership`-based dashboard authorization and full Store-aware admin
+query-scoping both remain deferred to PR 11.

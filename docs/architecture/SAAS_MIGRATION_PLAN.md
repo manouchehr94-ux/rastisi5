@@ -212,7 +212,13 @@ constraint is only expressible at the DB level with `store` duplicated onto
 the child row; `_normalize_variant_fields` always recomputes it from
 `product.store_id` on every save/bulk_create path, and the variant
 queryset's mutation guard blocks any direct `update()`/`bulk_update()` of
-`store`/`store_id`, so a variant can never be "moved" to another Store
+`store`/`store_id` **and of `product`/`product_id`** (a variant's parent
+Product is immutable after creation — the guard originally omitted
+`product`/`product_id`, which meant `ProductVariant.objects.filter(pk=...).update(product=<another Store's Product>)`
+could silently desynchronize `store` from the new product's actual store
+with no error; found during independent post-merge-request review and
+closed in the same PR, see `apps.catalog.tests.test_variant_queryset.VariantParentReassignmentCrossStoreMismatchTests`),
+so a variant can never be "moved" to another Store or another Product
 except by changing its Product's own ownership. `ProductImage`,
 `Specification`, and `Review` remain Store-owned *through* `Product` with
 no redundant FK of their own — none is independently queryable/mutable
@@ -253,8 +259,32 @@ path. `Vendor`/`Category`/`Brand`/`Product` admin classes (Django's
 `/admin/`, not the merchant dashboard) gained a `store` list/filter column
 and a `store`-locked-on-edit mixin — required only so the now-mandatory
 field doesn't break existing admin CRUD; no tenant-isolation querying was
-added to Django admin itself, consistent with ADR-8's already-accepted
-"platform-operator tool, `is_staff`-gated only" scope.
+added to Django admin itself.
+
+**Correction (independent post-merge-request review):** an earlier version
+of this document described the above as "consistent with ADR-8's
+already-accepted `is_staff`-gated only scope." That was inaccurate — ADR-8
+records unscoped `is_staff` admin access as a known, **deferred, unresolved**
+security boundary ("this PR does not implement any enforcement of this
+decision... later PRs... are not designed against an assumption that staff
+access already implies trusted with all merchant data"), not an accepted
+tenant-safe model. Before this PR, that gap was latent (only Akhlaghi's
+catalog data ever existed); once `Product`/`Category`/`Brand`/`Vendor`
+became genuinely multi-Store, the same pre-existing gap became materially
+exploitable — any `is_staff=True` dashboard account could also reach
+`/admin/` and see or mutate every Store's catalog data, since
+`apps.dashboard`'s `staff_required` decorator and Django's own `AdminSite`
+shared the identical `is_staff` gate, and `StoreMembership`'s role concept
+was not wired into either. This is now closed in this same PR: Django Admin
+is restricted to active superusers only (`apps.stores.admin_permissions`,
+installed via `StoresConfig.ready()`, overriding `AdminSite.has_permission`
+on the one shared `django.contrib.admin.site` instance every app's
+`admin.py` registers onto) — merchant operators continue to use the
+`is_staff`-gated custom dashboard exactly as before; only `/admin/` access
+changed. `StoreMembership`-based dashboard authorization, and full
+Store-aware Django Admin query-scoping (so a platform superuser's admin
+experience can itself become Store-filterable rather than an all-or-nothing
+gate), both remain deferred to PR 11.
 
 Not done in this PR: no generic repository/service layer, no
 `apps.content` (`HeroSlide`/`PromotionalBanner`/`MenuItem`) Store-scoping

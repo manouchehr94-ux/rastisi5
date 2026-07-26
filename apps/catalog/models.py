@@ -256,11 +256,19 @@ class ProductVariantQuerySet(models.QuerySet):
     یک SQL UPDATE ساده نمی‌تواند normalized_attribute/normalized_value را هم‌زمان
     و درست بازمحاسبه کند؛ برای این فیلدها باید از ``instance.save()`` یا
     ``apps.catalog.services.variant_service`` استفاده شود.
+
+    ``product``/``product_id`` هم مسدود است: یک تنوع پس از ایجاد نباید به
+    کالای دیگری منتقل شود (نه حتی کالای دیگری در همان Store) — این تغییر
+    مستقیم عضویت ``store`` تنوع را (که همیشه از ``product.store`` مشتق
+    می‌شود — نگاه کنید به ``_normalize_variant_fields``) از ``product``ِ
+    واقعی جدا می‌کند، چون یک SQL UPDATE ساده هرگز ``store_id`` را هم‌زمان
+    بازمحاسبه نمی‌کند.
     """
 
-    NORMALIZATION_SENSITIVE_FIELDS = frozenset(
-        {"attribute", "value", "sku", "normalized_attribute", "normalized_value", "store", "store_id"}
-    )
+    NORMALIZATION_SENSITIVE_FIELDS = frozenset({
+        "attribute", "value", "sku", "normalized_attribute", "normalized_value",
+        "store", "store_id", "product", "product_id",
+    })
 
     def bulk_create(self, objs, *args, **kwargs):
         objs = list(objs)

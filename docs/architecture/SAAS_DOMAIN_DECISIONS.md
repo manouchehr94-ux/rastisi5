@@ -289,6 +289,22 @@ data."
 **Deferred questions.** Concrete mechanism (separate permission model,
 audit-logged elevated access, etc.) — not decided here.
 
+**Addendum (PR 5 — Catalog Tenant Boundary Assessment and Hardening).**
+This ADR's "not implemented, not to be assumed safe" framing was
+subsequently misquoted in `SAAS_MIGRATION_PLAN.md` as an "already-accepted"
+scope — it was not; the text above has always meant the opposite. Once PR 5
+gave `Product`/`Category`/`Brand`/`Vendor` a real, non-nullable `store` FK,
+the gap this ADR describes stopped being latent (there was only ever one
+Store's catalog data to leak before) and became a live cross-Store exposure
+the moment any second Store's dashboard staff existed, since
+`apps.dashboard`'s `is_staff`-gated authorization and Django's own
+`AdminSite` shared the identical flag. PR 5 closes the immediate exposure,
+without resolving this ADR's deferred questions: Django Admin is now
+restricted to active superusers only (`apps.stores.admin_permissions`).
+Platform-operator tooling still has no Store-scoped, audited,
+narrower-than-superuser capability — that remains exactly as open as this
+ADR originally left it, and is still PR 11's job.
+
 ---
 
 ## ADR-9: Merchant Sales Funds Flow Directly to Merchant-Owned Payment Accounts
