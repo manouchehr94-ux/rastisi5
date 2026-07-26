@@ -12,20 +12,44 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 
+from shop_core.env_config import (
+    build_database_config,
+    env_bool,
+    env_int,
+    env_list,
+    env_str,
+    resolve_allowed_hosts,
+    resolve_log_level,
+    resolve_secret_key,
+    resolve_secure_proxy_ssl_header,
+)
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-an#yw@3zj9_hmh3^9t&(4+eu^a8mwtbii9b68yus3q=xnu%f%i"
+# Production-sensitive settings are environment-driven — see
+# docs/deployment/PRODUCTION_CONFIGURATION.md and .env.example for the full
+# variable list. Local development/tests need no environment variables at
+# all: every default below preserves the previous hardcoded dev behavior.
+# See shop_core/env_config.py for the parsing/validation logic itself
+# (kept separate so it can be unit-tested independently of this module).
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env_bool("DJANGO_DEBUG", default=True)
 
-ALLOWED_HOSTS = []
+# SECURITY WARNING: keep the secret key used in production secret! Raises
+# ImproperlyConfigured immediately if DJANGO_DEBUG=False and no real key (or
+# the known development-only key) is configured via DJANGO_SECRET_KEY.
+SECRET_KEY = resolve_secret_key(DEBUG)
+
+# Raises ImproperlyConfigured if DJANGO_DEBUG=False and DJANGO_ALLOWED_HOSTS
+# is not set — production must never silently serve on an unvalidated host.
+ALLOWED_HOSTS = resolve_allowed_hosts(DEBUG)
+
+# Comma-separated list of fully-qualified origins (scheme + host) trusted to
+# submit cross-origin POSTs, e.g. "https://example.com,https://www.example.com".
+CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", default=())
 
 
 # Application definition
@@ -95,15 +119,29 @@ TEMPLATES = [
 WSGI_APPLICATION = "shop_core.wsgi.application"
 
 
+# HTTPS / secure cookies — all disabled by default (matching prior behavior);
+# enable via environment once the deployment is reachable over HTTPS
+# end-to-end. See docs/deployment/PRODUCTION_CONFIGURATION.md for a staged
+# HSTS rollout (HSTS is irreversible-feeling in browsers once accepted, so it
+# is never enabled implicitly).
+SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", default=False)
+SESSION_COOKIE_SECURE = env_bool("DJANGO_SESSION_COOKIE_SECURE", default=False)
+CSRF_COOKIE_SECURE = env_bool("DJANGO_CSRF_COOKIE_SECURE", default=False)
+SECURE_HSTS_SECONDS = env_int("DJANGO_SECURE_HSTS_SECONDS", default=0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False)
+SECURE_HSTS_PRELOAD = env_bool("DJANGO_SECURE_HSTS_PRELOAD", default=False)
+
+# Unset (None) unless explicitly configured — a reverse proxy's
+# X-Forwarded-Proto (or equivalent) header is never trusted by default.
+SECURE_PROXY_SSL_HEADER = resolve_secure_proxy_ssl_header()
+
+
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# SQLite by default (local dev/tests, unchanged); set DATABASE_URL to a
+# postgres:// URL for production. See build_database_config() for validation.
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-}
+DATABASES = {"default": build_database_config(BASE_DIR)}
 
 
 # Password validation
@@ -142,15 +180,66 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = Path(env_str("DJANGO_STATIC_ROOT", str(BASE_DIR / "staticfiles")))
 
 MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = Path(env_str("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media")))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# Logging — console-only, suitable for a process manager that captures
+# stdout/stderr (systemd, gunicorn, a container runtime, etc.). Never logs
+# secrets, gateway credentials, OTP codes, full customer PII, or session
+# tokens — existing call sites (e.g. apps/sms) already avoid this; this
+# config does not add anything that would start doing so.
+#
+# "payment" is a reserved logger namespace for the future Zibal integration
+# (see docs/00_PROJECT_MASTER_REFERENCE.md) — payment code should log via
+# logging.getLogger("payment") once written, and will inherit this config
+# automatically without further changes here.
+LOG_LEVEL = resolve_log_level()
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "console": {
+            "format": "[{asctime}] {levelname} {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "console",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": LOG_LEVEL,
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+        "payment": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+    },
+}
 
 # Business defaults (Stage 2 will read these in the pricing service)
 SHOP_FREE_SHIPPING_THRESHOLD = 500_000
