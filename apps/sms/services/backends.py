@@ -28,10 +28,15 @@ class SmsBackend(ABC):
 
 
 class ConsoleBackend(SmsBackend):
-    """برای توسعه — پیامک واقعی ارسال نمی‌کند، فقط در لاگ ثبت می‌کند."""
+    """برای توسعه — پیامک واقعی ارسال نمی‌کند، فقط در لاگ ثبت می‌کند.
+
+    در سطح DEBUG لاگ می‌شود، نه INFO — چون ``text`` می‌تواند شامل کد OTP یا
+    سایر محتوای حساس رویداد باشد؛ INFO پیش‌فرض Production است (تنظیمات
+    ``DJANGO_LOG_LEVEL``)، پس این پیام هرگز نباید در لاگ Production ظاهر
+    شود. برای دیدنش در توسعه‌ی محلی ``DJANGO_LOG_LEVEL=DEBUG`` تنظیم کنید."""
 
     def send(self, *, to: str, text: str) -> SmsSendResult:
-        logger.info("[SMS:console] to=%s text=%s", to, text)
+        logger.debug("[SMS:console] to=%s text=%s", to, text)
         return SmsSendResult(success=True, provider_ref_id="console")
 
 
