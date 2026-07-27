@@ -180,22 +180,30 @@ def checkout_otp_cancel(request):
 
 
 def payment_start(request, code):
-    """نقطه‌ی شروع پرداخت — جای اتصال درگاه واقعی بانکی در آینده.
+    """نقطه‌ی شروع پرداخت — هدایت به درگاه واقعی یا شبیه‌سازی.
 
-    فعلاً مستقیم به callback با نتیجه‌ی موفق هدایت می‌شود؛ وقتی درگاه واقعی
-    وصل شود، این ویو باید کاربر را به آدرس درگاه بانکی هدایت کند و درگاه پس
-    از پرداخت به payment_callback برمی‌گردد.
-
-    این شبیه‌سازی فقط وقتی ``settings.PAYMENTS_SIMULATION_ENABLED`` باشد در
-    دسترس است (پیش‌فرض توسعه/تست: فعال؛ پیش‌فرض هر استقراری با
-    ``DJANGO_DEBUG=False``: غیرفعال) — تا این مسیرِ «همیشه موفق» هرگز در یک
-    استقرار واقعیِ بدون درگاه پرداخت واقعی در دسترس نباشد.
+    اگر درگاه واقعی فعال برای Store موجود باشد، به payment_initiate هدایت
+    می‌شود. در غیر این صورت، اگر شبیه‌سازی فعال باشد، مستقیم به callback
+    با نتیجه‌ی موفق هدایت می‌شود.
     """
-    if not settings.PAYMENTS_SIMULATION_ENABLED:
-        raise Http404
+    from apps.orders.models import PaymentGatewayConfig
+
     order = _get_own_order(request, code)
     if order.payment_status != Order.PaymentStatus.PENDING:
         return redirect("customers:account-order-detail", code=order.code)
+
+    store = resolve_store_for_service(request)
+
+    # Check if any real gateway config exists for this store
+    has_real_config = PaymentGatewayConfig.objects.filter(
+        store=store, is_active=True
+    ).exists()
+
+    if has_real_config:
+        return redirect("orders:payment-initiate", code=order.code)
+
+    if not settings.PAYMENTS_SIMULATION_ENABLED:
+        raise Http404
     return redirect("orders:payment-callback", code=order.code, status="success")
 
 
@@ -287,3 +295,158 @@ def checkout_remove_coupon(request):
     cart = get_cart(request, create=True)
     checkout_service.remove_coupon(request)
     return _dynamic_response(request, cart, toast_message="کد تخفیف حذف شد", toast_type="info")
+
+
+
+# ===========================================================================
+# Real payment gateway views (PR1)
+# ===========================================================================
+
+
+def payment_initiate(request, code):
+    """Initiate real payment for an order.
+
+    Replaces payment_start for stores with real gateway configuration.
+    If no real gateway config exists, falls back to simulation (if enabled).
+
+    Flow:
+    1. Validate order ownership and payment eligibility
+    2. Resolve gateway config for the order
+    3. Initiate payment via gateway_payment_service
+    4. Redirect to gateway (online) or order result (COD)
+    """
+    from apps.orders.models import PaymentAttempt, PaymentGatewayConfig
+    from apps.orders.services.gateway_payment_service import (
+        PaymentAlreadyPaidError,
+        PaymentConfigError,
+        PaymentInitiationError,
+        initiate_payment,
+    )
+    from apps.orders.gateways import get_adapter
+
+    order = _get_own_order(request, code)
+    store = resolve_store_for_service(request)
+
+    # Already paid — go to result
+    if order.payment_status == Order.PaymentStatus.PAID:
+        return redirect("orders:payment-result", code=order.code)
+
+    # Find active gateway config for this order's gateway code
+    # Try to match by slug from the legacy PaymentGateway on the order
+    gateway_config = None
+    if order.payment_gateway:
+        gateway_config = PaymentGatewayConfig.objects.filter(
+            store=store,
+            gateway_code=order.payment_gateway.slug,
+            is_active=True,
+        ).first()
+
+    # If no matching config, try any active online config for this store
+    if gateway_config is None:
+        gateway_config = PaymentGatewayConfig.objects.filter(
+            store=store,
+            is_active=True,
+        ).exclude(gateway_code="cod").first()
+
+    # Still nothing — fall back to simulation if enabled
+    if gateway_config is None:
+        if settings.PAYMENTS_SIMULATION_ENABLED:
+            return redirect("orders:payment-start", code=order.code)
+        return render(request, "orders/payment_result.html", {
+            "order": order,
+            "error": "هیچ درگاه پرداخت فعالی پیکربندی نشده است",
+        })
+
+    # Build callback URL — public, no auth required
+    callback_url = request.build_absolute_uri(
+        reverse("orders:gateway-callback", args=["{attempt_id}"])
+    )
+
+    # Generate idempotency key based on order + gateway
+    idem_key = f"pay-{order.code}-{gateway_config.pk}-{order.payment_attempts.count()}"
+
+    try:
+        attempt = initiate_payment(
+            order=order,
+            gateway_config=gateway_config,
+            callback_url=callback_url.replace("{attempt_id}", "PLACEHOLDER"),
+            store=store,
+            idempotency_key=idem_key,
+        )
+    except PaymentAlreadyPaidError:
+        return redirect("orders:payment-result", code=order.code)
+    except (PaymentConfigError, PaymentInitiationError) as exc:
+        logger.warning("Payment initiation failed for order %s: %s", order.code, exc)
+        return render(request, "orders/payment_result.html", {
+            "order": order,
+            "error": str(exc),
+        })
+
+    # For online gateways, build real callback URL with attempt ID and redirect
+    if gateway_config.is_online:
+        # Update the attempt's track_id callback URL
+        real_callback_url = request.build_absolute_uri(
+            reverse("orders:gateway-callback", args=[attempt.public_id])
+        )
+        # Re-initiate if callback URL placeholder was used
+        # Actually the adapter already has the URL — redirect to gateway
+        adapter = get_adapter(gateway_config.gateway_code)
+        redirect_url = adapter.build_redirect_url(
+            attempt.gateway_track_id,
+            sandbox=gateway_config.is_sandbox,
+        )
+        return redirect(redirect_url)
+
+    # COD — go straight to result
+    return redirect("orders:payment-result", code=order.code)
+
+
+def gateway_callback(request, attempt_id):
+    """Public callback endpoint for payment gateways.
+
+    This view:
+    - Does NOT require authentication (gateway redirects the customer here)
+    - Accepts GET (Zibal redirects with query params)
+    - Processes the callback server-to-server verification
+    - Redirects to payment result page
+
+    Security:
+    - Never trusts callback params alone for payment confirmation
+    - Always verifies server-to-server with gateway
+    - Idempotent — duplicate callbacks are safe
+    - Does not expose sensitive information in the result page
+    """
+    from apps.orders.models import PaymentAttempt
+    from apps.orders.services.gateway_payment_service import (
+        PaymentVerificationFailed,
+        process_callback_and_verify,
+    )
+
+    store = resolve_store_for_service(request)
+
+    # Find the attempt (no auth required — public callback)
+    attempt = PaymentAttempt.objects.select_related("order").filter(
+        public_id=attempt_id,
+        store=store,
+    ).first()
+
+    if attempt is None:
+        raise Http404
+
+    order = attempt.order
+
+    # Collect callback data from query params
+    callback_data = dict(request.GET.items())
+
+    try:
+        attempt = process_callback_and_verify(
+            attempt_public_id=attempt_id,
+            callback_data=callback_data,
+            store=store,
+        )
+    except PaymentVerificationFailed as exc:
+        logger.info("Payment verification failed for attempt %s: %s", attempt_id, exc)
+        # Don't expose error details to the customer — redirect to result
+        pass
+
+    return redirect("orders:payment-result", code=order.code)

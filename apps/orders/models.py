@@ -226,3 +226,332 @@ class Transaction(TimeStampedModel):
 
     def __str__(self):
         return self.code
+
+
+
+# ===========================================================================
+# Payment Domain Foundation — PR1
+# ===========================================================================
+
+
+class PaymentGatewayConfig(TimeStampedModel):
+    """Per-store configuration for a payment gateway.
+
+    This is the operational configuration — merchant credentials, activation
+    state, sandbox mode — while the existing ``PaymentGateway`` model remains
+    the order-level record (what the customer chose at checkout time).
+
+    Each store can have at most ONE configuration per gateway code
+    (UniqueConstraint below). Credentials are stored encrypted via
+    apps.orders.encryption.
+
+    Relationship to PaymentGateway:
+        PaymentGatewayConfig is the source of truth for "which gateways are
+        available and configured for this store." When a customer selects a
+        payment method at checkout, the Order references the legacy
+        PaymentGateway for backwards compatibility. PaymentAttempt references
+        this config for the actual payment lifecycle.
+    """
+
+    class GatewayCode(models.TextChoices):
+        ZIBAL = "zibal", "زیبال"
+        COD = "cod", "پرداخت در محل"
+
+    store = models.ForeignKey(
+        "stores.Store",
+        verbose_name="فروشگاه",
+        on_delete=models.CASCADE,
+        related_name="gateway_configs",
+    )
+    gateway_code = models.CharField(
+        "کد درگاه",
+        max_length=30,
+        choices=GatewayCode.choices,
+    )
+    display_title = models.CharField(
+        "عنوان نمایشی",
+        max_length=150,
+        blank=True,
+        help_text="عنوان نمایش‌داده‌شده در صفحه‌ی تسویه‌حساب (اختیاری — اگر خالی باشد از نام پیش‌فرض درگاه استفاده می‌شود)",
+    )
+    is_active = models.BooleanField("فعال", default=False)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+    is_sandbox = models.BooleanField(
+        "حالت آزمایشی (Sandbox)",
+        default=False,
+        help_text="فقط برای درگاه‌هایی که حالت آزمایشی پشتیبانی می‌کنند",
+    )
+
+    # Encrypted credentials stored as a single JSON-like text field.
+    # Format: Fernet-encrypted JSON string of credential key/value pairs.
+    # Empty string means "no credentials set."
+    encrypted_credentials = models.TextField(
+        "اعتبارنامه‌ی رمزنگاری‌شده",
+        blank=True,
+        default="",
+        help_text="مقدار رمزنگاری‌شده — هرگز مستقیم خوانده نمی‌شود",
+    )
+
+    class Meta:
+        verbose_name = "پیکربندی درگاه پرداخت"
+        verbose_name_plural = "پیکربندی‌های درگاه پرداخت"
+        ordering = ["display_order", "gateway_code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["store", "gateway_code"],
+                name="uniq_gateway_config_per_store",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.get_gateway_code_display()} — {self.store.name}"
+
+    @property
+    def effective_title(self) -> str:
+        """Display title for checkout UI — custom title or gateway default."""
+        if self.display_title:
+            return self.display_title
+        return self.get_gateway_code_display()
+
+    def get_credentials(self) -> dict:
+        """Decrypt and return credentials as a dict. Empty dict if none stored."""
+        import json
+        from .encryption import decrypt_credential
+
+        if not self.encrypted_credentials:
+            return {}
+        plaintext = decrypt_credential(self.encrypted_credentials)
+        if not plaintext:
+            return {}
+        try:
+            return json.loads(plaintext)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def set_credentials(self, credentials: dict) -> None:
+        """Encrypt and store a credentials dict."""
+        import json
+        from .encryption import encrypt_credential
+
+        if not credentials:
+            self.encrypted_credentials = ""
+            return
+        # Remove empty values
+        clean = {k: v for k, v in credentials.items() if v}
+        if not clean:
+            self.encrypted_credentials = ""
+            return
+        plaintext = json.dumps(clean, ensure_ascii=False)
+        self.encrypted_credentials = encrypt_credential(plaintext)
+
+    @property
+    def is_configured(self) -> bool:
+        """Whether this gateway has all required credentials filled."""
+        from .gateways import get_adapter
+
+        try:
+            adapter = get_adapter(self.gateway_code)
+        except KeyError:
+            return False
+        if not adapter.required_credentials:
+            return True  # COD needs no credentials
+        creds = self.get_credentials()
+        return all(creds.get(key) for key in adapter.required_credentials)
+
+    @property
+    def can_activate(self) -> bool:
+        """Whether this config is eligible for activation (credentials complete)."""
+        from .gateways import get_adapter
+
+        try:
+            adapter = get_adapter(self.gateway_code)
+        except KeyError:
+            return False
+        errors = adapter.validate_credentials(self.get_credentials())
+        return len(errors) == 0
+
+    @property
+    def is_online(self) -> bool:
+        """Whether this is an online payment gateway."""
+        from .gateways import get_adapter
+
+        try:
+            return get_adapter(self.gateway_code).is_online
+        except KeyError:
+            return False
+
+
+class PaymentAttempt(TimeStampedModel):
+    """A single payment attempt for an order.
+
+    An Order may have multiple PaymentAttempts (failed attempt → retry).
+    Each attempt is an independent, immutable record of what was sent to
+    the gateway and what came back.
+
+    State machine:
+        CREATED → REQUESTING → REDIRECT_READY → PENDING → SUCCEEDED
+                                                        → FAILED
+                                                        → CANCELED
+                                                        → EXPIRED
+
+    Once in SUCCEEDED, FAILED, CANCELED, or EXPIRED, the attempt is final.
+    """
+
+    class Status(models.TextChoices):
+        CREATED = "created", "ایجادشده"
+        REQUESTING = "requesting", "در حال درخواست"
+        REDIRECT_READY = "redirect_ready", "آماده‌ی هدایت"
+        PENDING = "pending", "در انتظار"
+        SUCCEEDED = "succeeded", "موفق"
+        FAILED = "failed", "ناموفق"
+        CANCELED = "canceled", "لغوشده"
+        EXPIRED = "expired", "منقضی‌شده"
+
+    FINAL_STATUSES = frozenset({
+        Status.SUCCEEDED,
+        Status.FAILED,
+        Status.CANCELED,
+        Status.EXPIRED,
+    })
+
+    # --- Relationships ---
+    store = models.ForeignKey(
+        "stores.Store",
+        verbose_name="فروشگاه",
+        on_delete=models.PROTECT,
+        related_name="payment_attempts",
+    )
+    order = models.ForeignKey(
+        Order,
+        verbose_name="سفارش",
+        on_delete=models.PROTECT,
+        related_name="payment_attempts",
+    )
+    gateway_config = models.ForeignKey(
+        PaymentGatewayConfig,
+        verbose_name="پیکربندی درگاه",
+        on_delete=models.PROTECT,
+        related_name="payment_attempts",
+    )
+
+    # --- Immutable snapshots ---
+    public_id = models.CharField(
+        "شناسه‌ی عمومی",
+        max_length=32,
+        unique=True,
+        editable=False,
+        help_text="شناسه‌ی غیرترتیبی برای URLها و لاگ‌ها",
+    )
+    amount = models.DecimalField(
+        "مبلغ (اسنپ‌شات)",
+        max_digits=14,
+        decimal_places=0,
+        help_text="مبلغ دقیقاً در لحظه‌ی ایجاد تلاش — تغییرناپذیر",
+    )
+    currency = models.CharField(
+        "واحد پول (اسنپ‌شات)",
+        max_length=10,
+        default="TOMAN",
+        help_text="واحد پولی دقیقاً در لحظه‌ی ایجاد",
+    )
+
+    # --- Status ---
+    status = models.CharField(
+        "وضعیت",
+        max_length=15,
+        choices=Status.choices,
+        default=Status.CREATED,
+    )
+
+    # --- Gateway interaction ---
+    gateway_track_id = models.CharField(
+        "شناسه‌ی پیگیری درگاه",
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="trackId یا معادل آن از سمت درگاه",
+    )
+    gateway_ref_id = models.CharField(
+        "شماره ارجاع بانکی",
+        max_length=100,
+        blank=True,
+        default="",
+    )
+    idempotency_key = models.CharField(
+        "کلید یکتایی",
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="برای جلوگیری از ایجاد تلاش‌های تکراری",
+    )
+
+    # --- Failure info (safe to log/display) ---
+    failure_code = models.CharField(
+        "کد خطا",
+        max_length=50,
+        blank=True,
+        default="",
+    )
+    failure_message = models.CharField(
+        "پیام خطا (امن)",
+        max_length=300,
+        blank=True,
+        default="",
+        help_text="پیام امن بدون اطلاعات حساس — قابل نمایش به مدیر",
+    )
+
+    # --- Timestamps ---
+    initiated_at = models.DateTimeField(
+        "زمان ارسال درخواست",
+        null=True,
+        blank=True,
+    )
+    verified_at = models.DateTimeField(
+        "زمان تأیید",
+        null=True,
+        blank=True,
+    )
+    expires_at = models.DateTimeField(
+        "زمان انقضا",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = "تلاش پرداخت"
+        verbose_name_plural = "تلاش‌های پرداخت"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["idempotency_key"],
+                condition=~models.Q(idempotency_key=""),
+                name="uniq_payment_attempt_idempotency_key",
+            ),
+            models.UniqueConstraint(
+                fields=["gateway_track_id"],
+                condition=~models.Q(gateway_track_id=""),
+                name="uniq_payment_attempt_track_id",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["order", "-created_at"], name="idx_attempt_order_date"),
+            models.Index(fields=["store", "status"], name="idx_attempt_store_status"),
+        ]
+
+    def __str__(self):
+        return f"PaymentAttempt {self.public_id} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        if not self.public_id:
+            import secrets
+            self.public_id = secrets.token_hex(16)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_final(self) -> bool:
+        """Whether this attempt has reached a terminal state."""
+        return self.status in self.FINAL_STATUSES
+
+    @property
+    def is_successful(self) -> bool:
+        return self.status == self.Status.SUCCEEDED

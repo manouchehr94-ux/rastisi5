@@ -2,6 +2,7 @@ Django>=5.2,<6
 jdatetime>=6.0,<7
 Pillow>=12.0,<13
 requests>=2.34,<3
+cryptography>=43.0,<50
 
 # PostgreSQL driver — only required when DATABASE_URL points at a Postgres
 # database (production). Local development/tests use SQLite and do not need

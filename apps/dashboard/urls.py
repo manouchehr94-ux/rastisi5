@@ -60,6 +60,10 @@ urlpatterns = [
     path("settings/gateways/<int:pk>/toggle/", views.settings_gateway_toggle, name="settings-gateway-toggle"),
     path("settings/shipping/<int:pk>/toggle/", views.settings_shipping_toggle, name="settings-shipping-toggle"),
 
+    # --- Real gateway configuration (PR1) ---
+    path("settings/gateway-config/<str:gateway_code>/save/", views.settings_gateway_config_save, name="settings-gateway-config-save"),
+    path("settings/gateway-config/<str:gateway_code>/toggle/", views.settings_gateway_config_toggle, name="settings-gateway-config-toggle"),
+
     path("settings/sms/connection/", views.settings_sms_connection, name="settings-sms-connection"),
     path("settings/sms/templates/<int:pk>/edit/", views.sms_template_form, name="sms-template-edit"),
     path("settings/sms/templates/<int:pk>/toggle/", views.sms_template_toggle, name="sms-template-toggle"),

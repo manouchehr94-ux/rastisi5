@@ -955,6 +955,7 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
         "sms_test_form": SmsTestForm(),
         "gateways": settings_admin_service.active_gateways_context(store=store),
         "shipping_methods": settings_admin_service.shipping_methods_context(store=store),
+        "gateway_configs": settings_admin_service.gateway_configs_context(store=store),
         "active_page": "settings",
     }
 
@@ -963,6 +964,7 @@ SETTINGS_SECTIONS = [
     ("general", "اطلاعات فروشگاه", "🏪", "نام، شعار و اطلاعات تماس فروشگاه"),
     ("finance", "مالی و مالیات", "💰", "نرخ مالیات و آستانه‌ی ارسال رایگان"),
     ("delivery-payment", "ارسال و درگاه", "🚚", "روش‌های ارسال و درگاه‌های پرداخت"),
+    ("payment-config", "پیکربندی درگاه", "🔐", "تنظیمات اعتبارنامه و فعال‌سازی درگاه‌های پرداخت"),
     ("sms", "پیامک", "📲", "اتصال و قالب‌های پیامک"),
     ("appearance", "تم رنگی", "🎨", "پیش‌فرض‌ها و رنگ‌بندی سفارشی فروشگاه"),
 ]
@@ -2091,3 +2093,142 @@ def footer_payment_logo_toggle(request, pk):
     state = "فعال" if logo.is_active else "غیرفعال"
     messages.info(request, f"لوگوی پرداخت «{logo.title}» {state} شد")
     return redirect("dashboard:footer-payment-logo-list")
+
+
+
+# ===========================================================================
+# Payment Gateway Configuration (PR1)
+# ===========================================================================
+
+
+@require_POST
+@staff_required
+def settings_gateway_config_save(request, gateway_code):
+    """ذخیره‌ی پیکربندی یک درگاه پرداخت (Zibal/COD) برای فروشگاه فعلی."""
+    from apps.orders.encryption import CredentialEncryptionError, mask_credential
+    from apps.orders.gateways import get_adapter, GATEWAY_CHOICES
+    from apps.orders.models import PaymentGatewayConfig
+
+    store = _resolve_dashboard_store(request)
+
+    # Validate gateway code
+    valid_codes = [code for code, _ in GATEWAY_CHOICES]
+    if gateway_code not in valid_codes:
+        return HttpResponse(status=404)
+
+    # Get or create config for this store+gateway
+    config, _created = PaymentGatewayConfig.objects.get_or_create(
+        store=store,
+        gateway_code=gateway_code,
+        defaults={"display_order": len(valid_codes)},
+    )
+
+    adapter = get_adapter(gateway_code)
+
+    # Process form data
+    is_active = request.POST.get("is_active") == "on"
+    is_sandbox = request.POST.get("is_sandbox") == "on"
+    display_title = request.POST.get("display_title", "").strip()
+    display_order = request.POST.get("display_order", "0")
+    try:
+        display_order = int(display_order)
+    except (TypeError, ValueError):
+        display_order = 0
+
+    # Process credentials (only for gateways that need them)
+    credentials = config.get_credentials()  # Start with existing
+    credential_errors = []
+
+    for field_name in adapter.required_credentials:
+        new_value = request.POST.get(f"credential_{field_name}", "").strip()
+        if new_value:
+            # New value provided — update
+            credentials[field_name] = new_value
+        # If empty and existing value exists, keep existing (don't clear on blank)
+
+    # Validate credentials before activation
+    if is_active and adapter.required_credentials:
+        validation_errors = adapter.validate_credentials(credentials)
+        if validation_errors:
+            credential_errors = validation_errors
+            is_active = False  # Cannot activate with invalid credentials
+
+    # Update config
+    config.display_title = display_title
+    config.display_order = display_order
+    config.is_sandbox = is_sandbox
+
+    if credentials and adapter.required_credentials:
+        try:
+            config.set_credentials(credentials)
+        except CredentialEncryptionError as exc:
+            credential_errors.append("خطا در رمزنگاری اعتبارنامه. لطفاً دوباره تلاش کنید.")
+            is_active = False
+
+    config.is_active = is_active
+    config.save()
+
+    # Build response
+    if credential_errors:
+        toast_msg = " | ".join(credential_errors)
+        toast_type = "err"
+    else:
+        state = "فعال" if config.is_active else "ذخیره"
+        toast_msg = f"پیکربندی {adapter.display_name} با موفقیت {state} شد"
+        toast_type = "ok"
+
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = json.dumps({
+        "toast": {"message": toast_msg, "type": toast_type},
+        "settings-reload": {},
+    })
+    return response
+
+
+@require_POST
+@staff_required
+def settings_gateway_config_toggle(request, gateway_code):
+    """فعال/غیرفعال کردن سریع یک درگاه پیکربندی‌شده."""
+    from apps.orders.gateways import get_adapter, GATEWAY_CHOICES
+    from apps.orders.models import PaymentGatewayConfig
+
+    store = _resolve_dashboard_store(request)
+
+    valid_codes = [code for code, _ in GATEWAY_CHOICES]
+    if gateway_code not in valid_codes:
+        return HttpResponse(status=404)
+
+    config = PaymentGatewayConfig.objects.filter(
+        store=store, gateway_code=gateway_code
+    ).first()
+
+    if config is None:
+        return HttpResponse(status=404)
+
+    adapter = get_adapter(gateway_code)
+
+    if config.is_active:
+        # Deactivate — always allowed
+        config.is_active = False
+        config.save(update_fields=["is_active", "updated_at"])
+        toast_msg = f"{adapter.display_name} غیرفعال شد"
+    else:
+        # Activate — only if configured
+        if adapter.required_credentials:
+            errors = adapter.validate_credentials(config.get_credentials())
+            if errors:
+                response = HttpResponse(status=204)
+                response["HX-Trigger"] = json.dumps({
+                    "toast": {"message": "پیکربندی ناقص — ابتدا اعتبارنامه را وارد کنید", "type": "err"},
+                })
+                return response
+        config.is_active = True
+        config.save(update_fields=["is_active", "updated_at"])
+        toast_msg = f"{adapter.display_name} فعال شد"
+
+    response = HttpResponse(status=204)
+    response["HX-Trigger"] = json.dumps({
+        "toast": {"message": toast_msg, "type": "info"},
+        "settings-reload": {},
+    })
+    return response
