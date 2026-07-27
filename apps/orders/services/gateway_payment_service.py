@@ -26,8 +26,6 @@ State ownership:
 from __future__ import annotations
 
 import logging
-import secrets
-from decimal import Decimal
 
 from django.db import transaction
 from django.utils import timezone
@@ -76,6 +74,7 @@ def initiate_payment(
     callback_url: str,
     store,
     idempotency_key: str = "",
+    pre_public_id: str = "",
 ) -> PaymentAttempt:
     """Create a PaymentAttempt and (for online gateways) request payment from gateway.
 
@@ -85,6 +84,8 @@ def initiate_payment(
         callback_url: Full URL for gateway to redirect back to.
         store: Authoritative store instance.
         idempotency_key: Optional key to prevent duplicate attempts.
+        pre_public_id: Optional pre-generated public_id (allows caller to build
+                       the callback URL before the attempt is created).
 
     Returns:
         PaymentAttempt in REDIRECT_READY (online) or SUCCEEDED (COD) state.
@@ -130,7 +131,7 @@ def initiate_payment(
         ) from exc
 
     # Create attempt record
-    attempt = PaymentAttempt.objects.create(
+    attempt = PaymentAttempt(
         store=store,
         order=order,
         gateway_config=gateway_config,
@@ -139,6 +140,9 @@ def initiate_payment(
         status=PaymentAttempt.Status.CREATED,
         idempotency_key=idempotency_key or "",
     )
+    if pre_public_id:
+        attempt.public_id = pre_public_id
+    attempt.save()
 
     # For offline gateways (COD), mark as succeeded immediately
     if not adapter.is_online:

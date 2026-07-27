@@ -1,7 +1,7 @@
 # Payment Architecture — PR1 Foundation
 
-> **Status:** Active  
-> **Introduced:** PR1 (Payment Domain Foundation)  
+> **Status:** Active
+> **Introduced:** PR1 (Payment Domain Foundation)
 > **Scope:** Zibal online payment, Cash on Delivery, per-store gateway configuration
 
 ---

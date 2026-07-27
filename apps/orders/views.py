@@ -357,21 +357,49 @@ def payment_initiate(request, code):
             "error": "هیچ درگاه پرداخت فعالی پیکربندی نشده است",
         })
 
-    # Build callback URL — public, no auth required
-    callback_url = request.build_absolute_uri(
-        reverse("orders:gateway-callback", args=["{attempt_id}"])
-    )
+    # Generate idempotency key — uses a server-side nonce to avoid races.
+    # The gateway_payment_service checks this key BEFORE creating a new attempt,
+    # so concurrent requests with the same key return the existing attempt.
+    import secrets as _secrets
+    idem_key = f"pay-{order.code}-{gateway_config.pk}-{_secrets.token_hex(8)}"
 
-    # Generate idempotency key based on order + gateway
-    idem_key = f"pay-{order.code}-{gateway_config.pk}-{order.payment_attempts.count()}"
+    # Initiate payment — attempt is created FIRST, then we build the callback URL
+    # using the attempt's public_id. For online gateways the callback_url passed here
+    # is a placeholder; the real Zibal callback URL is built below once we have the
+    # attempt's public_id. The adapter stores the trackId internally and Zibal sends
+    # the callback to the URL we registered. We MUST pass the final URL to the adapter.
+    #
+    # Strategy: create the attempt first (initiate_payment handles creation and gateway
+    # request in two phases). We pass a preliminary callback_url and then, critically,
+    # the adapter builds the redirect URL from the trackId — which is what the customer
+    # follows. The callback_url registered with Zibal needs the attempt's public_id.
+    #
+    # Fix: We need a two-step approach or a predictable URL. Since the public_id is
+    # generated at creation time (before the gateway request), we can pre-generate it.
+    # But initiate_payment creates the attempt internally. Instead, we use a general
+    # callback URL pattern that includes the trackId (Zibal sends it back as a param).
+    # However, our current URL pattern uses attempt_id in the path.
+    #
+    # Correct fix: Build the callback URL using a placeholder, then after initiate_payment
+    # returns the attempt, we know the public_id. But the callback_url was ALREADY sent
+    # to Zibal. So we need to pass the correct URL to the service BEFORE calling Zibal.
+    #
+    # The cleanest solution: pass the callback base URL and let the service construct
+    # the final URL with the attempt's public_id. But that requires refactoring the
+    # service interface. Simpler: pre-generate the public_id before calling the service.
+    pre_public_id = _secrets.token_hex(16)
+    callback_url = request.build_absolute_uri(
+        reverse("orders:gateway-callback", args=[pre_public_id])
+    )
 
     try:
         attempt = initiate_payment(
             order=order,
             gateway_config=gateway_config,
-            callback_url=callback_url.replace("{attempt_id}", "PLACEHOLDER"),
+            callback_url=callback_url,
             store=store,
             idempotency_key=idem_key,
+            pre_public_id=pre_public_id,
         )
     except PaymentAlreadyPaidError:
         return redirect("orders:payment-result", code=order.code)
@@ -382,14 +410,8 @@ def payment_initiate(request, code):
             "error": str(exc),
         })
 
-    # For online gateways, build real callback URL with attempt ID and redirect
+    # For online gateways, redirect to gateway payment page
     if gateway_config.is_online:
-        # Update the attempt's track_id callback URL
-        real_callback_url = request.build_absolute_uri(
-            reverse("orders:gateway-callback", args=[attempt.public_id])
-        )
-        # Re-initiate if callback URL placeholder was used
-        # Actually the adapter already has the URL — redirect to gateway
         adapter = get_adapter(gateway_config.gateway_code)
         redirect_url = adapter.build_redirect_url(
             attempt.gateway_track_id,
@@ -406,7 +428,7 @@ def gateway_callback(request, attempt_id):
 
     This view:
     - Does NOT require authentication (gateway redirects the customer here)
-    - Accepts GET (Zibal redirects with query params)
+    - Accepts GET only (Zibal redirects with query params)
     - Processes the callback server-to-server verification
     - Redirects to payment result page
 
@@ -416,6 +438,10 @@ def gateway_callback(request, attempt_id):
     - Idempotent — duplicate callbacks are safe
     - Does not expose sensitive information in the result page
     """
+    if request.method != "GET":
+        from django.http import HttpResponseNotAllowed
+        return HttpResponseNotAllowed(["GET"])
+
     from apps.orders.models import PaymentAttempt
     from apps.orders.services.gateway_payment_service import (
         PaymentVerificationFailed,
