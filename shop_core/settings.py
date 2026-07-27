@@ -67,6 +67,14 @@ CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", default=())
 # deployment environment (before the process even starts).
 PAYMENTS_SIMULATION_ENABLED = env_bool("PAYMENTS_SIMULATION_ENABLED", default=DEBUG)
 
+# Payment credential encryption key — see apps/orders/encryption.py.
+# Required in production (DEBUG=False). In development/tests the encryption
+# module uses a deterministic dev-only key automatically.
+# The _PAYMENT_DEV_KEY_ALLOWED flag tells the encryption module that the dev
+# key may be used even when DEBUG is False (Django test runner sets DEBUG=False).
+PAYMENT_CREDENTIAL_KEY = env_str("PAYMENT_CREDENTIAL_KEY", "")
+_PAYMENT_DEV_KEY_ALLOWED = not PAYMENT_CREDENTIAL_KEY and DEBUG
+
 
 # Application definition
 

@@ -9,3 +9,5 @@ media/*
 !media/.gitkeep
 .DS_Store
 *.log
+
+.env

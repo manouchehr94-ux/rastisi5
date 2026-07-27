@@ -35,3 +35,35 @@ def toggle_shipping_method(pk: int, *, store) -> ShippingMethod:
     method.is_active = not method.is_active
     method.save(update_fields=["is_active", "updated_at"])
     return method
+
+
+
+
+def gateway_configs_context(*, store):
+    """پیکربندی‌های درگاه‌های پرداخت واقعی — برای بخش «پیکربندی درگاه» در تنظیمات."""
+    from apps.orders.gateways import GATEWAY_CHOICES, get_adapter
+    from apps.orders.models import PaymentGatewayConfig
+
+    configs = {
+        c.gateway_code: c
+        for c in PaymentGatewayConfig.objects.filter(store=store)
+    }
+
+    result = []
+    for code, label in GATEWAY_CHOICES:
+        adapter = get_adapter(code)
+        config = configs.get(code)
+        result.append({
+            "code": code,
+            "label": label,
+            "adapter": adapter,
+            "config": config,
+            "is_active": config.is_active if config else False,
+            "is_configured": config.is_configured if config else False,
+            "is_online": adapter.is_online,
+            "required_credentials": adapter.required_credentials,
+            "display_order": config.display_order if config else 0,
+            "display_title": config.display_title if config else "",
+            "is_sandbox": config.is_sandbox if config else False,
+        })
+    return result
