@@ -20,7 +20,7 @@ from apps.catalog.models import Brand, Category, Product, ProductImage, ProductV
 from apps.catalog.services.variant_service import create_variant, set_product_type
 from apps.content.models import FooterSettings
 from apps.core.models import ShopSettings
-from apps.stores.models import Store, StoreDomain
+from apps.stores.models import Store, StoreDomain, StoreMembership
 
 User = get_user_model()
 
@@ -49,6 +49,11 @@ class DashboardCatalogTwoStoreIsolationTests(TestCase):
         FooterSettings.provision_for(self.store_b)
 
         self.staff = User.objects.create_user(username="dash-staff", password="pass12345", is_staff=True)
+        for store in (self.store_a, self.store_b):
+            StoreMembership.objects.create(
+                store=store, user=self.staff, role=StoreMembership.Role.OWNER,
+                status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+            )
         self.client.login(username="dash-staff", password="pass12345")
 
         self.vendor_a = Vendor.objects.create(store=self.store_a, name="Vendor A", slug="vendor-dsi-a")
@@ -249,6 +254,11 @@ class DashboardProductMediaTwoStoreLifecycleTests(TestCase):
         FooterSettings.provision_for(self.store_b)
 
         self.staff = User.objects.create_user(username="dash-media-staff", password="pass12345", is_staff=True)
+        for store in (self.store_a, self.store_b):
+            StoreMembership.objects.create(
+                store=store, user=self.staff, role=StoreMembership.Role.OWNER,
+                status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+            )
         self.client.login(username="dash-media-staff", password="pass12345")
 
         vendor_a = Vendor.objects.create(store=self.store_a, name="Vendor A", slug="vendor-media-a")

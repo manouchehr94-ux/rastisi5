@@ -12,8 +12,21 @@ Proves:
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
+
+from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
+
+
+def _grant_akhlaghi_membership(user, role=None):
+    StoreMembership.objects.create(
+        store=Store.objects.get(slug="akhlaghi"),
+        user=user,
+        role=role or StoreMembership.Role.OWNER,
+        status=StoreMembership.MembershipStatus.ACTIVE,
+        accepted_at=timezone.now(),
+    )
 
 
 class AdminLoginRedirectTests(TestCase):
@@ -47,6 +60,7 @@ class StaffAccessTests(TestCase):
         self.staff_user = User.objects.create_user(
             username="admin1", password="StaffPass123!", is_staff=True
         )
+        _grant_akhlaghi_membership(self.staff_user)
 
     def test_staff_can_access_dashboard(self):
         """Staff user → GET /admin-panel/ → 200"""
@@ -95,6 +109,7 @@ class AdminLoginFlowTests(TestCase):
         self.staff_user = User.objects.create_user(
             username="manager", password="ManagerPass123!", is_staff=True
         )
+        _grant_akhlaghi_membership(self.staff_user)
 
     def test_successful_login_redirects_to_next(self):
         """Valid credentials with next param → redirect to requested page"""

@@ -2,16 +2,27 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.content.models import FooterSettings, FooterTrustBadge, FooterPaymentLogo, Menu, MenuItem, SocialLink
+from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
+
+
+def _grant_akhlaghi_membership(user):
+    StoreMembership.objects.create(
+        store=Store.objects.get(slug="akhlaghi"), user=user,
+        role=StoreMembership.Role.OWNER, status=StoreMembership.MembershipStatus.ACTIVE,
+        accepted_at=timezone.now(),
+    )
 
 
 class PageGuidanceTests(TestCase):
     """تست وجود راهنما و سرفصل‌های صفحات."""
     def setUp(self):
         self.staff = User.objects.create_user(username="ux1", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="ux1", password="p!")
 
     def test_social_link_list_page_header(self):
@@ -34,6 +45,7 @@ class HelpTextTests(TestCase):
     """تست وجود متن راهنما در فرم‌ها."""
     def setUp(self):
         self.staff = User.objects.create_user(username="ux2", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="ux2", password="p!")
 
     def test_social_link_form_help(self):
@@ -59,6 +71,7 @@ class EmptyStateTests(TestCase):
     """تست وضعیت خالی."""
     def setUp(self):
         self.staff = User.objects.create_user(username="ux3", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="ux3", password="p!")
 
     def test_social_links_empty(self):
@@ -82,6 +95,7 @@ class FooterSectionsTests(TestCase):
     """تست بخش‌بندی تنظیمات فوتر."""
     def setUp(self):
         self.staff = User.objects.create_user(username="ux4", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="ux4", password="p!")
 
     def test_sections_present(self):
@@ -100,6 +114,7 @@ class DeleteConfirmationTests(TestCase):
     """تست صفحات تأیید حذف."""
     def setUp(self):
         self.staff = User.objects.create_user(username="ux5", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="ux5", password="p!")
 
     def test_social_link_get_shows_confirmation(self):
@@ -144,6 +159,7 @@ class MenuWorkflowTests(TestCase):
     """تست گردش کار ایجاد منو."""
     def setUp(self):
         self.staff = User.objects.create_user(username="ux6", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="ux6", password="p!")
 
     def test_create_redirects_to_item_list(self):
@@ -181,6 +197,7 @@ class StaleRouteTests(TestCase):
     """تست عدم وجود مسیرهای منسوخ."""
     def setUp(self):
         self.staff = User.objects.create_user(username="ux7", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="ux7", password="p!")
 
     def test_no_stale_heroes_in_sidebar(self):
@@ -203,6 +220,7 @@ class DeleteConfirmationFullTests(TestCase):
         from apps.stores.models import Store
 
         self.staff = User.objects.create_user(username="ux_del", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="ux_del", password="p!")
         self.store = Store.objects.get(slug="akhlaghi")
 
@@ -281,6 +299,7 @@ class AriaInvalidTests(TestCase):
     """تست aria-invalid برای فیلدهای نامعتبر."""
     def setUp(self):
         self.staff = User.objects.create_user(username="ux_aria", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="ux_aria", password="p!")
 
     def test_invalid_social_link_url_renders_aria_invalid(self):

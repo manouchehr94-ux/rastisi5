@@ -6,10 +6,11 @@ from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.core.models import ShopSettings
 from apps.orders.models import PaymentGateway, ShippingMethod
-from apps.stores.models import Store
+from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
 
@@ -20,6 +21,10 @@ class SettingsViewsTestCase(TestCase):
         self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-sv", is_active=True)
         self.shipping = ShippingMethod.objects.create(store=self.store, name="پست پیشتاز", slug="post-sv", is_active=True)
         self.staff = User.objects.create_user(username="09121192001", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
         self.client.login(username="09121192001", password="pass12345")
 
 

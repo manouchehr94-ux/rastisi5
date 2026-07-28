@@ -19,8 +19,18 @@ from apps.content.models import (
     PromotionalBanner,
     validate_image_size,
 )
+from django.utils import timezone
+
 from apps.content.services import resolve_destination_url
-from apps.stores.models import Store
+from apps.stores.models import Store, StoreMembership
+
+
+def _grant_akhlaghi_membership(user):
+    StoreMembership.objects.create(
+        store=Store.objects.get(slug="akhlaghi"), user=user,
+        role=StoreMembership.Role.OWNER, status=StoreMembership.MembershipStatus.ACTIVE,
+        accepted_at=timezone.now(),
+    )
 
 User = get_user_model()
 
@@ -162,6 +172,7 @@ class BannerRenderingTests(TestCase):
 class DashboardHeroCRUDTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user(username="staff", password="pass!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="staff", password="pass!")
 
     def test_hero_list_accessible(self):
@@ -198,6 +209,7 @@ class DashboardHeroCRUDTests(TestCase):
 class DashboardBannerCRUDTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user(username="staff", password="pass!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="staff", password="pass!")
 
     def test_banner_list_accessible(self):
@@ -348,6 +360,7 @@ class TransactionSafeFileLifecycleTests(TransactionTestCase):
 
     def setUp(self):
         self.staff = User.objects.create_user(username="staff_lc", password="pass!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="staff_lc", password="pass!")
 
     def _fixture_teardown(self):

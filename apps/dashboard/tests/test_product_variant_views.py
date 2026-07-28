@@ -12,9 +12,11 @@ from apps.catalog.services.variant_service import (
     deactivate_variant,
     set_product_type,
 )
+from django.utils import timezone
+
 from apps.customers.models import Customer
 from apps.orders.models import Order, OrderItem, PaymentGateway, ShippingMethod
-from apps.stores.models import Store
+from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
 
@@ -34,6 +36,10 @@ class VariantViewsTestCase(TestCase):
             sku="SKU-HOSE-PVV", price=Decimal("200000"),
         )
         self.staff = User.objects.create_user(username="09121122301", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
         self.client.login(username="09121122301", password="pass12345")
 
     def _make_variable(self):

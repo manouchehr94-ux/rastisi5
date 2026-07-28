@@ -3,11 +3,12 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.catalog.models import Vendor
 from apps.customers.models import Customer
 from apps.orders.models import Order, PaymentGateway, ShippingMethod
-from apps.stores.models import Store
+from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
 
@@ -28,6 +29,10 @@ class CustomerViewsTestCase(TestCase):
             grand_total=Decimal("250000"), payment_status=Order.PaymentStatus.PAID,
         )
         self.staff = User.objects.create_user(username="09121180099", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
         self.client.login(username="09121180099", password="pass12345")
 
 

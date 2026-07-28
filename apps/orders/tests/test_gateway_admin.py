@@ -18,9 +18,11 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from django.utils import timezone
+
 from apps.orders.encryption import reset_fernet
 from apps.orders.models import PaymentGatewayConfig
-from apps.stores.models import Store
+from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
 
@@ -35,6 +37,10 @@ class GatewayConfigAdminTests(TestCase):
         self.store = _akhlaghi()
         self.admin_user = User.objects.create_user(
             username="admin_gw", password="pass123", is_staff=True
+        )
+        StoreMembership.objects.create(
+            store=self.store, user=self.admin_user, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
         )
         self.non_staff_user = User.objects.create_user(
             username="customer_gw", password="pass123", is_staff=False

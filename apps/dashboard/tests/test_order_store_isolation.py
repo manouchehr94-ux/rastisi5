@@ -22,7 +22,7 @@ from apps.content.models import FooterSettings
 from apps.core.models import ShopSettings
 from apps.customers.models import Customer
 from apps.orders.models import Order, PaymentGateway, ShippingMethod, Transaction
-from apps.stores.models import Store, StoreDomain
+from apps.stores.models import Store, StoreDomain, StoreMembership
 
 User = get_user_model()
 
@@ -48,6 +48,11 @@ class DashboardOrderTwoStoreIsolationTests(TestCase):
         FooterSettings.provision_for(self.store_b)
 
         self.staff = User.objects.create_user(username="dord-staff", password="pass12345", is_staff=True)
+        for store in (self.store_a, self.store_b):
+            StoreMembership.objects.create(
+                store=store, user=self.staff, role=StoreMembership.Role.OWNER,
+                status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+            )
         self.client.login(username="dord-staff", password="pass12345")
 
         self.vendor_a = Vendor.objects.create(store=self.store_a, name="Vendor A", slug="vendor-dord-a")

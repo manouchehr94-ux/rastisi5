@@ -17,7 +17,7 @@ from apps.content.models import (
     FooterSettingsNotProvisionedError,
     FooterTrustBadge,
 )
-from apps.stores.models import Store
+from apps.stores.models import Store, StoreMembership
 from apps.stores.resolution import CompatibilityFallbackUnavailableError
 
 User = get_user_model()
@@ -25,6 +25,15 @@ User = get_user_model()
 
 def _akhlaghi():
     return Store.objects.get(slug="akhlaghi")
+
+
+def _grant_membership(store, user):
+    from django.utils import timezone
+
+    StoreMembership.objects.create(
+        store=store, user=user, role=StoreMembership.Role.OWNER,
+        status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+    )
 
 
 def _make_image(name="test.png", size=(10, 10), fmt="PNG"):
@@ -240,6 +249,7 @@ class DashboardAccessTests(TestCase):
 
     def setUp(self):
         self.staff = User.objects.create_user(username="admin", password="pass123", is_staff=True)
+        _grant_membership(_akhlaghi(), self.staff)
         self.user = User.objects.create_user(username="normal", password="pass123", is_staff=False)
 
     def test_anonymous_redirect(self):
@@ -271,6 +281,7 @@ class DashboardFooterCRUDTests(TestCase):
     def setUp(self):
         self.store = _akhlaghi()
         self.staff = User.objects.create_user(username="admin", password="pass123", is_staff=True)
+        _grant_membership(self.store, self.staff)
         self.client.login(username="admin", password="pass123")
 
     def test_settings_save(self):
@@ -401,6 +412,7 @@ class DashboardFooterCrossStoreIsolationTests(TestCase):
             verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
         )
         self.staff = User.objects.create_user(username="admin", password="pass123", is_staff=True)
+        _grant_membership(self.store_a, self.staff)
         self.client.login(username="admin", password="pass123")
 
     def _post(self, url, data=None):

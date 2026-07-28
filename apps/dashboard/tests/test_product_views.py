@@ -4,9 +4,10 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.catalog.models import Category, Product, Vendor
-from apps.stores.models import Store
+from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
 
@@ -26,6 +27,10 @@ class ProductViewsTestCase(TestCase):
             sku="SKU-PV1", price=Decimal("1000000"), stock=5,
         )
         self.staff = User.objects.create_user(username="09121122001", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
         self.client.login(username="09121122001", password="pass12345")
 
 

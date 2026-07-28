@@ -29,7 +29,7 @@ from django.utils import timezone
 from apps.catalog.models import Category, Product, Vendor
 from apps.content.models import FooterSettings
 from apps.core.models import ShopSettings
-from apps.stores.models import Store, StoreDomain
+from apps.stores.models import Store, StoreDomain, StoreMembership
 
 User = get_user_model()
 
@@ -80,6 +80,14 @@ class AdminSuperuserGateFixture(TestCase):
         )
         self.superuser = User.objects.create_superuser(
             username="platform-superuser", email="super@example.com", password="pass12345",
+        )
+        StoreMembership.objects.create(
+            store=self.store_a, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        StoreMembership.objects.create(
+            store=self.store_a, user=self.superuser, role=StoreMembership.Role.ADMINISTRATOR,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
         )
 
 

@@ -9,9 +9,11 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
+from django.utils import timezone
+
 from apps.catalog.models import Category, Product, ProductImage, Vendor
 from apps.catalog.services.product_image_service import add_product_image
-from apps.stores.models import Store
+from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
 
@@ -40,6 +42,10 @@ class ProductImageViewsTestCase(TestCase):
             sku="SKU-PIV1", price=Decimal("500000"), stock=5,
         )
         self.staff = User.objects.create_user(username="09121133001", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
         self.client.login(username="09121133001", password="pass12345")
 
 

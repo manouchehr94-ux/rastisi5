@@ -6,9 +6,11 @@ from django.urls import reverse
 
 from apps.catalog.models import Vendor
 from apps.customers.models import Customer
+from django.utils import timezone
+
 from apps.orders.models import Order, PaymentGateway, ShippingMethod
 from apps.orders.services.order_service import change_order_status
-from apps.stores.models import Store
+from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
 
@@ -32,6 +34,10 @@ class OrderViewsTestCase(TestCase):
             items_total=Decimal("100000"), grand_total=Decimal("109000"), tax=Decimal("9000"),
         )
         self.staff = User.objects.create_user(username="09121140099", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
         self.client.login(username="09121140099", password="pass12345")
 
 

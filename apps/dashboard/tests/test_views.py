@@ -1,13 +1,25 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
+
+from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
+
+
+def _grant_akhlaghi_membership(user):
+    StoreMembership.objects.create(
+        store=Store.objects.get(slug="akhlaghi"), user=user,
+        role=StoreMembership.Role.OWNER, status=StoreMembership.MembershipStatus.ACTIVE,
+        accepted_at=timezone.now(),
+    )
 
 
 class DashboardViewTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user(username="09121121001", password="pass12345", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="09121121001", password="pass12345")
 
     def test_dashboard_renders_with_active_nav(self):
@@ -29,6 +41,7 @@ class DashboardViewTests(TestCase):
 class SalesChartPartialViewTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user(username="09121121002", password="pass12345", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="09121121002", password="pass12345")
 
     def test_week_range_returns_svg(self):

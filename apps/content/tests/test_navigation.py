@@ -9,9 +9,19 @@ from django.db.models import ProtectedError
 from django.test import TestCase
 from django.urls import reverse
 
+from django.utils import timezone
+
 from apps.catalog.models import Category, Product, Vendor
 from apps.content.models import DestinationType, Menu, MenuItem
-from apps.stores.models import Store
+from apps.stores.models import Store, StoreMembership
+
+
+def _grant_akhlaghi_membership(user):
+    StoreMembership.objects.create(
+        store=Store.objects.get(slug="akhlaghi"), user=user,
+        role=StoreMembership.Role.OWNER, status=StoreMembership.MembershipStatus.ACTIVE,
+        accepted_at=timezone.now(),
+    )
 
 User = get_user_model()
 
@@ -192,6 +202,7 @@ class MenuItemModelTests(TestCase):
 class MenuDashboardAccessTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user(username="staff_nav", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.non_staff = User.objects.create_user(username="user_nav", password="p!", is_staff=False)
 
     def test_anonymous_redirected(self):
@@ -261,6 +272,7 @@ class MenuDashboardAccessTests(TestCase):
 class MenuDashboardCRUDTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user(username="staff_mc", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="staff_mc", password="p!")
 
     def test_create_menu(self):
@@ -749,6 +761,7 @@ class MenuDeletionProtectionTests(TestCase):
 
     def setUp(self):
         self.staff = User.objects.create_user(username="staff_del", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="staff_del", password="p!")
 
     def test_orm_deletion_of_populated_menu_raises_protected(self):
@@ -994,6 +1007,7 @@ class ParentCreationWorkflowTests(TestCase):
         self.menu = Menu.objects.create(title="M", location="header")
         self.category = Category.objects.create(store=_akhlaghi(), name="WC", slug="wc-pcw")
         self.staff = User.objects.create_user(username="staff_pcw", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="staff_pcw", password="p!")
 
     def test_destinationless_parent_can_be_created(self):

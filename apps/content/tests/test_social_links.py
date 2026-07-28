@@ -4,8 +4,18 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.content.models import SOCIAL_ICON_MAP, SocialLink, validate_social_url
+from apps.stores.models import Store, StoreMembership
+
+
+def _grant_akhlaghi_membership(user):
+    StoreMembership.objects.create(
+        store=Store.objects.get(slug="akhlaghi"), user=user,
+        role=StoreMembership.Role.OWNER, status=StoreMembership.MembershipStatus.ACTIVE,
+        accepted_at=timezone.now(),
+    )
 
 User = get_user_model()
 
@@ -163,6 +173,7 @@ class SocialLinkDashboardAccessTests(TestCase):
 
     def setUp(self):
         self.staff = User.objects.create_user(username="staff_sl", password="pass!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.non_staff = User.objects.create_user(username="user_sl", password="pass!", is_staff=False)
 
     def test_anonymous_redirected(self):
@@ -227,6 +238,7 @@ class SocialLinkDashboardCRUDTests(TestCase):
 
     def setUp(self):
         self.staff = User.objects.create_user(username="staff_crud", password="pass!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="staff_crud", password="pass!")
 
     def test_create(self):
@@ -534,7 +546,8 @@ class SocialLinkIconCoherenceTests(TestCase):
         """Dashboard form template does not have an icon_name input."""
         from django.contrib.auth import get_user_model
         User = get_user_model()
-        User.objects.create_user(username="staff_icon", password="p!", is_staff=True)
+        staff_icon = User.objects.create_user(username="staff_icon", password="p!", is_staff=True)
+        _grant_akhlaghi_membership(staff_icon)
         self.client.login(username="staff_icon", password="p!")
         response = self.client.get(reverse("dashboard:social-link-add"))
         self.assertNotContains(response, 'name="icon_name"')

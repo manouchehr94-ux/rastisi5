@@ -19,7 +19,7 @@ from apps.content.models import FooterSettings
 from apps.core.models import ShopSettings
 from apps.orders.models import PaymentGateway, ShippingMethod
 from apps.orders.services import checkout_service
-from apps.stores.models import Store, StoreDomain
+from apps.stores.models import Store, StoreDomain, StoreMembership
 
 User = get_user_model()
 
@@ -45,6 +45,10 @@ class DashboardGatewayShippingTwoStoreIsolationTests(TestCase):
         FooterSettings.provision_for(self.store_b)
 
         self.staff = User.objects.create_user(username="dgs-staff", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store_b, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
         self.client.login(username="dgs-staff", password="pass12345")
 
         self.gateway_a = PaymentGateway.objects.create(store=self.store_a, name="درگاه A", slug="gw-dgs-a", is_active=True)

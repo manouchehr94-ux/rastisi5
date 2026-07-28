@@ -7,6 +7,15 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.content.models import ContentPage, RESERVED_SLUGS
+from apps.stores.models import Store, StoreMembership
+
+
+def _grant_akhlaghi_membership(user):
+    StoreMembership.objects.create(
+        store=Store.objects.get(slug="akhlaghi"), user=user,
+        role=StoreMembership.Role.OWNER, status=StoreMembership.MembershipStatus.ACTIVE,
+        accepted_at=timezone.now(),
+    )
 
 User = get_user_model()
 
@@ -95,6 +104,7 @@ class ContentPageDashboardTests(TestCase):
 
     def setUp(self):
         self.staff = User.objects.create_user(username="admin1", password="pass123!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="admin1", password="pass123!")
 
     def test_page_list_accessible(self):
@@ -264,6 +274,7 @@ class DashboardValidationTests(TestCase):
         from django.contrib.auth import get_user_model
         User = get_user_model()
         self.staff = User.objects.create_user(username="staff1", password="pass!", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
         self.client.login(username="staff1", password="pass!")
 
     def test_duplicate_slug_handled_safely(self):

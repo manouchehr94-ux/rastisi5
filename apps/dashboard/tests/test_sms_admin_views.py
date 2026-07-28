@@ -3,10 +3,12 @@ import json
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.core.models import ShopSettings
 from apps.sms.events import SmsEvent
 from apps.sms.models import SmsLog, SmsTemplate
+from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
 
@@ -15,6 +17,10 @@ class SmsAdminViewsTestCase(TestCase):
     def setUp(self):
         SmsTemplate.ensure_defaults()
         self.staff = User.objects.create_user(username="09121193001", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=Store.objects.get(slug="akhlaghi"), user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
         self.client.login(username="09121193001", password="pass12345")
 
 
