@@ -8,3 +8,6 @@ cryptography>=43.0,<50
 # database (production). Local development/tests use SQLite and do not need
 # this installed to run. See docs/deployment/PRODUCTION_CONFIGURATION.md.
 psycopg[binary]>=3.2,<4
+
+beautifulsoup4>=4.12,<5
+PySocks>=1.7.1,<2

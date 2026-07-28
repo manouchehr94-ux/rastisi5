@@ -11,3 +11,5 @@ media/*
 *.log
 
 .env
+
+backups/
