@@ -42,7 +42,26 @@ from apps.sms.events import EVENT_VARIABLES
 from apps.sms.models import SmsTemplate
 from apps.sms.services.sms_service import SmsTemplateError, send_test_sms
 
-from .decorators import staff_required
+from .decorators import permission_required, staff_required
+from apps.stores.authorization import (
+    CATEGORY_MANAGE,
+    CONTENT_MANAGE,
+    CUSTOMER_VIEW,
+    DASHBOARD_VIEW,
+    MEDIA_MANAGE,
+    ORDER_STATUS_CHANGE,
+    ORDER_VIEW,
+    PAYMENT_SETTINGS_MANAGE,
+    PRODUCT_CREATE,
+    PRODUCT_DELETE,
+    PRODUCT_EDIT,
+    PRODUCT_VIEW,
+    REPORTS_VIEW,
+    SETTINGS_MANAGE,
+    SMS_SETTINGS_MANAGE,
+    VARIANT_MANAGE,
+    membership_has_permission,
+)
 from .forms import (
     CategoryEditForm,
     FinanceSettingsForm,
@@ -97,7 +116,7 @@ VALID_RANGES = {"week", "month", "year"}
 def admin_login(request):
     """صفحه‌ی ورود اختصاصی پنل مدیریت — مستقل از فروشگاه."""
     if request.user.is_authenticated and request.user.is_staff:
-        return redirect(request.GET.get("next", "/admin-panel/"))
+        return redirect(request.GET.get("next", "/admin-portal/"))
 
     error = ""
     username = ""
@@ -109,17 +128,17 @@ def admin_login(request):
 
         if user is not None and user.is_staff:
             auth_login(request, user)
-            next_url = request.POST.get("next", request.GET.get("next", "/admin-panel/"))
+            next_url = request.POST.get("next", request.GET.get("next", "/admin-portal/"))
             # Prevent open redirect — ensure next is a relative admin path
-            if not next_url.startswith("/admin-panel/"):
-                next_url = "/admin-panel/"
+            if not next_url.startswith("/admin-portal/"):
+                next_url = "/admin-portal/"
             return redirect(next_url)
         elif user is not None and not user.is_staff:
             error = "شما به پنل مدیریت دسترسی ندارید"
         else:
             error = "نام کاربری یا رمز عبور اشتباه است"
 
-    next_url = request.GET.get("next", "/admin-panel/")
+    next_url = request.GET.get("next", "/admin-portal/")
     return render(request, "dashboard/login.html", {
         "error": error,
         "username": username,
@@ -128,6 +147,7 @@ def admin_login(request):
 
 
 @staff_required
+@permission_required(DASHBOARD_VIEW)
 def dashboard_home(request):
     store = _resolve_dashboard_store(request)
     context = dashboard_service.build_dashboard_context(store)
@@ -136,11 +156,13 @@ def dashboard_home(request):
 
 
 @staff_required
+@permission_required(DASHBOARD_VIEW)
 def sales_chart_partial(request):
+    store = _resolve_dashboard_store(request)
     range_key = request.GET.get("range", "month")
     if range_key not in VALID_RANGES:
         range_key = "month"
-    data, labels = dashboard_service.sales_chart_data(range_key)
+    data, labels = dashboard_service.sales_chart_data(store, range_key)
     svg = build_line_chart_svg(data, labels)
     return render(request, "dashboard/partials/sales_chart.html", {"svg": svg})
 
@@ -164,6 +186,7 @@ def _product_list_context(request):
 
 
 @staff_required
+@permission_required(PRODUCT_VIEW)
 def product_list(request):
     context = _product_list_context(request)
     context["active_page"] = "products"
@@ -171,6 +194,7 @@ def product_list(request):
 
 
 @staff_required
+@permission_required(PRODUCT_VIEW)
 def product_table(request):
     return render(request, "dashboard/partials/products_table_inner.html", _product_list_context(request))
 
@@ -204,6 +228,7 @@ def _save_product(form, product, *, store):
 
 
 @staff_required
+@permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
 def product_form(request, pk=None):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store) if pk else None
@@ -257,6 +282,7 @@ def product_form(request, pk=None):
 
 @require_POST
 @staff_required
+@permission_required(PRODUCT_DELETE)
 def product_delete(request, pk):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store)
@@ -271,6 +297,7 @@ def product_delete(request, pk):
 
 
 @staff_required
+@permission_required(MEDIA_MANAGE)
 def product_images(request, pk):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store)
@@ -296,6 +323,7 @@ def _image_list_response(request, product, *, refresh_table=False):
 
 @require_POST
 @staff_required
+@permission_required(MEDIA_MANAGE)
 def product_image_upload(request, pk):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store)
@@ -330,6 +358,7 @@ def product_image_upload(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(MEDIA_MANAGE)
 def product_image_delete(request, pk, image_id):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store)
@@ -342,6 +371,7 @@ def product_image_delete(request, pk, image_id):
 
 @require_POST
 @staff_required
+@permission_required(MEDIA_MANAGE)
 def product_image_set_cover(request, pk, image_id):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store)
@@ -354,6 +384,7 @@ def product_image_set_cover(request, pk, image_id):
 
 @require_POST
 @staff_required
+@permission_required(MEDIA_MANAGE)
 def product_image_move(request, pk, image_id):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store)
@@ -366,6 +397,7 @@ def product_image_move(request, pk, image_id):
 
 @require_POST
 @staff_required
+@permission_required(MEDIA_MANAGE)
 def product_image_alt_update(request, pk, image_id):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store)
@@ -464,6 +496,7 @@ def _get_scoped_product(request, pk):
 
 
 @staff_required
+@permission_required(VARIANT_MANAGE)
 def product_variants(request, pk):
     product = _get_scoped_product(request, pk)
     return render(request, "dashboard/product_variants.html", _variant_page_context(request, product))
@@ -471,6 +504,7 @@ def product_variants(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(VARIANT_MANAGE)
 def product_variant_bulk_add(request, pk):
     product = _get_scoped_product(request, pk)
     if not product.is_variable:
@@ -505,6 +539,7 @@ def product_variant_bulk_add(request, pk):
 
 
 @staff_required
+@permission_required(VARIANT_MANAGE)
 def product_variant_edit(request, pk, variant_id):
     product = _get_scoped_product(request, pk)
     variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
@@ -546,6 +581,7 @@ def product_variant_edit(request, pk, variant_id):
 
 @require_POST
 @staff_required
+@permission_required(VARIANT_MANAGE)
 def product_variant_toggle(request, pk, variant_id):
     product = _get_scoped_product(request, pk)
     variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
@@ -564,6 +600,7 @@ def product_variant_toggle(request, pk, variant_id):
 
 
 @staff_required
+@permission_required(VARIANT_MANAGE)
 def product_variant_delete(request, pk, variant_id):
     product = _get_scoped_product(request, pk)
     variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
@@ -596,6 +633,7 @@ def product_variant_delete(request, pk, variant_id):
 
 @require_POST
 @staff_required
+@permission_required(VARIANT_MANAGE)
 def product_variant_move(request, pk, variant_id):
     product = _get_scoped_product(request, pk)
     variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
@@ -626,6 +664,7 @@ def _categories_context(request, *, main_form=None, sub_form=None):
 
 
 @staff_required
+@permission_required(CATEGORY_MANAGE)
 def category_list(request):
     context = _categories_context(request)
     context["active_page"] = "categories"
@@ -634,6 +673,7 @@ def category_list(request):
 
 @require_POST
 @staff_required
+@permission_required(CATEGORY_MANAGE)
 def category_add_main(request):
     store = _resolve_dashboard_store(request)
     form = MainCategoryForm(request.POST)
@@ -655,6 +695,7 @@ def category_add_main(request):
 
 @require_POST
 @staff_required
+@permission_required(CATEGORY_MANAGE)
 def category_add_sub(request):
     store = _resolve_dashboard_store(request)
     form = SubCategoryForm(request.POST, store=store)
@@ -675,6 +716,7 @@ def category_add_sub(request):
 
 
 @staff_required
+@permission_required(CATEGORY_MANAGE)
 def category_edit(request, pk):
     store = _resolve_dashboard_store(request)
     category = get_object_or_404(Category, pk=pk, store=store)
@@ -700,6 +742,7 @@ def category_edit(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(CATEGORY_MANAGE)
 def category_delete(request, pk):
     store = _resolve_dashboard_store(request)
     category = get_object_or_404(Category, pk=pk, store=store)
@@ -741,6 +784,7 @@ def _order_list_context(request):
 
 
 @staff_required
+@permission_required(ORDER_VIEW)
 def order_list(request):
     context = _order_list_context(request)
     context["active_page"] = "orders"
@@ -748,11 +792,13 @@ def order_list(request):
 
 
 @staff_required
+@permission_required(ORDER_VIEW)
 def order_table(request):
     return render(request, "dashboard/partials/orders_table_inner.html", _order_list_context(request))
 
 
 @staff_required
+@permission_required(ORDER_VIEW)
 def order_detail(request, code):
     store = _resolve_dashboard_store(request)
     order = get_object_or_404(
@@ -760,6 +806,8 @@ def order_detail(request, code):
     )
 
     if request.method == "POST":
+        if not membership_has_permission(request.store_membership, ORDER_STATUS_CHANGE):
+            return render(request, "dashboard/403.html", status=403)
         to_status = request.POST.get("status", "")
         tracking_code = request.POST.get("tracking_code", "").strip()
         try:
@@ -810,6 +858,7 @@ def _invoice_list_context(request):
 
 
 @staff_required
+@permission_required(ORDER_VIEW)
 def invoice_list(request):
     context = _invoice_list_context(request)
     context["active_page"] = "invoices"
@@ -817,11 +866,13 @@ def invoice_list(request):
 
 
 @staff_required
+@permission_required(ORDER_VIEW)
 def invoice_table(request):
     return render(request, "dashboard/partials/invoices_table_inner.html", _invoice_list_context(request))
 
 
 @staff_required
+@permission_required(ORDER_VIEW)
 def invoice_detail(request, code):
     store = _resolve_dashboard_store(request)
     order = get_object_or_404(Order.objects.select_related("customer"), code=code, store=store)
@@ -847,6 +898,7 @@ def _payment_list_context(request):
 
 
 @staff_required
+@permission_required(ORDER_VIEW)
 def payment_list(request):
     context = _payment_list_context(request)
     context["active_page"] = "payments"
@@ -854,6 +906,7 @@ def payment_list(request):
 
 
 @staff_required
+@permission_required(ORDER_VIEW)
 def payment_table(request):
     return render(request, "dashboard/partials/payments_table_inner.html", _payment_list_context(request))
 
@@ -868,6 +921,7 @@ def _customer_list_context(request):
 
 
 @staff_required
+@permission_required(CUSTOMER_VIEW)
 def customer_list(request):
     context = _customer_list_context(request)
     context["active_page"] = "customers"
@@ -875,11 +929,13 @@ def customer_list(request):
 
 
 @staff_required
+@permission_required(CUSTOMER_VIEW)
 def customer_table(request):
     return render(request, "dashboard/partials/customers_table_inner.html", _customer_list_context(request))
 
 
 @staff_required
+@permission_required(CUSTOMER_VIEW)
 def customer_detail(request, pk):
     """مشتری فقط اگر حداقل یک Order در همین Store داشته باشد قابل‌دسترسی
     است — Customer فیلد store ندارد (تصمیم عمدی، نگاه کنید به
@@ -901,15 +957,19 @@ def customer_detail(request, pk):
 
 
 @staff_required
+@permission_required(REPORTS_VIEW)
 def report_list(request):
-    context = report_service.build_report_context(request.GET.get("range", "30"))
+    store = _resolve_dashboard_store(request)
+    context = report_service.build_report_context(store, request.GET.get("range", "30"))
     context["active_page"] = "reports"
     return render(request, "dashboard/reports.html", context)
 
 
 @staff_required
+@permission_required(REPORTS_VIEW)
 def report_partial(request):
-    context = report_service.build_report_context(request.GET.get("range", "30"))
+    store = _resolve_dashboard_store(request)
+    context = report_service.build_report_context(store, request.GET.get("range", "30"))
     return render(request, "dashboard/partials/reports_body.html", context)
 
 
@@ -973,6 +1033,7 @@ VALID_SECTION_KEYS = {s[0] for s in SETTINGS_SECTIONS}
 
 
 @staff_required
+@permission_required(SETTINGS_MANAGE)
 def settings_home(request):
     section = request.GET.get("section", "general")
     if section not in VALID_SECTION_KEYS:
@@ -985,6 +1046,7 @@ def settings_home(request):
 
 @require_POST
 @staff_required
+@permission_required(SETTINGS_MANAGE)
 def settings_shop_info(request):
     form = ShopInfoForm(request.POST)
     if form.is_valid():
@@ -993,7 +1055,7 @@ def settings_shop_info(request):
             setattr(shop, field, form.cleaned_data[field])
         shop.save()
         messages.success(request, "اطلاعات فروشگاه ذخیره شد")
-        return redirect("/admin-panel/settings/?section=general")
+        return redirect("/admin-portal/settings/?section=general")
     context = _settings_context(request, shop_form=form)
     context["sections"] = SETTINGS_SECTIONS
     context["active_section"] = "general"
@@ -1002,6 +1064,7 @@ def settings_shop_info(request):
 
 @require_POST
 @staff_required
+@permission_required(SETTINGS_MANAGE)
 def settings_finance(request):
     form = FinanceSettingsForm(request.POST)
     if form.is_valid():
@@ -1010,7 +1073,7 @@ def settings_finance(request):
         shop.free_shipping_threshold = form.cleaned_data["free_shipping_threshold"]
         shop.save()
         messages.success(request, "تنظیمات مالی ذخیره شد")
-        return redirect("/admin-panel/settings/?section=finance")
+        return redirect("/admin-portal/settings/?section=finance")
     context = _settings_context(request, finance_form=form)
     context["sections"] = SETTINGS_SECTIONS
     context["active_section"] = "finance"
@@ -1019,6 +1082,7 @@ def settings_finance(request):
 
 @require_POST
 @staff_required
+@permission_required(PAYMENT_SETTINGS_MANAGE)
 def settings_gateway_toggle(request, pk):
     gateway = settings_admin_service.toggle_gateway(pk, store=_resolve_dashboard_store(request))
     state = "فعال" if gateway.is_active else "غیرفعال"
@@ -1029,6 +1093,7 @@ def settings_gateway_toggle(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(PAYMENT_SETTINGS_MANAGE)
 def settings_shipping_toggle(request, pk):
     method = settings_admin_service.toggle_shipping_method(pk, store=_resolve_dashboard_store(request))
     state = "فعال" if method.is_active else "غیرفعال"
@@ -1044,6 +1109,7 @@ def settings_shipping_toggle(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(SETTINGS_MANAGE)
 def settings_appearance(request):
     """ذخیره تنظیمات هویت بصری: لوگو، فاوآیکون، توکن‌های رنگی تم؛ یا بازگردانی به پیش‌فرض."""
     from django.db import transaction as db_transaction
@@ -1054,7 +1120,7 @@ def settings_appearance(request):
             setattr(shop, field, default)
         shop.save()
         messages.success(request, "رنگ‌بندی به پیش‌فرض بازگردانی شد")
-        return redirect("/admin-panel/settings/?section=appearance")
+        return redirect("/admin-portal/settings/?section=appearance")
 
     shop_for_validation = ShopSettings.load(store=request.store)
     form = VisualIdentityForm(request.POST, request.FILES, current_shop=shop_for_validation)
@@ -1097,7 +1163,7 @@ def settings_appearance(request):
             ))
 
         messages.success(request, "هویت بصری فروشگاه ذخیره شد")
-        return redirect("/admin-panel/settings/?section=appearance")
+        return redirect("/admin-portal/settings/?section=appearance")
 
     context = _settings_context(request, visual_form=form)
     context["sections"] = SETTINGS_SECTIONS
@@ -1110,6 +1176,7 @@ def settings_appearance(request):
 
 @require_POST
 @staff_required
+@permission_required(SMS_SETTINGS_MANAGE)
 def settings_sms_connection(request):
     form = SmsConnectionForm(request.POST)
     if form.is_valid():
@@ -1121,7 +1188,7 @@ def settings_sms_connection(request):
             setattr(shop, field, form.cleaned_data[field])
         shop.save()
         messages.success(request, "تنظیمات اتصال پیامک ذخیره شد")
-        return redirect("/admin-panel/settings/?section=sms")
+        return redirect("/admin-portal/settings/?section=sms")
     context = _settings_context(request, sms_form=form)
     context["sections"] = SETTINGS_SECTIONS
     context["active_section"] = "sms"
@@ -1129,6 +1196,7 @@ def settings_sms_connection(request):
 
 
 @staff_required
+@permission_required(SMS_SETTINGS_MANAGE)
 def sms_template_form(request, pk):
     template = get_object_or_404(SmsTemplate, pk=pk)
 
@@ -1162,6 +1230,7 @@ def sms_template_form(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(SMS_SETTINGS_MANAGE)
 def sms_template_toggle(request, pk):
     template = get_object_or_404(SmsTemplate, pk=pk)
     template.is_active = not template.is_active
@@ -1176,6 +1245,7 @@ def sms_template_toggle(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(SMS_SETTINGS_MANAGE)
 def sms_test_send(request):
     form = SmsTestForm(request.POST)
     event_key = request.POST.get("event_key", "")
@@ -1194,10 +1264,11 @@ def sms_test_send(request):
                 messages.error(request, f"ارسال ناموفق بود: {log.error_message or 'خطای نامشخص'}")
     else:
         messages.error(request, "شماره موبایل معتبر نیست")
-    return redirect("/admin-panel/settings/?section=sms")
+    return redirect("/admin-portal/settings/?section=sms")
 
 
 @staff_required
+@permission_required(SMS_SETTINGS_MANAGE)
 def sms_log_list(request):
     context = {
         "logs": sms_admin_service.filtered_logs(status=request.GET.get("status", "")),
@@ -1209,6 +1280,7 @@ def sms_log_list(request):
 
 
 @staff_required
+@permission_required(SMS_SETTINGS_MANAGE)
 def sms_log_table(request):
     context = {
         "logs": sms_admin_service.filtered_logs(status=request.GET.get("status", "")),
@@ -1225,6 +1297,7 @@ from apps.content.models import ContentPage
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def page_list(request):
     pages = ContentPage.objects.all().order_by("-created_at")
     context = {"pages": pages, "active_page": "pages"}
@@ -1232,6 +1305,7 @@ def page_list(request):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def page_form(request, pk=None):
     from django.utils.text import slugify as django_slugify
 
@@ -1288,6 +1362,7 @@ def page_form(request, pk=None):
 
 @require_POST
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def page_delete(request, pk):
     page = get_object_or_404(ContentPage, pk=pk)
     title = page.title
@@ -1298,6 +1373,7 @@ def page_delete(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def page_publish(request, pk):
     from django.utils import timezone
 
@@ -1323,12 +1399,14 @@ from apps.content.models import HeroSlide, PromotionalBanner
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def hero_list(request):
     slides = HeroSlide.objects.all().order_by("display_order", "id")
     return render(request, "dashboard/hero_list.html", {"slides": slides, "active_page": "homepage"})
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def hero_form(request, pk=None):
     from django.db import transaction
 
@@ -1402,6 +1480,7 @@ def hero_form(request, pk=None):
 
 @require_POST
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def hero_delete(request, pk):
     from django.db import transaction
 
@@ -1426,6 +1505,7 @@ def hero_delete(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def hero_toggle(request, pk):
     slide = get_object_or_404(HeroSlide, pk=pk)
     slide.is_active = not slide.is_active
@@ -1436,12 +1516,14 @@ def hero_toggle(request, pk):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def banner_list(request):
     banners = PromotionalBanner.objects.all().order_by("display_order", "id")
     return render(request, "dashboard/banner_list.html", {"banners": banners, "active_page": "homepage"})
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def banner_form(request, pk=None):
     from django.db import transaction
 
@@ -1513,6 +1595,7 @@ def banner_form(request, pk=None):
 
 @require_POST
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def banner_delete(request, pk):
     from django.db import transaction
 
@@ -1537,6 +1620,7 @@ def banner_delete(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def banner_toggle(request, pk):
     banner = get_object_or_404(PromotionalBanner, pk=pk)
     banner.is_active = not banner.is_active
@@ -1554,6 +1638,7 @@ from apps.content.models import SocialLink
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def social_link_list(request):
     links = SocialLink.objects.all().order_by("display_order", "id")
     return render(request, "dashboard/social_links.html", {
@@ -1562,6 +1647,7 @@ def social_link_list(request):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def social_link_form(request, pk=None):
     link = get_object_or_404(SocialLink, pk=pk) if pk else None
     field_errors = {}
@@ -1598,6 +1684,7 @@ def social_link_form(request, pk=None):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def social_link_delete(request, pk):
     link = get_object_or_404(SocialLink, pk=pk)
     if request.method != "POST":
@@ -1615,6 +1702,7 @@ def social_link_delete(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def social_link_toggle(request, pk):
     link = get_object_or_404(SocialLink, pk=pk)
     link.is_active = not link.is_active
@@ -1632,6 +1720,7 @@ from apps.content.models import Menu, MenuItem
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def menu_list(request):
     menus = Menu.objects.annotate(item_count=Count("items")).order_by("location")
     return render(request, "dashboard/menu_list.html", {
@@ -1640,6 +1729,7 @@ def menu_list(request):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def menu_form(request, pk=None):
     menu = get_object_or_404(Menu, pk=pk) if pk else None
     field_errors = {}
@@ -1678,6 +1768,7 @@ def menu_form(request, pk=None):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def menu_delete(request, pk):
     menu = get_object_or_404(Menu, pk=pk)
     if request.method != "POST":
@@ -1703,6 +1794,7 @@ def menu_delete(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def menu_toggle(request, pk):
     menu = get_object_or_404(Menu, pk=pk)
     menu.is_active = not menu.is_active
@@ -1716,6 +1808,7 @@ def menu_toggle(request, pk):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def menu_item_list(request, menu_id):
     menu = get_object_or_404(Menu, pk=menu_id)
     items = menu.items.select_related("parent").order_by("parent__display_order", "parent__id", "display_order", "id")
@@ -1738,6 +1831,7 @@ def menu_item_list(request, menu_id):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def menu_item_form(request, menu_id=None, pk=None):
     from apps.catalog.models import Category
 
@@ -1799,6 +1893,7 @@ def menu_item_form(request, menu_id=None, pk=None):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def menu_item_delete(request, pk):
     item = get_object_or_404(MenuItem, pk=pk)
     menu_id = item.menu_id
@@ -1819,6 +1914,7 @@ def menu_item_delete(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def menu_item_toggle(request, pk):
     item = get_object_or_404(MenuItem, pk=pk)
     item.is_active = not item.is_active
@@ -1846,6 +1942,7 @@ def _resolve_dashboard_store(request):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def footer_settings_page(request):
     fs = FooterSettings.load(store=request.store)
     field_errors = {}
@@ -1905,6 +2002,7 @@ def footer_settings_page(request):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def footer_trust_badge_list(request):
     store = _resolve_dashboard_store(request)
     badges = FooterTrustBadge.objects.filter(store=store).order_by("display_order", "id")
@@ -1914,6 +2012,7 @@ def footer_trust_badge_list(request):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def footer_trust_badge_form(request, pk=None):
     from django.db import transaction
 
@@ -1962,6 +2061,7 @@ def footer_trust_badge_form(request, pk=None):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def footer_trust_badge_delete(request, pk):
     from django.db import transaction
 
@@ -1990,6 +2090,7 @@ def footer_trust_badge_delete(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def footer_trust_badge_toggle(request, pk):
     store = _resolve_dashboard_store(request)
     badge = get_object_or_404(FooterTrustBadge, pk=pk, store=store)
@@ -2001,6 +2102,7 @@ def footer_trust_badge_toggle(request, pk):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def footer_payment_logo_list(request):
     store = _resolve_dashboard_store(request)
     logos = FooterPaymentLogo.objects.filter(store=store).order_by("display_order", "id")
@@ -2010,6 +2112,7 @@ def footer_payment_logo_list(request):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def footer_payment_logo_form(request, pk=None):
     from django.db import transaction
 
@@ -2057,6 +2160,7 @@ def footer_payment_logo_form(request, pk=None):
 
 
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def footer_payment_logo_delete(request, pk):
     from django.db import transaction
 
@@ -2085,6 +2189,7 @@ def footer_payment_logo_delete(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(CONTENT_MANAGE)
 def footer_payment_logo_toggle(request, pk):
     store = _resolve_dashboard_store(request)
     logo = get_object_or_404(FooterPaymentLogo, pk=pk, store=store)
@@ -2103,6 +2208,7 @@ def footer_payment_logo_toggle(request, pk):
 
 @require_POST
 @staff_required
+@permission_required(PAYMENT_SETTINGS_MANAGE)
 def settings_gateway_config_save(request, gateway_code):
     """ذخیره‌ی پیکربندی یک درگاه پرداخت (Zibal/COD) برای فروشگاه فعلی."""
     from apps.orders.encryption import CredentialEncryptionError, mask_credential
@@ -2187,6 +2293,7 @@ def settings_gateway_config_save(request, gateway_code):
 
 @require_POST
 @staff_required
+@permission_required(PAYMENT_SETTINGS_MANAGE)
 def settings_gateway_config_toggle(request, gateway_code):
     """فعال/غیرفعال کردن سریع یک درگاه پیکربندی‌شده."""
     from apps.orders.gateways import get_adapter, GATEWAY_CHOICES

@@ -42,7 +42,7 @@ class CategoryListViewTests(CategoryViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:category-list"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)
 
 
 class CategoryAddMainTests(CategoryViewsTestCase):

@@ -51,13 +51,13 @@ class GatewayConfigAdminTests(TestCase):
 
     def test_settings_page_shows_payment_config_section(self):
         self.client.login(username="admin_gw", password="pass123")
-        response = self.client.get("/admin-panel/settings/?section=payment-config")
+        response = self.client.get("/admin-portal/settings/?section=payment-config")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "پیکربندی درگاه")
 
     def test_unauthorized_user_redirected(self):
         response = self.client.post(
-            "/admin-panel/settings/gateway-config/zibal/save/",
+            "/admin-portal/settings/gateway-config/zibal/save/",
             {"display_title": "test"},
         )
         # Non-authenticated users get redirected to login
@@ -67,7 +67,7 @@ class GatewayConfigAdminTests(TestCase):
     def test_non_staff_user_redirected(self):
         self.client.login(username="customer_gw", password="pass123")
         response = self.client.post(
-            "/admin-panel/settings/gateway-config/zibal/save/",
+            "/admin-portal/settings/gateway-config/zibal/save/",
             {"display_title": "test"},
         )
         # Non-staff users get redirected to storefront
@@ -76,7 +76,7 @@ class GatewayConfigAdminTests(TestCase):
     def test_save_zibal_config_creates_record(self):
         self.client.login(username="admin_gw", password="pass123")
         response = self.client.post(
-            "/admin-panel/settings/gateway-config/zibal/save/",
+            "/admin-portal/settings/gateway-config/zibal/save/",
             {
                 "display_title": "درگاه زیبال",
                 "display_order": "1",
@@ -95,7 +95,7 @@ class GatewayConfigAdminTests(TestCase):
     def test_save_without_credentials_cannot_activate(self):
         self.client.login(username="admin_gw", password="pass123")
         response = self.client.post(
-            "/admin-panel/settings/gateway-config/zibal/save/",
+            "/admin-portal/settings/gateway-config/zibal/save/",
             {
                 "display_title": "",
                 "display_order": "0",
@@ -112,12 +112,12 @@ class GatewayConfigAdminTests(TestCase):
         self.client.login(username="admin_gw", password="pass123")
         # First save with credential
         self.client.post(
-            "/admin-panel/settings/gateway-config/zibal/save/",
+            "/admin-portal/settings/gateway-config/zibal/save/",
             {"credential_merchant": "original-merchant", "display_order": "0"},
         )
         # Second save with blank credential — should keep "original-merchant"
         self.client.post(
-            "/admin-panel/settings/gateway-config/zibal/save/",
+            "/admin-portal/settings/gateway-config/zibal/save/",
             {"credential_merchant": "", "display_order": "1", "is_active": "on"},
         )
         config = PaymentGatewayConfig.objects.get(store=self.store, gateway_code="zibal")
@@ -134,7 +134,7 @@ class GatewayConfigAdminTests(TestCase):
         config.set_credentials({"merchant": "super-secret-merchant-xyz"})
         config.save()
 
-        response = self.client.get("/admin-panel/settings/?section=payment-config")
+        response = self.client.get("/admin-portal/settings/?section=payment-config")
         self.assertEqual(response.status_code, 200)
         # The plaintext merchant ID should NOT appear in the HTML
         self.assertNotContains(response, "super-secret-merchant-xyz")
@@ -148,7 +148,7 @@ class GatewayConfigAdminTests(TestCase):
         config.save()
 
         response = self.client.post(
-            "/admin-panel/settings/gateway-config/zibal/toggle/",
+            "/admin-portal/settings/gateway-config/zibal/toggle/",
         )
         self.assertEqual(response.status_code, 204)
         config.refresh_from_db()
@@ -163,7 +163,7 @@ class GatewayConfigAdminTests(TestCase):
         config.save()
 
         response = self.client.post(
-            "/admin-panel/settings/gateway-config/zibal/toggle/",
+            "/admin-portal/settings/gateway-config/zibal/toggle/",
         )
         self.assertEqual(response.status_code, 204)
         config.refresh_from_db()
@@ -176,7 +176,7 @@ class GatewayConfigAdminTests(TestCase):
         )
         # No credentials set
         response = self.client.post(
-            "/admin-panel/settings/gateway-config/zibal/toggle/",
+            "/admin-portal/settings/gateway-config/zibal/toggle/",
         )
         self.assertEqual(response.status_code, 204)
         config = PaymentGatewayConfig.objects.get(store=self.store, gateway_code="zibal")
@@ -185,7 +185,7 @@ class GatewayConfigAdminTests(TestCase):
     def test_save_cod_config(self):
         self.client.login(username="admin_gw", password="pass123")
         response = self.client.post(
-            "/admin-panel/settings/gateway-config/cod/save/",
+            "/admin-portal/settings/gateway-config/cod/save/",
             {"display_title": "پرداخت درب منزل", "display_order": "2", "is_active": "on"},
         )
         self.assertEqual(response.status_code, 204)
@@ -196,7 +196,7 @@ class GatewayConfigAdminTests(TestCase):
     def test_invalid_gateway_code_returns_404(self):
         self.client.login(username="admin_gw", password="pass123")
         response = self.client.post(
-            "/admin-panel/settings/gateway-config/nonexistent/save/",
+            "/admin-portal/settings/gateway-config/nonexistent/save/",
             {"display_title": "x"},
         )
         self.assertEqual(response.status_code, 404)
@@ -204,5 +204,5 @@ class GatewayConfigAdminTests(TestCase):
     def test_get_not_allowed_for_save(self):
         """Save endpoint requires POST."""
         self.client.login(username="admin_gw", password="pass123")
-        response = self.client.get("/admin-panel/settings/gateway-config/zibal/save/")
+        response = self.client.get("/admin-portal/settings/gateway-config/zibal/save/")
         self.assertEqual(response.status_code, 405)

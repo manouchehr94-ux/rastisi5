@@ -83,7 +83,7 @@ class SettingsHomeViewTests(SettingsViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:settings"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)
 
 
 class SettingsShopInfoViewTests(SettingsViewsTestCase):
@@ -92,7 +92,7 @@ class SettingsShopInfoViewTests(SettingsViewsTestCase):
             "name": "فروشگاه جدید", "tagline": "شعار جدید", "contact_phone": "021-1111",
             "contact_email": "new@example.com", "contact_address": "آدرس جدید", "description": "توضیح",
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=general")
+        self.assertRedirects(response, "/admin-portal/settings/?section=general")
         shop = ShopSettings.load()
         self.assertEqual(shop.name, "فروشگاه جدید")
         self.assertEqual(shop.contact_email, "new@example.com")
@@ -157,7 +157,7 @@ class SettingsFinanceViewTests(SettingsViewsTestCase):
         response = self.client.post(reverse("dashboard:settings-finance"), {
             "tax_percent": "۷", "free_shipping_threshold": "۷۰۰۰۰۰",
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=finance")
+        self.assertRedirects(response, "/admin-portal/settings/?section=finance")
         shop = ShopSettings.load()
         self.assertEqual(shop.tax_percent, Decimal("7"))
         self.assertEqual(shop.free_shipping_threshold, Decimal("700000"))
@@ -236,13 +236,13 @@ class SettingsSMSSectionTests(SettingsViewsTestCase):
             "sms_enabled": True, "sms_backend": "console",
             "sms_sender_number": "", "melipayamak_username": "", "melipayamak_password": "",
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=sms")
+        self.assertRedirects(response, "/admin-portal/settings/?section=sms")
 
     def test_sms_test_send_redirects_to_sms_section(self):
         response = self.client.post(reverse("dashboard:sms-test-send"), {
             "phone": "09121234567", "event_key": "welcome",
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=sms")
+        self.assertRedirects(response, "/admin-portal/settings/?section=sms")
 
     def test_sms_section_shows_connection_form(self):
         response = self.client.get(reverse("dashboard:settings") + "?section=sms")
@@ -284,7 +284,7 @@ class VisualIdentityTests(SettingsViewsTestCase):
             "primary_color": "#1F2937",
             "accent_color": "#C59A45",
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
+        self.assertRedirects(response, "/admin-portal/settings/?section=appearance")
         shop = ShopSettings.load()
         self.assertEqual(shop.primary_color, "#1F2937")
         self.assertEqual(shop.accent_color, "#C59A45")
@@ -336,7 +336,7 @@ class VisualIdentityTests(SettingsViewsTestCase):
             "primary_color": "#6D28D9",
             "accent_color": "#FF4D77",
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
+        self.assertRedirects(response, "/admin-portal/settings/?section=appearance")
 
     def test_appearance_validation_error_stays_on_appearance(self):
         response = self.client.post(reverse("dashboard:settings-appearance"), {
@@ -377,7 +377,7 @@ class VisualIdentityTests(SettingsViewsTestCase):
             "primary_color": "#000000", "accent_color": "#000000",
         })
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)
 
 
 
@@ -419,21 +419,21 @@ class LogoUploadTests(SettingsViewsTestCase):
         resp = self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": _make_image("PNG"),
         })
-        self.assertRedirects(resp, "/admin-panel/settings/?section=appearance")
+        self.assertRedirects(resp, "/admin-portal/settings/?section=appearance")
         self.assertTrue(ShopSettings.load().logo)
 
     def test_valid_jpeg_saves(self):
         resp = self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": _make_image("JPEG"),
         })
-        self.assertRedirects(resp, "/admin-panel/settings/?section=appearance")
+        self.assertRedirects(resp, "/admin-portal/settings/?section=appearance")
         self.assertTrue(ShopSettings.load().logo)
 
     def test_valid_webp_saves(self):
         resp = self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77", "logo": _make_image("WEBP"),
         })
-        self.assertRedirects(resp, "/admin-panel/settings/?section=appearance")
+        self.assertRedirects(resp, "/admin-portal/settings/?section=appearance")
         self.assertTrue(ShopSettings.load().logo)
 
     def test_oversized_rejected(self):
@@ -525,7 +525,7 @@ class FaviconUploadTests(SettingsViewsTestCase):
         resp = self.client.post(reverse("dashboard:settings-appearance"), {
             "primary_color": "#6D28D9", "accent_color": "#FF4D77", "favicon": self._fav(),
         })
-        self.assertRedirects(resp, "/admin-panel/settings/?section=appearance")
+        self.assertRedirects(resp, "/admin-portal/settings/?section=appearance")
         self.assertTrue(ShopSettings.load().favicon)
 
     def test_oversized_rejected(self):
@@ -771,7 +771,7 @@ class ThemePresetTests(SettingsViewsTestCase):
                 "primary_color": preset.primary, "accent_color": preset.accent,
                 "secondary_color": preset.secondary, "background_color": preset.background,
             })
-            self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
+            self.assertRedirects(response, "/admin-portal/settings/?section=appearance")
             shop = ShopSettings.load()
             self.assertEqual(shop.primary_color, preset.primary.upper())
             self.assertEqual(shop.secondary_color, preset.secondary.upper())
@@ -807,7 +807,7 @@ class ThemeValidationContrastTests(SettingsViewsTestCase):
             "secondary_color": "#111111", "background_color": "#EEEEEE",
             "surface_color": "#FFFFFF", "text_color": "#000000", "muted_text_color": "#555555",
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
+        self.assertRedirects(response, "/admin-portal/settings/?section=appearance")
         shop = ShopSettings.load()
         self.assertEqual(shop.secondary_color, "#111111")
         self.assertEqual(shop.background_color, "#EEEEEE")
@@ -864,7 +864,7 @@ class ThemeValidationContrastTests(SettingsViewsTestCase):
             "text_color": "#241C3A", "background_color": "#F7F5FC", "surface_color": "#FFFFFF",
             "muted_text_color": "#8B86A3",
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
+        self.assertRedirects(response, "/admin-portal/settings/?section=appearance")
 
     def test_omitted_new_fields_keep_previously_saved_values(self):
         self.client.post(reverse("dashboard:settings-appearance"), {
@@ -883,7 +883,7 @@ class ThemeValidationContrastTests(SettingsViewsTestCase):
             "background_color": "#444444", "surface_color": "#555555",
         })
         response = self.client.post(reverse("dashboard:settings-appearance"), {"action": "reset"})
-        self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
+        self.assertRedirects(response, "/admin-portal/settings/?section=appearance")
         shop = ShopSettings.load()
         self.assertEqual(shop.primary_color, "#6D28D9")
         self.assertEqual(shop.accent_color, "#FF4D77")
@@ -913,7 +913,7 @@ class ThemeValidationContrastTests(SettingsViewsTestCase):
         self.client.logout()
         response = self.client.post(reverse("dashboard:settings-appearance"), {"action": "reset"})
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)
 
 
 # ============================================================ PR3: STOREFRONT TOKEN INJECTION
@@ -964,7 +964,7 @@ class StorefrontThemeTokenInjectionTests(SettingsViewsTestCase):
             "primary_color": "#6D28D9", "accent_color": "#FF4D77",
             "text_color": "#111111", "surface_color": "#FFFFFF", "muted_text_color": "#555555",
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=appearance")
+        self.assertRedirects(response, "/admin-portal/settings/?section=appearance")
         expected = mix_hex("#111111", "#FFFFFF", 0.12)
         response = self.client.get(reverse("catalog:home"))
         self.assertContains(response, f"--brand-border:{expected}")

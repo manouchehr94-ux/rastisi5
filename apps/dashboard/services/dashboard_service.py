@@ -5,12 +5,23 @@
 اخیر (از OrderItem واقعی، نه فیلد استاتیک sold_count)، آخرین سفارش‌ها و
 هشدار موجودی کم.
 
-توابع مبتنی بر Product (``stat_cards``, ``low_stock_products``,
-``build_dashboard_context``'s ``nav_product_count``) با Store مشخص‌شده
-scope می‌شوند. توابع مبتنی بر Order/Customer (``sales_chart_data``,
-``order_status_breakdown``, ``recent_orders``, ``top_selling_products``,
-``nav_pending_order_count``) عمداً scope نشده‌اند — Order/Customer در این PR
-(محدوده‌ی کاتالوگ) هنوز Store-scoped نیستند."""
+Phase 1B fix: every function here now takes an explicit ``store`` and scopes
+its query to it. Before this PR, only the Product-based figures
+(``stat_cards``'s ``low_stock_count``, ``low_stock_products``,
+``nav_product_count``) were Store-scoped — the Order/Customer-based ones
+(``sales_chart_data``, ``order_status_breakdown``, ``recent_orders``,
+``top_selling_products``, ``nav_pending_order_count``, and the sales/order
+counts inside ``stat_cards``) queried across *every* Store's orders
+unconditionally. That was accurate when this module was first written
+(``Order`` had no ``store`` FK yet), but ``Order.store`` has existed as a
+direct, mandatory field since the "Order Boundary and Checkout Integrity"
+PR (see ``docs/docs/product/00_PROJECT_MASTER_REFERENCE.md`` §11.5) — this
+module was simply never updated to use it, so the dashboard home page was
+silently mixing every Store's sales/order/customer figures together on any
+merchant's screen. Customer scoping reuses the exact relation-based pattern
+``apps.dashboard.services.customers_admin_service.annotated_customers``
+already established (``Customer`` has no direct ``store`` FK by deliberate
+ADR-pending decision; scope via ``orders__store``)."""
 
 from datetime import timedelta
 
@@ -75,10 +86,10 @@ def _trend(current, previous):
     return {"pct_display": display, "up": pct >= 0}
 
 
-def _paid_totals_by_day(start_date, end_date):
+def _paid_totals_by_day(store, start_date, end_date):
     rows = (
         Order.objects.filter(
-            payment_status=Order.PaymentStatus.PAID,
+            store=store, payment_status=Order.PaymentStatus.PAID,
             created_at__date__gte=start_date, created_at__date__lte=end_date,
         )
         .annotate(day=TruncDate("created_at"))
@@ -88,9 +99,9 @@ def _paid_totals_by_day(start_date, end_date):
     return {row["day"]: row["total"] for row in rows}
 
 
-def _paid_totals_by_month(start_date):
+def _paid_totals_by_month(store, start_date):
     rows = (
-        Order.objects.filter(payment_status=Order.PaymentStatus.PAID, created_at__date__gte=start_date)
+        Order.objects.filter(store=store, payment_status=Order.PaymentStatus.PAID, created_at__date__gte=start_date)
         .annotate(month=TruncMonth("created_at"))
         .values("month")
         .annotate(total=Sum("grand_total"))
@@ -98,20 +109,20 @@ def _paid_totals_by_month(start_date):
     return {row["month"].date(): row["total"] for row in rows}
 
 
-def sales_chart_data(range_key: str = "month"):
-    """داده و برچسب‌های نمودار روند فروش را برای بازه‌ی هفته/ماه/سال برمی‌گرداند."""
+def sales_chart_data(store, range_key: str = "month"):
+    """داده و برچسب‌های نمودار روند فروش را برای بازه‌ی هفته/ماه/سال، مخصوص همین Store برمی‌گرداند."""
     today = timezone.localdate()
 
     if range_key == "week":
         days = [today - timedelta(days=i) for i in range(6, -1, -1)]
-        totals = _paid_totals_by_day(days[0], days[-1])
+        totals = _paid_totals_by_day(store, days[0], days[-1])
         data = [float(totals.get(d, 0) or 0) for d in days]
         labels = [PERSIAN_WEEKDAYS[_to_jalali(d).weekday()] for d in days]
         return data, labels
 
     if range_key == "year":
         first_month = _add_months(today.replace(day=1), -11)
-        totals = _paid_totals_by_month(first_month)
+        totals = _paid_totals_by_month(store, first_month)
         months = [_add_months(first_month, i) for i in range(12)]
         data = [float(totals.get(m, 0) or 0) for m in months]
         labels = [PERSIAN_MONTHS[_to_jalali(m).month - 1] for m in months]
@@ -119,18 +130,21 @@ def sales_chart_data(range_key: str = "month"):
 
     # پیش‌فرض: ۳۰ روز گذشته
     days = [today - timedelta(days=i) for i in range(29, -1, -1)]
-    totals = _paid_totals_by_day(days[0], days[-1])
+    totals = _paid_totals_by_day(store, days[0], days[-1])
     data = [float(totals.get(d, 0) or 0) for d in days]
     labels = [to_fa_digits(_to_jalali(d).day) for d in days]
     return data, labels
 
 
-def order_status_breakdown():
-    """تعداد سفارش‌ها به تفکیک وضعیت، در ماه جاری."""
+def order_status_breakdown(store):
+    """تعداد سفارش‌های همین Store به تفکیک وضعیت، در ماه جاری."""
     today = timezone.localdate()
     month_start = today.replace(day=1)
     counts = dict.fromkeys(Order.Status.values, 0)
-    rows = Order.objects.filter(created_at__date__gte=month_start).values("status").annotate(total=Count("id"))
+    rows = (
+        Order.objects.filter(store=store, created_at__date__gte=month_start)
+        .values("status").annotate(total=Count("id"))
+    )
     for row in rows:
         counts[row["status"]] = row["total"]
     return counts
@@ -141,14 +155,17 @@ def stat_cards(store):
     yesterday = today - timedelta(days=1)
     month_start = today.replace(day=1)
 
-    today_sales = float(_paid_totals_by_day(today, today).get(today, 0) or 0)
-    yesterday_sales = float(_paid_totals_by_day(yesterday, yesterday).get(yesterday, 0) or 0)
+    today_sales = float(_paid_totals_by_day(store, today, today).get(today, 0) or 0)
+    yesterday_sales = float(_paid_totals_by_day(store, yesterday, yesterday).get(yesterday, 0) or 0)
 
-    today_orders = Order.objects.filter(created_at__date=today).count()
-    yesterday_orders = Order.objects.filter(created_at__date=yesterday).count()
+    today_orders = Order.objects.filter(store=store, created_at__date=today).count()
+    yesterday_orders = Order.objects.filter(store=store, created_at__date=yesterday).count()
 
-    customers_total = Customer.objects.count()
-    customers_new_this_month = Customer.objects.filter(created_at__date__gte=month_start).count()
+    # Customer has no direct store FK (ADR-pending, see module docstring) —
+    # scope via the same orders__store relation customers_admin_service uses.
+    store_customers = Customer.objects.filter(orders__store=store).distinct()
+    customers_total = store_customers.count()
+    customers_new_this_month = store_customers.filter(created_at__date__gte=month_start).count()
     customers_before = customers_total - customers_new_this_month
 
     low_stock_count = Product.objects.filter(
@@ -167,17 +184,18 @@ def stat_cards(store):
     }
 
 
-def recent_orders(limit: int = 6):
+def recent_orders(store, limit: int = 6):
     return (
-        Order.objects.select_related("customer")
+        Order.objects.filter(store=store)
+        .select_related("customer")
         .order_by("-created_at")[:limit]
     )
 
 
-def top_selling_products(limit: int = 5, days: int = 30):
+def top_selling_products(store, limit: int = 5, days: int = 30):
     since = timezone.now() - timedelta(days=days)
     rows = list(
-        OrderItem.objects.filter(order__created_at__gte=since, product__isnull=False)
+        OrderItem.objects.filter(order__store=store, order__created_at__gte=since, product__isnull=False)
         .exclude(order__status=Order.Status.CANCELED)
         .values("product_id", "product__name", "product__icon", "product__tint")
         .annotate(total_sold=Sum("quantity"))
@@ -242,8 +260,8 @@ def build_dashboard_context(store):
     from .charts import build_donut_chart_svg, build_line_chart_svg
 
     cards = stat_cards(store)
-    data, labels = sales_chart_data("month")
-    status_counts = order_status_breakdown()
+    data, labels = sales_chart_data(store, "month")
+    status_counts = order_status_breakdown(store)
 
     donut_items = [
         {"label": label, "value": status_counts.get(status, 0), "color": color}
@@ -255,11 +273,13 @@ def build_dashboard_context(store):
         "sales_chart_svg": build_line_chart_svg(data, labels),
         "donut_svg": build_donut_chart_svg(donut_items),
         "donut_legend": donut_items,
-        "recent_orders": recent_orders(),
-        "top_products": top_selling_products(),
+        "recent_orders": recent_orders(store),
+        "top_products": top_selling_products(store),
         "low_stock_rows": low_stock_products(store),
         "low_stock_threshold": LOW_STOCK_THRESHOLD,
         "nav_product_count": Product.objects.filter(store=store).count(),
-        "nav_pending_order_count": Order.objects.filter(status=Order.Status.PENDING).count(),
+        "nav_pending_order_count": Order.objects.filter(store=store, status=Order.Status.PENDING).count(),
         "today_jalali": _today_jalali_display(),
+        "store_status": store.status,
+        "store_status_display": store.get_status_display(),
     }

@@ -101,7 +101,7 @@ class StoreResolutionMiddlewareAuthenticationIsolationTests(TestCase):
     def test_authentication_state_is_unchanged_by_store_resolution(self):
         client = Client()
         client.login(username="staffuser", password="pass12345")
-        response = client.get("/admin-panel/", HTTP_HOST="testserver")
+        response = client.get("/admin-portal/", HTTP_HOST="testserver")
         # The request still carries an authenticated user after passing
         # through StoreResolutionMiddleware (it runs first in the chain).
         self.assertTrue(response.wsgi_request.user.is_authenticated)
@@ -128,7 +128,7 @@ class StoreResolutionEndToEndSmokeTests(TestCase):
 
     def test_dashboard_login_page_renders_under_testserver_host(self):
         client = Client()
-        response = client.get("/admin-panel/login/")
+        response = client.get("/admin-portal/login/")
         self.assertEqual(response.status_code, 200)
         self.assertTrue(hasattr(response.wsgi_request, "store"))
 

@@ -208,7 +208,7 @@ class MenuDashboardAccessTests(TestCase):
     def test_anonymous_redirected(self):
         response = self.client.get(reverse("dashboard:menu-list"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)
 
     def test_non_staff_rejected(self):
         self.client.login(username="user_nav", password="p!")

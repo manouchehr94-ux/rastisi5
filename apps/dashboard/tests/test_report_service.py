@@ -51,7 +51,7 @@ class ReportServiceTestCase(TestCase):
 
 class RangeSummaryTests(ReportServiceTestCase):
     def test_total_sales_only_counts_paid_orders(self):
-        summary = range_summary("30")
+        summary = range_summary(self.store, "30")
         self.assertEqual(summary["total_sales"], Decimal("1000000"))
         self.assertEqual(summary["order_count"], 1)
         self.assertEqual(summary["avg_order_value"], Decimal("1000000"))
@@ -64,21 +64,37 @@ class RangeSummaryTests(ReportServiceTestCase):
         )
         old_order.created_at = timezone.now() - timezone.timedelta(days=40)
         old_order.save(update_fields=["created_at"])
-        summary = range_summary("30")
+        summary = range_summary(self.store, "30")
         self.assertEqual(summary["total_sales"], Decimal("1000000"))
+
+    def test_other_stores_orders_are_excluded(self):
+        """Before Phase 1B, every report_service function queried across
+        every Store's orders unconditionally."""
+        other_store = Store.objects.create(name="Store RS-B", slug="rs-store-b")
+        other_vendor = Vendor.objects.create(store=other_store, name="فروشگاه B", slug="shop-rs-b")
+        other_shipping = ShippingMethod.objects.create(store=other_store, name="پست", slug="post-rs-b", cost=0)
+        other_gateway = PaymentGateway.objects.create(store=other_store, name="زرین‌پال", slug="zarin-rs-b")
+        Order.objects.create(
+            code="DM-rs-other", store=other_store, customer=self.customer, vendor=other_vendor, address={},
+            shipping_method=other_shipping, payment_gateway=other_gateway,
+            grand_total=Decimal("9999999"), payment_status=Order.PaymentStatus.PAID,
+        )
+        summary = range_summary(self.store, "30")
+        self.assertEqual(summary["total_sales"], Decimal("1000000"))
+        self.assertEqual(summary["order_count"], 1)
 
 
 class SalesChartForRangeTests(ReportServiceTestCase):
     def test_all_supported_ranges_return_data_and_labels(self):
         for key in RANGE_DAYS:
-            data, labels = sales_chart_for_range(key)
+            data, labels = sales_chart_for_range(self.store, key)
             self.assertTrue(len(data) > 0)
             self.assertEqual(len(data), len(labels))
 
 
 class CategorySalesBreakdownTests(ReportServiceTestCase):
     def test_breakdown_attributes_sales_to_top_level_category(self):
-        rows = category_sales_breakdown("30")
+        rows = category_sales_breakdown(self.store, "30")
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["name"], "دیجیتال")
         self.assertEqual(rows[0]["amount"], Decimal("2000000"))
@@ -87,13 +103,13 @@ class CategorySalesBreakdownTests(ReportServiceTestCase):
     def test_canceled_orders_excluded(self):
         self.order.status = Order.Status.CANCELED
         self.order.save(update_fields=["status"])
-        rows = category_sales_breakdown("30")
+        rows = category_sales_breakdown(self.store, "30")
         self.assertEqual(rows, [])
 
 
 class TopProductsReportTests(ReportServiceTestCase):
     def test_returns_ordered_products(self):
-        rows = top_products_report("30")
+        rows = top_products_report(self.store, "30")
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["product__name"], "گوشی")
         self.assertEqual(rows[0]["total_sold"], 2)
@@ -101,7 +117,7 @@ class TopProductsReportTests(ReportServiceTestCase):
 
 class TopCustomersReportTests(ReportServiceTestCase):
     def test_returns_customer_with_paid_total(self):
-        rows = top_customers_report("30")
+        rows = top_customers_report(self.store, "30")
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["customer__full_name"], "آرش ولی‌زاده")
         self.assertEqual(rows[0]["total_spent"], Decimal("1000000"))

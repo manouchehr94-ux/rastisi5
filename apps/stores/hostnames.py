@@ -99,3 +99,50 @@ def normalize_hostname(raw_value):
             )
 
     return ascii_value
+
+
+#: Subdomains that must never be assigned to a merchant Store's
+#: ``admin_subdomain`` — either because the platform itself uses them
+#: (``www``, ``api``, ``admin``, the panel/portal path names, ...), or
+#: because they'd be confusing/spoofable (``mail``, ``support``, ...).
+#: Mirrors the same intent as ``apps.content.models.RESERVED_SLUGS``, kept
+#: as a separate list since these two namespaces (URL path slugs vs. DNS
+#: subdomain labels) are independent.
+RESERVED_ADMIN_SUBDOMAINS = frozenset({
+    "www", "admin", "api", "app", "static", "media", "mail", "smtp", "ftp",
+    "ns1", "ns2", "autodiscover", "rastisi", "dashboard", "panel", "portal",
+    "support", "help", "status", "blog", "cdn", "assets", "docs", "shop",
+    "store", "stores", "billing", "payments",
+})
+
+
+def normalize_admin_subdomain(raw_value):
+    """Normalize and validate a Store's stable merchant-admin subdomain label.
+
+    Unlike ``normalize_hostname`` (a full, multi-label FQDN like
+    ``example.com``), this validates exactly one DNS label — the part that
+    goes before ``RASTISI_ADMIN_DOMAIN_SUFFIX`` (e.g. ``"digilool"`` in
+    ``digilool.rastisi.ir``). Raises ``ValidationError`` for anything empty,
+    too long, containing invalid characters, or on the reserved list.
+    """
+    if raw_value is None:
+        raise ValidationError("زیردامنه‌ی مدیریت الزامی است.", code="admin_subdomain_required")
+
+    value = str(raw_value).strip().lower()
+    if not value:
+        raise ValidationError("زیردامنه‌ی مدیریت الزامی است.", code="admin_subdomain_required")
+
+    if len(value) > MAX_LABEL_LENGTH or not _LABEL_RE.match(value):
+        raise ValidationError(
+            "زیردامنه‌ی مدیریت باید فقط شامل حروف انگلیسی، رقم و خط تیره باشد "
+            "(نه در ابتدا/انتها) و حداکثر ۶۳ نویسه.",
+            code="admin_subdomain_invalid_characters",
+        )
+
+    if value in RESERVED_ADMIN_SUBDOMAINS:
+        raise ValidationError(
+            f"زیردامنه‌ی «{value}» رزرو شده و قابل استفاده نیست.",
+            code="admin_subdomain_reserved",
+        )
+
+    return value

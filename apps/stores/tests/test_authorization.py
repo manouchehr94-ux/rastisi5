@@ -2,8 +2,9 @@
 
 Covers the role/permission registry and the membership-lookup helpers in
 isolation, independent of HTTP/dashboard wiring (see
-``apps.dashboard.tests.test_membership_authorization`` for the end-to-end
-HTTP-level adversarial tests through ``staff_required``).
+``apps.dashboard.tests.test_membership_authorization`` and
+``apps.dashboard.tests.test_permission_enforcement`` for the end-to-end
+HTTP-level tests through ``staff_required``/``permission_required``).
 """
 
 from django.contrib.auth import get_user_model
@@ -11,11 +12,29 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.stores.authorization import (
-    CATALOG,
-    CONTENT,
-    MEMBERSHIP,
-    ORDERS,
-    REPORTS,
+    ATTRIBUTE_MANAGE,
+    CATEGORY_MANAGE,
+    CONTENT_MANAGE,
+    CUSTOMER_EDIT,
+    CUSTOMER_VIEW,
+    DASHBOARD_VIEW,
+    DISCOUNT_MANAGE,
+    DOMAIN_MANAGE,
+    INVENTORY_MANAGE,
+    ORDER_STATUS_CHANGE,
+    ORDER_VIEW,
+    PAYMENT_SETTINGS_MANAGE,
+    PRODUCT_CREATE,
+    PRODUCT_DELETE,
+    PRODUCT_EDIT,
+    PRODUCT_VIEW,
+    REPORTS_VIEW,
+    SETTINGS_MANAGE,
+    SMS_SETTINGS_MANAGE,
+    STAFF_MANAGE,
+    SUBSCRIPTION_MANAGE,
+    VARIANT_MANAGE,
+    ALL_PERMISSIONS,
     get_active_membership,
     user_can_access_dashboard,
     user_has_permission,
@@ -99,30 +118,123 @@ class UserCanAccessDashboardTests(TestCase):
         self.assertFalse(user_can_access_dashboard(self.user, self.store_b))
 
 
-class UserHasPermissionTests(TestCase):
+class OwnerPermissionTests(TestCase):
+    """Owner must retain complete Store access — every permission key."""
+
     def setUp(self):
         self.store = _akhlaghi()
+        self.user = User.objects.create_user(username="owner1", password="pass12345")
+        _membership(self.store, self.user, StoreMembership.Role.OWNER)
 
     def test_owner_has_every_permission(self):
-        user = User.objects.create_user(username="owner1", password="pass12345")
-        _membership(self.store, user, StoreMembership.Role.OWNER)
-        for permission in (CATALOG, ORDERS, CONTENT, REPORTS, MEMBERSHIP):
-            self.assertTrue(user_has_permission(user, self.store, permission))
+        for permission in ALL_PERMISSIONS:
+            self.assertTrue(
+                user_has_permission(self.user, self.store, permission),
+                msg=f"Owner should have {permission}",
+            )
 
-    def test_analyst_only_has_reports(self):
-        user = User.objects.create_user(username="analyst1", password="pass12345")
-        _membership(self.store, user, StoreMembership.Role.ANALYST)
-        self.assertTrue(user_has_permission(user, self.store, REPORTS))
-        self.assertFalse(user_has_permission(user, self.store, CATALOG))
-        self.assertFalse(user_has_permission(user, self.store, ORDERS))
-        self.assertFalse(user_has_permission(user, self.store, MEMBERSHIP))
 
-    def test_content_editor_only_has_content(self):
-        user = User.objects.create_user(username="editor1", password="pass12345")
-        _membership(self.store, user, StoreMembership.Role.CONTENT_EDITOR)
-        self.assertTrue(user_has_permission(user, self.store, CONTENT))
-        self.assertFalse(user_has_permission(user, self.store, ORDERS))
+class AdministratorPermissionTests(TestCase):
+    """Administrator: everything operational, but not ownership-tier actions."""
 
-    def test_no_membership_has_no_permission(self):
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.user = User.objects.create_user(username="administrator1", password="pass12345")
+        _membership(self.store, self.user, StoreMembership.Role.ADMINISTRATOR)
+
+    def test_allowed_operational_actions(self):
+        for permission in (
+            PRODUCT_VIEW, PRODUCT_CREATE, PRODUCT_EDIT, PRODUCT_DELETE,
+            CATEGORY_MANAGE, VARIANT_MANAGE, INVENTORY_MANAGE,
+            ORDER_VIEW, ORDER_STATUS_CHANGE, CUSTOMER_VIEW,
+            REPORTS_VIEW, SETTINGS_MANAGE, PAYMENT_SETTINGS_MANAGE,
+            SMS_SETTINGS_MANAGE, CONTENT_MANAGE,
+        ):
+            self.assertTrue(user_has_permission(self.user, self.store, permission))
+
+    def test_forbidden_ownership_tier_actions(self):
+        for permission in (STAFF_MANAGE, DOMAIN_MANAGE, SUBSCRIPTION_MANAGE):
+            self.assertFalse(user_has_permission(self.user, self.store, permission))
+
+
+class CatalogManagerPermissionTests(TestCase):
+    """Product Manager (``Role.CATALOG_MANAGER``): catalog-only."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.user = User.objects.create_user(username="catalogmgr1", password="pass12345")
+        _membership(self.store, self.user, StoreMembership.Role.CATALOG_MANAGER)
+
+    def test_allowed_catalog_actions(self):
+        for permission in (
+            PRODUCT_VIEW, PRODUCT_CREATE, PRODUCT_EDIT, PRODUCT_DELETE,
+            CATEGORY_MANAGE, ATTRIBUTE_MANAGE, VARIANT_MANAGE, INVENTORY_MANAGE,
+            REPORTS_VIEW, DASHBOARD_VIEW,
+        ):
+            self.assertTrue(user_has_permission(self.user, self.store, permission))
+
+    def test_forbidden_non_catalog_actions(self):
+        for permission in (
+            ORDER_STATUS_CHANGE, CUSTOMER_EDIT, SETTINGS_MANAGE,
+            STAFF_MANAGE, CONTENT_MANAGE,
+        ):
+            self.assertFalse(user_has_permission(self.user, self.store, permission))
+
+
+class OrderManagerPermissionTests(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.user = User.objects.create_user(username="ordermgr1", password="pass12345")
+        _membership(self.store, self.user, StoreMembership.Role.ORDER_MANAGER)
+
+    def test_allowed_order_and_customer_actions(self):
+        for permission in (ORDER_VIEW, ORDER_STATUS_CHANGE, CUSTOMER_VIEW, CUSTOMER_EDIT, REPORTS_VIEW):
+            self.assertTrue(user_has_permission(self.user, self.store, permission))
+
+    def test_forbidden_catalog_and_settings_actions(self):
+        for permission in (PRODUCT_EDIT, PRODUCT_DELETE, SETTINGS_MANAGE, CONTENT_MANAGE, STAFF_MANAGE):
+            self.assertFalse(user_has_permission(self.user, self.store, permission))
+
+
+class ContentEditorPermissionTests(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.user = User.objects.create_user(username="contentmgr1", password="pass12345")
+        _membership(self.store, self.user, StoreMembership.Role.CONTENT_EDITOR)
+
+    def test_allowed_content_actions(self):
+        self.assertTrue(user_has_permission(self.user, self.store, CONTENT_MANAGE))
+
+    def test_forbidden_non_content_actions(self):
+        for permission in (ORDER_VIEW, PRODUCT_EDIT, SETTINGS_MANAGE, DISCOUNT_MANAGE):
+            self.assertFalse(user_has_permission(self.user, self.store, permission))
+
+
+class AnalystPermissionTests(TestCase):
+    """Analyst / Read-Only: view-only across product/order/customer/reports,
+    never a mutation permission."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.user = User.objects.create_user(username="analyst1", password="pass12345")
+        _membership(self.store, self.user, StoreMembership.Role.ANALYST)
+
+    def test_allowed_read_only_actions(self):
+        for permission in (DASHBOARD_VIEW, REPORTS_VIEW, PRODUCT_VIEW, ORDER_VIEW, CUSTOMER_VIEW):
+            self.assertTrue(user_has_permission(self.user, self.store, permission))
+
+    def test_forbidden_mutation_actions(self):
+        for permission in (
+            PRODUCT_CREATE, PRODUCT_EDIT, PRODUCT_DELETE, CATEGORY_MANAGE,
+            ORDER_STATUS_CHANGE, CUSTOMER_EDIT, SETTINGS_MANAGE,
+            CONTENT_MANAGE, STAFF_MANAGE,
+        ):
+            self.assertFalse(user_has_permission(self.user, self.store, permission))
+
+
+class NoMembershipPermissionTests(TestCase):
+    def test_no_membership_has_no_permission_at_all(self):
+        store = _akhlaghi()
         user = User.objects.create_user(username="nobody1", password="pass12345")
-        self.assertFalse(user_has_permission(user, self.store, REPORTS))
+        for permission in ALL_PERMISSIONS:
+            self.assertFalse(user_has_permission(user, store, permission))

@@ -37,6 +37,7 @@ list with placeholder values. Summary:
 | `DJANGO_STATIC_ROOT` | Recommended | `<repo>/staticfiles` | |
 | `DJANGO_MEDIA_ROOT` | Recommended | `<repo>/media` | Must be persistent + backed up |
 | `DJANGO_LOG_LEVEL` | Optional | `INFO` | One of DEBUG/INFO/WARNING/ERROR/CRITICAL |
+| `RASTISI_ADMIN_DOMAIN_SUFFIX` | Recommended once real merchant admin subdomains are live | `rastisi.ir` | Suffix appended to `Store.admin_subdomain` to form the merchant admin host — see ADR-16 in `SAAS_DOMAIN_DECISIONS.md` |
 
 Malformed values (an unparseable boolean, integer, or an invalid
 `DATABASE_URL`) raise `ImproperlyConfigured` immediately at process startup

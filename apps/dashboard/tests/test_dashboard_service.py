@@ -44,19 +44,19 @@ class SalesChartDataTests(TestCase):
 
     def test_week_range_has_seven_points_including_today(self):
         self._make_paid_order(150000, when=timezone.now())
-        data, labels = dashboard_service.sales_chart_data("week")
+        data, labels = dashboard_service.sales_chart_data(self.store, "week")
         self.assertEqual(len(data), 7)
         self.assertEqual(len(labels), 7)
         self.assertEqual(data[-1], 150000.0)
 
     def test_month_range_has_thirty_points(self):
-        data, labels = dashboard_service.sales_chart_data("month")
+        data, labels = dashboard_service.sales_chart_data(self.store, "month")
         self.assertEqual(len(data), 30)
         self.assertEqual(len(labels), 30)
 
     def test_year_range_has_twelve_points_ending_current_month(self):
         self._make_paid_order(200000, when=timezone.now())
-        data, labels = dashboard_service.sales_chart_data("year")
+        data, labels = dashboard_service.sales_chart_data(self.store, "year")
         self.assertEqual(len(data), 12)
         self.assertEqual(data[-1], 200000.0)
 
@@ -66,12 +66,30 @@ class SalesChartDataTests(TestCase):
             shipping_method=self.shipping, payment_gateway=self.gateway,
             grand_total=Decimal("999999"), payment_status=Order.PaymentStatus.PENDING,
         )
-        data, _ = dashboard_service.sales_chart_data("week")
+        data, _ = dashboard_service.sales_chart_data(self.store, "week")
         self.assertEqual(sum(data), 0)
 
     def test_default_range_falls_back_to_month(self):
-        data, labels = dashboard_service.sales_chart_data("bogus")
+        data, labels = dashboard_service.sales_chart_data(self.store, "bogus")
         self.assertEqual(len(data), 30)
+
+    def test_other_stores_paid_orders_are_excluded(self):
+        """Before Phase 1B, sales_chart_data ignored ``store`` entirely and
+        summed every Store's paid orders together."""
+        other_store = Store.objects.create(name="Store SCD-B", slug="scd-store-b", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="فروشگاه B", slug="shop-scd-b")
+        other_category = Category.objects.create(store=other_store, name="دیجیتال B", slug="digital-scd-b")
+        other_shipping = ShippingMethod.objects.create(store=other_store, name="پست", slug="post-scd-b", cost=Decimal("0"))
+        other_gateway = PaymentGateway.objects.create(store=other_store, name="زرین‌پال", slug="zarin-scd-b")
+        other_user = User.objects.create_user(username="09121120099", password="pass12345")
+        other_customer = Customer.objects.create(user=other_user, full_name="مشتری B", phone="09121120099")
+        Order.objects.create(
+            code="DM-SCD-OTHER", store=other_store, customer=other_customer, vendor=other_vendor,
+            address={}, shipping_method=other_shipping, payment_gateway=other_gateway,
+            grand_total=Decimal("9999999"), payment_status=Order.PaymentStatus.PAID,
+        )
+        data, _ = dashboard_service.sales_chart_data(self.store, "week")
+        self.assertEqual(sum(data), 0)
 
 
 class OrderStatusBreakdownTests(TestCase):
@@ -99,7 +117,7 @@ class OrderStatusBreakdownTests(TestCase):
         self._order(Order.Status.PENDING, "DM-92001")
         self._order(Order.Status.PENDING, "DM-92002")
         self._order(Order.Status.DELIVERED, "DM-92003")
-        counts = dashboard_service.order_status_breakdown()
+        counts = dashboard_service.order_status_breakdown(self.store)
         self.assertEqual(counts[Order.Status.PENDING], 2)
         self.assertEqual(counts[Order.Status.DELIVERED], 1)
         self.assertEqual(counts[Order.Status.CANCELED], 0)
@@ -107,7 +125,25 @@ class OrderStatusBreakdownTests(TestCase):
     def test_orders_outside_current_month_are_excluded(self):
         order = self._order(Order.Status.DELIVERED, "DM-92004")
         Order.objects.filter(pk=order.pk).update(created_at=timezone.now() - timedelta(days=60))
-        counts = dashboard_service.order_status_breakdown()
+        counts = dashboard_service.order_status_breakdown(self.store)
+        self.assertEqual(counts[Order.Status.DELIVERED], 0)
+
+    def test_other_stores_orders_are_excluded(self):
+        other_store = Store.objects.create(name="Store OSB-B", slug="osb-store-b", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="فروشگاه B", slug="shop-osb-b")
+        other_category = Category.objects.create(store=other_store, name="دیجیتال B", slug="digital-osb-b")
+        other_product = Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="کالای B", slug="sample-osb-b",
+            sku="SKU-OSB-B1", price=Decimal("1000"),
+        )
+        other_shipping = ShippingMethod.objects.create(store=other_store, name="پست", slug="post-osb-b", cost=0)
+        other_gateway = PaymentGateway.objects.create(store=other_store, name="زرین‌پال", slug="zarin-osb-b")
+        Order.objects.create(
+            code="DM-OSB-OTHER", store=other_store, customer=self.customer, vendor=other_product.vendor,
+            address={}, shipping_method=other_shipping, payment_gateway=other_gateway,
+            grand_total=Decimal("1000"), status=Order.Status.DELIVERED,
+        )
+        counts = dashboard_service.order_status_breakdown(self.store)
         self.assertEqual(counts[Order.Status.DELIVERED], 0)
 
 
@@ -145,7 +181,7 @@ class TopSellingProductsTests(TestCase):
     def test_ranks_products_by_quantity_sold(self):
         self._order_with_item(self.p1, 5)
         self._order_with_item(self.p2, 2)
-        top = dashboard_service.top_selling_products()
+        top = dashboard_service.top_selling_products(self.store)
         self.assertEqual(top[0]["product_id"], self.p1.id)
         self.assertEqual(top[0]["total_sold"], 5)
         self.assertEqual(top[0]["progress_pct"], 100)
@@ -153,12 +189,34 @@ class TopSellingProductsTests(TestCase):
 
     def test_excludes_canceled_orders(self):
         self._order_with_item(self.p1, 5, status=Order.Status.CANCELED)
-        top = dashboard_service.top_selling_products()
+        top = dashboard_service.top_selling_products(self.store)
         self.assertEqual(top, [])
 
     def test_excludes_items_older_than_window(self):
         self._order_with_item(self.p1, 5, days_ago=45)
-        top = dashboard_service.top_selling_products(days=30)
+        top = dashboard_service.top_selling_products(self.store, days=30)
+        self.assertEqual(top, [])
+
+    def test_other_stores_order_items_are_excluded(self):
+        other_store = Store.objects.create(name="Store TSP-B", slug="tsp-store-b", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="فروشگاه B", slug="shop-tsp-b")
+        other_category = Category.objects.create(store=other_store, name="دیجیتال B", slug="digital-tsp-b")
+        other_product = Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="کالای B", slug="best-tsp-b",
+            sku="SKU-TSP-B1", price=Decimal("50000"),
+        )
+        other_shipping = ShippingMethod.objects.create(store=other_store, name="پست", slug="post-tsp-b", cost=0)
+        other_gateway = PaymentGateway.objects.create(store=other_store, name="زرین‌پال", slug="zarin-tsp-b")
+        other_order = Order.objects.create(
+            code="DM-TSP-OTHER", store=other_store, customer=self.customer, vendor=other_vendor,
+            address={}, shipping_method=other_shipping, payment_gateway=other_gateway,
+            grand_total=Decimal("1000"), status=Order.Status.DELIVERED,
+        )
+        OrderItem.objects.create(
+            order=other_order, product=other_product, product_name=other_product.name,
+            quantity=9, unit_price=Decimal("50000"), line_total=Decimal("450000"),
+        )
+        top = dashboard_service.top_selling_products(self.store)
         self.assertEqual(top, [])
 
 
@@ -220,3 +278,23 @@ class StatCardsTests(TestCase):
         )
         cards = dashboard_service.stat_cards(store)
         self.assertEqual(cards["low_stock_count"], 1)
+
+    def test_other_stores_orders_and_customers_are_excluded(self):
+        store = _akhlaghi()
+        other_store = Store.objects.create(name="Store SCT-B", slug="sct-store-b", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="فروشگاه B", slug="shop-sct-b")
+        other_shipping = ShippingMethod.objects.create(store=other_store, name="پست", slug="post-sct-b", cost=0)
+        other_gateway = PaymentGateway.objects.create(store=other_store, name="زرین‌پال", slug="zarin-sct-b")
+        other_user = User.objects.create_user(username="09121120098", password="pass12345")
+        other_customer = Customer.objects.create(user=other_user, full_name="مشتری B", phone="09121120098")
+
+        before = dashboard_service.stat_cards(store)
+        Order.objects.create(
+            code="DM-SCT-OTHER", store=other_store, customer=other_customer, vendor=other_vendor,
+            address={}, shipping_method=other_shipping, payment_gateway=other_gateway,
+            grand_total=Decimal("500000"), payment_status=Order.PaymentStatus.PAID,
+        )
+        after = dashboard_service.stat_cards(store)
+        self.assertEqual(after["today_orders"], before["today_orders"])
+        self.assertEqual(after["today_sales"], before["today_sales"])
+        self.assertEqual(after["customers_total"], before["customers_total"])

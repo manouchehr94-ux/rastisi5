@@ -14,7 +14,7 @@
 ### مالکیت و URL
 - مدل: `apps.content.models.ContentPage`
 - URL فروشگاه: `/pages/<slug>/`
-- داشبورد: `/admin-panel/pages/`
+- داشبورد: `/admin-portal/pages/`
 
 ### وضعیت انتشار
 - `draft`: پیش‌نویس — فقط در داشبورد قابل مشاهده
@@ -109,7 +109,7 @@
 
 ### دسترسی داشبورد
 
-- مسیر: `/admin-panel/homepage/hero/` و `/admin-panel/homepage/banners/`
+- مسیر: `/admin-portal/homepage/hero/` و `/admin-portal/homepage/banners/`
 - سطح دسترسی: `@staff_required`
 - ناوبری: از طریق سایدبار داشبورد → «مدیریت صفحه اصلی» → «اسلایدهای اصلی» / «بنرهای تبلیغاتی»
 
@@ -260,7 +260,7 @@
 
 ### مدیریت داشبورد
 
-- مسیر: `/admin-panel/social-links/`
+- مسیر: `/admin-portal/social-links/`
 - سطح دسترسی: `@staff_required`
 - ناوبری: سایدبار داشبورد → «شبکه‌های اجتماعی»
 
@@ -304,7 +304,7 @@
 ### رفتار فعال/غیرفعال
 
 - لینک‌های غیرفعال در هیچ‌جای فروشگاه رندر نمی‌شوند
-- غیرفعال‌سازی از طریق POST به `/admin-panel/social-links/<id>/toggle/`
+- غیرفعال‌سازی از طریق POST به `/admin-portal/social-links/<id>/toggle/`
 
 ### امنیت URL
 
@@ -522,16 +522,16 @@ DestinationMixin استفاده مجدد می‌کنند و حداکثر ۲ سط
 
 | مسیر | عملیات |
 |------|--------|
-| `/admin-panel/menus/` | فهرست منوها |
-| `/admin-panel/menus/add/` | افزودن منو |
-| `/admin-panel/menus/<id>/edit/` | ویرایش منو |
-| `/admin-panel/menus/<id>/delete/` | حذف منو (POST) |
-| `/admin-panel/menus/<id>/toggle/` | فعال/غیرفعال (POST) |
-| `/admin-panel/menus/<id>/items/` | فهرست آیتم‌ها |
-| `/admin-panel/menus/<id>/items/add/` | افزودن آیتم |
-| `/admin-panel/menu-items/<id>/edit/` | ویرایش آیتم |
-| `/admin-panel/menu-items/<id>/delete/` | حذف آیتم (POST) |
-| `/admin-panel/menu-items/<id>/toggle/` | فعال/غیرفعال (POST) |
+| `/admin-portal/menus/` | فهرست منوها |
+| `/admin-portal/menus/add/` | افزودن منو |
+| `/admin-portal/menus/<id>/edit/` | ویرایش منو |
+| `/admin-portal/menus/<id>/delete/` | حذف منو (POST) |
+| `/admin-portal/menus/<id>/toggle/` | فعال/غیرفعال (POST) |
+| `/admin-portal/menus/<id>/items/` | فهرست آیتم‌ها |
+| `/admin-portal/menus/<id>/items/add/` | افزودن آیتم |
+| `/admin-portal/menu-items/<id>/edit/` | ویرایش آیتم |
+| `/admin-portal/menu-items/<id>/delete/` | حذف آیتم (POST) |
+| `/admin-portal/menu-items/<id>/toggle/` | فعال/غیرفعال (POST) |
 
 - سطح دسترسی: `@staff_required`
 - ناوبری: سایدبار → «مدیریت منوها»
@@ -630,15 +630,15 @@ Django's `get_or_create` atomically handles concurrent first-load races — نی
 
 | مسیر | عملیات |
 |------|--------|
-| `/admin-panel/footer/settings/` | تنظیمات فوتر (GET/POST) |
-| `/admin-panel/footer/trust-badges/add/` | افزودن نماد |
-| `/admin-panel/footer/trust-badges/<id>/edit/` | ویرایش نماد |
-| `/admin-panel/footer/trust-badges/<id>/delete/` | حذف نماد (POST) |
-| `/admin-panel/footer/trust-badges/<id>/toggle/` | فعال/غیرفعال (POST) |
-| `/admin-panel/footer/payment-logos/add/` | افزودن لوگو |
-| `/admin-panel/footer/payment-logos/<id>/edit/` | ویرایش لوگو |
-| `/admin-panel/footer/payment-logos/<id>/delete/` | حذف لوگو (POST) |
-| `/admin-panel/footer/payment-logos/<id>/toggle/` | فعال/غیرفعال (POST) |
+| `/admin-portal/footer/settings/` | تنظیمات فوتر (GET/POST) |
+| `/admin-portal/footer/trust-badges/add/` | افزودن نماد |
+| `/admin-portal/footer/trust-badges/<id>/edit/` | ویرایش نماد |
+| `/admin-portal/footer/trust-badges/<id>/delete/` | حذف نماد (POST) |
+| `/admin-portal/footer/trust-badges/<id>/toggle/` | فعال/غیرفعال (POST) |
+| `/admin-portal/footer/payment-logos/add/` | افزودن لوگو |
+| `/admin-portal/footer/payment-logos/<id>/edit/` | ویرایش لوگو |
+| `/admin-portal/footer/payment-logos/<id>/delete/` | حذف لوگو (POST) |
+| `/admin-portal/footer/payment-logos/<id>/toggle/` | فعال/غیرفعال (POST) |
 
 - سطح دسترسی: `@staff_required`
 

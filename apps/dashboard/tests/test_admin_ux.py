@@ -147,7 +147,7 @@ class DeleteConfirmationTests(TestCase):
         link = SocialLink.objects.create(platform="telegram", title="X", url="https://t.me/x")
         resp = self.client.get(reverse("dashboard:social-link-delete", args=[link.pk]))
         self.assertEqual(resp.status_code, 302)
-        self.assertIn("/admin-panel/login/", resp.url)
+        self.assertIn("/admin-portal/login/", resp.url)
 
     def test_cancel_url_present(self):
         link = SocialLink.objects.create(platform="telegram", title="X", url="https://t.me/x")
@@ -202,11 +202,11 @@ class StaleRouteTests(TestCase):
 
     def test_no_stale_heroes_in_sidebar(self):
         resp = self.client.get(reverse("dashboard:dashboard"))
-        self.assertNotContains(resp, "/admin-panel/heroes/")
+        self.assertNotContains(resp, "/admin-portal/heroes/")
 
     def test_no_stale_banners_in_sidebar(self):
         resp = self.client.get(reverse("dashboard:dashboard"))
-        self.assertNotContains(resp, 'href="/admin-panel/banners/"')
+        self.assertNotContains(resp, 'href="/admin-portal/banners/"')
 
 
 
@@ -291,7 +291,7 @@ class DeleteConfirmationFullTests(TestCase):
         ]:
             resp = self.client.get(url)
             self.assertEqual(resp.status_code, 302)
-            self.assertIn("/admin-panel/login/", resp.url)
+            self.assertIn("/admin-portal/login/", resp.url)
 
 
 

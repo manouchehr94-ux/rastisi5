@@ -20,7 +20,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
 
-from apps.core.views import favicon_view
+from apps.core.views import admin_panel_compat_redirect, favicon_view
 
 urlpatterns = [
     path("favicon.ico", favicon_view, name="favicon"),
@@ -29,7 +29,14 @@ urlpatterns = [
     path("cart/", include("apps.cart.urls")),
     path("account/", include("apps.customers.urls")),
     path("checkout/", include("apps.orders.urls")),
-    path("admin-panel/", include("apps.dashboard.urls")),
+    # Canonical Merchant Admin Portal route (Phase 1B, ADR-16). Not to be
+    # confused with Django's own "admin/" (apps.stores.admin_permissions
+    # restricts that one to Platform Superusers only) — this is the
+    # merchant-facing dashboard, gated by apps.dashboard.decorators.staff_required.
+    path("admin-portal/", include("apps.dashboard.urls")),
+    # Temporary backward-compatible redirect from the pre-Phase-1B path.
+    path("admin-panel/", admin_panel_compat_redirect, name="admin-panel-compat-redirect"),
+    path("admin-panel/<path:rest>", admin_panel_compat_redirect, name="admin-panel-compat-redirect-path"),
     path("pages/", include("apps.content.urls")),
 ]
 

@@ -37,6 +37,11 @@ class DashboardViewTests(TestCase):
         ]:
             self.assertContains(response, label)
 
+    def test_dashboard_shows_store_status(self):
+        response = self.client.get(reverse("dashboard:dashboard"))
+        self.assertContains(response, "فعال")
+        self.assertContains(response, 'data-store-status="active"')
+
 
 class SalesChartPartialViewTests(TestCase):
     def setUp(self):
@@ -58,4 +63,4 @@ class SalesChartPartialViewTests(TestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:sales-chart"), {"range": "week"})
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)

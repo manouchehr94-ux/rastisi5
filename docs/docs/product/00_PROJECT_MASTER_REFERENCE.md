@@ -371,9 +371,9 @@ child.store == child.parent.store
 ## 10.1 قرارداد فعلی
 
 ```text
-/admin-panel/
+/admin-portal/   (مسیر رسمی؛ /admin-panel/ صرفاً یک 302 redirect موقت به همین مسیر است)
     برای Merchant Operators
-    gate فعلی: is_active + is_staff
+    gate فعلی: is_active + is_staff + عضویت StoreMembership فعال در Store resolve‌شده
 
 /admin/
     برای Platform Superusers
@@ -418,6 +418,37 @@ User
 > می‌شود، داده‌های Storeهای دیگر را نمی‌بیند — نه این‌که کدام کاربر اصلاً
 > باید به کدام Store دسترسی داشته باشد. حل کامل §10.2 (`StoreMembership`
 > role-based authorization) هنوز کار آینده است.
+
+> **الحاقیه ۲ (پس از PR — Merchant Admin Authorization and Routing
+> Foundation، «Phase 1B»):** این PR دقیقاً همان محدودیت §10.2 را که
+> الحاقیهٔ بالا به‌صراحت باز گذاشته بود، می‌بندد:
+> `apps.dashboard.decorators.staff_required` اکنون علاوه بر `is_staff`،
+> یک `StoreMembership` با وضعیت `ACTIVE` دقیقاً برای همان Store resolve‌شده
+> از Host را الزامی می‌کند (نه صرفاً عضویت در Store دیگر). یک رجیستری
+> Permission دانه‌ریز جدید (`apps.stores.authorization`) نقش‌های موجود
+> (`OWNER`، `ADMINISTRATOR`، `CATALOG_MANAGER`، `ORDER_MANAGER`،
+> `CONTENT_EDITOR`، `ANALYST` — بدون افزودن نقش جدید) را به معنای واقعی
+> Permission در ۸۳ View داشبورد متصل کرده؛ دسترسی نامجاز اکنون `403`
+> واقعی (`dashboard/403.html`) برمی‌گرداند، نه فقط پنهان‌شدن دکمه در UI.
+> ناوبری Sidebar نیز اکنون Permission-aware است (`apps.dashboard.context_processors.merchant_permissions`).
+> مسیر رسمی Dashboard از `/admin-panel/` به `/admin-portal/` تغییر کرد
+> (`/admin-panel/` اکنون صرفاً یک 302 redirect موقت است — نگاه کنید به
+> ADR-16 در `SAAS_DOMAIN_DECISIONS.md`). یک زیردامنهٔ پایدار پنل مدیریت
+> (`Store.admin_subdomain`، مستقل از `StoreDomain` عمومی) نیز اضافه و
+> resolver آن (`apps.stores.resolution.resolve_store_for_admin_host`) نوشته
+> شده — **اما هنوز به `staff_required` متصل نشده**؛ یعنی فعلاً همچنان
+> هر Host که به یک Store معتبر resolve شود (از جمله یک `StoreDomain`
+> عمومی) می‌تواند `/admin-portal/` همان Store را نشان دهد. جلوگیری کامل از
+> نمایش پنل مدیریت روی دامنهٔ عمومی فروشگاه، کار آیندهٔ صریحاً مستندشده
+> است (نگاه کنید به بخش «Known Limitations» گزارش Phase 1B).
+> در همین PR یک نشتی واقعی و مستقل کشف و رفع شد: `apps.dashboard.services.dashboard_service`
+> و `report_service` تمام آمار سفارش/فروش/مشتری صفحهٔ اصلی داشبورد و
+> گزارش‌ها را بدون فیلتر `store` محاسبه می‌کردند (`Order` از زمان ADR-14
+> فیلد `store` مستقیم دارد، اما این دو سرویس هرگز به‌روزرسانی نشده بودند) —
+> یعنی آمار «فروش امروز»، «سفارشات جدید»، «مشتریان»، نمودار فروش، نمودار
+> وضعیت سفارش‌ها، پرفروش‌ترین‌ها و تمام گزارش‌های حرفه‌ای، داده‌ی همهٔ
+> Storeها را با هم جمع می‌زدند. هر دو سرویس اکنون `store` را صریح می‌گیرند
+> و تست ایزولاسیون Cross-Store دارند.
 
 ---
 

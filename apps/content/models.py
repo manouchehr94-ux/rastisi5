@@ -209,7 +209,7 @@ class DestinationMixin(models.Model):
 # ---------------------------------------------------------------- صفحات محتوا
 
 RESERVED_SLUGS = frozenset([
-    "admin", "admin-panel", "products", "cart", "checkout", "account",
+    "admin", "admin-panel", "admin-portal", "products", "cart", "checkout", "account",
     "pages", "media", "static", "api", "blog", "home",
 ])
 

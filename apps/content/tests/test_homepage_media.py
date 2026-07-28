@@ -183,7 +183,7 @@ class DashboardHeroCRUDTests(TestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:hero-list"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)
 
     def test_create_hero(self):
         response = self.client.post(reverse("dashboard:hero-add"), {

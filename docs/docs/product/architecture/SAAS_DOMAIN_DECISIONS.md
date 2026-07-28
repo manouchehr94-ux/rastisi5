@@ -723,6 +723,94 @@ concurrency-limitation note).
 
 ---
 
+## ADR-16: Merchant Admin Portal Domain and Routing — `Store.admin_subdomain` Is a Platform-Assigned Field, Independent of `StoreDomain`; `/admin-portal/` Is the Canonical Route
+
+**Context.** The originating Phase 1B request specifies a target
+architecture where a merchant's public storefront
+(`https://<public-domain>`) and merchant admin portal
+(`https://<admin-subdomain>.rastisi.ir/admin-portal/`) are independent:
+changing or losing the public domain must never affect the stable admin
+host. Before this PR, the codebase had no concept of an admin subdomain at
+all — Host-based Store resolution only ever produced a Store from a
+verified `StoreDomain` row (a merchant-supplied, DNS/HTTP-verified public
+domain) or the narrow single-Store development fallback. Nothing
+distinguished "this Host is this Store's public storefront" from "this
+Host is this Store's admin portal" — the same resolved Store served both
+purposes through one mechanism. The dashboard itself was also still
+mounted at `/admin-panel/`, not the target `/admin-portal/` path.
+
+**Decision.**
+
+1. `Store` gains a new `admin_subdomain` field: a single DNS label
+   (`CharField`, `max_length=63`, globally unique, ASCII-only, normalized
+   lowercase, validated against a reserved-word list), independent of
+   `StoreDomain` — it lives directly on `Store`, not as a `StoreDomain`
+   row, precisely because it is platform-assigned and never subject to the
+   merchant DNS/HTTP verification lifecycle `StoreDomain` implements.
+   `Store.save()` auto-derives a value from `slug` (or, if `slug` isn't a
+   valid ASCII DNS label — `Store.slug` allows Unicode — from `public_id`)
+   when a caller doesn't supply one explicitly, so every existing
+   `Store.objects.create(name=..., slug=...)` call site across the
+   codebase and test suite keeps working unmodified; a real
+   merchant-onboarding flow can always set an explicit, chosen value later.
+   `apps.stores.resolution.resolve_store_for_admin_host(raw_host)` resolves
+   a Store from a Host of the exact shape
+   `f"{admin_subdomain}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"`
+   (`RASTISI_ADMIN_DOMAIN_SUFFIX` defaults to `"rastisi.ir"`, environment-overridable).
+2. `/admin-portal/` becomes the canonical Merchant Admin Portal URL prefix
+   (`shop_core/urls.py`); the previous `/admin-panel/` prefix is kept alive
+   only as a 302 (not 301 — deliberately not permanent/cacheable)
+   backward-compatible redirect to the equivalent `/admin-portal/` path via
+   `apps.core.views.admin_panel_compat_redirect`, preserving both sub-path
+   and query string. `admin-portal` (alongside the pre-existing
+   `admin-panel`) is added to `apps.content.models.RESERVED_SLUGS` so a
+   merchant-authored `ContentPage` can never claim either path.
+
+**What this PR deliberately does NOT do.** `resolve_store_for_admin_host`
+is new, tested, standalone infrastructure — like
+`StoreResolutionMiddleware`'s own `request.store` before it, it is not yet
+*consumed* by `apps.dashboard.decorators.staff_required` to enforce "this
+request must have arrived via the admin subdomain, not a public storefront
+domain." Wiring that enforcement in is the one remaining piece of "public
+storefront domains must not expose the merchant admin portal" from the
+Phase 1B request. It was deliberately deferred rather than rushed, because
+doing it safely requires first migrating every existing multi-Store
+dashboard test's Host fixtures (currently generic hosts like
+`dash-a.example.com`, chosen before this ADR existed) to real
+admin-subdomain-shaped hosts, and deciding how the existing
+single-Store `testserver`/`localhost` development compatibility fallback
+(`apps.stores.resolution.resolve_compatibility_store`) should interact with
+admin-host enforcement — both are separate, sizeable pieces of follow-up
+work of their own, tracked in the Phase 1B report's Known Limitations
+rather than done under time pressure in the same pass as the schema and
+routing changes.
+
+**Alternatives considered.** Deriving the admin host directly from
+`Store.slug` with no separate field — rejected: `slug` is
+`allow_unicode=True` (Persian slugs are an explicit product requirement),
+so it cannot always serve as a DNS label without a second, independent,
+ASCII-only field. Making `/admin-panel/` a permanent (301) alias instead of
+a temporary compatibility redirect — rejected: a 301 gets cached by
+browsers/proxies indefinitely, which would make the old prefix effectively
+permanent infrastructure instead of the removable shim it's meant to be.
+
+**Consequences.** Every `reverse("dashboard:...")` call across the
+entire codebase and test suite kept working unchanged through the route
+rename, since the URL prefix is defined in exactly one place
+(`shop_core/urls.py`'s `include("apps.dashboard.urls")`); only the
+hardcoded literal path strings (a handful of test assertions and the
+login-redirect logic in `apps.dashboard.decorators`/`apps.dashboard.views.admin_login`)
+needed updating. The admin-subdomain-only enforcement gap above means that,
+as of this PR, a Store's dashboard is still reachable through any Host that
+resolves to it via `apps.stores.resolution.resolve_store_for_service`
+(including a verified public `StoreDomain`) — `StoreMembership`
+authorization (ADR-13's Phase 1/1A work) still fully prevents cross-Store
+data access regardless of which Host was used to get there; what remains
+open is only "should this Host be allowed to serve the admin portal for
+*any* Store at all," not tenant isolation itself.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -743,3 +831,6 @@ concurrency-limitation note).
 | Tenant-sensitive services resolve Store once at the boundary, never re-derive it deeper | Decided, implemented |
 | `Order` gets a direct `store` FK (redundant, PROTECT) alongside `vendor` | Decided, implemented |
 | Checkout idempotency via server-held `Cart.checkout_token` + `Order.idempotency_key` | Decided, implemented |
+| `Store.admin_subdomain` is a platform-assigned field, independent of `StoreDomain` | Decided, implemented |
+| `/admin-portal/` is the canonical Merchant Admin Portal route; `/admin-panel/` is a temporary 302 redirect | Decided, implemented |
+| Admin-subdomain-only enforcement (block public storefront domains from serving the admin portal) | Recorded, not enforced |

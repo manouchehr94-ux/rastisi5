@@ -135,6 +135,7 @@ TEMPLATES = [
                 "apps.content.context_processors.footer_pages",
                 "apps.content.context_processors.navigation_menus",
                 "apps.content.context_processors.footer_settings",
+                "apps.dashboard.context_processors.merchant_permissions",
             ],
         },
     },
@@ -275,3 +276,10 @@ SHOP_TAGLINE = "فروشگاه اینترنتی چندمنظوره"
 SHOP_CONTACT_PHONE = "021-91008877"
 SHOP_CONTACT_EMAIL = "info@digimarket.ir"
 SHOP_CONTACT_ADDRESS = "تهران، خیابان ولیعصر"
+
+# Platform admin-subdomain suffix (Phase 1B): a Store's stable merchant admin
+# host is f"{store.admin_subdomain}.{RASTISI_ADMIN_DOMAIN_SUFFIX}" — see
+# apps.stores.admin_resolution. Independent of any StoreDomain (public
+# storefront domain), which is why changing the public domain never affects
+# this. Overridable via environment for non-".ir" deployments/tests.
+RASTISI_ADMIN_DOMAIN_SUFFIX = env_str("RASTISI_ADMIN_DOMAIN_SUFFIX", "rastisi.ir")

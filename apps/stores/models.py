@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
-from .hostnames import normalize_hostname
+from .hostnames import normalize_admin_subdomain, normalize_hostname
 
 
 class StoresTimestampedModel(models.Model):
@@ -40,8 +40,18 @@ class Store(StoresTimestampedModel):
     This model intentionally has no owner field — Store ownership is
     represented exclusively through an active ``StoreMembership`` with
     ``role=OWNER`` (ADR-2). It also has no billing/subscription/theme/payment
-    fields, and no domain fields (``StoreDomain`` is a separate model on
-    purpose).
+    fields, and no *public storefront* domain fields (``StoreDomain`` is a
+    separate model on purpose, with its own merchant-driven verification
+    lifecycle).
+
+    ``admin_subdomain`` (Phase 1B / ADR-16, see
+    ``docs/architecture/SAAS_DOMAIN_DECISIONS.md``) is the one domain-shaped
+    field that *does* live directly on ``Store``, precisely because it is
+    the opposite of ``StoreDomain`` in every way that matters: platform-
+    assigned (not merchant-supplied), never subject to DNS/HTTP
+    verification, and deliberately independent from whatever public
+    storefront domain(s) the Store has today — changing or losing every
+    ``StoreDomain`` row must never change the merchant admin host.
     """
 
     class Status(models.TextChoices):
@@ -64,6 +74,17 @@ class Store(StoresTimestampedModel):
         allow_unicode=True,
         help_text="یکتای سراسری در کل پلتفرم — نه فقط در یک فروشگاه.",
     )
+    admin_subdomain = models.CharField(
+        "زیردامنه‌ی مدیریت",
+        max_length=63,
+        unique=True,
+        help_text=(
+            "بخش پایدار زیردامنه‌ی پنل مدیریت، مستقل از دامنه‌ی عمومی فروشگاه "
+            "(مثل «digilool» در https://digilool.rastisi.ir/admin-portal/). "
+            "برخلاف slug، همیشه ASCII و DNS-safe است — چون این مقدار مستقیماً "
+            "بخشی از یک Host واقعی می‌شود، نه فقط یک URL path."
+        ),
+    )
     status = models.CharField(
         "وضعیت",
         max_length=20,
@@ -79,6 +100,42 @@ class Store(StoresTimestampedModel):
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        super().clean()
+        if self.admin_subdomain:
+            try:
+                self.admin_subdomain = normalize_admin_subdomain(self.admin_subdomain)
+            except ValidationError as exc:
+                raise ValidationError({"admin_subdomain": exc.messages}) from exc
+
+    def _fallback_admin_subdomain(self):
+        """A deterministic, always-valid ``admin_subdomain`` derived from
+        this Store, used only when the caller didn't supply one explicitly.
+
+        Tries the Store's own ``slug`` first (already globally unique, so
+        this can only collide with itself); ``slug`` is ``allow_unicode=True``
+        though, so a Persian/non-ASCII slug can't pass
+        ``normalize_admin_subdomain`` (which must stay a plain DNS label) —
+        in that case, falls back to a ``public_id``-derived label instead of
+        guessing a transliteration. This exists so ordinary
+        ``Store.objects.create(name=..., slug=...)`` call sites (throughout
+        the existing test suite and any future provisioning code that
+        doesn't care about the exact admin host yet) keep working without
+        every caller needing to invent one; a merchant-onboarding flow can
+        always set an explicit, merchant-chosen value later.
+        """
+        try:
+            return normalize_admin_subdomain(self.slug)
+        except ValidationError:
+            return f"store-{self.public_id.hex[:12]}"
+
+    def save(self, *args, **kwargs):
+        if self.admin_subdomain:
+            self.admin_subdomain = normalize_admin_subdomain(self.admin_subdomain)
+        else:
+            self.admin_subdomain = self._fallback_admin_subdomain()
+        super().save(*args, **kwargs)
 
 
 class StoreDomainMutationError(Exception):

@@ -29,15 +29,20 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
         داشبورد
       </a>
+      {% if can_view_products %}
       <a class="nav-item{% if active_page == 'products' %} active{% endif %}" data-page="products" href="{% url 'dashboard:product-list' %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7l-8-4-8 4v10l8 4 8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/></svg>
         کالاها
         <span class="badge-nav">{{ nav_product_count|default:0 }}</span>
       </a>
+      {% endif %}
+      {% if can_manage_categories %}
       <a class="nav-item{% if active_page == 'categories' %} active{% endif %}" data-page="categories" href="{% url 'dashboard:category-list' %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M13 6h8M13 18h8M13 12h8"/></svg>
         گروه‌بندی کالاها
       </a>
+      {% endif %}
+      {% if can_manage_content %}
       <a class="nav-item{% if active_page == 'homepage' %} active{% endif %}" data-page="homepage" href="{% url 'dashboard:hero-list' %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
         صفحه اصلی
@@ -54,6 +59,8 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="17" width="20" height="5" rx="1"/><path d="M4 12h16M4 7h16"/></svg>
         تنظیمات فوتر
       </a>
+      {% endif %}
+      {% if can_view_orders %}
       <a class="nav-item{% if active_page == 'orders' %} active{% endif %}" data-page="orders" href="{% url 'dashboard:order-list' %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 01-8 0"/></svg>
         سفارشات
@@ -63,24 +70,35 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6M9 9h1"/></svg>
         فاکتورها
       </a>
+      {% endif %}
+      {% if can_view_customers %}
       <a class="nav-item{% if active_page == 'customers' %} active{% endif %}" data-page="customers" href="{% url 'dashboard:customer-list' %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
         مشتری‌ها
       </a>
+      {% endif %}
+      {% if can_view_orders or can_view_reports %}
       <div class="nav-label">مالی</div>
+      {% endif %}
+      {% if can_view_orders %}
       <a class="nav-item{% if active_page == 'payments' %} active{% endif %}" data-page="payments" href="{% url 'dashboard:payment-list' %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>
         پرداخت‌ها
       </a>
+      {% endif %}
+      {% if can_view_reports %}
       <a class="nav-item{% if active_page == 'reports' %} active{% endif %}" data-page="reports" href="{% url 'dashboard:report-list' %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
         گزارش‌های حرفه‌ای
       </a>
+      {% endif %}
+      {% if can_manage_settings %}
       <div class="nav-label">سیستم</div>
       <a class="nav-item{% if active_page == 'settings' %} active{% endif %}" data-page="settings" href="{% url 'dashboard:settings' %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33h0a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51h0a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         تنظیمات
       </a>
+      {% endif %}
     </nav>
     <div class="sidebar-foot">
       <div class="card-mini">

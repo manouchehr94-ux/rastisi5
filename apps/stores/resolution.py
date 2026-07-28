@@ -298,3 +298,48 @@ def require_resolved_store(request) -> Store:
     if store is None:
         raise StoreNotResolvedError("no Store was resolved for this request")
     return store
+
+
+# ---------------------------------------------------------------------------
+# Admin-subdomain resolution (Phase 1B) — a second, independent resolution
+# path from the public-domain one above.
+# ---------------------------------------------------------------------------
+
+
+def resolve_store_for_admin_host(raw_host: str):
+    """Resolve a Store from a raw admin Host value, or ``None``.
+
+    Unlike ``resolve_store_for_hostname`` (which looks up a verified,
+    merchant-supplied ``StoreDomain``), this only ever matches a Host of the
+    exact shape ``f"{store.admin_subdomain}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"``
+    — the platform-assigned merchant-admin host, completely independent of
+    any public storefront domain. Returns ``None`` (never raises) for a Host
+    that isn't under the admin suffix at all, has more/fewer than one label
+    before it, doesn't match any Store's ``admin_subdomain``, or whose Store
+    isn't ``ACTIVE`` — same fail-closed spirit as
+    ``resolve_store_for_hostname_or_none``.
+
+    This function exists as new, tested, standalone infrastructure. It is
+    not yet wired into ``StoreResolutionMiddleware`` or
+    ``apps.dashboard.decorators.staff_required`` — doing so safely requires
+    updating every existing multi-Store dashboard test's Host fixtures to
+    use an admin-suffixed host instead of a generic one, which is separate,
+    larger follow-up work (see the Phase 1B report's Known Limitations).
+    """
+    stripped = _strip_port(raw_host).lower()
+    suffix = "." + django_settings.RASTISI_ADMIN_DOMAIN_SUFFIX.lower()
+    if not stripped.endswith(suffix):
+        return None
+
+    label = stripped[: -len(suffix)]
+    if not label or "." in label:
+        return None
+
+    try:
+        store = Store.objects.get(admin_subdomain=label)
+    except Store.DoesNotExist:
+        return None
+
+    if store.status != Store.Status.ACTIVE:
+        return None
+    return store

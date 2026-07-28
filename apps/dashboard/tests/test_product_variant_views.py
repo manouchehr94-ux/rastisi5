@@ -66,7 +66,7 @@ class RoutingPermissionTests(VariantViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:product-variants", args=[self.product.pk]))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)
 
     def test_non_staff_denied(self):
         self.client.logout()

@@ -12,7 +12,7 @@ class StaffRequiredDecoratorTests(TestCase):
     def test_anonymous_user_is_redirected_to_admin_login(self):
         response = self.client.get(reverse("dashboard:dashboard"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)
 
     def test_anonymous_redirect_includes_next_parameter(self):
         response = self.client.get(reverse("dashboard:dashboard"))

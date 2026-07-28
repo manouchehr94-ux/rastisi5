@@ -83,6 +83,17 @@ only the data model for the first is created in this stage:
 Neither authorization enforcement nor dashboard scoping is implemented in
 this PR (out of scope — see `SAAS_MIGRATION_PLAN.md`).
 
+> **Update (Merchant Admin Authorization and Routing Foundation, "Phase
+> 1B"):** Merchant Administration authorization described above is now
+> implemented: `apps.stores.authorization` enforces exactly the
+> `StoreMembership` role list named here (owner/administrator/catalog
+> manager/order manager/content editor/analyst) via a granular permission
+> registry, applied to every merchant dashboard view. Platform Operations
+> (`/admin/`) is still Django-admin `is_staff`/`is_superuser` gating only,
+> as described above — that boundary is unchanged by this update. See
+> ADR-16 in `SAAS_DOMAIN_DECISIONS.md` for the admin-subdomain/routing side
+> of this same PR.
+
 ## 4. Store Ownership: Direct and Indirect
 
 * **Direct ownership**: a model has a `ForeignKey(Store)`.

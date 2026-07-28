@@ -1,0 +1,20 @@
+{% extends "dashboard/base_admin.html" %}
+
+{% block title %}دسترسی غیرمجاز | پنل مدیریت{% endblock %}
+{% block page_title %}دسترسی غیرمجاز{% endblock %}
+{% block page_sub %}نقش شما در این فروشگاه اجازه‌ی انجام این عملیات را نمی‌دهد{% endblock %}
+
+{% block content %}
+<div class="wrap" style="padding:60px 0;text-align:center">
+  <div style="max-width:460px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:48px 32px">
+    <div style="font-size:56px;margin-bottom:8px">🔒</div>
+    <div style="font-size:40px;font-weight:800;color:var(--violet);letter-spacing:2px">۴۰۳</div>
+    <h1 style="font-size:18px;margin:10px 0 6px">اجازه‌ی دسترسی ندارید</h1>
+    <p style="color:var(--muted);font-size:13.5px;margin-bottom:26px">
+      نقش عضویت شما در این فروشگاه، مجوز لازم برای این بخش را ندارد. در
+      صورت نیاز، از مالک یا مدیر فروشگاه درخواست دسترسی کنید.
+    </p>
+    <a href="{% url 'dashboard:dashboard' %}" style="background:var(--violet);color:#fff;padding:11px 22px;border-radius:12px;font-size:13.5px;font-weight:700">بازگشت به داشبورد</a>
+  </div>
+</div>
+{% endblock %}

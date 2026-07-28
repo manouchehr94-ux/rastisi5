@@ -1,7 +1,7 @@
 """Adversarial tests for StoreMembership-based dashboard authorization.
 
 Before this PR, ``apps.dashboard.decorators.staff_required`` granted access
-to *any* Store's ``/admin-panel/`` to any ``is_staff=True`` account, because
+to *any* Store's ``/admin-portal/`` to any ``is_staff=True`` account, because
 nothing checked *which* Store the user actually belonged to (see
 ``docs/docs/product/00_PROJECT_MASTER_REFERENCE.md`` §10.2/§11.1 — recorded
 as the highest-priority tenant-authorization gap). These tests use two real

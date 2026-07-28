@@ -30,7 +30,7 @@ class SettingsSmsConnectionViewTests(SmsAdminViewsTestCase):
             "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.MELIPAYAMAK,
             "sms_sender_number": "10001", "melipayamak_username": "user1", "melipayamak_password": "pass1",
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=sms")
+        self.assertRedirects(response, "/admin-portal/settings/?section=sms")
         shop = ShopSettings.load()
         self.assertTrue(shop.sms_enabled)
         self.assertEqual(shop.sms_backend, ShopSettings.SmsBackend.MELIPAYAMAK)
@@ -47,7 +47,7 @@ class SettingsSmsConnectionViewTests(SmsAdminViewsTestCase):
         self.client.logout()
         response = self.client.post(reverse("dashboard:settings-sms-connection"), {})
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)
 
 
 class SmsTemplateFormViewTests(SmsAdminViewsTestCase):
@@ -113,7 +113,7 @@ class SmsTestSendViewTests(SmsAdminViewsTestCase):
         response = self.client.post(reverse("dashboard:sms-test-send"), {
             "phone": "09121234567", "event_key": SmsEvent.WELCOME,
         })
-        self.assertRedirects(response, "/admin-panel/settings/?section=sms")
+        self.assertRedirects(response, "/admin-portal/settings/?section=sms")
         self.assertTrue(SmsLog.objects.filter(recipient="09121234567").exists())
 
     def test_invalid_phone_does_not_send(self):
@@ -146,4 +146,4 @@ class SmsLogListViewTests(SmsAdminViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:sms-log-list"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)

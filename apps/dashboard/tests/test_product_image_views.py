@@ -60,7 +60,7 @@ class ProductImagesModalViewTests(ProductImageViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:product-images", args=[self.product.pk]))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)
 
 
 class ProductImageUploadViewTests(ProductImageViewsTestCase):
@@ -115,7 +115,7 @@ class ProductImageUploadViewTests(ProductImageViewsTestCase):
             {"images": [_make_image_file()]},
         )
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-panel/login/", response.url)
+        self.assertIn("/admin-portal/login/", response.url)
         self.assertEqual(self.product.images.count(), 0)
 
 

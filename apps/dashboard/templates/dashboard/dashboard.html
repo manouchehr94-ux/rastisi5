@@ -3,7 +3,12 @@
 
 {% block title %}داشبورد | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
 {% block page_title %}داشبورد{% endblock %}
-{% block page_sub %}نمای کلی عملکرد فروشگاه — {{ today_jalali|default:"" }}{% endblock %}
+{% block page_sub %}
+نمای کلی عملکرد فروشگاه — {{ today_jalali|default:"" }}
+{% if store_status_display %}
+<span class="badge-nav" data-store-status="{{ store_status }}" style="margin-inline-start:8px">{{ store_status_display }}</span>
+{% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="grid g-4" style="margin-bottom:18px">
