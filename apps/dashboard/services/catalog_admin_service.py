@@ -23,6 +23,10 @@ class CategoryDeleteError(Exception):
     """دسته‌بندی به دلیل داشتن کالا یا زیرگروه قابل حذف نیست."""
 
 
+class BulkActionError(Exception):
+    """اکشن فله‌ای نامعتبر یا غیرمجاز — پیام آن برای نمایش مستقیم به کاربر امن است."""
+
+
 def generate_unique_slug(model, name: str, *, store, instance=None) -> str:
     """اسلاگ یکتا در محدوده‌ی همین Store می‌سازد — دو Store مختلف می‌توانند
     اسلاگ یکسان داشته باشند، اما یک Store هرگز نمی‌تواند دو رکورد با یک
@@ -59,21 +63,36 @@ PRODUCT_STATUS_FILTERS = [
     ("", "همه وضعیت‌ها"),
     (Product.Status.ACTIVE, "فعال"),
     (Product.Status.INACTIVE, "غیرفعال"),
+    (Product.Status.DRAFT, "پیش‌نویس"),
     ("out", "ناموجود"),
 ]
 
+#: query-param value -> (order_by fields, label). Whitelisted deliberately —
+#: ``order_by(request.GET["sort"])`` directly would let a crafted query
+#: string sort by an arbitrary (or nonexistent) column.
+PRODUCT_SORT_OPTIONS = {
+    "-created_at": (["-created_at"], "جدیدترین"),
+    "created_at": (["created_at"], "قدیمی‌ترین"),
+    "name": (["name"], "نام (الف تا ی)"),
+    "-name": (["-name"], "نام (ی تا الف)"),
+    "price": (["price"], "قیمت (کم به زیاد)"),
+    "-price": (["-price"], "قیمت (زیاد به کم)"),
+    "stock": (["stock"], "موجودی (کم به زیاد)"),
+    "-stock": (["-stock"], "موجودی (زیاد به کم)"),
+}
+DEFAULT_PRODUCT_SORT = "-created_at"
 
-def filtered_products(store, *, q: str = "", category_id: str = "", status: str = ""):
+
+def filtered_products(store, *, q: str = "", category_id: str = "", status: str = "", brand_id: str = "", sort: str = ""):
     qs = (
         Product.objects.filter(store=store)
-        .select_related("category", "category__parent")
+        .select_related("category", "category__parent", "brand")
         .prefetch_related("images")
         .annotate(
             variant_count=Count("variants", distinct=True),
             active_variant_count=Count("variants", filter=Q(variants__is_active=True), distinct=True),
             active_variant_stock=Sum("variants__stock", filter=Q(variants__is_active=True)),
         )
-        .order_by("-created_at")
     )
     if q:
         qs = qs.filter(models.Q(name__icontains=q) | models.Q(sku__icontains=q))
@@ -81,11 +100,53 @@ def filtered_products(store, *, q: str = "", category_id: str = "", status: str 
         qs = qs.filter(
             models.Q(category_id=category_id) | models.Q(category__parent_id=category_id)
         )
+    if brand_id:
+        qs = qs.filter(brand_id=brand_id)
     if status == "out":
         qs = qs.filter(stock=0)
     elif status:
         qs = qs.filter(status=status)
-    return qs
+
+    order_fields, _label = PRODUCT_SORT_OPTIONS.get(sort, PRODUCT_SORT_OPTIONS[DEFAULT_PRODUCT_SORT])
+    return qs.order_by(*order_fields, "pk")
+
+
+BULK_STATUS_ACTIONS = {
+    "activate": Product.Status.ACTIVE,
+    "deactivate": Product.Status.INACTIVE,
+    "draft": Product.Status.DRAFT,
+}
+
+
+def bulk_set_product_status(store, product_ids, action: str) -> int:
+    """Sets ``status`` on every Product in ``product_ids`` that belongs to
+    ``store`` — silently ignoring any id that doesn't (never trust a
+    caller-supplied id list without a Store filter). Returns the number of
+    rows actually changed."""
+    if action not in BULK_STATUS_ACTIONS:
+        raise BulkActionError(f"اکشن «{action}» نامعتبر است.")
+    return Product.objects.filter(store=store, pk__in=product_ids).update(status=BULK_STATUS_ACTIONS[action])
+
+
+def bulk_delete_products(store, product_ids) -> int:
+    """Deletes every Product in ``product_ids`` that belongs to ``store``.
+    Returns the number of rows actually deleted."""
+    queryset = Product.objects.filter(store=store, pk__in=product_ids)
+    count = queryset.count()
+    queryset.delete()
+    return count
+
+
+def bulk_assign_category(store, product_ids, category_id) -> int:
+    """Assigns ``category_id`` to every Product in ``product_ids`` that
+    belongs to ``store`` — but only if ``category_id`` is itself a
+    leaf category owned by the same Store (never attach a Store's products
+    to another Store's category, and never to a non-leaf category, matching
+    the same rule the product form itself enforces)."""
+    category = Category.objects.filter(store=store, pk=category_id, parent__isnull=False).first()
+    if category is None:
+        raise BulkActionError("دسته‌بندی انتخاب‌شده معتبر نیست.")
+    return Product.objects.filter(store=store, pk__in=product_ids).update(category=category)
 
 
 def category_chain(category):

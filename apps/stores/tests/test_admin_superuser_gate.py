@@ -33,8 +33,8 @@ from apps.stores.models import Store, StoreDomain, StoreMembership
 
 User = get_user_model()
 
-HOST_A = "admgate-a.example.com"
-HOST_B = "admgate-b.example.com"
+HOST_A = "admgate-a.rastisi.ir"
+HOST_B = "admgate-b.rastisi.ir"
 
 
 def _akhlaghi():
@@ -58,6 +58,8 @@ class AdminSuperuserGateFixture(TestCase):
         self.store_b = Store.objects.create(name="Store B", slug="admin-gate-store-b", status=Store.Status.ACTIVE)
         _verified_domain(self.store_a, HOST_A)
         _verified_domain(self.store_b, HOST_B)
+        self.store_a.admin_subdomain = HOST_A.split(".")[0]
+        self.store_a.save(update_fields=["admin_subdomain"])
         ShopSettings.provision_for(self.store_b)
         FooterSettings.provision_for(self.store_b)
 

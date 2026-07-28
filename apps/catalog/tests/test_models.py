@@ -369,6 +369,21 @@ class CatalogTwoStoreUniquenessTests(TestCase):
         with self.assertRaises(ValidationError):
             product.full_clean(exclude=["slug"])
 
+    def test_product_image_rejects_variant_from_another_product(self):
+        vendor_a, category_a = self._vendor_and_category(self.store_a, "imgvarmismatch")
+        product1 = Product.objects.create(
+            store=self.store_a, vendor=vendor_a, category=category_a, name="A",
+            slug="imgvarmismatch-1", sku="IMGVARMISMATCH-SKU-1", price=Decimal("100000"),
+        )
+        product2 = Product.objects.create(
+            store=self.store_a, vendor=vendor_a, category=category_a, name="B",
+            slug="imgvarmismatch-2", sku="IMGVARMISMATCH-SKU-2", price=Decimal("100000"),
+        )
+        other_variant = ProductVariant.objects.create(product=product2, attribute="رنگ", value="زرد")
+        image = ProductImage(product=product1, image="products/gallery/sample.jpg", variant=other_variant)
+        with self.assertRaises(ValidationError):
+            image.full_clean()
+
     def test_category_rejects_parent_from_another_store(self):
         parent_b = Category.objects.create(store=self.store_b, name="ParentB", slug="parent-b-mismatch")
         child = Category(store=self.store_a, name="ChildA", slug="child-a-mismatch", parent=parent_b)

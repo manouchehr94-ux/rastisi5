@@ -100,9 +100,14 @@ def footer_settings(request):
     ``apps.core.context_processors.shop_settings`` — نگاه کنید به آن برای
     شرح کامل حالت سازگاری موقت.
     """
-    from .models import FooterSettings, FooterTrustBadge, FooterPaymentLogo
+    from apps.stores.resolution import StoreResolutionError
 
-    settings_obj = FooterSettings.load(store=getattr(request, "store", None))
+    from .models import FooterSettings, FooterSettingsNotProvisionedError, FooterTrustBadge, FooterPaymentLogo
+
+    try:
+        settings_obj = FooterSettings.load(store=getattr(request, "store", None))
+    except (StoreResolutionError, FooterSettingsNotProvisionedError):
+        return {}
     context = {"FOOTER_SETTINGS": settings_obj}
 
     # store_id (not settings_obj.store) — the FK id is already in hand from

@@ -11,6 +11,7 @@ urlpatterns = [
 
     path("products/", views.product_list, name="product-list"),
     path("products/table/", views.product_table, name="product-table"),
+    path("products/bulk-action/", views.product_bulk_action, name="product-bulk-action"),
     path("products/add/", views.product_form, name="product-add"),
     path("products/<int:pk>/edit/", views.product_form, name="product-edit"),
     path("products/<int:pk>/delete/", views.product_delete, name="product-delete"),
@@ -21,6 +22,7 @@ urlpatterns = [
     path("products/<int:pk>/images/<int:image_id>/cover/", views.product_image_set_cover, name="product-image-set-cover"),
     path("products/<int:pk>/images/<int:image_id>/move/", views.product_image_move, name="product-image-move"),
     path("products/<int:pk>/images/<int:image_id>/alt/", views.product_image_alt_update, name="product-image-alt"),
+    path("products/<int:pk>/images/<int:image_id>/variant/", views.product_image_variant_update, name="product-image-variant"),
 
     path("products/<int:pk>/variants/", views.product_variants, name="product-variants"),
     path("products/<int:pk>/variants/bulk-add/", views.product_variant_bulk_add, name="product-variant-bulk-add"),

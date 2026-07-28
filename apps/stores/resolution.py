@@ -343,3 +343,44 @@ def resolve_store_for_admin_host(raw_host: str):
     if store.status != Store.Status.ACTIVE:
         return None
     return store
+
+
+def resolve_store_for_admin_request(request):
+    """The authoritative Store resolution for the Merchant Admin Portal
+    (Phase 1C). Never raises; returns ``None`` for any host the admin
+    portal must not be served from.
+
+    Tries, in order:
+
+    1. ``resolve_store_for_admin_host`` — a real
+       ``f"{admin_subdomain}.{RASTISI_ADMIN_DOMAIN_SUFFIX}"`` match. This is
+       the only path a real deployment's admin traffic should ever take.
+    2. If the Host is on the narrow, approved local-development/test
+       allowlist (``testserver``, ``localhost``, ``127.0.0.1``, ...| — the
+       same list ``apps.stores.resolution`` already uses for public-domain
+       resolution), falls back to ``resolve_store_for_request`` (the
+       ordinary public-domain-or-single-Store-compatibility resolver).
+       This is what lets local development and the existing test suite's
+       single-Store fixtures reach the dashboard without a real
+       admin-subdomain-shaped Host configured; it is not available for a
+       Host that isn't on the allowlist.
+
+    Any other Host — including a real, syntactically valid, verified
+    public ``StoreDomain`` that simply isn't this Store's admin subdomain —
+    resolves to ``None``. This is the fix for the Phase 1B "Known
+    Limitations" gap: a Store's public storefront domain must not also
+    serve its Merchant Admin Portal.
+    """
+    try:
+        raw_host = request.get_host()
+    except DisallowedHost:
+        return None
+
+    admin_store = resolve_store_for_admin_host(raw_host)
+    if admin_store is not None:
+        return admin_store
+
+    if _is_development_host(_strip_port(raw_host).lower()):
+        return resolve_store_for_request(request)
+
+    return None

@@ -23,8 +23,8 @@ from apps.stores.models import Store, StoreDomain, StoreMembership
 
 User = get_user_model()
 
-HOST_A = "dgs-a.example.com"
-HOST_B = "dgs-b.example.com"
+HOST_A = "dgs-a.rastisi.ir"
+HOST_B = "dgs-b.rastisi.ir"
 
 
 def _verified_domain(store, hostname):
@@ -38,7 +38,10 @@ def _verified_domain(store, hostname):
 class DashboardGatewayShippingTwoStoreIsolationTests(TestCase):
     def setUp(self):
         self.store_a = Store.objects.get(slug="akhlaghi")
-        self.store_b = Store.objects.create(name="Store B", slug="dgs-store-b", status=Store.Status.ACTIVE)
+        self.store_b = Store.objects.create(
+            name="Store B", slug="dgs-store-b", status=Store.Status.ACTIVE,
+            admin_subdomain=HOST_B.split(".")[0],
+        )
         _verified_domain(self.store_a, HOST_A)
         _verified_domain(self.store_b, HOST_B)
         ShopSettings.provision_for(self.store_b)

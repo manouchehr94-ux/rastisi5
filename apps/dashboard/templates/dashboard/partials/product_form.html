@@ -36,6 +36,16 @@
         </select>
         {% for err in form.category.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
+      <div class="form-group">
+        <label>برند</label>
+        <select class="inp" name="brand">
+          <option value="">— بدون برند —</option>
+          {% for brand in form.fields.brand.queryset %}
+          <option value="{{ brand.pk }}" {% if form.brand.value|stringformat:"s" == brand.pk|stringformat:"s" %}selected{% endif %}>{{ brand.name }}</option>
+          {% endfor %}
+        </select>
+        {% for err in form.brand.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -97,6 +107,38 @@
       <label>توضیحات کوتاه</label>
       <textarea class="inp" name="description" rows="2" placeholder="توضیحات اختیاری...">{{ form.description.value|default_if_none:'' }}</textarea>
     </div>
+    <fieldset class="form-group">
+      <legend>مشخصات لجستیک</legend>
+      <div class="form-row">
+        <div class="form-group">
+          <label>بارکد محصول</label>
+          <input class="inp" name="barcode" value="{{ form.barcode.value|default_if_none:'' }}" dir="ltr">
+          {% for err in form.barcode.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label>وزن (گرم)</label>
+          <input class="inp" name="weight_grams" value="{{ form.weight_grams.value|default_if_none:'' }}" dir="ltr" inputmode="numeric">
+          {% for err in form.weight_grams.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" name="requires_shipping" {% if form.requires_shipping.value %}checked{% endif %}>
+        نیاز به ارسال فیزیکی دارد
+      </label>
+    </fieldset>
+    <fieldset class="form-group">
+      <legend>سئو</legend>
+      <div class="form-group">
+        <label>عنوان سئو</label>
+        <input class="inp" name="seo_title" value="{{ form.seo_title.value|default_if_none:'' }}" maxlength="70">
+        {% for err in form.seo_title.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="form-group">
+        <label>توضیحات متا</label>
+        <textarea class="inp" name="seo_description" rows="2" maxlength="160">{{ form.seo_description.value|default_if_none:'' }}</textarea>
+        {% for err in form.seo_description.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      </div>
+    </fieldset>
   </div>
   <div class="modal-foot">
     <button type="submit" class="btn btn-primary">ذخیره کالا</button>

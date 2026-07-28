@@ -1,50 +1,95 @@
 {% load persian dashboard_extras %}
-<table>
-  <thead><tr><th>کالا</th><th>دسته‌بندی</th><th>نوع</th><th>قیمت</th><th>موجودی</th><th>فروش رفته</th><th>وضعیت</th><th>عملیات</th></tr></thead>
-  <tbody>
-    {% for product in products %}
-    <tr>
-      <td>
-        <div class="prod-cell">
-          <div class="thumb" style="background:{{ product.tint|default:'var(--primary-soft)' }}">
-            {% if product.cover_image %}
-            <img src="{{ product.cover_image.thumbnail.url|default:product.cover_image.image.url }}" alt=""
-                 style="width:100%;height:100%;object-fit:cover;border-radius:inherit">
-            {% else %}
-            {{ product.icon|default:"🛍️" }}
-            {% endif %}
+<form id="bulkProductForm" hx-post="{% url 'dashboard:product-bulk-action' %}" hx-target="#productsTableWrap" hx-swap="innerHTML">
+  {% csrf_token %}
+  {% if can_view_products %}
+  <div class="bulk-toolbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <select class="inp" name="bulk_action" style="width:170px">
+      <option value="">اکشن گروهی...</option>
+      <option value="activate">فعال‌سازی</option>
+      <option value="deactivate">غیرفعال‌سازی</option>
+      <option value="draft">انتقال به پیش‌نویس</option>
+      <option value="assign-category">تغییر دسته‌بندی</option>
+      <option value="delete">حذف</option>
+    </select>
+    <select class="inp" name="bulk_category" style="width:190px">
+      <option value="">— دسته‌بندی مقصد —</option>
+      {% regroup category_options by parent as bulk_category_groups %}
+      {% for group in bulk_category_groups %}
+      <optgroup label="{{ group.grouper.icon }} {{ group.grouper.name }}">
+        {% for cat in group.list %}
+        <option value="{{ cat.pk }}">{{ cat.icon }} {{ cat.name }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-sm" hx-confirm="اجرای این اکشن روی همه‌ی کالاهای انتخاب‌شده؟">اعمال</button>
+  </div>
+  {% endif %}
+  <table>
+    <thead>
+      <tr>
+        <th style="width:32px"><input type="checkbox" onclick="this.closest('table').querySelectorAll('input[name=product_ids]').forEach(c=>c.checked=this.checked)"></th>
+        <th>کالا</th><th>دسته‌بندی</th><th>برند</th><th>نوع</th><th>قیمت</th><th>موجودی</th><th>فروش رفته</th><th>وضعیت</th><th>عملیات</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for product in products %}
+      <tr>
+        <td><input type="checkbox" name="product_ids" value="{{ product.pk }}"></td>
+        <td>
+          <div class="prod-cell">
+            <div class="thumb" style="background:{{ product.tint|default:'var(--primary-soft)' }}">
+              {% if product.cover_image %}
+              <img src="{{ product.cover_image.thumbnail.url|default:product.cover_image.image.url }}" alt=""
+                   style="width:100%;height:100%;object-fit:cover;border-radius:inherit">
+              {% else %}
+              {{ product.icon|default:"🛍️" }}
+              {% endif %}
+            </div>
+            <div><b>{{ product.name }}</b><small dir="ltr">SKU: {{ product.sku }}</small></div>
           </div>
-          <div><b>{{ product.name }}</b><small dir="ltr">SKU: {{ product.sku }}</small></div>
-        </div>
-      </td>
-      <td>{{ product.category|category_chain }}</td>
-      <td>
-        <span class="badge {{ product.product_type|product_type_badge }}">{{ product.product_type|product_type_label }}</span>
-        {% if product.product_type == "variable" %}
-        <div style="font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap">
-          {{ product.active_variant_count|fa_number }} از {{ product.variant_count|fa_number }} تنوع فعال
-          {% if product.active_variant_stock %}<br>موجودی تنوع‌ها: {{ product.active_variant_stock|fa_number }}{% endif %}
-        </div>
-        {% endif %}
-      </td>
-      <td>
-        <b>{{ product.final_price|toman }}</b>
-        {% if product.discount_percent %}<br><small style="color:var(--red);text-decoration:line-through">{{ product.price|toman }}</small>{% endif %}
-      </td>
-      <td><b>{{ product.stock|fa_number }}</b></td>
-      <td>{{ product.sold_count|fa_number }}</td>
-      <td><span class="badge {{ product|product_status_badge }}">{{ product|product_status_label }}</span></td>
-      <td>
-        <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:product-edit' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">✏️ ویرایش</button>
-        <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">🖼️ تصاویر</button>
-        {% if product.product_type == "variable" %}
-        <a class="btn btn-sm" href="{% url 'dashboard:product-variants' product.pk %}">🧬 تنوع‌ها</a>
-        {% endif %}
-        <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:product-delete' product.pk %}" hx-target="#productsTableWrap" hx-swap="innerHTML" hx-confirm="آیا از حذف «{{ product.name }}» مطمئن هستید؟">🗑️</button>
-      </td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">کالایی یافت نشد</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+        </td>
+        <td>{{ product.category|category_chain }}</td>
+        <td>{{ product.brand.name|default:"—" }}</td>
+        <td>
+          <span class="badge {{ product.product_type|product_type_badge }}">{{ product.product_type|product_type_label }}</span>
+          {% if product.product_type == "variable" %}
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap">
+            {{ product.active_variant_count|fa_number }} از {{ product.variant_count|fa_number }} تنوع فعال
+            {% if product.active_variant_stock %}<br>موجودی تنوع‌ها: {{ product.active_variant_stock|fa_number }}{% endif %}
+          </div>
+          {% endif %}
+        </td>
+        <td>
+          <b>{{ product.final_price|toman }}</b>
+          {% if product.discount_percent %}<br><small style="color:var(--red);text-decoration:line-through">{{ product.price|toman }}</small>{% endif %}
+        </td>
+        <td><b>{{ product.stock|fa_number }}</b></td>
+        <td>{{ product.sold_count|fa_number }}</td>
+        <td><span class="badge {{ product|product_status_badge }}">{{ product|product_status_label }}</span></td>
+        <td>
+          <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:product-edit' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">✏️ ویرایش</button>
+          <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">🖼️ تصاویر</button>
+          {% if product.product_type == "variable" %}
+          <a class="btn btn-sm" href="{% url 'dashboard:product-variants' product.pk %}">🧬 تنوع‌ها</a>
+          {% endif %}
+          <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:product-delete' product.pk %}" hx-target="#productsTableWrap" hx-swap="innerHTML" hx-confirm="آیا از حذف «{{ product.name }}» مطمئن هستید؟">🗑️</button>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">کالایی یافت نشد</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</form>
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pagination" style="display:flex;gap:8px;align-items:center;justify-content:center;padding:14px 0">
+  {% if page_obj.has_previous %}
+  <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:product-table' %}?{{ request.GET.urlencode }}&page={{ page_obj.previous_page_number }}" hx-target="#productsTableWrap" hx-swap="innerHTML">قبلی</button>
+  {% endif %}
+  <span style="font-size:12.5px;color:var(--muted)">صفحه‌ی {{ page_obj.number|fa_number }} از {{ page_obj.paginator.num_pages|fa_number }} — {{ page_obj.paginator.count|fa_number }} کالا</span>
+  {% if page_obj.has_next %}
+  <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:product-table' %}?{{ request.GET.urlencode }}&page={{ page_obj.next_page_number }}" hx-target="#productsTableWrap" hx-swap="innerHTML">بعدی</button>
+  {% endif %}
+</div>
+{% endif %}

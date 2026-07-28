@@ -5,14 +5,14 @@ from django.contrib.auth import authenticate, login as auth_login
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Exists, OuterRef, ProtectedError, Q, Sum
+from django.db.models import Count, Exists, OuterRef, ProtectedError, Q, Sum, prefetch_related_objects
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
-from apps.catalog.models import Category, Product, ProductImage, ProductVariant
+from apps.catalog.models import Brand, Category, Product, ProductImage, ProductVariant
 from apps.catalog.services.pricing_service import resolve_effective_price
 from apps.catalog.services.product_image_service import (
     ProductImageError,
@@ -20,6 +20,7 @@ from apps.catalog.services.product_image_service import (
     delete_product_image,
     move_product_image,
     set_cover_image,
+    set_image_variant,
     update_image_alt,
 )
 from apps.catalog.services.variant_service import (
@@ -42,7 +43,7 @@ from apps.sms.events import EVENT_VARIABLES
 from apps.sms.models import SmsTemplate
 from apps.sms.services.sms_service import SmsTemplateError, send_test_sms
 
-from .decorators import permission_required, staff_required
+from .decorators import admin_host_required, permission_required, staff_required
 from apps.stores.authorization import (
     CATEGORY_MANAGE,
     CONTENT_MANAGE,
@@ -86,8 +87,15 @@ from .services import (
     sms_admin_service,
 )
 from .services.catalog_admin_service import (
+    BULK_STATUS_ACTIONS,
+    DEFAULT_PRODUCT_SORT,
+    PRODUCT_SORT_OPTIONS,
     PRODUCT_STATUS_FILTERS,
+    BulkActionError,
     CategoryDeleteError,
+    bulk_assign_category,
+    bulk_delete_products,
+    bulk_set_product_status,
     can_delete_category,
     category_tree_context,
     default_vendor,
@@ -113,8 +121,10 @@ from .services.orders_admin_service import (
 VALID_RANGES = {"week", "month", "year"}
 
 
+@admin_host_required
 def admin_login(request):
-    """صفحه‌ی ورود اختصاصی پنل مدیریت — مستقل از فروشگاه."""
+    """صفحه‌ی ورود اختصاصی پنل مدیریت — مستقل از فروشگاه، اما هنوز هم فقط
+    روی میزبان مدیریت مجاز قابل‌دسترسی (نگاه کنید به ``admin_host_required``)."""
     if request.user.is_authenticated and request.user.is_staff:
         return redirect(request.GET.get("next", "/admin-portal/"))
 
@@ -169,19 +179,37 @@ def sales_chart_partial(request):
 
 # ---------------------------------------------------------------- محصولات
 
+PRODUCTS_PER_PAGE = 20
+
 
 def _product_list_context(request):
     store = _resolve_dashboard_store(request)
     q = request.GET.get("q", "").strip()
     category_id = request.GET.get("category", "")
+    brand_id = request.GET.get("brand", "")
     status = request.GET.get("status", "")
+    sort = request.GET.get("sort", DEFAULT_PRODUCT_SORT)
+    if sort not in PRODUCT_SORT_OPTIONS:
+        sort = DEFAULT_PRODUCT_SORT
+
+    qs = filtered_products(store, q=q, category_id=category_id, status=status, brand_id=brand_id, sort=sort)
+    paginator = Paginator(qs, PRODUCTS_PER_PAGE)
+    page_number = request.GET.get("page", "1")
+    page_obj = paginator.get_page(page_number)
+
     return {
-        "products": filtered_products(store, q=q, category_id=category_id, status=status),
+        "products": page_obj,
+        "page_obj": page_obj,
+        "paginator": paginator,
         "q": q,
         "selected_category": category_id,
+        "selected_brand": brand_id,
         "selected_status": status,
+        "selected_sort": sort,
         "category_options": leaf_categories(store),
+        "brand_options": Brand.objects.filter(store=store).order_by("name"),
         "status_options": PRODUCT_STATUS_FILTERS,
+        "sort_options": [(key, label) for key, (_fields, label) in PRODUCT_SORT_OPTIONS.items()],
     }
 
 
@@ -196,6 +224,54 @@ def product_list(request):
 @staff_required
 @permission_required(PRODUCT_VIEW)
 def product_table(request):
+    return render(request, "dashboard/partials/products_table_inner.html", _product_list_context(request))
+
+
+def _selected_product_ids(request):
+    ids = request.POST.getlist("product_ids")
+    valid = []
+    for raw in ids:
+        try:
+            valid.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    return valid
+
+
+@require_POST
+@staff_required
+def product_bulk_action(request):
+    """اکشن فله‌ای روی کالاهای انتخاب‌شده — فقط کالاهای همین Store، هرگز بر
+    اساس اعتماد به شناسه‌های ارسالی بدون فیلتر Store (نگاه کنید به
+    ``catalog_admin_service.bulk_*``). مجوز لازم بسته به نوع اکشن فرق دارد:
+    تغییر وضعیت/دسته‌بندی نیازمند PRODUCT_EDIT، حذف نیازمند PRODUCT_DELETE."""
+    store = _resolve_dashboard_store(request)
+    action = request.POST.get("bulk_action", "")
+    product_ids = _selected_product_ids(request)
+
+    required_permission = PRODUCT_DELETE if action == "delete" else PRODUCT_EDIT
+    if not membership_has_permission(request.store_membership, required_permission):
+        return render(request, "dashboard/403.html", status=403)
+
+    if not product_ids:
+        messages.warning(request, "هیچ کالایی انتخاب نشده است")
+    else:
+        try:
+            if action in BULK_STATUS_ACTIONS:
+                count = bulk_set_product_status(store, product_ids, action)
+                messages.success(request, f"وضعیت {count} کالا به‌روزرسانی شد")
+            elif action == "delete":
+                count = bulk_delete_products(store, product_ids)
+                messages.success(request, f"{count} کالا حذف شد")
+            elif action == "assign-category":
+                category_id = request.POST.get("bulk_category", "")
+                count = bulk_assign_category(store, product_ids, category_id)
+                messages.success(request, f"دسته‌بندی {count} کالا به‌روزرسانی شد")
+            else:
+                messages.error(request, "اکشن فله‌ای نامعتبر است")
+        except BulkActionError as exc:
+            messages.error(request, str(exc))
+
     return render(request, "dashboard/partials/products_table_inner.html", _product_list_context(request))
 
 
@@ -216,12 +292,18 @@ def _save_product(form, product, *, store):
     product.name = data["name"]
     product.sku = data["sku"]
     product.category = data["category"]
+    product.brand = data.get("brand")
     product.price = data["price"]
     product.discount_percent = data["discount_percent"]
     product.stock = data["stock"]
     product.status = data["status"]
     product.icon = data["icon"] or "🛍️"
     product.description = data["description"]
+    product.barcode = data.get("barcode") or ""
+    product.weight_grams = data.get("weight_grams")
+    product.requires_shipping = data.get("requires_shipping", True)
+    product.seo_title = data.get("seo_title") or ""
+    product.seo_description = data.get("seo_description") or ""
     product.full_clean(exclude=["slug"])
     product.save()
     return product
@@ -269,9 +351,13 @@ def product_form(request, pk=None):
         if product:
             initial = {
                 "name": product.name, "sku": product.sku, "category": product.category_id,
+                "brand": product.brand_id,
                 "price": product.price, "discount_percent": product.discount_percent,
                 "stock": product.stock, "status": product.status, "icon": product.icon,
                 "description": product.description, "product_type": product.product_type,
+                "barcode": product.barcode, "weight_grams": product.weight_grams,
+                "requires_shipping": product.requires_shipping,
+                "seo_title": product.seo_title, "seo_description": product.seo_description,
             }
         else:
             initial = {"product_type": Product.ProductType.SIMPLE}
@@ -303,12 +389,15 @@ def product_images(request, pk):
     product = get_object_or_404(Product, pk=pk, store=store)
     return render(request, "dashboard/partials/product_images_modal.html", {
         "product": product, "upload_form": ProductImageUploadForm(),
+        "variants": product.variants.all(),
     })
 
 
 def _image_list_response(request, product, *, refresh_table=False):
     list_html = render_to_string(
-        "dashboard/partials/product_images_list.html", {"product": product}, request=request,
+        "dashboard/partials/product_images_list.html",
+        {"product": product, "variants": product.variants.all()},
+        request=request,
     )
     if not refresh_table:
         return HttpResponse(list_html)
@@ -408,6 +497,22 @@ def product_image_alt_update(request, pk, image_id):
     return _image_list_response(request, product, refresh_table=False)
 
 
+@require_POST
+@staff_required
+@permission_required(MEDIA_MANAGE)
+def product_image_variant_update(request, pk, image_id):
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
+    image = get_object_or_404(ProductImage, pk=image_id, product=product)
+    variant_id = request.POST.get("variant", "").strip()
+    variant = get_object_or_404(ProductVariant, pk=variant_id, product=product) if variant_id else None
+    try:
+        set_image_variant(image, variant)
+    except ProductImageError:
+        pass
+    return _image_list_response(request, product, refresh_table=False)
+
+
 # --------------------------------------------------------- تنوع کالا
 
 VARIANTS_PER_PAGE = 25
@@ -449,13 +554,15 @@ def _variant_page_context(request, product, *, bulk_form=None):
         filtered_qs = filtered_qs.filter(Q(attribute__icontains=q) | Q(value__icontains=q) | Q(sku__icontains=q))
     if status:
         filtered_qs = filtered_qs.filter(is_active=(status == "active"))
-    filtered_qs = filtered_qs.order_by("display_order", "attribute", "value")
+    filtered_qs = filtered_qs.order_by("display_order", "attribute", "value").prefetch_related("images")
 
     paginator = Paginator(filtered_qs, VARIANTS_PER_PAGE)
     page_obj = paginator.get_page(request.GET.get("page"))
     variants = list(page_obj.object_list)
+    prefetch_related_objects([product], "images")
     for variant in variants:
         variant.effective_price = resolve_effective_price(product, variant)
+        variant.product = product
 
     global_ids = list(base_qs.order_by("display_order", "attribute", "value").values_list("pk", flat=True))
 

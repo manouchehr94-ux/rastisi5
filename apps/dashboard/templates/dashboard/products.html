@@ -11,10 +11,10 @@
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <input class="inp" id="prodSearch" name="q" value="{{ q }}" placeholder="جستجوی کالا..." style="width:220px"
              hx-get="{% url 'dashboard:product-table' %}" hx-target="#productsTableWrap" hx-swap="innerHTML"
-             hx-trigger="keyup changed delay:300ms" hx-include="#prodCatFilter,#prodStatusFilter">
+             hx-trigger="keyup changed delay:300ms" hx-include="#prodCatFilter,#prodStatusFilter,#prodBrandFilter,#prodSortSelect">
       <select class="inp" id="prodCatFilter" name="category" style="width:190px"
               hx-get="{% url 'dashboard:product-table' %}" hx-target="#productsTableWrap" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#prodSearch,#prodStatusFilter">
+              hx-trigger="change" hx-include="#prodSearch,#prodStatusFilter,#prodBrandFilter,#prodSortSelect">
         <option value="">همه‌ی دسته‌بندی‌ها</option>
         {% regroup category_options by parent as category_groups %}
         {% for group in category_groups %}
@@ -25,11 +25,28 @@
         </optgroup>
         {% endfor %}
       </select>
+      {% if brand_options %}
+      <select class="inp" id="prodBrandFilter" name="brand" style="width:160px"
+              hx-get="{% url 'dashboard:product-table' %}" hx-target="#productsTableWrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#prodSearch,#prodCatFilter,#prodStatusFilter,#prodSortSelect">
+        <option value="">همه‌ی برندها</option>
+        {% for brand in brand_options %}
+        <option value="{{ brand.pk }}" {% if selected_brand|stringformat:"s" == brand.pk|stringformat:"s" %}selected{% endif %}>{{ brand.name }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
       <select class="inp" id="prodStatusFilter" name="status" style="width:140px"
               hx-get="{% url 'dashboard:product-table' %}" hx-target="#productsTableWrap" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#prodSearch,#prodCatFilter">
+              hx-trigger="change" hx-include="#prodSearch,#prodCatFilter,#prodBrandFilter,#prodSortSelect">
         {% for value, label in status_options %}
         <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select class="inp" id="prodSortSelect" name="sort" style="width:170px"
+              hx-get="{% url 'dashboard:product-table' %}" hx-target="#productsTableWrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#prodSearch,#prodCatFilter,#prodBrandFilter,#prodStatusFilter">
+        {% for value, label in sort_options %}
+        <option value="{{ value }}" {% if selected_sort == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </div>

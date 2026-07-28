@@ -497,9 +497,10 @@ User
 - Review؛
 - simple/variable product؛
 - Store-scoped slug و SKU؛
-- Product CRUD؛
+- Product CRUD (شامل برند، بارکد/وزن/نیاز به ارسال، seo_title/seo_description)؛
 - Variant management؛
-- media lifecycle اولیه؛
+- media lifecycle اولیه، شامل تصویر مختص تنوع (`ProductImage.variant`)؛
+- product list pagination/sort/bulk actions (فعال/غیرفعال/پیش‌نویس/حذف/تغییر دسته‌بندی)؛
 - storefront isolation؛
 - dashboard isolation؛
 - wishlist isolation؛

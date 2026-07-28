@@ -7,7 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from PIL import Image
 
-from apps.catalog.models import Product, ProductImage, Vendor
+from apps.catalog.models import Product, ProductImage, ProductVariant, Vendor
 from apps.catalog.services.product_image_service import (
     MAX_DIMENSION,
     MAX_UPLOAD_SIZE_BYTES,
@@ -17,6 +17,7 @@ from apps.catalog.services.product_image_service import (
     delete_product_image,
     move_product_image,
     set_cover_image,
+    set_image_variant,
     update_image_alt,
     validate_image_file,
 )
@@ -202,3 +203,44 @@ class UpdateImageAltTests(ProductImageServiceTestCase):
         image = add_product_image(self.product, _make_image_file())
         updated = update_image_alt(image, "  متن جدید  ")
         self.assertEqual(updated.alt, "متن جدید")
+
+
+class SetImageVariantTests(ProductImageServiceTestCase):
+    def setUp(self):
+        super().setUp()
+        self.variant = ProductVariant.objects.create(product=self.product, attribute="رنگ", value="سبز")
+
+    def test_assigns_variant(self):
+        image = add_product_image(self.product, _make_image_file())
+        updated = set_image_variant(image, self.variant)
+        self.assertEqual(updated.variant_id, self.variant.pk)
+
+    def test_clears_variant_with_none(self):
+        image = add_product_image(self.product, _make_image_file())
+        set_image_variant(image, self.variant)
+        updated = set_image_variant(image, None)
+        self.assertIsNone(updated.variant_id)
+
+    def test_rejects_variant_from_other_product(self):
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه دو", slug="pi-shop-2")
+        from apps.catalog.models import Category
+
+        category = Category.objects.create(store=self.store, name="دسته دو", slug="pi-cat-2")
+        other_product = Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name="کالای دیگر", slug="pi-product-2",
+            sku="PI-SKU-2", price=Decimal("100000"),
+        )
+        other_variant = ProductVariant.objects.create(product=other_product, attribute="سایز", value="بزرگ")
+        image = add_product_image(self.product, _make_image_file())
+        with self.assertRaises(ProductImageError):
+            set_image_variant(image, other_variant)
+        image.refresh_from_db()
+        self.assertIsNone(image.variant_id)
+
+    def test_deleting_variant_sets_null_instead_of_cascading(self):
+        image = add_product_image(self.product, _make_image_file())
+        set_image_variant(image, self.variant)
+        self.variant.delete()
+        image.refresh_from_db()
+        self.assertIsNone(image.variant_id)
+        self.assertTrue(ProductImage.objects.filter(pk=image.pk).exists())

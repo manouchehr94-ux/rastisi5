@@ -24,8 +24,8 @@ from apps.stores.models import Store, StoreDomain, StoreMembership
 
 User = get_user_model()
 
-HOST_A = "dash-a.example.com"
-HOST_B = "dash-b.example.com"
+HOST_A = "dash-a.rastisi.ir"
+HOST_B = "dash-b.rastisi.ir"
 
 
 def _verified_domain(store, hostname):
@@ -45,6 +45,10 @@ class DashboardCatalogTwoStoreIsolationTests(TestCase):
         self.store_b = Store.objects.create(name="Store B", slug="dash-store-b", status=Store.Status.ACTIVE)
         _verified_domain(self.store_a, HOST_A)
         _verified_domain(self.store_b, HOST_B)
+        self.store_a.admin_subdomain = HOST_A.split(".")[0]
+        self.store_a.save(update_fields=["admin_subdomain"])
+        self.store_b.admin_subdomain = HOST_B.split(".")[0]
+        self.store_b.save(update_fields=["admin_subdomain"])
         ShopSettings.provision_for(self.store_b)
         FooterSettings.provision_for(self.store_b)
 
@@ -250,6 +254,10 @@ class DashboardProductMediaTwoStoreLifecycleTests(TestCase):
         self.store_b = Store.objects.create(name="Store B", slug="dash-media-store-b", status=Store.Status.ACTIVE)
         _verified_domain(self.store_a, HOST_A)
         _verified_domain(self.store_b, HOST_B)
+        self.store_a.admin_subdomain = HOST_A.split(".")[0]
+        self.store_a.save(update_fields=["admin_subdomain"])
+        self.store_b.admin_subdomain = HOST_B.split(".")[0]
+        self.store_b.save(update_fields=["admin_subdomain"])
         ShopSettings.provision_for(self.store_b)
         FooterSettings.provision_for(self.store_b)
 

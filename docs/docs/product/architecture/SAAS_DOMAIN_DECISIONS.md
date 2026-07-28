@@ -809,6 +809,130 @@ data access regardless of which Host was used to get there; what remains
 open is only "should this Host be allowed to serve the admin portal for
 *any* Store at all," not tenant isolation itself.
 
+## ADR-17: Admin-Subdomain Enforcement Closes the ADR-16 Gap via `resolve_store_for_admin_request`, Not by Changing `resolve_store_for_admin_host`
+
+**Context.** ADR-16 shipped `Store.admin_subdomain` and
+`resolve_store_for_admin_host(raw_host)` as new, tested, standalone
+infrastructure but explicitly did not wire it into
+`apps.dashboard.decorators.staff_required`, leaving the dashboard reachable
+through any Host that resolved to a Store at all — including a merchant's
+public `StoreDomain`. Phase 1C's mandate was to close that gap first,
+before any further Product Management work, without breaking the existing
+single-Store `testserver`/`localhost` developer-compatibility fallback that
+`resolve_compatibility_store()` provides for local development and the bulk
+of the test suite.
+
+**Decision.** A new function,
+`apps.stores.resolution.resolve_store_for_admin_request(request)`, is the
+single call site `staff_required`/`admin_host_required` use. It tries
+`resolve_store_for_admin_host(request.get_host())` first; only if that
+returns `None` *and* the Host is one of the recognized development hosts
+(`testserver`, `localhost`, etc.) does it fall through to
+`resolve_store_for_request(request)` (the general public-domain-or-compat
+resolver). Any other unresolved Host is a hard `Http404` — never a redirect,
+never a fallback guess. `resolve_store_for_admin_host` itself is
+unchanged from ADR-16; the new function composes it with the existing
+development allowlist rather than teaching the admin-only resolver about
+development hosts directly, keeping "what counts as an admin host in
+production" and "what the dev/test convenience fallback allows" as two
+separately reasoned concerns.
+
+**Consequences.** A request to the dashboard over a Host that is a
+verified public `StoreDomain` (but not that Store's `admin_subdomain`) now
+404s instead of rendering the dashboard — verified by
+`apps/stores/tests/test_admin_host_enforcement.py`. Six existing
+multi-Store dashboard test files that previously used arbitrary
+`*.example.com`-shaped Hosts (`test_membership_authorization.py`,
+`test_catalog_store_isolation.py`, `test_order_store_isolation.py`,
+`test_gateway_shipping_store_isolation.py`, `test_admin_superuser_gate.py`,
+`test_footer_config.py`) were migrated to set a real `admin_subdomain` and
+request against a `*.rastisi.ir`-shaped Host, since a Host that resolves to
+*no* Store's admin subdomain now correctly 404s rather than serving the
+dashboard by accident. A related, previously-latent production bug was
+found and fixed in the same pass: `apps.core.context_processors.shop_settings`,
+`apps.catalog.context_processors.nav_categories`, and
+`apps.content.context_processors.footer_settings` all called into
+`ShopSettings.load()`/`FooterSettings.load()`/`resolve_store_for_service()`
+unconditionally, which raised an unhandled `StoreResolutionError` — and
+therefore a 500, not a 404 — whenever Django's own 404 handler tried to
+render a page for an unresolvable Host with two or more Stores in the
+database. All three now catch `StoreResolutionError` (and the relevant
+not-provisioned error) and return an empty context, so an unresolvable Host
+reliably 404s end-to-end instead of 500ing on whichever template happens to
+render first.
+
+**Alternatives considered.** Teaching `resolve_store_for_admin_host` itself
+to accept development hosts — rejected: it would blur "the shape of a real
+admin host" with "what a developer's machine is allowed to pretend," and
+every non-admin caller of `resolve_store_for_admin_host` (there are none
+today, but the function is public API) would inherit the dev-only
+behavior. Redirecting an unresolvable admin Host to `catalog:home` instead
+of 404ing — rejected: it would need to resolve *some* Store to build that
+redirect, which is exactly the ambiguity a fail-closed design must refuse
+to guess at; a wrong-membership Host still redirects to `catalog:home`
+(the user has a Store to go back to), but an unresolvable Host has none.
+
+## ADR-18: Variant-Specific Product Images Are `ProductImage.variant` (Nullable FK, `SET_NULL`), Not a Separate Model
+
+**Context.** Phase 1C's Product Management scope required merchants to be
+able to associate specific gallery images with a specific `ProductVariant`
+(e.g., a red T-shirt's photos distinct from the blue one's), while the
+existing `ProductImage` gallery (product-level, ordered, one designated
+cover) had no notion of variants at all. The prototype under review shows
+per-variant image swapping on the storefront product page.
+
+**Decision.** `ProductImage` gains one new field: `variant = ForeignKey
+("ProductVariant", null=True, blank=True, on_delete=SET_NULL,
+related_name="images")`. A blank `variant` means "general product image,
+shown regardless of selected variant" (the existing, pre-Phase-1C
+behavior); a set `variant` means "specific to this variant only."
+`ProductImage.clean()` rejects a `variant` that does not belong to
+`self.product` — the same defense-in-depth pattern `Product.clean()`
+already uses for `brand`/`category`/`vendor`. `ProductVariant.display_image`
+is a new convenience property: the variant's own first image if one
+exists, otherwise the product's `cover_image` — so every code path that
+wants "the one image to show for this variant" (the dashboard variant
+table, and any future storefront variant-switcher) has a single fallback
+rule to depend on, rather than re-implementing the "does this variant have
+its own image?" check at every call site. No new upload path exists for
+variant images: merchants upload into the same product-level gallery as
+before and then assign an existing image to a variant via a
+`<select>` per image (`dashboard:product-image-variant`), rather than a
+separate per-variant upload form — reusing the existing validated/resized
+upload pipeline (`apps.catalog.services.product_image_service`) instead of
+duplicating it.
+
+**Consequences.** Deleting a `ProductVariant` never deletes its images —
+`SET_NULL` demotes them back to general product images automatically at
+the database level, with no application code needed to "rescue" them; this
+was a deliberate choice over `CASCADE`, since a merchant deleting one color
+variant should not silently lose photography that may still be reusable.
+Because `related_name="images"` is added to `ProductVariant` (mirroring
+`Product.images`), `variant.images.all()` and `product.images.all()`
+coexist without collision — a `ProductImage` always belongs to exactly one
+`Product` (unchanged) and *optionally* to one of that same `Product`'s
+`ProductVariant`s.
+
+**What this PR deliberately does NOT do.** The storefront product-detail
+page does not yet swap displayed images when a shopper selects a variant —
+this phase only builds the admin-side association (upload → assign →
+persist, all tenant/product-isolated and tested) and the data model
+(`display_image`) a storefront feature would consume. Wiring
+`display_image` into the actual storefront variant-selector UI is
+out of scope for Phase 1C and is recorded as a remaining gap in the Phase
+1C report.
+
+**Alternatives considered.** A separate `VariantImage` model (own table,
+own upload form) — rejected: it would duplicate the entire validated
+upload/resize/thumbnail pipeline in `product_image_service.py` for no
+behavioral gain, since "an image that may or may not belong to a variant"
+is exactly what a nullable FK expresses. Storing multiple images per
+variant via a many-to-many instead of each `ProductImage` pointing at one
+variant — rejected: the prototype and the existing product gallery both
+model "one image, one owner, explicit order/cover flag"; a M2M would need
+its own through-model to carry per-pair ordering, which is exactly the
+`ProductImage.order`/`is_cover` shape already in place, just duplicated.
+
 ---
 
 ## Summary Table
@@ -833,4 +957,5 @@ open is only "should this Host be allowed to serve the admin portal for
 | Checkout idempotency via server-held `Cart.checkout_token` + `Order.idempotency_key` | Decided, implemented |
 | `Store.admin_subdomain` is a platform-assigned field, independent of `StoreDomain` | Decided, implemented |
 | `/admin-portal/` is the canonical Merchant Admin Portal route; `/admin-panel/` is a temporary 302 redirect | Decided, implemented |
-| Admin-subdomain-only enforcement (block public storefront domains from serving the admin portal) | Recorded, not enforced |
+| Admin-subdomain-only enforcement (block public storefront domains from serving the admin portal) | Decided, implemented |
+| Variant-specific product images via `ProductImage.variant` (nullable FK, `SET_NULL`) | Decided, implemented |

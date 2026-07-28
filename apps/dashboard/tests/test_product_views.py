@@ -2,23 +2,28 @@ import json
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.catalog.models import Category, Product, Vendor
+from apps.catalog.models import Brand, Category, Product, Vendor
 from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
+
+HOST = "pv-test.rastisi.ir"
 
 
 def _akhlaghi():
     return Store.objects.get(slug="akhlaghi")
 
 
+@override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
 class ProductViewsTestCase(TestCase):
     def setUp(self):
         self.store = _akhlaghi()
+        self.store.admin_subdomain = HOST.split(".")[0]
+        self.store.save(update_fields=["admin_subdomain"])
         self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-pv")
         self.main = Category.objects.create(store=self.store, name="دیجیتال", slug="main-pv")
         self.sub = Category.objects.create(store=self.store, name="موبایل", slug="sub-pv", parent=self.main)
@@ -31,6 +36,7 @@ class ProductViewsTestCase(TestCase):
             store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
             status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
         )
+        self.client = Client(HTTP_HOST=HOST)
         self.client.login(username="09121122001", password="pass12345")
 
 
@@ -160,6 +166,78 @@ class ProductEditViewTests(ProductViewsTestCase):
         self.assertNotContains(response, "قبلاً استفاده شده است")
 
 
+class ProductSeoAndLogisticsFieldsTests(ProductViewsTestCase):
+    def _payload(self, **overrides):
+        payload = {
+            "name": "کالای جدید", "sku": "SKU-NEW1", "category": self.sub.id,
+            "price": "500000", "discount_percent": "0", "stock": "10",
+            "status": "active", "icon": "🎁", "description": "",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_create_persists_barcode_weight_and_seo_fields(self):
+        self.client.post(reverse("dashboard:product-add"), self._payload(
+            barcode="6221000000015", weight_grams="450",
+            seo_title="عنوان سئوی محصول", seo_description="توضیحات متای محصول",
+            requires_shipping="on",
+        ))
+        product = Product.objects.get(sku="SKU-NEW1")
+        self.assertEqual(product.barcode, "6221000000015")
+        self.assertEqual(product.weight_grams, 450)
+        self.assertTrue(product.requires_shipping)
+        self.assertEqual(product.seo_title, "عنوان سئوی محصول")
+        self.assertEqual(product.seo_description, "توضیحات متای محصول")
+
+    def test_requires_shipping_unchecked_is_persisted_as_false(self):
+        self.client.post(reverse("dashboard:product-add"), self._payload())
+        product = Product.objects.get(sku="SKU-NEW1")
+        self.assertFalse(product.requires_shipping)
+
+    def test_negative_weight_rejected(self):
+        response = self.client.post(reverse("dashboard:product-add"), self._payload(weight_grams="-5"))
+        self.assertContains(response, "وزن نمی‌تواند منفی باشد")
+        self.assertFalse(Product.objects.filter(sku="SKU-NEW1").exists())
+
+    def test_non_numeric_weight_rejected(self):
+        response = self.client.post(reverse("dashboard:product-add"), self._payload(weight_grams="سنگین"))
+        self.assertContains(response, "وزن باید یک عدد صحیح باشد")
+        self.assertFalse(Product.objects.filter(sku="SKU-NEW1").exists())
+
+    def test_blank_weight_saved_as_none(self):
+        self.client.post(reverse("dashboard:product-add"), self._payload(weight_grams=""))
+        product = Product.objects.get(sku="SKU-NEW1")
+        self.assertIsNone(product.weight_grams)
+
+    def test_edit_prefills_seo_and_logistics_fields(self):
+        self.product.barcode = "1112223334445"
+        self.product.weight_grams = 200
+        self.product.seo_title = "عنوان قدیمی"
+        self.product.save()
+        response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
+        self.assertContains(response, "1112223334445")
+        self.assertContains(response, "عنوان قدیمی")
+
+    def test_brand_assignment_on_create(self):
+        brand = Brand.objects.create(store=self.store, name="برند من", slug="brand-pv")
+        response = self.client.post(reverse("dashboard:product-add"), self._payload(brand=brand.pk))
+        self.assertEqual(response.status_code, 200)
+        product = Product.objects.get(sku="SKU-NEW1")
+        self.assertEqual(product.brand_id, brand.pk)
+
+    def test_blank_brand_allowed(self):
+        self.client.post(reverse("dashboard:product-add"), self._payload(brand=""))
+        product = Product.objects.get(sku="SKU-NEW1")
+        self.assertIsNone(product.brand_id)
+
+    def test_other_store_brand_rejected(self):
+        other_store = Store.objects.create(name="فروشگاه دیگر", slug="other-pv-brand", status=Store.Status.ACTIVE)
+        other_brand = Brand.objects.create(store=other_store, name="برند دیگر", slug="other-brand-pv")
+        response = self.client.post(reverse("dashboard:product-add"), self._payload(brand=other_brand.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Product.objects.filter(sku="SKU-NEW1").exists())
+
+
 class ProductDeleteViewTests(ProductViewsTestCase):
     def test_deletes_product(self):
         response = self.client.post(reverse("dashboard:product-delete", args=[self.product.pk]))
@@ -177,5 +255,5 @@ class ProductDeleteViewTests(ProductViewsTestCase):
         other = User.objects.create_user(username="09121122099", password="pass12345", is_staff=False)
         self.client.login(username="09121122099", password="pass12345")
         response = self.client.post(reverse("dashboard:product-delete", args=[self.product.pk]))
-        self.assertRedirects(response, reverse("catalog:home"))
+        self.assertRedirects(response, reverse("catalog:home"), fetch_redirect_response=False)
         self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())

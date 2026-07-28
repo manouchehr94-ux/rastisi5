@@ -5,13 +5,13 @@ from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
 from django.utils import timezone
 
-from apps.catalog.models import Category, Product, ProductImage, Vendor
+from apps.catalog.models import Category, Product, ProductImage, ProductVariant, Vendor
 from apps.catalog.services.product_image_service import add_product_image
 from apps.stores.models import Store, StoreMembership
 
@@ -187,3 +187,88 @@ class ProductImageAltUpdateViewTests(ProductImageViewsTestCase):
         )
         image.refresh_from_db()
         self.assertEqual(image.alt, "توضیح جدید تصویر")
+
+
+class ProductImageVariantAssociationViewTests(ProductImageViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.variant_a = ProductVariant.objects.create(
+            product=self.product, attribute="رنگ", value="قرمز", stock=3,
+        )
+        self.variant_b = ProductVariant.objects.create(
+            product=self.product, attribute="رنگ", value="آبی", stock=3,
+        )
+
+    def test_assigns_image_to_variant(self):
+        image = add_product_image(self.product, _make_image_file())
+        response = self.client.post(
+            reverse("dashboard:product-image-variant", args=[self.product.pk, image.pk]),
+            {"variant": self.variant_a.pk},
+        )
+        self.assertEqual(response.status_code, 200)
+        image.refresh_from_db()
+        self.assertEqual(image.variant_id, self.variant_a.pk)
+
+    def test_reassigning_to_blank_makes_image_general_again(self):
+        image = add_product_image(self.product, _make_image_file())
+        image.variant = self.variant_a
+        image.save(update_fields=["variant"])
+        self.client.post(
+            reverse("dashboard:product-image-variant", args=[self.product.pk, image.pk]),
+            {"variant": ""},
+        )
+        image.refresh_from_db()
+        self.assertIsNone(image.variant_id)
+
+    def test_deleting_variant_detaches_image_instead_of_deleting_it(self):
+        image = add_product_image(self.product, _make_image_file())
+        image.variant = self.variant_a
+        image.save(update_fields=["variant"])
+        self.variant_a.delete()
+        image.refresh_from_db()
+        self.assertIsNone(image.variant_id)
+        self.assertTrue(ProductImage.objects.filter(pk=image.pk).exists())
+
+    def test_variant_from_other_product_rejected(self):
+        other_product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای دیگر", slug="piv-other",
+            sku="SKU-PIV-OTHER", price=Decimal("100000"), stock=1,
+        )
+        other_variant = ProductVariant.objects.create(product=other_product, attribute="سایز", value="بزرگ")
+        image = add_product_image(self.product, _make_image_file())
+        response = self.client.post(
+            reverse("dashboard:product-image-variant", args=[self.product.pk, image.pk]),
+            {"variant": other_variant.pk},
+        )
+        self.assertEqual(response.status_code, 404)
+        image.refresh_from_db()
+        self.assertIsNone(image.variant_id)
+
+    def test_variant_select_rendered_in_images_list(self):
+        add_product_image(self.product, _make_image_file())
+        response = self.client.get(reverse("dashboard:product-images", args=[self.product.pk]))
+        self.assertContains(response, "رنگ: قرمز")
+        self.assertContains(response, "رنگ: آبی")
+
+    def test_display_image_falls_back_to_cover_when_variant_has_no_image(self):
+        cover = add_product_image(self.product, _make_image_file())
+        self.assertEqual(self.variant_a.display_image.pk, cover.pk)
+
+    def test_display_image_prefers_variant_specific_image(self):
+        add_product_image(self.product, _make_image_file("cover.jpg"))
+        variant_image = add_product_image(self.product, _make_image_file("variant.jpg"))
+        variant_image.variant = self.variant_a
+        variant_image.save(update_fields=["variant"])
+        self.assertEqual(self.variant_a.display_image.pk, variant_image.pk)
+
+    def test_anonymous_denied(self):
+        self.client.logout()
+        image = add_product_image(self.product, _make_image_file())
+        response = self.client.post(
+            reverse("dashboard:product-image-variant", args=[self.product.pk, image.pk]),
+            {"variant": self.variant_a.pk},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-portal/login/", response.url)
+        image.refresh_from_db()
+        self.assertIsNone(image.variant_id)

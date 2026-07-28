@@ -8,6 +8,16 @@
     <input class="inp img-manage-alt" placeholder="متن جایگزین (alt)" value="{{ image.alt }}" name="alt"
            hx-post="{% url 'dashboard:product-image-alt' product.pk image.pk %}" hx-trigger="change"
            hx-target="#productImagesList" hx-swap="outerHTML">
+    {% if variants %}
+    <select class="inp img-manage-variant" name="variant"
+            hx-post="{% url 'dashboard:product-image-variant' product.pk image.pk %}" hx-trigger="change"
+            hx-target="#productImagesList" hx-swap="outerHTML">
+      <option value="">— تصویر عمومی کالا —</option>
+      {% for variant in variants %}
+      <option value="{{ variant.pk }}" {% if image.variant_id == variant.pk %}selected{% endif %}>{{ variant.attribute }}: {{ variant.value }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
     <div class="img-manage-actions">
       <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}
               hx-post="{% url 'dashboard:product-image-move' product.pk image.pk %}" hx-vals='{"direction":"up"}'

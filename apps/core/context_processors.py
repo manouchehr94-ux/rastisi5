@@ -1,6 +1,7 @@
 from apps.content.models import SocialLink
 from apps.core.color_utils import darken_hex, foreground_for, mix_hex, safe_hex
-from apps.core.models import ShopSettings
+from apps.core.models import ShopSettings, ShopSettingsNotProvisionedError
+from apps.stores.resolution import StoreResolutionError
 
 
 def shop_settings(request):
@@ -11,8 +12,19 @@ def shop_settings(request):
     نشده باشد (``request.store is None``)، ``ShopSettings.load()`` بدون
     آرگومان به حالت سازگاریِ موقت (تک‌فروشگاهی Akhlaghi) برمی‌گردد و در غیر
     آن صورت fail-closed می‌شود — هرگز تنظیمات یک Store دیگر را برنمی‌گرداند.
+
+    یک Host ناشناخته/غیرمجاز (نه در ``STORES_DEVELOPMENT_HOST_ALLOWLIST``، نه
+    ``StoreDomain`` تأییدشده) وقتی بیش از یک Store در دیتابیس وجود دارد، به
+    ``StoreResolutionError`` می‌رسد — این context processor روی **هر**
+    template (از جمله صفحه‌ی خطای ۴۰۴ خودِ Django) اجرا می‌شود، پس این حالت
+    باید امن مدیریت شود، نه این‌که رندر صفحه‌ی خطا را خودش با یک ۵۰۰ جدید
+    خراب کند. یک دیکشنری خالی برمی‌گرداند — تمپلیت‌ها با فیلتر ``|default``
+    از قبل برای نبود این متغیرها آماده‌اند.
     """
-    shop = ShopSettings.load(store=getattr(request, "store", None))
+    try:
+        shop = ShopSettings.load(store=getattr(request, "store", None))
+    except (StoreResolutionError, ShopSettingsNotProvisionedError):
+        return {}
 
     primary = safe_hex(shop.primary_color, "#6D28D9")
     accent = safe_hex(shop.accent_color, "#FF4D77")

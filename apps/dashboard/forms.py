@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from django import forms
 
-from apps.catalog.models import Category, Product
+from apps.catalog.models import Brand, Category, Product
 from apps.core.color_utils import contrast_ratio, safe_hex
 from apps.core.models import ShopSettings
 from apps.core.utils import normalize_digits
@@ -50,6 +50,7 @@ class ProductForm(NumericCleanMixin, forms.Form):
     STATUS_CHOICES = [
         (Product.Status.ACTIVE, "فعال"),
         (Product.Status.INACTIVE, "غیرفعال"),
+        (Product.Status.DRAFT, "پیش‌نویس"),
     ]
 
     name = forms.CharField(label="نام کالا", max_length=220)
@@ -58,6 +59,7 @@ class ProductForm(NumericCleanMixin, forms.Form):
         label="زیرگروه کالا", queryset=Category.objects.none(),
         error_messages={"required": "انتخاب زیرگروه الزامی است"},
     )
+    brand = forms.ModelChoiceField(label="برند", queryset=Brand.objects.none(), required=False)
     price = forms.CharField(label="قیمت (تومان)")
     discount_percent = forms.CharField(label="تخفیف (٪)", required=False, initial="0")
     stock = forms.CharField(label="موجودی انبار", required=False, initial="0")
@@ -70,11 +72,33 @@ class ProductForm(NumericCleanMixin, forms.Form):
         label="نوع کالا", choices=Product.ProductType.choices, required=False,
     )
 
+    # لجستیک (Phase 1C)
+    barcode = forms.CharField(label="بارکد محصول", max_length=64, required=False)
+    weight_grams = forms.CharField(label="وزن (گرم)", required=False)
+    requires_shipping = forms.BooleanField(label="نیاز به ارسال فیزیکی", required=False, initial=True)
+
+    # سئو (Phase 1C)
+    seo_title = forms.CharField(label="عنوان سئو", max_length=70, required=False)
+    seo_description = forms.CharField(label="توضیحات متا", max_length=160, required=False, widget=forms.Textarea)
+
     def __init__(self, *args, store, instance=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.instance = instance
         self.store = store
         self.fields["category"].queryset = leaf_categories(store)
+        self.fields["brand"].queryset = Brand.objects.filter(store=store).order_by("name")
+
+    def clean_weight_grams(self):
+        raw = normalize_digits(self.cleaned_data.get("weight_grams", "")).strip()
+        if not raw:
+            return None
+        try:
+            value = int(raw)
+        except ValueError:
+            raise forms.ValidationError("وزن باید یک عدد صحیح باشد")
+        if value < 0:
+            raise forms.ValidationError("وزن نمی‌تواند منفی باشد")
+        return value
 
     def clean_sku(self):
         sku = normalize_digits(self.cleaned_data["sku"]).strip()

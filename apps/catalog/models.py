@@ -153,6 +153,16 @@ class Product(TimeStampedModel):
     icon = models.CharField("آیکون/اموجی", max_length=20, blank=True)
     tint = models.CharField("رنگ پس‌زمینه کارت", max_length=20, blank=True)
 
+    # لجستیک و شناسه‌های اضافی (Phase 1C — مطابق فیلدهای موجود در پروتوتایپ
+    # merchant-panel-x25، بخش «مشخصات لجستیک»)
+    barcode = models.CharField("بارکد محصول", max_length=64, blank=True, default="")
+    weight_grams = models.PositiveIntegerField("وزن (گرم)", null=True, blank=True)
+    requires_shipping = models.BooleanField("نیاز به ارسال فیزیکی", default=True)
+
+    # سئو (Phase 1C — پیش‌تر هیچ فیلد سئویی روی Product وجود نداشت)
+    seo_title = models.CharField("عنوان سئو", max_length=70, blank=True, default="")
+    seo_description = models.CharField("توضیحات متا", max_length=160, blank=True, default="")
+
     class Meta:
         verbose_name = "کالا"
         verbose_name_plural = "کالاها"
@@ -206,6 +216,13 @@ class Product(TimeStampedModel):
 
 class ProductImage(TimeStampedModel):
     product = models.ForeignKey(Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="images")
+    # اگر خالی باشد، تصویر عمومی کالا (برای همه‌ی تنوع‌ها) است. اگر پر باشد، فقط
+    # مختص همان تنوع است — هنگام حذف تنوع، تصویر باقی می‌ماند و به تصویر عمومی
+    # کالا برمی‌گردد (SET_NULL)، نه اینکه حذف شود.
+    variant = models.ForeignKey(
+        "ProductVariant", verbose_name="تنوع مرتبط", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="images",
+    )
     image = models.ImageField("تصویر", upload_to="products/gallery/")
     thumbnail = models.ImageField("تصویر بندانگشتی", upload_to="products/thumbnails/", null=True, blank=True)
     alt = models.CharField("متن جایگزین", max_length=200, blank=True)
@@ -219,6 +236,12 @@ class ProductImage(TimeStampedModel):
 
     def __str__(self):
         return f"{self.product.name} — تصویر {self.order}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.variant_id and self.product_id and self.variant.product_id != self.product_id:
+            raise ValidationError({"variant": "این تنوع متعلق به کالای دیگری است."})
 
 
 class VariantMutationError(Exception):
@@ -347,6 +370,20 @@ class ProductVariant(TimeStampedModel):
 
     def __str__(self):
         return f"{self.product.name} — {self.attribute}: {self.value}"
+
+    @property
+    def display_image(self):
+        """تصویر اختصاصی این تنوع؛ در نبود آن، تصویر کاور کالا (fallback).
+
+        عمداً از ``self.images.all()`` (نه ``.order_by()``/``.filter()``) استفاده می‌کند
+        تا در صفحاتی که ``prefetch_related("images")`` اجرا شده، به‌جای هر تنوع یک
+        کوئری جدید صادر نشود — ``ProductImage.Meta.ordering`` همان ``["order", "id"]``
+        مورد نیاز را از قبل تضمین می‌کند.
+        """
+        images = list(self.images.all())
+        if images:
+            return images[0]
+        return self.product.cover_image
 
     def clean(self):
         from django.core.exceptions import ValidationError

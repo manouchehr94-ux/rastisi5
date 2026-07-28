@@ -387,7 +387,7 @@ class DashboardFooterCRUDTests(TestCase):
 
 @override_settings(
     MEDIA_ROOT="/tmp/test_media_footer",
-    ALLOWED_HOSTS=["store-a.example.com"],
+    ALLOWED_HOSTS=["store-a.rastisi.ir"],
 )
 class DashboardFooterCrossStoreIsolationTests(TestCase):
     """A Store A dashboard request must never mutate Store B's footer rows.
@@ -398,7 +398,7 @@ class DashboardFooterCrossStoreIsolationTests(TestCase):
     would work in production, not an unresolved/compat-mode request.
     """
 
-    HOST_A = "store-a.example.com"
+    HOST_A = "store-a.rastisi.ir"
 
     def setUp(self):
         from django.utils import timezone
@@ -411,6 +411,8 @@ class DashboardFooterCrossStoreIsolationTests(TestCase):
             store=self.store_a, hostname=self.HOST_A, is_primary=True,
             verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
         )
+        self.store_a.admin_subdomain = self.HOST_A.split(".")[0]
+        self.store_a.save(update_fields=["admin_subdomain"])
         self.staff = User.objects.create_user(username="admin", password="pass123", is_staff=True)
         _grant_membership(self.store_a, self.staff)
         self.client.login(username="admin", password="pass123")

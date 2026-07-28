@@ -1,38 +1,64 @@
 from functools import wraps
 from urllib.parse import urlencode
 
+from django.http import Http404
 from django.shortcuts import redirect, render
 
 from apps.stores.authorization import get_active_membership, membership_has_permission
-from apps.stores.resolution import StoreResolutionError, resolve_store_for_service
+from apps.stores.resolution import resolve_store_for_admin_request
 
 
-def _resolve_store_or_none(request):
-    """Resolve the active Store for an admin-portal request, never raising.
+def _resolve_admin_store_or_404(request):
+    """Resolve the Store this admin-portal request is for, or raise ``Http404``.
 
-    Uses the same authoritative resolver every dashboard service call goes
-    through (``apps.stores.resolution.resolve_store_for_service``), so the
-    Store this decorator authorizes against is exactly the Store the view
-    body will act on — never re-derived independently.
+    Uses ``apps.stores.resolution.resolve_store_for_admin_request`` — the
+    Phase 1C admin-host-aware resolver — so a request that arrives on a
+    Store's *public* storefront domain (or any host that isn't a real
+    ``admin_subdomain`` match or an approved local-dev/test host) never
+    reaches any merchant-admin view at all, authenticated or not. A plain
+    404 (not a redirect, not a 403) is used deliberately: it reveals
+    nothing about whether *any* Store's admin portal exists on this host,
+    matching the same fail-closed, non-existence-revealing policy the rest
+    of the codebase already uses for cross-Store object lookups (see
+    ``00_PROJECT_MASTER_REFERENCE.md`` §9.2).
     """
-    try:
-        return resolve_store_for_service(request)
-    except StoreResolutionError:
-        return None
+    store = resolve_store_for_admin_request(request)
+    if store is None:
+        raise Http404
+    return store
+
+
+def admin_host_required(view_func):
+    """Gate for admin-portal views that don't yet have an authenticated user
+    to check membership for (currently only ``admin_login``). Rejects with
+    404 exactly like ``staff_required`` does, before any authentication or
+    membership check — a disallowed host must 404 regardless of whether the
+    visitor is logged in, staff, or a member of any Store."""
+
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        _resolve_admin_store_or_404(request)
+        return view_func(request, *args, **kwargs)
+
+    return wrapper
 
 
 def staff_required(view_func):
-    """دسترسی به پنل مدیریت را فقط به اعضای فعال همان فروشگاه می‌دهد.
+    """دسترسی به پنل مدیریت را فقط به اعضای فعال همان فروشگاه، از طریق میزبان مدیریت مجاز، می‌دهد.
 
-    ``user.is_staff`` به‌تنهایی هرگز کافی نیست: کاربر باید یک
-    ``StoreMembership`` با وضعیت ``ACTIVE`` دقیقاً برای Storeای که این
-    درخواست از طریق Host به آن resolve شده داشته باشد (نگاه کنید به
-    ``apps.stores.authorization``). عضویت در Store دیگر، یا نبود Store
-    resolve‌شده، دسترسی نمی‌دهد.
+    به ترتیب:
 
-    کاربران غیر احراز هویت‌شده به صفحه‌ی ورود اختصاصی پنل مدیریت هدایت
-    می‌شوند (نه صفحه‌ی اصلی فروشگاه). پارامتر next مسیر اصلی درخواست‌شده را
-    حفظ می‌کند تا پس از ورود موفق، کاربر به همان صفحه بازگردد.
+    1. میزبان درخواست باید به یک Store معتبر resolve شود — از طریق
+       ``Store.admin_subdomain`` واقعی، یا (فقط برای توسعه/تست) میزبان
+       تأییدشده‌ی محلی (نگاه کنید به ``apps.stores.resolution.resolve_store_for_admin_request``).
+       در غیر این صورت ``404`` بدون توجه به وضعیت ورود کاربر — دامنه‌ی
+       عمومی فروشگاه هرگز نباید پنل مدیریت را افشا کند.
+    2. کاربر باید احراز هویت شده باشد؛ در غیر این صورت به صفحه‌ی ورود
+       اختصاصی پنل مدیریت هدایت می‌شود (نه صفحه‌ی اصلی فروشگاه). پارامتر
+       next مسیر اصلی درخواست‌شده را حفظ می‌کند.
+    3. ``user.is_staff`` به‌تنهایی هرگز کافی نیست: کاربر باید یک
+       ``StoreMembership`` با وضعیت ``ACTIVE`` دقیقاً برای همان Store
+       داشته باشد (نگاه کنید به ``apps.stores.authorization``).
 
     Caches the resolved membership on ``request.store_membership`` so
     ``permission_required`` (and templates, via
@@ -42,14 +68,17 @@ def staff_required(view_func):
 
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
+        store = _resolve_admin_store_or_404(request)
+
         if not request.user.is_authenticated:
             login_url = "/admin-portal/login/"
             params = urlencode({"next": request.get_full_path()})
             return redirect(f"{login_url}?{params}")
-        store = _resolve_store_or_none(request)
-        membership = get_active_membership(request.user, store) if store is not None else None
+
+        membership = get_active_membership(request.user, store)
         if not request.user.is_staff or membership is None:
             return redirect("catalog:home")
+
         request.store = store
         request.store_membership = membership
         return view_func(request, *args, **kwargs)

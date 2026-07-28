@@ -1,4 +1,4 @@
-from django.http import HttpResponseRedirect
+from django.http import Http404, HttpResponseRedirect
 from django.templatetags.static import static
 
 from .models import ShopSettings
@@ -23,7 +23,20 @@ def admin_panel_compat_redirect(request, rest=""):
     permanent canonical alias, so it must stay easy to remove later without
     browsers having cached a permanent redirect) to the equivalent
     ``/admin-portal/`` path, preserving both the sub-path and query string.
+
+    Phase 1C: obeys the exact same admin-host restriction as the canonical
+    route itself (``apps.dashboard.decorators.staff_required``/``admin_host_required``)
+    — a request on a disallowed host (a Store's public storefront domain,
+    an unknown subdomain, ...) gets 404 directly here instead of being
+    redirected to a canonical-route URL that would only 404 one hop later.
+    That extra hop would also needlessly confirm to an attacker that
+    *something* is mounted at ``/admin-portal/`` on this host.
     """
+    from apps.stores.resolution import resolve_store_for_admin_request
+
+    if resolve_store_for_admin_request(request) is None:
+        raise Http404
+
     target = f"/admin-portal/{rest}"
     query_string = request.META.get("QUERY_STRING", "")
     if query_string:

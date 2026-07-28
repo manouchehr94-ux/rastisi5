@@ -157,3 +157,17 @@ def update_image_alt(image: ProductImage, alt: str) -> ProductImage:
     image.alt = (alt or "").strip()
     image.save(update_fields=["alt"])
     return image
+
+
+def set_image_variant(image: ProductImage, variant) -> ProductImage:
+    """تصویر را به یک تنوع مشخص از همان کالا اختصاص می‌دهد (یا با ``variant=None`` عمومی می‌کند).
+
+    اگر تنوع متعلق به کالای دیگری باشد، ``ProductImageError`` می‌دهد — این تنها
+    راهی است که یک تصویر می‌تواند به تنوع متصل شود، پس این‌جا اعتبارسنجی
+    تنانت/کالا برای همیشه اجرا می‌شود.
+    """
+    if variant is not None and variant.product_id != image.product_id:
+        raise ProductImageError("این تنوع متعلق به کالای دیگری است.")
+    image.variant = variant
+    image.save(update_fields=["variant"])
+    return image

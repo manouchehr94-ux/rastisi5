@@ -143,6 +143,7 @@
   <div class="table-wrap"><table class="variant-table">
     <thead><tr>
       {% if not ordering_locked %}<th>ترتیب</th>{% endif %}
+      <th>تصویر</th>
       <th>ویژگی و مقدار</th>
       <th class="num">قیمت نهایی</th>
       <th class="num">تغییر قیمت</th>
@@ -167,6 +168,15 @@
           </div>
         </td>
         {% endif %}
+        <td>
+          {% with img=variant.display_image %}
+          {% if img %}
+          <div class="variant-thumb" style="width:36px;height:36px;border-radius:8px;background-size:cover;background-position:center;background-image:url('{{ img.thumbnail.url|default:img.image.url }}')" title="{% if img.variant_id %}تصویر اختصاصی تنوع{% else %}تصویر عمومی کالا{% endif %}"></div>
+          {% else %}
+          <div class="variant-thumb" style="width:36px;height:36px;border-radius:8px;background:var(--primary-soft)"></div>
+          {% endif %}
+          {% endwith %}
+        </td>
         <td class="identity">
           <b>{{ variant.value }}</b>
           <small>{{ variant.attribute }}{% if variant.sku %} · <span dir="ltr">{{ variant.sku }}</span>{% endif %}</small>
