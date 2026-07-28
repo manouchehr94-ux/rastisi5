@@ -1,0 +1,507 @@
+[
+  {
+    "emoji": "👔",
+    "name": "پوشاک مردانه",
+    "sector": "retail"
+  },
+  {
+    "emoji": "👗",
+    "name": "پوشاک زنانه",
+    "sector": "retail"
+  },
+  {
+    "emoji": "🧸",
+    "name": "پوشاک کودک و نوزاد",
+    "sector": "retail"
+  },
+  {
+    "emoji": "👟",
+    "name": "کفش و چرم",
+    "sector": "retail"
+  },
+  {
+    "emoji": "👜",
+    "name": "کیف و اکسسوری",
+    "sector": "retail"
+  },
+  {
+    "emoji": "⌚",
+    "name": "ساعت و جواهر",
+    "sector": "retail"
+  },
+  {
+    "emoji": "👓",
+    "name": "عینک و لوازم شیشه‌ای",
+    "sector": "retail"
+  },
+  {
+    "emoji": "🧣",
+    "name": "شال و روسری",
+    "sector": "retail"
+  },
+  {
+    "emoji": "🛍",
+    "name": "فروشگاه چند منظوره",
+    "sector": "retail"
+  },
+  {
+    "emoji": "💍",
+    "name": "طل و جواهرات",
+    "sector": "retail"
+  },
+  {
+    "emoji": "📱",
+    "name": "موبایل و تبلت",
+    "sector": "digital"
+  },
+  {
+    "emoji": "💻",
+    "name": "لپ‌تاپ و کامپیوتر",
+    "sector": "digital"
+  },
+  {
+    "emoji": "🎧",
+    "name": "صوتی و تصویری",
+    "sector": "digital"
+  },
+  {
+    "emoji": "📷",
+    "name": "دوربین عکاسی",
+    "sector": "digital"
+  },
+  {
+    "emoji": "🎮",
+    "name": "کنسول بازی و گیمینگ",
+    "sector": "digital"
+  },
+  {
+    "emoji": "⌨",
+    "name": "لوازم جانبی کامپیوتر",
+    "sector": "digital"
+  },
+  {
+    "emoji": "🖥",
+    "name": "قطعات و سخت‌افزار",
+    "sector": "digital"
+  },
+  {
+    "emoji": "💡",
+    "name": "گجت‌های هوشمند",
+    "sector": "digital"
+  },
+  {
+    "emoji": "💾",
+    "name": "نرم‌افزار و آنتی‌ویروس",
+    "sector": "digital"
+  },
+  {
+    "emoji": "📡",
+    "name": "تجهیزات شبکه و اینترنت",
+    "sector": "digital"
+  },
+  {
+    "emoji": "🥜",
+    "name": "خشکبار و آجیل",
+    "sector": "food"
+  },
+  {
+    "emoji": "🍫",
+    "name": "شیرینی و شکلات",
+    "sector": "food"
+  },
+  {
+    "emoji": "☕",
+    "name": "چای و قهوه",
+    "sector": "food"
+  },
+  {
+    "emoji": "🍯",
+    "name": "عسل و محصولات طبیعی",
+    "sector": "food"
+  },
+  {
+    "emoji": "🧂",
+    "name": "ادویه و زعفران",
+    "sector": "food"
+  },
+  {
+    "emoji": "🥩",
+    "name": "گوشت و مرغ",
+    "sector": "food"
+  },
+  {
+    "emoji": "🍎",
+    "name": "میوه و سبزی",
+    "sector": "food"
+  },
+  {
+    "emoji": "🧀",
+    "name": "لبنیات و پنیر",
+    "sector": "food"
+  },
+  {
+    "emoji": "🥤",
+    "name": "نوشیدنی و آبمیوه",
+    "sector": "food"
+  },
+  {
+    "emoji": "🍞",
+    "name": "نان و قنادی",
+    "sector": "food"
+  },
+  {
+    "emoji": "🍳",
+    "name": "لوازم آشپزخانه",
+    "sector": "home"
+  },
+  {
+    "emoji": "🍽",
+    "name": "ظروف و سرویس غذا",
+    "sector": "home"
+  },
+  {
+    "emoji": "❄",
+    "name": "لوازم خانگی برقی",
+    "sector": "home"
+  },
+  {
+    "emoji": "🛋",
+    "name": "مبلمان و دکوراسیون",
+    "sector": "home"
+  },
+  {
+    "emoji": "🪑",
+    "name": "لوازم چوبی و میز",
+    "sector": "home"
+  },
+  {
+    "emoji": "🧵",
+    "name": "فرش و گلیم",
+    "sector": "home"
+  },
+  {
+    "emoji": "💡",
+    "name": "نورپردازی و چراغ",
+    "sector": "home"
+  },
+  {
+    "emoji": "🚿",
+    "name": "حمام و سرویس بهداشتی",
+    "sector": "home"
+  },
+  {
+    "emoji": "🪴",
+    "name": "باغبانی و گیاه",
+    "sector": "home"
+  },
+  {
+    "emoji": "🧹",
+    "name": "ابزار تمیزکاری",
+    "sector": "home"
+  },
+  {
+    "emoji": "💄",
+    "name": "لوازم آرایشی",
+    "sector": "beauty"
+  },
+  {
+    "emoji": "🧴",
+    "name": "لوازم بهداشتی",
+    "sector": "beauty"
+  },
+  {
+    "emoji": "🌸",
+    "name": "عطر و ادکلن",
+    "sector": "beauty"
+  },
+  {
+    "emoji": "💊",
+    "name": "داروخانه آنلاین",
+    "sector": "beauty"
+  },
+  {
+    "emoji": "🩺",
+    "name": "تجهیزات پزشکی",
+    "sector": "beauty"
+  },
+  {
+    "emoji": "🌿",
+    "name": "مکمل و محصولات ارگانیک",
+    "sector": "beauty"
+  },
+  {
+    "emoji": "💆",
+    "name": "لوازم سلامت و ماساژ",
+    "sector": "beauty"
+  },
+  {
+    "emoji": "🦷",
+    "name": "مراقبت دهان و دندان",
+    "sector": "beauty"
+  },
+  {
+    "emoji": "🧖",
+    "name": "اسپا و مراقبت پوست",
+    "sector": "beauty"
+  },
+  {
+    "emoji": "☀",
+    "name": "محافظت از آفتاب",
+    "sector": "beauty"
+  },
+  {
+    "emoji": "⚽",
+    "name": "توپ و لوازم بازی",
+    "sector": "sport"
+  },
+  {
+    "emoji": "🏋",
+    "name": "تجهیزات بدنسازی",
+    "sector": "sport"
+  },
+  {
+    "emoji": "🚴",
+    "name": "دوچرخه و اسکوتر",
+    "sector": "sport"
+  },
+  {
+    "emoji": "🏕",
+    "name": "کمپینگ و طبیعت‌گردی",
+    "sector": "sport"
+  },
+  {
+    "emoji": "🎿",
+    "name": "ورزش زمستانی",
+    "sector": "sport"
+  },
+  {
+    "emoji": "🥋",
+    "name": "ورزش‌های رزمی",
+    "sector": "sport"
+  },
+  {
+    "emoji": "🎣",
+    "name": "شکار و ماهیگیری",
+    "sector": "sport"
+  },
+  {
+    "emoji": "🎯",
+    "name": "بلیت رویداد ورزشی",
+    "sector": "sport"
+  },
+  {
+    "emoji": "🎸",
+    "name": "ساز و لوازم موسیقی",
+    "sector": "sport"
+  },
+  {
+    "emoji": "♟",
+    "name": "بازی فکری و سرگرمی",
+    "sector": "sport"
+  },
+  {
+    "emoji": "📚",
+    "name": "کتاب و مجله",
+    "sector": "culture"
+  },
+  {
+    "emoji": "📖",
+    "name": "کتاب درسی و کمک‌آموزشی",
+    "sector": "culture"
+  },
+  {
+    "emoji": "✏",
+    "name": "لوازم التحریر",
+    "sector": "culture"
+  },
+  {
+    "emoji": "🎓",
+    "name": "دوره آموزشی آنلاین",
+    "sector": "culture"
+  },
+  {
+    "emoji": "🎨",
+    "name": "لوازم هنری و نقاشی",
+    "sector": "culture"
+  },
+  {
+    "emoji": "🏺",
+    "name": "صنایع دستی",
+    "sector": "culture"
+  },
+  {
+    "emoji": "🎁",
+    "name": "کادو و سوغات",
+    "sector": "culture"
+  },
+  {
+    "emoji": "📰",
+    "name": "محصولات فرهنگی و رسانه",
+    "sector": "culture"
+  },
+  {
+    "emoji": "🖼",
+    "name": "تابلو و تزئینات هنری",
+    "sector": "culture"
+  },
+  {
+    "emoji": "🖋",
+    "name": "لوازم تحریر لوکس",
+    "sector": "culture"
+  },
+  {
+    "emoji": "🚗",
+    "name": "لوازم یدکی خودرو",
+    "sector": "auto"
+  },
+  {
+    "emoji": "🛵",
+    "name": "موتور سیکلت",
+    "sector": "auto"
+  },
+  {
+    "emoji": "🛞",
+    "name": "لاستیک و رینگ",
+    "sector": "auto"
+  },
+  {
+    "emoji": "⛽",
+    "name": "روغن و فیلتر",
+    "sector": "auto"
+  },
+  {
+    "emoji": "🚙",
+    "name": "لوازم تزئینی خودرو",
+    "sector": "auto"
+  },
+  {
+    "emoji": "🔧",
+    "name": "ابزار و تجهیزات کارگاهی",
+    "sector": "auto"
+  },
+  {
+    "emoji": "🔋",
+    "name": "باطری و برق خودرو",
+    "sector": "auto"
+  },
+  {
+    "emoji": "🛻",
+    "name": "لوازم خودرو سنگین",
+    "sector": "auto"
+  },
+  {
+    "emoji": "🛠",
+    "name": "ابزار باغبان و کشاورزی",
+    "sector": "auto"
+  },
+  {
+    "emoji": "🚲",
+    "name": "دوچرخه و لوازم",
+    "sector": "auto"
+  },
+  {
+    "emoji": "🧱",
+    "name": "مصالح ساختمانی",
+    "sector": "industry"
+  },
+  {
+    "emoji": "🔌",
+    "name": "تجهیزات برق و روشنایی",
+    "sector": "industry"
+  },
+  {
+    "emoji": "🚰",
+    "name": "شیرآلات و لوله",
+    "sector": "industry"
+  },
+  {
+    "emoji": "🎨",
+    "name": "رنگ و رزین صنعتی",
+    "sector": "industry"
+  },
+  {
+    "emoji": "🪟",
+    "name": "در و پنجره",
+    "sector": "industry"
+  },
+  {
+    "emoji": "🧰",
+    "name": "ابزار صنعتی",
+    "sector": "industry"
+  },
+  {
+    "emoji": "🏭",
+    "name": "ماشین‌آلات صنعتی",
+    "sector": "industry"
+  },
+  {
+    "emoji": "⚙",
+    "name": "تجهیزات کارخانه",
+    "sector": "industry"
+  },
+  {
+    "emoji": "❄",
+    "name": "تجهیزات سرمایش و گرمایش",
+    "sector": "industry"
+  },
+  {
+    "emoji": "🛡",
+    "name": "تجهیزات ایمنی صنعتی",
+    "sector": "industry"
+  },
+  {
+    "emoji": "🖨",
+    "name": "خدمات چاپ و تبلیغات",
+    "sector": "services"
+  },
+  {
+    "emoji": "📸",
+    "name": "عکاسی و فیلمبرداری",
+    "sector": "services"
+  },
+  {
+    "emoji": "💄",
+    "name": "آرایشگاه و سالن زیبایی",
+    "sector": "services"
+  },
+  {
+    "emoji": "🍽",
+    "name": "رستوران و کافه",
+    "sector": "services"
+  },
+  {
+    "emoji": "🏨",
+    "name": "هتل و اقامتگاه",
+    "sector": "services"
+  },
+  {
+    "emoji": "✈",
+    "name": "آژانس مسافرتی",
+    "sector": "services"
+  },
+  {
+    "emoji": "🎓",
+    "name": "خدمات آموزشی و تدریس",
+    "sector": "services"
+  },
+  {
+    "emoji": "💼",
+    "name": "خدمات مشاوره",
+    "sector": "services"
+  },
+  {
+    "emoji": "💻",
+    "name": "خدمات دیجیتال و طراحی",
+    "sector": "services"
+  },
+  {
+    "emoji": "🚚",
+    "name": "خدمات ارسال و پیک",
+    "sector": "services"
+  },
+  {
+    "emoji": "✨",
+    "name": "سایر (صنف آزاد)",
+    "sector": "other"
+  }
+]

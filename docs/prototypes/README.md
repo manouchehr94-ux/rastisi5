@@ -1,0 +1,1 @@
+Place extracted rastisi-site and merchant-panel-x25 HTML prototypes here.

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ورود · راستیسی</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%230d9488'/><stop offset='1' stop-color='%23f97316'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><text x='16' y='22' text-anchor='middle' font-size='17' fill='white' font-family='Arial' font-weight='bold'>R</text></svg>">
+  
+</head>
+<body>
+<nav class="navbar">
+  <a href="index.html" class="navbar-brand">
+    <span class="brand-icon">R</span>
+    <span>
+      <span class="brand-text-fa">راستیسی</span>
+      <span class="brand-text-en">RASTISI</span>
+    </span>
+  </a>
+  <button class="navbar-toggle" onclick="toggleMobileMenu()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="navbar-menu" id="navbarMenu">
+    <a href="index.html" class="nav-link">خانه</a>
+    <a href="features.html" class="nav-link">امکانات</a>
+    <a href="categories.html" class="nav-link">صنوف</a>
+    <a href="plans.html" class="nav-link">پلن‌ها</a>
+    <a href="how-it-works.html" class="nav-link">روش کار</a>
+    <a href="faq.html" class="nav-link">سوالات</a>
+    <a href="contact.html" class="nav-link">تماس</a>
+    <div class="nav-cta-group">
+      <a href="login.html" class="btn btn-secondary btn-sm">ورود</a>
+      <a href="register.html" class="btn btn-primary btn-sm">شروع کنید</a>
+    </div>
+  </div>
+</nav>
+<div class="menu-overlay" id="menuOverlay"></div>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">R</div>
+    <h1 class="auth-title">ورود به حساب</h1>
+    <p class="auth-subtitle">خوش آمدید! دوباره شما را می‌بینیم.</p>
+
+    <form data-demo-form="خوش آمدید! در حال انتقال به داشبورد..." data-redirect="dashboard.html">
+      <div class="form-group">
+        <label class="form-label">شماره موبایل یا ایمیل</label>
+        <div class="input-group">
+          <input type="text" class="form-control" placeholder="۰۹۱۲... یا you@example.com" dir="ltr" required>
+          <span class="input-icon">👤</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">رمز عبور</label>
+        <div class="input-group">
+          <input type="password" class="form-control" placeholder="••••••••" required>
+          <span class="input-icon">🔒</span>
+        </div>
+      </div>
+      <div class="flex justify-between items-center mb-4" style="font-size:13px;">
+        <label class="checkbox-group" style="margin:0;">
+          <input type="checkbox"> مرا به خاطر بسپار
+        </label>
+        <a href="#" style="color:var(--color-primary-dark);font-weight:700;">فراموشی رمز؟</a>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block btn-lg">ورود</button>
+    </form>
+
+    <div class="divider">یا ورود با</div>
+    <div class="social-auth">
+      <button class="social-btn" data-toast="در حال اتصال به گوگل..." data-toast-type="info">
+        <span style="font-size:16px;">G</span> گوگل
+      </button>
+      <button class="social-btn" data-toast="در حال اتصال به تلگرام..." data-toast-type="info">
+        <span style="font-size:16px;">✈</span> تلگرام
+      </button>
+    </div>
+
+    <div class="auth-footer">
+      حساب ندارید؟ <a href="register.html">ثبت‌نام کنید</a>
+    </div>
+  </div>
+</div>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

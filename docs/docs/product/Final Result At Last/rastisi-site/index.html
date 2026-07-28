@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ساخت فروشگاه اینترنتی · راستیسی</title>
+  <meta name="description" content="راستیسی - پلتفرم ساخت فروشگاه اینترنتی. در ۵ دقیقه فروشگاه خود را بسازید.">
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%230d9488'/><stop offset='1' stop-color='%23f97316'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><text x='16' y='22' text-anchor='middle' font-size='17' fill='white' font-family='Arial' font-weight='bold'>R</text></svg>">
+  
+</head>
+<body class="">
+<nav class="navbar">
+  <a href="index.html" class="navbar-brand">
+    <span class="brand-icon">R</span>
+    <span>
+      <span class="brand-text-fa">راستیسی</span>
+      <span class="brand-text-en">RASTISI</span>
+    </span>
+  </a>
+  <button class="navbar-toggle" onclick="toggleMobileMenu()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="navbar-menu" id="navbarMenu">
+    <a href="index.html" class="nav-link">خانه</a>
+    <a href="features.html" class="nav-link">امکانات</a>
+    <a href="categories.html" class="nav-link">صنوف</a>
+    <a href="plans.html" class="nav-link">پلن‌ها</a>
+    <a href="how-it-works.html" class="nav-link">روش کار</a>
+    <a href="faq.html" class="nav-link">سوالات</a>
+    <a href="contact.html" class="nav-link">تماس</a>
+    <div class="nav-cta-group">
+      <a href="login.html" class="btn btn-secondary btn-sm">ورود</a>
+      <a href="register.html" class="btn btn-primary btn-sm">شروع کنید</a>
+    </div>
+  </div>
+</nav>
+<div class="menu-overlay" id="menuOverlay"></div>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-badge">
+    <span class="pulse"></span>
+    <span>جدید: پشتیبانی از ۱۰۰+ صنف شغلی</span>
+  </div>
+  <h1 class="hero-title">
+    فروشگاه اینترنتی خود را
+    <span class="gradient">در ۵ دقیقه</span>
+    بسازید
+  </h1>
+  <p class="hero-subtitle">
+    راستیسی پلتفرم هوشمند ساخت فروشگاه آنلاین است. بدون نیاز به دانش فنی، از بین ۱۰۰ صنف شغلی، رسته خود را انتخاب کنید، زیردامنه اختصاصی بگیرید و_same secrecy فروشگاهتان را امروز راه‌اندازی کنید.
+  </p>
+  <div class="hero-cta">
+    <a href="register.html" class="btn btn-primary btn-lg">
+      شروع رایگان
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </a>
+    <a href="how-it-works.html" class="btn btn-secondary btn-lg">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      مشاهده دمو
+    </a>
+  </div>
+  <div class="hero-trust">
+    <div><span style="color:var(--color-success);">✓</span> ۷ روز ضمانت بازگشت وجه</div>
+    <div><span style="color:var(--color-success);">✓</span> بدون نیاز به کارت بانکی برای شروع</div>
+    <div><span style="color:var(--color-success);">✓</span> پشتیبانی فارسی ۲۴/۷</div>
+  </div>
+
+  <div class="hero-stats">
+    <div class="hero-stat"><div class="stat-num">۱۲٬۵۰۰+</div><div class="stat-lbl">فروشگاه فعال</div></div>
+    <div class="hero-stat"><div class="stat-num">۱۰۰+</div><div class="stat-lbl">صنف شغلی</div></div>
+    <div class="hero-stat"><div class="stat-num">۸٫۴م</div><div class="stat-lbl">تومان فروش ماهانه</div></div>
+    <div class="hero-stat"><div class="stat-num">۴٫۹/۵</div><div class="stat-lbl">رضایت کاربران</div></div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="section">
+  <div class="section-header">
+    <span class="section-eyebrow">✨ چرا راستیسی؟</span>
+    <h2 class="section-title">هرآنچه برای فروش آنلاین نیاز دارید</h2>
+    <p class="section-subtitle">یک پلتفرم کامل برای راه‌اندازی، مدیریت و رشد فروشگاه اینترنتی شما. بدون نیاز به برنامه‌نویسی، هاست یا دامین دانش فنی.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon bg-teal">🚀</div>
+      <h3 class="feature-title">راه‌اندازی سریع</h3>
+      <p class="feature-desc">فروشگاهتان را در کمتر از ۵ دقیقه با ویزارد هوشمند راه‌اندازی کنید. فقط اطلاعات پایه را وارد کنید.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon bg-orange">🏪</div>
+      <h3 class="feature-title">۱۰۰+ صنف آماده</h3>
+      <p class="feature-desc">از پوشاک تا دیجیتال، از خوراک تا خدمات. قالب آماده متناسب با کسب‌وکار خود انتخاب کنید.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon bg-violet">🌐</div>
+      <h3 class="feature-title">زیردامنه اختصاصی</h3>
+      <p class="feature-desc">به محض ثبت، زیردامنه اختصاصی yourstore.rastisi.ir دریافت کنید. امکان اتصال دامنه شخصی هم وجود دارد.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon bg-pink">💳</div>
+      <h3 class="feature-title">درگاه پرداخت</h3>
+      <p class="feature-desc">اتصال به درگاه‌های معتبر ایرانی (زرین‌پال، آی‌دی‌پی، پی‌پینگ) و دریافت آنی وجه.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon bg-blue">📦</div>
+      <h3 class="feature-title">مدیریت محصولات</h3>
+      <p class="feature-desc">افزودن نامحدود محصول، دسته‌بندی، تنوع، موجودی، بارکد و ورود گروهی از اکسل.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon bg-green">📊</div>
+      <h3 class="feature-title">گزارش و تحلیل</h3>
+      <p class="feature-desc">داشبورد آماری کامل: فروش، سفارش‌ها، مشتریان، محصولات پرفروش و رشد ماهانه.</p>
+    </div>
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="section">
+  <div class="section-header">
+    <span class="section-eyebrow">⚡ روش کار</span>
+    <h2 class="section-title">از ثبت‌نام تا اولین فروش در ۵ گام</h2>
+    <p class="section-subtitle">فرآیند ساده و شفاف. در عرض چند دقیقه فروشگاهتان آماده دریافت سفارش است.</p>
+  </div>
+  <div class="steps-grid">
+    <div class="step-card">
+      <div class="step-number">۱</div>
+      <h3 class="step-title">ثبت‌نام</h3>
+      <p class="step-desc">با شماره موبایل یا ایمیل ثبت‌نام کنید. کاملاً رایگان.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-number">۲</div>
+      <h3 class="step-title">انتخاب پلن</h3>
+      <p class="step-desc">پلن مناسب کسب‌وکار خود را از بین ۳ پلن پایه، حرفه‌ای و سازمانی انتخاب کنید.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-number">۳</div>
+      <h3 class="step-title">ساخت فروشگاه</h3>
+      <p class="step-desc">صنف شغلی، نام و لوگوی فروشگاه را وارد کنید. زیردامنه اختصاصی دریافت کنید.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-number">۴</div>
+      <h3 class="step-title">اتصال دامنه</h3>
+      <p class="step-desc">(اختیاری) دامنه اختصاصی خود را متصل کنید یا از زیردامنه رایگان استفاده کنید.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-number">۵</div>
+      <h3 class="step-title">فعال‌سازی و فروش</h3>
+      <p class="step-desc">فروشگاه فعال شد! محصولات را اضافه کنید و اولین سفارش را دریافت کنید.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Categories Preview -->
+<section class="categories-section">
+  <div class="section">
+    <div class="section-header">
+      <span class="section-eyebrow">🏪 صنوف پشتیبانی‌شده</span>
+      <h2 class="section-title">برای هر کسب‌وکاری، یک راه‌حل</h2>
+      <p class="section-subtitle">۱۰۰ صنف شغلی متنوع + یک صنف «سایر» برای کسب‌وکارهای خاص. قالب آماده هر صنف به‌صورت خودکار تنظیم می‌شود.</p>
+    </div>
+    <div class="categories-grid">
+      <div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">👔</div><div class="cat-name">پوشاک مردانه</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">👗</div><div class="cat-name">پوشاک زنانه</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">🧸</div><div class="cat-name">پوشاک کودک و نوزاد</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">👟</div><div class="cat-name">کفش و چرم</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">👜</div><div class="cat-name">کیف و اکسسوری</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">⌚</div><div class="cat-name">ساعت و جواهر</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">👓</div><div class="cat-name">عینک و لوازم شیشه‌ای</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">🧣</div><div class="cat-name">شال و روسری</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">🛍</div><div class="cat-name">فروشگاه چند منظوره</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">💍</div><div class="cat-name">طل و جواهرات</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">📱</div><div class="cat-name">موبایل و تبلت</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">💻</div><div class="cat-name">لپ‌تاپ و کامپیوتر</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">🎧</div><div class="cat-name">صوتی و تصویری</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">📷</div><div class="cat-name">دوربین عکاسی</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">🎮</div><div class="cat-name">کنسول بازی و گیمینگ</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">⌨</div><div class="cat-name">لوازم جانبی کامپیوتر</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">🖥</div><div class="cat-name">قطعات و سخت‌افزار</div></div><div class="category-card" onclick="window.location.href='categories.html'"><div class="cat-emoji">💡</div><div class="cat-name">گجت‌های هوشمند</div></div>
+    </div>
+    <div class="text-center mt-6">
+      <a href="categories.html" class="btn btn-ghost">مشاهده همه ۱۰۰+ صنف ←</a>
+    </div>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section class="section">
+  <div class="section-header">
+    <span class="section-eyebrow">💰 پلن‌ها و قیمت‌ها</span>
+    <h2 class="section-title">پلنی مناسب هر بودجه</h2>
+    <p class="section-subtitle">بدون هزینه پنهان. هر زمان خواستید می‌توانید پلن خود را ارتقا یا تغییر دهید.</p>
+  </div>
+  <div class="pricing-grid">
+    <div class="pricing-card">
+      <div class="plan-name">پایه</div>
+      <div class="plan-tagline">مناسب کسب‌وکارهای نوپا</div>
+      <div class="plan-price"><span class="num">۳۹۰٬۰۰۰</span><span class="unit">تومان</span></div>
+      <div class="plan-period">در ماه · صورت‌ماهی</div>
+      <ul class="plan-features">
+        <li>تا ۱۰۰ محصول</li>
+        <li>زیردامنه رایگان</li>
+        <li>۱ کاربر مدیر</li>
+        <li>درگاه پرداخت</li>
+        <li>پشتیبانی تلفنی</li>
+        <li class="disabled">گزارش پیشرفته</li>
+        <li class="disabled">اتصال دامنه اختصاصی</li>
+      </ul>
+      <a href="register.html" class="btn btn-secondary btn-block">شروع کنید</a>
+    </div>
+    <div class="pricing-card featured">
+      <div class="pricing-badge">محبوب‌ترین</div>
+      <div class="plan-name">حرفه‌ای</div>
+      <div class="plan-tagline">انتخاب ۸۰٪ فروشندگان</div>
+      <div class="plan-price"><span class="num">۸۹۰٬۰۰۰</span><span class="unit">تومان</span></div>
+      <div class="plan-period">در ماه · صورت‌ماهی</div>
+      <ul class="plan-features">
+        <li>محصولات نامحدود</li>
+        <li>زیردامنه رایگان</li>
+        <li>۵ کاربر مدیر</li>
+        <li>درگاه پرداخت چندگانه</li>
+        <li>پشتیبانی ۲۴/۷</li>
+        <li>گزارش‌های پیشرفته</li>
+        <li>اتصال دامنه اختصاصی</li>
+      </ul>
+      <a href="register.html" class="btn btn-primary btn-block">شروع کنید</a>
+    </div>
+    <div class="pricing-card">
+      <div class="plan-name">سازمانی</div>
+      <div class="plan-tagline">برای کسب‌وکارهای بزرگ</div>
+      <div class="plan-price"><span class="num">۲٬۴۹۰٬۰۰۰</span><span class="unit">تومان</span></div>
+      <div class="plan-period">در ماه · صورت‌ماهی</div>
+      <ul class="plan-features">
+        <li>همه امکانات حرفه‌ای</li>
+        <li>کاربران نامحدود</li>
+        <li>API اختصاصی</li>
+        <li>مدیر حساب اختصاصی</li>
+        <li>چند شعبه</li>
+        <li>گزارش سفارشی</li>
+        <li>آموزش حضوری تیم</li>
+      </ul>
+      <a href="contact.html" class="btn btn-secondary btn-block">تماس با فروش</a>
+    </div>
+  </div>
+</section>
+
+<!-- Testimonials -->
+<section class="section">
+  <div class="section-header">
+    <span class="section-eyebrow">💬 نظر کاربران</span>
+    <h2 class="section-title">۱۲٬۰۰۰+ فروشنده به ما اعتماد کرده‌اند</h2>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon bg-teal" style="width:48px;height:48px;font-size:20px;">👤</div>
+      <p class="feature-desc" style="font-size:14.5px;margin-bottom:14px;">«در عرض ۱۰ دقیقه فروشگاهم رو راه‌اندازی کردم و همون روز اول سفارش گرفتم. راستیسی واقعاً معجزه کرد!»</p>
+      <div style="font-weight:800;color:var(--color-text);">مریم احمدی</div>
+      <div style="font-size:12px;color:var(--color-text-muted);">فروشگاه پوشاک زنانه · تهران</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon bg-orange" style="width:48px;height:48px;font-size:20px;">👤</div>
+      <p class="feature-desc" style="font-size:14.5px;margin-bottom:14px;">«پشتیبانی فوق‌العاده، امکانات کامل و قیمت منطقی. از پلرن دیگه استفاده نمی‌کنم.»</p>
+      <div style="font-weight:800;color:var(--color-text);">رضا کریمی</div>
+      <div style="font-size:12px;color:var(--color-text-muted);">فروشگاه لوازم دیجیتال · شیراز</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon bg-violet" style="width:48px;height:48px;font-size:20px;">👤</div>
+      <p class="feature-desc" style="font-size:14.5px;margin-bottom:14px;">«به‌عنوان کسی که هیچ دانش فنی نداشتم، راستیسی بهترین انتخاب بود. همه چیز آماده و ساده بود.»</p>
+      <div style="font-weight:800;color:var(--color-text);">سحر محمدی</div>
+      <div style="font-size:12px;color:var(--color-text-muted);">فروشگاه صنایع دستی · اصفهان</div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="section" style="text-align:center;">
+  <div class="glass-card" style="max-width:720px;margin:0 auto;padding:50px 40px;">
+    <h2 class="section-title" style="font-size:32px;">آماده شروع هستید؟</h2>
+    <p class="section-subtitle" style="margin-bottom:30px;">همین الان ثبت‌نام کنید و فروشگاه اینترنتی خود را در ۵ دقیقه راه‌اندازی کنید. بدون ریسک، بدون هزینه پنهان.</p>
+    <div class="flex gap-3" style="justify-content:center;flex-wrap:wrap;">
+      <a href="register.html" class="btn btn-primary btn-lg">شروع رایگان</a>
+      <a href="contact.html" class="btn btn-secondary btn-lg">صحبت با کارشناس</a>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-grid">
+    <div class="footer-brand-block">
+      <div class="navbar-brand">
+        <span class="brand-icon">R</span>
+        <span>
+          <span class="brand-text-fa">راستیسی</span>
+          <span class="brand-text-en">RASTISI</span>
+        </span>
+      </div>
+      <p>راستیسی، پلتفرم هوشمند ساخت فروشگاه اینترنتی است. در کمترین زمان، بدون دانش فنی، فروشگاه آنلاین خود را راه‌اندازی کنید.</p>
+    </div>
+    <div class="footer-col">
+      <h4>محصول</h4>
+      <ul>
+        <li><a href="features.html">امکانات</a></li>
+        <li><a href="plans.html">پلن‌ها و قیمت‌ها</a></li>
+        <li><a href="categories.html">صنوف پشتیبانی‌شده</a></li>
+        <li><a href="how-it-works.html">روش کار</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>شرکت</h4>
+      <ul>
+        <li><a href="about.html">درباره ما</a></li>
+        <li><a href="contact.html">تماس با ما</a></li>
+        <li><a href="faq.html">سوالات متداول</a></li>
+        <li><a href="#">وبلاگ</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>پشتیبانی</h4>
+      <ul>
+        <li><a href="#">مرکز راهنما</a></li>
+        <li><a href="#">تیکت پشتیبانی</a></li>
+        <li><a href="#">قوانین و مقررات</a></li>
+        <li><a href="#">حریم خصوصی</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div>© ۱۴۰۵ راستیسی · تمامی حقوق محفوظ است</div>
+    <div class="footer-socials">
+      <a href="#" title="اینستاگرام">📷</a>
+      <a href="#" title="تلگرام">✈</a>
+      <a href="#" title="واتساپ">💬</a>
+      <a href="#" title="آپارات">▶</a>
+    </div>
+  </div>
+</footer>
+<script src="assets/app.js"></script>
+</body>
+</html>

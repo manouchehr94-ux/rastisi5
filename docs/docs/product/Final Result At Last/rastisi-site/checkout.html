@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تکمیل خرید · راستیسی</title>
+  <meta name="description" content="راستیسی - پلتفرم ساخت فروشگاه اینترنتی. در ۵ دقیقه فروشگاه خود را بسازید.">
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%230d9488'/><stop offset='1' stop-color='%23f97316'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><text x='16' y='22' text-anchor='middle' font-size='17' fill='white' font-family='Arial' font-weight='bold'>R</text></svg>">
+  
+</head>
+<body class="">
+<nav class="navbar">
+  <a href="index.html" class="navbar-brand">
+    <span class="brand-icon">R</span>
+    <span>
+      <span class="brand-text-fa">راستیسی</span>
+      <span class="brand-text-en">RASTISI</span>
+    </span>
+  </a>
+  <button class="navbar-toggle" onclick="toggleMobileMenu()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="navbar-menu" id="navbarMenu">
+    <a href="index.html" class="nav-link">خانه</a>
+    <a href="features.html" class="nav-link">امکانات</a>
+    <a href="categories.html" class="nav-link">صنوف</a>
+    <a href="plans.html" class="nav-link">پلن‌ها</a>
+    <a href="how-it-works.html" class="nav-link">روش کار</a>
+    <a href="faq.html" class="nav-link">سوالات</a>
+    <a href="contact.html" class="nav-link">تماس</a>
+    <div class="nav-cta-group">
+      <a href="login.html" class="btn btn-secondary btn-sm">ورود</a>
+      <a href="register.html" class="btn btn-primary btn-sm">شروع کنید</a>
+    </div>
+  </div>
+</nav>
+<div class="menu-overlay" id="menuOverlay"></div>
+
+<section class="auth-wrap" style="padding-top:30px;">
+  <div style="width:100%;max-width:780px;">
+    <div class="text-center mb-6">
+      <h1 style="font-size:30px;font-weight:900;color:var(--color-text);">تکمیل خرید</h1>
+      <p style="font-size:14px;color:var(--color-text-muted);margin-top:6px;">مرحله نهایی! پرداخت را تکمیل کنید تا فروشگاهتان ساخته شود.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:24px;align-items:start;" class="checkout-grid">
+      <!-- Form -->
+      <div class="glass-card">
+        <h3 style="font-size:17px;font-weight:800;margin-bottom:18px;color:var(--color-text);">اطلاعات صورتحساب</h3>
+        <form data-demo-form="پرداخت با موفقیت انجام شد! در حال انتقال به ساخت فروشگاه..." data-redirect="store-setup.html">
+          <div class="form-group">
+            <label class="form-label">نام و نام خانوادگی <span class="req">*</span></label>
+            <input type="text" class="form-control" placeholder="نام شما" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">شماره موبایل <span class="req">*</span></label>
+            <input type="tel" class="form-control" placeholder="۰۹۱۲..." dir="ltr" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">ایمیل</label>
+            <input type="email" class="form-control" placeholder="you@example.com" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">کد ملی</label>
+            <input type="text" class="form-control" placeholder="کد ملی ۱۰ رقمی" dir="ltr">
+          </div>
+
+          <h3 style="font-size:17px;font-weight:800;margin:22px 0 14px;color:var(--color-text);">روش پرداخت</h3>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <label style="display:flex;align-items:center;gap:10px;padding:14px;border:1.5px solid var(--glass-border);border-radius:12px;cursor:pointer;background:var(--glass-bg-strong);">
+              <input type="radio" name="payment" checked style="accent-color:var(--color-primary);width:18px;height:18px;">
+              <span style="font-size:20px;">💳</span>
+              <div>
+                <div style="font-weight:700;font-size:14px;">درگاه بانکی (زرین‌پال)</div>
+                <div style="font-size:12px;color:var(--color-text-muted);">پرداخت آنلاین با تمام کارت‌های بانکی</div>
+              </div>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:14px;border:1.5px solid var(--glass-border);border-radius:12px;cursor:pointer;background:var(--glass-bg-strong);">
+              <input type="radio" name="payment" style="accent-color:var(--color-primary);width:18px;height:18px;">
+              <span style="font-size:20px;">🏦</span>
+              <div>
+                <div style="font-weight:700;font-size:14px;">کارت به کارت</div>
+                <div style="font-size:12px;color:var(--color-text-muted);">پرداخت دستی و ارسال رسید</div>
+              </div>
+            </label>
+          </div>
+
+          <div class="checkbox-group" style="margin-top:18px;">
+            <input type="checkbox" required>
+            <span><a href="#" style="color:var(--color-primary-dark);font-weight:700;">قوانین و مقررات</a> را می‌پذیرم.</span>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top:14px;">
+            پرداخت و شروع فروشگاه
+          </button>
+        </form>
+      </div>
+
+      <!-- Summary -->
+      <div class="glass-card" style="position:sticky;top:90px;">
+        <h3 style="font-size:17px;font-weight:800;margin-bottom:18px;color:var(--color-text);">خلاصه سفارش</h3>
+        <div style="padding:14px;background:var(--glass-bg-soft);border-radius:12px;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;">
+            <span class="text-muted">پلن انتخابی:</span>
+            <strong id="selectedPlan">حرفه‌ای</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;">
+            <span class="text-muted">دوره:</span>
+            <strong>یک ماه</strong>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px dashed var(--glass-border-soft);font-size:13.5px;">
+          <span class="text-muted">قیمت پلن</span>
+          <span id="selectedPrice">۸۹۰٬۰۰۰ تومان</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px dashed var(--glass-border-soft);font-size:13.5px;">
+          <span class="text-muted">زیردامنه</span>
+          <span class="text-success">رایگان</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px dashed var(--glass-border-soft);font-size:13.5px;">
+          <span class="text-muted">راه‌اندازی</span>
+          <span class="text-success">رایگان</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:14px 0 0;font-size:18px;font-weight:900;">
+          <span>مجموع:</span>
+          <span style="background:linear-gradient(135deg,var(--color-primary-dark),var(--color-accent));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;" id="totalPrice">۸۹۰٬۰۰۰ ت</span>
+        </div>
+        <div style="margin-top:16px;padding:10px;background:rgba(16,185,129,0.1);border-radius:10px;font-size:12px;color:#047857;font-weight:600;text-align:center;">
+          ✓ ۷ روز ضمانت بازگشت وجه
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+@media (max-width: 768px) {
+  .checkout-grid { grid-template-columns: 1fr !important; }
+}
+</style>
+
+<footer class="footer">
+  <div class="footer-grid">
+    <div class="footer-brand-block">
+      <div class="navbar-brand">
+        <span class="brand-icon">R</span>
+        <span>
+          <span class="brand-text-fa">راستیسی</span>
+          <span class="brand-text-en">RASTISI</span>
+        </span>
+      </div>
+      <p>راستیسی، پلتفرم هوشمند ساخت فروشگاه اینترنتی است. در کمترین زمان، بدون دانش فنی، فروشگاه آنلاین خود را راه‌اندازی کنید.</p>
+    </div>
+    <div class="footer-col">
+      <h4>محصول</h4>
+      <ul>
+        <li><a href="features.html">امکانات</a></li>
+        <li><a href="plans.html">پلن‌ها و قیمت‌ها</a></li>
+        <li><a href="categories.html">صنوف پشتیبانی‌شده</a></li>
+        <li><a href="how-it-works.html">روش کار</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>شرکت</h4>
+      <ul>
+        <li><a href="about.html">درباره ما</a></li>
+        <li><a href="contact.html">تماس با ما</a></li>
+        <li><a href="faq.html">سوالات متداول</a></li>
+        <li><a href="#">وبلاگ</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>پشتیبانی</h4>
+      <ul>
+        <li><a href="#">مرکز راهنما</a></li>
+        <li><a href="#">تیکت پشتیبانی</a></li>
+        <li><a href="#">قوانین و مقررات</a></li>
+        <li><a href="#">حریم خصوصی</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div>© ۱۴۰۵ راستیسی · تمامی حقوق محفوظ است</div>
+    <div class="footer-socials">
+      <a href="#" title="اینستاگرام">📷</a>
+      <a href="#" title="تلگرام">✈</a>
+      <a href="#" title="واتساپ">💬</a>
+      <a href="#" title="آپارات">▶</a>
+    </div>
+  </div>
+</footer>
+<script src="assets/app.js"></script>
+</body>
+</html>

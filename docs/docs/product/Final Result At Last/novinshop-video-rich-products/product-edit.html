@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ویرایش محصول · نوین‌شاپ</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%236366f1'/><stop offset='1' stop-color='%23ec4899'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><text x='16' y='22' text-anchor='middle' font-size='17' fill='white' font-family='Arial' font-weight='bold'>N</text></svg>">
+  
+</head>
+<body>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-icon">N</span>
+    <span class="brand-text">نوین‌شاپ</span>
+  </div>
+  <ul class="sidebar-menu">
+    <li class="menu-group">
+      <a href="index.html" class="menu-item" data-key="dashboard">
+        <span class="menu-icon">⊞</span><span>داشبورد</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">🛒</span><span>مدیریت سفارش</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="orders.html" data-key="orders">لیست سفارش‌ها</a></li>
+        <li><a href="draft-orders.html" data-key="draft-orders">سبدهای رها شده</a></li>
+        <li><a href="payments.html" data-key="payments">تراکنش‌های مالی</a></li>
+        <li><a href="coupons.html" data-key="coupons">بنرها و تخفیف</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">🏷</span><span>کاتالوگ محصول</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="products.html" data-key="products">همه محصولات</a></li>
+        <li><a href="product-create.html" data-key="product-create">افزودن محصول جدید</a></li>
+        <li><a href="import-products.html" data-key="import-products">ورود گروهی محصولات</a></li>
+        <li><a href="categories.html" data-key="categories">دسته‌بندی‌ها</a></li>
+        <li><a href="industry-setup.html" data-key="industry-setup">ساختار صنف و کاتالوگ</a></li>
+        <li><a href="brands.html" data-key="brands">برندها</a></li>
+        <li><a href="product-comments.html" data-key="product-comments">نظرات کاربران</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <a href="customers.html" class="menu-item" data-key="customers">
+        <span class="menu-icon">👤</span><span>پایگاه مشتریان</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">📄</span><span>محتوای فروشگاه</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="pages.html" data-key="pages">صفحات سایت</a></li>
+        <li><a href="page-comments.html" data-key="page-comments">بازخورد صفحات</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">💳</span><span>حسابداری</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="subscription.html" data-key="subscription">پلن اشتراک</a></li>
+        <li><a href="invoices.html" data-key="invoices">فاکتورها</a></li>
+        <li><a href="wallet-transactions.html" data-key="wallet-transactions">گردش کیف پول</a></li>
+        <li><a href="business-info.html" data-key="business-info">اطلاعات حقوقی</a></li>
+        <li><a href="invite-friends.html" data-key="invite-friends">همکاری در فروش</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">📊</span><span>تحلیل و گزارش</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="order-report.html" data-key="order-report">تحلیل فروش</a></li>
+        <li><a href="product-report.html" data-key="product-report">عملکرد محصولات</a></li>
+        <li><a href="customer-report.html" data-key="customer-report">رفتار مشتریان</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <a href="guide.html" class="menu-item" data-key="guide">
+        <span class="menu-icon">❓</span><span>مرکز آموزش</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <a href="ticketing.html" class="menu-item" data-key="ticketing">
+        <span class="menu-icon">✉</span><span>پشتیبانی</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <a href="instagram.html" class="menu-item" data-key="instagram">
+        <span class="menu-icon">📷</span><span>شبکه‌های اجتماعی</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">⚙</span><span>پیکربندی</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="general-configs.html" data-key="general-configs">تنظیمات پایه</a></li>
+        <li><a href="shipping-settings.html" data-key="shipping-settings">لجستیک و ارسال</a></li>
+        <li><a href="payment-settings.html" data-key="payment-settings">درگاه‌های پرداخت</a></li>
+        <li><a href="appearance-settings.html" data-key="appearance-settings">طراحی بصری</a></li>
+        <li><a href="home-page-content.html" data-key="home-page-content">صفحه نخست</a></li>
+        <li><a href="order-settings.html" data-key="order-settings">قوانین سفارش</a></li>
+        <li><a href="cashback-settings.html" data-key="cashback-settings">کش‌بک و کیف پول</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <a href="logs.html" class="menu-item" data-key="logs">
+        <span class="menu-icon">🕘</span><span>رویدادهای سیستم</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">📱</span><span>سرویس پیام</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="sms-list.html" data-key="sms-list">صندوق پیام‌ها</a></li>
+        <li><a href="sms-report.html" data-key="sms-report">آمار پیام‌ها</a></li>
+        <li><a href="sms-custom.html" data-key="sms-custom">قالب‌های پیام</a></li>
+        <li><a href="sms-gateway-settings.html" data-key="sms-gateway-settings">تنظیمات درگاه پیامک</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <a href="marketing.html" class="menu-item" data-key="marketing">
+        <span class="menu-icon">🚀</span><span>بازاریابی و رشد</span>
+      </a>
+    </li>
+  </ul>
+  <div class="sidebar-footer">نسخه ۲.۰ · نوین‌شاپ</div>
+</aside>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<div class="main-area" id="mainArea">
+<nav class="navbar">
+    <button class="navbar-toggle" onclick="toggleSidebar()" aria-label="منو">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div class="navbar-brand">
+      <span class="brand-icon">N</span>
+      <span class="brand-text">نوین‌شاپ</span>
+    </div>
+    <div class="navbar-actions">
+      <a href="#" class="btn-nav" data-action="view-store">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        <span>پیشنمایش فروشگاه</span>
+      </a>
+      <a href="login.html" class="btn-nav" data-action="logout">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>خروج از حساب</span>
+      </a>
+      <div class="user-chip">
+        <span class="avatar">ر</span>
+        <span class="user-name">رضا منصوری</span>
+      </div>
+    </div>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">ویرایش محصول</h1>
+        <div class="breadcrumb">
+          <a href="index.html">داشبورد</a>
+          <span class="breadcrumb-sep">›</span>
+          <span>کاتالوگ محصول / ویرایش محصول</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-info">
+      <span>💡</span>
+      <div>برای ساخت محصول، اطلاعات را در بخش‌های زیر وارد کنید. فیلدهای دارای <span class="text-danger">*</span> اجباری هستند.</div>
+    </div>
+
+    <form data-demo-form="محصول با موفقیت ذخیره شد">
+      <div class="form-section">
+        <div class="form-section-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
+          <span>اطلاعات اصلی</span><span>▾</span>
+        </div>
+        <div class="form-section-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">عنوان محصول <span class="required">*</span></label>
+              <input type="text" class="form-control" placeholder="نام محصول" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">عنوان انگلیسی</label>
+              <input type="text" class="form-control" placeholder="English Title" dir="ltr">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">تصویر اصلی</label>
+            <div class="upload-zone">
+              <span class="upload-icon">📸</span>
+              <div class="upload-text">تصویر را اینجا بکشید یا کلیک کنید</div>
+              <div class="upload-hint">JPG, PNG, WEBP — حداکثر ۵ مگابایت</div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">دسته‌بندی <span class="required">*</span></label>
+              <select class="form-control"><option value="">انتخاب...</option><option>موبایل</option><option>لپ‌تاپ</option><option>صوتی و تصویری</option><option>لوازم جانبی</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">قیمت (تومان) <span class="required">*</span></label>
+              <input type="number" class="form-control" placeholder="۰" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">قیمت قبل تخفیف</label>
+              <input type="number" class="form-control" placeholder="۰">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">موجودی انبار</label>
+              <div class="flex items-center gap-2">
+                <input type="number" class="form-control" placeholder="۰">
+                <label class="flex items-center gap-2" style="font-size:12.5px;white-space:nowrap;">
+                  <input type="checkbox"> نامحدود
+                </label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">حداکثر تعداد در هر سفارش</label>
+              <input type="number" class="form-control" placeholder="۰">
+              <div class="form-hint">۰ = بدون محدودیت</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">بارکد محصول</label>
+              <input type="text" class="form-control" placeholder="۶۲۶..." dir="ltr">
+            </div>
+            <div class="form-group">
+              <label class="form-label">کد محصول (SKU)</label>
+              <input type="text" class="form-control" placeholder="SKU" dir="ltr">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="flex items-center gap-2" style="font-size:13px;font-weight:600;">
+              <input type="checkbox"> پیشنهاد ویژه (نمایش در صفحه نخست)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
+          <span>مشخصات لجستیک</span><span>▾</span>
+        </div>
+        <div class="form-section-body">
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">وزن (گرم)</label><input type="number" class="form-control" placeholder="۰"></div>
+            <div class="form-group"><label class="form-label">ابعاد (سانتیمتر)</label><input type="text" class="form-control" placeholder="طول × عرض × ارتفاع"></div>
+            <div class="form-group"><label class="form-label">نوع بسته‌بندی</label><select class="form-control"><option>کارتن</option><option>پاکت</option><option>پلاستیک</option></select></div>
+          </div>
+          <div class="form-group"><label class="flex items-center gap-2" style="font-size:13px;font-weight:600;"><input type="checkbox"> نیاز به بیمه ارسال</label></div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
+          <span>مشخصات فنی</span><span>▾</span>
+        </div>
+        <div class="form-section-body">
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">رنگ</label><input type="text" class="form-control" placeholder="مشکی، سفید، آبی"></div>
+            <div class="form-group"><label class="form-label">جنس</label><input type="text" class="form-control" placeholder="پلاستیک، فلز"></div>
+            <div class="form-group"><label class="form-label">کشور سازنده</label><input type="text" class="form-control" placeholder="ژاپن"></div>
+            <div class="form-group"><label class="form-label">گارانتی</label><input type="text" class="form-control" placeholder="۱۸ ماه"></div>
+          </div>
+          <div class="form-group">
+            <label class="flex items-center gap-2" style="font-size:13px;font-weight:600;">
+              فعال
+              <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
+          <span>دسته‌بندی و برند</span><span>▾</span>
+        </div>
+        <div class="form-section-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">دسته‌های فرعی</label>
+              <select class="form-control" multiple style="height:100px;">
+                <option>موبایل</option>
+                <option>جانبی موبایل</option>
+                <option>گجت</option>
+                <option>هوشمند</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px"><label class="form-label" style="margin:0">برند محصول</label><a href="brands.html" class="text-link" target="_blank">مدیریت برندها</a></div>
+              <div class="brand-select-wrap"><select class="form-control" id="productBrandSelect"><option value="">بدون برند</option></select><button type="button" class="btn btn-sm btn-outline" id="quickAddBrandBtn">+ برند جدید</button></div>
+              <small class="field-help">برند ثبت‌شده در صفحه محصول و فیلترهای فروشگاه قابل نمایش است.</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">برچسب‌ها</label>
+              <input type="text" class="form-control" placeholder="با کاما جدا کنید">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
+          <span>تنوع‌ها (Variants)</span><span>▾</span>
+        </div>
+        <div class="form-section-body">
+          <div class="alert alert-info"><span>ℹ</span><div>تنوع‌ها به مشتری اجازه می‌دهند محصول را در رنگ، سایز یا ویژگی‌های مختلف انتخاب کند.</div></div>
+          <button type="button" class="btn btn-outline" data-toast="فرم تنوع باز شد">+ افزودن تنوع</button>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
+          <span>توضیحات محصول</span><span>▾</span>
+        </div>
+        <div class="form-section-body">
+          <div style="border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;background:var(--glass-bg-strong);">
+            <div style="padding:8px;background:var(--glass-bg-soft);border-bottom:1px solid var(--glass-border-soft);display:flex;gap:4px;">
+              <button type="button" style="padding:6px 10px;border-radius:7px;font-weight:bold;background:var(--glass-bg-strong);" data-toast="Bold">B</button>
+              <button type="button" style="padding:6px 10px;border-radius:7px;font-style:italic;background:var(--glass-bg-strong);" data-toast="Italic">I</button>
+              <button type="button" style="padding:6px 10px;border-radius:7px;text-decoration:underline;background:var(--glass-bg-strong);" data-toast="Underline">U</button>
+              <button type="button" style="padding:6px 10px;border-radius:7px;background:var(--glass-bg-strong);" data-toast="List">≡</button>
+              <button type="button" style="padding:6px 10px;border-radius:7px;background:var(--glass-bg-strong);" data-toast="Link">🔗</button>
+            </div>
+            <textarea class="form-control" style="border:none;border-radius:0;min-height:200px;background:transparent;" placeholder="توضیحات کامل محصول..."></textarea>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="form-section product-rich-section">
+        <div class="form-section-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
+          <span>محتوای تکمیلی محصول <small class="optional-badge">اختیاری</small></span><span>▾</span>
+        </div>
+        <div class="form-section-body" style="display:none">
+          <div class="alert alert-info"><span>✨</span><div><strong>ثبت سریع کالا تغییری نمی‌کند.</strong><br><span style="font-size:12px">این بخش فقط برای محصولاتی است که به معرفی تصویری یا ویژگی‌های تخصصی نیاز دارند.</span></div></div>
+
+          <div class="rich-card">
+            <div class="rich-card-head">
+              <div><strong>ویدیوی معرفی محصول</strong><div class="form-hint">لینک آپارات یا YouTube را وارد کنید؛ کد iframe لازم نیست.</div></div>
+              <label class="toggle"><input type="checkbox" class="rich-enable" data-target="productVideoFields"><span class="toggle-slider"></span></label>
+            </div>
+            <div id="productVideoFields" class="rich-toggle-body" hidden>
+              <div class="form-row">
+                <div class="form-group"><label class="form-label">لینک ویدیو</label><input type="url" id="productVideoUrl" class="form-control" dir="ltr" placeholder="https://www.aparat.com/v/... یا https://youtu.be/..."></div>
+                <div class="form-group"><label class="form-label">عنوان ویدیو</label><input type="text" id="productVideoTitle" class="form-control" placeholder="مثلاً بررسی و روش استفاده"></div>
+              </div>
+              <div class="form-group"><label class="form-label">توضیح کوتاه زیر ویدیو</label><input type="text" id="productVideoCaption" class="form-control" placeholder="اختیاری"></div>
+              <div class="video-preview" id="productVideoPreview"><span>پیش‌نمایش ویدیو پس از وارد کردن لینک نمایش داده می‌شود.</span></div>
+              <div class="form-hint">برای امنیت، فقط دامنه‌های مجاز و شناخته‌شده در نسخه نهایی باید قابل درج باشند.</div>
+            </div>
+          </div>
+
+          <div class="rich-card">
+            <div class="rich-card-head">
+              <div><strong>گروه‌های معرفی تصویری / ویژگی‌های قابل کلیک</strong><div class="form-hint">برای عطر: نت آغازی، میانی و ماندگار؛ برای پوشاک، قطعات، موبایل و هر صنف دیگر قابل تغییر است.</div></div>
+              <label class="toggle"><input type="checkbox" class="rich-enable" data-target="featureGroupFields"><span class="toggle-slider"></span></label>
+            </div>
+            <div id="featureGroupFields" class="rich-toggle-body" hidden>
+              <div class="preset-row">
+                <span class="form-label" style="margin:0">شروع سریع:</span>
+                <button type="button" class="btn btn-sm btn-outline rich-preset" data-preset="perfume">عطر و ادکلن</button>
+                <button type="button" class="btn btn-sm btn-outline rich-preset" data-preset="fashion">پوشاک</button>
+                <button type="button" class="btn btn-sm btn-outline rich-preset" data-preset="auto">لوازم یدکی</button>
+                <button type="button" class="btn btn-sm btn-outline rich-preset" data-preset="mobile">موبایل</button>
+                <button type="button" class="btn btn-sm btn-outline rich-preset" data-preset="blank">سفارشی</button>
+              </div>
+              <div id="featureGroupsBuilder"></div>
+              <button type="button" class="btn btn-outline" id="addFeatureGroup">+ افزودن گروه</button>
+              <div class="form-hint" style="margin-top:9px">هر آیتم می‌تواند تصویر، عنوان، توضیح و لینک داشته باشد. لینک اختیاری است؛ بدون لینک نیز به‌صورت کارت اطلاعاتی نمایش داده می‌شود.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
+          <span>بهینه‌سازی موتور جستجو (SEO)</span><span>▾</span>
+        </div>
+        <div class="form-section-body">
+          <div class="form-group"><label class="form-label">عنوان سئو</label><input type="text" class="form-control" placeholder="عنوان برای موتورهای جستجو"><div class="form-hint">۶۰ کاراکتر پیشنهاد می‌شود</div></div>
+          <div class="form-group"><label class="form-label">توضیحات متا</label><textarea class="form-control" placeholder="توضیحات متای محصول"></textarea><div class="form-hint">۱۶۰ کاراکتر پیشنهاد می‌شود</div></div>
+          <div class="form-group"><label class="form-label">آدرس (URL)</label><input type="text" class="form-control" placeholder="product-url" dir="ltr"></div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
+          <span>نقد و بررسی تخصصی</span><span>▾</span>
+        </div>
+        <div class="form-section-body">
+          <div class="form-group"><label class="form-label">نقد تخصصی</label><textarea class="form-control" placeholder="نقد تخصصی محصول..."></textarea></div>
+          <div class="form-group"><label class="flex items-center gap-2" style="font-size:13px;font-weight:600;"><input type="checkbox" checked> نمایش نظرات کاربران</label></div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">ذخیره و ادامه</button>
+        <a href="products.html" class="btn btn-success">ذخیره و بازگشت</a>
+        <button type="submit" class="btn btn-outline">ذخیره و ایجاد جدید</button>
+      </div>
+    </form>
+
+  </main>
+</div>
+<script src="assets/app.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const key = 'products';
+    document.querySelectorAll('.menu-item[data-key="' + key + '"]').forEach(function(el) {
+      el.classList.add('active');
+    });
+    document.querySelectorAll('.menu-sub a[data-key="' + key + '"]').forEach(function(el) {
+      el.classList.add('active');
+      const sub = el.closest('.menu-sub');
+      if (sub) {
+        sub.classList.add('open');
+        const header = sub.previousElementSibling;
+        if (header) header.classList.add('expanded');
+      }
+    });
+  });
+</script>
+<style>.brand-select-wrap{display:grid;grid-template-columns:1fr auto;gap:8px}.text-link{font-size:12px;color:var(--primary);text-decoration:none}.field-help{display:block;margin-top:6px;color:var(--text-muted)}@media(max-width:520px){.brand-select-wrap{grid-template-columns:1fr}}</style>
+<script>
+(function(){const KEY='novinshop_brands_v1';const defaults=[{id:'b1',nameFa:'لانکوم',nameEn:'LANCOME',active:true},{id:'b2',nameFa:'ورساچه',nameEn:'VERSACE',active:true},{id:'b3',nameFa:'شنل',nameEn:'CHANEL',active:true},{id:'b4',nameFa:'استی لادر',nameEn:'ESTEE LAUDER',active:true}];function getBrands(){try{return JSON.parse(localStorage.getItem(KEY))||defaults}catch(e){return defaults}}function fill(selected){const s=document.getElementById('productBrandSelect');if(!s)return;const brands=getBrands();s.innerHTML='<option value="">بدون برند</option>'+brands.filter(b=>b.active).map(b=>`<option value="${b.id}">${b.nameFa} — ${b.nameEn}</option>`).join('');if(selected)s.value=selected}document.addEventListener('DOMContentLoaded',function(){fill();document.getElementById('quickAddBrandBtn')?.addEventListener('click',function(){const fa=prompt('نام فارسی برند را وارد کنید:');if(!fa)return;const en=prompt('نام انگلیسی برند را وارد کنید:');if(!en)return;const brands=getBrands();const item={id:'b'+Date.now(),nameFa:fa.trim(),nameEn:en.trim(),slug:en.toLowerCase().replace(/[^a-z0-9]+/g,'-'),country:'',description:'',logo:'',active:true,products:0};brands.unshift(item);localStorage.setItem(KEY,JSON.stringify(brands));fill(item.id);toast('برند اضافه و برای این محصول انتخاب شد','success')})})})();
+</script><script src="assets/product-rich-content.js"></script><script src="assets/x25-product-variants.js"></script>
+</body>
+</html>

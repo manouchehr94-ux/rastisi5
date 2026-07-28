@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>داشبورد · راستیسی</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%230d9488'/><stop offset='1' stop-color='%23f97316'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><text x='16' y='22' text-anchor='middle' font-size='17' fill='white' font-family='Arial' font-weight='bold'>R</text></svg>">
+  
+</head>
+<body>
+<nav class="navbar">
+  <a href="index.html" class="navbar-brand">
+    <span class="brand-icon">R</span>
+    <span>
+      <span class="brand-text-fa">راستیسی</span>
+      <span class="brand-text-en">RASTISI</span>
+    </span>
+  </a>
+  <button class="navbar-toggle" onclick="toggleMobileMenu()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="navbar-menu" id="navbarMenu">
+    <a href="index.html" class="nav-link">خانه</a>
+    <a href="features.html" class="nav-link">امکانات</a>
+    <a href="categories.html" class="nav-link">صنوف</a>
+    <a href="plans.html" class="nav-link">پلن‌ها</a>
+    <a href="how-it-works.html" class="nav-link">روش کار</a>
+    <a href="faq.html" class="nav-link">سوالات</a>
+    <a href="contact.html" class="nav-link">تماس</a>
+    <div class="nav-cta-group">
+      <a href="login.html" class="btn btn-secondary btn-sm">ورود</a>
+      <a href="register.html" class="btn btn-primary btn-sm">شروع کنید</a>
+    </div>
+  </div>
+</nav>
+<div class="menu-overlay" id="menuOverlay"></div>
+
+<div class="dash-layout">
+  <aside class="dash-sidebar" id="dashSidebar">
+    <div class="dash-brand">پنل مدیریت فروشگاه</div>
+    <ul class="dash-menu">
+      <li><a href="dashboard.html" class="active"><span class="menu-ico">⊞</span> داشبورد</a></li>
+      <li><a href="#"><span class="menu-ico">📦</span> محصولات</a></li>
+      <li><a href="#"><span class="menu-ico">🛒</span> سفارش‌ها</a></li>
+      <li><a href="#"><span class="menu-ico">👥</span> مشتریان</a></li>
+      <li><a href="#"><span class="menu-ico">📊</span> گزارش‌ها</a></li>
+      <li><a href="#"><span class="menu-ico">💳</span> مالی</a></li>
+      <li><a href="#"><span class="menu-ico">⚙</span> تنظیمات</a></li>
+      <li><a href="store-setup.html"><span class="menu-ico">🏪</span> ویرایش فروشگاه</a></li>
+      <li><a href="index.html"><span class="menu-ico">🚪</span> خروج</a></li>
+    </ul>
+  </aside>
+
+  <main class="dash-main">
+    <div class="flex items-center justify-between mb-4" style="flex-wrap:wrap;gap:12px;">
+      <div>
+        <h1 class="dash-page-title">داشبورد فروشگاه</h1>
+        <div class="dash-breadcrumb">خوش آمدید، علی! آخرین ورود: ۵ دقیقه پیش</div>
+      </div>
+      <button class="navbar-toggle" onclick="toggleDashSidebar()" style="display:none;" id="dashToggle">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Setup banner -->
+    <div class="setup-banner">
+      <div style="font-size:36px;">🏪</div>
+      <div class="setup-banner-content">
+        <h3>فروشگاه شما فعال است!</h3>
+        <p>آدرس: <a href="#" style="color:var(--color-primary-dark);font-weight:700;direction:ltr;">novinshop.rastisi.ir</a> · می‌توانید محصولات خود را اضافه کنید.</p>
+      </div>
+      <a href="store-setup.html" class="btn btn-secondary btn-sm">ویرایش فروشگاه</a>
+    </div>
+
+    <!-- Stats -->
+    <div class="dash-stats">
+      <div class="dash-stat">
+        <div class="stat-icon bg-teal">📦</div>
+        <div>
+          <div class="stat-val">۲۴</div>
+          <div class="stat-lbl">محصولات</div>
+        </div>
+      </div>
+      <div class="dash-stat">
+        <div class="stat-icon bg-orange">🛒</div>
+        <div>
+          <div class="stat-val">۱۷</div>
+          <div class="stat-lbl">سفارش‌های امروز</div>
+        </div>
+      </div>
+      <div class="dash-stat">
+        <div class="stat-icon bg-violet">💰</div>
+        <div>
+          <div class="stat-val">۲٫۴م ت</div>
+          <div class="stat-lbl">فروش امروز</div>
+        </div>
+      </div>
+      <div class="dash-stat">
+        <div class="stat-icon bg-green">👥</div>
+        <div>
+          <div class="stat-val">۹۲</div>
+          <div class="stat-lbl">مشتریان</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="glass-card" style="margin-bottom:24px;">
+      <h3 style="font-size:17px;font-weight:800;margin-bottom:18px;color:var(--color-text);">اقدامات سریع</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;">
+        <a href="#" class="btn btn-primary btn-block" data-toast="افزودن محصول جدید">+ محصول جدید</a>
+        <a href="#" class="btn btn-secondary btn-block" data-toast="مدیریت سفارش‌ها">📋 سفارش‌ها</a>
+        <a href="#" class="btn btn-secondary btn-block" data-toast="گزارش فروش">📊 گزارش</a>
+        <a href="#" class="btn btn-secondary btn-block" data-toast="تنظیمات فروشگاه">⚙ تنظیمات</a>
+      </div>
+    </div>
+
+    <!-- Recent orders -->
+    <div class="glass-card">
+      <div class="flex justify-between items-center mb-4">
+        <h3 style="font-size:17px;font-weight:800;color:var(--color-text);">آخرین سفارش‌ها</h3>
+        <a href="#" class="btn btn-sm btn-ghost" data-toast="مشاهده همه سفارش‌ها">مشاهده همه ←</a>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="background:var(--glass-bg-soft);">
+              <th style="padding:12px;text-align:right;font-weight:700;color:var(--color-text-secondary);">کد</th>
+              <th style="padding:12px;text-align:right;font-weight:700;color:var(--color-text-secondary);">مشتری</th>
+              <th style="padding:12px;text-align:right;font-weight:700;color:var(--color-text-secondary);">مبلغ</th>
+              <th style="padding:12px;text-align:right;font-weight:700;color:var(--color-text-secondary);">وضعیت</th>
+              <th style="padding:12px;text-align:right;font-weight:700;color:var(--color-text-secondary);">تاریخ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid var(--glass-border-soft);">
+              <td style="padding:12px;font-weight:700;color:var(--color-primary-dark);">NV-۱۰۲۳</td>
+              <td style="padding:12px;">آرش رحیمی</td>
+              <td style="padding:12px;">۲٫۵م ت</td>
+              <td style="padding:12px;"><span class="badge badge-warning">در انتظار</span></td>
+              <td style="padding:12px;color:var(--color-text-muted);">۱۴۰۵/۰۵/۰۳</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--glass-border-soft);">
+              <td style="padding:12px;font-weight:700;color:var(--color-primary-dark);">NV-۱۰۲۲</td>
+              <td style="padding:12px;">نگار محمدی</td>
+              <td style="padding:12px;">۸۹۰هـ ت</td>
+              <td style="padding:12px;"><span class="badge badge-success">ارسال شده</span></td>
+              <td style="padding:12px;color:var(--color-text-muted);">۱۴۰۵/۰۵/۰۲</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--glass-border-soft);">
+              <td style="padding:12px;font-weight:700;color:var(--color-primary-dark);">NV-۱۰۲۱</td>
+              <td style="padding:12px;">سامان تهرانی</td>
+              <td style="padding:12px;">۳٫۲م ت</td>
+              <td style="padding:12px;"><span class="badge badge-success">تحویل شده</span></td>
+              <td style="padding:12px;color:var(--color-text-muted);">۱۴۰۵/۰۵/۰۱</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<style>
+@media (max-width: 992px) {
+  #dashToggle { display:flex !important; }
+}
+</style>
+
+<script src="assets/app.js"></script>
+</body>
+</html>

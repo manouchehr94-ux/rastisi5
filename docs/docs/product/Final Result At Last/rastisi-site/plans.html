@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>پلن‌ها و قیمت‌ها · راستیسی</title>
+  <meta name="description" content="راستیسی - پلتفرم ساخت فروشگاه اینترنتی. در ۵ دقیقه فروشگاه خود را بسازید.">
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%230d9488'/><stop offset='1' stop-color='%23f97316'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><text x='16' y='22' text-anchor='middle' font-size='17' fill='white' font-family='Arial' font-weight='bold'>R</text></svg>">
+  
+</head>
+<body class="">
+<nav class="navbar">
+  <a href="index.html" class="navbar-brand">
+    <span class="brand-icon">R</span>
+    <span>
+      <span class="brand-text-fa">راستیسی</span>
+      <span class="brand-text-en">RASTISI</span>
+    </span>
+  </a>
+  <button class="navbar-toggle" onclick="toggleMobileMenu()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="navbar-menu" id="navbarMenu">
+    <a href="index.html" class="nav-link">خانه</a>
+    <a href="features.html" class="nav-link">امکانات</a>
+    <a href="categories.html" class="nav-link">صنوف</a>
+    <a href="plans.html" class="nav-link">پلن‌ها</a>
+    <a href="how-it-works.html" class="nav-link">روش کار</a>
+    <a href="faq.html" class="nav-link">سوالات</a>
+    <a href="contact.html" class="nav-link">تماس</a>
+    <div class="nav-cta-group">
+      <a href="login.html" class="btn btn-secondary btn-sm">ورود</a>
+      <a href="register.html" class="btn btn-primary btn-sm">شروع کنید</a>
+    </div>
+  </div>
+</nav>
+<div class="menu-overlay" id="menuOverlay"></div>
+
+<section class="hero" style="padding:50px 28px 30px;">
+  <span class="hero-badge"><span class="pulse"></span><span>۷ روز ضمانت بازگشت وجه</span></span>
+  <h1 class="hero-title" style="font-size:42px;">پلن خود را انتخاب کنید</h1>
+  <p class="hero-subtitle">هر سه پلن شامل زیردامنه رایگان، درگاه پرداخت و پشتیبانی فارسی هستند. هر زمان خواستید می‌توانید ارتقا یا تغییر دهید.</p>
+</section>
+
+<section class="section" style="padding-top:20px;">
+  <div class="pricing-grid">
+    <div class="pricing-card">
+      <div class="plan-name">پایه</div>
+      <div class="plan-tagline">مناسب کسب‌وکارهای نوپا</div>
+      <div class="plan-price"><span class="num">۳۹۰٬۰۰۰</span><span class="unit">تومان</span></div>
+      <div class="plan-period">در ماه · صورت‌ماهی</div>
+      <ul class="plan-features">
+        <li>تا ۱۰۰ محصول</li>
+        <li>زیردامنه رایگان</li>
+        <li>۱ کاربر مدیر</li>
+        <li>درگاه پرداخت</li>
+        <li>پشتیبانی تلفنی</li>
+        <li class="disabled">گزارش پیشرفته</li>
+        <li class="disabled">اتصال دامنه اختصاصی</li>
+      </ul>
+      <button class="btn btn-secondary btn-block" onclick="selectPlan('پایه', '۳۹۰٬۰۰۰')">انتخاب پلن پایه</button>
+    </div>
+    <div class="pricing-card featured">
+      <div class="pricing-badge">محبوب‌ترین</div>
+      <div class="plan-name">حرفه‌ای</div>
+      <div class="plan-tagline">انتخاب ۸۰٪ فروشندگان</div>
+      <div class="plan-price"><span class="num">۸۹۰٬۰۰۰</span><span class="unit">تومان</span></div>
+      <div class="plan-period">در ماه · صورت‌ماهی</div>
+      <ul class="plan-features">
+        <li>محصولات نامحدود</li>
+        <li>زیردامنه رایگان</li>
+        <li>۵ کاربر مدیر</li>
+        <li>درگاه پرداخت چندگانه</li>
+        <li>پشتیبانی ۲۴/۷</li>
+        <li>گزارش‌های پیشرفته</li>
+        <li>اتصال دامنه اختصاصی</li>
+      </ul>
+      <button class="btn btn-primary btn-block" onclick="selectPlan('حرفه‌ای', '۸۹۰٬۰۰۰')">انتخاب پلن حرفه‌ای</button>
+    </div>
+    <div class="pricing-card">
+      <div class="plan-name">سازمانی</div>
+      <div class="plan-tagline">برای کسب‌وکارهای بزرگ</div>
+      <div class="plan-price"><span class="num">۲٬۴۹۰٬۰۰۰</span><span class="unit">تومان</span></div>
+      <div class="plan-period">در ماه · صورت‌ماهی</div>
+      <ul class="plan-features">
+        <li>همه امکانات حرفه‌ای</li>
+        <li>کاربران نامحدود</li>
+        <li>API اختصاصی</li>
+        <li>مدیر حساب اختصاصی</li>
+        <li>چند شعبه</li>
+        <li>گزارش سفارشی</li>
+        <li>آموزش حضوری تیم</li>
+      </ul>
+      <button class="btn btn-secondary btn-block" onclick="selectPlan('سازمانی', '۲٬۴۹۰٬۰۰۰')">انتخاب پلن سازمانی</button>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="glass-card" style="max-width:880px;margin:0 auto;">
+    <h3 style="font-size:20px;font-weight:800;margin-bottom:18px;color:var(--color-text);">سوالات متداول قیمت‌گذاری</h3>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <div style="font-weight:700;margin-bottom:4px;color:var(--color-text);">آیا می‌توانم پلنم را تغییر دهم؟</div>
+        <div style="font-size:13.5px;color:var(--color-text-secondary);">بله، در هر زمان می‌توانید پلن خود را ارتقا یا کاهش دهید. تغییرات در همان لحظه اعمال می‌شود.</div>
+      </div>
+      <div>
+        <div style="font-weight:700;margin-bottom:4px;color:var(--color-text);">آیا هزینه راه‌اندازی وجود دارد؟</div>
+        <div style="font-size:13.5px;color:var(--color-text-secondary);">خیر، هیچ هزینه راه‌اندازی یا هزینه پنهانی وجود ندارد. فقط مبلغ پلن ماهانه را پرداخت می‌کنید.</div>
+      </div>
+      <div>
+        <div style="font-weight:700;margin-bottom:4px;color:var(--color-text);">روش پرداخت چگونه است؟</div>
+        <div style="font-size:13.5px;color:var(--color-text-secondary);">پرداخت ماهانه یا سالانه (با ۲۰٪ تخفیف) از طریق درگاه‌های معتبر ایرانی.</div>
+      </div>
+      <div>
+        <div style="font-weight:700;margin-bottom:4px;color:var(--color-text);">آیا ضمانت بازگشت وجه دارید؟</div>
+        <div style="font-size:13.5px;color:var(--color-text-secondary);">بله، در ۷ روز اول اگر راضی نبودید، کل مبلغ به شما بازگردانده می‌شود.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-grid">
+    <div class="footer-brand-block">
+      <div class="navbar-brand">
+        <span class="brand-icon">R</span>
+        <span>
+          <span class="brand-text-fa">راستیسی</span>
+          <span class="brand-text-en">RASTISI</span>
+        </span>
+      </div>
+      <p>راستیسی، پلتفرم هوشمند ساخت فروشگاه اینترنتی است. در کمترین زمان، بدون دانش فنی، فروشگاه آنلاین خود را راه‌اندازی کنید.</p>
+    </div>
+    <div class="footer-col">
+      <h4>محصول</h4>
+      <ul>
+        <li><a href="features.html">امکانات</a></li>
+        <li><a href="plans.html">پلن‌ها و قیمت‌ها</a></li>
+        <li><a href="categories.html">صنوف پشتیبانی‌شده</a></li>
+        <li><a href="how-it-works.html">روش کار</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>شرکت</h4>
+      <ul>
+        <li><a href="about.html">درباره ما</a></li>
+        <li><a href="contact.html">تماس با ما</a></li>
+        <li><a href="faq.html">سوالات متداول</a></li>
+        <li><a href="#">وبلاگ</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>پشتیبانی</h4>
+      <ul>
+        <li><a href="#">مرکز راهنما</a></li>
+        <li><a href="#">تیکت پشتیبانی</a></li>
+        <li><a href="#">قوانین و مقررات</a></li>
+        <li><a href="#">حریم خصوصی</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div>© ۱۴۰۵ راستیسی · تمامی حقوق محفوظ است</div>
+    <div class="footer-socials">
+      <a href="#" title="اینستاگرام">📷</a>
+      <a href="#" title="تلگرام">✈</a>
+      <a href="#" title="واتساپ">💬</a>
+      <a href="#" title="آپارات">▶</a>
+    </div>
+  </div>
+</footer>
+<script src="assets/app.js"></script>
+</body>
+</html>

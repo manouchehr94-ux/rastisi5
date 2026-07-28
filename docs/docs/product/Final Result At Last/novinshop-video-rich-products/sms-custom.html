@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>قالب‌های پیام · نوین‌شاپ</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%236366f1'/><stop offset='1' stop-color='%23ec4899'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><text x='16' y='22' text-anchor='middle' font-size='17' fill='white' font-family='Arial' font-weight='bold'>N</text></svg>">
+  
+</head>
+<body>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-icon">N</span>
+    <span class="brand-text">نوین‌شاپ</span>
+  </div>
+  <ul class="sidebar-menu">
+    <li class="menu-group">
+      <a href="index.html" class="menu-item" data-key="dashboard">
+        <span class="menu-icon">⊞</span><span>داشبورد</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">🛒</span><span>مدیریت سفارش</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="orders.html" data-key="orders">لیست سفارش‌ها</a></li>
+        <li><a href="draft-orders.html" data-key="draft-orders">سبدهای رها شده</a></li>
+        <li><a href="payments.html" data-key="payments">تراکنش‌های مالی</a></li>
+        <li><a href="coupons.html" data-key="coupons">بنرها و تخفیف</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">🏷</span><span>کاتالوگ محصول</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="products.html" data-key="products">همه محصولات</a></li>
+        <li><a href="product-create.html" data-key="product-create">افزودن محصول جدید</a></li>
+        <li><a href="import-products.html" data-key="import-products">ورود گروهی محصولات</a></li>
+        <li><a href="categories.html" data-key="categories">دسته‌بندی‌ها</a></li>
+        <li><a href="industry-setup.html" data-key="industry-setup">ساختار صنف و کاتالوگ</a></li>
+        <li><a href="brands.html" data-key="brands">برندها</a></li>
+        <li><a href="product-comments.html" data-key="product-comments">نظرات کاربران</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <a href="customers.html" class="menu-item" data-key="customers">
+        <span class="menu-icon">👤</span><span>پایگاه مشتریان</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">📄</span><span>محتوای فروشگاه</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="pages.html" data-key="pages">صفحات سایت</a></li>
+        <li><a href="page-comments.html" data-key="page-comments">بازخورد صفحات</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">💳</span><span>حسابداری</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="subscription.html" data-key="subscription">پلن اشتراک</a></li>
+        <li><a href="invoices.html" data-key="invoices">فاکتورها</a></li>
+        <li><a href="wallet-transactions.html" data-key="wallet-transactions">گردش کیف پول</a></li>
+        <li><a href="business-info.html" data-key="business-info">اطلاعات حقوقی</a></li>
+        <li><a href="invite-friends.html" data-key="invite-friends">همکاری در فروش</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">📊</span><span>تحلیل و گزارش</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="order-report.html" data-key="order-report">تحلیل فروش</a></li>
+        <li><a href="product-report.html" data-key="product-report">عملکرد محصولات</a></li>
+        <li><a href="customer-report.html" data-key="customer-report">رفتار مشتریان</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <a href="guide.html" class="menu-item" data-key="guide">
+        <span class="menu-icon">❓</span><span>مرکز آموزش</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <a href="ticketing.html" class="menu-item" data-key="ticketing">
+        <span class="menu-icon">✉</span><span>پشتیبانی</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <a href="instagram.html" class="menu-item" data-key="instagram">
+        <span class="menu-icon">📷</span><span>شبکه‌های اجتماعی</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">⚙</span><span>پیکربندی</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="general-configs.html" data-key="general-configs">تنظیمات پایه</a></li>
+        <li><a href="shipping-settings.html" data-key="shipping-settings">لجستیک و ارسال</a></li>
+        <li><a href="payment-settings.html" data-key="payment-settings">درگاه‌های پرداخت</a></li>
+        <li><a href="appearance-settings.html" data-key="appearance-settings">طراحی بصری</a></li>
+        <li><a href="home-page-content.html" data-key="home-page-content">صفحه نخست</a></li>
+        <li><a href="order-settings.html" data-key="order-settings">قوانین سفارش</a></li>
+        <li><a href="cashback-settings.html" data-key="cashback-settings">کش‌بک و کیف پول</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <a href="logs.html" class="menu-item" data-key="logs">
+        <span class="menu-icon">🕘</span><span>رویدادهای سیستم</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">📱</span><span>سرویس پیام</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="sms-list.html" data-key="sms-list">صندوق پیام‌ها</a></li>
+        <li><a href="sms-report.html" data-key="sms-report">آمار پیام‌ها</a></li>
+        <li><a href="sms-custom.html" data-key="sms-custom">قالب‌های پیام</a></li>
+        <li><a href="sms-gateway-settings.html" data-key="sms-gateway-settings">تنظیمات درگاه پیامک</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <a href="marketing.html" class="menu-item" data-key="marketing">
+        <span class="menu-icon">🚀</span><span>بازاریابی و رشد</span>
+      </a>
+    </li>
+  </ul>
+  <div class="sidebar-footer">نسخه ۲.۰ · نوین‌شاپ</div>
+</aside>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<div class="main-area" id="mainArea">
+<nav class="navbar">
+    <button class="navbar-toggle" onclick="toggleSidebar()" aria-label="منو">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div class="navbar-brand">
+      <span class="brand-icon">N</span>
+      <span class="brand-text">نوین‌شاپ</span>
+    </div>
+    <div class="navbar-actions">
+      <a href="#" class="btn-nav" data-action="view-store">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        <span>پیشنمایش فروشگاه</span>
+      </a>
+      <a href="login.html" class="btn-nav" data-action="logout">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>خروج از حساب</span>
+      </a>
+      <div class="user-chip">
+        <span class="avatar">ر</span>
+        <span class="user-name">رضا منصوری</span>
+      </div>
+    </div>
+  </nav>
+  <main class="content sms-template-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">قالب‌های پیامک</h1>
+      <div class="breadcrumb"><a href="index.html">داشبورد</a><span class="breadcrumb-sep">›</span><span>سرویس پیام / قالب‌های پیامک</span></div>
+    </div>
+    <a href="sms-gateway-settings.html" class="btn btn-outline">⚙ تنظیمات درگاه پیامک</a>
+  </div>
+
+  <div class="notice-card">
+    <div class="notice-icon">💡</div>
+    <div><strong>قالب‌ها از قبل بر اساس رویدادهای اصلی فروشگاه ساخته شده‌اند.</strong><p>فقط رویداد موردنظر را فعال کنید و متن آن را تغییر دهید. افزودن قالب جدید لازم نیست.</p></div>
+  </div>
+
+  <div class="sms-stats">
+    <div><b id="activeCount">۰</b><span>قالب فعال</span></div>
+    <div><b id="templateCount">۰</b><span>رویداد اصلی</span></div>
+    <div><b id="charHint">۷۰</b><span>کاراکتر هر پیام فارسی</span></div>
+  </div>
+
+  <div class="template-filter-bar">
+    <div class="search-box"><span>⌕</span><input id="templateSearch" type="search" placeholder="جستجو در عنوان یا متن قالب..." oninput="renderTemplates()"></div>
+    <select id="categoryFilter" class="form-control" onchange="renderTemplates()">
+      <option value="all">همه گروه‌ها</option><option value="order">سفارش</option><option value="shipping">ارسال</option><option value="account">حساب کاربری</option><option value="inventory">موجودی</option><option value="payment">پرداخت</option>
+    </select>
+  </div>
+
+  <div id="templateList" class="template-list"></div>
+</main>
+</div>
+<script src="assets/app.js"></script>
+<script>
+const SMS_DEFAULTS = [
+ {id:'otp',cat:'account',icon:'🔐',title:'کد ورود و تایید شماره',desc:'هنگام ورود یا ثبت‌نام مشتری',enabled:true,text:'کد تایید ورود به {store_name}: {otp_code}\nاین کد تا {expire_minutes} دقیقه معتبر است.',vars:['store_name','otp_code','expire_minutes']},
+ {id:'welcome',cat:'account',icon:'👋',title:'خوش‌آمدگویی به مشتری',desc:'پس از ساخت حساب کاربری',enabled:false,text:'{customer_name} عزیز، به فروشگاه {store_name} خوش آمدید.\nآدرس فروشگاه: {store_url}',vars:['customer_name','store_name','store_url']},
+ {id:'order_created',cat:'order',icon:'🛍️',title:'ثبت سفارش',desc:'بلافاصله پس از ثبت سفارش',enabled:true,text:'{customer_name} عزیز، سفارش شماره {order_id} با مبلغ {order_total} تومان ثبت شد.\n{store_name}',vars:['customer_name','order_id','order_total','store_name']},
+ {id:'order_confirmed',cat:'order',icon:'✅',title:'تایید سفارش',desc:'پس از تایید سفارش توسط فروشگاه',enabled:true,text:'سفارش شماره {order_id} تایید شد و در حال آماده‌سازی است.\n{store_name}',vars:['order_id','store_name']},
+ {id:'order_cancelled',cat:'order',icon:'❌',title:'لغو سفارش',desc:'پس از لغو سفارش',enabled:true,text:'{customer_name} عزیز، سفارش شماره {order_id} لغو شد. دلیل: {cancel_reason}',vars:['customer_name','order_id','cancel_reason']},
+ {id:'ready_to_ship',cat:'shipping',icon:'📦',title:'آماده ارسال',desc:'زمانی که بسته آماده تحویل به پست است',enabled:true,text:'سفارش {order_id} آماده ارسال شد. به‌زودی اطلاعات رهگیری برای شما فرستاده می‌شود.',vars:['order_id']},
+ {id:'shipped',cat:'shipping',icon:'🚚',title:'ارسال سفارش و کد رهگیری',desc:'پس از تحویل بسته به شرکت حمل‌ونقل',enabled:true,text:'سفارش {order_id} ارسال شد.\nکد رهگیری: {tracking_code}\nروش ارسال: {shipping_method}',vars:['order_id','tracking_code','shipping_method']},
+ {id:'delivered',cat:'shipping',icon:'🏠',title:'تحویل سفارش',desc:'پس از تحویل بسته به مشتری',enabled:true,text:'سفارش {order_id} تحویل شد. از خرید شما از {store_name} سپاسگزاریم.',vars:['order_id','store_name']},
+ {id:'payment_success',cat:'payment',icon:'💳',title:'پرداخت موفق',desc:'پس از پرداخت موفق اینترنتی',enabled:false,text:'پرداخت سفارش {order_id} به مبلغ {payment_amount} تومان با موفقیت انجام شد. کد پیگیری: {payment_ref}',vars:['order_id','payment_amount','payment_ref']},
+ {id:'payment_failed',cat:'payment',icon:'⚠️',title:'پرداخت ناموفق',desc:'پس از ناموفق‌بودن پرداخت',enabled:false,text:'پرداخت سفارش {order_id} ناموفق بود. برای تلاش مجدد وارد حساب کاربری خود شوید: {payment_url}',vars:['order_id','payment_url']},
+ {id:'low_stock',cat:'inventory',icon:'📉',title:'هشدار کمبود موجودی برای مدیر',desc:'وقتی موجودی محصول به حد هشدار می‌رسد',enabled:true,text:'هشدار موجودی: محصول «{product_name}» فقط {stock_count} عدد موجودی دارد.',vars:['product_name','stock_count']},
+ {id:'back_in_stock',cat:'inventory',icon:'🔔',title:'موجود شدن دوباره محصول',desc:'برای مشتریانی که درخواست اطلاع‌رسانی داده‌اند',enabled:false,text:'خبر خوب! محصول «{product_name}» دوباره موجود شد. مشاهده و خرید: {product_url}',vars:['product_name','product_url']},
+ {id:'abandoned_cart',cat:'order',icon:'🛒',title:'یادآوری سبد خرید رهاشده',desc:'برای مشتری دارای سبد خرید تکمیل‌نشده',enabled:false,text:'{customer_name} عزیز، محصولات سبد خرید شما هنوز محفوظ هستند. تکمیل خرید: {cart_url}',vars:['customer_name','cart_url']}
+];
+let templates = JSON.parse(localStorage.getItem('novin_sms_templates')||'null') || SMS_DEFAULTS;
+const catNames={order:'سفارش',shipping:'ارسال',account:'حساب کاربری',inventory:'موجودی',payment:'پرداخت'};
+function esc(v){return String(v).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function save(){localStorage.setItem('novin_sms_templates',JSON.stringify(templates)); updateStats(); showToast('تغییرات قالب پیامک ذخیره شد','success')}
+function renderTemplates(){
+ const q=document.getElementById('templateSearch').value.trim().toLowerCase(), cat=document.getElementById('categoryFilter').value;
+ const list=templates.filter(t=>(cat==='all'||t.cat===cat)&&(!q||(t.title+t.desc+t.text).toLowerCase().includes(q)));
+ document.getElementById('templateList').innerHTML=list.map(t=>`<article class="sms-template-card ${t.enabled?'is-enabled':''}">
+  <div class="template-head"><div class="template-identity"><span class="template-icon">${t.icon}</span><div><div class="template-title">${t.title}</div><div class="template-desc">${t.desc}</div></div></div>
+  <label class="switch-line"><input type="checkbox" ${t.enabled?'checked':''} onchange="toggleTemplate('${t.id}',this.checked)"><span class="switch-ui"></span><b>${t.enabled?'فعال':'غیرفعال'}</b></label></div>
+  <div class="template-body"><div class="editor-side"><label>متن پیامک</label><textarea maxlength="600" oninput="updateText('${t.id}',this.value); updateCounter('${t.id}',this.value)">${esc(t.text)}</textarea>
+  <div class="editor-meta"><span id="counter-${t.id}">${t.text.length} کاراکتر · ${Math.ceil(t.text.length/70)||1} پیامک</span><button class="link-btn" onclick="resetTemplate('${t.id}')">بازگردانی متن پیش‌فرض</button></div>
+  <div class="variable-box"><span>متغیرهای قابل استفاده:</span>${t.vars.map(v=>`<button onclick="insertVariable('${t.id}','{${v}}')">{${v}}</button>`).join('')}</div></div>
+  <div class="preview-side"><span class="preview-label">پیش‌نمایش روی موبایل</span><div class="phone-preview"><div class="sms-bubble" id="preview-${t.id}">${esc(sampleText(t.text))}</div><small>همین حالا</small></div><span class="category-pill">${catNames[t.cat]}</span></div></div>
+  <div class="template-actions"><button class="btn btn-primary" onclick="save()">ذخیره تغییرات</button><button class="btn btn-outline" onclick="sendTest('${t.id}')">ارسال پیامک آزمایشی</button></div>
+ </article>`).join('') || '<div class="empty-state">قالبی با این جستجو پیدا نشد.</div>';
+ updateStats();
+}
+function sampleText(s){return s.replace('{store_name}','نوین‌شاپ').replace('{customer_name}','مریم').replace('{otp_code}','۴۸۳۹۱').replace('{expire_minutes}','۲').replace('{order_id}','۱۰۲۴').replace('{order_total}','۱٬۴۵۰٬۰۰۰').replace('{tracking_code}','۲۴۵۸۹۶۳۲۱').replace('{shipping_method}','پست پیشتاز').replace('{cancel_reason}','درخواست مشتری').replace('{payment_amount}','۱٬۴۵۰٬۰۰۰').replace('{payment_ref}','۸۵۹۳۱۲').replace('{product_name}','کرم آبرسان').replace('{stock_count}','۳').replace(/{[^}]+}/g,'نمونه')}
+function updateText(id,value){let t=templates.find(x=>x.id===id);t.text=value;document.getElementById('preview-'+id).textContent=sampleText(value)}
+function updateCounter(id,v){document.getElementById('counter-'+id).textContent=`${v.length} کاراکتر · ${Math.ceil(v.length/70)||1} پیامک`}
+function toggleTemplate(id,val){let t=templates.find(x=>x.id===id);t.enabled=val;localStorage.setItem('novin_sms_templates',JSON.stringify(templates));renderTemplates()}
+function resetTemplate(id){let d=SMS_DEFAULTS.find(x=>x.id===id),i=templates.findIndex(x=>x.id===id);templates[i]={...templates[i],text:d.text};renderTemplates()}
+function insertVariable(id,v){let t=templates.find(x=>x.id===id);t.text+=(t.text?' ':'')+v;renderTemplates()}
+function sendTest(id){showToast('پیامک آزمایشی در نسخه نمایشی با موفقیت ارسال شد','success')}
+function updateStats(){document.getElementById('activeCount').textContent=templates.filter(x=>x.enabled).length.toLocaleString('fa-IR');document.getElementById('templateCount').textContent=templates.length.toLocaleString('fa-IR')}
+document.addEventListener('DOMContentLoaded',()=>{renderTemplates();setActive('sms-custom')});
+function setActive(key){document.querySelectorAll(`[data-key="${key}"]`).forEach(el=>{el.classList.add('active');let s=el.closest('.menu-sub');if(s){s.classList.add('open');s.previousElementSibling?.classList.add('expanded')}})}
+</script>
+</body>
+</html>

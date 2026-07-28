@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>همکاری در فروش · نوین‌شاپ</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%236366f1'/><stop offset='1' stop-color='%23ec4899'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><text x='16' y='22' text-anchor='middle' font-size='17' fill='white' font-family='Arial' font-weight='bold'>N</text></svg>">
+  
+</head>
+<body>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-icon">N</span>
+    <span class="brand-text">نوین‌شاپ</span>
+  </div>
+  <ul class="sidebar-menu">
+    <li class="menu-group">
+      <a href="index.html" class="menu-item" data-key="dashboard">
+        <span class="menu-icon">⊞</span><span>داشبورد</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">🛒</span><span>مدیریت سفارش</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="orders.html" data-key="orders">لیست سفارش‌ها</a></li>
+        <li><a href="draft-orders.html" data-key="draft-orders">سبدهای رها شده</a></li>
+        <li><a href="payments.html" data-key="payments">تراکنش‌های مالی</a></li>
+        <li><a href="coupons.html" data-key="coupons">بنرها و تخفیف</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">🏷</span><span>کاتالوگ محصول</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="products.html" data-key="products">همه محصولات</a></li>
+        <li><a href="product-create.html" data-key="product-create">افزودن محصول جدید</a></li>
+        <li><a href="import-products.html" data-key="import-products">ورود گروهی محصولات</a></li>
+        <li><a href="categories.html" data-key="categories">دسته‌بندی‌ها</a></li>
+        <li><a href="industry-setup.html" data-key="industry-setup">ساختار صنف و کاتالوگ</a></li>
+        <li><a href="brands.html" data-key="brands">برندها</a></li>
+        <li><a href="product-comments.html" data-key="product-comments">نظرات کاربران</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <a href="customers.html" class="menu-item" data-key="customers">
+        <span class="menu-icon">👤</span><span>پایگاه مشتریان</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">📄</span><span>محتوای فروشگاه</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="pages.html" data-key="pages">صفحات سایت</a></li>
+        <li><a href="page-comments.html" data-key="page-comments">بازخورد صفحات</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">💳</span><span>حسابداری</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="subscription.html" data-key="subscription">پلن اشتراک</a></li>
+        <li><a href="invoices.html" data-key="invoices">فاکتورها</a></li>
+        <li><a href="wallet-transactions.html" data-key="wallet-transactions">گردش کیف پول</a></li>
+        <li><a href="business-info.html" data-key="business-info">اطلاعات حقوقی</a></li>
+        <li><a href="invite-friends.html" data-key="invite-friends">همکاری در فروش</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">📊</span><span>تحلیل و گزارش</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="order-report.html" data-key="order-report">تحلیل فروش</a></li>
+        <li><a href="product-report.html" data-key="product-report">عملکرد محصولات</a></li>
+        <li><a href="customer-report.html" data-key="customer-report">رفتار مشتریان</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <a href="guide.html" class="menu-item" data-key="guide">
+        <span class="menu-icon">❓</span><span>مرکز آموزش</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <a href="ticketing.html" class="menu-item" data-key="ticketing">
+        <span class="menu-icon">✉</span><span>پشتیبانی</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <a href="instagram.html" class="menu-item" data-key="instagram">
+        <span class="menu-icon">📷</span><span>شبکه‌های اجتماعی</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">⚙</span><span>پیکربندی</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="general-configs.html" data-key="general-configs">تنظیمات پایه</a></li>
+        <li><a href="shipping-settings.html" data-key="shipping-settings">لجستیک و ارسال</a></li>
+        <li><a href="payment-settings.html" data-key="payment-settings">درگاه‌های پرداخت</a></li>
+        <li><a href="appearance-settings.html" data-key="appearance-settings">طراحی بصری</a></li>
+        <li><a href="home-page-content.html" data-key="home-page-content">صفحه نخست</a></li>
+        <li><a href="order-settings.html" data-key="order-settings">قوانین سفارش</a></li>
+        <li><a href="cashback-settings.html" data-key="cashback-settings">کش‌بک و کیف پول</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <a href="logs.html" class="menu-item" data-key="logs">
+        <span class="menu-icon">🕘</span><span>رویدادهای سیستم</span>
+      </a>
+    </li>
+    <li class="menu-group">
+      <div class="menu-item" onclick="toggleMenuGroup(this)">
+        <span class="menu-icon">📱</span><span>سرویس پیام</span><span class="menu-arrow">▾</span>
+      </div>
+      <ul class="menu-sub">
+        <li><a href="sms-list.html" data-key="sms-list">صندوق پیام‌ها</a></li>
+        <li><a href="sms-report.html" data-key="sms-report">آمار پیام‌ها</a></li>
+        <li><a href="sms-custom.html" data-key="sms-custom">قالب‌های پیام</a></li>
+        <li><a href="sms-gateway-settings.html" data-key="sms-gateway-settings">تنظیمات درگاه پیامک</a></li>
+      </ul>
+    </li>
+    <li class="menu-group">
+      <a href="marketing.html" class="menu-item" data-key="marketing">
+        <span class="menu-icon">🚀</span><span>بازاریابی و رشد</span>
+      </a>
+    </li>
+  </ul>
+  <div class="sidebar-footer">نسخه ۲.۰ · نوین‌شاپ</div>
+</aside>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<div class="main-area" id="mainArea">
+<nav class="navbar">
+    <button class="navbar-toggle" onclick="toggleSidebar()" aria-label="منو">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div class="navbar-brand">
+      <span class="brand-icon">N</span>
+      <span class="brand-text">نوین‌شاپ</span>
+    </div>
+    <div class="navbar-actions">
+      <a href="#" class="btn-nav" data-action="view-store">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        <span>پیشنمایش فروشگاه</span>
+      </a>
+      <a href="login.html" class="btn-nav" data-action="logout">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>خروج از حساب</span>
+      </a>
+      <div class="user-chip">
+        <span class="avatar">ر</span>
+        <span class="user-name">رضا منصوری</span>
+      </div>
+    </div>
+  </nav>
+  <main class="content">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">همکاری در فروش</h1>
+        <div class="breadcrumb">
+          <a href="index.html">داشبورد</a>
+          <span class="breadcrumb-sep">›</span>
+          <span>حسابداری / همکاری در فروش</span>
+        </div>
+      </div>
+    </div>
+
+     <div class="alert alert-info">
+       <span>🎁</span>
+       <div>با دعوت دوستان، ۱۰٪ از هر خرید آن‌ها به کیف پول شما واریز می‌شود!</div>
+     </div>
+     <div class="card">
+       <div class="card-header"><div class="card-title">لینک دعوت اختصاصی</div></div>
+       <div class="form-row">
+         <div class="form-group" style="grid-template-columns: 1fr;">
+           <label class="form-label">لینک شما</label>
+           <div class="flex gap-2">
+             <input type="text" class="form-control" value="https://novinshop.shopio.ir/ref/NOVIN123" dir="ltr" readonly>
+             <button class="btn btn-primary" data-toast="لینک کپی شد" data-toast-type="success">کپی</button>
+           </div>
+         </div>
+       </div>
+     </div>
+     <div class="stats-grid">
+       <div class="stat-card"><div class="stat-icon bg-purple">👥</div><div class="stat-body"><div class="stat-label">دعوت‌شدگان</div><div class="stat-value">۵</div></div></div>
+       <div class="stat-card"><div class="stat-icon bg-green">💰</div><div class="stat-body"><div class="stat-label">درآمد از دعوت</div><div class="stat-value">۴۵۰هـ ت</div></div></div>
+     </div>
+     
+  </main>
+</div>
+<script src="assets/app.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const key = 'invite-friends';
+    document.querySelectorAll('.menu-item[data-key="' + key + '"]').forEach(function(el) {
+      el.classList.add('active');
+    });
+    document.querySelectorAll('.menu-sub a[data-key="' + key + '"]').forEach(function(el) {
+      el.classList.add('active');
+      const sub = el.closest('.menu-sub');
+      if (sub) {
+        sub.classList.add('open');
+        const header = sub.previousElementSibling;
+        if (header) header.classList.add('expanded');
+      }
+    });
+  });
+</script>
+</body>
+</html>

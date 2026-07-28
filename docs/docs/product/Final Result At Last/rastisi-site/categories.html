@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>صنوف پشتیبانی‌شده · راستیسی</title>
+  <meta name="description" content="راستیسی - پلتفرم ساخت فروشگاه اینترنتی. در ۵ دقیقه فروشگاه خود را بسازید.">
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%230d9488'/><stop offset='1' stop-color='%23f97316'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><text x='16' y='22' text-anchor='middle' font-size='17' fill='white' font-family='Arial' font-weight='bold'>R</text></svg>">
+  
+</head>
+<body class="">
+<nav class="navbar">
+  <a href="index.html" class="navbar-brand">
+    <span class="brand-icon">R</span>
+    <span>
+      <span class="brand-text-fa">راستیسی</span>
+      <span class="brand-text-en">RASTISI</span>
+    </span>
+  </a>
+  <button class="navbar-toggle" onclick="toggleMobileMenu()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="navbar-menu" id="navbarMenu">
+    <a href="index.html" class="nav-link">خانه</a>
+    <a href="features.html" class="nav-link">امکانات</a>
+    <a href="categories.html" class="nav-link">صنوف</a>
+    <a href="plans.html" class="nav-link">پلن‌ها</a>
+    <a href="how-it-works.html" class="nav-link">روش کار</a>
+    <a href="faq.html" class="nav-link">سوالات</a>
+    <a href="contact.html" class="nav-link">تماس</a>
+    <div class="nav-cta-group">
+      <a href="login.html" class="btn btn-secondary btn-sm">ورود</a>
+      <a href="register.html" class="btn btn-primary btn-sm">شروع کنید</a>
+    </div>
+  </div>
+</nav>
+<div class="menu-overlay" id="menuOverlay"></div>
+
+<section class="hero" style="padding:50px 28px 20px;">
+  <span class="hero-badge"><span class="pulse"></span><span>۱۰۰ صنف + صنف سایر</span></span>
+  <h1 class="hero-title" style="font-size:40px;">صنوف پشتیبانی‌شده</h1>
+  <p class="hero-subtitle">مهم نیست چه کسب‌وکاری دارید، راستیسی از آن پشتیبانی می‌کند. ۱۰۰ صنف شغلی متنوع در ۱۰ رسته + یک صنف «سایر» برای کسب‌وکارهای خاص.</p>
+</section>
+
+<section class="section" style="padding-top:20px;">
+  <div class="cat-search">
+    <span class="icon">🔍</span>
+    <input type="text" placeholder="جستجوی صنف شغلی..." oninput="filterCategories(this.value)">
+  </div>
+
+  <div class="cat-tabs">
+    <div class="cat-tab active" data-sector="all" onclick="filterBySector('all')">همه صنوف</div>
+<div class="cat-tab" data-sector="retail" onclick="filterBySector('retail')">خرده‌فروشی و پوشاک</div>
+<div class="cat-tab" data-sector="digital" onclick="filterBySector('digital')">دیجیتال و الکترونیک</div>
+<div class="cat-tab" data-sector="food" onclick="filterBySector('food')">خوراک و نوشیدنی</div>
+<div class="cat-tab" data-sector="home" onclick="filterBySector('home')">خانه و آشپزخانه</div>
+<div class="cat-tab" data-sector="beauty" onclick="filterBySector('beauty')">سلامت و زیبایی</div>
+<div class="cat-tab" data-sector="sport" onclick="filterBySector('sport')">ورزش و سرگرمی</div>
+<div class="cat-tab" data-sector="culture" onclick="filterBySector('culture')">فرهنگ و آموزش</div>
+<div class="cat-tab" data-sector="auto" onclick="filterBySector('auto')">خودرو و ابزار</div>
+<div class="cat-tab" data-sector="industry" onclick="filterBySector('industry')">صنعتی و ساختمان</div>
+<div class="cat-tab" data-sector="services" onclick="filterBySector('services')">خدمات و تخصصی</div>
+<div class="cat-tab" data-sector="other" onclick="filterBySector('other')">سایر</div>
+  </div>
+
+  <div class="categories-grid">
+    <div class="category-card" data-name="پوشاک مردانه" data-sector="retail" onclick="selectCategory(this)"><div class="cat-emoji">👔</div><div class="cat-name">پوشاک مردانه</div><div class="cat-sector">خرده‌فروشی و پوشاک</div></div>
+<div class="category-card" data-name="پوشاک زنانه" data-sector="retail" onclick="selectCategory(this)"><div class="cat-emoji">👗</div><div class="cat-name">پوشاک زنانه</div><div class="cat-sector">خرده‌فروشی و پوشاک</div></div>
+<div class="category-card" data-name="پوشاک کودک و نوزاد" data-sector="retail" onclick="selectCategory(this)"><div class="cat-emoji">🧸</div><div class="cat-name">پوشاک کودک و نوزاد</div><div class="cat-sector">خرده‌فروشی و پوشاک</div></div>
+<div class="category-card" data-name="کفش و چرم" data-sector="retail" onclick="selectCategory(this)"><div class="cat-emoji">👟</div><div class="cat-name">کفش و چرم</div><div class="cat-sector">خرده‌فروشی و پوشاک</div></div>
+<div class="category-card" data-name="کیف و اکسسوری" data-sector="retail" onclick="selectCategory(this)"><div class="cat-emoji">👜</div><div class="cat-name">کیف و اکسسوری</div><div class="cat-sector">خرده‌فروشی و پوشاک</div></div>
+<div class="category-card" data-name="ساعت و جواهر" data-sector="retail" onclick="selectCategory(this)"><div class="cat-emoji">⌚</div><div class="cat-name">ساعت و جواهر</div><div class="cat-sector">خرده‌فروشی و پوشاک</div></div>
+<div class="category-card" data-name="عینک و لوازم شیشه‌ای" data-sector="retail" onclick="selectCategory(this)"><div class="cat-emoji">👓</div><div class="cat-name">عینک و لوازم شیشه‌ای</div><div class="cat-sector">خرده‌فروشی و پوشاک</div></div>
+<div class="category-card" data-name="شال و روسری" data-sector="retail" onclick="selectCategory(this)"><div class="cat-emoji">🧣</div><div class="cat-name">شال و روسری</div><div class="cat-sector">خرده‌فروشی و پوشاک</div></div>
+<div class="category-card" data-name="فروشگاه چند منظوره" data-sector="retail" onclick="selectCategory(this)"><div class="cat-emoji">🛍</div><div class="cat-name">فروشگاه چند منظوره</div><div class="cat-sector">خرده‌فروشی و پوشاک</div></div>
+<div class="category-card" data-name="طل و جواهرات" data-sector="retail" onclick="selectCategory(this)"><div class="cat-emoji">💍</div><div class="cat-name">طل و جواهرات</div><div class="cat-sector">خرده‌فروشی و پوشاک</div></div>
+<div class="category-card" data-name="موبایل و تبلت" data-sector="digital" onclick="selectCategory(this)"><div class="cat-emoji">📱</div><div class="cat-name">موبایل و تبلت</div><div class="cat-sector">دیجیتال و الکترونیک</div></div>
+<div class="category-card" data-name="لپ‌تاپ و کامپیوتر" data-sector="digital" onclick="selectCategory(this)"><div class="cat-emoji">💻</div><div class="cat-name">لپ‌تاپ و کامپیوتر</div><div class="cat-sector">دیجیتال و الکترونیک</div></div>
+<div class="category-card" data-name="صوتی و تصویری" data-sector="digital" onclick="selectCategory(this)"><div class="cat-emoji">🎧</div><div class="cat-name">صوتی و تصویری</div><div class="cat-sector">دیجیتال و الکترونیک</div></div>
+<div class="category-card" data-name="دوربین عکاسی" data-sector="digital" onclick="selectCategory(this)"><div class="cat-emoji">📷</div><div class="cat-name">دوربین عکاسی</div><div class="cat-sector">دیجیتال و الکترونیک</div></div>
+<div class="category-card" data-name="کنسول بازی و گیمینگ" data-sector="digital" onclick="selectCategory(this)"><div class="cat-emoji">🎮</div><div class="cat-name">کنسول بازی و گیمینگ</div><div class="cat-sector">دیجیتال و الکترونیک</div></div>
+<div class="category-card" data-name="لوازم جانبی کامپیوتر" data-sector="digital" onclick="selectCategory(this)"><div class="cat-emoji">⌨</div><div class="cat-name">لوازم جانبی کامپیوتر</div><div class="cat-sector">دیجیتال و الکترونیک</div></div>
+<div class="category-card" data-name="قطعات و سخت‌افزار" data-sector="digital" onclick="selectCategory(this)"><div class="cat-emoji">🖥</div><div class="cat-name">قطعات و سخت‌افزار</div><div class="cat-sector">دیجیتال و الکترونیک</div></div>
+<div class="category-card" data-name="گجت‌های هوشمند" data-sector="digital" onclick="selectCategory(this)"><div class="cat-emoji">💡</div><div class="cat-name">گجت‌های هوشمند</div><div class="cat-sector">دیجیتال و الکترونیک</div></div>
+<div class="category-card" data-name="نرم‌افزار و آنتی‌ویروس" data-sector="digital" onclick="selectCategory(this)"><div class="cat-emoji">💾</div><div class="cat-name">نرم‌افزار و آنتی‌ویروس</div><div class="cat-sector">دیجیتال و الکترونیک</div></div>
+<div class="category-card" data-name="تجهیزات شبکه و اینترنت" data-sector="digital" onclick="selectCategory(this)"><div class="cat-emoji">📡</div><div class="cat-name">تجهیزات شبکه و اینترنت</div><div class="cat-sector">دیجیتال و الکترونیک</div></div>
+<div class="category-card" data-name="خشکبار و آجیل" data-sector="food" onclick="selectCategory(this)"><div class="cat-emoji">🥜</div><div class="cat-name">خشکبار و آجیل</div><div class="cat-sector">خوراک و نوشیدنی</div></div>
+<div class="category-card" data-name="شیرینی و شکلات" data-sector="food" onclick="selectCategory(this)"><div class="cat-emoji">🍫</div><div class="cat-name">شیرینی و شکلات</div><div class="cat-sector">خوراک و نوشیدنی</div></div>
+<div class="category-card" data-name="چای و قهوه" data-sector="food" onclick="selectCategory(this)"><div class="cat-emoji">☕</div><div class="cat-name">چای و قهوه</div><div class="cat-sector">خوراک و نوشیدنی</div></div>
+<div class="category-card" data-name="عسل و محصولات طبیعی" data-sector="food" onclick="selectCategory(this)"><div class="cat-emoji">🍯</div><div class="cat-name">عسل و محصولات طبیعی</div><div class="cat-sector">خوراک و نوشیدنی</div></div>
+<div class="category-card" data-name="ادویه و زعفران" data-sector="food" onclick="selectCategory(this)"><div class="cat-emoji">🧂</div><div class="cat-name">ادویه و زعفران</div><div class="cat-sector">خوراک و نوشیدنی</div></div>
+<div class="category-card" data-name="گوشت و مرغ" data-sector="food" onclick="selectCategory(this)"><div class="cat-emoji">🥩</div><div class="cat-name">گوشت و مرغ</div><div class="cat-sector">خوراک و نوشیدنی</div></div>
+<div class="category-card" data-name="میوه و سبزی" data-sector="food" onclick="selectCategory(this)"><div class="cat-emoji">🍎</div><div class="cat-name">میوه و سبزی</div><div class="cat-sector">خوراک و نوشیدنی</div></div>
+<div class="category-card" data-name="لبنیات و پنیر" data-sector="food" onclick="selectCategory(this)"><div class="cat-emoji">🧀</div><div class="cat-name">لبنیات و پنیر</div><div class="cat-sector">خوراک و نوشیدنی</div></div>
+<div class="category-card" data-name="نوشیدنی و آبمیوه" data-sector="food" onclick="selectCategory(this)"><div class="cat-emoji">🥤</div><div class="cat-name">نوشیدنی و آبمیوه</div><div class="cat-sector">خوراک و نوشیدنی</div></div>
+<div class="category-card" data-name="نان و قنادی" data-sector="food" onclick="selectCategory(this)"><div class="cat-emoji">🍞</div><div class="cat-name">نان و قنادی</div><div class="cat-sector">خوراک و نوشیدنی</div></div>
+<div class="category-card" data-name="لوازم آشپزخانه" data-sector="home" onclick="selectCategory(this)"><div class="cat-emoji">🍳</div><div class="cat-name">لوازم آشپزخانه</div><div class="cat-sector">خانه و آشپزخانه</div></div>
+<div class="category-card" data-name="ظروف و سرویس غذا" data-sector="home" onclick="selectCategory(this)"><div class="cat-emoji">🍽</div><div class="cat-name">ظروف و سرویس غذا</div><div class="cat-sector">خانه و آشپزخانه</div></div>
+<div class="category-card" data-name="لوازم خانگی برقی" data-sector="home" onclick="selectCategory(this)"><div class="cat-emoji">❄</div><div class="cat-name">لوازم خانگی برقی</div><div class="cat-sector">خانه و آشپزخانه</div></div>
+<div class="category-card" data-name="مبلمان و دکوراسیون" data-sector="home" onclick="selectCategory(this)"><div class="cat-emoji">🛋</div><div class="cat-name">مبلمان و دکوراسیون</div><div class="cat-sector">خانه و آشپزخانه</div></div>
+<div class="category-card" data-name="لوازم چوبی و میز" data-sector="home" onclick="selectCategory(this)"><div class="cat-emoji">🪑</div><div class="cat-name">لوازم چوبی و میز</div><div class="cat-sector">خانه و آشپزخانه</div></div>
+<div class="category-card" data-name="فرش و گلیم" data-sector="home" onclick="selectCategory(this)"><div class="cat-emoji">🧵</div><div class="cat-name">فرش و گلیم</div><div class="cat-sector">خانه و آشپزخانه</div></div>
+<div class="category-card" data-name="نورپردازی و چراغ" data-sector="home" onclick="selectCategory(this)"><div class="cat-emoji">💡</div><div class="cat-name">نورپردازی و چراغ</div><div class="cat-sector">خانه و آشپزخانه</div></div>
+<div class="category-card" data-name="حمام و سرویس بهداشتی" data-sector="home" onclick="selectCategory(this)"><div class="cat-emoji">🚿</div><div class="cat-name">حمام و سرویس بهداشتی</div><div class="cat-sector">خانه و آشپزخانه</div></div>
+<div class="category-card" data-name="باغبانی و گیاه" data-sector="home" onclick="selectCategory(this)"><div class="cat-emoji">🪴</div><div class="cat-name">باغبانی و گیاه</div><div class="cat-sector">خانه و آشپزخانه</div></div>
+<div class="category-card" data-name="ابزار تمیزکاری" data-sector="home" onclick="selectCategory(this)"><div class="cat-emoji">🧹</div><div class="cat-name">ابزار تمیزکاری</div><div class="cat-sector">خانه و آشپزخانه</div></div>
+<div class="category-card" data-name="لوازم آرایشی" data-sector="beauty" onclick="selectCategory(this)"><div class="cat-emoji">💄</div><div class="cat-name">لوازم آرایشی</div><div class="cat-sector">سلامت و زیبایی</div></div>
+<div class="category-card" data-name="لوازم بهداشتی" data-sector="beauty" onclick="selectCategory(this)"><div class="cat-emoji">🧴</div><div class="cat-name">لوازم بهداشتی</div><div class="cat-sector">سلامت و زیبایی</div></div>
+<div class="category-card" data-name="عطر و ادکلن" data-sector="beauty" onclick="selectCategory(this)"><div class="cat-emoji">🌸</div><div class="cat-name">عطر و ادکلن</div><div class="cat-sector">سلامت و زیبایی</div></div>
+<div class="category-card" data-name="داروخانه آنلاین" data-sector="beauty" onclick="selectCategory(this)"><div class="cat-emoji">💊</div><div class="cat-name">داروخانه آنلاین</div><div class="cat-sector">سلامت و زیبایی</div></div>
+<div class="category-card" data-name="تجهیزات پزشکی" data-sector="beauty" onclick="selectCategory(this)"><div class="cat-emoji">🩺</div><div class="cat-name">تجهیزات پزشکی</div><div class="cat-sector">سلامت و زیبایی</div></div>
+<div class="category-card" data-name="مکمل و محصولات ارگانیک" data-sector="beauty" onclick="selectCategory(this)"><div class="cat-emoji">🌿</div><div class="cat-name">مکمل و محصولات ارگانیک</div><div class="cat-sector">سلامت و زیبایی</div></div>
+<div class="category-card" data-name="لوازم سلامت و ماساژ" data-sector="beauty" onclick="selectCategory(this)"><div class="cat-emoji">💆</div><div class="cat-name">لوازم سلامت و ماساژ</div><div class="cat-sector">سلامت و زیبایی</div></div>
+<div class="category-card" data-name="مراقبت دهان و دندان" data-sector="beauty" onclick="selectCategory(this)"><div class="cat-emoji">🦷</div><div class="cat-name">مراقبت دهان و دندان</div><div class="cat-sector">سلامت و زیبایی</div></div>
+<div class="category-card" data-name="اسپا و مراقبت پوست" data-sector="beauty" onclick="selectCategory(this)"><div class="cat-emoji">🧖</div><div class="cat-name">اسپا و مراقبت پوست</div><div class="cat-sector">سلامت و زیبایی</div></div>
+<div class="category-card" data-name="محافظت از آفتاب" data-sector="beauty" onclick="selectCategory(this)"><div class="cat-emoji">☀</div><div class="cat-name">محافظت از آفتاب</div><div class="cat-sector">سلامت و زیبایی</div></div>
+<div class="category-card" data-name="توپ و لوازم بازی" data-sector="sport" onclick="selectCategory(this)"><div class="cat-emoji">⚽</div><div class="cat-name">توپ و لوازم بازی</div><div class="cat-sector">ورزش و سرگرمی</div></div>
+<div class="category-card" data-name="تجهیزات بدنسازی" data-sector="sport" onclick="selectCategory(this)"><div class="cat-emoji">🏋</div><div class="cat-name">تجهیزات بدنسازی</div><div class="cat-sector">ورزش و سرگرمی</div></div>
+<div class="category-card" data-name="دوچرخه و اسکوتر" data-sector="sport" onclick="selectCategory(this)"><div class="cat-emoji">🚴</div><div class="cat-name">دوچرخه و اسکوتر</div><div class="cat-sector">ورزش و سرگرمی</div></div>
+<div class="category-card" data-name="کمپینگ و طبیعت‌گردی" data-sector="sport" onclick="selectCategory(this)"><div class="cat-emoji">🏕</div><div class="cat-name">کمپینگ و طبیعت‌گردی</div><div class="cat-sector">ورزش و سرگرمی</div></div>
+<div class="category-card" data-name="ورزش زمستانی" data-sector="sport" onclick="selectCategory(this)"><div class="cat-emoji">🎿</div><div class="cat-name">ورزش زمستانی</div><div class="cat-sector">ورزش و سرگرمی</div></div>
+<div class="category-card" data-name="ورزش‌های رزمی" data-sector="sport" onclick="selectCategory(this)"><div class="cat-emoji">🥋</div><div class="cat-name">ورزش‌های رزمی</div><div class="cat-sector">ورزش و سرگرمی</div></div>
+<div class="category-card" data-name="شکار و ماهیگیری" data-sector="sport" onclick="selectCategory(this)"><div class="cat-emoji">🎣</div><div class="cat-name">شکار و ماهیگیری</div><div class="cat-sector">ورزش و سرگرمی</div></div>
+<div class="category-card" data-name="بلیت رویداد ورزشی" data-sector="sport" onclick="selectCategory(this)"><div class="cat-emoji">🎯</div><div class="cat-name">بلیت رویداد ورزشی</div><div class="cat-sector">ورزش و سرگرمی</div></div>
+<div class="category-card" data-name="ساز و لوازم موسیقی" data-sector="sport" onclick="selectCategory(this)"><div class="cat-emoji">🎸</div><div class="cat-name">ساز و لوازم موسیقی</div><div class="cat-sector">ورزش و سرگرمی</div></div>
+<div class="category-card" data-name="بازی فکری و سرگرمی" data-sector="sport" onclick="selectCategory(this)"><div class="cat-emoji">♟</div><div class="cat-name">بازی فکری و سرگرمی</div><div class="cat-sector">ورزش و سرگرمی</div></div>
+<div class="category-card" data-name="کتاب و مجله" data-sector="culture" onclick="selectCategory(this)"><div class="cat-emoji">📚</div><div class="cat-name">کتاب و مجله</div><div class="cat-sector">فرهنگ و آموزش</div></div>
+<div class="category-card" data-name="کتاب درسی و کمک‌آموزشی" data-sector="culture" onclick="selectCategory(this)"><div class="cat-emoji">📖</div><div class="cat-name">کتاب درسی و کمک‌آموزشی</div><div class="cat-sector">فرهنگ و آموزش</div></div>
+<div class="category-card" data-name="لوازم التحریر" data-sector="culture" onclick="selectCategory(this)"><div class="cat-emoji">✏</div><div class="cat-name">لوازم التحریر</div><div class="cat-sector">فرهنگ و آموزش</div></div>
+<div class="category-card" data-name="دوره آموزشی آنلاین" data-sector="culture" onclick="selectCategory(this)"><div class="cat-emoji">🎓</div><div class="cat-name">دوره آموزشی آنلاین</div><div class="cat-sector">فرهنگ و آموزش</div></div>
+<div class="category-card" data-name="لوازم هنری و نقاشی" data-sector="culture" onclick="selectCategory(this)"><div class="cat-emoji">🎨</div><div class="cat-name">لوازم هنری و نقاشی</div><div class="cat-sector">فرهنگ و آموزش</div></div>
+<div class="category-card" data-name="صنایع دستی" data-sector="culture" onclick="selectCategory(this)"><div class="cat-emoji">🏺</div><div class="cat-name">صنایع دستی</div><div class="cat-sector">فرهنگ و آموزش</div></div>
+<div class="category-card" data-name="کادو و سوغات" data-sector="culture" onclick="selectCategory(this)"><div class="cat-emoji">🎁</div><div class="cat-name">کادو و سوغات</div><div class="cat-sector">فرهنگ و آموزش</div></div>
+<div class="category-card" data-name="محصولات فرهنگی و رسانه" data-sector="culture" onclick="selectCategory(this)"><div class="cat-emoji">📰</div><div class="cat-name">محصولات فرهنگی و رسانه</div><div class="cat-sector">فرهنگ و آموزش</div></div>
+<div class="category-card" data-name="تابلو و تزئینات هنری" data-sector="culture" onclick="selectCategory(this)"><div class="cat-emoji">🖼</div><div class="cat-name">تابلو و تزئینات هنری</div><div class="cat-sector">فرهنگ و آموزش</div></div>
+<div class="category-card" data-name="لوازم تحریر لوکس" data-sector="culture" onclick="selectCategory(this)"><div class="cat-emoji">🖋</div><div class="cat-name">لوازم تحریر لوکس</div><div class="cat-sector">فرهنگ و آموزش</div></div>
+<div class="category-card" data-name="لوازم یدکی خودرو" data-sector="auto" onclick="selectCategory(this)"><div class="cat-emoji">🚗</div><div class="cat-name">لوازم یدکی خودرو</div><div class="cat-sector">خودرو و ابزار</div></div>
+<div class="category-card" data-name="موتور سیکلت" data-sector="auto" onclick="selectCategory(this)"><div class="cat-emoji">🛵</div><div class="cat-name">موتور سیکلت</div><div class="cat-sector">خودرو و ابزار</div></div>
+<div class="category-card" data-name="لاستیک و رینگ" data-sector="auto" onclick="selectCategory(this)"><div class="cat-emoji">🛞</div><div class="cat-name">لاستیک و رینگ</div><div class="cat-sector">خودرو و ابزار</div></div>
+<div class="category-card" data-name="روغن و فیلتر" data-sector="auto" onclick="selectCategory(this)"><div class="cat-emoji">⛽</div><div class="cat-name">روغن و فیلتر</div><div class="cat-sector">خودرو و ابزار</div></div>
+<div class="category-card" data-name="لوازم تزئینی خودرو" data-sector="auto" onclick="selectCategory(this)"><div class="cat-emoji">🚙</div><div class="cat-name">لوازم تزئینی خودرو</div><div class="cat-sector">خودرو و ابزار</div></div>
+<div class="category-card" data-name="ابزار و تجهیزات کارگاهی" data-sector="auto" onclick="selectCategory(this)"><div class="cat-emoji">🔧</div><div class="cat-name">ابزار و تجهیزات کارگاهی</div><div class="cat-sector">خودرو و ابزار</div></div>
+<div class="category-card" data-name="باطری و برق خودرو" data-sector="auto" onclick="selectCategory(this)"><div class="cat-emoji">🔋</div><div class="cat-name">باطری و برق خودرو</div><div class="cat-sector">خودرو و ابزار</div></div>
+<div class="category-card" data-name="لوازم خودرو سنگین" data-sector="auto" onclick="selectCategory(this)"><div class="cat-emoji">🛻</div><div class="cat-name">لوازم خودرو سنگین</div><div class="cat-sector">خودرو و ابزار</div></div>
+<div class="category-card" data-name="ابزار باغبان و کشاورزی" data-sector="auto" onclick="selectCategory(this)"><div class="cat-emoji">🛠</div><div class="cat-name">ابزار باغبان و کشاورزی</div><div class="cat-sector">خودرو و ابزار</div></div>
+<div class="category-card" data-name="دوچرخه و لوازم" data-sector="auto" onclick="selectCategory(this)"><div class="cat-emoji">🚲</div><div class="cat-name">دوچرخه و لوازم</div><div class="cat-sector">خودرو و ابزار</div></div>
+<div class="category-card" data-name="مصالح ساختمانی" data-sector="industry" onclick="selectCategory(this)"><div class="cat-emoji">🧱</div><div class="cat-name">مصالح ساختمانی</div><div class="cat-sector">صنعتی و ساختمان</div></div>
+<div class="category-card" data-name="تجهیزات برق و روشنایی" data-sector="industry" onclick="selectCategory(this)"><div class="cat-emoji">🔌</div><div class="cat-name">تجهیزات برق و روشنایی</div><div class="cat-sector">صنعتی و ساختمان</div></div>
+<div class="category-card" data-name="شیرآلات و لوله" data-sector="industry" onclick="selectCategory(this)"><div class="cat-emoji">🚰</div><div class="cat-name">شیرآلات و لوله</div><div class="cat-sector">صنعتی و ساختمان</div></div>
+<div class="category-card" data-name="رنگ و رزین صنعتی" data-sector="industry" onclick="selectCategory(this)"><div class="cat-emoji">🎨</div><div class="cat-name">رنگ و رزین صنعتی</div><div class="cat-sector">صنعتی و ساختمان</div></div>
+<div class="category-card" data-name="در و پنجره" data-sector="industry" onclick="selectCategory(this)"><div class="cat-emoji">🪟</div><div class="cat-name">در و پنجره</div><div class="cat-sector">صنعتی و ساختمان</div></div>
+<div class="category-card" data-name="ابزار صنعتی" data-sector="industry" onclick="selectCategory(this)"><div class="cat-emoji">🧰</div><div class="cat-name">ابزار صنعتی</div><div class="cat-sector">صنعتی و ساختمان</div></div>
+<div class="category-card" data-name="ماشین‌آلات صنعتی" data-sector="industry" onclick="selectCategory(this)"><div class="cat-emoji">🏭</div><div class="cat-name">ماشین‌آلات صنعتی</div><div class="cat-sector">صنعتی و ساختمان</div></div>
+<div class="category-card" data-name="تجهیزات کارخانه" data-sector="industry" onclick="selectCategory(this)"><div class="cat-emoji">⚙</div><div class="cat-name">تجهیزات کارخانه</div><div class="cat-sector">صنعتی و ساختمان</div></div>
+<div class="category-card" data-name="تجهیزات سرمایش و گرمایش" data-sector="industry" onclick="selectCategory(this)"><div class="cat-emoji">❄</div><div class="cat-name">تجهیزات سرمایش و گرمایش</div><div class="cat-sector">صنعتی و ساختمان</div></div>
+<div class="category-card" data-name="تجهیزات ایمنی صنعتی" data-sector="industry" onclick="selectCategory(this)"><div class="cat-emoji">🛡</div><div class="cat-name">تجهیزات ایمنی صنعتی</div><div class="cat-sector">صنعتی و ساختمان</div></div>
+<div class="category-card" data-name="خدمات چاپ و تبلیغات" data-sector="services" onclick="selectCategory(this)"><div class="cat-emoji">🖨</div><div class="cat-name">خدمات چاپ و تبلیغات</div><div class="cat-sector">خدمات و تخصصی</div></div>
+<div class="category-card" data-name="عکاسی و فیلمبرداری" data-sector="services" onclick="selectCategory(this)"><div class="cat-emoji">📸</div><div class="cat-name">عکاسی و فیلمبرداری</div><div class="cat-sector">خدمات و تخصصی</div></div>
+<div class="category-card" data-name="آرایشگاه و سالن زیبایی" data-sector="services" onclick="selectCategory(this)"><div class="cat-emoji">💄</div><div class="cat-name">آرایشگاه و سالن زیبایی</div><div class="cat-sector">خدمات و تخصصی</div></div>
+<div class="category-card" data-name="رستوران و کافه" data-sector="services" onclick="selectCategory(this)"><div class="cat-emoji">🍽</div><div class="cat-name">رستوران و کافه</div><div class="cat-sector">خدمات و تخصصی</div></div>
+<div class="category-card" data-name="هتل و اقامتگاه" data-sector="services" onclick="selectCategory(this)"><div class="cat-emoji">🏨</div><div class="cat-name">هتل و اقامتگاه</div><div class="cat-sector">خدمات و تخصصی</div></div>
+<div class="category-card" data-name="آژانس مسافرتی" data-sector="services" onclick="selectCategory(this)"><div class="cat-emoji">✈</div><div class="cat-name">آژانس مسافرتی</div><div class="cat-sector">خدمات و تخصصی</div></div>
+<div class="category-card" data-name="خدمات آموزشی و تدریس" data-sector="services" onclick="selectCategory(this)"><div class="cat-emoji">🎓</div><div class="cat-name">خدمات آموزشی و تدریس</div><div class="cat-sector">خدمات و تخصصی</div></div>
+<div class="category-card" data-name="خدمات مشاوره" data-sector="services" onclick="selectCategory(this)"><div class="cat-emoji">💼</div><div class="cat-name">خدمات مشاوره</div><div class="cat-sector">خدمات و تخصصی</div></div>
+<div class="category-card" data-name="خدمات دیجیتال و طراحی" data-sector="services" onclick="selectCategory(this)"><div class="cat-emoji">💻</div><div class="cat-name">خدمات دیجیتال و طراحی</div><div class="cat-sector">خدمات و تخصصی</div></div>
+<div class="category-card" data-name="خدمات ارسال و پیک" data-sector="services" onclick="selectCategory(this)"><div class="cat-emoji">🚚</div><div class="cat-name">خدمات ارسال و پیک</div><div class="cat-sector">خدمات و تخصصی</div></div>
+<div class="category-card" data-name="سایر (صنف آزاد)" data-sector="other" onclick="selectCategory(this)"><div class="cat-emoji">✨</div><div class="cat-name">سایر (صنف آزاد)</div><div class="cat-sector">سایر</div></div>
+  </div>
+
+  <div id="catEmpty" style="display:none;text-align:center;padding:60px 20px;color:var(--color-text-muted);">
+    <div style="font-size:48px;margin-bottom:12px;">🔍</div>
+    <h3 style="font-size:18px;font-weight:700;color:var(--color-text-secondary);margin-bottom:6px;">صنف مورد نظر یافت نشد</h3>
+    <p>می‌توانید از صنف «سایر» استفاده کنید یا کلمه دیگری جستجو کنید.</p>
+  </div>
+
+  <div class="text-center mt-6" style="margin-top:50px;">
+    <div class="glass-card" style="max-width:600px;margin:0 auto;padding:30px;">
+      <h3 style="font-size:20px;font-weight:800;margin-bottom:8px;color:var(--color-text);">صنف خود را پیدا نکردید؟</h3>
+      <p style="font-size:14px;color:var(--color-text-secondary);margin-bottom:18px;">صنف «سایر» را انتخاب کنید و اطلاعات کسب‌وکار خود را به‌صورت دستی وارد کنید.</p>
+      <a href="register.html" class="btn btn-primary">شروع کنید</a>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-grid">
+    <div class="footer-brand-block">
+      <div class="navbar-brand">
+        <span class="brand-icon">R</span>
+        <span>
+          <span class="brand-text-fa">راستیسی</span>
+          <span class="brand-text-en">RASTISI</span>
+        </span>
+      </div>
+      <p>راستیسی، پلتفرم هوشمند ساخت فروشگاه اینترنتی است. در کمترین زمان، بدون دانش فنی، فروشگاه آنلاین خود را راه‌اندازی کنید.</p>
+    </div>
+    <div class="footer-col">
+      <h4>محصول</h4>
+      <ul>
+        <li><a href="features.html">امکانات</a></li>
+        <li><a href="plans.html">پلن‌ها و قیمت‌ها</a></li>
+        <li><a href="categories.html">صنوف پشتیبانی‌شده</a></li>
+        <li><a href="how-it-works.html">روش کار</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>شرکت</h4>
+      <ul>
+        <li><a href="about.html">درباره ما</a></li>
+        <li><a href="contact.html">تماس با ما</a></li>
+        <li><a href="faq.html">سوالات متداول</a></li>
+        <li><a href="#">وبلاگ</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>پشتیبانی</h4>
+      <ul>
+        <li><a href="#">مرکز راهنما</a></li>
+        <li><a href="#">تیکت پشتیبانی</a></li>
+        <li><a href="#">قوانین و مقررات</a></li>
+        <li><a href="#">حریم خصوصی</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div>© ۱۴۰۵ راستیسی · تمامی حقوق محفوظ است</div>
+    <div class="footer-socials">
+      <a href="#" title="اینستاگرام">📷</a>
+      <a href="#" title="تلگرام">✈</a>
+      <a href="#" title="واتساپ">💬</a>
+      <a href="#" title="آپارات">▶</a>
+    </div>
+  </div>
+</footer>
+<script src="assets/app.js"></script>
+</body>
+</html>

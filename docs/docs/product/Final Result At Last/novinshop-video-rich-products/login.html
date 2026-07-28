@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ورود · نوین‌شاپ</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%236366f1'/><stop offset='1' stop-color='%23ec4899'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><text x='16' y='22' text-anchor='middle' font-size='17' fill='white' font-family='Arial' font-weight='bold'>N</text></svg>">
+  <style>
+    body { overflow:hidden; }
+    .login-wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+    .login-card {
+      background: rgba(255,255,255,0.65);
+      backdrop-filter: blur(30px) saturate(180%);
+      -webkit-backdrop-filter: blur(30px) saturate(180%);
+      padding:48px 40px;
+      border-radius:28px;
+      box-shadow: 0 24px 60px rgba(99, 102, 241, 0.25), 0 8px 24px rgba(236, 72, 153, 0.15);
+      width:100%;
+      max-width:440px;
+      border: 1px solid rgba(255,255,255,0.7);
+      animation: cardIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    @keyframes cardIn {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .login-logo {
+      width:80px; height:80px;
+      background: linear-gradient(135deg, #6366f1, #ec4899);
+      border-radius:22px;
+      display:flex; align-items:center; justify-content:center;
+      color:#fff; font-size:42px; font-weight:800;
+      margin:0 auto 24px;
+      box-shadow: 0 12px 28px rgba(99, 102, 241, 0.5);
+    }
+    .login-title {
+      text-align:center; font-size:24px; font-weight:800;
+      background: linear-gradient(135deg, var(--color-text), var(--color-text-secondary));
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom:6px;
+    }
+    .login-sub { text-align:center; color:var(--color-text-muted); font-size:13px; margin-bottom:32px; font-weight:500; }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">N</div>
+      <div class="login-title">نوین‌شاپ</div>
+      <div class="login-sub">پنل مدیریت هوشمند فروشگاه</div>
+      <form data-demo-form="خوش آمدید!" onsubmit="setTimeout(function(){window.location='index.html';},800);return false;">
+        <div class="form-group">
+          <label class="form-label">نام کاربری</label>
+          <input type="text" class="form-control" placeholder="نام کاربری" value="admin">
+        </div>
+        <div class="form-group">
+          <label class="form-label">رمز عبور</label>
+          <input type="password" class="form-control" placeholder="••••••••" value="password">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top:8px;">ورود به پنل</button>
+      </form>
+      <div style="text-align:center;margin-top:24px;font-size:12px;color:var(--color-text-muted);font-weight:500;">
+        نسخه دمو — هر رمزی پذیرفته می‌شود
+      </div>
+    </div>
+  </div>
+  <script src="assets/app.js"></script>
+</body>
+</html>

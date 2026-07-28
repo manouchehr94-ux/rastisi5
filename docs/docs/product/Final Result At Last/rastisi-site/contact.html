@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تماس با ما · راستیسی</title>
+  <meta name="description" content="راستیسی - پلتفرم ساخت فروشگاه اینترنتی. در ۵ دقیقه فروشگاه خود را بسازید.">
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%230d9488'/><stop offset='1' stop-color='%23f97316'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><text x='16' y='22' text-anchor='middle' font-size='17' fill='white' font-family='Arial' font-weight='bold'>R</text></svg>">
+  
+</head>
+<body class="">
+<nav class="navbar">
+  <a href="index.html" class="navbar-brand">
+    <span class="brand-icon">R</span>
+    <span>
+      <span class="brand-text-fa">راستیسی</span>
+      <span class="brand-text-en">RASTISI</span>
+    </span>
+  </a>
+  <button class="navbar-toggle" onclick="toggleMobileMenu()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="navbar-menu" id="navbarMenu">
+    <a href="index.html" class="nav-link">خانه</a>
+    <a href="features.html" class="nav-link">امکانات</a>
+    <a href="categories.html" class="nav-link">صنوف</a>
+    <a href="plans.html" class="nav-link">پلن‌ها</a>
+    <a href="how-it-works.html" class="nav-link">روش کار</a>
+    <a href="faq.html" class="nav-link">سوالات</a>
+    <a href="contact.html" class="nav-link">تماس</a>
+    <div class="nav-cta-group">
+      <a href="login.html" class="btn btn-secondary btn-sm">ورود</a>
+      <a href="register.html" class="btn btn-primary btn-sm">شروع کنید</a>
+    </div>
+  </div>
+</nav>
+<div class="menu-overlay" id="menuOverlay"></div>
+
+<section class="hero" style="padding:50px 28px 20px;">
+  <span class="hero-badge"><span class="pulse"></span><span>پشتیبانی ۲۴/۷</span></span>
+  <h1 class="hero-title" style="font-size:42px;">با ما در تماس باشید</h1>
+  <p class="hero-subtitle">سوال، پیشنهاد یا مشکل دارید؟ تیم ما آماده کمک است. از طریق فرم زیر یا راه‌های ارتباطی دیگر با ما در تماس باشید.</p>
+</section>
+
+<section class="section" style="padding-top:20px;">
+  <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:30px;max-width:980px;margin:0 auto;" class="contact-grid">
+
+    <div class="glass-card">
+      <h3 style="font-size:20px;font-weight:800;margin-bottom:18px;color:var(--color-text);">ارسال پیام</h3>
+      <form data-demo-form="پیام شما با موفقیت ارسال شد! به زودی پاسخ می‌دهیم.">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div class="form-group">
+            <label class="form-label">نام <span class="req">*</span></label>
+            <input type="text" class="form-control" placeholder="نام شما" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">موبایل <span class="req">*</span></label>
+            <input type="tel" class="form-control" placeholder="۰۹۱۲..." dir="ltr" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">ایمیل</label>
+          <input type="email" class="form-control" placeholder="you@example.com" dir="ltr">
+        </div>
+        <div class="form-group">
+          <label class="form-label">موضوع</label>
+          <select class="form-control">
+            <option>سوال عمومی</option>
+            <option>پشتیبانی فنی</option>
+            <option>فروش و پلن‌ها</option>
+            <option>همکاری</option>
+            <option>سایر</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">پیام شما <span class="req">*</span></label>
+          <textarea class="form-control" rows="5" placeholder="پیام خود را بنویسید..." required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg">ارسال پیام</button>
+      </form>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="glass-card" style="padding:20px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:44px;height:44px;background:linear-gradient(135deg,#0d9488,#14b8a6);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;">📞</div>
+          <div>
+            <div style="font-size:12px;color:var(--color-text-muted);">تلفن پشتیبانی</div>
+            <div style="font-weight:800;font-size:15px;direction:ltr;text-align:right;">۰۲۱-۹۱۰۰۱۲۳۴</div>
+          </div>
+        </div>
+      </div>
+      <div class="glass-card" style="padding:20px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:44px;height:44px;background:linear-gradient(135deg,#f97316,#fb923c);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;">✉</div>
+          <div>
+            <div style="font-size:12px;color:var(--color-text-muted);">ایمیل</div>
+            <div style="font-weight:800;font-size:14px;direction:ltr;text-align:right;">support@rastisi.ir</div>
+          </div>
+        </div>
+      </div>
+      <div class="glass-card" style="padding:20px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:44px;height:44px;background:linear-gradient(135deg,#8b5cf6,#a78bfa);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;">💬</div>
+          <div>
+            <div style="font-size:12px;color:var(--color-text-muted);">چت آنلاین</div>
+            <div style="font-weight:800;font-size:14px;">پشتیبانی ۲۴/۷</div>
+          </div>
+        </div>
+      </div>
+      <div class="glass-card" style="padding:20px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:44px;height:44px;background:linear-gradient(135deg,#ec4899,#f472b6);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;">📍</div>
+          <div>
+            <div style="font-size:12px;color:var(--color-text-muted);">آدرس</div>
+            <div style="font-weight:700;font-size:13px;">تهران، خیابان ولیعصر، برج راستیسی</div>
+          </div>
+        </div>
+      </div>
+      <div class="glass-card" style="padding:20px;text-align:center;">
+        <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:8px;">ساعات کاری</div>
+        <div style="font-weight:700;font-size:13.5px;">شنبه تا پنجشنبه: ۹ تا ۱۸</div>
+        <div style="font-weight:700;font-size:13.5px;color:var(--color-primary-dark);margin-top:4px;">پشتیبانی چت: ۲۴ ساعته</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<style>
+@media (max-width: 768px) {
+  .contact-grid { grid-template-columns: 1fr !important; }
+}
+</style>
+
+<footer class="footer">
+  <div class="footer-grid">
+    <div class="footer-brand-block">
+      <div class="navbar-brand">
+        <span class="brand-icon">R</span>
+        <span>
+          <span class="brand-text-fa">راستیسی</span>
+          <span class="brand-text-en">RASTISI</span>
+        </span>
+      </div>
+      <p>راستیسی، پلتفرم هوشمند ساخت فروشگاه اینترنتی است. در کمترین زمان، بدون دانش فنی، فروشگاه آنلاین خود را راه‌اندازی کنید.</p>
+    </div>
+    <div class="footer-col">
+      <h4>محصول</h4>
+      <ul>
+        <li><a href="features.html">امکانات</a></li>
+        <li><a href="plans.html">پلن‌ها و قیمت‌ها</a></li>
+        <li><a href="categories.html">صنوف پشتیبانی‌شده</a></li>
+        <li><a href="how-it-works.html">روش کار</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>شرکت</h4>
+      <ul>
+        <li><a href="about.html">درباره ما</a></li>
+        <li><a href="contact.html">تماس با ما</a></li>
+        <li><a href="faq.html">سوالات متداول</a></li>
+        <li><a href="#">وبلاگ</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>پشتیبانی</h4>
+      <ul>
+        <li><a href="#">مرکز راهنما</a></li>
+        <li><a href="#">تیکت پشتیبانی</a></li>
+        <li><a href="#">قوانین و مقررات</a></li>
+        <li><a href="#">حریم خصوصی</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div>© ۱۴۰۵ راستیسی · تمامی حقوق محفوظ است</div>
+    <div class="footer-socials">
+      <a href="#" title="اینستاگرام">📷</a>
+      <a href="#" title="تلگرام">✈</a>
+      <a href="#" title="واتساپ">💬</a>
+      <a href="#" title="آپارات">▶</a>
+    </div>
+  </div>
+</footer>
+<script src="assets/app.js"></script>
+</body>
+</html>
