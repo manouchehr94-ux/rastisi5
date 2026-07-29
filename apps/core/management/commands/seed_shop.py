@@ -287,7 +287,7 @@ class Command(BaseCommand):
         customers = self._seed_customers()
         shipping_methods = self._seed_shipping_methods(store)
         gateways = self._seed_payment_gateways(store)
-        coupons = self._seed_coupons()
+        coupons = self._seed_coupons(store)
         self._seed_orders(store, vendor, customers, products, shipping_methods, gateways, coupons)
         self._seed_blog_posts()
         self._recompute_customer_stats()
@@ -465,12 +465,12 @@ class Command(BaseCommand):
         self._log("درگاه پرداخت", created_count)
         return by_slug
 
-    def _seed_coupons(self):
+    def _seed_coupons(self, store):
         by_code = {}
         created_count = 0
         for data in COUPONS:
             coupon, created = Coupon.objects.get_or_create(
-                code=data["code"],
+                store=store, code=data["code"],
                 defaults={"type": data["type"], "value": data["value"], "label": data["label"]},
             )
             created_count += created
