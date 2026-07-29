@@ -5,7 +5,7 @@ from django.db import transaction
 from django.test import TestCase
 
 from apps.cart.models import Cart, CartItem, Coupon
-from apps.catalog.models import Category, Product, Vendor
+from apps.catalog.models import Category, Product, ProductVariant, StockMovement, Vendor
 from apps.customers.models import Address, Customer
 from apps.orders.models import Order, OrderStatusHistory, PaymentGateway, ShippingMethod
 from apps.orders.services.order_service import change_order_status, create_order_from_cart
@@ -112,6 +112,134 @@ class CreateOrderFromCartTests(TestCase):
         except ValueError:
             pass
         self.assertFalse(SmsLog.objects.filter(event_key="order_placed").exists())
+
+    def test_create_order_decrements_product_stock_and_records_ledger(self):
+        self._create()
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 8)
+        movement = StockMovement.objects.get(product=self.product)
+        self.assertEqual(movement.delta, -2)
+        self.assertEqual(movement.stock_before, 10)
+        self.assertEqual(movement.stock_after, 8)
+        self.assertEqual(movement.reason, StockMovement.Reason.ORDER_PLACED)
+        self.assertEqual(movement.variant, None)
+
+
+class CreateOrderFromCartWithVariantTests(TestCase):
+    """نگاه کنید به ADR-31 — قبل از این PR، برای اقلامِ دارای تنوع،
+    Product.stock به‌جای ProductVariant.stock کم می‌شد."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.user = User.objects.create_user(username="parisa", password="pass12345")
+        self.customer = Customer.objects.create(user=self.user, full_name="پریسا احمدی", phone="09121230099")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-osv")
+        self.category = Category.objects.create(store=self.store, name="پوشاک", slug="clothing-osv")
+        self.product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="تی‌شرت", slug="tshirt-osv",
+            sku="SKU-OSV1", price=Decimal("500000"), stock=0, product_type=Product.ProductType.VARIABLE,
+        )
+        self.variant = ProductVariant.objects.create(
+            product=self.product, store=self.store, attribute="سایز", value="بزرگ", stock=5,
+        )
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-osv", cost=Decimal("45000"))
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-osv")
+        self.address = Address.objects.create(
+            customer=self.customer, receiver_name="پریسا احمدی", phone="09121230099",
+            province="تهران", city="تهران", postal_code="1111111111", full_address="خیابان ولیعصر",
+        )
+        self.cart = Cart.objects.create(customer=self.customer)
+        CartItem.objects.create(
+            cart=self.cart, product=self.product, variant=self.variant, quantity=2,
+            unit_price=self.product.final_price,
+        )
+
+    def _create(self):
+        return create_order_from_cart(
+            self.cart, customer=self.customer, vendor=self.vendor, address=self.address,
+            shipping_method=self.shipping, payment_gateway=self.gateway, store=self.store,
+        )
+
+    def test_decrements_variant_stock_not_product_stock(self):
+        self._create()
+        self.variant.refresh_from_db()
+        self.product.refresh_from_db()
+        self.assertEqual(self.variant.stock, 3)
+        self.assertEqual(self.product.stock, 0)  # unchanged — product itself was never the target
+
+    def test_records_ledger_entry_against_variant(self):
+        self._create()
+        movement = StockMovement.objects.get(variant=self.variant)
+        self.assertEqual(movement.delta, -2)
+        self.assertEqual(movement.stock_before, 5)
+        self.assertEqual(movement.stock_after, 3)
+        self.assertEqual(movement.product_id, self.product.pk)
+
+    def test_insufficient_variant_stock_rejected_even_though_product_stock_would_allow_it(self):
+        self.product.stock = 100
+        self.product.save(update_fields=["stock"])
+        CartItem.objects.filter(cart=self.cart).update(quantity=999)
+        with self.assertRaises(ValueError):
+            self._create()
+        self.variant.refresh_from_db()
+        self.assertEqual(self.variant.stock, 5)  # unchanged
+
+
+class CancelOrderRestocksInventoryTests(TestCase):
+    """نگاه کنید به ADR-31 — قبل از این PR، لغو سفارش هرگز موجودی را
+    بازنمی‌گرداند."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.user = User.objects.create_user(username="reza", password="pass12345")
+        self.staff = User.objects.create_user(username="admin-cr", password="pass12345", is_staff=True)
+        self.customer = Customer.objects.create(user=self.user, full_name="رضا نوری", phone="09121230088")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-cr")
+        self.category = Category.objects.create(store=self.store, name="دیجیتال", slug="digital-cr")
+        self.product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="ماوس", slug="mouse-cr",
+            sku="SKU-CR1", price=Decimal("300000"), stock=10,
+        )
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-cr", cost=Decimal("45000"))
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-cr")
+        self.address = Address.objects.create(
+            customer=self.customer, receiver_name="رضا نوری", phone="09121230088",
+            province="تهران", city="تهران", postal_code="1111111111", full_address="خیابان انقلاب",
+        )
+        self.cart = Cart.objects.create(customer=self.customer)
+        CartItem.objects.create(cart=self.cart, product=self.product, quantity=4, unit_price=self.product.final_price)
+        self.order = create_order_from_cart(
+            self.cart, customer=self.customer, vendor=self.vendor, address=self.address,
+            shipping_method=self.shipping, payment_gateway=self.gateway, store=self.store,
+        )
+
+    def test_canceling_pending_order_restocks_product(self):
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 6)  # decremented on order creation
+
+        change_order_status(self.order, Order.Status.CANCELED, by=self.staff, store=self.store)
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 10)  # fully restored
+        restock_movement = StockMovement.objects.filter(
+            product=self.product, reason=StockMovement.Reason.ORDER_CANCELED,
+        ).first()
+        self.assertIsNotNone(restock_movement)
+        self.assertEqual(restock_movement.delta, 4)
+        self.assertEqual(restock_movement.order_id, self.order.pk)
+
+    def test_canceling_processing_order_also_restocks(self):
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
+        change_order_status(self.order, Order.Status.CANCELED, store=self.store)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 10)
+
+    def test_delivering_order_does_not_restock(self):
+        change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
+        change_order_status(self.order, Order.Status.SHIPPED, store=self.store)
+        change_order_status(self.order, Order.Status.DELIVERED, store=self.store)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 6)  # never restored — order fulfilled, not canceled
 
 
 class ChangeOrderStatusTests(TestCase):

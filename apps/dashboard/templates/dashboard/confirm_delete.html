@@ -1,18 +1,18 @@
 {% extends "dashboard/base_admin.html" %}
-{% block title %}تأیید حذف | پنل مدیریت{% endblock %}
-{% block page_title %}تأیید حذف{% endblock %}
+{% block title %}تأیید {{ action_label|default:"حذف" }} | پنل مدیریت{% endblock %}
+{% block page_title %}تأیید {{ action_label|default:"حذف" }}{% endblock %}
 {% block page_sub %}{{ object_type }}{% endblock %}
 {% block content %}
 <div class="form-card">
   <div class="warning-box">
     <strong>آیا مطمئن هستید؟</strong>
-    <p>{{ object_type }} «{{ object_name }}» حذف خواهد شد. این عملیات قابل بازگشت نیست.</p>
+    <p>{{ object_type }} «{{ object_name }}» {{ action_label|default:"حذف" }} خواهد شد. این عملیات قابل بازگشت نیست.</p>
     {% if consequence %}<p>{{ consequence }}</p>{% endif %}
   </div>
   <form method="post">
     {% csrf_token %}
     <div class="btn-row">
-      <button type="submit" class="btn btn-danger">حذف</button>
+      <button type="submit" class="btn btn-danger">{{ action_label|default:"حذف" }}</button>
       <a href="{{ cancel_url }}" class="btn btn-secondary">انصراف</a>
     </div>
   </form>

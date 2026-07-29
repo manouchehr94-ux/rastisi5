@@ -6,10 +6,14 @@
 import random
 
 from django.db import IntegrityError, transaction
-from django.db.models import F
 
 from apps.cart.services.pricing import cart_totals
 from apps.catalog.models import Product, ProductVariant
+from apps.catalog.services.inventory_service import (
+    InsufficientStockError,
+    decrement_stock_for_order_item,
+    restock_order,
+)
 from apps.core.utils import format_toman
 from apps.orders.models import Order, OrderItem, OrderStatusHistory
 from apps.sms.events import SmsEvent
@@ -107,6 +111,7 @@ def _lock_and_revalidate_items(items, *, store):
         if product.status != Product.Status.ACTIVE:
             raise ValueError(f"کالای «{product.name}» دیگر برای فروش موجود نیست")
 
+        variant = None
         if item.variant_id:
             variant = locked_variants.get(item.variant_id)
             if (
@@ -117,7 +122,12 @@ def _lock_and_revalidate_items(items, *, store):
             ):
                 raise ValueError(f"تنوع انتخاب‌شده برای «{product.name}» دیگر معتبر نیست")
 
-        if item.quantity > product.stock:
+        # موجودیِ مرجع برای اقلامِ دارای تنوع، موجودیِ خودِ تنوع است، نه
+        # موجودیِ کالای والد — کالای دارای تنوع می‌تواند Product.stock صفر و
+        # ProductVariant.stock مثبت داشته باشد (یا برعکس)؛ نگاه کنید به
+        # ADR-31.
+        available_stock = variant.stock if variant is not None else product.stock
+        if item.quantity > available_stock:
             raise ValueError(f"موجودی «{product.name}» کافی نیست")
 
     return locked_products, locked_variants
@@ -210,13 +220,16 @@ def create_order_from_cart(
             unit_price=unit_price,
             line_total=unit_price * item.quantity,
         )
-        updated = Product.objects.filter(pk=item.product_id, stock__gte=item.quantity).update(
-            stock=F("stock") - item.quantity
-        )
-        if updated == 0:
-            # با قفل قبلی، این عملاً نباید پیش بیاید — فقط به‌عنوان بیمه‌ی
-            # اضافی در برابر منفی‌شدن موجودی نگه داشته شده.
-            raise ValueError(f"موجودی «{product.name}» کافی نیست")
+        # با قفلِ قبلی (_lock_and_revalidate_items)، شکستِ این کاهش عملاً
+        # نباید پیش بیاید — decrement_stock_for_order_item همچنان دوباره
+        # (به‌صورت اتمیک، با stock__gte) بررسی می‌کند تا موجودی هرگز منفی
+        # نشود، و برای هر قلم دقیقاً یک ``StockMovement`` ثبت می‌کند.
+        try:
+            decrement_stock_for_order_item(
+                store=store, product=product, variant=variant, quantity=item.quantity, order=order,
+            )
+        except InsufficientStockError as exc:
+            raise ValueError(str(exc)) from exc
 
     OrderStatusHistory.objects.create(
         order=order, from_status="", to_status=order.status, note="سفارش ثبت شد"
@@ -263,6 +276,14 @@ def change_order_status(
         order.tracking_code = tracking_code
         update_fields.append("tracking_code")
     order.save(update_fields=update_fields)
+
+    if to_status == Order.Status.CANCELED:
+        # لغو یک سفارشِ PENDING/PROCESSING/SHIPPED باید موجودیِ کاهش‌یافته
+        # هنگام ثبت را بازگرداند — پیش از این PR، لغو سفارش هرگز موجودی را
+        # بازنمی‌گرداند (نگاه کنید به ADR-31). ``CANCELED`` یک وضعیتِ نهاییِ
+        # بدونِ گذارِ خروجی است، پس این مسیر برای هر سفارش حداکثر یک‌بار اجرا
+        # می‌شود.
+        restock_order(store=store, order=order, actor=by)
 
     OrderStatusHistory.objects.create(
         order=order, from_status=from_status, to_status=to_status, changed_by=by, note=note

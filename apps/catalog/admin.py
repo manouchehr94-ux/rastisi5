@@ -18,6 +18,7 @@ from .models import (
     Specification,
     SpecificationTemplate,
     SpecificationTemplateField,
+    StockMovement,
     StoreIndustryInstallation,
     Vendor,
 )
@@ -236,6 +237,27 @@ class StoreIndustryInstallationAdmin(admin.ModelAdmin):
     list_display = ("store", "industry_template", "installed_version", "status", "created_at")
     list_filter = ("status", "industry_template")
     search_fields = ("store__name",)
+    actions = None
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(StockMovement)
+class StockMovementAdmin(admin.ModelAdmin):
+    """پنل بازرسی دفتر موجودی — فقط‌خواندنی؛ هر تغییرِ موجودی فقط از طریق
+    apps.catalog.services.inventory_service ثبت می‌شود تا حسابرسی کامل
+    (stock_before/stock_after) هرگز دور زده نشود."""
+
+    list_display = ("product", "variant", "reason", "delta", "stock_before", "stock_after", "store", "created_at")
+    list_filter = ("reason", "store")
+    search_fields = ("product__name", "variant__attribute", "variant__value", "order__code")
     actions = None
 
     def has_add_permission(self, request):

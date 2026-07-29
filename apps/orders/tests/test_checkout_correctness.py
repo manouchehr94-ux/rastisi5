@@ -100,7 +100,7 @@ class ProductRevalidationTests(_OrderCreationFixture):
 class VariantRevalidationTests(_OrderCreationFixture):
     def setUp(self):
         super().setUp()
-        self.variant = create_variant(self.product, attribute="رنگ", value="قرمز")
+        self.variant = create_variant(self.product, attribute="رنگ", value="قرمز", stock=10)
 
     def test_variant_deactivated_after_cart_add_is_rejected_at_order_time(self):
         cart = self._cart_with_item(variant=self.variant)
@@ -123,7 +123,7 @@ class VariantRevalidationTests(_OrderCreationFixture):
 class OrderSnapshotSurvivesLaterChangesTests(_OrderCreationFixture):
     def setUp(self):
         super().setUp()
-        self.variant = create_variant(self.product, attribute="رنگ", value="سبز", sku="VAR-CC-GREEN")
+        self.variant = create_variant(self.product, attribute="رنگ", value="سبز", sku="VAR-CC-GREEN", stock=10)
 
     def test_sku_and_variant_label_survive_product_and_variant_changes(self):
         cart = self._cart_with_item(variant=self.variant)

@@ -163,4 +163,16 @@ urlpatterns = [
     path("footer/payment-logos/<int:pk>/edit/", views.footer_payment_logo_form, name="footer-payment-logo-edit"),
     path("footer/payment-logos/<int:pk>/delete/", views.footer_payment_logo_delete, name="footer-payment-logo-delete"),
     path("footer/payment-logos/<int:pk>/toggle/", views.footer_payment_logo_toggle, name="footer-payment-logo-toggle"),
+
+    # --- اعضای تیم (Staff / Membership) ---
+    path("staff/", views.staff_list, name="staff-list"),
+    path("staff/add/", views.staff_add, name="staff-add"),
+    path("staff/<int:pk>/role/", views.staff_change_role, name="staff-change-role"),
+    path("staff/<int:pk>/revoke/", views.staff_revoke, name="staff-revoke"),
+    path("staff/<int:pk>/reactivate/", views.staff_reactivate, name="staff-reactivate"),
+    path("staff/<int:pk>/transfer-ownership/", views.staff_transfer_ownership, name="staff-transfer-ownership"),
+
+    # --- دفتر موجودی (Inventory Ledger) ---
+    path("inventory/", views.inventory_list, name="inventory-list"),
+    path("inventory/table/", views.inventory_table, name="inventory-table"),
 ]

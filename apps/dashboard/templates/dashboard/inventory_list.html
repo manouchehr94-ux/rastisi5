@@ -1,0 +1,27 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+{% block title %}دفتر موجودی | پنل مدیریت{% endblock %}
+{% block page_title %}دفتر موجودی{% endblock %}
+{% block page_sub %}تاریخچه‌ی کاملِ هر تغییرِ موجودی — ثبت سفارش، لغو سفارش، اصلاح دستی{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <input class="inp" id="invSearch" name="q" value="{{ q }}" placeholder="جستجوی کالا یا SKU..." style="width:220px"
+             hx-get="{% url 'dashboard:inventory-table' %}" hx-target="#inventoryTableWrap" hx-swap="innerHTML"
+             hx-trigger="keyup changed delay:300ms" hx-include="#invReasonFilter">
+      <select class="inp" id="invReasonFilter" name="reason" style="width:200px"
+              hx-get="{% url 'dashboard:inventory-table' %}" hx-target="#inventoryTableWrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#invSearch">
+        <option value="">همه‌ی علت‌ها</option>
+        {% for value, label in reason_options %}
+        <option value="{{ value }}" {% if selected_reason == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div id="inventoryTableWrap">
+    {% include "dashboard/partials/inventory_table_inner.html" %}
+  </div>
+</div>
+{% endblock %}

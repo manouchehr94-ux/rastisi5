@@ -451,6 +451,62 @@ class ProductVariant(TimeStampedModel):
         super().save(*args, **kwargs)
 
 
+class StockMovement(TimeStampedModel):
+    """دفترِ حسابرسیِ موجودی — هر تغییرِ موجودیِ ``Product``/``ProductVariant``
+    (چه در ثبت سفارش، چه لغو/بازگشت، چه اصلاحِ دستیِ مدیر) دقیقاً یک ردیف
+    این‌جا ثبت می‌کند و هرگز حذف/به‌روزرسانی نمی‌شود — نگاه کنید به
+    ``apps.catalog.services.inventory_service`` و ADR-31 در
+    ``SAAS_DOMAIN_DECISIONS.md``.
+
+    ``variant`` وقتی خالی است که این تغییر مستقیماً روی موجودیِ خودِ کالا
+    (نه یک تنوعِ خاص) اعمال شده — دقیقاً همان قلمی که این تغییر را نوشته
+    (Product یا ProductVariant) با هم سازگار است چون حتی برای کالاهای
+    دارای تنوع، ``product`` همیشه پر است (نگاه کنید به
+    ``inventory_service.decrement_stock_for_order_item``).
+    """
+
+    class Reason(models.TextChoices):
+        ORDER_PLACED = "order_placed", "ثبت سفارش (کاهش موجودی)"
+        ORDER_CANCELED = "order_canceled", "لغو سفارش (بازگشت موجودی)"
+        MANUAL_ADJUSTMENT = "manual_adjustment", "اصلاح دستی موجودی"
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="stock_movements",
+    )
+    product = models.ForeignKey(
+        Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="stock_movements",
+    )
+    variant = models.ForeignKey(
+        ProductVariant, verbose_name="تنوع", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="stock_movements",
+    )
+    order = models.ForeignKey(
+        "orders.Order", verbose_name="سفارش", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="stock_movements",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="انجام‌دهنده", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="stock_movements",
+    )
+    reason = models.CharField("علت", max_length=20, choices=Reason.choices)
+    delta = models.IntegerField("مقدار تغییر (مثبت=افزایش، منفی=کاهش)")
+    stock_before = models.IntegerField("موجودی پیش از تغییر")
+    stock_after = models.IntegerField("موجودی پس از تغییر")
+    note = models.CharField("یادداشت", max_length=255, blank=True, default="")
+
+    class Meta:
+        verbose_name = "رویداد موجودی"
+        verbose_name_plural = "دفتر موجودی"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["store", "product", "-created_at"], name="idx_stockmv_store_product"),
+        ]
+
+    def __str__(self):
+        sign = "+" if self.delta >= 0 else ""
+        return f"{self.product.name} {sign}{self.delta} ({self.get_reason_display()})"
+
+
 # =============================================================================
 # موتور Attribute / Option / Variant چندمحوره (Phase 1D) — نگاه کنید به
 # ADR-19 (جدایی ویژگی توصیفی از محور تنوع‌ساز)، ADR-20 (هویت پایدار ترکیب) و

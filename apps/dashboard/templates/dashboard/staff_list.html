@@ -1,0 +1,75 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}اعضای تیم | پنل مدیریت{% endblock %}
+{% block page_title %}اعضای تیم{% endblock %}
+{% block page_sub %}مدیریت دسترسیِ اعضای تیم به پنل مدیریتِ فروشگاه{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>اعضای تیم</h2>
+    <p class="page-desc">اعضای تیمِ فروشگاه و نقشِ هرکدام را مدیریت کنید. فقط مالکِ فروشگاه می‌تواند این صفحه را ببیند.</p>
+  </div>
+  <a href="{% url 'dashboard:staff-add' %}" class="btn btn-primary">افزودن عضو تیم</a>
+</div>
+
+{% if memberships %}
+<div class="card">
+  <div class="card-head">
+    <h3>اعضا ({{ memberships|length }})</h3>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>شماره موبایل</th><th>نقش</th><th>وضعیت</th><th>دعوت‌کننده</th><th>تاریخ عضویت</th><th>عملیات</th></tr></thead>
+    <tbody>
+    {% for membership in memberships %}
+    <tr>
+      <td dir="ltr" style="text-align:right"><b>{{ membership.user.username }}</b></td>
+      <td>
+        {% if membership.role == "owner" %}
+          <span class="badge b-amber">{{ membership.get_role_display }}</span>
+        {% else %}
+          {{ membership.get_role_display }}
+        {% endif %}
+      </td>
+      <td>
+        {% if membership.status == "active" %}<span class="badge b-green">فعال</span>
+        {% elif membership.status == "invited" %}<span class="badge b-amber">دعوت‌شده</span>
+        {% else %}<span class="badge">لغوشده</span>{% endif %}
+      </td>
+      <td>{{ membership.invited_by.username|default:"—" }}</td>
+      <td>{{ membership.invited_at|date:"Y-m-d" }}</td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        {% if membership.role != "owner" and membership.status == "active" %}
+          <form method="post" action="{% url 'dashboard:staff-change-role' membership.pk %}" style="display:flex;gap:4px">
+            {% csrf_token %}
+            <select name="role" class="form-select" style="height:32px;padding:2px 6px">
+              {% for value, label in assignable_roles %}
+              <option value="{{ value }}" {% if membership.role == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-sm" type="submit">تغییر نقش</button>
+          </form>
+          <a class="btn btn-sm" href="{% url 'dashboard:staff-transfer-ownership' membership.pk %}">انتقال مالکیت</a>
+          <a class="btn btn-sm btn-danger" href="{% url 'dashboard:staff-revoke' membership.pk %}">لغو عضویت</a>
+        {% elif membership.status != "active" and membership.role != "owner" %}
+          <form method="post" action="{% url 'dashboard:staff-reactivate' membership.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn btn-sm">فعال‌سازی مجدد</button>
+          </form>
+        {% else %}
+          <span style="color:var(--muted,#9ca3af);font-size:12.5px">مالکِ فروشگاه</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <span class="empty-icon">👥</span>
+    <div class="empty-title">هنوز عضوی اضافه نشده</div>
+    <p class="empty-desc">با افزودنِ اعضای تیم، می‌توانید دسترسیِ کارکنانِ خود را به بخش‌های مختلفِ پنل مدیریت با نقش‌های متفاوت مدیریت کنید.</p>
+    <a href="{% url 'dashboard:staff-add' %}" class="btn btn-primary">افزودن اولین عضو</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

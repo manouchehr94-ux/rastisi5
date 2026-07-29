@@ -1,0 +1,29 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}افزودن عضو تیم | پنل مدیریت{% endblock %}
+{% block page_title %}افزودن عضو تیم{% endblock %}
+{% block page_sub %}شماره موبایل و نقشِ عضوِ تازه را وارد کنید{% endblock %}
+{% block content %}
+<div class="form-card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="field-group">
+      <label class="field-label required" for="id_phone">شماره موبایل</label>
+      <input type="text" name="phone" id="id_phone" required maxlength="11" dir="ltr" placeholder="09121234567" class="form-input">
+      <span class="field-help">اگر این شماره پیش‌تر در فروشگاه ثبت‌نام نکرده باشد، حسابِ کاربری تازه‌ای برایش ساخته می‌شود.</span>
+    </div>
+    <div class="field-group">
+      <label class="field-label required" for="id_role">نقش</label>
+      <select name="role" id="id_role" class="form-select">
+        {% for value, label in assignable_roles %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <span class="field-help">نقش تعیین می‌کند این عضو به کدام بخش‌های پنل مدیریت دسترسی دارد.</span>
+    </div>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">افزودن</button>
+      <a href="{% url 'dashboard:staff-list' %}" class="btn btn-secondary">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

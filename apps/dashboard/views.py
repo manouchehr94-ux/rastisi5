@@ -27,6 +27,7 @@ from apps.catalog.models import (
     ProductOption,
     ProductOptionValue,
     ProductVariant,
+    StockMovement,
     StoreIndustryInstallation,
     StoreTemplateUpdate,
 )
@@ -62,6 +63,7 @@ from apps.catalog.services.industry_template_service import (
     IndustryInstallationError,
     install_industry_template,
 )
+from apps.catalog.services.inventory_service import list_stock_movements
 from apps.catalog.services.pricing_service import resolve_effective_price
 from apps.catalog.services.product_publish_service import validate_product_for_publish
 from apps.catalog.services.product_specification_service import build_product_specification
@@ -114,6 +116,17 @@ from apps.orders.services.order_service import change_order_status
 from apps.sms.events import EVENT_VARIABLES
 from apps.sms.models import SmsTemplate
 from apps.sms.services.sms_service import SmsTemplateError, send_test_sms
+from apps.stores.models import StoreMembership
+from apps.stores.services.membership_service import (
+    ASSIGNABLE_ROLES,
+    MembershipError,
+    add_staff_member,
+    change_role,
+    list_memberships,
+    reactivate_membership,
+    revoke_membership,
+    transfer_ownership,
+)
 
 from .decorators import admin_host_required, permission_required, staff_required
 from apps.stores.authorization import (
@@ -122,6 +135,7 @@ from apps.stores.authorization import (
     CONTENT_MANAGE,
     CUSTOMER_VIEW,
     DASHBOARD_VIEW,
+    INVENTORY_MANAGE,
     MEDIA_MANAGE,
     ORDER_STATUS_CHANGE,
     ORDER_VIEW,
@@ -133,6 +147,7 @@ from apps.stores.authorization import (
     REPORTS_VIEW,
     SETTINGS_MANAGE,
     SMS_SETTINGS_MANAGE,
+    STAFF_MANAGE,
     VARIANT_MANAGE,
     membership_has_permission,
 )
@@ -3406,3 +3421,157 @@ def settings_gateway_config_toggle(request, gateway_code):
         "settings-reload": {},
     })
     return response
+
+
+# ---------------------------------------------------------------- اعضای تیم (Staff / Membership)
+
+def _dashboard_membership_or_404(store, pk):
+    return get_object_or_404(StoreMembership, pk=pk, store=store)
+
+
+@staff_required
+@permission_required(STAFF_MANAGE)
+def staff_list(request):
+    memberships = list_memberships(request.store)
+    return render(request, "dashboard/staff_list.html", {
+        "memberships": memberships,
+        "active_page": "staff",
+        "assignable_roles": ASSIGNABLE_ROLES,
+        "role_choices": StoreMembership.Role.choices,
+    })
+
+
+@staff_required
+@permission_required(STAFF_MANAGE)
+def staff_add(request):
+    if request.method == "POST":
+        phone = request.POST.get("phone", "")
+        role = request.POST.get("role", "")
+        try:
+            add_staff_member(request.store, phone=phone, role=role, invited_by=request.user)
+            messages.success(request, f"عضو تیم با موفقیت اضافه شد ({phone})")
+        except MembershipError as exc:
+            messages.error(request, str(exc))
+        return redirect("dashboard:staff-list")
+
+    return render(request, "dashboard/staff_form.html", {
+        "active_page": "staff",
+        "assignable_roles": ASSIGNABLE_ROLES,
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(STAFF_MANAGE)
+def staff_change_role(request, pk):
+    membership = _dashboard_membership_or_404(request.store, pk)
+    new_role = request.POST.get("role", "")
+    try:
+        change_role(membership, new_role=new_role)
+        messages.success(request, f"نقشِ «{membership.user.username}» به‌روزرسانی شد")
+    except MembershipError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:staff-list")
+
+
+@staff_required
+@permission_required(STAFF_MANAGE)
+def staff_revoke(request, pk):
+    membership = _dashboard_membership_or_404(request.store, pk)
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "عضویتِ",
+            "object_name": membership.user.username,
+            "consequence": "این کاربر دیگر به پنل مدیریتِ این فروشگاه دسترسی نخواهد داشت.",
+            "action_label": "لغو عضویت",
+            "cancel_url": reverse("dashboard:staff-list"),
+            "active_page": "staff",
+        })
+    try:
+        revoke_membership(membership)
+        messages.success(request, f"عضویتِ «{membership.user.username}» لغو شد")
+    except MembershipError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:staff-list")
+
+
+@require_POST
+@staff_required
+@permission_required(STAFF_MANAGE)
+def staff_reactivate(request, pk):
+    membership = _dashboard_membership_or_404(request.store, pk)
+    try:
+        reactivate_membership(membership)
+        messages.success(request, f"عضویتِ «{membership.user.username}» دوباره فعال شد")
+    except MembershipError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:staff-list")
+
+
+@staff_required
+@permission_required(STAFF_MANAGE)
+def staff_transfer_ownership(request, pk):
+    new_owner = _dashboard_membership_or_404(request.store, pk)
+    current_owner = request.store_membership
+
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "انتقال مالکیتِ فروشگاه به",
+            "object_name": new_owner.user.username,
+            "consequence": "پس از این کار، شما دیگر مالکِ این فروشگاه نخواهید بود (نقشِ شما «مدیر» می‌شود) و امکانِ لغوِ خودکارِ این عملیات وجود ندارد.",
+            "action_label": "انتقال مالکیت",
+            "cancel_url": reverse("dashboard:staff-list"),
+            "active_page": "staff",
+        })
+    try:
+        transfer_ownership(request.store, current_owner=current_owner, new_owner=new_owner)
+        messages.success(request, f"مالکیتِ فروشگاه به «{new_owner.user.username}» منتقل شد")
+    except MembershipError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:staff-list")
+
+
+# ---------------------------------------------------------------- دفتر موجودی (Inventory Ledger)
+
+INVENTORY_MOVEMENTS_PER_PAGE = 30
+
+
+def _inventory_list_context(request):
+    store = _resolve_dashboard_store(request)
+    q = request.GET.get("q", "").strip()
+    reason = request.GET.get("reason", "").strip()
+
+    queryset = list_stock_movements(store)
+    if q:
+        queryset = queryset.filter(
+            Q(product__name__icontains=q) | Q(product__sku__icontains=q)
+            | Q(variant__attribute__icontains=q) | Q(variant__value__icontains=q)
+        )
+    if reason in StockMovement.Reason.values:
+        queryset = queryset.filter(reason=reason)
+
+    paginator = Paginator(queryset, INVENTORY_MOVEMENTS_PER_PAGE)
+    page_obj = paginator.get_page(request.GET.get("page", "1"))
+
+    return {
+        "movements": page_obj,
+        "page_obj": page_obj,
+        "paginator": paginator,
+        "q": q,
+        "selected_reason": reason,
+        "reason_options": StockMovement.Reason.choices,
+    }
+
+
+@staff_required
+@permission_required(INVENTORY_MANAGE)
+def inventory_list(request):
+    context = _inventory_list_context(request)
+    context["active_page"] = "inventory"
+    return render(request, "dashboard/inventory_list.html", context)
+
+
+@staff_required
+@permission_required(INVENTORY_MANAGE)
+def inventory_table(request):
+    return render(request, "dashboard/partials/inventory_table_inner.html", _inventory_list_context(request))

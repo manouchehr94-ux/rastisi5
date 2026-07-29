@@ -14,11 +14,13 @@ from apps.stores.authorization import (
     CATEGORY_MANAGE,
     CONTENT_MANAGE,
     CUSTOMER_VIEW,
+    INVENTORY_MANAGE,
     MEDIA_MANAGE,
     ORDER_VIEW,
     PRODUCT_VIEW,
     REPORTS_VIEW,
     SETTINGS_MANAGE,
+    STAFF_MANAGE,
     membership_has_permission,
 )
 
@@ -37,4 +39,6 @@ def merchant_permissions(request):
         "can_manage_settings": membership_has_permission(membership, SETTINGS_MANAGE),
         "can_manage_content": membership_has_permission(membership, CONTENT_MANAGE),
         "can_manage_media": membership_has_permission(membership, MEDIA_MANAGE),
+        "can_manage_staff": membership_has_permission(membership, STAFF_MANAGE),
+        "can_manage_inventory": membership_has_permission(membership, INVENTORY_MANAGE),
     }

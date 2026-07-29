@@ -48,12 +48,15 @@ Role = StoreMembership.Role
 #
 # Granular permission keys. Some of these (marked "reserved" below) have no
 # corresponding view yet — attributes, discounts/coupons, customer editing,
-# staff/membership management, domain management, and subscription
-# management are not yet implemented as merchant-admin features at all (no
-# route exists for them in ``apps.dashboard.urls``). They are still defined
-# and given a role mapping here, per the Phase 1B role-permission-matrix
-# requirement, so that the day a view for them exists it only needs a
-# ``permission_required(...)`` decorator — no new registry design.
+# domain management, and subscription management are not yet implemented as
+# merchant-admin features at all (no route exists for them in
+# ``apps.dashboard.urls``). Staff/membership management (``STAFF_MANAGE``)
+# *is* implemented — see ``apps.stores.services.membership_service`` and
+# ``apps.dashboard.views`` staff_* views. Unimplemented keys are still
+# defined and given a role mapping here, per the Phase 1B
+# role-permission-matrix requirement, so that the day a view for them exists
+# it only needs a ``permission_required(...)`` decorator — no new registry
+# design.
 
 DASHBOARD_VIEW = "dashboard.view"
 
@@ -81,7 +84,7 @@ PAYMENT_SETTINGS_MANAGE = "settings.payment"
 SMS_SETTINGS_MANAGE = "settings.sms"
 CONTENT_MANAGE = "content.manage"
 
-STAFF_MANAGE = "staff.manage"  # reserved — no membership-management UI yet
+STAFF_MANAGE = "staff.manage"
 DOMAIN_MANAGE = "domain.manage"  # reserved — no domain-management UI yet
 SUBSCRIPTION_MANAGE = "subscription.manage"  # reserved — no billing UI yet
 

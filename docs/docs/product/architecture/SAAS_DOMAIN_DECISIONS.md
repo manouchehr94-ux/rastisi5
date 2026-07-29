@@ -1636,6 +1636,148 @@ re-installation) safely.
 
 ---
 
+## ADR-30: Staff Management Grants Immediate Active Access; Token-Based Invitation Acceptance Is Out of Scope
+
+**Context.** `StoreMembership` (ADR-2/ADR-4) has carried `invited_at`/
+`accepted_at`/`revoked_at` and an `INVITED` status since Phase 1B, but its
+own docstring explicitly deferred "invitation delivery, tokenized
+acceptance, owner transfer, ... and dashboard integration" to a later PR.
+No route, view, or template referencing membership management existed
+anywhere in `apps.dashboard` before this phase — `STAFF_MANAGE` was a
+permission key with no feature behind it. The Admin Panel Completion
+Program requires this gap closed with real persistence, real permission
+enforcement, and real tests — not a mock or a placeholder screen.
+
+**Decision.** `apps.stores.services.membership_service.add_staff_member`
+creates (or reactivates) a `StoreMembership` row with
+`status=ACTIVE` and `accepted_at=now()` **immediately**, with no
+intervening `INVITED` state the target user must separately accept. The
+`Owner` (the only role granted `STAFF_MANAGE`, since it is in
+`_OWNER_ONLY`) is adding a specific person they already know — an
+employee — not sending cold outreach to a stranger who must opt in. A
+`User` row is created (with an unusable password) if the phone number has
+no existing account, and `is_staff=True` is set so the account can pass
+`staff_required`'s Django-level staff gate the next time that person logs
+in (via the existing OTP/password flow in `apps.customers.services.auth_service`
+— unchanged by this phase).
+
+This sidesteps a real chicken-and-egg problem: `staff_required` denies
+access to *every* admin-portal route, including a hypothetical "accept your
+invitation" page, to anyone without an already-`ACTIVE` membership in that
+exact Store. A safe, reachable, tokenized acceptance flow (e.g., a signed
+link mailed/texted to the invitee, verified without requiring a prior
+session) is a legitimate, separate feature — it needs its own delivery
+channel decision (SMS vs. email), token model, and expiry policy — and is
+documented as a limitation in the Admin Panel Completion Report rather than
+built as a rushed, half-covered addition here.
+
+The `INVITED` status and its fields remain fully supported by the model and
+`membership_service` (`list_memberships` still sorts and displays `INVITED`
+rows distinctly, `revoke_membership`/`reactivate_membership` operate on
+them too) for any row created by a future acceptance-flow feature or
+directly via Django admin — this phase does not remove or weaken that
+state, it simply never creates one itself.
+
+**Consequences.** A merchant can add a working team member in one step
+with no delivery-channel dependency (no SMS/email plumbing needed for the
+core feature to be real and usable today). The tradeoff is explicit and
+documented: there is currently no "pending invite the recipient must
+approve" moment — whoever holds the phone number gains access as soon as
+the Owner submits the form, so Owners must only enter numbers they intend
+to grant access to right away.
+
+**Alternatives considered.** Building a full tokenized email/SMS
+acceptance flow in this same phase — rejected as disproportionate scope
+that would also require solving the reachability problem above (a new,
+unauthenticated-but-token-gated route class that does not yet exist
+anywhere in `apps.dashboard`) and a new SMS event/template plus its own
+test surface, none of which the rest of this phase's checkpoints depend on.
+Making `is_staff` alone sufficient (dropping the `StoreMembership` check)
+— rejected outright: this is exactly the tenant-isolation vulnerability
+`apps.stores.authorization`'s own module docstring was written to close.
+
+---
+
+## ADR-31: Inventory Is a Ledger (`StockMovement`), Not a Bare Counter — and Order-Level Stock Mutation Targets the Correct Field
+
+**Context.** Before this phase, `Product.stock`/`ProductVariant.stock` were
+plain `PositiveIntegerField` counters mutated directly (via `F()` updates)
+with no audit trail, and auditing revealed two real correctness bugs in
+`apps.orders.services.order_service`:
+
+1. `create_order_from_cart` decremented `Product.stock` **unconditionally**
+   for every order line, even when the line was for a specific
+   `ProductVariant`. For a variable product, `ProductVariant.stock` (the
+   Phase 1D variant engine's own counter) was never touched by checkout —
+   only the parent `Product.stock` was, regardless of which variant was
+   actually ordered. `_lock_and_revalidate_items` had the matching bug on
+   the validation side: it checked `item.quantity > product.stock`, so an
+   order for a variant with `stock=0` could still pass validation as long
+   as the *parent* `Product.stock` happened to be positive.
+2. `change_order_status` had no restock path at all — canceling a
+   `PENDING`/`PROCESSING`/`SHIPPED` order permanently "lost" the stock that
+   was decremented when the order was placed; it was never returned.
+
+Both bugs are silent under the platform's own test suite prior to this
+phase because every existing checkout test used simple (non-variant)
+products, so `product.stock` was always the correct target by coincidence,
+and no test asserted post-cancellation stock levels.
+
+**Decision.** `apps.catalog.models.StockMovement` is the single, append-only
+ledger every stock mutation must pass through — enforced by convention (no
+code outside `apps.catalog.services.inventory_service` performs a raw `F()`
+stock update) rather than by a database trigger, matching this codebase's
+existing pattern of enforcing invariants in one service layer
+(`template_update_service`, `membership_service`) rather than in triggers.
+Each row records `store`, `product`, `variant` (nullable — null means the
+movement targets the product's own counter, not a specific variant's),
+`reason` (`order_placed` / `order_canceled` / `manual_adjustment`), signed
+`delta`, and `stock_before`/`stock_after` — enough to reconstruct the exact
+state of any counter at any point in time without recomputing it from
+scratch.
+
+`apps.catalog.services.inventory_service.decrement_stock_for_order_item`
+is now the only place `create_order_from_cart` decrements stock: it targets
+`variant.stock` when the order line has a variant, `product.stock`
+otherwise — fixing bug (1) at its root, not by adding a special case.
+`_lock_and_revalidate_items`'s pre-checkout stock check was fixed the same
+way (`available_stock = variant.stock if variant is not None else
+product.stock`). `restock_order` is called from `change_order_status`
+whenever an order transitions to `CANCELED`, reversing every
+`ORDER_PLACED` movement for that order's items — fixing bug (2). Because
+`CANCELED` is one of `order_service.FINAL_STATUSES` with no outgoing
+transitions (ADR predates this document but is enforced by
+`ALLOWED_TRANSITIONS`), `restock_order` runs at most once per order.
+
+**Consequences.** Every unit of stock ever decremented by a real order is
+now provably returned on cancellation, and a merchant (or platform
+operator, via the read-only `StockMovementAdmin`) can answer "why does this
+product show 7 in stock" by reading the ledger instead of trusting an
+opaque counter. The dashboard's new Inventory Ledger page
+(`apps.dashboard.views.inventory_list`) surfaces this history directly to
+the merchant, filterable by product/SKU and reason. `adjust_stock_manually`
+is provided for a future manual-recount UI but is not wired to a dashboard
+view in this phase — this phase's scope was the order-lifecycle
+correctness fix and its supporting audit trail, not a full manual
+stock-adjustment workflow (documented as a limitation in the Admin Panel
+Completion Report).
+
+**Alternatives considered.** Fixing only the `Product.stock`-vs-
+`ProductVariant.stock` targeting bug without introducing a ledger —
+rejected because the prompt's own explicit prohibition ("do not mutate
+inventory without a ledger") and the restock-on-cancel bug are the same
+class of problem (stock mutated with no auditable trail of *why*); fixing
+one without the other would leave the other bug in place and undiscovered
+by tests. A database trigger-based ledger (writing `StockMovement` rows
+automatically on any `UPDATE` to `stock`) — rejected as inconsistent with
+every other invariant in this codebase, all of which are enforced in
+Python service layers precisely so the reasoning is visible in one place
+and covered by ordinary Django tests, not hidden in database-specific
+trigger SQL that would also have to be reproduced for SQLite (tests) and
+PostgreSQL (production) separately.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -1667,3 +1809,9 @@ re-installation) safely.
 | Category Attribute schema inheritance: direct mapping always wins, opt-out is per-mapping not per-category | Decided, implemented |
 | Category change never deletes `ProductAttributeValue`; orphaned values are computed on demand, cleanup is explicit | Decided, implemented |
 | Industry template versions are immutable snapshots; a Store may install at most one template, ever (no auto-update) | Decided, implemented |
+| Industry template quality is a structured, reusable validation service, not a vanity score | Decided, implemented |
+| Template versioning stays on `IndustryTemplate.(slug, version)`; no separate version-family model | Decided, implemented |
+| Store customization detection compares live fields against the immutable source template; no snapshot table | Decided, implemented |
+| Template updates: additive changes auto-apply by default, everything else requires explicit review or is blocked | Decided, implemented |
+| Staff management grants immediate ACTIVE access on add; token-based invitation acceptance is out of scope | Decided, implemented |
+| Inventory is an append-only `StockMovement` ledger; order stock mutation targets variant stock when a variant is ordered, and cancellation restocks | Decided, implemented |
