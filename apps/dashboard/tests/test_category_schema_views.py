@@ -137,3 +137,97 @@ class CategorySchemaPermissionTests(CategorySchemaViewsTestCase):
         self._login_as(StoreMembership.Role.ORDER_MANAGER, "303")
         response = self.client.get(reverse("dashboard:category-schema", args=[self.category.pk]))
         self.assertEqual(response.status_code, 403)
+
+
+class CategorySchemaOverrideTests(CategorySchemaViewsTestCase):
+    """نگاه کنید به بخش ۳۱ پرامپت فاز ۱F — کنترل‌های بازنویسیِ فیلتر/مقایسه/جست‌وجو/نمایش."""
+
+    def setUp(self):
+        super().setUp()
+        self.entry = add_category_attribute(self.category, self.material)
+
+    def test_filterable_override_cycles_inherit_true_false_inherit(self):
+        self.assertIsNone(self.entry.is_filterable_override)
+
+        self.client.post(
+            reverse("dashboard:category-schema-toggle-override", args=[self.category.pk, self.entry.pk]),
+            {"field": "filterable"},
+        )
+        self.entry.refresh_from_db()
+        self.assertTrue(self.entry.is_filterable_override)
+
+        self.client.post(
+            reverse("dashboard:category-schema-toggle-override", args=[self.category.pk, self.entry.pk]),
+            {"field": "filterable"},
+        )
+        self.entry.refresh_from_db()
+        self.assertFalse(self.entry.is_filterable_override)
+
+        self.client.post(
+            reverse("dashboard:category-schema-toggle-override", args=[self.category.pk, self.entry.pk]),
+            {"field": "filterable"},
+        )
+        self.entry.refresh_from_db()
+        self.assertIsNone(self.entry.is_filterable_override)
+
+    def test_comparable_override_toggle_independent_of_filterable(self):
+        self.client.post(
+            reverse("dashboard:category-schema-toggle-override", args=[self.category.pk, self.entry.pk]),
+            {"field": "comparable"},
+        )
+        self.entry.refresh_from_db()
+        self.assertTrue(self.entry.is_comparable_override)
+        self.assertIsNone(self.entry.is_filterable_override)
+        self.assertIsNone(self.entry.is_searchable_override)
+
+    def test_searchable_override_toggle(self):
+        self.client.post(
+            reverse("dashboard:category-schema-toggle-override", args=[self.category.pk, self.entry.pk]),
+            {"field": "searchable"},
+        )
+        self.entry.refresh_from_db()
+        self.assertTrue(self.entry.is_searchable_override)
+
+    def test_invalid_field_rejected(self):
+        response = self.client.post(
+            reverse("dashboard:category-schema-toggle-override", args=[self.category.pk, self.entry.pk]),
+            {"field": "not-a-real-field"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.entry.refresh_from_db()
+        self.assertIsNone(self.entry.is_filterable_override)
+        self.assertIsNone(self.entry.is_comparable_override)
+        self.assertIsNone(self.entry.is_searchable_override)
+
+    def test_visibility_toggle(self):
+        self.assertTrue(self.entry.is_visible_on_storefront)
+        self.client.post(
+            reverse("dashboard:category-schema-toggle-visibility", args=[self.category.pk, self.entry.pk]),
+        )
+        self.entry.refresh_from_db()
+        self.assertFalse(self.entry.is_visible_on_storefront)
+
+    def test_override_entry_from_other_category_404s(self):
+        other_category = Category.objects.create(store=self.store, name="کفش", slug="csv-override-other")
+        entry = add_category_attribute(other_category, self.material)
+        response = self.client.post(
+            reverse("dashboard:category-schema-toggle-override", args=[self.category.pk, entry.pk]),
+            {"field": "filterable"},
+        )
+        self.assertEqual(response.status_code, 404)
+        entry.refresh_from_db()
+        self.assertIsNone(entry.is_filterable_override)
+
+    def test_analyst_cannot_toggle_override(self):
+        user = User.objects.create_user(username="09121177304", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=user, role=StoreMembership.Role.ANALYST,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.client.logout()
+        self.client.login(username=user.username, password="pass12345")
+        response = self.client.post(
+            reverse("dashboard:category-schema-toggle-override", args=[self.category.pk, self.entry.pk]),
+            {"field": "filterable"},
+        )
+        self.assertEqual(response.status_code, 403)
