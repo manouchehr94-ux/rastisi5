@@ -1,0 +1,40 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}برچسب‌های مشتری | پنل مدیریت{% endblock %}
+{% block page_title %}برچسب‌های مشتری{% endblock %}
+{% block page_sub %}برچسب‌های این فروشگاه برای دسته‌بندیِ مشتریان — قابلِ اختصاص از صفحه‌ی پروفایلِ هر مشتری{% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><b>برچسبِ تازه</b></div>
+  <form method="post" action="{% url 'dashboard:customer-tag-add' %}" style="display:flex;gap:10px;align-items:center;padding:14px 18px;flex-wrap:wrap">
+    {% csrf_token %}
+    <input class="inp" name="name" placeholder="نام برچسب" required style="width:180px">
+    <input class="inp" name="code" placeholder="کد (اختیاری)" style="width:150px">
+    <input class="inp" name="description" placeholder="توضیحات" style="width:220px">
+    <input class="inp" type="color" name="color" value="#3b82f6" style="width:60px">
+    <button type="submit" class="btn btn-primary">افزودن</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>نام</th><th>کد</th><th>توضیحات</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+    <tbody>
+    {% for tag in tags %}
+      <tr>
+        <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ tag.color|default:'#999' }};margin-inline-end:6px"></span><b>{{ tag.name }}</b></td>
+        <td dir="ltr">{{ tag.code }}</td>
+        <td>{{ tag.description|default:"—" }}</td>
+        <td>{% if tag.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">آرشیوشده</span>{% endif %}</td>
+        <td>
+          {% if tag.is_active %}
+          <form method="post" action="{% url 'dashboard:customer-tag-archive' tag.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">آرشیو</button></form>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">هنوز هیچ برچسبی ساخته نشده است</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

@@ -2635,6 +2635,306 @@ one warehouse and changed its default in between order and return.
 
 ---
 
+## ADR-49: Export/Import Jobs Execute Synchronously In-Request — No Background Task Queue Exists in This Codebase
+
+**Context.** Checkpoint 4 asks for `ExportJob`/`ImportJob` models with
+`pending`/`processing`/`completed`/`failed` status fields, which reads like
+a background-worker design. This codebase has no Celery (or any other) task
+queue — `requirements.txt` confirms only Django/jdatetime/Pillow/requests/
+cryptography/psycopg/beautifulsoup4/PySocks — and introducing one is far
+outside a single checkpoint's blast radius (new infra dependency, a worker
+process to deploy/monitor, broker configuration).
+
+**Decision.** `run_export` (and, when built, the import execution service)
+performs the entire job — row generation, CSV writing, file save — inside
+one synchronous call, within the same request/response cycle that
+triggered it. The status field still transitions `pending → processing →
+completed`/`failed`, and the job row is still written first (so a crash
+mid-generation leaves a `processing` row behind, not silence), but there is
+no real concurrency or queueing behind those states today. This is recorded
+here explicitly rather than left to be discovered: a job row's
+`started_at`/`completed_at` being seconds apart is not a monitoring bug,
+it is the actual, honest execution model.
+
+**Consequences.** Very large exports (tens of thousands of rows) block the
+requesting worker process for the duration of generation — acceptable for
+this checkpoint's scope (`iterator()`-based, chunked queries keep memory
+bounded, just not wall-clock time), but a real background queue is the
+correct next step before this is exposed to Stores with very large
+catalogs/order histories. `cleanup_expired_exports` (a management command,
+not a signal) is how expired files actually get reclaimed, since there is
+no worker to run a periodic task automatically — see the production
+configuration doc for the cron/systemd-timer scheduling this still requires
+operationally.
+
+**Alternatives considered.** Faking asynchronicity with a `threading.Thread`
+— rejected: Django's request/response cycle and test client both assume
+the response body is complete when the view returns, and an unmanaged
+background thread has no supervision, no error surface, and would silently
+diverge from the job's recorded status the moment the request completed
+before the thread did.
+
+---
+
+## ADR-50: Customer Export Reuses Per-Store Order Aggregation — Never `Customer.orders_count`/`Customer.total_spent`
+
+**Context.** `Customer` is deliberately global (no `store` FK — see the
+Customer-identity entry in the summary table below), and it carries two
+static fields, `orders_count`/`total_spent`, that a naive Customer export
+might reach for directly. Those fields are cross-Store aggregates (or, per
+`apps.dashboard.services.customers_admin_service`'s own docstring, seed-only
+values never updated by the real checkout flow) — exporting them from a
+single Store's admin panel would leak another Store's purchase totals for
+any Customer who has ever ordered from more than one Store on this
+platform, a direct tenant-isolation violation dressed up as a normal field
+read.
+
+**Decision.** `_customers_rows` in `export_service.py` computes
+`order_count`/`paid_total`/`last_order_at` the same way
+`customers_admin_service.annotated_customers` already does for the
+customer-list page: `Count`/`Sum`/`Max` annotations filtered to
+`orders__store=store`. Every number in a Customer export row is therefore
+provably scoped to the exporting Store's own Orders, never the Customer's
+platform-wide history.
+
+**Consequences.** A Customer who ordered from two Stores exports different
+(correct, Store-scoped) totals from each Store's admin panel — matching the
+same "two Stores, two independent views of one shared identity" model the
+customer-list page already established. Any future Customer CRM field
+(`CustomerProfile` cached stats, checkpoint 4 §14) must follow the same
+rule: compute from Store-filtered Orders, never read a bare `Customer`
+field that isn't itself Store-scoped.
+
+**Alternatives considered.** Adding a `store` FK to `Customer` to make this
+automatic — explicitly out of scope per the existing, pre-checkpoint
+architectural decision recorded in the Customer-identity entry below; this
+checkpoint works within that decision, it does not revisit it.
+
+---
+
+## ADR-51: CSV Injection Protection Is One Shared Utility, Applied at Write Time to Every Cell of Every Export
+
+**Context.** Any CSV a merchant might open in Excel/Google Sheets is a
+classic CSV-formula-injection vector (OWASP): a cell value starting with
+`=`, `+`, `-`, or `@` — trivially reachable via an ordinary Product name,
+SKU, or customer note — is interpreted as a formula by the spreadsheet
+application, not displayed as literal text, and can execute arbitrary
+formulas (including `=cmd|'/c calc'!A1`-style command execution in older
+Excel configurations) the moment the file is opened.
+
+**Decision.** `apps.core.services.csv_utils.sanitize_csv_cell` is the single
+place this platform decides what "safe to write as a CSV cell" means:
+any value whose string form starts with one of the four formula-trigger
+characters gets a leading single-quote (`'`) prefix, which spreadsheet
+software renders as literal text instead of evaluating as a formula.
+`write_csv_rows` applies this to the header row and every data row's every
+cell — no export or (future) import-preview code is permitted to call
+`csv.writer` directly; `run_export`'s row builders never sanitize
+themselves, by design, so there is exactly one place this protection can
+regress.
+
+**Consequences.** A Product deliberately or accidentally named
+`=1+1` (or any SKU/customer name/tag starting with `=`/`+`/`-`/`@`) exports
+as `'=1+1` — visibly, harmlessly literal in any spreadsheet, verified by
+`test_csv_injection_formula_prefix_neutralized`. This is a write-time
+concern only; reading a CSV back in (the future import path) does not need
+to strip the leading quote, since `read_csv_rows`'s `DictReader` returns
+the field exactly as stored and import validation operates on that string
+directly (a leading `'` in an *input* file is a data question for the
+import validator, not a security concern this module owns).
+
+**Alternatives considered.** Wrapping every cell in `="..."` (Excel's own
+"treat as text" escape) — rejected: it changes the visible cell content
+for every value, not just the dangerous ones, making the exported file
+confusing to read normally. Rejecting/blocking export of any row containing
+a formula-prefixed value — rejected as unnecessarily destructive: an
+export's job is to faithfully represent Store data, not silently drop rows
+because a Product name happens to start with a minus sign.
+
+---
+
+## ADR-52: Export Files Are Private, Time-Limited, and Served Only Through an Authenticated, Store-Scoped Download View
+
+**Context.** An `ExportJob.file` can contain Customer PII (Checkpoint 4's
+Customer export) or full Order financial detail — the kind of data this
+platform has never before written to a location reachable by a plain URL.
+Django's default `MEDIA_ROOT`/`MEDIA_URL` serve everything under it to
+anyone with the URL, forever — wrong for this class of file on every axis
+(no authentication, no Store check, no expiration).
+
+**Decision.** `PRIVATE_MEDIA_ROOT` (a new setting, separate from
+`MEDIA_ROOT`) backs a dedicated `apps.core.storage.private_storage`
+instance (`FileSystemStorage(base_url=None)`), which raises `ValueError`
+the instant anything calls `.url` on a file stored through it — a
+deliberate crash-not-leak guard, not a soft convention. The only sanctioned
+read path is `dashboard:export-download`
+(`apps.dashboard.views.export_download`): `staff_required` (authenticated
+merchant-admin member) → `permission_required` (per export-type permission,
+`IMPORT_EXPORT_VIEW` or the separately-gated `CUSTOMER_EXPORT`) →
+`get_object_or_404(ExportJob, pk=pk, store=store)` (a foreign Store's job
+ID 404s exactly like a nonexistent one, revealing nothing) → `FileResponse`
+streamed directly from disk. Every `ExportJob` also gets an `expires_at`
+(7 days from creation); `mark_expired_jobs`/`cleanup_expired_exports`
+(management command) deletes the on-disk file and flips the row to
+`expired` once past that date — an expired job's row survives as history,
+but its file does not linger on disk indefinitely.
+
+**Consequences.** There is no public URL for any export file, ever — not a
+signed URL, not a predictable path, nothing guessable or shareable outside
+the platform's own authenticated session. A merchant who wants to hand a
+file to someone outside the admin panel must download it themselves first
+and share it through their own channel, which is the correct boundary for
+platform-generated PII exports.
+
+**Alternatives considered.** Django signed URLs with a short-lived token
+— rejected for this checkpoint as unnecessary complexity: this platform has
+no CDN/external-storage layer that would need a bearer-token-style URL, and
+every export downloader is already an authenticated dashboard session, so
+route-level auth is sufficient and simpler. `django-storages`-backed S3
+with private ACLs — reserved for whenever this platform actually adopts
+S3/object storage generally (it does not today; `FileSystemStorage` matches
+every other file field in this codebase).
+
+---
+
+## ADR-53: Customer Segments — Allowlisted Rule Fields/Operators, Per-Rule Independent Queries Combined by Set Algebra, and Query-Based Preview With Explicitly-Refreshed Materialized Membership
+
+**Context.** Checkpoint 4 asks for a Customer Segment rule engine (order
+count, total spent, last/first order date, has-purchased-Product/Category,
+has-used-Coupon, customer tag, no-purchase-for-N-days, refund count) that is
+"real" but explicitly *not* an arbitrary expression language, must not
+evaluate large datasets row-by-row in Python, and needs a documented,
+honest answer for how a `dynamic` segment's live membership relates to a
+materialized list usable by (future) bulk actions.
+
+**Decision.** `apps.dashboard.services.segment_service.ALLOWED_FIELDS` is a
+closed dict mapping each of the nine specified fields to its value type and
+its own allowed operator subset (e.g. `has_purchased_product` only accepts
+`contains`, never `greater_than`); `validate_rule` is the single choke point
+both the rule-builder form and the evaluator call, so a rule can never be
+saved with a field/operator pairing the evaluator would then refuse to run.
+Every rule becomes its own independent, Store-scoped Django queryset that
+returns a *set of Customer primary keys* — never a shared multi-`annotate`
+queryset joined across rules, which is the well-known Django trap that
+silently multiplies row counts (fan-out) when more than one `Count`/`Sum`
+annotation touches the same one-to-many relation in one query. Combining a
+segment's rules is therefore plain Python set algebra: intersection for
+`match_mode=all`, union for `match_mode=any` — over integer ID sets, which
+is not "row-by-row business-logic evaluation in Python," it is picking
+which of several already-computed, DB-filtered ID sets to combine.
+`preview_segment` for a `dynamic` segment always re-evaluates live (what you
+see on the segment detail page is never stale); `CustomerSegmentMembership`
+rows are a separate, explicitly-materialized cache, written only by
+`refresh_segment_membership` (called from the "Refresh Membership" button or
+the `refresh_customer_segments` management command) — the two are
+deliberately decoupled so the detail page is always trustworthy even if a
+merchant never clicks refresh, while a *future* bulk-action feature has a
+stable snapshot to act against instead of re-evaluating rules mid-operation.
+
+**Consequences.** Adding a tenth allowed field is a one-line addition to
+`ALLOWED_FIELDS` plus one new branch in `_matching_customer_ids` — the
+allowlist shape makes "what can a segment rule check" auditable at a
+glance, unlike a free-form query builder. Because there is no background
+task queue (ADR-49), `refresh_customer_segments` must be scheduled
+externally (cron/systemd timer) exactly like `cleanup_expired_exports` —
+until scheduled, a `dynamic` segment's *materialized* membership (relevant
+only to future bulk actions) goes stale, though its *displayed* preview
+never does. `customer_tag` rules resolve through `CustomerProfile.tags`
+Store-scoped exactly like every other Customer CRM query (ADR-50's
+pattern), so a rule can never match on another Store's tag.
+
+**Alternatives considered.** A single combined queryset with one `annotate`
+per numeric field plus `Exists()` subqueries for the reference fields —
+rejected: correct in isolation but fragile to get right for arbitrary
+rule combinations without careful `Subquery`/`Exists` wrapping per rule,
+and far harder to unit-test each field in isolation the way the current
+one-query-per-rule design allows. Storing an always-fresh materialized
+membership via a Django signal on every `Order`/`Refund`/`CustomerTag`
+write — rejected: exactly the kind of implicit, hard-to-reason-about
+freshness this codebase has avoided everywhere else (see ADR-37's
+"provisioning is an explicit call, never a signal" and `CustomerProfile`'s
+own cached-stats documentation) — the explicit refresh model is the same
+established discipline, not a new one invented for segments alone.
+
+---
+
+## ADR-54: CSV Import (Product/Variant/Inventory) Is Explicitly Deferred Out of Checkpoint 4 — Not Implemented, Not Partially Implemented, Named Here as a Gap
+
+**Context.** Checkpoint 4's request specifies a large, genuinely
+high-risk Import domain: `ImportJob`/`ImportRowResult` models, a
+dry-run-preview engine that shares its exact validation path with
+execution, three explicit write modes (`create_only`/`update_only`/
+`upsert`), Store-scoped stable-identity resolution, per-batch-atomic
+execution with idempotency-key-based replay protection, and — critically
+— Product/Variant/Inventory writes that must never bypass the existing
+Variant Engine reconciliation rules or write `Product.stock`/
+`ProductVariant.stock` directly, instead routing every inventory change
+through `apps.catalog.services.inventory_service` so `StockMovement`/
+`WarehouseInventory`/`InventoryReservation` all stay consistent (the exact
+invariant `verify_inventory_consistency --strict` checks).
+
+**Decision.** This checkpoint delivers Export (all five types, real
+services, real UI, real tests), the Customer CRM foundation
+(`CustomerProfile`/`CustomerNote`/`CustomerTag`), Customer Segments (a
+genuine allowlisted rule engine with preview/refresh and full Merchant
+Admin UI), Customer bulk actions, the Product bulk Tax Class gap-closer,
+the full checkpoint 4 permission registry, and the associated management
+commands/ADRs/tests — but does **not** implement CSV Import. No
+`ImportJob`/`ImportRowResult` model exists; no import preview/execution
+service exists; no import upload UI exists. This is a deliberate scope
+decision, not an oversight: Import is the single largest and highest-risk
+remaining piece specifically *because* it writes to Product/Variant/
+Inventory — the same subsystems every prior checkpoint (3A's Warehouse/
+Reservation engine, 1D's Variant Engine) went to considerable, carefully
+tested effort to keep internally consistent. A rushed Import
+implementation that wrote stock incorrectly, bypassed reservation
+consistency, or created duplicate variants on a malformed CSV would risk
+exactly the kind of silent data corruption this codebase's entire
+Store-scoping/inventory-ledger discipline exists to prevent — and that
+risk is not proportional to fitting Import into the same checkpoint as
+five other, already-substantial deliverables.
+
+**Consequences.** Every reference to "Import" in this checkpoint's own
+documentation (completion report, this file) names it explicitly as **not
+delivered**, not as "partially implemented" or "models only" — per the
+request's own instruction not to claim completion on a feature that has
+no real evaluation service and UI, the same standard applied to Segments.
+A merchant cannot bulk-upload Products/Variants/Inventory changes via CSV
+today; every catalog/inventory write still goes through the existing
+one-row-at-a-time admin forms and bulk *actions* (status/category/tax
+class), which remain fully functional and unaffected by this decision.
+The Export domain's file-format/CSV-utilities/private-storage
+infrastructure built this checkpoint (`csv_utils.py`, `private_storage`,
+`ExportJob`) is deliberately reusable by a future Import checkpoint without
+rework — the CSV injection-protection utility, private file storage, and
+authenticated-download pattern all transfer directly to an eventual
+upload-and-validate flow.
+
+**What a future Import checkpoint needs, concretely** (so this is a plan,
+not just a gap): `ImportJob`/`ImportRowResult` models mirroring
+`ExportJob`'s shape; a shared preview/execute validation function per
+import type (Product/Variant/Inventory) that never diverges between
+dry-run and real execution; Product/Variant writes through
+`variant_engine_service`'s existing reconciliation entry points, never
+direct field assignment; Inventory writes through
+`inventory_service.adjust_stock_manually`/the reservation-aware helpers,
+never direct `Product.stock`/`ProductVariant.stock` writes; per-batch
+transactions sized to avoid loading the whole file into memory
+(`csv_utils.read_csv_rows` already streams); an `idempotency_key` column
+on `ImportJob` checked before any row is applied, exactly like
+`Order.idempotency_key`'s existing pattern.
+
+**Alternatives considered.** Implementing a minimal, Product-only import
+(skipping Variant/Inventory) to be able to claim partial delivery —
+rejected: the request's own completion checklist explicitly rules out
+claiming any credit for a feature that doesn't fulfil its own dry-run/
+atomicity/idempotency/tenant-isolation requirements end to end, and a
+Product-only slice would still need every one of those mechanisms built
+correctly to be honestly called "delivered," at which point it is not
+actually a smaller task than the full Import domain.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -2645,7 +2945,7 @@ one warehouse and changed its default in between order and return.
 | Store has one explicit status field | Decided |
 | StoreDomain stores normalized hostnames | Decided |
 | At most one primary domain per Store | Decided (DB-enforced) |
-| Customer direction: global identity + Store profile | Recorded, not implemented |
+| Customer direction: global identity + Store profile | Decided, implemented (`CustomerProfile`, checkpoint 4, ADR-50) |
 | PaymentProvider vs StorePaymentConfiguration split | Recorded, not implemented |
 | Platform operators ≠ unrestricted merchant-data access | Recorded, not enforced |
 | Merchant funds flow directly to merchant accounts (v1) | Recorded |
@@ -2689,3 +2989,10 @@ one warehouse and changed its default in between order and return.
 | Tax rounding is a per-Store `on_total`/`per_line` policy, defaulting to `on_total` to match the legacy formula exactly | Decided, implemented |
 | Order/OrderItem shipping and tax fields are independent snapshots, never live references to mutable Shipping/Tax rows | Decided, implemented |
 | Return/refund restock warehouse: explicit merchant choice, then the item's original fulfillment warehouse, then the Store default | Decided, implemented |
+| Export/Import jobs execute synchronously in-request; no background task queue exists in this codebase | Decided, implemented |
+| Customer export computes order count/total spent from Store-filtered Orders, never `Customer.orders_count`/`total_spent` | Decided, implemented |
+| CSV injection protection is one shared utility (`sanitize_csv_cell`), applied at write time to every export cell | Decided, implemented |
+| Export files are private (`PRIVATE_MEDIA_ROOT`), time-limited (7-day `expires_at`), and served only through an authenticated Store-scoped download view | Decided, implemented |
+| Customer Segment rules are an allowlisted field/operator registry; each rule is an independent Store-scoped query combined by ID-set algebra, never a multi-annotate join | Decided, implemented |
+| Dynamic segment preview is always a live query; materialized `CustomerSegmentMembership` is a separate cache written only by explicit refresh (button or management command) | Decided, implemented |
+| CSV Import (Product/Variant/Inventory) is explicitly deferred out of checkpoint 4 — no model, no service, no UI | Decided, deferred (documented gap, not implemented) |

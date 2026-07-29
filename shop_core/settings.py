@@ -210,6 +210,15 @@ STATIC_ROOT = Path(env_str("DJANGO_STATIC_ROOT", str(BASE_DIR / "staticfiles")))
 MEDIA_URL = "media/"
 MEDIA_ROOT = Path(env_str("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media")))
 
+# Private storage for generated export files and uploaded import source
+# files (Admin Panel Completion Program checkpoint 4, ADR-52) — deliberately
+# NOT under MEDIA_ROOT/MEDIA_URL, so nothing here is ever reachable through
+# Django's ordinary public media serving. Every read of a file in this
+# directory must go through an authenticated, Store-scoped dashboard view
+# (``apps.core.services.export_service``/``import_service`` download views),
+# never a direct URL.
+PRIVATE_MEDIA_ROOT = Path(env_str("DJANGO_PRIVATE_MEDIA_ROOT", str(BASE_DIR / "private_media")))
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

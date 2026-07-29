@@ -7,10 +7,11 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Exists, OuterRef, ProtectedError, Q, Sum, prefetch_related_objects
-from django.http import HttpResponse
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.template.loader import render_to_string
+from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
 from apps.catalog.models import (
@@ -84,6 +85,7 @@ from apps.catalog.services.warehouse_service import (
     update_warehouse,
 )
 from apps.core.services.audit_service import list_audit_events, record_audit_event
+from apps.core.services.export_service import ExportError, run_export
 from apps.cart.models import Coupon
 from apps.cart.services.coupon_service import (
     CouponError,
@@ -137,9 +139,16 @@ from apps.catalog.services.variant_service import (
 )
 from apps.core.color_utils import safe_hex
 from apps.core.utils import normalize_digits
-from apps.core.models import ShopSettings
+from apps.core.models import ExportJob, ShopSettings
 from apps.core.theme_presets import THEME_PRESETS, matching_preset_key
-from apps.customers.models import Customer
+from apps.customers.models import (
+    Customer,
+    CustomerNote,
+    CustomerProfile,
+    CustomerSegment,
+    CustomerSegmentRule,
+    CustomerTag,
+)
 from apps.orders.models import (
     Order,
     OrderItem,
@@ -191,11 +200,18 @@ from apps.stores.authorization import (
     ATTRIBUTE_MANAGE,
     CATEGORY_MANAGE,
     CONTENT_MANAGE,
+    CUSTOMER_EXPORT,
+    CUSTOMER_NOTE_MANAGE,
+    CUSTOMER_SEGMENT_MANAGE,
+    CUSTOMER_SEGMENT_VIEW,
+    CUSTOMER_TAG_MANAGE,
     CUSTOMER_VIEW,
     AUDIT_LOG_VIEW,
     COUPON_VIEW,
     DASHBOARD_VIEW,
     DISCOUNT_MANAGE,
+    IMPORT_EXPORT_MANAGE,
+    IMPORT_EXPORT_VIEW,
     INVENTORY_MANAGE,
     MEDIA_MANAGE,
     ORDER_STATUS_CHANGE,
@@ -247,9 +263,11 @@ from .forms import (
     VisualIdentityForm,
 )
 from .services import (
+    customer_crm_service,
     customers_admin_service,
     dashboard_service,
     report_service,
+    segment_service,
     settings_admin_service,
     sms_admin_service,
 )
@@ -261,6 +279,8 @@ from .services.catalog_admin_service import (
     BulkActionError,
     CategoryDeleteError,
     bulk_assign_category,
+    bulk_assign_tax_class,
+    bulk_clear_tax_class,
     bulk_delete_products,
     bulk_set_product_status,
     can_delete_category,
@@ -377,6 +397,7 @@ def _product_list_context(request):
         "brand_options": Brand.objects.filter(store=store).order_by("name"),
         "status_options": PRODUCT_STATUS_FILTERS,
         "sort_options": [(key, label) for key, (_fields, label) in PRODUCT_SORT_OPTIONS.items()],
+        "tax_class_options": TaxClass.objects.filter(store=store, is_active=True).order_by("name"),
     }
 
 
@@ -434,6 +455,13 @@ def product_bulk_action(request):
                 category_id = request.POST.get("bulk_category", "")
                 count = bulk_assign_category(store, product_ids, category_id)
                 messages.success(request, f"دسته‌بندی {count} کالا به‌روزرسانی شد")
+            elif action == "assign-tax-class":
+                tax_class_id = request.POST.get("bulk_tax_class", "")
+                count = bulk_assign_tax_class(store, product_ids, tax_class_id, actor=request.user)
+                messages.success(request, f"دسته‌ی مالیاتیِ {count} کالا به‌روزرسانی شد")
+            elif action == "clear-tax-class":
+                count = bulk_clear_tax_class(store, product_ids, actor=request.user)
+                messages.success(request, f"دسته‌ی مالیاتیِ {count} کالا به پیش‌فرض بازگشت")
             else:
                 messages.error(request, "اکشن فله‌ای نامعتبر است")
         except BulkActionError as exc:
@@ -1952,7 +1980,14 @@ def payment_table(request):
 def _customer_list_context(request):
     store = _resolve_dashboard_store(request)
     q = request.GET.get("q", "").strip()
-    return {"customers": customers_admin_service.annotated_customers(store=store, q=q), "q": q}
+    return {
+        "customers": customers_admin_service.annotated_customers(store=store, q=q), "q": q,
+        "bulk_tag_options": CustomerTag.objects.filter(store=store, is_active=True).order_by("name"),
+        "bulk_status_options": CustomerProfile.InternalStatus.choices,
+        "can_manage_tags": membership_has_permission(request.store_membership, CUSTOMER_TAG_MANAGE),
+        "can_manage_notes": membership_has_permission(request.store_membership, CUSTOMER_NOTE_MANAGE),
+        "can_export_customers": membership_has_permission(request.store_membership, CUSTOMER_EXPORT),
+    }
 
 
 @staff_required
@@ -1969,6 +2004,64 @@ def customer_table(request):
     return render(request, "dashboard/partials/customers_table_inner.html", _customer_list_context(request))
 
 
+def _selected_customer_ids(request):
+    ids = []
+    for raw in request.POST.getlist("customer_ids"):
+        try:
+            ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    return ids
+
+
+@require_POST
+@staff_required
+def customer_bulk_action(request):
+    """اکشنِ فله‌ای روی مشتری‌های انتخاب‌شده — شناسه‌های مشتریِ فروشگاهِ دیگر
+    (یا مشتریِ بدونِ هیچ Orderی در این Store) در همه‌ی توابعِ
+    ``customer_crm_service`` بی‌صدا نادیده گرفته می‌شوند، دقیقاً همان قاعده‌ی
+    ``product_bulk_action``."""
+    store = _resolve_dashboard_store(request)
+    action = request.POST.get("bulk_action", "")
+    customer_ids = _selected_customer_ids(request)
+
+    required_permission = CUSTOMER_TAG_MANAGE if action in ("add-tag", "remove-tag") else CUSTOMER_NOTE_MANAGE
+    if action == "export-selected":
+        required_permission = CUSTOMER_EXPORT
+    if not membership_has_permission(request.store_membership, required_permission):
+        return render(request, "dashboard/403.html", status=403)
+
+    if not customer_ids:
+        messages.warning(request, "هیچ مشتری‌ای انتخاب نشده است")
+        return redirect("dashboard:customer-list")
+
+    try:
+        if action == "add-tag":
+            tag_id = request.POST.get("bulk_tag", "")
+            count = customer_crm_service.bulk_add_tag(store, customer_ids, tag_id, actor=request.user)
+            messages.success(request, f"برچسب برای {count} مشتری اضافه شد")
+        elif action == "remove-tag":
+            tag_id = request.POST.get("bulk_tag", "")
+            count = customer_crm_service.bulk_remove_tag(store, customer_ids, tag_id, actor=request.user)
+            messages.success(request, f"برچسب از {count} مشتری حذف شد")
+        elif action == "set-status":
+            status = request.POST.get("bulk_status", "")
+            count = customer_crm_service.set_internal_status(store, customer_ids, status, actor=request.user)
+            messages.success(request, f"وضعیتِ داخلیِ {count} مشتری به‌روزرسانی شد")
+        elif action == "export-selected":
+            run_export(
+                store, ExportJob.ExportType.CUSTOMERS, requested_by=request.user,
+                filters={"customer_ids": customer_ids},
+            )
+            messages.success(request, "صادراتِ مشتریانِ انتخاب‌شده ساخته شد")
+            return redirect("dashboard:export-list")
+        else:
+            messages.error(request, "اکشن فله‌ای نامعتبر است")
+    except customer_crm_service.CustomerCrmError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:customer-list")
+
+
 @staff_required
 @permission_required(CUSTOMER_VIEW)
 def customer_detail(request, pk):
@@ -1979,13 +2072,304 @@ def customer_detail(request, pk):
     store = _resolve_dashboard_store(request)
     customer = get_object_or_404(Customer.objects.filter(orders__store=store).distinct(), pk=pk)
     orders = customers_admin_service.customer_orders(customer, store=store)
+    profile = customer_crm_service.get_or_create_profile(store, customer)
     context = {
         "customer": customer,
         "orders": orders,
         "paid_total": customers_admin_service.customer_paid_total(orders),
         "active_page": "customers",
+        "profile": profile,
+        "notes": profile.notes.select_related("author").all(),
+        "all_tags": CustomerTag.objects.filter(store=store, is_active=True).order_by("name"),
+        "assigned_tag_ids": set(profile.tags.values_list("pk", flat=True)),
+        "internal_status_choices": CustomerProfile.InternalStatus.choices,
+        "can_manage_notes": membership_has_permission(request.store_membership, CUSTOMER_NOTE_MANAGE),
+        "can_manage_tags": membership_has_permission(request.store_membership, CUSTOMER_TAG_MANAGE),
     }
     return render(request, "dashboard/customer_detail.html", context)
+
+
+@require_POST
+@staff_required
+@permission_required(CUSTOMER_NOTE_MANAGE)
+def customer_refresh_stats(request, pk):
+    store = _resolve_dashboard_store(request)
+    customer = get_object_or_404(Customer.objects.filter(orders__store=store).distinct(), pk=pk)
+    profile = customer_crm_service.get_or_create_profile(store, customer)
+    customer_crm_service.refresh_customer_profile_stats(profile)
+    messages.success(request, "آمارِ مشتری به‌روزرسانی شد")
+    return redirect("dashboard:customer-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(CUSTOMER_NOTE_MANAGE)
+def customer_status_update(request, pk):
+    store = _resolve_dashboard_store(request)
+    customer = get_object_or_404(Customer.objects.filter(orders__store=store).distinct(), pk=pk)
+    try:
+        customer_crm_service.set_internal_status(store, [customer.pk], request.POST.get("internal_status", ""), actor=request.user)
+        messages.success(request, "وضعیتِ داخلیِ مشتری به‌روزرسانی شد")
+    except customer_crm_service.CustomerCrmError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:customer-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(CUSTOMER_NOTE_MANAGE)
+def customer_note_add(request, pk):
+    store = _resolve_dashboard_store(request)
+    customer = get_object_or_404(Customer.objects.filter(orders__store=store).distinct(), pk=pk)
+    profile = customer_crm_service.get_or_create_profile(store, customer)
+    body = request.POST.get("body", "").strip()
+    if body:
+        customer_crm_service.add_note(
+            profile, author=request.user, body=body, is_pinned=bool(request.POST.get("is_pinned")),
+        )
+        messages.success(request, "یادداشت ثبت شد")
+    return redirect("dashboard:customer-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(CUSTOMER_NOTE_MANAGE)
+def customer_note_delete(request, pk, note_id):
+    store = _resolve_dashboard_store(request)
+    customer = get_object_or_404(Customer.objects.filter(orders__store=store).distinct(), pk=pk)
+    note = get_object_or_404(CustomerNote, pk=note_id, profile__store=store, profile__customer=customer)
+    customer_crm_service.delete_note(note, actor=request.user)
+    messages.success(request, "یادداشت حذف شد")
+    return redirect("dashboard:customer-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(CUSTOMER_TAG_MANAGE)
+def customer_tag_toggle(request, pk):
+    store = _resolve_dashboard_store(request)
+    customer = get_object_or_404(Customer.objects.filter(orders__store=store).distinct(), pk=pk)
+    tag_id = request.POST.get("tag_id", "")
+    action = request.POST.get("action", "")
+    try:
+        if action == "add":
+            customer_crm_service.bulk_add_tag(store, [customer.pk], tag_id, actor=request.user)
+        elif action == "remove":
+            customer_crm_service.bulk_remove_tag(store, [customer.pk], tag_id, actor=request.user)
+    except customer_crm_service.CustomerCrmError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:customer-detail", pk=pk)
+
+
+# ---------------------------------------------------------------- برچسب‌های مشتری (CustomerTag)
+
+@staff_required
+@permission_required(CUSTOMER_TAG_MANAGE)
+def customer_tag_list(request):
+    store = _resolve_dashboard_store(request)
+    tags = CustomerTag.objects.filter(store=store).order_by("name")
+    return render(request, "dashboard/customer_tag_list.html", {"tags": tags, "active_page": "customers"})
+
+
+@require_POST
+@staff_required
+@permission_required(CUSTOMER_TAG_MANAGE)
+def customer_tag_add(request):
+    store = _resolve_dashboard_store(request)
+    name = request.POST.get("name", "").strip()
+    code = slugify(request.POST.get("code", "") or name, allow_unicode=True)
+    if name and code:
+        try:
+            customer_crm_service.create_tag(
+                store, name=name, code=code, description=request.POST.get("description", "").strip(),
+                color=request.POST.get("color", "").strip(), actor=request.user,
+            )
+            messages.success(request, "برچسب اضافه شد")
+        except customer_crm_service.CustomerCrmError as exc:
+            messages.error(request, str(exc))
+    return redirect("dashboard:customer-tag-list")
+
+
+@require_POST
+@staff_required
+@permission_required(CUSTOMER_TAG_MANAGE)
+def customer_tag_archive(request, pk):
+    store = _resolve_dashboard_store(request)
+    try:
+        customer_crm_service.archive_tag(store, pk, actor=request.user)
+        messages.success(request, "برچسب غیرفعال شد")
+    except customer_crm_service.CustomerCrmError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:customer-tag-list")
+
+
+# ---------------------------------------------------------------- سگمنت‌های مشتری (Customer Segments)
+
+@staff_required
+@permission_required(CUSTOMER_SEGMENT_VIEW, CUSTOMER_SEGMENT_MANAGE)
+def segment_list(request):
+    store = _resolve_dashboard_store(request)
+    segments = (
+        CustomerSegment.objects.filter(store=store)
+        .annotate(member_count=Count("memberships", distinct=True))
+        .order_by("-created_at")
+    )
+    return render(request, "dashboard/segment_list.html", {
+        "segments": segments, "active_page": "segments",
+        "can_manage_segments": membership_has_permission(request.store_membership, CUSTOMER_SEGMENT_MANAGE),
+    })
+
+
+def _parse_segment_rules(request):
+    fields = request.POST.getlist("rule_field")
+    operators = request.POST.getlist("rule_operator")
+    values = request.POST.getlist("rule_value")
+    values2 = request.POST.getlist("rule_value2")
+    rows = []
+    for i in range(len(fields)):
+        field = fields[i].strip()
+        operator = operators[i].strip() if i < len(operators) else ""
+        value = values[i].strip() if i < len(values) else ""
+        value2 = values2[i].strip() if i < len(values2) else ""
+        if field and operator:
+            rows.append({"field": field, "operator": operator, "value": value, "value2": value2, "position": i})
+    return rows
+
+
+@staff_required
+@permission_required(CUSTOMER_SEGMENT_MANAGE)
+def segment_form(request, pk=None):
+    store = _resolve_dashboard_store(request)
+    segment = get_object_or_404(CustomerSegment, pk=pk, store=store) if pk else None
+
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        description = request.POST.get("description", "").strip()
+        segment_type = request.POST.get("segment_type", CustomerSegment.SegmentType.STATIC)
+        match_mode = request.POST.get("match_mode", CustomerSegment.MatchMode.ALL)
+        if not name:
+            messages.error(request, "نام سگمنت الزامی است")
+        else:
+            if segment is None:
+                segment = CustomerSegment.objects.create(
+                    store=store, name=name, description=description,
+                    segment_type=segment_type, match_mode=match_mode,
+                )
+            else:
+                segment.name = name
+                segment.description = description
+                segment.segment_type = segment_type
+                segment.match_mode = match_mode
+                segment.save(update_fields=["name", "description", "segment_type", "match_mode"])
+
+            if segment.segment_type == CustomerSegment.SegmentType.DYNAMIC:
+                rows = _parse_segment_rules(request)
+                try:
+                    for row in rows:
+                        segment_service.validate_rule(row["field"], row["operator"])
+                except segment_service.SegmentError as exc:
+                    messages.error(request, str(exc))
+                    return render(request, "dashboard/segment_form.html", {
+                        "segment": segment, "active_page": "segments",
+                        "field_choices": segment_service.field_choices(),
+                        "operator_labels": segment_service.OPERATOR_LABELS,
+                        "allowed_fields": segment_service.ALLOWED_FIELDS,
+                    })
+                segment.rules.all().delete()
+                CustomerSegmentRule.objects.bulk_create([
+                    CustomerSegmentRule(segment=segment, **row) for row in rows
+                ])
+            record_audit_event(
+                store=store, actor=request.user,
+                action_code="customer_segment.created" if pk is None else "customer_segment.updated",
+                object_type="CustomerSegment", object_id=str(segment.pk), object_label=segment.name,
+            )
+            messages.success(request, "سگمنت ذخیره شد")
+            return redirect("dashboard:segment-detail", pk=segment.pk)
+
+    return render(request, "dashboard/segment_form.html", {
+        "segment": segment, "active_page": "segments",
+        "field_choices": segment_service.field_choices(),
+        "operator_labels": segment_service.OPERATOR_LABELS,
+        "allowed_fields": segment_service.ALLOWED_FIELDS,
+    })
+
+
+@staff_required
+@permission_required(CUSTOMER_SEGMENT_VIEW, CUSTOMER_SEGMENT_MANAGE)
+def segment_detail(request, pk):
+    store = _resolve_dashboard_store(request)
+    segment = get_object_or_404(CustomerSegment, pk=pk, store=store)
+    try:
+        preview_customers = list(segment_service.preview_segment(segment)[:200])
+        preview_error = ""
+    except segment_service.SegmentError as exc:
+        preview_customers = []
+        preview_error = str(exc)
+    return render(request, "dashboard/segment_detail.html", {
+        "segment": segment, "active_page": "segments",
+        "preview_customers": preview_customers, "preview_error": preview_error,
+        "can_manage_segments": membership_has_permission(request.store_membership, CUSTOMER_SEGMENT_MANAGE),
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(CUSTOMER_SEGMENT_MANAGE)
+def segment_refresh(request, pk):
+    store = _resolve_dashboard_store(request)
+    segment = get_object_or_404(CustomerSegment, pk=pk, store=store)
+    try:
+        count = segment_service.refresh_segment_membership(segment, actor=request.user)
+        messages.success(request, f"سگمنت تازه‌سازی شد — {count} مشتری")
+    except segment_service.SegmentError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:segment-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(CUSTOMER_SEGMENT_MANAGE)
+def segment_toggle_active(request, pk):
+    store = _resolve_dashboard_store(request)
+    segment = get_object_or_404(CustomerSegment, pk=pk, store=store)
+    segment.is_active = not segment.is_active
+    segment.save(update_fields=["is_active"])
+    messages.success(request, "وضعیتِ سگمنت به‌روزرسانی شد")
+    return redirect("dashboard:segment-list")
+
+
+@require_POST
+@staff_required
+@permission_required(CUSTOMER_SEGMENT_MANAGE)
+def segment_member_add(request, pk):
+    store = _resolve_dashboard_store(request)
+    segment = get_object_or_404(CustomerSegment, pk=pk, store=store)
+    phone = request.POST.get("phone", "").strip()
+    customer = Customer.objects.filter(phone=phone, orders__store=store).distinct().first()
+    try:
+        if customer is None:
+            messages.error(request, "مشتری‌ای با این موبایل در این فروشگاه یافت نشد")
+        else:
+            added = segment_service.add_static_member(segment, customer.pk, actor=request.user)
+            messages.success(request, "مشتری اضافه شد" if added else "این مشتری از قبل عضو بود")
+    except segment_service.SegmentError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:segment-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(CUSTOMER_SEGMENT_MANAGE)
+def segment_member_remove(request, pk, customer_id):
+    store = _resolve_dashboard_store(request)
+    segment = get_object_or_404(CustomerSegment, pk=pk, store=store)
+    try:
+        segment_service.remove_static_member(segment, customer_id, actor=request.user)
+        messages.success(request, "مشتری از سگمنت حذف شد")
+    except segment_service.SegmentError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:segment-detail", pk=pk)
 
 
 # -------------------------------------------------------- گزارش‌های حرفه‌ای
@@ -3783,6 +4167,76 @@ def audit_log_list(request):
 @permission_required(AUDIT_LOG_VIEW)
 def audit_log_table(request):
     return render(request, "dashboard/partials/audit_log_table_inner.html", _audit_log_list_context(request))
+
+
+# ---------------------------------------------------------------- صادرات (Export)
+
+EXPORT_PERMISSION_BY_TYPE = {
+    ExportJob.ExportType.PRODUCTS: IMPORT_EXPORT_VIEW,
+    ExportJob.ExportType.VARIANTS: IMPORT_EXPORT_VIEW,
+    ExportJob.ExportType.INVENTORY: IMPORT_EXPORT_VIEW,
+    ExportJob.ExportType.CUSTOMERS: CUSTOMER_EXPORT,
+    ExportJob.ExportType.ORDERS: IMPORT_EXPORT_VIEW,
+}
+
+
+@staff_required
+@permission_required(IMPORT_EXPORT_VIEW, CUSTOMER_EXPORT)
+def export_list(request):
+    store = _resolve_dashboard_store(request)
+    jobs = ExportJob.objects.filter(store=store).select_related("requested_by").order_by("-created_at")[:100]
+    return render(request, "dashboard/export_list.html", {
+        "jobs": jobs, "active_page": "exports",
+        "export_types": [
+            (value, label) for value, label in ExportJob.ExportType.choices
+            if membership_has_permission(request.store_membership, EXPORT_PERMISSION_BY_TYPE[value])
+        ],
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(IMPORT_EXPORT_MANAGE, CUSTOMER_EXPORT)
+def export_create(request):
+    store = _resolve_dashboard_store(request)
+    export_type = request.POST.get("export_type", "")
+    required_permission = EXPORT_PERMISSION_BY_TYPE.get(export_type)
+    if required_permission is None:
+        messages.error(request, "نوعِ صادراتِ نامعتبر است.")
+        return redirect("dashboard:export-list")
+    # CUSTOMER_EXPORT is deliberately its own gate (PII), separate from the
+    # general IMPORT_EXPORT_MANAGE that covers Product/Variant/Inventory/Order.
+    if not membership_has_permission(request.store_membership, required_permission):
+        return render(request, "dashboard/403.html", status=403)
+
+    try:
+        run_export(store, export_type, requested_by=request.user)
+        messages.success(request, "صادرات با موفقیت انجام شد")
+    except ExportError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:export-list")
+
+
+@staff_required
+@permission_required(IMPORT_EXPORT_VIEW, CUSTOMER_EXPORT)
+def export_download(request, pk):
+    store = _resolve_dashboard_store(request)
+    job = get_object_or_404(ExportJob, pk=pk, store=store)
+    required_permission = EXPORT_PERMISSION_BY_TYPE.get(job.export_type, IMPORT_EXPORT_VIEW)
+    if not membership_has_permission(request.store_membership, required_permission):
+        return render(request, "dashboard/403.html", status=403)
+    if job.status != ExportJob.Status.COMPLETED or not job.file:
+        raise Http404
+    record_audit_event(
+        store=store, actor=request.user, action_code="export.downloaded",
+        object_type="ExportJob", object_id=str(job.pk),
+        object_label=f"دانلودِ صادراتِ {job.get_export_type_display()}",
+    )
+    response = FileResponse(
+        job.file.open("rb"), as_attachment=True,
+        filename=f"{job.export_type}-{job.pk}.csv", content_type="text/csv",
+    )
+    return response
 
 
 # ---------------------------------------------------------------- استرداد (Refund)

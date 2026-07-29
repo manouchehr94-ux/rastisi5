@@ -85,7 +85,28 @@ urlpatterns = [
 
     path("customers/", views.customer_list, name="customer-list"),
     path("customers/table/", views.customer_table, name="customer-table"),
+    path("customers/bulk-action/", views.customer_bulk_action, name="customer-bulk-action"),
     path("customers/<int:pk>/", views.customer_detail, name="customer-detail"),
+    path("customers/<int:pk>/refresh-stats/", views.customer_refresh_stats, name="customer-refresh-stats"),
+    path("customers/<int:pk>/status/", views.customer_status_update, name="customer-status-update"),
+    path("customers/<int:pk>/notes/add/", views.customer_note_add, name="customer-note-add"),
+    path("customers/<int:pk>/notes/<int:note_id>/delete/", views.customer_note_delete, name="customer-note-delete"),
+    path("customers/<int:pk>/tags/toggle/", views.customer_tag_toggle, name="customer-tag-toggle"),
+
+    # --- برچسب‌های مشتری (Customer Tags) ---
+    path("customer-tags/", views.customer_tag_list, name="customer-tag-list"),
+    path("customer-tags/add/", views.customer_tag_add, name="customer-tag-add"),
+    path("customer-tags/<int:pk>/archive/", views.customer_tag_archive, name="customer-tag-archive"),
+
+    # --- سگمنت‌های مشتری (Customer Segments) ---
+    path("segments/", views.segment_list, name="segment-list"),
+    path("segments/add/", views.segment_form, name="segment-add"),
+    path("segments/<int:pk>/edit/", views.segment_form, name="segment-edit"),
+    path("segments/<int:pk>/", views.segment_detail, name="segment-detail"),
+    path("segments/<int:pk>/refresh/", views.segment_refresh, name="segment-refresh"),
+    path("segments/<int:pk>/toggle/", views.segment_toggle_active, name="segment-toggle"),
+    path("segments/<int:pk>/members/add/", views.segment_member_add, name="segment-member-add"),
+    path("segments/<int:pk>/members/<int:customer_id>/remove/", views.segment_member_remove, name="segment-member-remove"),
 
     path("reports/", views.report_list, name="report-list"),
     path("reports/body/", views.report_partial, name="report-body"),
@@ -186,6 +207,11 @@ urlpatterns = [
     # --- گزارش رخدادها (Audit Log) ---
     path("audit-log/", views.audit_log_list, name="audit-log-list"),
     path("audit-log/table/", views.audit_log_table, name="audit-log-table"),
+
+    # --- صادرات (Export) ---
+    path("exports/", views.export_list, name="export-list"),
+    path("exports/create/", views.export_create, name="export-create"),
+    path("exports/<int:pk>/download/", views.export_download, name="export-download"),
 
     # --- استرداد (Refunds) ---
     path("orders/<str:code>/refund/", views.order_refund_form, name="order-refund"),

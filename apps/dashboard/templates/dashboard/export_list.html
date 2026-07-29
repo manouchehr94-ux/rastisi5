@@ -1,0 +1,48 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}صادراتِ داده‌ها | پنل مدیریت{% endblock %}
+{% block page_title %}صادراتِ داده‌ها{% endblock %}
+{% block page_sub %}فایل‌های CSVِ تولیدشده — هر فایل حداکثر تا {{ export_types|length }} نوع، و پس از چند روز به‌صورتِ خودکار منقضی می‌شود{% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><b>ساختِ صادراتِ تازه</b></div>
+  <form method="post" action="{% url 'dashboard:export-create' %}" style="display:flex;gap:10px;align-items:center;padding:14px 18px;flex-wrap:wrap">
+    {% csrf_token %}
+    <select class="inp" name="export_type" style="width:220px">
+      {% for value, label in export_types %}
+      <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary">ساختِ CSV</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-head"><b>تاریخچه‌ی صادرات</b></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>نوع</th><th>وضعیت</th><th>تعداد ردیف</th><th>درخواست‌دهنده</th><th>زمانِ ایجاد</th><th>دانلود</th></tr></thead>
+    <tbody>
+    {% for job in jobs %}
+      <tr>
+        <td>{{ job.get_export_type_display }}</td>
+        <td>
+          {% if job.status == "completed" %}<span class="badge b-green">تکمیل‌شده</span>
+          {% elif job.status == "failed" %}<span class="badge b-red">ناموفق</span>
+          {% elif job.status == "expired" %}<span class="badge b-amber">منقضی‌شده</span>
+          {% else %}<span class="badge b-amber">{{ job.get_status_display }}</span>{% endif %}
+        </td>
+        <td>{{ job.row_count }}</td>
+        <td>{{ job.requested_by.username|default:"—" }}</td>
+        <td style="white-space:nowrap;color:var(--muted);font-size:12px">{{ job.created_at|date:"Y-m-d H:i" }}</td>
+        <td>
+          {% if job.status == "completed" %}
+          <a class="btn btn-sm" href="{% url 'dashboard:export-download' job.pk %}">دانلود</a>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">هنوز هیچ صادراتی انجام نشده است</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+{% block title %}{{ segment.name }} | پنل مدیریت{% endblock %}
+{% block page_title %}{{ segment.name }}{% endblock %}
+{% block page_sub %}{{ segment.description|default:"" }}{% endblock %}
+{% block content %}
+<div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+  <a class="btn btn-sm" href="{% url 'dashboard:segment-list' %}">→ بازگشت به فهرستِ سگمنت‌ها</a>
+  {% if can_manage_segments %}
+  <a class="btn btn-sm" href="{% url 'dashboard:segment-edit' segment.pk %}">ویرایش</a>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head" style="display:flex;justify-content:space-between;align-items:center">
+    <div>
+      {% if segment.segment_type == "static" %}<span class="badge b-blue">دستی</span>{% else %}<span class="badge b-purple">مبتنی‌بر قاعده</span>{% endif %}
+      {% if segment.last_evaluated_at %}<span style="color:var(--muted);font-size:12px;margin-inline-start:10px">آخرین ارزیابی: {{ segment.last_evaluated_at|jalali }} ({{ segment.last_evaluation_duration_ms|fa_number }}ms)</span>{% endif %}
+    </div>
+    {% if can_manage_segments and segment.segment_type == "dynamic" %}
+    <form method="post" action="{% url 'dashboard:segment-refresh' segment.pk %}">{% csrf_token %}<button class="btn btn-sm btn-primary" type="submit">تازه‌سازیِ عضویت</button></form>
+    {% endif %}
+  </div>
+  {% if segment.segment_type == "dynamic" %}
+  <div class="card-body" style="font-size:11.5px;color:var(--muted)">
+    فهرستِ زیر همیشه زنده محاسبه می‌شود؛ «تازه‌سازیِ عضویت» فقط رکوردهایِ عضویتِ ذخیره‌شده (برایِ اکشن‌هایِ فله‌ایِ آینده) را با همین نتیجه یکسان می‌کند.
+  </div>
+  {% endif %}
+  {% if segment.last_evaluation_error %}
+  <div class="card-body" style="color:var(--red)">خطایِ آخرینِ ارزیابی: {{ segment.last_evaluation_error }}</div>
+  {% endif %}
+  {% if preview_error %}
+  <div class="card-body" style="color:var(--red)">{{ preview_error }}</div>
+  {% endif %}
+</div>
+
+{% if segment.segment_type == "static" and can_manage_segments %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><b>افزودنِ مشتری با موبایل</b></div>
+  <form method="post" action="{% url 'dashboard:segment-member-add' segment.pk %}" style="display:flex;gap:8px;padding:14px 18px">
+    {% csrf_token %}
+    <input class="inp" name="phone" placeholder="موبایل مشتری" required style="width:200px" dir="ltr">
+    <button type="submit" class="btn btn-sm btn-primary">افزودن</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head"><b>اعضا ({{ preview_customers|length|fa_number }}{% if preview_customers|length == 200 %}+{% endif %})</b></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>نام</th><th>موبایل</th><th>عملیات</th></tr></thead>
+    <tbody>
+    {% for customer in preview_customers %}
+      <tr>
+        <td><a href="{% url 'dashboard:customer-detail' customer.pk %}">{{ customer.full_name }}</a></td>
+        <td dir="ltr">{{ customer.phone }}</td>
+        <td>
+          {% if segment.segment_type == "static" and can_manage_segments %}
+          <form method="post" action="{% url 'dashboard:segment-member-remove' segment.pk customer.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">حذف</button></form>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:30px">
+        {% if segment.segment_type == "dynamic" %}در حالِ حاضر هیچ مشتری‌ای با این قاعده‌ها مطابقت ندارد
+        {% else %}هنوز عضوی ندارد{% endif %}
+      </td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

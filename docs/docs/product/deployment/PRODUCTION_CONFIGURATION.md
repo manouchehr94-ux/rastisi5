@@ -36,6 +36,7 @@ list with placeholder values. Summary:
 | `DATABASE_URL` | Recommended (PostgreSQL) | unset (SQLite) | `postgres://user:pass@host:port/dbname` |
 | `DJANGO_STATIC_ROOT` | Recommended | `<repo>/staticfiles` | |
 | `DJANGO_MEDIA_ROOT` | Recommended | `<repo>/media` | Must be persistent + backed up |
+| `DJANGO_PRIVATE_MEDIA_ROOT` | Recommended | `<repo>/private_media` | Export/import files — never web-served directly; see §5a |
 | `DJANGO_LOG_LEVEL` | Optional | `INFO` | One of DEBUG/INFO/WARNING/ERROR/CRITICAL |
 | `RASTISI_ADMIN_DOMAIN_SUFFIX` | Recommended once real merchant admin subdomains are live | `rastisi.ir` | Suffix appended to `Store.admin_subdomain` to form the merchant admin host — see ADR-16 in `SAAS_DOMAIN_DECISIONS.md` |
 
@@ -85,6 +86,40 @@ local disk (per the existing architecture); it does not add cloud object
 storage. If your hosting provider's disk is ephemeral (e.g. some
 container/PaaS platforms), you must mount persistent storage there before
 launch — that is a hosting decision, not something this codebase enforces.
+
+## 5a. Private storage for export/import files, and its cleanup schedule
+
+`DJANGO_PRIVATE_MEDIA_ROOT` must also point at persistent storage,
+separate from `DJANGO_MEDIA_ROOT` — it holds generated Product/Variant/
+Inventory/Customer/Order CSV exports (`ExportJob.file`), some of which
+contain Customer PII or Order financial detail. Unlike `DJANGO_MEDIA_ROOT`,
+nothing under this directory is ever served by a public URL — see ADR-52 in
+`SAAS_DOMAIN_DECISIONS.md`; the only read path is the authenticated,
+Store-scoped `dashboard:export-download` view.
+
+This platform has no background task queue (ADR-49), so expired export
+files are **not** reclaimed automatically — you must schedule
+`python manage.py cleanup_expired_exports` yourself (cron or a systemd
+timer), e.g. daily:
+
+```
+0 3 * * * cd /path/to/app && python manage.py cleanup_expired_exports
+```
+
+Without this, expired `ExportJob` rows still stop being downloadable
+(the download view checks `status`/`expires_at`), but their files remain on
+disk until the command actually runs.
+
+Similarly, `python manage.py refresh_customer_segments` (ADR-53) must be
+scheduled if you want dynamic Customer Segments' *materialized* membership
+to stay current for future bulk actions — the segment detail page's live
+preview does not depend on this schedule (it always re-evaluates), but the
+materialized `CustomerSegmentMembership` rows only update when this command
+(or the per-segment "Refresh Membership" button) runs:
+
+```
+0 4 * * * cd /path/to/app && python manage.py refresh_customer_segments
+```
 
 ## 6. HTTPS / reverse-proxy assumptions
 
@@ -139,6 +174,13 @@ Before going live, you need a documented, **tested** restore procedure for:
 
 - the PostgreSQL database (e.g. `pg_dump`/`pg_restore` on a schedule);
 - the `DJANGO_MEDIA_ROOT` directory (product images, uploaded content).
+- the `DJANGO_PRIVATE_MEDIA_ROOT` directory is deliberately **not** a backup
+  candidate — every file in it today is a regeneratable CSV export (re-run
+  the export from the admin panel), never the sole copy of any data. (A
+  future CSV Import feature, not implemented as of this checkpoint — see
+  ADR-54 — would also stage uploads here; that upload would likewise be a
+  copy of data the merchant already has locally, not something this
+  platform would need to be the only holder of.)
 
 This PR does not implement or automate backups — that is deployment/hosting
 work tracked separately (see `docs/00_PROJECT_MASTER_REFERENCE.md`). Do not

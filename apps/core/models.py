@@ -1,8 +1,11 @@
 import re
+import uuid
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+
+from apps.core.storage import private_storage
 
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
@@ -245,3 +248,80 @@ class AuditLogEntry(models.Model):
 
     def __str__(self):
         return f"{self.action_code} — {self.object_label or self.object_type} ({self.get_result_display()})"
+
+
+def export_job_upload_path(instance, filename: str) -> str:
+    """مسیرِ ذخیره‌ی فایلِ خروجیِ یک ``ExportJob`` را می‌سازد — عمداً نامِ
+    فایلِ اصلی (``filename``) را در مسیر استفاده نمی‌کند و به‌جایِ آن یک
+    نامِ تصادفیِ UUID تولید می‌کند، تا هیچ ورودیِ کاربر (حتی نامِ فایل)
+    مستقیماً وارد مسیرِ دیسک نشود (محافظت در برابر Path Traversal — نگاه
+    کنید به ADR-52). فایل‌ها زیرِ ``exports/<store_id>/`` جدا می‌شوند تا
+    حتی در سطحِ فایل‌سیستم هم داده‌ی دو Store در یک پوشه مخلوط نشود."""
+    ext = "csv"
+    return f"exports/{instance.store_id}/{uuid.uuid4().hex}.{ext}"
+
+
+class ExportJob(models.Model):
+    """یک درخواستِ صادراتِ CSV برای یک Store — نگاه کنید به ADR-52 و
+    ``docs/architecture/SAAS_DOMAIN_DECISIONS.md``.
+
+    این کدبیس هیچ صف کارِ پس‌زمینه‌ای (Celery و مشابه آن) ندارد؛ بنابراین
+    اجرای واقعیِ صادرات همگام و در همان چرخه‌ی درخواست/پاسخ انجام می‌شود —
+    وضعیت‌های ``pending``/``processing``/``completed`` در عمل در یک تابعِ
+    ویو رخ می‌دهند، نه در طولِ زمان. این رکورد همچنان به‌عنوانِ تاریخچه/ابزارِ
+    پیگیری و دانلودِ بعدیِ فایل نگه داشته می‌شود — این یک تصمیمِ آگاهانه‌ی
+    محدودکننده‌ی دامنه است، نه ادعای صفِ کارِ واقعی.
+
+    فایل همیشه در ``apps.core.storage.private_storage`` نوشته می‌شود — هرگز
+    زیرِ ``MEDIA_ROOT``/``MEDIA_URL`` عمومی؛ تنها راهِ مجازِ دانلود، یک ویوِ
+    authenticated و Store-scoped است (نگاه کنید به ``export_service``)."""
+
+    class ExportType(models.TextChoices):
+        PRODUCTS = "products", "کالاها"
+        VARIANTS = "variants", "تنوع‌ها"
+        INVENTORY = "inventory", "موجودیِ انبار"
+        CUSTOMERS = "customers", "مشتریان"
+        ORDERS = "orders", "سفارش‌ها"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "در صف"
+        PROCESSING = "processing", "در حالِ پردازش"
+        COMPLETED = "completed", "تکمیل‌شده"
+        FAILED = "failed", "ناموفق"
+        EXPIRED = "expired", "منقضی‌شده"
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="export_jobs",
+    )
+    export_type = models.CharField("نوع صادرات", max_length=20, choices=ExportType.choices)
+    status = models.CharField(
+        "وضعیت", max_length=12, choices=Status.choices, default=Status.PENDING, db_index=True,
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="درخواست‌دهنده", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="export_jobs",
+    )
+    filters = models.JSONField("فیلترهای اعمال‌شده", blank=True, default=dict)
+    selected_fields = models.JSONField("ستون‌های انتخاب‌شده", blank=True, default=list)
+    file = models.FileField(
+        "فایل خروجی", upload_to=export_job_upload_path, storage=private_storage,
+        max_length=255, blank=True,
+    )
+    row_count = models.PositiveIntegerField("تعداد ردیف", default=0)
+    error_message = models.TextField("پیام خطا", blank=True, default="")
+    created_at = models.DateTimeField("زمان ایجاد", auto_now_add=True)
+    started_at = models.DateTimeField("زمان شروع پردازش", null=True, blank=True)
+    completed_at = models.DateTimeField("زمان پایان", null=True, blank=True)
+    expires_at = models.DateTimeField("زمان انقضا", null=True, blank=True, db_index=True)
+
+    class Meta:
+        verbose_name = "درخواست صادرات"
+        verbose_name_plural = "درخواست‌های صادرات"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["store", "-created_at"], name="idx_export_store_created"),
+            models.Index(fields=["store", "status"], name="idx_export_store_status"),
+        ]
+
+    def __str__(self):
+        return f"{self.get_export_type_display()} — {self.store.slug} ({self.get_status_display()})"

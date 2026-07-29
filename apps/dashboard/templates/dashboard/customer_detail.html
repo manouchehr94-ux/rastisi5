@@ -34,6 +34,82 @@
   </div>
 </div>
 
+<div class="grid g-2" style="gap:16px;margin-bottom:16px">
+  <div class="card">
+    <div class="card-head" style="display:flex;justify-content:space-between;align-items:center">
+      <h3>🏷️ برچسب‌ها و وضعیتِ داخلی</h3>
+      <form method="post" action="{% url 'dashboard:customer-refresh-stats' customer.pk %}">{% csrf_token %}
+        <button class="btn btn-sm" type="submit">بروزرسانیِ آمار</button>
+      </form>
+    </div>
+    <div class="card-body" style="font-size:12.5px">
+      {% if can_manage_notes %}
+      <form method="post" action="{% url 'dashboard:customer-status-update' customer.pk %}" style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+        {% csrf_token %}
+        <label>وضعیتِ داخلی:</label>
+        <select class="inp" name="internal_status" style="width:150px">
+          {% for value, label in internal_status_choices %}
+          <option value="{{ value }}" {% if profile.internal_status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-sm" type="submit">ذخیره</button>
+      </form>
+      {% else %}
+      <div style="margin-bottom:12px">وضعیتِ داخلی: <b>{{ profile.get_internal_status_display }}</b></div>
+      {% endif %}
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        {% for tag in all_tags %}
+        <form method="post" action="{% url 'dashboard:customer-tag-toggle' customer.pk %}" style="display:inline">
+          {% csrf_token %}
+          <input type="hidden" name="tag_id" value="{{ tag.pk }}">
+          {% if tag.pk in assigned_tag_ids %}
+          <input type="hidden" name="action" value="remove">
+          <button class="badge b-blue" style="border:none;cursor:pointer" {% if not can_manage_tags %}disabled{% endif %}>{{ tag.name }} ✕</button>
+          {% else %}
+          <input type="hidden" name="action" value="add">
+          <button class="badge b-gray" style="border:none;cursor:pointer" {% if not can_manage_tags %}disabled{% endif %}>{{ tag.name }} +</button>
+          {% endif %}
+        </form>
+        {% empty %}
+        <span style="color:var(--muted)">هنوز برچسبی برای این فروشگاه تعریف نشده — <a href="{% url 'dashboard:customer-tag-list' %}">مدیریتِ برچسب‌ها</a></span>
+        {% endfor %}
+      </div>
+      {% if profile.stats_refreshed_at %}
+      <div style="color:var(--muted);font-size:11.5px">آخرین به‌روزرسانیِ آمار: {{ profile.stats_refreshed_at|jalali }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3>📝 یادداشت‌های داخلی</h3></div>
+    <div class="card-body" style="font-size:12.5px">
+      {% if can_manage_notes %}
+      <form method="post" action="{% url 'dashboard:customer-note-add' customer.pk %}" style="margin-bottom:12px">
+        {% csrf_token %}
+        <textarea class="inp" name="body" rows="2" style="width:100%" placeholder="یادداشتِ تازه..." required></textarea>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <label><input type="checkbox" name="is_pinned"> سنجاق</label>
+          <button class="btn btn-sm btn-primary" type="submit">ثبت یادداشت</button>
+        </div>
+      </form>
+      {% endif %}
+      {% for note in notes %}
+      <div style="padding:8px 0;{% if not forloop.last %}border-bottom:1px dashed var(--border){% endif %}">
+        {% if note.is_pinned %}<span class="badge b-amber">سنجاق‌شده</span>{% endif %}
+        <div>{{ note.body }}</div>
+        <div style="color:var(--muted);font-size:11px">{{ note.author.username|default:"—" }} — {{ note.created_at|jalali }}</div>
+        {% if can_manage_notes %}
+        <form method="post" action="{% url 'dashboard:customer-note-delete' customer.pk note.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm" type="submit">حذف</button></form>
+        {% endif %}
+      </div>
+      {% empty %}
+      <div style="color:var(--muted);text-align:center;padding:16px 0">هنوز یادداشتی ثبت نشده است</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
 {% if customer.addresses.all %}
 <div class="card" style="margin-bottom:16px">
   <div class="card-head"><h3>📍 آدرس‌ها</h3></div>

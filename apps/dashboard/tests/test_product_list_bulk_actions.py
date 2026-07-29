@@ -10,6 +10,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.catalog.models import Brand, Category, Product, Vendor
+from apps.core.models import AuditLogEntry
+from apps.orders.models import TaxClass
 from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
@@ -161,6 +163,37 @@ class ProductBulkStatusActionTests(ProductListBulkTestCase):
         self.assertEqual(self.product_a.category_id, self.other_leaf.pk)
         self.assertEqual(self.product_b.category_id, self.other_leaf.pk)
 
+    def test_bulk_assign_tax_class(self):
+        tax_class = TaxClass.objects.create(store=self.store, name="عمومی", code="general-bulk-plb")
+        self.client.post(reverse("dashboard:product-bulk-action"), {
+            "bulk_action": "assign-tax-class", "bulk_tax_class": tax_class.pk,
+            "product_ids": [self.product_a.pk, self.product_b.pk],
+        })
+        self.product_a.refresh_from_db()
+        self.product_b.refresh_from_db()
+        self.assertEqual(self.product_a.tax_class_id, tax_class.pk)
+        self.assertEqual(self.product_b.tax_class_id, tax_class.pk)
+        self.assertTrue(AuditLogEntry.objects.filter(action_code="product.bulk_tax_class_assigned").exists())
+
+    def test_bulk_clear_tax_class(self):
+        tax_class = TaxClass.objects.create(store=self.store, name="عمومی", code="general-clear-plb")
+        Product.objects.filter(pk=self.product_a.pk).update(tax_class=tax_class)
+        self.client.post(reverse("dashboard:product-bulk-action"), {
+            "bulk_action": "clear-tax-class", "product_ids": [self.product_a.pk],
+        })
+        self.product_a.refresh_from_db()
+        self.assertIsNone(self.product_a.tax_class_id)
+        self.assertTrue(AuditLogEntry.objects.filter(action_code="product.bulk_tax_class_cleared").exists())
+
+    def test_invalid_tax_class_id_rejected(self):
+        response = self.client.post(reverse("dashboard:product-bulk-action"), {
+            "bulk_action": "assign-tax-class", "bulk_tax_class": "999999",
+            "product_ids": [self.product_a.pk],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.product_a.refresh_from_db()
+        self.assertIsNone(self.product_a.tax_class_id)
+
     def test_no_ids_selected_is_a_no_op(self):
         response = self.client.post(reverse("dashboard:product-bulk-action"), {"bulk_action": "delete"})
         self.assertEqual(response.status_code, 200)
@@ -216,6 +249,24 @@ class ProductBulkActionTenantIsolationTests(ProductListBulkTestCase):
         })
         self.product_a.refresh_from_db()
         self.assertEqual(self.product_a.category_id, self.leaf.pk)  # unchanged
+
+    def test_cannot_assign_other_stores_tax_class(self):
+        other_tax_class = TaxClass.objects.create(store=self.other_store, name="دیگر", code="other-tax-plb")
+        self.client.post(reverse("dashboard:product-bulk-action"), {
+            "bulk_action": "assign-tax-class", "bulk_tax_class": other_tax_class.pk,
+            "product_ids": [self.product_a.pk],
+        })
+        self.product_a.refresh_from_db()
+        self.assertIsNone(self.product_a.tax_class_id)
+
+    def test_cannot_bulk_assign_tax_class_to_other_stores_product(self):
+        tax_class = TaxClass.objects.create(store=self.store, name="عمومی", code="general-tenant-plb")
+        self.client.post(reverse("dashboard:product-bulk-action"), {
+            "bulk_action": "assign-tax-class", "bulk_tax_class": tax_class.pk,
+            "product_ids": [self.other_product.pk],
+        })
+        self.other_product.refresh_from_db()
+        self.assertIsNone(self.other_product.tax_class_id)
 
 
 class ProductBulkActionPermissionTests(ProductListBulkTestCase):

@@ -1,0 +1,51 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+{% block title %}سگمنت‌های مشتری | پنل مدیریت{% endblock %}
+{% block page_title %}سگمنت‌های مشتری{% endblock %}
+{% block page_sub %}گروه‌بندیِ دستی یا مبتنی‌بر قاعده‌یِ مشتریان برای بازاریابی و اکشن‌هایِ فله‌ای{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><p class="page-desc">سگمنتِ «دستی» با انتخابِ تک‌تکِ مشتری ساخته می‌شود؛ سگمنتِ «مبتنی‌بر قاعده» با قاعده‌هایِ صریح محاسبه و با دکمه‌یِ «تازه‌سازی» به‌روز می‌شود.</p></div>
+  {% if can_manage_segments %}
+  <a href="{% url 'dashboard:segment-add' %}" class="btn btn-primary">سگمنتِ تازه</a>
+  {% endif %}
+</div>
+
+{% if segments %}
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>نام</th><th>نوع</th><th>تعدادِ عضو</th><th>آخرینِ ارزیابی</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+    <tbody>
+    {% for segment in segments %}
+      <tr>
+        <td><b>{{ segment.name }}</b>{% if segment.description %}<br><small style="color:var(--muted)">{{ segment.description }}</small>{% endif %}</td>
+        <td>{% if segment.segment_type == "static" %}<span class="badge b-blue">دستی</span>{% else %}<span class="badge b-purple">مبتنی‌بر قاعده</span>{% endif %}</td>
+        <td>{{ segment.member_count|fa_number }}</td>
+        <td>
+          {% if segment.last_evaluated_at %}{{ segment.last_evaluated_at|jalali }}
+          {% elif segment.segment_type == "dynamic" %}<span style="color:var(--muted)">هنوز تازه‌سازی نشده</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>{% if segment.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">آرشیوشده</span>{% endif %}</td>
+        <td style="display:flex;gap:6px">
+          <a class="btn btn-sm" href="{% url 'dashboard:segment-detail' segment.pk %}">مشاهده</a>
+          {% if can_manage_segments %}
+          <a class="btn btn-sm" href="{% url 'dashboard:segment-edit' segment.pk %}">ویرایش</a>
+          <form method="post" action="{% url 'dashboard:segment-toggle' segment.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">{% if segment.is_active %}آرشیو{% else %}فعال‌سازی{% endif %}</button></form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <span class="empty-icon">🧩</span>
+    <div class="empty-title">هنوز سگمنتی ساخته نشده</div>
+    {% if can_manage_segments %}<a href="{% url 'dashboard:segment-add' %}" class="btn btn-primary">ساختِ اولین سگمنت</a>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

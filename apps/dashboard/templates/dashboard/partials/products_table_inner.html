@@ -9,6 +9,8 @@
       <option value="deactivate">غیرفعال‌سازی</option>
       <option value="draft">انتقال به پیش‌نویس</option>
       <option value="assign-category">تغییر دسته‌بندی</option>
+      <option value="assign-tax-class">اختصاصِ دسته‌ی مالیاتی</option>
+      <option value="clear-tax-class">بازگشت به دسته‌ی مالیاتیِ پیش‌فرض</option>
       <option value="delete">حذف</option>
     </select>
     <select class="inp" name="bulk_category" style="width:190px">
@@ -20,6 +22,12 @@
         <option value="{{ cat.pk }}">{{ cat.icon }} {{ cat.name }}</option>
         {% endfor %}
       </optgroup>
+      {% endfor %}
+    </select>
+    <select class="inp" name="bulk_tax_class" style="width:190px">
+      <option value="">— دسته‌ی مالیاتی مقصد —</option>
+      {% for tax_class in tax_class_options %}
+      <option value="{{ tax_class.pk }}">{{ tax_class.name }}</option>
       {% endfor %}
     </select>
     <button type="submit" class="btn btn-sm" hx-confirm="اجرای این اکشن روی همه‌ی کالاهای انتخاب‌شده؟">اعمال</button>

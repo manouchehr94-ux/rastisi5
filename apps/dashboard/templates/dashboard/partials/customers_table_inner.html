@@ -1,27 +1,64 @@
 {% load persian %}
-<table>
-  <thead><tr><th>مشتری</th><th>شهر</th><th>تعداد سفارش</th><th>مجموع خرید</th><th>تاریخ عضویت</th><th>وضعیت</th><th>عملیات</th></tr></thead>
-  <tbody>
-    {% for customer in customers %}
-    <tr>
-      <td>
-        <div class="prod-cell">
-          <div class="avatar">{{ customer.full_name|slice:":2" }}</div>
-          <div><b>{{ customer.full_name }}</b><small dir="ltr">{{ customer.phone }}</small></div>
-        </div>
-      </td>
-      <td>{{ customer.city|default:"—" }}</td>
-      <td>{{ customer.order_count|fa_number }}</td>
-      <td><b>{{ customer.paid_total|default:0|toman }}</b></td>
-      <td>{{ customer.created_at|jalali }}</td>
-      <td>
-        {% if customer.is_vip %}<span class="badge b-purple">مشتری ویژه VIP</span>
-        {% else %}<span class="badge b-gray">عادی</span>{% endif %}
-      </td>
-      <td><a class="btn btn-sm" href="{% url 'dashboard:customer-detail' customer.pk %}">👁️ مشاهده</a></td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">مشتری‌ای یافت نشد</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<form method="post" action="{% url 'dashboard:customer-bulk-action' %}">
+  {% csrf_token %}
+  {% if can_manage_tags or can_manage_notes or can_export_customers %}
+  <div class="bulk-toolbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <select class="inp" name="bulk_action" style="width:170px">
+      <option value="">اکشن گروهی...</option>
+      {% if can_manage_tags %}
+      <option value="add-tag">افزودنِ برچسب</option>
+      <option value="remove-tag">حذفِ برچسب</option>
+      {% endif %}
+      {% if can_manage_notes %}
+      <option value="set-status">تغییرِ وضعیتِ داخلی</option>
+      {% endif %}
+      {% if can_export_customers %}
+      <option value="export-selected">صادراتِ انتخاب‌شده‌ها (CSV)</option>
+      {% endif %}
+    </select>
+    <select class="inp" name="bulk_tag" style="width:170px">
+      <option value="">— برچسب —</option>
+      {% for tag in bulk_tag_options %}
+      <option value="{{ tag.pk }}">{{ tag.name }}</option>
+      {% endfor %}
+    </select>
+    <select class="inp" name="bulk_status" style="width:150px">
+      <option value="">— وضعیتِ داخلی —</option>
+      {% for value, label in bulk_status_options %}
+      <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-sm">اعمال</button>
+  </div>
+  {% endif %}
+  <div class="table-wrap"><table>
+    <thead><tr>
+      <th style="width:32px"><input type="checkbox" onclick="this.closest('table').querySelectorAll('input[name=customer_ids]').forEach(c=>c.checked=this.checked)"></th>
+      <th>مشتری</th><th>شهر</th><th>تعداد سفارش</th><th>مجموع خرید</th><th>تاریخ عضویت</th><th>وضعیت</th><th>عملیات</th>
+    </tr></thead>
+    <tbody>
+      {% for customer in customers %}
+      <tr>
+        <td><input type="checkbox" name="customer_ids" value="{{ customer.pk }}"></td>
+        <td>
+          <div class="prod-cell">
+            <div class="avatar">{{ customer.full_name|slice:":2" }}</div>
+            <div><b>{{ customer.full_name }}</b><small dir="ltr">{{ customer.phone }}</small></div>
+          </div>
+        </td>
+        <td>{{ customer.city|default:"—" }}</td>
+        <td>{{ customer.order_count|fa_number }}</td>
+        <td><b>{{ customer.paid_total|default:0|toman }}</b></td>
+        <td>{{ customer.created_at|jalali }}</td>
+        <td>
+          {% if customer.is_vip %}<span class="badge b-purple">مشتری ویژه VIP</span>
+          {% else %}<span class="badge b-gray">عادی</span>{% endif %}
+        </td>
+        <td><a class="btn btn-sm" href="{% url 'dashboard:customer-detail' customer.pk %}">👁️ مشاهده</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">مشتری‌ای یافت نشد</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</form>

@@ -83,6 +83,15 @@ SHIPPING_SETTINGS_MANAGE = "shipping.manage"
 TAX_SETTINGS_VIEW = "tax.view"
 TAX_SETTINGS_MANAGE = "tax.manage"
 
+# Checkpoint 4 — Product/Variant/Inventory import-export and Customer CRM.
+IMPORT_EXPORT_VIEW = "import_export.view"
+IMPORT_EXPORT_MANAGE = "import_export.manage"  # trigger exports, upload/execute imports
+CUSTOMER_NOTE_MANAGE = "customer.note_manage"
+CUSTOMER_TAG_MANAGE = "customer.tag_manage"
+CUSTOMER_SEGMENT_VIEW = "customer.segment_view"
+CUSTOMER_SEGMENT_MANAGE = "customer.segment_manage"
+CUSTOMER_EXPORT = "customer.export"  # separate from IMPORT_EXPORT_* — PII, gated on its own
+
 ORDER_VIEW = "order.view"
 ORDER_STATUS_CHANGE = "order.status_change"
 
@@ -127,6 +136,8 @@ ALL_PERMISSIONS = frozenset({
     CATEGORY_MANAGE, ATTRIBUTE_MANAGE, VARIANT_MANAGE, INVENTORY_MANAGE, MEDIA_MANAGE,
     WAREHOUSE_VIEW, WAREHOUSE_MANAGE, TRANSFER_VIEW, TRANSFER_MANAGE, RESERVATION_VIEW,
     SHIPPING_SETTINGS_VIEW, SHIPPING_SETTINGS_MANAGE, TAX_SETTINGS_VIEW, TAX_SETTINGS_MANAGE,
+    IMPORT_EXPORT_VIEW, IMPORT_EXPORT_MANAGE,
+    CUSTOMER_NOTE_MANAGE, CUSTOMER_TAG_MANAGE, CUSTOMER_SEGMENT_VIEW, CUSTOMER_SEGMENT_MANAGE, CUSTOMER_EXPORT,
     ORDER_VIEW, ORDER_STATUS_CHANGE,
     CUSTOMER_VIEW, CUSTOMER_EDIT,
     REPORTS_VIEW, COUPON_VIEW, DISCOUNT_MANAGE,
@@ -142,6 +153,10 @@ _CATALOG_READ_WRITE = frozenset({
     # Catalog Manager owns inventory infrastructure (checkpoint 3 §20 policy):
     # views + adjusts stock, manages warehouses/transfers/reservations.
     WAREHOUSE_VIEW, WAREHOUSE_MANAGE, TRANSFER_VIEW, TRANSFER_MANAGE, RESERVATION_VIEW,
+    # Catalog Manager owns Product/Variant/Inventory import-export (checkpoint
+    # 4 §25 policy) — Customer export is a separate, more sensitive permission
+    # (CUSTOMER_EXPORT) that Catalog Manager does NOT get.
+    IMPORT_EXPORT_VIEW, IMPORT_EXPORT_MANAGE,
 })
 # Order Manager owns Returns/Refunds financial authority (checkpoint 2 §15
 # policy) — Catalog Manager deliberately does NOT get REFUND_MANAGE/RETURN_MANAGE.
@@ -155,6 +170,12 @@ _ORDER_READ_WRITE = frozenset({
     RETURN_VIEW, RETURN_MANAGE, REFUND_VIEW, REFUND_MANAGE,
     WAREHOUSE_VIEW, RESERVATION_VIEW, TRANSFER_VIEW,
     SHIPPING_SETTINGS_VIEW, SHIPPING_SETTINGS_MANAGE, TAX_SETTINGS_VIEW,
+    # Order Manager owns the customer-relationship side of CRM (checkpoint 4
+    # §25 policy): notes, tags, segments, and the sensitive Customer export —
+    # but not the catalog-wide IMPORT_EXPORT_* permission, which is Catalog
+    # Manager's domain.
+    CUSTOMER_EXPORT, CUSTOMER_NOTE_MANAGE, CUSTOMER_TAG_MANAGE,
+    CUSTOMER_SEGMENT_VIEW, CUSTOMER_SEGMENT_MANAGE,
 })
 _CONTENT_READ_WRITE = frozenset({CONTENT_MANAGE, MEDIA_MANAGE})
 _OWNER_ONLY = frozenset({STAFF_MANAGE, DOMAIN_MANAGE, SUBSCRIPTION_MANAGE})
@@ -173,6 +194,10 @@ ROLE_PERMISSIONS = {
         DASHBOARD_VIEW, REPORTS_VIEW, PRODUCT_VIEW, ORDER_VIEW, CUSTOMER_VIEW,
         COUPON_VIEW, RETURN_VIEW, REFUND_VIEW, AUDIT_LOG_VIEW,
         WAREHOUSE_VIEW, RESERVATION_VIEW, TRANSFER_VIEW, SHIPPING_SETTINGS_VIEW, TAX_SETTINGS_VIEW,
+        # Read-only exports and segment viewing (checkpoint 4 §25 policy) —
+        # no IMPORT_EXPORT_MANAGE (cannot trigger imports), no CUSTOMER_EXPORT
+        # (PII export stays with Order Manager/Owner/Administrator).
+        IMPORT_EXPORT_VIEW, CUSTOMER_SEGMENT_VIEW,
     }),
 }
 

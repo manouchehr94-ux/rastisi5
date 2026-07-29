@@ -149,6 +149,52 @@ def bulk_assign_category(store, product_ids, category_id) -> int:
     return Product.objects.filter(store=store, pk__in=product_ids).update(category=category)
 
 
+def bulk_assign_tax_class(store, product_ids, tax_class_id, *, actor=None) -> int:
+    """دسته‌ی مالیاتیِ ``tax_class_id`` را به هر کالای ``product_ids`` که به
+    ``store`` تعلق دارد اختصاص می‌دهد — فقط اگر آن دسته‌ی مالیاتی متعلق به
+    همین Store باشد (نگاه کنید به checkpoint 3B، ADR-44 — Product.tax_class
+    هرگز نباید به دسته‌ی مالیاتیِ فروشگاه دیگری اشاره کند، حتی از طریقِ
+    اکشنِ فله‌ای). ثبتِ رخداد در گزارش رخدادها (checkpoint 4 §28)."""
+    from apps.orders.models import TaxClass
+
+    tax_class = TaxClass.objects.filter(store=store, pk=tax_class_id, is_active=True).first()
+    if tax_class is None:
+        raise BulkActionError("دسته‌ی مالیاتیِ انتخاب‌شده معتبر نیست.")
+    updated_ids = list(Product.objects.filter(store=store, pk__in=product_ids).values_list("pk", flat=True))
+    count = Product.objects.filter(store=store, pk__in=updated_ids).update(tax_class=tax_class)
+    if updated_ids:
+        from apps.core.services.audit_service import record_audit_event
+        # ``object_id`` روی AuditLogEntry یک CharField(max_length=40) است —
+        # برای یک اکشنِ فله‌ای، شناسه‌های کامل در ``metadata`` (JSONField،
+        # بدونِ محدودیتِ طول) ثبت می‌شوند، نه در همان فیلدِ کوتاه.
+        record_audit_event(
+            store=store, actor=actor, action_code="product.bulk_tax_class_assigned",
+            object_type="Product", object_id="bulk",
+            object_label=f"{count} کالا — دسته‌ی مالیاتیِ «{tax_class.name}»",
+            after={"tax_class_id": tax_class.pk, "tax_class_code": tax_class.code, "product_count": count},
+            metadata={"product_ids": updated_ids[:200]},
+        )
+    return count
+
+
+def bulk_clear_tax_class(store, product_ids, *, actor=None) -> int:
+    """دسته‌ی مالیاتیِ اختصاصیِ هر کالای ``product_ids`` را پاک می‌کند — کالا
+    به دسته‌ی مالیاتیِ پیش‌فرضِ Store (``ShopSettings.default_tax_class``)
+    بازمی‌گردد."""
+    updated_ids = list(Product.objects.filter(store=store, pk__in=product_ids).values_list("pk", flat=True))
+    count = Product.objects.filter(store=store, pk__in=updated_ids).update(tax_class=None)
+    if updated_ids:
+        from apps.core.services.audit_service import record_audit_event
+        record_audit_event(
+            store=store, actor=actor, action_code="product.bulk_tax_class_cleared",
+            object_type="Product", object_id="bulk",
+            object_label=f"{count} کالا — بازگشت به دسته‌ی مالیاتیِ پیش‌فرض",
+            after={"tax_class_id": None, "product_count": count},
+            metadata={"product_ids": updated_ids[:200]},
+        )
+    return count
+
+
 def category_chain(category):
     if category is None:
         return "—"

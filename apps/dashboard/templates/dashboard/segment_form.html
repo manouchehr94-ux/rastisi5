@@ -1,0 +1,73 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{% if segment %}ویرایشِ سگمنت{% else %}سگمنتِ تازه{% endif %} | پنل مدیریت{% endblock %}
+{% block page_title %}{% if segment %}ویرایشِ «{{ segment.name }}»{% else %}سگمنتِ تازه{% endif %}{% endblock %}
+{% block page_sub %}برایِ «مبتنی‌بر قاعده»، هر ردیف یک فیلد + عملگر + مقدار است — قاعده‌ها بر اساسِ «همه/هرکدام» ترکیب می‌شوند{% endblock %}
+{% block content %}
+<div style="margin-bottom:14px"><a class="btn btn-sm" href="{% url 'dashboard:segment-list' %}">→ بازگشت به فهرستِ سگمنت‌ها</a></div>
+
+<form method="post" class="card">
+  {% csrf_token %}
+  <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+    <div>
+      <label>نامِ سگمنت</label>
+      <input class="inp" name="name" value="{{ segment.name|default:'' }}" required style="width:100%">
+    </div>
+    <div>
+      <label>توضیحات</label>
+      <input class="inp" name="description" value="{{ segment.description|default:'' }}" style="width:100%">
+    </div>
+    <div style="display:flex;gap:20px">
+      <div>
+        <label>نوع</label><br>
+        <select class="inp" name="segment_type" id="segmentTypeSelect" onchange="document.getElementById('ruleBuilder').style.display=(this.value==='dynamic')?'block':'none'">
+          <option value="static" {% if segment.segment_type == "static" or not segment %}selected{% endif %}>دستی (Static)</option>
+          <option value="dynamic" {% if segment.segment_type == "dynamic" %}selected{% endif %}>مبتنی‌بر قاعده (Dynamic)</option>
+        </select>
+      </div>
+      <div>
+        <label>حالتِ تطبیقِ قاعده‌ها</label><br>
+        <select class="inp" name="match_mode">
+          <option value="all" {% if segment.match_mode == "all" or not segment %}selected{% endif %}>همه‌ی قاعده‌ها (AND)</option>
+          <option value="any" {% if segment.match_mode == "any" %}selected{% endif %}>هرکدام (OR)</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="ruleBuilder" style="{% if segment.segment_type != 'dynamic' %}display:none{% endif %};border:1px solid var(--border);border-radius:10px;padding:12px">
+      <b style="display:block;margin-bottom:8px">قاعده‌ها</b>
+      {% for i in "01234" %}
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+        <select class="inp" name="rule_field" style="width:220px">
+          <option value="">— فیلد —</option>
+          {% for value, label in field_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+        <select class="inp" name="rule_operator" style="width:150px">
+          <option value="">— عملگر —</option>
+          {% for op, op_label in operator_labels.items %}
+          <option value="{{ op }}">{{ op_label }}</option>
+          {% endfor %}
+        </select>
+        <input class="inp" name="rule_value" placeholder="مقدار" style="width:180px">
+        <input class="inp" name="rule_value2" placeholder="مقدارِ دوم (برای «بینِ»)" style="width:180px">
+      </div>
+      {% endfor %}
+      <small style="color:var(--muted)">فقط ردیف‌هایِ دارایِ فیلد و عملگر ذخیره می‌شوند؛ عملگرهایِ مجاز به‌ازایِ هر فیلد سمتِ سرور بررسی می‌شود.</small>
+    </div>
+
+    <button type="submit" class="btn btn-primary" style="align-self:flex-start">ذخیره</button>
+  </div>
+</form>
+
+{% if segment and segment.segment_type == "dynamic" and segment.rules.all %}
+<div class="card" style="margin-top:16px">
+  <div class="card-head"><b>قاعده‌هایِ فعلی</b></div>
+  <div class="card-body">
+    {% for rule in segment.rules.all %}
+    <div style="padding:4px 0">{{ rule.field }} — {{ rule.operator }} — {{ rule.value }}{% if rule.value2 %} … {{ rule.value2 }}{% endif %}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

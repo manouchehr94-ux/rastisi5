@@ -15,8 +15,11 @@ from apps.stores.authorization import (
     CATEGORY_MANAGE,
     CONTENT_MANAGE,
     COUPON_VIEW,
+    CUSTOMER_EXPORT,
+    CUSTOMER_SEGMENT_VIEW,
     CUSTOMER_VIEW,
     DISCOUNT_MANAGE,
+    IMPORT_EXPORT_VIEW,
     INVENTORY_MANAGE,
     MEDIA_MANAGE,
     ORDER_VIEW,
@@ -65,4 +68,9 @@ def merchant_permissions(request):
         "can_view_shipping_settings": membership_has_permission(membership, SHIPPING_SETTINGS_VIEW),
         "can_manage_shipping_settings": membership_has_permission(membership, SHIPPING_SETTINGS_MANAGE),
         "can_view_tax_settings": membership_has_permission(membership, TAX_SETTINGS_VIEW),
+        "can_view_exports": (
+            membership_has_permission(membership, IMPORT_EXPORT_VIEW)
+            or membership_has_permission(membership, CUSTOMER_EXPORT)
+        ),
+        "can_view_segments": membership_has_permission(membership, CUSTOMER_SEGMENT_VIEW),
     }
