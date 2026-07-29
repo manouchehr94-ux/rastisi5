@@ -1,0 +1,52 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}انتقالِ جدید | پنل مدیریت{% endblock %}
+{% block page_title %}انتقالِ جدید{% endblock %}
+{% block page_sub %}جابه‌جاییِ موجودی بین دو انبار{% endblock %}
+{% block content %}
+<div class="form-card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="field-group">
+      <label class="field-label required" for="id_source_warehouse">انبارِ مبدأ</label>
+      <select name="source_warehouse" id="id_source_warehouse" class="form-select" required>
+        <option value="">— انتخاب کنید —</option>
+        {% for warehouse in warehouses %}
+        <option value="{{ warehouse.pk }}">{{ warehouse.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field-group">
+      <label class="field-label required" for="id_destination_warehouse">انبارِ مقصد</label>
+      <select name="destination_warehouse" id="id_destination_warehouse" class="form-select" required>
+        <option value="">— انتخاب کنید —</option>
+        {% for warehouse in warehouses %}
+        <option value="{{ warehouse.pk }}">{{ warehouse.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_note">یادداشت</label>
+      <textarea name="note" id="id_note" class="form-input" rows="2"></textarea>
+    </div>
+
+    <div class="card-head"><h3>اقلام</h3></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>کالا</th><th>SKU</th><th>تعداد برای انتقال</th></tr></thead>
+      <tbody>
+      {% for product in products %}
+      <tr>
+        <td>{{ product.name }}</td>
+        <td dir="ltr" style="text-align:right">{{ product.sku }}</td>
+        <td><input type="number" name="quantity_{{ product.pk }}" value="0" min="0" class="form-input" style="width:100px"></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">ایجادِ انتقال</button>
+      <a href="{% url 'dashboard:transfer-list' %}" class="btn btn-secondary">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -23,9 +23,14 @@ from apps.stores.authorization import (
     PRODUCT_VIEW,
     REFUND_VIEW,
     REPORTS_VIEW,
+    RESERVATION_VIEW,
     RETURN_VIEW,
     SETTINGS_MANAGE,
+    SHIPPING_SETTINGS_VIEW,
     STAFF_MANAGE,
+    TAX_SETTINGS_VIEW,
+    TRANSFER_VIEW,
+    WAREHOUSE_VIEW,
     membership_has_permission,
 )
 
@@ -53,4 +58,9 @@ def merchant_permissions(request):
         "can_view_returns": membership_has_permission(membership, RETURN_VIEW),
         "can_view_refunds": membership_has_permission(membership, REFUND_VIEW),
         "can_view_audit_log": membership_has_permission(membership, AUDIT_LOG_VIEW),
+        "can_view_warehouses": membership_has_permission(membership, WAREHOUSE_VIEW),
+        "can_view_transfers": membership_has_permission(membership, TRANSFER_VIEW),
+        "can_view_reservations": membership_has_permission(membership, RESERVATION_VIEW),
+        "can_view_shipping_settings": membership_has_permission(membership, SHIPPING_SETTINGS_VIEW),
+        "can_view_tax_settings": membership_has_permission(membership, TAX_SETTINGS_VIEW),
     }

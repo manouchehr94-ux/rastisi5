@@ -200,4 +200,25 @@ urlpatterns = [
     path("returns/<int:pk>/receive/", views.return_receive, name="return-receive"),
     path("returns/<int:pk>/inspect/", views.return_inspect, name="return-inspect"),
     path("returns/<int:pk>/complete/", views.return_complete, name="return-complete"),
+
+    # --- انبارها (Warehouses) ---
+    path("warehouses/", views.warehouse_list, name="warehouse-list"),
+    path("warehouses/add/", views.warehouse_form, name="warehouse-add"),
+    path("warehouses/<int:pk>/edit/", views.warehouse_form, name="warehouse-edit"),
+    path("warehouses/<int:pk>/", views.warehouse_detail, name="warehouse-detail"),
+    path("warehouses/<int:pk>/set-default/", views.warehouse_set_default, name="warehouse-set-default"),
+    path("warehouses/<int:pk>/archive/", views.warehouse_archive, name="warehouse-archive"),
+
+    # --- رزروهای موجودی (Reservations) ---
+    path("reservations/", views.reservation_list, name="reservation-list"),
+    path("reservations/<int:pk>/release/", views.reservation_release, name="reservation-release"),
+
+    # --- انتقالِ انبار (Warehouse Transfers) ---
+    path("transfers/", views.transfer_list, name="transfer-list"),
+    path("transfers/add/", views.transfer_form, name="transfer-add"),
+    path("transfers/<int:pk>/", views.transfer_detail, name="transfer-detail"),
+    path("transfers/<int:pk>/request/", views.transfer_request, name="transfer-request"),
+    path("transfers/<int:pk>/ship/", views.transfer_ship, name="transfer-ship"),
+    path("transfers/<int:pk>/receive/", views.transfer_receive, name="transfer-receive"),
+    path("transfers/<int:pk>/cancel/", views.transfer_cancel, name="transfer-cancel"),
 ]

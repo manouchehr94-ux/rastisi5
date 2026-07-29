@@ -1,0 +1,49 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}انتقالِ {{ transfer.transfer_number }} | پنل مدیریت{% endblock %}
+{% block page_title %}انتقالِ «{{ transfer.transfer_number }}»{% endblock %}
+{% block page_sub %}{{ transfer.source_warehouse.name }} ← {{ transfer.destination_warehouse.name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="page-desc">وضعیت: <span class="badge">{{ transfer.get_status_display }}</span></p>
+  </div>
+  {% if can_manage_transfers %}
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    {% if transfer.status == "draft" %}
+    <form method="post" action="{% url 'dashboard:transfer-request' transfer.pk %}">{% csrf_token %}<button class="btn btn-primary">درخواستِ انتقال</button></form>
+    <form method="post" action="{% url 'dashboard:transfer-cancel' transfer.pk %}">{% csrf_token %}<button class="btn btn-danger">لغو</button></form>
+    {% elif transfer.status == "requested" %}
+    <form method="post" action="{% url 'dashboard:transfer-ship' transfer.pk %}">{% csrf_token %}<button class="btn btn-primary">ارسال</button></form>
+    <form method="post" action="{% url 'dashboard:transfer-cancel' transfer.pk %}">{% csrf_token %}<button class="btn btn-danger">لغو</button></form>
+    {% elif transfer.status == "in_transit" %}
+    <form method="post" action="{% url 'dashboard:transfer-receive' transfer.pk %}">{% csrf_token %}<button class="btn btn-primary">دریافت</button></form>
+    <form method="post" action="{% url 'dashboard:transfer-cancel' transfer.pk %}">{% csrf_token %}<button class="btn btn-danger">لغو (بازگشتِ موجودی به مبدأ)</button></form>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>اقلام</h3></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>کالا</th><th>تنوع</th><th>درخواستی</th><th>ارسالی</th><th>دریافتی</th></tr></thead>
+    <tbody>
+    {% for item in items %}
+    <tr>
+      <td>{{ item.product.name }}</td>
+      <td>{{ item.variant|default:"—" }}</td>
+      <td>{{ item.quantity_requested }}</td>
+      <td>{{ item.quantity_shipped|default:"—" }}</td>
+      <td>{{ item.quantity_received|default:"—" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+{% if transfer.note %}
+<div class="card"><div class="card-head"><h3>یادداشت</h3></div><div style="padding:16px">{{ transfer.note }}</div></div>
+{% endif %}
+
+<a href="{% url 'dashboard:transfer-list' %}" class="btn btn-secondary">بازگشت به فهرستِ انتقال‌ها</a>
+{% endblock %}

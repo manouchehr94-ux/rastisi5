@@ -1,0 +1,53 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}انبارها | پنل مدیریت{% endblock %}
+{% block page_title %}انبارها{% endblock %}
+{% block page_sub %}مدیریتِ انبارها و محل‌های بارگیریِ این فروشگاه{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>انبارها</h2>
+    <p class="page-desc">هر فروشگاه دقیقاً یک انبارِ پیش‌فرض دارد؛ انبارِ پیش‌فرض را نمی‌توان آرشیو کرد.</p>
+  </div>
+  {% if can_manage_warehouses %}
+  <a href="{% url 'dashboard:warehouse-add' %}" class="btn btn-primary">انبارِ جدید</a>
+  {% endif %}
+</div>
+
+{% if warehouses %}
+<div class="card">
+  <div class="card-head"><h3>انبارها ({{ warehouses|length }})</h3></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>نام</th><th>کد</th><th>شهر</th><th>پیش‌فرض</th><th>بارگیریِ حضوری</th><th>وضعیت</th>{% if can_manage_warehouses %}<th>عملیات</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for warehouse in warehouses %}
+    <tr>
+      <td><a href="{% url 'dashboard:warehouse-detail' warehouse.pk %}"><b>{{ warehouse.name }}</b></a></td>
+      <td dir="ltr" style="text-align:right">{{ warehouse.code }}</td>
+      <td>{{ warehouse.city|default:"—" }}</td>
+      <td>{% if warehouse.is_default %}<span class="badge b-green">پیش‌فرض</span>{% else %}—{% endif %}</td>
+      <td>{% if warehouse.is_pickup_location %}<span class="badge">بله</span>{% else %}—{% endif %}</td>
+      <td>{% if warehouse.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">غیرفعال</span>{% endif %}</td>
+      {% if can_manage_warehouses %}
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <a class="btn btn-sm" href="{% url 'dashboard:warehouse-edit' warehouse.pk %}">ویرایش</a>
+        {% if not warehouse.is_default %}
+        <form method="post" action="{% url 'dashboard:warehouse-set-default' warehouse.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">پیش‌فرض کن</button></form>
+        <form method="post" action="{% url 'dashboard:warehouse-archive' warehouse.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-danger">آرشیو</button></form>
+        {% endif %}
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <span class="empty-icon">🏬</span>
+    <div class="empty-title">هنوز انباری ثبت نشده</div>
+    {% if can_manage_warehouses %}<a href="{% url 'dashboard:warehouse-add' %}" class="btn btn-primary">افزودن اولین انبار</a>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

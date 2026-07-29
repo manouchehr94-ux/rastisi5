@@ -1,0 +1,51 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+{% block title %}رزروهای موجودی | پنل مدیریت{% endblock %}
+{% block page_title %}رزروهای موجودی{% endblock %}
+{% block page_sub %}رزروهایی که هنگامِ ثبتِ سفارش موقتاً موجودیِ در دسترس را کم می‌کنند{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <select class="inp" name="status" style="width:180px">
+        <option value="">همه‌ی وضعیت‌ها</option>
+        {% for value, label in status_choices %}
+        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-sm" type="submit">فیلتر</button>
+    </form>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>کالا</th><th>تعداد</th><th>وضعیت</th><th>منبع</th><th>انقضا</th><th>زمان</th>{% if can_manage_reservations %}<th>عملیات</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for reservation in reservations %}
+    <tr>
+      <td>{{ reservation.product.name }}{% if reservation.variant %} — {{ reservation.variant }}{% endif %}</td>
+      <td>{{ reservation.quantity }}</td>
+      <td><span class="badge">{{ reservation.get_status_display }}</span></td>
+      <td>{{ reservation.source }}</td>
+      <td>{{ reservation.expires_at|date:"Y-m-d H:i"|default:"—" }}</td>
+      <td>{{ reservation.created_at|date:"Y-m-d H:i" }}</td>
+      {% if can_manage_reservations %}
+      <td>
+        {% if reservation.status == "active" %}
+        <form method="post" action="{% url 'dashboard:reservation-release' reservation.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-danger">آزادسازی</button></form>
+        {% else %}—{% endif %}
+      </td>
+      {% endif %}
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">هیچ رزروی یافت نشد</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="pagination" style="display:flex;gap:8px;align-items:center;justify-content:center;padding:14px 0">
+    {% if page_obj.has_previous %}<a class="btn btn-sm" href="?{{ request.GET.urlencode }}&page={{ page_obj.previous_page_number }}">قبلی</a>{% endif %}
+    <span style="font-size:12.5px;color:var(--muted)">صفحه‌ی {{ page_obj.number|fa_number }} از {{ page_obj.paginator.num_pages|fa_number }}</span>
+    {% if page_obj.has_next %}<a class="btn btn-sm" href="?{{ request.GET.urlencode }}&page={{ page_obj.next_page_number }}">بعدی</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

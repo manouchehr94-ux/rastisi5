@@ -1,0 +1,35 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}انبارِ {{ warehouse.name }} | پنل مدیریت{% endblock %}
+{% block page_title %}انبارِ «{{ warehouse.name }}»{% endblock %}
+{% block page_sub %}موجودیِ این انبار به‌ازای هر کالا{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="page-desc">
+      کد: <span dir="ltr">{{ warehouse.code }}</span>
+      {% if warehouse.is_default %} — <span class="badge b-green">پیش‌فرض</span>{% endif %}
+      {% if not warehouse.is_active %} — <span class="badge b-amber">غیرفعال</span>{% endif %}
+    </p>
+  </div>
+  <a href="{% url 'dashboard:warehouse-list' %}" class="btn btn-secondary">بازگشت به فهرستِ انبارها</a>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>موجودیِ کالاها ({{ balances|length }})</h3></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>کالا</th><th>تنوع</th><th>موجودیِ فیزیکی</th><th>آستانه‌ی هشدار</th></tr></thead>
+    <tbody>
+    {% for balance in balances %}
+    <tr>
+      <td>{{ balance.product.name }}</td>
+      <td>{{ balance.variant|default:"—" }}</td>
+      <td><b>{{ balance.on_hand }}</b></td>
+      <td>{{ balance.low_stock_threshold|default:"—" }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">هنوز موجودیِ ثبت‌شده‌ای در این انبار نیست</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

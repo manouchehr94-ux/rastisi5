@@ -1,0 +1,66 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{% if warehouse %}ویرایش{% else %}افزودن{% endif %} انبار | پنل مدیریت{% endblock %}
+{% block page_title %}{% if warehouse %}ویرایش انبارِ «{{ warehouse.name }}»{% else %}افزودن انبار{% endif %}{% endblock %}
+{% block content %}
+<div class="form-card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="field-group">
+      <label class="field-label required" for="id_name">نام انبار</label>
+      <input type="text" name="name" id="id_name" value="{{ warehouse.name|default:'' }}" required maxlength="150" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label required" for="id_code">کد</label>
+      <input type="text" name="code" id="id_code" value="{{ warehouse.code|default:'' }}" required maxlength="30" dir="ltr" class="form-input">
+      <span class="field-help">کد فقط باید در همین فروشگاه یکتا باشد.</span>
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_address">آدرس</label>
+      <input type="text" name="address" id="id_address" value="{{ warehouse.address|default:'' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_province">استان</label>
+      <input type="text" name="province" id="id_province" value="{{ warehouse.province|default:'' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_city">شهر</label>
+      <input type="text" name="city" id="id_city" value="{{ warehouse.city|default:'' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_postal_code">کد پستی</label>
+      <input type="text" name="postal_code" id="id_postal_code" value="{{ warehouse.postal_code|default:'' }}" dir="ltr" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_contact_name">نام مسئول</label>
+      <input type="text" name="contact_name" id="id_contact_name" value="{{ warehouse.contact_name|default:'' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_contact_phone">تلفن مسئول</label>
+      <input type="text" name="contact_phone" id="id_contact_phone" value="{{ warehouse.contact_phone|default:'' }}" dir="ltr" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_fulfillment_priority">اولویتِ تأمین</label>
+      <input type="number" name="fulfillment_priority" id="id_fulfillment_priority" value="{{ warehouse.fulfillment_priority|default:'0' }}" min="0" class="form-input">
+      <span class="field-help">عددِ کوچک‌تر یعنی اولویتِ بالاتر برای تأمینِ سفارش.</span>
+    </div>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_active" {% if warehouse.is_active or not warehouse %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">فعال</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_pickup_location" {% if warehouse.is_pickup_location %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">محلِ بارگیریِ حضوری</span></div>
+    </label>
+    {% if not warehouse.is_default %}
+    <label class="toggle-field">
+      <input type="checkbox" name="is_default">
+      <div class="toggle-content"><span class="toggle-title">پیش‌فرض</span></div>
+    </label>
+    {% endif %}
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">{% if warehouse %}ذخیره تغییرات{% else %}افزودن{% endif %}</button>
+      <a href="{% url 'dashboard:warehouse-list' %}" class="btn btn-secondary">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

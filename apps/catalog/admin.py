@@ -18,9 +18,14 @@ from .models import (
     Specification,
     SpecificationTemplate,
     SpecificationTemplateField,
+    InventoryReservation,
     StockMovement,
     StoreIndustryInstallation,
     Vendor,
+    Warehouse,
+    WarehouseInventory,
+    WarehouseTransfer,
+    WarehouseTransferItem,
 )
 
 
@@ -258,6 +263,80 @@ class StockMovementAdmin(admin.ModelAdmin):
     list_display = ("product", "variant", "reason", "delta", "stock_before", "stock_after", "store", "created_at")
     list_filter = ("reason", "store")
     search_fields = ("product__name", "variant__attribute", "variant__value", "order__code")
+    actions = None
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Warehouse)
+class WarehouseAdmin(StoreLockedOnEditMixin, admin.ModelAdmin):
+    list_display = ("name", "code", "store", "is_active", "is_default", "is_pickup_location", "fulfillment_priority")
+    list_filter = ("is_active", "is_default", "is_pickup_location", "store")
+    search_fields = ("name", "code")
+
+
+@admin.register(WarehouseInventory)
+class WarehouseInventoryAdmin(admin.ModelAdmin):
+    """فقط‌خواندنی — نگاه کنید به apps.catalog.services.inventory_service."""
+
+    list_display = ("warehouse", "product", "variant", "on_hand", "store")
+    list_filter = ("warehouse", "store")
+    search_fields = ("product__name", "variant__value")
+    actions = None
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class WarehouseTransferItemInline(admin.TabularInline):
+    model = WarehouseTransferItem
+    extra = 0
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(WarehouseTransfer)
+class WarehouseTransferAdmin(admin.ModelAdmin):
+    """فقط‌خواندنی — نگاه کنید به apps.catalog.services.transfer_service."""
+
+    list_display = ("transfer_number", "store", "source_warehouse", "destination_warehouse", "status", "created_at")
+    list_filter = ("status", "store")
+    search_fields = ("transfer_number",)
+    inlines = [WarehouseTransferItemInline]
+    actions = None
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(InventoryReservation)
+class InventoryReservationAdmin(admin.ModelAdmin):
+    """فقط‌خواندنی — نگاه کنید به apps.catalog.services.reservation_service."""
+
+    list_display = ("product", "variant", "quantity", "status", "store", "expires_at", "created_at")
+    list_filter = ("status", "store")
+    search_fields = ("product__name",)
     actions = None
 
     def has_add_permission(self, request):

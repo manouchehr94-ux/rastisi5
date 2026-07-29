@@ -9,10 +9,11 @@ from django.db import IntegrityError, transaction
 
 from apps.cart.services.pricing import cart_totals
 from apps.catalog.models import Product, ProductVariant
-from apps.catalog.services.inventory_service import (
-    InsufficientStockError,
-    decrement_stock_for_order_item,
-    restock_order,
+from apps.catalog.services.inventory_service import InsufficientStockError, restock_order
+from apps.catalog.services.reservation_service import (
+    ReservationError,
+    consume_inventory_reservation,
+    reserve_inventory,
 )
 from apps.core.services.audit_service import record_audit_event
 from apps.core.utils import format_toman
@@ -228,15 +229,21 @@ def create_order_from_cart(
             unit_price=unit_price,
             line_total=unit_price * item.quantity,
         )
-        # با قفلِ قبلی (_lock_and_revalidate_items)، شکستِ این کاهش عملاً
-        # نباید پیش بیاید — decrement_stock_for_order_item همچنان دوباره
-        # (به‌صورت اتمیک، با stock__gte) بررسی می‌کند تا موجودی هرگز منفی
-        # نشود، و برای هر قلم دقیقاً یک ``StockMovement`` ثبت می‌کند.
+        # با قفلِ قبلی (_lock_and_revalidate_items)، شکستِ رزرو/مصرف عملاً
+        # نباید پیش بیاید — reserve_inventory همچنان دوباره (به‌صورت اتمیک،
+        # با قفلِ ردیف) موجودیِ در دسترس را بررسی می‌کند تا موجودی هرگز
+        # منفی نشود. رزرو بلافاصله در همین تراکنش مصرف می‌شود (نگاه کنید
+        # به ADR-39) — کلیدِ idempotency به‌ازای هر قلمِ سبد (نه کلِ سفارش)
+        # است تا تلاشِ دوباره‌ی همان درخواست هرگز دوبار رزرو/مصرف نکند.
         try:
-            decrement_stock_for_order_item(
-                store=store, product=product, variant=variant, quantity=item.quantity, order=order,
+            reservation = reserve_inventory(
+                store=store, product=product, variant=variant, quantity=item.quantity,
+                cart=cart, source="order",
+                idempotency_key=f"{idempotency_key}:{item.pk}" if idempotency_key else "",
+                ttl_minutes=None,
             )
-        except InsufficientStockError as exc:
+            consume_inventory_reservation(reservation, order=order)
+        except (InsufficientStockError, ReservationError) as exc:
             raise ValueError(str(exc)) from exc
 
     OrderStatusHistory.objects.create(

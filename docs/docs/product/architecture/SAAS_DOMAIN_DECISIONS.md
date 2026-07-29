@@ -2048,6 +2048,229 @@ from day one.
 
 ---
 
+## ADR-37: `Warehouse` Provisioning Is an Explicit, Idempotent Service Call — Never a Django Signal
+
+**Context.** Every Store needs exactly one default `Warehouse` to exist
+before any inventory/order operation can attribute stock to a location.
+This is the same shape of problem `ShopSettings.provision_for`/
+`FooterSettings.provision_for` already solved for their respective
+Store-scoped singletons, both predating this checkpoint.
+
+**Decision.** `provision_default_warehouse(store)` follows that exact,
+established precedent: an explicit, idempotent, plain Python function —
+called from the data migration (`0018_provision_default_warehouses`, for
+Stores that existed before this checkpoint), from the
+`provision_default_warehouses` management command (for ops/future Stores),
+and available for any future Store-creation code path to call directly —
+never a `post_save` signal on `Store`. This codebase has no signal-based
+provisioning anywhere (verified across `apps.stores`, `apps.core`,
+`apps.content` before adding this), so introducing one exception here
+for warehouses would be a new, inconsistent pattern for the one place
+that happens to need it most recently.
+
+**Consequences.** Warehouse provisioning is easy to reason about, easy to
+call from a script or a one-off shell, and impossible to trigger
+accidentally as an invisible side effect of an unrelated `Store.save()`.
+The cost — matching the cost already accepted for `ShopSettings`/
+`FooterSettings` — is that any *new* Store-creation code path that
+forgets to call `provision_default_warehouse` will simply not have a
+warehouse until something calls it; `provision_default_warehouses` (the
+management command) exists as an idempotent, safe-to-rerun backstop for
+exactly that scenario.
+
+**Alternatives considered.** A `post_save` signal on `Store` — rejected
+solely for consistency with the two directly analogous precedents this
+codebase already chose not to signal-provision; introducing signals for
+warehouses alone would make this the only Store-scoped singleton
+provisioned differently from the other two, for no functional benefit.
+
+---
+
+## ADR-38: `Product`/`ProductVariant.stock` Remains the Single Authoritative Sellable-Stock Field; `WarehouseInventory` Is a Synced Per-Warehouse Breakdown, Not a New Source of Truth
+
+**Context.** Checkpoint 3 asks for a Warehouse/stock-location domain with
+per-warehouse balances. The "obvious" design flips authority: delete the
+aggregate `stock` field and make `WarehouseInventory` (summed across a
+product's warehouses) the only truth. That is the textbook multi-warehouse
+model — but this codebase has ~2,400 existing passing tests that create
+`Product`/`ProductVariant` rows and assert directly against `.stock`
+before, during, and after checkout, returns, and refunds (`decrement_stock_for_order_item`,
+`restock_order`, `restock_return_item`, `restock_refund_item`,
+`adjust_stock_manually` — all of `apps.catalog.services.inventory_service`
+predate this checkpoint and are exercised by that entire existing suite).
+
+**Decision.** `Product.stock`/`ProductVariant.stock` **stay** the single
+authoritative field for "how much of this can currently be sold" — exactly
+as before this checkpoint. `Warehouse` and `WarehouseInventory` are new,
+additive models: every warehouse-aware balance changes (`_sync_warehouse_balance`
+in `inventory_service`) alongside the aggregate field, in the same
+transaction, whenever `decrement_stock_for_order_item`/`restock_order`/
+`restock_return_item`/`restock_refund_item`/`adjust_stock_manually` runs —
+so `WarehouseInventory.on_hand` summed across a product's warehouses is
+kept equal to `Product.stock`/`ProductVariant.stock` by construction, not
+by a periodic reconciliation job. `verify_inventory_consistency
+--strict` (a new, read-only management command) exists specifically to
+catch drift if that invariant is ever violated by a future bug, but it is
+a safety net, not the mechanism that keeps the two in sync.
+
+A direct consequence of this decision: every order-driven inventory-service
+call that touches `_sync_warehouse_balance` — `decrement_stock_for_order_item`
+(checkout), `restock_order` (cancellation), `restock_return_item`,
+`restock_refund_item`, and `adjust_stock_manually` — always resolves and
+credits/debits the Store's *default* warehouse, unconditionally, via
+`_resolve_default_warehouse`. None of them ask "which warehouse actually
+fulfilled this order" because nothing in this codebase's `Order`/`OrderItem`
+model records that yet — fulfillment-warehouse selection is out of scope
+for this checkpoint. This is a deliberate, narrow policy for return/refund
+restocking specifically: a returned or refunded item always goes back into
+the Store's default warehouse's balance, regardless of which (if any)
+non-default warehouse a merchant may have manually shipped it from via a
+`WarehouseTransfer`. The only way stock moves into or out of a *non*-default
+warehouse's balance is an explicit `WarehouseTransfer` (ADR-40) — order
+fulfillment itself is single-warehouse-implicit today.
+
+**Consequences.** Every existing test that asserts against `Product.stock`/
+`ProductVariant.stock` continues to pass unmodified — this checkpoint adds
+a parallel, synced breakdown rather than migrating the meaning of an
+already-load-bearing field. The cost is that `WarehouseInventory` is
+"derived-but-stored" rather than the single source of truth a textbook
+warehouse model would prefer — a store that somehow bypassed
+`inventory_service` and wrote to `Product.stock` directly would silently
+desync the two (mitigated by `verify_inventory_consistency` and by the
+fact that nothing in this codebase, before or after this checkpoint,
+writes to `.stock` outside that service module).
+
+**Alternatives considered.** Making `WarehouseInventory` the sole
+authority and deriving `Product.stock` as a computed property — rejected:
+it would require rewriting every existing inventory-service function and
+every one of the ~2,400 tests that construct a `Product`/`ProductVariant`
+with a `stock=` kwarg and assert against it after a save, for a benefit
+(single source of truth) this codebase does not yet need at its current
+scale — no multi-warehouse store exists yet, `provision_default_warehouse`
+provisions exactly one warehouse per Store today. Revisiting this decision
+is explicitly a candidate for a *future* checkpoint once a store actually
+operates multiple warehouses with independent, warehouse-specific sellable
+quantities (e.g. "in stock at warehouse A, sold out at warehouse B").
+
+---
+
+## ADR-39: Inventory Reservation Reduces "Available" (Computed), Not "On-Hand" (Stored) — and Is Created and Consumed Synchronously Within `create_order_from_cart`'s Own Transaction, Never Held Open Across Requests
+
+**Context.** Checkpoint 3 asks for atomic inventory reservation with
+idempotent retries, reservation release, and reservation expiration —
+language that, in most e-commerce systems, implies a reservation created
+at "add to cart" or "begin checkout" time and held open across a
+multi-step, multi-request checkout flow (address entry, payment redirect,
+gateway callback) until the order is confirmed or the reservation expires.
+This codebase's existing checkout (`checkout_service.finalize_order` →
+`order_service.create_order_from_cart`), predating this checkpoint, is a
+single synchronous call: lock rows, validate, create the `Order` and all
+`OrderItem`s, decrement stock, done — all inside one `transaction.atomic()`
+block, already covered by a large existing test suite
+(`test_checkout_correctness.py`, `test_checkout_integrity.py`,
+`test_checkout_service.py`, `test_checkout_views.py`) that asserts on this
+exact synchronous behavior, including its idempotency-key retry handling.
+
+**Decision.** `InventoryReservation` is a real, first-class model with its
+own lifecycle (`ACTIVE`/`CONSUMED`/`RELEASED`/`EXPIRED`/`CANCELLED`), and
+`reserve_inventory` only ever reduces *available* quantity — computed as
+`on_hand − sum(active reservations)` — never `on_hand` itself. But the
+checkpoint's own synchronous, single-request checkout flow is preserved
+unchanged: `create_order_from_cart`'s per-item loop calls
+`reserve_inventory` and then, in the same atomic transaction, immediately
+`consume_inventory_reservation` (which is what actually decrements
+`on_hand`/`Product.stock`/`ProductVariant.stock` via the existing
+`decrement_stock_for_order_item`, writing the usual `StockMovement`).
+Reservation idempotency keys are derived per-cart-item
+(`f"{idempotency_key}:{item.pk}"`) from the existing
+`Order.idempotency_key`, so a retried checkout submission (already
+tested — see `test_checkout_integrity.py`) hits the reservation's own
+idempotency short-circuit and returns the already-created reservation
+instead of double-reserving or double-consuming.
+
+The `ttl_minutes`/`expires_at`/`expire_inventory_reservations` machinery
+this ADR describes is real and independently tested
+(`test_reservation_service.py`), and is available today for any future
+caller that *does* want a reservation held open across requests (e.g. a
+future "hold my cart for 20 minutes" feature, or a future asynchronous/
+redirect-based payment gateway flow) — `reserve_inventory` defaults to a
+20-minute TTL when called without `ttl_minutes=None`, and
+`create_order_from_cart` is the one caller that explicitly opts out of
+that default (`ttl_minutes=None`) because it consumes the reservation
+before the transaction that created it ever commits.
+
+**Consequences.** Existing checkout behavior — timing, error messages,
+idempotency-retry semantics, the entire existing checkout test suite — is
+unchanged byte-for-byte; reservation is an internal accounting step
+inserted transparently into an already-correct flow, not a rewrite of
+that flow's request/response shape. The cost is that this checkpoint does
+not deliver a "hold stock while the customer is on the payment gateway's
+site" feature — today's payment flow does not have a redirect-and-return
+window that would need one (verified against `apps.orders.services.checkout_service`
+and the `PaymentGateway`/payment views: gateway selection happens before
+`create_order_from_cart`, not after). If a future gateway integration
+adds a genuine redirect-based flow, the reservation service already has
+the primitives (`ttl_minutes`, `expire_inventory_reservations`) that flow
+would need — no new model would be required, only a new caller.
+
+**Alternatives considered.** Reserving at "add to cart" time and holding
+the reservation open until checkout completes or the cart is abandoned —
+rejected for this checkpoint as a materially larger, riskier change (every
+cart mutation would need to reserve/release, `CartItem` quantity edits
+would need to adjust reservations, and abandoned-cart expiry would need
+to run continuously in production) than what today's actual synchronous
+checkout flow requires; the model and service already support this mode
+for a future, explicitly-scoped follow-up.
+
+---
+
+## ADR-40: Warehouse Transfers Move Only the Per-Warehouse Breakdown; the Aggregate `Product`/`ProductVariant.stock` Is Untouched by an Internal Transfer
+
+**Context.** `WarehouseTransfer` moves quantity from a source to a
+destination warehouse of the same Store through an explicit state machine
+(`DRAFT → REQUESTED → IN_TRANSIT → RECEIVED`, with `CANCELLED` reachable
+from any non-final state). Every other `StockMovement` reason
+(`ORDER_PLACED`, `RETURN_RESTOCK`, `MANUAL_ADJUSTMENT`, etc.) records
+`stock_before`/`stock_after` against the aggregate `Product`/`ProductVariant.stock`,
+because those events actually change how much of the product is
+sellable in total.
+
+**Decision.** A transfer between two warehouses of the *same* Store never
+changes how much is sellable in total — it only changes *where* it
+physically sits — so `ship_transfer`/`receive_transfer`/a cancelled
+in-transit transfer's compensating restock touch only `WarehouseInventory.on_hand`
+for the two warehouses involved; `Product.stock`/`ProductVariant.stock`
+(ADR-38's single authoritative field) is never written by
+`apps.catalog.services.transfer_service`. Consequently, the
+`WAREHOUSE_TRANSFER_OUT`/`WAREHOUSE_TRANSFER_IN` `StockMovement` rows this
+service writes record `stock_before`/`stock_after` against the *warehouse's*
+`on_hand`, not the product aggregate — a deliberate, documented exception
+to every other `StockMovement` reason's convention, made explicit in
+`transfer_service`'s module docstring so a future reader does not assume
+it is a bug. `ship_transfer`/`receive_transfer` are only reachable from
+one specific prior status each (`REQUESTED`→ship, `IN_TRANSIT`→receive),
+so a retried request after a successful transition is rejected by the
+state machine itself rather than re-applying the balance change — the
+same idempotent-on-retry shape as this checkpoint's reservation-consume
+path (ADR-39).
+
+**Consequences.** `test_transfer_service.py`'s
+`test_full_happy_path_moves_balance` asserts the aggregate `Product.stock`
+is unchanged across a complete ship→receive cycle, which is the concrete,
+tested expression of this decision. Cancelling an `IN_TRANSIT` transfer
+restores the shipped quantity to the source warehouse's balance (since it
+never reached the destination) — also with no effect on the aggregate.
+
+**Alternatives considered.** Treating a transfer as a restock-then-decrement
+pair against the aggregate field (mirroring `RETURN_RESTOCK`) — rejected
+because it would imply the total sellable quantity of a product
+transiently drops while a transfer is `IN_TRANSIT`, which is not true: the
+stock still belongs to the Store and is not sellable-elsewhere-in-the-
+meantime in any way this codebase's single-Store-front checkout models —
+only its warehouse location is provisionally ambiguous.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -2090,3 +2313,7 @@ from day one.
 | Return requests get their own explicit state machine, separate from Order.status | Decided, implemented |
 | Order financial/return state is derived from Refund/ReturnRequest rows, never folded into Order.status | Decided, implemented |
 | Audit log is Store-scoped, redacts secrets at write time, deliberately omits IP/User-Agent (no privacy policy backs it) | Decided, implemented |
+| Warehouse provisioning is an explicit, idempotent service call, never a Django signal | Decided, implemented |
+| `Product`/`ProductVariant.stock` remains the sole authoritative sellable-stock field; `WarehouseInventory` is a synced per-warehouse breakdown | Decided, implemented |
+| Inventory reservation reduces computed "available", never stored `on_hand`; reserved and consumed synchronously within order creation, not held across requests | Decided, implemented |
+| Warehouse transfers move only the per-warehouse breakdown; the aggregate `Product`/`ProductVariant.stock` is untouched by an internal transfer | Decided, implemented |

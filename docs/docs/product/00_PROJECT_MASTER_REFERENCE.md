@@ -543,6 +543,14 @@ plan enforcement همچنان باقی مانده**
 - `apps.catalog.services.inventory_service`: کاهشِ صحیح موجودی هنگام سفارش (تنوع در صورت وجود، وگرنه خودِ کالا — رفعِ باگِ واقعیِ کاهشِ موجودیِ کالای والد به‌جای تنوع)، بازگشتِ موجودی هنگام لغو سفارش (پیش از این، لغو سفارش هرگز موجودی را برنمی‌گرداند)، اصلاح دستی؛
 - صفحه‌ی «دفتر موجودی» در پنل مدیریت — فقط‌خواندنی، جست‌وجو/فیلتر، پرمیشن `INVENTORY_MANAGE`.
 
+**انبار، رزروِ موجودی و انتقالِ انبار (Admin Panel Completion Program Checkpoint 3، ADR-37 تا ADR-40):**
+
+- `Warehouse` (Store-owned، انبارِ پیش‌فرضِ الزامی به‌ازای هر Store) + `WarehouseInventory` (شکستِ موجودی به‌ازای هر انبار، هم‌گام‌شده با `Product`/`ProductVariant.stock` که همچنان تنها منبعِ حقیقتِ موجودیِ قابلِ‌فروش باقی می‌ماند — ADR-38)؛ provisioning صریح و idempotent (`provision_default_warehouse`، بدونِ signal — ADR-37)، با migration دومرحله‌ای برای Storeهای از پیش موجود و دستورِ `provision_default_warehouses` برای Storeهای آینده؛
+- `InventoryReservation`: رزروِ اتمیک با idempotency-key، فقط موجودیِ در دسترس (available) را کم می‌کند، هرگز `on_hand` را — مصرف/آزادسازی/انقضا صریح (`apps.catalog.services.reservation_service`)؛ در جریانِ ثبتِ سفارشِ فعلی، رزرو بلافاصله در همان تراکنش مصرف می‌شود، نه نگه‌داشتنِ باز بینِ درخواست‌ها (ADR-39)؛ دستورِ دوره‌ایِ `expire_inventory_reservations` (batch-safe)؛
+- `WarehouseTransfer`/`WarehouseTransferItem`: گردشِ وضعیتِ صریحِ انتقال بین دو انبارِ همان Store (پیش‌نویس → درخواست‌شده → در حالِ ارسال → دریافت‌شده، با لغو از هر وضعیتِ غیرنهایی)؛ انتقالِ داخلی فقط شکستِ انبار را جابه‌جا می‌کند، هرگز موجودیِ کلِ کالا را تغییر نمی‌دهد (ADR-40)؛
+- دستورِ فقط‌خواندنیِ `verify_inventory_consistency --strict`: بررسیِ برابریِ مجموعِ `WarehouseInventory.on_hand` با `Product`/`ProductVariant.stock`؛
+- UI کاملِ پنل مدیریت برای انبارها (ایجاد/ویرایش/آرشیو/تعیینِ پیش‌فرض)، موجودیِ هر انبار، رزروهای موجودی (فهرست + آزادسازیِ دستی) و انتقال‌های انبار (ایجاد/درخواست/ارسال/دریافت/لغو)؛ پرمیشن‌های جدید (`WAREHOUSE_VIEW`/`WAREHOUSE_MANAGE`/`TRANSFER_VIEW`/`TRANSFER_MANAGE`/`RESERVATION_VIEW`) در رجیستریِ مرکزیِ `apps.stores.authorization`.
+
 ### ناقص نسبت به محصول هدف
 
 - تولید variant-swap در Storefront (فقط `ProductVariant.display_image`/داده موجود است، مصرف storefront انجام نشده)؛
@@ -553,8 +561,7 @@ plan enforcement همچنان باقی مانده**
 - bulk product import/export؛
 - tag management کامل (`Product.tag` هنوز فیلد ثابت تک‌مقداره است، نه سیستم چندبرچسبی)؛
 - SEO contract کامل (structured data، canonical URL، sitemap)؛
-- رزرو موجودی (stock reservation هنگام افزودن به سبد، پیش از تکمیل سفارش)؛
-- warehouse support؛
+- رزروِ موجودی هنگامِ افزودن به سبد (پیش از شروعِ تسویه‌حساب) — رزروِ فعلی فقط در لحظه‌ی ثبتِ سفارش ایجاد/مصرف می‌شود، نه از لحظه‌ی افزودن به سبد (تصمیمِ عمدیِ ADR-39، نگاه کنید به دلیل/جایگزین‌های بررسی‌شده)؛
 - product audit history؛
 - category tree UX حرفه‌ای؛
 - duplicate/clone product؛

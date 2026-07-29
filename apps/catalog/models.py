@@ -471,6 +471,8 @@ class StockMovement(TimeStampedModel):
         MANUAL_ADJUSTMENT = "manual_adjustment", "اصلاح دستی موجودی"
         RETURN_RESTOCK = "return_restock", "بازگشتِ مرجوعی به موجودی"
         REFUND_RESTOCK = "refund_restock", "بازگشتِ موجودی هنگام استرداد (بدون مرجوعیِ رسمی)"
+        WAREHOUSE_TRANSFER_OUT = "warehouse_transfer_out", "خروج به‌واسطه‌ی انتقال بین انبارها"
+        WAREHOUSE_TRANSFER_IN = "warehouse_transfer_in", "ورود به‌واسطه‌ی انتقال بین انبارها"
 
     store = models.ForeignKey(
         "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="stock_movements",
@@ -494,11 +496,15 @@ class StockMovement(TimeStampedModel):
         "orders.RefundItem", verbose_name="قلمِ استرداد", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="stock_movements",
     )
+    warehouse = models.ForeignKey(
+        "Warehouse", verbose_name="انبار", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="stock_movements",
+    )
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="انجام‌دهنده", on_delete=models.SET_NULL,
         null=True, blank=True, related_name="stock_movements",
     )
-    reason = models.CharField("علت", max_length=20, choices=Reason.choices)
+    reason = models.CharField("علت", max_length=30, choices=Reason.choices)
     delta = models.IntegerField("مقدار تغییر (مثبت=افزایش، منفی=کاهش)")
     stock_before = models.IntegerField("موجودی پیش از تغییر")
     stock_after = models.IntegerField("موجودی پس از تغییر")
@@ -529,6 +535,273 @@ class StockMovement(TimeStampedModel):
     def __str__(self):
         sign = "+" if self.delta >= 0 else ""
         return f"{self.product.name} {sign}{self.delta} ({self.get_reason_display()})"
+
+
+# =============================================================================
+# انبار و موجودیِ چندانباره (Admin Panel Completion Program checkpoint 3 —
+# ADR-37 تا ADR-39 در SAAS_DOMAIN_DECISIONS.md). ``Product.stock``/
+# ``ProductVariant.stock`` همچنان تکِ منبعِ حقیقتِ موجودیِ قابل‌فروش باقی
+# می‌مانند (ADR-38) — ``WarehouseInventory`` تفکیکِ موجودی به‌ازای هر انبار
+# را نگه می‌دارد و همیشه باید با آن جمع‌جور بماند (بررسی‌شده توسط
+# ``verify_inventory_consistency``)، نه یک منبعِ حقیقتِ مستقلِ دوم.
+# =============================================================================
+
+
+class Warehouse(TimeStampedModel):
+    """انبار/محلِ نگه‌داریِ کالا — Store-owned. هر Store حداقل یک انبارِ
+    پیش‌فرض دارد (نگاه کنید به ``provision_default_warehouses``)."""
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="warehouses",
+    )
+    name = models.CharField("نام انبار", max_length=150)
+    code = models.SlugField("کد انبار", max_length=40, allow_unicode=True)
+    address = models.TextField("آدرس", blank=True, default="")
+    province = models.CharField("استان", max_length=80, blank=True, default="")
+    city = models.CharField("شهر", max_length=80, blank=True, default="")
+    postal_code = models.CharField("کد پستی", max_length=10, blank=True, default="")
+    contact_name = models.CharField("نام مسئول", max_length=150, blank=True, default="")
+    contact_phone = models.CharField("تلفن مسئول", max_length=20, blank=True, default="")
+    is_active = models.BooleanField("فعال", default=True)
+    is_default = models.BooleanField("انبار پیش‌فرض", default=False)
+    is_pickup_location = models.BooleanField("محلِ تحویلِ حضوری", default=False)
+    fulfillment_priority = models.PositiveIntegerField("اولویتِ تأمین", default=0)
+
+    class Meta:
+        verbose_name = "انبار"
+        verbose_name_plural = "انبارها"
+        ordering = ["fulfillment_priority", "name"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "code"], name="uniq_warehouse_code_per_store"),
+            # نگاه کنید به ADR-37 — دقیقاً یک انبارِ پیش‌فرض به‌ازای هر Store؛
+            # حتی اگر آن انبار بعداً غیرفعال شود، باید ابتدا صریحاً
+            # جایگزین شود (سرویس این را اجرا می‌کند، نه فقط این قید).
+            models.UniqueConstraint(
+                fields=["store"], condition=models.Q(is_default=True), name="uniq_default_warehouse_per_store",
+            ),
+        ]
+
+    def __str__(self):
+        marker = " (پیش‌فرض)" if self.is_default else ""
+        return f"{self.name}{marker}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if not self.is_active and self.is_default:
+            raise ValidationError({"is_active": "انبارِ پیش‌فرض نمی‌تواند غیرفعال باشد."})
+
+
+class WarehouseInventory(TimeStampedModel):
+    """موجودیِ یک کالا/تنوع در یک انبارِ مشخص.
+
+    ``product`` همیشه پر است؛ ``variant`` فقط برای کالاهای دارای تنوع پر
+    می‌شود (دقیقاً همان قراردادِ ``StockMovement``). مجموعِ ``on_hand`` این
+    مدل به‌ازای همه‌ی انبارهای یک کالا/تنوع باید با
+    ``Product.stock``/``ProductVariant.stock`` برابر بماند — نگاه کنید به
+    ADR-38.
+    """
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="warehouse_inventories",
+    )
+    warehouse = models.ForeignKey(
+        Warehouse, verbose_name="انبار", on_delete=models.CASCADE, related_name="inventory_balances",
+    )
+    product = models.ForeignKey(
+        Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="warehouse_balances",
+    )
+    variant = models.ForeignKey(
+        ProductVariant, verbose_name="تنوع", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="warehouse_balances",
+    )
+    on_hand = models.IntegerField("موجودیِ فیزیکی", default=0)
+    low_stock_threshold = models.PositiveIntegerField("آستانه‌ی هشدار کمبود", null=True, blank=True)
+    track_inventory = models.BooleanField("پیگیری موجودی", default=True)
+
+    class Meta:
+        verbose_name = "موجودیِ انبار"
+        verbose_name_plural = "موجودی‌های انبار"
+        ordering = ["warehouse", "product"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["warehouse", "product"], condition=models.Q(variant__isnull=True),
+                name="uniq_warehouse_product_balance",
+            ),
+            models.UniqueConstraint(
+                fields=["warehouse", "variant"], condition=models.Q(variant__isnull=False),
+                name="uniq_warehouse_variant_balance",
+            ),
+            models.CheckConstraint(check=models.Q(on_hand__gte=0), name="warehouse_inventory_on_hand_non_negative"),
+        ]
+
+    def __str__(self):
+        target = self.variant if self.variant_id else self.product
+        return f"{self.warehouse.name} — {target} ({self.on_hand})"
+
+
+class InventoryReservation(TimeStampedModel):
+    """رزروِ موقتِ موجودی — موجودیِ در دسترس (available) را کم می‌کند بدونِ
+    تغییرِ موجودیِ فیزیکی (on_hand) تا زمانی که مصرف (consume) یا آزاد
+    (release/expire) شود — نگاه کنید به ADR-39.
+
+    ``consumed_at``/``released_at`` دقیقاً یکی از آن‌ها ممکن است پر شود، و
+    فقط یک‌بار — با انتقالِ صریح در ``inventory_service``، نه نوشتنِ مستقیم.
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "فعال"
+        CONSUMED = "consumed", "مصرف‌شده"
+        RELEASED = "released", "آزادشده"
+        EXPIRED = "expired", "منقضی‌شده"
+        CANCELLED = "cancelled", "لغوشده"
+
+    FINAL_STATUSES = {Status.CONSUMED, Status.RELEASED, Status.EXPIRED, Status.CANCELLED}
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="inventory_reservations",
+    )
+    product = models.ForeignKey(
+        Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="reservations",
+    )
+    variant = models.ForeignKey(
+        ProductVariant, verbose_name="تنوع", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="reservations",
+    )
+    cart = models.ForeignKey(
+        "cart.Cart", verbose_name="سبد خرید", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="inventory_reservations",
+    )
+    order = models.ForeignKey(
+        "orders.Order", verbose_name="سفارش", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="inventory_reservations",
+    )
+    quantity = models.PositiveIntegerField("تعداد")
+    status = models.CharField("وضعیت", max_length=10, choices=Status.choices, default=Status.ACTIVE)
+    idempotency_key = models.CharField("کلید یکتای درخواست", max_length=64, blank=True, default="")
+    source = models.CharField("منبع", max_length=30, blank=True, default="checkout")
+    expires_at = models.DateTimeField("زمان انقضا", null=True, blank=True)
+    released_at = models.DateTimeField("زمان آزادسازی", null=True, blank=True)
+    consumed_at = models.DateTimeField("زمان مصرف", null=True, blank=True)
+    metadata = models.JSONField("فراداده", blank=True, default=dict)
+
+    class Meta:
+        verbose_name = "رزروِ موجودی"
+        verbose_name_plural = "رزروهای موجودی"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["store", "status", "expires_at"], name="idx_reservation_status_expiry"),
+            models.Index(fields=["product", "variant", "status"], name="idx_reservation_target_status"),
+        ]
+        constraints = [
+            models.CheckConstraint(check=models.Q(quantity__gt=0), name="reservation_quantity_positive"),
+            models.UniqueConstraint(
+                fields=["idempotency_key"], condition=~models.Q(idempotency_key=""),
+                name="uniq_reservation_idempotency_key_when_set",
+            ),
+        ]
+
+    def __str__(self):
+        target = self.variant if self.variant_id else self.product
+        return f"رزرو {self.quantity} — {target} ({self.get_status_display()})"
+
+
+class WarehouseTransfer(TimeStampedModel):
+    """انتقالِ موجودی بین دو انبارِ همان Store — گردشِ وضعیتِ صریح.
+
+    ``draft`` هیچ اثری روی موجودی ندارد؛ ``in_transit`` (ارسال) موجودیِ
+    مبدأ را کم می‌کند؛ ``received`` (دریافت) موجودیِ مقصد را زیاد می‌کند —
+    نگاه کنید به ADR-40."""
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "پیش‌نویس"
+        REQUESTED = "requested", "درخواست‌شده"
+        IN_TRANSIT = "in_transit", "در حال ارسال"
+        RECEIVED = "received", "دریافت‌شده"
+        CANCELLED = "cancelled", "لغوشده"
+
+    ALLOWED_TRANSITIONS = {
+        Status.DRAFT: {Status.REQUESTED, Status.CANCELLED},
+        Status.REQUESTED: {Status.IN_TRANSIT, Status.CANCELLED},
+        Status.IN_TRANSIT: {Status.RECEIVED, Status.CANCELLED},
+        Status.RECEIVED: set(),
+        Status.CANCELLED: set(),
+    }
+    FINAL_STATUSES = {Status.RECEIVED, Status.CANCELLED}
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="warehouse_transfers",
+    )
+    transfer_number = models.CharField("شماره انتقال", max_length=24)
+    source_warehouse = models.ForeignKey(
+        Warehouse, verbose_name="انبارِ مبدأ", on_delete=models.PROTECT, related_name="transfers_out",
+    )
+    destination_warehouse = models.ForeignKey(
+        Warehouse, verbose_name="انبارِ مقصد", on_delete=models.PROTECT, related_name="transfers_in",
+    )
+    status = models.CharField("وضعیت", max_length=10, choices=Status.choices, default=Status.DRAFT)
+    note = models.TextField("یادداشت", blank=True, default="")
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="انجام‌دهنده", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="warehouse_transfers",
+    )
+    shipped_at = models.DateTimeField("زمان ارسال", null=True, blank=True)
+    received_at = models.DateTimeField("زمان دریافت", null=True, blank=True)
+    cancelled_at = models.DateTimeField("زمان لغو", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "انتقالِ انبار"
+        verbose_name_plural = "انتقال‌های انبار"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "transfer_number"], name="uniq_transfer_number_per_store"),
+            models.CheckConstraint(
+                check=~models.Q(source_warehouse=models.F("destination_warehouse")),
+                name="transfer_source_ne_destination",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.transfer_number} — {self.source_warehouse} → {self.destination_warehouse}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        errors = {}
+        if self.source_warehouse_id and self.source_warehouse.store_id != self.store_id:
+            errors["source_warehouse"] = "این انبار متعلق به فروشگاه دیگری است."
+        if self.destination_warehouse_id and self.destination_warehouse.store_id != self.store_id:
+            errors["destination_warehouse"] = "این انبار متعلق به فروشگاه دیگری است."
+        if self.source_warehouse_id and self.source_warehouse_id == self.destination_warehouse_id:
+            errors["destination_warehouse"] = "انبارِ مبدأ و مقصد نمی‌تواند یکسان باشد."
+        if errors:
+            raise ValidationError(errors)
+
+
+class WarehouseTransferItem(TimeStampedModel):
+    transfer = models.ForeignKey(
+        WarehouseTransfer, verbose_name="انتقال", on_delete=models.CASCADE, related_name="items",
+    )
+    product = models.ForeignKey(
+        Product, verbose_name="کالا", on_delete=models.PROTECT, related_name="transfer_items",
+    )
+    variant = models.ForeignKey(
+        ProductVariant, verbose_name="تنوع", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="transfer_items",
+    )
+    quantity_requested = models.PositiveIntegerField("تعداد درخواستی")
+    quantity_shipped = models.PositiveIntegerField("تعداد ارسالی", null=True, blank=True)
+    quantity_received = models.PositiveIntegerField("تعداد دریافتی", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "قلمِ انتقال"
+        verbose_name_plural = "اقلامِ انتقال"
+        constraints = [
+            models.CheckConstraint(check=models.Q(quantity_requested__gt=0), name="transfer_item_quantity_positive"),
+        ]
+
+    def __str__(self):
+        return f"{self.product.name} × {self.quantity_requested}"
 
 
 # =============================================================================

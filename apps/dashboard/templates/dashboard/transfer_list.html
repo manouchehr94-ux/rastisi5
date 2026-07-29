@@ -1,0 +1,43 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}انتقالِ انبار | پنل مدیریت{% endblock %}
+{% block page_title %}انتقالِ انبار{% endblock %}
+{% block page_sub %}جابه‌جاییِ موجودی بین انبارهای این فروشگاه{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="page-desc">مجموعِ موجودیِ کالا هنگامِ انتقالِ داخلی تغییر نمی‌کند — فقط محلِ آن جابه‌جا می‌شود.</p>
+  </div>
+  {% if can_manage_transfers %}
+  <a href="{% url 'dashboard:transfer-add' %}" class="btn btn-primary">انتقالِ جدید</a>
+  {% endif %}
+</div>
+
+{% if transfers %}
+<div class="card">
+  <div class="card-head"><h3>انتقال‌ها ({{ transfers|length }})</h3></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>شماره</th><th>مبدأ</th><th>مقصد</th><th>وضعیت</th><th>زمان</th><th></th></tr></thead>
+    <tbody>
+    {% for transfer in transfers %}
+    <tr>
+      <td dir="ltr" style="text-align:right"><b>{{ transfer.transfer_number }}</b></td>
+      <td>{{ transfer.source_warehouse.name }}</td>
+      <td>{{ transfer.destination_warehouse.name }}</td>
+      <td><span class="badge">{{ transfer.get_status_display }}</span></td>
+      <td>{{ transfer.created_at|date:"Y-m-d H:i" }}</td>
+      <td><a class="btn btn-sm" href="{% url 'dashboard:transfer-detail' transfer.pk %}">مشاهده</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <span class="empty-icon">🚚</span>
+    <div class="empty-title">هنوز انتقالی ثبت نشده</div>
+    {% if can_manage_transfers %}<a href="{% url 'dashboard:transfer-add' %}" class="btn btn-primary">ایجاد اولین انتقال</a>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

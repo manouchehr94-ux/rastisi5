@@ -7,16 +7,64 @@
 را کم می‌کرد و برای اقلامِ دارای تنوع، موجودیِ *اشتباه* (Product به‌جای
 ProductVariant) را کم می‌کرد و لغو سفارش هرگز موجودی را بازنمی‌گرداند — این
 دو باگ اینجا با معرفیِ دفتر موجودی اصلاح شده‌اند.
+
+``Product.stock``/``ProductVariant.stock`` همچنان تکِ منبعِ حقیقتِ موجودیِ
+قابل‌فروش‌اند (ADR-38، checkpoint 3). هر تابعی که این مقادیر را تغییر
+می‌دهد، همان تغییر را — در همان تراکنش — روی موجودیِ انبارِ پیش‌فرض
+(``WarehouseInventory``) هم اعمال می‌کند تا این دو هرگز از هم واگرا
+نشوند؛ ``verify_inventory_consistency`` این هم‌ترازی را بررسی می‌کند.
 """
 
-from django.db.models import F
+from django.db.models import F, Sum
 
-from apps.catalog.models import Product, ProductVariant, StockMovement
+from apps.catalog.models import Product, ProductVariant, StockMovement, Warehouse, WarehouseInventory
 from apps.core.services.audit_service import record_audit_event
 
 
 class InsufficientStockError(Exception):
     """موجودیِ هدف (کالا یا تنوع) برای این تعداد کافی نیست."""
+
+
+class ReturnItemAlreadyRestockedError(Exception):
+    """این قلمِ مرجوعی/استرداد قبلاً یک‌بار به موجودی بازگشته — نگاه کنید به ADR-35."""
+
+
+def _resolve_default_warehouse(store) -> Warehouse:
+    from apps.catalog.services.warehouse_service import provision_default_warehouse
+
+    return provision_default_warehouse(store)
+
+
+def _sync_warehouse_balance(*, store, product, variant, delta: int) -> Warehouse:
+    """موجودیِ انبارِ پیش‌فرض را با همان ``delta``ی اعمال‌شده روی
+    Product.stock/ProductVariant.stock هماهنگ می‌کند. اگر ردیفِ موجودیِ
+    انبار هنوز برای این کالا/تنوع وجود نداشته باشد (اولین‌بار)، با مقدارِ
+    *فعلیِ* (پس از اعمالِ delta) Product.stock/ProductVariant.stock ساخته
+    می‌شود — نه این‌که delta دوباره روی صفر اعمال شود."""
+    warehouse = _resolve_default_warehouse(store)
+    current_aggregate = (
+        ProductVariant.objects.filter(pk=variant.pk).values_list("stock", flat=True).first()
+        if variant is not None
+        else Product.objects.filter(pk=product.pk).values_list("stock", flat=True).first()
+    )
+    balance, created = WarehouseInventory.objects.select_for_update().get_or_create(
+        store=store, warehouse=warehouse, product=product, variant=variant,
+        defaults={"on_hand": current_aggregate if current_aggregate is not None else 0},
+    )
+    if not created:
+        WarehouseInventory.objects.filter(pk=balance.pk).update(on_hand=F("on_hand") + delta)
+    return warehouse
+
+
+def get_available_quantity(*, product, variant=None) -> int:
+    """موجودیِ در دسترس = موجودیِ فعلی − مجموعِ رزروهای فعال. نگاه کنید به ADR-39."""
+    from apps.catalog.models import InventoryReservation
+
+    on_hand = variant.stock if variant is not None else product.stock
+    reserved = InventoryReservation.objects.filter(
+        product=product, variant=variant, status=InventoryReservation.Status.ACTIVE,
+    ).aggregate(total=Sum("quantity"))["total"] or 0
+    return on_hand - reserved
 
 
 def decrement_stock_for_order_item(*, store, product, variant, quantity, order, actor=None):
@@ -43,8 +91,9 @@ def decrement_stock_for_order_item(*, store, product, variant, quantity, order, 
     if updated == 0:
         raise InsufficientStockError(f"موجودی «{product.name}» کافی نیست")
 
+    warehouse = _sync_warehouse_balance(store=store, product=product, variant=variant, delta=-quantity)
     StockMovement.objects.create(
-        store=store, product=product, variant=variant,
+        store=store, product=product, variant=variant, warehouse=warehouse,
         reason=StockMovement.Reason.ORDER_PLACED, delta=-quantity,
         stock_before=stock_before, stock_after=stock_before - quantity,
         order=order, actor=actor,
@@ -77,16 +126,13 @@ def restock_order(*, store, order, actor=None) -> None:
             Product.objects.filter(pk=product.pk).update(stock=F("stock") + item.quantity)
             target_variant = None
 
+        warehouse = _sync_warehouse_balance(store=store, product=product, variant=target_variant, delta=item.quantity)
         StockMovement.objects.create(
-            store=store, product=product, variant=target_variant,
+            store=store, product=product, variant=target_variant, warehouse=warehouse,
             reason=StockMovement.Reason.ORDER_CANCELED, delta=item.quantity,
             stock_before=stock_before, stock_after=stock_before + item.quantity,
             order=order, actor=actor,
         )
-
-
-class ReturnItemAlreadyRestockedError(Exception):
-    """این قلمِ مرجوعی قبلاً یک‌بار به موجودی بازگشته — نگاه کنید به ADR-35."""
 
 
 def restock_return_item(*, store, return_item, actor=None) -> "StockMovement | None":
@@ -127,8 +173,9 @@ def restock_return_item(*, store, return_item, actor=None) -> "StockMovement | N
         stock_before = product.stock
         Product.objects.filter(pk=product.pk).update(stock=F("stock") + quantity)
 
+    warehouse = _sync_warehouse_balance(store=store, product=product, variant=variant, delta=quantity)
     return StockMovement.objects.create(
-        store=store, product=product, variant=variant,
+        store=store, product=product, variant=variant, warehouse=warehouse,
         reason=StockMovement.Reason.RETURN_RESTOCK, delta=quantity,
         stock_before=stock_before, stock_after=stock_before + quantity,
         order=order_item.order, return_item=return_item, actor=actor,
@@ -163,8 +210,9 @@ def restock_refund_item(*, store, refund_item, actor=None) -> "StockMovement | N
         stock_before = product.stock
         Product.objects.filter(pk=product.pk).update(stock=F("stock") + quantity)
 
+    warehouse = _sync_warehouse_balance(store=store, product=product, variant=variant, delta=quantity)
     return StockMovement.objects.create(
-        store=store, product=product, variant=variant,
+        store=store, product=product, variant=variant, warehouse=warehouse,
         reason=StockMovement.Reason.REFUND_RESTOCK, delta=quantity,
         stock_before=stock_before, stock_after=stock_before + quantity,
         order=order_item.order, refund_item=refund_item, actor=actor,
@@ -186,8 +234,9 @@ def adjust_stock_manually(*, store, product, variant=None, new_stock: int, actor
     target.stock = new_stock
     target.save(update_fields=["stock", "updated_at"])
 
+    warehouse = _sync_warehouse_balance(store=store, product=product, variant=variant, delta=delta)
     movement = StockMovement.objects.create(
-        store=store, product=product, variant=variant,
+        store=store, product=product, variant=variant, warehouse=warehouse,
         reason=StockMovement.Reason.MANUAL_ADJUSTMENT, delta=delta,
         stock_before=stock_before, stock_after=new_stock,
         actor=actor, note=note,
@@ -201,10 +250,14 @@ def adjust_stock_manually(*, store, product, variant=None, new_stock: int, actor
     return movement
 
 
-def list_stock_movements(store, *, product=None, variant=None):
-    queryset = StockMovement.objects.filter(store=store).select_related("product", "variant", "order", "actor")
+def list_stock_movements(store, *, product=None, variant=None, warehouse=None):
+    queryset = StockMovement.objects.filter(store=store).select_related(
+        "product", "variant", "order", "actor", "warehouse",
+    )
     if variant is not None:
         queryset = queryset.filter(variant=variant)
     elif product is not None:
         queryset = queryset.filter(product=product)
+    if warehouse is not None:
+        queryset = queryset.filter(warehouse=warehouse)
     return queryset

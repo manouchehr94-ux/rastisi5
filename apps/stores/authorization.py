@@ -70,6 +70,19 @@ VARIANT_MANAGE = "variant.manage"
 INVENTORY_MANAGE = "inventory.manage"
 MEDIA_MANAGE = "media.manage"
 
+# Checkpoint 3 — Warehouse/reservation/transfer permissions.
+WAREHOUSE_VIEW = "warehouse.view"
+WAREHOUSE_MANAGE = "warehouse.manage"  # create/edit/archive/set-default warehouse
+TRANSFER_VIEW = "transfer.view"
+TRANSFER_MANAGE = "transfer.manage"  # create/ship/receive/cancel a stock transfer
+RESERVATION_VIEW = "reservation.view"
+
+# Checkpoint 3 — Shipping/Tax settings permissions.
+SHIPPING_SETTINGS_VIEW = "shipping.view"
+SHIPPING_SETTINGS_MANAGE = "shipping.manage"
+TAX_SETTINGS_VIEW = "tax.view"
+TAX_SETTINGS_MANAGE = "tax.manage"
+
 ORDER_VIEW = "order.view"
 ORDER_STATUS_CHANGE = "order.status_change"
 
@@ -112,6 +125,8 @@ ALL_PERMISSIONS = frozenset({
     DASHBOARD_VIEW,
     PRODUCT_VIEW, PRODUCT_CREATE, PRODUCT_EDIT, PRODUCT_DELETE,
     CATEGORY_MANAGE, ATTRIBUTE_MANAGE, VARIANT_MANAGE, INVENTORY_MANAGE, MEDIA_MANAGE,
+    WAREHOUSE_VIEW, WAREHOUSE_MANAGE, TRANSFER_VIEW, TRANSFER_MANAGE, RESERVATION_VIEW,
+    SHIPPING_SETTINGS_VIEW, SHIPPING_SETTINGS_MANAGE, TAX_SETTINGS_VIEW, TAX_SETTINGS_MANAGE,
     ORDER_VIEW, ORDER_STATUS_CHANGE,
     CUSTOMER_VIEW, CUSTOMER_EDIT,
     REPORTS_VIEW, COUPON_VIEW, DISCOUNT_MANAGE,
@@ -124,12 +139,19 @@ ALL_PERMISSIONS = frozenset({
 _CATALOG_READ_WRITE = frozenset({
     PRODUCT_VIEW, PRODUCT_CREATE, PRODUCT_EDIT, PRODUCT_DELETE,
     CATEGORY_MANAGE, ATTRIBUTE_MANAGE, VARIANT_MANAGE, INVENTORY_MANAGE, MEDIA_MANAGE,
+    # Catalog Manager owns inventory infrastructure (checkpoint 3 §20 policy):
+    # views + adjusts stock, manages warehouses/transfers/reservations.
+    WAREHOUSE_VIEW, WAREHOUSE_MANAGE, TRANSFER_VIEW, TRANSFER_MANAGE, RESERVATION_VIEW,
 })
 # Order Manager owns Returns/Refunds financial authority (checkpoint 2 §15
 # policy) — Catalog Manager deliberately does NOT get REFUND_MANAGE/RETURN_MANAGE.
+# Order Manager views (not manages) warehouses/reservations/transfers/shipping
+# since fulfillment visibility matters for order handling (checkpoint 3 policy).
 _ORDER_READ_WRITE = frozenset({
     ORDER_VIEW, ORDER_STATUS_CHANGE, CUSTOMER_VIEW, CUSTOMER_EDIT,
     RETURN_VIEW, RETURN_MANAGE, REFUND_VIEW, REFUND_MANAGE,
+    WAREHOUSE_VIEW, RESERVATION_VIEW, TRANSFER_VIEW,
+    SHIPPING_SETTINGS_VIEW, TAX_SETTINGS_VIEW,
 })
 _CONTENT_READ_WRITE = frozenset({CONTENT_MANAGE, MEDIA_MANAGE})
 _OWNER_ONLY = frozenset({STAFF_MANAGE, DOMAIN_MANAGE, SUBSCRIPTION_MANAGE})
@@ -147,6 +169,7 @@ ROLE_PERMISSIONS = {
     Role.ANALYST: frozenset({
         DASHBOARD_VIEW, REPORTS_VIEW, PRODUCT_VIEW, ORDER_VIEW, CUSTOMER_VIEW,
         COUPON_VIEW, RETURN_VIEW, REFUND_VIEW, AUDIT_LOG_VIEW,
+        WAREHOUSE_VIEW, RESERVATION_VIEW, TRANSFER_VIEW, SHIPPING_SETTINGS_VIEW, TAX_SETTINGS_VIEW,
     }),
 }
 

@@ -63,7 +63,26 @@ from apps.catalog.services.industry_template_service import (
     IndustryInstallationError,
     install_industry_template,
 )
+from apps.catalog.models import InventoryReservation, Warehouse, WarehouseInventory, WarehouseTransfer
 from apps.catalog.services.inventory_service import list_stock_movements
+from apps.catalog.services.reservation_service import ReservationError, list_reservations, release_inventory_reservation
+from apps.catalog.services.transfer_service import (
+    TransferError,
+    cancel_transfer,
+    create_transfer,
+    list_transfers,
+    receive_transfer,
+    request_transfer,
+    ship_transfer,
+)
+from apps.catalog.services.warehouse_service import (
+    WarehouseError,
+    archive_warehouse,
+    create_warehouse,
+    list_warehouses,
+    set_default_warehouse,
+    update_warehouse,
+)
 from apps.core.services.audit_service import list_audit_events
 from apps.cart.models import Coupon
 from apps.cart.services.coupon_service import (
@@ -178,12 +197,17 @@ from apps.stores.authorization import (
     REFUND_MANAGE,
     REFUND_VIEW,
     REPORTS_VIEW,
+    RESERVATION_VIEW,
     RETURN_MANAGE,
     RETURN_VIEW,
     SETTINGS_MANAGE,
     SMS_SETTINGS_MANAGE,
     STAFF_MANAGE,
+    TRANSFER_MANAGE,
+    TRANSFER_VIEW,
     VARIANT_MANAGE,
+    WAREHOUSE_MANAGE,
+    WAREHOUSE_VIEW,
     membership_has_permission,
 )
 from .forms import (
@@ -4003,3 +4027,263 @@ def return_complete(request, pk):
     except (ReturnError, RefundError) as exc:
         messages.error(request, str(exc))
     return redirect("dashboard:return-detail", pk=pk)
+
+
+# ---------------------------------------------------------------- انبارها (Warehouses)
+
+WAREHOUSE_FORM_FIELDS = (
+    "name", "code", "address", "province", "city", "postal_code",
+    "contact_name", "contact_phone", "is_active", "is_pickup_location", "fulfillment_priority",
+)
+
+
+@staff_required
+@permission_required(WAREHOUSE_VIEW, WAREHOUSE_MANAGE)
+def warehouse_list(request):
+    store = _resolve_dashboard_store(request)
+    return render(request, "dashboard/warehouse_list.html", {
+        "warehouses": list_warehouses(store), "active_page": "warehouses",
+        "can_manage_warehouses": membership_has_permission(request.store_membership, WAREHOUSE_MANAGE),
+    })
+
+
+def _parse_warehouse_form(request):
+    data = request.POST
+    fields = {
+        "name": data.get("name", "").strip(),
+        "code": data.get("code", "").strip(),
+        "address": data.get("address", "").strip(),
+        "province": data.get("province", "").strip(),
+        "city": data.get("city", "").strip(),
+        "postal_code": data.get("postal_code", "").strip(),
+        "contact_name": data.get("contact_name", "").strip(),
+        "contact_phone": data.get("contact_phone", "").strip(),
+        "is_active": data.get("is_active") == "on",
+        "is_pickup_location": data.get("is_pickup_location") == "on",
+    }
+    priority = data.get("fulfillment_priority", "").strip()
+    fields["fulfillment_priority"] = int(priority) if priority.isdigit() else 0
+    if data.get("is_default") == "on":
+        fields["is_default"] = True
+    return fields
+
+
+@staff_required
+@permission_required(WAREHOUSE_MANAGE)
+def warehouse_form(request, pk=None):
+    store = _resolve_dashboard_store(request)
+    warehouse = get_object_or_404(Warehouse, pk=pk, store=store) if pk else None
+
+    if request.method == "POST":
+        fields = _parse_warehouse_form(request)
+        try:
+            if warehouse:
+                update_warehouse(warehouse, actor=request.user, **fields)
+            else:
+                warehouse = create_warehouse(store, actor=request.user, **fields)
+            action = "ویرایش" if pk else "ایجاد"
+            messages.success(request, f"انبارِ «{warehouse.name}» با موفقیت {action} شد")
+            return redirect("dashboard:warehouse-list")
+        except WarehouseError as exc:
+            messages.error(request, str(exc))
+
+    return render(request, "dashboard/warehouse_form.html", {
+        "warehouse": warehouse, "active_page": "warehouses",
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(WAREHOUSE_MANAGE)
+def warehouse_set_default(request, pk):
+    store = _resolve_dashboard_store(request)
+    warehouse = get_object_or_404(Warehouse, pk=pk, store=store)
+    try:
+        set_default_warehouse(warehouse, actor=request.user)
+        messages.success(request, f"انبارِ «{warehouse.name}» پیش‌فرض شد")
+    except WarehouseError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:warehouse-list")
+
+
+@require_POST
+@staff_required
+@permission_required(WAREHOUSE_MANAGE)
+def warehouse_archive(request, pk):
+    store = _resolve_dashboard_store(request)
+    warehouse = get_object_or_404(Warehouse, pk=pk, store=store)
+    try:
+        archive_warehouse(warehouse, actor=request.user)
+        messages.info(request, f"انبارِ «{warehouse.name}» آرشیو شد")
+    except WarehouseError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:warehouse-list")
+
+
+@staff_required
+@permission_required(WAREHOUSE_VIEW, WAREHOUSE_MANAGE)
+def warehouse_detail(request, pk):
+    store = _resolve_dashboard_store(request)
+    warehouse = get_object_or_404(Warehouse, pk=pk, store=store)
+    balances = (
+        WarehouseInventory.objects.filter(store=store, warehouse=warehouse)
+        .select_related("product", "variant").order_by("product__name")
+    )
+    return render(request, "dashboard/warehouse_detail.html", {
+        "warehouse": warehouse, "balances": balances, "active_page": "warehouses",
+    })
+
+
+# ---------------------------------------------------------------- رزروهای موجودی (Reservations)
+
+@staff_required
+@permission_required(RESERVATION_VIEW)
+def reservation_list(request):
+    store = _resolve_dashboard_store(request)
+    status = request.GET.get("status", "").strip()
+    queryset = list_reservations(store, status=status)
+    paginator = Paginator(queryset, 40)
+    page_obj = paginator.get_page(request.GET.get("page", "1"))
+    return render(request, "dashboard/reservation_list.html", {
+        "reservations": page_obj, "page_obj": page_obj, "paginator": paginator,
+        "selected_status": status, "status_choices": InventoryReservation.Status.choices,
+        "active_page": "reservations",
+        "can_manage_reservations": membership_has_permission(request.store_membership, WAREHOUSE_MANAGE),
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(WAREHOUSE_MANAGE)
+def reservation_release(request, pk):
+    store = _resolve_dashboard_store(request)
+    reservation = get_object_or_404(InventoryReservation, pk=pk, store=store)
+    try:
+        release_inventory_reservation(reservation, actor=request.user)
+        messages.success(request, "رزرو آزاد شد")
+    except ReservationError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:reservation-list")
+
+
+# ---------------------------------------------------------------- انتقالِ انبار (Warehouse Transfers)
+
+@staff_required
+@permission_required(TRANSFER_VIEW, TRANSFER_MANAGE)
+def transfer_list(request):
+    store = _resolve_dashboard_store(request)
+    return render(request, "dashboard/transfer_list.html", {
+        "transfers": list_transfers(store), "active_page": "transfers",
+        "can_manage_transfers": membership_has_permission(request.store_membership, TRANSFER_MANAGE),
+    })
+
+
+@staff_required
+@permission_required(TRANSFER_VIEW, TRANSFER_MANAGE)
+def transfer_detail(request, pk):
+    store = _resolve_dashboard_store(request)
+    transfer_obj = get_object_or_404(
+        WarehouseTransfer.objects.select_related("source_warehouse", "destination_warehouse"), pk=pk, store=store,
+    )
+    return render(request, "dashboard/transfer_detail.html", {
+        "transfer": transfer_obj,
+        "items": transfer_obj.items.select_related("product", "variant"),
+        "active_page": "transfers",
+        "can_manage_transfers": membership_has_permission(request.store_membership, TRANSFER_MANAGE),
+    })
+
+
+@staff_required
+@permission_required(TRANSFER_MANAGE)
+def transfer_form(request):
+    store = _resolve_dashboard_store(request)
+    warehouses = list_warehouses(store)
+    products = Product.objects.filter(store=store, status=Product.Status.ACTIVE).order_by("name")[:500]
+
+    if request.method == "POST":
+        source_id = request.POST.get("source_warehouse")
+        destination_id = request.POST.get("destination_warehouse")
+        note = request.POST.get("note", "").strip()
+
+        source_warehouse = warehouses.filter(pk=source_id).first()
+        destination_warehouse = warehouses.filter(pk=destination_id).first()
+
+        items = []
+        for product in products:
+            raw_qty = request.POST.get(f"quantity_{product.pk}", "0").strip()
+            quantity = int(raw_qty) if raw_qty.isdigit() else 0
+            if quantity > 0:
+                items.append({"product": product, "quantity": quantity})
+
+        if source_warehouse is None or destination_warehouse is None:
+            messages.error(request, "انبارِ مبدأ/مقصد نامعتبر است")
+        else:
+            try:
+                transfer_obj = create_transfer(
+                    store, source_warehouse=source_warehouse, destination_warehouse=destination_warehouse,
+                    items=items, note=note, actor=request.user,
+                )
+                messages.success(request, f"انتقالِ «{transfer_obj.transfer_number}» ایجاد شد")
+                return redirect("dashboard:transfer-detail", pk=transfer_obj.pk)
+            except TransferError as exc:
+                messages.error(request, str(exc))
+
+    return render(request, "dashboard/transfer_form.html", {
+        "warehouses": warehouses, "products": products, "active_page": "transfers",
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(TRANSFER_MANAGE)
+def transfer_request(request, pk):
+    store = _resolve_dashboard_store(request)
+    transfer_obj = get_object_or_404(WarehouseTransfer, pk=pk, store=store)
+    try:
+        request_transfer(transfer_obj, actor=request.user)
+        messages.success(request, "انتقال درخواست شد")
+    except TransferError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:transfer-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(TRANSFER_MANAGE)
+def transfer_ship(request, pk):
+    store = _resolve_dashboard_store(request)
+    transfer_obj = get_object_or_404(WarehouseTransfer, pk=pk, store=store)
+    try:
+        ship_transfer(transfer_obj, actor=request.user)
+        messages.success(request, "انتقال ارسال شد")
+    except TransferError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:transfer-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(TRANSFER_MANAGE)
+def transfer_receive(request, pk):
+    store = _resolve_dashboard_store(request)
+    transfer_obj = get_object_or_404(WarehouseTransfer, pk=pk, store=store)
+    try:
+        receive_transfer(transfer_obj, actor=request.user)
+        messages.success(request, "انتقال دریافت شد")
+    except TransferError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:transfer-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(TRANSFER_MANAGE)
+def transfer_cancel(request, pk):
+    store = _resolve_dashboard_store(request)
+    transfer_obj = get_object_or_404(WarehouseTransfer, pk=pk, store=store)
+    try:
+        cancel_transfer(transfer_obj, actor=request.user)
+        messages.info(request, "انتقال لغو شد")
+    except TransferError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:transfer-detail", pk=pk)

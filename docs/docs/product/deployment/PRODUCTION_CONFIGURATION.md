@@ -164,6 +164,8 @@ python manage.py check --deploy
 python manage.py makemigrations --check --dry-run
 python manage.py showmigrations
 python manage.py migrate
+python manage.py provision_default_warehouses
+python manage.py verify_inventory_consistency --strict
 python manage.py collectstatic --noinput
 python manage.py test
 ```

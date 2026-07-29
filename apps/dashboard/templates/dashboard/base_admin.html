@@ -42,6 +42,24 @@
         دفتر موجودی
       </a>
       {% endif %}
+      {% if can_view_warehouses %}
+      <a class="nav-item{% if active_page == 'warehouses' %} active{% endif %}" data-page="warehouses" href="{% url 'dashboard:warehouse-list' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M9 22V12h6v10"/></svg>
+        انبارها
+      </a>
+      {% endif %}
+      {% if can_view_reservations %}
+      <a class="nav-item{% if active_page == 'reservations' %} active{% endif %}" data-page="reservations" href="{% url 'dashboard:reservation-list' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        رزروهای موجودی
+      </a>
+      {% endif %}
+      {% if can_view_transfers %}
+      <a class="nav-item{% if active_page == 'transfers' %} active{% endif %}" data-page="transfers" href="{% url 'dashboard:transfer-list' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3l4 4-4 4M20 7H8M8 21l-4-4 4-4M4 17h12"/></svg>
+        انتقالِ انبار
+      </a>
+      {% endif %}
       {% if can_manage_categories %}
       <a class="nav-item{% if active_page == 'categories' %} active{% endif %}" data-page="categories" href="{% url 'dashboard:category-list' %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M13 6h8M13 18h8M13 12h8"/></svg>
