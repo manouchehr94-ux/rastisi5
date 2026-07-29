@@ -1,0 +1,40 @@
+{% load persian %}
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3>🏭 صنف فروشگاه</h3><span class="hint">نصب الگوی کاتالوگ آماده بر اساس صنف فعالیت</span></div>
+  <div class="card-body">
+    {% if industry_installation %}
+    <div class="info-box">
+      الگوی صنف «{{ industry_installation.industry_template.name }}» (نسخه {{ industry_installation.installed_version|fa_number }})
+      در تاریخ {{ industry_installation.created_at|jalali }} نصب شده است —
+      {{ industry_installation.categories_created|fa_number }} دسته‌بندی و
+      {{ industry_installation.attributes_created|fa_number }} ویژگی ساخته شد.
+      <br><small style="color:var(--muted)">هر فروشگاه فقط یک‌بار می‌تواند الگوی صنف نصب کند؛ برای تغییر صنف با پشتیبانی تماس بگیرید.</small>
+    </div>
+    {% else %}
+    <p style="color:var(--muted);font-size:12.5px;margin-bottom:14px">
+      با انتخاب صنف فعالیت خود، دسته‌بندی‌ها، ویژگی‌ها و محورهای تنوع پیشنهادی به‌صورت خودکار برای فروشگاه شما ساخته می‌شود.
+      این عملیات را می‌توانید بعداً کاملاً سفارشی‌سازی کنید و هرگز قالب پایه‌ی پلتفرم را تغییر نمی‌دهد.
+    </p>
+    <div class="grid g-1-2" style="gap:14px">
+      {% for template in industry_templates %}
+      <div class="card" style="margin-bottom:0">
+        <div class="card-body">
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+            <span style="font-size:22px">{{ template.icon|default:"🏷️" }}</span>
+            <div><b>{{ template.name }}</b><br><small style="color:var(--muted)">{{ template.categories.count|fa_number }} دسته‌بندی — {{ template.attributes.count|fa_number }} ویژگی</small></div>
+          </div>
+          {% if template.description %}<p style="font-size:12px;color:var(--muted)">{{ template.description }}</p>{% endif %}
+          <form method="post" action="{% url 'dashboard:settings-industry-install' template.pk %}"
+                onsubmit="return confirm('نصب الگوی «{{ template.name }}» ساختار کاتالوگ فروشگاه شما را می‌سازد. ادامه می‌دهید؟');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary btn-sm">نصب این الگو</button>
+          </form>
+        </div>
+      </div>
+      {% empty %}
+      <p style="color:var(--muted)">در حال حاضر الگوی صنفی برای نصب موجود نیست.</p>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>

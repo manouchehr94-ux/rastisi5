@@ -1,0 +1,71 @@
+{% load persian %}
+<div id="categorySchemaList">
+  <h4 style="margin:0 0 8px">ویژگی‌های مستقیم این دسته‌بندی</h4>
+  <table>
+    <thead><tr><th>ویژگی</th><th>گروه</th><th>الزامی</th><th>ارث‌بری به زیردسته‌ها</th><th>عملیات</th></tr></thead>
+    <tbody>
+      {% for entry in direct_entries %}
+      <tr>
+        <td>{{ entry.attribute.label }}</td>
+        <td>{{ entry.group|default:"—" }}</td>
+        <td>
+          <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:category-schema-toggle-required' category.pk entry.pk %}" hx-target="#categorySchemaList" hx-swap="outerHTML">
+            {% if entry.is_required %}✅ الزامی{% else %}اختیاری{% endif %}
+          </button>
+        </td>
+        <td>{% if entry.is_inherited_by_children %}بله{% else %}خیر{% endif %}</td>
+        <td>
+          <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:category-schema-move' category.pk entry.pk %}" hx-vals='{"direction":"up"}' hx-target="#categorySchemaList" hx-swap="outerHTML" {% if forloop.first %}disabled{% endif %}>▲</button>
+          <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:category-schema-move' category.pk entry.pk %}" hx-vals='{"direction":"down"}' hx-target="#categorySchemaList" hx-swap="outerHTML" {% if forloop.last %}disabled{% endif %}>▼</button>
+          <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:category-schema-remove' category.pk entry.pk %}" hx-target="#categorySchemaList" hx-swap="outerHTML" hx-confirm="حذف «{{ entry.attribute.label }}» از این دسته‌بندی؟">🗑️</button>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">هیچ ویژگی مستقیمی تعریف نشده است</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form hx-post="{% url 'dashboard:category-schema-add' category.pk %}" hx-target="#categorySchemaList" hx-swap="outerHTML"
+        style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:14px 0">
+    {% csrf_token %}
+    <div class="form-group" style="margin-bottom:0">
+      <label>ویژگی</label>
+      <select class="inp" name="attribute" style="width:160px">
+        {% for attribute in form.fields.attribute.queryset %}
+        <option value="{{ attribute.pk }}">{{ attribute.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:0">
+      <label>گروه</label>
+      <input class="inp" name="group" style="width:120px" placeholder="مثلاً: مشخصات فنی">
+    </div>
+    <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" name="is_required"> الزامی</label>
+    <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" name="is_inherited_by_children" checked> ارث‌بری</label>
+    <button type="submit" class="btn btn-sm btn-primary">افزودن</button>
+  </form>
+  {% for err in form.attribute.errors %}<div style="color:var(--red);font-size:11.5px">{{ err }}</div>{% endfor %}
+  {% for err in form.non_field_errors %}<div style="color:var(--red);font-size:11.5px">{{ err }}</div>{% endfor %}
+
+  <hr style="margin:16px 0;border-color:var(--border)">
+
+  <h4 style="margin:0 0 8px">طرح نهایی (شامل ارث‌بری) — همان چیزی که در فرم کالا نمایش داده می‌شود</h4>
+  <table>
+    <thead><tr><th>ویژگی</th><th>گروه</th><th>الزامی</th><th>منشأ</th></tr></thead>
+    <tbody>
+      {% for resolved in resolved_schema %}
+      <tr>
+        <td>{{ resolved.attribute.label }}</td>
+        <td>{{ resolved.group|default:"—" }}</td>
+        <td>{% if resolved.is_required %}بله{% else %}خیر{% endif %}</td>
+        <td>
+          {% if resolved.is_inherited %}<span class="badge b-gray">به ارث رسیده از «{{ resolved.source_category.name }}»</span>{% else %}<span class="badge b-green">مستقیم</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">طرحی برای این دسته‌بندی وجود ندارد</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

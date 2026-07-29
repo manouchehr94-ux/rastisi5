@@ -63,6 +63,14 @@ class Category(TimeStampedModel):
     order = models.PositiveIntegerField("ترتیب", default=0)
     is_active = models.BooleanField("فعال", default=True)
 
+    # ردیابی صرفاً اطلاعاتی منشأ نصب صنف (Phase 1E) — نگاه کنید به ADR-22.
+    # این دسته پس از نصب کاملاً مالکیت Store را دارد؛ حذف قالب پلتفرم هرگز
+    # این دسته یا داده‌ی آن را حذف نمی‌کند (SET_NULL).
+    source_template_category = models.ForeignKey(
+        "IndustryTemplateCategory", verbose_name="دسته‌ی مبدأ در قالب صنف", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="installed_categories",
+    )
+
     class Meta:
         verbose_name = "دسته‌بندی"
         verbose_name_plural = "دسته‌بندی‌ها"
@@ -497,6 +505,12 @@ class Attribute(TimeStampedModel):
     display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
     is_active = models.BooleanField("فعال", default=True)
 
+    # ردیابی صرفاً اطلاعاتی منشأ نصب صنف (Phase 1E) — نگاه کنید به ADR-22.
+    source_template_attribute = models.ForeignKey(
+        "IndustryTemplateAttribute", verbose_name="ویژگی مبدأ در قالب صنف", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="installed_attributes",
+    )
+
     class Meta:
         verbose_name = "ویژگی"
         verbose_name_plural = "ویژگی‌ها"
@@ -727,6 +741,340 @@ class VariantOptionValue(TimeStampedModel):
 
     def __str__(self):
         return f"{self.variant} — {self.option.label}: {self.option_value.label}"
+
+
+# =============================================================================
+# قالب‌های صنف پلتفرم و طرح ویژگی دسته‌بندی (Phase 1E) — نگاه کنید به
+# ADR-22 (استراتژی کپی قالب صنف)، ADR-23 (وراثت طرح ویژگی دسته‌بندی)،
+# ADR-24 (چرخه‌ی عمر مقدار ویژگی هنگام تغییر دسته‌بندی) و ADR-25
+# (نسخه‌بندی قالب صنف) در SAAS_DOMAIN_DECISIONS.md.
+#
+# قالب‌های IndustryTemplate* متعلق به پلتفرم‌اند — هیچ‌کدام FK به Store
+# ندارند و هرگز از مسیر StoreMembership قابل نوشتن نیستند (فقط Django
+# admin/دستور مدیریتی — نگاه کنید به ADR-22). نصب یک قالب صنف روی یک
+# Store، رکوردهای Category/Attribute/CategoryAttributeSchema *جدید و
+# کاملاً مالکیت Store* می‌سازد (deep copy) — نه رفرنس زنده به قالب.
+# =============================================================================
+
+
+class IndustryTemplate(TimeStampedModel):
+    """یک نسخه‌ی غیرقابل‌تغییر از ساختار کاتالوگ پیشنهادی یک صنف — پلتفرم‌محور.
+
+    نسخه‌ی جدید یک صنف همیشه یک ردیف کاملاً جدید است، نه ویرایش این ردیف
+    (ADR-25) — بنابراین هیچ رکورد IndustryTemplate پس از ساخته‌شدن هرگز
+    توسط کد این فاز تغییر نمی‌کند."""
+
+    slug = models.SlugField("اسلاگ", max_length=60)
+    name = models.CharField("نام صنف", max_length=120)
+    description = models.TextField("توضیحات", blank=True)
+    icon = models.CharField("آیکون", max_length=20, blank=True)
+    version = models.PositiveIntegerField("نسخه", default=1)
+    locale = models.CharField("زبان", max_length=10, default="fa")
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+    is_active = models.BooleanField("فعال", default=True)
+
+    class Meta:
+        verbose_name = "قالب صنف"
+        verbose_name_plural = "قالب‌های صنف"
+        ordering = ["display_order", "name"]
+        constraints = [
+            models.UniqueConstraint(fields=["slug", "version"], name="uniq_industry_template_slug_version"),
+        ]
+
+    def __str__(self):
+        return f"{self.name} (نسخه {self.version})"
+
+
+class IndustryTemplateCategory(TimeStampedModel):
+    industry_template = models.ForeignKey(
+        IndustryTemplate, verbose_name="قالب صنف", on_delete=models.CASCADE, related_name="categories",
+    )
+    code = models.SlugField("کد پایدار", max_length=60, allow_unicode=True)
+    name = models.CharField("نام", max_length=120)
+    icon = models.CharField("آیکون", max_length=20, blank=True)
+    parent = models.ForeignKey(
+        "self", verbose_name="دسته‌ی والد", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="children",
+    )
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "دسته‌بندی قالب صنف"
+        verbose_name_plural = "دسته‌بندی‌های قالب صنف"
+        ordering = ["display_order", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["industry_template", "code"], name="uniq_template_category_code_per_template",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.industry_template.name} — {self.name}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.parent_id and self.industry_template_id and self.parent.industry_template_id != self.industry_template_id:
+            raise ValidationError({"parent": "دسته‌ی والد متعلق به قالب صنف دیگری است."})
+
+
+class IndustryTemplateAttribute(TimeStampedModel):
+    industry_template = models.ForeignKey(
+        IndustryTemplate, verbose_name="قالب صنف", on_delete=models.CASCADE, related_name="attributes",
+    )
+    code = models.SlugField("کد پایدار", max_length=60, allow_unicode=True)
+    label = models.CharField("عنوان نمایشی", max_length=120)
+    data_type = models.CharField(
+        "نوع داده", max_length=12, choices=Attribute.DataType.choices, default=Attribute.DataType.TEXT,
+    )
+    display_type = models.CharField(
+        "نوع نمایش", max_length=12, choices=Attribute.DisplayType.choices, blank=True, default="",
+    )
+    unit = models.CharField("واحد", max_length=30, blank=True)
+    is_variant_axis = models.BooleanField("واجد شرایط محور تنوع", default=False)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "ویژگی قالب صنف"
+        verbose_name_plural = "ویژگی‌های قالب صنف"
+        ordering = ["display_order", "label"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["industry_template", "code"], name="uniq_template_attribute_code_per_template",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.industry_template.name} — {self.label}"
+
+
+class IndustryTemplateAttributeValue(TimeStampedModel):
+    template_attribute = models.ForeignKey(
+        IndustryTemplateAttribute, verbose_name="ویژگی قالب", on_delete=models.CASCADE, related_name="values",
+    )
+    label = models.CharField("برچسب", max_length=120)
+    value = models.CharField("مقدار داخلی", max_length=120, blank=True, default="")
+    color_hex = models.CharField("کد رنگ (Hex)", max_length=9, blank=True)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "مقدار ویژگی قالب صنف"
+        verbose_name_plural = "مقادیر ویژگی قالب صنف"
+        ordering = ["display_order", "label"]
+
+    def __str__(self):
+        return f"{self.template_attribute.label}: {self.label}"
+
+
+class IndustryTemplateCategoryAttributeMapping(TimeStampedModel):
+    """این ویژگی روی این دسته‌بندیِ قالب صنف باید نمایش داده شود — با تنظیمات پیش‌فرض."""
+
+    template_category = models.ForeignKey(
+        IndustryTemplateCategory, verbose_name="دسته‌بندی قالب", on_delete=models.CASCADE,
+        related_name="attribute_mappings",
+    )
+    template_attribute = models.ForeignKey(
+        IndustryTemplateAttribute, verbose_name="ویژگی قالب", on_delete=models.CASCADE,
+        related_name="category_mappings",
+    )
+    group = models.CharField("گروه/بخش", max_length=80, blank=True, default="")
+    group_order = models.PositiveIntegerField("ترتیب گروه", default=0)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+    is_required = models.BooleanField("الزامی", default=False)
+    is_filterable = models.BooleanField("قابل فیلتر", default=False)
+    is_comparable = models.BooleanField("قابل مقایسه", default=False)
+    is_searchable = models.BooleanField("قابل جست‌وجو", default=False)
+    help_text = models.CharField("متن راهنما", max_length=300, blank=True, default="")
+    placeholder = models.CharField("متن جای‌گیر", max_length=120, blank=True, default="")
+
+    class Meta:
+        verbose_name = "نگاشت ویژگی-دسته‌بندی قالب صنف"
+        verbose_name_plural = "نگاشت‌های ویژگی-دسته‌بندی قالب صنف"
+        ordering = ["group_order", "display_order"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["template_category", "template_attribute"], name="uniq_template_category_attribute",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.template_category.name} — {self.template_attribute.label}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if (
+            self.template_category_id and self.template_attribute_id
+            and self.template_category.industry_template_id != self.template_attribute.industry_template_id
+        ):
+            raise ValidationError({"template_attribute": "این ویژگی متعلق به قالب صنف دیگری است."})
+
+
+class IndustryTemplateRecommendedOption(TimeStampedModel):
+    """محور تنوع پیشنهادی برای این دسته‌بندیِ قالب صنف (مثلاً «رنگ» برای «تی‌شرت»)."""
+
+    template_category = models.ForeignKey(
+        IndustryTemplateCategory, verbose_name="دسته‌بندی قالب", on_delete=models.CASCADE,
+        related_name="recommended_options",
+    )
+    template_attribute = models.ForeignKey(
+        IndustryTemplateAttribute, verbose_name="ویژگی قالب", on_delete=models.CASCADE,
+        related_name="recommended_for_categories",
+    )
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "محور تنوع پیشنهادی قالب صنف"
+        verbose_name_plural = "محورهای تنوع پیشنهادی قالب صنف"
+        ordering = ["display_order"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["template_category", "template_attribute"], name="uniq_template_recommended_option",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.template_category.name} — {self.template_attribute.label}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.template_attribute_id and not self.template_attribute.is_variant_axis:
+            raise ValidationError({
+                "template_attribute": "فقط ویژگی‌های واجد شرایط محور تنوع می‌توانند پیشنهاد شوند.",
+            })
+
+
+class StoreIndustryInstallation(TimeStampedModel):
+    """رکورد نصب یک قالب صنف روی یک Store — نگاه کنید به ADR-25.
+
+    یک Store در طول عمرش فقط می‌تواند یک بار نصب انجام دهد (سیاست ساده و
+    امن انتخاب‌شده در ADR-25)؛ ``UniqueConstraint`` روی ``store`` این را
+    در سطح دیتابیس هم تضمین می‌کند، نه فقط در لایه‌ی سرویس."""
+
+    class Status(models.TextChoices):
+        COMPLETED = "completed", "نصب‌شده"
+        FAILED = "failed", "ناموفق"
+
+    store = models.OneToOneField(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="industry_installation",
+    )
+    industry_template = models.ForeignKey(
+        IndustryTemplate, verbose_name="قالب صنف", on_delete=models.PROTECT, related_name="installations",
+    )
+    installed_version = models.PositiveIntegerField("نسخه‌ی نصب‌شده")
+    status = models.CharField("وضعیت", max_length=10, choices=Status.choices, default=Status.COMPLETED)
+    categories_created = models.PositiveIntegerField("تعداد دسته‌بندی ساخته‌شده", default=0)
+    attributes_created = models.PositiveIntegerField("تعداد ویژگی ساخته‌شده", default=0)
+
+    class Meta:
+        verbose_name = "نصب قالب صنف"
+        verbose_name_plural = "نصب‌های قالب صنف"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.store.name} ← {self.industry_template.name}"
+
+
+class CategoryAttributeSchema(TimeStampedModel):
+    """طرح ویژگیِ یک دسته‌بندیِ متعلق به Store — نگاه کنید به ADR-23.
+
+    ``is_inherited_by_children`` فقط نگاشت این ردیف را کنترل می‌کند: آیا
+    این ردیف باید به زیردسته‌ها هم به ارث برسد یا نه. این دسته همیشه
+    نگاشت مستقیم خودش را استفاده می‌کند، صرف‌نظر از مقدار این پرچم روی
+    ردیف‌های خودش — این پرچم فقط جهت تأثیر رو به پایین (روی فرزندان) را
+    تعیین می‌کند."""
+
+    category = models.ForeignKey(
+        Category, verbose_name="دسته‌بندی", on_delete=models.CASCADE, related_name="attribute_schema_entries",
+    )
+    attribute = models.ForeignKey(
+        Attribute, verbose_name="ویژگی", on_delete=models.PROTECT, related_name="category_schema_entries",
+    )
+    group = models.CharField("گروه/بخش", max_length=80, blank=True, default="")
+    group_order = models.PositiveIntegerField("ترتیب گروه", default=0)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+    is_required = models.BooleanField("الزامی", default=False)
+    is_filterable_override = models.BooleanField("قابل فیلتر (بازنویسی)", null=True, blank=True)
+    is_comparable_override = models.BooleanField("قابل مقایسه (بازنویسی)", null=True, blank=True)
+    is_searchable_override = models.BooleanField("قابل جست‌وجو (بازنویسی)", null=True, blank=True)
+    help_text = models.CharField("متن راهنما", max_length=300, blank=True, default="")
+    placeholder = models.CharField("متن جای‌گیر", max_length=120, blank=True, default="")
+    is_visible_on_storefront = models.BooleanField("نمایش در فروشگاه", default=True)
+    is_inherited_by_children = models.BooleanField("به ارث رسیدن به زیردسته‌ها", default=True)
+    source_template_mapping = models.ForeignKey(
+        IndustryTemplateCategoryAttributeMapping, verbose_name="نگاشت مبدأ در قالب صنف", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="installed_mappings",
+    )
+
+    class Meta:
+        verbose_name = "طرح ویژگی دسته‌بندی"
+        verbose_name_plural = "طرح‌های ویژگی دسته‌بندی"
+        ordering = ["group_order", "display_order"]
+        constraints = [
+            models.UniqueConstraint(fields=["category", "attribute"], name="uniq_category_attribute_schema"),
+        ]
+
+    def __str__(self):
+        return f"{self.category.name} — {self.attribute.label}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.attribute_id and self.category_id and self.attribute.store_id != self.category.store_id:
+            raise ValidationError({"attribute": "این ویژگی متعلق به فروشگاه دیگری است."})
+
+    @property
+    def is_filterable(self):
+        if self.is_filterable_override is not None:
+            return self.is_filterable_override
+        return self.attribute.is_filterable
+
+    @property
+    def is_comparable(self):
+        if self.is_comparable_override is not None:
+            return self.is_comparable_override
+        return self.attribute.is_comparable
+
+    @property
+    def is_searchable(self):
+        if self.is_searchable_override is not None:
+            return self.is_searchable_override
+        return self.attribute.is_searchable
+
+
+class CategoryRecommendedOption(TimeStampedModel):
+    """محور تنوع پیشنهادی برای این دسته‌بندیِ متعلق به Store (نسخه‌ی نصب‌شده/دستی)."""
+
+    category = models.ForeignKey(
+        Category, verbose_name="دسته‌بندی", on_delete=models.CASCADE, related_name="recommended_options",
+    )
+    attribute = models.ForeignKey(
+        Attribute, verbose_name="ویژگی", on_delete=models.CASCADE, related_name="recommended_for_categories",
+    )
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "محور تنوع پیشنهادی دسته‌بندی"
+        verbose_name_plural = "محورهای تنوع پیشنهادی دسته‌بندی"
+        ordering = ["display_order"]
+        constraints = [
+            models.UniqueConstraint(fields=["category", "attribute"], name="uniq_category_recommended_option"),
+        ]
+
+    def __str__(self):
+        return f"{self.category.name} — {self.attribute.label}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        errors = {}
+        if self.attribute_id and self.category_id and self.attribute.store_id != self.category.store_id:
+            errors["attribute"] = "این ویژگی متعلق به فروشگاه دیگری است."
+        if self.attribute_id and not self.attribute.is_variant_axis:
+            errors["attribute"] = "فقط ویژگی‌های واجد شرایط محور تنوع می‌توانند پیشنهاد شوند."
+        if errors:
+            raise ValidationError(errors)
 
 
 class Specification(TimeStampedModel):

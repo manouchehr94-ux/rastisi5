@@ -1143,6 +1143,267 @@ automatic merge.
 
 ---
 
+## ADR-22: Industry Templates Are Platform-Owned and Read-Only; Installation Deep-Copies Into Store-Owned Records, Never Links to the Shared Template
+
+**Context.** Phase 1E needs a library of reusable per-industry catalog
+structures (categories, attributes, values, category→attribute mappings,
+recommended variant options) that a merchant can install into their Store
+to avoid designing a catalog from scratch. The obvious risk: if a Store's
+catalog structure is represented as *live references* into shared
+`IndustryTemplate` rows, any future edit to the template (fixing a typo,
+adding a value) could silently ripple into every Store that installed it,
+and a Store's own customization (renaming a category, disabling an
+optional attribute) would either be impossible to express or would corrupt
+the shared template for every other Store.
+
+**Decision.** `IndustryTemplate` and its children
+(`TemplateCategory`, `TemplateAttribute`, `TemplateAttributeValue`,
+`TemplateCategoryAttributeMapping`, `TemplateRecommendedOption`) are
+platform-owned, have no `store` FK anywhere in the chain, and are never
+writable through any Store-scoped/`StoreMembership`-gated code path — only
+Django admin (superuser) or a management command touches them (§26).
+`apps.catalog.services.industry_template_service.install_industry_template
+(store, industry_template)` performs a **deep copy**: it creates genuinely
+new, Store-owned `Category`, `Attribute`, `AttributeValue`,
+`CategoryAttributeSchema`, and `CategoryRecommendedOption` rows, one for
+one, from the template's data. After installation, a Store's catalog rows
+have **no live FK back to the template rows that produced them** for
+day-to-day operation — the only connection is a nullable, purely
+informational traceability FK (`Category.source_template_category`,
+`Attribute.source_template_attribute`, both `SET_NULL` on template
+deletion) plus one `StoreIndustryInstallation` row recording which
+template (and which version) a Store installed and when. Editing a
+`Category`, `Attribute`, or `CategoryAttributeSchema` row after
+installation is *ordinary Store-owned catalog editing* — the exact same
+code path (`attribute_service`, the Category views) a merchant who never
+installed any template uses. There is no special "templated" mode a
+Category can be in.
+
+**Consequences.** A future edit to a platform `IndustryTemplate` can never
+affect an already-installed Store, by construction — there is no
+mechanism by which it could, since nothing in a Store's catalog holds a
+live reference to template data at query time. This also means Phase 1E
+does not need to build any "protect template-derived fields from merchant
+edits" enforcement: a merchant can rename, reorder, archive, or add to
+their installed categories/attributes exactly as freely as anything they
+built by hand, because after installation there is no meaningful
+distinction left to protect. The cost of this choice is real duplication:
+ten Stores installing the same "Clothing" template each get their own
+full copy of every category/attribute/value row — accepted deliberately,
+since SQLite/Postgres row counts at this scale are not a concern, and the
+alternative (shared/linked records with an override layer) is
+categorically more complex to build correctly and query efficiently.
+`install_industry_template` also **reuses** an existing Store `Attribute`
+by `code` instead of creating a duplicate if one already exists with a
+matching code (`get_or_create`) — this is the one place a merchant's
+*pre-existing* catalog data intentionally interacts with installation, and
+it only ever reuses, never overwrites, an existing row's other fields.
+
+**Alternatives considered.** Live FK from Store `Category` to
+`TemplateCategory` with a per-Store override table layered on top —
+rejected: correctly resolving "effective" values through an override layer
+at every read (product form load, category list, schema resolution) adds
+real query complexity for a benefit (saving template-update propagation)
+this phase's own §23 (versioning) explicitly says must *not* happen
+automatically anyway — the override layer would exist only to prevent a
+behavior the product spec says should never occur, making it pure
+unrewarded complexity. A "linked copy with detach-on-edit" hybrid
+(reference the template until the merchant's first edit, then fork) —
+rejected as needless statefulness: every code path that touches a
+Category/Attribute would need to first check "is this still linked or has
+it forked," for a benefit no requirement asks for.
+
+## ADR-23: Category Attribute Schema Resolution — Direct Mappings Always Win Over Inherited Ones; Inheritance Is Opt-Out Per Mapping, Not Per Category
+
+**Context.** Phase 1E's Category hierarchy (pre-existing, two levels:
+parent/child `Category` rows) needs Attribute schema *inheritance* — an
+Attribute assigned to "Clothing" should apply to "Clothing → T-Shirts" —
+while guaranteeing the Product form is handed one normalized list with no
+duplicate Attribute entries when the same Attribute is reachable through
+more than one path (assigned directly on the child *and* inherited from
+the parent).
+
+**Decision.** Each `CategoryAttributeSchema` row (the mapping of one
+`Attribute` onto one `Category`) carries its own
+`is_inherited_by_children` boolean (default `True`) — inheritance is a
+property of the *mapping*, not a category-wide switch, so a merchant can
+mark one specific Attribute assignment as "just for this category, don't
+propagate to children" without affecting any other mapping on the same
+category. `apps.catalog.services.category_schema_service.resolve_category_schema
+(category)` walks from `category` up through every ancestor
+(`category.parent`, `category.parent.parent`, …), collecting: (a) *every*
+`CategoryAttributeSchema` row directly on `category` itself, regardless of
+that row's own `is_inherited_by_children` value (a category always uses
+its own direct mappings — that flag only ever governs propagation
+*downward* to children, never affects the category the row lives on), and
+(b) for each ancestor, only the ancestor's rows where
+`is_inherited_by_children=True`. When the same `Attribute` appears from
+more than one source (e.g. a direct mapping on the child *and* an
+inherited one from the parent), **the most specific mapping wins** — the
+child's own direct row (if any) is used verbatim (its `group`/`order`/
+`is_required`/help text/etc.), and the ancestor's row for that same
+Attribute is discarded entirely rather than merged field-by-field. Direct
+mappings are looked up first (closest ancestor — the category itself —
+wins over anything further up), so a two-level-removed grandparent's
+mapping loses to a parent's mapping for the same Attribute, which in turn
+loses to the category's own.
+
+**Consequences.** The Product form, `build_product_specification`, and
+publish validation all consume the single list `resolve_category_schema`
+returns and never need to reason about inheritance themselves — each
+`ResolvedSchemaEntry` in that list already carries a resolved
+`is_required`/`group`/`display_order`/etc. and a `source_category`
+(which category in the chain the winning mapping actually came from) plus
+an `is_inherited` boolean, purely for UI display ("این ویژگی از «پوشاک»
+به ارث رسیده" badges) — never for re-deriving behavior. A merchant who
+wants a child category to *not* show a parent's optional Attribute cannot
+do so by editing the child (there is no child-side "hide this inherited
+Attribute" row in this phase) — only by editing the parent mapping's
+`is_inherited_by_children` flag directly (which affects *all* of that
+parent's children uniformly). This is a deliberate, named scope
+reduction — a proper per-child "hide this one inherited Attribute"
+override is listed as a remaining gap in the Phase 1E report rather than
+built now, since it would require a third kind of record (a child-level
+suppression row) whose interaction with future re-installation/versioning
+was not resolvable within this phase's time.
+
+**Alternatives considered.** Category-wide `inherits_from_parent` boolean
+(all-or-nothing per category) — rejected: too coarse for the concrete
+prompt example (a Store wants "Country of Manufacture" inherited
+everywhere but "Season" only on seasonal subcategories), which needs
+per-mapping control. Field-by-field merge of parent and child mappings for
+the same Attribute (e.g. take the child's `group` but the parent's
+`is_required`) — rejected: unpredictable and hard to explain to a
+merchant ("why is this field required here but its help text is from
+somewhere else?"); "closest mapping wins outright" is a rule a UI badge
+can state in one sentence.
+
+## ADR-24: Product Attribute Values Are Never Deleted on Category Change — They Become Invisible (Not in the New Schema) Until an Explicit Cleanup Action Is Taken
+
+**Context.** Changing a Product's Category changes which
+`CategoryAttributeSchema` entries apply to it. A `ProductAttributeValue`
+row that was valid under the old Category (e.g. "Sleeve Type: Long" on a
+T-Shirt) may not correspond to any Attribute in the new Category's schema
+(e.g. after moving the Product to "Shoes"). The prompt is explicit:
+existing data must never be silently deleted, and any destructive cleanup
+needs an explicit merchant confirmation.
+
+**Decision.** No new field or flag is added to `ProductAttributeValue`
+for this. Changing `Product.category` is an ordinary field update — it
+does not trigger any automatic deletion, migration, or mutation of
+existing `ProductAttributeValue` rows at all. Instead,
+`apps.catalog.services.category_schema_service.orphaned_product_attribute_values
+(product)` computes, on demand (at product-edit-page render time and
+before publish), the set of a Product's existing `ProductAttributeValue`
+rows whose `attribute` is *not* present in `resolve_category_schema
+(product.category)`'s current result — these are "orphaned," not
+deleted, not hidden from the database, simply no longer part of what the
+current Category's schema asks for. `build_product_specification`
+(§ "Product Specifications") only ever renders schema-membership-filtered
+values, so an orphaned value never appears in specification output or the
+active product-edit form automatically — but it still physically exists
+and is trivially recoverable (e.g. switching the Category back). Deleting
+an orphaned value is only ever a distinct, explicit action
+(`cleanup_orphaned_attribute_values(product)`) the product-edit UI offers
+behind its own confirmation, never something a Category-change save does
+by itself.
+
+**Consequences.** A Category change is always non-destructive and instant
+— there is no "are you sure, this might delete data" interstitial on the
+save action itself, because the save action provably cannot delete
+anything. The product-edit page, after a Category change, shows a
+distinct "این مقادیر دیگر با دسته‌بندی فعلی مطابقت ندارند" (these values
+no longer match the current category) panel listing exactly the orphaned
+values with a manual "پاک‌سازی" (cleanup) button — the warning the prompt
+requires exists at the point of *consequence* (viewing the product after
+the change) rather than *action* (the change itself), which is simpler to
+reason about and impossible to accidentally skip past (unlike a
+confirm-dialog a merchant might reflexively click through). Publish
+validation (§ "Draft and Publish Validation") only checks *required*
+attributes of the *current* schema — an orphaned value from the old
+Category, being outside the current schema entirely, is never counted
+toward or against publish-readiness either way.
+
+**Alternatives considered.** A `ProductAttributeValue.is_orphaned` boolean
+flag, set automatically on Category change — rejected: it would need to be
+kept in sync any time *either* the Product's Category *or* the Category's
+own schema changes (e.g. a merchant removes an Attribute mapping from a
+Category entirely, orphaning it for every Product in that Category at
+once) — computing it on demand from the current schema is simpler,
+always-correct by construction, and never goes stale. Hard-blocking a
+Category change until the merchant manually resolves every orphaned value
+first — rejected: the prompt explicitly asks that old values be
+*preservable*, not that a Category change be blocked by pre-existing data,
+and forcing resolution up front would make Category changes needlessly
+disruptive for what is very often a harmless, later-cleaned-up situation.
+
+## ADR-25: Industry Template Versions Are Immutable Snapshots; Existing Installations Never Auto-Update, and No Update-Application UI Ships This Phase
+
+**Context.** Industry templates will need to evolve over time (a new
+recommended Attribute, a corrected category name) without ever silently
+mutating a Store's already-installed, possibly-customized catalog — the
+prompt's §23 explicitly forbids automatic overwrites of merchant changes.
+
+**Decision.** `IndustryTemplate.version` is a plain `PositiveIntegerField`,
+and `(slug, version)` is unique — a "new version" of an industry is
+authored as an **entirely new `IndustryTemplate` row** (new PK, new full
+tree of `TemplateCategory`/`TemplateAttribute`/etc.), never an in-place
+edit of an existing template's children. This makes every
+`IndustryTemplate` row, once created, an immutable historical snapshot by
+construction — there is no code path in this phase that mutates a
+`TemplateCategory`/`TemplateAttribute`/etc. row after creation (the seed
+management command, per ADR-below-on-idempotency, only ever creates
+missing rows, never edits existing ones — see the Phase 1E report §5).
+`StoreIndustryInstallation.installed_version` records exactly which
+version a Store installed. A Store may only ever install **one**
+`IndustryTemplate`, period, for its entire lifetime — see the Phase 1E
+report's Industry Change Policy: `install_industry_template` rejects any
+call once a `StoreIndustryInstallation` row already exists for that Store
+(enforced by service-level check plus a `UniqueConstraint(fields=["store"])`
+as a database-level backstop), regardless of whether the new call targets
+the same industry, a newer version of it, or an entirely different
+industry. This is deliberately the strictest of the prompt's own
+explicitly-acceptable §22 options ("Block change after installation"),
+chosen because it requires no new merge/reconciliation logic at all — the
+one thing every other listed option (additional-template-without-deleting,
+required-migration-workflow, empty-catalog-required) would need.
+
+**Consequences.** "Existing Stores keep their copied records; new Stores
+receive the latest template" (the prompt's own preferred default in §23)
+holds trivially: a new `IndustryTemplate` version is simply a new row that
+future installations pick, and no existing `StoreIndustryInstallation` or
+the Store-owned rows it produced are ever touched by that new row's
+existence. No "review available updates and apply them selectively" UI is
+built this phase — the data model (`installed_version` vs. the current
+max version for that `slug` being queryable) supports building one later
+without a schema change, and this gap is named explicitly in the Phase 1E
+report rather than left ambiguous. A Store that installs the wrong
+industry, or whose business changes industries entirely, has no supported
+in-product path to switch in this phase — a platform operator would need
+to intervene directly (e.g. via Django admin) — a real, named limitation,
+not an oversight.
+
+**Alternatives considered.** Mutable templates with a `version` field that
+increments in place on edit — rejected: it reintroduces exactly the
+"does an edit affect already-installed Stores" ambiguity ADR-22 exists to
+foreclose; an editor could all too easily "fix a typo" on a live template
+row believing it only affects future installs, when in a mutable-row
+design the meaning of "already installed" vs. "the template" is not
+statically distinguishable without extremely careful, easy-to-get-wrong
+discipline. Allowing a Store to install additional templates alongside its
+first (union of multiple industries' structures) — rejected for this
+phase specifically because merging two industries' category trees and
+attribute schemas without collision (two industries both wanting a
+"Color" attribute with different `data_type`s, for instance) is a real
+design problem the prompt itself does not resolve, and the single-
+installation-only policy sidesteps it entirely without losing any
+capability a Store lacks another way (a merchant can always build
+additional categories/attributes by hand after installing their one
+template — nothing is blocked, only *automatic* multi-industry merging
+is).
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -1170,3 +1431,7 @@ automatic merge.
 | Descriptive `Attribute` and variant-generating `ProductOption` are separate models sharing one optional `Attribute` definition | Decided, implemented |
 | Variant combination identity is `VariantOptionValue` + derived `combination_key`, not display strings | Decided, implemented |
 | Variant reconciliation never hard-deletes; obsolete combinations are marked, axis removal requires explicit regeneration | Decided, implemented |
+| Industry templates are platform-owned/read-only; installation deep-copies into Store-owned records, no live template FK | Decided, implemented |
+| Category Attribute schema inheritance: direct mapping always wins, opt-out is per-mapping not per-category | Decided, implemented |
+| Category change never deletes `ProductAttributeValue`; orphaned values are computed on demand, cleanup is explicit | Decided, implemented |
+| Industry template versions are immutable snapshots; a Store may install at most one template, ever (no auto-update) | Decided, implemented |

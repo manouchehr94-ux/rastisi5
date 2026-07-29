@@ -23,7 +23,9 @@
       </div>
       <div class="form-group">
         <label>زیرگروه کالا *</label>
-        <select class="inp" name="category">
+        <select class="inp" name="category"
+                hx-get="{% if product %}{% url 'dashboard:product-attribute-fields-edit' product.pk %}{% else %}{% url 'dashboard:product-attribute-fields' %}{% endif %}"
+                hx-trigger="change" hx-target="#productAttributeFields" hx-swap="outerHTML">
           <option value="">— انتخاب کنید —</option>
           {% regroup form.fields.category.queryset by parent as category_groups %}
           {% for group in category_groups %}
@@ -125,6 +127,10 @@
         <input type="checkbox" name="requires_shipping" {% if form.requires_shipping.value %}checked{% endif %}>
         نیاز به ارسال فیزیکی دارد
       </label>
+    </fieldset>
+    <fieldset class="form-group">
+      <legend>ویژگی‌های اختصاصی دسته‌بندی</legend>
+      {% include "dashboard/partials/product_attribute_fields.html" %}
     </fieldset>
     <fieldset class="form-group">
       <legend>سئو</legend>

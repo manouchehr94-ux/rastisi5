@@ -261,6 +261,23 @@ class ProductOptionValueAddForm(forms.Form):
         return label
 
 
+class CategoryAttributeAddForm(forms.Form):
+    """اعتبارسنجی ساختاری فرم افزودن ویژگی به دسته‌بندی؛ اعتبارسنجی کسب‌وکاری در category_schema_service است."""
+
+    attribute = forms.ModelChoiceField(label="ویژگی", queryset=Attribute.objects.none())
+    group = forms.CharField(label="گروه/بخش", max_length=80, required=False)
+    is_required = forms.BooleanField(label="الزامی", required=False)
+    is_inherited_by_children = forms.BooleanField(
+        label="به ارث برسد به زیردسته‌ها", required=False, initial=True,
+    )
+    help_text = forms.CharField(label="متن راهنما", max_length=300, required=False)
+    placeholder = forms.CharField(label="متن جای‌گیر", max_length=120, required=False)
+
+    def __init__(self, *args, store, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["attribute"].queryset = Attribute.objects.filter(store=store, is_active=True).order_by("label")
+
+
 class MainCategoryForm(forms.Form):
     name = forms.CharField(label="نام گروه", max_length=120)
     icon = forms.CharField(label="آیکون (ایموجی)", max_length=10, required=False, initial="📁")

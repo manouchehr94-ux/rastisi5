@@ -10,6 +10,19 @@
   </div>
 </div>
 {% else %}
+{% if recommended_options %}
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3>محورهای تنوع پیشنهادی برای این دسته‌بندی</h3></div>
+  <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap">
+    {% for recommendation in recommended_options %}
+    <form hx-post="{% url 'dashboard:product-apply-recommended-option' product.pk recommendation.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm">➕ {{ recommendation.attribute.label }}</button>
+    </form>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 <div class="card" style="margin-bottom:18px">
   <div class="card-head"><h3>محورهای تنوع</h3></div>
   <div class="card-body">

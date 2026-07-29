@@ -18,16 +18,22 @@ from apps.catalog.models import (
     AttributeValue,
     Brand,
     Category,
+    CategoryAttributeSchema,
+    CategoryRecommendedOption,
+    IndustryTemplate,
     Product,
+    ProductAttributeValue,
     ProductImage,
     ProductOption,
     ProductOptionValue,
     ProductVariant,
+    StoreIndustryInstallation,
 )
 from apps.catalog.services.attribute_service import (
     AttributeError_,
     AttributeInUseError,
     activate_attribute,
+    add_product_attribute_multiselect_value,
     archive_attribute,
     archive_attribute_value,
     can_delete_attribute,
@@ -36,10 +42,28 @@ from apps.catalog.services.attribute_service import (
     create_attribute_value,
     delete_attribute,
     delete_attribute_value,
+    remove_product_attribute_value,
+    set_product_attribute_value,
     update_attribute,
     update_attribute_value,
 )
+from apps.catalog.services.category_schema_service import (
+    CategorySchemaError,
+    add_category_attribute,
+    cleanup_orphaned_attribute_values,
+    orphaned_product_attribute_values,
+    remove_category_attribute,
+    reorder_category_attributes,
+    resolve_category_schema,
+    update_category_attribute,
+)
+from apps.catalog.services.industry_template_service import (
+    IndustryInstallationError,
+    install_industry_template,
+)
 from apps.catalog.services.pricing_service import resolve_effective_price
+from apps.catalog.services.product_publish_service import validate_product_for_publish
+from apps.catalog.services.product_specification_service import build_product_specification
 from apps.catalog.services.product_image_service import (
     ProductImageError,
     add_product_image,
@@ -107,6 +131,7 @@ from apps.stores.authorization import (
 from .forms import (
     AttributeForm,
     AttributeValueForm,
+    CategoryAttributeAddForm,
     CategoryEditForm,
     FinanceSettingsForm,
     MainCategoryForm,
@@ -324,6 +349,87 @@ class NoVendorForStoreError(Exception):
     """این Store هنوز هیچ فروشنده‌ای ندارد؛ کالای جدید بدون فروشنده قابل ساخت نیست."""
 
 
+class ProductPublishError(Exception):
+    """کالا برای انتشار (وضعیت فعال) آماده نیست — نگاه کنید به product_publish_service."""
+
+
+def _product_attribute_field_context(category, product=None):
+    """فهرست فیلدهای پویا (طبق طرح ویژگیِ دسته‌بندی) برای رندر در فرم کالا — مقدار فعلی هم پرشده."""
+    if category is None:
+        return []
+    schema_entries = resolve_category_schema(category)
+    existing_by_attribute: dict[int, list] = {}
+    if product is not None and product.pk:
+        for assignment in ProductAttributeValue.objects.filter(product=product).select_related("value"):
+            existing_by_attribute.setdefault(assignment.attribute_id, []).append(assignment)
+
+    fields = []
+    for entry in schema_entries:
+        attribute = entry.attribute
+        assignments = existing_by_attribute.get(attribute.pk, [])
+        field = {
+            "entry": entry, "attribute": attribute,
+            "field_name": f"attr_{attribute.pk}",
+            "text_value": "", "number_value": None, "boolean_value": None,
+            "selected_value_id": None, "selected_value_ids": set(),
+        }
+        if attribute.data_type in (Attribute.DataType.TEXT, Attribute.DataType.DATE) and assignments:
+            field["text_value"] = assignments[0].text_value
+        elif attribute.data_type == Attribute.DataType.NUMBER and assignments:
+            field["number_value"] = assignments[0].number_value
+        elif attribute.data_type == Attribute.DataType.BOOLEAN and assignments:
+            field["boolean_value"] = assignments[0].boolean_value
+        elif attribute.data_type in (Attribute.DataType.SELECT, Attribute.DataType.COLOR) and assignments:
+            field["selected_value_id"] = assignments[0].value_id
+        elif attribute.data_type == Attribute.DataType.MULTISELECT:
+            field["selected_value_ids"] = {a.value_id for a in assignments}
+        fields.append(field)
+    return fields
+
+
+def _save_product_attribute_values(request, product):
+    """مقادیر فیلدهای پویا (``attr_<id>``) را طبق طرح ویژگیِ دسته‌بندیِ فعلی کالا ذخیره می‌کند."""
+    for entry in resolve_category_schema(product.category):
+        attribute = entry.attribute
+        field_name = f"attr_{attribute.pk}"
+
+        if attribute.data_type == Attribute.DataType.MULTISELECT:
+            remove_product_attribute_value(product, attribute)
+            for raw_id in request.POST.getlist(field_name):
+                value = AttributeValue.objects.filter(pk=raw_id, attribute=attribute).first()
+                if value is not None:
+                    add_product_attribute_multiselect_value(product, attribute, value)
+            continue
+
+        raw = request.POST.get(field_name, "").strip()
+        if attribute.data_type in (Attribute.DataType.SELECT, Attribute.DataType.COLOR):
+            if not raw:
+                remove_product_attribute_value(product, attribute)
+                continue
+            value = AttributeValue.objects.filter(pk=raw, attribute=attribute).first()
+            if value is not None:
+                set_product_attribute_value(product, attribute, value=value)
+        elif attribute.data_type == Attribute.DataType.NUMBER:
+            if not raw:
+                remove_product_attribute_value(product, attribute)
+                continue
+            try:
+                number = Decimal(normalize_digits(raw))
+            except InvalidOperation:
+                continue
+            set_product_attribute_value(product, attribute, number_value=number)
+        elif attribute.data_type == Attribute.DataType.BOOLEAN:
+            if raw not in ("true", "false"):
+                remove_product_attribute_value(product, attribute)
+                continue
+            set_product_attribute_value(product, attribute, boolean_value=(raw == "true"))
+        else:  # TEXT / DATE
+            if not raw:
+                remove_product_attribute_value(product, attribute)
+                continue
+            set_product_attribute_value(product, attribute, text_value=raw)
+
+
 def _save_product(form, product, *, store):
     data = form.cleaned_data
     if product is None:
@@ -361,6 +467,8 @@ def product_form(request, pk=None):
     product = get_object_or_404(Product, pk=pk, store=store) if pk else None
     is_new = product is None
 
+    old_category_id = product.category_id if product else None
+
     if request.method == "POST":
         form = ProductForm(request.POST, instance=product, store=store)
         if form.is_valid():
@@ -370,14 +478,32 @@ def product_form(request, pk=None):
                     product = _save_product(form, product, store=store)
                     if requested_type and requested_type != product.product_type:
                         set_product_type(product, requested_type)
+                    _save_product_attribute_values(request, product)
+                    if product.status == Product.Status.ACTIVE:
+                        publish_errors = validate_product_for_publish(product)
+                        if publish_errors:
+                            raise ProductPublishError(publish_errors)
             except (ProductTypeError, NoVendorForStoreError) as exc:
                 form.add_error(None, str(exc))
-                return render(request, "dashboard/partials/product_form.html", {"form": form, "product": product})
+                attribute_fields = _product_attribute_field_context(form.cleaned_data.get("category"), product)
+                return render(request, "dashboard/partials/product_form.html", {
+                    "form": form, "product": product, "attribute_fields": attribute_fields,
+                })
+            except ProductPublishError as exc:
+                for message in exc.args[0]:
+                    form.add_error(None, message)
+                attribute_fields = _product_attribute_field_context(form.cleaned_data.get("category"), product)
+                return render(request, "dashboard/partials/product_form.html", {
+                    "form": form, "product": product, "attribute_fields": attribute_fields,
+                })
             except ValidationError as exc:
                 for field, messages in exc.message_dict.items():
                     for message in messages:
                         form.add_error(field if field in form.fields else None, message)
-                return render(request, "dashboard/partials/product_form.html", {"form": form, "product": product})
+                attribute_fields = _product_attribute_field_context(form.cleaned_data.get("category"), product)
+                return render(request, "dashboard/partials/product_form.html", {
+                    "form": form, "product": product, "attribute_fields": attribute_fields,
+                })
 
             table_html = render_to_string(
                 "dashboard/partials/products_table_inner.html", _product_list_context(request), request=request,
@@ -386,10 +512,18 @@ def product_form(request, pk=None):
                 "target_id": "productsTableWrap", "inner_html": table_html,
             })
             action = "ویرایش" if not is_new else "افزوده"
-            response["HX-Trigger"] = json.dumps({
-                "toast": {"message": f"کالا با موفقیت {action} شد", "type": "ok"},
-                "modal-close": {},
-            })
+            toast = {"message": f"کالا با موفقیت {action} شد", "type": "ok"}
+            if old_category_id and old_category_id != product.category_id:
+                orphan_count = orphaned_product_attribute_values(product).count()
+                if orphan_count:
+                    toast = {
+                        "message": (
+                            f"کالا {action} شد — {orphan_count} مقدار ویژگی با دسته‌بندی جدید مطابقت ندارد "
+                            "و برای بازبینی/پاک‌سازی در فرم ویرایش نگه داشته شده است."
+                        ),
+                        "type": "info",
+                    }
+            response["HX-Trigger"] = json.dumps({"toast": toast, "modal-close": {}})
             return response
     else:
         initial = None
@@ -408,7 +542,43 @@ def product_form(request, pk=None):
             initial = {"product_type": Product.ProductType.SIMPLE}
         form = ProductForm(instance=product, initial=initial, store=store)
 
-    return render(request, "dashboard/partials/product_form.html", {"form": form, "product": product})
+    attribute_fields = _product_attribute_field_context(product.category if product else None, product)
+    orphaned_count = orphaned_product_attribute_values(product).count() if product else 0
+    return render(request, "dashboard/partials/product_form.html", {
+        "form": form, "product": product, "attribute_fields": attribute_fields, "orphaned_count": orphaned_count,
+    })
+
+
+@staff_required
+@permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
+def product_attribute_fields(request, pk=None):
+    """بارگذاری/تازه‌سازی فیلدهای پویای ویژگی — هنگام تغییر دسته‌بندی در فرم کالا (بدون ارسال کل فرم)."""
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store) if pk else None
+    category_id = request.GET.get("category", "").strip()
+    category = Category.objects.filter(pk=category_id, store=store).first() if category_id else None
+    attribute_fields = _product_attribute_field_context(category, product)
+    return render(request, "dashboard/partials/product_attribute_fields.html", {
+        "attribute_fields": attribute_fields,
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(PRODUCT_EDIT)
+def product_attribute_cleanup_orphans(request, pk):
+    """مقادیر ویژگیِ منسوخ (خارج از طرح دسته‌بندیِ فعلی) را با تأیید صریح مدیر حذف می‌کند."""
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
+    deleted_count = cleanup_orphaned_attribute_values(product)
+    attribute_fields = _product_attribute_field_context(product.category, product)
+    response = render(request, "dashboard/partials/product_attribute_fields.html", {
+        "attribute_fields": attribute_fields, "orphaned_count": 0,
+    })
+    response["HX-Trigger"] = json.dumps({
+        "toast": {"message": f"{deleted_count} مقدار منسوخ پاک‌سازی شد", "type": "info"},
+    })
+    return response
 
 
 @require_POST
@@ -1039,6 +1209,15 @@ def _product_options_context(request, product):
         product.variants.exclude(combination_key="").order_by("display_order")
         .prefetch_related("option_values__option", "option_values__option_value")
     )
+    applied_attribute_ids = {axis.attribute_id for axis in axes if axis.attribute_id}
+    recommended_options = []
+    if product.category_id:
+        recommended_options = list(
+            CategoryRecommendedOption.objects.filter(category=product.category)
+            .exclude(attribute_id__in=applied_attribute_ids)
+            .select_related("attribute")
+            .order_by("display_order")
+        )
     return {
         "product": product,
         "axes": axes,
@@ -1047,6 +1226,7 @@ def _product_options_context(request, product):
         "active_variants": [v for v in variants if not v.is_obsolete],
         "combination_preview": preview_combination_count(product),
         "has_legacy_variants": product.variants.filter(combination_key="").exists(),
+        "recommended_options": recommended_options,
         "option_form": ProductOptionForm(),
         "option_value_form": ProductOptionValueAddForm(),
         "active_page": "products",
@@ -1084,6 +1264,25 @@ def product_option_add(request, pk):
             return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
         return _product_options_response(request, product, toast={"message": "محور تنوع اضافه شد", "type": "ok"})
     return _product_options_response(request, product, toast={"message": "لطفاً خطاهای فرم را برطرف کنید", "type": "err"})
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_apply_recommended_option(request, pk, recommendation_id):
+    """محور تنوع پیشنهادیِ دسته‌بندی را — فقط با تأیید صریح مدیر — به کالا اضافه می‌کند."""
+    product = _get_scoped_product(request, pk)
+    recommendation = get_object_or_404(
+        CategoryRecommendedOption, pk=recommendation_id, category=product.category,
+    )
+    values = [v.label for v in recommendation.attribute.values.filter(is_active=True)]
+    try:
+        add_product_option(product, label=recommendation.attribute.label, attribute=recommendation.attribute, values=values)
+    except VariantEngineError as exc:
+        return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
+    return _product_options_response(request, product, toast={
+        "message": f"محور پیشنهادی «{recommendation.attribute.label}» اضافه شد", "type": "ok",
+    })
 
 
 @require_POST
@@ -1362,6 +1561,108 @@ def category_delete(request, pk):
     return response
 
 
+# ------------------------------------------------- طرح ویژگیِ دسته‌بندی (Category Attribute Schema)
+
+
+def _category_schema_context(request, category, *, form=None):
+    store = _resolve_dashboard_store(request)
+    return {
+        "category": category,
+        "resolved_schema": resolve_category_schema(category),
+        "direct_entries": category.attribute_schema_entries.select_related("attribute").order_by(
+            "group_order", "display_order",
+        ),
+        "form": form or CategoryAttributeAddForm(store=store),
+    }
+
+
+@staff_required
+@permission_required(CATEGORY_MANAGE)
+def category_schema(request, pk):
+    store = _resolve_dashboard_store(request)
+    category = get_object_or_404(Category, pk=pk, store=store)
+    return render(
+        request, "dashboard/partials/category_schema_modal.html", _category_schema_context(request, category),
+    )
+
+
+def _category_schema_response(request, category, *, toast=None):
+    response = render(
+        request, "dashboard/partials/category_schema_list.html", _category_schema_context(request, category),
+    )
+    if toast:
+        response["HX-Trigger"] = json.dumps({"toast": toast})
+    return response
+
+
+@require_POST
+@staff_required
+@permission_required(CATEGORY_MANAGE)
+def category_schema_add(request, pk):
+    store = _resolve_dashboard_store(request)
+    category = get_object_or_404(Category, pk=pk, store=store)
+    form = CategoryAttributeAddForm(request.POST, store=store)
+    if form.is_valid():
+        try:
+            add_category_attribute(
+                category, form.cleaned_data["attribute"], group=form.cleaned_data["group"],
+                is_required=form.cleaned_data["is_required"],
+                is_inherited_by_children=form.cleaned_data["is_inherited_by_children"],
+                help_text=form.cleaned_data["help_text"], placeholder=form.cleaned_data["placeholder"],
+            )
+        except CategorySchemaError as exc:
+            return _category_schema_response(request, category, toast={"message": str(exc), "type": "err"})
+        return _category_schema_response(request, category, toast={"message": "ویژگی اضافه شد", "type": "ok"})
+    return render(request, "dashboard/partials/category_schema_list.html", {
+        **_category_schema_context(request, category, form=form),
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(CATEGORY_MANAGE)
+def category_schema_toggle_required(request, pk, entry_id):
+    store = _resolve_dashboard_store(request)
+    category = get_object_or_404(Category, pk=pk, store=store)
+    entry = get_object_or_404(CategoryAttributeSchema, pk=entry_id, category=category)
+    update_category_attribute(entry, is_required=not entry.is_required)
+    return _category_schema_response(request, category)
+
+
+@require_POST
+@staff_required
+@permission_required(CATEGORY_MANAGE)
+def category_schema_remove(request, pk, entry_id):
+    store = _resolve_dashboard_store(request)
+    category = get_object_or_404(Category, pk=pk, store=store)
+    entry = get_object_or_404(CategoryAttributeSchema, pk=entry_id, category=category)
+    label = entry.attribute.label
+    remove_category_attribute(entry)
+    return _category_schema_response(request, category, toast={"message": f"«{label}» حذف شد", "type": "info"})
+
+
+@require_POST
+@staff_required
+@permission_required(CATEGORY_MANAGE)
+def category_schema_move(request, pk, entry_id):
+    store = _resolve_dashboard_store(request)
+    category = get_object_or_404(Category, pk=pk, store=store)
+    entry = get_object_or_404(CategoryAttributeSchema, pk=entry_id, category=category)
+    direction = request.POST.get("direction", "")
+
+    ordered_ids = list(
+        category.attribute_schema_entries.order_by("group_order", "display_order").values_list("pk", flat=True)
+    )
+    if direction in ("up", "down") and entry.pk in ordered_ids:
+        index = ordered_ids.index(entry.pk)
+        neighbor_index = index - 1 if direction == "up" else index + 1
+        if 0 <= neighbor_index < len(ordered_ids):
+            ordered_ids[index], ordered_ids[neighbor_index] = ordered_ids[neighbor_index], ordered_ids[index]
+            reorder_category_attributes(category, ordered_ids)
+
+    return _category_schema_response(request, category)
+
+
 # --------------------------------------------------------------- سفارش‌ها
 
 
@@ -1611,8 +1912,23 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
         "gateways": settings_admin_service.active_gateways_context(store=store),
         "shipping_methods": settings_admin_service.shipping_methods_context(store=store),
         "gateway_configs": settings_admin_service.gateway_configs_context(store=store),
+        "industry_templates": _latest_active_industry_templates(),
+        "industry_installation": StoreIndustryInstallation.objects.filter(store=store)
+        .select_related("industry_template").first(),
         "active_page": "settings",
     }
+
+
+def _latest_active_industry_templates():
+    """جدیدترین نسخه‌ی فعالِ هر صنف را برمی‌گرداند (یک ردیف به‌ازای هر slug)."""
+    seen_slugs = set()
+    latest = []
+    for template in IndustryTemplate.objects.filter(is_active=True).order_by("slug", "-version", "display_order"):
+        if template.slug in seen_slugs:
+            continue
+        seen_slugs.add(template.slug)
+        latest.append(template)
+    return sorted(latest, key=lambda t: (t.display_order, t.name))
 
 
 SETTINGS_SECTIONS = [
@@ -1622,6 +1938,7 @@ SETTINGS_SECTIONS = [
     ("payment-config", "پیکربندی درگاه", "🔐", "تنظیمات اعتبارنامه و فعال‌سازی درگاه‌های پرداخت"),
     ("sms", "پیامک", "📲", "اتصال و قالب‌های پیامک"),
     ("appearance", "تم رنگی", "🎨", "پیش‌فرض‌ها و رنگ‌بندی سفارشی فروشگاه"),
+    ("industry", "صنف فروشگاه", "🏭", "نصب الگوی کاتالوگ آماده بر اساس صنف فعالیت"),
 ]
 
 VALID_SECTION_KEYS = {s[0] for s in SETTINGS_SECTIONS}
@@ -1637,6 +1954,21 @@ def settings_home(request):
     context["sections"] = SETTINGS_SECTIONS
     context["active_section"] = section
     return render(request, "dashboard/settings.html", context)
+
+
+@require_POST
+@staff_required
+@permission_required(SETTINGS_MANAGE)
+def settings_industry_install(request, template_id):
+    store = _resolve_dashboard_store(request)
+    template = get_object_or_404(IndustryTemplate, pk=template_id)
+    try:
+        install_industry_template(store, template)
+    except IndustryInstallationError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, f"الگوی صنف «{template.name}» با موفقیت نصب شد")
+    return redirect(f"{reverse('dashboard:settings')}?section=industry")
 
 
 @require_POST

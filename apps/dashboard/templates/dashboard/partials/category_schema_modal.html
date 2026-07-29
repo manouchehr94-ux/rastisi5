@@ -1,0 +1,11 @@
+{% load persian %}
+<div class="modal-head">
+  <h3>طرح ویژگی — {{ category.name }}</h3>
+  <button type="button" class="x-btn" @click="modalOpen = false">✕</button>
+</div>
+<div class="modal-body">
+  {% include "dashboard/partials/category_schema_list.html" %}
+</div>
+<div class="modal-foot">
+  <button type="button" class="btn" @click="modalOpen = false">بستن</button>
+</div>

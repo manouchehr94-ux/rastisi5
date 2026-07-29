@@ -3,6 +3,14 @@ from django.contrib import admin
 from .models import (
     Brand,
     Category,
+    CategoryAttributeSchema,
+    CategoryRecommendedOption,
+    IndustryTemplate,
+    IndustryTemplateAttribute,
+    IndustryTemplateAttributeValue,
+    IndustryTemplateCategory,
+    IndustryTemplateCategoryAttributeMapping,
+    IndustryTemplateRecommendedOption,
     Product,
     ProductImage,
     ProductVariant,
@@ -10,6 +18,7 @@ from .models import (
     Specification,
     SpecificationTemplate,
     SpecificationTemplateField,
+    StoreIndustryInstallation,
     Vendor,
 )
 
@@ -156,3 +165,97 @@ class SpecificationTemplateAdmin(admin.ModelAdmin):
 class SpecificationAdmin(admin.ModelAdmin):
     list_display = ("product", "label", "value", "order")
     search_fields = ("product__name", "label")
+
+
+# =============================================================================
+# قالب‌های صنف پلتفرم (Phase 1E) — نگاه کنید به ADR-22. این مدل‌ها هیچ FK به
+# Store ندارند و عمداً فقط از طریق این پنل (superuser) یا دستور مدیریتی
+# seed_industry_templates قابل‌نوشتن‌اند — هرگز از مسیر StoreMembership.
+# =============================================================================
+
+
+class IndustryTemplateCategoryInline(admin.TabularInline):
+    model = IndustryTemplateCategory
+    extra = 0
+    fields = ("code", "name", "icon", "parent", "display_order")
+
+
+class IndustryTemplateAttributeInline(admin.TabularInline):
+    model = IndustryTemplateAttribute
+    extra = 0
+    fields = ("code", "label", "data_type", "is_variant_axis", "display_order")
+
+
+@admin.register(IndustryTemplate)
+class IndustryTemplateAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "version", "is_active", "display_order")
+    list_filter = ("is_active",)
+    search_fields = ("name", "slug")
+    inlines = [IndustryTemplateCategoryInline, IndustryTemplateAttributeInline]
+
+
+@admin.register(IndustryTemplateCategory)
+class IndustryTemplateCategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "industry_template", "parent", "display_order")
+    list_filter = ("industry_template",)
+    search_fields = ("name", "code")
+
+
+@admin.register(IndustryTemplateAttribute)
+class IndustryTemplateAttributeAdmin(admin.ModelAdmin):
+    list_display = ("label", "code", "industry_template", "data_type", "is_variant_axis")
+    list_filter = ("industry_template", "data_type", "is_variant_axis")
+    search_fields = ("label", "code")
+
+
+@admin.register(IndustryTemplateAttributeValue)
+class IndustryTemplateAttributeValueAdmin(admin.ModelAdmin):
+    list_display = ("label", "template_attribute", "display_order")
+    list_filter = ("template_attribute__industry_template",)
+    search_fields = ("label",)
+
+
+@admin.register(IndustryTemplateCategoryAttributeMapping)
+class IndustryTemplateCategoryAttributeMappingAdmin(admin.ModelAdmin):
+    list_display = ("template_category", "template_attribute", "group", "is_required", "display_order")
+    list_filter = ("template_category__industry_template", "is_required")
+
+
+@admin.register(IndustryTemplateRecommendedOption)
+class IndustryTemplateRecommendedOptionAdmin(admin.ModelAdmin):
+    list_display = ("template_category", "template_attribute", "display_order")
+    list_filter = ("template_category__industry_template",)
+
+
+@admin.register(StoreIndustryInstallation)
+class StoreIndustryInstallationAdmin(admin.ModelAdmin):
+    """پنل بازرسی نصب قالب صنف — فقط‌خواندنی؛ نصب واقعی فقط از طریق
+    install_industry_template انجام می‌شود تا قوانین اتمیک/idempotency
+    دور زده نشوند."""
+
+    list_display = ("store", "industry_template", "installed_version", "status", "created_at")
+    list_filter = ("status", "industry_template")
+    search_fields = ("store__name",)
+    actions = None
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(CategoryAttributeSchema)
+class CategoryAttributeSchemaAdmin(StoreLockedOnEditMixin, admin.ModelAdmin):
+    list_display = ("category", "attribute", "group", "is_required", "display_order")
+    list_filter = ("is_required",)
+    search_fields = ("category__name", "attribute__label")
+
+
+@admin.register(CategoryRecommendedOption)
+class CategoryRecommendedOptionAdmin(StoreLockedOnEditMixin, admin.ModelAdmin):
+    list_display = ("category", "attribute", "display_order")
+    search_fields = ("category__name", "attribute__label")

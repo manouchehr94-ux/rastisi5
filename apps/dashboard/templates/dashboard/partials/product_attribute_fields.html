@@ -1,0 +1,67 @@
+{% load persian %}
+<div id="productAttributeFields">
+  {% if orphaned_count %}
+  <div class="info-box" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;justify-content:space-between">
+    <span>{{ orphaned_count|fa_number }} مقدار ویژگی با دسته‌بندی فعلی مطابقت ندارد.</span>
+    <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:product-attribute-cleanup' product.pk %}"
+            hx-target="#productAttributeFields" hx-swap="outerHTML"
+            hx-confirm="مقادیر ویژگیِ منسوخ برای همیشه حذف شوند؟">پاک‌سازی مقادیر منسوخ</button>
+  </div>
+  {% endif %}
+
+  {% regroup attribute_fields by entry.group as field_groups %}
+  {% for group in field_groups %}
+  <fieldset class="form-group">
+    {% if group.grouper %}<legend>{{ group.grouper }}</legend>{% endif %}
+    {% for field in group.list %}
+    <div class="form-group">
+      <label>
+        {{ field.attribute.label }}{% if field.entry.is_required %} *{% endif %}
+        {% if field.entry.is_inherited %}<small style="color:var(--muted)"> (به ارث رسیده از «{{ field.entry.source_category.name }}»)</small>{% endif %}
+      </label>
+
+      {% if field.attribute.data_type == "text" or field.attribute.data_type == "date" %}
+      <input class="inp" name="{{ field.field_name }}" value="{{ field.text_value }}" placeholder="{{ field.entry.placeholder }}">
+
+      {% elif field.attribute.data_type == "number" %}
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="inp" name="{{ field.field_name }}" value="{{ field.number_value|default_if_none:'' }}" dir="ltr" inputmode="numeric" placeholder="{{ field.entry.placeholder }}">
+        {% if field.attribute.unit %}<span style="color:var(--muted);font-size:12.5px">{{ field.attribute.unit }}</span>{% endif %}
+      </div>
+
+      {% elif field.attribute.data_type == "boolean" %}
+      <select class="inp" name="{{ field.field_name }}">
+        <option value="" {% if field.boolean_value is None %}selected{% endif %}>— نامشخص —</option>
+        <option value="true" {% if field.boolean_value == True %}selected{% endif %}>بله</option>
+        <option value="false" {% if field.boolean_value == False %}selected{% endif %}>خیر</option>
+      </select>
+
+      {% elif field.attribute.data_type == "select" or field.attribute.data_type == "color" %}
+      <select class="inp" name="{{ field.field_name }}">
+        <option value="">— انتخاب کنید —</option>
+        {% for value in field.attribute.values.all %}
+        <option value="{{ value.pk }}" {% if field.selected_value_id == value.pk %}selected{% endif %}>
+          {{ value.label }}
+        </option>
+        {% endfor %}
+      </select>
+
+      {% elif field.attribute.data_type == "multiselect" %}
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        {% for value in field.attribute.values.all %}
+        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px">
+          <input type="checkbox" name="{{ field.field_name }}" value="{{ value.pk }}" {% if value.pk in field.selected_value_ids %}checked{% endif %}>
+          {{ value.label }}
+        </label>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if field.entry.help_text %}<small style="color:var(--muted);display:block;margin-top:4px">{{ field.entry.help_text }}</small>{% endif %}
+    </div>
+    {% endfor %}
+  </fieldset>
+  {% empty %}
+  <p style="color:var(--muted);font-size:12.5px">برای این دسته‌بندی هیچ ویژگی توصیفی‌ای تعریف نشده است.</p>
+  {% endfor %}
+</div>

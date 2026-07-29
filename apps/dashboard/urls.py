@@ -15,6 +15,9 @@ urlpatterns = [
     path("products/add/", views.product_form, name="product-add"),
     path("products/<int:pk>/edit/", views.product_form, name="product-edit"),
     path("products/<int:pk>/delete/", views.product_delete, name="product-delete"),
+    path("products/attribute-fields/", views.product_attribute_fields, name="product-attribute-fields"),
+    path("products/<int:pk>/attribute-fields/", views.product_attribute_fields, name="product-attribute-fields-edit"),
+    path("products/<int:pk>/attribute-fields/cleanup/", views.product_attribute_cleanup_orphans, name="product-attribute-cleanup"),
 
     path("products/<int:pk>/images/", views.product_images, name="product-images"),
     path("products/<int:pk>/images/upload/", views.product_image_upload, name="product-image-upload"),
@@ -45,6 +48,7 @@ urlpatterns = [
 
     path("products/<int:pk>/options/", views.product_options, name="product-options"),
     path("products/<int:pk>/options/add/", views.product_option_add, name="product-option-add"),
+    path("products/<int:pk>/options/recommended/<int:recommendation_id>/apply/", views.product_apply_recommended_option, name="product-apply-recommended-option"),
     path("products/<int:pk>/options/reorder/", views.product_options_reorder, name="product-options-reorder"),
     path("products/<int:pk>/options/<int:option_id>/move/", views.product_option_move, name="product-option-move"),
     path("products/<int:pk>/options/<int:option_id>/deactivate/", views.product_option_deactivate, name="product-option-deactivate"),
@@ -60,6 +64,11 @@ urlpatterns = [
     path("categories/add-sub/", views.category_add_sub, name="category-add-sub"),
     path("categories/<int:pk>/edit/", views.category_edit, name="category-edit"),
     path("categories/<int:pk>/delete/", views.category_delete, name="category-delete"),
+    path("categories/<int:pk>/schema/", views.category_schema, name="category-schema"),
+    path("categories/<int:pk>/schema/add/", views.category_schema_add, name="category-schema-add"),
+    path("categories/<int:pk>/schema/<int:entry_id>/toggle-required/", views.category_schema_toggle_required, name="category-schema-toggle-required"),
+    path("categories/<int:pk>/schema/<int:entry_id>/remove/", views.category_schema_remove, name="category-schema-remove"),
+    path("categories/<int:pk>/schema/<int:entry_id>/move/", views.category_schema_move, name="category-schema-move"),
 
     path("orders/", views.order_list, name="order-list"),
     path("orders/table/", views.order_table, name="order-table"),
@@ -81,6 +90,7 @@ urlpatterns = [
 
     path("settings/", views.settings_home, name="settings"),
     path("settings/shop-info/", views.settings_shop_info, name="settings-shop-info"),
+    path("settings/industry/<int:template_id>/install/", views.settings_industry_install, name="settings-industry-install"),
     path("settings/finance/", views.settings_finance, name="settings-finance"),
     path("settings/appearance/", views.settings_appearance, name="settings-appearance"),
     path("settings/gateways/<int:pk>/toggle/", views.settings_gateway_toggle, name="settings-gateway-toggle"),

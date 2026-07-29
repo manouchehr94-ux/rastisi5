@@ -6,7 +6,8 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.catalog.models import Category, Product, ProductOption, ProductVariant, Vendor
+from apps.catalog.models import Category, CategoryRecommendedOption, Product, ProductOption, ProductVariant, Vendor
+from apps.catalog.services.attribute_service import create_attribute, create_attribute_value
 from apps.catalog.services.variant_engine_service import add_product_option, generate_variants
 from apps.stores.models import Store, StoreMembership
 
@@ -321,3 +322,61 @@ class ProductOptionsPermissionTests(ProductOptionsViewsTestCase):
         self.client.login(username="09121155999", password="pass12345")
         response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
         self.assertRedirects(response, reverse("catalog:home"), fetch_redirect_response=False)
+
+
+class RecommendedOptionTests(ProductOptionsViewsTestCase):
+    def _recommend(self, label="رنگ", values=("سبز", "آبی")):
+        attribute = create_attribute(self.store, label=label, is_variant_axis=True)
+        for value_label in values:
+            create_attribute_value(attribute, label=value_label)
+        return CategoryRecommendedOption.objects.create(category=self.category, attribute=attribute)
+
+    def test_recommendation_shown_on_page(self):
+        self._recommend()
+        response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        self.assertContains(response, "پیشنهادی")
+        self.assertContains(response, "رنگ")
+
+    def test_apply_recommendation_creates_option_with_values(self):
+        recommendation = self._recommend()
+        response = self.client.post(
+            reverse("dashboard:product-apply-recommended-option", args=[self.product.pk, recommendation.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        option = ProductOption.objects.get(product=self.product, label="رنگ")
+        self.assertEqual(option.values.count(), 2)
+
+    def test_applied_recommendation_no_longer_listed(self):
+        recommendation = self._recommend()
+        self.client.post(
+            reverse("dashboard:product-apply-recommended-option", args=[self.product.pk, recommendation.pk])
+        )
+        response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        self.assertNotContains(response, "پیشنهادی")
+
+    def test_ignoring_recommendation_never_auto_applies(self):
+        self._recommend()
+        self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        self.assertFalse(ProductOption.objects.filter(product=self.product).exists())
+
+    def test_recommendation_from_other_category_not_shown(self):
+        other_category = Category.objects.create(store=self.store, name="دسته دیگر", slug="popt-rec-other")
+        attribute = create_attribute(self.store, label="جنس", is_variant_axis=True)
+        CategoryRecommendedOption.objects.create(category=other_category, attribute=attribute)
+        response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        self.assertNotContains(response, "پیشنهادی")
+
+    def test_apply_recommendation_from_other_product_category_404s(self):
+        other_product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای دیگر۷",
+            slug="popt-other-p7", sku="POPT-OTHER-SKU7", price=Decimal("1000"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        other_category = Category.objects.create(store=self.store, name="دسته دیگر۲", slug="popt-rec-other2")
+        other_product.category = other_category
+        other_product.save(update_fields=["category"])
+        recommendation = self._recommend()  # tied to self.category, not other_category
+        response = self.client.post(
+            reverse("dashboard:product-apply-recommended-option", args=[other_product.pk, recommendation.pk])
+        )
+        self.assertEqual(response.status_code, 404)
