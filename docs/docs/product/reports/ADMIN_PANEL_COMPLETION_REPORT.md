@@ -1676,3 +1676,50 @@ every new feature this checkpoint touched.
 ---
 
 ## 25. Checkpoint 4 Final Full-Suite Validation and Conclusion
+
+```
+python manage.py check                                 → 0 issues
+python manage.py makemigrations --check --dry-run      → No changes detected
+python manage.py migrate                                → no migrations to apply (already applied)
+python manage.py provision_default_warehouses           → 1 Store checked, 0 new rows (idempotent)
+python manage.py verify_inventory_consistency --strict  → consistent
+python manage.py validate_industry_templates --strict   → 30/30 valid, 0 errors
+python manage.py cleanup_expired_exports                → 0 expired
+python manage.py refresh_customer_segments              → 0 segments refreshed, 0 failed (none exist yet in this environment)
+python manage.py test apps.dashboard apps.core apps.customers apps.stores
+...
+Ran 1268 tests in 794.479s
+
+OK
+python manage.py test
+...
+Ran 2662 tests in 1035.699s
+
+OK
+```
+
+**2,662/2,662 passing** — up from 2,579 at the end of checkpoint 3B by
+exactly 83, matching §24's tally precisely. `manage.py check` and
+`makemigrations --check --dry-run` were both re-verified clean
+immediately before this run; `provision_default_warehouses` and
+`verify_inventory_consistency --strict` confirm the inventory ledger
+this checkpoint's Inventory export reads from remains consistent;
+`validate_industry_templates --strict` re-confirms 30/30 templates still
+valid, untouched by this checkpoint. The two new management commands
+both ran clean (nothing to clean up / nothing to refresh, since this
+verification environment has no expired exports or existing segments —
+their dedicated test suites, §24, exercise the actual behavior). Nothing
+regressed, nothing skipped, nothing hidden.
+
+**Checkpoint 4 delivers Export (all five types, real generation services,
+real Merchant Admin UI, private authenticated downloads), the Customer CRM
+foundation (Store-scoped profile/notes/tags), Customer Segments (a real
+allowlisted rule engine with live preview, explicit refresh, and full
+Merchant Admin UI — not a model sitting behind no evaluation logic or UI),
+Customer and Product bulk actions, the extended permission registry, and
+two Store-safe management commands — not stubs, not partial wiring.**
+CSV Import (Product/Variant/Inventory) is explicitly **not** delivered —
+named honestly in the Checkpoint 4 Addendum at the top of this report and
+in ADR-54, with a concrete list of what a follow-up checkpoint needs,
+rather than folded silently into "done" or claimed as "partially
+implemented."
