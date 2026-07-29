@@ -2860,6 +2860,13 @@ established discipline, not a new one invented for segments alone.
 
 ## ADR-54: CSV Import (Product/Variant/Inventory) Is Explicitly Deferred Out of Checkpoint 4 — Not Implemented, Not Partially Implemented, Named Here as a Gap
 
+> **Superseded by checkpoint 4B (ADR-55 through ADR-62).** This ADR
+> recorded, honestly, that Import was deferred out of checkpoint 4. It was
+> then delivered in full in checkpoint 4B along the exact plan sketched in
+> its "what a future Import checkpoint needs" section. Kept here unedited as
+> the historical record of the deferral decision; the live design is ADR-55+.
+
+
 **Context.** Checkpoint 4's request specifies a large, genuinely
 high-risk Import domain: `ImportJob`/`ImportRowResult` models, a
 dry-run-preview engine that shares its exact validation path with
@@ -2935,6 +2942,290 @@ actually a smaller task than the full Import domain.
 
 ---
 
+## ADR-55: Import Job Lifecycle — Upload → Synchronous Dry-Run Preview → Explicit Execute, All In-Request
+
+**Context.** Checkpoint 4B asks for an Import domain with a job model whose
+statuses read like an async pipeline (`uploaded`/`validating`/
+`preview_ready`/`processing`/`completed`/`completed_with_errors`/`failed`/
+`cancelled`). This platform has no background task queue (ADR-49) — the
+same constraint that shaped `ExportJob`.
+
+**Decision.** `ImportJob` mirrors `ExportJob`: the file is uploaded and
+stored privately (`create_import_job`), then a **dry-run preview**
+(`run_preview`) parses and validates every row and records an
+`ImportRowResult` per row **without touching catalog/inventory data** —
+the job lands in `preview_ready`. Only an explicit, separate merchant
+action (`run_execution`, behind a confirmation button) re-runs the *same*
+validation-and-apply path with `dry_run=False`, mutating data and landing
+the job in `completed`/`completed_with_errors`/`failed`. Every transition
+happens synchronously within the request that triggered it; the statuses
+are history/UI markers, not a real queue. `validating`/`processing` are
+transient in-request states set before the work and overwritten after.
+
+**Consequences.** A merchant always sees exactly what will happen before
+anything changes — the preview is not an estimate, it is the same code that
+executes, so a row shown as "will create" in preview is created on execute
+(barring a concurrent external change). Very large files block the worker
+for the duration; a real queue is the documented next step before exposing
+this to Stores with huge catalogs. `cancel_import_job` lets a
+`preview_ready` job be abandoned without executing.
+
+**Alternatives considered.** A single upload-and-apply action with no
+preview — rejected: the whole point of the checkpoint is a safe,
+reviewable import; applying 20,000 catalog mutations sight-unseen is
+exactly what the dry-run exists to prevent.
+
+---
+
+## ADR-56: Import Executes Per-Batch-Atomic, With Row-Level Results and a Shared Preview/Execute Validation Path
+
+**Context.** Checkpoint 4B §16 requires per-batch atomic execution
+(default 100 rows), row-level result recording, a failed batch rolling back
+without losing other successful batches, and — critically — preview and
+execution using the *same* parser and validation code, never a second
+divergent implementation.
+
+**Decision.** `run_import` is a single generic engine used by all three
+import types and by both preview and execution. It streams rows
+(`read_csv_rows_bounded`, never loading the whole file into memory),
+chunks them into batches of `DEFAULT_BATCH_SIZE=100`, and runs each batch
+inside its own `transaction.atomic`. Each type provides one
+`_validate_*_row` function (called identically in preview and execute) and
+one `_apply_*_row` function (called only when `dry_run=False`); a row that
+fails to apply is caught, recorded as `failed` with its error, and the
+batch continues — the per-row apply for products/variants uses nested
+atomics (`full_clean`/service calls) so one bad row's writes roll back to a
+savepoint without poisoning the batch. Job counters (`total`/`valid`/
+`invalid`/`created`/`updated`/`skipped`/`failed`) and final status are
+derived from the actual `ImportRowResult` outcomes: all-clean →
+`completed`, some invalid/failed but some applied → `completed_with_errors`,
+nothing applied → `failed`.
+
+**Consequences.** A single malformed row never aborts a 10,000-row import;
+the merchant gets a precise per-row report and a downloadable error CSV of
+just the problem rows. Because preview and execute share the validation
+function, "validated one way, executed another" drift is structurally
+impossible. `MAX_IMPORT_ROWS` (20,000) and `MAX_STORED_ERROR_ROWS` bound
+resource use.
+
+**Alternatives considered.** Whole-file single transaction — rejected: one
+bad row on row 9,999 would roll back 9,998 good rows, the opposite of the
+"preserve successful batches" requirement. Per-row transactions — rejected
+as needlessly slow (a savepoint per row) versus per-batch, which the
+request explicitly recommends.
+
+---
+
+## ADR-57: Import Stable-Identity Resolution — Store-Scoped ID, Then Store-Scoped SKU, Never Name/Slug; Cross-Store IDs Hard-Rejected
+
+**Context.** An import row must be matched to an existing record (for
+update) or recognized as new (for create), deterministically, without ever
+letting one Store touch another's data.
+
+**Decision.** Product identity precedence is: (1) a Store-scoped
+`product_id` — an integer PK that must resolve to a Product *in this
+Store*; a PK belonging to another Store is a hard row error, never a silent
+fall-through to SKU; (2) a Store-scoped `sku` — matched only within this
+Store's Products; (3) otherwise no match (create, or reject under
+`update_only`). Name and slug are never update-identity keys. Variant
+identity adds `variant_id`/`variant_sku` (Store-scoped, and consistent with
+the row's product) plus the stable option-combination key derived from the
+Variant Engine; a `variant_id` alone implies its parent product.
+`create_only`/`update_only`/`upsert` are always explicit — the mode is
+never inferred from whether a match was found.
+
+**Consequences.** A merchant re-importing an export of their own catalog
+updates in place (IDs round-trip); a merchant importing a supplier's file
+without IDs matches on SKU within their own Store only. A hostile file
+carrying another Store's product/variant/brand/category/tax-class/warehouse
+ID gets a row error, never a cross-tenant write — proven by the tenant-
+isolation tests.
+
+**Alternatives considered.** Matching on name — rejected explicitly by the
+request (names are not stable identity). An `external_id` column — reserved
+for a future checkpoint; Product has no such field today, so implementing
+it would be speculative scope.
+
+---
+
+## ADR-58: Product Import Writes Only Through the Existing Service/Model Layer — Never a Second Product-Creation Path; Stock Always Through the Inventory Service
+
+**Context.** §10 forbids a second Product-creation system that bypasses
+existing invariants, and §8 forbids writing stock directly when warehouse
+inventory is enabled.
+
+**Decision.** `_apply_product_row` sets fields on a `Product` instance (new
+or fetched), assigns Store-scoped Brand/Category/TaxClass resolved from the
+bulk-prefetched lookup cache, generates a unique slug via the existing
+`catalog_admin_service.generate_unique_slug`, and calls `product.full_clean()`
+(excluding `stock`) then `save()` — the same validation path the admin form
+uses, so `Product.clean()`'s cross-Store FK guards and every field
+validator run. Stock is applied separately through
+`inventory_service.adjust_stock_manually`, which creates the `StockMovement`
+and keeps `WarehouseInventory` consistent — the import service never assigns
+`Product.stock` directly. Brand/Category/TaxClass are resolved by
+**Store-scoped stable code** (`brand_code`=slug, `category_code`=leaf
+category slug, `tax_class_code`=code), never by display name; a missing or
+foreign reference is a row error, and import never auto-creates categories
+or brands.
+
+**Consequences.** Import cannot produce a Product that the admin form would
+reject; existing variants, images, historical Order references, and
+template-source metadata on an updated Product are untouched (only the
+columns present are written). The inventory ledger stays consistent after
+import (`verify_inventory_consistency --strict` passes).
+
+**Alternatives considered.** `bulk_create` for speed — rejected: it
+bypasses `full_clean` and per-instance slug generation, exactly the
+invariants this ADR exists to preserve. Resolving references by name —
+rejected by §9.
+
+---
+
+## ADR-59: Variant Import Drives the Existing Variant Engine — Combinations Are Materialized by `generate_variants`, Never Hand-Built
+
+**Context.** §12 requires Variant Import to use the existing Variant Engine,
+build the stable combination key, reject duplicate combinations, preserve
+existing variant PKs/SKUs/images/Order references, respect the 3-axis cap,
+never mix legacy and multi-axis modes, never hard-delete, and never create
+`VariantOptionValue` rows in a way that bypasses the engine.
+
+**Decision.** Variant Import resolves each row's option axes/values by
+**normalized-label match against the product's already-active
+`ProductOption`s/values** (this codebase has no separate option "code"
+field — `normalized_label` is the stable identity), builds the combination
+key from the resolved value PKs, and — for a combination that does not yet
+have a `ProductVariant` — calls the real
+`variant_engine_service.generate_variants(product)` **once per product**
+(idempotent; it exhaustively materializes all active combinations without
+deleting or duplicating any). It then applies the row's SKU/price/stock/
+active fields to the resolved variant via `full_clean()`/`save()` and
+`adjust_stock_manually`, and routes `is_default` through
+`set_default_variant`. Import never creates axes or values, never writes
+`VariantOptionValue` directly, and rejects a legacy (single-axis) product,
+a foreign product/variant, or a variant whose product doesn't match the
+row.
+
+**Consequences.** Every reconciliation rule, the 3-axis cap, the
+default-variant single-flag constraint, and the no-hard-delete policy hold
+because the engine — not the import code — owns combination identity.
+Updating a variant preserves its PK, its images (variant-linked
+`ProductImage` rows are untouched), and its SKU when the column is blank.
+
+**Alternatives considered.** Hand-creating `ProductVariant` +
+`VariantOptionValue` rows for speed — rejected explicitly by §12; it would
+duplicate the engine's combination-key logic and risk divergence from
+`generate_variants`' reconciliation.
+
+---
+
+## ADR-60: Inventory Import Routes Every Row Through a Warehouse-Aware Inventory Service Call That Enforces Reservation Safety
+
+**Context.** §13/§14 require every inventory row to use the inventory
+service (creating a `StockMovement`, recording warehouse/actor/reason/note,
+keeping aggregate stock correct, preserving reservation consistency) and
+never to write `WarehouseInventory`/`Product.stock`/`ProductVariant.stock`
+directly — and to reject any reduction that would drop available stock
+below the active reservation total.
+
+**Decision.** A new `inventory_service.adjust_warehouse_stock` is the single
+entry point: it locks the target row (`select_for_update`), computes the
+delta (`adjustment` = signed quantity; `set_on_hand` = target minus that
+warehouse's current on-hand), rejects a negative aggregate result and —
+critically — rejects any result below the sum of **active reservations**
+(`available = aggregate − reserved`), then writes the `WarehouseInventory`
+balance, the aggregate `Product`/`ProductVariant.stock`, and a
+`StockMovement` (reason `IMPORT_ADJUSTMENT`, actor recorded, CSV
+reason+note preserved in the movement note) atomically. Inventory Import's
+`_apply_inventory_row` only calls this service; a zero-delta row is
+`skipped`, not failed. Warehouse/product/variant are all Store-scoped;
+cross-Store references and variant-belongs-to-other-product are rejected.
+
+**Consequences.** An import can never oversell — reducing stock below what
+carts/orders have already reserved is refused at the row level (adversarial
+tests cover both `adjustment` and `set_on_hand`). The reservation model this
+codebase tracks per Store/Product (ADR-39), not per warehouse, is honored:
+availability is checked against the aggregate, matching how checkout
+reserves. The ledger stays consistent (`verify_inventory_consistency
+--strict`).
+
+**Alternatives considered.** Per-warehouse reservation checking — rejected:
+this codebase reserves at the Product/Store level, not per warehouse, so a
+per-warehouse available check would be inventing a model that doesn't
+exist. Writing `WarehouseInventory` directly for speed — rejected by §13.
+
+---
+
+## ADR-61: Import Idempotency — Optional Per-Store Key at Upload, Final-Status Guard at Execute
+
+**Context.** §17 requires that a completed job cannot execute twice, a
+browser retry cannot duplicate products, inventory is not applied twice,
+and variant rows are not duplicated.
+
+**Decision.** Two complementary guards. (1) An optional `idempotency_key`
+on `ImportJob`, unique per Store (partial DB constraint when non-empty,
+exactly like `Order.idempotency_key`) — a repeat upload with the same key
+is rejected at `create_import_job`. (2) `run_execution` refuses to run when
+the job is already in `ImportJob.FINAL_STATUSES`
+(`completed`/`completed_with_errors`/`failed`/`cancelled`) — so a
+double-clicked execute button, or a retry after a partial failure, changes
+nothing; the second call raises before reading the file. Because
+create/update decisions are re-derived from stable identity (ADR-57) each
+run, even a *new* job re-importing the same file updates in place rather
+than duplicating.
+
+**Consequences.** The three "retry" scenarios (duplicate execute request,
+retry after partial failure, retry after success) are all no-ops on the
+same job; a fixed-and-re-uploaded file is a new job that upserts, not
+duplicates. Inventory replay is prevented because the same job can't
+re-execute, and a corrected re-upload's `set_on_hand` rows are absolute
+(idempotent by nature) while `adjustment` rows are the merchant's explicit
+new delta.
+
+**Alternatives considered.** Per-row operation keys stored across jobs —
+rejected as overkill for this checkpoint; the job-level final-status guard
+plus stable-identity upsert covers every replay scenario the request
+enumerates.
+
+---
+
+## ADR-62: Import Files Are Private, Filename-Sanitized, Size/Row/Field-Bounded, and Retention-Cleaned Like Exports
+
+**Context.** An uploaded import file is attacker-influenced input
+(§22: formula injection, path traversal, oversized files, excessive rows,
+invalid UTF-8, null bytes, HTML/script, resource exhaustion) and its stored
+copy plus generated error report can contain merchant catalog data.
+
+**Decision.** Import source files and error reports use the same
+`private_storage` as exports (ADR-52) — never under `MEDIA_ROOT`, never a
+public URL; the only read path is an authenticated, Store-scoped download
+view. On-disk filenames are random UUIDs (`import_job_upload_path`), so the
+user-supplied filename never reaches the filesystem. `validate_csv_upload`
+enforces extension/content-type/size (`MAX_IMPORT_FILE_SIZE_BYTES`=10 MB)
+and rejects path/null-byte filenames; `read_csv_rows_bounded` enforces
+`MAX_IMPORT_ROWS`=20,000, truncates fields past `MAX_FIELD_LENGTH`=2,000,
+strips null bytes, and surfaces invalid UTF-8 as a clean error. The error
+report is written through the CSV-injection-safe `write_csv_rows`
+(ADR-51) and never contains a raw traceback. `cleanup_import_files` (a
+management command, cron-scheduled like the other checkpoint-4 commands)
+deletes source and error files past a 30-day retention window while
+preserving the `ImportJob` record and its row results.
+
+**Consequences.** CSV parsing (`csv.DictReader`) never evaluates formulas or
+interprets HTML — the data is always literal text — so a malicious cell is
+inert on import and neutralized on any re-export. No import file is ever
+web-reachable; a foreign Store's job/source/error 404s. Disk is bounded by
+the size/row limits and reclaimed by the retention command (which, like
+exports, requires external scheduling since there is no task queue).
+
+**Alternatives considered.** Trusting the browser-supplied filename or
+content-type — rejected: both are client-controlled; the UUID path and the
+`csv` parser (not the extension) are the real protections. Keeping import
+files forever — rejected: they are regeneratable/re-uploadable, not the
+sole copy of any data, so retention cleanup is safe.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -2995,4 +3286,12 @@ actually a smaller task than the full Import domain.
 | Export files are private (`PRIVATE_MEDIA_ROOT`), time-limited (7-day `expires_at`), and served only through an authenticated Store-scoped download view | Decided, implemented |
 | Customer Segment rules are an allowlisted field/operator registry; each rule is an independent Store-scoped query combined by ID-set algebra, never a multi-annotate join | Decided, implemented |
 | Dynamic segment preview is always a live query; materialized `CustomerSegmentMembership` is a separate cache written only by explicit refresh (button or management command) | Decided, implemented |
-| CSV Import (Product/Variant/Inventory) is explicitly deferred out of checkpoint 4 — no model, no service, no UI | Decided, deferred (documented gap, not implemented) |
+| CSV Import (Product/Variant/Inventory) is explicitly deferred out of checkpoint 4 — no model, no service, no UI | Superseded by checkpoint 4B (ADR-55+) |
+| Import job lifecycle: upload → synchronous dry-run preview → explicit execute, all in-request (no task queue) | Decided, implemented |
+| Import executes per-batch-atomic with row-level results; preview and execute share one validation path | Decided, implemented |
+| Import stable identity: Store-scoped ID then Store-scoped SKU, never name/slug; cross-Store IDs hard-rejected | Decided, implemented |
+| Product Import writes only through the existing service/model layer; stock always via the inventory service | Decided, implemented |
+| Variant Import drives the existing Variant Engine; combinations materialized by generate_variants, never hand-built | Decided, implemented |
+| Inventory Import routes every row through a warehouse-aware inventory service call enforcing reservation safety | Decided, implemented |
+| Import idempotency: optional per-Store key at upload + final-status guard at execute | Decided, implemented |
+| Import files are private, filename-sanitized, size/row/field-bounded, and retention-cleaned like exports | Decided, implemented |
