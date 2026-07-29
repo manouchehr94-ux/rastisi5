@@ -25,7 +25,9 @@ def _akhlaghi():
 
 
 def _build_clothing_template():
-    template = IndustryTemplate.objects.create(slug="clothing", name="پوشاک", version=1)
+    template = IndustryTemplate.objects.create(
+        slug="clothing", name="پوشاک", version=1, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+    )
     clothing = IndustryTemplateCategory.objects.create(
         industry_template=template, code="clothing", name="پوشاک", display_order=0,
     )
@@ -114,6 +116,14 @@ class InstallIndustryTemplateTests(TestCase):
     def test_inactive_template_rejected(self):
         self.template.is_active = False
         self.template.save(update_fields=["is_active"])
+        with self.assertRaises(IndustryInstallationError):
+            install_industry_template(self.store, self.template)
+        self.assertFalse(StoreIndustryInstallation.objects.filter(store=self.store).exists())
+
+    def test_non_production_ready_template_rejected(self):
+        """نگاه کنید به ADR-26 — فقط قالب production_ready قابل‌نصب است."""
+        self.template.readiness = IndustryTemplate.Readiness.DRAFT
+        self.template.save(update_fields=["readiness"])
         with self.assertRaises(IndustryInstallationError):
             install_industry_template(self.store, self.template)
         self.assertFalse(StoreIndustryInstallation.objects.filter(store=self.store).exists())

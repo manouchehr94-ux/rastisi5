@@ -45,8 +45,11 @@ def can_install_industry_template(store) -> None:
 def install_industry_template(store, industry_template: IndustryTemplate) -> InstallationResult:
     """قالب صنف را روی Store نصب می‌کند — کاملاً اتمیک؛ در خطا هیچ تغییری ثبت نمی‌شود."""
     can_install_industry_template(store)
-    if not industry_template.is_active:
-        raise IndustryInstallationError(f"قالب صنف «{industry_template.name}» غیرفعال است.")
+    if not industry_template.is_offerable_for_new_installation:
+        raise IndustryInstallationError(
+            f"قالب صنف «{industry_template.name}» در وضعیت «{industry_template.readiness}» است و برای نصب در "
+            "دسترس نیست (نگاه کنید به ADR-26)."
+        )
 
     category_map: dict[int, Category] = {}
     categories_created: list[Category] = []

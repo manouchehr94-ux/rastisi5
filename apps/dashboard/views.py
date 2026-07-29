@@ -28,6 +28,7 @@ from apps.catalog.models import (
     ProductOptionValue,
     ProductVariant,
     StoreIndustryInstallation,
+    StoreTemplateUpdate,
 )
 from apps.catalog.services.attribute_service import (
     AttributeError_,
@@ -64,6 +65,13 @@ from apps.catalog.services.industry_template_service import (
 from apps.catalog.services.pricing_service import resolve_effective_price
 from apps.catalog.services.product_publish_service import validate_product_for_publish
 from apps.catalog.services.product_specification_service import build_product_specification
+from apps.catalog.services.template_preview_service import build_template_preview, plan_industry_template_installation
+from apps.catalog.services.template_update_service import (
+    TemplateUpdateError,
+    apply_template_update,
+    plan_template_update,
+)
+from apps.catalog.services.template_validation_service import latest_production_version
 from apps.catalog.services.product_image_service import (
     ProductImageError,
     add_product_image,
@@ -1629,6 +1637,40 @@ def category_schema_toggle_required(request, pk, entry_id):
     return _category_schema_response(request, category)
 
 
+_OVERRIDE_FIELDS = {"filterable": "is_filterable_override", "comparable": "is_comparable_override",
+                    "searchable": "is_searchable_override"}
+
+
+@require_POST
+@staff_required
+@permission_required(CATEGORY_MANAGE)
+def category_schema_toggle_override(request, pk, entry_id):
+    """چرخش سه‌حالته‌ی بازنویسی (ارث‌بری از Attribute → فعال → غیرفعال → ارث‌بری) — نگاه کنید به بخش ۳۱ پرامپت فاز ۱F."""
+    store = _resolve_dashboard_store(request)
+    category = get_object_or_404(Category, pk=pk, store=store)
+    entry = get_object_or_404(CategoryAttributeSchema, pk=entry_id, category=category)
+    field = request.POST.get("field", "")
+    model_field = _OVERRIDE_FIELDS.get(field)
+    if model_field is None:
+        return _category_schema_response(request, category, toast={"message": "فیلد نامعتبر است.", "type": "err"})
+
+    current = getattr(entry, model_field)
+    next_value = {None: True, True: False, False: None}[current]
+    update_category_attribute(entry, **{model_field: next_value})
+    return _category_schema_response(request, category)
+
+
+@require_POST
+@staff_required
+@permission_required(CATEGORY_MANAGE)
+def category_schema_toggle_visibility(request, pk, entry_id):
+    store = _resolve_dashboard_store(request)
+    category = get_object_or_404(Category, pk=pk, store=store)
+    entry = get_object_or_404(CategoryAttributeSchema, pk=entry_id, category=category)
+    update_category_attribute(entry, is_visible_on_storefront=not entry.is_visible_on_storefront)
+    return _category_schema_response(request, category)
+
+
 @require_POST
 @staff_required
 @permission_required(CATEGORY_MANAGE)
@@ -1913,22 +1955,41 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
         "shipping_methods": settings_admin_service.shipping_methods_context(store=store),
         "gateway_configs": settings_admin_service.gateway_configs_context(store=store),
         "industry_templates": _latest_active_industry_templates(),
-        "industry_installation": StoreIndustryInstallation.objects.filter(store=store)
-        .select_related("industry_template").first(),
+        "industry_installation": _industry_installation_context(store),
         "active_page": "settings",
     }
 
 
 def _latest_active_industry_templates():
-    """جدیدترین نسخه‌ی فعالِ هر صنف را برمی‌گرداند (یک ردیف به‌ازای هر slug)."""
+    """جدیدترین نسخه‌ی «آماده‌ی تولید» هر صنف را برمی‌گرداند — نگاه کنید به ADR-26/27.
+
+    فقط این حالت به مرچنت برای نصب جدید پیشنهاد می‌شود؛ draft/validation_failed/
+    review_required/deprecated/archived هرگز این‌جا دیده نمی‌شوند."""
     seen_slugs = set()
     latest = []
-    for template in IndustryTemplate.objects.filter(is_active=True).order_by("slug", "-version", "display_order"):
+    for template in IndustryTemplate.objects.filter(
+        is_active=True, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+    ).order_by("slug", "-version", "display_order"):
         if template.slug in seen_slugs:
             continue
         seen_slugs.add(template.slug)
         latest.append(template)
     return sorted(latest, key=lambda t: (t.display_order, t.name))
+
+
+def _industry_installation_context(store):
+    installation = (
+        StoreIndustryInstallation.objects.filter(store=store).select_related("industry_template").first()
+    )
+    if installation is None:
+        return None
+    newer = latest_production_version(installation.industry_template.slug)
+    update_available = bool(newer and newer.version > installation.installed_version)
+    return {
+        "installation": installation,
+        "update_available": update_available,
+        "latest_version": newer,
+    }
 
 
 SETTINGS_SECTIONS = [
@@ -1969,6 +2030,85 @@ def settings_industry_install(request, template_id):
     else:
         messages.success(request, f"الگوی صنف «{template.name}» با موفقیت نصب شد")
     return redirect(f"{reverse('dashboard:settings')}?section=industry")
+
+
+@staff_required
+@permission_required(SETTINGS_MANAGE)
+def settings_industry_preview(request, template_id):
+    """پیش‌نمایش کامل قالب صنف پیش از نصب — نگاه کنید به بخش ۱۳/۱۴ پرامپت فاز ۱F."""
+    store = _resolve_dashboard_store(request)
+    template = get_object_or_404(IndustryTemplate, pk=template_id)
+    preview = build_template_preview(template)
+    plan = plan_industry_template_installation(store, template)
+    return render(request, "dashboard/industry_template_preview.html", {
+        "template": template, "preview": preview, "plan": plan, "active_page": "settings",
+    })
+
+
+def _current_installation_and_target(store):
+    installation = StoreIndustryInstallation.objects.filter(store=store).select_related("industry_template").first()
+    if installation is None:
+        return None, None
+    target = latest_production_version(installation.industry_template.slug)
+    if target is None or target.pk == installation.industry_template_id:
+        return installation, None
+    return installation, target
+
+
+@staff_required
+@permission_required(SETTINGS_MANAGE)
+def settings_industry_update_plan(request):
+    """برنامه‌ی به‌روزرسانیِ نصبِ فعلی به جدیدترین نسخه‌ی «آماده‌ی تولید» — نگاه کنید به ADR-29."""
+    store = _resolve_dashboard_store(request)
+    installation, target = _current_installation_and_target(store)
+    if installation is None:
+        messages.error(request, "این فروشگاه هنوز هیچ الگوی صنفی نصب نکرده است.")
+        return redirect(f"{reverse('dashboard:settings')}?section=industry")
+    if target is None:
+        messages.info(request, "نسخه‌ی جدیدتری برای به‌روزرسانی موجود نیست.")
+        return redirect(f"{reverse('dashboard:settings')}?section=industry")
+
+    plan = plan_template_update(installation, target)
+    return render(request, "dashboard/industry_template_update.html", {
+        "installation": installation, "target": target, "plan": plan, "active_page": "settings",
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(SETTINGS_MANAGE)
+def settings_industry_update_apply(request):
+    store = _resolve_dashboard_store(request)
+    installation, target = _current_installation_and_target(store)
+    if installation is None or target is None:
+        messages.error(request, "به‌روزرسانیِ در دسترسی برای اعمال وجود ندارد.")
+        return redirect(f"{reverse('dashboard:settings')}?section=industry")
+
+    plan = plan_template_update(installation, target)
+    safe_ids = {c.change_id for c in plan.safe_additive}
+    selected = [cid for cid in request.POST.getlist("change_id") if cid in safe_ids]
+
+    try:
+        apply_template_update(installation, target, selected, actor=request.user)
+    except TemplateUpdateError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, f"به‌روزرسانی به نسخه‌ی {target.version} با موفقیت اعمال شد.")
+    return redirect(f"{reverse('dashboard:settings')}?section=industry")
+
+
+@staff_required
+@permission_required(SETTINGS_MANAGE)
+def settings_industry_update_history(request):
+    store = _resolve_dashboard_store(request)
+    updates = (
+        StoreTemplateUpdate.objects.filter(store=store)
+        .select_related("from_template", "target_template", "actor")
+        .order_by("-started_at")
+    )
+    return render(request, "dashboard/industry_template_update_history.html", {
+        "updates": updates, "active_page": "settings",
+    })
 
 
 @require_POST

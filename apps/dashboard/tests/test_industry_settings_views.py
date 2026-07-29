@@ -21,7 +21,10 @@ class IndustrySettingsTestCase(TestCase):
         self.store = _akhlaghi()
         self.store.admin_subdomain = HOST.split(".")[0]
         self.store.save(update_fields=["admin_subdomain"])
-        self.template = IndustryTemplate.objects.create(slug="isv-clothing", name="پوشاک", version=1)
+        self.template = IndustryTemplate.objects.create(
+            slug="isv-clothing", name="پوشاک", version=1,
+            readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
         IndustryTemplateCategory.objects.create(
             industry_template=self.template, code="clothing", name="پوشاک",
         )
@@ -47,7 +50,10 @@ class IndustrySettingsPageTests(IndustrySettingsTestCase):
         self.assertContains(response, "در حال حاضر الگوی صنفی")
 
     def test_only_latest_version_shown(self):
-        IndustryTemplate.objects.create(slug="isv-clothing", name="پوشاک نسخه‌ی دو", version=2)
+        IndustryTemplate.objects.create(
+            slug="isv-clothing", name="پوشاک نسخه‌ی دو", version=2,
+            readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
         response = self.client.get(reverse("dashboard:settings") + "?section=industry")
         self.assertContains(response, "پوشاک نسخه‌ی دو")
         # only the newer version's card is rendered — one install button for this slug, not two

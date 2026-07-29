@@ -1,0 +1,82 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}به‌روزرسانی صنف — {{ installation.industry_template.name }} | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}به‌روزرسانی الگوی صنف{% endblock %}
+{% block page_sub %}{{ installation.industry_template.name }}: نسخه {{ installation.installed_version|fa_number }} ← {{ target.version|fa_number }}{% endblock %}
+
+{% block content %}
+<a class="btn btn-sm" href="{% url 'dashboard:settings' %}?section=industry" style="margin-bottom:14px;display:inline-block">← بازگشت</a>
+
+{% if not plan.eligible %}
+<div class="card"><div class="card-body">
+  <div class="info-box" style="border-color:var(--red)">
+    <b>به‌روزرسانی ممکن نیست:</b>
+    <ul>{% for err in plan.blocking_errors %}<li>{{ err }}</li>{% endfor %}</ul>
+  </div>
+</div></div>
+{% else %}
+<form method="post" action="{% url 'dashboard:settings-industry-update-apply' %}"
+      onsubmit="return confirm('تغییرات انتخاب‌شده اعمال شود؟ سفارشی‌سازی‌های شما دست‌نخورده می‌مانند.');">
+  {% csrf_token %}
+
+  <div class="card" style="margin-bottom:18px">
+    <div class="card-head"><h3>✅ افزودنی‌های امن ({{ plan.safe_additive|length|fa_number }})</h3>
+      <span class="hint">این‌ها فقط رکورد جدید اضافه می‌کنند — هیچ رکورد موجودی را تغییر نمی‌دهند. به‌طور پیش‌فرض انتخاب شده‌اند.</span>
+    </div>
+    <div class="card-body">
+      {% for change in plan.safe_additive %}
+      <label style="display:flex;gap:8px;align-items:center;margin-bottom:6px;font-size:13px">
+        <input type="checkbox" name="change_id" value="{{ change.change_id }}" checked>
+        <span class="badge b-green">{{ change.diff_entry.kind }}</span> {{ change.diff_entry.label }}
+      </label>
+      {% empty %}
+      <p style="color:var(--muted);font-size:13px">افزودنیِ امنی برای این نسخه وجود ندارد.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if plan.safe_additive %}
+  <button type="submit" class="btn btn-primary" style="margin-bottom:18px">اعمال تغییرات انتخاب‌شده</button>
+  {% endif %}
+</form>
+
+{% if plan.review_required %}
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3>🔍 نیازمند بازبینی ({{ plan.review_required|length|fa_number }})</h3>
+    <span class="hint">این تغییرات روی رکوردهای دست‌نخورده‌ی شما هستند اما در این نسخه به‌طور خودکار اعمال نمی‌شوند.</span>
+  </div>
+  <div class="card-body">
+    {% for change in plan.review_required %}
+    <div style="font-size:13px;margin-bottom:6px">
+      <span class="badge b-gray">{{ change.diff_entry.kind }}</span> {{ change.diff_entry.label }}
+      {% if change.diff_entry.details %}
+      <ul style="font-size:11.5px;color:var(--muted);margin-inline-start:20px">
+        {% for field, values in change.diff_entry.details.items %}
+        <li>{{ field }}: «{{ values.old }}» ← «{{ values.new }}»</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if plan.blocked %}
+<div class="card">
+  <div class="card-head"><h3>⛔ مسدود ({{ plan.blocked|length|fa_number }})</h3>
+    <span class="hint">این تغییرات هرگز به‌طور خودکار اعمال نمی‌شوند — یا سفارشی‌سازی شما را بازنویسی می‌کنند یا حذف‌کننده‌اند.</span>
+  </div>
+  <div class="card-body">
+    {% for change in plan.blocked %}
+    <div style="font-size:13px;margin-bottom:6px">
+      <span class="badge b-red">{{ change.diff_entry.kind }}</span> {{ change.diff_entry.label }}
+      <br><small style="color:var(--muted)">{{ change.reason }}</small>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

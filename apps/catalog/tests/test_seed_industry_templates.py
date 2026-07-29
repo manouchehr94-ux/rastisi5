@@ -12,7 +12,7 @@ from apps.catalog.models import (
     IndustryTemplateCategoryAttributeMapping,
     IndustryTemplateRecommendedOption,
 )
-from apps.catalog.seed_data.industry_templates import INDUSTRY_TEMPLATES
+from apps.catalog.industry_templates.registry import ALL_INDUSTRY_TEMPLATES as INDUSTRY_TEMPLATES
 from apps.catalog.services.industry_template_service import install_industry_template
 from apps.stores.models import Store
 
@@ -25,7 +25,14 @@ class SeedIndustryTemplatesCommandTests(TestCase):
     def test_creates_expected_number_of_templates(self):
         _run_seed()
         self.assertEqual(IndustryTemplate.objects.count(), len(INDUSTRY_TEMPLATES))
-        self.assertGreaterEqual(len(INDUSTRY_TEMPLATES), 10)
+        self.assertGreaterEqual(len(INDUSTRY_TEMPLATES), 30)
+
+    def test_every_template_is_production_ready_after_seed(self):
+        _run_seed()
+        for template in IndustryTemplate.objects.all():
+            with self.subTest(template=template.slug):
+                self.assertEqual(template.readiness, IndustryTemplate.Readiness.PRODUCTION_READY)
+                self.assertTrue(template.content_fingerprint)
 
     def test_every_template_slug_is_seeded_and_active(self):
         _run_seed()

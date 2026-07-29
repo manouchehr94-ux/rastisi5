@@ -2,7 +2,7 @@
 <div id="categorySchemaList">
   <h4 style="margin:0 0 8px">ویژگی‌های مستقیم این دسته‌بندی</h4>
   <table>
-    <thead><tr><th>ویژگی</th><th>گروه</th><th>الزامی</th><th>ارث‌بری به زیردسته‌ها</th><th>عملیات</th></tr></thead>
+    <thead><tr><th>ویژگی</th><th>گروه</th><th>الزامی</th><th>ارث‌بری به زیردسته‌ها</th><th>قابل فیلتر</th><th>قابل مقایسه</th><th>قابل جست‌وجو</th><th>نمایش فروشگاه</th><th>عملیات</th></tr></thead>
     <tbody>
       {% for entry in direct_entries %}
       <tr>
@@ -15,13 +15,45 @@
         </td>
         <td>{% if entry.is_inherited_by_children %}بله{% else %}خیر{% endif %}</td>
         <td>
+          <button type="button" class="btn btn-sm" title="کلیک برای چرخش: ارث‌بری از ویژگی → فعال → غیرفعال"
+                  hx-post="{% url 'dashboard:category-schema-toggle-override' category.pk entry.pk %}"
+                  hx-vals='{"field":"filterable"}' hx-target="#categorySchemaList" hx-swap="outerHTML">
+            {% if entry.is_filterable_override is None %}<span class="badge b-gray">ارث‌بری ({% if entry.attribute.is_filterable %}بله{% else %}خیر{% endif %})</span>
+            {% elif entry.is_filterable_override %}<span class="badge b-green">بله (بازنویسی)</span>
+            {% else %}<span class="badge b-red">خیر (بازنویسی)</span>{% endif %}
+          </button>
+        </td>
+        <td>
+          <button type="button" class="btn btn-sm"
+                  hx-post="{% url 'dashboard:category-schema-toggle-override' category.pk entry.pk %}"
+                  hx-vals='{"field":"comparable"}' hx-target="#categorySchemaList" hx-swap="outerHTML">
+            {% if entry.is_comparable_override is None %}<span class="badge b-gray">ارث‌بری ({% if entry.attribute.is_comparable %}بله{% else %}خیر{% endif %})</span>
+            {% elif entry.is_comparable_override %}<span class="badge b-green">بله (بازنویسی)</span>
+            {% else %}<span class="badge b-red">خیر (بازنویسی)</span>{% endif %}
+          </button>
+        </td>
+        <td>
+          <button type="button" class="btn btn-sm"
+                  hx-post="{% url 'dashboard:category-schema-toggle-override' category.pk entry.pk %}"
+                  hx-vals='{"field":"searchable"}' hx-target="#categorySchemaList" hx-swap="outerHTML">
+            {% if entry.is_searchable_override is None %}<span class="badge b-gray">ارث‌بری ({% if entry.attribute.is_searchable %}بله{% else %}خیر{% endif %})</span>
+            {% elif entry.is_searchable_override %}<span class="badge b-green">بله (بازنویسی)</span>
+            {% else %}<span class="badge b-red">خیر (بازنویسی)</span>{% endif %}
+          </button>
+        </td>
+        <td>
+          <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:category-schema-toggle-visibility' category.pk entry.pk %}" hx-target="#categorySchemaList" hx-swap="outerHTML">
+            {% if entry.is_visible_on_storefront %}✅ نمایان{% else %}پنهان{% endif %}
+          </button>
+        </td>
+        <td>
           <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:category-schema-move' category.pk entry.pk %}" hx-vals='{"direction":"up"}' hx-target="#categorySchemaList" hx-swap="outerHTML" {% if forloop.first %}disabled{% endif %}>▲</button>
           <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:category-schema-move' category.pk entry.pk %}" hx-vals='{"direction":"down"}' hx-target="#categorySchemaList" hx-swap="outerHTML" {% if forloop.last %}disabled{% endif %}>▼</button>
           <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:category-schema-remove' category.pk entry.pk %}" hx-target="#categorySchemaList" hx-swap="outerHTML" hx-confirm="حذف «{{ entry.attribute.label }}» از این دسته‌بندی؟">🗑️</button>
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">هیچ ویژگی مستقیمی تعریف نشده است</td></tr>
+      <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:16px">هیچ ویژگی مستقیمی تعریف نشده است</td></tr>
       {% endfor %}
     </tbody>
   </table>

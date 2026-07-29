@@ -1,0 +1,40 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}تاریخچه‌ی به‌روزرسانیِ صنف | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}تاریخچه‌ی به‌روزرسانیِ الگوی صنف{% endblock %}
+
+{% block content %}
+<a class="btn btn-sm" href="{% url 'dashboard:settings' %}?section=industry" style="margin-bottom:14px;display:inline-block">← بازگشت</a>
+
+<div class="card">
+  <div class="card-body">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>از نسخه</th><th>به نسخه</th><th>وضعیت</th><th>اعمال‌شده</th><th>نادیده‌گرفته‌شده</th><th>شروع</th><th>پایان</th></tr>
+        </thead>
+        <tbody>
+          {% for update in updates %}
+          <tr>
+            <td>{{ update.from_template.version|fa_number }}</td>
+            <td>{{ update.target_template.version|fa_number }}</td>
+            <td>
+              <span class="badge {% if update.status == 'completed' %}b-green{% elif update.status == 'failed' %}b-red{% else %}b-gray{% endif %}">
+                {{ update.get_status_display }}
+              </span>
+            </td>
+            <td>{{ update.applied_changes|length|fa_number }}</td>
+            <td>{{ update.skipped_changes|length|fa_number }}</td>
+            <td>{{ update.started_at|jalali }}</td>
+            <td>{% if update.completed_at %}{{ update.completed_at|jalali }}{% else %}—{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" style="color:var(--muted)">هنوز هیچ به‌روزرسانی‌ای انجام نشده است.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}پیش‌نمایش الگوی صنف — {{ template.name }} | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}پیش‌نمایش الگوی صنف{% endblock %}
+{% block page_sub %}{{ template.icon }} {{ template.name }} — نسخه {{ template.version|fa_number }}{% endblock %}
+
+{% block content %}
+<a class="btn btn-sm" href="{% url 'dashboard:settings' %}?section=industry" style="margin-bottom:14px;display:inline-block">← بازگشت</a>
+
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3>خلاصه</h3></div>
+  <div class="card-body">
+    {% if template.description %}<p style="color:var(--muted);margin-bottom:12px">{{ template.description }}</p>{% endif %}
+    <div style="display:flex;gap:18px;flex-wrap:wrap">
+      <span class="badge b-gray">دسته‌بندی: {{ preview.counts.categories|fa_number }}</span>
+      <span class="badge b-gray">ویژگی: {{ preview.counts.attributes|fa_number }}</span>
+      <span class="badge b-gray">مقدار: {{ preview.counts.values|fa_number }}</span>
+      <span class="badge b-gray">نگاشت ویژگی: {{ preview.counts.mappings|fa_number }}</span>
+      <span class="badge b-gray">محور پیشنهادی: {{ preview.counts.recommendations|fa_number }}</span>
+      <span class="badge {% if preview.readiness == 'production_ready' %}b-green{% else %}b-red{% endif %}">
+        آمادگی: {{ template.get_readiness_display }}
+      </span>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3>ساختار دسته‌بندی</h3></div>
+  <div class="card-body">
+    {% include "dashboard/partials/industry_preview_category_tree.html" with nodes=preview.hierarchy attributes_by_category=preview.attributes_by_category recommendations_by_category=preview.recommendations_by_category %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3>برنامه‌ی اثرِ نصب روی فروشگاه شما</h3></div>
+  <div class="card-body">
+    {% if plan.blocking_errors %}
+    <div class="info-box" style="border-color:var(--red)">
+      <b>نصب مسدود است:</b>
+      <ul>{% for err in plan.blocking_errors %}<li>{{ err }}</li>{% endfor %}</ul>
+    </div>
+    {% else %}
+    <p>در صورت نصب:</p>
+    <ul style="font-size:13px;color:var(--muted)">
+      <li>{{ plan.will_create_categories|fa_number }} دسته‌بندی جدید ساخته می‌شود</li>
+      <li>{{ plan.will_create_attributes|fa_number }} ویژگی جدید ساخته می‌شود
+        {% if plan.will_reuse_attributes %}(و {{ plan.will_reuse_attributes|length|fa_number }} ویژگی موجود با همین کد دوباره استفاده می‌شود: {{ plan.will_reuse_attributes|join:"، " }}){% endif %}
+      </li>
+      <li>{{ plan.will_create_values|fa_number }} مقدار ویژگی ساخته می‌شود</li>
+      <li>{{ plan.will_create_mappings|fa_number }} نگاشت ویژگی به دسته‌بندی ساخته می‌شود</li>
+      <li>{{ plan.will_create_recommendations|fa_number }} محور تنوع پیشنهادی ثبت می‌شود</li>
+    </ul>
+    <p style="font-size:12.5px;color:var(--muted)">هیچ کالا یا دسته‌بندی موجودی تغییر یا حذف نمی‌شود.</p>
+    <form method="post" action="{% url 'dashboard:settings-industry-install' template.pk %}"
+          onsubmit="return confirm('نصب الگوی «{{ template.name }}» انجام شود؟');">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary">نصب این الگو</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3>سیاست نصب و سفارشی‌سازی</h3></div>
+  <div class="card-body">
+    <p style="font-size:13px">{{ preview.installation_policy }}</p>
+    <p style="font-size:13px">{{ preview.customization_policy }}</p>
+    <ul style="font-size:12.5px;color:var(--muted)">
+      {% for limitation in preview.limitations %}<li>{{ limitation }}</li>{% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}
