@@ -86,6 +86,8 @@ from apps.catalog.services.warehouse_service import (
 )
 from apps.core.services.audit_service import list_audit_events, record_audit_event
 from apps.core.services.export_service import ExportError, run_export
+from apps.dashboard.services import import_service
+from apps.dashboard.services.import_service import ImportServiceError
 from apps.cart.models import Coupon
 from apps.cart.services.coupon_service import (
     CouponError,
@@ -139,7 +141,7 @@ from apps.catalog.services.variant_service import (
 )
 from apps.core.color_utils import safe_hex
 from apps.core.utils import normalize_digits
-from apps.core.models import ExportJob, ShopSettings
+from apps.core.models import ExportJob, ImportJob, ImportRowResult, ShopSettings
 from apps.core.theme_presets import THEME_PRESETS, matching_preset_key
 from apps.customers.models import (
     Customer,
@@ -4236,6 +4238,155 @@ def export_download(request, pk):
         job.file.open("rb"), as_attachment=True,
         filename=f"{job.export_type}-{job.pk}.csv", content_type="text/csv",
     )
+    return response
+
+
+# ---------------------------------------------------------------- واردات (Import)
+
+IMPORT_ROW_RESULTS_PER_PAGE = 50
+
+
+@staff_required
+@permission_required(IMPORT_EXPORT_VIEW)
+def import_list(request):
+    store = _resolve_dashboard_store(request)
+    jobs = ImportJob.objects.filter(store=store).select_related("requested_by").order_by("-created_at")[:100]
+    return render(request, "dashboard/import_list.html", {
+        "jobs": jobs, "active_page": "imports",
+        "import_types": ImportJob.ImportType.choices,
+        "can_manage_imports": membership_has_permission(request.store_membership, IMPORT_EXPORT_MANAGE),
+    })
+
+
+@staff_required
+@permission_required(IMPORT_EXPORT_MANAGE)
+def import_upload(request):
+    store = _resolve_dashboard_store(request)
+    if request.method == "POST":
+        import_type = request.POST.get("import_type", "")
+        mode = request.POST.get("mode", ImportJob.Mode.UPSERT)
+        uploaded = request.FILES.get("file")
+        if uploaded is None:
+            messages.error(request, "فایلی انتخاب نشده است.")
+            return redirect("dashboard:import-upload")
+        try:
+            job = import_service.create_import_job(
+                store, import_type=import_type, uploaded_file=uploaded, mode=mode,
+                requested_by=request.user,
+            )
+            import_service.run_preview(job, actor=request.user)
+        except ImportServiceError as exc:
+            messages.error(request, str(exc))
+            return redirect("dashboard:import-upload")
+        return redirect("dashboard:import-detail", pk=job.pk)
+
+    import_type_specs = [
+        {"value": value, "label": label, "columns": ", ".join(import_service.IMPORT_COLUMNS[value])}
+        for value, label in ImportJob.ImportType.choices
+    ]
+    return render(request, "dashboard/import_upload.html", {
+        "active_page": "imports",
+        "import_types": ImportJob.ImportType.choices,
+        "modes": ImportJob.Mode.choices,
+        "import_type_specs": import_type_specs,
+    })
+
+
+def _import_detail_context(request, job):
+    row_results = job.row_results.all().order_by("row_number")
+    paginator = Paginator(row_results, IMPORT_ROW_RESULTS_PER_PAGE)
+    page_obj = paginator.get_page(request.GET.get("page", "1"))
+    return {
+        "job": job, "active_page": "imports",
+        "row_results": page_obj, "page_obj": page_obj, "paginator": paginator,
+        "can_manage_imports": membership_has_permission(request.store_membership, IMPORT_EXPORT_MANAGE),
+    }
+
+
+@staff_required
+@permission_required(IMPORT_EXPORT_VIEW)
+def import_detail(request, pk):
+    store = _resolve_dashboard_store(request)
+    job = get_object_or_404(ImportJob, pk=pk, store=store)
+    return render(request, "dashboard/import_detail.html", _import_detail_context(request, job))
+
+
+@require_POST
+@staff_required
+@permission_required(IMPORT_EXPORT_MANAGE)
+def import_execute(request, pk):
+    store = _resolve_dashboard_store(request)
+    job = get_object_or_404(ImportJob, pk=pk, store=store)
+    try:
+        import_service.run_execution(job, actor=request.user)
+        messages.success(
+            request,
+            f"واردات انجام شد — {job.created_rows} ایجاد، {job.updated_rows} به‌روزرسانی، "
+            f"{job.skipped_rows} ردشده، {job.failed_rows} ناموفق",
+        )
+    except ImportServiceError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:import-detail", pk=job.pk)
+
+
+@require_POST
+@staff_required
+@permission_required(IMPORT_EXPORT_MANAGE)
+def import_cancel(request, pk):
+    store = _resolve_dashboard_store(request)
+    job = get_object_or_404(ImportJob, pk=pk, store=store)
+    try:
+        import_service.cancel_import_job(job, actor=request.user)
+        messages.info(request, "واردات لغو شد")
+    except ImportServiceError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:import-detail", pk=job.pk)
+
+
+@staff_required
+@permission_required(IMPORT_EXPORT_VIEW)
+def import_download_source(request, pk):
+    store = _resolve_dashboard_store(request)
+    job = get_object_or_404(ImportJob, pk=pk, store=store)
+    if not job.source_file:
+        raise Http404
+    record_audit_event(
+        store=store, actor=request.user, action_code="import.source_downloaded",
+        object_type="ImportJob", object_id=str(job.pk), object_label=job.original_filename,
+    )
+    return FileResponse(
+        job.source_file.open("rb"), as_attachment=True,
+        filename=f"{job.import_type}-source-{job.pk}.csv", content_type="text/csv",
+    )
+
+
+@staff_required
+@permission_required(IMPORT_EXPORT_VIEW)
+def import_download_errors(request, pk):
+    store = _resolve_dashboard_store(request)
+    job = get_object_or_404(ImportJob, pk=pk, store=store)
+    if not job.error_report_file:
+        raise Http404
+    record_audit_event(
+        store=store, actor=request.user, action_code="import.error_report_downloaded",
+        object_type="ImportJob", object_id=str(job.pk), object_label=job.original_filename,
+    )
+    return FileResponse(
+        job.error_report_file.open("rb"), as_attachment=True,
+        filename=f"{job.import_type}-errors-{job.pk}.csv", content_type="text/csv",
+    )
+
+
+@staff_required
+@permission_required(IMPORT_EXPORT_VIEW)
+def import_template(request, import_type):
+    _resolve_dashboard_store(request)
+    try:
+        content = import_service.build_template_csv(import_type)
+    except ImportServiceError:
+        raise Http404
+    response = HttpResponse(content, content_type="text/csv")
+    response["Content-Disposition"] = f'attachment; filename="{import_type}-template.csv"'
     return response
 
 

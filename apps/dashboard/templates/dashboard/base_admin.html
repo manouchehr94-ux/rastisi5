@@ -158,6 +158,12 @@
         صادراتِ داده‌ها
       </a>
       {% endif %}
+      {% if can_view_imports %}
+      <a class="nav-item{% if active_page == 'imports' %} active{% endif %}" data-page="imports" href="{% url 'dashboard:import-list' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 4v12"/></svg>
+        وارداتِ داده‌ها
+      </a>
+      {% endif %}
       {% if can_view_segments %}
       <a class="nav-item{% if active_page == 'segments' %} active{% endif %}" data-page="segments" href="{% url 'dashboard:segment-list' %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/><circle cx="17" cy="7" r="3" opacity="0.5"/></svg>

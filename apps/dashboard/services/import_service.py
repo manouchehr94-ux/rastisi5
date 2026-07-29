@@ -39,8 +39,34 @@ from apps.orders.models import TaxClass
 
 DEFAULT_BATCH_SIZE = 100
 MAX_VARIANT_OPTION_AXES = 3
+#: سقفِ تعدادِ ردیفِ خطا که برایِ یک Job در دیتابیس نگه داشته می‌شود
+#: (checkpoint 4B §22) — ``ImportRowResult`` همیشه برایِ همه‌ی ردیف‌ها ساخته
+#: می‌شود، اما اگر تعدادِ ردیف‌هایِ نامعتبر/ناموفق از این عدد بیشتر شود،
+#: ``error_summary`` این را صریحاً اعلام می‌کند (نه این‌که بی‌صدا قطع شود).
+MAX_STORED_ERROR_ROWS = 5_000
 
 PRODUCT_STATUS_VALUES = {choice for choice, _ in Product.Status.choices}
+
+#: تعریفِ ستون‌هایِ هر نوعِ واردات — منبعِ واحدِ حقیقت برایِ دانلودِ
+#: قالبِ CSV و راهنمایِ UI (checkpoint 4B §19). ستونِ اول در هر فهرست،
+#: ستونِ هدرِ فایلِ قالب است.
+IMPORT_COLUMNS = {
+    ImportJob.ImportType.PRODUCTS: [
+        "product_id", "sku", "name", "slug", "barcode", "status", "brand_code", "category_code",
+        "price", "stock", "weight_grams", "requires_shipping", "tax_class_code",
+        "seo_title", "seo_description",
+    ],
+    ImportJob.ImportType.VARIANTS: [
+        "product_id", "product_sku", "variant_id", "variant_sku", "barcode",
+        "option_1_code", "option_1_value_code", "option_2_code", "option_2_value_code",
+        "option_3_code", "option_3_value_code",
+        "price", "compare_at_price", "cost", "stock", "weight_grams", "is_active", "is_default",
+    ],
+    ImportJob.ImportType.INVENTORY: [
+        "warehouse_code", "product_id", "product_sku", "variant_id", "variant_sku",
+        "mode", "quantity", "reason", "note",
+    ],
+}
 
 
 class ImportServiceError(Exception):
@@ -961,11 +987,18 @@ def create_import_job(store, *, import_type: str, uploaded_file, mode: str, requ
     """یک ``ImportJob`` تازه می‌سازد و فایلِ CSV را در ذخیره‌سازیِ خصوصی
     می‌نویسد — نگاه کنید به ADR-62. هرگز چیزی از فایل نمی‌خواند/پردازش
     نمی‌کند (آن کارِ ``run_preview``ست)."""
+    from apps.core.services.csv_utils import CsvUploadError
+
     if import_type not in ImportJob.ImportType.values:
         raise ImportServiceError(f"نوعِ واردات «{import_type}» نامعتبر است.")
     if mode not in ImportJob.Mode.values:
         raise ImportServiceError(f"حالتِ «{mode}» نامعتبر است.")
-    validate_csv_upload(uploaded_file)
+    try:
+        validate_csv_upload(uploaded_file)
+    except CsvUploadError as exc:
+        # به یک خطایِ سطحِ Job تبدیل می‌شود تا فراخوان فقط یک نوع استثنا را
+        # مدیریت کند (پیام همان است، برایِ نمایشِ مستقیم به کاربر امن).
+        raise ImportServiceError(str(exc)) from exc
     if idempotency_key and ImportJob.objects.filter(store=store, idempotency_key=idempotency_key).exists():
         raise ImportServiceError("این کلیدِ یکتا قبلاً برایِ یک واردات دیگر استفاده شده است.")
 
@@ -1012,4 +1045,69 @@ def run_execution(job: ImportJob, *, actor) -> ImportJob:
         raise ImportServiceError("این Job قبلاً به پایان رسیده — دوباره اجرا نمی‌شود.")
     job.dry_run = False
     rows = read_job_rows(job)
-    return run_import(job, rows, actor=actor)
+    job = run_import(job, rows, actor=actor)
+    _generate_error_report(job)
+    return job
+
+
+# ================================================================== گزارشِ خطا و قالب‌ها
+
+def build_template_csv(import_type: str) -> str:
+    """محتوایِ یک فایلِ قالبِ CSV (فقط سطرِ هدر) را برایِ یک نوعِ واردات
+    برمی‌گرداند — از همان ``IMPORT_COLUMNS`` که اعتبارسنجی هم می‌خواند."""
+    import io
+
+    from apps.core.services.csv_utils import write_csv_rows
+
+    columns = IMPORT_COLUMNS.get(import_type)
+    if columns is None:
+        raise ImportServiceError(f"نوعِ واردات «{import_type}» نامعتبر است.")
+    buffer = io.StringIO()
+    write_csv_rows(buffer, header=columns, rows=[])
+    return buffer.getvalue()
+
+
+def _generate_error_report(job: ImportJob) -> None:
+    """یک فایلِ گزارشِ خطایِ CSVِ خصوصی می‌سازد که فقط ردیف‌هایِ نامعتبر/
+    ناموفق را شامل می‌شود — از ``write_csv_rows`` عبور می‌کند (محافظتِ تزریقِ
+    فرمول، ADR-51). اگر هیچ ردیفِ مشکل‌داری نباشد، فایلی ساخته نمی‌شود."""
+    import io
+
+    from django.core.files.base import ContentFile
+
+    from apps.core.services.csv_utils import write_csv_rows
+
+    error_rows = job.row_results.filter(
+        status__in=[ImportRowResult.RowStatus.INVALID, ImportRowResult.RowStatus.FAILED]
+    ).order_by("row_number")
+    if not error_rows.exists():
+        return
+
+    header = ["row_number", "source_identifier", "status", "errors", "warnings"]
+
+    def rows():
+        for r in error_rows.iterator(chunk_size=500):
+            yield [
+                r.row_number, r.source_identifier, r.status,
+                " | ".join(r.errors), " | ".join(r.warnings),
+            ]
+
+    buffer = io.StringIO()
+    write_csv_rows(buffer, header=header, rows=rows())
+    job.error_report_file.save(
+        f"errors-{job.pk}.csv", ContentFile(buffer.getvalue().encode("utf-8")), save=True,
+    )
+
+
+def cancel_import_job(job: ImportJob, *, actor) -> ImportJob:
+    """یک Jobِ هنوز اجرانشده را لغو می‌کند (فقط از حالت‌هایِ پیش از اجرا)."""
+    if job.status in ImportJob.FINAL_STATUSES:
+        raise ImportServiceError("این Job قبلاً به پایان رسیده و قابلِ لغو نیست.")
+    job.status = ImportJob.Status.CANCELLED
+    job.completed_at = timezone.now()
+    job.save(update_fields=["status", "completed_at"])
+    record_audit_event(
+        store=job.store, actor=actor, action_code="import.cancelled",
+        object_type="ImportJob", object_id=str(job.pk), object_label=job.original_filename,
+    )
+    return job

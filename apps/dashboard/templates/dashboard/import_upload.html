@@ -1,0 +1,56 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}واردات تازه | پنل مدیریت{% endblock %}
+{% block page_title %}واردات تازه{% endblock %}
+{% block page_sub %}نوعِ واردات، حالتِ اجرا و فایلِ CSV را انتخاب کنید — پس از آپلود، ابتدا یک پیش‌نمایشِ آزمایشی ساخته می‌شود{% endblock %}
+{% block content %}
+<div style="margin-bottom:14px"><a class="btn btn-sm" href="{% url 'dashboard:import-list' %}">→ بازگشت به فهرستِ واردات</a></div>
+
+<div class="grid g-2" style="gap:16px">
+  <div class="card">
+    <div class="card-head"><b>آپلودِ فایل</b></div>
+    <form method="post" action="{% url 'dashboard:import-upload' %}" enctype="multipart/form-data" style="padding:16px;display:flex;flex-direction:column;gap:14px">
+      {% csrf_token %}
+      <div>
+        <label>نوعِ واردات</label>
+        <select class="inp" name="import_type" id="importTypeSelect" style="width:100%" onchange="document.querySelectorAll('[data-cols]').forEach(e=>e.style.display=(e.dataset.cols===this.value)?'block':'none')">
+          {% for value, label in import_types %}
+          <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>حالتِ اجرا</label>
+        <select class="inp" name="mode" style="width:100%">
+          {% for value, label in modes %}
+          <option value="{{ value }}" {% if value == "upsert" %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <small style="color:var(--muted);display:block;margin-top:4px">
+          «فقط ایجاد» ردیف‌هایِ منطبق با رکوردِ موجود را رد می‌کند؛ «فقط به‌روزرسانی» ردیف‌هایِ بدونِ تطبیق را رد می‌کند؛ «ایجاد یا به‌روزرسانی» هر دو را انجام می‌دهد.
+        </small>
+      </div>
+      <div>
+        <label>فایلِ CSV</label>
+        <input class="inp" type="file" name="file" accept=".csv" required style="width:100%">
+      </div>
+      <button type="submit" class="btn btn-primary" style="align-self:flex-start">آپلود و ساختِ پیش‌نمایش</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><b>راهنما و قالب</b></div>
+    <div style="padding:16px;font-size:12.5px;line-height:1.9">
+      <p>فایل باید UTF-8 و با سطرِ هدرِ ستون‌ها باشد. ارقامِ فارسی/عربی خودکار به لاتین تبدیل می‌شوند.</p>
+      {% for spec in import_type_specs %}
+      <div data-cols="{{ spec.value }}" style="{% if not forloop.first %}display:none{% endif %}">
+        <b>ستون‌هایِ «{{ spec.label }}»:</b>
+        <div style="direction:ltr;text-align:left;font-family:monospace;font-size:11.5px;background:var(--bg-soft);padding:8px;border-radius:8px;margin:6px 0;word-break:break-all">
+          {{ spec.columns }}
+        </div>
+        <a class="btn btn-sm" href="{% url 'dashboard:import-template' spec.value %}">دانلودِ قالبِ CSV</a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

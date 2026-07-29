@@ -72,5 +72,6 @@ def merchant_permissions(request):
             membership_has_permission(membership, IMPORT_EXPORT_VIEW)
             or membership_has_permission(membership, CUSTOMER_EXPORT)
         ),
+        "can_view_imports": membership_has_permission(membership, IMPORT_EXPORT_VIEW),
         "can_view_segments": membership_has_permission(membership, CUSTOMER_SEGMENT_VIEW),
     }

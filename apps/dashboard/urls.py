@@ -213,6 +213,16 @@ urlpatterns = [
     path("exports/create/", views.export_create, name="export-create"),
     path("exports/<int:pk>/download/", views.export_download, name="export-download"),
 
+    # --- واردات (Import) ---
+    path("imports/", views.import_list, name="import-list"),
+    path("imports/upload/", views.import_upload, name="import-upload"),
+    path("imports/template/<str:import_type>/", views.import_template, name="import-template"),
+    path("imports/<int:pk>/", views.import_detail, name="import-detail"),
+    path("imports/<int:pk>/execute/", views.import_execute, name="import-execute"),
+    path("imports/<int:pk>/cancel/", views.import_cancel, name="import-cancel"),
+    path("imports/<int:pk>/download/source/", views.import_download_source, name="import-download-source"),
+    path("imports/<int:pk>/download/errors/", views.import_download_errors, name="import-download-errors"),
+
     # --- استرداد (Refunds) ---
     path("orders/<str:code>/refund/", views.order_refund_form, name="order-refund"),
 
