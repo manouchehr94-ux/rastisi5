@@ -1,10 +1,16 @@
-"""بارگذاری ایده‌آل‌نما (idempotent) قالب‌های صنف اولیه — نگاه کنید به ADR-25.
+"""بارگذاری ایده‌آل‌نما (idempotent) قالب‌های صنف — نگاه کنید به ADR-25 و ADR-26.
 
-این دستور فقط داده‌ی ``apps.catalog.seed_data.industry_templates.INDUSTRY_TEMPLATES``
-را به رکوردهای ``IndustryTemplate`` (و مدل‌های فرزندش) تبدیل می‌کند. اجرای
-دوباره‌ی آن هرگز رکورد تکراری نمی‌سازد: کلید طبیعی «قالب» جفتِ
-(slug, version) است و کلید طبیعی هر زیررکورد، کدِ پایدارش در محدوده‌ی همان
-قالب است — همه از طریق ``update_or_create`` نوشته می‌شوند.
+این دستور داده‌ی ``apps.catalog.industry_templates.registry.ALL_INDUSTRY_TEMPLATES``
+(تجمیعِ صنف‌های بنیان‌گذار + صنف‌های فاز ۱F) را به رکوردهای
+``IndustryTemplate`` (و مدل‌های فرزندش) تبدیل می‌کند. اجرای دوباره‌ی آن
+هرگز رکورد تکراری نمی‌سازد: کلید طبیعی «قالب» جفتِ (slug, version) است و
+کلید طبیعی هر زیررکورد، کدِ پایدارش در محدوده‌ی همان قالب است — همه از
+طریق ``update_or_create`` نوشته می‌شوند.
+
+پس از ساخت/به‌روزرسانیِ هر قالب، اعتبارسنجی (``template_validation_service``)
+اجرا و کش می‌شود و آمادگیِ قالب طبق نتیجه تنظیم می‌شود — یک قالب با خطای
+اعتبارسنجی هرگز ``production_ready`` نمی‌شود، پس برای مرچنت‌ها قابل‌نصب
+نخواهد بود.
 
 این دستور هرگز رکورد Store-محور نمی‌سازد و به هیچ Store متصل نیست؛ فقط
 داده‌ی پلتفرم‌محور (IndustryTemplate*) را می‌سازد/به‌روزرسانی می‌کند.
@@ -12,6 +18,7 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.catalog.industry_templates.registry import ALL_INDUSTRY_TEMPLATES
 from apps.catalog.models import (
     IndustryTemplate,
     IndustryTemplateAttribute,
@@ -20,11 +27,13 @@ from apps.catalog.models import (
     IndustryTemplateCategoryAttributeMapping,
     IndustryTemplateRecommendedOption,
 )
-from apps.catalog.seed_data.industry_templates import INDUSTRY_TEMPLATES
+from apps.catalog.services.template_validation_service import validate_and_persist
+
+INDUSTRY_TEMPLATES = ALL_INDUSTRY_TEMPLATES
 
 
 class Command(BaseCommand):
-    help = "بارگذاری idempotent قالب‌های صنف اولیه (پلتفرم‌محور) از apps.catalog.seed_data.industry_templates"
+    help = "بارگذاری idempotent قالب‌های صنف (پلتفرم‌محور) از apps.catalog.industry_templates.registry"
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -52,14 +61,26 @@ class Command(BaseCommand):
                 entry.get("recommended_options", []), categories_by_code, attributes_by_code,
             )
 
+            result = validate_and_persist(template)
+            status = "✅" if result.is_valid else "❌"
+
             self.stdout.write(
                 f"{'ساخته شد' if created else 'به‌روزرسانی شد'}: {template.name} "
-                f"(نسخه {template.version}) — {len(categories_by_code)} دسته، {len(attributes_by_code)} ویژگی"
+                f"(نسخه {template.version}) — {len(categories_by_code)} دسته، {len(attributes_by_code)} ویژگی "
+                f"— اعتبارسنجی: {status} ({template.readiness}, امتیاز {result.quality_score})"
             )
 
+        invalid_count = sum(
+            1 for t in IndustryTemplate.objects.all() if t.readiness == IndustryTemplate.Readiness.VALIDATION_FAILED
+        )
         self.stdout.write(self.style.SUCCESS(
             f"پایان بارگذاری قالب‌های صنف — {created_templates} قالب جدید، {updated_templates} قالب به‌روزرسانی‌شده."
         ))
+        if invalid_count:
+            self.stdout.write(self.style.WARNING(
+                f"⚠️  {invalid_count} قالب اعتبارسنجی را رد کرد و production_ready نشد — "
+                f"جزئیات را با «python manage.py validate_industry_templates» ببینید."
+            ))
 
     def _seed_categories(self, template, category_defs, parent=None, display_order_start=0):
         """ساخت درختِ دسته‌بندی قالب به‌صورت بازگشتی؛ کلید طبیعی هر گره ``code`` است."""
