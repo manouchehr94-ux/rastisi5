@@ -1812,3 +1812,56 @@ a bounded-query performance test (§26) and the full regression suite below.
 
 ## 27. Checkpoint 4B Final Full-Suite Validation and Conclusion
 
+```
+python manage.py check                                 → 0 issues
+python manage.py makemigrations --check                → No changes detected
+python manage.py migrate                                → No migrations to apply (already applied)
+python manage.py provision_default_warehouses           → 1 Store checked, 0 new rows (idempotent)
+python manage.py verify_inventory_consistency --strict  → consistent
+python manage.py validate_industry_templates --strict   → 30/30 valid, 0 errors
+python manage.py cleanup_import_files                    → 0 import files cleaned (none past retention)
+python manage.py test apps.catalog apps.core apps.dashboard apps.stores
+...
+Ran 1889 tests in 846.940s
+
+OK
+python manage.py test
+...
+Ran 2787 tests in 1059.326s
+
+OK
+```
+
+**2,787/2,787 passing — 0 failures, 0 errors, 0 skips** — up from 2,662 at
+the end of checkpoint 4 by exactly 125, matching §26's tally precisely.
+`check` and `makemigrations --check` are clean; `migrate` reports nothing
+outstanding; `provision_default_warehouses` and
+`verify_inventory_consistency --strict` confirm the inventory ledger — which
+Inventory Import writes to exclusively through `adjust_warehouse_stock` —
+stays consistent after the checkpoint's changes;
+`validate_industry_templates --strict` re-confirms 30/30 templates untouched;
+`cleanup_import_files` runs clean. The targeted
+`apps.catalog apps.core apps.dashboard apps.stores` suite (1,889 tests) was
+also run in full as a focused regression. Nothing regressed, nothing
+skipped, nothing hidden.
+
+**Checkpoint 4B delivers the CSV Import engine that checkpoint 4 explicitly
+deferred (ADR-54): Product, Variant, and Inventory import — each with a
+real dry-run preview AND real execution, not models-or-preview-only.**
+Stable Store-scoped identity resolution, explicit create_only/update_only/
+upsert modes, per-batch-atomic execution with per-row savepoints, shared
+preview/execute validation, idempotent replay protection, a downloadable
+private error report, a full Merchant Admin UI, permission gating, audit
+logging, adversarial tenant-isolation and reservation-safety coverage, and
+a retention-cleanup management command. Product writes go through the
+existing service/model layer (`full_clean`), Variant writes drive the real
+Variant Engine, and Inventory writes route through the inventory service
+(creating `StockMovement`s and never overselling against active
+reservations) — no invariant of the existing catalog/inventory domains is
+bypassed.
+
+This completes Checkpoint 4B. It does **not** mark the full Admin Panel
+Completion Program complete — later checkpoints (XLSX support, a real
+background task queue for very large imports, an `external_id` identity
+column, scheduled/automatic import retries) remain, recorded honestly here
+and in the ADRs rather than folded into "done."
