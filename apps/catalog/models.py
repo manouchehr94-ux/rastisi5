@@ -166,6 +166,12 @@ class Product(TimeStampedModel):
     barcode = models.CharField("بارکد محصول", max_length=64, blank=True, default="")
     weight_grams = models.PositiveIntegerField("وزن (گرم)", null=True, blank=True)
     requires_shipping = models.BooleanField("نیاز به ارسال فیزیکی", default=True)
+    # خالی یعنی «از دسته‌ی مالیاتیِ پیش‌فرضِ Store استفاده کن» (نگاه کنید به
+    # ADR-44 در SAAS_DOMAIN_DECISIONS.md) — این یک مقدارِ خطا نیست.
+    tax_class = models.ForeignKey(
+        "orders.TaxClass", verbose_name="دسته‌ی مالیاتی", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="products",
+    )
 
     # سئو (Phase 1C — پیش‌تر هیچ فیلد سئویی روی Product وجود نداشت)
     seo_title = models.CharField("عنوان سئو", max_length=70, blank=True, default="")
@@ -197,6 +203,8 @@ class Product(TimeStampedModel):
             errors["category"] = "این دسته‌بندی متعلق به فروشگاه دیگری است."
         if self.brand_id and self.store_id and self.brand.store_id != self.store_id:
             errors["brand"] = "این برند متعلق به فروشگاه دیگری است."
+        if self.tax_class_id and self.store_id and self.tax_class.store_id != self.store_id:
+            errors["tax_class"] = "این دسته‌ی مالیاتی متعلق به فروشگاه دیگری است."
         if errors:
             raise ValidationError(errors)
 

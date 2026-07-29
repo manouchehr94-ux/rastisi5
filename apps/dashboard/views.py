@@ -83,7 +83,7 @@ from apps.catalog.services.warehouse_service import (
     set_default_warehouse,
     update_warehouse,
 )
-from apps.core.services.audit_service import list_audit_events
+from apps.core.services.audit_service import list_audit_events, record_audit_event
 from apps.cart.models import Coupon
 from apps.cart.services.coupon_service import (
     CouponError,
@@ -140,7 +140,18 @@ from apps.core.utils import normalize_digits
 from apps.core.models import ShopSettings
 from apps.core.theme_presets import THEME_PRESETS, matching_preset_key
 from apps.customers.models import Customer
-from apps.orders.models import Order, OrderItem, Refund, ReturnRequest, Transaction
+from apps.orders.models import (
+    Order,
+    OrderItem,
+    Refund,
+    ReturnRequest,
+    ShippingMethod,
+    ShippingRateRule,
+    ShippingZone,
+    TaxClass,
+    TaxRate,
+    Transaction,
+)
 from apps.orders.services.order_service import change_order_status
 from apps.orders.services.refund_service import (
     RefundError,
@@ -201,8 +212,12 @@ from apps.stores.authorization import (
     RETURN_MANAGE,
     RETURN_VIEW,
     SETTINGS_MANAGE,
+    SHIPPING_SETTINGS_MANAGE,
+    SHIPPING_SETTINGS_VIEW,
     SMS_SETTINGS_MANAGE,
     STAFF_MANAGE,
+    TAX_SETTINGS_MANAGE,
+    TAX_SETTINGS_VIEW,
     TRANSFER_MANAGE,
     TRANSFER_VIEW,
     VARIANT_MANAGE,
@@ -535,6 +550,7 @@ def _save_product(form, product, *, store):
     product.barcode = data.get("barcode") or ""
     product.weight_grams = data.get("weight_grams")
     product.requires_shipping = data.get("requires_shipping", True)
+    product.tax_class = data.get("tax_class")
     product.seo_title = data.get("seo_title") or ""
     product.seo_description = data.get("seo_description") or ""
     product.full_clean(exclude=["slug"])
@@ -617,7 +633,7 @@ def product_form(request, pk=None):
                 "stock": product.stock, "status": product.status, "icon": product.icon,
                 "description": product.description, "product_type": product.product_type,
                 "barcode": product.barcode, "weight_grams": product.weight_grams,
-                "requires_shipping": product.requires_shipping,
+                "requires_shipping": product.requires_shipping, "tax_class": product.tax_class_id,
                 "seo_title": product.seo_title, "seo_description": product.seo_description,
             }
         else:
@@ -3904,6 +3920,7 @@ def return_detail(request, pk):
     return render(request, "dashboard/return_detail.html", {
         "return_request": return_request,
         "items": return_request.items.select_related("order_item"),
+        "warehouses": Warehouse.objects.filter(store=store, is_active=True),
         "active_page": "returns",
         "can_manage_returns": membership_has_permission(request.store_membership, RETURN_MANAGE),
     })
@@ -3997,12 +4014,14 @@ def return_inspect(request, pk):
         prefix = f"item_{item.pk}_"
         if request.POST.get(f"{prefix}present") != "on":
             continue
+        restock_warehouse_raw = request.POST.get(f"{prefix}restock_warehouse", "").strip()
         inspections.append({
             "item_id": item.pk,
             "condition": request.POST.get(f"{prefix}condition", ""),
             "is_restockable": request.POST.get(f"{prefix}restockable") == "on",
             "merchant_resolution": request.POST.get(f"{prefix}resolution", ""),
             "rejection_reason": request.POST.get(f"{prefix}rejection_reason", ""),
+            "restock_warehouse_id": restock_warehouse_raw or None,
         })
     try:
         inspect_return_items(
@@ -4287,3 +4306,412 @@ def transfer_cancel(request, pk):
     except TransferError as exc:
         messages.error(request, str(exc))
     return redirect("dashboard:transfer-detail", pk=pk)
+
+
+# ---------------------------------------------------------------- مناطقِ ارسال (Shipping Zones)
+
+def _parse_str_list(raw: str) -> list:
+    return [line.strip() for line in raw.replace(",", "\n").split("\n") if line.strip()]
+
+
+@staff_required
+@permission_required(SHIPPING_SETTINGS_VIEW, SHIPPING_SETTINGS_MANAGE)
+def shipping_zone_list(request):
+    store = _resolve_dashboard_store(request)
+    return render(request, "dashboard/shipping_zone_list.html", {
+        "zones": ShippingZone.objects.filter(store=store), "active_page": "shipping",
+        "can_manage_shipping": membership_has_permission(request.store_membership, SHIPPING_SETTINGS_MANAGE),
+    })
+
+
+def _parse_shipping_zone_form(request):
+    data = request.POST
+    return {
+        "name": data.get("name", "").strip(),
+        "code": data.get("code", "").strip(),
+        "is_active": data.get("is_active") == "on",
+        "priority": int(data.get("priority", "0") or "0"),
+        "provinces": _parse_str_list(data.get("provinces", "")),
+        "cities": _parse_str_list(data.get("cities", "")),
+        "postal_codes": _parse_str_list(data.get("postal_codes", "")),
+        "excluded_provinces": _parse_str_list(data.get("excluded_provinces", "")),
+        "excluded_cities": _parse_str_list(data.get("excluded_cities", "")),
+        "is_fallback": data.get("is_fallback") == "on",
+    }
+
+
+@staff_required
+@permission_required(SHIPPING_SETTINGS_MANAGE)
+def shipping_zone_form(request, pk=None):
+    store = _resolve_dashboard_store(request)
+    zone = get_object_or_404(ShippingZone, pk=pk, store=store) if pk else None
+
+    if request.method == "POST":
+        fields = _parse_shipping_zone_form(request)
+        try:
+            if fields["is_fallback"]:
+                ShippingZone.objects.filter(store=store, is_fallback=True).exclude(pk=zone.pk if zone else None).update(is_fallback=False)
+            if zone:
+                for key, value in fields.items():
+                    setattr(zone, key, value)
+            else:
+                zone = ShippingZone(store=store, **fields)
+            zone.full_clean()
+            zone.save()
+            record_audit_event(
+                store=store, actor=request.user,
+                action_code="shipping_zone.updated" if pk else "shipping_zone.created",
+                object_type="ShippingZone", object_id=zone.pk, object_label=zone.name,
+            )
+            messages.success(request, f"منطقه‌ی «{zone.name}» ذخیره شد")
+            return redirect("dashboard:shipping-zone-list")
+        except (ValidationError, IntegrityError) as exc:
+            messages.error(request, str(exc))
+
+    return render(request, "dashboard/shipping_zone_form.html", {"zone": zone, "active_page": "shipping"})
+
+
+@require_POST
+@staff_required
+@permission_required(SHIPPING_SETTINGS_MANAGE)
+def shipping_zone_toggle(request, pk):
+    store = _resolve_dashboard_store(request)
+    zone = get_object_or_404(ShippingZone, pk=pk, store=store)
+    zone.is_active = not zone.is_active
+    zone.save(update_fields=["is_active", "updated_at"])
+    messages.info(request, f"منطقه‌ی «{zone.name}» {'فعال' if zone.is_active else 'غیرفعال'} شد")
+    return redirect("dashboard:shipping-zone-list")
+
+
+# ---------------------------------------------------------------- روش‌های ارسال (Shipping Methods)
+
+@staff_required
+@permission_required(SHIPPING_SETTINGS_VIEW, SHIPPING_SETTINGS_MANAGE)
+def shipping_method_list(request):
+    store = _resolve_dashboard_store(request)
+    return render(request, "dashboard/shipping_method_list.html", {
+        "methods": ShippingMethod.objects.filter(store=store).select_related("zone", "pickup_warehouse"),
+        "active_page": "shipping",
+        "can_manage_shipping": membership_has_permission(request.store_membership, SHIPPING_SETTINGS_MANAGE),
+    })
+
+
+def _parse_shipping_method_form(request, store):
+    data = request.POST
+    zone_id = data.get("zone", "").strip()
+    pickup_warehouse_id = data.get("pickup_warehouse", "").strip()
+    fields = {
+        "name": data.get("name", "").strip(),
+        "slug": data.get("slug", "").strip(),
+        "description": data.get("description", "").strip(),
+        "method_type": data.get("method_type", ShippingMethod.MethodType.FLAT_RATE),
+        "icon": data.get("icon", "").strip(),
+        "is_active": data.get("is_active") == "on",
+        "is_pickup": data.get("is_pickup") == "on",
+        "cod_eligible": data.get("cod_eligible") == "on",
+        "zone": _lookup_store_scoped(ShippingZone, zone_id, store),
+        "pickup_warehouse": _lookup_store_scoped(Warehouse, pickup_warehouse_id, store),
+    }
+    for key in ("cost", "free_over"):
+        try:
+            fields[key] = Decimal(data.get(key, "0") or "0")
+        except InvalidOperation:
+            fields[key] = Decimal("0")
+    fields["display_order"] = int(data.get("display_order", "0") or "0")
+    min_days = data.get("min_delivery_days", "").strip()
+    max_days = data.get("max_delivery_days", "").strip()
+    fields["min_delivery_days"] = int(min_days) if min_days.isdigit() else None
+    fields["max_delivery_days"] = int(max_days) if max_days.isdigit() else None
+    return fields
+
+
+def _lookup_store_scoped(model, raw_id, store):
+    if not raw_id:
+        return None
+    return model.objects.filter(pk=raw_id, store=store).first()
+
+
+@staff_required
+@permission_required(SHIPPING_SETTINGS_MANAGE)
+def shipping_method_form(request, pk=None):
+    store = _resolve_dashboard_store(request)
+    method = get_object_or_404(ShippingMethod, pk=pk, store=store) if pk else None
+
+    if request.method == "POST":
+        fields = _parse_shipping_method_form(request, store)
+        try:
+            if method:
+                for key, value in fields.items():
+                    setattr(method, key, value)
+            else:
+                method = ShippingMethod(store=store, **fields)
+            method.full_clean()
+            method.save()
+            record_audit_event(
+                store=store, actor=request.user,
+                action_code="shipping_method.updated" if pk else "shipping_method.created",
+                object_type="ShippingMethod", object_id=method.pk, object_label=method.name,
+            )
+            messages.success(request, f"روشِ ارسالِ «{method.name}» ذخیره شد")
+            return redirect("dashboard:shipping-method-list")
+        except (ValidationError, IntegrityError) as exc:
+            messages.error(request, str(exc))
+
+    return render(request, "dashboard/shipping_method_form.html", {
+        "method": method, "active_page": "shipping",
+        "zones": ShippingZone.objects.filter(store=store, is_active=True),
+        "warehouses": Warehouse.objects.filter(store=store, is_pickup_location=True),
+        "method_type_choices": ShippingMethod.MethodType.choices,
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(SHIPPING_SETTINGS_MANAGE)
+def shipping_method_archive(request, pk):
+    store = _resolve_dashboard_store(request)
+    method = get_object_or_404(ShippingMethod, pk=pk, store=store)
+    method.is_active = not method.is_active
+    method.save(update_fields=["is_active", "updated_at"])
+    messages.info(request, f"روشِ ارسالِ «{method.name}» {'فعال' if method.is_active else 'غیرفعال'} شد")
+    return redirect("dashboard:shipping-method-list")
+
+
+@staff_required
+@permission_required(SHIPPING_SETTINGS_VIEW, SHIPPING_SETTINGS_MANAGE)
+def shipping_rate_rule_list(request, method_id):
+    store = _resolve_dashboard_store(request)
+    method = get_object_or_404(ShippingMethod, pk=method_id, store=store)
+    return render(request, "dashboard/shipping_rate_rule_list.html", {
+        "method": method, "rules": method.rate_rules.all(), "active_page": "shipping",
+        "can_manage_shipping": membership_has_permission(request.store_membership, SHIPPING_SETTINGS_MANAGE),
+    })
+
+
+def _parse_rate_rule_form(request):
+    data = request.POST
+    fields = {
+        "name": data.get("name", "").strip(),
+        "priority": int(data.get("priority", "0") or "0"),
+        "is_active": data.get("is_active") == "on",
+    }
+    for key in ("min_subtotal", "max_subtotal", "rate_amount", "free_over"):
+        raw = data.get(key, "").strip()
+        if key == "rate_amount":
+            fields[key] = Decimal(raw) if raw else Decimal("0")
+        else:
+            fields[key] = Decimal(raw) if raw else None
+    for key in ("min_weight_grams", "max_weight_grams"):
+        raw = data.get(key, "").strip()
+        fields[key] = int(raw) if raw.isdigit() else None
+    return fields
+
+
+@staff_required
+@permission_required(SHIPPING_SETTINGS_MANAGE)
+def shipping_rate_rule_form(request, method_id, pk=None):
+    store = _resolve_dashboard_store(request)
+    method = get_object_or_404(ShippingMethod, pk=method_id, store=store)
+    rule = get_object_or_404(ShippingRateRule, pk=pk, method=method) if pk else None
+
+    if request.method == "POST":
+        fields = _parse_rate_rule_form(request)
+        try:
+            if rule:
+                for key, value in fields.items():
+                    setattr(rule, key, value)
+            else:
+                rule = ShippingRateRule(method=method, **fields)
+            rule.full_clean()
+            rule.save()
+            messages.success(request, f"قاعده‌ی «{rule.name}» ذخیره شد")
+            return redirect("dashboard:shipping-rate-rule-list", method_id=method.pk)
+        except (ValidationError, IntegrityError) as exc:
+            messages.error(request, str(exc))
+
+    return render(request, "dashboard/shipping_rate_rule_form.html", {
+        "method": method, "rule": rule, "active_page": "shipping",
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(SHIPPING_SETTINGS_MANAGE)
+def shipping_rate_rule_archive(request, method_id, pk):
+    store = _resolve_dashboard_store(request)
+    method = get_object_or_404(ShippingMethod, pk=method_id, store=store)
+    rule = get_object_or_404(ShippingRateRule, pk=pk, method=method)
+    rule.is_active = not rule.is_active
+    rule.save(update_fields=["is_active", "updated_at"])
+    messages.info(request, f"قاعده‌ی «{rule.name}» {'فعال' if rule.is_active else 'غیرفعال'} شد")
+    return redirect("dashboard:shipping-rate-rule-list", method_id=method.pk)
+
+
+# ---------------------------------------------------------------- تنظیماتِ مالیات (Tax Settings)
+
+@staff_required
+@permission_required(TAX_SETTINGS_VIEW, TAX_SETTINGS_MANAGE)
+def tax_settings(request):
+    store = _resolve_dashboard_store(request)
+    settings_row = ShopSettings.load(store=store)
+
+    if request.method == "POST" and not membership_has_permission(request.store_membership, TAX_SETTINGS_MANAGE):
+        return render(request, "dashboard/403.html", status=403)
+
+    if request.method == "POST":
+        settings_row.tax_enabled = request.POST.get("tax_enabled") == "on"
+        settings_row.prices_include_tax = request.POST.get("prices_include_tax") == "on"
+        settings_row.shipping_taxable = request.POST.get("shipping_taxable") == "on"
+        settings_row.tax_rounding_policy = request.POST.get(
+            "tax_rounding_policy", ShopSettings.TaxRoundingPolicy.ON_TOTAL,
+        )
+        default_class_id = request.POST.get("default_tax_class", "").strip()
+        settings_row.default_tax_class = (
+            TaxClass.objects.filter(pk=default_class_id, store=store).first() if default_class_id else None
+        )
+        settings_row.save(update_fields=[
+            "tax_enabled", "prices_include_tax", "shipping_taxable", "tax_rounding_policy", "default_tax_class",
+        ])
+        record_audit_event(
+            store=store, actor=request.user, action_code="tax_settings.updated",
+            object_type="ShopSettings", object_id=settings_row.pk, object_label="تنظیماتِ مالیات",
+        )
+        messages.success(request, "تنظیماتِ مالیات ذخیره شد")
+        return redirect("dashboard:tax-settings")
+
+    return render(request, "dashboard/tax_settings.html", {
+        "settings": settings_row, "active_page": "tax",
+        "tax_classes": TaxClass.objects.filter(store=store, is_active=True),
+        "rounding_choices": ShopSettings.TaxRoundingPolicy.choices,
+    })
+
+
+# ---------------------------------------------------------------- دسته‌های مالیاتی (Tax Classes)
+
+@staff_required
+@permission_required(TAX_SETTINGS_VIEW, TAX_SETTINGS_MANAGE)
+def tax_class_list(request):
+    store = _resolve_dashboard_store(request)
+    return render(request, "dashboard/tax_class_list.html", {
+        "tax_classes": TaxClass.objects.filter(store=store), "active_page": "tax",
+        "can_manage_tax": membership_has_permission(request.store_membership, TAX_SETTINGS_MANAGE),
+    })
+
+
+@staff_required
+@permission_required(TAX_SETTINGS_MANAGE)
+def tax_class_form(request, pk=None):
+    store = _resolve_dashboard_store(request)
+    tax_class = get_object_or_404(TaxClass, pk=pk, store=store) if pk else None
+
+    if request.method == "POST":
+        data = request.POST
+        fields = {
+            "name": data.get("name", "").strip(),
+            "code": data.get("code", "").strip(),
+            "description": data.get("description", "").strip(),
+            "is_active": data.get("is_active") == "on",
+            "is_default": data.get("is_default") == "on",
+        }
+        try:
+            if fields["is_default"]:
+                TaxClass.objects.filter(store=store, is_default=True).exclude(
+                    pk=tax_class.pk if tax_class else None
+                ).update(is_default=False)
+            if tax_class:
+                for key, value in fields.items():
+                    setattr(tax_class, key, value)
+            else:
+                tax_class = TaxClass(store=store, **fields)
+            tax_class.full_clean()
+            tax_class.save()
+            record_audit_event(
+                store=store, actor=request.user,
+                action_code="tax_class.updated" if pk else "tax_class.created",
+                object_type="TaxClass", object_id=tax_class.pk, object_label=tax_class.name,
+            )
+            messages.success(request, f"دسته‌ی مالیاتیِ «{tax_class.name}» ذخیره شد")
+            return redirect("dashboard:tax-class-list")
+        except (ValidationError, IntegrityError) as exc:
+            messages.error(request, str(exc))
+
+    return render(request, "dashboard/tax_class_form.html", {"tax_class": tax_class, "active_page": "tax"})
+
+
+@require_POST
+@staff_required
+@permission_required(TAX_SETTINGS_MANAGE)
+def tax_class_archive(request, pk):
+    store = _resolve_dashboard_store(request)
+    tax_class = get_object_or_404(TaxClass, pk=pk, store=store)
+    tax_class.is_active = not tax_class.is_active
+    tax_class.save(update_fields=["is_active", "updated_at"])
+    messages.info(request, f"دسته‌ی مالیاتیِ «{tax_class.name}» {'فعال' if tax_class.is_active else 'غیرفعال'} شد")
+    return redirect("dashboard:tax-class-list")
+
+
+@staff_required
+@permission_required(TAX_SETTINGS_VIEW, TAX_SETTINGS_MANAGE)
+def tax_rate_list(request, tax_class_id):
+    store = _resolve_dashboard_store(request)
+    tax_class = get_object_or_404(TaxClass, pk=tax_class_id, store=store)
+    return render(request, "dashboard/tax_rate_list.html", {
+        "tax_class": tax_class, "rates": tax_class.rates.all(), "active_page": "tax",
+        "can_manage_tax": membership_has_permission(request.store_membership, TAX_SETTINGS_MANAGE),
+    })
+
+
+@staff_required
+@permission_required(TAX_SETTINGS_MANAGE)
+def tax_rate_form(request, tax_class_id, pk=None):
+    store = _resolve_dashboard_store(request)
+    tax_class = get_object_or_404(TaxClass, pk=tax_class_id, store=store)
+    rate = get_object_or_404(TaxRate, pk=pk, tax_class=tax_class) if pk else None
+
+    if request.method == "POST":
+        data = request.POST
+        applies_raw = data.get("applies_to_shipping", "")
+        fields = {
+            "province": data.get("province", "").strip(),
+            "priority": int(data.get("priority", "0") or "0"),
+            "is_active": data.get("is_active") == "on",
+            "applies_to_shipping": {"true": True, "false": False}.get(applies_raw),
+        }
+        try:
+            fields["rate_percent"] = Decimal(data.get("rate_percent", "0") or "0")
+        except InvalidOperation:
+            fields["rate_percent"] = Decimal("0")
+        try:
+            if rate:
+                for key, value in fields.items():
+                    setattr(rate, key, value)
+            else:
+                rate = TaxRate(store=store, tax_class=tax_class, **fields)
+            rate.full_clean()
+            rate.save()
+            record_audit_event(
+                store=store, actor=request.user,
+                action_code="tax_rate.updated" if pk else "tax_rate.created",
+                object_type="TaxRate", object_id=rate.pk, object_label=f"{tax_class.name} — {rate.rate_percent}٪",
+            )
+            messages.success(request, "نرخِ مالیات ذخیره شد")
+            return redirect("dashboard:tax-rate-list", tax_class_id=tax_class.pk)
+        except (ValidationError, IntegrityError) as exc:
+            messages.error(request, str(exc))
+
+    return render(request, "dashboard/tax_rate_form.html", {
+        "tax_class": tax_class, "rate": rate, "active_page": "tax",
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(TAX_SETTINGS_MANAGE)
+def tax_rate_archive(request, tax_class_id, pk):
+    store = _resolve_dashboard_store(request)
+    tax_class = get_object_or_404(TaxClass, pk=tax_class_id, store=store)
+    rate = get_object_or_404(TaxRate, pk=pk, tax_class=tax_class)
+    rate.is_active = not rate.is_active
+    rate.save(update_fields=["is_active", "updated_at"])
+    messages.info(request, f"نرخِ مالیات {'فعال' if rate.is_active else 'غیرفعال'} شد")
+    return redirect("dashboard:tax-rate-list", tax_class_id=tax_class.pk)

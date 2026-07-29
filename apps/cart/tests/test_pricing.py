@@ -7,7 +7,7 @@ from apps.catalog.models import Category, Product, Vendor
 from apps.cart.models import Cart, CartItem, Coupon
 from apps.cart.services.pricing import cart_totals, coupon_is_applicable, product_final_price
 from apps.core.models import ShopSettings
-from apps.orders.models import ShippingMethod
+from apps.orders.models import ShippingMethod, ShippingRateRule, ShippingZone, TaxClass, TaxRate
 from apps.stores.models import Store
 
 
@@ -214,3 +214,93 @@ class PricingTwoStoreIsolationTests(TestCase):
         self._add_item(self.cart_b, 200_000, "TWO-G", store=self.store_b)
         totals = cart_totals(self.cart_b, store=self.store_b)
         self.assertTrue(totals["free_shipping"])
+
+
+class PricingShippingRateIntegrationTests(TestCase):
+    """اثبات این‌که ``cart_totals`` وقتی هیچ ``ShippingRateRule``ای برای یک
+    روش ثبت نشده، دقیقاً به رفتارِ قدیمیِ ``method.cost`` بازمی‌گردد؛ و وقتی
+    قاعده‌ای ثبت شده، از همان قاعده استفاده می‌کند — checkpoint 3B."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-rate-int")
+        self.category = Category.objects.create(store=self.store, name="پوشاک", slug="clothing-rate-int")
+        self.shipping = ShippingMethod.objects.create(
+            store=self.store, name="پست پیشتاز", slug="post-rate-int", cost=Decimal("45000"),
+        )
+        self.cart = Cart.objects.create(session_key="guest-rate-int")
+
+    def _add_item(self, price, quantity=1, sku="SKU-RATE-INT"):
+        product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای نمونه",
+            slug=f"{sku}-slug", sku=sku, price=Decimal(price),
+        )
+        return CartItem.objects.create(cart=self.cart, product=product, quantity=quantity, unit_price=product.final_price)
+
+    def test_no_rate_rules_falls_back_to_legacy_cost(self):
+        self._add_item(price=100_000)
+        totals = cart_totals(self.cart, store=self.store, shipping_method=self.shipping)
+        self.assertEqual(totals["shipping_cost"], Decimal("45000"))
+
+    def test_matching_rate_rule_overrides_legacy_cost(self):
+        ShippingRateRule.objects.create(method=self.shipping, name="ویژه", rate_amount=Decimal("15000"))
+        self._add_item(price=100_000)
+        totals = cart_totals(self.cart, store=self.store, shipping_method=self.shipping)
+        self.assertEqual(totals["shipping_cost"], Decimal("15000"))
+
+    def test_rate_rule_free_over_threshold(self):
+        ShippingRateRule.objects.create(
+            method=self.shipping, name="آستانه", rate_amount=Decimal("15000"), free_over=Decimal("50000"),
+        )
+        self._add_item(price=100_000)
+        totals = cart_totals(self.cart, store=self.store, shipping_method=self.shipping)
+        self.assertEqual(totals["shipping_cost"], Decimal("0"))
+
+    def test_zone_restricted_method_resolved_via_address(self):
+        zone = ShippingZone.objects.create(store=self.store, name="تهران", code="tehran-rate-int", provinces=["تهران"])
+        self.shipping.zone = zone
+        self.shipping.save(update_fields=["zone"])
+        self._add_item(price=100_000)
+        totals = cart_totals(self.cart, store=self.store, shipping_method=self.shipping, province="تهران")
+        self.assertEqual(totals["shipping_zone"], zone)
+
+
+class PricingTaxClassIntegrationTests(TestCase):
+    """اثبات این‌که ``cart_totals`` وقتی هیچ ``TaxRate``ای برای Store ثبت
+    نشده، دقیقاً به فرمولِ قدیمیِ نرخِ ثابتِ ``ShopSettings.tax_percent``
+    بازمی‌گردد؛ و وقتی دسته‌ی مالیاتی/نرخ پیکربندی شده، از آن استفاده
+    می‌کند — checkpoint 3B."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-tax-int")
+        self.category = Category.objects.create(store=self.store, name="پوشاک", slug="clothing-tax-int")
+        self.cart = Cart.objects.create(session_key="guest-tax-int")
+
+    def _add_item(self, price, quantity=1, sku="SKU-TAX-INT", tax_class=None):
+        product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای نمونه",
+            slug=f"{sku}-slug", sku=sku, price=Decimal(price), tax_class=tax_class,
+        )
+        return CartItem.objects.create(cart=self.cart, product=product, quantity=quantity, unit_price=product.final_price)
+
+    def test_no_tax_rates_matches_legacy_flat_percent(self):
+        self._add_item(price=200_000)
+        totals = cart_totals(self.cart, store=self.store)
+        self.assertEqual(totals["tax"], Decimal("18000"))  # 9% flat, unchanged
+
+    def test_product_tax_class_rate_used_when_configured(self):
+        tax_class = TaxClass.objects.create(store=self.store, name="ویژه", code="special-tax-int")
+        TaxRate.objects.create(store=self.store, tax_class=tax_class, rate_percent=Decimal("4"))
+        self._add_item(price=200_000, tax_class=tax_class)
+        totals = cart_totals(self.cart, store=self.store)
+        self.assertEqual(totals["tax"], Decimal("8000"))  # 4% of 200,000, not the flat 9%
+
+    def test_multi_item_cart_with_coupon_discount_matches_legacy_total(self):
+        self._add_item(price=100_000, sku="TAX-MULTI-A")
+        self._add_item(price=250_000, sku="TAX-MULTI-B")
+        coupon = Coupon.objects.create(store=self.store, code="TAXCUT", type=Coupon.Type.PERCENT, value=10)
+        totals = cart_totals(self.cart, store=self.store, coupon=coupon)
+        after_coupon = totals["items_total"] - totals["coupon_discount"]
+        expected_tax = (after_coupon * Decimal("9") / Decimal("100")).quantize(Decimal("1"))
+        self.assertEqual(totals["tax"], expected_tax)

@@ -1,0 +1,37 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}قواعدِ نرخ | پنل مدیریت{% endblock %}
+{% block page_title %}قواعدِ نرخِ «{{ method.name }}»{% endblock %}
+{% block page_sub %}وقتی هیچ قاعده‌ی فعالی تطبیق نداشته باشد، هزینه‌ی ثابتِ روش ({{ method.cost }} تومان) اعمال می‌شود{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div></div>
+  {% if can_manage_shipping %}<a href="{% url 'dashboard:shipping-rate-rule-add' method.pk %}" class="btn btn-primary">قاعده‌ی جدید</a>{% endif %}
+</div>
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>نام</th><th>بازه‌ی سبد</th><th>بازه‌ی وزن</th><th>نرخ</th><th>آستانه‌ی رایگان</th><th>اولویت</th><th>وضعیت</th>{% if can_manage_shipping %}<th>عملیات</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for rule in rules %}
+    <tr>
+      <td>{{ rule.name }}</td>
+      <td>{{ rule.min_subtotal|default:"—" }} تا {{ rule.max_subtotal|default:"∞" }}</td>
+      <td>{{ rule.min_weight_grams|default:"—" }} تا {{ rule.max_weight_grams|default:"∞" }} گرم</td>
+      <td>{{ rule.rate_amount }}</td>
+      <td>{{ rule.free_over|default:"—" }}</td>
+      <td>{{ rule.priority }}</td>
+      <td>{% if rule.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">غیرفعال</span>{% endif %}</td>
+      {% if can_manage_shipping %}
+      <td style="display:flex;gap:6px">
+        <a class="btn btn-sm" href="{% url 'dashboard:shipping-rate-rule-edit' method.pk rule.pk %}">ویرایش</a>
+        <form method="post" action="{% url 'dashboard:shipping-rate-rule-archive' method.pk rule.pk %}">{% csrf_token %}<button class="btn btn-sm">{% if rule.is_active %}غیرفعال{% else %}فعال{% endif %}</button></form>
+      </td>
+      {% endif %}
+    </tr>
+    {% empty %}
+    <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">هنوز قاعده‌ای ثبت نشده</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+<a href="{% url 'dashboard:shipping-method-list' %}" class="btn btn-secondary">بازگشت به روش‌های ارسال</a>
+{% endblock %}

@@ -127,6 +127,15 @@
         <input type="checkbox" name="requires_shipping" {% if form.requires_shipping.value %}checked{% endif %}>
         نیاز به ارسال فیزیکی دارد
       </label>
+      <div class="form-group">
+        <label>دسته‌ی مالیاتی</label>
+        <select class="inp" name="tax_class">
+          <option value="">— پیش‌فرضِ فروشگاه —</option>
+          {% for choice in form.tax_class.field.queryset %}
+          <option value="{{ choice.pk }}" {% if form.tax_class.value|stringformat:"s" == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
     </fieldset>
     <fieldset class="form-group">
       <legend>ویژگی‌های اختصاصی دسته‌بندی</legend>

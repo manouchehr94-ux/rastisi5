@@ -10,15 +10,45 @@ from .models import (
     ReturnItem,
     ReturnRequest,
     ShippingMethod,
+    ShippingRateRule,
+    ShippingZone,
+    TaxClass,
+    TaxRate,
     Transaction,
 )
 
 
+@admin.register(ShippingZone)
+class ShippingZoneAdmin(admin.ModelAdmin):
+    list_display = ("name", "store", "priority", "is_fallback", "is_active")
+    list_filter = ("store", "is_active", "is_fallback")
+    prepopulated_fields = {"code": ("name",)}
+
+
+class ShippingRateRuleInline(admin.TabularInline):
+    model = ShippingRateRule
+    extra = 0
+
+
 @admin.register(ShippingMethod)
 class ShippingMethodAdmin(admin.ModelAdmin):
-    list_display = ("name", "store", "cost", "free_over", "is_active")
-    list_filter = ("store", "is_active")
+    list_display = ("name", "store", "zone", "method_type", "cost", "free_over", "is_active")
+    list_filter = ("store", "is_active", "method_type")
     prepopulated_fields = {"slug": ("name",)}
+    inlines = [ShippingRateRuleInline]
+
+
+@admin.register(TaxClass)
+class TaxClassAdmin(admin.ModelAdmin):
+    list_display = ("name", "store", "is_default", "is_active")
+    list_filter = ("store", "is_active", "is_default")
+    prepopulated_fields = {"code": ("name",)}
+
+
+@admin.register(TaxRate)
+class TaxRateAdmin(admin.ModelAdmin):
+    list_display = ("tax_class", "store", "province", "rate_percent", "is_active")
+    list_filter = ("store", "is_active")
 
 
 @admin.register(PaymentGateway)

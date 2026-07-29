@@ -58,6 +58,13 @@ def refunded_shipping_total(order: Order) -> Decimal:
     return total
 
 
+def refunded_shipping_tax_total(order: Order) -> Decimal:
+    total = Decimal("0")
+    for refund in _active_refunds(order):
+        total += refund.shipping_tax_refund_amount
+    return total
+
+
 def _refunded_quantity_for_item(order_item: OrderItem) -> int:
     total = 0
     for refund_item in RefundItem.objects.filter(order_item=order_item).exclude(
@@ -67,12 +74,24 @@ def _refunded_quantity_for_item(order_item: OrderItem) -> int:
     return total
 
 
+def _refunded_tax_for_item(order_item: OrderItem) -> Decimal:
+    """مجموعِ مالیاتِ قبلاً استردادشده‌ی این قلم — نگاه کنید به ADR-33/checkpoint
+    3B §17: مالیات هرگز دوبار استرداد نمی‌شود، دقیقاً مثلِ خودِ مبلغِ کالا."""
+    total = Decimal("0")
+    for refund_item in RefundItem.objects.filter(order_item=order_item).exclude(
+        refund__status__in=(Refund.Status.FAILED, Refund.Status.CANCELLED)
+    ):
+        total += refund_item.tax_amount
+    return total
+
+
 @dataclass
 class RefundLinePlan:
     order_item: OrderItem
     quantity: int
     max_quantity: int
     amount: Decimal
+    tax_amount: Decimal = Decimal("0")
 
 
 @dataclass
@@ -81,7 +100,10 @@ class RefundPlan:
     lines: list = field(default_factory=list)
     shipping_amount: Decimal = Decimal("0")
     max_shipping: Decimal = Decimal("0")
+    shipping_tax_amount: Decimal = Decimal("0")
+    max_shipping_tax: Decimal = Decimal("0")
     items_total: Decimal = Decimal("0")
+    tax_amount: Decimal = Decimal("0")
     total_amount: Decimal = Decimal("0")
     max_refundable: Decimal = Decimal("0")
 
@@ -97,14 +119,29 @@ def plan_order_refund(order: Order, *, store, line_requests: list[dict], shippin
 
     max_refundable = refundable_amount(order)
     max_shipping = max(Decimal("0"), order.shipping_cost - refunded_shipping_total(order))
+    max_shipping_tax = max(Decimal("0"), order.shipping_tax - refunded_shipping_tax_total(order))
 
     if shipping_amount < 0:
         raise RefundError("مبلغِ استردادِ ارسال نمی‌تواند منفی باشد.")
     if shipping_amount > max_shipping:
         raise RefundError("مبلغِ استردادِ ارسال از هزینه‌ی باقی‌مانده‌ی ارسال بیشتر است.")
 
+    # مالیاتِ ارسال متناسب با نسبتِ استردادِ درخواستی از خودِ هزینه‌ی ارسال
+    # مشتق می‌شود (نه یک ورودیِ جداگانه از کلاینت) — دقیقاً همان قاعده‌ای که
+    # این کدبیس همه‌جا برای مقادیرِ مشتق‌شده اعمال می‌کند: هرگز به یک عددِ
+    # اضافیِ کلاینت اعتماد نکن، وقتی می‌توان آن را از دادهٔ موثقِ سفارش
+    # محاسبه کرد. سقف با ``max_shipping_tax`` تضمین می‌کند مالیاتِ ارسال هرگز
+    # دوبار استرداد نشود.
+    shipping_tax_amount = Decimal("0")
+    if order.shipping_cost > 0 and shipping_amount > 0:
+        shipping_tax_amount = min(
+            max_shipping_tax,
+            (shipping_amount * order.shipping_tax / order.shipping_cost).quantize(Decimal("1")),
+        )
+
     lines = []
     items_total = Decimal("0")
+    tax_amount = Decimal("0")
     for entry in line_requests:
         order_item = OrderItem.objects.filter(pk=entry["order_item_id"], order=order).first()
         if order_item is None:
@@ -121,10 +158,22 @@ def plan_order_refund(order: Order, *, store, line_requests: list[dict], shippin
             )
 
         amount = (order_item.unit_price * quantity).quantize(Decimal("1"))
-        items_total += amount
-        lines.append(RefundLinePlan(order_item=order_item, quantity=quantity, max_quantity=max_quantity, amount=amount))
+        # مالیاتِ این ردیف متناسب با تعدادِ استردادشده از اسنپ‌شاتِ
+        # ``OrderItem.unit_tax`` مشتق می‌شود — هرگز از نرخِ مالیاتِ فعلی
+        # بازمحاسبه نمی‌شود (نگاه کنید به ADR-47: مالیاتِ استرداد همیشه از
+        # روی اسنپ‌شاتِ تاریخیِ سفارش است، نه پیکربندیِ فعلیِ مالیات).
+        already_refunded_tax = _refunded_tax_for_item(order_item)
+        remaining_tax = max(Decimal("0"), order_item.total_tax - already_refunded_tax)
+        line_tax_amount = min(remaining_tax, order_item.unit_tax * quantity)
 
-    total_amount = items_total + shipping_amount
+        items_total += amount
+        tax_amount += line_tax_amount
+        lines.append(RefundLinePlan(
+            order_item=order_item, quantity=quantity, max_quantity=max_quantity,
+            amount=amount, tax_amount=line_tax_amount,
+        ))
+
+    total_amount = items_total + tax_amount + shipping_amount + shipping_tax_amount
     if total_amount <= 0:
         raise RefundError("مبلغِ استرداد باید بیشتر از صفر باشد.")
     if total_amount > max_refundable:
@@ -134,7 +183,9 @@ def plan_order_refund(order: Order, *, store, line_requests: list[dict], shippin
 
     return RefundPlan(
         order=order, lines=lines, shipping_amount=shipping_amount, max_shipping=max_shipping,
-        items_total=items_total, total_amount=total_amount, max_refundable=max_refundable,
+        shipping_tax_amount=shipping_tax_amount, max_shipping_tax=max_shipping_tax,
+        items_total=items_total, tax_amount=tax_amount,
+        total_amount=total_amount, max_refundable=max_refundable,
     )
 
 
@@ -163,13 +214,15 @@ def execute_order_refund(
 
     refund = Refund.objects.create(
         store=store, order=order, requested_amount=plan.total_amount, approved_amount=plan.total_amount,
-        shipping_refund_amount=shipping_amount, reason=reason, merchant_note=merchant_note,
+        shipping_refund_amount=shipping_amount, shipping_tax_refund_amount=plan.shipping_tax_amount,
+        reason=reason, merchant_note=merchant_note,
         status=Refund.Status.SUCCEEDED, refund_method=refund_method, restock=restock,
         actor=actor, completed_at=timezone.now(), idempotency_key=idempotency_key,
     )
     for line in plan.lines:
         refund_item = RefundItem.objects.create(
-            refund=refund, order_item=line.order_item, quantity=line.quantity, amount=line.amount,
+            refund=refund, order_item=line.order_item, quantity=line.quantity,
+            amount=line.amount, tax_amount=line.tax_amount,
         )
         if restock:
             try:

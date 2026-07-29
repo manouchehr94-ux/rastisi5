@@ -7,6 +7,7 @@ from apps.catalog.models import Attribute, Brand, Category, Product
 from apps.core.color_utils import contrast_ratio, safe_hex
 from apps.core.models import ShopSettings
 from apps.core.utils import normalize_digits
+from apps.orders.models import TaxClass
 from apps.sms.services.sms_service import SmsTemplateError, validate_template_body
 
 from .services.catalog_admin_service import leaf_categories
@@ -76,6 +77,10 @@ class ProductForm(NumericCleanMixin, forms.Form):
     barcode = forms.CharField(label="بارکد محصول", max_length=64, required=False)
     weight_grams = forms.CharField(label="وزن (گرم)", required=False)
     requires_shipping = forms.BooleanField(label="نیاز به ارسال فیزیکی", required=False, initial=True)
+    tax_class = forms.ModelChoiceField(
+        label="دسته‌ی مالیاتی", queryset=TaxClass.objects.none(), required=False,
+        help_text="خالی = استفاده از دسته‌ی پیش‌فرضِ فروشگاه",
+    )
 
     # سئو (Phase 1C)
     seo_title = forms.CharField(label="عنوان سئو", max_length=70, required=False)
@@ -87,6 +92,7 @@ class ProductForm(NumericCleanMixin, forms.Form):
         self.store = store
         self.fields["category"].queryset = leaf_categories(store)
         self.fields["brand"].queryset = Brand.objects.filter(store=store).order_by("name")
+        self.fields["tax_class"].queryset = TaxClass.objects.filter(store=store, is_active=True).order_by("name")
 
     def clean_weight_grams(self):
         raw = normalize_digits(self.cleaned_data.get("weight_grams", "")).strip()

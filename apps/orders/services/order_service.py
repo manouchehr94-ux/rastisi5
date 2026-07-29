@@ -18,6 +18,7 @@ from apps.catalog.services.reservation_service import (
 from apps.core.services.audit_service import record_audit_event
 from apps.core.utils import format_toman
 from apps.orders.models import Order, OrderItem, OrderStatusHistory
+from apps.orders.services import shipping_service
 from apps.sms.events import SmsEvent
 from apps.sms.services.sms_service import send_event_sms
 
@@ -73,6 +74,17 @@ def _variant_label(variant) -> str:
     if variant is None:
         return ""
     return f"{variant.attribute}: {variant.value}"
+
+
+def _resolve_fulfillment_warehouse(store):
+    """انبارِ پیش‌فرضِ فعلیِ Store — همان انباری که ``_sync_warehouse_balance``
+    برای این سفارش هدف گرفته (نگاه کنید به ADR-38/ADR-48). ``idempotent``
+    است (اگر از قبل وجود داشته باشد چیزی نمی‌سازد)، پس فراخوانیِ دوباره
+    بعد از این‌که رزرو همین انبار را در ``decrement_stock_for_order_item``
+    استفاده کرده، هیچ اثرِ جانبی‌ای ندارد."""
+    from apps.catalog.services.warehouse_service import provision_default_warehouse
+
+    return provision_default_warehouse(store)
 
 
 def _lock_and_revalidate_items(items, *, store):
@@ -179,13 +191,42 @@ def create_order_from_cart(
         # فروشگاه دیگری ساخته نمی‌شود.
         raise ValueError("این کد تخفیف متعلق به این فروشگاه نیست")
 
+    if shipping_method.store_id != store.pk:
+        # نگاه کنید به ADR-43 — یک POST دستکاری‌شده هرگز نمی‌تواند روشِ
+        # ارسالِ فروشگاه دیگری را بنشاند، حتی اگر لایه‌ی بالاتر
+        # (checkout_service) قبلاً همین بررسی را انجام داده باشد.
+        raise ValueError("این روش ارسال متعلق به این فروشگاه نیست")
+    if not shipping_method.is_active:
+        raise ValueError("این روش ارسال دیگر فعال نیست")
+
     items = list(cart.items.select_related("product", "variant"))
     if not items:
         raise ValueError("سبد خرید خالی است")
 
     locked_products, locked_variants = _lock_and_revalidate_items(items, store=store)
 
-    totals = cart_totals(cart, store=store, coupon=coupon, shipping_method=shipping_method)
+    province = address.province if address is not None else ""
+    city = address.city if address is not None else ""
+    postal_code = address.postal_code if address is not None else ""
+
+    if not shipping_method.is_pickup:
+        # بازمحاسبه‌ی سمتِ سرورِ در دسترس‌بودنِ روشِ ارسال برای این مقصد —
+        # هرگز به گزینه‌ی ارسال‌شده‌ی کلاینت اعتماد نمی‌شود (ADR-43). روشِ
+        # تحویلِ حضوری از این بررسیِ منطقه‌ای معاف است چون به آدرسِ مقصد
+        # وابسته نیست.
+        available = shipping_service.get_available_shipping_methods(
+            store, province=province, city=city, postal_code=postal_code,
+        )
+        if shipping_method not in available:
+            raise ValueError("این روش ارسال برای مقصدِ انتخاب‌شده در دسترس نیست")
+
+    totals = cart_totals(
+        cart, store=store, coupon=coupon, shipping_method=shipping_method,
+        province=province, city=city, postal_code=postal_code,
+    )
+    tax_lines_by_item = {line["item_ref"]: line for line in totals["tax_lines"]}
+    shipping_zone = totals["shipping_zone"]
+    shipping_rate_rule = totals["shipping_rate_rule"]
 
     try:
         with transaction.atomic():
@@ -206,6 +247,23 @@ def create_order_from_cart(
                 tax=totals["tax"],
                 grand_total=totals["grand_total"],
                 note=note,
+                shipping_method_name=shipping_method.name,
+                shipping_method_code=shipping_method.slug,
+                shipping_zone_name=shipping_zone.name if shipping_zone else "",
+                shipping_zone_code=shipping_zone.code if shipping_zone else "",
+                shipping_rate_rule_label=shipping_rate_rule.name if shipping_rate_rule else "",
+                min_delivery_days=shipping_method.min_delivery_days,
+                max_delivery_days=shipping_method.max_delivery_days,
+                is_pickup=shipping_method.is_pickup,
+                pickup_warehouse_name=(
+                    shipping_method.pickup_warehouse.name if shipping_method.pickup_warehouse_id else ""
+                ),
+                pickup_address=(
+                    shipping_method.pickup_warehouse.address if shipping_method.pickup_warehouse_id else ""
+                ),
+                prices_include_tax=totals["prices_include_tax"],
+                tax_rounding_policy=totals["tax_rounding_policy"],
+                shipping_tax=totals["shipping_tax"],
             )
     except IntegrityError:
         if idempotency_key:
@@ -218,7 +276,8 @@ def create_order_from_cart(
         product = locked_products[item.product_id]
         variant = locked_variants.get(item.variant_id) if item.variant_id else None
         unit_price = product.final_price
-        OrderItem.objects.create(
+        tax_line = tax_lines_by_item.get(item.pk, {})
+        order_item = OrderItem.objects.create(
             order=order,
             product=product,
             variant=variant,
@@ -228,6 +287,13 @@ def create_order_from_cart(
             quantity=item.quantity,
             unit_price=unit_price,
             line_total=unit_price * item.quantity,
+            discount_allocation=tax_line.get("discount_allocation", 0) or 0,
+            taxable_amount=tax_line.get("taxable_amount", 0) or 0,
+            tax_class_code=tax_line.get("tax_class_code", ""),
+            tax_class_name=tax_line.get("tax_class_name", ""),
+            tax_rate_percent=tax_line.get("tax_rate_percent"),
+            unit_tax=tax_line.get("unit_tax") or 0,
+            total_tax=tax_line.get("total_tax") or 0,
         )
         # با قفلِ قبلی (_lock_and_revalidate_items)، شکستِ رزرو/مصرف عملاً
         # نباید پیش بیاید — reserve_inventory همچنان دوباره (به‌صورت اتمیک،
@@ -245,6 +311,12 @@ def create_order_from_cart(
             consume_inventory_reservation(reservation, order=order)
         except (InsufficientStockError, ReservationError) as exc:
             raise ValueError(str(exc)) from exc
+
+        # اسنپ‌شاتِ انبارِ تأمین‌کننده — همان انبارِ پیش‌فرضِ فعلی (نگاه کنید
+        # به ADR-38: همه‌ی عملیاتِ موجودیِ ناشی از سفارش همیشه انبارِ
+        # پیش‌فرض را هدف می‌گیرند) — نگاه کنید به ADR-48.
+        order_item.fulfillment_warehouse = _resolve_fulfillment_warehouse(store)
+        order_item.save(update_fields=["fulfillment_warehouse", "updated_at"])
 
     OrderStatusHistory.objects.create(
         order=order, from_status="", to_status=order.status, note="سفارش ثبت شد"

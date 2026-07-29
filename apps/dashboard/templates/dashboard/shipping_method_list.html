@@ -1,0 +1,36 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}روش‌های ارسال | پنل مدیریت{% endblock %}
+{% block page_title %}روش‌های ارسال{% endblock %}
+{% block page_sub %}روش‌های ارسال و تحویلِ حضوریِ این فروشگاه{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><p class="page-desc">هر روش می‌تواند به یک منطقه محدود شود یا سراسری (بدونِ منطقه) بماند.</p></div>
+  {% if can_manage_shipping %}<a href="{% url 'dashboard:shipping-method-add' %}" class="btn btn-primary">روشِ جدید</a>{% endif %}
+</div>
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>نام</th><th>منطقه</th><th>نوع</th><th>هزینه</th><th>حضوری</th><th>وضعیت</th>{% if can_manage_shipping %}<th>عملیات</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for method in methods %}
+    <tr>
+      <td><b>{{ method.name }}</b></td>
+      <td>{{ method.zone.name|default:"سراسری" }}</td>
+      <td>{{ method.get_method_type_display }}</td>
+      <td>{{ method.cost }}</td>
+      <td>{% if method.is_pickup %}<span class="badge">بله</span>{% else %}—{% endif %}</td>
+      <td>{% if method.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">غیرفعال</span>{% endif %}</td>
+      {% if can_manage_shipping %}
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <a class="btn btn-sm" href="{% url 'dashboard:shipping-method-edit' method.pk %}">ویرایش</a>
+        <a class="btn btn-sm" href="{% url 'dashboard:shipping-rate-rule-list' method.pk %}">قواعدِ نرخ</a>
+        <form method="post" action="{% url 'dashboard:shipping-method-archive' method.pk %}">{% csrf_token %}<button class="btn btn-sm">{% if method.is_active %}غیرفعال{% else %}فعال{% endif %}</button></form>
+      </td>
+      {% endif %}
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">هنوز روشِ ارسالی ثبت نشده</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

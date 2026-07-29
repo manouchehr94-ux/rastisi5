@@ -65,6 +65,33 @@ class ShopSettings(TimeStampedModel):
         "آستانه‌ی ارسال رایگان (تومان)", max_digits=12, decimal_places=0, default=500_000
     )
 
+    class TaxRoundingPolicy(models.TextChoices):
+        ON_TOTAL = "on_total", "گردکردنِ مجموع"
+        PER_LINE = "per_line", "گردکردنِ هر ردیف"
+
+    # ``tax_enabled`` پیش‌فرضش True است — نه یک انتخابِ دلخواه، بلکه بازتابِ
+    # رفتارِ همیشگیِ این کدبیس پیش از checkpoint 3B: tax_percent همیشه و
+    # بدونِ قید روی هر سبدی اعمال می‌شد (نگاه کنید به ADR-44). خاموش‌کردنِ
+    # آن اکنون یک اقدامِ صریحِ مدیر است، نه رفتارِ پیش‌فرضِ جدید.
+    tax_enabled = models.BooleanField("فعال‌سازیِ مالیات", default=True)
+    # False یعنی قیمت‌ها بدونِ مالیات‌اند و مالیات جداگانه افزوده می‌شود —
+    # دقیقاً همان محاسبه‌ی قبلیِ ``cart_totals`` (مالیات روی after_coupon
+    # افزوده می‌شد، نه جزئی از آن).
+    prices_include_tax = models.BooleanField("قیمت‌ها شاملِ مالیات‌اند", default=False)
+    # False یعنی هزینه‌ی ارسال مشمولِ مالیات نیست — دقیقاً رفتارِ قبلی
+    # (``cart_totals`` مالیات را فقط روی after_coupon حساب می‌کرد، نه
+    # shipping_cost).
+    shipping_taxable = models.BooleanField("ارسال مشمولِ مالیات است", default=False)
+    default_tax_class = models.ForeignKey(
+        "orders.TaxClass", verbose_name="دسته‌ی مالیاتیِ پیش‌فرض", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="default_for_stores",
+    )
+    # پیش‌فرض «گردکردنِ مجموع» — دقیقاً همان رفتارِ قبلی (یک بارگردکردن روی
+    # کلِ مبلغ، نه به‌ازای هر ردیف).
+    tax_rounding_policy = models.CharField(
+        "سیاستِ گردکردنِ مالیات", max_length=20, choices=TaxRoundingPolicy.choices, default=TaxRoundingPolicy.ON_TOTAL,
+    )
+
     class SmsBackend(models.TextChoices):
         CONSOLE = "console", "کنسول (فقط لاگ، برای توسعه)"
         MELIPAYAMAK = "melipayamak", "ملی‌پیامک"

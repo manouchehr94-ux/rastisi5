@@ -1,0 +1,38 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{% if rate %}ویرایش{% else %}افزودن{% endif %} نرخِ مالیات | پنل مدیریت{% endblock %}
+{% block page_title %}{% if rate %}ویرایشِ نرخ{% else %}نرخِ جدید{% endif %} — {{ tax_class.name }}{% endblock %}
+{% block content %}
+<div class="form-card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="field-group">
+      <label class="field-label">استان (خالی = سراسریِ فروشگاه)</label>
+      <input type="text" name="province" value="{{ rate.province|default:'' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label required">نرخ (٪)</label>
+      <input type="number" step="0.01" name="rate_percent" value="{{ rate.rate_percent|default:'0' }}" required class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">اولویت (کوچک‌تر = بالاتر)</label>
+      <input type="number" name="priority" value="{{ rate.priority|default:'0' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">اعمال روی هزینه‌ی ارسال</label>
+      <select name="applies_to_shipping" class="form-select">
+        <option value="" {% if rate.applies_to_shipping is None %}selected{% endif %}>طبقِ تنظیماتِ فروشگاه</option>
+        <option value="true" {% if rate.applies_to_shipping == True %}selected{% endif %}>بله</option>
+        <option value="false" {% if rate.applies_to_shipping == False %}selected{% endif %}>خیر</option>
+      </select>
+    </div>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_active" {% if rate.is_active or not rate %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">فعال</span></div>
+    </label>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">ذخیره</button>
+      <a href="{% url 'dashboard:tax-rate-list' tax_class.pk %}" class="btn btn-secondary">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

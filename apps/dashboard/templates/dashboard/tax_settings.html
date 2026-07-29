@@ -1,0 +1,47 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}تنظیماتِ مالیات | پنل مدیریت{% endblock %}
+{% block page_title %}تنظیماتِ مالیات{% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:16px;padding:14px 18px;background:var(--surface-2,#f7f5fc)">
+  <p style="margin:0;font-size:13px;color:var(--muted)">راستیسی مالیات را طبقِ قواعدِ پیکربندی‌شده‌ی شما محاسبه می‌کند و هیچ مشاوره‌ی حقوقی/مالیاتی‌ای ارائه نمی‌دهد.</p>
+</div>
+<div class="form-card">
+  <form method="post">
+    {% csrf_token %}
+    <label class="toggle-field">
+      <input type="checkbox" name="tax_enabled" {% if settings.tax_enabled %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">فعال‌سازیِ مالیات</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="prices_include_tax" {% if settings.prices_include_tax %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">قیمت‌ها شاملِ مالیات‌اند</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="shipping_taxable" {% if settings.shipping_taxable %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">هزینه‌ی ارسال مشمولِ مالیات است</span></div>
+    </label>
+    <div class="field-group">
+      <label class="field-label">سیاستِ گردکردن</label>
+      <select name="tax_rounding_policy" class="form-select">
+        {% for val, label in rounding_choices %}
+        <option value="{{ val }}" {% if settings.tax_rounding_policy == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field-group">
+      <label class="field-label">دسته‌ی مالیاتیِ پیش‌فرض</label>
+      <select name="default_tax_class" class="form-select">
+        <option value="">— هیچ‌کدام —</option>
+        {% for tax_class in tax_classes %}
+        <option value="{{ tax_class.pk }}" {% if settings.default_tax_class_id == tax_class.pk %}selected{% endif %}>{{ tax_class.name }}</option>
+        {% endfor %}
+      </select>
+      <span class="field-help">اگر هیچ دسته‌ی مالیاتی/نرخی ثبت نکنید، نرخِ ثابتِ «{{ settings.tax_percent }}٪» (تنظیماتِ مالی) همچنان اعمال می‌شود.</span>
+    </div>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">ذخیره</button>
+      <a href="{% url 'dashboard:tax-class-list' %}" class="btn btn-secondary">مدیریتِ دسته‌های مالیاتی</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}نرخ‌های مالیات | پنل مدیریت{% endblock %}
+{% block page_title %}نرخ‌های «{{ tax_class.name }}»{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div></div>
+  {% if can_manage_tax %}<a href="{% url 'dashboard:tax-rate-add' tax_class.pk %}" class="btn btn-primary">نرخِ جدید</a>{% endif %}
+</div>
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>استان</th><th>نرخ</th><th>اولویت</th><th>ارسال</th><th>وضعیت</th>{% if can_manage_tax %}<th>عملیات</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for rate in rates %}
+    <tr>
+      <td>{{ rate.province|default:"سراسری" }}</td>
+      <td>{{ rate.rate_percent }}٪</td>
+      <td>{{ rate.priority }}</td>
+      <td>{% if rate.applies_to_shipping == True %}بله{% elif rate.applies_to_shipping == False %}خیر{% else %}طبقِ تنظیمات{% endif %}</td>
+      <td>{% if rate.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">غیرفعال</span>{% endif %}</td>
+      {% if can_manage_tax %}
+      <td style="display:flex;gap:6px">
+        <a class="btn btn-sm" href="{% url 'dashboard:tax-rate-edit' tax_class.pk rate.pk %}">ویرایش</a>
+        <form method="post" action="{% url 'dashboard:tax-rate-archive' tax_class.pk rate.pk %}">{% csrf_token %}<button class="btn btn-sm">{% if rate.is_active %}غیرفعال{% else %}فعال{% endif %}</button></form>
+      </td>
+      {% endif %}
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">هنوز نرخی ثبت نشده</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+<a href="{% url 'dashboard:tax-class-list' %}" class="btn btn-secondary">بازگشت به دسته‌های مالیاتی</a>
+{% endblock %}

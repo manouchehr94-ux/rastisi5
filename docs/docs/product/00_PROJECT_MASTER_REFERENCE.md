@@ -785,34 +785,53 @@ plan enforcement همچنان باقی مانده**
 
 ### موجود
 
-- ShippingMethod پایه؛
-- استفاده در checkout.
+- ShippingMethod پایه، مالکیتِ مستقیمِ Store؛
+- استفاده در checkout؛ چک‌اوت فقط روش‌های ارسال فعالِ همان Store را می‌پذیرد.
+
+**منطقه/نرخ/محاسبه‌ی ارسال (Admin Panel Completion Program checkpoint 3B، ADR-41 تا ADR-43):**
+
+- `ShippingZone` (Store-owned): تطبیق با استان/شهر/کدپستی (فقط ابعادِ آدرسِ واقعاً موجود — بدونِ فیلدِ کشورِ اختراعی، چون این پلتفرم فقط ایران را پوشش می‌دهد)، استثناها، منطقه‌ی پیش‌فرض/ذخیره (حداکثر یکی به‌ازای هر Store)، اولویتِ تطبیقِ قطعی: کدپستی > شهر > استان > ذخیره > بدونِ تطبیق؛
+- `ShippingMethod` گسترش‌یافته: نوعِ روش (نرخ‌ثابت/رایگان/بر اساسِ مبلغ/بر اساسِ وزن/تحویلِ حضوری)، منطقه (اختیاری — خالی یعنی سراسری)، بازه‌ی روزِ تحویل، پرچمِ پرداخت‌درمحل، اتصال به انبارِ بارگیریِ حضوری؛
+- `ShippingRateRule`: بازه‌ی جمعِ سبد/وزن، آستانه‌ی ارسالِ رایگانِ اختصاصی، بازه‌ی زمانیِ فعال؛ اولویتِ انتخاب: عددِ اولویتِ کوچک‌تر > محدودتر (specificity) > شناسه‌ی پایدار؛
+- `apps.orders.services.shipping_service`: `resolve_shipping_zone`/`get_available_shipping_methods`/`resolve_best_rate_rule`/`calculate_shipping_rate` — وقتی هیچ قاعده‌ی نرخی برای یک روش ثبت نشده باشد (هر روشِ موجود پیش از این چک‌پوینت)، دقیقاً به رفتارِ قدیمیِ `ShippingMethod.cost` بازمی‌گردد؛
+- تسویه‌حساب همیشه در لحظه‌ی ساختِ سفارش، روشِ ارسال را نسبت به آدرس/منطقه/وضعیتِ فعالِ فعلی دوباره اعتبارسنجی می‌کند (نه فقط در لحظه‌ی انتخاب) — یک POST دستکاری‌شده با روشِ خارج از منطقه/غیرفعال/متعلق‌به‌Storeِ‌دیگر رد می‌شود؛
+- اسنپ‌شاتِ کاملِ ارسال روی `Order` (نامِ روش/منطقه/قاعده، بازه‌ی روزِ تحویل، وضعیتِ تحویلِ حضوری، آدرسِ بارگیری) — تغییرِ بعدیِ ShippingMethod/Zone هرگز سفارش‌های قبلی را عوض نمی‌کند؛
+- UI کاملِ پنل مدیریت: مناطقِ ارسال، روش‌های ارسال، قواعدِ نرخ (لیست/ایجاد/ویرایش/آرشیو).
 
 ### ناقص
 
-- Store ownership؛
-- zone/region rules؛
-- weight/price/free-shipping algorithms؛
-- COD/postpaid policy؛
-- delivery time estimates؛
-- carrier adapters؛
-- province/city restrictions؛
-- per-product shipping restrictions؛
-- shipment/fulfillment object؛
-- tracking code؛
-- partial shipment؛
-- shipping audit.
+- carrier adapters (اتصال به واقعیِ پست/تیپاکس/...)؛
+- shipment/fulfillment object جداگانه (وضعیتِ ارسال هنوز فقط از طریقِ `Order.status`/`tracking_code` دنبال می‌شود)؛
+- partial shipment (ارسالِ چندبخشیِ یک سفارش)؛
+- shipping audit کاملِ همه‌ی رویدادها (فقط create/update/archive این چک‌پوینت ثبت شده، نه هر تغییرِ وضعیتِ ارسال).
 
 ### وضعیت
 
-**Basic only**
+**Store-owned zones/rates/calculation with real Checkout integration and Merchant Admin UI — carrier integration and multi-shipment fulfillment remain out of scope.**
 
-> **الحاقیه (پس از PR — Order Boundary and Checkout Integrity، ۱۴۰۵/۰۵/۰۴):**
-> `ShippingMethod` اکنون مالکیت مستقیم Store دارد (همان الگوی
-> `PaymentGateway` بالا) — چک‌اوت فقط روش‌های ارسال فعالِ همان Store را
-> می‌پذیرد و یک POST دستکاری‌شده نمی‌تواند روش ارسال Store دیگر را انتخاب
-> کند. zone/region rules، carrier adapters، partial shipment و بقیه‌ی
-> فهرست «ناقص» بالا همچنان پابرجاست.
+---
+
+## 11.7b Tax
+
+### موجود (Admin Panel Completion Program checkpoint 3B، ADR-44 تا ADR-47)
+
+- تنظیماتِ مالیات روی `ShopSettings` (نه یک مدلِ جدا): `tax_enabled` (پیش‌فرض `True` — بازتابِ رفتارِ همیشگیِ این کدبیس)، `prices_include_tax`، `shipping_taxable`، `default_tax_class`، `tax_rounding_policy` (`on_total`/`per_line`)؛
+- `TaxClass`/`TaxRate` (Store-owned، اختیاری/تدریجی): وقتی هیچ `TaxRate`ای برای یک Store ثبت نشده، محاسبه دقیقاً به فرمولِ قدیمیِ `ShopSettings.tax_percent` بازمی‌گردد؛ به‌محضِ ثبتِ اولین نرخ، مسیرِ دانه‌ریز (بر اساسِ دسته‌ی مالیاتیِ کالا/استان) فعال می‌شود و ردیفِ بدونِ نرخِ تطبیق‌یافته صفر مالیات می‌گیرد، نه بازگشتِ خاموش به نرخِ تخت؛
+- `Product.tax_class` (اختیاری — خالی یعنی دسته‌ی پیش‌فرضِ Store)، در فرمِ ویرایشِ کالا؛
+- `apps.orders.services.tax_service.calculate_order_taxes`: Decimal-محور، قیمتِ شاملِ مالیات (استخراج، نه افزودن) و بدونِ‌مالیات (افزودن — رفتارِ قدیمی) هر دو پشتیبانی می‌شوند؛ مالیاتِ ارسال همیشه exclusive محاسبه می‌شود؛
+- اسنپ‌شاتِ کاملِ مالیات روی `Order`/`OrderItem` (نرخ، دسته، مبلغ)؛
+- استردادِ مالیات: `refund_service` اکنون مالیاتِ کالا/ارسال را متناسب با تعدادِ استردادشده از رویِ همان اسنپ‌شاتِ تاریخی محاسبه می‌کند (نه نرخِ فعلی)، با جلوگیریِ قطعی از استردادِ دوبارهٔ مالیات؛
+- UI کاملِ پنل مدیریت: تنظیماتِ مالیات، دسته‌های مالیاتی، نرخ‌های مالیات.
+
+### ناقص
+
+- نمایشِ تفکیکِ مالیات در فرمِ استردادِ مرچنت (محاسبه‌ی سرور صحیح است، اما فرم فعلاً فقط مبلغِ نهایی را نشان می‌دهد، نه ردیفِ جداگانه‌ی «مالیاتِ این استرداد»)؛
+- Bulk Tax Class assignment (تخصیصِ گروهیِ دسته‌ی مالیاتی به چند کالا)؛
+- اعلانِ سازگاریِ قانونی/حقوقی فقط در UI ثبت شده، نه یک مکانیزمِ تأییدِ صریحِ جداگانه.
+
+### وضعیت
+
+**Store-scoped, opt-in granular tax with a byte-identical flat-rate fallback for every pre-existing Store — real Checkout integration, refund compatibility, and Merchant Admin UI.**
 
 ---
 

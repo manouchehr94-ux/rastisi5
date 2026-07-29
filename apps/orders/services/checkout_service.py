@@ -15,7 +15,8 @@ from django.db import transaction
 from apps.cart.models import Coupon
 from apps.cart.services.pricing import cart_totals, coupon_is_applicable
 from apps.customers.models import Address
-from apps.orders.models import Order, PaymentGateway, ShippingMethod
+from apps.orders.models import Order, PaymentGateway
+from apps.orders.services import shipping_service
 from apps.stores.resolution import resolve_store_for_service
 
 logger = logging.getLogger(__name__)
@@ -31,8 +32,14 @@ EMPTY_TOTALS = {
     "product_discount": Decimal("0"),
     "coupon_discount": Decimal("0"),
     "shipping_cost": Decimal("0"),
+    "shipping_zone": None,
+    "shipping_rate_rule": None,
     "free_shipping": False,
     "tax": Decimal("0"),
+    "shipping_tax": Decimal("0"),
+    "tax_lines": [],
+    "prices_include_tax": False,
+    "tax_rounding_policy": "",
     "grand_total": Decimal("0"),
     "coupon_applied": False,
 }
@@ -52,8 +59,18 @@ def save_address(request, cleaned_data) -> None:
     request.session.modified = True
 
 
-def active_shipping_methods(*, store):
-    return list(ShippingMethod.objects.filter(is_active=True, store=store))
+def active_shipping_methods(*, store, address: dict | None = None):
+    """روش‌های ارسالِ فعالِ این Store — اگر ``address`` داده شود (یا از قبل
+    در نشست ذخیره شده باشد)، روش‌های محدود به یک منطقه (``zone``) فقط وقتی
+    برگردانده می‌شوند که آدرس با همان منطقه تطبیق داشته باشد؛ روش‌های بدونِ
+    منطقه (``zone=None`` — هر ردیفِ موجود پیش از checkpoint 3B) همیشه
+    سراسری‌اند، مستقل از آدرس (نگاه کنید به ADR-41)."""
+    address = address or {}
+    return shipping_service.get_available_shipping_methods(
+        store,
+        province=address.get("province", ""), city=address.get("city", ""),
+        postal_code=address.get("postal_code", ""),
+    )
 
 
 def active_payment_gateways(*, store):
@@ -62,7 +79,7 @@ def active_payment_gateways(*, store):
 
 def get_selected_shipping_method(request):
     store = resolve_store_for_service(request)
-    methods = active_shipping_methods(store=store)
+    methods = active_shipping_methods(store=store, address=get_address(request))
     if not methods:
         return None
     selected_id = _state(request).get("shipping_method_id")
@@ -73,10 +90,12 @@ def get_selected_shipping_method(request):
 
 
 def set_shipping_method(request, method_id) -> None:
-    """یک POST دستکاری‌شده هرگز نمی‌تواند روش ارسال متعلق به Store دیگری را
-    انتخاب کند — استخر گزینه‌های مجاز همیشه با ``store`` فعلی فیلتر می‌شود."""
+    """یک POST دستکاری‌شده هرگز نمی‌تواند روش ارسال متعلق به Store دیگری یا
+    خارج از منطقه‌ی آدرسِ فعلی را انتخاب کند — استخر گزینه‌های مجاز همیشه
+    با ``store``/منطقه فیلتر می‌شود."""
     store = resolve_store_for_service(request)
-    method = ShippingMethod.objects.filter(pk=method_id, is_active=True, store=store).first()
+    methods = active_shipping_methods(store=store, address=get_address(request))
+    method = next((m for m in methods if m.pk == method_id), None)
     if method:
         _state(request)["shipping_method_id"] = method.pk
         request.session.modified = True
@@ -239,8 +258,9 @@ def build_context(request, cart) -> dict:
     """کانتکست کامل صفحه‌ی تسویه‌حساب مرحله‌ی ۱ را می‌سازد."""
     is_empty = cart is None or not cart.items.exists()
     store = resolve_store_for_service(request)
+    address = get_address(request)
 
-    shipping_methods = active_shipping_methods(store=store)
+    shipping_methods = active_shipping_methods(store=store, address=address)
     payment_gateways = active_payment_gateways(store=store)
     selected_shipping = None if is_empty else get_selected_shipping_method(request)
     selected_payment = None if is_empty else get_selected_payment_gateway(request)
@@ -251,7 +271,8 @@ def build_context(request, cart) -> dict:
         item_count = 0
     else:
         totals = cart_totals(
-            cart, store=resolve_store_for_service(request), coupon=coupon, shipping_method=selected_shipping
+            cart, store=resolve_store_for_service(request), coupon=coupon, shipping_method=selected_shipping,
+            province=address.get("province", ""), city=address.get("city", ""), postal_code=address.get("postal_code", ""),
         )
         item_count = sum(item.quantity for item in cart.items.all())
 

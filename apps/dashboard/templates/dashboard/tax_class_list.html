@@ -1,0 +1,36 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}دسته‌های مالیاتی | پنل مدیریت{% endblock %}
+{% block page_title %}دسته‌های مالیاتی{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><p class="page-desc">دقیقاً یک دسته می‌تواند پیش‌فرضِ فروشگاه باشد.</p></div>
+  <div style="display:flex;gap:8px">
+    <a href="{% url 'dashboard:tax-settings' %}" class="btn btn-secondary">تنظیماتِ مالیات</a>
+    {% if can_manage_tax %}<a href="{% url 'dashboard:tax-class-add' %}" class="btn btn-primary">دسته‌ی جدید</a>{% endif %}
+  </div>
+</div>
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>نام</th><th>کد</th><th>پیش‌فرض</th><th>وضعیت</th>{% if can_manage_tax %}<th>عملیات</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for tax_class in tax_classes %}
+    <tr>
+      <td><b>{{ tax_class.name }}</b></td>
+      <td dir="ltr" style="text-align:right">{{ tax_class.code }}</td>
+      <td>{% if tax_class.is_default %}<span class="badge b-green">پیش‌فرض</span>{% else %}—{% endif %}</td>
+      <td>{% if tax_class.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">غیرفعال</span>{% endif %}</td>
+      {% if can_manage_tax %}
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <a class="btn btn-sm" href="{% url 'dashboard:tax-class-edit' tax_class.pk %}">ویرایش</a>
+        <a class="btn btn-sm" href="{% url 'dashboard:tax-rate-list' tax_class.pk %}">نرخ‌ها</a>
+        <form method="post" action="{% url 'dashboard:tax-class-archive' tax_class.pk %}">{% csrf_token %}<button class="btn btn-sm">{% if tax_class.is_active %}غیرفعال{% else %}فعال{% endif %}</button></form>
+      </td>
+      {% endif %}
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">هنوز دسته‌ی مالیاتی ثبت نشده — بدونِ آن، نرخِ ثابتِ مالی (تنظیماتِ مالی) اعمال می‌شود</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

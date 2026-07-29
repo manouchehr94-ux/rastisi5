@@ -145,13 +145,16 @@ _CATALOG_READ_WRITE = frozenset({
 })
 # Order Manager owns Returns/Refunds financial authority (checkpoint 2 §15
 # policy) — Catalog Manager deliberately does NOT get REFUND_MANAGE/RETURN_MANAGE.
-# Order Manager views (not manages) warehouses/reservations/transfers/shipping
-# since fulfillment visibility matters for order handling (checkpoint 3 policy).
+# Order Manager views (not manages) warehouses/reservations/transfers since
+# fulfillment visibility matters for order handling (checkpoint 3 policy).
+# Order Manager DOES manage Shipping (checkpoint 3B §21 policy — shipping is
+# an order-fulfillment concern) but only VIEWS Tax settings — Tax changes
+# require Owner/Administrator since they affect every future order's totals.
 _ORDER_READ_WRITE = frozenset({
     ORDER_VIEW, ORDER_STATUS_CHANGE, CUSTOMER_VIEW, CUSTOMER_EDIT,
     RETURN_VIEW, RETURN_MANAGE, REFUND_VIEW, REFUND_MANAGE,
     WAREHOUSE_VIEW, RESERVATION_VIEW, TRANSFER_VIEW,
-    SHIPPING_SETTINGS_VIEW, TAX_SETTINGS_VIEW,
+    SHIPPING_SETTINGS_VIEW, SHIPPING_SETTINGS_MANAGE, TAX_SETTINGS_VIEW,
 })
 _CONTENT_READ_WRITE = frozenset({CONTENT_MANAGE, MEDIA_MANAGE})
 _OWNER_ONLY = frozenset({STAFF_MANAGE, DOMAIN_MANAGE, SUBSCRIPTION_MANAGE})

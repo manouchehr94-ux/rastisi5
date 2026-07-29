@@ -29,19 +29,45 @@ class ReturnItemAlreadyRestockedError(Exception):
     """این قلمِ مرجوعی/استرداد قبلاً یک‌بار به موجودی بازگشته — نگاه کنید به ADR-35."""
 
 
+class InvalidRestockWarehouseError(Exception):
+    """انبارِ انتخاب‌شده برای بازگشتِ موجودی نامعتبر است (فروشگاهِ دیگر یا آرشیوشده) — نگاه کنید به ADR-48."""
+
+
 def _resolve_default_warehouse(store) -> Warehouse:
     from apps.catalog.services.warehouse_service import provision_default_warehouse
 
     return provision_default_warehouse(store)
 
 
-def _sync_warehouse_balance(*, store, product, variant, delta: int) -> Warehouse:
-    """موجودیِ انبارِ پیش‌فرض را با همان ``delta``ی اعمال‌شده روی
+def _resolve_restock_warehouse(store, *, explicit_warehouse=None, order_item=None) -> Warehouse:
+    """انبارِ مقصدِ بازگشتِ موجودی را طبقِ اولویتِ ADR-48 حل می‌کند: انتخابِ
+    صریحِ مدیر > انبارِ تأمین‌کننده‌ی اصلیِ همان قلمِ سفارش > انبارِ
+    پیش‌فرضِ Store."""
+    if explicit_warehouse is not None:
+        if explicit_warehouse.store_id != store.pk:
+            raise InvalidRestockWarehouseError("این انبار متعلق به فروشگاه دیگری است.")
+        if not explicit_warehouse.is_active:
+            raise InvalidRestockWarehouseError("این انبار آرشیو شده و نمی‌تواند مقصدِ بازگشتِ موجودی باشد.")
+        return explicit_warehouse
+    if order_item is not None and order_item.fulfillment_warehouse_id is not None:
+        warehouse = order_item.fulfillment_warehouse
+        if warehouse.is_active:
+            return warehouse
+    return _resolve_default_warehouse(store)
+
+
+def _sync_warehouse_balance(*, store, product, variant, delta: int, warehouse: Warehouse | None = None) -> Warehouse:
+    """موجودیِ یک انبار را با همان ``delta``ی اعمال‌شده روی
     Product.stock/ProductVariant.stock هماهنگ می‌کند. اگر ردیفِ موجودیِ
     انبار هنوز برای این کالا/تنوع وجود نداشته باشد (اولین‌بار)، با مقدارِ
     *فعلیِ* (پس از اعمالِ delta) Product.stock/ProductVariant.stock ساخته
-    می‌شود — نه این‌که delta دوباره روی صفر اعمال شود."""
-    warehouse = _resolve_default_warehouse(store)
+    می‌شود — نه این‌که delta دوباره روی صفر اعمال شود.
+
+    ``warehouse`` اختیاری است — اگر داده نشود، انبارِ پیش‌فرضِ Store حل
+    می‌شود (رفتارِ همیشگی برای سفارش/لغو/اصلاحِ دستی). فقط بازگشتِ موجودیِ
+    مرجوعی/استرداد (ADR-48) ممکن است انبارِ دیگری صریحاً بدهد."""
+    if warehouse is None:
+        warehouse = _resolve_default_warehouse(store)
     current_aggregate = (
         ProductVariant.objects.filter(pk=variant.pk).values_list("stock", flat=True).first()
         if variant is not None
@@ -160,6 +186,10 @@ def restock_return_item(*, store, return_item, actor=None) -> "StockMovement | N
     if product is None:
         return None  # کالای اصلی حذف شده — چیزی برای بازگرداندنِ موجودی به آن نمانده
 
+    restock_warehouse = _resolve_restock_warehouse(
+        store, explicit_warehouse=return_item.restock_warehouse, order_item=order_item,
+    )
+
     if variant is not None:
         variant = ProductVariant.objects.select_for_update().filter(pk=variant.pk).first()
         if variant is None:
@@ -173,7 +203,9 @@ def restock_return_item(*, store, return_item, actor=None) -> "StockMovement | N
         stock_before = product.stock
         Product.objects.filter(pk=product.pk).update(stock=F("stock") + quantity)
 
-    warehouse = _sync_warehouse_balance(store=store, product=product, variant=variant, delta=quantity)
+    warehouse = _sync_warehouse_balance(
+        store=store, product=product, variant=variant, delta=quantity, warehouse=restock_warehouse,
+    )
     return StockMovement.objects.create(
         store=store, product=product, variant=variant, warehouse=warehouse,
         reason=StockMovement.Reason.RETURN_RESTOCK, delta=quantity,
@@ -197,6 +229,8 @@ def restock_refund_item(*, store, refund_item, actor=None) -> "StockMovement | N
     if product is None or quantity <= 0:
         return None
 
+    restock_warehouse = _resolve_restock_warehouse(store, order_item=order_item)
+
     if variant is not None:
         variant = ProductVariant.objects.select_for_update().filter(pk=variant.pk).first()
         if variant is None:
@@ -210,7 +244,9 @@ def restock_refund_item(*, store, refund_item, actor=None) -> "StockMovement | N
         stock_before = product.stock
         Product.objects.filter(pk=product.pk).update(stock=F("stock") + quantity)
 
-    warehouse = _sync_warehouse_balance(store=store, product=product, variant=variant, delta=quantity)
+    warehouse = _sync_warehouse_balance(
+        store=store, product=product, variant=variant, delta=quantity, warehouse=restock_warehouse,
+    )
     return StockMovement.objects.create(
         store=store, product=product, variant=variant, warehouse=warehouse,
         reason=StockMovement.Reason.REFUND_RESTOCK, delta=quantity,

@@ -60,6 +60,18 @@
         انتقالِ انبار
       </a>
       {% endif %}
+      {% if can_view_shipping_settings %}
+      <a class="nav-item{% if active_page == 'shipping' %} active{% endif %}" data-page="shipping" href="{% url 'dashboard:shipping-zone-list' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        ارسال
+      </a>
+      {% endif %}
+      {% if can_view_tax_settings %}
+      <a class="nav-item{% if active_page == 'tax' %} active{% endif %}" data-page="tax" href="{% url 'dashboard:tax-settings' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2H4a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M9 2v7h7"/><path d="M9 15h6M9 18h4"/></svg>
+        مالیات
+      </a>
+      {% endif %}
       {% if can_manage_categories %}
       <a class="nav-item{% if active_page == 'categories' %} active{% endif %}" data-page="categories" href="{% url 'dashboard:category-list' %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M13 6h8M13 18h8M13 12h8"/></svg>

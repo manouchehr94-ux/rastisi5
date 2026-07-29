@@ -1,0 +1,34 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{% if tax_class %}ویرایش{% else %}افزودن{% endif %} دسته‌ی مالیاتی | پنل مدیریت{% endblock %}
+{% block page_title %}{% if tax_class %}ویرایشِ «{{ tax_class.name }}»{% else %}دسته‌ی مالیاتیِ جدید{% endif %}{% endblock %}
+{% block content %}
+<div class="form-card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="field-group">
+      <label class="field-label required">نام</label>
+      <input type="text" name="name" value="{{ tax_class.name|default:'' }}" required class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label required">کد</label>
+      <input type="text" name="code" value="{{ tax_class.code|default:'' }}" required dir="ltr" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">توضیحات</label>
+      <input type="text" name="description" value="{{ tax_class.description|default:'' }}" class="form-input">
+    </div>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_active" {% if tax_class.is_active or not tax_class %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">فعال</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_default" {% if tax_class.is_default %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">پیش‌فرضِ فروشگاه</span></div>
+    </label>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">ذخیره</button>
+      <a href="{% url 'dashboard:tax-class-list' %}" class="btn btn-secondary">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

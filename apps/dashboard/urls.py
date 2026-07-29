@@ -221,4 +221,29 @@ urlpatterns = [
     path("transfers/<int:pk>/ship/", views.transfer_ship, name="transfer-ship"),
     path("transfers/<int:pk>/receive/", views.transfer_receive, name="transfer-receive"),
     path("transfers/<int:pk>/cancel/", views.transfer_cancel, name="transfer-cancel"),
+
+    # --- مناطق و روش‌های ارسال (Shipping Zones/Methods/Rates) ---
+    path("shipping/zones/", views.shipping_zone_list, name="shipping-zone-list"),
+    path("shipping/zones/add/", views.shipping_zone_form, name="shipping-zone-add"),
+    path("shipping/zones/<int:pk>/edit/", views.shipping_zone_form, name="shipping-zone-edit"),
+    path("shipping/zones/<int:pk>/toggle/", views.shipping_zone_toggle, name="shipping-zone-toggle"),
+    path("shipping/methods/", views.shipping_method_list, name="shipping-method-list"),
+    path("shipping/methods/add/", views.shipping_method_form, name="shipping-method-add"),
+    path("shipping/methods/<int:pk>/edit/", views.shipping_method_form, name="shipping-method-edit"),
+    path("shipping/methods/<int:pk>/archive/", views.shipping_method_archive, name="shipping-method-archive"),
+    path("shipping/methods/<int:method_id>/rates/", views.shipping_rate_rule_list, name="shipping-rate-rule-list"),
+    path("shipping/methods/<int:method_id>/rates/add/", views.shipping_rate_rule_form, name="shipping-rate-rule-add"),
+    path("shipping/methods/<int:method_id>/rates/<int:pk>/edit/", views.shipping_rate_rule_form, name="shipping-rate-rule-edit"),
+    path("shipping/methods/<int:method_id>/rates/<int:pk>/archive/", views.shipping_rate_rule_archive, name="shipping-rate-rule-archive"),
+
+    # --- تنظیمات و دسته‌ها/نرخ‌های مالیات (Tax Settings/Classes/Rates) ---
+    path("tax/settings/", views.tax_settings, name="tax-settings"),
+    path("tax/classes/", views.tax_class_list, name="tax-class-list"),
+    path("tax/classes/add/", views.tax_class_form, name="tax-class-add"),
+    path("tax/classes/<int:pk>/edit/", views.tax_class_form, name="tax-class-edit"),
+    path("tax/classes/<int:pk>/archive/", views.tax_class_archive, name="tax-class-archive"),
+    path("tax/classes/<int:tax_class_id>/rates/", views.tax_rate_list, name="tax-rate-list"),
+    path("tax/classes/<int:tax_class_id>/rates/add/", views.tax_rate_form, name="tax-rate-add"),
+    path("tax/classes/<int:tax_class_id>/rates/<int:pk>/edit/", views.tax_rate_form, name="tax-rate-edit"),
+    path("tax/classes/<int:tax_class_id>/rates/<int:pk>/archive/", views.tax_rate_archive, name="tax-rate-archive"),
 ]

@@ -26,6 +26,7 @@ from apps.stores.authorization import (
     RESERVATION_VIEW,
     RETURN_VIEW,
     SETTINGS_MANAGE,
+    SHIPPING_SETTINGS_MANAGE,
     SHIPPING_SETTINGS_VIEW,
     STAFF_MANAGE,
     TAX_SETTINGS_VIEW,
@@ -62,5 +63,6 @@ def merchant_permissions(request):
         "can_view_transfers": membership_has_permission(membership, TRANSFER_VIEW),
         "can_view_reservations": membership_has_permission(membership, RESERVATION_VIEW),
         "can_view_shipping_settings": membership_has_permission(membership, SHIPPING_SETTINGS_VIEW),
+        "can_manage_shipping_settings": membership_has_permission(membership, SHIPPING_SETTINGS_MANAGE),
         "can_view_tax_settings": membership_has_permission(membership, TAX_SETTINGS_VIEW),
     }

@@ -1,0 +1,50 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{% if rule %}ویرایش{% else %}افزودن{% endif %} قاعده | پنل مدیریت{% endblock %}
+{% block page_title %}{% if rule %}ویرایشِ قاعده{% else %}قاعده‌ی جدید{% endif %} — {{ method.name }}{% endblock %}
+{% block content %}
+<div class="form-card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="field-group">
+      <label class="field-label required">نام قاعده</label>
+      <input type="text" name="name" value="{{ rule.name|default:'' }}" required class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">حداقلِ سبد (تومان)</label>
+      <input type="number" name="min_subtotal" value="{{ rule.min_subtotal|default:'' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">حداکثرِ سبد (تومان)</label>
+      <input type="number" name="max_subtotal" value="{{ rule.max_subtotal|default:'' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">حداقلِ وزن (گرم)</label>
+      <input type="number" name="min_weight_grams" value="{{ rule.min_weight_grams|default:'' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">حداکثرِ وزن (گرم)</label>
+      <input type="number" name="max_weight_grams" value="{{ rule.max_weight_grams|default:'' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label required">مبلغِ نرخ (تومان)</label>
+      <input type="number" name="rate_amount" value="{{ rule.rate_amount|default:'0' }}" required class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">آستانه‌ی ارسالِ رایگانِ این قاعده</label>
+      <input type="number" name="free_over" value="{{ rule.free_over|default:'' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">اولویت (کوچک‌تر = بالاتر)</label>
+      <input type="number" name="priority" value="{{ rule.priority|default:'0' }}" class="form-input">
+    </div>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_active" {% if rule.is_active or not rule %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">فعال</span></div>
+    </label>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">ذخیره</button>
+      <a href="{% url 'dashboard:shipping-rate-rule-list' method.pk %}" class="btn btn-secondary">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

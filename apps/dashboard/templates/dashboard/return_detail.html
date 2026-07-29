@@ -108,6 +108,12 @@
           <option value="replace">تعویض</option>
           <option value="reject">رد مرجوعی</option>
         </select>
+        <select name="item_{{ item.pk }}_restock_warehouse" class="form-select" style="width:auto;display:inline-block">
+          <option value="">انبارِ بازگشت: خودکار (تأمین‌کننده‌ی اصلی/پیش‌فرض)</option>
+          {% for warehouse in warehouses %}
+          <option value="{{ warehouse.pk }}">{{ warehouse.name }}</option>
+          {% endfor %}
+        </select>
       </div>
       {% endfor %}
       <textarea name="inspection_result" class="form-input" placeholder="نتیجه‌ی کلیِ بازرسی" rows="2"></textarea>

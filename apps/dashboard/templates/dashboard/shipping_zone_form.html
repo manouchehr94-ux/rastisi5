@@ -1,0 +1,54 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{% if zone %}ویرایش{% else %}افزودن{% endif %} منطقه | پنل مدیریت{% endblock %}
+{% block page_title %}{% if zone %}ویرایشِ «{{ zone.name }}»{% else %}منطقه‌ی جدید{% endif %}{% endblock %}
+{% block content %}
+<div class="form-card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="field-group">
+      <label class="field-label required">نام منطقه</label>
+      <input type="text" name="name" value="{{ zone.name|default:'' }}" required class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label required">کد</label>
+      <input type="text" name="code" value="{{ zone.code|default:'' }}" required dir="ltr" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">اولویت (کوچک‌تر = بالاتر)</label>
+      <input type="number" name="priority" value="{{ zone.priority|default:'0' }}" min="0" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">استان‌ها (هر خط یا با کاما جدا)</label>
+      <textarea name="provinces" rows="2" class="form-input">{{ zone.provinces|join:"، " }}</textarea>
+    </div>
+    <div class="field-group">
+      <label class="field-label">شهرها</label>
+      <textarea name="cities" rows="2" class="form-input">{{ zone.cities|join:"، " }}</textarea>
+    </div>
+    <div class="field-group">
+      <label class="field-label">کدهای پستی</label>
+      <textarea name="postal_codes" rows="2" class="form-input" dir="ltr">{{ zone.postal_codes|join:"، " }}</textarea>
+    </div>
+    <div class="field-group">
+      <label class="field-label">استان‌های مستثنا</label>
+      <textarea name="excluded_provinces" rows="2" class="form-input">{{ zone.excluded_provinces|join:"، " }}</textarea>
+    </div>
+    <div class="field-group">
+      <label class="field-label">شهرهای مستثنا</label>
+      <textarea name="excluded_cities" rows="2" class="form-input">{{ zone.excluded_cities|join:"، " }}</textarea>
+    </div>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_active" {% if zone.is_active or not zone %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">فعال</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_fallback" {% if zone.is_fallback %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">منطقه‌ی پیش‌فرض/ذخیره</span></div>
+    </label>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">ذخیره</button>
+      <a href="{% url 'dashboard:shipping-zone-list' %}" class="btn btn-secondary">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

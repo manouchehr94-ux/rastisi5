@@ -191,8 +191,16 @@ def inspect_return_items(
         if "refund_amount" in entry:
             item.refund_amount = Decimal(str(entry["refund_amount"]))
         item.rejection_reason = entry.get("rejection_reason", item.rejection_reason)
+        if "restock_warehouse_id" in entry:
+            from apps.catalog.models import Warehouse
+            warehouse_id = entry["restock_warehouse_id"]
+            item.restock_warehouse = (
+                Warehouse.objects.filter(pk=warehouse_id, store=store, is_active=True).first()
+                if warehouse_id else None
+            )
         item.save(update_fields=[
-            "condition", "is_restockable", "merchant_resolution", "refund_amount", "rejection_reason", "updated_at",
+            "condition", "is_restockable", "merchant_resolution", "refund_amount", "rejection_reason",
+            "restock_warehouse", "updated_at",
         ])
 
     if inspection_result:

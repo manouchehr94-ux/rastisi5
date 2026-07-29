@@ -2271,6 +2271,370 @@ only its warehouse location is provisionally ambiguous.
 
 ---
 
+## ADR-41: Shipping Zone Matching Uses Only Address Dimensions This Codebase Actually Has (Province/City/Postal Code), With a Documented Precedence and No Country Tier
+
+**Context.** Checkpoint 3B asks for Store-owned Shipping Zones matched by
+country, region/province, city, and postal code, with a documented
+precedence policy and an optional fallback zone. This codebase's only
+address model, `apps.customers.models.Address`, has `province`, `city`,
+and `postal_code` fields — there is no `country` field anywhere in this
+codebase, because Rastisi is an Iran-only platform (verified: no country
+field on `Address`, `Store`, `Order`, or anywhere else; every phone number
+field assumes the Iranian mobile format).
+
+**Decision.** `ShippingZone` matches on exactly the three dimensions that
+exist — `provinces`, `cities`, `postal_codes` (each a plain JSON list of
+strings, plus `excluded_provinces`/`excluded_cities` for exceptions) — and
+the "country" precedence tier from the request's own suggested order is
+simply omitted, not stubbed out with a fake always-Iran country field.
+`resolve_shipping_zone` (`apps.orders.services.shipping_service`)
+implements the precedence: exact postal-code match → city match →
+province match → the Store's single `is_fallback=True` zone (DB-enforced
+"at most one fallback zone per Store" via the same conditional
+`UniqueConstraint` pattern as `Warehouse.is_default`/`TaxClass.is_default`)
+→ no match. Within a tier, ties break by `(priority, pk)` — lower
+`priority` wins, then the lower, stable primary key, exactly the same
+final tie-break idiom used by `ShippingRateRule` (ADR-42) and `TaxRate`
+resolution (ADR-45).
+
+**Consequences.** Zone matching is deterministic and fully tested
+(`test_shipping_service.py::ResolveShippingZoneTests`) without inventing
+unsupported geography infrastructure. A `ShippingMethod` with no `zone`
+set (every row that existed before this checkpoint, since the field is
+new and nullable) is always available regardless of address — zone
+restriction is opt-in per method, not a retroactive requirement on
+existing data.
+
+**Alternatives considered.** Adding a `country` field "for completeness"
+even though every real Store on this platform is Iran-only — rejected as
+speculative infrastructure with no current caller and no test that could
+exercise it meaningfully; adding it later if Rastisi ever expands beyond
+Iran is a small, additive migration, not a redesign.
+
+---
+
+## ADR-42: Shipping Rate Rule Selection — Priority, Then Specificity, Then Primary Key; Falling Back to the Legacy Flat `ShippingMethod.cost` When No Rule Matches
+
+**Context.** `ShippingRateRule` (bounded by subtotal range, weight range,
+an optional rule-specific free-shipping threshold, and an active window)
+can have multiple rows attached to one `ShippingMethod`, and more than one
+could match the same cart (e.g., a wide-open "default" rule and a
+narrower "over 500,000 Toman" rule both covering the same subtotal).
+
+**Decision.** `resolve_best_rate_rule` (`shipping_service`) selects by
+`(priority, -specificity, pk)` ascending: lower numeric `priority` wins
+first (matching the request's own recommendation); if two active,
+matching rules tie on `priority`, the more specific one wins —
+`ShippingRateRule.specificity` is simply a count of how many of the four
+bound fields (`min_subtotal`/`max_subtotal`/`min_weight_grams`/
+`max_weight_grams`) are non-null, so a rule bounded on both subtotal and
+weight beats one bounded on neither; a final tie breaks on the stable
+`pk`. Bounds are inclusive on both ends (`min <= value <= max`), the
+"recommended interval policy" the request itself suggests. When a
+`ShippingMethod` has **no** active, matching `ShippingRateRule` at all —
+the state of every `ShippingMethod` row that existed before this
+checkpoint, since none had rate rules — `calculate_shipping_rate` falls
+back to the pre-checkpoint `ShippingMethod.cost` unchanged.
+
+**Consequences.** `test_shipping_service.py::ResolveBestRateRuleTests`
+and `CalculateShippingRateTests` test every boundary (inclusive min/max,
+priority tie-break, specificity tie-break, inactive/expired/future rules,
+weight bounds) directly. Because the fallback is exact and
+unconditional, every existing checkout/pricing test — none of which ever
+create a `ShippingRateRule` — continues to compute shipping cost via the
+identical `method.cost` path, verified by re-running the entire existing
+suite with zero changes after this checkpoint's model additions.
+
+**Alternatives considered.** "Most specific always wins regardless of
+priority" — rejected in favor of the request's own explicit recommendation
+(priority first) since a merchant should be able to force a coarse rule to
+override a narrow one if they set priorities that way; specificity is
+only the tie-breaker, not the primary key.
+
+---
+
+## ADR-43: Checkout Always Recalculates Shipping Server-Side From the Resolved Address; a Client-Submitted Method Foreign to the Store, Inactive, or Out of Zone Is Rejected at Order Creation, Not Just at Selection Time
+
+**Context.** The pre-existing checkout flow already filtered the
+selectable `ShippingMethod` list by `store` (ADR from Phase 1/checkpoint
+1's tenant-isolation work) but had no concept of zones, and — more
+importantly — `order_service.create_order_from_cart` trusted whatever
+`shipping_method` object its caller (`checkout_service.finalize_order`)
+handed it, without re-validating that method against the *final* resolved
+address at the exact moment of order creation.
+
+**Decision.** `create_order_from_cart` now independently re-derives
+`province`/`city`/`postal_code` from the `Address` it is about to
+snapshot, and — for any non-pickup method — calls
+`shipping_service.get_available_shipping_methods` itself and rejects with
+`ValueError` if the given `shipping_method` is not in that freshly
+computed list, in addition to the pre-existing `store_id` and `is_active`
+checks. This closes the gap where a method could pass an earlier
+zone-check (e.g. in `checkout_service.build_context`, rendered from a
+slightly stale session address) but no longer be valid by the time the
+order is actually created — the *last* check, inside the same function
+and same transaction that writes the `Order` row, is authoritative.
+`checkout_service.active_shipping_methods`/`set_shipping_method` also
+route through the same `get_available_shipping_methods` function (not a
+second, hand-rolled filter), so there is exactly one implementation of
+"which methods are valid for this address," not two that could drift.
+
+**Consequences.** A manipulated POST that names a shipping method
+belonging to another Store, an inactive method, or a zone-restricted
+method that does not cover the checkout address is rejected with a clear
+message before any `Order`/`OrderItem`/`StockMovement`/reservation-consume
+side effect occurs — verified directly by
+`test_order_service_shipping_tax.py::ShippingMethodValidationTests`. Pickup
+methods (`is_pickup=True`) are exempted from the zone check since they are
+not tied to a delivery destination at all.
+
+**Alternatives considered.** Re-validating only in `checkout_service`
+(the layer above) and trusting `order_service` to accept whatever it is
+given — rejected because `order_service.create_order_from_cart` is
+documented elsewhere in this codebase as "the only Production path that
+creates an `Order`" (see its own docstring and ADR-33/38/39), so it is
+exactly the place that must not trust a caller-supplied object without
+its own re-check, the same discipline already applied there to `vendor`
+and `coupon`.
+
+---
+
+## ADR-44: Tax Configuration Lives on the Existing `ShopSettings` Model, Not a New Table — and `tax_enabled` Defaults to `True`, Not `False`
+
+**Context.** `ShopSettings.tax_percent` already existed before this
+checkpoint and was applied unconditionally by `cart_totals` on every cart,
+for every Store, with no on/off switch. Checkpoint 3B asks for a proper
+Tax Settings surface (`tax_enabled`, `prices_include_tax`,
+`shipping_taxable`, a default `TaxClass`, a rounding policy) and suggests
+a "OneToOne Store-owned settings model unless the existing Store settings
+model is more appropriate."
+
+**Decision.** The existing `ShopSettings` model — already the single
+Store-scoped settings surface for pricing, branding, and SMS — gains the
+new tax fields directly, rather than introducing a second Store-scoped
+settings singleton alongside it. Critically, `tax_enabled` defaults to
+**`True`**, not the more "conservative-sounding" `False`: this is not a
+new feature being cautiously opt-in, it is a literal description of
+behavior that has always existed on this platform (a flat percentage
+always applied) — defaulting it to `False` would have been a silent,
+platform-wide tax cut for every existing Store the moment this migration
+ran. `prices_include_tax` defaults to `False` and `shipping_taxable`
+defaults to `False` for the same reason: both describe the *exact*
+pre-checkpoint arithmetic (`cart_totals` added tax on top of the
+post-discount subtotal and never touched shipping), so defaulting them to
+match that history is the only choice that changes zero existing Stores'
+computed totals on migration day.
+
+**Consequences.** Every Store that existed before this checkpoint gets the
+new fields with defaults that reproduce its exact prior tax behavior,
+verified by the entire pre-existing `test_pricing.py` suite passing
+unmodified. A merchant explicitly disabling tax, switching to
+tax-inclusive pricing, or making shipping taxable is now a deliberate,
+recorded settings change (audited via `record_audit_event`, action code
+`tax_settings.updated`), not an accidental side effect of this migration.
+
+**Alternatives considered.** A separate `TaxSettings` OneToOne model —
+rejected for the same reason `ShopSettings` itself was never split
+further in ADR-10: these are all still "Store-wide pricing/identity
+knobs," and splitting tax settings into their own table would mean two
+places (`ShopSettings.tax_percent` and the new model) both claim to
+describe "this Store's tax behavior," with the flat `tax_percent` field
+now oddly homeless. Keeping everything on `ShopSettings` keeps exactly
+one place answering "how does this Store compute tax."
+
+---
+
+## ADR-45: Tax Resolution Falls Back to the Flat Rate Only When a Store Has Zero `TaxRate` Rows At All; Once *Any* `TaxRate` Exists, an Uncovered Product/Province Is Zero-Taxed, Not Silently Flat-Rated — and Tax-Inclusive Pricing Extracts Rather Than Adds
+
+**Context.** `TaxClass`/`TaxRate` are new, Store-scoped, opt-in models.
+Every Store that existed before this checkpoint has zero rows in either
+table. The calculation service needs one rule for "what happens when a
+specific product's resolved tax class has no matching rate" that does not
+quietly reintroduce two different, disagreeing tax computations on the
+same order.
+
+**Decision (fallback boundary).** `tax_service.calculate_order_taxes`
+checks `store_has_granular_tax_rates(store)` — literally "does this Store
+have at least one `TaxRate` row, for any `TaxClass`, anywhere" — exactly
+once, for the whole order, not per line. If **no** `TaxRate` rows exist
+for the Store at all, every line uses the old flat
+`ShopSettings.tax_percent` formula, byte-identical to the formula
+`cart_totals` used before this checkpoint (`_legacy_flat_tax`). If the
+Store has **any** `TaxRate` row (meaning a merchant has explicitly opted
+into granular, per-jurisdiction tax), then `_granular_tax` runs for every
+line, and a line whose resolved `TaxClass` (the product's own, or the
+Store's `default_tax_class` if the product has none) has no matching,
+active, in-window `TaxRate` for the given province gets **zero** tax for
+that line — it does *not* silently fall back to the flat percentage.
+Mixing "some products get precise per-jurisdiction rates" with "products
+the merchant forgot to configure quietly get the old flat rate instead"
+would be a confusing, undocumented hybrid that could misstate tax on
+receipts without any visible warning. `resolve_tax_rate` itself matches
+exact province first, then the Store-wide `province=""` row, then `None`.
+
+**Decision (inclusive vs. exclusive).** `prices_include_tax=False`
+(default, matching every pre-checkpoint Store): tax is computed and
+*added* to the line subtotal — unchanged from before.
+`prices_include_tax=True`: the line subtotal is already assumed to
+contain tax, so the tax portion is *extracted* —
+`line_subtotal × rate / (100 + rate)` instead of `line_subtotal × rate /
+100` — and that extracted amount is **not** added again when assembling
+`grand_total` (`tax_added_to_grand_total` is `0` for the product-tax
+portion in inclusive mode). Shipping tax is always computed and added
+exclusively, regardless of `prices_include_tax`, on the theory that
+shipping is quoted and charged separately from item prices in this
+codebase (`shipping_cost` is never bundled into `items_total`) — a
+merchant configuring inclusive item pricing is describing how their
+product prices are quoted, not how their shipping fee is quoted.
+
+**Consequences.** `test_tax_service.py`'s `CalculateOrderTaxesGranularTests.
+test_line_without_matching_rate_is_zero_not_flat_fallback` and
+`InclusiveTaxTests` assert both halves of this decision directly. A Store
+can adopt granular tax incrementally (configure a few `TaxClass`/`TaxRate`
+rows for the jurisdictions it actually needs) without every other,
+not-yet-configured product silently reverting to a possibly-wrong flat
+rate — the zero-tax result is visible and points the merchant at exactly
+what to configure next.
+
+**Alternatives considered.** Falling back to the flat rate per-line
+when that specific line's class/province has no rate, even inside
+granular mode — rejected because it would make a Store's tax behavior
+depend on an invisible, per-product mix of "granular" and "still flat,"
+impossible to audit from the merchant UI without inspecting each
+product's resolved class one at a time.
+
+---
+
+## ADR-46: Tax Rounding Is a Per-Store Policy (`on_total`/`per_line`), Defaulting to `on_total` to Match the Flat-Rate Formula's History Exactly
+
+**Context.** The pre-checkpoint flat-rate formula rounded exactly once,
+on the whole after-discount total (`_round(after_coupon * tax_percent /
+100)`). A per-line-rounding policy (round each line's tax independently,
+then sum) is the more common professional pattern but produces a
+different total by a few Toman on multi-item carts whenever the
+per-line roundings don't cancel out exactly the way one whole-total
+rounding would.
+
+**Decision.** `ShopSettings.tax_rounding_policy` is an explicit two-value
+choice (`ON_TOTAL`/`PER_LINE`), defaulting to `ON_TOTAL` — the only value
+that reproduces the pre-checkpoint formula's exact arithmetic for every
+existing Store. The legacy flat-rate path (`_legacy_flat_tax`) always
+computes on the aggregate `taxable_total`, ignoring the rounding-policy
+setting entirely, since it is describing history, not a configurable
+computation — this is deliberate, not an oversight: the policy field
+only takes effect once a Store has opted into the granular path
+(`_granular_tax`), which honors `PER_LINE` by rounding and summing each
+line's tax independently, or `ON_TOTAL` by summing raw (unrounded)
+per-line tax and rounding once at the end.
+
+**Consequences.** No existing Store's tax total can change by adopting
+this checkpoint's code alone — the rounding policy field exists and is
+settable, but its *effect* only begins the moment a Store also adds its
+first `TaxRate` row, at which point the merchant has already made an
+active decision to configure granular tax and can review the resulting
+totals.
+
+**Alternatives considered.** Applying the rounding policy to the legacy
+flat path too (for symmetry) — rejected because the legacy path's whole
+purpose is to be a frozen, exact reproduction of pre-checkpoint behavior;
+making it "configurable" would reintroduce the same regression risk this
+entire fallback design exists to avoid.
+
+---
+
+## ADR-47: Order and OrderItem Shipping/Tax Snapshots Are Independent Denormalized Fields, Not Live References — Changing or Archiving a `ShippingMethod`/`ShippingZone`/`TaxClass`/`TaxRate` Never Alters an Existing Order
+
+**Context.** `Order` already snapshotted its address as a plain
+`JSONField` (`address`) rather than only keeping a live FK to a mutable
+`Address` row — precedent this checkpoint extends to shipping and tax.
+Checkpoint 3B explicitly requires that historical orders remain readable
+and numerically unchanged after a merchant edits or archives a
+`ShippingMethod`, `ShippingZone`, `TaxClass`, or `TaxRate`.
+
+**Decision.** `Order` gains plain-value snapshot fields
+(`shipping_method_name`/`_code`, `shipping_zone_name`/`_code`,
+`shipping_rate_rule_label`, `min_delivery_days`/`max_delivery_days`,
+`is_pickup`, `pickup_warehouse_name`, `pickup_address`,
+`prices_include_tax`, `tax_rounding_policy`, `shipping_tax`) populated
+once, at order-creation time, by `create_order_from_cart` — alongside the
+pre-existing live `shipping_method` FK (kept for referential/reporting
+convenience, `on_delete=PROTECT`, so a method in use can't be hard-deleted
+underneath an order, but its *display* never depends on that FK still
+matching current data). `OrderItem` gains the equivalent per-line tax
+snapshot (`taxable_amount`, `tax_class_code`/`_name`, `tax_rate_percent`,
+`unit_tax`, `total_tax`, `discount_allocation`) and a
+`fulfillment_warehouse` snapshot (ADR-48). None of these fields are
+derived at display time from the live `ShippingMethod`/`ShippingZone`/
+`TaxClass`/`TaxRate`/`Warehouse` rows — they are written once and read
+verbatim forever after.
+
+**Consequences.** `test_order_service_shipping_tax.py::
+test_changing_default_warehouse_later_does_not_alter_historical_snapshot`
+is the concrete, tested expression of this decision for warehouses; the
+same principle holds for every other snapshot field by construction (none
+of them are computed properties or `select_related` lookups at render
+time). The cost is the usual one for denormalization: these fields must
+be written correctly and completely at creation time (they are, inside
+the same transaction as the rest of order creation) since nothing will
+ever "self-heal" them later if a bug omits one.
+
+**Alternatives considered.** Reading shipping/tax display values live
+from the current `ShippingMethod`/`TaxClass`/etc. rows at Order-detail
+render time — rejected outright; the request's own definition of
+"complete" explicitly forbids this ("do not rely on live Shipping Method
+rows to display historical Orders"), and it would mean editing today's
+shipping cost retroactively changes yesterday's invoices.
+
+---
+
+## ADR-48: Return/Refund Restock Warehouse Selection — Explicit Merchant Choice, Then the Order Item's Own Fulfillment Warehouse, Then the Store Default; Never a Silent, Unrelated Warehouse
+
+**Context.** Before this checkpoint, `restock_return_item`/
+`restock_refund_item` always resolved the Store's *current* default
+warehouse (ADR-38's addendum), with no way to record or choose otherwise.
+Checkpoint 3B asks for deterministic, explicit restock-warehouse selection
+that does not depend on whatever happens to be the default warehouse at
+the moment of restocking (which could differ from the warehouse that
+originally shipped the item, especially once transfers or a default-
+warehouse change have occurred in between).
+
+**Decision.** `OrderItem.fulfillment_warehouse` is a new snapshot field —
+populated once, at order-creation time, with whichever warehouse
+`_sync_warehouse_balance` actually debited for that line (today, always
+the Store's default warehouse at that moment, per ADR-38, but the field
+itself does not assume that will always be true — it records the *real*
+warehouse, whatever resolves it). `ReturnItem.restock_warehouse` is a new,
+merchant-settable field for return inspection/completion — explicit
+override, `None` by default. `inventory_service._resolve_restock_warehouse`
+implements the exact three-tier priority the request specifies: (1) an
+explicit `ReturnItem.restock_warehouse`, if set and still active,
+(2) `OrderItem.fulfillment_warehouse`, if set and still active,
+(3) the Store's current default warehouse. An explicit or fulfillment
+warehouse belonging to a *different* Store, or archived
+(`is_active=False`), is rejected (`InvalidRestockWarehouseError`) or
+silently skipped down to the next tier (an archived fulfillment warehouse
+falls through to the Store default; an archived or foreign *explicit*
+choice is a hard error, since that one was chosen by a human this time,
+not inherited from history) rather than restocking into it.
+
+**Consequences.** A return can restock into the exact warehouse the item
+actually shipped from, months after the Store's default warehouse has
+since changed (`test_return_warehouse_policy.py::
+test_uses_original_fulfillment_warehouse_when_no_explicit_choice`), or a
+merchant handling an in-person return at a different location can
+override that explicitly. `restock_refund_item` (the no-formal-return
+quick-refund path) gets the same two-tier fallback (explicit choice is
+not offered there today, since that UI does not exist — see the report's
+"not delivered" list) minus the merchant-override tier.
+
+**Alternatives considered.** Always restocking to whichever warehouse is
+currently the Store default (the pre-checkpoint behavior) — rejected as
+the exact gap this ADR closes: it can silently restock into the wrong
+physical location once a Store operates (or has ever operated) more than
+one warehouse and changed its default in between order and return.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -2317,3 +2681,11 @@ only its warehouse location is provisionally ambiguous.
 | `Product`/`ProductVariant.stock` remains the sole authoritative sellable-stock field; `WarehouseInventory` is a synced per-warehouse breakdown | Decided, implemented |
 | Inventory reservation reduces computed "available", never stored `on_hand`; reserved and consumed synchronously within order creation, not held across requests | Decided, implemented |
 | Warehouse transfers move only the per-warehouse breakdown; the aggregate `Product`/`ProductVariant.stock` is untouched by an internal transfer | Decided, implemented |
+| Shipping Zones match only province/city/postal code (no invented country tier); deterministic postal > city > province > fallback precedence | Decided, implemented |
+| Shipping Rate Rules select by priority, then specificity, then primary key; fall back to legacy flat `ShippingMethod.cost` when no rule matches | Decided, implemented |
+| Checkout always re-validates the shipping method against the Store/zone at Order-creation time, not only at selection time | Decided, implemented |
+| Tax configuration lives on `ShopSettings`; `tax_enabled` defaults `True` to match pre-checkpoint always-on flat-tax behavior | Decided, implemented |
+| Tax falls back to the flat rate only when a Store has zero `TaxRate` rows at all; once any exist, an uncovered line is zero-taxed, not flat-rated | Decided, implemented |
+| Tax rounding is a per-Store `on_total`/`per_line` policy, defaulting to `on_total` to match the legacy formula exactly | Decided, implemented |
+| Order/OrderItem shipping and tax fields are independent snapshots, never live references to mutable Shipping/Tax rows | Decided, implemented |
+| Return/refund restock warehouse: explicit merchant choice, then the item's original fulfillment warehouse, then the Store default | Decided, implemented |

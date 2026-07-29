@@ -1,0 +1,84 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{% if method %}ویرایش{% else %}افزودن{% endif %} روشِ ارسال | پنل مدیریت{% endblock %}
+{% block page_title %}{% if method %}ویرایشِ «{{ method.name }}»{% else %}روشِ ارسالِ جدید{% endif %}{% endblock %}
+{% block content %}
+<div class="form-card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="field-group">
+      <label class="field-label required">نام</label>
+      <input type="text" name="name" value="{{ method.name|default:'' }}" required class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label required">اسلاگ (کد)</label>
+      <input type="text" name="slug" value="{{ method.slug|default:'' }}" required dir="ltr" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">توضیحاتِ نمایشی برای مشتری</label>
+      <input type="text" name="description" value="{{ method.description|default:'' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">نوعِ روش</label>
+      <select name="method_type" class="form-select">
+        {% for val, label in method_type_choices %}
+        <option value="{{ val }}" {% if method.method_type == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field-group">
+      <label class="field-label">منطقه (خالی = سراسری)</label>
+      <select name="zone" class="form-select">
+        <option value="">— سراسری —</option>
+        {% for zone in zones %}
+        <option value="{{ zone.pk }}" {% if method.zone_id == zone.pk %}selected{% endif %}>{{ zone.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field-group">
+      <label class="field-label">هزینه (تومان) — وقتی قاعده‌ی نرخی ثبت نشده باشد</label>
+      <input type="number" name="cost" value="{{ method.cost|default:'0' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">آستانه‌ی ارسالِ رایگان (تومان)</label>
+      <input type="number" name="free_over" value="{{ method.free_over|default:'500000' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">حداقلِ روزِ تحویل</label>
+      <input type="number" name="min_delivery_days" value="{{ method.min_delivery_days|default:'' }}" min="0" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">حداکثرِ روزِ تحویل</label>
+      <input type="number" name="max_delivery_days" value="{{ method.max_delivery_days|default:'' }}" min="0" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label">ترتیبِ نمایش</label>
+      <input type="number" name="display_order" value="{{ method.display_order|default:'0' }}" class="form-input">
+    </div>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_pickup" {% if method.is_pickup %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">تحویلِ حضوری</span></div>
+    </label>
+    <div class="field-group">
+      <label class="field-label">انبارِ بارگیری (فقط برای تحویلِ حضوری)</label>
+      <select name="pickup_warehouse" class="form-select">
+        <option value="">—</option>
+        {% for warehouse in warehouses %}
+        <option value="{{ warehouse.pk }}" {% if method.pickup_warehouse_id == warehouse.pk %}selected{% endif %}>{{ warehouse.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <label class="toggle-field">
+      <input type="checkbox" name="cod_eligible" {% if method.cod_eligible %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">پرداخت در محل</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_active" {% if method.is_active or not method %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">فعال</span></div>
+    </label>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">ذخیره</button>
+      <a href="{% url 'dashboard:shipping-method-list' %}" class="btn btn-secondary">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

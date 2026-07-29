@@ -1,0 +1,35 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}مناطقِ ارسال | پنل مدیریت{% endblock %}
+{% block page_title %}مناطقِ ارسال{% endblock %}
+{% block page_sub %}منطقه‌بندیِ جغرافیاییِ ارسال بر اساسِ استان/شهر/کدپستی{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><p class="page-desc">دقیقاً یک منطقه می‌تواند «پیش‌فرض/ذخیره» باشد.</p></div>
+  {% if can_manage_shipping %}<a href="{% url 'dashboard:shipping-zone-add' %}" class="btn btn-primary">منطقه‌ی جدید</a>{% endif %}
+</div>
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>نام</th><th>کد</th><th>اولویت</th><th>استان‌ها</th><th>پیش‌فرض</th><th>وضعیت</th>{% if can_manage_shipping %}<th>عملیات</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for zone in zones %}
+    <tr>
+      <td><b>{{ zone.name }}</b></td>
+      <td dir="ltr" style="text-align:right">{{ zone.code }}</td>
+      <td>{{ zone.priority }}</td>
+      <td>{{ zone.provinces|join:"، "|default:"—" }}</td>
+      <td>{% if zone.is_fallback %}<span class="badge b-green">پیش‌فرض</span>{% else %}—{% endif %}</td>
+      <td>{% if zone.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">غیرفعال</span>{% endif %}</td>
+      {% if can_manage_shipping %}
+      <td style="display:flex;gap:6px">
+        <a class="btn btn-sm" href="{% url 'dashboard:shipping-zone-edit' zone.pk %}">ویرایش</a>
+        <form method="post" action="{% url 'dashboard:shipping-zone-toggle' zone.pk %}">{% csrf_token %}<button class="btn btn-sm">{% if zone.is_active %}غیرفعال{% else %}فعال{% endif %}</button></form>
+      </td>
+      {% endif %}
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">هنوز منطقه‌ای ثبت نشده — بدونِ منطقه، همه‌ی روش‌های ارسالِ سراسری همچنان کار می‌کنند</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}
