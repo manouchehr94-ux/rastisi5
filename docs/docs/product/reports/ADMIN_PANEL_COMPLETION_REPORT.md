@@ -1420,13 +1420,25 @@ python manage.py verify_inventory_consistency --strict → consistent
 python manage.py seed_industry_templates           → 30 templates (idempotent re-run)
 python manage.py validate_industry_templates --strict → 30/30 valid, 0 errors
 python manage.py test apps.catalog apps.cart apps.orders apps.dashboard apps.stores apps.core
+...
+Ran 2060 tests in 862.189s
+
+OK
 python manage.py test
+...
+Ran 2579 tests in 956.155s
+
+OK
 ```
 
-*(Exact final full-suite total/timing recorded once the last full run for
-this checkpoint completes — see the commit this section ships with for
-the verbatim count; this report is not published claiming a number that
-was not actually observed.)*
+**2,579/2,579 passing** — up from 2,469 at the end of checkpoint 3A by
+exactly 110, matching §21's tally precisely. `manage.py check` and
+`makemigrations --check --dry-run` were both re-verified clean
+immediately before this run; `provision_default_warehouses`,
+`expire_inventory_reservations`, and `verify_inventory_consistency
+--strict` all ran clean; `seed_industry_templates`/
+`validate_industry_templates --strict` re-confirmed 30/30 templates
+still valid. Nothing regressed, nothing skipped, nothing hidden.
 
 **Checkpoint 3B delivers the second half of the original checkpoint 3
 request**: Shipping Zones, Shipping Methods, the Rate Engine, Tax
