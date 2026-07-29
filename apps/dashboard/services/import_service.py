@@ -15,8 +15,13 @@ from dataclasses import dataclass, field as dataclass_field
 from django.db import transaction
 from django.utils import timezone
 
-from apps.catalog.models import Brand, Category, Product, ProductOption, ProductVariant
-from apps.catalog.services.inventory_service import adjust_stock_manually
+from apps.catalog.models import Brand, Category, Product, ProductOption, ProductVariant, StockMovement, Warehouse
+from apps.catalog.services.inventory_service import (
+    InsufficientStockError,
+    InvalidRestockWarehouseError,
+    adjust_stock_manually,
+    adjust_warehouse_stock,
+)
 from apps.catalog.services.variant_engine_service import VariantEngineError, generate_variants, set_default_variant
 from apps.core.models import ImportJob, ImportRowResult
 from apps.core.services.audit_service import record_audit_event
@@ -631,6 +636,190 @@ def _execute_variant_batch(store, batch, *, mode, cache, actor, dry_run: bool) -
     return outcomes
 
 
+# ================================================================== موجودی (Inventory)
+#
+# نگاه کنید به ADR-60. هیچ ردیفی مستقیماً ``WarehouseInventory``/
+# ``Product.stock``/``ProductVariant.stock`` را نمی‌نویسد — همه از
+# ``inventory_service.adjust_warehouse_stock`` عبور می‌کنند که خودش
+# ``StockMovement`` می‌سازد، تجمیعِ موجودی را هم‌راستا نگه می‌دارد، و
+# تغییری که موجودیِ در دسترس را زیرِ رزروِ فعال ببرد رد می‌کند.
+
+INVENTORY_ROW_MODES = {"adjustment", "set_on_hand"}
+
+
+def _inventory_lookup_cache(store, rows: list[dict]) -> dict:
+    warehouse_codes, product_ids, product_skus, variant_ids, variant_skus = set(), set(), set(), set(), set()
+    for row in rows:
+        code = normalize_import_text(row.get("warehouse_code"))
+        if code:
+            warehouse_codes.add(code)
+        raw_pid = normalize_import_text(row.get("product_id"))
+        if raw_pid.isdigit():
+            product_ids.add(int(raw_pid))
+        psku = normalize_import_text(row.get("product_sku"))
+        if psku:
+            product_skus.add(psku)
+        raw_vid = normalize_import_text(row.get("variant_id"))
+        if raw_vid.isdigit():
+            variant_ids.add(int(raw_vid))
+        vsku = normalize_import_text(row.get("variant_sku"))
+        if vsku:
+            variant_skus.add(vsku)
+
+    return {
+        "warehouses_by_code": {w.code: w for w in Warehouse.objects.filter(store=store, code__in=warehouse_codes)},
+        "products_by_id": {p.pk: p for p in Product.objects.filter(store=store, pk__in=product_ids)},
+        "products_by_sku": {p.sku: p for p in Product.objects.filter(store=store, sku__in=product_skus)},
+        "foreign_product_ids": set(
+            Product.objects.filter(pk__in=product_ids).exclude(store=store).values_list("pk", flat=True)
+        ),
+        "variants_by_id": {
+            v.pk: v for v in ProductVariant.objects.filter(store=store, pk__in=variant_ids).select_related("product")
+        },
+        "variants_by_sku": {
+            v.sku: v for v in ProductVariant.objects.filter(store=store, sku__in=variant_skus).select_related("product")
+        },
+        "foreign_variant_ids": set(
+            ProductVariant.objects.filter(pk__in=variant_ids).exclude(store=store).values_list("pk", flat=True)
+        ),
+    }
+
+
+def _validate_inventory_row(row_number: int, row: dict, *, store, mode: str, cache: dict):
+    errors, warnings = [], []
+    source_identifier = (
+        normalize_import_text(row.get("variant_sku"))
+        or normalize_import_text(row.get("product_sku"))
+        or normalize_import_text(row.get("product_id"))
+        or f"row-{row_number}"
+    )
+
+    warehouse = None
+    warehouse_code = normalize_import_text(row.get("warehouse_code"))
+    if not warehouse_code:
+        errors.append("«warehouse_code» الزامی است.")
+    else:
+        warehouse = cache["warehouses_by_code"].get(warehouse_code)
+        if warehouse is None:
+            errors.append(f"انباری با کدِ «{warehouse_code}» در این فروشگاه یافت نشد.")
+
+    # کالا (الزامی)
+    product = None
+    raw_pid = normalize_import_text(row.get("product_id"))
+    psku = normalize_import_text(row.get("product_sku"))
+    if raw_pid:
+        if not raw_pid.isdigit():
+            errors.append(f"«product_id» نامعتبر است: {raw_pid}")
+        elif int(raw_pid) in cache["foreign_product_ids"]:
+            errors.append("این شناسه‌ی کالا متعلق به فروشگاه دیگری است.")
+        else:
+            product = cache["products_by_id"].get(int(raw_pid))
+            if product is None:
+                errors.append(f"کالایی با شناسه‌ی «{raw_pid}» در این فروشگاه یافت نشد.")
+    elif psku:
+        product = cache["products_by_sku"].get(psku)
+        if product is None:
+            errors.append(f"کالایی با SKUِ «{psku}» در این فروشگاه یافت نشد.")
+    else:
+        errors.append("یکی از «product_id» یا «product_sku» الزامی است.")
+
+    # تنوع (اختیاری) — اگر داده شود باید به همین کالا تعلق داشته باشد
+    variant = None
+    raw_vid = normalize_import_text(row.get("variant_id"))
+    vsku = normalize_import_text(row.get("variant_sku"))
+    if raw_vid:
+        if not raw_vid.isdigit():
+            errors.append(f"«variant_id» نامعتبر است: {raw_vid}")
+        elif int(raw_vid) in cache["foreign_variant_ids"]:
+            errors.append("این شناسه‌ی تنوع متعلق به فروشگاه دیگری است.")
+        else:
+            variant = cache["variants_by_id"].get(int(raw_vid))
+            if variant is None:
+                errors.append(f"تنوعی با شناسه‌ی «{raw_vid}» در این فروشگاه یافت نشد.")
+    elif vsku:
+        variant = cache["variants_by_sku"].get(vsku)
+        if variant is None:
+            errors.append(f"تنوعی با SKUِ «{vsku}» در این فروشگاه یافت نشد.")
+    if variant is not None and product is not None and variant.product_id != product.pk:
+        errors.append("این تنوع متعلق به کالایِ دیگری است.")
+
+    row_mode = normalize_import_text(row.get("mode")).lower() or "adjustment"
+    if row_mode not in INVENTORY_ROW_MODES:
+        errors.append(f"حالتِ ردیفِ «{row_mode}» نامعتبر است (فقط adjustment/set_on_hand).")
+
+    quantity = None
+    try:
+        quantity = parse_import_int(row.get("quantity"), field_name="تعداد")
+    except ValueError as exc:
+        errors.append(str(exc))
+    if quantity is None:
+        errors.append("«quantity» الزامی است.")
+    elif row_mode == "set_on_hand" and quantity < 0:
+        errors.append("در حالتِ set_on_hand، تعداد نمی‌تواند منفی باشد.")
+
+    if errors:
+        outcome = RowOutcome(
+            row_number=row_number, source_identifier=source_identifier,
+            status=ImportRowResult.RowStatus.INVALID, errors=errors, warnings=warnings,
+        )
+        return outcome, None
+    normalized = {
+        "warehouse": warehouse, "product": product, "variant": variant, "row_mode": row_mode,
+        "quantity": quantity, "reason": normalize_import_text(row.get("reason")),
+        "note": normalize_import_text(row.get("note")),
+    }
+    outcome = RowOutcome(
+        row_number=row_number, source_identifier=source_identifier,
+        status=ImportRowResult.RowStatus.VALID, warnings=warnings,
+    )
+    return outcome, normalized
+
+
+def _apply_inventory_row(*, store, normalized: dict, actor):
+    """موجودی را از مسیرِ ``adjust_warehouse_stock`` تغییر می‌دهد — reasonِ
+    آزادِ CSV و noteِ CSV هر دو در ``StockMovement.note`` حفظ می‌شوند، اما
+    ``StockMovement.reason`` همیشه ``IMPORT_ADJUSTMENT`` است تا تاکسونومیِ
+    دلیلِ دفترِ موجودی دست‌نخورده بماند."""
+    note_parts = [part for part in (normalized["reason"], normalized["note"]) if part]
+    combined_note = " — ".join(note_parts)[:500] if note_parts else "Import"
+    movement = adjust_warehouse_stock(
+        store=store, warehouse=normalized["warehouse"], product=normalized["product"],
+        variant=normalized["variant"], mode=normalized["row_mode"], quantity=normalized["quantity"],
+        reason=StockMovement.Reason.IMPORT_ADJUSTMENT, actor=actor, note=combined_note,
+    )
+    return movement
+
+
+@transaction.atomic
+def _execute_inventory_batch(store, batch, *, mode, cache, actor, dry_run: bool) -> list[RowOutcome]:
+    outcomes = []
+    for row_number, row in batch:
+        outcome, normalized = _validate_inventory_row(row_number, row, store=store, mode=mode, cache=cache)
+        if normalized is None:
+            outcomes.append(outcome)
+            continue
+        if dry_run:
+            outcomes.append(outcome)
+            continue
+        try:
+            movement = _apply_inventory_row(store=store, normalized=normalized, actor=actor)
+            target = normalized["variant"] or normalized["product"]
+            outcome.status = ImportRowResult.RowStatus.UPDATED
+            outcome.target_object_type = "ProductVariant" if normalized["variant"] else "Product"
+            outcome.target_object_id = target.pk
+            if movement is None:
+                outcome.warnings.append("دلتا صفر بود؛ هیچ تغییری اعمال نشد.")
+                outcome.status = ImportRowResult.RowStatus.SKIPPED
+        except (InsufficientStockError, InvalidRestockWarehouseError, ValueError) as exc:
+            outcome.status = ImportRowResult.RowStatus.FAILED
+            outcome.errors.append(str(exc))
+        except Exception as exc:  # noqa: BLE001
+            outcome.status = ImportRowResult.RowStatus.FAILED
+            outcome.errors.append(str(exc))
+        outcomes.append(outcome)
+    return outcomes
+
+
 # ================================================================== موتورِ اجرایِ عمومی
 
 def _chunked(sequence: list, size: int):
@@ -678,6 +867,7 @@ def _execute_product_batch(store, batch, *, mode, cache, actor, dry_run: bool) -
 _BATCH_EXECUTORS = {
     ImportJob.ImportType.PRODUCTS: (_product_lookup_cache, _execute_product_batch),
     ImportJob.ImportType.VARIANTS: (_variant_lookup_cache, _execute_variant_batch),
+    ImportJob.ImportType.INVENTORY: (_inventory_lookup_cache, _execute_inventory_batch),
 }
 
 
