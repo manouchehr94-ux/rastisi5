@@ -135,16 +135,21 @@ def plan_template_update(installation, target_template) -> UpdatePlan:
 
 
 def _apply_category_additions(store, target_template, entries, category_map: dict):
-    """ساخت لایه‌به‌لایه‌ی دسته‌بندی‌های جدید — والد همیشه قبل از فرزند (مثل نصب اولیه)."""
+    """ساخت لایه‌به‌لایه‌ی دسته‌بندی‌های جدید — والد همیشه قبل از فرزند (مثل نصب اولیه).
+
+    ``category_map`` بر اساس کدِ پایدار (نه PK) کلید می‌شود: دسته‌بندیِ
+    از پیش‌نصب‌شده (در نسخه‌ی قبلی) به ردیفِ IndustryTemplateCategoryِ آن
+    نسخه اشاره دارد که PKِ متفاوتی از همتای هم‌کدِ خودش در نسخه‌ی جدید
+    دارد — فقط ``code`` بین نسخه‌ها پایدار است (نگاه کنید به ADR-27)."""
     pending = {e.diff_entry.code: target_template.categories.get(code=e.diff_entry.code) for e in entries}
     applied = []
     while pending:
         progressed = []
         for code, template_category in list(pending.items()):
-            parent_pk = template_category.parent_id
-            if parent_pk and parent_pk not in category_map:
+            parent_code = template_category.parent.code if template_category.parent_id else None
+            if parent_code and parent_code not in category_map:
                 continue
-            parent = category_map.get(parent_pk) if parent_pk else None
+            parent = category_map.get(parent_code) if parent_code else None
             category = Category(
                 store=store, name=template_category.name, icon=template_category.icon, parent=parent,
                 order=template_category.display_order, source_template_category=template_category,
@@ -152,7 +157,7 @@ def _apply_category_additions(store, target_template, entries, category_map: dic
             )
             category.full_clean(exclude=["slug"])
             category.save()
-            category_map[template_category.pk] = category
+            category_map[code] = category
             applied.append(code)
             progressed.append(code)
         if not progressed:
@@ -217,8 +222,10 @@ def apply_template_update(installation, target_template, selected_change_ids, ac
             skipped_entries = [c for c in plan.safe_additive if c.change_id not in selected_set]
 
             category_source_map = {
-                c.source_template_category_id: c
-                for c in Category.objects.filter(store=store, source_template_category__isnull=False)
+                c.source_template_category.code: c
+                for c in Category.objects.filter(
+                    store=store, source_template_category__isnull=False,
+                ).select_related("source_template_category")
             }
             attribute_source_map = {a.code: a for a in Attribute.objects.filter(store=store)}
 
@@ -273,7 +280,7 @@ def apply_template_update(installation, target_template, selected_change_ids, ac
             for change in mapping_entries:
                 category_code, _sep, attribute_code = change.diff_entry.code.partition(":")
                 template_category = target_template.categories.get(code=category_code)
-                category = category_source_map.get(template_category.pk)
+                category = category_source_map.get(category_code)
                 attribute = attribute_source_map.get(attribute_code)
                 if category is None or attribute is None:
                     continue
@@ -298,7 +305,7 @@ def apply_template_update(installation, target_template, selected_change_ids, ac
             for change in recommendation_entries:
                 category_code, _sep, attribute_code = change.diff_entry.code.partition(":")
                 template_category = target_template.categories.get(code=category_code)
-                category = category_source_map.get(template_category.pk)
+                category = category_source_map.get(category_code)
                 attribute = attribute_source_map.get(attribute_code)
                 if category is None or attribute is None:
                     continue
