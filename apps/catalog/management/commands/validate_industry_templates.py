@@ -39,8 +39,7 @@ class Command(BaseCommand):
         templates = list(queryset)
         if not templates:
             self.stderr.write(self.style.WARNING("هیچ قالبی با این فیلتر یافت نشد."))
-            self.exit_code = 1
-            return
+            raise SystemExit(1)
 
         results = []
         any_invalid = False

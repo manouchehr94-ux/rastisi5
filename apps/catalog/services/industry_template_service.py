@@ -115,6 +115,7 @@ def install_industry_template(store, industry_template: IndustryTemplate) -> Ins
                 defaults={
                     "label": template_value.label, "value": template_value.value or template_value.label,
                     "color_hex": template_value.color_hex, "display_order": template_value.display_order,
+                    "source_template_value": template_value,
                 },
             )
             attribute_value_map[template_value.pk] = value
