@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login
@@ -12,7 +13,32 @@ from django.urls import reverse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 
-from apps.catalog.models import Brand, Category, Product, ProductImage, ProductVariant
+from apps.catalog.models import (
+    Attribute,
+    AttributeValue,
+    Brand,
+    Category,
+    Product,
+    ProductImage,
+    ProductOption,
+    ProductOptionValue,
+    ProductVariant,
+)
+from apps.catalog.services.attribute_service import (
+    AttributeError_,
+    AttributeInUseError,
+    activate_attribute,
+    archive_attribute,
+    archive_attribute_value,
+    can_delete_attribute,
+    can_delete_attribute_value,
+    create_attribute,
+    create_attribute_value,
+    delete_attribute,
+    delete_attribute_value,
+    update_attribute,
+    update_attribute_value,
+)
 from apps.catalog.services.pricing_service import resolve_effective_price
 from apps.catalog.services.product_image_service import (
     ProductImageError,
@@ -23,17 +49,31 @@ from apps.catalog.services.product_image_service import (
     set_image_variant,
     update_image_alt,
 )
+from apps.catalog.services.variant_engine_service import (
+    VariantEngineError,
+    add_option_value,
+    add_product_option,
+    activate_product_option,
+    deactivate_product_option,
+    generate_variants,
+    preview_combination_count,
+    remove_option_value,
+    reorder_product_options,
+    set_default_variant,
+)
 from apps.catalog.services.variant_service import (
     ProductTypeError,
     VariantError,
     bulk_create_variants,
     deactivate_variant,
     delete_variant,
+    parse_bulk_values,
     reorder_variants,
     set_product_type,
     update_variant,
 )
 from apps.core.color_utils import safe_hex
+from apps.core.utils import normalize_digits
 from apps.core.models import ShopSettings
 from apps.core.theme_presets import THEME_PRESETS, matching_preset_key
 from apps.customers.models import Customer
@@ -45,6 +85,7 @@ from apps.sms.services.sms_service import SmsTemplateError, send_test_sms
 
 from .decorators import admin_host_required, permission_required, staff_required
 from apps.stores.authorization import (
+    ATTRIBUTE_MANAGE,
     CATEGORY_MANAGE,
     CONTENT_MANAGE,
     CUSTOMER_VIEW,
@@ -64,12 +105,16 @@ from apps.stores.authorization import (
     membership_has_permission,
 )
 from .forms import (
+    AttributeForm,
+    AttributeValueForm,
     CategoryEditForm,
     FinanceSettingsForm,
     MainCategoryForm,
     ProductForm,
     ProductImageAltForm,
     ProductImageUploadForm,
+    ProductOptionForm,
+    ProductOptionValueAddForm,
     ShopInfoForm,
     SmsConnectionForm,
     SmsTemplateForm,
@@ -757,6 +802,449 @@ def product_variant_move(request, pk, variant_id):
             reorder_variants(product, ordered_ids)
 
     return _variant_list_redirect(request, product)
+
+
+# --------------------------------------------------------- ویژگی‌ها (Attribute)
+
+
+ATTRIBUTE_TYPE_FILTERS = [("", "همه‌ی انواع"), *Attribute.DataType.choices]
+ATTRIBUTE_STATUS_FILTERS = [("", "همه"), ("active", "فعال"), ("archived", "غیرفعال")]
+
+
+def _attributes_context(request, *, form=None, value_form=None):
+    store = _resolve_dashboard_store(request)
+    q = request.GET.get("q", "").strip()
+    data_type = request.GET.get("data_type", "")
+    status = request.GET.get("status", "")
+
+    qs = Attribute.objects.filter(store=store).select_related("category")
+    if q:
+        qs = qs.filter(Q(label__icontains=q) | Q(code__icontains=q))
+    if data_type in dict(Attribute.DataType.choices):
+        qs = qs.filter(data_type=data_type)
+    if status == "active":
+        qs = qs.filter(is_active=True)
+    elif status == "archived":
+        qs = qs.filter(is_active=False)
+
+    return {
+        "attributes": qs.order_by("display_order", "label"),
+        "q": q,
+        "selected_data_type": data_type,
+        "selected_status": status,
+        "type_options": ATTRIBUTE_TYPE_FILTERS,
+        "status_options": ATTRIBUTE_STATUS_FILTERS,
+        "form": form or AttributeForm(store=store),
+        "value_form": value_form or AttributeValueForm(),
+        "active_page": "attributes",
+    }
+
+
+@staff_required
+@permission_required(ATTRIBUTE_MANAGE)
+def attribute_list(request):
+    return render(request, "dashboard/attributes.html", _attributes_context(request))
+
+
+@staff_required
+@permission_required(ATTRIBUTE_MANAGE)
+def attribute_table(request):
+    return render(request, "dashboard/partials/attributes_table.html", _attributes_context(request))
+
+
+def _attributes_table_response(request, *, toast=None):
+    response = render(request, "dashboard/partials/attributes_table.html", _attributes_context(request))
+    if toast:
+        response["HX-Trigger"] = json.dumps({"toast": toast})
+    return response
+
+
+def _attribute_form_kwargs(form):
+    return {
+        "label": form.cleaned_data["label"], "code": form.cleaned_data["code"],
+        "description": form.cleaned_data["description"],
+        "data_type": form.cleaned_data["data_type"], "display_type": form.cleaned_data["display_type"],
+        "unit": form.cleaned_data["unit"], "category": form.cleaned_data["category"],
+        "is_required": form.cleaned_data["is_required"], "is_filterable": form.cleaned_data["is_filterable"],
+        "is_searchable": form.cleaned_data["is_searchable"], "is_comparable": form.cleaned_data["is_comparable"],
+        "is_variant_axis": form.cleaned_data["is_variant_axis"],
+    }
+
+
+@staff_required
+@permission_required(ATTRIBUTE_MANAGE)
+def attribute_add(request):
+    store = _resolve_dashboard_store(request)
+
+    if request.method == "POST":
+        form = AttributeForm(request.POST, store=store)
+        if form.is_valid():
+            try:
+                create_attribute(store, **_attribute_form_kwargs(form))
+            except AttributeError_ as exc:
+                form.add_error(None, str(exc))
+            else:
+                response = _attributes_table_response(request, toast={"message": "ویژگی اضافه شد", "type": "ok"})
+                response["HX-Trigger"] = json.dumps({
+                    "toast": {"message": "ویژگی اضافه شد", "type": "ok"}, "modal-close": {},
+                })
+                return response
+    else:
+        form = AttributeForm(store=store)
+
+    return render(request, "dashboard/partials/attribute_form_modal.html", {"form": form, "attribute": None})
+
+
+@staff_required
+@permission_required(ATTRIBUTE_MANAGE)
+def attribute_edit(request, pk):
+    store = _resolve_dashboard_store(request)
+    attribute = get_object_or_404(Attribute, pk=pk, store=store)
+
+    if request.method == "POST":
+        form = AttributeForm(request.POST, store=store)
+        if form.is_valid():
+            kwargs = _attribute_form_kwargs(form)
+            kwargs["code"] = kwargs["code"] or attribute.code
+            try:
+                update_attribute(attribute, **kwargs)
+            except AttributeError_ as exc:
+                form.add_error(None, str(exc))
+            else:
+                response = _attributes_table_response(request, toast={"message": "ویژگی ویرایش شد", "type": "ok"})
+                response["HX-Trigger"] = json.dumps({
+                    "toast": {"message": "ویژگی ویرایش شد", "type": "ok"}, "modal-close": {},
+                })
+                return response
+    else:
+        form = AttributeForm(store=store, initial={
+            "label": attribute.label, "code": attribute.code, "description": attribute.description,
+            "data_type": attribute.data_type, "display_type": attribute.display_type, "unit": attribute.unit,
+            "category": attribute.category_id, "is_required": attribute.is_required,
+            "is_filterable": attribute.is_filterable, "is_searchable": attribute.is_searchable,
+            "is_comparable": attribute.is_comparable, "is_variant_axis": attribute.is_variant_axis,
+        })
+
+    return render(request, "dashboard/partials/attribute_form_modal.html", {"form": form, "attribute": attribute})
+
+
+@require_POST
+@staff_required
+@permission_required(ATTRIBUTE_MANAGE)
+def attribute_archive(request, pk):
+    store = _resolve_dashboard_store(request)
+    attribute = get_object_or_404(Attribute, pk=pk, store=store)
+    archive_attribute(attribute)
+    return _attributes_table_response(request, toast={"message": f"«{attribute.label}» غیرفعال شد", "type": "info"})
+
+
+@require_POST
+@staff_required
+@permission_required(ATTRIBUTE_MANAGE)
+def attribute_activate(request, pk):
+    store = _resolve_dashboard_store(request)
+    attribute = get_object_or_404(Attribute, pk=pk, store=store)
+    activate_attribute(attribute)
+    return _attributes_table_response(request, toast={"message": f"«{attribute.label}» فعال شد", "type": "ok"})
+
+
+@require_POST
+@staff_required
+@permission_required(ATTRIBUTE_MANAGE)
+def attribute_delete(request, pk):
+    store = _resolve_dashboard_store(request)
+    attribute = get_object_or_404(Attribute, pk=pk, store=store)
+    try:
+        delete_attribute(attribute)
+    except AttributeInUseError as exc:
+        return _attributes_table_response(request, toast={"message": str(exc), "type": "err"})
+    return _attributes_table_response(request, toast={"message": "ویژگی حذف شد", "type": "info"})
+
+
+@staff_required
+@permission_required(ATTRIBUTE_MANAGE)
+def attribute_values(request, pk):
+    store = _resolve_dashboard_store(request)
+    attribute = get_object_or_404(Attribute, pk=pk, store=store)
+    return render(request, "dashboard/partials/attribute_values_modal.html", {
+        "attribute": attribute, "value_form": AttributeValueForm(),
+    })
+
+
+def _attribute_values_response(request, attribute, *, toast=None):
+    response = render(request, "dashboard/partials/attribute_values_list.html", {
+        "attribute": attribute, "value_form": AttributeValueForm(),
+    })
+    if toast:
+        response["HX-Trigger"] = json.dumps({"toast": toast})
+    return response
+
+
+@require_POST
+@staff_required
+@permission_required(ATTRIBUTE_MANAGE)
+def attribute_value_add(request, pk):
+    store = _resolve_dashboard_store(request)
+    attribute = get_object_or_404(Attribute, pk=pk, store=store)
+    form = AttributeValueForm(request.POST)
+    if form.is_valid():
+        try:
+            create_attribute_value(
+                attribute, label=form.cleaned_data["label"], value=form.cleaned_data["value"],
+                color_hex=form.cleaned_data["color_hex"],
+            )
+        except AttributeError_ as exc:
+            return render(request, "dashboard/partials/attribute_values_list.html", {
+                "attribute": attribute, "value_form": form, "form_error": str(exc),
+            })
+        return _attribute_values_response(request, attribute, toast={"message": "مقدار اضافه شد", "type": "ok"})
+    return render(request, "dashboard/partials/attribute_values_list.html", {
+        "attribute": attribute, "value_form": form,
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(ATTRIBUTE_MANAGE)
+def attribute_value_archive(request, pk, value_id):
+    store = _resolve_dashboard_store(request)
+    attribute = get_object_or_404(Attribute, pk=pk, store=store)
+    value = get_object_or_404(AttributeValue, pk=value_id, attribute=attribute)
+    archive_attribute_value(value)
+    return _attribute_values_response(request, attribute, toast={"message": "مقدار غیرفعال شد", "type": "info"})
+
+
+@require_POST
+@staff_required
+@permission_required(ATTRIBUTE_MANAGE)
+def attribute_value_delete(request, pk, value_id):
+    store = _resolve_dashboard_store(request)
+    attribute = get_object_or_404(Attribute, pk=pk, store=store)
+    value = get_object_or_404(AttributeValue, pk=value_id, attribute=attribute)
+    try:
+        delete_attribute_value(value)
+    except AttributeInUseError as exc:
+        return _attribute_values_response(request, attribute, toast={"message": str(exc), "type": "err"})
+    return _attribute_values_response(request, attribute, toast={"message": "مقدار حذف شد", "type": "info"})
+
+
+# ------------------------------------------- محور/مقدار تنوع چندمحوره (Variant Engine)
+
+
+def _product_options_context(request, product):
+    axes = list(
+        product.options.all().order_by("position").prefetch_related("values")
+    )
+    variants = list(
+        product.variants.exclude(combination_key="").order_by("display_order")
+        .prefetch_related("option_values__option", "option_values__option_value")
+    )
+    return {
+        "product": product,
+        "axes": axes,
+        "variants": variants,
+        "obsolete_variants": [v for v in variants if v.is_obsolete],
+        "active_variants": [v for v in variants if not v.is_obsolete],
+        "combination_preview": preview_combination_count(product),
+        "has_legacy_variants": product.variants.filter(combination_key="").exists(),
+        "option_form": ProductOptionForm(),
+        "option_value_form": ProductOptionValueAddForm(),
+        "active_page": "products",
+    }
+
+
+def _product_options_response(request, product, *, toast=None):
+    response = render(
+        request, "dashboard/partials/product_options_body.html", _product_options_context(request, product),
+    )
+    if toast:
+        response["HX-Trigger"] = json.dumps({"toast": toast})
+    return response
+
+
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_options(request, pk):
+    product = _get_scoped_product(request, pk)
+    return render(request, "dashboard/product_options.html", _product_options_context(request, product))
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_option_add(request, pk):
+    product = _get_scoped_product(request, pk)
+    form = ProductOptionForm(request.POST)
+    if form.is_valid():
+        raw_values = form.cleaned_data["raw_values"]
+        values = parse_bulk_values(raw_values) if raw_values else []
+        try:
+            add_product_option(product, label=form.cleaned_data["label"], values=values)
+        except VariantEngineError as exc:
+            return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
+        return _product_options_response(request, product, toast={"message": "محور تنوع اضافه شد", "type": "ok"})
+    return _product_options_response(request, product, toast={"message": "لطفاً خطاهای فرم را برطرف کنید", "type": "err"})
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_option_deactivate(request, pk, option_id):
+    product = _get_scoped_product(request, pk)
+    option = get_object_or_404(ProductOption, pk=option_id, product=product)
+    deactivate_product_option(option)
+    return _product_options_response(request, product, toast={
+        "message": f"محور «{option.label}» غیرفعال شد — برای اعمال، دوباره تولید کنید.", "type": "info",
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_option_activate(request, pk, option_id):
+    product = _get_scoped_product(request, pk)
+    option = get_object_or_404(ProductOption, pk=option_id, product=product)
+    activate_product_option(option)
+    return _product_options_response(request, product, toast={"message": f"محور «{option.label}» فعال شد", "type": "ok"})
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_options_reorder(request, pk):
+    product = _get_scoped_product(request, pk)
+    ordered_ids = [int(v) for v in request.POST.getlist("option_ids") if v.isdigit()]
+    reorder_product_options(product, ordered_ids)
+    return _product_options_response(request, product)
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_option_move(request, pk, option_id):
+    product = _get_scoped_product(request, pk)
+    option = get_object_or_404(ProductOption, pk=option_id, product=product)
+    direction = request.POST.get("direction", "")
+
+    ordered_ids = list(product.options.order_by("position").values_list("pk", flat=True))
+    if direction in ("up", "down") and option.pk in ordered_ids:
+        index = ordered_ids.index(option.pk)
+        neighbor_index = index - 1 if direction == "up" else index + 1
+        if 0 <= neighbor_index < len(ordered_ids):
+            ordered_ids[index], ordered_ids[neighbor_index] = ordered_ids[neighbor_index], ordered_ids[index]
+            reorder_product_options(product, ordered_ids)
+
+    return _product_options_response(request, product)
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_option_value_add(request, pk, option_id):
+    product = _get_scoped_product(request, pk)
+    option = get_object_or_404(ProductOption, pk=option_id, product=product)
+    form = ProductOptionValueAddForm(request.POST)
+    if form.is_valid():
+        try:
+            add_option_value(option, form.cleaned_data["label"], color_hex=form.cleaned_data["color_hex"])
+        except VariantEngineError as exc:
+            return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
+        return _product_options_response(request, product, toast={"message": "مقدار اضافه شد", "type": "ok"})
+    return _product_options_response(request, product, toast={"message": "لطفاً خطاهای فرم را برطرف کنید", "type": "err"})
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_option_value_remove(request, pk, value_id):
+    product = _get_scoped_product(request, pk)
+    value = get_object_or_404(ProductOptionValue, pk=value_id, option__product=product)
+    label = value.label
+    remove_option_value(value)
+    return _product_options_response(request, product, toast={"message": f"مقدار «{label}» حذف/غیرفعال شد", "type": "info"})
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_variants_generate(request, pk):
+    product = _get_scoped_product(request, pk)
+    try:
+        result = generate_variants(product)
+    except VariantEngineError as exc:
+        return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
+
+    parts = []
+    if result.created:
+        parts.append(f"{len(result.created)} تنوع جدید ساخته شد")
+    if result.obsoleted:
+        parts.append(f"{len(result.obsoleted)} ترکیب منسوخ شد")
+    if not parts:
+        parts.append("همه‌ی ترکیب‌ها از قبل موجود بودند")
+    message = "، ".join(parts) + f" — {len(result.preserved) + len(result.created)} تنوع فعال"
+    return _product_options_response(request, product, toast={"message": message, "type": "ok"})
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_variant_set_default(request, pk, variant_id):
+    product = _get_scoped_product(request, pk)
+    variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
+    try:
+        set_default_variant(product, variant)
+    except VariantEngineError as exc:
+        return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
+    return _product_options_response(request, product, toast={"message": "تنوع پیش‌فرض تغییر کرد", "type": "ok"})
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_variants_bulk_update(request, pk):
+    product = _get_scoped_product(request, pk)
+    variant_ids = [int(v) for v in request.POST.getlist("variant_ids") if v.isdigit()]
+    variants = {v.pk: v for v in product.variants.filter(pk__in=variant_ids)}
+
+    updated = []
+    errors = []
+    for variant_id in variant_ids:
+        variant = variants.get(variant_id)
+        if variant is None:
+            continue
+        prefix = f"variant_{variant_id}_"
+        try:
+            sku = request.POST.get(f"{prefix}sku", "").strip()
+            if sku and sku != variant.sku:
+                if ProductVariant.objects.filter(store=product.store, sku=sku).exclude(pk=variant.pk).exists():
+                    raise VariantError(f"کد کالای «{sku}» قبلاً برای یک تنوع دیگر استفاده شده است.")
+                variant.sku = sku
+            variant.barcode = request.POST.get(f"{prefix}barcode", "").strip()
+            variant.stock = int(normalize_digits(request.POST.get(f"{prefix}stock", "0")) or 0)
+            variant.extra_price = Decimal(normalize_digits(request.POST.get(f"{prefix}extra_price", "0")) or 0)
+            compare_at_raw = normalize_digits(request.POST.get(f"{prefix}compare_at_price", "")).strip()
+            variant.compare_at_price = Decimal(compare_at_raw) if compare_at_raw else None
+            cost_raw = normalize_digits(request.POST.get(f"{prefix}cost", "")).strip()
+            variant.cost = Decimal(cost_raw) if cost_raw else None
+            variant.is_active = request.POST.get(f"{prefix}is_active") == "on"
+            if variant.stock < 0:
+                raise VariantError("موجودی نمی‌تواند منفی باشد.")
+            variant.full_clean(exclude=["normalized_attribute", "normalized_value"])
+        except (VariantError, ValidationError, InvalidOperation, ValueError) as exc:
+            message = "؛ ".join(sum(exc.message_dict.values(), [])) if isinstance(exc, ValidationError) else str(exc)
+            errors.append(f"{variant.value}: {message}")
+            continue
+        updated.append(variant)
+
+    if errors:
+        return _product_options_response(request, product, toast={"message": errors[0], "type": "err"})
+
+    for variant in updated:
+        variant.save()
+
+    return _product_options_response(
+        request, product, toast={"message": f"{len(updated)} تنوع به‌روزرسانی شد", "type": "ok"},
+    )
 
 
 # --------------------------------------------------------- دسته‌بندی‌ها

@@ -491,14 +491,14 @@ User
 - Category؛
 - Brand؛
 - Product؛
-- ProductVariant؛
+- ProductVariant (تک‌محوره‌ی قدیمی + چندمحوره‌ی جدید — نگاه کنید به Attribute/Option Engine زیر)؛
 - ProductImage؛
 - Specification؛
 - Review؛
 - simple/variable product؛
 - Store-scoped slug و SKU؛
 - Product CRUD (شامل برند، بارکد/وزن/نیاز به ارسال، seo_title/seo_description)؛
-- Variant management؛
+- Variant management (تک‌محوره)؛
 - media lifecycle اولیه، شامل تصویر مختص تنوع (`ProductImage.variant`)؛
 - product list pagination/sort/bulk actions (فعال/غیرفعال/پیش‌نویس/حذف/تغییر دسته‌بندی)؛
 - storefront isolation؛
@@ -506,18 +506,26 @@ User
 - wishlist isolation؛
 - pricing boundary پایه.
 
+**Attribute / Product Option / Multi-Axis Variant Engine (Phase 1D — جدید):**
+
+- `Attribute`/`AttributeValue`: تعریف Store-owned ویژگی توصیفی یا واجد شرایط محور تنوع (نوع داده، نوع نمایش، واحد، فیلتر/جست‌وجو/مقایسه، دسته‌بندی اختیاری)؛
+- `ProductAttributeValue`: انتساب توصیفی ویژگی به کالا (متن/عدد/بولی/تک‌انتخابی/چندانتخابی) — فقط در لایه‌ی سرویس، بدون UI پنل مدیریت؛
+- `ProductOption`/`ProductOptionValue`: محورهای تنوع‌سازِ هر کالا (حداکثر ۳ محور فعال)، با UI کامل مدیریت (افزودن/غیرفعال‌سازی/ترتیب/مقدار)؛
+- `VariantOptionValue` + `ProductVariant.combination_key`: هویت پایدار ترکیب (ADR-20) — مستقل از برچسب نمایشی؛
+- موتور تولید/تطبیق (`apps.catalog.services.variant_engine_service.generate_variants`): حاصل‌ضرب دکارتی، idempotent، حفظ SKU/قیمت/موجودی/تصویرِ ترکیب‌های موجود، منسوخ‌سازی (نه حذف) ترکیب‌های حذف‌شده (ADR-21)؛
+- تنوع پیش‌فرض (`is_default`، الگوی «ربودن پرچم»)، ماتریس bulk-edit (SKU/بارکد/قیمت/قیمت مقایسه‌ای/بهای تمام‌شده/موجودی/فعال بودن)؛
+- صفحات مدیریت ویژگی (`/admin-portal/attributes/`) و محور تنوع هر کالا (`/admin-portal/products/<id>/options/`)، پرمیشن `ATTRIBUTE_MANAGE`/`VARIANT_MANAGE`، تنانت‌ایزوله کامل.
+
 ### ناقص نسبت به محصول هدف
 
-- Attribute definition عمومی و no-code در سطح حرفه‌ای؛
-- AttributeValue و Option registry مستقل؛
-- multi-attribute variant matrix؛
+- UI پنل مدیریت برای انتساب ویژگی توصیفی به کالا از طریق فرم کالا (سرویس و مدل کامل‌اند، مسیر UI نه)؛
+- تولید variant-swap در Storefront (فقط `ProductVariant.display_image`/داده موجود است، مصرف storefront انجام نشده)؛
+- ادغام هوشمند ترکیب‌های منسوخ‌شده هنگام حذف یک محور (سیاست فعلی: فقط منسوخ‌سازی، نه merge خودکار — عمدی، نگاه کنید به ADR-21)؛
 - bulk product import/export؛
-- tag management کامل؛
-- SEO contract کامل؛
-- inventory ledger؛
-- stock reservation؛
+- tag management کامل (`Product.tag` هنوز فیلد ثابت تک‌مقداره است، نه سیستم چندبرچسبی)؛
+- SEO contract کامل (structured data، canonical URL، sitemap)؛
+- inventory ledger و رزرو موجودی؛
 - warehouse support؛
-- bulk price/stock editor؛
 - product audit history؛
 - category tree UX حرفه‌ای؛
 - duplicate/clone product؛

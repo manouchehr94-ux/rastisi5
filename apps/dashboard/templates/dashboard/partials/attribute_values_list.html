@@ -1,0 +1,41 @@
+{% load persian %}
+<div id="attributeValuesList">
+  <form hx-post="{% url 'dashboard:attribute-value-add' attribute.pk %}" hx-target="#attributeValuesList" hx-swap="outerHTML"
+        style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+    {% csrf_token %}
+    <div class="form-group" style="margin-bottom:0">
+      <label>برچسب</label>
+      <input class="inp" name="label" value="{{ value_form.label.value|default_if_none:'' }}" placeholder="مثلاً: سبز" style="width:150px">
+    </div>
+    {% if attribute.data_type == "color" %}
+    <div class="form-group" style="margin-bottom:0">
+      <label>کد رنگ (Hex)</label>
+      <input class="inp" name="color_hex" value="{{ value_form.color_hex.value|default_if_none:'' }}" placeholder="#00ff00" dir="ltr" style="width:110px">
+    </div>
+    {% endif %}
+    <button type="submit" class="btn btn-sm btn-primary">افزودن</button>
+  </form>
+  {% if form_error %}<div style="color:var(--red);font-size:12.5px;margin-bottom:10px">{{ form_error }}</div>{% endif %}
+  {% for err in value_form.label.errors %}<div style="color:var(--red);font-size:11.5px;margin-bottom:10px">{{ err }}</div>{% endfor %}
+
+  <table>
+    <thead><tr><th>برچسب</th><th>رنگ</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+    <tbody>
+      {% for value in attribute.values.all %}
+      <tr>
+        <td>{{ value.label }}</td>
+        <td>{% if value.color_hex %}<span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:{{ value.color_hex }};border:1px solid var(--border)"></span>{% else %}—{% endif %}</td>
+        <td><span class="badge {% if value.is_active %}b-green{% else %}b-gray{% endif %}">{% if value.is_active %}فعال{% else %}غیرفعال{% endif %}</span></td>
+        <td>
+          {% if value.is_active %}
+          <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:attribute-value-archive' attribute.pk value.pk %}" hx-target="#attributeValuesList" hx-swap="outerHTML">غیرفعال‌سازی</button>
+          {% endif %}
+          <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:attribute-value-delete' attribute.pk value.pk %}" hx-target="#attributeValuesList" hx-swap="outerHTML" hx-confirm="آیا از حذف «{{ value.label }}» مطمئن هستید؟">🗑️</button>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">هنوز مقداری ثبت نشده است</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

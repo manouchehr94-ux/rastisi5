@@ -7,9 +7,13 @@ def _get_akhlaghi_or_fail(Store):
     """Resolve the Akhlaghi Store by its stable slug — never `.first()`,
     never a hard-coded primary key. Fails loudly (raises) if Akhlaghi is
     missing or, somehow, duplicated; never silently creates a second
-    Akhlaghi Store."""
+    Akhlaghi Store.
+
+    ``.only("pk")``: see the matching function in
+    ``apps/orders/migrations/0004_backfill_orders_store.py`` for why a bare
+    ``.get(slug=...)`` here is unsafe during a backward migration."""
     try:
-        return Store.objects.get(slug=AKHLAGHI_SLUG)
+        return Store.objects.only("pk").get(slug=AKHLAGHI_SLUG)
     except Store.DoesNotExist:
         raise RuntimeError(
             "Cannot backfill ShopSettings.store: no Store with slug "
@@ -72,7 +76,7 @@ def unlink_shop_settings_store(apps, schema_editor):
     Store = apps.get_model("stores", "Store")
     ShopSettings = apps.get_model("core", "ShopSettings")
     try:
-        akhlaghi = Store.objects.get(slug=AKHLAGHI_SLUG)
+        akhlaghi = Store.objects.only("pk").get(slug=AKHLAGHI_SLUG)
     except Store.DoesNotExist:
         return
     ShopSettings.objects.filter(store=akhlaghi).update(store=None)

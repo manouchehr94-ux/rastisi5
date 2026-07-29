@@ -935,6 +935,214 @@ its own through-model to carry per-pair ordering, which is exactly the
 
 ---
 
+## ADR-19: Descriptive Attributes and Variant-Generating Options Are Separate Models That Optionally Share One `Attribute` Definition
+
+**Context.** Phase 1D requires two behaviorally distinct concepts the prompt
+itself insists must not be merged: a *descriptive attribute* ("Material:
+Cotton") that describes a product but never creates a purchasable row, and
+a *variant-generating option* ("Color: Green/Blue/Yellow") whose values are
+combined into `ProductVariant` rows. The existing codebase already has one
+single-axis, ad-hoc variant mechanism (`ProductVariant.attribute`/`.value`,
+free-text CharFields, no shared definition, no descriptive-attribute
+concept at all) — extending it in place to also mean "the reusable
+Store-wide catalog of attribute definitions" would conflate a per-product
+label with a Store-owned, reusable schema.
+
+**Decision.** A new Store-owned `Attribute` model is the single reusable
+definition: name, code, data type, display type, unit, and boolean flags
+including `is_variant_axis` (whether this attribute is *eligible* to
+generate variants — eligibility, not a commitment; a Store can define
+"Material" once and use it descriptively on some products while never
+using it as a variant axis, and use "Color" both descriptively on
+non-variable products and as a variant axis on others). Two separate
+product-scoped models consume it for the two distinct behaviors:
+`ProductAttributeValue` (a Product's descriptive assignment: one row per
+product+attribute for scalar types, multiple rows for multi-select) and
+`ProductOption` (a Product's variant-generating axis — `position`-ordered,
+own `ProductOptionValue` children). Both `ProductAttributeValue.attribute`
+and `ProductOption.attribute` are optional FKs to the same `Attribute`
+row — a merchant *may* pick "Color" from the shared definition, or a
+`ProductOption` may be created with only a free-text `label` and no linked
+`Attribute` at all (matching the prototype's own "custom variant attribute"
+flow, where a merchant types an arbitrary axis name with no schema
+behind it).
+
+**Consequences.** The existing single-axis `ProductVariant.attribute`/
+`.value` fields are *not* removed or migrated — see ADR-20's "Consequences"
+for why they are repurposed as generated display fields rather than
+identity. A Store's `Attribute` catalog and a specific Product's
+`ProductOption` axes can diverge in the ordinary case (most attributes are
+descriptive-only, never linked to any `ProductOption`), which is the
+correct shape: not every attribute is a variant axis, and the eligibility
+flag exists precisely so the admin UI can filter "attributes worth
+offering as a variant axis" without a second registry.
+
+**Alternatives considered.** One unified `Attribute`-with-variant-behavior
+model, distinguishing descriptive vs. variant-generating only by whether
+any `ProductOption` row references it — rejected: it would make "is this
+attribute currently a variant axis" a derived, per-product fact instead of
+a Store-level eligibility declaration, so the admin attribute-list page
+could never show "eligible for variants" as a stable column without an
+expensive per-row subquery, and a merchant could not mark an attribute
+variant-*ineligible* (e.g. "Warranty" should never be offered as an axis)
+without it being enforced anywhere. Two entirely disconnected schemas (no
+shared `Attribute` at all, `ProductOption.label` and
+`ProductAttributeValue`'s type both free-text per product) — rejected: it
+would mean re-typing "Color" with a fresh, unrelated spelling on every
+product, with no Store-wide filterable/searchable/comparable attribute
+catalog at all, which the prompt's Attribute Definitions section (§7)
+explicitly requires.
+
+## ADR-20: Stable Variant Combination Identity Is a `VariantOptionValue` Through-Table Plus a Derived `combination_key`, Not the Legacy `attribute`/`value` Strings
+
+**Context.** `ProductVariant.attribute`/`.value` (pre-existing) are
+free-text `CharField`s with a `normalized_attribute`/`normalized_value`
+uniqueness constraint — adequate for one axis, but the prompt explicitly
+forbids using a display string as multi-axis identity ("Green / M" must
+not be the source of truth), since renaming a value or reordering axes
+must never be mistaken for a new combination.
+
+**Decision.** A new `VariantOptionValue` model is the real, normalized
+per-axis relation: one row per `(ProductVariant, ProductOption,
+ProductOptionValue)`, so a three-axis variant has exactly three rows, each
+pointing at an immutable `ProductOptionValue` primary key — renaming a
+value's label or an option's label changes no `VariantOptionValue` row at
+all. `UniqueConstraint(variant, option)` guarantees a variant has at most
+one value per axis; `UniqueConstraint(variant, option_value)` is a second,
+redundant safety net. Because comparing sets of FK rows on every
+generation/reconciliation pass is not cheap and cannot be expressed as a
+single database uniqueness constraint, `ProductVariant` also gets a
+derived `combination_key`: a deterministic string built by the generation
+service from the *sorted* `ProductOptionValue` primary keys of a
+combination (e.g. `"14-27-31"` — sorted so that submission order of
+`Color=Green, Size=M` vs. `Size=M, Color=Green` produce the identical
+key). `UniqueConstraint(product, combination_key, condition=~Q
+(combination_key=""))` (the same `~Q(field="")`-guarded-blank pattern
+`ProductVariant.sku`'s own uniqueness constraint already uses) then gives
+duplicate-combination prevention a real database constraint, not just
+service-layer diligence. `combination_key` is written *only* by the
+generation service, alongside the `VariantOptionValue` rows it is derived
+from — it is never a directly user-editable field.
+
+**Consequences.** Legacy single-axis variants (created via the
+pre-existing `bulk_create_variants`/`create_variant` service, unchanged by
+this phase) simply never get a `combination_key` — it stays `""`, exempt
+from the new constraint, and the new generation/reconciliation engine
+explicitly excludes `combination_key=""` rows from its own bookkeeping
+(`ProductVariant.objects.exclude(combination_key="")`), so a Product using
+the legacy mechanism is completely invisible to — and completely
+unaffected by — the new engine. `ProductVariant.attribute`/`.value`
+survive as generated *display* fields for multi-axis variants too
+(populated by joining each axis's/value's label, e.g. `attribute="رنگ /
+سایز"`, `value="سبز / M"`) purely so every existing template, the order
+snapshot fields, and `__str__` keep working unmodified — but they carry no
+identity weight for multi-axis variants; only `combination_key` and the
+`VariantOptionValue` rows do. A Product cannot mix the legacy single-axis
+flow and the new `ProductOption` flow at the same time — `add_product_
+option` refuses to create the first axis while any `combination_key=""`
+variant still exists on that Product, so a merchant must first clear
+legacy variants before opting into multi-axis (or vice versa is simply
+never necessary, since generation never touches legacy rows). This is a
+deliberate simplification recorded here, not a silent gap: mixed-mode
+products (some variants legacy, some multi-axis, on the same Product) are
+out of scope.
+
+**Alternatives considered.** Hashing the combination with a cryptographic
+hash (e.g. SHA-1 of sorted IDs) instead of a plain sorted join — rejected:
+a plain sorted join of small integer IDs is already short, human-
+debuggable in the Django admin/shell, and collision-free by construction
+(distinct ID sets always sort to distinct strings), so a hash would only
+add opacity with no benefit. Relying on `VariantOptionValue` rows alone
+(a `GROUP BY`/`HAVING` query comparing per-variant ID sets) instead of a
+denormalized `combination_key` column — rejected: the reconciliation
+service runs a "does this desired combination already exist" lookup once
+per combination on every `generate_variants()` call (up to the
+performance test's 125 combinations), and a single indexed string-equality
+lookup is a straightforward, obviously-correct way to keep that lookup a
+single query instead of N relational comparisons.
+
+## ADR-21: Variant Reconciliation Never Hard-Deletes — Obsolete Combinations Are Marked, Never Removed, and Axis Removal Requires an Explicit Regeneration Pass
+
+**Context.** Changing a Product's options after variants already exist —
+adding a value, removing a value, removing an entire axis, renaming,
+reordering — can each change which combinations *should* exist, while
+existing `ProductVariant` rows may already carry real SKUs, prices,
+inventory, images, and (via `OrderItem`) irreversible historical sales
+records. The prompt is explicit that guessing which data to keep, or
+silently merging/deleting, is unacceptable.
+
+**Decision.** `generate_variants(product)` is the only place combinations
+are ever created or retired, and it follows one rule for every scenario:
+compare the *desired* set of combinations (the Cartesian product of
+currently-active axes × currently-active values) against the *existing*
+set (`ProductVariant` rows with a non-blank `combination_key` on this
+Product); a combination present in both is preserved byte-for-byte (same
+primary key, SKU, price, `compare_at_price`, `cost`, stock, images,
+`created_at` — nothing about the row is touched beyond, if needed,
+clearing an `is_obsolete` flag); a combination only in *desired* gets a
+newly created `ProductVariant`; a combination only in *existing* is marked
+`is_obsolete=True` and `is_active=False` — **never deleted**. `is_obsolete`
+is a distinct field from the pre-existing `is_active` specifically so the
+admin UI can tell "a merchant turned this off" apart from "this
+combination no longer matches the Product's current options" — the latter
+is reported back to the merchant as an explicit, named list
+(`GenerationResult.obsoleted`) after every regeneration, not silently
+absorbed. Removing an axis is not a separate code path: a merchant
+deactivates a `ProductOption` (`is_active=False`) — which by itself changes
+nothing — and then must explicitly re-run `generate_variants()`, which
+naturally treats every combination that included that axis's values as no
+longer desired and marks them obsolete, following the exact same rule as
+removing one value. This is the prompt's own suggested safe policy ("block
+destructive axis removal until the merchant confirms... document a
+deterministic policy") implemented as "nothing destructive happens until
+an explicit regeneration action, and that action's only behavior is mark-
+obsolete, never delete."
+
+**Consequences.** Renaming a `ProductOptionValue.label` or a
+`ProductOption.label` touches no `combination_key` (ADR-20) and is
+therefore invisible to reconciliation — the desired/existing comparison
+is keyed on primary keys, not labels, so a rename can never look like "this
+combination no longer exists, create a new one." Reordering `ProductOption
+.position` changes which order `generate_variants()` iterates axes in
+(affecting new variants' generated `attribute`/`value` display strings and
+every variant's recomputed `display_order` — see ADR-20's Alternatives),
+but never changes any `combination_key`, since the key is built from
+*sorted* value IDs, independent of axis order. An obsoleted variant that
+was the Product's `is_default` variant is never left dangling: `generate_
+variants()` always ends by calling the same default-selection routine
+`add_product_image`'s cover-image "steal the flag" pattern uses — if no
+active, non-obsolete variant currently holds `is_default=True`, the first
+one (by the freshly recomputed `display_order`) is promoted automatically,
+so a Product with any active variant always has exactly one default,
+enforced by `UniqueConstraint(product, condition=Q(is_default=True))` at
+the database layer too. Because obsolete variants are never deleted,
+`OrderItem.variant` (a `PROTECT`/`SET_NULL` FK depending on the pre-
+existing order-history design — unchanged by this phase) is never left
+pointing at a vanished row, and a merchant who removed a value by mistake
+can simply re-add it: the next `generate_variants()` run finds the old
+`ProductOptionValue`/combination still exists (values are soft-deactivated,
+not hard-deleted either — see §8/§14) and clears `is_obsolete` on the
+original row instead of creating a duplicate.
+
+**Alternatives considered.** Hard-deleting obsolete variants with no order
+history — rejected: even a variant with zero orders may still hold a
+merchant-uploaded image or a manually-set price the merchant would
+reasonably expect to survive a value being removed and re-added a minute
+later; "no orders reference it yet" is not the same guarantee as "this
+data is safe to discard," and the mark-obsolete rule needs no special case
+for that distinction, which is itself a simplicity win. Automatically
+merging an axis-removal's collapsed combinations (e.g. "Color+Size"
+becoming "Color only" summing the removed Sizes' stock into the surviving
+Color row) — rejected: the prompt explicitly prohibits silently merging
+inventory, SKU, pricing, or media, and no business rule for *which* of N
+now-redundant rows' SKU/price/image should "win" can be inferred safely
+without asking the merchant, which this phase's UI does not yet build (see
+Known Limitations in the Phase 1D report) — today, axis removal always
+produces obsoleted rows the merchant must manually review, never an
+automatic merge.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -959,3 +1167,6 @@ its own through-model to carry per-pair ordering, which is exactly the
 | `/admin-portal/` is the canonical Merchant Admin Portal route; `/admin-panel/` is a temporary 302 redirect | Decided, implemented |
 | Admin-subdomain-only enforcement (block public storefront domains from serving the admin portal) | Decided, implemented |
 | Variant-specific product images via `ProductImage.variant` (nullable FK, `SET_NULL`) | Decided, implemented |
+| Descriptive `Attribute` and variant-generating `ProductOption` are separate models sharing one optional `Attribute` definition | Decided, implemented |
+| Variant combination identity is `VariantOptionValue` + derived `combination_key`, not display strings | Decided, implemented |
+| Variant reconciliation never hard-deletes; obsolete combinations are marked, axis removal requires explicit regeneration | Decided, implemented |

@@ -1,0 +1,34 @@
+{% load persian %}
+<table>
+  <thead>
+    <tr>
+      <th>عنوان</th><th>کد</th><th>نوع داده</th><th>دسته‌بندی</th><th>محور تنوع</th><th>وضعیت</th><th>عملیات</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for attribute in attributes %}
+    <tr>
+      <td><b>{{ attribute.label }}</b></td>
+      <td dir="ltr"><small>{{ attribute.code }}</small></td>
+      <td>{{ attribute.get_data_type_display }}</td>
+      <td>{{ attribute.category.name|default:"—" }}</td>
+      <td>{% if attribute.is_variant_axis %}<span class="badge b-green">بله</span>{% else %}<span class="badge b-gray">خیر</span>{% endif %}</td>
+      <td><span class="badge {% if attribute.is_active %}b-green{% else %}b-gray{% endif %}">{% if attribute.is_active %}فعال{% else %}غیرفعال{% endif %}</span></td>
+      <td>
+        <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:attribute-edit' attribute.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">✏️ ویرایش</button>
+        {% if attribute.is_choice_type %}
+        <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:attribute-values' attribute.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">🏷️ مقادیر</button>
+        {% endif %}
+        {% if attribute.is_active %}
+        <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:attribute-archive' attribute.pk %}" hx-target="#attributesTableWrap" hx-swap="innerHTML">غیرفعال‌سازی</button>
+        {% else %}
+        <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:attribute-activate' attribute.pk %}" hx-target="#attributesTableWrap" hx-swap="innerHTML">فعال‌سازی</button>
+        {% endif %}
+        <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:attribute-delete' attribute.pk %}" hx-target="#attributesTableWrap" hx-swap="innerHTML" hx-confirm="آیا از حذف «{{ attribute.label }}» مطمئن هستید؟">🗑️</button>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">ویژگی‌ای یافت نشد</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

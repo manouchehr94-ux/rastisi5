@@ -346,10 +346,38 @@ class ProductVariant(TimeStampedModel):
     normalized_value = models.CharField(max_length=80, editable=False, blank=True, default="")
     value_hex = models.CharField("کد رنگ (Hex)", max_length=9, blank=True)
     sku = models.CharField("کد کالا (SKU)", max_length=64, blank=True, default="")
+    barcode = models.CharField("بارکد", max_length=64, blank=True, default="")
     stock = models.PositiveIntegerField("موجودی", default=0)
     extra_price = models.DecimalField("تغییر قیمت (تومان)", max_digits=12, decimal_places=0, default=0)
     is_active = models.BooleanField("فعال", default=True)
     display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    # قیمت‌گذاری اختصاصی تنوع (Phase 1D). هر دو فیلد اختیاری‌اند: خالی یعنی
+    # این تنوع مقدار مستقلی ندارد و مسیر قیمت‌گذاری فعلی (extra_price نسبت
+    # به Product.price) بدون تغییر اعمال می‌شود — نگاه کنید به
+    # apps.dashboard.services.variant_engine_service برای قرارداد کامل.
+    compare_at_price = models.DecimalField(
+        "قیمت مقایسه‌ای (تومان)", max_digits=12, decimal_places=0, null=True, blank=True,
+    )
+    cost = models.DecimalField("بهای تمام‌شده (تومان)", max_digits=12, decimal_places=0, null=True, blank=True)
+
+    # موجودی (Phase 1D)
+    track_inventory = models.BooleanField("پیگیری موجودی", default=True)
+    low_stock_threshold = models.PositiveIntegerField("آستانه‌ی هشدار کمبود موجودی", null=True, blank=True)
+
+    # لجستیک اختصاصی تنوع (Phase 1D) — در نبود مقدار، از Product ارث‌بری می‌شود.
+    weight_grams = models.PositiveIntegerField("وزن (گرم)", null=True, blank=True)
+    length_mm = models.PositiveIntegerField("طول (میلی‌متر)", null=True, blank=True)
+    width_mm = models.PositiveIntegerField("عرض (میلی‌متر)", null=True, blank=True)
+    height_mm = models.PositiveIntegerField("ارتفاع (میلی‌متر)", null=True, blank=True)
+
+    # موتور Attribute/Option چندمحوره (Phase 1D). ``combination_key`` فقط
+    # به‌دست ``variant_engine_service.generate_variants`` نوشته می‌شود؛ برای
+    # تنوع‌های تک‌محوره‌ی قدیمی (ساخته‌شده با variant_service) همیشه خالی
+    # می‌ماند — نگاه کنید به ADR-20.
+    combination_key = models.CharField(max_length=64, editable=False, blank=True, default="")
+    is_default = models.BooleanField("تنوع پیش‌فرض", default=False)
+    is_obsolete = models.BooleanField("منسوخ (دیگر با محورهای فعال کالا مطابقت ندارد)", default=False)
 
     class Meta:
         verbose_name = "تنوع کالا"
@@ -365,6 +393,16 @@ class ProductVariant(TimeStampedModel):
                 fields=["store", "sku"],
                 condition=~models.Q(sku=""),
                 name="uniq_variant_sku_when_set",
+            ),
+            models.UniqueConstraint(
+                fields=["product", "combination_key"],
+                condition=~models.Q(combination_key=""),
+                name="uniq_variant_combination_key_per_product",
+            ),
+            models.UniqueConstraint(
+                fields=["product"],
+                condition=models.Q(is_default=True),
+                name="uniq_default_variant_per_product",
             ),
         ]
 
@@ -403,6 +441,292 @@ class ProductVariant(TimeStampedModel):
     def save(self, *args, **kwargs):
         _normalize_variant_fields(self)
         super().save(*args, **kwargs)
+
+
+# =============================================================================
+# موتور Attribute / Option / Variant چندمحوره (Phase 1D) — نگاه کنید به
+# ADR-19 (جدایی ویژگی توصیفی از محور تنوع‌ساز)، ADR-20 (هویت پایدار ترکیب) و
+# ADR-21 (سیاست تطبیق/منسوخ‌سازی) در SAAS_DOMAIN_DECISIONS.md.
+# =============================================================================
+
+
+class Attribute(TimeStampedModel):
+    """تعریف قابل‌استفاده‌ی مجدد یک ویژگی در سطح Store — توصیفی یا واجد شرایط محور تنوع.
+
+    ``is_variant_axis`` فقط *واجد شرایط بودن* را نشان می‌دهد، نه تعهد — یک
+    Store می‌تواند «رنگ» را هم به‌صورت توصیفی روی کالاهای ساده و هم به‌عنوان
+    محور تنوع روی کالاهای دارای تنوع استفاده کند (نگاه کنید به ADR-19)."""
+
+    class DataType(models.TextChoices):
+        TEXT = "text", "متن"
+        NUMBER = "number", "عدد"
+        BOOLEAN = "boolean", "بله/خیر"
+        SELECT = "select", "تک‌انتخابی"
+        MULTISELECT = "multiselect", "چندانتخابی"
+        COLOR = "color", "رنگ"
+        DATE = "date", "تاریخ"
+
+    class DisplayType(models.TextChoices):
+        TEXT = "text", "متن ساده"
+        DROPDOWN = "dropdown", "کشویی"
+        SWATCH = "swatch", "نمونه (رنگ/تصویر)"
+        CHECKBOX = "checkbox", "چک‌باکس"
+        RADIO = "radio", "دکمه رادیویی"
+
+    #: نوع‌های داده‌ای که به یک فهرست AttributeValue واقعی نیاز دارند.
+    CHOICE_DATA_TYPES = frozenset({DataType.SELECT, DataType.MULTISELECT, DataType.COLOR})
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="attributes",
+    )
+    code = models.SlugField("کد داخلی", max_length=60, allow_unicode=True)
+    label = models.CharField("عنوان نمایشی", max_length=120)
+    description = models.TextField("توضیحات", blank=True)
+    data_type = models.CharField("نوع داده", max_length=12, choices=DataType.choices, default=DataType.TEXT)
+    display_type = models.CharField("نوع نمایش", max_length=12, choices=DisplayType.choices, blank=True, default="")
+    unit = models.CharField("واحد", max_length=30, blank=True)
+    is_required = models.BooleanField("الزامی", default=False)
+    is_filterable = models.BooleanField("قابل فیلتر", default=False)
+    is_searchable = models.BooleanField("قابل جست‌وجو", default=False)
+    is_comparable = models.BooleanField("قابل مقایسه", default=False)
+    is_variant_axis = models.BooleanField("واجد شرایط محور تنوع", default=False)
+    category = models.ForeignKey(
+        Category, verbose_name="دسته‌بندی", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="attributes",
+    )
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+    is_active = models.BooleanField("فعال", default=True)
+
+    class Meta:
+        verbose_name = "ویژگی"
+        verbose_name_plural = "ویژگی‌ها"
+        ordering = ["display_order", "label"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "code"], name="uniq_attribute_code_per_store"),
+        ]
+
+    def __str__(self):
+        return self.label
+
+    @property
+    def is_choice_type(self):
+        return self.data_type in self.CHOICE_DATA_TYPES
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        errors = {}
+        if self.category_id and self.store_id and self.category.store_id != self.store_id:
+            errors["category"] = "این دسته‌بندی متعلق به فروشگاه دیگری است."
+
+        if self.data_type in self.CHOICE_DATA_TYPES:
+            if self.data_type == self.DataType.COLOR:
+                allowed_display = {self.DisplayType.SWATCH, ""}
+            else:
+                allowed_display = {
+                    self.DisplayType.DROPDOWN, self.DisplayType.SWATCH,
+                    self.DisplayType.CHECKBOX, self.DisplayType.RADIO, "",
+                }
+            if self.display_type not in allowed_display:
+                errors["display_type"] = "نوع نمایش با نوع داده‌ی انتخاب‌شده سازگار نیست."
+        elif self.display_type not in {"", self.DisplayType.TEXT}:
+            errors["display_type"] = "این نوع داده فقط می‌تواند نوع نمایش «متن ساده» یا خالی داشته باشد."
+
+        if errors:
+            raise ValidationError(errors)
+
+
+class AttributeValue(TimeStampedModel):
+    """یکی از مقادیر مجاز یک ویژگی انتخابی (SELECT/MULTISELECT/COLOR)."""
+
+    attribute = models.ForeignKey(Attribute, verbose_name="ویژگی", on_delete=models.CASCADE, related_name="values")
+    label = models.CharField("برچسب", max_length=120)
+    value = models.CharField("مقدار داخلی", max_length=120, blank=True, default="")
+    normalized_label = models.CharField(max_length=140, editable=False, blank=True, default="")
+    color_hex = models.CharField("کد رنگ (Hex)", max_length=9, blank=True)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+    is_active = models.BooleanField("فعال", default=True)
+
+    class Meta:
+        verbose_name = "مقدار ویژگی"
+        verbose_name_plural = "مقادیر ویژگی"
+        ordering = ["display_order", "label"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["attribute", "normalized_label"], condition=models.Q(is_active=True),
+                name="uniq_active_attribute_value_label",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.attribute.label}: {self.label}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        from apps.core.utils import normalization_key
+
+        label = (self.label or "").strip()
+        if not label:
+            raise ValidationError({"label": "برچسب مقدار نمی‌تواند خالی باشد."})
+        self.label = label
+        if not self.value:
+            self.value = label
+        self.normalized_label = normalization_key(label)
+
+
+class ProductAttributeValue(TimeStampedModel):
+    """انتساب توصیفی یک ویژگی به یک کالای مشخص — برخلاف ProductOption، هرگز تنوع نمی‌سازد."""
+
+    product = models.ForeignKey(
+        Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="attribute_values",
+    )
+    attribute = models.ForeignKey(
+        Attribute, verbose_name="ویژگی", on_delete=models.PROTECT, related_name="product_assignments",
+    )
+    value = models.ForeignKey(
+        AttributeValue, verbose_name="مقدار", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="product_assignments",
+    )
+    text_value = models.CharField("مقدار متنی", max_length=500, blank=True, default="")
+    number_value = models.DecimalField("مقدار عددی", max_digits=14, decimal_places=4, null=True, blank=True)
+    boolean_value = models.BooleanField("مقدار بولی", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "مقدار ویژگی کالا"
+        verbose_name_plural = "مقادیر ویژگی کالا"
+        ordering = ["attribute__display_order", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["product", "attribute", "value"], name="uniq_product_attribute_value"),
+        ]
+
+    def __str__(self):
+        return f"{self.product.name} — {self.attribute.label}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        errors = {}
+        if self.attribute_id and self.product_id and self.attribute.store_id != self.product.store_id:
+            errors["attribute"] = "این ویژگی متعلق به فروشگاه دیگری است."
+        if self.value_id and self.attribute_id and self.value.attribute_id != self.attribute_id:
+            errors["value"] = "این مقدار متعلق به ویژگی دیگری است."
+        if errors:
+            raise ValidationError(errors)
+
+
+class ProductOption(TimeStampedModel):
+    """محور تنوع‌سازِ یک کالای مشخص (مثلاً «رنگ» یا «سایز») — نگاه کنید به ADR-19."""
+
+    product = models.ForeignKey(Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="options")
+    attribute = models.ForeignKey(
+        Attribute, verbose_name="ویژگی مرتبط", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="product_options",
+    )
+    label = models.CharField("عنوان محور", max_length=60)
+    normalized_label = models.CharField(max_length=80, editable=False, blank=True, default="")
+    position = models.PositiveSmallIntegerField("موقعیت", default=0)
+    is_active = models.BooleanField("فعال", default=True)
+
+    class Meta:
+        verbose_name = "محور تنوع کالا"
+        verbose_name_plural = "محورهای تنوع کالا"
+        ordering = ["position", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["product", "position"], name="uniq_option_position_per_product"),
+            models.UniqueConstraint(
+                fields=["product", "normalized_label"], condition=models.Q(is_active=True),
+                name="uniq_active_option_label_per_product",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.product.name} — {self.label}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        from apps.core.utils import normalization_key
+
+        errors = {}
+        label = (self.label or "").strip()
+        if not label:
+            errors["label"] = "عنوان محور نمی‌تواند خالی باشد."
+        if self.attribute_id and self.product_id and self.attribute.store_id != self.product.store_id:
+            errors["attribute"] = "این ویژگی متعلق به فروشگاه دیگری است."
+        if self.attribute_id and not self.attribute.is_variant_axis:
+            errors["attribute"] = "این ویژگی برای محور تنوع مجاز نیست."
+        if errors:
+            raise ValidationError(errors)
+        self.label = label
+        self.normalized_label = normalization_key(label)
+
+
+class ProductOptionValue(TimeStampedModel):
+    """یکی از مقادیر یک محور تنوع مشخص (مثلاً محور «رنگ» -> مقدار «سبز»)."""
+
+    option = models.ForeignKey(ProductOption, verbose_name="محور", on_delete=models.CASCADE, related_name="values")
+    attribute_value = models.ForeignKey(
+        AttributeValue, verbose_name="مقدار ویژگی مرتبط", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="option_values",
+    )
+    label = models.CharField("برچسب", max_length=60)
+    normalized_label = models.CharField(max_length=80, editable=False, blank=True, default="")
+    color_hex = models.CharField("کد رنگ (Hex)", max_length=9, blank=True)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+    is_active = models.BooleanField("فعال", default=True)
+
+    class Meta:
+        verbose_name = "مقدار محور تنوع"
+        verbose_name_plural = "مقادیر محور تنوع"
+        ordering = ["display_order", "label"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["option", "normalized_label"], condition=models.Q(is_active=True),
+                name="uniq_active_option_value_label",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.option.label}: {self.label}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        from apps.core.utils import normalization_key
+
+        label = (self.label or "").strip()
+        if not label:
+            raise ValidationError({"label": "برچسب مقدار نمی‌تواند خالی باشد."})
+        self.label = label
+        self.normalized_label = normalization_key(label)
+
+
+class VariantOptionValue(TimeStampedModel):
+    """هویت پایدارِ هر محور برای یک تنوع تولیدشده — نگاه کنید به ADR-20.
+
+    ``option_value`` عمداً ``PROTECT`` است: یک ProductOptionValue که هنوز
+    هویت یک تنوع را می‌سازد هرگز نباید hard-delete شود — حذف امن فقط از
+    مسیر غیرفعال‌سازی + بازتولید (``variant_engine_service``) ممکن است."""
+
+    variant = models.ForeignKey(
+        ProductVariant, verbose_name="تنوع", on_delete=models.CASCADE, related_name="option_values",
+    )
+    option = models.ForeignKey(ProductOption, verbose_name="محور", on_delete=models.CASCADE, related_name="variant_links")
+    option_value = models.ForeignKey(
+        ProductOptionValue, verbose_name="مقدار", on_delete=models.PROTECT, related_name="variant_links",
+    )
+
+    class Meta:
+        verbose_name = "مقدار محورِ تنوع"
+        verbose_name_plural = "مقادیر محورهای تنوع"
+        constraints = [
+            models.UniqueConstraint(fields=["variant", "option"], name="uniq_variant_option_axis"),
+            models.UniqueConstraint(fields=["variant", "option_value"], name="uniq_variant_option_value"),
+        ]
+
+    def __str__(self):
+        return f"{self.variant} — {self.option.label}: {self.option_value.label}"
 
 
 class Specification(TimeStampedModel):

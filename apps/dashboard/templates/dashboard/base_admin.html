@@ -42,6 +42,12 @@
         گروه‌بندی کالاها
       </a>
       {% endif %}
+      {% if can_manage_attributes %}
+      <a class="nav-item{% if active_page == 'attributes' %} active{% endif %}" data-page="attributes" href="{% url 'dashboard:attribute-list' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41L12 22l-9-9 8.59-8.59A2 2 0 0113 4h6a2 2 0 012 2v6a2 2 0 01-.41 1.41z"/><circle cx="16" cy="8" r="1.5"/></svg>
+        ویژگی‌ها
+      </a>
+      {% endif %}
       {% if can_manage_content %}
       <a class="nav-item{% if active_page == 'homepage' %} active{% endif %}" data-page="homepage" href="{% url 'dashboard:hero-list' %}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>

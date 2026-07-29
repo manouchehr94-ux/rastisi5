@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from django import forms
 
-from apps.catalog.models import Brand, Category, Product
+from apps.catalog.models import Attribute, Brand, Category, Product
 from apps.core.color_utils import contrast_ratio, safe_hex
 from apps.core.models import ShopSettings
 from apps.core.utils import normalize_digits
@@ -191,6 +191,74 @@ class VariantEditForm(NumericCleanMixin, forms.Form):
         if not self.data.get("stock", "").strip():
             return 0
         return self._clean_int("stock", min_value=0)
+
+
+class AttributeForm(forms.Form):
+    """اعتبارسنجی ساختاری فرم ویژگی؛ یکتاییِ کد و سازگاری نوع داده/نمایش در سرویس ویژگی انجام می‌شود."""
+
+    label = forms.CharField(label="عنوان نمایشی", max_length=120)
+    code = forms.CharField(label="کد داخلی", max_length=60, required=False)
+    description = forms.CharField(label="توضیحات", widget=forms.Textarea, required=False)
+    data_type = forms.ChoiceField(label="نوع داده", choices=Attribute.DataType.choices)
+    display_type = forms.ChoiceField(
+        label="نوع نمایش", choices=[("", "—")] + list(Attribute.DisplayType.choices), required=False,
+    )
+    unit = forms.CharField(label="واحد", max_length=30, required=False)
+    category = forms.ModelChoiceField(label="دسته‌بندی", queryset=Category.objects.none(), required=False)
+    is_required = forms.BooleanField(label="الزامی", required=False)
+    is_filterable = forms.BooleanField(label="قابل فیلتر", required=False)
+    is_searchable = forms.BooleanField(label="قابل جست‌وجو", required=False)
+    is_comparable = forms.BooleanField(label="قابل مقایسه", required=False)
+    is_variant_axis = forms.BooleanField(label="واجد شرایط محور تنوع", required=False)
+
+    def __init__(self, *args, store, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["category"].queryset = Category.objects.filter(store=store).order_by("order", "name")
+
+    def clean_label(self):
+        label = self.cleaned_data["label"].strip()
+        if not label:
+            raise forms.ValidationError("عنوان نمایشی نمی‌تواند خالی باشد")
+        return label
+
+
+class AttributeValueForm(forms.Form):
+    label = forms.CharField(label="برچسب", max_length=120)
+    value = forms.CharField(label="مقدار داخلی", max_length=120, required=False)
+    color_hex = forms.CharField(label="کد رنگ (Hex)", max_length=9, required=False)
+
+    def clean_label(self):
+        label = self.cleaned_data["label"].strip()
+        if not label:
+            raise forms.ValidationError("برچسب نمی‌تواند خالی باشد")
+        return label
+
+
+class ProductOptionForm(forms.Form):
+    """اعتبارسنجی ساختاری فرم افزودن محور تنوع؛ اعتبارسنجی کسب‌وکاری در variant_engine_service است."""
+
+    label = forms.CharField(label="عنوان محور", max_length=60)
+    raw_values = forms.CharField(
+        label="مقادیر اولیه", widget=forms.Textarea, required=False,
+        help_text="هر مقدار را در یک خط، یا با کاما/سمیکالن از هم جدا کنید.",
+    )
+
+    def clean_label(self):
+        label = self.cleaned_data["label"].strip()
+        if not label:
+            raise forms.ValidationError("عنوان محور نمی‌تواند خالی باشد")
+        return label
+
+
+class ProductOptionValueAddForm(forms.Form):
+    label = forms.CharField(label="برچسب مقدار", max_length=60)
+    color_hex = forms.CharField(label="کد رنگ (Hex)", max_length=9, required=False)
+
+    def clean_label(self):
+        label = self.cleaned_data["label"].strip()
+        if not label:
+            raise forms.ValidationError("برچسب نمی‌تواند خالی باشد")
+        return label
 
 
 class MainCategoryForm(forms.Form):

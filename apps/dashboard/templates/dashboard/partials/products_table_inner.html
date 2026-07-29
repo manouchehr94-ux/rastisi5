@@ -72,6 +72,7 @@
           <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">🖼️ تصاویر</button>
           {% if product.product_type == "variable" %}
           <a class="btn btn-sm" href="{% url 'dashboard:product-variants' product.pk %}">🧬 تنوع‌ها</a>
+          <a class="btn btn-sm" href="{% url 'dashboard:product-options' product.pk %}">🧩 محورهای تنوع</a>
           {% endif %}
           <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:product-delete' product.pk %}" hx-target="#productsTableWrap" hx-swap="innerHTML" hx-confirm="آیا از حذف «{{ product.name }}» مطمئن هستید؟">🗑️</button>
         </td>

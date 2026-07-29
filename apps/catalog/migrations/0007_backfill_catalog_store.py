@@ -6,9 +6,13 @@ AKHLAGHI_SLUG = "akhlaghi"
 def _get_akhlaghi_or_fail(Store):
     """Resolve the Akhlaghi Store by its stable slug — never `.first()`,
     never a hard-coded primary key. Fails loudly if Akhlaghi is missing or
-    duplicated; never silently creates a second Akhlaghi Store."""
+    duplicated; never silently creates a second Akhlaghi Store.
+
+    ``.only("pk")``: see the matching function in
+    ``apps/orders/migrations/0004_backfill_orders_store.py`` for why a bare
+    ``.get(slug=...)`` here is unsafe during a backward migration."""
     try:
-        return Store.objects.get(slug=AKHLAGHI_SLUG)
+        return Store.objects.only("pk").get(slug=AKHLAGHI_SLUG)
     except Store.DoesNotExist:
         raise RuntimeError(
             "Cannot backfill catalog store ownership: no Store with slug "
@@ -60,7 +64,7 @@ def unlink_catalog_store(apps, schema_editor):
     Product = apps.get_model("catalog", "Product")
     ProductVariant = apps.get_model("catalog", "ProductVariant")
     try:
-        akhlaghi = Store.objects.get(slug=AKHLAGHI_SLUG)
+        akhlaghi = Store.objects.only("pk").get(slug=AKHLAGHI_SLUG)
     except Store.DoesNotExist:
         return
     ProductVariant.objects.filter(store=akhlaghi).update(store=None)

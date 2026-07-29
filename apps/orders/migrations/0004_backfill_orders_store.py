@@ -8,11 +8,24 @@ def _get_akhlaghi_or_fail(Store):
     never a hard-coded primary key. Fails loudly if Akhlaghi is missing or
     duplicated; never silently creates a second Akhlaghi Store.
 
+    ``.only("pk")`` is deliberate, not a micro-optimization: the historical
+    ``Store`` model Django builds for a RunPython's ``apps`` parameter is
+    derived from a forward-plan state walk that is not guaranteed to line
+    up field-for-field with whatever the *physical* table looks like at the
+    moment this specific migration's reverse actually executes during a
+    backward migration — an unrelated, later-added migration elsewhere in
+    the graph (e.g. one adding a new ``Store`` field) can shift that state
+    enough to include a column not yet physically present, turning a plain
+    ``.get(slug=...)`` (which selects every field) into an
+    ``OperationalError: no such column``. Restricting the query to ``pk``
+    only avoids depending on the *rest* of the historical model's shape at
+    all — this function only ever needs the row's identity.
+
     Intentionally duplicated from
     apps/catalog/migrations/0007_backfill_catalog_store.py rather than
     imported — migrations must never import another migration module."""
     try:
-        return Store.objects.get(slug=AKHLAGHI_SLUG)
+        return Store.objects.only("pk").get(slug=AKHLAGHI_SLUG)
     except Store.DoesNotExist:
         raise RuntimeError(
             "Cannot backfill orders Store ownership: no Store with slug "
@@ -83,7 +96,7 @@ def unlink_gateway_shipping_store(apps, schema_editor):
     PaymentGateway = apps.get_model("orders", "PaymentGateway")
     ShippingMethod = apps.get_model("orders", "ShippingMethod")
     try:
-        akhlaghi = Store.objects.get(slug=AKHLAGHI_SLUG)
+        akhlaghi = Store.objects.only("pk").get(slug=AKHLAGHI_SLUG)
     except Store.DoesNotExist:
         return
     PaymentGateway.objects.filter(store=akhlaghi).update(store=None)
@@ -95,6 +108,22 @@ class Migration(migrations.Migration):
     dependencies = [
         ("orders", "0003_store_scope_orders_schema"),
         ("catalog", "0008_store_scope_catalog_enforce_not_null"),
+        # Explicit, not just transitive-through-catalog: this migration's
+        # RunPython functions resolve the Akhlaghi Store directly
+        # (``_get_akhlaghi_or_fail``/``unlink_gateway_shipping_store``), so
+        # the historical ``stores.Store`` model Django builds for them must
+        # be pinned to (at least) the migration that creates that row —
+        # not left to float wherever the topological sort happens to place
+        # it. Without this, adding unrelated migrations elsewhere in the
+        # graph (e.g. a later ``stores`` migration a different app starts
+        # depending on) can shift the computed historical state enough that
+        # ``apps.get_model("stores", "Store")`` here reflects a *later*
+        # stores schema (e.g. including ``admin_subdomain``) than the
+        # physical database actually has at the point this migration's
+        # reverse operation runs during a backward migration — a real,
+        # observed failure (a fresh ``OperationalError: no such column``)
+        # in ``apps.stores.tests.test_data_migration``, not a hypothetical.
+        ("stores", "0002_create_akhlaghi_store"),
     ]
 
     operations = [

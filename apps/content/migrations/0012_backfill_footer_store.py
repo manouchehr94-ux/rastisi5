@@ -6,9 +6,13 @@ AKHLAGHI_SLUG = "akhlaghi"
 def _get_akhlaghi_or_fail(Store):
     """Resolve the Akhlaghi Store by its stable slug — never `.first()`,
     never a hard-coded primary key. Fails loudly if Akhlaghi is missing or
-    duplicated; never silently creates a second Akhlaghi Store."""
+    duplicated; never silently creates a second Akhlaghi Store.
+
+    ``.only("pk")``: see the matching function in
+    ``apps/orders/migrations/0004_backfill_orders_store.py`` for why a bare
+    ``.get(slug=...)`` here is unsafe during a backward migration."""
     try:
-        return Store.objects.get(slug=AKHLAGHI_SLUG)
+        return Store.objects.only("pk").get(slug=AKHLAGHI_SLUG)
     except Store.DoesNotExist:
         raise RuntimeError(
             "Cannot backfill footer models' store: no Store with slug "
@@ -65,7 +69,7 @@ def unlink_footer_store(apps, schema_editor):
     FooterTrustBadge = apps.get_model("content", "FooterTrustBadge")
     FooterPaymentLogo = apps.get_model("content", "FooterPaymentLogo")
     try:
-        akhlaghi = Store.objects.get(slug=AKHLAGHI_SLUG)
+        akhlaghi = Store.objects.only("pk").get(slug=AKHLAGHI_SLUG)
     except Store.DoesNotExist:
         return
     FooterSettings.objects.filter(store=akhlaghi).update(store=None)

@@ -1,0 +1,13 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}محورهای تنوع — {{ product.name }} | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}محورهای تنوع و تنوع‌های چندمحوره{% endblock %}
+{% block page_sub %}{{ product.name }}{% endblock %}
+
+{% block content %}
+<a class="btn btn-sm" href="{% url 'dashboard:product-list' %}" style="margin-bottom:14px;display:inline-block">← بازگشت به فهرست کالاها</a>
+<div id="productOptionsBody">
+  {% include "dashboard/partials/product_options_body.html" %}
+</div>
+{% endblock %}

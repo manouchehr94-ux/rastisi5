@@ -10,6 +10,7 @@ nothing to guard here.
 """
 
 from apps.stores.authorization import (
+    ATTRIBUTE_MANAGE,
     CATEGORY_MANAGE,
     CONTENT_MANAGE,
     CUSTOMER_VIEW,
@@ -29,6 +30,7 @@ def merchant_permissions(request):
     return {
         "can_view_products": membership_has_permission(membership, PRODUCT_VIEW),
         "can_manage_categories": membership_has_permission(membership, CATEGORY_MANAGE),
+        "can_manage_attributes": membership_has_permission(membership, ATTRIBUTE_MANAGE),
         "can_view_orders": membership_has_permission(membership, ORDER_VIEW),
         "can_view_customers": membership_has_permission(membership, CUSTOMER_VIEW),
         "can_view_reports": membership_has_permission(membership, REPORTS_VIEW),

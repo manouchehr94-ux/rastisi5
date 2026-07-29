@@ -1,0 +1,153 @@
+{% load persian %}
+{% if has_legacy_variants %}
+<div class="card">
+  <div class="card-body">
+    <div class="info-box" style="margin-bottom:12px">
+      این کالا هنوز تنوع‌های تک‌محوره‌ی قدیمی دارد. برای استفاده از محورهای تنوع چندمحوره (رنگ × سایز و مانند آن)،
+      ابتدا باید همه‌ی تنوع‌های قدیمی را از صفحه‌ی «تنوع‌ها» حذف کنید.
+    </div>
+    <a class="btn btn-primary" href="{% url 'dashboard:product-variants' product.pk %}">مدیریت تنوع‌های تک‌محوره</a>
+  </div>
+</div>
+{% else %}
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3>محورهای تنوع</h3></div>
+  <div class="card-body">
+    {% for axis in axes %}
+    <div class="cat-block">
+      <div class="cat-head">
+        <div class="order-controls">
+          <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:product-option-move' product.pk axis.pk %}" hx-vals='{"direction":"up"}' hx-target="#productOptionsBody" hx-swap="innerHTML" {% if forloop.first %}disabled{% endif %}>▲</button>
+          <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:product-option-move' product.pk axis.pk %}" hx-vals='{"direction":"down"}' hx-target="#productOptionsBody" hx-swap="innerHTML" {% if forloop.last %}disabled{% endif %}>▼</button>
+        </div>
+        <div style="flex:1">
+          <b>{{ axis.label }}</b>
+          <small>موقعیت {{ axis.position|add:1|fa_number }} — {{ axis.values.count|fa_number }} مقدار</small>
+        </div>
+        <span class="badge {% if axis.is_active %}b-green{% else %}b-gray{% endif %}">{% if axis.is_active %}فعال{% else %}غیرفعال{% endif %}</span>
+        {% if axis.is_active %}
+        <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:product-option-deactivate' product.pk axis.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML" hx-confirm="غیرفعال‌سازی این محور باعث می‌شود در تولید بعدی، ترکیب‌های آن منسوخ شوند. ادامه می‌دهید؟">غیرفعال‌سازی محور</button>
+        {% else %}
+        <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:product-option-activate' product.pk axis.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">فعال‌سازی محور</button>
+        {% endif %}
+      </div>
+      <div class="subs">
+        {% for value in axis.values.all %}
+        <span class="chip{% if not value.is_active %} chip-muted{% endif %}">
+          {% if value.color_hex %}<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:{{ value.color_hex }};margin-left:4px"></span>{% endif %}
+          {{ value.label }}{% if not value.is_active %} (غیرفعال){% endif %}
+          <span class="rm" hx-post="{% url 'dashboard:product-option-value-remove' product.pk value.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML" hx-confirm="حذف/غیرفعال‌سازی «{{ value.label }}»؟" title="حذف">✕</span>
+        </span>
+        {% empty %}
+        <span style="color:var(--muted);font-size:12px">مقداری ثبت نشده است</span>
+        {% endfor %}
+      </div>
+      <form hx-post="{% url 'dashboard:product-option-value-add' product.pk axis.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
+            style="display:flex;gap:8px;margin-top:10px;align-items:flex-end">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom:0">
+          <input class="inp" name="label" placeholder="مقدار جدید (مثلاً: بنفش)" style="width:180px">
+        </div>
+        <button type="submit" class="btn btn-sm">افزودن مقدار</button>
+      </form>
+    </div>
+    {% empty %}
+    <p style="color:var(--muted);font-size:13px">هنوز محوری تعریف نشده است</p>
+    {% endfor %}
+
+    <hr style="margin:16px 0;border-color:var(--border)">
+
+    <form hx-post="{% url 'dashboard:product-option-add' product.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">
+      {% csrf_token %}
+      <div class="form-row">
+        <div class="form-group">
+          <label>عنوان محور جدید</label>
+          <input class="inp" name="label" placeholder="مثلاً: رنگ، سایز، جنس" value="{{ option_form.label.value|default_if_none:'' }}">
+          {% for err in option_form.label.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+      </div>
+      <div class="form-group">
+        <label>مقادیر اولیه (اختیاری)</label>
+        <textarea class="inp" name="raw_values" rows="2" placeholder="سبز، آبی، زرد">{{ option_form.raw_values.value|default_if_none:'' }}</textarea>
+      </div>
+      {% for err in option_form.non_field_errors %}<div style="color:var(--red);font-size:11.5px;margin-bottom:8px">{{ err }}</div>{% endfor %}
+      <button type="submit" class="btn btn-primary">افزودن محور</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px">
+  <div class="card-body" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+    <div><b>پیش‌نمایش تعداد ترکیب:</b> {{ combination_preview|fa_number }}</div>
+    <form hx-post="{% url 'dashboard:product-variants-generate' product.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
+          hx-confirm="تولید/تطبیق تنوع‌ها اجرا شود؟ ترکیب‌های موجود حفظ می‌شوند؛ ترکیب‌های حذف‌شده منسوخ (نه حذف) خواهند شد.">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary">🔄 تولید / تطبیق تنوع‌ها</button>
+    </form>
+  </div>
+</div>
+
+{% if active_variants %}
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3>تنوع‌های فعال ({{ active_variants|length|fa_number }})</h3></div>
+  <div class="card-body">
+    <form hx-post="{% url 'dashboard:product-variants-bulk-update' product.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">
+      {% csrf_token %}
+      <div class="table-wrap">
+        <table class="variant-table">
+          <thead>
+            <tr>
+              <th>ترکیب</th><th>SKU</th><th>بارکد</th><th>تغییر قیمت</th><th>قیمت مقایسه‌ای</th><th>بهای تمام‌شده</th><th>موجودی</th><th>فعال</th><th>پیش‌فرض</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for variant in active_variants %}
+            <tr>
+              <td>
+                <input type="hidden" name="variant_ids" value="{{ variant.pk }}">
+                {{ variant.value }}
+              </td>
+              <td><input class="inp" name="variant_{{ variant.pk }}_sku" value="{{ variant.sku }}" dir="ltr" style="width:120px"></td>
+              <td><input class="inp" name="variant_{{ variant.pk }}_barcode" value="{{ variant.barcode }}" dir="ltr" style="width:110px"></td>
+              <td><input class="inp" name="variant_{{ variant.pk }}_extra_price" value="{{ variant.extra_price|stringformat:'d' }}" dir="ltr" inputmode="numeric" style="width:100px"></td>
+              <td><input class="inp" name="variant_{{ variant.pk }}_compare_at_price" value="{% if variant.compare_at_price %}{{ variant.compare_at_price|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:100px"></td>
+              <td><input class="inp" name="variant_{{ variant.pk }}_cost" value="{% if variant.cost %}{{ variant.cost|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:100px"></td>
+              <td><input class="inp" name="variant_{{ variant.pk }}_stock" value="{{ variant.stock|stringformat:'d' }}" dir="ltr" inputmode="numeric" style="width:80px"></td>
+              <td><input type="checkbox" name="variant_{{ variant.pk }}_is_active" {% if variant.is_active %}checked{% endif %}></td>
+              <td>
+                {% if variant.is_default %}
+                <span class="badge b-green">پیش‌فرض</span>
+                {% else %}
+                <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:product-variant-set-default' product.pk variant.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">تنظیم پیش‌فرض</button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <button type="submit" class="btn btn-primary" style="margin-top:12px">ذخیره‌ی تغییرات تنوع‌ها</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if obsolete_variants %}
+<div class="card">
+  <div class="card-head"><h3>ترکیب‌های منسوخ ({{ obsolete_variants|length|fa_number }})</h3></div>
+  <div class="card-body">
+    <p style="color:var(--muted);font-size:12.5px;margin-bottom:10px">
+      این ترکیب‌ها دیگر با محورهای فعال کالا مطابقت ندارند اما برای حفظ سابقه‌ی سفارش‌ها و رسانه حذف نشده‌اند.
+    </p>
+    <table>
+      <thead><tr><th>ترکیب</th><th>SKU</th><th>موجودی</th></tr></thead>
+      <tbody>
+        {% for variant in obsolete_variants %}
+        <tr><td>{{ variant.value }}</td><td dir="ltr">{{ variant.sku }}</td><td>{{ variant.stock|fa_number }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endif %}
