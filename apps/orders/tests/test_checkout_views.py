@@ -297,7 +297,7 @@ class CheckoutCouponViewTests(TestCase):
         )
         ShippingMethod.objects.create(store=store, name="پست پیشتاز", slug="post-ccv", cost=45_000)
         PaymentGateway.objects.create(store=store, name="زرین‌پال", slug="zarin-ccv")
-        self.coupon = Coupon.objects.create(code="SAVE10", type=Coupon.Type.PERCENT, value=Decimal("10"))
+        self.coupon = Coupon.objects.create(store=store, code="SAVE10", type=Coupon.Type.PERCENT, value=Decimal("10"))
         self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 1})
 
     def test_apply_valid_coupon_shows_applied_box(self):

@@ -1,0 +1,57 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+{% block title %}استرداد سفارش {{ order.code }} | پنل مدیریت{% endblock %}
+{% block page_title %}ثبتِ استرداد برای سفارش <span dir="ltr">{{ order.code }}</span>{% endblock %}
+{% block page_sub %}حداکثرِ قابل‌استرداد: {{ refundable_amount|toman }}{% endblock %}
+{% block content %}
+<div class="form-card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="card" style="margin-bottom:14px">
+      <div class="table-wrap"><table>
+        <thead><tr><th>کالا</th><th>تعداد خریداری‌شده</th><th>قیمت واحد</th><th>تعدادِ استرداد</th></tr></thead>
+        <tbody>
+        {% for item in items %}
+        <tr>
+          <td>{{ item.product_name }}{% if item.variant_label %}<br><small>{{ item.variant_label }}</small>{% endif %}</td>
+          <td>{{ item.quantity|fa_number }}</td>
+          <td>{{ item.unit_price|toman }}</td>
+          <td><input type="number" name="quantity_{{ item.pk }}" value="0" min="0" max="{{ item.quantity }}" class="form-input" style="width:90px"></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_shipping_amount">استردادِ هزینه‌ی ارسال (حداکثر {{ max_shipping|toman }})</label>
+      <input type="number" name="shipping_amount" id="id_shipping_amount" value="0" min="0" max="{{ max_shipping }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label required" for="id_reason">علت</label>
+      <select name="reason" id="id_reason" class="form-select">
+        {% for value, label in reason_choices %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_merchant_note">یادداشت مدیر</label>
+      <textarea name="merchant_note" id="id_merchant_note" class="form-input" rows="3"></textarea>
+    </div>
+    <label class="toggle-field">
+      <input type="checkbox" name="restock">
+      <div class="toggle-content">
+        <span class="toggle-title">بازگرداندنِ موجودی</span>
+        <span class="toggle-desc">اگر کالا واقعاً به انبار بازگشته، این گزینه را فعال کنید تا موجودی افزایش یابد.</span>
+      </div>
+    </label>
+    <div class="warning-box" style="margin-top:14px">
+      <p>مبلغِ نهاییِ استرداد همیشه توسط سرور از رویِ قیمت‌های واقعیِ سفارش محاسبه می‌شود، نه هیچ عددی که از مرورگر ارسال شود.</p>
+    </div>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">ثبتِ استرداد</button>
+      <a href="{% url 'dashboard:order-detail' order.code %}" class="btn btn-secondary">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

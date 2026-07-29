@@ -34,8 +34,8 @@ class CartModelsTests(TestCase):
         self.assertEqual(item.quantity * item.unit_price, Decimal("3000000"))
 
     def test_coupon_code_uppercased_and_unique(self):
-        coupon = Coupon.objects.create(code="welcome10", type=Coupon.Type.PERCENT, value=10, label="۱۰٪ تخفیف")
+        coupon = Coupon.objects.create(store=self.store, code="welcome10", type=Coupon.Type.PERCENT, value=10, label="۱۰٪ تخفیف")
         self.assertEqual(coupon.code, "WELCOME10")
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                Coupon.objects.create(code="WELCOME10", type=Coupon.Type.FIXED, value=50_000)
+                Coupon.objects.create(store=self.store, code="WELCOME10", type=Coupon.Type.FIXED, value=50_000)

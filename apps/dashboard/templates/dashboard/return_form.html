@@ -1,0 +1,41 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+{% block title %}ثبت درخواست مرجوعی | پنل مدیریت{% endblock %}
+{% block page_title %}ثبتِ درخواستِ مرجوعی برای سفارش <span dir="ltr">{{ order.code }}</span>{% endblock %}
+{% block content %}
+<div class="form-card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="card" style="margin-bottom:14px">
+      <div class="table-wrap"><table>
+        <thead><tr><th>کالا</th><th>تعداد خریداری‌شده</th><th>تعدادِ مرجوعی</th></tr></thead>
+        <tbody>
+        {% for item in items %}
+        <tr>
+          <td>{{ item.product_name }}</td>
+          <td>{{ item.quantity|fa_number }}</td>
+          <td><input type="number" name="quantity_{{ item.pk }}" value="0" min="0" max="{{ item.quantity }}" class="form-input" style="width:90px"></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+    </div>
+    <div class="field-group">
+      <label class="field-label required" for="id_reason">علت</label>
+      <select name="reason" id="id_reason" class="form-select">
+        {% for value, label in reason_choices %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_customer_explanation">توضیحِ مشتری</label>
+      <textarea name="customer_explanation" id="id_customer_explanation" class="form-input" rows="3"></textarea>
+    </div>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">ثبتِ درخواست</button>
+      <a href="{% url 'dashboard:order-detail' order.code %}" class="btn btn-secondary">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

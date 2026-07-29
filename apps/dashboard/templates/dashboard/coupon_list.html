@@ -1,0 +1,52 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}کدهای تخفیف | پنل مدیریت{% endblock %}
+{% block page_title %}کدهای تخفیف{% endblock %}
+{% block page_sub %}مدیریت کدهای تخفیف این فروشگاه{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>کدهای تخفیف</h2>
+    <p class="page-desc">کدهای تخفیف فقط برای همین فروشگاه معتبرند؛ فروشگاه‌های دیگر می‌توانند کد یکسانی داشته باشند.</p>
+  </div>
+  {% if can_manage_coupons %}
+  <a href="{% url 'dashboard:coupon-add' %}" class="btn btn-primary">کد تخفیف جدید</a>
+  {% endif %}
+</div>
+
+{% if coupons %}
+<div class="card">
+  <div class="card-head"><h3>کدها ({{ coupons|length }})</h3></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>کد</th><th>نوع</th><th>مقدار</th><th>حداقل سفارش</th><th>استفاده</th><th>انقضا</th><th>وضعیت</th>{% if can_manage_coupons %}<th>عملیات</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for coupon in coupons %}
+    <tr>
+      <td dir="ltr" style="text-align:right"><b>{{ coupon.code }}</b>{% if coupon.label %}<br><small style="color:var(--muted)">{{ coupon.label }}</small>{% endif %}</td>
+      <td>{{ coupon.get_type_display }}</td>
+      <td>{{ coupon.value }}</td>
+      <td>{{ coupon.min_order }}</td>
+      <td>{{ coupon.used_count }}{% if coupon.usage_limit %} / {{ coupon.usage_limit }}{% endif %}</td>
+      <td>{{ coupon.expires_at|date:"Y-m-d"|default:"—" }}</td>
+      <td>{% if coupon.is_active %}<span class="badge b-green">فعال</span>{% else %}<span class="badge b-amber">غیرفعال</span>{% endif %}</td>
+      {% if can_manage_coupons %}
+      <td style="display:flex;gap:6px">
+        <a class="btn btn-sm" href="{% url 'dashboard:coupon-edit' coupon.pk %}">ویرایش</a>
+        <form method="post" action="{% url 'dashboard:coupon-toggle' coupon.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm">{% if coupon.is_active %}غیرفعال{% else %}فعال{% endif %}</button></form>
+        <a class="btn btn-sm btn-danger" href="{% url 'dashboard:coupon-delete' coupon.pk %}">حذف</a>
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <span class="empty-icon">🏷️</span>
+    <div class="empty-title">هنوز کد تخفیفی ثبت نشده</div>
+    {% if can_manage_coupons %}<a href="{% url 'dashboard:coupon-add' %}" class="btn btn-primary">افزودن اولین کد</a>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

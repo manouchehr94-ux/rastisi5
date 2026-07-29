@@ -175,4 +175,29 @@ urlpatterns = [
     # --- دفتر موجودی (Inventory Ledger) ---
     path("inventory/", views.inventory_list, name="inventory-list"),
     path("inventory/table/", views.inventory_table, name="inventory-table"),
+
+    # --- کدهای تخفیف (Coupons) ---
+    path("coupons/", views.coupon_list, name="coupon-list"),
+    path("coupons/add/", views.coupon_form, name="coupon-add"),
+    path("coupons/<int:pk>/edit/", views.coupon_form, name="coupon-edit"),
+    path("coupons/<int:pk>/toggle/", views.coupon_toggle, name="coupon-toggle"),
+    path("coupons/<int:pk>/delete/", views.coupon_delete, name="coupon-delete"),
+
+    # --- گزارش رخدادها (Audit Log) ---
+    path("audit-log/", views.audit_log_list, name="audit-log-list"),
+    path("audit-log/table/", views.audit_log_table, name="audit-log-table"),
+
+    # --- استرداد (Refunds) ---
+    path("orders/<str:code>/refund/", views.order_refund_form, name="order-refund"),
+
+    # --- مرجوعی‌ها (Returns) ---
+    path("returns/", views.return_list, name="return-list"),
+    path("orders/<str:code>/returns/new/", views.return_create, name="return-create"),
+    path("returns/<int:pk>/", views.return_detail, name="return-detail"),
+    path("returns/<int:pk>/review/", views.return_review, name="return-review"),
+    path("returns/<int:pk>/approve/", views.return_approve, name="return-approve"),
+    path("returns/<int:pk>/reject/", views.return_reject, name="return-reject"),
+    path("returns/<int:pk>/receive/", views.return_receive, name="return-receive"),
+    path("returns/<int:pk>/inspect/", views.return_inspect, name="return-inspect"),
+    path("returns/<int:pk>/complete/", views.return_complete, name="return-complete"),
 ]

@@ -1,0 +1,26 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}گزارش رخدادها | پنل مدیریت{% endblock %}
+{% block page_title %}گزارش رخدادها{% endblock %}
+{% block page_sub %}تاریخچه‌ی عملیات حساسِ انجام‌شده در پنل مدیریتِ این فروشگاه{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <input class="inp" id="auditSearch" name="q" value="{{ q }}" placeholder="جستجو..." style="width:220px"
+             hx-get="{% url 'dashboard:audit-log-table' %}" hx-target="#auditTableWrap" hx-swap="innerHTML"
+             hx-trigger="keyup changed delay:300ms" hx-include="#auditActionFilter">
+      <select class="inp" id="auditActionFilter" name="action" style="width:220px"
+              hx-get="{% url 'dashboard:audit-log-table' %}" hx-target="#auditTableWrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#auditSearch">
+        <option value="">همه‌ی عملیات</option>
+        {% for action in action_options %}
+        <option value="{{ action }}" {% if selected_action == action %}selected{% endif %}>{{ action }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div id="auditTableWrap">
+    {% include "dashboard/partials/audit_log_table_inner.html" %}
+  </div>
+</div>
+{% endblock %}

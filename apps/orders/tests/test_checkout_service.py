@@ -23,7 +23,7 @@ class CheckoutServiceTestCase(TestCase):
         self.cheap_shipping = ShippingMethod.objects.create(store=store, name="پست پیشتاز", slug="post-chk", cost=45_000)
         self.expensive_shipping = ShippingMethod.objects.create(store=store, name="پیک موتوری", slug="peyk-chk", cost=80_000)
         self.gateway = PaymentGateway.objects.create(store=store, name="زرین‌پال", slug="zarin-chk")
-        self.coupon = Coupon.objects.create(code="TESTCOUP", type=Coupon.Type.PERCENT, value=Decimal("10"))
+        self.coupon = Coupon.objects.create(store=store, code="TESTCOUP", type=Coupon.Type.PERCENT, value=Decimal("10"))
 
         self.factory = RequestFactory()
 
@@ -96,6 +96,43 @@ class CouponServiceTests(CheckoutServiceTestCase):
         self.coupon.min_order = Decimal("999999999")
         self.coupon.save(update_fields=["min_order"])
         self.assertIsNone(checkout_service.get_applied_coupon(request, cart))
+
+
+class CouponTenantIsolationTests(CheckoutServiceTestCase):
+    """نگاه کنید به ADR-32 — کدهای تخفیف Store-owned هستند؛ درخواستی که به
+    Store دیگری resolve می‌شود هرگز نباید کدِ تخفیفِ این Store را ببیند،
+    حتی اگر کدِ یک فروشگاهِ دیگر عیناً همین رشته باشد."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.core.models import ShopSettings
+
+        self.other_store = Store.objects.create(name="فروشگاه دیگر", slug="chk-other", status=Store.Status.ACTIVE)
+        ShopSettings.provision_for(self.other_store)
+        Coupon.objects.create(store=self.other_store, code="TESTCOUP", type=Coupon.Type.FIXED, value=Decimal("999999"))
+
+    def test_apply_coupon_only_matches_current_store(self):
+        request = self._request()
+        request.store = self.other_store
+        cart = self._cart_with_item(quantity=1)
+        ok, message = checkout_service.apply_coupon(request, cart, "testcoup")
+        self.assertTrue(ok)
+        applied = checkout_service.get_applied_coupon(request, cart)
+        self.assertEqual(applied.store_id, self.other_store.pk)
+        self.assertNotEqual(applied.pk, self.coupon.pk)
+
+    def test_get_applied_coupon_does_not_leak_across_stores(self):
+        request = self._request()
+        request.store = self.store
+        cart = self._cart_with_item(quantity=1)
+        checkout_service.apply_coupon(request, cart, "testcoup")
+
+        # a second request resolved to the OTHER store must never see this Store's coupon
+        other_request = self._request()
+        other_request.session = request.session
+        other_request.store = self.other_store
+        applied = checkout_service.get_applied_coupon(other_request, cart)
+        self.assertEqual(applied.store_id, self.other_store.pk)
 
 
 class BuildContextTests(CheckoutServiceTestCase):

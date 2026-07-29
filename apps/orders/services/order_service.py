@@ -14,6 +14,7 @@ from apps.catalog.services.inventory_service import (
     decrement_stock_for_order_item,
     restock_order,
 )
+from apps.core.services.audit_service import record_audit_event
 from apps.core.utils import format_toman
 from apps.orders.models import Order, OrderItem, OrderStatusHistory
 from apps.sms.events import SmsEvent
@@ -170,6 +171,13 @@ def create_order_from_cart(
         # Production (بخش ۱ — این تنها مسیر ساخت Order در Production است).
         raise ValueError("این فروشنده متعلق به این فروشگاه نیست")
 
+    if coupon is not None and coupon.store_id != store.pk:
+        # نگاه کنید به ADR-32 — کد تخفیف اکنون Store-owned است؛ این خط
+        # دفاعی آخر تضمین می‌کند حتی اگر لایه‌ی بالاتر (checkout_service)
+        # قبلاً کوپن را با store فیلتر کرده باشد، هیچ سفارشی با کوپنِ
+        # فروشگاه دیگری ساخته نمی‌شود.
+        raise ValueError("این کد تخفیف متعلق به این فروشگاه نیست")
+
     items = list(cart.items.select_related("product", "variant"))
     if not items:
         raise ValueError("سبد خرید خالی است")
@@ -284,6 +292,11 @@ def change_order_status(
         # بدونِ گذارِ خروجی است، پس این مسیر برای هر سفارش حداکثر یک‌بار اجرا
         # می‌شود.
         restock_order(store=store, order=order, actor=by)
+        record_audit_event(
+            store=store, actor=by, action_code="order.cancelled",
+            object_type="Order", object_id=order.pk, object_label=order.code,
+            before={"status": from_status}, after={"status": to_status},
+        )
 
     OrderStatusHistory.objects.create(
         order=order, from_status=from_status, to_status=to_status, changed_by=by, note=note

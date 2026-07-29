@@ -11,14 +11,19 @@ nothing to guard here.
 
 from apps.stores.authorization import (
     ATTRIBUTE_MANAGE,
+    AUDIT_LOG_VIEW,
     CATEGORY_MANAGE,
     CONTENT_MANAGE,
+    COUPON_VIEW,
     CUSTOMER_VIEW,
+    DISCOUNT_MANAGE,
     INVENTORY_MANAGE,
     MEDIA_MANAGE,
     ORDER_VIEW,
     PRODUCT_VIEW,
+    REFUND_VIEW,
     REPORTS_VIEW,
+    RETURN_VIEW,
     SETTINGS_MANAGE,
     STAFF_MANAGE,
     membership_has_permission,
@@ -41,4 +46,11 @@ def merchant_permissions(request):
         "can_manage_media": membership_has_permission(membership, MEDIA_MANAGE),
         "can_manage_staff": membership_has_permission(membership, STAFF_MANAGE),
         "can_manage_inventory": membership_has_permission(membership, INVENTORY_MANAGE),
+        "can_view_coupons": (
+            membership_has_permission(membership, COUPON_VIEW)
+            or membership_has_permission(membership, DISCOUNT_MANAGE)
+        ),
+        "can_view_returns": membership_has_permission(membership, RETURN_VIEW),
+        "can_view_refunds": membership_has_permission(membership, REFUND_VIEW),
+        "can_view_audit_log": membership_has_permission(membership, AUDIT_LOG_VIEW),
     }

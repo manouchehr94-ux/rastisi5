@@ -1778,6 +1778,276 @@ PostgreSQL (production) separately.
 
 ---
 
+## ADR-32: Coupon Is Store-Owned — Code Uniqueness Is Per-Store, Not Global
+
+**Context.** The Admin Panel Completion Report (checkpoint 1) named
+`Coupon` having no `store` FK at all as a real, live cross-tenant leak:
+`Coupon.code` was globally unique, and both `checkout_service.apply_coupon`
+and `get_applied_coupon` looked up `Coupon.objects.filter(code=code)` with
+no Store filter whatsoever. In practice this meant any Store's checkout
+could apply any other Store's coupon code, and two Stores could never both
+use a common, obvious code like `WELCOME10` — the second one to try would
+simply fail with "code already exists," attributed to a stranger's Store.
+
+**Decision.** `Coupon` gets a required `store` FK (`on_delete=CASCADE`,
+matching every other Store-owned aggregate in this codebase) and the
+uniqueness constraint moves from a bare `unique=True` on `code` to
+`UniqueConstraint(fields=["store", "code"])`. The migration follows the
+same three-step safe pattern already established for `Product`/`Category`/
+`Vendor` Store-scoping (`apps/catalog/migrations/0006-0008`): (1) add the
+FK nullable and drop the old global-unique constraint, (2) backfill every
+pre-existing `Coupon` row to the Akhlaghi Store (the platform's only
+pre-existing Store, the sole deterministic choice — mirrors
+`apps/catalog/migrations/0007_backfill_catalog_store.py`'s own reasoning),
+(3) enforce `NOT NULL` and add the per-Store unique constraint. Every
+lookup site (`checkout_service.apply_coupon`, `get_applied_coupon`,
+`order_service.create_order_from_cart`'s new defensive check,
+`membership`-style dashboard views) now filters or validates by `store`
+explicitly — checkout resolves the Store once at the HTTP boundary
+(`resolve_store_for_service`) and passes it down, matching this codebase's
+standing rule that deeper service functions never re-derive a Store
+themselves.
+
+**Consequences.** Two Stores can now both run a `WELCOME10` campaign
+independently; a coupon code leaking into another Store's checkout is now
+structurally impossible (enforced by the query filter, verified by
+`CouponTenantIsolationTests` in `apps/orders/tests/test_checkout_service.py`
+using two Stores with the *same* code string). A previously undiscovered
+class of bug (checking `product.stock` regardless of variant is the direct
+analogue in ADR-31) is closed the same way: fix the query, not just the
+symptom.
+
+**Alternatives considered.** Scoping only at the checkout-lookup layer
+(add a `store` filter to the two call sites) without touching the model —
+rejected because the underlying data model would still allow a genuine
+data-integrity violation (two Stores literally unable to pick the same
+code) and would leave the Django Admin / any future direct-model access
+path unscoped. Making `Coupon` a subclass of a generic "Promotion" model
+with Product/Category scope fields — out of scope for this checkpoint;
+this codebase's `Coupon` has never had per-product/per-category scoping
+fields at all (verified by reading the full model before this change), so
+introducing them now would be new functionality, not a tenant-isolation
+fix — tracked as a follow-up in the Admin Panel Completion Report, not
+invented here.
+
+---
+
+## ADR-33: Refund Financial Integrity — Amounts Computed From the Immutable Order Snapshot; Only `MANUAL` Execution Is Real
+
+**Context.** Checkpoint 2 requires refund planning and execution that
+cannot over-refund, double-refund, or refund against the wrong Store/
+currency — and this platform has no payment gateway integration capable of
+actually pushing money back to a customer (`PaymentGatewayConfig`/
+`PaymentAttempt` model the *forward* payment flow only). Silently
+pretending a `GATEWAY` refund succeeded would be dishonest and would
+corrupt the ledger with a claim this codebase cannot back up.
+
+**Decision.** `apps.orders.services.refund_service` computes every amount
+from `Order.grand_total`/`shipping_cost` and `OrderItem.unit_price` — the
+snapshot already frozen at checkout time (`create_order_from_cart`) —
+never from `Product.price`, which can change after the order was placed.
+`refundable_amount(order)` = `paid_amount(order)` (the full `grand_total`
+if `payment_status` is `PAID`/`REFUNDED`, else zero — this codebase does
+not model partial payment at the Order level) minus the sum of every
+non-final-failed/cancelled `Refund`'s amount already committed against
+this order. `plan_order_refund` is a pure, side-effect-free computation
+(no DB writes) used both by the dashboard form (to show the merchant the
+real maximum before they submit) and by `execute_order_refund` itself (so
+the two can never disagree). `execute_order_refund` re-validates
+everything server-side from POST data containing only *quantities* and a
+*shipping toggle* — never a client-supplied amount — before creating the
+`Refund`/`RefundItem` rows inside one atomic transaction.
+
+Only `refund_method=Refund.Method.MANUAL` is actually executable:
+`execute_order_refund` immediately marks it `SUCCEEDED` with
+`completed_at=now()`, which is an honest statement ("the merchant just
+told this system they paid the customer back outside of it"), never a
+claim that this platform moved money. Requesting
+`refund_method=Refund.Method.GATEWAY` raises `RefundError` immediately,
+with a message that says why, surfaced directly in the dashboard UI —
+per this checkpoint's own explicit instruction not to claim money was
+transferred when it wasn't. `record_refund_result` exists as the future
+integration point for a real gateway webhook, and refuses to modify a
+`Refund` that has already reached one of `FINAL_STATUSES` (`SUCCEEDED`/
+`FAILED`/`CANCELLED`) — a completed refund's amount is a historical fact,
+correctable only by a new `Refund` row, never an edit.
+
+**Consequences.** Over-refund, duplicate-refund (via `idempotency_key`,
+mirroring `Order.idempotency_key`'s own pattern), cross-Store refund, and
+refunding a quantity beyond what was purchased (accounting for *all*
+already-refunded quantity across every non-cancelled refund on that line,
+not just the most recent one) are all provably impossible — verified by
+adversarial tests in `test_refund_service.py`. The dashboard refund form
+never has an amount input field at all; it only collects quantities and a
+shipping toggle, so there is nothing for a manipulated request to lie
+about.
+
+**Alternatives considered.** Modeling a fake "gateway success" for
+`GATEWAY` refunds so the UI always looks fully automated — rejected
+outright as dishonest and explicitly prohibited by this checkpoint's own
+instructions. Tracking partial payment at the `Order` level to make
+`paid_amount` more granular — out of scope; this codebase's `Order` has
+always treated payment as binary (`PaymentStatus.PENDING`/`PAID`/`FAILED`/
+`REFUNDED`), and changing that is a separate, larger payment-domain
+decision this checkpoint does not make.
+
+---
+
+## ADR-34: Return Requests Get Their Own Explicit State Machine, Separate From `Order.status`
+
+**Context.** `Order.status` (ADR predates this document; enforced by
+`order_service.ALLOWED_TRANSITIONS`) is fulfillment-focused — pending
+through delivered/canceled — and has no room for "a customer wants to send
+part of this delivered order back." Overloading it with return-related
+values would conflict with `FINAL_STATUSES` semantics (a `DELIVERED` order
+is done, but a return against it is only just starting) and would make
+`ALLOWED_TRANSITIONS` express two unrelated concerns in one field.
+
+**Decision.** `ReturnRequest` is a separate model with its own
+`Status` (`requested → under_review → approved/rejected → in_transit →
+received → inspected → completed/cancelled`) and its own
+`ALLOWED_TRANSITIONS`/`FINAL_STATUSES` pair, built with exactly the same
+shape as `order_service`'s (a dict of legal next-states, a frozenset of
+terminal ones) — a deliberate architectural echo, not a coincidence, so
+anyone who already understands the Order state machine immediately
+recognizes this one. Every transition goes through
+`apps.orders.services.return_service`, never a raw `.status = X; .save()`
+in a view: `review_return_request`, `approve_return_request` (validates
+per-item approved quantity never exceeds requested), `reject_return_request`
+(requires a reason), `mark_return_received`, `inspect_return_items`
+(records condition/restockability/resolution per item), and
+`complete_return` (triggers inventory restock and, where the merchant's
+per-item resolution was "refund," an actual `Refund` via
+`refund_service.execute_order_refund`). A `ReturnRequest.order` can have
+*multiple* `ReturnRequest`s over its lifetime (a customer might return two
+different items on two different days) — quantity reservation is tracked
+per-`OrderItem` across all non-rejected/non-cancelled returns
+(`_reserved_return_quantity`), not per-Order, so this is provably safe
+against double-counting.
+
+**Consequences.** `Order.status` needed no changes at all — it remains
+purely about fulfillment, exactly as before. A return can be created,
+approved, rejected, received, inspected, and completed with a fully
+auditable trail (`approved_at`/`received_at`/`completed_at`/`rejected_at`
+timestamps plus an `AuditLogEntry` at every transition) independent of
+whatever the Order's own fulfillment status is.
+
+**Alternatives considered.** Adding `partially_returned`/`returned` values
+directly to `Order.Status` — rejected because a `DELIVERED` order (a
+`FINAL_STATUSES` member with no outgoing transition in
+`order_service.ALLOWED_TRANSITIONS`) would need to somehow also become
+`returned` without violating that finality, which would require weakening
+an existing, tested invariant just to shoehorn an unrelated concern into
+the same field. See ADR-35 for the matching decision on financial state.
+
+---
+
+## ADR-35: Order Financial/Return State Is Tracked in Dedicated Fields and Related Rows, Not Folded Into `Order.status`
+
+**Context.** Checkpoint 2 explicitly asks whether an Order should be able
+to become `partially_refunded`/`refunded`/`partially_returned`/`returned`,
+or whether that state should live separately from the existing
+fulfillment-focused status. This is the direct financial-state
+counterpart to ADR-34's fulfillment/return-workflow split.
+
+**Decision.** Financial and return state stay **out of** `Order.status`
+entirely. `Order.payment_status` gains its natural final value
+(`REFUNDED`) exactly once already-supported by the model — no new status
+values were added anywhere on `Order` itself. The complete financial
+picture is always *derived*, on demand, from real rows: `paid_amount`,
+`refunded_total`, `refundable_amount` (all in `refund_service`, ADR-33)
+compute directly from `Order.grand_total` plus the live set of
+non-cancelled `Refund` rows; return state is the live set of
+`ReturnRequest` rows linked to the order (`order.return_requests`). The
+dashboard's Order Financial Summary (`_order_detail_context`) simply
+surfaces these computed values and the related querysets — there is no
+stored, cacheable "is this order returned" boolean anywhere that could
+drift out of sync with the underlying `Refund`/`ReturnRequest` rows.
+
+**Consequences.** There is exactly one source of truth for "how much of
+this order has been refunded" (the `Refund` rows themselves), so it can
+never disagree with itself. Adding a future reporting need (e.g., "list
+all partially-refunded orders") is a query over `Refund`, not a migration
+to add and backfill a new `Order` field. The tradeoff is that "is this
+order returned" is a computed property, not an indexed column — acceptable
+at this codebase's scale (matching the same tradeoff already accepted for
+`refundable_amount` itself).
+
+**Alternatives considered.** Adding `financial_status`/`return_status`
+fields directly to `Order` — rejected for the same reason ADR-34 rejected
+folding return workflow into `Order.status`: it would require keeping a
+denormalized field in sync with the real `Refund`/`ReturnRequest` rows on
+every write path, a second source of truth that can drift, for a
+computation that is already cheap and correct today.
+
+---
+
+## ADR-36: Audit Log Is Store-Scoped, Redacts Known-Sensitive Keys at Write Time, and Deliberately Omits IP/User-Agent
+
+**Context.** Checkpoint 2 requires a reusable audit trail for sensitive
+merchant-admin actions (staff changes, inventory adjustments, order
+cancellation, refund/return lifecycle, coupon changes) with explicit
+before/after summaries, while never storing passwords, gateway secrets,
+card data, or auth tokens — and the request notes IP/User-Agent logging
+is conditional on "existing privacy policy" support.
+
+**Decision.** `apps.core.models.AuditLogEntry` is a new, Store-scoped,
+append-only model (no `updated_at` at all — a correction is a new row,
+never an edit of history) with `store`, `actor` (nullable — some events
+are system-initiated), `action_code`, a loose `object_type`/`object_id`
+(plain strings, not Django `ContentType`, so this model never needs to
+import or depend on whichever app owns the object it's describing —
+important since it is written from `apps.stores`, `apps.catalog`, and
+`apps.orders` services alike), `object_label`, `before_summary`/
+`after_summary` (JSON-serialized, redacted), `metadata` (`JSONField`,
+redacted), `request_id` (for idempotent-on-retry writes), and `result`.
+The single write path, `apps.core.services.audit_service.record_audit_event`,
+redacts any key matching a hardcoded forbidden-key list (`password`,
+`token`, `secret`, `api_key`, `card_number`, `cvv`, and their common
+variants) inside `metadata`/`before`/`after` **before** the row is ever
+written — a defense-in-depth measure, not a substitute for callers simply
+not passing secrets in the first place. Passing a `request_id` makes the
+call idempotent: a retried operation with the same id returns the
+already-existing entry instead of writing a duplicate.
+
+`ip_address`/`user_agent` fields were **deliberately not added**. This
+codebase has never adopted a privacy policy governing retention of end-user
+network metadata (verified by inspecting `apps.customers`, `apps.orders`,
+and every existing model for any precedent — there is none), so adding
+IP/User-Agent collection now, with no policy decision behind it, would be
+unpoliced personal-data collection introduced as a side effect of an
+unrelated feature. The checkpoint's own instruction ("only if existing
+privacy policy supports it") is read literally: no policy exists, so
+nothing is collected.
+
+The Merchant Admin Audit Log UI (`apps.dashboard.views.audit_log_list`)
+is gated by the new `AUDIT_LOG_VIEW` permission, granted to `Owner`,
+`Administrator` (via `ALL_PERMISSIONS - _OWNER_ONLY`), and `Analyst`
+(read-only reporting, per this checkpoint's own suggested role policy) —
+`Catalog Manager`/`Order Manager`/`Content Editor` do not get it, matching
+the centralized `apps.stores.authorization` registry every other
+permission in this codebase goes through.
+
+**Consequences.** Every sensitive action integrated this checkpoint
+(staff add/role-change/revoke/reactivate/ownership-transfer, manual
+inventory adjustment, order cancellation, refund completion, every return
+transition, coupon create/update/toggle/archive) now produces a
+searchable, Store-scoped, tamper-evident trail with no secret material at
+rest. Redaction is unit-tested directly (`test_audit_service.py`) rather
+than trusted to caller discipline alone.
+
+**Alternatives considered.** Using Django's built-in `ContentType`/
+`GenericForeignKey` for `object_type`/`object_id` — rejected as
+unnecessary coupling; this log is deliberately a write-mostly, read-by-
+humans record, not a queryable-by-relation index, so a plain string pair
+is simpler and avoids a hard dependency from `apps.core` back onto every
+app it audits. Logging IP/User-Agent "since it might be useful later" —
+rejected per the reasoning above; it is easier to add a field later behind
+an actual privacy-policy decision than to have collected it without one
+from day one.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -1815,3 +2085,8 @@ PostgreSQL (production) separately.
 | Template updates: additive changes auto-apply by default, everything else requires explicit review or is blocked | Decided, implemented |
 | Staff management grants immediate ACTIVE access on add; token-based invitation acceptance is out of scope | Decided, implemented |
 | Inventory is an append-only `StockMovement` ledger; order stock mutation targets variant stock when a variant is ordered, and cancellation restocks | Decided, implemented |
+| Coupon is Store-owned; code uniqueness is per-Store, not global | Decided, implemented |
+| Refund amounts computed from immutable Order snapshot; only manual refund execution is real, gateway execution honestly rejected | Decided, implemented |
+| Return requests get their own explicit state machine, separate from Order.status | Decided, implemented |
+| Order financial/return state is derived from Refund/ReturnRequest rows, never folded into Order.status | Decided, implemented |
+| Audit log is Store-scoped, redacts secrets at write time, deliberately omits IP/User-Agent (no privacy policy backs it) | Decided, implemented |

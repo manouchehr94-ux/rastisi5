@@ -79,14 +79,14 @@ class CreateOrderFromCartTests(TestCase):
             )
 
     def test_create_order_increments_coupon_used_count_when_applied(self):
-        coupon = Coupon.objects.create(code="STYLE20", type=Coupon.Type.PERCENT, value=20)
+        coupon = Coupon.objects.create(store=self.store, code="STYLE20", type=Coupon.Type.PERCENT, value=20)
         self._create(coupon=coupon)
         coupon.refresh_from_db()
         self.assertEqual(coupon.used_count, 1)
 
     def test_create_order_does_not_increment_coupon_used_count_when_not_applicable(self):
         coupon = Coupon.objects.create(
-            code="BIG500", type=Coupon.Type.FIXED, value=100_000, min_order=Decimal("5000000")
+            store=self.store, code="BIG500", type=Coupon.Type.FIXED, value=100_000, min_order=Decimal("5000000")
         )
         order = self._create(coupon=coupon)
         coupon.refresh_from_db()

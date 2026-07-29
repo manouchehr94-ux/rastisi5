@@ -1,0 +1,74 @@
+"""مدیریت کد تخفیف — Store-owned (ADR-32).
+
+هر عملیات این ماژول صریحاً روی ``store`` مشخص عمل می‌کند؛ هیچ کوئری‌ای
+بدون فیلتر ``store`` روی ``Coupon`` اجرا نمی‌شود — این تنها لایه‌ای است که
+دیدِ پنل مدیریت به کدهای تخفیف را می‌سازد.
+"""
+
+from django.core.exceptions import ValidationError
+from django.db import transaction
+
+from apps.cart.models import Coupon
+from apps.core.services.audit_service import record_audit_event
+
+
+class CouponError(Exception):
+    """خطای قابل‌نمایش هنگام مدیریت کد تخفیف."""
+
+
+def list_coupons(store):
+    return Coupon.objects.filter(store=store).order_by("-created_at")
+
+
+@transaction.atomic
+def create_coupon(store, *, actor=None, **fields) -> Coupon:
+    coupon = Coupon(store=store, **fields)
+    try:
+        coupon.full_clean()
+    except ValidationError as exc:
+        raise CouponError("؛ ".join(sum(exc.message_dict.values(), []))) from exc
+    coupon.save()
+    record_audit_event(
+        store=store, actor=actor, action_code="coupon.created",
+        object_type="Coupon", object_id=coupon.pk, object_label=coupon.code,
+        after={"type": coupon.type, "value": str(coupon.value)},
+    )
+    return coupon
+
+
+@transaction.atomic
+def update_coupon(coupon: Coupon, *, actor=None, **fields) -> Coupon:
+    before = {"type": coupon.type, "value": str(coupon.value), "is_active": coupon.is_active}
+    for key, value in fields.items():
+        setattr(coupon, key, value)
+    try:
+        coupon.full_clean()
+    except ValidationError as exc:
+        raise CouponError("؛ ".join(sum(exc.message_dict.values(), []))) from exc
+    coupon.save()
+    record_audit_event(
+        store=coupon.store, actor=actor, action_code="coupon.updated",
+        object_type="Coupon", object_id=coupon.pk, object_label=coupon.code,
+        before=before, after={"type": coupon.type, "value": str(coupon.value), "is_active": coupon.is_active},
+    )
+    return coupon
+
+
+def toggle_coupon_active(coupon: Coupon, *, actor=None) -> Coupon:
+    coupon.is_active = not coupon.is_active
+    coupon.save(update_fields=["is_active", "updated_at"])
+    record_audit_event(
+        store=coupon.store, actor=actor, action_code="coupon.toggled",
+        object_type="Coupon", object_id=coupon.pk, object_label=coupon.code,
+        after={"is_active": coupon.is_active},
+    )
+    return coupon
+
+
+def delete_coupon(coupon: Coupon, *, actor=None) -> None:
+    store, code, pk = coupon.store, coupon.code, coupon.pk
+    coupon.delete()
+    record_audit_event(
+        store=store, actor=actor, action_code="coupon.archived",
+        object_type="Coupon", object_id=pk, object_label=code,
+    )

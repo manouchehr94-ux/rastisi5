@@ -664,13 +664,27 @@ plan enforcement همچنان باقی مانده**
 - SMS eventهای مرتبط؛
 - dashboard views پایه.
 
+### موجود (افزوده در Admin Panel Completion Program checkpoint 2)
+
+- **استرداد (Refund)** — `apps.orders.models.Refund`/`RefundItem` +
+  `apps.orders.services.refund_service` (ADR-33): برنامه‌ریزی/اجرای
+  استردادِ کامل یا جزئی (برحسبِ قلم و/یا هزینه‌ی ارسال)، محاسبه از رویِ
+  اسنپ‌شاتِ غیرقابل‌تغییرِ سفارش، جلوگیریِ کامل از استردادِ بیش‌ازحد/تکراری،
+  فقط اجرای واقعیِ روشِ دستی (بدون ادعای انتقالِ خودکارِ پول از طریقِ
+  درگاه)، UI کامل از صفحه‌ی جزئیاتِ سفارش؛
+- **درخواستِ مرجوعی (Return Request)** — `ReturnRequest`/`ReturnItem` +
+  `apps.orders.services.return_service` (ADR-34): گردشِ وضعیتِ صریح
+  (درخواست→بررسی→تأیید/رد→ارسال→دریافت→بازرسی→تکمیل)، اعتبارسنجیِ کاملِ
+  تعداد، یکپارچگی با دفترِ موجودی (بازگشتِ موجودیِ اقلامِ قابل‌بازگشت) و
+  استرداد (در تکمیلِ مرجوعی)، UI کاملِ پنل مدیریت؛
+- **خلاصه‌ی مالیِ سفارش** در صفحه‌ی جزئیاتِ سفارش — مبلغِ پرداخت‌شده/
+  مستردشده/حداکثرِ قابل‌استرداد، همیشه محاسبه‌شده از رویِ ردیف‌های واقعی
+  (نه یک فیلدِ ذخیره‌شده که ممکن است desync شود — ADR-35).
+
 ### ناقص
 
 - order number per Store؛
 - fulfillment workflow؛
-- refund (لغو سفارش اکنون موجودی را صحیح بازمی‌گرداند — Admin Panel
-  Completion Program، ADR-31 — اما بازپرداختِ مالی/جزئی همچنان مدل یا
-  UI ندارد)؛
 - invoice lifecycle؛
 - immutable financial snapshot کامل؛
 - stock reservation (رزرو موجودی هنگام افزودن به سبد، پیش از تکمیل
@@ -678,8 +692,11 @@ plan enforcement همچنان باقی مانده**
   نگاه کنید به ۱۱.۲)؛
 - manual order creation contract؛
 - order export؛
-- return/exchange؛
-- fraud controls.
+- exchange (تعویضِ کالا به‌جای استرداد — `ReturnItem.Resolution.REPLACE`
+  به‌عنوان مقدار وجود دارد اما هیچ گردش‌کارِ خودکاری پشتِ آن پیاده‌سازی
+  نشده)؛
+- fraud controls؛
+- گیتوی واقعیِ استرداد (فقط اجرای دستی واقعی است — نگاه کنید به ADR-33).
 
 > این بخش پیش از Admin Panel Completion Program نوشته شده و چند مورد
 > («authoritative state machine»، «transition service واحد»،
@@ -923,12 +940,13 @@ Storefront theme و Merchant Admin theme باید مستقل باشند.
 
 ### موجود
 
-- Coupon پایه؛
-- بخشی از pricing application.
+- Coupon پایه (کد، درصدی/مبلغ‌ثابت/ارسال‌رایگان، حداقل سفارش، سقف استفاده، انقضا)؛
+- بخشی از pricing application؛
+- **Store ownership** (Admin Panel Completion Program checkpoint 2، ADR-32) — کد تخفیف اکنون به یک Store تعلق دارد، یکتاییِ کد per-Store است (نه سراسری)، و تمام نقاطِ جست‌وجو (checkout، پنل مدیریت) با `store` فیلتر می‌شوند؛
+- **UI کاملِ پنل مدیریت** (`/admin-portal/coupons/`) — فهرست/افزودن/ویرایش/فعال‌سازی/حذف، پرمیشن `COUPON_VIEW`/`DISCOUNT_MANAGE`، ایزوله‌سازیِ کاملِ بین‌فروشگاهی.
 
 ### ناقص
 
-- Store ownership؛
 - campaign؛
 - usage limits؛
 - customer eligibility؛
@@ -958,7 +976,16 @@ Storefront theme و Merchant Admin theme باید مستقل باشند.
 - SVG charts؛
 - report serviceهای اولیه؛
 - recent orders/products؛
-- برخی آمار فروش.
+- برخی آمار فروش؛
+- **دفتر حسابرسی (Audit Log)** — `apps.core.models.AuditLogEntry` +
+  `apps.core.services.audit_service` (ADR-36؛ Admin Panel Completion
+  Program checkpoint 2): رخدادِ Store-scoped، تغییرناپذیر، با
+  actor/action_code/object/before-after/metadata، حذفِ خودکارِ کلیدهای
+  حساس (رمز/توکن/کارت) پیش از ذخیره، idempotent در برابر retry (کلیدِ
+  درخواست)؛ یکپارچه‌شده با اعضای تیم (افزودن/تغییرِ نقش/لغو/فعال‌سازیِ
+  مجدد/انتقالِ مالکیت)، اصلاحِ دستیِ موجودی، لغوِ سفارش، و چرخه‌ی کاملِ
+  استرداد/مرجوعی؛ UI کاملِ پنل مدیریت با جست‌وجو/فیلترِ عملیات/صفحه‌بندی،
+  پرمیشن `AUDIT_LOG_VIEW`.
 
 ### ناقص
 
@@ -968,12 +995,10 @@ Storefront theme و Merchant Admin theme باید مستقل باشند.
 - export jobs؛
 - large dataset pagination؛
 - date/timezone policy؛
-- audit log عمومی؛
-- actor/IP/user-agent؛
-- before/after values؛
+- IP/user-agent در دفترِ حسابرسی (عمداً حذف شده — نگاه کنید به ADR-36:
+  هیچ سیاست حریم خصوصیِ مصوبی برای نگه‌داریِ این داده‌ها وجود ندارد)؛
 - report permissions؛
-- scheduled reports؛
-- immutable activity ledger.
+- scheduled reports.
 
 ### وضعیت
 

@@ -1,6 +1,17 @@
 from django.contrib import admin
 
-from .models import Order, OrderItem, OrderStatusHistory, PaymentGateway, ShippingMethod, Transaction
+from .models import (
+    Order,
+    OrderItem,
+    OrderStatusHistory,
+    PaymentGateway,
+    Refund,
+    RefundItem,
+    ReturnItem,
+    ReturnRequest,
+    ShippingMethod,
+    Transaction,
+)
 
 
 @admin.register(ShippingMethod)
@@ -83,3 +94,43 @@ class OrderStatusHistoryAdmin(ReadOnlyFinancialRecordMixin, admin.ModelAdmin):
     list_display = ("order", "from_status", "to_status", "changed_by", "created_at")
     list_filter = ("to_status",)
     search_fields = ("order__code",)
+
+
+class RefundItemInline(admin.TabularInline):
+    model = RefundItem
+    extra = 0
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Refund)
+class RefundAdmin(ReadOnlyFinancialRecordMixin, admin.ModelAdmin):
+    """نگاه کنید به ADR-33 — استرداد فقط از طریق
+    ``apps.orders.services.refund_service`` ساخته/اجرا می‌شود."""
+
+    list_display = ("order", "store", "status", "requested_amount", "approved_amount", "refund_method", "created_at")
+    list_filter = ("status", "refund_method", "reason", "store")
+    search_fields = ("order__code",)
+    inlines = [RefundItemInline]
+
+
+class ReturnItemInline(admin.TabularInline):
+    model = ReturnItem
+    extra = 0
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ReturnRequest)
+class ReturnRequestAdmin(ReadOnlyFinancialRecordMixin, admin.ModelAdmin):
+    """نگاه کنید به ADR-34 — گردشِ وضعیتِ مرجوعی فقط از طریق
+    ``apps.orders.services.return_service`` اعمال می‌شود."""
+
+    list_display = ("return_number", "order", "customer", "status", "reason", "created_at")
+    list_filter = ("status", "reason", "store")
+    search_fields = ("return_number", "order__code", "customer__full_name")
+    inlines = [ReturnItemInline]

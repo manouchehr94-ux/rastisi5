@@ -77,14 +77,14 @@ class PricingServiceTests(TestCase):
 
     def test_cart_totals_percent_coupon(self):
         self._add_item(price=100_000, quantity=2)  # items_total 200,000
-        coupon = Coupon.objects.create(code="STYLE20", type=Coupon.Type.PERCENT, value=20)
+        coupon = Coupon.objects.create(store=self.store, code="STYLE20", type=Coupon.Type.PERCENT, value=20)
         totals = cart_totals(self.cart, store=self.store, coupon=coupon, shipping_method=self.shipping)
         self.assertTrue(totals["coupon_applied"])
         self.assertEqual(totals["coupon_discount"], Decimal("40000"))
 
     def test_cart_totals_fixed_coupon_capped_at_items_total(self):
         self._add_item(price=100_000, quantity=1)  # items_total 100,000
-        coupon = Coupon.objects.create(code="DIGI50", type=Coupon.Type.FIXED, value=500_000)
+        coupon = Coupon.objects.create(store=self.store, code="DIGI50", type=Coupon.Type.FIXED, value=500_000)
         totals = cart_totals(self.cart, store=self.store, coupon=coupon, shipping_method=self.shipping)
         self.assertEqual(totals["coupon_discount"], Decimal("100000"))
         self.assertEqual(totals["tax"], Decimal("0"))  # after_coupon == 0
@@ -95,14 +95,14 @@ class PricingServiceTests(TestCase):
 
     def test_cart_totals_free_ship_coupon_forces_zero_shipping(self):
         self._add_item(price=100_000, quantity=1)  # below threshold
-        coupon = Coupon.objects.create(code="FREESHIP", type=Coupon.Type.FREE_SHIP, value=0)
+        coupon = Coupon.objects.create(store=self.store, code="FREESHIP", type=Coupon.Type.FREE_SHIP, value=0)
         totals = cart_totals(self.cart, store=self.store, coupon=coupon, shipping_method=self.shipping)
         self.assertTrue(totals["free_shipping"])
         self.assertEqual(totals["shipping_cost"], Decimal("0"))
 
     def test_coupon_not_applicable_when_inactive(self):
         self._add_item(price=100_000, quantity=1)
-        coupon = Coupon.objects.create(code="OFF10", type=Coupon.Type.PERCENT, value=10, is_active=False)
+        coupon = Coupon.objects.create(store=self.store, code="OFF10", type=Coupon.Type.PERCENT, value=10, is_active=False)
         totals = cart_totals(self.cart, store=self.store, coupon=coupon, shipping_method=self.shipping)
         self.assertFalse(totals["coupon_applied"])
         self.assertEqual(totals["coupon_discount"], Decimal("0"))
@@ -110,21 +110,21 @@ class PricingServiceTests(TestCase):
     def test_coupon_not_applicable_when_expired(self):
         self._add_item(price=100_000, quantity=1)
         coupon = Coupon.objects.create(
-            code="OLD10", type=Coupon.Type.PERCENT, value=10,
+            store=self.store, code="OLD10", type=Coupon.Type.PERCENT, value=10,
             expires_at=timezone.now() - timezone.timedelta(days=1),
         )
         self.assertFalse(coupon_is_applicable(coupon, Decimal("100000")))
 
     def test_coupon_not_applicable_below_min_order(self):
         self._add_item(price=50_000, quantity=1)
-        coupon = Coupon.objects.create(code="BIG100", type=Coupon.Type.FIXED, value=100_000, min_order=200_000)
+        coupon = Coupon.objects.create(store=self.store, code="BIG100", type=Coupon.Type.FIXED, value=100_000, min_order=200_000)
         totals = cart_totals(self.cart, store=self.store, coupon=coupon, shipping_method=self.shipping)
         self.assertFalse(totals["coupon_applied"])
 
     def test_coupon_not_applicable_when_usage_limit_reached(self):
         self._add_item(price=100_000, quantity=1)
         coupon = Coupon.objects.create(
-            code="LIMIT1", type=Coupon.Type.PERCENT, value=10, usage_limit=1, used_count=1
+            store=self.store, code="LIMIT1", type=Coupon.Type.PERCENT, value=10, usage_limit=1, used_count=1
         )
         self.assertFalse(coupon_is_applicable(coupon, Decimal("100000")))
 

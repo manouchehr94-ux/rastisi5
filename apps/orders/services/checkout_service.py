@@ -118,12 +118,17 @@ def get_or_create_checkout_token(cart) -> str:
 
 
 def get_applied_coupon(request, cart):
-    """کد تخفیف فعلی نشست را برمی‌گرداند؛ اگر دیگر معتبر نباشد از نشست پاک می‌شود."""
+    """کد تخفیف فعلی نشست را برمی‌گرداند؛ اگر دیگر معتبر نباشد از نشست پاک می‌شود.
+
+    جست‌وجو همیشه با ``store`` فعلی فیلتر می‌شود (ADR-32) — یک کدِ ذخیره‌شده
+    در نشست که به کد تخفیفِ فروشگاه دیگری اشاره کند هرگز نباید در این
+    Store اعمال شود، حتی اگر رشته‌ی کد به‌طور تصادفی یکسان باشد."""
     code = _state(request).get("coupon_code")
     if not code:
         return None
-    coupon = Coupon.objects.filter(code=code).first()
-    totals = cart_totals(cart, store=resolve_store_for_service(request))
+    store = resolve_store_for_service(request)
+    coupon = Coupon.objects.filter(code=code, store=store).first()
+    totals = cart_totals(cart, store=store)
     if coupon is None or not coupon_is_applicable(coupon, totals["items_total"]):
         _state(request).pop("coupon_code", None)
         request.session.modified = True
@@ -135,8 +140,9 @@ def apply_coupon(request, cart, code: str) -> tuple[bool, str]:
     code = (code or "").strip().upper()
     if not code:
         return False, "لطفاً کد تخفیف را وارد کنید"
-    coupon = Coupon.objects.filter(code=code).first()
-    totals = cart_totals(cart, store=resolve_store_for_service(request))
+    store = resolve_store_for_service(request)
+    coupon = Coupon.objects.filter(code=code, store=store).first()
+    totals = cart_totals(cart, store=store)
     if coupon is None or not coupon_is_applicable(coupon, totals["items_total"]):
         return False, "کد تخفیف نامعتبر است یا منقضی شده"
     _state(request)["coupon_code"] = coupon.code

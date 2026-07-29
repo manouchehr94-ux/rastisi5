@@ -17,9 +17,17 @@ class CartAdmin(admin.ModelAdmin):
 
 @admin.register(Coupon)
 class CouponAdmin(admin.ModelAdmin):
-    list_display = ("code", "type", "value", "min_order", "used_count", "usage_limit", "is_active", "expires_at")
-    list_filter = ("type", "is_active")
+    """نگاه کنید به ADR-32 — ``store`` پس از ایجاد فقط‌خواندنی می‌شود تا
+    مالکیتِ کدِ تخفیف از این پنلِ عملیاتی جابه‌جا نشود."""
+
+    list_display = ("code", "store", "type", "value", "min_order", "used_count", "usage_limit", "is_active", "expires_at")
+    list_filter = ("type", "is_active", "store")
     search_fields = ("code", "label")
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is None:
+            return ()
+        return ("store",)
 
 
 @admin.register(CartItem)

@@ -1,5 +1,6 @@
 import re
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -163,3 +164,57 @@ class ShopSettings(TimeStampedModel):
             },
         )
         return obj
+
+
+class AuditLogEntry(models.Model):
+    """رخداد حسابرسیِ Store-owned — یک ردیفِ تغییرناپذیر به‌ازای هر عملیاتِ
+    حساس (نگاه کنید به ADR-36 در ``SAAS_DOMAIN_DECISIONS.md``).
+
+    فقط ``created_at`` دارد، نه ``updated_at`` — یک رخداد حسابرسی هرگز پس از
+    ثبت ویرایش نمی‌شود؛ اگر لازم شود، یک رخداد اصلاحیِ جدید ثبت می‌شود، نه
+    ویرایشِ رکورد قدیمی. ``object_type``/``object_id`` عمداً رشته/عدد ساده‌اند
+    (نه ``ContentType`` جنگو) تا این مدل به هیچ اپ دیگری کوپل نشود و بتواند
+    رخدادهایی که اصلاً به یک ردیفِ دیتابیسی خاص اشاره نمی‌کنند (مثلاً ورود
+    ناموفق) را هم ثبت کند.
+
+    ``ip_address``/``user_agent`` عمداً وجود ندارند: این کدبیس تاکنون هیچ
+    سیاست حریم خصوصیِ مصوبی برای نگه‌داریِ IP/User-Agent کاربران ندارد
+    (نگاه کنید به ADR-36) — افزودنِ این فیلدها بدون چنین تصمیمی، جمع‌آوریِ
+    دادهٔ شخصیِ بی‌سیاست خواهد بود.
+    """
+
+    class ResultStatus(models.TextChoices):
+        SUCCESS = "success", "موفق"
+        FAILURE = "failure", "ناموفق"
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="audit_log_entries",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="انجام‌دهنده", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="audit_log_entries",
+    )
+    action_code = models.CharField("کد عملیات", max_length=60, db_index=True)
+    object_type = models.CharField("نوع شیء", max_length=60, blank=True, default="")
+    object_id = models.CharField("شناسه‌ی شیء", max_length=40, blank=True, default="")
+    object_label = models.CharField("برچسبِ قابل‌خواندنِ شیء", max_length=200, blank=True, default="")
+    before_summary = models.TextField("خلاصه‌ی پیش از تغییر", blank=True, default="")
+    after_summary = models.TextField("خلاصه‌ی پس از تغییر", blank=True, default="")
+    metadata = models.JSONField("فراداده", blank=True, default=dict)
+    request_id = models.CharField("شناسه‌ی درخواست/idempotency", max_length=100, blank=True, default="")
+    result = models.CharField(
+        "نتیجه", max_length=10, choices=ResultStatus.choices, default=ResultStatus.SUCCESS,
+    )
+    created_at = models.DateTimeField("زمان", auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "رخداد حسابرسی"
+        verbose_name_plural = "گزارش رخدادها"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["store", "-created_at"], name="idx_audit_store_created"),
+            models.Index(fields=["store", "action_code", "-created_at"], name="idx_audit_store_action"),
+        ]
+
+    def __str__(self):
+        return f"{self.action_code} — {self.object_label or self.object_type} ({self.get_result_display()})"

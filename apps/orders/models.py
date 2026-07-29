@@ -555,3 +555,266 @@ class PaymentAttempt(TimeStampedModel):
     @property
     def is_successful(self) -> bool:
         return self.status == self.Status.SUCCEEDED
+
+
+# ===========================================================================
+# Refund domain (Admin Panel Completion Program checkpoint 2 — ADR-33/34)
+# ===========================================================================
+
+
+class Refund(TimeStampedModel):
+    """درخواست/اجرای استردادِ (کامل یا جزئیِ) یک سفارش.
+
+    مبالغ این مدل از رویِ اسنپ‌شاتِ غیرقابل‌تغییرِ ``Order`` (نه قیمتِ فعلیِ
+    Product) محاسبه می‌شوند — نگاه کنید به
+    ``apps.orders.services.refund_service.plan_order_refund`` و ADR-33.
+    هیچ درگاه پرداختِ واقعیِ این کدبیس، اجرای واقعیِ استرداد را پیاده‌سازی
+    نکرده؛ ``refund_method=MANUAL`` صادقانه یعنی «واریزِ خارج از سیستم توسط
+    مدیر»، نه انتقالِ خودکارِ پول — نگاه کنید به ADR-33.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "در انتظار"
+        APPROVED = "approved", "تأییدشده"
+        PROCESSING = "processing", "در حال پردازش"
+        SUCCEEDED = "succeeded", "موفق"
+        FAILED = "failed", "ناموفق"
+        CANCELLED = "cancelled", "لغوشده"
+
+    class Method(models.TextChoices):
+        MANUAL = "manual", "دستی (واریز خارج از سیستم)"
+        GATEWAY = "gateway", "درگاه پرداخت"
+
+    class Reason(models.TextChoices):
+        CUSTOMER_REQUEST = "customer_request", "درخواست مشتری"
+        DEFECTIVE_ITEM = "defective_item", "کالای معیوب"
+        WRONG_ITEM_SHIPPED = "wrong_item_shipped", "ارسال کالای اشتباه"
+        ORDER_CANCELLED = "order_cancelled", "لغو سفارش"
+        OTHER = "other", "سایر"
+
+    FINAL_STATUSES = {Status.SUCCEEDED, Status.FAILED, Status.CANCELLED}
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.PROTECT, related_name="refunds",
+    )
+    order = models.ForeignKey(Order, verbose_name="سفارش", on_delete=models.PROTECT, related_name="refunds")
+
+    requested_amount = models.DecimalField("مبلغ درخواستی", max_digits=14, decimal_places=0)
+    approved_amount = models.DecimalField("مبلغ تأییدشده", max_digits=14, decimal_places=0, null=True, blank=True)
+    shipping_refund_amount = models.DecimalField(
+        "استردادِ هزینه‌ی ارسال", max_digits=12, decimal_places=0, default=0,
+    )
+    currency = models.CharField("واحد پول", max_length=8, default="IRT")
+
+    reason = models.CharField("علت", max_length=30, choices=Reason.choices, default=Reason.CUSTOMER_REQUEST)
+    merchant_note = models.TextField("یادداشت مدیر", blank=True, default="")
+
+    status = models.CharField("وضعیت", max_length=12, choices=Status.choices, default=Status.PENDING)
+    refund_method = models.CharField("روش استرداد", max_length=10, choices=Method.choices, default=Method.MANUAL)
+    gateway_transaction_ref = models.CharField("شماره ارجاعِ درگاه", max_length=100, blank=True, default="")
+
+    restock = models.BooleanField("بازگرداندنِ موجودی", default=False)
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="انجام‌دهنده", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="refunds_created",
+    )
+    completed_at = models.DateTimeField("زمان تکمیل", null=True, blank=True)
+    failure_reason = models.TextField("علت شکست", blank=True, default="")
+    idempotency_key = models.CharField("کلید یکتای درخواست", max_length=64, blank=True, default="")
+
+    class Meta:
+        verbose_name = "استرداد"
+        verbose_name_plural = "استردادها"
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(check=models.Q(requested_amount__gte=0), name="refund_requested_amount_non_negative"),
+            models.CheckConstraint(
+                check=models.Q(approved_amount__isnull=True) | models.Q(approved_amount__gte=0),
+                name="refund_approved_amount_non_negative",
+            ),
+            models.UniqueConstraint(
+                fields=["idempotency_key"],
+                condition=~models.Q(idempotency_key=""),
+                name="uniq_refund_idempotency_key_when_set",
+            ),
+        ]
+
+    def __str__(self):
+        return f"استرداد #{self.pk} — {self.order.code} ({self.get_status_display()})"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.order_id and self.store_id and self.order.store_id != self.store_id:
+            raise ValidationError({"order": "این سفارش متعلق به فروشگاه دیگری است."})
+
+
+class RefundItem(TimeStampedModel):
+    """سهم هر قلمِ سفارش از یک استرداد."""
+
+    refund = models.ForeignKey(Refund, verbose_name="استرداد", on_delete=models.CASCADE, related_name="items")
+    order_item = models.ForeignKey(
+        OrderItem, verbose_name="قلمِ سفارش", on_delete=models.PROTECT, related_name="refund_items",
+    )
+    quantity = models.PositiveIntegerField("تعداد")
+    amount = models.DecimalField("مبلغ", max_digits=14, decimal_places=0)
+
+    class Meta:
+        verbose_name = "قلمِ استرداد"
+        verbose_name_plural = "اقلامِ استرداد"
+        constraints = [
+            models.CheckConstraint(check=models.Q(quantity__gt=0), name="refund_item_quantity_positive"),
+            models.CheckConstraint(check=models.Q(amount__gte=0), name="refund_item_amount_non_negative"),
+        ]
+
+    def __str__(self):
+        return f"{self.order_item.product_name} × {self.quantity}"
+
+
+# ===========================================================================
+# Return Request domain (Admin Panel Completion Program checkpoint 2 — ADR-34)
+# ===========================================================================
+
+
+class ReturnRequest(TimeStampedModel):
+    """درخواستِ مرجوعیِ (کامل یا جزئیِ) یک سفارش — گردشِ وضعیتِ صریح.
+
+    ``created_at`` (از ``TimeStampedModel``) همان «زمانِ درخواست» است؛
+    زمان‌های approved/received/completed/rejected به‌صورت جداگانه ثبت
+    می‌شوند چون یک درخواست ممکن است بین آن‌ها روزها فاصله بیفتد."""
+
+    class Status(models.TextChoices):
+        REQUESTED = "requested", "درخواست‌شده"
+        UNDER_REVIEW = "under_review", "در حال بررسی"
+        APPROVED = "approved", "تأییدشده"
+        REJECTED = "rejected", "ردشده"
+        IN_TRANSIT = "in_transit", "در حال ارسال"
+        RECEIVED = "received", "دریافت‌شده"
+        INSPECTED = "inspected", "بازرسی‌شده"
+        COMPLETED = "completed", "تکمیل‌شده"
+        CANCELLED = "cancelled", "لغوشده"
+
+    class Reason(models.TextChoices):
+        CUSTOMER_REQUEST = "customer_request", "انصراف مشتری"
+        DEFECTIVE_ITEM = "defective_item", "کالای معیوب"
+        WRONG_ITEM_SHIPPED = "wrong_item_shipped", "ارسال کالای اشتباه"
+        SIZE_OR_FIT = "size_or_fit", "عدم تطابق سایز/اندازه"
+        OTHER = "other", "سایر"
+
+    ALLOWED_TRANSITIONS = {
+        Status.REQUESTED: {Status.UNDER_REVIEW, Status.APPROVED, Status.REJECTED, Status.CANCELLED},
+        Status.UNDER_REVIEW: {Status.APPROVED, Status.REJECTED, Status.CANCELLED},
+        Status.APPROVED: {Status.IN_TRANSIT, Status.RECEIVED, Status.CANCELLED},
+        Status.IN_TRANSIT: {Status.RECEIVED, Status.CANCELLED},
+        Status.RECEIVED: {Status.INSPECTED, Status.CANCELLED},
+        Status.INSPECTED: {Status.COMPLETED, Status.CANCELLED},
+        Status.REJECTED: set(),
+        Status.COMPLETED: set(),
+        Status.CANCELLED: set(),
+    }
+    FINAL_STATUSES = {Status.REJECTED, Status.COMPLETED, Status.CANCELLED}
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.PROTECT, related_name="return_requests",
+    )
+    order = models.ForeignKey(Order, verbose_name="سفارش", on_delete=models.PROTECT, related_name="return_requests")
+    customer = models.ForeignKey(
+        "customers.Customer", verbose_name="مشتری", on_delete=models.PROTECT, related_name="return_requests",
+    )
+    return_number = models.CharField("شماره مرجوعی", max_length=24)
+
+    status = models.CharField("وضعیت", max_length=12, choices=Status.choices, default=Status.REQUESTED)
+    reason = models.CharField("علت", max_length=30, choices=Reason.choices, default=Reason.CUSTOMER_REQUEST)
+    customer_explanation = models.TextField("توضیح مشتری", blank=True, default="")
+    merchant_note = models.TextField("یادداشت مدیر", blank=True, default="")
+    inspection_result = models.TextField("نتیجه‌ی بازرسی", blank=True, default="")
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="آخرین انجام‌دهنده", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="return_requests_handled",
+    )
+    refund = models.OneToOneField(
+        Refund, verbose_name="استردادِ مرتبط", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="return_request",
+    )
+
+    approved_at = models.DateTimeField("زمان تأیید", null=True, blank=True)
+    received_at = models.DateTimeField("زمان دریافت", null=True, blank=True)
+    completed_at = models.DateTimeField("زمان تکمیل", null=True, blank=True)
+    rejected_at = models.DateTimeField("زمان رد", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "درخواست مرجوعی"
+        verbose_name_plural = "درخواست‌های مرجوعی"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "return_number"], name="uniq_return_number_per_store"),
+        ]
+
+    def __str__(self):
+        return f"{self.return_number} — {self.order.code}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        errors = {}
+        if self.order_id and self.store_id and self.order.store_id != self.store_id:
+            errors["order"] = "این سفارش متعلق به فروشگاه دیگری است."
+        if errors:
+            raise ValidationError(errors)
+
+
+class ReturnItem(TimeStampedModel):
+    class Condition(models.TextChoices):
+        NEW = "new", "نو / بازکردنی نشده"
+        OPENED = "opened", "بازشده، سالم"
+        DAMAGED = "damaged", "آسیب‌دیده"
+        DEFECTIVE = "defective", "معیوب"
+
+    class Resolution(models.TextChoices):
+        REFUND = "refund", "استرداد وجه"
+        REPLACE = "replace", "تعویض"
+        REJECT = "reject", "رد مرجوعی"
+
+    return_request = models.ForeignKey(
+        ReturnRequest, verbose_name="درخواست مرجوعی", on_delete=models.CASCADE, related_name="items",
+    )
+    order_item = models.ForeignKey(
+        OrderItem, verbose_name="قلمِ سفارش", on_delete=models.PROTECT, related_name="return_items",
+    )
+    quantity_requested = models.PositiveIntegerField("تعداد درخواستی")
+    quantity_approved = models.PositiveIntegerField("تعداد تأییدشده", null=True, blank=True)
+    quantity_received = models.PositiveIntegerField("تعداد دریافت‌شده", null=True, blank=True)
+    condition = models.CharField("وضعیت کالا", max_length=10, choices=Condition.choices, blank=True, default="")
+    is_restockable = models.BooleanField("قابل بازگشت به موجودی", default=False)
+    merchant_resolution = models.CharField(
+        "تصمیمِ مدیر", max_length=10, choices=Resolution.choices, blank=True, default="",
+    )
+    refund_amount = models.DecimalField("مبلغ استردادیِ این قلم", max_digits=14, decimal_places=0, default=0)
+    rejection_reason = models.TextField("علت رد", blank=True, default="")
+    restocked_at = models.DateTimeField("زمان بازگشت به موجودی", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "قلمِ مرجوعی"
+        verbose_name_plural = "اقلامِ مرجوعی"
+        constraints = [
+            models.CheckConstraint(check=models.Q(quantity_requested__gt=0), name="return_item_quantity_requested_positive"),
+            models.CheckConstraint(
+                check=models.Q(quantity_approved__isnull=True) | models.Q(quantity_approved__lte=models.F("quantity_requested")),
+                name="return_item_approved_lte_requested",
+            ),
+            models.CheckConstraint(
+                check=(
+                    models.Q(quantity_received__isnull=True)
+                    | (
+                        models.Q(quantity_approved__isnull=False)
+                        & models.Q(quantity_received__lte=models.F("quantity_approved"))
+                    )
+                ),
+                name="return_item_received_lte_approved",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.order_item.product_name} × {self.quantity_requested}"

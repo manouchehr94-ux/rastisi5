@@ -19,6 +19,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from apps.core.services.audit_service import record_audit_event
 from apps.stores.models import StoreMembership
 
 User = get_user_model()
@@ -123,25 +124,36 @@ def add_staff_member(store, *, phone: str, role: str, invited_by) -> StoreMember
     except ValidationError as exc:
         raise MembershipError("؛ ".join(sum(exc.message_dict.values(), []))) from exc
     membership.save()
+    record_audit_event(
+        store=store, actor=invited_by, action_code="staff.added",
+        object_type="StoreMembership", object_id=membership.pk, object_label=phone,
+        after={"role": role},
+    )
     return membership
 
 
 @transaction.atomic
-def change_role(membership: StoreMembership, *, new_role: str) -> StoreMembership:
+def change_role(membership: StoreMembership, *, new_role: str, actor=None) -> StoreMembership:
     if membership.role == StoreMembership.Role.OWNER:
         raise MembershipError("نقشِ مالک را نمی‌توان مستقیماً تغییر داد؛ از «انتقال مالکیت» استفاده کنید.")
     _validate_assignable_role(new_role)
+    old_role = membership.role
     membership.role = new_role
     try:
         membership.full_clean()
     except ValidationError as exc:
         raise MembershipError("؛ ".join(sum(exc.message_dict.values(), []))) from exc
     membership.save(update_fields=["role", "updated_at"])
+    record_audit_event(
+        store=membership.store, actor=actor, action_code="staff.role_changed",
+        object_type="StoreMembership", object_id=membership.pk, object_label=membership.user.username,
+        before={"role": old_role}, after={"role": new_role},
+    )
     return membership
 
 
 @transaction.atomic
-def revoke_membership(membership: StoreMembership) -> StoreMembership:
+def revoke_membership(membership: StoreMembership, *, actor=None) -> StoreMembership:
     if membership.role == StoreMembership.Role.OWNER:
         raise MembershipError("نمی‌توان مالکِ فروشگاه را حذف کرد؛ ابتدا مالکیت را به عضوِ دیگری منتقل کنید.")
     if membership.status == StoreMembership.MembershipStatus.REVOKED:
@@ -153,11 +165,15 @@ def revoke_membership(membership: StoreMembership) -> StoreMembership:
     except ValidationError as exc:
         raise MembershipError("؛ ".join(sum(exc.message_dict.values(), []))) from exc
     membership.save(update_fields=["status", "revoked_at", "updated_at"])
+    record_audit_event(
+        store=membership.store, actor=actor, action_code="staff.revoked",
+        object_type="StoreMembership", object_id=membership.pk, object_label=membership.user.username,
+    )
     return membership
 
 
 @transaction.atomic
-def reactivate_membership(membership: StoreMembership) -> StoreMembership:
+def reactivate_membership(membership: StoreMembership, *, actor=None) -> StoreMembership:
     if membership.status == StoreMembership.MembershipStatus.ACTIVE:
         raise MembershipError("این عضویت هم‌اکنون فعال است.")
     membership.status = StoreMembership.MembershipStatus.ACTIVE
@@ -168,11 +184,15 @@ def reactivate_membership(membership: StoreMembership) -> StoreMembership:
     except ValidationError as exc:
         raise MembershipError("؛ ".join(sum(exc.message_dict.values(), []))) from exc
     membership.save(update_fields=["status", "accepted_at", "revoked_at", "updated_at"])
+    record_audit_event(
+        store=membership.store, actor=actor, action_code="staff.reactivated",
+        object_type="StoreMembership", object_id=membership.pk, object_label=membership.user.username,
+    )
     return membership
 
 
 @transaction.atomic
-def transfer_ownership(store, *, current_owner: StoreMembership, new_owner: StoreMembership) -> None:
+def transfer_ownership(store, *, current_owner: StoreMembership, new_owner: StoreMembership, actor=None) -> None:
     """مالکیتِ فروشگاه را از ``current_owner`` به ``new_owner`` منتقل می‌کند.
 
     هر دو ردیف قفل و به‌ترتیب به‌روزرسانی می‌شوند (ابتدا خلعِ مالکِ فعلی،
@@ -195,3 +215,8 @@ def transfer_ownership(store, *, current_owner: StoreMembership, new_owner: Stor
     current.save(update_fields=["role", "updated_at"])
     new.role = StoreMembership.Role.OWNER
     new.save(update_fields=["role", "updated_at"])
+    record_audit_event(
+        store=store, actor=actor, action_code="staff.ownership_transferred",
+        object_type="StoreMembership", object_id=new.pk, object_label=new.user.username,
+        before={"previous_owner": current.user.username}, after={"new_owner": new.user.username},
+    )

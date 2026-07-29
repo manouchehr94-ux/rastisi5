@@ -64,6 +64,16 @@ from apps.catalog.services.industry_template_service import (
     install_industry_template,
 )
 from apps.catalog.services.inventory_service import list_stock_movements
+from apps.core.services.audit_service import list_audit_events
+from apps.cart.models import Coupon
+from apps.cart.services.coupon_service import (
+    CouponError,
+    create_coupon,
+    delete_coupon,
+    list_coupons,
+    toggle_coupon_active,
+    update_coupon,
+)
 from apps.catalog.services.pricing_service import resolve_effective_price
 from apps.catalog.services.product_publish_service import validate_product_for_publish
 from apps.catalog.services.product_specification_service import build_product_specification
@@ -111,8 +121,26 @@ from apps.core.utils import normalize_digits
 from apps.core.models import ShopSettings
 from apps.core.theme_presets import THEME_PRESETS, matching_preset_key
 from apps.customers.models import Customer
-from apps.orders.models import Order, OrderItem, Transaction
+from apps.orders.models import Order, OrderItem, Refund, ReturnRequest, Transaction
 from apps.orders.services.order_service import change_order_status
+from apps.orders.services.refund_service import (
+    RefundError,
+    execute_order_refund,
+    paid_amount,
+    plan_order_refund,
+    refundable_amount,
+    refunded_total,
+)
+from apps.orders.services.return_service import (
+    ReturnError,
+    approve_return_request,
+    complete_return,
+    create_return_request,
+    inspect_return_items,
+    mark_return_received,
+    reject_return_request,
+    review_return_request,
+)
 from apps.sms.events import EVENT_VARIABLES
 from apps.sms.models import SmsTemplate
 from apps.sms.services.sms_service import SmsTemplateError, send_test_sms
@@ -134,7 +162,10 @@ from apps.stores.authorization import (
     CATEGORY_MANAGE,
     CONTENT_MANAGE,
     CUSTOMER_VIEW,
+    AUDIT_LOG_VIEW,
+    COUPON_VIEW,
     DASHBOARD_VIEW,
+    DISCOUNT_MANAGE,
     INVENTORY_MANAGE,
     MEDIA_MANAGE,
     ORDER_STATUS_CHANGE,
@@ -144,7 +175,11 @@ from apps.stores.authorization import (
     PRODUCT_DELETE,
     PRODUCT_EDIT,
     PRODUCT_VIEW,
+    REFUND_MANAGE,
+    REFUND_VIEW,
     REPORTS_VIEW,
+    RETURN_MANAGE,
+    RETURN_VIEW,
     SETTINGS_MANAGE,
     SMS_SETTINGS_MANAGE,
     STAFF_MANAGE,
@@ -1777,6 +1812,8 @@ def order_detail(request, code):
 
     context = _order_detail_context(order)
     context["active_page"] = "orders"
+    context["can_manage_refunds"] = membership_has_permission(request.store_membership, REFUND_MANAGE)
+    context["can_manage_returns"] = membership_has_permission(request.store_membership, RETURN_MANAGE)
     return render(request, "dashboard/order_detail.html", context)
 
 
@@ -1788,6 +1825,11 @@ def _order_detail_context(order):
         "next_status_options": next_status_options(order),
         "is_final": order_is_final(order),
         "status_steps": order_status_steps(order),
+        "paid_amount": paid_amount(order),
+        "refunded_amount": refunded_total(order),
+        "refundable_amount": refundable_amount(order),
+        "refunds": order.refunds.select_related("actor").order_by("-created_at"),
+        "return_requests": order.return_requests.order_by("-created_at"),
     }
 
 
@@ -3467,7 +3509,7 @@ def staff_change_role(request, pk):
     membership = _dashboard_membership_or_404(request.store, pk)
     new_role = request.POST.get("role", "")
     try:
-        change_role(membership, new_role=new_role)
+        change_role(membership, new_role=new_role, actor=request.user)
         messages.success(request, f"نقشِ «{membership.user.username}» به‌روزرسانی شد")
     except MembershipError as exc:
         messages.error(request, str(exc))
@@ -3488,7 +3530,7 @@ def staff_revoke(request, pk):
             "active_page": "staff",
         })
     try:
-        revoke_membership(membership)
+        revoke_membership(membership, actor=request.user)
         messages.success(request, f"عضویتِ «{membership.user.username}» لغو شد")
     except MembershipError as exc:
         messages.error(request, str(exc))
@@ -3501,7 +3543,7 @@ def staff_revoke(request, pk):
 def staff_reactivate(request, pk):
     membership = _dashboard_membership_or_404(request.store, pk)
     try:
-        reactivate_membership(membership)
+        reactivate_membership(membership, actor=request.user)
         messages.success(request, f"عضویتِ «{membership.user.username}» دوباره فعال شد")
     except MembershipError as exc:
         messages.error(request, str(exc))
@@ -3524,7 +3566,7 @@ def staff_transfer_ownership(request, pk):
             "active_page": "staff",
         })
     try:
-        transfer_ownership(request.store, current_owner=current_owner, new_owner=new_owner)
+        transfer_ownership(request.store, current_owner=current_owner, new_owner=new_owner, actor=request.user)
         messages.success(request, f"مالکیتِ فروشگاه به «{new_owner.user.username}» منتقل شد")
     except MembershipError as exc:
         messages.error(request, str(exc))
@@ -3575,3 +3617,389 @@ def inventory_list(request):
 @permission_required(INVENTORY_MANAGE)
 def inventory_table(request):
     return render(request, "dashboard/partials/inventory_table_inner.html", _inventory_list_context(request))
+
+
+# ---------------------------------------------------------------- کدهای تخفیف (Coupons)
+
+COUPON_FORM_FIELDS = ("code", "type", "value", "label", "min_order", "usage_limit", "expires_at", "is_active")
+
+
+@staff_required
+@permission_required(COUPON_VIEW, DISCOUNT_MANAGE)
+def coupon_list(request):
+    coupons = list_coupons(request.store)
+    return render(request, "dashboard/coupon_list.html", {
+        "coupons": coupons, "active_page": "coupons",
+        "can_manage_coupons": membership_has_permission(request.store_membership, DISCOUNT_MANAGE),
+    })
+
+
+def _parse_coupon_form(request):
+    data = request.POST
+    fields = {
+        "code": data.get("code", "").strip(),
+        "type": data.get("type", Coupon.Type.PERCENT),
+        "label": data.get("label", "").strip(),
+        "is_active": data.get("is_active") == "on",
+    }
+    for key in ("value", "min_order"):
+        try:
+            fields[key] = Decimal(data.get(key, "0") or "0")
+        except InvalidOperation:
+            fields[key] = Decimal("0")
+    usage_limit = data.get("usage_limit", "").strip()
+    fields["usage_limit"] = int(usage_limit) if usage_limit.isdigit() else None
+    expires_at_raw = data.get("expires_at", "").strip()
+    fields["expires_at"] = expires_at_raw or None
+    return fields
+
+
+@staff_required
+@permission_required(DISCOUNT_MANAGE)
+def coupon_form(request, pk=None):
+    coupon = get_object_or_404(Coupon, pk=pk, store=request.store) if pk else None
+    field_errors = {}
+
+    if request.method == "POST":
+        fields = _parse_coupon_form(request)
+        try:
+            if coupon:
+                update_coupon(coupon, actor=request.user, **fields)
+            else:
+                coupon = create_coupon(request.store, actor=request.user, **fields)
+            action = "ویرایش" if pk else "ایجاد"
+            messages.success(request, f"کد تخفیف «{coupon.code}» با موفقیت {action} شد")
+            return redirect("dashboard:coupon-list")
+        except CouponError as exc:
+            messages.error(request, str(exc))
+
+    return render(request, "dashboard/coupon_form.html", {
+        "coupon": coupon, "active_page": "coupons", "type_choices": Coupon.Type.choices,
+        "field_errors": field_errors,
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(DISCOUNT_MANAGE)
+def coupon_toggle(request, pk):
+    coupon = get_object_or_404(Coupon, pk=pk, store=request.store)
+    toggle_coupon_active(coupon, actor=request.user)
+    state = "فعال" if coupon.is_active else "غیرفعال"
+    messages.info(request, f"کد تخفیف «{coupon.code}» {state} شد")
+    return redirect("dashboard:coupon-list")
+
+
+@staff_required
+@permission_required(DISCOUNT_MANAGE)
+def coupon_delete(request, pk):
+    coupon = get_object_or_404(Coupon, pk=pk, store=request.store)
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "کد تخفیف",
+            "object_name": coupon.code,
+            "cancel_url": reverse("dashboard:coupon-list"),
+            "active_page": "coupons",
+        })
+    code = coupon.code
+    delete_coupon(coupon, actor=request.user)
+    messages.success(request, f"کد تخفیف «{code}» حذف شد")
+    return redirect("dashboard:coupon-list")
+
+
+# ---------------------------------------------------------------- گزارش رخدادها (Audit Log)
+
+AUDIT_LOG_PER_PAGE = 40
+
+
+def _audit_log_list_context(request):
+    store = _resolve_dashboard_store(request)
+    q = request.GET.get("q", "").strip()
+    action_code = request.GET.get("action", "").strip()
+
+    queryset = list_audit_events(store, q=q, action_code=action_code)
+    paginator = Paginator(queryset, AUDIT_LOG_PER_PAGE)
+    page_obj = paginator.get_page(request.GET.get("page", "1"))
+
+    action_options = list(
+        list_audit_events(store).order_by("action_code").values_list("action_code", flat=True).distinct()
+    )
+
+    return {
+        "events": page_obj, "page_obj": page_obj, "paginator": paginator,
+        "q": q, "selected_action": action_code, "action_options": action_options,
+    }
+
+
+@staff_required
+@permission_required(AUDIT_LOG_VIEW)
+def audit_log_list(request):
+    context = _audit_log_list_context(request)
+    context["active_page"] = "audit-log"
+    return render(request, "dashboard/audit_log_list.html", context)
+
+
+@staff_required
+@permission_required(AUDIT_LOG_VIEW)
+def audit_log_table(request):
+    return render(request, "dashboard/partials/audit_log_table_inner.html", _audit_log_list_context(request))
+
+
+# ---------------------------------------------------------------- استرداد (Refund)
+
+@staff_required
+@permission_required(REFUND_VIEW, REFUND_MANAGE)
+def order_refund_form(request, code):
+    store = _resolve_dashboard_store(request)
+    order = get_object_or_404(Order.objects.select_related("customer"), code=code, store=store)
+    items = list(order.items.select_related("product", "variant"))
+
+    if request.method == "POST":
+        if not membership_has_permission(request.store_membership, REFUND_MANAGE):
+            return render(request, "dashboard/403.html", status=403)
+
+        line_requests = []
+        for item in items:
+            raw_qty = request.POST.get(f"quantity_{item.pk}", "0").strip()
+            quantity = int(raw_qty) if raw_qty.isdigit() else 0
+            if quantity > 0:
+                line_requests.append({"order_item_id": item.pk, "quantity": quantity})
+
+        shipping_raw = request.POST.get("shipping_amount", "0").strip()
+        try:
+            shipping_amount = Decimal(shipping_raw or "0")
+        except InvalidOperation:
+            shipping_amount = Decimal("0")
+
+        reason = request.POST.get("reason", Refund.Reason.CUSTOMER_REQUEST)
+        merchant_note = request.POST.get("merchant_note", "").strip()
+        restock = request.POST.get("restock") == "on"
+
+        if not line_requests and shipping_amount <= 0:
+            messages.error(request, "حداقل یک قلم یا مبلغِ ارسال باید برای استرداد انتخاب شود")
+        else:
+            try:
+                refund = execute_order_refund(
+                    order, store=store, actor=request.user, line_requests=line_requests,
+                    shipping_amount=shipping_amount, reason=reason, merchant_note=merchant_note,
+                    restock=restock,
+                )
+                messages.success(request, f"استرداد به مبلغِ {refund.approved_amount} تومان ثبت شد")
+                return redirect("dashboard:order-detail", code=order.code)
+            except RefundError as exc:
+                messages.error(request, str(exc))
+
+    return render(request, "dashboard/order_refund_form.html", {
+        "order": order, "items": items, "active_page": "orders",
+        "refundable_amount": refundable_amount(order),
+        "max_shipping": max(Decimal("0"), order.shipping_cost - sum(
+            (r.shipping_refund_amount for r in order.refunds.exclude(
+                status__in=(Refund.Status.FAILED, Refund.Status.CANCELLED)
+            )), Decimal("0")
+        )),
+        "reason_choices": Refund.Reason.choices,
+    })
+
+
+# ---------------------------------------------------------------- مرجوعی‌ها (Returns)
+
+RETURN_PER_PAGE = 20
+
+
+def _return_list_context(request):
+    store = _resolve_dashboard_store(request)
+    q = request.GET.get("q", "").strip()
+    status = request.GET.get("status", "").strip()
+
+    queryset = ReturnRequest.objects.filter(store=store).select_related("order", "customer").order_by("-created_at")
+    if status:
+        queryset = queryset.filter(status=status)
+    if q:
+        queryset = queryset.filter(
+            Q(return_number__icontains=q) | Q(order__code__icontains=q) | Q(customer__full_name__icontains=q)
+        )
+
+    paginator = Paginator(queryset, RETURN_PER_PAGE)
+    page_obj = paginator.get_page(request.GET.get("page", "1"))
+
+    return {
+        "returns": page_obj, "page_obj": page_obj, "paginator": paginator,
+        "q": q, "selected_status": status, "status_choices": ReturnRequest.Status.choices,
+    }
+
+
+@staff_required
+@permission_required(RETURN_VIEW, RETURN_MANAGE)
+def return_list(request):
+    context = _return_list_context(request)
+    context["active_page"] = "returns"
+    return render(request, "dashboard/return_list.html", context)
+
+
+@staff_required
+@permission_required(RETURN_MANAGE)
+def return_create(request, code):
+    store = _resolve_dashboard_store(request)
+    order = get_object_or_404(Order.objects.select_related("customer"), code=code, store=store)
+    items = list(order.items.select_related("product", "variant"))
+
+    if request.method == "POST":
+        line_requests = []
+        for item in items:
+            raw_qty = request.POST.get(f"quantity_{item.pk}", "0").strip()
+            quantity = int(raw_qty) if raw_qty.isdigit() else 0
+            if quantity > 0:
+                line_requests.append({"order_item_id": item.pk, "quantity": quantity})
+
+        reason = request.POST.get("reason", ReturnRequest.Reason.CUSTOMER_REQUEST)
+        explanation = request.POST.get("customer_explanation", "").strip()
+
+        try:
+            return_request = create_return_request(
+                order, store=store, customer=order.customer, reason=reason,
+                line_requests=line_requests, customer_explanation=explanation, actor=request.user,
+            )
+            messages.success(request, f"درخواستِ مرجوعیِ «{return_request.return_number}» ثبت شد")
+            return redirect("dashboard:return-detail", pk=return_request.pk)
+        except ReturnError as exc:
+            messages.error(request, str(exc))
+
+    return render(request, "dashboard/return_form.html", {
+        "order": order, "items": items, "active_page": "orders",
+        "reason_choices": ReturnRequest.Reason.choices,
+    })
+
+
+@staff_required
+@permission_required(RETURN_VIEW, RETURN_MANAGE)
+def return_detail(request, pk):
+    store = _resolve_dashboard_store(request)
+    return_request = get_object_or_404(
+        ReturnRequest.objects.select_related("order", "customer", "refund"), pk=pk, store=store,
+    )
+    return render(request, "dashboard/return_detail.html", {
+        "return_request": return_request,
+        "items": return_request.items.select_related("order_item"),
+        "active_page": "returns",
+        "can_manage_returns": membership_has_permission(request.store_membership, RETURN_MANAGE),
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(RETURN_MANAGE)
+def return_review(request, pk):
+    store = _resolve_dashboard_store(request)
+    return_request = get_object_or_404(ReturnRequest, pk=pk, store=store)
+    try:
+        review_return_request(return_request, store=store, actor=request.user)
+        messages.success(request, "درخواست به حالتِ «در حال بررسی» منتقل شد")
+    except ReturnError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:return-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(RETURN_MANAGE)
+def return_approve(request, pk):
+    store = _resolve_dashboard_store(request)
+    return_request = get_object_or_404(ReturnRequest, pk=pk, store=store)
+    approved_quantities = {}
+    for item in return_request.items.all():
+        raw = request.POST.get(f"approved_{item.pk}", "").strip()
+        if raw.isdigit():
+            approved_quantities[item.pk] = int(raw)
+    try:
+        approve_return_request(
+            return_request, store=store, actor=request.user, approved_quantities=approved_quantities,
+            note=request.POST.get("note", "").strip(),
+        )
+        messages.success(request, "مرجوعی تأیید شد")
+    except ReturnError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:return-detail", pk=pk)
+
+
+@staff_required
+@permission_required(RETURN_MANAGE)
+def return_reject(request, pk):
+    store = _resolve_dashboard_store(request)
+    return_request = get_object_or_404(ReturnRequest, pk=pk, store=store)
+    if request.method != "POST":
+        return render(request, "dashboard/confirm_delete.html", {
+            "object_type": "درخواستِ مرجوعیِ", "object_name": return_request.return_number,
+            "action_label": "رد مرجوعی", "cancel_url": reverse("dashboard:return-detail", args=[pk]),
+            "active_page": "returns",
+        })
+    try:
+        reject_return_request(
+            return_request, store=store, actor=request.user,
+            rejection_reason=request.POST.get("rejection_reason", "").strip(),
+        )
+        messages.success(request, "مرجوعی رد شد")
+    except ReturnError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:return-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(RETURN_MANAGE)
+def return_receive(request, pk):
+    store = _resolve_dashboard_store(request)
+    return_request = get_object_or_404(ReturnRequest, pk=pk, store=store)
+    received_quantities = {}
+    for item in return_request.items.all():
+        raw = request.POST.get(f"received_{item.pk}", "").strip()
+        if raw.isdigit():
+            received_quantities[item.pk] = int(raw)
+    try:
+        mark_return_received(return_request, store=store, actor=request.user, received_quantities=received_quantities)
+        messages.success(request, "دریافتِ کالا ثبت شد")
+    except ReturnError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:return-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(RETURN_MANAGE)
+def return_inspect(request, pk):
+    store = _resolve_dashboard_store(request)
+    return_request = get_object_or_404(ReturnRequest, pk=pk, store=store)
+    inspections = []
+    for item in return_request.items.all():
+        prefix = f"item_{item.pk}_"
+        if request.POST.get(f"{prefix}present") != "on":
+            continue
+        inspections.append({
+            "item_id": item.pk,
+            "condition": request.POST.get(f"{prefix}condition", ""),
+            "is_restockable": request.POST.get(f"{prefix}restockable") == "on",
+            "merchant_resolution": request.POST.get(f"{prefix}resolution", ""),
+            "rejection_reason": request.POST.get(f"{prefix}rejection_reason", ""),
+        })
+    try:
+        inspect_return_items(
+            return_request, store=store, actor=request.user, inspections=inspections,
+            inspection_result=request.POST.get("inspection_result", "").strip(),
+        )
+        messages.success(request, "نتیجه‌ی بازرسی ثبت شد")
+    except ReturnError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:return-detail", pk=pk)
+
+
+@require_POST
+@staff_required
+@permission_required(RETURN_MANAGE)
+def return_complete(request, pk):
+    store = _resolve_dashboard_store(request)
+    return_request = get_object_or_404(ReturnRequest, pk=pk, store=store)
+    try:
+        complete_return(return_request, store=store, actor=request.user)
+        messages.success(request, "مرجوعی تکمیل شد")
+    except (ReturnError, RefundError) as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:return-detail", pk=pk)

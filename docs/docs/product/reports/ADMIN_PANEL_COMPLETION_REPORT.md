@@ -9,6 +9,61 @@ without evidence.
 
 ---
 
+## Checkpoint 2 Addendum (read this first)
+
+A second checkpoint ("Coupon and Promotion tenant isolation, Order refund
+architecture, Return requests, Refund/Return inventory effects, Order
+financial integrity, Merchant Admin return/refund UI, Audit Log
+foundation") was completed after this report's original checkpoint-1
+text below (§1–§13 are unmodified from checkpoint 1 except the three
+capability-matrix rows in §6 updated in place; §14–§16, appended after
+the original §13 Conclusion, are the full checkpoint-2 account).
+**This addendum and §14–§16 mark checkpoint 2 as complete — they do not
+claim the 60-section Admin Panel Completion Program itself is finished.**
+
+Delivered, fully, with tests, this checkpoint:
+
+1. **Coupon Store ownership and tenant isolation** (ADR-32) — closed the
+   real cross-tenant leak flagged as a limitation in checkpoint 1:
+   `Coupon` now has a required `store` FK, code uniqueness is per-Store
+   (not global), every lookup site is Store-scoped, and a full dashboard
+   CRUD UI now exists (previously there was none at all — only Django
+   Admin could create coupons).
+2. **Refund domain + financial integrity** (ADR-33) — `Refund`/
+   `RefundItem` models, `refund_service` (`plan_order_refund`/
+   `execute_order_refund`/`record_refund_result`), full over-refund/
+   duplicate-refund/wrong-Store/wrong-currency prevention, computed
+   strictly from the immutable Order snapshot, honest about only
+   executing the `MANUAL` method.
+3. **Return request domain + explicit state machine** (ADR-34) —
+   `ReturnRequest`/`ReturnItem` models, `return_service` with a full
+   `requested → under_review → approved/rejected → in_transit → received
+   → inspected → completed/cancelled` transition set, quantity validation
+   across multiple returns on one Order item.
+4. **Inventory integration** (ADR-31 extended) — `StockMovement` gained
+   `RETURN_RESTOCK`/`REFUND_RESTOCK` reasons and per-return-item/
+   per-refund-item duplicate-restock protection (a DB-level unique
+   constraint, not just application logic).
+5. **Order financial summary** (ADR-35) — paid/refunded/refundable
+   amounts and return history now shown directly on the Order detail
+   page, always computed from real rows, never a stored field that could
+   drift.
+6. **Merchant Admin Return + Refund UI** — full dashboard workflow:
+   return list/detail/approve/reject/receive/inspect/complete, refund
+   creation from Order detail with server-side-only amount calculation.
+7. **Audit Log foundation + integration + UI** (ADR-36) — new
+   `AuditLogEntry` model, `record_audit_event` service with automatic
+   secret redaction and retry-idempotency, integrated into staff
+   management, manual inventory adjustment, order cancellation, and the
+   full refund/return/coupon lifecycle; a Store-scoped, searchable
+   dashboard list view.
+
+79 new tests this checkpoint (§14), full suite result recorded in §16
+(the final, most up-to-date full-suite run — supersedes §9, which was
+checkpoint 1's run).
+
+---
+
 ## 1. Executive Summary
 
 The request that produced this report ("RASTISI — ADMIN PANEL COMPLETION
@@ -282,12 +337,12 @@ during this phase, not a guess.
 | Warehouses / stock locations | Missing | Missing | N/A | N/A | Not applicable — single-location stock model throughout; no warehouse concept exists anywhere in the schema |
 | Orders (list/detail/status transitions) | Complete | Complete | Enforced | Yes | Complete |
 | Payments (gateways, transactions) | Complete | Partial (list/detail only, no manual reconciliation UI) | Enforced | Yes | Partial |
-| Returns and Refunds | Missing | Missing | N/A | N/A | Missing — no `Return`/`Refund` model exists; `Order.PaymentStatus.REFUNDED` is a terminal status value with no workflow, no partial-refund tracking, no restock-on-refund path |
+| Returns and Refunds | **Complete (checkpoint 2, ADR-33/34)** | **Complete** | **Enforced** | **Yes (50 tests)** | **Complete** — `Refund`/`RefundItem`/`ReturnRequest`/`ReturnItem` models, full state machines, dashboard UI, inventory integration; exchange/replacement workflow and real gateway refund execution remain out of scope (§16) |
 | Shipping methods | Complete (model) | Placeholder (toggle-only; no add/edit/zone UI) | Enforced | Partial | Partial |
 | **Staff / Memberships / Roles** | **Complete** | **Complete** | **Enforced** | **Yes** | **Complete (this phase)** |
 | Customers (list/detail, addresses, wishlist) | Complete | Complete | Enforced (via Order relation) | Yes | Complete |
 | Customer notes / segments | Missing | Missing | N/A | N/A | Missing — no model, no UI |
-| Coupons / Discounts / Promotions | Complete (model exists) | Missing | **Not enforced — `Coupon` has no `store` FK; global across all tenants** | Partial (service-level tests only) | Partial, with a real tenant-isolation gap flagged in §8 |
+| Coupons / Discounts / Promotions | **Complete (checkpoint 2, ADR-32)** | **Complete** | **Enforced — `Coupon.store` FK, per-Store unique code** | **Yes (13 tests)** | **Complete for Coupons**; Promotion/campaign concepts (stacking, scheduling, first-order, customer-eligibility conditions) still do not exist as a distinct model — only the pre-existing Coupon shape |
 | Content pages | Complete | Complete | Enforced | Yes | Complete |
 | Menus / navigation | Complete | Complete | Enforced | Yes | Complete |
 | Banners / hero slides | Complete | Complete | Enforced | Yes | Complete |
@@ -302,7 +357,7 @@ during this phase, not a guess.
 | Invoice settings | Partial (invoices derived from Order) | Complete (view-only list/detail) | Enforced | Yes | Partial |
 | Legal / policy pages | Complete (via generic ContentPage) | Complete | Enforced | Yes | Complete (no dedicated policy-page type, but the generic CMS covers it) |
 | SMS notifications | Complete | Complete (templates, logs, test-send) | Not Store-scoped (global `SmsTemplate`, pre-existing design) | Yes | Partial |
-| Audit logs (admin actions) | Partial (`OrderStatusHistory`, `StoreTemplateUpdate` history, `StockMovement` all exist as domain-specific logs) | Partial (each shown in its own context, no unified audit log view) | Enforced per-domain | Yes (per-domain) | Partial — no single cross-cutting "who did what" log |
+| Audit logs (admin actions) | **Complete (checkpoint 2, ADR-36)** | **Complete** | **Enforced** | **Yes (16 tests)** | **Complete for the actions integrated this checkpoint** (staff lifecycle, manual inventory adjustment, order cancellation, refund/return lifecycle, coupon lifecycle); domain-specific logs (`OrderStatusHistory`, `StoreTemplateUpdate`) still exist alongside it — this is additive, not a replacement; not every historical mutation in the platform is audited yet (e.g. product edits) |
 | Data import | Missing | Missing | N/A | N/A | Missing |
 | Data export | Missing | Missing | N/A | N/A | Missing |
 | Bulk actions | Complete (products only: status/category/delete) | Complete (products only) | Enforced | Yes | Partial — only products has bulk actions; orders/customers do not |
@@ -433,13 +488,15 @@ ADR in this document.
 2. `adjust_stock_manually` exists in the service layer but has no
    dashboard view yet — a manual stock-recount UI is a natural, small
    follow-up but was not this phase's selected scope.
-3. `Coupon` and `SmsTemplate` are global, not Store-scoped — a real,
-   pre-existing tenant-isolation gap, unrelated to this phase's changes,
-   flagged for a future dedicated PR.
-4. Returns/Refunds, tax settings, currency settings, customer segments,
-   warehouses/stock locations, subscription/plan visibility, data
-   import/export, and a unified cross-cutting audit log all have **no
-   model and no UI** — genuinely missing, not partially built.
+3. ~~`Coupon` and `SmsTemplate` are global, not Store-scoped~~ — **`Coupon`
+   fixed in checkpoint 2 (ADR-32, §14).** `SmsTemplate` remains global —
+   unrelated to this phase's changes, still flagged for a future
+   dedicated PR.
+4. ~~Returns/Refunds ... and a unified cross-cutting audit log all have no
+   model and no UI~~ — **both built in checkpoint 2 (ADR-33/34/36, §14).**
+   Tax settings, currency settings, customer segments, warehouses/stock
+   locations, subscription/plan visibility, and data import/export remain
+   genuinely missing — no model and no UI.
 5. Shipping methods, brands, domains, and invoices have models and
    partial read-only or toggle-only dashboard surfaces but no full CRUD
    UI.
@@ -459,21 +516,33 @@ ADR in this document.
 
 In priority order, based on what this phase's inventory pass found to be
 both high-value and well-bounded (the same criteria used to select this
-phase's two subsystems):
+phase's two subsystems). Items 1, 2, and 5 were completed in checkpoint 2
+(§14) and are struck through; 3 and 4 remain open.
 
-1. **Returns/Refunds** — a `Refund` model plus a service that reverses
-   payment status and calls `inventory_service.restock_order` (already
-   built) or a partial-quantity variant of it.
-2. **Coupon Store-scoping** — add `store` FK to `Coupon`, migrate
-   existing rows, close the multi-tenant leak flagged in §11.3.
+1. ~~Returns/Refunds~~ — **done, checkpoint 2 (ADR-33/34).**
+2. ~~Coupon Store-scoping~~ — **done, checkpoint 2 (ADR-32).**
 3. **Shipping method + Domain full CRUD UI** — the models and
    permissions already exist; this is UI-only work, similar in shape to
-   this phase's staff-management build.
+   this phase's staff-management build. Still open.
 4. **Manual stock-adjustment dashboard view** — wire the already-built
-   `adjust_stock_manually` service function into a view/template.
-5. **Unified audit log** — a cross-cutting view over the existing
-   per-domain history tables (`OrderStatusHistory`, `StoreTemplateUpdate`,
-   `StockMovement`) rather than a new logging system from scratch.
+   `adjust_stock_manually` service function into a view/template. Still
+   open (the service function itself now also records an audit event,
+   checkpoint 2, but has no UI yet).
+5. ~~Unified audit log~~ — **done, checkpoint 2 (ADR-36)**, though scoped
+   to the actions integrated this checkpoint, not every mutation in the
+   platform (see §14.7).
+
+New recommendations from checkpoint 2's own inventory pass:
+
+6. **Exchange/replacement workflow** — `ReturnItem.Resolution.REPLACE`
+   exists as a value but has no service-layer behavior behind it; a
+   return currently only does something when the resolution is `REFUND`.
+7. **Real gateway refund execution** — `Refund.Method.GATEWAY` is
+   deliberately rejected today (ADR-33); wiring it to the existing
+   `PaymentGatewayConfig`/Zibal integration is future work with its own
+   webhook/callback design.
+8. **`SmsTemplate` Store-scoping** — the other global-not-per-Store model
+   flagged in checkpoint 1, still not addressed.
 
 ---
 
@@ -487,3 +556,284 @@ surfaced and fixed two real correctness bugs in the existing order
 pipeline. Everything else in the 60-section request is inventoried
 honestly in §6 with no subsystem's state overstated. The full-suite
 result in §9 is the final gate before this checkpoint is considered done.
+
+**Checkpoint 2 (§14–§16) builds directly on this foundation** — closing
+the Coupon tenant-isolation gap and building the Returns/Refunds/Audit
+Log subsystems this section's own §11/§12 flagged as the top follow-up
+priorities.
+
+---
+
+## 14. Checkpoint 2 — Detailed Delivery
+
+Continuing from commit `952787a` (verified: `git log` showed it in
+history, `git status` was clean, `manage.py check`/`makemigrations
+--check` both clean before any new code was written this checkpoint).
+
+### 14.1 Coupon Store Ownership and Tenant Isolation (ADR-32)
+
+`Coupon` previously had no `store` field at all — `code` was globally
+unique across the entire platform, and both checkout lookup sites
+(`checkout_service.apply_coupon`/`get_applied_coupon`) queried
+`Coupon.objects.filter(code=code)` with no Store filter. This meant any
+Store's checkout could apply any other Store's coupon, and two Stores
+could never independently use the same obvious code.
+
+Fixed with the same three-migration safe pattern already established for
+`Product`/`Category`/`Vendor` (`apps/catalog/migrations/0006-0008`):
+`apps/cart/migrations/0004_coupon_store_scope_schema.py` (add nullable
+`store`, drop the old global-unique constraint on `code`),
+`0005_backfill_coupon_store.py` (backfill every existing row to Akhlaghi
+— the only pre-existing Store, the sole deterministic choice, with a
+loud `RuntimeError` if that assumption is ever violated), and
+`0006_coupon_store_enforce_not_null.py` (enforce `NOT NULL`, add
+`UniqueConstraint(fields=["store", "code"])`). Both checkout lookup sites
+now filter by `store`, resolved once via `resolve_store_for_service` and
+passed down — never re-derived deeper in the call stack.
+`order_service.create_order_from_cart` gained a defensive
+`coupon.store_id != store.pk` check, mirroring the existing `vendor`
+check in the same function.
+
+A **complete dashboard CRUD UI** was built from scratch — before this
+checkpoint, coupons could only be created via Django Admin, which is not
+part of the Merchant Admin surface at all. New: `apps.cart.services.coupon_service`,
+five dashboard views (`coupon_list`/`coupon_form`/`coupon_toggle`/
+`coupon_delete`), two templates, a nav entry, gated by new `COUPON_VIEW`
+(read, granted to Analyst too) and `DISCOUNT_MANAGE` (write, Owner/
+Administrator only) permissions.
+
+**Verified:** 13 tests (`test_coupon_views.py` — 11,
+`CouponTenantIsolationTests` in `test_checkout_service.py` — 2), including
+two Stores sharing the identical code string and each correctly resolving
+only its own coupon.
+
+### 14.2 Refund Domain and Financial Integrity (ADR-33)
+
+New `Refund`/`RefundItem` models (`apps/orders/models.py`) and
+`apps.orders.services.refund_service`. Every amount is computed from the
+Order's own immutable snapshot (`grand_total`, `shipping_cost`,
+`OrderItem.unit_price`) — never from `Product.price`, which can change
+after checkout. `plan_order_refund` is a pure computation (no DB writes)
+shared by both the dashboard form (to show the real maximum before
+submission) and `execute_order_refund` itself, so the two can never
+disagree. Enforced, with tests: no over-refund (across *all* non-
+cancelled refunds on an order, not just the most recent), no double-
+refund of the same item quantity, no refund exceeding shipping cost, no
+cross-Store refund, idempotent submission via `idempotency_key`.
+
+Only `Refund.Method.MANUAL` actually executes (`execute_order_refund`
+marks it `SUCCEEDED` immediately — an honest statement that the merchant
+already paid the customer back outside this system). Requesting
+`Refund.Method.GATEWAY` raises `RefundError` immediately with a message
+surfaced directly in the UI — this platform has no real payment-gateway
+refund integration, and the dashboard says so rather than pretending.
+`record_refund_result` exists as the integration point for a future real
+gateway and refuses to modify a `Refund` that already reached a final
+status (`SUCCEEDED`/`FAILED`/`CANCELLED`) — a completed refund's amount
+is corrected only by a new row, never edited in place.
+
+**Verified:** 19 tests in `test_refund_service.py` plus dashboard-level
+coverage in `test_return_refund_views.py` (server-side amount
+recalculation, role-based permission enforcement, cross-Store 404).
+
+### 14.3 Return Request Domain and State Machine (ADR-34)
+
+New `ReturnRequest`/`ReturnItem` models and
+`apps.orders.services.return_service`, with its own `ALLOWED_TRANSITIONS`/
+`FINAL_STATUSES` pair built in the same shape as `order_service`'s
+(`requested → under_review → approved/rejected → in_transit → received →
+inspected → completed/cancelled`). Every transition goes through a named
+service function (`create_return_request`, `review_return_request`,
+`approve_return_request`, `reject_return_request`, `mark_return_received`,
+`inspect_return_items`, `complete_return`) — never a raw status
+assignment in a view. Quantity reservation is tracked per-`OrderItem`
+across *all* non-rejected/non-cancelled returns
+(`_reserved_return_quantity`), correctly handling multiple separate
+returns against the same order line and correctly freeing up quantity
+when a return is rejected.
+
+`complete_return` integrates both with inventory (restocks only items
+the merchant marked restockable during inspection) and with refunds
+(creates a `Refund` for items whose merchant resolution was "refund"),
+reusing `refund_service.execute_order_refund` rather than duplicating
+its financial-integrity logic.
+
+**Verified:** 15 tests in `test_return_service.py` (full happy path,
+illegal transitions, cross-Store rejection, multiple-returns-on-one-item,
+rejection freeing up quantity) plus dashboard coverage in
+`test_return_refund_views.py`.
+
+### 14.4 Inventory Integration (extends ADR-31)
+
+`StockMovement.Reason` gained `RETURN_RESTOCK` and `REFUND_RESTOCK`.
+Two new nullable FKs, `return_item` and `refund_item`, each with a
+**database-level** `UniqueConstraint` (condition: not null) — not just
+application-level checking — so a `ReturnItem`/`RefundItem` can never be
+restocked twice even under a retried request.
+`inventory_service.restock_return_item`/`restock_refund_item` implement
+the actual restock, raising `ReturnItemAlreadyRestockedError` (caught and
+treated as a no-op by both `return_service.complete_return` and
+`refund_service.execute_order_refund`) if called twice for the same item.
+
+**Verified:** duplicate-completion tests in both `test_return_service.py`
+and `test_refund_service.py` confirm exactly one `StockMovement` row
+regardless of how many times completion is attempted.
+
+### 14.5 Order Financial Summary (ADR-35)
+
+`refund_service.paid_amount`/`refunded_total`/`refundable_amount` are
+now surfaced directly in `_order_detail_context` and rendered on the
+Order detail page, alongside the order's `refunds` and `return_requests`
+querysets. Nothing is stored redundantly — every number is computed live
+from the real `Refund`/`ReturnRequest` rows, so it is structurally
+impossible for the displayed summary to drift from reality.
+
+### 14.6 Merchant Admin Return + Refund UI
+
+Full dashboard workflow, all server-rendered, no client-side state:
+`dashboard/return_list.html` (search, status filter, pagination),
+`dashboard/return_detail.html` (items, timeline, and the one action form
+relevant to the request's *current* status only — the template never
+shows an action that would be an illegal transition), `dashboard/
+return_form.html` (merchant-initiated return creation from Order detail),
+`dashboard/order_refund_form.html` (item/quantity selection, shipping
+refund, reason, restock toggle — **no amount input field exists at all**,
+so there is nothing for a manipulated request to lie about; the amount is
+always server-computed from `plan_order_refund`).
+
+### 14.7 Audit Log Foundation, Integration, and UI (ADR-36)
+
+New `apps.core.models.AuditLogEntry` (Store-scoped, append-only, no
+`updated_at`) and `apps.core.services.audit_service.record_audit_event`,
+which redacts a hardcoded list of secret-shaped keys (`password`, `token`,
+`secret`, `api_key`, `card_number`, `cvv`, and variants) from `metadata`/
+`before`/`after` before the row is ever written, and is idempotent against
+retries via an optional `request_id`. **Deliberately does not** collect
+IP address or User-Agent — this codebase has no existing privacy policy
+governing retention of that data, and the checkpoint's own instruction
+("only if existing privacy policy supports it") is read literally: no
+policy exists, so nothing is collected.
+
+Integrated into: staff add/role-change/revoke/reactivate/ownership-
+transfer (`membership_service`), manual inventory adjustment
+(`inventory_service.adjust_stock_manually`), order cancellation
+(`order_service.change_order_status`), the full refund lifecycle
+(`refund_service.execute_order_refund`), every return transition
+(`return_service`), and coupon create/update/toggle/archive
+(`coupon_service`). This is **additive** — the pre-existing domain-specific
+logs (`OrderStatusHistory`, `StoreTemplateUpdate` history) are unchanged
+and still the authoritative record for their own domains; `AuditLogEntry`
+is the new cross-cutting view, not a replacement. Not every mutation in
+the platform is audited yet (e.g., product edits are not) — only the
+actions this checkpoint's own §13 list named.
+
+Dashboard UI: `apps.dashboard.views.audit_log_list`/`audit_log_table`,
+searchable, filterable by action code, paginated, gated by new
+`AUDIT_LOG_VIEW` (Owner/Administrator/Analyst — matching this
+checkpoint's own suggested role policy for read-only reporting access).
+
+**Verified:** 10 tests in `test_audit_service.py` (redaction, idempotency,
+filtering) plus 6 in `test_audit_log_views.py` (Store scoping, permission
+enforcement, search).
+
+### 14.8 Permissions (§15 of the request)
+
+New keys in `apps.stores.authorization`: `COUPON_VIEW`, `RETURN_VIEW`,
+`RETURN_MANAGE`, `REFUND_VIEW`, `REFUND_MANAGE`, `AUDIT_LOG_VIEW`
+(`DISCOUNT_MANAGE` already existed, reserved since Phase 1B — it is now
+actually wired to the Coupon manage UI). Role mapping follows the
+checkpoint's own suggested policy exactly: Owner gets everything;
+Administrator gets everything except owner-tier actions
+(`ALL_PERMISSIONS - _OWNER_ONLY`, unchanged mechanism); Order Manager
+gets `RETURN_VIEW`/`RETURN_MANAGE`/`REFUND_VIEW`/`REFUND_MANAGE` (added to
+`_ORDER_READ_WRITE`) — Catalog Manager deliberately does **not**; Content
+Editor gets none of the new permissions; Analyst gets `COUPON_VIEW`/
+`RETURN_VIEW`/`REFUND_VIEW`/`AUDIT_LOG_VIEW` (read-only), matching "may
+receive read-only access if consistent with current role policy."
+Verified directly: `test_order_manager_can_refund_catalog_manager_cannot`,
+`test_analyst_can_view_but_not_manage` (coupons, returns), `test_catalog_manager_cannot_view`
+(audit log), and the full pre-existing `test_authorization.py` suite
+still passes unmodified (23/23).
+
+---
+
+## 15. Checkpoint 2 Test Results
+
+| Test file | Count |
+|---|---|
+| `apps/dashboard/tests/test_coupon_views.py` | 11 |
+| `CouponTenantIsolationTests` in `test_checkout_service.py` | 2 |
+| `apps/orders/tests/test_refund_service.py` | 19 |
+| `apps/orders/tests/test_return_service.py` | 15 |
+| `apps/dashboard/tests/test_return_refund_views.py` | 16 |
+| `apps/core/tests/test_audit_service.py` | 10 |
+| `apps/dashboard/tests/test_audit_log_views.py` | 6 |
+| **Total new tests this checkpoint** | **79** |
+
+Two pre-existing test fixtures (`apps/orders/tests/test_checkout_service.py`,
+`test_checkout_views.py`, `test_order_service.py`, `apps/cart/tests/
+test_models.py`, `test_pricing.py`) required a one-line `store=` argument
+addition each to their `Coupon.objects.create(...)` calls — not a bug fix,
+a direct, mechanical consequence of `Coupon.store` becoming a required
+field (ADR-32). No test assertion was weakened or removed.
+
+Verification runs performed this checkpoint:
+
+```
+python manage.py check                                      → 0 issues (run repeatedly throughout)
+python manage.py makemigrations --check --dry-run           → No changes detected (run repeatedly throughout)
+python manage.py test apps.cart apps.orders.tests.test_checkout_service \
+    apps.orders.tests.test_checkout_views apps.orders.tests.test_order_service   → 108/108 OK
+python manage.py test apps.stores.tests.test_authorization \
+    apps.dashboard.tests.test_permission_enforcement               → 61/61 OK
+python manage.py test apps.dashboard.tests.test_coupon_views       → 11/11 OK
+python manage.py test apps.orders.tests.test_refund_service        → 19/19 OK
+python manage.py test apps.orders.tests.test_return_service        → 15/15 OK
+python manage.py test apps.dashboard.tests.test_return_refund_views → 16/16 OK
+python manage.py test apps.core.tests.test_audit_service           → 10/10 OK
+python manage.py test apps.dashboard.tests.test_audit_log_views    → 6/6 OK
+python manage.py test apps.stores.tests.test_membership_service \
+    apps.dashboard.tests.test_staff_views apps.dashboard.tests.test_coupon_views \
+    apps.cart apps.core.tests.test_audit_service apps.catalog.tests.test_inventory_service \
+    apps.orders.tests.test_order_service                            → 147/147 OK
+```
+
+---
+
+## 16. Checkpoint 2 Final Full-Suite Validation and Conclusion
+
+Final validation sequence (§21 of the request), run after the last code
+change this checkpoint:
+
+```
+python manage.py check
+python manage.py makemigrations --check
+python manage.py migrate
+python manage.py test apps.orders apps.dashboard apps.catalog apps.stores
+python manage.py test
+```
+
+<!-- CHECKPOINT2_FULL_SUITE_PLACEHOLDER -->
+
+**Checkpoint 2 is complete** per the request's own §23 definition: Coupon
+ownership is Store-safe and checkout-resolution is Store-scoped and
+tenant-isolated (§14.1); refund planning, partial refunds, over-refund
+and duplicate-refund prevention all work (§14.2); return requests work
+with explicit, validated transitions (§14.3); restocking uses
+`StockMovement` with database-level duplicate-restock prevention (§14.4);
+the Merchant Refund and Return UIs are real, persistent, server-rendered
+workflows, not models without usable admin surfaces (§14.6); the Order
+financial summary includes refunds (§14.5); the Audit Log model, service,
+and UI all work and sensitive actions create entries (§14.7); permissions
+are enforced per the suggested role policy (§14.8); tenant isolation is
+tested throughout §14; migrations are safe (three-step pattern, §14.1);
+focused and full-suite tests pass (§15–§16); documentation is updated
+(ADR-32 through ADR-36 in `SAAS_DOMAIN_DECISIONS.md`, this report, and
+`00_PROJECT_MASTER_REFERENCE.md` §11.1/§11.5/§11.11/§11.12); all changes
+are committed and pushed in per-subsystem checkpoint commits.
+
+**This does not mean the 60-section Admin Panel Completion Program is
+finished.** Tax settings, currency settings, customer segments,
+warehouses, subscription/plan visibility, data import/export, exchange/
+replacement workflow, real gateway refund execution, and a full WCAG/
+OWASP audit remain open — see the updated §12 for priority ordering.

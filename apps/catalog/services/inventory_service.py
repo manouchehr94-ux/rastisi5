@@ -12,6 +12,7 @@ ProductVariant) را کم می‌کرد و لغو سفارش هرگز موجود
 from django.db.models import F
 
 from apps.catalog.models import Product, ProductVariant, StockMovement
+from apps.core.services.audit_service import record_audit_event
 
 
 class InsufficientStockError(Exception):
@@ -84,6 +85,92 @@ def restock_order(*, store, order, actor=None) -> None:
         )
 
 
+class ReturnItemAlreadyRestockedError(Exception):
+    """این قلمِ مرجوعی قبلاً یک‌بار به موجودی بازگشته — نگاه کنید به ADR-35."""
+
+
+def restock_return_item(*, store, return_item, actor=None) -> "StockMovement | None":
+    """موجودیِ یک قلمِ مرجوعیِ قابل‌بازگشت را افزایش می‌دهد و یک
+    ``StockMovement`` با علتِ ``RETURN_RESTOCK`` ثبت می‌کند.
+
+    محافظت در برابر بازگشتِ دوباره از دو راه: (۱) قیدِ دیتابیسِ
+    ``uniq_stockmv_per_return_item`` که هرگز اجازه نمی‌دهد بیش از یک
+    ``StockMovement`` به یک ``ReturnItem`` ارجاع دهد، و (۲) این تابع پیش از
+    درج، وجودِ ردیفِ قبلی را صریحاً بررسی می‌کند تا خطای واضح
+    ``ReturnItemAlreadyRestockedError`` بدهد به‌جای ``IntegrityError`` خام.
+    فراخواننده (``return_service.complete_return``) باید ``return_item`` را
+    از قبل قفل کرده باشد.
+    """
+    if StockMovement.objects.filter(return_item=return_item).exists():
+        raise ReturnItemAlreadyRestockedError("موجودیِ این قلمِ مرجوعی قبلاً بازگشت داده شده است.")
+
+    quantity = return_item.quantity_received or 0
+    if quantity <= 0:
+        return None
+
+    order_item = return_item.order_item
+    product = order_item.product
+    variant = order_item.variant
+    if product is None:
+        return None  # کالای اصلی حذف شده — چیزی برای بازگرداندنِ موجودی به آن نمانده
+
+    if variant is not None:
+        variant = ProductVariant.objects.select_for_update().filter(pk=variant.pk).first()
+        if variant is None:
+            return None
+        stock_before = variant.stock
+        ProductVariant.objects.filter(pk=variant.pk).update(stock=F("stock") + quantity)
+    else:
+        product = Product.objects.select_for_update().filter(pk=product.pk).first()
+        if product is None:
+            return None
+        stock_before = product.stock
+        Product.objects.filter(pk=product.pk).update(stock=F("stock") + quantity)
+
+    return StockMovement.objects.create(
+        store=store, product=product, variant=variant,
+        reason=StockMovement.Reason.RETURN_RESTOCK, delta=quantity,
+        stock_before=stock_before, stock_after=stock_before + quantity,
+        order=order_item.order, return_item=return_item, actor=actor,
+    )
+
+
+def restock_refund_item(*, store, refund_item, actor=None) -> "StockMovement | None":
+    """موجودی را برای یک قلمِ استردادِ *بدونِ* درخواستِ مرجوعیِ رسمی بازمی‌گرداند
+    (مثلاً استردادِ سریعِ حضوری) — فقط وقتی مدیر صراحتاً «بازگرداندنِ موجودی»
+    را در لحظه‌ی ثبتِ استرداد انتخاب کرده باشد
+    (``refund_service.execute_order_refund(..., restock=True)``)."""
+    if StockMovement.objects.filter(refund_item=refund_item).exists():
+        raise ReturnItemAlreadyRestockedError("موجودیِ این قلمِ استرداد قبلاً بازگشت داده شده است.")
+
+    order_item = refund_item.order_item
+    quantity = refund_item.quantity
+    product = order_item.product
+    variant = order_item.variant
+    if product is None or quantity <= 0:
+        return None
+
+    if variant is not None:
+        variant = ProductVariant.objects.select_for_update().filter(pk=variant.pk).first()
+        if variant is None:
+            return None
+        stock_before = variant.stock
+        ProductVariant.objects.filter(pk=variant.pk).update(stock=F("stock") + quantity)
+    else:
+        product = Product.objects.select_for_update().filter(pk=product.pk).first()
+        if product is None:
+            return None
+        stock_before = product.stock
+        Product.objects.filter(pk=product.pk).update(stock=F("stock") + quantity)
+
+    return StockMovement.objects.create(
+        store=store, product=product, variant=variant,
+        reason=StockMovement.Reason.REFUND_RESTOCK, delta=quantity,
+        stock_before=stock_before, stock_after=stock_before + quantity,
+        order=order_item.order, refund_item=refund_item, actor=actor,
+    )
+
+
 def adjust_stock_manually(*, store, product, variant=None, new_stock: int, actor, note: str = ""):
     """موجودیِ کالا یا تنوع را به مقدارِ مطلقِ ``new_stock`` تنظیم می‌کند
     (مثلاً پس از شمارشِ انبار) و تفاوت را در دفترِ موجودی ثبت می‌کند."""
@@ -99,12 +186,19 @@ def adjust_stock_manually(*, store, product, variant=None, new_stock: int, actor
     target.stock = new_stock
     target.save(update_fields=["stock", "updated_at"])
 
-    return StockMovement.objects.create(
+    movement = StockMovement.objects.create(
         store=store, product=product, variant=variant,
         reason=StockMovement.Reason.MANUAL_ADJUSTMENT, delta=delta,
         stock_before=stock_before, stock_after=new_stock,
         actor=actor, note=note,
     )
+    record_audit_event(
+        store=store, actor=actor, action_code="inventory.manual_adjustment",
+        object_type="Product" if variant is None else "ProductVariant",
+        object_id=target.pk, object_label=product.name,
+        before={"stock": stock_before}, after={"stock": new_stock}, metadata={"note": note},
+    )
+    return movement
 
 
 def list_stock_movements(store, *, product=None, variant=None):

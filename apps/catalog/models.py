@@ -469,6 +469,8 @@ class StockMovement(TimeStampedModel):
         ORDER_PLACED = "order_placed", "ثبت سفارش (کاهش موجودی)"
         ORDER_CANCELED = "order_canceled", "لغو سفارش (بازگشت موجودی)"
         MANUAL_ADJUSTMENT = "manual_adjustment", "اصلاح دستی موجودی"
+        RETURN_RESTOCK = "return_restock", "بازگشتِ مرجوعی به موجودی"
+        REFUND_RESTOCK = "refund_restock", "بازگشتِ موجودی هنگام استرداد (بدون مرجوعیِ رسمی)"
 
     store = models.ForeignKey(
         "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="stock_movements",
@@ -482,6 +484,14 @@ class StockMovement(TimeStampedModel):
     )
     order = models.ForeignKey(
         "orders.Order", verbose_name="سفارش", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="stock_movements",
+    )
+    return_item = models.ForeignKey(
+        "orders.ReturnItem", verbose_name="قلمِ مرجوعی", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="stock_movements",
+    )
+    refund_item = models.ForeignKey(
+        "orders.RefundItem", verbose_name="قلمِ استرداد", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="stock_movements",
     )
     actor = models.ForeignKey(
@@ -500,6 +510,20 @@ class StockMovement(TimeStampedModel):
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["store", "product", "-created_at"], name="idx_stockmv_store_product"),
+        ]
+        constraints = [
+            # جلوگیری از بازگشتِ دوباره‌ی موجودیِ یک قلمِ مرجوعی — نگاه کنید
+            # به ADR-35 و inventory_service.restock_return_item.
+            models.UniqueConstraint(
+                fields=["return_item"],
+                condition=models.Q(return_item__isnull=False),
+                name="uniq_stockmv_per_return_item",
+            ),
+            models.UniqueConstraint(
+                fields=["refund_item"],
+                condition=models.Q(refund_item__isnull=False),
+                name="uniq_stockmv_per_refund_item",
+            ),
         ]
 
     def __str__(self):

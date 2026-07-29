@@ -46,12 +46,21 @@ class CartItem(TimeStampedModel):
 
 
 class Coupon(TimeStampedModel):
+    """کد تخفیف — Store-owned (ADR-32): هر کد فقط در همان فروشگاهی که
+    ساخته شده معتبر است؛ دو فروشگاه می‌توانند مستقل از هم کد یکسان
+    داشته باشند. پیش از ADR-32، این مدل هیچ فیلد ``store`` نداشت و یک
+    کد در سراسر پلتفرم سراسری/به‌اشتراک‌گذاشته‌شده بود — یک نشتِ واقعیِ
+    ایزولاسیونِ چندمستأجری که در گزارش تکمیل پنل مدیریت مستند شده بود."""
+
     class Type(models.TextChoices):
         PERCENT = "percent", "درصدی"
         FIXED = "fixed", "مبلغ ثابت"
         FREE_SHIP = "free_ship", "ارسال رایگان"
 
-    code = models.CharField("کد تخفیف", max_length=30, unique=True)
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="coupons",
+    )
+    code = models.CharField("کد تخفیف", max_length=30)
     type = models.CharField("نوع", max_length=10, choices=Type.choices)
     value = models.DecimalField("مقدار", max_digits=12, decimal_places=0, default=0)
     label = models.CharField("برچسب نمایشی", max_length=150, blank=True)
@@ -65,6 +74,9 @@ class Coupon(TimeStampedModel):
         verbose_name = "کد تخفیف"
         verbose_name_plural = "کدهای تخفیف"
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "code"], name="uniq_coupon_code_per_store"),
+        ]
 
     def __str__(self):
         return self.code

@@ -1,0 +1,51 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{% if coupon %}ویرایش{% else %}افزودن{% endif %} کد تخفیف | پنل مدیریت{% endblock %}
+{% block page_title %}{% if coupon %}ویرایش کد «{{ coupon.code }}»{% else %}افزودن کد تخفیف{% endif %}{% endblock %}
+{% block content %}
+<div class="form-card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="field-group">
+      <label class="field-label required" for="id_code">کد</label>
+      <input type="text" name="code" id="id_code" value="{{ coupon.code|default:'' }}" required maxlength="30" dir="ltr" class="form-input">
+      <span class="field-help">این کد فقط در همین فروشگاه معتبر خواهد بود.</span>
+    </div>
+    <div class="field-group">
+      <label class="field-label required" for="id_type">نوع</label>
+      <select name="type" id="id_type" class="form-select">
+        {% for val, label in type_choices %}
+        <option value="{{ val }}" {% if coupon.type == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_value">مقدار</label>
+      <input type="number" name="value" id="id_value" value="{{ coupon.value|default:'0' }}" step="1" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_label">برچسب نمایشی</label>
+      <input type="text" name="label" id="id_label" value="{{ coupon.label|default:'' }}" maxlength="150" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_min_order">حداقل مبلغ سفارش</label>
+      <input type="number" name="min_order" id="id_min_order" value="{{ coupon.min_order|default:'0' }}" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_usage_limit">سقف استفاده</label>
+      <input type="number" name="usage_limit" id="id_usage_limit" value="{{ coupon.usage_limit|default:'' }}" min="1" class="form-input">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="id_expires_at">تاریخ انقضا</label>
+      <input type="date" name="expires_at" id="id_expires_at" value="{{ coupon.expires_at|date:'Y-m-d'|default:'' }}" class="form-input">
+    </div>
+    <label class="toggle-field">
+      <input type="checkbox" name="is_active" {% if coupon.is_active or not coupon %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">فعال</span></div>
+    </label>
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">{% if coupon %}ذخیره تغییرات{% else %}افزودن{% endif %}</button>
+      <a href="{% url 'dashboard:coupon-list' %}" class="btn btn-secondary">انصراف</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

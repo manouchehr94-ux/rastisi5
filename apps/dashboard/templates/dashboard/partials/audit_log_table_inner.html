@@ -1,0 +1,31 @@
+{% load persian %}
+<div class="table-wrap"><table>
+  <thead><tr><th>عملیات</th><th>شیء</th><th>انجام‌دهنده</th><th>نتیجه</th><th>زمان</th></tr></thead>
+  <tbody>
+  {% for event in events %}
+    <tr>
+      <td><b>{{ event.action_code }}</b></td>
+      <td>{{ event.object_label|default:event.object_type|default:"—" }}</td>
+      <td>{{ event.actor.username|default:"سیستم" }}</td>
+      <td>
+        {% if event.result == "success" %}<span class="badge b-green">موفق</span>
+        {% else %}<span class="badge b-amber">ناموفق</span>{% endif %}
+      </td>
+      <td style="white-space:nowrap;color:var(--muted);font-size:12px">{{ event.created_at|date:"Y-m-d H:i" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">هنوز هیچ رخدادی ثبت نشده است</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pagination" style="display:flex;gap:8px;align-items:center;justify-content:center;padding:14px 0">
+  {% if page_obj.has_previous %}
+  <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:audit-log-table' %}?{{ request.GET.urlencode }}&page={{ page_obj.previous_page_number }}" hx-target="#auditTableWrap" hx-swap="innerHTML">قبلی</button>
+  {% endif %}
+  <span style="font-size:12.5px;color:var(--muted)">صفحه‌ی {{ page_obj.number|fa_number }} از {{ page_obj.paginator.num_pages|fa_number }} — {{ page_obj.paginator.count|fa_number }} رخداد</span>
+  {% if page_obj.has_next %}
+  <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:audit-log-table' %}?{{ request.GET.urlencode }}&page={{ page_obj.next_page_number }}" hx-target="#auditTableWrap" hx-swap="innerHTML">بعدی</button>
+  {% endif %}
+</div>
+{% endif %}

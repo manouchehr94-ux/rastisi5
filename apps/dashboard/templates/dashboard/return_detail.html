@@ -1,0 +1,127 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+{% block title %}مرجوعی {{ return_request.return_number }} | پنل مدیریت{% endblock %}
+{% block page_title %}درخواستِ مرجوعی <span dir="ltr">{{ return_request.return_number }}</span>{% endblock %}
+{% block page_sub %}وضعیت: {{ return_request.get_status_display }}{% endblock %}
+{% block content %}
+<div style="margin-bottom:14px">
+  <a class="btn btn-sm" href="{% url 'dashboard:return-list' %}">→ بازگشت به فهرست مرجوعی‌ها</a>
+</div>
+
+<div class="grid g-2" style="gap:16px;margin-bottom:16px">
+  <div class="card">
+    <div class="card-head"><h3>سفارش و مشتری</h3></div>
+    <div class="card-body" style="font-size:12.5px;line-height:2">
+      سفارش: <a href="{% url 'dashboard:order-detail' return_request.order.code %}" dir="ltr">{{ return_request.order.code }}</a><br>
+      مشتری: {{ return_request.customer.full_name }}<br>
+      علت: {{ return_request.get_reason_display }}<br>
+      {% if return_request.customer_explanation %}توضیحِ مشتری: {{ return_request.customer_explanation }}<br>{% endif %}
+      {% if return_request.merchant_note %}یادداشتِ مدیر: {{ return_request.merchant_note }}<br>{% endif %}
+      {% if return_request.refund %}استردادِ مرتبط: {{ return_request.refund.approved_amount|toman }}{% endif %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>زمان‌بندی</h3></div>
+    <div class="card-body" style="font-size:12.5px;line-height:2">
+      درخواست: {{ return_request.created_at|date:"Y-m-d H:i" }}<br>
+      {% if return_request.approved_at %}تأیید: {{ return_request.approved_at|date:"Y-m-d H:i" }}<br>{% endif %}
+      {% if return_request.received_at %}دریافت: {{ return_request.received_at|date:"Y-m-d H:i" }}<br>{% endif %}
+      {% if return_request.completed_at %}تکمیل: {{ return_request.completed_at|date:"Y-m-d H:i" }}<br>{% endif %}
+      {% if return_request.rejected_at %}رد: {{ return_request.rejected_at|date:"Y-m-d H:i" }}<br>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3>اقلام</h3></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>کالا</th><th>درخواستی</th><th>تأییدشده</th><th>دریافتی</th><th>وضعیت کالا</th><th>تصمیم</th></tr></thead>
+    <tbody>
+    {% for item in items %}
+    <tr>
+      <td>{{ item.order_item.product_name }}</td>
+      <td>{{ item.quantity_requested|fa_number }}</td>
+      <td>{{ item.quantity_approved|default:"—" }}</td>
+      <td>{{ item.quantity_received|default:"—" }}</td>
+      <td>{{ item.get_condition_display|default:"—" }}</td>
+      <td>{{ item.get_merchant_resolution_display|default:"—" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+{% if can_manage_returns %}
+<div class="card">
+  <div class="card-head"><h3>عملیات</h3></div>
+  <div class="card-body" style="display:flex;flex-direction:column;gap:16px">
+
+    {% if return_request.status == "requested" %}
+    <form method="post" action="{% url 'dashboard:return-review' return_request.pk %}">
+      {% csrf_token %}<button class="btn btn-primary" type="submit">شروعِ بررسی</button>
+    </form>
+    {% endif %}
+
+    {% if return_request.status == "requested" or return_request.status == "under_review" %}
+    <form method="post" action="{% url 'dashboard:return-approve' return_request.pk %}" style="display:flex;flex-direction:column;gap:8px">
+      {% csrf_token %}
+      <b>تأییدِ مرجوعی</b>
+      {% for item in items %}
+      <label>{{ item.order_item.product_name }} — تعدادِ تأییدشده:
+        <input type="number" name="approved_{{ item.pk }}" value="{{ item.quantity_requested }}" min="0" max="{{ item.quantity_requested }}" class="form-input" style="width:80px;display:inline-block">
+      </label>
+      {% endfor %}
+      <button class="btn btn-primary" type="submit" style="width:fit-content">تأیید</button>
+    </form>
+    <a class="btn btn-danger" href="{% url 'dashboard:return-reject' return_request.pk %}" style="width:fit-content">رد مرجوعی</a>
+    {% endif %}
+
+    {% if return_request.status == "approved" or return_request.status == "in_transit" %}
+    <form method="post" action="{% url 'dashboard:return-receive' return_request.pk %}" style="display:flex;flex-direction:column;gap:8px">
+      {% csrf_token %}
+      <b>ثبتِ دریافتِ کالا</b>
+      {% for item in items %}
+      <label>{{ item.order_item.product_name }} — تعدادِ دریافتی:
+        <input type="number" name="received_{{ item.pk }}" value="{{ item.quantity_approved }}" min="0" max="{{ item.quantity_approved }}" class="form-input" style="width:80px;display:inline-block">
+      </label>
+      {% endfor %}
+      <button class="btn btn-primary" type="submit" style="width:fit-content">ثبتِ دریافت</button>
+    </form>
+    {% endif %}
+
+    {% if return_request.status == "received" %}
+    <form method="post" action="{% url 'dashboard:return-inspect' return_request.pk %}" style="display:flex;flex-direction:column;gap:12px">
+      {% csrf_token %}
+      <b>بازرسی</b>
+      {% for item in items %}
+      <div style="border:1px solid var(--border,#eee);padding:8px;border-radius:8px">
+        <label><input type="checkbox" name="item_{{ item.pk }}_present" checked> {{ item.order_item.product_name }}</label>
+        <select name="item_{{ item.pk }}_condition" class="form-select" style="width:auto;display:inline-block">
+          <option value="new">نو</option>
+          <option value="opened">بازشده، سالم</option>
+          <option value="damaged">آسیب‌دیده</option>
+          <option value="defective">معیوب</option>
+        </select>
+        <label><input type="checkbox" name="item_{{ item.pk }}_restockable"> قابل بازگشت به موجودی</label>
+        <select name="item_{{ item.pk }}_resolution" class="form-select" style="width:auto;display:inline-block">
+          <option value="refund">استرداد وجه</option>
+          <option value="replace">تعویض</option>
+          <option value="reject">رد مرجوعی</option>
+        </select>
+      </div>
+      {% endfor %}
+      <textarea name="inspection_result" class="form-input" placeholder="نتیجه‌ی کلیِ بازرسی" rows="2"></textarea>
+      <button class="btn btn-primary" type="submit" style="width:fit-content">ثبتِ نتیجه‌ی بازرسی</button>
+    </form>
+    {% endif %}
+
+    {% if return_request.status == "inspected" %}
+    <form method="post" action="{% url 'dashboard:return-complete' return_request.pk %}">
+      {% csrf_token %}<button class="btn btn-primary" type="submit">تکمیلِ مرجوعی (بازگشتِ موجودی + استرداد)</button>
+    </form>
+    {% endif %}
+
+  </div>
+</div>
+{% endif %}
+{% endblock %}
