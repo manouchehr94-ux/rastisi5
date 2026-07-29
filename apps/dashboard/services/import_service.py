@@ -1044,6 +1044,11 @@ def run_execution(job: ImportJob, *, actor) -> ImportJob:
     if job.status in ImportJob.FINAL_STATUSES:
         raise ImportServiceError("این Job قبلاً به پایان رسیده — دوباره اجرا نمی‌شود.")
     job.dry_run = False
+    record_audit_event(
+        store=job.store, actor=actor, action_code="import.execution_started",
+        object_type="ImportJob", object_id=str(job.pk),
+        object_label=f"{job.get_import_type_display()} — حالتِ {job.get_mode_display()}",
+    )
     rows = read_job_rows(job)
     job = run_import(job, rows, actor=actor)
     _generate_error_report(job)
@@ -1097,6 +1102,37 @@ def _generate_error_report(job: ImportJob) -> None:
     job.error_report_file.save(
         f"errors-{job.pk}.csv", ContentFile(buffer.getvalue().encode("utf-8")), save=True,
     )
+
+
+IMPORT_FILE_RETENTION_DAYS = 30
+
+
+def cleanup_import_files(store=None, *, now=None, retention_days: int = IMPORT_FILE_RETENTION_DAYS) -> int:
+    """فایلِ منبع و گزارشِ خطایِ ``ImportJob``هایِ قدیمی‌تر از
+    ``retention_days`` را از دیسک حذف می‌کند — امّا رکوردِ Job و شمارنده‌ها/
+    نتیجه‌ی ردیف‌ها دست‌نخورده می‌مانند (تاریخچه حفظ می‌شود). Store-safe،
+    batch-safe (``iterator``)، و idempotent (حذفِ فایلِ از قبل حذف‌شده
+    بی‌اثر است). تعدادِ Jobهایی که حداقل یک فایلِ آن‌ها حذف شد را برمی‌گرداند
+    — نگاه کنید به ADR-62."""
+    now = now or timezone.now()
+    cutoff = now - timezone.timedelta(days=retention_days)
+    qs = ImportJob.objects.filter(created_at__lt=cutoff)
+    if store is not None:
+        qs = qs.filter(store=store)
+
+    count = 0
+    for job in qs.iterator(chunk_size=200):
+        touched = False
+        if job.source_file:
+            job.source_file.delete(save=False)
+            touched = True
+        if job.error_report_file:
+            job.error_report_file.delete(save=False)
+            touched = True
+        if touched:
+            job.save(update_fields=["source_file", "error_report_file"])
+            count += 1
+    return count
 
 
 def cancel_import_job(job: ImportJob, *, actor) -> ImportJob:
