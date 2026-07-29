@@ -9,6 +9,122 @@ without evidence.
 
 ---
 
+## Checkpoint 4 Addendum (read this first)
+
+A follow-up checkpoint ("Product Import/Export, Customer CRM, Customer
+Segments, and Bulk Operations") asked for a large, multi-part feature set.
+**Checkpoint 4 delivers, fully, with tests, migrations, Merchant Admin
+UI, and zero regressions:**
+
+1. **Export domain** (ADR-49, ADR-51, ADR-52) — `ExportJob` model
+   (Store-scoped, `pending`/`processing`/`completed`/`failed`/`expired`
+   status, `expires_at` 7-day retention), a shared CSV-injection-safe
+   read/write utility (`apps.core.services.csv_utils`) used by every
+   export, and a dedicated private file storage (`PRIVATE_MEDIA_ROOT`,
+   `apps.core.storage.private_storage`) whose `.url` deliberately raises
+   rather than ever producing a public link. Every export file is only
+   reachable through an authenticated, Store-scoped, permission-checked
+   download view (`export_download`) — never a direct URL.
+2. **All five export types, real services** — Products, Variants,
+   Inventory, Customers, Orders (`apps.core.services.export_service`).
+   Variant export encodes multi-axis option combinations explicitly
+   (`محور=مقدار` pairs), never an ambiguous flattened string. Inventory
+   export reports real availability via the existing reservation service
+   (`get_available_quantity`), never a stale frontend number. Customer
+   export computes order count/total spent from Store-filtered Orders
+   (ADR-50) — never the global, cross-Store `Customer.orders_count`/
+   `total_spent` fields, which would otherwise leak another Store's
+   purchase history for a Customer who has ordered from more than one
+   Store on this platform. Order export includes refund totals and the
+   latest return status, both scoped to the exporting Store.
+3. **Customer CRM foundation** (ADR-50) — Store-scoped `CustomerProfile`
+   (lazily created via `get_or_create`, cached order stats refreshed only
+   by an explicit call — never a signal), `CustomerTag` (Store-owned,
+   archived rather than deleted when in use), and `CustomerNote`
+   (author-attributed, pinnable), all wired into the customer detail page
+   with full create/edit/delete and audit logging.
+4. **Customer Segments — a genuine rule engine, not a stub** (ADR-53) —
+   `CustomerSegment`/`CustomerSegmentRule`/`CustomerSegmentMembership`;
+   nine allowlisted rule fields (order count, total spent, first/last
+   order date, has-purchased-Product, has-purchased-Category, has-used-
+   Coupon, customer tag, no-purchase-for-N-days, refund count), each with
+   its own allowed-operator subset validated at both save time and
+   evaluation time through one shared `validate_rule` function. Static
+   (manual add/remove) and dynamic (rule-computed) segment types; dynamic
+   preview is always a live, Store-scoped query (never stale), with a
+   separate explicit "Refresh Membership" action that materializes
+   `CustomerSegmentMembership` for future bulk-action use. Full Merchant
+   Admin UI: list, create/edit with a rule builder, detail page with live
+   preview and static member add/remove by phone number.
+5. **Customer bulk actions** — add/remove tag, change internal status,
+   and export-selected, all on the customer list page; foreign-Store
+   customer IDs are silently ignored (never create a profile in the wrong
+   Store), verified by a dedicated adversarial test.
+6. **Product bulk Tax Class assignment** — closes the checkpoint 3B gap
+   named in that addendum ("Bulk Tax Class assignment across multiple
+   products at once"): `assign-tax-class`/`clear-tax-class` bulk actions,
+   Store-scoped Tax Class validation, audit logged.
+7. **Permissions** — `IMPORT_EXPORT_VIEW`/`IMPORT_EXPORT_MANAGE`,
+   `CUSTOMER_NOTE_MANAGE`, `CUSTOMER_TAG_MANAGE`,
+   `CUSTOMER_SEGMENT_VIEW`/`CUSTOMER_SEGMENT_MANAGE`, `CUSTOMER_EXPORT`
+   (deliberately separate from `IMPORT_EXPORT_*` since it exposes PII),
+   mapped exactly per this checkpoint's suggested policy: Catalog Manager
+   gets Product/Variant/Inventory import-export + bulk Tax Class; Order
+   Manager gets Customer export/notes/tags/segments; Analyst gets
+   read-only exports and segment viewing; Content Editor gets none.
+8. **Management commands** — `cleanup_expired_exports` (marks expired
+   `ExportJob` rows and deletes their files; Store-filterable, batch-safe
+   via `iterator()`) and `refresh_customer_segments` (refreshes every
+   active dynamic segment; Store-filterable, reports per-segment errors
+   without aborting the whole run). Both require external cron/systemd
+   scheduling — documented in `PRODUCTION_CONFIGURATION.md` §5a, since this
+   codebase has no background task queue (ADR-49).
+
+**Not delivered this checkpoint — named explicitly:**
+
+- **CSV Import (Product/Variant/Inventory) — not implemented at all.**
+  No `ImportJob`/`ImportRowResult` model, no preview/execution service, no
+  upload UI. This is the single largest and highest-risk piece of the
+  original request (it writes to Product/Variant/Inventory and must never
+  bypass the Variant Engine or the inventory-reservation ledger), and a
+  rushed implementation risked exactly the kind of silent data corruption
+  the rest of this codebase's Store-scoping/inventory-ledger discipline
+  exists to prevent. See **ADR-54** for the full reasoning and the concrete
+  list of what a follow-up checkpoint needs to build it correctly. This is
+  recorded here as a real gap, not softened as "partially implemented."
+- XLSX export/import — this codebase has no existing safe XLSX dependency
+  (`requirements.txt` has no `openpyxl`/`xlsxwriter`), and the request's
+  own policy says XLSX may only be added via an existing safe dependency
+  or a well-tested library, not implemented from scratch. CSV is the only
+  supported format this checkpoint, documented as a deliberate choice.
+- Scheduled/automatic segment refresh and export cleanup — both
+  management commands exist and are tested, but neither runs on its own;
+  an operator must configure cron/systemd, documented honestly rather than
+  assumed.
+- A dedicated segment-based bulk action ("add to static segment" from the
+  customer list) — the CRM/tag bulk actions (§5 above) were prioritized;
+  `CustomerSegmentMembership` materialization exists and is ready for this,
+  but the customer-list bulk-action bar itself was not extended with a
+  segment picker this checkpoint.
+- Customer marketing-eligibility field — the request allowed this "if
+  already supported"; no marketing-consent/opt-in infrastructure exists
+  anywhere in this codebase today, so no such field was added rather than
+  inventing an unbacked consent flag.
+
+**Reason for these specific omissions:** Import is a materially separate,
+large, high-risk subsystem that the request's own core deliverables
+(Export, Customer CRM, Segments, bulk actions, permissions, tests) do not
+depend on — closing out Export/CRM/Segments/bulk-actions correctly and
+completely, rather than thinly spreading effort across all of the above
+plus a rushed Import, keeps every claim in this report backed by a real,
+tested implementation. XLSX, scheduled refresh, and the marketing field are
+all documented, deliberate scope boundaries following the request's own
+stated policies, not oversights.
+
+83 new tests this checkpoint (§24), full suite result in §25.
+
+---
+
 ## Checkpoint 3B Addendum (read this first)
 
 A follow-up checkpoint ("Shipping Zones, Shipping Methods, Rate Engine,
@@ -1452,3 +1568,111 @@ Carrier integration, fulfillment/shipment tracking, partial shipment, a
 merchant-facing tax breakdown in the refund form, and bulk Tax Class
 assignment remain open — recorded honestly in the Checkpoint 3B Addendum
 at the top of this report rather than folded silently into "done."
+
+---
+
+## 23. Checkpoint 4 — Detailed Delivery
+
+### 23.1 Export domain
+
+- `apps.core.models.ExportJob` — Store FK, `export_type` (products/
+  variants/inventory/customers/orders), `status` (pending/processing/
+  completed/failed/expired), `requested_by`, `filters`/`selected_fields`
+  JSONFields, `file` (via `private_storage`), `row_count`,
+  `error_message`, `started_at`/`completed_at`/`expires_at`. Migration
+  `core.0010_exportjob`.
+- `apps.core.storage.private_storage` — a `FileSystemStorage` rooted at
+  the new `PRIVATE_MEDIA_ROOT` setting, `base_url=None` so `.url` always
+  raises — a defensive guard, not just a convention.
+- `apps.core.services.csv_utils` — `sanitize_csv_cell` (formula-prefix
+  escaping, ADR-51), `write_csv_rows`/`read_csv_rows`, the single choke
+  point for every CSV read/write in this codebase.
+- `apps.core.services.export_service` — `run_export` (synchronous
+  job execution, ADR-49), one row-builder function per export type,
+  `mark_expired_jobs` (used by the management command).
+- `dashboard:export-list`/`export-create`/`export-download` views + the
+  `export_list.html` template; per-export-type permission gating
+  (`IMPORT_EXPORT_VIEW` for Products/Variants/Inventory/Orders,
+  `CUSTOMER_EXPORT` separately for Customers).
+
+### 23.2 Customer CRM
+
+- `apps.customers.models.CustomerProfile`/`CustomerTag`/`CustomerNote` —
+  migration `customers.0002_customerprofile_customernote_customertag_and_more`.
+- `apps.dashboard.services.customer_crm_service` — `get_or_create_profile`,
+  `refresh_customer_profile_stats` (explicit, never signal-driven),
+  note CRUD, tag CRUD/archive, `bulk_add_tag`/`bulk_remove_tag`/
+  `set_internal_status` (all Store-filter-first, foreign IDs silently
+  ignored).
+- Customer detail page gained a CRM panel (internal status, tags, notes,
+  stats refresh); `customer_tag_list.html` for Store-wide tag management.
+
+### 23.3 Customer Segments
+
+- `apps.customers.models.CustomerSegment`/`CustomerSegmentRule`/
+  `CustomerSegmentMembership` — migration
+  `customers.0003_customersegment_customersegmentrule_and_more`.
+- `apps.dashboard.services.segment_service` — `ALLOWED_FIELDS` (the
+  allowlisted rule registry), `validate_rule`, `evaluate_segment`
+  (per-rule independent Store-scoped queries combined by set algebra,
+  ADR-53), `preview_segment` (always-live for dynamic), `refresh_segment_membership`,
+  `add_static_member`/`remove_static_member`.
+- Full Merchant Admin UI: `segment_list.html`, `segment_form.html` (rule
+  builder), `segment_detail.html` (live preview, refresh, static member
+  add/remove by phone).
+
+### 23.4 Bulk actions and permissions
+
+- Customer list bulk actions: add/remove tag, set internal status,
+  export-selected (`customer_bulk_action` view).
+- Product bulk actions: `assign-tax-class`/`clear-tax-class`
+  (`bulk_assign_tax_class`/`bulk_clear_tax_class` in
+  `catalog_admin_service`), closing the checkpoint 3B "bulk Tax Class"
+  gap.
+- Seven new permission keys in `apps.stores.authorization`, mapped into
+  `ALL_PERMISSIONS` and every role bundle per the request's suggested
+  policy (Catalog Manager / Order Manager / Analyst / Content Editor).
+
+### 23.5 Management commands
+
+- `cleanup_expired_exports` (`apps.core.management.commands`) — marks
+  expired `ExportJob` rows, deletes their files, Store-filterable.
+- `refresh_customer_segments` (`apps.dashboard.management.commands`) —
+  refreshes every active dynamic segment, Store-filterable, per-segment
+  error isolation.
+
+### 23.6 ADRs
+
+ADR-49 (no background task queue — synchronous export/import execution),
+ADR-50 (Customer export/CRM stats computed from Store-filtered Orders,
+never global `Customer` fields), ADR-51 (CSV injection protection),
+ADR-52 (export file privacy/expiration/authenticated download), ADR-53
+(Customer Segment rule engine design), ADR-54 (CSV Import explicitly
+deferred — reasoning and follow-up plan).
+
+---
+
+## 24. Checkpoint 4 Test Results
+
+```
+python manage.py test apps.dashboard.tests.test_product_list_bulk_actions        → 27/27 OK  (5 new — bulk Tax Class)
+python manage.py test apps.dashboard.tests.test_export_views                     → 19/19 OK  (new)
+python manage.py test apps.core.tests.test_export_cleanup                        → 5/5 OK    (new)
+python manage.py test apps.dashboard.tests.test_customer_crm                     → 22/22 OK  (new)
+python manage.py test apps.dashboard.tests.test_segment_service                  → 14/14 OK  (new)
+python manage.py test apps.dashboard.tests.test_segment_views                    → 13/13 OK  (new)
+python manage.py test apps.dashboard.tests.test_refresh_customer_segments_command → 5/5 OK   (new)
+python manage.py test apps.stores.tests.test_authorization                       → 23/23 OK  (unchanged count — new permission keys, no dedicated new tests since they gate views covered by the suites above)
+python manage.py test apps.dashboard.tests.test_customer_views                   → 7/7 OK    (pre-existing, unchanged)
+python manage.py test apps.dashboard apps.core apps.customers apps.stores        → 1268/1268 OK
+```
+
+83 new tests this checkpoint (5 + 19 + 5 + 22 + 14 + 13 + 5 = 83); the
+combined `apps.dashboard apps.core apps.customers apps.stores` suite is
+re-run in full (1268 tests) to confirm zero regressions from the shared
+`views.py`/`urls.py`/`context_processors.py`/`authorization.py` edits
+every new feature this checkpoint touched.
+
+---
+
+## 25. Checkpoint 4 Final Full-Suite Validation and Conclusion
