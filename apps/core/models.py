@@ -325,3 +325,146 @@ class ExportJob(models.Model):
 
     def __str__(self):
         return f"{self.get_export_type_display()} — {self.store.slug} ({self.get_status_display()})"
+
+
+def import_job_upload_path(instance, filename: str) -> str:
+    """مسیرِ ذخیره‌ی فایلِ منبعِ یک ``ImportJob`` را می‌سازد — دقیقاً همان
+    استدلالِ ``export_job_upload_path``: نامِ فایلِ اصلی هرگز در مسیرِ دیسک
+    استفاده نمی‌شود (محافظت در برابرِ Path Traversal، نگاه کنید به ADR-62)."""
+    return f"imports/{instance.store_id}/{uuid.uuid4().hex}.csv"
+
+
+def import_error_report_upload_path(instance, filename: str) -> str:
+    return f"imports/{instance.store_id}/errors/{uuid.uuid4().hex}.csv"
+
+
+class ImportJob(models.Model):
+    """یک درخواستِ واردات CSV برای یک Store — نگاه کنید به ADR-55/ADR-56/ADR-62.
+
+    مانندِ ``ExportJob``، هیچ صفِ کارِ پس‌زمینه‌ای پشتِ این نیست (ADR-49) —
+    پیش‌نمایش و اجرا هر دو همگام، در همان چرخه‌ی درخواست/پاسخ انجام می‌شوند؛
+    وضعیت‌ها همچنان برای تاریخچه/UI ثبت می‌شوند."""
+
+    class ImportType(models.TextChoices):
+        PRODUCTS = "products", "کالاها"
+        VARIANTS = "variants", "تنوع‌ها"
+        INVENTORY = "inventory", "موجودیِ انبار"
+
+    class Mode(models.TextChoices):
+        CREATE_ONLY = "create_only", "فقط ایجاد"
+        UPDATE_ONLY = "update_only", "فقط به‌روزرسانی"
+        UPSERT = "upsert", "ایجاد یا به‌روزرسانی (Upsert)"
+
+    class Status(models.TextChoices):
+        UPLOADED = "uploaded", "بارگذاری‌شده"
+        VALIDATING = "validating", "در حالِ اعتبارسنجی"
+        PREVIEW_READY = "preview_ready", "پیش‌نمایش آماده"
+        PROCESSING = "processing", "در حالِ پردازش"
+        COMPLETED = "completed", "تکمیل‌شده"
+        COMPLETED_WITH_ERRORS = "completed_with_errors", "تکمیل‌شده با خطا"
+        FAILED = "failed", "ناموفق"
+        CANCELLED = "cancelled", "لغوشده"
+
+    FINAL_STATUSES = {Status.COMPLETED, Status.COMPLETED_WITH_ERRORS, Status.FAILED, Status.CANCELLED}
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="import_jobs",
+    )
+    import_type = models.CharField("نوعِ واردات", max_length=20, choices=ImportType.choices)
+    original_filename = models.CharField("نامِ اصلیِ فایل", max_length=255, blank=True, default="")
+    source_file = models.FileField(
+        "فایلِ منبع", upload_to=import_job_upload_path, storage=private_storage,
+        max_length=255, blank=True,
+    )
+    status = models.CharField(
+        "وضعیت", max_length=22, choices=Status.choices, default=Status.UPLOADED, db_index=True,
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="درخواست‌دهنده", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="import_jobs",
+    )
+    mode = models.CharField("حالتِ اجرا", max_length=12, choices=Mode.choices, default=Mode.UPSERT)
+    dry_run = models.BooleanField("اجرای آزمایشی (Dry Run)", default=True)
+    # خالی یعنی «بدون کلیدِ صریح» — یکتایی فقط وقتی مقدار دارد اجرا می‌شود،
+    # دقیقاً همان الگویِ ``Order.idempotency_key``/``ProductVariant.sku``.
+    idempotency_key = models.CharField("کلیدِ یکتایِ درخواست", max_length=64, blank=True, default="")
+
+    total_rows = models.PositiveIntegerField("مجموعِ ردیف‌ها", default=0)
+    valid_rows = models.PositiveIntegerField("ردیف‌هایِ معتبر", default=0)
+    invalid_rows = models.PositiveIntegerField("ردیف‌هایِ نامعتبر", default=0)
+    created_rows = models.PositiveIntegerField("ردیف‌هایِ ایجادشده", default=0)
+    updated_rows = models.PositiveIntegerField("ردیف‌هایِ به‌روزرسانی‌شده", default=0)
+    skipped_rows = models.PositiveIntegerField("ردیف‌هایِ ردشده", default=0)
+    failed_rows = models.PositiveIntegerField("ردیف‌هایِ ناموفق", default=0)
+
+    error_summary = models.TextField("خلاصه‌ی خطا", blank=True, default="")
+    error_report_file = models.FileField(
+        "فایلِ گزارشِ خطا", upload_to=import_error_report_upload_path, storage=private_storage,
+        max_length=255, blank=True,
+    )
+
+    created_at = models.DateTimeField("زمانِ ایجاد", auto_now_add=True)
+    updated_at = models.DateTimeField("زمانِ به‌روزرسانی", auto_now=True)
+    started_at = models.DateTimeField("زمانِ شروعِ پردازش", null=True, blank=True)
+    completed_at = models.DateTimeField("زمانِ پایان", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "درخواستِ واردات"
+        verbose_name_plural = "درخواست‌هایِ واردات"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["store", "-created_at"], name="idx_import_store_created"),
+            models.Index(fields=["store", "status"], name="idx_import_store_status"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["store", "idempotency_key"], condition=~models.Q(idempotency_key=""),
+                name="uniq_importjob_idempotency_key_per_store",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.get_import_type_display()} — {self.store.slug} ({self.get_status_display()})"
+
+
+class ImportRowResult(models.Model):
+    """نتیجه‌ی پردازشِ یک ردیفِ منفردِ یک ``ImportJob`` — نگاه کنید به ADR-56.
+
+    ``normalized_data_summary`` عمداً یک خلاصه‌ی کوچک و امن است (نه کلِ
+    ردیفِ خام) — هرگز رمز/توکن/دادهٔ حساس در آن ذخیره نمی‌شود."""
+
+    class RowStatus(models.TextChoices):
+        VALID = "valid", "معتبر"
+        INVALID = "invalid", "نامعتبر"
+        CREATED = "created", "ایجادشده"
+        UPDATED = "updated", "به‌روزرسانی‌شده"
+        SKIPPED = "skipped", "ردشده"
+        FAILED = "failed", "ناموفق"
+
+    import_job = models.ForeignKey(
+        ImportJob, verbose_name="درخواستِ واردات", on_delete=models.CASCADE, related_name="row_results",
+    )
+    row_number = models.PositiveIntegerField("شماره‌ی ردیف")
+    source_identifier = models.CharField("شناسه‌ی منبع", max_length=120, blank=True, default="")
+    status = models.CharField("وضعیت", max_length=10, choices=RowStatus.choices)
+    normalized_data_summary = models.JSONField("خلاصه‌ی داده‌ی نرمال‌شده", blank=True, default=dict)
+    errors = models.JSONField("خطاها", blank=True, default=list)
+    warnings = models.JSONField("هشدارها", blank=True, default=list)
+    target_object_type = models.CharField("نوعِ شیءِ هدف", max_length=30, blank=True, default="")
+    target_object_id = models.PositiveIntegerField("شناسه‌ی شیءِ هدف", null=True, blank=True)
+
+    created_at = models.DateTimeField("زمانِ ایجاد", auto_now_add=True)
+    updated_at = models.DateTimeField("زمانِ به‌روزرسانی", auto_now=True)
+
+    class Meta:
+        verbose_name = "نتیجه‌ی ردیفِ واردات"
+        verbose_name_plural = "نتایجِ ردیف‌هایِ واردات"
+        ordering = ["import_job_id", "row_number"]
+        indexes = [
+            models.Index(fields=["import_job", "status"], name="idx_importrow_job_status"),
+            models.Index(fields=["import_job", "row_number"], name="idx_importrow_job_rownum"),
+            models.Index(fields=["import_job", "source_identifier"], name="idx_importrow_job_srcid"),
+        ]
+
+    def __str__(self):
+        return f"ردیفِ {self.row_number} — {self.get_status_display()}"

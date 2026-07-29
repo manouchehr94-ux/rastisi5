@@ -15,6 +15,7 @@ ProductVariant) را کم می‌کرد و لغو سفارش هرگز موجود
 نشوند؛ ``verify_inventory_consistency`` این هم‌ترازی را بررسی می‌کند.
 """
 
+from django.db import transaction
 from django.db.models import F, Sum
 
 from apps.catalog.models import Product, ProductVariant, StockMovement, Warehouse, WarehouseInventory
@@ -282,6 +283,86 @@ def adjust_stock_manually(*, store, product, variant=None, new_stock: int, actor
         object_type="Product" if variant is None else "ProductVariant",
         object_id=target.pk, object_label=product.name,
         before={"stock": stock_before}, after={"stock": new_stock}, metadata={"note": note},
+    )
+    return movement
+
+
+@transaction.atomic
+def adjust_warehouse_stock(
+    *, store, warehouse, product, variant=None, mode: str, quantity: int, reason: str, actor, note: str = "",
+):
+    """موجودیِ یک انبارِ *مشخص* را برایِ یک کالا/تنوع تغییر می‌دهد — همیشه یک
+    ``StockMovement`` می‌سازد و Product.stock/ProductVariant.stock (تجمیع
+    میانِ همه‌ی انبارها، ADR-38) را با همان دلتا هم‌زمان به‌روزرسانی می‌کند.
+
+    برخلافِ ``adjust_stock_manually`` (که همیشه انبارِ پیش‌فرضِ Store را
+    هدف می‌گیرد)، این تابع صراحتاً یک ``warehouse`` می‌پذیرد — برایِ
+    Inventory Import (checkpoint 4B، ستونِ ``warehouse_code``) که باید
+    بتواند انبارِ غیرپیش‌فرض را هم هدف بگیرد. نگاه کنید به ADR-60 برایِ
+    سیاستِ ایمنیِ رزرو: تغییری که موجودیِ در دسترسِ کل (تجمیعی، نه
+    per-warehouse — این کدبیس رزرو را در سطحِ Store/Product ردیابی می‌کند،
+    نه per-warehouse) را منفی کند رد می‌شود.
+
+    ``mode``: ``"adjustment"`` (``quantity`` دلتا، می‌تواند منفی باشد) یا
+    ``"set_on_hand"`` (``quantity`` مقدارِ مطلقِ همین انبار؛ دلتا از رویِ
+    تفاوت با on_hand فعلیِ همین انبار محاسبه می‌شود). دلتایِ صفر هیچ
+    ``StockMovement``ای نمی‌سازد و ``None`` برمی‌گرداند (idempotent no-op)."""
+    from apps.catalog.models import InventoryReservation
+
+    if warehouse.store_id != store.pk:
+        raise InvalidRestockWarehouseError("این انبار متعلق به فروشگاه دیگری است.")
+    if product.store_id != store.pk or (variant is not None and variant.store_id != store.pk):
+        raise InvalidRestockWarehouseError("این کالا/تنوع متعلق به فروشگاه دیگری است.")
+
+    target_model = ProductVariant if variant is not None else Product
+    target_pk = variant.pk if variant is not None else product.pk
+    locked_target = target_model.objects.select_for_update().get(pk=target_pk)
+    stock_before = locked_target.stock
+
+    balance, _created = WarehouseInventory.objects.select_for_update().get_or_create(
+        store=store, warehouse=warehouse, product=product, variant=variant,
+        defaults={"on_hand": 0},
+    )
+
+    if mode == "set_on_hand":
+        if quantity < 0:
+            raise ValueError("موجودیِ مطلق نمی‌تواند منفی باشد.")
+        delta = quantity - balance.on_hand
+    elif mode == "adjustment":
+        delta = quantity
+    else:
+        raise ValueError(f"حالتِ «{mode}» نامعتبر است.")
+
+    if delta == 0:
+        return None
+
+    new_aggregate = stock_before + delta
+    if new_aggregate < 0:
+        raise InsufficientStockError("این تغییر موجودیِ کل را منفی می‌کند.")
+
+    reserved = InventoryReservation.objects.filter(
+        product=product, variant=variant, status=InventoryReservation.Status.ACTIVE,
+    ).aggregate(total=Sum("quantity"))["total"] or 0
+    if new_aggregate < reserved:
+        raise InsufficientStockError(
+            f"این تغییر موجودیِ در دسترس را منفی می‌کند (رزروِ فعالِ کنونی: {reserved})."
+        )
+
+    locked_target.stock = new_aggregate
+    locked_target.save(update_fields=["stock", "updated_at"])
+    WarehouseInventory.objects.filter(pk=balance.pk).update(on_hand=F("on_hand") + delta)
+
+    movement = StockMovement.objects.create(
+        store=store, product=product, variant=variant, warehouse=warehouse,
+        reason=reason, delta=delta, stock_before=stock_before, stock_after=new_aggregate,
+        actor=actor, note=note,
+    )
+    record_audit_event(
+        store=store, actor=actor, action_code="inventory.warehouse_adjustment",
+        object_type="Product" if variant is None else "ProductVariant",
+        object_id=target_pk, object_label=product.name,
+        before={"stock": stock_before}, after={"stock": new_aggregate},
+        metadata={"warehouse": warehouse.code, "note": note, "reason": reason, "mode": mode},
     )
     return movement
 
