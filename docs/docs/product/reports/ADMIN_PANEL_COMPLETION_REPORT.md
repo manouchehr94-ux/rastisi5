@@ -813,7 +813,30 @@ python manage.py test apps.orders apps.dashboard apps.catalog apps.stores
 python manage.py test
 ```
 
-<!-- CHECKPOINT2_FULL_SUITE_PLACEHOLDER -->
+```
+python manage.py migrate
+...(all migrations, including cart.0004-0006, catalog.0015-0016,
+    core.0008, orders.0007, applied cleanly)...
+
+python manage.py test
+...
+Ran 2390 tests in 912.122s
+
+OK
+```
+
+**2,390/2,390 passing** — up from the 2,311 recorded at the end of
+checkpoint 1 by exactly 79, matching this checkpoint's own new-test tally
+in §15 precisely. `manage.py check` and `makemigrations --check --dry-run`
+were both re-verified clean immediately before this run. One real bug was
+found and fixed during this validation pass, not hidden: `apps.core.
+management.commands.seed_shop._seed_coupons` had not been updated for
+`Coupon.store` becoming a required field (ADR-32) and raised
+`IntegrityError` on every invocation; fixed by passing `store` through
+(commit `84a1b55`), re-verified with the full targeted suite (1,871/1,871)
+before this final full-suite run. This is the final gate for checkpoint 2
+of the Admin Panel Completion Program: green, nothing regressed, nothing
+skipped, nothing hidden.
 
 **Checkpoint 2 is complete** per the request's own §23 definition: Coupon
 ownership is Store-safe and checkout-resolution is Store-scoped and
