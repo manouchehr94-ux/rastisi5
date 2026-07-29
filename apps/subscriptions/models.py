@@ -1,0 +1,211 @@
+"""مدل‌هایِ دامنه‌ی اشتراکِ SaaS (Checkpoint 5A) — پلن، نسخه‌ی پلن، تعریفِ
+حق‌دسترسی (Entitlement)، و حق‌دسترسیِ پلن.
+
+نگاه کنید به ADR-63 (نسخه‌ی پلنِ تغییرناپذیر)، ADR-64 (سرویسِ مرکزیِ
+Entitlement)، ADR-66 (ماشینِ حالتِ اشتراک)، ADR-71 (SubscriptionEvent در
+برابرِ Audit Log) در ``SAAS_DOMAIN_DECISIONS.md``.
+
+این‌ها همه *platform-owned* هستند — نه Store-owned. فقط مدیرِ پلتفرم
+(superuser، از طریقِ Django Admin) آن‌ها را مدیریت می‌کند؛ هیچ مسیرِ
+Merchant Admin به این جدول‌ها نمی‌نویسد."""
+
+from decimal import Decimal
+
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import models
+
+from apps.core.models import TimeStampedModel
+
+
+class Plan(TimeStampedModel):
+    """یک پلنِ تجاریِ platform-owned (مثلاً starter/professional/business).
+
+    ``code`` سراسری یکتاست و پس از اولین استفاده نباید تغییر کند (کنترلِ
+    تغییر در لایه‌ی سرویس/Admin؛ نگاه کنید به ADR-63). نامِ پلن هرگز در
+    منطقِ مجوز/entitlement هاردکد نمی‌شود — همه‌چیز از طریقِ کلیدِ
+    Entitlement عبور می‌کند (ADR-64)."""
+
+    code = models.SlugField("کد", max_length=50, unique=True, allow_unicode=False)
+    name = models.CharField("نامِ داخلی", max_length=100)
+    public_title = models.CharField("عنوانِ عمومی", max_length=100, blank=True, default="")
+    description = models.TextField("توضیحات", blank=True, default="")
+    is_active = models.BooleanField("فعال", default=True)
+    is_publicly_selectable = models.BooleanField("قابلِ انتخابِ عمومی", default=True)
+    is_recommended = models.BooleanField("پیشنهادی", default=False)
+    display_order = models.PositiveIntegerField("ترتیبِ نمایش", default=0)
+
+    class Meta:
+        verbose_name = "پلن"
+        verbose_name_plural = "پلن‌ها"
+        ordering = ["display_order", "code"]
+        indexes = [
+            models.Index(fields=["is_active", "is_publicly_selectable"], name="idx_plan_active_public"),
+        ]
+
+    def __str__(self):
+        return self.public_title or self.name
+
+
+class EntitlementDefinition(TimeStampedModel):
+    """تعریفِ یک قابلیت/محدودیتِ قابلِ سنجش — کلیدِ ماشین‌خوانِ پایدار
+    (مثلاً ``catalog.products``). نگاه کنید به ADR-64.
+
+    ``entitlement_type`` تعیین می‌کند کدام ستونِ ``PlanEntitlement`` معنادار
+    است: ``boolean`` → ``is_enabled``؛ ``integer_limit`` → ``integer_limit``
+    (یا ``is_unlimited``)؛ ``decimal_limit`` → ``decimal_limit`` (یا
+    ``is_unlimited``)؛ ``text_value`` → ``text_value``. هیچ زبانِ عبارتِ
+    آزادی وجود ندارد — فقط این چهار نوعِ بسته."""
+
+    class EntitlementType(models.TextChoices):
+        BOOLEAN = "boolean", "بولی (روشن/خاموش)"
+        INTEGER_LIMIT = "integer_limit", "محدودیتِ عددِ صحیح"
+        DECIMAL_LIMIT = "decimal_limit", "محدودیتِ عددِ اعشاری"
+        TEXT_VALUE = "text_value", "مقدارِ متنی"
+
+    key = models.SlugField("کلید", max_length=60, unique=True, allow_unicode=False)
+    name = models.CharField("نام", max_length=120)
+    description = models.CharField("توضیحات", max_length=300, blank=True, default="")
+    entitlement_type = models.CharField(
+        "نوع", max_length=15, choices=EntitlementType.choices, default=EntitlementType.BOOLEAN,
+    )
+    # رفتارِ پیش‌فرض وقتی یک نسخه‌ی پلن این Entitlement را صراحتاً تعریف
+    # نکرده باشد — برایِ boolean یعنی «آیا در نبودِ تعریف، فعال است؟».
+    default_enabled = models.BooleanField("پیش‌فرض: فعال", default=False)
+    is_active = models.BooleanField("فعال", default=True)
+
+    class Meta:
+        verbose_name = "تعریفِ حق‌دسترسی"
+        verbose_name_plural = "تعریف‌هایِ حق‌دسترسی"
+        ordering = ["key"]
+
+    def __str__(self):
+        return f"{self.name} ({self.key})"
+
+
+class PlanVersion(TimeStampedModel):
+    """نسخه‌ی تغییرناپذیرِ یک پلن — نگاه کنید به ADR-63.
+
+    فقط نسخه‌ی ``published`` می‌تواند اشتراکِ تازه بگیرد. پس از انتشار، شرایطِ
+    تاریخیِ نسخه (Entitlementها/قیمت/تریال) نباید تغییر کند؛ تغییرِ شرایط
+    یعنی ساختِ یک نسخه‌ی تازه، نه ویرایشِ نسخه‌ی منتشرشده. اشتراک‌هایِ موجود
+    تا زمانِ مهاجرتِ صریح رویِ نسخه‌ی خودشان می‌مانند.
+
+    قیمت در Checkpoint 5A فقط اطلاعاتی است — دریافتِ واقعیِ پول به 5B موکول
+    شده (ADR-72)."""
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "پیش‌نویس"
+        PUBLISHED = "published", "منتشرشده"
+        RETIRED = "retired", "بازنشسته"
+        ARCHIVED = "archived", "آرشیوشده"
+
+    class BillingInterval(models.TextChoices):
+        MONTHLY = "monthly", "ماهانه"
+        YEARLY = "yearly", "سالانه"
+        NONE = "none", "بدونِ دوره (رایگان/legacy)"
+
+    plan = models.ForeignKey(Plan, verbose_name="پلن", on_delete=models.PROTECT, related_name="versions")
+    version_number = models.PositiveIntegerField("شماره‌ی نسخه")
+    status = models.CharField("وضعیت", max_length=12, choices=Status.choices, default=Status.DRAFT, db_index=True)
+    currency = models.CharField("ارز", max_length=8, default="IRT")
+    billing_interval = models.CharField(
+        "دوره‌ی صورتحساب", max_length=10, choices=BillingInterval.choices, default=BillingInterval.MONTHLY,
+    )
+    display_price = models.DecimalField("قیمتِ نمایشی (اطلاعاتی)", max_digits=14, decimal_places=0, default=0)
+    trial_days = models.PositiveIntegerField("روزهایِ تریال", default=0)
+    grace_period_days = models.PositiveIntegerField("روزهایِ مهلتِ ارفاقی (grace)", default=7)
+    public_description_snapshot = models.TextField("توضیحاتِ عمومی (اسنپ‌شات)", blank=True, default="")
+
+    effective_from = models.DateTimeField("معتبر از", null=True, blank=True)
+    published_at = models.DateTimeField("زمانِ انتشار", null=True, blank=True)
+    retired_at = models.DateTimeField("زمانِ بازنشستگی", null=True, blank=True)
+
+    entitlements = models.ManyToManyField(
+        EntitlementDefinition, through="PlanEntitlement", related_name="plan_versions",
+    )
+
+    class Meta:
+        verbose_name = "نسخه‌ی پلن"
+        verbose_name_plural = "نسخه‌هایِ پلن"
+        ordering = ["plan", "-version_number"]
+        constraints = [
+            models.UniqueConstraint(fields=["plan", "version_number"], name="uniq_planversion_number_per_plan"),
+        ]
+        indexes = [
+            models.Index(fields=["plan", "status"], name="idx_planversion_plan_status"),
+        ]
+
+    def __str__(self):
+        return f"{self.plan.code} v{self.version_number} ({self.get_status_display()})"
+
+    @property
+    def is_published(self) -> bool:
+        return self.status == self.Status.PUBLISHED
+
+
+class PlanEntitlement(TimeStampedModel):
+    """مقدارِ یک Entitlement برایِ یک نسخه‌ی پلنِ مشخص.
+
+    نوعِ مقدار باید با ``entitlement.entitlement_type`` بخواند (در ``clean``
+    اعتبارسنجی می‌شود). «نامحدود» صراحتاً با ``is_unlimited=True`` نشان داده
+    می‌شود، نه با یک عددِ بزرگِ دلخواه (ADR-64، §6)."""
+
+    plan_version = models.ForeignKey(
+        PlanVersion, verbose_name="نسخه‌ی پلن", on_delete=models.CASCADE, related_name="plan_entitlements",
+    )
+    entitlement = models.ForeignKey(
+        EntitlementDefinition, verbose_name="حق‌دسترسی", on_delete=models.PROTECT, related_name="plan_entitlements",
+    )
+    is_enabled = models.BooleanField("فعال", default=True)
+    is_unlimited = models.BooleanField("نامحدود", default=False)
+    integer_limit = models.IntegerField("محدودیتِ عددی", null=True, blank=True)
+    decimal_limit = models.DecimalField("محدودیتِ اعشاری", max_digits=14, decimal_places=2, null=True, blank=True)
+    text_value = models.CharField("مقدارِ متنی", max_length=300, blank=True, default="")
+
+    class Meta:
+        verbose_name = "حق‌دسترسیِ پلن"
+        verbose_name_plural = "حق‌دسترسی‌هایِ پلن"
+        ordering = ["plan_version", "entitlement__key"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["plan_version", "entitlement"], name="uniq_planentitlement_per_version",
+            ),
+            models.CheckConstraint(
+                check=models.Q(integer_limit__isnull=True) | models.Q(integer_limit__gte=0),
+                name="planentitlement_integer_limit_non_negative",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.plan_version} · {self.entitlement.key}"
+
+    def clean(self):
+        """نوعِ مقدار باید با نوعِ Entitlement بخواند — لایه‌ی دومِ دفاعی کنارِ
+        CheckConstraint (که نمی‌تواند به جدولِ دیگر join کند)."""
+        if self.entitlement_id is None:
+            return
+        etype = self.entitlement.entitlement_type
+        errors = {}
+        if etype == EntitlementDefinition.EntitlementType.INTEGER_LIMIT:
+            if not self.is_unlimited and self.integer_limit is None:
+                errors["integer_limit"] = "برایِ محدودیتِ عددی، یا مقدار بدهید یا «نامحدود» را علامت بزنید."
+            if self.integer_limit is not None and self.integer_limit < 0:
+                errors["integer_limit"] = "محدودیتِ عددی نمی‌تواند منفی باشد."
+        elif etype == EntitlementDefinition.EntitlementType.DECIMAL_LIMIT:
+            if not self.is_unlimited and self.decimal_limit is None:
+                errors["decimal_limit"] = "برایِ محدودیتِ اعشاری، یا مقدار بدهید یا «نامحدود» را علامت بزنید."
+            if self.decimal_limit is not None and self.decimal_limit < 0:
+                errors["decimal_limit"] = "محدودیتِ اعشاری نمی‌تواند منفی باشد."
+        elif etype == EntitlementDefinition.EntitlementType.BOOLEAN:
+            if self.is_unlimited:
+                errors["is_unlimited"] = "«نامحدود» برایِ Entitlementِ بولی معنا ندارد."
+        if errors:
+            raise ValidationError(errors)
+
+    def resolved_limit(self):
+        """محدودیتِ عددیِ مؤثر را برمی‌گرداند: ``None`` یعنی «نامحدود»، وگرنه
+        عددِ صحیح. فقط برایِ نوعِ ``integer_limit`` معنا دارد."""
+        if self.is_unlimited:
+            return None
+        return self.integer_limit
