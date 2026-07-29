@@ -9,6 +9,62 @@ without evidence.
 
 ---
 
+## Checkpoint 4B Addendum (read this first)
+
+Checkpoint 4B ("Safe Product, Variant, and Inventory Import Engine")
+delivers the one piece checkpoint 4 explicitly deferred (ADR-54): CSV
+Import. **All three import types work end-to-end — preview and real
+execution — with tests, migrations, Merchant Admin UI, and zero
+regressions:**
+
+1. **`ImportJob` + `ImportRowResult` models** (ADR-55) — Store-scoped,
+   private source/error-report files, per-Store-unique `idempotency_key`,
+   full status lifecycle (`uploaded`→`preview_ready`→`completed`/
+   `completed_with_errors`/`failed`/`cancelled`), and per-row results with
+   status/errors/warnings/target-object. Migration
+   `core.0011_importjob_importrowresult_and_more`.
+2. **Secure CSV pipeline** (ADR-62) — `validate_csv_upload`
+   (extension/content-type/size/filename), `read_csv_rows_bounded`
+   (streaming, 20k-row cap, 2k field truncation, null-byte strip, UTF-8/BOM,
+   invalid-encoding error), and Persian/Arabic-digit-aware Decimal/int/bool
+   parsers — all in the shared `apps.core.services.csv_utils`.
+3. **Product Import** (ADR-57/58) — stable identity (Store-scoped ID > SKU >
+   none, cross-Store hard-rejected), `create_only`/`update_only`/`upsert`,
+   Store-scoped Brand/Category/TaxClass by code, service-layer writes via
+   `full_clean()`, stock only through `inventory_service.adjust_stock_manually`.
+4. **Variant Import** (ADR-59) — multi-axis via `option_N_code`/
+   `option_N_value_code`, drives the real `variant_engine_service.generate_variants`
+   to materialize combinations (never hand-builds `VariantOptionValue`/
+   combination keys), preserves variant PK/SKU/images, routes `is_default`
+   through `set_default_variant`.
+5. **Inventory Import** (ADR-60) — `adjustment`/`set_on_hand` per warehouse
+   through the new `inventory_service.adjust_warehouse_stock`, which creates
+   a `StockMovement`, keeps aggregate stock consistent, and rejects any
+   reduction below the active reservation total.
+6. **Batch-atomic execution + idempotency** (ADR-56/61) — one generic
+   `run_import` engine (100-row atomic batches, streaming, shared
+   preview/execute validation); a completed job never re-executes; a reused
+   idempotency key is rejected at upload.
+7. **Merchant Admin UI** — upload (with per-type column hints + downloadable
+   CSV templates), preview/results detail page with paginated row results,
+   explicit execute confirmation, private source + error-report downloads;
+   sidebar nav gated on `IMPORT_EXPORT_VIEW`.
+8. **Permissions, audit, cleanup** — reuses checkpoint-4's
+   `IMPORT_EXPORT_VIEW`/`MANAGE` (Catalog Manager executes, Analyst views
+   only, Content Editor none); audit events for upload/preview/execute-start/
+   execute-complete/downloads/cancel; `cleanup_import_files` management
+   command (30-day retention, Store-safe, idempotent).
+
+**Not changed / deliberately bounded:** XLSX remains unsupported (CSV only,
+same policy as checkpoint 4); no background queue (imports run synchronously
+in-request, ADR-49/55); per-row product/variant audit events are omitted in
+favor of job-level counts (they'd be unbounded for large files) — the
+inventory service's own per-adjustment events still fire for inventory rows.
+
+Test counts and full-suite result in §26–§27.
+
+---
+
 ## Checkpoint 4 Addendum (read this first)
 
 A follow-up checkpoint ("Product Import/Export, Customer CRM, Customer
@@ -1723,3 +1779,36 @@ named honestly in the Checkpoint 4 Addendum at the top of this report and
 in ADR-54, with a concrete list of what a follow-up checkpoint needs,
 rather than folded silently into "done" or claimed as "partially
 implemented."
+
+---
+
+## 26. Checkpoint 4B Test Results
+
+```
+python manage.py test apps.core.tests.test_import_models                     → 8/8 OK   (new)
+python manage.py test apps.core.tests.test_csv_import_utils                   → 24/24 OK (new)
+python manage.py test apps.catalog.tests.test_adjust_warehouse_stock          → 11/11 OK (new — warehouse-aware, reservation-safe stock adjust)
+python manage.py test apps.dashboard.tests.test_import_product                → 20/20 OK (new — incl. bounded-query, retry-after-partial-failure, batch-isolation)
+python manage.py test apps.dashboard.tests.test_import_variant                → 15/15 OK (new — Variant Engine integration)
+python manage.py test apps.dashboard.tests.test_import_inventory              → 20/20 OK (new — reservation safety)
+python manage.py test apps.dashboard.tests.test_import_views                  → 21/21 OK (new — UI, permissions, CSRF, tenant isolation)
+python manage.py test apps.dashboard.tests.test_cleanup_import_files_command  → 6/6 OK   (new)
+```
+
+**125 new tests this checkpoint** (8 + 24 + 11 + 20 + 15 + 20 + 21 + 6 =
+125). Coverage maps to the mega-prompt §25 checklist: import models
+(constraints/idempotency), CSV parsing (UTF-8/BOM/Persian digits/bool/
+Decimal/empty rows/bad headers/oversized fields/invalid encoding), Product
+Import (create/update/upsert/duplicate-SKU/invalid Category-Brand-TaxClass/
+cross-Store/dry-run/replay), Variant Import (existing/new/duplicate
+combination, invalid option/value, wrong product, preserve SKU/PK/images,
+dry-run, cross-Store), Inventory Import (adjustment/set_on_hand, warehouse/
+product/variant, negative-stock rejection, active-reservation safety,
+StockMovement/actor, replay, cross-Store), Views (upload/preview/execute/
+results/error-report/permissions/tenant-isolation/CSRF/invalid-files), plus
+a bounded-query performance test (§26) and the full regression suite below.
+
+---
+
+## 27. Checkpoint 4B Final Full-Suite Validation and Conclusion
+

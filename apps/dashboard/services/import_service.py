@@ -643,9 +643,10 @@ def _execute_variant_batch(store, batch, *, mode, cache, actor, dry_run: bool) -
             outcomes.append(outcome)
             continue
         try:
-            variant, is_create = _apply_variant_row(
-                store=store, normalized=normalized, existing_variant=existing_variant, cache=cache, actor=actor,
-            )
+            with transaction.atomic():  # savepoint به‌ازایِ هر ردیف (ADR-56)
+                variant, is_create = _apply_variant_row(
+                    store=store, normalized=normalized, existing_variant=existing_variant, cache=cache, actor=actor,
+                )
             outcome.status = ImportRowResult.RowStatus.CREATED if is_create else ImportRowResult.RowStatus.UPDATED
             outcome.target_object_type = "ProductVariant"
             outcome.target_object_id = variant.pk
@@ -867,10 +868,14 @@ def _execute_product_batch(store, batch, *, mode, cache, actor, dry_run: bool) -
             outcomes.append(outcome)
             continue
         try:
-            product, is_create = _apply_product_row(
-                store=store, normalized=normalized, existing_product=existing_product,
-                vendor=cache["default_vendor"], actor=actor,
-            )
+            # savepoint به‌ازایِ هر ردیف: یک خطایِ سطحِ دیتابیس در اعمالِ این
+            # ردیف فقط تا همین savepoint برمی‌گردد و تراکنشِ batch را برایِ
+            # ردیف‌هایِ بعدی سالم نگه می‌دارد (ADR-56).
+            with transaction.atomic():
+                product, is_create = _apply_product_row(
+                    store=store, normalized=normalized, existing_product=existing_product,
+                    vendor=cache["default_vendor"], actor=actor,
+                )
             outcome.status = ImportRowResult.RowStatus.CREATED if is_create else ImportRowResult.RowStatus.UPDATED
             outcome.target_object_type = "Product"
             outcome.target_object_id = product.pk

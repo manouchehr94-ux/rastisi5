@@ -121,6 +121,40 @@ materialized `CustomerSegmentMembership` rows only update when this command
 0 4 * * * cd /path/to/app && python manage.py refresh_customer_segments
 ```
 
+And `python manage.py cleanup_import_files` (ADR-62) deletes the private
+source and error-report files of `ImportJob`s older than a 30-day retention
+window (the `ImportJob` record and its per-row results are preserved). Like
+the two commands above it needs external scheduling; the files it removes
+are regeneratable/re-uploadable, never the sole copy of any data:
+
+```
+0 5 * * * cd /path/to/app && python manage.py cleanup_import_files
+```
+
+### CSV Import — columns, modes, and safety (checkpoint 4B)
+
+Merchants import Products, Variants, and Inventory from CSV via the
+**واردات داده‌ها** (Import) admin page. Every import is a two-step flow:
+upload → automatic dry-run **preview** (nothing changes) → explicit
+**execute** confirmation. The three modes are always chosen explicitly:
+`create_only` (reject rows matching an existing record), `update_only`
+(reject rows with no match), `upsert` (update matches, create the rest).
+
+Records are matched by **stable, Store-scoped identity**: a platform
+`product_id` first, then `sku` within the Store — never by name or slug.
+Brand/Category/TaxClass/Warehouse are referenced by their **Store-scoped
+code** (`brand_code`, `category_code`, `tax_class_code`, `warehouse_code`),
+not display name; a missing or another-Store reference is a per-row error.
+Downloadable CSV templates for each type are linked from the upload page.
+
+Limits (documented, fixed — see `apps.core.services.csv_utils`): max upload
+**10 MB**, max **20,000 rows**, max field length **2,000 chars**. Files are
+UTF-8 (BOM-tolerant); Persian/Arabic digits are normalized automatically.
+Inventory imports can never oversell — a reduction that would drop available
+stock below active reservations is refused. Import source and error-report
+files live under `DJANGO_PRIVATE_MEDIA_ROOT` and are only downloadable
+through the authenticated, Store-scoped admin view (never a public URL).
+
 ## 6. HTTPS / reverse-proxy assumptions
 
 This application expects to sit either directly on the public internet with

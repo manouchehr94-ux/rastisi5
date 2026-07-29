@@ -248,3 +248,70 @@ class IdempotencyTests(ProductImportTestCase):
         self._job(csv_text, idempotency_key="my-key-1")
         with self.assertRaises(import_service.ImportServiceError):
             self._job(csv_text, idempotency_key="my-key-1")
+
+    def test_retry_after_partial_failure_does_not_double_apply(self):
+        # A file where row 1 is valid and row 2 is invalid → completed_with_errors.
+        csv_text = (
+            PRODUCT_HEADER
+            + ",SKU-PARTIAL-1,خوب,,,,,leaf-imp,1000,1,,,,,\n"
+            + ",,,,,,,,,,,,,,\n"  # invalid: missing everything
+        )
+        job = self._job(csv_text, mode=ImportJob.Mode.UPSERT)
+        import_service.run_execution(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.status, ImportJob.Status.COMPLETED_WITH_ERRORS)
+        self.assertEqual(job.created_rows, 1)
+        self.assertEqual(Product.objects.filter(store=self.store, sku="SKU-PARTIAL-1").count(), 1)
+        # Retrying the same (now-final) job is blocked — no double creation.
+        with self.assertRaises(import_service.ImportServiceError):
+            import_service.run_execution(job, actor=self.actor)
+        self.assertEqual(Product.objects.filter(store=self.store, sku="SKU-PARTIAL-1").count(), 1)
+
+
+class BatchIsolationTests(ProductImportTestCase):
+    def test_apply_failure_on_one_row_does_not_lose_earlier_rows_in_batch(self):
+        # Two create rows sharing an explicit slug: row 1 succeeds, row 2's
+        # save hits the (store, slug) uniqueness → the row fails, but row 1
+        # (already applied earlier in the same batch) must persist — proving
+        # the per-row savepoint keeps the batch transaction usable.
+        csv_text = (
+            PRODUCT_HEADER
+            + ",SKU-BATCH-1,اول,dup-slug,,,,leaf-imp,1000,1,,,,,\n"
+            + ",SKU-BATCH-2,دوم,dup-slug,,,,leaf-imp,2000,1,,,,,\n"
+        )
+        job = self._job(csv_text, mode=ImportJob.Mode.CREATE_ONLY)
+        import_service.run_execution(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.created_rows, 1)
+        self.assertEqual(job.failed_rows, 1)
+        self.assertTrue(Product.objects.filter(store=self.store, sku="SKU-BATCH-1").exists())
+        self.assertFalse(Product.objects.filter(store=self.store, sku="SKU-BATCH-2").exists())
+
+
+class BoundedQueryTests(ProductImportTestCase):
+    """§26: repeated Brand/Category/TaxClass references must not produce a
+    query per CSV cell — the lookup cache is built once per job, so preview
+    query count stays bounded as row count grows."""
+
+    def _preview_rows(self, n):
+        rows = PRODUCT_HEADER
+        for i in range(n):
+            rows += f",SKU-BQ-{i},کالا {i},,,,brand-imp,leaf-imp,1000,1,,,general-imp,,\n"
+        job = self._job(rows, mode=ImportJob.Mode.CREATE_ONLY)
+        return job
+
+    def test_preview_query_count_bounded_regardless_of_row_count(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        small = self._preview_rows(2)
+        with CaptureQueriesContext(connection) as ctx_small:
+            import_service.run_preview(small, actor=self.actor)
+        large = self._preview_rows(20)
+        with CaptureQueriesContext(connection) as ctx_large:
+            import_service.run_preview(large, actor=self.actor)
+
+        # The delta between 2-row and 20-row previews must be far below the
+        # 18-row difference times a per-reference cost — a per-cell lookup
+        # of 3 references (brand/category/tax) would add ~54 queries.
+        self.assertLess(len(ctx_large.captured_queries) - len(ctx_small.captured_queries), 18)
