@@ -463,23 +463,24 @@ User
 - Host resolution؛
 - Store context؛
 - جداسازی Merchant Dashboard و Platform Admin؛
-- foundation اولیه StoreMembership.
+- StoreMembership (نقش، وضعیت، قید یکتاییِ مالکِ فعال)؛
+- role-based authorization و permission registry (`apps.stores.authorization`)؛
+- **پنل مدیریتِ اعضای تیم** (`apps.stores.services.membership_service` +
+  `apps.dashboard.views.staff_*`؛ Admin Panel Completion Program، ADR-30) —
+  افزودن/تغییرِ نقش/لغوِ عضویت/فعال‌سازیِ مجدد/انتقالِ مالکیت، فقط برای
+  مالکِ فروشگاه، با ایزوله‌سازیِ کاملِ بین‌فروشگاهی و تست.
 
 ### ناقص
 
-- invitation lifecycle؛
-- membership acceptance؛
-- owner transfer؛
-- deactivate/remove member؛
-- role-based authorization؛
-- permission registry؛
+- invitation lifecycle توکنی/تأییدشده با پیامک یا ایمیل (تصمیمِ عمدیِ
+  ADR-30 — افزودنِ عضو در حال حاضر بلافاصله دسترسیِ فعال می‌دهد)؛
 - Store switching برای platform users؛
-- audit کامل تغییر عضویت؛
 - quota/plan enforcement.
 
 ### وضعیت
 
-**Partial — اولویت بالا**
+**Partial — اعضای تیم و مجوزها تکمیل شد؛ invitation lifecycle و
+plan enforcement همچنان باقی مانده**
 
 ---
 
@@ -536,6 +537,12 @@ User
 - کنترل‌های بازنویسیِ سه‌حالته‌ی فیلتر/مقایسه/جست‌وجو + نمایش فروشگاه در UI طرح ویژگیِ دسته‌بندی (رفع نقطه‌ی ناقص Phase 1E)؛
 - ۲۰ صنف جدید (مجموعاً ۳۰) — ساعت، عینک، کیف و چمدان، اسباب‌بازی، لوازم نوزاد، ورزش، سلامت شخصی، مراقبت پوست/مو، آرایش، لوازم یدکی خودرو/موتورسیکلت، ابزارآلات، برق و روشنایی، لوازم آشپزخانه، رختخواب و حمام، لوازم حیوانات خانگی، گل و هدیه، محصولات دیجیتال، آلات موسیقی — همه `production_ready`، همه نصب‌شدنی، اعتبارسنجی‌شده.
 
+**دفتر موجودی (Inventory Ledger — Admin Panel Completion Program، ADR-31):**
+
+- `StockMovement`: دفتر تغییرناپذیرِ هر تغییرِ موجودی (علت، تغییر، موجودیِ قبل/بعد، سفارش، انجام‌دهنده)؛
+- `apps.catalog.services.inventory_service`: کاهشِ صحیح موجودی هنگام سفارش (تنوع در صورت وجود، وگرنه خودِ کالا — رفعِ باگِ واقعیِ کاهشِ موجودیِ کالای والد به‌جای تنوع)، بازگشتِ موجودی هنگام لغو سفارش (پیش از این، لغو سفارش هرگز موجودی را برنمی‌گرداند)، اصلاح دستی؛
+- صفحه‌ی «دفتر موجودی» در پنل مدیریت — فقط‌خواندنی، جست‌وجو/فیلتر، پرمیشن `INVENTORY_MANAGE`.
+
 ### ناقص نسبت به محصول هدف
 
 - تولید variant-swap در Storefront (فقط `ProductVariant.display_image`/داده موجود است، مصرف storefront انجام نشده)؛
@@ -546,7 +553,7 @@ User
 - bulk product import/export؛
 - tag management کامل (`Product.tag` هنوز فیلد ثابت تک‌مقداره است، نه سیستم چندبرچسبی)؛
 - SEO contract کامل (structured data، canonical URL، sitemap)؛
-- inventory ledger و رزرو موجودی؛
+- رزرو موجودی (stock reservation هنگام افزودن به سبد، پیش از تکمیل سفارش)؛
 - warehouse support؛
 - product audit history؛
 - category tree UX حرفه‌ای؛
@@ -659,21 +666,29 @@ User
 
 ### ناقص
 
-- direct Store ownership؛
-- authoritative state machine؛
-- transition service واحد؛
 - order number per Store؛
 - fulfillment workflow؛
-- cancellation/refund؛
+- refund (لغو سفارش اکنون موجودی را صحیح بازمی‌گرداند — Admin Panel
+  Completion Program، ADR-31 — اما بازپرداختِ مالی/جزئی همچنان مدل یا
+  UI ندارد)؛
 - invoice lifecycle؛
 - immutable financial snapshot کامل؛
-- status history actor/audit؛
-- concurrency lock؛
-- stock reservation/release؛
+- stock reservation (رزرو موجودی هنگام افزودن به سبد، پیش از تکمیل
+  سفارش — کاهش/بازگشتِ موجودیِ خودِ سفارش اکنون صحیح و دفترچه‌دار است،
+  نگاه کنید به ۱۱.۲)؛
 - manual order creation contract؛
 - order export؛
 - return/exchange؛
 - fraud controls.
+
+> این بخش پیش از Admin Panel Completion Program نوشته شده و چند مورد
+> («authoritative state machine»، «transition service واحد»،
+> «status history actor/audit»، «concurrency lock») دیگر دقیق نیستند —
+> این‌ها در `apps.orders.services.order_service` (`ALLOWED_TRANSITIONS`،
+> `change_order_status`، `OrderStatusHistory.changed_by`،
+> `select_for_update` در `_lock_and_revalidate_items`) از فازهای قبلی
+> پیاده‌سازی شده‌اند؛ یک بازبینیِ کاملِ این بخش انجام نشد (نگاه کنید به
+> `ADMIN_PANEL_COMPLETION_REPORT.md` §7).
 
 ### وضعیت
 
