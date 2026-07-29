@@ -561,6 +561,14 @@ class AttributeValue(TimeStampedModel):
     display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
     is_active = models.BooleanField("فعال", default=True)
 
+    # ردیابی صرفاً اطلاعاتی منشأ نصب صنف (Phase 1F) — برای تشخیص سفارشی‌سازی
+    # (ADR-28)؛ مقداری بدون این FK (مثلاً نصب‌شده در Phase 1E پیش از افزودن
+    # این فیلد، یا ساخته‌شده توسط مدیر فروشگاه) همیشه «سفارشی‌شده» فرض می‌شود.
+    source_template_value = models.ForeignKey(
+        "IndustryTemplateAttributeValue", verbose_name="مقدار مبدأ در قالب صنف", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="installed_values",
+    )
+
     class Meta:
         verbose_name = "مقدار ویژگی"
         verbose_name_plural = "مقادیر ویژگی"
@@ -764,6 +772,19 @@ class IndustryTemplate(TimeStampedModel):
     (ADR-25) — بنابراین هیچ رکورد IndustryTemplate پس از ساخته‌شدن هرگز
     توسط کد این فاز تغییر نمی‌کند."""
 
+    class Readiness(models.TextChoices):
+        """چرخه‌ی عمر آمادگیِ قالب — نگاه کنید به ADR-26.
+
+        فقط ``PRODUCTION_READY`` به مرچنت‌ها برای نصب جدید پیشنهاد می‌شود؛
+        بقیه‌ی حالت‌ها فقط برای اپراتور پلتفرم (پنل ادمین) قابل‌مشاهده‌اند."""
+
+        DRAFT = "draft", "پیش‌نویس"
+        VALIDATION_FAILED = "validation_failed", "اعتبارسنجی ناموفق"
+        REVIEW_REQUIRED = "review_required", "نیازمند بازبینی"
+        PRODUCTION_READY = "production_ready", "آماده‌ی تولید"
+        DEPRECATED = "deprecated", "منسوخ"
+        ARCHIVED = "archived", "بایگانی‌شده"
+
     slug = models.SlugField("اسلاگ", max_length=60)
     name = models.CharField("نام صنف", max_length=120)
     description = models.TextField("توضیحات", blank=True)
@@ -772,6 +793,13 @@ class IndustryTemplate(TimeStampedModel):
     locale = models.CharField("زبان", max_length=10, default="fa")
     display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
     is_active = models.BooleanField("فعال", default=True)
+    readiness = models.CharField(
+        "آمادگی", max_length=20, choices=Readiness.choices, default=Readiness.DRAFT,
+    )
+    content_fingerprint = models.CharField(
+        "اثرانگشت محتوا", max_length=64, blank=True, default="",
+        help_text="هش SHA-256 قطعی محتوای قالب — نگاه کنید به ADR-27",
+    )
 
     class Meta:
         verbose_name = "قالب صنف"
@@ -783,6 +811,10 @@ class IndustryTemplate(TimeStampedModel):
 
     def __str__(self):
         return f"{self.name} (نسخه {self.version})"
+
+    @property
+    def is_offerable_for_new_installation(self):
+        return self.is_active and self.readiness == self.Readiness.PRODUCTION_READY
 
 
 class IndustryTemplateCategory(TimeStampedModel):
@@ -1075,6 +1107,108 @@ class CategoryRecommendedOption(TimeStampedModel):
             errors["attribute"] = "فقط ویژگی‌های واجد شرایط محور تنوع می‌توانند پیشنهاد شوند."
         if errors:
             raise ValidationError(errors)
+
+
+# =============================================================================
+# چارچوب کیفیت و به‌روزرسانیِ قالب صنف (Phase 1F) — نگاه کنید به ADR-26 تا ADR-29.
+# =============================================================================
+
+
+class IndustryTemplateValidationResult(TimeStampedModel):
+    """آخرین نتیجه‌ی اعتبارسنجیِ کش‌شده‌ی یک قالب صنف — نگاه کنید به ADR-26/27.
+
+    چون ردیف‌های فرزندِ ``IndustryTemplate`` پس از ساخت هرگز تغییر
+    نمی‌کنند (ADR-25)، این نتیجه فقط وقتی نامعتبر می‌شود که
+    ``content_fingerprint``ِ قالب تغییر کند (که خودش یعنی یک ردیف
+    ``IndustryTemplate`` کاملاً جدید ساخته شده) — پس یک ردیف کش به‌ازای
+    هر (قالب، fingerprint) کافی است، نه یک تاریخچه‌ی نامحدود."""
+
+    class Status(models.TextChoices):
+        VALID = "valid", "معتبر"
+        INVALID = "invalid", "نامعتبر"
+
+    industry_template = models.OneToOneField(
+        IndustryTemplate, verbose_name="قالب صنف", on_delete=models.CASCADE, related_name="validation_result",
+    )
+    fingerprint = models.CharField("اثرانگشت زمانِ اعتبارسنجی", max_length=64)
+    validator_version = models.CharField("نسخه‌ی اعتبارسنج", max_length=20)
+    status = models.CharField("وضعیت", max_length=10, choices=Status.choices)
+    quality_score = models.PositiveSmallIntegerField("امتیاز کیفیت", null=True, blank=True)
+    errors = models.JSONField("خطاها", default=list, blank=True)
+    warnings = models.JSONField("هشدارها", default=list, blank=True)
+    infos = models.JSONField("اطلاعات", default=list, blank=True)
+    metrics = models.JSONField("سنجه‌ها", default=dict, blank=True)
+    duration_ms = models.PositiveIntegerField("مدت اجرا (میلی‌ثانیه)", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "نتیجه‌ی اعتبارسنجی قالب صنف"
+        verbose_name_plural = "نتایج اعتبارسنجی قالب صنف"
+
+    def __str__(self):
+        return f"{self.industry_template.name} — {self.get_status_display()}"
+
+    @property
+    def is_stale(self):
+        return self.fingerprint != self.industry_template.content_fingerprint
+
+
+class StoreTemplateUpdate(TimeStampedModel):
+    """تاریخچه‌ی هر تلاش برای به‌روزرسانیِ نصبِ قالب صنف یک Store — نگاه کنید به ADR-29.
+
+    ``idempotency_key`` امکان رد کردن ارسال تکراری/هم‌زمانِ همان درخواست
+    را می‌دهد بدون نیاز به قفل سطح‌بالاتر."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "در حال انجام"
+        COMPLETED = "completed", "تکمیل‌شده"
+        FAILED = "failed", "ناموفق"
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="template_updates",
+    )
+    installation = models.ForeignKey(
+        StoreIndustryInstallation, verbose_name="نصب", on_delete=models.CASCADE, related_name="update_attempts",
+    )
+    from_template = models.ForeignKey(
+        IndustryTemplate, verbose_name="قالب مبدأ", on_delete=models.PROTECT, related_name="updates_from",
+    )
+    target_template = models.ForeignKey(
+        IndustryTemplate, verbose_name="قالب مقصد", on_delete=models.PROTECT, related_name="updates_to",
+    )
+    actor = models.ForeignKey(
+        "auth.User", verbose_name="انجام‌دهنده", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="template_updates",
+    )
+    status = models.CharField("وضعیت", max_length=10, choices=Status.choices, default=Status.PENDING)
+    idempotency_key = models.CharField("کلید یکتایی درخواست", max_length=80, unique=True)
+    started_at = models.DateTimeField("زمان شروع", auto_now_add=True)
+    completed_at = models.DateTimeField("زمان پایان", null=True, blank=True)
+    selected_change_ids = models.JSONField("تغییرات انتخاب‌شده", default=list, blank=True)
+    applied_changes = models.JSONField("تغییرات اعمال‌شده", default=list, blank=True)
+    skipped_changes = models.JSONField("تغییرات نادیده‌گرفته‌شده", default=list, blank=True)
+    conflicts = models.JSONField("تعارض‌ها", default=list, blank=True)
+    failure_reason = models.TextField("دلیل شکست", blank=True, default="")
+
+    class Meta:
+        verbose_name = "به‌روزرسانی نصب قالب صنف"
+        verbose_name_plural = "به‌روزرسانی‌های نصب قالب صنف"
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"{self.store.name}: {self.from_template.version} → {self.target_template.version} ({self.status})"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.installation_id and self.store_id and self.installation.store_id != self.store_id:
+            raise ValidationError({"installation": "این نصب متعلق به فروشگاه دیگری است."})
+        if (
+            self.from_template_id and self.target_template_id
+            and self.from_template.slug != self.target_template.slug
+        ):
+            raise ValidationError({"target_template": "قالب مقصد باید از همان خانواده‌ی صنف باشد."})
+        if self.from_template_id and self.target_template_id and self.from_template_id == self.target_template_id:
+            raise ValidationError({"target_template": "قالب مقصد نمی‌تواند همان نسخه‌ی فعلی باشد."})
 
 
 class Specification(TimeStampedModel):

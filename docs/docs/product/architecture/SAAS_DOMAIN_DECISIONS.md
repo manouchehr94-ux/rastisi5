@@ -1404,6 +1404,238 @@ is).
 
 ---
 
+## ADR-26: Industry Template Quality Is a Structured, Reusable Validation Service — Not a Vanity Score
+
+**Context.** Phase 1F must scale the Industry Template catalog from 10 to
+30 (and eventually further), which makes it realistic that a future
+template author writes something structurally broken (a dangling parent
+reference, a required Attribute with no obtainable choice Values) or
+merely shallow (a Category with no Attribute mappings at all). The prompt
+explicitly warns against "a fake quality score" that could make severe
+errors invisible behind a high aggregate number.
+
+**Decision.** `apps.catalog.services.template_validation_service.validate_industry_template(template)`
+returns a structured `TemplateValidationResult` dataclass: a list of
+typed `ValidationIssue` entries (`code`, `severity` — `error`/`warning`/
+`info`, `message`, `model_type`, `identifier`, `remediation`), a
+`metrics` dict (category/attribute/value/mapping/recommendation counts),
+and a derived `readiness` recommendation. **Any `error`-severity issue
+unconditionally blocks `production_ready`**, regardless of how many other
+dimensions pass — there is no numeric score that can average away a
+structural defect. A secondary, explicitly-documented `quality_score`
+(0–100, weighted: structure 25 / attribute completeness 20 / schema
+quality 20 / variant recommendations 15 / merchant usefulness 10 /
+installability 10 — see `QUALITY_SCORE_WEIGHTS` in the service module) is
+computed *only* from `warning`/`info`-level findings once zero errors are
+present, and is advisory metadata, never a gate — a template with 0
+errors and a low score is still eligible for `production_ready` review
+if a platform operator explicitly promotes it; the score is a triage aid
+for operators comparing templates, not an automated pass/fail threshold
+on its own.
+
+**Consequences.** The same service function is called identically by the
+`validate_industry_templates` management command, the Django admin
+action, the seed command (to set initial `readiness`), and every test —
+one source of truth for "what makes a template good," matching the
+prompt's explicit requirement that validation logic must not live inside
+a view or command. Adding a new quality rule means adding one function to
+`_STRUCTURAL_CHECKS`/`_CONTENT_CHECKS` in the service module and it is
+immediately live everywhere.
+
+**Alternatives considered.** A single opaque 0–100 score as the only
+output — rejected outright per the prompt's explicit prohibition and
+because it cannot express "which specific thing is wrong," which is what
+a template author actually needs to fix it. Silent logging-only
+validation with no persisted/queryable result — rejected because
+platform operators need to inspect *why* a template is not
+`production_ready` without re-running validation by hand each time (see
+ADR context in §11 of the Phase 1F report for the persistence policy).
+
+## ADR-27: Template Versioning Stays on `IndustryTemplate.(slug, version)` — No Separate Version-Family Model
+
+**Context.** Phase 1F requires representing "Industry family identity,
+multiple versions, one version installed in a Store, a newer version
+available, comparison between versions" — the prompt suggests a
+`IndustryTemplate` → `IndustryTemplateVersion` split as one *possible*
+shape, but explicitly permits keeping the existing architecture if it
+"already supports this safely."
+
+**Decision.** Phase 1E's `IndustryTemplate` model, with `slug` as the
+family identity and `version` as a per-family incrementing integer
+(`UniqueConstraint(slug, version)`), already satisfies every requirement
+above without a new model: the "family" is simply
+`IndustryTemplate.objects.filter(slug=slug)`, "current recommended
+version for new installs" is computed on demand (not stored) as
+`IndustryTemplate.objects.filter(slug=slug, readiness=PRODUCTION_READY).order_by("-version").first()`
+(`latest_production_version(slug)` in `template_validation_service`), and
+"a newer version is available for an installed Store" is
+`installation.industry_template.version < latest_production_version(installation.industry_template.slug).version`.
+No new model was introduced; `IndustryTemplate` gains two new fields
+instead: `readiness` (the lifecycle state — §ADR-26/28) and
+`content_fingerprint` (a cached, deterministic content hash — see below).
+
+**Consequences.** Zero migration risk to the 10 existing Phase 1E
+templates or their installations beyond two new nullable/defaulted
+columns — no data restructuring, no re-keying of any child row's FK.
+"Current recommended version" being *computed*, not stored, means there
+is no mutable-flag invariant to maintain (no risk of two rows both
+claiming `is_recommended=True` for one family) — a `production_ready`
+template simply is or is not the highest-versioned one in its family
+that has reached that state, evaluated fresh on every read. A template's
+`content_fingerprint` (`apps.catalog.services.template_validation_service.compute_template_fingerprint`)
+is a SHA-256 over a canonical JSON structure built entirely from stable
+identifiers (`slug`/`code`/labels/ordering/flags) — explicitly excluding
+every database primary key, `created_at`, and `updated_at` — so two
+`IndustryTemplate` rows seeded with byte-identical content always fingerprint
+identically regardless of DB insert order, and re-running the seed
+command against unchanged data never appears to "drift." The fingerprint
+is computed once (at validation time, cached on the `IndustryTemplate`
+row) rather than on every read, since template child rows are immutable
+after creation (ADR-25) — there is no code path that could make a cached
+fingerprint stale without also creating a *new* `IndustryTemplate` row
+(which computes its own fresh fingerprint).
+
+**Alternatives considered.** A dedicated `IndustryTemplateVersion` model
+wrapping a stable `IndustryTemplate` family row — rejected for this phase
+as the disruptive redesign the prompt explicitly permits avoiding: it
+would require re-pointing every one of `IndustryTemplateCategory`/
+`IndustryTemplateAttribute`/etc.'s `industry_template` FK, plus a backfill
+migration, for a capability (family-vs-version distinction) the existing
+`(slug, version)` compound key already provides without it. If a future
+phase needs first-class "family" metadata that varies independently of
+any specific version (e.g., a family-level icon that should not require
+a new version row to change), that would be the concrete trigger to
+revisit this decision — not before.
+
+## ADR-28: Store Customization Detection Compares Live Fields Against the Immutable Source Template — No Snapshot Table
+
+**Context.** The safe-update workflow (ADR-29) must never silently
+overwrite a value a merchant deliberately changed after installing a
+template. Detecting "has this Store-owned record been customized"
+normally requires either an explicit dirty flag maintained on every write
+path, or a stored snapshot of the record's state at install time to diff
+against.
+
+**Decision.** Because `IndustryTemplate*` rows are immutable once created
+(ADR-25/27), the *source template row itself* already **is** the
+install-time snapshot — there is no need to copy it a second time into a
+separate snapshot table. `apps.catalog.services.template_customization_service`
+detects customization by directly comparing each Store-owned record's
+current field values against its `source_template_*` FK target's current
+field values: `is_category_customized(category)` compares `name`/`icon`/
+parent-identity against `category.source_template_category`;
+`is_attribute_customized(attribute)` compares `label`/`data_type`/
+`display_type`/`unit`/`is_variant_axis` against
+`attribute.source_template_attribute`; `is_schema_entry_customized(entry)`
+compares `group`/`is_required`/the three override flags/`help_text`/
+`placeholder` against `entry.source_template_mapping`. A record with no
+`source_template_*` FK (merchant-created from scratch, or installed
+before Phase 1F added a given traceability FK) is always treated as
+customized/merchant-owned — never eligible for silent update overwrite,
+the conservative default the prompt requires. `AttributeValue` gained a
+new `source_template_value` FK (mirroring `Category`/`Attribute`'s
+existing pattern) specifically so *value-level* customization (a
+merchant renaming or deleting a template-provided choice value) is
+detectable the same way; Phase 1E installations predate this FK and are
+`NULL` on it, so their existing `AttributeValue` rows are conservatively
+treated as customized by the same "no source FK means owned" rule above.
+
+**Consequences.** No new snapshot storage, no risk of a snapshot silently
+drifting out of sync with what was "actually installed," and detection
+logic automatically improves for future installations as more
+`source_template_*` FKs are added, with old installations safely
+defaulting to "assume customized" rather than "assume safe to overwrite."
+The cost: a customization check requires a live read of the source
+template row (cheap — `IndustryTemplate*` rows are small, and the update
+planning service prefetches them in bulk, not per-record).
+
+**Alternatives considered.** A dirty-bit (`is_customized` boolean) set by
+every mutating service call that touches an installed record — rejected:
+it requires disciplined maintenance across every future write path
+touching `Category`/`Attribute`/`CategoryAttributeSchema` (including
+Django admin edits, which bypass service functions entirely), and a
+missed call silently mis-flags a customized record as pristine — exactly
+the "silently overwrite merchant customization" failure the prompt
+prohibits. A full point-in-time snapshot copy at install time — rejected
+as redundant, since the immutable source template already serves that
+role at zero extra storage cost.
+
+## ADR-29: Template Updates Default to Additive-Only Auto-Apply; Everything Else Requires Explicit Merchant Review, Nothing Is Ever Auto-Applied Destructively
+
+**Context.** The prompt's §19 draws a three-way line: changes safe to
+apply automatically, changes requiring merchant review, and changes that
+must never be applied automatically. Phase 1F must implement a real,
+transactional update-application path that respects this line without
+degenerating into "sync everything" (which would silently clobber
+customization) or "do nothing" (which would make the whole feature a
+placeholder).
+
+**Decision.** `apps.catalog.services.template_update_service.plan_template_update(installation, target_template)`
+classifies every diff entry from `compare_template_versions` (ADR-27's
+comparison service) into exactly one bucket:
+
+* **`safe_additive`** — a new template Category/Attribute/Value/mapping/
+  recommendation with no Store-owned counterpart yet. These are
+  auto-selected by default in the plan and applied by
+  `apply_template_update` **only if the merchant does not deselect them**
+  — the merchant still confirms the batch, but no individual review is
+  required per item, matching the prompt's "Add a new optional Attribute"
+  example category exactly.
+* **`review_required`** — a changed field on an *existing, uncustomized*
+  Store-owned record (matched via `source_template_*`) — e.g. the
+  template's newer version renamed a Category the Store never touched.
+  These are listed but **not pre-selected**; the merchant must explicitly
+  check each one.
+* **`blocked`** — anything touching a Store-owned record this phase's
+  `template_customization_service` (ADR-28) determines is customized, or
+  any requested change this phase does not support applying at all
+  (label conflicts with an existing unrelated Attribute of a different
+  `data_type`, for instance). Blocked entries are never selectable and
+  are always shown with a reason string.
+
+`apply_template_update` **only ever applies `safe_additive` entries in
+this phase** — `review_required` entries can be selected in the plan UI
+for future extension, but the Phase 1F implementation of the apply
+service raises `TemplateUpdateError` if a caller attempts to select one,
+rather than silently downgrading it to "creates" behavior or silently
+ignoring the selection. This is a deliberate, named scope line (see the
+Phase 1F report's Known Limitations): the additive path is the one the
+prompt's own worked example (§19 "Automatically safe") fully specifies
+end-to-end; applying a *review-required* rename/retype safely (which
+existing Product data might depend on) is a strictly harder problem
+(e.g., changing an Attribute's `data_type` after Products already hold
+typed `ProductAttributeValue` rows against it) that deserves its own
+dedicated design pass rather than a rushed implementation inside this
+phase.
+
+**Consequences.** A merchant can safely accept "add everything new" in
+one confirmed action with zero risk of losing customization (verified by
+dedicated tests asserting a customized Category's `name` is byte-identical
+before and after an update that adds new sibling Categories). Every
+application is wrapped in one `@transaction.atomic` block, keyed by an
+idempotency key (`f"{installation.pk}:{target_template.pk}"` plus a
+per-call selection hash) recorded on the new `StoreTemplateUpdate` history
+row *before* any Store-owned row is touched, so a duplicate/retried
+request against an already-`completed` update of the same
+(installation, target_template) pair is rejected outright rather than
+double-applying. `installation.installed_version` is updated to the
+target template's version only on a fully successful apply.
+
+**Alternatives considered.** Applying `review_required` changes too, gated
+only by a merchant checkbox per item — rejected for this phase because
+several of those change types (data-type change, required-Category
+removal) have no safe, generally-correct "apply" implementation yet
+without also deciding what happens to existing `Product`/
+`ProductAttributeValue` rows that depend on the old shape; shipping a
+checkbox that silently does the wrong thing on `apply` would be worse
+than not offering the option. A full three-way merge/diff resolution UI
+(à la source control) — rejected as disproportionate scope for this
+phase; the additive-first slice already delivers the update workflow's
+primary value (new template content becomes available without
+re-installation) safely.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
