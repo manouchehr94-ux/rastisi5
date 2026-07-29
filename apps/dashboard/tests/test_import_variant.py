@@ -1,0 +1,242 @@
+"""Tests for the checkpoint 4B Variant Import service — reuses the real
+Variant Engine (``variant_engine_service.generate_variants``/
+``set_default_variant``), never creates ``VariantOptionValue`` rows or
+combination keys by hand."""
+
+from decimal import Decimal
+from io import BytesIO
+
+from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase
+
+from apps.catalog.models import Category, Product, ProductImage, ProductVariant, StockMovement, Vendor
+from apps.catalog.services.variant_engine_service import add_option_value, add_product_option, generate_variants
+from apps.core.models import ImportJob, ImportRowResult
+from apps.dashboard.services import import_service
+from apps.stores.models import Store
+
+User = get_user_model()
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
+def _csv_upload(text: str, name="variants.csv"):
+    return SimpleUploadedFile(name, text.encode("utf-8"), content_type="text/csv")
+
+
+VARIANT_HEADER = (
+    "product_id,product_sku,variant_id,variant_sku,barcode,"
+    "option_1_code,option_1_value_code,option_2_code,option_2_value_code,"
+    "price,compare_at_price,cost,stock,weight_grams,is_active,is_default\n"
+)
+
+
+class VariantImportTestCase(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-vimp")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-vimp")
+        self.actor = User.objects.create_user(username="vimp-owner", password="p", is_staff=True)
+
+        self.product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کالایِ چندمحوره",
+            slug="multi-axis-vimp", sku="SKU-VIMP-1", price=Decimal("100000"), stock=0,
+            product_type=Product.ProductType.VARIABLE,
+        )
+        self.color_option = add_product_option(self.product, label="رنگ", values=["قرمز", "آبی"])
+        self.red_value = self.color_option.values.get(label="قرمز")
+        self.blue_value = self.color_option.values.get(label="آبی")
+
+    def _job(self, csv_text, *, mode=ImportJob.Mode.UPSERT, idempotency_key=""):
+        return import_service.create_import_job(
+            self.store, import_type=ImportJob.ImportType.VARIANTS, uploaded_file=_csv_upload(csv_text),
+            mode=mode, requested_by=self.actor, idempotency_key=idempotency_key,
+        )
+
+
+class NewCombinationTests(VariantImportTestCase):
+    def test_creates_new_combination_via_engine(self):
+        self.assertEqual(self.product.variants.count(), 0)
+        csv_text = VARIANT_HEADER + f",SKU-VIMP-1,,VAR-RED,BAR-RED,رنگ,قرمز,,,15000,,8000,5,,بله,\n"
+        job = self._job(csv_text, mode=ImportJob.Mode.CREATE_ONLY)
+        import_service.run_execution(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.status, ImportJob.Status.COMPLETED)
+        self.assertEqual(job.created_rows, 1)
+        # generate_variants is exhaustive — both combinations now exist.
+        self.assertEqual(self.product.variants.exclude(combination_key="").count(), 2)
+        variant = ProductVariant.objects.get(product=self.product, sku="VAR-RED")
+        self.assertEqual(variant.extra_price, Decimal("15000"))
+        self.assertEqual(variant.cost, Decimal("8000"))
+        self.assertEqual(variant.stock, 5)
+        movement = StockMovement.objects.get(variant=variant)
+        self.assertEqual(movement.delta, 5)
+
+    def test_missing_option_value_for_new_combination_rejected(self):
+        csv_text = VARIANT_HEADER + ",SKU-VIMP-1,,VAR-GREEN,,رنگ,سبز,,,1000,,,1,,,\n"
+        job = self._job(csv_text, mode=ImportJob.Mode.CREATE_ONLY)
+        import_service.run_execution(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.invalid_rows, 1)
+        self.assertEqual(self.product.variants.count(), 0)
+
+
+class ExistingCombinationTests(VariantImportTestCase):
+    def setUp(self):
+        super().setUp()
+        generate_variants(self.product)
+        self.red_variant = ProductVariant.objects.get(product=self.product, combination_key__gt="", value="قرمز")
+
+    def test_update_by_variant_id(self):
+        csv_text = (
+            f"product_id,product_sku,variant_id,variant_sku,barcode,option_1_code,option_1_value_code,"
+            f"option_2_code,option_2_value_code,price,compare_at_price,cost,stock,weight_grams,is_active,is_default\n"
+            f",,{self.red_variant.pk},NEW-SKU-RED,,,,,,25000,,,3,,,\n"
+        )
+        job = self._job(csv_text, mode=ImportJob.Mode.UPDATE_ONLY)
+        import_service.run_execution(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.updated_rows, 1)
+        self.red_variant.refresh_from_db()
+        self.assertEqual(self.red_variant.sku, "NEW-SKU-RED")
+        self.assertEqual(self.red_variant.extra_price, Decimal("25000"))
+        self.assertEqual(self.red_variant.stock, 3)
+
+    def test_update_by_option_combination(self):
+        csv_text = VARIANT_HEADER + ",SKU-VIMP-1,,,,رنگ,قرمز,,,30000,,,,,,\n"
+        job = self._job(csv_text, mode=ImportJob.Mode.UPDATE_ONLY)
+        import_service.run_execution(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.updated_rows, 1)
+        self.red_variant.refresh_from_db()
+        self.assertEqual(self.red_variant.extra_price, Decimal("30000"))
+
+    def test_update_preserves_sku_when_not_provided(self):
+        self.red_variant.sku = "ORIGINAL-SKU"
+        self.red_variant.save(update_fields=["sku"])
+        csv_text = VARIANT_HEADER + ",SKU-VIMP-1,,,,رنگ,قرمز,,,5000,,,,,,\n"
+        job = self._job(csv_text, mode=ImportJob.Mode.UPDATE_ONLY)
+        import_service.run_execution(job, actor=self.actor)
+        self.red_variant.refresh_from_db()
+        self.assertEqual(self.red_variant.sku, "ORIGINAL-SKU")
+
+    def test_update_preserves_variant_images(self):
+        image = ProductImage.objects.create(
+            product=self.product, variant=self.red_variant,
+            image="products/gallery/red.jpg", order=0,
+        )
+        csv_text = VARIANT_HEADER + ",SKU-VIMP-1,,,,رنگ,قرمز,,,9999,,,,,,\n"
+        job = self._job(csv_text, mode=ImportJob.Mode.UPDATE_ONLY)
+        import_service.run_execution(job, actor=self.actor)
+        image.refresh_from_db()
+        self.assertEqual(image.variant_id, self.red_variant.pk)
+        self.assertTrue(ProductImage.objects.filter(pk=image.pk, variant=self.red_variant).exists())
+
+    def test_update_preserves_variant_primary_key(self):
+        original_pk = self.red_variant.pk
+        csv_text = VARIANT_HEADER + ",SKU-VIMP-1,,,,رنگ,قرمز,,,1111,,,,,,\n"
+        job = self._job(csv_text, mode=ImportJob.Mode.UPDATE_ONLY)
+        import_service.run_execution(job, actor=self.actor)
+        self.red_variant.refresh_from_db()
+        self.assertEqual(self.red_variant.pk, original_pk)
+        self.assertEqual(self.red_variant.extra_price, Decimal("1111"))
+
+    def test_create_only_rejects_existing_combination(self):
+        csv_text = VARIANT_HEADER + ",SKU-VIMP-1,,,,رنگ,قرمز,,,1000,,,,,,\n"
+        job = self._job(csv_text, mode=ImportJob.Mode.CREATE_ONLY)
+        import_service.run_execution(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.invalid_rows, 1)
+
+    def test_is_default_sets_default_variant(self):
+        blue_variant = ProductVariant.objects.get(product=self.product, combination_key__gt="", value="آبی")
+        csv_text = (
+            f"product_id,product_sku,variant_id,variant_sku,barcode,option_1_code,option_1_value_code,"
+            f"option_2_code,option_2_value_code,price,compare_at_price,cost,stock,weight_grams,is_active,is_default\n"
+            f",,{blue_variant.pk},,,,,,,,,,,,,بله\n"
+        )
+        job = self._job(csv_text, mode=ImportJob.Mode.UPDATE_ONLY)
+        import_service.run_execution(job, actor=self.actor)
+        blue_variant.refresh_from_db()
+        self.assertTrue(blue_variant.is_default)
+
+
+class ValidationTests(VariantImportTestCase):
+    def test_missing_product_reference_rejected(self):
+        csv_text = VARIANT_HEADER + ",,,,,,,,,,,,,,,\n"
+        job = self._job(csv_text, mode=ImportJob.Mode.UPSERT)
+        import_service.run_execution(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.invalid_rows, 1)
+
+    def test_invalid_option_code_rejected(self):
+        csv_text = VARIANT_HEADER + ",SKU-VIMP-1,,,,اندازه,بزرگ,,,1000,,,,,,\n"
+        job = self._job(csv_text, mode=ImportJob.Mode.UPSERT)
+        import_service.run_execution(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.invalid_rows, 1)
+
+    def test_dry_run_does_not_create_variant(self):
+        csv_text = VARIANT_HEADER + ",SKU-VIMP-1,,VAR-PREVIEW,,رنگ,قرمز,,,1000,,,,,,\n"
+        job = self._job(csv_text, mode=ImportJob.Mode.CREATE_ONLY)
+        import_service.run_preview(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.status, ImportJob.Status.PREVIEW_READY)
+        self.assertEqual(self.product.variants.count(), 0)
+
+
+class LegacyProductRejectionTests(VariantImportTestCase):
+    def test_legacy_variant_product_rejected(self):
+        legacy_product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کالایِ قدیمی",
+            slug="legacy-vimp", sku="SKU-LEGACY-1", price=Decimal("1"), stock=0,
+        )
+        ProductVariant.objects.create(
+            product=legacy_product, store=self.store, attribute="رنگ", value="قرمز", stock=1,
+        )
+        csv_text = VARIANT_HEADER + ",SKU-LEGACY-1,,,,,,,,,,,,,,\n"
+        job = self._job(csv_text, mode=ImportJob.Mode.UPSERT)
+        import_service.run_execution(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.invalid_rows, 1)
+
+
+class TenantIsolationTests(VariantImportTestCase):
+    def setUp(self):
+        super().setUp()
+        generate_variants(self.product)
+        self.other_store = Store.objects.create(name="فروشگاه دیگر", slug="vimp-other-store")
+        other_vendor = Vendor.objects.create(store=self.other_store, name="ف", slug="v-other-vimp")
+        other_category = Category.objects.create(store=self.other_store, name="د", slug="c-other-vimp")
+        self.foreign_product = Product.objects.create(
+            store=self.other_store, vendor=other_vendor, category=other_category, name="کالایِ خارجی",
+            slug="foreign-vimp", sku="SKU-FOREIGN-VIMP", price=Decimal("1"), stock=0,
+        )
+
+    def test_foreign_product_id_rejected(self):
+        csv_text = (
+            f"product_id,product_sku,variant_id,variant_sku,barcode,option_1_code,option_1_value_code,"
+            f"option_2_code,option_2_value_code,price,compare_at_price,cost,stock,weight_grams,is_active,is_default\n"
+            f"{self.foreign_product.pk},,,,,,,,,,,,,,,\n"
+        )
+        job = self._job(csv_text, mode=ImportJob.Mode.UPSERT)
+        import_service.run_execution(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.invalid_rows, 1)
+
+    def test_foreign_variant_id_rejected(self):
+        foreign_variant = ProductVariant.objects.create(
+            product=self.foreign_product, store=self.other_store, attribute="رنگ", value="قرمز", stock=1,
+        )
+        csv_text = (
+            f"product_id,product_sku,variant_id,variant_sku,barcode,option_1_code,option_1_value_code,"
+            f"option_2_code,option_2_value_code,price,compare_at_price,cost,stock,weight_grams,is_active,is_default\n"
+            f",SKU-VIMP-1,{foreign_variant.pk},,,,,,,,,,,,,\n"
+        )
+        job = self._job(csv_text, mode=ImportJob.Mode.UPSERT)
+        import_service.run_execution(job, actor=self.actor)
+        job.refresh_from_db()
+        self.assertEqual(job.invalid_rows, 1)

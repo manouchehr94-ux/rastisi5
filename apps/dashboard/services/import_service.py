@@ -15,8 +15,9 @@ from dataclasses import dataclass, field as dataclass_field
 from django.db import transaction
 from django.utils import timezone
 
-from apps.catalog.models import Brand, Category, Product
+from apps.catalog.models import Brand, Category, Product, ProductOption, ProductVariant
 from apps.catalog.services.inventory_service import adjust_stock_manually
+from apps.catalog.services.variant_engine_service import VariantEngineError, generate_variants, set_default_variant
 from apps.core.models import ImportJob, ImportRowResult
 from apps.core.services.audit_service import record_audit_event
 from apps.core.services.csv_utils import (
@@ -27,10 +28,12 @@ from apps.core.services.csv_utils import (
     read_csv_rows_bounded,
     validate_csv_upload,
 )
+from apps.core.utils import normalization_key
 from apps.dashboard.services.catalog_admin_service import default_vendor, generate_unique_slug
 from apps.orders.models import TaxClass
 
 DEFAULT_BATCH_SIZE = 100
+MAX_VARIANT_OPTION_AXES = 3
 
 PRODUCT_STATUS_VALUES = {choice for choice, _ in Product.Status.choices}
 
@@ -278,6 +281,356 @@ def _apply_product_row(*, store, normalized: dict, existing_product, vendor, act
     return product, is_create
 
 
+# ================================================================== تنوع (Variant)
+#
+# نگاه کنید به ADR-59. این کدبیس هیچ فیلدِ «کد»ی روی ProductOption/
+# ProductOptionValue ندارد (فقط ``label``/``normalized_label``) — پس
+# ستون‌هایِ ``option_N_code``/``option_N_value_code`` با تطبیقِ
+# normalized_label حل می‌شوند، نه یک فیلدِ کدِ جداگانه (که وجود ندارد).
+#
+# موتورِ تنوع (``generate_variants``) رویِ *همه‌ی* مقادیرِ فعالِ محورهایِ
+# کالا حاصل‌ضربِ دکارتی می‌سازد — نه فقط ترکیب‌هایِ ذکرشده در فایل. واردات
+# تنوع هرگز محور/مقدارِ تازه نمی‌سازد (آن‌ها باید از پیش، از طریقِ UIِ
+# محورهایِ تنوع، فعال شده باشند) — فقط از رویِ ترکیبِ مقادیرِ *موجود و
+# فعال* شناسه می‌سازد، سپس (فقط اگر لازم باشد) ``generate_variants`` را
+# یک‌بار به‌ازایِ هر کالا صدا می‌زند تا آن ترکیب واقعاً یک ردیفِ
+# ProductVariant داشته باشد، و در انتها ستون‌هایِ فایل (SKU/قیمت/موجودی/...)
+# را رویِ همان تنوع اعمال می‌کند.
+
+
+def _variant_lookup_cache(store, rows: list[dict]) -> dict:
+    product_ids, product_skus, variant_ids, variant_skus = set(), set(), set(), set()
+    for row in rows:
+        raw_pid = normalize_import_text(row.get("product_id"))
+        if raw_pid.isdigit():
+            product_ids.add(int(raw_pid))
+        psku = normalize_import_text(row.get("product_sku"))
+        if psku:
+            product_skus.add(psku)
+        raw_vid = normalize_import_text(row.get("variant_id"))
+        if raw_vid.isdigit():
+            variant_ids.add(int(raw_vid))
+        vsku = normalize_import_text(row.get("variant_sku"))
+        if vsku:
+            variant_skus.add(vsku)
+
+    products_by_id = {p.pk: p for p in Product.objects.filter(store=store, pk__in=product_ids)}
+    products_by_sku = {p.sku: p for p in Product.objects.filter(store=store, sku__in=product_skus)}
+    foreign_product_ids = set(
+        Product.objects.filter(pk__in=product_ids).exclude(store=store).values_list("pk", flat=True)
+    )
+
+    all_products = list(products_by_id.values()) + list(products_by_sku.values())
+    product_pks = {p.pk for p in all_products}
+
+    variants_by_id = {
+        v.pk: v for v in ProductVariant.objects.filter(store=store, pk__in=variant_ids).select_related("product")
+    }
+    variants_by_sku = {
+        v.sku: v for v in ProductVariant.objects.filter(store=store, sku__in=variant_skus).select_related("product")
+    }
+    foreign_variant_ids = set(
+        ProductVariant.objects.filter(pk__in=variant_ids).exclude(store=store).values_list("pk", flat=True)
+    )
+
+    options_by_product: dict[int, dict[str, ProductOption]] = {}
+    values_by_option: dict[int, dict[str, "object"]] = {}
+    existing_variants_by_combination: dict[int, dict[str, ProductVariant]] = {}
+    legacy_products: set[int] = set()
+    for product in Product.objects.filter(pk__in=product_pks).prefetch_related("options__values", "variants"):
+        legacy = product.variants.filter(combination_key="").exists()
+        if legacy:
+            legacy_products.add(product.pk)
+        options_by_product[product.pk] = {
+            normalization_key(o.label): o for o in product.options.all() if o.is_active
+        }
+        for option in product.options.all():
+            values_by_option[option.pk] = {
+                normalization_key(v.label): v for v in option.values.all() if v.is_active
+            }
+        existing_variants_by_combination[product.pk] = {
+            v.combination_key: v for v in product.variants.all() if v.combination_key
+        }
+
+    return {
+        "products_by_id": products_by_id, "products_by_sku": products_by_sku,
+        "foreign_product_ids": foreign_product_ids,
+        "variants_by_id": variants_by_id, "variants_by_sku": variants_by_sku,
+        "foreign_variant_ids": foreign_variant_ids,
+        "options_by_product": options_by_product, "values_by_option": values_by_option,
+        "existing_variants_by_combination": existing_variants_by_combination,
+        "legacy_products": legacy_products,
+        "regenerated_product_ids": set(),
+    }
+
+
+def _resolve_variant_parent_product(store, row: dict, *, cache: dict):
+    raw_pid = normalize_import_text(row.get("product_id"))
+    if raw_pid:
+        if not raw_pid.isdigit():
+            return None, f"«product_id» نامعتبر است: {raw_pid}"
+        product_id = int(raw_pid)
+        if product_id in cache["foreign_product_ids"]:
+            return None, "این شناسه‌ی کالا متعلق به فروشگاه دیگری است."
+        product = cache["products_by_id"].get(product_id)
+        if product is None:
+            return None, f"کالایی با شناسه‌ی «{product_id}» در این فروشگاه یافت نشد."
+        return product, None
+
+    psku = normalize_import_text(row.get("product_sku"))
+    if psku:
+        product = cache["products_by_sku"].get(psku)
+        if product is None:
+            return None, f"کالایی با SKUِ «{psku}» در این فروشگاه یافت نشد."
+        return product, None
+
+    return None, "یکی از «product_id» یا «product_sku» الزامی است."
+
+
+def _resolve_variant_option_pairs(product, row: dict, *, cache: dict):
+    """جفت‌هایِ (ProductOption، ProductOptionValue) را از رویِ ستون‌هایِ
+    ``option_N_code``/``option_N_value_code`` حل می‌کند — فقط اگر محور/مقدار
+    از پیش رویِ همین کالا فعال باشد (هرگز محور/مقدارِ تازه نمی‌سازد)."""
+    pairs = []
+    errors = []
+    options_by_label = cache["options_by_product"].get(product.pk, {})
+    for axis_index in range(1, MAX_VARIANT_OPTION_AXES + 1):
+        option_code = normalize_import_text(row.get(f"option_{axis_index}_code"))
+        value_code = normalize_import_text(row.get(f"option_{axis_index}_value_code"))
+        if not option_code and not value_code:
+            continue
+        if not option_code or not value_code:
+            errors.append(f"محورِ {axis_index}: هم کدِ محور و هم کدِ مقدار باید داده شوند.")
+            continue
+        option = options_by_label.get(normalization_key(option_code))
+        if option is None:
+            errors.append(f"محورِ «{option_code}» رویِ این کالا فعال نیست.")
+            continue
+        value = cache["values_by_option"].get(option.pk, {}).get(normalization_key(value_code))
+        if value is None:
+            errors.append(f"مقدارِ «{value_code}» برایِ محورِ «{option_code}» فعال نیست.")
+            continue
+        pairs.append((option, value))
+    return pairs, errors
+
+
+def _combination_key_for_pairs(pairs) -> str:
+    return "-".join(str(value.pk) for _option, value in sorted(pairs, key=lambda pair: pair[1].pk))
+
+
+def _validate_variant_row(row_number: int, row: dict, *, store, mode: str, cache: dict):
+    errors, warnings = [], []
+    source_identifier = (
+        normalize_import_text(row.get("variant_id"))
+        or normalize_import_text(row.get("variant_sku"))
+        or f"row-{row_number}"
+    )
+
+    # ۱) ابتدا تنوع را (اگر شناسه‌ی تنوع/SKUِ تنوع داده شده) حل می‌کنیم — چون
+    # یک ``variant_id`` معتبر خودش کالایِ والد را مشخص می‌کند و نیازی به
+    # ذکرِ مجددِ ``product_id``/``product_sku`` نیست (checkpoint 4B §11).
+    existing_variant = None
+    raw_vid = normalize_import_text(row.get("variant_id"))
+    variant_sku = normalize_import_text(row.get("variant_sku"))
+    if raw_vid:
+        if not raw_vid.isdigit():
+            errors.append(f"«variant_id» نامعتبر است: {raw_vid}")
+        else:
+            variant_id = int(raw_vid)
+            if variant_id in cache["foreign_variant_ids"]:
+                errors.append("این شناسه‌ی تنوع متعلق به فروشگاه دیگری است.")
+            else:
+                existing_variant = cache["variants_by_id"].get(variant_id)
+                if existing_variant is None:
+                    errors.append(f"تنوعی با شناسه‌ی «{variant_id}» در این فروشگاه یافت نشد.")
+    elif variant_sku:
+        existing_variant = cache["variants_by_sku"].get(variant_sku)
+
+    # ۲) کالایِ والد: مرجعِ صریح (product_id/product_sku) در اولویت است؛ در
+    # نبودِ آن، از تنوعِ حل‌شده استخراج می‌شود. اگر هر دو داده شده باشند،
+    # باید سازگار باشند.
+    has_product_ref = bool(normalize_import_text(row.get("product_id")) or normalize_import_text(row.get("product_sku")))
+    product = None
+    if has_product_ref:
+        product, product_error = _resolve_variant_parent_product(store, row, cache=cache)
+        if product_error:
+            errors.append(product_error)
+    elif existing_variant is not None:
+        product = existing_variant.product
+    elif not errors:
+        errors.append("یکی از «product_id»، «product_sku»، «variant_id» یا «variant_sku» الزامی است.")
+
+    if existing_variant is not None and product is not None and existing_variant.product_id != product.pk:
+        errors.append("این تنوع متعلق به کالایِ دیگری است.")
+
+    if product is not None:
+        source_identifier = source_identifier if raw_vid or variant_sku else f"{product.sku or product.pk}-row-{row_number}"
+        if product.pk in cache["legacy_products"]:
+            errors.append("این کالا هنوز تنوع‌هایِ تک‌محوره‌ی قدیمی دارد؛ موتورِ چندمحوره برایِ آن قابل‌اجرا نیست.")
+
+    pairs, pair_errors = [], []
+    combination_key = ""
+    if not errors and product is not None:
+        pairs, pair_errors = _resolve_variant_option_pairs(product, row, cache=cache)
+        errors.extend(pair_errors)
+        if pairs and not pair_errors:
+            combination_key = _combination_key_for_pairs(pairs)
+            if existing_variant is None:
+                existing_variant = cache["existing_variants_by_combination"].get(product.pk, {}).get(combination_key)
+
+    is_update = existing_variant is not None
+    if mode == ImportJob.Mode.CREATE_ONLY and is_update:
+        errors.append("این ردیف با تنوعِ موجود مطابقت دارد؛ حالتِ «فقط ایجاد» آن را رد می‌کند.")
+    if mode == ImportJob.Mode.UPDATE_ONLY and not is_update:
+        errors.append("این ردیف با هیچ تنوعِ موجودی مطابقت ندارد؛ حالتِ «فقط به‌روزرسانی» آن را رد می‌کند.")
+    if not is_update and not combination_key and not errors:
+        errors.append("برایِ ایجادِ تنوعِ تازه، محورها/مقادیرِ آن (option_N_code/option_N_value_code) الزامی است.")
+
+    if variant_sku and (existing_variant is None or existing_variant.sku != variant_sku):
+        clashing = cache["variants_by_sku"].get(variant_sku)
+        if clashing is not None and (existing_variant is None or clashing.pk != existing_variant.pk):
+            errors.append(f"SKUِ تنوعِ «{variant_sku}» قبلاً به تنوعِ دیگری اختصاص دارد.")
+
+    extra_price = compare_at_price = cost = stock = weight_grams = None
+    try:
+        extra_price = parse_import_decimal(row.get("price"), field_name="تغییرِ قیمت")
+    except ValueError as exc:
+        errors.append(str(exc))
+    try:
+        compare_at_price = parse_import_decimal(row.get("compare_at_price"), field_name="قیمتِ مقایسه‌ای")
+    except ValueError as exc:
+        errors.append(str(exc))
+    try:
+        cost = parse_import_decimal(row.get("cost"), field_name="بهایِ تمام‌شده")
+    except ValueError as exc:
+        errors.append(str(exc))
+    try:
+        stock = parse_import_int(row.get("stock"), field_name="موجودی")
+        if stock is not None and stock < 0:
+            errors.append("موجودی نمی‌تواند منفی باشد.")
+    except ValueError as exc:
+        errors.append(str(exc))
+    try:
+        weight_grams = parse_import_int(row.get("weight_grams"), field_name="وزن")
+    except ValueError as exc:
+        errors.append(str(exc))
+
+    is_active = True
+    try:
+        is_active = parse_import_bool(row.get("is_active"), default=existing_variant.is_active if is_update else True)
+    except ValueError as exc:
+        errors.append(str(exc))
+    is_default = False
+    try:
+        is_default = parse_import_bool(row.get("is_default"), default=False)
+    except ValueError as exc:
+        errors.append(str(exc))
+
+    if errors:
+        outcome = RowOutcome(
+            row_number=row_number, source_identifier=source_identifier,
+            status=ImportRowResult.RowStatus.INVALID, errors=errors, warnings=warnings,
+        )
+        return outcome, None, existing_variant, product
+
+    normalized = {
+        "product": product, "pairs": pairs, "combination_key": combination_key,
+        "sku": variant_sku, "barcode": normalize_import_text(row.get("barcode")),
+        "extra_price": extra_price, "compare_at_price": compare_at_price, "cost": cost,
+        "stock": stock, "weight_grams": weight_grams, "is_active": is_active, "is_default": is_default,
+    }
+    outcome = RowOutcome(
+        row_number=row_number, source_identifier=source_identifier,
+        status=ImportRowResult.RowStatus.VALID, warnings=warnings,
+    )
+    return outcome, normalized, existing_variant, product
+
+
+def _apply_variant_row(*, store, normalized: dict, existing_variant, cache: dict, actor):
+    product = normalized["product"]
+    variant = existing_variant
+
+    if variant is None:
+        # ترکیب هنوز رویِ کالا وجود ندارد؛ محورها/مقادیر از پیش فعال‌اند
+        # (اعتبارسنجی این را تضمین کرده) — فقط یک‌بار به‌ازایِ این کالا
+        # ``generate_variants`` صدا زده می‌شود تا این ترکیب هم یک
+        # ProductVariant واقعی داشته باشد (idempotent، هیچ ترکیبِ دیگری را
+        # حذف/دوباره نمی‌سازد).
+        if product.pk not in cache["regenerated_product_ids"]:
+            generate_variants(product)
+            cache["regenerated_product_ids"].add(product.pk)
+            cache["existing_variants_by_combination"][product.pk] = {
+                v.combination_key: v for v in product.variants.filter(combination_key__gt="")
+            }
+        variant = cache["existing_variants_by_combination"].get(product.pk, {}).get(normalized["combination_key"])
+        if variant is None:
+            raise VariantEngineError("این ترکیب پس از بازتولیدِ تنوع‌ها هم ساخته نشد.")
+        is_create = True
+    else:
+        is_create = False
+
+    if normalized["sku"]:
+        variant.sku = normalized["sku"]
+    if normalized["barcode"]:
+        variant.barcode = normalized["barcode"]
+    if normalized["extra_price"] is not None:
+        variant.extra_price = normalized["extra_price"]
+    if normalized["compare_at_price"] is not None:
+        variant.compare_at_price = normalized["compare_at_price"]
+    if normalized["cost"] is not None:
+        variant.cost = normalized["cost"]
+    variant.is_active = normalized["is_active"]
+    variant.full_clean(exclude=["normalized_attribute", "normalized_value"])
+    variant.save()
+
+    if normalized["stock"] is not None:
+        adjust_stock_manually(store=store, product=product, variant=variant, new_stock=normalized["stock"], actor=actor, note="Import")
+
+    if normalized["is_default"] and variant.is_active:
+        set_default_variant(product, variant)
+
+    cache["variants_by_sku"][variant.sku] = variant
+    cache["variants_by_id"][variant.pk] = variant
+    cache["existing_variants_by_combination"].setdefault(product.pk, {})[variant.combination_key] = variant
+
+    return variant, is_create
+
+
+@transaction.atomic
+def _execute_variant_batch(store, batch, *, mode, cache, actor, dry_run: bool) -> list[RowOutcome]:
+    from django.core.exceptions import ValidationError
+
+    outcomes = []
+    for row_number, row in batch:
+        outcome, normalized, existing_variant, _product = _validate_variant_row(
+            row_number, row, store=store, mode=mode, cache=cache,
+        )
+        if normalized is None:
+            outcomes.append(outcome)
+            continue
+        if dry_run:
+            outcomes.append(outcome)
+            continue
+        try:
+            variant, is_create = _apply_variant_row(
+                store=store, normalized=normalized, existing_variant=existing_variant, cache=cache, actor=actor,
+            )
+            outcome.status = ImportRowResult.RowStatus.CREATED if is_create else ImportRowResult.RowStatus.UPDATED
+            outcome.target_object_type = "ProductVariant"
+            outcome.target_object_id = variant.pk
+        except (ValidationError, VariantEngineError) as exc:
+            outcome.status = ImportRowResult.RowStatus.FAILED
+            if isinstance(exc, ValidationError):
+                outcome.errors.extend(sum(exc.message_dict.values(), []) if hasattr(exc, "message_dict") else exc.messages)
+            else:
+                outcome.errors.append(str(exc))
+        except Exception as exc:  # noqa: BLE001
+            outcome.status = ImportRowResult.RowStatus.FAILED
+            outcome.errors.append(str(exc))
+        outcomes.append(outcome)
+    return outcomes
+
+
 # ================================================================== موتورِ اجرایِ عمومی
 
 def _chunked(sequence: list, size: int):
@@ -324,6 +677,7 @@ def _execute_product_batch(store, batch, *, mode, cache, actor, dry_run: bool) -
 
 _BATCH_EXECUTORS = {
     ImportJob.ImportType.PRODUCTS: (_product_lookup_cache, _execute_product_batch),
+    ImportJob.ImportType.VARIANTS: (_variant_lookup_cache, _execute_variant_batch),
 }
 
 
