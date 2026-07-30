@@ -11,7 +11,31 @@ from apps.subscriptions.models import (
     Plan,
     PlanEntitlement,
     PlanVersion,
+    StoreSubscription,
+    SubscriptionEvent,
+    UsageRecord,
 )
+
+
+class SuperuserOnlyAdmin(admin.ModelAdmin):
+    """پایه‌ی ثبت‌هایِ دامنه‌ی اشتراک — فقط superuser، حتی اگر یک کاربرِ
+    ``is_staff`` مجوزِ مدلی داشته باشد. اشتراک/رخداد/مصرف داده‌ی حساسِ بین‌
+    فروشگاهی‌اند و هرگز نباید در دسترسِ مرچنت باشند."""
+
+    def has_module_permission(self, request):
+        return bool(request.user and request.user.is_superuser)
+
+    def has_view_permission(self, request, obj=None):
+        return bool(request.user and request.user.is_superuser)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return bool(request.user and request.user.is_superuser)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Plan)
@@ -102,3 +126,43 @@ class PlanEntitlementAdmin(admin.ModelAdmin):
         if obj is not None and obj.plan_version.status != PlanVersion.Status.DRAFT:
             return False
         return super().has_change_permission(request, obj)
+
+
+@admin.register(StoreSubscription)
+class StoreSubscriptionAdmin(SuperuserOnlyAdmin):
+    list_display = ("store", "plan_version", "status", "is_current", "source", "current_period_end", "created_at")
+    list_filter = ("status", "is_current", "source")
+    search_fields = ("store__slug", "store__name", "plan_version__plan__code", "external_reference")
+    ordering = ("-created_at",)
+    # وضعیت هرگز نباید مستقیم از Admin ویرایش شود — فقط ماشینِ حالت
+    # (subscription_service) اجازه‌ی تغییرِ وضعیت دارد (ADR-66). فیلدهایِ
+    # مشتق/زمانی همه read-only می‌مانند.
+    readonly_fields = (
+        "store", "plan_version", "status", "is_current", "source",
+        "start_at", "trial_start_at", "trial_end_at",
+        "current_period_start", "current_period_end", "grace_period_end",
+        "cancel_at_period_end", "cancelled_at", "suspended_at", "expired_at",
+        "external_reference", "created_at", "updated_at",
+    )
+
+
+@admin.register(SubscriptionEvent)
+class SubscriptionEventAdmin(SuperuserOnlyAdmin):
+    list_display = ("store", "subscription", "event_type", "from_status", "to_status", "actor", "created_at")
+    list_filter = ("event_type",)
+    search_fields = ("store__slug", "subscription__id", "idempotency_key")
+    ordering = ("-created_at",)
+    # تاریخچه‌ی تغییرناپذیر (ADR-71) — فقط خواندنی، هرگز قابلِ ویرایش.
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(UsageRecord)
+class UsageRecordAdmin(SuperuserOnlyAdmin):
+    list_display = ("store", "metric_key", "used_quantity", "period_start", "period_end")
+    list_filter = ("metric_key",)
+    search_fields = ("store__slug", "metric_key")
+    ordering = ("-period_start",)
+    # شمارنده‌ها سیستم‌محورند (usage_service) — ویرایشِ دستی مجاز نیست.
+    def has_change_permission(self, request, obj=None):
+        return False
