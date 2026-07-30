@@ -294,3 +294,16 @@ SHOP_CONTACT_ADDRESS = "تهران، خیابان ولیعصر"
 # storefront domain), which is why changing the public domain never affects
 # this. Overridable via environment for non-".ir" deployments/tests.
 RASTISI_ADMIN_DOMAIN_SUFFIX = env_str("RASTISI_ADMIN_DOMAIN_SUFFIX", "rastisi.ir")
+
+# Checkpoint 5A — default subscription plan for newly onboarded stores.
+# ``RASTISI_DEFAULT_PLAN_CODE`` names a Plan.code whose latest published
+# version a new store is put on (via subscription_service.provision_default_
+# subscription). Empty (the default) means "do not auto-assign a plan" — a
+# store then falls back to fail-open entitlements until a plan is chosen, so
+# turning this on is an explicit deployment decision. Existing stores are never
+# touched by this (they get the unlimited Legacy plan via migration/command);
+# only genuinely new stores use the default plan. ``RASTISI_DEFAULT_PLAN_START_
+# TRIAL`` controls whether the default subscription begins in a trial (if the
+# plan version defines trial_days) or goes straight to active.
+RASTISI_DEFAULT_PLAN_CODE = env_str("RASTISI_DEFAULT_PLAN_CODE", "")
+RASTISI_DEFAULT_PLAN_START_TRIAL = env_str("RASTISI_DEFAULT_PLAN_START_TRIAL", "true").lower() in ("1", "true", "yes", "on")

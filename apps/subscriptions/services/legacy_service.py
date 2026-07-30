@@ -88,3 +88,25 @@ def provision_legacy(*, Plan, PlanVersion, EntitlementDefinition, PlanEntitlemen
         counts["subscriptions"] += 1
 
     return counts
+
+
+def provision_legacy_real(*, now=None):
+    """همان ``provision_legacy`` امّا با مدل‌هایِ واقعی — نقطه‌ی ورودِ فرمانِ
+    ``provision_legacy_subscriptions`` (data migration از ``apps.get_model``
+    استفاده می‌کند). idempotent."""
+    from django.utils import timezone
+
+    from apps.stores.models import Store
+    from apps.subscriptions.models import (
+        EntitlementDefinition,
+        Plan,
+        PlanEntitlement,
+        PlanVersion,
+        StoreSubscription,
+    )
+
+    return provision_legacy(
+        Plan=Plan, PlanVersion=PlanVersion, EntitlementDefinition=EntitlementDefinition,
+        PlanEntitlement=PlanEntitlement, StoreSubscription=StoreSubscription, Store=Store,
+        now=now or timezone.now(),
+    )

@@ -10,7 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core.services.audit_service import record_audit_event
-from apps.subscriptions.models import PlanVersion, StoreSubscription, SubscriptionEvent
+from apps.subscriptions.models import Plan, PlanVersion, StoreSubscription, SubscriptionEvent
 
 S = StoreSubscription.Status
 ET = SubscriptionEvent.EventType
@@ -244,3 +244,145 @@ def change_plan_version(subscription, target_version, *, actor=None, reason="", 
         metadata={"from_version": from_version.pk, "to_version": target_version.pk},
     )
     return locked
+
+
+# ================================================================== پلنِ پیش‌فرض
+
+def resolve_default_plan_version():
+    """جدیدترین نسخه‌ی منتشرشده‌ی پلنِ پیش‌فرض (``RASTISI_DEFAULT_PLAN_CODE``)
+    یا ``None`` اگر پیکربندی نشده / پلن نبود / نسخه‌ی منتشرشده نداشت. هرگز
+    استثنا نمی‌اندازد — نبودِ پلنِ پیش‌فرض یک پیکربندیِ معتبر است (fail-open)."""
+    from django.conf import settings
+
+    code = getattr(settings, "RASTISI_DEFAULT_PLAN_CODE", "") or ""
+    if not code:
+        return None
+    plan = Plan.objects.filter(code=code, is_active=True).first()
+    if plan is None:
+        return None
+    return (
+        PlanVersion.objects.filter(plan=plan, status=PlanVersion.Status.PUBLISHED)
+        .order_by("-version_number").first()
+    )
+
+
+@transaction.atomic
+def provision_default_subscription(store, *, actor=None, with_trial=None):
+    """اشتراکِ پیش‌فرض را برایِ یک Storeِ تازه می‌سازد و (بسته به تنظیمات و
+    وجودِ ``trial_days``) آن را trialing یا active می‌کند. idempotent: اگر
+    Store از قبل اشتراکِ جاری دارد همان برمی‌گردد. اگر پلنِ پیش‌فرض پیکربندی
+    نشده باشد ``None`` برمی‌گرداند و هیچ کاری نمی‌کند — تا ساختِ Store هرگز
+    به‌خاطرِ نبودِ پلن شکست نخورد (fail-open، ADR-65).
+
+    فروشگاه‌هایِ *موجود* هرگز از این مسیر عبور نمی‌کنند — آن‌ها پلنِ نامحدودِ
+    Legacy را از مهاجرت/فرمان می‌گیرند؛ این فقط برایِ Storeهایِ واقعاً تازه است."""
+    existing = StoreSubscription.objects.filter(store=store, is_current=True).first()
+    if existing is not None:
+        return existing
+    version = resolve_default_plan_version()
+    if version is None:
+        return None
+    if with_trial is None:
+        from django.conf import settings
+
+        with_trial = getattr(settings, "RASTISI_DEFAULT_PLAN_START_TRIAL", True)
+    subscription = create_subscription(store, version, source=StoreSubscription.Source.DEFAULT, actor=actor)
+    if with_trial and version.trial_days:
+        return start_trial(subscription, actor=actor)
+    return activate_subscription(subscription, actor=actor)
+
+
+# ================================================================== ارزیابیِ زمانی
+
+def _due_action(sub, now):
+    """کارِ سررسیدشده‌ی این اشتراک بر اساسِ زمان، یا ``None``. ترتیبِ اولویت:
+    لغوِ زمان‌بندی‌شده > پایانِ تریال > پایانِ مهلتِ ارفاقی > پایانِ دوره."""
+    if sub.cancel_at_period_end and sub.current_period_end and sub.current_period_end <= now:
+        return "cancelled"
+    if sub.status == S.TRIALING and sub.trial_end_at and sub.trial_end_at <= now:
+        return "grace" if sub.plan_version.grace_period_days else "expired"
+    if sub.status == S.GRACE_PERIOD and sub.grace_period_end and sub.grace_period_end <= now:
+        return "suspended"
+    if sub.status in (S.ACTIVE, S.PAST_DUE) and sub.current_period_end and sub.current_period_end <= now:
+        return "grace"
+    return None
+
+
+def _apply_due_action(sub, action, *, actor=None):
+    if action == "cancelled":
+        cancel_immediately(sub, actor=actor, reason="لغوِ زمان‌بندی‌شده در پایانِ دوره")
+    elif action == "grace":
+        enter_grace_period(sub, actor=actor)
+    elif action == "suspended":
+        suspend_subscription(sub, actor=actor, reason="پایانِ مهلتِ ارفاقی")
+    elif action == "expired":
+        expire_subscription(sub, actor=actor)
+
+
+def evaluate_subscription_states(*, now=None, dry_run=False, actor=None) -> dict:
+    """اشتراک‌هایِ جاریِ غیرِ نهایی را می‌گردد و انتقال‌هایِ زمانیِ سررسیدشده را
+    اعمال می‌کند (تریال→ارفاق/انقضا، ارفاق→تعلیق، دوره‌ی گذشته→ارفاق، لغوِ
+    زمان‌بندی‌شده→لغو). ``dry_run`` فقط می‌شمارد و چیزی تغییر نمی‌دهد.
+
+    این باید از یک زمان‌بندِ خارجی (cron) اجرا شود — این کدبیس صفِ کارِ
+    پس‌زمینه‌ای ندارد (ADR-49)."""
+    now = now or timezone.now()
+    results = {"scanned": 0, "cancelled": 0, "grace": 0, "suspended": 0, "expired": 0}
+    qs = (
+        StoreSubscription.objects.filter(is_current=True)
+        .exclude(status__in=StoreSubscription.TERMINAL_STATUSES)
+        .select_related("plan_version")
+    )
+    for sub in qs.iterator(chunk_size=200):
+        results["scanned"] += 1
+        action = _due_action(sub, now)
+        if action is None:
+            continue
+        if not dry_run:
+            _apply_due_action(sub, action, actor=actor)
+        results[action] += 1
+    return results
+
+
+# ================================================================== بررسیِ سازگاری
+
+def check_subscription_consistency() -> list:
+    """ناسازگاری‌هایِ اشتراک را فقط *می‌خواند* و فهرستِ مشکلات را برمی‌گرداند
+    (هرگز چیزی نمی‌نویسد). هر مورد: dict با ``severity`` (error/warning) و
+    ``message``. برایِ ``verify_subscription_consistency``."""
+    from django.db.models import Count
+
+    from apps.subscriptions.entitlements import ENTITLEMENT_DEFINITIONS
+    from apps.subscriptions.models import EntitlementDefinition
+
+    issues = []
+
+    # ۱) بیش از یک اشتراکِ جاری برایِ یک Store (قیدِ DB باید جلویش را بگیرد).
+    dupes = (
+        StoreSubscription.objects.filter(is_current=True)
+        .values("store_id").annotate(n=Count("id")).filter(n__gt=1)
+    )
+    for row in dupes:
+        issues.append({"severity": "error",
+                       "message": f"فروشگاه {row['store_id']} بیش از یک اشتراکِ جاری دارد ({row['n']})."})
+
+    # ۲) وضعیتِ نهایی امّا is_current=True (باید هنگامِ نهایی‌شدن خاموش شود).
+    for sub in StoreSubscription.objects.filter(
+        is_current=True, status__in=StoreSubscription.TERMINAL_STATUSES,
+    ).iterator(chunk_size=200):
+        issues.append({"severity": "error",
+                       "message": f"اشتراک {sub.pk} (فروشگاه {sub.store_id}) وضعیتِ نهاییِ «{sub.status}» دارد اما هنوز is_current است."})
+
+    # ۳) اشتراکِ جاری رویِ نسخه‌ی غیرِ منتشرشده.
+    for sub in StoreSubscription.objects.filter(is_current=True).select_related("plan_version").iterator(chunk_size=200):
+        if sub.plan_version.status != PlanVersion.Status.PUBLISHED:
+            issues.append({"severity": "error",
+                           "message": f"اشتراکِ جاری {sub.pk} رویِ نسخه‌ی غیرِ منتشرشده ({sub.plan_version.status}) است."})
+
+    # ۴) تعریفِ Entitlementِ استاندارد گم‌شده.
+    existing_keys = set(EntitlementDefinition.objects.values_list("key", flat=True))
+    for key, _n, _t, _d in ENTITLEMENT_DEFINITIONS:
+        if key not in existing_keys:
+            issues.append({"severity": "warning", "message": f"تعریفِ Entitlement «{key}» در پایگاه‌داده نیست."})
+
+    return issues
