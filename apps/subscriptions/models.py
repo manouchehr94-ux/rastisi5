@@ -209,3 +209,190 @@ class PlanEntitlement(TimeStampedModel):
         if self.is_unlimited:
             return None
         return self.integer_limit
+
+
+class StoreSubscription(TimeStampedModel):
+    """اشتراکِ یک Store به یک نسخه‌ی پلن — نگاه کنید به ADR-66 (ماشینِ حالت).
+
+    حداکثر یک اشتراکِ *غیرِ نهایی* (non-terminal) به‌ازای هر Store مجاز است
+    (قیدِ شرطیِ دیتابیس). اشتراک‌هایِ نهایی‌شده (cancelled/expired) به‌عنوانِ
+    تاریخچه می‌مانند و حذف نمی‌شوند. فیلدهایِ خاصِ درگاهِ پرداخت این‌جا
+    نمی‌آیند — فقط یک ``external_reference`` عمومی (ADR-72)."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "در انتظار"
+        TRIALING = "trialing", "دوره‌ی آزمایشی"
+        ACTIVE = "active", "فعال"
+        GRACE_PERIOD = "grace_period", "مهلتِ ارفاقی"
+        PAST_DUE = "past_due", "معوق"
+        SUSPENDED = "suspended", "معلق"
+        CANCELLED = "cancelled", "لغوشده"
+        EXPIRED = "expired", "منقضی‌شده"
+
+    #: حالت‌هایِ نهایی — اشتراک پس از رسیدن به این‌ها دیگر تغییرِ حالت نمی‌دهد
+    #: (به‌جز طبقِ سیاستِ صریحِ تمدید که یک اشتراکِ *تازه* می‌سازد، نه احیایِ
+    #: همین رکورد).
+    TERMINAL_STATUSES = {Status.CANCELLED, Status.EXPIRED}
+    #: حالت‌هایی که به‌عنوانِ «اشتراکِ جاریِ فعالِ Store» شمرده می‌شوند (برایِ
+    #: قیدِ یکتاییِ یک‌اشتراکِ‌جاری‌به‌ازای‌هر‌Store).
+    NON_TERMINAL_STATUSES = {
+        Status.PENDING, Status.TRIALING, Status.ACTIVE,
+        Status.GRACE_PERIOD, Status.PAST_DUE, Status.SUSPENDED,
+    }
+
+    class Source(models.TextChoices):
+        LEGACY = "legacy", "مهاجرتِ legacy"
+        DEFAULT = "default", "پیش‌فرضِ فروشگاهِ تازه"
+        ADMIN = "admin", "مدیرِ پلتفرم"
+        SELF_SERVICE = "self_service", "انتخابِ تاجر"
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="subscriptions",
+    )
+    plan_version = models.ForeignKey(
+        PlanVersion, verbose_name="نسخه‌ی پلن", on_delete=models.PROTECT, related_name="subscriptions",
+    )
+    status = models.CharField("وضعیت", max_length=14, choices=Status.choices, default=Status.PENDING, db_index=True)
+    # ``is_current`` صراحتاً نگه داشته می‌شود تا قیدِ «یک اشتراکِ جاری به‌ازای
+    # هر Store» به‌صورتِ یک UniqueConstraintِ شرطیِ ساده قابلِ اجرا باشد
+    # (SQLite/Postgres نمی‌توانند از یک مجموعه‌ی status در شرطِ قید عبور
+    # کنند). سرویسِ ماشینِ حالت این را همگام با ``status`` نگه می‌دارد.
+    is_current = models.BooleanField("اشتراکِ جاری", default=True)
+
+    start_at = models.DateTimeField("زمانِ شروع", null=True, blank=True)
+    trial_start_at = models.DateTimeField("شروعِ تریال", null=True, blank=True)
+    trial_end_at = models.DateTimeField("پایانِ تریال", null=True, blank=True)
+    current_period_start = models.DateTimeField("شروعِ دوره‌ی جاری", null=True, blank=True)
+    current_period_end = models.DateTimeField("پایانِ دوره‌ی جاری", null=True, blank=True)
+    grace_period_end = models.DateTimeField("پایانِ مهلتِ ارفاقی", null=True, blank=True)
+    cancel_at_period_end = models.BooleanField("لغو در پایانِ دوره", default=False)
+    cancelled_at = models.DateTimeField("زمانِ لغو", null=True, blank=True)
+    suspended_at = models.DateTimeField("زمانِ تعلیق", null=True, blank=True)
+    expired_at = models.DateTimeField("زمانِ انقضا", null=True, blank=True)
+
+    source = models.CharField("منبع", max_length=15, choices=Source.choices, default=Source.ADMIN)
+    external_reference = models.CharField("ارجاعِ خارجی (رزرو برایِ 5B)", max_length=120, blank=True, default="")
+
+    class Meta:
+        verbose_name = "اشتراکِ فروشگاه"
+        verbose_name_plural = "اشتراک‌هایِ فروشگاه"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["store"], condition=models.Q(is_current=True),
+                name="uniq_current_subscription_per_store",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["store", "status"], name="idx_subscription_store_status"),
+            models.Index(fields=["status", "current_period_end"], name="idx_subscription_status_period"),
+            models.Index(fields=["status", "trial_end_at"], name="idx_subscription_status_trial"),
+            models.Index(fields=["status", "grace_period_end"], name="idx_subscription_status_grace"),
+        ]
+
+    def __str__(self):
+        return f"{self.store.slug} → {self.plan_version} ({self.get_status_display()})"
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.status in self.TERMINAL_STATUSES
+
+
+class SubscriptionEvent(TimeStampedModel):
+    """تاریخچه‌ی تغییرناپذیرِ رخدادهایِ اشتراک — نگاه کنید به ADR-71.
+
+    این یک مدلِ تاریخچه‌ی دامنه‌ای است و در کنارِ Audit Logِ عمومی وجود دارد
+    (نه جایگزینِ آن). هرگز رمز/متادادهٔ حساس ذخیره نمی‌کند."""
+
+    class EventType(models.TextChoices):
+        CREATED = "created", "ایجاد"
+        TRIAL_STARTED = "trial_started", "شروعِ تریال"
+        ACTIVATED = "activated", "فعال‌سازی"
+        PLAN_CHANGED = "plan_changed", "تغییرِ پلن"
+        GRACE_STARTED = "grace_started", "شروعِ مهلتِ ارفاقی"
+        PAST_DUE = "past_due", "معوق‌شدن"
+        SUSPENDED = "suspended", "تعلیق"
+        RESUMED = "resumed", "ازسرگیری"
+        CANCEL_SCHEDULED = "cancel_scheduled", "زمان‌بندیِ لغو"
+        CANCELLED = "cancelled", "لغو"
+        EXPIRED = "expired", "انقضا"
+
+    subscription = models.ForeignKey(
+        StoreSubscription, verbose_name="اشتراک", on_delete=models.CASCADE, related_name="events",
+    )
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="subscription_events",
+    )
+    event_type = models.CharField("نوعِ رخداد", max_length=20, choices=EventType.choices)
+    from_status = models.CharField("از وضعیت", max_length=14, blank=True, default="")
+    to_status = models.CharField("به وضعیت", max_length=14, blank=True, default="")
+    from_plan_version = models.ForeignKey(
+        PlanVersion, verbose_name="از نسخه‌ی پلن", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+    )
+    to_plan_version = models.ForeignKey(
+        PlanVersion, verbose_name="به نسخه‌ی پلن", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="انجام‌دهنده", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="subscription_events",
+    )
+    reason = models.CharField("علت", max_length=200, blank=True, default="")
+    metadata = models.JSONField("فراداده", blank=True, default=dict)
+    idempotency_key = models.CharField("کلیدِ یکتا", max_length=100, blank=True, default="")
+
+    class Meta:
+        verbose_name = "رخدادِ اشتراک"
+        verbose_name_plural = "رخدادهایِ اشتراک"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["subscription", "idempotency_key"], condition=~models.Q(idempotency_key=""),
+                name="uniq_subscriptionevent_idempotency",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["store", "-created_at"], name="idx_subevent_store_created"),
+            models.Index(fields=["subscription", "-created_at"], name="idx_subevent_sub_created"),
+        ]
+
+    def __str__(self):
+        return f"{self.get_event_type_display()} — {self.store.slug}"
+
+
+class UsageRecord(TimeStampedModel):
+    """شمارنده‌ی مصرفِ دوره‌ای برایِ متریک‌هایی که با دوره‌ی صورتحساب صفر
+    می‌شوند (مثلِ ردیف‌هایِ واردات، تعدادِ صادرات) — نگاه کنید به ADR-68.
+
+    متریک‌هایِ شمارشیِ ساده (کالا/تنوع/کارمند/انبار/سگمنت) شمارنده‌ی ذخیره‌شده
+    ندارند؛ آن‌ها زنده از ``QuerySet.count()`` خوانده می‌شوند (ADR-68). این
+    مدل فقط برایِ متریک‌هایِ *دوره‌ای* است."""
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="usage_records",
+    )
+    subscription = models.ForeignKey(
+        StoreSubscription, verbose_name="اشتراک", on_delete=models.CASCADE, related_name="usage_records",
+        null=True, blank=True,
+    )
+    metric_key = models.CharField("کلیدِ متریک", max_length=60, db_index=True)
+    period_start = models.DateTimeField("شروعِ دوره")
+    period_end = models.DateTimeField("پایانِ دوره")
+    used_quantity = models.PositiveIntegerField("مقدارِ مصرف‌شده", default=0)
+
+    class Meta:
+        verbose_name = "رکوردِ مصرف"
+        verbose_name_plural = "رکوردهایِ مصرف"
+        ordering = ["-period_start"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["store", "metric_key", "period_start"], name="uniq_usagerecord_store_metric_period",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["store", "metric_key", "-period_start"], name="idx_usage_store_metric"),
+        ]
+
+    def __str__(self):
+        return f"{self.store.slug} · {self.metric_key} · {self.period_start:%Y-%m}"

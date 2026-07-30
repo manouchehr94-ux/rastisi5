@@ -43,11 +43,13 @@ class EntitlementValueTypeTests(TestCase):
     def setUp(self):
         self.plan = Plan.objects.create(code="c", name="C")
         self.version = PlanVersion.objects.create(plan=self.plan, version_number=1)
+        # Use dedicated test-only keys so this suite is independent of whatever
+        # the 0003 legacy data migration seeded into the test database.
         self.bool_def = EntitlementDefinition.objects.create(
-            key="catalog.import", name="Import", entitlement_type=EntitlementDefinition.EntitlementType.BOOLEAN,
+            key="test.boolean_feature", name="Import", entitlement_type=EntitlementDefinition.EntitlementType.BOOLEAN,
         )
         self.int_def = EntitlementDefinition.objects.create(
-            key="catalog.products", name="Products", entitlement_type=EntitlementDefinition.EntitlementType.INTEGER_LIMIT,
+            key="test.integer_feature", name="Products", entitlement_type=EntitlementDefinition.EntitlementType.INTEGER_LIMIT,
         )
 
     def test_integer_limit_requires_value_or_unlimited(self):
