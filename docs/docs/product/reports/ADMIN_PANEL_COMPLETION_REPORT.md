@@ -1924,3 +1924,35 @@ This completes Checkpoint 5A. It does **not** mark the Admin Panel Completion
 Program complete — payment collection (5B) and later checkpoints remain,
 recorded honestly here and in ADR-63 through ADR-72 rather than folded into
 "done."
+
+## 29. Checkpoint 5A Final Full-Suite Validation and Conclusion
+
+The complete test suite was run after Checkpoint 5A with `python manage.py
+test`:
+
+```
+Ran 2908 tests in 2454.910s
+
+OK
+```
+
+**2908 tests, zero failures, zero errors.** The single `DisallowedHost`
+traceback in the output is an intentional assertion inside the admin-host
+security tests (a deliberately disallowed host must be rejected), not a
+failure. `python manage.py check` reports no issues and `makemigrations
+--check` reports no missing migrations. Checkpoint 5A added 121 tests over the
+Checkpoint 4B baseline of 2787 (plan/version/entitlement models, subscription
+models + state machine, entitlement/usage services, service-layer creation
+limits, import/export entitlement + period usage, plan-change preview/execute,
+merchant subscription views + permissions, platform admin immutability,
+management commands, default-plan provisioning, and subscription/entitlement
+tenant isolation).
+
+Checkpoint 5A delivers the subscription **domain** — plans, immutable priced
+versions, centralized entitlements, live/period usage, service-layer limit
+enforcement, an explicit state machine with trials and grace, merchant billing
+visibility with self-service plan change, platform Django Admin, operational
+commands, and legacy grandfathering — while collecting **no** money. Online
+payment collection, stored cards, automated charging, and webhooks remain
+explicitly deferred to Checkpoint 5B (ADR-72). This completes Checkpoint 5A;
+it does not mark the Admin Panel Completion Program complete.
