@@ -1865,3 +1865,62 @@ Completion Program complete — later checkpoints (XLSX support, a real
 background task queue for very large imports, an `external_id` identity
 column, scheduled/automatic import retries) remain, recorded honestly here
 and in the ADRs rather than folded into "done."
+
+## 28. Checkpoint 5A — SaaS Plans, Subscriptions, Entitlements, Usage, Trials, and Merchant Billing Visibility
+
+**Checkpoint 5A adds the subscription *domain* to the platform: plans and
+immutable priced plan versions, a centralized entitlement model, live and
+period usage metering, service-layer limit enforcement, a subscription state
+machine with trials/grace, merchant-facing subscription/usage/plan-change UI,
+platform Django Admin, management commands, and legacy grandfathering — with
+no money movement (that is Checkpoint 5B).**
+
+New app `apps.subscriptions` owns the domain:
+
+- **Plans & versions (ADR-63).** `Plan` is stable identity only; all priced/
+  functional terms live on `PlanVersion`, which is immutable once published —
+  enforced server-side in both `plan_service` and Django Admin. Merchants never
+  administer plans; that lives only in `/admin/` behind superuser.
+- **Entitlements (ADR-64).** A central `entitlement_service` is the single
+  source of truth keyed on stable entitlement keys — never `plan.code == "pro"`.
+  Booleans, integer limits (`None`=unlimited, `0`=disabled), per-version cache.
+- **Fail-open + Legacy (ADR-65).** No-subscription / undefined-key resolves
+  open; a hidden Legacy plan with all-unlimited entitlements is provisioned for
+  every existing store by a data migration (and an idempotent command sharing
+  one helper). Existing stores are never silently restricted or put on a
+  limited Starter plan.
+- **State machine (ADR-66/67).** `subscription_service` is the only path that
+  changes `status`, via a legal-transition table, `select_for_update`,
+  idempotency, one-current-subscription-per-store (DB constraint), trials that
+  a plan change never resets, and explicit grace.
+- **Usage (ADR-68).** Live counts for resources (products/variants/staff/
+  warehouses/segments); atomic calendar-month counters for monthly import rows
+  and exports. Over-limit data stays readable.
+- **Enforcement (ADR-69).** Creation limits + state gates live in the service
+  layer (`enforcement.py`) so dashboard POSTs, CSV imports, and Cartesian
+  variant generation are all gated identically; only creation is blocked,
+  updates and reads are never gated, bulk paths check the total increment and
+  never silently truncate.
+- **Plan change (ADR-70).** Preview-then-execute with a stale-preview token;
+  over-limit downgrade warnings; selection restricted server-side to
+  publicly-selectable published versions.
+- **History (ADR-71).** Immutable `SubscriptionEvent` stream alongside the
+  audit log.
+- **Merchant UI.** Subscription overview, usage, plans, plan-change preview,
+  and history pages behind new `SUBSCRIPTION_VIEW` / `SUBSCRIPTION_CHANGE`
+  (Owner-only) / `USAGE_VIEW` permissions, plus a global restricted-state
+  banner.
+- **Operations.** `evaluate_subscription_states`, `verify_subscription_
+  consistency --strict` (read-only), and `provision_legacy_subscriptions`
+  management commands (cron-scheduled, no task queue — ADR-49); a configurable
+  default plan for genuinely new stores (`RASTISI_DEFAULT_PLAN_CODE`).
+
+**Explicitly out of scope (ADR-72):** online payment collection, stored cards,
+automated charging, and payment webhooks — all deferred to Checkpoint 5B. Plan
+change and activation in 5A alter entitlements/state only; `external_reference`
+is a reserved gateway-agnostic field for 5B.
+
+This completes Checkpoint 5A. It does **not** mark the Admin Panel Completion
+Program complete — payment collection (5B) and later checkpoints remain,
+recorded honestly here and in ADR-63 through ADR-72 rather than folded into
+"done."

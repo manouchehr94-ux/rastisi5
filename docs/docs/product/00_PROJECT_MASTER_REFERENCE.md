@@ -1129,7 +1129,7 @@ Storefront theme و Merchant Admin theme باید مستقل باشند.
 | SMS | Partial | reliable async messaging | outbox/retry/security | متوسط |
 | Discount | Basic | promotion engine | eligibility/ledger/concurrency | متوسط |
 | Reporting | Basic | audited per-Store analytics | definitions/export/permissions | متوسط |
-| SaaS Billing | Absent | sellable platform | plan/subscription/quota | بعد از commerce core |
+| SaaS Billing | Domain implemented (5A); payment deferred (5B) | sellable platform | plan/subscription/quota done; online payment collection is Checkpoint 5B | بعد از commerce core |
 | Production | Not ready | secure operations | PostgreSQL/deploy/monitoring/backups | نهایی ولی ضروری |
 
 ---
@@ -2004,7 +2004,7 @@ Content Boundary
 | Inventory engine | Absent/Basic fields only |
 | Page builder | Absent |
 | Merchant RBAC | Absent/Foundational model only |
-| SaaS billing | Absent |
+| SaaS billing | Domain implemented (checkpoint 5A: plans/versions/entitlements/usage/limits/trials/state machine/merchant UI/legacy grandfathering); online payment collection deferred to checkpoint 5B |
 | Production hardening | Partial — configuration foundation (env-driven settings, PostgreSQL-capable DB, logging) AND Order/dashboard Store boundary AND checkout idempotency/inventory-locking now implemented; PostgreSQL deployment against a real instance, Zibal, Enamad, backups, and hosting selection still pending |
 
 ---

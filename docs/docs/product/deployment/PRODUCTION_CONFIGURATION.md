@@ -39,6 +39,8 @@ list with placeholder values. Summary:
 | `DJANGO_PRIVATE_MEDIA_ROOT` | Recommended | `<repo>/private_media` | Export/import files — never web-served directly; see §5a |
 | `DJANGO_LOG_LEVEL` | Optional | `INFO` | One of DEBUG/INFO/WARNING/ERROR/CRITICAL |
 | `RASTISI_ADMIN_DOMAIN_SUFFIX` | Recommended once real merchant admin subdomains are live | `rastisi.ir` | Suffix appended to `Store.admin_subdomain` to form the merchant admin host — see ADR-16 in `SAAS_DOMAIN_DECISIONS.md` |
+| `RASTISI_DEFAULT_PLAN_CODE` | Optional (checkpoint 5A) | *(empty)* | `Plan.code` new stores are auto-subscribed to; empty = no auto-assignment (fail-open entitlements). Existing stores are unaffected — see §5a and ADR-65/72 |
+| `RASTISI_DEFAULT_PLAN_START_TRIAL` | Optional (checkpoint 5A) | `true` | Whether a new store's default subscription starts in a trial (if the plan version defines `trial_days`) or goes straight to active |
 
 Malformed values (an unparseable boolean, integer, or an invalid
 `DATABASE_URL`) raise `ImproperlyConfigured` immediately at process startup
@@ -130,6 +132,45 @@ are regeneratable/re-uploadable, never the sole copy of any data:
 ```
 0 5 * * * cd /path/to/app && python manage.py cleanup_import_files
 ```
+
+### Subscription state evaluation and consistency (checkpoint 5A)
+
+The subscription domain (plans, entitlements, usage, trials, state machine)
+has two cron-scheduled commands, again because this codebase has no background
+task queue (ADR-49). `python manage.py evaluate_subscription_states` applies
+due time-driven transitions — trial end → grace/expired, grace end →
+suspended, elapsed billing period → grace, and a scheduled cancel firing at
+period end (ADR-66/67). Run it at least daily; `--dry-run` reports what would
+change without applying it:
+
+```
+0 6 * * * cd /path/to/app && python manage.py evaluate_subscription_states
+```
+
+`python manage.py verify_subscription_consistency --strict` is a **read-only**
+health check (≤1 current subscription per store, no terminal-but-current row,
+current version published, entitlement definitions present); with `--strict`
+it exits non-zero on any problem, so it fits a CI/monitoring gate. It never
+writes:
+
+```
+30 6 * * * cd /path/to/app && python manage.py verify_subscription_consistency --strict
+```
+
+`python manage.py provision_legacy_subscriptions` is idempotent and only
+needed as a repair/backfill — the initial legacy grandfathering runs as a data
+migration (ADR-65). Existing stores always get the unlimited Legacy plan;
+they are never assigned a limited plan.
+
+**Default plan for new stores.** `RASTISI_DEFAULT_PLAN_CODE` (empty by default
+= no auto-assignment) names the `Plan.code` whose latest published version a
+genuinely new store is placed on via `provision_default_subscription`;
+`RASTISI_DEFAULT_PLAN_START_TRIAL` (default `true`) controls whether that
+subscription starts in a trial. Leaving the code empty keeps new stores on
+fail-open entitlements until a plan is chosen — turning it on is an explicit
+deployment decision. **No money is collected in checkpoint 5A** — online
+payment, card storage, automated charging, and webhooks are deferred to
+Checkpoint 5B (ADR-72).
 
 ### CSV Import — columns, modes, and safety (checkpoint 4B)
 

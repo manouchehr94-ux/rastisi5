@@ -3226,6 +3226,192 @@ sole copy of any data, so retention cleanup is safe.
 
 ---
 
+## ADR-63: A Plan Is a Stable Code; Its Priced Terms Live in Immutable Published PlanVersions
+
+**Context (checkpoint 5A).** A SaaS plan's price, trial length, and included
+entitlements change over time, but a store that subscribed under old terms
+must keep those terms — history cannot be rewritten by a later edit.
+
+**Decision.** `Plan` holds only stable identity (`code`, display metadata,
+`is_active`, `is_publicly_selectable`). All priced/functional terms live on
+`PlanVersion` (price, `billing_interval`, `trial_days`, `grace_period_days`,
+and the M2M `PlanEntitlement` set). A version has a status
+(draft→published→retired/archived); **once published it is immutable** —
+enforced server-side, not just in the UI: `plan_service` refuses to mutate a
+published version's entitlements, and the Django Admin (`PlanVersionAdmin`)
+makes every priced field readonly and blocks deletion once status ≠ draft.
+Merchants never see plan administration at all — it lives only in Django
+Admin behind superuser (ADR-8's boundary).
+
+**Consequences.** A subscription references an exact `PlanVersion`, so its
+terms are frozen regardless of later plan edits. New terms mean a new version.
+Because published versions are immutable, entitlement resolution can safely
+cache per-version.
+
+**Alternatives considered.** Editable plans with a price field — rejected:
+silently rewrites the terms every existing subscriber agreed to.
+
+---
+
+## ADR-64: Entitlements Are the Single Source of Truth — Never `plan.code == "pro"`
+
+**Context.** Feature/limit checks scattered as plan-name comparisons rot the
+moment a plan is renamed or a new tier appears.
+
+**Decision.** A central `entitlement_service` answers "what does this store
+have access to?" keyed on stable `EntitlementDefinition` keys (registered once
+in `entitlements.py`), never on a plan name. Booleans resolve via
+`has_entitlement`; numeric caps via `get_entitlement_limit` (`None`=unlimited,
+`0`=disabled, else the integer). Resolution reads the store's current
+subscription → effective `PlanVersion` → `PlanEntitlement`, with a per-
+version cache invalidated by `updated_at` (safe because published versions are
+immutable, ADR-63).
+
+**Consequences.** Adding a plan or renaming one changes no code. A view or
+service asks about an entitlement key, never a tier.
+
+**Alternatives considered.** `if plan.name == "pro"` — rejected as the exact
+anti-pattern this ADR exists to forbid.
+
+---
+
+## ADR-65: Fail-Open Fallback and Legacy Grandfathering — Existing Stores Are Never Silently Restricted
+
+**Context.** Introducing subscriptions onto a live platform must not, on
+deploy, strip capabilities from stores that predate the concept.
+
+**Decision.** Entitlement resolution is **fail-open**: a store with no current
+subscription, or a plan version that does not define a given key, resolves to
+unlimited/enabled — while `get_subscription_access_state` still reports the
+true state honestly. Separately, migration `0003` (and the idempotent
+`provision_legacy_subscriptions` command, sharing one `provision_legacy`
+helper) creates a hidden, non-publicly-selectable **Legacy** plan with a
+published version where every feature is enabled and every limit is unlimited,
+and gives **every** existing store an active legacy subscription. Existing
+stores are never assigned a limited Starter plan.
+
+**Consequences.** Deploy day changes nothing for existing stores. Only
+genuinely new stores (via `provision_default_subscription`, ADR-72-adjacent)
+land on a configured default plan.
+
+**Alternatives considered.** Defaulting existing stores to the entry tier —
+rejected: it is a silent downgrade of paying-in-kind incumbents.
+
+---
+
+## ADR-66: One Explicit Subscription State Machine; No View Writes `status` Directly
+
+**Context.** Subscription lifecycle (pending/trialing/active/grace/past_due/
+suspended/cancelled/expired) is exactly the kind of state that drifts into
+inconsistency if any view can poke `status`.
+
+**Decision.** `subscription_service` is the only path that changes state. Every
+transition goes through `_transition`: `select_for_update`, an
+`ALLOWED_TRANSITIONS` legality check, idempotent same-status no-op, keeping
+`is_current=False` for terminal states, and recording both a
+`SubscriptionEvent` and an audit-log entry. Exactly one current subscription
+per store is a conditional DB unique constraint on `is_current=True`.
+
+**Consequences.** Illegal transitions (e.g. `expired→active`) are impossible.
+State and `is_current` never disagree. Django Admin makes `status` readonly so
+even a superuser cannot bypass the machine.
+
+---
+
+## ADR-67: One Trial Per Store; A Plan Change Never Resets the Trial
+
+**Decision.** Trial length comes from the `PlanVersion.trial_days`; a store
+trials once. `change_plan_version` alters only the plan version and records a
+`plan_changed` event — it never touches `trial_start_at`/`trial_end_at`, so
+switching plans mid-trial cannot farm a fresh trial. Grace length likewise
+comes from `grace_period_days` and is entered explicitly.
+
+**Consequences.** Trial abuse via plan-hopping is structurally impossible.
+
+---
+
+## ADR-68: Usage Is Live Counts for Resources and Period Counters for Actions
+
+**Decision.** `usage_service` measures two kinds of usage. **Live-count**
+metrics (products, variants, staff seats, warehouses, segments) are computed
+by querying the current rows on demand — there is no separate counter to drift.
+**Period** metrics (monthly import rows, monthly exports) are calendar-month
+`UsageRecord` counters incremented atomically (`F()` + `select_for_update`),
+consumed by the acting service exactly once per operation. Reading over-limit
+usage always works; only creation is gated.
+
+**Consequences.** A downgrade that leaves a store over a limit is fully
+readable; the numbers are always truthful because live counts cannot desync.
+
+---
+
+## ADR-69: Limits Are Enforced in the Service Layer, So Imports and Bulk Actions Cannot Bypass Them
+
+**Decision.** Creation limits and subscription-state gates live in
+`enforcement.py` and are called from the **service layer** (warehouse, staff,
+variant, product, segment creation; product/variant/inventory import; export),
+never only in a view. Each gate is three layers: subscription state allows
+growth → feature enabled → numeric limit not exceeded. Updates to existing
+records and reads of over-limit data are never gated — only creation. Bulk and
+generation paths check the **total** requested increment up front and never
+silently truncate; an import that would exceed a resource limit fails the
+overflow rows individually (updates still apply) while an over-quota monthly
+import is rejected whole.
+
+**Consequences.** A direct POST, a CSV import, or a Cartesian variant
+generation is subject to the same ceiling as the dashboard form. There is no
+back door around a plan limit.
+
+---
+
+## ADR-70: Plan Change Is Preview-Then-Execute With Stale-Preview Protection
+
+**Decision.** Changing a plan is two steps. `preview_plan_change` computes the
+entitlement diff and over-limit downgrade warnings and returns a **preview
+token** fingerprinting the subscription's current state and the target version.
+`execute_plan_change` applies the change only if the presented token still
+matches — otherwise `StalePreviewError`, because the subscription moved since
+the preview and the merchant would be deciding on stale data. Plan selection is
+restricted server-side to publicly-selectable published versions, so a merchant
+cannot POST an arbitrary or hidden version id.
+
+**Consequences.** A merchant always confirms against an accurate diff. A
+concurrent change can't be silently overwritten by an old preview.
+
+---
+
+## ADR-71: SubscriptionEvent Is Immutable Domain History, Alongside (Not Instead Of) the Audit Log
+
+**Decision.** Every subscription transition and plan change records a
+`SubscriptionEvent` (from/to status, from/to plan version, actor, reason,
+metadata, optional idempotency key) **and** a general audit-log entry. The
+event stream is domain history specific to billing lifecycle; the audit log is
+the cross-cutting security record. Both are append-only; Django Admin blocks
+changing or deleting events.
+
+**Consequences.** Billing history is queryable on its own terms (the merchant
+history page) without trawling the global audit log, and neither can be
+rewritten.
+
+---
+
+## ADR-72: No Money Moves in 5A — Plan Change Alters Entitlements Only; Payment Is 5B
+
+**Decision.** Checkpoint 5A implements the *shape* of subscriptions —
+plans, versions, entitlements, usage, limits, trials, state machine, merchant
+visibility, and plan change — but collects **no** money. `change_plan_version`
+and `provision_default_subscription` alter entitlements/state only; there is no
+gateway integration, no stored card, no automated charge, no webhook. The
+`external_reference` field is a reserved, gateway-agnostic string for 5B.
+Online payment collection, card storage, automated charging, and webhooks are
+explicitly out of scope and deferred to Checkpoint 5B.
+
+**Consequences.** Activation is an administrative/service act in 5A. The
+domain is payment-ready (a subscription references an exact priced version)
+without any premature coupling to a specific payment provider.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -3295,3 +3481,13 @@ sole copy of any data, so retention cleanup is safe.
 | Inventory Import routes every row through a warehouse-aware inventory service call enforcing reservation safety | Decided, implemented |
 | Import idempotency: optional per-Store key at upload + final-status guard at execute | Decided, implemented |
 | Import files are private, filename-sanitized, size/row/field-bounded, and retention-cleaned like exports | Decided, implemented |
+| A Plan is a stable code; priced/functional terms live on immutable published PlanVersions (server-enforced immutability, superuser-only admin) | Decided, implemented (5A, ADR-63) |
+| Entitlements are the single source of truth, keyed on stable keys — never `plan.code == "pro"` | Decided, implemented (5A, ADR-64) |
+| Fail-open fallback + Legacy grandfathering: existing stores are never silently restricted or assigned a limited Starter plan | Decided, implemented (5A, ADR-65) |
+| One explicit subscription state machine; no view writes `status` directly; one current subscription per store (DB-enforced) | Decided, implemented (5A, ADR-66) |
+| One trial per store; a plan change never resets the trial | Decided, implemented (5A, ADR-67) |
+| Usage is live counts for resources, calendar-month period counters for actions; over-limit data stays readable | Decided, implemented (5A, ADR-68) |
+| Limits enforced in the service layer so imports/bulk/direct-POST cannot bypass; only creation gated, no silent truncation | Decided, implemented (5A, ADR-69) |
+| Plan change is preview-then-execute with stale-preview token protection; selection restricted to publicly-selectable published versions | Decided, implemented (5A, ADR-70) |
+| SubscriptionEvent is immutable domain history, alongside (not instead of) the audit log | Decided, implemented (5A, ADR-71) |
+| No money moves in 5A — plan change alters entitlements only; online payment/cards/charging/webhooks are deferred to 5B | Decided, implemented (5A, ADR-72) |
