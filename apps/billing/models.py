@@ -392,6 +392,114 @@ class SubscriptionDunningState(models.Model):
         return f"Dunning<{self.invoice.number}> stage {self.stage} ({self.get_status_display()})"
 
 
+class SubscriptionCreditNote(TimeStampedModel):
+    """سندِ Credit Note رویِ یک فاکتور (ADR-81) — یک سندِ تاریخی. مبلغِ آن
+    نمی‌تواند از مبلغِ *پرداخت‌شده‌ی* واجدِ‌شرایط بیشتر باشد و به‌خودیِ‌خود
+    بازپرداختِ پول نیست مگر صریحاً به یک ``SubscriptionRefund`` وصل شود."""
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "پیش‌نویس"
+        ISSUED = "issued", "صادرشده"
+        VOID = "void", "باطل‌شده"
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.PROTECT, related_name="credit_notes",
+    )
+    invoice = models.ForeignKey(
+        SubscriptionInvoice, verbose_name="فاکتور", on_delete=models.PROTECT, related_name="credit_notes",
+    )
+    number = models.CharField("شماره‌ی Credit Note", max_length=40, unique=True)
+    status = models.CharField("وضعیت", max_length=8, choices=Status.choices, default=Status.ISSUED, db_index=True)
+    reason = models.CharField("علت", max_length=300, blank=True, default="")
+    currency = models.CharField("ارز", max_length=8, default="IRT")
+    amount = _money(verbose_name="مبلغ")
+    issued_at = models.DateTimeField("زمانِ صدور", null=True, blank=True)
+    voided_at = models.DateTimeField("زمانِ ابطال", null=True, blank=True)
+    actor = models.ForeignKey(
+        "auth.User", verbose_name="عامل", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "Credit Note اشتراک"
+        verbose_name_plural = "Credit Noteهایِ اشتراک"
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(check=models.Q(amount__gt=0), name="credit_note_amount_positive"),
+        ]
+        indexes = [
+            models.Index(fields=["store", "status"], name="idx_creditnote_store_status"),
+        ]
+
+    def __str__(self):
+        return f"CreditNote {self.number} ({self.get_status_display()})"
+
+
+class SubscriptionRefund(TimeStampedModel):
+    """بازپرداختِ پرداختِ اشتراک (ADR-81) — از مسیرِ Provider abstraction. هرگز
+    از مدل‌هایِ Refundِ سفارشِ فروشگاه استفاده نمی‌کند. نمی‌تواند از مبلغِ
+    قابلِ‌بازپرداخت بیشتر باشد و دوبار بازپرداخت نمی‌شود."""
+
+    class Status(models.TextChoices):
+        REQUESTED = "requested", "درخواست‌شده"
+        PENDING = "pending", "در انتظار"
+        SUCCEEDED = "succeeded", "موفق"
+        FAILED = "failed", "ناموفق"
+        CANCELLED = "cancelled", "لغوشده"
+
+    OPEN_STATUSES = frozenset({Status.REQUESTED, Status.PENDING})
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.PROTECT, related_name="subscription_refunds",
+    )
+    invoice = models.ForeignKey(
+        SubscriptionInvoice, verbose_name="فاکتور", on_delete=models.PROTECT, related_name="refunds",
+    )
+    payment_attempt = models.ForeignKey(
+        SubscriptionPaymentAttempt, verbose_name="تلاشِ پرداخت", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="refunds",
+    )
+    credit_note = models.ForeignKey(
+        SubscriptionCreditNote, verbose_name="Credit Note", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="refunds",
+    )
+    provider = models.CharField("Provider", max_length=40, blank=True, default="")
+    provider_refund_id = models.CharField("شناسه‌ی بازپرداختِ Provider", max_length=120, blank=True, default="")
+    status = models.CharField("وضعیت", max_length=12, choices=Status.choices, default=Status.REQUESTED, db_index=True)
+    amount = _money(verbose_name="مبلغ")
+    currency = models.CharField("ارز", max_length=8, default="IRT")
+    reason = models.CharField("علت", max_length=300, blank=True, default="")
+    failure_code = models.CharField("کدِ خطا", max_length=64, blank=True, default="")
+    failure_message = models.CharField("پیامِ خطا", max_length=300, blank=True, default="")
+    requested_by = models.ForeignKey(
+        "auth.User", verbose_name="درخواست‌دهنده", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+",
+    )
+    requested_at = models.DateTimeField("زمانِ درخواست", null=True, blank=True)
+    completed_at = models.DateTimeField("زمانِ تکمیل", null=True, blank=True)
+    idempotency_key = models.CharField("کلیدِ یکتا", max_length=100, unique=True)
+
+    class Meta:
+        verbose_name = "بازپرداختِ اشتراک"
+        verbose_name_plural = "بازپرداخت‌هایِ اشتراک"
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(check=models.Q(amount__gt=0), name="refund_amount_positive"),
+            models.UniqueConstraint(
+                fields=["provider", "provider_refund_id"],
+                condition=~models.Q(provider_refund_id=""),
+                name="uniq_refund_provider_id",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["store", "status"], name="idx_refund_store_status"),
+            models.Index(fields=["invoice", "status"], name="idx_refund_invoice_status"),
+        ]
+
+    def __str__(self):
+        return f"Refund<{self.invoice.number}> {self.amount} ({self.get_status_display()})"
+
+
 class ScheduledPlanChange(models.Model):
     """یک تغییرِ پلنِ زمان‌بندی‌شده برایِ «دوره‌ی بعد» (تنزل — ADR-80). چون
     پروریشنِ جعلی انجام نمی‌شود، تنزل بلافاصله Entitlement را کم نمی‌کند؛
