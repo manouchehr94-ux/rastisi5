@@ -39,7 +39,11 @@ def cart_add(request, slug):
     variant = None
     variant_id = request.POST.get("variant_id", "").strip()
     if variant_id:
-        variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
+        # Server-side validation (ADR-85): the variant must belong to THIS
+        # product (rejecting cross-store / cross-product ids) and be active —
+        # an inactive variant can never be purchased. Price is resolved from the
+        # server (product.final_price in add_item_to_cart), never from POST.
+        variant = get_object_or_404(ProductVariant, pk=variant_id, product=product, is_active=True)
 
     try:
         quantity = int(request.POST.get("quantity", 1))
