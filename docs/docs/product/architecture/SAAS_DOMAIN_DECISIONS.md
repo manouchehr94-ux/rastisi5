@@ -3584,6 +3584,158 @@ precision; tax is honest about its (deliberately minimal) scope.
 
 ---
 
+## ADR-83: Tenant-Safe Storefront Routing — Host-Resolved, Fail-Closed, Clean 404 for Unknown/Inactive Stores
+
+**Context (checkpoint 6).** The public storefront serves many stores from one
+codebase. A customer request must render exactly the store its Host belongs to,
+and never leak another store's catalog — and an unknown, inactive, suspended,
+or closed store must degrade gracefully.
+
+**Decision.** Every storefront view resolves its store from the request Host via
+`apps.stores.resolution`, which only matches a `StoreDomain` whose store is
+`ACTIVE` and whose domain is `VERIFIED` (fail-closed). Checkpoint 6 adds
+`resolve_store_for_storefront`, which converts an unresolved Host into a clean
+`Http404` instead of the 500 that the service resolver's single-store
+compatibility fallback raises when multiple stores exist. Category pages are the
+product list filtered on `?category=` (with parent→child expansion), a
+deliberate query-param design rather than a separate template tree. The merchant
+admin host and Django admin host are resolved by separate functions and are
+isolated from the storefront.
+
+**Consequences.** A customer on an inactive/suspended/unknown host sees a normal
+not-found page; no request can surface another store's products, and deep
+service code still receives a concrete `Store` passed down explicitly.
+
+---
+
+## ADR-84: RTL-First Storefront Design System on Tokens + HTMX + Alpine
+
+**Decision.** The storefront uses one token-based design system
+(`core/static/css/tokens.css` + `base.css` + `layout.css`) with per-store brand
+CSS variables, RTL-first Persian layout, and the repo's existing HTMX + Alpine
+conventions for interactivity — no new frontend framework. Reusable template
+partials (product card/grid, forms, empty states) avoid duplicated markup; store
+branding is data-driven (never hardcoded), so Store A's look never appears on
+Store B.
+
+**Consequences.** A coherent, maintainable storefront that stays consistent with
+the merchant-admin conventions and needs no build pipeline.
+
+---
+
+## ADR-85: Variant Selection Is Validated Server-Side; Add-to-Cart Never Trusts the Browser
+
+**Decision.** The browser selects a variant, but the server is authoritative.
+`cart_add` resolves the product scoped to the Host store and `ACTIVE`, and the
+variant scoped to that product AND `is_active=True` — rejecting cross-store,
+cross-product, or inactive variant ids with a 404. Price is resolved server-side
+(`product.final_price`), never from POST; quantity is coerced and clamped.
+
+**Consequences.** A forged price, a foreign variant id, or an inactive variant
+can never enter a cart; the frontend selector is a convenience, not a trust
+boundary.
+
+---
+
+## ADR-86: Variant-Specific Images Fall Back to the Product Gallery, Never a Foreign Image
+
+**Decision.** A variant with a dedicated image shows it; a variant without one
+falls back to the product's gallery. The product gallery stays accessible, alt
+text is meaningful, and the image never changes to another product's image.
+Missing images degrade to a tinted emoji placeholder (`_gallery_slides`).
+
+**Consequences.** Image presentation is always correct and store-safe, with a
+graceful fallback at every level.
+
+---
+
+## ADR-87: One Storefront Price Presenter — Server-Owned, Zero-Decimal IRT
+
+**Decision.** Prices are server-owned (`Product.price`/`final_price`, discount
+percent) and presented consistently through the shared Persian/`toman`
+formatting helpers in zero-decimal IRT. The browser never supplies a price;
+cart and checkout re-resolve totals server-side. Compare-at/discount is shown
+only when real.
+
+**Consequences.** Consistent price formatting across home, list, detail, cart,
+and checkout, with no browser-trusted amounts.
+
+---
+
+## ADR-88: Cart and Checkout Are Idempotent and Server-Revalidated
+
+**Decision.** Checkout submission is idempotent server-side (the existing
+`Cart.checkout_token` + `Order.idempotency_key`, checkpoint-era design),
+protecting against duplicate clicks and payment retries. Stock and price are
+re-validated at cart and checkout against the inventory/pricing services (the
+source of truth), and the browser return from payment is treated as
+informational only — payment is confirmed server-side.
+
+**Consequences.** No double orders, no stale-price/oversold checkouts, and no
+payment "success" inferred from a browser redirect.
+
+---
+
+## ADR-89: Customer Account Isolation — Own Records Only, Store-Scoped Orders
+
+**Decision.** A customer sees only their own records; order lookups are scoped to
+the authenticated customer (guessing an order id/code exposes nothing), and an
+order is bound to its store so it never appears in another store's context.
+Order detail exposes customer-facing fields only — never internal staff notes,
+fraud fields, warehouse internals, raw gateway payloads, or audit records.
+Customer authentication is separate from merchant-admin authorization.
+
+**Consequences.** Cross-customer and cross-store account access is structurally
+impossible; internal data never leaks to the storefront.
+
+---
+
+## ADR-90: Storefront SEO Is Tenant-Scoped to the Request Host
+
+**Decision.** Because `django.contrib.sites` is not installed, sitemap and
+robots are request-scoped views (`apps/core/seo.py`) that resolve the store from
+the Host: the sitemap lists only that store's home, list, active categories, and
+`ACTIVE` (never draft) products plus published CMS pages, on the tenant's own
+domain; robots disallows cart/checkout/account/admin and links the same-host
+sitemap. Canonical URLs, Open Graph, and JSON-LD (Product with real
+price/availability, BreadcrumbList, Organization) use the request Host; private
+pages and search/price-filter permutations are `noindex`.
+
+**Consequences.** Structured data reflects real price/stock, canonical URLs use
+the tenant domain, and no cross-store URL or draft product is ever exposed to
+crawlers.
+
+---
+
+## ADR-91: Theme Settings via Per-Store CSS Variables
+
+**Decision.** Store branding (name, logo, favicon, brand/secondary colors,
+header/footer, contact, social, hero, announcement) is driven by existing
+per-store settings surfaced as CSS custom properties on the storefront root
+element. A missing logo falls back gracefully; historical orders are unaffected
+by later theme changes; Store A's branding never renders on Store B. No
+drag-and-drop page builder is introduced.
+
+**Consequences.** Merchants restyle safely within bounds, and theming stays a
+narrow, data-driven concern.
+
+---
+
+## ADR-92: Browser/E2E Testing Strategy — Service + View Tests First, Playwright When Warranted
+
+**Decision.** The storefront's correctness is guarded primarily by Django
+service- and view-level tests (the storefront suites, tenant-isolation, SEO,
+cart-security), which run in CI without a browser. Full browser/E2E automation
+uses the repo's pre-installed Playwright/Chromium when a real end-to-end pass is
+needed, but browser tests never replace the service/view tests, and no driver
+binaries, browser profiles, or screenshots are committed. A manual QA checklist
+(`STOREFRONT_MANUAL_QA_CHECKLIST.md`) documents the human end-to-end scenarios.
+
+**Consequences.** Fast, deterministic coverage in CI, with browser testing as a
+complementary layer rather than a fragile substitute.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -3673,3 +3825,13 @@ precision; tax is honest about its (deliberately minimal) scope.
 | Plan-change billing has no fake proration — upgrade requires payment, downgrade effective next period | Decided, implemented (5B, ADR-80) |
 | Credit Notes (document) are distinct from Refunds (money movement via provider abstraction); both bounded by paid amount | Decided, implemented (5B, ADR-81) |
 | Billing currency is plan-fixed (no FX); tax off by default and not a legal compliance guarantee | Decided, implemented (5B, ADR-82) |
+| Tenant-safe storefront routing — Host-resolved, fail-closed, clean 404 for unknown/inactive stores | Decided, implemented (6, ADR-83) |
+| RTL-first storefront design system on tokens + HTMX + Alpine (no new framework) | Decided, implemented (6, ADR-84) |
+| Variant selection validated server-side; Add-to-Cart never trusts the browser price/id | Decided, implemented (6, ADR-85) |
+| Variant-specific images fall back to the product gallery, never a foreign image | Decided, implemented (6, ADR-86) |
+| One storefront price presenter — server-owned, zero-decimal IRT | Decided, implemented (6, ADR-87) |
+| Cart and checkout are idempotent and server-revalidated; browser return isn't payment proof | Decided, implemented (6, ADR-88) |
+| Customer account isolation — own records only, store-scoped orders, no internal fields | Decided, implemented (6, ADR-89) |
+| Storefront SEO is tenant-scoped to the request Host; drafts/private pages excluded | Decided, implemented (6, ADR-90) |
+| Theme settings via per-store CSS variables; no page builder | Decided, implemented (6, ADR-91) |
+| Browser/E2E testing complements (never replaces) service+view tests; no driver/profile/screenshot artifacts | Decided, implemented (6, ADR-92) |

@@ -235,6 +235,22 @@ stock below active reservations is refused. Import source and error-report
 files live under `DJANGO_PRIVATE_MEDIA_ROOT` and are only downloadable
 through the authenticated, Store-scoped admin view (never a public URL).
 
+### Storefront SEO endpoints (checkpoint 6)
+
+The customer storefront serves a tenant-scoped `GET /sitemap.xml` and
+`GET /robots.txt` (ADR-90): both resolve the Store from the request Host, so
+each store's domain gets its own sitemap listing only that store's home,
+product list, active categories, and published (never draft) products, plus
+published CMS pages. `robots.txt` disallows `/cart/`, `/checkout/`, `/account/`,
+and the admin paths and links the same-host sitemap. Canonical URLs, Open
+Graph, and JSON-LD (Product/BreadcrumbList/Organization) are emitted per page
+and reflect real price/availability. No cross-store URL or draft product is ever
+exposed to crawlers. Because `django.contrib.sites` is not installed, these are
+request-scoped views rather than the Sites-coupled sitemap framework — no
+`SITE_ID` configuration is needed. See `STOREFRONT_AUDIT_REPORT.md`,
+`STOREFRONT_SCREEN_INVENTORY.md`, and `STOREFRONT_MANUAL_QA_CHECKLIST.md` for
+the full storefront coverage map and manual QA scenarios.
+
 ## 6. HTTPS / reverse-proxy assumptions
 
 This application expects to sit either directly on the public internet with

@@ -2059,3 +2059,41 @@ in behind the provider interface without touching the rest of the domain.
 
 This completes Checkpoint 5B. It does **not** mark the full Admin Panel
 Completion Program complete.
+
+## 32. Checkpoint 6 — Production-Ready Customer Storefront (Audit, SEO, Tenant Routing, Hardening)
+
+**Checkpoint 6 completes and hardens the customer-facing storefront.** The
+storefront was already substantially built (token-based RTL design system, full
+shell, data-driven homepage, product list with search/filters/sort/pagination,
+product detail with gallery/variants/reviews, cart, multi-step checkout,
+customer account with profile/addresses/orders/wishlist). This checkpoint is a
+**completion + hardening** pass — audited honestly, then closing the real gaps:
+
+- **Audit & inventory (ADR-83).** `STOREFRONT_AUDIT_REPORT.md` and
+  `STOREFRONT_SCREEN_INVENTORY.md` map every screen (URL/template/view/auth/
+  tenant-scope/mobile/RTL/empty/error/SEO/tests) from the real code, and
+  `STOREFRONT_MANUAL_QA_CHECKLIST.md` gives 180 step-by-step browser checks.
+- **SEO (ADR-90).** Tenant-scoped `sitemap.xml` and `robots.txt` (request-Host
+  resolved, drafts excluded, private paths disallowed), canonical URLs, Open
+  Graph, and JSON-LD (Product with real price/availability, BreadcrumbList,
+  Organization); `noindex` on private/filtered pages. This was entirely absent
+  before.
+- **Tenant routing & errors (ADR-83).** `resolve_store_for_storefront` turns an
+  unknown/inactive/suspended-store Host into a clean 404 instead of a 500; a
+  branded RTL 403 page was added.
+- **Variant / Add-to-Cart security (ADR-85).** Add-to-Cart now rejects inactive,
+  cross-product, and cross-store variants and continues to ignore any
+  browser-supplied price (server-resolved).
+- **ADRs 83–92** record the storefront decisions (routing, design system,
+  variant validation, variant images, price presenter, cart/checkout
+  idempotency, account isolation, SEO, theme via CSS variables, E2E strategy).
+
+Test coverage added: `test_seo.py` (10), `test_tenant_routing_seo.py` (6),
+`test_cart_security.py` (8), on top of the existing storefront/isolation suites.
+
+**Scope honesty.** Because the storefront was already mature, this checkpoint
+focuses on the genuine gaps above and documents the already-working journeys
+rather than rebuilding them. Browser/E2E automation uses the repo's Playwright
+when a full pass is warranted (ADR-92) and never replaces the service/view
+tests; no driver binaries, browser profiles, or screenshots are committed. This
+completes Checkpoint 6; it does **not** mark full production launch complete.
