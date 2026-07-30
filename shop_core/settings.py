@@ -96,6 +96,7 @@ INSTALLED_APPS = [
     "apps.content",
     "apps.stores",
     "apps.subscriptions",
+    "apps.billing",
 ]
 
 # apps.stores.middleware.StoreResolutionMiddleware runs immediately after
