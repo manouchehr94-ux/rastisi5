@@ -305,6 +305,61 @@ class SubscriptionPaymentAttempt(TimeStampedModel):
         return self.status in self.FINAL_STATUSES
 
 
+class BillingWebhookEvent(TimeStampedModel):
+    """صندوقِ ورودیِ Webhookِ Provider (ADR-76). امضا پیش از هر تغییرِ
+    کسب‌وکاری تأیید می‌شود؛ تحویلِ تکراری idempotent است (قیدِ یکتا رویِ
+    provider + external_event_id)؛ رخدادهایِ ناموفق برایِ مدیرِ پلتفرم
+    دیده‌می‌شوند. هرگز رازِ خام ذخیره نمی‌شود — payload پاک‌سازی/ردکت می‌شود."""
+
+    class ProcessingStatus(models.TextChoices):
+        RECEIVED = "received", "دریافت‌شده"
+        PROCESSED = "processed", "پردازش‌شده"
+        FAILED = "failed", "ناموفق"
+        IGNORED = "ignored", "نادیده‌گرفته‌شده"
+
+    provider = models.CharField("Provider", max_length=40)
+    external_event_id = models.CharField("شناسه‌ی رخدادِ Provider", max_length=120)
+    event_type = models.CharField("نوعِ رخداد", max_length=80, blank=True, default="")
+
+    signature_valid = models.BooleanField("امضا معتبر", default=False)
+    processing_status = models.CharField(
+        "وضعیتِ پردازش", max_length=12, choices=ProcessingStatus.choices,
+        default=ProcessingStatus.RECEIVED, db_index=True,
+    )
+    payload_hash = models.CharField("هشِ payload", max_length=64, blank=True, default="")
+    sanitized_payload = models.JSONField("payloadِ پاک‌سازی‌شده", blank=True, default=dict)
+
+    received_at = models.DateTimeField("زمانِ دریافت", null=True, blank=True)
+    processed_at = models.DateTimeField("زمانِ پردازش", null=True, blank=True)
+    error_summary = models.CharField("خلاصه‌ی خطا", max_length=300, blank=True, default="")
+    retry_count = models.PositiveIntegerField("تعدادِ Retry", default=0)
+
+    related_payment_attempt = models.ForeignKey(
+        SubscriptionPaymentAttempt, verbose_name="تلاشِ پرداختِ مرتبط", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="webhook_events",
+    )
+    related_invoice = models.ForeignKey(
+        SubscriptionInvoice, verbose_name="فاکتورِ مرتبط", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="webhook_events",
+    )
+
+    class Meta:
+        verbose_name = "رخدادِ Webhookِ صورتحساب"
+        verbose_name_plural = "رخدادهایِ Webhookِ صورتحساب"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "external_event_id"], name="uniq_webhook_provider_event",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["processing_status"], name="idx_webhook_status"),
+        ]
+
+    def __str__(self):
+        return f"Webhook<{self.provider}:{self.external_event_id}> {self.get_processing_status_display()}"
+
+
 class BillingSequence(models.Model):
     """شمارنده‌یِ ماندگارِ race-safe برایِ شماره‌گذاریِ اسناد (فاکتور/Credit
     Note/…). یکتاییِ شماره از این شمارنده می‌آید، نه از شمارشِ ردیف‌هایِ جدول

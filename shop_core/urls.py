@@ -38,6 +38,8 @@ urlpatterns = [
     path("admin-panel/", admin_panel_compat_redirect, name="admin-panel-compat-redirect"),
     path("admin-panel/<path:rest>", admin_panel_compat_redirect, name="admin-panel-compat-redirect-path"),
     path("pages/", include("apps.content.urls")),
+    # SaaS billing webhook endpoint (public, signature-verified, no CSRF).
+    path("billing/", include("apps.billing.urls")),
 ]
 
 if settings.DEBUG:
