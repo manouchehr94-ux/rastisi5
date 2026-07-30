@@ -43,6 +43,12 @@ def list_warehouses(store):
 
 @transaction.atomic
 def create_warehouse(store, *, actor=None, **fields) -> Warehouse:
+    # گیتِ اشتراک/سقف (checkpoint 5A، ADR-69) — ساختِ انبارِ تازه مشمولِ
+    # سقفِ ``inventory.warehouses`` و وضعیتِ اشتراک است. به‌روزرسانیِ انبارِ
+    # موجود (``update_warehouse``) مشمول نیست.
+    from apps.subscriptions.services.enforcement import enforce_can_create_warehouse
+
+    enforce_can_create_warehouse(store)
     # قیدِ دیتابیس "دقیقاً یک انبارِ پیش‌فرض" فوری بررسی می‌شود (نه در پایانِ
     # تراکنش)، پس انبارِ پیش‌فرضِ قبلی باید پیش از ذخیره‌ی انبارِ تازه پاک شود.
     if fields.get("is_default"):

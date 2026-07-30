@@ -89,6 +89,23 @@ def add_staff_member(store, *, phone: str, role: str, invited_by) -> StoreMember
     phone = _normalize_phone(phone)
     _validate_assignable_role(role)
 
+    # گیتِ صندلی (checkpoint 5A، ADR-69/§27): فقط وقتی این عملیات یک صندلیِ
+    # تازه مصرف می‌کند (کاربرِ تازه، یا احیایِ عضویتِ لغوشده) گیت اعمال
+    # می‌شود — تغییرِ نقشِ عضوِ از‌پیش‌شمرده‌شده صندلی اضافه نمی‌کند. پیش از
+    # ساختِ حسابِ کاربری بررسی می‌شود تا حسابِ یتیم ساخته نشود.
+    _existing_user = User.objects.filter(username=phone).first()
+    _adds_seat = True
+    if _existing_user is not None:
+        _m = StoreMembership.objects.filter(store=store, user=_existing_user).first()
+        if _m is not None and _m.status in (
+            StoreMembership.MembershipStatus.ACTIVE, StoreMembership.MembershipStatus.INVITED,
+        ):
+            _adds_seat = False
+    if _adds_seat:
+        from apps.subscriptions.services.enforcement import enforce_can_add_staff
+
+        enforce_can_add_staff(store)
+
     user = User.objects.filter(username=phone).select_for_update().first()
     if user is None:
         user = User.objects.create_user(username=phone, is_staff=True)
@@ -176,6 +193,11 @@ def revoke_membership(membership: StoreMembership, *, actor=None) -> StoreMember
 def reactivate_membership(membership: StoreMembership, *, actor=None) -> StoreMembership:
     if membership.status == StoreMembership.MembershipStatus.ACTIVE:
         raise MembershipError("این عضویت هم‌اکنون فعال است.")
+    # احیایِ عضویتِ لغوشده یک صندلیِ تازه مصرف می‌کند (ADR-69/§27).
+    if membership.status != StoreMembership.MembershipStatus.INVITED:
+        from apps.subscriptions.services.enforcement import enforce_can_add_staff
+
+        enforce_can_add_staff(membership.store)
     membership.status = StoreMembership.MembershipStatus.ACTIVE
     membership.accepted_at = timezone.now()
     membership.revoked_at = None

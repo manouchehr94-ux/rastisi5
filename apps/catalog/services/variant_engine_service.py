@@ -243,6 +243,34 @@ def generate_variants(product: Product) -> VariantGenerationResult:
 
     existing_variants = {v.combination_key: v for v in product.variants.exclude(combination_key="")}
 
+    # گیتِ سقفِ تنوع (checkpoint 5A، ADR-69/§17/§28): پس از تولید، تعدادِ
+    # تنوع‌هایِ فعالِ این کالا برابرِ ``len(desired)`` می‌شود و بقیه منسوخ.
+    # تعدادِ فعالِ کلِ فروشگاه (به‌جز همین کالا) + len(desired) نباید از سقف
+    # عبور کند. اتمیک است — اگر عبور کند، *کلِ* تولید رد می‌شود (هیچ ترکیبِ
+    # جزئی ساخته نمی‌شود؛ §17).
+    from apps.subscriptions.services.entitlement_service import (
+        UsageLimitExceeded,
+        get_entitlement_limit,
+        require_growth_allowed,
+    )
+
+    variant_limit = get_entitlement_limit(product.store, "catalog.variants")
+    if variant_limit is not None:
+        require_growth_allowed(product.store)
+        store_active = ProductVariant.objects.filter(
+            store=product.store, is_active=True, is_obsolete=False,
+        ).count()
+        this_product_active = product.variants.filter(is_active=True, is_obsolete=False).count()
+        resulting = store_active - this_product_active + len(desired)
+        if resulting > variant_limit:
+            raise UsageLimitExceeded(
+                "catalog.variants", limit=variant_limit, current=store_active,
+                message=(
+                    f"تولیدِ این تنوع‌ها مجموعِ تنوع‌هایِ فعالِ فروشگاه را به {resulting} می‌رساند "
+                    f"که از سقفِ پلن ({variant_limit}) بیشتر است."
+                ),
+            )
+
     result = VariantGenerationResult()
     ordered_variants: list[ProductVariant] = []
 

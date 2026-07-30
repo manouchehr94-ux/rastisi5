@@ -87,9 +87,20 @@ def _check_sku_unique(sku: str, *, store, exclude_pk=None):
 def create_variant(
     product: Product, *, attribute: str, value: str, stock: int = 0,
     extra_price=0, sku: str = "", value_hex: str = "", is_active: bool = True,
-    display_order: int | None = None,
+    display_order: int | None = None, _enforce_limit: bool = True,
 ) -> ProductVariant:
-    """یک مقدار تنوع جدید برای کالا می‌سازد؛ اعتبارسنجی و یکتایی کد کالا را رعایت می‌کند."""
+    """یک مقدار تنوع جدید برای کالا می‌سازد؛ اعتبارسنجی و یکتایی کد کالا را رعایت می‌کند.
+
+    گیتِ سقفِ ``catalog.variants`` و وضعیتِ اشتراک اینجا اعمال می‌شود
+    (checkpoint 5A، ADR-69/§28). فراخوان‌هایِ فله‌ای (``bulk_create_variants``،
+    ``copy_variant_structure``) سقف را یک‌جا رویِ کلِ افزایشِ درخواستی بررسی
+    و سپس با ``_enforce_limit=False`` این گیتِ تک‌رکوردی را غیرفعال می‌کنند تا
+    سقف دوباره‌شماری نشود.
+    """
+    if _enforce_limit:
+        from apps.subscriptions.services.enforcement import enforce_can_create_variants
+
+        enforce_can_create_variants(product.store)
     sku = normalize_text(sku)
     if not sku:
         sku = generate_variant_sku(product, value)
@@ -140,6 +151,19 @@ def bulk_create_variants(
         )
     )
 
+    # گیتِ سقف یک‌جا رویِ کلِ افزایشِ درخواستی بررسی می‌شود (§28: «Bulk creation
+    # checks total requested increment»)، نه رکورد‌به‌رکورد — تکراری‌هایی که رد
+    # می‌شوند صندلی مصرف نمی‌کنند، پس از شمارش کنار گذاشته می‌شوند. اگر سقف نقض
+    # شود کلِ تراکنش رد می‌شود و هیچ رکوردی بی‌سروصدا حذف/کوتاه نمی‌گردد.
+    to_create_count = sum(
+        1 for value in values
+        if not (is_active and normalization_key(value) in existing_keys)
+    )
+    if to_create_count:
+        from apps.subscriptions.services.enforcement import enforce_can_create_variants
+
+        enforce_can_create_variants(product.store, count=to_create_count)
+
     created = []
     skipped = []
     for value in values:
@@ -150,6 +174,7 @@ def bulk_create_variants(
         variant = create_variant(
             product, attribute=attribute, value=value,
             stock=default_stock, extra_price=default_extra_price, is_active=is_active,
+            _enforce_limit=False,
         )
         if is_active:
             existing_keys.add(key)
@@ -251,11 +276,22 @@ def copy_variant_structure(source: Product, target: Product) -> list[ProductVari
     if source.store_id != target.store_id:
         raise VariantError("کالای مبدأ و مقصد باید متعلق به یک فروشگاه باشند.")
 
+    source_variants = list(
+        source.variants.filter(is_active=True).order_by("display_order", "attribute", "value")
+    )
+    # سقف یک‌جا رویِ کلِ تنوع‌هایِ کپی‌شونده بررسی می‌شود (§28)، سپس گیتِ
+    # تک‌رکوردیِ ``create_variant`` غیرفعال تا دوباره‌شماری نشود.
+    if source_variants:
+        from apps.subscriptions.services.enforcement import enforce_can_create_variants
+
+        enforce_can_create_variants(target.store, count=len(source_variants))
+
     created = []
-    for source_variant in source.variants.filter(is_active=True).order_by("display_order", "attribute", "value"):
+    for source_variant in source_variants:
         variant = create_variant(
             target, attribute=source_variant.attribute, value=source_variant.value,
             stock=0, extra_price=0, value_hex=source_variant.value_hex,
+            _enforce_limit=False,
         )
         created.append(variant)
     return created

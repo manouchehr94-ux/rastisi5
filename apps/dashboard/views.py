@@ -86,6 +86,8 @@ from apps.catalog.services.warehouse_service import (
 )
 from apps.core.services.audit_service import list_audit_events, record_audit_event
 from apps.core.services.export_service import ExportError, run_export
+from apps.subscriptions.services.entitlement_service import EntitlementError
+from apps.subscriptions.services import enforcement as subscription_enforcement
 from apps.dashboard.services import import_service
 from apps.dashboard.services.import_service import ImportServiceError
 from apps.cart.models import Coupon
@@ -560,6 +562,10 @@ def _save_product_attribute_values(request, product):
 def _save_product(form, product, *, store):
     data = form.cleaned_data
     if product is None:
+        # گیتِ اشتراک/سقفِ کالا (checkpoint 5A، ADR-69) — فقط مسیرِ ساخت.
+        from apps.subscriptions.services.enforcement import enforce_can_create_product
+
+        enforce_can_create_product(store)
         vendor = default_vendor(store)
         if vendor is None:
             raise NoVendorForStoreError(
@@ -611,7 +617,7 @@ def product_form(request, pk=None):
                         publish_errors = validate_product_for_publish(product)
                         if publish_errors:
                             raise ProductPublishError(publish_errors)
-            except (ProductTypeError, NoVendorForStoreError) as exc:
+            except (ProductTypeError, NoVendorForStoreError, EntitlementError) as exc:
                 form.add_error(None, str(exc))
                 attribute_fields = _product_attribute_field_context(form.cleaned_data.get("category"), product)
                 return render(request, "dashboard/partials/product_form.html", {
@@ -2249,8 +2255,17 @@ def segment_form(request, pk=None):
         description = request.POST.get("description", "").strip()
         segment_type = request.POST.get("segment_type", CustomerSegment.SegmentType.STATIC)
         match_mode = request.POST.get("match_mode", CustomerSegment.MatchMode.ALL)
+        create_blocked = None
+        if segment is None:
+            # گیتِ اشتراک/قابلیت/سقفِ سگمنت (checkpoint 5A، §29) — فقط مسیرِ ساخت.
+            try:
+                subscription_enforcement.enforce_can_create_segment(store)
+            except EntitlementError as exc:
+                create_blocked = str(exc)
         if not name:
             messages.error(request, "نام سگمنت الزامی است")
+        elif create_blocked:
+            messages.error(request, create_blocked)
         else:
             if segment is None:
                 segment = CustomerSegment.objects.create(
