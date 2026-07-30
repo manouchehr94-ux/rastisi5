@@ -76,6 +76,29 @@ def confirm_payment(*, attempt, amount, currency, provider_payment_id="", actor=
     return locked_attempt
 
 
+@transaction.atomic
+def mark_invoice_paid_manually(invoice, *, actor=None, now=None, note=""):
+    """یک فاکتورِ باز را به‌صورتِ دستی (توسطِ مدیرِ پلتفرم) پرداخت‌شده علامت
+    می‌زند — با ثبتِ صریحِ Audit. یک تلاشِ پرداختِ «manual» می‌سازد و از همان
+    مسیرِ ``confirm_payment`` عبور می‌کند (پس فعال‌سازی/تمدید هم رخ می‌دهد)."""
+    from apps.billing.services import attempt_service
+
+    now = now or timezone.now()
+    locked = SubscriptionInvoice.objects.select_for_update().get(pk=invoice.pk)
+    if not locked.is_payable:
+        raise ConfirmationError("این فاکتور در وضعیتِ قابلِ‌پرداخت نیست.")
+    attempt = attempt_service.create_attempt(locked, provider="manual", actor=actor, now=now)
+    record_audit_event(
+        store=locked.store, actor=actor, action_code="billing.manual_mark_paid",
+        object_type="SubscriptionInvoice", object_id=locked.pk, object_label=locked.number,
+        metadata={"note": note},
+    )
+    return confirm_payment(
+        attempt=attempt, amount=locked.amount_due, currency=locked.currency,
+        provider_payment_id=f"manual-admin-{attempt.public_token}", actor=actor, now=now,
+    )
+
+
 def _activate_or_renew(invoice, *, actor, now):
     """پس از پرداختِ کاملِ فاکتور، اشتراک را فعال یا تمدید می‌کند. تغییرِ پلن
     (kind=plan_change) در commit 8 مدیریت می‌شود."""
