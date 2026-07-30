@@ -492,18 +492,26 @@ application file was modified during this audit.
 | `python manage.py verify_inventory_consistency --strict` | `موجودیِ همه‌ی کالاها/تنوع‌ها با انبارها سازگار است.` | 0 |
 | `python manage.py validate_industry_templates --strict` | `هیچ قالبی با این فیلتر یافت نشد.` | 0 |
 | `python manage.py test apps.stores apps.subscriptions apps.billing apps.customers` | **Ran 537 tests — OK (skipped=1)** | 0 |
+| `python manage.py test apps.dashboard apps.catalog apps.cart apps.orders apps.content` | **Ran 2322 tests — OK** | 0 |
 
-The suite covering stores, membership, tenant routing, domain handling,
-subscriptions, billing and storefront-customer authentication passes in full.
-The single skip is the PostgreSQL-only billing invoice-numbering contention test
+The first suite covers stores, membership, tenant routing, domain handling,
+subscriptions, billing and storefront-customer authentication. The single skip
+is the PostgreSQL-only billing invoice-numbering contention test
 (`skipUnless(connection.vendor == "postgresql")`).
 
-A second focused run (`apps.dashboard apps.catalog apps.cart apps.orders
-apps.content`) was started but its result is **not reported here**, because the
-execution container was reset mid-run and the run did not complete. The
-3046-test full-suite baseline from Checkpoint 6 (`3f172f1`) remains the last
-verified full result; nothing in this audit changed any code, so that baseline
-still stands.
+The second suite covers the merchant dashboard, industry installation, the
+storefront, cart, checkout and CMS. Together these two focused runs execute
+**2859 tests, all passing**, which is consistent with the 3046-test Checkpoint 6
+full-suite baseline (the remainder lives in `apps.core`, `apps.blog` and
+`apps.sms`, not re-run here).
+
+*Honest note on a discarded result:* an earlier attempt at the second suite was
+executing when the container wiped and restored the working tree mid-run; it
+reported `Ran 1343 tests — FAILED (errors=59)`. Those errors were artefacts of
+the files disappearing underneath the running process, **not** real defects —
+the clean re-run above found 2322 tests with no import errors and zero failures.
+The failing figure is recorded here only so it is not mistaken for a finding if
+it is seen in logs.
 
 **Git state at audit time:** the container reset the local checkout to an old
 commit (twice) with a clean working tree; it was restored each time with
