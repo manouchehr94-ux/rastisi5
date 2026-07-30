@@ -2097,3 +2097,58 @@ rather than rebuilding them. Browser/E2E automation uses the repo's Playwright
 when a full pass is warranted (ADR-92) and never replaces the service/view
 tests; no driver binaries, browser profiles, or screenshots are committed. This
 completes Checkpoint 6; it does **not** mark full production launch complete.
+
+## 33. Checkpoint 6 Final Validation and Conclusion
+
+Final validation was run after the last Checkpoint 6 modification.
+
+Management commands and checks (all exit code 0):
+
+```
+python manage.py check                                  → no issues
+python manage.py makemigrations --check                 → no changes detected
+python manage.py migrate                                → no migrations to apply
+python manage.py provision_default_warehouses           → OK
+python manage.py provision_legacy_subscriptions         → OK (idempotent)
+python manage.py evaluate_subscription_states           → OK
+python manage.py generate_subscription_renewals         → OK
+python manage.py process_subscription_dunning           → OK
+python manage.py verify_subscription_consistency --strict → exit 0, no inconsistencies
+python manage.py verify_billing_consistency --strict    → exit 0, no inconsistencies
+python manage.py verify_inventory_consistency --strict   → exit 0, consistent
+python manage.py validate_industry_templates --strict    → exit 0
+```
+
+Focused storefront suites (`apps.catalog apps.cart apps.orders apps.customers`):
+
+```
+Ran 1022 tests → OK
+```
+
+Full test suite (`python manage.py test`):
+
+```
+Ran 3046 tests in 2041.980s
+
+OK (skipped=1)
+```
+
+**3046 tests, zero failures, zero errors, 1 skipped** (the PostgreSQL-only
+invoice-numbering contention test). Checkpoint 6 added 24 tests over the
+Checkpoint 5B baseline of 3022 (SEO ×10, tenant-routing/SEO isolation ×6,
+cart-security ×8), and updated one pre-existing footer-isolation test to assert
+the corrected unknown-host 404 (previously 500). Browser/E2E automation uses the
+repo's pre-installed Playwright when a full pass is warranted (ADR-92) and is
+not part of the CI test count; no driver binaries, browser profiles, or
+screenshots are committed.
+
+Checkpoint 6 completes and hardens the customer storefront: it was already
+substantially built, so this pass audited it honestly
+(`STOREFRONT_AUDIT_REPORT.md`, `STOREFRONT_SCREEN_INVENTORY.md`,
+`STOREFRONT_MANUAL_QA_CHECKLIST.md` with 180 checks) and closed the genuine
+gaps — tenant-scoped SEO (sitemap/robots/canonical/structured data, all
+previously absent), a branded 403 page, clean 404 handling for unknown/inactive
+stores (instead of a 500), and server-side Add-to-Cart variant validation
+(inactive/cross-product/cross-store rejected, forged price ignored). ADRs 83–92
+record the storefront decisions. This completes Checkpoint 6; it does **not**
+mark full production launch complete.
