@@ -4,6 +4,9 @@ the invoice is opened."""
 
 from decimal import Decimal
 
+from unittest import skipUnless
+
+from django.db import connection
 from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 
@@ -98,12 +101,16 @@ class InvoiceCreationTests(TestCase):
         self.assertEqual(second.issued_at, issued)
 
 
+@skipUnless(
+    connection.vendor == "postgresql",
+    "True parallel-writer contention needs row-level locking; SQLite serializes "
+    "writers at the file level, so this is only meaningful on PostgreSQL. The "
+    "no-duplicate invariant on SQLite is covered deterministically by "
+    "NumberingTests above.",
+)
 class NumberingConcurrencyTests(TransactionTestCase):
     """The sequence row is allocated under select_for_update, so a number is
-    never handed out twice. (SQLite serializes writers at the file level rather
-    than the row, so a thread may hit "database is locked" and, in production,
-    retry — what must never happen is a *duplicate* number. We assert exactly
-    that: every allocation that succeeds is unique.)"""
+    never handed out twice under concurrent writers (PostgreSQL row locking)."""
 
     def test_no_duplicate_numbers_under_contention(self):
         import threading
