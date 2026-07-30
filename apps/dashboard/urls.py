@@ -290,4 +290,14 @@ urlpatterns = [
     path("subscription/plans/preview/", views.subscription_plan_preview, name="subscription-plan-preview"),
     path("subscription/plans/change/", views.subscription_plan_execute, name="subscription-plan-execute"),
     path("subscription/history/", views.subscription_history, name="subscription-history"),
+
+    # --- صورتحساب و پرداختِ اشتراک (Billing) — Checkpoint 5B ---
+    path("billing/", views.billing_overview, name="billing-overview"),
+    path("billing/account/", views.billing_account_edit, name="billing-account"),
+    path("billing/invoices/", views.billing_invoices, name="billing-invoices"),
+    path("billing/invoices/<int:pk>/", views.billing_invoice_detail, name="billing-invoice-detail"),
+    path("billing/invoices/<int:pk>/print/", views.billing_invoice_print, name="billing-invoice-print"),
+    path("billing/invoices/<int:pk>/pay/", views.billing_pay, name="billing-pay"),
+    path("billing/payment-result/", views.billing_payment_result, name="billing-payment-result"),
+    path("billing/cancel/", views.billing_cancel, name="billing-cancel"),
 ]

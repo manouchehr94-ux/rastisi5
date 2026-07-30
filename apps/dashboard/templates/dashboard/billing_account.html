@@ -1,0 +1,25 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}حسابِ صورتحساب | پنل مدیریت{% endblock %}
+{% block page_title %}حسابِ صورتحساب{% endblock %}
+{% block page_sub %}اطلاعاتی که رویِ فاکتورهایِ آینده درج می‌شود{% endblock %}
+{% block content %}
+<div class="card">
+  <form method="post" action="{% url 'dashboard:billing-account' %}" style="padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    {% csrf_token %}
+    <label style="display:block">نام حقوقی/صورتحساب<input class="inp" name="legal_name" value="{{ account.legal_name }}"></label>
+    <label style="display:block">ایمیلِ صورتحساب<input class="inp" name="billing_email" value="{{ account.billing_email }}"></label>
+    <label style="display:block">تلفنِ صورتحساب<input class="inp" name="billing_phone" value="{{ account.billing_phone }}"></label>
+    <label style="display:block">شناسه‌ی مالیاتی<input class="inp" name="tax_identifier" value="{{ account.tax_identifier }}"></label>
+    <label style="display:block">کشور<input class="inp" name="country" value="{{ account.country }}"></label>
+    <label style="display:block">استان<input class="inp" name="region" value="{{ account.region }}"></label>
+    <label style="display:block">شهر<input class="inp" name="city" value="{{ account.city }}"></label>
+    <label style="display:block">کدپستی<input class="inp" name="postal_code" value="{{ account.postal_code }}"></label>
+    <label style="display:block;grid-column:1 / -1">نشانی<input class="inp" name="address_line" value="{{ account.address_line }}"></label>
+    <div style="grid-column:1 / -1;display:flex;gap:8px">
+      <button class="btn btn-primary" type="submit">ذخیره</button>
+      <a class="btn" href="{% url 'dashboard:billing-overview' %}">بازگشت</a>
+    </div>
+  </form>
+</div>
+<p style="color:var(--muted);font-size:12px;margin-top:10px">ارزِ صورتحساب ({{ account.currency }}) از پلن تعیین می‌شود و از این‌جا تغییر نمی‌کند.</p>
+{% endblock %}

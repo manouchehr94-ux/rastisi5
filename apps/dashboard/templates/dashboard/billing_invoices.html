@@ -1,0 +1,33 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}فاکتورها | پنل مدیریت{% endblock %}
+{% block page_title %}فاکتورها{% endblock %}
+{% block page_sub %}تاریخچه‌ی فاکتورهایِ اشتراک{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head"><b>فاکتورها</b></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>شماره</th><th>نوع</th><th>وضعیت</th><th>صدور</th><th>سررسید</th><th>مبلغ</th><th>پرداخت‌شده</th><th></th></tr></thead>
+    <tbody>
+    {% for invoice in invoices %}
+      <tr>
+        <td>{{ invoice.number }}</td>
+        <td>{{ invoice.get_kind_display }}</td>
+        <td>
+          {% if invoice.status == "paid" %}<span class="badge b-green">{{ invoice.get_status_display }}</span>
+          {% elif invoice.status == "past_due" or invoice.status == "uncollectible" %}<span class="badge b-red">{{ invoice.get_status_display }}</span>
+          {% elif invoice.status == "void" %}<span class="badge b-amber">{{ invoice.get_status_display }}</span>
+          {% else %}<span class="badge b-amber">{{ invoice.get_status_display }}</span>{% endif %}
+        </td>
+        <td style="white-space:nowrap;color:var(--muted);font-size:12px">{{ invoice.issued_at|date:"Y-m-d"|default:"—" }}</td>
+        <td style="white-space:nowrap;color:var(--muted);font-size:12px">{{ invoice.due_at|date:"Y-m-d"|default:"—" }}</td>
+        <td>{{ invoice.grand_total }} {{ invoice.currency }}</td>
+        <td>{{ invoice.amount_paid }}</td>
+        <td><a class="btn btn-sm" href="{% url 'dashboard:billing-invoice-detail' invoice.pk %}">جزئیات</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">هنوز فاکتوری صادر نشده است</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

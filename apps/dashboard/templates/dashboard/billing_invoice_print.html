@@ -1,0 +1,64 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>فاکتور {{ invoice.number }}</title>
+<style>
+  body { font-family: Tahoma, sans-serif; color: #111; margin: 32px; }
+  .head { display: flex; justify-content: space-between; border-bottom: 2px solid #222; padding-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  th, td { border: 1px solid #ccc; padding: 8px; text-align: right; }
+  tfoot td { font-weight: bold; }
+  .muted { color: #666; font-size: 12px; }
+  @media print { .noprint { display: none; } }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <h2>فاکتورِ اشتراک</h2>
+      <div>شماره: {{ invoice.number }}</div>
+      <div class="muted">وضعیت: {{ invoice.get_status_display }}</div>
+    </div>
+    <div style="text-align:left">
+      <div><b>{{ seller_name }}</b></div>
+      <div class="muted">صدور: {{ invoice.issued_at|date:"Y-m-d"|default:"—" }}</div>
+      <div class="muted">سررسید: {{ invoice.due_at|date:"Y-m-d"|default:"—" }}</div>
+    </div>
+  </div>
+
+  <div style="margin-top:16px">
+    <b>صورتحساب برایِ:</b>
+    <div>{{ invoice.billing_account_snapshot.legal_name|default:"—" }}</div>
+    <div class="muted">
+      {{ invoice.billing_account_snapshot.billing_email }} —
+      {{ invoice.billing_account_snapshot.city }} {{ invoice.billing_account_snapshot.address_line }}
+    </div>
+    <div class="muted">شناسه‌ی مالیاتی: {{ invoice.billing_account_snapshot.tax_identifier|default:"—" }}</div>
+  </div>
+
+  <div class="muted" style="margin-top:10px">
+    پلن: {{ invoice.plan_code_snapshot }} — دوره:
+    {{ invoice.billing_period_start|date:"Y-m-d"|default:"—" }} تا {{ invoice.billing_period_end|date:"Y-m-d"|default:"—" }}
+  </div>
+
+  <table>
+    <thead><tr><th>شرح</th><th>تعداد</th><th>واحد</th><th>جمعِ جزء</th><th>تخفیف</th><th>مالیات</th><th>جمع</th></tr></thead>
+    <tbody>
+    {% for line in lines %}
+      <tr><td>{{ line.description }}</td><td>{{ line.quantity }}</td><td>{{ line.unit_amount }}</td>
+        <td>{{ line.subtotal }}</td><td>{{ line.discount }}</td><td>{{ line.tax }}</td><td>{{ line.total }}</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr><td colspan="6">جمعِ جزء</td><td>{{ invoice.subtotal }}</td></tr>
+      <tr><td colspan="6">مالیات</td><td>{{ invoice.tax_total }}</td></tr>
+      <tr><td colspan="6">مبلغِ کل ({{ invoice.currency }})</td><td>{{ invoice.grand_total }}</td></tr>
+      <tr><td colspan="6">پرداخت‌شده</td><td>{{ invoice.amount_paid }}</td></tr>
+      <tr><td colspan="6">باقی‌مانده</td><td>{{ invoice.amount_due }}</td></tr>
+    </tfoot>
+  </table>
+
+  <button class="noprint" onclick="window.print()" style="margin-top:20px;padding:8px 16px">چاپ</button>
+</body>
+</html>

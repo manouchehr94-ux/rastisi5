@@ -1,0 +1,58 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}صورتحساب | پنل مدیریت{% endblock %}
+{% block page_title %}صورتحساب و پرداخت{% endblock %}
+{% block page_sub %}وضعیتِ اشتراک، فاکتورِ بعدی و حسابِ صورتحساب{% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><b>وضعیتِ اشتراک</b></div>
+  <div style="padding:18px">
+    {% if summary.has_subscription %}
+      <div style="display:flex;flex-wrap:wrap;gap:24px">
+        <div><div style="color:var(--muted);font-size:12px">پلن</div><div style="font-size:17px;font-weight:700">{{ summary.plan.public_title|default:summary.plan.name }}</div></div>
+        <div><div style="color:var(--muted);font-size:12px">وضعیت</div>
+          <div>{% if summary.access_state == "full" %}<span class="badge b-green">{{ summary.status_display }}</span>
+          {% elif summary.access_state == "grace" %}<span class="badge b-amber">{{ summary.status_display }}</span>
+          {% else %}<span class="badge b-red">{{ summary.status_display }}</span>{% endif %}</div></div>
+        {% if summary.current_period_end %}<div><div style="color:var(--muted);font-size:12px">پایانِ دوره</div><div>{{ summary.current_period_end|date:"Y-m-d" }}</div></div>{% endif %}
+      </div>
+      {% if summary.warning %}<div style="margin-top:14px;padding:10px 14px;border-radius:8px;background:#fef3c7;color:#92400e">{{ summary.warning }}</div>{% endif %}
+    {% else %}<p style="color:var(--muted)">اشتراکِ جاری وجود ندارد.</p>{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><b>فاکتورِ بازِ بعدی</b></div>
+  <div style="padding:18px">
+    {% if next_open_invoice %}
+      <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:center">
+        <div><div style="color:var(--muted);font-size:12px">شماره</div><div>{{ next_open_invoice.number }}</div></div>
+        <div><div style="color:var(--muted);font-size:12px">سررسید</div><div>{{ next_open_invoice.due_at|date:"Y-m-d" }}</div></div>
+        <div><div style="color:var(--muted);font-size:12px">مبلغِ باقی‌مانده</div><div style="font-weight:700">{{ next_open_invoice.amount_due }} {{ next_open_invoice.currency }}</div></div>
+        {% if next_open_invoice.status == "past_due" %}<span class="badge b-red">معوق</span>{% endif %}
+        <div style="margin-inline-start:auto;display:flex;gap:8px">
+          <a class="btn" href="{% url 'dashboard:billing-invoice-detail' next_open_invoice.pk %}">جزئیات</a>
+          {% if can_pay %}
+          <form method="post" action="{% url 'dashboard:billing-pay' next_open_invoice.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit">پرداخت</button></form>
+          {% endif %}
+        </div>
+      </div>
+    {% else %}<p style="color:var(--muted)">فاکتورِ بازی برای پرداخت وجود ندارد.</p>{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><b>حسابِ صورتحساب</b></div>
+  <div style="padding:18px">
+    {% if billing_account and billing_account.legal_name %}
+      <div>{{ billing_account.legal_name }}</div>
+      <div style="color:var(--muted);font-size:13px">{{ billing_account.billing_email }} — {{ billing_account.city }}</div>
+    {% else %}<p style="color:var(--muted)">هنوز حسابِ صورتحساب کامل نشده است.</p>{% endif %}
+  </div>
+</div>
+
+<div style="display:flex;gap:10px;flex-wrap:wrap">
+  <a class="btn" href="{% url 'dashboard:billing-invoices' %}">همه‌ی فاکتورها</a>
+  {% if can_manage_account %}<a class="btn" href="{% url 'dashboard:billing-account' %}">ویرایشِ حسابِ صورتحساب</a>{% endif %}
+  {% if can_cancel %}<a class="btn" href="{% url 'dashboard:billing-cancel' %}">لغوِ اشتراک</a>{% endif %}
+</div>
+{% endblock %}

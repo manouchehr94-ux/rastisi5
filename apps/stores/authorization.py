@@ -128,6 +128,16 @@ SUBSCRIPTION_VIEW = "subscription.view"
 SUBSCRIPTION_CHANGE = "subscription.change"
 USAGE_VIEW = "usage.view"
 
+# Checkpoint 5B — SaaS billing (invoices/payments/account/cancellation).
+# BILLING_VIEW is read-only billing history; BILLING_ACCOUNT_MANAGE edits the
+# billing account; BILLING_PAYMENT_MANAGE starts payments; SUBSCRIPTION_CANCEL
+# is the cancellation decision and stays Owner-only. Platform billing admin is
+# never a merchant permission — it lives only in Django Admin behind superuser.
+BILLING_VIEW = "billing.view"
+BILLING_ACCOUNT_MANAGE = "billing.account_manage"
+BILLING_PAYMENT_MANAGE = "billing.payment_manage"
+SUBSCRIPTION_CANCEL = "subscription.cancel"
+
 # Back-compat aliases: the coarse Phase-1 keys these replace. Nothing in
 # this codebase reads these anymore (all decorated views moved to the
 # granular keys above in the same PR that added them), kept only so an
@@ -156,6 +166,7 @@ ALL_PERMISSIONS = frozenset({
     SETTINGS_MANAGE, PAYMENT_SETTINGS_MANAGE, SMS_SETTINGS_MANAGE, CONTENT_MANAGE,
     STAFF_MANAGE, DOMAIN_MANAGE, SUBSCRIPTION_MANAGE,
     SUBSCRIPTION_VIEW, SUBSCRIPTION_CHANGE, USAGE_VIEW,
+    BILLING_VIEW, BILLING_ACCOUNT_MANAGE, BILLING_PAYMENT_MANAGE, SUBSCRIPTION_CANCEL,
 })
 
 _CATALOG_READ_WRITE = frozenset({
@@ -193,7 +204,11 @@ _CONTENT_READ_WRITE = frozenset({CONTENT_MANAGE, MEDIA_MANAGE})
 # SUBSCRIPTION_VIEW/USAGE_VIEW are deliberately NOT here — Administrators (and,
 # for usage, Analysts) may see billing status and quota consumption; only the
 # Owner may actually change the plan tier.
-_OWNER_ONLY = frozenset({STAFF_MANAGE, DOMAIN_MANAGE, SUBSCRIPTION_MANAGE, SUBSCRIPTION_CHANGE})
+_OWNER_ONLY = frozenset({
+    STAFF_MANAGE, DOMAIN_MANAGE, SUBSCRIPTION_MANAGE, SUBSCRIPTION_CHANGE,
+    # Cancelling the subscription is an Owner-only decision (checkpoint 5B).
+    SUBSCRIPTION_CANCEL,
+})
 
 #: What each role may do. Deliberately explicit and centralized — no view
 #: or template should hardcode a role name to decide what it can show, only
@@ -216,6 +231,8 @@ ROLE_PERMISSIONS = {
         # Usage consumption is operational reporting insight (checkpoint 5A) —
         # Analyst sees quota usage but not billing status or plan change.
         USAGE_VIEW,
+        # Read-only billing history (checkpoint 5B) — no payment/account/cancel.
+        BILLING_VIEW,
     }),
 }
 

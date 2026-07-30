@@ -1,0 +1,29 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}لغوِ اشتراک | پنل مدیریت{% endblock %}
+{% block page_title %}لغوِ اشتراک{% endblock %}
+{% block page_sub %}پیامدهایِ لغو را پیش از تأیید ببینید{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="padding:20px">
+    {% if subscription %}
+      <p>با لغوِ اشتراک:</p>
+      <ul style="padding-inline-start:18px;color:var(--muted)">
+        <li>فاکتورهایِ پرداخت‌نشده باطل می‌شوند.</li>
+        <li>فاکتورهایِ پرداخت‌شده و تاریخچه حفظ می‌شوند.</li>
+        <li>بازپرداختِ خودکار انجام نمی‌شود.</li>
+      </ul>
+      <form method="post" action="{% url 'dashboard:billing-cancel' %}" style="margin-top:16px;display:flex;flex-direction:column;gap:12px">
+        {% csrf_token %}
+        <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="mode" value="period_end" checked> لغو در پایانِ دوره (تا آن زمان فعال می‌مانید)</label>
+        <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="mode" value="immediate"> لغوِ فوری</label>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" type="submit">تأییدِ لغو</button>
+          <a class="btn" href="{% url 'dashboard:billing-overview' %}">انصراف</a>
+        </div>
+      </form>
+    {% else %}
+      <p style="color:var(--muted)">اشتراکِ جاری برای لغو وجود ندارد.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

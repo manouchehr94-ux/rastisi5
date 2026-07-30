@@ -202,6 +202,9 @@ from apps.stores.services.membership_service import (
 from .decorators import admin_host_required, permission_required, staff_required
 from apps.stores.authorization import (
     ATTRIBUTE_MANAGE,
+    BILLING_ACCOUNT_MANAGE,
+    BILLING_PAYMENT_MANAGE,
+    BILLING_VIEW,
     CATEGORY_MANAGE,
     CONTENT_MANAGE,
     CUSTOMER_EXPORT,
@@ -236,6 +239,7 @@ from apps.stores.authorization import (
     SHIPPING_SETTINGS_VIEW,
     SMS_SETTINGS_MANAGE,
     STAFF_MANAGE,
+    SUBSCRIPTION_CANCEL,
     SUBSCRIPTION_CHANGE,
     SUBSCRIPTION_VIEW,
     TAX_SETTINGS_MANAGE,
@@ -5473,4 +5477,177 @@ def subscription_history(request):
     return render(request, "dashboard/subscription_history.html", {
         "events": events,
         "active_page": "subscription",
+    })
+
+
+# ==================================================================== صورتحساب (5B)
+#
+# Merchant Billing UI (§23): نمای کلی، حسابِ صورتحساب، فاکتورها، جزئیاتِ فاکتور،
+# شروعِ پرداخت (hosted)، نتیجه‌ی پرداخت (بازگشتِ مرورگر فقط اطلاعاتی)، و لغو.
+# بازگشتِ مرورگر هرگز مدرکِ پرداخت نیست — تأیید فقط از Webhook/اقدامِ مدیر.
+
+
+def _billing_invoice_or_404(store, pk):
+    from apps.billing.models import SubscriptionInvoice
+
+    return get_object_or_404(SubscriptionInvoice, pk=pk, store=store)
+
+
+@staff_required
+@permission_required(BILLING_VIEW)
+def billing_overview(request):
+    from apps.billing.models import SubscriptionInvoice
+    from apps.billing.services.account_service import get_billing_account
+    from apps.subscriptions.services import entitlement_service as ent
+
+    store = _resolve_dashboard_store(request)
+    summary = ent.get_subscription_summary(store)
+    next_open = (
+        SubscriptionInvoice.objects.filter(
+            store=store, status__in=[
+                SubscriptionInvoice.Status.OPEN, SubscriptionInvoice.Status.PAYMENT_PENDING,
+                SubscriptionInvoice.Status.PAST_DUE,
+            ],
+        ).order_by("due_at").first()
+    )
+    return render(request, "dashboard/billing_overview.html", {
+        "summary": summary, "next_open_invoice": next_open,
+        "billing_account": get_billing_account(store), "active_page": "billing",
+        "can_manage_account": membership_has_permission(request.store_membership, BILLING_ACCOUNT_MANAGE),
+        "can_pay": membership_has_permission(request.store_membership, BILLING_PAYMENT_MANAGE),
+        "can_cancel": membership_has_permission(request.store_membership, SUBSCRIPTION_CANCEL),
+    })
+
+
+@staff_required
+@permission_required(BILLING_ACCOUNT_MANAGE)
+def billing_account_edit(request):
+    from apps.billing.services import account_service
+
+    store = _resolve_dashboard_store(request)
+    if request.method == "POST":
+        try:
+            account_service.update_billing_account(
+                store, actor=request.user,
+                legal_name=request.POST.get("legal_name", "").strip(),
+                billing_email=request.POST.get("billing_email", "").strip(),
+                billing_phone=request.POST.get("billing_phone", "").strip(),
+                country=request.POST.get("country", "").strip(),
+                region=request.POST.get("region", "").strip(),
+                city=request.POST.get("city", "").strip(),
+                postal_code=request.POST.get("postal_code", "").strip(),
+                address_line=request.POST.get("address_line", "").strip(),
+                tax_identifier=request.POST.get("tax_identifier", "").strip(),
+            )
+            messages.success(request, "حسابِ صورتحساب ذخیره شد.")
+            return redirect("dashboard:billing-overview")
+        except account_service.BillingAccountError as exc:
+            messages.error(request, str(exc))
+    account = account_service.get_or_create_billing_account(store)
+    return render(request, "dashboard/billing_account.html", {
+        "account": account, "active_page": "billing",
+    })
+
+
+@staff_required
+@permission_required(BILLING_VIEW)
+def billing_invoices(request):
+    from apps.billing.models import SubscriptionInvoice
+
+    store = _resolve_dashboard_store(request)
+    invoices = SubscriptionInvoice.objects.filter(store=store).order_by("-created_at")[:200]
+    return render(request, "dashboard/billing_invoices.html", {
+        "invoices": invoices, "active_page": "billing",
+    })
+
+
+@staff_required
+@permission_required(BILLING_VIEW)
+def billing_invoice_detail(request, pk):
+    store = _resolve_dashboard_store(request)
+    invoice = _billing_invoice_or_404(store, pk)
+    return render(request, "dashboard/billing_invoice_detail.html", {
+        "invoice": invoice,
+        "lines": invoice.lines.all(),
+        "attempts": invoice.payment_attempts.all(),
+        "refunds": invoice.refunds.all(),
+        "credit_notes": invoice.credit_notes.all(),
+        "active_page": "billing",
+        "can_pay": membership_has_permission(request.store_membership, BILLING_PAYMENT_MANAGE),
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(BILLING_PAYMENT_MANAGE)
+def billing_pay(request, pk):
+    from apps.billing.services import payment_flow_service
+
+    store = _resolve_dashboard_store(request)
+    invoice = _billing_invoice_or_404(store, pk)
+    return_url = request.build_absolute_uri(reverse("dashboard:billing-payment-result"))
+    try:
+        attempt, session = payment_flow_service.start_payment(
+            invoice, return_url=return_url, actor=request.user,
+        )
+    except payment_flow_service.PaymentFlowError as exc:
+        messages.error(request, str(exc))
+        return redirect("dashboard:billing-invoice-detail", pk=invoice.pk)
+    request.session["billing_last_attempt"] = attempt.public_token
+    return redirect(session.redirect_url)
+
+
+@staff_required
+@permission_required(BILLING_PAYMENT_MANAGE)
+def billing_payment_result(request):
+    from apps.billing.models import SubscriptionPaymentAttempt
+
+    store = _resolve_dashboard_store(request)
+    token = request.session.get("billing_last_attempt", "")
+    # بازگشتِ مرورگر فقط اطلاعاتی است — وضعیت از رکوردِ سمتِ سرور خوانده می‌شود،
+    # نه از پارامترهایِ query.
+    attempt = SubscriptionPaymentAttempt.objects.filter(
+        store=store, public_token=token,
+    ).select_related("invoice").first()
+    return render(request, "dashboard/billing_payment_result.html", {
+        "attempt": attempt, "active_page": "billing",
+    })
+
+
+@staff_required
+@permission_required(SUBSCRIPTION_CANCEL)
+def billing_cancel(request):
+    from apps.billing.services import cancellation_service
+    from apps.subscriptions.services import entitlement_service as ent
+
+    store = _resolve_dashboard_store(request)
+    subscription = ent.get_current_subscription(store)
+    if request.method == "POST":
+        if subscription is None:
+            messages.error(request, "اشتراکِ جاری یافت نشد.")
+            return redirect("dashboard:billing-overview")
+        immediate = request.POST.get("mode") == "immediate"
+        try:
+            cancellation_service.cancel_subscription_billing(
+                subscription, immediate=immediate, actor=request.user,
+            )
+            messages.success(request, "درخواستِ لغوِ اشتراک ثبت شد.")
+        except Exception as exc:  # noqa: BLE001
+            messages.error(request, str(exc))
+        return redirect("dashboard:billing-overview")
+    return render(request, "dashboard/billing_cancel.html", {
+        "subscription": subscription, "active_page": "billing",
+    })
+
+
+@staff_required
+@permission_required(BILLING_VIEW)
+def billing_invoice_print(request, pk):
+    from django.conf import settings
+
+    store = _resolve_dashboard_store(request)
+    invoice = _billing_invoice_or_404(store, pk)
+    return render(request, "dashboard/billing_invoice_print.html", {
+        "invoice": invoice, "lines": invoice.lines.all(),
+        "seller_name": getattr(settings, "SHOP_NAME", "پلتفرم"),
     })

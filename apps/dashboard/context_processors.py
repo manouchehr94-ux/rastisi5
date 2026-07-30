@@ -31,6 +31,7 @@ from apps.stores.authorization import (
     SETTINGS_MANAGE,
     SHIPPING_SETTINGS_MANAGE,
     SHIPPING_SETTINGS_VIEW,
+    BILLING_VIEW,
     STAFF_MANAGE,
     SUBSCRIPTION_CHANGE,
     SUBSCRIPTION_VIEW,
@@ -80,6 +81,7 @@ def merchant_permissions(request):
         "can_view_subscription": membership_has_permission(membership, SUBSCRIPTION_VIEW),
         "can_change_subscription": membership_has_permission(membership, SUBSCRIPTION_CHANGE),
         "can_view_usage": membership_has_permission(membership, USAGE_VIEW),
+        "can_view_billing": membership_has_permission(membership, BILLING_VIEW),
     }
 
 

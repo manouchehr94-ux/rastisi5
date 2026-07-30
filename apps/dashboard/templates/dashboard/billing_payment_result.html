@@ -1,0 +1,33 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}نتیجه‌ی پرداخت | پنل مدیریت{% endblock %}
+{% block page_title %}نتیجه‌ی پرداخت{% endblock %}
+{% block page_sub %}وضعیت از رکوردِ سمتِ سرور خوانده می‌شود{% endblock %}
+{% block content %}
+<div class="card">
+  <div style="padding:24px;text-align:center">
+    {% if attempt %}
+      {% if attempt.status == "succeeded" %}
+        <div style="font-size:40px">✅</div>
+        <h2>پرداخت موفق بود</h2>
+        <p style="color:var(--muted)">فاکتور {{ attempt.invoice.number }} پرداخت شد.</p>
+      {% elif attempt.status == "failed" or attempt.status == "cancelled" or attempt.status == "expired" %}
+        <div style="font-size:40px">⚠️</div>
+        <h2>پرداخت انجام نشد</h2>
+        <p style="color:var(--muted)">می‌توانید دوباره تلاش کنید.</p>
+      {% else %}
+        <div style="font-size:40px">⏳</div>
+        <h2>در انتظارِ تأیید</h2>
+        <p style="color:var(--muted)">
+          پرداختِ شما در انتظارِ تأییدِ نهایی است. این صفحه صرفاً وضعیتِ فعلی را
+          نشان می‌دهد؛ تأییدِ پرداخت فقط از راهِ درگاه/تأییدِ سیستم انجام می‌شود،
+          نه بازگشتِ مرورگر.
+        </p>
+      {% endif %}
+      <div style="margin-top:16px"><a class="btn" href="{% url 'dashboard:billing-invoice-detail' attempt.invoice.pk %}">مشاهده‌ی فاکتور</a></div>
+    {% else %}
+      <p style="color:var(--muted)">تلاشِ پرداختی یافت نشد.</p>
+      <a class="btn" href="{% url 'dashboard:billing-overview' %}">بازگشت به صورتحساب</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
