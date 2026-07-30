@@ -2,6 +2,10 @@
 {% load static %}
 
 {% block title %}فروشگاه — جستجو و فیلتر کالاها | {{ SHOP_NAME }}{% endblock %}
+{# Search results and price-filtered permutations are noindex,follow to avoid
+   indexing infinite filter combinations; a plain or category-only list stays
+   indexable (ADR-90). #}
+{% block robots_meta %}{% if query or min_price or max_price or discounted_only %}<meta name="robots" content="noindex,follow">{% endif %}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/product_card.css' %}">

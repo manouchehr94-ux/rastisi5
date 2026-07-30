@@ -20,10 +20,14 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
 
+from apps.core.seo import robots_txt, sitemap_xml
 from apps.core.views import admin_panel_compat_redirect, favicon_view
 
 urlpatterns = [
     path("favicon.ico", favicon_view, name="favicon"),
+    # SEO — tenant-safe, scoped to the Host-resolved Store (ADR-90).
+    path("sitemap.xml", sitemap_xml, name="sitemap-xml"),
+    path("robots.txt", robots_txt, name="robots-txt"),
     path("admin/", admin.site.urls),
     path("", include("apps.catalog.urls")),
     path("cart/", include("apps.cart.urls")),

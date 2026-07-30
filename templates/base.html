@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ SHOP_NAME }} | {{ SHOP_TAGLINE }}{% endblock %}</title>
 {% block meta_description %}{% endblock %}
+{# SEO: canonical/robots/OG on the tenant's own Host (ADR-90). Private pages
+   override robots_meta with noindex; product/category pages override canonical. #}
+{% block robots_meta %}{% endblock %}
+<link rel="canonical" href="{% block canonical %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}">
+{% block og_tags %}<meta property="og:site_name" content="{{ SHOP_NAME }}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{% block og_title %}{{ SHOP_NAME }}{% endblock %}">
+<meta property="og:url" content="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">{% endblock %}
 {% if SHOP_FAVICON %}<link rel="icon" href="{{ SHOP_FAVICON.url }}">{% else %}<link rel="icon" href="{% static 'favicon.ico' %}">{% endif %}
 <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
 <link rel="stylesheet" href="{% static 'css/base.css' %}">
@@ -12,6 +20,7 @@
 {% block extra_css %}{% endblock %}
 <script src="{% static 'js/htmx.min.js' %}" defer></script>
 <script src="{% static 'js/alpine.min.js' %}" defer></script>
+{% block structured_data %}{% endblock %}
 </head>
 <body x-data="{ loginOpen: false, mobileNavOpen: true, catMenuOpen: false }" @open-login.window="loginOpen = true">
 {% csrf_token %}
