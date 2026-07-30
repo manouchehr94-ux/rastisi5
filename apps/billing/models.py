@@ -392,6 +392,33 @@ class SubscriptionDunningState(models.Model):
         return f"Dunning<{self.invoice.number}> stage {self.stage} ({self.get_status_display()})"
 
 
+class ScheduledPlanChange(models.Model):
+    """یک تغییرِ پلنِ زمان‌بندی‌شده برایِ «دوره‌ی بعد» (تنزل — ADR-80). چون
+    پروریشنِ جعلی انجام نمی‌شود، تنزل بلافاصله Entitlement را کم نمی‌کند؛
+    هنگامِ تولیدِ فاکتورِ تمدید اعمال و پاک می‌شود. یک تغییرِ معلق به‌ازایِ هر
+    اشتراک."""
+
+    subscription = models.OneToOneField(
+        "subscriptions.StoreSubscription", verbose_name="اشتراک", on_delete=models.CASCADE,
+        related_name="scheduled_plan_change",
+    )
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.PROTECT, related_name="scheduled_plan_changes",
+    )
+    target_plan_version = models.ForeignKey(
+        "subscriptions.PlanVersion", verbose_name="نسخه‌ی پلنِ هدف", on_delete=models.PROTECT,
+        related_name="scheduled_changes",
+    )
+    created_at = models.DateTimeField("زمانِ ایجاد", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "تغییرِ پلنِ زمان‌بندی‌شده"
+        verbose_name_plural = "تغییرهایِ پلنِ زمان‌بندی‌شده"
+
+    def __str__(self):
+        return f"ScheduledPlanChange<{self.subscription_id} → {self.target_plan_version_id}>"
+
+
 class BillingSequence(models.Model):
     """شمارنده‌یِ ماندگارِ race-safe برایِ شماره‌گذاریِ اسناد (فاکتور/Credit
     Note/…). یکتاییِ شماره از این شمارنده می‌آید، نه از شمارشِ ردیف‌هایِ جدول

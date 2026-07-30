@@ -93,4 +93,11 @@ def _activate_or_renew(invoice, *, actor, now):
         sub_svc.renew_subscription(
             subscription, period_start=period_start, period_end=period_end, actor=actor, idempotency_key=idem,
         )
+    elif invoice.kind == SubscriptionInvoice.Kind.PLAN_CHANGE:
+        # ارتقا فقط پس از پرداختِ کاملِ فاکتورِ تغییرِ پلن اعمال می‌شود (ADR-80)
+        # — نسخه‌ی پلن حالا به نسخه‌ی هدفِ فاکتور سوییچ می‌شود.
+        sub_svc.change_plan_version(
+            subscription, invoice.plan_version, actor=actor, reason="ارتقا پس از پرداخت",
+            idempotency_key=idem,
+        )
     ent.clear_entitlement_cache()

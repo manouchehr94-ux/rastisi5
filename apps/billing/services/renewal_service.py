@@ -48,6 +48,19 @@ def _due_subscriptions(now, lead_days, store=None):
 def _generate_one(subscription, *, now):
     """یک فاکتورِ تمدید برایِ دوره‌ی بعدیِ این اشتراک می‌سازد و باز می‌کند، اگر
     از قبل وجود نداشته باشد. ``(invoice, created)`` را برمی‌گرداند."""
+    # تنزلِ زمان‌بندی‌شده (ADR-80) در آغازِ دوره‌ی بعد اعمال می‌شود: نسخه‌ی پلن
+    # به هدف سوییچ می‌شود و فاکتورِ تمدید با همان نسخه‌ی تازه ساخته می‌شود.
+    from apps.billing.models import ScheduledPlanChange
+    from apps.subscriptions.services import subscription_service as sub_svc
+
+    scheduled = ScheduledPlanChange.objects.select_for_update().filter(subscription=subscription).first()
+    if scheduled is not None:
+        sub_svc.change_plan_version(
+            subscription, scheduled.target_plan_version, reason="تنزلِ مؤثر در دوره‌ی بعد",
+        )
+        scheduled.delete()
+        subscription.refresh_from_db()
+
     version = subscription.plan_version
     period_start = subscription.current_period_end
     period_end = next_period_end(period_start, version.billing_interval)
