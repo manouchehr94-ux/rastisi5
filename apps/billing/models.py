@@ -360,6 +360,38 @@ class BillingWebhookEvent(TimeStampedModel):
         return f"Webhook<{self.provider}:{self.external_event_id}> {self.get_processing_status_display()}"
 
 
+class SubscriptionDunningState(models.Model):
+    """وضعیتِ Dunningِ یک فاکتورِ معوق (ADR-79) — «رکوردِ نیازمندِ Retry». برایِ
+    Providerِ بدونِ شارژِ خودکار، این رکورد جایِ تلاشِ خودکار را می‌گیرد و لینکِ
+    پرداختِ دستی از رویِ همان فاکتور در دسترس است. یک ردیف به‌ازایِ هر فاکتور."""
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "در جریان"
+        RESOLVED = "resolved", "حل‌شده (پرداخت/باطل)"
+        EXHAUSTED = "exhausted", "به پایانِ زمان‌بندی رسید"
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.PROTECT, related_name="dunning_states",
+    )
+    invoice = models.OneToOneField(
+        SubscriptionInvoice, verbose_name="فاکتور", on_delete=models.CASCADE, related_name="dunning_state",
+    )
+    status = models.CharField("وضعیت", max_length=10, choices=Status.choices, default=Status.ACTIVE, db_index=True)
+    attempt_count = models.PositiveIntegerField("تعدادِ مرحله‌ی طی‌شده", default=0)
+    stage = models.PositiveIntegerField("مرحله‌ی زمان‌بندی", default=0)
+    next_retry_at = models.DateTimeField("زمانِ Retryِ بعدی", null=True, blank=True, db_index=True)
+    last_attempt_at = models.DateTimeField("زمانِ آخرین مرحله", null=True, blank=True)
+    created_at = models.DateTimeField("زمانِ ایجاد", auto_now_add=True)
+    updated_at = models.DateTimeField("زمانِ به‌روزرسانی", auto_now=True)
+
+    class Meta:
+        verbose_name = "وضعیتِ Dunning"
+        verbose_name_plural = "وضعیت‌هایِ Dunning"
+
+    def __str__(self):
+        return f"Dunning<{self.invoice.number}> stage {self.stage} ({self.get_status_display()})"
+
+
 class BillingSequence(models.Model):
     """شمارنده‌یِ ماندگارِ race-safe برایِ شماره‌گذاریِ اسناد (فاکتور/Credit
     Note/…). یکتاییِ شماره از این شمارنده می‌آید، نه از شمارشِ ردیف‌هایِ جدول

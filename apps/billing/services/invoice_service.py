@@ -156,6 +156,30 @@ def open_invoice(invoice, *, due_at=None, now=None, actor=None):
 
 
 @transaction.atomic
+def void_invoice(invoice, *, actor=None, now=None, reason=""):
+    """یک فاکتورِ پرداخت‌نشده را باطل می‌کند (ADR-79). فاکتورِ پرداخت‌شده/
+    بازپرداخت‌شده باطل نمی‌شود؛ فاکتورِ از قبل باطل idempotent است."""
+    locked = SubscriptionInvoice.objects.select_for_update().get(pk=invoice.pk)
+    if locked.status == SubscriptionInvoice.Status.VOID:
+        return locked
+    if locked.status in (
+        SubscriptionInvoice.Status.PAID, SubscriptionInvoice.Status.REFUNDED,
+        SubscriptionInvoice.Status.PARTIALLY_REFUNDED,
+    ):
+        raise InvoiceError("فاکتورِ پرداخت‌شده را نمی‌توان باطل کرد.")
+    now = now or timezone.now()
+    locked.status = SubscriptionInvoice.Status.VOID
+    locked.voided_at = now
+    locked.save(update_fields=["status", "voided_at", "updated_at"])
+    record_audit_event(
+        store=locked.store, actor=actor, action_code="billing.invoice_voided",
+        object_type="SubscriptionInvoice", object_id=locked.pk, object_label=locked.number,
+        metadata={"reason": reason},
+    )
+    return locked
+
+
+@transaction.atomic
 def add_line(invoice, spec, *, actor=None):
     """یک ردیف به فاکتورِ *draft* اضافه می‌کند و جمع‌ها را بازمحاسبه می‌کند.
     فاکتورِ غیرِ draft تغییرناپذیرِ مالی است و خطا می‌دهد."""
