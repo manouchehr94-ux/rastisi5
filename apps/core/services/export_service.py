@@ -260,6 +260,13 @@ def run_export(store, export_type: str, *, requested_by, filters: dict | None = 
     if export_type not in _EXPORT_ROW_BUILDERS:
         raise ExportError(f"نوعِ صادراتِ «{export_type}» پشتیبانی نمی‌شود.")
 
+    # گیتِ قابلیتِ صادرات + سقفِ ماهانه (checkpoint 5A، §16). صادرات خواندنی
+    # است، پس به وضعیتِ محدودشده بند نیست — فقط قابلیت و سقفِ دوره‌ای.
+    from apps.subscriptions.services.enforcement import check_export_budget, enforce_export_allowed
+
+    enforce_export_allowed(store)
+    check_export_budget(store)
+
     job = ExportJob.objects.create(
         store=store, export_type=export_type, status=ExportJob.Status.PROCESSING,
         requested_by=requested_by, filters=filters or {},
@@ -276,6 +283,12 @@ def run_export(store, export_type: str, *, requested_by, filters: dict | None = 
         job.status = ExportJob.Status.COMPLETED
         job.completed_at = timezone.now()
         job.save(update_fields=["file", "row_count", "status", "completed_at"])
+        # مصرفِ صادراتِ ماهانه فقط پس از تکمیلِ موفق ثبت می‌شود (صادراتِ ناموفق
+        # سهمیه مصرف نمی‌کند). هر فراخوانِ ``run_export`` یک Jobِ تازه است، پس
+        # «تلاشِ دوباره» یک واحدِ تازه است، نه دوباره‌شماریِ همان Job.
+        from apps.subscriptions.services.enforcement import consume_export
+
+        consume_export(store)
         record_audit_event(
             store=store, actor=requested_by, action_code="export.completed",
             object_type="ExportJob", object_id=str(job.pk),

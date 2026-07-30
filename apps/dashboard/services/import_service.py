@@ -867,6 +867,17 @@ def _execute_product_batch(store, batch, *, mode, cache, actor, dry_run: bool) -
         if dry_run:
             outcomes.append(outcome)
             continue
+        # بودجه‌ی ساختِ کالا (§16): اگر این ردیف یک کالایِ تازه می‌سازد و
+        # بودجه پُر شده، همین ردیف ناموفق می‌شود (نه کلِ واردات) — ردیف‌هایِ
+        # به‌روزرسانی مشمول نیستند. بودجه‌ی ``None`` یعنی نامحدود.
+        budget = cache.get("_product_create_budget")
+        if existing_product is None and budget is not None and budget <= 0:
+            outcome.status = ImportRowResult.RowStatus.FAILED
+            outcome.errors.append(
+                "سقفِ پلنِ فعلیِ شما برایِ تعدادِ کالاها پُر شده است؛ این کالایِ تازه وارد نشد."
+            )
+            outcomes.append(outcome)
+            continue
         try:
             # savepoint به‌ازایِ هر ردیف: یک خطایِ سطحِ دیتابیس در اعمالِ این
             # ردیف فقط تا همین savepoint برمی‌گردد و تراکنشِ batch را برایِ
@@ -876,6 +887,8 @@ def _execute_product_batch(store, batch, *, mode, cache, actor, dry_run: bool) -
                     store=store, normalized=normalized, existing_product=existing_product,
                     vendor=cache["default_vendor"], actor=actor,
                 )
+            if is_create and budget is not None:
+                cache["_product_create_budget"] = budget - 1
             outcome.status = ImportRowResult.RowStatus.CREATED if is_create else ImportRowResult.RowStatus.UPDATED
             outcome.target_object_type = "Product"
             outcome.target_object_id = product.pk
@@ -917,6 +930,15 @@ def run_import(job: ImportJob, rows: list[dict], *, actor, batch_size: int = DEF
     job.save(update_fields=["status", "started_at"])
 
     cache = build_cache(job.store, rows)
+    # بودجه‌ی ساختِ کالا برایِ اجرا (نه پیش‌نمایش) در کش گذاشته می‌شود تا
+    # واردات نتواند سقفِ عددیِ کالا را دور بزند (§16). ردیف‌هایِ به‌روزرسانی
+    # بی‌اثر از این بودجه عبور می‌کنند؛ فقط ساختِ کالایِ تازه شمرده می‌شود.
+    # تنوع‌ها از مسیرِ ``generate_variants`` (که خودش گیت دارد) عبور می‌کنند و
+    # موجودی هرگز رکوردِ تازه نمی‌سازد، پس فقط واردات کالا بودجه لازم دارد.
+    if not job.dry_run and job.import_type == ImportJob.ImportType.PRODUCTS:
+        from apps.subscriptions.services.enforcement import product_creation_budget
+
+        cache["_product_create_budget"] = product_creation_budget(job.store)
     numbered_rows = list(enumerate(rows, start=1))
 
     all_outcomes: list[RowOutcome] = []
@@ -998,6 +1020,11 @@ def create_import_job(store, *, import_type: str, uploaded_file, mode: str, requ
         raise ImportServiceError(f"نوعِ واردات «{import_type}» نامعتبر است.")
     if mode not in ImportJob.Mode.values:
         raise ImportServiceError(f"حالتِ «{mode}» نامعتبر است.")
+    # گیتِ قابلیتِ واردات (checkpoint 5A، §16) — اگر پلن واردات ندارد، حتی
+    # آپلود هم مجاز نیست. سقفِ ردیف/بودجه‌ی ساختِ کالا هنگامِ اجرا بررسی می‌شوند.
+    from apps.subscriptions.services.enforcement import enforce_import_allowed
+
+    enforce_import_allowed(store)
     try:
         validate_csv_upload(uploaded_file)
     except CsvUploadError as exc:
@@ -1049,13 +1076,28 @@ def run_execution(job: ImportJob, *, actor) -> ImportJob:
     if job.status in ImportJob.FINAL_STATUSES:
         raise ImportServiceError("این Job قبلاً به پایان رسیده — دوباره اجرا نمی‌شود.")
     job.dry_run = False
+    # بازبینیِ اشتراک هنگامِ اجرا (checkpoint 5A، §16): ممکن است بینِ آپلود/
+    # پیش‌نمایش و اجرا پلن تنزل کرده باشد. قابلیتِ واردات و سقفِ ماهانه‌ی ردیف
+    # هر دو دوباره بررسی می‌شوند — سقفِ ردیف کلِ فایل را می‌سنجد و در صورتِ
+    # عبور کلِ واردات را رد می‌کند (بدونِ کوتاه‌سازیِ خاموش).
+    from apps.subscriptions.services.enforcement import (
+        check_import_row_budget,
+        consume_import_rows,
+        enforce_import_allowed,
+    )
+
+    enforce_import_allowed(job.store)
+    rows = read_job_rows(job)
+    check_import_row_budget(job.store, len(rows))
     record_audit_event(
         store=job.store, actor=actor, action_code="import.execution_started",
         object_type="ImportJob", object_id=str(job.pk),
         object_label=f"{job.get_import_type_display()} — حالتِ {job.get_mode_display()}",
     )
-    rows = read_job_rows(job)
     job = run_import(job, rows, actor=actor)
+    # مصرفِ ردیفِ ماهانه فقط پس از اجرایِ واقعی و یک‌بار به‌ازایِ هر Job ثبت
+    # می‌شود (Jobِ نهایی‌شده دوباره اجرا نمی‌شود ⇒ دوباره‌شماری رخ نمی‌دهد).
+    consume_import_rows(job.store, job.total_rows)
     _generate_error_report(job)
     return job
 
