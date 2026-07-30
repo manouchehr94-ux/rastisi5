@@ -137,6 +137,7 @@ TEMPLATES = [
                 "apps.content.context_processors.navigation_menus",
                 "apps.content.context_processors.footer_settings",
                 "apps.dashboard.context_processors.merchant_permissions",
+                "apps.dashboard.context_processors.subscription_banner",
             ],
         },
     },

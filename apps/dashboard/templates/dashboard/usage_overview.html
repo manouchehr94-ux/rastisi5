@@ -1,0 +1,30 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}مصرف و سقف‌ها | پنل مدیریت{% endblock %}
+{% block page_title %}مصرف و سقف‌ها{% endblock %}
+{% block page_sub %}مصرفِ فعلی در برابرِ سقفِ پلنِ شما{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head"><b>وضعیتِ مصرف</b></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>متریک</th><th>مصرف</th><th>سقف</th><th>باقی‌مانده</th><th>وضعیت</th></tr></thead>
+    <tbody>
+    {% for row in usage_rows %}
+      <tr>
+        <td>{{ row.label }}{% if row.period %} <span style="color:var(--muted);font-size:11px">(این دوره)</span>{% endif %}</td>
+        <td>{{ row.current }}</td>
+        <td>{% if row.unlimited %}<span class="badge b-green">نامحدود</span>{% else %}{{ row.limit }}{% endif %}</td>
+        <td>{% if row.unlimited %}—{% else %}{{ row.remaining }}{% endif %}</td>
+        <td>
+          {% if row.over_limit %}<span class="badge b-red">فراتر از سقف</span>
+          {% elif row.unlimited %}<span class="badge b-green">آزاد</span>
+          {% elif row.remaining == 0 %}<span class="badge b-amber">پُر</span>
+          {% else %}<span class="badge b-green">در محدوده</span>{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">متریکی برای نمایش نیست</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

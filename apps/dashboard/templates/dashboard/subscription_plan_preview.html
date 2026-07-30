@@ -1,0 +1,58 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}پیش‌نمایشِ تغییرِ پلن | پنل مدیریت{% endblock %}
+{% block page_title %}پیش‌نمایشِ تغییرِ پلن{% endblock %}
+{% block page_sub %}از «{{ preview.current_plan.public_title|default:preview.current_plan.name }}» به «{{ preview.target_plan.public_title|default:preview.target_plan.name }}»{% endblock %}
+{% block content %}
+
+{% if preview.has_downgrade_risk %}
+<div class="card" style="margin-bottom:16px;border:1px solid #f5c2c2">
+  <div class="card-head" style="color:#9b1c1c"><b>هشدارِ تنزل</b></div>
+  <div style="padding:14px 18px">
+    <p style="color:#9b1c1c;margin-bottom:10px">
+      مصرفِ فعلیِ شما در برخی متریک‌ها از سقفِ پلنِ هدف بیشتر است. با تغییرِ پلن،
+      داده‌هایِ موجود همچنان قابلِ مشاهده می‌مانند، اما تا وقتی مصرف به زیرِ سقف
+      نرسد امکانِ ساختِ رکوردِ تازه نخواهید داشت.
+    </p>
+    <ul style="margin:0;padding-inline-start:18px">
+      {% for w in preview.over_limit_warnings %}
+      <li>{{ w.label }}: مصرفِ فعلی {{ w.current }} — سقفِ پلنِ هدف {{ w.target_limit }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><b>تغییرِ قابلیت‌ها</b></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>قابلیت</th><th>فعلی</th><th>پلنِ هدف</th></tr></thead>
+    <tbody>
+    {% for change in preview.entitlement_changes %}
+      <tr>
+        <td>{{ change.name }}</td>
+        <td>
+          {% if change.type == "boolean" %}{% if change.current %}فعال{% else %}غیرفعال{% endif %}
+          {% elif change.current is None %}نامحدود{% elif change.current == 0 %}غیرفعال{% else %}{{ change.current }}{% endif %}
+        </td>
+        <td>
+          {% if change.type == "boolean" %}{% if change.target %}فعال{% else %}غیرفعال{% endif %}
+          {% elif change.target is None %}نامحدود{% elif change.target == 0 %}غیرفعال{% else %}{{ change.target }}{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">تفاوتی در قابلیت‌ها نیست</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+<div style="display:flex;gap:10px">
+  <form method="post" action="{% url 'dashboard:subscription-plan-execute' %}">
+    {% csrf_token %}
+    <input type="hidden" name="version_id" value="{{ preview.target_version.pk }}">
+    <input type="hidden" name="preview_token" value="{{ preview.token }}">
+    <button type="submit" class="btn btn-primary">تأیید و تغییرِ پلن</button>
+  </form>
+  <a class="btn" href="{% url 'dashboard:subscription-plans' %}">انصراف</a>
+</div>
+{% endblock %}

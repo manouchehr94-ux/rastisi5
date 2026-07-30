@@ -116,7 +116,17 @@ CONTENT_MANAGE = "content.manage"
 
 STAFF_MANAGE = "staff.manage"
 DOMAIN_MANAGE = "domain.manage"  # reserved — no domain-management UI yet
-SUBSCRIPTION_MANAGE = "subscription.manage"  # reserved — no billing UI yet
+SUBSCRIPTION_MANAGE = "subscription.manage"  # coarse legacy key — kept for back-compat
+
+# Checkpoint 5A — SaaS subscription / usage visibility + plan change.
+# SUBSCRIPTION_VIEW / USAGE_VIEW are read-only insight (billing status, quota
+# consumption); SUBSCRIPTION_CHANGE is the billing-tier decision (upgrade/
+# downgrade/cancel) and stays with the Owner only, like the other _OWNER_ONLY
+# keys. Platform-level PLAN administration is never a merchant permission — it
+# lives only in Django Admin behind superuser (see apps/subscriptions/admin.py).
+SUBSCRIPTION_VIEW = "subscription.view"
+SUBSCRIPTION_CHANGE = "subscription.change"
+USAGE_VIEW = "usage.view"
 
 # Back-compat aliases: the coarse Phase-1 keys these replace. Nothing in
 # this codebase reads these anymore (all decorated views moved to the
@@ -145,6 +155,7 @@ ALL_PERMISSIONS = frozenset({
     AUDIT_LOG_VIEW,
     SETTINGS_MANAGE, PAYMENT_SETTINGS_MANAGE, SMS_SETTINGS_MANAGE, CONTENT_MANAGE,
     STAFF_MANAGE, DOMAIN_MANAGE, SUBSCRIPTION_MANAGE,
+    SUBSCRIPTION_VIEW, SUBSCRIPTION_CHANGE, USAGE_VIEW,
 })
 
 _CATALOG_READ_WRITE = frozenset({
@@ -178,7 +189,11 @@ _ORDER_READ_WRITE = frozenset({
     CUSTOMER_SEGMENT_VIEW, CUSTOMER_SEGMENT_MANAGE,
 })
 _CONTENT_READ_WRITE = frozenset({CONTENT_MANAGE, MEDIA_MANAGE})
-_OWNER_ONLY = frozenset({STAFF_MANAGE, DOMAIN_MANAGE, SUBSCRIPTION_MANAGE})
+# Owner-only: staff/domain management and the billing-tier change decision.
+# SUBSCRIPTION_VIEW/USAGE_VIEW are deliberately NOT here — Administrators (and,
+# for usage, Analysts) may see billing status and quota consumption; only the
+# Owner may actually change the plan tier.
+_OWNER_ONLY = frozenset({STAFF_MANAGE, DOMAIN_MANAGE, SUBSCRIPTION_MANAGE, SUBSCRIPTION_CHANGE})
 
 #: What each role may do. Deliberately explicit and centralized — no view
 #: or template should hardcode a role name to decide what it can show, only
@@ -198,6 +213,9 @@ ROLE_PERMISSIONS = {
         # no IMPORT_EXPORT_MANAGE (cannot trigger imports), no CUSTOMER_EXPORT
         # (PII export stays with Order Manager/Owner/Administrator).
         IMPORT_EXPORT_VIEW, CUSTOMER_SEGMENT_VIEW,
+        # Usage consumption is operational reporting insight (checkpoint 5A) —
+        # Analyst sees quota usage but not billing status or plan change.
+        USAGE_VIEW,
     }),
 }
 

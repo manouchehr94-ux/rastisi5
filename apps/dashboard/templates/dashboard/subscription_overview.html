@@ -1,0 +1,52 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}اشتراک و صورتحساب | پنل مدیریت{% endblock %}
+{% block page_title %}اشتراک و صورتحساب{% endblock %}
+{% block page_sub %}پلنِ فعلی، وضعیت، و دسترسی به تغییرِ پلن{% endblock %}
+{% block content %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><b>پلنِ فعلی</b></div>
+  <div style="padding:18px">
+    {% if summary.has_subscription %}
+      <div style="display:flex;flex-wrap:wrap;gap:24px">
+        <div>
+          <div style="color:var(--muted);font-size:12px">پلن</div>
+          <div style="font-size:18px;font-weight:700">{{ summary.plan.public_title|default:summary.plan.name }}</div>
+        </div>
+        <div>
+          <div style="color:var(--muted);font-size:12px">وضعیت</div>
+          <div>
+            {% if summary.access_state == "full" %}<span class="badge b-green">{{ summary.status_display }}</span>
+            {% elif summary.access_state == "grace" %}<span class="badge b-amber">{{ summary.status_display }}</span>
+            {% elif summary.access_state == "restricted" %}<span class="badge b-red">{{ summary.status_display }}</span>
+            {% elif summary.access_state == "expired" %}<span class="badge b-red">{{ summary.status_display }}</span>
+            {% else %}<span class="badge b-amber">{{ summary.status_display }}</span>{% endif %}
+          </div>
+        </div>
+        {% if summary.trial_end_at %}
+        <div>
+          <div style="color:var(--muted);font-size:12px">پایانِ دوره‌ی آزمایشی</div>
+          <div>{{ summary.trial_end_at|date:"Y-m-d" }}</div>
+        </div>
+        {% endif %}
+        {% if summary.current_period_end %}
+        <div>
+          <div style="color:var(--muted);font-size:12px">پایانِ دوره‌ی جاری</div>
+          <div>{{ summary.current_period_end|date:"Y-m-d" }}</div>
+        </div>
+        {% endif %}
+      </div>
+      {% if summary.warning %}
+      <div style="margin-top:16px;padding:10px 14px;border-radius:8px;background:#fef3c7;color:#92400e">{{ summary.warning }}</div>
+      {% endif %}
+    {% else %}
+      <p style="color:var(--muted)">این فروشگاه اشتراکِ جاری ندارد.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div style="display:flex;gap:10px;flex-wrap:wrap">
+  {% if can_view_usage %}<a class="btn" href="{% url 'dashboard:usage-overview' %}">مصرف و سقف‌ها</a>{% endif %}
+  {% if can_change_subscription %}<a class="btn btn-primary" href="{% url 'dashboard:subscription-plans' %}">تغییرِ پلن</a>{% endif %}
+  <a class="btn" href="{% url 'dashboard:subscription-history' %}">تاریخچه‌ی اشتراک</a>
+</div>
+{% endblock %}

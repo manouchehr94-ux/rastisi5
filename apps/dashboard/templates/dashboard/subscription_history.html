@@ -1,0 +1,30 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}تاریخچه‌ی اشتراک | پنل مدیریت{% endblock %}
+{% block page_title %}تاریخچه‌ی اشتراک{% endblock %}
+{% block page_sub %}رخدادهایِ اشتراک — تغییرِ وضعیت و پلن{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head"><b>رخدادها</b></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>زمان</th><th>رخداد</th><th>از وضعیت</th><th>به وضعیت</th><th>تغییرِ پلن</th><th>عامل</th></tr></thead>
+    <tbody>
+    {% for event in events %}
+      <tr>
+        <td style="white-space:nowrap;color:var(--muted);font-size:12px">{{ event.created_at|date:"Y-m-d H:i" }}</td>
+        <td>{{ event.get_event_type_display }}</td>
+        <td>{{ event.get_from_status_display|default:"—" }}</td>
+        <td>{{ event.get_to_status_display|default:"—" }}</td>
+        <td>
+          {% if event.to_plan_version %}
+            {{ event.from_plan_version.plan.name|default:"—" }} ← {{ event.to_plan_version.plan.name }}
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ event.actor.username|default:"سیستم" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">هنوز رخدادی ثبت نشده است</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

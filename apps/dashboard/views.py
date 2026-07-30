@@ -236,10 +236,13 @@ from apps.stores.authorization import (
     SHIPPING_SETTINGS_VIEW,
     SMS_SETTINGS_MANAGE,
     STAFF_MANAGE,
+    SUBSCRIPTION_CHANGE,
+    SUBSCRIPTION_VIEW,
     TAX_SETTINGS_MANAGE,
     TAX_SETTINGS_VIEW,
     TRANSFER_MANAGE,
     TRANSFER_VIEW,
+    USAGE_VIEW,
     VARIANT_MANAGE,
     WAREHOUSE_MANAGE,
     WAREHOUSE_VIEW,
@@ -5335,3 +5338,139 @@ def tax_rate_archive(request, tax_class_id, pk):
     rate.save(update_fields=["is_active", "updated_at"])
     messages.info(request, f"نرخِ مالیات {'فعال' if rate.is_active else 'غیرفعال'} شد")
     return redirect("dashboard:tax-rate-list", tax_class_id=tax_class.pk)
+
+
+# ================================================================ اشتراک و صورتحساب
+#
+# نمایشِ اشتراک/مصرف/پلن‌ها و تغییرِ پلن برایِ مرچنت (Checkpoint 5A، §33-§37).
+# مدیریتِ پلتفرمیِ خودِ پلن‌ها (ساخت/انتشار نسخه) هرگز اینجا نیست — فقط در
+# Django Admin پشتِ superuser. مرچنت فقط پلن‌هایِ «قابلِ انتخابِ عمومی» را
+# می‌بیند و فقط نسخه‌ی جاریِ منتشرشده‌ی هرکدام را می‌تواند انتخاب کند.
+
+
+def _publicly_selectable_versions(store):
+    """جدیدترین نسخه‌ی منتشرشده‌ی هر پلنِ «قابلِ انتخابِ عمومی» — همان چیزی که
+    مرچنت مجاز است به آن سوییچ کند."""
+    from apps.subscriptions.models import Plan, PlanVersion
+
+    plans = Plan.objects.filter(is_active=True, is_publicly_selectable=True).order_by("display_order", "code")
+    result = []
+    for plan in plans:
+        version = (
+            PlanVersion.objects.filter(plan=plan, status=PlanVersion.Status.PUBLISHED)
+            .order_by("-version_number").first()
+        )
+        if version is not None:
+            result.append((plan, version))
+    return result
+
+
+@staff_required
+@permission_required(SUBSCRIPTION_VIEW)
+def subscription_overview(request):
+    from apps.subscriptions.services import entitlement_service as ent
+
+    store = _resolve_dashboard_store(request)
+    summary = ent.get_subscription_summary(store)
+    return render(request, "dashboard/subscription_overview.html", {
+        "summary": summary,
+        "active_page": "subscription",
+        "can_change_subscription": membership_has_permission(request.store_membership, SUBSCRIPTION_CHANGE),
+    })
+
+
+@staff_required
+@permission_required(USAGE_VIEW)
+def usage_overview(request):
+    from apps.subscriptions.services import usage_service as usage
+
+    store = _resolve_dashboard_store(request)
+    return render(request, "dashboard/usage_overview.html", {
+        "usage_rows": usage.get_usage_summary(store),
+        "active_page": "usage",
+    })
+
+
+@staff_required
+@permission_required(SUBSCRIPTION_CHANGE)
+def subscription_plans(request):
+    from apps.subscriptions.services import entitlement_service as ent
+
+    store = _resolve_dashboard_store(request)
+    current_version = ent.get_effective_plan_version(store)
+    current_plan_id = current_version.plan_id if current_version else None
+    plans = [
+        {"plan": plan, "version": version, "is_current": plan.pk == current_plan_id}
+        for plan, version in _publicly_selectable_versions(store)
+    ]
+    return render(request, "dashboard/subscription_plans.html", {
+        "plans": plans,
+        "active_page": "subscription",
+        "has_subscription": current_version is not None,
+    })
+
+
+def _resolve_selectable_version_or_404(store, version_id):
+    """نسخه‌ی هدف را فقط از میانِ نسخه‌هایِ قابلِ انتخابِ عمومی می‌پذیرد — تا
+    مرچنت نتواند با POSTِ دستی یک نسخه‌ی خصوصی/بایگانی را انتخاب کند."""
+    for _plan, version in _publicly_selectable_versions(store):
+        if str(version.pk) == str(version_id):
+            return version
+    raise Http404
+
+
+@require_POST
+@staff_required
+@permission_required(SUBSCRIPTION_CHANGE)
+def subscription_plan_preview(request):
+    from apps.subscriptions.services import plan_change_service as pcs
+
+    store = _resolve_dashboard_store(request)
+    target_version = _resolve_selectable_version_or_404(store, request.POST.get("version_id", ""))
+    try:
+        preview = pcs.preview_plan_change(store, target_version)
+    except pcs.PlanChangeError as exc:
+        messages.error(request, str(exc))
+        return redirect("dashboard:subscription-plans")
+    return render(request, "dashboard/subscription_plan_preview.html", {
+        "preview": preview,
+        "active_page": "subscription",
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(SUBSCRIPTION_CHANGE)
+def subscription_plan_execute(request):
+    from apps.subscriptions.services import plan_change_service as pcs
+
+    store = _resolve_dashboard_store(request)
+    target_version = _resolve_selectable_version_or_404(store, request.POST.get("version_id", ""))
+    token = request.POST.get("preview_token", "")
+    try:
+        pcs.execute_plan_change(store, target_version, preview_token=token, actor=request.user)
+        messages.success(request, "پلنِ اشتراکِ شما با موفقیت تغییر کرد.")
+    except pcs.StalePreviewError as exc:
+        messages.error(request, str(exc))
+        return redirect("dashboard:subscription-plans")
+    except pcs.PlanChangeError as exc:
+        messages.error(request, str(exc))
+        return redirect("dashboard:subscription-plans")
+    return redirect("dashboard:subscription-overview")
+
+
+@staff_required
+@permission_required(SUBSCRIPTION_VIEW)
+def subscription_history(request):
+    from apps.subscriptions.models import SubscriptionEvent
+
+    store = _resolve_dashboard_store(request)
+    events = (
+        SubscriptionEvent.objects.filter(store=store)
+        .select_related("from_plan_version__plan", "to_plan_version__plan", "actor")
+        .order_by("-created_at")[:200]
+    )
+    return render(request, "dashboard/subscription_history.html", {
+        "events": events,
+        "active_page": "subscription",
+    })

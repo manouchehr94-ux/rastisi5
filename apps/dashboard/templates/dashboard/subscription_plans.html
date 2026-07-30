@@ -1,0 +1,39 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}پلن‌ها | پنل مدیریت{% endblock %}
+{% block page_title %}انتخابِ پلن{% endblock %}
+{% block page_sub %}پیش از تغییر، پیش‌نمایشِ تفاوتِ قابلیت‌ها را ببینید{% endblock %}
+{% block content %}
+{% if not has_subscription %}
+<div style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:#fef3c7;color:#92400e">
+  این فروشگاه اشتراکِ جاری ندارد؛ تغییرِ پلن ممکن نیست.
+</div>
+{% endif %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px">
+  {% for item in plans %}
+  <div class="card" style="display:flex;flex-direction:column">
+    <div style="padding:18px;flex:1">
+      <div style="font-size:18px;font-weight:700">{{ item.plan.public_title|default:item.plan.name }}</div>
+      {% if item.plan.is_recommended %}<span class="badge b-green" style="margin-top:6px">پیشنهادی</span>{% endif %}
+      {% if item.is_current %}<span class="badge b-amber" style="margin-top:6px">پلنِ فعلی</span>{% endif %}
+      <p style="color:var(--muted);margin-top:10px;font-size:13px">{{ item.version.public_description_snapshot|default:item.plan.description }}</p>
+      {% if item.version.display_price %}
+      <div style="margin-top:10px;font-weight:600">{{ item.version.display_price }} {{ item.version.currency }}</div>
+      {% endif %}
+    </div>
+    <div style="padding:14px 18px;border-top:1px solid var(--border)">
+      {% if item.is_current %}
+        <button class="btn" disabled style="width:100%">پلنِ فعلی</button>
+      {% elif has_subscription %}
+        <form method="post" action="{% url 'dashboard:subscription-plan-preview' %}">
+          {% csrf_token %}
+          <input type="hidden" name="version_id" value="{{ item.version.pk }}">
+          <button type="submit" class="btn btn-primary" style="width:100%">پیش‌نمایشِ تغییر</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <p style="color:var(--muted)">هیچ پلنِ قابلِ انتخابی موجود نیست.</p>
+  {% endfor %}
+</div>
+{% endblock %}

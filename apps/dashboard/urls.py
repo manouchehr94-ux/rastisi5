@@ -282,4 +282,12 @@ urlpatterns = [
     path("tax/classes/<int:tax_class_id>/rates/add/", views.tax_rate_form, name="tax-rate-add"),
     path("tax/classes/<int:tax_class_id>/rates/<int:pk>/edit/", views.tax_rate_form, name="tax-rate-edit"),
     path("tax/classes/<int:tax_class_id>/rates/<int:pk>/archive/", views.tax_rate_archive, name="tax-rate-archive"),
+
+    # --- اشتراک و صورتحساب (Subscription/Usage/Plans) — Checkpoint 5A ---
+    path("subscription/", views.subscription_overview, name="subscription-overview"),
+    path("subscription/usage/", views.usage_overview, name="usage-overview"),
+    path("subscription/plans/", views.subscription_plans, name="subscription-plans"),
+    path("subscription/plans/preview/", views.subscription_plan_preview, name="subscription-plan-preview"),
+    path("subscription/plans/change/", views.subscription_plan_execute, name="subscription-plan-execute"),
+    path("subscription/history/", views.subscription_history, name="subscription-history"),
 ]

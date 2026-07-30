@@ -32,8 +32,11 @@ from apps.stores.authorization import (
     SHIPPING_SETTINGS_MANAGE,
     SHIPPING_SETTINGS_VIEW,
     STAFF_MANAGE,
+    SUBSCRIPTION_CHANGE,
+    SUBSCRIPTION_VIEW,
     TAX_SETTINGS_VIEW,
     TRANSFER_VIEW,
+    USAGE_VIEW,
     WAREHOUSE_VIEW,
     membership_has_permission,
 )
@@ -74,4 +77,27 @@ def merchant_permissions(request):
         ),
         "can_view_imports": membership_has_permission(membership, IMPORT_EXPORT_VIEW),
         "can_view_segments": membership_has_permission(membership, CUSTOMER_SEGMENT_VIEW),
+        "can_view_subscription": membership_has_permission(membership, SUBSCRIPTION_VIEW),
+        "can_change_subscription": membership_has_permission(membership, SUBSCRIPTION_CHANGE),
+        "can_view_usage": membership_has_permission(membership, USAGE_VIEW),
+    }
+
+
+def subscription_banner(request):
+    """پرچمِ وضعیتِ محدودشده‌ی اشتراک برایِ بنرِ سراسری در پنل مدیریت.
+
+    فقط برایِ درخواست‌هایی که از ``staff_required`` عبور کرده‌اند (``request.store``
+    ست شده) و فقط وقتی وضعیت واقعاً چیزی برایِ هشدار دارد (grace/restricted/
+    expired) داده برمی‌گرداند — وضعیتِ سالم/بدونِ اشتراک هیچ بنری نمی‌سازد."""
+    store = getattr(request, "store", None)
+    if store is None:
+        return {}
+    from apps.subscriptions.services.entitlement_service import AccessState, get_subscription_access_state
+
+    access = get_subscription_access_state(store)
+    if access.state in (AccessState.FULL, AccessState.NONE) or not access.warning:
+        return {}
+    return {
+        "subscription_banner_warning": access.warning,
+        "subscription_banner_blocks_growth": not access.allows_growth,
     }
