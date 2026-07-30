@@ -2009,3 +2009,53 @@ payments (ADR-73):
 Currency is plan-fixed with no FX; tax defaults to zero and is not a legal
 compliance guarantee (ADR-82). This completes Checkpoint 5B; it does **not**
 mark the full Admin Panel Completion Program complete.
+
+## 31. Checkpoint 5B Final Full-Suite Validation and Conclusion
+
+Final validation was run after the last Checkpoint 5B modification.
+
+Management commands and checks (all exit code 0):
+
+```
+python manage.py check                                 → no issues
+python manage.py makemigrations --check                → no changes detected
+python manage.py migrate                               → no migrations to apply
+python manage.py provision_legacy_subscriptions        → OK (idempotent)
+python manage.py evaluate_subscription_states          → OK
+python manage.py generate_subscription_renewals        → OK
+python manage.py process_subscription_dunning          → OK
+python manage.py verify_subscription_consistency --strict → exit 0, no inconsistencies
+python manage.py verify_billing_consistency --strict   → exit 0, no inconsistencies
+python manage.py verify_inventory_consistency --strict  → exit 0, consistent
+python manage.py validate_industry_templates --strict   → exit 0
+```
+
+Full test suite (`python manage.py test`):
+
+```
+Ran 3022 tests in 2072.490s
+
+OK (skipped=1)
+```
+
+**3022 tests, zero failures, zero errors, 1 skipped.** The single skip is the
+invoice-numbering parallel-writer contention test, which requires PostgreSQL
+row-level locking to be meaningful and is skipped on the SQLite test DB (the
+no-duplicate-number invariant is covered deterministically there by the
+sequential numbering tests). Checkpoint 5B added 114 tests over the Checkpoint
+5A baseline of 2908.
+
+Checkpoint 5B delivers real SaaS billing on top of the 5A subscription domain:
+billing accounts, immutable sequence-numbered invoices, a provider-neutral
+payment interface with an honest manual provider, a verified idempotent webhook
+inbox, transactional payment confirmation that activates/renews subscriptions
+only after confirmed payment, renewal generation, deterministic dunning,
+plan-change billing without fake proration, credit notes and refunds, merchant
+billing UI with a printable invoice, superuser-only platform billing admin,
+tenant isolation, audit logging, and read-only consistency verification. No
+payment success is ever simulated by browser return, and webhook signatures are
+verified before any business mutation. A real production payment gateway plugs
+in behind the provider interface without touching the rest of the domain.
+
+This completes Checkpoint 5B. It does **not** mark the full Admin Panel
+Completion Program complete.
