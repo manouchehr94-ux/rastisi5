@@ -196,3 +196,60 @@ class SubscriptionInvoice(TimeStampedModel):
         """``amount_due`` را از ``grand_total - amount_paid`` بازمحاسبه می‌کند
         (هرگز منفی)."""
         self.amount_due = max(self.grand_total - self.amount_paid, ZERO)
+
+
+class SubscriptionInvoiceLine(TimeStampedModel):
+    """یک ردیفِ فاکتور. پس از باز شدنِ فاکتور ردیف‌ها تغییرناپذیرند (در سرویس
+    اعمال می‌شود). فقط انواعِ واقعاً پیاده‌شده استفاده می‌شوند (ADR-74)."""
+
+    class LineType(models.TextChoices):
+        PLAN = "plan", "پلن"
+        PRORATION_CREDIT = "proration_credit", "اعتبارِ تناسبی"
+        PRORATION_CHARGE = "proration_charge", "هزینه‌ی تناسبی"
+        DISCOUNT = "discount", "تخفیف"
+        TAX = "tax", "مالیات"
+        MANUAL_ADJUSTMENT = "manual_adjustment", "تعدیلِ دستی"
+
+    invoice = models.ForeignKey(
+        SubscriptionInvoice, verbose_name="فاکتور", on_delete=models.CASCADE, related_name="lines",
+    )
+    line_type = models.CharField("نوعِ ردیف", max_length=20, choices=LineType.choices, default=LineType.PLAN)
+    description = models.CharField("شرح", max_length=300, blank=True, default="")
+
+    quantity = models.DecimalField("تعداد", max_digits=10, decimal_places=2, default=Decimal("1"))
+    unit_amount = _money(verbose_name="مبلغِ واحد")
+    subtotal = _money(verbose_name="جمعِ جزء")
+    discount = _money(verbose_name="تخفیف")
+    tax = _money(verbose_name="مالیات")
+    total = _money(verbose_name="جمعِ ردیف")
+
+    plan_code_snapshot = models.CharField("کدِ پلن (اسنپ‌شات)", max_length=64, blank=True, default="")
+    plan_version_snapshot = models.JSONField("اسنپ‌شاتِ نسخه‌ی پلن", blank=True, default=dict)
+    service_period_start = models.DateTimeField("شروعِ دوره‌ی خدمت", null=True, blank=True)
+    service_period_end = models.DateTimeField("پایانِ دوره‌ی خدمت", null=True, blank=True)
+    metadata = models.JSONField("فراداده", blank=True, default=dict)
+
+    class Meta:
+        verbose_name = "ردیفِ فاکتورِ اشتراک"
+        verbose_name_plural = "ردیف‌هایِ فاکتورِ اشتراک"
+        ordering = ["invoice", "id"]
+
+    def __str__(self):
+        return f"{self.get_line_type_display()} — {self.total}"
+
+
+class BillingSequence(models.Model):
+    """شمارنده‌یِ ماندگارِ race-safe برایِ شماره‌گذاریِ اسناد (فاکتور/Credit
+    Note/…). یکتاییِ شماره از این شمارنده می‌آید، نه از شمارشِ ردیف‌هایِ جدول
+    (ADR-74) — تحتِ ``select_for_update`` افزایش می‌یابد."""
+
+    key = models.CharField("کلید", max_length=64, unique=True)
+    last_value = models.PositiveBigIntegerField("آخرین مقدار", default=0)
+    updated_at = models.DateTimeField("زمانِ به‌روزرسانی", auto_now=True)
+
+    class Meta:
+        verbose_name = "شمارنده‌ی صورتحساب"
+        verbose_name_plural = "شمارنده‌هایِ صورتحساب"
+
+    def __str__(self):
+        return f"{self.key}={self.last_value}"
