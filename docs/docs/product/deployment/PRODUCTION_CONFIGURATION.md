@@ -41,6 +41,13 @@ list with placeholder values. Summary:
 | `RASTISI_ADMIN_DOMAIN_SUFFIX` | Recommended once real merchant admin subdomains are live | `rastisi.ir` | Suffix appended to `Store.admin_subdomain` to form the merchant admin host — see ADR-16 in `SAAS_DOMAIN_DECISIONS.md` |
 | `RASTISI_DEFAULT_PLAN_CODE` | Optional (checkpoint 5A) | *(empty)* | `Plan.code` new stores are auto-subscribed to; empty = no auto-assignment (fail-open entitlements). Existing stores are unaffected — see §5a and ADR-65/72 |
 | `RASTISI_DEFAULT_PLAN_START_TRIAL` | Optional (checkpoint 5A) | `true` | Whether a new store's default subscription starts in a trial (if the plan version defines `trial_days`) or goes straight to active |
+| `RASTISI_BILLING_PROVIDER` | Optional (checkpoint 5B) | `manual` | Active SaaS payment provider. `manual` is an honest test/manual provider — wire a real gateway behind the same interface (ADR-75) |
+| `RASTISI_BILLING_WEBHOOK_SECRET` | Required once a provider sends webhooks | *(empty)* | Secret used to verify webhook signatures (ADR-76). Never stored in the DB or code |
+| `RASTISI_BILLING_MAX_WEBHOOK_BYTES` | Optional | `65536` | Max webhook body accepted before a 413 |
+| `RASTISI_BILLING_WEBHOOK_TOLERANCE_SECONDS` | Optional | `300` | Signature timestamp tolerance |
+| `RASTISI_BILLING_RENEWAL_LEAD_DAYS` | Optional | `3` | Days before period end that renewal invoices are generated (ADR-78) |
+| `RASTISI_BILLING_DUNNING_SCHEDULE` | Optional | `0,3,7,14` | Days-after-due dunning retry schedule (ADR-79) |
+| `RASTISI_BILLING_TAX_RATE` | Optional | `0` | Flat SaaS-billing tax rate; `0` = off. Not a legal VAT guarantee (ADR-82) |
 
 Malformed values (an unparseable boolean, integer, or an invalid
 `DATABASE_URL`) raise `ImproperlyConfigured` immediately at process startup
@@ -168,9 +175,41 @@ genuinely new store is placed on via `provision_default_subscription`;
 `RASTISI_DEFAULT_PLAN_START_TRIAL` (default `true`) controls whether that
 subscription starts in a trial. Leaving the code empty keeps new stores on
 fail-open entitlements until a plan is chosen — turning it on is an explicit
-deployment decision. **No money is collected in checkpoint 5A** — online
-payment, card storage, automated charging, and webhooks are deferred to
-Checkpoint 5B (ADR-72).
+deployment decision.
+
+### SaaS billing: providers, webhooks, renewals, and dunning (checkpoint 5B)
+
+SaaS subscription billing (`apps.billing`) is a domain separate from merchant
+storefront order payments (ADR-73). It runs the honest `manual` provider by
+default — no production payment is faked. Wire a real gateway behind
+`apps.billing.providers` and set `RASTISI_BILLING_PROVIDER` +
+`RASTISI_BILLING_WEBHOOK_SECRET`.
+
+The provider **webhook endpoint** is `POST /billing/webhook/<provider>/` — the
+only CSRF-exempt billing route; it authenticates by signature, not session
+(ADR-76). Point the provider's webhook at that URL and share the secret.
+
+Three billing commands need external scheduling (no task queue, ADR-49):
+
+```
+0 7 * * * cd /path/to/app && python manage.py generate_subscription_renewals
+30 7 * * * cd /path/to/app && python manage.py process_subscription_dunning
+45 7 * * * cd /path/to/app && python manage.py verify_billing_consistency --strict
+```
+
+`generate_subscription_renewals` creates one open renewal invoice per period,
+`RASTISI_BILLING_RENEWAL_LEAD_DAYS` before period end (ADR-78).
+`process_subscription_dunning` walks `RASTISI_BILLING_DUNNING_SCHEDULE`
+(days-after-due), moving unpaid invoices past-due → grace → suspended (ADR-79).
+`verify_billing_consistency --strict` is a **read-only** health check (paid
+invoice without a successful attempt, overpaid invoice, duplicate renewal,
+currency mismatch, refund over the paid amount, open invoice for a terminal
+subscription, and so on) that exits non-zero on any problem.
+
+**Tax and legal note (ADR-82):** SaaS billing tax defaults to zero
+(`RASTISI_BILLING_TAX_RATE`); when enabled it is a single flat platform-wide
+rate, not a jurisdiction-aware VAT engine. The platform makes no automatic
+legal tax-compliance guarantee.
 
 ### CSV Import — columns, modes, and safety (checkpoint 4B)
 

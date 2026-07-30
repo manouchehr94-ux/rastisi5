@@ -3412,6 +3412,178 @@ without any premature coupling to a specific payment provider.
 
 ---
 
+## ADR-73: SaaS Billing Is a Separate Domain From Merchant Commerce Payments
+
+**Context (checkpoint 5B).** The platform charges merchants for their
+subscription, and separately merchants' customers pay for storefront orders
+(`apps.orders`: `PaymentGateway`, `PaymentAttempt`, `Refund`). Conflating the
+two would let a customer order masquerade as a subscription invoice and tangle
+two unrelated money flows.
+
+**Decision.** A new `apps.billing` app owns SaaS billing end to end
+(`StoreBillingAccount`, `SubscriptionInvoice`/`Line`, `SubscriptionPaymentAttempt`,
+`BillingWebhookEvent`, `SubscriptionCreditNote`, `SubscriptionRefund`,
+`SubscriptionDunningState`, `ScheduledPlanChange`). It never reuses a merchant
+`Order`, the storefront `PaymentAttempt`, or the storefront `Refund`. One
+`StoreBillingAccount` per store answers who/where is billed; every invoice
+freezes a snapshot of it so later edits never rewrite history. All money is
+`Decimal` (IRT, `decimal_places=0`, matching `PlanVersion.display_price`).
+
+**Consequences.** The two payment domains evolve independently; a bug or schema
+change in one cannot corrupt the other. Platform billing lives only in Django
+Admin behind superuser (ADR-8).
+
+---
+
+## ADR-74: Invoice Lifecycle Is Draft → Open → Paid, With Immutable Snapshots and Sequence-Backed Numbering
+
+**Decision.** An invoice is created `draft` (lines mutable), then `open`
+(issued, financially immutable), then `paid`/`past_due`/`void`/`uncollectible`/
+`refunded`/`partially_refunded`. Totals are always computed from the lines, not
+from client input. Each invoice freezes a plan-version snapshot and a
+billing-account snapshot at creation. Numbers come from a persistent
+`BillingSequence` advanced under `select_for_update` (`INV-YYYY-NNNNNN`) —
+never from a table `COUNT(*)`, which repeats under concurrency/retry. DB
+constraints enforce unique numbers, non-negative amounts, `amount_paid <=
+grand_total`, and one renewal invoice per `(subscription, period)`.
+
+**Consequences.** A finalized invoice's amounts and snapshots never change; the
+service refuses to add lines to a non-draft invoice. Numbering is race-safe and
+human-readable.
+
+---
+
+## ADR-75: Payments Go Through a Provider-Neutral Interface; the First Provider Is an Honest Manual One
+
+**Decision.** `apps.billing.providers.base.BillingPaymentProvider` defines
+`create_payment_session` / `verify_webhook` / `parse_webhook_event` /
+`fetch_payment_status` / `refund_payment` with structured result dataclasses.
+Provider-specific code lives only behind this interface, resolved via a
+registry keyed on `settings.RASTISI_BILLING_PROVIDER`. The default `manual`
+provider is deliberately honest: it never fakes a production payment — it does
+real HMAC-SHA256 webhook verification and requires either a signed webhook or an
+explicit admin action to confirm payment; refunds are manual. A real gateway
+plugs in behind the same interface later. Secrets come only from the
+environment, never the database or code; raw card data is never stored.
+
+**Consequences.** Swapping or adding a gateway touches one file. No part of the
+system pretends a payment succeeded without real confirmation.
+
+---
+
+## ADR-76: Webhooks Land in a Verified, Idempotent Inbox Before Any Business Mutation
+
+**Decision.** Every provider webhook is size-checked, signature-verified, and
+timestamp-checked **before** any domain change, then parsed and stored in
+`BillingWebhookEvent` (unique on `provider` + `external_event_id`, so duplicate
+delivery is idempotent). Payloads are stored with sensitive keys recursively
+redacted; raw secrets are never persisted. Invalid-signature or oversized
+requests are rejected (400/413) and store nothing. The endpoint is the only
+CSRF-exempt billing route — it authenticates by signature, not session. Failed
+processing is recorded on the event (visible to platform admin, retriable), and
+the endpoint returns 200 for any stored event so the provider does not retry a
+recorded business error.
+
+**Consequences.** Replay, tampering, out-of-order, and duplicate deliveries are
+all handled safely; nothing an attacker sends mutates billing state without a
+valid signature.
+
+---
+
+## ADR-77: Payment Confirmation Is One Transactional, Idempotent Service — Never in the View
+
+**Decision.** `confirmation_service.confirm_payment` is the single path from
+"provider says paid" to domain effect. It locks the attempt and invoice,
+verifies currency and amount against the invoice (rejecting mismatches), marks
+the attempt succeeded once, applies the payment once, marks the invoice paid
+when fully covered, and then activates or renews the subscription — all in one
+transaction, idempotent against duplicate webhook delivery. The webhook view
+merely stores the event and hands off to this service.
+
+**Consequences.** A subscription is activated only after confirmed payment,
+never on browser return. Re-delivering the same webhook never double-charges or
+double-activates.
+
+---
+
+## ADR-78: Renewal Invoices Are Generated Ahead of Period End, Exactly One Per Period
+
+**Decision.** `generate_subscription_renewals` (cron, no task queue — ADR-49)
+finds current non-terminal subscriptions whose period ends within a configurable
+lead window (`RASTISI_BILLING_RENEWAL_LEAD_DAYS`), skipping cancel-at-period-end
+and none-interval subscriptions, and creates exactly one open renewal invoice
+per `(subscription, period)` — idempotent via the DB constraint plus an
+existence check. Amount and currency are frozen on the invoice from the current
+plan version.
+
+**Consequences.** Renewals are predictable, non-duplicated, and safe to re-run.
+
+---
+
+## ADR-79: Dunning Is a Deterministic Schedule; the Grace → Suspend Escalation Reuses the 5A State Machine
+
+**Decision.** `process_subscription_dunning` (cron) walks a configurable
+day-offset schedule (`RASTISI_BILLING_DUNNING_SCHEDULE`, default `0,3,7,14`).
+The first stage past-dues the invoice and moves the subscription to grace (the
+5A restricted-state UX); the final stage suspends the subscription and marks the
+invoice uncollectible. Progression is gated by `next_retry_at` (no stage twice);
+paid/void invoices are never dunned. Because the manual provider cannot
+auto-charge, dunning keeps an honest `SubscriptionDunningState` "retry-required"
+record and exposes the manual payment link, rather than faking a charge.
+
+**Consequences.** Failed renewals degrade access predictably and reversibly;
+data is preserved throughout, and a payment at any stage resolves the dunning.
+
+---
+
+## ADR-80: Plan-Change Billing Has No Fake Proration — Upgrade Requires Payment, Downgrade Takes Effect Next Period
+
+**Decision.** No proration is computed. An **upgrade** (higher-priced target)
+creates an open plan-change invoice for the target's full amount and does not
+switch the plan version until that invoice is fully paid (the switch happens in
+`confirm_payment`). A **downgrade** (lower/equal price) is recorded as a
+`ScheduledPlanChange` and applied when the next renewal invoice is generated —
+no charge, no immediate entitlement reduction. Cancellation voids unpaid
+invoices and preserves paid ones, with no automatic refund. The 5A
+stale-preview token protection is retained.
+
+**Consequences.** Merchants are never charged an invented prorated amount;
+entitlements never become paid-active before payment; downgrades don't strip
+access mid-period.
+
+---
+
+## ADR-81: Credit Notes and Refunds Are Distinct — a Document vs. Actual Money Movement
+
+**Decision.** `SubscriptionCreditNote` is a historical document (unique
+`CN-YYYY-NNNNNN`, amount ≤ eligible paid amount) that does not by itself move
+money. `SubscriptionRefund` moves money through the provider abstraction (never
+the storefront-order refund models), bounded by the refundable amount (paid
+minus succeeded+open refunds), idempotent, and unable to refund twice. The
+manual provider does not auto-confirm, so a refund stays `pending` until an
+explicit manual completion, at which point the invoice syncs to `refunded` /
+`partially_refunded`.
+
+**Consequences.** Issuing a credit note and actually returning money are
+separate, auditable acts; neither can exceed what was paid.
+
+---
+
+## ADR-82: Billing Currency Is Plan-Fixed; Tax Is Off by Default and Not a Compliance Guarantee
+
+**Decision.** The plan version fixes an invoice's currency; a payment attempt
+must match it; renewals use the current plan version's currency; there is no
+FX conversion in this checkpoint, and a cross-currency plan change requires a
+fresh invoice. Historical currency is immutable. Tax fields and snapshots
+exist, but SaaS billing tax defaults to zero (`RASTISI_BILLING_TAX_RATE`); when
+enabled it is a single flat platform-wide rate, **not** a jurisdiction-derived
+VAT engine. The platform makes no automatic legal tax-compliance guarantee.
+
+**Consequences.** Money math stays in one currency per invoice with `Decimal`
+precision; tax is honest about its (deliberately minimal) scope.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -3491,3 +3663,13 @@ without any premature coupling to a specific payment provider.
 | Plan change is preview-then-execute with stale-preview token protection; selection restricted to publicly-selectable published versions | Decided, implemented (5A, ADR-70) |
 | SubscriptionEvent is immutable domain history, alongside (not instead of) the audit log | Decided, implemented (5A, ADR-71) |
 | No money moves in 5A — plan change alters entitlements only; online payment/cards/charging/webhooks are deferred to 5B | Decided, implemented (5A, ADR-72) |
+| SaaS billing is a separate domain (apps.billing) — never reuses merchant Order/PaymentAttempt/Refund | Decided, implemented (5B, ADR-73) |
+| Invoice lifecycle draft→open→paid with immutable snapshots; sequence-backed race-safe numbering | Decided, implemented (5B, ADR-74) |
+| Provider-neutral payment interface; first provider is an honest manual one that never fakes success | Decided, implemented (5B, ADR-75) |
+| Webhooks land in a verified, idempotent inbox (size/signature/timestamp) before any business mutation; redacted payloads | Decided, implemented (5B, ADR-76) |
+| Payment confirmation is one transactional, idempotent service — never in the view; activation only after confirmed payment | Decided, implemented (5B, ADR-77) |
+| Renewal invoices generated ahead of period end, exactly one per period, idempotent | Decided, implemented (5B, ADR-78) |
+| Dunning is a deterministic schedule; grace→suspend reuses the 5A state machine; no faked auto-charge on the manual provider | Decided, implemented (5B, ADR-79) |
+| Plan-change billing has no fake proration — upgrade requires payment, downgrade effective next period | Decided, implemented (5B, ADR-80) |
+| Credit Notes (document) are distinct from Refunds (money movement via provider abstraction); both bounded by paid amount | Decided, implemented (5B, ADR-81) |
+| Billing currency is plan-fixed (no FX); tax off by default and not a legal compliance guarantee | Decided, implemented (5B, ADR-82) |

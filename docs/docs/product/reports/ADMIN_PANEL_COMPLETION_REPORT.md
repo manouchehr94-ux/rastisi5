@@ -1956,3 +1956,56 @@ commands, and legacy grandfathering — while collecting **no** money. Online
 payment collection, stored cards, automated charging, and webhooks remain
 explicitly deferred to Checkpoint 5B (ADR-72). This completes Checkpoint 5A;
 it does not mark the Admin Panel Completion Program complete.
+
+## 30. Checkpoint 5B — SaaS Billing, Invoices, Payments, Renewals, Webhooks, Dunning, and Billing History
+
+**Checkpoint 5B turns the 5A subscription domain into a real billing system:
+billing accounts, immutable invoices with safe numbering, a provider-neutral
+payment interface, a verified idempotent webhook inbox, transactional payment
+confirmation that activates/renews subscriptions, renewal generation, dunning,
+plan-change billing, credit notes, refunds, merchant and platform UI — while
+never faking a payment.**
+
+A new app `apps.billing`, deliberately separate from merchant storefront order
+payments (ADR-73):
+
+- **Billing account & invoices (ADR-73/74).** One `StoreBillingAccount` per
+  store (snapshotted onto every invoice); `SubscriptionInvoice` with a
+  draft→open→paid lifecycle, immutable snapshots, `Decimal` money, and DB
+  constraints (unique number, non-negative amounts, `amount_paid <=
+  grand_total`, one renewal per period). Invoice lines; race-safe
+  sequence-backed numbering (`INV-YYYY-NNNNNN`), never a row count.
+- **Provider abstraction (ADR-75).** `BillingPaymentProvider` isolates all
+  gateway code; the default `manual` provider does real HMAC webhook
+  verification and never fakes a production success. Secrets from env only; no
+  card data stored.
+- **Webhook inbox (ADR-76).** Size/signature/timestamp verified before any
+  mutation; unique `(provider, event_id)` dedup; redacted payloads; adversarial
+  coverage (invalid/missing/expired/tampered/duplicate/oversized/foreign).
+- **Payment confirmation (ADR-77).** One transactional idempotent service locks
+  attempt+invoice, checks amount/currency, applies payment once, and
+  activates/renews — activation only after confirmed payment, never on browser
+  return.
+- **Renewals & dunning (ADR-78/79).** `generate_subscription_renewals`
+  (one invoice per period, idempotent) and `process_subscription_dunning`
+  (deterministic schedule, grace→suspend reusing the 5A state machine, honest
+  retry-required records for the manual provider).
+- **Plan-change billing (ADR-80).** No fake proration: upgrade requires a paid
+  plan-change invoice before switching; downgrade is scheduled for the next
+  period. Cancellation voids unpaid invoices and preserves paid ones.
+- **Credit notes & refunds (ADR-81).** A credit note is a bounded historical
+  document; a refund moves money through the provider abstraction (never the
+  storefront refund models), bounded and idempotent, manual-completed under the
+  manual provider.
+- **Merchant Billing UI + permissions.** Overview, account, invoices, detail,
+  payment start/result, cancellation, and a printable HTML invoice behind
+  `BILLING_VIEW` / `BILLING_ACCOUNT_MANAGE` / `BILLING_PAYMENT_MANAGE` /
+  `SUBSCRIPTION_CANCEL` (Owner-only).
+- **Platform Billing Admin.** Superuser-only, financial fields readonly, safe
+  manual mark-paid + webhook-retry actions, redacted payloads.
+- **Operations.** `verify_billing_consistency --strict` (read-only) plus the
+  renewal/dunning commands; billing env vars documented.
+
+Currency is plan-fixed with no FX; tax defaults to zero and is not a legal
+compliance guarantee (ADR-82). This completes Checkpoint 5B; it does **not**
+mark the full Admin Panel Completion Program complete.
