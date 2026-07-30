@@ -715,12 +715,15 @@ class StorefrontFooterHostIsolationTests(TestCase):
         # Unresolved Store + 2 Stores existing → fail closed (no context
         # processor can silently pick one), so neither tenant's copyright
         # text is ever exposed to a request that couldn't be resolved to
-        # anyone. Client(raise_request_exception=False) is required here
-        # because the default test Client re-raises view-level exceptions
-        # to the caller instead of returning a response object.
+        # anyone. As of Checkpoint 6 (ADR-83), the storefront turns an
+        # unresolved Host into a clean 404 via resolve_store_for_storefront —
+        # previously this raised a 500. Either way, no footer leaks; a 404 is
+        # the correct, safer customer-facing result. Client(
+        # raise_request_exception=False) is kept so any unexpected view-level
+        # exception is surfaced as a response rather than re-raised.
         client = Client(raise_request_exception=False)
         resp = client.get("/", HTTP_HOST="unknown.example.com")
-        self.assertEqual(resp.status_code, 500)
+        self.assertEqual(resp.status_code, 404)
         self.assertNotIn(b"Copyright A", resp.content)
         self.assertNotIn(b"Copyright B", resp.content)
 
