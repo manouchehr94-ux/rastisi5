@@ -94,6 +94,7 @@ class ManualProvider(BillingPaymentProvider):
             event_id=str(payload.get("event_id", "")),
             event_type=event_type,
             provider_payment_id=str(payload.get("provider_payment_id", "")),
+            session_id=str(payload.get("session_id", "")),
             amount=amount,
             currency=str(payload.get("currency", "")),
             succeeded=event_type == "payment.succeeded",

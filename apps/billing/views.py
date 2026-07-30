@@ -12,7 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from apps.billing.providers.base import BillingProviderError, WebhookVerificationError
-from apps.billing.services import webhook_service
+from apps.billing.services import payment_flow_service, webhook_service
 
 logger = logging.getLogger("billing")
 
@@ -28,7 +28,7 @@ def billing_webhook(request, provider_code):
 
     body = request.body  # bytes خام برایِ بررسیِ امضا
     try:
-        webhook_service.ingest_webhook(
+        event = webhook_service.ingest_webhook(
             provider_code=provider_code, headers=dict(request.headers), body=body,
         )
     except webhook_service.WebhookTooLarge:
@@ -39,7 +39,11 @@ def billing_webhook(request, provider_code):
     except BillingProviderError:
         return HttpResponseBadRequest("رخدادِ Webhook نامعتبر است.")
 
-    # پردازش/تأییدِ پرداخت در commit 5 به این جریان وصل می‌شود؛ فعلاً پذیرش و
-    # ذخیره کافی است. همیشه ۲۰۰ برایِ رخدادِ پذیرفته/تکراری تا Provider Retry
-    # بی‌مورد نکند.
+    # پردازشِ تأییدِ پرداخت به‌صورتِ جدا و امن انجام می‌شود؛ خطایِ کسب‌وکاری رویِ
+    # خودِ رخداد ثبت و برایِ Retryِ مدیر در دسترس می‌ماند — پس همیشه ۲۰۰
+    # برمی‌گردانیم تا Provider بی‌مورد Retry نکند.
+    try:
+        payment_flow_service.process_webhook_event(event)
+    except Exception:  # noqa: BLE001 — خطا رویِ رخداد ثبت می‌شود، پاسخ ۲۰۰ می‌ماند
+        logger.exception("webhook processing failed for event %s", event.pk)
     return HttpResponse("ok", status=200)

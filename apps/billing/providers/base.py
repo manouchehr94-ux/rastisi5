@@ -36,6 +36,7 @@ class WebhookEventData:
     event_id: str
     event_type: str
     provider_payment_id: str = ""
+    session_id: str = ""
     amount: Decimal | None = None
     currency: str = ""
     succeeded: bool = False

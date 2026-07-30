@@ -308,6 +308,7 @@ class SubscriptionEvent(TimeStampedModel):
         CREATED = "created", "ایجاد"
         TRIAL_STARTED = "trial_started", "شروعِ تریال"
         ACTIVATED = "activated", "فعال‌سازی"
+        RENEWED = "renewed", "تمدید"
         PLAN_CHANGED = "plan_changed", "تغییرِ پلن"
         GRACE_STARTED = "grace_started", "شروعِ مهلتِ ارفاقی"
         PAST_DUE = "past_due", "معوق‌شدن"

@@ -218,6 +218,35 @@ def expire_subscription(subscription, *, actor=None, idempotency_key="") -> Stor
 
 
 @transaction.atomic
+def renew_subscription(subscription, *, period_start, period_end, actor=None, idempotency_key="") -> StoreSubscription:
+    """اشتراک را برایِ دوره‌ی تازه تمدید می‌کند (پس از پرداختِ موفقِ فاکتورِ
+    تمدید — ADR-78). دوره‌ی جاری را جلو می‌برد، وضعیتِ grace/past_due را (در
+    صورتِ قانونی‌بودن) به active برمی‌گرداند، و رخدادِ ``renewed`` ثبت می‌کند.
+    idempotent روی ``idempotency_key``. اشتراکِ نهایی‌شده تمدید نمی‌شود."""
+    locked = StoreSubscription.objects.select_for_update().get(pk=subscription.pk)
+    if locked.status in StoreSubscription.TERMINAL_STATUSES:
+        raise IllegalTransitionError("اشتراکِ نهایی‌شده را نمی‌توان تمدید کرد.")
+    if idempotency_key and locked.events.filter(idempotency_key=idempotency_key).exists():
+        return locked
+    from_status = locked.status
+    locked.current_period_start = period_start
+    locked.current_period_end = period_end
+    locked.grace_period_end = None
+    # پرداختِ موفق، دوره‌ی معوق/ارفاقی را پاک می‌کند و اشتراک را فعال می‌کند.
+    if locked.status != S.ACTIVE:
+        locked.status = S.ACTIVE
+    locked.save(update_fields=[
+        "current_period_start", "current_period_end", "grace_period_end", "status", "updated_at",
+    ])
+    _record_event(
+        locked, event_type=ET.RENEWED, from_status=from_status, to_status=locked.status,
+        actor=actor, reason="", idempotency_key=idempotency_key,
+        metadata={"period_start": str(period_start), "period_end": str(period_end)},
+    )
+    return locked
+
+
+@transaction.atomic
 def change_plan_version(subscription, target_version, *, actor=None, reason="", idempotency_key="") -> StoreSubscription:
     """نسخه‌ی پلنِ اشتراک را عوض می‌کند (ارتقا/تنزل) — وضعیت را تغییر نمی‌دهد،
     فقط ``plan_version`` و رخدادِ ``plan_changed`` (ADR-70). مدتِ تریال ریست
