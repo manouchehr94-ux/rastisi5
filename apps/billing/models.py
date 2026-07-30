@@ -238,6 +238,73 @@ class SubscriptionInvoiceLine(TimeStampedModel):
         return f"{self.get_line_type_display()} — {self.total}"
 
 
+class SubscriptionPaymentAttempt(TimeStampedModel):
+    """یک تلاشِ پرداخت برایِ یک فاکتور (ADR-75/77). هر Retry یک ردیفِ تازه است،
+    نه تغییرِ تلاشِ ناموفقِ قبلی — تلاش‌ها تاریخی و تغییرناپذیرند. یک تلاشِ
+    موفق دوباره «موفق» نمی‌شود (در سرویسِ تأیید اعمال می‌شود)."""
+
+    class Status(models.TextChoices):
+        CREATED = "created", "ایجادشده"
+        PENDING = "pending", "در انتظار"
+        REQUIRES_ACTION = "requires_action", "نیازمندِ اقدام"
+        SUCCEEDED = "succeeded", "موفق"
+        FAILED = "failed", "ناموفق"
+        CANCELLED = "cancelled", "لغوشده"
+        EXPIRED = "expired", "منقضی‌شده"
+
+    FINAL_STATUSES = frozenset({Status.SUCCEEDED, Status.FAILED, Status.CANCELLED, Status.EXPIRED})
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.PROTECT, related_name="subscription_payment_attempts",
+    )
+    invoice = models.ForeignKey(
+        SubscriptionInvoice, verbose_name="فاکتور", on_delete=models.PROTECT, related_name="payment_attempts",
+    )
+    provider = models.CharField("Provider", max_length=40)
+    status = models.CharField("وضعیت", max_length=16, choices=Status.choices, default=Status.CREATED, db_index=True)
+
+    amount = _money(verbose_name="مبلغ")
+    currency = models.CharField("ارز", max_length=8, default="IRT")
+
+    #: شناسه‌ی عمومیِ غیرترتیبی برایِ URL/redirect (نه pk).
+    public_token = models.CharField("توکنِ عمومی", max_length=40, unique=True, editable=False)
+    provider_payment_id = models.CharField("شناسه‌ی پرداختِ Provider", max_length=120, blank=True, default="")
+    provider_session_id = models.CharField("شناسه‌ی جلسه‌ی Provider", max_length=120, blank=True, default="")
+    idempotency_key = models.CharField("کلیدِ یکتا", max_length=100, unique=True)
+    attempt_number = models.PositiveIntegerField("شماره‌ی تلاش", default=1)
+
+    failure_code = models.CharField("کدِ خطا", max_length=64, blank=True, default="")
+    failure_message = models.CharField("پیامِ خطا", max_length=300, blank=True, default="")
+    started_at = models.DateTimeField("زمانِ شروع", null=True, blank=True)
+    completed_at = models.DateTimeField("زمانِ پایان", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "تلاشِ پرداختِ اشتراک"
+        verbose_name_plural = "تلاش‌هایِ پرداختِ اشتراک"
+        ordering = ["-created_at"]
+        constraints = [
+            # شناسه‌ی پرداختِ Provider یکتا وقتی حاضر است (جلوگیری از دو تلاش با
+            # یک پرداختِ Provider).
+            models.UniqueConstraint(
+                fields=["provider", "provider_payment_id"],
+                condition=~models.Q(provider_payment_id=""),
+                name="uniq_provider_payment_id",
+            ),
+            models.CheckConstraint(check=models.Q(amount__gte=0), name="attempt_amount_non_negative"),
+        ]
+        indexes = [
+            models.Index(fields=["invoice", "status"], name="idx_subattempt_inv_status"),
+            models.Index(fields=["store", "status"], name="idx_subattempt_store_status"),
+        ]
+
+    def __str__(self):
+        return f"Attempt<{self.public_token}> {self.get_status_display()}"
+
+    @property
+    def is_final(self) -> bool:
+        return self.status in self.FINAL_STATUSES
+
+
 class BillingSequence(models.Model):
     """شمارنده‌یِ ماندگارِ race-safe برایِ شماره‌گذاریِ اسناد (فاکتور/Credit
     Note/…). یکتاییِ شماره از این شمارنده می‌آید، نه از شمارشِ ردیف‌هایِ جدول

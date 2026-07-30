@@ -308,3 +308,21 @@ RASTISI_ADMIN_DOMAIN_SUFFIX = env_str("RASTISI_ADMIN_DOMAIN_SUFFIX", "rastisi.ir
 # plan version defines trial_days) or goes straight to active.
 RASTISI_DEFAULT_PLAN_CODE = env_str("RASTISI_DEFAULT_PLAN_CODE", "")
 RASTISI_DEFAULT_PLAN_START_TRIAL = env_str("RASTISI_DEFAULT_PLAN_START_TRIAL", "true").lower() in ("1", "true", "yes", "on")
+
+# Checkpoint 5B — SaaS billing configuration. The active subscription payment
+# provider (default "manual" — an honest test/manual provider that never fakes
+# a production payment; wire a real gateway behind the same interface later).
+# Secrets come only from the environment, never the database or code.
+RASTISI_BILLING_PROVIDER = env_str("RASTISI_BILLING_PROVIDER", "manual")
+RASTISI_BILLING_WEBHOOK_SECRET = env_str("RASTISI_BILLING_WEBHOOK_SECRET", "")
+# Max webhook body accepted before rejection (bytes) and signature timestamp
+# tolerance (seconds) — see ADR-76.
+RASTISI_BILLING_MAX_WEBHOOK_BYTES = env_int("RASTISI_BILLING_MAX_WEBHOOK_BYTES", default=65536)
+RASTISI_BILLING_WEBHOOK_TOLERANCE_SECONDS = env_int("RASTISI_BILLING_WEBHOOK_TOLERANCE_SECONDS", default=300)
+# Renewal invoices are generated this many days before the current period ends
+# (ADR-78). Dunning retry schedule is days-after-due, comma-separated (ADR-79).
+RASTISI_BILLING_RENEWAL_LEAD_DAYS = env_int("RASTISI_BILLING_RENEWAL_LEAD_DAYS", default=3)
+RASTISI_BILLING_DUNNING_SCHEDULE = env_str("RASTISI_BILLING_DUNNING_SCHEDULE", "0,3,7,14")
+# Whether SaaS billing charges tax (default off — see ADR-82). When on, a flat
+# platform-wide rate is applied; legal tax compliance is out of scope.
+RASTISI_BILLING_TAX_RATE = env_str("RASTISI_BILLING_TAX_RATE", "0")
