@@ -12,7 +12,7 @@ from django.urls import reverse
 
 from apps.catalog.models import Category, Product
 from apps.content.models import ContentPage
-from apps.stores.resolution import resolve_store_for_service
+from apps.stores.resolution import resolve_store_for_storefront
 
 #: بیشینه‌ی URLهایِ هر بخش در sitemap — کرانه‌دار تا کاتالوگِ بزرگ سرریز نکند.
 SITEMAP_LIMIT = 5000
@@ -56,7 +56,7 @@ def _sitemap_entries(request, store):
 
 def sitemap_xml(request):
     """sitemap.xmlِ محدود به این Store."""
-    store = resolve_store_for_service(request)
+    store = resolve_store_for_storefront(request)
     entries = _sitemap_entries(request, store)
     return render(
         request, "seo/sitemap.xml", {"entries": entries}, content_type="application/xml",

@@ -285,6 +285,26 @@ def resolve_store_for_service(request) -> Store:
     return resolve_compatibility_store()
 
 
+def resolve_store_for_storefront(request) -> Store:
+    """Storefront entry-point resolver (Checkpoint 6, ADR-83): like
+    ``resolve_store_for_service`` but converts an unresolved Host into a clean
+    ``Http404`` instead of a 500.
+
+    A customer hitting an unknown, inactive, suspended, or closed store's host
+    must see a normal not-found page, never a server error. Inactive/suspended/
+    closed stores never resolve (their ``StoreDomain`` only matches while
+    ``status == ACTIVE``), so they land here and 404 — the fail-closed customer-
+    facing behavior. Use this in public storefront views; deeper service code
+    keeps using ``resolve_store_for_service`` with the concrete Store passed in.
+    """
+    from django.http import Http404
+
+    try:
+        return resolve_store_for_service(request)
+    except CompatibilityFallbackUnavailableError as exc:
+        raise Http404("no storefront for this host") from exc
+
+
 def require_resolved_store(request) -> Store:
     """For future Store-aware service code: return ``request.store``, or raise.
 

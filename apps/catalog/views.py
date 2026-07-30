@@ -11,7 +11,7 @@ from apps.blog.models import BlogPost
 from apps.content.models import HeroSlide, PromotionalBanner
 from apps.content.services import resolve_destination_url
 from apps.customers.models import Customer
-from apps.stores.resolution import resolve_store_for_service
+from apps.stores.resolution import resolve_store_for_storefront
 
 from .models import Brand, Category, Product, Review
 
@@ -38,7 +38,7 @@ def _best_products(store, sort_key):
 
 
 def home(request):
-    store = resolve_store_for_service(request)
+    store = resolve_store_for_storefront(request)
     active_products = Product.objects.filter(store=store, status=Product.Status.ACTIVE)
 
     top_categories = list(
@@ -88,7 +88,7 @@ def home(request):
 
 
 def home_best_products(request):
-    store = resolve_store_for_service(request)
+    store = resolve_store_for_storefront(request)
     sort_key = request.GET.get("sort", DEFAULT_SORT)
     if sort_key not in BEST_SORT_OPTIONS:
         sort_key = DEFAULT_SORT
@@ -156,7 +156,7 @@ def _querystring_without_page(request):
 
 
 def product_list(request):
-    store = resolve_store_for_service(request)
+    store = resolve_store_for_storefront(request)
     qs, sort_key, query = _filtered_products(request, store)
 
     paginator = Paginator(qs, PRODUCTS_PER_PAGE)
@@ -218,7 +218,7 @@ def _can_review(request):
 
 
 def product_detail(request, slug):
-    store = resolve_store_for_service(request)
+    store = resolve_store_for_storefront(request)
     product = get_object_or_404(
         Product.objects.select_related("brand", "category", "category__parent", "vendor"),
         slug=slug, store=store, status=Product.Status.ACTIVE,
@@ -263,7 +263,7 @@ def product_detail(request, slug):
 
 @require_POST
 def product_review_create(request, slug):
-    store = resolve_store_for_service(request)
+    store = resolve_store_for_storefront(request)
     product = get_object_or_404(Product, slug=slug, store=store, status=Product.Status.ACTIVE)
 
     context = {"product": product, "can_review": _can_review(request)}
