@@ -249,6 +249,18 @@ class SettingsSMSSectionTests(SettingsViewsTestCase):
         self.assertEqual(shop.sms_backend, "kavenegar")
         self.assertEqual(shop.kavenegar_api_key, "secret-key-1")
 
+    def test_smsrasti_token_regeneration_creates_and_rotates_token(self):
+        from apps.core.models import ShopSettings
+
+        response = self.client.post(reverse("dashboard:settings-smsrasti-regenerate-token"))
+        self.assertRedirects(response, "/admin-portal/settings/?section=sms")
+        first_token = ShopSettings.load(store=self.store).smsrasti_device_token
+        self.assertTrue(first_token)
+
+        self.client.post(reverse("dashboard:settings-smsrasti-regenerate-token"))
+        second_token = ShopSettings.load(store=self.store).smsrasti_device_token
+        self.assertNotEqual(first_token, second_token)
+
     def test_sms_test_send_redirects_to_sms_section(self):
         response = self.client.post(reverse("dashboard:sms-test-send"), {
             "phone": "09121234567", "event_key": "welcome",

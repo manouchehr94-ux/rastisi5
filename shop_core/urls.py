@@ -44,6 +44,8 @@ urlpatterns = [
     path("pages/", include("apps.content.urls")),
     # SaaS billing webhook endpoint (public, signature-verified, no CSRF).
     path("billing/", include("apps.billing.urls")),
+    # SmsRasti Android gateway poll/ack endpoints (public, device-token-authenticated, no CSRF).
+    path("sms/", include("apps.sms.urls")),
 ]
 
 if settings.DEBUG:

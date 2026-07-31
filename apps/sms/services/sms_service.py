@@ -8,14 +8,15 @@
 
 import logging
 import re
+import secrets
 
 from django.utils import timezone
 
 from apps.core.models import ShopSettings
 
-from ..events import EVENT_VARIABLES
+from ..events import EVENT_VARIABLES, SmsEvent
 from ..models import SmsLog, SmsTemplate
-from .backends import ConsoleBackend, KavenegarBackend, MelipayamakBackend, SmsBackend
+from .backends import ConsoleBackend, KavenegarBackend, MelipayamakBackend, SmsBackend, SmsRastiBackend
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,19 @@ def get_backend(*, store) -> SmsBackend:
             api_key=shop.kavenegar_api_key,
             sender=shop.sms_sender_number,
         )
+    if shop.sms_backend == ShopSettings.SmsBackend.SMSRASTI:
+        return SmsRastiBackend(store=store, device_token=shop.smsrasti_device_token or "")
     return ConsoleBackend()
+
+
+def regenerate_smsrasti_device_token(*, store) -> str:
+    """توکنِ جدید و منحصربه‌فردی برای گیت‌وی اندرویدِ این Store می‌سازد و
+    ذخیره می‌کند؛ توکنِ قبلی بلافاصله باطل می‌شود — دستگاهِ قدیمی دیگر
+    نمی‌تواند poll/ack کند (چرخشِ اعتبارنامه، نه افزودنِ دستگاهِ دوم)."""
+    shop = ShopSettings.load(store=store)
+    shop.smsrasti_device_token = secrets.token_urlsafe(32)
+    shop.save(update_fields=["smsrasti_device_token", "updated_at"])
+    return shop.smsrasti_device_token
 
 
 def _render(template: SmsTemplate, context: dict, shop_name: str) -> str:
@@ -67,7 +80,17 @@ def _dispatch(*, event_key: str, phone: str, message: str, store) -> SmsLog:
     log = SmsLog.objects.create(
         event_key=event_key, recipient=phone, message=message, status=SmsLog.Status.PENDING,
     )
-    result = get_backend(store=store).send(to=phone, text=message)
+    backend = get_backend(store=store)
+    if event_key == SmsEvent.OTP and isinstance(backend, SmsRastiBackend):
+        # اسمس‌راستی صف‌بندی‌شده و وابسته به poll دستگاهِ اندروید است — با
+        # نیازِ ارسالِ فوریِ OTP (بخشِ اولویتِ ارسال) ناسازگار است؛ هرگز
+        # بی‌صدا صف نمی‌شود، همیشه شکستِ واضح با دلیلِ روشن ثبت می‌شود تا
+        # مدیرِ فروشگاه فوراً بفهمد و درگاهِ دیگری برای OTP انتخاب کند.
+        log.status = SmsLog.Status.FAILED
+        log.error_message = "درگاهِ اسمس‌راستی برای ارسالِ رمزِ یک‌بارمصرف مناسب نیست؛ درگاهِ دیگری برای این فروشگاه انتخاب کنید"
+        log.save(update_fields=["status", "error_message", "updated_at"])
+        return log
+    result = backend.send(to=phone, text=message)
     log.attempt_count = 1
     if result.success:
         log.status = SmsLog.Status.SENT

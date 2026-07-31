@@ -22,6 +22,23 @@
     </form>
 
     <div style="margin-top:18px;padding-top:16px;border-top:1px dashed var(--border)">
+      <b style="font-size:12.5px;display:block;margin-bottom:8px">گیت‌وی اندرویدِ اسمس‌راستی</b>
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">
+        این درگاه پیامک را به‌صورتِ صف‌بندی‌شده و با تأخیر (وابسته به poll دستگاهِ اندروید) ارسال می‌کند —
+        برایِ رمزِ یک‌بارمصرف (OTP) مناسب نیست و برای آن به‌طورِ خودکار رد می‌شود.
+      </div>
+      {% if smsrasti_device_token %}
+        <div style="font-size:12px">توکنِ فعلی: <code dir="ltr">{{ smsrasti_device_token|slice:":6" }}…{{ smsrasti_device_token|slice:"-4:" }}</code></div>
+      {% else %}
+        <div style="font-size:12px;color:var(--muted)">هنوز توکنی ساخته نشده است.</div>
+      {% endif %}
+      <form method="post" action="{% url 'dashboard:settings-smsrasti-regenerate-token' %}" style="margin-top:8px" onsubmit="return confirm('توکنِ قبلی بلافاصله باطل می‌شود و دستگاهِ قدیمی دیگر کار نمی‌کند. ادامه می‌دهید؟')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm">🔄 بازتولیدِ توکنِ دستگاه</button>
+      </form>
+    </div>
+
+    <div style="margin-top:18px;padding-top:16px;border-top:1px dashed var(--border)">
       <b style="font-size:12.5px;display:block;margin-bottom:8px">ارسال پیامک آزمایشی</b>
       <form method="post" action="{% url 'dashboard:sms-test-send' %}" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         {% csrf_token %}

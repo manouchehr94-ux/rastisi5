@@ -60,6 +60,44 @@ class SmsLog(TimeStampedModel):
         return f"{self.get_event_key_display()} → {self.recipient} ({self.get_status_display()})"
 
 
+class SmsOutboxItem(TimeStampedModel):
+    """صفِ پیامک‌های در انتظارِ ارسال توسط گیت‌وی اندرویدِ SmsRasti یک Store.
+
+    برخلافِ ``SmsLog`` (که فقط تاریخچه‌ی یک تلاشِ همزمان است)، این مدل
+    چرخه‌ی عمرِ واقعیِ ارسال را دنبال می‌کند: ``pending`` → ``sending``
+    (poll شده توسطِ دستگاه، هنوز تأییدنشده) → ``sent``/``failed`` (فقط با
+    ack صریحِ دستگاه). هرگز صرفِ poll‌شدن را «ارسال‌شده» علامت نمی‌زند —
+    برخلافِ نسخه‌ی باگ‌دارِ مرجع (``reference_imports/.../gateway_api.py``)
+    که این کار را می‌کرد؛ اینجا از الگویِ بهترِ نسخه‌ی جایگزین‌شده‌ی همان
+    مرجع (``sms_gateway.py``) پیروی شده: claim فقط ``sending`` می‌کند."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "در انتظار"
+        SENDING = "sending", "در حالِ ارسال"
+        SENT = "sent", "ارسال‌شده"
+        FAILED = "failed", "ناموفق"
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="sms_outbox_items",
+    )
+    phone = models.CharField("گیرنده", max_length=15)
+    message = models.TextField("متن پیامک")
+    status = models.CharField("وضعیت", max_length=10, choices=Status.choices, default=Status.PENDING)
+    provider_ref_id = models.CharField("شناسه‌ی ارجاعِ گیت‌وی", max_length=100, blank=True)
+    error_message = models.TextField("پیامِ خطا", blank=True)
+    attempt_count = models.PositiveIntegerField("تعدادِ claim", default=0)
+    claimed_at = models.DateTimeField("زمانِ claim", null=True, blank=True)
+    sent_at = models.DateTimeField("زمانِ ارسال", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "پیامِ صفِ SmsRasti"
+        verbose_name_plural = "پیام‌هایِ صفِ SmsRasti"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.phone} ({self.get_status_display()})"
+
+
 class OtpCode(TimeStampedModel):
     """کد یکبار مصرف پیامکی — برای ورود و تأیید شماره موبایل در خرید مهمان.
 

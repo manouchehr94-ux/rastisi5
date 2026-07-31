@@ -3,7 +3,9 @@ from unittest.mock import Mock, patch
 
 from django.test import TestCase
 
-from apps.sms.services.backends import ConsoleBackend, KavenegarBackend, MelipayamakBackend
+from apps.sms.models import SmsOutboxItem
+from apps.sms.services.backends import ConsoleBackend, KavenegarBackend, MelipayamakBackend, SmsRastiBackend
+from apps.stores.models import Store
 
 
 class ConsoleBackendTests(TestCase):
@@ -123,3 +125,26 @@ class KavenegarBackendTests(TestCase):
         result = self.backend.send(to="09121234567", text="سلام")
         self.assertFalse(result.success)
         self.assertIn("network down", result.error_message)
+
+
+class SmsRastiBackendTests(TestCase):
+    def setUp(self):
+        self.store = Store.objects.get(slug="akhlaghi")
+
+    def test_missing_device_token_fails_without_creating_outbox_item(self):
+        backend = SmsRastiBackend(store=self.store, device_token="")
+        result = backend.send(to="09121234567", text="سلام")
+        self.assertFalse(result.success)
+        self.assertEqual(SmsOutboxItem.objects.count(), 0)
+
+    def test_send_enqueues_pending_item_and_reports_queued_not_delivered(self):
+        backend = SmsRastiBackend(store=self.store, device_token="dev-token-1")
+        result = backend.send(to="09121234567", text="سلام دنیا")
+
+        self.assertTrue(result.success)
+        item = SmsOutboxItem.objects.get(pk=int(result.provider_ref_id))
+        self.assertEqual(item.store, self.store)
+        self.assertEqual(item.phone, "09121234567")
+        self.assertEqual(item.message, "سلام دنیا")
+        # صفی شدن به‌معنایِ «ارسال‌شده» نیست — این فقط با poll/ack مشخص می‌شود.
+        self.assertEqual(item.status, SmsOutboxItem.Status.PENDING)

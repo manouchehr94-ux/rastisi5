@@ -186,7 +186,7 @@ from apps.orders.services.return_service import (
 )
 from apps.sms.events import EVENT_VARIABLES
 from apps.sms.models import SmsTemplate
-from apps.sms.services.sms_service import SmsTemplateError, send_test_sms
+from apps.sms.services.sms_service import SmsTemplateError, regenerate_smsrasti_device_token, send_test_sms
 from apps.stores.models import StoreMembership
 from apps.stores.services.membership_service import (
     ASSIGNABLE_ROLES,
@@ -2477,6 +2477,7 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
             "melipayamak_password": shop.melipayamak_password,
             "kavenegar_api_key": shop.kavenegar_api_key,
         }),
+        "smsrasti_device_token": shop.smsrasti_device_token,
         "visual_form": visual_form or VisualIdentityForm(current_shop=shop, initial=theme_values),
         "theme_presets": THEME_PRESETS,
         "selected_preset_key": matching_preset_key(
@@ -2794,6 +2795,17 @@ def settings_sms_connection(request):
     context["sections"] = SETTINGS_SECTIONS
     context["active_section"] = "sms"
     return render(request, "dashboard/settings.html", context)
+
+
+@require_POST
+@staff_required
+@permission_required(SMS_SETTINGS_MANAGE)
+def settings_smsrasti_regenerate_token(request):
+    """توکنِ قبلی (اگر باشد) بلافاصله باطل می‌شود؛ دستگاهِ اندرویدِ قدیمی
+    باید با توکنِ جدید دوباره پیکربندی شود."""
+    regenerate_smsrasti_device_token(store=_resolve_dashboard_store(request))
+    messages.success(request, "توکنِ دستگاهِ اسمس‌راستی بازتولید شد؛ دستگاهِ اندروید را با مقدارِ جدید پیکربندی کنید")
+    return redirect("/admin-portal/settings/?section=sms")
 
 
 @staff_required

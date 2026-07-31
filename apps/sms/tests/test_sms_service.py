@@ -6,11 +6,12 @@ from apps.sms.models import SmsLog, SmsTemplate
 from apps.sms.services.sms_service import (
     SmsTemplateError,
     get_backend,
+    regenerate_smsrasti_device_token,
     send_event_sms,
     send_test_sms,
     validate_template_body,
 )
-from apps.sms.services.backends import ConsoleBackend, KavenegarBackend, MelipayamakBackend
+from apps.sms.services.backends import ConsoleBackend, KavenegarBackend, MelipayamakBackend, SmsRastiBackend
 from apps.stores.models import Store
 
 
@@ -49,6 +50,13 @@ class GetBackendTests(TestCase):
         shop.sms_backend = ShopSettings.SmsBackend.KAVENEGAR
         shop.save()
         self.assertIsInstance(get_backend(store=self.store), KavenegarBackend)
+
+    def test_smsrasti_selected_when_configured(self):
+        shop = ShopSettings.load(store=self.store)
+        shop.sms_backend = ShopSettings.SmsBackend.SMSRASTI
+        shop.smsrasti_device_token = "dev-token-1"
+        shop.save()
+        self.assertIsInstance(get_backend(store=self.store), SmsRastiBackend)
 
 
 class SendEventSmsTests(TestCase):
@@ -124,6 +132,35 @@ class SendEventSmsTests(TestCase):
         self.assertIsNone(result)
         self.assertEqual(SmsLog.objects.count(), count_before)
 
+    def test_otp_event_rejects_smsrasti_backend_with_clear_failed_log(self):
+        """اسمس‌راستی صفی/async است — برای OTP حساس‌به‌تأخیر هرگز استفاده
+        نمی‌شود؛ باید شکستی واضح و قابل‌مشاهده برای مدیر ثبت شود، نه صف‌شدنِ
+        بی‌صدا (apps.sms.models.SmsOutboxItem هرگز نباید برای رویدادِ OTP
+        ساخته شود)."""
+        from apps.sms.models import SmsOutboxItem
+
+        shop = ShopSettings.load(store=self.store)
+        shop.sms_backend = ShopSettings.SmsBackend.SMSRASTI
+        shop.smsrasti_device_token = "dev-token-1"
+        shop.save()
+
+        log = send_event_sms(SmsEvent.OTP, "09121234567", {"otp_code": "123456"}, store=self.store)
+
+        self.assertIsNotNone(log)
+        self.assertEqual(log.status, SmsLog.Status.FAILED)
+        self.assertEqual(SmsOutboxItem.objects.count(), 0)
+
+    def test_non_otp_event_is_allowed_through_smsrasti_backend(self):
+        shop = ShopSettings.load(store=self.store)
+        shop.sms_backend = ShopSettings.SmsBackend.SMSRASTI
+        shop.smsrasti_device_token = "dev-token-1"
+        shop.save()
+
+        log = send_event_sms(SmsEvent.WELCOME, "09121234567", {"customer_name": "سارا"}, store=self.store)
+
+        self.assertIsNotNone(log)
+        self.assertEqual(log.status, SmsLog.Status.SENT)
+
 
 class SendTestSmsTests(TestCase):
     def setUp(self):
@@ -151,6 +188,24 @@ class SendTestSmsTests(TestCase):
         SmsTemplate.objects.filter(event_key=SmsEvent.WELCOME).delete()
         with self.assertRaises(SmsTemplateError):
             send_test_sms(event_key=SmsEvent.WELCOME, phone="09121234567", store=self.store)
+
+
+class RegenerateSmsrastiDeviceTokenTests(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+
+    def test_generates_a_new_unique_token_and_persists_it(self):
+        token = regenerate_smsrasti_device_token(store=self.store)
+        self.assertTrue(token)
+        shop = ShopSettings.load(store=self.store)
+        self.assertEqual(shop.smsrasti_device_token, token)
+
+    def test_regenerating_invalidates_the_previous_token(self):
+        first = regenerate_smsrasti_device_token(store=self.store)
+        second = regenerate_smsrasti_device_token(store=self.store)
+        self.assertNotEqual(first, second)
+        shop = ShopSettings.load(store=self.store)
+        self.assertEqual(shop.smsrasti_device_token, second)
 
 
 class SmsTwoStoreIsolationTests(TestCase):

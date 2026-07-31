@@ -99,6 +99,12 @@ class ShopSettings(TimeStampedModel):
         CONSOLE = "console", "کنسول (فقط لاگ، برای توسعه)"
         MELIPAYAMAK = "melipayamak", "ملی‌پیامک"
         KAVENEGAR = "kavenegar", "کاوه‌نگار"
+        # Store-scoped فقط — هیچ‌جای apps.portal.services.owner_sms_service
+        # (OTP هویتِ مالک/کارمندِ پلتفرم) موردی برایِ این backend ندارد؛
+        # صفی/async بودنِ آن (poll دستگاهِ اندروید) با نیازِ ارسالِ فوریِ
+        # OTP هویت ناسازگار است (apps.sms.services.sms_service نیز آن را
+        # برایِ SmsEvent.OTP رد می‌کند، نه فقط برایِ auth پلتفرم).
+        SMSRASTI = "smsrasti", "اسمس‌راستی (گیت‌وی اندروید)"
 
     sms_enabled = models.BooleanField("فعال‌سازی سیستم پیامک", default=True)
     sms_backend = models.CharField(
@@ -108,6 +114,9 @@ class ShopSettings(TimeStampedModel):
     melipayamak_username = models.CharField("نام کاربری ملی‌پیامک", max_length=100, blank=True)
     melipayamak_password = models.CharField("رمز عبور ملی‌پیامک", max_length=100, blank=True)
     kavenegar_api_key = models.CharField("کلید API کاوه‌نگار", max_length=100, blank=True)
+    smsrasti_device_token = models.CharField(
+        "توکنِ دستگاهِ اسمس‌راستی", max_length=64, blank=True, unique=True, null=True,
+    )
 
     # --- هویت بصری ---
     logo = models.ImageField("لوگوی فروشگاه", upload_to="shop/branding/", blank=True)

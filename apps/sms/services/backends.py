@@ -115,3 +115,29 @@ class KavenegarBackend(SmsBackend):
             return SmsSendResult(success=True, provider_ref_id=ref_id)
         error_message = (data.get("return") or {}).get("message", "خطای نامشخص کاوه‌نگار")
         return SmsSendResult(success=False, error_message=error_message)
+
+
+class SmsRastiBackend(SmsBackend):
+    """گیت‌وی اندرویدِ SmsRasti — Store-scoped، هرگز برایِ OTP هویتِ
+    مالک/کارمندِ پلتفرم استفاده نمی‌شود (``apps.portal.services.
+    owner_sms_service`` اصلاً موردی برایِ این backend ندارد، پس حتی با
+    تنظیمِ اشتباهِ env هم قابلِ انتخاب نیست).
+
+    ارسال اینجا sync نیست: پیام در صفِ ``SmsOutboxItem`` همان Store ذخیره
+    می‌شود و بعداً با poll/ack دستگاهِ اندروید وضعیتِ واقعی مشخص می‌شود؛
+    ``success=True`` اینجا فقط یعنی «با موفقیت صف شد»، نه «تحویل داده شد»
+    — دقیقاً مثلِ رفتارِ فرستنده‌های sync دیگر که success یعنی «درگاه
+    پذیرفت»، نه «تضمینِ تحویل»."""
+
+    def __init__(self, *, store, device_token: str):
+        self.store = store
+        self.device_token = device_token
+
+    def send(self, *, to: str, text: str) -> SmsSendResult:
+        if not self.device_token:
+            return SmsSendResult(success=False, error_message="دستگاه اسمس‌راستی برای این فروشگاه پیکربندی نشده است")
+
+        from ..models import SmsOutboxItem
+
+        item = SmsOutboxItem.objects.create(store=self.store, phone=to, message=text)
+        return SmsSendResult(success=True, provider_ref_id=str(item.pk))
