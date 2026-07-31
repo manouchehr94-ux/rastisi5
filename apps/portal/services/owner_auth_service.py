@@ -16,9 +16,15 @@ from django.template.loader import render_to_string
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
+from apps.core.phone import InvalidPhoneError, normalize_iranian_phone
 from apps.portal.models import OwnerProfile
 
 User = get_user_model()
+
+#: پیامِ عمومیِ خطایِ ورود — یکپارچه‌سازیِ احرازِ هویت: هرگز فاش نمی‌کند
+#: شناسه (ایمیل/موبایل) وجود دارد یا رمز نادرست بوده — یکی از دو حالت را
+#: نمی‌توان از روی پیام تشخیص داد.
+GENERIC_LOGIN_ERROR = "اطلاعات ورود صحیح نیست."
 
 
 class OwnerAuthError(Exception):
@@ -27,6 +33,10 @@ class OwnerAuthError(Exception):
 
 def _normalize_email(email: str) -> str:
     return (email or "").strip().lower()
+
+
+def _looks_like_email(identifier: str) -> bool:
+    return "@" in (identifier or "")
 
 
 @transaction.atomic
@@ -49,6 +59,39 @@ def register_owner(*, full_name: str, email: str, password: str) -> User:
 def authenticate_owner(request, *, email: str, password: str):
     """با ایمیل و رمز احراز هویت می‌کند و در صورت موفقیت User را برمی‌گرداند، وگرنه None."""
     return authenticate(request, username=_normalize_email(email), password=password)
+
+
+def authenticate_owner_by_identifier(request, *, identifier: str, password: str):
+    """احرازِ هویتِ یکپارچه — شناسه می‌تواند ایمیل یا شماره موبایل باشد
+    (کانونیکالِ ورودِ مالک، یکپارچه‌سازیِ احرازِ هویت). این تابع فقط
+    «کاربر کیست» را پاسخ می‌دهد — «آیا مجاز به دسترسی به این Store/پلتفرم
+    است» مسئولیتِ لایه‌ی مجوز (authorization) در فراخوان است، نه این‌جا.
+
+    شناسه‌یابی: اگر ``@`` داشته باشد ایمیل فرض می‌شود (``User.email``،
+    case-insensitive)؛ وگرنه شماره موبایل فرض و نرمال می‌شود، سپس از رویِ
+    ``OwnerProfile.phone`` (نه مستقیم ``User.username``، تا حسابِ خالص‌
+    مشتری که تصادفاً همان ``username`` را دارد هرگز به‌عنوانِ مالک وارد
+    نشود) کاربر پیدا می‌شود.
+
+    شناسه‌ی نامعتبر/ناموجود، رمزِ نادرست، و کاربرِ غیرِفعال هر سه دقیقاً
+    یک نتیجه (``None``) دارند — هیچ‌کدام فاش نمی‌شود کدام‌یک بود."""
+    identifier = (identifier or "").strip()
+    if not identifier or not password:
+        return None
+
+    if _looks_like_email(identifier):
+        user = User.objects.filter(email__iexact=_normalize_email(identifier)).first()
+    else:
+        try:
+            phone = normalize_iranian_phone(identifier)
+        except InvalidPhoneError:
+            return None
+        profile = OwnerProfile.objects.select_related("user").filter(phone=phone).first()
+        user = profile.user if profile is not None else None
+
+    if user is None:
+        return None
+    return authenticate(request, username=user.username, password=password)
 
 
 def request_password_reset(*, email: str, base_url: str) -> None:

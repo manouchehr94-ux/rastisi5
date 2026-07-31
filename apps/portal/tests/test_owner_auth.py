@@ -90,6 +90,112 @@ class OwnerLoginLogoutTests(TestCase):
 
 
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
+class AuthenticateOwnerByIdentifierTests(TestCase):
+    """Canonical email-or-phone + password authentication service —
+    unifies what used to be two separate login views (Section 8/9's
+    consolidation slice)."""
+
+    def setUp(self):
+        self.email_owner = owner_auth_service.register_owner(
+            full_name="Email Owner", email="unified@example.com", password="a-very-strong-pass-1",
+        )
+        self.phone_owner, _created = owner_auth_service.get_or_create_owner_by_phone(
+            phone="09121234567", full_name="Phone Owner",
+        )
+        self.phone_owner.set_password("phone-owner-pass-1")
+        self.phone_owner.save(update_fields=["password"])
+
+    def test_authenticates_by_email(self):
+        user = owner_auth_service.authenticate_owner_by_identifier(
+            None, identifier="unified@example.com", password="a-very-strong-pass-1",
+        )
+        self.assertEqual(user, self.email_owner)
+
+    def test_email_lookup_is_case_insensitive(self):
+        user = owner_auth_service.authenticate_owner_by_identifier(
+            None, identifier="UNIFIED@Example.com", password="a-very-strong-pass-1",
+        )
+        self.assertEqual(user, self.email_owner)
+
+    def test_authenticates_by_phone_local_format(self):
+        user = owner_auth_service.authenticate_owner_by_identifier(
+            None, identifier="09121234567", password="phone-owner-pass-1",
+        )
+        self.assertEqual(user, self.phone_owner)
+
+    def test_authenticates_by_phone_international_format(self):
+        user = owner_auth_service.authenticate_owner_by_identifier(
+            None, identifier="+989121234567", password="phone-owner-pass-1",
+        )
+        self.assertEqual(user, self.phone_owner)
+
+    def test_wrong_password_returns_none(self):
+        user = owner_auth_service.authenticate_owner_by_identifier(
+            None, identifier="unified@example.com", password="totally-wrong",
+        )
+        self.assertIsNone(user)
+
+    def test_nonexistent_email_returns_none(self):
+        user = owner_auth_service.authenticate_owner_by_identifier(
+            None, identifier="nobody@example.com", password="anything-at-all",
+        )
+        self.assertIsNone(user)
+
+    def test_nonexistent_phone_returns_none(self):
+        user = owner_auth_service.authenticate_owner_by_identifier(
+            None, identifier="09129999999", password="anything-at-all",
+        )
+        self.assertIsNone(user)
+
+    def test_malformed_phone_returns_none_not_exception(self):
+        user = owner_auth_service.authenticate_owner_by_identifier(
+            None, identifier="not-a-phone-or-email", password="anything-at-all",
+        )
+        self.assertIsNone(user)
+
+    def test_inactive_user_cannot_authenticate(self):
+        self.email_owner.is_active = False
+        self.email_owner.save(update_fields=["is_active"])
+        user = owner_auth_service.authenticate_owner_by_identifier(
+            None, identifier="unified@example.com", password="a-very-strong-pass-1",
+        )
+        self.assertIsNone(user)
+
+    def test_phone_owner_with_unusable_password_cannot_use_password_login(self):
+        """Owners created via phone+OTP registration (the primary flow) get
+        set_unusable_password() — logging in with any password must fail
+        safely, never crash, never leak that the account exists."""
+        otp_owner, _created = owner_auth_service.get_or_create_owner_by_phone(
+            phone="09120001111", full_name="OTP Only Owner",
+        )
+        user = owner_auth_service.authenticate_owner_by_identifier(
+            None, identifier="09120001111", password="anything-guessed",
+        )
+        self.assertIsNone(user)
+
+    def test_a_pure_customer_account_sharing_the_phone_is_never_returned_as_owner(self):
+        """apps.customers also uses User.username = phone; a phone that only
+        has a Customer (no OwnerProfile) must never authenticate as an
+        owner via this service."""
+        customer_user = User.objects.create_user(username="09127654321", password="customer-pass-1")
+        Customer.objects.create(user=customer_user, full_name="Pure Customer", phone="09127654321")
+        user = owner_auth_service.authenticate_owner_by_identifier(
+            None, identifier="09127654321", password="customer-pass-1",
+        )
+        self.assertIsNone(user)
+
+    def test_empty_identifier_returns_none(self):
+        user = owner_auth_service.authenticate_owner_by_identifier(None, identifier="", password="whatever")
+        self.assertIsNone(user)
+
+    def test_empty_password_returns_none(self):
+        user = owner_auth_service.authenticate_owner_by_identifier(
+            None, identifier="unified@example.com", password="",
+        )
+        self.assertIsNone(user)
+
+
+@override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
 class PasswordResetTests(TestCase):
     def setUp(self):
         self.user = owner_auth_service.register_owner(
