@@ -1,0 +1,23 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}تأییدِ خرید | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="p-wrap">
+<div class="p-form-card" style="max-width:420px">
+  <h2 style="text-align:center;margin-bottom:8px">تأییدِ خرید</h2>
+  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px">
+    برایِ ادامه‌ی خرید، کدِ ارسال‌شده به موبایلِ ثبت‌شده‌ی حساب‌تان را وارد کنید.
+  </p>
+  {% if messages %}{% for message in messages %}<div class="p-alert p-alert-error">{{ message }}</div>{% endfor %}{% endif %}
+  <form method="post" novalidate>
+    {% csrf_token %}
+    <div class="p-field">
+      <label for="id_code">کدِ تأیید</label>
+      <input type="text" id="id_code" name="code" maxlength="6" minlength="6" required autofocus style="direction:ltr;text-align:center;letter-spacing:4px;font-size:20px">
+    </div>
+    <button type="submit" class="p-btn p-btn-primary" style="width:100%">تأیید و ادامه</button>
+  </form>
+</div>
+</div>
+{% endblock %}
+{% block extra_css %}<style>.p-field input{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px}</style>{% endblock %}

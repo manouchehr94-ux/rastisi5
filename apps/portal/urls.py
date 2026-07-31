@@ -53,6 +53,10 @@ urlpatterns = [
         views.billing_checkout, name="billing-checkout",
     ),
     path(
+        "app/stores/<uuid:store_public_id>/billing/step-up/",
+        views.billing_step_up_verify, name="billing-step-up",
+    ),
+    path(
         "billing/dev-provider/<str:attempt_public_id>/",
         views.billing_dev_provider, name="billing-dev-provider",
     ),

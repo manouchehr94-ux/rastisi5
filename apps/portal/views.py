@@ -31,7 +31,7 @@ from .forms import (
 )
 from .models import ContactMessage, OwnerOtpChallenge
 from .phone import InvalidPhoneError, normalize_iranian_phone
-from .services import handoff_service, owner_auth_service, owner_otp_service, provisioning_service
+from .services import handoff_service, owner_auth_service, owner_otp_service, provisioning_service, step_up_service
 from .services.rate_limit import RateLimitExceeded, enforce_rate_limit
 
 _STORE_CREATE_TOKEN_SESSION_KEY = "portal_store_create_token"
@@ -696,13 +696,13 @@ def billing_plans(request, store_public_id):
     })
 
 
-@owner_required
-@require_POST
-def billing_checkout(request, store_public_id, plan_version_id):
-    """فاکتور می‌سازد، تلاشِ پرداخت را با درگاهِ dev/test شروع می‌کند، و به
-    صفحه‌ی همان درگاه هدایت می‌کند."""
-    store = _get_owned_store_or_404(request, store_public_id)
-    plan_version = get_object_or_404(PlanVersion, pk=plan_version_id, status=PlanVersion.Status.PUBLISHED)
+_STEP_UP_ACTION_SUBSCRIPTION_PURCHASE = "subscription_purchase_confirm"
+_SESSION_PENDING_PURCHASE_PLAN_VERSION_KEY = "portal_pending_purchase_plan_version_id"
+
+
+def _start_purchase(request, *, store, plan_version):
+    """هسته‌ی مشترکِ خرید — چه بلافاصله (وقتی نیازی به تأییدِ گام‌دوم نیست)
+    چه پس از تأییدِ موفقِ OTP گام‌دوم فراخوانی می‌شود."""
     try:
         invoice = billing_service.create_invoice(store=store, plan_version=plan_version, actor=request.user)
         _attempt, redirect_url = billing_service.start_payment_attempt(invoice=invoice, provider_code="dev")
@@ -710,6 +710,64 @@ def billing_checkout(request, store_public_id, plan_version_id):
         messages.error(request, str(exc))
         return redirect("portal:billing-plans", store_public_id=store.public_id)
     return redirect(redirect_url)
+
+
+@owner_required
+@require_POST
+def billing_checkout(request, store_public_id, plan_version_id):
+    """فاکتور می‌سازد، تلاشِ پرداخت را با درگاهِ dev/test شروع می‌کند، و به
+    صفحه‌ی همان درگاه هدایت می‌کند — مگر اینکه سیاستِ پلتفرم برایِ
+    ``subscription_purchase_confirm`` تأییدِ گام‌دومِ OTP بخواهد (Section 10)
+    و این نشست هنوز آن را برایِ همین Store تأیید نکرده باشد، که در آن
+    صورت ابتدا به مرحله‌ی تأییدِ کد هدایت می‌شود."""
+    store = _get_owned_store_or_404(request, store_public_id)
+    plan_version = get_object_or_404(PlanVersion, pk=plan_version_id, status=PlanVersion.Status.PUBLISHED)
+
+    target = str(store.public_id)
+    if step_up_service.is_step_up_required(_STEP_UP_ACTION_SUBSCRIPTION_PURCHASE) and not step_up_service.is_verified(
+        request, action=_STEP_UP_ACTION_SUBSCRIPTION_PURCHASE, target=target,
+    ):
+        phone = getattr(getattr(request.user, "owner_profile", None), "phone", None)
+        if not phone:
+            messages.error(request, "این عملیات نیاز به شماره موبایلِ ثبت‌شده در حساب دارد.")
+            return redirect("portal:billing-plans", store_public_id=store.public_id)
+        try:
+            step_up_service.begin_challenge(
+                request, action=_STEP_UP_ACTION_SUBSCRIPTION_PURCHASE, target=target, phone=phone,
+                message="کدِ تأییدِ خریدِ اشتراک در راستیسی: {code}",
+                client_ip=request.META.get("REMOTE_ADDR", ""),
+            )
+        except step_up_service.OtpRateLimitError as exc:
+            messages.error(request, str(exc))
+            return redirect("portal:billing-plans", store_public_id=store.public_id)
+        request.session[_SESSION_PENDING_PURCHASE_PLAN_VERSION_KEY] = plan_version.pk
+        return redirect("portal:billing-step-up", store_public_id=store.public_id)
+
+    return _start_purchase(request, store=store, plan_version=plan_version)
+
+
+@owner_required
+def billing_step_up_verify(request, store_public_id):
+    """صفحه‌ی تأییدِ کدِ گام‌دوم پیش از ادامه‌ی خرید (Section 10). فقط برایِ
+    چالشی که خودِ ``billing_checkout`` در همین نشست ایجاد کرده معنا دارد —
+    شناسه‌ی نسخه‌ی پلن از session خوانده می‌شود، نه از ورودیِ کاربر."""
+    store = _get_owned_store_or_404(request, store_public_id)
+    pending = step_up_service.pending_challenge(request)
+    if not pending or pending.get("target") != str(store.public_id):
+        return redirect("portal:billing-plans", store_public_id=store.public_id)
+
+    if request.method == "POST":
+        code = request.POST.get("code", "")
+        if step_up_service.confirm_challenge(request, code=code):
+            plan_version_id = request.session.pop(_SESSION_PENDING_PURCHASE_PLAN_VERSION_KEY, None)
+            plan_version = PlanVersion.objects.filter(pk=plan_version_id).first() if plan_version_id else None
+            if plan_version is None:
+                messages.error(request, "درخواستِ خرید یافت نشد؛ دوباره تلاش کنید.")
+                return redirect("portal:billing-plans", store_public_id=store.public_id)
+            return _start_purchase(request, store=store, plan_version=plan_version)
+        messages.error(request, "کدِ واردشده نادرست یا منقضی است.")
+
+    return render(request, "portal/app/billing_step_up.html", {"store": store})
 
 
 @owner_required

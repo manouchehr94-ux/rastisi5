@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from apps.portal.services.platform_config_service import update_platform_configuration
 from apps.stores.models import Store, StoreMembership
 from apps.subscriptions.models import Plan, PlanVersion, PlatformInvoice, StoreSubscription
 from apps.subscriptions.services import subscription_service
@@ -17,7 +18,12 @@ _HOST = "rastisi.localhost"
 
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
 class BillingViewsTestCase(TestCase):
+    """Section 10's step-up OTP is exercised on its own in
+    test_step_up_billing.py; these tests are about checkout/dev-provider
+    mechanics, so step-up is explicitly turned off here to isolate that."""
+
     def setUp(self):
+        update_platform_configuration(actor=None, step_up_actions={"subscription_purchase_confirm": False})
         self.store = Store.objects.create(
             name="فروشگاه صورتحساب", slug="billing-view-store", admin_subdomain="billing-view-store",
         )

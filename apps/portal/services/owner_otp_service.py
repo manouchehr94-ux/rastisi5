@@ -41,11 +41,12 @@ def _generate_code() -> str:
     return f"{secrets.randbelow(10 ** OTP_LENGTH):0{OTP_LENGTH}d}"
 
 
-def request_otp(*, phone: str, purpose: str, client_ip: str) -> None:
+def request_otp(*, phone: str, purpose: str, client_ip: str, message: str | None = None) -> None:
     """کدِ تازه می‌سازد و پیامک می‌کند. اگر تعداد درخواست‌های اخیر (برایِ این
     شماره یا این IP) بیش از حد باشد، ``OtpRateLimitError`` می‌دهد — و در آن
     حالت هیچ کدِ تازه‌ای ساخته/ارسال نمی‌شود (جلوگیری از حدس‌زدنِ شماره و
-    اسپم)."""
+    اسپم). ``message`` برایِ متنِ سفارشیِ پیامک است (مثلاً Section 10 —
+    تأییدِ عملیاتِ حساس — که نباید بگوید «کد ورود»)."""
     try:
         enforce_rate_limit(
             f"owner_otp_request_ip:{purpose}", client_ip,
@@ -66,7 +67,8 @@ def request_otp(*, phone: str, purpose: str, client_ip: str) -> None:
         phone=phone, purpose=purpose, code_hash=make_password(code),
         expires_at=timezone.now() + timedelta(seconds=OTP_TTL_SECONDS),
     )
-    send_platform_sms(to=phone, text=f"کد ورود شما به راستیسی: {code}\nاین کد تا ۲ دقیقه معتبر است.")
+    text = (message or "کد ورود شما به راستیسی: {code}").format(code=code)
+    send_platform_sms(to=phone, text=f"{text}\nاین کد تا ۲ دقیقه معتبر است.")
 
 
 def verify_otp(*, phone: str, purpose: str, code: str) -> bool:
