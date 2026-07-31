@@ -88,4 +88,17 @@ urlpatterns = [
         "app/stores/<uuid:store_public_id>/domains/activate/step-up/",
         views.custom_domain_activate_step_up, name="custom-domain-activate-step-up",
     ),
+    # Store deletion — soft, typed confirmation, step-up gated (Section 14)
+    path(
+        "app/stores/<uuid:store_public_id>/delete/",
+        views.request_store_deletion, name="request-store-deletion",
+    ),
+    path(
+        "app/stores/<uuid:store_public_id>/delete/step-up/",
+        views.store_deletion_step_up, name="store-deletion-step-up",
+    ),
+    path(
+        "app/stores/<uuid:store_public_id>/delete/cancel/",
+        views.cancel_store_deletion, name="cancel-store-deletion",
+    ),
 ]

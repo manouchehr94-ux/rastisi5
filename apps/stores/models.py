@@ -137,6 +137,32 @@ class Store(StoresTimestampedModel):
         ),
     )
 
+    deletion_requested_at = models.DateTimeField(
+        "زمانِ درخواستِ حذف",
+        null=True, blank=True,
+        help_text=(
+            "حذف همیشه نرم است (Section 14) — تا این‌جا مقداردهی شده، "
+            "``status=CLOSED`` و فروشگاه غیرِ عمومی است، اما هیچ داده‌ای "
+            "پاک نمی‌شود؛ فقط پس از رسیدنِ به "
+            "``deletion_scheduled_purge_at``، دستورِ ``purge_deleted_stores`` "
+            "می‌تواند واقعاً حذف کند."
+        ),
+    )
+    deletion_requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="درخواست‌دهنده‌ی حذف", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="requested_store_deletions",
+    )
+    deletion_scheduled_purge_at = models.DateTimeField(
+        "زمانِ برنامه‌ریزی‌شده‌ی پاک‌سازیِ نهایی",
+        null=True, blank=True,
+        help_text="از زمانِ درخواست به‌اضافه‌ی PlatformConfiguration.deletion_retention_days محاسبه می‌شود.",
+    )
+    pre_deletion_status = models.CharField(
+        "وضعیتِ پیش از درخواستِ حذف",
+        max_length=20, choices=Status.choices, blank=True, default="",
+        help_text="برایِ بازگردانیِ دقیق در صورتِ لغوِ درخواستِ حذف (cancel_deletion).",
+    )
+
     class Meta:
         verbose_name = "فروشگاه"
         verbose_name_plural = "فروشگاه‌ها"

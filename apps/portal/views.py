@@ -12,7 +12,7 @@ from django.conf import settings
 
 from apps.catalog.models import IndustryTemplate
 from apps.stores.models import Store, StoreDomain, StoreMembership
-from apps.stores.services import domain_verification_service, handle_service
+from apps.stores.services import deletion_service, domain_verification_service, handle_service
 from apps.subscriptions.models import Plan, PlanVersion, PlatformInvoice, PlatformPaymentAttempt, StoreSubscription
 from apps.subscriptions.services import billing_service
 
@@ -1026,3 +1026,88 @@ def custom_domain_activate_step_up(request, store_public_id):
         messages.error(request, "کدِ واردشده نادرست یا منقضی است.")
 
     return render(request, "portal/app/step_up_verify.html", {"store": store})
+
+
+# ---------------------------------------------------------------------------
+# Store deletion — soft, typed-confirmation, step-up gated (Section 14)
+# ---------------------------------------------------------------------------
+
+_STEP_UP_ACTION_STORE_DELETE = "store_delete"
+_SESSION_PENDING_DELETE_CONFIRMATION_KEY = "portal_pending_delete_confirmation"
+
+
+@owner_required
+def request_store_deletion(request, store_public_id):
+    store = _get_owned_store_or_404(request, store_public_id)
+
+    if request.method == "POST":
+        typed_confirmation = (request.POST.get("typed_confirmation") or "").strip()
+        target = str(store.public_id)
+        if step_up_service.is_step_up_required(_STEP_UP_ACTION_STORE_DELETE) and not step_up_service.is_verified(
+            request, action=_STEP_UP_ACTION_STORE_DELETE, target=target,
+        ):
+            phone = getattr(getattr(request.user, "owner_profile", None), "phone", None)
+            if not phone:
+                messages.error(request, "این عملیات نیاز به شماره موبایلِ ثبت‌شده در حساب دارد.")
+                return redirect("portal:request-store-deletion", store_public_id=store.public_id)
+            try:
+                step_up_service.begin_challenge(
+                    request, action=_STEP_UP_ACTION_STORE_DELETE, target=target, phone=phone,
+                    message="کدِ تأییدِ حذفِ فروشگاه: {code}",
+                    client_ip=request.META.get("REMOTE_ADDR", ""),
+                )
+            except step_up_service.OtpRateLimitError as exc:
+                messages.error(request, str(exc))
+                return redirect("portal:request-store-deletion", store_public_id=store.public_id)
+            request.session[_SESSION_PENDING_DELETE_CONFIRMATION_KEY] = typed_confirmation
+            return redirect("portal:store-deletion-step-up", store_public_id=store.public_id)
+
+        try:
+            deletion_service.request_deletion(store=store, actor=request.user, typed_confirmation=typed_confirmation)
+        except deletion_service.DeletionError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, "درخواستِ حذفِ فروشگاه ثبت شد.")
+        return redirect("portal:request-store-deletion", store_public_id=store.public_id)
+
+    return render(request, "portal/app/request_store_deletion.html", {"store": store})
+
+
+@owner_required
+def store_deletion_step_up(request, store_public_id):
+    store = _get_owned_store_or_404(request, store_public_id)
+    pending = step_up_service.pending_challenge(request)
+    if not pending or pending.get("target") != str(store.public_id):
+        return redirect("portal:request-store-deletion", store_public_id=store.public_id)
+
+    if request.method == "POST":
+        code = request.POST.get("code", "")
+        if step_up_service.confirm_challenge(request, code=code):
+            typed_confirmation = request.session.pop(_SESSION_PENDING_DELETE_CONFIRMATION_KEY, "")
+            try:
+                deletion_service.request_deletion(
+                    store=store, actor=request.user, typed_confirmation=typed_confirmation,
+                )
+            except deletion_service.DeletionError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(request, "درخواستِ حذفِ فروشگاه ثبت شد.")
+            return redirect("portal:request-store-deletion", store_public_id=store.public_id)
+        messages.error(request, "کدِ واردشده نادرست یا منقضی است.")
+
+    return render(request, "portal/app/step_up_verify.html", {"store": store})
+
+
+@owner_required
+@require_POST
+def cancel_store_deletion(request, store_public_id):
+    """لغوِ درخواستِ حذف — یک اقدامِ ایمن است (بازگرداندن، نه ایجادِ خطر)،
+    پس نیازِ تأییدِ گام‌دومِ OTP ندارد."""
+    store = _get_owned_store_or_404(request, store_public_id)
+    try:
+        deletion_service.cancel_deletion(store=store, actor=request.user)
+    except deletion_service.DeletionError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, "درخواستِ حذفِ فروشگاه لغو شد.")
+    return redirect("portal:request-store-deletion", store_public_id=store.public_id)
