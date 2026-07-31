@@ -16,6 +16,8 @@
     {% if request.user.is_authenticated %}
     <nav style="display:flex;gap:14px;align-items:center">
       <a href="{% url 'portal_platform_admin:home' %}" style="color:#9aa3bd;font-size:13px">داشبورد</a>
+      <a href="{% url 'portal_platform_admin:stores' %}" style="color:#9aa3bd;font-size:13px">فروشگاه‌ها</a>
+      <a href="{% url 'portal_platform_admin:audit-log' %}" style="color:#9aa3bd;font-size:13px">رخدادهای حسابرسی</a>
       <a href="{% url 'portal_platform_admin:configuration' %}" style="color:#9aa3bd;font-size:13px">تنظیمات پلتفرم</a>
       <form method="post" action="{% url 'portal_platform_admin:logout' %}">{% csrf_token %}<button type="submit" class="p-btn p-btn-ghost" style="color:#e7f3ee;border-color:#2a3a30">خروج</button></form>
     </nav>

@@ -1,0 +1,43 @@
+{% extends "portal/platform_admin/base.html" %}
+{% block title %}فروشگاه‌ها | پنل مدیریت پلتفرم{% endblock %}
+{% block content %}
+<h2 style="margin-bottom:20px">فروشگاه‌ها</h2>
+<form method="get" style="margin-bottom:20px;display:flex;gap:8px">
+  <input type="text" name="q" value="{{ query }}" placeholder="نام، اسلاگ، کدِ پلتفرم یا زیردامنه‌ی مدیریت"
+         style="flex:1;padding:10px 14px;border:1px solid #2a3a30;border-radius:10px;background:#0f1712;color:#e7f3ee">
+  <button type="submit" class="p-btn p-btn-primary">جست‌وجو</button>
+</form>
+
+<div style="overflow-x:auto">
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+  <thead>
+    <tr style="text-align:right;color:#93a89c">
+      <th style="padding:8px">نام</th><th style="padding:8px">اسلاگ</th>
+      <th style="padding:8px">کدِ پلتفرم</th><th style="padding:8px">وضعیت</th>
+      <th style="padding:8px">آنبوردینگ</th><th style="padding:8px">ایجاد</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for store in page %}
+    <tr style="border-top:1px solid #1e2b23">
+      <td style="padding:8px"><a href="{% url 'portal_platform_admin:store-detail' store.public_id %}" style="color:#e7f3ee">{{ store.name }}</a></td>
+      <td style="padding:8px;direction:ltr;text-align:left">{{ store.slug }}</td>
+      <td style="padding:8px;direction:ltr;text-align:left">{{ store.platform_code }}</td>
+      <td style="padding:8px">{{ store.get_status_display }}</td>
+      <td style="padding:8px">{% if store.onboarding_completed_at %}تکمیل‌شده{% else %}ناتمام{% endif %}</td>
+      <td style="padding:8px">{{ store.created_at|date:"Y-m-d" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" style="padding:16px;text-align:center;color:#93a89c">فروشگاهی یافت نشد.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% if page.has_previous or page.has_next %}
+<div style="display:flex;gap:8px;margin-top:16px">
+  {% if page.has_previous %}<a class="p-btn p-btn-ghost" href="?q={{ query }}&page={{ page.previous_page_number }}">قبلی</a>{% endif %}
+  {% if page.has_next %}<a class="p-btn p-btn-ghost" href="?q={{ query }}&page={{ page.next_page_number }}">بعدی</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

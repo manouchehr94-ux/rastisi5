@@ -1,0 +1,89 @@
+{% extends "portal/platform_admin/base.html" %}
+{% block title %}{{ store.name }} | پنل مدیریت پلتفرم{% endblock %}
+{% block content %}
+<p><a href="{% url 'portal_platform_admin:stores' %}" style="color:#93a89c;font-size:13px">← بازگشت به فهرستِ فروشگاه‌ها</a></p>
+<h2 style="margin:10px 0">{{ store.name }}</h2>
+<p style="color:#93a89c;font-size:13px;direction:ltr;text-align:left">{{ store.slug }} · {{ store.platform_code }} · {{ store.public_id }}</p>
+
+<div class="p-grid cols-3" style="margin:20px 0">
+  <div class="p-card" style="background:#152019;border-color:#243329">
+    <p style="color:#93a89c;font-size:12px">وضعیتِ فروشگاه</p>
+    <p style="font-size:18px;font-weight:700">{{ store.get_status_display }}</p>
+  </div>
+  <div class="p-card" style="background:#152019;border-color:#243329">
+    <p style="color:#93a89c;font-size:12px">آنبوردینگ</p>
+    <p style="font-size:18px;font-weight:700">{% if store.onboarding_completed_at %}تکمیل‌شده{% else %}{{ store.get_onboarding_stage_display }}{% endif %}</p>
+  </div>
+  <div class="p-card" style="background:#152019;border-color:#243329">
+    <p style="color:#93a89c;font-size:12px">اشتراکِ جاری</p>
+    <p style="font-size:18px;font-weight:700">
+      {% if current_subscription %}{{ current_subscription.plan_version.plan.name }} — {{ current_subscription.get_status_display }}{% else %}ندارد{% endif %}
+    </p>
+  </div>
+</div>
+
+<h3 style="margin:24px 0 10px">دامنه‌ها</h3>
+<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+  <thead><tr style="text-align:right;color:#93a89c"><th style="padding:8px">میزبان</th><th style="padding:8px">نوع</th><th style="padding:8px">وضعیتِ تأیید</th><th style="padding:8px">اصلی</th><th style="padding:8px">بازنشسته</th></tr></thead>
+  <tbody>
+  {% for domain in domains %}
+    <tr style="border-top:1px solid #1e2b23">
+      <td style="padding:8px;direction:ltr;text-align:left">{{ domain.hostname }}</td>
+      <td style="padding:8px">{{ domain.get_domain_type_display }}</td>
+      <td style="padding:8px">{{ domain.get_verification_status_display }}</td>
+      <td style="padding:8px">{% if domain.is_primary %}بله{% else %}—{% endif %}</td>
+      <td style="padding:8px">{% if domain.retired_at %}{{ domain.retired_at|date:"Y-m-d" }}{% else %}—{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+
+<h3 style="margin:24px 0 10px">اعضا</h3>
+<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+  <thead><tr style="text-align:right;color:#93a89c"><th style="padding:8px">کاربر</th><th style="padding:8px">نقش</th><th style="padding:8px">وضعیت</th></tr></thead>
+  <tbody>
+  {% for membership in memberships %}
+    <tr style="border-top:1px solid #1e2b23">
+      <td style="padding:8px">{{ membership.user.username }}</td>
+      <td style="padding:8px">{{ membership.get_role_display }}</td>
+      <td style="padding:8px">{{ membership.get_status_display }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+
+<h3 style="margin:24px 0 10px">فاکتورهای پلتفرم</h3>
+<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+  <thead><tr style="text-align:right;color:#93a89c"><th style="padding:8px">شناسه</th><th style="padding:8px">پلن</th><th style="padding:8px">مبلغ</th><th style="padding:8px">وضعیت</th><th style="padding:8px">تاریخ</th></tr></thead>
+  <tbody>
+  {% for invoice in invoices %}
+    <tr style="border-top:1px solid #1e2b23">
+      <td style="padding:8px;direction:ltr;text-align:left">{{ invoice.public_id }}</td>
+      <td style="padding:8px">{{ invoice.plan_version.plan.name }}</td>
+      <td style="padding:8px">{{ invoice.amount }}</td>
+      <td style="padding:8px">{{ invoice.get_status_display }}</td>
+      <td style="padding:8px">{{ invoice.created_at|date:"Y-m-d" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" style="padding:16px;text-align:center;color:#93a89c">فاکتوری ثبت نشده.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+
+<h3 style="margin:24px 0 10px">آخرین رخدادهای حسابرسیِ این فروشگاه</h3>
+<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+  <thead><tr style="text-align:right;color:#93a89c"><th style="padding:8px">کد عملیات</th><th style="padding:8px">انجام‌دهنده</th><th style="padding:8px">نتیجه</th><th style="padding:8px">تاریخ</th></tr></thead>
+  <tbody>
+  {% for entry in audit_entries %}
+    <tr style="border-top:1px solid #1e2b23">
+      <td style="padding:8px">{{ entry.action_code }}</td>
+      <td style="padding:8px">{{ entry.actor.username|default:"—" }}</td>
+      <td style="padding:8px">{{ entry.get_result_display }}</td>
+      <td style="padding:8px">{{ entry.created_at|date:"Y-m-d H:i" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" style="padding:16px;text-align:center;color:#93a89c">رخدادی ثبت نشده.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}
