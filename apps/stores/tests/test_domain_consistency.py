@@ -39,19 +39,33 @@ class CheckDomainConsistencyTests(TestCase):
         warnings = [i for i in issues if i["severity"] == "warning"]
         self.assertTrue(any("generated_trial" in i["message"] for i in warnings))
 
-    def test_redirect_domain_without_a_primary_is_an_error(self):
+    def test_active_store_with_only_retired_domains_is_an_error(self):
         store = _make_store()
-        # Bypass save()'s own validation entirely via a raw SQL-level path,
-        # matching the DB-constraint test technique used elsewhere: create
-        # a non-primary redirect row (valid on its own), no primary domain
-        # exists for this store at all — a genuinely broken/dangling state.
+        # An ACTIVE Store whose only StoreDomain row is retired: no live
+        # address left at all — a genuinely broken/dangling state.
         StoreDomain.objects.create(
-            store=store, hostname="orphan-alias.example.com", is_primary=False, is_redirect=True,
+            store=store, hostname="orphan-retired.example.com", is_primary=False,
+            retired_at=timezone.now(),
             verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
         )
         issues = check_domain_consistency()
         errors = [i for i in issues if i["severity"] == "error"]
-        self.assertTrue(any("تغییرمسیر" in i["message"] for i in errors))
+        self.assertTrue(any("دامنه‌ی اصلیِ زنده" in i["message"] for i in errors))
+
+    def test_active_store_with_a_live_primary_alongside_a_retired_domain_is_clean(self):
+        store = _make_store()
+        StoreDomain.objects.create(
+            store=store, hostname="live.example.com", is_primary=True,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+        StoreDomain.objects.create(
+            store=store, hostname="retired.example.com", is_primary=False,
+            retired_at=timezone.now(),
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+        issues = check_domain_consistency()
+        errors = [i for i in issues if i["severity"] == "error"]
+        self.assertEqual(errors, [])
 
     def test_reserved_label_under_admin_suffix_is_an_error(self):
         store = _make_store()
@@ -100,7 +114,7 @@ class VerifyDomainConsistencyCommandTests(TestCase):
     def test_command_raises_on_error_severity_issue(self):
         store = _make_store()
         StoreDomain.objects.create(
-            store=store, hostname="orphan.example.com", is_primary=False, is_redirect=True,
+            store=store, hostname="orphan.example.com", is_primary=False, retired_at=timezone.now(),
             verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
         )
         with self.assertRaises(CommandError):

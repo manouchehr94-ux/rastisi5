@@ -75,18 +75,23 @@ class StoreNotResolvedError(StoreResolutionError):
 def domain_is_eligible_for_routing(domain: StoreDomain) -> bool:
     """The exact, minimal routing-eligibility policy for this PR.
 
-    A ``StoreDomain`` may route a request only when BOTH:
+    A ``StoreDomain`` may route a request only when ALL of:
 
     * its Store's ``status`` is ``ACTIVE`` — not provisioning, suspended, or closed;
-    * its own ``verification_status`` is ``VERIFIED`` — not unverified, pending, or failed.
+    * its own ``verification_status`` is ``VERIFIED`` — not unverified, pending, or failed;
+    * it has not been retired (``retired_at is None``) — a retired hostname
+      (e.g. a generated trial hostname superseded by a paid permanent handle,
+      ADR-101) never routes again, and never redirects either; it simply
+      stops resolving, exactly like an unverified domain would.
 
-    Anything else fails closed. An unverified, pending, or failed domain,
-    or a domain whose Store is not active, must never resolve — even if the
-    hostname otherwise matches a real, existing row.
+    Anything else fails closed. An unverified, pending, failed, or retired
+    domain, or a domain whose Store is not active, must never resolve —
+    even if the hostname otherwise matches a real, existing row.
     """
     return (
         domain.store.status == Store.Status.ACTIVE
         and domain.verification_status == StoreDomain.VerificationStatus.VERIFIED
+        and domain.retired_at is None
     )
 
 
@@ -249,41 +254,6 @@ def resolve_store_for_hostname_or_none(raw_host: str):
         return resolve_store_for_hostname(raw_host)
     except StoreResolutionError:
         return None
-
-
-def resolve_store_domain_for_hostname_or_none(raw_host: str):
-    """Like ``resolve_store_for_hostname_or_none`` but returns the matched,
-    routing-eligible ``StoreDomain`` row itself (not just its ``Store``), for
-    callers that need the domain object — currently only
-    ``HostnameRedirectMiddleware`` (ADR-96), which needs to know
-    ``is_redirect``. Never matches a development/compatibility host (those
-    resolve the Akhlaghi Store without any real ``StoreDomain`` row backing
-    them, by construction), so a redirect check on those hosts is always a
-    safe no-op via ``None``.
-    """
-    stripped = _strip_port(raw_host)
-    if _is_development_host(stripped):
-        return None
-    try:
-        normalized = normalize_hostname(stripped)
-    except ValidationError:
-        return None
-    domain = StoreDomain.objects.select_related("store").filter(hostname=normalized).first()
-    if domain is None or not domain_is_eligible_for_routing(domain):
-        return None
-    return domain
-
-
-def resolve_store_domain_for_request_or_none(request):
-    """Same as ``resolve_store_domain_for_hostname_or_none``, but takes the
-    ``HttpRequest`` directly and never raises — an already-disallowed Host
-    header (``DisallowedHost``) resolves to ``None``, exactly like
-    ``resolve_store_for_request`` handles it for the Store-only lookup."""
-    try:
-        raw_host = request.get_host()
-    except DisallowedHost:
-        return None
-    return resolve_store_domain_for_hostname_or_none(raw_host)
 
 
 def resolve_store_for_request(request):

@@ -3800,7 +3800,11 @@ happen to be attached to it today.
 
 ---
 
-## ADR-95: `StoreDomain` Gains `domain_type` and `is_redirect` — No Second Hostname Table
+## ADR-95: `StoreDomain` Gains `domain_type` and `retired_at` — No Second Hostname Table
+
+**Amended by ADR-101** — the field originally shipped here as `is_redirect`
+was replaced with `retired_at` before any real caller ever set it; the
+description below reflects the current, corrected shape.
 
 **Decision.** Rather than introduce a competing model for
 trial/platform/custom hostnames, `StoreDomain` (already the single source of
@@ -3809,27 +3813,24 @@ truth for request-time hostname resolution, ADR-4/ADR-5) gains two fields:
 * `domain_type` — `generated_trial` / `platform_subdomain` / `custom_domain`.
   Purely descriptive (what kind of hostname this is, for UI and consistency
   checks); it does not change routing eligibility, which stays exactly
-  `domain_is_eligible_for_routing` (Store `ACTIVE` + domain `VERIFIED`).
-  Platform-issued hostnames (`generated_trial`, `platform_subdomain`) are
-  created already `VERIFIED` — Rastisi controls the wildcard DNS for its own
-  suffix, so merchant DNS/HTTP verification (ADR-5's deliberately unimplemented
-  networking) makes no sense for them; only `custom_domain` rows go through
-  the real verification lifecycle (see ADR-97).
-* `is_redirect` — when `True`, this hostname must never render storefront
-  content directly; it exists only so an old hostname a Store used to answer
-  on keeps working forever as a redirect to the Store's current primary
-  domain (ADR-96). It is enforced by a new, additive `HostnameRedirectMiddleware`
-  (checked immediately after `StoreResolutionMiddleware`), not by weakening
-  `domain_is_eligible_for_routing` or touching any existing storefront view —
-  every one of the ~3000 pre-existing tests that assume a resolved `StoreDomain`
-  serves content directly keeps doing exactly that, since `is_redirect`
-  defaults to `False` and only ever gets set `True` by the subdomain-claim
-  service (ADR-96).
+  `domain_is_eligible_for_routing` (Store `ACTIVE` + domain `VERIFIED` +
+  not `retired_at`). Platform-issued hostnames (`generated_trial`,
+  `platform_subdomain`) are created already `VERIFIED` — Rastisi controls the
+  wildcard DNS for its own suffix, so merchant DNS/HTTP verification (ADR-5's
+  deliberately unimplemented networking) makes no sense for them; only
+  `custom_domain` rows go through the real verification lifecycle (see
+  ADR-97/ADR-101 §12).
+* `retired_at` — when set, this hostname never resolves again, for anything
+  — not storefront content, not a redirect (ADR-101 explicitly overrides the
+  original `is_redirect`-forever design below). `domain_is_eligible_for_
+  routing` excludes any domain with `retired_at` set, so a retired hostname
+  falls through the exact same fail-closed path an unverified/unknown host
+  already uses — a clean 404, with no dedicated middleware needed.
 
 Backfilled data migration: every pre-existing `StoreDomain` row defaults to
 `domain_type="custom_domain"` (the conservative assumption for hostnames that
 predate this whole scheme — treat them as merchant-supplied unless the
-platform code proves otherwise) and `is_redirect=False`.
+platform code proves otherwise) and `retired_at=NULL`.
 
 **Consequences.** One hostname model keeps meaning "the authoritative mapping
 from a real HTTP Host to a Store," exactly as ADR-4/ADR-5 established; the new
@@ -3837,23 +3838,31 @@ fields only add descriptive/lifecycle metadata on top.
 
 ---
 
-## ADR-96: Old Hostnames Become Permanent Redirecting Aliases, Never Reused
+## ADR-96 (SUPERSEDED BY ADR-101): Old Hostnames Become Permanent Redirecting Aliases, Never Reused
 
-**Decision.** When a paying owner claims a human-readable subdomain (or,
-later, a custom domain) as their new primary `StoreDomain`, the previous
-primary hostname is not deleted and not detached from the Store — it is kept
-as a non-primary `StoreDomain` row with `is_redirect=True`, permanently
-redirecting (HTTP 301 for GET/HEAD, 308 for other methods, via
-`HostnameRedirectMiddleware`) to the new primary domain, path and query string
-preserved. Because `StoreDomain.hostname` is globally unique, a hostname that
-ever belonged to Store A can never be claimed by Store B — not while it's
-active, not after Store A stops using it. Reserved-word and normalization
-checks (`apps.stores.hostnames`) apply identically to platform-subdomain claims
-as they already do to `admin_subdomain`.
+**This decision was reversed before any real caller ever exercised it** — see
+ADR-101. Kept here, struck through in effect but not in text, as an honest
+record of the design this codebase briefly held and why it changed: an
+explicit product decision determined that a retired generated trial hostname
+must go silently inactive, not redirect (a redirect implicitly confirms to
+an outside observer that "this Store used to be reachable here, and is now
+reachable at X" — for a temporary internal identifier that was never meant
+to be a public, permanent address, that is more information than the
+product wants to leak, and it kept the temporary code alive as a
+forever-working entry point instead of retiring it).
 
-**Consequences.** Bookmarks, printed material, and old marketing links for a
-Store's original `{platform_code}.rastisi.ir` (or any earlier subdomain) never
-404 and never risk landing on a different merchant's Store later.
+Original text (no longer the implemented behavior): "When a paying owner
+claims a human-readable subdomain (or, later, a custom domain) as their new
+primary `StoreDomain`, the previous primary hostname is not deleted and not
+detached from the Store — it is kept as a non-primary `StoreDomain` row with
+`is_redirect=True`, permanently redirecting ... to the new primary domain
+... Because `StoreDomain.hostname` is globally unique, a hostname that ever
+belonged to Store A can never be claimed by Store B."
+
+The one part of this ADR that **still holds** under ADR-101: `StoreDomain.
+hostname`'s global uniqueness means a retired hostname can never be
+reassigned to a different Store either — retirement makes it permanently
+inert, not available for reuse.
 
 ---
 
@@ -3990,6 +3999,60 @@ migration risk.
 
 ---
 
+## ADR-101: Retired Trial/Platform Hostnames Go Silently Inactive, Never Redirect (Overrides ADR-96)
+
+**Decision (approved product decision, RASTISI COMPLETE IMPLEMENTATION
+spec §3.5).** ADR-96's "old hostname redirects forever" design is reversed
+before it ever had a real caller. The corrected lifecycle for a Store's
+generated trial hostname (`{platform_code}.{RASTISI_ADMIN_DOMAIN_SUFFIX}`):
+
+* it works normally — full storefront access — for as long as it is the
+  Store's `is_primary` domain (during trial/onboarding);
+* the moment a paid owner claims a permanent handle (Section 11, a later
+  slice) and that new hostname becomes `is_primary`, the trial hostname's
+  `StoreDomain` row is marked `retired_at=<now>` and `is_primary=False` in
+  the same transaction;
+* a retired hostname never serves content and never redirects — requests to
+  it fail the exact same `domain_is_eligible_for_routing` check an
+  unverified/unknown host already fails, landing on the same clean 404 via
+  `resolve_store_for_storefront`. No dedicated middleware is needed for
+  this — the corrected `HostnameRedirectMiddleware` (which used to issue
+  301/308s) has been **deleted**, not merely disabled, since redirecting is
+  now explicitly the wrong behavior, not a config toggle;
+* `StoreDomain.hostname`'s global uniqueness constraint still guarantees the
+  retired hostname can never be reassigned to a different Store — retirement
+  makes it permanently inert, not available for reuse;
+* the Store's permanent `platform_code` itself (distinct from the hostname
+  built from it, ADR-94) is untouched by retirement — it remains the
+  Store's internal, permanent identifier for support/audit purposes forever,
+  it is simply no longer exposed as a working public hostname.
+
+Schema change: `StoreDomain.is_redirect` (never used by any real code path)
+is removed outright and replaced with `StoreDomain.retired_at` (nullable
+`DateTimeField`); `domain_is_eligible_for_routing` gains a third condition
+(`retired_at is None`); the `redirect_alias_domain_is_never_primary`
+`CheckConstraint` is replaced with an equivalent `retired_domain_is_never_
+primary` one over the new field. `verify_domain_consistency` is updated
+to check for the state this correction is meant to prevent (an `ACTIVE`
+Store with no live primary domain at all, or a retired domain that is
+still marked `is_primary`) instead of the now-removed "redirect target
+missing" check.
+
+This is also the point where `RASTISI_PLATFORM_ADMIN_HOSTS`' default moves
+from `platform.rastisi.ir` to the approved `platformadmins.rastisi.ir`
+(spec §3.12/§3.13) — a deliberately less-guessable direct-URL-only host,
+never linked from any public page, portal page, or Merchant Admin page.
+
+**Consequences.** A visitor who bookmarks or shares a Store's temporary
+trial address before the owner goes fully live loses that link once the
+Store activates — an accepted tradeoff of not permanently exposing the
+platform-generated identifier as a real address. Section J (paid
+human-readable subdomain claim) and Section 11 (permanent handle claim)
+must both call the retirement step explicitly when they land; neither is
+implemented yet in this slice.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -4091,9 +4154,10 @@ migration risk.
 | Browser/E2E testing complements (never replaces) service+view tests; no driver/profile/screenshot artifacts | Decided, implemented (6, ADR-92) |
 | Owner identity is email/password, structurally separate from phone-based storefront customer identity | Decided, implemented (Portal, ADR-93) |
 | `Store.platform_code`: permanent, human-typable 9-char identifier, distinct from `public_id`/`admin_subdomain` | Decided, implemented (Portal, ADR-94) |
-| `StoreDomain` gains `domain_type`/`is_redirect`; no second hostname table | Decided, implemented (Portal, ADR-95) |
-| Old hostnames become permanent redirecting aliases, never reused by another Store | Decided, implemented (Portal, ADR-96) |
+| `StoreDomain` gains `domain_type`/`retired_at`; no second hostname table | Decided, implemented (Portal, ADR-95, amended ADR-101) |
+| Old hostnames become permanent redirecting aliases, never reused by another Store | Superseded by ADR-101 (Portal, ADR-96) |
 | Platform-level hosts (marketing/portal, platform-admin) get their own URLconf via `request.urlconf`, additive to existing routing | Decided, implemented (Portal, ADR-97) |
 | Merchant-admin handoff via a signed, single-use, DB-backed ticket (no cross-subdomain cookie sharing) | Decided, implemented (Portal, ADR-98) |
 | Trial Store provisioning activates immediately in one atomic call; onboarding is a separate, optional, later flow | Decided, implemented (Portal, ADR-99) |
 | `verify_domain_consistency --strict` is read-only, mirrors the billing/subscription/inventory consistency-command shape exactly; a wider `RESERVED_PLATFORM_SUBDOMAINS` list (Section K's product decision) guards future paid subdomain claims and is checked here today | Decided, implemented (Portal, ADR-100) |
+| Retired trial/platform hostnames go silently inactive and never redirect (overrides ADR-96); Platform Admin host is `platformadmins.rastisi.ir` | Decided, implemented (Portal, ADR-101) |

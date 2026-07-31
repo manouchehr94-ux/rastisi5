@@ -45,20 +45,31 @@ def check_domain_consistency() -> list:
             "message": f"فروشگاه {row['store_id']} بیش از یک دامنه‌ی اصلی دارد ({row['n']}).",
         })
 
-    # ۴) دامنه‌ی تغییرمسیر (is_redirect) که فروشگاهش هیچ دامنه‌ی اصلی‌ای
-    # ندارد — مقصدِ تغییرمسیر گم‌شده (باید هرگز رخ ندهد، چون سرویسِ ادعایِ
-    # زیردامنه همیشه دامنه‌ی اصلیِ تازه را قبل از تبدیلِ قدیمی به alias
-    # می‌سازد؛ نبودش یعنی داده‌ی دستی/خراب).
+    # ۴) Storeای که همه‌ی دامنه‌هایش بازنشسته‌اند (هیچ دامنه‌ی فعالِ اصلی‌ای
+    # ندارد) اما هنوز ACTIVE است — یعنی هیچ آدرسِ زنده‌ای برایِ آن باقی
+    # نمانده (باید هرگز رخ ندهد؛ سرویسِ ادعایِ زیردامنه/تعیینِ دستهِ دائمی
+    # همیشه باید دامنه‌ی اصلیِ تازه را قبل از بازنشسته‌کردنِ قدیمی بسازد).
     stores_with_primary = set(
         StoreDomain.objects.filter(is_primary=True).values_list("store_id", flat=True)
     )
-    for domain in StoreDomain.objects.filter(is_redirect=True).select_related("store"):
-        if domain.store_id not in stores_with_primary:
-            issues.append({
-                "severity": "error",
-                "message": f"دامنه‌ی تغییرمسیرِ «{domain.hostname}» به دامنه‌ی اصلی‌ای اشاره ندارد "
-                           f"(فروشگاه {domain.store_id} دامنه‌ی اصلی ندارد).",
-            })
+    active_store_ids_with_any_domain = set(
+        StoreDomain.objects.filter(store__status=Store.Status.ACTIVE).values_list("store_id", flat=True)
+    )
+    for store_id in active_store_ids_with_any_domain - stores_with_primary:
+        issues.append({
+            "severity": "error",
+            "message": f"فروشگاه {store_id} فعال است اما هیچ دامنه‌ی اصلیِ زنده‌ای ندارد "
+                       f"(همه‌ی دامنه‌هایش بازنشسته/نامعتبرند).",
+        })
+
+    # ۴ب) دامنه‌ی بازنشسته‌ای که هنوز is_primary=True مانده — تناقض؛ باید
+    # هرگز رخ ندهد (قیدِ retired_domain_is_never_primary باید جلویش را
+    # بگیرد؛ دفاعِ لایه‌ی دوم برایِ داده‌ای که از مسیرِ دیگری وارد شده).
+    for domain in StoreDomain.objects.filter(retired_at__isnull=False, is_primary=True):
+        issues.append({
+            "severity": "error",
+            "message": f"دامنه‌ی بازنشسته‌ی «{domain.hostname}» هنوز is_primary=True است.",
+        })
 
     # ۵) برخوردِ نامِ رزروشده — برچسبِ چپِ نام میزبان با فهرستِ رزروِ
     # زیردامنه‌ی پلتفرم برخورد دارد (باید توسطِ اعتبارسنجیِ ادعای زیردامنه

@@ -228,9 +228,9 @@ def _verification_lifecycle_errors(instance):
         errors.setdefault("verification_token", []).append(
             "دامنه‌ی در انتظار تأیید باید توکن تأیید داشته باشد."
         )
-    if instance.is_redirect and instance.is_primary:
-        errors.setdefault("is_redirect", []).append(
-            "دامنه‌ی تغییرمسیر نمی‌تواند هم‌زمان دامنه‌ی اصلی باشد."
+    if instance.retired_at is not None and instance.is_primary:
+        errors.setdefault("retired_at", []).append(
+            "دامنه‌ی بازنشسته نمی‌تواند هم‌زمان دامنه‌ی اصلی باشد."
         )
     return errors
 
@@ -345,15 +345,18 @@ class StoreDomain(StoresTimestampedModel):
             "زیردامنه‌هاست؛ فقط custom_domain مسیر تأیید واقعی را طی می‌کند."
         ),
     )
-    is_redirect = models.BooleanField(
-        "فقط تغییرمسیر (نام میزبان بازنشسته)",
-        default=False,
+    retired_at = models.DateTimeField(
+        "زمان بازنشستگی",
+        null=True, blank=True,
         help_text=(
-            "وقتی True، این نام میزبان دیگر محتوای فروشگاه را مستقیماً "
-            "نمایش نمی‌دهد — فقط برای همیشه به دامنه‌ی اصلی فعلی فروشگاه "
-            "تغییرمسیر می‌دهد (ADR-96)، پس از این‌که مالک زیردامنه‌ی "
-            "خواناتری خریداری/انتخاب کرده باشد. توسط "
-            "HostnameRedirectMiddleware اعمال می‌شود، نه توسط resolution.py."
+            "وقتی مقداردهی شده، این نام میزبان دیگر هرگز چیزی نمایش نمی‌دهد "
+            "— نه محتوای فروشگاه، نه تغییرمسیر (ADR-101؛ جایگزینِ رفتارِ "
+            "تغییرمسیرِ همیشگیِ ADR-96 که کنار گذاشته شد). درخواست به این "
+            "نام میزبان یک پاسخِ امنِ «غیرفعال/یافت‌نشد» می‌گیرد "
+            "(domain_is_eligible_for_routing این ردیف را واجد شرایط "
+            "نمی‌داند). ردیف هرگز حذف نمی‌شود و hostname برای همیشه یکتا "
+            "می‌ماند — پس این نام میزبان هرگز به فروشگاه دیگری واگذار "
+            "نمی‌شود، فقط دیگر به هیچ‌جا نمی‌رود."
         ),
     )
 
@@ -408,8 +411,8 @@ class StoreDomain(StoresTimestampedModel):
                 name="pending_status_requires_verification_token",
             ),
             models.CheckConstraint(
-                check=~models.Q(is_redirect=True) | models.Q(is_primary=False),
-                name="redirect_alias_domain_is_never_primary",
+                check=models.Q(retired_at__isnull=True) | models.Q(is_primary=False),
+                name="retired_domain_is_never_primary",
             ),
         ]
         indexes = [

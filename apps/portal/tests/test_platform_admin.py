@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
 User = get_user_model()
-_HOST = "platform.rastisi.localhost"
+_HOST = "platformadmins.rastisi.localhost"
 
 
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])

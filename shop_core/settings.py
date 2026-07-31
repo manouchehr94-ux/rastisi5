@@ -48,7 +48,7 @@ SECRET_KEY = resolve_secret_key(DEBUG)
 ALLOWED_HOSTS = resolve_allowed_hosts(DEBUG)
 if DEBUG:
     # Local-dev-only wildcard for the platform's own hosts (marketing/portal
-    # at rastisi.localhost, platform admin at platform.rastisi.localhost,
+    # at rastisi.localhost, platform admin at platformadmins.rastisi.localhost,
     # trial/claimed storefronts at <label>.rastisi.localhost, merchant admin
     # at <admin_subdomain>.rastisi.localhost). Django's leading-dot ALLOWED_
     # HOSTS syntax matches the bare domain too, so this one entry covers all
@@ -134,12 +134,6 @@ MIDDLEWARE = [
     # Middleware (so request.store is already set, even if None on these
     # hosts) and before anything that dispatches on request.urlconf.
     "apps.portal.middleware.PlatformHostRoutingMiddleware",
-    # Redirects a Store's retired hostnames (kept as permanent aliases after
-    # a paid subdomain claim, ADR-96) straight to the Store's current primary
-    # domain, before any storefront view runs. Additive: only ever acts on a
-    # StoreDomain row with is_redirect=True, which nothing before this PR can
-    # create.
-    "apps.stores.middleware.HostnameRedirectMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -338,12 +332,16 @@ RASTISI_PLATFORM_HOSTS = frozenset(
         "RASTISI_PLATFORM_HOSTS", default=("rastisi.ir", "www.rastisi.ir", "rastisi.localhost"),
     )
 )
-# Platform Admin (ADR-97): exact Hosts that serve the staff/superuser-only
-# operational dashboard. Deliberately a disjoint set from RASTISI_PLATFORM_
-# HOSTS — the marketing/portal host must never also resolve platform admin.
+# Platform Admin (ADR-97, host approved in ADR-101: "platformadmins.rastisi.ir",
+# not "platform.rastisi.ir" — direct-URL-only, never linked from anywhere
+# public, deliberately a word that doesn't read as an obvious admin path):
+# exact Hosts that serve the staff/superuser-only operational dashboard.
+# Deliberately a disjoint set from RASTISI_PLATFORM_HOSTS — the marketing/
+# portal host must never also resolve platform admin.
 RASTISI_PLATFORM_ADMIN_HOSTS = frozenset(
     h.lower() for h in env_list(
-        "RASTISI_PLATFORM_ADMIN_HOSTS", default=("platform.rastisi.ir", "platform.rastisi.localhost"),
+        "RASTISI_PLATFORM_ADMIN_HOSTS",
+        default=("platformadmins.rastisi.ir", "platformadmins.rastisi.localhost"),
     )
 )
 # The one canonical host used to build absolute cross-host links back to the
