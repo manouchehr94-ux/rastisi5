@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -56,6 +57,7 @@ class AdminReturnTokenTests(TestCase):
 )
 class UnauthenticatedAdminRequestRedirectsCentrallyTests(TestCase):
     def setUp(self):
+        cache.clear()  # rate-limit/step-up counters are cache-backed, not DB-backed — not reset by transaction rollback
         self.store = _make_store()
 
     def test_unauthenticated_dashboard_request_redirects_to_central_login(self):
@@ -77,6 +79,7 @@ class UnauthenticatedAdminRequestRedirectsCentrallyTests(TestCase):
 )
 class FullCentralLoginHandoffFlowTests(TestCase):
     def setUp(self):
+        cache.clear()  # rate-limit/step-up counters are cache-backed, not DB-backed — not reset by transaction rollback
         self.store = _make_store()
         self.member = _make_member(self.store)
 

@@ -7,6 +7,8 @@ app_name = "portal"
 urlpatterns = [
     # Public marketing site (Section A)
     path("", views.home, name="home"),
+    path("robots.txt", views.platform_robots_txt, name="robots-txt"),
+    path("sitemap.xml", views.platform_sitemap_xml, name="sitemap-xml"),
     path("features/", views.features, name="features"),
     path("plans/", views.plans, name="plans"),
     path("help/", views.help_center, name="help"),

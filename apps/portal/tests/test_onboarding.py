@@ -168,6 +168,11 @@ class OnboardingViewTests(TestCase):
 
 
 class RegistrationAutoProvisionsTrialStoreTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()  # OTP rate-limit counters are cache-backed and leak across tests otherwise
+
     def _fixed_code(self):
         import apps.portal.services.owner_otp_service as svc
 

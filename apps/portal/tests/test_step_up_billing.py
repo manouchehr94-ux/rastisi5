@@ -5,6 +5,7 @@ test_billing_views.py which explicitly disables it to isolate checkout
 mechanics."""
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -27,6 +28,7 @@ def _fixed_code():
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
 class StepUpBillingTests(TestCase):
     def setUp(self):
+        cache.clear()  # OTP rate-limit counters are cache-backed and leak across tests otherwise
         self.store = Store.objects.create(
             name="فروشگاه تأیید گام‌دوم", slug="step-up-store", admin_subdomain="step-up-store",
         )

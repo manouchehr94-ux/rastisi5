@@ -4,6 +4,7 @@ action key ("permanent_handle_claim") so verifying one sensitive action
 never unlocks a different one for the same Store."""
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -27,6 +28,10 @@ def _fixed_code(code="556677"):
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
 class ClaimHandleViewTests(TestCase):
     def setUp(self):
+        # OTP rate-limit counters are cache-backed, not DB-backed — they
+        # survive this test's transaction rollback and can otherwise leak
+        # into whichever test happens to run next and also requests OTPs.
+        cache.clear()
         self.store = Store.objects.create(
             name="فروشگاه ویو نام دائمی", slug="claim-view-store", admin_subdomain="claim-view-store",
         )

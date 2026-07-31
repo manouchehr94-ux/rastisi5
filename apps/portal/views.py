@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.views.decorators.http import require_POST
@@ -75,6 +76,38 @@ def terms(request):
 
 def privacy(request):
     return render(request, "portal/public/privacy.html")
+
+
+def platform_robots_txt(request):
+    """robots.txt برایِ خودِ سایتِ راستیسی (Section 18) — مجزا از ``apps.core.
+    seo.robots_txt``ی tenant-scoped که مخصوصِ storefront هر Store است. فقط
+    ناحیه‌ی احرازهویت‌شده (``/app/``) را از crawl کنار می‌گذارد؛ صفحاتِ ورود/
+    ثبت‌نام/بازیابیِ رمز از طریقِ noindex در خودِ صفحه مدیریت می‌شوند (نه
+    Disallow اینجا)، تا در دسترسِ ربات بمانند ولی ایندکس نشوند."""
+    from django.http import HttpResponse
+
+    lines = [
+        "User-agent: *",
+        "Disallow: /app/",
+        f"Sitemap: {request.build_absolute_uri(reverse('portal:sitemap-xml'))}",
+        "",
+    ]
+    return HttpResponse("\n".join(lines), content_type="text/plain")
+
+
+def platform_sitemap_xml(request):
+    """sitemap.xmlِ سایتِ عمومیِ راستیسی — فقط صفحاتِ واقعاً عمومی/ایندکس‌پذیر."""
+    entries = [
+        {"loc": request.build_absolute_uri(reverse("portal:home")), "priority": "1.0", "lastmod": None},
+        {"loc": request.build_absolute_uri(reverse("portal:features")), "priority": "0.8", "lastmod": None},
+        {"loc": request.build_absolute_uri(reverse("portal:plans")), "priority": "0.9", "lastmod": None},
+        {"loc": request.build_absolute_uri(reverse("portal:help")), "priority": "0.6", "lastmod": None},
+        {"loc": request.build_absolute_uri(reverse("portal:contact")), "priority": "0.5", "lastmod": None},
+        {"loc": request.build_absolute_uri(reverse("portal:register")), "priority": "0.9", "lastmod": None},
+        {"loc": request.build_absolute_uri(reverse("portal:terms")), "priority": "0.3", "lastmod": None},
+        {"loc": request.build_absolute_uri(reverse("portal:privacy")), "priority": "0.3", "lastmod": None},
+    ]
+    return render(request, "seo/sitemap.xml", {"entries": entries}, content_type="application/xml")
 
 
 def contact(request):

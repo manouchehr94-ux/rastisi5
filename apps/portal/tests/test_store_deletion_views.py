@@ -3,6 +3,7 @@
 plus a no-step-up-needed cancellation."""
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -16,6 +17,7 @@ _HOST = "rastisi.localhost"
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
 class StoreDeletionViewsTestCase(TestCase):
     def setUp(self):
+        cache.clear()  # OTP rate-limit counters are cache-backed and leak across tests otherwise
         self.store = Store.objects.create(
             name="فروشگاه حذف ویو", slug="deletion-view-store", admin_subdomain="deletion-view-store",
             status=Store.Status.ACTIVE,

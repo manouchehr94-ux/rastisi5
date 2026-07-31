@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 
 from apps.customers.models import Customer
@@ -50,6 +51,9 @@ class NormalizeIranianPhoneTests(TestCase):
 
 
 class OwnerOtpServiceTests(TestCase):
+    def setUp(self):
+        cache.clear()  # OTP rate-limit counters are cache-backed and leak across tests otherwise
+
     def test_request_creates_a_pending_challenge(self):
         owner_otp_service.request_otp(phone="09121234567", purpose="login", client_ip="1.2.3.4")
         challenge = OwnerOtpChallenge.objects.get(phone="09121234567")
@@ -154,6 +158,9 @@ class GetOrCreateOwnerByPhoneTests(TestCase):
 
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
 class OtpViewFlowTests(TestCase):
+    def setUp(self):
+        cache.clear()  # OTP rate-limit counters are cache-backed and leak across tests otherwise
+
     def _fixed_code(self):
         import apps.portal.services.owner_otp_service as svc
 
