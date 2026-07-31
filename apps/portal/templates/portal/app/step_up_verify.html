@@ -1,12 +1,12 @@
 {% extends "portal/base_platform.html" %}
-{% block title %}تأییدِ خرید | راستیسی{% endblock %}
+{% block title %}تأییدِ عملیات | راستیسی{% endblock %}
 {% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 {% block content %}
 <div class="p-wrap">
 <div class="p-form-card" style="max-width:420px">
-  <h2 style="text-align:center;margin-bottom:8px">تأییدِ خرید</h2>
+  <h2 style="text-align:center;margin-bottom:8px">تأییدِ عملیات</h2>
   <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px">
-    برایِ ادامه‌ی خرید، کدِ ارسال‌شده به موبایلِ ثبت‌شده‌ی حساب‌تان را وارد کنید.
+    این یک عملیاتِ حساس است؛ برایِ ادامه، کدِ ارسال‌شده به موبایلِ ثبت‌شده‌ی حساب‌تان را وارد کنید.
   </p>
   {% if messages %}{% for message in messages %}<div class="p-alert p-alert-error">{{ message }}</div>{% endfor %}{% endif %}
   <form method="post" novalidate>

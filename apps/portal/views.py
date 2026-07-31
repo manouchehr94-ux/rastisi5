@@ -11,8 +11,9 @@ from django.views.decorators.http import require_POST
 from django.conf import settings
 
 from apps.catalog.models import IndustryTemplate
-from apps.stores.models import Store, StoreMembership
-from apps.subscriptions.models import Plan, PlanVersion, PlatformInvoice, PlatformPaymentAttempt
+from apps.stores.models import Store, StoreDomain, StoreMembership
+from apps.stores.services import handle_service
+from apps.subscriptions.models import Plan, PlanVersion, PlatformInvoice, PlatformPaymentAttempt, StoreSubscription
 from apps.subscriptions.services import billing_service
 
 from .decorators import owner_required
@@ -767,7 +768,7 @@ def billing_step_up_verify(request, store_public_id):
             return _start_purchase(request, store=store, plan_version=plan_version)
         messages.error(request, "کدِ واردشده نادرست یا منقضی است.")
 
-    return render(request, "portal/app/billing_step_up.html", {"store": store})
+    return render(request, "portal/app/step_up_verify.html", {"store": store})
 
 
 @owner_required
@@ -802,3 +803,87 @@ def billing_return(request, store_public_id, invoice_public_id):
     store = _get_owned_store_or_404(request, store_public_id)
     invoice = get_object_or_404(PlatformInvoice, public_id=invoice_public_id, store=store)
     return render(request, "portal/app/billing_return.html", {"store": store, "invoice": invoice})
+
+
+# ---------------------------------------------------------------------------
+# Permanent Store handle claim (Section 11)
+# ---------------------------------------------------------------------------
+
+_STEP_UP_ACTION_HANDLE_CLAIM = "permanent_handle_claim"
+_SESSION_PENDING_HANDLE_LABEL_KEY = "portal_pending_handle_label"
+
+
+@owner_required
+def claim_handle(request, store_public_id):
+    """صفحه‌ی ثبتِ نامِ دائمی — فقط برایِ فروشگاهی که اشتراکِ پولیِ فعال
+    دارد و هنوز نامِ دائمی ثبت نکرده (Section 11). ثبت غیرقابلِ بازگشت
+    است — این هشدار در قالب هم آشکارا نمایش داده می‌شود."""
+    store = _get_owned_store_or_404(request, store_public_id)
+    already_claimed = handle_service.has_claimed_handle(store)
+    current_subscription = store.subscriptions.filter(is_current=True).first()
+    can_claim = (
+        not already_claimed
+        and current_subscription is not None
+        and current_subscription.status == StoreSubscription.Status.ACTIVE
+    )
+
+    if request.method == "POST" and can_claim:
+        label = (request.POST.get("label") or "").strip()
+        target = str(store.public_id)
+        if step_up_service.is_step_up_required(_STEP_UP_ACTION_HANDLE_CLAIM) and not step_up_service.is_verified(
+            request, action=_STEP_UP_ACTION_HANDLE_CLAIM, target=target,
+        ):
+            phone = getattr(getattr(request.user, "owner_profile", None), "phone", None)
+            if not phone:
+                messages.error(request, "این عملیات نیاز به شماره موبایلِ ثبت‌شده در حساب دارد.")
+                return redirect("portal:claim-handle", store_public_id=store.public_id)
+            try:
+                step_up_service.begin_challenge(
+                    request, action=_STEP_UP_ACTION_HANDLE_CLAIM, target=target, phone=phone,
+                    message="کدِ تأییدِ ثبتِ نامِ دائمیِ فروشگاه: {code}",
+                    client_ip=request.META.get("REMOTE_ADDR", ""),
+                )
+            except step_up_service.OtpRateLimitError as exc:
+                messages.error(request, str(exc))
+                return redirect("portal:claim-handle", store_public_id=store.public_id)
+            request.session[_SESSION_PENDING_HANDLE_LABEL_KEY] = label
+            return redirect("portal:claim-handle-step-up", store_public_id=store.public_id)
+
+        try:
+            handle_service.claim_platform_handle(store=store, label=label, actor=request.user)
+        except handle_service.HandleError as exc:
+            messages.error(request, str(exc))
+            return redirect("portal:claim-handle", store_public_id=store.public_id)
+        messages.success(request, "نامِ دائمیِ فروشگاه با موفقیت ثبت شد.")
+        return redirect("portal:claim-handle", store_public_id=store.public_id)
+
+    claimed_domain = StoreDomain.objects.filter(
+        store=store, domain_type=StoreDomain.DomainType.PLATFORM_SUBDOMAIN, is_primary=True,
+    ).first()
+    return render(request, "portal/app/claim_handle.html", {
+        "store": store, "already_claimed": already_claimed, "can_claim": can_claim,
+        "claimed_domain": claimed_domain, "current_subscription": current_subscription,
+    })
+
+
+@owner_required
+def claim_handle_step_up(request, store_public_id):
+    store = _get_owned_store_or_404(request, store_public_id)
+    pending = step_up_service.pending_challenge(request)
+    if not pending or pending.get("target") != str(store.public_id):
+        return redirect("portal:claim-handle", store_public_id=store.public_id)
+
+    if request.method == "POST":
+        code = request.POST.get("code", "")
+        if step_up_service.confirm_challenge(request, code=code):
+            label = request.session.pop(_SESSION_PENDING_HANDLE_LABEL_KEY, "")
+            try:
+                handle_service.claim_platform_handle(store=store, label=label, actor=request.user)
+            except handle_service.HandleError as exc:
+                messages.error(request, str(exc))
+                return redirect("portal:claim-handle", store_public_id=store.public_id)
+            messages.success(request, "نامِ دائمیِ فروشگاه با موفقیت ثبت شد.")
+            return redirect("portal:claim-handle", store_public_id=store.public_id)
+        messages.error(request, "کدِ واردشده نادرست یا منقضی است.")
+
+    return render(request, "portal/app/step_up_verify.html", {"store": store})

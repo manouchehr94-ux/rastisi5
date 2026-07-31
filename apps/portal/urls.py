@@ -64,4 +64,10 @@ urlpatterns = [
         "app/stores/<uuid:store_public_id>/billing/invoices/<str:invoice_public_id>/",
         views.billing_return, name="billing-return",
     ),
+    # Permanent Store handle claim (Section 11)
+    path("app/stores/<uuid:store_public_id>/handle/", views.claim_handle, name="claim-handle"),
+    path(
+        "app/stores/<uuid:store_public_id>/handle/step-up/",
+        views.claim_handle_step_up, name="claim-handle-step-up",
+    ),
 ]

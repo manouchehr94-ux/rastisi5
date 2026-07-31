@@ -4,6 +4,7 @@ real HTTP client (not the service layer directly) so the urlconf/reverse
 wiring between apps.portal and apps.subscriptions is actually verified."""
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -20,9 +21,17 @@ _HOST = "rastisi.localhost"
 class BillingViewsTestCase(TestCase):
     """Section 10's step-up OTP is exercised on its own in
     test_step_up_billing.py; these tests are about checkout/dev-provider
-    mechanics, so step-up is explicitly turned off here to isolate that."""
+    mechanics, so step-up is explicitly turned off here to isolate that.
+
+    PlatformConfiguration is cached (300s) independently of the DB — a
+    view read *after* the setUp update but *before* this test's transaction
+    rolls back would otherwise leave a stale cached copy that outlives the
+    rollback and leaks into whichever test runs next in this process, so
+    the cache is force-cleared on teardown too, not just before the update.
+    """
 
     def setUp(self):
+        self.addCleanup(cache.clear)
         update_platform_configuration(actor=None, step_up_actions={"subscription_purchase_confirm": False})
         self.store = Store.objects.create(
             name="فروشگاه صورتحساب", slug="billing-view-store", admin_subdomain="billing-view-store",

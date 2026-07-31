@@ -89,6 +89,15 @@ def update_platform_configuration(*, actor, **fields) -> PlatformConfiguration:
             raise PlatformConfigurationError(f"کلید(های) نامعتبر در سیاست تأیید مجدد: {sorted(unknown)}")
 
     config = get_platform_configuration()
+
+    if "step_up_actions" in fields:
+        # Merge (PATCH semantics), never a full replace — toggling one
+        # sensitive action's step-up requirement must not silently disable
+        # step-up for every other action already configured.
+        merged = dict(config.step_up_actions)
+        merged.update(fields["step_up_actions"])
+        fields = {**fields, "step_up_actions": merged}
+
     before = {name: getattr(config, name) for name in fields}
 
     for name, value in fields.items():

@@ -1,0 +1,38 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}نامِ دائمیِ فروشگاه | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="p-wrap">
+<div class="p-form-card" style="max-width:480px">
+  <h2 style="text-align:center;margin-bottom:8px">نامِ دائمیِ فروشگاه</h2>
+
+  {% if messages %}{% for message in messages %}
+    <div class="p-alert {% if message.tags == 'error' %}p-alert-error{% else %}p-alert-success{% endif %}">{{ message }}</div>
+  {% endfor %}{% endif %}
+
+  {% if already_claimed %}
+  <p style="text-align:center;font-size:14px;margin-bottom:8px">نامِ دائمیِ این فروشگاه ثبت شده و دیگر توسطِ شما قابلِ تغییر نیست:</p>
+  <p style="text-align:center;direction:ltr;font-weight:600;margin-bottom:8px">{{ claimed_domain.hostname }}</p>
+  {% elif not can_claim %}
+  <p style="text-align:center;font-size:13px;color:var(--p-muted)">
+    ثبتِ نامِ دائمی فقط پس از تأییدِ پرداخت و فعال‌شدنِ یک اشتراکِ پولی ممکن است.
+  </p>
+  <a href="{% url 'portal:billing-plans' store.public_id %}" class="p-btn p-btn-primary" style="width:100%;margin-top:12px">مشاهده‌ی پلن‌ها</a>
+  {% else %}
+  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:8px">
+    این نام برایِ همیشه بخشی از آدرسِ فروشگاهِ شما رویِ راستیسی می‌شود
+    (<span style="direction:ltr">{ نام }.rastisi.ir</span>) و پس از ثبت، دیگر توسطِ شما قابلِ تغییر نیست.
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    <div class="p-field">
+      <label for="id_label">نامِ دائمی (فقط حروفِ انگلیسی و عدد)</label>
+      <input type="text" id="id_label" name="label" required style="direction:ltr;text-align:left">
+    </div>
+    <button type="submit" class="p-btn p-btn-primary" style="width:100%">ثبتِ نهاییِ نام (غیرقابلِ بازگشت)</button>
+  </form>
+  {% endif %}
+</div>
+</div>
+{% endblock %}
+{% block extra_css %}<style>.p-field input{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px}</style>{% endblock %}
