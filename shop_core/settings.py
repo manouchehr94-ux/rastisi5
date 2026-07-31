@@ -190,6 +190,17 @@ SECURE_HSTS_PRELOAD = env_bool("DJANGO_SECURE_HSTS_PRELOAD", default=False)
 # X-Forwarded-Proto (or equivalent) header is never trusted by default.
 SECURE_PROXY_SSL_HEADER = resolve_secure_proxy_ssl_header()
 
+# "Remember me" session duration (unified login — every interactive login
+# form). Applied via apps.portal.services.session_service.apply_remember_me,
+# never hand-rolled per view. Unchecked = 0 (expire when the browser
+# closes, Django's SESSION_EXPIRE_AT_BROWSER_CLOSE semantics); checked = a
+# real persistent duration. Both are plain integers (seconds) so there is
+# exactly one place either is configured, not one per view.
+AUTH_SESSION_DEFAULT_EXPIRY_SECONDS = env_int("AUTH_SESSION_DEFAULT_EXPIRY_SECONDS", default=0)
+AUTH_SESSION_REMEMBER_ME_EXPIRY_SECONDS = env_int(
+    "AUTH_SESSION_REMEMBER_ME_EXPIRY_SECONDS", default=60 * 60 * 24 * 30,
+)
+
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
