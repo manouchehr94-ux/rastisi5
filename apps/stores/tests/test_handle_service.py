@@ -71,6 +71,13 @@ class ClaimPlatformHandleTests(HandleServiceTestCase):
         self.assertIsNotNone(domain.verified_at)
         self.assertTrue(has_claimed_handle(self.store))
 
+    def test_sends_a_security_notification(self):
+        from apps.notifications.models import NotificationOutbox
+
+        self._make_paid_active_subscription()
+        claim_platform_handle(store=self.store, label="digilool", actor=self.actor)
+        self.assertTrue(NotificationOutbox.objects.filter(recipient_user=self.actor, is_security=True).exists())
+
     def test_successful_claim_retires_the_old_trial_hostname_without_deleting_it(self):
         self._make_paid_active_subscription()
         claim_platform_handle(store=self.store, label="digilool", actor=self.actor)

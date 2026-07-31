@@ -128,6 +128,15 @@ class AcceptTransferTests(OwnershipTransferTestCase):
             AuditLogEntry.objects.filter(store=self.store, action_code="store.ownership_transfer_completed").exists()
         )
 
+    def test_notifies_both_previous_and_new_owner(self):
+        from apps.notifications.models import NotificationOutbox
+
+        transfer = initiate_transfer(store=self.store, initiated_by=self.owner, target_phone="09121320099")
+        _updated, new_owner = accept_transfer(transfer=transfer)
+
+        self.assertTrue(NotificationOutbox.objects.filter(recipient_user=new_owner, is_security=True).exists())
+        self.assertTrue(NotificationOutbox.objects.filter(recipient_user=self.owner, is_security=True).exists())
+
 
 class CancelTransferTests(OwnershipTransferTestCase):
     def test_cancel_marks_cancelled(self):

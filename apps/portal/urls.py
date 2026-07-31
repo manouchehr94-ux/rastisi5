@@ -115,4 +115,6 @@ urlpatterns = [
         views.cancel_ownership_transfer, name="cancel-ownership-transfer",
     ),
     path("transfer/accept/<str:token>/", views.accept_ownership_transfer, name="accept-ownership-transfer"),
+    # In-app notifications (Section 16)
+    path("app/notifications/", views.notifications_list, name="notifications"),
 ]

@@ -92,7 +92,19 @@ def claim_platform_handle(*, store: Store, label: str, actor) -> StoreDomain:
         before={"old_hostname": old_primary.hostname if old_primary else None},
         after={"hostname": hostname},
     )
+    _notify_handle_claimed(store=locked_store, actor=actor, hostname=hostname)
     return new_domain
+
+
+def _notify_handle_claimed(*, store: Store, actor, hostname: str) -> None:
+    from apps.notifications.services.notification_service import notify_security_event
+
+    phone = getattr(getattr(actor, "owner_profile", None), "phone", "")
+    notify_security_event(
+        subject="نامِ دائمیِ فروشگاه ثبت شد",
+        body=f"نامِ دائمیِ فروشگاهِ «{store.name}» روی {hostname} ثبت شد. این نام غیرقابلِ تغییر است.",
+        user=actor, phone=phone, store=store,
+    )
 
 
 @transaction.atomic

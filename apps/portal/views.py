@@ -1249,3 +1249,25 @@ def accept_ownership_transfer(request, token):
                 messages.error(request, "کدِ واردشده نادرست یا منقضی است.")
 
     return render(request, "portal/public/ownership_transfer_accept.html", {"transfer": transfer})
+
+
+# ---------------------------------------------------------------------------
+# In-app notifications (Section 16)
+# ---------------------------------------------------------------------------
+
+
+@owner_required
+def notifications_list(request):
+    from apps.notifications.models import NotificationOutbox
+
+    notifications = NotificationOutbox.objects.filter(
+        recipient_user=request.user, channel=NotificationOutbox.Channel.IN_APP,
+    ).order_by("-created_at")[:100]
+
+    if request.method == "POST":
+        NotificationOutbox.objects.filter(
+            recipient_user=request.user, channel=NotificationOutbox.Channel.IN_APP, read_at__isnull=True,
+        ).update(read_at=timezone.now())
+        return redirect("portal:notifications")
+
+    return render(request, "portal/app/notifications.html", {"notifications": notifications})

@@ -6,6 +6,7 @@
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
     <h2 style="margin:0">فروشگاه‌های من</h2>
     <div style="display:flex;gap:10px">
+      <a class="p-btn p-btn-ghost" href="{% url 'portal:notifications' %}">اعلان‌ها</a>
       <a class="p-btn p-btn-primary" href="{% url 'portal:store-create' %}">+ فروشگاه تازه</a>
       <form method="post" action="{% url 'portal:logout' %}">{% csrf_token %}<button type="submit" class="p-btn p-btn-ghost">خروج</button></form>
     </div>

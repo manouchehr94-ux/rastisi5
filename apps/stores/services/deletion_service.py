@@ -47,7 +47,21 @@ def request_deletion(*, store: Store, actor, typed_confirmation: str) -> Store:
         object_type="Store", object_id=locked.pk, object_label=locked.name,
         after={"scheduled_purge_at": str(locked.deletion_scheduled_purge_at)},
     )
+    _notify_deletion_requested(store=locked, actor=actor)
     return locked
+
+
+def _notify_deletion_requested(*, store: Store, actor) -> None:
+    from apps.notifications.services.notification_service import notify_security_event
+
+    phone = getattr(getattr(actor, "owner_profile", None), "phone", "")
+    purge_date = store.deletion_scheduled_purge_at.strftime("%Y-%m-%d") if store.deletion_scheduled_purge_at else ""
+    notify_security_event(
+        subject="درخواستِ حذفِ فروشگاه ثبت شد",
+        body=f"درخواستِ حذفِ فروشگاهِ «{store.name}» ثبت شد. اگر این درخواست را شما نداده‌اید، فوراً وارد "
+             f"حسابِ خود شوید و آن را لغو کنید. این فروشگاه تا {purge_date} برایِ همیشه پاک خواهد شد.",
+        user=actor, phone=phone, store=store,
+    )
 
 
 @transaction.atomic

@@ -125,4 +125,23 @@ def accept_transfer(*, transfer: StoreOwnershipTransfer) -> tuple[StoreOwnership
         before={"previous_owner": old_owner_membership.user.username if old_owner_membership else None},
         after={"new_owner": new_owner.username},
     )
+    _notify_transfer_completed(store=store, previous_owner_membership=old_owner_membership, new_owner=new_owner)
     return locked, new_owner
+
+
+def _notify_transfer_completed(*, store: Store, previous_owner_membership, new_owner) -> None:
+    from apps.notifications.services.notification_service import notify_security_event
+
+    notify_security_event(
+        subject="مالکیتِ فروشگاه منتقل شد",
+        body=f"مالکیتِ فروشگاهِ «{store.name}» به مالکِ جدید منتقل شد.",
+        user=new_owner, phone=new_owner.username, store=store,
+    )
+    if previous_owner_membership is not None:
+        previous_owner = previous_owner_membership.user
+        phone = getattr(getattr(previous_owner, "owner_profile", None), "phone", "")
+        notify_security_event(
+            subject="مالکیتِ فروشگاهِ شما منتقل شد",
+            body=f"مالکیتِ فروشگاهِ «{store.name}» به مالکِ جدید منتقل شد؛ شما اکنون عضوِ تیم با نقشِ مدیر هستید.",
+            user=previous_owner, phone=phone, store=store,
+        )

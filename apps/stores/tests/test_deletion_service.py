@@ -75,6 +75,16 @@ class RequestDeletionTests(DeletionServiceTestCase):
             AuditLogEntry.objects.filter(store=self.store, action_code="store.deletion_requested").exists()
         )
 
+    def test_sends_a_security_notification(self):
+        from apps.notifications.models import NotificationOutbox
+
+        request_deletion(store=self.store, actor=self.actor, typed_confirmation="deletion-store")
+        self.assertTrue(
+            NotificationOutbox.objects.filter(
+                recipient_user=self.actor, is_security=True, channel=NotificationOutbox.Channel.IN_APP,
+            ).exists()
+        )
+
     def test_no_data_is_deleted(self):
         StoreDomain.objects.create(
             store=self.store, hostname=f"{self.store.platform_code}.rastisi.ir", is_primary=True,
