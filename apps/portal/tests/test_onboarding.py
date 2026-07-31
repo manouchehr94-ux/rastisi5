@@ -1,4 +1,7 @@
+from io import StringIO
+
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -106,5 +109,37 @@ class RegistrationAutoProvisionsTrialStoreTests(TestCase):
         # has no entitlement data for — so this is correctly 200 today. Once
         # a real default plan is configured, this same Store (still not
         # onboarded) would 403 instead — see test_publication_service.py for
-        # that behavior tested directly against the service.
+        # that behavior tested directly against the service, and
+        # test_full_chain_with_real_default_plan_configured below for the
+        # same thing exercised end-to-end.
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(RASTISI_DEFAULT_PLAN_CODE="trial")
+    def test_full_chain_with_real_default_plan_configured(self):
+        """Section 7 (four seeded Plans) closes the loop Section 6 left
+        open: with a real default plan configured, a freshly-registered
+        owner's Store gets a genuine trialing subscription, so its
+        storefront is correctly 403 until onboarding completes — then 200
+        once it does."""
+        call_command("seed_default_plans", stdout=StringIO())
+
+        code = self._fixed_code()
+        self.client.post("/register/", {"full_name": "Fourth", "phone": "09359990004"}, HTTP_HOST=_HOST)
+        self.client.post("/verify/", {"phone": "09359990004", "code": code}, HTTP_HOST=_HOST)
+
+        user = User.objects.get(username="09359990004")
+        membership = StoreMembership.objects.get(user=user)
+        store = membership.store
+        trial_domain = store.domains.get(is_primary=True)
+
+        with self.settings(ALLOWED_HOSTS=[trial_domain.hostname, _HOST, "testserver"]):
+            response = self.client.get("/", HTTP_HOST=trial_domain.hostname)
+        self.assertEqual(response.status_code, 403)
+
+        # Complete onboarding — the same Store must now be publicly visible.
+        self.client.post(
+            f"/app/stores/{store.public_id}/onboarding/", {"name": "فروشگاه چهارم"}, HTTP_HOST=_HOST,
+        )
+        with self.settings(ALLOWED_HOSTS=[trial_domain.hostname, _HOST, "testserver"]):
+            response = self.client.get("/", HTTP_HOST=trial_domain.hostname)
         self.assertEqual(response.status_code, 200)

@@ -4179,6 +4179,50 @@ pre-existing test suite's many ad hoc, subscription-less Stores.
 
 ---
 
+## ADR-104: Four Seeded Plans via an Idempotent Command, Never Overwriting a Customized Version
+
+**Decision (approved product decision, spec §Section 7).**
+`manage.py seed_default_plans` creates the four approved starting Plans
+(`trial`/`basic`/`professional`/`enterprise`, Persian public titles
+آزمایشی/پایه/حرفه‌ای/سازمانی) using the existing `Plan`/`PlanVersion`/
+`EntitlementDefinition`/`PlanEntitlement` machinery — no new models. Real
+entitlement keys only (`catalog.products`, `staff.members`, `inventory.
+warehouses`, `customers.segments`, `domains.custom`, `reports.advanced`,
+`catalog.import`/`export`) — never an invented one.
+
+Idempotency has two independent layers, both required by the spec's "do
+not overwrite customized Plans on repeated execution":
+`Plan.objects.get_or_create` (a re-run never touches an existing Plan's
+other fields — `defaults` only apply on the `CREATE` branch), and — more
+importantly — **a Plan that already has any `PlanVersion` at all never
+gets a second one seeded**. This is a direct consequence of ADR-63
+(published-version immutability): if a superuser edits a seeded plan's
+price/entitlements later (via a new version, through the existing
+`plan_service.create_plan_version`/publish flow — no new Platform Admin
+UI for this ships in this slice), re-running the seed command must never
+create a competing version or resurrect the original numbers.
+
+The `trial` plan's `trial_days` is read from `PlatformConfiguration.
+default_trial_days` (ADR-102/Section 2) at seed time — not a hardcoded
+`30` — satisfying the spec's explicit "do not scatter the number 30
+across the codebase." `RASTISI_DEFAULT_PLAN_CODE` (existing 5A setting)
+is deliberately **not** changed to `"trial"` by this command or by
+default: flipping that env var is what actually makes `provision_
+default_subscription` start assigning real subscriptions to every new
+Store, and doing that unconditionally would change behavior for the
+~3000 pre-existing tests that assume a bare `Store.objects.create(...)`
+has no subscription. This stays an explicit, documented deployment
+decision (`.env`/`DJANGO_...`), exactly like every other production-only
+setting in this codebase — tested directly via `override_settings` in
+`test_full_chain_with_real_default_plan_configured` instead.
+
+**Consequences.** The full trial→restricted→public chain (ADR-103) is now
+genuinely exercisable end-to-end once a deployment sets `RASTISI_DEFAULT_
+PLAN_CODE=trial` after running this command; until then, the codebase's
+existing fail-open behavior (ADR-65/ADR-103) is exactly preserved.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -4289,3 +4333,4 @@ pre-existing test suite's many ad hoc, subscription-less Stores.
 | Retired trial/platform hostnames go silently inactive and never redirect (overrides ADR-96); Platform Admin host is `platformadmins.rastisi.ir` | Decided, implemented (Portal, ADR-101) |
 | `PlatformConfiguration` singleton for platform-wide tunables; owner identity is mobile OTP sharing `User.username=phone` with storefront customers by deliberate design (email+password kept as secondary/recovery) | Decided, implemented (Portal, ADR-102) |
 | Registration auto-provisions exactly one trial Store (onboarding mode C); one computed publication-state service (no duplicated status field) gates storefront visibility until onboarding completes | Decided, implemented (Portal, ADR-103) |
+| Four seeded Plans via an idempotent command; trial_days sourced from PlatformConfiguration, never a second hardcoded 30; a Plan with any existing version is never reseeded | Decided, implemented (Portal, ADR-104) |
