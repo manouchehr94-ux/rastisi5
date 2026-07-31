@@ -1,0 +1,32 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}بازبینی و انتشار | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="p-wrap">
+<div class="p-form-card">
+  <p style="text-align:center;font-size:12px;color:var(--p-muted);margin-bottom:4px">مرحله ۴ از ۴</p>
+  <h2 style="text-align:center;margin-bottom:8px">بازبینی و انتشار</h2>
+  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px">
+    فروشگاه آزمایشی شما آماده است. تا پیش از انتشار، این فروشگاه فقط برای شما قابلِ‌مشاهده است.
+  </p>
+
+  <div style="display:grid;gap:10px;margin-bottom:20px;font-size:14px">
+    <div style="display:flex;justify-content:space-between"><span style="color:var(--p-muted)">نام فروشگاه</span><span>{{ store.name }}</span></div>
+    {% if shop_settings.tagline %}<div style="display:flex;justify-content:space-between"><span style="color:var(--p-muted)">شعار</span><span>{{ shop_settings.tagline }}</span></div>{% endif %}
+    {% if shop_settings.contact_phone %}<div style="display:flex;justify-content:space-between"><span style="color:var(--p-muted)">تماس</span><span style="direction:ltr">{{ shop_settings.contact_phone }}</span></div>{% endif %}
+    <div style="display:flex;justify-content:space-between"><span style="color:var(--p-muted)">صنف</span><span>{% if installation %}{{ installation.industry_template.name }}{% else %}انتخاب نشده{% endif %}</span></div>
+    {% if trial_domain %}<div style="display:flex;justify-content:space-between"><span style="color:var(--p-muted)">آدرسِ آزمایشی</span><span style="direction:ltr">{{ trial_domain.hostname }}</span></div>{% endif %}
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <a href="{% url 'portal:onboarding-identity' store.public_id %}" class="p-btn" style="flex:1;text-align:center">ویرایشِ معرفی</a>
+    <a href="{% url 'portal:onboarding-branding' store.public_id %}" class="p-btn" style="flex:1;text-align:center">ویرایشِ هویتِ بصری</a>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" class="p-btn p-btn-primary" style="width:100%">انتشارِ فروشگاه</button>
+  </form>
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}انتخابِ صنف | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="p-wrap">
+<div class="p-form-card">
+  <p style="text-align:center;font-size:12px;color:var(--p-muted);margin-bottom:4px">مرحله ۲ از ۴</p>
+  <h2 style="text-align:center;margin-bottom:8px">انتخابِ صنف</h2>
+
+  {% if installation %}
+  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px">
+    قالبِ صنفِ «{{ installation.industry_template.name }}» روی این فروشگاه نصب شده است.
+    نصبِ قالبِ صنف فقط یک‌بار برای هر فروشگاه ممکن است.
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" class="p-btn p-btn-primary" style="width:100%">ادامه</button>
+  </form>
+  {% else %}
+  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px">
+    اگر صنفِ فروشگاهِ شما در این فهرست است، انتخابش کنید تا دسته‌بندی‌ها و ویژگی‌های پیشنهادی‌اش
+    به‌طور خودکار ساخته شود؛ این مرحله اختیاری است و بعداً هم دیگر قابلِ تغییر نیست.
+  </p>
+  {% if messages %}{% for message in messages %}<div class="p-alert p-alert-error">{{ message }}</div>{% endfor %}{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="p-field" style="display:grid;gap:8px">
+      {% for template in templates %}
+      <label style="display:flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;cursor:pointer">
+        <input type="radio" name="industry_template_id" value="{{ template.pk }}">
+        <span>{{ template.name }}</span>
+      </label>
+      {% empty %}
+      <p style="font-size:13px;color:var(--p-muted)">در حال حاضر قالبِ صنفی برای ارائه موجود نیست.</p>
+      {% endfor %}
+    </div>
+    <button type="submit" class="p-btn p-btn-primary" style="width:100%;margin-top:12px">نصبِ قالبِ انتخاب‌شده</button>
+  </form>
+  <form method="post" style="margin-top:8px">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="skip">
+    <button type="submit" class="p-btn" style="width:100%">فعلاً رد شو</button>
+  </form>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

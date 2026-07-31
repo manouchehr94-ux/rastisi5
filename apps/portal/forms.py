@@ -64,6 +64,31 @@ class PlatformConfigurationForm(forms.ModelForm):
         return days
 
 
+class OnboardingIdentityForm(forms.Form):
+    """مرحله‌ی ۱ ویزارد آنبوردینگ (Section 5): معرفیِ فروشگاه."""
+
+    name = forms.CharField(label="نام فروشگاه", max_length=150)
+    tagline = forms.CharField(label="شعار فروشگاه", max_length=200, required=False)
+    description = forms.CharField(label="درباره‌ی فروشگاه", widget=forms.Textarea, required=False)
+    contact_phone = forms.CharField(label="شماره تماس", max_length=30, required=False)
+    contact_email = forms.EmailField(label="ایمیل فروشگاه", required=False)
+    contact_address = forms.CharField(label="آدرس", max_length=300, required=False)
+
+
+class OnboardingIndustryForm(forms.Form):
+    """مرحله‌ی ۲ ویزارد آنبوردینگ: انتخابِ صنف (اختیاری، فقط یک‌بار قابلِ نصب - ADR-25)."""
+
+    industry_template_id = forms.IntegerField(required=False)
+
+
+class OnboardingBrandingForm(forms.Form):
+    """مرحله‌ی ۳ ویزارد آنبوردینگ: هویتِ بصریِ فروشگاه (اختیاری)."""
+
+    logo = forms.ImageField(label="لوگو", required=False)
+    primary_color = forms.CharField(label="رنگ اصلی", max_length=7, required=False)
+    accent_color = forms.CharField(label="رنگ مکمل", max_length=7, required=False)
+
+
 class ContactForm(forms.Form):
     full_name = forms.CharField(label="نام", max_length=150)
     email = forms.EmailField(label="ایمیل")

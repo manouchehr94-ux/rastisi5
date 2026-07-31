@@ -1,6 +1,7 @@
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -17,6 +18,9 @@ from .decorators import owner_required
 from .forms import (
     ContactForm,
     CreateStoreForm,
+    OnboardingBrandingForm,
+    OnboardingIdentityForm,
+    OnboardingIndustryForm,
     OwnerLoginForm,
     OwnerOtpVerifyForm,
     OwnerPhoneRequestForm,
@@ -441,41 +445,209 @@ def enter_admin(request, store_public_id):
     return redirect(f"{request.scheme}://{admin_host}/admin-portal/handoff/{ticket.token}/")
 
 
-@owner_required
-def onboarding(request, store_public_id):
-    """Section 5 (minimal first slice — a single required step, not the
-    full multi-stage wizard the program describes): confirm the Store's
-    real display name, then publish it. Until this runs,
-    ``Store.onboarding_completed_at`` stays NULL and the storefront 403s
-    for anonymous visitors (Section 6, ``publication_service``) even
-    though the trial subscription is active — only the owner (via ``{%
-    owner_required %}``-gated portal pages) can see anything about it."""
+def _get_owned_store_or_404(request, store_public_id) -> Store:
+    """فروشگاهی که کاربرِ جاری عضوِ فعالش است، وگرنه ``Http404`` — بدونِ افشای
+    اینکه آیا اصلاً چنین Storeای وجود دارد (همان الگوی بقیه‌ی ویوهای پرتال)."""
     membership = get_object_or_404(
         StoreMembership.objects.select_related("store"),
         store__public_id=store_public_id, user=request.user, status=StoreMembership.MembershipStatus.ACTIVE,
     )
-    store = membership.store
+    return membership.store
+
+
+# Section 5 — order of the onboarding wizard's stages. ``Store.onboarding_stage``
+# always holds one of these; the dispatcher below sends the owner to wherever
+# they left off (save-progress), but every stage remains freely revisitable —
+# this is a memory of where to resume, not a hard sequential gate.
+_ONBOARDING_STAGE_ORDER = [
+    Store.OnboardingStage.IDENTITY,
+    Store.OnboardingStage.INDUSTRY,
+    Store.OnboardingStage.BRANDING,
+    Store.OnboardingStage.REVIEW,
+]
+_ONBOARDING_STAGE_URL_NAMES = {
+    Store.OnboardingStage.IDENTITY: "portal:onboarding-identity",
+    Store.OnboardingStage.INDUSTRY: "portal:onboarding-industry",
+    Store.OnboardingStage.BRANDING: "portal:onboarding-branding",
+    Store.OnboardingStage.REVIEW: "portal:onboarding-review",
+}
+
+
+def _advance_onboarding_stage(store, *, completed: str) -> None:
+    """پس از تکمیلِ موفقِ یک مرحله، ``onboarding_stage`` را فقط رو به جلو
+    می‌برد (هرگز عقب) — بازدیدِ دوباره‌ی یک مرحله‌ی قبلی هرگز پیشرفتِ
+    ثبت‌شده را از دست نمی‌دهد."""
+    current_index = _ONBOARDING_STAGE_ORDER.index(store.onboarding_stage) if (
+        store.onboarding_stage in _ONBOARDING_STAGE_ORDER
+    ) else -1
+    completed_index = _ONBOARDING_STAGE_ORDER.index(completed)
+    if completed_index >= current_index:
+        next_index = completed_index + 1
+        store.onboarding_stage = (
+            _ONBOARDING_STAGE_ORDER[next_index] if next_index < len(_ONBOARDING_STAGE_ORDER)
+            else Store.OnboardingStage.REVIEW
+        )
+        store.save(update_fields=["onboarding_stage", "updated_at"])
+
+
+@owner_required
+def onboarding(request, store_public_id):
+    """نقطه‌ی ورودِ ویزاردِ آنبوردینگ (Section 5): مالک را به همان مرحله‌ای
+    که رها کرده هدایت می‌کند (save-progress، ``Store.onboarding_stage``)."""
+    store = _get_owned_store_or_404(request, store_public_id)
+    if store.onboarding_stage == Store.OnboardingStage.DONE or store.onboarding_completed_at:
+        return redirect("portal:store-created", store_public_id=store.public_id)
+    stage = store.onboarding_stage if store.onboarding_stage in _ONBOARDING_STAGE_URL_NAMES else (
+        Store.OnboardingStage.IDENTITY
+    )
+    return redirect(_ONBOARDING_STAGE_URL_NAMES[stage], store_public_id=store.public_id)
+
+
+@owner_required
+def onboarding_identity(request, store_public_id):
+    """مرحله‌ی ۱: معرفیِ فروشگاه — نام، شعار، توضیحات، اطلاعاتِ تماس
+    (``ShopSettings``، همان مدلی که پنلِ مدیریت هم ویرایش می‌کند)."""
+    from apps.core.models import ShopSettings
+
+    store = _get_owned_store_or_404(request, store_public_id)
+    shop_settings = ShopSettings.load(store=store)
+
+    if request.method == "POST":
+        form = OnboardingIdentityForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+            store.name = data["name"]
+            store.save(update_fields=["name", "updated_at"])
+            shop_settings.name = data["name"]
+            shop_settings.tagline = data["tagline"]
+            shop_settings.description = data["description"]
+            shop_settings.contact_phone = data["contact_phone"]
+            shop_settings.contact_email = data["contact_email"]
+            shop_settings.contact_address = data["contact_address"]
+            shop_settings.save()
+            _advance_onboarding_stage(store, completed=Store.OnboardingStage.IDENTITY)
+            return redirect("portal:onboarding-industry", store_public_id=store.public_id)
+    else:
+        form = OnboardingIdentityForm(initial={
+            "name": store.name, "tagline": shop_settings.tagline,
+            "description": shop_settings.description, "contact_phone": shop_settings.contact_phone,
+            "contact_email": shop_settings.contact_email, "contact_address": shop_settings.contact_address,
+        })
+
+    return render(request, "portal/app/onboarding_identity.html", {"store": store, "form": form})
+
+
+@owner_required
+def onboarding_industry(request, store_public_id):
+    """مرحله‌ی ۲: انتخابِ صنف — اختیاری و رد-شدنی، اما فقط یک‌بار قابلِ نصب
+    (``apps.catalog.services.industry_template_service``، ADR-25). اگر
+    Store از قبل یک قالب نصب کرده، این مرحله فقط اطلاعِ همان نصب را نشان
+    می‌دهد؛ هرگز دوباره نصب صدا زده نمی‌شود (idempotent-safe در برابرِ
+    GET/POST مکرر یا دکمه‌ی back مرورگر)."""
+    from apps.catalog.models import StoreIndustryInstallation
+    from apps.catalog.services.industry_template_service import IndustryInstallationError, install_industry_template
+
+    store = _get_owned_store_or_404(request, store_public_id)
+    installation = StoreIndustryInstallation.objects.select_related("industry_template").filter(store=store).first()
+    templates = provisioning_service.latest_offerable_industry_templates()
+
+    if request.method == "POST" and installation is None:
+        action = request.POST.get("action")
+        if action == "skip":
+            _advance_onboarding_stage(store, completed=Store.OnboardingStage.INDUSTRY)
+            return redirect("portal:onboarding-branding", store_public_id=store.public_id)
+
+        form = OnboardingIndustryForm(request.POST)
+        if form.is_valid() and form.cleaned_data["industry_template_id"]:
+            template = get_object_or_404(IndustryTemplate, pk=form.cleaned_data["industry_template_id"])
+            try:
+                install_industry_template(store, template)
+            except IndustryInstallationError as exc:
+                messages.error(request, str(exc))
+            else:
+                _advance_onboarding_stage(store, completed=Store.OnboardingStage.INDUSTRY)
+                return redirect("portal:onboarding-branding", store_public_id=store.public_id)
+    elif request.method == "POST":
+        # از قبل نصب‌شده — POST دیگری اینجا معنایی ندارد جز عبور به مرحله‌ی بعد.
+        _advance_onboarding_stage(store, completed=Store.OnboardingStage.INDUSTRY)
+        return redirect("portal:onboarding-branding", store_public_id=store.public_id)
+
+    return render(request, "portal/app/onboarding_industry.html", {
+        "store": store, "templates": templates, "installation": installation,
+    })
+
+
+@owner_required
+def onboarding_branding(request, store_public_id):
+    """مرحله‌ی ۳: هویتِ بصری — لوگو و رنگ‌های اصلی (اختیاری، رد-شدنی؛
+    ``ShopSettings`` از قبل مقادیرِ پیش‌فرضِ معتبر دارد - ``provision_for``)."""
+    from apps.core.models import ShopSettings
+
+    store = _get_owned_store_or_404(request, store_public_id)
+    shop_settings = ShopSettings.load(store=store)
+
+    if request.method == "POST":
+        if request.POST.get("action") == "skip":
+            _advance_onboarding_stage(store, completed=Store.OnboardingStage.BRANDING)
+            return redirect("portal:onboarding-review", store_public_id=store.public_id)
+
+        form = OnboardingBrandingForm(request.POST, request.FILES)
+        if form.is_valid():
+            data = form.cleaned_data
+            if data.get("logo"):
+                shop_settings.logo = data["logo"]
+            if data.get("primary_color"):
+                shop_settings.primary_color = data["primary_color"]
+            if data.get("accent_color"):
+                shop_settings.accent_color = data["accent_color"]
+            try:
+                shop_settings.full_clean()
+            except ValidationError as exc:
+                for field, errs in exc.message_dict.items():
+                    for err in errs:
+                        form.add_error(field if field in form.fields else None, err)
+            else:
+                shop_settings.save()
+                _advance_onboarding_stage(store, completed=Store.OnboardingStage.BRANDING)
+                return redirect("portal:onboarding-review", store_public_id=store.public_id)
+    else:
+        form = OnboardingBrandingForm(initial={
+            "primary_color": shop_settings.primary_color, "accent_color": shop_settings.accent_color,
+        })
+
+    return render(request, "portal/app/onboarding_branding.html", {
+        "store": store, "form": form, "shop_settings": shop_settings,
+    })
+
+
+@owner_required
+def onboarding_review(request, store_public_id):
+    """مرحله‌ی ۴ (نهایی): بازبینی و انتشار. تنها همین POST است که
+    ``Store.onboarding_completed_at`` را مقداردهی می‌کند — پیش از آن،
+    فروشگاه برای بازدیدکنندهٔ ناشناس همیشه خصوصی می‌ماند (Section 6)."""
+    from apps.core.models import ShopSettings
+    from apps.catalog.models import StoreIndustryInstallation
+
+    store = _get_owned_store_or_404(request, store_public_id)
+    shop_settings = ShopSettings.load(store=store)
+    installation = StoreIndustryInstallation.objects.select_related("industry_template").filter(store=store).first()
     trial_domain = store.domains.filter(is_primary=True).first()
 
     if request.method == "POST":
-        name = (request.POST.get("name") or "").strip()
-        if name:
-            store.name = name
         store.onboarding_completed_at = timezone.now()
-        store.save(update_fields=["name", "onboarding_completed_at", "updated_at"])
+        store.onboarding_stage = Store.OnboardingStage.DONE
+        store.save(update_fields=["onboarding_completed_at", "onboarding_stage", "updated_at"])
         messages.success(request, "فروشگاه شما منتشر شد!")
         return redirect("portal:store-created", store_public_id=store.public_id)
 
-    return render(request, "portal/app/onboarding.html", {"store": store, "trial_domain": trial_domain})
+    return render(request, "portal/app/onboarding_review.html", {
+        "store": store, "shop_settings": shop_settings, "installation": installation, "trial_domain": trial_domain,
+    })
 
 
 @owner_required
 def store_created(request, store_public_id):
-    membership = get_object_or_404(
-        StoreMembership.objects.select_related("store"),
-        store__public_id=store_public_id, user=request.user, status=StoreMembership.MembershipStatus.ACTIVE,
-    )
-    store = membership.store
+    store = _get_owned_store_or_404(request, store_public_id)
     trial_domain = store.domains.filter(is_primary=True).first()
     if trial_domain is None:
         raise Http404

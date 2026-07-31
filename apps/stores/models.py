@@ -118,6 +118,25 @@ class Store(StoresTimestampedModel):
         ),
     )
 
+    class OnboardingStage(models.TextChoices):
+        IDENTITY = "identity", "معرفیِ فروشگاه"
+        INDUSTRY = "industry", "انتخابِ صنف"
+        BRANDING = "branding", "هویتِ بصری"
+        REVIEW = "review", "بازبینی و انتشار"
+        DONE = "done", "تکمیل‌شده"
+
+    onboarding_stage = models.CharField(
+        "مرحله‌ی جاریِ راه‌اندازی",
+        max_length=20, choices=OnboardingStage.choices, default=OnboardingStage.IDENTITY,
+        help_text=(
+            "پیشرفتِ ویزاردِ آنبوردینگ (Section 5) — صرفاً برای هدایتِ مالک به "
+            "همان‌جایی که رها کرده (save-progress)، نه یک قفلِ سخت‌گیرانه: "
+            "مالک همیشه می‌تواند آزادانه به مراحلِ قبلی برگردد و آن‌ها را "
+            "دوباره ویرایش کند. تنها گذرِ صریح از مرحله‌ی REVIEW است که "
+            "``onboarding_completed_at`` را مقداردهی می‌کند."
+        ),
+    )
+
     class Meta:
         verbose_name = "فروشگاه"
         verbose_name_plural = "فروشگاه‌ها"
