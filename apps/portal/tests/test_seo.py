@@ -45,8 +45,8 @@ class AuthAndAccountPageNoindexTests(TestCase):
         response = self.client.get("/login/", HTTP_HOST=_HOST)
         self.assertContains(response, "noindex")
 
-    def test_login_email_is_noindex(self):
-        response = self.client.get("/login-email/", HTTP_HOST=_HOST)
+    def test_login_email_redirects_to_the_noindex_unified_login(self):
+        response = self.client.get("/login-email/", HTTP_HOST=_HOST, follow=True)
         self.assertContains(response, "noindex")
 
     def test_register_email_is_noindex(self):

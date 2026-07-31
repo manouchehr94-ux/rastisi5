@@ -3,13 +3,20 @@ from django import forms
 
 class OwnerPhoneRequestForm(forms.Form):
     full_name = forms.CharField(label="نام و نام خانوادگی", max_length=150, required=False)
-    phone = forms.CharField(label="شماره موبایل", max_length=20)
+    phone = forms.CharField(
+        label="شماره موبایل", max_length=20,
+        widget=forms.TextInput(attrs={"autocomplete": "tel", "dir": "ltr"}),
+    )
+    remember_me = forms.BooleanField(label="مرا به خاطر بسپار", required=False)
 
 
 class OwnerOtpVerifyForm(forms.Form):
     phone = forms.CharField(widget=forms.HiddenInput)
     full_name = forms.CharField(widget=forms.HiddenInput, required=False)
-    code = forms.CharField(label="کد تأیید", max_length=6, min_length=6)
+    code = forms.CharField(
+        label="کد تأیید", max_length=6, min_length=6,
+        widget=forms.TextInput(attrs={"autocomplete": "one-time-code", "inputmode": "numeric"}),
+    )
 
 
 class OwnerRegisterForm(forms.Form):
@@ -21,6 +28,21 @@ class OwnerRegisterForm(forms.Form):
 class OwnerLoginForm(forms.Form):
     email = forms.EmailField(label="ایمیل")
     password = forms.CharField(label="رمز عبور", widget=forms.PasswordInput)
+
+
+class OwnerIdentifierLoginForm(forms.Form):
+    """فرمِ کانونیکالِ ورودِ مالک با رمز عبور — شناسه می‌تواند ایمیل یا
+    شماره موبایل باشد (یکپارچه‌سازیِ احرازِ هویت)."""
+
+    identifier = forms.CharField(
+        label="ایمیل یا شماره موبایل",
+        widget=forms.TextInput(attrs={"autocomplete": "username", "dir": "ltr"}),
+    )
+    password = forms.CharField(
+        label="رمز عبور",
+        widget=forms.PasswordInput(attrs={"autocomplete": "current-password"}),
+    )
+    remember_me = forms.BooleanField(label="مرا به خاطر بسپار", required=False)
 
 
 class PasswordResetRequestForm(forms.Form):

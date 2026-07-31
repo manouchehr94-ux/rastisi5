@@ -15,13 +15,17 @@ urlpatterns = [
     path("contact/", views.contact, name="contact"),
     path("terms/", views.terms, name="terms"),
     path("privacy/", views.privacy, name="privacy"),
-    # Owner identity (Section B/3) — phone+OTP is the primary flow.
+    # Owner identity (Section B/3, unified in the auth-consolidation pass) —
+    # /login/ renders the single canonical page (password default, OTP
+    # secondary); /login/password/ is only the password form's POST target.
     path("register/", views.register, name="register"),
     path("login/", views.login_view, name="login"),
+    path("login/password/", views.login_password, name="login-password"),
     path("verify/", views.otp_verify, name="otp-verify"),
     path("logout/", views.logout_view, name="logout"),
-    # Legacy email+password — kept for existing accounts/platform-superuser
-    # recovery, not linked from the primary nav (Section 3).
+    # Legacy email+password registration — kept for existing accounts/
+    # platform-superuser recovery, not linked from the primary nav (Section
+    # 3). /login-email/ itself now just redirects to the unified /login/.
     path("register-email/", views.register_email, name="register-email"),
     path("login-email/", views.login_email, name="login-email"),
     path("reset-password/", views.password_reset_request, name="password-reset-request"),

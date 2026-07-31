@@ -14,8 +14,16 @@
     <div class="p-field"><label for="id_code">کد ۶ رقمی</label>{{ form.code }}{% if form.code.errors %}<div class="p-error">{{ form.code.errors.0 }}</div>{% endif %}</div>
     <button type="submit" class="p-btn p-btn-primary" style="width:100%">تأیید و ورود</button>
   </form>
-  <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--p-muted)">
-    <a href="{% url 'portal:login' %}">شماره اشتباه است؟ دوباره تلاش کنید</a>
+  <form method="post" action="{{ resend_url }}" style="text-align:center;margin-top:16px">
+    {% csrf_token %}
+    <input type="hidden" name="phone" value="{{ phone }}">
+    {% if resend_next %}<input type="hidden" name="next" value="{{ resend_next }}">{% endif %}
+    {% if resend_admin_return %}<input type="hidden" name="admin_return" value="{{ resend_admin_return }}">{% endif %}
+    <button type="submit" style="background:none;border:0;color:var(--p-muted);font-size:13px;cursor:pointer;padding:0;text-decoration:underline">ارسالِ دوباره‌ی کد</button>
+    <span style="font-size:12px;color:var(--p-muted);display:block;margin-top:4px">اگر کد را دریافت نکردید، کمی صبر کنید و دوباره درخواست دهید.</span>
+  </form>
+  <p style="text-align:center;margin-top:10px;font-size:13px;color:var(--p-muted)">
+    <a href="{% url 'portal:login' %}">تغییرِ شماره موبایل</a>
   </p>
 </div>
 </div>

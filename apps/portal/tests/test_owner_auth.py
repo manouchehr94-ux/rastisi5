@@ -42,6 +42,10 @@ class OwnerRegistrationTests(TestCase):
 
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
 class OwnerLoginLogoutTests(TestCase):
+    """HTTP-level tests for the canonical unified login's password form
+    (POSTs to /login/password/ — /login-email/ is now a bare redirect to
+    /login/, see LoginEmailRedirectTests below)."""
+
     def setUp(self):
         self.user = owner_auth_service.register_owner(
             full_name="Login Test", email="login@example.com", password="a-very-strong-pass-1",
@@ -49,24 +53,34 @@ class OwnerLoginLogoutTests(TestCase):
 
     def test_login_with_correct_credentials_succeeds(self):
         response = self.client.post(
-            "/login-email/", {"email": "login@example.com", "password": "a-very-strong-pass-1"}, HTTP_HOST=_HOST,
+            "/login/password/", {"identifier": "login@example.com", "password": "a-very-strong-pass-1"},
+            HTTP_HOST=_HOST,
         )
         self.assertEqual(response.status_code, 302)
         self.assertIn("_auth_user_id", self.client.session)
 
     def test_login_is_case_insensitive_on_email(self):
         response = self.client.post(
-            "/login-email/", {"email": "LOGIN@Example.com", "password": "a-very-strong-pass-1"}, HTTP_HOST=_HOST,
+            "/login/password/", {"identifier": "LOGIN@Example.com", "password": "a-very-strong-pass-1"},
+            HTTP_HOST=_HOST,
         )
         self.assertIn("_auth_user_id", self.client.session)
         self.assertEqual(response.status_code, 302)
 
     def test_login_with_wrong_password_fails(self):
         response = self.client.post(
-            "/login-email/", {"email": "login@example.com", "password": "wrong-password"}, HTTP_HOST=_HOST,
+            "/login/password/", {"identifier": "login@example.com", "password": "wrong-password"}, HTTP_HOST=_HOST,
         )
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertContains(response, owner_auth_service.GENERIC_LOGIN_ERROR)
+
+    def test_login_error_message_is_generic_and_never_mentions_email_specifically(self):
+        response = self.client.post(
+            "/login/password/", {"identifier": "nobody-registered@example.com", "password": "whatever-guess"},
+            HTTP_HOST=_HOST,
+        )
+        self.assertContains(response, owner_auth_service.GENERIC_LOGIN_ERROR)
 
     def test_logout_requires_post(self):
         self.client.force_login(self.user)
@@ -81,12 +95,41 @@ class OwnerLoginLogoutTests(TestCase):
 
     def test_login_redirect_never_follows_external_next(self):
         response = self.client.post(
-            "/login-email/",
-            {"email": "login@example.com", "password": "a-very-strong-pass-1", "next": "https://evil.example.com/"},
+            "/login/password/",
+            {
+                "identifier": "login@example.com", "password": "a-very-strong-pass-1",
+                "next": "https://evil.example.com/",
+            },
             HTTP_HOST=_HOST,
         )
         self.assertEqual(response.status_code, 302)
         self.assertNotIn("evil.example.com", response["Location"])
+
+
+@override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
+class LoginEmailRedirectTests(TestCase):
+    """/login-email/ is kept only so old bookmarked links don't 404 — it
+    always redirects to the unified /login/ page, preserving query params."""
+
+    def test_get_redirects_to_unified_login(self):
+        response = self.client.get("/login-email/", HTTP_HOST=_HOST)
+        self.assertRedirects(response, "/login/")
+
+    def test_next_param_is_preserved_across_the_redirect(self):
+        response = self.client.get("/login-email/?next=/app/", HTTP_HOST=_HOST)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login/?next=", response["Location"])
+
+    def test_post_to_login_email_also_redirects_rather_than_authenticating(self):
+        owner_auth_service.register_owner(
+            full_name="Post Redirect", email="postredirect@example.com", password="a-very-strong-pass-1",
+        )
+        response = self.client.post(
+            "/login-email/", {"email": "postredirect@example.com", "password": "a-very-strong-pass-1"},
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn("_auth_user_id", self.client.session)
 
 
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])

@@ -28,7 +28,7 @@ from .forms import (
     OnboardingBrandingForm,
     OnboardingIdentityForm,
     OnboardingIndustryForm,
-    OwnerLoginForm,
+    OwnerIdentifierLoginForm,
     OwnerOtpVerifyForm,
     OwnerPhoneRequestForm,
     OwnerRegisterForm,
@@ -37,7 +37,14 @@ from .forms import (
 )
 from .models import ContactMessage, OwnerOtpChallenge
 from .phone import InvalidPhoneError, normalize_iranian_phone
-from .services import handoff_service, owner_auth_service, owner_otp_service, provisioning_service, step_up_service
+from .services import (
+    handoff_service,
+    owner_auth_service,
+    owner_otp_service,
+    provisioning_service,
+    session_service,
+    step_up_service,
+)
 from .services.rate_limit import RateLimitExceeded, enforce_rate_limit
 
 _STORE_CREATE_TOKEN_SESSION_KEY = "portal_store_create_token"
@@ -47,6 +54,7 @@ _OTP_SESSION_PURPOSE_KEY = "portal_otp_purpose"
 _OTP_SESSION_FULL_NAME_KEY = "portal_otp_full_name"
 _OTP_SESSION_NEXT_KEY = "portal_otp_next"
 _OTP_SESSION_ADMIN_RETURN_KEY = "portal_otp_admin_return"
+_OTP_SESSION_REMEMBER_KEY = "portal_otp_remember_me"
 
 # ---------------------------------------------------------------------------
 # Public marketing pages (Section A)
@@ -143,7 +151,8 @@ def _is_safe_next(next_url: str) -> bool:
 
 
 def _request_otp_and_go_to_verify(
-    request, *, phone_raw: str, full_name: str, purpose: str, next_url: str = "", admin_return: str = "",
+    request, *, phone_raw: str, full_name: str, purpose: str,
+    next_url: str = "", admin_return: str = "", remember_me: bool = False,
 ):
     try:
         phone = normalize_iranian_phone(phone_raw)
@@ -162,13 +171,40 @@ def _request_otp_and_go_to_verify(
     request.session[_OTP_SESSION_FULL_NAME_KEY] = full_name
     request.session[_OTP_SESSION_NEXT_KEY] = next_url
     request.session[_OTP_SESSION_ADMIN_RETURN_KEY] = admin_return
+    request.session[_OTP_SESSION_REMEMBER_KEY] = bool(remember_me)
     return phone, None
+
+
+def _post_login_redirect(request, user, *, next_url: str, admin_return: str):
+    """مقصدِ مشترکِ پس از ورودِ موفق — چه با رمز عبور چه با OTP (Section 4،
+    یکپارچه‌سازیِ احرازِ هویت). ابتدا هندشیکِ Merchant Admin (اگر این ورود
+    از یک درخواستِ بدونِ احرازِ پنلِ مدیریت آمده)، وگرنه ``next`` امن، وگرنه
+    My Stores."""
+    if admin_return:
+        decoded = handoff_service.decode_admin_return_token(admin_return)
+        if decoded is not None:
+            admin_subdomain, destination_path = decoded
+            target_store = Store.objects.filter(admin_subdomain=admin_subdomain).first()
+            if target_store is not None:
+                try:
+                    ticket = handoff_service.issue_ticket(
+                        user=user, store=target_store, destination_path=destination_path,
+                    )
+                except handoff_service.HandoffError:
+                    messages.error(request, "شما عضوِ فعالِ آن فروشگاه نیستید.")
+                else:
+                    admin_host = f"{admin_subdomain}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
+                    return redirect(f"{request.scheme}://{admin_host}/admin-portal/handoff/{ticket.token}/")
+
+    if _is_safe_next(next_url):
+        return redirect(next_url)
+    return redirect("portal:app-home")
 
 
 def register(request):
     """Section 3: primary owner registration is phone + OTP, not email +
-    password (that flow is kept, not deleted — see register_email/
-    login_email — for existing accounts and platform-superuser recovery)."""
+    password (that flow is kept, not deleted — see register_email — for
+    existing accounts and platform-superuser recovery)."""
     if request.user.is_authenticated:
         return redirect("portal:app-home")
 
@@ -178,6 +214,7 @@ def register(request):
             phone, error = _request_otp_and_go_to_verify(
                 request, phone_raw=form.cleaned_data["phone"],
                 full_name=form.cleaned_data.get("full_name", ""), purpose=OwnerOtpChallenge.Purpose.REGISTER,
+                remember_me=form.cleaned_data.get("remember_me", False),
             )
             if error:
                 form.add_error(None, error)
@@ -189,31 +226,82 @@ def register(request):
 
 
 def login_view(request):
-    """Section 4: this is also where an unauthenticated Merchant Admin
-    request lands (``apps.dashboard.decorators.staff_required``'s
-    ``admin_return`` signed token) — Rastisi employees/owners always
-    authenticate centrally, never via a per-Store login form."""
+    """Section 4/یکپارچه‌سازیِ احرازِ هویت — صفحه‌ی یکپارچه‌ی ورود: فرمِ
+    رمزِ عبور (ایمیل یا موبایل) پیش‌فرض، فرمِ درخواستِ OTP گزینه‌ی ثانویه.
+    این هم‌چنان همان مقصدی است که یک درخواستِ بدونِ احرازِ Merchant Admin
+    (``apps.dashboard.decorators.staff_required``'s ``admin_return``) به
+    آن هدایت می‌شود — Rastisi employees/owners always authenticate
+    centrally, never via a per-Store login form.
+
+    این ویو فقط مسیرِ درخواستِ OTP را مدیریت می‌کند (POST بدونِ ``mode``
+    یا با آن — تاریخی، همیشه همین بوده)؛ POSTِ فرمِ رمزِ عبور به
+    ``portal:login-password`` جداگانه می‌رود (نگاه کنید به ``login_
+    password`` پایین‌تر) تا هیچ‌کدام منطقِ دیگری را پیچیده نکند."""
     if request.user.is_authenticated:
         return redirect("portal:app-home")
 
     next_url = request.GET.get("next") or request.POST.get("next") or ""
     admin_return = request.GET.get("admin_return") or request.POST.get("admin_return") or ""
     if request.method == "POST":
-        form = OwnerPhoneRequestForm(request.POST)
-        if form.is_valid():
+        otp_form = OwnerPhoneRequestForm(request.POST)
+        if otp_form.is_valid():
             phone, error = _request_otp_and_go_to_verify(
-                request, phone_raw=form.cleaned_data["phone"], full_name="",
+                request, phone_raw=otp_form.cleaned_data["phone"], full_name="",
                 purpose=OwnerOtpChallenge.Purpose.LOGIN, next_url=next_url, admin_return=admin_return,
+                remember_me=otp_form.cleaned_data.get("remember_me", False),
             )
             if error:
-                form.add_error(None, error)
+                otp_form.add_error(None, error)
             else:
                 return redirect("portal:otp-verify")
     else:
-        form = OwnerPhoneRequestForm()
+        otp_form = OwnerPhoneRequestForm()
+    password_form = OwnerIdentifierLoginForm()
     return render(
         request, "portal/public/login.html",
-        {"form": form, "next": next_url, "admin_return": admin_return},
+        {
+            "otp_form": otp_form, "password_form": password_form,
+            "next": next_url, "admin_return": admin_return,
+        },
+    )
+
+
+@require_POST
+def login_password(request):
+    """POSTِ فرمِ رمزِ عبورِ صفحه‌ی یکپارچه‌ی ورود — شناسه (ایمیل یا
+    موبایل) + رمز عبور. پیامِ خطا همیشه عمومی است؛ هرگز فاش نمی‌کند کدام
+    بخش نادرست بود یا اصلاً چنین حسابی هست یا نه."""
+    if request.user.is_authenticated:
+        return redirect("portal:app-home")
+
+    next_url = request.POST.get("next") or ""
+    admin_return = request.POST.get("admin_return") or ""
+    form = OwnerIdentifierLoginForm(request.POST)
+    try:
+        enforce_rate_limit(
+            "login_password", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=15, window_seconds=600,
+        )
+    except RateLimitExceeded:
+        form.add_error(None, "تعداد تلاش ورود بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
+    else:
+        if form.is_valid():
+            user = owner_auth_service.authenticate_owner_by_identifier(
+                request, identifier=form.cleaned_data["identifier"], password=form.cleaned_data["password"],
+            )
+            if user is None:
+                form.add_error(None, owner_auth_service.GENERIC_LOGIN_ERROR)
+            else:
+                auth_login(request, user)
+                session_service.apply_remember_me(request, form.cleaned_data.get("remember_me", False))
+                return _post_login_redirect(request, user, next_url=next_url, admin_return=admin_return)
+
+    otp_form = OwnerPhoneRequestForm()
+    return render(
+        request, "portal/public/login.html",
+        {
+            "otp_form": otp_form, "password_form": form,
+            "next": next_url, "admin_return": admin_return, "password_mode": True,
+        },
     )
 
 
@@ -233,16 +321,18 @@ def otp_verify(request):
                 full_name = request.session.get(_OTP_SESSION_FULL_NAME_KEY, "")
                 next_url = request.session.get(_OTP_SESSION_NEXT_KEY, "")
                 admin_return = request.session.get(_OTP_SESSION_ADMIN_RETURN_KEY, "")
+                remember_me = request.session.get(_OTP_SESSION_REMEMBER_KEY, False)
                 for key in (
                     _OTP_SESSION_PHONE_KEY, _OTP_SESSION_PURPOSE_KEY,
                     _OTP_SESSION_FULL_NAME_KEY, _OTP_SESSION_NEXT_KEY,
-                    _OTP_SESSION_ADMIN_RETURN_KEY,
+                    _OTP_SESSION_ADMIN_RETURN_KEY, _OTP_SESSION_REMEMBER_KEY,
                 ):
                     request.session.pop(key, None)
                 user, created = owner_auth_service.get_or_create_owner_by_phone(
                     phone=phone, full_name=full_name,
                 )
                 auth_login(request, user)
+                session_service.apply_remember_me(request, remember_me)
 
                 if created:
                     # Section 3.1 ("onboarding mode C"): registration
@@ -258,36 +348,18 @@ def otp_verify(request):
                     else:
                         return redirect("portal:onboarding", store_public_id=store.public_id)
 
-                if admin_return:
-                    # Section 4: this login was triggered by an
-                    # unauthenticated Merchant Admin request
-                    # (staff_required's signed admin_return token) — complete
-                    # the loop back to that exact host+path via the existing
-                    # single-use handoff ticket mechanism (ADR-98), never a
-                    # bare redirect (no shared session cookie across hosts).
-                    decoded = handoff_service.decode_admin_return_token(admin_return)
-                    if decoded is not None:
-                        admin_subdomain, destination_path = decoded
-                        target_store = Store.objects.filter(admin_subdomain=admin_subdomain).first()
-                        if target_store is not None:
-                            try:
-                                ticket = handoff_service.issue_ticket(
-                                    user=user, store=target_store, destination_path=destination_path,
-                                )
-                            except handoff_service.HandoffError:
-                                messages.error(request, "شما عضوِ فعالِ آن فروشگاه نیستید.")
-                            else:
-                                admin_host = f"{admin_subdomain}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
-                                return redirect(
-                                    f"{request.scheme}://{admin_host}/admin-portal/handoff/{ticket.token}/"
-                                )
-
-                if _is_safe_next(next_url):
-                    return redirect(next_url)
-                return redirect("portal:app-home")
+                return _post_login_redirect(request, user, next_url=next_url, admin_return=admin_return)
     else:
         form = OwnerOtpVerifyForm(initial={"phone": phone})
-    return render(request, "portal/public/otp_verify.html", {"form": form, "phone": phone})
+    resend_url_name = "portal:register" if purpose == OwnerOtpChallenge.Purpose.REGISTER else "portal:login"
+    return render(
+        request, "portal/public/otp_verify.html",
+        {
+            "form": form, "phone": phone, "resend_url": reverse(resend_url_name),
+            "resend_next": request.session.get(_OTP_SESSION_NEXT_KEY, ""),
+            "resend_admin_return": request.session.get(_OTP_SESSION_ADMIN_RETURN_KEY, ""),
+        },
+    )
 
 
 def register_email(request):
@@ -319,33 +391,15 @@ def register_email(request):
 
 
 def login_email(request):
-    if request.user.is_authenticated:
-        return redirect("portal:app-home")
-
-    next_url = request.GET.get("next") or request.POST.get("next") or ""
-    if request.method == "POST":
-        form = OwnerLoginForm(request.POST)
-        try:
-            enforce_rate_limit(
-                "login_email", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=15, window_seconds=600,
-            )
-        except RateLimitExceeded:
-            messages.error(request, "تعداد تلاش ورود بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
-            return render(request, "portal/public/login_email.html", {"form": form, "next": next_url})
-        if form.is_valid():
-            user = owner_auth_service.authenticate_owner(
-                request, email=form.cleaned_data["email"], password=form.cleaned_data["password"],
-            )
-            if user is None:
-                form.add_error(None, "ایمیل یا رمز عبور نادرست است")
-            else:
-                auth_login(request, user)
-                if _is_safe_next(next_url):
-                    return redirect(next_url)
-                return redirect("portal:app-home")
-    else:
-        form = OwnerLoginForm()
-    return render(request, "portal/public/login_email.html", {"form": form, "next": next_url})
+    """جایگزین شد با صفحه‌ی یکپارچه‌ی ورود (یکپارچه‌سازیِ احرازِ هویت) —
+    این آدرس فقط برایِ لینک‌های قدیمی/بوکمارک‌شده نگه داشته شده و همیشه
+    به ``portal:login`` هدایت می‌کند؛ ``next``/``admin_return`` حفظ
+    می‌شوند تا هیچ لینکِ موجودی نشکند."""
+    params = request.GET.urlencode()
+    target = reverse("portal:login")
+    if params:
+        target = f"{target}?{params}"
+    return redirect(target)
 
 
 @require_POST
