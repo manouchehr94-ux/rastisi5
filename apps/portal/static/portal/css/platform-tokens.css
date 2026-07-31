@@ -2,17 +2,21 @@
   توکن‌های طراحی سایت عمومی و پرتال مالکان راستیسی — مستقل از توکن‌های
   apps/core/static/css/tokens.css (که هویت بصری هر Store را تزریق می‌کند).
   این‌جا برند خودِ پلتفرم راستیسی است، نه یک فروشگاه؛ رنگ‌ها عمداً ثابت‌اند.
-  اقتباس بصری از مرجع Next.js ارائه‌شده (زمرد + کهربایی)، بازتولیدشده با
-  همان قرارداد var(--...) این پروژه (بدون Tailwind/OKLCH — Vazirmatn/RTL/HTMX
-  موجود حفظ می‌شود).
+
+  دارک-فرست (§3.17، تصمیمِ تأییدشده): پالت با همان رنگ‌هایِ پنلِ مدیریتِ
+  پلتفرم (portal/platform_admin/base.html — زمینه‌ی #0f1712، متنِ #e7f3ee،
+  خط #1e2b23) هماهنگ شده تا کلِ پلتفرم (پرتالِ مالک + پنلِ مدیریتِ پلتفرم)
+  یک زبانِ بصریِ واحد داشته باشد، نه دو تم‌ِ جدا. برندِ زمرد+کهربایی از
+  نسخه‌ی قبلی حفظ شده، فقط زمینه/متن/خط تیره شده‌اند.
 */
 :root{
-  --p-primary:#10a37a; --p-primary-hover:#0c8a67; --p-primary-soft:#e6f7f1;
-  --p-accent:#e0a72e; --p-accent-soft:#fbf1dc;
-  --p-ink:#12261f; --p-muted:#5b6b64; --p-line:#dfeae5;
-  --p-bg:#fbfdfb; --p-card:#ffffff;
+  --p-primary:#18b98a; --p-primary-hover:#15a37a; --p-primary-soft:#132621;
+  --p-accent:#e0a72e; --p-accent-soft:#2b2313;
+  --p-ink:#e7f3ee; --p-muted:#93a89c; --p-line:#243329;
+  --p-bg:#0f1712; --p-card:#152019;
   --p-radius:14px; --p-radius-lg:20px;
-  --p-shadow:0 2px 8px rgba(16,40,32,.06), 0 12px 32px rgba(16,40,32,.08);
+  --p-shadow:0 2px 8px rgba(0,0,0,.25), 0 12px 32px rgba(0,0,0,.35);
+  color-scheme: dark;
 }
 .p-wrap{max-width:1200px;margin:0 auto;padding:0 20px}
 .p-btn{
@@ -22,19 +26,19 @@
   border:1px solid transparent;
 }
 .p-btn:active{transform:scale(.97)}
-.p-btn-primary{background:linear-gradient(90deg,var(--p-primary),#0d8f6c);color:#fff;box-shadow:0 4px 14px rgba(16,163,122,.28)}
+.p-btn-primary{background:linear-gradient(90deg,var(--p-primary),#0d8f6c);color:#08130f;box-shadow:0 4px 14px rgba(24,185,138,.28)}
 .p-btn-primary:hover{background:linear-gradient(90deg,var(--p-primary-hover),#0a7a58)}
 .p-btn-ghost{background:transparent;color:var(--p-ink);border-color:var(--p-line)}
 .p-btn-ghost:hover{background:var(--p-primary-soft)}
 .p-header{
-  position:sticky;top:0;z-index:50;background:rgba(251,253,251,.9);
+  position:sticky;top:0;z-index:50;background:rgba(15,23,18,.9);
   backdrop-filter:blur(10px);border-bottom:1px solid var(--p-line);
 }
 .p-header-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;height:64px}
 .p-brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:19px;color:var(--p-ink)}
 .p-brand .mark{
   display:grid;place-items:center;width:36px;height:36px;border-radius:10px;
-  background:linear-gradient(135deg,var(--p-primary),#0d8f6c);color:#fff;
+  background:linear-gradient(135deg,var(--p-primary),#0d8f6c);color:#08130f;
 }
 .p-nav{display:none;align-items:center;gap:4px}
 .p-nav a{padding:8px 12px;border-radius:8px;font-size:14px;font-weight:500;color:var(--p-muted)}
@@ -57,16 +61,16 @@
 .p-card .icon{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--p-primary-soft);color:var(--p-primary);margin-bottom:14px}
 .p-card h3{font-size:17px;font-weight:700;color:var(--p-ink);margin-bottom:6px}
 .p-card p{font-size:14px;color:var(--p-muted);line-height:1.85}
-.p-plan-badge{display:inline-block;padding:3px 10px;border-radius:999px;background:var(--p-accent-soft);color:#8a6412;font-size:12px;font-weight:700}
+.p-plan-badge{display:inline-block;padding:3px 10px;border-radius:999px;background:var(--p-accent-soft);color:var(--p-accent);font-size:12px;font-weight:700}
 .p-footer{border-top:1px solid var(--p-line);padding:40px 0;color:var(--p-muted);font-size:13px;text-align:center}
 .p-footer a{color:var(--p-muted)}
 .p-footer a:hover{color:var(--p-primary)}
 .p-form-card{max-width:420px;margin:56px auto;background:var(--p-card);border:1px solid var(--p-line);border-radius:var(--p-radius-lg);padding:32px;box-shadow:var(--p-shadow)}
 .p-field{margin-bottom:16px}
 .p-field label{display:block;font-size:13px;font-weight:600;color:var(--p-ink);margin-bottom:6px}
-.p-field input{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px;background:#fff}
+.p-field input{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px;background:#0c1310;color:var(--p-ink)}
 .p-field input:focus{outline:2px solid var(--p-primary);outline-offset:1px;border-color:var(--p-primary)}
-.p-error{color:#b3261e;font-size:13px;margin-top:6px}
+.p-error{color:#f28b82;font-size:13px;margin-top:6px}
 .p-alert{padding:12px 16px;border-radius:10px;font-size:13px;margin-bottom:16px}
-.p-alert-error{background:#fdecea;color:#b3261e;border:1px solid #f7c9c4}
-.p-alert-success{background:var(--p-primary-soft);color:var(--p-primary-hover);border:1px solid #b6e6d5}
+.p-alert-error{background:#2b1616;color:#f28b82;border:1px solid #4a2323}
+.p-alert-success{background:var(--p-primary-soft);color:var(--p-primary);border:1px solid #1d3d32}
