@@ -12,11 +12,14 @@ class StaffRequiredDecoratorTests(TestCase):
     def test_anonymous_user_is_redirected_to_admin_login(self):
         response = self.client.get(reverse("dashboard:dashboard"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
-    def test_anonymous_redirect_includes_next_parameter(self):
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
+    def test_anonymous_redirect_carries_a_signed_return_token(self):
+        """The destination is embedded in a signed admin_return token
+        (Section 4), not a raw ``next=`` query parameter."""
         response = self.client.get(reverse("dashboard:dashboard"))
-        self.assertIn("next=", response.url)
+        self.assertIn("admin_return=", response.url)
+        self.assertNotIn("next=", response.url)
 
     def test_authenticated_non_staff_is_redirected_home(self):
         user = User.objects.create_user(username="09121119900", password="pass12345", is_staff=False)

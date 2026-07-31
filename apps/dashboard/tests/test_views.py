@@ -63,4 +63,5 @@ class SalesChartPartialViewTests(TestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:sales-chart"), {"range": "week"})
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)

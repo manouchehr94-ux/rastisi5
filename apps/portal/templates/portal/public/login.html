@@ -8,6 +8,7 @@
   <form method="post" novalidate>
     {% csrf_token %}
     {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    {% if admin_return %}<input type="hidden" name="admin_return" value="{{ admin_return }}">{% endif %}
     {% if form.non_field_errors %}<div class="p-alert p-alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
     <div class="p-field"><label for="id_phone">شماره موبایل</label>{{ form.phone }}{% if form.phone.errors %}<div class="p-error">{{ form.phone.errors.0 }}</div>{% endif %}</div>
     <button type="submit" class="p-btn p-btn-primary" style="width:100%">دریافت کد ورود</button>

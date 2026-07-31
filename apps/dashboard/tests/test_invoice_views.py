@@ -52,8 +52,8 @@ class InvoiceListViewTests(InvoiceViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:invoice-list"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
     def test_filter_by_payment_status(self):
         response = self.client.get(reverse("dashboard:invoice-table"), {"status": Order.PaymentStatus.PAID})
         self.assertContains(response, "DM-88881")
@@ -76,8 +76,8 @@ class InvoiceDetailViewTests(InvoiceViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:invoice-detail", args=[self.paid_order.code]))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
     def test_404_for_unknown_code(self):
         response = self.client.get(reverse("dashboard:invoice-detail", args=["DM-00000"]))
         self.assertEqual(response.status_code, 404)

@@ -10,7 +10,7 @@ from django.views.decorators.http import require_POST
 from django.conf import settings
 
 from apps.catalog.models import IndustryTemplate
-from apps.stores.models import StoreMembership
+from apps.stores.models import Store, StoreMembership
 from apps.subscriptions.models import Plan, PlanVersion
 
 from .decorators import owner_required
@@ -35,6 +35,7 @@ _OTP_SESSION_PHONE_KEY = "portal_otp_phone"
 _OTP_SESSION_PURPOSE_KEY = "portal_otp_purpose"
 _OTP_SESSION_FULL_NAME_KEY = "portal_otp_full_name"
 _OTP_SESSION_NEXT_KEY = "portal_otp_next"
+_OTP_SESSION_ADMIN_RETURN_KEY = "portal_otp_admin_return"
 
 # ---------------------------------------------------------------------------
 # Public marketing pages (Section A)
@@ -98,7 +99,9 @@ def _is_safe_next(next_url: str) -> bool:
     return bool(next_url) and next_url.startswith("/") and not next_url.startswith("//")
 
 
-def _request_otp_and_go_to_verify(request, *, phone_raw: str, full_name: str, purpose: str, next_url: str = ""):
+def _request_otp_and_go_to_verify(
+    request, *, phone_raw: str, full_name: str, purpose: str, next_url: str = "", admin_return: str = "",
+):
     try:
         phone = normalize_iranian_phone(phone_raw)
     except InvalidPhoneError as exc:
@@ -115,6 +118,7 @@ def _request_otp_and_go_to_verify(request, *, phone_raw: str, full_name: str, pu
     request.session[_OTP_SESSION_PURPOSE_KEY] = purpose
     request.session[_OTP_SESSION_FULL_NAME_KEY] = full_name
     request.session[_OTP_SESSION_NEXT_KEY] = next_url
+    request.session[_OTP_SESSION_ADMIN_RETURN_KEY] = admin_return
     return phone, None
 
 
@@ -142,16 +146,21 @@ def register(request):
 
 
 def login_view(request):
+    """Section 4: this is also where an unauthenticated Merchant Admin
+    request lands (``apps.dashboard.decorators.staff_required``'s
+    ``admin_return`` signed token) — Rastisi employees/owners always
+    authenticate centrally, never via a per-Store login form."""
     if request.user.is_authenticated:
         return redirect("portal:app-home")
 
     next_url = request.GET.get("next") or request.POST.get("next") or ""
+    admin_return = request.GET.get("admin_return") or request.POST.get("admin_return") or ""
     if request.method == "POST":
         form = OwnerPhoneRequestForm(request.POST)
         if form.is_valid():
             phone, error = _request_otp_and_go_to_verify(
                 request, phone_raw=form.cleaned_data["phone"], full_name="",
-                purpose=OwnerOtpChallenge.Purpose.LOGIN, next_url=next_url,
+                purpose=OwnerOtpChallenge.Purpose.LOGIN, next_url=next_url, admin_return=admin_return,
             )
             if error:
                 form.add_error(None, error)
@@ -159,7 +168,10 @@ def login_view(request):
                 return redirect("portal:otp-verify")
     else:
         form = OwnerPhoneRequestForm()
-    return render(request, "portal/public/login.html", {"form": form, "next": next_url})
+    return render(
+        request, "portal/public/login.html",
+        {"form": form, "next": next_url, "admin_return": admin_return},
+    )
 
 
 def otp_verify(request):
@@ -177,9 +189,11 @@ def otp_verify(request):
             else:
                 full_name = request.session.get(_OTP_SESSION_FULL_NAME_KEY, "")
                 next_url = request.session.get(_OTP_SESSION_NEXT_KEY, "")
+                admin_return = request.session.get(_OTP_SESSION_ADMIN_RETURN_KEY, "")
                 for key in (
                     _OTP_SESSION_PHONE_KEY, _OTP_SESSION_PURPOSE_KEY,
                     _OTP_SESSION_FULL_NAME_KEY, _OTP_SESSION_NEXT_KEY,
+                    _OTP_SESSION_ADMIN_RETURN_KEY,
                 ):
                     request.session.pop(key, None)
                 user, created = owner_auth_service.get_or_create_owner_by_phone(
@@ -200,6 +214,30 @@ def otp_verify(request):
                         pass
                     else:
                         return redirect("portal:onboarding", store_public_id=store.public_id)
+
+                if admin_return:
+                    # Section 4: this login was triggered by an
+                    # unauthenticated Merchant Admin request
+                    # (staff_required's signed admin_return token) — complete
+                    # the loop back to that exact host+path via the existing
+                    # single-use handoff ticket mechanism (ADR-98), never a
+                    # bare redirect (no shared session cookie across hosts).
+                    decoded = handoff_service.decode_admin_return_token(admin_return)
+                    if decoded is not None:
+                        admin_subdomain, destination_path = decoded
+                        target_store = Store.objects.filter(admin_subdomain=admin_subdomain).first()
+                        if target_store is not None:
+                            try:
+                                ticket = handoff_service.issue_ticket(
+                                    user=user, store=target_store, destination_path=destination_path,
+                                )
+                            except handoff_service.HandoffError:
+                                messages.error(request, "شما عضوِ فعالِ آن فروشگاه نیستید.")
+                            else:
+                                admin_host = f"{admin_subdomain}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
+                                return redirect(
+                                    f"{request.scheme}://{admin_host}/admin-portal/handoff/{ticket.token}/"
+                                )
 
                 if _is_safe_next(next_url):
                     return redirect(next_url)

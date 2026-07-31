@@ -50,8 +50,8 @@ class StaffListViewTests(StaffViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:staff-list"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
     def test_administrator_cannot_view_staff_list(self):
         self._login_as(StoreMembership.Role.ADMINISTRATOR, "101")
         response = self.client.get(reverse("dashboard:staff-list"))

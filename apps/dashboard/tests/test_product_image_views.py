@@ -60,9 +60,8 @@ class ProductImagesModalViewTests(ProductImageViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:product-images", args=[self.product.pk]))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
-
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
 class ProductImageUploadViewTests(ProductImageViewsTestCase):
     def test_uploading_single_image_creates_row(self):
         response = self.client.post(
@@ -115,7 +114,8 @@ class ProductImageUploadViewTests(ProductImageViewsTestCase):
             {"images": [_make_image_file()]},
         )
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
         self.assertEqual(self.product.images.count(), 0)
 
 
@@ -269,6 +269,7 @@ class ProductImageVariantAssociationViewTests(ProductImageViewsTestCase):
             {"variant": self.variant_a.pk},
         )
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
         image.refresh_from_db()
         self.assertIsNone(image.variant_id)

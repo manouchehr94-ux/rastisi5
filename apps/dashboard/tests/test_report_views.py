@@ -29,8 +29,8 @@ class ReportListViewTests(ReportViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:report-list"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
     def test_range_query_param_selects_range(self):
         response = self.client.get(reverse("dashboard:report-list"), {"range": "7"})
         self.assertContains(response, "۷ روز اخیر")

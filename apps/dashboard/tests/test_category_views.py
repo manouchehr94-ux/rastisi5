@@ -42,9 +42,8 @@ class CategoryListViewTests(CategoryViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:category-list"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
-
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
 class CategoryAddMainTests(CategoryViewsTestCase):
     def test_valid_add_creates_category(self):
         response = self.client.post(reverse("dashboard:category-add-main"), {"name": "گروه تازه", "icon": "🆕"})

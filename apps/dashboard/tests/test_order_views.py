@@ -52,8 +52,8 @@ class OrderListViewTests(OrderViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:order-list"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
     def test_status_filter(self):
         change_order_status(self.order, Order.Status.PROCESSING, store=self.store)
         response = self.client.get(reverse("dashboard:order-table"), {"status": Order.Status.PENDING})
@@ -116,8 +116,8 @@ class OrderDetailViewTests(OrderViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:order-detail", args=[self.order.code]))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
     def test_404_for_unknown_code(self):
         response = self.client.get(reverse("dashboard:order-detail", args=["DM-00000"]))
         self.assertEqual(response.status_code, 404)

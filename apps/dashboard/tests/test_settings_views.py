@@ -83,9 +83,8 @@ class SettingsHomeViewTests(SettingsViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:settings"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
-
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
 class SettingsShopInfoViewTests(SettingsViewsTestCase):
     def test_valid_post_updates_shop_settings(self):
         response = self.client.post(reverse("dashboard:settings-shop-info"), {
@@ -377,10 +376,8 @@ class VisualIdentityTests(SettingsViewsTestCase):
             "primary_color": "#000000", "accent_color": "#000000",
         })
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
-
-
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
 import os
 import tempfile
 import shutil
@@ -913,9 +910,8 @@ class ThemeValidationContrastTests(SettingsViewsTestCase):
         self.client.logout()
         response = self.client.post(reverse("dashboard:settings-appearance"), {"action": "reset"})
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
-
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
 # ============================================================ PR3: STOREFRONT TOKEN INJECTION
 
 

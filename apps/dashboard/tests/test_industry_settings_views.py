@@ -109,4 +109,5 @@ class IndustrySettingsPermissionTests(IndustrySettingsTestCase):
         self.client.logout()
         response = self.client.post(reverse("dashboard:settings-industry-install", args=[self.template.pk]))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)

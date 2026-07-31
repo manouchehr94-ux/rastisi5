@@ -32,9 +32,11 @@ class AdminPanelCompatRedirectTests(TestCase):
 
     def test_admin_portal_itself_is_served_directly_not_via_compat_redirect(self):
         """An anonymous request to the canonical route is redirected to the
-        login page by staff_required — not bounced back through the
-        /admin-panel/ compat redirect (which would be a self-referential
-        loop back to /admin-portal/)."""
+        central Rastisi login by staff_required (Section 4) — not bounced
+        back through the /admin-panel/ compat redirect (which would be a
+        self-referential loop back to /admin-portal/), and not to the local
+        /admin-portal/login/ page either."""
         response = self.client.get("/admin-portal/")
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)

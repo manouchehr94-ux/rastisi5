@@ -46,8 +46,8 @@ class AttributeListViewTests(AttributeViewsTestCase):
         self.client.logout()
         response = self.client.get(reverse("dashboard:attribute-list"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
     def test_search_filters(self):
         create_attribute(self.store, label="جنس")
         create_attribute(self.store, label="رنگ")

@@ -1,10 +1,12 @@
 """Regression tests for the admin login foundation.
 
 Proves:
-1. Anonymous users are redirected to /admin-portal/login/ (not storefront)
+1. Anonymous users are redirected to the central Rastisi login (Section 4),
+   not the local /admin-portal/login/ page (kept only as a legacy/recovery
+   fallback — see apps.dashboard.decorators.staff_required)
 2. Staff users can access the dashboard directly
 3. Authenticated non-staff users are denied access
-4. Successful login redirects to the next URL
+4. Successful login (via the legacy local form) redirects to the next URL
 5. Invalid credentials show an error on the login page
 6. Non-staff users see a clear denial message
 """
@@ -33,18 +35,20 @@ class AdminLoginRedirectTests(TestCase):
     """Anonymous users must be redirected to the admin login page."""
 
     def test_anonymous_redirected_to_admin_login_from_dashboard(self):
-        """GET /admin-portal/ → 302 → /admin-portal/login/?next=/admin-portal/"""
+        """GET /admin-portal/ → 302 → central login (Section 4), not the local page."""
         response = self.client.get("/admin-portal/")
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-        self.assertIn("next=", response.url)
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("/login/", response.url)
+        self.assertIn("admin_return=", response.url)
 
     def test_anonymous_redirected_from_nested_admin_page(self):
-        """GET /admin-portal/products/ → 302 → /admin-portal/login/?next=..."""
+        """GET /admin-portal/products/ → 302 → central login (Section 4), not the local page."""
         response = self.client.get("/admin-portal/products/")
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin-portal/login/", response.url)
-        self.assertIn("next=", response.url)
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("/login/", response.url)
+        self.assertIn("admin_return=", response.url)
 
     def test_login_page_accessible_without_auth(self):
         """GET /admin-portal/login/ → 200 (login page renders)"""

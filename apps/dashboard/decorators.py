@@ -1,6 +1,7 @@
 from functools import wraps
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.http import Http404
 from django.shortcuts import redirect, render
 
@@ -53,9 +54,13 @@ def staff_required(view_func):
        تأییدشده‌ی محلی (نگاه کنید به ``apps.stores.resolution.resolve_store_for_admin_request``).
        در غیر این صورت ``404`` بدون توجه به وضعیت ورود کاربر — دامنه‌ی
        عمومی فروشگاه هرگز نباید پنل مدیریت را افشا کند.
-    2. کاربر باید احراز هویت شده باشد؛ در غیر این صورت به صفحه‌ی ورود
-       اختصاصی پنل مدیریت هدایت می‌شود (نه صفحه‌ی اصلی فروشگاه). پارامتر
-       next مسیر اصلی درخواست‌شده را حفظ می‌کند.
+    2. کاربر باید احراز هویت شده باشد؛ در غیر این صورت به ورودِ مرکزیِ
+       راستیسی (Section 4) هدایت می‌شود — نه صفحه‌ی محلیِ قدیمیِ
+       ``/admin-portal/login/`` (که فقط برایِ بازیابی/سازگاری نگه داشته
+       شده، مثلِ ایمیل+رمزِ عبورِ مالک). مقصدِ بازگشت با یک توکنِ امضاشده
+       (``handoff_service.build_admin_return_token``) حمل می‌شود، نه یک
+       URL خام — پس نه open-redirect ممکن است، نه دستکاری/بازپخش
+       (replay؛ توکن کوتاه‌عمر و متصل به همین admin_subdomain است).
     3. ``user.is_staff`` به‌تنهایی هرگز کافی نیست: کاربر باید یک
        ``StoreMembership`` با وضعیت ``ACTIVE`` دقیقاً برای همان Store
        داشته باشد (نگاه کنید به ``apps.stores.authorization``).
@@ -71,9 +76,14 @@ def staff_required(view_func):
         store = _resolve_admin_store_or_404(request)
 
         if not request.user.is_authenticated:
-            login_url = "/admin-portal/login/"
-            params = urlencode({"next": request.get_full_path()})
-            return redirect(f"{login_url}?{params}")
+            from apps.portal.services.handoff_service import build_admin_return_token
+
+            token = build_admin_return_token(
+                admin_subdomain=store.admin_subdomain, destination_path=request.get_full_path(),
+            )
+            params = urlencode({"admin_return": token})
+            central_login = f"{request.scheme}://{settings.RASTISI_PLATFORM_PRIMARY_HOST}/login/"
+            return redirect(f"{central_login}?{params}")
 
         membership = get_active_membership(request.user, store)
         if not request.user.is_staff or membership is None:

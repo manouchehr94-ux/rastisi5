@@ -9,6 +9,7 @@
 
 from datetime import timedelta
 
+from django.core import signing
 from django.db import transaction
 from django.utils import timezone
 
@@ -19,9 +20,45 @@ from ..models import AdminHandoffTicket
 
 TICKET_TTL_SECONDS = 60
 
+#: Section 4 — how long a signed "return to Merchant Admin after central
+#: login" token stays valid. Short window: this only needs to survive one
+#: OTP round-trip, not a browsing session.
+ADMIN_RETURN_TOKEN_MAX_AGE_SECONDS = 600
+_ADMIN_RETURN_SALT = "portal.admin_return_token"
+
 
 class HandoffError(Exception):
     """صدور یا مصرفِ بلیتِ ورود به پنل مدیریت ممکن نیست."""
+
+
+def build_admin_return_token(*, admin_subdomain: str, destination_path: str) -> str:
+    """یک توکنِ امضاشده (HMAC، ``django.core.signing``) می‌سازد که پس از ورودِ
+    مرکزی، مسیرِ بازگشت به دقیقاً همین (admin_subdomain, destination_path)
+    را بدونِ قابلِ‌دستکاری‌بودن حمل می‌کند (Section 4).
+
+    یک URL خام نیست — یک payload امضاشده است — پس هرگز نمی‌تواند به یک
+    مقصدِ دلخواهِ بیرونی (open redirect) اشاره کند: مصرف‌کننده
+    (``apps.portal.views``) همیشه خودش ``https://{admin_subdomain}.
+    {RASTISI_ADMIN_DOMAIN_SUFFIX}/...`` را می‌سازد، نه اینکه یک URL را از
+    توکن مستقیماً بخواند."""
+    signer = signing.TimestampSigner(salt=_ADMIN_RETURN_SALT)
+    return signer.sign_object({"admin_subdomain": admin_subdomain, "destination_path": destination_path})
+
+
+def decode_admin_return_token(token: str):
+    """توکن را رمزگشایی می‌کند اگر معتبر/تازه باشد، وگرنه ``None`` —
+    هرگز Exception پرتاب نمی‌کند (ورودیِ کاربر است، همیشه می‌تواند نامعتبر
+    باشد)."""
+    signer = signing.TimestampSigner(salt=_ADMIN_RETURN_SALT)
+    try:
+        payload = signer.unsign_object(token, max_age=ADMIN_RETURN_TOKEN_MAX_AGE_SECONDS)
+    except (signing.BadSignature, signing.SignatureExpired):
+        return None
+    admin_subdomain = payload.get("admin_subdomain")
+    destination_path = payload.get("destination_path")
+    if not admin_subdomain or not destination_path or not destination_path.startswith("/admin-portal/"):
+        return None
+    return admin_subdomain, destination_path
 
 
 def issue_ticket(*, user, store: Store, destination_path: str = "/admin-portal/") -> AdminHandoffTicket:

@@ -147,8 +147,8 @@ class DeleteConfirmationTests(TestCase):
         link = SocialLink.objects.create(platform="telegram", title="X", url="https://t.me/x")
         resp = self.client.get(reverse("dashboard:social-link-delete", args=[link.pk]))
         self.assertEqual(resp.status_code, 302)
-        self.assertIn("/admin-portal/login/", resp.url)
-
+        self.assertNotIn("/admin-portal/login/", resp.url)
+        self.assertIn("admin_return=", resp.url)
     def test_cancel_url_present(self):
         link = SocialLink.objects.create(platform="telegram", title="X", url="https://t.me/x")
         resp = self.client.get(reverse("dashboard:social-link-delete", args=[link.pk]))
@@ -291,10 +291,8 @@ class DeleteConfirmationFullTests(TestCase):
         ]:
             resp = self.client.get(url)
             self.assertEqual(resp.status_code, 302)
-            self.assertIn("/admin-portal/login/", resp.url)
-
-
-
+            self.assertNotIn("/admin-portal/login/", resp.url)
+            self.assertIn("admin_return=", resp.url)
 class AriaInvalidTests(TestCase):
     """تست aria-invalid برای فیلدهای نامعتبر."""
     def setUp(self):
