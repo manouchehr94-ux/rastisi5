@@ -359,6 +359,10 @@ class SmsConnectionForm(forms.Form):
         label="رمز عبور ملی‌پیامک", max_length=100, required=False,
         widget=forms.PasswordInput(attrs={"class": "inp", "dir": "ltr"}, render_value=True),
     )
+    kavenegar_api_key = forms.CharField(
+        label="کلید API کاوه‌نگار", max_length=100, required=False,
+        widget=forms.PasswordInput(attrs={"class": "inp", "dir": "ltr"}, render_value=True),
+    )
 
 
 class SmsTemplateForm(forms.Form):

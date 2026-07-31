@@ -15,7 +15,7 @@ from apps.core.models import ShopSettings
 
 from ..events import EVENT_VARIABLES
 from ..models import SmsLog, SmsTemplate
-from .backends import ConsoleBackend, MelipayamakBackend, SmsBackend
+from .backends import ConsoleBackend, KavenegarBackend, MelipayamakBackend, SmsBackend
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,11 @@ def get_backend(*, store) -> SmsBackend:
         return MelipayamakBackend(
             username=shop.melipayamak_username,
             password=shop.melipayamak_password,
+            sender=shop.sms_sender_number,
+        )
+    if shop.sms_backend == ShopSettings.SmsBackend.KAVENEGAR:
+        return KavenegarBackend(
+            api_key=shop.kavenegar_api_key,
             sender=shop.sms_sender_number,
         )
     return ConsoleBackend()

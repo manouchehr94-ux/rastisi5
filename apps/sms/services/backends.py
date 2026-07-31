@@ -77,3 +77,41 @@ class MelipayamakBackend(SmsBackend):
         if data.get("RetStatus") == 1:
             return SmsSendResult(success=True, provider_ref_id=ref_id)
         return SmsSendResult(success=False, error_message=data.get("StrRetStatus", "خطای نامشخص ملی‌پیامک"))
+
+
+class KavenegarBackend(SmsBackend):
+    """پیاده‌سازی واقعی کاوه‌نگار (REST API ``sms/send``).
+
+    برخلافِ پیاده‌سازیِ مرجع در ``reference_imports`` (که فقط نبودِ
+    Exception را «موفقیت» می‌دانست)، اینجا ``return.status`` واقعیِ پاسخ
+    بررسی می‌شود — کاوه‌نگار حتیِ خطاهایی مثلِ کلید نامعتبر یا گیرنده‌ی
+    نامعتبر را هم با بدنه‌ی JSON معتبر برمی‌گرداند، نه یک Exception."""
+
+    SEND_URL_TEMPLATE = "https://api.kavenegar.com/v1/{api_key}/sms/send.json"
+
+    def __init__(self, *, api_key: str, sender: str):
+        self.api_key = api_key
+        self.sender = sender
+
+    def send(self, *, to: str, text: str) -> SmsSendResult:
+        if not self.api_key or not self.sender:
+            return SmsSendResult(success=False, error_message="تنظیمات اتصال کاوه‌نگار کامل نیست")
+
+        import requests
+
+        url = self.SEND_URL_TEMPLATE.format(api_key=self.api_key)
+        payload = {"receptor": to, "sender": self.sender, "message": text}
+        try:
+            response = requests.post(url, data=payload, timeout=REQUEST_TIMEOUT_SECONDS)
+            data = response.json()
+        except Exception as exc:  # هیچ خطای شبکه/HTTP/JSON نباید جریان اصلی را بشکند
+            logger.warning("kavenegar send failed: %s", exc)
+            return SmsSendResult(success=False, error_message=str(exc))
+
+        status = (data.get("return") or {}).get("status")
+        if status == 200:
+            entries = data.get("entries") or [{}]
+            ref_id = str(entries[0].get("messageid", ""))
+            return SmsSendResult(success=True, provider_ref_id=ref_id)
+        error_message = (data.get("return") or {}).get("message", "خطای نامشخص کاوه‌نگار")
+        return SmsSendResult(success=False, error_message=error_message)

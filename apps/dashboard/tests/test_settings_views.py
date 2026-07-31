@@ -237,6 +237,18 @@ class SettingsSMSSectionTests(SettingsViewsTestCase):
         })
         self.assertRedirects(response, "/admin-portal/settings/?section=sms")
 
+    def test_kavenegar_backend_and_api_key_are_saved(self):
+        from apps.core.models import ShopSettings
+
+        self.client.post(reverse("dashboard:settings-sms-connection"), {
+            "sms_enabled": True, "sms_backend": "kavenegar",
+            "sms_sender_number": "10001", "melipayamak_username": "", "melipayamak_password": "",
+            "kavenegar_api_key": "secret-key-1",
+        })
+        shop = ShopSettings.load(store=self.store)
+        self.assertEqual(shop.sms_backend, "kavenegar")
+        self.assertEqual(shop.kavenegar_api_key, "secret-key-1")
+
     def test_sms_test_send_redirects_to_sms_section(self):
         response = self.client.post(reverse("dashboard:sms-test-send"), {
             "phone": "09121234567", "event_key": "welcome",

@@ -98,6 +98,7 @@ class ShopSettings(TimeStampedModel):
     class SmsBackend(models.TextChoices):
         CONSOLE = "console", "کنسول (فقط لاگ، برای توسعه)"
         MELIPAYAMAK = "melipayamak", "ملی‌پیامک"
+        KAVENEGAR = "kavenegar", "کاوه‌نگار"
 
     sms_enabled = models.BooleanField("فعال‌سازی سیستم پیامک", default=True)
     sms_backend = models.CharField(
@@ -106,6 +107,7 @@ class ShopSettings(TimeStampedModel):
     sms_sender_number = models.CharField("شماره‌ی فرستنده", max_length=20, blank=True)
     melipayamak_username = models.CharField("نام کاربری ملی‌پیامک", max_length=100, blank=True)
     melipayamak_password = models.CharField("رمز عبور ملی‌پیامک", max_length=100, blank=True)
+    kavenegar_api_key = models.CharField("کلید API کاوه‌نگار", max_length=100, blank=True)
 
     # --- هویت بصری ---
     logo = models.ImageField("لوگوی فروشگاه", upload_to="shop/branding/", blank=True)

@@ -384,6 +384,7 @@ RASTISI_OWNER_SMS_BACKEND = env_str("RASTISI_OWNER_SMS_BACKEND", "console")
 RASTISI_OWNER_SMS_USERNAME = env_str("RASTISI_OWNER_SMS_USERNAME", "")
 RASTISI_OWNER_SMS_PASSWORD = env_str("RASTISI_OWNER_SMS_PASSWORD", "")
 RASTISI_OWNER_SMS_SENDER = env_str("RASTISI_OWNER_SMS_SENDER", "")
+RASTISI_OWNER_SMS_API_KEY = env_str("RASTISI_OWNER_SMS_API_KEY", "")
 
 # Checkpoint 5A — default subscription plan for newly onboarded stores.
 # ``RASTISI_DEFAULT_PLAN_CODE`` names a Plan.code whose latest published

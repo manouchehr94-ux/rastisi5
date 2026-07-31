@@ -10,7 +10,7 @@ from apps.sms.services.sms_service import (
     send_test_sms,
     validate_template_body,
 )
-from apps.sms.services.backends import ConsoleBackend, MelipayamakBackend
+from apps.sms.services.backends import ConsoleBackend, KavenegarBackend, MelipayamakBackend
 from apps.stores.models import Store
 
 
@@ -43,6 +43,12 @@ class GetBackendTests(TestCase):
         shop.sms_backend = ShopSettings.SmsBackend.MELIPAYAMAK
         shop.save()
         self.assertIsInstance(get_backend(store=self.store), MelipayamakBackend)
+
+    def test_kavenegar_selected_when_configured(self):
+        shop = ShopSettings.load(store=self.store)
+        shop.sms_backend = ShopSettings.SmsBackend.KAVENEGAR
+        shop.save()
+        self.assertIsInstance(get_backend(store=self.store), KavenegarBackend)
 
 
 class SendEventSmsTests(TestCase):

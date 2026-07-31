@@ -2475,6 +2475,7 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
             "sms_sender_number": shop.sms_sender_number,
             "melipayamak_username": shop.melipayamak_username,
             "melipayamak_password": shop.melipayamak_password,
+            "kavenegar_api_key": shop.kavenegar_api_key,
         }),
         "visual_form": visual_form or VisualIdentityForm(current_shop=shop, initial=theme_values),
         "theme_presets": THEME_PRESETS,
@@ -2783,7 +2784,7 @@ def settings_sms_connection(request):
         shop = ShopSettings.load(store=request.store)
         for field in [
             "sms_enabled", "sms_backend", "sms_sender_number",
-            "melipayamak_username", "melipayamak_password",
+            "melipayamak_username", "melipayamak_password", "kavenegar_api_key",
         ]:
             setattr(shop, field, form.cleaned_data[field])
         shop.save()

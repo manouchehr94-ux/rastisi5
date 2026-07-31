@@ -7,7 +7,7 @@ import logging
 
 from django.conf import settings
 
-from apps.sms.services.backends import ConsoleBackend, MelipayamakBackend, SmsBackend, SmsSendResult
+from apps.sms.services.backends import ConsoleBackend, KavenegarBackend, MelipayamakBackend, SmsBackend, SmsSendResult
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,11 @@ def get_platform_sms_backend() -> SmsBackend:
         return MelipayamakBackend(
             username=settings.RASTISI_OWNER_SMS_USERNAME,
             password=settings.RASTISI_OWNER_SMS_PASSWORD,
+            sender=settings.RASTISI_OWNER_SMS_SENDER,
+        )
+    if settings.RASTISI_OWNER_SMS_BACKEND == "kavenegar":
+        return KavenegarBackend(
+            api_key=settings.RASTISI_OWNER_SMS_API_KEY,
             sender=settings.RASTISI_OWNER_SMS_SENDER,
         )
     return ConsoleBackend()
