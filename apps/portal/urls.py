@@ -101,4 +101,18 @@ urlpatterns = [
         "app/stores/<uuid:store_public_id>/delete/cancel/",
         views.cancel_store_deletion, name="cancel-store-deletion",
     ),
+    # Ownership transfer — two-party OTP-gated (Section 15)
+    path(
+        "app/stores/<uuid:store_public_id>/transfer/",
+        views.initiate_ownership_transfer, name="initiate-ownership-transfer",
+    ),
+    path(
+        "app/stores/<uuid:store_public_id>/transfer/step-up/",
+        views.ownership_transfer_step_up, name="ownership-transfer-step-up",
+    ),
+    path(
+        "app/stores/<uuid:store_public_id>/transfer/cancel/",
+        views.cancel_ownership_transfer, name="cancel-ownership-transfer",
+    ),
+    path("transfer/accept/<str:token>/", views.accept_ownership_transfer, name="accept-ownership-transfer"),
 ]

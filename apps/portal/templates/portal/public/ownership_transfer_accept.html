@@ -1,0 +1,39 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}پذیرشِ مالکیتِ فروشگاه | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="p-wrap">
+<div class="p-form-card" style="max-width:420px">
+  {% if not transfer %}
+  <h2 style="text-align:center;margin-bottom:8px">این پیوند معتبر نیست</h2>
+  <p style="text-align:center;font-size:13px;color:var(--p-muted)">این درخواستِ انتقالِ مالکیت یافت نشد یا منقضی شده است.</p>
+  {% else %}
+  <h2 style="text-align:center;margin-bottom:8px">پذیرشِ مالکیتِ فروشگاه</h2>
+  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px">
+    فروشگاهِ «{{ transfer.store.name }}» به شما (<span style="direction:ltr">{{ transfer.target_phone }}</span>) منتقل می‌شود.
+    برایِ پذیرش، ابتدا کد دریافت کنید و سپس آن را وارد کنید.
+  </p>
+  {% if messages %}{% for message in messages %}
+    <div class="p-alert {% if message.tags == 'error' %}p-alert-error{% else %}p-alert-success{% endif %}">{{ message }}</div>
+  {% endfor %}{% endif %}
+
+  <form method="post" style="margin-bottom:12px">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="request_code">
+    <button type="submit" class="p-btn p-btn-ghost" style="width:100%">دریافتِ کد</button>
+  </form>
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="verify_code">
+    <div class="p-field">
+      <label for="id_code">کدِ تأیید</label>
+      <input type="text" id="id_code" name="code" maxlength="6" minlength="6" style="direction:ltr;text-align:center;letter-spacing:4px;font-size:20px">
+    </div>
+    <button type="submit" class="p-btn p-btn-primary" style="width:100%">پذیرشِ مالکیت</button>
+  </form>
+  {% endif %}
+</div>
+</div>
+{% endblock %}
+{% block extra_css %}<style>.p-field input{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px}</style>{% endblock %}

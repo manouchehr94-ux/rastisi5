@@ -593,3 +593,58 @@ class StoreMembership(StoresTimestampedModel):
 
         if errors:
             raise ValidationError(errors)
+
+
+class StoreOwnershipTransfer(StoresTimestampedModel):
+    """انتقالِ مالکیتِ فروشگاه (Section 15) — دوطرفه و هر دو طرف OTP-گیت:
+    مالکِ فعلی با تأییدِ گام‌دومِ خودش (action=``store_ownership_transfer``)
+    درخواست را می‌سازد، و طرفِ مقابل با OTPِ خودش (شماره‌ی مقصد، نه شماره‌ی
+    مالکِ فعلی) آن را می‌پذیرد — تا زمانِ پذیرشِ واقعی هیچ عضویتی تغییر
+    نمی‌کند."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "در انتظارِ پذیرش"
+        COMPLETED = "completed", "انجام‌شده"
+        EXPIRED = "expired", "منقضی‌شده"
+        CANCELLED = "cancelled", "لغوشده"
+
+    store = models.ForeignKey(
+        Store, verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="ownership_transfers",
+    )
+    initiated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="آغازکننده", on_delete=models.PROTECT,
+        related_name="ownership_transfers_initiated",
+    )
+    target_phone = models.CharField("موبایلِ مالکِ جدید", max_length=15)
+    token = models.CharField("توکنِ پذیرش", max_length=32, unique=True, editable=False)
+    status = models.CharField("وضعیت", max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True)
+    expires_at = models.DateTimeField("زمانِ انقضا")
+    completed_at = models.DateTimeField("زمانِ تکمیل", null=True, blank=True)
+    cancelled_at = models.DateTimeField("زمانِ لغو", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "انتقالِ مالکیتِ فروشگاه"
+        verbose_name_plural = "انتقال‌هایِ مالکیتِ فروشگاه"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["store"], condition=models.Q(status="pending"),
+                name="uniq_pending_ownership_transfer_per_store",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.store.slug} → {self.target_phone} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            import secrets
+
+            self.token = secrets.token_hex(16)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self) -> bool:
+        from django.utils import timezone
+
+        return timezone.now() >= self.expires_at

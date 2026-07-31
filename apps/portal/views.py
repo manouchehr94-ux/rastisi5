@@ -11,8 +11,8 @@ from django.views.decorators.http import require_POST
 from django.conf import settings
 
 from apps.catalog.models import IndustryTemplate
-from apps.stores.models import Store, StoreDomain, StoreMembership
-from apps.stores.services import deletion_service, domain_verification_service, handle_service
+from apps.stores.models import Store, StoreDomain, StoreMembership, StoreOwnershipTransfer
+from apps.stores.services import deletion_service, domain_verification_service, handle_service, ownership_transfer_service
 from apps.subscriptions.models import Plan, PlanVersion, PlatformInvoice, PlatformPaymentAttempt, StoreSubscription
 from apps.subscriptions.services import billing_service
 
@@ -1111,3 +1111,141 @@ def cancel_store_deletion(request, store_public_id):
     else:
         messages.success(request, "درخواستِ حذفِ فروشگاه لغو شد.")
     return redirect("portal:request-store-deletion", store_public_id=store.public_id)
+
+
+# ---------------------------------------------------------------------------
+# Ownership transfer — two-party OTP-gated (Section 15)
+# ---------------------------------------------------------------------------
+
+_STEP_UP_ACTION_OWNERSHIP_TRANSFER = "store_ownership_transfer"
+_SESSION_PENDING_TRANSFER_PHONE_KEY = "portal_pending_transfer_phone"
+
+
+@owner_required
+def initiate_ownership_transfer(request, store_public_id):
+    store = _get_owned_store_or_404(request, store_public_id)
+    pending_transfer = store.ownership_transfers.filter(status=StoreOwnershipTransfer.Status.PENDING).first()
+
+    if request.method == "POST" and pending_transfer is None:
+        target_phone_raw = (request.POST.get("target_phone") or "").strip()
+        try:
+            target_phone = normalize_iranian_phone(target_phone_raw)
+        except InvalidPhoneError as exc:
+            messages.error(request, str(exc.messages[0] if exc.messages else exc))
+            return redirect("portal:initiate-ownership-transfer", store_public_id=store.public_id)
+
+        target = str(store.public_id)
+        if step_up_service.is_step_up_required(_STEP_UP_ACTION_OWNERSHIP_TRANSFER) and not step_up_service.is_verified(
+            request, action=_STEP_UP_ACTION_OWNERSHIP_TRANSFER, target=target,
+        ):
+            phone = getattr(getattr(request.user, "owner_profile", None), "phone", None)
+            if not phone:
+                messages.error(request, "این عملیات نیاز به شماره موبایلِ ثبت‌شده در حساب دارد.")
+                return redirect("portal:initiate-ownership-transfer", store_public_id=store.public_id)
+            try:
+                step_up_service.begin_challenge(
+                    request, action=_STEP_UP_ACTION_OWNERSHIP_TRANSFER, target=target, phone=phone,
+                    message="کدِ تأییدِ انتقالِ مالکیتِ فروشگاه: {code}",
+                    client_ip=request.META.get("REMOTE_ADDR", ""),
+                )
+            except step_up_service.OtpRateLimitError as exc:
+                messages.error(request, str(exc))
+                return redirect("portal:initiate-ownership-transfer", store_public_id=store.public_id)
+            request.session[_SESSION_PENDING_TRANSFER_PHONE_KEY] = target_phone
+            return redirect("portal:ownership-transfer-step-up", store_public_id=store.public_id)
+
+        try:
+            ownership_transfer_service.initiate_transfer(
+                store=store, initiated_by=request.user, target_phone=target_phone,
+            )
+        except ownership_transfer_service.OwnershipTransferError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, "درخواستِ انتقالِ مالکیت ثبت شد؛ تا پذیرشِ طرفِ مقابل در انتظار می‌ماند.")
+        return redirect("portal:initiate-ownership-transfer", store_public_id=store.public_id)
+
+    return render(request, "portal/app/ownership_transfer.html", {
+        "store": store, "pending_transfer": pending_transfer,
+    })
+
+
+@owner_required
+def ownership_transfer_step_up(request, store_public_id):
+    store = _get_owned_store_or_404(request, store_public_id)
+    pending = step_up_service.pending_challenge(request)
+    if not pending or pending.get("target") != str(store.public_id):
+        return redirect("portal:initiate-ownership-transfer", store_public_id=store.public_id)
+
+    if request.method == "POST":
+        code = request.POST.get("code", "")
+        if step_up_service.confirm_challenge(request, code=code):
+            target_phone = request.session.pop(_SESSION_PENDING_TRANSFER_PHONE_KEY, "")
+            try:
+                ownership_transfer_service.initiate_transfer(
+                    store=store, initiated_by=request.user, target_phone=target_phone,
+                )
+            except ownership_transfer_service.OwnershipTransferError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(request, "درخواستِ انتقالِ مالکیت ثبت شد؛ تا پذیرشِ طرفِ مقابل در انتظار می‌ماند.")
+            return redirect("portal:initiate-ownership-transfer", store_public_id=store.public_id)
+        messages.error(request, "کدِ واردشده نادرست یا منقضی است.")
+
+    return render(request, "portal/app/step_up_verify.html", {"store": store})
+
+
+@owner_required
+@require_POST
+def cancel_ownership_transfer(request, store_public_id):
+    store = _get_owned_store_or_404(request, store_public_id)
+    transfer = store.ownership_transfers.filter(status=StoreOwnershipTransfer.Status.PENDING).first()
+    if transfer is None:
+        messages.error(request, "انتقالِ در-انتظاری برایِ لغو وجود ندارد.")
+        return redirect("portal:initiate-ownership-transfer", store_public_id=store.public_id)
+    try:
+        ownership_transfer_service.cancel_transfer(transfer=transfer, actor=request.user)
+    except ownership_transfer_service.OwnershipTransferError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, "درخواستِ انتقالِ مالکیت لغو شد.")
+    return redirect("portal:initiate-ownership-transfer", store_public_id=store.public_id)
+
+
+def accept_ownership_transfer(request, token):
+    """صفحه‌ی عمومیِ پذیرشِ انتقال — طرفِ مقابل ممکن است اصلاً هنوز حسابی
+    نداشته باشد، پس ``owner_required`` نیست. تنها با OTPِ خودِ
+    ``transfer.target_phone`` (نه نشستِ مالکِ فعلی) قابلِ پذیرش است."""
+    transfer = ownership_transfer_service.get_pending_transfer_by_token(token)
+    if transfer is None or transfer.is_expired:
+        return render(request, "portal/public/ownership_transfer_accept.html", {"transfer": None}, status=404)
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "request_code":
+            try:
+                owner_otp_service.request_otp(
+                    phone=transfer.target_phone, purpose=OwnerOtpChallenge.Purpose.STEP_UP,
+                    client_ip=request.META.get("REMOTE_ADDR", "unknown"),
+                    message="کدِ پذیرشِ مالکیتِ فروشگاه: {code}",
+                )
+                messages.success(request, "کد ارسال شد.")
+            except owner_otp_service.OtpRateLimitError as exc:
+                messages.error(request, str(exc))
+        elif action == "verify_code":
+            code = request.POST.get("code", "")
+            ok = owner_otp_service.verify_otp(
+                phone=transfer.target_phone, purpose=OwnerOtpChallenge.Purpose.STEP_UP, code=code,
+            )
+            if ok:
+                try:
+                    _updated, new_owner = ownership_transfer_service.accept_transfer(transfer=transfer)
+                except ownership_transfer_service.OwnershipTransferError as exc:
+                    messages.error(request, str(exc))
+                else:
+                    auth_login(request, new_owner)
+                    messages.success(request, "مالکیتِ فروشگاه با موفقیت به شما منتقل شد.")
+                    return redirect("portal:app-home")
+            else:
+                messages.error(request, "کدِ واردشده نادرست یا منقضی است.")
+
+    return render(request, "portal/public/ownership_transfer_accept.html", {"transfer": transfer})

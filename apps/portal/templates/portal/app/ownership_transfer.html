@@ -1,0 +1,38 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}انتقالِ مالکیت | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="p-wrap">
+<div class="p-form-card" style="max-width:480px">
+  <h2 style="text-align:center;margin-bottom:8px">انتقالِ مالکیتِ فروشگاه</h2>
+
+  {% if messages %}{% for message in messages %}
+    <div class="p-alert {% if message.tags == 'error' %}p-alert-error{% else %}p-alert-success{% endif %}">{{ message }}</div>
+  {% endfor %}{% endif %}
+
+  {% if pending_transfer %}
+  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:16px">
+    یک درخواستِ انتقالِ مالکیت به شماره‌ی <b style="direction:ltr">{{ pending_transfer.target_phone }}</b> ارسال شده
+    و در انتظارِ پذیرشِ اوست. تا زمانِ پذیرشِ واقعی، مالکیتِ شما تغییری نمی‌کند.
+  </p>
+  <form method="post" action="{% url 'portal:cancel-ownership-transfer' store.public_id %}">
+    {% csrf_token %}
+    <button type="submit" class="p-btn p-btn-ghost" style="width:100%">لغوِ درخواستِ انتقال</button>
+  </form>
+  {% else %}
+  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px">
+    انتقالِ مالکیت دوطرفه است: مالکِ جدید هم باید با کدِ خودش تأیید کند. تا آن زمان شما همچنان مالکِ فروشگاه هستید.
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    <div class="p-field">
+      <label for="id_target_phone">شماره‌ی موبایلِ مالکِ جدید</label>
+      <input type="text" id="id_target_phone" name="target_phone" required style="direction:ltr;text-align:left">
+    </div>
+    <button type="submit" class="p-btn p-btn-primary" style="width:100%">ارسالِ درخواستِ انتقال</button>
+  </form>
+  {% endif %}
+</div>
+</div>
+{% endblock %}
+{% block extra_css %}<style>.p-field input{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px}</style>{% endblock %}
