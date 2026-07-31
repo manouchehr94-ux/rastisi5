@@ -146,3 +146,49 @@ def normalize_admin_subdomain(raw_value):
         )
 
     return value
+
+
+#: Reserved-word list for a paid owner's human-readable public subdomain
+#: claim under ``RASTISI_ADMIN_DOMAIN_SUFFIX`` (Section J/K). Verbatim list
+#: from the product decision, unioned with ``RESERVED_ADMIN_SUBDOMAINS`` —
+#: any label already reserved by the existing merchant-admin routing must
+#: stay reserved here too, not just the words newly listed for this surface.
+RESERVED_PLATFORM_SUBDOMAINS = frozenset({
+    "www", "admin", "administrator", "api", "app", "apps", "account",
+    "accounts", "auth", "billing", "blog", "cdn", "checkout", "dashboard",
+    "docs", "ftp", "help", "imap", "login", "logout", "mail", "media",
+    "panel", "platform", "portal", "register", "registration", "root",
+    "shop", "smtp", "static", "status", "store", "support", "system",
+    "test", "wwwroot", "rastisi",
+}) | RESERVED_ADMIN_SUBDOMAINS
+
+
+def normalize_platform_subdomain_label(raw_value):
+    """Normalize and validate a paid owner's chosen human-readable
+    subdomain label (Section J) — same DNS-label rules as
+    ``normalize_admin_subdomain``, but checked against the wider
+    ``RESERVED_PLATFORM_SUBDOMAINS`` list. Returns just the label (e.g.
+    ``"novinshop"``), not the full hostname — the caller builds
+    ``f"{label}.{RASTISI_ADMIN_DOMAIN_SUFFIX}"``.
+    """
+    if raw_value is None:
+        raise ValidationError("زیردامنه الزامی است.", code="platform_subdomain_required")
+
+    value = str(raw_value).strip().lower()
+    if not value:
+        raise ValidationError("زیردامنه الزامی است.", code="platform_subdomain_required")
+
+    if len(value) > MAX_LABEL_LENGTH or not _LABEL_RE.match(value):
+        raise ValidationError(
+            "زیردامنه باید فقط شامل حروف انگلیسی، رقم و خط تیره باشد "
+            "(نه در ابتدا/انتها) و حداکثر ۶۳ نویسه.",
+            code="platform_subdomain_invalid_characters",
+        )
+
+    if value in RESERVED_PLATFORM_SUBDOMAINS:
+        raise ValidationError(
+            f"زیردامنه‌ی «{value}» رزرو شده و قابل استفاده نیست.",
+            code="platform_subdomain_reserved",
+        )
+
+    return value

@@ -3959,6 +3959,37 @@ to observe a half-built Store.
 
 ---
 
+## ADR-100: Domain Consistency Verification Mirrors the Existing Consistency-Command Shape
+
+**Decision.** `apps.stores.services.domain_consistency_service.
+check_domain_consistency()` / `manage.py verify_domain_consistency
+[--strict]` are read-only and return the exact same `{"severity":
+"error"|"warning", "message": str}` list shape as `check_subscription_
+consistency`, `check_billing_consistency`, and the inventory equivalent —
+one consistent pattern for every domain's health-check command, not a
+one-off. It checks: duplicate normalized hostnames, a Store missing its
+`platform_code`, more than one primary `StoreDomain` per Store, a
+`is_redirect` alias whose Store has no primary domain to redirect to
+(broken target), a `StoreDomain` hostname whose leftmost label collides
+with the new `RESERVED_PLATFORM_SUBDOMAINS` list (Section K's product
+decision, `apps.stores.hostnames`), a public `StoreDomain` colliding with
+a *different* Store's admin host, and (warning-level) an `ACTIVE` Store
+with no `generated_trial` domain at all — expected for every Store that
+predates the portal (the seeded Akhlaghi Store), not an error.
+
+`RESERVED_PLATFORM_SUBDOMAINS` (verbatim product-decision list, unioned
+with `RESERVED_ADMIN_SUBDOMAINS`) and `normalize_platform_subdomain_
+label` are added now, ahead of the paid-subdomain-claim UI itself (Section
+J), so the consistency checker and that future UI share one validation
+function instead of two independently-maintained copies of the same
+reserved-word rule.
+
+**Consequences.** One more read-only, CI-runnable health check, in the
+same family as the three that already exist; no write path, no
+migration risk.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -4065,3 +4096,4 @@ to observe a half-built Store.
 | Platform-level hosts (marketing/portal, platform-admin) get their own URLconf via `request.urlconf`, additive to existing routing | Decided, implemented (Portal, ADR-97) |
 | Merchant-admin handoff via a signed, single-use, DB-backed ticket (no cross-subdomain cookie sharing) | Decided, implemented (Portal, ADR-98) |
 | Trial Store provisioning activates immediately in one atomic call; onboarding is a separate, optional, later flow | Decided, implemented (Portal, ADR-99) |
+| `verify_domain_consistency --strict` is read-only, mirrors the billing/subscription/inventory consistency-command shape exactly; a wider `RESERVED_PLATFORM_SUBDOMAINS` list (Section K's product decision) guards future paid subdomain claims and is checked here today | Decided, implemented (Portal, ADR-100) |
