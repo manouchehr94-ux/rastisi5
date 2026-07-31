@@ -1,0 +1,29 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}فروشگاه‌های من | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<section class="p-section"><div class="p-wrap">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+    <h2 style="margin:0">فروشگاه‌های من</h2>
+    <form method="post" action="{% url 'portal:logout' %}">{% csrf_token %}<button type="submit" class="p-btn p-btn-ghost">خروج</button></form>
+  </div>
+
+  {% if memberships %}
+  <div class="p-grid cols-3">
+    {% for membership in memberships %}
+    <div class="p-card">
+      <h3>{{ membership.store.name }}</h3>
+      <p style="font-size:13px">وضعیت فروشگاه: {{ membership.store.get_status_display }}</p>
+      <p style="font-size:13px">نقش شما: {{ membership.get_role_display }}</p>
+      <p style="font-size:12px;color:var(--p-muted);direction:ltr;text-align:left">{{ membership.store.platform_code }}</p>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="p-card" style="max-width:520px;text-align:center">
+    <p>هنوز هیچ فروشگاهی نساخته‌اید.</p>
+    <p style="color:var(--p-muted);font-size:13px;margin-top:8px">ساخت فروشگاه در نسخه‌ی بعدی این پرتال فعال می‌شود.</p>
+  </div>
+  {% endif %}
+</div></section>
+{% endblock %}

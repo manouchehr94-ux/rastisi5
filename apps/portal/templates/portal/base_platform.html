@@ -1,0 +1,79 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}راستیسی | سایت‌ساز فروشگاه آنلاین{% endblock %}</title>
+{% block meta_description %}<meta name="description" content="راستیسی — فروشگاه آنلاین خودتان را در چند دقیقه راه‌اندازی کنید.">{% endblock %}
+{% block robots_meta %}{% endblock %}
+<link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
+<link rel="icon" href="{% static 'favicon.ico' %}">
+<link rel="stylesheet" href="{% static 'css/base.css' %}">
+<link rel="stylesheet" href="{% static 'portal/css/platform-tokens.css' %}">
+{% block extra_css %}{% endblock %}
+<script src="{% static 'js/htmx.min.js' %}" defer></script>
+<script src="{% static 'js/alpine.min.js' %}" defer></script>
+</head>
+<body style="background:var(--p-bg)">
+{% csrf_token %}
+
+{% block header %}
+<header class="p-header"><div class="p-wrap p-header-inner">
+  <a class="p-brand" href="{% url 'portal:home' %}">
+    <span class="mark"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 00-1 3.73V8L3 14v2h18v-2L13 8V6.73A2 2 0 0012 3z"/></svg></span>
+    راستیسی
+  </a>
+  <nav class="p-nav" aria-label="ناوبری اصلی">
+    <a href="{% url 'portal:home' %}">خانه</a>
+    <a href="{% url 'portal:plans' %}">تعرفه‌ها</a>
+    <a href="{% url 'portal:features' %}">امکانات</a>
+    <a href="{% url 'portal:help' %}">راهنما</a>
+    <a href="{% url 'portal:contact' %}">تماس</a>
+  </nav>
+  <div style="display:flex;align-items:center;gap:8px">
+    {% if request.user.is_authenticated %}
+    <a class="p-btn p-btn-ghost" href="{% url 'portal:app-home' %}">پنل من</a>
+    {% else %}
+    <a class="p-btn p-btn-ghost" href="{% url 'portal:login' %}">ورود</a>
+    <a class="p-btn p-btn-primary" href="{% url 'portal:register' %}">ایجاد فروشگاه</a>
+    {% endif %}
+  </div>
+</div></header>
+{% endblock %}
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+{% block footer %}
+<footer class="p-footer"><div class="p-wrap">
+  <p>© {% now "Y" %} راستیسی — همه‌ی حقوق محفوظ است.</p>
+  <p style="margin-top:8px">
+    <a href="{% url 'portal:terms' %}">قوانین و مقررات</a> ·
+    <a href="{% url 'portal:privacy' %}">حریم خصوصی</a> ·
+    <a href="{% url 'portal:contact' %}">تماس با ما</a>
+  </p>
+</div></footer>
+{% endblock %}
+
+{% if messages %}
+<div class="p-wrap" style="position:fixed;bottom:16px;left:0;right:0;z-index:100;pointer-events:none">
+  {% for message in messages %}
+  <div class="p-alert {% if message.tags == 'error' %}p-alert-error{% else %}p-alert-success{% endif %}" style="max-width:420px;margin:0 auto 8px;pointer-events:auto">{{ message }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<script>
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+}
+document.body.addEventListener('htmx:configRequest', (event) => {
+  event.detail.headers['X-CSRFToken'] = getCookie('csrftoken');
+});
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

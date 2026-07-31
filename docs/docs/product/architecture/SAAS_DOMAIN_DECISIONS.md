@@ -3736,6 +3736,189 @@ complementary layer rather than a fragile substitute.
 
 ---
 
+## ADR-93: Owner Identity Is Email/Password, Structurally Separate From Storefront Customer Identity
+
+**Decision.** The platform ("System A": public site + owner portal) authenticates
+Store owners with `User.username = email` (lowercased, validated unique at the
+service layer) and Django's ordinary password auth. This is a deliberately
+different identifier scheme from `apps.customers.services.auth_service`, which
+authenticates storefront customers with `User.username = phone`. No new
+`AUTH_USER_MODEL` or parallel user table is introduced — both identities are
+plain `django.contrib.auth.User` rows; owners never get a `Customer` profile as
+a side effect of registering, and customers never get `is_staff` or a
+`StoreMembership` as a side effect of shopping. The two flows share nothing
+except the `User` table itself, so a person who happens to use the same phone
+number as their email's local part (or otherwise ends up as both an owner and a
+customer somewhere) simply has two independent capabilities on the same
+underlying account — not a collision, not a bug.
+
+Password reset for owners reuses Django's standard token-based email flow
+(`django.contrib.auth.tokens.PasswordResetTokenGenerator`), delivered via
+`django.core.mail`. This is intentionally NOT SMS-based: `apps.sms.services.
+sms_service.send_event_sms` is Store-scoped by construction (it loads
+`ShopSettings.load(store=...)` for per-store templates/branding) and owner
+registration/reset happens before any Store exists, or independent of any one
+Store — extending Store-scoped SMS infrastructure to a Store-less platform
+identity would blur a boundary this codebase otherwise keeps sharp. `EMAIL_
+BACKEND` follows the existing environment-driven settings pattern: console
+backend in dev/test (visible in logs, never silently "sent"), SMTP via
+`DJANGO_EMAIL_*` env vars in production — never a fake "email sent" result.
+
+**Consequences.** Registration/login forms are ordinary email+password, matching
+the visual reference. No SMS provider dependency for the owner-identity layer.
+Production deployments must configure real SMTP env vars or password reset
+mail is only visible in server logs — documented in the local-dev/deployment
+docs, not silently broken.
+
+---
+
+## ADR-94: Store Gets a Permanent, Human-Typable 9-Character Platform Code
+
+**Decision.** `Store.platform_code` (new field, `CharField(max_length=9,
+unique=True, editable=False)`) is generated once, at provisioning time, from
+the alphabet `abcdefghjkmnpqrstuvwxyz23456789` (32 symbols, excludes `0/o/1/l/i`
+to avoid visual ambiguity) with collision-checked retry. It is distinct from
+both existing identifiers on `Store`:
+
+* `public_id` (UUID4) — opaque, for API/billing/support cross-reference, never
+  shown as a hostname;
+* `admin_subdomain` — the *merchant admin* host label, independent of any
+  public storefront domain (ADR-16), never shown to storefront visitors.
+
+`platform_code` is the seed of the trial storefront hostname
+(`{platform_code}.{RASTISI_ADMIN_DOMAIN_SUFFIX}`) and is never reused, reissued,
+or shown to a different Store, even after the owner later claims a
+human-readable subdomain — it is the one identifier that outlives every
+hostname change a Store ever makes (see ADR-95). Existing pre-migration Stores
+(the seeded Akhlaghi row) are backfilled deterministically in a data migration,
+mirroring the exact 3-step schema/backfill/enforce-not-null pattern
+`admin_subdomain` already used (migrations `0003`-`0005`).
+
+**Consequences.** "My Stores" and support tooling can always identify a Store
+by one short, typable, collision-free code, independent of whatever hostname(s)
+happen to be attached to it today.
+
+---
+
+## ADR-95: `StoreDomain` Gains `domain_type` and `is_redirect` — No Second Hostname Table
+
+**Decision.** Rather than introduce a competing model for
+trial/platform/custom hostnames, `StoreDomain` (already the single source of
+truth for request-time hostname resolution, ADR-4/ADR-5) gains two fields:
+
+* `domain_type` — `generated_trial` / `platform_subdomain` / `custom_domain`.
+  Purely descriptive (what kind of hostname this is, for UI and consistency
+  checks); it does not change routing eligibility, which stays exactly
+  `domain_is_eligible_for_routing` (Store `ACTIVE` + domain `VERIFIED`).
+  Platform-issued hostnames (`generated_trial`, `platform_subdomain`) are
+  created already `VERIFIED` — Rastisi controls the wildcard DNS for its own
+  suffix, so merchant DNS/HTTP verification (ADR-5's deliberately unimplemented
+  networking) makes no sense for them; only `custom_domain` rows go through
+  the real verification lifecycle (see ADR-97).
+* `is_redirect` — when `True`, this hostname must never render storefront
+  content directly; it exists only so an old hostname a Store used to answer
+  on keeps working forever as a redirect to the Store's current primary
+  domain (ADR-96). It is enforced by a new, additive `HostnameRedirectMiddleware`
+  (checked immediately after `StoreResolutionMiddleware`), not by weakening
+  `domain_is_eligible_for_routing` or touching any existing storefront view —
+  every one of the ~3000 pre-existing tests that assume a resolved `StoreDomain`
+  serves content directly keeps doing exactly that, since `is_redirect`
+  defaults to `False` and only ever gets set `True` by the subdomain-claim
+  service (ADR-96).
+
+Backfilled data migration: every pre-existing `StoreDomain` row defaults to
+`domain_type="custom_domain"` (the conservative assumption for hostnames that
+predate this whole scheme — treat them as merchant-supplied unless the
+platform code proves otherwise) and `is_redirect=False`.
+
+**Consequences.** One hostname model keeps meaning "the authoritative mapping
+from a real HTTP Host to a Store," exactly as ADR-4/ADR-5 established; the new
+fields only add descriptive/lifecycle metadata on top.
+
+---
+
+## ADR-96: Old Hostnames Become Permanent Redirecting Aliases, Never Reused
+
+**Decision.** When a paying owner claims a human-readable subdomain (or,
+later, a custom domain) as their new primary `StoreDomain`, the previous
+primary hostname is not deleted and not detached from the Store — it is kept
+as a non-primary `StoreDomain` row with `is_redirect=True`, permanently
+redirecting (HTTP 301 for GET/HEAD, 308 for other methods, via
+`HostnameRedirectMiddleware`) to the new primary domain, path and query string
+preserved. Because `StoreDomain.hostname` is globally unique, a hostname that
+ever belonged to Store A can never be claimed by Store B — not while it's
+active, not after Store A stops using it. Reserved-word and normalization
+checks (`apps.stores.hostnames`) apply identically to platform-subdomain claims
+as they already do to `admin_subdomain`.
+
+**Consequences.** Bookmarks, printed material, and old marketing links for a
+Store's original `{platform_code}.rastisi.ir` (or any earlier subdomain) never
+404 and never risk landing on a different merchant's Store later.
+
+---
+
+## ADR-97: Platform-Level Hosts Get Their Own URLconf, Not a New Store Concept
+
+**Decision.** Three kinds of platform-owned hosts exist alongside per-Store
+hosts, none of which are `StoreDomain`/`admin_subdomain` rows and none of
+which go through `StoreResolutionMiddleware`'s per-Store lookup for routing
+purposes:
+
+1. the bare marketing + owner-portal host (`rastisi.ir`, `www.rastisi.ir` in
+   production; `rastisi.localhost` in local dev) — public site at `/`, owner
+   portal at `/app/`;
+2. the platform-admin host (`platform.rastisi.ir` / `platform.rastisi.
+   localhost`) — staff/superuser-only, no tenant resolution at all;
+3. every other host keeps resolving exactly as before (per-Store public
+   domain, or `{admin_subdomain}.{RASTISI_ADMIN_DOMAIN_SUFFIX}`).
+
+This is implemented with a new, additive `PlatformHostRoutingMiddleware` that
+sets Django's per-request `request.urlconf` (the standard, documented Django
+mechanism for host-based URLconf selection) to `shop_core.urls_platform` or
+`shop_core.urls_platform_admin` when the Host matches an explicit, configured
+allowlist (`RASTISI_PLATFORM_HOSTS` / `RASTISI_PLATFORM_ADMIN_HOSTS`); every
+other Host leaves `request.urlconf` untouched, so `ROOT_URLCONF` (the existing
+Store-scoped catalog/dashboard routes) keeps handling it exactly as before.
+`ALLOWED_HOSTS` gains a single dev-only wildcard entry (`.rastisi.localhost`)
+when `DEBUG=True`; production hosts (including the `.rastisi.ir` wildcard)
+must be set explicitly via `DJANGO_ALLOWED_HOSTS`, matching how every other
+production host value in this codebase is environment-driven, never
+hardcoded.
+
+**Consequences.** Zero changes to the existing per-Store URLconf, middleware
+order, or any of the ~3000 pre-existing tests; the platform layer is additive
+infrastructure that only activates on hosts nothing else has ever claimed.
+
+---
+
+## ADR-98: Merchant-Admin Handoff via a Signed, Single-Use, DB-Backed Ticket
+
+**Decision.** Since `SESSION_COOKIE_DOMAIN` is unset (host-only cookies, by
+design — no code in this repo assumes cross-subdomain session sharing), the
+owner portal's "Enter Admin" action cannot rely on the browser simply
+carrying an existing session cookie from `rastisi.ir`/`app.rastisi.ir` onto a
+Store's distinct `{admin_subdomain}.rastisi.ir` host. A new, narrow
+`AdminHandoffTicket` model (`apps.portal`) carries: a cryptographically random
+token (`secrets.token_urlsafe`), the requesting `user`, the target `store`, a
+short (60s) expiry, and a nullable `consumed_at`. Issuing a ticket requires an
+active `StoreMembership` for that exact (user, store) pair, checked at issue
+time. Consuming it (`GET {admin_subdomain}.../admin-portal/handoff/<token>/`)
+is one atomic `select_for_update` read-and-mark-consumed; a ticket already
+consumed, expired, or for the wrong store 404s exactly like `staff_required`'s
+other fail-closed paths — never a redirect that reveals which case it was.
+On success it calls Django's `login()` for that Store's admin host and
+redirects into `/admin-portal/`. The existing `staff_required`/`permission_
+required` decorators and `StoreMembership` checks are entirely unchanged and
+still run on every subsequent admin-portal request — the ticket only bridges
+the initial cross-host authentication gap, it is not a new authorization
+mechanism.
+
+**Consequences.** No shared-cookie-domain security tradeoff is introduced;
+each handoff is single-use and expires quickly even if a URL leaks (e.g. via
+browser history or a proxy log).
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -3835,3 +4018,9 @@ complementary layer rather than a fragile substitute.
 | Storefront SEO is tenant-scoped to the request Host; drafts/private pages excluded | Decided, implemented (6, ADR-90) |
 | Theme settings via per-store CSS variables; no page builder | Decided, implemented (6, ADR-91) |
 | Browser/E2E testing complements (never replaces) service+view tests; no driver/profile/screenshot artifacts | Decided, implemented (6, ADR-92) |
+| Owner identity is email/password, structurally separate from phone-based storefront customer identity | Decided, implemented (Portal, ADR-93) |
+| `Store.platform_code`: permanent, human-typable 9-char identifier, distinct from `public_id`/`admin_subdomain` | Decided, implemented (Portal, ADR-94) |
+| `StoreDomain` gains `domain_type`/`is_redirect`; no second hostname table | Decided, implemented (Portal, ADR-95) |
+| Old hostnames become permanent redirecting aliases, never reused by another Store | Decided, implemented (Portal, ADR-96) |
+| Platform-level hosts (marketing/portal, platform-admin) get their own URLconf via `request.urlconf`, additive to existing routing | Decided, implemented (Portal, ADR-97) |
+| Merchant-admin handoff via a signed, single-use, DB-backed ticket (no cross-subdomain cookie sharing) | Decided, implemented (Portal, ADR-98) |

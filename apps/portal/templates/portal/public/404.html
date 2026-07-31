@@ -1,0 +1,11 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}صفحه پیدا نشد | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="p-wrap" style="text-align:center;padding:70px 0">
+  <div style="font-size:44px;font-weight:800;color:var(--p-primary)">۴۰۴</div>
+  <h1 style="margin:10px 0">این صفحه پیدا نشد</h1>
+  <p style="color:var(--p-muted);margin-bottom:24px">ممکن است آدرس اشتباه باشد یا این صفحه جابه‌جا/حذف شده باشد.</p>
+  <a class="p-btn p-btn-primary" href="{% url 'portal:home' %}">بازگشت به صفحه اصلی</a>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}تماس با ما | راستیسی{% endblock %}
+{% block content %}
+<section class="p-section"><div class="p-wrap" style="max-width:520px">
+  <h2>تماس با ما</h2>
+  <p class="lead">پیام خود را ارسال کنید، در سریع‌ترین زمان پاسخ می‌دهیم.</p>
+  <div class="p-card">
+    <form method="post">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="p-alert p-alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
+      <div class="p-field"><label for="id_full_name">نام</label>{{ form.full_name }}{% if form.full_name.errors %}<div class="p-error">{{ form.full_name.errors.0 }}</div>{% endif %}</div>
+      <div class="p-field"><label for="id_email">ایمیل</label>{{ form.email }}{% if form.email.errors %}<div class="p-error">{{ form.email.errors.0 }}</div>{% endif %}</div>
+      <div class="p-field"><label for="id_subject">موضوع</label>{{ form.subject }}</div>
+      <div class="p-field"><label for="id_message">پیام</label>{{ form.message }}{% if form.message.errors %}<div class="p-error">{{ form.message.errors.0 }}</div>{% endif %}</div>
+      <button type="submit" class="p-btn p-btn-primary" style="width:100%">ارسال پیام</button>
+    </form>
+  </div>
+</div></section>
+{% endblock %}
+{% block extra_css %}
+<style>.p-field input,.p-field textarea{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px}</style>
+{% endblock %}

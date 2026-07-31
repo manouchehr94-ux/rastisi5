@@ -1,0 +1,15 @@
+{% extends "portal/platform_admin/base.html" %}
+{% block title %}ورود پلتفرم | راستیسی{% endblock %}
+{% block content %}
+<div class="p-form-card" style="background:#152019;border-color:#243329">
+  <h2 style="text-align:center;margin-bottom:20px;color:#e7f3ee">ورود مدیر پلتفرم</h2>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="p-alert p-alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
+    <div class="p-field"><label style="color:#e7f3ee" for="id_email">ایمیل</label>{{ form.email }}</div>
+    <div class="p-field"><label style="color:#e7f3ee" for="id_password">رمز عبور</label>{{ form.password }}</div>
+    <button type="submit" class="p-btn p-btn-primary" style="width:100%">ورود</button>
+  </form>
+</div>
+<style>.p-field input{width:100%;padding:10px 14px;border:1px solid #2a3a30;border-radius:10px;font-family:inherit;font-size:14px;background:#0f1712;color:#e7f3ee}</style>
+{% endblock %}

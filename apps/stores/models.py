@@ -92,6 +92,19 @@ class Store(StoresTimestampedModel):
         default=Status.PROVISIONING,
         db_index=True,
     )
+    platform_code = models.CharField(
+        "کد پایدار پلتفرم",
+        max_length=9,
+        unique=True,
+        editable=False,
+        help_text=(
+            "شناسه‌ی ۹ نویسه‌ای پایدار و قابل‌تایپ (ADR-94) — پایه‌ی نام "
+            "میزبان آزمایشی «{code}.rastisi.ir». برخلاف public_id (UUID، "
+            "برای ارجاع فنی) یا admin_subdomain (میزبان پنل مدیریت)، هرگز "
+            "تغییر نمی‌کند و هرگز به فروشگاه دیگری واگذار نمی‌شود، حتی پس از "
+            "تغییر زیردامنه‌ی عمومی."
+        ),
+    )
 
     class Meta:
         verbose_name = "فروشگاه"
@@ -130,11 +143,38 @@ class Store(StoresTimestampedModel):
         except ValidationError:
             return f"store-{self.public_id.hex[:12]}"
 
+    def _fallback_platform_code(self):
+        """A deterministic ``platform_code`` derived from this Store's own
+        ``public_id``, used only when the caller didn't supply one
+        explicitly — mirrors ``_fallback_admin_subdomain``'s precedent
+        (ADR-94). No DB query is needed (unlike the real, careful path):
+        ``public_id`` is already DB-unique, and this is a lossy, order-
+        preserving-free mapping of its bits into the platform-code alphabet,
+        so a collision is exactly as astronomically unlikely as
+        ``_fallback_admin_subdomain``'s own ``public_id.hex[:12]`` fallback
+        already is — and just as fail-closed (``IntegrityError``) in the
+        practically-impossible event of one. Real trial provisioning
+        (``apps.stores.services.platform_code_service.
+        generate_unique_platform_code``) always generates and existence-
+        checks a fresh code explicitly instead of relying on this.
+        """
+        alphabet = settings.RASTISI_PLATFORM_CODE_ALPHABET
+        length = settings.RASTISI_PLATFORM_CODE_LENGTH
+        base = len(alphabet)
+        remaining = self.public_id.int
+        chars = []
+        for _ in range(length):
+            remaining, digit = divmod(remaining, base)
+            chars.append(alphabet[digit])
+        return "".join(chars)
+
     def save(self, *args, **kwargs):
         if self.admin_subdomain:
             self.admin_subdomain = normalize_admin_subdomain(self.admin_subdomain)
         else:
             self.admin_subdomain = self._fallback_admin_subdomain()
+        if not self.platform_code:
+            self.platform_code = self._fallback_platform_code()
         super().save(*args, **kwargs)
 
 
@@ -187,6 +227,10 @@ def _verification_lifecycle_errors(instance):
     if status == pending and not instance.verification_token:
         errors.setdefault("verification_token", []).append(
             "دامنه‌ی در انتظار تأیید باید توکن تأیید داشته باشد."
+        )
+    if instance.is_redirect and instance.is_primary:
+        errors.setdefault("is_redirect", []).append(
+            "دامنه‌ی تغییرمسیر نمی‌تواند هم‌زمان دامنه‌ی اصلی باشد."
         )
     return errors
 
@@ -269,6 +313,11 @@ class StoreDomain(StoresTimestampedModel):
         VERIFIED = "verified", "تأییدشده"
         FAILED = "failed", "ناموفق"
 
+    class DomainType(models.TextChoices):
+        GENERATED_TRIAL = "generated_trial", "زیردامنه‌ی آزمایشی خودکار"
+        PLATFORM_SUBDOMAIN = "platform_subdomain", "زیردامنه‌ی انتخابی روی rastisi.ir"
+        CUSTOM_DOMAIN = "custom_domain", "دامنه‌ی اختصاصی"
+
     store = models.ForeignKey(
         Store,
         verbose_name="فروشگاه",
@@ -282,6 +331,31 @@ class StoreDomain(StoresTimestampedModel):
         help_text="نام میزبان نرمال‌شده (بدون پروتکل/مسیر/پورت).",
     )
     is_primary = models.BooleanField("دامنه‌ی اصلی", default=False)
+    domain_type = models.CharField(
+        "نوع دامنه",
+        max_length=20,
+        choices=DomainType.choices,
+        default=DomainType.CUSTOM_DOMAIN,
+        db_index=True,
+        help_text=(
+            "توصیفی است، نه تعیین‌کننده‌ی مسیریابی (ADR-95) — واجد شرایط "
+            "بودن برای مسیریابی همچنان فقط از verification_status/Store."
+            "status می‌آید. زیردامنه‌های آزمایشی/انتخابی روی rastisi.ir از "
+            "ابتدا verified ساخته می‌شوند چون Rastisi خودش مالک DNS آن "
+            "زیردامنه‌هاست؛ فقط custom_domain مسیر تأیید واقعی را طی می‌کند."
+        ),
+    )
+    is_redirect = models.BooleanField(
+        "فقط تغییرمسیر (نام میزبان بازنشسته)",
+        default=False,
+        help_text=(
+            "وقتی True، این نام میزبان دیگر محتوای فروشگاه را مستقیماً "
+            "نمایش نمی‌دهد — فقط برای همیشه به دامنه‌ی اصلی فعلی فروشگاه "
+            "تغییرمسیر می‌دهد (ADR-96)، پس از این‌که مالک زیردامنه‌ی "
+            "خواناتری خریداری/انتخاب کرده باشد. توسط "
+            "HostnameRedirectMiddleware اعمال می‌شود، نه توسط resolution.py."
+        ),
+    )
 
     verification_status = models.CharField(
         "وضعیت تأیید",
@@ -332,6 +406,10 @@ class StoreDomain(StoresTimestampedModel):
                 check=~models.Q(verification_status="pending")
                 | ~models.Q(verification_token=""),
                 name="pending_status_requires_verification_token",
+            ),
+            models.CheckConstraint(
+                check=~models.Q(is_redirect=True) | models.Q(is_primary=False),
+                name="redirect_alias_domain_is_never_primary",
             ),
         ]
         indexes = [

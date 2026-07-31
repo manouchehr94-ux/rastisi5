@@ -1,0 +1,39 @@
+{% extends "portal/base_platform.html" %}
+{% block content %}
+<section class="p-hero"><div class="p-wrap">
+  <h1>فروشگاه آنلاین خودتان را همین امروز راه‌اندازی کنید</h1>
+  <p>راستیسی یک سایت‌ساز فروشگاهی است — بدون نیاز به برنامه‌نویسی، در چند دقیقه یک فروشگاه واقعی با آدرس اختصاصی، مدیریت سفارش، و درگاه پرداخت راه‌اندازی کنید.</p>
+  <div class="p-hero-actions">
+    <a class="p-btn p-btn-primary" href="{% url 'portal:register' %}">شروع رایگان</a>
+    <a class="p-btn p-btn-ghost" href="{% url 'portal:plans' %}">مشاهده‌ی تعرفه‌ها</a>
+  </div>
+</div></section>
+
+<section class="p-section"><div class="p-wrap">
+  <h2>همه‌ی چیزی که برای فروش آنلاین لازم دارید</h2>
+  <p class="lead">از کاتالوگ محصول تا سفارش، مشتری، و صورتحساب — یک‌جا و آماده.</p>
+  <div class="p-grid cols-3">
+    <div class="p-card">
+      <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg></div>
+      <h3>مدیریت کاتالوگ</h3>
+      <p>محصول، دسته‌بندی، تنوع (رنگ/سایز)، و موجودی چندانباره را به‌سادگی مدیریت کنید.</p>
+    </div>
+    <div class="p-card">
+      <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg></div>
+      <h3>سفارش و مشتری</h3>
+      <p>سبد خرید، تسویه‌حساب، پیگیری سفارش، و پروفایل مشتریان در یک پنل واحد.</p>
+    </div>
+    <div class="p-card">
+      <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg></div>
+      <h3>اشتراک و صورتحساب</h3>
+      <p>پلن‌های شفاف، صورتحساب دوره‌ای، و تاریخچه‌ی کامل پرداخت‌ها.</p>
+    </div>
+  </div>
+</div></section>
+
+<section class="p-section" style="background:var(--p-primary-soft)"><div class="p-wrap" style="text-align:center">
+  <h2>آماده‌اید شروع کنید؟</h2>
+  <p class="lead">ثبت‌نام رایگان است و فروشگاه آزمایشی شما بلافاصله آماده می‌شود.</p>
+  <a class="p-btn p-btn-primary" href="{% url 'portal:register' %}">ایجاد فروشگاه رایگان</a>
+</div></section>
+{% endblock %}

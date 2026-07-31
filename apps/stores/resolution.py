@@ -113,6 +113,13 @@ def _strip_port(host: str) -> str:
     return host
 
 
+#: Public alias of ``_strip_port`` for external callers (e.g.
+#: ``apps.portal.middleware.PlatformHostRoutingMiddleware``) that need the
+#: same Host normalization without reaching into a name-mangled "private"
+#: helper.
+strip_port = _strip_port
+
+
 # ---------------------------------------------------------------------------
 # Development/compatibility fallback — deliberately isolated from the
 # authoritative StoreDomain lookup path below.
@@ -242,6 +249,41 @@ def resolve_store_for_hostname_or_none(raw_host: str):
         return resolve_store_for_hostname(raw_host)
     except StoreResolutionError:
         return None
+
+
+def resolve_store_domain_for_hostname_or_none(raw_host: str):
+    """Like ``resolve_store_for_hostname_or_none`` but returns the matched,
+    routing-eligible ``StoreDomain`` row itself (not just its ``Store``), for
+    callers that need the domain object — currently only
+    ``HostnameRedirectMiddleware`` (ADR-96), which needs to know
+    ``is_redirect``. Never matches a development/compatibility host (those
+    resolve the Akhlaghi Store without any real ``StoreDomain`` row backing
+    them, by construction), so a redirect check on those hosts is always a
+    safe no-op via ``None``.
+    """
+    stripped = _strip_port(raw_host)
+    if _is_development_host(stripped):
+        return None
+    try:
+        normalized = normalize_hostname(stripped)
+    except ValidationError:
+        return None
+    domain = StoreDomain.objects.select_related("store").filter(hostname=normalized).first()
+    if domain is None or not domain_is_eligible_for_routing(domain):
+        return None
+    return domain
+
+
+def resolve_store_domain_for_request_or_none(request):
+    """Same as ``resolve_store_domain_for_hostname_or_none``, but takes the
+    ``HttpRequest`` directly and never raises — an already-disallowed Host
+    header (``DisallowedHost``) resolves to ``None``, exactly like
+    ``resolve_store_for_request`` handles it for the Store-only lookup."""
+    try:
+        raw_host = request.get_host()
+    except DisallowedHost:
+        return None
+    return resolve_store_domain_for_hostname_or_none(raw_host)
 
 
 def resolve_store_for_request(request):

@@ -1,0 +1,24 @@
+{% extends "portal/platform_admin/base.html" %}
+{% load persian %}
+{% block title %}داشبورد | پنل مدیریت پلتفرم{% endblock %}
+{% block content %}
+<h2 style="margin-bottom:20px">نمای کلی پلتفرم</h2>
+<div class="p-grid cols-3">
+  <div class="p-card" style="background:#152019;border-color:#243329">
+    <p style="color:#93a89c;font-size:13px">کل فروشگاه‌ها</p>
+    <p style="font-size:30px;font-weight:800">{{ store_count|fa_number }}</p>
+  </div>
+  <div class="p-card" style="background:#152019;border-color:#243329">
+    <p style="color:#93a89c;font-size:13px">فروشگاه‌های فعال</p>
+    <p style="font-size:30px;font-weight:800">{{ active_store_count|fa_number }}</p>
+  </div>
+  <div class="p-card" style="background:#152019;border-color:#243329">
+    <p style="color:#93a89c;font-size:13px">مالکان یکتا</p>
+    <p style="font-size:30px;font-weight:800">{{ owner_count|fa_number }}</p>
+  </div>
+  <div class="p-card" style="background:#152019;border-color:#243329">
+    <p style="color:#93a89c;font-size:13px">در دوره‌ی آزمایشی</p>
+    <p style="font-size:30px;font-weight:800">{{ trialing_count|fa_number }}</p>
+  </div>
+</div>
+{% endblock %}

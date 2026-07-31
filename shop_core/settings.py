@@ -46,6 +46,23 @@ SECRET_KEY = resolve_secret_key(DEBUG)
 # Raises ImproperlyConfigured if DJANGO_DEBUG=False and DJANGO_ALLOWED_HOSTS
 # is not set — production must never silently serve on an unvalidated host.
 ALLOWED_HOSTS = resolve_allowed_hosts(DEBUG)
+if DEBUG:
+    # Local-dev-only wildcard for the platform's own hosts (marketing/portal
+    # at rastisi.localhost, platform admin at platform.rastisi.localhost,
+    # trial/claimed storefronts at <label>.rastisi.localhost, merchant admin
+    # at <admin_subdomain>.rastisi.localhost). Django's leading-dot ALLOWED_
+    # HOSTS syntax matches the bare domain too, so this one entry covers all
+    # of them. Production must set the real ".rastisi.ir" wildcard (or exact
+    # hosts) via DJANGO_ALLOWED_HOSTS — never hardcoded here (see
+    # resolve_allowed_hosts above, which already requires it when DEBUG=False).
+    #
+    # Also re-states Django's own implicit "DEBUG=True + empty ALLOWED_HOSTS
+    # allows localhost/127.0.0.1/[::1]" behavior explicitly: that implicit
+    # rule only fires when ALLOWED_HOSTS is *empty*, and this block makes it
+    # non-empty, which would otherwise silently break every existing test/
+    # dev flow that hits a bare "localhost" Host (e.g.
+    # apps/stores/tests/test_middleware.py) the moment this setting was added.
+    ALLOWED_HOSTS = list(ALLOWED_HOSTS) + ["localhost", "127.0.0.1", "[::1]", ".rastisi.localhost"]
 
 # Comma-separated list of fully-qualified origins (scheme + host) trusted to
 # submit cross-origin POSTs, e.g. "https://example.com,https://www.example.com".
@@ -97,6 +114,7 @@ INSTALLED_APPS = [
     "apps.stores",
     "apps.subscriptions",
     "apps.billing",
+    "apps.portal",
 ]
 
 # apps.stores.middleware.StoreResolutionMiddleware runs immediately after
@@ -109,6 +127,19 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "apps.stores.middleware.StoreResolutionMiddleware",
+    # Routes Rastisi's own platform-level hosts (bare marketing/owner-portal
+    # host, and the separate platform-admin host) to a dedicated URLconf via
+    # request.urlconf — additive, never touches request.store or any
+    # per-Store routing decision (ADR-97). Must run after StoreResolution-
+    # Middleware (so request.store is already set, even if None on these
+    # hosts) and before anything that dispatches on request.urlconf.
+    "apps.portal.middleware.PlatformHostRoutingMiddleware",
+    # Redirects a Store's retired hostnames (kept as permanent aliases after
+    # a paid subdomain claim, ADR-96) straight to the Store's current primary
+    # domain, before any storefront view runs. Additive: only ever acts on a
+    # StoreDomain row with is_redirect=True, which nothing before this PR can
+    # create.
+    "apps.stores.middleware.HostnameRedirectMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -296,6 +327,36 @@ SHOP_CONTACT_ADDRESS = "تهران، خیابان ولیعصر"
 # this. Overridable via environment for non-".ir" deployments/tests.
 RASTISI_ADMIN_DOMAIN_SUFFIX = env_str("RASTISI_ADMIN_DOMAIN_SUFFIX", "rastisi.ir")
 
+# Owner portal (ADR-97): exact Hosts that serve the public marketing site
+# (at "/") and the owner account portal (at "/app/") instead of any per-Store
+# routing. Comma-separated env override for real deployments; the dev default
+# below always includes the local-dev host so `runserver` works out of the
+# box without any .env at all.
+RASTISI_PLATFORM_HOSTS = frozenset(
+    h.lower() for h in env_list(
+        "RASTISI_PLATFORM_HOSTS", default=("rastisi.ir", "www.rastisi.ir", "rastisi.localhost"),
+    )
+)
+# Platform Admin (ADR-97): exact Hosts that serve the staff/superuser-only
+# operational dashboard. Deliberately a disjoint set from RASTISI_PLATFORM_
+# HOSTS — the marketing/portal host must never also resolve platform admin.
+RASTISI_PLATFORM_ADMIN_HOSTS = frozenset(
+    h.lower() for h in env_list(
+        "RASTISI_PLATFORM_ADMIN_HOSTS", default=("platform.rastisi.ir", "platform.rastisi.localhost"),
+    )
+)
+
+# Trial/platform-subdomain alphabet (ADR-94) — excludes 0/o/1/l/i to avoid
+# visual ambiguity in a human-typed 9-character code.
+RASTISI_PLATFORM_CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+RASTISI_PLATFORM_CODE_LENGTH = 9
+
+# Anti-abuse cap on how many Stores a single owner account may hold via
+# active OWNER memberships (ADR-98 area). Not a billing-plan entitlement —
+# apps.subscriptions has no per-owner store-count concept — this is a
+# platform-wide safety limit, generous by default, overridable per deployment.
+RASTISI_MAX_STORES_PER_OWNER = env_int("RASTISI_MAX_STORES_PER_OWNER", default=10)
+
 # Checkpoint 5A — default subscription plan for newly onboarded stores.
 # ``RASTISI_DEFAULT_PLAN_CODE`` names a Plan.code whose latest published
 # version a new store is put on (via subscription_service.provision_default_
@@ -326,3 +387,15 @@ RASTISI_BILLING_DUNNING_SCHEDULE = env_str("RASTISI_BILLING_DUNNING_SCHEDULE", "
 # Whether SaaS billing charges tax (default off — see ADR-82). When on, a flat
 # platform-wide rate is applied; legal tax compliance is out of scope.
 RASTISI_BILLING_TAX_RATE = env_str("RASTISI_BILLING_TAX_RATE", "0")
+
+# Owner-portal transactional email (ADR-93) — password reset only today.
+# Console backend by default (dev/test: visible in server logs, never
+# silently "sent"); production sets DJANGO_EMAIL_BACKEND to the real SMTP
+# backend plus the DJANGO_EMAIL_HOST* variables below. Never a fake success.
+EMAIL_BACKEND = env_str("DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = env_str("DJANGO_EMAIL_HOST", "")
+EMAIL_PORT = env_int("DJANGO_EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env_str("DJANGO_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = env_str("DJANGO_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("DJANGO_EMAIL_USE_TLS", default=True)
+DEFAULT_FROM_EMAIL = env_str("DJANGO_DEFAULT_FROM_EMAIL", "no-reply@rastisi.ir")

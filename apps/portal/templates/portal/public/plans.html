@@ -1,0 +1,31 @@
+{% extends "portal/base_platform.html" %}
+{% load persian %}
+{% block title %}تعرفه‌ها | راستیسی{% endblock %}
+{% block content %}
+<section class="p-section"><div class="p-wrap">
+  <h2>تعرفه‌ها</h2>
+  <p class="lead">پلن مناسب کسب‌وکارتان را انتخاب کنید؛ همیشه می‌توانید بعداً تغییر دهید.</p>
+  {% if plan_rows %}
+  <div class="p-grid cols-3">
+    {% for row in plan_rows %}
+    <div class="p-card">
+      {% if row.plan.is_recommended %}<span class="p-plan-badge">پیشنهادی</span>{% endif %}
+      <h3 style="margin-top:10px">{{ row.plan.public_title|default:row.plan.name }}</h3>
+      <p style="font-size:26px;font-weight:800;color:var(--p-ink);margin:10px 0">
+        {{ row.version.display_price|toman }}
+        <span style="font-size:13px;font-weight:500;color:var(--p-muted)">/ {{ row.version.get_billing_interval_display }}</span>
+      </p>
+      <p>{{ row.plan.description }}</p>
+      {% if row.version.trial_days %}<p style="color:var(--p-primary);font-weight:600;font-size:13px">{{ row.version.trial_days|fa_number }} روز آزمایشی رایگان</p>{% endif %}
+      <a class="p-btn p-btn-primary" style="width:100%;margin-top:14px" href="{% url 'portal:register' %}">شروع کنید</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="p-card" style="max-width:520px;margin:0 auto;text-align:center">
+    <p>در حال حاضر پلنی برای نمایش عمومی تنظیم نشده است. برای اطلاعات بیشتر با ما تماس بگیرید.</p>
+    <a class="p-btn p-btn-ghost" style="margin-top:14px" href="{% url 'portal:contact' %}">تماس با ما</a>
+  </div>
+  {% endif %}
+</div></section>
+{% endblock %}
