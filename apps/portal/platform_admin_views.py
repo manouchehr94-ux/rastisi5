@@ -20,6 +20,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.stores.models import Store, StoreDomain, StoreMembership
 from apps.subscriptions.models import StoreSubscription
 
+from apps.core.services import session_service
+
 from .forms import OwnerLoginForm, PlatformConfigurationForm
 from .models import PlatformAuditLogEntry
 from .services.platform_config_service import get_platform_configuration, record_platform_audit_event
@@ -51,6 +53,7 @@ def login_view(request):
             )
             if user is not None and _is_platform_staff(user):
                 auth_login(request, user)
+                session_service.apply_remember_me(request, form.cleaned_data.get("remember_me", False))
                 return redirect("portal_platform_admin:home")
             form.add_error(None, "ایمیل، رمز عبور، یا دسترسی نامعتبر است")
     else:

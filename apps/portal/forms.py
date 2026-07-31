@@ -26,8 +26,17 @@ class OwnerRegisterForm(forms.Form):
 
 
 class OwnerLoginForm(forms.Form):
-    email = forms.EmailField(label="ایمیل")
-    password = forms.CharField(label="رمز عبور", widget=forms.PasswordInput)
+    """اکنون فقط برایِ ورودِ مدیرِ پلتفرم استفاده می‌شود (ایمیل+رمز — بدونِ
+    OTP، یک تصمیمِ محافظه‌کارانه‌ی امنیتی — نگاه کنید به یکپارچه‌سازیِ
+    احرازِ هویت)؛ ورودِ مالک از ``OwnerIdentifierLoginForm`` استفاده می‌کند."""
+
+    email = forms.EmailField(
+        label="ایمیل", widget=forms.EmailInput(attrs={"autocomplete": "username"}),
+    )
+    password = forms.CharField(
+        label="رمز عبور", widget=forms.PasswordInput(attrs={"autocomplete": "current-password"}),
+    )
+    remember_me = forms.BooleanField(label="مرا به خاطر بسپار", required=False)
 
 
 class OwnerIdentifierLoginForm(forms.Form):
