@@ -12,7 +12,7 @@ from django.conf import settings
 
 from apps.catalog.models import IndustryTemplate
 from apps.stores.models import Store, StoreDomain, StoreMembership
-from apps.stores.services import handle_service
+from apps.stores.services import domain_verification_service, handle_service
 from apps.subscriptions.models import Plan, PlanVersion, PlatformInvoice, PlatformPaymentAttempt, StoreSubscription
 from apps.subscriptions.services import billing_service
 
@@ -884,6 +884,142 @@ def claim_handle_step_up(request, store_public_id):
                 return redirect("portal:claim-handle", store_public_id=store.public_id)
             messages.success(request, "نامِ دائمیِ فروشگاه با موفقیت ثبت شد.")
             return redirect("portal:claim-handle", store_public_id=store.public_id)
+        messages.error(request, "کدِ واردشده نادرست یا منقضی است.")
+
+    return render(request, "portal/app/step_up_verify.html", {"store": store})
+
+
+# ---------------------------------------------------------------------------
+# Custom domain — DNS verification and activation (Section 12)
+# ---------------------------------------------------------------------------
+
+_STEP_UP_ACTION_DOMAIN_ACTIVATE = "custom_domain_activate"
+_SESSION_PENDING_ACTIVATE_DOMAIN_ID_KEY = "portal_pending_activate_domain_id"
+
+
+def _domains_view_context(store):
+    domains = store.domains.filter(domain_type=StoreDomain.DomainType.CUSTOM_DOMAIN).order_by("-created_at")
+    rows = []
+    for domain in domains:
+        record_name = domain_verification_service.verification_record_name(domain.hostname) if domain.verification_token else ""
+        expected_value = (
+            f"{domain_verification_service.VERIFICATION_VALUE_PREFIX}{domain.verification_token}"
+            if domain.verification_token else ""
+        )
+        rows.append({"domain": domain, "record_name": record_name, "expected_value": expected_value})
+    return rows
+
+
+@owner_required
+def custom_domains(request, store_public_id):
+    store = _get_owned_store_or_404(request, store_public_id)
+
+    if request.method == "POST" and request.POST.get("action") == "add":
+        hostname = (request.POST.get("hostname") or "").strip()
+        try:
+            domain_verification_service.request_custom_domain(store=store, hostname=hostname, actor=request.user)
+        except domain_verification_service.DomainVerificationError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, "دامنه ثبت شد؛ اکنون می‌توانید تأییدِ DNS را شروع کنید.")
+        return redirect("portal:custom-domains", store_public_id=store.public_id)
+
+    return render(request, "portal/app/custom_domains.html", {
+        "store": store, "rows": _domains_view_context(store),
+    })
+
+
+@owner_required
+@require_POST
+def custom_domain_begin_verify(request, store_public_id, domain_id):
+    store = _get_owned_store_or_404(request, store_public_id)
+    domain = get_object_or_404(StoreDomain, pk=domain_id, store=store)
+    try:
+        domain_verification_service.begin_dns_verification(domain=domain, actor=request.user)
+    except domain_verification_service.DomainVerificationError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, "دستورالعملِ تأییدِ DNS آماده شد؛ رکوردِ TXT زیر را در DNS دامنه‌تان اضافه کنید.")
+    return redirect("portal:custom-domains", store_public_id=store.public_id)
+
+
+@owner_required
+@require_POST
+def custom_domain_check(request, store_public_id, domain_id):
+    store = _get_owned_store_or_404(request, store_public_id)
+    domain = get_object_or_404(StoreDomain, pk=domain_id, store=store)
+    try:
+        verified = domain_verification_service.check_dns_verification(domain=domain, actor=request.user)
+    except domain_verification_service.DomainVerificationError as exc:
+        messages.error(request, str(exc))
+    else:
+        if verified:
+            messages.success(request, "دامنه با موفقیت تأیید شد.")
+        else:
+            messages.error(request, "رکوردِ TXT هنوز پیدا نشد یا مقدارش درست نیست؛ کمی صبر کنید و دوباره بررسی کنید.")
+    return redirect("portal:custom-domains", store_public_id=store.public_id)
+
+
+@owner_required
+@require_POST
+def custom_domain_activate(request, store_public_id, domain_id):
+    """فعال‌سازیِ دامنه‌ی تأییدشده به‌عنوانِ دامنه‌ی اصلی — پشتِ تأییدِ گام‌دوم
+    (Section 10، action=``custom_domain_activate``)، دقیقاً مثلِ الگویِ
+    خریدِ اشتراک/ثبتِ نامِ دائمی."""
+    store = _get_owned_store_or_404(request, store_public_id)
+    domain = get_object_or_404(StoreDomain, pk=domain_id, store=store)
+    target = str(store.public_id)
+
+    if step_up_service.is_step_up_required(_STEP_UP_ACTION_DOMAIN_ACTIVATE) and not step_up_service.is_verified(
+        request, action=_STEP_UP_ACTION_DOMAIN_ACTIVATE, target=target,
+    ):
+        phone = getattr(getattr(request.user, "owner_profile", None), "phone", None)
+        if not phone:
+            messages.error(request, "این عملیات نیاز به شماره موبایلِ ثبت‌شده در حساب دارد.")
+            return redirect("portal:custom-domains", store_public_id=store.public_id)
+        try:
+            step_up_service.begin_challenge(
+                request, action=_STEP_UP_ACTION_DOMAIN_ACTIVATE, target=target, phone=phone,
+                message="کدِ تأییدِ فعال‌سازیِ دامنه‌ی اختصاصی: {code}",
+                client_ip=request.META.get("REMOTE_ADDR", ""),
+            )
+        except step_up_service.OtpRateLimitError as exc:
+            messages.error(request, str(exc))
+            return redirect("portal:custom-domains", store_public_id=store.public_id)
+        request.session[_SESSION_PENDING_ACTIVATE_DOMAIN_ID_KEY] = domain.pk
+        return redirect("portal:custom-domain-activate-step-up", store_public_id=store.public_id)
+
+    try:
+        domain_verification_service.activate_custom_domain(store=store, domain=domain, actor=request.user)
+    except domain_verification_service.DomainVerificationError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, "دامنه‌ی اختصاصی اکنون دامنه‌ی اصلیِ فروشگاه است.")
+    return redirect("portal:custom-domains", store_public_id=store.public_id)
+
+
+@owner_required
+def custom_domain_activate_step_up(request, store_public_id):
+    store = _get_owned_store_or_404(request, store_public_id)
+    pending = step_up_service.pending_challenge(request)
+    if not pending or pending.get("target") != str(store.public_id):
+        return redirect("portal:custom-domains", store_public_id=store.public_id)
+
+    if request.method == "POST":
+        code = request.POST.get("code", "")
+        if step_up_service.confirm_challenge(request, code=code):
+            domain_id = request.session.pop(_SESSION_PENDING_ACTIVATE_DOMAIN_ID_KEY, None)
+            domain = StoreDomain.objects.filter(pk=domain_id, store=store).first() if domain_id else None
+            if domain is None:
+                messages.error(request, "درخواستِ فعال‌سازی یافت نشد؛ دوباره تلاش کنید.")
+                return redirect("portal:custom-domains", store_public_id=store.public_id)
+            try:
+                domain_verification_service.activate_custom_domain(store=store, domain=domain, actor=request.user)
+            except domain_verification_service.DomainVerificationError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(request, "دامنه‌ی اختصاصی اکنون دامنه‌ی اصلیِ فروشگاه است.")
+            return redirect("portal:custom-domains", store_public_id=store.public_id)
         messages.error(request, "کدِ واردشده نادرست یا منقضی است.")
 
     return render(request, "portal/app/step_up_verify.html", {"store": store})

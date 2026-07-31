@@ -11,3 +11,9 @@ psycopg[binary]>=3.2,<4
 
 beautifulsoup4>=4.12,<5
 PySocks>=1.7.1,<2
+
+# Real DNS TXT/CNAME lookups for custom-domain ownership verification
+# (Section 12) — a merchant is never allowed to self-mark a domain
+# verified; apps.stores.services.domain_verification_service actually
+# queries DNS.
+dnspython>=2.6,<3

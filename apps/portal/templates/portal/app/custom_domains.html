@@ -1,0 +1,59 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}دامنه‌ی اختصاصی | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="p-wrap">
+<div class="p-form-card" style="max-width:640px">
+  <h2 style="text-align:center;margin-bottom:8px">دامنه‌ی اختصاصی</h2>
+  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px">
+    دامنه‌ی اختصاصی شما (مثلِ shop.example.com) تنها پس از تأییدِ واقعیِ مالکیت از طریقِ DNS فعال می‌شود.
+  </p>
+
+  {% if messages %}{% for message in messages %}
+    <div class="p-alert {% if message.tags == 'error' %}p-alert-error{% else %}p-alert-success{% endif %}">{{ message }}</div>
+  {% endfor %}{% endif %}
+
+  <form method="post" style="margin-bottom:24px">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add">
+    <div class="p-field">
+      <label for="id_hostname">دامنه (بدونِ http:// و بدونِ مسیر)</label>
+      <input type="text" id="id_hostname" name="hostname" required style="direction:ltr;text-align:left">
+    </div>
+    <button type="submit" class="p-btn p-btn-primary" style="width:100%">افزودنِ دامنه</button>
+  </form>
+
+  {% for row in rows %}
+  <div style="border:1px solid var(--p-line);border-radius:12px;padding:14px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;direction:ltr">
+      <span style="font-weight:600">{{ row.domain.hostname }}</span>
+      <span style="font-size:12px;color:var(--p-muted)">{{ row.domain.get_verification_status_display }}{% if row.domain.is_primary %} · اصلی{% endif %}</span>
+    </div>
+
+    {% if row.domain.verification_status == "unverified" %}
+    <form method="post" action="{% url 'portal:custom-domain-begin-verify' store.public_id row.domain.pk %}" style="margin-top:10px">
+      {% csrf_token %}
+      <button type="submit" class="p-btn p-btn-ghost" style="width:100%">شروعِ تأییدِ DNS</button>
+    </form>
+    {% elif row.domain.verification_status == "pending" %}
+    <div style="font-size:12px;color:var(--p-muted);margin-top:10px;direction:ltr;text-align:left;background:var(--p-surface);padding:8px;border-radius:8px">
+      رکوردِ TXT به نامِ <b>{{ row.record_name }}</b> با مقدارِ <b>{{ row.expected_value }}</b> اضافه کنید.
+    </div>
+    <form method="post" action="{% url 'portal:custom-domain-check' store.public_id row.domain.pk %}" style="margin-top:8px">
+      {% csrf_token %}
+      <button type="submit" class="p-btn p-btn-ghost" style="width:100%">بررسیِ DNS</button>
+    </form>
+    {% elif row.domain.verification_status == "verified" and not row.domain.is_primary %}
+    <form method="post" action="{% url 'portal:custom-domain-activate' store.public_id row.domain.pk %}" style="margin-top:10px">
+      {% csrf_token %}
+      <button type="submit" class="p-btn p-btn-primary" style="width:100%">فعال‌سازی به‌عنوانِ دامنه‌ی اصلی</button>
+    </form>
+    {% endif %}
+  </div>
+  {% empty %}
+  <p style="text-align:center;font-size:13px;color:var(--p-muted)">هنوز دامنه‌ی اختصاصی‌ای اضافه نکرده‌اید.</p>
+  {% endfor %}
+</div>
+</div>
+{% endblock %}
+{% block extra_css %}<style>.p-field input{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px}</style>{% endblock %}

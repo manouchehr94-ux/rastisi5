@@ -70,4 +70,22 @@ urlpatterns = [
         "app/stores/<uuid:store_public_id>/handle/step-up/",
         views.claim_handle_step_up, name="claim-handle-step-up",
     ),
+    # Custom domain — DNS verification and activation (Section 12)
+    path("app/stores/<uuid:store_public_id>/domains/", views.custom_domains, name="custom-domains"),
+    path(
+        "app/stores/<uuid:store_public_id>/domains/<int:domain_id>/begin-verify/",
+        views.custom_domain_begin_verify, name="custom-domain-begin-verify",
+    ),
+    path(
+        "app/stores/<uuid:store_public_id>/domains/<int:domain_id>/check/",
+        views.custom_domain_check, name="custom-domain-check",
+    ),
+    path(
+        "app/stores/<uuid:store_public_id>/domains/<int:domain_id>/activate/",
+        views.custom_domain_activate, name="custom-domain-activate",
+    ),
+    path(
+        "app/stores/<uuid:store_public_id>/domains/activate/step-up/",
+        views.custom_domain_activate_step_up, name="custom-domain-activate-step-up",
+    ),
 ]
