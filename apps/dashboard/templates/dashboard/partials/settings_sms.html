@@ -15,9 +15,15 @@
       <div class="form-group"><label>شماره‌ی فرستنده</label>{{ sms_form.sms_sender_number }}</div>
       <div class="form-row">
         <div class="form-group"><label>نام کاربری ملی‌پیامک</label>{{ sms_form.melipayamak_username }}</div>
-        <div class="form-group"><label>رمز عبور ملی‌پیامک</label>{{ sms_form.melipayamak_password }}</div>
+        <div class="form-group">
+          <label>رمز عبور ملی‌پیامک{% if melipayamak_password_is_configured %} <span style="color:var(--muted);font-weight:normal">(تنظیم‌شده — برایِ تغییر مقدارِ جدید وارد کنید)</span>{% endif %}</label>
+          {{ sms_form.melipayamak_password }}
+        </div>
       </div>
-      <div class="form-group"><label>کلید API کاوه‌نگار</label>{{ sms_form.kavenegar_api_key }}</div>
+      <div class="form-group">
+        <label>کلید API کاوه‌نگار{% if kavenegar_api_key_is_configured %} <span style="color:var(--muted);font-weight:normal">(تنظیم‌شده — برایِ تغییر مقدارِ جدید وارد کنید)</span>{% endif %}</label>
+        {{ sms_form.kavenegar_api_key }}
+      </div>
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات اتصال</button>
     </form>
 

@@ -4,9 +4,12 @@ from apps.core.models import ShopSettings
 from apps.sms.events import SmsEvent
 from apps.sms.models import SmsLog, SmsTemplate
 from apps.sms.services.sms_service import (
+    RetryNotEligibleError,
     SmsTemplateError,
     get_backend,
     regenerate_smsrasti_device_token,
+    retry_failed_log,
+    retry_smsrasti_outbox_item,
     send_event_sms,
     send_test_sms,
     validate_template_body,
@@ -160,6 +163,97 @@ class SendEventSmsTests(TestCase):
 
         self.assertIsNotNone(log)
         self.assertEqual(log.status, SmsLog.Status.SENT)
+
+
+class RetryFailedLogTests(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+        SmsTemplate.ensure_defaults()
+
+    def test_retry_resends_and_updates_same_row(self):
+        log = SmsLog.objects.create(
+            store=self.store, event_key=SmsEvent.WELCOME, recipient="09121234567",
+            message="سلام سارا", status=SmsLog.Status.FAILED, error_message="خطای قبلی",
+        )
+        result = retry_failed_log(log_id=log.pk, store=self.store)
+        self.assertEqual(result.pk, log.pk)
+        self.assertEqual(result.status, SmsLog.Status.SENT)
+        self.assertEqual(result.error_message, "")
+        self.assertEqual(result.attempt_count, 1)
+
+    def test_retry_of_sent_log_is_rejected(self):
+        log = SmsLog.objects.create(
+            store=self.store, event_key=SmsEvent.WELCOME, recipient="09121234567",
+            message="سلام", status=SmsLog.Status.SENT,
+        )
+        with self.assertRaises(RetryNotEligibleError):
+            retry_failed_log(log_id=log.pk, store=self.store)
+
+    def test_retry_of_pending_log_is_rejected(self):
+        log = SmsLog.objects.create(
+            store=self.store, event_key=SmsEvent.WELCOME, recipient="09121234567",
+            message="سلام", status=SmsLog.Status.PENDING,
+        )
+        with self.assertRaises(RetryNotEligibleError):
+            retry_failed_log(log_id=log.pk, store=self.store)
+
+    def test_unknown_log_id_is_rejected(self):
+        with self.assertRaises(RetryNotEligibleError):
+            retry_failed_log(log_id=999999, store=self.store)
+
+    def test_cannot_retry_another_stores_log(self):
+        other_store = Store.objects.create(name="Store G", slug="store-g-retry", status=Store.Status.ACTIVE)
+        log = SmsLog.objects.create(
+            store=other_store, event_key=SmsEvent.WELCOME, recipient="09121234567",
+            message="سلام", status=SmsLog.Status.FAILED,
+        )
+        with self.assertRaises(RetryNotEligibleError):
+            retry_failed_log(log_id=log.pk, store=self.store)
+
+    def test_otp_log_retry_still_rejects_smsrasti_backend(self):
+        shop = ShopSettings.load(store=self.store)
+        shop.sms_backend = ShopSettings.SmsBackend.SMSRASTI
+        shop.smsrasti_device_token = "dev-token-1"
+        shop.save()
+        log = SmsLog.objects.create(
+            store=self.store, event_key=SmsEvent.OTP, recipient="09121234567",
+            message="رمز یک‌بارمصرف: 123456", status=SmsLog.Status.FAILED,
+        )
+        result = retry_failed_log(log_id=log.pk, store=self.store)
+        self.assertEqual(result.status, SmsLog.Status.FAILED)
+
+
+class RetrySmsrastiOutboxItemTests(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+
+    def test_retry_requeues_failed_item(self):
+        from apps.sms.models import SmsOutboxItem
+
+        item = SmsOutboxItem.objects.create(
+            store=self.store, phone="09121234567", message="سلام",
+            status=SmsOutboxItem.Status.FAILED, error_message="خطا", claimed_at=None,
+        )
+        result = retry_smsrasti_outbox_item(item_id=item.pk, store=self.store)
+        self.assertEqual(result.status, SmsOutboxItem.Status.PENDING)
+        self.assertEqual(result.error_message, "")
+
+    def test_retry_of_pending_item_is_rejected(self):
+        from apps.sms.models import SmsOutboxItem
+
+        item = SmsOutboxItem.objects.create(store=self.store, phone="09121234567", message="سلام")
+        with self.assertRaises(RetryNotEligibleError):
+            retry_smsrasti_outbox_item(item_id=item.pk, store=self.store)
+
+    def test_cannot_retry_another_stores_item(self):
+        from apps.sms.models import SmsOutboxItem
+
+        other_store = Store.objects.create(name="Store H", slug="store-h-retry", status=Store.Status.ACTIVE)
+        item = SmsOutboxItem.objects.create(
+            store=other_store, phone="09121234567", message="سلام", status=SmsOutboxItem.Status.FAILED,
+        )
+        with self.assertRaises(RetryNotEligibleError):
+            retry_smsrasti_outbox_item(item_id=item.pk, store=self.store)
 
 
 class SendTestSmsTests(TestCase):

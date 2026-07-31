@@ -105,8 +105,12 @@ class KavenegarBackend(SmsBackend):
             response = requests.post(url, data=payload, timeout=REQUEST_TIMEOUT_SECONDS)
             data = response.json()
         except Exception as exc:  # هیچ خطای شبکه/HTTP/JSON نباید جریان اصلی را بشکند
-            logger.warning("kavenegar send failed: %s", exc)
-            return SmsSendResult(success=False, error_message=str(exc))
+            # کلیدِ API بخشی از خودِ URL است — پیامِ کتابخانه‌ی requests (مثلِ
+            # ConnectionError) معمولاً URL کامل را در متنِ خطا می‌آورد؛ پیش از
+            # لاگ‌کردن یا برگرداندن، حتماً باید حذف شود.
+            safe_message = str(exc).replace(self.api_key, "***")
+            logger.warning("kavenegar send failed: %s", safe_message)
+            return SmsSendResult(success=False, error_message=safe_message)
 
         status = (data.get("return") or {}).get("status")
         if status == 200:

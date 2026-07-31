@@ -6,8 +6,9 @@
 {% block page_sub %}تاریخچه‌ی ارسال پیامک‌ها برای پیگیری و رفع اشکال{% endblock %}
 
 {% block content %}
-<div style="margin-bottom:14px">
+<div style="margin-bottom:14px;display:flex;justify-content:space-between">
   <a class="btn btn-sm" href="{% url 'dashboard:settings' %}">→ بازگشت به تنظیمات</a>
+  <a class="btn btn-sm" href="{% url 'dashboard:sms-outbox-list' %}">📦 صفِ SmsRasti</a>
 </div>
 
 <div class="card">

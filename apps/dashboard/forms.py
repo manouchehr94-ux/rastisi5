@@ -355,13 +355,17 @@ class SmsConnectionForm(forms.Form):
         label="نام کاربری ملی‌پیامک", max_length=100, required=False,
         widget=forms.TextInput(attrs={"class": "inp", "dir": "ltr"}),
     )
+    # عمداً هرگز مقدارِ ذخیره‌شده به این دو فیلد پیش‌فرض داده نمی‌شود
+    # (render_value=False، پیش‌فرضِ PasswordInput) — یک رمز/کلیدِ واقعی
+    # هرگز نباید در HTML صفحه‌ی تنظیمات بازتاب داده شود؛ خالی‌ماندن یعنی
+    # «بدونِ تغییر» (نگاه کنید به views.settings_sms_connection).
     melipayamak_password = forms.CharField(
         label="رمز عبور ملی‌پیامک", max_length=100, required=False,
-        widget=forms.PasswordInput(attrs={"class": "inp", "dir": "ltr"}, render_value=True),
+        widget=forms.PasswordInput(attrs={"class": "inp", "dir": "ltr", "placeholder": "برای تغییر وارد کنید"}),
     )
     kavenegar_api_key = forms.CharField(
         label="کلید API کاوه‌نگار", max_length=100, required=False,
-        widget=forms.PasswordInput(attrs={"class": "inp", "dir": "ltr"}, render_value=True),
+        widget=forms.PasswordInput(attrs={"class": "inp", "dir": "ltr", "placeholder": "برای تغییر وارد کنید"}),
     )
 
 

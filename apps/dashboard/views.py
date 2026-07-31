@@ -186,7 +186,14 @@ from apps.orders.services.return_service import (
 )
 from apps.sms.events import EVENT_VARIABLES
 from apps.sms.models import SmsTemplate
-from apps.sms.services.sms_service import SmsTemplateError, regenerate_smsrasti_device_token, send_test_sms
+from apps.sms.services.sms_service import (
+    RetryNotEligibleError,
+    SmsTemplateError,
+    regenerate_smsrasti_device_token,
+    retry_failed_log,
+    retry_smsrasti_outbox_item,
+    send_test_sms,
+)
 from apps.stores.models import StoreMembership
 from apps.stores.services.membership_service import (
     ASSIGNABLE_ROLES,
@@ -2474,9 +2481,12 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
             "sms_enabled": shop.sms_enabled, "sms_backend": shop.sms_backend,
             "sms_sender_number": shop.sms_sender_number,
             "melipayamak_username": shop.melipayamak_username,
-            "melipayamak_password": shop.melipayamak_password,
-            "kavenegar_api_key": shop.kavenegar_api_key,
+            # عمداً مقدارِ واقعیِ رمز/کلید اینجا گذاشته نمی‌شود — این دو فیلد
+            # همیشه خالی رندر می‌شوند؛ ``*_is_configured`` برایِ نمایشِ
+            # وضعیت («قبلاً تنظیم شده») بدونِ افشایِ مقدار استفاده می‌شود.
         }),
+        "melipayamak_password_is_configured": bool(shop.melipayamak_password),
+        "kavenegar_api_key_is_configured": bool(shop.kavenegar_api_key),
         "smsrasti_device_token": shop.smsrasti_device_token,
         "visual_form": visual_form or VisualIdentityForm(current_shop=shop, initial=theme_values),
         "theme_presets": THEME_PRESETS,
@@ -2783,11 +2793,14 @@ def settings_sms_connection(request):
     form = SmsConnectionForm(request.POST)
     if form.is_valid():
         shop = ShopSettings.load(store=request.store)
-        for field in [
-            "sms_enabled", "sms_backend", "sms_sender_number",
-            "melipayamak_username", "melipayamak_password", "kavenegar_api_key",
-        ]:
+        for field in ["sms_enabled", "sms_backend", "sms_sender_number", "melipayamak_username"]:
             setattr(shop, field, form.cleaned_data[field])
+        # این دو فیلد write-only اند (فرم هرگز مقدارِ ذخیره‌شده را echo
+        # نمی‌کند) — خالی‌ماندنشان یعنی «بدونِ تغییر»، نه «پاک‌کردن».
+        for secret_field in ["melipayamak_password", "kavenegar_api_key"]:
+            new_value = form.cleaned_data[secret_field]
+            if new_value:
+                setattr(shop, secret_field, new_value)
         shop.save()
         messages.success(request, "تنظیمات اتصال پیامک ذخیره شد")
         return redirect("/admin-portal/settings/?section=sms")
@@ -2883,8 +2896,9 @@ def sms_test_send(request):
 @staff_required
 @permission_required(SMS_SETTINGS_MANAGE)
 def sms_log_list(request):
+    store = _resolve_dashboard_store(request)
     context = {
-        "logs": sms_admin_service.filtered_logs(status=request.GET.get("status", "")),
+        "logs": sms_admin_service.filtered_logs(status=request.GET.get("status", ""), store=store),
         "selected_status": request.GET.get("status", ""),
         "status_filters": sms_admin_service.LOG_STATUS_FILTERS,
         "active_page": "settings",
@@ -2895,12 +2909,57 @@ def sms_log_list(request):
 @staff_required
 @permission_required(SMS_SETTINGS_MANAGE)
 def sms_log_table(request):
+    store = _resolve_dashboard_store(request)
     context = {
-        "logs": sms_admin_service.filtered_logs(status=request.GET.get("status", "")),
+        "logs": sms_admin_service.filtered_logs(status=request.GET.get("status", ""), store=store),
         "selected_status": request.GET.get("status", ""),
         "status_filters": sms_admin_service.LOG_STATUS_FILTERS,
     }
     return render(request, "dashboard/partials/sms_logs_table_inner.html", context)
+
+
+@require_POST
+@staff_required
+@permission_required(SMS_SETTINGS_MANAGE)
+def sms_log_retry(request, pk):
+    store = _resolve_dashboard_store(request)
+    try:
+        log = retry_failed_log(log_id=pk, store=store)
+    except RetryNotEligibleError as exc:
+        messages.error(request, str(exc))
+    else:
+        if log.status == log.Status.SENT:
+            messages.success(request, "پیامک با موفقیت دوباره ارسال شد")
+        else:
+            messages.error(request, f"ارسالِ دوباره هم ناموفق بود: {log.error_message}")
+    return redirect(request.META.get("HTTP_REFERER") or "/admin-portal/settings/sms/logs/")
+
+
+@staff_required
+@permission_required(SMS_SETTINGS_MANAGE)
+def sms_outbox_list(request):
+    store = _resolve_dashboard_store(request)
+    context = {
+        "items": sms_admin_service.filtered_outbox_items(status=request.GET.get("status", ""), store=store),
+        "selected_status": request.GET.get("status", ""),
+        "status_filters": sms_admin_service.LOG_STATUS_FILTERS,
+        "active_page": "settings",
+    }
+    return render(request, "dashboard/sms_outbox.html", context)
+
+
+@require_POST
+@staff_required
+@permission_required(SMS_SETTINGS_MANAGE)
+def sms_outbox_retry(request, pk):
+    store = _resolve_dashboard_store(request)
+    try:
+        retry_smsrasti_outbox_item(item_id=pk, store=store)
+    except RetryNotEligibleError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, "آیتم دوباره در صفِ ارسال قرار گرفت")
+    return redirect("dashboard:sms-outbox-list")
 
 
 

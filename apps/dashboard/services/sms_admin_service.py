@@ -5,7 +5,7 @@
 """
 
 from apps.sms.events import EVENT_VARIABLES, SmsEvent
-from apps.sms.models import SmsLog, SmsTemplate
+from apps.sms.models import SmsLog, SmsOutboxItem, SmsTemplate
 
 LOG_STATUS_FILTERS = [("", "همه وضعیت‌ها")] + list(SmsLog.Status.choices)
 
@@ -13,6 +13,10 @@ LOG_STATUS_BADGE = {
     SmsLog.Status.SENT: "b-green",
     SmsLog.Status.PENDING: "b-amber",
     SmsLog.Status.FAILED: "b-red",
+    # ``SmsOutboxItem`` (صفِ SmsRasti) مقدارهایِ pending/sent/failed را با
+    # SmsLog به‌اشتراک می‌گذارد؛ sending فقط مالِ اوست — همین دیکشنری برای
+    # هر دو template filter استفاده می‌شود (sms_status_badge).
+    SmsOutboxItem.Status.SENDING: "b-amber",
 }
 
 
@@ -29,8 +33,18 @@ def templates_with_variables():
     return rows
 
 
-def filtered_logs(*, status: str = ""):
-    qs = SmsLog.objects.order_by("-created_at")
+def filtered_logs(*, status: str = "", store):
+    """``store`` الزامی است — ردیف‌های ``store=NULL`` (پیش از افزودنِ این
+    فیلد) عمداً هرگز به هیچ داشبوردی نشان داده نمی‌شوند، نه فقط به بقیه‌ی
+    Storeها (ایزوله‌سازیِ چندمستأجری، نه فقط استثناکردنِ Storeِ اشتباه)."""
+    qs = SmsLog.objects.filter(store=store).order_by("-created_at")
+    if status:
+        qs = qs.filter(status=status)
+    return qs
+
+
+def filtered_outbox_items(*, status: str = "", store):
+    qs = SmsOutboxItem.objects.filter(store=store).order_by("-created_at")
     if status:
         qs = qs.filter(status=status)
     return qs

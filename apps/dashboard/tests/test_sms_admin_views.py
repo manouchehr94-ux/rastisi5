@@ -1,16 +1,26 @@
 import json
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.models import ShopSettings
 from apps.sms.events import SmsEvent
 from apps.sms.models import SmsLog, SmsTemplate
-from apps.stores.models import Store, StoreMembership
+from apps.stores.models import Store, StoreDomain, StoreMembership
 
 User = get_user_model()
+
+SMS_HOST_A = "sms-a.rastisi.ir"
+SMS_HOST_B = "sms-b.rastisi.ir"
+
+
+def _verified_domain(store, hostname):
+    return StoreDomain.objects.create(
+        store=store, hostname=hostname, is_primary=True,
+        verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+    )
 
 
 class SmsAdminViewsTestCase(TestCase):
@@ -49,6 +59,42 @@ class SettingsSmsConnectionViewTests(SmsAdminViewsTestCase):
         self.assertEqual(response.status_code, 302)
         self.assertNotIn("/admin-portal/login/", response.url)
         self.assertIn("admin_return=", response.url)
+
+    def test_secret_fields_are_never_echoed_back_into_the_form(self):
+        self.client.post(reverse("dashboard:settings-sms-connection"), {
+            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.MELIPAYAMAK,
+            "sms_sender_number": "10001", "melipayamak_username": "user1",
+            "melipayamak_password": "super-secret-pass", "kavenegar_api_key": "super-secret-key",
+        })
+        response = self.client.get(reverse("dashboard:settings") + "?section=sms")
+        self.assertNotContains(response, "super-secret-pass")
+        self.assertNotContains(response, "super-secret-key")
+
+    def test_submitting_blank_secret_does_not_clear_existing_value(self):
+        self.client.post(reverse("dashboard:settings-sms-connection"), {
+            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.MELIPAYAMAK,
+            "sms_sender_number": "10001", "melipayamak_username": "user1",
+            "melipayamak_password": "original-secret",
+        })
+        self.client.post(reverse("dashboard:settings-sms-connection"), {
+            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.MELIPAYAMAK,
+            "sms_sender_number": "10001", "melipayamak_username": "user1",
+            "melipayamak_password": "",
+        })
+        self.assertEqual(ShopSettings.load().melipayamak_password, "original-secret")
+
+    def test_submitting_new_secret_overwrites_previous_value(self):
+        self.client.post(reverse("dashboard:settings-sms-connection"), {
+            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.KAVENEGAR,
+            "sms_sender_number": "10001", "kavenegar_api_key": "old-key",
+        })
+        self.client.post(reverse("dashboard:settings-sms-connection"), {
+            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.KAVENEGAR,
+            "sms_sender_number": "10001", "kavenegar_api_key": "new-key",
+        })
+        self.assertEqual(ShopSettings.load().kavenegar_api_key, "new-key")
+
+
 class SmsTemplateFormViewTests(SmsAdminViewsTestCase):
     def setUp(self):
         super().setUp()
@@ -120,30 +166,138 @@ class SmsTestSendViewTests(SmsAdminViewsTestCase):
         self.assertFalse(SmsLog.objects.exists())
 
 
+@override_settings(ALLOWED_HOSTS=[SMS_HOST_A, SMS_HOST_B, "testserver"])
 class SmsLogListViewTests(SmsAdminViewsTestCase):
+    """چون این تست‌ها یک Store دومی هم می‌سازند، حالتِ سازگاریِ تک-Storeِ
+    resolve_compatibility_store دیگر معتبر نیست — همان الگویِ
+    test_order_store_isolation.py (میزبانِ صریح + دامنه‌ی تأییدشده) استفاده
+    می‌شود تا درخواست‌ها هنوز به Storeِ خودِ کارمند resolve شوند."""
+
     def setUp(self):
         super().setUp()
+        self.store = Store.objects.get(slug="akhlaghi")
+        _verified_domain(self.store, SMS_HOST_A)
+        self.store.admin_subdomain = SMS_HOST_A.split(".")[0]
+        self.store.save(update_fields=["admin_subdomain"])
         SmsLog.objects.create(
-            event_key=SmsEvent.WELCOME, recipient="09121111111", message="پیام ۱", status=SmsLog.Status.SENT,
+            store=self.store, event_key=SmsEvent.WELCOME, recipient="09121111111", message="پیام ۱",
+            status=SmsLog.Status.SENT,
         )
         SmsLog.objects.create(
-            event_key=SmsEvent.OTP, recipient="09122222222", message="پیام ۲", status=SmsLog.Status.FAILED,
-            error_message="خطای اتصال",
+            store=self.store, event_key=SmsEvent.OTP, recipient="09122222222", message="پیام ۲",
+            status=SmsLog.Status.FAILED, error_message="خطای اتصال",
         )
 
     def test_renders_all_logs(self):
-        response = self.client.get(reverse("dashboard:sms-log-list"))
+        response = self.client.get(reverse("dashboard:sms-log-list"), HTTP_HOST=SMS_HOST_A)
         self.assertContains(response, "09121111111")
         self.assertContains(response, "09122222222")
 
     def test_filter_by_status(self):
-        response = self.client.get(reverse("dashboard:sms-log-table"), {"status": SmsLog.Status.FAILED})
+        response = self.client.get(
+            reverse("dashboard:sms-log-table"), {"status": SmsLog.Status.FAILED}, HTTP_HOST=SMS_HOST_A,
+        )
         self.assertContains(response, "09122222222")
         self.assertNotContains(response, "09121111111")
 
     def test_anonymous_denied(self):
         self.client.logout()
-        response = self.client.get(reverse("dashboard:sms-log-list"))
+        response = self.client.get(reverse("dashboard:sms-log-list"), HTTP_HOST=SMS_HOST_A)
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
+
+    def test_legacy_unattributed_log_is_never_shown(self):
+        """ردیفِ store=NULL (پیش از افزودنِ این فیلد) نباید به هیچ داشبوردی نشان داده شود."""
+        SmsLog.objects.create(
+            store=None, event_key=SmsEvent.WELCOME, recipient="09123334444", message="لاگِ قدیمی بدونِ Store",
+            status=SmsLog.Status.SENT,
+        )
+        response = self.client.get(reverse("dashboard:sms-log-list"), HTTP_HOST=SMS_HOST_A)
+        self.assertNotContains(response, "09123334444")
+
+    def test_cross_store_logs_are_never_visible(self):
+        other_store = Store.objects.create(name="Store D", slug="store-d-log", status=Store.Status.ACTIVE)
+        _verified_domain(other_store, SMS_HOST_B)
+        other_store.admin_subdomain = SMS_HOST_B.split(".")[0]
+        other_store.save(update_fields=["admin_subdomain"])
+        SmsLog.objects.create(
+            store=other_store, event_key=SmsEvent.WELCOME, recipient="09125556666",
+            message="متعلق به فروشگاه دیگر", status=SmsLog.Status.SENT,
+        )
+        response = self.client.get(reverse("dashboard:sms-log-list"), HTTP_HOST=SMS_HOST_A)
+        self.assertNotContains(response, "09125556666")
+
+    def test_retry_resends_failed_log(self):
+        failed_log = SmsLog.objects.get(status=SmsLog.Status.FAILED)
+        response = self.client.post(reverse("dashboard:sms-log-retry", args=[failed_log.pk]), HTTP_HOST=SMS_HOST_A)
+        self.assertEqual(response.status_code, 302)
+        failed_log.refresh_from_db()
+        self.assertEqual(failed_log.status, SmsLog.Status.SENT)
+        self.assertEqual(failed_log.attempt_count, 1)
+
+    def test_retry_rejects_already_sent_log(self):
+        sent_log = SmsLog.objects.get(status=SmsLog.Status.SENT)
+        response = self.client.post(reverse("dashboard:sms-log-retry", args=[sent_log.pk]), HTTP_HOST=SMS_HOST_A)
+        self.assertEqual(response.status_code, 302)
+        sent_log.refresh_from_db()
+        self.assertEqual(sent_log.attempt_count, 0)
+
+    def test_cannot_retry_another_stores_log(self):
+        other_store = Store.objects.create(name="Store E", slug="store-e-log", status=Store.Status.ACTIVE)
+        _verified_domain(other_store, SMS_HOST_B)
+        other_store.admin_subdomain = SMS_HOST_B.split(".")[0]
+        other_store.save(update_fields=["admin_subdomain"])
+        other_log = SmsLog.objects.create(
+            store=other_store, event_key=SmsEvent.WELCOME, recipient="09127778888",
+            message="متعلق به فروشگاه دیگر", status=SmsLog.Status.FAILED,
+        )
+        response = self.client.post(reverse("dashboard:sms-log-retry", args=[other_log.pk]), HTTP_HOST=SMS_HOST_A)
+        self.assertEqual(response.status_code, 302)
+        other_log.refresh_from_db()
+        self.assertEqual(other_log.status, SmsLog.Status.FAILED)
+        self.assertEqual(other_log.attempt_count, 0)
+
+
+@override_settings(ALLOWED_HOSTS=[SMS_HOST_A, SMS_HOST_B, "testserver"])
+class SmsOutboxListViewTests(SmsAdminViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.store = Store.objects.get(slug="akhlaghi")
+        _verified_domain(self.store, SMS_HOST_A)
+        self.store.admin_subdomain = SMS_HOST_A.split(".")[0]
+        self.store.save(update_fields=["admin_subdomain"])
+
+    def test_renders_own_stores_items_only(self):
+        from apps.sms.models import SmsOutboxItem
+
+        SmsOutboxItem.objects.create(store=self.store, phone="09121111111", message="آیتمِ خودم")
+        other_store = Store.objects.create(name="Store F", slug="store-f-outbox", status=Store.Status.ACTIVE)
+        _verified_domain(other_store, SMS_HOST_B)
+        other_store.admin_subdomain = SMS_HOST_B.split(".")[0]
+        other_store.save(update_fields=["admin_subdomain"])
+        SmsOutboxItem.objects.create(store=other_store, phone="09129998888", message="آیتمِ فروشگاهِ دیگر")
+
+        response = self.client.get(reverse("dashboard:sms-outbox-list"), HTTP_HOST=SMS_HOST_A)
+        self.assertContains(response, "09121111111")
+        self.assertNotContains(response, "09129998888")
+
+    def test_retry_requeues_failed_item(self):
+        from apps.sms.models import SmsOutboxItem
+
+        item = SmsOutboxItem.objects.create(
+            store=self.store, phone="09121111111", message="ناموفق",
+            status=SmsOutboxItem.Status.FAILED, error_message="خطا",
+        )
+        response = self.client.post(reverse("dashboard:sms-outbox-retry", args=[item.pk]), HTTP_HOST=SMS_HOST_A)
+        self.assertEqual(response.status_code, 302)
+        item.refresh_from_db()
+        self.assertEqual(item.status, SmsOutboxItem.Status.PENDING)
+        self.assertEqual(item.error_message, "")
+
+    def test_anonymous_denied(self):
+        self.client.logout()
+        response = self.client.get(reverse("dashboard:sms-outbox-list"), HTTP_HOST=SMS_HOST_A)
         self.assertEqual(response.status_code, 302)
         self.assertNotIn("/admin-portal/login/", response.url)
         self.assertIn("admin_return=", response.url)

@@ -15,7 +15,7 @@ from django.utils import timezone
 from apps.core.models import ShopSettings
 
 from ..events import EVENT_VARIABLES, SmsEvent
-from ..models import SmsLog, SmsTemplate
+from ..models import SmsLog, SmsOutboxItem, SmsTemplate
 from .backends import ConsoleBackend, KavenegarBackend, MelipayamakBackend, SmsBackend, SmsRastiBackend
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,7 @@ def _render(template: SmsTemplate, context: dict, shop_name: str) -> str:
 
 def _dispatch(*, event_key: str, phone: str, message: str, store) -> SmsLog:
     log = SmsLog.objects.create(
-        event_key=event_key, recipient=phone, message=message, status=SmsLog.Status.PENDING,
+        store=store, event_key=event_key, recipient=phone, message=message, status=SmsLog.Status.PENDING,
     )
     backend = get_backend(store=store)
     if event_key == SmsEvent.OTP and isinstance(backend, SmsRastiBackend):
@@ -154,3 +154,57 @@ def send_test_sms(*, event_key: str, phone: str, store) -> SmsLog:
     shop = ShopSettings.load(store=store)
     message = _render(template, DUMMY_TEST_CONTEXT, shop.name)
     return _dispatch(event_key=event_key, phone=phone, message=message, store=store)
+
+
+class RetryNotEligibleError(Exception):
+    """رکورد در وضعیتی نیست که بتوان دوباره تلاش کرد (فقط failed قابل retry است)."""
+
+
+def retry_failed_log(*, log_id: int, store) -> SmsLog:
+    """همان متنِ رندرشده‌ی قبلی را دوباره به backend فعلیِ Store می‌فرستد —
+    قالب را دوباره رندر نمی‌کند (تنظیماتِ رویداد ممکن است از آن زمان تغییر
+    کرده باشد، اما پیامی که کاربر انتظارش را داشته همانی است که در ابتدا
+    ساخته شده). ``store`` فیلترِ Get_object_or_404-مانند است — یک Store
+    هرگز نمی‌تواند لاگِ Store دیگر را retry کند."""
+    try:
+        log = SmsLog.objects.get(pk=log_id, store=store)
+    except SmsLog.DoesNotExist as exc:
+        raise RetryNotEligibleError("گزارشی با این شناسه برای این فروشگاه یافت نشد") from exc
+    if log.status != SmsLog.Status.FAILED:
+        raise RetryNotEligibleError("فقط پیامک‌های ناموفق قابل ارسالِ دوباره‌اند")
+
+    backend = get_backend(store=store)
+    if log.event_key == SmsEvent.OTP and isinstance(backend, SmsRastiBackend):
+        log.error_message = "درگاهِ اسمس‌راستی برای ارسالِ رمزِ یک‌بارمصرف مناسب نیست؛ درگاهِ دیگری برای این فروشگاه انتخاب کنید"
+        log.save(update_fields=["error_message", "updated_at"])
+        return log
+
+    result = backend.send(to=log.recipient, text=log.message)
+    log.attempt_count += 1
+    if result.success:
+        log.status = SmsLog.Status.SENT
+        log.provider_ref_id = result.provider_ref_id
+        log.error_message = ""
+        log.sent_at = timezone.now()
+    else:
+        log.status = SmsLog.Status.FAILED
+        log.error_message = result.error_message
+    log.save(update_fields=["status", "provider_ref_id", "error_message", "attempt_count", "sent_at", "updated_at"])
+    return log
+
+
+def retry_smsrasti_outbox_item(*, item_id: int, store) -> SmsOutboxItem:
+    """آیتمِ ناموفقِ صفِ SmsRasti را دوباره ``pending`` می‌کند تا دستگاه در
+    poll بعدی آن را claim کند — خودِ این تابع چیزی ارسال نمی‌کند."""
+    try:
+        item = SmsOutboxItem.objects.get(pk=item_id, store=store)
+    except SmsOutboxItem.DoesNotExist as exc:
+        raise RetryNotEligibleError("آیتمی با این شناسه برای این فروشگاه یافت نشد") from exc
+    if item.status != SmsOutboxItem.Status.FAILED:
+        raise RetryNotEligibleError("فقط آیتم‌های ناموفق قابل صف‌شدنِ دوباره‌اند")
+
+    item.status = SmsOutboxItem.Status.PENDING
+    item.error_message = ""
+    item.claimed_at = None
+    item.save(update_fields=["status", "error_message", "claimed_at", "updated_at"])
+    return item

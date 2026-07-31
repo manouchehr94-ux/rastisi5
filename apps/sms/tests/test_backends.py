@@ -126,6 +126,16 @@ class KavenegarBackendTests(TestCase):
         self.assertFalse(result.success)
         self.assertIn("network down", result.error_message)
 
+    def test_network_error_message_never_leaks_api_key_from_url(self):
+        """کلیدِ API بخشی از خودِ URL درخواست است — پیامِ requests.exceptions
+        معمولاً URL کامل را می‌آورد؛ نباید در پیامِ خطای برگردانده‌شده
+        (که در گزارشِ پیامکِ داشبورد نمایش داده می‌شود) دیده شود."""
+        secret_url = self.backend.SEND_URL_TEMPLATE.format(api_key="key1")
+        with patch("requests.post", side_effect=ConnectionError(f"Max retries exceeded with url: {secret_url}")):
+            result = self.backend.send(to="09121234567", text="سلام")
+        self.assertFalse(result.success)
+        self.assertNotIn("key1", result.error_message)
+
 
 class SmsRastiBackendTests(TestCase):
     def setUp(self):

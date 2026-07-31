@@ -138,6 +138,9 @@ urlpatterns = [
     path("settings/sms/test-send/", views.sms_test_send, name="sms-test-send"),
     path("settings/sms/logs/", views.sms_log_list, name="sms-log-list"),
     path("settings/sms/logs/table/", views.sms_log_table, name="sms-log-table"),
+    path("settings/sms/logs/<int:pk>/retry/", views.sms_log_retry, name="sms-log-retry"),
+    path("settings/sms/outbox/", views.sms_outbox_list, name="sms-outbox-list"),
+    path("settings/sms/outbox/<int:pk>/retry/", views.sms_outbox_retry, name="sms-outbox-retry"),
 
     # --- صفحات محتوایی ---
     path("pages/", views.page_list, name="page-list"),

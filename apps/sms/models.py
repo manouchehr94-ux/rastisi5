@@ -35,13 +35,25 @@ class SmsTemplate(TimeStampedModel):
 
 
 class SmsLog(TimeStampedModel):
-    """تاریخچه‌ی هر تلاش برای ارسال پیامک — برای پیگیری و رفع اشکال."""
+    """تاریخچه‌ی هر تلاش برای ارسال پیامک — برای پیگیری و رفع اشکال.
+
+    ``store`` عمداً ``null=True`` است: ردیف‌های پیش از افزودنِ این فیلد
+    Store‌شان قابلِ بازسازی نیست (هیچ‌جا ذخیره نشده بود) — به‌جایِ حدس‌زدن یا
+    نسبت‌دادنِ نادرست، آن ردیف‌های قدیمی «بی‌صاحب» می‌مانند و
+    ``sms_admin_service.filtered_logs`` با فیلترِ الزامیِ Store به‌طورِ
+    خودکار از دیدِ همه‌ی داشبوردها کنار گذاشته می‌شوند (ایزوله‌سازیِ
+    چندمستأجری — پیش از این فیلد، لاگِ هر Store برایِ همه‌ی Store‌های دیگر
+    هم قابلِ دیدن بود، شاملِ متنِ کاملِ پیامکِ OTP)."""
 
     class Status(models.TextChoices):
         PENDING = "pending", "در انتظار"
         SENT = "sent", "ارسال‌شده"
         FAILED = "failed", "ناموفق"
 
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE,
+        related_name="sms_logs", null=True, blank=True,
+    )
     event_key = models.CharField("رویداد", max_length=30, choices=SmsEvent.choices)
     recipient = models.CharField("گیرنده", max_length=15)
     message = models.TextField("متن نهایی")
