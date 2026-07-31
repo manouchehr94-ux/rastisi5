@@ -308,13 +308,31 @@ def resolve_store_for_storefront(request) -> Store:
     ``status == ACTIVE``), so they land here and 404 — the fail-closed customer-
     facing behavior. Use this in public storefront views; deeper service code
     keeps using ``resolve_store_for_service`` with the concrete Store passed in.
+
+    Section 6 (ADR-103): a resolved Store that exists but is not currently
+    *publicly visible* (still onboarding, trial-restricted, subscription-
+    restricted, suspended, or inactive — ``apps.stores.services.
+    publication_service.is_publicly_visible``) raises ``PermissionDenied``
+    instead of returning it — Django's own ``handler403`` renders
+    ``templates/403.html`` with the explanatory message. This is
+    deliberately distinct from ``Http404``: the Store is real, the host is
+    real, the visitor just isn't allowed to see it *right now*.
     """
+    from django.core.exceptions import PermissionDenied
     from django.http import Http404
 
     try:
-        return resolve_store_for_service(request)
+        store = resolve_store_for_service(request)
     except CompatibilityFallbackUnavailableError as exc:
         raise Http404("no storefront for this host") from exc
+
+    from .services.publication_service import get_store_publication_state, is_publicly_visible
+
+    if not is_publicly_visible(store):
+        raise PermissionDenied(
+            f"store_not_publicly_visible:{get_store_publication_state(store)}"
+        )
+    return store
 
 
 def require_resolved_store(request) -> Store:

@@ -105,6 +105,18 @@ class Store(StoresTimestampedModel):
             "تغییر زیردامنه‌ی عمومی."
         ),
     )
+    onboarding_completed_at = models.DateTimeField(
+        "زمان تکمیل راه‌اندازی",
+        null=True, blank=True,
+        help_text=(
+            "تا این مقدار خالی است، فروشگاه خصوصی است (Section 6) — فقط "
+            "برایِ مالک/کارکنانِ عضو با پیش‌نمایشِ احرازهویت‌شده قابل‌دیدن، نه "
+            "برایِ بازدیدکنندهٔ ناشناس، حتی اگر Store.status=active باشد. "
+            "``apps.stores.services.publication_service`` تنها جایِ مجاز "
+            "برایِ خواندنِ این مقدار در تصمیمِ «آیا این فروشگاه اکنون "
+            "عمومی/در دسترس است؟» است."
+        ),
+    )
 
     class Meta:
         verbose_name = "فروشگاه"

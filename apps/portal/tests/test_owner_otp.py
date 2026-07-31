@@ -191,7 +191,12 @@ class OtpViewFlowTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
-    def test_login_next_redirect_is_honored_after_verify(self):
+    def test_login_next_redirect_is_honored_for_a_returning_owner(self):
+        # A brand-new phone number always lands in onboarding first (Section
+        # 3.1) regardless of "next" — "next" only applies to a RETURNING
+        # owner, who already has an account (and presumably a Store).
+        owner_auth_service.get_or_create_owner_by_phone(phone="09121234579", full_name="Existing")
+
         code = self._fixed_code()
         self.client.post("/login/?next=/app/", {"phone": "09121234579"}, HTTP_HOST=_HOST)
         response = self.client.post(
@@ -199,6 +204,21 @@ class OtpViewFlowTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "/app/")
+
+    def test_new_owner_via_login_path_still_gets_a_trial_store_and_onboarding(self):
+        # Registering through /login/ with a never-seen phone is
+        # functionally identical to /register/ — both funnel into the same
+        # get-or-create-by-phone identity (ADR-102).
+        from apps.stores.models import Store
+
+        code = self._fixed_code()
+        self.client.post("/login/", {"phone": "09121234581"}, HTTP_HOST=_HOST)
+        response = self.client.post(
+            "/verify/", {"phone": "09121234581", "code": code}, HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/onboarding/", response["Location"])
+        self.assertTrue(Store.objects.filter(name="فروشگاه من").exists())
 
     def test_second_owner_verify_reuses_account_across_login_sessions(self):
         code = self._fixed_code()

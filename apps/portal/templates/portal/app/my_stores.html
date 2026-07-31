@@ -19,7 +19,10 @@
       <p style="font-size:13px">وضعیت فروشگاه: {{ membership.store.get_status_display }}</p>
       <p style="font-size:13px">نقش شما: {{ membership.get_role_display }}</p>
       <p style="font-size:12px;color:var(--p-muted);direction:ltr;text-align:left">{{ membership.store.platform_code }}</p>
-      {% if membership.store.status == "active" %}
+      {% if not membership.store.onboarding_completed_at %}
+      <span class="p-plan-badge" style="margin-top:6px;display:inline-block">راه‌اندازی ناتمام</span>
+      <a class="p-btn p-btn-primary" style="width:100%;margin-top:10px" href="{% url 'portal:onboarding' membership.store.public_id %}">ادامه‌ی راه‌اندازی</a>
+      {% elif membership.store.status == "active" %}
       <form method="post" action="{% url 'portal:enter-admin' membership.store.public_id %}" style="margin-top:10px">
         {% csrf_token %}
         <button type="submit" class="p-btn p-btn-ghost" style="width:100%">ورود به پنل مدیریت</button>

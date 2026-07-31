@@ -3,6 +3,7 @@ from django.contrib.auth import logout as auth_logout
 from django.contrib import messages
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.views.decorators.http import require_POST
 
@@ -29,6 +30,7 @@ from .services import handoff_service, owner_auth_service, owner_otp_service, pr
 from .services.rate_limit import RateLimitExceeded, enforce_rate_limit
 
 _STORE_CREATE_TOKEN_SESSION_KEY = "portal_store_create_token"
+DEFAULT_TRIAL_STORE_NAME = "فروشگاه من"
 _OTP_SESSION_PHONE_KEY = "portal_otp_phone"
 _OTP_SESSION_PURPOSE_KEY = "portal_otp_purpose"
 _OTP_SESSION_FULL_NAME_KEY = "portal_otp_full_name"
@@ -184,6 +186,21 @@ def otp_verify(request):
                     phone=phone, full_name=full_name,
                 )
                 auth_login(request, user)
+
+                if created:
+                    # Section 3.1 ("onboarding mode C"): registration
+                    # provisions exactly one trial Store automatically —
+                    # the owner never sees an empty My Stores page or a
+                    # separate "create store" click on their very first visit.
+                    try:
+                        store = provisioning_service.provision_trial_store(
+                            owner=user, name=DEFAULT_TRIAL_STORE_NAME,
+                        )
+                    except provisioning_service.ProvisioningError:
+                        pass
+                    else:
+                        return redirect("portal:onboarding", store_public_id=store.public_id)
+
                 if _is_safe_next(next_url):
                     return redirect(next_url)
                 return redirect("portal:app-home")
@@ -384,6 +401,34 @@ def enter_admin(request, store_public_id):
         raise Http404
     admin_host = f"{store.admin_subdomain}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
     return redirect(f"{request.scheme}://{admin_host}/admin-portal/handoff/{ticket.token}/")
+
+
+@owner_required
+def onboarding(request, store_public_id):
+    """Section 5 (minimal first slice — a single required step, not the
+    full multi-stage wizard the program describes): confirm the Store's
+    real display name, then publish it. Until this runs,
+    ``Store.onboarding_completed_at`` stays NULL and the storefront 403s
+    for anonymous visitors (Section 6, ``publication_service``) even
+    though the trial subscription is active — only the owner (via ``{%
+    owner_required %}``-gated portal pages) can see anything about it."""
+    membership = get_object_or_404(
+        StoreMembership.objects.select_related("store"),
+        store__public_id=store_public_id, user=request.user, status=StoreMembership.MembershipStatus.ACTIVE,
+    )
+    store = membership.store
+    trial_domain = store.domains.filter(is_primary=True).first()
+
+    if request.method == "POST":
+        name = (request.POST.get("name") or "").strip()
+        if name:
+            store.name = name
+        store.onboarding_completed_at = timezone.now()
+        store.save(update_fields=["name", "onboarding_completed_at", "updated_at"])
+        messages.success(request, "فروشگاه شما منتشر شد!")
+        return redirect("portal:store-created", store_public_id=store.public_id)
+
+    return render(request, "portal/app/onboarding.html", {"store": store, "trial_domain": trial_domain})
 
 
 @owner_required

@@ -4112,8 +4112,70 @@ scoped) cannot be reused for platform identity.
 **Consequences.** The visible primary merchant authentication is now
 mobile OTP, matching the approved product decision and the Iran-only
 target market (spec §3.18-3.19). Auto-provisioning a trial Store at
-registration (spec §3.1, "onboarding mode C") and the full onboarding
-wizard (Section 5) are follow-up slices, not implemented in this one.
+registration (spec §3.1, "onboarding mode C") landed in the very next
+slice — see ADR-103.
+
+---
+
+## ADR-103: Registration Auto-Provisions One Trial Store; Publication State Is Computed, Not a New Status Field
+
+**Decision (approved product decision, spec §3.1 "onboarding mode C" and
+§Section 6).** Two tightly-coupled additions:
+
+**Auto-provisioning at registration.** The first time `get_or_create_
+owner_by_phone` returns `created=True` (a brand-new phone, whether reached
+via `/register/` or `/login/` — they converge on the same OTP-verify step,
+ADR-102), the OTP-verify view immediately calls `provisioning_service.
+provision_trial_store(owner=user, name="فروشگاه من")` and redirects into
+`/app/stores/<id>/onboarding/` — never straight to an empty My Stores
+page. A registration that fails to provision (should not happen under
+normal operation, since a fresh owner is always under
+`RASTISI_MAX_STORES_PER_OWNER`) degrades gracefully to My Stores rather
+than blocking login.
+
+**One authoritative publication-state service, no new Store status
+field.** `apps.stores.services.publication_service.get_store_publication_
+state(store)` computes one of `onboarding` / `trial_private` /
+`trial_public` / `active_paid` / `restricted` / `suspended` / `inactive`
+purely from existing signals: `Store.status`, the new `Store.onboarding_
+completed_at` (nullable — the *only* new field this ADR adds, since
+"has initial setup finished" is not represented by anything that already
+exists), and the existing Checkpoint-5A `get_subscription_access_state`.
+Explicitly does **not** duplicate `StoreSubscription.status` or invent a
+second state machine — this is a read-only projection over the existing
+ones, matching the spec's own instruction to avoid "conflicting
+duplicated status fields."
+
+A Store with **no subscription at all** always resolves to `active_paid`
+(publicly visible) regardless of `onboarding_completed_at` — deliberately
+fail-open. `onboarding_completed_at` is only ever set by the provisioning/
+onboarding flow itself; gating on it for a Store that never went through
+that flow (every ad hoc `Store.objects.create(...)` throughout the ~3000-
+test pre-existing suite, and any legacy Store) would have silently
+restricted all of them the moment this field shipped — the exact failure
+ADR-65 already forbids for entitlements. `Store.onboarding_completed_at`
+is backfilled to `created_at` for every pre-existing row for the same
+reason.
+
+**Wiring into routing.** `apps.stores.resolution.resolve_store_for_
+storefront` (Checkpoint 6's canonical public-storefront entry point) now
+raises `django.core.exceptions.PermissionDenied` — not `Http404` — when a
+resolved, real Store is not currently publicly visible. Django's own
+`handler403` already renders `templates/403.html`; that template now
+branches on the exception message to show trial/restricted-specific
+copy and a link into the owner portal, instead of the generic "access
+denied" text, while leaving the generic 403 path (used by unrelated
+`PermissionDenied`s elsewhere) untouched. This intentionally only gates
+the small set of canonical storefront-entry views that already call
+`resolve_store_for_storefront` (home/list/detail/search, plus SEO); cart/
+checkout/account views reached only after already being on a resolved
+product page are not separately re-gated in this slice.
+
+**Consequences.** A newly registered owner goes straight from OTP
+verification to naming their one auto-provisioned Store, and that Store's
+public storefront correctly stays invisible to anonymous visitors until
+they finish that one required step — with zero regression risk to the
+pre-existing test suite's many ad hoc, subscription-less Stores.
 
 ---
 
@@ -4226,3 +4288,4 @@ wizard (Section 5) are follow-up slices, not implemented in this one.
 | `verify_domain_consistency --strict` is read-only, mirrors the billing/subscription/inventory consistency-command shape exactly; a wider `RESERVED_PLATFORM_SUBDOMAINS` list (Section K's product decision) guards future paid subdomain claims and is checked here today | Decided, implemented (Portal, ADR-100) |
 | Retired trial/platform hostnames go silently inactive and never redirect (overrides ADR-96); Platform Admin host is `platformadmins.rastisi.ir` | Decided, implemented (Portal, ADR-101) |
 | `PlatformConfiguration` singleton for platform-wide tunables; owner identity is mobile OTP sharing `User.username=phone` with storefront customers by deliberate design (email+password kept as secondary/recovery) | Decided, implemented (Portal, ADR-102) |
+| Registration auto-provisions exactly one trial Store (onboarding mode C); one computed publication-state service (no duplicated status field) gates storefront visibility until onboarding completes | Decided, implemented (Portal, ADR-103) |
