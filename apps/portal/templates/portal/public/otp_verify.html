@@ -1,0 +1,23 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}تأیید کد | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="p-wrap">
+<div class="p-form-card">
+  <h2 style="text-align:center;margin-bottom:8px">کد تأیید را وارد کنید</h2>
+  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px" dir="ltr">{{ phone }}</p>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {{ form.phone }}
+    {{ form.full_name }}
+    {% if form.non_field_errors %}<div class="p-alert p-alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
+    <div class="p-field"><label for="id_code">کد ۶ رقمی</label>{{ form.code }}{% if form.code.errors %}<div class="p-error">{{ form.code.errors.0 }}</div>{% endif %}</div>
+    <button type="submit" class="p-btn p-btn-primary" style="width:100%">تأیید و ورود</button>
+  </form>
+  <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--p-muted)">
+    <a href="{% url 'portal:login' %}">شماره اشتباه است؟ دوباره تلاش کنید</a>
+  </p>
+</div>
+</div>
+{% endblock %}
+{% block extra_css %}<style>.p-field input{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:20px;direction:ltr;text-align:center;letter-spacing:6px}</style>{% endblock %}

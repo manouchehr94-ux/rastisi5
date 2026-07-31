@@ -95,3 +95,47 @@ def set_new_password(*, user, password: str) -> None:
         raise OwnerAuthError(" ".join(exc.messages)) from exc
     user.set_password(password)
     user.save(update_fields=["password"])
+
+
+@transaction.atomic
+def get_or_create_owner_by_phone(*, phone: str, full_name: str = "") -> tuple[User, bool]:
+    """شناسه‌ی اصلیِ ورودِ مالک اکنون موبایل+OTP است (Section 3، جایگزینِ
+    ایمیل+رمز به‌عنوانِ روشِ اصلی — ایمیل+رمز فقط برایِ حساب‌هایِ قدیمی/
+    بازیابی/مدیرِ پلتفرم نگه داشته شده، نه حذف شده).
+
+    تصمیمِ عمدیِ هویتِ مشترک: چون ``apps.customers`` هم از ``User.username =
+    phone`` استفاده می‌کند، شماره‌ی یکسان طبیعتاً به همان ردیفِ ``User``
+    می‌رسد — نه یک ادغامِ نسنجیده، بلکه این‌که یک شماره‌ی موبایلِ تأییدشده با
+    OTP، اثباتِ هویتیِ به همان اندازه (یا قوی‌تر از) رمزِ عبورِ مشتری است؛
+    همان شخصِ واقعی صرفاً قابلیتِ «مالک» را هم به همان حساب اضافه می‌کند
+    (``OwnerProfile`` ساخته می‌شود اگر نبود)، نه اینکه دو حسابِ جدا یا حسابِ
+    یتیم بسازد. اگر آن User از قبل ``Customer`` هم داشته باشد، همان‌طور
+    دست‌نخورده می‌ماند — این تابع هرگز آن را تغییر نمی‌دهد.
+
+    خروجی: ``(user, created)`` — ``created`` یعنی این User تازه ساخته شد
+    (نه اینکه OwnerProfile تازه بود)."""
+    profile = OwnerProfile.objects.select_related("user").filter(phone=phone).first()
+    if profile is not None:
+        return profile.user, False
+
+    user = User.objects.filter(username=phone).select_for_update().first()
+    created = user is None
+    if user is None:
+        user = User.objects.create_user(username=phone)
+        user.set_unusable_password()
+        user.save(update_fields=["password"])
+
+    existing_profile = OwnerProfile.objects.filter(user=user).first()
+    if existing_profile is None:
+        OwnerProfile.objects.create(user=user, phone=phone, full_name=full_name.strip())
+    elif not existing_profile.phone:
+        # A first-time phone attach for a User that already had an
+        # OwnerProfile (e.g. registered by email earlier) — never overwrite
+        # an already-set full_name with an empty one just because this
+        # particular call (typically a login, not the registration form)
+        # didn't collect a name.
+        existing_profile.phone = phone
+        if full_name.strip():
+            existing_profile.full_name = full_name.strip()
+        existing_profile.save(update_fields=["phone", "full_name", "updated_at"])
+    return user, created

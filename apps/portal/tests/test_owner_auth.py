@@ -15,7 +15,7 @@ _HOST = "rastisi.localhost"
 class OwnerRegistrationTests(TestCase):
     def test_register_creates_user_and_owner_profile_no_customer(self):
         response = self.client.post(
-            "/register/",
+            "/register-email/",
             {"full_name": "Sara Ahmadi", "email": "Sara@Example.com", "password": "a-very-strong-pass-1"},
             HTTP_HOST=_HOST,
         )
@@ -49,21 +49,21 @@ class OwnerLoginLogoutTests(TestCase):
 
     def test_login_with_correct_credentials_succeeds(self):
         response = self.client.post(
-            "/login/", {"email": "login@example.com", "password": "a-very-strong-pass-1"}, HTTP_HOST=_HOST,
+            "/login-email/", {"email": "login@example.com", "password": "a-very-strong-pass-1"}, HTTP_HOST=_HOST,
         )
         self.assertEqual(response.status_code, 302)
         self.assertIn("_auth_user_id", self.client.session)
 
     def test_login_is_case_insensitive_on_email(self):
         response = self.client.post(
-            "/login/", {"email": "LOGIN@Example.com", "password": "a-very-strong-pass-1"}, HTTP_HOST=_HOST,
+            "/login-email/", {"email": "LOGIN@Example.com", "password": "a-very-strong-pass-1"}, HTTP_HOST=_HOST,
         )
         self.assertIn("_auth_user_id", self.client.session)
         self.assertEqual(response.status_code, 302)
 
     def test_login_with_wrong_password_fails(self):
         response = self.client.post(
-            "/login/", {"email": "login@example.com", "password": "wrong-password"}, HTTP_HOST=_HOST,
+            "/login-email/", {"email": "login@example.com", "password": "wrong-password"}, HTTP_HOST=_HOST,
         )
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("_auth_user_id", self.client.session)
@@ -81,7 +81,7 @@ class OwnerLoginLogoutTests(TestCase):
 
     def test_login_redirect_never_follows_external_next(self):
         response = self.client.post(
-            "/login/",
+            "/login-email/",
             {"email": "login@example.com", "password": "a-very-strong-pass-1", "next": "https://evil.example.com/"},
             HTTP_HOST=_HOST,
         )

@@ -1,6 +1,17 @@
 from django import forms
 
 
+class OwnerPhoneRequestForm(forms.Form):
+    full_name = forms.CharField(label="نام و نام خانوادگی", max_length=150, required=False)
+    phone = forms.CharField(label="شماره موبایل", max_length=20)
+
+
+class OwnerOtpVerifyForm(forms.Form):
+    phone = forms.CharField(widget=forms.HiddenInput)
+    full_name = forms.CharField(widget=forms.HiddenInput, required=False)
+    code = forms.CharField(label="کد تأیید", max_length=6, min_length=6)
+
+
 class OwnerRegisterForm(forms.Form):
     full_name = forms.CharField(label="نام و نام خانوادگی", max_length=150)
     email = forms.EmailField(label="ایمیل")

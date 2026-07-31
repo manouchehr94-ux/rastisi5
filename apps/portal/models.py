@@ -21,13 +21,54 @@ class OwnerProfile(TimeStampedModel):
         settings.AUTH_USER_MODEL, verbose_name="کاربر", on_delete=models.CASCADE, related_name="owner_profile",
     )
     full_name = models.CharField("نام و نام خانوادگی", max_length=150)
+    phone = models.CharField(
+        "موبایل", max_length=15, unique=True, null=True, blank=True,
+        help_text="فرمتِ متعارف ۰۹xxxxxxxxx — شناسه‌ی اصلیِ ورودِ OTP (Section 3).",
+    )
 
     class Meta:
         verbose_name = "پروفایل مالک"
         verbose_name_plural = "پروفایل‌های مالک"
 
     def __str__(self):
-        return self.full_name or self.user.email
+        return self.full_name or self.phone or self.user.email
+
+
+class OwnerOtpChallenge(TimeStampedModel):
+    """کدِ یکبارمصرفِ ورود/ثبت‌نامِ مالک با موبایل (Section 3).
+
+    ``code_hash`` — نه متنِ خامِ کد — ذخیره می‌شود (با همان هَشرِ رمزِ عبورِ
+    جنگو، ``django.contrib.auth.hashers``)؛ حتی دسترسیِ خواندنی به دیتابیس
+    کدِ OTP فعال را فاش نمی‌کند."""
+
+    class Purpose(models.TextChoices):
+        REGISTER = "register", "ثبت‌نام"
+        LOGIN = "login", "ورود"
+
+    phone = models.CharField("موبایل", max_length=15, db_index=True)
+    purpose = models.CharField("هدف", max_length=10, choices=Purpose.choices)
+    code_hash = models.CharField("هَشِ کد", max_length=200)
+    attempt_count = models.PositiveSmallIntegerField("تعداد تلاشِ تأیید", default=0)
+    expires_at = models.DateTimeField("زمان انقضا")
+    consumed_at = models.DateTimeField("زمان مصرف", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "کدِ یکبارمصرفِ مالک"
+        verbose_name_plural = "کدهای یکبارمصرفِ مالک"
+        indexes = [
+            models.Index(fields=["phone", "purpose", "created_at"], name="idx_owner_otp_phone_purpose"),
+        ]
+
+    def __str__(self):
+        return f"OTP:{self.phone}:{self.purpose}"
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_usable(self) -> bool:
+        return self.consumed_at is None and not self.is_expired
 
 
 def _generate_handoff_token() -> str:

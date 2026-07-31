@@ -4053,6 +4053,70 @@ implemented yet in this slice.
 
 ---
 
+## ADR-102: Platform Configuration Singleton, and Owner Identity Becomes Mobile OTP (Shared With Customer Phone Identity by Design)
+
+**Decision (approved product decision, spec §Section 2 and §Section 3).**
+Two related additions:
+
+**Platform configuration.** `apps.portal.models.PlatformConfiguration` is a
+`pk=1` singleton read through a cached `get_platform_configuration()` (never
+queried per-render). It holds every cross-cutting platform tunable the spec
+calls for now: default trial days, deletion retention days (180-365
+enforced), brand colors, a temporary text brand mark with a real-logo
+`ImageField` ready for later use without any template rewrite, support
+contact info, a whitelisted step-up-OTP action policy
+(`STEP_UP_ACTION_CHOICES` — not every key has an enforcement point wired
+yet; that lands with the sections that need it), and default/enabled
+payment providers. Editable only via Platform Admin by a superuser, every
+change audited through a new `PlatformAuditLogEntry` — deliberately
+separate from the existing Store-owned `AuditLogEntry` (ADR-36), which
+requires a `store` and stays untouched.
+
+**Owner identity is now mobile OTP, not email+password.** `/register/` and
+`/login/` on the owner-portal host now collect a phone number, normalized
+via `apps.portal.phone.normalize_iranian_phone` (accepts `09...`,
+`+98...`, `0098...`, bare `98...`/`9...`, Persian/Arabic digits), send a
+6-digit code (hashed at rest with Django's own password hasher, 2-minute
+TTL, 3 requests per phone per 10 minutes, 10 requests per IP per 10
+minutes, 5 verify attempts before permanent invalidation, single-use).
+The old email+password flow is **not deleted** — it moved to
+`/register-email/` and `/login-email/`, kept exactly as built (ADR-93) for
+existing accounts and platform-superuser recovery, per the spec's own
+explicit allowance.
+
+**The shared-identity decision.** `apps.customers.services.auth_service`
+already uses `User.username = phone` for storefront customers. Rather than
+inventing a second, incompatible phone-identity scheme for owners, an
+OTP-verified owner login/register uses the exact same natural key. A
+phone number that already belongs to a Customer-linked `User` therefore
+resolves to that same `User` row — `apps.portal.services.owner_auth_
+service.get_or_create_owner_by_phone` adds an `OwnerProfile` to it rather
+than creating a second, orphaned account. This is a deliberate decision,
+not an accidental merge (the spec explicitly warns against merging
+customer/owner identity "casually"): an OTP-verified phone is at least as
+strong a proof of identity as the password a Customer account already
+uses, so the same real person simply gains owner capability on the one
+account already tied to their verified phone. The `Customer` row itself
+(and its Store-scoped `CustomerProfile` history) is never read or modified
+by this path. A returning-login call never overwrites an already-set
+`OwnerProfile.full_name` with an empty one just because a bare login
+(as opposed to registration) didn't collect a name.
+
+Platform-level OTP SMS reuses `apps.sms.services.backends`' existing
+provider abstraction (`ConsoleBackend` for dev, `MelipayamakBackend` for
+production) through a new, Store-independent selector
+(`apps.portal.services.owner_sms_service`) — consistent with ADR-93's
+reasoning for why `apps.sms.services.sms_service.send_event_sms` (Store-
+scoped) cannot be reused for platform identity.
+
+**Consequences.** The visible primary merchant authentication is now
+mobile OTP, matching the approved product decision and the Iran-only
+target market (spec §3.18-3.19). Auto-provisioning a trial Store at
+registration (spec §3.1, "onboarding mode C") and the full onboarding
+wizard (Section 5) are follow-up slices, not implemented in this one.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -4161,3 +4225,4 @@ implemented yet in this slice.
 | Trial Store provisioning activates immediately in one atomic call; onboarding is a separate, optional, later flow | Decided, implemented (Portal, ADR-99) |
 | `verify_domain_consistency --strict` is read-only, mirrors the billing/subscription/inventory consistency-command shape exactly; a wider `RESERVED_PLATFORM_SUBDOMAINS` list (Section K's product decision) guards future paid subdomain claims and is checked here today | Decided, implemented (Portal, ADR-100) |
 | Retired trial/platform hostnames go silently inactive and never redirect (overrides ADR-96); Platform Admin host is `platformadmins.rastisi.ir` | Decided, implemented (Portal, ADR-101) |
+| `PlatformConfiguration` singleton for platform-wide tunables; owner identity is mobile OTP sharing `User.username=phone` with storefront customers by deliberate design (email+password kept as secondary/recovery) | Decided, implemented (Portal, ADR-102) |

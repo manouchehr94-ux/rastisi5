@@ -362,6 +362,17 @@ RASTISI_PLATFORM_CODE_LENGTH = 9
 # platform-wide safety limit, generous by default, overridable per deployment.
 RASTISI_MAX_STORES_PER_OWNER = env_int("RASTISI_MAX_STORES_PER_OWNER", default=10)
 
+# Owner/staff mobile-OTP identity (Section 3) — platform-level SMS sending,
+# deliberately independent from apps.sms's Store-scoped ShopSettings.
+# sms_backend (ADR-93): OTP for platform identity happens before/without any
+# Store context, so it cannot depend on a Store's own SMS provider config.
+# Reuses apps.sms.services.backends' provider classes (dev console backend
+# vs. real Melipayamak) — never a duplicate backend implementation.
+RASTISI_OWNER_SMS_BACKEND = env_str("RASTISI_OWNER_SMS_BACKEND", "console")
+RASTISI_OWNER_SMS_USERNAME = env_str("RASTISI_OWNER_SMS_USERNAME", "")
+RASTISI_OWNER_SMS_PASSWORD = env_str("RASTISI_OWNER_SMS_PASSWORD", "")
+RASTISI_OWNER_SMS_SENDER = env_str("RASTISI_OWNER_SMS_SENDER", "")
+
 # Checkpoint 5A — default subscription plan for newly onboarded stores.
 # ``RASTISI_DEFAULT_PLAN_CODE`` names a Plan.code whose latest published
 # version a new store is put on (via subscription_service.provision_default_

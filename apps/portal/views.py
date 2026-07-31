@@ -17,15 +17,22 @@ from .forms import (
     ContactForm,
     CreateStoreForm,
     OwnerLoginForm,
+    OwnerOtpVerifyForm,
+    OwnerPhoneRequestForm,
     OwnerRegisterForm,
     PasswordResetConfirmForm,
     PasswordResetRequestForm,
 )
-from .models import ContactMessage
-from .services import handoff_service, owner_auth_service, provisioning_service
+from .models import ContactMessage, OwnerOtpChallenge
+from .phone import InvalidPhoneError, normalize_iranian_phone
+from .services import handoff_service, owner_auth_service, owner_otp_service, provisioning_service
 from .services.rate_limit import RateLimitExceeded, enforce_rate_limit
 
 _STORE_CREATE_TOKEN_SESSION_KEY = "portal_store_create_token"
+_OTP_SESSION_PHONE_KEY = "portal_otp_phone"
+_OTP_SESSION_PURPOSE_KEY = "portal_otp_purpose"
+_OTP_SESSION_FULL_NAME_KEY = "portal_otp_full_name"
+_OTP_SESSION_NEXT_KEY = "portal_otp_next"
 
 # ---------------------------------------------------------------------------
 # Public marketing pages (Section A)
@@ -85,7 +92,109 @@ def contact(request):
 # ---------------------------------------------------------------------------
 
 
+def _is_safe_next(next_url: str) -> bool:
+    return bool(next_url) and next_url.startswith("/") and not next_url.startswith("//")
+
+
+def _request_otp_and_go_to_verify(request, *, phone_raw: str, full_name: str, purpose: str, next_url: str = ""):
+    try:
+        phone = normalize_iranian_phone(phone_raw)
+    except InvalidPhoneError as exc:
+        return None, str(exc.messages[0] if exc.messages else exc)
+
+    try:
+        owner_otp_service.request_otp(
+            phone=phone, purpose=purpose, client_ip=request.META.get("REMOTE_ADDR", "unknown"),
+        )
+    except owner_otp_service.OtpRateLimitError as exc:
+        return None, str(exc)
+
+    request.session[_OTP_SESSION_PHONE_KEY] = phone
+    request.session[_OTP_SESSION_PURPOSE_KEY] = purpose
+    request.session[_OTP_SESSION_FULL_NAME_KEY] = full_name
+    request.session[_OTP_SESSION_NEXT_KEY] = next_url
+    return phone, None
+
+
 def register(request):
+    """Section 3: primary owner registration is phone + OTP, not email +
+    password (that flow is kept, not deleted — see register_email/
+    login_email — for existing accounts and platform-superuser recovery)."""
+    if request.user.is_authenticated:
+        return redirect("portal:app-home")
+
+    if request.method == "POST":
+        form = OwnerPhoneRequestForm(request.POST)
+        if form.is_valid():
+            phone, error = _request_otp_and_go_to_verify(
+                request, phone_raw=form.cleaned_data["phone"],
+                full_name=form.cleaned_data.get("full_name", ""), purpose=OwnerOtpChallenge.Purpose.REGISTER,
+            )
+            if error:
+                form.add_error(None, error)
+            else:
+                return redirect("portal:otp-verify")
+    else:
+        form = OwnerPhoneRequestForm()
+    return render(request, "portal/public/register.html", {"form": form})
+
+
+def login_view(request):
+    if request.user.is_authenticated:
+        return redirect("portal:app-home")
+
+    next_url = request.GET.get("next") or request.POST.get("next") or ""
+    if request.method == "POST":
+        form = OwnerPhoneRequestForm(request.POST)
+        if form.is_valid():
+            phone, error = _request_otp_and_go_to_verify(
+                request, phone_raw=form.cleaned_data["phone"], full_name="",
+                purpose=OwnerOtpChallenge.Purpose.LOGIN, next_url=next_url,
+            )
+            if error:
+                form.add_error(None, error)
+            else:
+                return redirect("portal:otp-verify")
+    else:
+        form = OwnerPhoneRequestForm()
+    return render(request, "portal/public/login.html", {"form": form, "next": next_url})
+
+
+def otp_verify(request):
+    phone = request.session.get(_OTP_SESSION_PHONE_KEY)
+    purpose = request.session.get(_OTP_SESSION_PURPOSE_KEY)
+    if not phone or not purpose:
+        return redirect("portal:login")
+
+    if request.method == "POST":
+        form = OwnerOtpVerifyForm(request.POST)
+        if form.is_valid() and form.cleaned_data["phone"] == phone:
+            ok = owner_otp_service.verify_otp(phone=phone, purpose=purpose, code=form.cleaned_data["code"])
+            if not ok:
+                form.add_error(None, "کد نادرست یا منقضی‌شده است.")
+            else:
+                full_name = request.session.get(_OTP_SESSION_FULL_NAME_KEY, "")
+                next_url = request.session.get(_OTP_SESSION_NEXT_KEY, "")
+                for key in (
+                    _OTP_SESSION_PHONE_KEY, _OTP_SESSION_PURPOSE_KEY,
+                    _OTP_SESSION_FULL_NAME_KEY, _OTP_SESSION_NEXT_KEY,
+                ):
+                    request.session.pop(key, None)
+                user, created = owner_auth_service.get_or_create_owner_by_phone(
+                    phone=phone, full_name=full_name,
+                )
+                auth_login(request, user)
+                if _is_safe_next(next_url):
+                    return redirect(next_url)
+                return redirect("portal:app-home")
+    else:
+        form = OwnerOtpVerifyForm(initial={"phone": phone})
+    return render(request, "portal/public/otp_verify.html", {"form": form, "phone": phone})
+
+
+def register_email(request):
+    """Legacy email+password registration — kept for existing accounts and
+    platform-superuser recovery (Section 3), not the primary flow anymore."""
     if request.user.is_authenticated:
         return redirect("portal:app-home")
 
@@ -93,11 +202,11 @@ def register(request):
         form = OwnerRegisterForm(request.POST)
         try:
             enforce_rate_limit(
-                "register", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=10, window_seconds=600,
+                "register_email", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=10, window_seconds=600,
             )
         except RateLimitExceeded:
             messages.error(request, "تعداد تلاش ثبت‌نام بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
-            return render(request, "portal/public/register.html", {"form": form})
+            return render(request, "portal/public/register_email.html", {"form": form})
         if form.is_valid():
             try:
                 user = owner_auth_service.register_owner(**form.cleaned_data)
@@ -108,10 +217,10 @@ def register(request):
                 return redirect("portal:app-home")
     else:
         form = OwnerRegisterForm()
-    return render(request, "portal/public/register.html", {"form": form})
+    return render(request, "portal/public/register_email.html", {"form": form})
 
 
-def login_view(request):
+def login_email(request):
     if request.user.is_authenticated:
         return redirect("portal:app-home")
 
@@ -120,11 +229,11 @@ def login_view(request):
         form = OwnerLoginForm(request.POST)
         try:
             enforce_rate_limit(
-                "login", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=15, window_seconds=600,
+                "login_email", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=15, window_seconds=600,
             )
         except RateLimitExceeded:
             messages.error(request, "تعداد تلاش ورود بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
-            return render(request, "portal/public/login.html", {"form": form, "next": next_url})
+            return render(request, "portal/public/login_email.html", {"form": form, "next": next_url})
         if form.is_valid():
             user = owner_auth_service.authenticate_owner(
                 request, email=form.cleaned_data["email"], password=form.cleaned_data["password"],
@@ -133,12 +242,12 @@ def login_view(request):
                 form.add_error(None, "ایمیل یا رمز عبور نادرست است")
             else:
                 auth_login(request, user)
-                if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+                if _is_safe_next(next_url):
                     return redirect(next_url)
                 return redirect("portal:app-home")
     else:
         form = OwnerLoginForm()
-    return render(request, "portal/public/login.html", {"form": form, "next": next_url})
+    return render(request, "portal/public/login_email.html", {"form": form, "next": next_url})
 
 
 @require_POST
@@ -161,7 +270,7 @@ def password_reset_request(request):
             base_url = f"{request.scheme}://{request.get_host()}"
             owner_auth_service.request_password_reset(email=form.cleaned_data["email"], base_url=base_url)
             messages.success(request, "اگر این ایمیل ثبت‌نام کرده باشد، پیوند بازیابی رمز برای آن ارسال شد.")
-            return redirect("portal:login")
+            return redirect("portal:login-email")
     else:
         form = PasswordResetRequestForm()
     return render(request, "portal/public/password_reset_request.html", {"form": form})
@@ -177,7 +286,7 @@ def password_reset_confirm(request, uidb64, token):
         if form.is_valid():
             owner_auth_service.set_new_password(user=user, password=form.cleaned_data["password"])
             messages.success(request, "رمز عبور با موفقیت تغییر کرد؛ اکنون می‌توانید وارد شوید.")
-            return redirect("portal:login")
+            return redirect("portal:login-email")
     else:
         form = PasswordResetConfirmForm()
     return render(request, "portal/public/password_reset_confirm.html", {"form": form})
