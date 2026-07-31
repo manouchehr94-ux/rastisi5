@@ -1,0 +1,22 @@
+{% extends "portal/platform_admin/base.html" %}
+{% block title %}تنظیمات پلتفرم | پنل مدیریت پلتفرم{% endblock %}
+{% block content %}
+<h2 style="margin-bottom:20px">تنظیمات پلتفرم</h2>
+<div class="p-card" style="background:#152019;border-color:#243329;max-width:560px">
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% for field in form %}
+    <div class="p-field" style="margin-bottom:16px">
+      <label style="color:#e7f3ee;display:block;margin-bottom:6px;font-size:13px">{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}<div class="p-error">{{ field.errors.0 }}</div>{% endif %}
+      {% if field.help_text %}<div style="color:#93a89c;font-size:12px;margin-top:4px">{{ field.help_text }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <button type="submit" class="p-btn p-btn-primary" style="width:100%">ذخیره</button>
+  </form>
+</div>
+<style>
+.p-field input, .p-field select { width:100%;padding:10px 14px;border:1px solid #2a3a30;border-radius:10px;font-family:inherit;font-size:14px;background:#0f1712;color:#e7f3ee; }
+</style>
+{% endblock %}

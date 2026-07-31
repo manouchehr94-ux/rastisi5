@@ -33,6 +33,26 @@ class CreateStoreForm(forms.Form):
     submission_token = forms.CharField(widget=forms.HiddenInput, required=False)
 
 
+class PlatformConfigurationForm(forms.ModelForm):
+    class Meta:
+        from .models import PlatformConfiguration
+
+        model = PlatformConfiguration
+        fields = [
+            "default_trial_days", "deletion_retention_days",
+            "primary_brand_color", "secondary_brand_color",
+            "temporary_logo_text", "logo",
+            "support_contact_phone", "support_contact_email",
+            "default_payment_provider",
+        ]
+
+    def clean_deletion_retention_days(self):
+        days = self.cleaned_data["deletion_retention_days"]
+        if not (180 <= days <= 365):
+            raise forms.ValidationError("روزهای نگهداری باید بین ۱۸۰ تا ۳۶۵ باشد.")
+        return days
+
+
 class ContactForm(forms.Form):
     full_name = forms.CharField(label="نام", max_length=150)
     email = forms.EmailField(label="ایمیل")

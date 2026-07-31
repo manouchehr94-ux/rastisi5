@@ -10,6 +10,7 @@ operational tooling (Store search/detail, billing overrides, ...) the wider
 program describes. Extending it is additive, later work.
 """
 
+from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.contrib.auth.decorators import user_passes_test
 from django.shortcuts import redirect, render
@@ -17,7 +18,8 @@ from django.shortcuts import redirect, render
 from apps.stores.models import Store, StoreMembership
 from apps.subscriptions.models import StoreSubscription
 
-from .forms import OwnerLoginForm
+from .forms import OwnerLoginForm, PlatformConfigurationForm
+from .services.platform_config_service import get_platform_configuration, record_platform_audit_event
 from .services.rate_limit import RateLimitExceeded, enforce_rate_limit
 
 
@@ -78,3 +80,26 @@ def home(request):
         ).count(),
     }
     return render(request, "portal/platform_admin/home.html", context)
+
+
+@user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
+def configuration(request):
+    config = get_platform_configuration()
+    if request.method == "POST":
+        form = PlatformConfigurationForm(request.POST, request.FILES, instance=config)
+        if form.is_valid():
+            before = {name: getattr(config, name) for name in form.changed_data}
+            form.save()
+            from django.core.cache import cache
+
+            cache.delete("portal:platform_configuration")
+            record_platform_audit_event(
+                actor=request.user, action_code="platform_configuration.updated",
+                object_type="PlatformConfiguration", object_id=1,
+                before=before, after={name: form.cleaned_data[name] for name in form.changed_data},
+            )
+            messages.success(request, "تنظیمات پلتفرم به‌روزرسانی شد.")
+            return redirect("portal_platform_admin:configuration")
+    else:
+        form = PlatformConfigurationForm(instance=config)
+    return render(request, "portal/platform_admin/configuration.html", {"form": form})

@@ -11,14 +11,23 @@
 <body style="background:#0f1712;color:#e7f3ee">
 {% csrf_token %}
 <header style="border-bottom:1px solid #1e2b23;padding:16px 0">
-  <div class="p-wrap" style="display:flex;align-items:center;justify-content:space-between">
+  <div class="p-wrap" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
     <strong>پنل مدیریت پلتفرم راستیسی</strong>
     {% if request.user.is_authenticated %}
-    <form method="post" action="{% url 'portal_platform_admin:logout' %}">{% csrf_token %}<button type="submit" class="p-btn p-btn-ghost" style="color:#e7f3ee;border-color:#2a3a30">خروج</button></form>
+    <nav style="display:flex;gap:14px;align-items:center">
+      <a href="{% url 'portal_platform_admin:home' %}" style="color:#9aa3bd;font-size:13px">داشبورد</a>
+      <a href="{% url 'portal_platform_admin:configuration' %}" style="color:#9aa3bd;font-size:13px">تنظیمات پلتفرم</a>
+      <form method="post" action="{% url 'portal_platform_admin:logout' %}">{% csrf_token %}<button type="submit" class="p-btn p-btn-ghost" style="color:#e7f3ee;border-color:#2a3a30">خروج</button></form>
+    </nav>
     {% endif %}
   </div>
 </header>
 <main class="p-wrap" style="padding:32px 0">
+{% if messages %}
+{% for message in messages %}
+<div class="p-alert {% if message.tags == 'error' %}p-alert-error{% else %}p-alert-success{% endif %}" style="margin-bottom:16px">{{ message }}</div>
+{% endfor %}
+{% endif %}
 {% block content %}{% endblock %}
 </main>
 </body>
