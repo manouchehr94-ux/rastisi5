@@ -94,7 +94,7 @@ class AddressManagementTests(TestCase):
     def test_invalid_phone_rejected(self):
         response = self.client.post(reverse("customers:address-add"), dict(self.payload, phone="123"))
         self.assertEqual(Address.objects.count(), 0)
-        self.assertContains(response, "شماره موبایل معتبر نیست")
+        self.assertContains(response, "شماره موبایل باید")
 
     def test_cannot_delete_another_customers_address(self):
         other_user = User.objects.create_user(username="09121118844", password="pass12345")

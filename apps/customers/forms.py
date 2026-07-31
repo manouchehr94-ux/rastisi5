@@ -2,18 +2,18 @@ import re
 
 from django import forms
 
+from apps.core.phone import InvalidPhoneError, normalize_iranian_phone
 from apps.core.utils import normalize_digits
 
-PHONE_RE = re.compile(r"^09\d{9}$")
 POSTAL_RE = re.compile(r"^\d{10}$")
 
 
 class PhoneCleanMixin:
     def clean_phone(self):
-        phone = normalize_digits(self.cleaned_data["phone"]).strip()
-        if not PHONE_RE.match(phone):
-            raise forms.ValidationError("شماره موبایل معتبر نیست (مثال: 09123456789)")
-        return phone
+        try:
+            return normalize_iranian_phone(self.cleaned_data["phone"])
+        except InvalidPhoneError as exc:
+            raise forms.ValidationError(exc.messages[0] if exc.messages else str(exc)) from exc
 
 
 class LoginForm(PhoneCleanMixin, forms.Form):

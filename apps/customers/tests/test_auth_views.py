@@ -64,6 +64,14 @@ class LoginViewTests(TestCase):
         self.assertEqual(response.headers.get("HX-Refresh"), "true")
         self.assertIn("_auth_user_id", self.client.session)
 
+    def test_login_accepts_international_phone_format(self):
+        """+98/0098/bare-9-without-0 all normalize to the same stored 09... phone."""
+        response = self.client.post(reverse("customers:login"), {
+            "phone": "+989121115566", "password": "StrongPass123",
+        })
+        self.assertEqual(response.headers.get("HX-Refresh"), "true")
+        self.assertIn("_auth_user_id", self.client.session)
+
     def test_wrong_password_shows_error(self):
         response = self.client.post(reverse("customers:login"), {
             "phone": "09121115566", "password": "wrongpass",

@@ -14,3 +14,4 @@ private_media/
 .env
 
 backups/
+reference_imports/
