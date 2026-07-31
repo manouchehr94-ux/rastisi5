@@ -170,6 +170,7 @@ TEMPLATES = [
                 "apps.content.context_processors.footer_settings",
                 "apps.dashboard.context_processors.merchant_permissions",
                 "apps.dashboard.context_processors.subscription_banner",
+                "apps.dashboard.context_processors.platform_link",
             ],
         },
     },
@@ -345,6 +346,12 @@ RASTISI_PLATFORM_ADMIN_HOSTS = frozenset(
         "RASTISI_PLATFORM_ADMIN_HOSTS", default=("platform.rastisi.ir", "platform.rastisi.localhost"),
     )
 )
+# The one canonical host used to build absolute cross-host links back to the
+# owner portal (e.g. Merchant Admin's "Back to Rastisi" link, Section H) —
+# a single explicit value, not "first item of RASTISI_PLATFORM_HOSTS" (a
+# frozenset has no defined iteration order). Must itself be a member of
+# RASTISI_PLATFORM_HOSTS in any real deployment.
+RASTISI_PLATFORM_PRIMARY_HOST = env_str("RASTISI_PLATFORM_PRIMARY_HOST", "rastisi.ir")
 
 # Trial/platform-subdomain alphabet (ADR-94) — excludes 0/o/1/l/i to avoid
 # visual ambiguity in a human-typed 9-character code.

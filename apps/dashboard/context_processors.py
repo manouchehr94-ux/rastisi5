@@ -9,6 +9,8 @@ silently renders an undefined template variable as empty/falsy, so there is
 nothing to guard here.
 """
 
+from django.conf import settings
+
 from apps.stores.authorization import (
     ATTRIBUTE_MANAGE,
     AUDIT_LOG_VIEW,
@@ -82,6 +84,18 @@ def merchant_permissions(request):
         "can_change_subscription": membership_has_permission(membership, SUBSCRIPTION_CHANGE),
         "can_view_usage": membership_has_permission(membership, USAGE_VIEW),
         "can_view_billing": membership_has_permission(membership, BILLING_VIEW),
+    }
+
+
+def platform_link(request):
+    """Absolute URL back to the owner portal's My Stores (Section H "Back
+    to Rastisi" link). Always returned, unconditionally on ``request.
+    store_membership`` — this link makes sense on the login page too, not
+    only for an already-authenticated staff member. Must be absolute (not
+    ``{% url %}``): the owner-portal urlconf is never the active one for a
+    Merchant Admin request (ADR-97)."""
+    return {
+        "RASTISI_PORTAL_URL": f"{request.scheme}://{settings.RASTISI_PLATFORM_PRIMARY_HOST}/app/",
     }
 
 

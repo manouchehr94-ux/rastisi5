@@ -23,4 +23,5 @@ urlpatterns = [
     path("app/", views.app_home, name="app-home"),
     path("app/stores/new/", views.store_create, name="store-create"),
     path("app/stores/<uuid:store_public_id>/created/", views.store_created, name="store-created"),
+    path("app/stores/<uuid:store_public_id>/enter-admin/", views.enter_admin, name="enter-admin"),
 ]

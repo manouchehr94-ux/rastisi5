@@ -6,6 +6,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import get_random_string
 from django.views.decorators.http import require_POST
 
+from django.conf import settings
+
 from apps.catalog.models import IndustryTemplate
 from apps.stores.models import StoreMembership
 from apps.subscriptions.models import Plan, PlanVersion
@@ -20,7 +22,7 @@ from .forms import (
     PasswordResetRequestForm,
 )
 from .models import ContactMessage
-from .services import owner_auth_service, provisioning_service
+from .services import handoff_service, owner_auth_service, provisioning_service
 from .services.rate_limit import RateLimitExceeded, enforce_rate_limit
 
 _STORE_CREATE_TOKEN_SESSION_KEY = "portal_store_create_token"
@@ -253,6 +255,26 @@ def store_create(request):
             "submission_token": request.session[_STORE_CREATE_TOKEN_SESSION_KEY],
         },
     )
+
+
+@owner_required
+@require_POST
+def enter_admin(request, store_public_id):
+    """Section H: issues a short-lived handoff ticket for a Store the
+    caller actively belongs to and redirects to that Store's own admin
+    host to consume it — never the portal's own session cookie, which has
+    no meaning on that other host (ADR-98)."""
+    membership = get_object_or_404(
+        StoreMembership.objects.select_related("store"),
+        store__public_id=store_public_id, user=request.user, status=StoreMembership.MembershipStatus.ACTIVE,
+    )
+    store = membership.store
+    try:
+        ticket = handoff_service.issue_ticket(user=request.user, store=store)
+    except handoff_service.HandoffError:
+        raise Http404
+    admin_host = f"{store.admin_subdomain}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
+    return redirect(f"{request.scheme}://{admin_host}/admin-portal/handoff/{ticket.token}/")
 
 
 @owner_required

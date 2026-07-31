@@ -205,6 +205,12 @@
       {% endif %}
     </nav>
     <div class="sidebar-foot">
+      {% if RASTISI_PORTAL_URL %}
+      <a href="{{ RASTISI_PORTAL_URL }}" style="display:flex;align-items:center;gap:6px;color:#9aa3bd;font-size:11.5px;padding:6px 10px;margin-bottom:6px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        بازگشت به راستیسی
+      </a>
+      {% endif %}
       <div class="card-mini">
         <div class="avatar">{{ request.user.customer_profile.full_name|default:request.user.username|slice:":2" }}</div>
         <div style="min-width:0;flex:1">

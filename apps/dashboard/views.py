@@ -354,6 +354,34 @@ def admin_login(request):
     })
 
 
+@admin_host_required
+def consume_admin_handoff(request, token):
+    """Receiving end of the owner-portal handoff (Section H, ADR-98).
+
+    Resolves the Store from THIS admin host itself (never trusts a Store
+    id from the URL/portal) so a ticket can only ever be consumed on the
+    exact admin host it was issued for. A missing/expired/already-consumed/
+    wrong-store ticket 404s — same fail-closed, non-existence-revealing
+    policy as every other admin-portal auth path in this module.
+    """
+    from apps.portal.services import handoff_service
+    from apps.stores.resolution import resolve_store_for_admin_request
+
+    store = resolve_store_for_admin_request(request)
+    if store is None:
+        raise Http404
+
+    result = handoff_service.consume_ticket(token, store=store)
+    if result is None:
+        raise Http404
+
+    user, destination_path = result
+    auth_login(request, user)
+    if not destination_path.startswith("/admin-portal/"):
+        destination_path = "/admin-portal/"
+    return redirect(destination_path)
+
+
 @staff_required
 @permission_required(DASHBOARD_VIEW)
 def dashboard_home(request):
