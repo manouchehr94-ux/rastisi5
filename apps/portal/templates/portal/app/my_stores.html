@@ -5,7 +5,10 @@
 <section class="p-section"><div class="p-wrap">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
     <h2 style="margin:0">فروشگاه‌های من</h2>
-    <form method="post" action="{% url 'portal:logout' %}">{% csrf_token %}<button type="submit" class="p-btn p-btn-ghost">خروج</button></form>
+    <div style="display:flex;gap:10px">
+      <a class="p-btn p-btn-primary" href="{% url 'portal:store-create' %}">+ فروشگاه تازه</a>
+      <form method="post" action="{% url 'portal:logout' %}">{% csrf_token %}<button type="submit" class="p-btn p-btn-ghost">خروج</button></form>
+    </div>
   </div>
 
   {% if memberships %}
@@ -22,7 +25,7 @@
   {% else %}
   <div class="p-card" style="max-width:520px;text-align:center">
     <p>هنوز هیچ فروشگاهی نساخته‌اید.</p>
-    <p style="color:var(--p-muted);font-size:13px;margin-top:8px">ساخت فروشگاه در نسخه‌ی بعدی این پرتال فعال می‌شود.</p>
+    <a class="p-btn p-btn-primary" style="margin-top:14px" href="{% url 'portal:store-create' %}">ساخت اولین فروشگاه</a>
   </div>
   {% endif %}
 </div></section>

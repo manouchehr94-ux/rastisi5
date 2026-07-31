@@ -3919,6 +3919,46 @@ browser history or a proxy log).
 
 ---
 
+## ADR-99: Trial Store Provisioning Activates Immediately; Onboarding Is a Separate, Optional Follow-Up
+
+**Decision.** `apps.portal.services.provisioning_service.provision_trial_store`
+is a single `transaction.atomic` call that takes an owner and a store name
+(plus an optional `IndustryTemplate`) and returns a fully `ACTIVE` Store —
+not `PROVISIONING` pending a later "activation" step. It creates, in order:
+an anti-abuse-capped Store (`RASTISI_MAX_STORES_PER_OWNER`, a platform-wide
+safety limit — `apps.subscriptions` has no per-owner store-count
+entitlement to reuse), an `ACTIVE` `OWNER` `StoreMembership`, an already-
+`VERIFIED` `generated_trial` `StoreDomain` at
+`{platform_code}.{RASTISI_ADMIN_DOMAIN_SUFFIX}` (platform-owned DNS, so
+real verification networking would be meaningless here — ADR-95), a
+`ShopSettings` row, a default `Warehouse`, an optional industry-template
+install, and the default subscription (fail-open per ADR-65 if no default
+plan is configured). Any failure anywhere rolls back the whole thing —
+there is no partially-provisioned Store state a user can ever observe.
+
+The wider program's "onboarding wizard" (Section D: theme, contact info,
+preview, ...) is deliberately a *separate*, optional, later flow that
+edits an already-live Store — it is not a gate the trial has to pass
+through before the storefront becomes reachable. This mirrors the
+prototype's own `store-success.html`, which shows the live hostname
+immediately after the short setup flow, not after a separate activation
+step.
+
+Double-submission protection (Section G) is a per-session, single-use
+token rotated the instant a submission is accepted (same shape as
+`Cart.checkout_token`/`Order.idempotency_key` elsewhere in this codebase)
+— sufficient against back-button/double-click resubmits, not a DB-level
+mutex against a truly concurrent double-submit from the same session
+(accepted, documented tradeoff: the worst case is an extra Store, not
+data corruption or a security issue).
+
+**Consequences.** A new owner goes from "click create" to a real, live,
+reachable trial storefront in one request, with no waiting/polling for a
+background activation step (this codebase has none — ADR-49) and no way
+to observe a half-built Store.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -4024,3 +4064,4 @@ browser history or a proxy log).
 | Old hostnames become permanent redirecting aliases, never reused by another Store | Decided, implemented (Portal, ADR-96) |
 | Platform-level hosts (marketing/portal, platform-admin) get their own URLconf via `request.urlconf`, additive to existing routing | Decided, implemented (Portal, ADR-97) |
 | Merchant-admin handoff via a signed, single-use, DB-backed ticket (no cross-subdomain cookie sharing) | Decided, implemented (Portal, ADR-98) |
+| Trial Store provisioning activates immediately in one atomic call; onboarding is a separate, optional, later flow | Decided, implemented (Portal, ADR-99) |

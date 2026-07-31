@@ -27,6 +27,12 @@ class PasswordResetConfirmForm(forms.Form):
         return cleaned
 
 
+class CreateStoreForm(forms.Form):
+    name = forms.CharField(label="نام فروشگاه", max_length=200)
+    industry_template_id = forms.IntegerField(label="صنف", required=False)
+    submission_token = forms.CharField(widget=forms.HiddenInput, required=False)
+
+
 class ContactForm(forms.Form):
     full_name = forms.CharField(label="نام", max_length=150)
     email = forms.EmailField(label="ایمیل")

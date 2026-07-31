@@ -1,0 +1,14 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}فروشگاه ساخته شد | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="p-wrap" style="text-align:center;padding:60px 0">
+  <div style="font-size:52px;margin-bottom:6px">🎉</div>
+  <h2>فروشگاه «{{ store.name }}» آماده است!</h2>
+  <p style="color:var(--p-muted);margin:14px 0 6px">آدرس آزمایشی فروشگاه شما:</p>
+  <p style="direction:ltr;font-weight:700;font-size:18px;color:var(--p-primary);margin-bottom:28px">{{ trial_domain.hostname }}</p>
+  <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+    <a class="p-btn p-btn-primary" href="{% url 'portal:app-home' %}">بازگشت به فروشگاه‌های من</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}فروشگاه تازه | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="p-wrap">
+<div class="p-form-card" style="max-width:480px">
+  <h2 style="text-align:center;margin-bottom:8px">فروشگاه تازه بسازید</h2>
+  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px">یک نام و در صورت تمایل صنف فروشگاه را انتخاب کنید؛ فروشگاه آزمایشی شما بلافاصله آماده می‌شود.</p>
+  {% if form.non_field_errors %}<div class="p-alert p-alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="submission_token" value="{{ submission_token }}">
+    <div class="p-field">
+      <label for="id_name">نام فروشگاه</label>
+      {{ form.name }}
+      {% if form.name.errors %}<div class="p-error">{{ form.name.errors.0 }}</div>{% endif %}
+    </div>
+    <div class="p-field">
+      <label for="id_industry_template_id">صنف (اختیاری)</label>
+      <select name="industry_template_id" id="id_industry_template_id">
+        <option value="">— بدون صنف مشخص —</option>
+        {% for template in industry_templates %}
+        <option value="{{ template.pk }}">{{ template.icon }} {{ template.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="p-btn p-btn-primary" style="width:100%">ساخت فروشگاه</button>
+  </form>
+</div>
+</div>
+{% endblock %}
+{% block extra_css %}
+<style>
+.p-field input, .p-field select{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px;background:#fff}
+</style>
+{% endblock %}

@@ -1,23 +1,29 @@
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.contrib import messages
-from django.shortcuts import redirect, render
+from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.crypto import get_random_string
 from django.views.decorators.http import require_POST
 
+from apps.catalog.models import IndustryTemplate
 from apps.stores.models import StoreMembership
 from apps.subscriptions.models import Plan, PlanVersion
 
 from .decorators import owner_required
 from .forms import (
     ContactForm,
+    CreateStoreForm,
     OwnerLoginForm,
     OwnerRegisterForm,
     PasswordResetConfirmForm,
     PasswordResetRequestForm,
 )
 from .models import ContactMessage
-from .services import owner_auth_service
+from .services import owner_auth_service, provisioning_service
 from .services.rate_limit import RateLimitExceeded, enforce_rate_limit
+
+_STORE_CREATE_TOKEN_SESSION_KEY = "portal_store_create_token"
 
 # ---------------------------------------------------------------------------
 # Public marketing pages (Section A)
@@ -200,3 +206,63 @@ def app_home(request):
         .order_by("store__name")
     )
     return render(request, "portal/app/my_stores.html", {"memberships": memberships})
+
+
+@owner_required
+def store_create(request):
+    """Section D (lite) + Section G: one-step store name + optional industry
+    choice, then immediate atomic trial provisioning
+    (``provisioning_service.provision_trial_store``). Double-submit
+    protection is a per-session, single-use token — a genuine, truly
+    concurrent double-submit within the same session is not fully excluded
+    (no DB-level mutex), but sequential double-clicks/back-button resubmits
+    are: the token is rotated the moment a valid submission is accepted."""
+    if request.method == "POST":
+        form = CreateStoreForm(request.POST)
+        session_token = request.session.get(_STORE_CREATE_TOKEN_SESSION_KEY)
+        submitted_token = request.POST.get("submission_token")
+        if not session_token or submitted_token != session_token:
+            messages.error(request, "این درخواست قبلاً پردازش شده یا نامعتبر است؛ دوباره تلاش کنید.")
+            return redirect("portal:store-create")
+
+        if form.is_valid():
+            request.session[_STORE_CREATE_TOKEN_SESSION_KEY] = get_random_string(32)
+            industry_template = None
+            template_id = form.cleaned_data.get("industry_template_id")
+            if template_id:
+                industry_template = IndustryTemplate.objects.filter(
+                    pk=template_id, is_active=True, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+                ).first()
+            try:
+                store = provisioning_service.provision_trial_store(
+                    owner=request.user, name=form.cleaned_data["name"], industry_template=industry_template,
+                )
+            except provisioning_service.ProvisioningError as exc:
+                messages.error(request, str(exc))
+            else:
+                return redirect("portal:store-created", store_public_id=store.public_id)
+    else:
+        request.session[_STORE_CREATE_TOKEN_SESSION_KEY] = get_random_string(32)
+        form = CreateStoreForm()
+
+    industry_templates = provisioning_service.latest_offerable_industry_templates()
+    return render(
+        request, "portal/app/store_create.html",
+        {
+            "form": form, "industry_templates": industry_templates,
+            "submission_token": request.session[_STORE_CREATE_TOKEN_SESSION_KEY],
+        },
+    )
+
+
+@owner_required
+def store_created(request, store_public_id):
+    membership = get_object_or_404(
+        StoreMembership.objects.select_related("store"),
+        store__public_id=store_public_id, user=request.user, status=StoreMembership.MembershipStatus.ACTIVE,
+    )
+    store = membership.store
+    trial_domain = store.domains.filter(is_primary=True).first()
+    if trial_domain is None:
+        raise Http404
+    return render(request, "portal/app/store_created.html", {"store": store, "trial_domain": trial_domain})
