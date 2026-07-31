@@ -7,6 +7,7 @@
 import secrets
 from datetime import timedelta
 
+from django.contrib.auth.hashers import check_password, make_password
 from django.utils import timezone
 
 from ..events import SmsEvent
@@ -44,7 +45,8 @@ def request_otp(phone: str, *, store) -> OtpCode:
 
     code = _generate_code()
     otp = OtpCode.objects.create(
-        phone=phone, code=code, expires_at=timezone.now() + timedelta(seconds=OTP_TTL_SECONDS)
+        phone=phone, code_hash=make_password(code),
+        expires_at=timezone.now() + timedelta(seconds=OTP_TTL_SECONDS),
     )
     send_event_sms(SmsEvent.OTP, phone, {"otp_code": code}, store=store)
     return otp
@@ -65,7 +67,7 @@ def verify_otp(phone: str, code: str) -> OtpCode:
     otp.attempt_count += 1
     otp.save(update_fields=["attempt_count", "updated_at"])
 
-    if otp.code != code.strip():
+    if not check_password(code.strip(), otp.code_hash):
         raise OtpInvalidError("کد وارد‌شده صحیح نیست")
 
     otp.is_used = True

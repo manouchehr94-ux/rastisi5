@@ -23,7 +23,7 @@ from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Address, Customer
 from apps.orders.models import Order, OrderItem, PaymentGateway, ShippingMethod, Transaction
 from apps.orders.services.checkout_service import SESSION_KEY
-from apps.sms.models import OtpCode, SmsLog, SmsTemplate
+from apps.sms.models import SmsTemplate
 from apps.sms.services.backends import SmsSendResult
 from apps.stores.models import Store
 
@@ -307,6 +307,8 @@ class NewPhoneGuestCartTests(TestCase):
 class ExistingPhoneOTPRegressionTests(TestCase):
     """Existing-phone OTP path still works after the fix."""
 
+    CODE = "902244"
+
     def setUp(self):
         store = Store.objects.get(slug="akhlaghi")
         self.vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-otp")
@@ -322,6 +324,12 @@ class ExistingPhoneOTPRegressionTests(TestCase):
         self.existing_customer = Customer.objects.create(
             user=self.owner, full_name="صاحب حساب", phone="09121111111"
         )
+
+        import apps.sms.services.otp_service as otp_service
+
+        original = otp_service._generate_code
+        otp_service._generate_code = lambda: self.CODE
+        self.addCleanup(setattr, otp_service, "_generate_code", original)
 
     def test_otp_flow_completes_order_on_existing_account(self):
         # Add to cart as guest
@@ -339,8 +347,7 @@ class ExistingPhoneOTPRegressionTests(TestCase):
         self.assertEqual(Order.objects.count(), 0)
 
         # Verify OTP
-        otp = OtpCode.objects.filter(phone="09121111111").latest("created_at")
-        resp = self.client.post(reverse("orders:checkout-otp-verify"), {"code": otp.code})
+        resp = self.client.post(reverse("orders:checkout-otp-verify"), {"code": self.CODE})
         self.assertIn("HX-Redirect", resp.headers)
 
         # Correct customer

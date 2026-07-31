@@ -141,10 +141,18 @@ class LogoutViewTests(TestCase):
 
 
 class OtpLoginViewTests(TestCase):
+    CODE = "445566"
+
     def setUp(self):
         SmsTemplate.ensure_defaults()
         self.user = User.objects.create_user(username="09121118899", password="StrongPass123")
         Customer.objects.create(user=self.user, full_name="مهسا کریمی", phone="09121118899")
+
+        import apps.sms.services.otp_service as otp_service
+
+        original = otp_service._generate_code
+        otp_service._generate_code = lambda: self.CODE
+        self.addCleanup(setattr, otp_service, "_generate_code", original)
 
     def test_request_for_existing_account_moves_to_verify_stage(self):
         response = self.client.post(reverse("customers:otp-request"), {"phone": "09121118899"})
@@ -158,8 +166,7 @@ class OtpLoginViewTests(TestCase):
 
     def test_verify_with_correct_code_logs_in(self):
         self.client.post(reverse("customers:otp-request"), {"phone": "09121118899"})
-        otp = OtpCode.objects.get(phone="09121118899")
-        response = self.client.post(reverse("customers:otp-login"), {"phone": "09121118899", "code": otp.code})
+        response = self.client.post(reverse("customers:otp-login"), {"phone": "09121118899", "code": self.CODE})
         self.assertEqual(response.headers.get("HX-Refresh"), "true")
         self.assertIn("_auth_user_id", self.client.session)
 
@@ -186,8 +193,7 @@ class OtpLoginViewTests(TestCase):
         )
         self.client.post(reverse("cart:add", args=[product.slug]), {"quantity": 1})
         self.client.post(reverse("customers:otp-request"), {"phone": "09121118899"})
-        otp = OtpCode.objects.get(phone="09121118899")
-        self.client.post(reverse("customers:otp-login"), {"phone": "09121118899", "code": otp.code})
+        self.client.post(reverse("customers:otp-login"), {"phone": "09121118899", "code": self.CODE})
         cart = Cart.objects.get(customer=self.user.customer_profile)
         self.assertEqual(cart.items.first().quantity, 1)
 
@@ -200,17 +206,15 @@ class OtpLoginViewTests(TestCase):
             reverse("customers:otp-request"), {"phone": "09121118899", "remember_me": "on"},
         )
         self.assertContains(response, 'name="remember_me" value="on"')
-        otp = OtpCode.objects.get(phone="09121118899")
         self.client.post(
-            reverse("customers:otp-login"), {"phone": "09121118899", "code": otp.code, "remember_me": "on"},
+            reverse("customers:otp-login"), {"phone": "09121118899", "code": self.CODE, "remember_me": "on"},
         )
         self.assertFalse(self.client.session.get_expire_at_browser_close())
         self.assertGreater(self.client.session.get_expiry_age(), 60 * 60 * 24)
 
     def test_unchecked_remember_me_expires_at_browser_close(self):
         self.client.post(reverse("customers:otp-request"), {"phone": "09121118899"})
-        otp = OtpCode.objects.get(phone="09121118899")
-        self.client.post(reverse("customers:otp-login"), {"phone": "09121118899", "code": otp.code})
+        self.client.post(reverse("customers:otp-login"), {"phone": "09121118899", "code": self.CODE})
         self.assertTrue(self.client.session.get_expire_at_browser_close())
 
 

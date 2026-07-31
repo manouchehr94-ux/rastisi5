@@ -37,7 +37,14 @@ class SmsLogStrTests(TestCase):
 
 
 class OtpCodeStrTests(TestCase):
-    def test_str_contains_phone_and_code(self):
-        otp = OtpCode.objects.create(phone="09121234567", code="123456", expires_at=timezone.now())
+    def test_str_contains_phone_but_never_the_raw_code(self):
+        """code_hash stores a hash, never the plaintext code - __str__ must
+        never leak it either (e.g. via Django admin/shell repr)."""
+        from django.contrib.auth.hashers import make_password
+
+        otp = OtpCode.objects.create(
+            phone="09121234567", code_hash=make_password("770099"), expires_at=timezone.now(),
+        )
         self.assertIn("09121234567", str(otp))
-        self.assertIn("123456", str(otp))
+        self.assertNotIn("770099", str(otp))
+        self.assertNotIn(otp.code_hash, str(otp))

@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.contrib.auth.hashers import check_password
 from django.test import TestCase
 from django.utils import timezone
 
@@ -12,15 +13,26 @@ def _akhlaghi():
     return Store.objects.get(slug="akhlaghi")
 
 
+def _fixed_code(code="392017"):
+    """Monkeypatches otp_service._generate_code so tests know the real
+    code without ever reading it back from storage (code_hash only stores
+    a hash, matching apps.portal.models.OwnerOtpChallenge's pattern)."""
+    original = otp_service._generate_code
+    otp_service._generate_code = lambda: code
+    return original
+
+
 class RequestOtpTests(TestCase):
     def setUp(self):
         self.store = _akhlaghi()
         SmsTemplate.ensure_defaults()
 
-    def test_creates_six_digit_code_with_two_minute_expiry(self):
+    def test_creates_hashed_code_with_two_minute_expiry(self):
+        original = _fixed_code("123456")
+        self.addCleanup(setattr, otp_service, "_generate_code", original)
         otp = otp_service.request_otp("09121234567", store=self.store)
-        self.assertEqual(len(otp.code), 6)
-        self.assertTrue(otp.code.isdigit())
+        self.assertNotEqual(otp.code_hash, "123456")
+        self.assertTrue(check_password("123456", otp.code_hash))
         expected_expiry = timezone.now() + timedelta(seconds=otp_service.OTP_TTL_SECONDS)
         self.assertAlmostEqual(otp.expires_at.timestamp(), expected_expiry.timestamp(), delta=5)
 
@@ -52,13 +64,17 @@ class RequestOtpTests(TestCase):
 
 
 class VerifyOtpTests(TestCase):
+    CODE = "654321"
+
     def setUp(self):
         self.store = _akhlaghi()
         SmsTemplate.ensure_defaults()
+        original = _fixed_code(self.CODE)
+        self.addCleanup(setattr, otp_service, "_generate_code", original)
         self.otp = otp_service.request_otp("09121234567", store=self.store)
 
     def test_correct_code_succeeds_and_marks_used(self):
-        result = otp_service.verify_otp("09121234567", self.otp.code)
+        result = otp_service.verify_otp("09121234567", self.CODE)
         self.assertTrue(result.is_used)
 
     def test_wrong_code_raises_and_increments_attempt_count(self):
@@ -75,16 +91,19 @@ class VerifyOtpTests(TestCase):
         self.otp.expires_at = timezone.now() - timedelta(seconds=1)
         self.otp.save()
         with self.assertRaises(otp_service.OtpInvalidError):
-            otp_service.verify_otp("09121234567", self.otp.code)
+            otp_service.verify_otp("09121234567", self.CODE)
 
     def test_already_used_code_cannot_be_reused(self):
-        otp_service.verify_otp("09121234567", self.otp.code)
+        otp_service.verify_otp("09121234567", self.CODE)
         with self.assertRaises(otp_service.OtpInvalidError):
-            otp_service.verify_otp("09121234567", self.otp.code)
+            otp_service.verify_otp("09121234567", self.CODE)
 
     def test_too_many_attempts_invalidate_code(self):
         for _ in range(otp_service.MAX_VERIFY_ATTEMPTS):
             with self.assertRaises(otp_service.OtpInvalidError):
                 otp_service.verify_otp("09121234567", "000000")
         with self.assertRaises(otp_service.OtpInvalidError):
-            otp_service.verify_otp("09121234567", self.otp.code)
+            otp_service.verify_otp("09121234567", self.CODE)
+
+    def test_code_is_never_stored_in_plaintext(self):
+        self.assertNotEqual(self.otp.code_hash, self.CODE)

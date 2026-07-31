@@ -9,7 +9,6 @@ from apps.cart.models import Cart, CartItem
 from apps.catalog.models import Category, Product, Vendor
 from apps.customers.models import Customer
 from apps.orders.models import Order, PaymentGateway, ShippingMethod
-from apps.sms.models import OtpCode
 from apps.stores.models import Store
 
 User = get_user_model()
@@ -43,6 +42,8 @@ class CheckoutStep1ViewTests(TestCase):
 
 
 class CheckoutPayTests(TestCase):
+    CODE = "883311"
+
     def setUp(self):
         store = Store.objects.get(slug="akhlaghi")
         vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-cas")
@@ -58,6 +59,12 @@ class CheckoutPayTests(TestCase):
             "city": "تهران", "postal_code": "1415873920",
             "full_address": "تهران، خیابان ولیعصر، پلاک ۱", "note": "",
         }
+
+        import apps.sms.services.otp_service as otp_service
+
+        original = otp_service._generate_code
+        otp_service._generate_code = lambda: self.CODE
+        self.addCleanup(setattr, otp_service, "_generate_code", original)
 
     def _login_and_add_to_cart(self, quantity=2):
         # login کلید session را عوض می‌کند؛ برای اینکه سبد آزمون به کاربر
@@ -115,9 +122,8 @@ class CheckoutPayTests(TestCase):
 
         self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 2})
         self.client.post(reverse("orders:checkout-pay"), self.valid_payload)
-        otp = OtpCode.objects.filter(phone="09123456789").latest("created_at")
 
-        response = self.client.post(reverse("orders:checkout-otp-verify"), {"code": otp.code})
+        response = self.client.post(reverse("orders:checkout-otp-verify"), {"code": self.CODE})
 
         self.assertIn("HX-Redirect", response.headers)
         order = Order.objects.get()

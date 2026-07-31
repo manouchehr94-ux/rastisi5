@@ -61,10 +61,16 @@ class SmsLog(TimeStampedModel):
 
 
 class OtpCode(TimeStampedModel):
-    """کد یکبار مصرف پیامکی — برای ورود و تأیید شماره موبایل در خرید مهمان."""
+    """کد یکبار مصرف پیامکی — برای ورود و تأیید شماره موبایل در خرید مهمان.
+
+    ``code_hash`` — نه متنِ خامِ کد — ذخیره می‌شود (با همان هَشرِ رمزِ عبورِ
+    جنگو، ``django.contrib.auth.hashers``)، دقیقاً مثلِ ``apps.portal.
+    models.OwnerOtpChallenge``؛ حتی دسترسیِ خواندنی به دیتابیس کدِ فعال را
+    فاش نمی‌کند (یکپارچه‌سازیِ احرازِ هویت — پیش از این نسخه، ``code``
+    متنِ خام بود)."""
 
     phone = models.CharField("موبایل", max_length=15, db_index=True)
-    code = models.CharField("کد", max_length=6)
+    code_hash = models.CharField("هَشِ کد", max_length=200)
     expires_at = models.DateTimeField("زمان انقضا")
     attempt_count = models.PositiveIntegerField("تعداد تلاش تأیید", default=0)
     is_used = models.BooleanField("مصرف‌شده", default=False)
@@ -75,4 +81,5 @@ class OtpCode(TimeStampedModel):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.phone} — {self.code}"
+        status = "مصرف‌شده" if self.is_used else "فعال"
+        return f"{self.phone} — {status}"
