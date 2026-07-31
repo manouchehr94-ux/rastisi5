@@ -129,6 +129,32 @@ class HandoffFullFlowViewTests(TestCase):
         self.assertIn("_auth_user_id", admin_client.session)
         self.assertEqual(int(admin_client.session["_auth_user_id"]), self.owner.pk)
 
+    def test_next_param_carries_a_deeper_admin_destination(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            f"/app/stores/{self.store.public_id}/enter-admin/",
+            {"next": "/admin-portal/billing/"}, HTTP_HOST=_PORTAL_HOST,
+        )
+        handoff_url = response["Location"]
+        admin_client = self.client_class()
+        admin_host = handoff_url.split("://", 1)[1].split("/", 1)[0]
+        path = "/" + handoff_url.split("://", 1)[1].split("/", 1)[1]
+        follow_response = admin_client.get(path, HTTP_HOST=admin_host)
+        self.assertEqual(follow_response["Location"], "/admin-portal/billing/")
+
+    def test_next_param_outside_admin_portal_is_ignored(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            f"/app/stores/{self.store.public_id}/enter-admin/",
+            {"next": "https://evil.example.com/"}, HTTP_HOST=_PORTAL_HOST,
+        )
+        handoff_url = response["Location"]
+        admin_client = self.client_class()
+        admin_host = handoff_url.split("://", 1)[1].split("/", 1)[0]
+        path = "/" + handoff_url.split("://", 1)[1].split("/", 1)[1]
+        follow_response = admin_client.get(path, HTTP_HOST=admin_host)
+        self.assertEqual(follow_response["Location"], "/admin-portal/")
+
     def test_handoff_link_cannot_be_reused(self):
         self.client.force_login(self.owner)
         response = self.client.post(f"/app/stores/{self.store.public_id}/enter-admin/", HTTP_HOST=_PORTAL_HOST)

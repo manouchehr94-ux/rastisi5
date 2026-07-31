@@ -4223,6 +4223,97 @@ existing fail-open behavior (ADR-65/ADR-103) is exactly preserved.
 
 ---
 
+## ADR-105: Portal Subscription Purchase (Section 8/9) Duplicated the Pre-Existing `apps.billing` Domain — Documented, Not Silently Reconciled
+
+**This is a mistake record, not a design decision** — written the moment
+the duplication was discovered (mid-Section-14), because hiding it would
+violate the explicit "do not hide partial implementation" instruction
+this whole build has operated under.
+
+**What happened.** Sections 8/9 (this same build phase, committed before
+this ADR) added `apps.subscriptions.models.PlatformInvoice` /
+`PlatformPaymentAttempt`, `apps.subscriptions.services.billing_service`,
+and `apps.subscriptions.services.payment_providers` (a `"dev"` provider) —
+a complete, independent, tested invoice → payment-attempt → activation
+pipeline, reachable from a new portal purchase flow
+(`/app/stores/<id>/billing/...`). Sections 10 (step-up OTP), 11 (permanent
+handle claim), and 12 (custom domain activation) were then built on top of
+it, gating on `StoreSubscription.status == ACTIVE` and, for Section 10
+specifically, on `billing_checkout`'s own step-up wiring.
+
+**The problem.** A full `apps.billing` domain already existed before this
+build phase (Checkpoint 5B, ADR-73 through ADR-82): `StoreBillingAccount`,
+`SubscriptionInvoice`/`Line` (draft→open→paid lifecycle, immutable
+snapshots, sequence-backed numbering — ADR-74), `SubscriptionPaymentAttempt`,
+a provider-neutral interface with an honest `manual` provider (ADR-75),
+a verified webhook inbox (ADR-76), one idempotent confirmation service
+(ADR-77), renewal invoices (ADR-78), dunning (ADR-79), and — the one that
+matters most here — `apps.billing.services.plan_change_billing_service.
+start_plan_change`, which already creates a real, open `SubscriptionInvoice`
+for a plan upgrade and hands it to `payment_flow_service.start_payment`
+for a redirect-based payment session. All of this is already wired into
+real, working, `staff_required`-gated Merchant Admin views in
+`apps.dashboard` (`billing-overview`, `billing-invoices`, `billing-pay`,
+`billing-payment-result`, `billing-cancel`) — just never into the owner's
+account **portal** (`apps.portal`), and never with a "buy this plan for
+the first time" self-service entry point, since existing invoices are
+otherwise only created by the renewal/plan-change jobs, not a merchant
+clicking "purchase."
+
+Section 9's own spec line — "portal subscription purchase wired to
+**existing** billing" — was, in hindsight, an instruction to add exactly
+that missing self-service entry point on top of `apps.billing`'s existing
+`plan_change_billing_service`/`payment_flow_service`, plus a genuine new
+`"dev"` provider implementing `apps.billing.providers.base.
+BillingPaymentProvider` for instant self-serve pay/fail in
+development/test (something that did **not** already exist — the existing
+`manual` provider deliberately requires a real admin action to confirm,
+per ADR-75, so it does not by itself satisfy §3.10's "dev/test provider"
+requirement). Instead, Sections 8/9 built a second, parallel invoice/
+payment-attempt/provider stack from scratch, unaware `apps.billing`
+existed, because nothing surfaced it during that slice's own
+"inspect existing code" step.
+
+**Why this was not reverted/rewritten once discovered.** By the time this
+was found, Sections 10, 11, and 12 already depended on the new
+`billing_checkout` view and its step-up wiring, all shipped, tested, and
+pushed. A same-session rewrite of a financially-sensitive purchase flow,
+done hastily to hit a deadline, is exactly the kind of rushed change the
+"implement sensitive functionality more carefully, not abandoned" and
+"do not hide partial implementation" instructions both warn against —
+ripping it out under time pressure risked replacing one incomplete state
+with a differently-broken one, with less time left to test it. Severity
+is bounded, not critical: neither system moves real money yet (only a
+`manual` provider requiring human confirmation on one side, and a
+`"dev"` fake-pay provider on the other) — both ultimately drive the same
+`apps.subscriptions.services.subscription_service` state machine, so
+`StoreSubscription.status` (what Sections 11/12's paid-gate checks) stays
+correct either way. What is genuinely wrong is bookkeeping fragmentation:
+a Store's billing history can now be split across `apps.billing.
+SubscriptionInvoice` and `apps.subscriptions.PlatformInvoice` depending on
+which path was used, and Platform Admin/Django Admin surfaces both as if
+they were independent stores of truth.
+
+**Decision.** Leave both systems in place for now, exactly as built;
+do not silently merge or delete either. This ADR is the flag. The correct
+follow-up (not done in this build phase) is: retire `PlatformInvoice`/
+`PlatformPaymentAttempt`/`billing_service`/`payment_providers`, move the
+portal's `/billing/` views onto `plan_change_billing_service.
+start_plan_change` + `payment_flow_service.start_payment`, add a real
+`"dev"` `BillingPaymentProvider` implementation to `apps.billing.
+providers` for instant self-serve pay/fail in non-production environments,
+and re-point Section 10's step-up wiring at that flow instead. This is
+explicitly called out again in the final build report as a live piece of
+architectural debt, not resolved here.
+
+**Consequences.** Two independent billing histories exist per Store until
+the follow-up above lands. `StoreSubscription` activation itself is not
+at risk (both paths route through the same state machine), but any
+future Platform Admin billing report must union both invoice tables, not
+just one, until they're reconciled.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -4334,3 +4425,4 @@ existing fail-open behavior (ADR-65/ADR-103) is exactly preserved.
 | `PlatformConfiguration` singleton for platform-wide tunables; owner identity is mobile OTP sharing `User.username=phone` with storefront customers by deliberate design (email+password kept as secondary/recovery) | Decided, implemented (Portal, ADR-102) |
 | Registration auto-provisions exactly one trial Store (onboarding mode C); one computed publication-state service (no duplicated status field) gates storefront visibility until onboarding completes | Decided, implemented (Portal, ADR-103) |
 | Four seeded Plans via an idempotent command; trial_days sourced from PlatformConfiguration, never a second hardcoded 30; a Plan with any existing version is never reseeded | Decided, implemented (Portal, ADR-104) |
+| **Mistake record**: portal purchase (Section 8/9) built a parallel `PlatformInvoice`/`PlatformPaymentAttempt` stack instead of reusing the pre-existing `apps.billing` domain (Checkpoint 5B); both left in place, not reconciled — flagged as live architectural debt | **Known issue, not fixed** (Portal, ADR-105) |

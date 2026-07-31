@@ -28,6 +28,14 @@
     <p style="text-align:center;font-size:13px;color:var(--p-muted)">در حال حاضر پلنِ پولیِ قابلِ‌خریدی موجود نیست.</p>
     {% endfor %}
   </div>
+
+  <form method="post" action="{% url 'portal:enter-admin' store.public_id %}" style="margin-top:20px">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="/admin-portal/billing/">
+    <button type="submit" class="p-btn p-btn-ghost" style="width:100%;font-size:12px">
+      مشاهده‌ی فاکتورها و حسابِ صورتحسابِ کاملِ فروشگاه در پنلِ مدیریت
+    </button>
+  </form>
 </div>
 </div>
 {% endblock %}

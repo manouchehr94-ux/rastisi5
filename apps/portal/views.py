@@ -439,8 +439,11 @@ def enter_admin(request, store_public_id):
         store__public_id=store_public_id, user=request.user, status=StoreMembership.MembershipStatus.ACTIVE,
     )
     store = membership.store
+    next_path = request.POST.get("next") or "/admin-portal/"
+    if not next_path.startswith("/admin-portal/"):
+        next_path = "/admin-portal/"
     try:
-        ticket = handoff_service.issue_ticket(user=request.user, store=store)
+        ticket = handoff_service.issue_ticket(user=request.user, store=store, destination_path=next_path)
     except handoff_service.HandoffError:
         raise Http404
     admin_host = f"{store.admin_subdomain}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
