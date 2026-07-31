@@ -131,7 +131,7 @@ def store_detail(request, store_public_id):
     domains = store.domains.all().order_by("-is_primary", "-created_at")
     memberships = store.memberships.select_related("user").order_by("-status", "role")
     current_subscription = store.subscriptions.filter(is_current=True).select_related("plan_version__plan").first()
-    invoices = store.platform_invoices.order_by("-created_at")[:20]
+    invoices = store.subscription_invoices.order_by("-created_at")[:20]
     audit_entries = store.audit_log_entries.order_by("-created_at")[:20]
     return render(request, "portal/platform_admin/store_detail.html", {
         "store": store, "domains": domains, "memberships": memberships,

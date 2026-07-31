@@ -1,33 +1,58 @@
-"""Section 8/9 — the portal-facing subscription purchase flow: plan list →
-checkout → dev/test provider fake bank page → return. Exercised through the
+"""Section 8/9 — the portal-facing subscription purchase flow, now a
+consumer of the pre-existing apps.billing domain (technical-consolidation
+pass — see ADR-105/ADR-106 in SAAS_DOMAIN_DECISIONS.md): plan list →
+checkout → real signed-webhook confirmation → return. Exercised through the
 real HTTP client (not the service layer directly) so the urlconf/reverse
-wiring between apps.portal and apps.subscriptions is actually verified."""
+wiring between apps.portal and apps.billing is actually verified, and so a
+real (signed) webhook delivery — the only way apps.billing's "manual"
+provider ever confirms a payment — is proven to activate the subscription
+end-to-end, exactly like apps.billing's own WebhookToActivationTests."""
+
+import hashlib
+import hmac
+import json
+import time
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
+from django.urls import reverse
 from django.utils import timezone
 
+from apps.billing.models import SubscriptionInvoice, SubscriptionPaymentAttempt
+from apps.billing.providers.manual import SIGNATURE_HEADER, TIMESTAMP_HEADER
 from apps.portal.services.platform_config_service import update_platform_configuration
 from apps.stores.models import Store, StoreMembership
-from apps.subscriptions.models import Plan, PlanVersion, PlatformInvoice, StoreSubscription
+from apps.subscriptions.models import Plan, PlanVersion, StoreSubscription
 from apps.subscriptions.services import subscription_service
 
 User = get_user_model()
 _HOST = "rastisi.localhost"
+WEBHOOK_SECRET = "test-billing-webhook-secret"
 
 
-@override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
+def _signed_webhook_headers(*, secret, body: bytes):
+    ts = str(int(time.time()))
+    sig = hmac.new(secret.encode(), ts.encode() + b"." + body, hashlib.sha256).hexdigest()
+    return {
+        "HTTP_" + SIGNATURE_HEADER.upper().replace("-", "_"): sig,
+        "HTTP_" + TIMESTAMP_HEADER.upper().replace("-", "_"): ts,
+    }
+
+
+@override_settings(
+    ALLOWED_HOSTS=[_HOST, "testserver"],
+    RASTISI_BILLING_WEBHOOK_SECRET=WEBHOOK_SECRET, RASTISI_BILLING_PROVIDER="manual",
+)
 class BillingViewsTestCase(TestCase):
     """Section 10's step-up OTP is exercised on its own in
-    test_step_up_billing.py; these tests are about checkout/dev-provider
+    test_step_up_billing.py; these tests are about checkout/apps.billing
     mechanics, so step-up is explicitly turned off here to isolate that.
 
-    PlatformConfiguration is cached (300s) independently of the DB — a
-    view read *after* the setUp update but *before* this test's transaction
-    rolls back would otherwise leave a stale cached copy that outlives the
-    rollback and leaks into whichever test runs next in this process, so
-    the cache is force-cleared on teardown too, not just before the update.
+    Every real Store is provisioned with a trialing subscription the moment
+    it's created (Section 3.1) — so, matching that real precondition, this
+    fixture always creates one too, rather than a bare Store with no
+    subscription at all.
     """
 
     def setUp(self):
@@ -41,6 +66,14 @@ class BillingViewsTestCase(TestCase):
             store=self.store, user=self.owner, role=StoreMembership.Role.OWNER,
             status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
         )
+        self.trial_plan = Plan.objects.create(code="trial-view", name="Trial", is_publicly_selectable=True)
+        self.trial_version = PlanVersion.objects.create(
+            plan=self.trial_plan, version_number=1, status=PlanVersion.Status.PUBLISHED,
+            billing_interval=PlanVersion.BillingInterval.NONE, display_price=0, trial_days=14,
+        )
+        sub = subscription_service.create_subscription(self.store, self.trial_version, actor=self.owner)
+        self.subscription = subscription_service.start_trial(sub, actor=self.owner)
+
         self.plan = Plan.objects.create(code="pro-view", name="Pro", is_active=True, is_publicly_selectable=True)
         self.version = PlanVersion.objects.create(
             plan=self.plan, version_number=1, status=PlanVersion.Status.PUBLISHED,
@@ -51,6 +84,22 @@ class BillingViewsTestCase(TestCase):
     def _checkout(self):
         return self.client.post(
             f"/app/stores/{self.store.public_id}/billing/checkout/{self.version.pk}/", HTTP_HOST=_HOST,
+        )
+
+    def _attempt(self):
+        response = self._checkout()
+        token = response["Location"].rstrip("/").rsplit("/", 1)[-1]
+        return SubscriptionPaymentAttempt.objects.get(public_token=token)
+
+    def _confirm_via_webhook(self, attempt, *, event_id, event_type="payment.succeeded"):
+        body = json.dumps({
+            "event_id": event_id, "event_type": event_type,
+            "session_id": f"manual-sess-{attempt.public_token}", "provider_payment_id": f"pay-{event_id}",
+            "amount": str(attempt.amount), "currency": attempt.currency,
+        }).encode()
+        headers = _signed_webhook_headers(secret=WEBHOOK_SECRET, body=body)
+        return Client().post(
+            reverse("billing:webhook", args=["manual"]), data=body, content_type="application/json", **headers,
         )
 
 
@@ -69,14 +118,9 @@ class BillingPlansViewTests(BillingViewsTestCase):
         self.assertEqual([v.pk for v in versions], [self.version.pk])
 
     def test_hides_free_plans(self):
-        free_plan = Plan.objects.create(code="trial-view", name="Trial", is_publicly_selectable=True)
-        PlanVersion.objects.create(
-            plan=free_plan, version_number=1, status=PlanVersion.Status.PUBLISHED,
-            billing_interval=PlanVersion.BillingInterval.NONE, display_price=0,
-        )
         response = self.client.get(f"/app/stores/{self.store.public_id}/billing/", HTTP_HOST=_HOST)
         versions = response.context["plan_versions"]
-        self.assertNotIn(free_plan.code, [v.plan.code for v in versions])
+        self.assertNotIn(self.trial_plan.code, [v.plan.code for v in versions])
 
     def test_requires_login(self):
         self.client.logout()
@@ -91,11 +135,11 @@ class BillingPlansViewTests(BillingViewsTestCase):
 
 
 class BillingCheckoutViewTests(BillingViewsTestCase):
-    def test_creates_invoice_and_redirects_to_dev_provider(self):
+    def test_creates_invoice_and_redirects_to_return(self):
         response = self._checkout()
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/billing/dev-provider/", response["Location"])
-        self.assertEqual(PlatformInvoice.objects.filter(store=self.store).count(), 1)
+        self.assertIn("/billing/return/", response["Location"])
+        self.assertEqual(SubscriptionInvoice.objects.filter(store=self.store).count(), 1)
 
     def test_get_is_not_allowed(self):
         response = self.client.get(
@@ -111,79 +155,61 @@ class BillingCheckoutViewTests(BillingViewsTestCase):
         self.assertEqual(response.status_code, 404)
 
 
-class BillingDevProviderViewTests(BillingViewsTestCase):
-    def _attempt_public_id(self):
-        response = self._checkout()
-        return response["Location"].rstrip("/").rsplit("/", 1)[-1]
-
-    def test_get_renders_fake_bank_page(self):
-        public_id = self._attempt_public_id()
-        response = self.client.get(f"/billing/dev-provider/{public_id}/", HTTP_HOST=_HOST)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "درگاهِ آزمایشی")
-
-    def test_non_member_gets_404(self):
-        public_id = self._attempt_public_id()
-        stranger = User.objects.create_user(username="09121230033", password="a-very-strong-pass-1")
-        self.client.force_login(stranger)
-        response = self.client.get(f"/billing/dev-provider/{public_id}/", HTTP_HOST=_HOST)
-        self.assertEqual(response.status_code, 404)
-
-    def test_pay_action_activates_subscription_and_redirects_to_return(self):
-        public_id = self._attempt_public_id()
-        response = self.client.post(f"/billing/dev-provider/{public_id}/", {"action": "pay"}, HTTP_HOST=_HOST)
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/billing/invoices/", response["Location"])
-
-        sub = StoreSubscription.objects.get(store=self.store, is_current=True)
-        self.assertEqual(sub.status, StoreSubscription.Status.ACTIVE)
-        self.assertEqual(sub.plan_version_id, self.version.pk)
-
-    def test_fail_action_never_activates_and_invoice_stays_pending(self):
-        public_id = self._attempt_public_id()
-        self.client.post(f"/billing/dev-provider/{public_id}/", {"action": "fail"}, HTTP_HOST=_HOST)
-        self.assertFalse(StoreSubscription.objects.filter(store=self.store).exists())
-        invoice = PlatformInvoice.objects.get(store=self.store)
-        self.assertEqual(invoice.status, PlatformInvoice.Status.PENDING)
-
-    def test_revisiting_a_finalized_attempt_redirects_straight_to_return(self):
-        public_id = self._attempt_public_id()
-        self.client.post(f"/billing/dev-provider/{public_id}/", {"action": "pay"}, HTTP_HOST=_HOST)
-        response = self.client.get(f"/billing/dev-provider/{public_id}/", HTTP_HOST=_HOST)
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/billing/invoices/", response["Location"])
-
-    def test_full_purchase_flow_from_a_trialing_subscription(self):
-        sub = subscription_service.create_subscription(self.store, self.version, actor=self.owner)
-        subscription_service.start_trial(sub, actor=self.owner)
-
-        public_id = self._attempt_public_id()
-        self.client.post(f"/billing/dev-provider/{public_id}/", {"action": "pay"}, HTTP_HOST=_HOST)
-
-        sub.refresh_from_db()
-        self.assertEqual(sub.status, StoreSubscription.Status.ACTIVE)
-
-
-class BillingReturnViewTests(BillingViewsTestCase):
-    def test_shows_paid_state(self):
-        response = self._checkout()
-        public_id = response["Location"].rstrip("/").rsplit("/", 1)[-1]
-        self.client.post(f"/billing/dev-provider/{public_id}/", {"action": "pay"}, HTTP_HOST=_HOST)
-
-        invoice = PlatformInvoice.objects.get(store=self.store)
+class BillingWebhookConfirmationViewTests(BillingViewsTestCase):
+    def test_return_page_shows_pending_before_confirmation(self):
+        attempt = self._attempt()
         response = self.client.get(
-            f"/app/stores/{self.store.public_id}/billing/invoices/{invoice.public_id}/", HTTP_HOST=_HOST,
+            f"/app/stores/{self.store.public_id}/billing/return/{attempt.public_token}/", HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "در انتظارِ تأیید")
+
+    def test_browser_return_alone_never_activates(self):
+        attempt = self._attempt()
+        for _ in range(3):
+            self.client.get(
+                f"/app/stores/{self.store.public_id}/billing/return/{attempt.public_token}/", HTTP_HOST=_HOST,
+            )
+        self.subscription.refresh_from_db()
+        self.assertEqual(self.subscription.status, StoreSubscription.Status.TRIALING)
+
+    def test_non_succeeded_webhook_event_never_activates(self):
+        attempt = self._attempt()
+        self._confirm_via_webhook(attempt, event_id="evt-fail-1", event_type="payment.failed")
+        self.subscription.refresh_from_db()
+        self.assertEqual(self.subscription.status, StoreSubscription.Status.TRIALING)
+        invoice = attempt.invoice
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.status, SubscriptionInvoice.Status.PAYMENT_PENDING)
+
+    def test_signed_webhook_activates_subscription_and_return_page_shows_success(self):
+        attempt = self._attempt()
+        webhook_response = self._confirm_via_webhook(attempt, event_id="evt-pay-1")
+        self.assertEqual(webhook_response.status_code, 200)
+
+        self.subscription.refresh_from_db()
+        self.assertEqual(self.subscription.status, StoreSubscription.Status.ACTIVE)
+        self.assertEqual(self.subscription.plan_version_id, self.version.pk)
+
+        response = self.client.get(
+            f"/app/stores/{self.store.public_id}/billing/return/{attempt.public_token}/", HTTP_HOST=_HOST,
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "با موفقیت")
 
-    def test_other_owners_invoice_is_not_reachable(self):
-        response = self._checkout()
-        public_id = response["Location"].rstrip("/").rsplit("/", 1)[-1]
-        self.client.post(f"/billing/dev-provider/{public_id}/", {"action": "pay"}, HTTP_HOST=_HOST)
-        invoice = PlatformInvoice.objects.get(store=self.store)
+    def test_duplicate_webhook_does_not_double_activate(self):
+        attempt = self._attempt()
+        self._confirm_via_webhook(attempt, event_id="evt-dup-1")
+        self._confirm_via_webhook(attempt, event_id="evt-dup-1")
+        invoice = attempt.invoice
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.amount_paid, invoice.grand_total)
 
-        other_store = Store.objects.create(name="فروشگاه دیگر", slug="billing-other-store", admin_subdomain="billing-other-store")
+    def test_other_owners_attempt_is_not_reachable(self):
+        attempt = self._attempt()
+        other_store = Store.objects.create(
+            name="فروشگاه دیگر", slug="billing-other-store", admin_subdomain="billing-other-store",
+        )
         other_owner = User.objects.create_user(username="09121230044", password="a-very-strong-pass-1")
         StoreMembership.objects.create(
             store=other_store, user=other_owner, role=StoreMembership.Role.OWNER,
@@ -191,6 +217,6 @@ class BillingReturnViewTests(BillingViewsTestCase):
         )
         self.client.force_login(other_owner)
         response = self.client.get(
-            f"/app/stores/{other_store.public_id}/billing/invoices/{invoice.public_id}/", HTTP_HOST=_HOST,
+            f"/app/stores/{other_store.public_id}/billing/return/{attempt.public_token}/", HTTP_HOST=_HOST,
         )
         self.assertEqual(response.status_code, 404)

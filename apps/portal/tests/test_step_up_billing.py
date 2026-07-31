@@ -2,16 +2,20 @@
 sensitive action Section 9 already built: subscription purchase. Uses the
 real (default-enabled) PlatformConfiguration.step_up_actions policy, unlike
 test_billing_views.py which explicitly disables it to isolate checkout
-mechanics."""
+mechanics. Since the technical-consolidation pass (ADR-105/ADR-106), the
+purchase itself goes through apps.billing (plan_change_billing_service +
+payment_flow_service) instead of a portal-only billing layer."""
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from apps.billing.models import SubscriptionInvoice
 from apps.portal.models import OwnerProfile
 from apps.stores.models import Store, StoreMembership
-from apps.subscriptions.models import Plan, PlanVersion, PlatformInvoice
+from apps.subscriptions.models import Plan, PlanVersion
+from apps.subscriptions.services import subscription_service
 
 User = get_user_model()
 _HOST = "rastisi.localhost"
@@ -38,6 +42,14 @@ class StepUpBillingTests(TestCase):
             store=self.store, user=self.owner, role=StoreMembership.Role.OWNER,
             status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
         )
+        trial_plan = Plan.objects.create(code="trial-stepup", name="Trial", is_publicly_selectable=True)
+        trial_version = PlanVersion.objects.create(
+            plan=trial_plan, version_number=1, status=PlanVersion.Status.PUBLISHED,
+            billing_interval=PlanVersion.BillingInterval.NONE, display_price=0, trial_days=14,
+        )
+        sub = subscription_service.create_subscription(self.store, trial_version, actor=self.owner)
+        subscription_service.start_trial(sub, actor=self.owner)
+
         self.plan = Plan.objects.create(code="pro-stepup", name="Pro", is_active=True, is_publicly_selectable=True)
         self.version = PlanVersion.objects.create(
             plan=self.plan, version_number=1, status=PlanVersion.Status.PUBLISHED,
@@ -57,13 +69,13 @@ class StepUpBillingTests(TestCase):
     def test_checkout_is_gated_behind_step_up_by_default(self):
         response = self._checkout()
         self.assertRedirects(response, f"/app/stores/{self.store.public_id}/billing/step-up/")
-        self.assertEqual(PlatformInvoice.objects.filter(store=self.store).count(), 0)
+        self.assertEqual(SubscriptionInvoice.objects.filter(store=self.store).count(), 0)
 
     def test_owner_without_a_phone_cannot_purchase_at_all(self):
         self.owner.owner_profile.delete()
         response = self._checkout()
         self.assertRedirects(response, f"/app/stores/{self.store.public_id}/billing/")
-        self.assertEqual(PlatformInvoice.objects.filter(store=self.store).count(), 0)
+        self.assertEqual(SubscriptionInvoice.objects.filter(store=self.store).count(), 0)
 
     def test_wrong_code_does_not_create_an_invoice(self):
         self._checkout()
@@ -71,16 +83,16 @@ class StepUpBillingTests(TestCase):
             f"/app/stores/{self.store.public_id}/billing/step-up/", {"code": "000000"}, HTTP_HOST=_HOST,
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(PlatformInvoice.objects.filter(store=self.store).count(), 0)
+        self.assertEqual(SubscriptionInvoice.objects.filter(store=self.store).count(), 0)
 
-    def test_correct_code_completes_the_purchase_and_reaches_dev_provider(self):
+    def test_correct_code_completes_the_purchase_and_reaches_return_page(self):
         self._checkout()
         response = self.client.post(
             f"/app/stores/{self.store.public_id}/billing/step-up/", {"code": self.code}, HTTP_HOST=_HOST,
         )
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/billing/dev-provider/", response["Location"])
-        self.assertEqual(PlatformInvoice.objects.filter(store=self.store).count(), 1)
+        self.assertIn(f"/app/stores/{self.store.public_id}/billing/return/", response["Location"])
+        self.assertEqual(SubscriptionInvoice.objects.filter(store=self.store).count(), 1)
 
     def test_step_up_stays_verified_for_a_second_purchase_on_the_same_store(self):
         self._checkout()
@@ -90,7 +102,7 @@ class StepUpBillingTests(TestCase):
         # A second checkout on the same Store, still within the verified
         # window, must not require another OTP round-trip.
         response = self._checkout()
-        self.assertIn("/billing/dev-provider/", response["Location"])
+        self.assertIn(f"/app/stores/{self.store.public_id}/billing/return/", response["Location"])
 
     def test_step_up_verification_does_not_carry_over_to_a_different_store(self):
         self._checkout()

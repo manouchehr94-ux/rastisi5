@@ -4,12 +4,18 @@
 {% block content %}
 <div class="p-wrap">
 <div class="p-form-card" style="max-width:420px;text-align:center">
-  {% if invoice.status == "paid" %}
+  {% if attempt.status == "succeeded" %}
   <h2 style="margin-bottom:8px">پرداخت با موفقیت انجام شد</h2>
   <p style="font-size:13px;color:var(--p-muted);margin-bottom:20px">اشتراکِ فروشگاهِ شما فعال/تمدید شد.</p>
-  {% else %}
+  {% elif attempt.status == "failed" or attempt.status == "cancelled" or attempt.status == "expired" %}
   <h2 style="margin-bottom:8px">پرداخت انجام نشد</h2>
   <p style="font-size:13px;color:var(--p-muted);margin-bottom:20px">فاکتور همچنان در انتظارِ پرداخت است؛ می‌توانید دوباره تلاش کنید.</p>
+  {% else %}
+  <h2 style="margin-bottom:8px">در انتظارِ تأیید</h2>
+  <p style="font-size:13px;color:var(--p-muted);margin-bottom:20px">
+    پرداختِ شما در انتظارِ تأییدِ نهایی است. این صفحه فقط وضعیتِ فعلی را نشان می‌دهد؛
+    تأییدِ پرداخت فقط از راهِ درگاه/تأییدِ سیستم انجام می‌شود، نه بازگشتِ مرورگر.
+  </p>
   {% endif %}
   <a href="{% url 'portal:billing-plans' store.public_id %}" class="p-btn p-btn-primary" style="width:100%">بازگشت به پلن‌ها</a>
 </div>

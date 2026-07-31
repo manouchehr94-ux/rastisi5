@@ -4314,6 +4314,86 @@ just one, until they're reconciled.
 
 ---
 
+## ADR-106: ADR-105's Duplication Resolved — `apps.billing` Is Now the Portal's Only Billing System
+
+**Status update, not a new decision** — this is the follow-up ADR-105
+explicitly deferred, carried out as a dedicated technical-consolidation
+pass once the portal's own core journeys (Sections 10-19) no longer
+depended on same-session churn to the purchase flow.
+
+**What changed.** `apps.subscriptions.models.PlatformInvoice`/
+`PlatformPaymentAttempt`, `apps.subscriptions.services.billing_service`,
+and `apps.subscriptions.services.payment_providers` are deleted outright
+(migration `subscriptions.0006_remove_platform_invoice_and_attempt`; zero
+rows existed in any environment, so no data migration was needed). The
+portal's `/app/stores/<id>/billing/...` views
+(`apps.portal.views.billing_plans`/`billing_checkout`/
+`billing_step_up_verify`/`billing_return`) now call
+`apps.billing.services.plan_change_billing_service.start_plan_change` and
+`apps.billing.services.payment_flow_service.start_payment` directly —
+exactly the same services `apps.dashboard`'s Merchant Admin billing views
+already used. A Store's very first paid purchase is modeled as an
+"upgrade" out of its free trial `PlanVersion`, the same mechanism Merchant
+Admin plan changes use for any other upgrade.
+
+**One real gap this surfaced and fixed in `apps.billing` itself.**
+`confirmation_service._activate_or_renew`'s `PLAN_CHANGE` branch only ever
+called `subscription_service.change_plan_version` — which changes
+`plan_version` but never touches `status` — because every existing test/
+caller of `plan_change_billing_service` assumed an already-`ACTIVE`
+subscription changing between two paid plans. Section 8/9's own
+now-deleted `billing_service.confirm_payment_attempt` had independently
+special-cased exactly this ("if the subscription is still
+`PENDING`/`TRIALING`, activate it too") to make its own parallel system
+work for a trial-to-paid conversion — which is exactly what exposed that
+`plan_change_billing_service`, as it stood, could not have supported the
+portal's core purchase journey at all. Fixed by extending that same branch
+to also call `subscription_service.activate_subscription` when the
+subscription is still `PENDING`/`TRIALING` (a distinct idempotency key is
+used for the two calls, since `SubscriptionEvent` enforces a
+`(subscription, idempotency_key)` uniqueness constraint that would
+otherwise collide). Covered by a new focused test,
+`apps.billing.tests.test_plan_change_billing.
+TrialToPaidUpgradeBillingTests`.
+
+**Deliberate deviation from ADR-105's suggested follow-up.** ADR-105
+proposed adding "a real `dev` `BillingPaymentProvider` implementation ...
+for instant self-serve pay/fail" as part of the eventual fix. That was
+*not* built. On inspection, the existing `manual` provider
+(`apps.billing.providers.manual.ManualProvider`) is a deliberate, honest
+design (ADR-75): it never auto-succeeds, and confirmation only ever comes
+from a signed provider webhook or an explicit Platform Admin action.
+Adding a second, weaker, auto-succeeding provider just for the portal
+would have reintroduced a parallel, less-secure confirmation path —
+precisely the kind of duplication this consolidation pass exists to
+remove, not add back under a different name. The portal's checkout flow
+now creates the invoice/attempt and shows accurate pending/paid/failed
+state (read from the server record, never the browser's own return, per
+`payment_flow_service`'s existing contract); completing a purchase in a
+non-production environment without a real gateway means posting a signed
+webhook to the existing `apps.billing:webhook` endpoint — exactly what
+`apps.billing`'s own `WebhookToActivationTests` and the portal's
+`test_billing_views.BillingWebhookConfirmationViewTests`/
+`test_end_to_end_journeys.JourneyATestCase` now do. This is a real,
+narrower capability than Section 8/9's fake bank page offered (no
+one-click "pay" button in the portal UI itself), disclosed here rather
+than hidden.
+
+**What did not change.** `apps.dashboard`'s Merchant Admin billing views
+are untouched — they were never part of the duplication. `StoreSubscription`
+correctness was never at risk in either direction; this pass only
+collapses two billing-history bookkeeping paths into one.
+
+**Consequences.** Exactly one invoice model (`SubscriptionInvoice`), one
+payment-attempt model (`SubscriptionPaymentAttempt`), one payment-provider
+abstraction, and one webhook endpoint now exist for the whole platform.
+Platform Admin's store-detail invoice list (`apps.portal.
+platform_admin_views.store_detail`) reads `store.subscription_invoices`
+(the `apps.billing` related name) instead of the now-deleted
+`store.platform_invoices`.
+
+---
+
 ## Summary Table
 
 | Decision | Status |
@@ -4425,4 +4505,4 @@ just one, until they're reconciled.
 | `PlatformConfiguration` singleton for platform-wide tunables; owner identity is mobile OTP sharing `User.username=phone` with storefront customers by deliberate design (email+password kept as secondary/recovery) | Decided, implemented (Portal, ADR-102) |
 | Registration auto-provisions exactly one trial Store (onboarding mode C); one computed publication-state service (no duplicated status field) gates storefront visibility until onboarding completes | Decided, implemented (Portal, ADR-103) |
 | Four seeded Plans via an idempotent command; trial_days sourced from PlatformConfiguration, never a second hardcoded 30; a Plan with any existing version is never reseeded | Decided, implemented (Portal, ADR-104) |
-| **Mistake record**: portal purchase (Section 8/9) built a parallel `PlatformInvoice`/`PlatformPaymentAttempt` stack instead of reusing the pre-existing `apps.billing` domain (Checkpoint 5B); both left in place, not reconciled — flagged as live architectural debt | **Known issue, not fixed** (Portal, ADR-105) |
+| **Mistake record**: portal purchase (Section 8/9) built a parallel `PlatformInvoice`/`PlatformPaymentAttempt` stack instead of reusing the pre-existing `apps.billing` domain (Checkpoint 5B) | **Resolved** — duplicate stack deleted, portal now consumes `apps.billing` directly (ADR-105/ADR-106) |

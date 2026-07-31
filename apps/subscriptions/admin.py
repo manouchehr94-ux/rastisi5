@@ -11,8 +11,6 @@ from apps.subscriptions.models import (
     Plan,
     PlanEntitlement,
     PlanVersion,
-    PlatformInvoice,
-    PlatformPaymentAttempt,
     StoreSubscription,
     SubscriptionEvent,
     UsageRecord,
@@ -168,45 +166,3 @@ class UsageRecordAdmin(SuperuserOnlyAdmin):
     # شمارنده‌ها سیستم‌محورند (usage_service) — ویرایشِ دستی مجاز نیست.
     def has_change_permission(self, request, obj=None):
         return False
-
-
-class PlatformPaymentAttemptInline(admin.TabularInline):
-    model = PlatformPaymentAttempt
-    extra = 0
-    fields = ("public_id", "provider_code", "status", "provider_ref", "created_at")
-    readonly_fields = fields
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
-@admin.register(PlatformInvoice)
-class PlatformInvoiceAdmin(SuperuserOnlyAdmin):
-    """فاکتورهای پلتفرم — فقط‌خواندنی (Section 8/9، 13): وضعیتِ
-    ``PAID``/``PENDING`` تنها از طریقِ ``billing_service.confirm_payment_
-    attempt`` تغییر می‌کند، هرگز از این‌جا."""
-
-    list_display = ("public_id", "store", "plan_version", "reason", "status", "amount", "paid_at", "created_at")
-    list_filter = ("status", "reason")
-    search_fields = ("public_id", "store__slug", "store__name")
-    ordering = ("-created_at",)
-    inlines = [PlatformPaymentAttemptInline]
-    readonly_fields = (
-        "store", "plan_version", "reason", "amount", "currency", "status",
-        "public_id", "paid_at", "created_by", "created_at", "updated_at",
-    )
-
-
-@admin.register(PlatformPaymentAttempt)
-class PlatformPaymentAttemptAdmin(SuperuserOnlyAdmin):
-    list_display = ("public_id", "invoice", "provider_code", "status", "provider_ref", "created_at")
-    list_filter = ("provider_code", "status")
-    search_fields = ("public_id", "invoice__public_id", "invoice__store__slug")
-    ordering = ("-created_at",)
-    readonly_fields = ("invoice", "provider_code", "public_id", "status", "provider_ref", "created_at", "updated_at")

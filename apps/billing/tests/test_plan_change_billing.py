@@ -69,6 +69,36 @@ class UpgradeBillingTests(TestCase):
         self.assertEqual(preview["payable_amount"], Decimal("300000"))
 
 
+class TrialToPaidUpgradeBillingTests(TestCase):
+    """A Store's very first purchase is always an "upgrade" out of a free
+    trial plan_version — this must both switch plan_version AND activate the
+    still-trialing subscription (portal purchase relies on this; a trialing
+    subscription that merely changed plan_version would never satisfy
+    handle-claim's ACTIVE-only requirement)."""
+
+    def setUp(self):
+        ent.clear_entitlement_cache()
+        self.store = Store.objects.create(name="ف", slug="trial-up-store", admin_subdomain="trial-up-store")
+        self.trial = _published("trial-up-free", price="0")
+        self.paid = _published("trial-up-paid", price="200000")
+        sub = sub_svc.create_subscription(self.store, self.trial)
+        self.sub = sub_svc.start_trial(sub)
+        ent.clear_entitlement_cache()
+
+    def _token(self):
+        return pcs._preview_token(ent.get_current_subscription(self.store), self.paid)
+
+    def test_upgrade_from_trial_activates_subscription_on_payment(self):
+        self.assertEqual(self.sub.status, StoreSubscription.Status.TRIALING)
+        _kind, invoice = pcb.start_plan_change(self.sub, self.paid, preview_token=self._token())
+        attempt = attempt_service.create_attempt(invoice)
+        confirmation_service.confirm_payment(attempt=attempt, amount=invoice.amount_due, currency="IRT")
+        self.sub.refresh_from_db()
+        self.assertEqual(self.sub.status, StoreSubscription.Status.ACTIVE)
+        self.assertEqual(self.sub.plan_version_id, self.paid.pk)
+        self.assertIsNotNone(self.sub.current_period_end)
+
+
 class DowngradeBillingTests(TestCase):
     def setUp(self):
         ent.clear_entitlement_cache()

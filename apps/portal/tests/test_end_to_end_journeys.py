@@ -7,15 +7,22 @@ section's own test file; this module's job is to prove the sections
 actually compose into one coherent journey, not to re-litigate each
 building block in isolation."""
 
+import hashlib
+import hmac
+import json
+import time
 from datetime import timedelta
 from io import StringIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
+from django.urls import reverse
 from django.utils import timezone
 
+from apps.billing.models import SubscriptionPaymentAttempt
+from apps.billing.providers.manual import SIGNATURE_HEADER, TIMESTAMP_HEADER
 from apps.notifications.models import NotificationOutbox
 from apps.portal.models import OwnerOtpChallenge
 from apps.stores.models import Store, StoreDomain, StoreMembership, StoreOwnershipTransfer
@@ -23,6 +30,27 @@ from apps.subscriptions.models import PlanVersion, StoreSubscription
 
 User = get_user_model()
 _HOST = "rastisi.localhost"
+_BILLING_WEBHOOK_SECRET = "e2e-journey-billing-webhook-secret"
+
+
+def _confirm_billing_attempt_via_signed_webhook(attempt, *, event_id):
+    """The only registered payment provider (apps.billing's "manual") never
+    auto-succeeds — real confirmation always comes from a signed provider
+    webhook or an explicit Platform Admin action, never from the browser
+    simply returning to the portal. This simulates the former, exactly the
+    way a real gateway's callback would."""
+    body = json.dumps({
+        "event_id": event_id, "event_type": "payment.succeeded",
+        "session_id": f"manual-sess-{attempt.public_token}", "provider_payment_id": f"pay-{event_id}",
+        "amount": str(attempt.amount), "currency": attempt.currency,
+    }).encode()
+    ts = str(int(time.time()))
+    sig = hmac.new(_BILLING_WEBHOOK_SECRET.encode(), ts.encode() + b"." + body, hashlib.sha256).hexdigest()
+    return Client().post(
+        reverse("billing:webhook", args=["manual"]), data=body, content_type="application/json",
+        **{"HTTP_" + SIGNATURE_HEADER.upper().replace("-", "_"): sig,
+           "HTTP_" + TIMESTAMP_HEADER.upper().replace("-", "_"): ts},
+    )
 
 
 def _advance_past_step_up_rate_window(phone):
@@ -46,7 +74,10 @@ def _dns_target():
     return "apps.stores.services.domain_verification_service.dns.resolver.resolve"
 
 
-@override_settings(ALLOWED_HOSTS=[_HOST, "testserver"], RASTISI_DEFAULT_PLAN_CODE="trial")
+@override_settings(
+    ALLOWED_HOSTS=[_HOST, "testserver"], RASTISI_DEFAULT_PLAN_CODE="trial",
+    RASTISI_BILLING_WEBHOOK_SECRET=_BILLING_WEBHOOK_SECRET, RASTISI_BILLING_PROVIDER="manual",
+)
 class JourneyATestCase(TestCase):
     """Journey A: register → auto-provision → onboard → purchase →
     permanent handle → custom domain → ownership transfer → deletion."""
@@ -99,7 +130,9 @@ class JourneyATestCase(TestCase):
         with self.settings(ALLOWED_HOSTS=[trial_domain.hostname, _HOST, "testserver"]):
             self.assertEqual(self.client.get("/", HTTP_HOST=trial_domain.hostname).status_code, 200)
 
-        # --- Purchase a paid plan (step-up gated, dev/test provider) ---
+        # --- Purchase a paid plan (step-up gated; apps.billing is the one
+        # billing system — confirmation only ever comes from a signed
+        # webhook, never the browser's own return) ---
         version = PlanVersion.objects.get(plan__code="basic", status=PlanVersion.Status.PUBLISHED)
         checkout_response = self.client.post(
             f"/app/stores/{store.public_id}/billing/checkout/{version.pk}/", HTTP_HOST=_HOST,
@@ -109,8 +142,10 @@ class JourneyATestCase(TestCase):
             f"/app/stores/{store.public_id}/billing/step-up/", {"code": "222222"}, HTTP_HOST=_HOST,
         )
         self.assertEqual(step_up_response.status_code, 302)
-        dev_provider_url = step_up_response["Location"]
-        self.client.post(dev_provider_url, {"action": "pay"}, HTTP_HOST=_HOST)
+        attempt_token = step_up_response["Location"].rstrip("/").rsplit("/", 1)[-1]
+        attempt = SubscriptionPaymentAttempt.objects.get(public_token=attempt_token)
+        webhook_response = _confirm_billing_attempt_via_signed_webhook(attempt, event_id="e2e-basic-purchase")
+        self.assertEqual(webhook_response.status_code, 200)
 
         subscription = StoreSubscription.objects.get(store=store, is_current=True)
         self.assertEqual(subscription.status, StoreSubscription.Status.ACTIVE)

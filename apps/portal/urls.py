@@ -59,11 +59,7 @@ urlpatterns = [
         views.billing_step_up_verify, name="billing-step-up",
     ),
     path(
-        "billing/dev-provider/<str:attempt_public_id>/",
-        views.billing_dev_provider, name="billing-dev-provider",
-    ),
-    path(
-        "app/stores/<uuid:store_public_id>/billing/invoices/<str:invoice_public_id>/",
+        "app/stores/<uuid:store_public_id>/billing/return/<str:attempt_public_token>/",
         views.billing_return, name="billing-return",
     ),
     # Permanent Store handle claim (Section 11)

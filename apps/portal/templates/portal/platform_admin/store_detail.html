@@ -52,15 +52,15 @@
   </tbody>
 </table></div>
 
-<h3 style="margin:24px 0 10px">فاکتورهای پلتفرم</h3>
+<h3 style="margin:24px 0 10px">فاکتورهای اشتراک</h3>
 <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
   <thead><tr style="text-align:right;color:#93a89c"><th style="padding:8px">شناسه</th><th style="padding:8px">پلن</th><th style="padding:8px">مبلغ</th><th style="padding:8px">وضعیت</th><th style="padding:8px">تاریخ</th></tr></thead>
   <tbody>
   {% for invoice in invoices %}
     <tr style="border-top:1px solid #1e2b23">
-      <td style="padding:8px;direction:ltr;text-align:left">{{ invoice.public_id }}</td>
+      <td style="padding:8px;direction:ltr;text-align:left">{{ invoice.number }}</td>
       <td style="padding:8px">{{ invoice.plan_version.plan.name }}</td>
-      <td style="padding:8px">{{ invoice.amount }}</td>
+      <td style="padding:8px">{{ invoice.grand_total }}</td>
       <td style="padding:8px">{{ invoice.get_status_display }}</td>
       <td style="padding:8px">{{ invoice.created_at|date:"Y-m-d" }}</td>
     </tr>

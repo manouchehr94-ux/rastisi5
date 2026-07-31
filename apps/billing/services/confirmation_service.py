@@ -123,4 +123,11 @@ def _activate_or_renew(invoice, *, actor, now):
             subscription, invoice.plan_version, actor=actor, reason="ارتقا پس از پرداخت",
             idempotency_key=idem,
         )
+        # اگر این ارتقا همان اولین پرداختِ واقعیِ Store بود (هنوز trialing/
+        # pending، مثلِ تبدیلِ آزمایشی به پولی) — تغییرِ پلن به‌تنهایی وضعیت را
+        # عوض نمی‌کند؛ پس اینجا هم فعال می‌شود، دقیقاً مثلِ kind=INITIAL.
+        if subscription.status in (StoreSubscription.Status.PENDING, StoreSubscription.Status.TRIALING):
+            sub_svc.activate_subscription(
+                subscription, actor=actor, period_end=period_end, idempotency_key=f"{idem}-activate",
+            )
     ent.clear_entitlement_cache()
