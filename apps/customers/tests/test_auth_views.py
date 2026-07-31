@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
@@ -144,6 +145,10 @@ class OtpLoginViewTests(TestCase):
     CODE = "445566"
 
     def setUp(self):
+        # همه‌ی درخواست‌های Test Client یک IP یکسان دارند (127.0.0.1) —
+        # محدودیتِ نرخِ per-IP جدیدِ otp_service.request_otp اگر بینِ
+        # تست‌ها پاک نشود، در اجرایِ کاملِ suite تجمع پیدا می‌کند.
+        cache.clear()
         SmsTemplate.ensure_defaults()
         self.user = User.objects.create_user(username="09121118899", password="StrongPass123")
         Customer.objects.create(user=self.user, full_name="مهسا کریمی", phone="09121118899")

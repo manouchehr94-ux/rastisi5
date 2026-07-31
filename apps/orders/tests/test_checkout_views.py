@@ -2,6 +2,7 @@ import json
 from decimal import Decimal
 
 from django.contrib.auth import get_user, get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
@@ -45,6 +46,10 @@ class CheckoutPayTests(TestCase):
     CODE = "883311"
 
     def setUp(self):
+        # همه‌ی درخواست‌های Test Client یک IP یکسان دارند (127.0.0.1) —
+        # محدودیتِ نرخِ per-IP جدیدِ otp_service.request_otp اگر بینِ
+        # تست‌ها پاک نشود، در اجرایِ کاملِ suite تجمع پیدا می‌کند.
+        cache.clear()
         store = Store.objects.get(slug="akhlaghi")
         vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-cas")
         category = Category.objects.create(store=store, name="دیجیتال", slug="digital-cas")

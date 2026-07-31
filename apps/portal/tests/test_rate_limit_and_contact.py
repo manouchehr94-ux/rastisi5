@@ -28,6 +28,14 @@ class RateLimitHelperTests(TestCase):
         enforce_rate_limit("t3", "5.6.7.8", max_attempts=3, window_seconds=60)
 
 
+class BackwardCompatReExportTests(TestCase):
+    def test_portal_rate_limit_reexports_the_canonical_core_implementation(self):
+        from apps.core.services.rate_limit import enforce_rate_limit as canonical
+        from apps.portal.services.rate_limit import enforce_rate_limit as portal_version
+
+        self.assertIs(portal_version, canonical)
+
+
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
 class ContactFormTests(TestCase):
     def setUp(self):

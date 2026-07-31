@@ -120,7 +120,10 @@ def checkout_pay(request):
         return _finalize_and_redirect(request, cart, customer)
 
     try:
-        otp_service.request_otp(phone, store=resolve_store_for_service(request))
+        otp_service.request_otp(
+            phone, store=resolve_store_for_service(request),
+            ip_address=request.META.get("REMOTE_ADDR", "unknown"),
+        )
     except otp_service.OtpRateLimitError as exc:
         return _dynamic_response(
             request, cart, toast_message=str(exc), toast_type="err",
@@ -163,7 +166,10 @@ def checkout_resend_otp(request):
     if not phone:
         return redirect("orders:checkout-step1")
     try:
-        otp_service.request_otp(phone, store=resolve_store_for_service(request))
+        otp_service.request_otp(
+            phone, store=resolve_store_for_service(request),
+            ip_address=request.META.get("REMOTE_ADDR", "unknown"),
+        )
         message, message_type = "کد جدید پیامک شد", "ok"
     except otp_service.OtpRateLimitError as exc:
         message, message_type = str(exc), "err"

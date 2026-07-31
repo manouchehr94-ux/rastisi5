@@ -15,6 +15,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user, get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
@@ -34,6 +35,10 @@ class _CheckoutFixture(TestCase):
     """Shared setup for checkout integrity tests."""
 
     def setUp(self):
+        # همه‌ی درخواست‌های Test Client یک IP یکسان دارند (127.0.0.1) —
+        # محدودیتِ نرخِ per-IP جدیدِ otp_service.request_otp اگر بینِ
+        # تست‌ها پاک نشود، در اجرایِ کاملِ suite تجمع پیدا می‌کند.
+        cache.clear()
         self.store = Store.objects.get(slug="akhlaghi")
         self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-ci")
         self.category = Category.objects.create(store=self.store, name="دیجیتال", slug="digital-ci")
@@ -310,6 +315,7 @@ class ExistingPhoneOTPRegressionTests(TestCase):
     CODE = "902244"
 
     def setUp(self):
+        cache.clear()
         store = Store.objects.get(slug="akhlaghi")
         self.vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-otp")
         self.category = Category.objects.create(store=store, name="دیجیتال", slug="digital-otp")

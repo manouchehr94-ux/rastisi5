@@ -161,7 +161,10 @@ def otp_request_view(request):
             form.add_error("phone", "حسابی با این شماره موبایل یافت نشد")
         else:
             try:
-                otp_service.request_otp(phone, store=resolve_store_for_service(request))
+                otp_service.request_otp(
+                    phone, store=resolve_store_for_service(request),
+                    ip_address=request.META.get("REMOTE_ADDR", "unknown"),
+                )
             except otp_service.OtpRateLimitError as exc:
                 form.add_error(None, str(exc))
             else:
