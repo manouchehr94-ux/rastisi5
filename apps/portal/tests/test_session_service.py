@@ -38,3 +38,11 @@ class ApplyRememberMeTests(TestCase):
     def test_checked_always_wins_over_any_default(self):
         apply_remember_me(self.request, True)
         self.assertAlmostEqual(self.request.session.get_expiry_age(), 60 * 60 * 24 * 30, delta=5)
+
+
+class BackwardCompatReExportTests(TestCase):
+    def test_portal_session_service_reexports_the_canonical_core_implementation(self):
+        from apps.core.services.session_service import apply_remember_me as canonical
+        from apps.portal.services.session_service import apply_remember_me as portal_version
+
+        self.assertIs(portal_version, canonical)

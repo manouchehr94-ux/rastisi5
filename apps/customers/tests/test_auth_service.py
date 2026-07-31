@@ -118,6 +118,90 @@ class AuthenticateCustomerTests(TestCase):
         self.assertEqual(authed, user)
 
 
+class AuthenticateCustomerByIdentifierTests(TestCase):
+    """Canonical email-or-phone + password authentication service for
+    customers (auth-unification pass)."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.factory = RequestFactory()
+        self.customer = auth_service.signup(
+            full_name="سارا محمدی", phone="09121113399", password="StrongPass123", store=self.store,
+        )
+        self.customer.email = "sara@example.com"
+        self.customer.save(update_fields=["email"])
+
+    def _request(self):
+        request = self.factory.post("/")
+        SessionMiddleware(lambda r: None).process_request(request)
+        request.session.save()
+        return request
+
+    def test_authenticates_by_phone(self):
+        user = auth_service.authenticate_customer_by_identifier(
+            self._request(), identifier="09121113399", password="StrongPass123",
+        )
+        self.assertEqual(user.customer_profile, self.customer)
+
+    def test_authenticates_by_phone_international_format(self):
+        user = auth_service.authenticate_customer_by_identifier(
+            self._request(), identifier="+989121113399", password="StrongPass123",
+        )
+        self.assertEqual(user.customer_profile, self.customer)
+
+    def test_authenticates_by_email(self):
+        user = auth_service.authenticate_customer_by_identifier(
+            self._request(), identifier="sara@example.com", password="StrongPass123",
+        )
+        self.assertEqual(user.customer_profile, self.customer)
+
+    def test_email_lookup_is_case_insensitive(self):
+        user = auth_service.authenticate_customer_by_identifier(
+            self._request(), identifier="SARA@Example.com", password="StrongPass123",
+        )
+        self.assertEqual(user.customer_profile, self.customer)
+
+    def test_wrong_password_returns_none(self):
+        user = auth_service.authenticate_customer_by_identifier(
+            self._request(), identifier="sara@example.com", password="wrong",
+        )
+        self.assertIsNone(user)
+
+    def test_nonexistent_email_returns_none(self):
+        user = auth_service.authenticate_customer_by_identifier(
+            self._request(), identifier="nobody@example.com", password="whatever",
+        )
+        self.assertIsNone(user)
+
+    def test_nonexistent_phone_returns_none(self):
+        user = auth_service.authenticate_customer_by_identifier(
+            self._request(), identifier="09129999999", password="whatever",
+        )
+        self.assertIsNone(user)
+
+    def test_ambiguous_email_returns_none(self):
+        other_user = User.objects.create_user(username="09121113400", password="OtherPass123")
+        Customer.objects.create(
+            user=other_user, full_name="نفرِ دیگر", phone="09121113400", email="sara@example.com",
+        )
+        user = auth_service.authenticate_customer_by_identifier(
+            self._request(), identifier="sara@example.com", password="StrongPass123",
+        )
+        self.assertIsNone(user)
+
+    def test_malformed_phone_returns_none_not_exception(self):
+        user = auth_service.authenticate_customer_by_identifier(
+            self._request(), identifier="not-an-identifier", password="whatever",
+        )
+        self.assertIsNone(user)
+
+    def test_empty_identifier_returns_none(self):
+        user = auth_service.authenticate_customer_by_identifier(
+            self._request(), identifier="", password="whatever",
+        )
+        self.assertIsNone(user)
+
+
 class MergeGuestCartTests(TestCase):
     def setUp(self):
         self.store = _akhlaghi()

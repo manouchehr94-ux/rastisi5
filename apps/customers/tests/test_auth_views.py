@@ -59,7 +59,7 @@ class LoginViewTests(TestCase):
 
     def test_valid_login_refreshes_page(self):
         response = self.client.post(reverse("customers:login"), {
-            "phone": "09121115566", "password": "StrongPass123",
+            "identifier": "09121115566", "password": "StrongPass123",
         })
         self.assertEqual(response.headers.get("HX-Refresh"), "true")
         self.assertIn("_auth_user_id", self.client.session)
@@ -67,17 +67,26 @@ class LoginViewTests(TestCase):
     def test_login_accepts_international_phone_format(self):
         """+98/0098/bare-9-without-0 all normalize to the same stored 09... phone."""
         response = self.client.post(reverse("customers:login"), {
-            "phone": "+989121115566", "password": "StrongPass123",
+            "identifier": "+989121115566", "password": "StrongPass123",
+        })
+        self.assertEqual(response.headers.get("HX-Refresh"), "true")
+        self.assertIn("_auth_user_id", self.client.session)
+
+    def test_login_by_email(self):
+        self.user.customer_profile.email = "sina@example.com"
+        self.user.customer_profile.save(update_fields=["email"])
+        response = self.client.post(reverse("customers:login"), {
+            "identifier": "sina@example.com", "password": "StrongPass123",
         })
         self.assertEqual(response.headers.get("HX-Refresh"), "true")
         self.assertIn("_auth_user_id", self.client.session)
 
     def test_wrong_password_shows_error(self):
         response = self.client.post(reverse("customers:login"), {
-            "phone": "09121115566", "password": "wrongpass",
+            "identifier": "09121115566", "password": "wrongpass",
         })
         self.assertNotIn("HX-Refresh", response.headers)
-        self.assertContains(response, "اشتباه است")
+        self.assertContains(response, "اطلاعات ورود صحیح نیست")
         self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_login_merges_guest_cart(self):
@@ -89,9 +98,36 @@ class LoginViewTests(TestCase):
             sku="SKU-LGC1", price=Decimal("50000"),
         )
         self.client.post(reverse("cart:add", args=[product.slug]), {"quantity": 3})
-        self.client.post(reverse("customers:login"), {"phone": "09121115566", "password": "StrongPass123"})
+        self.client.post(reverse("customers:login"), {"identifier": "09121115566", "password": "StrongPass123"})
         cart = Cart.objects.get(customer=self.user.customer_profile)
         self.assertEqual(cart.items.first().quantity, 3)
+
+    def test_ambiguous_email_shared_by_two_customers_never_authenticates(self):
+        """Customer.email has no uniqueness constraint - a shared email must
+        be treated as ambiguous (generic failure), never guessed."""
+        other_user = User.objects.create_user(username="09121115577", password="OtherPass123")
+        Customer.objects.create(
+            user=other_user, full_name="دیگری", phone="09121115577", email="shared@example.com",
+        )
+        self.user.customer_profile.email = "shared@example.com"
+        self.user.customer_profile.save(update_fields=["email"])
+        response = self.client.post(reverse("customers:login"), {
+            "identifier": "shared@example.com", "password": "StrongPass123",
+        })
+        self.assertNotIn("HX-Refresh", response.headers)
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_remember_me_unchecked_expires_at_browser_close(self):
+        self.client.post(reverse("customers:login"), {"identifier": "09121115566", "password": "StrongPass123"})
+        self.assertTrue(self.client.session.get_expire_at_browser_close())
+
+    def test_remember_me_checked_uses_persistent_expiry(self):
+        self.client.post(
+            reverse("customers:login"),
+            {"identifier": "09121115566", "password": "StrongPass123", "remember_me": "on"},
+        )
+        self.assertFalse(self.client.session.get_expire_at_browser_close())
+        self.assertGreater(self.client.session.get_expiry_age(), 60 * 60 * 24)
 
 
 class LogoutViewTests(TestCase):
@@ -154,6 +190,28 @@ class OtpLoginViewTests(TestCase):
         self.client.post(reverse("customers:otp-login"), {"phone": "09121118899", "code": otp.code})
         cart = Cart.objects.get(customer=self.user.customer_profile)
         self.assertEqual(cart.items.first().quantity, 1)
+
+    def test_remember_me_choice_survives_the_request_to_verify_transition(self):
+        """The real page carries remember_me forward via a hidden field
+        rendered into the "verify" stage partial (see otp_login_body.html) -
+        the test client doesn't render HTML, so it must submit that same
+        hidden value explicitly to simulate what a real browser would send."""
+        response = self.client.post(
+            reverse("customers:otp-request"), {"phone": "09121118899", "remember_me": "on"},
+        )
+        self.assertContains(response, 'name="remember_me" value="on"')
+        otp = OtpCode.objects.get(phone="09121118899")
+        self.client.post(
+            reverse("customers:otp-login"), {"phone": "09121118899", "code": otp.code, "remember_me": "on"},
+        )
+        self.assertFalse(self.client.session.get_expire_at_browser_close())
+        self.assertGreater(self.client.session.get_expiry_age(), 60 * 60 * 24)
+
+    def test_unchecked_remember_me_expires_at_browser_close(self):
+        self.client.post(reverse("customers:otp-request"), {"phone": "09121118899"})
+        otp = OtpCode.objects.get(phone="09121118899")
+        self.client.post(reverse("customers:otp-login"), {"phone": "09121118899", "code": otp.code})
+        self.assertTrue(self.client.session.get_expire_at_browser_close())
 
 
 class HeaderAuthStateTests(TestCase):

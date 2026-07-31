@@ -16,18 +16,44 @@ class PhoneCleanMixin:
             raise forms.ValidationError(exc.messages[0] if exc.messages else str(exc)) from exc
 
 
-class LoginForm(PhoneCleanMixin, forms.Form):
-    phone = forms.CharField(label="شماره موبایل", max_length=15)
-    password = forms.CharField(label="رمز عبور", widget=forms.PasswordInput)
+class LoginForm(forms.Form):
+    """فرمِ کانونیکالِ ورودِ مشتری با رمز عبور — شناسه می‌تواند ایمیل یا
+    شماره موبایل باشد (یکپارچه‌سازیِ احرازِ هویت)."""
+
+    identifier = forms.CharField(
+        label="ایمیل یا شماره موبایل", max_length=150,
+        widget=forms.TextInput(attrs={"autocomplete": "username", "dir": "ltr"}),
+    )
+    password = forms.CharField(
+        label="رمز عبور", widget=forms.PasswordInput(attrs={"autocomplete": "current-password"}),
+    )
+    remember_me = forms.BooleanField(label="مرا به خاطر بسپار", required=False)
+
+    def clean_identifier(self):
+        value = normalize_digits(self.cleaned_data.get("identifier") or "").strip()
+        if "@" in value:
+            return value
+        try:
+            return normalize_iranian_phone(value)
+        except InvalidPhoneError as exc:
+            raise forms.ValidationError(exc.messages[0] if exc.messages else str(exc)) from exc
 
 
 class OtpRequestForm(PhoneCleanMixin, forms.Form):
-    phone = forms.CharField(label="شماره موبایل", max_length=15)
+    phone = forms.CharField(
+        label="شماره موبایل", max_length=15,
+        widget=forms.TextInput(attrs={"autocomplete": "tel", "dir": "ltr"}),
+    )
+    remember_me = forms.BooleanField(label="مرا به خاطر بسپار", required=False)
 
 
 class OtpVerifyForm(PhoneCleanMixin, forms.Form):
     phone = forms.CharField(label="شماره موبایل", max_length=15, widget=forms.HiddenInput)
-    code = forms.CharField(label="کد تأیید", max_length=6)
+    code = forms.CharField(
+        label="کد تأیید", max_length=6,
+        widget=forms.TextInput(attrs={"autocomplete": "one-time-code", "inputmode": "numeric"}),
+    )
+    remember_me = forms.BooleanField(widget=forms.HiddenInput, required=False)
 
 
 class SignupForm(PhoneCleanMixin, forms.Form):

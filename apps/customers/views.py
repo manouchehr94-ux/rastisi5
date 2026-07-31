@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.catalog.models import Product
+from apps.core.services import session_service
 from apps.orders.models import Order
 from apps.sms.services import otp_service
 from apps.stores.resolution import resolve_store_for_service
@@ -13,6 +14,8 @@ from apps.stores.resolution import resolve_store_for_service
 from .forms import AddressForm, LoginForm, OtpRequestForm, OtpVerifyForm, ProfileForm, SignupForm
 from .models import Address, Customer, Wishlist
 from .services import auth_service
+
+_OTP_REMEMBER_SESSION_KEY = "customers_otp_remember_me"
 
 
 def _can_use_wishlist(request):
@@ -78,18 +81,19 @@ def _auth_forms_context(*, login_form=None, signup_form=None, active_tab="in"):
 def login_view(request):
     form = LoginForm(request.POST)
     if form.is_valid():
-        user = auth_service.authenticate_customer(
-            request, phone=form.cleaned_data["phone"], password=form.cleaned_data["password"]
+        user = auth_service.authenticate_customer_by_identifier(
+            request, identifier=form.cleaned_data["identifier"], password=form.cleaned_data["password"]
         )
         if user is not None:
             # ادغام سبد مهمان باید پیش از auth_login انجام شود چون login()
             # برای جلوگیری از session fixation، کلید session را عوض می‌کند.
             auth_service.merge_guest_cart(request, user.customer_profile)
             auth_login(request, user)
+            session_service.apply_remember_me(request, form.cleaned_data.get("remember_me", False))
             response = render(request, "customers/partials/auth_forms.html", _auth_forms_context())
             response["HX-Refresh"] = "true"
             return response
-        form.add_error(None, "شماره موبایل یا رمز عبور اشتباه است")
+        form.add_error(None, auth_service.GENERIC_LOGIN_ERROR)
 
     response = render(
         request, "customers/partials/auth_forms.html",
@@ -130,13 +134,14 @@ def signup_view(request):
     return response
 
 
-def _otp_login_context(*, stage="request", phone="", error="", request_form=None, verify_form=None):
+def _otp_login_context(*, stage="request", phone="", error="", remember_me=False, request_form=None, verify_form=None):
     return {
         "otp_stage": stage,
         "phone": phone,
         "otp_error": error,
+        "remember_me": remember_me,
         "otp_request_form": request_form or OtpRequestForm(),
-        "otp_verify_form": verify_form or OtpVerifyForm(initial={"phone": phone}),
+        "otp_verify_form": verify_form or OtpVerifyForm(initial={"phone": phone, "remember_me": remember_me}),
     }
 
 
@@ -151,6 +156,7 @@ def otp_request_view(request):
     form = OtpRequestForm(request.POST)
     if form.is_valid():
         phone = form.cleaned_data["phone"]
+        remember_me = form.cleaned_data.get("remember_me", False)
         if not Customer.objects.filter(phone=phone).exists():
             form.add_error("phone", "حسابی با این شماره موبایل یافت نشد")
         else:
@@ -161,7 +167,7 @@ def otp_request_view(request):
             else:
                 return render(
                     request, "customers/partials/otp_login_body.html",
-                    _otp_login_context(stage="verify", phone=phone),
+                    _otp_login_context(stage="verify", phone=phone, remember_me=remember_me),
                 )
 
     return render(
@@ -181,12 +187,13 @@ def otp_login_view(request):
         )
 
     phone = form.cleaned_data["phone"]
+    remember_me = form.cleaned_data.get("remember_me", False)
     try:
         otp_service.verify_otp(phone, form.cleaned_data["code"])
     except otp_service.OtpInvalidError as exc:
         return render(
             request, "customers/partials/otp_login_body.html",
-            _otp_login_context(stage="verify", phone=phone, error=str(exc)),
+            _otp_login_context(stage="verify", phone=phone, remember_me=remember_me, error=str(exc)),
         )
 
     customer = Customer.objects.filter(phone=phone).select_related("user").first()
@@ -199,6 +206,7 @@ def otp_login_view(request):
     # ادغام سبد مهمان باید پیش از auth_login انجام شود چون login() کلید session را عوض می‌کند.
     auth_service.merge_guest_cart(request, customer)
     auth_login(request, customer.user)
+    session_service.apply_remember_me(request, remember_me)
     response = render(request, "customers/partials/auth_forms.html", _auth_forms_context())
     response["HX-Refresh"] = "true"
     return response

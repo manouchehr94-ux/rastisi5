@@ -18,6 +18,7 @@ from django.db import transaction
 from django.utils.crypto import get_random_string
 
 from apps.cart.models import Cart
+from apps.core.phone import InvalidPhoneError, normalize_iranian_phone
 from apps.customers.models import Customer
 from apps.sms.events import SmsEvent
 from apps.sms.services.sms_service import send_event_sms
@@ -25,6 +26,10 @@ from apps.sms.services.sms_service import send_event_sms
 User = get_user_model()
 
 GUEST_PASSWORD_LENGTH = 24
+
+#: پیامِ عمومیِ خطایِ ورود — یکپارچه‌سازیِ احرازِ هویت: هرگز فاش نمی‌کند
+#: شناسه (ایمیل/موبایل) وجود دارد یا رمز نادرست بوده.
+GENERIC_LOGIN_ERROR = "اطلاعات ورود صحیح نیست."
 
 
 class AuthError(Exception):
@@ -72,6 +77,38 @@ def authenticate_customer(request, *, phone: str, password: str):
     customer = Customer.objects.select_related("user").filter(phone=phone).first()
     if customer is None:
         return None
+    return authenticate(request, username=customer.user.username, password=password)
+
+
+def _looks_like_email(identifier: str) -> bool:
+    return "@" in (identifier or "")
+
+
+def authenticate_customer_by_identifier(request, *, identifier: str, password: str):
+    """احرازِ هویتِ یکپارچه — شناسه می‌تواند ایمیل یا شماره موبایل باشد
+    (یکپارچه‌سازیِ احرازِ هویت). ``Customer.phone`` یکتاست، اما ``Customer.
+    email`` نه — پس اگر بیش از یک مشتری همان ایمیل را داشته باشد (یا هیچ‌
+    کدام)، این تابع صادقانه ``None`` برمی‌گرداند (ابهام هرگز حدس زده
+    نمی‌شود)، دقیقاً مثلِ شناسه‌ی ناموجود یا رمزِ نادرست — هیچ‌کدام از
+    بیرون قابلِ تشخیص نیست."""
+    identifier = (identifier or "").strip()
+    if not identifier or not password:
+        return None
+
+    if _looks_like_email(identifier):
+        matches = list(Customer.objects.select_related("user").filter(email__iexact=identifier)[:2])
+        if len(matches) != 1:
+            return None
+        customer = matches[0]
+    else:
+        try:
+            phone = normalize_iranian_phone(identifier)
+        except InvalidPhoneError:
+            return None
+        customer = Customer.objects.select_related("user").filter(phone=phone).first()
+        if customer is None:
+            return None
+
     return authenticate(request, username=customer.user.username, password=password)
 
 
