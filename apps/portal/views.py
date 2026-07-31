@@ -12,7 +12,8 @@ from django.conf import settings
 
 from apps.catalog.models import IndustryTemplate
 from apps.stores.models import Store, StoreMembership
-from apps.subscriptions.models import Plan, PlanVersion
+from apps.subscriptions.models import Plan, PlanVersion, PlatformInvoice, PlatformPaymentAttempt
+from apps.subscriptions.services import billing_service
 
 from .decorators import owner_required
 from .forms import (
@@ -652,3 +653,94 @@ def store_created(request, store_public_id):
     if trial_domain is None:
         raise Http404
     return render(request, "portal/app/store_created.html", {"store": store, "trial_domain": trial_domain})
+
+
+# ---------------------------------------------------------------------------
+# Platform billing — subscription purchase (Section 8/9)
+# ---------------------------------------------------------------------------
+#
+# NOTE (honest limitation, not hidden): only the "dev" payment provider is
+# actually implemented (apps.subscriptions.services.payment_providers) — a
+# same-app fake "bank page" the owner clicks through, no real gateway
+# integration exists yet. Checkout below always uses "dev" directly rather
+# than reading PlatformConfiguration.default_payment_provider/
+# enabled_payment_providers (whose default, "manual", has no real provider
+# behind it) — wiring true multi-provider selection is future work.
+#
+# Also not yet wired here: Section 10's step-up OTP re-confirmation before a
+# purchase (PlatformConfiguration.step_up_actions already lists
+# "subscription_purchase", but nothing on this path enforces it yet).
+
+
+@owner_required
+def billing_plans(request, store_public_id):
+    """فهرستِ پلن‌هایِ پولیِ قابلِ‌خرید برایِ این Store — فقط نسخه‌هایِ
+    منتشرشده و پولی (Section 9)."""
+    store = _get_owned_store_or_404(request, store_public_id)
+    current_subscription = store.subscriptions.filter(is_current=True).first()
+
+    offerable_versions = []
+    for plan in Plan.objects.filter(is_active=True, is_publicly_selectable=True).order_by("display_order"):
+        version = (
+            plan.versions.filter(status=PlanVersion.Status.PUBLISHED)
+            .exclude(billing_interval=PlanVersion.BillingInterval.NONE)
+            .filter(display_price__gt=0)
+            .order_by("-version_number")
+            .first()
+        )
+        if version is not None:
+            offerable_versions.append(version)
+
+    return render(request, "portal/app/billing_plans.html", {
+        "store": store, "plan_versions": offerable_versions, "current_subscription": current_subscription,
+    })
+
+
+@owner_required
+@require_POST
+def billing_checkout(request, store_public_id, plan_version_id):
+    """فاکتور می‌سازد، تلاشِ پرداخت را با درگاهِ dev/test شروع می‌کند، و به
+    صفحه‌ی همان درگاه هدایت می‌کند."""
+    store = _get_owned_store_or_404(request, store_public_id)
+    plan_version = get_object_or_404(PlanVersion, pk=plan_version_id, status=PlanVersion.Status.PUBLISHED)
+    try:
+        invoice = billing_service.create_invoice(store=store, plan_version=plan_version, actor=request.user)
+        _attempt, redirect_url = billing_service.start_payment_attempt(invoice=invoice, provider_code="dev")
+    except billing_service.BillingError as exc:
+        messages.error(request, str(exc))
+        return redirect("portal:billing-plans", store_public_id=store.public_id)
+    return redirect(redirect_url)
+
+
+@owner_required
+def billing_dev_provider(request, attempt_public_id):
+    """صفحه‌ی «بانکِ جعلیِ» درگاهِ dev/test — هرگز تراکنشِ واقعی ندارد؛ مالک
+    آشکارا «پرداختِ موفق» یا «پرداختِ ناموفق» را انتخاب می‌کند. تلاشی که به
+    وضعیتِ نهایی رسیده، مستقیماً به صفحه‌ی نتیجه هدایت می‌شود — دوباره قابلِ
+    ارسال نیست (بازپخش‌امن، نگاه کنید به ``billing_service.confirm_payment_attempt``)."""
+    attempt = get_object_or_404(
+        PlatformPaymentAttempt.objects.select_related("invoice", "invoice__store"), public_id=attempt_public_id,
+    )
+    store = attempt.invoice.store
+    has_membership = StoreMembership.objects.filter(
+        store=store, user=request.user, status=StoreMembership.MembershipStatus.ACTIVE,
+    ).exists()
+    if not has_membership:
+        raise Http404
+
+    if attempt.is_final:
+        return redirect("portal:billing-return", store_public_id=store.public_id, invoice_public_id=attempt.invoice.public_id)
+
+    if request.method == "POST":
+        success = request.POST.get("action") == "pay"
+        billing_service.confirm_payment_attempt(attempt=attempt, success=success, actor=request.user)
+        return redirect("portal:billing-return", store_public_id=store.public_id, invoice_public_id=attempt.invoice.public_id)
+
+    return render(request, "portal/app/billing_dev_provider.html", {"attempt": attempt, "invoice": attempt.invoice})
+
+
+@owner_required
+def billing_return(request, store_public_id, invoice_public_id):
+    store = _get_owned_store_or_404(request, store_public_id)
+    invoice = get_object_or_404(PlatformInvoice, public_id=invoice_public_id, store=store)
+    return render(request, "portal/app/billing_return.html", {"store": store, "invoice": invoice})

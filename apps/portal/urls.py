@@ -46,4 +46,18 @@ urlpatterns = [
     ),
     path("app/stores/<uuid:store_public_id>/created/", views.store_created, name="store-created"),
     path("app/stores/<uuid:store_public_id>/enter-admin/", views.enter_admin, name="enter-admin"),
+    # Platform billing — subscription purchase (Section 8/9)
+    path("app/stores/<uuid:store_public_id>/billing/", views.billing_plans, name="billing-plans"),
+    path(
+        "app/stores/<uuid:store_public_id>/billing/checkout/<int:plan_version_id>/",
+        views.billing_checkout, name="billing-checkout",
+    ),
+    path(
+        "billing/dev-provider/<str:attempt_public_id>/",
+        views.billing_dev_provider, name="billing-dev-provider",
+    ),
+    path(
+        "app/stores/<uuid:store_public_id>/billing/invoices/<str:invoice_public_id>/",
+        views.billing_return, name="billing-return",
+    ),
 ]

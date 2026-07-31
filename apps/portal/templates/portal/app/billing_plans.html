@@ -1,0 +1,33 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}خریدِ اشتراک | راستیسی{% endblock %}
+{% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<div class="p-wrap">
+<div class="p-form-card" style="max-width:560px">
+  <h2 style="text-align:center;margin-bottom:8px">پلن‌های راستیسی</h2>
+  {% if current_subscription %}
+  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px">
+    اشتراکِ فعلی: {{ current_subscription.plan_version.plan.public_title|default:current_subscription.plan_version.plan.name }}
+    ({{ current_subscription.get_status_display }})
+  </p>
+  {% endif %}
+  {% if messages %}{% for message in messages %}<div class="p-alert p-alert-error">{{ message }}</div>{% endfor %}{% endif %}
+  <div style="display:grid;gap:12px">
+    {% for version in plan_versions %}
+    <div style="border:1px solid var(--p-line);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div>
+        <div style="font-weight:600">{{ version.plan.public_title|default:version.plan.name }}</div>
+        <div style="font-size:12px;color:var(--p-muted)">{{ version.display_price }} تومان / {{ version.get_billing_interval_display }}</div>
+      </div>
+      <form method="post" action="{% url 'portal:billing-checkout' store.public_id version.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="p-btn p-btn-primary">خرید</button>
+      </form>
+    </div>
+    {% empty %}
+    <p style="text-align:center;font-size:13px;color:var(--p-muted)">در حال حاضر پلنِ پولیِ قابلِ‌خریدی موجود نیست.</p>
+    {% endfor %}
+  </div>
+</div>
+</div>
+{% endblock %}
