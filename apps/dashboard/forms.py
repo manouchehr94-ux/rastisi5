@@ -344,29 +344,27 @@ class FinanceSettingsForm(NumericCleanMixin, forms.Form):
 
 
 class SmsConnectionForm(forms.Form):
+    """تنظیماتِ پیامکِ قابلِ‌مشاهده‌یِ Store — زیرساختِ ارسال (ارائه‌دهنده،
+    کلیدِ API، شماره‌ی فرستنده) دیگر اینجا نیست؛ آن‌ها فقط از Platform Admin
+    پیکربندی می‌شوند (نگاه کنید به ``apps.portal.forms.PlatformConfigurationForm``).
+    تنها انتخابِ باقی‌مانده برایِ Store این است که از درگاهِ مرکزیِ پلتفرم
+    استفاده کند (پیش‌فرض) یا گیت‌وی اندرویدِ اختصاصیِ خودش (SmsRasti) را
+    به‌جایِ آن به‌کار ببرد — چون آن دستگاه، برخلافِ بقیه، متعلق به خودِ
+    Store است، نه زیرساختِ پلتفرم."""
+
     sms_enabled = forms.BooleanField(label="فعال‌سازی سیستم پیامک", required=False)
     sms_backend = forms.ChoiceField(
-        label="درگاه پیامک", choices=ShopSettings.SmsBackend.choices, widget=forms.Select(attrs={"class": "inp"})
+        label="روشِ ارسال",
+        choices=[
+            (ShopSettings.SmsBackend.CONSOLE, "درگاهِ مرکزیِ پلتفرم (پیش‌فرض)"),
+            (ShopSettings.SmsBackend.SMSRASTI, "دستگاهِ اسمس‌راستیِ اختصاصیِ من (پیشرفته)"),
+        ],
+        widget=forms.Select(attrs={"class": "inp"}),
     )
-    sms_sender_number = forms.CharField(
-        label="شماره‌ی فرستنده", max_length=20, required=False, widget=forms.TextInput(attrs={"class": "inp", "dir": "ltr"})
-    )
-    melipayamak_username = forms.CharField(
-        label="نام کاربری ملی‌پیامک", max_length=100, required=False,
-        widget=forms.TextInput(attrs={"class": "inp", "dir": "ltr"}),
-    )
-    # عمداً هرگز مقدارِ ذخیره‌شده به این دو فیلد پیش‌فرض داده نمی‌شود
-    # (render_value=False، پیش‌فرضِ PasswordInput) — یک رمز/کلیدِ واقعی
-    # هرگز نباید در HTML صفحه‌ی تنظیمات بازتاب داده شود؛ خالی‌ماندن یعنی
-    # «بدونِ تغییر» (نگاه کنید به views.settings_sms_connection).
-    melipayamak_password = forms.CharField(
-        label="رمز عبور ملی‌پیامک", max_length=100, required=False,
-        widget=forms.PasswordInput(attrs={"class": "inp", "dir": "ltr", "placeholder": "برای تغییر وارد کنید"}),
-    )
-    kavenegar_api_key = forms.CharField(
-        label="کلید API کاوه‌نگار", max_length=100, required=False,
-        widget=forms.PasswordInput(attrs={"class": "inp", "dir": "ltr", "placeholder": "برای تغییر وارد کنید"}),
-    )
+
+
+class SmsPackagePurchaseForm(forms.Form):
+    package_id = forms.IntegerField(widget=forms.HiddenInput)
 
 
 class SmsTemplateForm(forms.Form):

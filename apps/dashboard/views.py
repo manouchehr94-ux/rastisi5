@@ -185,7 +185,8 @@ from apps.orders.services.return_service import (
     review_return_request,
 )
 from apps.sms.events import EVENT_VARIABLES
-from apps.sms.models import SmsTemplate
+from apps.sms.models import SmsPackage, SmsPackagePurchase, SmsTemplate
+from apps.sms.services import balance_service
 from apps.sms.services.sms_service import (
     RetryNotEligibleError,
     SmsTemplateError,
@@ -273,6 +274,7 @@ from .forms import (
     ProductOptionValueAddForm,
     ShopInfoForm,
     SmsConnectionForm,
+    SmsPackagePurchaseForm,
     SmsTemplateForm,
     SmsTestForm,
     SubCategoryForm,
@@ -2487,15 +2489,14 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
         }),
         "sms_form": sms_form or SmsConnectionForm(initial={
             "sms_enabled": shop.sms_enabled, "sms_backend": shop.sms_backend,
-            "sms_sender_number": shop.sms_sender_number,
-            "melipayamak_username": shop.melipayamak_username,
-            # عمداً مقدارِ واقعیِ رمز/کلید اینجا گذاشته نمی‌شود — این دو فیلد
-            # همیشه خالی رندر می‌شوند؛ ``*_is_configured`` برایِ نمایشِ
-            # وضعیت («قبلاً تنظیم شده») بدونِ افشایِ مقدار استفاده می‌شود.
         }),
-        "melipayamak_password_is_configured": bool(shop.melipayamak_password),
-        "kavenegar_api_key_is_configured": bool(shop.kavenegar_api_key),
         "smsrasti_device_token": shop.smsrasti_device_token,
+        "sms_balance": balance_service.get_or_create_balance(store=store),
+        "sms_packages": balance_service.list_active_packages(),
+        "sms_package_purchase_form": SmsPackagePurchaseForm(),
+        "sms_pending_purchases": store.sms_package_purchases.filter(
+            status=SmsPackagePurchase.Status.PENDING
+        ).select_related("package"),
         "visual_form": visual_form or VisualIdentityForm(current_shop=shop, initial=theme_values),
         "theme_presets": THEME_PRESETS,
         "selected_preset_key": matching_preset_key(
@@ -2801,21 +2802,32 @@ def settings_sms_connection(request):
     form = SmsConnectionForm(request.POST)
     if form.is_valid():
         shop = ShopSettings.load(store=request.store)
-        for field in ["sms_enabled", "sms_backend", "sms_sender_number", "melipayamak_username"]:
+        for field in ["sms_enabled", "sms_backend"]:
             setattr(shop, field, form.cleaned_data[field])
-        # این دو فیلد write-only اند (فرم هرگز مقدارِ ذخیره‌شده را echo
-        # نمی‌کند) — خالی‌ماندنشان یعنی «بدونِ تغییر»، نه «پاک‌کردن».
-        for secret_field in ["melipayamak_password", "kavenegar_api_key"]:
-            new_value = form.cleaned_data[secret_field]
-            if new_value:
-                setattr(shop, secret_field, new_value)
         shop.save()
-        messages.success(request, "تنظیمات اتصال پیامک ذخیره شد")
+        messages.success(request, "تنظیمات پیامک ذخیره شد")
         return redirect("/admin-portal/settings/?section=sms")
     context = _settings_context(request, sms_form=form)
     context["sections"] = SETTINGS_SECTIONS
     context["active_section"] = "sms"
     return render(request, "dashboard/settings.html", context)
+
+
+@require_POST
+@staff_required
+@permission_required(SMS_SETTINGS_MANAGE)
+def settings_sms_package_purchase(request):
+    """درخواستِ خریدِ یک بستهِ اعتبارِ پیامک را با وضعیتِ «در انتظار» ثبت
+    می‌کند — اعتبار فقط پس از تکمیلِ آن از Platform Admin افزوده می‌شود
+    (نگاه کنید به ``apps.sms.services.balance_service``)."""
+    form = SmsPackagePurchaseForm(request.POST)
+    if form.is_valid():
+        package = get_object_or_404(SmsPackage, pk=form.cleaned_data["package_id"], is_active=True)
+        balance_service.request_purchase(store=_resolve_dashboard_store(request), package=package)
+        messages.success(request, "درخواستِ خرید ثبت شد؛ پس از تأیید، اعتبار به حساب شما افزوده می‌شود")
+    else:
+        messages.error(request, "بسته‌ی انتخاب‌شده نامعتبر است")
+    return redirect("/admin-portal/settings/?section=sms")
 
 
 @require_POST

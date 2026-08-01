@@ -16,7 +16,7 @@ from apps.core.models import ShopSettings
 
 from ..events import EVENT_VARIABLES, SmsEvent
 from ..models import SmsLog, SmsOutboxItem, SmsTemplate
-from .backends import ConsoleBackend, KavenegarBackend, MelipayamakBackend, SmsBackend, SmsRastiBackend
+from .backends import SmsBackend, SmsRastiBackend
 
 logger = logging.getLogger(__name__)
 
@@ -41,22 +41,20 @@ def validate_template_body(event_key: str, body: str) -> None:
 
 
 def get_backend(*, store) -> SmsBackend:
-    """بر اساس ShopSettings.sms_backend همان Store، پیاده‌سازی درست را می‌سازد."""
+    """درگاهِ ارسالِ این Store را می‌سازد.
+
+    زیرساختِ ارسال (ارائه‌دهنده/کلید/شماره‌ی فرستنده) دیگر Store-scoped
+    نیست — همان درگاهِ مرکزیِ پلتفرم استفاده می‌شود (نگاه کنید به
+    ``apps.portal.services.owner_sms_service.get_platform_sms_backend``)،
+    مگر وقتی Store گیت‌وی اندرویدِ SmsRasti (دستگاهِ فیزیکیِ خودش) را صریحاً
+    انتخاب کرده باشد — تنها استثنا، چون آن دستگاه زیرساختِ پلتفرم نیست."""
     shop = ShopSettings.load(store=store)
-    if shop.sms_backend == ShopSettings.SmsBackend.MELIPAYAMAK:
-        return MelipayamakBackend(
-            username=shop.melipayamak_username,
-            password=shop.melipayamak_password,
-            sender=shop.sms_sender_number,
-        )
-    if shop.sms_backend == ShopSettings.SmsBackend.KAVENEGAR:
-        return KavenegarBackend(
-            api_key=shop.kavenegar_api_key,
-            sender=shop.sms_sender_number,
-        )
     if shop.sms_backend == ShopSettings.SmsBackend.SMSRASTI:
         return SmsRastiBackend(store=store, device_token=shop.smsrasti_device_token or "")
-    return ConsoleBackend()
+
+    from apps.portal.services.owner_sms_service import get_platform_sms_backend
+
+    return get_platform_sms_backend()
 
 
 def regenerate_smsrasti_device_token(*, store) -> str:
@@ -96,6 +94,9 @@ def _dispatch(*, event_key: str, phone: str, message: str, store) -> SmsLog:
         log.status = SmsLog.Status.SENT
         log.provider_ref_id = result.provider_ref_id
         log.sent_at = timezone.now()
+        from .balance_service import deduct_credit
+
+        deduct_credit(store=store)
     else:
         log.status = SmsLog.Status.FAILED
         log.error_message = result.error_message

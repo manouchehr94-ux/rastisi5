@@ -44,9 +44,17 @@ class ShopSettings(TimeStampedModel):
 
     ``store`` یک ``OneToOneField`` است: دقیقاً یک ``ShopSettings`` به ازای هر
     Store، نه یک رکورد تکی برای کل پلتفرم. برندینگ/تم (رنگ‌ها، لوگو، فاوآیکون)
-    و اطلاعات اتصال پیامک عمداً همچنان همین‌جا هستند — جداسازی این حوزه‌ها به
-    مدل‌های اختصاصی یک تصمیم معماری جداگانه‌ی بعدی است، نه بخشی از این مرحله
-    (نگاه کنید به ``docs/architecture/SAAS_DOMAIN_DECISIONS.md`` ADR-10).
+    عمداً همچنان همین‌جا هستند — جداسازی این حوزه به مدل‌های اختصاصی یک
+    تصمیم معماری جداگانه‌ی بعدی است، نه بخشی از این مرحله (نگاه کنید به
+    ``docs/architecture/SAAS_DOMAIN_DECISIONS.md`` ADR-10).
+
+    فیلدهای زیرساختِ پیامک (``sms_backend``/``melipayamak_*``/
+    ``kavenegar_api_key``) به دلایلِ سازگاریِ عقب‌رو (migration بدون تغییرِ
+    schema) هنوز همین‌جا تعریف شده‌اند، اما دیگر منبعِ واقعیِ اعتبارنامه
+    نیستند — ``apps.sms.services.sms_service.get_backend`` این‌ها را
+    نادیده می‌گیرد (به‌جز مقدارِ ``SMSRASTI``، دستگاهِ خودِ Store) و به‌جایش
+    از ``apps.portal.models.PlatformConfiguration`` (رمزنگاری‌شده) می‌خواند؛
+    نگاه کنید به گزارشِ «جداسازیِ تنظیماتِ پیامک» برایِ دلیلِ کامل.
     """
 
     store = models.OneToOneField(

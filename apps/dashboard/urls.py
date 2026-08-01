@@ -129,6 +129,7 @@ urlpatterns = [
     path("settings/gateway-config/<str:gateway_code>/toggle/", views.settings_gateway_config_toggle, name="settings-gateway-config-toggle"),
 
     path("settings/sms/connection/", views.settings_sms_connection, name="settings-sms-connection"),
+    path("settings/sms/package/purchase/", views.settings_sms_package_purchase, name="settings-sms-package-purchase"),
     path(
         "settings/sms/smsrasti/regenerate-token/",
         views.settings_smsrasti_regenerate_token, name="settings-smsrasti-regenerate-token",

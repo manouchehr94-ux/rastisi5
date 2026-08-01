@@ -110,6 +110,85 @@ class SmsOutboxItem(TimeStampedModel):
         return f"{self.phone} ({self.get_status_display()})"
 
 
+class SmsBalance(TimeStampedModel):
+    """اعتبارِ باقی‌مانده‌ی پیامکِ هر Store — منبعِ واحدِ حقیقتِ «چند پیامک
+    دیگر می‌تواند بفرستد». هر ارسالِ موفق یک واحد کم می‌کند (نگاه کنید به
+    ``apps.sms.services.balance_service``)؛ اعتبار فقط با تکمیلِ یک
+    ``SmsPackagePurchase`` افزوده می‌شود.
+
+    فعلاً کسری‌شدنِ اعتبار به صفر مانعِ ارسالِ واقعی نمی‌شود (فقط برای
+    گزارش‌دهی/شفافیت ردیابی می‌شود) — قطعِ واقعیِ ارسال روی اعتبارِ صفر یک
+    تصمیمِ محصولی جداگانه است که هنوز گرفته نشده (نگاه کنید به یادداشتِ
+    TODO در ``apps.sms.services.balance_service.deduct_credit``)."""
+
+    store = models.OneToOneField(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="sms_balance",
+    )
+    credits = models.IntegerField("اعتبارِ باقی‌مانده", default=0)
+
+    class Meta:
+        verbose_name = "اعتبارِ پیامکِ فروشگاه"
+        verbose_name_plural = "اعتبارهایِ پیامکِ فروشگاه"
+
+    def __str__(self):
+        return f"{self.store.name} — {self.credits} اعتبار"
+
+
+class SmsPackage(TimeStampedModel):
+    """بسته‌ی خریدِ اعتبارِ پیامک — تعریف‌شده و مدیریت‌شده توسطِ مالکِ پلتفرم
+    (Django Admin، فقط superuser)، نه Store. فروشگاه‌ها فقط بسته‌هایِ
+    ``is_active=True`` را در تنظیماتِ پیامکِ خودشان می‌بینند و می‌خرند."""
+
+    name = models.CharField("نام بسته", max_length=100)
+    credit_amount = models.PositiveIntegerField("تعدادِ اعتبار")
+    price = models.DecimalField("قیمت (تومان)", max_digits=12, decimal_places=0)
+    is_active = models.BooleanField("فعال", default=True)
+    display_order = models.PositiveIntegerField("ترتیبِ نمایش", default=0)
+
+    class Meta:
+        verbose_name = "بسته‌ی پیامک"
+        verbose_name_plural = "بسته‌های پیامک"
+        ordering = ["display_order", "credit_amount"]
+
+    def __str__(self):
+        return f"{self.name} ({self.credit_amount} اعتبار)"
+
+
+class SmsPackagePurchase(TimeStampedModel):
+    """رکوردِ درخواستِ خریدِ یک بسته توسطِ یک Store.
+
+    ``PENDING`` یعنی درخواست ثبت شده اما هنوز اعتباری افزوده نشده —
+    تکمیلِ واقعیِ پرداخت و افزودنِ اعتبار فقط از مسیرِ Platform Admin
+    (``apps.sms.services.balance_service.complete_purchase``) انجام
+    می‌شود، نه خودکار در لحظه‌ی ثبتِ درخواست (اتصالِ کاملِ درگاهِ پرداخت
+    برایِ خریدِ بسته هنوز پیاده‌سازی نشده — نگاه کنید به یادداشتِ TODO در
+    گزارشِ نهایی)."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "در انتظارِ تکمیل"
+        COMPLETED = "completed", "تکمیل‌شده"
+        CANCELED = "canceled", "لغوشده"
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="sms_package_purchases",
+    )
+    package = models.ForeignKey(
+        SmsPackage, verbose_name="بسته", on_delete=models.PROTECT, related_name="purchases",
+    )
+    credit_amount = models.PositiveIntegerField("تعدادِ اعتبار (اسنپ‌شات)")
+    price = models.DecimalField("قیمت (اسنپ‌شات، تومان)", max_digits=12, decimal_places=0)
+    status = models.CharField("وضعیت", max_length=10, choices=Status.choices, default=Status.PENDING)
+    completed_at = models.DateTimeField("زمانِ تکمیل", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "خریدِ بسته‌ی پیامک"
+        verbose_name_plural = "خریدهایِ بسته‌ی پیامک"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.store.name} ← {self.package.name} ({self.get_status_display()})"
+
+
 class OtpCode(TimeStampedModel):
     """کد یکبار مصرف پیامکی — برای ورود و تأیید شماره موبایل در خرید مهمان.
 

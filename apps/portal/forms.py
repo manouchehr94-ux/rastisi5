@@ -76,6 +76,24 @@ class CreateStoreForm(forms.Form):
 
 
 class PlatformConfigurationForm(forms.ModelForm):
+    # اعتبارنامه‌های پیامک فیلدهایِ مدل نیستند (داخلِ
+    # ``encrypted_sms_credentials`` رمزنگاری‌شده ذخیره می‌شوند) — اینجا
+    # صراحتاً به‌صورتِ فیلدِ اضافیِ فرم اعلام شده‌اند، write-only مثلِ
+    # ``dashboard.forms.SmsConnectionForm`` (هرگز مقدارِ ذخیره‌شده echo
+    # نمی‌شود؛ خالی‌ماندن یعنی «بدونِ تغییر»، نه «پاک‌کردن» — نگاه کنید به
+    # ``platform_admin_views.configuration``).
+    sms_melipayamak_username = forms.CharField(
+        label="نام کاربری ملی‌پیامک", max_length=100, required=False,
+    )
+    sms_melipayamak_password = forms.CharField(
+        label="رمز عبور ملی‌پیامک", max_length=100, required=False,
+        widget=forms.PasswordInput(render_value=False, attrs={"placeholder": "برای تغییر وارد کنید"}),
+    )
+    sms_kavenegar_api_key = forms.CharField(
+        label="کلید API کاوه‌نگار", max_length=100, required=False,
+        widget=forms.PasswordInput(render_value=False, attrs={"placeholder": "برای تغییر وارد کنید"}),
+    )
+
     class Meta:
         from .models import PlatformConfiguration
 
@@ -86,6 +104,7 @@ class PlatformConfigurationForm(forms.ModelForm):
             "temporary_logo_text", "logo",
             "support_contact_phone", "support_contact_email",
             "default_payment_provider",
+            "sms_backend", "sms_sender_number",
         ]
 
     def clean_deletion_retention_days(self):
