@@ -999,4 +999,8 @@ class SettingsPageQueryPerformanceTests(SettingsViewsTestCase):
         with CaptureQueriesContext(connection) as ctx:
             response = self.client.get(reverse("dashboard:settings") + "?section=appearance")
         self.assertEqual(response.status_code, 200)
-        self.assertLess(len(ctx), 20)
+        # 22, not 20: apps.dashboard.context_processors.nav_badges adds two
+        # real COUNT queries (product/pending-order) so the sidebar's badge
+        # numbers are correct on every admin page, not just the dashboard
+        # home — previously they silently showed 0 everywhere else.
+        self.assertLess(len(ctx), 22)

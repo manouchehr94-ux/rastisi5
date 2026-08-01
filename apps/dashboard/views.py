@@ -281,6 +281,7 @@ from .forms import (
     VisualIdentityForm,
 )
 from .services import (
+    checklist_service,
     customer_crm_service,
     customers_admin_service,
     dashboard_service,
@@ -353,11 +354,17 @@ def admin_login(request):
         else:
             error = "نام کاربری یا رمز عبور اشتباه است"
 
+    from apps.stores.resolution import resolve_store_for_admin_request, resolve_storefront_url_for_store
+
+    store = resolve_store_for_admin_request(request)
+    storefront_url = resolve_storefront_url_for_store(store, request) if store else None
+
     next_url = request.GET.get("next", "/admin-portal/")
     return render(request, "dashboard/login.html", {
         "error": error,
         "username": username,
         "next": next_url,
+        "STOREFRONT_URL": storefront_url,
     })
 
 
@@ -395,6 +402,7 @@ def dashboard_home(request):
     store = _resolve_dashboard_store(request)
     context = dashboard_service.build_dashboard_context(store)
     context["active_page"] = "dashboard"
+    context["setup_checklist"] = checklist_service.build_setup_checklist(store, request)
     return render(request, "dashboard/dashboard.html", context)
 
 

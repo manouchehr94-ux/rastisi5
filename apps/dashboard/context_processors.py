@@ -99,6 +99,47 @@ def platform_link(request):
     }
 
 
+def nav_badges(request):
+    """شمارنده‌های نشان(badge) نوار کناری — یک‌بار برای هر درخواست، تا در
+    همه‌ی صفحات پنل مدیریت درست باشند، نه فقط در خودِ صفحه‌ی داشبورد.
+
+    پیش از این، این دو مقدار فقط داخل ``dashboard_service.build_dashboard_context``
+    محاسبه می‌شدند (که فقط ویوی خودِ ``dashboard_home`` صدا می‌زند)، پس در هر
+    صفحه‌ی دیگر (کالاها، سفارشات، ...) نامعین بودند و تمپلیت با
+    ``|default:0`` بی‌صدا صفر نشان می‌داد — نه اینکه واقعاً صفر باشند."""
+    store = getattr(request, "store", None)
+    if store is None:
+        return {}
+    from apps.catalog.models import Product
+    from apps.orders.models import Order
+
+    return {
+        "nav_product_count": Product.objects.filter(store=store).count(),
+        "nav_pending_order_count": Order.objects.filter(
+            store=store, status=Order.Status.PENDING
+        ).count(),
+    }
+
+
+def storefront_link(request):
+    """URL for the "Back to Store" button (``base_admin.html``'s header icon).
+
+    Only meaningful once ``request.store`` is resolved (``staff_required``
+    has run). Never built from ``store.admin_subdomain`` — see
+    ``apps.stores.resolution.resolve_storefront_url_for_store``, which this
+    delegates to for the actual custom-domain > permanent-handle >
+    trial-domain priority and dev-mode ``:8000`` handling.
+    ``STOREFRONT_URL`` is ``None`` whenever the Store has no eligible
+    domain yet (e.g. still provisioning) — the template disables the button
+    and shows "Store is not published yet." in that case."""
+    store = getattr(request, "store", None)
+    if store is None:
+        return {}
+    from apps.stores.resolution import resolve_storefront_url_for_store
+
+    return {"STOREFRONT_URL": resolve_storefront_url_for_store(store, request)}
+
+
 def subscription_banner(request):
     """پرچمِ وضعیتِ محدودشده‌ی اشتراک برایِ بنرِ سراسری در پنل مدیریت.
 

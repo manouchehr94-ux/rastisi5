@@ -1,14 +1,34 @@
+from django.contrib.staticfiles.finders import find as find_static
 from django.http import Http404, HttpResponseRedirect
 from django.templatetags.static import static
 
-from .models import ShopSettings
+from .models import ShopSettings, ShopSettingsNotProvisionedError
 
 
 def favicon_view(request):
-    """Redirect /favicon.ico to configured or default favicon."""
-    shop = ShopSettings.load(store=getattr(request, "store", None))
-    if shop.favicon:
+    """Redirect /favicon.ico to the current store's favicon, or the platform default.
+
+    ``request.store`` is ``None`` whenever the host didn't resolve to a Store
+    (see ``apps.stores.middleware.StoreResolutionMiddleware``). This view must
+    never fall through to ``ShopSettings.load()``'s no-store compatibility path
+    (``resolve_compatibility_store``), since that raises
+    ``CompatibilityFallbackUnavailableError`` as soon as more than one Store
+    exists — favicon requests happen on every page load, including on hosts
+    that never resolve to a Store, so that path is not optional to avoid here.
+    """
+    store = getattr(request, "store", None)
+    shop = None
+    if store is not None:
+        try:
+            shop = ShopSettings.load(store=store)
+        except ShopSettingsNotProvisionedError:
+            shop = None
+
+    if shop is not None and shop.favicon:
         return HttpResponseRedirect(shop.favicon.url)
+
+    if find_static("favicon.ico") is None:
+        raise Http404("No favicon configured")
     return HttpResponseRedirect(static("favicon.ico"))
 
 
