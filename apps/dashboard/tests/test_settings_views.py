@@ -53,7 +53,7 @@ class SettingsHomeViewTests(SettingsViewsTestCase):
     def test_sms_section(self):
         response = self.client.get(reverse("dashboard:settings") + "?section=sms")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "اتصال سیستم پیامک")
+        self.assertContains(response, "اعتبار پیامک")
 
     def test_appearance_section_shows_visual_identity_form(self):
         response = self.client.get(reverse("dashboard:settings") + "?section=appearance")
@@ -233,21 +233,20 @@ class SettingsSMSSectionTests(SettingsViewsTestCase):
     def test_sms_connection_save_redirects_to_sms_section(self):
         response = self.client.post(reverse("dashboard:settings-sms-connection"), {
             "sms_enabled": True, "sms_backend": "console",
-            "sms_sender_number": "", "melipayamak_username": "", "melipayamak_password": "",
         })
         self.assertRedirects(response, "/admin-portal/settings/?section=sms")
 
-    def test_kavenegar_backend_and_api_key_are_saved(self):
+    def test_smsrasti_backend_choice_is_saved(self):
+        """کاوه‌نگار/ملی‌پیامک دیگر انتخابِ Store نیستند (زیرساختِ پلتفرم) —
+        تنها انتخابِ باقی‌مانده «درگاهِ پلتفرم» یا دستگاهِ اسمس‌راستیِ خودِ
+        Store است."""
         from apps.core.models import ShopSettings
 
         self.client.post(reverse("dashboard:settings-sms-connection"), {
-            "sms_enabled": True, "sms_backend": "kavenegar",
-            "sms_sender_number": "10001", "melipayamak_username": "", "melipayamak_password": "",
-            "kavenegar_api_key": "secret-key-1",
+            "sms_enabled": True, "sms_backend": "smsrasti",
         })
         shop = ShopSettings.load(store=self.store)
-        self.assertEqual(shop.sms_backend, "kavenegar")
-        self.assertEqual(shop.kavenegar_api_key, "secret-key-1")
+        self.assertEqual(shop.sms_backend, "smsrasti")
 
     def test_smsrasti_token_regeneration_creates_and_rotates_token(self):
         from apps.core.models import ShopSettings
@@ -270,7 +269,7 @@ class SettingsSMSSectionTests(SettingsViewsTestCase):
     def test_sms_section_shows_connection_form(self):
         response = self.client.get(reverse("dashboard:settings") + "?section=sms")
         self.assertContains(response, "فعال‌سازی سیستم پیامک")
-        self.assertContains(response, "ذخیره تنظیمات اتصال")
+        self.assertContains(response, "ذخیره تنظیمات")
 
     def test_sms_section_shows_templates(self):
         from apps.sms.models import SmsTemplate
@@ -999,4 +998,12 @@ class SettingsPageQueryPerformanceTests(SettingsViewsTestCase):
         with CaptureQueriesContext(connection) as ctx:
             response = self.client.get(reverse("dashboard:settings") + "?section=appearance")
         self.assertEqual(response.status_code, 200)
-        self.assertLess(len(ctx), 20)
+        # 25, not 20: apps.dashboard.context_processors.nav_badges adds two
+        # real COUNT queries (product/pending-order) so the sidebar's badge
+        # numbers are correct on every admin page, not just the dashboard
+        # home — previously they silently showed 0 everywhere else. Three
+        # more come from _settings_context always building the SMS section's
+        # balance/package/pending-purchase data (same pre-existing pattern
+        # as every other section's context, computed regardless of which
+        # tab is active).
+        self.assertLess(len(ctx), 25)

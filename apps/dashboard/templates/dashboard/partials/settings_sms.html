@@ -1,6 +1,43 @@
 {% load persian %}
 <div class="card" style="margin-bottom:18px">
-  <div class="card-head"><h3>📲 اتصال سیستم پیامک</h3><span class="hint">تنظیمات ارائه‌دهنده و اعتبارنامه‌ها</span></div>
+  <div class="card-head"><h3>💳 اعتبار پیامک</h3><span class="hint">پیامک‌ها از درگاهِ مرکزیِ پلتفرم ارسال می‌شوند</span></div>
+  <div class="card-body">
+    <div class="form-group" style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);padding:12px 14px;border-radius:12px">
+      <div><b style="font-size:13px">اعتبارِ باقی‌مانده</b><div style="font-size:11.5px;color:var(--muted)">هر پیامکِ ارسال‌شده یک واحد از این اعتبار کم می‌کند</div></div>
+      <b style="font-size:20px;color:var(--primary)">{{ sms_balance.credits|fa_number }}</b>
+    </div>
+
+    {% if sms_pending_purchases %}
+    <div style="margin-top:12px;font-size:12px;color:var(--muted)">
+      {% for purchase in sms_pending_purchases %}
+      <div>⏳ خریدِ «{{ purchase.package.name }}» ({{ purchase.credit_amount|fa_number }} اعتبار) در انتظارِ تأیید است.</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--border)">
+      <b style="font-size:12.5px;display:block;margin-bottom:10px">خریدِ بسته‌ی اعتبار</b>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
+        {% for package in sms_packages %}
+        <form method="post" action="{% url 'dashboard:settings-sms-package-purchase' %}"
+              style="border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+          {% csrf_token %}
+          <input type="hidden" name="package_id" value="{{ package.pk }}">
+          <div style="font-weight:700;font-size:13.5px">{{ package.name }}</div>
+          <div style="font-size:18px;font-weight:800;color:var(--primary);margin:6px 0">{{ package.credit_amount|fa_number }} <span style="font-size:11px;font-weight:500">اعتبار</span></div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px">{{ package.price|toman }}</div>
+          <button type="submit" class="btn btn-sm btn-primary" style="width:100%">خرید</button>
+        </form>
+        {% empty %}
+        <p style="color:var(--muted);font-size:13px">در حال حاضر بسته‌ای برای فروش تعریف نشده است.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3>📲 تنظیماتِ ارسال</h3><span class="hint">فعال/غیرفعال‌سازی و انتخابِ روشِ ارسال</span></div>
   <div class="card-body">
     <form method="post" action="{% url 'dashboard:settings-sms-connection' %}">
       {% csrf_token %}
@@ -9,26 +46,14 @@
         <label class="switch">{{ sms_form.sms_enabled }}<span></span></label>
       </div>
       <div class="form-group" style="margin-top:14px">
-        <label>درگاه پیامک</label>
+        <label>روشِ ارسال</label>
         {{ sms_form.sms_backend }}
       </div>
-      <div class="form-group"><label>شماره‌ی فرستنده</label>{{ sms_form.sms_sender_number }}</div>
-      <div class="form-row">
-        <div class="form-group"><label>نام کاربری ملی‌پیامک</label>{{ sms_form.melipayamak_username }}</div>
-        <div class="form-group">
-          <label>رمز عبور ملی‌پیامک{% if melipayamak_password_is_configured %} <span style="color:var(--muted);font-weight:normal">(تنظیم‌شده — برایِ تغییر مقدارِ جدید وارد کنید)</span>{% endif %}</label>
-          {{ sms_form.melipayamak_password }}
-        </div>
-      </div>
-      <div class="form-group">
-        <label>کلید API کاوه‌نگار{% if kavenegar_api_key_is_configured %} <span style="color:var(--muted);font-weight:normal">(تنظیم‌شده — برایِ تغییر مقدارِ جدید وارد کنید)</span>{% endif %}</label>
-        {{ sms_form.kavenegar_api_key }}
-      </div>
-      <button type="submit" class="btn btn-primary">ذخیره تنظیمات اتصال</button>
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
     </form>
 
     <div style="margin-top:18px;padding-top:16px;border-top:1px dashed var(--border)">
-      <b style="font-size:12.5px;display:block;margin-bottom:8px">گیت‌وی اندرویدِ اسمس‌راستی</b>
+      <b style="font-size:12.5px;display:block;margin-bottom:8px">گیت‌وی اندرویدِ اسمس‌راستی (اختیاری، دستگاهِ خودِ شما)</b>
       <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">
         این درگاه پیامک را به‌صورتِ صف‌بندی‌شده و با تأخیر (وابسته به poll دستگاهِ اندروید) ارسال می‌کند —
         برایِ رمزِ یک‌بارمصرف (OTP) مناسب نیست و برای آن به‌طورِ خودکار رد می‌شود.
@@ -45,7 +70,7 @@
     </div>
 
     <div style="margin-top:18px;padding-top:16px;border-top:1px dashed var(--border)">
-      <b style="font-size:12.5px;display:block;margin-bottom:8px">ارسال پیامک آزمایشی</b>
+      <b style="font-size:12.5px;display:block;margin-bottom:8px">ارسال پیامک آزمایشی از طریقِ درگاهِ پلتفرم</b>
       <form method="post" action="{% url 'dashboard:sms-test-send' %}" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         {% csrf_token %}
         <div class="form-group" style="margin-bottom:0;flex:1;min-width:160px">

@@ -76,7 +76,11 @@
     </form>
 
     <div class="login-footer">
-      <a href="/">بازگشت به فروشگاه</a>
+      {% if STOREFRONT_URL %}
+      <a href="{{ STOREFRONT_URL }}">بازگشت به فروشگاه</a>
+      {% else %}
+      <span style="opacity:.5">فروشگاه هنوز منتشر نشده است.</span>
+      {% endif %}
     </div>
   </div>
 </div>

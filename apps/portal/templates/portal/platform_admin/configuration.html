@@ -6,8 +6,26 @@
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     {% for field in form %}
+    {% if field.name == "sms_backend" %}
+    <hr style="border-color:#243329;margin:22px 0 16px">
+    <h3 style="color:#e7f3ee;font-size:14px;margin-bottom:4px">📲 درگاهِ پیامکِ مرکزی</h3>
+    <p style="color:#93a89c;font-size:12px;margin-bottom:16px">
+      این تنظیمات زیرساختِ ارسالِ پیامکِ همه‌ی فروشگاه‌هاست — OTP و پیامک‌های
+      رویدادِ هر Store از همین‌جا ارسال می‌شود، نه اعتبارنامه‌ی خودِ Store
+      (به‌جز گیت‌وی اندرویدِ اختصاصیِ SmsRasti که همچنان در پنلِ خودِ Store
+      پیکربندی می‌شود، چون دستگاهِ فیزیکیِ خودِ همان Store است، نه زیرساختِ
+      پلتفرم).
+    </p>
+    {% endif %}
     <div class="p-field" style="margin-bottom:16px">
-      <label style="color:#e7f3ee;display:block;margin-bottom:6px;font-size:13px">{{ field.label }}</label>
+      <label style="color:#e7f3ee;display:block;margin-bottom:6px;font-size:13px">
+        {{ field.label }}
+        {% if field.name == "sms_melipayamak_password" and sms_melipayamak_password_is_configured %}
+        <span style="color:#93a89c;font-weight:normal">(تنظیم‌شده — برای تغییر مقدار جدید وارد کنید)</span>
+        {% elif field.name == "sms_kavenegar_api_key" and sms_kavenegar_api_key_is_configured %}
+        <span style="color:#93a89c;font-weight:normal">(تنظیم‌شده — برای تغییر مقدار جدید وارد کنید)</span>
+        {% endif %}
+      </label>
       {{ field }}
       {% if field.errors %}<div class="p-error">{{ field.errors.0 }}</div>{% endif %}
       {% if field.help_text %}<div style="color:#93a89c;font-size:12px;margin-top:4px">{{ field.help_text }}</div>{% endif %}

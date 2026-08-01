@@ -88,27 +88,53 @@ def home(request):
     return render(request, "portal/platform_admin/home.html", context)
 
 
+#: فیلدهایِ رازِ فرمِ تنظیماتِ پلتفرم که مستقیماً روی مدل نیستند (داخلِ
+#: PlatformConfiguration.encrypted_sms_credentials رمزنگاری‌شده ذخیره
+#: می‌شوند) — هرگز نباید وارد dict قبل/بعدِ رخدادِ حسابرسی شوند (نه چون
+#: ``_redact`` نمی‌تواند آن‌ها را ببندد، بلکه چون نام‌شان اصلاً attribute
+#: واقعیِ مدل نیست).
+_SMS_CREDENTIAL_FORM_FIELDS = ("sms_melipayamak_username", "sms_melipayamak_password", "sms_kavenegar_api_key")
+
+
 @user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
 def configuration(request):
     config = get_platform_configuration()
     if request.method == "POST":
         form = PlatformConfigurationForm(request.POST, request.FILES, instance=config)
         if form.is_valid():
-            before = {name: getattr(config, name) for name in form.changed_data}
+            model_changed = [f for f in form.changed_data if f not in _SMS_CREDENTIAL_FORM_FIELDS]
+            before = {name: getattr(config, name) for name in model_changed}
             form.save()
+
+            sms_credentials_changed = any(
+                form.cleaned_data.get(f) for f in _SMS_CREDENTIAL_FORM_FIELDS
+            )
+            if sms_credentials_changed:
+                config.set_sms_credentials(
+                    melipayamak_username=form.cleaned_data.get("sms_melipayamak_username"),
+                    melipayamak_password=form.cleaned_data.get("sms_melipayamak_password"),
+                    kavenegar_api_key=form.cleaned_data.get("sms_kavenegar_api_key"),
+                )
+                config.save(update_fields=["encrypted_sms_credentials"])
+
             from django.core.cache import cache
 
             cache.delete("portal:platform_configuration")
             record_platform_audit_event(
                 actor=request.user, action_code="platform_configuration.updated",
                 object_type="PlatformConfiguration", object_id=1,
-                before=before, after={name: form.cleaned_data[name] for name in form.changed_data},
+                before=before, after={name: form.cleaned_data[name] for name in model_changed},
+                metadata={"sms_credentials_changed": sms_credentials_changed} if sms_credentials_changed else None,
             )
             messages.success(request, "تنظیمات پلتفرم به‌روزرسانی شد.")
             return redirect("portal_platform_admin:configuration")
     else:
         form = PlatformConfigurationForm(instance=config)
-    return render(request, "portal/platform_admin/configuration.html", {"form": form})
+    return render(request, "portal/platform_admin/configuration.html", {
+        "form": form,
+        "sms_melipayamak_password_is_configured": bool(config.get_sms_credentials().get("melipayamak_password")),
+        "sms_kavenegar_api_key_is_configured": bool(config.get_sms_credentials().get("kavenegar_api_key")),
+    })
 
 
 @user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")

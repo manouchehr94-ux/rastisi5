@@ -129,6 +129,7 @@ urlpatterns = [
     path("settings/gateway-config/<str:gateway_code>/toggle/", views.settings_gateway_config_toggle, name="settings-gateway-config-toggle"),
 
     path("settings/sms/connection/", views.settings_sms_connection, name="settings-sms-connection"),
+    path("settings/sms/package/purchase/", views.settings_sms_package_purchase, name="settings-sms-package-purchase"),
     path(
         "settings/sms/smsrasti/regenerate-token/",
         views.settings_smsrasti_regenerate_token, name="settings-smsrasti-regenerate-token",
@@ -141,6 +142,10 @@ urlpatterns = [
     path("settings/sms/logs/<int:pk>/retry/", views.sms_log_retry, name="sms-log-retry"),
     path("settings/sms/outbox/", views.sms_outbox_list, name="sms-outbox-list"),
     path("settings/sms/outbox/<int:pk>/retry/", views.sms_outbox_retry, name="sms-outbox-retry"),
+
+    path("settings/integrations/<str:provider_code>/connect/", views.settings_integration_connect, name="settings-integration-connect"),
+    path("settings/integrations/<str:provider_code>/disconnect/", views.settings_integration_disconnect, name="settings-integration-disconnect"),
+    path("settings/integrations/<str:provider_code>/test/", views.settings_integration_test, name="settings-integration-test"),
 
     # --- صفحات محتوایی ---
     path("pages/", views.page_list, name="page-list"),

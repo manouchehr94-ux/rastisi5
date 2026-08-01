@@ -1,6 +1,8 @@
 """تست‌های UX پنل مدیریت."""
+from unittest import mock
+
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -191,6 +193,22 @@ class FaviconEndpointTests(TestCase):
     def test_favicon_redirects_to_static(self):
         resp = self.client.get("/favicon.ico")
         self.assertIn("favicon", resp.url or resp.get("Location", ""))
+
+    @override_settings(ALLOWED_HOSTS=["unresolved-host.rastisi.ir", "testserver"])
+    def test_favicon_never_crashes_when_request_store_is_none(self):
+        """چندین Store وجود دارد و میزبان درخواست به هیچ‌کدام resolve نمی‌شود؛
+        قبلاً این حالت CompatibilityFallbackUnavailableError (500) می‌داد."""
+        Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
+        resp = self.client.get("/favicon.ico", HTTP_HOST="unresolved-host.rastisi.ir")
+        self.assertIn(resp.status_code, [301, 302])
+        self.assertIn("favicon", resp.url or resp.get("Location", ""))
+
+    @override_settings(ALLOWED_HOSTS=["unresolved-host.rastisi.ir", "testserver"])
+    def test_favicon_404_when_no_static_file_and_no_store_favicon(self):
+        Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
+        with mock.patch("apps.core.views.find_static", return_value=None):
+            resp = self.client.get("/favicon.ico", HTTP_HOST="unresolved-host.rastisi.ir")
+        self.assertEqual(resp.status_code, 404)
 
 
 class StaleRouteTests(TestCase):

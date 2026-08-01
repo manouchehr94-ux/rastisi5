@@ -1031,11 +1031,33 @@ def custom_domains(request, store_public_id):
             messages.error(request, str(exc))
         else:
             messages.success(request, "دامنه ثبت شد؛ اکنون می‌توانید تأییدِ DNS را شروع کنید.")
+            typo_suggestion = _custom_domain_typo_suggestion(store=store, hostname=hostname)
+            if typo_suggestion:
+                messages.warning(
+                    request,
+                    f"⚠️ این دامنه شبیهِ «{typo_suggestion}» به نظر می‌رسد — اگر اشتباهِ تایپی "
+                    "بوده، دامنه‌ی درست را جداگانه اضافه کنید (هرگز خودکار اصلاح نمی‌شود).",
+                )
         return redirect("portal:custom-domains", store_public_id=store.public_id)
 
     return render(request, "portal/app/custom_domains.html", {
         "store": store, "rows": _domains_view_context(store),
     })
+
+
+def _custom_domain_typo_suggestion(*, store, hostname: str):
+    """پیشنهادِ اشتباهِ تایپیِ محتمل — بدونِ استثنا برایِ فرمت‌های نامعتبر
+    (خودِ ``request_custom_domain`` قبلاً این حالت را رد کرده)."""
+    from django.core.exceptions import ValidationError
+
+    from apps.stores.hostnames import normalize_hostname
+    from apps.stores.services.domain_typo_service import suggest_domain_typo
+
+    try:
+        normalized = normalize_hostname(hostname)
+    except ValidationError:
+        return None
+    return suggest_domain_typo(store=store, hostname=normalized)
 
 
 @owner_required
@@ -1066,6 +1088,26 @@ def custom_domain_check(request, store_public_id, domain_id):
             messages.success(request, "دامنه با موفقیت تأیید شد.")
         else:
             messages.error(request, "رکوردِ TXT هنوز پیدا نشد یا مقدارش درست نیست؛ کمی صبر کنید و دوباره بررسی کنید.")
+    return redirect("portal:custom-domains", store_public_id=store.public_id)
+
+
+@owner_required
+@require_POST
+def custom_domain_final_check(request, store_public_id, domain_id):
+    """تستِ نهاییِ اتصال (وضعیتِ SSL) — صرفاً تشخیصی، هیچ فیلدی را تغییر
+    نمی‌دهد؛ فقط برایِ نشان‌دادنِ «تکمیل‌شده/در انتظار/نیاز به بررسی» به
+    مرچنتِ غیرفنی، پیش از فعال‌سازیِ نهایی."""
+    store = _get_owned_store_or_404(request, store_public_id)
+    domain = get_object_or_404(StoreDomain, pk=domain_id, store=store)
+    result = domain_verification_service.check_ssl_connection(domain.hostname)
+    if result.reachable:
+        messages.success(request, f"✅ اتصالِ HTTPS به «{domain.hostname}» با موفقیت برقرار شد.")
+    else:
+        messages.warning(
+            request,
+            f"⚠️ اتصالِ HTTPS به «{domain.hostname}» هنوز برقرار نیست — معمولاً یعنی رکوردهای DNS "
+            "(A/CNAME) دامنه هنوز به‌سمتِ راستیسی تنظیم نشده‌اند یا انتشارِ DNS کامل نشده است.",
+        )
     return redirect("portal:custom-domains", store_public_id=store.public_id)
 
 

@@ -17,6 +17,7 @@ from apps.stores.resolution import (
     resolve_store_for_hostname,
     resolve_store_for_hostname_or_none,
     resolve_store_for_request,
+    resolve_storefront_url_for_store,
 )
 
 
@@ -575,3 +576,77 @@ class ForwardedHostTests(TestCase):
         )
         resolved = resolve_store_for_request(request)
         self.assertEqual(resolved.pk, self.trusted_store.pk)
+
+
+class ResolveStorefrontUrlForStoreTests(TestCase):
+    """Back to Store button: resolve_storefront_url_for_store must never use
+    admin_subdomain, must respect the custom > handle > trial priority
+    already encoded by is_primary, and must fail closed to None."""
+
+    def setUp(self):
+        self.store = Store.objects.create(name="Shop", slug="shop-a", status=Store.Status.ACTIVE)
+
+    def test_no_domain_returns_none(self):
+        self.assertIsNone(resolve_storefront_url_for_store(self.store))
+
+    def test_unverified_primary_domain_returns_none(self):
+        StoreDomain.objects.create(store=self.store, hostname="shop-a.example.com", is_primary=True)
+        self.assertIsNone(resolve_storefront_url_for_store(self.store))
+
+    @override_settings(DEBUG=False)
+    def test_verified_primary_domain_used_in_production(self):
+        _make_verified_domain(self.store, "shop-a.example.com")
+        url = resolve_storefront_url_for_store(self.store)
+        self.assertEqual(url, "https://shop-a.example.com/")
+
+    @override_settings(DEBUG=False)
+    def test_uses_request_scheme_when_given(self):
+        from django.test import RequestFactory
+
+        _make_verified_domain(self.store, "shop-a.example.com")
+        request = RequestFactory().get("/", secure=False)
+        url = resolve_storefront_url_for_store(self.store, request)
+        self.assertEqual(url, "http://shop-a.example.com/")
+
+    @override_settings(DEBUG=True)
+    def test_dev_mode_preserves_localhost_port_8000(self):
+        _make_verified_domain(self.store, "code123.rastisi.localhost")
+        url = resolve_storefront_url_for_store(self.store)
+        self.assertEqual(url, "http://code123.rastisi.localhost:8000/")
+
+    @override_settings(DEBUG=False)
+    def test_never_built_from_admin_subdomain(self):
+        _make_verified_domain(self.store, "totally-different-domain.com")
+        url = resolve_storefront_url_for_store(self.store)
+        self.assertNotIn(self.store.admin_subdomain, url)
+
+    def test_suspended_store_returns_none_even_with_primary_domain(self):
+        _make_verified_domain(self.store, "shop-a.example.com")
+        self.store.status = Store.Status.SUSPENDED
+        self.store.save(update_fields=["status"])
+        self.assertIsNone(resolve_storefront_url_for_store(self.store))
+
+    def test_retired_domain_is_never_primary_so_returns_none(self):
+        # DB constraint (retired_domain_is_never_primary) already forbids a
+        # domain being both retired and primary at once — retiring the only
+        # domain a Store has (without a replacement becoming primary) must
+        # leave it with no eligible storefront URL.
+        domain = _make_verified_domain(self.store, "shop-a.example.com")
+        domain.is_primary = False
+        domain.retired_at = timezone.now()
+        domain.save(update_fields=["is_primary", "retired_at"])
+        self.assertIsNone(resolve_storefront_url_for_store(self.store))
+
+    @override_settings(DEBUG=False)
+    def test_active_custom_domain_outranks_retired_trial_domain(self):
+        # Mirrors what activate_custom_domain() does: the previous primary
+        # (trial) is retired and un-primaried, the custom domain becomes
+        # primary — resolve_storefront_url_for_store just reads is_primary,
+        # it never re-derives priority from domain_type itself.
+        trial = _make_verified_domain(self.store, "code123.rastisi.ir", is_primary=True)
+        trial.is_primary = False
+        trial.retired_at = timezone.now()
+        trial.save(update_fields=["is_primary", "retired_at"])
+        _make_verified_domain(self.store, "digigol.ir", is_primary=True)
+        url = resolve_storefront_url_for_store(self.store)
+        self.assertEqual(url, "https://digigol.ir/")

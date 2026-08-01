@@ -185,7 +185,8 @@ from apps.orders.services.return_service import (
     review_return_request,
 )
 from apps.sms.events import EVENT_VARIABLES
-from apps.sms.models import SmsTemplate
+from apps.sms.models import SmsPackage, SmsPackagePurchase, SmsTemplate
+from apps.sms.services import balance_service
 from apps.sms.services.sms_service import (
     RetryNotEligibleError,
     SmsTemplateError,
@@ -194,7 +195,9 @@ from apps.sms.services.sms_service import (
     retry_smsrasti_outbox_item,
     send_test_sms,
 )
+from apps.stores.integrations.registry import get_provider as get_integration_provider
 from apps.stores.models import StoreMembership
+from apps.stores.services import integration_service
 from apps.stores.services.membership_service import (
     ASSIGNABLE_ROLES,
     MembershipError,
@@ -273,6 +276,7 @@ from .forms import (
     ProductOptionValueAddForm,
     ShopInfoForm,
     SmsConnectionForm,
+    SmsPackagePurchaseForm,
     SmsTemplateForm,
     SmsTestForm,
     SubCategoryForm,
@@ -281,6 +285,7 @@ from .forms import (
     VisualIdentityForm,
 )
 from .services import (
+    checklist_service,
     customer_crm_service,
     customers_admin_service,
     dashboard_service,
@@ -353,11 +358,17 @@ def admin_login(request):
         else:
             error = "نام کاربری یا رمز عبور اشتباه است"
 
+    from apps.stores.resolution import resolve_store_for_admin_request, resolve_storefront_url_for_store
+
+    store = resolve_store_for_admin_request(request)
+    storefront_url = resolve_storefront_url_for_store(store, request) if store else None
+
     next_url = request.GET.get("next", "/admin-portal/")
     return render(request, "dashboard/login.html", {
         "error": error,
         "username": username,
         "next": next_url,
+        "STOREFRONT_URL": storefront_url,
     })
 
 
@@ -395,6 +406,7 @@ def dashboard_home(request):
     store = _resolve_dashboard_store(request)
     context = dashboard_service.build_dashboard_context(store)
     context["active_page"] = "dashboard"
+    context["setup_checklist"] = checklist_service.build_setup_checklist(store, request)
     return render(request, "dashboard/dashboard.html", context)
 
 
@@ -2479,15 +2491,14 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
         }),
         "sms_form": sms_form or SmsConnectionForm(initial={
             "sms_enabled": shop.sms_enabled, "sms_backend": shop.sms_backend,
-            "sms_sender_number": shop.sms_sender_number,
-            "melipayamak_username": shop.melipayamak_username,
-            # عمداً مقدارِ واقعیِ رمز/کلید اینجا گذاشته نمی‌شود — این دو فیلد
-            # همیشه خالی رندر می‌شوند؛ ``*_is_configured`` برایِ نمایشِ
-            # وضعیت («قبلاً تنظیم شده») بدونِ افشایِ مقدار استفاده می‌شود.
         }),
-        "melipayamak_password_is_configured": bool(shop.melipayamak_password),
-        "kavenegar_api_key_is_configured": bool(shop.kavenegar_api_key),
         "smsrasti_device_token": shop.smsrasti_device_token,
+        "sms_balance": balance_service.get_or_create_balance(store=store),
+        "sms_packages": balance_service.list_active_packages(),
+        "sms_package_purchase_form": SmsPackagePurchaseForm(),
+        "sms_pending_purchases": store.sms_package_purchases.filter(
+            status=SmsPackagePurchase.Status.PENDING
+        ).select_related("package"),
         "visual_form": visual_form or VisualIdentityForm(current_shop=shop, initial=theme_values),
         "theme_presets": THEME_PRESETS,
         "selected_preset_key": matching_preset_key(
@@ -2501,6 +2512,7 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
         "gateway_configs": settings_admin_service.gateway_configs_context(store=store),
         "industry_templates": _latest_active_industry_templates(),
         "industry_installation": _industry_installation_context(store),
+        "integration_rows": integration_service.connections_context(store=store),
         "active_page": "settings",
     }
 
@@ -2545,6 +2557,7 @@ SETTINGS_SECTIONS = [
     ("sms", "پیامک", "📲", "اتصال و قالب‌های پیامک"),
     ("appearance", "تم رنگی", "🎨", "پیش‌فرض‌ها و رنگ‌بندی سفارشی فروشگاه"),
     ("industry", "صنف فروشگاه", "🏭", "نصب الگوی کاتالوگ آماده بر اساس صنف فعالیت"),
+    ("integrations", "یکپارچه‌سازی‌ها", "🔗", "اینماد، ترب، گوگل آنالیتیکس و سایرِ اتصال‌های بیرونی"),
 ]
 
 VALID_SECTION_KEYS = {s[0] for s in SETTINGS_SECTIONS}
@@ -2793,21 +2806,32 @@ def settings_sms_connection(request):
     form = SmsConnectionForm(request.POST)
     if form.is_valid():
         shop = ShopSettings.load(store=request.store)
-        for field in ["sms_enabled", "sms_backend", "sms_sender_number", "melipayamak_username"]:
+        for field in ["sms_enabled", "sms_backend"]:
             setattr(shop, field, form.cleaned_data[field])
-        # این دو فیلد write-only اند (فرم هرگز مقدارِ ذخیره‌شده را echo
-        # نمی‌کند) — خالی‌ماندنشان یعنی «بدونِ تغییر»، نه «پاک‌کردن».
-        for secret_field in ["melipayamak_password", "kavenegar_api_key"]:
-            new_value = form.cleaned_data[secret_field]
-            if new_value:
-                setattr(shop, secret_field, new_value)
         shop.save()
-        messages.success(request, "تنظیمات اتصال پیامک ذخیره شد")
+        messages.success(request, "تنظیمات پیامک ذخیره شد")
         return redirect("/admin-portal/settings/?section=sms")
     context = _settings_context(request, sms_form=form)
     context["sections"] = SETTINGS_SECTIONS
     context["active_section"] = "sms"
     return render(request, "dashboard/settings.html", context)
+
+
+@require_POST
+@staff_required
+@permission_required(SMS_SETTINGS_MANAGE)
+def settings_sms_package_purchase(request):
+    """درخواستِ خریدِ یک بستهِ اعتبارِ پیامک را با وضعیتِ «در انتظار» ثبت
+    می‌کند — اعتبار فقط پس از تکمیلِ آن از Platform Admin افزوده می‌شود
+    (نگاه کنید به ``apps.sms.services.balance_service``)."""
+    form = SmsPackagePurchaseForm(request.POST)
+    if form.is_valid():
+        package = get_object_or_404(SmsPackage, pk=form.cleaned_data["package_id"], is_active=True)
+        balance_service.request_purchase(store=_resolve_dashboard_store(request), package=package)
+        messages.success(request, "درخواستِ خرید ثبت شد؛ پس از تأیید، اعتبار به حساب شما افزوده می‌شود")
+    else:
+        messages.error(request, "بسته‌ی انتخاب‌شده نامعتبر است")
+    return redirect("/admin-portal/settings/?section=sms")
 
 
 @require_POST
@@ -2961,6 +2985,58 @@ def sms_outbox_retry(request, pk):
         messages.success(request, "آیتم دوباره در صفِ ارسال قرار گرفت")
     return redirect("dashboard:sms-outbox-list")
 
+
+# --------------------------------------------------------------- یکپارچه‌سازی‌ها
+
+
+@require_POST
+@staff_required
+@permission_required(SETTINGS_MANAGE)
+def settings_integration_connect(request, provider_code):
+    store = _resolve_dashboard_store(request)
+    provider = get_integration_provider(provider_code)
+    if provider is None:
+        return HttpResponse(status=404)
+
+    values = {f.key: request.POST.get(f.key, "").strip() for f in provider.fields}
+    try:
+        integration_service.connect(store=store, provider_code=provider_code, values=values, actor=request.user)
+    except integration_service.IntegrationError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, f"{provider.display_name} با موفقیت متصل شد")
+    return redirect("/admin-portal/settings/?section=integrations")
+
+
+@require_POST
+@staff_required
+@permission_required(SETTINGS_MANAGE)
+def settings_integration_disconnect(request, provider_code):
+    store = _resolve_dashboard_store(request)
+    provider = get_integration_provider(provider_code)
+    if provider is None:
+        return HttpResponse(status=404)
+
+    integration_service.disconnect(store=store, provider_code=provider_code, actor=request.user)
+    messages.success(request, f"اتصالِ {provider.display_name} قطع شد")
+    return redirect("/admin-portal/settings/?section=integrations")
+
+
+@require_POST
+@staff_required
+@permission_required(SETTINGS_MANAGE)
+def settings_integration_test(request, provider_code):
+    store = _resolve_dashboard_store(request)
+    provider = get_integration_provider(provider_code)
+    if provider is None:
+        return HttpResponse(status=404)
+
+    connection = integration_service.test_connection(store=store, provider_code=provider_code, actor=request.user)
+    if connection.last_test_result == "success":
+        messages.success(request, f"{provider.display_name}: {connection.last_test_message}")
+    else:
+        messages.error(request, f"{provider.display_name}: {connection.last_test_message}")
+    return redirect("/admin-portal/settings/?section=integrations")
 
 
 # ---------------------------------------------------------------- صفحات محتوایی

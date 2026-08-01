@@ -15,6 +15,7 @@ from apps.stores.services.domain_verification_service import (
     activate_custom_domain,
     begin_dns_verification,
     check_dns_verification,
+    check_ssl_connection,
     request_custom_domain,
     verification_record_name,
 )
@@ -178,3 +179,69 @@ class ActivateCustomDomainTests(DomainVerificationTestCase):
         domain = self._verified_domain()
         with self.assertRaises(DomainVerificationError):
             activate_custom_domain(store=other_store, domain=domain, actor=self.actor)
+
+
+class CheckSslConnectionTests(TestCase):
+    """هرگز اتصالِ شبکه‌ی واقعی برقرار نمی‌کند — socket.create_connection و
+    ssl.create_default_context mock می‌شوند، دقیقاً همان الگویِ mock‌کردنِ
+    dns.resolver.resolve برایِ تستِ TXT."""
+
+    def test_successful_handshake_reports_reachable_with_expiry(self):
+        from unittest.mock import MagicMock
+
+        fake_cert = {"notAfter": "Jan 1 00:00:00 2030 GMT"}
+        fake_tls_sock = MagicMock()
+        fake_tls_sock.__enter__.return_value.getpeercert.return_value = fake_cert
+        fake_context = MagicMock()
+        fake_context.wrap_socket.return_value = fake_tls_sock
+
+        with patch("apps.stores.services.domain_verification_service.socket.create_connection") as mock_conn, \
+             patch("apps.stores.services.domain_verification_service.ssl.create_default_context", return_value=fake_context):
+            mock_conn.return_value.__enter__.return_value = MagicMock()
+            result = check_ssl_connection("shop.example.com")
+
+        self.assertTrue(result.reachable)
+        self.assertEqual(result.certificate_expires_at.year, 2030)
+        self.assertEqual(result.error, "")
+
+    def test_connection_refused_reports_unreachable_without_raising(self):
+        with patch(
+            "apps.stores.services.domain_verification_service.socket.create_connection",
+            side_effect=OSError("Connection refused"),
+        ):
+            result = check_ssl_connection("not-configured-yet.example.com")
+
+        self.assertFalse(result.reachable)
+        self.assertIsNone(result.certificate_expires_at)
+        self.assertIn("refused", result.error.lower())
+
+    def test_ssl_error_reports_unreachable_without_raising(self):
+        import ssl as ssl_module
+
+        with patch(
+            "apps.stores.services.domain_verification_service.socket.create_connection",
+        ) as mock_conn, patch(
+            "apps.stores.services.domain_verification_service.ssl.create_default_context",
+            side_effect=ssl_module.SSLError("bad certificate"),
+        ):
+            mock_conn.return_value.__enter__.return_value = None
+            result = check_ssl_connection("bad-cert.example.com")
+
+        self.assertFalse(result.reachable)
+
+    def test_malformed_certificate_expiry_does_not_crash(self):
+        from unittest.mock import MagicMock
+
+        fake_cert = {"notAfter": "not-a-real-date"}
+        fake_tls_sock = MagicMock()
+        fake_tls_sock.__enter__.return_value.getpeercert.return_value = fake_cert
+        fake_context = MagicMock()
+        fake_context.wrap_socket.return_value = fake_tls_sock
+
+        with patch("apps.stores.services.domain_verification_service.socket.create_connection") as mock_conn, \
+             patch("apps.stores.services.domain_verification_service.ssl.create_default_context", return_value=fake_context):
+            mock_conn.return_value.__enter__.return_value = MagicMock()
+            result = check_ssl_connection("shop.example.com")
+
+        self.assertTrue(result.reachable)
+        self.assertIsNone(result.certificate_expires_at)

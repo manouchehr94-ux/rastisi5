@@ -648,3 +648,66 @@ class StoreOwnershipTransfer(StoresTimestampedModel):
         from django.utils import timezone
 
         return timezone.now() >= self.expires_at
+
+
+class StoreIntegrationConnection(StoresTimestampedModel):
+    """اتصالِ یک Store به یک یکپارچه‌سازیِ بیرونیِ ساده (eNamad، Torob،
+    Google Analytics، Google Tag Manager، پیکسلِ تبلیغاتی) — نگاه کنید به
+    ``apps.stores.integrations.registry`` برایِ فهرستِ کاملِ Providerها.
+
+    درگاه‌های پرداخت/اقساط (ZarinPal، SnappPay، Zibal، ...) اینجا نیستند —
+    آن‌ها یک چرخه‌ی تراکنشیِ کامل دارند و از الگویِ اثبات‌شده‌ی
+    ``apps.orders.models.PaymentGatewayConfig``/``apps.orders.gateways``
+    استفاده می‌کنند؛ این مدل فقط برایِ یکپارچه‌سازی‌هایی است که صرفاً یک
+    شناسه/کد نیاز دارند، نه یک تراکنشِ مالی.
+
+    اعتبارنامه‌ها دقیقاً همان الگویِ
+    ``PaymentGatewayConfig.encrypted_credentials`` را دارند (یک JSON
+    رمزنگاری‌شده با ``apps.orders.encryption``، بازاستفاده‌شده نه تکرار)."""
+
+    store = models.ForeignKey(
+        Store, verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="integration_connections",
+    )
+    provider_code = models.CharField("کدِ Provider", max_length=40)
+    is_active = models.BooleanField("فعال", default=False)
+    encrypted_credentials = models.TextField(
+        "اعتبارنامه‌ی رمزنگاری‌شده", blank=True, default="",
+        help_text="مقدارِ رمزنگاری‌شده — هرگز مستقیم خوانده نمی‌شود",
+    )
+    last_tested_at = models.DateTimeField("آخرین تستِ اتصال", null=True, blank=True)
+    last_test_result = models.CharField("نتیجه‌ی آخرین تست", max_length=10, blank=True, default="")
+    last_test_message = models.CharField("پیامِ آخرین تست", max_length=300, blank=True, default="")
+    connected_at = models.DateTimeField("زمانِ اتصال", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "اتصالِ یکپارچه‌سازیِ فروشگاه"
+        verbose_name_plural = "اتصال‌هایِ یکپارچه‌سازیِ فروشگاه"
+        constraints = [
+            models.UniqueConstraint(fields=["store", "provider_code"], name="uniq_integration_per_store_provider"),
+        ]
+
+    def __str__(self):
+        return f"{self.store.slug} ← {self.provider_code}"
+
+    def get_credentials(self) -> dict:
+        import json
+
+        from apps.orders.encryption import decrypt_credential
+
+        if not self.encrypted_credentials:
+            return {}
+        plaintext = decrypt_credential(self.encrypted_credentials)
+        if not plaintext:
+            return {}
+        try:
+            return json.loads(plaintext)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def set_credentials(self, credentials: dict) -> None:
+        import json
+
+        from apps.orders.encryption import encrypt_credential
+
+        clean = {k: v for k, v in (credentials or {}).items() if v}
+        self.encrypted_credentials = encrypt_credential(json.dumps(clean, ensure_ascii=False)) if clean else ""

@@ -20,7 +20,10 @@ class PlatformConfigurationAdmin(SuperuserOnlyAdmin):
     """رابطِ اصلیِ ویرایش صفحه‌ی ``portal_platform_admin:configuration``
     است، نه این‌جا — این ثبت فقط یک راهِ پشتیبانِ خواندنی/اضطراری است."""
 
-    list_display = ("pk", "default_trial_days", "deletion_retention_days", "default_payment_provider", "updated_at")
+    list_display = (
+        "pk", "default_trial_days", "deletion_retention_days",
+        "default_payment_provider", "sms_backend", "updated_at",
+    )
 
     def has_add_permission(self, request):
         return False

@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.test import TestCase
 
 from apps.core.models import ShopSettings
@@ -36,23 +37,61 @@ class ValidateTemplateBodyTests(TestCase):
 
 
 class GetBackendTests(TestCase):
+    """زیرساختِ ارسال (ارائه‌دهنده/اعتبارنامه) دیگر Store-scoped نیست —
+    ``ShopSettings.sms_backend/melipayamak_*/kavenegar_api_key`` روی
+    انتخابِ backend اثری ندارند مگر مقدارِ SMSRASTI (دستگاهِ خودِ Store)؛
+    هر مقدارِ دیگر به درگاهِ مرکزیِ پلتفرم (``PlatformConfiguration``)
+    برمی‌گردد — نگاه کنید به ``apps.portal.services.owner_sms_service``."""
+
     def setUp(self):
+        cache.clear()
         self.store = _akhlaghi()
 
     def test_console_is_default(self):
         self.assertIsInstance(get_backend(store=self.store), ConsoleBackend)
 
-    def test_melipayamak_selected_when_configured(self):
+    def test_store_sms_backend_choice_is_ignored_for_non_smsrasti_values(self):
+        """قبلاً این مقدار خودِ ارائه‌دهنده را انتخاب می‌کرد؛ اکنون فقط
+        SMSRASTI معنا دارد — بقیه‌ی مقادیر همه به درگاهِ مرکزیِ پلتفرم
+        می‌روند، صرف‌نظر از این‌که Store چه مقداری برایِ آن ذخیره کرده."""
         shop = ShopSettings.load(store=self.store)
         shop.sms_backend = ShopSettings.SmsBackend.MELIPAYAMAK
+        shop.melipayamak_username = "store-owned-username"
+        shop.melipayamak_password = "store-owned-password"
         shop.save()
-        self.assertIsInstance(get_backend(store=self.store), MelipayamakBackend)
+        # پلتفرم هنوز پیکربندی نشده → پیش‌فرضِ کنسول، نه ملی‌پیامکِ Store.
+        self.assertIsInstance(get_backend(store=self.store), ConsoleBackend)
 
-    def test_kavenegar_selected_when_configured(self):
-        shop = ShopSettings.load(store=self.store)
-        shop.sms_backend = ShopSettings.SmsBackend.KAVENEGAR
-        shop.save()
-        self.assertIsInstance(get_backend(store=self.store), KavenegarBackend)
+    def test_platform_melipayamak_configuration_is_used(self):
+        from apps.portal.services.platform_config_service import get_platform_configuration
+
+        config = get_platform_configuration()
+        config.sms_backend = "melipayamak"
+        config.sms_sender_number = "10001"
+        config.set_sms_credentials(melipayamak_username="platform-user", melipayamak_password="platform-pass")
+        config.save()
+
+        cache.delete("portal:platform_configuration")
+
+        backend = get_backend(store=self.store)
+        self.assertIsInstance(backend, MelipayamakBackend)
+        self.assertEqual(backend.username, "platform-user")
+        self.assertEqual(backend.password, "platform-pass")
+
+    def test_platform_kavenegar_configuration_is_used(self):
+        from apps.portal.services.platform_config_service import get_platform_configuration
+
+        config = get_platform_configuration()
+        config.sms_backend = "kavenegar"
+        config.sms_sender_number = "10001"
+        config.set_sms_credentials(kavenegar_api_key="platform-api-key")
+        config.save()
+
+        cache.delete("portal:platform_configuration")
+
+        backend = get_backend(store=self.store)
+        self.assertIsInstance(backend, KavenegarBackend)
+        self.assertEqual(backend.api_key, "platform-api-key")
 
     def test_smsrasti_selected_when_configured(self):
         shop = ShopSettings.load(store=self.store)
@@ -61,9 +100,28 @@ class GetBackendTests(TestCase):
         shop.save()
         self.assertIsInstance(get_backend(store=self.store), SmsRastiBackend)
 
+    def test_smsrasti_stays_store_owned_even_when_platform_uses_a_different_provider(self):
+        """SmsRasti تنها استثناست: دستگاهِ فیزیکیِ خودِ Store است، نه
+        زیرساختِ پلتفرم — انتخابِ آن هرگز از تنظیماتِ پلتفرم نادیده گرفته
+        نمی‌شود."""
+        from apps.portal.services.platform_config_service import get_platform_configuration
+
+        config = get_platform_configuration()
+        config.sms_backend = "melipayamak"
+        config.set_sms_credentials(melipayamak_username="u", melipayamak_password="p")
+        config.save()
+
+        shop = ShopSettings.load(store=self.store)
+        shop.sms_backend = ShopSettings.SmsBackend.SMSRASTI
+        shop.smsrasti_device_token = "dev-token-1"
+        shop.save()
+
+        self.assertIsInstance(get_backend(store=self.store), SmsRastiBackend)
+
 
 class SendEventSmsTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.store = _akhlaghi()
         SmsTemplate.ensure_defaults()
 
@@ -73,6 +131,13 @@ class SendEventSmsTests(TestCase):
         self.assertEqual(log.status, SmsLog.Status.SENT)
         self.assertIn("سارا", log.message)
         self.assertEqual(log.recipient, "09121234567")
+
+    def test_successful_send_deducts_one_credit(self):
+        from apps.sms.models import SmsBalance
+
+        SmsBalance.objects.create(store=self.store, credits=5)
+        send_event_sms(SmsEvent.WELCOME, "09121234567", {"customer_name": "سارا"}, store=self.store)
+        self.assertEqual(SmsBalance.objects.get(store=self.store).credits, 4)
 
     def test_disabled_system_sends_nothing_and_logs_nothing(self):
         shop = ShopSettings.load(store=self.store)
@@ -167,6 +232,7 @@ class SendEventSmsTests(TestCase):
 
 class RetryFailedLogTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.store = _akhlaghi()
         SmsTemplate.ensure_defaults()
 
@@ -225,6 +291,7 @@ class RetryFailedLogTests(TestCase):
 
 class RetrySmsrastiOutboxItemTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.store = _akhlaghi()
 
     def test_retry_requeues_failed_item(self):
@@ -258,6 +325,7 @@ class RetrySmsrastiOutboxItemTests(TestCase):
 
 class SendTestSmsTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.store = _akhlaghi()
         SmsTemplate.ensure_defaults()
 
@@ -286,6 +354,7 @@ class SendTestSmsTests(TestCase):
 
 class RegenerateSmsrastiDeviceTokenTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.store = _akhlaghi()
 
     def test_generates_a_new_unique_token_and_persists_it(self):
@@ -307,6 +376,7 @@ class SmsTwoStoreIsolationTests(TestCase):
     استفاده می‌کند — با دو Store واقعی، نه فقط mock کردن ``ShopSettings.load()``."""
 
     def setUp(self):
+        cache.clear()
         self.store_a = _akhlaghi()
         self.store_b = Store.objects.create(name="Store B", slug="store-b", status=Store.Status.ACTIVE)
         SmsTemplate.ensure_defaults()
@@ -330,8 +400,10 @@ class SmsTwoStoreIsolationTests(TestCase):
         self.assertIn("فروشگاه ب", log.message)
         self.assertNotIn("فروشگاه آ", log.message)
 
-    def test_store_b_never_uses_akhlaghi_backend_configuration(self):
-        """اگر Store A روی ملی‌پیامک تنظیم شود، Store B نباید تحت تأثیر قرار بگیرد."""
+    def test_store_a_sms_backend_field_never_leaks_into_store_b(self):
+        """Store A دیگر با تنظیمِ فیلدِ ذخیره‌شده‌ی خودش (که پس از جداسازیِ
+        زیرساختِ پیامک، دیگر ارائه‌دهنده را تعیین نمی‌کند) نمی‌تواند بر
+        Store B اثر بگذارد — هر دو یک درگاهِ مرکزیِ پلتفرمِ یکسان دارند."""
         shop_a = ShopSettings.load(store=self.store_a)
         shop_a.sms_backend = ShopSettings.SmsBackend.MELIPAYAMAK
         shop_a.melipayamak_username = "akhlaghi-secret-user"
@@ -340,6 +412,22 @@ class SmsTwoStoreIsolationTests(TestCase):
 
         backend_b = get_backend(store=self.store_b)
         self.assertIsInstance(backend_b, ConsoleBackend)
+
+    def test_both_stores_share_the_same_platform_sms_backend(self):
+        from apps.portal.services.platform_config_service import get_platform_configuration
+
+        config = get_platform_configuration()
+        config.sms_backend = "melipayamak"
+        config.set_sms_credentials(melipayamak_username="platform-user", melipayamak_password="platform-pass")
+        config.save()
+
+        cache.delete("portal:platform_configuration")
+
+        backend_a = get_backend(store=self.store_a)
+        backend_b = get_backend(store=self.store_b)
+        self.assertIsInstance(backend_a, MelipayamakBackend)
+        self.assertIsInstance(backend_b, MelipayamakBackend)
+        self.assertEqual(backend_a.username, backend_b.username)
 
     def test_missing_store_b_settings_does_not_fall_back_to_store_a(self):
         """Store B که هنوز ShopSettings ندارد باید بی‌صدا شکست بخورد، نه این‌که به Akhlaghi سقوط کند."""

@@ -434,3 +434,45 @@ def resolve_store_for_admin_request(request):
         return resolve_store_for_request(request)
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# Storefront URL resolution ("Back to Store") — the reverse of admin-host
+# resolution above: given a Store, what is its current public storefront URL?
+# ---------------------------------------------------------------------------
+
+
+def resolve_storefront_url_for_store(store: Store, request=None):
+    """The Store's current best public storefront URL, or ``None``.
+
+    Priority (an active custom domain, then a claimed permanent platform
+    handle, then the generated trial domain) is never re-derived here from
+    ``domain_type`` — it doesn't need to be. Activating a custom domain
+    (``domain_verification_service.activate_custom_domain``) and claiming a
+    permanent handle (``handle_service.claim_platform_handle``) both retire
+    and un-primary whatever ``StoreDomain`` previously held
+    ``is_primary=True`` before making the new one primary, so the single
+    ``is_primary`` row already reflects the correct priority order at all
+    times — this just reads it, via ``domain_is_eligible_for_routing`` (the
+    same fail-closed eligibility check ``resolve_store_for_hostname`` uses),
+    so a suspended/closed Store or an unverified/retired domain never
+    produces a URL that would just 404.
+
+    Never built from ``store.admin_subdomain`` — that is the Merchant Admin
+    Portal's own host and is never a public storefront domain (see
+    ``Store.admin_subdomain``'s docstring).
+
+    In development (``settings.DEBUG``), preserves the ``:8000`` dev server
+    port — mirroring the same pattern ``apps.portal.views.enter_admin`` uses
+    for the admin-host equivalent of this link. Otherwise uses ``request``'s
+    scheme when given, defaulting to ``https``.
+    """
+    domain = store.domains.filter(is_primary=True).select_related("store").first()
+    if domain is None or not domain_is_eligible_for_routing(domain):
+        return None
+
+    if django_settings.DEBUG:
+        return f"http://{domain.hostname}:8000/"
+
+    scheme = request.scheme if request is not None else "https"
+    return f"{scheme}://{domain.hostname}/"

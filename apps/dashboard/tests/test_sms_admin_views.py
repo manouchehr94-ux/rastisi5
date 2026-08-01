@@ -35,21 +35,29 @@ class SmsAdminViewsTestCase(TestCase):
 
 
 class SettingsSmsConnectionViewTests(SmsAdminViewsTestCase):
+    """پس از جداسازیِ زیرساختِ پیامک (Platform Owner panel)، این فرم فقط
+    فعال‌سازی/خاموشی و انتخابِ «درگاهِ مرکزیِ پلتفرم در برابرِ دستگاهِ
+    اسمس‌راستیِ خودم» را می‌پذیرد — نه ارائه‌دهنده/کلید/شماره‌ی فرستنده."""
+
     def test_valid_post_updates_shop_settings(self):
         response = self.client.post(reverse("dashboard:settings-sms-connection"), {
-            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.MELIPAYAMAK,
-            "sms_sender_number": "10001", "melipayamak_username": "user1", "melipayamak_password": "pass1",
+            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.CONSOLE,
         })
         self.assertRedirects(response, "/admin-portal/settings/?section=sms")
         shop = ShopSettings.load()
         self.assertTrue(shop.sms_enabled)
-        self.assertEqual(shop.sms_backend, ShopSettings.SmsBackend.MELIPAYAMAK)
-        self.assertEqual(shop.melipayamak_username, "user1")
+        self.assertEqual(shop.sms_backend, ShopSettings.SmsBackend.CONSOLE)
+
+    def test_can_opt_into_own_smsrasti_device(self):
+        response = self.client.post(reverse("dashboard:settings-sms-connection"), {
+            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.SMSRASTI,
+        })
+        self.assertRedirects(response, "/admin-portal/settings/?section=sms")
+        self.assertEqual(ShopSettings.load().sms_backend, ShopSettings.SmsBackend.SMSRASTI)
 
     def test_unchecked_box_disables_sms(self):
         self.client.post(reverse("dashboard:settings-sms-connection"), {
-            "sms_backend": ShopSettings.SmsBackend.CONSOLE, "sms_sender_number": "",
-            "melipayamak_username": "", "melipayamak_password": "",
+            "sms_backend": ShopSettings.SmsBackend.CONSOLE,
         })
         self.assertFalse(ShopSettings.load().sms_enabled)
 
@@ -60,39 +68,72 @@ class SettingsSmsConnectionViewTests(SmsAdminViewsTestCase):
         self.assertNotIn("/admin-portal/login/", response.url)
         self.assertIn("admin_return=", response.url)
 
-    def test_secret_fields_are_never_echoed_back_into_the_form(self):
-        self.client.post(reverse("dashboard:settings-sms-connection"), {
-            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.MELIPAYAMAK,
-            "sms_sender_number": "10001", "melipayamak_username": "user1",
-            "melipayamak_password": "super-secret-pass", "kavenegar_api_key": "super-secret-key",
-        })
+    def test_provider_credential_fields_are_no_longer_shown_to_store_admins(self):
+        """زیرساختِ پیامک (ارائه‌دهنده/کلید/شماره‌ی فرستنده) اکنون فقط از
+        Platform Admin پیکربندی می‌شود — نباید هیچ فیلدِ ورودیِ آن‌ها در
+        صفحه‌ی تنظیماتِ Store دیده شود."""
         response = self.client.get(reverse("dashboard:settings") + "?section=sms")
-        self.assertNotContains(response, "super-secret-pass")
-        self.assertNotContains(response, "super-secret-key")
+        self.assertNotContains(response, 'name="melipayamak_username"')
+        self.assertNotContains(response, 'name="melipayamak_password"')
+        self.assertNotContains(response, 'name="kavenegar_api_key"')
+        self.assertNotContains(response, 'name="sms_sender_number"')
 
-    def test_submitting_blank_secret_does_not_clear_existing_value(self):
-        self.client.post(reverse("dashboard:settings-sms-connection"), {
-            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.MELIPAYAMAK,
-            "sms_sender_number": "10001", "melipayamak_username": "user1",
-            "melipayamak_password": "original-secret",
-        })
-        self.client.post(reverse("dashboard:settings-sms-connection"), {
-            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.MELIPAYAMAK,
-            "sms_sender_number": "10001", "melipayamak_username": "user1",
-            "melipayamak_password": "",
-        })
-        self.assertEqual(ShopSettings.load().melipayamak_password, "original-secret")
+    def test_sms_balance_is_shown(self):
+        response = self.client.get(reverse("dashboard:settings") + "?section=sms")
+        self.assertContains(response, "اعتبار پیامک")
 
-    def test_submitting_new_secret_overwrites_previous_value(self):
-        self.client.post(reverse("dashboard:settings-sms-connection"), {
-            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.KAVENEGAR,
-            "sms_sender_number": "10001", "kavenegar_api_key": "old-key",
-        })
-        self.client.post(reverse("dashboard:settings-sms-connection"), {
-            "sms_enabled": "on", "sms_backend": ShopSettings.SmsBackend.KAVENEGAR,
-            "sms_sender_number": "10001", "kavenegar_api_key": "new-key",
-        })
-        self.assertEqual(ShopSettings.load().kavenegar_api_key, "new-key")
+    def test_active_packages_are_listed_for_purchase(self):
+        from apps.sms.models import SmsPackage
+
+        SmsPackage.objects.create(name="بسته‌ی تست", credit_amount=100, price=90_000, is_active=True)
+        response = self.client.get(reverse("dashboard:settings") + "?section=sms")
+        self.assertContains(response, "بسته‌ی تست")
+
+    def test_inactive_package_is_not_listed(self):
+        from apps.sms.models import SmsPackage
+
+        SmsPackage.objects.create(name="بسته‌ی غیرفعال", credit_amount=100, price=90_000, is_active=False)
+        response = self.client.get(reverse("dashboard:settings") + "?section=sms")
+        self.assertNotContains(response, "بسته‌ی غیرفعال")
+
+
+class SmsPackagePurchaseViewTests(SmsAdminViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        from apps.sms.models import SmsPackage
+
+        self.package = SmsPackage.objects.create(
+            name="بسته‌ی استاندارد", credit_amount=500, price=400_000, is_active=True,
+        )
+
+    def test_purchase_creates_pending_request_and_does_not_grant_credit_yet(self):
+        from apps.sms.models import SmsBalance, SmsPackagePurchase
+
+        response = self.client.post(
+            reverse("dashboard:settings-sms-package-purchase"), {"package_id": self.package.pk},
+        )
+        self.assertRedirects(response, "/admin-portal/settings/?section=sms")
+        purchase = SmsPackagePurchase.objects.get(package=self.package)
+        self.assertEqual(purchase.status, SmsPackagePurchase.Status.PENDING)
+        self.assertEqual(purchase.credit_amount, 500)
+        self.assertFalse(SmsBalance.objects.filter(store=purchase.store, credits__gt=0).exists())
+
+    def test_inactive_package_cannot_be_purchased(self):
+        self.package.is_active = False
+        self.package.save(update_fields=["is_active"])
+        response = self.client.post(
+            reverse("dashboard:settings-sms-package-purchase"), {"package_id": self.package.pk},
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_anonymous_denied(self):
+        self.client.logout()
+        response = self.client.post(
+            reverse("dashboard:settings-sms-package-purchase"), {"package_id": self.package.pk},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn("/admin-portal/login/", response.url)
+        self.assertIn("admin_return=", response.url)
 
 
 class SmsTemplateFormViewTests(SmsAdminViewsTestCase):

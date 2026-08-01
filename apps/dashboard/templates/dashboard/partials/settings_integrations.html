@@ -1,0 +1,60 @@
+{% load persian dashboard_extras %}
+<div class="card">
+  <div class="card-head">
+    <h3>🔗 یکپارچه‌سازی‌های بیرونی</h3>
+    <span class="hint">اینماد، ترب، گوگل آنالیتیکس، گوگل تگ منیجر و پیکسلِ تبلیغاتی</span>
+  </div>
+  <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+    {% for row in integration_rows %}
+    <div style="border:1px solid var(--border);border-radius:12px;padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div>
+          <b style="font-size:13.5px">{{ row.provider.display_name }}</b>
+          {% if row.is_connected %}
+          <span class="badge b-green" style="margin-right:8px">متصل</span>
+          {% else %}
+          <span class="badge" style="margin-right:8px;background:var(--bg);color:var(--muted)">متصل‌نشده</span>
+          {% endif %}
+          <div style="font-size:11.5px;color:var(--muted);margin-top:4px">{{ row.provider.description }}</div>
+        </div>
+        <a href="{{ row.provider.setup_guide }}" target="_blank" rel="noopener" class="btn btn-sm">راهنمای اتصال</a>
+      </div>
+
+      {% if row.connection.last_tested_at %}
+      <div style="font-size:11.5px;margin-top:10px;padding:8px 10px;border-radius:8px;
+                  background:{% if row.connection.last_test_result == 'success' %}var(--green-soft){% else %}var(--red-soft){% endif %};
+                  color:{% if row.connection.last_test_result == 'success' %}var(--green){% else %}var(--red){% endif %}">
+        {% if row.connection.last_test_result == "success" %}✅{% else %}⚠️{% endif %} {{ row.connection.last_test_message }}
+      </div>
+      {% endif %}
+
+      <form method="post" action="{% url 'dashboard:settings-integration-connect' row.provider.code %}" style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        {% csrf_token %}
+        {% for field in row.provider.fields %}
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:180px">
+          <label>{{ field.label }}</label>
+          <input class="inp" type="{% if field.is_secret %}password{% else %}text{% endif %}" name="{{ field.key }}"
+                 value="{% if not field.is_secret %}{{ row.credentials|get_item:field.key }}{% endif %}"
+                 placeholder="{{ field.placeholder }}" dir="ltr">
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary btn-sm">{% if row.is_connected %}به‌روزرسانی{% else %}اتصال{% endif %}</button>
+      </form>
+
+      {% if row.is_connected %}
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <form method="post" action="{% url 'dashboard:settings-integration-test' row.provider.code %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm">تستِ اتصال</button>
+        </form>
+        <form method="post" action="{% url 'dashboard:settings-integration-disconnect' row.provider.code %}"
+              onsubmit="return confirm('اتصالِ این یکپارچه‌سازی قطع شود؟')">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-danger">قطعِ اتصال</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>

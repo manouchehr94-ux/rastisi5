@@ -11,6 +11,41 @@
 {% endblock %}
 
 {% block content %}
+{% if setup_checklist.all_complete %}
+<div class="card" style="margin-bottom:18px;text-align:center;padding:28px 20px">
+  <div style="font-size:34px;line-height:1">🎉</div>
+  <h3 style="margin-top:10px">فروشگاه شما آماده است!</h3>
+  <p class="hint" style="margin-top:4px">همه‌ی مراحل چک‌لیست راه‌اندازی تکمیل شده‌اند.</p>
+</div>
+{% elif setup_checklist %}
+<div class="card" x-data="{ setupChecklistOpen: true }" style="margin-bottom:18px">
+  <div class="card-head" style="cursor:pointer" @click="setupChecklistOpen = !setupChecklistOpen">
+    <div>
+      <h3>چک‌لیست راه‌اندازی فروشگاه</h3>
+      <div class="hint">{{ setup_checklist.completed_count|fa_number }} از {{ setup_checklist.total_count|fa_number }} مرحله تکمیل شده</div>
+    </div>
+    <span style="font-size:13px;font-weight:700;color:var(--primary)">{{ setup_checklist.percent|fa_number }}٪</span>
+  </div>
+  <div class="progress" style="margin:0 18px;margin-top:-1px"><i style="width:{{ setup_checklist.percent }}%"></i></div>
+  <div class="card-body" x-show="setupChecklistOpen" x-cloak>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px">
+      {% for step in setup_checklist.steps %}
+      <a href="{{ step.url }}" style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:11px;text-decoration:none;color:inherit;transition:.18s"
+         onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
+        <span style="font-size:18px">{% if step.is_complete %}✅{% else %}{{ step.icon }}{% endif %}</span>
+        <span style="flex:1;font-size:13px;font-weight:600">{{ step.label }}</span>
+        {% if step.is_complete %}
+        <span class="badge b-green">تکمیل‌شده</span>
+        {% else %}
+        <span class="btn btn-primary btn-sm">شروع</span>
+        {% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="grid g-4" style="margin-bottom:18px">
   <div class="card stat">
     <div class="ic" style="background:var(--primary-soft);color:var(--primary)">

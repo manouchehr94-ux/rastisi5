@@ -43,6 +43,61 @@ class DashboardViewTests(TestCase):
         self.assertContains(response, 'data-store-status="active"')
 
 
+class CollapsibleSidebarTests(TestCase):
+    """چک‌های ساختاریِ سایدبار جمع‌شونده — گروه‌بندی، مخفی‌شدنِ بج‌های صفر،
+    و درِ کشویی موبایل (بازطراحیِ سایدبار)."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user(username="09121121003", password="pass12345", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
+        self.client.login(username="09121121003", password="pass12345")
+
+    def test_sidebar_groups_render_with_data_group_and_collapse_markup(self):
+        response = self.client.get(reverse("dashboard:dashboard"))
+        for group_key in ["sales", "products", "shipping", "appearance", "finance", "reports", "management"]:
+            self.assertContains(response, f'data-group="{group_key}"')
+        self.assertContains(response, "nav-group-head")
+        self.assertContains(response, "nav-group-body")
+        self.assertContains(response, "x-show=\"groups.sales\"")
+
+    def test_zero_badges_are_not_rendered(self):
+        # فروشگاهِ akhlaghi در fixture پایه هیچ محصول/سفارشِ در انتظاری ندارد.
+        response = self.client.get(reverse("dashboard:dashboard"))
+        self.assertNotContains(response, 'badge-nav">0</span>')
+
+    def test_nonzero_product_badge_is_rendered(self):
+        from decimal import Decimal
+
+        from apps.catalog.models import Category, Product, Vendor
+
+        store = Store.objects.get(slug="akhlaghi")
+        category = Category.objects.create(store=store, name="پوشاک", slug="clothing-sidebar-test")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="vendor-sidebar-test")
+        Product.objects.create(
+            store=store, vendor=vendor, category=category, name="تیشرت", slug="tshirt-sidebar-test",
+            sku="SKU-SB1", price=Decimal("100000"),
+        )
+        response = self.client.get(reverse("dashboard:product-list"))
+        self.assertContains(response, '<span class="badge-nav">1</span>')
+
+    def test_nav_badges_shown_on_non_dashboard_pages_too(self):
+        # قبلاً nav_product_count/nav_pending_order_count فقط در ویوِ خودِ
+        # داشبورد محاسبه می‌شدند؛ اکنون context processor روی هر صفحه‌ای
+        # که request.store دارد آن‌ها را فراهم می‌کند.
+        response = self.client.get(reverse("dashboard:product-list"))
+        self.assertIn("nav_product_count", response.context)
+
+    def test_mobile_backdrop_present(self):
+        response = self.client.get(reverse("dashboard:dashboard"))
+        self.assertContains(response, "sidebar-backdrop")
+
+    def test_sidebar_footer_has_back_to_rastisi_and_user_card(self):
+        response = self.client.get(reverse("dashboard:dashboard"))
+        self.assertContains(response, "sidebar-foot")
+        self.assertContains(response, "بازگشت به راستیسی")
+        self.assertContains(response, "card-mini")
+
+
 class SalesChartPartialViewTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user(username="09121121002", password="pass12345", is_staff=True)

@@ -166,6 +166,8 @@ TEMPLATES = [
                 "apps.dashboard.context_processors.merchant_permissions",
                 "apps.dashboard.context_processors.subscription_banner",
                 "apps.dashboard.context_processors.platform_link",
+                "apps.dashboard.context_processors.storefront_link",
+                "apps.dashboard.context_processors.nav_badges",
             ],
         },
     },

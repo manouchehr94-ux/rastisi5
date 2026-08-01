@@ -1,0 +1,136 @@
+"""فهرستِ یکپارچه‌سازی‌های سطحِ Store (eNamad، Torob، Google Analytics،
+Google Tag Manager، پیکسل‌های تبلیغاتی، موتورهایِ مقایسه‌ی قیمت).
+
+دقیقاً همان الگویِ ``apps.orders.gateways.registry`` — یک نقطه‌ی واحدِ
+dispatch؛ افزودنِ یکپارچه‌سازیِ جدید یعنی افزودنِ یک ``IntegrationProvider``
+اینجا، نه ساختِ کدِ تکراری در هر جای دیگر. هیچ‌کدام اینجا یک درگاهِ پرداختِ
+واقعی نیستند (آن‌ها همچنان از طریقِ ``apps.orders.gateways`` مدیریت
+می‌شوند، طبقِ همان الگویِ اثبات‌شده‌ی Zibal/COD) — این فهرست فقط برایِ
+یکپارچه‌سازی‌هایی است که صرفاً یک شناسه/کد نیاز دارند، نه یک تراکنشِ مالی.
+
+هر Provider یک ``validate(values)`` دارد که فرمتِ مقادیر را واقعاً بررسی
+می‌کند (نه صرفاً «غیرخالی») — این همان «تستِ اتصال»ی است که این کدبیس
+می‌تواند بدونِ حدس‌زدنِ APIهای مستندنشده‌ی بیرونی، صادقانه و به‌درستی انجام
+دهد؛ یک HTTP واقعی به سرویسِ eNamad/Torob بدونِ مستنداتِ رسمیِ تأییدشده
+می‌توانست کدی بسازد که به‌نظر کار می‌کند اما در تولید شکست بخورد یا داده‌ی
+نادرست بفرستد — ریسکی که برایِ یکپارچه‌سازیِ مالی/اعتمادی قابلِ قبول نیست."""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from typing import Callable
+
+
+class IntegrationCategory:
+    TRUST = "trust"
+    ANALYTICS = "analytics"
+    MARKETING = "marketing"
+    COMPARISON = "comparison"
+
+    CHOICES = [
+        (TRUST, "نشان اعتماد"),
+        (ANALYTICS, "تحلیل و آمار"),
+        (MARKETING, "بازاریابی و تبلیغات"),
+        (COMPARISON, "مقایسه‌گرهای قیمت"),
+    ]
+
+
+@dataclass(frozen=True)
+class IntegrationField:
+    key: str
+    label: str
+    is_secret: bool = False
+    placeholder: str = ""
+
+
+@dataclass(frozen=True)
+class IntegrationProvider:
+    code: str
+    display_name: str
+    category: str
+    description: str
+    setup_guide: str
+    fields: tuple[IntegrationField, ...]
+    validate: Callable[[dict], str | None] = field(repr=False)
+
+
+def _require_non_empty(field_key: str, label: str):
+    def _validate(values: dict) -> str | None:
+        if not (values.get(field_key) or "").strip():
+            return f"{label} نمی‌تواند خالی باشد."
+        return None
+    return _validate
+
+
+def _require_pattern(field_key: str, label: str, pattern: str, example: str):
+    compiled = re.compile(pattern)
+
+    def _validate(values: dict) -> str | None:
+        value = (values.get(field_key) or "").strip()
+        if not value:
+            return f"{label} نمی‌تواند خالی باشد."
+        if not compiled.match(value):
+            return f"{label} با الگویِ موردِ انتظار (مثل «{example}») مطابقت ندارد."
+        return None
+    return _validate
+
+
+PROVIDERS: dict[str, IntegrationProvider] = {
+    "enamad": IntegrationProvider(
+        code="enamad",
+        display_name="اینماد (eNamad)",
+        category=IntegrationCategory.TRUST,
+        description="نمایشِ نشانِ اعتماد الکترونیکی روی فروشگاه — کدِ نماد از پنلِ enamad.ir دریافت می‌شود.",
+        setup_guide="https://enamad.ir",
+        fields=(IntegrationField(key="enamad_code", label="کدِ نماد"),),
+        validate=_require_non_empty("enamad_code", "کدِ نماد"),
+    ),
+    "torob": IntegrationProvider(
+        code="torob",
+        display_name="ترب (Torob)",
+        category=IntegrationCategory.COMPARISON,
+        description="اتصالِ فیدِ محصولات به ترب برایِ نمایش در نتایجِ مقایسه‌ی قیمت.",
+        setup_guide="https://torob.com/seller/",
+        fields=(IntegrationField(key="merchant_id", label="شناسه‌ی فروشنده در ترب"),),
+        validate=_require_non_empty("merchant_id", "شناسه‌ی فروشنده"),
+    ),
+    "google_analytics": IntegrationProvider(
+        code="google_analytics",
+        display_name="گوگل آنالیتیکس (GA4)",
+        category=IntegrationCategory.ANALYTICS,
+        description="ردیابیِ بازدید و رفتارِ کاربران با شناسه‌ی اندازه‌گیریِ GA4.",
+        setup_guide="https://analytics.google.com",
+        fields=(IntegrationField(key="measurement_id", label="شناسه‌ی اندازه‌گیری", placeholder="G-XXXXXXXXXX"),),
+        validate=_require_pattern("measurement_id", "شناسه‌ی اندازه‌گیری", r"^G-[A-Z0-9]{6,10}$", "G-ABC1234DEF"),
+    ),
+    "google_tag_manager": IntegrationProvider(
+        code="google_tag_manager",
+        display_name="گوگل تگ منیجر (GTM)",
+        category=IntegrationCategory.ANALYTICS,
+        description="مدیریتِ متمرکزِ تگ‌های ردیابی از طریقِ کانتینرِ GTM.",
+        setup_guide="https://tagmanager.google.com",
+        fields=(IntegrationField(key="container_id", label="شناسه‌ی کانتینر", placeholder="GTM-XXXXXXX"),),
+        validate=_require_pattern("container_id", "شناسه‌ی کانتینر", r"^GTM-[A-Z0-9]{4,8}$", "GTM-ABC1234"),
+    ),
+    "ad_pixel": IntegrationProvider(
+        code="ad_pixel",
+        display_name="پیکسلِ تبلیغاتی (متا/اینستاگرام)",
+        category=IntegrationCategory.MARKETING,
+        description="ردیابیِ تبدیل برایِ کمپین‌های تبلیغاتیِ متا (فیسبوک/اینستاگرام).",
+        setup_guide="https://business.facebook.com/events_manager",
+        fields=(IntegrationField(key="pixel_id", label="شناسه‌ی پیکسل", placeholder="1234567890123456"),),
+        validate=_require_pattern("pixel_id", "شناسه‌ی پیکسل", r"^\d{10,20}$", "1234567890123456"),
+    ),
+}
+
+
+def get_provider(code: str) -> IntegrationProvider | None:
+    return PROVIDERS.get(code)
+
+
+def all_providers() -> list[IntegrationProvider]:
+    return list(PROVIDERS.values())
+
+
+PROVIDER_CHOICES = [(code, provider.display_name) for code, provider in PROVIDERS.items()]

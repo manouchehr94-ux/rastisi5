@@ -4,7 +4,11 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
-from apps.core.models import TimeStampedModel
+from apps.core.models import ShopSettings, TimeStampedModel
+
+#: Reuses apps.core.models.ShopSettings.SmsBackend's choices/labels instead
+#: of redefining them — see PlatformConfiguration.sms_backend.
+_SmsBackendChoices = ShopSettings.SmsBackend
 
 
 class OwnerProfile(TimeStampedModel):
@@ -194,6 +198,61 @@ class PlatformConfiguration(TimeStampedModel):
         "درگاه‌های پرداخت فعال", default=list,
         help_text="فهرستِ کدهای درگاه فعال — نمایش‌دادنی در تسویه‌حساب اشتراک.",
     )
+
+    # --- درگاهِ پیامکِ مرکزیِ پلتفرم ---
+    # زیرساختِ ارسالِ پیامک (ارائه‌دهنده/کلیدِ API/شماره‌ی فرستنده) یک تصمیمِ
+    # سطحِ پلتفرم است، نه Store — همان انتخابِ backend اینجا برایِ OTP هویتِ
+    # مشتری/مالک و پیامک‌های رویدادِ همه‌ی Storeها استفاده می‌شود (نگاه کنید
+    # به ``apps.portal.services.owner_sms_service.get_platform_sms_backend``
+    # و ``apps.sms.services.sms_service.get_backend``). استثنایِ عمدی: گیت‌وی
+    # اندرویدِ SmsRasti، که برخلافِ بقیه دستگاهِ فیزیکیِ خودِ همان Store است،
+    # نه زیرساختِ پلتفرم — همچنان در تنظیماتِ خودِ Store پیکربندی می‌شود.
+    sms_backend = models.CharField(
+        "درگاهِ پیامکِ مرکزی", max_length=20, blank=True,
+        choices=[
+            (code, label) for code, label in _SmsBackendChoices.choices
+            if code != _SmsBackendChoices.SMSRASTI
+        ],
+        default=_SmsBackendChoices.CONSOLE,
+    )
+    sms_sender_number = models.CharField("شماره‌ی فرستنده‌ی مرکزی", max_length=20, blank=True, default="")
+    # اعتبارنامه‌های ارائه‌دهنده (نام‌کاربری/رمز/کلیدِ API) به‌صورتِ یک JSON
+    # رمزنگاری‌شده در یک فیلد ذخیره می‌شوند — همان الگویِ
+    # ``apps.orders.models.PaymentGatewayConfig.encrypted_credentials``
+    # (تکرار نشده، بازاستفاده‌شده) با همان ابزارِ رمزنگاریِ Fernet
+    # (``apps.orders.encryption``).
+    encrypted_sms_credentials = models.TextField(
+        "اعتبارنامه‌ی پیامکِ رمزنگاری‌شده", blank=True, default="",
+        help_text="مقدارِ رمزنگاری‌شده — هرگز مستقیم خوانده نمی‌شود",
+    )
+
+    def get_sms_credentials(self) -> dict:
+        """رمزگشایی و بازگرداندنِ اعتبارنامه‌های پیامک به‌صورتِ dict."""
+        import json
+
+        from apps.orders.encryption import decrypt_credential
+
+        if not self.encrypted_sms_credentials:
+            return {}
+        plaintext = decrypt_credential(self.encrypted_sms_credentials)
+        if not plaintext:
+            return {}
+        try:
+            return json.loads(plaintext)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def set_sms_credentials(self, **updates) -> None:
+        """کلیدهای دادهشده را با اعتبارنامه‌های موجود ادغام و رمزنگاری می‌کند.
+        مقدارِ خالی/None برایِ یک کلید یعنی «بدونِ تغییر» — نه پاک‌کردن (همان
+        رفتارِ فیلدهایِ رازِ write-only در فرم‌های موجود)."""
+        import json
+
+        from apps.orders.encryption import encrypt_credential
+
+        merged = {**self.get_sms_credentials(), **{k: v for k, v in updates.items() if v}}
+        clean = {k: v for k, v in merged.items() if v}
+        self.encrypted_sms_credentials = encrypt_credential(json.dumps(clean, ensure_ascii=False)) if clean else ""
 
     class Meta:
         verbose_name = "تنظیمات پلتفرم"
