@@ -4,12 +4,12 @@
         style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
     {% csrf_token %}
     <div class="form-group" style="margin-bottom:0">
-      <label>برچسب</label>
+      <label>برچسب <span class="help-icon" title="مقداری که مشتری برایِ انتخاب می‌بیند، مثلاً یک رنگ یا سایز.">؟</span></label>
       <input class="inp" name="label" value="{{ value_form.label.value|default_if_none:'' }}" placeholder="مثلاً: سبز" style="width:150px">
     </div>
     {% if attribute.data_type == "color" %}
     <div class="form-group" style="margin-bottom:0" x-data="{ hex: '{{ value_form.color_hex.value|default:"#6D28D9" }}' }">
-      <label>رنگ</label>
+      <label>رنگ <span class="help-icon" title="اگر تصویرِ نمونه هم آپلود کنید، تصویر در اولویتِ نمایش است.">؟</span></label>
       <div style="display:flex;gap:6px;align-items:center">
         <input type="color" :value="hex" @input="hex = $event.target.value" style="width:36px;height:36px;padding:2px;border:1px solid var(--border);border-radius:8px;cursor:pointer">
         <input class="inp" name="color_hex" :value="hex" @input="hex = $event.target.value" dir="ltr" style="width:90px">
@@ -17,7 +17,7 @@
     </div>
     {% endif %}
     <div class="form-group" style="margin-bottom:0">
-      <label>تصویر نمونه (اختیاری)</label>
+      <label>تصویر نمونه (اختیاری) <span class="help-icon" title="مثلاً بافتِ پارچه یا الگوی طرح — برای مقادیری که یک رنگِ ساده کافی نیست.">؟</span></label>
       <input class="inp" type="file" name="swatch_image" accept=".jpg,.jpeg,.png,.webp" style="width:170px">
     </div>
     <button type="submit" class="btn btn-sm btn-primary">افزودن</button>
@@ -42,7 +42,27 @@
             }
             dragId = null;
           " style="cursor:grab">
-        <td style="color:var(--muted)" title="برای مرتب‌سازی بکشید">⠿</td>
+        <td style="white-space:nowrap">
+          <span style="color:var(--muted)" title="برای مرتب‌سازی بکشید">⠿</span>
+          <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}
+                  @click="
+                    const tr = $el.closest('tr'); const prev = tr.previousElementSibling;
+                    if (prev) {
+                      tr.parentElement.insertBefore(tr, prev);
+                      const ids = [...tr.parentElement.children].map(r => r.dataset.id);
+                      htmx.ajax('POST', '{% url 'dashboard:attribute-value-reorder' attribute.pk %}', {values: {value_ids: ids}, target: '#attributeValuesList', swap: 'outerHTML'});
+                    }
+                  ">▲</button>
+          <button type="button" class="btn btn-sm" title="جابه‌جایی به پایین" {% if forloop.last %}disabled{% endif %}
+                  @click="
+                    const tr = $el.closest('tr'); const next = tr.nextElementSibling;
+                    if (next) {
+                      tr.parentElement.insertBefore(next, tr);
+                      const ids = [...tr.parentElement.children].map(r => r.dataset.id);
+                      htmx.ajax('POST', '{% url 'dashboard:attribute-value-reorder' attribute.pk %}', {values: {value_ids: ids}, target: '#attributeValuesList', swap: 'outerHTML'});
+                    }
+                  ">▼</button>
+        </td>
         <td>
           {% if value.swatch_image %}
           <img src="{{ value.swatch_image.url }}" alt="" style="width:22px;height:22px;border-radius:5px;object-fit:cover;border:1px solid var(--border)">

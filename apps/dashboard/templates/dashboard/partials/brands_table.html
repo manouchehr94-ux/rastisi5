@@ -22,7 +22,27 @@
           dragId = null;
         "
         style="cursor:grab">
-      <td style="color:var(--muted)" title="برای مرتب‌سازی بکشید">⠿</td>
+      <td style="white-space:nowrap">
+        <span style="color:var(--muted)" title="برای مرتب‌سازی بکشید">⠿</span>
+        <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}
+                @click="
+                  const tr = $el.closest('tr'); const prev = tr.previousElementSibling;
+                  if (prev) {
+                    tr.parentElement.insertBefore(tr, prev);
+                    const ids = [...tr.parentElement.children].map(r => r.dataset.id);
+                    htmx.ajax('POST', '{% url 'dashboard:brand-reorder' %}', {values: {brand_ids: ids}, target: '#brandsTableWrap', swap: 'innerHTML'});
+                  }
+                ">▲</button>
+        <button type="button" class="btn btn-sm" title="جابه‌جایی به پایین" {% if forloop.last %}disabled{% endif %}
+                @click="
+                  const tr = $el.closest('tr'); const next = tr.nextElementSibling;
+                  if (next) {
+                    tr.parentElement.insertBefore(next, tr);
+                    const ids = [...tr.parentElement.children].map(r => r.dataset.id);
+                    htmx.ajax('POST', '{% url 'dashboard:brand-reorder' %}', {values: {brand_ids: ids}, target: '#brandsTableWrap', swap: 'innerHTML'});
+                  }
+                ">▼</button>
+      </td>
       <td>
         <div class="thumb" style="width:36px;height:36px;background:var(--primary-soft)">
           {% if brand.logo %}

@@ -11,23 +11,23 @@
     <div style="color:var(--red);font-size:12.5px;margin-bottom:10px">{% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}</div>
     {% endif %}
     <div class="form-group">
-      <label>عنوان نمایشی *</label>
+      <label>عنوان نمایشی * <span class="help-icon" title="همین عنوان به مشتری و در فرمِ کالا نمایش داده می‌شود، مثلاً «رنگ» یا «جنس».">؟</span></label>
       <input class="inp" name="label" value="{{ form.label.value|default_if_none:'' }}" placeholder="مثلاً: رنگ">
       {% for err in form.label.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>کد داخلی (اختیاری)</label>
+        <label>کد داخلی (اختیاری) <span class="help-icon" title="شناسه‌ی یکتای فنی؛ خالی بگذارید تا خودکار از رویِ عنوان ساخته شود.">؟</span></label>
         <input class="inp" name="code" value="{{ form.code.value|default_if_none:'' }}" dir="ltr">
       </div>
       <div class="form-group">
-        <label>واحد (اختیاری)</label>
+        <label>واحد (اختیاری) <span class="help-icon" title="اگر مقدارِ این ویژگی عددی است، واحدش را اینجا بنویسید.">؟</span></label>
         <input class="inp" name="unit" value="{{ form.unit.value|default_if_none:'' }}" placeholder="گرم، سانتی‌متر...">
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>نوع داده</label>
+        <label>نوع داده <span class="help-icon" title="نوعِ مقادیرِ این ویژگی را مشخص می‌کند؛ مثلاً «رنگ» باعث نمایشِ انتخاب‌گرِ رنگ در مقادیر می‌شود.">؟</span></label>
         <select class="inp" name="data_type">
           {% for value, label in form.fields.data_type.choices %}
           <option value="{{ value }}" {% if form.data_type.value == value %}selected{% endif %}>{{ label }}</option>
@@ -35,7 +35,7 @@
         </select>
       </div>
       <div class="form-group">
-        <label>نوع نمایش</label>
+        <label>نوع نمایش <span class="help-icon" title="نحوه‌ی نمایشِ گزینه‌ها در فرمِ کالا و صفحه‌ی محصول (مثلاً دکمه‌ای یا کشویی).">؟</span></label>
         <select class="inp" name="display_type">
           {% for value, label in form.fields.display_type.choices %}
           <option value="{{ value }}" {% if form.display_type.value == value %}selected{% endif %}>{{ label }}</option>
@@ -45,24 +45,25 @@
       </div>
     </div>
     <div class="form-group">
-      <label>دسته‌بندی (اختیاری)</label>
+      <label>دسته‌بندی (اختیاری) <span class="help-icon" title="خالی بگذارید تا این ویژگی برایِ همه‌ی دسته‌بندی‌ها قابلِ استفاده باشد.">؟</span></label>
       <select class="inp" name="category">
         <option value="">— همه‌ی دسته‌بندی‌ها —</option>
         {% for cat in form.fields.category.queryset %}
         <option value="{{ cat.pk }}" {% if form.category.value|stringformat:"s" == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
         {% endfor %}
       </select>
+      <div class="field-help">محدودکردنِ ویژگی به یک دسته‌بندیِ خاص، فهرستِ فیلدهای فرمِ کالا را برایِ آن دسته تمیزتر نگه می‌دارد.</div>
     </div>
     <div class="form-group">
       <label>توضیحات</label>
       <textarea class="inp" name="description" rows="2">{{ form.description.value|default_if_none:'' }}</textarea>
     </div>
     <div class="form-row" style="flex-wrap:wrap;gap:10px">
-      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" name="is_required" {% if form.is_required.value %}checked{% endif %}> الزامی</label>
-      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" name="is_filterable" {% if form.is_filterable.value %}checked{% endif %}> قابل فیلتر</label>
-      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" name="is_searchable" {% if form.is_searchable.value %}checked{% endif %}> قابل جست‌وجو</label>
-      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" name="is_comparable" {% if form.is_comparable.value %}checked{% endif %}> قابل مقایسه</label>
-      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" name="is_variant_axis" {% if form.is_variant_axis.value %}checked{% endif %}> واجد شرایط محور تنوع</label>
+      <label style="display:flex;align-items:center;gap:6px" title="کاربر نمی‌تواند کالا را بدونِ پرکردنِ این ویژگی ذخیره کند."><input type="checkbox" name="is_required" {% if form.is_required.value %}checked{% endif %}> الزامی</label>
+      <label style="display:flex;align-items:center;gap:6px" title="در فیلترهایِ کناریِ صفحه‌ی فهرستِ محصولات به مشتری نمایش داده می‌شود."><input type="checkbox" name="is_filterable" {% if form.is_filterable.value %}checked{% endif %}> قابل فیلتر</label>
+      <label style="display:flex;align-items:center;gap:6px" title="در جست‌وجویِ سایت روی مقدارِ این ویژگی هم جست‌وجو انجام می‌شود."><input type="checkbox" name="is_searchable" {% if form.is_searchable.value %}checked{% endif %}> قابل جست‌وجو</label>
+      <label style="display:flex;align-items:center;gap:6px" title="در جدولِ مقایسه‌ی کالاها نمایش داده می‌شود."><input type="checkbox" name="is_comparable" {% if form.is_comparable.value %}checked{% endif %}> قابل مقایسه</label>
+      <label style="display:flex;align-items:center;gap:6px" title="فعال کنید تا این ویژگی در ساختِ تنوع‌های کالا (مثلاً رنگ × سایز) قابلِ انتخاب باشد."><input type="checkbox" name="is_variant_axis" {% if form.is_variant_axis.value %}checked{% endif %}> واجد شرایط محور تنوع</label>
     </div>
   </div>
   <div class="modal-foot">

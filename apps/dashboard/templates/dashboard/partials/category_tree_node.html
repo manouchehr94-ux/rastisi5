@@ -11,7 +11,7 @@
           if (from) {
             parent.insertBefore(from, from.compareDocumentPosition($el) & Node.DOCUMENT_POSITION_FOLLOWING ? $el.nextSibling : $el);
             const ids = [...parent.children].map(r => r.dataset.id);
-            htmx.ajax('POST', '{% url 'dashboard:category-reorder' %}', {values: {category_ids: ids}, target: '#categoriesList', swap: 'innerHTML'});
+            htmx.ajax('POST', '{% url 'dashboard:category-reorder' %}', {values: {category_ids: ids}, target: '#categoriesPageBody', swap: 'outerHTML'});
           }
         }
         dragId = null;
@@ -25,6 +25,24 @@
     <span class="cat-toggle-spacer"></span>
     {% endif %}
     <span class="cat-drag-handle" title="برای مرتب‌سازی بکشید">⠿</span>
+    <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" {% if is_first %}disabled{% endif %}
+            @click.stop="
+              const node = $el.closest('.cat-tree-node'); const prev = node.previousElementSibling;
+              if (prev) {
+                node.parentElement.insertBefore(node, prev);
+                const ids = [...node.parentElement.children].map(r => r.dataset.id);
+                htmx.ajax('POST', '{% url 'dashboard:category-reorder' %}', {values: {category_ids: ids}, target: '#categoriesPageBody', swap: 'outerHTML'});
+              }
+            ">▲</button>
+    <button type="button" class="btn btn-sm" title="جابه‌جایی به پایین" {% if is_last %}disabled{% endif %}
+            @click.stop="
+              const node = $el.closest('.cat-tree-node'); const next = node.nextElementSibling;
+              if (next) {
+                node.parentElement.insertBefore(next, node);
+                const ids = [...node.parentElement.children].map(r => r.dataset.id);
+                htmx.ajax('POST', '{% url 'dashboard:category-reorder' %}', {values: {category_ids: ids}, target: '#categoriesPageBody', swap: 'outerHTML'});
+              }
+            ">▼</button>
     <span class="cat-icon">{{ node.category.icon|default:"📁" }}</span>
     <span class="cat-name">{{ node.category.name }}</span>
     <span class="cat-meta">
@@ -41,7 +59,7 @@
   {% if node.children %}
   <div class="cat-children" x-show="open" x-cloak>
     {% for child in node.children %}
-    {% include "dashboard/partials/category_tree_node.html" with node=child %}
+    {% include "dashboard/partials/category_tree_node.html" with node=child is_first=forloop.first is_last=forloop.last %}
     {% endfor %}
   </div>
   {% endif %}

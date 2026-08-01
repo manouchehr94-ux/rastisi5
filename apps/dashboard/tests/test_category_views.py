@@ -135,3 +135,28 @@ class CategoryDeleteViewTests(CategoryViewsTestCase):
         response = self.client.post(reverse("dashboard:category-delete", args=[self.sub.pk]))
         self.assertRedirects(response, reverse("catalog:home"))
         self.assertTrue(Category.objects.filter(pk=self.sub.pk).exists())
+
+
+class CategoryReorderViewTests(CategoryViewsTestCase):
+    def test_reorders_siblings(self):
+        second = Category.objects.create(store=self.store, name="زیرگروه دوم", slug="sub2-cv", parent=self.main)
+        response = self.client.post(
+            reverse("dashboard:category-reorder"), {"category_ids": [second.pk, self.sub.pk]}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.sub.refresh_from_db()
+        second.refresh_from_db()
+        self.assertLess(second.order, self.sub.order)
+
+    def test_response_matches_the_target_and_swap_used_by_the_reorder_scripts(self):
+        """پاسخِ ویو کلِ ``categories_body.html`` (با id=categoriesPageBody) را برمی‌گرداند —
+        اسکریپت‌هایِ کشاندن/دکمه‌هایِ بالا-پایین در category_tree_node.html باید دقیقاً
+        همین المان را با outerHTML جایگزین کنند، نه یک زیرالمانِ داخلی‌تر مثل #categoriesList
+        را با innerHTML (که باعثِ تودرتوشدنِ کلِ صفحه می‌شد)."""
+        response = self.client.post(
+            reverse("dashboard:category-reorder"), {"category_ids": [self.sub.pk]}
+        )
+        content = response.content.decode()
+        self.assertIn('id="categoriesPageBody"', content)
+        self.assertIn("target: '#categoriesPageBody', swap: 'outerHTML'", content)
+        self.assertNotIn("target: '#categoriesList', swap: 'innerHTML'", content)

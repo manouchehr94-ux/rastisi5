@@ -24,7 +24,7 @@
 </div>
 {% endif %}
 <div class="card" style="margin-bottom:18px">
-  <div class="card-head"><h3>محورهای تنوع</h3></div>
+  <div class="card-head"><h3>محورهای تنوع <span class="help-icon" title="هر محور یک ویژگیِ قابلِ انتخاب است (مثلاً «رنگ»)؛ ترکیبِ مقادیرِ محورها (رنگ × سایز) تنوع‌های نهاییِ کالا را می‌سازد.">؟</span></h3></div>
   <div class="card-body">
     {% for axis in axes %}
     <div class="cat-block">
@@ -74,14 +74,15 @@
       {% csrf_token %}
       <div class="form-row">
         <div class="form-group">
-          <label>عنوان محور جدید</label>
+          <label>عنوان محور جدید <span class="help-icon" title="یک ویژگیِ قابلِ انتخاب برایِ این کالا؛ مثلاً رنگ یا سایز.">؟</span></label>
           <input class="inp" name="label" placeholder="مثلاً: رنگ، سایز، جنس" value="{{ option_form.label.value|default_if_none:'' }}">
           {% for err in option_form.label.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
         </div>
       </div>
       <div class="form-group">
-        <label>مقادیر اولیه (اختیاری)</label>
+        <label>مقادیر اولیه (اختیاری) <span class="help-icon" title="با ویرگول جدا کنید؛ بعداً هم می‌توانید مقدارِ بیشتری اضافه کنید.">؟</span></label>
         <textarea class="inp" name="raw_values" rows="2" placeholder="سبز، آبی، زرد">{{ option_form.raw_values.value|default_if_none:'' }}</textarea>
+        <div class="field-help">مثال: «سبز، آبی، زرد» سه مقدار برای محورِ رنگ می‌سازد.</div>
       </div>
       {% for err in option_form.non_field_errors %}<div style="color:var(--red);font-size:11.5px;margin-bottom:8px">{{ err }}</div>{% endfor %}
       <button type="submit" class="btn btn-primary">افزودن محور</button>
@@ -91,12 +92,13 @@
 
 <div class="card" style="margin-bottom:18px">
   <div class="card-body" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
-    <div><b>پیش‌نمایش تعداد ترکیب:</b> {{ combination_preview|fa_number }}</div>
+    <div><b>پیش‌نمایش تعداد ترکیب:</b> {{ combination_preview|fa_number }} <span class="help-icon" title="حاصل‌ضربِ تعدادِ مقادیرِ همه‌ی محورهای فعال؛ مثلاً ۳ رنگ × ۲ سایز = ۶ ترکیب.">؟</span></div>
     <form hx-post="{% url 'dashboard:product-variants-generate' product.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
           hx-confirm="تولید/تطبیق تنوع‌ها اجرا شود؟ ترکیب‌های موجود حفظ می‌شوند؛ ترکیب‌های حذف‌شده منسوخ (نه حذف) خواهند شد.">
       {% csrf_token %}
       <button type="submit" class="btn btn-primary">🔄 تولید / تطبیق تنوع‌ها</button>
     </form>
+    <div class="field-help" style="width:100%">پس از افزودن یا تغییرِ محورها، این دکمه را بزنید تا تنوع‌های نهایی (مثل «قرمز / L») ساخته یا به‌روزرسانی شوند.</div>
   </div>
 </div>
 
@@ -112,7 +114,13 @@
             <tr>
               <th><input type="checkbox" title="انتخابِ همه" @change="const c = $event.target.checked; $el.closest('table').querySelectorAll('tbody input[name=delete_variant_ids]').forEach(cb => cb.checked = c)"></th>
               <th>تصویر</th>
-              <th>ترکیب</th><th>SKU</th><th>بارکد</th><th>تغییر قیمت</th><th>قیمت مقایسه‌ای</th><th>بهای تمام‌شده</th><th>موجودی</th><th>فعال</th><th>پیش‌فرض</th>
+              <th>ترکیب</th>
+              <th title="کدِ داخلیِ یکتای این تنوع؛ خالی بگذارید تا خودکار ساخته شود.">SKU</th>
+              <th title="برایِ اسکن در انبار یا صندوقِ فروش — اختیاری.">بارکد</th>
+              <th title="مبلغی که به قیمتِ پایه‌ی کالا اضافه/کم می‌شود؛ برایِ بدونِ تغییر، صفر بگذارید.">تغییر قیمت</th>
+              <th title="قیمتِ خط‌خورده‌ای که کنارِ قیمتِ نهایی نمایش داده می‌شود تا تخفیف را نشان دهد.">قیمت مقایسه‌ای</th>
+              <th title="بهای خرید/تولیدِ داخلی؛ به مشتری نمایش داده نمی‌شود، فقط برایِ محاسبه‌ی سود است.">بهای تمام‌شده</th>
+              <th>موجودی</th><th>فعال</th><th>پیش‌فرض</th>
             </tr>
           </thead>
           <tbody>
