@@ -80,6 +80,27 @@ class AddDomainViewTests(CustomDomainViewsTestCase):
         response = self.client.get(self._list_url(), HTTP_HOST=_HOST)
         self.assertEqual(response.status_code, 404)
 
+    def test_adding_a_likely_typo_of_an_existing_domain_shows_a_warning(self):
+        self.client.post(self._list_url(), {"action": "add", "hostname": "digigol.ir"}, HTTP_HOST=_HOST)
+        response = self.client.post(
+            self._list_url(), {"action": "add", "hostname": "digigole.ir"}, HTTP_HOST=_HOST, follow=True,
+        )
+        self.assertContains(response, "digigol.ir")
+        self.assertContains(response, "p-alert-warning")
+
+    def test_adding_a_clean_new_domain_shows_no_typo_warning(self):
+        response = self.client.post(
+            self._list_url(), {"action": "add", "hostname": "brand-new-shop.ir"}, HTTP_HOST=_HOST, follow=True,
+        )
+        self.assertNotContains(response, "p-alert-warning")
+
+    def test_hostname_is_never_auto_corrected(self):
+        """درخواستِ typo-suggestion هرگز مقدارِ واردشده را جایگزین نمی‌کند —
+        دقیقاً همان چیزی که کاربر تایپ کرده ذخیره می‌شود."""
+        self.client.post(self._list_url(), {"action": "add", "hostname": "digigol.ir"}, HTTP_HOST=_HOST)
+        self.client.post(self._list_url(), {"action": "add", "hostname": "digigole.ir"}, HTTP_HOST=_HOST)
+        self.assertTrue(StoreDomain.objects.filter(store=self.store, hostname="digigole.ir").exists())
+
 
 class BeginAndCheckVerificationViewTests(CustomDomainViewsTestCase):
     def _add_domain(self):
@@ -160,3 +181,58 @@ class ActivateDomainViewTests(CustomDomainViewsTestCase):
         )
         domain.refresh_from_db()
         self.assertFalse(domain.is_primary)
+
+
+class FinalCheckViewTests(CustomDomainViewsTestCase):
+    """تستِ نهاییِ اتصال (SSL) — صرفاً تشخیصی، هرگز چیزی را در دیتابیس
+    تغییر نمی‌دهد یا فعال‌سازی را انجام نمی‌دهد."""
+
+    def _verified_domain(self):
+        self.client.post(self._list_url(), {"action": "add", "hostname": "shop.example.com"}, HTTP_HOST=_HOST)
+        domain = StoreDomain.objects.get(store=self.store, hostname="shop.example.com")
+        self.client.post(f"/app/stores/{self.store.public_id}/domains/{domain.pk}/begin-verify/", HTTP_HOST=_HOST)
+        domain.refresh_from_db()
+        with patch(_resolve_target()) as mock_resolve:
+            mock_resolve.return_value = [_FakeTXTRecord(f"rastisi-verify={domain.verification_token}")]
+            self.client.post(f"/app/stores/{self.store.public_id}/domains/{domain.pk}/check/", HTTP_HOST=_HOST)
+        domain.refresh_from_db()
+        return domain
+
+    def test_reachable_ssl_shows_success_message(self):
+        from apps.stores.services.domain_verification_service import SslConnectionCheck
+
+        domain = self._verified_domain()
+        with patch(
+            "apps.portal.views.domain_verification_service.check_ssl_connection",
+            return_value=SslConnectionCheck(reachable=True, certificate_expires_at=None, error=""),
+        ):
+            response = self.client.post(
+                f"/app/stores/{self.store.public_id}/domains/{domain.pk}/final-check/",
+                HTTP_HOST=_HOST, follow=True,
+            )
+        self.assertContains(response, "با موفقیت برقرار شد")
+
+    def test_unreachable_ssl_shows_warning_message_and_does_not_activate(self):
+        from apps.stores.services.domain_verification_service import SslConnectionCheck
+
+        domain = self._verified_domain()
+        with patch(
+            "apps.portal.views.domain_verification_service.check_ssl_connection",
+            return_value=SslConnectionCheck(reachable=False, certificate_expires_at=None, error="timed out"),
+        ):
+            response = self.client.post(
+                f"/app/stores/{self.store.public_id}/domains/{domain.pk}/final-check/",
+                HTTP_HOST=_HOST, follow=True,
+            )
+        self.assertContains(response, "هنوز برقرار نیست")
+        domain.refresh_from_db()
+        self.assertFalse(domain.is_primary)
+
+    def test_other_owner_cannot_final_check_someone_elses_domain(self):
+        domain = self._verified_domain()
+        other = User.objects.create_user(username="09121290033", password="a-very-strong-pass-1")
+        self.client.force_login(other)
+        response = self.client.post(
+            f"/app/stores/{self.store.public_id}/domains/{domain.pk}/final-check/", HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 404)

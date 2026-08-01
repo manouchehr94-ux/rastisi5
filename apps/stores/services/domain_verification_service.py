@@ -8,6 +8,10 @@
 ``PENDING`` نگه می‌دارد تا تاجر بتواند دوباره تلاش کند."""
 
 import secrets
+import socket
+import ssl
+from dataclasses import dataclass
+from datetime import datetime
 
 import dns.exception
 import dns.resolver
@@ -22,6 +26,7 @@ from apps.stores.models import Store, StoreDomain
 VERIFICATION_RECORD_PREFIX = "_rastisi-verify"
 VERIFICATION_VALUE_PREFIX = "rastisi-verify="
 DNS_LOOKUP_TIMEOUT_SECONDS = 5.0
+SSL_CHECK_TIMEOUT_SECONDS = 4.0
 
 
 class DomainVerificationError(Exception):
@@ -129,6 +134,39 @@ def check_dns_verification(*, domain: StoreDomain, actor) -> bool:
         object_type="StoreDomain", object_id=locked.pk, object_label=locked.hostname,
     )
     return True
+
+
+@dataclass(frozen=True)
+class SslConnectionCheck:
+    """نتیجه‌ی «تستِ نهاییِ اتصال» — یک تشخیصِ صرفِ خواندنی، هیچ فیلدی از
+    ``StoreDomain`` را تغییر نمی‌دهد (فعال‌سازی همچنان فقط از طریقِ
+    ``activate_custom_domain`` انجام می‌شود، نه بر اساسِ نتیجه‌ی این تابع)."""
+
+    reachable: bool
+    certificate_expires_at: datetime | None
+    error: str
+
+
+def check_ssl_connection(hostname: str) -> SslConnectionCheck:
+    """اتصالِ HTTPS واقعی به ``hostname:443`` را امتحان می‌کند — دقیقاً همان
+    الگویِ ``_txt_records_match``: هرگز استثنا به بیرون نمی‌اندازد، هر خطای
+    شبکه/گواهی صرفاً «در دسترس نیست» به‌حساب می‌آید، نه یک ۵۰۰."""
+    try:
+        context = ssl.create_default_context()
+        with socket.create_connection((hostname, 443), timeout=SSL_CHECK_TIMEOUT_SECONDS) as sock:
+            with context.wrap_socket(sock, server_hostname=hostname) as tls_sock:
+                cert = tls_sock.getpeercert()
+    except Exception as exc:  # noqa: BLE001 — هر خطای شبکه/TLS/DNS باید بی‌صدا «ناموفق» شود
+        return SslConnectionCheck(reachable=False, certificate_expires_at=None, error=str(exc))
+
+    expires_at = None
+    not_after = cert.get("notAfter") if cert else None
+    if not_after:
+        try:
+            expires_at = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
+        except ValueError:
+            expires_at = None
+    return SslConnectionCheck(reachable=True, certificate_expires_at=expires_at, error="")
 
 
 @transaction.atomic

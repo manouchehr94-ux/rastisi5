@@ -83,6 +83,10 @@ urlpatterns = [
         views.custom_domain_check, name="custom-domain-check",
     ),
     path(
+        "app/stores/<uuid:store_public_id>/domains/<int:domain_id>/final-check/",
+        views.custom_domain_final_check, name="custom-domain-final-check",
+    ),
+    path(
         "app/stores/<uuid:store_public_id>/domains/<int:domain_id>/activate/",
         views.custom_domain_activate, name="custom-domain-activate",
     ),

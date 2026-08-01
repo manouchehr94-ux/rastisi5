@@ -10,7 +10,7 @@
   </p>
 
   {% if messages %}{% for message in messages %}
-    <div class="p-alert {% if message.tags == 'error' %}p-alert-error{% else %}p-alert-success{% endif %}">{{ message }}</div>
+    <div class="p-alert {% if message.tags == 'error' %}p-alert-error{% elif message.tags == 'warning' %}p-alert-warning{% else %}p-alert-success{% endif %}">{{ message }}</div>
   {% endfor %}{% endif %}
 
   <form method="post" style="margin-bottom:24px">
@@ -27,7 +27,15 @@
   <div style="border:1px solid var(--p-line);border-radius:12px;padding:14px;margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center;direction:ltr">
       <span style="font-weight:600">{{ row.domain.hostname }}</span>
-      <span style="font-size:12px;color:var(--p-muted)">{{ row.domain.get_verification_status_display }}{% if row.domain.is_primary %} · اصلی{% endif %}</span>
+      <span style="display:flex;align-items:center;gap:8px">
+        {% if row.domain.verification_status == "failed" %}
+        <span class="p-status-pill p-status-attention">نیاز به بررسی</span>
+        {% elif row.domain.verification_status == "verified" %}
+        <span class="p-status-pill p-status-done">{% if row.domain.is_primary %}تکمیل‌شده و فعال{% else %}تکمیل‌شده{% endif %}</span>
+        {% else %}
+        <span class="p-status-pill p-status-pending">در انتظار</span>
+        {% endif %}
+      </span>
     </div>
 
     {% if row.domain.verification_status == "unverified" %}
@@ -44,7 +52,11 @@
       <button type="submit" class="p-btn p-btn-ghost" style="width:100%">بررسیِ DNS</button>
     </form>
     {% elif row.domain.verification_status == "verified" and not row.domain.is_primary %}
-    <form method="post" action="{% url 'portal:custom-domain-activate' store.public_id row.domain.pk %}" style="margin-top:10px">
+    <form method="post" action="{% url 'portal:custom-domain-final-check' store.public_id row.domain.pk %}" style="margin-top:10px">
+      {% csrf_token %}
+      <button type="submit" class="p-btn p-btn-ghost" style="width:100%">تستِ نهاییِ اتصال (SSL)</button>
+    </form>
+    <form method="post" action="{% url 'portal:custom-domain-activate' store.public_id row.domain.pk %}" style="margin-top:8px">
       {% csrf_token %}
       <button type="submit" class="p-btn p-btn-primary" style="width:100%">فعال‌سازی به‌عنوانِ دامنه‌ی اصلی</button>
     </form>
