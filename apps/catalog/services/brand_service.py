@@ -36,13 +36,15 @@ def _unique_slug(store, name: str, *, exclude_pk=None) -> str:
 
 
 @transaction.atomic
-def create_brand(store, *, name, name_en="", description="", logo=None) -> Brand:
+def create_brand(store, *, name, name_en="", description="", website="", country="", logo=None) -> Brand:
     name = normalize_text(name)
     if not name:
         raise BrandError("نام برند نمی‌تواند خالی باشد.")
     brand = Brand(
         store=store, name=name, name_en=(name_en or "").strip(), description=description,
+        website=website, country=country,
         slug=_unique_slug(store, name),
+        sort_order=Brand.objects.filter(store=store).count(),
     )
     if logo is not None:
         brand.logo = logo
@@ -93,3 +95,19 @@ def can_delete_brand(brand: Brand) -> None:
 def delete_brand(brand: Brand) -> None:
     can_delete_brand(brand)
     brand.delete()
+
+
+def reorder_brands(store, ordered_ids: list[int]) -> None:
+    """ترتیبِ نمایشِ برندها را طبق ``ordered_ids`` بازنویسی می‌کند — برایِ
+    مرتب‌سازیِ کشاندنی (drag) در صفحه‌ی برندها؛ فقط برندهایِ همین Store را
+    لمس می‌کند و شناسه‌های نامعتبر/متعلق‌به‌فروشگاهِ‌دیگر را بی‌صدا نادیده
+    می‌گیرد (همان الگویِ ``variant_engine_service.reorder_option_values``)."""
+    brands = {b.pk: b for b in Brand.objects.filter(store=store, pk__in=ordered_ids)}
+    valid_ids = [brand_id for brand_id in ordered_ids if brand_id in brands]
+    updated = []
+    for order, brand_id in enumerate(valid_ids):
+        brand = brands[brand_id]
+        brand.sort_order = order
+        updated.append(brand)
+    if updated:
+        Brand.objects.bulk_update(updated, ["sort_order"])

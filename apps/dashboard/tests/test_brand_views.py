@@ -79,6 +79,29 @@ class BrandAddViewTests(BrandViewsTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Brand.objects.filter(store=self.store).exists())
 
+    def test_website_and_country_saved(self):
+        response = self.client.post(reverse("dashboard:brand-add"), {
+            "name": "برند خارجی", "website": "https://example.com", "country": "آلمان",
+        })
+        self.assertEqual(response.status_code, 200)
+        brand = Brand.objects.get(store=self.store, name="برند خارجی")
+        self.assertEqual(brand.website, "https://example.com")
+        self.assertEqual(brand.country, "آلمان")
+
+    def test_invalid_website_rejected(self):
+        response = self.client.post(reverse("dashboard:brand-add"), {
+            "name": "برند نامعتبر", "website": "not-a-url",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Brand.objects.filter(store=self.store, name="برند نامعتبر").exists())
+
+    def test_new_brand_gets_next_sort_order(self):
+        from apps.catalog.services.brand_service import create_brand
+        create_brand(self.store, name="اول")
+        self.client.post(reverse("dashboard:brand-add"), {"name": "دوم"})
+        second = Brand.objects.get(store=self.store, name="دوم")
+        self.assertEqual(second.sort_order, 1)
+
     def test_brand_is_optional_on_product(self):
         """Sanity guard for the UX requirement: a Product must never require a Brand."""
         vendor = Vendor.objects.create(store=self.store, name="فروشنده", slug="brand-vendor")
@@ -164,3 +187,36 @@ class BrandPermissionTests(BrandViewsTestCase):
         response = self.client.post(reverse("dashboard:brand-add"), {"name": "برند کاتالوگ"})
         self.assertEqual(response.status_code, 200)
         self.assertTrue(Brand.objects.filter(store=self.store, name="برند کاتالوگ").exists())
+
+
+class BrandReorderTests(BrandViewsTestCase):
+    def test_reorders_by_posted_id_sequence(self):
+        from apps.catalog.services.brand_service import create_brand
+        first = create_brand(self.store, name="اول")
+        second = create_brand(self.store, name="دوم")
+        third = create_brand(self.store, name="سوم")
+
+        response = self.client.post(reverse("dashboard:brand-reorder"), {
+            "brand_ids": [third.pk, first.pk, second.pk],
+        })
+        self.assertEqual(response.status_code, 200)
+        third.refresh_from_db()
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(third.sort_order, 0)
+        self.assertEqual(first.sort_order, 1)
+        self.assertEqual(second.sort_order, 2)
+
+    def test_ignores_ids_from_another_store(self):
+        from apps.catalog.services.brand_service import create_brand
+        other_store = Store.objects.create(name="فروشگاه دیگر", slug="brand-reorder-other", status=Store.Status.ACTIVE)
+        other_brand = create_brand(other_store, name="برند دیگر")
+        mine = create_brand(self.store, name="برند من")
+
+        self.client.post(reverse("dashboard:brand-reorder"), {"brand_ids": [other_brand.pk, mine.pk]})
+        other_brand.refresh_from_db()
+        self.assertEqual(other_brand.sort_order, 0)  # unchanged, never touched
+
+    def test_get_not_allowed(self):
+        response = self.client.get(reverse("dashboard:brand-reorder"))
+        self.assertEqual(response.status_code, 405)

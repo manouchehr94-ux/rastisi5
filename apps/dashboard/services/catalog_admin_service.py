@@ -78,11 +78,16 @@ def _create_default_vendor(store):
 
 
 def leaf_categories(store):
-    """فقط زیرگروه‌های همین Store (دسته‌هایی که والد دارند) — چون کالا باید به زیرگروه وصل شود."""
+    """فقط برگ‌های واقعیِ درختِ همین Store — دسته‌هایی که هم والد دارند (ریشه/گروه
+    نیستند) و هم خودشان هیچ فرزندی ندارند — چون کالا فقط می‌تواند به یک برگ
+    وصل شود. با هر عمقی از درخت کار می‌کند (گروه → دسته → زیردسته یا فقط
+    گروه → دسته‌ی دوسطحیِ قدیمی)، نه فقط دقیقاً دو سطح."""
     return (
         Category.objects.filter(store=store, parent__isnull=False)
-        .select_related("parent")
-        .order_by("parent__order", "parent__name", "order", "name")
+        .annotate(child_count=Count("children"))
+        .filter(child_count=0)
+        .select_related("parent", "parent__parent")
+        .order_by("parent__parent__order", "parent__order", "order", "name")
     )
 
 
@@ -110,6 +115,22 @@ PRODUCT_SORT_OPTIONS = {
 DEFAULT_PRODUCT_SORT = "-created_at"
 
 
+def _category_and_descendant_ids(store, category_id) -> set:
+    """شناسه‌ی خودِ دسته به‌علاوه‌ی همه‌ی نوادگانش، در هر عمقی — برایِ فیلترِ
+    «این دسته یا هر زیرشاخه‌اش» روی محصولات (Group یا Category هم اکنون
+    می‌توانند بیش از یک سطح فرزند داشته باشند، نه فقط سطحِ مستقیم)."""
+    category_id = int(category_id)
+    ids = {category_id}
+    frontier = {category_id}
+    while frontier:
+        children = set(
+            Category.objects.filter(store=store, parent_id__in=frontier).values_list("pk", flat=True)
+        )
+        frontier = children - ids
+        ids |= children
+    return ids
+
+
 def filtered_products(store, *, q: str = "", category_id: str = "", status: str = "", brand_id: str = "", sort: str = ""):
     qs = (
         Product.objects.filter(store=store)
@@ -124,9 +145,7 @@ def filtered_products(store, *, q: str = "", category_id: str = "", status: str 
     if q:
         qs = qs.filter(models.Q(name__icontains=q) | models.Q(sku__icontains=q))
     if category_id:
-        qs = qs.filter(
-            models.Q(category_id=category_id) | models.Q(category__parent_id=category_id)
-        )
+        qs = qs.filter(category_id__in=_category_and_descendant_ids(store, category_id))
     if brand_id:
         qs = qs.filter(brand_id=brand_id)
     if status == "out":
@@ -170,7 +189,7 @@ def bulk_assign_category(store, product_ids, category_id) -> int:
     leaf category owned by the same Store (never attach a Store's products
     to another Store's category, and never to a non-leaf category, matching
     the same rule the product form itself enforces)."""
-    category = Category.objects.filter(store=store, pk=category_id, parent__isnull=False).first()
+    category = leaf_categories(store).filter(pk=category_id).first()
     if category is None:
         raise BulkActionError("دسته‌بندی انتخاب‌شده معتبر نیست.")
     return Product.objects.filter(store=store, pk__in=product_ids).update(category=category)
@@ -223,40 +242,57 @@ def bulk_clear_tax_class(store, product_ids, *, actor=None) -> int:
 
 
 def category_chain(category):
+    """زنجیره‌ی کاملِ اجداد این دسته، از ریشه تا خودش — با هر عمقی از درخت کار
+    می‌کند (نه فقط دو سطح)، مثل «لوازم جانبی › کیف و کاور › کیف چرمی»."""
     if category is None:
         return "—"
-    if category.parent:
-        return f"{category.parent.name} › {category.name}"
-    return category.name
+    names = [category.name]
+    current = category
+    seen_ids = {current.pk}
+    while current.parent_id and current.parent_id not in seen_ids:
+        current = current.parent
+        names.append(current.name)
+        seen_ids.add(current.pk)
+    return " › ".join(reversed(names))
 
 
 def category_tree_context(store):
-    """درخت دوسطحی دسته‌بندی‌های همین Store با شمار زیرگروه و کالا، برای صفحه‌ی دسته‌بندی‌ها."""
-    mains = list(Category.objects.filter(store=store, parent__isnull=True).order_by("order", "name"))
-    children_by_parent = {}
-    for child in Category.objects.filter(store=store, parent__isnull=False).order_by("order", "name"):
-        children_by_parent.setdefault(child.parent_id, []).append(child)
+    """درختِ کاملِ دسته‌بندی‌هایِ همین Store (گروه → دسته → زیردسته، با هر
+    عمقی) با شمارِ فرزند و کالا در هر گره، برای صفحه‌ی دسته‌بندی‌ها. کالا
+    فقط به برگ‌هایِ واقعی وصل می‌شود (نگاه کنید به ``leaf_categories``)،
+    پس ``product_count`` روی هر گره جمعِ خودش + همه‌ی نوادگانش است."""
+    all_categories = list(Category.objects.filter(store=store).order_by("order", "name"))
+    children_by_parent: dict = {}
+    for cat in all_categories:
+        children_by_parent.setdefault(cat.parent_id, []).append(cat)
 
     product_counts = dict(
         Product.objects.filter(store=store)
         .values("category_id").annotate(total=models.Count("id")).values_list("category_id", "total")
     )
 
-    rows = []
-    for main in mains:
-        subs = children_by_parent.get(main.id, [])
-        sub_ids = [s.id for s in subs]
-        prod_count = product_counts.get(main.id, 0) + sum(product_counts.get(sid, 0) for sid in sub_ids)
-        rows.append({
-            "category": main,
-            "subs": [{"category": s, "product_count": product_counts.get(s.id, 0)} for s in subs],
-            "product_count": prod_count,
-        })
+    def build_node(category):
+        children = [build_node(c) for c in children_by_parent.get(category.pk, [])]
+        product_count = product_counts.get(category.pk, 0) + sum(c["product_count"] for c in children)
+        return {
+            "category": category,
+            "children": children,
+            "is_leaf": not children,
+            "product_count": product_count,
+        }
+
+    rows = [build_node(root) for root in children_by_parent.get(None, [])]
+
+    def count_descendants(nodes):
+        total = 0
+        for node in nodes:
+            total += 1 + count_descendants(node["children"])
+        return total
 
     return {
         "rows": rows,
-        "main_count": len(mains),
-        "sub_count": sum(len(r["subs"]) for r in rows),
+        "main_count": len(rows),
+        "sub_count": sum(count_descendants(node["children"]) for node in rows),
         "categorized_product_count": Product.objects.filter(store=store).count(),
     }
 
@@ -275,3 +311,19 @@ def can_delete_category(category) -> None:
         raise CategoryDeleteError(
             f"دسته‌ی «{category.name}» دارای کالا است و قابل حذف نیست."
         )
+
+
+def reorder_categories(store, ordered_ids: list[int]) -> None:
+    """ترتیبِ نمایشِ خواهر-و-برادرهای یک والدِ مشترک را طبقِ ``ordered_ids``
+    بازنویسی می‌کند — برایِ مرتب‌سازیِ کشاندنی (drag) در درختِ دسته‌بندی‌ها؛
+    مثلِ ``brand_service.reorder_brands``، فقط دسته‌بندی‌هایِ همین Store را
+    لمس می‌کند."""
+    categories = {c.pk: c for c in Category.objects.filter(store=store, pk__in=ordered_ids)}
+    valid_ids = [cat_id for cat_id in ordered_ids if cat_id in categories]
+    updated = []
+    for order, cat_id in enumerate(valid_ids):
+        category = categories[cat_id]
+        category.order = order
+        updated.append(category)
+    if updated:
+        Category.objects.bulk_update(updated, ["order"])

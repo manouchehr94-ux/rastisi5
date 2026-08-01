@@ -196,6 +196,10 @@
               {% if variant.is_active %}⏸️{% else %}▶️{% endif %}
             </button>
           </form>
+          <form method="post" action="{% url 'dashboard:product-variant-duplicate' product.pk variant.pk %}?{{ full_querystring }}" style="display:inline-block">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm" title="کپی کردن" aria-label="کپی کردنِ {{ variant.attribute }}: {{ variant.value }}">📋</button>
+          </form>
           {% if variant.has_order_history %}
           <span class="btn btn-sm" style="opacity:.55;cursor:not-allowed" tabindex="0"
                 title="این مقدار در سفارشی استفاده شده و قابل حذف نیست؛ می‌توانید غیرفعالش کنید"

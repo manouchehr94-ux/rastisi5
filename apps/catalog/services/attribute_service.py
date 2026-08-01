@@ -105,11 +105,13 @@ def delete_attribute(attribute: Attribute) -> None:
 
 
 @transaction.atomic
-def create_attribute_value(attribute: Attribute, *, label, value="", color_hex="") -> AttributeValue:
+def create_attribute_value(attribute: Attribute, *, label, value="", color_hex="", swatch_image=None) -> AttributeValue:
     attribute_value = AttributeValue(
         attribute=attribute, label=label, value=value, color_hex=color_hex,
         display_order=attribute.values.count(),
     )
+    if swatch_image is not None:
+        attribute_value.swatch_image = swatch_image
     try:
         attribute_value.full_clean()
     except ValidationError as exc:

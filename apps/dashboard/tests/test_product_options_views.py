@@ -9,6 +9,8 @@ from django.utils import timezone
 from apps.catalog.models import Category, CategoryRecommendedOption, Product, ProductOption, ProductVariant, Vendor
 from apps.catalog.services.attribute_service import create_attribute, create_attribute_value
 from apps.catalog.services.variant_engine_service import add_product_option, generate_variants
+from apps.customers.models import Customer
+from apps.orders.models import Order, OrderItem, PaymentGateway, ShippingMethod
 from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
@@ -68,6 +70,19 @@ class ProductOptionsPageTests(ProductOptionsViewsTestCase):
         )
         response = self.client.get(reverse("dashboard:product-options", args=[other_product.pk]))
         self.assertEqual(response.status_code, 404)
+
+    def test_media_management_link_opens_via_htmx_not_full_navigation(self):
+        """لینکِ «مدیریتِ تصاویر» باید با htmx داخلِ مودالِ صفحه باز شود، نه با ناوبریِ کاملِ صفحه.
+
+        چون صفحه‌ی مودالِ تصاویر به‌تنهایی (بدون لایه‌ی اصلی) رندر می‌شود، یک <a href> ساده
+        صفحه‌ای بدونِ htmx/Alpine نمایش می‌دهد و هیچ تعاملی کار نمی‌کند.
+        """
+        add_product_option(self.product, label="رنگ", values=["سبز"])
+        generate_variants(self.product)
+        images_url = reverse("dashboard:product-images", args=[self.product.pk])
+        response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        self.assertContains(response, f'hx-get="{images_url}"')
+        self.assertContains(response, 'hx-target="#admin-modal-content"')
 
 
 class ProductOptionAddViewTests(ProductOptionsViewsTestCase):
@@ -267,6 +282,68 @@ class ProductVariantsBulkUpdateViewTests(ProductOptionsViewsTestCase):
         other_variant.refresh_from_db()
         self.assertEqual(other_variant.sku, original_sku)
         self.assertNotEqual(other_variant.sku, "HACKED-SKU")
+
+
+class ProductVariantsBulkDeleteViewTests(ProductOptionsViewsTestCase):
+    def _generate(self):
+        add_product_option(self.product, label="رنگ", values=["سبز", "آبی"])
+        generate_variants(self.product)
+        return list(self.product.variants.all())
+
+    def test_bulk_deletes_selected_variants(self):
+        variants = self._generate()
+        v1, v2 = variants[0], variants[1]
+        response = self.client.post(reverse("dashboard:product-variants-bulk-delete", args=[self.product.pk]), {
+            "delete_variant_ids": [v1.pk, v2.pk],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(ProductVariant.objects.filter(pk__in=[v1.pk, v2.pk]).exists())
+
+    def test_bulk_delete_skips_variant_used_in_order(self):
+        variants = self._generate()
+        v1 = variants[0]
+        customer_user = User.objects.create_user(username="09129990002", password="pass12345")
+        customer = Customer.objects.create(user=customer_user, full_name="مشتری", phone="09129990002")
+        shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-popt1", cost=Decimal("10000"))
+        gateway = PaymentGateway.objects.create(store=self.store, name="درگاه", slug="gw-popt1")
+        order = Order.objects.create(
+            code="POPT-ORD-1", store=self.store, customer=customer, vendor=self.vendor,
+            shipping_method=shipping, payment_gateway=gateway,
+        )
+        OrderItem.objects.create(
+            order=order, product=self.product, variant=v1, product_name=self.product.name,
+            unit_price=Decimal("300000"), quantity=1, line_total=Decimal("300000"),
+        )
+        response = self.client.post(reverse("dashboard:product-variants-bulk-delete", args=[self.product.pk]), {
+            "delete_variant_ids": [v1.pk],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(ProductVariant.objects.filter(pk=v1.pk).exists())
+
+    def test_get_not_allowed(self):
+        response = self.client.get(reverse("dashboard:product-variants-bulk-delete", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 405)
+
+    def test_tenant_isolation(self):
+        variants = self._generate()
+        v1 = variants[0]
+        other_store = Store.objects.create(name="فروشگاه دیگر", slug="popt-other6", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="ف6", slug="popt-other-v6")
+        other_category = Category.objects.create(store=other_store, name="د6", slug="popt-other-c6")
+        other_product = Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="کالای دیگر۶",
+            slug="popt-other-p6", sku="POPT-OTHER-SKU6", price=Decimal("1000"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        add_product_option(other_product, label="رنگ", values=["زرد"])
+        generate_variants(other_product)
+        other_variant = other_product.variants.first()
+
+        self.client.post(reverse("dashboard:product-variants-bulk-delete", args=[self.product.pk]), {
+            "delete_variant_ids": [v1.pk, other_variant.pk],
+        })
+        self.assertFalse(ProductVariant.objects.filter(pk=v1.pk).exists())
+        self.assertTrue(ProductVariant.objects.filter(pk=other_variant.pk).exists())  # از فروشگاه دیگر، دست‌نخورده
 
 
 class ProductOptionsPermissionTests(ProductOptionsViewsTestCase):

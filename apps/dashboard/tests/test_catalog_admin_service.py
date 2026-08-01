@@ -13,6 +13,7 @@ from apps.dashboard.services.catalog_admin_service import (
     filtered_products,
     generate_unique_slug,
     leaf_categories,
+    reorder_categories,
 )
 from apps.stores.models import Store, StoreMembership
 from django.contrib.auth import get_user_model
@@ -127,7 +128,81 @@ class CategoryTreeContextTests(TestCase):
         context = category_tree_context(self.store)
         row = next(r for r in context["rows"] if r["category"] == main)
         self.assertEqual(row["product_count"], 1)
-        self.assertEqual(len(row["subs"]), 1)
+        self.assertEqual(len(row["children"]), 1)
+        self.assertFalse(row["is_leaf"])
+        sub_row = row["children"][0]
+        self.assertEqual(sub_row["category"], sub)
+        self.assertEqual(sub_row["product_count"], 1)
+        self.assertTrue(sub_row["is_leaf"])
+
+    def test_three_level_tree_aggregates_counts_up_to_the_group(self):
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-ctc3")
+        group = Category.objects.create(store=self.store, name="گروه", slug="group-ctc3")
+        category = Category.objects.create(store=self.store, name="دسته", slug="cat-ctc3", parent=group)
+        subcategory = Category.objects.create(store=self.store, name="زیردسته", slug="subcat-ctc3", parent=category)
+        Product.objects.create(
+            store=self.store, vendor=vendor, category=subcategory, name="محصول", slug="prod-ctc3",
+            sku="SKU-CTC3", price=Decimal("1000"),
+        )
+        context = category_tree_context(self.store)
+        group_row = next(r for r in context["rows"] if r["category"] == group)
+        self.assertEqual(group_row["product_count"], 1)
+        category_row = group_row["children"][0]
+        self.assertEqual(category_row["category"], category)
+        self.assertEqual(category_row["product_count"], 1)
+        subcategory_row = category_row["children"][0]
+        self.assertEqual(subcategory_row["category"], subcategory)
+        self.assertTrue(subcategory_row["is_leaf"])
+        self.assertEqual(context["sub_count"], 2)  # category + subcategory, not the root group
+
+
+class CategoryChainTests3Level(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+
+    def test_full_ancestor_chain_rendered(self):
+        group = Category.objects.create(store=self.store, name="گروه", slug="group-chain3")
+        category = Category.objects.create(store=self.store, name="دسته", slug="cat-chain3", parent=group)
+        subcategory = Category.objects.create(store=self.store, name="زیردسته", slug="subcat-chain3", parent=category)
+        self.assertEqual(category_chain(subcategory), "گروه › دسته › زیردسته")
+
+
+class LeafCategoriesThreeLevelTests(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+
+    def test_only_true_leaves_returned_at_any_depth(self):
+        group = Category.objects.create(store=self.store, name="گروه", slug="group-leaf3")
+        category = Category.objects.create(store=self.store, name="دسته", slug="cat-leaf3", parent=group)
+        subcategory = Category.objects.create(store=self.store, name="زیردسته", slug="subcat-leaf3", parent=category)
+        result = list(leaf_categories(self.store))
+        self.assertIn(subcategory, result)
+        self.assertNotIn(category, result)  # has a child now, so no longer a leaf
+        self.assertNotIn(group, result)  # root, never a leaf
+
+    def test_childless_second_level_category_is_still_a_leaf(self):
+        """Backward compatibility: an existing 2-level store's category (no
+        3rd tier ever added) must remain directly assignable to products."""
+        group = Category.objects.create(store=self.store, name="گروه", slug="group-leaf3b")
+        category = Category.objects.create(store=self.store, name="دسته", slug="cat-leaf3b", parent=group)
+        result = list(leaf_categories(self.store))
+        self.assertIn(category, result)
+
+
+class ReorderCategoriesTests(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+
+    def test_reorders_siblings_by_posted_sequence(self):
+        group = Category.objects.create(store=self.store, name="گروه", slug="group-reorder")
+        first = Category.objects.create(store=self.store, name="اول", slug="reorder-c1", parent=group)
+        second = Category.objects.create(store=self.store, name="دوم", slug="reorder-c2", parent=group)
+
+        reorder_categories(self.store, [second.pk, first.pk])
+        second.refresh_from_db()
+        first.refresh_from_db()
+        self.assertEqual(second.order, 0)
+        self.assertEqual(first.order, 1)
 
 
 class CanDeleteCategoryTests(TestCase):

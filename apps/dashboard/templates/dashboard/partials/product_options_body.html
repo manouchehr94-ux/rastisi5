@@ -110,12 +110,23 @@
         <table class="variant-table">
           <thead>
             <tr>
+              <th><input type="checkbox" title="انتخابِ همه" @change="const c = $event.target.checked; $el.closest('table').querySelectorAll('tbody input[name=delete_variant_ids]').forEach(cb => cb.checked = c)"></th>
+              <th>تصویر</th>
               <th>ترکیب</th><th>SKU</th><th>بارکد</th><th>تغییر قیمت</th><th>قیمت مقایسه‌ای</th><th>بهای تمام‌شده</th><th>موجودی</th><th>فعال</th><th>پیش‌فرض</th>
             </tr>
           </thead>
           <tbody>
             {% for variant in active_variants %}
             <tr>
+              <td><input type="checkbox" name="delete_variant_ids" value="{{ variant.pk }}"></td>
+              <td>
+                {% if variant.display_image %}
+                <img src="{{ variant.display_image.thumbnail.url|default:variant.display_image.image.url }}" alt=""
+                     style="width:32px;height:32px;border-radius:6px;object-fit:cover;border:1px solid var(--border)">
+                {% else %}
+                <span style="color:var(--muted);font-size:11px">—</span>
+                {% endif %}
+              </td>
               <td>
                 <input type="hidden" name="variant_ids" value="{{ variant.pk }}">
                 {{ variant.value }}
@@ -139,7 +150,16 @@
           </tbody>
         </table>
       </div>
-      <button type="submit" class="btn btn-primary" style="margin-top:12px">ذخیره‌ی تغییرات تنوع‌ها</button>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button type="submit" class="btn btn-primary">ذخیره‌ی تغییرات تنوع‌ها</button>
+        <button type="button" class="btn btn-danger"
+                hx-post="{% url 'dashboard:product-variants-bulk-delete' product.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
+                hx-confirm="تنوع‌های انتخاب‌شده حذف شوند؟ تنوعِ استفاده‌شده در سفارش حذف نخواهد شد.">
+          🗑️ حذفِ انتخاب‌شده‌ها
+        </button>
+        <button type="button" class="btn btn-sm" style="margin-inline-start:auto"
+                hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">🖼️ مدیریتِ تصاویر و اختصاصِ تصویر به تنوع</button>
+      </div>
     </form>
   </div>
 </div>

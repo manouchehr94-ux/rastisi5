@@ -48,15 +48,36 @@ class BuildSetupChecklistTests(TestCase):
         self.assertFalse(result["all_complete"])
 
     def test_step_order_matches_catalog_dependency_chain(self):
-        """اولین کالا هرگز نباید پیش از پیش‌نیازهایش (گروه/دسته/ویژگی/برند) ظاهر شود."""
+        """اولین کالا هرگز نباید پیش از پیش‌نیازهایش (گروه/دسته/برند/ویژگی) ظاهر شود؛
+        زنجیره‌ی اصلیِ ۱۲مرحله‌ای دقیقاً طبقِ ترتیبِ الزامیِ درخواست است."""
         result = build_setup_checklist(self.store, self.request)
         keys = [step["key"] for step in result["steps"]]
         expected_prefix = [
             "industry", "industry_template", "product_groups", "product_categories",
-            "attributes", "brands", "first_product", "product_images", "variants",
-            "inventory", "product_publish",
+            "brands", "attributes", "first_product", "product_images", "variants",
+            "inventory", "shipping", "publish",
         ]
         self.assertEqual(keys[: len(expected_prefix)], expected_prefix)
+
+    def test_first_steps_are_unlocked_but_later_chain_steps_are_locked(self):
+        """قفل صرفاً بصری است — همه‌ی مراحل همیشه قابل‌کلیک‌اند، اما مراحلِ
+        بعدیِ زنجیره‌ی کاتالوگ تا تکمیل‌نشدنِ پیش‌نیازها «قفل» نشان داده می‌شوند."""
+        result = build_setup_checklist(self.store, self.request)
+        steps_by_key = {s["key"]: s for s in result["steps"]}
+        self.assertTrue(steps_by_key["industry"]["is_unlocked"])
+        self.assertFalse(steps_by_key["product_groups"]["is_unlocked"])
+        self.assertFalse(steps_by_key["publish"]["is_unlocked"])
+        # مراحلِ تکمیلیِ خارج از زنجیره همیشه باز هستند، حتی وقتی زنجیره ناتمام است.
+        self.assertTrue(steps_by_key["store_info"]["is_unlocked"])
+
+    def test_chain_step_unlocks_once_its_prerequisites_are_done(self):
+        self.store.onboarding_stage = Store.OnboardingStage.BRANDING  # صنف رد/تصمیم‌گیری شده
+        self.store.save(update_fields=["onboarding_stage"])
+        Category.objects.create(store=self.store, name="گروه", slug="chk-unlock-group")
+        result = build_setup_checklist(self.store, self.request)
+        steps_by_key = {s["key"]: s for s in result["steps"]}
+        self.assertTrue(steps_by_key["product_groups"]["is_complete"])
+        self.assertTrue(steps_by_key["product_categories"]["is_unlocked"])
 
     def test_store_information_step_detects_description(self):
         shop = ShopSettings.objects.create(store=self.store, description="فروشگاهِ لباسِ آنلاین")

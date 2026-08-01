@@ -1,6 +1,6 @@
 {% load persian %}
 <div id="attributeValuesList">
-  <form hx-post="{% url 'dashboard:attribute-value-add' attribute.pk %}" hx-target="#attributeValuesList" hx-swap="outerHTML"
+  <form hx-post="{% url 'dashboard:attribute-value-add' attribute.pk %}" hx-target="#attributeValuesList" hx-swap="outerHTML" hx-encoding="multipart/form-data"
         style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
     {% csrf_token %}
     <div class="form-group" style="margin-bottom:0">
@@ -8,23 +8,49 @@
       <input class="inp" name="label" value="{{ value_form.label.value|default_if_none:'' }}" placeholder="مثلاً: سبز" style="width:150px">
     </div>
     {% if attribute.data_type == "color" %}
-    <div class="form-group" style="margin-bottom:0">
-      <label>کد رنگ (Hex)</label>
-      <input class="inp" name="color_hex" value="{{ value_form.color_hex.value|default_if_none:'' }}" placeholder="#00ff00" dir="ltr" style="width:110px">
+    <div class="form-group" style="margin-bottom:0" x-data="{ hex: '{{ value_form.color_hex.value|default:"#6D28D9" }}' }">
+      <label>رنگ</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="color" :value="hex" @input="hex = $event.target.value" style="width:36px;height:36px;padding:2px;border:1px solid var(--border);border-radius:8px;cursor:pointer">
+        <input class="inp" name="color_hex" :value="hex" @input="hex = $event.target.value" dir="ltr" style="width:90px">
+      </div>
     </div>
     {% endif %}
+    <div class="form-group" style="margin-bottom:0">
+      <label>تصویر نمونه (اختیاری)</label>
+      <input class="inp" type="file" name="swatch_image" accept=".jpg,.jpeg,.png,.webp" style="width:170px">
+    </div>
     <button type="submit" class="btn btn-sm btn-primary">افزودن</button>
   </form>
   {% if form_error %}<div style="color:var(--red);font-size:12.5px;margin-bottom:10px">{{ form_error }}</div>{% endif %}
   {% for err in value_form.label.errors %}<div style="color:var(--red);font-size:11.5px;margin-bottom:10px">{{ err }}</div>{% endfor %}
 
-  <table>
-    <thead><tr><th>برچسب</th><th>رنگ</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+  <table x-data="{ dragId: null }">
+    <thead><tr><th style="width:24px"></th><th>نمونه</th><th>برچسب</th><th>وضعیت</th><th>عملیات</th></tr></thead>
     <tbody>
       {% for value in attribute.values.all %}
-      <tr>
+      <tr draggable="true" data-id="{{ value.pk }}"
+          @dragstart="dragId = {{ value.pk }}"
+          @dragover.prevent
+          @drop.prevent="
+            if (dragId !== null && dragId !== {{ value.pk }}) {
+              const tbody = $el.parentElement;
+              const from = tbody.querySelector('tr[data-id=\'' + dragId + '\']');
+              tbody.insertBefore(from, from.compareDocumentPosition($el) & Node.DOCUMENT_POSITION_FOLLOWING ? $el.nextSibling : $el);
+              const ids = [...tbody.children].map(r => r.dataset.id);
+              htmx.ajax('POST', '{% url 'dashboard:attribute-value-reorder' attribute.pk %}', {values: {value_ids: ids}, target: '#attributeValuesList', swap: 'outerHTML'});
+            }
+            dragId = null;
+          " style="cursor:grab">
+        <td style="color:var(--muted)" title="برای مرتب‌سازی بکشید">⠿</td>
+        <td>
+          {% if value.swatch_image %}
+          <img src="{{ value.swatch_image.url }}" alt="" style="width:22px;height:22px;border-radius:5px;object-fit:cover;border:1px solid var(--border)">
+          {% elif value.color_hex %}
+          <span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:{{ value.color_hex }};border:1px solid var(--border)"></span>
+          {% else %}—{% endif %}
+        </td>
         <td>{{ value.label }}</td>
-        <td>{% if value.color_hex %}<span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:{{ value.color_hex }};border:1px solid var(--border)"></span>{% else %}—{% endif %}</td>
         <td><span class="badge {% if value.is_active %}b-green{% else %}b-gray{% endif %}">{% if value.is_active %}فعال{% else %}غیرفعال{% endif %}</span></td>
         <td>
           {% if value.is_active %}
@@ -34,7 +60,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">هنوز مقداری ثبت نشده است</td></tr>
+      <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">هنوز مقداری ثبت نشده است</td></tr>
       {% endfor %}
     </tbody>
   </table>

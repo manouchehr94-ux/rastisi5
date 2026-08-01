@@ -10,19 +10,26 @@
   <div class="card-head" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
     <input class="inp" id="attrSearch" name="q" value="{{ q }}" placeholder="جستجوی ویژگی..." style="width:200px"
            hx-get="{% url 'dashboard:attribute-table' %}" hx-target="#attributesTableWrap" hx-swap="innerHTML"
-           hx-trigger="keyup changed delay:300ms" hx-include="#attrTypeFilter,#attrStatusFilter">
+           hx-trigger="keyup changed delay:300ms" hx-include="#attrTypeFilter,#attrStatusFilter,#attrSortSelect">
     <select class="inp" id="attrTypeFilter" name="data_type" style="width:150px"
             hx-get="{% url 'dashboard:attribute-table' %}" hx-target="#attributesTableWrap" hx-swap="innerHTML"
-            hx-trigger="change" hx-include="#attrSearch,#attrStatusFilter">
+            hx-trigger="change" hx-include="#attrSearch,#attrStatusFilter,#attrSortSelect">
       {% for value, label in type_options %}
       <option value="{{ value }}" {% if selected_data_type == value %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
     <select class="inp" id="attrStatusFilter" name="status" style="width:120px"
             hx-get="{% url 'dashboard:attribute-table' %}" hx-target="#attributesTableWrap" hx-swap="innerHTML"
-            hx-trigger="change" hx-include="#attrSearch,#attrTypeFilter">
+            hx-trigger="change" hx-include="#attrSearch,#attrTypeFilter,#attrSortSelect">
       {% for value, label in status_options %}
       <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select class="inp" id="attrSortSelect" name="sort" style="width:150px"
+            hx-get="{% url 'dashboard:attribute-table' %}" hx-target="#attributesTableWrap" hx-swap="innerHTML"
+            hx-trigger="change" hx-include="#attrSearch,#attrTypeFilter,#attrStatusFilter">
+      {% for value, opt in sort_options.items %}
+      <option value="{{ value }}" {% if selected_sort == value %}selected{% endif %}>{{ opt.1 }}</option>
       {% endfor %}
     </select>
     <button type="button" class="btn btn-primary" hx-get="{% url 'dashboard:attribute-add' %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">

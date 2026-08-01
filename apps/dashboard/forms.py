@@ -234,6 +234,8 @@ class BrandForm(forms.Form):
     name = forms.CharField(label="نام برند (فارسی)", max_length=120)
     name_en = forms.CharField(label="نام انگلیسی (اختیاری)", max_length=120, required=False)
     description = forms.CharField(label="توضیح کوتاه", max_length=300, required=False, widget=forms.Textarea)
+    website = forms.URLField(label="وب‌سایت (اختیاری)", max_length=300, required=False)
+    country = forms.CharField(label="کشور (اختیاری)", max_length=80, required=False)
     logo = forms.ImageField(label="لوگو", required=False)
 
     def clean_name(self):
@@ -280,6 +282,7 @@ class AttributeValueForm(forms.Form):
     label = forms.CharField(label="برچسب", max_length=120)
     value = forms.CharField(label="مقدار داخلی", max_length=120, required=False)
     color_hex = forms.CharField(label="کد رنگ (Hex)", max_length=9, required=False)
+    swatch_image = forms.ImageField(label="تصویر نمونه (اختیاری)", required=False)
 
     def clean_label(self):
         label = self.cleaned_data["label"].strip()
@@ -350,6 +353,26 @@ class SubCategoryForm(forms.Form):
         self.fields["parent"].queryset = Category.objects.filter(
             store=store, parent__isnull=True
         ).order_by("order", "name")
+
+
+class SubSubCategoryForm(forms.Form):
+    """سومین و آخرین سطح از سلسله‌مراتب (گروه ← دسته ← زیردسته) — والد فقط
+    می‌تواند یک «دسته» (سطحِ دوم، خودش زیرِ یک گروه) باشد، نه یک گروهِ
+    ریشه و نه یک زیردسته‌ی دیگر؛ همین محدودیت عمقِ درخت را دقیقاً در سه
+    سطح نگه می‌دارد."""
+
+    parent = forms.ModelChoiceField(
+        label="دسته‌ی والد", queryset=Category.objects.none(),
+        error_messages={"required": "انتخاب دسته‌ی والد الزامی است"},
+    )
+    name = forms.CharField(label="نام زیردسته", max_length=120)
+    icon = forms.CharField(label="آیکون (ایموجی)", max_length=10, required=False)
+
+    def __init__(self, *args, store, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["parent"].queryset = Category.objects.filter(
+            store=store, parent__isnull=False, parent__parent__isnull=True,
+        ).order_by("parent__order", "order", "name")
 
 
 class CategoryEditForm(forms.Form):

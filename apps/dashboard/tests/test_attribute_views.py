@@ -175,6 +175,67 @@ class AttributeValueViewTests(AttributeViewsTestCase):
         )
         self.assertEqual(response.status_code, 404)
 
+    def test_add_color_value_with_hex(self):
+        attribute = create_attribute(self.store, label="رنگ", data_type=Attribute.DataType.COLOR)
+        response = self.client.post(
+            reverse("dashboard:attribute-value-add", args=[attribute.pk]),
+            {"label": "قرمز", "color_hex": "#ff0000"},
+        )
+        self.assertEqual(response.status_code, 200)
+        value = AttributeValue.objects.get(attribute=attribute, label="قرمز")
+        self.assertEqual(value.color_hex, "#ff0000")
+
+    def test_add_value_with_swatch_image(self):
+        import io
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image
+
+        attribute = create_attribute(self.store, label="جنس", data_type=Attribute.DataType.SELECT)
+        buf = io.BytesIO()
+        Image.new("RGB", (10, 10), color="brown").save(buf, format="PNG")
+        image = SimpleUploadedFile("swatch.png", buf.getvalue(), content_type="image/png")
+        response = self.client.post(
+            reverse("dashboard:attribute-value-add", args=[attribute.pk]),
+            {"label": "چرم", "swatch_image": image},
+        )
+        self.assertEqual(response.status_code, 200)
+        value = AttributeValue.objects.get(attribute=attribute, label="چرم")
+        self.assertTrue(value.swatch_image)
+
+
+class AttributeValueReorderTests(AttributeViewsTestCase):
+    def test_reorders_values_by_posted_sequence(self):
+        attribute = create_attribute(self.store, label="سایز", data_type=Attribute.DataType.SELECT)
+        small = create_attribute_value(attribute, label="کوچک")
+        medium = create_attribute_value(attribute, label="متوسط")
+        large = create_attribute_value(attribute, label="بزرگ")
+
+        response = self.client.post(reverse("dashboard:attribute-value-reorder", args=[attribute.pk]), {
+            "value_ids": [large.pk, small.pk, medium.pk],
+        })
+        self.assertEqual(response.status_code, 200)
+        large.refresh_from_db()
+        small.refresh_from_db()
+        medium.refresh_from_db()
+        self.assertEqual(large.display_order, 0)
+        self.assertEqual(small.display_order, 1)
+        self.assertEqual(medium.display_order, 2)
+
+    def test_get_not_allowed(self):
+        attribute = create_attribute(self.store, label="سایز")
+        response = self.client.get(reverse("dashboard:attribute-value-reorder", args=[attribute.pk]))
+        self.assertEqual(response.status_code, 405)
+
+
+class AttributeSortTests(AttributeViewsTestCase):
+    def test_sort_by_label_ascending(self):
+        create_attribute(self.store, label="ویژگیِ ب")
+        create_attribute(self.store, label="ویژگیِ آ")
+        response = self.client.get(reverse("dashboard:attribute-table"), {"sort": "label"})
+        content = response.content.decode()
+        self.assertLess(content.index("ویژگیِ آ"), content.index("ویژگیِ ب"))
+
 
 class AttributePermissionTests(AttributeViewsTestCase):
     def _login_as(self, role):

@@ -26,6 +26,7 @@ from apps.catalog.models import (
     ProductAttributeValue,
     ProductImage,
     ProductOption,
+    ProductVideo,
     ProductOptionValue,
     ProductVariant,
     StockMovement,
@@ -46,6 +47,7 @@ from apps.catalog.services.attribute_service import (
     delete_attribute,
     delete_attribute_value,
     remove_product_attribute_value,
+    reorder_attribute_values,
     set_product_attribute_value,
     update_attribute,
     update_attribute_value,
@@ -57,6 +59,7 @@ from apps.catalog.services.brand_service import (
     archive_brand,
     create_brand,
     delete_brand,
+    reorder_brands,
     update_brand,
 )
 from apps.catalog.services.category_schema_service import (
@@ -123,9 +126,17 @@ from apps.catalog.services.product_image_service import (
     add_product_image,
     delete_product_image,
     move_product_image,
+    reorder_product_images,
     set_cover_image,
+    set_image_360,
     set_image_variant,
     update_image_alt,
+    update_image_caption,
+)
+from apps.catalog.services.product_video_service import (
+    ProductVideoError,
+    add_product_video,
+    delete_product_video,
 )
 from apps.catalog.services.variant_engine_service import (
     VariantEngineError,
@@ -145,6 +156,7 @@ from apps.catalog.services.variant_service import (
     bulk_create_variants,
     deactivate_variant,
     delete_variant,
+    duplicate_variant,
     parse_bulk_values,
     reorder_variants,
     set_product_type,
@@ -293,6 +305,7 @@ from .forms import (
     SmsTemplateForm,
     SmsTestForm,
     SubCategoryForm,
+    SubSubCategoryForm,
     VariantBulkAddForm,
     VariantEditForm,
     VisualIdentityForm,
@@ -321,6 +334,7 @@ from .services.catalog_admin_service import (
     bulk_set_product_status,
     can_delete_category,
     category_tree_context,
+    reorder_categories,
     default_vendor,
     filtered_products,
     generate_unique_slug,
@@ -653,6 +667,33 @@ def _save_product(form, product, *, store):
     return product
 
 
+#: نامِ فیلد → شماره‌ی مرحله در فرمِ ویزارد (product_form.html) — برایِ
+#: اینکه وقتی اعتبارسنجیِ سمتِ سرور خطا می‌دهد، کاربر مستقیماً به همان
+#: مرحله‌ای برود که خطا در آن است، نه همیشه مرحله‌ی ۱ (فرمِ ویزارد چندمرحله‌ای
+#: هر بار از نو با ``x-data`` مقداردهی می‌شود، پس این مرحله باید سمتِ سرور
+#: محاسبه و به قالب داده شود).
+_PRODUCT_WIZARD_FIELD_STEPS = {
+    "name": 1, "sku": 1, "icon": 1, "description": 1,
+    "category": 2,
+    "brand": 3,
+    "price": 4, "discount_percent": 4,
+    "product_type": 6,
+    "barcode": 7, "weight_grams": 7, "requires_shipping": 7, "tax_class": 7,
+    "seo_title": 8, "seo_description": 8,
+    "stock": 9, "status": 9,
+}
+
+
+def _product_wizard_error_step(form) -> int:
+    for field_name in form.errors:
+        if field_name.startswith("attr_"):
+            return 6
+        step = _PRODUCT_WIZARD_FIELD_STEPS.get(field_name)
+        if step:
+            return step
+    return 1
+
+
 @staff_required
 @permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
 def product_form(request, pk=None):
@@ -683,7 +724,7 @@ def product_form(request, pk=None):
                 attribute_fields = _product_attribute_field_context(category, product)
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
-                    "category_groups": category_groups,
+                    "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
                 })
             except ProductPublishError as exc:
                 for message in exc.args[0]:
@@ -692,7 +733,7 @@ def product_form(request, pk=None):
                 attribute_fields = _product_attribute_field_context(category, product)
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
-                    "category_groups": category_groups,
+                    "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
                 })
             except ValidationError as exc:
                 for field, messages in exc.message_dict.items():
@@ -702,7 +743,7 @@ def product_form(request, pk=None):
                 attribute_fields = _product_attribute_field_context(category, product)
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
-                    "category_groups": category_groups,
+                    "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
                 })
 
             table_html = render_to_string(
@@ -747,7 +788,7 @@ def product_form(request, pk=None):
     orphaned_count = orphaned_product_attribute_values(product).count() if product else 0
     return render(request, "dashboard/partials/product_form.html", {
         "form": form, "product": product, "attribute_fields": attribute_fields, "orphaned_count": orphaned_count,
-        "category": category, "category_groups": category_groups,
+        "category": category, "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
     })
 
 
@@ -828,7 +869,10 @@ def product_quick_add_category(request, pk=None):
     fields_html = render_to_string("dashboard/partials/product_attribute_fields.html", {
         "attribute_fields": attribute_fields, "product": product, "category": selected_category, "oob": True,
     }, request=request)
-    return HttpResponse(select_html + fields_html)
+    banner_html = render_to_string("dashboard/partials/product_no_category_banner.html", {
+        "has_leaf_categories": leaf_categories(store), "oob": True,
+    }, request=request)
+    return HttpResponse(select_html + fields_html + banner_html)
 
 
 @require_POST
@@ -907,7 +951,7 @@ def product_images(request, pk):
     product = get_object_or_404(Product, pk=pk, store=store)
     return render(request, "dashboard/partials/product_images_modal.html", {
         "product": product, "upload_form": ProductImageUploadForm(),
-        "variants": product.variants.all(),
+        "variants": product.variants.all(), "videos": product.videos.all(),
     })
 
 
@@ -1005,6 +1049,19 @@ def product_image_move(request, pk, image_id):
 @require_POST
 @staff_required
 @permission_required(MEDIA_MANAGE)
+def product_image_reorder(request, pk):
+    """مرتب‌سازیِ کشاندنی (drag) — نگاه کنید به
+    ``product_image_service.reorder_product_images``."""
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
+    ordered_ids = [int(i) for i in request.POST.getlist("image_ids") if i.strip().isdigit()]
+    reorder_product_images(product, ordered_ids)
+    return _image_list_response(request, product, refresh_table=False)
+
+
+@require_POST
+@staff_required
+@permission_required(MEDIA_MANAGE)
 def product_image_alt_update(request, pk, image_id):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store)
@@ -1012,6 +1069,28 @@ def product_image_alt_update(request, pk, image_id):
     form = ProductImageAltForm(request.POST)
     if form.is_valid():
         update_image_alt(image, form.cleaned_data["alt"])
+    return _image_list_response(request, product, refresh_table=False)
+
+
+@require_POST
+@staff_required
+@permission_required(MEDIA_MANAGE)
+def product_image_caption_update(request, pk, image_id):
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
+    image = get_object_or_404(ProductImage, pk=image_id, product=product)
+    update_image_caption(image, request.POST.get("caption", ""))
+    return _image_list_response(request, product, refresh_table=False)
+
+
+@require_POST
+@staff_required
+@permission_required(MEDIA_MANAGE)
+def product_image_360_toggle(request, pk, image_id):
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
+    image = get_object_or_404(ProductImage, pk=image_id, product=product)
+    set_image_360(image, not image.is_360)
     return _image_list_response(request, product, refresh_table=False)
 
 
@@ -1029,6 +1108,41 @@ def product_image_variant_update(request, pk, image_id):
     except ProductImageError:
         pass
     return _image_list_response(request, product, refresh_table=False)
+
+
+def _video_list_response(request, product, *, toast=None):
+    response = render(request, "dashboard/partials/product_videos_list.html", {
+        "product": product, "videos": product.videos.all(),
+    })
+    if toast:
+        response["HX-Trigger"] = json.dumps({"toast": toast})
+    return response
+
+
+@require_POST
+@staff_required
+@permission_required(MEDIA_MANAGE)
+def product_video_add(request, pk):
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
+    url = request.POST.get("url", "").strip()
+    title = request.POST.get("title", "").strip()
+    try:
+        add_product_video(product, url=url, title=title)
+    except ProductVideoError as exc:
+        return _video_list_response(request, product, toast={"message": str(exc), "type": "err"})
+    return _video_list_response(request, product, toast={"message": "ویدیو اضافه شد", "type": "ok"})
+
+
+@require_POST
+@staff_required
+@permission_required(MEDIA_MANAGE)
+def product_video_delete(request, pk, video_id):
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
+    video = get_object_or_404(ProductVideo, pk=video_id, product=product)
+    delete_product_video(video)
+    return _video_list_response(request, product, toast={"message": "ویدیو حذف شد", "type": "info"})
 
 
 # --------------------------------------------------------- تنوع کالا
@@ -1259,6 +1373,20 @@ def product_variant_delete(request, pk, variant_id):
 @require_POST
 @staff_required
 @permission_required(VARIANT_MANAGE)
+def product_variant_duplicate(request, pk, variant_id):
+    product = _get_scoped_product(request, pk)
+    variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
+    try:
+        duplicate_variant(variant)
+        messages.success(request, f"یک کپی از «{variant.value}» ساخته شد — آن را غیرفعال نگه داشتیم تا پیش از انتشار ویرایشش کنید.")
+    except VariantError as exc:
+        messages.error(request, str(exc))
+    return _variant_list_redirect(request, product)
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
 def product_variant_move(request, pk, variant_id):
     product = _get_scoped_product(request, pk)
     variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
@@ -1284,11 +1412,23 @@ ATTRIBUTE_TYPE_FILTERS = [("", "همه‌ی انواع"), *Attribute.DataType.ch
 ATTRIBUTE_STATUS_FILTERS = [("", "همه"), ("active", "فعال"), ("archived", "غیرفعال")]
 
 
+#: query-param value -> order_by fields, whitelisted like PRODUCT_SORT_OPTIONS
+#: (never pass request.GET["sort"] straight into order_by()).
+ATTRIBUTE_SORT_OPTIONS = {
+    "": (["display_order", "label"], "ترتیبِ سفارشی"),
+    "label": (["label"], "نام (الف تا ی)"),
+    "-label": (["-label"], "نام (ی تا الف)"),
+    "-created_at": (["-created_at"], "جدیدترین"),
+    "created_at": (["created_at"], "قدیمی‌ترین"),
+}
+
+
 def _attributes_context(request, *, form=None, value_form=None):
     store = _resolve_dashboard_store(request)
     q = request.GET.get("q", "").strip()
     data_type = request.GET.get("data_type", "")
     status = request.GET.get("status", "")
+    sort = request.GET.get("sort", "")
 
     qs = Attribute.objects.filter(store=store).select_related("category")
     if q:
@@ -1300,11 +1440,14 @@ def _attributes_context(request, *, form=None, value_form=None):
     elif status == "archived":
         qs = qs.filter(is_active=False)
 
+    order_fields, _label = ATTRIBUTE_SORT_OPTIONS.get(sort, ATTRIBUTE_SORT_OPTIONS[""])
     return {
-        "attributes": qs.order_by("display_order", "label"),
+        "attributes": qs.order_by(*order_fields),
         "q": q,
         "selected_data_type": data_type,
         "selected_status": status,
+        "selected_sort": sort,
+        "sort_options": ATTRIBUTE_SORT_OPTIONS,
         "type_options": ATTRIBUTE_TYPE_FILTERS,
         "status_options": ATTRIBUTE_STATUS_FILTERS,
         "form": form or AttributeForm(store=store),
@@ -1437,12 +1580,18 @@ def attribute_delete(request, pk):
 def _brands_context(request):
     store = _resolve_dashboard_store(request)
     q = request.GET.get("q", "").strip()
+    status = request.GET.get("status", "")
     qs = Brand.objects.filter(store=store).annotate(product_count=Count("products"))
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(name_en__icontains=q))
+    if status == "active":
+        qs = qs.filter(is_active=True)
+    elif status == "inactive":
+        qs = qs.filter(is_active=False)
     return {
-        "brands": qs.order_by("name"),
+        "brands": qs.order_by("sort_order", "name"),
         "q": q,
+        "selected_status": status,
         "active_page": "brands",
     }
 
@@ -1477,7 +1626,8 @@ def brand_add(request):
             try:
                 create_brand(
                     store, name=form.cleaned_data["name"], name_en=form.cleaned_data["name_en"],
-                    description=form.cleaned_data["description"], logo=form.cleaned_data.get("logo"),
+                    description=form.cleaned_data["description"], website=form.cleaned_data["website"],
+                    country=form.cleaned_data["country"], logo=form.cleaned_data.get("logo"),
                 )
             except BrandError as exc:
                 form.add_error(None, str(exc))
@@ -1515,7 +1665,8 @@ def brand_edit(request, pk):
             try:
                 update_brand(
                     brand, name=form.cleaned_data["name"], name_en=form.cleaned_data["name_en"],
-                    description=form.cleaned_data["description"],
+                    description=form.cleaned_data["description"], website=form.cleaned_data["website"],
+                    country=form.cleaned_data["country"],
                     **({"logo": form.cleaned_data["logo"]} if form.cleaned_data.get("logo") else {}),
                 )
             except BrandError as exc:
@@ -1525,6 +1676,7 @@ def brand_edit(request, pk):
     else:
         form = BrandForm(initial={
             "name": brand.name, "name_en": brand.name_en, "description": brand.description,
+            "website": brand.website, "country": brand.country,
         })
 
     return render(request, "dashboard/partials/brand_form_modal.html", {"form": form, "brand": brand})
@@ -1563,6 +1715,18 @@ def brand_delete(request, pk):
     return _brands_table_response(request, toast={"message": "برند حذف شد", "type": "info"})
 
 
+@require_POST
+@staff_required
+@permission_required(BRAND_MANAGE)
+def brand_reorder(request):
+    """مرتب‌سازیِ کشاندنی (drag) — بدنه‌یِ درخواست فهرستِ ``brand_ids`` را به
+    ترتیبِ تازه می‌فرستد؛ نگاه کنید به ``brand_service.reorder_brands``."""
+    store = _resolve_dashboard_store(request)
+    ordered_ids = [int(pk) for pk in request.POST.getlist("brand_ids") if pk.strip().isdigit()]
+    reorder_brands(store, ordered_ids)
+    return _brands_table_response(request)
+
+
 @staff_required
 @permission_required(ATTRIBUTE_MANAGE)
 def attribute_values(request, pk):
@@ -1588,12 +1752,12 @@ def _attribute_values_response(request, attribute, *, toast=None):
 def attribute_value_add(request, pk):
     store = _resolve_dashboard_store(request)
     attribute = get_object_or_404(Attribute, pk=pk, store=store)
-    form = AttributeValueForm(request.POST)
+    form = AttributeValueForm(request.POST, request.FILES)
     if form.is_valid():
         try:
             create_attribute_value(
                 attribute, label=form.cleaned_data["label"], value=form.cleaned_data["value"],
-                color_hex=form.cleaned_data["color_hex"],
+                color_hex=form.cleaned_data["color_hex"], swatch_image=form.cleaned_data.get("swatch_image"),
             )
         except AttributeError_ as exc:
             return render(request, "dashboard/partials/attribute_values_list.html", {
@@ -1602,6 +1766,21 @@ def attribute_value_add(request, pk):
         return _attribute_values_response(request, attribute, toast={"message": "مقدار اضافه شد", "type": "ok"})
     return render(request, "dashboard/partials/attribute_values_list.html", {
         "attribute": attribute, "value_form": form,
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(ATTRIBUTE_MANAGE)
+def attribute_value_reorder(request, pk):
+    """مرتب‌سازیِ کشاندنی (drag) بینِ مقادیرِ یک ویژگی — نگاه کنید به
+    ``attribute_service.reorder_attribute_values``."""
+    store = _resolve_dashboard_store(request)
+    attribute = get_object_or_404(Attribute, pk=pk, store=store)
+    ordered_ids = [int(v) for v in request.POST.getlist("value_ids") if v.strip().isdigit()]
+    reorder_attribute_values(attribute, ordered_ids)
+    return render(request, "dashboard/partials/attribute_values_list.html", {
+        "attribute": attribute, "value_form": AttributeValueForm(),
     })
 
 
@@ -1639,7 +1818,7 @@ def _product_options_context(request, product):
     )
     variants = list(
         product.variants.exclude(combination_key="").order_by("display_order")
-        .prefetch_related("option_values__option", "option_values__option_value")
+        .prefetch_related("option_values__option", "option_values__option_value", "images")
     )
     applied_attribute_ids = {axis.attribute_id for axis in axes if axis.attribute_id}
     recommended_options = []
@@ -1878,14 +2057,44 @@ def product_variants_bulk_update(request, pk):
     )
 
 
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_variants_bulk_delete(request, pk):
+    """حذفِ فله‌ای از جدولِ تنوع‌های موتورِ چندمحوره — دقیقاً همان قاعده‌ی
+    ``variant_service.delete_variant`` (تنوعِ استفاده‌شده در سفارش حذف
+    نمی‌شود، فقط رد می‌شود) برای هر ردیفِ انتخاب‌شده اجرا می‌شود."""
+    product = _get_scoped_product(request, pk)
+    variant_ids = [int(v) for v in request.POST.getlist("delete_variant_ids") if v.isdigit()]
+    variants = product.variants.filter(pk__in=variant_ids)
+
+    deleted_count = 0
+    skipped_count = 0
+    for variant in list(variants):
+        try:
+            delete_variant(variant)
+            deleted_count += 1
+        except VariantError:
+            skipped_count += 1
+
+    if skipped_count:
+        message = f"{deleted_count} تنوع حذف شد — {skipped_count} تنوع چون در سفارشی استفاده شده، حذف نشد."
+        toast_type = "info" if deleted_count else "err"
+    else:
+        message = f"{deleted_count} تنوع حذف شد"
+        toast_type = "ok" if deleted_count else "err"
+    return _product_options_response(request, product, toast={"message": message, "type": toast_type})
+
+
 # --------------------------------------------------------- دسته‌بندی‌ها
 
 
-def _categories_context(request, *, main_form=None, sub_form=None):
+def _categories_context(request, *, main_form=None, sub_form=None, subsub_form=None):
     store = _resolve_dashboard_store(request)
     context = category_tree_context(store)
     context["main_form"] = main_form or MainCategoryForm()
     context["sub_form"] = sub_form or SubCategoryForm(store=store)
+    context["subsub_form"] = subsub_form or SubSubCategoryForm(store=store)
     return context
 
 
@@ -1938,6 +2147,43 @@ def category_add_sub(request):
         request, "dashboard/partials/categories_body.html", _categories_context(request, sub_form=form)
     )
     response["HX-Trigger"] = json.dumps({"toast": {"message": "لطفاً خطاهای فرم را برطرف کنید", "type": "err"}})
+    return response
+
+
+@require_POST
+@staff_required
+@permission_required(CATEGORY_MANAGE)
+def category_add_subsub(request):
+    """سومین سطح (زیردسته) — والدش باید خودش یک «دسته» (سطحِ دوم) باشد؛
+    نگاه کنید به ``SubSubCategoryForm``."""
+    store = _resolve_dashboard_store(request)
+    form = SubSubCategoryForm(request.POST, store=store)
+    if form.is_valid():
+        name = form.cleaned_data["name"]
+        Category.objects.create(
+            store=store, name=name, icon=form.cleaned_data["icon"], parent=form.cleaned_data["parent"],
+            slug=generate_unique_slug(Category, name, store=store),
+        )
+        response = render(request, "dashboard/partials/categories_body.html", _categories_context(request))
+        response["HX-Trigger"] = json.dumps({"toast": {"message": f"زیردسته‌ی «{name}» اضافه شد", "type": "ok"}})
+        return response
+    response = render(
+        request, "dashboard/partials/categories_body.html", _categories_context(request, subsub_form=form)
+    )
+    response["HX-Trigger"] = json.dumps({"toast": {"message": "لطفاً خطاهای فرم را برطرف کنید", "type": "err"}})
+    return response
+
+
+@require_POST
+@staff_required
+@permission_required(CATEGORY_MANAGE)
+def category_reorder(request):
+    """مرتب‌سازیِ کشاندنی (drag) بینِ خواهر-و-برادرهای یک والدِ مشترک — نگاه
+    کنید به ``catalog_admin_service.reorder_categories``."""
+    store = _resolve_dashboard_store(request)
+    ordered_ids = [int(pk) for pk in request.POST.getlist("category_ids") if pk.strip().isdigit()]
+    reorder_categories(store, ordered_ids)
+    response = render(request, "dashboard/partials/categories_body.html", _categories_context(request))
     return response
 
 

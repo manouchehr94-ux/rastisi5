@@ -2,7 +2,7 @@
 <div class="grid g-1-2" id="categoriesPageBody"{% if oob %} hx-swap-oob="true"{% endif %}>
   <div>
     <div class="card" style="margin-bottom:18px">
-      <div class="card-head"><h3>➕ افزودن گروه اصلی</h3></div>
+      <div class="card-head"><h3>➕ گروه (سطح ۱)</h3></div>
       <div class="card-body">
         <form hx-post="{% url 'dashboard:category-add-main' %}" hx-target="#categoriesPageBody" hx-swap="outerHTML">
           {% csrf_token %}
@@ -19,8 +19,8 @@
         </form>
       </div>
     </div>
-    <div class="card">
-      <div class="card-head"><h3>➕ افزودن زیرگروه</h3></div>
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-head"><h3>➕ دسته (سطح ۲)</h3></div>
       <div class="card-body">
         <form hx-post="{% url 'dashboard:category-add-sub' %}" hx-target="#categoriesPageBody" hx-swap="outerHTML">
           {% csrf_token %}
@@ -35,7 +35,7 @@
             {% for err in sub_form.parent.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
           </div>
           <div class="form-group">
-            <label>نام زیرگروه</label>
+            <label>نام دسته</label>
             <input class="inp" name="name" value="{{ sub_form.name.value|default_if_none:'' }}" placeholder="مثلاً: هدفون و هندزفری">
             {% for err in sub_form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
           </div>
@@ -43,8 +43,40 @@
             <label>آیکون (ایموجی، اختیاری)</label>
             <input class="inp" name="icon" value="{{ sub_form.icon.value|default_if_none:'' }}">
           </div>
-          <button type="submit" class="btn btn-primary">ثبت زیرگروه</button>
+          <button type="submit" class="btn btn-primary">ثبت دسته</button>
         </form>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>➕ زیردسته (سطح ۳)</h3></div>
+      <div class="card-body">
+        {% if not subsub_form.fields.parent.queryset %}
+        <p style="color:var(--muted);font-size:12.5px">برای ساختِ زیردسته، ابتدا حداقل یک «دسته» (سطح ۲) بسازید.</p>
+        {% else %}
+        <form hx-post="{% url 'dashboard:category-add-subsub' %}" hx-target="#categoriesPageBody" hx-swap="outerHTML">
+          {% csrf_token %}
+          <div class="form-group">
+            <label>دسته‌ی والد</label>
+            <select class="inp" name="parent">
+              <option value="">— انتخاب کنید —</option>
+              {% for cat in subsub_form.fields.parent.queryset %}
+              <option value="{{ cat.pk }}" {% if subsub_form.parent.value|stringformat:"s" == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.parent.icon }} {{ cat.parent.name }} › {{ cat.icon }} {{ cat.name }}</option>
+              {% endfor %}
+            </select>
+            {% for err in subsub_form.parent.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+          </div>
+          <div class="form-group">
+            <label>نام زیردسته</label>
+            <input class="inp" name="name" value="{{ subsub_form.name.value|default_if_none:'' }}" placeholder="مثلاً: هدفون بی‌سیم">
+            {% for err in subsub_form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+          </div>
+          <div class="form-group">
+            <label>آیکون (ایموجی، اختیاری)</label>
+            <input class="inp" name="icon" value="{{ subsub_form.icon.value|default_if_none:'' }}">
+          </div>
+          <button type="submit" class="btn btn-primary">ثبت زیردسته</button>
+        </form>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -53,36 +85,29 @@
     <div class="card" style="margin-bottom:18px">
       <div class="card-body" style="display:flex;gap:22px;flex-wrap:wrap">
         <div><div class="val" style="font-size:20px;font-weight:800">{{ main_count|fa_number }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">گروه اصلی</div></div>
-        <div><div class="val" style="font-size:20px;font-weight:800">{{ sub_count|fa_number }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">زیرگروه</div></div>
-        <div><div class="val" style="font-size:20px;font-weight:800">{{ categorized_product_count|fa_number }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">کالای دسته‌بندی‌شده</div></div>
+        <div><div class="val" style="font-size:20px;font-weight:800">{{ sub_count|fa_number }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">دسته و زیردسته</div></div>
+        <div><div class="val" style="font-size:20px;font-weight:800">{{ categorized_product_count|fa_number }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">کالای ثبت‌شده</div></div>
       </div>
     </div>
-    <div id="categoriesList">
-      {% for row in rows %}
-      <div class="cat-block">
-        <div class="cat-head">
-          <div class="ic">{{ row.category.icon }}</div>
-          <div style="flex:1"><b>{{ row.category.name }}</b><small>{{ row.subs|length|fa_number }} زیرگروه — {{ row.product_count|fa_number }} کالا</small></div>
-          <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:category-edit' row.category.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">✏️ ویرایش</button>
-          <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:category-schema' row.category.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">🏷️ طرح ویژگی</button>
-          <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:category-delete' row.category.pk %}" hx-target="#categoriesPageBody" hx-swap="outerHTML" hx-confirm="آیا از حذف گروه «{{ row.category.name }}» مطمئن هستید؟">حذف گروه</button>
-        </div>
-        <div class="subs">
-          {% for sub in row.subs %}
-          <span class="chip">
-            {{ sub.category.name }}
-            <span hx-get="{% url 'dashboard:category-edit' sub.category.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true" title="ویرایش زیرگروه" style="color:var(--primary);cursor:pointer;margin-right:2px">✏️</span>
-            <span hx-get="{% url 'dashboard:category-schema' sub.category.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true" title="طرح ویژگی" style="color:var(--primary);cursor:pointer;margin-right:2px">🏷️</span>
-            <span class="rm" hx-post="{% url 'dashboard:category-delete' sub.category.pk %}" hx-target="#categoriesPageBody" hx-swap="outerHTML" hx-confirm="آیا از حذف زیرگروه «{{ sub.category.name }}» مطمئن هستید؟" title="حذف زیرگروه">✕</span>
-          </span>
-          {% empty %}
-          <span style="color:var(--muted);font-size:12px">زیرگروهی ثبت نشده است</span>
-          {% endfor %}
-        </div>
+    <div class="card">
+      <div class="card-head">
+        <h3>درخت دسته‌بندی‌ها</h3>
+        {% if rows %}
+        <input class="inp" placeholder="🔍 جستجوی دسته‌بندی..." style="width:220px" x-model="searchQuery">
+        {% endif %}
       </div>
-      {% empty %}
-      <p style="color:var(--muted);font-size:13px">هنوز گروهی ثبت نشده است</p>
-      {% endfor %}
+      <div class="card-body" id="categoriesList" x-data="{ dragId: null, searchQuery: '' }">
+        {% for node in rows %}
+        {% include "dashboard/partials/category_tree_node.html" with node=node %}
+        {% empty %}
+        <div class="cat-empty-state">
+          <div class="big">🗂️</div>
+          <p>هنوز هیچ دسته‌بندی‌ای برای این فروشگاه ساخته نشده است.</p>
+          <p style="font-size:12px">بدون دسته‌بندی، امکان ساختن کالا وجود ندارد — از فرمِ «گروه (سطح ۱)» در سمت راست شروع کنید.</p>
+          <button type="button" class="btn btn-primary btn-sm" style="margin-top:8px" onclick="document.querySelector('input[name=name]')?.focus()">ساخت اولین دسته‌بندی</button>
+        </div>
+        {% endfor %}
+      </div>
     </div>
   </div>
 </div>

@@ -30,12 +30,15 @@
   <div class="card-body" x-show="setupChecklistOpen" x-cloak>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px">
       {% for step in setup_checklist.steps %}
-      <a href="{{ step.url }}" style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:11px;text-decoration:none;color:inherit;transition:.18s"
+      <a href="{{ step.url }}" style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:11px;text-decoration:none;color:inherit;transition:.18s{% if not step.is_unlocked %};opacity:.55{% endif %}"
+         {% if not step.is_unlocked %}title="پیشنهاد می‌شود ابتدا مراحل قبلی را تکمیل کنید — همچنان می‌توانید این مرحله را هم‌اکنون باز کنید."{% endif %}
          onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
         <span style="font-size:18px">{% if step.is_complete %}✅{% else %}{{ step.icon }}{% endif %}</span>
         <span style="flex:1;font-size:13px;font-weight:600">{{ step.label }}</span>
         {% if step.is_complete %}
         <span class="badge b-green">تکمیل‌شده</span>
+        {% elif not step.is_unlocked %}
+        <span class="badge b-gray" title="پیشنهاد می‌شود ابتدا مراحل قبلی را تکمیل کنید">🔒</span>
         {% else %}
         <span class="btn btn-primary btn-sm">شروع</span>
         {% endif %}

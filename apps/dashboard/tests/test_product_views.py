@@ -133,11 +133,67 @@ class ProductAddViewTests(ProductViewsTestCase):
         self.assertEqual(product.icon, "🛍️")
 
 
+class ProductWizardTests(ProductViewsTestCase):
+    """فرمِ افزودنِ کالا اکنون یک ویزاردِ چندمرحله‌ای است — ۹ مرحله، همه در
+    یک <form> واحد (بدون از دست رفتنِ داده بین مراحل)، با اعتبارسنجیِ
+    سمتِ سرور که کاربر را دقیقاً به مرحله‌ی دارایِ خطا هدایت می‌کند."""
+
+    def _payload(self, **overrides):
+        payload = {
+            "name": "کالای ویزارد", "sku": "SKU-WIZ1", "category": self.sub.id,
+            "price": "500000", "discount_percent": "0", "stock": "10",
+            "status": "active", "icon": "🎁", "description": "",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_wizard_renders_all_nine_steps_in_one_form(self):
+        response = self.client.get(reverse("dashboard:product-add"))
+        content = response.content.decode()
+        self.assertEqual(content.count("<form"), 1)  # یک فرمِ واحد، نه فرم‌های جداگانه‌ی هر مرحله
+        for n in range(1, 10):
+            self.assertIn(f'x-ref="step{n}"', content)
+
+    def test_progress_indicator_present(self):
+        response = self.client.get(reverse("dashboard:product-add"))
+        self.assertContains(response, "wizard-progress")
+        self.assertContains(response, "دسته‌بندی")
+        self.assertContains(response, "برند")
+
+    def test_error_step_routes_to_category_step_when_category_missing(self):
+        response = self.client.post(reverse("dashboard:product-add"), self._payload(category=""))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("step: 2,", response.content.decode())
+
+    def test_error_step_routes_to_pricing_step_when_price_missing(self):
+        response = self.client.post(reverse("dashboard:product-add"), self._payload(price=""))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("step: 4,", response.content.decode())
+
+    def test_error_step_defaults_to_one_on_fresh_get(self):
+        response = self.client.get(reverse("dashboard:product-add"))
+        self.assertIn("step: 1,", response.content.decode())
+
+    def test_missing_category_banner_shown_when_store_has_no_categories(self):
+        Product.objects.filter(store=self.store).delete()
+        Category.objects.filter(store=self.store).delete()
+        response = self.client.get(reverse("dashboard:product-add"))
+        self.assertContains(response, "این فروشگاه هنوز هیچ دسته‌بندی‌ای ندارد")
+
+
 class ProductEditViewTests(ProductViewsTestCase):
     def test_get_prefills_form(self):
         response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
         self.assertContains(response, "ویرایش کالا")
         self.assertContains(response, "گوشی هوشمند")
+
+    def test_media_management_link_opens_via_htmx_not_full_navigation(self):
+        """لینکِ «مدیریتِ تصاویرِ این کالا» در مرحله‌ی رسانه‌ی ویزارد باید با htmx باز شود،
+        نه با ناوبریِ کاملِ صفحه — چون صفحه‌ی مودالِ تصاویر بدونِ لایه‌ی اصلی رندر می‌شود."""
+        images_url = reverse("dashboard:product-images", args=[self.product.pk])
+        response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
+        self.assertContains(response, f'hx-get="{images_url}"')
+        self.assertContains(response, 'hx-target="#admin-modal-content"')
 
     def test_valid_edit_updates_product(self):
         payload = {

@@ -1,0 +1,19 @@
+{% load persian %}
+<div id="productVideosList" style="display:flex;flex-direction:column;gap:12px">
+  {% for video in videos %}
+  <div style="display:flex;gap:12px;align-items:center;border:1px solid var(--border);border-radius:11px;padding:10px">
+    <div style="width:120px;flex-shrink:0;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:#000">
+      <iframe src="{{ video.embed_url }}" style="width:100%;height:100%;border:0" allowfullscreen loading="lazy"></iframe>
+    </div>
+    <div style="flex:1">
+      <b>{{ video.title|default:video.get_provider_display }}</b>
+      <div style="font-size:11px;color:var(--muted)">{{ video.get_provider_display }} · <span dir="ltr">{{ video.url|truncatechars:50 }}</span></div>
+    </div>
+    <button type="button" class="btn btn-sm btn-danger" title="حذف"
+            hx-post="{% url 'dashboard:product-video-delete' product.pk video.pk %}"
+            hx-target="#productVideosList" hx-swap="outerHTML" hx-confirm="این ویدیو حذف شود؟">🗑️</button>
+  </div>
+  {% empty %}
+  <p style="color:var(--muted);font-size:12.5px">هنوز ویدیویی برای این کالا اضافه نشده است.</p>
+  {% endfor %}
+</div>

@@ -273,3 +273,99 @@ class ProductImageVariantAssociationViewTests(ProductImageViewsTestCase):
         self.assertIn("admin_return=", response.url)
         image.refresh_from_db()
         self.assertIsNone(image.variant_id)
+
+
+class ProductImageReorderViewTests(ProductImageViewsTestCase):
+    def test_reorders_by_posted_sequence(self):
+        first = add_product_image(self.product, _make_image_file("a.jpg"))
+        second = add_product_image(self.product, _make_image_file("b.jpg"))
+        third = add_product_image(self.product, _make_image_file("c.jpg"))
+        response = self.client.post(reverse("dashboard:product-image-reorder", args=[self.product.pk]), {
+            "image_ids": [third.pk, first.pk, second.pk],
+        })
+        self.assertEqual(response.status_code, 200)
+        third.refresh_from_db()
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(third.order, 0)
+        self.assertEqual(first.order, 1)
+        self.assertEqual(second.order, 2)
+
+    def test_get_not_allowed(self):
+        response = self.client.get(reverse("dashboard:product-image-reorder", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 405)
+
+
+class ProductImageCaptionAnd360Tests(ProductImageViewsTestCase):
+    def test_updates_caption(self):
+        image = add_product_image(self.product, _make_image_file())
+        response = self.client.post(
+            reverse("dashboard:product-image-caption", args=[self.product.pk, image.pk]),
+            {"caption": "نمای جلو"},
+        )
+        self.assertEqual(response.status_code, 200)
+        image.refresh_from_db()
+        self.assertEqual(image.caption, "نمای جلو")
+
+    def test_toggles_360_flag(self):
+        image = add_product_image(self.product, _make_image_file())
+        self.assertFalse(image.is_360)
+        self.client.post(reverse("dashboard:product-image-360-toggle", args=[self.product.pk, image.pk]))
+        image.refresh_from_db()
+        self.assertTrue(image.is_360)
+        self.client.post(reverse("dashboard:product-image-360-toggle", args=[self.product.pk, image.pk]))
+        image.refresh_from_db()
+        self.assertFalse(image.is_360)
+
+
+class ProductVideoViewTests(ProductImageViewsTestCase):
+    def test_adds_youtube_video(self):
+        response = self.client.post(reverse("dashboard:product-video-add", args=[self.product.pk]), {
+            "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "title": "معرفی کالا",
+        })
+        self.assertEqual(response.status_code, 200)
+        video = self.product.videos.get()
+        self.assertEqual(video.provider, "youtube")
+        self.assertEqual(video.embed_url, "https://www.youtube.com/embed/dQw4w9WgXcQ")
+
+    def test_adds_aparat_video(self):
+        response = self.client.post(reverse("dashboard:product-video-add", args=[self.product.pk]), {
+            "url": "https://www.aparat.com/v/abc123",
+        })
+        self.assertEqual(response.status_code, 200)
+        video = self.product.videos.get()
+        self.assertEqual(video.provider, "aparat")
+        self.assertIn("abc123", video.embed_url)
+
+    def test_rejects_unknown_provider(self):
+        import json
+
+        response = self.client.post(reverse("dashboard:product-video-add", args=[self.product.pk]), {
+            "url": "https://vimeo.com/12345",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(self.product.videos.exists())
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertIn("شناخته‌شده نیست", trigger["toast"]["message"])
+
+    def test_deletes_video(self):
+        self.client.post(reverse("dashboard:product-video-add", args=[self.product.pk]), {
+            "url": "https://youtu.be/dQw4w9WgXcQ",
+        })
+        video = self.product.videos.get()
+        response = self.client.post(reverse("dashboard:product-video-delete", args=[self.product.pk, video.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(self.product.videos.exists())
+
+    def test_other_store_product_404s(self):
+        other_store = Store.objects.create(name="فروشگاه دیگر", slug="piv-other-video", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="ف", slug="piv-other-v")
+        other_category = Category.objects.create(store=other_store, name="د", slug="piv-other-c")
+        other_product = Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="کالای دیگر",
+            slug="piv-other-p", sku="PIV-OTHER-SKU", price=Decimal("1000"),
+        )
+        response = self.client.post(reverse("dashboard:product-video-add", args=[other_product.pk]), {
+            "url": "https://youtu.be/dQw4w9WgXcQ",
+        })
+        self.assertEqual(response.status_code, 404)

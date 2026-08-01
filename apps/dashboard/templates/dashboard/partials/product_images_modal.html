@@ -1,22 +1,48 @@
 {% load persian %}
 <div class="modal-head">
-  <h3>مدیریت تصاویر — {{ product.name }}</h3>
+  <h3>مدیریت تصاویر و ویدیو — {{ product.name }}</h3>
   <button type="button" class="x-btn" @click="modalOpen = false">✕</button>
 </div>
 <div class="modal-body">
   <form hx-post="{% url 'dashboard:product-image-upload' product.pk %}" hx-target="#productImagesList" hx-swap="outerHTML"
-        hx-encoding="multipart/form-data">
-    <div class="form-group">
-      <label>افزودن تصویر جدید (می‌توانید چند فایل را همزمان انتخاب کنید)</label>
-      <input class="inp" type="file" name="images" multiple accept=".jpg,.jpeg,.png,.webp">
-    </div>
-    <p style="font-size:11.5px;color:var(--muted);margin-bottom:10px">فرمت‌های مجاز: jpg، png، webp — حداکثر ۵ مگابایت برای هر تصویر.</p>
-    <button type="submit" class="btn btn-primary btn-sm">آپلود تصویر</button>
+        hx-encoding="multipart/form-data" hx-trigger="change from:#imageDropInput, drop-upload"
+        x-data="{ dragging: false }">
+    <label class="dropzone" :class="{ dragging: dragging }"
+           @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
+           @drop.prevent="
+             dragging = false;
+             const input = $refs.dropInput;
+             input.files = $event.dataTransfer.files;
+             $el.closest('form').dispatchEvent(new Event('drop-upload'));
+           ">
+      <span style="font-size:26px">📤</span>
+      <span>تصاویر را اینجا رها کنید یا کلیک کنید</span>
+      <small style="color:var(--muted)">فرمت‌های مجاز: jpg، png، webp — حداکثر ۵ مگابایت برای هر تصویر — چندتصویری هم‌زمان مجاز است</small>
+      <input class="inp" id="imageDropInput" x-ref="dropInput" type="file" name="images" multiple accept=".jpg,.jpeg,.png,.webp" style="display:none">
+    </label>
   </form>
 
   <hr style="margin:16px 0;border-color:var(--border)">
 
   {% include "dashboard/partials/product_images_list.html" %}
+
+  <hr style="margin:20px 0;border-color:var(--border)">
+
+  <h4 style="margin-bottom:8px">🎬 ویدیوی معرفیِ کالا (یوتیوب / آپارات)</h4>
+  <form hx-post="{% url 'dashboard:product-video-add' product.pk %}" hx-target="#productVideosList" hx-swap="outerHTML"
+        style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+    {% csrf_token %}
+    <div class="form-group" style="margin-bottom:0;flex:1;min-width:220px">
+      <label>لینکِ ویدیو</label>
+      <input class="inp" name="url" dir="ltr" placeholder="https://www.youtube.com/watch?v=... یا https://www.aparat.com/v/...">
+    </div>
+    <div class="form-group" style="margin-bottom:0;width:150px">
+      <label>عنوان (اختیاری)</label>
+      <input class="inp" name="title" placeholder="معرفیِ کالا">
+    </div>
+    <button type="submit" class="btn btn-sm btn-primary">افزودنِ ویدیو</button>
+  </form>
+  {% include "dashboard/partials/product_videos_list.html" %}
 </div>
 <div class="modal-foot">
   <button type="button" class="btn" @click="modalOpen = false">بستن</button>

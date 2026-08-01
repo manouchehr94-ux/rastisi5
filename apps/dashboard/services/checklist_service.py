@@ -167,12 +167,27 @@ class _ChecklistStep:
     url: Callable
 
 
+#: کلیدهای زنجیره‌ی اصلیِ ۱۲مرحله‌ای (چک‌لیستِ راه‌اندازیِ کاتالوگ) — نگاه
+#: کنید به ``_progressive_unlock`` — هر مرحله فقط وقتی «باز» نمایش داده
+#: می‌شود که همه‌ی مراحلِ پیش از خودش در همین فهرست تکمیل شده باشند؛ این
+#: قفلِ سخت‌گیرانه‌ی ناوبری نیست (هر مرحله همیشه قابل‌کلیک می‌ماند)، فقط یک
+#: نشانه‌ی بصریِ «ابتدا این‌ها را تمام کنید».
+CATALOG_CHAIN_KEYS = [
+    "industry", "industry_template", "product_groups", "product_categories",
+    "brands", "attributes", "first_product", "product_images", "variants",
+    "inventory", "shipping", "publish",
+]
+
+
 def _steps():
     return [
-        # --- زنجیره‌ی پیش‌نیازیِ واقعیِ ساختِ کالا (Section 3 requirement) —
-        # ترتیب هرگز نباید بدونِ عبور از پیش‌نیازهایش به «اولین کالا» برسد.
+        # --- زنجیره‌ی پیش‌نیازیِ واقعیِ ساختِ کالا — دقیقاً ۱۲ مرحله، طبقِ
+        # ترتیبِ الزامیِ درخواست: صنف → قالب صنف → گروه‌های دسته‌بندی →
+        # دسته‌بندی‌ها → برندها → ویژگی‌ها → اولین کالا → تصاویر → تنوع‌ها →
+        # موجودی → ارسال → انتشار فروشگاه. هرگز نباید بدونِ عبور از
+        # پیش‌نیازهایش به «اولین کالا» برسد.
         _ChecklistStep(
-            "industry", "صنف فروشگاه", "🏭", _industry_complete,
+            "industry", "انتخاب صنف", "🏭", _industry_complete,
             lambda store, request: reverse("dashboard:settings") + "?section=industry",
         ),
         _ChecklistStep(
@@ -180,43 +195,54 @@ def _steps():
             lambda store, request: reverse("dashboard:settings") + "?section=industry",
         ),
         _ChecklistStep(
-            "product_groups", "گروه‌های کالا", "🗂️", _product_groups_complete,
+            "product_groups", "ایجاد گروه‌های دسته‌بندی", "🗂️", _product_groups_complete,
             lambda store, request: reverse("dashboard:category-list"),
         ),
         _ChecklistStep(
-            "product_categories", "دسته‌بندی/زیردسته‌ی کالا", "📁", _product_subcategories_complete,
+            "product_categories", "ایجاد دسته‌بندی‌ها", "📁", _product_subcategories_complete,
             lambda store, request: reverse("dashboard:category-list"),
         ),
         _ChecklistStep(
-            "attributes", "ویژگی‌های کالا", "🏷️", _attributes_complete,
-            lambda store, request: reverse("dashboard:attribute-list"),
-        ),
-        _ChecklistStep(
-            "brands", "برندها", "🔖", _brands_complete,
+            "brands", "ایجاد برندها", "🔖", _brands_complete,
             lambda store, request: reverse("dashboard:brand-list"),
         ),
         _ChecklistStep(
-            "first_product", "اولین کالا", "📦", _first_product_complete,
+            "attributes", "ایجاد ویژگی‌های کالا", "🏷️", _attributes_complete,
+            lambda store, request: reverse("dashboard:attribute-list"),
+        ),
+        _ChecklistStep(
+            "first_product", "ایجاد اولین کالا", "📦", _first_product_complete,
             lambda store, request: reverse("dashboard:product-list"),
         ),
         _ChecklistStep(
-            "product_images", "تصاویر کالا", "🖼️", _product_images_complete,
+            "product_images", "بارگذاری تصاویر", "🖼️", _product_images_complete,
             lambda store, request: reverse("dashboard:product-list"),
         ),
         _ChecklistStep(
-            "variants", "تنوع‌های کالا", "🎛️", _variants_complete,
+            "variants", "تنظیم تنوع‌ها", "🎛️", _variants_complete,
             lambda store, request: reverse("dashboard:product-list"),
         ),
         _ChecklistStep(
-            "inventory", "موجودی کالا", "📊", _inventory_complete,
+            "inventory", "موجودی", "📊", _inventory_complete,
             lambda store, request: reverse("dashboard:inventory-list"),
         ),
         _ChecklistStep(
-            "product_publish", "انتشار کالا", "🚀", _product_publish_complete,
+            "shipping", "ارسال", "🚚", _shipping_complete,
+            lambda store, request: reverse("dashboard:shipping-zone-list"),
+        ),
+        _ChecklistStep(
+            "publish", "انتشار فروشگاه", "🚀", _publish_complete,
+            lambda store, request: _platform_url(
+                request, f"/app/stores/{store.public_id}/onboarding/review/"
+            ),
+        ),
+        # --- مراحلِ تکمیلیِ راه‌اندازیِ فروشگاه — بخشی از ۱۲ مرحله‌ی الزامی
+        # نیستند، اما حذف‌شان نقضِ «عدمِ حذفِ قابلیتِ موجود» بود؛ بعد از
+        # زنجیره‌ی اصلی نمایش داده می‌شوند.
+        _ChecklistStep(
+            "product_publish", "انتشار کالا (فعال‌سازی)", "✅", _product_publish_complete,
             lambda store, request: reverse("dashboard:product-list"),
         ),
-        # --- بقیه‌ی مراحلِ راه‌اندازیِ فروشگاه — بدون تغییر در معنا یا آدرس،
-        # فقط بعد از زنجیره‌ی کاتالوگِ بالا.
         _ChecklistStep(
             "store_info", "اطلاعات فروشگاه", "🏬", _store_information_complete,
             lambda store, request: reverse("dashboard:settings") + "?section=general",
@@ -234,10 +260,6 @@ def _steps():
             lambda store, request: reverse("dashboard:settings") + "?section=appearance",
         ),
         _ChecklistStep(
-            "shipping", "روش ارسال", "🚚", _shipping_complete,
-            lambda store, request: reverse("dashboard:shipping-zone-list"),
-        ),
-        _ChecklistStep(
             "payment_gateway", "درگاه پرداخت", "💳", _payment_gateway_complete,
             lambda store, request: reverse("dashboard:settings") + "?section=payment-config",
         ),
@@ -249,30 +271,37 @@ def _steps():
             "custom_domain", "دامنه‌ی اختصاصی", "🌐", _custom_domain_complete,
             lambda store, request: _platform_url(request, f"/app/stores/{store.public_id}/domains/"),
         ),
-        _ChecklistStep(
-            "publish", "انتشار فروشگاه", "🚀", _publish_complete,
-            lambda store, request: _platform_url(
-                request, f"/app/stores/{store.public_id}/onboarding/review/"
-            ),
-        ),
     ]
 
 
 def build_setup_checklist(store, request):
     """چک‌لیستِ راه‌اندازی برایِ داشبوردِ خانه — هر بار زنده محاسبه می‌شود،
-    هیچ‌جا ذخیره نمی‌شود."""
+    هیچ‌جا ذخیره نمی‌شود.
+
+    ``is_unlocked`` یک نشانه‌ی صرفاً بصری است، نه یک قفلِ ناوبری: مرحله‌ای
+    از زنجیره‌ی اصلیِ کاتالوگ (``CATALOG_CHAIN_KEYS``) تا وقتی همه‌ی
+    مراحلِ پیش از خودش در همان زنجیره تکمیل نشده باشند «قفل» نشان داده
+    می‌شود — اما دکمه‌اش همچنان کلیک‌پذیر می‌ماند، چون مدیرِ فروشگاه باید
+    همیشه بتواند آزادانه هر صفحه‌ای را باز کند؛ این فقط ترتیبِ پیشنهادی را
+    نشان می‌دهد. مراحلِ تکمیلی (خارج از این زنجیره) همیشه باز هستند."""
     shop = _shop_settings(store)
     steps = []
     completed_count = 0
+    chain_blocked_so_far = False
     for step in _steps():
         is_complete = bool(step.is_complete(store, shop))
         if is_complete:
             completed_count += 1
+        in_chain = step.key in CATALOG_CHAIN_KEYS
+        is_unlocked = not (in_chain and chain_blocked_so_far)
+        if in_chain and not is_complete:
+            chain_blocked_so_far = True
         steps.append({
             "key": step.key,
             "label": step.label,
             "icon": step.icon,
             "is_complete": is_complete,
+            "is_unlocked": is_unlocked,
             "url": step.url(store, request),
         })
     total_count = len(steps)

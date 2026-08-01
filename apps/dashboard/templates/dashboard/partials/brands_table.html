@@ -1,13 +1,28 @@
 {% load persian %}
-<table>
+<table x-data="{ dragId: null }">
   <thead>
     <tr>
-      <th>لوگو</th><th>نام برند</th><th>نام انگلیسی</th><th>تعداد کالا</th><th>وضعیت</th><th>عملیات</th>
+      <th style="width:28px"></th>
+      <th>لوگو</th><th>نام برند</th><th>نام انگلیسی</th><th>کشور</th><th>تعداد کالا</th><th>وضعیت</th><th>عملیات</th>
     </tr>
   </thead>
   <tbody>
     {% for brand in brands %}
-    <tr>
+    <tr draggable="true" data-id="{{ brand.pk }}"
+        @dragstart="dragId = {{ brand.pk }}; $event.dataTransfer.effectAllowed = 'move'"
+        @dragover.prevent
+        @drop.prevent="
+          if (dragId !== null && dragId !== {{ brand.pk }}) {
+            const tbody = $el.parentElement;
+            const from = tbody.querySelector('tr[data-id=\'' + dragId + '\']');
+            tbody.insertBefore(from, from.compareDocumentPosition($el) & Node.DOCUMENT_POSITION_FOLLOWING ? $el.nextSibling : $el);
+            const ids = [...tbody.children].map(r => r.dataset.id);
+            htmx.ajax('POST', '{% url 'dashboard:brand-reorder' %}', {values: {brand_ids: ids}, target: '#brandsTableWrap', swap: 'innerHTML'});
+          }
+          dragId = null;
+        "
+        style="cursor:grab">
+      <td style="color:var(--muted)" title="برای مرتب‌سازی بکشید">⠿</td>
       <td>
         <div class="thumb" style="width:36px;height:36px;background:var(--primary-soft)">
           {% if brand.logo %}
@@ -17,8 +32,11 @@
           {% endif %}
         </div>
       </td>
-      <td><b>{{ brand.name }}</b>{% if brand.description %}<br><small style="color:var(--muted)">{{ brand.description|truncatechars:60 }}</small>{% endif %}</td>
+      <td><b>{{ brand.name }}</b>{% if brand.description %}<br><small style="color:var(--muted)">{{ brand.description|truncatechars:60 }}</small>{% endif %}
+        {% if brand.website %}<br><a href="{{ brand.website }}" target="_blank" rel="noopener" style="font-size:11px">{{ brand.website|truncatechars:40 }}</a>{% endif %}
+      </td>
       <td dir="ltr">{{ brand.name_en|default:"—" }}</td>
+      <td>{{ brand.country|default:"—" }}</td>
       <td>{{ brand.product_count }}</td>
       <td><span class="badge {% if brand.is_active %}b-green{% else %}b-gray{% endif %}">{% if brand.is_active %}فعال{% else %}غیرفعال{% endif %}</span></td>
       <td>
@@ -32,7 +50,9 @@
       </td>
     </tr>
     {% empty %}
-    <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">هنوز برندی ثبت نشده است</td></tr>
+    <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">
+      هنوز برندی ثبت نشده است — از دکمه‌ی «افزودن برند» بالا شروع کنید.
+    </td></tr>
     {% endfor %}
   </tbody>
 </table>

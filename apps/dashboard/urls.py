@@ -31,14 +31,21 @@ urlpatterns = [
     path("products/<int:pk>/images/<int:image_id>/delete/", views.product_image_delete, name="product-image-delete"),
     path("products/<int:pk>/images/<int:image_id>/cover/", views.product_image_set_cover, name="product-image-set-cover"),
     path("products/<int:pk>/images/<int:image_id>/move/", views.product_image_move, name="product-image-move"),
+    path("products/<int:pk>/images/reorder/", views.product_image_reorder, name="product-image-reorder"),
     path("products/<int:pk>/images/<int:image_id>/alt/", views.product_image_alt_update, name="product-image-alt"),
+    path("products/<int:pk>/images/<int:image_id>/caption/", views.product_image_caption_update, name="product-image-caption"),
+    path("products/<int:pk>/images/<int:image_id>/360/", views.product_image_360_toggle, name="product-image-360-toggle"),
     path("products/<int:pk>/images/<int:image_id>/variant/", views.product_image_variant_update, name="product-image-variant"),
+
+    path("products/<int:pk>/videos/add/", views.product_video_add, name="product-video-add"),
+    path("products/<int:pk>/videos/<int:video_id>/delete/", views.product_video_delete, name="product-video-delete"),
 
     path("products/<int:pk>/variants/", views.product_variants, name="product-variants"),
     path("products/<int:pk>/variants/bulk-add/", views.product_variant_bulk_add, name="product-variant-bulk-add"),
     path("products/<int:pk>/variants/<int:variant_id>/edit/", views.product_variant_edit, name="product-variant-edit"),
     path("products/<int:pk>/variants/<int:variant_id>/toggle/", views.product_variant_toggle, name="product-variant-toggle"),
     path("products/<int:pk>/variants/<int:variant_id>/delete/", views.product_variant_delete, name="product-variant-delete"),
+    path("products/<int:pk>/variants/<int:variant_id>/duplicate/", views.product_variant_duplicate, name="product-variant-duplicate"),
     path("products/<int:pk>/variants/<int:variant_id>/move/", views.product_variant_move, name="product-variant-move"),
 
     path("attributes/", views.attribute_list, name="attribute-list"),
@@ -52,6 +59,7 @@ urlpatterns = [
     path("attributes/<int:pk>/values/add/", views.attribute_value_add, name="attribute-value-add"),
     path("attributes/<int:pk>/values/<int:value_id>/archive/", views.attribute_value_archive, name="attribute-value-archive"),
     path("attributes/<int:pk>/values/<int:value_id>/delete/", views.attribute_value_delete, name="attribute-value-delete"),
+    path("attributes/<int:pk>/values/reorder/", views.attribute_value_reorder, name="attribute-value-reorder"),
 
     path("products/<int:pk>/options/", views.product_options, name="product-options"),
     path("products/<int:pk>/options/add/", views.product_option_add, name="product-option-add"),
@@ -65,10 +73,13 @@ urlpatterns = [
     path("products/<int:pk>/options/generate/", views.product_variants_generate, name="product-variants-generate"),
     path("products/<int:pk>/options/variants/<int:variant_id>/default/", views.product_variant_set_default, name="product-variant-set-default"),
     path("products/<int:pk>/options/bulk-update/", views.product_variants_bulk_update, name="product-variants-bulk-update"),
+    path("products/<int:pk>/options/bulk-delete/", views.product_variants_bulk_delete, name="product-variants-bulk-delete"),
 
     path("categories/", views.category_list, name="category-list"),
     path("categories/add-main/", views.category_add_main, name="category-add-main"),
     path("categories/add-sub/", views.category_add_sub, name="category-add-sub"),
+    path("categories/add-subsub/", views.category_add_subsub, name="category-add-subsub"),
+    path("categories/reorder/", views.category_reorder, name="category-reorder"),
     path("categories/<int:pk>/edit/", views.category_edit, name="category-edit"),
     path("categories/<int:pk>/delete/", views.category_delete, name="category-delete"),
     path("categories/<int:pk>/schema/", views.category_schema, name="category-schema"),
@@ -86,6 +97,7 @@ urlpatterns = [
     path("brands/<int:pk>/archive/", views.brand_archive, name="brand-archive"),
     path("brands/<int:pk>/activate/", views.brand_activate, name="brand-activate"),
     path("brands/<int:pk>/delete/", views.brand_delete, name="brand-delete"),
+    path("brands/reorder/", views.brand_reorder, name="brand-reorder"),
 
     path("orders/", views.order_list, name="order-list"),
     path("orders/table/", views.order_table, name="order-table"),

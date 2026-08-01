@@ -562,6 +562,41 @@ class VariantDeleteViewTests(VariantViewsTestCase):
         self.assertTrue(ProductVariant.objects.filter(pk=self.variant.pk).exists())
 
 
+class VariantDuplicateViewTests(VariantViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self._make_variable()
+        self.variant = create_variant(
+            self.product, attribute="رنگ", value="قرمز", stock=5, extra_price=Decimal("10000"),
+        )
+        self.duplicate_url = reverse("dashboard:product-variant-duplicate", args=[self.product.pk, self.variant.pk])
+
+    def test_creates_inactive_copy_with_new_sku(self):
+        response = self.client.post(self.duplicate_url)
+        self.assertRedirects(response, reverse("dashboard:product-variants", args=[self.product.pk]))
+        copy = ProductVariant.objects.get(product=self.product, value="قرمز (کپی)")
+        self.assertFalse(copy.is_active)
+        self.assertNotEqual(copy.sku, self.variant.sku)
+        self.assertEqual(copy.extra_price, Decimal("10000"))
+        self.assertEqual(copy.stock, 0)
+
+    def test_original_variant_untouched(self):
+        self.client.post(self.duplicate_url)
+        self.variant.refresh_from_db()
+        self.assertEqual(self.variant.value, "قرمز")
+        self.assertEqual(self.variant.stock, 5)
+
+    def test_get_not_allowed(self):
+        response = self.client.get(self.duplicate_url)
+        self.assertEqual(response.status_code, 405)
+
+    def test_anonymous_denied(self):
+        self.client.logout()
+        response = self.client.post(self.duplicate_url)
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ProductVariant.objects.filter(product=self.product, value="قرمز (کپی)").exists())
+
+
 # ------------------------------------------------------------ Reordering
 
 

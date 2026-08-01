@@ -159,6 +159,34 @@ def update_image_alt(image: ProductImage, alt: str) -> ProductImage:
     return image
 
 
+def update_image_caption(image: ProductImage, caption: str) -> ProductImage:
+    image.caption = (caption or "").strip()
+    image.save(update_fields=["caption"])
+    return image
+
+
+def set_image_360(image: ProductImage, is_360: bool) -> ProductImage:
+    """پرچمِ «بخشی از مجموعه‌ی ۳۶۰ درجه» را روشن/خاموش می‌کند — نگاه کنید به
+    ``ProductImage.is_360``: فقط زیرساختِ داده است، هنوز ویوئری برایش وجود ندارد."""
+    image.is_360 = bool(is_360)
+    image.save(update_fields=["is_360"])
+    return image
+
+
+def reorder_product_images(product, ordered_ids: list[int]) -> None:
+    """ترتیبِ نمایشِ تصاویر را طبقِ ``ordered_ids`` بازنویسی می‌کند — برایِ
+    مرتب‌سازیِ کشاندنی (drag)؛ همان الگویِ ``brand_service.reorder_brands``."""
+    images = {img.pk: img for img in product.images.filter(pk__in=ordered_ids)}
+    valid_ids = [image_id for image_id in ordered_ids if image_id in images]
+    updated = []
+    for order, image_id in enumerate(valid_ids):
+        image = images[image_id]
+        image.order = order
+        updated.append(image)
+    if updated:
+        ProductImage.objects.bulk_update(updated, ["order"])
+
+
 def set_image_variant(image: ProductImage, variant) -> ProductImage:
     """تصویر را به یک تنوع مشخص از همان کالا اختصاص می‌دهد (یا با ``variant=None`` عمومی می‌کند).
 

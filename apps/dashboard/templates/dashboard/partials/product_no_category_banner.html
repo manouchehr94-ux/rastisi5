@@ -1,0 +1,8 @@
+{% load persian %}
+<div id="noCategoryBanner"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {% if not has_leaf_categories %}
+  <div class="info-box" style="border-color:var(--red);background:color-mix(in srgb,var(--red) 10%,transparent)">
+    ⚠️ این فروشگاه هنوز هیچ دسته‌بندی‌ای ندارد — بدونِ دسته‌بندی، کالا قابلِ ذخیره نیست. در «مرحله‌ی ۲ — دسته‌بندی» می‌توانید همین‌جا یکی بسازید.
+  </div>
+  {% endif %}
+</div>

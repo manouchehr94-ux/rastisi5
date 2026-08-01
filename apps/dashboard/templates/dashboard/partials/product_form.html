@@ -4,38 +4,52 @@
   <button type="button" class="x-btn" @click="modalOpen = false">✕</button>
 </div>
 <form hx-post="{% if product %}{% url 'dashboard:product-edit' product.pk %}{% else %}{% url 'dashboard:product-add' %}{% endif %}"
-      hx-target="#admin-modal-content" hx-swap="innerHTML">
+      hx-target="#admin-modal-content" hx-swap="innerHTML"
+      x-data="{
+        step: {{ error_step|default:1 }}, totalSteps: 9,
+        stepLabels: ['اطلاعات پایه', 'دسته‌بندی', 'برند', 'قیمت‌گذاری', 'تصاویر و رسانه', 'ویژگی‌ها و تنوع', 'ارسال', 'سئو', 'پایانی'],
+        goTo(n) { this.step = Math.min(Math.max(n, 1), this.totalSteps) },
+        currentStepValid() {
+          const section = $refs['step' + this.step];
+          if (!section) return true;
+          const invalid = [...section.querySelectorAll('[required]')].find(el => !el.checkValidity());
+          if (invalid) { invalid.reportValidity(); return false; }
+          return true;
+        },
+        next() { if (this.currentStepValid()) this.goTo(this.step + 1) },
+      }">
   {% csrf_token %}
   <div class="modal-body">
     {% if form.non_field_errors %}
     <div style="color:var(--red);font-size:12.5px;margin-bottom:10px">{% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}</div>
     {% endif %}
 
-    <div class="form-section">
+    <div class="wizard-progress">
+      <template x-for="(label, i) in stepLabels" :key="i">
+        <button type="button" class="wizard-dot" :class="{ active: step === i + 1, done: step > i + 1 }"
+                @click="goTo(i + 1)" :aria-current="step === i + 1 ? 'step' : null">
+          <span class="wizard-dot-n" x-text="step > i + 1 ? '✓' : (i + 1)"></span>
+          <span class="wizard-dot-label" x-text="label"></span>
+        </button>
+      </template>
+    </div>
+    <div class="progress" style="margin-bottom:18px"><i :style="'width:' + (step / totalSteps * 100) + '%'"></i></div>
+
+    {% include "dashboard/partials/product_no_category_banner.html" with has_leaf_categories=form.fields.category.queryset %}
+
+    <div class="form-section" x-show="step === 1" x-ref="step1">
       <div class="form-section-title"><span class="n">۱</span> اطلاعات پایه</div>
       <div class="form-group">
         <label>نام کالا * <span class="help-icon" title="نامی که مشتری در فروشگاه شما می‌بیند.">؟</span></label>
-        <input class="inp" name="name" value="{{ form.name.value|default_if_none:'' }}" placeholder="مثلاً: هدفون بی‌سیم مدل X20">
+        <input class="inp" name="name" required value="{{ form.name.value|default_if_none:'' }}" placeholder="مثلاً: هدفون بی‌سیم مدل X20">
         <div class="field-help">نامِ کاملِ کالا، همان‌طور که در صفحه‌ی کالا و کارتِ محصول نمایش داده می‌شود.</div>
         {% for err in form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>کد کالا (SKU) * <span class="help-icon" title="شناسه‌ی داخلیِ یکتا برای این کالا در انبار و گزارش‌ها.">؟</span></label>
-          <input class="inp" name="sku" value="{{ form.sku.value|default_if_none:'' }}" placeholder="DM-1001" dir="ltr">
-          <div class="field-help">کد داخلیِ یکتا برای شناساییِ این کالا؛ مثال: DM-1001. مشتری این کد را نمی‌بیند.</div>
-          {% for err in form.sku.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-        </div>
-        <div class="form-group">
-          <label>زیرگروه کالا * <span class="help-icon" title="کالا فقط می‌تواند به یک زیرگروه وصل شود، نه یک گروهِ اصلی.">؟</span></label>
-          {% include "dashboard/partials/product_category_select.html" with category_queryset=form.fields.category.queryset selected_category_id=form.category.value %}
-          {% for err in form.category.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-        </div>
-        <div class="form-group">
-          <label>برند <span class="help-icon" title="اختیاری — بسیاری از کالاها برند مشخصی ندارند.">؟</span></label>
-          {% include "dashboard/partials/product_brand_select.html" with brand_queryset=form.fields.brand.queryset selected_brand_id=form.brand.value %}
-          {% for err in form.brand.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-        </div>
+      <div class="form-group">
+        <label>کد کالا (SKU) * <span class="help-icon" title="شناسه‌ی داخلیِ یکتا برای این کالا در انبار و گزارش‌ها.">؟</span></label>
+        <input class="inp" name="sku" required value="{{ form.sku.value|default_if_none:'' }}" placeholder="DM-1001" dir="ltr">
+        <div class="field-help">کد داخلیِ یکتا برای شناساییِ این کالا؛ مثال: DM-1001. مشتری این کد را نمی‌بیند.</div>
+        {% for err in form.sku.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
       <div class="form-group">
         <label>آیکون (ایموجی)</label>
@@ -49,12 +63,30 @@
       </div>
     </div>
 
-    <div class="form-section">
-      <div class="form-section-title"><span class="n">۲</span> قیمت‌گذاری</div>
+    <div class="form-section" x-show="step === 2" x-ref="step2">
+      <div class="form-section-title"><span class="n">۲</span> دسته‌بندی</div>
+      <div class="form-group">
+        <label>زیرگروه کالا * <span class="help-icon" title="کالا فقط می‌تواند به یک برگِ واقعیِ درختِ دسته‌بندی وصل شود.">؟</span></label>
+        {% include "dashboard/partials/product_category_select.html" with category_queryset=form.fields.category.queryset selected_category_id=form.category.value %}
+        {% for err in form.category.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+
+    <div class="form-section" x-show="step === 3" x-ref="step3">
+      <div class="form-section-title"><span class="n">۳</span> برند</div>
+      <div class="form-group">
+        <label>برند <span class="help-icon" title="اختیاری — بسیاری از کالاها برند مشخصی ندارند. برند برای فیلترکردن و اعتمادِ مشتری استفاده می‌شود.">؟</span></label>
+        {% include "dashboard/partials/product_brand_select.html" with brand_queryset=form.fields.brand.queryset selected_brand_id=form.brand.value %}
+        {% for err in form.brand.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+
+    <div class="form-section" x-show="step === 4" x-ref="step4">
+      <div class="form-section-title"><span class="n">۴</span> قیمت‌گذاری</div>
       <div class="form-row">
         <div class="form-group">
           <label>قیمت (تومان) * <span class="help-icon" title="قیمتِ پایه پیش از اعمالِ تخفیف.">؟</span></label>
-          <input class="inp" name="price" value="{{ form.price.value|default_if_none:'' }}" placeholder="1250000" dir="ltr" inputmode="numeric">
+          <input class="inp" name="price" required value="{{ form.price.value|default_if_none:'' }}" placeholder="1250000" dir="ltr" inputmode="numeric">
           <div class="field-help">قیمتِ نهایی پس از تخفیف به‌صورتِ خودکار محاسبه و به مشتری نمایش داده می‌شود.</div>
           {% for err in form.price.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
         </div>
@@ -67,18 +99,19 @@
       </div>
     </div>
 
-    <div class="form-section">
-      <div class="form-section-title"><span class="n">۳</span> تصاویر و رسانه</div>
+    <div class="form-section" x-show="step === 5" x-ref="step5">
+      <div class="form-section-title"><span class="n">۵</span> تصاویر و رسانه</div>
       {% if product %}
       <p style="font-size:12.5px;color:var(--muted);margin-bottom:8px">تصاویرِ این کالا از صفحه‌ی مدیریتِ تصاویر قابل‌آپلود و مرتب‌سازی است.</p>
-      <a href="{% url 'dashboard:product-images' product.pk %}" class="btn btn-sm">🖼️ مدیریتِ تصاویرِ این کالا</a>
+      <button type="button" class="btn btn-sm"
+              hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML">🖼️ مدیریتِ تصاویرِ این کالا</button>
       {% else %}
-      <div class="info-box">پس از ذخیره‌ی این کالا می‌توانید از فرمِ ویرایش، تصویر برایش آپلود کنید.</div>
+      <div class="info-box">پس از ذخیره‌ی این کالا می‌توانید از فرمِ ویرایش، تصویر، ویدیو و سایر رسانه‌ها برایش اضافه کنید.</div>
       {% endif %}
     </div>
 
-    <div class="form-section">
-      <div class="form-section-title"><span class="n">۴</span> ویژگی‌ها و تنوع</div>
+    <div class="form-section" x-show="step === 6" x-ref="step6">
+      <div class="form-section-title"><span class="n">۶</span> ویژگی‌ها و تنوع</div>
       <div class="form-group">
         <label>نوع کالا <span class="help-icon" title="بعد از ذخیره هم قابلِ تغییر است.">؟</span></label>
         <div class="type-choice-row">
@@ -112,18 +145,8 @@
       </div>
     </div>
 
-    <div class="form-section">
-      <div class="form-section-title"><span class="n">۵</span> موجودی</div>
-      <div class="form-group">
-        <label>موجودی انبار <span class="help-icon" title="برایِ کالای دارای تنوع، موجودیِ هر تنوع جداگانه تنظیم می‌شود.">؟</span></label>
-        <input class="inp" name="stock" value="{{ form.stock.value|default:'0' }}" placeholder="0" dir="ltr" inputmode="numeric">
-        <div class="field-help">تعدادِ کالای موجود در انبار. اگر کالا «دارای تنوع» است، این عدد پس از تعریفِ تنوع‌ها نادیده گرفته می‌شود.</div>
-        {% for err in form.stock.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-      </div>
-    </div>
-
-    <div class="form-section">
-      <div class="form-section-title"><span class="n">۶</span> ارسال</div>
+    <div class="form-section" x-show="step === 7" x-ref="step7">
+      <div class="form-section-title"><span class="n">۷</span> ارسال</div>
       <div class="form-row">
         <div class="form-group">
           <label>بارکد محصول</label>
@@ -155,12 +178,12 @@
       </div>
     </div>
 
-    <div class="form-section">
-      <div class="form-section-title"><span class="n">۷</span> سئو</div>
+    <div class="form-section" x-show="step === 8" x-ref="step8">
+      <div class="form-section-title"><span class="n">۸</span> سئو</div>
       <div class="form-group">
         <label>عنوان سئو</label>
         <input class="inp" name="seo_title" value="{{ form.seo_title.value|default_if_none:'' }}" maxlength="70">
-        <div class="field-help">عنوانی که در نتایجِ جست‌وجوی گوگل نمایش داده می‌شود. خالی بگذارید تا از نامِ کالا استفاده شود.</div>
+        <div class="field-help">عنوانی که در نتایجِ جست‌وجوی گوگل نمایش داده می‌شود. خالی بگذارید تا از نامِ کالا استفاده شود. طولِ توصیه‌شده: تا ۷۰ نویسه.</div>
         {% for err in form.seo_title.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
       <div class="form-group">
@@ -169,10 +192,21 @@
         <div class="field-help">خلاصه‌ای کوتاه که زیرِ عنوان در نتایجِ جست‌وجو نمایش داده می‌شود؛ حداکثر ۱۶۰ نویسه.</div>
         {% for err in form.seo_description.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
+      <div class="seo-preview">
+        <div class="seo-preview-title" x-text="document.querySelector('[name=seo_title]').value || document.querySelector('[name=name]').value || 'عنوانِ کالا'"></div>
+        <div class="seo-preview-url">example.com › products › {{ product.slug|default:"..." }}</div>
+        <div class="seo-preview-desc" x-text="document.querySelector('[name=seo_description]').value || document.querySelector('[name=description]').value || 'توضیحاتِ کالا اینجا نمایش داده می‌شود.'"></div>
+      </div>
     </div>
 
-    <div class="form-section">
-      <div class="form-section-title"><span class="n">۸</span> انتشار</div>
+    <div class="form-section" x-show="step === 9" x-ref="step9">
+      <div class="form-section-title"><span class="n">۹</span> موجودی، وضعیت و پایان</div>
+      <div class="form-group">
+        <label>موجودی انبار <span class="help-icon" title="برایِ کالای دارای تنوع، موجودیِ هر تنوع جداگانه تنظیم می‌شود.">؟</span></label>
+        <input class="inp" name="stock" value="{{ form.stock.value|default:'0' }}" placeholder="0" dir="ltr" inputmode="numeric">
+        <div class="field-help">تعدادِ کالای موجود در انبار. اگر کالا «دارای تنوع» است، این عدد پس از تعریفِ تنوع‌ها نادیده گرفته می‌شود.</div>
+        {% for err in form.stock.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      </div>
       <div class="form-group">
         <label>وضعیت <span class="help-icon" title="فقط کالاهای «فعال» در فروشگاه به مشتری نمایش داده می‌شوند.">؟</span></label>
         <select class="inp" name="status">
@@ -184,8 +218,16 @@
       </div>
     </div>
   </div>
-  <div class="modal-foot">
-    <button type="submit" class="btn btn-primary">ذخیره کالا</button>
+  <div class="modal-foot wizard-foot">
+    <button type="button" class="btn" x-show="step > 1" @click="goTo(step - 1)">◂ قبلی</button>
     <button type="button" class="btn" @click="modalOpen = false">انصراف</button>
+    <span style="flex:1"></span>
+    <button type="submit" class="btn" formnovalidate
+            @click="const s = $root.querySelector('[name=status]'); if (s) s.value = 'draft'"
+            title="کالا را همین حالا با وضعیتِ «پیش‌نویس» ذخیره می‌کند — نیازی به عبور از همه‌ی مراحل نیست، اما فیلدهای الزامی (نام، کد کالا، دسته‌بندی، قیمت) هنوز باید پر شده باشند">
+      💾 ذخیره‌ی پیش‌نویس
+    </button>
+    <button type="button" class="btn btn-primary" x-show="step < totalSteps" @click="next()">بعدی ▸</button>
+    <button type="submit" class="btn btn-primary" x-show="step === totalSteps">ذخیره کالا</button>
   </div>
 </form>

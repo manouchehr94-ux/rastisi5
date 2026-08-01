@@ -1,0 +1,48 @@
+{% load persian %}
+<div class="cat-tree-node" data-id="{{ node.category.pk }}" draggable="true"
+     x-data="{ open: true }"
+     x-show="!searchQuery || $el.innerText.toLowerCase().includes(searchQuery.toLowerCase())"
+     @dragstart.stop="dragId = {{ node.category.pk }}; $event.dataTransfer.effectAllowed = 'move'"
+     @dragover.prevent.stop
+     @drop.prevent.stop="
+        if (dragId !== null && dragId !== {{ node.category.pk }}) {
+          const parent = $el.parentElement;
+          const from = parent.querySelector(':scope > [data-id=\'' + dragId + '\']');
+          if (from) {
+            parent.insertBefore(from, from.compareDocumentPosition($el) & Node.DOCUMENT_POSITION_FOLLOWING ? $el.nextSibling : $el);
+            const ids = [...parent.children].map(r => r.dataset.id);
+            htmx.ajax('POST', '{% url 'dashboard:category-reorder' %}', {values: {category_ids: ids}, target: '#categoriesList', swap: 'innerHTML'});
+          }
+        }
+        dragId = null;
+     ">
+  <div class="cat-node-row">
+    {% if node.children %}
+    <button type="button" class="cat-toggle" @click="open = !open" :aria-expanded="open.toString()" title="باز/بسته کردن">
+      <span x-text="open ? '▾' : '◂'"></span>
+    </button>
+    {% else %}
+    <span class="cat-toggle-spacer"></span>
+    {% endif %}
+    <span class="cat-drag-handle" title="برای مرتب‌سازی بکشید">⠿</span>
+    <span class="cat-icon">{{ node.category.icon|default:"📁" }}</span>
+    <span class="cat-name">{{ node.category.name }}</span>
+    <span class="cat-meta">
+      {{ node.product_count|fa_number }} کالا
+      {% if node.children %} · {{ node.children|length|fa_number }} زیرشاخه{% endif %}
+      {% if node.is_leaf %} · <span style="color:var(--primary-text)">قابل‌انتخاب برای کالا</span>{% endif %}
+    </span>
+    <span class="cat-actions">
+      <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:category-edit' node.category.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click.stop="modalOpen = true" title="ویرایش">✏️</button>
+      <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:category-schema' node.category.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click.stop="modalOpen = true" title="طرح ویژگی">🏷️</button>
+      <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:category-delete' node.category.pk %}" hx-target="#categoriesPageBody" hx-swap="outerHTML" hx-confirm="آیا از حذف «{{ node.category.name }}» مطمئن هستید؟" @click.stop title="حذف">🗑️</button>
+    </span>
+  </div>
+  {% if node.children %}
+  <div class="cat-children" x-show="open" x-cloak>
+    {% for child in node.children %}
+    {% include "dashboard/partials/category_tree_node.html" with node=child %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>

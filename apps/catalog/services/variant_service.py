@@ -228,6 +228,18 @@ def update_variant(
     return variant
 
 
+def duplicate_variant(variant: ProductVariant) -> ProductVariant:
+    """یک کپیِ ویرایش‌پذیر از این تنوع می‌سازد — مقدار با پسوندِ «(کپی)» تا با
+    قاعده‌ی یکتاییِ product+attribute+value تعارض نکند، SKU تازه به‌صورتِ
+    خودکار تولید می‌شود (نه کپیِ SKU اصلی، چون SKU باید در Store یکتا بماند).
+    برایِ ساختنِ سریعِ یک تنوعِ مشابه (مثلاً نسخه‌ی «پرمیوم» از رنگِ موجود) و
+    سپس ویرایشِ جزئیِ آن."""
+    return create_variant(
+        variant.product, attribute=variant.attribute, value=f"{variant.value} (کپی)",
+        stock=0, extra_price=variant.extra_price, value_hex=variant.value_hex, is_active=False,
+    )
+
+
 def deactivate_variant(variant: ProductVariant) -> ProductVariant:
     """مقدار تنوع را غیرفعال می‌کند (به‌جای حذف قطعی) تا سفارش‌های قبلی معتبر بمانند."""
     if variant.is_active:

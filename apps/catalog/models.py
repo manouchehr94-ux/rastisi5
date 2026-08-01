@@ -98,12 +98,15 @@ class Brand(TimeStampedModel):
     slug = models.SlugField("اسلاگ", max_length=140, allow_unicode=True)
     logo = models.ImageField("لوگو", upload_to="brands/logos/", null=True, blank=True)
     description = models.CharField("توضیح کوتاه", max_length=300, blank=True)
+    website = models.URLField("وب‌سایت", max_length=300, blank=True)
+    country = models.CharField("کشور", max_length=80, blank=True)
+    sort_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
     is_active = models.BooleanField("فعال", default=True)
 
     class Meta:
         verbose_name = "برند"
         verbose_name_plural = "برندها"
-        ordering = ["name"]
+        ordering = ["sort_order", "name"]
         constraints = [
             models.UniqueConstraint(fields=["store", "slug"], name="uniq_brand_slug_per_store"),
         ]
@@ -245,8 +248,14 @@ class ProductImage(TimeStampedModel):
     image = models.ImageField("تصویر", upload_to="products/gallery/")
     thumbnail = models.ImageField("تصویر بندانگشتی", upload_to="products/thumbnails/", null=True, blank=True)
     alt = models.CharField("متن جایگزین", max_length=200, blank=True)
+    caption = models.CharField("توضیحِ کوتاه (کپشن)", max_length=300, blank=True)
     order = models.PositiveIntegerField("ترتیب", default=0)
     is_cover = models.BooleanField("تصویر اصلی (کاور)", default=False)
+    # زیرساختِ آماده‌برایِ‌آینده‌ی نمایشِ ۳۶۰ درجه — فقط یک پرچمِ داده‌ای است؛
+    # هنوز هیچ ویوئرِ ۳۶۰ درجه‌ای پیاده‌سازی نشده (نگاه کنید به یادداشتِ
+    # توصیه‌های باقی‌مانده در گزارشِ نهایی). علامت‌گذاریِ یک تصویر با این
+    # پرچم صرفاً برایِ آماده‌سازیِ داده برایِ آن ویژگیِ آینده است.
+    is_360 = models.BooleanField("بخشی از مجموعه‌ی ۳۶۰ درجه (به‌زودی)", default=False)
 
     class Meta:
         verbose_name = "تصویر کالا"
@@ -261,6 +270,37 @@ class ProductImage(TimeStampedModel):
 
         if self.variant_id and self.product_id and self.variant.product_id != self.product_id:
             raise ValidationError({"variant": "این تنوع متعلق به کالای دیگری است."})
+
+
+class ProductVideo(TimeStampedModel):
+    """ویدیویِ معرفیِ کالا — فقط از طریقِ لینکِ یوتیوب/آپارات (بدونِ آپلودِ
+    مستقیمِ فایلِ ویدیو، که زیرساختِ جداگانه‌ای می‌خواهد). ``embed_url`` در
+    ``apps.catalog.services.product_video_service`` از رویِ ``url`` محاسبه
+    می‌شود، نه این‌جا — این مدل فقط داده را نگه می‌دارد."""
+
+    class Provider(models.TextChoices):
+        YOUTUBE = "youtube", "یوتیوب"
+        APARAT = "aparat", "آپارات"
+
+    product = models.ForeignKey(Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="videos")
+    provider = models.CharField("سرویس", max_length=10, choices=Provider.choices)
+    url = models.URLField("لینکِ ویدیو", max_length=500)
+    title = models.CharField("عنوان (اختیاری)", max_length=200, blank=True)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "ویدیوی کالا"
+        verbose_name_plural = "ویدیوهای کالا"
+        ordering = ["display_order", "id"]
+
+    def __str__(self):
+        return f"{self.product.name} — ویدیوی {self.get_provider_display()}"
+
+    @property
+    def embed_url(self) -> str:
+        from apps.catalog.services.product_video_service import embed_url as _compute_embed_url
+
+        return _compute_embed_url(self)
 
 
 class VariantMutationError(Exception):
@@ -923,6 +963,10 @@ class AttributeValue(TimeStampedModel):
     value = models.CharField("مقدار داخلی", max_length=120, blank=True, default="")
     normalized_label = models.CharField(max_length=140, editable=False, blank=True, default="")
     color_hex = models.CharField("کد رنگ (Hex)", max_length=9, blank=True)
+    swatch_image = models.ImageField(
+        "تصویر نمونه (Swatch)", upload_to="attributes/swatches/", null=True, blank=True,
+        help_text="برای نمایشِ نمونه‌ی تصویری به‌جای/همراهِ رنگ — مثلاً بافتِ پارچه یا الگوی چوب.",
+    )
     display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
     is_active = models.BooleanField("فعال", default=True)
 
