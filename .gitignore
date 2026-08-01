@@ -19,6 +19,7 @@ db.sqlite3
 
 # User uploads
 media/
+private_media/
 
 # Logs and temporary files
 *.log
