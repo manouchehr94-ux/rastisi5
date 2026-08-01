@@ -44,10 +44,37 @@ def generate_unique_slug(model, name: str, *, store, instance=None) -> str:
 
 
 def default_vendor(store):
-    """فروشنده‌ی پیش‌فرض همین Store برای اختصاص به کالای تازه — یا ``None``
-    اگر هنوز هیچ فروشنده‌ای برای این Store ساخته نشده باشد (فراخوان باید
-    این حالت را صریح مدیریت کند، نه این‌که بی‌صدا کالا بدون فروشنده بماند)."""
-    return Vendor.objects.filter(store=store, is_active=True).first() or Vendor.objects.filter(store=store).first()
+    """فروشنده‌ی پیش‌فرض همین Store برای اختصاص به کالای تازه.
+
+    اگر Store هنوز هیچ فروشنده‌ای نداشته باشد — حالتِ معمولِ یک فروشگاهِ
+    تک‌فروشنده‌ای، که هنوز پنلِ مدیریتِ فروشنده (Vendor CRUD) ندارد — یک
+    فروشنده‌ی پیش‌فرض به‌صورت خودکار ساخته می‌شود که نمایانگرِ خودِ Store
+    است (owner همان کاربرِ دارایِ نقشِ OWNER). ایجادِ کالا هرگز نباید صرفاً
+    به‌خاطرِ نبودِ Vendor شکست بخورد؛ انتخابِ فروشنده‌ی دیگر فقط برایِ
+    حالتِ آینده‌یِ چندفروشنده‌ای/مارکت‌پلیس لازم خواهد بود (ADR-1)."""
+    vendor = Vendor.objects.filter(store=store, is_active=True).first() or Vendor.objects.filter(store=store).first()
+    return vendor or _create_default_vendor(store)
+
+
+def _create_default_vendor(store):
+    """فروشنده‌ی پیش‌فرضِ خودکار برایِ Store — اسلاگ بر پایه‌ی ``store.slug``
+    است تا ``get_or_create`` در برابرِ دو درخواستِ همزمان (race) که هر دو
+    نبودِ فروشنده را می‌بینند، ایمن بماند (برخلافِ ``generate_unique_slug``
+    که این‌جا لازم نیست، چون هر Store دقیقاً یک فروشنده‌ی پیش‌فرض دارد)."""
+    from apps.stores.models import StoreMembership
+
+    owner_membership = (
+        StoreMembership.objects.filter(
+            store=store, role=StoreMembership.Role.OWNER, status=StoreMembership.MembershipStatus.ACTIVE,
+        )
+        .select_related("user")
+        .first()
+    )
+    vendor, _created = Vendor.objects.get_or_create(
+        store=store, slug=store.slug,
+        defaults={"name": store.name, "owner": owner_membership.user if owner_membership else None},
+    )
+    return vendor
 
 
 def leaf_categories(store):

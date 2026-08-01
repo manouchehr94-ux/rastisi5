@@ -1,5 +1,5 @@
 {% load persian %}
-<div id="productAttributeFields">
+<div id="productAttributeFields"{% if oob %} hx-swap-oob="true"{% endif %}>
   {% if orphaned_count %}
   <div class="info-box" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;justify-content:space-between">
     <span>{{ orphaned_count|fa_number }} مقدار ویژگی با دسته‌بندی فعلی مطابقت ندارد.</span>
@@ -64,4 +64,29 @@
   {% empty %}
   <p style="color:var(--muted);font-size:12.5px">برای این دسته‌بندی هیچ ویژگی توصیفی‌ای تعریف نشده است.</p>
   {% endfor %}
+
+  {% if quick_attr_error and not category %}
+  <div style="color:var(--red);font-size:11.5px">{{ quick_attr_error }}</div>
+  {% endif %}
+  {% if category %}
+  <div x-data="{ quickOpen: {% if quick_attr_errors or quick_attr_error %}true{% else %}false{% endif %} }">
+    <button type="button" class="quick-add-toggle" @click="quickOpen = !quickOpen">+ ساخت ویژگی جدید</button>
+    <div class="quick-add-panel" x-show="quickOpen" x-cloak>
+      {% if quick_attr_error %}<div style="flex-basis:100%;color:var(--red);font-size:11.5px">{{ quick_attr_error }}</div>{% endif %}
+      {% if quick_attr_errors %}
+      <div style="flex-basis:100%;color:var(--red);font-size:11.5px">
+        {% for field, errs in quick_attr_errors.items %}{% for err in errs %}<div>{{ err }}</div>{% endfor %}{% endfor %}
+      </div>
+      {% endif %}
+      <div class="form-group">
+        <label>عنوانِ ویژگیِ جدید *</label>
+        <input class="inp" id="quickAttrLabel" name="label" placeholder="مثلاً: جنس">
+      </div>
+      <button type="button" class="btn btn-sm btn-primary"
+              hx-post="{% if product %}{% url 'dashboard:product-quick-add-attribute-edit' product.pk %}{% else %}{% url 'dashboard:product-quick-add-attribute' %}{% endif %}"
+              hx-include="#quickAttrLabel,#id_category"
+              hx-target="#productAttributeFields" hx-swap="outerHTML">افزودن</button>
+    </div>
+  </div>
+  {% endif %}
 </div>

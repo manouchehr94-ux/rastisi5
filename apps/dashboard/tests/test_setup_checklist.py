@@ -6,7 +6,17 @@ from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.catalog.models import Category, IndustryTemplate, Product, StoreIndustryInstallation, Vendor
+from apps.catalog.models import (
+    Attribute,
+    Brand,
+    Category,
+    IndustryTemplate,
+    Product,
+    ProductImage,
+    ProductVariant,
+    StoreIndustryInstallation,
+    Vendor,
+)
 from apps.core.models import ShopSettings
 from apps.dashboard.services.checklist_service import build_setup_checklist
 from apps.orders.models import PaymentGatewayConfig, ShippingMethod, TaxClass, TaxRate
@@ -33,9 +43,20 @@ class BuildSetupChecklistTests(TestCase):
     def test_brand_new_store_has_nothing_complete(self):
         result = build_setup_checklist(self.store, self.request)
         self.assertEqual(result["completed_count"], 0)
-        self.assertEqual(result["total_count"], 12)
+        self.assertEqual(result["total_count"], 20)
         self.assertEqual(result["percent"], 0)
         self.assertFalse(result["all_complete"])
+
+    def test_step_order_matches_catalog_dependency_chain(self):
+        """اولین کالا هرگز نباید پیش از پیش‌نیازهایش (گروه/دسته/ویژگی/برند) ظاهر شود."""
+        result = build_setup_checklist(self.store, self.request)
+        keys = [step["key"] for step in result["steps"]]
+        expected_prefix = [
+            "industry", "industry_template", "product_groups", "product_categories",
+            "attributes", "brands", "first_product", "product_images", "variants",
+            "inventory", "product_publish",
+        ]
+        self.assertEqual(keys[: len(expected_prefix)], expected_prefix)
 
     def test_store_information_step_detects_description(self):
         shop = ShopSettings.objects.create(store=self.store, description="فروشگاهِ لباسِ آنلاین")
@@ -73,18 +94,97 @@ class BuildSetupChecklistTests(TestCase):
         step = next(s for s in result["steps"] if s["key"] == "theme")
         self.assertTrue(step["is_complete"])
 
+    def test_product_groups_step_detects_top_level_category(self):
+        Category.objects.create(store=self.store, name="پوشاک", slug="clothing-group")
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "product_groups")
+        self.assertTrue(step["is_complete"])
+
+    def test_product_categories_step_requires_subcategory_not_just_a_group(self):
+        main = Category.objects.create(store=self.store, name="پوشاک", slug="clothing-main")
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "product_categories")
+        self.assertFalse(step["is_complete"])
+
+        Category.objects.create(store=self.store, name="تیشرت", slug="clothing-sub", parent=main)
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "product_categories")
+        self.assertTrue(step["is_complete"])
+
     def test_first_category_and_product_steps(self):
-        category = Category.objects.create(store=self.store, name="پوشاک", slug="clothing")
+        main = Category.objects.create(store=self.store, name="پوشاک", slug="clothing")
+        sub = Category.objects.create(store=self.store, name="تیشرت", slug="clothing-sub2", parent=main)
         vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="vendor-checklist")
         Product.objects.create(
-            store=self.store, vendor=vendor, category=category, name="تیشرت", slug="tshirt",
+            store=self.store, vendor=vendor, category=sub, name="تیشرت", slug="tshirt",
             sku="SKU-CHK1", price=Decimal("100000"),
         )
         result = build_setup_checklist(self.store, self.request)
-        cat_step = next(s for s in result["steps"] if s["key"] == "first_category")
         prod_step = next(s for s in result["steps"] if s["key"] == "first_product")
-        self.assertTrue(cat_step["is_complete"])
         self.assertTrue(prod_step["is_complete"])
+
+    def test_industry_template_step_completes_when_industry_skipped(self):
+        """رد کردن مرحله‌ی صنف در ویزارد یعنی نصب قالب اساساً منتفی است — نه ناتمام."""
+        self.store.onboarding_stage = Store.OnboardingStage.BRANDING
+        self.store.save(update_fields=["onboarding_stage"])
+        result = build_setup_checklist(self.store, self.request)
+        industry_step = next(s for s in result["steps"] if s["key"] == "industry")
+        template_step = next(s for s in result["steps"] if s["key"] == "industry_template")
+        self.assertTrue(industry_step["is_complete"])
+        self.assertTrue(template_step["is_complete"])
+
+    def test_industry_template_step_completes_when_actually_installed(self):
+        template = IndustryTemplate.objects.create(
+            slug="home", name="خانه و آشپزخانه", version=1, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
+        StoreIndustryInstallation.objects.create(
+            store=self.store, industry_template=template, installed_version=1,
+            status=StoreIndustryInstallation.Status.COMPLETED,
+        )
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "industry_template")
+        self.assertTrue(step["is_complete"])
+
+    def test_attributes_and_brands_steps(self):
+        result = build_setup_checklist(self.store, self.request)
+        attr_step = next(s for s in result["steps"] if s["key"] == "attributes")
+        brand_step = next(s for s in result["steps"] if s["key"] == "brands")
+        self.assertFalse(attr_step["is_complete"])
+        self.assertFalse(brand_step["is_complete"])
+
+        Attribute.objects.create(store=self.store, label="جنس", code="material-chk")
+        Brand.objects.create(store=self.store, name="برند تست", slug="brand-chk")
+        result = build_setup_checklist(self.store, self.request)
+        attr_step = next(s for s in result["steps"] if s["key"] == "attributes")
+        brand_step = next(s for s in result["steps"] if s["key"] == "brands")
+        self.assertTrue(attr_step["is_complete"])
+        self.assertTrue(brand_step["is_complete"])
+
+    def test_images_variants_inventory_and_publish_steps(self):
+        main = Category.objects.create(store=self.store, name="پوشاک", slug="clothing-piv")
+        sub = Category.objects.create(store=self.store, name="تیشرت", slug="clothing-sub-piv", parent=main)
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="vendor-piv")
+        product = Product.objects.create(
+            store=self.store, vendor=vendor, category=sub, name="تیشرت", slug="tshirt-piv",
+            sku="SKU-PIV1", price=Decimal("100000"), stock=0, status=Product.Status.DRAFT,
+        )
+        result = build_setup_checklist(self.store, self.request)
+        for key in ("product_images", "variants", "inventory", "product_publish"):
+            step = next(s for s in result["steps"] if s["key"] == key)
+            self.assertFalse(step["is_complete"], msg=key)
+
+        ProductImage.objects.create(product=product, image="products/tshirt-piv.jpg")
+        ProductVariant.objects.create(
+            store=self.store, product=product, attribute="رنگ", value="قرمز", sku="SKU-PIV1-RED",
+        )
+        product.stock = 5
+        product.status = Product.Status.ACTIVE
+        product.save(update_fields=["stock", "status"])
+
+        result = build_setup_checklist(self.store, self.request)
+        for key in ("product_images", "variants", "inventory", "product_publish"):
+            step = next(s for s in result["steps"] if s["key"] == key)
+            self.assertTrue(step["is_complete"], msg=key)
 
     def test_shipping_step(self):
         ShippingMethod.objects.create(store=self.store, name="پست پیشتاز", slug="post", cost=Decimal("50000"))

@@ -1,0 +1,166 @@
+import json
+from decimal import Decimal
+
+from django.contrib.auth import get_user_model
+from django.test import Client, TestCase, override_settings
+from django.urls import reverse
+from django.utils import timezone
+
+from apps.catalog.models import Brand, Category, Product, Vendor
+from apps.catalog.services.brand_service import create_brand
+from apps.stores.models import Store, StoreMembership
+
+User = get_user_model()
+
+HOST = "brand-test.rastisi.ir"
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
+@override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
+class BrandViewsTestCase(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.store.admin_subdomain = HOST.split(".")[0]
+        self.store.save(update_fields=["admin_subdomain"])
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="brand-cat")
+        self.staff = User.objects.create_user(username="09121155001", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.client = Client(HTTP_HOST=HOST)
+        self.client.login(username="09121155001", password="pass12345")
+
+
+class BrandListViewTests(BrandViewsTestCase):
+    def test_renders_list(self):
+        create_brand(self.store, name="دیجی‌لوول")
+        response = self.client.get(reverse("dashboard:brand-list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "دیجی‌لوول")
+
+    def test_anonymous_denied(self):
+        self.client.logout()
+        response = self.client.get(reverse("dashboard:brand-list"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("admin_return=", response.url)
+
+    def test_search_filters(self):
+        create_brand(self.store, name="دیجی‌لوول")
+        create_brand(self.store, name="سام")
+        response = self.client.get(reverse("dashboard:brand-table"), {"q": "سام"})
+        self.assertContains(response, "سام")
+        self.assertNotContains(response, "دیجی‌لوول")
+
+
+class BrandAddViewTests(BrandViewsTestCase):
+    def test_get_returns_form(self):
+        response = self.client.get(reverse("dashboard:brand-add"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "افزودن برند جدید")
+
+    def test_post_creates_brand(self):
+        response = self.client.post(reverse("dashboard:brand-add"), {
+            "name": "دیجی‌لوول", "name_en": "DigiLool", "description": "برند نمونه",
+        })
+        self.assertEqual(response.status_code, 200)
+        brand = Brand.objects.get(store=self.store, name="دیجی‌لوول")
+        self.assertEqual(brand.name_en, "DigiLool")
+        self.assertTrue(brand.is_active)
+        self.assertTrue(brand.slug)
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertIn("modal-close", trigger)
+
+    def test_blank_name_rejected(self):
+        response = self.client.post(reverse("dashboard:brand-add"), {"name": ""})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Brand.objects.filter(store=self.store).exists())
+
+    def test_brand_is_optional_on_product(self):
+        """Sanity guard for the UX requirement: a Product must never require a Brand."""
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده", slug="brand-vendor")
+        product = Product.objects.create(
+            store=self.store, vendor=vendor, category=self.category, name="کالا بی‌برند", slug="brand-product",
+            sku="BRAND-SKU1", price=Decimal("100000"),
+        )
+        self.assertIsNone(product.brand)
+
+
+class BrandEditViewTests(BrandViewsTestCase):
+    def test_edit_updates_name(self):
+        brand = create_brand(self.store, name="دیجی‌لوول")
+        response = self.client.post(reverse("dashboard:brand-edit", args=[brand.pk]), {
+            "name": "دیجی‌لوول پرو", "name_en": "", "description": "",
+        })
+        self.assertEqual(response.status_code, 200)
+        brand.refresh_from_db()
+        self.assertEqual(brand.name, "دیجی‌لوول پرو")
+
+    def test_edit_without_new_logo_keeps_existing(self):
+        brand = create_brand(self.store, name="دیجی‌لوول")
+        self.client.post(reverse("dashboard:brand-edit", args=[brand.pk]), {
+            "name": "دیجی‌لوول", "name_en": "", "description": "توضیح تازه",
+        })
+        brand.refresh_from_db()
+        self.assertEqual(brand.description, "توضیح تازه")
+        self.assertFalse(brand.logo)
+
+    def test_other_store_brand_404s(self):
+        other_store = Store.objects.create(name="فروشگاه دیگر", slug="brand-other", status=Store.Status.ACTIVE)
+        other_brand = create_brand(other_store, name="برند دیگر")
+        response = self.client.get(reverse("dashboard:brand-edit", args=[other_brand.pk]))
+        self.assertEqual(response.status_code, 404)
+
+
+class BrandArchiveActivateDeleteTests(BrandViewsTestCase):
+    def test_archive_and_activate(self):
+        brand = create_brand(self.store, name="دیجی‌لوول")
+        self.client.post(reverse("dashboard:brand-archive", args=[brand.pk]))
+        brand.refresh_from_db()
+        self.assertFalse(brand.is_active)
+        self.client.post(reverse("dashboard:brand-activate", args=[brand.pk]))
+        brand.refresh_from_db()
+        self.assertTrue(brand.is_active)
+
+    def test_delete_unused_brand(self):
+        brand = create_brand(self.store, name="دیجی‌لوول")
+        self.client.post(reverse("dashboard:brand-delete", args=[brand.pk]))
+        self.assertFalse(Brand.objects.filter(pk=brand.pk).exists())
+
+    def test_delete_used_brand_kept(self):
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده", slug="brand-vendor2")
+        brand = create_brand(self.store, name="دیجی‌لوول")
+        Product.objects.create(
+            store=self.store, vendor=vendor, category=self.category, brand=brand, name="کالا", slug="brand-product2",
+            sku="BRAND-SKU2", price=Decimal("100000"),
+        )
+        response = self.client.post(reverse("dashboard:brand-delete", args=[brand.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Brand.objects.filter(pk=brand.pk).exists())
+
+
+class BrandPermissionTests(BrandViewsTestCase):
+    def _login_as(self, role):
+        user = User.objects.create_user(username=f"09121155{role.value[:3]}", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=user, role=role,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.client.logout()
+        self.client.login(username=user.username, password="pass12345")
+        return user
+
+    def test_analyst_cannot_add_brand(self):
+        self._login_as(StoreMembership.Role.ANALYST)
+        response = self.client.post(reverse("dashboard:brand-add"), {"name": "برند تحلیلگر"})
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Brand.objects.filter(store=self.store, name="برند تحلیلگر").exists())
+
+    def test_catalog_manager_can_add_brand(self):
+        self._login_as(StoreMembership.Role.CATALOG_MANAGER)
+        response = self.client.post(reverse("dashboard:brand-add"), {"name": "برند کاتالوگ"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Brand.objects.filter(store=self.store, name="برند کاتالوگ").exists())

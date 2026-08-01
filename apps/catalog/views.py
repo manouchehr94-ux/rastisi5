@@ -173,7 +173,7 @@ def product_list(request):
         "sort_key": sort_key,
         "sort_options": LIST_SORT_OPTIONS,
         "filter_categories": filter_categories,
-        "brands": Brand.objects.filter(store=store).order_by("name"),
+        "brands": Brand.objects.filter(store=store, is_active=True).order_by("name"),
         "selected_category": request.GET.get("category", "").strip(),
         "selected_brand": request.GET.get("brand", "").strip(),
         "min_price": request.GET.get("min_price", "").strip(),

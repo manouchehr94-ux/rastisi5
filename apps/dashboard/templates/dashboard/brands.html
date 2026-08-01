@@ -1,0 +1,22 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}برندها | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}برندها{% endblock %}
+{% block page_sub %}مدیریت برندهای قابل‌انتخاب برای کالاها — اختصاص برند به کالا اختیاری است{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-head" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <input class="inp" id="brandSearch" name="q" value="{{ q }}" placeholder="جستجوی برند..." style="width:220px"
+           hx-get="{% url 'dashboard:brand-table' %}" hx-target="#brandsTableWrap" hx-swap="innerHTML"
+           hx-trigger="keyup changed delay:300ms">
+    <button type="button" class="btn btn-primary" hx-get="{% url 'dashboard:brand-add' %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">
+      ➕ افزودن برند
+    </button>
+  </div>
+  <div class="card-body" id="brandsTableWrap">
+    {% include "dashboard/partials/brands_table.html" %}
+  </div>
+</div>
+{% endblock %}

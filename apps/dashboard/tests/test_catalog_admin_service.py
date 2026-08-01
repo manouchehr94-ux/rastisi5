@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.catalog.models import Category, Product, Vendor
 from apps.dashboard.services.catalog_admin_service import (
@@ -8,11 +9,15 @@ from apps.dashboard.services.catalog_admin_service import (
     can_delete_category,
     category_chain,
     category_tree_context,
+    default_vendor,
     filtered_products,
     generate_unique_slug,
     leaf_categories,
 )
-from apps.stores.models import Store
+from apps.stores.models import Store, StoreMembership
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
 def _akhlaghi():
@@ -150,3 +155,40 @@ class CanDeleteCategoryTests(TestCase):
         main = Category.objects.create(store=self.store, name="گروه اصلی", slug="main-cd3")
         sub = Category.objects.create(store=self.store, name="زیرگروه", slug="sub-cd3", parent=main)
         can_delete_category(sub)  # should not raise
+
+
+class DefaultVendorTests(TestCase):
+    """Product creation must never fail because no Vendor exists (RastiSi is
+    currently a single-merchant store builder — the Store itself stands in
+    as the seller until real multi-vendor mode exists)."""
+
+    def setUp(self):
+        self.store = Store.objects.create(name="فروشگاه بدون فروشنده", slug="no-vendor-store", status=Store.Status.ACTIVE)
+
+    def test_creates_default_vendor_when_none_exists(self):
+        self.assertFalse(Vendor.objects.filter(store=self.store).exists())
+        vendor = default_vendor(self.store)
+        self.assertIsNotNone(vendor)
+        self.assertEqual(Vendor.objects.filter(store=self.store).count(), 1)
+        self.assertEqual(vendor.name, self.store.name)
+
+    def test_second_call_reuses_same_auto_created_vendor(self):
+        first = default_vendor(self.store)
+        second = default_vendor(self.store)
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(Vendor.objects.filter(store=self.store).count(), 1)
+
+    def test_returns_existing_vendor_without_creating_another(self):
+        existing = Vendor.objects.create(store=self.store, name="فروشنده‌ی موجود", slug="existing-vendor")
+        vendor = default_vendor(self.store)
+        self.assertEqual(vendor.pk, existing.pk)
+        self.assertEqual(Vendor.objects.filter(store=self.store).count(), 1)
+
+    def test_auto_created_vendor_owned_by_store_owner(self):
+        owner = User.objects.create_user(username="09121166001", password="pass12345")
+        StoreMembership.objects.create(
+            store=self.store, user=owner, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        vendor = default_vendor(self.store)
+        self.assertEqual(vendor.owner_id, owner.pk)

@@ -20,6 +20,12 @@ urlpatterns = [
     path("products/<int:pk>/attribute-fields/", views.product_attribute_fields, name="product-attribute-fields-edit"),
     path("products/<int:pk>/attribute-fields/cleanup/", views.product_attribute_cleanup_orphans, name="product-attribute-cleanup"),
 
+    path("products/quick-add/brand/", views.product_quick_add_brand, name="product-quick-add-brand"),
+    path("products/quick-add/category/", views.product_quick_add_category, name="product-quick-add-category"),
+    path("products/<int:pk>/quick-add/category/", views.product_quick_add_category, name="product-quick-add-category-edit"),
+    path("products/quick-add/attribute/", views.product_quick_add_attribute, name="product-quick-add-attribute"),
+    path("products/<int:pk>/quick-add/attribute/", views.product_quick_add_attribute, name="product-quick-add-attribute-edit"),
+
     path("products/<int:pk>/images/", views.product_images, name="product-images"),
     path("products/<int:pk>/images/upload/", views.product_image_upload, name="product-image-upload"),
     path("products/<int:pk>/images/<int:image_id>/delete/", views.product_image_delete, name="product-image-delete"),
@@ -72,6 +78,14 @@ urlpatterns = [
     path("categories/<int:pk>/schema/<int:entry_id>/toggle-visibility/", views.category_schema_toggle_visibility, name="category-schema-toggle-visibility"),
     path("categories/<int:pk>/schema/<int:entry_id>/remove/", views.category_schema_remove, name="category-schema-remove"),
     path("categories/<int:pk>/schema/<int:entry_id>/move/", views.category_schema_move, name="category-schema-move"),
+
+    path("brands/", views.brand_list, name="brand-list"),
+    path("brands/table/", views.brand_table, name="brand-table"),
+    path("brands/add/", views.brand_add, name="brand-add"),
+    path("brands/<int:pk>/edit/", views.brand_edit, name="brand-edit"),
+    path("brands/<int:pk>/archive/", views.brand_archive, name="brand-archive"),
+    path("brands/<int:pk>/activate/", views.brand_activate, name="brand-activate"),
+    path("brands/<int:pk>/delete/", views.brand_delete, name="brand-delete"),
 
     path("orders/", views.order_list, name="order-list"),
     path("orders/table/", views.order_table, name="order-table"),

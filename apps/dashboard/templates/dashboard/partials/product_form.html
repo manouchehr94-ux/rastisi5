@@ -10,116 +10,131 @@
     {% if form.non_field_errors %}
     <div style="color:var(--red);font-size:12.5px;margin-bottom:10px">{% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}</div>
     {% endif %}
-    <div class="form-group">
-      <label>نام کالا *</label>
-      <input class="inp" name="name" value="{{ form.name.value|default_if_none:'' }}" placeholder="مثلاً: هدفون بی‌سیم مدل X20">
-      {% for err in form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-    </div>
-    <div class="form-row">
+
+    <div class="form-section">
+      <div class="form-section-title"><span class="n">۱</span> اطلاعات پایه</div>
       <div class="form-group">
-        <label>کد کالا (SKU) *</label>
-        <input class="inp" name="sku" value="{{ form.sku.value|default_if_none:'' }}" placeholder="DM-1001" dir="ltr">
-        {% for err in form.sku.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        <label>نام کالا * <span class="help-icon" title="نامی که مشتری در فروشگاه شما می‌بیند.">؟</span></label>
+        <input class="inp" name="name" value="{{ form.name.value|default_if_none:'' }}" placeholder="مثلاً: هدفون بی‌سیم مدل X20">
+        <div class="field-help">نامِ کاملِ کالا، همان‌طور که در صفحه‌ی کالا و کارتِ محصول نمایش داده می‌شود.</div>
+        {% for err in form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>کد کالا (SKU) * <span class="help-icon" title="شناسه‌ی داخلیِ یکتا برای این کالا در انبار و گزارش‌ها.">؟</span></label>
+          <input class="inp" name="sku" value="{{ form.sku.value|default_if_none:'' }}" placeholder="DM-1001" dir="ltr">
+          <div class="field-help">کد داخلیِ یکتا برای شناساییِ این کالا؛ مثال: DM-1001. مشتری این کد را نمی‌بیند.</div>
+          {% for err in form.sku.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label>زیرگروه کالا * <span class="help-icon" title="کالا فقط می‌تواند به یک زیرگروه وصل شود، نه یک گروهِ اصلی.">؟</span></label>
+          {% include "dashboard/partials/product_category_select.html" with category_queryset=form.fields.category.queryset selected_category_id=form.category.value %}
+          {% for err in form.category.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label>برند <span class="help-icon" title="اختیاری — بسیاری از کالاها برند مشخصی ندارند.">؟</span></label>
+          {% include "dashboard/partials/product_brand_select.html" with brand_queryset=form.fields.brand.queryset selected_brand_id=form.brand.value %}
+          {% for err in form.brand.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
       </div>
       <div class="form-group">
-        <label>زیرگروه کالا *</label>
-        <select class="inp" name="category"
-                hx-get="{% if product %}{% url 'dashboard:product-attribute-fields-edit' product.pk %}{% else %}{% url 'dashboard:product-attribute-fields' %}{% endif %}"
-                hx-trigger="change" hx-target="#productAttributeFields" hx-swap="outerHTML">
-          <option value="">— انتخاب کنید —</option>
-          {% regroup form.fields.category.queryset by parent as category_groups %}
-          {% for group in category_groups %}
-          <optgroup label="{{ group.grouper.icon }} {{ group.grouper.name }}">
-            {% for cat in group.list %}
-            <option value="{{ cat.pk }}" {% if form.category.value|stringformat:"s" == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.icon }} {{ cat.name }}</option>
-            {% endfor %}
-          </optgroup>
-          {% endfor %}
-        </select>
-        {% for err in form.category.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        <label>آیکون (ایموجی)</label>
+        <input class="inp" name="icon" value="{{ form.icon.value|default_if_none:'' }}" placeholder="🛍️">
+        <div class="field-help">فقط وقتی نمایش داده می‌شود که کالا هنوز تصویرِ کاور نداشته باشد.</div>
       </div>
       <div class="form-group">
-        <label>برند</label>
-        <select class="inp" name="brand">
-          <option value="">— بدون برند —</option>
-          {% for brand in form.fields.brand.queryset %}
-          <option value="{{ brand.pk }}" {% if form.brand.value|stringformat:"s" == brand.pk|stringformat:"s" %}selected{% endif %}>{{ brand.name }}</option>
-          {% endfor %}
-        </select>
-        {% for err in form.brand.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>قیمت (تومان) *</label>
-        <input class="inp" name="price" value="{{ form.price.value|default_if_none:'' }}" placeholder="1250000" dir="ltr" inputmode="numeric">
-        {% for err in form.price.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-      </div>
-      <div class="form-group">
-        <label>تخفیف (٪)</label>
-        <input class="inp" name="discount_percent" value="{{ form.discount_percent.value|default:'0' }}" dir="ltr" inputmode="numeric">
-        {% for err in form.discount_percent.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        <label>توضیحات کوتاه</label>
+        <textarea class="inp" name="description" rows="2" placeholder="توضیحات اختیاری...">{{ form.description.value|default_if_none:'' }}</textarea>
+        <div class="field-help">چند جمله درباره‌ی کالا؛ در صفحه‌ی محصول به مشتری نمایش داده می‌شود.</div>
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>موجودی انبار</label>
-        <input class="inp" name="stock" value="{{ form.stock.value|default:'0' }}" placeholder="0" dir="ltr" inputmode="numeric">
-        {% for err in form.stock.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-      </div>
-      <div class="form-group">
-        <label>وضعیت</label>
-        <select class="inp" name="status">
-          {% for value, label in form.fields.status.choices %}
-          <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
+
+    <div class="form-section">
+      <div class="form-section-title"><span class="n">۲</span> قیمت‌گذاری</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>قیمت (تومان) * <span class="help-icon" title="قیمتِ پایه پیش از اعمالِ تخفیف.">؟</span></label>
+          <input class="inp" name="price" value="{{ form.price.value|default_if_none:'' }}" placeholder="1250000" dir="ltr" inputmode="numeric">
+          <div class="field-help">قیمتِ نهایی پس از تخفیف به‌صورتِ خودکار محاسبه و به مشتری نمایش داده می‌شود.</div>
+          {% for err in form.price.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label>تخفیف (٪)</label>
+          <input class="inp" name="discount_percent" value="{{ form.discount_percent.value|default:'0' }}" dir="ltr" inputmode="numeric">
+          <div class="field-help">صفر یعنی بدون تخفیف. مثال: 20 یعنی ۲۰٪ کمتر از قیمتِ پایه.</div>
+          {% for err in form.discount_percent.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
       </div>
     </div>
-    <div class="form-group">
-      <label>نوع کالا</label>
-      <div class="type-choice-row">
-        <label class="type-choice">
-          <input type="radio" name="product_type" value="simple"
-                 {% if form.product_type.value == "simple" or not form.product_type.value %}checked{% endif %}>
-          <div>
-            <b>کالای ساده</b>
-            <small>یک کالای واحد با یک قیمت پایه و یک موجودی انبار.</small>
-          </div>
-        </label>
-        <label class="type-choice">
-          <input type="radio" name="product_type" value="variable"
-                 {% if form.product_type.value == "variable" %}checked{% endif %}>
-          <div>
-            <b>کالای دارای تنوع</b>
-            <small>کالایی با گزینه‌های مجزا مثل رنگ، سایز، حجم، مدل یا هر ویژگی دیگر که خودتان تعریف می‌کنید.</small>
-          </div>
-        </label>
-      </div>
-      {% for err in form.product_type.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-      {% if product and product.product_type == "variable" %}
-      <a href="{% url 'dashboard:product-variants' product.pk %}" class="btn btn-sm" style="margin-top:8px">🧬 مدیریت تنوع‌های این کالا</a>
+
+    <div class="form-section">
+      <div class="form-section-title"><span class="n">۳</span> تصاویر و رسانه</div>
+      {% if product %}
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:8px">تصاویرِ این کالا از صفحه‌ی مدیریتِ تصاویر قابل‌آپلود و مرتب‌سازی است.</p>
+      <a href="{% url 'dashboard:product-images' product.pk %}" class="btn btn-sm">🖼️ مدیریتِ تصاویرِ این کالا</a>
+      {% else %}
+      <div class="info-box">پس از ذخیره‌ی این کالا می‌توانید از فرمِ ویرایش، تصویر برایش آپلود کنید.</div>
       {% endif %}
     </div>
-    <div class="form-group">
-      <label>آیکون (ایموجی)</label>
-      <input class="inp" name="icon" value="{{ form.icon.value|default_if_none:'' }}" placeholder="🛍️">
+
+    <div class="form-section">
+      <div class="form-section-title"><span class="n">۴</span> ویژگی‌ها و تنوع</div>
+      <div class="form-group">
+        <label>نوع کالا <span class="help-icon" title="بعد از ذخیره هم قابلِ تغییر است.">؟</span></label>
+        <div class="type-choice-row">
+          <label class="type-choice">
+            <input type="radio" name="product_type" value="simple"
+                   {% if form.product_type.value == "simple" or not form.product_type.value %}checked{% endif %}>
+            <div>
+              <b>کالای ساده</b>
+              <small>یک کالای واحد با یک قیمت پایه و یک موجودی انبار.</small>
+            </div>
+          </label>
+          <label class="type-choice">
+            <input type="radio" name="product_type" value="variable"
+                   {% if form.product_type.value == "variable" %}checked{% endif %}>
+            <div>
+              <b>کالای دارای تنوع</b>
+              <small>کالایی با گزینه‌های مجزا مثل رنگ، سایز، حجم، مدل یا هر ویژگی دیگر که خودتان تعریف می‌کنید.</small>
+            </div>
+          </label>
+        </div>
+        {% for err in form.product_type.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        {% if product and product.product_type == "variable" %}
+        <a href="{% url 'dashboard:product-variants' product.pk %}" class="btn btn-sm" style="margin-top:8px">🧬 مدیریت تنوع‌های این کالا</a>
+        {% elif not product %}
+        <div class="field-help">پس از ذخیره‌ی کالا به‌عنوانِ «دارای تنوع»، مدیریتِ تنوع‌ها از فرمِ ویرایش در دسترس است.</div>
+        {% endif %}
+      </div>
+      <div class="form-group">
+        <label>ویژگی‌های اختصاصیِ این دسته‌بندی <span class="help-icon" title="این فیلدها بر اساسِ زیرگروهِ انتخاب‌شده تغییر می‌کنند.">؟</span></label>
+        {% include "dashboard/partials/product_attribute_fields.html" %}
+      </div>
     </div>
-    <div class="form-group">
-      <label>توضیحات کوتاه</label>
-      <textarea class="inp" name="description" rows="2" placeholder="توضیحات اختیاری...">{{ form.description.value|default_if_none:'' }}</textarea>
+
+    <div class="form-section">
+      <div class="form-section-title"><span class="n">۵</span> موجودی</div>
+      <div class="form-group">
+        <label>موجودی انبار <span class="help-icon" title="برایِ کالای دارای تنوع، موجودیِ هر تنوع جداگانه تنظیم می‌شود.">؟</span></label>
+        <input class="inp" name="stock" value="{{ form.stock.value|default:'0' }}" placeholder="0" dir="ltr" inputmode="numeric">
+        <div class="field-help">تعدادِ کالای موجود در انبار. اگر کالا «دارای تنوع» است، این عدد پس از تعریفِ تنوع‌ها نادیده گرفته می‌شود.</div>
+        {% for err in form.stock.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      </div>
     </div>
-    <fieldset class="form-group">
-      <legend>مشخصات لجستیک</legend>
+
+    <div class="form-section">
+      <div class="form-section-title"><span class="n">۶</span> ارسال</div>
       <div class="form-row">
         <div class="form-group">
           <label>بارکد محصول</label>
           <input class="inp" name="barcode" value="{{ form.barcode.value|default_if_none:'' }}" dir="ltr">
+          <div class="field-help">اختیاری — برایِ اسکن در انبار یا صندوقِ فروش.</div>
           {% for err in form.barcode.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
         </div>
         <div class="form-group">
           <label>وزن (گرم)</label>
           <input class="inp" name="weight_grams" value="{{ form.weight_grams.value|default_if_none:'' }}" dir="ltr" inputmode="numeric">
+          <div class="field-help">برایِ محاسبه‌ی هزینه‌ی ارسال استفاده می‌شود.</div>
           {% for err in form.weight_grams.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
         </div>
       </div>
@@ -127,6 +142,7 @@
         <input type="checkbox" name="requires_shipping" {% if form.requires_shipping.value %}checked{% endif %}>
         نیاز به ارسال فیزیکی دارد
       </label>
+      <div class="field-help" style="margin-right:24px;margin-bottom:10px">برایِ کالاهای دیجیتال/خدماتی که نیازی به پستِ فیزیکی ندارند، این گزینه را خاموش کنید.</div>
       <div class="form-group">
         <label>دسته‌ی مالیاتی</label>
         <select class="inp" name="tax_class">
@@ -135,25 +151,38 @@
           <option value="{{ choice.pk }}" {% if form.tax_class.value|stringformat:"s" == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
           {% endfor %}
         </select>
+        <div class="field-help">خالی بگذارید تا دسته‌ی مالیاتیِ پیش‌فرضِ فروشگاه برایِ این کالا اعمال شود.</div>
       </div>
-    </fieldset>
-    <fieldset class="form-group">
-      <legend>ویژگی‌های اختصاصی دسته‌بندی</legend>
-      {% include "dashboard/partials/product_attribute_fields.html" %}
-    </fieldset>
-    <fieldset class="form-group">
-      <legend>سئو</legend>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title"><span class="n">۷</span> سئو</div>
       <div class="form-group">
         <label>عنوان سئو</label>
         <input class="inp" name="seo_title" value="{{ form.seo_title.value|default_if_none:'' }}" maxlength="70">
+        <div class="field-help">عنوانی که در نتایجِ جست‌وجوی گوگل نمایش داده می‌شود. خالی بگذارید تا از نامِ کالا استفاده شود.</div>
         {% for err in form.seo_title.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
       <div class="form-group">
         <label>توضیحات متا</label>
         <textarea class="inp" name="seo_description" rows="2" maxlength="160">{{ form.seo_description.value|default_if_none:'' }}</textarea>
+        <div class="field-help">خلاصه‌ای کوتاه که زیرِ عنوان در نتایجِ جست‌وجو نمایش داده می‌شود؛ حداکثر ۱۶۰ نویسه.</div>
         {% for err in form.seo_description.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
-    </fieldset>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title"><span class="n">۸</span> انتشار</div>
+      <div class="form-group">
+        <label>وضعیت <span class="help-icon" title="فقط کالاهای «فعال» در فروشگاه به مشتری نمایش داده می‌شوند.">؟</span></label>
+        <select class="inp" name="status">
+          {% for value, label in form.fields.status.choices %}
+          <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <div class="field-help">«پیش‌نویس» یا «غیرفعال» را برای کالاهایی استفاده کنید که هنوز آماده‌ی نمایش به مشتری نیستند.</div>
+      </div>
+    </div>
   </div>
   <div class="modal-foot">
     <button type="submit" class="btn btn-primary">ذخیره کالا</button>

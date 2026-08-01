@@ -1,0 +1,49 @@
+{% load persian %}
+<div id="categoryField" x-data="{ quickOpen: {% if quick_errors %}true{% else %}false{% endif %} }">
+  <select class="inp" id="id_category" name="category"
+          hx-get="{% if product %}{% url 'dashboard:product-attribute-fields-edit' product.pk %}{% else %}{% url 'dashboard:product-attribute-fields' %}{% endif %}"
+          hx-trigger="change" hx-target="#productAttributeFields" hx-swap="outerHTML">
+    <option value="">— انتخاب کنید —</option>
+    {% regroup category_queryset by parent as category_groups_opt %}
+    {% for group in category_groups_opt %}
+    <optgroup label="{{ group.grouper.icon }} {{ group.grouper.name }}">
+      {% for cat in group.list %}
+      <option value="{{ cat.pk }}" {% if selected_category_id|stringformat:"s" == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.icon }} {{ cat.name }}</option>
+      {% endfor %}
+    </optgroup>
+    {% endfor %}
+  </select>
+  <div class="field-help">کالا باید به یک زیرگروه وصل شود، نه یک گروه اصلی. اگر زیرگروه مناسب وجود ندارد، از دکمه‌ی زیر بسازید.</div>
+
+  <button type="button" class="quick-add-toggle" @click="quickOpen = !quickOpen">+ ساخت دسته‌بندی جدید</button>
+  <div class="quick-add-panel" x-show="quickOpen" x-cloak>
+    {% if quick_errors %}
+    <div style="flex-basis:100%;color:var(--red);font-size:11.5px">
+      {% for field, errs in quick_errors.items %}{% for err in errs %}<div>{{ err }}</div>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+    {% if category_groups %}
+    <div class="form-group">
+      <label>گروه</label>
+      <select class="inp" id="quickCategoryGroup" name="group">
+        <option value="">— گروه جدید —</option>
+        {% for g in category_groups %}
+        <option value="{{ g.pk }}">{{ g.icon }} {{ g.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="form-group">
+      <label>نام گروهِ جدید {% if category_groups %}(اگر گروهِ بالا را انتخاب نکردید){% endif %}</label>
+      <input class="inp" id="quickNewGroupName" name="new_group_name" placeholder="مثلاً: پوشاک">
+    </div>
+    <div class="form-group">
+      <label>نام زیرگروه *</label>
+      <input class="inp" id="quickSubName" name="sub_name" placeholder="مثلاً: تیشرت">
+    </div>
+    <button type="button" class="btn btn-sm btn-primary"
+            hx-post="{% if product %}{% url 'dashboard:product-quick-add-category-edit' product.pk %}{% else %}{% url 'dashboard:product-quick-add-category' %}{% endif %}"
+            hx-include="#quickCategoryGroup,#quickNewGroupName,#quickSubName"
+            hx-target="#categoryField" hx-swap="outerHTML">افزودن</button>
+  </div>
+</div>

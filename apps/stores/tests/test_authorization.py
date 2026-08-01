@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from apps.stores.authorization import (
     ATTRIBUTE_MANAGE,
+    BRAND_MANAGE,
     CATEGORY_MANAGE,
     CONTENT_MANAGE,
     CUSTOMER_EDIT,
@@ -145,7 +146,7 @@ class AdministratorPermissionTests(TestCase):
     def test_allowed_operational_actions(self):
         for permission in (
             PRODUCT_VIEW, PRODUCT_CREATE, PRODUCT_EDIT, PRODUCT_DELETE,
-            CATEGORY_MANAGE, VARIANT_MANAGE, INVENTORY_MANAGE,
+            CATEGORY_MANAGE, BRAND_MANAGE, VARIANT_MANAGE, INVENTORY_MANAGE,
             ORDER_VIEW, ORDER_STATUS_CHANGE, CUSTOMER_VIEW,
             REPORTS_VIEW, SETTINGS_MANAGE, PAYMENT_SETTINGS_MANAGE,
             SMS_SETTINGS_MANAGE, CONTENT_MANAGE,
@@ -168,7 +169,7 @@ class CatalogManagerPermissionTests(TestCase):
     def test_allowed_catalog_actions(self):
         for permission in (
             PRODUCT_VIEW, PRODUCT_CREATE, PRODUCT_EDIT, PRODUCT_DELETE,
-            CATEGORY_MANAGE, ATTRIBUTE_MANAGE, VARIANT_MANAGE, INVENTORY_MANAGE,
+            CATEGORY_MANAGE, BRAND_MANAGE, ATTRIBUTE_MANAGE, VARIANT_MANAGE, INVENTORY_MANAGE,
             REPORTS_VIEW, DASHBOARD_VIEW,
         ):
             self.assertTrue(user_has_permission(self.user, self.store, permission))
@@ -225,7 +226,7 @@ class AnalystPermissionTests(TestCase):
 
     def test_forbidden_mutation_actions(self):
         for permission in (
-            PRODUCT_CREATE, PRODUCT_EDIT, PRODUCT_DELETE, CATEGORY_MANAGE,
+            PRODUCT_CREATE, PRODUCT_EDIT, PRODUCT_DELETE, CATEGORY_MANAGE, BRAND_MANAGE,
             ORDER_STATUS_CHANGE, CUSTOMER_EDIT, SETTINGS_MANAGE,
             CONTENT_MANAGE, STAFF_MANAGE,
         ):

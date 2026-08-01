@@ -94,8 +94,11 @@ class Brand(TimeStampedModel):
         "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="brands",
     )
     name = models.CharField("نام برند", max_length=120)
+    name_en = models.CharField("نام انگلیسی", max_length=120, blank=True)
     slug = models.SlugField("اسلاگ", max_length=140, allow_unicode=True)
     logo = models.ImageField("لوگو", upload_to="brands/logos/", null=True, blank=True)
+    description = models.CharField("توضیح کوتاه", max_length=300, blank=True)
+    is_active = models.BooleanField("فعال", default=True)
 
     class Meta:
         verbose_name = "برند"

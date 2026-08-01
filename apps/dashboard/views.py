@@ -50,6 +50,15 @@ from apps.catalog.services.attribute_service import (
     update_attribute,
     update_attribute_value,
 )
+from apps.catalog.services.brand_service import (
+    BrandError,
+    BrandInUseError,
+    activate_brand,
+    archive_brand,
+    create_brand,
+    delete_brand,
+    update_brand,
+)
 from apps.catalog.services.category_schema_service import (
     CategorySchemaError,
     add_category_attribute,
@@ -215,6 +224,7 @@ from apps.stores.authorization import (
     BILLING_ACCOUNT_MANAGE,
     BILLING_PAYMENT_MANAGE,
     BILLING_VIEW,
+    BRAND_MANAGE,
     CATEGORY_MANAGE,
     CONTENT_MANAGE,
     CUSTOMER_EXPORT,
@@ -265,6 +275,7 @@ from apps.stores.authorization import (
 from .forms import (
     AttributeForm,
     AttributeValueForm,
+    BrandForm,
     CategoryAttributeAddForm,
     CategoryEditForm,
     FinanceSettingsForm,
@@ -274,6 +285,8 @@ from .forms import (
     ProductImageUploadForm,
     ProductOptionForm,
     ProductOptionValueAddForm,
+    ProductQuickAttributeForm,
+    ProductQuickCategoryForm,
     ShopInfoForm,
     SmsConnectionForm,
     SmsPackagePurchaseForm,
@@ -528,10 +541,6 @@ def product_bulk_action(request):
     return render(request, "dashboard/partials/products_table_inner.html", _product_list_context(request))
 
 
-class NoVendorForStoreError(Exception):
-    """این Store هنوز هیچ فروشنده‌ای ندارد؛ کالای جدید بدون فروشنده قابل ساخت نیست."""
-
-
 class ProductPublishError(Exception):
     """کالا برای انتشار (وضعیت فعال) آماده نیست — نگاه کنید به product_publish_service."""
 
@@ -621,10 +630,6 @@ def _save_product(form, product, *, store):
 
         enforce_can_create_product(store)
         vendor = default_vendor(store)
-        if vendor is None:
-            raise NoVendorForStoreError(
-                "برای این فروشگاه هنوز هیچ فروشنده‌ای ثبت نشده است؛ ابتدا یک فروشنده بسازید."
-            )
         product = Product(store=store, vendor=vendor)
         product.slug = generate_unique_slug(Product, data["name"], store=store)
     product.name = data["name"]
@@ -654,6 +659,7 @@ def product_form(request, pk=None):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store) if pk else None
     is_new = product is None
+    category_groups = Category.objects.filter(store=store, parent__isnull=True).order_by("order", "name")
 
     old_category_id = product.category_id if product else None
 
@@ -671,26 +677,32 @@ def product_form(request, pk=None):
                         publish_errors = validate_product_for_publish(product)
                         if publish_errors:
                             raise ProductPublishError(publish_errors)
-            except (ProductTypeError, NoVendorForStoreError, EntitlementError) as exc:
+            except (ProductTypeError, EntitlementError) as exc:
                 form.add_error(None, str(exc))
-                attribute_fields = _product_attribute_field_context(form.cleaned_data.get("category"), product)
+                category = form.cleaned_data.get("category")
+                attribute_fields = _product_attribute_field_context(category, product)
                 return render(request, "dashboard/partials/product_form.html", {
-                    "form": form, "product": product, "attribute_fields": attribute_fields,
+                    "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
+                    "category_groups": category_groups,
                 })
             except ProductPublishError as exc:
                 for message in exc.args[0]:
                     form.add_error(None, message)
-                attribute_fields = _product_attribute_field_context(form.cleaned_data.get("category"), product)
+                category = form.cleaned_data.get("category")
+                attribute_fields = _product_attribute_field_context(category, product)
                 return render(request, "dashboard/partials/product_form.html", {
-                    "form": form, "product": product, "attribute_fields": attribute_fields,
+                    "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
+                    "category_groups": category_groups,
                 })
             except ValidationError as exc:
                 for field, messages in exc.message_dict.items():
                     for message in messages:
                         form.add_error(field if field in form.fields else None, message)
-                attribute_fields = _product_attribute_field_context(form.cleaned_data.get("category"), product)
+                category = form.cleaned_data.get("category")
+                attribute_fields = _product_attribute_field_context(category, product)
                 return render(request, "dashboard/partials/product_form.html", {
-                    "form": form, "product": product, "attribute_fields": attribute_fields,
+                    "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
+                    "category_groups": category_groups,
                 })
 
             table_html = render_to_string(
@@ -730,10 +742,12 @@ def product_form(request, pk=None):
             initial = {"product_type": Product.ProductType.SIMPLE}
         form = ProductForm(instance=product, initial=initial, store=store)
 
-    attribute_fields = _product_attribute_field_context(product.category if product else None, product)
+    category = product.category if product else None
+    attribute_fields = _product_attribute_field_context(category, product)
     orphaned_count = orphaned_product_attribute_values(product).count() if product else 0
     return render(request, "dashboard/partials/product_form.html", {
         "form": form, "product": product, "attribute_fields": attribute_fields, "orphaned_count": orphaned_count,
+        "category": category, "category_groups": category_groups,
     })
 
 
@@ -747,7 +761,108 @@ def product_attribute_fields(request, pk=None):
     category = Category.objects.filter(pk=category_id, store=store).first() if category_id else None
     attribute_fields = _product_attribute_field_context(category, product)
     return render(request, "dashboard/partials/product_attribute_fields.html", {
-        "attribute_fields": attribute_fields,
+        "attribute_fields": attribute_fields, "product": product, "category": category,
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
+def product_quick_add_brand(request):
+    """«+ ساخت برند جدید» داخل فرمِ کالا — بدون ترکِ فرم و بدون از دست رفتنِ
+    داده‌های واردشده؛ فقط ‌select برند دوباره رندر و مقدارِ تازه انتخاب می‌شود."""
+    store = _resolve_dashboard_store(request)
+    # ورودیِ نامِ برند در این پنلِ کوچک عمداً ``quick_brand_name`` است، نه
+    # ``name`` — چون این پنل داخلِ همان فرمِ کالا رندر می‌شود و htmx مقادیرِ
+    # تمامِ فرمِ دربرگیرنده را هم می‌فرستد؛ اگر این فیلد هم ``name`` بود، با
+    # فیلدِ «نام کالا»یِ خودِ فرم تداخل می‌کرد.
+    form = BrandForm(data={"name": request.POST.get("quick_brand_name", "")})
+    selected_id = None
+    if form.is_valid():
+        try:
+            brand = create_brand(store, name=form.cleaned_data["name"])
+        except BrandError:
+            pass
+        else:
+            selected_id = brand.pk
+    return render(request, "dashboard/partials/product_brand_select.html", {
+        "brand_queryset": Brand.objects.filter(store=store).order_by("name"),
+        "selected_brand_id": selected_id,
+        "quick_errors": form.errors if not form.is_valid() else None,
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
+def product_quick_add_category(request, pk=None):
+    """«+ ساختِ دسته‌بندی جدید» داخل فرمِ کالا. اگر فروشگاه هنوز هیچ گروهی
+    نداشته باشد، همین یک درخواست هم گروه و هم زیرگروه را می‌سازد — کالا
+    فقط به زیرگروه وصل می‌شود (نگاه کنید به ``leaf_categories``)."""
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store) if pk else None
+    form = ProductQuickCategoryForm(request.POST, store=store)
+    selected_id = None
+    selected_category = None
+    if form.is_valid():
+        parent = form.cleaned_data["group"]
+        if parent is None:
+            group_name = form.cleaned_data["new_group_name"].strip()
+            parent = Category.objects.create(
+                store=store, name=group_name, icon="📁",
+                slug=generate_unique_slug(Category, group_name, store=store),
+            )
+        sub_name = form.cleaned_data["sub_name"]
+        selected_category = Category.objects.create(
+            store=store, name=sub_name, parent=parent,
+            slug=generate_unique_slug(Category, sub_name, store=store),
+        )
+        selected_id = selected_category.pk
+
+    select_html = render_to_string("dashboard/partials/product_category_select.html", {
+        "product": product, "category_queryset": leaf_categories(store), "selected_category_id": selected_id,
+        "category_groups": Category.objects.filter(store=store, parent__isnull=True).order_by("order", "name"),
+        "quick_errors": form.errors if not form.is_valid() else None,
+    }, request=request)
+    attribute_fields = _product_attribute_field_context(selected_category, product)
+    fields_html = render_to_string("dashboard/partials/product_attribute_fields.html", {
+        "attribute_fields": attribute_fields, "product": product, "category": selected_category, "oob": True,
+    }, request=request)
+    return HttpResponse(select_html + fields_html)
+
+
+@require_POST
+@staff_required
+@permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
+def product_quick_add_attribute(request, pk=None):
+    """«+ ساختِ ویژگی جدید» داخل فرمِ کالا — ویژگیِ متنیِ تازه بلافاصله به
+    طرحِ ویژگیِ دسته‌بندیِ انتخاب‌شده اضافه و در همین فرم قابل‌پرکردن می‌شود.
+    تنظیماتِ پیشرفته‌تر (نوعِ داده و...) همچنان فقط در صفحه‌ی ویژگی‌ها است."""
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store) if pk else None
+    category_id = request.POST.get("category", "").strip()
+    category = Category.objects.filter(pk=category_id, store=store).first() if category_id else None
+    form = ProductQuickAttributeForm(request.POST)
+    quick_error = None
+    if category is None:
+        quick_error = "اول یک دسته‌بندی برای کالا انتخاب کنید."
+    elif form.is_valid():
+        try:
+            label = form.cleaned_data["label"]
+            # از ساختِ دو ویژگیِ هم‌نامِ جداگانه (با کدهایی مثل «رنگ»/«رنگ-2»)
+            # پرهیز می‌کند — اگر ویژگی‌ای با همین عنوان از قبل روی همین Store
+            # هست، همان استفاده و فقط به این دسته‌بندی وصل می‌شود.
+            attribute = Attribute.objects.filter(store=store, label=label).first()
+            if attribute is None:
+                attribute = create_attribute(store, label=label)
+            add_category_attribute(category, attribute)
+        except (AttributeError_, CategorySchemaError) as exc:
+            quick_error = str(exc)
+    attribute_fields = _product_attribute_field_context(category, product)
+    return render(request, "dashboard/partials/product_attribute_fields.html", {
+        "attribute_fields": attribute_fields, "product": product, "category": category,
+        "orphaned_count": orphaned_product_attribute_values(product).count() if product else 0,
+        "quick_attr_errors": form.errors if not form.is_valid() else None, "quick_attr_error": quick_error,
     })
 
 
@@ -761,7 +876,7 @@ def product_attribute_cleanup_orphans(request, pk):
     deleted_count = cleanup_orphaned_attribute_values(product)
     attribute_fields = _product_attribute_field_context(product.category, product)
     response = render(request, "dashboard/partials/product_attribute_fields.html", {
-        "attribute_fields": attribute_fields, "orphaned_count": 0,
+        "attribute_fields": attribute_fields, "orphaned_count": 0, "product": product, "category": product.category,
     })
     response["HX-Trigger"] = json.dumps({
         "toast": {"message": f"{deleted_count} مقدار منسوخ پاک‌سازی شد", "type": "info"},
@@ -1317,6 +1432,135 @@ def attribute_delete(request, pk):
     except AttributeInUseError as exc:
         return _attributes_table_response(request, toast={"message": str(exc), "type": "err"})
     return _attributes_table_response(request, toast={"message": "ویژگی حذف شد", "type": "info"})
+
+
+def _brands_context(request):
+    store = _resolve_dashboard_store(request)
+    q = request.GET.get("q", "").strip()
+    qs = Brand.objects.filter(store=store).annotate(product_count=Count("products"))
+    if q:
+        qs = qs.filter(Q(name__icontains=q) | Q(name_en__icontains=q))
+    return {
+        "brands": qs.order_by("name"),
+        "q": q,
+        "active_page": "brands",
+    }
+
+
+def _brands_table_response(request, *, toast=None):
+    response = render(request, "dashboard/partials/brands_table.html", _brands_context(request))
+    if toast:
+        response["HX-Trigger"] = json.dumps({"toast": toast})
+    return response
+
+
+@staff_required
+@permission_required(BRAND_MANAGE)
+def brand_list(request):
+    return render(request, "dashboard/brands.html", _brands_context(request))
+
+
+@staff_required
+@permission_required(BRAND_MANAGE)
+def brand_table(request):
+    return render(request, "dashboard/partials/brands_table.html", _brands_context(request))
+
+
+@staff_required
+@permission_required(BRAND_MANAGE)
+def brand_add(request):
+    store = _resolve_dashboard_store(request)
+
+    if request.method == "POST":
+        form = BrandForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                create_brand(
+                    store, name=form.cleaned_data["name"], name_en=form.cleaned_data["name_en"],
+                    description=form.cleaned_data["description"], logo=form.cleaned_data.get("logo"),
+                )
+            except BrandError as exc:
+                form.add_error(None, str(exc))
+            else:
+                return _brand_modal_success_response(request, message="برند اضافه شد")
+    else:
+        form = BrandForm()
+
+    return render(request, "dashboard/partials/brand_form_modal.html", {"form": form, "brand": None})
+
+
+def _brand_modal_success_response(request, *, message):
+    """پاسخِ موفقیتِ فرمِ برند (داخلِ مودال) — فرم با ``hx-target="#admin-modal-content"``
+    ارسال می‌شود، پس پاسخ باید جدولِ واقعیِ زیرِ مودال (``#brandsTableWrap``)
+    را به‌صورتِ out-of-band به‌روزرسانی کند؛ وگرنه محتوایِ تازه فقط داخلِ
+    مودالِ درحالِ بسته‌شدن رندر و هرگز دیده نمی‌شود (همان الگویِ
+    ``product_form`` برایِ ``productsTableWrap``)."""
+    table_html = render_to_string("dashboard/partials/brands_table.html", _brands_context(request), request=request)
+    response = render(request, "dashboard/partials/oob_wrap.html", {
+        "target_id": "brandsTableWrap", "inner_html": table_html,
+    })
+    response["HX-Trigger"] = json.dumps({"toast": {"message": message, "type": "ok"}, "modal-close": {}})
+    return response
+
+
+@staff_required
+@permission_required(BRAND_MANAGE)
+def brand_edit(request, pk):
+    store = _resolve_dashboard_store(request)
+    brand = get_object_or_404(Brand, pk=pk, store=store)
+
+    if request.method == "POST":
+        form = BrandForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                update_brand(
+                    brand, name=form.cleaned_data["name"], name_en=form.cleaned_data["name_en"],
+                    description=form.cleaned_data["description"],
+                    **({"logo": form.cleaned_data["logo"]} if form.cleaned_data.get("logo") else {}),
+                )
+            except BrandError as exc:
+                form.add_error(None, str(exc))
+            else:
+                return _brand_modal_success_response(request, message="برند ویرایش شد")
+    else:
+        form = BrandForm(initial={
+            "name": brand.name, "name_en": brand.name_en, "description": brand.description,
+        })
+
+    return render(request, "dashboard/partials/brand_form_modal.html", {"form": form, "brand": brand})
+
+
+@require_POST
+@staff_required
+@permission_required(BRAND_MANAGE)
+def brand_archive(request, pk):
+    store = _resolve_dashboard_store(request)
+    brand = get_object_or_404(Brand, pk=pk, store=store)
+    archive_brand(brand)
+    return _brands_table_response(request, toast={"message": f"«{brand.name}» غیرفعال شد", "type": "info"})
+
+
+@require_POST
+@staff_required
+@permission_required(BRAND_MANAGE)
+def brand_activate(request, pk):
+    store = _resolve_dashboard_store(request)
+    brand = get_object_or_404(Brand, pk=pk, store=store)
+    activate_brand(brand)
+    return _brands_table_response(request, toast={"message": f"«{brand.name}» فعال شد", "type": "ok"})
+
+
+@require_POST
+@staff_required
+@permission_required(BRAND_MANAGE)
+def brand_delete(request, pk):
+    store = _resolve_dashboard_store(request)
+    brand = get_object_or_404(Brand, pk=pk, store=store)
+    try:
+        delete_brand(brand)
+    except BrandInUseError as exc:
+        return _brands_table_response(request, toast={"message": str(exc), "type": "err"})
+    return _brands_table_response(request, toast={"message": "برند حذف شد", "type": "info"})
 
 
 @staff_required

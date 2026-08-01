@@ -105,7 +105,7 @@ function sidebarNav() {
       </div>
       {% endif %}
 
-      {% if can_view_products or can_manage_categories or can_manage_attributes or can_manage_inventory or can_view_warehouses or can_view_reservations or can_view_transfers %}
+      {% if can_view_products or can_manage_categories or can_manage_brands or can_manage_attributes or can_manage_inventory or can_view_warehouses or can_view_reservations or can_view_transfers %}
       <div class="nav-group" data-group="products">
         <button type="button" class="nav-group-head" @click="toggle('products')" :aria-expanded="groups.products.toString()">
           <span class="nav-group-icon">📦</span>
@@ -124,6 +124,12 @@ function sidebarNav() {
           <a class="nav-item{% if active_page == 'categories' %} active{% endif %}" data-page="categories" href="{% url 'dashboard:category-list' %}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M13 6h8M13 18h8M13 12h8"/></svg>
             گروه‌بندی کالاها
+          </a>
+          {% endif %}
+          {% if can_manage_brands %}
+          <a class="nav-item{% if active_page == 'brands' %} active{% endif %}" data-page="brands" href="{% url 'dashboard:brand-list' %}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 6 6 1-4.5 4.5L17.5 20 12 17l-5.5 3 1-6.5L3 9l6-1z"/></svg>
+            برندها
           </a>
           {% endif %}
           {% if can_manage_attributes %}

@@ -118,8 +118,14 @@ class ProductAddViewTests(ProductViewsTestCase):
         self.assertFalse(Product.objects.filter(sku="SKU-NEW1").exists())
 
     def test_top_level_category_not_offered(self):
+        """The product's own category <select> (#id_category) must only offer
+        leaf categories — a top-level group may still legitimately appear
+        elsewhere on the page, in the quick-add-category panel's group picker."""
         response = self.client.get(reverse("dashboard:product-add"))
-        self.assertNotContains(response, f'value="{self.main.id}"')
+        content = response.content.decode()
+        category_select = content[content.index('id="id_category"'):content.index("</select>", content.index('id="id_category"'))]
+        self.assertNotIn(f'value="{self.main.id}"', category_select)
+        self.assertIn(f'value="{self.sub.id}"', category_select)
 
     def test_blank_icon_defaults(self):
         self.client.post(reverse("dashboard:product-add"), self._payload(icon=""))
@@ -257,3 +263,37 @@ class ProductDeleteViewTests(ProductViewsTestCase):
         response = self.client.post(reverse("dashboard:product-delete", args=[self.product.pk]))
         self.assertRedirects(response, reverse("catalog:home"), fetch_redirect_response=False)
         self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
+
+
+@override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
+class ProductCreationWithoutVendorTests(TestCase):
+    """A merchant must be able to create a product on day one, before ever
+    hearing the word "Vendor" — RastiSi is a single-merchant store builder,
+    so the Store itself stands in as the seller (see catalog_admin_service.default_vendor)."""
+
+    def setUp(self):
+        self.store = Store.objects.create(name="فروشگاه تازه", slug="fresh-store-pv", status=Store.Status.ACTIVE)
+        self.store.admin_subdomain = HOST.split(".")[0]
+        self.store.save(update_fields=["admin_subdomain"])
+        main = Category.objects.create(store=self.store, name="دیجیتال", slug="main-fresh-pv")
+        self.sub = Category.objects.create(store=self.store, name="موبایل", slug="sub-fresh-pv", parent=main)
+        self.owner = User.objects.create_user(username="09121122900", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.owner, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.client = Client(HTTP_HOST=HOST)
+        self.client.login(username="09121122900", password="pass12345")
+
+    def test_product_creation_succeeds_with_no_vendor_ever_created(self):
+        self.assertFalse(Vendor.objects.filter(store=self.store).exists())
+        response = self.client.post(reverse("dashboard:product-add"), {
+            "name": "کالای بدون فروشنده", "sku": "SKU-NOVENDOR1", "category": self.sub.id,
+            "price": "500000", "discount_percent": "0", "stock": "10",
+            "status": "active", "icon": "🎁", "description": "",
+        })
+        self.assertEqual(response.status_code, 200)
+        product = Product.objects.get(sku="SKU-NOVENDOR1")
+        self.assertIsNotNone(product.vendor)
+        self.assertEqual(product.vendor.name, self.store.name)
+        self.assertEqual(product.vendor.owner_id, self.owner.pk)

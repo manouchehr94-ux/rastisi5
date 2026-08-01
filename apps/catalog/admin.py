@@ -60,9 +60,9 @@ class CategoryAdmin(StoreLockedOnEditMixin, admin.ModelAdmin):
 
 @admin.register(Brand)
 class BrandAdmin(StoreLockedOnEditMixin, admin.ModelAdmin):
-    list_display = ("name", "store")
-    list_filter = ("store",)
-    search_fields = ("name", "slug")
+    list_display = ("name", "name_en", "store", "is_active")
+    list_filter = ("is_active", "store")
+    search_fields = ("name", "name_en", "slug")
     prepopulated_fields = {"slug": ("name",)}
 
 

@@ -1,0 +1,26 @@
+{% load persian %}
+<div id="brandField" x-data="{ quickOpen: {% if quick_errors %}true{% else %}false{% endif %} }">
+  <select class="inp" id="id_brand" name="brand">
+    <option value="">— بدون برند —</option>
+    {% for brand in brand_queryset %}
+    <option value="{{ brand.pk }}" {% if selected_brand_id|stringformat:"s" == brand.pk|stringformat:"s" %}selected{% endif %}>{{ brand.name }}</option>
+    {% endfor %}
+  </select>
+  <div class="field-help">اختیاری — اگر این کالا برند مشخصی ندارد، خالی بگذارید.</div>
+
+  <button type="button" class="quick-add-toggle" @click="quickOpen = !quickOpen">+ ساخت برند جدید</button>
+  <div class="quick-add-panel" x-show="quickOpen" x-cloak>
+    {% if quick_errors %}
+    <div style="flex-basis:100%;color:var(--red);font-size:11.5px">
+      {% for field, errs in quick_errors.items %}{% for err in errs %}<div>{{ err }}</div>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+    <div class="form-group">
+      <label>نام برند *</label>
+      <input class="inp" id="quickBrandName" name="quick_brand_name" placeholder="مثلاً: دیجی‌لوول">
+    </div>
+    <button type="button" class="btn btn-sm btn-primary"
+            hx-post="{% url 'dashboard:product-quick-add-brand' %}"
+            hx-include="#quickBrandName" hx-target="#brandField" hx-swap="outerHTML">افزودن</button>
+  </div>
+</div>
