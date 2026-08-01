@@ -28,7 +28,7 @@ from shop_core.env_config import (
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Production-sensitive settings are environment-driven — see
+# Production-sensitive settings are environment-driven â€” see
 # docs/deployment/PRODUCTION_CONFIGURATION.md and .env.example for the full
 # variable list. Local development/tests need no environment variables at
 # all: every default below preserves the previous hardcoded dev behavior.
@@ -44,7 +44,7 @@ DEBUG = env_bool("DJANGO_DEBUG", default=True)
 SECRET_KEY = resolve_secret_key(DEBUG)
 
 # Raises ImproperlyConfigured if DJANGO_DEBUG=False and DJANGO_ALLOWED_HOSTS
-# is not set — production must never silently serve on an unvalidated host.
+# is not set â€” production must never silently serve on an unvalidated host.
 ALLOWED_HOSTS = resolve_allowed_hosts(DEBUG)
 if DEBUG:
     # Local-dev-only wildcard for the platform's own hosts (marketing/portal
@@ -53,7 +53,7 @@ if DEBUG:
     # at <admin_subdomain>.rastisi.localhost). Django's leading-dot ALLOWED_
     # HOSTS syntax matches the bare domain too, so this one entry covers all
     # of them. Production must set the real ".rastisi.ir" wildcard (or exact
-    # hosts) via DJANGO_ALLOWED_HOSTS — never hardcoded here (see
+    # hosts) via DJANGO_ALLOWED_HOSTS â€” never hardcoded here (see
     # resolve_allowed_hosts above, which already requires it when DEBUG=False).
     #
     # Also re-states Django's own implicit "DEBUG=True + empty ALLOWED_HOSTS
@@ -62,14 +62,14 @@ if DEBUG:
     # non-empty, which would otherwise silently break every existing test/
     # dev flow that hits a bare "localhost" Host (e.g.
     # apps/stores/tests/test_middleware.py) the moment this setting was added.
-    ALLOWED_HOSTS = list(ALLOWED_HOSTS) + ["localhost", "127.0.0.1", "[::1]", ".rastisi.localhost"]
+    ALLOWED_HOSTS = list(ALLOWED_HOSTS) + ["localhost", "127.0.0.1", "[::1]", ".rastisi.localhost", ".rastisi.ir"]
 
 # Comma-separated list of fully-qualified origins (scheme + host) trusted to
 # submit cross-origin POSTs, e.g. "https://example.com,https://www.example.com".
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", default=())
 
 # Gates apps.orders' simulated payment flow (apps/orders/views.py
-# payment_start/payment_callback) — there is no real payment gateway yet
+# payment_start/payment_callback) â€” there is no real payment gateway yet
 # (Zibal integration is a later PR), and payment_callback's "success"/"fail"
 # result is a client-controlled URL path segment, so this simulation must
 # never be reachable once a deployment is real. Deliberately a SEPARATE flag
@@ -79,12 +79,12 @@ CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", default=())
 # would otherwise silently disable the existing 1500+ checkout/payment tests
 # the moment this gate was added. This flag is computed once, at import
 # time, from DEBUG's real configured value before any test runner can touch
-# it — so it correctly stays enabled for local dev/tests and correctly
+# it â€” so it correctly stays enabled for local dev/tests and correctly
 # defaults to disabled whenever DJANGO_DEBUG=False is set in the real
 # deployment environment (before the process even starts).
 PAYMENTS_SIMULATION_ENABLED = env_bool("PAYMENTS_SIMULATION_ENABLED", default=DEBUG)
 
-# Payment credential encryption key — see apps/orders/encryption.py.
+# Payment credential encryption key â€” see apps/orders/encryption.py.
 # Required in production (DEBUG=False). In development/tests the encryption
 # module uses a deterministic dev-only key automatically.
 # The _PAYMENT_DEV_KEY_ALLOWED flag tells the encryption module that the dev
@@ -120,7 +120,7 @@ INSTALLED_APPS = [
 
 # apps.stores.middleware.StoreResolutionMiddleware runs immediately after
 # SecurityMiddleware (Django's own host/security processing) and before
-# everything else — in particular, before SessionMiddleware and
+# everything else â€” in particular, before SessionMiddleware and
 # AuthenticationMiddleware, since Store resolution must not depend on, or
 # be confused with, session or authentication state. It only reads the
 # request's Host header; it never touches request.user or the session.
@@ -130,7 +130,7 @@ MIDDLEWARE = [
     "apps.stores.middleware.StoreResolutionMiddleware",
     # Routes Rastisi's own platform-level hosts (bare marketing/owner-portal
     # host, and the separate platform-admin host) to a dedicated URLconf via
-    # request.urlconf — additive, never touches request.store or any
+    # request.urlconf â€” additive, never touches request.store or any
     # per-Store routing decision (ADR-97). Must run after StoreResolution-
     # Middleware (so request.store is already set, even if None on these
     # hosts) and before anything that dispatches on request.urlconf.
@@ -174,7 +174,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "shop_core.wsgi.application"
 
 
-# HTTPS / secure cookies — all disabled by default (matching prior behavior);
+# HTTPS / secure cookies â€” all disabled by default (matching prior behavior);
 # enable via environment once the deployment is reachable over HTTPS
 # end-to-end. See docs/deployment/PRODUCTION_CONFIGURATION.md for a staged
 # HSTS rollout (HSTS is irreversible-feeling in browsers once accepted, so it
@@ -186,11 +186,11 @@ SECURE_HSTS_SECONDS = env_int("DJANGO_SECURE_HSTS_SECONDS", default=0)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False)
 SECURE_HSTS_PRELOAD = env_bool("DJANGO_SECURE_HSTS_PRELOAD", default=False)
 
-# Unset (None) unless explicitly configured — a reverse proxy's
+# Unset (None) unless explicitly configured â€” a reverse proxy's
 # X-Forwarded-Proto (or equivalent) header is never trusted by default.
 SECURE_PROXY_SSL_HEADER = resolve_secure_proxy_ssl_header()
 
-# "Remember me" session duration (unified login — every interactive login
+# "Remember me" session duration (unified login â€” every interactive login
 # form). Applied via apps.portal.services.session_service.apply_remember_me,
 # never hand-rolled per view. Unchecked = 0 (expire when the browser
 # closes, Django's SESSION_EXPIRE_AT_BROWSER_CLOSE semantics); checked = a
@@ -252,7 +252,7 @@ MEDIA_URL = "media/"
 MEDIA_ROOT = Path(env_str("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media")))
 
 # Private storage for generated export files and uploaded import source
-# files (Admin Panel Completion Program checkpoint 4, ADR-52) — deliberately
+# files (Admin Panel Completion Program checkpoint 4, ADR-52) â€” deliberately
 # NOT under MEDIA_ROOT/MEDIA_URL, so nothing here is ever reachable through
 # Django's ordinary public media serving. Every read of a file in this
 # directory must go through an authenticated, Store-scoped dashboard view
@@ -266,14 +266,14 @@ PRIVATE_MEDIA_ROOT = Path(env_str("DJANGO_PRIVATE_MEDIA_ROOT", str(BASE_DIR / "p
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-# Logging — console-only, suitable for a process manager that captures
+# Logging â€” console-only, suitable for a process manager that captures
 # stdout/stderr (systemd, gunicorn, a container runtime, etc.). Never logs
 # secrets, gateway credentials, OTP codes, full customer PII, or session
-# tokens — existing call sites (e.g. apps/sms) already avoid this; this
+# tokens â€” existing call sites (e.g. apps/sms) already avoid this; this
 # config does not add anything that would start doing so.
 #
 # "payment" is a reserved logger namespace for the future Zibal integration
-# (see docs/00_PROJECT_MASTER_REFERENCE.md) — payment code should log via
+# (see docs/00_PROJECT_MASTER_REFERENCE.md) â€” payment code should log via
 # logging.getLogger("payment") once written, and will inherit this config
 # automatically without further changes here.
 LOG_LEVEL = resolve_log_level()
@@ -320,19 +320,25 @@ LOGGING = {
 SHOP_FREE_SHIPPING_THRESHOLD = 500_000
 SHOP_TAX_PERCENT = 9
 
-# هویت عمومی پلتفرم (نه یک فروشنده‌ی خاص) — مطابق اصل جنریک‌بودن سند مشخصات
-SHOP_NAME = "دیجی‌مارکت"
-SHOP_TAGLINE = "فروشگاه اینترنتی چندمنظوره"
+# ظ‡ظˆغŒطھ ط¹ظ…ظˆظ…غŒ ظ¾ظ„طھظپط±ظ… (ظ†ظ‡ غŒع© ظپط±ظˆط´ظ†ط¯ظ‡â€ŒغŒ ط®ط§طµ) â€” ظ…ط·ط§ط¨ظ‚ ط§طµظ„ ط¬ظ†ط±غŒع©â€Œط¨ظˆط¯ظ† ط³ظ†ط¯ ظ…ط´ط®طµط§طھ
+SHOP_NAME = "ط¯غŒط¬غŒâ€Œظ…ط§ط±ع©طھ"
+SHOP_TAGLINE = "ظپط±ظˆط´ع¯ط§ظ‡ ط§غŒظ†طھط±ظ†طھغŒ ع†ظ†ط¯ظ…ظ†ط¸ظˆط±ظ‡"
 SHOP_CONTACT_PHONE = "021-91008877"
 SHOP_CONTACT_EMAIL = "info@digimarket.ir"
-SHOP_CONTACT_ADDRESS = "تهران، خیابان ولیعصر"
+SHOP_CONTACT_ADDRESS = "طھظ‡ط±ط§ظ†طŒ ط®غŒط§ط¨ط§ظ† ظˆظ„غŒط¹طµط±"
 
 # Platform admin-subdomain suffix (Phase 1B): a Store's stable merchant admin
-# host is f"{store.admin_subdomain}.{RASTISI_ADMIN_DOMAIN_SUFFIX}" — see
+# host is f"{store.admin_subdomain}.{RASTISI_ADMIN_DOMAIN_SUFFIX}" â€” see
 # apps.stores.admin_resolution. Independent of any StoreDomain (public
 # storefront domain), which is why changing the public domain never affects
 # this. Overridable via environment for non-".ir" deployments/tests.
 RASTISI_ADMIN_DOMAIN_SUFFIX = env_str("RASTISI_ADMIN_DOMAIN_SUFFIX", "rastisi.ir")
+
+# Local development must use the reserved .localhost namespace.
+# This avoids public DNS, HTTPS/HSTS and manual hosts-file entries.
+if DEBUG:
+    RASTISI_ADMIN_DOMAIN_SUFFIX = "rastisi.localhost"
+
 
 # Owner portal (ADR-97): exact Hosts that serve the public marketing site
 # (at "/") and the owner account portal (at "/app/") instead of any per-Store
@@ -345,10 +351,10 @@ RASTISI_PLATFORM_HOSTS = frozenset(
     )
 )
 # Platform Admin (ADR-97, host approved in ADR-101: "platformadmins.rastisi.ir",
-# not "platform.rastisi.ir" — direct-URL-only, never linked from anywhere
+# not "platform.rastisi.ir" â€” direct-URL-only, never linked from anywhere
 # public, deliberately a word that doesn't read as an obvious admin path):
 # exact Hosts that serve the staff/superuser-only operational dashboard.
-# Deliberately a disjoint set from RASTISI_PLATFORM_HOSTS — the marketing/
+# Deliberately a disjoint set from RASTISI_PLATFORM_HOSTS â€” the marketing/
 # portal host must never also resolve platform admin.
 RASTISI_PLATFORM_ADMIN_HOSTS = frozenset(
     h.lower() for h in env_list(
@@ -357,39 +363,39 @@ RASTISI_PLATFORM_ADMIN_HOSTS = frozenset(
     )
 )
 # The one canonical host used to build absolute cross-host links back to the
-# owner portal (e.g. Merchant Admin's "Back to Rastisi" link, Section H) —
+# owner portal (e.g. Merchant Admin's "Back to Rastisi" link, Section H) â€”
 # a single explicit value, not "first item of RASTISI_PLATFORM_HOSTS" (a
 # frozenset has no defined iteration order). Must itself be a member of
 # RASTISI_PLATFORM_HOSTS in any real deployment.
 RASTISI_PLATFORM_PRIMARY_HOST = env_str("RASTISI_PLATFORM_PRIMARY_HOST", "rastisi.ir")
 
-# Trial/platform-subdomain alphabet (ADR-94) — excludes 0/o/1/l/i to avoid
+# Trial/platform-subdomain alphabet (ADR-94) â€” excludes 0/o/1/l/i to avoid
 # visual ambiguity in a human-typed 9-character code.
 RASTISI_PLATFORM_CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
 RASTISI_PLATFORM_CODE_LENGTH = 9
 
 # Anti-abuse cap on how many Stores a single owner account may hold via
-# active OWNER memberships (ADR-98 area). Not a billing-plan entitlement —
-# apps.subscriptions has no per-owner store-count concept — this is a
+# active OWNER memberships (ADR-98 area). Not a billing-plan entitlement â€”
+# apps.subscriptions has no per-owner store-count concept â€” this is a
 # platform-wide safety limit, generous by default, overridable per deployment.
 RASTISI_MAX_STORES_PER_OWNER = env_int("RASTISI_MAX_STORES_PER_OWNER", default=10)
 
-# Owner/staff mobile-OTP identity (Section 3) — platform-level SMS sending,
+# Owner/staff mobile-OTP identity (Section 3) â€” platform-level SMS sending,
 # deliberately independent from apps.sms's Store-scoped ShopSettings.
 # sms_backend (ADR-93): OTP for platform identity happens before/without any
 # Store context, so it cannot depend on a Store's own SMS provider config.
 # Reuses apps.sms.services.backends' provider classes (dev console backend
-# vs. real Melipayamak) — never a duplicate backend implementation.
+# vs. real Melipayamak) â€” never a duplicate backend implementation.
 RASTISI_OWNER_SMS_BACKEND = env_str("RASTISI_OWNER_SMS_BACKEND", "console")
 RASTISI_OWNER_SMS_USERNAME = env_str("RASTISI_OWNER_SMS_USERNAME", "")
 RASTISI_OWNER_SMS_PASSWORD = env_str("RASTISI_OWNER_SMS_PASSWORD", "")
 RASTISI_OWNER_SMS_SENDER = env_str("RASTISI_OWNER_SMS_SENDER", "")
 RASTISI_OWNER_SMS_API_KEY = env_str("RASTISI_OWNER_SMS_API_KEY", "")
 
-# Checkpoint 5A — default subscription plan for newly onboarded stores.
+# Checkpoint 5A â€” default subscription plan for newly onboarded stores.
 # ``RASTISI_DEFAULT_PLAN_CODE`` names a Plan.code whose latest published
 # version a new store is put on (via subscription_service.provision_default_
-# subscription). Empty (the default) means "do not auto-assign a plan" — a
+# subscription). Empty (the default) means "do not auto-assign a plan" â€” a
 # store then falls back to fail-open entitlements until a plan is chosen, so
 # turning this on is an explicit deployment decision. Existing stores are never
 # touched by this (they get the unlimited Legacy plan via migration/command);
@@ -399,25 +405,25 @@ RASTISI_OWNER_SMS_API_KEY = env_str("RASTISI_OWNER_SMS_API_KEY", "")
 RASTISI_DEFAULT_PLAN_CODE = env_str("RASTISI_DEFAULT_PLAN_CODE", "")
 RASTISI_DEFAULT_PLAN_START_TRIAL = env_str("RASTISI_DEFAULT_PLAN_START_TRIAL", "true").lower() in ("1", "true", "yes", "on")
 
-# Checkpoint 5B — SaaS billing configuration. The active subscription payment
-# provider (default "manual" — an honest test/manual provider that never fakes
+# Checkpoint 5B â€” SaaS billing configuration. The active subscription payment
+# provider (default "manual" â€” an honest test/manual provider that never fakes
 # a production payment; wire a real gateway behind the same interface later).
 # Secrets come only from the environment, never the database or code.
 RASTISI_BILLING_PROVIDER = env_str("RASTISI_BILLING_PROVIDER", "manual")
 RASTISI_BILLING_WEBHOOK_SECRET = env_str("RASTISI_BILLING_WEBHOOK_SECRET", "")
 # Max webhook body accepted before rejection (bytes) and signature timestamp
-# tolerance (seconds) — see ADR-76.
+# tolerance (seconds) â€” see ADR-76.
 RASTISI_BILLING_MAX_WEBHOOK_BYTES = env_int("RASTISI_BILLING_MAX_WEBHOOK_BYTES", default=65536)
 RASTISI_BILLING_WEBHOOK_TOLERANCE_SECONDS = env_int("RASTISI_BILLING_WEBHOOK_TOLERANCE_SECONDS", default=300)
 # Renewal invoices are generated this many days before the current period ends
 # (ADR-78). Dunning retry schedule is days-after-due, comma-separated (ADR-79).
 RASTISI_BILLING_RENEWAL_LEAD_DAYS = env_int("RASTISI_BILLING_RENEWAL_LEAD_DAYS", default=3)
 RASTISI_BILLING_DUNNING_SCHEDULE = env_str("RASTISI_BILLING_DUNNING_SCHEDULE", "0,3,7,14")
-# Whether SaaS billing charges tax (default off — see ADR-82). When on, a flat
+# Whether SaaS billing charges tax (default off â€” see ADR-82). When on, a flat
 # platform-wide rate is applied; legal tax compliance is out of scope.
 RASTISI_BILLING_TAX_RATE = env_str("RASTISI_BILLING_TAX_RATE", "0")
 
-# Owner-portal transactional email (ADR-93) — password reset only today.
+# Owner-portal transactional email (ADR-93) â€” password reset only today.
 # Console backend by default (dev/test: visible in server logs, never
 # silently "sent"); production sets DJANGO_EMAIL_BACKEND to the real SMTP
 # backend plus the DJANGO_EMAIL_HOST* variables below. Never a fake success.
@@ -428,3 +434,5 @@ EMAIL_HOST_USER = env_str("DJANGO_EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = env_str("DJANGO_EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("DJANGO_EMAIL_USE_TLS", default=True)
 DEFAULT_FROM_EMAIL = env_str("DJANGO_DEFAULT_FROM_EMAIL", "no-reply@rastisi.ir")
+
+

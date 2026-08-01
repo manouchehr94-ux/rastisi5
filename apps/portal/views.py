@@ -538,7 +538,13 @@ def enter_admin(request, store_public_id):
     except handoff_service.HandoffError:
         raise Http404
     admin_host = f"{store.admin_subdomain}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
-    return redirect(f"{request.scheme}://{admin_host}/admin-portal/handoff/{ticket.token}/")
+    if settings.DEBUG:
+        return redirect(
+            f"http://{admin_host}:8000/admin-portal/handoff/{ticket.token}/"
+        )
+    return redirect(
+        f"{request.scheme}://{admin_host}/admin-portal/handoff/{ticket.token}/"
+    )
 
 
 def _get_owned_store_or_404(request, store_public_id) -> Store:

@@ -6,9 +6,10 @@ sms_service.get_backend() بر اساس ShopSettings.sms_backend تصمیم می
 """
 
 import logging
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-
+from django.conf import settings
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT_SECONDS = 5
@@ -37,6 +38,18 @@ class ConsoleBackend(SmsBackend):
 
     def send(self, *, to: str, text: str) -> SmsSendResult:
         logger.debug("[SMS:console] to=%s text=%s", to, text)
+
+        if settings.DEBUG:
+            print(
+                "\n"
+                "========================================\n"
+                "DEVELOPMENT SMS\n"
+                f"To: {to}\n"
+                f"Message: {text}\n"
+                "========================================\n",
+                flush=True,
+            )
+
         return SmsSendResult(success=True, provider_ref_id="console")
 
 

@@ -2,7 +2,6 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
-from urllib.parse import urlsplit
 
 from apps.portal.models import AdminHandoffTicket
 from apps.portal.services import handoff_service
@@ -11,12 +10,6 @@ from apps.stores.services.platform_code_service import generate_unique_platform_
 
 User = get_user_model()
 _PORTAL_HOST = "rastisi.localhost"
-
-
-def _handoff_target(url):
-    """Return the HTTP_HOST value and path from an absolute handoff URL."""
-    parsed = urlsplit(url)
-    return parsed.netloc, parsed.path
 
 
 def _make_store(admin_subdomain="handoffstore"):
@@ -93,12 +86,7 @@ class ConsumeTicketTests(TestCase):
 
 
 @override_settings(ALLOWED_HOSTS=[
-    _PORTAL_HOST,
-    "handoffstore.rastisi.ir",
-    "otherstore.rastisi.ir",
-    "handoffstore.rastisi.localhost",
-    "otherstore.rastisi.localhost",
-    "testserver",
+    _PORTAL_HOST, "handoffstore.rastisi.ir", "otherstore.rastisi.ir", "testserver",
 ])
 class HandoffFullFlowViewTests(TestCase):
     def setUp(self):
@@ -133,7 +121,8 @@ class HandoffFullFlowViewTests(TestCase):
         # Follow the handoff link with a FRESH client (no portal session/cookies
         # carried over) — this is the entire point of the handoff mechanism.
         admin_client = self.client_class()
-        admin_host, path = _handoff_target(handoff_url)
+        admin_host = handoff_url.split("://", 1)[1].split("/", 1)[0]
+        path = "/" + handoff_url.split("://", 1)[1].split("/", 1)[1]
         follow_response = admin_client.get(path, HTTP_HOST=admin_host)
         self.assertEqual(follow_response.status_code, 302)
         self.assertEqual(follow_response["Location"], "/admin-portal/")
@@ -148,7 +137,8 @@ class HandoffFullFlowViewTests(TestCase):
         )
         handoff_url = response["Location"]
         admin_client = self.client_class()
-        admin_host, path = _handoff_target(handoff_url)
+        admin_host = handoff_url.split("://", 1)[1].split("/", 1)[0]
+        path = "/" + handoff_url.split("://", 1)[1].split("/", 1)[1]
         follow_response = admin_client.get(path, HTTP_HOST=admin_host)
         self.assertEqual(follow_response["Location"], "/admin-portal/billing/")
 
@@ -160,7 +150,8 @@ class HandoffFullFlowViewTests(TestCase):
         )
         handoff_url = response["Location"]
         admin_client = self.client_class()
-        admin_host, path = _handoff_target(handoff_url)
+        admin_host = handoff_url.split("://", 1)[1].split("/", 1)[0]
+        path = "/" + handoff_url.split("://", 1)[1].split("/", 1)[1]
         follow_response = admin_client.get(path, HTTP_HOST=admin_host)
         self.assertEqual(follow_response["Location"], "/admin-portal/")
 
@@ -168,7 +159,8 @@ class HandoffFullFlowViewTests(TestCase):
         self.client.force_login(self.owner)
         response = self.client.post(f"/app/stores/{self.store.public_id}/enter-admin/", HTTP_HOST=_PORTAL_HOST)
         handoff_url = response["Location"]
-        admin_host, path = _handoff_target(handoff_url)
+        admin_host = handoff_url.split("://", 1)[1].split("/", 1)[0]
+        path = "/" + handoff_url.split("://", 1)[1].split("/", 1)[1]
 
         first = self.client_class().get(path, HTTP_HOST=admin_host)
         self.assertEqual(first.status_code, 302)
@@ -181,8 +173,7 @@ class HandoffFullFlowViewTests(TestCase):
         handoff_url = response["Location"]
         token = handoff_url.rstrip("/").rsplit("/", 1)[-1]
 
-        wrong_admin_host = f"otherstore.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
         wrong_host_response = self.client_class().get(
-            f"/admin-portal/handoff/{token}/", HTTP_HOST=wrong_admin_host,
+            f"/admin-portal/handoff/{token}/", HTTP_HOST="otherstore.rastisi.ir",
         )
         self.assertEqual(wrong_host_response.status_code, 404)
