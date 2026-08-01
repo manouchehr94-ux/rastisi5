@@ -195,7 +195,9 @@ from apps.sms.services.sms_service import (
     retry_smsrasti_outbox_item,
     send_test_sms,
 )
+from apps.stores.integrations.registry import get_provider as get_integration_provider
 from apps.stores.models import StoreMembership
+from apps.stores.services import integration_service
 from apps.stores.services.membership_service import (
     ASSIGNABLE_ROLES,
     MembershipError,
@@ -2510,6 +2512,7 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
         "gateway_configs": settings_admin_service.gateway_configs_context(store=store),
         "industry_templates": _latest_active_industry_templates(),
         "industry_installation": _industry_installation_context(store),
+        "integration_rows": integration_service.connections_context(store=store),
         "active_page": "settings",
     }
 
@@ -2554,6 +2557,7 @@ SETTINGS_SECTIONS = [
     ("sms", "پیامک", "📲", "اتصال و قالب‌های پیامک"),
     ("appearance", "تم رنگی", "🎨", "پیش‌فرض‌ها و رنگ‌بندی سفارشی فروشگاه"),
     ("industry", "صنف فروشگاه", "🏭", "نصب الگوی کاتالوگ آماده بر اساس صنف فعالیت"),
+    ("integrations", "یکپارچه‌سازی‌ها", "🔗", "اینماد، ترب، گوگل آنالیتیکس و سایرِ اتصال‌های بیرونی"),
 ]
 
 VALID_SECTION_KEYS = {s[0] for s in SETTINGS_SECTIONS}
@@ -2981,6 +2985,58 @@ def sms_outbox_retry(request, pk):
         messages.success(request, "آیتم دوباره در صفِ ارسال قرار گرفت")
     return redirect("dashboard:sms-outbox-list")
 
+
+# --------------------------------------------------------------- یکپارچه‌سازی‌ها
+
+
+@require_POST
+@staff_required
+@permission_required(SETTINGS_MANAGE)
+def settings_integration_connect(request, provider_code):
+    store = _resolve_dashboard_store(request)
+    provider = get_integration_provider(provider_code)
+    if provider is None:
+        return HttpResponse(status=404)
+
+    values = {f.key: request.POST.get(f.key, "").strip() for f in provider.fields}
+    try:
+        integration_service.connect(store=store, provider_code=provider_code, values=values, actor=request.user)
+    except integration_service.IntegrationError as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, f"{provider.display_name} با موفقیت متصل شد")
+    return redirect("/admin-portal/settings/?section=integrations")
+
+
+@require_POST
+@staff_required
+@permission_required(SETTINGS_MANAGE)
+def settings_integration_disconnect(request, provider_code):
+    store = _resolve_dashboard_store(request)
+    provider = get_integration_provider(provider_code)
+    if provider is None:
+        return HttpResponse(status=404)
+
+    integration_service.disconnect(store=store, provider_code=provider_code, actor=request.user)
+    messages.success(request, f"اتصالِ {provider.display_name} قطع شد")
+    return redirect("/admin-portal/settings/?section=integrations")
+
+
+@require_POST
+@staff_required
+@permission_required(SETTINGS_MANAGE)
+def settings_integration_test(request, provider_code):
+    store = _resolve_dashboard_store(request)
+    provider = get_integration_provider(provider_code)
+    if provider is None:
+        return HttpResponse(status=404)
+
+    connection = integration_service.test_connection(store=store, provider_code=provider_code, actor=request.user)
+    if connection.last_test_result == "success":
+        messages.success(request, f"{provider.display_name}: {connection.last_test_message}")
+    else:
+        messages.error(request, f"{provider.display_name}: {connection.last_test_message}")
+    return redirect("/admin-portal/settings/?section=integrations")
 
 
 # ---------------------------------------------------------------- صفحات محتوایی

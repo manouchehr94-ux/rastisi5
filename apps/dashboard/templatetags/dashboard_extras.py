@@ -20,6 +20,16 @@ def sms_status_badge(status):
 
 
 @register.filter
+def get_item(mapping, key):
+    """جست‌وجویِ یک dict با کلیدی که خودش یک متغیرِ تمپلیت است — Django
+    Template Language این کار را برایِ ``dict.key`` ثابت انجام می‌دهد اما
+    نه برایِ کلیدِ پویا، پس یک فیلترِ عمومیِ کوچک لازم است."""
+    if not mapping:
+        return ""
+    return mapping.get(key, "")
+
+
+@register.filter
 def transaction_status_badge(status):
     return TRANSACTION_STATUS_BADGE.get(status, "b-gray")
 
