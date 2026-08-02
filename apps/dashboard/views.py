@@ -113,6 +113,7 @@ from apps.cart.services.coupon_service import (
 )
 from apps.catalog.services.pricing_service import resolve_effective_price
 from apps.catalog.services.product_publish_service import validate_product_for_publish
+from apps.catalog.services.tag_service import get_or_create_tags, suggest_tags
 from apps.catalog.services.product_specification_service import build_product_specification
 from apps.catalog.services.template_preview_service import build_template_preview, plan_industry_template_installation
 from apps.catalog.services.template_update_service import (
@@ -671,8 +672,11 @@ def _save_product(form, product, *, store):
     product.tax_class = data.get("tax_class")
     product.seo_title = data.get("seo_title") or ""
     product.seo_description = data.get("seo_description") or ""
-    product.full_clean(exclude=["slug"])
+    if data.get("slug"):
+        product.slug = data["slug"]
+    product.full_clean(exclude=["slug"] if not data.get("slug") else [])
     product.save()
+    product.tags.set(get_or_create_tags(store, data.get("tags") or []))
     return product
 
 

@@ -85,6 +85,11 @@ class ProductForm(NumericCleanMixin, forms.Form):
     # سئو (Phase 1C)
     seo_title = forms.CharField(label="عنوان سئو", max_length=70, required=False)
     seo_description = forms.CharField(label="توضیحات متا", max_length=160, required=False, widget=forms.Textarea)
+    # آدرسِ کالا (Product Entry rebuild) — اختیاری؛ خالی یعنی «خودکار از رویِ
+    # نام بساز» (همان رفتارِ قبلی، بدون تغییر).
+    slug = forms.CharField(label="آدرس محصول", max_length=240, required=False)
+    # برچسب‌ها — رشته‌ی جداشده با کاما که ویجتِ چیپِ Alpine.js پر می‌کند.
+    tags = forms.CharField(label="برچسب‌ها", required=False, widget=forms.HiddenInput)
 
     def __init__(self, *args, store, instance=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -93,6 +98,39 @@ class ProductForm(NumericCleanMixin, forms.Form):
         self.fields["category"].queryset = leaf_categories(store)
         self.fields["brand"].queryset = Brand.objects.filter(store=store).order_by("name")
         self.fields["tax_class"].queryset = TaxClass.objects.filter(store=store, is_active=True).order_by("name")
+
+    def clean_slug(self):
+        from django.utils.text import slugify
+
+        raw = (self.cleaned_data.get("slug") or "").strip()
+        if not raw:
+            return ""
+        candidate = slugify(raw, allow_unicode=True)
+        if not candidate:
+            raise forms.ValidationError("آدرسِ وارد‌شده معتبر نیست.")
+        qs = Product.objects.filter(store=self.store, slug=candidate)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError("این آدرس قبلاً برای کالای دیگری استفاده شده است.")
+        return candidate
+
+    def clean_tags(self):
+        from apps.core.utils import normalization_key
+
+        raw = self.cleaned_data.get("tags") or ""
+        names = []
+        seen = set()
+        for part in raw.split(","):
+            name = part.strip()
+            if not name:
+                continue
+            key = normalization_key(name)
+            if key in seen:
+                continue
+            seen.add(key)
+            names.append(name)
+        return names
 
     def clean_weight_grams(self):
         raw = normalize_digits(self.cleaned_data.get("weight_grams", "")).strip()
