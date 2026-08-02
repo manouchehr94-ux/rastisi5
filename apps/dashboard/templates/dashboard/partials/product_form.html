@@ -1,24 +1,30 @@
 {% load persian %}
+{{ existing_tags_list|json_script:"existing-tags-data" }}
+<div x-data="{
+      tab: '{{ error_step|default:'basic' }}',
+      tabs: [['basic', 'اطلاعات پایه'], ['media', 'تصاویر و ویدیو'], ['price', 'قیمت و تنوع'], ['seo', 'سئو و انتشار']],
+      productType: '{{ form.product_type.value|default:'simple' }}',
+      tags: JSON.parse(document.getElementById('existing-tags-data').textContent),
+      tagInput: '',
+      addTag() {
+        const v = this.tagInput.trim();
+        if (v && !this.tags.includes(v)) { this.tags.push(v); }
+        this.tagInput = '';
+      },
+      removeTag(t) { this.tags = this.tags.filter(x => x !== t) },
+    }"
+    x-init="$watch('tags', v => $refs.tagsHidden.value = v.join(','))">
 <div class="modal-head">
   <h3>{% if product %}ویرایش کالا{% else %}افزودن کالای جدید{% endif %}</h3>
   <button type="button" class="x-btn" @click="modalOpen = false">✕</button>
 </div>
-{{ existing_tags_list|json_script:"existing-tags-data" }}
-<form hx-post="{% if product %}{% url 'dashboard:product-edit' product.pk %}{% else %}{% url 'dashboard:product-add' %}{% endif %}"
-      hx-target="#admin-modal-content" hx-swap="innerHTML" hx-encoding="multipart/form-data"
-      x-data="{
-        tab: '{{ error_step|default:'basic' }}',
-        tabs: [['basic', 'اطلاعات پایه'], ['media', 'تصاویر و ویدیو'], ['price', 'قیمت و تنوع'], ['seo', 'سئو و انتشار']],
-        tags: JSON.parse(document.getElementById('existing-tags-data').textContent),
-        tagInput: '',
-        addTag() {
-          const v = this.tagInput.trim();
-          if (v && !this.tags.includes(v)) { this.tags.push(v); }
-          this.tagInput = '';
-        },
-        removeTag(t) { this.tags = this.tags.filter(x => x !== t) },
-      }"
-      x-init="$watch('tags', v => $refs.tagsHidden.value = v.join(','))">
+<!-- ``id="productSaveForm"``: نگاه کنید به دکمه‌های ذخیره در modal-foot — آن‌ها
+     عمداً *بیرونِ* همین فرم هستند (به‌خاطرِ جدولِ تنوعِ چندمحوره‌ی زیر، که هم
+     باید بیرونِ این فرم بماند تا فیلدهایِ هم‌نامش با فرمِ کالا/فرمِ افزودنِ
+     ویژگیِ سریع تداخل نکنند) و با ``hx-include="#productSaveForm"`` مقادیرِ
+     این فرم را صریحاً می‌فرستند. -->
+<form id="productSaveForm" hx-post="{% if product %}{% url 'dashboard:product-edit' product.pk %}{% else %}{% url 'dashboard:product-add' %}{% endif %}"
+      hx-target="#admin-modal-content" hx-swap="innerHTML" hx-encoding="multipart/form-data">
   {% csrf_token %}
   <div class="modal-body">
     {% if form.non_field_errors %}
@@ -248,8 +254,8 @@
           <span style="font-size:26px">📤</span>
           <span>تصاویر را اینجا رها کنید یا کلیک کنید</span>
           <small style="color:var(--muted)">فرمت‌های مجاز: jpg، png، webp — حداکثر ۵ مگابایت — چندتصویری هم‌زمان مجاز است</small>
-          <input type="file" x-ref="stagedImagesInput" multiple accept=".jpg,.jpeg,.png,.webp" style="display:none"
-                 @change="addFiles($event.target.files); $event.target.value = ''">
+          <input type="file" x-ref="stagedImagesInput" name="images" multiple accept=".jpg,.jpeg,.png,.webp" style="display:none"
+                 @change="addFiles($event.target.files)">
         </label>
         <input type="hidden" name="cover_index" :value="coverIndex">
         <div class="img-manage-grid" x-show="files.length" style="margin-top:14px">
@@ -307,8 +313,7 @@
     </div>
 
     <!-- تب ۲: قیمت و تنوع -->
-    <div class="form-section" x-show="tab === 'price'" x-ref="tabPrice"
-         x-data="{ productType: '{{ form.product_type.value|default:'simple' }}' }">
+    <div class="form-section" x-show="tab === 'price'" x-ref="tabPrice">
       <div class="form-group">
         <label>نوعِ محصول <span class="help-icon" title="بعد از ذخیره هم قابلِ تغییر است.">؟</span></label>
         <div class="type-choice-row">
@@ -331,12 +336,16 @@
         <div class="form-row">
           <div class="form-group">
             <label>قیمت (تومان) * <span class="help-icon" title="قیمتِ نهاییِ فروش پیش از اعمالِ تخفیف.">؟</span></label>
-            <input class="inp" name="price" required value="{{ form.price.value|default_if_none:'' }}" placeholder="1250000" dir="ltr" inputmode="numeric">
+            <input class="inp" name="price" required value="{{ form.price.value|default_if_none:'' }}" placeholder="1250000" dir="ltr" inputmode="numeric"
+                   x-bind:disabled="productType !== 'simple'">
             {% for err in form.price.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
           </div>
           <!-- برایِ کالایِ دارای تنوع، فیلدِ قیمت در UI پنهان است (هر تنوع قیمتِ
                خودش را دارد) اما ProductForm.price هنوز الزامی است؛ این ورودیِ
-               پنهان همان مقدارِ فعلی/حداقلی را جایگزینِ فیلدِ اصلی می‌فرستد. -->
+               پنهان همان مقدارِ فعلی/حداقلی را جایگزینِ فیلدِ اصلی می‌فرستد.
+               ``disabled`` (نه فقط پنهانیِ ancestor) لازم است چون کرومیوم
+               فیلدِ الزامیِ پنهان‌شده از طریقِ ancestorِ display:none را هنوز
+               willValidate می‌داند و ارسالِ فرم را مسدود می‌کند. -->
           <input type="hidden" name="price" x-bind:disabled="productType !== 'variable'"
                  value="{{ form.price.value|default:'1' }}">
           <div class="form-group">
@@ -380,18 +389,8 @@
         <div class="field-help" style="margin-right:24px">برایِ کالاهای دیجیتال/خدماتی که نیازی به پستِ فیزیکی ندارند، این گزینه را خاموش کنید.</div>
       </div>
 
-      <div x-show="productType === 'variable'" x-cloak>
-        <div class="form-section-title">ویژگی‌ها و تنوعِ محصول</div>
-        {% if product and product.product_type == "variable" %}
-        <div id="productOptionsBody">
-          {% include "dashboard/partials/product_options_body.html" %}
-        </div>
-        {% elif product %}
-        <div class="info-box">این کالا هنوز به‌عنوانِ «دارای تنوع» ذخیره نشده — پس از ذخیره با این گزینه، ویژگی‌ها و جدولِ تنوع در همین‌جا در دسترس خواهد بود.</div>
-        {% else %}
-        <div class="info-box">برایِ افزودنِ ویژگی (مثلاً رنگ، اندازه، کشورِ سازنده) و جدولِ تنوع، ابتدا کالا را ذخیره کنید — پس از آن، همین‌جا می‌توانید ویژگی و ردیف‌هایِ تنوع اضافه کنید. می‌توانید کالا را با وضعیتِ «پیش‌نویس» ذخیره کنید تا هنوز در فروشگاه نمایش داده نشود.</div>
-        {% endif %}
-      </div>
+      <!-- جدولِ ویژگی‌ها و تنوع (برایِ کالای دارای تنوع) عمداً این‌جا نیست — نگاه
+           کنید به بخشِ بیرونِ <form> پس از modal-foot (توضیح در بالای تگِ form). -->
 
       <div class="form-group" style="margin-top:20px">
         <label>ویژگی‌های اختصاصیِ این دسته‌بندی <span class="help-icon" title="این فیلدها بر اساسِ زیرگروهِ انتخاب‌شده تغییر می‌کنند؛ مثلاً رنگ، جنس یا هر مشخصه‌ی توصیفیِ دیگر (بدونِ ساختِ تنوعِ جدید).">؟</span></label>
@@ -441,14 +440,41 @@
       {% endif %}
     </div>
   </div>
-  <div class="modal-foot wizard-foot">
-    <button type="button" class="btn" @click="modalOpen = false">انصراف</button>
-    <span style="flex:1"></span>
-    <button type="submit" class="btn" formnovalidate
-            @click="const s = $root.querySelector('[name=status]:checked'); if (s) s.value = 'draft'"
-            title="کالا را همین حالا با وضعیتِ «پیش‌نویس» ذخیره می‌کند — فیلدهای الزامی (نام، کد کالا، دسته‌بندی، قیمت) هنوز باید پر شده باشند">
-      💾 ذخیره‌ی پیش‌نویس
-    </button>
-    <button type="submit" class="btn btn-primary">ذخیره کالا</button>
-  </div>
 </form>
+
+<!-- ویژگی‌ها و جدولِ تنوعِ کالای دارای تنوع — عمداً بیرونِ #productSaveForm:
+     این جدول می‌تواند چند ردیف با فیلدهایِ هم‌نام (مثلاً «label» برایِ هر
+     محور) داشته باشد؛ اگر داخلِ فرم بود، ارسالِ خودکارِ htmx از نزدیک‌ترین
+     <form> باعثِ تداخلِ نامِ فیلدها با فرمِ کالا/فرمِ ویژگیِ سریع می‌شد. -->
+<div class="modal-body" x-show="tab === 'price' && productType === 'variable'" x-cloak style="padding-top:0">
+  <div class="form-section">
+    <div class="form-section-title">ویژگی‌ها و تنوعِ محصول</div>
+    {% if product and product.product_type == "variable" %}
+    <div id="productOptionsBody">
+      {% include "dashboard/partials/product_options_body.html" %}
+    </div>
+    {% elif product %}
+    <div class="info-box">این کالا هنوز به‌عنوانِ «دارای تنوع» ذخیره نشده — پس از ذخیره با این گزینه، ویژگی‌ها و جدولِ تنوع در همین‌جا در دسترس خواهد بود.</div>
+    {% else %}
+    <div class="info-box">برایِ افزودنِ ویژگی (مثلاً رنگ، اندازه، کشورِ سازنده) و جدولِ تنوع، ابتدا کالا را ذخیره کنید — پس از آن، همین‌جا می‌توانید ویژگی و ردیف‌هایِ تنوع اضافه کنید. می‌توانید کالا را با وضعیتِ «پیش‌نویس» ذخیره کنید تا هنوز در فروشگاه نمایش داده نشود.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="modal-foot wizard-foot">
+  <button type="button" class="btn" @click="modalOpen = false">انصراف</button>
+  <span style="flex:1"></span>
+  <button type="button" class="btn"
+          hx-post="{% if product %}{% url 'dashboard:product-edit' product.pk %}{% else %}{% url 'dashboard:product-add' %}{% endif %}"
+          hx-include="#productSaveForm" hx-target="#admin-modal-content" hx-swap="innerHTML" hx-encoding="multipart/form-data"
+          @click="const s = document.querySelector('#productSaveForm [name=status]:checked'); if (s) s.value = 'draft'"
+          title="کالا را همین حالا با وضعیتِ «پیش‌نویس» ذخیره می‌کند — فیلدهای الزامی (نام، کد کالا، دسته‌بندی، قیمت) هنوز باید پر شده باشند">
+    💾 ذخیره‌ی پیش‌نویس
+  </button>
+  <button type="button" class="btn btn-primary"
+          hx-post="{% if product %}{% url 'dashboard:product-edit' product.pk %}{% else %}{% url 'dashboard:product-add' %}{% endif %}"
+          hx-include="#productSaveForm" hx-target="#admin-modal-content" hx-swap="innerHTML" hx-encoding="multipart/form-data">
+    ذخیره کالا
+  </button>
+</div>
+</div>
