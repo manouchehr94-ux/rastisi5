@@ -170,7 +170,7 @@
 
     <div class="tabpane" :class="{ active: tab === 'desc' }">
       <div class="desc-text">
-        {% if product.description %}{{ product.description|linebreaks }}{% else %}<p>توضیحاتی برای این کالا ثبت نشده است.</p>{% endif %}
+        {% if product.description %}{{ product.description|product_description_html }}{% else %}<p>توضیحاتی برای این کالا ثبت نشده است.</p>{% endif %}
       </div>
     </div>
 

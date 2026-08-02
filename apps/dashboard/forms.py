@@ -136,6 +136,11 @@ class ProductForm(NumericCleanMixin, forms.Form):
             return 0
         return self._clean_int("stock", min_value=0)
 
+    def clean_description(self):
+        from apps.catalog.services.html_sanitizer import sanitize_product_description
+
+        return sanitize_product_description(self.cleaned_data.get("description", ""))
+
 
 class VariantBulkAddForm(NumericCleanMixin, forms.Form):
     """اعتبارسنجی ساختاری ورودی سریع تنوع؛ تجزیه و اعتبارسنجی کسب‌وکاری در سرویس تنوع انجام می‌شود."""

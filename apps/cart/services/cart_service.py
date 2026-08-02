@@ -3,6 +3,7 @@
 """
 
 from apps.cart.models import Cart, CartItem
+from apps.catalog.services.pricing_service import resolve_effective_price
 
 
 def _customer_or_none(request):
@@ -38,8 +39,13 @@ def get_cart(request, create=False):
 
 
 def add_item_to_cart(cart, product, variant, quantity):
-    """محصول (و در صورت وجود، تنوع) را به سبد اضافه می‌کند یا تعداد را افزایش می‌دهد."""
-    unit_price = product.final_price
+    """محصول (و در صورت وجود، تنوع) را به سبد اضافه می‌کند یا تعداد را افزایش می‌دهد.
+
+    قیمتِ واحد همیشه از ``pricing_service.resolve_effective_price`` محاسبه
+    می‌شود (نه ``product.final_price`` ساده) تا قیمتِ تنوعِ انتخاب‌شده — چه
+    delta-based قدیمی، چه مستقلِ جدید — درست اعمال شود؛ دقیقاً همان تابعی
+    که فروشگاه برای نمایشِ قیمت استفاده می‌کند."""
+    unit_price = resolve_effective_price(product, variant)
     item = cart.items.filter(product=product, variant=variant).first()
     if item:
         item.quantity += quantity

@@ -42,7 +42,8 @@ def cart_add(request, slug):
         # Server-side validation (ADR-85): the variant must belong to THIS
         # product (rejecting cross-store / cross-product ids) and be active —
         # an inactive variant can never be purchased. Price is resolved from the
-        # server (product.final_price in add_item_to_cart), never from POST.
+        # server (pricing_service.resolve_effective_price, inside add_item_to_cart),
+        # never from POST.
         variant = get_object_or_404(ProductVariant, pk=variant_id, product=product, is_active=True)
 
     try:
@@ -71,8 +72,9 @@ def cart_item_update(request, item_id):
     except (TypeError, ValueError):
         quantity = 1
     quantity = max(1, quantity)
-    if item.product.stock > 0:
-        quantity = min(quantity, item.product.stock)
+    available_stock = item.variant.stock if item.variant_id else item.product.stock
+    if available_stock > 0:
+        quantity = min(quantity, available_stock)
 
     item.quantity = quantity
     item.save(update_fields=["quantity", "updated_at"])

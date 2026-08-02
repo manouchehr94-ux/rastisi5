@@ -127,3 +127,20 @@ class CartItemUpdateRemoveTests(TestCase):
         self.client.cookies.pop("sessionid", None)
         response = self.client.post(reverse("cart:item-update", args=[self.item.id]), {"quantity": 2})
         self.assertEqual(response.status_code, 404)
+
+    def test_quantity_clamped_to_variant_stock_not_product_stock(self):
+        """کالای مادر ۵ عدد موجودی دارد، اما تنوعِ انتخاب‌شده فقط ۲ عدد —
+        سقفِ تعداد باید موجودیِ همان تنوع باشد، نه کالای مادر."""
+        from apps.catalog.models import ProductVariant
+
+        variant = ProductVariant.objects.create(
+            product=self.product, attribute="رنگ", value="قرمز", stock=2, is_active=True,
+        )
+        self.client.post(
+            reverse("cart:add", args=[self.product.slug]), {"variant_id": variant.pk, "quantity": 1}
+        )
+        variant_item = CartItem.objects.get(variant=variant)
+        response = self.client.post(reverse("cart:item-update", args=[variant_item.id]), {"quantity": 999})
+        self.assertEqual(response.status_code, 200)
+        variant_item.refresh_from_db()
+        self.assertEqual(variant_item.quantity, 2)

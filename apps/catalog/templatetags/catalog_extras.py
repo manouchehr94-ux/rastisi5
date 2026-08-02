@@ -1,6 +1,16 @@
 from django import template
+from django.utils.safestring import mark_safe
 
 register = template.Library()
+
+
+@register.filter
+def product_description_html(value):
+    """توضیحاتِ کالا را برایِ نمایش آماده می‌کند — پاک‌سازیِ allowlist و امنِ
+    رندرِ مستقیم؛ نگاه کنید به apps.catalog.services.html_sanitizer."""
+    from apps.catalog.services.html_sanitizer import render_description_html
+
+    return mark_safe(render_description_html(value))
 
 
 @register.filter

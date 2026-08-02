@@ -92,3 +92,26 @@ class AddItemToCartTests(TestCase):
         item = add_item_to_cart(self.cart, self.product, None, 2)
         self.assertEqual(item.quantity, 3)
         self.assertEqual(self.cart.items.count(), 1)
+
+    def test_add_variant_with_absolute_price_snapshots_variant_price_not_product_price(self):
+        """قیچیِ ایرانی/ایتالیایی: قیمتِ سبد باید قیمتِ *تنوعِ* انتخاب‌شده باشد،
+        نه قیمتِ پایه‌ی کالا — رگرسیونی که پیش از این وصله وجود داشت
+        (add_item_to_cart قبلاً همیشه product.final_price را snapshot می‌کرد)."""
+        from apps.catalog.models import ProductVariant
+
+        variant = ProductVariant.objects.create(
+            product=self.product, attribute="کشور سازنده", value="ایتالیایی", price=Decimal("800000"),
+        )
+        item = add_item_to_cart(self.cart, self.product, variant, 1)
+        self.assertEqual(item.unit_price, Decimal("800000"))
+        self.assertNotEqual(item.unit_price, self.product.final_price)
+
+    def test_add_variant_with_legacy_delta_price_still_works(self):
+        from apps.catalog.models import ProductVariant
+
+        variant = ProductVariant.objects.create(
+            product=self.product, attribute="طول", value="بلند", extra_price=Decimal("20000"),
+        )
+        item = add_item_to_cart(self.cart, self.product, variant, 1)
+        # (200000 + 20000) * 0.9 = 198000
+        self.assertEqual(item.unit_price, Decimal("198000"))

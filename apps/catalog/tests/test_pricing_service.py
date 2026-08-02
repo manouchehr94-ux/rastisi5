@@ -12,6 +12,8 @@ from apps.catalog.services.pricing_service import (
     PricingError,
     is_variant_purchasable,
     resolve_effective_price,
+    resolve_regular_price,
+    resolve_savings,
 )
 
 
@@ -61,6 +63,58 @@ class ResolveEffectivePriceTests(TestCase):
         foreign_variant = ProductVariant.objects.create(product=other_product, attribute="رنگ", value="قرمز")
         with self.assertRaises(PricingError):
             resolve_effective_price(self.product, foreign_variant)
+
+
+class AbsoluteVariantPriceTests(TestCase):
+    """قیچیِ ایرانی/ایتالیایی — دو تنوعِ یک کالا با قیمت‌هایِ کاملاً متفاوت،
+    نه delta نسبت به قیمتِ پایه (نگاه کنید به Part 5 مشخصات)."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-scissors")
+        self.category = Category.objects.create(store=self.store, name="ابزار", slug="cat-scissors")
+        self.product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="قیچی", slug="scissors-ps",
+            sku="SKU-SCISSORS", price=Decimal("1"), product_type=Product.ProductType.VARIABLE,
+        )
+
+    def test_absolute_price_ignores_product_base_price_and_discount(self):
+        self.product.discount_percent = 50
+        self.product.save(update_fields=["discount_percent"])
+        iranian = ProductVariant.objects.create(
+            product=self.product, attribute="کشور سازنده", value="ایرانی", price=Decimal("100000"),
+        )
+        italian = ProductVariant.objects.create(
+            product=self.product, attribute="کشور سازنده", value="ایتالیایی", price=Decimal("800000"),
+        )
+        self.assertEqual(resolve_effective_price(self.product, iranian), Decimal("100000"))
+        self.assertEqual(resolve_effective_price(self.product, italian), Decimal("800000"))
+
+    def test_compare_at_price_becomes_regular_price_for_absolute_variant(self):
+        variant = ProductVariant.objects.create(
+            product=self.product, attribute="کشور سازنده", value="ایرانی",
+            price=Decimal("100000"), compare_at_price=Decimal("150000"),
+        )
+        self.assertEqual(resolve_regular_price(self.product, variant), Decimal("150000"))
+        self.assertEqual(resolve_effective_price(self.product, variant), Decimal("100000"))
+        self.assertEqual(resolve_savings(self.product, variant), Decimal("50000"))
+
+    def test_absolute_variant_without_compare_at_has_no_savings(self):
+        variant = ProductVariant.objects.create(
+            product=self.product, attribute="کشور سازنده", value="ایتالیایی", price=Decimal("800000"),
+        )
+        self.assertEqual(resolve_regular_price(self.product, variant), Decimal("800000"))
+        self.assertEqual(resolve_savings(self.product, variant), Decimal("0"))
+
+    def test_legacy_delta_variant_unaffected_by_new_fields(self):
+        variant = ProductVariant.objects.create(
+            product=self.product, attribute="طول", value="30", extra_price=Decimal("5000"),
+        )
+        self.product.price = Decimal("200000")
+        self.product.save(update_fields=["price"])
+        self.assertIsNone(variant.price)
+        self.assertEqual(resolve_effective_price(self.product, variant), Decimal("205000"))
+        self.assertEqual(resolve_regular_price(self.product, variant), Decimal("205000"))
 
 
 class IsVariantPurchasableTests(TestCase):
