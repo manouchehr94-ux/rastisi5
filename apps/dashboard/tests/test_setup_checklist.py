@@ -79,6 +79,36 @@ class BuildSetupChecklistTests(TestCase):
         self.assertTrue(steps_by_key["product_groups"]["is_complete"])
         self.assertTrue(steps_by_key["product_categories"]["is_unlocked"])
 
+    def test_locked_steps_explain_why_via_locked_reason(self):
+        """کاربر باید همیشه بداند «چرا» یک مرحله قفل است، نه فقط اینکه قفل است."""
+        result = build_setup_checklist(self.store, self.request)
+        steps_by_key = {s["key"]: s for s in result["steps"]}
+        self.assertEqual(steps_by_key["industry"]["locked_reason"], "")
+        self.assertIn("انتخاب صنف", steps_by_key["product_groups"]["locked_reason"])
+        self.assertIn("انتخاب صنف", steps_by_key["publish"]["locked_reason"])
+
+    def test_locked_reason_points_to_the_nearest_unfinished_prerequisite(self):
+        """دلیلِ قفل باید نزدیک‌ترین مرحله‌ی ناتمام را نام ببرد، نه همیشه اولین مرحله‌ی زنجیره را."""
+        self.store.onboarding_stage = Store.OnboardingStage.BRANDING
+        self.store.save(update_fields=["onboarding_stage"])
+        Category.objects.create(store=self.store, name="گروه", slug="chk-reason-group")
+        result = build_setup_checklist(self.store, self.request)
+        steps_by_key = {s["key"]: s for s in result["steps"]}
+        self.assertIn("ایجاد دسته‌بندی‌ها", steps_by_key["brands"]["locked_reason"])
+
+    def test_exactly_one_unlocked_incomplete_step_is_marked_next(self):
+        """کاربر باید همیشه بداند «قدمِ بعدی» دقیقاً کدام است."""
+        result = build_setup_checklist(self.store, self.request)
+        next_steps = [s["key"] for s in result["steps"] if s["is_next"]]
+        self.assertEqual(next_steps, ["industry"])
+
+    def test_next_step_advances_once_current_step_completes(self):
+        self.store.onboarding_stage = Store.OnboardingStage.BRANDING
+        self.store.save(update_fields=["onboarding_stage"])
+        result = build_setup_checklist(self.store, self.request)
+        next_steps = [s["key"] for s in result["steps"] if s["is_next"]]
+        self.assertEqual(next_steps, ["product_groups"])
+
     def test_store_information_step_detects_description(self):
         shop = ShopSettings.objects.create(store=self.store, description="فروشگاهِ لباسِ آنلاین")
         result = build_setup_checklist(self.store, self.request)

@@ -288,13 +288,22 @@ def build_setup_checklist(store, request):
     steps = []
     completed_count = 0
     chain_blocked_so_far = False
+    blocking_label = None
+    next_step_key = None
     for step in _steps():
         is_complete = bool(step.is_complete(store, shop))
         if is_complete:
             completed_count += 1
         in_chain = step.key in CATALOG_CHAIN_KEYS
         is_unlocked = not (in_chain and chain_blocked_so_far)
+        locked_reason = (
+            f"ابتدا «{blocking_label}» را تکمیل کنید" if in_chain and not is_unlocked else ""
+        )
+        if next_step_key is None and not is_complete and is_unlocked:
+            next_step_key = step.key
         if in_chain and not is_complete:
+            if not chain_blocked_so_far:
+                blocking_label = step.label
             chain_blocked_so_far = True
         steps.append({
             "key": step.key,
@@ -302,6 +311,8 @@ def build_setup_checklist(store, request):
             "icon": step.icon,
             "is_complete": is_complete,
             "is_unlocked": is_unlocked,
+            "locked_reason": locked_reason,
+            "is_next": step.key == next_step_key,
             "url": step.url(store, request),
         })
     total_count = len(steps)
