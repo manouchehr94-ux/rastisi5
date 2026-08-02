@@ -580,8 +580,8 @@ class ForwardedHostTests(TestCase):
 
 class ResolveStorefrontUrlForStoreTests(TestCase):
     """Back to Store button: resolve_storefront_url_for_store must never use
-    admin_subdomain, must respect the custom > handle > trial priority
-    already encoded by is_primary, and must fail closed to None."""
+    admin_subdomain, must respect the explicit custom domain > platform
+    subdomain > trial subdomain priority, and must fail closed to None."""
 
     def setUp(self):
         self.store = Store.objects.create(name="Shop", slug="shop-a", status=Store.Status.ACTIVE)
@@ -650,3 +650,84 @@ class ResolveStorefrontUrlForStoreTests(TestCase):
         _make_verified_domain(self.store, "digigol.ir", is_primary=True)
         url = resolve_storefront_url_for_store(self.store)
         self.assertEqual(url, "https://digigol.ir/")
+
+    @override_settings(DEBUG=False)
+    def test_custom_domain_takes_priority_over_trial_domain(self):
+        StoreDomain.objects.create(
+            store=self.store, hostname="code123.rastisi.ir", is_primary=False,
+            domain_type=StoreDomain.DomainType.GENERATED_TRIAL,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+        StoreDomain.objects.create(
+            store=self.store, hostname="mystore.ir", is_primary=True,
+            domain_type=StoreDomain.DomainType.CUSTOM_DOMAIN,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+        url = resolve_storefront_url_for_store(self.store)
+        self.assertEqual(url, "https://mystore.ir/")
+
+    @override_settings(DEBUG=False)
+    def test_custom_domain_optional_falls_through_to_platform_subdomain(self):
+        """A Store must always have a working link even without ever having
+        set up a custom domain — the trial/platform subdomain alone must be
+        enough. Custom Domain must never block this."""
+        StoreDomain.objects.create(
+            store=self.store, hostname="myhandle.rastisi.ir", is_primary=True,
+            domain_type=StoreDomain.DomainType.PLATFORM_SUBDOMAIN,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+        url = resolve_storefront_url_for_store(self.store)
+        self.assertEqual(url, "https://myhandle.rastisi.ir/")
+
+    @override_settings(DEBUG=False)
+    def test_falls_through_to_trial_domain_when_nothing_else_exists(self):
+        StoreDomain.objects.create(
+            store=self.store, hostname="code123.rastisi.ir", is_primary=True,
+            domain_type=StoreDomain.DomainType.GENERATED_TRIAL,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+        url = resolve_storefront_url_for_store(self.store)
+        self.assertEqual(url, "https://code123.rastisi.ir/")
+
+    @override_settings(DEBUG=True)
+    def test_dev_mode_skips_an_unresolvable_custom_domain_and_falls_through(self):
+        """A custom domain with no real DNS (e.g. leftover/seed test data)
+        must never leave "Back to Store" pointing at a broken host in local
+        development — it must fall through to the next eligible tier."""
+        StoreDomain.objects.create(
+            store=self.store, hostname="shop-test-domain.local", is_primary=True,
+            domain_type=StoreDomain.DomainType.CUSTOM_DOMAIN,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+        StoreDomain.objects.create(
+            store=self.store, hostname="code123.rastisi.localhost", is_primary=False,
+            domain_type=StoreDomain.DomainType.GENERATED_TRIAL,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+        url = resolve_storefront_url_for_store(self.store)
+        self.assertEqual(url, "http://code123.rastisi.localhost:8000/")
+
+    @override_settings(DEBUG=True)
+    def test_dev_mode_accepts_127_0_0_1(self):
+        # "localhost" (no dot) can never actually be stored as a
+        # StoreDomain.hostname — normalize_hostname rejects it — so this
+        # exercises the realistic case; the bare "localhost"/"127.0.0.1"
+        # branch of _is_dev_resolvable_hostname itself is unit-tested
+        # directly below regardless of that DB-level constraint.
+        StoreDomain.objects.create(
+            store=self.store, hostname="127.0.0.1", is_primary=True,
+            domain_type=StoreDomain.DomainType.GENERATED_TRIAL,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+        url = resolve_storefront_url_for_store(self.store)
+        self.assertEqual(url, "http://127.0.0.1:8000/")
+
+    @override_settings(DEBUG=True)
+    def test_is_dev_resolvable_hostname_unit(self):
+        from apps.stores.resolution import _is_dev_resolvable_hostname
+
+        self.assertTrue(_is_dev_resolvable_hostname("localhost"))
+        self.assertTrue(_is_dev_resolvable_hostname("127.0.0.1"))
+        self.assertTrue(_is_dev_resolvable_hostname("teststore.rastisi.localhost"))
+        self.assertFalse(_is_dev_resolvable_hostname("shop-test-domain.local"))
+        self.assertFalse(_is_dev_resolvable_hostname("mystore.ir"))

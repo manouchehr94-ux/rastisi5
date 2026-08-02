@@ -442,21 +442,68 @@ def resolve_store_for_admin_request(request):
 # ---------------------------------------------------------------------------
 
 
+#: ترتیبِ صریحِ اولویتِ دامنه برایِ لینکِ «بازگشت به فروشگاه»: دامنه‌ی
+#: اختصاصیِ تأییدشده → زیردامنه‌ی دائمیِ عمومیِ راستیسی (نامِ ادعاشده) →
+#: زیردامنه‌ی آزمایشی. عمداً به ``is_primary`` تکیه نمی‌کند — آن پرچم برایِ
+#: تشخیصِ «کدام دامنه اکنون درخواست‌های عمومی را مسیریابی می‌کند» است، نه
+#: قراردادی که این تابع باید حفظ کند؛ شمارشِ صریحِ نوع، حتی اگر داده‌ی
+#: توسعه/تست دامنه‌ای غیرِ Primary اما دومینِ نوعِ بالاترِ اولویت داشته
+#: باشد (یا برعکس، Primary فعلی یک دامنه‌ی واقعی/نامعتبر برایِ محیطِ فعلی
+#: باشد)، درست کار می‌کند.
+_STOREFRONT_DOMAIN_TYPE_PRIORITY = (
+    StoreDomain.DomainType.CUSTOM_DOMAIN,
+    StoreDomain.DomainType.PLATFORM_SUBDOMAIN,
+    StoreDomain.DomainType.GENERATED_TRIAL,
+)
+
+
+def _is_dev_resolvable_hostname(hostname: str) -> bool:
+    """آیا این میزبان در محیطِ توسعه/سندباکسِ محلی واقعاً قابلِ‌بازکردن است؟
+
+    فقط در ``settings.DEBUG`` استفاده می‌شود — یک دامنه‌ی اختصاصیِ واقعی که
+    به‌اشتباه (مثلاً داده‌ی آزمایشی) به‌عنوانِ تأییدشده ثبت شده اما اصلاً DNSِ
+    واقعی/قابلِ‌حلی ندارد (مثلاً یک ``.local`` جعلی) نباید کاربر را به یک
+    میزبانِ غیرقابلِ‌بازشدن بفرستد؛ در آن صورت باید به لایه‌ی بعدیِ اولویت
+    (زیردامنه‌ی دائمی، سپس آزمایشی) سقوط کند — هر دو همیشه زیرِ همان
+    ``RASTISI_ADMIN_DOMAIN_SUFFIX``ی ساخته می‌شوند که در DEBUG همیشه
+    ``rastisi.localhost`` است، پس همیشه در همین سندباکس قابلِ‌بازشدن‌اند."""
+    stripped = _strip_port(hostname).lower()
+    if stripped in ("localhost", "127.0.0.1", "[::1]"):
+        return True
+    # ``.rastisi.localhost`` بررسیِ صریح و ثابت است، نه فقط از رویِ
+    # ``RASTISI_ADMIN_DOMAIN_SUFFIX`` فعلی — آن مقدار فقط یک‌بار، هنگامِ
+    # بارگذاریِ settings (بر اساسِ DEBUGِ واقعیِ فرایند)، تنظیم می‌شود، نه
+    # هر بار که یک تست با ``@override_settings(DEBUG=True)`` آن را شبیه‌سازی
+    # می‌کند؛ این قراردادِ محلیِ توسعه‌ی این کدبیس همیشه باید تشخیص داده شود.
+    if stripped.endswith(".rastisi.localhost"):
+        return True
+    suffix = "." + django_settings.RASTISI_ADMIN_DOMAIN_SUFFIX.lower()
+    return stripped.endswith(suffix)
+
+
 def resolve_storefront_url_for_store(store: Store, request=None):
     """The Store's current best public storefront URL, or ``None``.
 
-    Priority (an active custom domain, then a claimed permanent platform
-    handle, then the generated trial domain) is never re-derived here from
-    ``domain_type`` — it doesn't need to be. Activating a custom domain
-    (``domain_verification_service.activate_custom_domain``) and claiming a
-    permanent handle (``handle_service.claim_platform_handle``) both retire
-    and un-primary whatever ``StoreDomain`` previously held
-    ``is_primary=True`` before making the new one primary, so the single
-    ``is_primary`` row already reflects the correct priority order at all
-    times — this just reads it, via ``domain_is_eligible_for_routing`` (the
+    Priority is explicit, not derived from ``is_primary``:
+
+    1. a verified, eligible custom domain (``DomainType.CUSTOM_DOMAIN``);
+    2. a claimed, active public Rastisi subdomain (``DomainType.PLATFORM_SUBDOMAIN``);
+    3. the generated trial subdomain (``DomainType.GENERATED_TRIAL``).
+
+    Each tier still goes through ``domain_is_eligible_for_routing`` (the
     same fail-closed eligibility check ``resolve_store_for_hostname`` uses),
     so a suspended/closed Store or an unverified/retired domain never
-    produces a URL that would just 404.
+    produces a URL that would just 404. A custom domain must never block a
+    trial store from having a working "Back to Store" link — this function
+    always falls through to the next tier rather than stopping at the first
+    *matching* (but ineligible or, in DEBUG, unresolvable) domain.
+
+    In development (``settings.DEBUG``), a domain whose hostname isn't
+    actually resolvable in this sandbox (not ``localhost``/``127.0.0.1``/
+    ``*.{RASTISI_ADMIN_DOMAIN_SUFFIX}``) is skipped even if it is otherwise
+    "verified" — e.g. test/seed data for a real-looking custom domain that
+    has no real DNS. This is what makes local development always reach a
+    working link instead of a broken external host.
 
     Never built from ``store.admin_subdomain`` — that is the Merchant Admin
     Portal's own host and is never a public storefront domain (see
@@ -467,12 +514,20 @@ def resolve_storefront_url_for_store(store: Store, request=None):
     for the admin-host equivalent of this link. Otherwise uses ``request``'s
     scheme when given, defaulting to ``https``.
     """
-    domain = store.domains.filter(is_primary=True).select_related("store").first()
-    if domain is None or not domain_is_eligible_for_routing(domain):
-        return None
+    domains_by_type: dict[str, list] = {}
+    for domain in store.domains.filter(domain_type__in=_STOREFRONT_DOMAIN_TYPE_PRIORITY).order_by(
+        "-is_primary", "hostname"
+    ):
+        domains_by_type.setdefault(domain.domain_type, []).append(domain)
 
-    if django_settings.DEBUG:
-        return f"http://{domain.hostname}:8000/"
-
-    scheme = request.scheme if request is not None else "https"
-    return f"{scheme}://{domain.hostname}/"
+    for domain_type in _STOREFRONT_DOMAIN_TYPE_PRIORITY:
+        for domain in domains_by_type.get(domain_type, []):
+            if not domain_is_eligible_for_routing(domain):
+                continue
+            if django_settings.DEBUG and not _is_dev_resolvable_hostname(domain.hostname):
+                continue
+            if django_settings.DEBUG:
+                return f"http://{domain.hostname}:8000/"
+            scheme = request.scheme if request is not None else "https"
+            return f"{scheme}://{domain.hostname}/"
+    return None

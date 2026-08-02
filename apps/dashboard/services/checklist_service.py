@@ -155,7 +155,47 @@ def _custom_domain_complete(store, shop):
 
 
 def _publish_complete(store, shop):
-    return store.onboarding_completed_at is not None
+    """«انتشار فروشگاه» فقط وقتی واقعاً تکمیل‌شده حساب می‌شود که فروشگاه
+    واقعاً چیزی برای فروش داشته باشد — نه صرفِ عبور از ویزاردِ آنبوردینگ.
+    پیش از این، این مرحله فقط ``onboarding_completed_at`` را می‌خواند که
+    می‌توانست هم‌زمان با ناتمام‌بودنِ مرحله‌ی «ارسال» درست پیش از آن، ✅
+    نشان دهد — تناقضی که با این سه‌شرطِ داده‌محور رفع می‌شود: اطلاعاتِ
+    پایه‌ی فروشگاه، دست‌کم یک کالای فعال، و دست‌کم یک روشِ ارسال."""
+    return (
+        _store_information_complete(store, shop)
+        and _product_publish_complete(store, shop)
+        and _shipping_complete(store, shop)
+    )
+
+
+def _industry_installation(store):
+    return (
+        StoreIndustryInstallation.objects.select_related("industry_template")
+        .filter(store=store)
+        .first()
+    )
+
+
+def build_industry_summary(store) -> dict:
+    """اطلاعاتِ واقعیِ صنف/قالبِ نصب‌شده برایِ کارتِ کوچکِ «صنفِ فروشگاه» در
+    داشبورد — مستقیماً از ``StoreIndustryInstallation`` (تنها منبعِ حقیقتِ
+    این داده)؛ اگر نصبی وجود نداشته باشد (چه صنف اصلاً انتخاب نشده باشد، چه
+    آگاهانه رد شده باشد)، ``installation`` خالی برمی‌گردد تا تمپلیت پیامِ
+    «هنوز قالب صنفی نصب نشده است» را نشان دهد — هیچ متنی این‌جا هاردکد
+    نمی‌شود، فقط داده خوانده می‌شود."""
+    installation = _industry_installation(store)
+    if installation is None:
+        return {"has_installation": False}
+    return {
+        "has_installation": True,
+        "industry_name": installation.industry_template.name,
+        "template_version": installation.installed_version,
+        "status": installation.status,
+        "status_label": installation.get_status_display(),
+        "installed_at": installation.created_at,
+        "categories_created": installation.categories_created,
+        "attributes_created": installation.attributes_created,
+    }
 
 
 @dataclass(frozen=True)
@@ -165,6 +205,7 @@ class _ChecklistStep:
     icon: str
     is_complete: Callable
     url: Callable
+    description: str = ""
 
 
 #: کلیدهای زنجیره‌ی اصلیِ ۱۲مرحله‌ای (چک‌لیستِ راه‌اندازیِ کاتالوگ) — نگاه
@@ -227,8 +268,9 @@ def _steps():
             lambda store, request: reverse("dashboard:inventory-list"),
         ),
         _ChecklistStep(
-            "shipping", "ارسال", "🚚", _shipping_complete,
-            lambda store, request: reverse("dashboard:shipping-zone-list"),
+            "shipping", "پیکربندی ارسال", "🚚", _shipping_complete,
+            lambda store, request: reverse("dashboard:shipping-method-list"),
+            description="حداقل یک روش ارسال یا گزینه‌ی دریافت حضوری ایجاد کنید.",
         ),
         _ChecklistStep(
             "publish", "انتشار فروشگاه", "🚀", _publish_complete,
@@ -268,8 +310,9 @@ def _steps():
             lambda store, request: reverse("dashboard:tax-settings"),
         ),
         _ChecklistStep(
-            "custom_domain", "دامنه‌ی اختصاصی", "🌐", _custom_domain_complete,
+            "custom_domain", "دامنه‌ی اختصاصی (اختیاری)", "🌐", _custom_domain_complete,
             lambda store, request: _platform_url(request, f"/app/stores/{store.public_id}/domains/"),
+            description="اختیاری — فروشگاه بدونِ دامنه‌ی اختصاصی هم روی زیردامنه‌ی راستیسی کاملاً در دسترس است.",
         ),
     ]
 
@@ -314,6 +357,7 @@ def build_setup_checklist(store, request):
             "locked_reason": locked_reason,
             "is_next": step.key == next_step_key,
             "url": step.url(store, request),
+            "description": step.description,
         })
     total_count = len(steps)
     percent = round(completed_count * 100 / total_count) if total_count else 0

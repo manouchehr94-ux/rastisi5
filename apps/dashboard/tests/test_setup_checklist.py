@@ -18,7 +18,7 @@ from apps.catalog.models import (
     Vendor,
 )
 from apps.core.models import ShopSettings
-from apps.dashboard.services.checklist_service import build_setup_checklist
+from apps.dashboard.services.checklist_service import build_industry_summary, build_setup_checklist
 from apps.orders.models import PaymentGatewayConfig, ShippingMethod, TaxClass, TaxRate
 from apps.stores.models import Store, StoreDomain, StoreMembership
 
@@ -243,6 +243,14 @@ class BuildSetupChecklistTests(TestCase):
         step = next(s for s in result["steps"] if s["key"] == "shipping")
         self.assertTrue(step["is_complete"])
 
+    def test_shipping_step_label_and_description_and_url(self):
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "shipping")
+        self.assertEqual(step["label"], "پیکربندی ارسال")
+        self.assertIn("روش ارسال", step["description"])
+        self.assertIn("دریافت حضوری", step["description"])
+        self.assertEqual(step["url"], reverse("dashboard:shipping-method-list"))
+
     def test_payment_gateway_step_requires_active_config(self):
         PaymentGatewayConfig.objects.create(
             store=self.store, gateway_code=PaymentGatewayConfig.GatewayCode.COD, is_active=False,
@@ -282,16 +290,52 @@ class BuildSetupChecklistTests(TestCase):
         step = next(s for s in result["steps"] if s["key"] == "custom_domain")
         self.assertTrue(step["is_complete"])
 
-    def test_publish_step_detects_onboarding_completed_at(self):
+    def test_custom_domain_step_is_marked_optional_and_never_locked(self):
+        """دامنه‌ی اختصاصی هرگز نباید انتشار یا ورود به پنل را مسدود کند — طبقِ
+        الزام؛ برچسب هم صراحتاً «اختیاری» بودنش را می‌گوید."""
         result = build_setup_checklist(self.store, self.request)
-        step = next(s for s in result["steps"] if s["key"] == "publish")
-        self.assertFalse(step["is_complete"])
+        step = next(s for s in result["steps"] if s["key"] == "custom_domain")
+        self.assertIn("اختیاری", step["label"])
+        self.assertTrue(step["is_unlocked"])
 
+    def test_publish_step_requires_store_info_product_and_shipping(self):
+        """رفعِ تناقض: «فروشگاه منتشر شد» هرگز نباید هم‌زمان با ناتمام‌بودنِ
+        ارسال، کالای فعال یا اطلاعاتِ پایه‌ی فروشگاه تکمیل‌شده نشان داده شود —
+        حتی اگر ویزاردِ آنبوردینگ (onboarding_completed_at) از قبل طی شده باشد."""
         self.store.onboarding_completed_at = timezone.now()
         self.store.save(update_fields=["onboarding_completed_at"])
         result = build_setup_checklist(self.store, self.request)
         step = next(s for s in result["steps"] if s["key"] == "publish")
+        self.assertFalse(step["is_complete"])
+
+        ShopSettings.objects.create(store=self.store, description="فروشگاهِ لباسِ آنلاین")
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "publish")
+        self.assertFalse(step["is_complete"], "still missing an active product and a shipping method")
+
+        main = Category.objects.create(store=self.store, name="پوشاک", slug="clothing-pub")
+        sub = Category.objects.create(store=self.store, name="تیشرت", slug="clothing-sub-pub", parent=main)
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="vendor-pub")
+        Product.objects.create(
+            store=self.store, vendor=vendor, category=sub, name="تیشرت", slug="tshirt-pub",
+            sku="SKU-PUB1", price=Decimal("100000"), stock=5, status=Product.Status.ACTIVE,
+        )
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "publish")
+        self.assertFalse(step["is_complete"], "still missing a shipping method")
+
+        ShippingMethod.objects.create(store=self.store, name="پست پیشتاز", slug="post-pub", cost=Decimal("50000"))
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "publish")
         self.assertTrue(step["is_complete"])
+
+    def test_publish_step_never_complete_without_onboarding_completed_at_either(self):
+        """معکوسِ همان تناقض: onboarding_completed_at به‌تنهایی هم دیگر کافی
+        نیست — اما این تست فقط اطمینان می‌دهد که بدونِ داده‌ی واقعی، هرگز ✅
+        نشان داده نمی‌شود، حتی اگر ویزارد طی نشده باشد."""
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "publish")
+        self.assertFalse(step["is_complete"])
 
     def test_step_urls_never_use_admin_subdomain_host(self):
         result = build_setup_checklist(self.store, self.request)
@@ -328,3 +372,67 @@ class DashboardChecklistWidgetTests(TestCase):
             response = self.client.get(reverse("dashboard:dashboard"))
         self.assertContains(response, "فروشگاه شما آماده است")
         self.assertNotContains(response, "چک‌لیست راه‌اندازی فروشگاه")
+
+
+class BuildIndustrySummaryTests(TestCase):
+    """صنفِ فروشگاه و قالبِ نصب‌شده باید مستقیماً از StoreIndustryInstallation
+    خوانده شوند — هیچ متنی هاردکد نمی‌شود."""
+
+    def setUp(self):
+        self.store = Store.objects.create(name="New Shop", slug="industry-summary-shop", status=Store.Status.ACTIVE)
+
+    def test_no_installation_returns_has_installation_false(self):
+        summary = build_industry_summary(self.store)
+        self.assertEqual(summary, {"has_installation": False})
+
+    def test_installation_returns_real_industry_and_template_data(self):
+        template = IndustryTemplate.objects.create(
+            slug="clothing", name="پوشاک و مد", version=2, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
+        installation = StoreIndustryInstallation.objects.create(
+            store=self.store, industry_template=template, installed_version=2,
+            status=StoreIndustryInstallation.Status.COMPLETED, categories_created=5, attributes_created=3,
+        )
+        summary = build_industry_summary(self.store)
+        self.assertTrue(summary["has_installation"])
+        self.assertEqual(summary["industry_name"], "پوشاک و مد")
+        self.assertEqual(summary["template_version"], 2)
+        self.assertEqual(summary["status"], StoreIndustryInstallation.Status.COMPLETED)
+        self.assertEqual(summary["installed_at"], installation.created_at)
+
+    def test_failed_installation_status_surfaced(self):
+        template = IndustryTemplate.objects.create(
+            slug="shoes", name="کفش", version=1, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
+        StoreIndustryInstallation.objects.create(
+            store=self.store, industry_template=template, installed_version=1,
+            status=StoreIndustryInstallation.Status.FAILED,
+        )
+        summary = build_industry_summary(self.store)
+        self.assertEqual(summary["status"], StoreIndustryInstallation.Status.FAILED)
+
+
+class DashboardIndustryCardTests(TestCase):
+    """کارتِ صنفِ فروشگاه باید در صفحه‌ی داشبورد نمایش داده شود."""
+
+    def setUp(self):
+        self.store = Store.objects.get(slug="akhlaghi")
+        self.staff = User.objects.create_user(username="09121121088", password="pass12345", is_staff=True)
+        _grant_akhlaghi_membership(self.staff)
+        self.client.login(username="09121121088", password="pass12345")
+
+    def test_no_installation_shows_not_installed_message(self):
+        response = self.client.get(reverse("dashboard:dashboard"))
+        self.assertContains(response, "هنوز قالب صنفی نصب نشده است")
+
+    def test_installation_shows_industry_name_and_status(self):
+        template = IndustryTemplate.objects.create(
+            slug="mobile-dc", name="موبایل و تبلت", version=1, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
+        StoreIndustryInstallation.objects.create(
+            store=self.store, industry_template=template, installed_version=1,
+            status=StoreIndustryInstallation.Status.COMPLETED,
+        )
+        response = self.client.get(reverse("dashboard:dashboard"))
+        self.assertContains(response, "موبایل و تبلت")
+        self.assertContains(response, "نصب موفق")

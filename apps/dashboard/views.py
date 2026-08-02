@@ -439,6 +439,7 @@ def dashboard_home(request):
     context = dashboard_service.build_dashboard_context(store)
     context["active_page"] = "dashboard"
     context["setup_checklist"] = checklist_service.build_setup_checklist(store, request)
+    context["industry_summary"] = checklist_service.build_industry_summary(store)
     return render(request, "dashboard/dashboard.html", context)
 
 
