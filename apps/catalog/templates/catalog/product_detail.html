@@ -38,14 +38,29 @@
 
   <div class="pdp">
     <!-- gallery -->
-    <div class="gallery" x-data="{ active: 0 }">
+    <div class="gallery" x-data="{
+           active: 0,
+           showForVariant(variantId) {
+             const slides = [...this.$el.querySelectorAll('[data-slide]')];
+             const idx = slides.findIndex(s => s.dataset.variantId === String(variantId));
+             if (idx >= 0) { this.active = idx; return; }
+             const coverIdx = slides.findIndex(s => s.dataset.cover === 'true');
+             this.active = coverIdx >= 0 ? coverIdx : 0;
+           },
+         }"
+         x-init="
+           {% for attribute, items in variant_groups.items %}{% if forloop.first %}
+           showForVariant('{{ items.0.id }}');
+           {% endif %}{% endfor %}
+         "
+         @variant-selected.window="showForVariant($event.detail.id)">
       <div class="main">
         {% for slide in gallery_slides %}
           {% if slide.type == "image" %}
-          <img x-show="active === {{ forloop.counter0 }}" src="{{ slide.url }}" alt="{{ slide.alt }}"
+          <img data-slide data-variant-id="{{ slide.variant_id|default:'' }}" data-cover="{% if slide.is_cover %}true{% else %}false{% endif %}" x-show="active === {{ forloop.counter0 }}" src="{{ slide.url }}" alt="{{ slide.alt }}"
                style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:22px">
           {% else %}
-          <span x-show="active === {{ forloop.counter0 }}"
+          <span data-slide data-variant-id="" data-cover="false" x-show="active === {{ forloop.counter0 }}"
                 style="position:absolute;inset:0;display:grid;place-items:center;border-radius:22px;background:{{ slide.tint }}">{{ slide.emoji }}</span>
           {% endif %}
         {% endfor %}
@@ -85,14 +100,14 @@
           <div class="swatches">
             {% for v in items %}
             <div class="swatch" :class="{ active: selectedId === {{ v.id }} }" style="background:{{ v.value_hex }}"
-                 title="{{ v.value }}" @click="selectedId = {{ v.id }}; selectedValue = '{{ v.value|escapejs }}'"></div>
+                 title="{{ v.value }}" @click="selectedId = {{ v.id }}; selectedValue = '{{ v.value|escapejs }}'; $dispatch('variant-selected', { id: {{ v.id }} })"></div>
             {% endfor %}
           </div>
           {% else %}
           <div class="sizes">
             {% for v in items %}
             <button type="button" class="size" :class="{ active: selectedId === {{ v.id }} }"
-                    @click="selectedId = {{ v.id }}; selectedValue = '{{ v.value|escapejs }}'">
+                    @click="selectedId = {{ v.id }}; selectedValue = '{{ v.value|escapejs }}'; $dispatch('variant-selected', { id: {{ v.id }} })">
               {{ v.value }}{% if v.extra_price > 0 %} (+{{ v.extra_price|toman }}){% endif %}
             </button>
             {% endfor %}

@@ -245,6 +245,14 @@ class ProductImage(TimeStampedModel):
         "ProductVariant", verbose_name="تنوع مرتبط", null=True, blank=True,
         on_delete=models.SET_NULL, related_name="images",
     )
+    # اختصاص به یک مقدارِ ویژگیِ خاص (مثلاً «قرمز»)، مستقل از سایر محورها —
+    # برای سوییچ‌شدنِ خودکارِ تصویر در فروشگاه با انتخابِ رنگ/جنس/... حتی
+    # پیش از این‌که مشتری بقیه‌ی محورها (مثلاً سایز) را هم انتخاب کند. جدا
+    # از ``variant`` که به یک ترکیبِ کاملِ تنوع (مثلاً «قرمز/L») وصل می‌شود.
+    option_value = models.ForeignKey(
+        "ProductOptionValue", verbose_name="مقدارِ ویژگیِ مرتبط", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="images",
+    )
     image = models.ImageField("تصویر", upload_to="products/gallery/")
     thumbnail = models.ImageField("تصویر بندانگشتی", upload_to="products/thumbnails/", null=True, blank=True)
     alt = models.CharField("متن جایگزین", max_length=200, blank=True)
@@ -270,6 +278,8 @@ class ProductImage(TimeStampedModel):
 
         if self.variant_id and self.product_id and self.variant.product_id != self.product_id:
             raise ValidationError({"variant": "این تنوع متعلق به کالای دیگری است."})
+        if self.option_value_id and self.product_id and self.option_value.option.product_id != self.product_id:
+            raise ValidationError({"option_value": "این مقدارِ ویژگی متعلق به کالای دیگری است."})
 
 
 class ProductVideo(TimeStampedModel):
@@ -903,6 +913,10 @@ class Attribute(TimeStampedModel):
     is_searchable = models.BooleanField("قابل جست‌وجو", default=False)
     is_comparable = models.BooleanField("قابل مقایسه", default=False)
     is_variant_axis = models.BooleanField("واجد شرایط محور تنوع", default=False)
+    # وقتی روشن باشد، مقادیرِ این ویژگی (مثلاً رنگ‌ها) در فرمِ مدیریتِ تصاویر
+    # به‌عنوانِ گزینه‌ی «اختصاصِ تصویر به مقدار» پیشنهاد می‌شوند تا با انتخابِ
+    # آن مقدار در فروشگاه، تصویرِ نمایش‌داده‌شده خودکار عوض شود.
+    is_image_driving = models.BooleanField("تصویرمحور (سوییچِ خودکارِ تصویر)", default=False)
     category = models.ForeignKey(
         Category, verbose_name="دسته‌بندی", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="attributes",

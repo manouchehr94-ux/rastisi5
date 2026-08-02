@@ -36,6 +36,7 @@ urlpatterns = [
     path("products/<int:pk>/images/<int:image_id>/caption/", views.product_image_caption_update, name="product-image-caption"),
     path("products/<int:pk>/images/<int:image_id>/360/", views.product_image_360_toggle, name="product-image-360-toggle"),
     path("products/<int:pk>/images/<int:image_id>/variant/", views.product_image_variant_update, name="product-image-variant"),
+    path("products/<int:pk>/images/<int:image_id>/option-value/", views.product_image_option_value_update, name="product-image-option-value"),
 
     path("products/<int:pk>/videos/add/", views.product_video_add, name="product-video-add"),
     path("products/<int:pk>/videos/<int:video_id>/delete/", views.product_video_delete, name="product-video-delete"),

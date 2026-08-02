@@ -188,15 +188,94 @@ class ProductDetailGalleryTests(TestCase):
     def test_no_images_falls_back_to_emoji_slides(self):
         response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
         self.assertContains(response, "🎁")
-        self.assertNotContains(response, '<img x-show')
+        self.assertNotContains(response, "<img data-slide")
 
     def test_real_images_render_in_gallery(self):
         add_product_image(self.product, self._make_image_file(), alt="عکس کالای گالری")
         response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
         self.assertContains(response, "عکس کالای گالری")
-        self.assertContains(response, '<img x-show')
+        self.assertContains(response, "<img data-slide")
 
     def test_gallery_thumbnail_strip_uses_thumbnail_url(self):
         image = add_product_image(self.product, self._make_image_file())
         response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
         self.assertContains(response, image.thumbnail.url)
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ProductDetailVariantImageSwapTests(TestCase):
+    """گالریِ فروشگاه باید با انتخابِ یک تنوع (مثلاً رنگ) به تصویرِ اختصاصیِ
+    همان تنوع سوییچ کند — نگاه کنید به apps.catalog.services.product_image_service.set_image_variant
+    و ``.gallery``ی product_detail.html."""
+
+    @classmethod
+    def tearDownClass(cls):
+        from django.conf import settings
+
+        shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-pdp-swap")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-pdp-swap")
+        self.product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای سوییچ‌پذیر",
+            slug="swap-product", sku="SKU-SWAP1", price=Decimal("200000"),
+        )
+
+    def _make_image_file(self, name="photo.jpg"):
+        buffer = BytesIO()
+        Image.new("RGB", (400, 400), "#00ff00").save(buffer, format="JPEG")
+        return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/jpeg")
+
+    def test_slide_carries_its_variant_id_for_client_side_matching(self):
+        from apps.catalog.services.product_image_service import set_image_variant
+
+        red = ProductVariant.objects.create(product=self.product, attribute="رنگ", value="قرمز", value_hex="#f00")
+        image = add_product_image(self.product, self._make_image_file())
+        set_image_variant(image, red)
+        response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+        self.assertContains(response, f'data-variant-id="{red.pk}"')
+
+    def test_generic_image_has_no_variant_id(self):
+        add_product_image(self.product, self._make_image_file())
+        response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+        self.assertContains(response, 'data-variant-id=""')
+
+    def test_cover_image_is_marked_for_client_side_fallback(self):
+        add_product_image(self.product, self._make_image_file())
+        response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+        self.assertContains(response, 'data-cover="true"')
+
+    def test_only_the_cover_image_is_marked(self):
+        add_product_image(self.product, self._make_image_file("first.jpg"))
+        add_product_image(self.product, self._make_image_file("second.jpg"))
+        response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+        self.assertEqual(response.content.decode().count('data-cover="true"'), 1)
+
+    def test_default_selected_variant_id_is_wired_for_client_side_init(self):
+        """گره‌ی اولِ گروهِ تنوع (پیش‌فرضِ انتخاب‌شده در فرانت) باید در x-init
+        به‌عنوانِ تنوعِ اولیه برایِ تطبیقِ گالری استفاده شود."""
+        variant = ProductVariant.objects.create(
+            product=self.product, attribute="رنگ", value="آبی", value_hex="#00f",
+        )
+        response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+        self.assertContains(response, f"showForVariant('{variant.pk}')")
+
+    def test_works_for_a_non_color_attribute_too(self):
+        """مکانیسمِ سوییچ به نامِ محور وابسته نیست — برای هر محورِ تک‌مقداریِ
+        قدیمی (نه فقط «رنگ») کار می‌کند."""
+        from apps.catalog.services.product_image_service import set_image_variant
+
+        cotton = ProductVariant.objects.create(product=self.product, attribute="جنس", value="نخی")
+        image = add_product_image(self.product, self._make_image_file())
+        set_image_variant(image, cotton)
+        response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+        self.assertContains(response, f'data-variant-id="{cotton.pk}"')
+
+    def test_product_without_variants_renders_gallery_without_errors(self):
+        add_product_image(self.product, self._make_image_file())
+        response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "showForVariant('")

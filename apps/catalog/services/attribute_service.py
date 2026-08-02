@@ -39,7 +39,7 @@ def _unique_code(store, label: str, *, exclude_pk=None) -> str:
 @transaction.atomic
 def create_attribute(store, *, label, code="", description="", data_type=Attribute.DataType.TEXT, display_type="",
                       unit="", is_required=False, is_filterable=False, is_searchable=False,
-                      is_comparable=False, is_variant_axis=False, category=None) -> Attribute:
+                      is_comparable=False, is_variant_axis=False, is_image_driving=False, category=None) -> Attribute:
     label = normalize_text(label)
     if not label:
         raise AttributeError_("عنوان ویژگی نمی‌تواند خالی باشد.")
@@ -48,6 +48,7 @@ def create_attribute(store, *, label, code="", description="", data_type=Attribu
         store=store, label=label, code=code, description=description, data_type=data_type,
         display_type=display_type, unit=unit, is_required=is_required, is_filterable=is_filterable,
         is_searchable=is_searchable, is_comparable=is_comparable, is_variant_axis=is_variant_axis,
+        is_image_driving=is_image_driving,
         category=category, display_order=Attribute.objects.filter(store=store).count(),
     )
     try:

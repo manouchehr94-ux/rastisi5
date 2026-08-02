@@ -216,6 +216,7 @@ class AttributeForm(forms.Form):
     is_searchable = forms.BooleanField(label="قابل جست‌وجو", required=False)
     is_comparable = forms.BooleanField(label="قابل مقایسه", required=False)
     is_variant_axis = forms.BooleanField(label="واجد شرایط محور تنوع", required=False)
+    is_image_driving = forms.BooleanField(label="تصویرمحور (سوییچِ خودکارِ تصویر)", required=False)
 
     def __init__(self, *args, store, **kwargs):
         super().__init__(*args, **kwargs)

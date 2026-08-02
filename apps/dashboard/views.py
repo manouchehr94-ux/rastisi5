@@ -129,6 +129,7 @@ from apps.catalog.services.product_image_service import (
     reorder_product_images,
     set_cover_image,
     set_image_360,
+    set_image_option_value,
     set_image_variant,
     update_image_alt,
     update_image_caption,
@@ -947,6 +948,15 @@ def product_delete(request, pk):
 # ------------------------------------------------------- تصاویر کالا
 
 
+def _image_driving_option_values(product):
+    """مقادیرِ محورهایی که ویژگیِ مرتبط‌شان «تصویرمحور» علامت خورده — این‌ها
+    در فرمِ مدیریتِ تصاویر به‌عنوانِ گزینه‌ی «اختصاصِ تصویر به مقدار» نمایش
+    داده می‌شوند (مستقل از انتخابِ سایرِ محورها)."""
+    return ProductOptionValue.objects.filter(
+        option__product=product, option__attribute__is_image_driving=True,
+    ).select_related("option")
+
+
 @staff_required
 @permission_required(MEDIA_MANAGE)
 def product_images(request, pk):
@@ -955,13 +965,17 @@ def product_images(request, pk):
     return render(request, "dashboard/partials/product_images_modal.html", {
         "product": product, "upload_form": ProductImageUploadForm(),
         "variants": product.variants.all(), "videos": product.videos.all(),
+        "image_driving_values": _image_driving_option_values(product),
     })
 
 
 def _image_list_response(request, product, *, refresh_table=False):
     list_html = render_to_string(
         "dashboard/partials/product_images_list.html",
-        {"product": product, "variants": product.variants.all()},
+        {
+            "product": product, "variants": product.variants.all(),
+            "image_driving_values": _image_driving_option_values(product),
+        },
         request=request,
     )
     if not refresh_table:
@@ -1108,6 +1122,28 @@ def product_image_variant_update(request, pk, image_id):
     variant = get_object_or_404(ProductVariant, pk=variant_id, product=product) if variant_id else None
     try:
         set_image_variant(image, variant)
+    except ProductImageError:
+        pass
+    return _image_list_response(request, product, refresh_table=False)
+
+
+@require_POST
+@staff_required
+@permission_required(MEDIA_MANAGE)
+def product_image_option_value_update(request, pk, image_id):
+    """اختصاصِ تصویر به یک مقدارِ ویژگیِ خاص (مثلاً «قرمز») — نگاه کنید به
+    ``set_image_option_value``: مستقل از سایر محورهاست، برخلافِ اختصاص به
+    یک ترکیبِ کاملِ تنوع."""
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store)
+    image = get_object_or_404(ProductImage, pk=image_id, product=product)
+    option_value_id = request.POST.get("option_value", "").strip()
+    option_value = (
+        get_object_or_404(ProductOptionValue, pk=option_value_id, option__product=product)
+        if option_value_id else None
+    )
+    try:
+        set_image_option_value(image, option_value)
     except ProductImageError:
         pass
     return _image_list_response(request, product, refresh_table=False)
@@ -1487,6 +1523,7 @@ def _attribute_form_kwargs(form):
         "is_required": form.cleaned_data["is_required"], "is_filterable": form.cleaned_data["is_filterable"],
         "is_searchable": form.cleaned_data["is_searchable"], "is_comparable": form.cleaned_data["is_comparable"],
         "is_variant_axis": form.cleaned_data["is_variant_axis"],
+        "is_image_driving": form.cleaned_data["is_image_driving"],
     }
 
 
@@ -1542,6 +1579,7 @@ def attribute_edit(request, pk):
             "category": attribute.category_id, "is_required": attribute.is_required,
             "is_filterable": attribute.is_filterable, "is_searchable": attribute.is_searchable,
             "is_comparable": attribute.is_comparable, "is_variant_axis": attribute.is_variant_axis,
+            "is_image_driving": attribute.is_image_driving,
         })
 
     return render(request, "dashboard/partials/attribute_form_modal.html", {"form": form, "attribute": attribute})

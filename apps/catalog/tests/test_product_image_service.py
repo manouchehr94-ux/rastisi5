@@ -17,10 +17,12 @@ from apps.catalog.services.product_image_service import (
     delete_product_image,
     move_product_image,
     set_cover_image,
+    set_image_option_value,
     set_image_variant,
     update_image_alt,
     validate_image_file,
 )
+from apps.catalog.services.variant_engine_service import add_option_value, add_product_option
 from apps.stores.models import Store
 
 
@@ -243,4 +245,52 @@ class SetImageVariantTests(ProductImageServiceTestCase):
         self.variant.delete()
         image.refresh_from_db()
         self.assertIsNone(image.variant_id)
+        self.assertTrue(ProductImage.objects.filter(pk=image.pk).exists())
+
+
+class SetImageOptionValueTests(ProductImageServiceTestCase):
+    """اختصاصِ تصویر به یک مقدارِ محورِ تنوع (مثلاً «قرمز») — مستقل از یک
+    ترکیبِ کاملِ تنوع؛ نگاه کنید به ``set_image_variant`` برایِ مقایسه."""
+
+    def setUp(self):
+        super().setUp()
+        option = add_product_option(self.product, label="رنگ", values=["قرمز"])
+        self.value = option.values.get(label="قرمز")
+
+    def test_assigns_option_value(self):
+        image = add_product_image(self.product, _make_image_file())
+        updated = set_image_option_value(image, self.value)
+        self.assertEqual(updated.option_value_id, self.value.pk)
+
+    def test_clears_option_value_with_none(self):
+        image = add_product_image(self.product, _make_image_file())
+        set_image_option_value(image, self.value)
+        updated = set_image_option_value(image, None)
+        self.assertIsNone(updated.option_value_id)
+
+    def test_rejects_option_value_from_other_product(self):
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه دو", slug="pi-shop-3")
+        from apps.catalog.models import Category
+
+        category = Category.objects.create(store=self.store, name="دسته دو", slug="pi-cat-3")
+        other_product = Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name="کالای دیگر", slug="pi-product-3",
+            sku="PI-SKU-3", price=Decimal("100000"),
+        )
+        other_option = add_product_option(other_product, label="سایز", values=["بزرگ"])
+        other_value = other_option.values.get(label="بزرگ")
+        image = add_product_image(self.product, _make_image_file())
+        with self.assertRaises(ProductImageError):
+            set_image_option_value(image, other_value)
+        image.refresh_from_db()
+        self.assertIsNone(image.option_value_id)
+
+    def test_deleting_the_option_sets_null_instead_of_cascading(self):
+        """با حذفِ محور (و مقادیرش)، تصویر باقی می‌ماند و فقط اختصاصش برداشته
+        می‌شود (SET_NULL) — نه این‌که خودِ تصویر هم حذف شود."""
+        image = add_product_image(self.product, _make_image_file())
+        set_image_option_value(image, self.value)
+        self.value.option.delete()
+        image.refresh_from_db()
+        self.assertIsNone(image.option_value_id)
         self.assertTrue(ProductImage.objects.filter(pk=image.pk).exists())

@@ -199,3 +199,17 @@ def set_image_variant(image: ProductImage, variant) -> ProductImage:
     image.variant = variant
     image.save(update_fields=["variant"])
     return image
+
+
+def set_image_option_value(image: ProductImage, option_value) -> ProductImage:
+    """تصویر را به یک مقدارِ ویژگیِ خاص (مثلاً «قرمز») اختصاص می‌دهد، مستقل از
+    محورهای دیگر — با ``option_value=None`` این اختصاص برداشته می‌شود.
+
+    برخلافِ ``set_image_variant`` که به یک *ترکیبِ کامل* تنوع وصل می‌شود،
+    این تابع تصویر را به تنهاییِ یک مقدار وصل می‌کند تا هرجا آن مقدار
+    انتخاب شود (صرف‌نظر از سایر محورها) همین تصویر نمایش داده شود."""
+    if option_value is not None and option_value.option.product_id != image.product_id:
+        raise ProductImageError("این مقدارِ ویژگی متعلق به کالای دیگری است.")
+    image.option_value = option_value
+    image.save(update_fields=["option_value"])
+    return image

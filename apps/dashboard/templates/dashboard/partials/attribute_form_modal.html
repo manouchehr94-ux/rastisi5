@@ -64,6 +64,7 @@
       <label style="display:flex;align-items:center;gap:6px" title="در جست‌وجویِ سایت روی مقدارِ این ویژگی هم جست‌وجو انجام می‌شود."><input type="checkbox" name="is_searchable" {% if form.is_searchable.value %}checked{% endif %}> قابل جست‌وجو</label>
       <label style="display:flex;align-items:center;gap:6px" title="در جدولِ مقایسه‌ی کالاها نمایش داده می‌شود."><input type="checkbox" name="is_comparable" {% if form.is_comparable.value %}checked{% endif %}> قابل مقایسه</label>
       <label style="display:flex;align-items:center;gap:6px" title="فعال کنید تا این ویژگی در ساختِ تنوع‌های کالا (مثلاً رنگ × سایز) قابلِ انتخاب باشد."><input type="checkbox" name="is_variant_axis" {% if form.is_variant_axis.value %}checked{% endif %}> واجد شرایط محور تنوع</label>
+      <label style="display:flex;align-items:center;gap:6px" title="مقادیرِ این ویژگی (مثلاً رنگ‌ها) در فرمِ مدیریتِ تصاویر قابلِ اختصاص به یک تصویرِ مشخص می‌شوند تا با انتخابِ آن مقدار در فروشگاه، تصویر خودکار عوض شود."><input type="checkbox" name="is_image_driving" {% if form.is_image_driving.value %}checked{% endif %}> تصویرمحور (سوییچِ خودکارِ تصویر)</label>
     </div>
   </div>
   <div class="modal-foot">

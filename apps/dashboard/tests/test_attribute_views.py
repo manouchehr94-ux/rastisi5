@@ -82,6 +82,21 @@ class AttributeAddViewTests(AttributeViewsTestCase):
         trigger = json.loads(response.headers["HX-Trigger"])
         self.assertIn("modal-close", trigger)
 
+    def test_is_image_driving_defaults_to_false(self):
+        self.client.post(reverse("dashboard:attribute-add"), {
+            "label": "جنس", "data_type": Attribute.DataType.TEXT, "is_variant_axis": "on",
+        })
+        attribute = Attribute.objects.get(store=self.store, label="جنس")
+        self.assertFalse(attribute.is_image_driving)
+
+    def test_post_creates_image_driving_attribute(self):
+        self.client.post(reverse("dashboard:attribute-add"), {
+            "label": "رنگ", "data_type": Attribute.DataType.SELECT, "display_type": "swatch",
+            "is_variant_axis": "on", "is_image_driving": "on",
+        })
+        attribute = Attribute.objects.get(store=self.store, label="رنگ")
+        self.assertTrue(attribute.is_image_driving)
+
     def test_blank_label_rejected(self):
         response = self.client.post(reverse("dashboard:attribute-add"), {
             "label": "", "data_type": Attribute.DataType.TEXT,
@@ -114,6 +129,21 @@ class AttributeEditViewTests(AttributeViewsTestCase):
         other_attribute = create_attribute(other_store, label="جنس دیگر")
         response = self.client.get(reverse("dashboard:attribute-edit", args=[other_attribute.pk]))
         self.assertEqual(response.status_code, 404)
+
+    def test_edit_toggles_is_image_driving(self):
+        attribute = create_attribute(self.store, label="رنگ", is_variant_axis=True)
+        self.assertFalse(attribute.is_image_driving)
+        self.client.post(reverse("dashboard:attribute-edit", args=[attribute.pk]), {
+            "label": "رنگ", "data_type": Attribute.DataType.SELECT,
+            "is_variant_axis": "on", "is_image_driving": "on",
+        })
+        attribute.refresh_from_db()
+        self.assertTrue(attribute.is_image_driving)
+
+    def test_get_prefills_is_image_driving(self):
+        attribute = create_attribute(self.store, label="رنگ", is_variant_axis=True, is_image_driving=True)
+        response = self.client.get(reverse("dashboard:attribute-edit", args=[attribute.pk]))
+        self.assertContains(response, 'name="is_image_driving" checked')
 
 
 class AttributeArchiveActivateDeleteTests(AttributeViewsTestCase):

@@ -203,6 +203,13 @@ def _gallery_slides(product):
                 "url": img.image.url,
                 "thumb_url": img.thumbnail.url if img.thumbnail else img.image.url,
                 "alt": img.alt or product.name,
+                # اگر تصویر به یک تنوعِ خاص اختصاص یافته باشد، با انتخابِ همان
+                # تنوع در فروشگاه، گالری خودکار به این تصویر سوییچ می‌کند —
+                # نگاه کنید به apps.catalog.services.product_image_service.set_image_variant.
+                # وقتی تنوعِ انتخاب‌شده تصویرِ اختصاصی ندارد، گالری به همین
+                # تصویرِ کاور برمی‌گردد (نه این‌که رویِ تصویرِ تنوعِ قبلی بماند).
+                "variant_id": img.variant_id,
+                "is_cover": img.is_cover,
             }
             for img in images
         ]

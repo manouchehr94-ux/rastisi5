@@ -42,6 +42,17 @@
       {% endfor %}
     </select>
     {% endif %}
+    {% if image_driving_values %}
+    <select class="inp img-manage-variant" name="option_value"
+            title="با اختصاصِ این تصویر به یک مقدارِ ویژگی (مثلاً «قرمز»)، وقتی مشتری آن مقدار را انتخاب کند — صرف‌نظر از انتخابِ سایرِ محورها — تصویر خودکار عوض می‌شود."
+            hx-post="{% url 'dashboard:product-image-option-value' product.pk image.pk %}" hx-trigger="change"
+            hx-target="#productImagesList" hx-swap="outerHTML">
+      <option value="">— بدونِ اختصاص به مقدارِ ویژگی —</option>
+      {% for value in image_driving_values %}
+      <option value="{{ value.pk }}" {% if image.option_value_id == value.pk %}selected{% endif %}>{{ value.option.label }}: {{ value.label }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
     <div class="img-manage-actions">
       <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}
               hx-post="{% url 'dashboard:product-image-move' product.pk image.pk %}" hx-vals='{"direction":"up"}'

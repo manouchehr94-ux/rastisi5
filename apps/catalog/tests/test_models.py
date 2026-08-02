@@ -384,6 +384,37 @@ class CatalogTwoStoreUniquenessTests(TestCase):
         with self.assertRaises(ValidationError):
             image.full_clean()
 
+    def test_product_image_rejects_option_value_from_another_product(self):
+        from apps.catalog.services.variant_engine_service import add_product_option
+
+        vendor_a, category_a = self._vendor_and_category(self.store_a, "imgoptmismatch")
+        product1 = Product.objects.create(
+            store=self.store_a, vendor=vendor_a, category=category_a, name="A",
+            slug="imgoptmismatch-1", sku="IMGOPTMISMATCH-SKU-1", price=Decimal("100000"),
+        )
+        product2 = Product.objects.create(
+            store=self.store_a, vendor=vendor_a, category=category_a, name="B",
+            slug="imgoptmismatch-2", sku="IMGOPTMISMATCH-SKU-2", price=Decimal("100000"),
+        )
+        other_option = add_product_option(product2, label="رنگ", values=["زرد"])
+        other_value = other_option.values.get(label="زرد")
+        image = ProductImage(product=product1, image="products/gallery/sample.jpg", option_value=other_value)
+        with self.assertRaises(ValidationError):
+            image.full_clean()
+
+    def test_product_image_accepts_option_value_from_the_same_product(self):
+        from apps.catalog.services.variant_engine_service import add_product_option
+
+        vendor_a, category_a = self._vendor_and_category(self.store_a, "imgoptmatch")
+        product = Product.objects.create(
+            store=self.store_a, vendor=vendor_a, category=category_a, name="A",
+            slug="imgoptmatch-1", sku="IMGOPTMATCH-SKU-1", price=Decimal("100000"),
+        )
+        option = add_product_option(product, label="رنگ", values=["قرمز"])
+        value = option.values.get(label="قرمز")
+        image = ProductImage(product=product, image="products/gallery/sample.jpg", option_value=value)
+        image.full_clean()  # should not raise
+
     def test_category_rejects_parent_from_another_store(self):
         parent_b = Category.objects.create(store=self.store_b, name="ParentB", slug="parent-b-mismatch")
         child = Category(store=self.store_a, name="ChildA", slug="child-a-mismatch", parent=parent_b)

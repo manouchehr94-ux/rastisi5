@@ -275,6 +275,111 @@ class ProductImageVariantAssociationViewTests(ProductImageViewsTestCase):
         self.assertIsNone(image.variant_id)
 
 
+class ProductImageOptionValueAssociationViewTests(ProductImageViewsTestCase):
+    """اختصاصِ تصویر به یک مقدارِ محورِ تنوع (مستقل از سایرِ محورها) — نگاه
+    کنید به ``ProductImageVariantAssociationViewTests`` برایِ مقایسه با
+    اختصاص به یک ترکیبِ کاملِ تنوع."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.catalog.models import Attribute
+        from apps.catalog.services.variant_engine_service import add_product_option
+
+        self.image_driving_attr = Attribute.objects.create(
+            store=self.store, label="رنگ", code="color-piov", data_type="color", is_variant_axis=True,
+            is_image_driving=True,
+        )
+        self.option = add_product_option(self.product, label="رنگ", attribute=self.image_driving_attr, values=["قرمز", "آبی"])
+        self.red = self.option.values.get(label="قرمز")
+        self.blue = self.option.values.get(label="آبی")
+
+    def test_assigns_image_to_option_value(self):
+        image = add_product_image(self.product, _make_image_file())
+        response = self.client.post(
+            reverse("dashboard:product-image-option-value", args=[self.product.pk, image.pk]),
+            {"option_value": self.red.pk},
+        )
+        self.assertEqual(response.status_code, 200)
+        image.refresh_from_db()
+        self.assertEqual(image.option_value_id, self.red.pk)
+
+    def test_reassigning_to_blank_clears_it(self):
+        image = add_product_image(self.product, _make_image_file())
+        image.option_value = self.red
+        image.save(update_fields=["option_value"])
+        self.client.post(
+            reverse("dashboard:product-image-option-value", args=[self.product.pk, image.pk]),
+            {"option_value": ""},
+        )
+        image.refresh_from_db()
+        self.assertIsNone(image.option_value_id)
+
+    def test_option_value_from_other_product_rejected(self):
+        from apps.catalog.services.variant_engine_service import add_product_option
+
+        other_product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای دیگر", slug="piov-other",
+            sku="SKU-PIOV-OTHER", price=Decimal("100000"), stock=1,
+        )
+        other_option = add_product_option(other_product, label="سایز", values=["بزرگ"])
+        other_value = other_option.values.get(label="بزرگ")
+        image = add_product_image(self.product, _make_image_file())
+        response = self.client.post(
+            reverse("dashboard:product-image-option-value", args=[self.product.pk, image.pk]),
+            {"option_value": other_value.pk},
+        )
+        self.assertEqual(response.status_code, 404)
+        image.refresh_from_db()
+        self.assertIsNone(image.option_value_id)
+
+    def test_option_value_select_only_offered_for_image_driving_attributes(self):
+        """اگر ویژگیِ محور «تصویرمحور» نباشد، این گزینه در فرم اصلاً نمایش داده نمی‌شود."""
+        from apps.catalog.models import Attribute
+        from apps.catalog.services.variant_engine_service import add_product_option
+
+        plain_attr = Attribute.objects.create(
+            store=self.store, label="جنس", code="material-piov", data_type="text", is_variant_axis=True,
+            is_image_driving=False,
+        )
+        add_product_option(self.product, label="جنس", attribute=plain_attr, values=["چرم"])
+        add_product_image(self.product, _make_image_file())
+        response = self.client.get(reverse("dashboard:product-images", args=[self.product.pk]))
+        self.assertContains(response, "رنگ: قرمز")
+        self.assertNotContains(response, "جنس: چرم")
+
+    def test_anonymous_denied(self):
+        self.client.logout()
+        image = add_product_image(self.product, _make_image_file())
+        response = self.client.post(
+            reverse("dashboard:product-image-option-value", args=[self.product.pk, image.pk]),
+            {"option_value": self.red.pk},
+        )
+        self.assertEqual(response.status_code, 302)
+        image.refresh_from_db()
+        self.assertIsNone(image.option_value_id)
+
+    def test_other_store_product_404s(self):
+        other_store = Store.objects.create(name="فروشگاه دیگر", slug="piov-other-store", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="ف2", slug="piov-other-v")
+        other_category = Category.objects.create(store=other_store, name="د2", slug="piov-other-c")
+        other_product = Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="کالای دیگر",
+            slug="piov-other-tenant", sku="SKU-PIOV-TENANT", price=Decimal("1000"),
+        )
+        response = self.client.post(
+            reverse("dashboard:product-image-option-value", args=[other_product.pk, 1]),
+            {"option_value": self.red.pk},
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_not_allowed(self):
+        image = add_product_image(self.product, _make_image_file())
+        response = self.client.get(
+            reverse("dashboard:product-image-option-value", args=[self.product.pk, image.pk])
+        )
+        self.assertEqual(response.status_code, 405)
+
+
 class ProductImageReorderViewTests(ProductImageViewsTestCase):
     def test_reorders_by_posted_sequence(self):
         first = add_product_image(self.product, _make_image_file("a.jpg"))
