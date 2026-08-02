@@ -2232,6 +2232,44 @@ def product_variant_set_default(request, pk, variant_id):
 @require_POST
 @staff_required
 @permission_required(VARIANT_MANAGE)
+def product_variant_set_price(request, pk, variant_id):
+    """مودالِ «تنظیمِ قیمت» یک ردیفِ تنوع — قیمت و تخفیف٪ می‌گیرد و قیمتِ
+    نهایی را محاسبه می‌کند؛ دقیقاً همان قراردادِ Product.price/discount_percent
+    را رویِ فیلدهایِ موجودِ ProductVariant پیاده می‌کند (بدونِ فیلدِ جدید):
+    با تخفیف، ``price`` = قیمتِ نهایی و ``compare_at_price`` = قیمتِ خط‌خورده؛
+    بدونِ تخفیف، ``price`` = همان مقدار و ``compare_at_price`` پاک می‌شود."""
+    product = _get_scoped_product(request, pk)
+    variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
+
+    raw_price = normalize_digits(request.POST.get("price", "")).strip()
+    raw_discount = normalize_digits(request.POST.get("discount_percent", "")).strip() or "0"
+    try:
+        price = Decimal(raw_price)
+        discount = Decimal(raw_discount)
+        if price <= 0:
+            raise ValueError
+        if discount < 0 or discount > 100:
+            raise ValueError
+    except (InvalidOperation, ValueError):
+        return _product_options_response(
+            request, product, toast={"message": "قیمت یا درصدِ تخفیف نامعتبر است.", "type": "err"},
+        )
+
+    if discount > 0:
+        final_price = (price * (Decimal(100) - discount) / Decimal(100)).quantize(Decimal("1"))
+        variant.price = final_price
+        variant.compare_at_price = price
+    else:
+        variant.price = price.quantize(Decimal("1"))
+        variant.compare_at_price = None
+    variant.full_clean(exclude=["normalized_attribute", "normalized_value"])
+    variant.save(update_fields=["price", "compare_at_price", "updated_at"])
+    return _product_options_response(request, product, toast={"message": "قیمتِ تنوع ذخیره شد", "type": "ok"})
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
 def product_variants_bulk_update(request, pk):
     product = _get_scoped_product(request, pk)
     variant_ids = [int(v) for v in request.POST.getlist("variant_ids") if v.isdigit()]
@@ -2253,10 +2291,9 @@ def product_variants_bulk_update(request, pk):
             variant.barcode = request.POST.get(f"{prefix}barcode", "").strip()
             variant.stock = int(normalize_digits(request.POST.get(f"{prefix}stock", "0")) or 0)
             variant.extra_price = Decimal(normalize_digits(request.POST.get(f"{prefix}extra_price", "0")) or 0)
-            price_raw = normalize_digits(request.POST.get(f"{prefix}price", "")).strip()
-            variant.price = Decimal(price_raw) if price_raw else None
-            compare_at_raw = normalize_digits(request.POST.get(f"{prefix}compare_at_price", "")).strip()
-            variant.compare_at_price = Decimal(compare_at_raw) if compare_at_raw else None
+            # قیمت/قیمتِ مقایسه‌ای دیگر اینجا دست نمی‌خورَند — این‌ها منحصراً از
+            # طریقِ مودالِ «تنظیمِ قیمت» (نگاه کنید به ``product_variant_set_price``)
+            # مدیریت می‌شوند تا با یک بارگذاریِ گروهیِ ناقص پاک نشوند.
             cost_raw = normalize_digits(request.POST.get(f"{prefix}cost", "")).strip()
             variant.cost = Decimal(cost_raw) if cost_raw else None
             weight_raw = normalize_digits(request.POST.get(f"{prefix}weight_grams", "")).strip()

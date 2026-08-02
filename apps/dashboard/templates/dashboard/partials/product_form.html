@@ -2,7 +2,7 @@
 {{ existing_tags_list|json_script:"existing-tags-data" }}
 <div x-data="{
       tab: '{{ error_step|default:'basic' }}',
-      tabs: [['basic', 'اطلاعات پایه'], ['media', 'تصاویر و ویدیو'], ['price', 'قیمت و تنوع'], ['seo', 'سئو و انتشار']],
+      tabs: [['basic', 'اطلاعات پایه'], ['media', 'تصاویر و ویدیو'], ['price', 'قیمت'], ['seo', 'سئو و انتشار']],
       productType: '{{ form.product_type.value|default:'simple' }}',
       tags: JSON.parse(document.getElementById('existing-tags-data').textContent),
       tagInput: '',
@@ -12,17 +12,21 @@
         this.tagInput = '';
       },
       removeTag(t) { this.tags = this.tags.filter(x => x !== t) },
+      priceModalOpen: false,
+      priceVal: '{{ form.price.value|default:"" }}',
+      discountVal: '{{ form.discount_percent.value|default:"0" }}',
+      priceDraftVal: '',
+      discountDraftVal: '',
+      get hasPrice() { return Number(this.priceVal) > 0; },
+      finalPriceOf(p, d) { return Math.max(0, Math.round((Number(p) || 0) * (1 - (Number(d) || 0) / 100))); },
+      openPriceModal() { this.priceDraftVal = this.priceVal; this.discountDraftVal = this.discountVal; this.priceModalOpen = true; },
+      savePrice() { this.priceVal = this.priceDraftVal; this.discountVal = this.discountDraftVal || '0'; this.priceModalOpen = false; },
     }"
     x-init="$watch('tags', v => $refs.tagsHidden.value = v.join(','))">
 <div class="modal-head">
   <h3>{% if product %}ویرایش کالا{% else %}افزودن کالای جدید{% endif %}</h3>
   <button type="button" class="x-btn" @click="modalOpen = false">✕</button>
 </div>
-<!-- ``id="productSaveForm"``: نگاه کنید به دکمه‌های ذخیره در modal-foot — آن‌ها
-     عمداً *بیرونِ* همین فرم هستند (به‌خاطرِ جدولِ تنوعِ چندمحوره‌ی زیر، که هم
-     باید بیرونِ این فرم بماند تا فیلدهایِ هم‌نامش با فرمِ کالا/فرمِ افزودنِ
-     ویژگیِ سریع تداخل نکنند) و با ``hx-include="#productSaveForm"`` مقادیرِ
-     این فرم را صریحاً می‌فرستند. -->
 <form id="productSaveForm" hx-post="{% if product %}{% url 'dashboard:product-edit' product.pk %}{% else %}{% url 'dashboard:product-add' %}{% endif %}"
       hx-target="#admin-modal-content" hx-swap="innerHTML" hx-encoding="multipart/form-data">
   {% csrf_token %}
@@ -312,7 +316,7 @@
       {% endif %}
     </div>
 
-    <!-- تب ۲: قیمت و تنوع -->
+    <!-- تب ۲: قیمت -->
     <div class="form-section" x-show="tab === 'price'" x-ref="tabPrice">
       <div class="form-group">
         <label>نوعِ محصول <span class="help-icon" title="بعد از ذخیره هم قابلِ تغییر است.">؟</span></label>
@@ -320,82 +324,114 @@
           <label class="type-choice">
             <input type="radio" name="product_type" value="simple" x-model="productType"
                    {% if form.product_type.value == "simple" or not form.product_type.value %}checked{% endif %}>
-            <div><b>کالای ساده</b><small>یک کالای واحد با یک قیمت پایه و یک موجودی انبار.</small></div>
+            <div><b>کالای ساده</b></div>
           </label>
           <label class="type-choice">
             <input type="radio" name="product_type" value="variable" x-model="productType"
                    {% if form.product_type.value == "variable" %}checked{% endif %}>
-            <div><b>کالای دارای تنوع</b><small>گزینه‌های مجزا مثل رنگ، سایز، حجم، مدل یا هر ویژگیِ دیگری که خودتان تعریف می‌کنید — حتی «کشور سازنده» با قیمت‌های کاملاً متفاوت.</small></div>
+            <div><b>کالای دارای تنوع</b></div>
           </label>
         </div>
         {% for err in form.product_type.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
 
-      <div x-show="productType === 'simple'" x-cloak>
-        <div class="form-section-title">اطلاعات کالای ساده</div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>قیمت (تومان) * <span class="help-icon" title="قیمتِ نهاییِ فروش پیش از اعمالِ تخفیف.">؟</span></label>
-            <input class="inp" name="price" required value="{{ form.price.value|default_if_none:'' }}" placeholder="1250000" dir="ltr" inputmode="numeric"
-                   x-bind:disabled="productType !== 'simple'">
-            {% for err in form.price.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-          </div>
-          <!-- برایِ کالایِ دارای تنوع، فیلدِ قیمت در UI پنهان است (هر تنوع قیمتِ
-               خودش را دارد) اما ProductForm.price هنوز الزامی است؛ این ورودیِ
-               پنهان همان مقدارِ فعلی/حداقلی را جایگزینِ فیلدِ اصلی می‌فرستد.
-               ``disabled`` (نه فقط پنهانیِ ancestor) لازم است چون کرومیوم
-               فیلدِ الزامیِ پنهان‌شده از طریقِ ancestorِ display:none را هنوز
-               willValidate می‌داند و ارسالِ فرم را مسدود می‌کند. -->
-          <input type="hidden" name="price" x-bind:disabled="productType !== 'variable'"
-                 value="{{ form.price.value|default:'1' }}">
-          <div class="form-group">
-            <label>تخفیف (٪) <span class="help-icon" title="بینِ ۰ تا ۱۰۰؛ قیمتِ نهایی خودکار از رویِ قیمت و درصدِ تخفیف محاسبه می‌شود.">؟</span></label>
-            <input class="inp" name="discount_percent" value="{{ form.discount_percent.value|default:'0' }}" dir="ltr" inputmode="numeric">
-            {% for err in form.discount_percent.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-          </div>
-        </div>
-        <div class="form-group">
-          <label>دسته‌ی مالیاتی</label>
-          <select class="inp" name="tax_class">
-            <option value="">— پیش‌فرضِ فروشگاه —</option>
-            {% for choice in form.tax_class.field.queryset %}
-            <option value="{{ choice.pk }}" {% if form.tax_class.value|stringformat:"s" == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-group">
-          <label>بارکد محصول</label>
-          <input class="inp" name="barcode" value="{{ form.barcode.value|default_if_none:'' }}" dir="ltr">
-          {% for err in form.barcode.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-        </div>
+      <!-- قیمت همیشه از طریقِ مودالِ «تنظیمِ قیمت» وارد می‌شود — نه فیلدهایِ
+           مستقیمِ فرم — طبقِ الزامِ UXِ تأییدشده. برایِ هر دو نوعِ کالا
+           (ساده/دارای تنوع) دقیقاً همین دو فیلد ارسال می‌شود؛ برایِ کالایِ
+           دارای تنوع، این «قیمتِ پایه» است (fallback برایِ تنوع‌هایی که
+           قیمتِ مستقل ندارند). -->
+      <input type="hidden" name="price" :value="priceVal || '1'">
+      <input type="hidden" name="discount_percent" :value="discountVal || '0'">
+      {% for err in form.price.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
 
-        <div class="form-section-title" style="margin-top:20px">موجودی و ارسال</div>
-        <div class="form-row">
+      <div class="form-group" style="margin-top:18px">
+        <template x-if="!hasPrice">
+          <button type="button" class="btn btn-primary" @click="openPriceModal()"
+                  x-text="productType === 'variable' ? '💰 تنظیمِ قیمتِ پایه' : '💰 تنظیمِ قیمت'"></button>
+        </template>
+        <template x-if="hasPrice">
+          <div class="price-summary-box">
+            <div class="price-summary-line">
+              <span>قیمتِ نهایی</span>
+              <b x-text="Number(finalPriceOf(priceVal, discountVal)).toLocaleString('fa-IR') + ' تومان'"></b>
+            </div>
+            <div class="price-summary-line" x-show="Number(discountVal) > 0">
+              <span>تخفیف</span>
+              <b x-text="Number(discountVal).toLocaleString('fa-IR') + '٪'"></b>
+            </div>
+            <button type="button" class="btn btn-sm" @click="openPriceModal()">✏️ ویرایشِ قیمت</button>
+          </div>
+        </template>
+        <div class="field-help" x-show="!hasPrice" style="margin-top:8px">پیش از ذخیره، قیمت را تنظیم کنید.</div>
+      </div>
+
+      <div x-show="priceModalOpen" x-cloak class="price-modal-overlay" @click.self="priceModalOpen = false">
+        <div class="price-modal-card" @keydown.escape.window="priceModalOpen = false">
+          <h4 style="margin:0 0 14px">تنظیمِ قیمت</h4>
           <div class="form-group">
-            <label>موجودی انبار</label>
-            <input class="inp" name="stock" value="{{ form.stock.value|default:'0' }}" placeholder="0" dir="ltr" inputmode="numeric">
-            {% for err in form.stock.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+            <label>قیمت (تومان)</label>
+            <input class="inp" x-model="priceDraftVal" dir="ltr" inputmode="numeric" placeholder="1250000">
+          </div>
+          <div class="form-group">
+            <label>تخفیف (٪)</label>
+            <input class="inp" x-model="discountDraftVal" dir="ltr" inputmode="numeric" placeholder="0">
+          </div>
+          <div class="price-final-preview">
+            <span>قیمتِ نهایی</span>
+            <b x-text="Number(finalPriceOf(priceDraftVal, discountDraftVal)).toLocaleString('fa-IR') + ' تومان'"></b>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button type="button" class="btn" @click="priceModalOpen = false">انصراف</button>
+            <button type="button" class="btn btn-primary" @click="savePrice()">ذخیره‌ی قیمت</button>
+          </div>
+        </div>
+      </div>
+
+      <div x-show="productType === 'variable'" x-cloak class="info-box" style="margin-top:16px">
+        ویژگی‌ها (رنگ، سایز، کشورِ سازنده و ...) و جدولِ تنوع‌ها اینجا مدیریت نمی‌شوند — پس از ذخیره‌ی کالا، از دکمه‌ی
+        «⚙️ پیکربندیِ تنوع‌ها» در فهرستِ کالاها استفاده کنید.
+      </div>
+
+      <details style="margin-top:20px">
+        <summary style="cursor:pointer;color:var(--muted);font-size:13px">تنظیماتِ تکمیلی (مالیات، بارکد، موجودی، وزن، ارسال)</summary>
+        <div style="margin-top:14px">
+          <div class="form-group">
+            <label>دسته‌ی مالیاتی</label>
+            <select class="inp" name="tax_class">
+              <option value="">— پیش‌فرضِ فروشگاه —</option>
+              {% for choice in form.tax_class.field.queryset %}
+              <option value="{{ choice.pk }}" {% if form.tax_class.value|stringformat:"s" == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>بارکد محصول</label>
+              <input class="inp" name="barcode" value="{{ form.barcode.value|default_if_none:'' }}" dir="ltr">
+              {% for err in form.barcode.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+            </div>
+            <div class="form-group">
+              <label>موجودی انبار</label>
+              <input class="inp" name="stock" value="{{ form.stock.value|default:'0' }}" placeholder="0" dir="ltr" inputmode="numeric"
+                     title="برایِ کالای دارای تنوع، موجودیِ هر تنوع جداگانه در «پیکربندیِ تنوع‌ها» تنظیم می‌شود.">
+              {% for err in form.stock.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+            </div>
           </div>
           <div class="form-group">
             <label>وزن (گرم)</label>
             <input class="inp" name="weight_grams" value="{{ form.weight_grams.value|default_if_none:'' }}" dir="ltr" inputmode="numeric">
             {% for err in form.weight_grams.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
           </div>
+          <label style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" name="requires_shipping" {% if form.requires_shipping.value %}checked{% endif %}>
+            نیاز به ارسال فیزیکی دارد
+          </label>
+          <div class="form-group" style="margin-top:16px">
+            <label>ویژگی‌های اختصاصیِ این دسته‌بندی <span class="help-icon" title="این فیلدها بر اساسِ زیرگروهِ انتخاب‌شده تغییر می‌کنند؛ مثلاً رنگ، جنس یا هر مشخصه‌ی توصیفیِ دیگر (بدونِ ساختِ تنوعِ جدید).">؟</span></label>
+            {% include "dashboard/partials/product_attribute_fields.html" %}
+          </div>
         </div>
-        <label style="display:flex;align-items:center;gap:6px">
-          <input type="checkbox" name="requires_shipping" {% if form.requires_shipping.value %}checked{% endif %}>
-          نیاز به ارسال فیزیکی دارد
-        </label>
-        <div class="field-help" style="margin-right:24px">برایِ کالاهای دیجیتال/خدماتی که نیازی به پستِ فیزیکی ندارند، این گزینه را خاموش کنید.</div>
-      </div>
-
-      <!-- جدولِ ویژگی‌ها و تنوع (برایِ کالای دارای تنوع) عمداً این‌جا نیست — نگاه
-           کنید به بخشِ بیرونِ فرمِ اصلی، پس از modal-foot (توضیح در بالای فرم). -->
-
-      <div class="form-group" style="margin-top:20px">
-        <label>ویژگی‌های اختصاصیِ این دسته‌بندی <span class="help-icon" title="این فیلدها بر اساسِ زیرگروهِ انتخاب‌شده تغییر می‌کنند؛ مثلاً رنگ، جنس یا هر مشخصه‌ی توصیفیِ دیگر (بدونِ ساختِ تنوعِ جدید).">؟</span></label>
-        {% include "dashboard/partials/product_attribute_fields.html" %}
-      </div>
+      </details>
     </div>
 
     <!-- تب ۳: سئو و انتشار -->
@@ -440,42 +476,15 @@
       {% endif %}
     </div>
   </div>
-</form>
-
-<!-- ویژگی‌ها و جدولِ تنوعِ کالای دارای تنوع — عمداً بیرونِ #productSaveForm:
-     این جدول می‌تواند چند ردیف با فیلدهایِ هم‌نام (مثلاً «label» برایِ هر
-     محور) داشته باشد؛ اگر داخلِ فرمِ اصلی بود، ارسالِ خودکارِ htmx از
-     نزدیک‌ترین فرمِ دربرگیرنده باعثِ تداخلِ نامِ فیلدها با فرمِ کالا/فرمِ
-     ویژگیِ سریع می‌شد. -->
-<div class="modal-body" x-show="tab === 'price' && productType === 'variable'" x-cloak style="padding-top:0">
-  <div class="form-section">
-    <div class="form-section-title">ویژگی‌ها و تنوعِ محصول</div>
-    {% if product and product.product_type == "variable" %}
-    <div id="productOptionsBody">
-      {% include "dashboard/partials/product_options_body.html" %}
-    </div>
-    {% elif product %}
-    <div class="info-box">این کالا هنوز به‌عنوانِ «دارای تنوع» ذخیره نشده — پس از ذخیره با این گزینه، ویژگی‌ها و جدولِ تنوع در همین‌جا در دسترس خواهد بود.</div>
-    {% else %}
-    <div class="info-box">برایِ افزودنِ ویژگی (مثلاً رنگ، اندازه، کشورِ سازنده) و جدولِ تنوع، ابتدا کالا را ذخیره کنید — پس از آن، همین‌جا می‌توانید ویژگی و ردیف‌هایِ تنوع اضافه کنید. می‌توانید کالا را با وضعیتِ «پیش‌نویس» ذخیره کنید تا هنوز در فروشگاه نمایش داده نشود.</div>
-    {% endif %}
+  <div class="modal-foot wizard-foot">
+    <button type="button" class="btn" @click="modalOpen = false">انصراف</button>
+    <span style="flex:1"></span>
+    <button type="submit" class="btn" formnovalidate
+            @click="const s = $root.querySelector('[name=status]:checked'); if (s) s.value = 'draft'"
+            title="کالا را همین حالا با وضعیتِ «پیش‌نویس» ذخیره می‌کند — فیلدهای الزامی (نام، کد کالا، دسته‌بندی) هنوز باید پر شده باشند">
+      💾 ذخیره‌ی پیش‌نویس
+    </button>
+    <button type="submit" class="btn btn-primary">ذخیره کالا</button>
   </div>
-</div>
-
-<div class="modal-foot wizard-foot">
-  <button type="button" class="btn" @click="modalOpen = false">انصراف</button>
-  <span style="flex:1"></span>
-  <button type="button" class="btn"
-          hx-post="{% if product %}{% url 'dashboard:product-edit' product.pk %}{% else %}{% url 'dashboard:product-add' %}{% endif %}"
-          hx-include="#productSaveForm" hx-target="#admin-modal-content" hx-swap="innerHTML" hx-encoding="multipart/form-data"
-          @click="const s = document.querySelector('#productSaveForm [name=status]:checked'); if (s) s.value = 'draft'"
-          title="کالا را همین حالا با وضعیتِ «پیش‌نویس» ذخیره می‌کند — فیلدهای الزامی (نام، کد کالا، دسته‌بندی، قیمت) هنوز باید پر شده باشند">
-    💾 ذخیره‌ی پیش‌نویس
-  </button>
-  <button type="button" class="btn btn-primary"
-          hx-post="{% if product %}{% url 'dashboard:product-edit' product.pk %}{% else %}{% url 'dashboard:product-add' %}{% endif %}"
-          hx-include="#productSaveForm" hx-target="#admin-modal-content" hx-swap="innerHTML" hx-encoding="multipart/form-data">
-    ذخیره کالا
-  </button>
-</div>
+</form>
 </div>

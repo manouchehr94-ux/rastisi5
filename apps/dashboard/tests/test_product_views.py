@@ -115,6 +115,17 @@ class ProductListViewTests(ProductViewsTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "گوشی هوشمند")
 
+    def test_variable_product_shows_configure_variants_button(self):
+        self.product.product_type = Product.ProductType.VARIABLE
+        self.product.save(update_fields=["product_type"])
+        response = self.client.get(reverse("dashboard:product-list"))
+        self.assertContains(response, "پیکربندیِ تنوع‌ها")
+        self.assertContains(response, reverse("dashboard:product-options", args=[self.product.pk]))
+
+    def test_simple_product_has_no_configure_variants_button(self):
+        response = self.client.get(reverse("dashboard:product-list"))
+        self.assertNotContains(response, "پیکربندیِ تنوع‌ها")
+
 
 class ProductAddViewTests(ProductViewsTestCase):
     def _payload(self, **overrides):
@@ -202,10 +213,12 @@ class ProductAddViewTests(ProductViewsTestCase):
 
 
 class ProductWizardTests(ProductViewsTestCase):
-    """فرمِ افزودنِ کالا چهار بخشِ اصلی دارد (Product Entry rebuild: اطلاعات
-    پایه / تصاویر و ویدیو / قیمت و تنوع / سئو و انتشار)، همه در یک <form>
-    واحد (بدون از دست رفتنِ داده بین تب‌ها)، با اعتبارسنجیِ سمتِ سرور که
-    کاربر را دقیقاً به تبِ دارایِ خطا هدایت می‌کند."""
+    """فرمِ افزودنِ کالا چهار بخشِ اصلی دارد (اطلاعات پایه / تصاویر و ویدیو /
+    قیمت / سئو و انتشار)، همه در یک <form> واحد (بدون از دست رفتنِ داده بین
+    تب‌ها)، با اعتبارسنجیِ سمتِ سرور که کاربر را دقیقاً به تبِ دارایِ خطا
+    هدایت می‌کند. تبِ قیمت خودش ساده است — نوعِ کالا و دکمه‌ی «تنظیمِ
+    قیمت» (که مودال باز می‌کند)؛ مدیریتِ ویژگی/تنوع در صفحه‌ی جداگانه‌ی
+    «پیکربندیِ تنوع‌ها» انجام می‌شود، نه داخلِ ویزارد."""
 
     def _payload(self, **overrides):
         payload = {
@@ -227,8 +240,28 @@ class ProductWizardTests(ProductViewsTestCase):
         response = self.client.get(reverse("dashboard:product-add"))
         self.assertContains(response, "اطلاعات پایه")
         self.assertContains(response, "تصاویر و ویدیو")
-        self.assertContains(response, "قیمت و تنوع")
         self.assertContains(response, "سئو و انتشار")
+
+    def test_pricing_tab_shows_only_type_choice_and_set_price_button(self):
+        """تبِ قیمت فقط دو گزینه‌ی نوعِ کالا و دکمه‌ی «تنظیمِ قیمت» را نشان
+        می‌دهد — نه فیلدهای مستقیمِ قیمت/تخفیف و نه جدولِ تنوع."""
+        response = self.client.get(reverse("dashboard:product-add"))
+        content = response.content.decode()
+        tab_start = content.index('x-ref="tabPrice"')
+        tab_end = content.index('x-ref="tabSeo"')
+        tab_html = content[tab_start:tab_end]
+        self.assertIn("کالای ساده", tab_html)
+        self.assertIn("کالای دارای تنوع", tab_html)
+        self.assertIn("تنظیمِ قیمت", tab_html)
+        self.assertIn('type="hidden" name="price"', tab_html)
+        self.assertIn('type="hidden" name="discount_percent"', tab_html)
+        self.assertNotIn('type="text" name="price"', tab_html)
+        self.assertNotIn("variant-table", tab_html)
+        self.assertNotIn("id=\"productOptionsBody\"", content)
+
+    def test_pricing_tab_links_variant_management_to_configure_variants(self):
+        response = self.client.get(reverse("dashboard:product-add"))
+        self.assertContains(response, "پیکربندیِ تنوع‌ها")
 
     def test_basic_info_tab_contains_category_and_brand(self):
         """دسته‌بندی و برند در تبِ «اطلاعات پایه» هستند."""

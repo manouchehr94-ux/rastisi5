@@ -71,6 +71,13 @@ class ProductOptionsPageTests(ProductOptionsViewsTestCase):
         response = self.client.get(reverse("dashboard:product-options", args=[other_product.pk]))
         self.assertEqual(response.status_code, 404)
 
+    def test_two_column_variant_manager_layout(self):
+        """صفحه‌ی «پیکربندیِ تنوع‌ها» باید چیدمانِ دو‌ستونه (چپ: ویژگی‌ها،
+        راست: تنوع‌ها) داشته باشد."""
+        response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        self.assertContains(response, "variant-manager-grid")
+        self.assertContains(response, "⚙️ پیکربندیِ تنوع‌ها")
+
     def test_media_management_link_opens_via_htmx_not_full_navigation(self):
         """لینکِ «مدیریتِ تصاویر» باید با htmx داخلِ مودالِ صفحه باز شود، نه با ناوبریِ کاملِ صفحه.
 
@@ -201,6 +208,27 @@ class ProductVariantsGenerateViewTests(ProductOptionsViewsTestCase):
         self.assertEqual(self.product.variants.count(), 1)
 
 
+class ProductVariantTableRowActionsTests(ProductOptionsViewsTestCase):
+    """هر ردیفِ جدولِ تنوع دکمه‌ی «تنظیمِ قیمت» (نه اینپوتِ خامِ قیمت) و
+    دکمه‌ی حذفِ مستقل دارد — طبقِ طراحیِ تأییدشده."""
+
+    def test_row_shows_set_price_button_not_raw_input(self):
+        add_product_option(self.product, label="کشور سازنده", values=["ایرانی", "ایتالیایی"])
+        generate_variants(self.product)
+        response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        content = response.content.decode()
+        self.assertIn("تنظیمِ قیمت", content)
+        variant = self.product.variants.first()
+        self.assertNotIn(f'name="variant_{variant.pk}_price"', content)
+
+    def test_row_has_individual_delete_button(self):
+        add_product_option(self.product, label="رنگ", values=["سبز"])
+        generate_variants(self.product)
+        variant = self.product.variants.first()
+        response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        self.assertContains(response, f'"delete_variant_ids": [{variant.pk}]')
+
+
 class ProductVariantSetDefaultViewTests(ProductOptionsViewsTestCase):
     def test_sets_default(self):
         add_product_option(self.product, label="رنگ", values=["سبز", "آبی"])
@@ -225,10 +253,10 @@ class ProductVariantsBulkUpdateViewTests(ProductOptionsViewsTestCase):
         response = self.client.post(reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), {
             "variant_ids": [v1.pk, v2.pk],
             f"variant_{v1.pk}_sku": "NEW-SKU-1", f"variant_{v1.pk}_barcode": "1234567890123",
-            f"variant_{v1.pk}_extra_price": "5000", f"variant_{v1.pk}_compare_at_price": "350000",
+            f"variant_{v1.pk}_extra_price": "5000",
             f"variant_{v1.pk}_cost": "200000", f"variant_{v1.pk}_stock": "20", f"variant_{v1.pk}_is_active": "on",
             f"variant_{v2.pk}_sku": v2.sku, f"variant_{v2.pk}_barcode": "",
-            f"variant_{v2.pk}_extra_price": "0", f"variant_{v2.pk}_compare_at_price": "",
+            f"variant_{v2.pk}_extra_price": "0",
             f"variant_{v2.pk}_cost": "", f"variant_{v2.pk}_stock": "5", f"variant_{v2.pk}_is_active": "on",
         })
         self.assertEqual(response.status_code, 200)
@@ -236,7 +264,6 @@ class ProductVariantsBulkUpdateViewTests(ProductOptionsViewsTestCase):
         self.assertEqual(v1.sku, "NEW-SKU-1")
         self.assertEqual(v1.barcode, "1234567890123")
         self.assertEqual(v1.extra_price, Decimal("5000"))
-        self.assertEqual(v1.compare_at_price, Decimal("350000"))
         self.assertEqual(v1.cost, Decimal("200000"))
         self.assertEqual(v1.stock, 20)
 
@@ -285,7 +312,8 @@ class ProductVariantsBulkUpdateViewTests(ProductOptionsViewsTestCase):
 
 
 class ProductVariantsBulkUpdatePriceTaxWeightTests(ProductOptionsViewsTestCase):
-    """قیمتِ مستقل/دسته‌ی مالیاتی/وزن — فیلدهایِ جدیدِ جدولِ تنوع."""
+    """دسته‌ی مالیاتی/وزن/محدودیتِ فروش — فیلدهایِ جدولِ تنوع. قیمت دیگر از
+    این‌جا تنظیم نمی‌شود — نگاه کنید به ``ProductVariantSetPriceViewTests``."""
 
     def _generate(self):
         add_product_option(self.product, label="کشور سازنده", values=["ایرانی", "ایتالیایی"])
@@ -295,39 +323,30 @@ class ProductVariantsBulkUpdatePriceTaxWeightTests(ProductOptionsViewsTestCase):
     def _base_fields(self, variant, **overrides):
         fields = {
             f"variant_{variant.pk}_sku": variant.sku, f"variant_{variant.pk}_barcode": "",
-            f"variant_{variant.pk}_extra_price": "0", f"variant_{variant.pk}_compare_at_price": "",
+            f"variant_{variant.pk}_extra_price": "0",
             f"variant_{variant.pk}_cost": "", f"variant_{variant.pk}_stock": "5",
-            f"variant_{variant.pk}_is_active": "on", f"variant_{variant.pk}_price": "",
+            f"variant_{variant.pk}_is_active": "on",
             f"variant_{variant.pk}_weight_grams": "", f"variant_{variant.pk}_tax_class": "",
         }
         fields.update({f"variant_{variant.pk}_{k}": v for k, v in overrides.items()})
         return fields
 
-    def test_sets_absolute_price(self):
-        variants = self._generate()
-        iranian, italian = variants[0], variants[1]
-        payload = {"variant_ids": [iranian.pk, italian.pk]}
-        payload.update(self._base_fields(iranian, price="100000"))
-        payload.update(self._base_fields(italian, price="800000"))
-        response = self.client.post(
-            reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload,
-        )
-        self.assertEqual(response.status_code, 200)
-        iranian.refresh_from_db()
-        italian.refresh_from_db()
-        self.assertEqual(iranian.price, Decimal("100000"))
-        self.assertEqual(italian.price, Decimal("800000"))
-
-    def test_blank_price_clears_absolute_price(self):
+    def test_bulk_update_does_not_touch_price_set_via_modal(self):
+        """رگرسیون: ذخیره‌ی گروهیِ SKU/موجودی/فعال نباید قیمتی را که از طریقِ
+        مودالِ «تنظیمِ قیمت» ثبت شده پاک کند (باگی که موقعِ حذفِ اینپوتِ خامِ
+        قیمت از جدول کشف و رفع شد)."""
         variants = self._generate()
         v1 = variants[0]
         v1.price = Decimal("100000")
-        v1.save(update_fields=["price"])
+        v1.compare_at_price = Decimal("120000")
+        v1.save(update_fields=["price", "compare_at_price"])
         payload = {"variant_ids": [v1.pk]}
-        payload.update(self._base_fields(v1, price=""))
+        payload.update(self._base_fields(v1, stock="9"))
         self.client.post(reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload)
         v1.refresh_from_db()
-        self.assertIsNone(v1.price)
+        self.assertEqual(v1.price, Decimal("100000"))
+        self.assertEqual(v1.compare_at_price, Decimal("120000"))
+        self.assertEqual(v1.stock, 9)
 
     def test_sets_weight_grams(self):
         variants = self._generate()
@@ -699,5 +718,92 @@ class RecommendedOptionTests(ProductOptionsViewsTestCase):
         recommendation = self._recommend()  # tied to self.category, not other_category
         response = self.client.post(
             reverse("dashboard:product-apply-recommended-option", args=[other_product.pk, recommendation.pk])
+        )
+        self.assertEqual(response.status_code, 404)
+
+
+class ProductVariantSetPriceViewTests(ProductOptionsViewsTestCase):
+    """مودالِ «تنظیمِ قیمت» یک ردیفِ تنوع — Price + Discount% → Final Price،
+    دقیقاً همان کالای ساده، رویِ فیلدهایِ موجودِ ProductVariant."""
+
+    def _generate(self):
+        add_product_option(self.product, label="کشور سازنده", values=["ایرانی", "ایتالیایی"])
+        generate_variants(self.product)
+        return list(self.product.variants.all())
+
+    def test_no_discount_sets_price_and_clears_compare_at(self):
+        v1 = self._generate()[0]
+        v1.compare_at_price = Decimal("999999")
+        v1.save(update_fields=["compare_at_price"])
+        response = self.client.post(
+            reverse("dashboard:product-variant-set-price", args=[self.product.pk, v1.pk]),
+            {"price": "100000", "discount_percent": "0"},
+        )
+        self.assertEqual(response.status_code, 200)
+        v1.refresh_from_db()
+        self.assertEqual(v1.price, Decimal("100000"))
+        self.assertIsNone(v1.compare_at_price)
+
+    def test_discount_computes_final_price_and_compare_at(self):
+        v1 = self._generate()[0]
+        response = self.client.post(
+            reverse("dashboard:product-variant-set-price", args=[self.product.pk, v1.pk]),
+            {"price": "100000", "discount_percent": "15"},
+        )
+        self.assertEqual(response.status_code, 200)
+        v1.refresh_from_db()
+        self.assertEqual(v1.price, Decimal("85000"))
+        self.assertEqual(v1.compare_at_price, Decimal("100000"))
+
+    def test_scissors_iranian_italian_different_prices(self):
+        iranian, italian = self._generate()
+        self.client.post(
+            reverse("dashboard:product-variant-set-price", args=[self.product.pk, iranian.pk]),
+            {"price": "100000", "discount_percent": "0"},
+        )
+        self.client.post(
+            reverse("dashboard:product-variant-set-price", args=[self.product.pk, italian.pk]),
+            {"price": "800000", "discount_percent": "0"},
+        )
+        iranian.refresh_from_db()
+        italian.refresh_from_db()
+        self.assertEqual(iranian.price, Decimal("100000"))
+        self.assertEqual(italian.price, Decimal("800000"))
+
+    def test_invalid_price_rejected(self):
+        v1 = self._generate()[0]
+        response = self.client.post(
+            reverse("dashboard:product-variant-set-price", args=[self.product.pk, v1.pk]),
+            {"price": "0", "discount_percent": "0"},
+        )
+        self.assertEqual(response.status_code, 200)
+        v1.refresh_from_db()
+        self.assertIsNone(v1.price)
+
+    def test_discount_out_of_range_rejected(self):
+        v1 = self._generate()[0]
+        response = self.client.post(
+            reverse("dashboard:product-variant-set-price", args=[self.product.pk, v1.pk]),
+            {"price": "100000", "discount_percent": "150"},
+        )
+        self.assertEqual(response.status_code, 200)
+        v1.refresh_from_db()
+        self.assertIsNone(v1.price)
+
+    def test_tenant_isolation(self):
+        other_store = Store.objects.create(name="فروشگاه دیگر", slug="popt-price-other", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="ف8", slug="popt-price-other-v")
+        other_category = Category.objects.create(store=other_store, name="د8", slug="popt-price-other-c")
+        other_product = Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="کالای دیگر۸",
+            slug="popt-price-other-p", sku="POPT-PRICE-OTHER", price=Decimal("1000"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        add_product_option(other_product, label="رنگ", values=["سبز"])
+        generate_variants(other_product)
+        other_variant = other_product.variants.first()
+        response = self.client.post(
+            reverse("dashboard:product-variant-set-price", args=[self.product.pk, other_variant.pk]),
+            {"price": "500000", "discount_percent": "0"},
         )
         self.assertEqual(response.status_code, 404)
