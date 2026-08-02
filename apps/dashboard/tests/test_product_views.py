@@ -145,6 +145,30 @@ class ProductAddViewTests(ProductViewsTestCase):
         self.assertContains(response, "قبلاً استفاده شده است")
         self.assertEqual(Product.objects.filter(sku="SKU-PV1").count(), 1)
 
+    def test_tags_survive_a_validation_error_round_trip(self):
+        """رگرسیون: قبل از این وصله، وقتی فرم با خطا (مثلاً SKU تکراری)
+        دوباره رندر می‌شد، برچسب‌هایِ تازه‌واردشده‌ی کاربر بی‌سروصدا از دست
+        می‌رفتند چون کانتکست همیشه از رویِ product.tags (خالی، چون کالا هنوز
+        ساخته نشده) پر می‌شد، نه از رویِ داده‌ی واقعاً ارسال‌شده."""
+        response = self.client.post(
+            reverse("dashboard:product-add"), self._payload(sku="SKU-PV1", tags="نخی,تابستانی"),
+        )
+        self.assertContains(response, "قبلاً استفاده شده است")
+        content = response.content.decode()
+        self.assertIn('id="existing-tags-data"', content)
+        import json as _json
+
+        tags_json_start = content.index('id="existing-tags-data"')
+        script_start = content.index(">", tags_json_start) + 1
+        script_end = content.index("</script>", script_start)
+        self.assertEqual(_json.loads(content[script_start:script_end]), ["نخی", "تابستانی"])
+
+    def test_tags_are_created_and_assigned_on_success(self):
+        response = self.client.post(reverse("dashboard:product-add"), self._payload(tags="نخی, تابستانی"))
+        self.assertEqual(response.status_code, 200)
+        product = Product.objects.get(sku="SKU-NEW1")
+        self.assertEqual(set(product.tags.values_list("name", flat=True)), {"نخی", "تابستانی"})
+
     def test_missing_required_fields_rejected(self):
         response = self.client.post(reverse("dashboard:product-add"), self._payload(name="", category=""))
         self.assertEqual(response.status_code, 200)
@@ -167,10 +191,10 @@ class ProductAddViewTests(ProductViewsTestCase):
 
 
 class ProductWizardTests(ProductViewsTestCase):
-    """فرمِ افزودنِ کالا یک ویزاردِ چندمرحله‌ای است — اکنون ۶ مرحله‌ی ساده‌شده
-    (به‌جایِ ۹ مرحله‌ی قبلی، برایِ کاهشِ بارِ شناختی)، همه در یک <form> واحد
-    (بدون از دست رفتنِ داده بین مراحل)، با اعتبارسنجیِ سمتِ سرور که کاربر را
-    دقیقاً به مرحله‌ی دارایِ خطا هدایت می‌کند."""
+    """فرمِ افزودنِ کالا سه بخشِ اصلی دارد (Product Entry rebuild: اطلاعات
+    پایه / قیمت و ویژگی‌ها / سئو و انتشار)، همه در یک <form> واحد (بدون از
+    دست رفتنِ داده بین تب‌ها)، با اعتبارسنجیِ سمتِ سرور که کاربر را دقیقاً
+    به تبِ دارایِ خطا هدایت می‌کند."""
 
     def _payload(self, **overrides):
         payload = {
@@ -181,43 +205,52 @@ class ProductWizardTests(ProductViewsTestCase):
         payload.update(overrides)
         return payload
 
-    def test_wizard_renders_all_six_steps_in_one_form(self):
+    def test_form_renders_all_three_tabs_in_one_form(self):
         response = self.client.get(reverse("dashboard:product-add"))
         content = response.content.decode()
-        self.assertEqual(content.count("<form"), 1)  # یک فرمِ واحد، نه فرم‌های جداگانه‌ی هر مرحله
-        for n in range(1, 7):
-            self.assertIn(f'x-ref="step{n}"', content)
-        self.assertNotIn('x-ref="step7"', content)
+        self.assertEqual(content.count("<form"), 1)  # یک فرمِ واحد، نه فرم‌های جداگانه‌ی هر تب
+        for ref in ["tabBasic", "tabPrice", "tabSeo"]:
+            self.assertIn(f'x-ref="{ref}"', content)
 
-    def test_progress_indicator_present(self):
+    def test_tab_labels_present(self):
         response = self.client.get(reverse("dashboard:product-add"))
-        self.assertContains(response, "wizard-progress")
         self.assertContains(response, "اطلاعات پایه")
+        self.assertContains(response, "قیمت و ویژگی‌ها")
         self.assertContains(response, "سئو و انتشار")
 
-    def test_basic_info_step_still_contains_category_and_brand(self):
-        """دسته‌بندی و برند دیگر مرحله‌ی جداگانه نیستند — درونِ «اطلاعات پایه» ادغام شده‌اند."""
+    def test_basic_info_tab_contains_category_and_brand(self):
+        """دسته‌بندی و برند در تبِ «اطلاعات پایه» هستند."""
         response = self.client.get(reverse("dashboard:product-add"))
         content = response.content.decode()
-        step1_start = content.index('x-ref="step1"')
-        step2_start = content.index('x-ref="step2"')
-        step1_html = content[step1_start:step2_start]
-        self.assertIn('name="category"', step1_html)
-        self.assertIn('name="brand"', step1_html)
+        tab_start = content.index('x-ref="tabBasic"')
+        tab_end = content.index('x-ref="tabPrice"')
+        tab_html = content[tab_start:tab_end]
+        self.assertIn('name="category"', tab_html)
+        self.assertIn('name="brand"', tab_html)
 
-    def test_error_step_routes_to_basic_info_step_when_category_missing(self):
+    def test_price_tab_contains_attributes_and_variant_type(self):
+        """ویژگی‌ها و نوعِ کالا در همان تبِ «قیمت و ویژگی‌ها» هستند."""
+        response = self.client.get(reverse("dashboard:product-add"))
+        content = response.content.decode()
+        tab_start = content.index('x-ref="tabPrice"')
+        tab_end = content.index('x-ref="tabSeo"')
+        tab_html = content[tab_start:tab_end]
+        self.assertIn('name="product_type"', tab_html)
+        self.assertIn("productAttributeFields", tab_html)
+
+    def test_error_step_routes_to_basic_tab_when_category_missing(self):
         response = self.client.post(reverse("dashboard:product-add"), self._payload(category=""))
         self.assertEqual(response.status_code, 200)
-        self.assertIn("step: 1,", response.content.decode())
+        self.assertIn("tab: 'basic',", response.content.decode())
 
-    def test_error_step_routes_to_pricing_step_when_price_missing(self):
+    def test_error_step_routes_to_price_tab_when_price_missing(self):
         response = self.client.post(reverse("dashboard:product-add"), self._payload(price=""))
         self.assertEqual(response.status_code, 200)
-        self.assertIn("step: 2,", response.content.decode())
+        self.assertIn("tab: 'price',", response.content.decode())
 
-    def test_error_step_defaults_to_one_on_fresh_get(self):
+    def test_error_step_defaults_to_basic_on_fresh_get(self):
         response = self.client.get(reverse("dashboard:product-add"))
-        self.assertIn("step: 1,", response.content.decode())
+        self.assertIn("tab: 'basic',", response.content.decode())
 
     def test_missing_category_banner_shown_when_store_has_no_categories(self):
         Product.objects.filter(store=self.store).delete()

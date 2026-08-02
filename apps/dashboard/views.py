@@ -681,34 +681,53 @@ def _save_product(form, product, *, store):
     return product
 
 
-#: نامِ فیلد → شماره‌ی مرحله در فرمِ ویزارد (product_form.html) — برایِ
-#: اینکه وقتی اعتبارسنجیِ سمتِ سرور خطا می‌دهد، کاربر مستقیماً به همان
-#: مرحله‌ای برود که خطا در آن است، نه همیشه مرحله‌ی ۱ (فرمِ ویزارد چندمرحله‌ای
-#: هر بار از نو با ``x-data`` مقداردهی می‌شود، پس این مرحله باید سمتِ سرور
-#: محاسبه و به قالب داده شود).
+#: نامِ فیلد → کلیدِ تبِ فرمِ کالا (product_form.html) — برایِ اینکه وقتی
+#: اعتبارسنجیِ سمتِ سرور خطا می‌دهد، کاربر مستقیماً به همان تبی برود که خطا
+#: در آن است، نه همیشه تبِ اول (فرم هر بار از نو با ``x-data`` مقداردهی
+#: می‌شود، پس این تب باید سمتِ سرور محاسبه و به قالب داده شود).
 _PRODUCT_WIZARD_FIELD_STEPS = {
-    # ۱) اطلاعات پایه: نام، کد کالا، دسته‌بندی، برند
-    "name": 1, "sku": 1, "icon": 1, "description": 1, "category": 1, "brand": 1,
-    # ۲) قیمت‌گذاری: قیمت، تخفیف، مالیات — بارکد/وزن/ارسال هم اینجا جا گرفته‌اند
-    # چون دیگر مرحله‌ی مستقلِ «ارسال» وجود ندارد (سرِ ساده‌سازیِ ویزارد به ۶ مرحله).
-    "price": 2, "discount_percent": 2, "tax_class": 2, "barcode": 2, "weight_grams": 2, "requires_shipping": 2,
-    # ۳) رسانه — بدون فیلدِ فرمِ مستقیم (تصاویر/ویدیو از صفحه‌ی مدیریتِ تصاویر)
-    # ۴) ویژگی‌ها — attr_* پویا هستند، پایین‌تر جداگانه بررسی می‌شوند
-    # ۵) تنوع: نوعِ کالا، موجودی
-    "product_type": 5, "stock": 5,
-    # ۶) سئو و انتشار
-    "seo_title": 6, "seo_description": 6, "status": 6,
+    # تبِ ۱ — اطلاعات پایه: نام، کد کالا، آیکون، توضیحات، دسته‌بندی، برند، وضعیت، برچسب‌ها
+    "name": "basic", "sku": "basic", "icon": "basic", "description": "basic",
+    "category": "basic", "brand": "basic", "status": "basic", "tags": "basic",
+    # تبِ ۲ — قیمت و ویژگی‌ها: قیمت، تخفیف، مالیات، لجستیک، نوعِ کالا، موجودی
+    "price": "price", "discount_percent": "price", "tax_class": "price",
+    "barcode": "price", "weight_grams": "price", "requires_shipping": "price",
+    "product_type": "price", "stock": "price",
+    # تبِ ۳ — سئو و انتشار
+    "seo_title": "seo", "seo_description": "seo", "slug": "seo",
 }
 
 
-def _product_wizard_error_step(form) -> int:
+def _product_form_extra_context(store, product, *, form=None) -> dict:
+    """کانتکستِ مشترکِ فرمِ کالا (چک‌لیستِ انتشار، درصدِ تکمیل، برچسب‌های
+    فعلی/پیشنهادی) — در مسیرِ موفق و هر سه مسیرِ خطا یکسان لازم است.
+
+    ``form``: اگر داده شود و برچسب‌هایی در ``cleaned_data`` داشته باشد (یعنی
+    این یک بازارسالِ دارایِ خطا است، نه GETِ اول)، همان برچسب‌هایِ *ارسال‌شده*
+    نمایش داده می‌شوند، نه برچسب‌هایِ ذخیره‌شده‌ی قبلیِ محصول — وگرنه با هر
+    خطایِ اعتبارسنجی (مثلاً SKU تکراری)، برچسب‌هایِ تازه‌واردشده‌ی کاربر
+    بی‌سروصدا از دست می‌رفتند."""
+    submitted_tags = getattr(form, "cleaned_data", {}).get("tags") if form is not None else None
+    if submitted_tags is not None:
+        existing_tags_list = submitted_tags
+    else:
+        existing_tags_list = list(product.tags.values_list("name", flat=True)) if product else []
+    return {
+        "checklist": build_completion_checklist(product) if product else [],
+        "completion_pct": completion_percent(product) if product else 0,
+        "existing_tags_list": existing_tags_list,
+        "tag_suggestions": suggest_tags(store),
+    }
+
+
+def _product_wizard_error_step(form) -> str:
     for field_name in form.errors:
         if field_name.startswith("attr_"):
-            return 4
+            return "price"
         step = _PRODUCT_WIZARD_FIELD_STEPS.get(field_name)
         if step:
             return step
-    return 1
+    return "basic"
 
 
 @staff_required
@@ -742,6 +761,7 @@ def product_form(request, pk=None):
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
+                    **_product_form_extra_context(store, product, form=form),
                 })
             except ProductPublishError as exc:
                 for message in exc.args[0]:
@@ -751,6 +771,7 @@ def product_form(request, pk=None):
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
+                    **_product_form_extra_context(store, product, form=form),
                 })
             except ValidationError as exc:
                 for field, messages in exc.message_dict.items():
@@ -761,6 +782,7 @@ def product_form(request, pk=None):
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
+                    **_product_form_extra_context(store, product, form=form),
                 })
 
             table_html = render_to_string(
@@ -803,13 +825,10 @@ def product_form(request, pk=None):
     category = product.category if product else None
     attribute_fields = _product_attribute_field_context(category, product)
     orphaned_count = orphaned_product_attribute_values(product).count() if product else 0
-    checklist = build_completion_checklist(product) if product else []
     return render(request, "dashboard/partials/product_form.html", {
         "form": form, "product": product, "attribute_fields": attribute_fields, "orphaned_count": orphaned_count,
         "category": category, "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
-        "checklist": checklist, "completion_pct": completion_percent(product) if product else 0,
-        "existing_tags": ", ".join(product.tags.values_list("name", flat=True)) if product else "",
-        "tag_suggestions": suggest_tags(store),
+        **_product_form_extra_context(store, product, form=form),
     })
 
 
@@ -1956,6 +1975,7 @@ def _product_options_context(request, product):
         "recommended_options": recommended_options,
         "option_form": ProductOptionForm(),
         "option_value_form": ProductOptionValueAddForm(),
+        "tax_class_options": TaxClass.objects.filter(store=product.store, is_active=True).order_by("name"),
         "active_page": "products",
     }
 
@@ -2148,10 +2168,22 @@ def product_variants_bulk_update(request, pk):
             variant.barcode = request.POST.get(f"{prefix}barcode", "").strip()
             variant.stock = int(normalize_digits(request.POST.get(f"{prefix}stock", "0")) or 0)
             variant.extra_price = Decimal(normalize_digits(request.POST.get(f"{prefix}extra_price", "0")) or 0)
+            price_raw = normalize_digits(request.POST.get(f"{prefix}price", "")).strip()
+            variant.price = Decimal(price_raw) if price_raw else None
             compare_at_raw = normalize_digits(request.POST.get(f"{prefix}compare_at_price", "")).strip()
             variant.compare_at_price = Decimal(compare_at_raw) if compare_at_raw else None
             cost_raw = normalize_digits(request.POST.get(f"{prefix}cost", "")).strip()
             variant.cost = Decimal(cost_raw) if cost_raw else None
+            weight_raw = normalize_digits(request.POST.get(f"{prefix}weight_grams", "")).strip()
+            variant.weight_grams = int(weight_raw) if weight_raw else None
+            tax_class_raw = request.POST.get(f"{prefix}tax_class", "").strip()
+            if tax_class_raw:
+                tax_class = TaxClass.objects.filter(pk=tax_class_raw, store=product.store).first()
+                if tax_class is None:
+                    raise VariantError("دسته‌ی مالیاتیِ انتخاب‌شده معتبر نیست.")
+                variant.tax_class = tax_class
+            else:
+                variant.tax_class = None
             variant.is_active = request.POST.get(f"{prefix}is_active") == "on"
             if variant.stock < 0:
                 raise VariantError("موجودی نمی‌تواند منفی باشد.")
@@ -2200,6 +2232,38 @@ def product_variants_bulk_delete(request, pk):
         message = f"{deleted_count} تنوع حذف شد"
         toast_type = "ok" if deleted_count else "err"
     return _product_options_response(request, product, toast={"message": message, "type": toast_type})
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_variants_bulk_activate(request, pk):
+    """فعال/غیرفعال‌سازیِ گروهیِ ردیف‌هایِ انتخاب‌شده‌ی جدولِ تنوع — Part 6 مشخصات."""
+    product = _get_scoped_product(request, pk)
+    variant_ids = [int(v) for v in request.POST.getlist("variant_ids") if v.isdigit()]
+    is_active = request.POST.get("activate") == "1"
+    updated = product.variants.filter(pk__in=variant_ids).update(is_active=is_active)
+    label = "فعال" if is_active else "غیرفعال"
+    return _product_options_response(
+        request, product, toast={"message": f"{updated} تنوع {label} شد", "type": "ok"},
+    )
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_variant_matrix_duplicate(request, pk, variant_id):
+    """تکرارِ یک ردیفِ جدولِ تنوعِ چندمحوره — بدونِ ترکِ صفحه (برخلافِ
+    ``product_variant_duplicate`` که برایِ صفحه‌ی قدیمیِ تک‌محوره است)."""
+    product = _get_scoped_product(request, pk)
+    variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
+    try:
+        duplicate_variant(variant)
+    except VariantError as exc:
+        return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
+    return _product_options_response(
+        request, product, toast={"message": f"یک کپیِ غیرفعال از «{variant.value}» ساخته شد", "type": "ok"},
+    )
 
 
 # --------------------------------------------------------- دسته‌بندی‌ها

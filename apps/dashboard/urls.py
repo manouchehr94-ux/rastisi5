@@ -76,6 +76,8 @@ urlpatterns = [
     path("products/<int:pk>/options/variants/<int:variant_id>/default/", views.product_variant_set_default, name="product-variant-set-default"),
     path("products/<int:pk>/options/bulk-update/", views.product_variants_bulk_update, name="product-variants-bulk-update"),
     path("products/<int:pk>/options/bulk-delete/", views.product_variants_bulk_delete, name="product-variants-bulk-delete"),
+    path("products/<int:pk>/options/bulk-activate/", views.product_variants_bulk_activate, name="product-variants-bulk-activate"),
+    path("products/<int:pk>/options/variants/<int:variant_id>/duplicate/", views.product_variant_matrix_duplicate, name="product-variant-matrix-duplicate"),
 
     path("categories/", views.category_list, name="category-list"),
     path("categories/add-main/", views.category_add_main, name="category-add-main"),

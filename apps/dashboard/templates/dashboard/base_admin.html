@@ -37,9 +37,38 @@ function sidebarNav() {
     },
   };
 }
+
+// ویرایشگرِ متنِ غنیِ توضیحاتِ کالا (CKEditor5 Classic Build، بارگذاری‌شده در
+// پایینِ همین صفحه). $refs.source تکست‌اریایِ اصلی (name="description") است —
+// CKEditor آن را جایگزین می‌کند اما خودِ عنصر در فرم می‌ماند؛ محتوا با هر
+// تغییر به آن sync می‌شود تا htmx/ارسالِ معمولیِ فرم مقدارِ درست را بفرستد.
+function richTextEditor() {
+  return {
+    editor: null,
+    mount() {
+      if (typeof ClassicEditor === "undefined") return;
+      ClassicEditor.create(this.$refs.source, {
+        licenseKey: "GPL",
+        language: "fa",
+        toolbar: [
+          "heading", "|", "bold", "italic", "|",
+          "bulletedList", "numberedList", "outdent", "indent", "|",
+          "link", "insertTable", "blockQuote", "uploadImage", "mediaEmbed", "|", "undo", "redo",
+        ],
+      }).then((editor) => {
+        this.editor = editor;
+        editor.model.document.on("change:data", () => {
+          this.$refs.source.value = editor.getData();
+        });
+      }).catch((err) => console.error("CKEditor init failed", err));
+    },
+  };
+}
 </script>
 <script src="{% static 'js/htmx.min.js' %}" defer></script>
 <script src="{% static 'js/alpine.min.js' %}" defer></script>
+<script src="{% static 'js/vendor/ckeditor5-classic/ckeditor.js' %}" defer></script>
+<script src="{% static 'js/vendor/ckeditor5-classic/translations-fa.js' %}" defer></script>
 </head>
 <body class="admin-body"
       x-data="{ sidebarOpen: false, modalOpen: false, theme: localStorage.getItem('adminTheme') || '' }"

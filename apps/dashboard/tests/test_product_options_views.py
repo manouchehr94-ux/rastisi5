@@ -284,6 +284,172 @@ class ProductVariantsBulkUpdateViewTests(ProductOptionsViewsTestCase):
         self.assertNotEqual(other_variant.sku, "HACKED-SKU")
 
 
+class ProductVariantsBulkUpdatePriceTaxWeightTests(ProductOptionsViewsTestCase):
+    """قیمتِ مستقل/دسته‌ی مالیاتی/وزن — فیلدهایِ جدیدِ جدولِ تنوع."""
+
+    def _generate(self):
+        add_product_option(self.product, label="کشور سازنده", values=["ایرانی", "ایتالیایی"])
+        generate_variants(self.product)
+        return list(self.product.variants.all())
+
+    def _base_fields(self, variant, **overrides):
+        fields = {
+            f"variant_{variant.pk}_sku": variant.sku, f"variant_{variant.pk}_barcode": "",
+            f"variant_{variant.pk}_extra_price": "0", f"variant_{variant.pk}_compare_at_price": "",
+            f"variant_{variant.pk}_cost": "", f"variant_{variant.pk}_stock": "5",
+            f"variant_{variant.pk}_is_active": "on", f"variant_{variant.pk}_price": "",
+            f"variant_{variant.pk}_weight_grams": "", f"variant_{variant.pk}_tax_class": "",
+        }
+        fields.update({f"variant_{variant.pk}_{k}": v for k, v in overrides.items()})
+        return fields
+
+    def test_sets_absolute_price(self):
+        variants = self._generate()
+        iranian, italian = variants[0], variants[1]
+        payload = {"variant_ids": [iranian.pk, italian.pk]}
+        payload.update(self._base_fields(iranian, price="100000"))
+        payload.update(self._base_fields(italian, price="800000"))
+        response = self.client.post(
+            reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload,
+        )
+        self.assertEqual(response.status_code, 200)
+        iranian.refresh_from_db()
+        italian.refresh_from_db()
+        self.assertEqual(iranian.price, Decimal("100000"))
+        self.assertEqual(italian.price, Decimal("800000"))
+
+    def test_blank_price_clears_absolute_price(self):
+        variants = self._generate()
+        v1 = variants[0]
+        v1.price = Decimal("100000")
+        v1.save(update_fields=["price"])
+        payload = {"variant_ids": [v1.pk]}
+        payload.update(self._base_fields(v1, price=""))
+        self.client.post(reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload)
+        v1.refresh_from_db()
+        self.assertIsNone(v1.price)
+
+    def test_sets_weight_grams(self):
+        variants = self._generate()
+        v1 = variants[0]
+        payload = {"variant_ids": [v1.pk]}
+        payload.update(self._base_fields(v1, weight_grams="450"))
+        self.client.post(reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload)
+        v1.refresh_from_db()
+        self.assertEqual(v1.weight_grams, 450)
+
+    def test_sets_tax_class_scoped_to_store(self):
+        from apps.orders.models import TaxClass
+
+        tax_class = TaxClass.objects.create(store=self.store, name="ویژه", code="popt-tax")
+        variants = self._generate()
+        v1 = variants[0]
+        payload = {"variant_ids": [v1.pk]}
+        payload.update(self._base_fields(v1, tax_class=str(tax_class.pk)))
+        self.client.post(reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload)
+        v1.refresh_from_db()
+        self.assertEqual(v1.tax_class_id, tax_class.pk)
+
+    def test_foreign_store_tax_class_rejected(self):
+        from apps.orders.models import TaxClass
+
+        other_store = Store.objects.create(name="دیگر", slug="popt-tax-other", status=Store.Status.ACTIVE)
+        foreign_tax_class = TaxClass.objects.create(store=other_store, name="خارجی", code="foreign-tax")
+        variants = self._generate()
+        v1 = variants[0]
+        payload = {"variant_ids": [v1.pk]}
+        payload.update(self._base_fields(v1, tax_class=str(foreign_tax_class.pk)))
+        self.client.post(reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload)
+        v1.refresh_from_db()
+        self.assertIsNone(v1.tax_class_id)
+
+
+class ProductVariantsBulkActivateViewTests(ProductOptionsViewsTestCase):
+    def _generate(self):
+        add_product_option(self.product, label="رنگ", values=["سبز", "آبی"])
+        generate_variants(self.product)
+        return list(self.product.variants.all())
+
+    def test_activate_selected(self):
+        variants = self._generate()
+        self.product.variants.update(is_active=False)
+        response = self.client.post(
+            reverse("dashboard:product-variants-bulk-activate", args=[self.product.pk]),
+            {"variant_ids": [v.pk for v in variants], "activate": "1"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(all(v.is_active for v in self.product.variants.all()))
+
+    def test_deactivate_selected(self):
+        variants = self._generate()
+        response = self.client.post(
+            reverse("dashboard:product-variants-bulk-activate", args=[self.product.pk]),
+            {"variant_ids": [v.pk for v in variants], "activate": "0"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(any(v.is_active for v in self.product.variants.all()))
+
+    def test_tenant_isolation(self):
+        variants = self._generate()
+        other_store = Store.objects.create(name="دیگر", slug="popt-bulk-act-other", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="ف", slug="popt-bulk-act-v")
+        other_category = Category.objects.create(store=other_store, name="د", slug="popt-bulk-act-c")
+        other_product = Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="کالای دیگر",
+            slug="popt-bulk-act-p", sku="POPT-BULK-ACT-SKU", price=Decimal("1000"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        add_product_option(other_product, label="رنگ", values=["زرد"])
+        generate_variants(other_product)
+        other_variant = other_product.variants.first()
+
+        self.client.post(
+            reverse("dashboard:product-variants-bulk-activate", args=[self.product.pk]),
+            {"variant_ids": [other_variant.pk], "activate": "0"},
+        )
+        other_variant.refresh_from_db()
+        self.assertTrue(other_variant.is_active)
+
+
+class ProductVariantMatrixDuplicateViewTests(ProductOptionsViewsTestCase):
+    def test_duplicates_a_row(self):
+        add_product_option(self.product, label="رنگ", values=["سبز"])
+        generate_variants(self.product)
+        variant = self.product.variants.first()
+        before = self.product.variants.count()
+        response = self.client.post(
+            reverse("dashboard:product-variant-matrix-duplicate", args=[self.product.pk, variant.pk]),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.product.variants.count(), before + 1)
+
+    def test_duplicate_is_inactive_by_default(self):
+        add_product_option(self.product, label="رنگ", values=["سبز"])
+        generate_variants(self.product)
+        variant = self.product.variants.first()
+        self.client.post(reverse("dashboard:product-variant-matrix-duplicate", args=[self.product.pk, variant.pk]))
+        newest = self.product.variants.order_by("-id").first()
+        self.assertFalse(newest.is_active)
+
+    def test_other_store_variant_404s(self):
+        other_store = Store.objects.create(name="دیگر", slug="popt-dup-other", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="ف", slug="popt-dup-v")
+        other_category = Category.objects.create(store=other_store, name="د", slug="popt-dup-c")
+        other_product = Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="کالای دیگر",
+            slug="popt-dup-p", sku="POPT-DUP-SKU", price=Decimal("1000"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        add_product_option(other_product, label="رنگ", values=["زرد"])
+        generate_variants(other_product)
+        other_variant = other_product.variants.first()
+
+        response = self.client.post(
+            reverse("dashboard:product-variant-matrix-duplicate", args=[self.product.pk, other_variant.pk]),
+        )
+        self.assertEqual(response.status_code, 404)
+
+
 class ProductVariantsBulkDeleteViewTests(ProductOptionsViewsTestCase):
     def _generate(self):
         add_product_option(self.product, label="رنگ", values=["سبز", "آبی"])

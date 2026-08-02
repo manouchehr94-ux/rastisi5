@@ -1,8 +1,19 @@
 {% load persian %}
-<div id="categoryField" x-data="{ quickOpen: {% if quick_errors %}true{% else %}false{% endif %} }">
-  <select class="inp" id="id_category" name="category"
+<div id="categoryField" x-data="{
+       quickOpen: {% if quick_errors %}true{% else %}false{% endif %},
+       selectedPath: '',
+       updatePath(select) {
+         const opt = select.selectedOptions[0];
+         if (!opt || !opt.value) { this.selectedPath = ''; return; }
+         const group = opt.closest('optgroup');
+         this.selectedPath = (group ? group.label + ' ← ' : '') + opt.textContent.trim();
+       },
+     }"
+     x-init="updatePath($refs.categorySelect)">
+  <select class="inp" id="id_category" name="category" x-ref="categorySelect"
           hx-get="{% if product %}{% url 'dashboard:product-attribute-fields-edit' product.pk %}{% else %}{% url 'dashboard:product-attribute-fields' %}{% endif %}"
-          hx-trigger="change" hx-target="#productAttributeFields" hx-swap="outerHTML">
+          hx-trigger="change" hx-target="#productAttributeFields" hx-swap="outerHTML"
+          @change="updatePath($el)">
     <option value="">— انتخاب کنید —</option>
     {% regroup category_queryset by parent as category_groups_opt %}
     {% for group in category_groups_opt %}
@@ -13,6 +24,7 @@
     </optgroup>
     {% endfor %}
   </select>
+  <div class="field-help" x-show="selectedPath" style="font-weight:700;color:var(--primary)" x-text="'مسیرِ انتخاب‌شده: ' + selectedPath"></div>
   <div class="field-help">کالا باید به یک زیرگروه وصل شود، نه یک گروه اصلی. اگر زیرگروه مناسب وجود ندارد، از دکمه‌ی زیر بسازید.</div>
 
   <button type="button" class="quick-add-toggle" @click="quickOpen = !quickOpen">+ ساخت دسته‌بندی جدید</button>
