@@ -14,6 +14,7 @@ from apps.customers.models import Customer
 from apps.stores.resolution import resolve_store_for_storefront
 
 from .models import Brand, Category, Product, Review
+from .services.storefront_variant_service import build_variant_selector_context
 
 BEST_SORT_OPTIONS = {
     "sold": ("-sold_count", "پرفروش‌ترین"),
@@ -257,6 +258,7 @@ def product_detail(request, slug):
         "product": product,
         "variant_groups": variant_groups,
         "spec_variant_summary": spec_variant_summary,
+        "variant_selector": build_variant_selector_context(product),
         "gallery_slides": _gallery_slides(product),
         "approved_reviews": approved_reviews,
         "review_count": review_count,
