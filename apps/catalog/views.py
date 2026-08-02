@@ -254,18 +254,23 @@ def product_detail(request, slug):
         .prefetch_related("images")[:4]
     )
 
+    savings = product.price - product.final_price
     context = {
         "product": product,
         "variant_groups": variant_groups,
         "spec_variant_summary": spec_variant_summary,
         "variant_selector": build_variant_selector_context(product),
+        "product_price_json": {
+            "price": int(product.final_price), "regular": int(product.price),
+            "savings": int(savings), "stock": product.stock, "sku": product.sku,
+        },
         "gallery_slides": _gallery_slides(product),
         "approved_reviews": approved_reviews,
         "review_count": review_count,
         "rating_breakdown": rating_breakdown,
         "related_products": related_products,
         "can_review": _can_review(request),
-        "savings": product.price - product.final_price,
+        "savings": savings,
     }
     return render(request, "catalog/product_detail.html", context)
 

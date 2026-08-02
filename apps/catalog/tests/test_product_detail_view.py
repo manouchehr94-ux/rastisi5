@@ -229,19 +229,23 @@ class ProductDetailVariantImageSwapTests(TestCase):
         Image.new("RGB", (400, 400), "#00ff00").save(buffer, format="JPEG")
         return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/jpeg")
 
-    def test_slide_carries_its_variant_id_for_client_side_matching(self):
+    def test_slide_carries_its_url_and_the_variant_selector_data_maps_the_same_url(self):
+        """گالری دیگر با ``variant_id`` تطبیق نمی‌دهد؛ داده‌ی JSONِ انتخاب‌گرِ
+        تنوع (``image_url`` هر مقدار) و آدرسِ اسلایدِ گالری باید یکی باشند
+        تا جاوااسکریپت بتواند اسلایدِ درست را پیدا کند."""
         from apps.catalog.services.product_image_service import set_image_variant
 
         red = ProductVariant.objects.create(product=self.product, attribute="رنگ", value="قرمز", value_hex="#f00")
         image = add_product_image(self.product, self._make_image_file())
         set_image_variant(image, red)
         response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
-        self.assertContains(response, f'data-variant-id="{red.pk}"')
+        self.assertContains(response, f'data-slide-url="{image.image.url}"')
+        self.assertContains(response, image.image.url.encode())
 
-    def test_generic_image_has_no_variant_id(self):
-        add_product_image(self.product, self._make_image_file())
+    def test_generic_image_still_renders_as_an_addressable_slide(self):
+        image = add_product_image(self.product, self._make_image_file())
         response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
-        self.assertContains(response, 'data-variant-id=""')
+        self.assertContains(response, f'data-slide-url="{image.image.url}"')
 
     def test_cover_image_is_marked_for_client_side_fallback(self):
         add_product_image(self.product, self._make_image_file())
@@ -255,13 +259,13 @@ class ProductDetailVariantImageSwapTests(TestCase):
         self.assertEqual(response.content.decode().count('data-cover="true"'), 1)
 
     def test_default_selected_variant_id_is_wired_for_client_side_init(self):
-        """گره‌ی اولِ گروهِ تنوع (پیش‌فرضِ انتخاب‌شده در فرانت) باید در x-init
-        به‌عنوانِ تنوعِ اولیه برایِ تطبیقِ گالری استفاده شود."""
+        """گره‌ی اولِ گروهِ تنوع (پیش‌فرضِ انتخاب‌شده در فرانت) باید در داده‌ی
+        JSONِ انتخاب‌گر (``default_key``) به‌عنوانِ تنوعِ اولیه ثبت شود."""
         variant = ProductVariant.objects.create(
             product=self.product, attribute="رنگ", value="آبی", value_hex="#00f",
         )
         response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
-        self.assertContains(response, f"showForVariant('{variant.pk}')")
+        self.assertContains(response, f'"default_key": "{variant.pk}"')
 
     def test_works_for_a_non_color_attribute_too(self):
         """مکانیسمِ سوییچ به نامِ محور وابسته نیست — برای هر محورِ تک‌مقداریِ
@@ -272,10 +276,11 @@ class ProductDetailVariantImageSwapTests(TestCase):
         image = add_product_image(self.product, self._make_image_file())
         set_image_variant(image, cotton)
         response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
-        self.assertContains(response, f'data-variant-id="{cotton.pk}"')
+        self.assertContains(response, f'data-slide-url="{image.image.url}"')
+        self.assertContains(response, f'"variant_id": {cotton.pk}')
 
     def test_product_without_variants_renders_gallery_without_errors(self):
         add_product_image(self.product, self._make_image_file())
         response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "showForVariant('")
+        self.assertContains(response, '"mode": "none"')
