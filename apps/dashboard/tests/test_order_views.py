@@ -70,6 +70,18 @@ class OrderDetailViewTests(OrderViewsTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "خیابان ولیعصر")
 
+    def test_shows_ordered_variant_label(self):
+        """پنلِ فروشنده هم باید تنوعِ سفارش‌داده‌شده (مثلاً «کشور سازنده:
+        ایتالیایی») را کنارِ نامِ کالا نشان دهد، نه فقط خودِ کالا را."""
+        from apps.orders.models import OrderItem
+
+        OrderItem.objects.create(
+            order=self.order, product_name="قیچی", variant_label="کشور سازنده: ایتالیایی",
+            quantity=1, unit_price=Decimal("800000"), line_total=Decimal("800000"),
+        )
+        response = self.client.get(reverse("dashboard:order-detail", args=[self.order.code]))
+        self.assertContains(response, "کشور سازنده: ایتالیایی")
+
     def test_shows_status_change_form_for_non_final_order(self):
         response = self.client.get(reverse("dashboard:order-detail", args=[self.order.code]))
         self.assertContains(response, "ثبت تغییرات")

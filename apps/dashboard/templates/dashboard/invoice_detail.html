@@ -36,7 +36,7 @@
         {% for item in items %}
         <tr>
           <td>{{ forloop.counter|fa_number }}</td>
-          <td>{{ item.product_name }} {% if item.product %}<small style="color:#94a3b8" dir="ltr">({{ item.product.sku }})</small>{% endif %}</td>
+          <td>{{ item.product_name }}{% if item.variant_label %} <small style="color:#94a3b8">— {{ item.variant_label }}</small>{% endif %} {% if item.product %}<small style="color:#94a3b8" dir="ltr">({{ item.product.sku }})</small>{% endif %}</td>
           <td>{{ item.quantity|fa_number }}</td>
           <td>{{ item.unit_price|toman_raw }}</td>
           <td><b>{{ item.line_total|toman_raw }}</b></td>

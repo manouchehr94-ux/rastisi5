@@ -62,7 +62,10 @@
         <td>
           <div class="prod-cell">
             <div class="thumb">{{ item.product.icon|default:"🛍️" }}</div>
-            <b>{{ item.product_name }}</b>
+            <div>
+              <b>{{ item.product_name }}</b>
+              {% if item.variant_label %}<div style="font-size:11.5px;color:var(--muted)">{{ item.variant_label }}</div>{% endif %}
+            </div>
           </div>
         </td>
         <td>{{ item.unit_price|toman }}</td>

@@ -72,6 +72,16 @@ class InvoiceDetailViewTests(InvoiceViewsTestCase):
         self.assertContains(response, "میدان آزادی")
         self.assertContains(response, 'id="printArea"')
 
+    def test_shows_ordered_variant_label(self):
+        from apps.orders.models import OrderItem
+
+        OrderItem.objects.create(
+            order=self.paid_order, product_name="قیچی", variant_label="کشور سازنده: ایتالیایی",
+            quantity=1, unit_price=Decimal("800000"), line_total=Decimal("800000"),
+        )
+        response = self.client.get(reverse("dashboard:invoice-detail", args=[self.paid_order.code]))
+        self.assertContains(response, "کشور سازنده: ایتالیایی")
+
     def test_anonymous_denied(self):
         self.client.logout()
         response = self.client.get(reverse("dashboard:invoice-detail", args=[self.paid_order.code]))

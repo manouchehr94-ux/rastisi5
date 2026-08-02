@@ -54,6 +54,7 @@
           <div class="citem">
             <div class="info">
               <b>{{ item.product_name }}</b>
+              {% if item.variant_label %}<div class="meta"><span>{{ item.variant_label }}</span></div>{% endif %}
               <div class="meta"><span>{{ item.quantity|fa_number }} عدد × {{ item.unit_price|toman }}</span></div>
             </div>
             <div class="right"><div class="lp">{{ item.line_total|toman }}</div></div>

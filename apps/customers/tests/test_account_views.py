@@ -143,3 +143,16 @@ class AccountOrderDetailViewTests(TestCase):
         self.client.login(username="09121118866", password="pass12345")
         response = self.client.get(reverse("customers:account-order-detail", args=[self.order.code]))
         self.assertEqual(response.status_code, 404)
+
+    def test_ordered_variant_label_is_shown(self):
+        """قیچیِ ایتالیایی — مشتری باید دقیقاً همان تنوعی را که سفارش داده در
+        جزئیاتِ سفارشِ خودش ببیند، نه فقط نامِ کالا."""
+        from apps.orders.models import OrderItem
+
+        OrderItem.objects.create(
+            order=self.order, product_name="قیچی", variant_label="کشور سازنده: ایتالیایی",
+            quantity=1, unit_price=Decimal("800000"), line_total=Decimal("800000"),
+        )
+        self.client.login(username="09121118855", password="pass12345")
+        response = self.client.get(reverse("customers:account-order-detail", args=[self.order.code]))
+        self.assertContains(response, "کشور سازنده: ایتالیایی")
