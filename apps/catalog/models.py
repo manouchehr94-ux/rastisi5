@@ -449,6 +449,10 @@ class ProductVariant(TimeStampedModel):
         "قیمتِ عمده (تومان)", max_digits=12, decimal_places=0, null=True, blank=True,
         help_text="زیرساختِ آماده‌برایِ‌آینده‌یِ فروشِ عمده — هنوز در محاسبه‌ی قیمتِ مشتری استفاده نمی‌شود.",
     )
+    sales_limit = models.PositiveIntegerField(
+        "محدودیتِ فروش (حداکثر تعداد در هر سفارش)", null=True, blank=True,
+        help_text="خالی = بدونِ محدودیت. اگر پر باشد، مشتری نمی‌تواند در یک سفارش بیش از این تعداد از این تنوع بخرد.",
+    )
     # خالی یعنی «از دسته‌ی مالیاتیِ کالا/Store استفاده کن»، دقیقاً همان
     # قراردادِ Product.tax_class.
     tax_class = models.ForeignKey(
@@ -1116,6 +1120,11 @@ class ProductTag(TimeStampedModel):
 class ProductOption(TimeStampedModel):
     """محور تنوع‌سازِ یک کالای مشخص (مثلاً «رنگ» یا «سایز») — نگاه کنید به ADR-19."""
 
+    class InputType(models.TextChoices):
+        TEXT = "text", "متن"
+        COLOR = "color", "رنگ"
+        NUMBER = "number", "عدد"
+
     product = models.ForeignKey(Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="options")
     attribute = models.ForeignKey(
         Attribute, verbose_name="ویژگی مرتبط", on_delete=models.PROTECT, null=True, blank=True,
@@ -1123,6 +1132,9 @@ class ProductOption(TimeStampedModel):
     )
     label = models.CharField("عنوان محور", max_length=60)
     normalized_label = models.CharField(max_length=80, editable=False, blank=True, default="")
+    input_type = models.CharField(
+        "نوعِ ورودیِ مقادیر", max_length=10, choices=InputType.choices, default=InputType.TEXT,
+    )
     position = models.PositiveSmallIntegerField("موقعیت", default=0)
     is_active = models.BooleanField("فعال", default=True)
 

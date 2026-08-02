@@ -1,13 +1,24 @@
 import json
+import shutil
+import tempfile
 from decimal import Decimal
+from io import BytesIO
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
 
-from apps.catalog.models import Brand, Category, Product, Vendor
+from apps.catalog.models import Brand, Category, Product, ProductImage, ProductVideo, Vendor
 from apps.stores.models import Store, StoreMembership
+
+
+def _make_image_file(name="staged.jpg", color="#3355ff"):
+    buffer = BytesIO()
+    Image.new("RGB", (300, 300), color).save(buffer, format="JPEG")
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/jpeg")
 
 User = get_user_model()
 
@@ -191,10 +202,10 @@ class ProductAddViewTests(ProductViewsTestCase):
 
 
 class ProductWizardTests(ProductViewsTestCase):
-    """فرمِ افزودنِ کالا سه بخشِ اصلی دارد (Product Entry rebuild: اطلاعات
-    پایه / قیمت و ویژگی‌ها / سئو و انتشار)، همه در یک <form> واحد (بدون از
-    دست رفتنِ داده بین تب‌ها)، با اعتبارسنجیِ سمتِ سرور که کاربر را دقیقاً
-    به تبِ دارایِ خطا هدایت می‌کند."""
+    """فرمِ افزودنِ کالا چهار بخشِ اصلی دارد (Product Entry rebuild: اطلاعات
+    پایه / تصاویر و ویدیو / قیمت و تنوع / سئو و انتشار)، همه در یک <form>
+    واحد (بدون از دست رفتنِ داده بین تب‌ها)، با اعتبارسنجیِ سمتِ سرور که
+    کاربر را دقیقاً به تبِ دارایِ خطا هدایت می‌کند."""
 
     def _payload(self, **overrides):
         payload = {
@@ -205,17 +216,18 @@ class ProductWizardTests(ProductViewsTestCase):
         payload.update(overrides)
         return payload
 
-    def test_form_renders_all_three_tabs_in_one_form(self):
+    def test_form_renders_all_tabs_in_one_form(self):
         response = self.client.get(reverse("dashboard:product-add"))
         content = response.content.decode()
         self.assertEqual(content.count("<form"), 1)  # یک فرمِ واحد، نه فرم‌های جداگانه‌ی هر تب
-        for ref in ["tabBasic", "tabPrice", "tabSeo"]:
+        for ref in ["tabBasic", "tabMedia", "tabPrice", "tabSeo"]:
             self.assertIn(f'x-ref="{ref}"', content)
 
     def test_tab_labels_present(self):
         response = self.client.get(reverse("dashboard:product-add"))
         self.assertContains(response, "اطلاعات پایه")
-        self.assertContains(response, "قیمت و ویژگی‌ها")
+        self.assertContains(response, "تصاویر و ویدیو")
+        self.assertContains(response, "قیمت و تنوع")
         self.assertContains(response, "سئو و انتشار")
 
     def test_basic_info_tab_contains_category_and_brand(self):
@@ -229,7 +241,7 @@ class ProductWizardTests(ProductViewsTestCase):
         self.assertIn('name="brand"', tab_html)
 
     def test_price_tab_contains_attributes_and_variant_type(self):
-        """ویژگی‌ها و نوعِ کالا در همان تبِ «قیمت و ویژگی‌ها» هستند."""
+        """ویژگی‌های اختصاصیِ دسته‌بندی و نوعِ کالا در همان تبِ «قیمت و تنوع» هستند."""
         response = self.client.get(reverse("dashboard:product-add"))
         content = response.content.decode()
         tab_start = content.index('x-ref="tabPrice"')
@@ -276,13 +288,23 @@ class ProductEditViewTests(ProductViewsTestCase):
         self.assertContains(response, "ویرایش کالا")
         self.assertContains(response, "گوشی هوشمند")
 
-    def test_media_management_link_opens_via_htmx_not_full_navigation(self):
-        """لینکِ «مدیریتِ تصاویرِ این کالا» در مرحله‌ی رسانه‌ی ویزارد باید با htmx باز شود،
-        نه با ناوبریِ کاملِ صفحه — چون صفحه‌ی مودالِ تصاویر بدونِ لایه‌ی اصلی رندر می‌شود."""
-        images_url = reverse("dashboard:product-images", args=[self.product.pk])
+    def test_basic_tab_has_nav_button_to_media_tab(self):
+        """تبِ «اطلاعاتِ پایه» باید دکمه‌ی رفتن به تبِ «تصاویر و ویدیو» را داشته باشد
+        (به‌جایِ مدیریتِ تصویر داخلِ خودِ تبِ اطلاعاتِ پایه)."""
         response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
-        self.assertContains(response, f'hx-get="{images_url}"')
-        self.assertContains(response, 'hx-target="#admin-modal-content"')
+        self.assertContains(response, "@click=\"tab = 'media'\"")
+
+    def test_media_tab_uploads_via_htmx_for_existing_product(self):
+        """برایِ کالای موجود، آپلودِ تصویر در تبِ «تصاویر و ویدیو» مستقیماً با htmx
+        (بدونِ رفتن به صفحه‌ی جدا) به endpointِ آپلود وصل است."""
+        upload_url = reverse("dashboard:product-image-upload", args=[self.product.pk])
+        response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
+        self.assertContains(response, f'hx-post="{upload_url}"')
+        self.assertContains(response, 'hx-target="#productImagesList"')
+
+    def test_media_tab_does_not_say_save_first_for_existing_product(self):
+        response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
+        self.assertNotContains(response, "پس از ذخیره‌ی این کالا می‌توانید")
 
     def test_valid_edit_updates_product(self):
         payload = {
@@ -475,3 +497,90 @@ class ProductCreationWithoutVendorTests(TestCase):
         self.assertIsNotNone(product.vendor)
         self.assertEqual(product.vendor.name, self.store.name)
         self.assertEqual(product.vendor.owner_id, self.owner.pk)
+
+
+@override_settings(ALLOWED_HOSTS=[HOST, "testserver"], MEDIA_ROOT=tempfile.mkdtemp())
+class ProductMediaStagingTests(ProductViewsTestCase):
+    """تصاویر و ویدیو باید هم‌زمان با ساختِ کالای *جدید* ذخیره شوند — بدونِ
+    نیاز به ذخیره‌ی قبلیِ کالا (نگاه کنید به ``_save_staged_product_media``)."""
+
+    @classmethod
+    def tearDownClass(cls):
+        from django.conf import settings
+
+        shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
+        super().tearDownClass()
+
+    def _payload(self, **overrides):
+        payload = {
+            "name": "کالای با رسانه", "sku": "SKU-MEDIA1", "category": self.sub.id,
+            "price": "500000", "discount_percent": "0", "stock": "10",
+            "status": "draft", "icon": "🎁", "description": "",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_new_product_form_does_not_say_save_first(self):
+        response = self.client.get(reverse("dashboard:product-add"))
+        self.assertNotContains(response, "پس از ذخیره‌ی این کالا می‌توانید")
+
+    def test_images_saved_atomically_with_new_product(self):
+        payload = self._payload()
+        payload["images"] = [_make_image_file("a.jpg"), _make_image_file("b.jpg")]
+        response = self.client.post(reverse("dashboard:product-add"), payload)
+        self.assertEqual(response.status_code, 200)
+        product = Product.objects.get(sku="SKU-MEDIA1")
+        self.assertEqual(product.images.count(), 2)
+
+    def test_cover_index_selects_cover_image(self):
+        payload = self._payload()
+        payload["images"] = [_make_image_file("a.jpg"), _make_image_file("b.jpg")]
+        payload["cover_index"] = "1"
+        self.client.post(reverse("dashboard:product-add"), payload)
+        product = Product.objects.get(sku="SKU-MEDIA1")
+        cover = product.images.get(is_cover=True)
+        # بدونِ cover_index، تصویرِ اول (order=0) خودکار کاور می‌شود؛ اینجا
+        # صراحتاً دومین تصویر (order=1) به‌عنوانِ کاور انتخاب شده است.
+        self.assertEqual(cover.order, 1)
+
+    def test_video_saved_with_new_product(self):
+        payload = self._payload(video_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ", video_title="معرفی")
+        response = self.client.post(reverse("dashboard:product-add"), payload)
+        self.assertEqual(response.status_code, 200)
+        product = Product.objects.get(sku="SKU-MEDIA1")
+        video = product.videos.get()
+        self.assertEqual(video.provider, ProductVideo.Provider.YOUTUBE)
+        self.assertEqual(video.title, "معرفی")
+
+    def test_invalid_video_url_blocks_product_creation_with_clear_error(self):
+        payload = self._payload(video_url="https://example.com/not-a-video")
+        response = self.client.post(reverse("dashboard:product-add"), payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "این لینک شناخته‌شده نیست")
+        self.assertFalse(Product.objects.filter(sku="SKU-MEDIA1").exists())
+
+    def test_invalid_video_url_preserves_entered_text_fields(self):
+        payload = self._payload(video_url="https://example.com/not-a-video")
+        response = self.client.post(reverse("dashboard:product-add"), payload)
+        self.assertContains(response, "کالای با رسانه")
+
+    def test_invalid_video_rolls_back_already_processed_images(self):
+        """اگر ویدیو نامعتبر باشد، کلِ تراکنش (شاملِ تصاویرِ همان درخواست) برمی‌گردد."""
+        payload = self._payload(video_url="https://example.com/not-a-video")
+        payload["images"] = [_make_image_file("a.jpg")]
+        self.client.post(reverse("dashboard:product-add"), payload)
+        self.assertFalse(Product.objects.filter(sku="SKU-MEDIA1").exists())
+        self.assertEqual(ProductImage.objects.filter(product__sku="SKU-MEDIA1").count(), 0)
+
+    def test_editing_existing_product_ignores_staged_image_fields(self):
+        """مسیرِ ویرایش نباید از فیلدهایِ ``images``/``video_url`` استفاده کند —
+        کالای موجود از آپلودِ فوریِ همان تب استفاده می‌کند."""
+        payload = {
+            "name": self.product.name, "sku": self.product.sku, "category": self.sub.id,
+            "price": "1000000", "discount_percent": "0", "stock": "5",
+            "status": "active", "icon": "📱", "description": "",
+            "video_url": "https://example.com/not-a-video",
+        }
+        response = self.client.post(reverse("dashboard:product-edit", args=[self.product.pk]), payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.product.videos.count(), 0)

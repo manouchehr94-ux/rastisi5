@@ -62,7 +62,10 @@ def _has_engine_variants(product: Product) -> bool:
 
 
 @transaction.atomic
-def add_product_option(product: Product, *, label: str, attribute=None, values: list[str] | None = None) -> ProductOption:
+def add_product_option(
+    product: Product, *, label: str, attribute=None, values: list[str] | None = None,
+    input_type: str = ProductOption.InputType.TEXT,
+) -> ProductOption:
     """یک محور تنوع جدید به کالا اضافه می‌کند، به‌همراه مقادیر اولیه‌ی اختیاری."""
     label = normalize_text(label)
     if not label:
@@ -83,7 +86,10 @@ def add_product_option(product: Product, *, label: str, attribute=None, values: 
 
     last_position = product.options.order_by("-position").values_list("position", flat=True).first()
     next_position = (last_position + 1) if last_position is not None else 0
-    option = ProductOption(product=product, attribute=attribute, label=label, position=next_position)
+    option = ProductOption(
+        product=product, attribute=attribute, label=label, position=next_position,
+        input_type=input_type or ProductOption.InputType.TEXT,
+    )
     try:
         option.full_clean()
     except ValidationError as exc:
@@ -324,6 +330,61 @@ def generate_variants(product: Product) -> VariantGenerationResult:
     _ensure_default_variant(product)
 
     return result
+
+
+@transaction.atomic
+def add_manual_variant(product: Product, option_value_ids: dict[int, int]) -> ProductVariant:
+    """یک ردیفِ تنوعِ چندمحوره را دستی (بدونِ حاصل‌ضربِ دکارتیِ کامل) اضافه/بازیابی می‌کند.
+
+    برایِ دکمه‌ی «+ اضافه کردنِ تنوعِ محصول»: مدیرِ فروشگاه برایِ هر محورِ فعال
+    یک مقدار انتخاب می‌کند و فقط همان یک ترکیب ساخته می‌شود — برخلافِ
+    ``generate_variants`` که همه‌ی ترکیب‌هایِ ممکن را می‌سازد. ``combination_key``
+    دقیقاً با همان قاعده محاسبه می‌شود تا با تولیدِ دسته‌ای بعدی سازگار بماند
+    (هرگز دوباره ساخته یا تکراری نمی‌شود)."""
+    axes = _active_axes(product)
+    if not axes:
+        raise VariantEngineError("حداقل یک محور تنوع فعال لازم است.")
+
+    pairs = []
+    for axis in axes:
+        value_id = option_value_ids.get(axis.pk)
+        if not value_id:
+            raise VariantEngineError(f"برایِ محورِ «{axis.label}» یک مقدار انتخاب کنید.")
+        value = next((v for v in axis.values.all() if v.pk == value_id and v.is_active), None)
+        if value is None:
+            raise VariantEngineError(f"مقدارِ انتخاب‌شده برایِ محورِ «{axis.label}» معتبر نیست.")
+        pairs.append((axis, value))
+
+    key = _combination_key([v.pk for _, v in pairs])
+    existing = product.variants.filter(combination_key=key).first()
+    if existing is not None:
+        if existing.is_obsolete or not existing.is_active:
+            existing.is_obsolete = False
+            existing.is_active = True
+            existing.save(update_fields=["is_obsolete", "is_active", "updated_at"])
+        return existing
+
+    attribute_labels = [axis.label for axis, _ in pairs]
+    value_labels = [value.label for _, value in pairs]
+    variant = ProductVariant(
+        product=product,
+        store=product.store,
+        attribute=" / ".join(attribute_labels),
+        value=" / ".join(value_labels),
+        combination_key=key,
+        sku=generate_variant_sku(product, "-".join(value_labels)),
+        stock=0,
+        extra_price=0,
+        is_active=True,
+        display_order=product.variants.count(),
+    )
+    variant.full_clean(exclude=["normalized_attribute", "normalized_value"])
+    variant.save()
+    VariantOptionValue.objects.bulk_create([
+        VariantOptionValue(variant=variant, option=axis, option_value=value) for axis, value in pairs
+    ])
+    _ensure_default_variant(product)
+    return variant
 
 
 def _ensure_default_variant(product: Product) -> None:

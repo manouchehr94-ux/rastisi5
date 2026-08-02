@@ -143,6 +143,7 @@ from apps.catalog.services.product_video_service import (
 )
 from apps.catalog.services.variant_engine_service import (
     VariantEngineError,
+    add_manual_variant,
     add_option_value,
     add_product_option,
     activate_product_option,
@@ -647,6 +648,45 @@ def _save_product_attribute_values(request, product):
             set_product_attribute_value(product, attribute, text_value=raw)
 
 
+class ProductMediaStageError(Exception):
+    """خطای قابل‌نمایش هنگامِ پردازشِ تصاویر/ویدیوی هم‌زمان با ساختِ کالای جدید."""
+
+
+def _save_staged_product_media(request, product) -> None:
+    """تصاویر و ویدیوی ارسال‌شده هم‌زمان با فرمِ *ساختِ* کالای جدید را ثبت می‌کند.
+
+    فقط برایِ مسیرِ ساختِ کالا فراخوانی می‌شود — کالای موجود از مسیرِ
+    آپلودِ فوریِ همین تب (htmx مستقیم روی endpointِ تصویر/ویدیو) استفاده
+    می‌کند. این تابع همیشه داخلِ تراکنشِ اتمیکِ ``product_form`` اجرا
+    می‌شود؛ اگر تصویر یا ویدیو نامعتبر باشد، کلِ ساختِ کالا (شاملِ خودِ
+    ردیفِ Product) برگردانده می‌شود — طبقِ الزامِ «ذخیره‌ی اتمیکِ رسانه
+    همراه با کالای جدید»."""
+    files = request.FILES.getlist("images")
+    if files:
+        image_form = ProductImageUploadForm(request.POST, request.FILES)
+        if not image_form.is_valid():
+            raise ProductMediaStageError("فایلِ تصویرِ انتخاب‌شده معتبر نیست.")
+        created_images = []
+        for file in image_form.cleaned_data.get("images") or []:
+            try:
+                created_images.append(add_product_image(product, file))
+            except ProductImageError as exc:
+                raise ProductMediaStageError(f"{file.name}: {exc}") from exc
+        cover_raw = request.POST.get("cover_index", "").strip()
+        if cover_raw.isdigit():
+            index = int(cover_raw)
+            if 0 <= index < len(created_images):
+                set_cover_image(product, created_images[index].pk)
+
+    video_url = request.POST.get("video_url", "").strip()
+    if video_url:
+        video_title = request.POST.get("video_title", "").strip()
+        try:
+            add_product_video(product, url=video_url, title=video_title)
+        except ProductVideoError as exc:
+            raise ProductMediaStageError(str(exc)) from exc
+
+
 def _save_product(form, product, *, store):
     data = form.cleaned_data
     if product is None:
@@ -689,7 +729,10 @@ _PRODUCT_WIZARD_FIELD_STEPS = {
     # تبِ ۱ — اطلاعات پایه: نام، کد کالا، آیکون، توضیحات، دسته‌بندی، برند، وضعیت، برچسب‌ها
     "name": "basic", "sku": "basic", "icon": "basic", "description": "basic",
     "category": "basic", "brand": "basic", "status": "basic", "tags": "basic",
-    # تبِ ۲ — قیمت و ویژگی‌ها: قیمت، تخفیف، مالیات، لجستیک، نوعِ کالا، موجودی
+    # تبِ «تصاویر و ویدیو» فیلدهایِ ProductForm ندارد (images/video_url/video_title
+    # مستقیماً از request.POST/FILES خوانده می‌شوند)؛ خطاهایش با error_step="media"
+    # مستقیم در ``product_form`` مدیریت می‌شود، نه از این نگاشت.
+    # تبِ ۲ — قیمت و تنوع: قیمت، تخفیف، مالیات، لجستیک، نوعِ کالا، موجودی
     "price": "price", "discount_percent": "price", "tax_class": "price",
     "barcode": "price", "weight_grams": "price", "requires_shipping": "price",
     "product_type": "price", "stock": "price",
@@ -698,9 +741,10 @@ _PRODUCT_WIZARD_FIELD_STEPS = {
 }
 
 
-def _product_form_extra_context(store, product, *, form=None) -> dict:
+def _product_form_extra_context(store, product, *, form=None, request=None) -> dict:
     """کانتکستِ مشترکِ فرمِ کالا (چک‌لیستِ انتشار، درصدِ تکمیل، برچسب‌های
-    فعلی/پیشنهادی) — در مسیرِ موفق و هر سه مسیرِ خطا یکسان لازم است.
+    فعلی/پیشنهادی، جدولِ ویژگی/تنوع برایِ تبِ «قیمت و تنوع») — در مسیرِ
+    موفق و هر مسیرِ خطا یکسان لازم است.
 
     ``form``: اگر داده شود و برچسب‌هایی در ``cleaned_data`` داشته باشد (یعنی
     این یک بازارسالِ دارایِ خطا است، نه GETِ اول)، همان برچسب‌هایِ *ارسال‌شده*
@@ -712,12 +756,15 @@ def _product_form_extra_context(store, product, *, form=None) -> dict:
         existing_tags_list = submitted_tags
     else:
         existing_tags_list = list(product.tags.values_list("name", flat=True)) if product else []
-    return {
+    context = {
         "checklist": build_completion_checklist(product) if product else [],
         "completion_pct": completion_percent(product) if product else 0,
         "existing_tags_list": existing_tags_list,
         "tag_suggestions": suggest_tags(store),
     }
+    if product is not None and product.product_type == Product.ProductType.VARIABLE:
+        context.update(_product_options_context(request, product))
+    return context
 
 
 def _product_wizard_error_step(form) -> str:
@@ -750,6 +797,8 @@ def product_form(request, pk=None):
                     if requested_type and requested_type != product.product_type:
                         set_product_type(product, requested_type)
                     _save_product_attribute_values(request, product)
+                    if is_new:
+                        _save_staged_product_media(request, product)
                     if product.status == Product.Status.ACTIVE:
                         publish_errors = validate_product_for_publish(product)
                         if publish_errors:
@@ -761,7 +810,16 @@ def product_form(request, pk=None):
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
-                    **_product_form_extra_context(store, product, form=form),
+                    **_product_form_extra_context(store, product, form=form, request=request),
+                })
+            except ProductMediaStageError as exc:
+                form.add_error(None, str(exc))
+                category = form.cleaned_data.get("category")
+                attribute_fields = _product_attribute_field_context(category, None)
+                return render(request, "dashboard/partials/product_form.html", {
+                    "form": form, "product": None, "attribute_fields": attribute_fields, "category": category,
+                    "category_groups": category_groups, "error_step": "media",
+                    **_product_form_extra_context(store, None, form=form, request=request),
                 })
             except ProductPublishError as exc:
                 for message in exc.args[0]:
@@ -771,7 +829,7 @@ def product_form(request, pk=None):
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
-                    **_product_form_extra_context(store, product, form=form),
+                    **_product_form_extra_context(store, product, form=form, request=request),
                 })
             except ValidationError as exc:
                 for field, messages in exc.message_dict.items():
@@ -782,7 +840,7 @@ def product_form(request, pk=None):
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
-                    **_product_form_extra_context(store, product, form=form),
+                    **_product_form_extra_context(store, product, form=form, request=request),
                 })
 
             table_html = render_to_string(
@@ -828,7 +886,7 @@ def product_form(request, pk=None):
     return render(request, "dashboard/partials/product_form.html", {
         "form": form, "product": product, "attribute_fields": attribute_fields, "orphaned_count": orphaned_count,
         "category": category, "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
-        **_product_form_extra_context(store, product, form=form),
+        **_product_form_extra_context(store, product, form=form, request=request),
     })
 
 
@@ -2006,7 +2064,10 @@ def product_option_add(request, pk):
         raw_values = form.cleaned_data["raw_values"]
         values = parse_bulk_values(raw_values) if raw_values else []
         try:
-            add_product_option(product, label=form.cleaned_data["label"], values=values)
+            add_product_option(
+                product, label=form.cleaned_data["label"], values=values,
+                input_type=form.cleaned_data["input_type"],
+            )
         except VariantEngineError as exc:
             return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
         return _product_options_response(request, product, toast={"message": "محور تنوع اضافه شد", "type": "ok"})
@@ -2134,6 +2195,30 @@ def product_variants_generate(request, pk):
 @require_POST
 @staff_required
 @permission_required(VARIANT_MANAGE)
+def product_variant_manual_add(request, pk):
+    """«+ اضافه کردنِ تنوعِ محصول» — یک ردیفِ جدولِ تنوع را دستی (با انتخابِ
+    یک مقدار برایِ هر محورِ فعال) اضافه می‌کند؛ نگاه کنید به
+    ``variant_engine_service.add_manual_variant``. برایِ ساختِ همه‌ی
+    ترکیب‌های ممکن یک‌جا، دکمه‌ی «تولید/تطبیقِ تنوع‌ها» همچنان در دسترس است."""
+    product = _get_scoped_product(request, pk)
+    axes = list(product.options.filter(is_active=True))
+    option_value_ids = {}
+    for axis in axes:
+        raw = request.POST.get(f"option_{axis.pk}", "").strip()
+        if raw.isdigit():
+            option_value_ids[axis.pk] = int(raw)
+    try:
+        variant = add_manual_variant(product, option_value_ids)
+    except VariantEngineError as exc:
+        return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
+    return _product_options_response(
+        request, product, toast={"message": f"تنوعِ «{variant.value}» اضافه شد", "type": "ok"},
+    )
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
 def product_variant_set_default(request, pk, variant_id):
     product = _get_scoped_product(request, pk)
     variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
@@ -2176,6 +2261,8 @@ def product_variants_bulk_update(request, pk):
             variant.cost = Decimal(cost_raw) if cost_raw else None
             weight_raw = normalize_digits(request.POST.get(f"{prefix}weight_grams", "")).strip()
             variant.weight_grams = int(weight_raw) if weight_raw else None
+            sales_limit_raw = normalize_digits(request.POST.get(f"{prefix}sales_limit", "")).strip()
+            variant.sales_limit = int(sales_limit_raw) if sales_limit_raw else None
             tax_class_raw = request.POST.get(f"{prefix}tax_class", "").strip()
             if tax_class_raw:
                 tax_class = TaxClass.objects.filter(pk=tax_class_raw, store=product.store).first()

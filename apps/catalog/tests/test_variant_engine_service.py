@@ -15,6 +15,7 @@ from apps.catalog.models import (
 from apps.catalog.services.variant_engine_service import (
     MAX_OPTION_AXES,
     VariantEngineError,
+    add_manual_variant,
     add_option_value,
     add_product_option,
     deactivate_product_option,
@@ -475,3 +476,61 @@ class DefaultVariantTests(VariantEngineTestCase):
         self.assertEqual(self.product.variants.filter(is_default=True, is_active=True).count(), 1)
         new_default = self.product.variants.get(is_default=True)
         self.assertFalse(new_default.is_obsolete)
+
+
+class OptionInputTypeTests(VariantEngineTestCase):
+    def test_defaults_to_text(self):
+        option = add_product_option(self.product, label="کشور سازنده", values=["ایرانی", "ایتالیایی"])
+        self.assertEqual(option.input_type, ProductOption.InputType.TEXT)
+
+    def test_color_input_type_persisted(self):
+        option = add_product_option(self.product, label="رنگ", input_type=ProductOption.InputType.COLOR)
+        self.assertEqual(option.input_type, ProductOption.InputType.COLOR)
+
+
+class AddManualVariantTests(VariantEngineTestCase):
+    def test_creates_single_combination(self):
+        color, size = self._add_color_size()
+        green = color.values.get(label="سبز")
+        m = size.values.get(label="M")
+
+        variant = add_manual_variant(self.product, {color.pk: green.pk, size.pk: m.pk})
+
+        self.assertEqual(variant.value, "سبز / M")
+        self.assertEqual(self.product.variants.count(), 1)
+        self.assertEqual(variant.option_values.count(), 2)
+
+    def test_missing_axis_value_raises(self):
+        color, size = self._add_color_size()
+        green = color.values.get(label="سبز")
+        with self.assertRaises(VariantEngineError):
+            add_manual_variant(self.product, {color.pk: green.pk})
+
+    def test_no_active_axes_raises(self):
+        with self.assertRaises(VariantEngineError):
+            add_manual_variant(self.product, {})
+
+    def test_idempotent_same_combination_returns_existing(self):
+        color, size = self._add_color_size()
+        green = color.values.get(label="سبز")
+        m = size.values.get(label="M")
+        first = add_manual_variant(self.product, {color.pk: green.pk, size.pk: m.pk})
+        second = add_manual_variant(self.product, {color.pk: green.pk, size.pk: m.pk})
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(self.product.variants.count(), 1)
+
+    def test_scissors_country_of_origin_example(self):
+        scissors = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="قیچی",
+            slug="ve-scissors", sku="VE-SC1", price=Decimal("100000"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        country = add_product_option(scissors, label="کشور سازنده", values=["ایرانی", "ایتالیایی"])
+        iranian = country.values.get(label="ایرانی")
+        italian = country.values.get(label="ایتالیایی")
+
+        v_iranian = add_manual_variant(scissors, {country.pk: iranian.pk})
+        v_italian = add_manual_variant(scissors, {country.pk: italian.pk})
+
+        self.assertEqual(scissors.variants.count(), 2)
+        self.assertNotEqual(v_iranian.combination_key, v_italian.combination_key)

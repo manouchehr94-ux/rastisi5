@@ -48,7 +48,7 @@ class ProductOptionsPageTests(ProductOptionsViewsTestCase):
     def test_renders_empty_state(self):
         response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "هنوز محوری تعریف نشده است")
+        self.assertContains(response, "هنوز ویژگی‌ای تعریف نشده است")
 
     def test_anonymous_denied(self):
         self.client.logout()
@@ -362,6 +362,84 @@ class ProductVariantsBulkUpdatePriceTaxWeightTests(ProductOptionsViewsTestCase):
         self.client.post(reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload)
         v1.refresh_from_db()
         self.assertIsNone(v1.tax_class_id)
+
+    def test_sets_sales_limit(self):
+        variants = self._generate()
+        v1 = variants[0]
+        payload = {"variant_ids": [v1.pk]}
+        payload.update(self._base_fields(v1, sales_limit="3"))
+        self.client.post(reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload)
+        v1.refresh_from_db()
+        self.assertEqual(v1.sales_limit, 3)
+
+    def test_blank_sales_limit_means_no_limit(self):
+        variants = self._generate()
+        v1 = variants[0]
+        v1.sales_limit = 3
+        v1.save(update_fields=["sales_limit"])
+        payload = {"variant_ids": [v1.pk]}
+        payload.update(self._base_fields(v1, sales_limit=""))
+        self.client.post(reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload)
+        v1.refresh_from_db()
+        self.assertIsNone(v1.sales_limit)
+
+
+class ProductVariantTableDynamicColumnsTests(ProductOptionsViewsTestCase):
+    """ستون‌هایِ ویژگی‌هایِ جدولِ تنوع باید پویا باشند — نه فقط رنگ/سایزِ هاردکد."""
+
+    def test_length_diameter_country_columns_render(self):
+        add_product_option(self.product, label="طول", values=["۱۰ سانتی‌متر", "۲۰ سانتی‌متر"])
+        add_product_option(self.product, label="قطر", values=["کوچک", "بزرگ"])
+        generate_variants(self.product)
+        response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        self.assertContains(response, "<th>طول</th>")
+        self.assertContains(response, "<th>قطر</th>")
+        self.assertContains(response, "کوچک")
+
+    def test_scissors_country_of_origin_column(self):
+        add_product_option(self.product, label="کشور سازنده", values=["ایرانی", "ایتالیایی"])
+        generate_variants(self.product)
+        response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        self.assertContains(response, "<th>کشور سازنده</th>")
+        self.assertContains(response, "ایرانی")
+        self.assertContains(response, "ایتالیایی")
+
+
+class ProductVariantManualAddViewTests(ProductOptionsViewsTestCase):
+    """«+ اضافه کردن تنوع محصول» — افزودنِ یک ردیف با انتخابِ مقدار برایِ هر محور."""
+
+    def test_adds_single_combination(self):
+        color = add_product_option(self.product, label="رنگ", values=["سبز", "آبی"])
+        green = color.values.get(label="سبز")
+        response = self.client.post(
+            reverse("dashboard:product-variant-manual-add", args=[self.product.pk]),
+            {f"option_{color.pk}": green.pk},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.product.variants.count(), 1)
+        self.assertEqual(self.product.variants.first().value, "سبز")
+
+    def test_missing_value_shows_error_toast(self):
+        add_product_option(self.product, label="رنگ", values=["سبز"])
+        response = self.client.post(
+            reverse("dashboard:product-variant-manual-add", args=[self.product.pk]), {},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.product.variants.count(), 0)
+
+    def test_tenant_isolation(self):
+        other_store = Store.objects.create(name="فروشگاه دیگر", slug="popt-manual-other", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="ف6", slug="popt-manual-other-v")
+        other_category = Category.objects.create(store=other_store, name="د6", slug="popt-manual-other-c")
+        other_product = Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="کالای دیگر۶",
+            slug="popt-manual-other-p", sku="POPT-MANUAL-OTHER", price=Decimal("1000"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        response = self.client.post(
+            reverse("dashboard:product-variant-manual-add", args=[other_product.pk]), {},
+        )
+        self.assertEqual(response.status_code, 404)
 
 
 class ProductVariantsBulkActivateViewTests(ProductOptionsViewsTestCase):

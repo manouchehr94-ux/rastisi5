@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from django import forms
 
-from apps.catalog.models import Attribute, Brand, Category, Product
+from apps.catalog.models import Attribute, Brand, Category, Product, ProductOption
 from apps.core.color_utils import contrast_ratio, safe_hex
 from apps.core.models import ShopSettings
 from apps.core.utils import normalize_digits
@@ -338,7 +338,11 @@ class AttributeValueForm(forms.Form):
 class ProductOptionForm(forms.Form):
     """اعتبارسنجی ساختاری فرم افزودن محور تنوع؛ اعتبارسنجی کسب‌وکاری در variant_engine_service است."""
 
-    label = forms.CharField(label="عنوان محور", max_length=60)
+    label = forms.CharField(label="نامِ ویژگی", max_length=60)
+    input_type = forms.ChoiceField(
+        label="نوعِ ورودی", choices=ProductOption.InputType.choices, initial=ProductOption.InputType.TEXT,
+        required=False,
+    )
     raw_values = forms.CharField(
         label="مقادیر اولیه", widget=forms.Textarea, required=False,
         help_text="هر مقدار را در یک خط، یا با کاما/سمیکالن از هم جدا کنید.",

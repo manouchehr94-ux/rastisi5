@@ -15,10 +15,8 @@
   <div class="card-head"><h3>محورهای تنوع پیشنهادی برای این دسته‌بندی</h3></div>
   <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap">
     {% for recommendation in recommended_options %}
-    <form hx-post="{% url 'dashboard:product-apply-recommended-option' product.pk recommendation.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">
-      {% csrf_token %}
-      <button type="submit" class="btn btn-sm">➕ {{ recommendation.attribute.label }}</button>
-    </form>
+    <button type="button" class="btn btn-sm"
+            hx-post="{% url 'dashboard:product-apply-recommended-option' product.pk recommendation.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">➕ {{ recommendation.attribute.label }}</button>
     {% endfor %}
   </div>
 </div>
@@ -55,56 +53,95 @@
         <span style="color:var(--muted);font-size:12px">مقداری ثبت نشده است</span>
         {% endfor %}
       </div>
-      <form hx-post="{% url 'dashboard:product-option-value-add' product.pk axis.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
-            style="display:flex;gap:8px;margin-top:10px;align-items:flex-end">
-        {% csrf_token %}
+      <div id="valueAddGroup{{ axis.pk }}" style="display:flex;gap:8px;margin-top:10px;align-items:flex-end;flex-wrap:wrap">
         <div class="form-group" style="margin-bottom:0">
           <input class="inp" name="label" placeholder="مقدار جدید (مثلاً: بنفش)" style="width:180px">
         </div>
-        <button type="submit" class="btn btn-sm">افزودن مقدار</button>
-      </form>
+        {% if axis.input_type == "color" %}
+        <div class="form-group" style="margin-bottom:0">
+          <input class="inp" type="color" name="color_hex" style="width:44px;height:38px;padding:2px">
+        </div>
+        {% endif %}
+        <button type="button" class="btn btn-sm"
+                hx-post="{% url 'dashboard:product-option-value-add' product.pk axis.pk %}" hx-include="#valueAddGroup{{ axis.pk }}"
+                hx-target="#productOptionsBody" hx-swap="innerHTML">افزودن مقدار</button>
+      </div>
     </div>
     {% empty %}
-    <p style="color:var(--muted);font-size:13px">هنوز محوری تعریف نشده است</p>
+    <p style="color:var(--muted);font-size:13px">هنوز ویژگی‌ای تعریف نشده است</p>
     {% endfor %}
 
     <hr style="margin:16px 0;border-color:var(--border)">
 
-    <form hx-post="{% url 'dashboard:product-option-add' product.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">
-      {% csrf_token %}
-      <div class="form-row">
+    <div x-data="{ showAddAxis: {{ axes|length|yesno:'false,true' }} }">
+      <button type="button" class="btn btn-sm" @click="showAddAxis = !showAddAxis" x-show="!showAddAxis">+ ویژگی جدید</button>
+      <div id="axisAddGroup" x-show="showAddAxis" x-cloak>
+        <div class="form-row">
+          <div class="form-group">
+            <label>نامِ ویژگی <span class="help-icon" title="یک ویژگیِ قابلِ انتخاب برایِ این کالا؛ مثلاً رنگ، طول، اندازه، قطر یا کشورِ سازنده.">؟</span></label>
+            <input class="inp" name="label" placeholder="مثلاً: رنگ، طول، اندازه، قطر، کشور سازنده، مدل" value="{{ option_form.label.value|default_if_none:'' }}">
+            {% for err in option_form.label.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+          </div>
+          <div class="form-group">
+            <label>نوعِ ورودی <span class="help-icon" title="نوعِ متن، رنگ یا عدد برایِ مقادیرِ این ویژگی.">؟</span></label>
+            <select class="inp" name="input_type">
+              {% for value, label in option_form.fields.input_type.choices %}
+              <option value="{{ value }}" {% if option_form.input_type.value == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
         <div class="form-group">
-          <label>عنوان محور جدید <span class="help-icon" title="یک ویژگیِ قابلِ انتخاب برایِ این کالا؛ مثلاً رنگ یا سایز.">؟</span></label>
-          <input class="inp" name="label" placeholder="مثلاً: رنگ، سایز، جنس" value="{{ option_form.label.value|default_if_none:'' }}">
-          {% for err in option_form.label.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+          <label>مقادیر اولیه (اختیاری) <span class="help-icon" title="با ویرگول جدا کنید؛ بعداً هم می‌توانید مقدارِ بیشتری اضافه کنید.">؟</span></label>
+          <textarea class="inp" name="raw_values" rows="2" placeholder="سبز، آبی، زرد">{{ option_form.raw_values.value|default_if_none:'' }}</textarea>
+          <div class="field-help">مثال: «سبز، آبی، زرد» سه مقدار برای ویژگیِ رنگ می‌سازد؛ یا «ایرانی، ایتالیایی» برایِ کشورِ سازنده.</div>
+        </div>
+        {% for err in option_form.non_field_errors %}<div style="color:var(--red);font-size:11.5px;margin-bottom:8px">{{ err }}</div>{% endfor %}
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn btn-primary"
+                  hx-post="{% url 'dashboard:product-option-add' product.pk %}" hx-include="#axisAddGroup"
+                  hx-target="#productOptionsBody" hx-swap="innerHTML">افزودنِ ویژگی</button>
+          {% if axes %}<button type="button" class="btn btn-sm" @click="showAddAxis = false">انصراف</button>{% endif %}
         </div>
       </div>
-      <div class="form-group">
-        <label>مقادیر اولیه (اختیاری) <span class="help-icon" title="با ویرگول جدا کنید؛ بعداً هم می‌توانید مقدارِ بیشتری اضافه کنید.">؟</span></label>
-        <textarea class="inp" name="raw_values" rows="2" placeholder="سبز، آبی، زرد">{{ option_form.raw_values.value|default_if_none:'' }}</textarea>
-        <div class="field-help">مثال: «سبز، آبی، زرد» سه مقدار برای محورِ رنگ می‌سازد.</div>
-      </div>
-      {% for err in option_form.non_field_errors %}<div style="color:var(--red);font-size:11.5px;margin-bottom:8px">{{ err }}</div>{% endfor %}
-      <button type="submit" class="btn btn-primary">افزودن محور</button>
-    </form>
+    </div>
   </div>
 </div>
 
 <div class="card" style="margin-bottom:18px">
-  <div class="card-body" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
-    <div><b>پیش‌نمایش تعداد ترکیب:</b> {{ combination_preview|fa_number }} <span class="help-icon" title="حاصل‌ضربِ تعدادِ مقادیرِ همه‌ی محورهای فعال؛ مثلاً ۳ رنگ × ۲ سایز = ۶ ترکیب.">؟</span></div>
-    <form hx-post="{% url 'dashboard:product-variants-generate' product.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
-          hx-confirm="تولید/تطبیق تنوع‌ها اجرا شود؟ ترکیب‌های موجود حفظ می‌شوند؛ ترکیب‌های حذف‌شده منسوخ (نه حذف) خواهند شد.">
-      {% csrf_token %}
-      <button type="submit" class="btn btn-primary">🔄 تولید / تطبیق تنوع‌ها</button>
-    </form>
-    <div class="field-help" style="width:100%">پس از افزودن یا تغییرِ محورها، این دکمه را بزنید تا تنوع‌های نهایی (مثل «قرمز / L») ساخته یا به‌روزرسانی شوند.</div>
+  <div class="card-body" x-data="{ showAddVariant: false }">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button type="button" class="btn btn-primary" @click="showAddVariant = !showAddVariant" {% if not axes %}disabled title="ابتدا حداقل یک ویژگی اضافه کنید"{% endif %}>+ اضافه کردن تنوع محصول</button>
+      <button type="button" class="btn btn-sm" {% if not axes %}disabled{% endif %}
+              hx-post="{% url 'dashboard:product-variants-generate' product.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
+              hx-confirm="تولید/تطبیقِ گروهیِ همه‌ی ترکیب‌ها اجرا شود؟ ترکیب‌های موجود حفظ می‌شوند؛ ترکیب‌های حذف‌شده منسوخ (نه حذف) خواهند شد.">🔄 تولیدِ خودکارِ همه‌ی ترکیب‌ها ({{ combination_preview|fa_number }})</button>
+    </div>
+    <div id="manualVariantGroup" x-show="showAddVariant" x-cloak
+         style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      {% for axis in axes %}
+      {% if axis.is_active %}
+      <div class="form-group" style="margin-bottom:0">
+        <label>{{ axis.label }}</label>
+        <select class="inp" name="option_{{ axis.pk }}" style="width:140px">
+          <option value="">— انتخاب —</option>
+          {% for value in axis.values.all %}
+          {% if value.is_active %}<option value="{{ value.pk }}">{{ value.label }}</option>{% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      {% endfor %}
+      <button type="button" class="btn btn-sm btn-primary"
+              hx-post="{% url 'dashboard:product-variant-manual-add' product.pk %}" hx-include="#manualVariantGroup"
+              hx-target="#productOptionsBody" hx-swap="innerHTML">افزودنِ ردیف</button>
+    </div>
+    <div class="field-help" style="margin-top:10px">برایِ هر ویژگی یک مقدار انتخاب کنید و «افزودنِ ردیف» را بزنید؛ یا برایِ ساختنِ همه‌ی ترکیب‌های ممکن یک‌جا، از دکمه‌ی تولیدِ خودکار استفاده کنید.</div>
   </div>
 </div>
 
 {% if active_variants %}
 <div class="card" style="margin-bottom:18px">
-  <div class="card-head"><h3>تنوع‌های فعال ({{ active_variants|length|fa_number }})</h3></div>
+  <div class="card-head"><h3>جدولِ تنوع‌ها ({{ active_variants|length|fa_number }})</h3></div>
   <div class="card-body" data-bulk-activate-url="{% url 'dashboard:product-variants-bulk-activate' product.pk %}" x-data="{
          checkedIds() {
            return [...this.$el.querySelectorAll('tbody input[name=delete_variant_ids]:checked')].map(cb => cb.value);
@@ -127,13 +164,14 @@
              values: { variant_ids: ids, activate: activate },
            });
          },
+         openRows: {},
+         toggleRow(id) { this.openRows[id] = !this.openRows[id] },
        }">
-    <form hx-post="{% url 'dashboard:product-variants-bulk-update' product.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">
-      {% csrf_token %}
+    <div id="variantBulkForm">
       <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-        <button type="button" class="btn btn-sm" @click="bulkFill('price', 'قیمتِ مستقلِ جدید برایِ ردیف‌هایِ انتخاب‌شده (خالی=بدونِ قیمتِ مستقل):')">💰 تنظیمِ گروهیِ قیمت</button>
+        <button type="button" class="btn btn-sm" @click="bulkFill('price', 'قیمتِ جدید برایِ ردیف‌هایِ انتخاب‌شده:')">💰 تنظیمِ گروهیِ قیمت</button>
         <button type="button" class="btn btn-sm" @click="bulkFill('stock', 'موجودیِ جدید برایِ ردیف‌هایِ انتخاب‌شده:')">📦 تنظیمِ گروهیِ موجودی</button>
-        <button type="button" class="btn btn-sm" @click="bulkFill('weight_grams', 'وزنِ جدید (گرم) برایِ ردیف‌هایِ انتخاب‌شده:')">⚖️ تنظیمِ گروهیِ وزن</button>
+        <button type="button" class="btn btn-sm" @click="bulkFill('sales_limit', 'محدودیتِ فروشِ جدید برایِ ردیف‌هایِ انتخاب‌شده (خالی=بدونِ محدودیت):')">🎯 تنظیمِ گروهیِ محدودیتِ فروش</button>
         <button type="button" class="btn btn-sm" @click="bulkActivate('1')">✅ فعال‌سازیِ انتخاب‌شده‌ها</button>
         <button type="button" class="btn btn-sm" @click="bulkActivate('0')">🚫 غیرفعال‌سازیِ انتخاب‌شده‌ها</button>
       </div>
@@ -143,16 +181,13 @@
             <tr>
               <th><input type="checkbox" title="انتخابِ همه" @change="const c = $event.target.checked; $el.closest('table').querySelectorAll('tbody input[name=delete_variant_ids]').forEach(cb => cb.checked = c)"></th>
               <th>تصویر</th>
-              <th>ترکیب</th>
-              <th title="کدِ داخلیِ یکتای این تنوع؛ خالی بگذارید تا خودکار ساخته شود.">SKU</th>
-              <th title="برایِ اسکن در انبار یا صندوقِ فروش — اختیاری.">بارکد</th>
-              <th title="قیمتِ کاملاً مستقلِ این تنوع — وقتی پر باشد، جایگزینِ «قیمتِ پایه + تغییرِ قیمت» می‌شود؛ برایِ تنوع‌هایی مثل «قیچیِ ایرانی/ایتالیایی» با قیمت‌هایِ کاملاً متفاوت.">قیمتِ مستقل</th>
-              <th title="مبلغی که (در نبودِ قیمتِ مستقل) به قیمتِ پایه‌ی کالا اضافه/کم می‌شود.">تغییر قیمت</th>
-              <th title="قیمتِ خط‌خورده‌ای که کنارِ قیمتِ نهایی نمایش داده می‌شود تا تخفیف را نشان دهد.">قیمت مقایسه‌ای</th>
-              <th title="بهای خرید/تولیدِ داخلی؛ به مشتری نمایش داده نمی‌شود، فقط برایِ محاسبه‌ی سود است.">بهای تمام‌شده</th>
-              <th title="خالی = دسته‌ی مالیاتیِ پیش‌فرضِ کالا/فروشگاه.">دسته‌ی مالیاتی</th>
-              <th>وزن (گرم)</th>
-              <th>موجودی</th><th>فعال</th><th>پیش‌فرض</th><th></th>
+              <th title="کدِ داخلیِ یکتای این تنوع؛ خالی بگذارید تا خودکار ساخته شود.">کدِ محصول</th>
+              <th title="وقتی پر باشد، جایگزینِ قیمتِ پایه‌ی کالا می‌شود — برایِ تنوع‌هایی مثل «قیچیِ ایرانی/ایتالیایی» با قیمت‌هایِ کاملاً متفاوت.">قیمت (تومان)</th>
+              <th title="حداکثر تعدادِ قابلِ خرید از این تنوع در یک سفارش — خالی یعنی بدونِ محدودیت.">محدودیتِ فروش</th>
+              <th>موجودی</th>
+              {% for axis in axes %}{% if axis.is_active %}<th>{{ axis.label }}</th>{% endif %}{% endfor %}
+              <th>فعال</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -166,55 +201,86 @@
                 {% else %}
                 <span style="color:var(--muted);font-size:11px">—</span>
                 {% endif %}
-              </td>
-              <td>
                 <input type="hidden" name="variant_ids" value="{{ variant.pk }}">
-                {{ variant.value }}
               </td>
-              <td><input class="inp" name="variant_{{ variant.pk }}_sku" value="{{ variant.sku }}" dir="ltr" style="width:120px"></td>
-              <td><input class="inp" name="variant_{{ variant.pk }}_barcode" value="{{ variant.barcode }}" dir="ltr" style="width:110px"></td>
-              <td><input class="inp" name="variant_{{ variant.pk }}_price" value="{% if variant.price %}{{ variant.price|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:100px" placeholder="—"></td>
-              <td><input class="inp" name="variant_{{ variant.pk }}_extra_price" value="{{ variant.extra_price|stringformat:'d' }}" dir="ltr" inputmode="numeric" style="width:100px"></td>
-              <td><input class="inp" name="variant_{{ variant.pk }}_compare_at_price" value="{% if variant.compare_at_price %}{{ variant.compare_at_price|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:100px"></td>
-              <td><input class="inp" name="variant_{{ variant.pk }}_cost" value="{% if variant.cost %}{{ variant.cost|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:100px"></td>
+              <td><input class="inp" name="variant_{{ variant.pk }}_sku" value="{{ variant.sku }}" dir="ltr" style="width:110px"></td>
+              <td><input class="inp" name="variant_{{ variant.pk }}_price" value="{% if variant.price %}{{ variant.price|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:100px" placeholder="از کالا"></td>
+              <td><input class="inp" name="variant_{{ variant.pk }}_sales_limit" value="{% if variant.sales_limit %}{{ variant.sales_limit|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:80px" placeholder="—"></td>
+              <td><input class="inp" name="variant_{{ variant.pk }}_stock" value="{{ variant.stock|stringformat:'d' }}" dir="ltr" inputmode="numeric" style="width:70px"></td>
+              {% for axis in axes %}
+              {% if axis.is_active %}
               <td>
-                <select class="inp" name="variant_{{ variant.pk }}_tax_class" style="width:130px">
-                  <option value="">— پیش‌فرض —</option>
-                  {% for tax_class in tax_class_options %}
-                  <option value="{{ tax_class.pk }}" {% if variant.tax_class_id == tax_class.pk %}selected{% endif %}>{{ tax_class.name }}</option>
-                  {% endfor %}
-                </select>
+                {% for ov in variant.option_values.all %}{% if ov.option_id == axis.pk %}{{ ov.option_value.label }}{% endif %}{% endfor %}
               </td>
-              <td><input class="inp" name="variant_{{ variant.pk }}_weight_grams" value="{% if variant.weight_grams %}{{ variant.weight_grams|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:80px" placeholder="کالا"></td>
-              <td><input class="inp" name="variant_{{ variant.pk }}_stock" value="{{ variant.stock|stringformat:'d' }}" dir="ltr" inputmode="numeric" style="width:80px"></td>
+              {% endif %}
+              {% endfor %}
               <td><input type="checkbox" name="variant_{{ variant.pk }}_is_active" {% if variant.is_active %}checked{% endif %}></td>
               <td>
-                {% if variant.is_default %}
-                <span class="badge b-green">پیش‌فرض</span>
-                {% else %}
-                <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:product-variant-set-default' product.pk variant.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">تنظیم پیش‌فرض</button>
-                {% endif %}
+                <button type="button" class="btn btn-sm" title="جزئیاتِ بیشتر" @click="toggleRow({{ variant.pk }})">⋯</button>
               </td>
-              <td>
-                <button type="button" class="btn btn-sm" title="تکرارِ این ردیف"
-                        hx-post="{% url 'dashboard:product-variant-matrix-duplicate' product.pk variant.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">⧉</button>
+            </tr>
+            <tr x-show="openRows[{{ variant.pk }}]" x-cloak>
+              <td></td>
+              <td colspan="99" style="background:var(--surface2);padding:10px">
+                <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+                  <div class="form-group" style="margin-bottom:0">
+                    <label>بارکد</label>
+                    <input class="inp" name="variant_{{ variant.pk }}_barcode" value="{{ variant.barcode }}" dir="ltr" style="width:110px">
+                  </div>
+                  <div class="form-group" style="margin-bottom:0">
+                    <label title="مبلغی که (در نبودِ قیمتِ مستقل) به قیمتِ پایه‌ی کالا اضافه/کم می‌شود">تغییرِ قیمت</label>
+                    <input class="inp" name="variant_{{ variant.pk }}_extra_price" value="{{ variant.extra_price|stringformat:'d' }}" dir="ltr" inputmode="numeric" style="width:100px">
+                  </div>
+                  <div class="form-group" style="margin-bottom:0">
+                    <label>قیمتِ مقایسه‌ای</label>
+                    <input class="inp" name="variant_{{ variant.pk }}_compare_at_price" value="{% if variant.compare_at_price %}{{ variant.compare_at_price|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:100px">
+                  </div>
+                  <div class="form-group" style="margin-bottom:0">
+                    <label>بهایِ تمام‌شده</label>
+                    <input class="inp" name="variant_{{ variant.pk }}_cost" value="{% if variant.cost %}{{ variant.cost|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:100px">
+                  </div>
+                  <div class="form-group" style="margin-bottom:0">
+                    <label>دسته‌ی مالیاتی</label>
+                    <select class="inp" name="variant_{{ variant.pk }}_tax_class" style="width:130px">
+                      <option value="">— پیش‌فرض —</option>
+                      {% for tax_class in tax_class_options %}
+                      <option value="{{ tax_class.pk }}" {% if variant.tax_class_id == tax_class.pk %}selected{% endif %}>{{ tax_class.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom:0">
+                    <label>وزن (گرم)</label>
+                    <input class="inp" name="variant_{{ variant.pk }}_weight_grams" value="{% if variant.weight_grams %}{{ variant.weight_grams|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:80px" placeholder="کالا">
+                  </div>
+                  <div style="display:flex;gap:8px">
+                    {% if variant.is_default %}
+                    <span class="badge b-green" style="align-self:center">پیش‌فرض</span>
+                    {% else %}
+                    <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:product-variant-set-default' product.pk variant.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">تنظیمِ پیش‌فرض</button>
+                    {% endif %}
+                    <button type="button" class="btn btn-sm" title="تکرارِ این ردیف"
+                            hx-post="{% url 'dashboard:product-variant-matrix-duplicate' product.pk variant.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">⧉ تکرار</button>
+                  </div>
+                </div>
               </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-      <div style="display:flex;gap:10px;margin-top:12px">
-        <button type="submit" class="btn btn-primary">ذخیره‌ی تغییرات تنوع‌ها</button>
+      <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+        <button type="button" class="btn btn-primary"
+                hx-post="{% url 'dashboard:product-variants-bulk-update' product.pk %}" hx-include="#variantBulkForm"
+                hx-target="#productOptionsBody" hx-swap="innerHTML">ذخیره‌ی تغییرات تنوع‌ها</button>
         <button type="button" class="btn btn-danger"
-                hx-post="{% url 'dashboard:product-variants-bulk-delete' product.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
+                hx-post="{% url 'dashboard:product-variants-bulk-delete' product.pk %}" hx-include="#variantBulkForm" hx-target="#productOptionsBody" hx-swap="innerHTML"
                 hx-confirm="تنوع‌های انتخاب‌شده حذف شوند؟ تنوعِ استفاده‌شده در سفارش حذف نخواهد شد.">
           🗑️ حذفِ انتخاب‌شده‌ها
         </button>
         <button type="button" class="btn btn-sm" style="margin-inline-start:auto"
                 hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">🖼️ مدیریتِ تصاویر و اختصاصِ تصویر به تنوع</button>
       </div>
-    </form>
+    </div>
   </div>
 </div>
 {% endif %}

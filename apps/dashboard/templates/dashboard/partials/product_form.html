@@ -5,10 +5,10 @@
 </div>
 {{ existing_tags_list|json_script:"existing-tags-data" }}
 <form hx-post="{% if product %}{% url 'dashboard:product-edit' product.pk %}{% else %}{% url 'dashboard:product-add' %}{% endif %}"
-      hx-target="#admin-modal-content" hx-swap="innerHTML"
+      hx-target="#admin-modal-content" hx-swap="innerHTML" hx-encoding="multipart/form-data"
       x-data="{
         tab: '{{ error_step|default:'basic' }}',
-        tabs: [['basic', 'اطلاعات پایه'], ['price', 'قیمت و ویژگی‌ها'], ['seo', 'سئو و انتشار']],
+        tabs: [['basic', 'اطلاعات پایه'], ['media', 'تصاویر و ویدیو'], ['price', 'قیمت و تنوع'], ['seo', 'سئو و انتشار']],
         tags: JSON.parse(document.getElementById('existing-tags-data').textContent),
         tagInput: '',
         addTag() {
@@ -124,13 +124,8 @@
       </div>
 
       <div class="form-group">
-        <label>تصاویر و ویدیوی کالا <span class="help-icon" title="کاور، گالریِ عمومی، تصویرِ اختصاصیِ هر مقدارِ ویژگی (مثلاً رنگ) و تصویرِ دقیقِ هر تنوع — همه از همین صفحه مدیریت می‌شوند.">؟</span></label>
-        {% if product %}
-        <button type="button" class="btn btn-sm"
-                hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML">🖼️ مدیریتِ تصاویر و ویدیوِ این کالا</button>
-        {% else %}
-        <div class="info-box">پس از ذخیره‌ی این کالا می‌توانید از فرمِ ویرایش، تصویر، ویدیو و سایر رسانه‌ها برایش اضافه کنید.</div>
-        {% endif %}
+        <label>تصاویر و ویدیوی کالا <span class="help-icon" title="کاور، گالریِ عمومی، تصویرِ اختصاصیِ هر مقدارِ ویژگی (مثلاً رنگ) و تصویرِ دقیقِ هر تنوع — از تبِ «تصاویر و ویدیو» مدیریت می‌شوند.">؟</span></label>
+        <button type="button" class="btn btn-sm" @click="tab = 'media'">🖼️ رفتن به تبِ «تصاویر و ویدیو»</button>
       </div>
 
       <div class="form-group">
@@ -143,77 +138,262 @@
       </div>
     </div>
 
-    <!-- تب ۲: قیمت و ویژگی‌ها -->
-    <div class="form-section" x-show="tab === 'price'" x-ref="tabPrice">
-      <div class="form-section-title">قیمتِ پایه‌ی کالا</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>قیمت (تومان) * <span class="help-icon" title="قیمتِ پایه پیش از اعمالِ تخفیف. برایِ کالای دارای تنوع، این قیمت مقدارِ اولیه‌ی ردیف‌هاست؛ هر تنوع می‌تواند بعداً قیمتِ مستقلِ خودش را داشته باشد.">؟</span></label>
-          <input class="inp" name="price" required value="{{ form.price.value|default_if_none:'' }}" placeholder="1250000" dir="ltr" inputmode="numeric">
-          {% for err in form.price.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-        </div>
-        <div class="form-group">
-          <label>تخفیف (٪)</label>
-          <input class="inp" name="discount_percent" value="{{ form.discount_percent.value|default:'0' }}" dir="ltr" inputmode="numeric">
-          {% for err in form.discount_percent.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-        </div>
+    <!-- تب: تصاویر و ویدیو -->
+    <div class="form-section" x-show="tab === 'media'" x-ref="tabMedia">
+      {% if product %}
+      <div class="form-section-title">تصاویرِ کالا</div>
+      <div x-data="{ dragging: false }">
+        <label class="dropzone" :class="{ dragging: dragging }"
+               @click.prevent="$refs.editImagesInput.click()"
+               @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
+               @drop.prevent="
+                 dragging = false;
+                 $refs.editImagesInput.files = $event.dataTransfer.files;
+                 htmx.trigger($refs.editImagesInput, 'change');
+               ">
+          <span style="font-size:26px">📤</span>
+          <span>تصاویر را اینجا رها کنید یا کلیک کنید</span>
+          <small style="color:var(--muted)">فرمت‌های مجاز: jpg، png، webp — حداکثر ۵ مگابایت برای هر تصویر — چندتصویری هم‌زمان مجاز است</small>
+          <input type="file" x-ref="editImagesInput" name="images" multiple accept=".jpg,.jpeg,.png,.webp" style="display:none"
+                 hx-post="{% url 'dashboard:product-image-upload' product.pk %}" hx-encoding="multipart/form-data"
+                 hx-trigger="change" hx-target="#productImagesList" hx-swap="outerHTML">
+        </label>
       </div>
-      <div class="form-group">
-        <label>دسته‌ی مالیاتی</label>
-        <select class="inp" name="tax_class">
-          <option value="">— پیش‌فرضِ فروشگاه —</option>
-          {% for choice in form.tax_class.field.queryset %}
-          <option value="{{ choice.pk }}" {% if form.tax_class.value|stringformat:"s" == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>بارکد محصول</label>
-          <input class="inp" name="barcode" value="{{ form.barcode.value|default_if_none:'' }}" dir="ltr">
-          {% for err in form.barcode.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-        </div>
-        <div class="form-group">
-          <label>وزن (گرم)</label>
-          <input class="inp" name="weight_grams" value="{{ form.weight_grams.value|default_if_none:'' }}" dir="ltr" inputmode="numeric">
-          {% for err in form.weight_grams.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-        </div>
-      </div>
-      <label style="display:flex;align-items:center;gap:6px">
-        <input type="checkbox" name="requires_shipping" {% if form.requires_shipping.value %}checked{% endif %}>
-        نیاز به ارسال فیزیکی دارد
-      </label>
-      <div class="field-help" style="margin-right:24px;margin-bottom:16px">برایِ کالاهای دیجیتال/خدماتی که نیازی به پستِ فیزیکی ندارند، این گزینه را خاموش کنید.</div>
+      {% include "dashboard/partials/product_images_list.html" %}
 
-      <div class="form-section-title">ویژگی‌ها و تنوع</div>
+      <div class="form-section-title" style="margin-top:20px">ویدیوی معرفیِ کالا (یوتیوب / آپارات)</div>
+      <div x-data="{
+             url: '', embedUrl: '',
+             youtubePatterns: [/(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/)([\w-]{11})/, /youtu\.be\/([\w-]{11})/, /youtube\.com\/embed\/([\w-]{11})/],
+             aparatPattern: /aparat\.com\/(?:v\/|video\/video\/embed\/videohash\/)([\w-]+)/,
+             checkUrl() {
+               this.embedUrl = '';
+               if (!this.url.trim()) return;
+               for (const p of this.youtubePatterns) {
+                 const m = this.url.match(p);
+                 if (m) { this.embedUrl = 'https://www.youtube.com/embed/' + m[1]; return; }
+               }
+               const am = this.url.match(this.aparatPattern);
+               if (am) { this.embedUrl = 'https://www.aparat.com/video/video/embed/videohash/' + am[1] + '/vt/frame'; return; }
+             },
+           }" style="margin-bottom:12px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div class="form-group" style="margin-bottom:0;flex:1;min-width:220px">
+            <label>لینکِ ویدیو</label>
+            <input class="inp" id="editVideoUrlInput" name="__edit_video_url" dir="ltr" placeholder="https://www.youtube.com/watch?v=... یا https://www.aparat.com/v/..."
+                   x-model="url" @input.debounce.300ms="checkUrl()">
+          </div>
+          <div class="form-group" style="margin-bottom:0;width:150px">
+            <label>عنوان (اختیاری)</label>
+            <input class="inp" id="editVideoTitleInput" name="__edit_video_title" placeholder="معرفیِ کالا">
+          </div>
+          <button type="button" class="btn btn-sm btn-primary" :disabled="!url.trim() || !embedUrl"
+                  hx-post="{% url 'dashboard:product-video-add' product.pk %}"
+                  hx-include="#editVideoUrlInput,#editVideoTitleInput"
+                  hx-target="#productVideosList" hx-swap="outerHTML"
+                  @click="url = ''; embedUrl = ''">افزودنِ ویدیو</button>
+        </div>
+        <div x-show="url.trim() && !embedUrl" x-cloak style="color:var(--red);font-size:11.5px;margin-top:6px">
+          این لینک شناخته‌شده نیست — فقط لینکِ یوتیوب یا آپارات پذیرفته می‌شود.
+        </div>
+        <div x-show="embedUrl" x-cloak style="margin-top:10px;width:220px;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:#000">
+          <iframe :src="embedUrl" style="width:100%;height:100%;border:0" allowfullscreen loading="lazy"></iframe>
+        </div>
+      </div>
+      {% include "dashboard/partials/product_videos_list.html" %}
+
+      {% else %}
+      <div class="form-section-title">تصاویرِ کالا</div>
+      <div class="field-help" style="margin-bottom:10px">تصاویر همراه با خودِ کالا ذخیره می‌شوند — نیازی به ذخیره‌ی کالا پیش از افزودنِ تصویر نیست.</div>
+      <div x-data="{
+             files: [],
+             coverIndex: 0,
+             dragging: false,
+             maxSize: 5 * 1024 * 1024,
+             allowedExt: ['.jpg', '.jpeg', '.png', '.webp'],
+             addFiles(list) {
+               for (const f of list) {
+                 const dot = f.name.lastIndexOf('.');
+                 const ext = dot !== -1 ? f.name.slice(dot).toLowerCase() : '';
+                 if (!this.allowedExt.includes(ext)) { alert(f.name + ': فرمتِ تصویر مجاز نیست (فقط jpg، png، webp).'); continue; }
+                 if (f.size > this.maxSize) { alert(f.name + ': حجمِ تصویر نباید بیشتر از ۵ مگابایت باشد.'); continue; }
+                 this.files.push(f);
+               }
+               this.syncInput();
+             },
+             removeFile(i) {
+               this.files.splice(i, 1);
+               if (this.coverIndex >= this.files.length) this.coverIndex = Math.max(0, this.files.length - 1);
+               this.syncInput();
+             },
+             moveFile(i, dir) {
+               const j = i + dir;
+               if (j < 0 || j >= this.files.length) return;
+               if (this.coverIndex === i) this.coverIndex = j; else if (this.coverIndex === j) this.coverIndex = i;
+               const tmp = this.files[i]; this.files[i] = this.files[j]; this.files[j] = tmp;
+               this.syncInput();
+             },
+             setCover(i) { this.coverIndex = i; },
+             syncInput() {
+               const dt = new DataTransfer();
+               this.files.forEach(f => dt.items.add(f));
+               this.$refs.stagedImagesInput.files = dt.files;
+             },
+             urlFor(f) { return URL.createObjectURL(f); },
+           }">
+        <label class="dropzone" :class="{ dragging: dragging }"
+               @click.prevent="$refs.stagedImagesInput.click()"
+               @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
+               @drop.prevent="dragging = false; addFiles($event.dataTransfer.files)">
+          <span style="font-size:26px">📤</span>
+          <span>تصاویر را اینجا رها کنید یا کلیک کنید</span>
+          <small style="color:var(--muted)">فرمت‌های مجاز: jpg، png، webp — حداکثر ۵ مگابایت — چندتصویری هم‌زمان مجاز است</small>
+          <input type="file" x-ref="stagedImagesInput" multiple accept=".jpg,.jpeg,.png,.webp" style="display:none"
+                 @change="addFiles($event.target.files); $event.target.value = ''">
+        </label>
+        <input type="hidden" name="cover_index" :value="coverIndex">
+        <div class="img-manage-grid" x-show="files.length" style="margin-top:14px">
+          <template x-for="(f, i) in files" :key="f.name + '-' + i">
+            <div class="img-manage-item" :class="{ 'is-cover': i === coverIndex }">
+              <div class="img-manage-thumb" :style="'background-image:url(' + urlFor(f) + ')'">
+                <span class="pill pill-new img-manage-cover-badge" x-show="i === coverIndex">⭐ کاورِ کالا</span>
+              </div>
+              <div class="img-manage-actions">
+                <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" :disabled="i === 0" @click="moveFile(i, -1)">⬆️</button>
+                <button type="button" class="btn btn-sm" title="جابه‌جایی به پایین" :disabled="i === files.length - 1" @click="moveFile(i, 1)">⬇️</button>
+                <button type="button" class="btn btn-sm" x-show="i !== coverIndex" @click="setCover(i)">⭐ تعیینِ کاور</button>
+                <button type="button" class="btn btn-sm btn-danger" title="حذف" @click="removeFile(i)">🗑️</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div class="form-section-title" style="margin-top:20px">ویدیوی معرفیِ کالا (یوتیوب / آپارات) — اختیاری</div>
+      <div x-data="{
+             url: '', embedUrl: '',
+             youtubePatterns: [/(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/)([\w-]{11})/, /youtu\.be\/([\w-]{11})/, /youtube\.com\/embed\/([\w-]{11})/],
+             aparatPattern: /aparat\.com\/(?:v\/|video\/video\/embed\/videohash\/)([\w-]+)/,
+             checkUrl() {
+               this.embedUrl = '';
+               if (!this.url.trim()) return;
+               for (const p of this.youtubePatterns) {
+                 const m = this.url.match(p);
+                 if (m) { this.embedUrl = 'https://www.youtube.com/embed/' + m[1]; return; }
+               }
+               const am = this.url.match(this.aparatPattern);
+               if (am) { this.embedUrl = 'https://www.aparat.com/video/video/embed/videohash/' + am[1] + '/vt/frame'; return; }
+             },
+           }">
+        <div class="form-row">
+          <div class="form-group">
+            <label>لینکِ ویدیو</label>
+            <input class="inp" name="video_url" dir="ltr" placeholder="https://www.youtube.com/watch?v=... یا https://www.aparat.com/v/..."
+                   x-model="url" @input.debounce.300ms="checkUrl()">
+          </div>
+          <div class="form-group">
+            <label>عنوان (اختیاری)</label>
+            <input class="inp" name="video_title" placeholder="معرفیِ کالا">
+          </div>
+        </div>
+        <div x-show="url.trim() && !embedUrl" x-cloak style="color:var(--red);font-size:11.5px;margin-top:-6px;margin-bottom:10px">
+          این لینک شناخته‌شده نیست — فقط لینکِ یوتیوب یا آپارات پذیرفته می‌شود.
+        </div>
+        <div x-show="embedUrl" x-cloak style="margin-top:4px;margin-bottom:10px;width:220px;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:#000">
+          <iframe :src="embedUrl" style="width:100%;height:100%;border:0" allowfullscreen loading="lazy"></iframe>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- تب ۲: قیمت و تنوع -->
+    <div class="form-section" x-show="tab === 'price'" x-ref="tabPrice"
+         x-data="{ productType: '{{ form.product_type.value|default:'simple' }}' }">
       <div class="form-group">
-        <label>نوع کالا <span class="help-icon" title="بعد از ذخیره هم قابلِ تغییر است.">؟</span></label>
+        <label>نوعِ محصول <span class="help-icon" title="بعد از ذخیره هم قابلِ تغییر است.">؟</span></label>
         <div class="type-choice-row">
           <label class="type-choice">
-            <input type="radio" name="product_type" value="simple"
+            <input type="radio" name="product_type" value="simple" x-model="productType"
                    {% if form.product_type.value == "simple" or not form.product_type.value %}checked{% endif %}>
             <div><b>کالای ساده</b><small>یک کالای واحد با یک قیمت پایه و یک موجودی انبار.</small></div>
           </label>
           <label class="type-choice">
-            <input type="radio" name="product_type" value="variable"
+            <input type="radio" name="product_type" value="variable" x-model="productType"
                    {% if form.product_type.value == "variable" %}checked{% endif %}>
             <div><b>کالای دارای تنوع</b><small>گزینه‌های مجزا مثل رنگ، سایز، حجم، مدل یا هر ویژگیِ دیگری که خودتان تعریف می‌کنید — حتی «کشور سازنده» با قیمت‌های کاملاً متفاوت.</small></div>
           </label>
         </div>
         {% for err in form.product_type.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-        {% if product and product.product_type == "variable" %}
-        <a href="{% url 'dashboard:product-variants' product.pk %}" class="btn btn-sm" style="margin-top:8px">🧬 مدیریتِ محورها، مقادیر و جدولِ قیمتِ تنوع‌ها</a>
-        {% elif not product %}
-        <div class="field-help">پس از ذخیره‌ی کالا به‌عنوانِ «دارای تنوع»، تعریفِ محورها (رنگ، سایز، کشورِ سازنده و ...) و جدولِ قیمتِ هر ترکیب از فرمِ ویرایش در دسترس است.</div>
-        {% endif %}
-      </div>
-      <div class="form-group">
-        <label>موجودی انبار <span class="help-icon" title="برایِ کالای دارای تنوع، موجودیِ هر تنوع جداگانه تنظیم می‌شود و این عدد نادیده گرفته می‌شود.">؟</span></label>
-        <input class="inp" name="stock" value="{{ form.stock.value|default:'0' }}" placeholder="0" dir="ltr" inputmode="numeric">
-        {% for err in form.stock.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
 
-      <div class="form-group">
+      <div x-show="productType === 'simple'" x-cloak>
+        <div class="form-section-title">اطلاعات کالای ساده</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>قیمت (تومان) * <span class="help-icon" title="قیمتِ نهاییِ فروش پیش از اعمالِ تخفیف.">؟</span></label>
+            <input class="inp" name="price" required value="{{ form.price.value|default_if_none:'' }}" placeholder="1250000" dir="ltr" inputmode="numeric">
+            {% for err in form.price.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+          </div>
+          <!-- برایِ کالایِ دارای تنوع، فیلدِ قیمت در UI پنهان است (هر تنوع قیمتِ
+               خودش را دارد) اما ProductForm.price هنوز الزامی است؛ این ورودیِ
+               پنهان همان مقدارِ فعلی/حداقلی را جایگزینِ فیلدِ اصلی می‌فرستد. -->
+          <input type="hidden" name="price" x-bind:disabled="productType !== 'variable'"
+                 value="{{ form.price.value|default:'1' }}">
+          <div class="form-group">
+            <label>تخفیف (٪) <span class="help-icon" title="بینِ ۰ تا ۱۰۰؛ قیمتِ نهایی خودکار از رویِ قیمت و درصدِ تخفیف محاسبه می‌شود.">؟</span></label>
+            <input class="inp" name="discount_percent" value="{{ form.discount_percent.value|default:'0' }}" dir="ltr" inputmode="numeric">
+            {% for err in form.discount_percent.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+          </div>
+        </div>
+        <div class="form-group">
+          <label>دسته‌ی مالیاتی</label>
+          <select class="inp" name="tax_class">
+            <option value="">— پیش‌فرضِ فروشگاه —</option>
+            {% for choice in form.tax_class.field.queryset %}
+            <option value="{{ choice.pk }}" {% if form.tax_class.value|stringformat:"s" == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>بارکد محصول</label>
+          <input class="inp" name="barcode" value="{{ form.barcode.value|default_if_none:'' }}" dir="ltr">
+          {% for err in form.barcode.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+
+        <div class="form-section-title" style="margin-top:20px">موجودی و ارسال</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>موجودی انبار</label>
+            <input class="inp" name="stock" value="{{ form.stock.value|default:'0' }}" placeholder="0" dir="ltr" inputmode="numeric">
+            {% for err in form.stock.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+          </div>
+          <div class="form-group">
+            <label>وزن (گرم)</label>
+            <input class="inp" name="weight_grams" value="{{ form.weight_grams.value|default_if_none:'' }}" dir="ltr" inputmode="numeric">
+            {% for err in form.weight_grams.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" name="requires_shipping" {% if form.requires_shipping.value %}checked{% endif %}>
+          نیاز به ارسال فیزیکی دارد
+        </label>
+        <div class="field-help" style="margin-right:24px">برایِ کالاهای دیجیتال/خدماتی که نیازی به پستِ فیزیکی ندارند، این گزینه را خاموش کنید.</div>
+      </div>
+
+      <div x-show="productType === 'variable'" x-cloak>
+        <div class="form-section-title">ویژگی‌ها و تنوعِ محصول</div>
+        {% if product and product.product_type == "variable" %}
+        <div id="productOptionsBody">
+          {% include "dashboard/partials/product_options_body.html" %}
+        </div>
+        {% elif product %}
+        <div class="info-box">این کالا هنوز به‌عنوانِ «دارای تنوع» ذخیره نشده — پس از ذخیره با این گزینه، ویژگی‌ها و جدولِ تنوع در همین‌جا در دسترس خواهد بود.</div>
+        {% else %}
+        <div class="info-box">برایِ افزودنِ ویژگی (مثلاً رنگ، اندازه، کشورِ سازنده) و جدولِ تنوع، ابتدا کالا را ذخیره کنید — پس از آن، همین‌جا می‌توانید ویژگی و ردیف‌هایِ تنوع اضافه کنید. می‌توانید کالا را با وضعیتِ «پیش‌نویس» ذخیره کنید تا هنوز در فروشگاه نمایش داده نشود.</div>
+        {% endif %}
+      </div>
+
+      <div class="form-group" style="margin-top:20px">
         <label>ویژگی‌های اختصاصیِ این دسته‌بندی <span class="help-icon" title="این فیلدها بر اساسِ زیرگروهِ انتخاب‌شده تغییر می‌کنند؛ مثلاً رنگ، جنس یا هر مشخصه‌ی توصیفیِ دیگر (بدونِ ساختِ تنوعِ جدید).">؟</span></label>
         {% include "dashboard/partials/product_attribute_fields.html" %}
       </div>
