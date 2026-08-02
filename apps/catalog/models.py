@@ -183,6 +183,11 @@ class Product(TimeStampedModel):
     seo_title = models.CharField("عنوان سئو", max_length=70, blank=True, default="")
     seo_description = models.CharField("توضیحات متا", max_length=160, blank=True, default="")
 
+    # برچسب‌های آزاد کالا (Product Entry rebuild) — مستقل از ``tag`` (نشانِ
+    # بازاریابیِ تک‌انتخابیِ قدیمی مثل «جدید»/«پرفروش») که بدونِ تغییر باقی
+    # می‌ماند. برایِ جست‌وجو، فیلتر و مجموعه‌های کالا — نگاه کنید به ``ProductTag``.
+    tags = models.ManyToManyField("ProductTag", verbose_name="برچسب‌ها", blank=True, related_name="products")
+
     class Meta:
         verbose_name = "کالا"
         verbose_name_plural = "کالاها"
@@ -430,6 +435,27 @@ class ProductVariant(TimeStampedModel):
     )
     cost = models.DecimalField("بهای تمام‌شده (تومان)", max_digits=12, decimal_places=0, null=True, blank=True)
 
+    # قیمتِ مستقلِ این تنوع (Product Entry rebuild). خالی یعنی «از مسیرِ
+    # قدیمیِ delta استفاده کن» (product.price + extra_price) — نگاه کنید به
+    # apps.catalog.services.pricing_service. وقتی پر باشد، این مقدار *کاملِ*
+    # قیمتِ فروشِ این تنوع است (نه افزوده به قیمتِ کالا) — برایِ حالت‌هایی که
+    # تنوع‌ها قیمت‌هایِ کاملاً متفاوت دارند (مثلاً قیچیِ ایرانی ۱۰۰,۰۰۰ در برابرِ
+    # قیچیِ ایتالیایی ۸۰۰,۰۰۰). ``compare_at_price`` در این حالت نقشِ «قیمتِ
+    # پیش از تخفیف» را برایِ همین تنوع بازی می‌کند.
+    price = models.DecimalField(
+        "قیمتِ مستقلِ این تنوع (تومان)", max_digits=12, decimal_places=0, null=True, blank=True,
+    )
+    wholesale_price = models.DecimalField(
+        "قیمتِ عمده (تومان)", max_digits=12, decimal_places=0, null=True, blank=True,
+        help_text="زیرساختِ آماده‌برایِ‌آینده‌یِ فروشِ عمده — هنوز در محاسبه‌ی قیمتِ مشتری استفاده نمی‌شود.",
+    )
+    # خالی یعنی «از دسته‌ی مالیاتیِ کالا/Store استفاده کن»، دقیقاً همان
+    # قراردادِ Product.tax_class.
+    tax_class = models.ForeignKey(
+        "orders.TaxClass", verbose_name="دسته‌ی مالیاتیِ اختصاصی", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="product_variants",
+    )
+
     # موجودی (Phase 1D)
     track_inventory = models.BooleanField("پیگیری موجودی", default=True)
     low_stock_threshold = models.PositiveIntegerField("آستانه‌ی هشدار کمبود موجودی", null=True, blank=True)
@@ -502,6 +528,8 @@ class ProductVariant(TimeStampedModel):
             errors["attribute"] = "نام تنوع نمی‌تواند خالی باشد."
         if not value:
             errors["value"] = "مقدار تنوع نمی‌تواند خالی باشد."
+        if self.tax_class_id and self.product_id and self.tax_class.store_id != self.product.store_id:
+            errors["tax_class"] = "این دسته‌ی مالیاتی متعلق به فروشگاه دیگری است."
         if errors:
             raise ValidationError(errors)
         self.attribute = attribute
@@ -1058,6 +1086,31 @@ class ProductAttributeValue(TimeStampedModel):
             errors["value"] = "این مقدار متعلق به ویژگی دیگری است."
         if errors:
             raise ValidationError(errors)
+
+
+class ProductTag(TimeStampedModel):
+    """برچسبِ Store-owned برای جست‌وجو/فیلتر/مجموعه‌ی کالاها — دقیقاً همان الگویِ
+    ``apps.customers.models.CustomerTag``: ``code`` فقط در محدوده‌ی همین Store
+    یکتاست، و حذفِ فیزیکی وقتی به کالایی متصل است مجاز نیست؛ به‌جایِ آن آرشیو
+    (``is_active=False``) می‌شود."""
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="product_tags",
+    )
+    name = models.CharField("نام", max_length=60)
+    code = models.SlugField("کد", max_length=60, allow_unicode=True)
+    is_active = models.BooleanField("فعال", default=True)
+
+    class Meta:
+        verbose_name = "برچسبِ کالا"
+        verbose_name_plural = "برچسب‌های کالا"
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "code"], name="uniq_producttag_code_per_store"),
+        ]
+
+    def __str__(self):
+        return self.name
 
 
 class ProductOption(TimeStampedModel):
