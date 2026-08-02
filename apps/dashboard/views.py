@@ -486,6 +486,7 @@ def _product_list_context(request):
         "selected_status": status,
         "selected_health": health,
         "selected_sort": sort,
+        "has_active_filters": bool(q or category_id or brand_id or status or health),
         "category_options": leaf_categories(store),
         "brand_options": Brand.objects.filter(store=store).order_by("name"),
         "status_options": PRODUCT_STATUS_FILTERS,

@@ -86,7 +86,22 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">کالایی یافت نشد</td></tr>
+      <tr>
+        <td colspan="10">
+          {% if has_active_filters %}
+          <div style="text-align:center;color:var(--muted);padding:30px">
+            <p style="margin:0 0 8px">🔍 کالایی با این فیلترها یافت نشد.</p>
+            <a href="{% url 'dashboard:product-list' %}" class="btn btn-sm">✕ حذفِ فیلترها</a>
+          </div>
+          {% else %}
+          <div style="text-align:center;color:var(--muted);padding:36px 16px">
+            <p style="font-size:15px;margin:0 0 6px">📦 هنوز کالایی ثبت نشده است.</p>
+            <p style="margin:0 0 14px;font-size:12.5px">اولین کالای فروشگاه را اضافه کنید تا در همین‌جا نمایش داده شود.</p>
+            <a href="{% url 'dashboard:product-add' %}" class="btn btn-primary btn-sm">➕ افزودنِ اولین کالا</a>
+          </div>
+          {% endif %}
+        </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>

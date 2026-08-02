@@ -60,7 +60,15 @@ class ProductListViewTests(ProductViewsTestCase):
     def test_search_excludes_non_matching(self):
         response = self.client.get(reverse("dashboard:product-table"), {"q": "چیز-نامرتبط"})
         self.assertNotContains(response, "گوشی هوشمند")
-        self.assertContains(response, "کالایی یافت نشد")
+        self.assertContains(response, "کالایی با این فیلترها یافت نشد")
+        self.assertContains(response, "حذفِ فیلترها")
+
+    def test_empty_store_shows_add_first_product_cta(self):
+        self.product.delete()
+        response = self.client.get(reverse("dashboard:product-list"))
+        self.assertContains(response, "هنوز کالایی ثبت نشده است")
+        self.assertContains(response, reverse("dashboard:product-add"))
+        self.assertNotContains(response, "حذفِ فیلترها")
 
     def test_out_of_stock_filter(self):
         Product.objects.create(
