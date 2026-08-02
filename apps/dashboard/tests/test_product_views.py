@@ -71,6 +71,31 @@ class ProductListViewTests(ProductViewsTestCase):
         self.assertContains(response, "کالای ناموجود")
         self.assertNotContains(response, "گوشی هوشمند")
 
+    def test_health_no_seo_filter_from_dashboard_link(self):
+        """self.product has no SEO title/description by default — matches
+        the health=no_seo filter used by the dashboard's «بدونِ سئو» card."""
+        Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.sub, name="کالای دارایِ سئو", slug="seo-pv",
+            sku="SKU-PV3", price=Decimal("1000"), seo_title="عنوان", seo_description="توضیح",
+        )
+        response = self.client.get(reverse("dashboard:product-list"), {"health": "no_seo"})
+        self.assertContains(response, "گوشی هوشمند")
+        self.assertNotContains(response, "کالای دارایِ سئو")
+
+    def test_health_filter_banner_shown_with_clear_link(self):
+        response = self.client.get(reverse("dashboard:product-list"), {"health": "no_images"})
+        self.assertContains(response, "هنوز تصویری ندارند")
+        self.assertContains(response, reverse("dashboard:product-list"))
+
+    def test_no_health_filter_no_banner(self):
+        response = self.client.get(reverse("dashboard:product-list"))
+        self.assertNotContains(response, "حذفِ فیلتر")
+
+    def test_unknown_health_value_falls_back_to_unfiltered(self):
+        response = self.client.get(reverse("dashboard:product-list"), {"health": "bogus"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "گوشی هوشمند")
+
 
 class ProductAddViewTests(ProductViewsTestCase):
     def _payload(self, **overrides):

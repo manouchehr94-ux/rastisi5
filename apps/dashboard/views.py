@@ -340,6 +340,7 @@ from .services.catalog_admin_service import (
     filtered_products,
     generate_unique_slug,
     leaf_categories,
+    PRODUCT_HEALTH_FILTERS,
 )
 from .services.charts import build_line_chart_svg
 from .services.orders_admin_service import (
@@ -461,11 +462,16 @@ def _product_list_context(request):
     category_id = request.GET.get("category", "")
     brand_id = request.GET.get("brand", "")
     status = request.GET.get("status", "")
+    health = request.GET.get("health", "")
+    if health not in PRODUCT_HEALTH_FILTERS:
+        health = ""
     sort = request.GET.get("sort", DEFAULT_PRODUCT_SORT)
     if sort not in PRODUCT_SORT_OPTIONS:
         sort = DEFAULT_PRODUCT_SORT
 
-    qs = filtered_products(store, q=q, category_id=category_id, status=status, brand_id=brand_id, sort=sort)
+    qs = filtered_products(
+        store, q=q, category_id=category_id, status=status, brand_id=brand_id, sort=sort, health=health,
+    )
     paginator = Paginator(qs, PRODUCTS_PER_PAGE)
     page_number = request.GET.get("page", "1")
     page_obj = paginator.get_page(page_number)
@@ -478,6 +484,7 @@ def _product_list_context(request):
         "selected_category": category_id,
         "selected_brand": brand_id,
         "selected_status": status,
+        "selected_health": health,
         "selected_sort": sort,
         "category_options": leaf_categories(store),
         "brand_options": Brand.objects.filter(store=store).order_by("name"),

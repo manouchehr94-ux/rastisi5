@@ -29,6 +29,17 @@ class DashboardViewTests(TestCase):
         self.assertContains(response, 'data-page="dashboard"')
         self.assertContains(response, "روند فروش")
 
+    def test_dashboard_shows_catalog_health_tiles_linking_to_filtered_product_lists(self):
+        response = self.client.get(reverse("dashboard:dashboard"))
+        self.assertContains(response, "سلامتِ کاتالوگ")
+        product_list_url = reverse("dashboard:product-list")
+        self.assertContains(response, f'href="{product_list_url}?status=active"')
+        self.assertContains(response, f'href="{product_list_url}?status=draft"')
+        self.assertContains(response, f'href="{product_list_url}?status=out"')
+        self.assertContains(response, f'href="{product_list_url}?health=no_images"')
+        self.assertContains(response, f'href="{product_list_url}?health=no_seo"')
+        self.assertContains(response, f'href="{product_list_url}?health=missing_variants"')
+
     def test_dashboard_shows_all_nine_sidebar_sections(self):
         response = self.client.get(reverse("dashboard:dashboard"))
         for label in [

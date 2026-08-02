@@ -6,6 +6,16 @@
 {% block page_sub %}افزودن، ویرایش و مدیریت موجودی محصولات{% endblock %}
 
 {% block content %}
+{% if selected_health %}
+<div class="info-box" style="margin-bottom:14px;display:flex;align-items:center;gap:10px">
+  <span>🩺 نمایشِ کالاهایی که
+    {% if selected_health == "no_images" %}هنوز تصویری ندارند
+    {% elif selected_health == "no_seo" %}اطلاعاتِ سئو (عنوان/توضیحات) ندارند
+    {% elif selected_health == "missing_variants" %}«دارایِ تنوع» علامت خورده‌اند اما هنوز هیچ تنوعی برایشان تعریف نشده
+    {% endif %}.</span>
+  <a href="{% url 'dashboard:product-list' %}" class="btn btn-sm" style="margin-inline-start:auto">✕ حذفِ فیلتر</a>
+</div>
+{% endif %}
 <div class="card">
   <div class="card-head">
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">

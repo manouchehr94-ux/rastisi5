@@ -102,6 +102,44 @@
   </div>
 </div>
 
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3>سلامتِ کاتالوگ</h3><span class="hint">هر کارت به فهرستِ فیلترشده‌ی همان کالاها می‌رود</span></div>
+  <div class="card-body">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
+      <a href="{% url 'dashboard:product-list' %}?status=active" class="health-tile">
+        <span class="health-tile-ic" style="background:var(--green-soft);color:var(--green)">✅</span>
+        <span class="health-tile-val">{{ product_health.active|fa_number }}</span>
+        <span class="health-tile-lbl">کالای فعال</span>
+      </a>
+      <a href="{% url 'dashboard:product-list' %}?status=draft" class="health-tile">
+        <span class="health-tile-ic" style="background:var(--border);color:var(--muted)">📝</span>
+        <span class="health-tile-val">{{ product_health.draft|fa_number }}</span>
+        <span class="health-tile-lbl">پیش‌نویس</span>
+      </a>
+      <a href="{% url 'dashboard:product-list' %}?status=out" class="health-tile">
+        <span class="health-tile-ic" style="background:var(--red-soft);color:var(--red)">🚫</span>
+        <span class="health-tile-val">{{ product_health.out_of_stock|fa_number }}</span>
+        <span class="health-tile-lbl">ناموجود</span>
+      </a>
+      <a href="{% url 'dashboard:product-list' %}?health=no_images" class="health-tile">
+        <span class="health-tile-ic" style="background:var(--amber-soft);color:var(--amber)">🖼️</span>
+        <span class="health-tile-val">{{ product_health.no_images|fa_number }}</span>
+        <span class="health-tile-lbl">بدونِ تصویر</span>
+      </a>
+      <a href="{% url 'dashboard:product-list' %}?health=no_seo" class="health-tile">
+        <span class="health-tile-ic" style="background:var(--amber-soft);color:var(--amber)">🔍</span>
+        <span class="health-tile-val">{{ product_health.no_seo|fa_number }}</span>
+        <span class="health-tile-lbl">بدونِ سئو</span>
+      </a>
+      <a href="{% url 'dashboard:product-list' %}?health=missing_variants" class="health-tile">
+        <span class="health-tile-ic" style="background:var(--amber-soft);color:var(--amber)">🎛️</span>
+        <span class="health-tile-val">{{ product_health.missing_variants|fa_number }}</span>
+        <span class="health-tile-lbl">بدونِ تنوع</span>
+      </a>
+    </div>
+  </div>
+</div>
+
 <div class="grid g-2-1" style="margin-bottom:18px">
   <div class="card" x-data="{ range: 'month' }">
     <div class="card-head">

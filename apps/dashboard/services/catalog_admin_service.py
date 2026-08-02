@@ -131,7 +131,15 @@ def _category_and_descendant_ids(store, category_id) -> set:
     return ids
 
 
-def filtered_products(store, *, q: str = "", category_id: str = "", status: str = "", brand_id: str = "", sort: str = ""):
+#: مقادیرِ مجازِ پارامترِ ``health`` — هرکدام یک شاخصِ سلامتِ داده برایِ
+#: کارت‌های داشبورد (نگاه کنید به ``dashboard_service.product_health_counts``).
+PRODUCT_HEALTH_FILTERS = {"no_images", "no_seo", "missing_variants"}
+
+
+def filtered_products(
+    store, *, q: str = "", category_id: str = "", status: str = "", brand_id: str = "", sort: str = "",
+    health: str = "",
+):
     qs = (
         Product.objects.filter(store=store)
         .select_related("category", "category__parent", "brand")
@@ -140,6 +148,7 @@ def filtered_products(store, *, q: str = "", category_id: str = "", status: str 
             variant_count=Count("variants", distinct=True),
             active_variant_count=Count("variants", filter=Q(variants__is_active=True), distinct=True),
             active_variant_stock=Sum("variants__stock", filter=Q(variants__is_active=True)),
+            image_count=Count("images", distinct=True),
         )
     )
     if q:
@@ -152,6 +161,16 @@ def filtered_products(store, *, q: str = "", category_id: str = "", status: str 
         qs = qs.filter(stock=0)
     elif status:
         qs = qs.filter(status=status)
+
+    if health == "no_images":
+        qs = qs.filter(image_count=0)
+    elif health == "no_seo":
+        qs = qs.filter(
+            models.Q(seo_title="") | models.Q(seo_title__isnull=True),
+            models.Q(seo_description="") | models.Q(seo_description__isnull=True),
+        )
+    elif health == "missing_variants":
+        qs = qs.filter(product_type=Product.ProductType.VARIABLE, variant_count=0)
 
     order_fields, _label = PRODUCT_SORT_OPTIONS.get(sort, PRODUCT_SORT_OPTIONS[DEFAULT_PRODUCT_SORT])
     return qs.order_by(*order_fields, "pk")

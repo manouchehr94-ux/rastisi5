@@ -298,3 +298,73 @@ class StatCardsTests(TestCase):
         self.assertEqual(after["today_orders"], before["today_orders"])
         self.assertEqual(after["today_sales"], before["today_sales"])
         self.assertEqual(after["customers_total"], before["customers_total"])
+
+
+class ProductHealthCountsTests(TestCase):
+    """کارت‌های «سلامتِ کاتالوگ» در داشبورد — نگاه کنید به
+    ``catalog_admin_service.filtered_products``'s ``health=`` برایِ فیلترهایِ متناظر."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-phc")
+        self.category = Category.objects.create(store=self.store, name="دیجیتال", slug="digital-phc")
+
+    def _product(self, **overrides):
+        defaults = dict(
+            store=self.store, vendor=self.vendor, category=self.category, price=Decimal("100000"),
+        )
+        defaults.update(overrides)
+        return Product.objects.create(**defaults)
+
+    def test_counts_active_and_draft(self):
+        self._product(name="فعال", slug="phc-active", sku="PHC-1", status=Product.Status.ACTIVE)
+        self._product(name="پیش‌نویس", slug="phc-draft", sku="PHC-2", status=Product.Status.DRAFT)
+        counts = dashboard_service.product_health_counts(self.store)
+        self.assertEqual(counts["active"], 1)
+        self.assertEqual(counts["draft"], 1)
+
+    def test_counts_out_of_stock(self):
+        self._product(name="ناموجود", slug="phc-oos", sku="PHC-3", stock=0)
+        self._product(name="موجود", slug="phc-instock", sku="PHC-4", stock=5)
+        counts = dashboard_service.product_health_counts(self.store)
+        self.assertEqual(counts["out_of_stock"], 1)
+
+    def test_counts_no_seo(self):
+        self._product(name="بدون سئو", slug="phc-noseo", sku="PHC-5")
+        self._product(
+            name="با سئو", slug="phc-seo", sku="PHC-6", seo_title="عنوان", seo_description="توضیح",
+        )
+        counts = dashboard_service.product_health_counts(self.store)
+        self.assertEqual(counts["no_seo"], 1)
+
+    def test_counts_missing_variants(self):
+        from apps.catalog.services.variant_engine_service import add_product_option, generate_variants
+
+        empty_variable = self._product(
+            name="دارایِ تنوعِ ناقص", slug="phc-var-empty", sku="PHC-7", product_type=Product.ProductType.VARIABLE,
+        )
+        full_variable = self._product(
+            name="دارایِ تنوعِ کامل", slug="phc-var-full", sku="PHC-8", product_type=Product.ProductType.VARIABLE,
+        )
+        add_product_option(full_variable, label="رنگ", values=["قرمز"])
+        generate_variants(full_variable)
+        counts = dashboard_service.product_health_counts(self.store)
+        self.assertEqual(counts["missing_variants"], 1)
+
+    def test_other_store_products_are_excluded(self):
+        other_store = Store.objects.create(name="Store PHC-B", slug="phc-store-b", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="فروشگاه B", slug="shop-phc-b")
+        other_category = Category.objects.create(store=other_store, name="دسته B", slug="digital-phc-b")
+        Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="کالای دیگر",
+            slug="phc-other", sku="PHC-OTHER", price=Decimal("1000"), status=Product.Status.DRAFT,
+        )
+        counts = dashboard_service.product_health_counts(self.store)
+        self.assertEqual(counts["draft"], 0)
+
+
+class BuildDashboardContextTests(TestCase):
+    def test_includes_product_health(self):
+        context = dashboard_service.build_dashboard_context(_akhlaghi())
+        self.assertIn("product_health", context)
+        self.assertIn("active", context["product_health"])

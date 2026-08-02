@@ -184,6 +184,31 @@ def stat_cards(store):
     }
 
 
+def product_health_counts(store):
+    """شمارش‌های سلامتِ داده برایِ کارت‌های داشبورد — هرکدام به فهرستِ کالاهایِ
+    فیلترشده‌ی متناظرش وصل می‌شود (نگاه کنید به
+    ``catalog_admin_service.filtered_products``'s ``health=`` و ``status=``).
+
+    «کالاهای بدونِ دسته‌بندی» عمداً این‌جا نیست: ``Product.category`` یک
+    فیلدِ الزامی است (نه nullable) — هیچ کالایی بدونِ دسته‌بندی نمی‌تواند
+    اصلاً ساخته شود، پس این شاخص در این معماری همیشه صفر و بی‌معناست."""
+    from django.db.models import Count, Q
+
+    base = Product.objects.filter(store=store)
+    return {
+        "active": base.filter(status=Product.Status.ACTIVE).count(),
+        "draft": base.filter(status=Product.Status.DRAFT).count(),
+        "out_of_stock": base.filter(stock=0).count(),
+        "no_images": base.annotate(image_count=Count("images", distinct=True)).filter(image_count=0).count(),
+        "no_seo": base.filter(
+            Q(seo_title="") | Q(seo_title__isnull=True), Q(seo_description="") | Q(seo_description__isnull=True),
+        ).count(),
+        "missing_variants": base.annotate(variant_count=Count("variants", distinct=True)).filter(
+            product_type=Product.ProductType.VARIABLE, variant_count=0,
+        ).count(),
+    }
+
+
 def recent_orders(store, limit: int = 6):
     return (
         Order.objects.filter(store=store)
@@ -270,6 +295,7 @@ def build_dashboard_context(store):
 
     return {
         "stat_cards": cards,
+        "product_health": product_health_counts(store),
         "sales_chart_svg": build_line_chart_svg(data, labels),
         "donut_svg": build_donut_chart_svg(donut_items),
         "donut_legend": donut_items,

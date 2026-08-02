@@ -113,6 +113,76 @@ class FilteredProductsTests(TestCase):
         self.assertEqual(list(result), [self.p3])
 
 
+class FilteredProductsHealthTests(TestCase):
+    """پارامترِ ``health`` — پشتِ کارت‌های سلامتِ کاتالوگ در داشبورد؛ نگاه کنید
+    به ``dashboard_service.product_health_counts``."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-fph")
+        main = Category.objects.create(store=self.store, name="دیجیتال", slug="main-fph")
+        self.sub = Category.objects.create(store=self.store, name="موبایل", slug="sub-fph", parent=main)
+
+    def _product(self, **overrides):
+        defaults = dict(
+            store=self.store, vendor=self.vendor, category=self.sub, price=Decimal("100000"),
+        )
+        defaults.update(overrides)
+        return Product.objects.create(**defaults)
+
+    def test_no_images_filter(self):
+        with_image = self._product(name="با تصویر", slug="fph-with-image", sku="FPH-IMG1")
+        from apps.catalog.services.product_image_service import add_product_image
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from io import BytesIO
+        from PIL import Image
+        import tempfile
+        from django.test import override_settings
+
+        without_image = self._product(name="بدون تصویر", slug="fph-no-image", sku="FPH-IMG2")
+        with override_settings(MEDIA_ROOT=tempfile.mkdtemp()):
+            buffer = BytesIO()
+            Image.new("RGB", (100, 100), "red").save(buffer, format="JPEG")
+            add_product_image(with_image, SimpleUploadedFile("x.jpg", buffer.getvalue(), content_type="image/jpeg"))
+            result = filtered_products(self.store, health="no_images")
+        self.assertIn(without_image, result)
+        self.assertNotIn(with_image, result)
+
+    def test_no_seo_filter(self):
+        with_seo = self._product(
+            name="با سئو", slug="fph-with-seo", sku="FPH-SEO1", seo_title="عنوان", seo_description="توضیح",
+        )
+        without_seo = self._product(name="بدون سئو", slug="fph-no-seo", sku="FPH-SEO2")
+        result = filtered_products(self.store, health="no_seo")
+        self.assertIn(without_seo, result)
+        self.assertNotIn(with_seo, result)
+
+    def test_missing_variants_filter_only_matches_variable_products_with_zero_variants(self):
+        from apps.catalog.services.variant_engine_service import add_product_option, generate_variants
+
+        simple = self._product(name="کالای ساده", slug="fph-simple", sku="FPH-VAR1")
+        variable_no_variants = self._product(
+            name="دارایِ تنوعِ بدونِ تنوع", slug="fph-var-empty", sku="FPH-VAR2",
+            product_type=Product.ProductType.VARIABLE,
+        )
+        variable_with_variants = self._product(
+            name="دارایِ تنوعِ کامل", slug="fph-var-full", sku="FPH-VAR3",
+            product_type=Product.ProductType.VARIABLE,
+        )
+        add_product_option(variable_with_variants, label="رنگ", values=["قرمز"])
+        generate_variants(variable_with_variants)
+
+        result = filtered_products(self.store, health="missing_variants")
+        self.assertIn(variable_no_variants, result)
+        self.assertNotIn(simple, result)
+        self.assertNotIn(variable_with_variants, result)
+
+    def test_unknown_health_value_is_ignored(self):
+        product = self._product(name="کالا", slug="fph-unknown", sku="FPH-UNK1")
+        result = filtered_products(self.store, health="not-a-real-filter")
+        self.assertIn(product, result)
+
+
 class CategoryTreeContextTests(TestCase):
     def setUp(self):
         self.store = _akhlaghi()
