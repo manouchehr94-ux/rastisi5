@@ -317,6 +317,36 @@ class ProductImageCaptionAnd360Tests(ProductImageViewsTestCase):
         image.refresh_from_db()
         self.assertFalse(image.is_360)
 
+    def test_360_toggle_still_works_even_though_hidden_from_the_ui(self):
+        """گزینه‌ی ۳۶۰ از رابطِ کاربری مخفی شده (هنوز پیاده‌سازی نشده)، اما ویو و مدلِ
+        زیرینش دست‌نخورده باقی مانده‌اند — برایِ وقتی که این قابلیت کامل شود."""
+        image = add_product_image(self.product, _make_image_file())
+        response = self.client.get(reverse("dashboard:product-images", args=[self.product.pk]))
+        self.assertNotContains(response, "بخشی از مجموعه‌ی ۳۶۰")
+        self.assertNotContains(response, "product-image-360-toggle")
+        response = self.client.post(reverse("dashboard:product-image-360-toggle", args=[self.product.pk, image.pk]))
+        self.assertEqual(response.status_code, 200)
+        image.refresh_from_db()
+        self.assertTrue(image.is_360)
+
+
+class ProductImageDragHintAndCoverLabelTests(ProductImageViewsTestCase):
+    def test_drag_hint_hidden_when_no_images(self):
+        response = self.client.get(reverse("dashboard:product-images", args=[self.product.pk]))
+        self.assertNotContains(response, "برای تغییرِ ترتیب بکشید")
+
+    def test_drag_hint_shown_once_images_exist(self):
+        add_product_image(self.product, _make_image_file())
+        response = self.client.get(reverse("dashboard:product-images", args=[self.product.pk]))
+        self.assertContains(response, "برای تغییرِ ترتیب بکشید")
+
+    def test_cover_action_has_a_clear_label(self):
+        add_product_image(self.product, _make_image_file())  # becomes cover automatically
+        add_product_image(self.product, _make_image_file(name="second.jpg"))  # not the cover
+        response = self.client.get(reverse("dashboard:product-images", args=[self.product.pk]))
+        self.assertContains(response, "⭐ تعیینِ کاور")
+        self.assertContains(response, "⭐ کاورِ کالا")
+
 
 class ProductVideoViewTests(ProductImageViewsTestCase):
     def test_adds_youtube_video(self):

@@ -151,6 +151,7 @@ body.admin-body{
   border:1px solid var(--border);background:var(--card);color:var(--text);transition:.18s;
 }
 .btn:hover{border-color:var(--primary);color:var(--primary)}
+.btn:disabled{opacity:.45;cursor:not-allowed;pointer-events:none}
 .btn svg{width:16px;height:16px}
 .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;border:0;box-shadow:0 6px 14px rgba(99,80,238,.35)}
 .btn-primary:hover{color:#fff;filter:brightness(1.07)}
@@ -268,6 +269,8 @@ body.admin-body{
 .cat-tree-node{cursor:grab}
 .cat-node-row{display:flex;align-items:center;gap:8px;padding:9px 8px;border-radius:9px;transition:.15s}
 .cat-node-row:hover{background:var(--primary-soft)}
+.cat-node-selected{background:var(--primary-soft);box-shadow:inset 0 0 0 1.5px var(--primary)}
+.cat-action-bar{border-radius:0}
 .cat-toggle{background:none;border:0;color:var(--muted);cursor:pointer;width:18px;font-size:12px;flex-shrink:0}
 .cat-toggle-spacer{width:18px;flex-shrink:0}
 .cat-drag-handle{color:var(--muted);flex-shrink:0}

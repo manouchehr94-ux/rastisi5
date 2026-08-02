@@ -1718,6 +1718,46 @@ def brand_delete(request, pk):
 @require_POST
 @staff_required
 @permission_required(BRAND_MANAGE)
+def brand_bulk_action(request):
+    """عملیاتِ گروهی روی برندهای انتخاب‌شده — نگاه کنید به ``brand_bulk_ids``
+    در قالب که با نامِ ``brand_ids`` تیک می‌خورند."""
+    store = _resolve_dashboard_store(request)
+    action = request.POST.get("action", "")
+    ids = [int(pk) for pk in request.POST.getlist("brand_ids") if pk.strip().isdigit()]
+    brands = list(Brand.objects.filter(store=store, pk__in=ids))
+
+    if not brands:
+        return _brands_table_response(request, toast={"message": "هیچ برندی انتخاب نشده است.", "type": "err"})
+
+    if action == "activate":
+        for brand in brands:
+            activate_brand(brand)
+        return _brands_table_response(request, toast={"message": f"{len(brands)} برند فعال شد", "type": "ok"})
+
+    if action == "deactivate":
+        for brand in brands:
+            archive_brand(brand)
+        return _brands_table_response(request, toast={"message": f"{len(brands)} برند غیرفعال شد", "type": "info"})
+
+    if action == "delete":
+        deleted, skipped = 0, 0
+        for brand in brands:
+            try:
+                delete_brand(brand)
+                deleted += 1
+            except BrandInUseError:
+                skipped += 1
+        message = f"{deleted} برند حذف شد"
+        if skipped:
+            message += f"؛ {skipped} برند دارایِ کالا حذف نشد"
+        return _brands_table_response(request, toast={"message": message, "type": "info" if skipped else "ok"})
+
+    return _brands_table_response(request, toast={"message": "عملیاتِ ناشناخته.", "type": "err"})
+
+
+@require_POST
+@staff_required
+@permission_required(BRAND_MANAGE)
 def brand_reorder(request):
     """مرتب‌سازیِ کشاندنی (drag) — بدنه‌یِ درخواست فهرستِ ``brand_ids`` را به
     ترتیبِ تازه می‌فرستد؛ نگاه کنید به ``brand_service.reorder_brands``."""

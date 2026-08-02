@@ -220,3 +220,80 @@ class BrandReorderTests(BrandViewsTestCase):
     def test_get_not_allowed(self):
         response = self.client.get(reverse("dashboard:brand-reorder"))
         self.assertEqual(response.status_code, 405)
+
+
+class BrandBulkActionTests(BrandViewsTestCase):
+    def test_bulk_activate(self):
+        a = create_brand(self.store, name="اول")
+        b = create_brand(self.store, name="دوم")
+        from apps.catalog.services.brand_service import archive_brand
+        archive_brand(a)
+        archive_brand(b)
+        response = self.client.post(reverse("dashboard:brand-bulk-action"), {
+            "brand_ids": [a.pk, b.pk], "action": "activate",
+        })
+        self.assertEqual(response.status_code, 200)
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertTrue(a.is_active)
+        self.assertTrue(b.is_active)
+
+    def test_bulk_deactivate(self):
+        a = create_brand(self.store, name="اول")
+        b = create_brand(self.store, name="دوم")
+        self.client.post(reverse("dashboard:brand-bulk-action"), {
+            "brand_ids": [a.pk, b.pk], "action": "deactivate",
+        })
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertFalse(a.is_active)
+        self.assertFalse(b.is_active)
+
+    def test_bulk_delete_skips_brand_in_use(self):
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده", slug="brand-bulk-vendor")
+        unused = create_brand(self.store, name="بدون کالا")
+        used = create_brand(self.store, name="دارایِ کالا")
+        Product.objects.create(
+            store=self.store, vendor=vendor, category=self.category, brand=used, name="کالا", slug="brand-bulk-product",
+            sku="BRAND-BULK-SKU1", price=Decimal("100000"),
+        )
+        response = self.client.post(reverse("dashboard:brand-bulk-action"), {
+            "brand_ids": [unused.pk, used.pk], "action": "delete",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Brand.objects.filter(pk=unused.pk).exists())
+        self.assertTrue(Brand.objects.filter(pk=used.pk).exists())
+
+    def test_ignores_ids_from_another_store(self):
+        other_store = Store.objects.create(name="فروشگاه دیگر", slug="brand-bulk-other", status=Store.Status.ACTIVE)
+        other_brand = create_brand(other_store, name="برند دیگر")
+        response = self.client.post(reverse("dashboard:brand-bulk-action"), {
+            "brand_ids": [other_brand.pk], "action": "delete",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Brand.objects.filter(pk=other_brand.pk).exists())
+
+    def test_no_selection_shows_error_toast(self):
+        response = self.client.post(reverse("dashboard:brand-bulk-action"), {"action": "activate"})
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertEqual(trigger["toast"]["type"], "err")
+
+    def test_get_not_allowed(self):
+        response = self.client.get(reverse("dashboard:brand-bulk-action"))
+        self.assertEqual(response.status_code, 405)
+
+
+class BrandProductCountLinkTests(BrandViewsTestCase):
+    def test_product_count_links_to_filtered_product_list(self):
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده", slug="brand-count-vendor")
+        brand = create_brand(self.store, name="برند")
+        Product.objects.create(
+            store=self.store, vendor=vendor, category=self.category, brand=brand, name="کالا", slug="brand-count-product",
+            sku="BRAND-COUNT-SKU1", price=Decimal("100000"),
+        )
+        response = self.client.get(reverse("dashboard:brand-list"))
+        expected_url = reverse("dashboard:product-list") + f"?brand={brand.pk}"
+        self.assertContains(response, expected_url)
+
+    def test_zero_count_is_not_a_link(self):
+        create_brand(self.store, name="برندِ بدونِ کالا")
+        response = self.client.get(reverse("dashboard:brand-list"))
+        self.assertNotContains(response, "?brand=")

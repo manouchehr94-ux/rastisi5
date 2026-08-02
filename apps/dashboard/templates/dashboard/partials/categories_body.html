@@ -1,115 +1,131 @@
 {% load persian %}
-<div class="grid g-1-2" id="categoriesPageBody"{% if oob %} hx-swap-oob="true"{% endif %}>
-  <div>
-    <div class="card" style="margin-bottom:18px">
-      <div class="card-head"><h3>➕ گروه (سطح ۱) <span class="help-icon" title="بالاترین سطح — مثلاً «دیجیتال» یا «پوشاک». کالا مستقیماً به گروه وصل نمی‌شود.">؟</span></h3></div>
-      <div class="card-body">
-        <form hx-post="{% url 'dashboard:category-add-main' %}" hx-target="#categoriesPageBody" hx-swap="outerHTML">
-          {% csrf_token %}
-          <div class="form-group">
-            <label>نام گروه</label>
-            <input class="inp" name="name" value="{{ main_form.name.value|default_if_none:'' }}" placeholder="مثلاً: لوازم جانبی">
-            <div class="field-help">گسترده‌ترین دسته‌بندی؛ زیرِ آن «دسته» و «زیردسته» ساخته می‌شود.</div>
-            {% for err in main_form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-          </div>
-          <div class="form-group">
-            <label>آیکون (ایموجی)</label>
-            <input class="inp" name="icon" value="{{ main_form.icon.value|default:'📁' }}" placeholder="📦">
-          </div>
-          <button type="submit" class="btn btn-primary">ثبت گروه</button>
-        </form>
-      </div>
-    </div>
-    <div class="card" style="margin-bottom:18px">
-      <div class="card-head"><h3>➕ دسته (سطح ۲) <span class="help-icon" title="زیرِ یک گروه قرار می‌گیرد؛ اگر خودش زیردسته نداشته باشد، کالا هم می‌تواند مستقیماً به آن وصل شود.">؟</span></h3></div>
-      <div class="card-body">
-        <form hx-post="{% url 'dashboard:category-add-sub' %}" hx-target="#categoriesPageBody" hx-swap="outerHTML">
-          {% csrf_token %}
-          <div class="form-group">
-            <label>گروه والد</label>
-            <select class="inp" name="parent">
-              <option value="">— انتخاب کنید —</option>
-              {% for cat in sub_form.fields.parent.queryset %}
-              <option value="{{ cat.pk }}" {% if sub_form.parent.value|stringformat:"s" == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.icon }} {{ cat.name }}</option>
-              {% endfor %}
-            </select>
-            {% for err in sub_form.parent.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-          </div>
-          <div class="form-group">
-            <label>نام دسته</label>
-            <input class="inp" name="name" value="{{ sub_form.name.value|default_if_none:'' }}" placeholder="مثلاً: هدفون و هندزفری">
-            {% for err in sub_form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-          </div>
-          <div class="form-group">
-            <label>آیکون (ایموجی، اختیاری)</label>
-            <input class="inp" name="icon" value="{{ sub_form.icon.value|default_if_none:'' }}">
-          </div>
-          <button type="submit" class="btn btn-primary">ثبت دسته</button>
-        </form>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-head"><h3>➕ زیردسته (سطح ۳) <span class="help-icon" title="فقط برگ‌های واقعیِ درخت (دسته یا زیردسته‌ای که خودش زیرشاخه ندارد) برایِ انتخاب در فرمِ کالا در دسترس‌اند.">؟</span></h3></div>
-      <div class="card-body">
-        {% if not subsub_form.fields.parent.queryset %}
-        <p style="color:var(--muted);font-size:12.5px">برای ساختِ زیردسته، ابتدا حداقل یک «دسته» (سطح ۲) بسازید.</p>
-        {% else %}
-        <p class="field-help" style="margin-bottom:10px">دقیق‌ترین سطح؛ ساختنِ زیردسته اختیاری است — کالا می‌تواند مستقیماً به «دسته» (سطح ۲) هم وصل شود، به‌شرطی که آن دسته خودش زیردسته نداشته باشد.</p>
-        <form hx-post="{% url 'dashboard:category-add-subsub' %}" hx-target="#categoriesPageBody" hx-swap="outerHTML">
-          {% csrf_token %}
-          <div class="form-group">
-            <label>دسته‌ی والد</label>
-            <select class="inp" name="parent">
-              <option value="">— انتخاب کنید —</option>
-              {% for cat in subsub_form.fields.parent.queryset %}
-              <option value="{{ cat.pk }}" {% if subsub_form.parent.value|stringformat:"s" == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.parent.icon }} {{ cat.parent.name }} › {{ cat.icon }} {{ cat.name }}</option>
-              {% endfor %}
-            </select>
-            {% for err in subsub_form.parent.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-          </div>
-          <div class="form-group">
-            <label>نام زیردسته</label>
-            <input class="inp" name="name" value="{{ subsub_form.name.value|default_if_none:'' }}" placeholder="مثلاً: هدفون بی‌سیم">
-            {% for err in subsub_form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-          </div>
-          <div class="form-group">
-            <label>آیکون (ایموجی، اختیاری)</label>
-            <input class="inp" name="icon" value="{{ subsub_form.icon.value|default_if_none:'' }}">
-          </div>
-          <button type="submit" class="btn btn-primary">ثبت زیردسته</button>
-        </form>
-        {% endif %}
-      </div>
+<div id="categoriesPageBody"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <div class="card" style="margin-bottom:18px">
+    <div class="card-body" style="display:flex;gap:22px;flex-wrap:wrap">
+      <div><div class="val" style="font-size:20px;font-weight:800">{{ main_count|fa_number }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">گروه اصلی</div></div>
+      <div><div class="val" style="font-size:20px;font-weight:800">{{ sub_count|fa_number }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">دسته و زیردسته</div></div>
+      <div><div class="val" style="font-size:20px;font-weight:800">{{ categorized_product_count|fa_number }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">کالای ثبت‌شده</div></div>
     </div>
   </div>
 
-  <div>
-    <div class="card" style="margin-bottom:18px">
-      <div class="card-body" style="display:flex;gap:22px;flex-wrap:wrap">
-        <div><div class="val" style="font-size:20px;font-weight:800">{{ main_count|fa_number }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">گروه اصلی</div></div>
-        <div><div class="val" style="font-size:20px;font-weight:800">{{ sub_count|fa_number }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">دسته و زیردسته</div></div>
-        <div><div class="val" style="font-size:20px;font-weight:800">{{ categorized_product_count|fa_number }}</div><div class="lbl" style="font-size:12px;color:var(--muted)">کالای ثبت‌شده</div></div>
+  <div class="card" x-data="{
+        dragId: null, searchQuery: '', addMainOpen: {% if main_form.errors %}true{% else %}false{% endif %},
+        selectedId: null, selectedDepth: null, selectedName: '', selectedFirst: false, selectedLast: false,
+        addChildOpen: {% if sub_form.errors or subsub_form.errors %}true{% else %}false{% endif %},
+        select(id, depth, name, isFirst, isLast) {
+          this.selectedId = id; this.selectedDepth = depth; this.selectedName = name;
+          this.selectedFirst = isFirst; this.selectedLast = isLast; this.addChildOpen = false;
+        },
+        clearSelection() { this.selectedId = null; this.selectedDepth = null; this.addChildOpen = false; },
+        moveSelected(direction) {
+          const row = document.querySelector('.cat-tree-node[data-id=\'' + this.selectedId + '\']');
+          if (!row) return;
+          const sibling = direction === 'up' ? row.previousElementSibling : row.nextElementSibling;
+          if (!sibling) return;
+          if (direction === 'up') row.parentElement.insertBefore(row, sibling);
+          else row.parentElement.insertBefore(sibling, row);
+          const ids = [...row.parentElement.children].map(r => r.dataset.id);
+          htmx.ajax('POST', '{% url 'dashboard:category-reorder' %}', {values: {category_ids: ids}, target: '#categoriesPageBody', swap: 'outerHTML'});
+        },
+      }">
+    <div class="card-head" style="flex-wrap:wrap;gap:10px">
+      <h3>درخت دسته‌بندی‌ها <span class="help-icon" title="مثلِ یک کاوشگرِ فایل — روی هر گره کلیک کنید تا عملیاتِ آن نمایش داده شود.">؟</span></h3>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        {% if rows %}
+        <input class="inp" placeholder="🔍 جستجوی دسته‌بندی..." style="width:200px" x-model="searchQuery">
+        {% endif %}
+        <button type="button" class="btn btn-sm btn-primary" @click="addMainOpen = !addMainOpen; clearSelection()">➕ گروهِ جدید</button>
       </div>
     </div>
-    <div class="card" x-data="{ dragId: null, searchQuery: '' }">
-      <div class="card-head">
-        <h3>درخت دسته‌بندی‌ها</h3>
-        {% if rows %}
-        <input class="inp" placeholder="🔍 جستجوی دسته‌بندی..." style="width:220px" x-model="searchQuery">
-        {% endif %}
-      </div>
-      <div class="card-body" id="categoriesList">
-        {% for node in rows %}
-        {% include "dashboard/partials/category_tree_node.html" with node=node is_first=forloop.first is_last=forloop.last %}
-        {% empty %}
-        <div class="cat-empty-state">
-          <div class="big">🗂️</div>
-          <p>هنوز هیچ دسته‌بندی‌ای برای این فروشگاه ساخته نشده است.</p>
-          <p style="font-size:12px">بدون دسته‌بندی، امکان ساختن کالا وجود ندارد — از فرمِ «گروه (سطح ۱)» در سمت راست شروع کنید.</p>
-          <button type="button" class="btn btn-primary btn-sm" style="margin-top:8px" onclick="document.querySelector('input[name=name]')?.focus()">ساخت اولین دسته‌بندی</button>
+
+    <!-- فرمِ افزودنِ گروهِ سطحِ ۱ — با دکمه‌یِ بالا باز/بسته می‌شود، بدونِ نیاز به انتخابِ گره -->
+    <div class="card-body" x-show="addMainOpen" x-cloak style="border-bottom:1px solid var(--border)">
+      <form hx-post="{% url 'dashboard:category-add-main' %}" hx-target="#categoriesPageBody" hx-swap="outerHTML" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:200px">
+          <label>نامِ گروهِ جدید <span class="help-icon" title="بالاترین سطح — مثلاً «دیجیتال» یا «پوشاک». کالا مستقیماً به گروه وصل نمی‌شود.">؟</span></label>
+          <input class="inp" name="name" placeholder="مثلاً: لوازم جانبی" value="{{ main_form.name.value|default_if_none:'' }}">
+          {% for err in main_form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
         </div>
-        {% endfor %}
+        <div class="form-group" style="margin-bottom:0;width:120px">
+          <label>آیکون (اختیاری)</label>
+          <input class="inp" name="icon" value="{{ main_form.icon.value|default:'📁' }}" placeholder="📦">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">ثبتِ گروه</button>
+      </form>
+    </div>
+
+    <!-- نوارِ اقدام‌هایِ زمینه‌ای — با انتخابِ یک گره در درخت نمایش داده می‌شود -->
+    <div class="cat-action-bar" x-show="selectedId !== null" x-cloak style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--surface-2, rgba(109,40,217,.04))">
+      <b style="font-size:13px" x-text="'انتخاب‌شده: ' + selectedName"></b>
+      <span style="flex:1"></span>
+      <button type="button" class="btn btn-sm" x-show="selectedDepth < 3" @click="addChildOpen = !addChildOpen">➕ افزودنِ زیرشاخه</button>
+      <span x-show="selectedDepth >= 3" style="font-size:11.5px;color:var(--muted)">عمیق‌ترین سطح — زیرشاخه‌ی بیشتر ممکن نیست</span>
+      <button type="button" class="btn btn-sm" @click="
+          htmx.ajax('GET', '{% url 'dashboard:category-edit' 0 %}'.replace('0', selectedId), {target: '#admin-modal-content', swap: 'innerHTML'});
+          modalOpen = true;
+        ">✏️ ویرایش</button>
+      <button type="button" class="btn btn-sm" @click="
+          htmx.ajax('GET', '{% url 'dashboard:category-schema' 0 %}'.replace('0', selectedId), {target: '#admin-modal-content', swap: 'innerHTML'});
+          modalOpen = true;
+        ">🏷️ طرحِ ویژگی</button>
+      <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" :disabled="selectedFirst" @click="moveSelected('up')">▲ بالا</button>
+      <button type="button" class="btn btn-sm" title="جابه‌جایی به پایین" :disabled="selectedLast" @click="moveSelected('down')">▼ پایین</button>
+      <button type="button" class="btn btn-sm btn-danger" @click="
+          if (confirm('«' + selectedName + '» حذف شود؟')) {
+            htmx.ajax('POST', '{% url 'dashboard:category-delete' 0 %}'.replace('0', selectedId), {target: '#categoriesPageBody', swap: 'outerHTML'});
+          }
+        ">🗑️ حذف</button>
+      <button type="button" class="btn btn-sm" title="لغوِ انتخاب" @click="clearSelection()">✕</button>
+    </div>
+
+    <!-- فرمِ افزودنِ زیرشاخه — بسته به عمقِ گره‌یِ انتخاب‌شده، دسته یا زیردسته می‌سازد -->
+    <div class="card-body" x-show="addChildOpen && selectedDepth === 1" x-cloak style="border-bottom:1px solid var(--border)">
+      <form hx-post="{% url 'dashboard:category-add-sub' %}" hx-target="#categoriesPageBody" hx-swap="outerHTML" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        {% csrf_token %}
+        <input type="hidden" name="parent" :value="selectedId">
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:200px">
+          <label>نامِ دسته‌یِ جدید زیرِ «<span x-text="selectedName"></span>»</label>
+          <input class="inp" name="name" placeholder="مثلاً: هدفون و هندزفری" value="{{ sub_form.name.value|default_if_none:'' }}">
+          {% for err in sub_form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+          {% for err in sub_form.parent.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="form-group" style="margin-bottom:0;width:120px">
+          <label>آیکون (اختیاری)</label>
+          <input class="inp" name="icon" value="{{ sub_form.icon.value|default_if_none:'' }}">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">ثبتِ دسته</button>
+      </form>
+    </div>
+    <div class="card-body" x-show="addChildOpen && selectedDepth === 2" x-cloak style="border-bottom:1px solid var(--border)">
+      <form hx-post="{% url 'dashboard:category-add-subsub' %}" hx-target="#categoriesPageBody" hx-swap="outerHTML" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        {% csrf_token %}
+        <input type="hidden" name="parent" :value="selectedId">
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:200px">
+          <label>نامِ زیردسته‌یِ جدید زیرِ «<span x-text="selectedName"></span>»</label>
+          <input class="inp" name="name" placeholder="مثلاً: هدفون بی‌سیم" value="{{ subsub_form.name.value|default_if_none:'' }}">
+          {% for err in subsub_form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+          {% for err in subsub_form.parent.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="form-group" style="margin-bottom:0;width:120px">
+          <label>آیکون (اختیاری)</label>
+          <input class="inp" name="icon" value="{{ subsub_form.icon.value|default_if_none:'' }}">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">ثبتِ زیردسته</button>
+      </form>
+    </div>
+
+    <div class="card-body" id="categoriesList">
+      {% for node in rows %}
+      {% include "dashboard/partials/category_tree_node.html" with node=node is_first=forloop.first is_last=forloop.last depth=1 %}
+      {% empty %}
+      <div class="cat-empty-state">
+        <div class="big">🗂️</div>
+        <p>هنوز هیچ دسته‌بندی‌ای برای این فروشگاه ساخته نشده است.</p>
+        <p style="font-size:12px">بدون دسته‌بندی، امکان ساختن کالا وجود ندارد.</p>
+        <button type="button" class="btn btn-primary btn-sm" style="margin-top:8px" @click="addMainOpen = true">➕ ساختِ اولین گروه</button>
       </div>
+      {% endfor %}
     </div>
   </div>
 </div>

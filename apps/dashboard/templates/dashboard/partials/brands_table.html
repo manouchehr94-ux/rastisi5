@@ -1,7 +1,31 @@
 {% load persian %}
-<table x-data="{ dragId: null }">
+{% if brands %}
+<div id="brandsBulkBar" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+  <span style="font-size:12.5px;color:var(--muted)"><span id="brandsSelectedCount">۰</span> برند انتخاب‌شده</span>
+  <button type="button" class="btn btn-sm" onclick="rastiBrandBulk('activate')">✅ فعال‌سازیِ انتخاب‌شده‌ها</button>
+  <button type="button" class="btn btn-sm" onclick="rastiBrandBulk('deactivate')">⛔ غیرفعال‌سازیِ انتخاب‌شده‌ها</button>
+  <button type="button" class="btn btn-sm btn-danger" onclick="rastiBrandBulk('delete')">🗑️ حذفِ انتخاب‌شده‌ها</button>
+</div>
+<script>
+  function rastiBrandUpdateCount(){
+    const n = document.querySelectorAll('#brandsTable tbody input[name=brand_ids]:checked').length;
+    const el = document.getElementById('brandsSelectedCount');
+    if (el) el.textContent = n.toLocaleString('fa-IR');
+  }
+  function rastiBrandBulk(action){
+    const ids = [...document.querySelectorAll('#brandsTable tbody input[name=brand_ids]:checked')].map(c => c.value);
+    if (!ids.length) return;
+    if (action === 'delete' && !confirm(ids.length + ' برندِ انتخاب‌شده حذف شود؟')) return;
+    htmx.ajax('POST', '{% url "dashboard:brand-bulk-action" %}', {
+      values: { brand_ids: ids, action: action }, target: '#brandsTableWrap', swap: 'innerHTML',
+    });
+  }
+</script>
+{% endif %}
+<table id="brandsTable" x-data="{ dragId: null }">
   <thead>
     <tr>
+      <th style="width:24px"><input type="checkbox" title="انتخابِ همه" onchange="document.querySelectorAll('#brandsTable tbody input[name=brand_ids]').forEach(cb => cb.checked = this.checked); rastiBrandUpdateCount()"></th>
       <th style="width:28px"></th>
       <th>لوگو</th><th>نام برند</th><th>نام انگلیسی</th><th>کشور</th><th>تعداد کالا</th><th>وضعیت</th><th>عملیات</th>
     </tr>
@@ -22,6 +46,7 @@
           dragId = null;
         "
         style="cursor:grab">
+      <td><input type="checkbox" name="brand_ids" value="{{ brand.pk }}" onchange="rastiBrandUpdateCount()"></td>
       <td style="white-space:nowrap">
         <span style="color:var(--muted)" title="برای مرتب‌سازی بکشید">⠿</span>
         <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}
@@ -57,7 +82,13 @@
       </td>
       <td dir="ltr">{{ brand.name_en|default:"—" }}</td>
       <td>{{ brand.country|default:"—" }}</td>
-      <td>{{ brand.product_count }}</td>
+      <td>
+        {% if brand.product_count %}
+        <a href="{% url 'dashboard:product-list' %}?brand={{ brand.pk }}" title="نمایشِ کالاهای این برند">{{ brand.product_count|fa_number }}</a>
+        {% else %}
+        <span style="color:var(--muted)">۰</span>
+        {% endif %}
+      </td>
       <td><span class="badge {% if brand.is_active %}b-green{% else %}b-gray{% endif %}">{% if brand.is_active %}فعال{% else %}غیرفعال{% endif %}</span></td>
       <td>
         <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:brand-edit' brand.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">✏️ ویرایش</button>
@@ -70,8 +101,13 @@
       </td>
     </tr>
     {% empty %}
-    <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">
-      هنوز برندی ثبت نشده است — از دکمه‌ی «افزودن برند» بالا شروع کنید.
+    <tr><td colspan="9" style="padding:0">
+      <div class="cat-empty-state">
+        <div class="big">🏷️</div>
+        <p>هنوز برندی برای این فروشگاه ثبت نشده است.</p>
+        <p style="font-size:12px">برندها به مشتری کمک می‌کنند کالاها را فیلتر و مقایسه کند و به فروشگاه اعتماد بیشتری می‌دهند — مثلاً «موبایل، برند: سامسونگ». هر کالا می‌تواند بدونِ برند هم ثبت شود، اما تعریفِ برندها فیلترِ کالاها را دقیق‌تر می‌کند.</p>
+        <button type="button" class="btn btn-primary btn-sm" style="margin-top:8px" hx-get="{% url 'dashboard:brand-add' %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">➕ ساختِ اولین برند</button>
+      </div>
     </td></tr>
     {% endfor %}
   </tbody>

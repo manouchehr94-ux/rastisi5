@@ -30,17 +30,42 @@
 
   <h4 style="margin-bottom:8px">🎬 ویدیوی معرفیِ کالا (یوتیوب / آپارات)</h4>
   <form hx-post="{% url 'dashboard:product-video-add' product.pk %}" hx-target="#productVideosList" hx-swap="outerHTML"
-        style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+        @htmx:after-request="if ($event.detail.successful) { url = ''; embedUrl = '' }"
+        x-data="{
+          url: '', embedUrl: '',
+          youtubePatterns: [/(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/)([\w-]{11})/, /youtu\.be\/([\w-]{11})/, /youtube\.com\/embed\/([\w-]{11})/],
+          aparatPattern: /aparat\.com\/(?:v\/|video\/video\/embed\/videohash\/)([\w-]+)/,
+          checkUrl() {
+            this.embedUrl = '';
+            if (!this.url.trim()) return;
+            for (const p of this.youtubePatterns) {
+              const m = this.url.match(p);
+              if (m) { this.embedUrl = 'https://www.youtube.com/embed/' + m[1]; return; }
+            }
+            const am = this.url.match(this.aparatPattern);
+            if (am) { this.embedUrl = 'https://www.aparat.com/video/video/embed/videohash/' + am[1] + '/vt/frame'; return; }
+          },
+        }"
+        style="margin-bottom:12px">
     {% csrf_token %}
-    <div class="form-group" style="margin-bottom:0;flex:1;min-width:220px">
-      <label>لینکِ ویدیو <span class="help-icon" title="فقط لینکِ صفحه‌ی ویدیو در یوتیوب یا آپارات پذیرفته می‌شود؛ فایلِ ویدیو مستقیماً آپلود نمی‌شود.">؟</span></label>
-      <input class="inp" name="url" dir="ltr" placeholder="https://www.youtube.com/watch?v=... یا https://www.aparat.com/v/...">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div class="form-group" style="margin-bottom:0;flex:1;min-width:220px">
+        <label>لینکِ ویدیو <span class="help-icon" title="فقط لینکِ صفحه‌ی ویدیو در یوتیوب یا آپارات پذیرفته می‌شود؛ فایلِ ویدیو مستقیماً آپلود نمی‌شود.">؟</span></label>
+        <input class="inp" name="url" dir="ltr" placeholder="https://www.youtube.com/watch?v=... یا https://www.aparat.com/v/..."
+               x-model="url" @input.debounce.300ms="checkUrl()">
+      </div>
+      <div class="form-group" style="margin-bottom:0;width:150px">
+        <label>عنوان (اختیاری)</label>
+        <input class="inp" name="title" placeholder="معرفیِ کالا">
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary" :disabled="url.trim() && !embedUrl">افزودنِ ویدیو</button>
     </div>
-    <div class="form-group" style="margin-bottom:0;width:150px">
-      <label>عنوان (اختیاری)</label>
-      <input class="inp" name="title" placeholder="معرفیِ کالا">
+    <div x-show="url.trim() && !embedUrl" x-cloak style="color:var(--red);font-size:11.5px;margin-top:6px">
+      این لینک شناخته‌شده نیست — فقط لینکِ یوتیوب یا آپارات پذیرفته می‌شود.
     </div>
-    <button type="submit" class="btn btn-sm btn-primary">افزودنِ ویدیو</button>
+    <div x-show="embedUrl" x-cloak style="margin-top:10px;width:220px;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:#000">
+      <iframe :src="embedUrl" style="width:100%;height:100%;border:0" allowfullscreen loading="lazy"></iframe>
+    </div>
   </form>
   {% include "dashboard/partials/product_videos_list.html" %}
 </div>

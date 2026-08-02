@@ -160,3 +160,40 @@ class CategoryReorderViewTests(CategoryViewsTestCase):
         self.assertIn('id="categoriesPageBody"', content)
         self.assertIn("target: '#categoriesPageBody', swap: 'outerHTML'", content)
         self.assertNotIn("target: '#categoriesList', swap: 'innerHTML'", content)
+
+
+class CategoryTreeFileExplorerUXTests(CategoryViewsTestCase):
+    """درختِ دسته‌بندی اکنون به‌سبکِ کاوشگرِ فایل کار می‌کند: به‌جایِ سه فرمِ همیشه‌نمایان،
+    انتخابِ یک گره نوارِ اقدام‌هایِ زمینه‌ای (افزودنِ زیرشاخه/ویرایش/حذف/جابه‌جایی) را
+    نمایش می‌دهد."""
+
+    def test_root_node_calls_select_with_depth_one(self):
+        response = self.client.get(reverse("dashboard:category-list"))
+        content = response.content.decode()
+        self.assertIn(f"select({self.main.pk}, 1, ", content)
+
+    def test_child_node_calls_select_with_depth_two(self):
+        response = self.client.get(reverse("dashboard:category-list"))
+        content = response.content.decode()
+        self.assertIn(f"select({self.sub.pk}, 2, ", content)
+
+    def test_per_row_inline_action_buttons_are_gone(self):
+        """دکمه‌های ویرایش/حذف/جابه‌جاییِ داخلِ هر ردیف حذف شده‌اند؛ این عملیات اکنون فقط
+        از طریقِ نوارِ اقدام‌هایِ زمینه‌ایِ مشترک (پس از انتخابِ گره) در دسترس‌اند."""
+        response = self.client.get(reverse("dashboard:category-list"))
+        content = response.content.decode()
+        self.assertNotIn(f'hx-get="{reverse("dashboard:category-edit", args=[self.main.pk])}"', content)
+        self.assertNotIn(f'hx-post="{reverse("dashboard:category-delete", args=[self.main.pk])}"', content)
+
+    def test_action_bar_and_add_child_scaffolding_present(self):
+        response = self.client.get(reverse("dashboard:category-list"))
+        content = response.content.decode()
+        self.assertIn("cat-action-bar", content)
+        self.assertIn("addChildOpen", content)
+        self.assertIn("moveSelected", content)
+
+    def test_add_child_form_posts_to_add_sub_with_hidden_parent(self):
+        response = self.client.get(reverse("dashboard:category-list"))
+        content = response.content.decode()
+        self.assertIn(f'hx-post="{reverse("dashboard:category-add-sub")}"', content)
+        self.assertIn('name="parent" :value="selectedId"', content)

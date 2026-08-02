@@ -1,4 +1,7 @@
 {% load persian %}
+{% if product.images.all %}
+<p class="field-help" style="margin-bottom:10px">🖐️ تصاویر را برای تغییرِ ترتیب بکشید و رها کنید.</p>
+{% endif %}
 <div id="productImagesList" class="img-manage-grid" x-data="{ dragId: null }">
   {% for image in product.images.all %}
   <div class="img-manage-item{% if image.is_cover %} is-cover{% endif %}" draggable="true" data-id="{{ image.pk }}"
@@ -18,8 +21,7 @@
        "
        style="cursor:grab">
     <div class="img-manage-thumb" style="background-image:url('{{ image.thumbnail.url|default:image.image.url }}')">
-      {% if image.is_cover %}<span class="pill pill-new img-manage-cover-badge">کاور</span>{% endif %}
-      {% if image.is_360 %}<span class="pill pill-new" style="left:6px;right:auto">۳۶۰°</span>{% endif %}
+      {% if image.is_cover %}<span class="pill pill-new img-manage-cover-badge">⭐ کاورِ کالا</span>{% endif %}
     </div>
     <input class="inp img-manage-alt" placeholder="متن جایگزین (alt)" value="{{ image.alt }}" name="alt"
            title="توضیحِ کوتاهِ تصویر برایِ نابینایان و موتورهای جست‌وجو — برایِ سئوی تصاویر مهم است."
@@ -40,12 +42,6 @@
       {% endfor %}
     </select>
     {% endif %}
-    <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);margin-top:4px" title="زیرساختِ آماده‌برایِ‌آینده — نمایشِ ۳۶۰ درجه هنوز پیاده‌سازی نشده">
-      <input type="checkbox" {% if image.is_360 %}checked{% endif %}
-             hx-post="{% url 'dashboard:product-image-360-toggle' product.pk image.pk %}"
-             hx-target="#productImagesList" hx-swap="outerHTML">
-      بخشی از مجموعه‌ی ۳۶۰° (به‌زودی)
-    </label>
     <div class="img-manage-actions">
       <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}
               hx-post="{% url 'dashboard:product-image-move' product.pk image.pk %}" hx-vals='{"direction":"up"}'
@@ -54,9 +50,9 @@
               hx-post="{% url 'dashboard:product-image-move' product.pk image.pk %}" hx-vals='{"direction":"down"}'
               hx-target="#productImagesList" hx-swap="outerHTML">⬇️</button>
       {% if not image.is_cover %}
-      <button type="button" class="btn btn-sm" title="تعیین به‌عنوان کاور"
+      <button type="button" class="btn btn-sm" title="این تصویر به‌عنوانِ کاورِ اصلیِ کالا نمایش داده می‌شود"
               hx-post="{% url 'dashboard:product-image-set-cover' product.pk image.pk %}"
-              hx-target="#productImagesList" hx-swap="outerHTML">⭐</button>
+              hx-target="#productImagesList" hx-swap="outerHTML">⭐ تعیینِ کاور</button>
       {% endif %}
       <button type="button" class="btn btn-sm btn-danger" title="حذف"
               hx-post="{% url 'dashboard:product-image-delete' product.pk image.pk %}"

@@ -98,6 +98,7 @@ urlpatterns = [
     path("brands/<int:pk>/activate/", views.brand_activate, name="brand-activate"),
     path("brands/<int:pk>/delete/", views.brand_delete, name="brand-delete"),
     path("brands/reorder/", views.brand_reorder, name="brand-reorder"),
+    path("brands/bulk-action/", views.brand_bulk_action, name="brand-bulk-action"),
 
     path("orders/", views.order_list, name="order-list"),
     path("orders/table/", views.order_table, name="order-table"),

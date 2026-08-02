@@ -16,33 +16,17 @@
         }
         dragId = null;
      ">
-  <div class="cat-node-row">
+  <div class="cat-node-row" :class="{ 'cat-node-selected': selectedId === {{ node.category.pk }} }"
+       @click="select({{ node.category.pk }}, {{ depth }}, '{{ node.category.name|escapejs }}', {{ is_first|yesno:'true,false' }}, {{ is_last|yesno:'true,false' }})"
+       style="cursor:pointer">
     {% if node.children %}
-    <button type="button" class="cat-toggle" @click="open = !open" :aria-expanded="open.toString()" title="باز/بسته کردن">
+    <button type="button" class="cat-toggle" @click.stop="open = !open" :aria-expanded="open.toString()" title="باز/بسته کردن">
       <span x-text="open ? '▾' : '◂'"></span>
     </button>
     {% else %}
     <span class="cat-toggle-spacer"></span>
     {% endif %}
     <span class="cat-drag-handle" title="برای مرتب‌سازی بکشید">⠿</span>
-    <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" {% if is_first %}disabled{% endif %}
-            @click.stop="
-              const node = $el.closest('.cat-tree-node'); const prev = node.previousElementSibling;
-              if (prev) {
-                node.parentElement.insertBefore(node, prev);
-                const ids = [...node.parentElement.children].map(r => r.dataset.id);
-                htmx.ajax('POST', '{% url 'dashboard:category-reorder' %}', {values: {category_ids: ids}, target: '#categoriesPageBody', swap: 'outerHTML'});
-              }
-            ">▲</button>
-    <button type="button" class="btn btn-sm" title="جابه‌جایی به پایین" {% if is_last %}disabled{% endif %}
-            @click.stop="
-              const node = $el.closest('.cat-tree-node'); const next = node.nextElementSibling;
-              if (next) {
-                node.parentElement.insertBefore(next, node);
-                const ids = [...node.parentElement.children].map(r => r.dataset.id);
-                htmx.ajax('POST', '{% url 'dashboard:category-reorder' %}', {values: {category_ids: ids}, target: '#categoriesPageBody', swap: 'outerHTML'});
-              }
-            ">▼</button>
     <span class="cat-icon">{{ node.category.icon|default:"📁" }}</span>
     <span class="cat-name">{{ node.category.name }}</span>
     <span class="cat-meta">
@@ -50,16 +34,11 @@
       {% if node.children %} · {{ node.children|length|fa_number }} زیرشاخه{% endif %}
       {% if node.is_leaf %} · <span style="color:var(--primary-text)">قابل‌انتخاب برای کالا</span>{% endif %}
     </span>
-    <span class="cat-actions">
-      <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:category-edit' node.category.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click.stop="modalOpen = true" title="ویرایش">✏️</button>
-      <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:category-schema' node.category.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click.stop="modalOpen = true" title="طرح ویژگی">🏷️</button>
-      <button type="button" class="btn btn-sm btn-danger" hx-post="{% url 'dashboard:category-delete' node.category.pk %}" hx-target="#categoriesPageBody" hx-swap="outerHTML" hx-confirm="آیا از حذف «{{ node.category.name }}» مطمئن هستید؟" @click.stop title="حذف">🗑️</button>
-    </span>
   </div>
   {% if node.children %}
   <div class="cat-children" x-show="open" x-cloak>
     {% for child in node.children %}
-    {% include "dashboard/partials/category_tree_node.html" with node=child is_first=forloop.first is_last=forloop.last %}
+    {% include "dashboard/partials/category_tree_node.html" with node=child is_first=forloop.first is_last=forloop.last depth=depth|add:1 %}
     {% endfor %}
   </div>
   {% endif %}
