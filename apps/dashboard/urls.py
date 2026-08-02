@@ -16,6 +16,7 @@ urlpatterns = [
     path("products/add/", views.product_form, name="product-add"),
     path("products/<int:pk>/edit/", views.product_form, name="product-edit"),
     path("products/<int:pk>/delete/", views.product_delete, name="product-delete"),
+    path("products/<int:pk>/preview/", views.product_preview, name="product-preview"),
     path("products/attribute-fields/", views.product_attribute_fields, name="product-attribute-fields"),
     path("products/<int:pk>/attribute-fields/", views.product_attribute_fields, name="product-attribute-fields-edit"),
     path("products/<int:pk>/attribute-fields/cleanup/", views.product_attribute_cleanup_orphans, name="product-attribute-cleanup"),

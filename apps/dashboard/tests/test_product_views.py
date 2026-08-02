@@ -377,6 +377,39 @@ class ProductDeleteViewTests(ProductViewsTestCase):
         self.assertTrue(Product.objects.filter(pk=self.product.pk).exists())
 
 
+class ProductPreviewViewTests(ProductViewsTestCase):
+    def test_draft_product_renders_for_staff(self):
+        self.product.status = Product.Status.DRAFT
+        self.product.save(update_fields=["status"])
+        response = self.client.get(reverse("dashboard:product-preview", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.product.name)
+        self.assertContains(response, "پیش‌نمایشِ مدیریتی")
+
+    def test_preview_banner_shown_even_for_active_product(self):
+        """پیش‌نمایش همیشه با بنر مشخص می‌شود — صرف‌نظر از وضعیتِ کالا — تا
+        مدیر هرگز آن را با صفحه‌ی واقعیِ فروشگاه اشتباه نگیرد."""
+        response = self.client.get(reverse("dashboard:product-preview", args=[self.product.pk]))
+        self.assertContains(response, "پیش‌نمایشِ مدیریتی")
+
+    def test_anonymous_denied(self):
+        self.client.logout()
+        response = self.client.get(reverse("dashboard:product-preview", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("admin_return=", response.url)
+
+    def test_other_store_product_404s(self):
+        other_store = Store.objects.create(name="Other", slug="preview-other-store", status=Store.Status.ACTIVE)
+        other_vendor = Vendor.objects.create(store=other_store, name="V", slug="preview-other-vendor")
+        other_category = Category.objects.create(store=other_store, name="C", slug="preview-other-cat")
+        other_product = Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="کالای دیگر",
+            slug="preview-other-product", sku="SKU-PREVIEW-OTHER", price=Decimal("1000"),
+        )
+        response = self.client.get(reverse("dashboard:product-preview", args=[other_product.pk]))
+        self.assertEqual(response.status_code, 404)
+
+
 @override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
 class ProductCreationWithoutVendorTests(TestCase):
     """A merchant must be able to create a product on day one, before ever

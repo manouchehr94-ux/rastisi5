@@ -225,15 +225,11 @@ def _can_review(request):
     return request.user.is_authenticated and hasattr(request.user, "customer_profile")
 
 
-def product_detail(request, slug):
-    store = resolve_store_for_storefront(request)
-    product = get_object_or_404(
-        Product.objects.select_related("brand", "category", "category__parent", "vendor"),
-        slug=slug, store=store, status=Product.Status.ACTIVE,
-    )
-    Product.objects.filter(pk=product.pk).update(views_count=F("views_count") + 1)
-    product.views_count += 1
-
+def build_product_detail_context(request, product):
+    """کانتکستِ کاملِ صفحه‌ی محصول — هم برایِ نمایشِ عمومیِ فروشگاه (``product_detail``)
+    و هم برایِ پیش‌نمایشِ مدیرِ فروشگاه (``dashboard:product-preview``، برایِ
+    کالاهایِ منتشرنشده) استفاده می‌شود تا منطق هرگز دوباره‌نویسی نشود."""
+    store = product.store
     variant_groups = _variant_groups(product)
     spec_variant_summary = {
         attribute: "، ".join(v.value for v in items) for attribute, items in variant_groups.items()
@@ -272,6 +268,19 @@ def product_detail(request, slug):
         "can_review": _can_review(request),
         "savings": savings,
     }
+    return context
+
+
+def product_detail(request, slug):
+    store = resolve_store_for_storefront(request)
+    product = get_object_or_404(
+        Product.objects.select_related("brand", "category", "category__parent", "vendor"),
+        slug=slug, store=store, status=Product.Status.ACTIVE,
+    )
+    Product.objects.filter(pk=product.pk).update(views_count=F("views_count") + 1)
+    product.views_count += 1
+
+    context = build_product_detail_context(request, product)
     return render(request, "catalog/product_detail.html", context)
 
 

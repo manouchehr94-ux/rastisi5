@@ -112,6 +112,7 @@ from apps.cart.services.coupon_service import (
     update_coupon,
 )
 from apps.catalog.services.pricing_service import resolve_effective_price
+from apps.catalog.services.product_completion_service import build_completion_checklist, completion_percent
 from apps.catalog.services.product_publish_service import validate_product_for_publish
 from apps.catalog.services.tag_service import get_or_create_tags, suggest_tags
 from apps.catalog.services.product_specification_service import build_product_specification
@@ -802,10 +803,32 @@ def product_form(request, pk=None):
     category = product.category if product else None
     attribute_fields = _product_attribute_field_context(category, product)
     orphaned_count = orphaned_product_attribute_values(product).count() if product else 0
+    checklist = build_completion_checklist(product) if product else []
     return render(request, "dashboard/partials/product_form.html", {
         "form": form, "product": product, "attribute_fields": attribute_fields, "orphaned_count": orphaned_count,
         "category": category, "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
+        "checklist": checklist, "completion_pct": completion_percent(product) if product else 0,
+        "existing_tags": ", ".join(product.tags.values_list("name", flat=True)) if product else "",
+        "tag_suggestions": suggest_tags(store),
     })
+
+
+@staff_required
+@permission_required(PRODUCT_VIEW)
+def product_preview(request, pk):
+    """پیش‌نمایشِ کالا — فقط برایِ مدیرِ فروشگاه، حتی وقتی کالا هنوز منتشر
+    (فعال) نیست؛ همان قالبِ صفحه‌ی محصولِ فروشگاه را با همان کانتکست رندر
+    می‌کند (نگاه کنید به apps.catalog.views.build_product_detail_context)."""
+    from apps.catalog.views import build_product_detail_context
+
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(
+        Product.objects.select_related("brand", "category", "category__parent", "vendor"),
+        pk=pk, store=store,
+    )
+    context = build_product_detail_context(request, product)
+    context["is_merchant_preview"] = True
+    return render(request, "catalog/product_detail.html", context)
 
 
 @staff_required
