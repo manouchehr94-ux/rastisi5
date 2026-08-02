@@ -673,21 +673,24 @@ def _save_product(form, product, *, store):
 #: هر بار از نو با ``x-data`` مقداردهی می‌شود، پس این مرحله باید سمتِ سرور
 #: محاسبه و به قالب داده شود).
 _PRODUCT_WIZARD_FIELD_STEPS = {
-    "name": 1, "sku": 1, "icon": 1, "description": 1,
-    "category": 2,
-    "brand": 3,
-    "price": 4, "discount_percent": 4,
-    "product_type": 6,
-    "barcode": 7, "weight_grams": 7, "requires_shipping": 7, "tax_class": 7,
-    "seo_title": 8, "seo_description": 8,
-    "stock": 9, "status": 9,
+    # ۱) اطلاعات پایه: نام، کد کالا، دسته‌بندی، برند
+    "name": 1, "sku": 1, "icon": 1, "description": 1, "category": 1, "brand": 1,
+    # ۲) قیمت‌گذاری: قیمت، تخفیف، مالیات — بارکد/وزن/ارسال هم اینجا جا گرفته‌اند
+    # چون دیگر مرحله‌ی مستقلِ «ارسال» وجود ندارد (سرِ ساده‌سازیِ ویزارد به ۶ مرحله).
+    "price": 2, "discount_percent": 2, "tax_class": 2, "barcode": 2, "weight_grams": 2, "requires_shipping": 2,
+    # ۳) رسانه — بدون فیلدِ فرمِ مستقیم (تصاویر/ویدیو از صفحه‌ی مدیریتِ تصاویر)
+    # ۴) ویژگی‌ها — attr_* پویا هستند، پایین‌تر جداگانه بررسی می‌شوند
+    # ۵) تنوع: نوعِ کالا، موجودی
+    "product_type": 5, "stock": 5,
+    # ۶) سئو و انتشار
+    "seo_title": 6, "seo_description": 6, "status": 6,
 }
 
 
 def _product_wizard_error_step(form) -> int:
     for field_name in form.errors:
         if field_name.startswith("attr_"):
-            return 6
+            return 4
         step = _PRODUCT_WIZARD_FIELD_STEPS.get(field_name)
         if step:
             return step

@@ -134,9 +134,10 @@ class ProductAddViewTests(ProductViewsTestCase):
 
 
 class ProductWizardTests(ProductViewsTestCase):
-    """فرمِ افزودنِ کالا اکنون یک ویزاردِ چندمرحله‌ای است — ۹ مرحله، همه در
-    یک <form> واحد (بدون از دست رفتنِ داده بین مراحل)، با اعتبارسنجیِ
-    سمتِ سرور که کاربر را دقیقاً به مرحله‌ی دارایِ خطا هدایت می‌کند."""
+    """فرمِ افزودنِ کالا یک ویزاردِ چندمرحله‌ای است — اکنون ۶ مرحله‌ی ساده‌شده
+    (به‌جایِ ۹ مرحله‌ی قبلی، برایِ کاهشِ بارِ شناختی)، همه در یک <form> واحد
+    (بدون از دست رفتنِ داده بین مراحل)، با اعتبارسنجیِ سمتِ سرور که کاربر را
+    دقیقاً به مرحله‌ی دارایِ خطا هدایت می‌کند."""
 
     def _payload(self, **overrides):
         payload = {
@@ -147,28 +148,39 @@ class ProductWizardTests(ProductViewsTestCase):
         payload.update(overrides)
         return payload
 
-    def test_wizard_renders_all_nine_steps_in_one_form(self):
+    def test_wizard_renders_all_six_steps_in_one_form(self):
         response = self.client.get(reverse("dashboard:product-add"))
         content = response.content.decode()
         self.assertEqual(content.count("<form"), 1)  # یک فرمِ واحد، نه فرم‌های جداگانه‌ی هر مرحله
-        for n in range(1, 10):
+        for n in range(1, 7):
             self.assertIn(f'x-ref="step{n}"', content)
+        self.assertNotIn('x-ref="step7"', content)
 
     def test_progress_indicator_present(self):
         response = self.client.get(reverse("dashboard:product-add"))
         self.assertContains(response, "wizard-progress")
-        self.assertContains(response, "دسته‌بندی")
-        self.assertContains(response, "برند")
+        self.assertContains(response, "اطلاعات پایه")
+        self.assertContains(response, "سئو و انتشار")
 
-    def test_error_step_routes_to_category_step_when_category_missing(self):
+    def test_basic_info_step_still_contains_category_and_brand(self):
+        """دسته‌بندی و برند دیگر مرحله‌ی جداگانه نیستند — درونِ «اطلاعات پایه» ادغام شده‌اند."""
+        response = self.client.get(reverse("dashboard:product-add"))
+        content = response.content.decode()
+        step1_start = content.index('x-ref="step1"')
+        step2_start = content.index('x-ref="step2"')
+        step1_html = content[step1_start:step2_start]
+        self.assertIn('name="category"', step1_html)
+        self.assertIn('name="brand"', step1_html)
+
+    def test_error_step_routes_to_basic_info_step_when_category_missing(self):
         response = self.client.post(reverse("dashboard:product-add"), self._payload(category=""))
         self.assertEqual(response.status_code, 200)
-        self.assertIn("step: 2,", response.content.decode())
+        self.assertIn("step: 1,", response.content.decode())
 
     def test_error_step_routes_to_pricing_step_when_price_missing(self):
         response = self.client.post(reverse("dashboard:product-add"), self._payload(price=""))
         self.assertEqual(response.status_code, 200)
-        self.assertIn("step: 4,", response.content.decode())
+        self.assertIn("step: 2,", response.content.decode())
 
     def test_error_step_defaults_to_one_on_fresh_get(self):
         response = self.client.get(reverse("dashboard:product-add"))
@@ -179,6 +191,17 @@ class ProductWizardTests(ProductViewsTestCase):
         Category.objects.filter(store=self.store).delete()
         response = self.client.get(reverse("dashboard:product-add"))
         self.assertContains(response, "این فروشگاه هنوز هیچ دسته‌بندی‌ای ندارد")
+
+    def test_valid_submission_across_all_fields_still_creates_product(self):
+        """اطمینان از این‌که ادغامِ مراحل هیچ فیلدی را از دست نداده است."""
+        response = self.client.post(reverse("dashboard:product-add"), self._payload(
+            barcode="1234567890123", weight_grams="500", requires_shipping="on",
+            seo_title="عنوان سئو", seo_description="توضیح سئو",
+        ))
+        self.assertEqual(response.status_code, 200)
+        product = Product.objects.get(sku="SKU-WIZ1")
+        self.assertEqual(product.barcode, "1234567890123")
+        self.assertEqual(product.seo_title, "عنوان سئو")
 
 
 class ProductEditViewTests(ProductViewsTestCase):

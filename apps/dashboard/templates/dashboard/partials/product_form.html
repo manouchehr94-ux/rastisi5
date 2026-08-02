@@ -6,8 +6,8 @@
 <form hx-post="{% if product %}{% url 'dashboard:product-edit' product.pk %}{% else %}{% url 'dashboard:product-add' %}{% endif %}"
       hx-target="#admin-modal-content" hx-swap="innerHTML"
       x-data="{
-        step: {{ error_step|default:1 }}, totalSteps: 9,
-        stepLabels: ['اطلاعات پایه', 'دسته‌بندی', 'برند', 'قیمت‌گذاری', 'تصاویر و رسانه', 'ویژگی‌ها و تنوع', 'ارسال', 'سئو', 'پایانی'],
+        step: {{ error_step|default:1 }}, totalSteps: 6,
+        stepLabels: ['اطلاعات پایه', 'قیمت‌گذاری', 'رسانه', 'ویژگی‌ها', 'تنوع', 'سئو و انتشار'],
         goTo(n) { this.step = Math.min(Math.max(n, 1), this.totalSteps) },
         currentStepValid() {
           const section = $refs['step' + this.step];
@@ -45,16 +45,28 @@
         <div class="field-help">نامِ کاملِ کالا، همان‌طور که در صفحه‌ی کالا و کارتِ محصول نمایش داده می‌شود.</div>
         {% for err in form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
-      <div class="form-group">
-        <label>کد کالا (SKU) * <span class="help-icon" title="شناسه‌ی داخلیِ یکتا برای این کالا در انبار و گزارش‌ها.">؟</span></label>
-        <input class="inp" name="sku" required value="{{ form.sku.value|default_if_none:'' }}" placeholder="DM-1001" dir="ltr">
-        <div class="field-help">کد داخلیِ یکتا برای شناساییِ این کالا؛ مثال: DM-1001. مشتری این کد را نمی‌بیند.</div>
-        {% for err in form.sku.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      <div class="form-row">
+        <div class="form-group">
+          <label>کد کالا (SKU) * <span class="help-icon" title="شناسه‌ی داخلیِ یکتا برای این کالا در انبار و گزارش‌ها.">؟</span></label>
+          <input class="inp" name="sku" required value="{{ form.sku.value|default_if_none:'' }}" placeholder="DM-1001" dir="ltr">
+          <div class="field-help">کد داخلیِ یکتا برای شناساییِ این کالا؛ مثال: DM-1001. مشتری این کد را نمی‌بیند.</div>
+          {% for err in form.sku.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label>آیکون (ایموجی)</label>
+          <input class="inp" name="icon" value="{{ form.icon.value|default_if_none:'' }}" placeholder="🛍️">
+          <div class="field-help">فقط وقتی نمایش داده می‌شود که کالا هنوز تصویرِ کاور نداشته باشد.</div>
+        </div>
       </div>
       <div class="form-group">
-        <label>آیکون (ایموجی)</label>
-        <input class="inp" name="icon" value="{{ form.icon.value|default_if_none:'' }}" placeholder="🛍️">
-        <div class="field-help">فقط وقتی نمایش داده می‌شود که کالا هنوز تصویرِ کاور نداشته باشد.</div>
+        <label>زیرگروه کالا * <span class="help-icon" title="کالا فقط می‌تواند به یک برگِ واقعیِ درختِ دسته‌بندی وصل شود.">؟</span></label>
+        {% include "dashboard/partials/product_category_select.html" with category_queryset=form.fields.category.queryset selected_category_id=form.category.value %}
+        {% for err in form.category.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="form-group">
+        <label>برند <span class="help-icon" title="اختیاری — بسیاری از کالاها برند مشخصی ندارند. برند برای فیلترکردن و اعتمادِ مشتری استفاده می‌شود.">؟</span></label>
+        {% include "dashboard/partials/product_brand_select.html" with brand_queryset=form.fields.brand.queryset selected_brand_id=form.brand.value %}
+        {% for err in form.brand.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
       <div class="form-group">
         <label>توضیحات کوتاه</label>
@@ -64,25 +76,7 @@
     </div>
 
     <div class="form-section" x-show="step === 2" x-ref="step2">
-      <div class="form-section-title"><span class="n">۲</span> دسته‌بندی</div>
-      <div class="form-group">
-        <label>زیرگروه کالا * <span class="help-icon" title="کالا فقط می‌تواند به یک برگِ واقعیِ درختِ دسته‌بندی وصل شود.">؟</span></label>
-        {% include "dashboard/partials/product_category_select.html" with category_queryset=form.fields.category.queryset selected_category_id=form.category.value %}
-        {% for err in form.category.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-      </div>
-    </div>
-
-    <div class="form-section" x-show="step === 3" x-ref="step3">
-      <div class="form-section-title"><span class="n">۳</span> برند</div>
-      <div class="form-group">
-        <label>برند <span class="help-icon" title="اختیاری — بسیاری از کالاها برند مشخصی ندارند. برند برای فیلترکردن و اعتمادِ مشتری استفاده می‌شود.">؟</span></label>
-        {% include "dashboard/partials/product_brand_select.html" with brand_queryset=form.fields.brand.queryset selected_brand_id=form.brand.value %}
-        {% for err in form.brand.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-      </div>
-    </div>
-
-    <div class="form-section" x-show="step === 4" x-ref="step4">
-      <div class="form-section-title"><span class="n">۴</span> قیمت‌گذاری</div>
+      <div class="form-section-title"><span class="n">۲</span> قیمت‌گذاری</div>
       <div class="form-row">
         <div class="form-group">
           <label>قیمت (تومان) * <span class="help-icon" title="قیمتِ پایه پیش از اعمالِ تخفیف.">؟</span></label>
@@ -97,21 +91,58 @@
           {% for err in form.discount_percent.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
         </div>
       </div>
+      <div class="form-group">
+        <label>دسته‌ی مالیاتی</label>
+        <select class="inp" name="tax_class">
+          <option value="">— پیش‌فرضِ فروشگاه —</option>
+          {% for choice in form.tax_class.field.queryset %}
+          <option value="{{ choice.pk }}" {% if form.tax_class.value|stringformat:"s" == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="field-help">خالی بگذارید تا دسته‌ی مالیاتیِ پیش‌فرضِ فروشگاه برایِ این کالا اعمال شود.</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>بارکد محصول</label>
+          <input class="inp" name="barcode" value="{{ form.barcode.value|default_if_none:'' }}" dir="ltr">
+          <div class="field-help">اختیاری — برایِ اسکن در انبار یا صندوقِ فروش.</div>
+          {% for err in form.barcode.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label>وزن (گرم)</label>
+          <input class="inp" name="weight_grams" value="{{ form.weight_grams.value|default_if_none:'' }}" dir="ltr" inputmode="numeric">
+          <div class="field-help">برایِ محاسبه‌ی هزینه‌ی ارسال استفاده می‌شود.</div>
+          {% for err in form.weight_grams.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" name="requires_shipping" {% if form.requires_shipping.value %}checked{% endif %}>
+        نیاز به ارسال فیزیکی دارد
+      </label>
+      <div class="field-help" style="margin-right:24px">برایِ کالاهای دیجیتال/خدماتی که نیازی به پستِ فیزیکی ندارند، این گزینه را خاموش کنید.</div>
     </div>
 
-    <div class="form-section" x-show="step === 5" x-ref="step5">
-      <div class="form-section-title"><span class="n">۵</span> تصاویر و رسانه</div>
+    <div class="form-section" x-show="step === 3" x-ref="step3">
+      <div class="form-section-title"><span class="n">۳</span> رسانه</div>
       {% if product %}
       <p style="font-size:12.5px;color:var(--muted);margin-bottom:8px">تصاویرِ این کالا از صفحه‌ی مدیریتِ تصاویر قابل‌آپلود و مرتب‌سازی است.</p>
       <button type="button" class="btn btn-sm"
-              hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML">🖼️ مدیریتِ تصاویرِ این کالا</button>
+              hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML">🖼️ مدیریتِ تصاویر و ویدیوِ این کالا</button>
       {% else %}
       <div class="info-box">پس از ذخیره‌ی این کالا می‌توانید از فرمِ ویرایش، تصویر، ویدیو و سایر رسانه‌ها برایش اضافه کنید.</div>
       {% endif %}
     </div>
 
-    <div class="form-section" x-show="step === 6" x-ref="step6">
-      <div class="form-section-title"><span class="n">۶</span> ویژگی‌ها و تنوع</div>
+    <div class="form-section" x-show="step === 4" x-ref="step4">
+      <div class="form-section-title"><span class="n">۴</span> ویژگی‌ها</div>
+      <div class="form-group">
+        <label>ویژگی‌های اختصاصیِ این دسته‌بندی <span class="help-icon" title="این فیلدها بر اساسِ زیرگروهِ انتخاب‌شده تغییر می‌کنند؛ مثلاً رنگ، جنس یا هر مشخصه‌ی دیگری که برایِ این دسته تعریف کرده‌اید.">؟</span></label>
+        {% include "dashboard/partials/product_attribute_fields.html" %}
+      </div>
+    </div>
+
+    <div class="form-section" x-show="step === 5" x-ref="step5">
+      <div class="form-section-title"><span class="n">۵</span> تنوع</div>
       <div class="form-group">
         <label>نوع کالا <span class="help-icon" title="بعد از ذخیره هم قابلِ تغییر است.">؟</span></label>
         <div class="type-choice-row">
@@ -134,52 +165,21 @@
         </div>
         {% for err in form.product_type.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
         {% if product and product.product_type == "variable" %}
-        <a href="{% url 'dashboard:product-variants' product.pk %}" class="btn btn-sm" style="margin-top:8px">🧬 مدیریت تنوع‌های این کالا</a>
+        <a href="{% url 'dashboard:product-variants' product.pk %}" class="btn btn-sm" style="margin-top:8px">🧬 مدیریت تنوع‌های این کالا (رنگ، سایز و ...)</a>
         {% elif not product %}
-        <div class="field-help">پس از ذخیره‌ی کالا به‌عنوانِ «دارای تنوع»، مدیریتِ تنوع‌ها از فرمِ ویرایش در دسترس است.</div>
+        <div class="field-help">پس از ذخیره‌ی کالا به‌عنوانِ «دارای تنوع»، مدیریتِ تنوع‌ها (رنگ، سایز و موجودیِ هر ترکیب) از فرمِ ویرایش در دسترس است.</div>
         {% endif %}
       </div>
       <div class="form-group">
-        <label>ویژگی‌های اختصاصیِ این دسته‌بندی <span class="help-icon" title="این فیلدها بر اساسِ زیرگروهِ انتخاب‌شده تغییر می‌کنند.">؟</span></label>
-        {% include "dashboard/partials/product_attribute_fields.html" %}
+        <label>موجودی انبار <span class="help-icon" title="برایِ کالای دارای تنوع، موجودیِ هر تنوع جداگانه تنظیم می‌شود.">؟</span></label>
+        <input class="inp" name="stock" value="{{ form.stock.value|default:'0' }}" placeholder="0" dir="ltr" inputmode="numeric">
+        <div class="field-help">تعدادِ کالای موجود در انبار. اگر کالا «دارای تنوع» است، این عدد پس از تعریفِ تنوع‌ها نادیده گرفته می‌شود.</div>
+        {% for err in form.stock.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
     </div>
 
-    <div class="form-section" x-show="step === 7" x-ref="step7">
-      <div class="form-section-title"><span class="n">۷</span> ارسال</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>بارکد محصول</label>
-          <input class="inp" name="barcode" value="{{ form.barcode.value|default_if_none:'' }}" dir="ltr">
-          <div class="field-help">اختیاری — برایِ اسکن در انبار یا صندوقِ فروش.</div>
-          {% for err in form.barcode.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-        </div>
-        <div class="form-group">
-          <label>وزن (گرم)</label>
-          <input class="inp" name="weight_grams" value="{{ form.weight_grams.value|default_if_none:'' }}" dir="ltr" inputmode="numeric">
-          <div class="field-help">برایِ محاسبه‌ی هزینه‌ی ارسال استفاده می‌شود.</div>
-          {% for err in form.weight_grams.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-        </div>
-      </div>
-      <label style="display:flex;align-items:center;gap:6px">
-        <input type="checkbox" name="requires_shipping" {% if form.requires_shipping.value %}checked{% endif %}>
-        نیاز به ارسال فیزیکی دارد
-      </label>
-      <div class="field-help" style="margin-right:24px;margin-bottom:10px">برایِ کالاهای دیجیتال/خدماتی که نیازی به پستِ فیزیکی ندارند، این گزینه را خاموش کنید.</div>
-      <div class="form-group">
-        <label>دسته‌ی مالیاتی</label>
-        <select class="inp" name="tax_class">
-          <option value="">— پیش‌فرضِ فروشگاه —</option>
-          {% for choice in form.tax_class.field.queryset %}
-          <option value="{{ choice.pk }}" {% if form.tax_class.value|stringformat:"s" == choice.pk|stringformat:"s" %}selected{% endif %}>{{ choice.name }}</option>
-          {% endfor %}
-        </select>
-        <div class="field-help">خالی بگذارید تا دسته‌ی مالیاتیِ پیش‌فرضِ فروشگاه برایِ این کالا اعمال شود.</div>
-      </div>
-    </div>
-
-    <div class="form-section" x-show="step === 8" x-ref="step8">
-      <div class="form-section-title"><span class="n">۸</span> سئو</div>
+    <div class="form-section" x-show="step === 6" x-ref="step6">
+      <div class="form-section-title"><span class="n">۶</span> سئو و انتشار</div>
       <div class="form-group">
         <label>عنوان سئو</label>
         <input class="inp" name="seo_title" value="{{ form.seo_title.value|default_if_none:'' }}" maxlength="70">
@@ -196,16 +196,6 @@
         <div class="seo-preview-title" x-text="document.querySelector('[name=seo_title]').value || document.querySelector('[name=name]').value || 'عنوانِ کالا'"></div>
         <div class="seo-preview-url">example.com › products › {{ product.slug|default:"..." }}</div>
         <div class="seo-preview-desc" x-text="document.querySelector('[name=seo_description]').value || document.querySelector('[name=description]').value || 'توضیحاتِ کالا اینجا نمایش داده می‌شود.'"></div>
-      </div>
-    </div>
-
-    <div class="form-section" x-show="step === 9" x-ref="step9">
-      <div class="form-section-title"><span class="n">۹</span> موجودی، وضعیت و پایان</div>
-      <div class="form-group">
-        <label>موجودی انبار <span class="help-icon" title="برایِ کالای دارای تنوع، موجودیِ هر تنوع جداگانه تنظیم می‌شود.">؟</span></label>
-        <input class="inp" name="stock" value="{{ form.stock.value|default:'0' }}" placeholder="0" dir="ltr" inputmode="numeric">
-        <div class="field-help">تعدادِ کالای موجود در انبار. اگر کالا «دارای تنوع» است، این عدد پس از تعریفِ تنوع‌ها نادیده گرفته می‌شود.</div>
-        {% for err in form.stock.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
       <div class="form-group">
         <label>وضعیت <span class="help-icon" title="فقط کالاهای «فعال» در فروشگاه به مشتری نمایش داده می‌شوند.">؟</span></label>
