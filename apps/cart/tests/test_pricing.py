@@ -141,6 +141,52 @@ class PricingServiceTests(TestCase):
         self.assertFalse(totals["free_shipping"])
 
 
+class VariantAwareCartTotalsTests(TestCase):
+    """قیچیِ ایرانی/ایتالیایی: cart_totals باید از item.unit_price (اسنپ‌شاتِ
+    آگاه از تنوع) استفاده کند، نه product.final_price ساده که تنوع را
+    نادیده می‌گرفت."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-vac")
+        self.category = Category.objects.create(store=self.store, name="ابزار", slug="tools-vac")
+        self.cart = Cart.objects.create(session_key="guest-vac")
+
+    def test_absolute_variant_price_used_in_items_total_not_product_base_price(self):
+        from apps.catalog.models import ProductVariant
+
+        product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="قیچی",
+            slug="scissors-vac", sku="SKU-SCISSORS-VAC", price=Decimal("1"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        italian = ProductVariant.objects.create(
+            product=product, attribute="کشور سازنده", value="ایتالیایی", price=Decimal("800000"),
+        )
+        CartItem.objects.create(cart=self.cart, product=product, variant=italian, quantity=1, unit_price=Decimal("800000"))
+
+        totals = cart_totals(self.cart, store=self.store)
+        self.assertEqual(totals["items_total"], Decimal("800000"))
+
+    def test_compare_at_price_reflected_as_product_discount_for_absolute_variant(self):
+        from apps.catalog.models import ProductVariant
+
+        product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="قیچی",
+            slug="scissors-vac2", sku="SKU-SCISSORS-VAC2", price=Decimal("1"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        variant = ProductVariant.objects.create(
+            product=product, attribute="کشور سازنده", value="ایرانی",
+            price=Decimal("100000"), compare_at_price=Decimal("150000"),
+        )
+        CartItem.objects.create(cart=self.cart, product=product, variant=variant, quantity=1, unit_price=Decimal("100000"))
+
+        totals = cart_totals(self.cart, store=self.store)
+        self.assertEqual(totals["items_total"], Decimal("100000"))
+        self.assertEqual(totals["product_discount"], Decimal("50000"))
+
+
 class PricingTwoStoreIsolationTests(TestCase):
     """اثبات این‌که ``cart_totals`` مقدار مالیات/ارسال رایگان Store دیگر را
     هرگز برنمی‌گرداند — با دو Store واقعی و دو ShopSettings واقعاً متفاوت،

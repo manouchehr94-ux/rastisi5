@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
 
 from apps.catalog.models import Product, ProductVariant
+from apps.catalog.services.pricing_service import resolve_regular_price
 
 from apps.stores.resolution import resolve_store_for_service
 
@@ -19,11 +20,17 @@ def _cart_context(request, cart):
             "shipping_cost": 0, "free_shipping": False, "tax": 0, "grand_total": 0,
         }
         item_count = 0
+        items = []
     else:
         store = resolve_store_for_service(request)
         totals = cart_totals(cart, store=store)
-        item_count = sum(item.quantity for item in cart.items.all())
-    return {"cart": cart, "totals": totals, "item_count": item_count}
+        items = list(cart.items.select_related("product", "variant").all())
+        for item in items:
+            # برای نمایشِ «قیمتِ پیش از تخفیف» در قالب — item.unit_price خودش
+            # همان قیمتِ نهایی (اسنپ‌شات) است، نه product.final_price ساده.
+            item.regular_price = resolve_regular_price(item.product, item.variant)
+        item_count = sum(item.quantity for item in items)
+    return {"cart": cart, "cart_items": items, "totals": totals, "item_count": item_count}
 
 
 def cart_detail(request):

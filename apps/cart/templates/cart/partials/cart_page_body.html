@@ -12,7 +12,7 @@
     <div class="card">
       <div class="card-h"><span class="ic">🛍️</span>کالاهای سبد خرید (<span>{{ item_count|fa_number }}</span> قلم)</div>
       <div class="card-b">
-        {% for item in cart.items.all %}
+        {% for item in cart_items %}
         <div class="citem">
           <div class="thumb" style="background:{{ item.product.tint|default:'#eceef3' }}">{{ item.product.icon|default:"🛍️" }}</div>
           <div class="info">
@@ -25,8 +25,8 @@
           </div>
           <div class="right">
             <div class="lp">
-              {{ item.product.final_price|toman }}
-              {% if item.product.discount_percent > 0 %}<small>{{ item.product.price|toman }}</small>{% endif %}
+              {{ item.unit_price|toman }}
+              {% if item.regular_price > item.unit_price %}<small>{{ item.regular_price|toman }}</small>{% endif %}
             </div>
             <div class="stepper">
               <button type="button" hx-post="{% url 'cart:item-update' item.id %}" hx-vals='{"quantity": {{ item.quantity|add:"-1" }}}' hx-target="#cart-container" hx-swap="innerHTML">−</button>

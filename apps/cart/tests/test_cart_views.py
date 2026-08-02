@@ -83,6 +83,30 @@ class CartDetailViewTests(TestCase):
         self.assertEqual(totals["items_total"], Decimal("600000"))
         self.assertEqual(totals["product_discount"], Decimal("200000"))
 
+    def test_cart_page_displays_variants_absolute_price_not_product_base_price(self):
+        """رگرسیونِ صفحه‌ی سبد — قبل از این وصله، این صفحه همیشه
+        product.final_price نمایش می‌داد، حتی وقتی تنوعِ انتخاب‌شده قیمتِ
+        مستقلِ کاملاً متفاوتی داشت (مثلاً قیچیِ ایتالیایی)."""
+        from apps.catalog.models import ProductVariant
+
+        store = Store.objects.get(slug="akhlaghi")
+        vendor = Vendor.objects.create(store=store, name="فروشگاه", slug="shop-cwv")
+        category = Category.objects.create(store=store, name="ابزار", slug="tools-cwv")
+        scissors = Product.objects.create(
+            store=store, vendor=vendor, category=category,
+            name="قیچی", slug="scissors-cwv", sku="SKU-SCISSORS-CWV", price=Decimal("1"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        italian = ProductVariant.objects.create(
+            product=scissors, attribute="کشور سازنده", value="ایتالیایی", price=Decimal("800000"), stock=5,
+        )
+        self.client.post(
+            reverse("cart:add", args=[scissors.slug]), {"variant_id": italian.pk, "quantity": 1}
+        )
+        response = self.client.get(reverse("cart:detail"))
+        self.assertContains(response, "۸۰۰٬۰۰۰")
+        self.assertNotContains(response, "۱ تومان")
+
     def test_cart_with_items_links_continue_button_to_checkout(self):
         self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 1})
         response = self.client.get(reverse("cart:detail"))

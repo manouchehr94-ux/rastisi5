@@ -9,12 +9,15 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.utils import timezone
 
 from apps.cart.models import Coupon
+from apps.catalog.services.pricing_service import resolve_regular_price
 from apps.core.models import ShopSettings
 from apps.orders.services import shipping_service, tax_service
 
 
 def product_final_price(product) -> Decimal:
-    """قیمت نهایی کالا = price * (1 - discount_percent/100)، گرد شده."""
+    """قیمت نهایی کالا = price * (1 - discount_percent/100)، گرد شده — بدونِ
+    درنظرگرفتنِ تنوع؛ برایِ جمعِ سبد از ``item.unit_price`` (اسنپ‌شاتِ آگاه از
+    تنوع) استفاده کنید، نه این تابع."""
     return product.final_price
 
 
@@ -59,7 +62,7 @@ def _allocate_coupon_discount(items, *, items_total: Decimal, coupon_discount: D
     allocations = []
     allocated_so_far = Decimal("0")
     for item in items[:-1]:
-        line_total = product_final_price(item.product) * item.quantity
+        line_total = item.unit_price * item.quantity
         share = _round(coupon_discount * line_total / items_total)
         allocations.append(share)
         allocated_so_far += share
@@ -97,8 +100,12 @@ def cart_totals(
     raw_total = Decimal("0")
     items_total = Decimal("0")
     for item in items:
-        raw_total += item.product.price * item.quantity
-        items_total += product_final_price(item.product) * item.quantity
+        # ``item.unit_price`` اسنپ‌شاتِ آگاه از تنوع است (مستقیماً یا delta) —
+        # نه product_final_price(item.product) که تنوع را کاملاً نادیده
+        # می‌گرفت (مثلاً برایِ قیچیِ ایتالیایی، جمعِ سبد را با قیمتِ پایه‌ی
+        # کالا، نه ۸۰۰,۰۰۰، محاسبه می‌کرد).
+        raw_total += resolve_regular_price(item.product, item.variant) * item.quantity
+        items_total += item.unit_price * item.quantity
 
     product_discount = raw_total - items_total
 
@@ -141,9 +148,10 @@ def cart_totals(
     tax_line_items = [
         {
             "item_ref": item.pk,
-            "unit_price": product_final_price(item.product), "quantity": item.quantity,
+            "unit_price": item.unit_price, "quantity": item.quantity,
             "discount_allocation": allocation,
-            "tax_class": getattr(item.product, "tax_class", None),
+            "tax_class": (item.variant.tax_class if item.variant_id and item.variant.tax_class_id
+                          else getattr(item.product, "tax_class", None)),
         }
         for item, allocation in zip(items, discount_allocations)
     ]

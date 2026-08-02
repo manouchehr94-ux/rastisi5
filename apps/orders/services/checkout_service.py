@@ -14,6 +14,7 @@ from django.db import transaction
 
 from apps.cart.models import Coupon
 from apps.cart.services.pricing import cart_totals, coupon_is_applicable
+from apps.catalog.services.pricing_service import resolve_regular_price
 from apps.customers.models import Address
 from apps.orders.models import Order, PaymentGateway
 from apps.orders.services import shipping_service
@@ -269,12 +270,16 @@ def build_context(request, cart) -> dict:
     if is_empty:
         totals = dict(EMPTY_TOTALS)
         item_count = 0
+        cart_items = []
     else:
         totals = cart_totals(
             cart, store=resolve_store_for_service(request), coupon=coupon, shipping_method=selected_shipping,
             province=address.get("province", ""), city=address.get("city", ""), postal_code=address.get("postal_code", ""),
         )
-        item_count = sum(item.quantity for item in cart.items.all())
+        cart_items = list(cart.items.select_related("product", "variant").all())
+        for item in cart_items:
+            item.regular_price = resolve_regular_price(item.product, item.variant)
+        item_count = sum(item.quantity for item in cart_items)
 
     shipping_rows = [
         {
@@ -291,6 +296,7 @@ def build_context(request, cart) -> dict:
 
     return {
         "cart": cart,
+        "cart_items": cart_items,
         "is_empty": is_empty,
         "item_count": item_count,
         "address": get_address(request),

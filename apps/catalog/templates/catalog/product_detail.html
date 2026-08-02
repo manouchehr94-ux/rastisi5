@@ -264,8 +264,13 @@ document.addEventListener('alpine:init', () => {
     selectedVariantId: null,
     current: null,
     activeSlide: 0,
+    rootEl: null,
 
     init() {
+      // $el داخلِ متدهایی که از یک @click در x-forِ تودرتو صدا زده می‌شوند،
+      // ممکن است به عنصرِ کلیک‌شده اشاره کند نه ریشه‌ی کامپوننت؛ این‌جا در
+      // init() (که همیشه با $el ریشه صدا زده می‌شود) یک‌بار ذخیره می‌شود.
+      this.rootEl = this.$el;
       if (this.mode === 'multi_axis') {
         const defaultKey = selectorData.default_key;
         if (defaultKey && this.matrix[defaultKey]) {
@@ -285,7 +290,7 @@ document.addEventListener('alpine:init', () => {
 
     formatToman(n) {
       const fa = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
-      const grouped = Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      const grouped = Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '٬');
       return grouped.replace(/[0-9]/g, (d) => fa[d]) + ' تومان';
     },
     discountPercentText() {
@@ -339,7 +344,7 @@ document.addEventListener('alpine:init', () => {
 
     updateGallery() {
       const url = this.current ? this.current.image_url : '';
-      const slides = [...this.$el.querySelectorAll('[data-slide]')];
+      const slides = [...this.rootEl.querySelectorAll('[data-slide]')];
       let idx = url ? slides.findIndex((s) => s.dataset.slideUrl === url) : -1;
       if (idx < 0) idx = slides.findIndex((s) => s.dataset.cover === 'true');
       this.activeSlide = idx >= 0 ? idx : 0;

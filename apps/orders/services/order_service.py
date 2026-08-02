@@ -10,6 +10,7 @@ from django.db import IntegrityError, transaction
 from apps.cart.services.pricing import cart_totals
 from apps.catalog.models import Product, ProductVariant
 from apps.catalog.services.inventory_service import InsufficientStockError, restock_order
+from apps.catalog.services.pricing_service import resolve_effective_price
 from apps.catalog.services.reservation_service import (
     ReservationError,
     consume_inventory_reservation,
@@ -275,7 +276,10 @@ def create_order_from_cart(
     for item in items:
         product = locked_products[item.product_id]
         variant = locked_variants.get(item.variant_id) if item.variant_id else None
-        unit_price = product.final_price
+        # با pricing_service (نه product.final_price ساده) تا قیمتِ مستقلِ
+        # تنوع (یا delta قدیمیِ آن) درست اعمال شود — بدونِ این، سفارش با
+        # قیمتِ پایه‌ی کالا ثبت می‌شد، نه قیمتِ واقعیِ تنوعِ انتخاب‌شده.
+        unit_price = resolve_effective_price(product, variant)
         tax_line = tax_lines_by_item.get(item.pk, {})
         order_item = OrderItem.objects.create(
             order=order,

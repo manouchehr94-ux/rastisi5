@@ -184,6 +184,31 @@ class CreateOrderFromCartWithVariantTests(TestCase):
         self.variant.refresh_from_db()
         self.assertEqual(self.variant.stock, 5)  # unchanged
 
+    def test_order_item_charges_the_variants_absolute_price_not_the_products_base_price(self):
+        """قیچیِ ایرانی/ایتالیایی: OrderItem.unit_price باید قیمتِ مستقلِ
+        تنوعِ انتخاب‌شده باشد — قبل از این وصله، همیشه product.final_price
+        نوشته می‌شد و قیمتِ تنوع کاملاً نادیده گرفته می‌شد."""
+        scissors = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="قیچی",
+            slug="scissors-osv", sku="SKU-SCISSORS-OSV", price=Decimal("1"),
+            product_type=Product.ProductType.VARIABLE, stock=0,
+        )
+        italian = ProductVariant.objects.create(
+            product=scissors, store=self.store, attribute="کشور سازنده", value="ایتالیایی",
+            price=Decimal("800000"), stock=4,
+        )
+        cart = Cart.objects.create(customer=self.customer)
+        CartItem.objects.create(
+            cart=cart, product=scissors, variant=italian, quantity=1, unit_price=Decimal("800000"),
+        )
+        order = create_order_from_cart(
+            cart, customer=self.customer, vendor=self.vendor, address=self.address,
+            shipping_method=self.shipping, payment_gateway=self.gateway, store=self.store,
+        )
+        order_item = order.items.get(variant=italian)
+        self.assertEqual(order_item.unit_price, Decimal("800000"))
+        self.assertEqual(order_item.line_total, Decimal("800000"))
+
 
 class CancelOrderRestocksInventoryTests(TestCase):
     """نگاه کنید به ADR-31 — قبل از این PR، لغو سفارش هرگز موجودی را
