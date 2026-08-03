@@ -304,6 +304,10 @@ urlpatterns = [
     path("transfers/<int:pk>/receive/", views.transfer_receive, name="transfer-receive"),
     path("transfers/<int:pk>/cancel/", views.transfer_cancel, name="transfer-cancel"),
 
+    # --- راه‌اندازیِ سادهٔ ارسال (Onboarding) ---
+    path("shipping/setup/", views.shipping_setup, name="shipping-setup"),
+    path("shipping/setup/<int:pk>/update/", views.shipping_method_simple_update, name="shipping-method-simple-update"),
+
     # --- مناطق و روش‌های ارسال (Shipping Zones/Methods/Rates) ---
     path("shipping/zones/", views.shipping_zone_list, name="shipping-zone-list"),
     path("shipping/zones/add/", views.shipping_zone_form, name="shipping-zone-add"),

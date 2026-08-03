@@ -371,6 +371,14 @@ RASTISI_PLATFORM_ADMIN_HOSTS = frozenset(
 # RASTISI_PLATFORM_HOSTS in any real deployment.
 RASTISI_PLATFORM_PRIMARY_HOST = env_str("RASTISI_PLATFORM_PRIMARY_HOST", "rastisi.ir")
 
+# Local development must use the reserved .localhost namespace — mirrors the
+# RASTISI_ADMIN_DOMAIN_SUFFIX override above. Without this, any cross-host
+# platform link built in DEBUG (e.g. the setup checklist's custom-domain
+# action) silently falls back to the production "rastisi.ir" host unless an
+# operator remembers to export RASTISI_PLATFORM_PRIMARY_HOST locally.
+if DEBUG:
+    RASTISI_PLATFORM_PRIMARY_HOST = "rastisi.localhost"
+
 # Trial/platform-subdomain alphabet (ADR-94) â€” excludes 0/o/1/l/i to avoid
 # visual ambiguity in a human-typed 9-character code.
 RASTISI_PLATFORM_CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"

@@ -98,8 +98,13 @@ class ShippingMethod(TimeStampedModel):
     cost = models.DecimalField("هزینه (تومان)", max_digits=12, decimal_places=0, default=0)
     icon = models.CharField("آیکون", max_length=20, blank=True)
     is_active = models.BooleanField("فعال", default=True)
+    # ``null=True`` یعنی «آستانه‌ی ارسالِ رایگان غیرفعال است» — صفحه‌ی
+    # سادهٔ راه‌اندازیِ ارسال این فیلد را خالی می‌گذارد تا این حالت را
+    # صراحتاً نشان دهد؛ رکوردهای قدیمی‌تر که قبلاً مقدار داشته‌اند دست‌نخورده
+    # می‌مانند (این مهاجرت فقط nullable بودن را اضافه می‌کند، هیچ داده‌ای را
+    # پاک نمی‌کند).
     free_over = models.DecimalField(
-        "آستانه‌ی ارسال رایگان (تومان)", max_digits=12, decimal_places=0, default=500_000
+        "آستانه‌ی ارسال رایگان (تومان)", max_digits=12, decimal_places=0, null=True, blank=True,
     )
     display_order = models.PositiveIntegerField("ترتیبِ نمایش", default=0)
     min_delivery_days = models.PositiveIntegerField("حداقلِ روزِ تحویل", null=True, blank=True)
@@ -124,6 +129,7 @@ class ShippingMethod(TimeStampedModel):
                 ),
                 name="shippingmethod_min_lte_max_days",
             ),
+            models.CheckConstraint(check=models.Q(cost__gte=0), name="shippingmethod_cost_non_negative"),
         ]
 
     def __str__(self):

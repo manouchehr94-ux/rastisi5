@@ -1,0 +1,67 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}راه‌اندازیِ ارسال | پنل مدیریت{% endblock %}
+{% block page_title %}راه‌اندازیِ ارسال{% endblock %}
+{% block page_sub %}روش‌هایِ رایجِ ارسال را فعال کنید — بدونِ نیاز به منطقه‌بندی یا جدولِ نرخ{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><p class="page-desc">حداقل یک روشِ ارسال یا گزینه‌ی دریافتِ حضوری را فعال کنید تا فروشگاه‌تان بتواند منتشر شود.</p></div>
+  {% if can_manage_shipping %}<a href="{% url 'dashboard:shipping-method-list' %}" class="btn btn-sm">تنظیماتِ پیشرفته (مناطق و جدولِ نرخ)</a>{% endif %}
+</div>
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead>
+      <tr>
+        <th>روشِ ارسال</th>
+        <th>فعال</th>
+        <th>پرداخت در محل (پس‌کرایه)</th>
+        <th>هزینه (تومان)</th>
+        <th>آستانه‌ی ارسالِ رایگان (تومان)</th>
+        {% if can_manage_shipping %}<th>عملیات</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+    {% for method in methods %}
+    <tr x-data="{ cod: {{ method.cod_eligible|yesno:'true,false' }} }">
+      <td>
+        <b>{{ method.icon }} {{ method.name }}</b>
+        {% if method.is_pickup %}<br><small style="color:var(--muted)">دریافتِ حضوری</small>{% endif %}
+      </td>
+      <td>
+        <input type="checkbox" form="shipform-{{ method.pk }}" name="is_active" {% if method.is_active %}checked{% endif %} {% if not can_manage_shipping %}disabled{% endif %}>
+      </td>
+      <td>
+        {% if method.is_pickup %}
+          <span style="color:var(--muted)">—</span>
+        {% else %}
+          <input type="checkbox" form="shipform-{{ method.pk }}" name="cod_eligible" x-model="cod" {% if not can_manage_shipping %}disabled{% endif %}>
+        {% endif %}
+      </td>
+      <td>
+        {% if method.is_pickup %}
+          <span>۰ (رایگان)</span>
+        {% else %}
+          <div x-show="!cod">
+            <input type="number" min="0" step="1" form="shipform-{{ method.pk }}" name="cost" value="{{ method.cost|floatformat:0 }}" style="width:110px" {% if not can_manage_shipping %}disabled{% endif %}>
+          </div>
+          <small x-show="cod" style="color:var(--muted)">هزینه ارسال هنگام تحویل توسط مشتری پرداخت می‌شود</small>
+        {% endif %}
+      </td>
+      <td>
+        <input type="number" min="0" step="1" form="shipform-{{ method.pk }}" name="free_over"
+               value="{% if method.free_over is not None %}{{ method.free_over|floatformat:0 }}{% endif %}"
+               placeholder="خالی = غیرفعال" style="width:140px" {% if not can_manage_shipping %}disabled{% endif %}>
+      </td>
+      {% if can_manage_shipping %}
+      <td>
+        <button type="submit" form="shipform-{{ method.pk }}" class="btn btn-sm btn-primary">ذخیره</button>
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% for method in methods %}
+<form id="shipform-{{ method.pk }}" method="post" action="{% url 'dashboard:shipping-method-simple-update' method.pk %}">{% csrf_token %}</form>
+{% endfor %}
+{% endblock %}

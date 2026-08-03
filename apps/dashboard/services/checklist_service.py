@@ -19,7 +19,7 @@ from django.urls import reverse
 
 from apps.catalog.models import Attribute, Brand, Category, Product, ProductImage, ProductVariant, StoreIndustryInstallation
 from apps.core.models import ShopSettings, ShopSettingsNotProvisionedError
-from apps.orders.models import PaymentGatewayConfig, ShippingMethod, TaxRate
+from apps.orders.models import PaymentGatewayConfig, ShippingMethod
 from apps.stores.models import StoreDomain
 
 #: مقادیرِ پیش‌فرضِ رنگِ ShopSettings (دقیقاً همان‌هایی که در تعریفِ مدل
@@ -140,7 +140,10 @@ def _first_product_complete(store, shop):
 
 
 def _shipping_complete(store, shop):
-    return ShippingMethod.objects.filter(store=store).exists()
+    """«حداقل یک روش ارسال یا گزینه‌ی دریافتِ حضوریِ فعال» — پیش از این،
+    صرفِ وجودِ هر ``ShippingMethod``ای (حتی غیرِفعال) کافی بود؛ اکنون فقط
+    روش‌های واقعاً ``is_active=True`` شمرده می‌شوند."""
+    return ShippingMethod.objects.filter(store=store, is_active=True).exists()
 
 
 def _payment_gateway_complete(store, shop):
@@ -148,7 +151,14 @@ def _payment_gateway_complete(store, shop):
 
 
 def _tax_complete(store, shop):
-    return TaxRate.objects.filter(store=store).exists()
+    """مالیات اختیاری است، اما مدیر باید صراحتاً تصمیم بگیرد — نه صرفِ
+    وجودِ ``ShopSettings`` (که ``tax_enabled`` پیش‌فرضش True است و به‌تنهایی
+    نمی‌تواند «هنوز انتخاب نشده» را از «آگاهانه روشن نگه داشته شده» تشخیص
+    دهد). تنها منبعِ حقیقتِ این مرحله، ذخیره‌ی صریحِ صفحه‌ی «مالیات ندارم/
+    دارم» است (``tax_setup_confirmed_at``) — نه وجودِ ``TaxRate``، چون
+    انتخابِ «مالیات ندارم» عمداً هیچ نرخی نمی‌سازد و هنوز باید کامل حساب
+    شود."""
+    return bool(shop and shop.tax_setup_confirmed_at)
 
 
 def _custom_domain_complete(store, shop):
@@ -160,14 +170,15 @@ def _custom_domain_complete(store, shop):
 
 
 def _publish_complete(store, shop):
-    """«انتشار فروشگاه» فقط وقتی واقعاً تکمیل‌شده حساب می‌شود که فروشگاه
-    واقعاً چیزی برای فروش داشته باشد — نه صرفِ عبور از ویزاردِ آنبوردینگ.
-    پیش از این، این مرحله فقط ``onboarding_completed_at`` را می‌خواند که
-    می‌توانست هم‌زمان با ناتمام‌بودنِ مرحله‌ی «ارسال» درست پیش از آن، ✅
-    نشان دهد — تناقضی که با این سه‌شرطِ داده‌محور رفع می‌شود: اطلاعاتِ
-    پایه‌ی فروشگاه، دست‌کم یک کالای فعال، و دست‌کم یک روشِ ارسال."""
+    """«انتشار فروشگاه» فقط وقتی تکمیل‌شده حساب می‌شود که همه‌ی پیش‌نیازهایِ
+    واقعاً الزامی برآورده باشند: اطلاعاتِ پایه‌ی فروشگاه، صنفِ انتخاب‌شده،
+    قالبِ صنفِ نصب‌شده، دست‌کم یک کالای فعال، و دست‌کم یک روشِ ارسال/دریافتِ
+    حضوریِ فعال. مالیات و دامنه‌ی اختصاصی عمداً این‌جا نیستند — هر دو
+    اختیاری‌اند و هرگز نباید انتشار را مسدود کنند."""
     return (
         _store_information_complete(store, shop)
+        and _industry_complete(store, shop)
+        and _industry_template_complete(store, shop)
         and _product_publish_complete(store, shop)
         and _shipping_complete(store, shop)
     )
@@ -201,6 +212,17 @@ def build_industry_summary(store) -> dict:
         "categories_created": installation.categories_created,
         "attributes_created": installation.attributes_created,
     }
+
+
+def _custom_domain_url(store, request):
+    """لینکِ صفحه‌ی مدیریتِ دامنه‌ی اختصاصی — با ``reverse`` واقعی روی
+    urlconf پلتفرم (``apps.portal.urls``، جایی که این صفحه واقعاً تعریف
+    شده)، نه یک مسیرِ دستی‌نوشته. میزبان از همان ``_platform_url`` (که
+    خودش از تنظیماتِ ``RASTISI_PLATFORM_PRIMARY_HOST`` می‌خواند) می‌آید —
+    پس هیچ میزبانِ پلتفرمِ ثابتی در این ماژول هاردکد نمی‌شود و در توسعه‌ی
+    محلی هم یک آدرسِ واقعاً کارآمد می‌سازد."""
+    path = reverse("portal:custom-domains", args=[store.public_id], urlconf="shop_core.urls_platform")
+    return _platform_url(request, path)
 
 
 @dataclass(frozen=True)
@@ -274,8 +296,8 @@ def _steps():
         ),
         _ChecklistStep(
             "shipping", "پیکربندی ارسال", "🚚", _shipping_complete,
-            lambda store, request: reverse("dashboard:shipping-method-list"),
-            description="حداقل یک روش ارسال یا گزینه‌ی دریافت حضوری ایجاد کنید.",
+            lambda store, request: reverse("dashboard:shipping-setup"),
+            description="حداقل یک روش ارسال یا گزینه دریافت حضوری را فعال کنید.",
         ),
         _ChecklistStep(
             "publish", "انتشار فروشگاه", "🚀", _publish_complete,
@@ -311,13 +333,14 @@ def _steps():
             lambda store, request: reverse("dashboard:settings") + "?section=payment-config",
         ),
         _ChecklistStep(
-            "tax", "اطلاعات مالیاتی", "🧾", _tax_complete,
+            "tax", "اطلاعات مالیاتی (اختیاری)", "🧾", _tax_complete,
             lambda store, request: reverse("dashboard:tax-settings"),
+            description="در صورت نداشتن مالیات، گزینه «مالیات ندارم» را انتخاب کنید.",
         ),
         _ChecklistStep(
-            "custom_domain", "دامنه‌ی اختصاصی (اختیاری)", "🌐", _custom_domain_complete,
-            lambda store, request: _platform_url(request, f"/app/stores/{store.public_id}/domains/"),
-            description="اختیاری — فروشگاه بدونِ دامنه‌ی اختصاصی هم روی زیردامنه‌ی راستیسی کاملاً در دسترس است.",
+            "custom_domain", "دامنه اختصاصی (اختیاری)", "🌐", _custom_domain_complete,
+            _custom_domain_url,
+            description="فروشگاه بدون دامنه اختصاصی نیز روی زیردامنه راستیسی قابل استفاده است.",
         ),
     ]
 

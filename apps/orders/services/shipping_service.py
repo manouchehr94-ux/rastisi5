@@ -134,3 +134,55 @@ def cart_requires_shipping(items) -> bool:
     """آیا حداقل یک قلمِ این سبد/سفارش نیازِ ارسالِ فیزیکی دارد — سبدِ کاملاً
     دیجیتال هرگز نباید انتخابِ روشِ ارسال را الزامی کند."""
     return any(item.product is not None and item.product.requires_shipping for item in items)
+
+
+# =============================================================================
+# روش‌های ارسالِ رایج (صفحه‌ی سادهٔ راه‌اندازیِ ارسال) — دقیقاً همان مدلِ
+# ``ShippingMethod`` موجود را پر می‌کند، هیچ مدل/موتورِ جداگانه‌ای نمی‌سازد.
+# فهرست به‌عمد کوتاه و بدونِ منطقه/قاعده‌ی نرخ است — مرچنتِ تازه‌کار نباید
+# قبل از فعال‌کردنِ اولین روشِ ارسال با مفاهیمِ منطقه/جدولِ نرخ روبه‌رو شود؛
+# صفحه‌ی پیشرفته (Zones/Rate Rules) دست‌نخورده می‌ماند و همچنان در دسترس است.
+# =============================================================================
+
+DEFAULT_SHIPPING_METHODS = [
+    {"slug": "post", "name": "پست جمهوری اسلامی", "icon": "📮"},
+    {"slug": "tipax", "name": "تیپاکس", "icon": "📦"},
+    {"slug": "chapar", "name": "چاپار", "icon": "🚚"},
+    {"slug": "mahex", "name": "ماهکس", "icon": "🚚"},
+    {"slug": "motor-courier", "name": "پیک موتوری", "icon": "🏍️"},
+    {"slug": "snappbox", "name": "اسنپ‌باکس", "icon": "📦"},
+    {"slug": "alopeyk", "name": "الوپیک", "icon": "🛵"},
+    {
+        "slug": "pickup", "name": "دریافت حضوری", "icon": "🏬",
+        "method_type": ShippingMethod.MethodType.LOCAL_PICKUP, "is_pickup": True,
+    },
+    {"slug": "cargo", "name": "باربری", "icon": "🚛"},
+    {"slug": "other", "name": "سایر", "icon": "🏷️"},
+]
+
+
+def ensure_default_shipping_methods(store) -> list[ShippingMethod]:
+    """روش‌های ارسالِ رایجِ ایران را برایِ این Store، اگر هنوز نساخته، می‌سازد —
+    idempotent (``get_or_create`` روی کلیدِ طبیعیِ ``(store, slug)``، دقیقاً
+    همان قیدِ ``uniq_shippingmethod_slug_per_store``). اجرای دوباره هرگز رکورد
+    تکراری نمی‌سازد و هیچ روشِ موجود/ویرایش‌شده‌ی مرچنت را دست‌نمی‌زند —
+    ``defaults`` فقط در زمانِ *ساخت* اعمال می‌شود، نه به‌روزرسانی. همه‌ی
+    روش‌های تازه‌ساخته‌شده عمداً ``is_active=False`` هستند: مرچنت باید صراحتاً
+    تصمیم بگیرد کدام‌ها را واقعاً استفاده می‌کند."""
+    methods = []
+    for order, entry in enumerate(DEFAULT_SHIPPING_METHODS):
+        method, _ = ShippingMethod.objects.get_or_create(
+            store=store, slug=entry["slug"],
+            defaults={
+                "name": entry["name"],
+                "icon": entry.get("icon", ""),
+                "method_type": entry.get("method_type", ShippingMethod.MethodType.FLAT_RATE),
+                "is_pickup": entry.get("is_pickup", False),
+                "is_active": False,
+                "cost": 0,
+                "free_over": None,
+                "display_order": order,
+            },
+        )
+        methods.append(method)
+    return methods

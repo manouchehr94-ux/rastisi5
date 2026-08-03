@@ -2,7 +2,7 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -337,7 +337,7 @@ class BuildSetupChecklistTests(TestCase):
         self.assertEqual(step["label"], "پیکربندی ارسال")
         self.assertIn("روش ارسال", step["description"])
         self.assertIn("دریافت حضوری", step["description"])
-        self.assertEqual(step["url"], reverse("dashboard:shipping-method-list"))
+        self.assertEqual(step["url"], reverse("dashboard:shipping-setup"))
 
     def test_payment_gateway_step_requires_active_config(self):
         PaymentGatewayConfig.objects.create(
@@ -352,12 +352,37 @@ class BuildSetupChecklistTests(TestCase):
         step = next(s for s in result["steps"] if s["key"] == "payment_gateway")
         self.assertTrue(step["is_complete"])
 
-    def test_tax_step(self):
-        tax_class = TaxClass.objects.create(store=self.store, name="عمومی")
-        TaxRate.objects.create(store=self.store, tax_class=tax_class, rate_percent=9)
+    def test_tax_step_incomplete_until_explicit_choice(self):
+        """صرفِ وجودِ ``ShopSettings`` (که ``tax_enabled``اش پیش‌فرض True
+        است) کافی نیست — مدیر باید صریحاً صفحه‌ی مالیات را ذخیره کند."""
+        ShopSettings.objects.create(store=self.store, description="فروشگاه")
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "tax")
+        self.assertFalse(step["is_complete"])
+
+    def test_tax_step_completes_when_merchant_explicitly_chooses_no_tax(self):
+        shop = ShopSettings.objects.create(store=self.store, tax_enabled=False)
+        shop.tax_setup_confirmed_at = timezone.now()
+        shop.save(update_fields=["tax_setup_confirmed_at"])
         result = build_setup_checklist(self.store, self.request)
         step = next(s for s in result["steps"] if s["key"] == "tax")
         self.assertTrue(step["is_complete"])
+
+    def test_tax_step_completes_when_merchant_explicitly_chooses_has_tax(self):
+        tax_class = TaxClass.objects.create(store=self.store, name="عمومی")
+        TaxRate.objects.create(store=self.store, tax_class=tax_class, rate_percent=9)
+        shop = ShopSettings.objects.create(store=self.store, tax_enabled=True)
+        shop.tax_setup_confirmed_at = timezone.now()
+        shop.save(update_fields=["tax_setup_confirmed_at"])
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "tax")
+        self.assertTrue(step["is_complete"])
+
+    def test_tax_step_label_and_description(self):
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "tax")
+        self.assertEqual(step["label"], "اطلاعات مالیاتی (اختیاری)")
+        self.assertIn("مالیات ندارم", step["description"])
 
     def test_custom_domain_step_requires_verified_custom_domain(self):
         StoreDomain.objects.create(
@@ -386,10 +411,48 @@ class BuildSetupChecklistTests(TestCase):
         self.assertIn("اختیاری", step["label"])
         self.assertTrue(step["is_unlocked"])
 
-    def test_publish_step_requires_store_info_product_and_shipping(self):
+    def test_custom_domain_step_label_and_description_match_spec(self):
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "custom_domain")
+        self.assertEqual(step["label"], "دامنه اختصاصی (اختیاری)")
+        self.assertEqual(step["description"], "فروشگاه بدون دامنه اختصاصی نیز روی زیردامنه راستیسی قابل استفاده است.")
+
+    def test_custom_domain_step_url_is_reversed_and_preserves_store_uuid(self):
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "custom_domain")
+        expected_path = reverse(
+            "portal:custom-domains", args=[self.store.public_id], urlconf="shop_core.urls_platform",
+        )
+        self.assertIn(expected_path, step["url"])
+        self.assertIn(str(self.store.public_id), step["url"])
+
+    @override_settings(RASTISI_PLATFORM_PRIMARY_HOST="rastisi.localhost")
+    def test_custom_domain_step_url_respects_local_dev_host(self):
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "custom_domain")
+        self.assertTrue(step["url"].startswith("http://rastisi.localhost/"))
+
+    @override_settings(RASTISI_PLATFORM_PRIMARY_HOST="rastisi.ir")
+    def test_custom_domain_step_url_respects_configured_production_host(self):
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "custom_domain")
+        self.assertTrue(step["url"].startswith("http://rastisi.ir/"))
+
+    def test_checklist_service_never_hardcodes_rastisi_ir(self):
+        """الزام: «هرگز rastisi.ir در تمپلیت/کد هاردکد نشود» — میزبان همیشه
+        باید از ``settings.RASTISI_PLATFORM_PRIMARY_HOST`` خوانده شود."""
+        import inspect
+
+        import apps.dashboard.services.checklist_service as checklist_service_module
+
+        source = inspect.getsource(checklist_service_module)
+        self.assertNotIn("rastisi.ir", source)
+
+    def test_publish_step_requires_store_info_industry_product_and_shipping(self):
         """رفعِ تناقض: «فروشگاه منتشر شد» هرگز نباید هم‌زمان با ناتمام‌بودنِ
-        ارسال، کالای فعال یا اطلاعاتِ پایه‌ی فروشگاه تکمیل‌شده نشان داده شود —
-        حتی اگر ویزاردِ آنبوردینگ (onboarding_completed_at) از قبل طی شده باشد."""
+        صنف، ارسال، کالای فعال یا اطلاعاتِ پایه‌ی فروشگاه تکمیل‌شده نشان داده
+        شود — حتی اگر ویزاردِ آنبوردینگ (onboarding_completed_at) از قبل طی
+        شده باشد."""
         self.store.onboarding_completed_at = timezone.now()
         self.store.save(update_fields=["onboarding_completed_at"])
         result = build_setup_checklist(self.store, self.request)
@@ -397,6 +460,17 @@ class BuildSetupChecklistTests(TestCase):
         self.assertFalse(step["is_complete"])
 
         ShopSettings.objects.create(store=self.store, description="فروشگاهِ لباسِ آنلاین")
+        result = build_setup_checklist(self.store, self.request)
+        step = next(s for s in result["steps"] if s["key"] == "publish")
+        self.assertFalse(step["is_complete"], "still missing industry, an active product and a shipping method")
+
+        template = IndustryTemplate.objects.create(
+            slug="pub-industry", name="پوشاک", version=1, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
+        StoreIndustryInstallation.objects.create(
+            store=self.store, industry_template=template, installed_version=1,
+            status=StoreIndustryInstallation.Status.COMPLETED,
+        )
         result = build_setup_checklist(self.store, self.request)
         step = next(s for s in result["steps"] if s["key"] == "publish")
         self.assertFalse(step["is_complete"], "still missing an active product and a shipping method")
@@ -410,12 +484,44 @@ class BuildSetupChecklistTests(TestCase):
         )
         result = build_setup_checklist(self.store, self.request)
         step = next(s for s in result["steps"] if s["key"] == "publish")
-        self.assertFalse(step["is_complete"], "still missing a shipping method")
+        self.assertFalse(step["is_complete"], "still missing an active shipping method")
 
-        ShippingMethod.objects.create(store=self.store, name="پست پیشتاز", slug="post-pub", cost=Decimal("50000"))
+        ShippingMethod.objects.create(
+            store=self.store, name="پست پیشتاز", slug="post-pub", cost=Decimal("50000"), is_active=True,
+        )
         result = build_setup_checklist(self.store, self.request)
         step = next(s for s in result["steps"] if s["key"] == "publish")
         self.assertTrue(step["is_complete"])
+
+    def test_publish_step_not_blocked_by_optional_tax_or_domain(self):
+        """مالیات و دامنه‌ی اختصاصی هرگز نباید در چکِ انتشار باشند — حتی
+        بدونِ هیچ‌کدام، فروشگاهی که بقیه‌ی پیش‌نیازها را دارد باید بتواند
+        منتشر شود."""
+        ShopSettings.objects.create(store=self.store, description="فروشگاهِ لباسِ آنلاین")
+        template = IndustryTemplate.objects.create(
+            slug="pub-optional", name="پوشاک", version=1, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
+        StoreIndustryInstallation.objects.create(
+            store=self.store, industry_template=template, installed_version=1,
+            status=StoreIndustryInstallation.Status.COMPLETED,
+        )
+        main = Category.objects.create(store=self.store, name="پوشاک", slug="clothing-pub-opt")
+        sub = Category.objects.create(store=self.store, name="تیشرت", slug="clothing-sub-pub-opt", parent=main)
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="vendor-pub-opt")
+        Product.objects.create(
+            store=self.store, vendor=vendor, category=sub, name="تیشرت", slug="tshirt-pub-opt",
+            sku="SKU-PUB-OPT1", price=Decimal("100000"), stock=5, status=Product.Status.ACTIVE,
+        )
+        ShippingMethod.objects.create(
+            store=self.store, name="پست پیشتاز", slug="post-pub-opt", cost=Decimal("50000"), is_active=True,
+        )
+        result = build_setup_checklist(self.store, self.request)
+        publish_step = next(s for s in result["steps"] if s["key"] == "publish")
+        tax_step = next(s for s in result["steps"] if s["key"] == "tax")
+        domain_step = next(s for s in result["steps"] if s["key"] == "custom_domain")
+        self.assertTrue(publish_step["is_complete"])
+        self.assertFalse(tax_step["is_complete"])
+        self.assertFalse(domain_step["is_complete"])
 
     def test_publish_step_never_complete_without_onboarding_completed_at_either(self):
         """معکوسِ همان تناقض: onboarding_completed_at به‌تنهایی هم دیگر کافی

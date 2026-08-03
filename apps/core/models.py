@@ -102,6 +102,12 @@ class ShopSettings(TimeStampedModel):
     tax_rounding_policy = models.CharField(
         "سیاستِ گردکردنِ مالیات", max_length=20, choices=TaxRoundingPolicy.choices, default=TaxRoundingPolicy.ON_TOTAL,
     )
+    # خالی یعنی مالیات هنوز صراحتاً پیکربندی نشده — مدیر هنوز صفحه‌ی
+    # «مالیات ندارم / مالیات دارم» را ذخیره نکرده، حتی اگر ``tax_enabled``
+    # (که پیش‌فرضش True است) هنوز به مقدارِ پیش‌فرض دست‌نخورده باشد. این
+    # فیلد تنها سیگنالِ «مدیر تصمیمِ صریح گرفت» است — نه یک موتورِ مالیاتیِ
+    # تازه، فقط نشانه‌ی تکمیلِ مرحله‌ی چک‌لیست.
+    tax_setup_confirmed_at = models.DateTimeField("زمانِ تاییدِ صریحِ تنظیماتِ مالیات", null=True, blank=True)
 
     class SmsBackend(models.TextChoices):
         CONSOLE = "console", "کنسول (فقط لاگ، برای توسعه)"

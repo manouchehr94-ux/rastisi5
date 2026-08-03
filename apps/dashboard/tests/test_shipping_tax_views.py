@@ -5,7 +5,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.core.models import ShopSettings
+from apps.core.models import ShopSettings, ShopSettingsNotProvisionedError
 from apps.orders.models import ShippingMethod, ShippingRateRule, ShippingZone, TaxClass, TaxRate
 from apps.stores.models import Store, StoreMembership
 
@@ -133,6 +133,39 @@ class TaxSettingsViewTests(ShippingTaxViewsTestCase):
         self.assertEqual(response.status_code, 200)
         response = self.client.post(reverse("dashboard:tax-settings"), {"tax_enabled": "on"})
         self.assertEqual(response.status_code, 403)
+
+
+class TaxNoTaxChoiceViewTests(ShippingTaxViewsTestCase):
+    """صفحه‌ی مالیات باید یک انتخابِ صریحِ «مالیات ندارم/دارم» بدهد؛ ذخیره‌ی
+    هرکدام باید ``tax_setup_confirmed_at`` را ثبت کند."""
+
+    def test_choosing_no_tax_saves_disabled_and_confirms(self):
+        response = self.client.post(reverse("dashboard:tax-settings"), {"tax_enabled": "off"}, follow=True)
+        self.assertEqual(response.status_code, 200)
+        settings_row = ShopSettings.load(store=self.store)
+        self.assertFalse(settings_row.tax_enabled)
+        self.assertIsNotNone(settings_row.tax_setup_confirmed_at)
+
+    def test_choosing_has_tax_saves_enabled_and_confirms(self):
+        response = self.client.post(
+            reverse("dashboard:tax-settings"),
+            {"tax_enabled": "on", "tax_rounding_policy": "on_total"}, follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        settings_row = ShopSettings.load(store=self.store)
+        self.assertTrue(settings_row.tax_enabled)
+        self.assertIsNotNone(settings_row.tax_setup_confirmed_at)
+
+    def test_page_shows_the_two_choice_labels(self):
+        response = self.client.get(reverse("dashboard:tax-settings"))
+        self.assertContains(response, "مالیات ندارم")
+        self.assertContains(response, "مالیات دارم")
+
+    def test_no_tax_choice_does_not_leak_to_other_store(self):
+        other_store = Store.objects.create(name="فروشگاه دیگر", slug="tax-choice-other", status=Store.Status.ACTIVE)
+        self.client.post(reverse("dashboard:tax-settings"), {"tax_enabled": "off"})
+        with self.assertRaises(ShopSettingsNotProvisionedError):
+            ShopSettings.load(store=other_store)
 
 
 class TaxClassViewTests(ShippingTaxViewsTestCase):

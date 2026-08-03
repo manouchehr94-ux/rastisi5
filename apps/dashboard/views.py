@@ -191,6 +191,7 @@ from apps.orders.models import (
     Transaction,
 )
 from apps.orders.services.order_service import change_order_status
+from apps.orders.services.shipping_service import ensure_default_shipping_methods
 from apps.orders.services.refund_service import (
     RefundError,
     execute_order_refund,
@@ -6075,6 +6076,81 @@ def shipping_method_archive(request, pk):
     return redirect("dashboard:shipping-method-list")
 
 
+# ---------------------------------------------------------------- راه‌اندازیِ سادهٔ ارسال (Onboarding)
+
+@staff_required
+@permission_required(SHIPPING_SETTINGS_VIEW, SHIPPING_SETTINGS_MANAGE)
+def shipping_setup(request):
+    """صفحه‌ی سادهٔ راه‌اندازیِ ارسال — دقیقاً همان مدلِ ``ShippingMethod``ی
+    که صفحه‌ی پیشرفته (``shipping-method-list``، مناطق، قواعدِ نرخ) هم
+    استفاده می‌کند، فقط با مجموعه‌ی محدودی از فیلدها: نام، فعال/غیرفعال،
+    پرداخت‌درمحل، هزینه (فقط وقتی پرداخت‌درمحل نیست)، آستانه‌ی ارسالِ رایگانِ
+    اختیاری. صفحه‌ی پیشرفته برای مرچنت‌هایی که به منطقه‌بندی/جدولِ نرخ نیاز
+    دارند دست‌نخورده و همچنان در دسترس می‌ماند."""
+    store = _resolve_dashboard_store(request)
+    ensure_default_shipping_methods(store)
+    return render(request, "dashboard/shipping_setup.html", {
+        "methods": ShippingMethod.objects.filter(store=store).order_by("display_order", "name"),
+        "active_page": "shipping",
+        "can_manage_shipping": membership_has_permission(request.store_membership, SHIPPING_SETTINGS_MANAGE),
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(SHIPPING_SETTINGS_MANAGE)
+def shipping_method_simple_update(request, pk):
+    store = _resolve_dashboard_store(request)
+    method = get_object_or_404(ShippingMethod, pk=pk, store=store)
+
+    method.is_active = request.POST.get("is_active") == "on"
+    method.cod_eligible = request.POST.get("cod_eligible") == "on" and not method.is_pickup
+
+    if method.is_pickup:
+        method.cost = Decimal("0")
+    elif method.cod_eligible:
+        method.cost = Decimal("0")
+    else:
+        raw_cost = request.POST.get("cost", "").strip()
+        try:
+            cost = Decimal(raw_cost) if raw_cost else Decimal("0")
+        except InvalidOperation:
+            messages.error(request, "مبلغِ هزینه‌ی ارسال نامعتبر است")
+            return redirect("dashboard:shipping-setup")
+        if cost < 0:
+            messages.error(request, "هزینه‌ی ارسال نمی‌تواند منفی باشد")
+            return redirect("dashboard:shipping-setup")
+        method.cost = cost
+
+    raw_free_over = request.POST.get("free_over", "").strip()
+    if raw_free_over:
+        try:
+            free_over = Decimal(raw_free_over)
+        except InvalidOperation:
+            messages.error(request, "مبلغِ آستانه‌ی ارسالِ رایگان نامعتبر است")
+            return redirect("dashboard:shipping-setup")
+        if free_over < 0:
+            messages.error(request, "آستانه‌ی ارسالِ رایگان نمی‌تواند منفی باشد")
+            return redirect("dashboard:shipping-setup")
+        method.free_over = free_over
+    else:
+        method.free_over = None
+
+    try:
+        method.full_clean()
+        method.save()
+    except (ValidationError, IntegrityError) as exc:
+        messages.error(request, str(exc))
+        return redirect("dashboard:shipping-setup")
+
+    record_audit_event(
+        store=store, actor=request.user, action_code="shipping_method.updated",
+        object_type="ShippingMethod", object_id=method.pk, object_label=method.name,
+    )
+    messages.success(request, f"روشِ ارسالِ «{method.name}» ذخیره شد")
+    return redirect("dashboard:shipping-setup")
+
+
 @staff_required
 @permission_required(SHIPPING_SETTINGS_VIEW, SHIPPING_SETTINGS_MANAGE)
 def shipping_rate_rule_list(request, method_id):
@@ -6157,6 +6233,8 @@ def tax_settings(request):
         return render(request, "dashboard/403.html", status=403)
 
     if request.method == "POST":
+        from django.utils import timezone
+
         settings_row.tax_enabled = request.POST.get("tax_enabled") == "on"
         settings_row.prices_include_tax = request.POST.get("prices_include_tax") == "on"
         settings_row.shipping_taxable = request.POST.get("shipping_taxable") == "on"
@@ -6167,8 +6245,15 @@ def tax_settings(request):
         settings_row.default_tax_class = (
             TaxClass.objects.filter(pk=default_class_id, store=store).first() if default_class_id else None
         )
+        # مدیر با ذخیره‌ی این فرم (هر کدام از دو گزینه‌ی «مالیات ندارم»/«مالیات
+        # دارم») صراحتاً تصمیمِ مالیاتی‌اش را اعلام کرده — این تنها سیگنالِ
+        # تکمیلِ مرحله‌ی چک‌لیست است، نه ``tax_enabled`` به‌تنهایی (که
+        # پیش‌فرضش True است و بدونِ این فیلد نمی‌تواند «هنوز انتخاب نشده» را
+        # از «صراحتاً روشن نگه‌داشته شده» تشخیص دهد).
+        settings_row.tax_setup_confirmed_at = timezone.now()
         settings_row.save(update_fields=[
             "tax_enabled", "prices_include_tax", "shipping_taxable", "tax_rounding_policy", "default_tax_class",
+            "tax_setup_confirmed_at",
         ])
         record_audit_event(
             store=store, actor=request.user, action_code="tax_settings.updated",
