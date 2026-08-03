@@ -307,8 +307,8 @@ body.admin-body{
 .x-btn:hover{background:var(--red-soft);color:var(--red)}
 
 /* مودالِ «تنظیمِ قیمت» — کالای ساده، قیمتِ پایه‌ی کالای دارای تنوع، و هر ردیفِ جدولِ تنوع */
-.price-modal-overlay{position:fixed;inset:0;background:rgba(10,14,30,.55);backdrop-filter:blur(3px);z-index:1200;display:flex;align-items:center;justify-content:center;padding:16px}
-.price-modal-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;width:100%;max-width:360px;box-shadow:0 25px 60px rgba(0,0,0,.35)}
+.price-modal-overlay{position:fixed;inset:0;background:rgba(10,14,30,.55);backdrop-filter:blur(3px);z-index:1200;display:flex;align-items:center;justify-content:center;padding:16px;white-space:normal}
+.price-modal-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;width:100%;max-width:360px;box-shadow:0 25px 60px rgba(0,0,0,.35);white-space:normal}
 .price-final-preview{display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:10px;padding:10px 14px;margin-top:6px;font-size:13.5px}
 .price-final-preview b{font-size:15px;color:var(--primary-text)}
 .price-summary-box{display:flex;flex-wrap:wrap;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--surface2)}
@@ -318,6 +318,7 @@ body.admin-body{
 
 /* صفحه‌ی «پیکربندیِ تنوع‌ها» — چیدمانِ دو‌ستونه (چپ: ویژگی‌ها، راست: جدولِ تنوع) */
 .variant-manager-grid{display:grid;grid-template-columns:320px 1fr;gap:18px;align-items:start}
+.variant-manager-grid>*{min-width:0}
 @media (max-width:1024px){.variant-manager-grid{grid-template-columns:1fr}}
 
 /* مدیریت تصاویر کالا */
@@ -493,6 +494,23 @@ body.admin-body{
 .variant-table td.identity small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
 .variant-table .order-controls{display:inline-flex;gap:2px}
 .variant-table .order-controls button{width:26px;height:26px;padding:0;display:grid;place-items:center;font-size:11px}
+
+/* جدولِ تنوع‌ها روی موبایل به کارت تبدیل می‌شود (نه اسکرولِ افقی) — هر ردیف
+   یک کارتِ مستقل با برچسبِ هر ستون کنارِ مقدارش؛ چون فیلدها/مودال‌های داخلِ
+   سلول‌ها با htmx/Alpine کار می‌کنند، به‌جای تکرارِ DOM (که ریسکِ تداخلِ
+   نام‌گذاریِ فیلدها را داشت) از تبدیلِ CSS استفاده شد. */
+@media (max-width:768px){
+  .variant-table-responsive thead{display:none}
+  .variant-table-responsive,.variant-table-responsive tbody{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed}
+  .variant-table-responsive tr{display:block;border:1px solid var(--border);border-radius:14px;margin-bottom:12px;padding:8px 10px;background:var(--card)}
+  .variant-table-responsive tr.variant-detail-row{border-top:0;border-radius:0 0 14px 14px;margin-top:-14px}
+  .variant-table-responsive td{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 2px;border:0;border-bottom:1px dashed var(--border)}
+  .variant-table-responsive tr td:last-child{border-bottom:0}
+  .variant-table-responsive td[data-label]::before{content:attr(data-label);font-weight:600;color:var(--muted);font-size:11.5px;flex-shrink:0}
+  .variant-table-responsive td[data-label=""]::before{content:none}
+  .variant-table-responsive td.variant-detail-cell{display:block;padding:8px 2px 2px}
+  .table-wrap:has(.variant-table-responsive){overflow-x:visible}
+}
 
 /* compact row actions — a real accessible dropdown (Alpine x-anchor) was tried and
    dropped: browser testing showed unreliable positioning (menu rendered off-screen
