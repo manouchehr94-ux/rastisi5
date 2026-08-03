@@ -2,7 +2,7 @@
 
 INDUSTRY_TEMPLATES = [
     {
-        "slug": "automotive-parts", "name": "لوازم یدکی خودرو", "icon": "🚗", "version": 1, "display_order": 21,
+        "slug": "automotive-parts", "name": "لوازم یدکی خودرو", "icon": "🚗", "sector": "auto", "version": 1, "display_order": 71,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های لوازم یدکی و اکسسوری خودرو.",
         "categories": [
             {"code": "auto-engine-parts", "name": "قطعات موتوری", "icon": "🔧"},
@@ -39,7 +39,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "motorcycle-parts", "name": "لوازم یدکی موتورسیکلت", "icon": "🏍️", "version": 1, "display_order": 22,
+        "slug": "motorcycle-parts", "name": "موتور سیکلت", "icon": "🏍️", "sector": "auto", "version": 1, "display_order": 72,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های لوازم یدکی و اکسسوری موتورسیکلت.",
         "categories": [
             {"code": "moto-engine-parts", "name": "قطعات موتوری", "icon": "🔧"},
@@ -77,7 +77,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "tools-hardware", "name": "ابزارآلات", "icon": "🛠️", "version": 1, "display_order": 23,
+        "slug": "tools-hardware", "name": "ابزار و تجهیزات کارگاهی", "icon": "🛠️", "sector": "auto", "version": 1, "display_order": 76,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های ابزارآلات و یراق‌آلات.",
         "categories": [
             {"code": "tools-power", "name": "ابزار برقی", "icon": "🔌"},
@@ -113,7 +113,7 @@ INDUSTRY_TEMPLATES = [
         "recommended_options": [],
     },
     {
-        "slug": "electrical-lighting", "name": "برق و روشنایی", "icon": "💡", "version": 1, "display_order": 24,
+        "slug": "electrical-lighting", "name": "تجهیزات برق و روشنایی", "icon": "💡", "sector": "industry", "version": 1, "display_order": 82,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های تجهیزات برقی و روشنایی.",
         "categories": [
             {"code": "lighting-indoor", "name": "روشنایی داخلی", "icon": "💡"},

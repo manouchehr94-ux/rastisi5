@@ -78,7 +78,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "sports-fitness", "name": "ورزش و تناسب‌اندام", "icon": "🏋️", "version": 1, "display_order": 16,
+        "slug": "sports-fitness", "name": "تجهیزات بدنسازی", "icon": "🏋️", "sector": "sport", "version": 1, "display_order": 52,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های ورزشی و تناسب‌اندام.",
         "categories": [
             {"code": "sports-fitness-equipment", "name": "تجهیزات بدنسازی", "icon": "🏋️"},

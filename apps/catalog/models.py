@@ -1300,10 +1300,26 @@ class IndustryTemplate(TimeStampedModel):
         DEPRECATED = "deprecated", "منسوخ"
         ARCHIVED = "archived", "بایگانی‌شده"
 
+    class Sector(models.TextChoices):
+        """رسته‌ی اصلیِ صنف — برای فیلترِ تب‌محورِ انتخاب‌گرِ صنف (کاتالوگِ تأییدشده)."""
+
+        RETAIL = "retail", "خرده‌فروشی و پوشاک"
+        DIGITAL = "digital", "دیجیتال و الکترونیک"
+        FOOD = "food", "خوراک و نوشیدنی"
+        HOME = "home", "خانه و آشپزخانه"
+        BEAUTY = "beauty", "سلامت و زیبایی"
+        SPORT = "sport", "ورزش و سرگرمی"
+        CULTURE = "culture", "فرهنگ و آموزش"
+        AUTO = "auto", "خودرو و ابزار"
+        INDUSTRY = "industry", "صنعتی و ساختمان"
+        SERVICES = "services", "خدمات و تخصصی"
+        OTHER = "other", "سایر"
+
     slug = models.SlugField("اسلاگ", max_length=60)
     name = models.CharField("نام صنف", max_length=120)
     description = models.TextField("توضیحات", blank=True)
     icon = models.CharField("آیکون", max_length=20, blank=True)
+    sector = models.CharField("رسته", max_length=20, choices=Sector.choices, default=Sector.OTHER)
     version = models.PositiveIntegerField("نسخه", default=1)
     locale = models.CharField("زبان", max_length=10, default="fa")
     display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)

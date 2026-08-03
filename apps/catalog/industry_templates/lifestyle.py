@@ -2,7 +2,7 @@
 
 INDUSTRY_TEMPLATES = [
     {
-        "slug": "flowers-gifts", "name": "گل و هدیه", "icon": "💐", "version": 1, "display_order": 28,
+        "slug": "flowers-gifts", "name": "کادو و سوغات", "icon": "💐", "sector": "culture", "version": 1, "display_order": 67,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های گل‌فروشی و هدیه.",
         "categories": [
             {"code": "flowers-bouquets", "name": "دسته‌گل", "icon": "💐"},
@@ -36,8 +36,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "digital-products-software", "name": "محصولات دیجیتال و نرم‌افزار", "icon": "💾", "version": 1,
-        "display_order": 29,
+        "slug": "digital-products-software", "name": "نرم‌افزار و آنتی‌ویروس", "icon": "💾", "sector": "digital", "version": 1, "display_order": 19,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های محصولات دیجیتال، نرم‌افزار و لایسنس.",
         "categories": [
             {"code": "digital-software-licenses", "name": "لایسنس نرم‌افزار", "icon": "🔑"},
@@ -80,7 +79,7 @@ INDUSTRY_TEMPLATES = [
         "recommended_options": [],
     },
     {
-        "slug": "musical-instruments", "name": "آلات موسیقی", "icon": "🎸", "version": 1, "display_order": 30,
+        "slug": "musical-instruments", "name": "ساز و لوازم موسیقی", "icon": "🎸", "sector": "sport", "version": 1, "display_order": 59,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های آلات و لوازم موسیقی.",
         "categories": [
             {"code": "music-string", "name": "سازهای زهی", "icon": "🎸"},

@@ -91,6 +91,22 @@ class StoreCreateViewTests(TestCase):
         store = Store.objects.get(name="Clothing Co")
         self.assertTrue(StoreIndustryInstallation.objects.filter(store=store).exists())
 
+    def test_selected_industry_preserved_after_validation_error(self):
+        """بخشِ ۷: انتخابِ صنف باید پس از خطایِ اعتبارسنجیِ فرم (نامِ خالی) حفظ شود."""
+        template = IndustryTemplate.objects.create(
+            slug="preserved-industry", name="صنفِ حفظ‌شده", version=1,
+            readiness=IndustryTemplate.Readiness.PRODUCTION_READY, is_active=True,
+        )
+        token = self._get_token()
+        response = self.client.post(
+            "/app/stores/new/",
+            {"name": "", "industry_template_id": template.pk, "submission_token": token},
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'value="{template.pk}"')
+        self.assertContains(response, "selected")
+
 
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
 class StoreCreatedViewIsolationTests(TestCase):

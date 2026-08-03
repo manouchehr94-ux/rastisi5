@@ -2,8 +2,7 @@
 
 INDUSTRY_TEMPLATES = [
     {
-        "slug": "health-personal-care", "name": "سلامت و مراقبت شخصی", "icon": "🩹", "version": 1,
-        "display_order": 17,
+        "slug": "health-personal-care", "name": "لوازم بهداشتی", "icon": "🩹", "sector": "beauty", "version": 1, "display_order": 42,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های سلامت و مراقبت شخصی.",
         "categories": [
             {"code": "health-vitamins", "name": "ویتامین و مکمل", "icon": "💊"},
@@ -37,7 +36,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "skincare", "name": "مراقبت پوست", "icon": "🧴", "version": 1, "display_order": 18,
+        "slug": "skincare", "name": "اسپا و مراقبت پوست", "icon": "🧴", "sector": "beauty", "version": 1, "display_order": 49,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های مراقبت پوست.",
         "categories": [
             {"code": "skincare-cleansers", "name": "شوینده و پاک‌کننده", "icon": "🧼"},
@@ -116,7 +115,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "makeup", "name": "لوازم آرایش", "icon": "💋", "version": 1, "display_order": 20,
+        "slug": "makeup", "name": "لوازم آرایشی", "icon": "💋", "sector": "beauty", "version": 1, "display_order": 41,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های لوازم آرایش.",
         "categories": [
             {"code": "makeup-face", "name": "آرایش صورت", "icon": "🎨"},

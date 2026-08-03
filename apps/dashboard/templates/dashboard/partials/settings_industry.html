@@ -34,36 +34,37 @@
       با انتخاب صنف فعالیت خود، دسته‌بندی‌ها، ویژگی‌ها و محورهای تنوع پیشنهادی به‌صورت خودکار برای فروشگاه شما ساخته می‌شود.
       این عملیات را می‌توانید بعداً کاملاً سفارشی‌سازی کنید و هرگز قالب پایه‌ی پلتفرم را تغییر نمی‌دهد.
     </p>
-    <div class="grid g-1-2" style="gap:14px">
+    {% if industry_templates %}
+    {% include "catalog/partials/industry_filter_bar.html" with sector_tabs=industry_sector_tabs search_placeholder="جستجوی صنف شغلی..." search_input_id="industrySettingsSearch" %}
+    <div class="industry-grid">
       {% for template in industry_templates %}
-      <div class="card" style="margin-bottom:0">
-        <div class="card-body">
-          <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
-            <span style="font-size:22px">{{ template.icon|default:"🏷️" }}</span>
-            <div><b>{{ template.name }}</b><br><small style="color:var(--muted)">{{ template.categories.count|fa_number }} دسته‌بندی — {{ template.attributes.count|fa_number }} ویژگی</small></div>
-          </div>
-          {% if template.description %}<p style="font-size:12px;color:var(--muted)">{{ template.description }}</p>{% endif %}
-          <div style="display:flex;gap:8px">
-            <a class="btn btn-sm" href="{% url 'dashboard:settings-industry-preview' template.pk %}">پیش‌نمایش</a>
-            <form method="post" action="{% url 'dashboard:settings-industry-install' template.pk %}"
-                  onsubmit="return confirm('نصب الگوی «{{ template.name }}» ساختار کاتالوگ فروشگاه شما را می‌سازد. ادامه می‌دهید؟');">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-primary btn-sm">نصب این الگو</button>
-            </form>
-          </div>
+      <div class="industry-card" data-name="{{ template.name }}" data-sector="{{ template.sector }}"
+           data-sector-label="{{ template.get_sector_display }}">
+        <div class="ic-emoji">{{ template.icon|default:"🏷️" }}</div>
+        <div class="ic-name">{{ template.name }}</div>
+        <div class="ic-sector">{{ template.get_sector_display }} — {{ template.categories.count|fa_number }} دسته، {{ template.attributes.count|fa_number }} ویژگی</div>
+        <div class="ic-actions">
+          <a class="btn btn-sm" href="{% url 'dashboard:settings-industry-preview' template.pk %}">پیش‌نمایش</a>
+          <form method="post" action="{% url 'dashboard:settings-industry-install' template.pk %}"
+                onsubmit="return confirm('نصب الگوی «{{ template.name }}» ساختار کاتالوگ فروشگاه شما را می‌سازد. ادامه می‌دهید؟');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary btn-sm">نصب</button>
+          </form>
         </div>
-      </div>
-      {% empty %}
-      <div class="info-box" style="border-color:var(--danger,#dc2626)">
-        ⚠️ هیچ الگوی صنفِ فعالی در سامانه ثبت نشده است — این یک وضعیتِ داده‌ایِ ناقص است، نه پایانِ راه‌اندازی.
-        <br><small style="color:var(--muted)">
-          برای رفعِ آن، اپراتورِ پلتفرم باید دستورِ
-          <code>python manage.py seed_industry_templates</code> را اجرا کند
-          (این عملیات idempotent است و داده‌ی مرچنت‌ها را تغییر نمی‌دهد).
-        </small>
       </div>
       {% endfor %}
     </div>
+    {% include "catalog/partials/industry_empty_state.html" %}
+    {% else %}
+    <div class="info-box" style="border-color:var(--danger,#dc2626)">
+      ⚠️ هیچ الگوی صنفِ فعالی در سامانه ثبت نشده است — این یک وضعیتِ داده‌ایِ ناقص است، نه پایانِ راه‌اندازی.
+      <br><small style="color:var(--muted)">
+        برای رفعِ آن، اپراتورِ پلتفرم باید دستورِ
+        <code>python manage.py seed_industry_templates</code> را اجرا کند
+        (این عملیات idempotent است و داده‌ی مرچنت‌ها را تغییر نمی‌دهد).
+      </small>
+    </div>
+    {% endif %}
     {% endif %}
   </div>
 </div>

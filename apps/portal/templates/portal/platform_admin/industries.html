@@ -3,15 +3,45 @@
 {% block content %}
 <div class="pa-pagehead"><div><h1>صنف‌ها و قالب‌ها</h1><p>هر نسخه‌ی یک قالبِ صنف پس از ساخته‌شدن تغییرناپذیر است؛ نسخه‌ی تازه یک ردیفِ کاملاً جدید می‌سازد.</p></div></div>
 
+<form method="get" class="pa-card">
+  <div class="pa-cardbody">
+    <div class="pa-toolbar">
+      <div style="flex:2;min-width:220px"><input class="pa-input" type="search" name="q" placeholder="نام یا اسلاگ..." value="{{ q }}"></div>
+      <select class="pa-input" name="sector" style="max-width:180px">
+        <option value="">همه‌ی رسته‌ها</option>
+        {% for code, label in sector_tabs %}
+        {% if code != "all" %}
+        <option value="{{ code }}" {% if selected_sector == code %}selected{% endif %}>{{ label }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+      <select class="pa-input" name="active" style="max-width:140px">
+        <option value="">همه‌ی وضعیت‌ها</option>
+        <option value="active" {% if selected_active == "active" %}selected{% endif %}>فعال</option>
+        <option value="inactive" {% if selected_active == "inactive" %}selected{% endif %}>غیرفعال</option>
+      </select>
+      <select class="pa-input" name="readiness" style="max-width:170px">
+        <option value="">همه‌ی آمادگی‌ها</option>
+        {% for value, label in readiness_choices %}
+        <option value="{{ value }}" {% if selected_readiness == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button class="pa-btn pa-primary" type="submit">فیلتر</button>
+      <a class="pa-btn" href="{% url 'portal_platform_admin:industries' %}">پاک‌کردن</a>
+    </div>
+  </div>
+</form>
+
 <div class="pa-card">
   {% if templates %}
   <div class="pa-tablewrap">
     <table>
-      <thead><tr><th>نام</th><th>اسلاگ</th><th>نسخه</th><th>زبان</th><th>آمادگی</th><th>وضعیت</th><th>دسته‌بندی/ویژگی</th><th>نصب‌ها</th><th></th></tr></thead>
+      <thead><tr><th>نام</th><th>رسته</th><th>اسلاگ</th><th>نسخه</th><th>زبان</th><th>آمادگی</th><th>وضعیت</th><th>دسته‌بندی/ویژگی</th><th>نصب‌ها</th><th></th></tr></thead>
       <tbody>
         {% for template in templates %}
         <tr>
-          <td>{{ template.name }}</td>
+          <td>{{ template.icon }} {{ template.name }}</td>
+          <td>{{ template.get_sector_display }}</td>
           <td style="direction:ltr;text-align:left">{{ template.slug }}</td>
           <td>v{{ template.version }}</td>
           <td>{{ template.locale }}</td>
@@ -30,7 +60,7 @@
     </table>
   </div>
   {% else %}
-  <div class="pa-empty"><div class="pa-empty-icon">🧱</div><p>هیچ قالبِ صنفی تعریف نشده.</p></div>
+  <div class="pa-empty"><div class="pa-empty-icon">🧱</div><p>هیچ قالبِ صنفی با این فیلترها یافت نشد.</p></div>
   {% endif %}
 </div>
 {% endblock %}

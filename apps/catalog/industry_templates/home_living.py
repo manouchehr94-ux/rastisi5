@@ -2,7 +2,7 @@
 
 INDUSTRY_TEMPLATES = [
     {
-        "slug": "kitchenware", "name": "ظروف و لوازم آشپزخانه", "icon": "🍳", "version": 1, "display_order": 25,
+        "slug": "kitchenware", "name": "لوازم آشپزخانه", "icon": "🍳", "sector": "home", "version": 1, "display_order": 31,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های ظروف و لوازم آشپزخانه.",
         "categories": [
             {"code": "kitchenware-cookware", "name": "قابلمه و تابه", "icon": "🍳"},
@@ -43,7 +43,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "bedding-bath", "name": "رختخواب و حمام", "icon": "🛁", "version": 1, "display_order": 26,
+        "slug": "bedding-bath", "name": "حمام و سرویس بهداشتی", "icon": "🛁", "sector": "home", "version": 1, "display_order": 38,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های سرویس‌خواب و لوازم حمام.",
         "categories": [
             {"code": "bedding-sheets", "name": "ملحفه و روتختی", "icon": "🛏️"},

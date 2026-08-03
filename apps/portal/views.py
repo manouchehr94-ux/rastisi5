@@ -12,6 +12,7 @@ from django.views.decorators.http import require_POST
 from django.conf import settings
 
 from apps.catalog.models import IndustryTemplate
+from apps.catalog.services import industry_catalog_service
 from apps.billing.models import SubscriptionPaymentAttempt
 from apps.billing.services import payment_flow_service
 from apps.billing.services import plan_change_billing_service
@@ -67,6 +68,18 @@ def home(request):
 
 def features(request):
     return render(request, "portal/public/features.html")
+
+
+def supported_industries(request):
+    """صفحه‌ی عمومیِ «صنوفِ پشتیبانی‌شده» — بخشِ ۶. تمامِ کارت‌ها از رکوردهایِ
+    واقعیِ ``IndustryTemplate`` خوانده می‌شوند (تکِ منبعِ حقیقتِ کاتالوگِ
+    صنف)، نه یک فهرستِ ثابتِ HTML."""
+    templates = industry_catalog_service.offerable_industry_templates()
+    return render(request, "portal/public/supported_industries.html", {
+        "industry_templates": templates,
+        "industry_sector_tabs": industry_catalog_service.SECTOR_TABS,
+        "industry_count": len(templates),
+    })
 
 
 def plans(request):
@@ -513,6 +526,7 @@ def store_create(request):
         request, "portal/app/store_create.html",
         {
             "form": form, "industry_templates": industry_templates,
+            "industry_sector_tabs": industry_catalog_service.SECTOR_TABS,
             "submission_token": request.session[_STORE_CREATE_TOKEN_SESSION_KEY],
         },
     )
@@ -676,6 +690,7 @@ def onboarding_industry(request, store_public_id):
 
     return render(request, "portal/app/onboarding_industry.html", {
         "store": store, "templates": templates, "installation": installation,
+        "industry_sector_tabs": industry_catalog_service.SECTOR_TABS,
     })
 
 

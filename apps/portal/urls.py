@@ -10,6 +10,7 @@ urlpatterns = [
     path("robots.txt", views.platform_robots_txt, name="robots-txt"),
     path("sitemap.xml", views.platform_sitemap_xml, name="sitemap-xml"),
     path("features/", views.features, name="features"),
+    path("supported-industries/", views.supported_industries, name="supported-industries"),
     path("plans/", views.plans, name="plans"),
     path("help/", views.help_center, name="help"),
     path("contact/", views.contact, name="contact"),

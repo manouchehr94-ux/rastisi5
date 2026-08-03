@@ -1116,20 +1116,37 @@ def sms_logs(request):
 
 @user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
 def industries(request):
-    from django.db.models import Count
+    from django.db.models import Count, Q
 
     from apps.catalog.models import IndustryTemplate
+    from apps.catalog.services.industry_catalog_service import SECTOR_TABS
 
-    template_list = (
-        IndustryTemplate.objects.annotate(
-            installation_count=Count("installations", distinct=True),
-            category_count=Count("categories", distinct=True),
-            attribute_count=Count("attributes", distinct=True),
-        )
-        .order_by("slug", "-version")
+    q = (request.GET.get("q") or "").strip()
+    sector = request.GET.get("sector") or ""
+    active = request.GET.get("active") or ""
+    readiness = request.GET.get("readiness") or ""
+
+    template_list = IndustryTemplate.objects.annotate(
+        installation_count=Count("installations", distinct=True),
+        category_count=Count("categories", distinct=True),
+        attribute_count=Count("attributes", distinct=True),
     )
+    if q:
+        template_list = template_list.filter(Q(name__icontains=q) | Q(slug__icontains=q))
+    if sector:
+        template_list = template_list.filter(sector=sector)
+    if active == "active":
+        template_list = template_list.filter(is_active=True)
+    elif active == "inactive":
+        template_list = template_list.filter(is_active=False)
+    if readiness:
+        template_list = template_list.filter(readiness=readiness)
+    template_list = template_list.order_by("slug", "-version")
+
     return render(request, "portal/platform_admin/industries.html", {
         "templates": template_list, "active_nav": "industries",
+        "sector_tabs": SECTOR_TABS, "readiness_choices": IndustryTemplate.Readiness.choices,
+        "q": q, "selected_sector": sector, "selected_active": active, "selected_readiness": readiness,
     })
 
 

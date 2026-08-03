@@ -1,0 +1,15 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/industry_selector.css' %}">
+<div class="industry-search">
+  <span class="icon">🔍</span>
+  <input type="text" id="{{ search_input_id|default:'industrySearch' }}"
+         placeholder="{{ search_placeholder|default:'جستجوی صنف شغلی...' }}"
+         oninput="industryFilterSearch(this.value)" autocomplete="off">
+</div>
+<div class="industry-tabs">
+  {% for code, label in sector_tabs %}
+  <div class="industry-tab{% if forloop.first %} active{% endif %}" data-sector="{{ code }}"
+       onclick="industryFilterSector('{{ code }}', '{{ search_input_id|default:'industrySearch' }}')">{{ label }}</div>
+  {% endfor %}
+</div>
+<script src="{% static 'js/industry_selector.js' %}"></script>

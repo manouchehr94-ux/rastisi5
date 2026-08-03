@@ -1,0 +1,31 @@
+{% extends "portal/base_platform.html" %}
+{% block title %}صنوف پشتیبانی‌شده | راستیسی{% endblock %}
+{% block meta_description %}<meta name="description" content="راستیسی از {{ industry_count }} صنف شغلی متنوع + صنف «سایر» پشتیبانی می‌کند؛ صنف کسب‌وکار خود را جست‌وجو کنید.">{% endblock %}
+{% block content %}
+<section class="p-section"><div class="p-wrap" style="text-align:center">
+  <h2>صنوف پشتیبانی‌شده</h2>
+  <p class="lead">مهم نیست چه کسب‌وکاری دارید، راستیسی از آن پشتیبانی می‌کند — {{ industry_count|default:"۱۰۰" }} صنف شغلی متنوع در ۱۰ رسته + یک صنف «سایر» برای کسب‌وکارهای خاص.</p>
+</div></section>
+
+<section class="p-section" style="padding-top:0"><div class="p-wrap">
+  {% include "catalog/partials/industry_filter_bar.html" with sector_tabs=industry_sector_tabs search_placeholder="جستجوی صنف شغلی..." search_input_id="publicIndustrySearch" %}
+
+  <div class="industry-grid">
+    {% for template in industry_templates %}
+    <div class="industry-card" data-name="{{ template.name }}" data-sector="{{ template.sector }}"
+         data-sector-label="{{ template.get_sector_display }}">
+      <div class="ic-emoji">{{ template.icon|default:"🏷️" }}</div>
+      <div class="ic-name">{{ template.name }}</div>
+      <div class="ic-sector">{{ template.get_sector_display }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% include "catalog/partials/industry_empty_state.html" %}
+
+  <div class="p-card" style="max-width:560px;margin:40px auto 0;text-align:center;padding:26px">
+    <h3 style="margin-bottom:8px">صنف خود را پیدا نکردید؟</h3>
+    <p style="font-size:13.5px;color:var(--p-muted);margin-bottom:16px">صنف «سایر» را در فهرست بالا انتخاب کنید و اطلاعات کسب‌وکار خود را به‌صورت دستی وارد کنید.</p>
+    <a href="{% url 'portal:register' %}" class="p-btn p-btn-primary">شروع کنید</a>
+  </div>
+</div></section>
+{% endblock %}

@@ -18,7 +18,7 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from apps.catalog.industry_templates.registry import ALL_INDUSTRY_TEMPLATES
+from apps.catalog.industry_templates.registry import ALL_INDUSTRY_TEMPLATES, DEPRECATED_LEGACY_SLUGS
 from apps.catalog.models import (
     IndustryTemplate,
     IndustryTemplateAttribute,
@@ -47,6 +47,7 @@ class Command(BaseCommand):
                     "name": entry["name"],
                     "description": entry.get("description", ""),
                     "icon": entry.get("icon", ""),
+                    "sector": entry.get("sector", IndustryTemplate.Sector.OTHER),
                     "display_order": entry.get("display_order", 0),
                     "is_active": entry.get("is_active", True),
                 },
@@ -68,6 +69,15 @@ class Command(BaseCommand):
                 f"{'ساخته شد' if created else 'به‌روزرسانی شد'}: {template.name} "
                 f"(نسخه {template.version}) — {len(categories_by_code)} دسته، {len(attributes_by_code)} ویژگی "
                 f"— اعتبارسنجی: {status} ({template.readiness}, امتیاز {result.quality_score})"
+            )
+
+        deprecated_count = IndustryTemplate.objects.filter(slug__in=DEPRECATED_LEGACY_SLUGS).update(
+            is_active=False, readiness=IndustryTemplate.Readiness.DEPRECATED,
+        )
+        if deprecated_count:
+            self.stdout.write(
+                f"🗄  {deprecated_count} قالبِ قدیمیِ منسوخ‌شده (بدونِ تناظرِ یک‌به‌یک با کاتالوگِ "
+                f"تأییدشده) از فهرستِ نصبِ جدید حذف شد — رکوردشان حذف نمی‌شود."
             )
 
         invalid_count = sum(

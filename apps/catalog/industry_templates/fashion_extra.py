@@ -6,7 +6,7 @@
 
 INDUSTRY_TEMPLATES = [
     {
-        "slug": "watches", "name": "ساعت", "icon": "⌚", "version": 1, "display_order": 11,
+        "slug": "watches", "name": "ساعت و جواهر", "icon": "⌚", "sector": "retail", "version": 1, "display_order": 6,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های ساعت مچی.",
         "categories": [
             {"code": "watches-mens", "name": "ساعت مردانه", "icon": "⌚"},
@@ -52,7 +52,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "eyewear", "name": "عینک", "icon": "🕶️", "version": 1, "display_order": 12,
+        "slug": "eyewear", "name": "عینک و لوازم شیشه‌ای", "icon": "🕶️", "sector": "retail", "version": 1, "display_order": 7,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های عینک آفتابی و طبی.",
         "categories": [
             {"code": "eyewear-sunglasses", "name": "عینک آفتابی", "icon": "🕶️"},
@@ -92,7 +92,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "bags-luggage", "name": "کیف و چمدان", "icon": "🧳", "version": 1, "display_order": 13,
+        "slug": "bags-luggage", "name": "کیف و اکسسوری", "icon": "🧳", "sector": "retail", "version": 1, "display_order": 5,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های کیف، کوله و چمدان.",
         "categories": [
             {"code": "bags-handbags", "name": "کیف دستی و رودوشی", "icon": "👜"},

@@ -72,6 +72,7 @@ from apps.catalog.services.category_schema_service import (
     resolve_category_schema,
     update_category_attribute,
 )
+from apps.catalog.services import industry_catalog_service
 from apps.catalog.services.industry_template_service import (
     IndustryInstallationError,
     install_industry_template,
@@ -3523,6 +3524,7 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
         "shipping_methods": settings_admin_service.shipping_methods_context(store=store),
         "gateway_configs": settings_admin_service.gateway_configs_context(store=store),
         "industry_templates": _latest_active_industry_templates(),
+        "industry_sector_tabs": industry_catalog_service.SECTOR_TABS,
         "industry_installation": _industry_installation_context(store),
         "integration_rows": integration_service.connections_context(store=store),
         "active_page": "settings",
@@ -3530,20 +3532,9 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
 
 
 def _latest_active_industry_templates():
-    """جدیدترین نسخه‌ی «آماده‌ی تولید» هر صنف را برمی‌گرداند — نگاه کنید به ADR-26/27.
-
-    فقط این حالت به مرچنت برای نصب جدید پیشنهاد می‌شود؛ draft/validation_failed/
-    review_required/deprecated/archived هرگز این‌جا دیده نمی‌شوند."""
-    seen_slugs = set()
-    latest = []
-    for template in IndustryTemplate.objects.filter(
-        is_active=True, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
-    ).order_by("slug", "-version", "display_order"):
-        if template.slug in seen_slugs:
-            continue
-        seen_slugs.add(template.slug)
-        latest.append(template)
-    return sorted(latest, key=lambda t: (t.display_order, t.name))
+    """جدیدترین نسخه‌ی «آماده‌ی تولید» هر صنف — نازک‌پوششی روی تکِ منبعِ
+    حقیقتِ کاتالوگِ صنف (``industry_catalog_service``، بخشِ ۲)."""
+    return industry_catalog_service.offerable_industry_templates()
 
 
 def _industry_installation_context(store):

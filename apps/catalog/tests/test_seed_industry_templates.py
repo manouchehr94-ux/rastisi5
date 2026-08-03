@@ -12,7 +12,10 @@ from apps.catalog.models import (
     IndustryTemplateCategoryAttributeMapping,
     IndustryTemplateRecommendedOption,
 )
-from apps.catalog.industry_templates.registry import ALL_INDUSTRY_TEMPLATES as INDUSTRY_TEMPLATES
+from apps.catalog.industry_templates.registry import (
+    ALL_INDUSTRY_TEMPLATES as INDUSTRY_TEMPLATES,
+    DEPRECATED_LEGACY_SLUGS,
+)
 from apps.catalog.services.industry_template_service import install_industry_template
 from apps.stores.models import Store
 
@@ -29,24 +32,38 @@ class SeedIndustryTemplatesCommandTests(TestCase):
 
     def test_every_template_is_production_ready_after_seed(self):
         _run_seed()
-        for template in IndustryTemplate.objects.all():
+        for template in IndustryTemplate.objects.exclude(slug__in=DEPRECATED_LEGACY_SLUGS):
             with self.subTest(template=template.slug):
                 self.assertEqual(template.readiness, IndustryTemplate.Readiness.PRODUCTION_READY)
                 self.assertTrue(template.content_fingerprint)
+        # صنف‌های قدیمیِ منسوخ‌شده (بدونِ تناظرِ یک‌به‌یک با کاتالوگِ تأییدشده‌ی
+        # ۱۰۰ صنفی) عمداً پس از seed غیرفعال/منسوخ می‌شوند — رکوردشان می‌ماند،
+        # اما دیگر برای نصبِ جدید پیشنهاد نمی‌شوند (نگاه کنید به بخشِ ۱).
+        for template in IndustryTemplate.objects.filter(slug__in=DEPRECATED_LEGACY_SLUGS):
+            with self.subTest(template=template.slug):
+                self.assertEqual(template.readiness, IndustryTemplate.Readiness.DEPRECATED)
+                self.assertFalse(template.is_active)
 
     def test_every_template_slug_is_seeded_and_active(self):
         _run_seed()
         seeded_slugs = set(IndustryTemplate.objects.values_list("slug", flat=True))
         expected_slugs = {entry["slug"] for entry in INDUSTRY_TEMPLATES}
         self.assertEqual(seeded_slugs, expected_slugs)
-        self.assertFalse(IndustryTemplate.objects.filter(is_active=False).exists())
+        inactive_slugs = set(IndustryTemplate.objects.filter(is_active=False).values_list("slug", flat=True))
+        self.assertEqual(inactive_slugs, set(DEPRECATED_LEGACY_SLUGS))
 
     def test_every_template_has_real_categories_and_attributes(self):
+        """صنف‌های غنی (دستی) همچنان معیارِ قدیمی را دارند؛ صنف‌های «کمینه‌یِ
+        مفید» (بخشِ ۹ — یک دسته‌بندیِ تک‌سطحی + چند ویژگیِ متنی، یا برایِ
+        رستهِ خدماتی/سایر حتی بدونِ ویژگی) فقط باید حداقل یک دسته‌بندیِ
+        واقعی داشته باشند."""
         _run_seed()
         for template in IndustryTemplate.objects.all():
             with self.subTest(template=template.slug):
-                self.assertGreaterEqual(template.categories.count(), 3)
-                self.assertGreaterEqual(template.attributes.count(), 4)
+                self.assertGreaterEqual(template.categories.count(), 1)
+                if template.sector in (IndustryTemplate.Sector.SERVICES, IndustryTemplate.Sector.OTHER):
+                    continue
+                self.assertGreaterEqual(template.attributes.count(), 1)
 
     def test_running_twice_does_not_duplicate_records(self):
         _run_seed()
@@ -107,7 +124,7 @@ class InstallEverySeededIndustryTests(TestCase):
         self.store = Store.objects.get(slug="akhlaghi")
 
     def test_every_seeded_industry_installs_cleanly(self):
-        for template in IndustryTemplate.objects.all():
+        for template in IndustryTemplate.objects.exclude(slug__in=DEPRECATED_LEGACY_SLUGS):
             with self.subTest(template=template.slug):
                 store = Store.objects.create(
                     name=f"فروشگاه آزمایشی {template.slug}",

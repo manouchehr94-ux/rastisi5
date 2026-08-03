@@ -19,6 +19,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from apps.catalog.models import IndustryTemplate, Warehouse
+from apps.catalog.services import industry_catalog_service
 from apps.catalog.services.industry_template_service import install_industry_template
 from apps.core.models import ShopSettings
 from apps.core.services.audit_service import record_audit_event
@@ -78,19 +79,12 @@ def _create_store_with_unique_platform_code(*, name: str, slug: str) -> Store:
 
 def latest_offerable_industry_templates():
     """آخرین نسخه‌ی production_ready هر صنف — یک ردیف به‌ازای هر ``slug``،
-    برای نمایش در ویزارد آنبوردینگ (Section D)."""
-    templates = IndustryTemplate.objects.filter(
-        is_active=True, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
-    ).order_by("slug", "-version")
-    seen_slugs = set()
-    result = []
-    for template in templates:
-        if template.slug in seen_slugs:
-            continue
-        seen_slugs.add(template.slug)
-        result.append(template)
-    result.sort(key=lambda t: (t.display_order, t.name))
-    return result
+    برای نمایش در ویزارد آنبوردینگ (Section D).
+
+    نازک‌پوششی روی تکِ منبعِ حقیقتِ کاتالوگِ صنف
+    (``industry_catalog_service.offerable_industry_templates``) — نگاه کنید
+    به بخشِ ۲ («یک منبعِ واحد برایِ همه‌ی نقاطِ ورودی»)."""
+    return industry_catalog_service.offerable_industry_templates()
 
 
 @transaction.atomic

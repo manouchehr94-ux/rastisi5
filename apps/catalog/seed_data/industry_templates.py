@@ -75,7 +75,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "shoes", "name": "کفش", "icon": "👟", "version": 1, "display_order": 2,
+        "slug": "shoes", "name": "کفش و چرم", "icon": "👟", "sector": "retail", "version": 1, "display_order": 4,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های کفش.",
         "categories": [
             {"code": "shoes-mens", "name": "کفش مردانه", "icon": "👞"},
@@ -123,7 +123,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "perfume-cosmetics", "name": "عطر و لوازم آرایشی", "icon": "💄", "version": 1, "display_order": 3,
+        "slug": "perfume-cosmetics", "name": "عطر و ادکلن", "icon": "💄", "sector": "beauty", "version": 1, "display_order": 43,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های عطر و لوازم آرایشی.",
         "categories": [
             {"code": "perfume-mens", "name": "عطر مردانه", "icon": "🧴"},
@@ -176,7 +176,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "mobile-phones", "name": "موبایل و تبلت", "icon": "📱", "version": 1, "display_order": 4,
+        "slug": "mobile-phones", "name": "موبایل و تبلت", "icon": "📱", "sector": "digital", "version": 1, "display_order": 11,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های موبایل و تبلت.",
         "categories": [
             {"code": "mobile-phones", "name": "گوشی موبایل", "icon": "📱"},
@@ -231,7 +231,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "computers-laptops", "name": "رایانه و لپ‌تاپ", "icon": "💻", "version": 1, "display_order": 5,
+        "slug": "computers-laptops", "name": "لپ‌تاپ و کامپیوتر", "icon": "💻", "sector": "digital", "version": 1, "display_order": 12,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های رایانه و لپ‌تاپ.",
         "categories": [
             {"code": "computers-laptops", "name": "لپ‌تاپ", "icon": "💻"},
@@ -277,7 +277,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "home-appliances", "name": "لوازم خانگی", "icon": "🧺", "version": 1, "display_order": 6,
+        "slug": "home-appliances", "name": "لوازم خانگی برقی", "icon": "🧺", "sector": "home", "version": 1, "display_order": 33,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های لوازم خانگی.",
         "categories": [
             {"code": "appliances-kitchen", "name": "لوازم آشپزخانه", "icon": "🍳"},
@@ -315,7 +315,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "jewelry-accessories", "name": "جواهرات و اکسسوری", "icon": "💍", "version": 1, "display_order": 7,
+        "slug": "jewelry-accessories", "name": "طلا و جواهرات", "icon": "💍", "sector": "retail", "version": 1, "display_order": 10,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های جواهرات و اکسسوری.",
         "categories": [
             {"code": "jewelry-rings", "name": "انگشتر", "icon": "💍"},
@@ -358,7 +358,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "books-stationery", "name": "کتاب و لوازم‌التحریر", "icon": "📚", "version": 1, "display_order": 8,
+        "slug": "books-stationery", "name": "کتاب و مجله", "icon": "📚", "sector": "culture", "version": 1, "display_order": 61,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های کتاب و لوازم‌التحریر.",
         "categories": [
             {"code": "books", "name": "کتاب", "icon": "📖"},
@@ -430,7 +430,7 @@ INDUSTRY_TEMPLATES = [
         ],
     },
     {
-        "slug": "furniture-decor", "name": "مبلمان و دکوراسیون", "icon": "🛋️", "version": 1, "display_order": 10,
+        "slug": "furniture-decor", "name": "مبلمان و دکوراسیون", "icon": "🛋️", "sector": "home", "version": 1, "display_order": 34,
         "description": "دسته‌بندی و ویژگی‌های استاندارد برای فروشگاه‌های مبلمان و دکوراسیون منزل.",
         "categories": [
             {"code": "furniture-seating", "name": "مبل و صندلی", "icon": "🛋️"},

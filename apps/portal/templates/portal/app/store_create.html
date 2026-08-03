@@ -3,11 +3,11 @@
 {% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 {% block content %}
 <div class="p-wrap">
-<div class="p-form-card" style="max-width:480px">
+<div class="p-form-card" style="max-width:720px">
   <h2 style="text-align:center;margin-bottom:8px">فروشگاه تازه بسازید</h2>
   <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px">یک نام و در صورت تمایل صنف فروشگاه را انتخاب کنید؛ فروشگاه آزمایشی شما بلافاصله آماده می‌شود.</p>
   {% if form.non_field_errors %}<div class="p-alert p-alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
-  <form method="post">
+  <form method="post" id="storeCreateForm">
     {% csrf_token %}
     <input type="hidden" name="submission_token" value="{{ submission_token }}">
     <div class="p-field">
@@ -16,14 +16,33 @@
       {% if form.name.errors %}<div class="p-error">{{ form.name.errors.0 }}</div>{% endif %}
     </div>
     <div class="p-field">
-      <label for="id_industry_template_id">صنف (اختیاری)</label>
-      <select name="industry_template_id" id="id_industry_template_id" {% if not industry_templates %}disabled{% endif %}>
-        <option value="">— بدون صنف مشخص —</option>
+      <label>صنف (اختیاری)</label>
+      <input type="hidden" name="industry_template_id" id="id_industry_template_id"
+             value="{{ form.industry_template_id.value|default:'' }}">
+      {% if industry_templates %}
+      {% include "catalog/partials/industry_filter_bar.html" with sector_tabs=industry_sector_tabs search_placeholder="جستجوی صنف؛ مثال: پوشاک، دیجیتال، خوراک..." search_input_id="storeCreateIndustrySearch" %}
+      <div class="industry-grid" style="max-height:340px;overflow-y:auto;padding:4px">
         {% for template in industry_templates %}
-        <option value="{{ template.pk }}">{{ template.icon }} {{ template.name }}</option>
+        <div class="industry-card{% if form.industry_template_id.value|stringformat:'s' == template.pk|stringformat:'s' %} selected{% endif %}"
+             data-id="{{ template.pk }}" data-name="{{ template.name }}" data-sector="{{ template.sector }}"
+             data-sector-label="{{ template.get_sector_display }}"
+             onclick="industrySelectCard(this, 'id_industry_template_id')">
+          <div class="ic-emoji">{{ template.icon|default:"🏷️" }}</div>
+          <div class="ic-name">{{ template.name }}</div>
+          <div class="ic-sector">{{ template.get_sector_display }}</div>
+        </div>
         {% endfor %}
-      </select>
-      {% if not industry_templates %}
+      </div>
+      {% include "catalog/partials/industry_empty_state.html" %}
+      <div style="font-size:12px;color:var(--p-muted);margin-top:6px">
+        صنفِ انتخاب‌شده:
+        <b id="industrySelectedName">
+          {% for template in industry_templates %}{% if form.industry_template_id.value|stringformat:'s' == template.pk|stringformat:'s' %}{{ template.name }}{% endif %}{% endfor %}
+          {% if not form.industry_template_id.value %}— بدون صنف مشخص —{% endif %}
+        </b>
+        — بعداً هم از تنظیماتِ فروشگاه قابلِ انتخاب است.
+      </div>
+      {% else %}
       <div class="p-error" style="color:var(--p-muted);font-size:12px;margin-top:4px">
         در حال حاضر هیچ الگوی صنفی برای انتخاب موجود نیست؛ می‌توانید بعداً از تنظیماتِ فروشگاه صنف را مشخص کنید.
       </div>
@@ -36,6 +55,6 @@
 {% endblock %}
 {% block extra_css %}
 <style>
-.p-field input, .p-field select{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px;background:#0c1310;color:var(--p-ink)}
+.p-field input[type=text], .p-field select{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px;background:#0c1310;color:var(--p-ink)}
 </style>
 {% endblock %}

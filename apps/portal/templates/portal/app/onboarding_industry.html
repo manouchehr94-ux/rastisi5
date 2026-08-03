@@ -24,17 +24,25 @@
   {% if messages %}{% for message in messages %}<div class="p-alert p-alert-error">{{ message }}</div>{% endfor %}{% endif %}
   <form method="post">
     {% csrf_token %}
-    <div class="p-field" style="display:grid;gap:8px">
+    <input type="hidden" name="industry_template_id" id="id_industry_template_id" value="">
+    {% if templates %}
+    {% include "catalog/partials/industry_filter_bar.html" with sector_tabs=industry_sector_tabs search_placeholder="جستجوی صنف؛ مثال: پوشاک، دیجیتال، خوراک..." search_input_id="onboardingIndustrySearch" %}
+    <div class="industry-grid" style="max-height:340px;overflow-y:auto;padding:4px">
       {% for template in templates %}
-      <label style="display:flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;cursor:pointer">
-        <input type="radio" name="industry_template_id" value="{{ template.pk }}">
-        <span>{{ template.name }}</span>
-      </label>
-      {% empty %}
-      <p style="font-size:13px;color:var(--p-muted)">در حال حاضر قالبِ صنفی برای ارائه موجود نیست.</p>
+      <div class="industry-card" data-id="{{ template.pk }}" data-name="{{ template.name }}"
+           data-sector="{{ template.sector }}" data-sector-label="{{ template.get_sector_display }}"
+           onclick="industrySelectCard(this, 'id_industry_template_id')">
+        <div class="ic-emoji">{{ template.icon|default:"🏷️" }}</div>
+        <div class="ic-name">{{ template.name }}</div>
+        <div class="ic-sector">{{ template.get_sector_display }}</div>
+      </div>
       {% endfor %}
     </div>
-    <button type="submit" class="p-btn p-btn-primary" style="width:100%;margin-top:12px">نصبِ قالبِ انتخاب‌شده</button>
+    {% include "catalog/partials/industry_empty_state.html" %}
+    {% else %}
+    <p style="font-size:13px;color:var(--p-muted)">در حال حاضر قالبِ صنفی برای ارائه موجود نیست.</p>
+    {% endif %}
+    <button type="submit" id="industryContinueBtn" class="p-btn p-btn-primary" style="width:100%;margin-top:12px" disabled>نصبِ قالبِ انتخاب‌شده</button>
   </form>
   <form method="post" style="margin-top:8px">
     {% csrf_token %}

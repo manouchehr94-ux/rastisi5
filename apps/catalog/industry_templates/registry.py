@@ -7,6 +7,7 @@
 + اضافه‌کردن آن به ``_TEMPLATE_MODULES`` زیر."""
 
 from apps.catalog.industry_templates import (
+    approved_catalog,
     auto_hardware,
     beauty_health,
     family,
@@ -25,7 +26,20 @@ _TEMPLATE_MODULES = [
     lifestyle,
 ]
 
+#: صنف‌هایِ منسوخ‌شده‌یِ فاز پیشین که یک‌به‌یک با یکی از ۱۰۰ صنفِ تأییدشده
+#: مطابقت نداشتند (نگاه کنید به بخشِ ۱ پرامپت این فاز) — دیگر برایِ نصبِ
+#: جدید پیشنهاد نمی‌شوند، اما رکوردشان (و هر نصبِ موجود) حذف نمی‌شود.
+DEPRECATED_LEGACY_SLUGS = [
+    "clothing-fashion",
+    "food-grocery",
+    "haircare",
+    "toys-children",
+    "baby-products",
+    "pet-supplies",
+]
+
 ALL_INDUSTRY_TEMPLATES = [
     *FOUNDING_TEMPLATES,
     *[entry for module in _TEMPLATE_MODULES for entry in module.INDUSTRY_TEMPLATES],
+    *approved_catalog.APPROVED_CATALOG_TEMPLATES,
 ]
