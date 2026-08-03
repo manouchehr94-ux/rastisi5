@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}{{ SHOP_NAME }} | {{ SHOP_TAGLINE }}{% endblock %}</title>
 {% block meta_description %}{% endblock %}
-{# SEO: canonical/robots/OG on the tenant's own Host (ADR-90). Private pages
-   override robots_meta with noindex; product/category pages override canonical. #}
+{% comment %}SEO: canonical/robots/OG on the tenant's own Host (ADR-90). Private pages
+   override robots_meta with noindex; product/category pages override canonical.{% endcomment %}
 {% block robots_meta %}{% endblock %}
 <link rel="canonical" href="{% block canonical %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}">
 {% block og_tags %}<meta property="og:site_name" content="{{ SHOP_NAME }}">
