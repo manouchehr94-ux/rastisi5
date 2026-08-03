@@ -57,7 +57,7 @@ class ConsumeTicketTests(TestCase):
         ticket = handoff_service.issue_ticket(user=self.owner, store=self.store)
         result = handoff_service.consume_ticket(ticket.token, store=self.store)
         self.assertIsNotNone(result)
-        user, destination = result
+        user, destination, _issued_by = result
         self.assertEqual(user, self.owner)
         self.assertEqual(destination, "/admin-portal/")
 

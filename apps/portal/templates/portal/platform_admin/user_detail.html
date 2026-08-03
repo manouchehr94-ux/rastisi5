@@ -1,0 +1,68 @@
+{% extends "portal/platform_admin/base.html" %}
+{% block title %}{{ profile_user.owner_profile.full_name|default:profile_user.email }} | پنل مدیریت پلتفرم{% endblock %}
+{% block content %}
+<p><a href="{% url 'portal_platform_admin:users' %}" class="pa-help">← بازگشت به فهرستِ کاربران</a></p>
+<div x-data="{modal:null}">
+<div class="pa-card"><div class="pa-cardbody pa-detail-header">
+  <div class="pa-store-logo">👤</div>
+  <div>
+    <h2 style="margin:0">{{ profile_user.owner_profile.full_name|default:profile_user.email }}</h2>
+    <p class="pa-help" style="direction:ltr;text-align:right">{{ profile_user.email }} · {{ profile_user.owner_profile.phone|default:"—" }}</p>
+    {% if profile_user.is_active %}<span class="pa-badge pa-ok">فعال</span>{% else %}<span class="pa-badge pa-off">غیرفعال</span>{% endif %}
+  </div>
+  <div class="pa-actions" style="display:flex;gap:8px">
+    {% if profile_user.is_active %}
+    <button class="pa-btn pa-danger" type="button" @click="modal='suspend'">تعلیقِ حساب</button>
+    {% else %}
+    <form method="post" action="{% url 'portal_platform_admin:user-activate' profile_user.pk %}">
+      {% csrf_token %}<button class="pa-btn pa-soft" type="submit">فعال‌سازیِ حساب</button>
+    </form>
+    {% endif %}
+  </div>
+</div></div>
+
+<div class="pa-modal" x-show="modal==='suspend'" x-cloak @click.self="modal=null">
+  <div class="pa-modalbox">
+    <div class="pa-modalhead"><h3>تعلیقِ حسابِ کاربر</h3><button class="pa-x" type="button" @click="modal=null">✕</button></div>
+    <form method="post" action="{% url 'portal_platform_admin:user-suspend' profile_user.pk %}">
+      {% csrf_token %}
+      <div class="pa-modalbody"><div class="pa-field"><label>دلیلِ تعلیق</label><textarea class="pa-input" name="reason" required rows="3"></textarea></div></div>
+      <div class="pa-modalfoot"><button class="pa-btn" type="button" @click="modal=null">انصراف</button><button class="pa-btn pa-danger" type="submit">تعلیق</button></div>
+    </form>
+  </div>
+</div>
+</div>
+
+<div class="pa-card">
+  <div class="pa-cardhead"><h3>فروشگاه‌ها</h3></div>
+  <div class="pa-tablewrap">
+    <table>
+      <thead><tr><th>فروشگاه</th><th>نقش</th><th>وضعیت</th><th></th></tr></thead>
+      <tbody>
+        {% for m in memberships %}
+        <tr>
+          <td>{{ m.store.name }}</td><td>{{ m.get_role_display }}</td><td>{{ m.get_status_display }}</td>
+          <td><a class="pa-btn pa-small pa-soft" href="{% url 'portal_platform_admin:store-detail' m.store.public_id %}">مشاهده</a></td>
+        </tr>
+        {% empty %}<tr><td colspan="4" class="pa-help">این کاربر عضوِ هیچ فروشگاهی نیست.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="pa-card">
+  <div class="pa-cardhead"><h3>یادداشت‌ها</h3></div>
+  <div class="pa-cardbody">
+    <form method="post" action="{% url 'portal_platform_admin:user-add-note' profile_user.pk %}">
+      {% csrf_token %}
+      <div class="pa-field"><textarea class="pa-input" name="body" rows="2" placeholder="یادداشتِ داخلی..."></textarea></div>
+      <button class="pa-btn pa-primary" style="margin-top:8px" type="submit">ثبتِ یادداشت</button>
+    </form>
+  </div>
+</div>
+{% for note in notes %}
+<div class="pa-card"><div class="pa-cardbody">
+  <p>{{ note.body }}</p><p class="pa-help">{{ note.author.get_username|default:"—" }} · {{ note.created_at|date:"Y/m/d H:i" }}</p>
+</div></div>
+{% endfor %}
+{% endblock %}

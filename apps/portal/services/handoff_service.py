@@ -61,6 +61,31 @@ def decode_admin_return_token(token: str):
     return admin_subdomain, destination_path
 
 
+def issue_support_ticket(*, actor, store: Store, destination_path: str = "/admin-portal/") -> AdminHandoffTicket:
+    """بلیتِ «ورودِ پشتیبانی» — برخلافِ ``issue_ticket``، ``actor`` (مدیرِ
+    پلتفرم) نیازی به عضویت در این Store ندارد؛ به‌جایش بلیت برایِ همان
+    مالکِ فعالِ Store صادر می‌شود تا مصرف‌کننده (``consume_ticket`` →
+    ``apps.dashboard.views.consume_admin_handoff``) بدونِ هیچ تغییری در
+    منطقِ ورود/دسترسیِ موجود کار کند — فقط ``issued_by_platform_admin``
+    این بلیت را از یک handoff معمولیِ مالک متمایز می‌کند، و صفحه‌ی مصرف‌کننده
+    از رویِ همین فیلد نشانه‌ی «حالتِ پشتیبانی» را در سشن می‌گذارد."""
+    from apps.stores.models import StoreMembership
+
+    owner_membership = (
+        store.memberships.filter(
+            role=StoreMembership.Role.OWNER, status=StoreMembership.MembershipStatus.ACTIVE,
+        ).select_related("user").first()
+    )
+    if owner_membership is None:
+        raise HandoffError("این فروشگاه مالکِ فعالی ندارد؛ ورودِ پشتیبانی ممکن نیست.")
+
+    return AdminHandoffTicket.objects.create(
+        user=owner_membership.user, store=store, destination_path=destination_path,
+        expires_at=timezone.now() + timedelta(seconds=TICKET_TTL_SECONDS),
+        issued_by_platform_admin=actor,
+    )
+
+
 def issue_ticket(*, user, store: Store, destination_path: str = "/admin-portal/") -> AdminHandoffTicket:
     """ظپظ‚ط· ط¨ط±ط§غŒ (user, store)ط§غŒ ع©ظ‡ ط¹ط¶ظˆغŒطھظگ ظپط¹ط§ظ„ ط¯ط§ط±ط¯ ط¨ظ„غŒطھ طµط§ط¯ط± ظ…غŒâ€Œع©ظ†ط¯ â€”
     ظ‡ط±ع¯ط² ط¨ط±ط§غŒ ظپط±ظˆط´ع¯ط§ظ‡غŒ ع©ظ‡ ع©ط§ط±ط¨ط± ط¹ط¶ظˆط´ ظ†غŒط³طھ."""
@@ -83,7 +108,7 @@ def consume_ticket(token: str, *, store: Store):
     ظ…غŒâ€Œط´ظˆط¯. ط¨ظ„غŒطھظگ ظ†ط§ظ…ط¹طھط¨ط±/ظ…ظ†ظ‚ط¶غŒ/ظ…طµط±ظپâ€Œط´ط¯ظ‡/ظپط±ظˆط´ع¯ط§ظ‡ظگ ظ†ط§ط¯ط±ط³طھ None ط¨ط±ظ…غŒâ€Œع¯ط±ط¯ط§ظ†ط¯."""
     ticket = (
         AdminHandoffTicket.objects.select_for_update()
-        .select_related("user", "store")
+        .select_related("user", "store", "issued_by_platform_admin")
         .filter(token=token, store=store)
         .first()
     )
@@ -92,5 +117,5 @@ def consume_ticket(token: str, *, store: Store):
 
     ticket.consumed_at = timezone.now()
     ticket.save(update_fields=["consumed_at", "updated_at"])
-    return ticket.user, ticket.destination_path
+    return ticket.user, ticket.destination_path, ticket.issued_by_platform_admin
 

@@ -1,89 +1,251 @@
 {% extends "portal/platform_admin/base.html" %}
 {% block title %}{{ store.name }} | پنل مدیریت پلتفرم{% endblock %}
 {% block content %}
-<p><a href="{% url 'portal_platform_admin:stores' %}" style="color:#93a89c;font-size:13px">← بازگشت به فهرستِ فروشگاه‌ها</a></p>
-<h2 style="margin:10px 0">{{ store.name }}</h2>
-<p style="color:#93a89c;font-size:13px;direction:ltr;text-align:left">{{ store.slug }} · {{ store.platform_code }} · {{ store.public_id }}</p>
+<div x-data="{modal:null}">
+<p><a href="{% url 'portal_platform_admin:stores' %}" class="pa-help">← بازگشت به فهرستِ فروشگاه‌ها</a></p>
 
-<div class="p-grid cols-3" style="margin:20px 0">
-  <div class="p-card" style="background:#152019;border-color:#243329">
-    <p style="color:#93a89c;font-size:12px">وضعیتِ فروشگاه</p>
-    <p style="font-size:18px;font-weight:700">{{ store.get_status_display }}</p>
-  </div>
-  <div class="p-card" style="background:#152019;border-color:#243329">
-    <p style="color:#93a89c;font-size:12px">آنبوردینگ</p>
-    <p style="font-size:18px;font-weight:700">{% if store.onboarding_completed_at %}تکمیل‌شده{% else %}{{ store.get_onboarding_stage_display }}{% endif %}</p>
-  </div>
-  <div class="p-card" style="background:#152019;border-color:#243329">
-    <p style="color:#93a89c;font-size:12px">اشتراکِ جاری</p>
-    <p style="font-size:18px;font-weight:700">
-      {% if current_subscription %}{{ current_subscription.plan_version.plan.name }} — {{ current_subscription.get_status_display }}{% else %}ندارد{% endif %}
-    </p>
+<div class="pa-card">
+  <div class="pa-cardbody pa-detail-header">
+    <div class="pa-store-logo">🏪</div>
+    <div>
+      <h2 style="margin:0">{{ store.name }}</h2>
+      <p class="pa-help" style="direction:ltr;text-align:right">{{ store.slug }} · {{ store.platform_code }} · {{ store.public_id }}</p>
+      <div style="margin-top:6px">
+        {% if store.status == "active" %}<span class="pa-badge pa-ok">فعال</span>
+        {% elif store.status == "suspended" %}<span class="pa-badge pa-off">تعلیق‌شده</span>
+        {% else %}<span class="pa-badge pa-warn">{{ store.get_status_display }}</span>{% endif %}
+        {% if store.suspension_reason %}<span class="pa-help">— {{ store.suspension_reason }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="pa-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+      <form method="post" action="{% url 'portal_platform_admin:store-support-login' store.public_id %}">
+        {% csrf_token %}<button class="pa-btn pa-primary" type="submit">ورودِ پشتیبانی</button>
+      </form>
+      {% if store.status == "suspended" %}
+      <form method="post" action="{% url 'portal_platform_admin:store-activate' store.public_id %}">
+        {% csrf_token %}<button class="pa-btn pa-soft" type="submit">فعال‌سازی</button>
+      </form>
+      {% else %}
+      <button class="pa-btn pa-danger" type="button" @click="modal='suspend'">تعلیق</button>
+      {% endif %}
+    </div>
   </div>
 </div>
 
-<h3 style="margin:24px 0 10px">دامنه‌ها</h3>
-<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-  <thead><tr style="text-align:right;color:#93a89c"><th style="padding:8px">میزبان</th><th style="padding:8px">نوع</th><th style="padding:8px">وضعیتِ تأیید</th><th style="padding:8px">اصلی</th><th style="padding:8px">بازنشسته</th></tr></thead>
-  <tbody>
-  {% for domain in domains %}
-    <tr style="border-top:1px solid #1e2b23">
-      <td style="padding:8px;direction:ltr;text-align:left">{{ domain.hostname }}</td>
-      <td style="padding:8px">{{ domain.get_domain_type_display }}</td>
-      <td style="padding:8px">{{ domain.get_verification_status_display }}</td>
-      <td style="padding:8px">{% if domain.is_primary %}بله{% else %}—{% endif %}</td>
-      <td style="padding:8px">{% if domain.retired_at %}{{ domain.retired_at|date:"Y-m-d" }}{% else %}—{% endif %}</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table></div>
+<div class="pa-tabs">
+  <a class="pa-tab {% if tab == 'overview' %}active{% endif %}" href="?tab=overview">نمای‌کلی</a>
+  <a class="pa-tab {% if tab == 'subscription' %}active{% endif %}" href="?tab=subscription">اشتراک</a>
+  <a class="pa-tab {% if tab == 'usage' %}active{% endif %}" href="?tab=usage">مصرف</a>
+  <a class="pa-tab {% if tab == 'domains' %}active{% endif %}" href="?tab=domains">دامنه‌ها</a>
+  <a class="pa-tab {% if tab == 'sms-credit' %}active{% endif %}" href="?tab=sms-credit">اعتبارِ پیامک</a>
+  <a class="pa-tab {% if tab == 'notes' %}active{% endif %}" href="?tab=notes">یادداشت‌ها</a>
+  <a class="pa-tab {% if tab == 'audit' %}active{% endif %}" href="?tab=audit">حسابرسی</a>
+</div>
 
-<h3 style="margin:24px 0 10px">اعضا</h3>
-<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-  <thead><tr style="text-align:right;color:#93a89c"><th style="padding:8px">کاربر</th><th style="padding:8px">نقش</th><th style="padding:8px">وضعیت</th></tr></thead>
-  <tbody>
-  {% for membership in memberships %}
-    <tr style="border-top:1px solid #1e2b23">
-      <td style="padding:8px">{{ membership.user.username }}</td>
-      <td style="padding:8px">{{ membership.get_role_display }}</td>
-      <td style="padding:8px">{{ membership.get_status_display }}</td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table></div>
+{% if tab == "overview" %}
+<div class="pa-grid3">
+  <div class="pa-kpi pa-purple"><span>مالکِ فعال</span><b style="font-size:15px">{{ owner_membership.user.owner_profile.full_name|default:owner_membership.user.email|default:"—" }}</b></div>
+  <div class="pa-kpi pa-blue"><span>صنف</span><b style="font-size:15px">{{ industry_installation.industry_template.name|default:"نصب‌نشده" }}</b></div>
+  <div class="pa-kpi pa-green"><span>محصولاتِ فعال / سفارش‌ها</span><b>{{ product_count }} / {{ order_count }}</b></div>
+</div>
+<div class="pa-card">
+  <div class="pa-cardhead"><h3>یادداشتِ سریع</h3></div>
+  <div class="pa-cardbody">
+    <form method="post" action="{% url 'portal_platform_admin:store-add-note' store.public_id %}">
+      {% csrf_token %}
+      <div class="pa-field"><textarea class="pa-input" name="body" rows="2" placeholder="یادداشتِ داخلی درباره‌ی این فروشگاه..."></textarea></div>
+      <button class="pa-btn pa-primary" style="margin-top:8px" type="submit">ثبتِ یادداشت</button>
+    </form>
+  </div>
+</div>
 
-<h3 style="margin:24px 0 10px">فاکتورهای اشتراک</h3>
-<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-  <thead><tr style="text-align:right;color:#93a89c"><th style="padding:8px">شناسه</th><th style="padding:8px">پلن</th><th style="padding:8px">مبلغ</th><th style="padding:8px">وضعیت</th><th style="padding:8px">تاریخ</th></tr></thead>
-  <tbody>
-  {% for invoice in invoices %}
-    <tr style="border-top:1px solid #1e2b23">
-      <td style="padding:8px;direction:ltr;text-align:left">{{ invoice.number }}</td>
-      <td style="padding:8px">{{ invoice.plan_version.plan.name }}</td>
-      <td style="padding:8px">{{ invoice.grand_total }}</td>
-      <td style="padding:8px">{{ invoice.get_status_display }}</td>
-      <td style="padding:8px">{{ invoice.created_at|date:"Y-m-d" }}</td>
-    </tr>
-  {% empty %}
-    <tr><td colspan="5" style="padding:16px;text-align:center;color:#93a89c">فاکتوری ثبت نشده.</td></tr>
-  {% endfor %}
-  </tbody>
-</table></div>
+{% elif tab == "subscription" %}
+<div class="pa-card">
+  <div class="pa-cardhead">
+    <h3>اشتراکِ جاری</h3>
+    <div style="display:flex;gap:8px">
+      <button class="pa-btn pa-small" type="button" @click="modal='extend-trial'">تمدیدِ آزمایشی</button>
+      <button class="pa-btn pa-small" type="button" @click="modal='change-plan'">تغییرِ پلن</button>
+      <button class="pa-btn pa-small" type="button" @click="modal='extend-sub'">تمدیدِ اشتراک</button>
+    </div>
+  </div>
+  <div class="pa-cardbody">
+    {% if current_subscription %}
+    <p><b>{{ current_subscription.plan_version.plan.name }}</b> — <span class="pa-badge pa-info">{{ current_subscription.get_status_display }}</span></p>
+    <p class="pa-help">دوره‌ی جاری: {{ current_subscription.current_period_start|date:"Y/m/d"|default:"—" }} تا {{ current_subscription.current_period_end|date:"Y/m/d"|default:"—" }}{% if current_subscription.trial_end_at %} · پایانِ آزمایشی: {{ current_subscription.trial_end_at|date:"Y/m/d" }}{% endif %}</p>
+    {% else %}
+    <p class="pa-help">این فروشگاه اشتراکِ جاری ندارد.</p>
+    {% endif %}
+  </div>
+</div>
+<div class="pa-card">
+  <div class="pa-cardhead"><h3>تاریخچه‌ی اشتراک</h3></div>
+  <div class="pa-tablewrap">
+    <table>
+      <thead><tr><th>پلن</th><th>وضعیت</th><th>ایجاد</th></tr></thead>
+      <tbody>
+        {% for sub in subscription_history %}
+        <tr><td>{{ sub.plan_version.plan.name }}</td><td>{{ sub.get_status_display }}</td><td>{{ sub.created_at|date:"Y/m/d" }}</td></tr>
+        {% empty %}<tr><td colspan="3" class="pa-help">تاریخچه‌ای ثبت نشده.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="pa-card">
+  <div class="pa-cardhead"><h3>فاکتورها</h3></div>
+  <div class="pa-tablewrap">
+    <table>
+      <thead><tr><th>شماره</th><th>پلن</th><th>مبلغ</th><th>وضعیت</th><th>تاریخ</th></tr></thead>
+      <tbody>
+        {% for invoice in invoices %}
+        <tr>
+          <td><a href="{% url 'portal_platform_admin:payment-invoice-detail' invoice.pk %}">{{ invoice.number }}</a></td>
+          <td>{{ invoice.plan_version.plan.name }}</td><td>{{ invoice.grand_total }}</td>
+          <td>{{ invoice.get_status_display }}</td><td>{{ invoice.created_at|date:"Y/m/d" }}</td>
+        </tr>
+        {% empty %}<tr><td colspan="5" class="pa-help">فاکتوری ثبت نشده.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 
-<h3 style="margin:24px 0 10px">آخرین رخدادهای حسابرسیِ این فروشگاه</h3>
-<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-  <thead><tr style="text-align:right;color:#93a89c"><th style="padding:8px">کد عملیات</th><th style="padding:8px">انجام‌دهنده</th><th style="padding:8px">نتیجه</th><th style="padding:8px">تاریخ</th></tr></thead>
-  <tbody>
-  {% for entry in audit_entries %}
-    <tr style="border-top:1px solid #1e2b23">
-      <td style="padding:8px">{{ entry.action_code }}</td>
-      <td style="padding:8px">{{ entry.actor.username|default:"—" }}</td>
-      <td style="padding:8px">{{ entry.get_result_display }}</td>
-      <td style="padding:8px">{{ entry.created_at|date:"Y-m-d H:i" }}</td>
-    </tr>
-  {% empty %}
-    <tr><td colspan="4" style="padding:16px;text-align:center;color:#93a89c">رخدادی ثبت نشده.</td></tr>
-  {% endfor %}
-  </tbody>
-</table></div>
+{% elif tab == "usage" %}
+<div class="pa-grid3">
+  <div class="pa-kpi pa-green"><span>محصولاتِ فعال</span><b>{{ product_count }}</b></div>
+  <div class="pa-kpi pa-blue"><span>سفارش‌ها</span><b>{{ order_count }}</b></div>
+  <div class="pa-kpi pa-purple"><span>اعضایِ تیم</span><b>{{ memberships|length }}</b></div>
+</div>
+<div class="pa-card">
+  <div class="pa-cardhead"><h3>اعضا</h3></div>
+  <div class="pa-tablewrap">
+    <table>
+      <thead><tr><th>کاربر</th><th>نقش</th><th>وضعیت</th></tr></thead>
+      <tbody>
+        {% for membership in memberships %}
+        <tr><td>{{ membership.user.owner_profile.full_name|default:membership.user.email }}</td><td>{{ membership.get_role_display }}</td><td>{{ membership.get_status_display }}</td></tr>
+        {% empty %}<tr><td colspan="3" class="pa-help">عضوی ثبت نشده.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% elif tab == "domains" %}
+<div class="pa-card">
+  <div class="pa-cardhead"><h3>دامنه‌ها</h3><a class="pa-btn pa-small" href="{% url 'portal_platform_admin:domains' %}?q={{ store.name }}">مدیریتِ کاملِ دامنه‌ها</a></div>
+  <div class="pa-tablewrap">
+    <table>
+      <thead><tr><th>میزبان</th><th>نوع</th><th>وضعیتِ تأیید</th><th>اصلی</th><th>بازنشسته</th></tr></thead>
+      <tbody>
+        {% for domain in domains %}
+        <tr>
+          <td style="direction:ltr;text-align:left">{{ domain.hostname }}</td>
+          <td>{{ domain.get_domain_type_display }}</td>
+          <td>{% if domain.verification_status == "verified" %}<span class="pa-badge pa-ok">تأییدشده</span>{% elif domain.verification_status == "failed" %}<span class="pa-badge pa-off">ناموفق</span>{% else %}<span class="pa-badge pa-warn">{{ domain.get_verification_status_display }}</span>{% endif %}</td>
+          <td>{% if domain.is_primary %}بله{% else %}—{% endif %}</td>
+          <td>{% if domain.retired_at %}{{ domain.retired_at|date:"Y/m/d" }}{% else %}—{% endif %}</td>
+        </tr>
+        {% empty %}<tr><td colspan="5" class="pa-help">دامنه‌ای ثبت نشده.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% elif tab == "sms-credit" %}
+<div class="pa-grid3">
+  <div class="pa-kpi pa-purple"><span>اعتبارِ باقی‌مانده</span><b>{{ sms_balance.credits }}</b></div>
+</div>
+<div class="pa-card">
+  <div class="pa-cardhead"><h3>اصلاحِ اعتبار</h3><a class="pa-btn pa-small" href="{% url 'portal_platform_admin:sms-credits' %}?q={{ store.name }}">مدیریتِ کاملِ اعتبارِ پیامک</a></div>
+</div>
+
+{% elif tab == "notes" %}
+<div class="pa-card">
+  <div class="pa-cardbody">
+    <form method="post" action="{% url 'portal_platform_admin:store-add-note' store.public_id %}">
+      {% csrf_token %}
+      <div class="pa-field"><textarea class="pa-input" name="body" rows="2" placeholder="یادداشتِ داخلی..."></textarea></div>
+      <button class="pa-btn pa-primary" style="margin-top:8px" type="submit">ثبتِ یادداشت</button>
+    </form>
+  </div>
+</div>
+{% for note in notes %}
+<div class="pa-card"><div class="pa-cardbody">
+  <p>{{ note.body }}</p>
+  <p class="pa-help">{{ note.author.get_username|default:"—" }} · {{ note.created_at|date:"Y/m/d H:i" }}</p>
+</div></div>
+{% empty %}
+<div class="pa-empty"><p>یادداشتی ثبت نشده.</p></div>
+{% endfor %}
+
+{% elif tab == "audit" %}
+<div class="pa-card">
+  <div class="pa-tablewrap">
+    <table>
+      <thead><tr><th>کدِ عملیات</th><th>انجام‌دهنده</th><th>نتیجه</th><th>تاریخ</th></tr></thead>
+      <tbody>
+        {% for entry in audit_entries %}
+        <tr>
+          <td>{{ entry.action_code }}</td>
+          <td>{{ entry.actor.get_username|default:"—" }}</td>
+          <td>{% if entry.result == "success" %}<span class="pa-badge pa-ok">موفق</span>{% else %}<span class="pa-badge pa-off">{{ entry.get_result_display }}</span>{% endif %}</td>
+          <td>{{ entry.created_at|date:"Y/m/d H:i" }}</td>
+        </tr>
+        {% empty %}<tr><td colspan="4" class="pa-help">رخدادی ثبت نشده.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- مودال‌ها -->
+<div class="pa-modal" x-show="modal==='suspend'" x-cloak @click.self="modal=null">
+  <div class="pa-modalbox">
+    <div class="pa-modalhead"><h3>تعلیقِ فروشگاه</h3><button class="pa-x" type="button" @click="modal=null">✕</button></div>
+    <form method="post" action="{% url 'portal_platform_admin:store-suspend' store.public_id %}">
+      {% csrf_token %}
+      <div class="pa-modalbody">
+        <div class="pa-field"><label>دلیلِ تعلیق</label><textarea class="pa-input" name="reason" required rows="3"></textarea></div>
+        <div class="pa-field" style="margin-top:10px"><label>یادداشتِ داخلی (اختیاری)</label><textarea class="pa-input" name="note" rows="2"></textarea></div>
+      </div>
+      <div class="pa-modalfoot"><button class="pa-btn" type="button" @click="modal=null">انصراف</button><button class="pa-btn pa-danger" type="submit">تعلیق</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="pa-modal" x-show="modal==='extend-trial'" x-cloak @click.self="modal=null">
+  <div class="pa-modalbox">
+    <div class="pa-modalhead"><h3>تمدیدِ دوره‌ی آزمایشی</h3><button class="pa-x" type="button" @click="modal=null">✕</button></div>
+    <form method="post" action="{% url 'portal_platform_admin:store-extend-trial' store.public_id %}">
+      {% csrf_token %}
+      <div class="pa-modalbody"><div class="pa-field"><label>تعدادِ روز</label><input class="pa-input" type="number" name="days" min="1" value="7" required></div></div>
+      <div class="pa-modalfoot"><button class="pa-btn" type="button" @click="modal=null">انصراف</button><button class="pa-btn pa-primary" type="submit">تمدید</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="pa-modal" x-show="modal==='change-plan'" x-cloak @click.self="modal=null">
+  <div class="pa-modalbox">
+    <div class="pa-modalhead"><h3>تغییرِ پلن</h3><button class="pa-x" type="button" @click="modal=null">✕</button></div>
+    <form method="post" action="{% url 'portal_platform_admin:store-change-plan' store.public_id %}">
+      {% csrf_token %}
+      <div class="pa-modalbody">
+        <div class="pa-field"><label>نسخه‌ی پلنِ هدف (شناسه)</label><input class="pa-input" type="number" name="plan_version_id" required></div>
+        <div class="pa-field" style="margin-top:10px"><label>دلیل</label><input class="pa-input" type="text" name="reason"></div>
+      </div>
+      <div class="pa-modalfoot"><button class="pa-btn" type="button" @click="modal=null">انصراف</button><button class="pa-btn pa-primary" type="submit">تغییرِ پلن</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="pa-modal" x-show="modal==='extend-sub'" x-cloak @click.self="modal=null">
+  <div class="pa-modalbox">
+    <div class="pa-modalhead"><h3>تمدیدِ اشتراک</h3><button class="pa-x" type="button" @click="modal=null">✕</button></div>
+    <form method="post" action="{% url 'portal_platform_admin:store-extend-subscription' store.public_id %}">
+      {% csrf_token %}
+      <div class="pa-modalbody"><div class="pa-field"><label>تعدادِ روز</label><input class="pa-input" type="number" name="days" min="1" value="30" required></div></div>
+      <div class="pa-modalfoot"><button class="pa-btn" type="button" @click="modal=null">انصراف</button><button class="pa-btn pa-primary" type="submit">تمدید</button></div>
+    </form>
+  </div>
+</div>
+</div>
 {% endblock %}

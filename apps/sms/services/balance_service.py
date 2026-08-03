@@ -6,7 +6,7 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
-from ..models import SmsBalance, SmsPackage, SmsPackagePurchase
+from ..models import SmsBalance, SmsCreditAdjustment, SmsPackage, SmsPackagePurchase
 
 
 def get_or_create_balance(*, store) -> SmsBalance:
@@ -23,6 +23,36 @@ def deduct_credit(*, store) -> None:
     شارژِ خودکار/هشدارِ زودهنگام فعال شود)."""
     get_or_create_balance(store=store)
     SmsBalance.objects.filter(store=store).update(credits=F("credits") - 1)
+
+
+class InvalidAdjustmentError(Exception):
+    """اصلاحِ درخواست‌شده معتبر نیست (مثلاً بدونِ دلیل یا تغییرِ صفر)."""
+
+
+@transaction.atomic
+def adjust_credit(*, store, delta: int, reason: str, note: str = "", actor=None) -> SmsCreditAdjustment:
+    """اعتبارِ Store را به‌صورتِ دستی تغییر می‌دهد و یک ردیفِ دفترِ اصلاح
+    (``SmsCreditAdjustment``) با مقدارِ قبل/تغییر/بعد ثبت می‌کند — تنها راهِ
+    مجازِ Platform Admin برایِ تغییرِ اعتبار، هرگز نوشتنِ مستقیمِ فیلد."""
+    if delta == 0:
+        raise InvalidAdjustmentError("مقدارِ تغییر نمی‌تواند صفر باشد.")
+    if not reason.strip():
+        raise InvalidAdjustmentError("دلیلِ اصلاح الزامی است.")
+
+    balance = SmsBalance.objects.select_for_update().filter(store=store).first()
+    if balance is None:
+        balance = get_or_create_balance(store=store)
+        balance = SmsBalance.objects.select_for_update().get(pk=balance.pk)
+
+    before = balance.credits
+    after = before + delta
+    balance.credits = after
+    balance.save(update_fields=["credits", "updated_at"])
+
+    return SmsCreditAdjustment.objects.create(
+        store=store, actor=actor, delta=delta, balance_before=before, balance_after=after,
+        reason=reason.strip(), note=note.strip(),
+    )
 
 
 def list_active_packages():

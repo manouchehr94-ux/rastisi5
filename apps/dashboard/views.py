@@ -2,7 +2,7 @@ import json
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
-from django.contrib.auth import authenticate, login as auth_login
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
@@ -426,11 +426,46 @@ def consume_admin_handoff(request, token):
     if result is None:
         raise Http404
 
-    user, destination_path = result
+    user, destination_path, issued_by_platform_admin = result
     auth_login(request, user)
+    if issued_by_platform_admin is not None:
+        from apps.core.services.audit_service import record_audit_event
+
+        request.session["platform_support_mode"] = {
+            "store_name": store.name,
+            "admin_email": issued_by_platform_admin.get_username(),
+        }
+        record_audit_event(
+            store=store, actor=issued_by_platform_admin, action_code="platform_admin.support_login_entered",
+            object_type="Store", object_id=store.pk, object_label=store.name,
+            metadata={"logged_in_as": user.get_username()},
+        )
     if not destination_path.startswith("/admin-portal/"):
         destination_path = "/admin-portal/"
     return redirect(destination_path)
+
+
+@admin_host_required
+@require_POST
+def exit_support_mode(request):
+    """دکمه‌ی خروجِ روشنِ حالتِ پشتیبانی (بخشِ ۷) — فقط پرچمِ سشن را پاک و
+    از پنل خارج می‌کند (بدونِ حذفِ خودِ نشستِ کاربرِ مالک؛ ورودِ پشتیبانی
+    session-takeover دائمی نیست، پس خروج هم باید ساده و بدونِ اثرِ جانبی
+    رویِ حساب باشد)."""
+    from apps.stores.resolution import resolve_store_for_admin_request
+
+    store = resolve_store_for_admin_request(request)
+    support = request.session.pop("platform_support_mode", None)
+    if support and store is not None:
+        from apps.core.services.audit_service import record_audit_event
+
+        record_audit_event(
+            store=store, actor=request.user if request.user.is_authenticated else None,
+            action_code="platform_admin.support_login_exited",
+            object_type="Store", object_id=store.pk, object_label=store.name,
+        )
+    auth_logout(request)
+    return redirect("dashboard:login")
 
 
 @staff_required

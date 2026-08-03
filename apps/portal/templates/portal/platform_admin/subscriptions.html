@@ -1,0 +1,57 @@
+{% extends "portal/platform_admin/base.html" %}
+{% block title %}اشتراک فروشگاه‌ها | پنل مدیریت پلتفرم{% endblock %}
+{% block content %}
+<div class="pa-pagehead"><div><h1>اشتراک فروشگاه‌ها</h1><p>اشتراکِ جاریِ هر فروشگاه — تمدید/تغییرِ پلن از صفحه‌ی فروشگاه انجام می‌شود.</p></div></div>
+
+<form method="get" class="pa-card"><div class="pa-cardbody">
+  <div class="pa-toolbar">
+    <div style="flex:1"><input class="pa-input" type="search" name="q" placeholder="نامِ فروشگاه..." value="{{ query }}"></div>
+    <select class="pa-input" name="status" style="max-width:180px">
+      <option value="">همه‌ی وضعیت‌ها</option>
+      {% for value, label in status_choices %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select class="pa-input" name="plan" style="max-width:160px">
+      <option value="">همه‌ی پلن‌ها</option>
+      {% for plan in plans %}<option value="{{ plan.pk }}" {% if plan_id == plan.pk|stringformat:"s" %}selected{% endif %}>{{ plan.name }}</option>{% endfor %}
+    </select>
+    <button class="pa-btn pa-primary" type="submit">فیلتر</button>
+  </div>
+</div></form>
+
+<div class="pa-card">
+  {% if page.object_list %}
+  <div class="pa-tablewrap">
+    <table>
+      <thead><tr><th>فروشگاه</th><th>پلن</th><th>وضعیت</th><th>دوره‌ی جاری</th><th>پایانِ تریال</th><th></th></tr></thead>
+      <tbody>
+        {% for sub in page.object_list %}
+        <tr>
+          <td>{{ sub.store.name }}</td>
+          <td>{{ sub.plan_version.plan.name }}</td>
+          <td>
+            {% if sub.status == "active" %}<span class="pa-badge pa-ok">فعال</span>
+            {% elif sub.status == "trialing" %}<span class="pa-badge pa-info">آزمایشی</span>
+            {% elif sub.status == "suspended" or sub.status == "cancelled" or sub.status == "expired" %}<span class="pa-badge pa-off">{{ sub.get_status_display }}</span>
+            {% else %}<span class="pa-badge pa-warn">{{ sub.get_status_display }}</span>{% endif %}
+          </td>
+          <td>{{ sub.current_period_end|date:"Y/m/d"|default:"—" }}</td>
+          <td>{{ sub.trial_end_at|date:"Y/m/d"|default:"—" }}</td>
+          <td style="display:flex;gap:6px">
+            <a class="pa-btn pa-small pa-soft" href="{% url 'portal_platform_admin:store-detail' sub.store.public_id %}?tab=subscription">مدیریت</a>
+            {% if sub.status == "active" %}
+            <form method="post" action="{% url 'portal_platform_admin:subscription-suspend' sub.pk %}">{% csrf_token %}<button class="pa-btn pa-small pa-danger" type="submit">تعلیق</button></form>
+            {% elif sub.status == "suspended" %}
+            <form method="post" action="{% url 'portal_platform_admin:subscription-resume' sub.pk %}">{% csrf_token %}<button class="pa-btn pa-small" type="submit">ازسرگیری</button></form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "portal/platform_admin/_pagination.html" %}
+  {% else %}
+  <div class="pa-empty"><div class="pa-empty-icon">📄</div><p>اشتراکی یافت نشد.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

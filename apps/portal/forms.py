@@ -76,12 +76,40 @@ class CreateStoreForm(forms.Form):
 
 
 class PlatformConfigurationForm(forms.ModelForm):
-    # اعتبارنامه‌های پیامک فیلدهایِ مدل نیستند (داخلِ
-    # ``encrypted_sms_credentials`` رمزنگاری‌شده ذخیره می‌شوند) — اینجا
-    # صراحتاً به‌صورتِ فیلدِ اضافیِ فرم اعلام شده‌اند، write-only مثلِ
-    # ``dashboard.forms.SmsConnectionForm`` (هرگز مقدارِ ذخیره‌شده echo
-    # نمی‌شود؛ خالی‌ماندن یعنی «بدونِ تغییر»، نه «پاک‌کردن» — نگاه کنید به
-    # ``platform_admin_views.configuration``).
+    """تنظیماتِ عمومیِ پلتفرم (Platform Owner Admin » تنظیماتِ پلتفرم) — هویت،
+    پیش‌فرض‌هایِ تجاری، و عملیات. پیکربندیِ درگاهِ پیامکِ مرکزی از این فرم جدا
+    است (نگاه کنید به ``PlatformSmsConfigForm``/صفحه‌ی «پیامک › تنظیماتِ
+    درگاه») تا این دو دغدغه‌ی متفاوت (هویتِ برند در برابرِ اعتبارنامه‌ی
+    زیرساخت) در یک فرم قاطی نشوند."""
+
+    class Meta:
+        from .models import PlatformConfiguration
+
+        model = PlatformConfiguration
+        fields = [
+            "default_trial_days", "deletion_retention_days",
+            "primary_brand_color", "secondary_brand_color",
+            "temporary_logo_text", "logo",
+            "support_contact_phone", "support_contact_email",
+            "default_payment_provider",
+            "maintenance_mode_enabled", "new_store_registration_enabled",
+        ]
+
+    def clean_deletion_retention_days(self):
+        days = self.cleaned_data["deletion_retention_days"]
+        if not (180 <= days <= 365):
+            raise forms.ValidationError("روزهای نگهداری باید بین ۱۸۰ تا ۳۶۵ باشد.")
+        return days
+
+
+class PlatformSmsConfigForm(forms.ModelForm):
+    """درگاهِ پیامکِ مرکزیِ پلتفرم — صفحه‌ی جداگانه‌ی «پیامک › تنظیماتِ درگاه»
+    (Platform Owner Admin بخشِ ۱۲)؛ اعتبارنامه‌ها فیلدهایِ مدل نیستند (داخلِ
+    ``encrypted_sms_credentials`` رمزنگاری‌شده ذخیره می‌شوند) — اینجا صراحتاً
+    به‌صورتِ فیلدِ اضافیِ فرم اعلام شده‌اند، write-only مثلِ
+    ``dashboard.forms.SmsConnectionForm`` (هرگز مقدارِ ذخیره‌شده echo
+    نمی‌شود؛ خالی‌ماندن یعنی «بدونِ تغییر»، نه «پاک‌کردن»)."""
+
     sms_melipayamak_username = forms.CharField(
         label="نام کاربری ملی‌پیامک", max_length=100, required=False,
     )
@@ -98,20 +126,7 @@ class PlatformConfigurationForm(forms.ModelForm):
         from .models import PlatformConfiguration
 
         model = PlatformConfiguration
-        fields = [
-            "default_trial_days", "deletion_retention_days",
-            "primary_brand_color", "secondary_brand_color",
-            "temporary_logo_text", "logo",
-            "support_contact_phone", "support_contact_email",
-            "default_payment_provider",
-            "sms_backend", "sms_sender_number",
-        ]
-
-    def clean_deletion_retention_days(self):
-        days = self.cleaned_data["deletion_retention_days"]
-        if not (180 <= days <= 365):
-            raise forms.ValidationError("روزهای نگهداری باید بین ۱۸۰ تا ۳۶۵ باشد.")
-        return days
+        fields = ["sms_backend", "sms_sender_number"]
 
 
 class OnboardingIdentityForm(forms.Form):

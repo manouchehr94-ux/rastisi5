@@ -1,43 +1,84 @@
 {% extends "portal/platform_admin/base.html" %}
 {% block title %}فروشگاه‌ها | پنل مدیریت پلتفرم{% endblock %}
 {% block content %}
-<h2 style="margin-bottom:20px">فروشگاه‌ها</h2>
-<form method="get" style="margin-bottom:20px;display:flex;gap:8px">
-  <input type="text" name="q" value="{{ query }}" placeholder="نام، اسلاگ، کدِ پلتفرم یا زیردامنه‌ی مدیریت"
-         style="flex:1;padding:10px 14px;border:1px solid #2a3a30;border-radius:10px;background:#0f1712;color:#e7f3ee">
-  <button type="submit" class="p-btn p-btn-primary">جست‌وجو</button>
+<div class="pa-pagehead">
+  <div>
+    <h1>فروشگاه‌ها</h1>
+    <p>مدیریتِ همه‌ی فروشگاه‌هایِ پلتفرم — فعال‌سازی، تعلیق، ورودِ پشتیبانی و بررسیِ جزئیات.</p>
+  </div>
+</div>
+
+<form method="get" class="pa-card">
+  <div class="pa-cardbody">
+    <div class="pa-toolbar">
+      <div style="flex:2;min-width:220px"><input class="pa-input" type="search" name="q" placeholder="نام، اسلاگ، کدِ پلتفرم، مالک..." value="{{ query }}"></div>
+      <select class="pa-input" name="status" style="max-width:160px">
+        <option value="">همه‌ی وضعیت‌ها</option>
+        {% for value, label in status_choices %}
+        <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select class="pa-input" name="subscription_status" style="max-width:180px">
+        <option value="">همه‌ی وضعیتِ اشتراک</option>
+        {% for value, label in subscription_status_choices %}
+        <option value="{{ value }}" {% if sub_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select class="pa-input" name="plan" style="max-width:160px">
+        <option value="">همه‌ی پلن‌ها</option>
+        {% for plan in plans %}
+        <option value="{{ plan.pk }}" {% if plan_id == plan.pk|stringformat:"s" %}selected{% endif %}>{{ plan.name }}</option>
+        {% endfor %}
+      </select>
+      <input class="pa-input" type="date" name="date_from" value="{{ date_from }}" style="max-width:150px">
+      <input class="pa-input" type="date" name="date_to" value="{{ date_to }}" style="max-width:150px">
+      <button class="pa-btn pa-primary" type="submit">فیلتر</button>
+      <a class="pa-btn" href="{% url 'portal_platform_admin:stores' %}">پاک‌کردن</a>
+    </div>
+  </div>
 </form>
 
-<div style="overflow-x:auto">
-<table style="width:100%;border-collapse:collapse;font-size:13px">
-  <thead>
-    <tr style="text-align:right;color:#93a89c">
-      <th style="padding:8px">نام</th><th style="padding:8px">اسلاگ</th>
-      <th style="padding:8px">کدِ پلتفرم</th><th style="padding:8px">وضعیت</th>
-      <th style="padding:8px">آنبوردینگ</th><th style="padding:8px">ایجاد</th>
-    </tr>
-  </thead>
-  <tbody>
-  {% for store in page %}
-    <tr style="border-top:1px solid #1e2b23">
-      <td style="padding:8px"><a href="{% url 'portal_platform_admin:store-detail' store.public_id %}" style="color:#e7f3ee">{{ store.name }}</a></td>
-      <td style="padding:8px;direction:ltr;text-align:left">{{ store.slug }}</td>
-      <td style="padding:8px;direction:ltr;text-align:left">{{ store.platform_code }}</td>
-      <td style="padding:8px">{{ store.get_status_display }}</td>
-      <td style="padding:8px">{% if store.onboarding_completed_at %}تکمیل‌شده{% else %}ناتمام{% endif %}</td>
-      <td style="padding:8px">{{ store.created_at|date:"Y-m-d" }}</td>
-    </tr>
-  {% empty %}
-    <tr><td colspan="6" style="padding:16px;text-align:center;color:#93a89c">فروشگاهی یافت نشد.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+<div class="pa-card">
+  {% if page.object_list %}
+  <div class="pa-tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th>فروشگاه</th><th>مالک</th><th>وضعیت</th><th>اشتراک</th><th>پلن</th><th>صنف</th>
+          <th>محصولات</th><th>سفارش‌ها</th><th>دامنه</th><th>تاریخِ ایجاد</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for store in page.object_list %}
+        {% with owner=store.owner_memberships.0 sub=store.current_subscriptions.0 domain=store.verified_custom_domains.0 %}
+        <tr>
+          <td><b>{{ store.name }}</b><br><span class="pa-help">{{ store.platform_code }}</span></td>
+          <td>{% if owner %}{{ owner.user.owner_profile.full_name|default:owner.user.email }}{% else %}<span class="pa-help">بدونِ مالکِ فعال</span>{% endif %}</td>
+          <td>
+            {% if store.status == "active" %}<span class="pa-badge pa-ok">فعال</span>
+            {% elif store.status == "suspended" %}<span class="pa-badge pa-off">تعلیق‌شده</span>
+            {% else %}<span class="pa-badge pa-warn">{{ store.get_status_display }}</span>{% endif %}
+          </td>
+          <td>{% if sub %}<span class="pa-badge pa-info">{{ sub.get_status_display }}</span>{% else %}<span class="pa-help">—</span>{% endif %}</td>
+          <td>{% if sub %}{{ sub.plan_version.plan.name }}{% else %}—{% endif %}</td>
+          <td>{% if store.industry_installation %}{{ store.industry_installation.industry_template.name }}{% else %}<span class="pa-help">—</span>{% endif %}</td>
+          <td>{{ store.product_count }}</td>
+          <td>{{ store.order_count }}</td>
+          <td>{% if domain %}{{ domain.hostname }}{% else %}<span class="pa-help">زیردامنه</span>{% endif %}</td>
+          <td>{{ store.created_at|date:"Y/m/d" }}</td>
+          <td><a class="pa-btn pa-small pa-soft" href="{% url 'portal_platform_admin:store-detail' store.public_id %}">جزئیات</a></td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "portal/platform_admin/_pagination.html" %}
+  {% else %}
+  <div class="pa-empty">
+    <div class="pa-empty-icon">🏪</div>
+    <p>هیچ فروشگاهی با این فیلترها یافت نشد.</p>
+  </div>
+  {% endif %}
 </div>
-
-{% if page.has_previous or page.has_next %}
-<div style="display:flex;gap:8px;margin-top:16px">
-  {% if page.has_previous %}<a class="p-btn p-btn-ghost" href="?q={{ query }}&page={{ page.previous_page_number }}">قبلی</a>{% endif %}
-  {% if page.has_next %}<a class="p-btn p-btn-ghost" href="?q={{ query }}&page={{ page.next_page_number }}">بعدی</a>{% endif %}
-</div>
-{% endif %}
 {% endblock %}

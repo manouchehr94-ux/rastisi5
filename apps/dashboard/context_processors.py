@@ -142,6 +142,21 @@ def storefront_link(request):
     return {"STOREFRONT_URL": resolve_storefront_url_for_store(store, request)}
 
 
+def support_mode_banner(request):
+    """بنرِ سراسریِ «حالتِ پشتیبانی فعال است» — وقتی این نشستِ مدیریتِ فروشگاه
+    از طریقِ یک بلیتِ ورودِ پشتیبانیِ Platform Admin ایجاد شده باشد (نگاه
+    کنید به ``apps.dashboard.views.consume_admin_handoff`` که این پرچم را
+    در سشن می‌گذارد). بخشِ ۷: نشانه‌ی واضح در پنلِ مرچنت + دکمه‌ی خروج."""
+    support = request.session.get("platform_support_mode")
+    if not support:
+        return {}
+    return {
+        "support_mode_active": True,
+        "support_mode_store_name": support.get("store_name", ""),
+        "support_mode_admin_email": support.get("admin_email", ""),
+    }
+
+
 def subscription_banner(request):
     """پرچمِ وضعیتِ محدودشده‌ی اشتراک برایِ بنرِ سراسری در پنل مدیریت.
 

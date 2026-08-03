@@ -162,6 +162,21 @@ class Store(StoresTimestampedModel):
         max_length=20, choices=Status.choices, blank=True, default="",
         help_text="برایِ بازگردانیِ دقیق در صورتِ لغوِ درخواستِ حذف (cancel_deletion).",
     )
+    suspended_at = models.DateTimeField(
+        "زمانِ تعلیق",
+        null=True, blank=True,
+        help_text=(
+            "مقداردهی‌شده یعنی این Store توسطِ مدیرِ پلتفرم تعلیق شده — نگاه "
+            "کنید به apps.stores.services.store_status_service. جدا از "
+            "``status=SUSPENDED`` نگه‌داشته می‌شود تا زمان/دلیل/فاعلِ تعلیق "
+            "حتی پس از فعال‌سازیِ دوباره هم در تاریخچه قابل‌بازیابی بماند."
+        ),
+    )
+    suspended_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="تعلیق‌کننده", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="suspended_stores",
+    )
+    suspension_reason = models.CharField("دلیلِ تعلیق", max_length=300, blank=True, default="")
 
     class Meta:
         verbose_name = "فروشگاه"

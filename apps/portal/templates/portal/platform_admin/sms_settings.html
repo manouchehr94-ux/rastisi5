@@ -1,0 +1,41 @@
+{% extends "portal/platform_admin/base.html" %}
+{% block title %}تنظیماتِ درگاهِ پیامک | پنل مدیریت پلتفرم{% endblock %}
+{% block content %}
+<div class="pa-pagehead"><div><h1>تنظیماتِ درگاهِ پیامک</h1><p>درگاهِ پیامکِ مرکزیِ پلتفرم — این تنظیمات فقط برایِ مدیرِ پلتفرم قابلِ مشاهده است.</p></div></div>
+
+{% if test_result %}
+<div class="pa-alert {% if test_result.success %}pa-alert-success{% else %}pa-alert-error{% endif %}">
+  {% if test_result.is_console %}پیامک در حالتِ Console ارسال شد (هیچ پیامکِ واقعی ارسال نشده — فقط برایِ توسعه).
+  {% elif test_result.success %}پیامکِ آزمایشی با موفقیت ارسال شد (شناسه: {{ test_result.provider_ref_id }}).
+  {% else %}ارسال ناموفق بود: {{ test_result.error_message }}{% endif %}
+</div>
+{% endif %}
+
+<form method="post" class="pa-card"><div class="pa-cardhead"><h3>پیکربندیِ درگاه</h3></div><div class="pa-cardbody">
+  {% csrf_token %}
+  <div class="pa-field"><label>{{ form.sms_backend.label }}</label>{{ form.sms_backend }}</div>
+  <div class="pa-field" style="margin-top:12px"><label>{{ form.sms_sender_number.label }}</label>{{ form.sms_sender_number }}</div>
+
+  <div class="pa-section" style="margin-top:16px">
+    <b>ملی‌پیامک</b>
+    <div class="pa-grid2" style="margin-top:10px">
+      <div class="pa-field"><label>{{ form.sms_melipayamak_username.label }}</label>{{ form.sms_melipayamak_username }}</div>
+      <div class="pa-field"><label>{{ form.sms_melipayamak_password.label }}</label>{{ form.sms_melipayamak_password }}
+        {% if sms_melipayamak_password_is_configured %}<p class="pa-help">رمزِ ذخیره‌شده‌ای موجود است؛ خالی‌گذاشتن یعنی بدونِ تغییر.</p>{% endif %}</div>
+    </div>
+  </div>
+  <div class="pa-section">
+    <b>کاوه‌نگار</b>
+    <div class="pa-field" style="margin-top:10px"><label>{{ form.sms_kavenegar_api_key.label }}</label>{{ form.sms_kavenegar_api_key }}
+      {% if sms_kavenegar_api_key_is_configured %}<p class="pa-help">کلیدِ ذخیره‌شده‌ای موجود است؛ خالی‌گذاشتن یعنی بدونِ تغییر.</p>{% endif %}</div>
+  </div>
+  <button class="pa-btn pa-primary" type="submit">ذخیره‌ی تنظیمات</button>
+</div></form>
+
+<form method="post" class="pa-card"><div class="pa-cardhead"><h3>ارسالِ آزمایشی</h3></div><div class="pa-cardbody">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="test_sms">
+  <div class="pa-field"><label>شماره‌ی موبایلِ گیرنده</label><input class="pa-input" type="text" name="test_phone" dir="ltr" placeholder="09xxxxxxxxx"></div>
+  <button class="pa-btn pa-soft" style="margin-top:12px" type="submit">ارسالِ پیامکِ آزمایشی</button>
+</div></form>
+{% endblock %}

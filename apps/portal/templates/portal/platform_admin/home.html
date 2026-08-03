@@ -1,24 +1,61 @@
 {% extends "portal/platform_admin/base.html" %}
-{% load persian %}
 {% block title %}داشبورد | پنل مدیریت پلتفرم{% endblock %}
 {% block content %}
-<h2 style="margin-bottom:20px">نمای کلی پلتفرم</h2>
-<div class="p-grid cols-3">
-  <div class="p-card" style="background:#152019;border-color:#243329">
-    <p style="color:#93a89c;font-size:13px">کل فروشگاه‌ها</p>
-    <p style="font-size:30px;font-weight:800">{{ store_count|fa_number }}</p>
+<div class="pa-pagehead"><div><h1>داشبوردِ پلتفرم</h1><p>نمایِ کلیِ زنده از وضعیتِ همه‌ی فروشگاه‌ها.</p></div></div>
+
+<div class="pa-grid4">
+  <div class="pa-kpi pa-purple"><span>کل فروشگاه‌ها</span><b>{{ store_count }}</b></div>
+  <div class="pa-kpi pa-green"><span>فروشگاه‌های فعال</span><b>{{ active_store_count }}</b></div>
+  <div class="pa-kpi pa-blue"><span>در دوره‌ی آزمایشی</span><b>{{ trialing_count }}</b></div>
+  <div class="pa-kpi pa-red"><span>تعلیق‌شده</span><b>{{ suspended_store_count }}</b></div>
+  <div class="pa-kpi pa-orange"><span>بدونِ اشتراکِ معتبر</span><b>{{ stores_without_subscription }}</b></div>
+  <div class="pa-kpi pa-green"><span>درآمدِ اشتراک (این ماه)</span><b>{{ month_revenue }}</b><small>تومان</small></div>
+  <div class="pa-kpi pa-blue"><span>پیامکِ ارسالی (این ماه)</span><b>{{ sms_sent_this_month }}</b></div>
+  <div class="pa-kpi {% if recent_failures %}pa-red{% else %}pa-green{% endif %}"><span>خطا/هشدارِ اخیر (۷ روز)</span><b>{{ recent_failures }}</b></div>
+</div>
+
+<div class="pa-card">
+  <div class="pa-cardhead"><h3>اقداماتِ سریع</h3></div>
+  <div class="pa-cardbody">
+    <div class="pa-quick">
+      <a href="{% url 'portal_platform_admin:stores' %}">🏪<br>فروشگاه‌ها</a>
+      <a href="{% url 'portal_platform_admin:sms-settings' %}">📲<br>پیکربندیِ پیامک</a>
+      <a href="{% url 'portal_platform_admin:plan-add' %}">🧩<br>پلنِ تازه</a>
+      <a href="{% url 'portal_platform_admin:payments' %}">🧾<br>پرداخت‌ها</a>
+      <a href="{% url 'portal_platform_admin:audit-log' %}">🛡️<br>رخدادهایِ مهم</a>
+    </div>
   </div>
-  <div class="p-card" style="background:#152019;border-color:#243329">
-    <p style="color:#93a89c;font-size:13px">فروشگاه‌های فعال</p>
-    <p style="font-size:30px;font-weight:800">{{ active_store_count|fa_number }}</p>
+</div>
+
+<div class="pa-grid2">
+  <div class="pa-card">
+    <div class="pa-cardhead"><h3>نیازمندِ توجه</h3></div>
+    <div class="pa-cardbody">
+      {% if attention %}
+      <div class="pa-activity">
+        {% for item in attention %}
+        <div class="pa-event">
+          <div class="pa-icon">{{ item.icon }}</div>
+          <p><a href="{% url 'portal_platform_admin:store-detail' item.store.public_id %}">{{ item.store.name }}</a> — {{ item.label }}</p>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="pa-empty"><div class="pa-empty-icon">✅</div><p>موردی نیازمندِ توجهِ فوری نیست.</p></div>
+      {% endif %}
+    </div>
   </div>
-  <div class="p-card" style="background:#152019;border-color:#243329">
-    <p style="color:#93a89c;font-size:13px">مالکان یکتا</p>
-    <p style="font-size:30px;font-weight:800">{{ owner_count|fa_number }}</p>
-  </div>
-  <div class="p-card" style="background:#152019;border-color:#243329">
-    <p style="color:#93a89c;font-size:13px">در دوره‌ی آزمایشی</p>
-    <p style="font-size:30px;font-weight:800">{{ trialing_count|fa_number }}</p>
+
+  <div class="pa-card">
+    <div class="pa-cardhead"><h3>سلامتِ سامانه</h3></div>
+    <div class="pa-cardbody">
+      <div class="pa-setting-row"><div>درگاهِ پیامک</div><div>{% if sms_backend_ok %}<span class="pa-badge pa-ok">{{ sms_backend_label }}</span>{% else %}<span class="pa-badge pa-warn">{{ sms_backend_label }}</span>{% endif %}</div></div>
+      <div class="pa-setting-row"><div>درگاهِ پرداخت</div><div>{% if payment_gateway_ok %}<span class="pa-badge pa-ok">{{ payment_gateway_label }}</span>{% else %}<span class="pa-badge pa-warn">{{ payment_gateway_label }}</span>{% endif %}</div></div>
+      <div class="pa-setting-row"><div>صفِ کارِ پس‌زمینه</div><div><span class="pa-badge pa-info">اطلاعات در دسترس نیست</span></div></div>
+      <div class="pa-setting-row"><div>فضایِ ذخیره‌سازی</div><div><span class="pa-badge pa-info">اطلاعات در دسترس نیست</span></div></div>
+      <div class="pa-setting-row"><div>کارهایِ ناموفقِ اخیر (۷ روز)</div><div>{% if failed_jobs %}<span class="pa-badge pa-warn">{{ failed_jobs }}</span>{% else %}<span class="pa-badge pa-ok">۰</span>{% endif %}</div></div>
+      <div class="pa-setting-row"><div>خطاهایِ تأییدِ دامنه</div><div>{% if domain_dns_errors %}<span class="pa-badge pa-warn">{{ domain_dns_errors }}</span>{% else %}<span class="pa-badge pa-ok">۰</span>{% endif %}</div></div>
+    </div>
   </div>
 </div>
 {% endblock %}

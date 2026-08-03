@@ -1,43 +1,45 @@
 {% extends "portal/platform_admin/base.html" %}
-{% block title %}رخدادهای حسابرسی | پنل مدیریت پلتفرم{% endblock %}
+{% block title %}گزارش رخدادها | پنل مدیریت پلتفرم{% endblock %}
 {% block content %}
-<h2 style="margin-bottom:20px">رخدادهای حسابرسیِ پلتفرم</h2>
-<form method="get" style="margin-bottom:20px;display:flex;gap:8px">
-  <input type="text" name="action_code" value="{{ action_code }}" placeholder="کدِ عملیاتِ دقیق برایِ فیلترکردن"
-         style="flex:1;padding:10px 14px;border:1px solid #2a3a30;border-radius:10px;background:#0f1712;color:#e7f3ee">
-  <button type="submit" class="p-btn p-btn-primary">فیلتر</button>
-</form>
+<div class="pa-pagehead"><div><h1>گزارش رخدادهایِ پلتفرم</h1><p>رخدادهایِ سراسری (تنظیمات/پلن/دسترسیِ خودِ این پنل). رخدادهایِ مختصِ یک فروشگاه در برگه‌ی «حسابرسی»ِ همان فروشگاه است.</p></div></div>
 
-<div style="overflow-x:auto">
-<table style="width:100%;border-collapse:collapse;font-size:13px">
-  <thead>
-    <tr style="text-align:right;color:#93a89c">
-      <th style="padding:8px">کد عملیات</th><th style="padding:8px">نوع شیء</th>
-      <th style="padding:8px">برچسب</th><th style="padding:8px">انجام‌دهنده</th>
-      <th style="padding:8px">نتیجه</th><th style="padding:8px">تاریخ</th>
-    </tr>
-  </thead>
-  <tbody>
-  {% for entry in page %}
-    <tr style="border-top:1px solid #1e2b23">
-      <td style="padding:8px">{{ entry.action_code }}</td>
-      <td style="padding:8px">{{ entry.object_type }}</td>
-      <td style="padding:8px">{{ entry.object_label }}</td>
-      <td style="padding:8px">{{ entry.actor.username|default:"—" }}</td>
-      <td style="padding:8px">{{ entry.get_result_display }}</td>
-      <td style="padding:8px">{{ entry.created_at|date:"Y-m-d H:i" }}</td>
-    </tr>
-  {% empty %}
-    <tr><td colspan="6" style="padding:16px;text-align:center;color:#93a89c">رخدادی یافت نشد.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+<div class="pa-alert" style="background:var(--pa-bluebg);color:var(--pa-blue)">
+  به‌دلیلِ سیاستِ حریمِ خصوصیِ مصوبِ این کدبیس (بدونِ تصمیمِ ثبتِ IP/User-Agent)، این رخدادها ستونِ آدرسِ IP ندارند — نگاه کنید به یادداشت‌هایِ گزارشِ نهایی.
 </div>
 
-{% if page.has_previous or page.has_next %}
-<div style="display:flex;gap:8px;margin-top:16px">
-  {% if page.has_previous %}<a class="p-btn p-btn-ghost" href="?action_code={{ action_code }}&page={{ page.previous_page_number }}">قبلی</a>{% endif %}
-  {% if page.has_next %}<a class="p-btn p-btn-ghost" href="?action_code={{ action_code }}&page={{ page.next_page_number }}">بعدی</a>{% endif %}
+<form method="get" class="pa-card"><div class="pa-cardbody">
+  <div class="pa-toolbar">
+    <div style="flex:1"><input class="pa-input" type="text" name="action_code" placeholder="جست‌وجو در کدِ عملیات..." value="{{ action_code }}"></div>
+    <select class="pa-input" name="result" style="max-width:160px">
+      <option value="">همه‌ی نتایج</option>
+      {% for value, label in result_choices %}<option value="{{ value }}" {% if result == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <button class="pa-btn pa-primary" type="submit">فیلتر</button>
+  </div>
+</div></form>
+
+<div class="pa-card">
+  {% if page.object_list %}
+  <div class="pa-tablewrap">
+    <table>
+      <thead><tr><th>کدِ عملیات</th><th>نوعِ شیء</th><th>برچسب</th><th>انجام‌دهنده</th><th>نتیجه</th><th>تاریخ</th></tr></thead>
+      <tbody>
+        {% for entry in page.object_list %}
+        <tr>
+          <td style="direction:ltr;text-align:left">{{ entry.action_code }}</td>
+          <td>{{ entry.object_type }}</td>
+          <td>{{ entry.object_label }}</td>
+          <td>{{ entry.actor.get_username|default:"—" }}</td>
+          <td>{% if entry.result == "success" %}<span class="pa-badge pa-ok">موفق</span>{% else %}<span class="pa-badge pa-off">ناموفق</span>{% endif %}</td>
+          <td>{{ entry.created_at|date:"Y/m/d H:i" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "portal/platform_admin/_pagination.html" %}
+  {% else %}
+  <div class="pa-empty"><div class="pa-empty-icon">🛡️</div><p>رخدادی یافت نشد.</p></div>
+  {% endif %}
 </div>
-{% endif %}
 {% endblock %}

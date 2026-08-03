@@ -105,6 +105,16 @@ class AdminHandoffTicket(TimeStampedModel):
     destination_path = models.CharField("مسیر مقصد", max_length=200, default="/admin-portal/")
     expires_at = models.DateTimeField("زمان انقضا")
     consumed_at = models.DateTimeField("زمان مصرف", null=True, blank=True)
+    # خالی یعنی یک handoff معمولیِ مالک بین فروشگاه‌های خودش است (بدونِ
+    # تغییر در رفتارِ موجود). مقداردهی‌شده یعنی این بلیت را یک مدیرِ پلتفرم
+    # برایِ «ورودِ پشتیبانی» صادر کرده — نگاه کنید به
+    # ``apps.portal.services.handoff_service.issue_support_ticket``؛
+    # ``consume_admin_handoff`` از رویِ همین فیلد نشانه‌ی «حالتِ پشتیبانی
+    # فعال است» را در سشن می‌گذارد.
+    issued_by_platform_admin = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="صادرشده توسطِ مدیرِ پلتفرم (پشتیبانی)",
+        on_delete=models.SET_NULL, null=True, blank=True, related_name="issued_support_handoff_tickets",
+    )
 
     class Meta:
         verbose_name = "بلیت ورود به پنل مدیریت"
@@ -226,6 +236,15 @@ class PlatformConfiguration(TimeStampedModel):
         help_text="مقدارِ رمزنگاری‌شده — هرگز مستقیم خوانده نمی‌شود",
     )
 
+    # --- عملیاتِ پلتفرم (Section 20) ---
+    maintenance_mode_enabled = models.BooleanField(
+        "حالتِ تعمیرات", default=False,
+        help_text="روشن یعنی پرتالِ مالک/فروشگاه‌سازیِ تازه موقتاً در دسترسِ عمومی نیست.",
+    )
+    new_store_registration_enabled = models.BooleanField(
+        "ثبت‌نامِ فروشگاهِ تازه فعال است", default=True,
+    )
+
     def get_sms_credentials(self) -> dict:
         """رمزگشایی و بازگرداندنِ اعتبارنامه‌های پیامک به‌صورتِ dict."""
         import json
@@ -310,6 +329,44 @@ class PlatformAuditLogEntry(models.Model):
 
     def __str__(self):
         return f"{self.action_code} @ {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class PlatformInternalNote(TimeStampedModel):
+    """یادداشتِ داخلیِ پشتیبانی/عملیاتِ مدیرِ پلتفرم — دقیقاً یکی از
+    ``store``/``about_user`` (نه هر دو، نه هیچ‌کدام). هرگز به مالک/مشتری
+    نمایش داده نمی‌شود؛ فقط در پنلِ مدیرِ پلتفرم قابل‌دیدن است."""
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE,
+        null=True, blank=True, related_name="platform_internal_notes",
+    )
+    about_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="درباره‌ی کاربر", on_delete=models.CASCADE,
+        null=True, blank=True, related_name="platform_internal_notes_about",
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="نویسنده", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="authored_platform_internal_notes",
+    )
+    body = models.TextField("متنِ یادداشت")
+
+    class Meta:
+        verbose_name = "یادداشتِ داخلیِ پلتفرم"
+        verbose_name_plural = "یادداشت‌هایِ داخلیِ پلتفرم"
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    (models.Q(store__isnull=False) & models.Q(about_user__isnull=True))
+                    | (models.Q(store__isnull=True) & models.Q(about_user__isnull=False))
+                ),
+                name="platforminternalnote_exactly_one_subject",
+            ),
+        ]
+
+    def __str__(self):
+        subject = self.store.name if self.store_id else str(self.about_user)
+        return f"یادداشت درباره‌ی {subject}"
 
 
 class ContactMessage(TimeStampedModel):

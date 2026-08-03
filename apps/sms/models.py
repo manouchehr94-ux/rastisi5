@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 from apps.core.models import TimeStampedModel
@@ -187,6 +188,35 @@ class SmsPackagePurchase(TimeStampedModel):
 
     def __str__(self):
         return f"{self.store.name} ← {self.package.name} ({self.get_status_display()})"
+
+
+class SmsCreditAdjustment(TimeStampedModel):
+    """دفترِ تغییراتِ دستیِ اعتبارِ پیامکِ یک Store — هر ردیف یک اصلاحِ
+    غیرِخودکار (نه ناشی از خرید/مصرفِ عادی) توسطِ یک مدیرِ پلتفرم است، با
+    مقدارِ قبل/تغییر/بعد. تغییرناپذیر است (فقط created_at معنا دارد) — یک
+    اصلاحِ اشتباه با یک ردیفِ جبرانیِ تازه درست می‌شود، نه ویرایشِ این رکورد."""
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="sms_credit_adjustments",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="انجام‌دهنده", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="sms_credit_adjustments",
+    )
+    delta = models.IntegerField("مقدارِ تغییر")
+    balance_before = models.IntegerField("اعتبارِ پیش از تغییر")
+    balance_after = models.IntegerField("اعتبارِ پس از تغییر")
+    reason = models.CharField("دلیل", max_length=200)
+    note = models.CharField("یادداشتِ داخلی", max_length=500, blank=True, default="")
+
+    class Meta:
+        verbose_name = "اصلاحِ اعتبارِ پیامک"
+        verbose_name_plural = "اصلاح‌هایِ اعتبارِ پیامک"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        sign = "+" if self.delta >= 0 else ""
+        return f"{self.store.name}: {sign}{self.delta} ({self.reason})"
 
 
 class OtpCode(TimeStampedModel):

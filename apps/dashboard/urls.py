@@ -7,6 +7,7 @@ app_name = "dashboard"
 urlpatterns = [
     path("login/", views.admin_login, name="login"),
     path("handoff/<str:token>/", views.consume_admin_handoff, name="handoff"),
+    path("exit-support-mode/", views.exit_support_mode, name="exit-support-mode"),
     path("", views.dashboard_home, name="dashboard"),
     path("sales-chart/", views.sales_chart_partial, name="sales-chart"),
 

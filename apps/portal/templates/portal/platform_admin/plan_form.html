@@ -1,0 +1,57 @@
+{% extends "portal/platform_admin/base.html" %}
+{% block title %}{% if plan %}ویرایشِ {{ plan.name }}{% else %}پلنِ تازه{% endif %} | پنل مدیریت پلتفرم{% endblock %}
+{% block content %}
+<p><a href="{% url 'portal_platform_admin:plans' %}" class="pa-help">← بازگشت به فهرستِ پلن‌ها</a></p>
+<h1>{% if plan %}ویرایشِ «{{ plan.name }}» (نسخه‌ی پیش‌نویسِ تازه){% else %}پلنِ تازه{% endif %}</h1>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="pa-card"><div class="pa-cardhead"><h3>مشخصات</h3></div><div class="pa-cardbody">
+    <div class="pa-grid2">
+      <div class="pa-field"><label>نامِ داخلی</label><input class="pa-input" type="text" name="name" required value="{{ plan.name|default:'' }}"></div>
+      <div class="pa-field"><label>کد (یکتا، بدونِ تغییر پس از ساخت)</label><input class="pa-input" type="text" name="code" {% if plan %}readonly{% endif %} required value="{{ plan.code|default:'' }}"></div>
+      <div class="pa-field"><label>عنوانِ عمومی</label><input class="pa-input" type="text" name="public_title" value="{{ plan.public_title|default:'' }}"></div>
+      <div class="pa-field"><label>ترتیبِ نمایش</label><input class="pa-input" type="number" name="display_order" value="{{ plan.display_order|default:0 }}"></div>
+    </div>
+    <div class="pa-field" style="margin-top:12px"><label>توضیحات</label><textarea class="pa-input" name="description" rows="2">{{ plan.description|default:"" }}</textarea></div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px"><input type="checkbox" name="is_recommended" {% if plan.is_recommended %}checked{% endif %}> پیشنهادی</label>
+  </div></div>
+
+  <div class="pa-card"><div class="pa-cardhead"><h3>نسخه‌ی پیش‌نویسِ تازه</h3></div><div class="pa-cardbody">
+    <div class="pa-grid3">
+      <div class="pa-field"><label>قیمتِ نمایشی (تومان)</label><input class="pa-input" type="number" name="display_price" value="{{ latest_version.display_price|default:0 }}"></div>
+      <div class="pa-field"><label>روزهایِ تریال</label><input class="pa-input" type="number" name="trial_days" value="{{ latest_version.trial_days|default:0 }}"></div>
+      <div class="pa-field"><label>دوره‌ی صورتحساب</label>
+        <select class="pa-input" name="billing_interval">
+          <option value="monthly" {% if latest_version.billing_interval == "monthly" %}selected{% endif %}>ماهانه</option>
+          <option value="yearly" {% if latest_version.billing_interval == "yearly" %}selected{% endif %}>سالانه</option>
+          <option value="none" {% if latest_version.billing_interval == "none" %}selected{% endif %}>بدونِ دوره</option>
+        </select>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="pa-card"><div class="pa-cardhead"><h3>حق‌دسترسی‌ها (Entitlements)</h3></div><div class="pa-cardbody">
+    {% for entitlement in entitlements %}
+    <div class="pa-setting-row">
+      <div>
+        <b>{{ entitlement.name }}</b>
+        <div class="pa-help">{{ entitlement.description }}</div>
+      </div>
+      <div>
+        {% if entitlement.entitlement_type == "boolean" %}
+        <label><input type="checkbox" name="entitlement_{{ entitlement.key }}" {% if entitlement.existing.is_enabled %}checked{% endif %}> فعال</label>
+        {% else %}
+        <input class="pa-input" style="width:120px;display:inline-block" type="number" name="entitlement_{{ entitlement.key }}" placeholder="محدودیت" value="{{ entitlement.existing.integer_limit|default_if_none:'' }}">
+        <label style="font-size:12px"><input type="checkbox" name="entitlement_{{ entitlement.key }}_unlimited" {% if entitlement.existing.is_unlimited %}checked{% endif %}> نامحدود</label>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <p class="pa-help">هیچ حق‌دسترسیِ فعالی تعریف نشده.</p>
+    {% endfor %}
+  </div></div>
+
+  <button class="pa-btn pa-primary" type="submit">ذخیره (ساختِ نسخه‌ی پیش‌نویسِ تازه)</button>
+</form>
+{% endblock %}

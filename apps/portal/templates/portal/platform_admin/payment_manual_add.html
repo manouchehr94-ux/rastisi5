@@ -1,0 +1,25 @@
+{% extends "portal/platform_admin/base.html" %}
+{% block title %}ثبتِ پرداختِ دستی | پنل مدیریت پلتفرم{% endblock %}
+{% block content %}
+<p><a href="{% url 'portal_platform_admin:payments' %}" class="pa-help">← بازگشت به فهرستِ پرداخت‌ها</a></p>
+<h1>ثبتِ پرداختِ دستی</h1>
+<p class="pa-help">مبلغ باید دقیقاً برابرِ مبلغِ باقی‌مانده‌ی فاکتور باشد؛ این عملیات همیشه حسابرسی می‌شود و شبیه‌سازیِ نتیجه‌ی درگاه در آن انجام نمی‌شود.</p>
+
+<form method="post" class="pa-card"><div class="pa-cardbody">
+  {% csrf_token %}
+  <div class="pa-field"><label>فاکتور</label>
+    <select class="pa-input" name="invoice_id" required>
+      <option value="">— انتخابِ فاکتور —</option>
+      {% for invoice in invoices %}
+      <option value="{{ invoice.pk }}">{{ invoice.number }} — {{ invoice.store.name }} — باقی‌مانده: {{ invoice.amount_due }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="pa-grid2" style="margin-top:12px">
+    <div class="pa-field"><label>مبلغ (باید دقیقاً برابرِ باقی‌مانده باشد)</label><input class="pa-input" type="text" name="amount" required></div>
+    <div class="pa-field"><label>مرجعِ پرداخت</label><input class="pa-input" type="text" name="reference" required></div>
+  </div>
+  <div class="pa-field" style="margin-top:12px"><label>دلیل / یادداشت</label><textarea class="pa-input" name="note" rows="2" required></textarea></div>
+  <button class="pa-btn pa-primary" style="margin-top:14px" type="submit">ثبتِ پرداخت</button>
+</div></form>
+{% endblock %}

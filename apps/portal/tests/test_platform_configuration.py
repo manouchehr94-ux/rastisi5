@@ -121,12 +121,8 @@ class PlatformConfigurationViewTests(TestCase):
     def test_superuser_can_configure_the_central_sms_gateway(self):
         self.client.force_login(self.superuser)
         response = self.client.post(
-            "/configuration/",
+            "/sms/settings/",
             {
-                "default_trial_days": 30, "deletion_retention_days": 365,
-                "primary_brand_color": "#123456", "secondary_brand_color": "#654321",
-                "temporary_logo_text": "R", "support_contact_phone": "", "support_contact_email": "",
-                "default_payment_provider": "manual",
                 "sms_backend": "melipayamak", "sms_sender_number": "10001",
                 "sms_melipayamak_username": "platform-user", "sms_melipayamak_password": "platform-pass",
             },
@@ -142,12 +138,8 @@ class PlatformConfigurationViewTests(TestCase):
     def test_sms_credentials_are_encrypted_at_rest(self):
         self.client.force_login(self.superuser)
         self.client.post(
-            "/configuration/",
+            "/sms/settings/",
             {
-                "default_trial_days": 30, "deletion_retention_days": 365,
-                "primary_brand_color": "#123456", "secondary_brand_color": "#654321",
-                "temporary_logo_text": "R", "support_contact_phone": "", "support_contact_email": "",
-                "default_payment_provider": "manual",
                 "sms_backend": "kavenegar", "sms_sender_number": "10001",
                 "sms_kavenegar_api_key": "super-secret-key",
             },
@@ -158,25 +150,15 @@ class PlatformConfigurationViewTests(TestCase):
 
     def test_blank_sms_secret_does_not_clear_existing_value(self):
         self.client.force_login(self.superuser)
-        common_fields = {
-            "default_trial_days": 30, "deletion_retention_days": 365,
-            "primary_brand_color": "#123456", "secondary_brand_color": "#654321",
-            "temporary_logo_text": "R", "support_contact_phone": "", "support_contact_email": "",
-            "default_payment_provider": "manual", "sms_backend": "kavenegar", "sms_sender_number": "10001",
-        }
-        self.client.post("/configuration/", {**common_fields, "sms_kavenegar_api_key": "original-key"}, HTTP_HOST=_HOST)
-        self.client.post("/configuration/", {**common_fields, "sms_kavenegar_api_key": ""}, HTTP_HOST=_HOST)
+        common_fields = {"sms_backend": "kavenegar", "sms_sender_number": "10001"}
+        self.client.post("/sms/settings/", {**common_fields, "sms_kavenegar_api_key": "original-key"}, HTTP_HOST=_HOST)
+        self.client.post("/sms/settings/", {**common_fields, "sms_kavenegar_api_key": ""}, HTTP_HOST=_HOST)
         config = get_platform_configuration()
         self.assertEqual(config.get_sms_credentials()["kavenegar_api_key"], "original-key")
 
     def test_sms_secret_is_never_echoed_back_into_the_form(self):
         self.client.force_login(self.superuser)
-        common_fields = {
-            "default_trial_days": 30, "deletion_retention_days": 365,
-            "primary_brand_color": "#123456", "secondary_brand_color": "#654321",
-            "temporary_logo_text": "R", "support_contact_phone": "", "support_contact_email": "",
-            "default_payment_provider": "manual", "sms_backend": "kavenegar", "sms_sender_number": "10001",
-        }
-        self.client.post("/configuration/", {**common_fields, "sms_kavenegar_api_key": "super-secret-key"}, HTTP_HOST=_HOST)
-        response = self.client.get("/configuration/", HTTP_HOST=_HOST)
+        common_fields = {"sms_backend": "kavenegar", "sms_sender_number": "10001"}
+        self.client.post("/sms/settings/", {**common_fields, "sms_kavenegar_api_key": "super-secret-key"}, HTTP_HOST=_HOST)
+        response = self.client.get("/sms/settings/", HTTP_HOST=_HOST)
         self.assertNotContains(response, "super-secret-key")

@@ -1,0 +1,53 @@
+{% extends "portal/platform_admin/base.html" %}
+{% block title %}پلن‌های اشتراک | پنل مدیریت پلتفرم{% endblock %}
+{% block content %}
+<div class="pa-pagehead">
+  <div><h1>پلن‌های اشتراک</h1><p>ویرایشِ یک پلن همیشه یک نسخه‌ی پیش‌نویسِ تازه می‌سازد — نسخه‌های منتشرشده هرگز تغییر نمی‌کنند.</p></div>
+  <a class="pa-btn pa-primary" href="{% url 'portal_platform_admin:plan-add' %}">+ پلنِ تازه</a>
+</div>
+
+{% if plans %}
+{% for plan in plans %}
+<div class="pa-card">
+  <div class="pa-cardhead">
+    <h3>{{ plan.name }} {% if not plan.is_active %}<span class="pa-badge pa-off">غیرفعال</span>{% endif %}{% if plan.is_recommended %}<span class="pa-badge pa-info">پیشنهادی</span>{% endif %}</h3>
+    <div style="display:flex;gap:8px">
+      <a class="pa-btn pa-small" href="{% url 'portal_platform_admin:plan-edit' plan.pk %}">افزودنِ نسخه/ویرایش</a>
+      <form method="post" action="{% url 'portal_platform_admin:plan-archive' plan.pk %}">
+        {% csrf_token %}<button class="pa-btn pa-small pa-danger" type="submit">{% if plan.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}</button>
+      </form>
+    </div>
+  </div>
+  <div class="pa-tablewrap">
+    <table>
+      <thead><tr><th>نسخه</th><th>وضعیت</th><th>قیمتِ نمایشی</th><th>روزهایِ تریال</th><th>دوره</th><th></th></tr></thead>
+      <tbody>
+        {% for version in plan.versions.all %}
+        <tr>
+          <td>v{{ version.version_number }}</td>
+          <td>
+            {% if version.status == "published" %}<span class="pa-badge pa-ok">منتشرشده</span>
+            {% elif version.status == "draft" %}<span class="pa-badge pa-warn">پیش‌نویس</span>
+            {% else %}<span class="pa-badge pa-off">{{ version.get_status_display }}</span>{% endif %}
+          </td>
+          <td>{{ version.display_price }}</td>
+          <td>{{ version.trial_days }}</td>
+          <td>{{ version.get_billing_interval_display }}</td>
+          <td>
+            {% if version.status == "draft" %}
+            <form method="post" action="{% url 'portal_platform_admin:plan-version-publish' plan.pk version.pk %}">
+              {% csrf_token %}<button class="pa-btn pa-small pa-primary" type="submit">انتشار</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}<tr><td colspan="6" class="pa-help">نسخه‌ای ثبت نشده.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="pa-card pa-empty"><div class="pa-empty-icon">🧩</div><p>هیچ پلنی تعریف نشده.</p></div>
+{% endif %}
+{% endblock %}

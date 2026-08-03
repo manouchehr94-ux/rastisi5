@@ -73,15 +73,17 @@ class StoreDetailViewTests(PlatformAdminStoreAndAuditTestCase):
     def test_shows_store_domains_and_membership(self):
         response = self.client.get(self._url(), HTTP_HOST=_HOST)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, f"{self.store.platform_code}.rastisi.ir")
-        self.assertContains(response, "pa-ordinary@example.com")
+        domains_response = self.client.get(self._url(), {"tab": "domains"}, HTTP_HOST=_HOST)
+        self.assertContains(domains_response, f"{self.store.platform_code}.rastisi.ir")
+        usage_response = self.client.get(self._url(), {"tab": "usage"}, HTTP_HOST=_HOST)
+        self.assertContains(usage_response, "pa-ordinary@example.com")
 
     def test_shows_store_scoped_audit_entries(self):
         record_audit_event(
             store=self.store, actor=self.ordinary_owner, action_code="store.handle_claimed",
             object_type="StoreDomain", object_id=1, object_label="novin.rastisi.ir",
         )
-        response = self.client.get(self._url(), HTTP_HOST=_HOST)
+        response = self.client.get(self._url(), {"tab": "audit"}, HTTP_HOST=_HOST)
         self.assertContains(response, "store.handle_claimed")
 
     def test_unknown_store_404s(self):
