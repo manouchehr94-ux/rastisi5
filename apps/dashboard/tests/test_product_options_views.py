@@ -737,7 +737,7 @@ class ProductVariantSetPriceViewTests(ProductOptionsViewsTestCase):
         v1.save(update_fields=["compare_at_price"])
         response = self.client.post(
             reverse("dashboard:product-variant-set-price", args=[self.product.pk, v1.pk]),
-            {"price": "100000", "discount_percent": "0"},
+            {"variant_price": "100000", "variant_discount_percent": "0"},
         )
         self.assertEqual(response.status_code, 200)
         v1.refresh_from_db()
@@ -748,7 +748,7 @@ class ProductVariantSetPriceViewTests(ProductOptionsViewsTestCase):
         v1 = self._generate()[0]
         response = self.client.post(
             reverse("dashboard:product-variant-set-price", args=[self.product.pk, v1.pk]),
-            {"price": "100000", "discount_percent": "15"},
+            {"variant_price": "100000", "variant_discount_percent": "15"},
         )
         self.assertEqual(response.status_code, 200)
         v1.refresh_from_db()
@@ -759,11 +759,11 @@ class ProductVariantSetPriceViewTests(ProductOptionsViewsTestCase):
         iranian, italian = self._generate()
         self.client.post(
             reverse("dashboard:product-variant-set-price", args=[self.product.pk, iranian.pk]),
-            {"price": "100000", "discount_percent": "0"},
+            {"variant_price": "100000", "variant_discount_percent": "0"},
         )
         self.client.post(
             reverse("dashboard:product-variant-set-price", args=[self.product.pk, italian.pk]),
-            {"price": "800000", "discount_percent": "0"},
+            {"variant_price": "800000", "variant_discount_percent": "0"},
         )
         iranian.refresh_from_db()
         italian.refresh_from_db()
@@ -774,7 +774,7 @@ class ProductVariantSetPriceViewTests(ProductOptionsViewsTestCase):
         v1 = self._generate()[0]
         response = self.client.post(
             reverse("dashboard:product-variant-set-price", args=[self.product.pk, v1.pk]),
-            {"price": "0", "discount_percent": "0"},
+            {"variant_price": "0", "variant_discount_percent": "0"},
         )
         self.assertEqual(response.status_code, 200)
         v1.refresh_from_db()
@@ -784,7 +784,7 @@ class ProductVariantSetPriceViewTests(ProductOptionsViewsTestCase):
         v1 = self._generate()[0]
         response = self.client.post(
             reverse("dashboard:product-variant-set-price", args=[self.product.pk, v1.pk]),
-            {"price": "100000", "discount_percent": "150"},
+            {"variant_price": "100000", "variant_discount_percent": "150"},
         )
         self.assertEqual(response.status_code, 200)
         v1.refresh_from_db()
@@ -804,6 +804,6 @@ class ProductVariantSetPriceViewTests(ProductOptionsViewsTestCase):
         other_variant = other_product.variants.first()
         response = self.client.post(
             reverse("dashboard:product-variant-set-price", args=[self.product.pk, other_variant.pk]),
-            {"price": "500000", "discount_percent": "0"},
+            {"variant_price": "500000", "variant_discount_percent": "0"},
         )
         self.assertEqual(response.status_code, 404)

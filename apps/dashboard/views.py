@@ -505,16 +505,30 @@ def _product_list_context(request):
     health = request.GET.get("health", "")
     if health not in PRODUCT_HEALTH_FILTERS:
         health = ""
+    product_type = request.GET.get("product_type", "")
+    if product_type not in Product.ProductType.values:
+        product_type = ""
     sort = request.GET.get("sort", DEFAULT_PRODUCT_SORT)
     if sort not in PRODUCT_SORT_OPTIONS:
         sort = DEFAULT_PRODUCT_SORT
 
     qs = filtered_products(
         store, q=q, category_id=category_id, status=status, brand_id=brand_id, sort=sort, health=health,
+        product_type=product_type,
     )
     paginator = Paginator(qs, PRODUCTS_PER_PAGE)
     page_number = request.GET.get("page", "1")
     page_obj = paginator.get_page(page_number)
+
+    all_store_products = Product.objects.filter(store=store)
+    stats = {
+        "total": all_store_products.count(),
+        "active": all_store_products.filter(status=Product.Status.ACTIVE).count(),
+        "draft": all_store_products.filter(status=Product.Status.DRAFT).count(),
+        "active_variants": ProductVariant.objects.filter(product__store=store, is_active=True).exclude(
+            combination_key="",
+        ).count(),
+    }
 
     return {
         "products": page_obj,
@@ -525,13 +539,16 @@ def _product_list_context(request):
         "selected_brand": brand_id,
         "selected_status": status,
         "selected_health": health,
+        "selected_product_type": product_type,
         "selected_sort": sort,
-        "has_active_filters": bool(q or category_id or brand_id or status or health),
+        "has_active_filters": bool(q or category_id or brand_id or status or health or product_type),
         "category_options": leaf_categories(store),
         "brand_options": Brand.objects.filter(store=store).order_by("name"),
         "status_options": PRODUCT_STATUS_FILTERS,
+        "product_type_options": Product.ProductType.choices,
         "sort_options": [(key, label) for key, (_fields, label) in PRODUCT_SORT_OPTIONS.items()],
         "tax_class_options": TaxClass.objects.filter(store=store, is_active=True).order_by("name"),
+        "product_stats": stats,
     }
 
 
@@ -750,6 +767,8 @@ def _save_product(form, product, *, store):
     product.tax_class = data.get("tax_class")
     product.seo_title = data.get("seo_title") or ""
     product.seo_description = data.get("seo_description") or ""
+    product.visibility = data.get("visibility") or Product.Visibility.PUBLIC
+    product.publish_at = data.get("publish_at")
     if data.get("slug"):
         product.slug = data["slug"]
     product.full_clean(exclude=["slug"] if not data.get("slug") else [])
@@ -879,6 +898,28 @@ def product_form(request, pk=None):
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
                     **_product_form_extra_context(store, product, form=form, request=request),
                 })
+
+            if request.POST.get("keep_open") == "1":
+                # «ذخیره و ادامه با تنظیمِ ویژگی‌ها» (بخشِ ۸) — پیکربندیِ تنوع در
+                # حینِ ساختِ کالا باید ممکن باشد، نه اجباری؛ همین مسیر با همان
+                # پارشالِ ``product_options_body.html``یِ صفحه‌ی «پیکربندیِ
+                # تنوع‌ها» کار می‌کند (بدون سیستمِ موازی).
+                category = form.cleaned_data.get("category")
+                attribute_fields = _product_attribute_field_context(category, product)
+                reopened_form = ProductForm(instance=product, store=store)
+                modal_html = render_to_string(request=request, template_name="dashboard/partials/product_form.html", context={
+                    "form": reopened_form, "product": product, "attribute_fields": attribute_fields,
+                    "orphaned_count": orphaned_product_attribute_values(product).count(),
+                    "category": category, "category_groups": category_groups, "error_step": "price",
+                    **_product_form_extra_context(store, product, form=reopened_form, request=request),
+                })
+                table_html = render_to_string(
+                    "dashboard/partials/products_table_inner.html", _product_list_context(request), request=request,
+                )
+                oob_table_html = render_to_string(request=request, template_name="dashboard/partials/oob_wrap.html", context={
+                    "target_id": "productsTableWrap", "inner_html": table_html,
+                })
+                return HttpResponse(modal_html + oob_table_html)
 
             table_html = render_to_string(
                 "dashboard/partials/products_table_inner.html", _product_list_context(request), request=request,
@@ -2059,6 +2100,17 @@ def _product_options_context(request, product):
             .select_related("attribute")
             .order_by("display_order")
         )
+    # کتابخانه‌ی ویژگی‌هایِ فروشگاه (بخشِ ۲۸) — ویژگی‌هایِ محورِ تنوعِ قابلِ
+    # بازاستفاده‌ای که قبلاً برایِ کالاهایِ دیگرِ همین فروشگاه ساخته شده‌اند و
+    # هنوز به این کالا اضافه نشده‌اند. انتخابِ یکی، همان ویژگی + همه‌ی
+    # مقادیرِ فعالش را یک‌کلیکی اضافه می‌کند (دقیقاً همان الگویِ محورهایِ
+    # پیشنهادیِ دسته‌بندی) — مقادیرِ اضافه نیز از همان کارتِ ویژگی قابلِ حذف‌اند.
+    library_attributes = list(
+        Attribute.objects.filter(store=product.store, is_active=True, is_variant_axis=True)
+        .exclude(pk__in=applied_attribute_ids)
+        .prefetch_related("values")
+        .order_by("label")
+    )
     return {
         "product": product,
         "axes": axes,
@@ -2068,6 +2120,7 @@ def _product_options_context(request, product):
         "combination_preview": preview_combination_count(product),
         "has_legacy_variants": product.variants.filter(combination_key="").exists(),
         "recommended_options": recommended_options,
+        "library_attributes": library_attributes,
         "option_form": ProductOptionForm(),
         "option_value_form": ProductOptionValueAddForm(),
         "tax_class_options": TaxClass.objects.filter(store=product.store, is_active=True).order_by("name"),
@@ -2091,6 +2144,25 @@ def product_options(request, pk):
     return render(request, "dashboard/product_options.html", _product_options_context(request, product))
 
 
+def _get_or_create_library_attribute(store, label, value_labels):
+    """ویژگی را در کتابخانه‌ی فروشگاه پیدا یا می‌سازد (بخشِ ۲۸) — تطبیقِ نامِ
+    غیرِحساس‌به‌حروف در همین Store؛ مقادیرِ داده‌شده که هنوز در کتابخانه نبودند
+    اضافه می‌شوند (مقادیرِ موجود دست‌نخورده می‌مانند). هرگز چیزی از کتابخانه
+    حذف نمی‌کند — حذفِ یک مقدار از یک کالا فقط همان کالا را تحتِ‌تأثیر
+    قرار می‌دهد."""
+    attribute = Attribute.objects.filter(store=store, label__iexact=label).first()
+    if attribute is None:
+        attribute = create_attribute(store, label=label, is_variant_axis=True)
+    elif not attribute.is_variant_axis:
+        update_attribute(attribute, is_variant_axis=True)
+    existing_labels = {v.label for v in attribute.values.all()}
+    for value_label in value_labels:
+        if value_label not in existing_labels:
+            create_attribute_value(attribute, label=value_label)
+            existing_labels.add(value_label)
+    return attribute
+
+
 @require_POST
 @staff_required
 @permission_required(VARIANT_MANAGE)
@@ -2101,14 +2173,32 @@ def product_option_add(request, pk):
         raw_values = form.cleaned_data["raw_values"]
         values = parse_bulk_values(raw_values) if raw_values else []
         try:
-            add_product_option(
-                product, label=form.cleaned_data["label"], values=values,
-                input_type=form.cleaned_data["input_type"],
-            )
-        except VariantEngineError as exc:
+            attribute = _get_or_create_library_attribute(product.store, form.cleaned_data["label"], values)
+            add_product_option(product, label=attribute.label, attribute=attribute, values=values)
+        except (VariantEngineError, AttributeError_) as exc:
             return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
         return _product_options_response(request, product, toast={"message": "محور تنوع اضافه شد", "type": "ok"})
     return _product_options_response(request, product, toast={"message": "لطفاً خطاهای فرم را برطرف کنید", "type": "err"})
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_option_add_from_library(request, pk, attribute_id):
+    """افزودنِ یک ویژگیِ قبلاً استفاده‌شده‌ی فروشگاه به این کالا — بخشِ ۲۸
+    (کتابخانه‌ی ویژگیِ فروشگاه). دقیقاً همان الگویِ ``product_apply_
+    recommended_option``: ویژگی + همه‌ی مقادیرِ فعالش یک‌کلیکی اضافه می‌شود؛
+    مقادیرِ ناخواسته بعداً از همان کارتِ ویژگی حذف می‌شوند — هیچ ردیفِ
+    Attribute/AttributeValueِ کتابخانه پاک نمی‌شود، فقط برایِ این کالا
+    استفاده می‌شود."""
+    product = _get_scoped_product(request, pk)
+    attribute = get_object_or_404(Attribute, pk=attribute_id, store=product.store, is_active=True, is_variant_axis=True)
+    values = [v.label for v in attribute.values.filter(is_active=True)]
+    try:
+        add_product_option(product, label=attribute.label, attribute=attribute, values=values)
+    except VariantEngineError as exc:
+        return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
+    return _product_options_response(request, product, toast={"message": f"ویژگی «{attribute.label}» از کتابخانه اضافه شد", "type": "ok"})
 
 
 @require_POST
@@ -2189,9 +2279,17 @@ def product_option_value_add(request, pk, option_id):
     option = get_object_or_404(ProductOption, pk=option_id, product=product)
     form = ProductOptionValueAddForm(request.POST)
     if form.is_valid():
+        label = form.cleaned_data["label"]
         try:
-            add_option_value(option, form.cleaned_data["label"], color_hex=form.cleaned_data["color_hex"])
-        except VariantEngineError as exc:
+            attribute_value = None
+            if option.attribute_id is not None:
+                # مقدارِ تازه هم باید کتابخانه‌ی فروشگاه را به‌روز کند (بخشِ
+                # ۲۸: «افزودنِ مقدارِ تازه، کتابخانه را به‌روز می‌کند»).
+                attribute_value = option.attribute.values.filter(label=label).first()
+                if attribute_value is None:
+                    attribute_value = create_attribute_value(option.attribute, label=label)
+            add_option_value(option, label, color_hex=form.cleaned_data["color_hex"], attribute_value=attribute_value)
+        except (VariantEngineError, AttributeError_) as exc:
             return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
         return _product_options_response(request, product, toast={"message": "مقدار اضافه شد", "type": "ok"})
     return _product_options_response(request, product, toast={"message": "لطفاً خطاهای فرم را برطرف کنید", "type": "err"})
@@ -2278,8 +2376,8 @@ def product_variant_set_price(request, pk, variant_id):
     product = _get_scoped_product(request, pk)
     variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
 
-    raw_price = normalize_digits(request.POST.get("price", "")).strip()
-    raw_discount = normalize_digits(request.POST.get("discount_percent", "")).strip() or "0"
+    raw_price = normalize_digits(request.POST.get("variant_price", "")).strip()
+    raw_discount = normalize_digits(request.POST.get("variant_discount_percent", "")).strip() or "0"
     try:
         price = Decimal(raw_price)
         discount = Decimal(raw_discount)
@@ -2302,6 +2400,70 @@ def product_variant_set_price(request, pk, variant_id):
     variant.full_clean(exclude=["normalized_attribute", "normalized_value"])
     variant.save(update_fields=["price", "compare_at_price", "updated_at"])
     return _product_options_response(request, product, toast={"message": "قیمتِ تنوع ذخیره شد", "type": "ok"})
+
+
+def _parse_sales_limit_bound(raw: str):
+    raw = normalize_digits(raw).strip()
+    if not raw:
+        return None, None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None, "مقدارِ محدودیتِ فروش باید یک عددِ صحیح باشد."
+    if value < 0:
+        return None, "مقدارِ محدودیتِ فروش نمی‌تواند منفی باشد."
+    return value, None
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_variant_set_sales_limit(request, pk, variant_id):
+    """مودالِ «تنظیمِ محدودیتِ فروش» یک تنوع (بخشِ ۱۴) — حداقل/حداکثرِ تعدادِ
+    قابلِ‌خرید در هر سفارش؛ هر دو خالی یعنی نامحدود."""
+    product = _get_scoped_product(request, pk)
+    variant = get_object_or_404(ProductVariant, pk=variant_id, product=product)
+
+    min_value, min_error = _parse_sales_limit_bound(request.POST.get("sales_limit_min", ""))
+    max_value, max_error = _parse_sales_limit_bound(request.POST.get("sales_limit_max", ""))
+    if min_error or max_error:
+        return _product_options_response(request, product, toast={"message": min_error or max_error, "type": "err"})
+    if min_value is not None and max_value is not None and min_value > max_value:
+        return _product_options_response(
+            request, product, toast={"message": "حداقلِ محدودیتِ فروش نمی‌تواند بیشتر از حداکثر باشد.", "type": "err"},
+        )
+
+    variant.sales_limit_min = min_value
+    variant.sales_limit = max_value
+    variant.full_clean(exclude=["normalized_attribute", "normalized_value"])
+    variant.save(update_fields=["sales_limit_min", "sales_limit", "updated_at"])
+    return _product_options_response(request, product, toast={"message": "محدودیتِ فروش ذخیره شد", "type": "ok"})
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
+def product_variants_bulk_sales_limit(request, pk):
+    """اعمالِ گروهیِ محدودیتِ فروش رویِ تنوع‌هایِ انتخاب‌شده."""
+    product = _get_scoped_product(request, pk)
+    variant_ids = [int(v) for v in request.POST.getlist("variant_ids") if v.isdigit()]
+    if not variant_ids:
+        return _product_options_response(request, product, toast={"message": "هیچ تنوعی انتخاب نشده است.", "type": "err"})
+
+    min_value, min_error = _parse_sales_limit_bound(request.POST.get("sales_limit_min", ""))
+    max_value, max_error = _parse_sales_limit_bound(request.POST.get("sales_limit_max", ""))
+    if min_error or max_error:
+        return _product_options_response(request, product, toast={"message": min_error or max_error, "type": "err"})
+    if min_value is not None and max_value is not None and min_value > max_value:
+        return _product_options_response(
+            request, product, toast={"message": "حداقلِ محدودیتِ فروش نمی‌تواند بیشتر از حداکثر باشد.", "type": "err"},
+        )
+
+    variants = product.variants.filter(pk__in=variant_ids)
+    updated = variants.update(sales_limit_min=min_value, sales_limit=max_value)
+    return _product_options_response(
+        request, product, toast={"message": f"محدودیتِ فروش برایِ {updated} تنوع اعمال شد", "type": "ok"},
+    )
 
 
 @require_POST
@@ -2335,8 +2497,10 @@ def product_variants_bulk_update(request, pk):
             variant.cost = Decimal(cost_raw) if cost_raw else None
             weight_raw = normalize_digits(request.POST.get(f"{prefix}weight_grams", "")).strip()
             variant.weight_grams = int(weight_raw) if weight_raw else None
-            sales_limit_raw = normalize_digits(request.POST.get(f"{prefix}sales_limit", "")).strip()
-            variant.sales_limit = int(sales_limit_raw) if sales_limit_raw else None
+            # محدودیتِ فروش (حداقل/حداکثر) دیگر اینجا دست نمی‌خورَد — منحصراً از
+            # طریقِ مودالِ «تنظیمِ محدودیتِ فروش» (نگاه کنید به
+            # ``product_variant_set_sales_limit``) مدیریت می‌شود، دقیقاً همان
+            # دلیلِ استثنایِ قیمت بالاتر.
             tax_class_raw = request.POST.get(f"{prefix}tax_class", "").strip()
             if tax_class_raw:
                 tax_class = TaxClass.objects.filter(pk=tax_class_raw, store=product.store).first()

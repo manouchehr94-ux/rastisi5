@@ -14,6 +14,7 @@ from apps.customers.models import Customer
 from apps.stores.resolution import resolve_store_for_storefront
 
 from .models import Brand, Category, Product, Review
+from .services.product_publish_service import storefront_listing_products, storefront_visible_products
 from .services.storefront_variant_service import build_variant_selector_context
 
 BEST_SORT_OPTIONS = {
@@ -30,7 +31,7 @@ TILE_CLASSES = ["t1", "t2", "t3"]
 def _best_products(store, sort_key):
     order_field, _ = BEST_SORT_OPTIONS.get(sort_key, BEST_SORT_OPTIONS[DEFAULT_SORT])
     qs = (
-        Product.objects.filter(store=store, status=Product.Status.ACTIVE)
+        storefront_listing_products(store)
         .select_related("brand").prefetch_related("images")
     )
     if sort_key == "disc":
@@ -40,7 +41,7 @@ def _best_products(store, sort_key):
 
 def home(request):
     store = resolve_store_for_storefront(request)
-    active_products = Product.objects.filter(store=store, status=Product.Status.ACTIVE)
+    active_products = storefront_listing_products(store)
 
     top_categories = list(
         Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
@@ -111,7 +112,7 @@ DEFAULT_LIST_SORT = "newest"
 
 def _filtered_products(request, store):
     qs = (
-        Product.objects.filter(store=store, status=Product.Status.ACTIVE)
+        storefront_listing_products(store)
         .select_related("brand", "category")
         .prefetch_related("images")
     )
@@ -244,7 +245,7 @@ def build_product_detail_context(request, product):
         rating_breakdown.append({"star": star, "count": count, "pct": pct})
 
     related_products = (
-        Product.objects.filter(store=store, status=Product.Status.ACTIVE, category=product.category)
+        storefront_listing_products(store).filter(category=product.category)
         .exclude(pk=product.pk)
         .select_related("brand")
         .prefetch_related("images")[:4]
@@ -274,8 +275,8 @@ def build_product_detail_context(request, product):
 def product_detail(request, slug):
     store = resolve_store_for_storefront(request)
     product = get_object_or_404(
-        Product.objects.select_related("brand", "category", "category__parent", "vendor"),
-        slug=slug, store=store, status=Product.Status.ACTIVE,
+        storefront_visible_products(store).select_related("brand", "category", "category__parent", "vendor"),
+        slug=slug,
     )
     Product.objects.filter(pk=product.pk).update(views_count=F("views_count") + 1)
     product.views_count += 1
@@ -287,7 +288,7 @@ def product_detail(request, slug):
 @require_POST
 def product_review_create(request, slug):
     store = resolve_store_for_storefront(request)
-    product = get_object_or_404(Product, slug=slug, store=store, status=Product.Status.ACTIVE)
+    product = get_object_or_404(storefront_visible_products(store), slug=slug)
 
     context = {"product": product, "can_review": _can_review(request)}
 

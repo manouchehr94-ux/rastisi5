@@ -130,6 +130,10 @@ class Product(TimeStampedModel):
         SIMPLE = "simple", "کالای ساده"
         VARIABLE = "variable", "کالای دارای تنوع"
 
+    class Visibility(models.TextChoices):
+        PUBLIC = "public", "نمایش عمومی"
+        LINK_ONLY = "link", "فقط با لینک مستقیم"
+
     store = models.ForeignKey(
         "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="products",
     )
@@ -154,6 +158,16 @@ class Product(TimeStampedModel):
     product_type = models.CharField(
         "نوع کالا", max_length=10, choices=ProductType.choices, default=ProductType.SIMPLE
     )
+    # نمایش (Product Entry rebuild) — «فقط با لینک مستقیم» یعنی صفحه‌ی کالا
+    # در دسترس است اما از فهرست/جست‌وجو/سایت‌مپِ فروشگاه کنار گذاشته می‌شود؛
+    # مستقل از status (که کنترل می‌کند کالا اصلاً قابل‌فروش هست یا نه).
+    visibility = models.CharField(
+        "نمایش", max_length=10, choices=Visibility.choices, default=Visibility.PUBLIC, blank=True,
+    )
+    # زمان‌بندیِ انتشار (اختیاری) — وقتی پر باشد و در آینده باشد، کالا تا آن
+    # لحظه حتی اگر status=active باشد در فروشگاه نمایش داده نمی‌شود؛ نگاه
+    # کنید به ``apps.catalog.services.product_publish_service``.
+    publish_at = models.DateTimeField("زمانِ انتشارِ زمان‌بندی‌شده", null=True, blank=True)
 
     rating = models.DecimalField(
         "میانگین امتیاز", max_digits=3, decimal_places=2, default=0,
@@ -449,6 +463,10 @@ class ProductVariant(TimeStampedModel):
         "قیمتِ عمده (تومان)", max_digits=12, decimal_places=0, null=True, blank=True,
         help_text="زیرساختِ آماده‌برایِ‌آینده‌یِ فروشِ عمده — هنوز در محاسبه‌ی قیمتِ مشتری استفاده نمی‌شود.",
     )
+    sales_limit_min = models.PositiveIntegerField(
+        "محدودیتِ فروش (حداقل تعداد در هر سفارش)", null=True, blank=True,
+        help_text="خالی = بدونِ حداقل.",
+    )
     sales_limit = models.PositiveIntegerField(
         "محدودیتِ فروش (حداکثر تعداد در هر سفارش)", null=True, blank=True,
         help_text="خالی = بدونِ محدودیت. اگر پر باشد، مشتری نمی‌تواند در یک سفارش بیش از این تعداد از این تنوع بخرد.",
@@ -534,6 +552,8 @@ class ProductVariant(TimeStampedModel):
             errors["value"] = "مقدار تنوع نمی‌تواند خالی باشد."
         if self.tax_class_id and self.product_id and self.tax_class.store_id != self.product.store_id:
             errors["tax_class"] = "این دسته‌ی مالیاتی متعلق به فروشگاه دیگری است."
+        if self.sales_limit_min is not None and self.sales_limit is not None and self.sales_limit_min > self.sales_limit:
+            errors["sales_limit_min"] = "حداقلِ محدودیتِ فروش نمی‌تواند بیشتر از حداکثر باشد."
         if errors:
             raise ValidationError(errors)
         self.attribute = attribute

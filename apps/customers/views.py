@@ -5,7 +5,7 @@ from django.contrib.auth import logout as auth_logout
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from apps.catalog.models import Product
+from apps.catalog.services.product_publish_service import storefront_visible_products
 from apps.core.services import session_service
 from apps.orders.models import Order
 from apps.sms.services import otp_service
@@ -39,7 +39,7 @@ def wishlist_list(request):
 @require_POST
 def wishlist_toggle(request, slug):
     store = resolve_store_for_service(request)
-    product = get_object_or_404(Product, slug=slug, store=store, status=Product.Status.ACTIVE)
+    product = get_object_or_404(storefront_visible_products(store), slug=slug)
 
     if not _can_use_wishlist(request):
         response = render(request, "customers/partials/wishlist_button.html", {"product": product})

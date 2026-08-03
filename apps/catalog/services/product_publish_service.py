@@ -7,6 +7,9 @@
 معمولی (که فرم/``full_clean`` از قبل انجام می‌دهد) را بررسی می‌کند.
 """
 
+from django.db.models import Q, QuerySet
+from django.utils import timezone
+
 from apps.catalog.models import Product, ProductAttributeValue
 from apps.catalog.services.category_schema_service import resolve_category_schema
 from apps.catalog.services.product_specification_service import format_attribute_value
@@ -39,3 +42,21 @@ def validate_product_for_publish(product: Product) -> list[str]:
         errors.append("قیمت کالا باید بزرگ‌تر از صفر باشد.")
 
     return errors
+
+
+def storefront_visible_products(store, *, now=None) -> QuerySet[Product]:
+    """کالاهایی که برایِ دسترسیِ مستقیم (لینکِ صفحه‌ی کالا) در دسترس‌اند —
+    یعنی ``active`` و (اگر زمان‌بندی‌شده) زمانِ انتشارشان رسیده. کالاهایِ
+    «فقط با لینکِ مستقیم» (``Visibility.LINK_ONLY``) هم اینجا هستند — این
+    تابع فقط برایِ صفحه‌ی *جزئیاتِ* یک کالایِ مشخص استفاده می‌شود، نه فهرست."""
+    now = now or timezone.now()
+    return Product.objects.filter(store=store, status=Product.Status.ACTIVE).filter(
+        Q(publish_at__isnull=True) | Q(publish_at__lte=now)
+    )
+
+
+def storefront_listing_products(store, *, now=None) -> QuerySet[Product]:
+    """کالاهایی که در فهرست/جست‌وجو/صفحه‌ی اصلی/کالاهایِ مرتبط نمایش داده
+    می‌شوند — همانِ ``storefront_visible_products`` منهایِ کالاهایِ
+    «فقط با لینکِ مستقیم» (که عمداً از فهرست‌ها کنار گذاشته می‌شوند)."""
+    return storefront_visible_products(store, now=now).exclude(visibility=Product.Visibility.LINK_ONLY)

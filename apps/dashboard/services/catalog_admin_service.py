@@ -138,7 +138,7 @@ PRODUCT_HEALTH_FILTERS = {"no_images", "no_seo", "missing_variants"}
 
 def filtered_products(
     store, *, q: str = "", category_id: str = "", status: str = "", brand_id: str = "", sort: str = "",
-    health: str = "",
+    health: str = "", product_type: str = "",
 ):
     qs = (
         Product.objects.filter(store=store)
@@ -161,6 +161,8 @@ def filtered_products(
         qs = qs.filter(stock=0)
     elif status:
         qs = qs.filter(status=status)
+    if product_type in Product.ProductType.values:
+        qs = qs.filter(product_type=product_type)
 
     if health == "no_images":
         qs = qs.filter(image_count=0)

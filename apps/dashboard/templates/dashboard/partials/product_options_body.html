@@ -74,6 +74,21 @@
       <p style="color:var(--muted);font-size:13px">هنوز ویژگی‌ای تعریف نشده است</p>
       {% endfor %}
 
+      {% if library_attributes %}
+      <hr style="margin:16px 0;border-color:var(--border)">
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">ویژگی‌های استفاده‌شده در فروشگاه <span class="help-icon" title="این ویژگی‌ها قبلاً برایِ کالاهایِ دیگرِ همین فروشگاه ساخته شده‌اند. انتخابِ یکی، آن ویژگی و همه‌ی مقادیرش را به این کالا اضافه می‌کند — مقادیرِ ناخواسته را بعداً می‌توانید حذف کنید.">؟</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          {% for lib_attr in library_attributes %}
+          <button type="button" class="btn btn-sm"
+                  hx-post="{% url 'dashboard:product-option-add-from-library' product.pk lib_attr.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">
+            ✓ {{ lib_attr.label }} <small style="color:var(--muted)">({{ lib_attr.values.count|fa_number }})</small>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       <hr style="margin:16px 0;border-color:var(--border)">
 
       <div x-data="{ showAddAxis: {{ axes|length|yesno:'false,true' }} }">
@@ -83,14 +98,6 @@
             <label>نامِ ویژگی <span class="help-icon" title="مثلاً رنگ، اندازه، طول، کشورِ سازنده، جنس، حافظه یا قطر.">؟</span></label>
             <input class="inp" name="label" placeholder="مثلاً: رنگ، اندازه، طول، کشور سازنده" value="{{ option_form.label.value|default_if_none:'' }}">
             {% for err in option_form.label.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-          </div>
-          <div class="form-group">
-            <label>نوعِ ورودی <span class="help-icon" title="نوعِ متن، رنگ یا عدد برایِ مقادیرِ این ویژگی.">؟</span></label>
-            <select class="inp" name="input_type">
-              {% for value, label in option_form.fields.input_type.choices %}
-              <option value="{{ value }}" {% if option_form.input_type.value == value %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
           </div>
           <div class="form-group">
             <label>مقادیر اولیه (اختیاری) <span class="help-icon" title="با ویرگول جدا کنید؛ بعداً هم می‌توانید مقدارِ بیشتری اضافه کنید.">؟</span></label>
@@ -168,12 +175,43 @@
              },
              openRows: {},
              toggleRow(id) { this.openRows[id] = !this.openRows[id] },
-           }">
+             bulkSalesLimitOpen: false,
+             bulkSalesLimitMinDraft: '',
+             bulkSalesLimitMaxDraft: '',
+             applyBulkSalesLimit() {
+               const ids = this.checkedIds();
+               if (!ids.length) { this.bulkSalesLimitOpen = false; return; }
+               htmx.ajax('POST', this.$el.dataset.bulkSalesLimitUrl, {
+                 target: '#productOptionsBody', swap: 'innerHTML',
+                 values: { variant_ids: ids, sales_limit_min: this.bulkSalesLimitMinDraft, sales_limit_max: this.bulkSalesLimitMaxDraft },
+               });
+               this.bulkSalesLimitOpen = false;
+             },
+           }" data-bulk-sales-limit-url="{% url 'dashboard:product-variants-bulk-sales-limit' product.pk %}">
         <div id="variantBulkForm">
           <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
             <button type="button" class="btn btn-sm" @click="bulkFill('stock', 'موجودیِ جدید برایِ ردیف‌هایِ انتخاب‌شده:')">📦 تنظیمِ گروهیِ موجودی</button>
             <button type="button" class="btn btn-sm" @click="bulkActivate('1')">✅ فعال‌سازیِ انتخاب‌شده‌ها</button>
             <button type="button" class="btn btn-sm" @click="bulkActivate('0')">🚫 غیرفعال‌سازیِ انتخاب‌شده‌ها</button>
+            <button type="button" class="btn btn-sm" @click="bulkSalesLimitOpen = true">🎯 تنظیمِ گروهیِ محدودیتِ فروش</button>
+          </div>
+          <div x-show="bulkSalesLimitOpen" x-cloak class="price-modal-overlay" @click.self="bulkSalesLimitOpen = false">
+            <div class="price-modal-card">
+              <h4 style="margin:0 0 14px">تنظیمِ گروهیِ محدودیتِ فروش</h4>
+              <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">برایِ تنوع‌هایِ تیک‌خورده اعمال می‌شود. خالی = نامحدود.</p>
+              <div class="form-group">
+                <label>حداقلِ فروش</label>
+                <input class="inp" x-model="bulkSalesLimitMinDraft" dir="ltr" inputmode="numeric" placeholder="مثال: ۱">
+              </div>
+              <div class="form-group">
+                <label>حداکثرِ فروش</label>
+                <input class="inp" x-model="bulkSalesLimitMaxDraft" dir="ltr" inputmode="numeric" placeholder="مثال: ۵">
+              </div>
+              <div style="display:flex;gap:8px;margin-top:16px">
+                <button type="button" class="btn" @click="bulkSalesLimitOpen = false">انصراف</button>
+                <button type="button" class="btn btn-primary" @click="applyBulkSalesLimit()">اعمال روی انتخاب‌شده‌ها</button>
+              </div>
+            </div>
           </div>
           <div class="table-wrap">
             <table class="variant-table">
@@ -183,6 +221,7 @@
                   <th>تصویر</th>
                   <th title="کدِ داخلیِ یکتای این تنوع؛ خالی بگذارید تا خودکار ساخته شود.">کدِ محصول</th>
                   <th>قیمت</th>
+                  <th>محدودیتِ فروش</th>
                   <th>موجودی</th>
                   {% for axis in axes %}{% if axis.is_active %}<th>{{ axis.label }}</th>{% endif %}{% endfor %}
                   <th>فعال</th>
@@ -197,6 +236,9 @@
                       priceDraft: '{% if variant.compare_at_price %}{{ variant.compare_at_price|stringformat:"d" }}{% elif variant.price %}{{ variant.price|stringformat:"d" }}{% endif %}',
                       discountDraft: '0',
                       finalOf(p, d) { return Math.max(0, Math.round((Number(p) || 0) * (1 - (Number(d) || 0) / 100))); },
+                      salesLimitOpen: false,
+                      salesLimitMinDraft: '{% if variant.sales_limit_min %}{{ variant.sales_limit_min|stringformat:"d" }}{% endif %}',
+                      salesLimitMaxDraft: '{% if variant.sales_limit %}{{ variant.sales_limit|stringformat:"d" }}{% endif %}',
                     }">
                   <td><input type="checkbox" name="delete_variant_ids" value="{{ variant.pk }}"></td>
                   <td>
@@ -219,8 +261,8 @@
                     {% else %}
                     <button type="button" class="btn btn-sm btn-primary" @click="priceOpen = true">💰 تنظیمِ قیمت</button>
                     {% endif %}
-                    <input type="hidden" name="price" :value="priceDraft" id="priceDraft{{ variant.pk }}">
-                    <input type="hidden" name="discount_percent" :value="discountDraft" id="discountDraft{{ variant.pk }}">
+                    <input type="hidden" name="variant_price" :value="priceDraft" id="priceDraft{{ variant.pk }}">
+                    <input type="hidden" name="variant_discount_percent" :value="discountDraft" id="discountDraft{{ variant.pk }}">
                     <div x-show="priceOpen" x-cloak class="price-modal-overlay" @click.self="priceOpen = false">
                       <div class="price-modal-card">
                         <h4 style="margin:0 0 14px">تنظیمِ قیمتِ تنوع</h4>
@@ -242,6 +284,41 @@
                                   hx-post="{% url 'dashboard:product-variant-set-price' product.pk variant.pk %}"
                                   hx-include="#priceDraft{{ variant.pk }},#discountDraft{{ variant.pk }}"
                                   hx-target="#productOptionsBody" hx-swap="innerHTML">ذخیره‌ی قیمت</button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <button type="button" class="btn btn-sm limit-cell-btn" @click="salesLimitOpen = true" title="تنظیمِ محدودیتِ فروش">
+                      {% if variant.sales_limit_min and variant.sales_limit %}بین {{ variant.sales_limit_min|fa_number }} تا {{ variant.sales_limit|fa_number }}
+                      {% elif variant.sales_limit %}حداکثر {{ variant.sales_limit|fa_number }}
+                      {% elif variant.sales_limit_min %}حداقل {{ variant.sales_limit_min|fa_number }}
+                      {% else %}نامحدود{% endif %}
+                    </button>
+                    <div x-show="salesLimitOpen" x-cloak class="price-modal-overlay" @click.self="salesLimitOpen = false">
+                      <div class="price-modal-card">
+                        <h4 style="margin:0 0 14px">تنظیمِ محدودیتِ فروش</h4>
+                        <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">حداقل و حداکثر تعدادِ قابلِ‌خرید از این تنوع در یک سفارش. خالی = نامحدود.</p>
+                        <div class="form-group">
+                          <label>حداقلِ فروش</label>
+                          <input class="inp" x-model="salesLimitMinDraft" dir="ltr" inputmode="numeric" placeholder="مثال: ۱">
+                        </div>
+                        <div class="form-group">
+                          <label>حداکثرِ فروش</label>
+                          <input class="inp" x-model="salesLimitMaxDraft" dir="ltr" inputmode="numeric" placeholder="مثال: ۵">
+                        </div>
+                        <input type="hidden" name="sales_limit_min" :value="salesLimitMinDraft" id="salesLimitMinDraft{{ variant.pk }}">
+                        <input type="hidden" name="sales_limit_max" :value="salesLimitMaxDraft" id="salesLimitMaxDraft{{ variant.pk }}">
+                        <div style="display:flex;gap:8px;margin-top:16px">
+                          <button type="button" class="btn" @click="salesLimitOpen = false">انصراف</button>
+                          <button type="button" class="btn btn-secondary"
+                                  hx-post="{% url 'dashboard:product-variant-set-sales-limit' product.pk variant.pk %}"
+                                  hx-vals='{"sales_limit_min":"","sales_limit_max":""}'
+                                  hx-target="#productOptionsBody" hx-swap="innerHTML">پاک‌کردنِ محدودیت</button>
+                          <button type="button" class="btn btn-primary"
+                                  hx-post="{% url 'dashboard:product-variant-set-sales-limit' product.pk variant.pk %}"
+                                  hx-include="#salesLimitMinDraft{{ variant.pk }},#salesLimitMaxDraft{{ variant.pk }}"
+                                  hx-target="#productOptionsBody" hx-swap="innerHTML">ذخیره</button>
                         </div>
                       </div>
                     </div>
@@ -294,10 +371,6 @@
                       <div class="form-group" style="margin-bottom:0">
                         <label>وزن (گرم)</label>
                         <input class="inp" name="variant_{{ variant.pk }}_weight_grams" value="{% if variant.weight_grams %}{{ variant.weight_grams|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:80px" placeholder="کالا">
-                      </div>
-                      <div class="form-group" style="margin-bottom:0">
-                        <label title="حداکثر تعدادِ قابلِ خرید از این تنوع در یک سفارش">محدودیتِ فروش</label>
-                        <input class="inp" name="variant_{{ variant.pk }}_sales_limit" value="{% if variant.sales_limit %}{{ variant.sales_limit|stringformat:'d' }}{% endif %}" dir="ltr" inputmode="numeric" style="width:80px" placeholder="—">
                       </div>
                       <div style="display:flex;gap:8px">
                         {% if variant.is_default %}

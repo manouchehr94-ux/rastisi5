@@ -88,6 +88,11 @@ class ProductForm(NumericCleanMixin, forms.Form):
     # آدرسِ کالا (Product Entry rebuild) — اختیاری؛ خالی یعنی «خودکار از رویِ
     # نام بساز» (همان رفتارِ قبلی، بدون تغییر).
     slug = forms.CharField(label="آدرس محصول", max_length=240, required=False)
+    # نمایش/زمان‌بندیِ انتشار (بخشِ ۱۹) — اختیاری؛ خالی یعنی بدونِ زمان‌بندی.
+    visibility = forms.ChoiceField(
+        label="نمایش", choices=Product.Visibility.choices, required=False, initial=Product.Visibility.PUBLIC,
+    )
+    publish_at = forms.CharField(label="زمانِ انتشارِ زمان‌بندی‌شده", required=False)
     # برچسب‌ها — رشته‌ی جداشده با کاما که ویجتِ چیپِ Alpine.js پر می‌کند.
     tags = forms.CharField(label="برچسب‌ها", required=False, widget=forms.HiddenInput)
 
@@ -160,6 +165,20 @@ class ProductForm(NumericCleanMixin, forms.Form):
         if category.store_id != self.store.pk:
             raise forms.ValidationError("این دسته‌بندی متعلق به فروشگاه دیگری است")
         return category
+
+    def clean_publish_at(self):
+        from django.utils.dateparse import parse_datetime
+        from django.utils.timezone import is_naive, make_aware
+
+        raw = (self.cleaned_data.get("publish_at") or "").strip()
+        if not raw:
+            return None
+        parsed = parse_datetime(raw)
+        if parsed is None:
+            raise forms.ValidationError("زمانِ انتشار معتبر نیست.")
+        if is_naive(parsed):
+            parsed = make_aware(parsed)
+        return parsed
 
     def clean_price(self):
         return self._clean_int("price", min_value=1)

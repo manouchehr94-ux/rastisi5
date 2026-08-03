@@ -387,10 +387,22 @@
         </div>
       </div>
 
-      <div x-show="productType === 'variable'" x-cloak class="info-box" style="margin-top:16px">
-        ویژگی‌ها (رنگ، سایز، کشورِ سازنده و ...) و جدولِ تنوع‌ها اینجا مدیریت نمی‌شوند — پس از ذخیره‌ی کالا، از دکمه‌ی
-        «⚙️ پیکربندیِ تنوع‌ها» در فهرستِ کالاها استفاده کنید.
+      {% if product and product.product_type == "variable" %}
+      <div x-show="productType === 'variable'" style="margin-top:16px">
+        <div class="form-section-title">ویژگی‌ها و تنوع‌هایِ کالا</div>
+        <div class="field-help" style="margin-bottom:10px">پیکربندیِ تنوع در همین‌جا، دقیقاً با همان امکاناتِ صفحه‌ی «پیکربندیِ تنوع‌ها»، انجام می‌شود — نیازی به بستنِ این فرم نیست.</div>
+        <div id="productOptionsBody">
+          {% include "dashboard/partials/product_options_body.html" %}
+        </div>
       </div>
+      {% else %}
+      <div x-show="productType === 'variable'" x-cloak class="info-box" style="margin-top:16px">
+        برایِ افزودنِ ویژگی‌ها (رنگ، سایز، کشورِ سازنده و ...) و ساختنِ تنوع‌ها، ابتدا کالا را ذخیره کنید — تنظیمِ تنوع اجباری نیست؛ می‌توانید فقط قیمتِ پایه را وارد کرده و کالا را ذخیره کنید و بعداً تنوع‌ها را اضافه کنید.
+        <div style="margin-top:10px">
+          <button type="submit" name="keep_open" value="1" class="btn btn-primary btn-sm">💾 ذخیره و ادامه با تنظیمِ ویژگی‌ها</button>
+        </div>
+      </div>
+      {% endif %}
 
       <details style="margin-top:20px">
         <summary style="cursor:pointer;color:var(--muted);font-size:13px">تنظیماتِ تکمیلی (مالیات، بارکد، موجودی، وزن، ارسال)</summary>
@@ -460,6 +472,28 @@
         <div class="seo-preview-title" x-text="document.querySelector('[name=seo_title]').value || document.querySelector('[name=name]').value || 'عنوانِ کالا'"></div>
         <div class="seo-preview-url">example.com › products › {{ product.slug|default:"..." }}</div>
         <div class="seo-preview-desc" x-text="document.querySelector('[name=seo_description]').value || 'توضیحاتِ کالا اینجا نمایش داده می‌شود.'"></div>
+      </div>
+
+      <div class="form-section-title" style="margin-top:20px">نمایش و زمان‌بندیِ انتشار</div>
+      <div class="form-group">
+        <label>نحوه‌ی نمایش در فروشگاه <span class="help-icon" title="مستقل از وضعیتِ فعال/پیش‌نویس — «فقط با لینکِ مستقیم» یعنی صفحه‌ی کالا در دسترس است اما در فهرست/جست‌وجو/سایت‌مپِ فروشگاه نمایش داده نمی‌شود.">؟</span></label>
+        <div class="status-choice-row">
+          <label class="type-choice">
+            <input type="radio" name="visibility" value="public" {% if form.visibility.value == "public" or not form.visibility.value %}checked{% endif %}>
+            <div><b>نمایشِ عمومی</b><small>در فهرست، جست‌وجو و سایت‌مپ نمایش داده می‌شود.</small></div>
+          </label>
+          <label class="type-choice">
+            <input type="radio" name="visibility" value="link" {% if form.visibility.value == "link" %}checked{% endif %}>
+            <div><b>فقط با لینکِ مستقیم</b><small>در فهرست/جست‌وجو پنهان است؛ فقط با آدرسِ مستقیم قابلِ دیدن است.</small></div>
+          </label>
+        </div>
+        {% for err in form.visibility.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      </div>
+      <div class="form-group">
+        <label>زمان‌بندیِ انتشار (اختیاری)</label>
+        <input class="inp" type="datetime-local" name="publish_at" value="{{ product.publish_at|date:'Y-m-d\TH:i'|default_if_none:'' }}" style="width:220px">
+        <div class="field-help">خالی بگذارید تا بلافاصله (در صورتِ فعال‌بودنِ وضعیت) منتشر شود. اگر پر شود، کالا حتی با وضعیتِ «فعال» تا آن لحظه در فروشگاه نمایش داده نمی‌شود.</div>
+        {% for err in form.publish_at.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
 
       {% if product %}

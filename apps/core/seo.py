@@ -10,7 +10,8 @@ from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import reverse
 
-from apps.catalog.models import Category, Product
+from apps.catalog.models import Category
+from apps.catalog.services.product_publish_service import storefront_listing_products
 from apps.content.models import ContentPage
 from apps.stores.resolution import resolve_store_for_storefront
 
@@ -37,7 +38,7 @@ def _sitemap_entries(request, store):
         entries.append({"loc": loc, "lastmod": cat.updated_at, "priority": "0.6"})
 
     products = (
-        Product.objects.filter(store=store, status=Product.Status.ACTIVE)
+        storefront_listing_products(store)
         .order_by("-updated_at")[:SITEMAP_LIMIT]
     )
     for product in products:

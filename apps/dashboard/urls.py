@@ -66,6 +66,7 @@ urlpatterns = [
 
     path("products/<int:pk>/options/", views.product_options, name="product-options"),
     path("products/<int:pk>/options/add/", views.product_option_add, name="product-option-add"),
+    path("products/<int:pk>/options/library/<int:attribute_id>/add/", views.product_option_add_from_library, name="product-option-add-from-library"),
     path("products/<int:pk>/options/recommended/<int:recommendation_id>/apply/", views.product_apply_recommended_option, name="product-apply-recommended-option"),
     path("products/<int:pk>/options/reorder/", views.product_options_reorder, name="product-options-reorder"),
     path("products/<int:pk>/options/<int:option_id>/move/", views.product_option_move, name="product-option-move"),
@@ -77,6 +78,8 @@ urlpatterns = [
     path("products/<int:pk>/options/manual-add/", views.product_variant_manual_add, name="product-variant-manual-add"),
     path("products/<int:pk>/options/variants/<int:variant_id>/default/", views.product_variant_set_default, name="product-variant-set-default"),
     path("products/<int:pk>/options/variants/<int:variant_id>/price/", views.product_variant_set_price, name="product-variant-set-price"),
+    path("products/<int:pk>/options/variants/<int:variant_id>/sales-limit/", views.product_variant_set_sales_limit, name="product-variant-set-sales-limit"),
+    path("products/<int:pk>/options/variants/bulk-sales-limit/", views.product_variants_bulk_sales_limit, name="product-variants-bulk-sales-limit"),
     path("products/<int:pk>/options/bulk-update/", views.product_variants_bulk_update, name="product-variants-bulk-update"),
     path("products/<int:pk>/options/bulk-delete/", views.product_variants_bulk_delete, name="product-variants-bulk-delete"),
     path("products/<int:pk>/options/bulk-activate/", views.product_variants_bulk_activate, name="product-variants-bulk-activate"),

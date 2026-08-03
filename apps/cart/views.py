@@ -3,8 +3,9 @@ import json
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
 
-from apps.catalog.models import Product, ProductVariant
+from apps.catalog.models import ProductVariant
 from apps.catalog.services.pricing_service import resolve_regular_price
+from apps.catalog.services.product_publish_service import storefront_visible_products
 
 from apps.stores.resolution import resolve_store_for_service
 
@@ -41,7 +42,7 @@ def cart_detail(request):
 @require_POST
 def cart_add(request, slug):
     store = resolve_store_for_service(request)
-    product = get_object_or_404(Product, slug=slug, store=store, status=Product.Status.ACTIVE)
+    product = get_object_or_404(storefront_visible_products(store), slug=slug)
 
     variant = None
     variant_id = request.POST.get("variant_id", "").strip()

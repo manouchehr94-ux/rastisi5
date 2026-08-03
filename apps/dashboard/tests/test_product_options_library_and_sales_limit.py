@@ -1,0 +1,140 @@
+from decimal import Decimal
+
+from django.contrib.auth import get_user_model
+from django.test import Client, TestCase, override_settings
+from django.urls import reverse
+from django.utils import timezone
+
+from apps.catalog.models import Category, Product, Vendor
+from apps.catalog.services.attribute_service import create_attribute, create_attribute_value
+from apps.catalog.services.variant_engine_service import add_product_option, add_option_value, generate_variants
+from apps.stores.models import Store, StoreMembership
+
+User = get_user_model()
+HOST = "optlib.rastisi.localhost"
+
+
+@override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
+class ProductOptionsLibraryAndSalesLimitTests(TestCase):
+    def setUp(self):
+        self.store = Store.objects.create(
+            name="فروشگاه تست", slug="optlib", status=Store.Status.ACTIVE,
+            admin_subdomain="optlib", platform_code="OPTLIB01",
+        )
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشنده", slug="optlib-shop")
+        self.category_group = Category.objects.create(store=self.store, name="گروه", slug="optlib-group")
+        self.category = Category.objects.create(
+            store=self.store, name="دسته", slug="optlib-cat", parent=self.category_group,
+        )
+        self.product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="قیچی",
+            slug="optlib-scissors", sku="OPTLIB-SKU1", price=Decimal("100000"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        self.staff = User.objects.create_user(username="optlibstaff", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.client = Client(HTTP_HOST=HOST)
+        self.client.login(username="optlibstaff", password="pass12345")
+
+    def test_product_options_page_renders(self):
+        response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_add_attribute_creates_library_entry_and_renders(self):
+        from apps.catalog.models import Attribute
+
+        response = self.client.post(
+            reverse("dashboard:product-option-add", args=[self.product.pk]),
+            {"label": "کشور سازنده", "raw_values": "ایرانی، ایتالیایی"},
+        )
+        self.assertEqual(response.status_code, 200)
+        attribute = Attribute.objects.get(store=self.store, label="کشور سازنده")
+        self.assertTrue(attribute.is_variant_axis)
+        self.assertEqual(attribute.values.count(), 2)
+
+    def test_library_picker_shows_on_second_product(self):
+        attribute = create_attribute(self.store, label="کشور سازنده", is_variant_axis=True)
+        create_attribute_value(attribute, label="ایرانی")
+        create_attribute_value(attribute, label="ایتالیایی")
+        response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        self.assertContains(response, "کشور سازنده")
+        self.assertContains(response, "ویژگی‌های استفاده‌شده در فروشگاه")
+
+    def test_sales_limit_modal_save_and_clear(self):
+        option = add_product_option(self.product, label="کشور سازنده", values=["ایرانی", "ایتالیایی"])
+        generate_variants(self.product)
+        variant = self.product.variants.filter(is_obsolete=False).first()
+        response = self.client.post(
+            reverse("dashboard:product-variant-set-sales-limit", args=[self.product.pk, variant.pk]),
+            {"sales_limit_min": "1", "sales_limit_max": "5"},
+        )
+        self.assertEqual(response.status_code, 200)
+        variant.refresh_from_db()
+        self.assertEqual(variant.sales_limit_min, 1)
+        self.assertEqual(variant.sales_limit, 5)
+
+        response = self.client.post(
+            reverse("dashboard:product-variant-set-sales-limit", args=[self.product.pk, variant.pk]),
+            {"sales_limit_min": "", "sales_limit_max": ""},
+        )
+        self.assertEqual(response.status_code, 200)
+        variant.refresh_from_db()
+        self.assertIsNone(variant.sales_limit_min)
+        self.assertIsNone(variant.sales_limit)
+
+    def test_sales_limit_min_gt_max_rejected(self):
+        add_product_option(self.product, label="کشور سازنده", values=["ایرانی"])
+        generate_variants(self.product)
+        variant = self.product.variants.filter(is_obsolete=False).first()
+        response = self.client.post(
+            reverse("dashboard:product-variant-set-sales-limit", args=[self.product.pk, variant.pk]),
+            {"sales_limit_min": "10", "sales_limit_max": "2"},
+        )
+        self.assertEqual(response.status_code, 200)
+        variant.refresh_from_db()
+        self.assertIsNone(variant.sales_limit)
+
+    def test_keep_open_creates_draft_and_shows_inline_variant_ui(self):
+        """بخشِ ۸ — پیکربندیِ تنوع در حینِ ساختِ کالا باید ممکن باشد (نه اجباری):
+        دکمه‌ی «ذخیره و ادامه با تنظیمِ ویژگی‌ها» باید کالا را بسازد و همان‌
+        پارشالِ صفحه‌ی «پیکربندیِ تنوع‌ها» را همان‌جا نمایش دهد."""
+        response = self.client.post(
+            reverse("dashboard:product-add"),
+            {
+                "name": "کالای جدید", "sku": "OPTLIB-NEW1", "category": self.category.pk,
+                "product_type": "variable", "price": "1", "discount_percent": "0",
+                "status": "draft", "keep_open": "1",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        new_product = Product.objects.get(sku="OPTLIB-NEW1")
+        self.assertEqual(new_product.product_type, Product.ProductType.VARIABLE)
+        self.assertContains(response, "ویژگی‌ها و تنوع‌هایِ کالا")
+        self.assertContains(response, 'id="productOptionsBody"')
+        self.assertContains(response, reverse("dashboard:product-edit", args=[new_product.pk]))
+
+    def test_editing_variable_product_with_variants_keeps_base_price_intact(self):
+        """رگرسیونِ تداخلِ نام‌گذاری: وقتی فرمِ کالا (که حالا شاملِ ردیف‌هایِ
+        تنوع با ورودی‌هایِ پنهانِ قیمتِ خودشان است) ذخیره می‌شود، قیمتِ پایه‌ی
+        محصول نباید با قیمتِ هیچ‌کدام از تنوع‌ها اشتباه گرفته شود."""
+        add_product_option(self.product, label="کشور سازنده", values=["ایرانی", "ایتالیایی"])
+        generate_variants(self.product)
+        variant = self.product.variants.filter(is_obsolete=False).first()
+        self.client.post(
+            reverse("dashboard:product-variant-set-price", args=[self.product.pk, variant.pk]),
+            {"variant_price": "999999", "variant_discount_percent": "0"},
+        )
+        response = self.client.post(
+            reverse("dashboard:product-edit", args=[self.product.pk]),
+            {
+                "name": self.product.name, "sku": self.product.sku, "category": self.category.pk,
+                "product_type": "variable", "price": "250000", "discount_percent": "0",
+                "status": "draft",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.price, Decimal("250000"))
