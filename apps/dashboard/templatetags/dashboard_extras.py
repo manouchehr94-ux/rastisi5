@@ -2,6 +2,7 @@ from django import template
 
 from apps.catalog.models import Product
 from apps.dashboard.services.catalog_admin_service import category_chain as _category_chain
+from apps.dashboard.services.catalog_admin_service import product_price_range as _product_price_range
 from apps.dashboard.services.dashboard_service import ORDER_STATUS_BADGE, PAYMENT_STATUS_BADGE
 from apps.dashboard.services.orders_admin_service import TRANSACTION_STATUS_BADGE
 from apps.dashboard.services.sms_admin_service import LOG_STATUS_BADGE
@@ -42,6 +43,22 @@ def payment_status_badge(status):
 @register.filter
 def category_chain(category):
     return _category_chain(category)
+
+
+@register.filter
+def price_range_min(product):
+    return _product_price_range(product)[0]
+
+
+@register.filter
+def price_range_max(product):
+    return _product_price_range(product)[1]
+
+
+@register.filter
+def is_price_range(product):
+    low, high = _product_price_range(product)
+    return low != high
 
 
 @register.filter

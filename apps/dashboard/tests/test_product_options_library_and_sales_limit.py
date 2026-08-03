@@ -138,3 +138,71 @@ class ProductOptionsLibraryAndSalesLimitTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.product.refresh_from_db()
         self.assertEqual(self.product.price, Decimal("250000"))
+
+    def test_library_attribute_is_store_scoped_never_crosses_stores(self):
+        """بخشِ ۲۸ — کتابخانه‌ی ویژگیِ فروشگاه باید کاملاً store-scoped باشد:
+        ویژگیِ ساخته‌شده برایِ فروشگاهِ دیگر هرگز نباید در «ویژگی‌های
+        استفاده‌شده در فروشگاه» یا نتیجه‌ی get_or_create این فروشگاه ظاهر شود،
+        حتی اگر برچسبِ آن (case-insensitive) دقیقاً یکسان باشد."""
+        other_store = Store.objects.create(
+            name="فروشگاه دیگر", slug="optlib-other", status=Store.Status.ACTIVE,
+            admin_subdomain="optlib-other", platform_code="OPTLIBOTH1",
+        )
+        other_attribute = create_attribute(other_store, label="کشور سازنده", is_variant_axis=True)
+        create_attribute_value(other_attribute, label="ایرانی")
+
+        response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
+        self.assertNotContains(response, "ویژگی‌های استفاده‌شده در فروشگاه")
+
+        response = self.client.post(
+            reverse("dashboard:product-option-add", args=[self.product.pk]),
+            {"label": "کشور سازنده", "raw_values": "ایتالیایی"},
+        )
+        self.assertEqual(response.status_code, 200)
+        from apps.catalog.models import Attribute
+
+        own_attribute = Attribute.objects.get(store=self.store, label="کشور سازنده")
+        self.assertNotEqual(own_attribute.pk, other_attribute.pk)
+        self.assertEqual(own_attribute.values.count(), 1)
+        self.assertEqual(other_attribute.values.count(), 1)
+
+    def test_removing_value_from_product_does_not_delete_it_from_library(self):
+        """حذفِ یک مقدار از یک کالا نباید آن را از کتابخانه‌ی فروشگاه حذف کند —
+        فقط لینکِ ProductOptionValueِ همین کالا حذف می‌شود. ساختِ محور از
+        طریقِ ویو انجام می‌شود چون اتصالِ به کتابخانه (بخشِ ۲۸) در همان لایه
+        اعمال می‌شود، نه در ``add_product_option`` خودِ سرویس."""
+        from apps.catalog.models import Attribute
+        from apps.catalog.services.variant_engine_service import remove_option_value
+
+        self.client.post(
+            reverse("dashboard:product-option-add", args=[self.product.pk]),
+            {"label": "کشور سازنده", "raw_values": "ایرانی، ایتالیایی"},
+        )
+        library_attribute = Attribute.objects.get(store=self.store, label__iexact="کشور سازنده")
+        self.assertEqual(library_attribute.values.count(), 2)
+
+        option = self.product.options.get(label="کشور سازنده")
+        value_to_remove = option.values.get(label="ایرانی")
+        remove_option_value(value_to_remove)
+
+        library_attribute.refresh_from_db()
+        self.assertEqual(library_attribute.values.count(), 2)
+        self.assertEqual(option.values.count(), 1)
+
+    def test_deactivating_attribute_on_product_does_not_delete_it_from_library(self):
+        """غیرفعال‌کردنِ یک محور روی یک کالا (مکانیزمِ موجود برایِ «حذفِ ویژگی
+        از این کالا») نباید ویژگیِ متناظرش را از کتابخانه‌ی فروشگاه حذف کند."""
+        from apps.catalog.models import Attribute
+        from apps.catalog.services.variant_engine_service import deactivate_product_option
+
+        self.client.post(
+            reverse("dashboard:product-option-add", args=[self.product.pk]),
+            {"label": "کشور سازنده", "raw_values": "ایرانی"},
+        )
+        library_attribute = Attribute.objects.get(store=self.store, label__iexact="کشور سازنده")
+        option = self.product.options.get(label="کشور سازنده")
+
+        deactivate_product_option(option)
+
+        self.assertTrue(Attribute.objects.filter(pk=library_attribute.pk, is_active=True).exists())
+        self.assertEqual(library_attribute.values.count(), 1)

@@ -495,21 +495,25 @@ body.admin-body{
 .variant-table .order-controls{display:inline-flex;gap:2px}
 .variant-table .order-controls button{width:26px;height:26px;padding:0;display:grid;place-items:center;font-size:11px}
 
-/* جدولِ تنوع‌ها روی موبایل به کارت تبدیل می‌شود (نه اسکرولِ افقی) — هر ردیف
-   یک کارتِ مستقل با برچسبِ هر ستون کنارِ مقدارش؛ چون فیلدها/مودال‌های داخلِ
-   سلول‌ها با htmx/Alpine کار می‌کنند، به‌جای تکرارِ DOM (که ریسکِ تداخلِ
-   نام‌گذاریِ فیلدها را داشت) از تبدیلِ CSS استفاده شد. */
+/* جدولِ تنوع‌ها و جدولِ فهرستِ کالاها روی موبایل به کارت تبدیل می‌شوند (نه
+   اسکرولِ افقی) — هر ردیف یک کارتِ مستقل با برچسبِ هر ستون کنارِ مقدارش؛
+   چون فیلدها/مودال‌های داخلِ سلول‌ها با htmx/Alpine کار می‌کنند، به‌جای
+   تکرارِ DOM (که ریسکِ تداخلِ نام‌گذاریِ فیلدها را داشت) از تبدیلِ CSS
+   استفاده شد. */
 @media (max-width:768px){
-  .variant-table-responsive thead{display:none}
-  .variant-table-responsive,.variant-table-responsive tbody{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed}
-  .variant-table-responsive tr{display:block;border:1px solid var(--border);border-radius:14px;margin-bottom:12px;padding:8px 10px;background:var(--card)}
+  .variant-table-responsive thead,.product-table-responsive thead{display:none}
+  .variant-table-responsive,.variant-table-responsive tbody,
+  .product-table-responsive,.product-table-responsive tbody{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed}
+  .variant-table-responsive tr,.product-table-responsive tr{display:block;border:1px solid var(--border);border-radius:14px;margin-bottom:12px;padding:8px 10px;background:var(--card)}
   .variant-table-responsive tr.variant-detail-row{border-top:0;border-radius:0 0 14px 14px;margin-top:-14px}
-  .variant-table-responsive td{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 2px;border:0;border-bottom:1px dashed var(--border)}
-  .variant-table-responsive tr td:last-child{border-bottom:0}
-  .variant-table-responsive td[data-label]::before{content:attr(data-label);font-weight:600;color:var(--muted);font-size:11.5px;flex-shrink:0}
-  .variant-table-responsive td[data-label=""]::before{content:none}
+  .variant-table-responsive td,.product-table-responsive td{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 2px;border:0;border-bottom:1px dashed var(--border)}
+  .variant-table-responsive tr td:last-child,.product-table-responsive tr td:last-child{border-bottom:0}
+  .variant-table-responsive td[data-label]::before,.product-table-responsive td[data-label]::before{content:attr(data-label);font-weight:600;color:var(--muted);font-size:11.5px;flex-shrink:0}
+  .variant-table-responsive td[data-label=""]::before,.product-table-responsive td[data-label=""]::before{content:none}
   .variant-table-responsive td.variant-detail-cell{display:block;padding:8px 2px 2px}
-  .table-wrap:has(.variant-table-responsive){overflow-x:visible}
+  .product-table-responsive td[data-label="عملیات"]{flex-wrap:wrap;justify-content:flex-start}
+  .product-table-responsive td[data-label="کالا"]{align-items:flex-start}
+  .table-wrap:has(.variant-table-responsive),.table-wrap:has(.product-table-responsive){overflow-x:visible}
 }
 
 /* compact row actions — a real accessible dropdown (Alpine x-anchor) was tried and

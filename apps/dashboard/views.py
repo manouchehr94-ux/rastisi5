@@ -328,6 +328,7 @@ from .services import (
 from .services.catalog_admin_service import (
     BULK_STATUS_ACTIONS,
     DEFAULT_PRODUCT_SORT,
+    LOW_STOCK_THRESHOLD,
     PRODUCT_SORT_OPTIONS,
     PRODUCT_STATUS_FILTERS,
     BulkActionError,
@@ -525,6 +526,9 @@ def _product_list_context(request):
         "total": all_store_products.count(),
         "active": all_store_products.filter(status=Product.Status.ACTIVE).count(),
         "draft": all_store_products.filter(status=Product.Status.DRAFT).count(),
+        "low_stock": all_store_products.filter(
+            status=Product.Status.ACTIVE, stock__lte=LOW_STOCK_THRESHOLD,
+        ).count(),
         "active_variants": ProductVariant.objects.filter(product__store=store, is_active=True).exclude(
             combination_key="",
         ).count(),

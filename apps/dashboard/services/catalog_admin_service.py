@@ -11,10 +11,11 @@
 """
 
 from django.db import models
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Prefetch, Q, Sum
 from django.utils.text import slugify
 
-from apps.catalog.models import Category, Product, Vendor
+from apps.catalog.models import Category, Product, ProductVariant, Vendor
+from apps.catalog.services.pricing_service import resolve_effective_price
 
 LOW_STOCK_THRESHOLD = 10
 
@@ -143,7 +144,16 @@ def filtered_products(
     qs = (
         Product.objects.filter(store=store)
         .select_related("category", "category__parent", "brand")
-        .prefetch_related("images")
+        .prefetch_related(
+            "images",
+            Prefetch(
+                "variants",
+                queryset=ProductVariant.objects.filter(is_active=True, is_obsolete=False).exclude(
+                    combination_key="",
+                ),
+                to_attr="active_priced_variants",
+            ),
+        )
         .annotate(
             variant_count=Count("variants", distinct=True),
             active_variant_count=Count("variants", filter=Q(variants__is_active=True), distinct=True),
@@ -176,6 +186,22 @@ def filtered_products(
 
     order_fields, _label = PRODUCT_SORT_OPTIONS.get(sort, PRODUCT_SORT_OPTIONS[DEFAULT_PRODUCT_SORT])
     return qs.order_by(*order_fields, "pk")
+
+
+def product_price_range(product):
+    """بازه‌ی قیمتِ نمایشی برایِ ردیفِ فهرستِ کالاها — (کمینه، بیشینه).
+
+    برایِ کالایِ ساده همیشه یک مقدار (قیمتِ نهاییِ خودِ کالا) است. برایِ کالایِ
+    دارای تنوع، رویِ ``product.active_priced_variants`` (prefetch‌شده در
+    ``filtered_products``) حساب می‌شود تا کوئری‌یِ اضافه در هر ردیف اجرا
+    نشود؛ اگر هنوز هیچ تنوعی نداشته باشد، به قیمتِ پایه‌یِ کالا برمی‌گردد
+    (مسیرِ محاسبه‌یِ مرجع همان ``pricing_service.resolve_effective_price``
+    است — بدونِ منطقِ موازی)."""
+    variants = getattr(product, "active_priced_variants", None)
+    if not product.is_variable or not variants:
+        return product.final_price, product.final_price
+    prices = [resolve_effective_price(product, variant) for variant in variants]
+    return min(prices), max(prices)
 
 
 BULK_STATUS_ACTIONS = {
