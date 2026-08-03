@@ -2,7 +2,7 @@
 {{ existing_tags_list|json_script:"existing-tags-data" }}
 <div x-data="{
       tab: '{{ error_step|default:'basic' }}',
-      tabs: [['basic', 'اطلاعات پایه'], ['media', 'تصاویر و ویدیو'], ['price', 'قیمت'], ['seo', 'سئو و انتشار']],
+      tabs: [['basic', 'اطلاعات پایه'], ['media', 'تصاویر و ویدیو'], ['price', 'قیمت و نوع کالا'], ['seo', 'سئو و انتشار']],
       productType: '{{ form.product_type.value|default:'simple' }}',
       tags: JSON.parse(document.getElementById('existing-tags-data').textContent),
       tagInput: '',
