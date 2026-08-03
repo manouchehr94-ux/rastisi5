@@ -11,7 +11,7 @@ program describes. Extending it is additive, later work.
 """
 
 from django.contrib import messages
-from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
+from django.contrib.auth import authenticate, get_user_model, login as auth_login, logout as auth_logout
 from django.contrib.auth.decorators import user_passes_test
 from django.core.paginator import Paginator
 from django.db.models import Q
@@ -50,14 +50,32 @@ def login_view(request):
             form.add_error(None, "تعداد تلاش ورود بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
             return render(request, "portal/platform_admin/login.html", {"form": form})
         if form.is_valid():
-            user = authenticate(
-                request, username=form.cleaned_data["email"].strip().lower(),
-                password=form.cleaned_data["password"],
-            )
+            email = form.cleaned_data["email"].strip().lower()
+            # AUTH_USER_MODEL's USERNAME_FIELD is "username", not "email" — so
+            # authenticate() must be called with the real username. We look the
+            # user up by email first (this form is email-only, unlike the
+            # identifier-based owner login) and authenticate with their actual
+            # username, exactly like apps.portal.services.owner_auth_service.
+            # authenticate_owner_by_identifier does for its email branch.
+            candidate = get_user_model().objects.filter(email__iexact=email).first()
+            user = None
+            if candidate is not None:
+                user = authenticate(
+                    request, username=candidate.username, password=form.cleaned_data["password"],
+                )
             if user is not None and _is_platform_staff(user):
                 auth_login(request, user)
                 session_service.apply_remember_me(request, form.cleaned_data.get("remember_me", False))
+                record_platform_audit_event(
+                    actor=user, action_code="platform_admin.login_succeeded",
+                    object_type="User", object_id=user.pk, object_label=user.get_username(),
+                )
                 return redirect("portal_platform_admin:home")
+            record_platform_audit_event(
+                actor=user, action_code="platform_admin.login_failed",
+                object_type="User", object_id=user.pk if user else None, object_label=email,
+                result="failure",
+            )
             form.add_error(None, "ایمیل، رمز عبور، یا دسترسی نامعتبر است")
     else:
         form = OwnerLoginForm()

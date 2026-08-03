@@ -1,5 +1,8 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
+
+from apps.portal.models import PlatformAuditLogEntry
 
 User = get_user_model()
 _HOST = "platformadmins.rastisi.localhost"
@@ -48,6 +51,7 @@ class PlatformAdminAccessTests(TestCase):
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
 class PlatformAdminLoginRememberMeTests(TestCase):
     def setUp(self):
+        cache.clear()  # rate-limit counters are cache-backed, not reset by transaction rollback
         self.staff_superuser = User.objects.create_user(
             username="rememberadmin@example.com", email="rememberadmin@example.com",
             password="a-very-strong-pass-1", is_staff=True, is_superuser=True,
@@ -89,3 +93,125 @@ class PlatformAdminLoginRememberMeTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("_auth_user_id", self.client.session)
+
+
+@override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
+class PlatformAdminEmailLoginWithDifferentUsernameTests(TestCase):
+    """AUTH_USER_MODEL's USERNAME_FIELD is "username", not "email" — the
+    login form only collects email, so authenticate() must be called with
+    the real username after an email lookup. Every other login test in this
+    file happens to use ``username == email``, which would hide this bug —
+    these tests deliberately use a username that does NOT match the email."""
+
+    def setUp(self):
+        cache.clear()  # rate-limit counters are cache-backed, not reset by transaction rollback
+        self.staff_superuser = User.objects.create_user(
+            username="realplatformowner", email="owner@rastisi-platform.example",
+            password="a-very-strong-pass-1", is_staff=True, is_superuser=True,
+        )
+
+    def test_login_with_email_succeeds_when_username_differs_from_email(self):
+        response = self.client.post(
+            "/login/",
+            {"email": "owner@rastisi-platform.example", "password": "a-very-strong-pass-1"},
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.staff_superuser.pk)
+
+    def test_login_with_email_is_case_insensitive(self):
+        response = self.client.post(
+            "/login/",
+            {"email": "OWNER@Rastisi-Platform.example", "password": "a-very-strong-pass-1"},
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("_auth_user_id", self.client.session)
+
+    def test_login_with_wrong_password_fails_with_generic_error(self):
+        response = self.client.post(
+            "/login/",
+            {"email": "owner@rastisi-platform.example", "password": "totally-wrong-password"},
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertContains(response, "ایمیل، رمز عبور، یا دسترسی نامعتبر است")
+
+    def test_login_with_unknown_email_fails_with_the_same_generic_error(self):
+        response = self.client.post(
+            "/login/",
+            {"email": "no-such-user@example.com", "password": "whatever-password"},
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertContains(response, "ایمیل، رمز عبور، یا دسترسی نامعتبر است")
+
+    def test_remember_me_still_works_with_email_login(self):
+        self.client.post(
+            "/login/",
+            {
+                "email": "owner@rastisi-platform.example", "password": "a-very-strong-pass-1",
+                "remember_me": "on",
+            },
+            HTTP_HOST=_HOST,
+        )
+        self.assertFalse(self.client.session.get_expire_at_browser_close())
+
+    def test_rate_limit_still_enforced_after_repeated_failed_email_logins(self):
+        for _ in range(10):
+            self.client.post(
+                "/login/",
+                {"email": "owner@rastisi-platform.example", "password": "wrong-password"},
+                HTTP_HOST=_HOST,
+            )
+        response = self.client.post(
+            "/login/",
+            {"email": "owner@rastisi-platform.example", "password": "a-very-strong-pass-1"},
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertContains(response, "تعداد تلاش ورود بیش از حد مجاز است")
+
+    def test_platform_staff_validation_still_enforced_for_email_login(self):
+        User.objects.create_user(
+            username="notplatformstaff", email="notstaff@rastisi-platform.example",
+            password="a-very-strong-pass-1", is_staff=True, is_superuser=False,
+        )
+        response = self.client.post(
+            "/login/",
+            {"email": "notstaff@rastisi-platform.example", "password": "a-very-strong-pass-1"},
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_successful_email_login_is_audited(self):
+        self.client.post(
+            "/login/",
+            {"email": "owner@rastisi-platform.example", "password": "a-very-strong-pass-1"},
+            HTTP_HOST=_HOST,
+        )
+        entry = PlatformAuditLogEntry.objects.get(action_code="platform_admin.login_succeeded")
+        self.assertEqual(entry.actor, self.staff_superuser)
+        self.assertEqual(entry.result, PlatformAuditLogEntry.ResultStatus.SUCCESS)
+
+    def test_failed_email_login_is_audited(self):
+        self.client.post(
+            "/login/",
+            {"email": "owner@rastisi-platform.example", "password": "wrong-password"},
+            HTTP_HOST=_HOST,
+        )
+        entry = PlatformAuditLogEntry.objects.get(action_code="platform_admin.login_failed")
+        self.assertEqual(entry.result, PlatformAuditLogEntry.ResultStatus.FAILURE)
+        self.assertEqual(entry.object_label, "owner@rastisi-platform.example")
+
+    def test_failed_login_for_unknown_email_is_audited_without_a_user(self):
+        self.client.post(
+            "/login/", {"email": "no-such-user@example.com", "password": "whatever"}, HTTP_HOST=_HOST,
+        )
+        entry = PlatformAuditLogEntry.objects.get(action_code="platform_admin.login_failed")
+        self.assertIsNone(entry.actor)
+        self.assertEqual(entry.object_label, "no-such-user@example.com")
