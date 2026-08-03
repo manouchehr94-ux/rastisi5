@@ -17,12 +17,17 @@
     </div>
     <div class="p-field">
       <label for="id_industry_template_id">صنف (اختیاری)</label>
-      <select name="industry_template_id" id="id_industry_template_id">
+      <select name="industry_template_id" id="id_industry_template_id" {% if not industry_templates %}disabled{% endif %}>
         <option value="">— بدون صنف مشخص —</option>
         {% for template in industry_templates %}
         <option value="{{ template.pk }}">{{ template.icon }} {{ template.name }}</option>
         {% endfor %}
       </select>
+      {% if not industry_templates %}
+      <div class="p-error" style="color:var(--p-muted);font-size:12px;margin-top:4px">
+        در حال حاضر هیچ الگوی صنفی برای انتخاب موجود نیست؛ می‌توانید بعداً از تنظیماتِ فروشگاه صنف را مشخص کنید.
+      </div>
+      {% endif %}
     </div>
     <button type="submit" class="p-btn p-btn-primary" style="width:100%">ساخت فروشگاه</button>
   </form>

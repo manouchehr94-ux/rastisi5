@@ -20,7 +20,7 @@ from django.urls import reverse
 from apps.catalog.models import Attribute, Brand, Category, Product, ProductImage, ProductVariant, StoreIndustryInstallation
 from apps.core.models import ShopSettings, ShopSettingsNotProvisionedError
 from apps.orders.models import PaymentGatewayConfig, ShippingMethod, TaxRate
-from apps.stores.models import Store, StoreDomain
+from apps.stores.models import StoreDomain
 
 #: مقادیرِ پیش‌فرضِ رنگِ ShopSettings (دقیقاً همان‌هایی که در تعریفِ مدل
 #: آمده‌اند) — «تم» وقتی تکمیل‌شده حساب می‌شود که دست‌کم یکی از رنگ‌ها از
@@ -55,27 +55,32 @@ def _store_information_complete(store, shop):
     return bool(shop and shop.description.strip())
 
 
-def _industry_decided(store):
-    """صنفِ فروشگاه «تصمیم‌گیری‌شده» است — یا واقعاً یک قالب نصب شده، یا مالک
-    آگاهانه این مرحله را در ویزاردِ آنبوردینگ رد کرده (Section 5، ADR-25 —
-    انتخابِ صنف اختیاری و رد-شدنی است). ``onboarding_stage`` فقط وقتی از
-    INDUSTRY عبور می‌کند که یکی از این دو رخ داده باشد؛ پس همین یک فیلد،
-    بدونِ نیاز به مدلِ جداگانه‌ی «صنف انتخاب شد اما نصب نشد»، هر دو حالت را
-    به‌درستی پوشش می‌دهد."""
-    if StoreIndustryInstallation.objects.filter(store=store).exists():
-        return True
-    return store.onboarding_stage not in (Store.OnboardingStage.IDENTITY, Store.OnboardingStage.INDUSTRY)
+def _active_industry_installation(store):
+    """نصبِ صنفِ این Store، فقط اگر واقعاً به یک ``IndustryTemplate`` فعال
+    وصل باشد — نگاه کنید به گزارشِ باگ: پیش از این، این دو مرحله صرفاً از
+    روی عبورِ ``onboarding_stage`` از INDUSTRY تشخیص داده می‌شدند، که
+    می‌توانست بدونِ هیچ ``StoreIndustryInstallation``ای هم ✅ نشان دهد. صرفِ
+    وجودِ دسته‌بندی/ویژگی/برند/کالا هم عمداً این‌جا خوانده نمی‌شود — تنها
+    منبعِ حقیقتِ «صنف نصب شده؟» همین رکورد است."""
+    return (
+        StoreIndustryInstallation.objects.select_related("industry_template")
+        .filter(store=store, industry_template__is_active=True)
+        .first()
+    )
 
 
 def _industry_complete(store, shop):
-    return _industry_decided(store)
+    """«انتخاب صنف» فقط با وجودِ یک نصبِ واقعی (به قالبِ فعال) تکمیل حساب
+    می‌شود — نه صرفِ رد یا عبور از مرحله‌ی آنبوردینگ."""
+    return _active_industry_installation(store) is not None
 
 
 def _industry_template_complete(store, shop):
-    """«نصب قالب صنف» — اگر مالک صنف را رد کرده (نه انتخاب)، این مرحله
-    اساساً منتفی است، نه ناتمام؛ پس با عبور از تصمیمِ صنف، این مرحله هم
-    تکمیل‌شده حساب می‌شود (نگاه کنید به ``_industry_decided``)."""
-    return _industry_decided(store)
+    """«نصب قالب صنف» فقط وقتی تکمیل است که وضعیتِ نصب واقعاً
+    ``COMPLETED`` باشد — نصبِ ``FAILED`` (یا نبودِ هیچ نصبی) هرگز این مرحله
+    را تکمیل‌شده نشان نمی‌دهد."""
+    installation = _active_industry_installation(store)
+    return installation is not None and installation.status == StoreIndustryInstallation.Status.COMPLETED
 
 
 def _product_groups_complete(store, shop):

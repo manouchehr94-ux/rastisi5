@@ -4,9 +4,16 @@
   <div class="card-body">
     {% if industry_installation %}
     <div class="info-box">
-      الگوی صنف «{{ industry_installation.installation.industry_template.name }}»
-      (نسخه {{ industry_installation.installation.installed_version|fa_number }})
-      در تاریخ {{ industry_installation.installation.created_at|jalali }} نصب شده است —
+      <b>صنف:</b> {{ industry_installation.installation.industry_template.name }}<br>
+      <b>قالب نصب‌شده:</b> {{ industry_installation.installation.industry_template.name }}
+      (نسخه {{ industry_installation.installation.installed_version|fa_number }})<br>
+      <b>وضعیت نصب:</b>
+      {% if industry_installation.installation.status == "completed" %}
+        <span style="color:var(--success,#16a34a)">✅ {{ industry_installation.installation.get_status_display }}</span>
+      {% else %}
+        <span style="color:var(--danger,#dc2626)">⚠️ {{ industry_installation.installation.get_status_display }}</span>
+      {% endif %}<br>
+      <b>تاریخ نصب:</b> {{ industry_installation.installation.created_at|jalali }}<br>
       {{ industry_installation.installation.categories_created|fa_number }} دسته‌بندی و
       {{ industry_installation.installation.attributes_created|fa_number }} ویژگی ساخته شد.
       <br><small style="color:var(--muted)">هر فروشگاه فقط یک‌بار می‌تواند الگوی صنف نصب کند؛ برای تغییر صنف با پشتیبانی تماس بگیرید.</small>
@@ -47,7 +54,14 @@
         </div>
       </div>
       {% empty %}
-      <p style="color:var(--muted)">در حال حاضر الگوی صنفی برای نصب موجود نیست.</p>
+      <div class="info-box" style="border-color:var(--danger,#dc2626)">
+        ⚠️ هیچ الگوی صنفِ فعالی در سامانه ثبت نشده است — این یک وضعیتِ داده‌ایِ ناقص است، نه پایانِ راه‌اندازی.
+        <br><small style="color:var(--muted)">
+          برای رفعِ آن، اپراتورِ پلتفرم باید دستورِ
+          <code>python manage.py seed_industry_templates</code> را اجرا کند
+          (این عملیات idempotent است و داده‌ی مرچنت‌ها را تغییر نمی‌دهد).
+        </small>
+      </div>
       {% endfor %}
     </div>
     {% endif %}

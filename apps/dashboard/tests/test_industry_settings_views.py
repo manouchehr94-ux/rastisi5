@@ -37,6 +37,33 @@ class IndustrySettingsTestCase(TestCase):
         self.client.login(username="09121188001", password="pass12345")
 
 
+@override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
+class IndustrySettingsZeroTemplatesTests(TestCase):
+    """سناریوی دقیقِ گزارشِ باگ: هیچ ``IndustryTemplate``ای در سامانه نیست —
+    صفحه‌ی تنظیماتِ صنف باید یک پیامِ تشخیصیِ روشن نشان دهد، نه اینکه وانمود
+    کند راه‌اندازی تمام شده است."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.store.admin_subdomain = HOST.split(".")[0]
+        self.store.save(update_fields=["admin_subdomain"])
+        self.staff = User.objects.create_user(username="09121188009", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.client = Client(HTTP_HOST=HOST)
+        self.client.login(username="09121188009", password="pass12345")
+
+    def test_zero_templates_shows_diagnostic_not_success(self):
+        self.assertEqual(IndustryTemplate.objects.count(), 0)
+        response = self.client.get(reverse("dashboard:settings") + "?section=industry")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "هیچ الگوی صنفِ فعالی در سامانه ثبت نشده است")
+        self.assertContains(response, "seed_industry_templates")
+        self.assertNotContains(response, "نصب‌شده")
+
+
 class IndustrySettingsPageTests(IndustrySettingsTestCase):
     def test_renders_available_templates(self):
         response = self.client.get(reverse("dashboard:settings") + "?section=industry")
@@ -47,7 +74,9 @@ class IndustrySettingsPageTests(IndustrySettingsTestCase):
         self.template.is_active = False
         self.template.save(update_fields=["is_active"])
         response = self.client.get(reverse("dashboard:settings") + "?section=industry")
-        self.assertContains(response, "در حال حاضر الگوی صنفی")
+        self.assertNotContains(response, "پوشاک")
+        self.assertContains(response, "هیچ الگوی صنفِ فعالی در سامانه ثبت نشده است")
+        self.assertContains(response, "seed_industry_templates")
 
     def test_only_latest_version_shown(self):
         IndustryTemplate.objects.create(
@@ -79,7 +108,9 @@ class IndustryInstallViewTests(IndustrySettingsTestCase):
     def test_installed_state_shown_after_install(self):
         self.client.post(reverse("dashboard:settings-industry-install", args=[self.template.pk]))
         response = self.client.get(reverse("dashboard:settings") + "?section=industry")
-        self.assertContains(response, "نصب شده است")
+        self.assertContains(response, "وضعیت نصب")
+        self.assertContains(response, "نصب‌شده")
+        self.assertContains(response, "تاریخ نصب")
 
     def test_other_store_unaffected(self):
         other_store = Store.objects.create(name="فروشگاه دیگر", slug="isv-other", status=Store.Status.ACTIVE)

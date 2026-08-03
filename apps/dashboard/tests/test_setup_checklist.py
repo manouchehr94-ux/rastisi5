@@ -71,8 +71,13 @@ class BuildSetupChecklistTests(TestCase):
         self.assertTrue(steps_by_key["store_info"]["is_unlocked"])
 
     def test_chain_step_unlocks_once_its_prerequisites_are_done(self):
-        self.store.onboarding_stage = Store.OnboardingStage.BRANDING  # صنف رد/تصمیم‌گیری شده
-        self.store.save(update_fields=["onboarding_stage"])
+        template = IndustryTemplate.objects.create(
+            slug="chain-unlock", name="زنجیره", version=1, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
+        StoreIndustryInstallation.objects.create(
+            store=self.store, industry_template=template, installed_version=1,
+            status=StoreIndustryInstallation.Status.COMPLETED,
+        )
         Category.objects.create(store=self.store, name="گروه", slug="chk-unlock-group")
         result = build_setup_checklist(self.store, self.request)
         steps_by_key = {s["key"]: s for s in result["steps"]}
@@ -89,8 +94,13 @@ class BuildSetupChecklistTests(TestCase):
 
     def test_locked_reason_points_to_the_nearest_unfinished_prerequisite(self):
         """دلیلِ قفل باید نزدیک‌ترین مرحله‌ی ناتمام را نام ببرد، نه همیشه اولین مرحله‌ی زنجیره را."""
-        self.store.onboarding_stage = Store.OnboardingStage.BRANDING
-        self.store.save(update_fields=["onboarding_stage"])
+        template = IndustryTemplate.objects.create(
+            slug="locked-reason", name="زنجیره۲", version=1, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
+        StoreIndustryInstallation.objects.create(
+            store=self.store, industry_template=template, installed_version=1,
+            status=StoreIndustryInstallation.Status.COMPLETED,
+        )
         Category.objects.create(store=self.store, name="گروه", slug="chk-reason-group")
         result = build_setup_checklist(self.store, self.request)
         steps_by_key = {s["key"]: s for s in result["steps"]}
@@ -103,8 +113,13 @@ class BuildSetupChecklistTests(TestCase):
         self.assertEqual(next_steps, ["industry"])
 
     def test_next_step_advances_once_current_step_completes(self):
-        self.store.onboarding_stage = Store.OnboardingStage.BRANDING
-        self.store.save(update_fields=["onboarding_stage"])
+        template = IndustryTemplate.objects.create(
+            slug="next-step", name="زنجیره۳", version=1, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
+        StoreIndustryInstallation.objects.create(
+            store=self.store, industry_template=template, installed_version=1,
+            status=StoreIndustryInstallation.Status.COMPLETED,
+        )
         result = build_setup_checklist(self.store, self.request)
         next_steps = [s["key"] for s in result["steps"] if s["is_next"]]
         self.assertEqual(next_steps, ["product_groups"])
@@ -174,15 +189,35 @@ class BuildSetupChecklistTests(TestCase):
         prod_step = next(s for s in result["steps"] if s["key"] == "first_product")
         self.assertTrue(prod_step["is_complete"])
 
-    def test_industry_template_step_completes_when_industry_skipped(self):
-        """رد کردن مرحله‌ی صنف در ویزارد یعنی نصب قالب اساساً منتفی است — نه ناتمام."""
+    def test_industry_steps_stay_incomplete_when_only_onboarding_stage_advances(self):
+        """قبلاً صرفِ عبورِ ``onboarding_stage`` از INDUSTRY (رد کردنِ مرحله در
+        ویزارد، بدونِ نصبِ واقعی) هر دو مرحله را ✅ نشان می‌داد — دقیقاً همان
+        باگِ گزارش‌شده: ``IndustryTemplate.objects.count() == 0`` و
+        ``StoreIndustryInstallation.objects.count() == 0`` ولی چک‌لیست
+        تکمیل‌شده نشان می‌داد. اکنون بدونِ یک نصبِ واقعی، این دو مرحله هرگز
+        تکمیل نمی‌شوند، صرف‌نظر از ``onboarding_stage``."""
         self.store.onboarding_stage = Store.OnboardingStage.BRANDING
         self.store.save(update_fields=["onboarding_stage"])
         result = build_setup_checklist(self.store, self.request)
         industry_step = next(s for s in result["steps"] if s["key"] == "industry")
         template_step = next(s for s in result["steps"] if s["key"] == "industry_template")
-        self.assertTrue(industry_step["is_complete"])
-        self.assertTrue(template_step["is_complete"])
+        self.assertFalse(industry_step["is_complete"])
+        self.assertFalse(template_step["is_complete"])
+        self.assertNotEqual(industry_step["url"], "")
+
+    def test_industry_steps_incomplete_with_zero_templates_and_zero_installations(self):
+        """سناریوی دقیقِ گزارشِ باگ: هیچ ``IndustryTemplate``ای در سامانه
+        نیست و هیچ نصبی برایِ این Store وجود ندارد — هر دو مرحله باید
+        ناتمام و قابل‌اقدام (دارای url) بمانند."""
+        self.assertEqual(IndustryTemplate.objects.count(), 0)
+        self.assertEqual(StoreIndustryInstallation.objects.filter(store=self.store).count(), 0)
+        result = build_setup_checklist(self.store, self.request)
+        industry_step = next(s for s in result["steps"] if s["key"] == "industry")
+        template_step = next(s for s in result["steps"] if s["key"] == "industry_template")
+        self.assertFalse(industry_step["is_complete"])
+        self.assertFalse(template_step["is_complete"])
+        self.assertTrue(industry_step["url"])
+        self.assertTrue(template_step["url"])
 
     def test_industry_template_step_completes_when_actually_installed(self):
         template = IndustryTemplate.objects.create(
@@ -193,8 +228,61 @@ class BuildSetupChecklistTests(TestCase):
             status=StoreIndustryInstallation.Status.COMPLETED,
         )
         result = build_setup_checklist(self.store, self.request)
-        step = next(s for s in result["steps"] if s["key"] == "industry_template")
-        self.assertTrue(step["is_complete"])
+        industry_step = next(s for s in result["steps"] if s["key"] == "industry")
+        template_step = next(s for s in result["steps"] if s["key"] == "industry_template")
+        self.assertTrue(industry_step["is_complete"])
+        self.assertTrue(template_step["is_complete"])
+
+    def test_industry_steps_incomplete_when_installation_failed(self):
+        """نصبی که وضعیتش ``FAILED`` است، هرگز مرحله‌ی «نصب قالب صنف» را
+        تکمیل‌شده نشان نمی‌دهد — حتی اگر یک رکوردِ نصب وجود داشته باشد."""
+        template = IndustryTemplate.objects.create(
+            slug="failed-install", name="صنعتِ ناموفق", version=1,
+            readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
+        StoreIndustryInstallation.objects.create(
+            store=self.store, industry_template=template, installed_version=1,
+            status=StoreIndustryInstallation.Status.FAILED,
+        )
+        result = build_setup_checklist(self.store, self.request)
+        template_step = next(s for s in result["steps"] if s["key"] == "industry_template")
+        self.assertFalse(template_step["is_complete"])
+
+    def test_industry_steps_incomplete_when_template_is_inactive(self):
+        """نصبی که به یک قالبِ غیرفعال وصل است، معتبر حساب نمی‌شود —
+        الزام: «فقط وقتی به یک IndustryTemplate فعال وصل باشد»."""
+        template = IndustryTemplate.objects.create(
+            slug="deactivated", name="صنعتِ غیرفعال", version=1,
+            readiness=IndustryTemplate.Readiness.PRODUCTION_READY, is_active=False,
+        )
+        StoreIndustryInstallation.objects.create(
+            store=self.store, industry_template=template, installed_version=1,
+            status=StoreIndustryInstallation.Status.COMPLETED,
+        )
+        result = build_setup_checklist(self.store, self.request)
+        industry_step = next(s for s in result["steps"] if s["key"] == "industry")
+        template_step = next(s for s in result["steps"] if s["key"] == "industry_template")
+        self.assertFalse(industry_step["is_complete"])
+        self.assertFalse(template_step["is_complete"])
+
+    def test_industry_installation_does_not_leak_across_stores(self):
+        """نصبِ صنفِ یک فروشگاهِ دیگر هرگز نباید چک‌لیستِ این Store را تکمیل‌شده نشان دهد."""
+        other_store = Store.objects.create(
+            name="Other Shop", slug="other-shop-industry-isolation", status=Store.Status.ACTIVE,
+        )
+        template = IndustryTemplate.objects.create(
+            slug="tenant-isolation", name="ایزوله", version=1,
+            readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+        )
+        StoreIndustryInstallation.objects.create(
+            store=other_store, industry_template=template, installed_version=1,
+            status=StoreIndustryInstallation.Status.COMPLETED,
+        )
+        result = build_setup_checklist(self.store, self.request)
+        industry_step = next(s for s in result["steps"] if s["key"] == "industry")
+        template_step = next(s for s in result["steps"] if s["key"] == "industry_template")
+        self.assertFalse(industry_step["is_complete"])
+        self.assertFalse(template_step["is_complete"])
 
     def test_attributes_and_brands_steps(self):
         result = build_setup_checklist(self.store, self.request)
