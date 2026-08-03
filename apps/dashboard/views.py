@@ -801,6 +801,29 @@ _PRODUCT_WIZARD_FIELD_STEPS = {
 }
 
 
+def _product_form_initial(product) -> dict:
+    """مقادیرِ اولیه‌ی فرمِ کالا برایِ یک کالایِ *موجود* — ``ProductForm`` یک
+    ``forms.Form`` سادّه است، نه ``ModelForm``، پس با دادنِ ``instance=``
+    مقادیرِ فیلدها خودکار پر نمی‌شوند؛ این دیکشنری تنها منبعِ آن پرکردن
+    است. یک تابعِ مشترک، چون هم مسیرِ GETِ ویرایش و هم مسیرِ «ذخیره و
+    ادامه با تنظیمِ ویژگی‌ها» (keep_open) باید دقیقاً همین مقادیر را
+    بسازند — یک نسخه‌ی جدا برایِ keep_open، همین باگِ دقیقاً همین‌جا
+    (ریست‌شدنِ خاموشِ نوعِ کالا/نمایش/... به‌خاطرِ initialِ ناقص) را دوباره
+    ممکن می‌کرد."""
+    return {
+        "name": product.name, "sku": product.sku, "category": product.category_id,
+        "brand": product.brand_id,
+        "price": product.price, "discount_percent": product.discount_percent,
+        "stock": product.stock, "status": product.status, "icon": product.icon,
+        "description": product.description, "product_type": product.product_type,
+        "barcode": product.barcode, "weight_grams": product.weight_grams,
+        "requires_shipping": product.requires_shipping, "tax_class": product.tax_class_id,
+        "seo_title": product.seo_title, "seo_description": product.seo_description,
+        "visibility": product.visibility,
+        "publish_at": product.publish_at.strftime("%Y-%m-%dT%H:%M") if product.publish_at else "",
+    }
+
+
 def _product_form_extra_context(store, product, *, form=None, request=None) -> dict:
     """کانتکستِ مشترکِ فرمِ کالا (چک‌لیستِ انتشار، درصدِ تکمیل، برچسب‌های
     فعلی/پیشنهادی، جدولِ ویژگی/تنوع برایِ تبِ «قیمت و تنوع») — در مسیرِ
@@ -910,7 +933,7 @@ def product_form(request, pk=None):
                 # تنوع‌ها» کار می‌کند (بدون سیستمِ موازی).
                 category = form.cleaned_data.get("category")
                 attribute_fields = _product_attribute_field_context(category, product)
-                reopened_form = ProductForm(instance=product, store=store)
+                reopened_form = ProductForm(instance=product, initial=_product_form_initial(product), store=store)
                 modal_html = render_to_string(request=request, template_name="dashboard/partials/product_form.html", context={
                     "form": reopened_form, "product": product, "attribute_fields": attribute_fields,
                     "orphaned_count": orphaned_product_attribute_values(product).count(),
@@ -946,20 +969,7 @@ def product_form(request, pk=None):
             response["HX-Trigger"] = json.dumps({"toast": toast, "modal-close": {}})
             return response
     else:
-        initial = None
-        if product:
-            initial = {
-                "name": product.name, "sku": product.sku, "category": product.category_id,
-                "brand": product.brand_id,
-                "price": product.price, "discount_percent": product.discount_percent,
-                "stock": product.stock, "status": product.status, "icon": product.icon,
-                "description": product.description, "product_type": product.product_type,
-                "barcode": product.barcode, "weight_grams": product.weight_grams,
-                "requires_shipping": product.requires_shipping, "tax_class": product.tax_class_id,
-                "seo_title": product.seo_title, "seo_description": product.seo_description,
-            }
-        else:
-            initial = {"product_type": Product.ProductType.SIMPLE}
+        initial = _product_form_initial(product) if product else {"product_type": Product.ProductType.SIMPLE}
         form = ProductForm(instance=product, initial=initial, store=store)
 
     category = product.category if product else None

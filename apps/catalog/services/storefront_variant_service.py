@@ -21,13 +21,14 @@ from apps.catalog.services.pricing_service import (
 )
 
 
-def _resolve_display_image(product, variant, option_value_ids=None):
+def resolve_display_image(product, variant, option_value_ids=None):
     """اولویتِ تصویر (Part 8): ۱) تصویرِ دقیقِ همین تنوع، ۲) تصویرِ اختصاص‌یافته
     به یکی از مقادیرِ ویژگیِ تصویرمحورِ این ترکیب (مثلاً رنگ)، ۳) کاورِ کالا.
 
     مرحله‌ی دوم فقط برایِ تنوع‌هایِ چندمحوره (دارایِ ``VariantOptionValue``)
-    معنا دارد — تنوع‌هایِ تک‌محورِ قدیمی همان اولویتِ ۱/۳ی همیشگی را دارند
-    (``variant.display_image``)."""
+    معنا دارد. تکِ منبعِ حقیقتِ این اولویت — هم فروشگاه (این ماژول) و هم
+    جدولِ «پیکربندیِ تنوع‌ها»یِ پنلِ مدیریت (``ProductVariant.display_image``)
+    باید همین تابع را صدا بزنند، نه یک نسخه‌ی موازیِ ناقص."""
     images = list(variant.images.all())
     if images:
         return images[0]
@@ -39,7 +40,7 @@ def _resolve_display_image(product, variant, option_value_ids=None):
 
 
 def _variant_payload(product, variant, option_value_ids=None):
-    image = _resolve_display_image(product, variant, option_value_ids)
+    image = resolve_display_image(product, variant, option_value_ids)
     return {
         "variant_id": variant.pk,
         "sku": variant.sku,

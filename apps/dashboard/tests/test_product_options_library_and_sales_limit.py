@@ -116,6 +116,36 @@ class ProductOptionsLibraryAndSalesLimitTests(TestCase):
         self.assertContains(response, 'id="productOptionsBody"')
         self.assertContains(response, reverse("dashboard:product-edit", args=[new_product.pk]))
 
+    def test_keep_open_reopened_form_reflects_saved_values_not_blank_defaults(self):
+        """رگرسیون: ``ProductForm`` یک ``forms.Form`` سادّه است، نه
+        ``ModelForm`` — دادنِ ``instance=`` بدونِ ``initial=`` مقادیرِ فیلدها
+        را پر نمی‌کند. باگِ واقعی‌ای که این تست رویش می‌ایستد: مسیرِ
+        keep_open یک بار این ``initial=`` را فراموش کرده بود، پس مودالِ
+        بازشده «نوعِ کالا» را دوباره به «کالایِ ساده» ریست می‌کرد — با
+        وجودِ اینکه در دیتابیس درست «دارای تنوع» ذخیره شده بود — و همه‌ی
+        فیلدهایِ دیگر (نام، برند، توضیحات، سئو، نمایش) هم خالی می‌شدند."""
+        response = self.client.post(
+            reverse("dashboard:product-add"),
+            {
+                "name": "کالای تست ریست", "sku": "OPTLIB-NEW2", "category": self.category.pk,
+                "product_type": "variable", "price": "543210", "discount_percent": "5",
+                "status": "draft", "seo_title": "عنوانِ سئوی تست", "visibility": "link",
+                "keep_open": "1",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        new_product = Product.objects.get(sku="OPTLIB-NEW2")
+        self.assertEqual(new_product.product_type, Product.ProductType.VARIABLE)
+        self.assertEqual(new_product.visibility, Product.Visibility.LINK_ONLY)
+
+        # مودالِ بازشده باید همین مقادیر را — نه خالی/پیش‌فرض — نشان دهد.
+        content = response.content.decode()
+        self.assertIn('value="کالای تست ریست"', content)
+        self.assertIn('value="عنوانِ سئوی تست"', content)
+        self.assertIn("productType: 'variable'", content)
+        self.assertRegex(content, r'name="product_type" value="variable"[^>]*\bchecked\b')
+        self.assertRegex(content, r'name="visibility" value="link"[^>]*\bchecked\b')
+
     def test_editing_variable_product_with_variants_keeps_base_price_intact(self):
         """رگرسیونِ تداخلِ نام‌گذاری: وقتی فرمِ کالا (که حالا شاملِ ردیف‌هایِ
         تنوع با ورودی‌هایِ پنهانِ قیمتِ خودشان است) ذخیره می‌شود، قیمتِ پایه‌ی
@@ -206,3 +236,62 @@ class ProductOptionsLibraryAndSalesLimitTests(TestCase):
 
         self.assertTrue(Attribute.objects.filter(pk=library_attribute.pk, is_active=True).exists())
         self.assertEqual(library_attribute.values.count(), 1)
+
+
+@override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
+class VariantDisplayImagePriorityRegressionTests(TestCase):
+    """رگرسیون: ``ProductVariant.display_image`` (استفاده‌شده در جدولِ
+    «پیکربندیِ تنوع‌ها»یِ پنلِ مدیریت) پیش‌تر فقط اولویتِ ۱ (تصویرِ دقیقِ
+    تنوع) و ۳ (کاورِ کالا) را پیاده می‌کرد و اولویتِ ۲ (تصویرِ اختصاص‌یافته
+    به مقدارِ ویژگیِ تصویرمحور — مثلاً رنگ) را نادیده می‌گرفت؛ یعنی برایِ
+    کالاهایِ چندمحوره (مثلاً رنگ×سایز)، پنلِ مدیریت همیشه تصویرِ کاور را
+    نشان می‌داد حتی وقتی تصویرِ رنگ درست map شده بود — با وجودی که همین
+    اولویت در فروشگاه (``storefront_variant_service``) درست کار می‌کرد.
+    این تست ثابت می‌کند هر دو مسیر اکنون از یک تابعِ مشترک استفاده
+    می‌کنند."""
+
+    def setUp(self):
+        from apps.catalog.services.attribute_service import create_attribute
+        from apps.catalog.services.product_image_service import add_product_image, set_image_option_value
+        from apps.catalog.services.variant_engine_service import add_product_option, generate_variants
+
+        self.store = Store.objects.create(
+            name="فروشگاه تست", slug="dispimg", status=Store.Status.ACTIVE,
+            admin_subdomain="dispimg", platform_code="DISPIMG01",
+        )
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشنده", slug="dispimg-shop")
+        self.category_group = Category.objects.create(store=self.store, name="گروه", slug="dispimg-group")
+        self.category = Category.objects.create(
+            store=self.store, name="دسته", slug="dispimg-cat", parent=self.category_group,
+        )
+        self.product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="تی‌شرت",
+            slug="dispimg-tshirt", sku="DISPIMG-SKU1", price=Decimal("100000"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        color_attribute = create_attribute(self.store, label="رنگ", is_variant_axis=True, is_image_driving=True)
+        add_product_option(self.product, label="رنگ", attribute=color_attribute, values=["قرمز", "آبی"])
+        generate_variants(self.product)
+
+        import io
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image
+
+        def _tiny_image(name):
+            buf = io.BytesIO()
+            Image.new("RGB", (10, 10), (200, 30, 30)).save(buf, format="JPEG")
+            return SimpleUploadedFile(name, buf.getvalue(), content_type="image/jpeg")
+
+        red_option_value = self.product.options.get(label="رنگ").values.get(label="قرمز")
+        self.cover_image = add_product_image(self.product, _tiny_image("cover.jpg"))
+        self.red_image = add_product_image(self.product, _tiny_image("red.jpg"))
+        set_image_option_value(self.red_image, red_option_value)
+
+    def test_variant_with_mapped_value_image_shows_mapped_image_not_cover(self):
+        red_variant = self.product.variants.filter(is_obsolete=False, value="قرمز").first()
+        self.assertEqual(red_variant.display_image.pk, self.red_image.pk)
+
+    def test_variant_without_mapped_value_image_falls_back_to_cover(self):
+        blue_variant = self.product.variants.filter(is_obsolete=False, value="آبی").first()
+        self.assertEqual(blue_variant.display_image.pk, self.cover_image.pk)

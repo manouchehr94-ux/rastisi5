@@ -528,17 +528,24 @@ class ProductVariant(TimeStampedModel):
 
     @property
     def display_image(self):
-        """تصویر اختصاصی این تنوع؛ در نبود آن، تصویر کاور کالا (fallback).
+        """تصویرِ نمایشیِ این تنوع — همان اولویتِ سه‌مرحله‌ایِ فروشگاه (Part
+        8): ۱) تصویرِ دقیقِ همین تنوع، ۲) تصویرِ اختصاص‌یافته به یکی از
+        مقادیرِ ویژگیِ تصویرمحورِ این ترکیب، ۳) کاورِ کالا. پیش‌تر این‌جا فقط
+        مرحله‌ی ۱/۳ پیاده بود (مرحله‌ی ۲ نادیده گرفته می‌شد) — یعنی جدولِ
+        «پیکربندیِ تنوع‌ها»یِ پنلِ مدیریت برایِ کالاهایِ چندمحوره (مثلاً
+        رنگ×سایز) تصویرِ اشتباه (کاور) نشان می‌داد حتی وقتی تصویرِ رنگ
+        درست map شده بود. اکنون از همان تابعِ مرجعِ فروشگاه
+        (``storefront_variant_service.resolve_display_image``) استفاده
+        می‌کند تا هرگز دو منطقِ اولویتِ ناهمسان نداشته باشیم.
 
-        عمداً از ``self.images.all()`` (نه ``.order_by()``/``.filter()``) استفاده می‌کند
-        تا در صفحاتی که ``prefetch_related("images")`` اجرا شده، به‌جای هر تنوع یک
-        کوئری جدید صادر نشود — ``ProductImage.Meta.ordering`` همان ``["order", "id"]``
-        مورد نیاز را از قبل تضمین می‌کند.
+        عمداً از ``self.images.all()``/``self.option_values.all()`` (نه
+        ``.filter()``) استفاده می‌کند تا در صفحاتی که این روابط
+        prefetch شده‌اند، کوئری جدید صادر نشود.
         """
-        images = list(self.images.all())
-        if images:
-            return images[0]
-        return self.product.cover_image
+        from apps.catalog.services.storefront_variant_service import resolve_display_image
+
+        option_value_ids = {ov.option_value_id for ov in self.option_values.all()}
+        return resolve_display_image(self.product, self, option_value_ids)
 
     def clean(self):
         from django.core.exceptions import ValidationError
