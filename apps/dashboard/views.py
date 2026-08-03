@@ -1429,7 +1429,9 @@ def _variant_page_context(request, product, *, bulk_form=None):
         filtered_qs = filtered_qs.filter(Q(attribute__icontains=q) | Q(value__icontains=q) | Q(sku__icontains=q))
     if status:
         filtered_qs = filtered_qs.filter(is_active=(status == "active"))
-    filtered_qs = filtered_qs.order_by("display_order", "attribute", "value").prefetch_related("images")
+    filtered_qs = filtered_qs.order_by("display_order", "attribute", "value").prefetch_related(
+        "images", "option_values"
+    )
 
     paginator = Paginator(filtered_qs, VARIANTS_PER_PAGE)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -2105,6 +2107,7 @@ def _product_options_context(request, product):
         product.variants.exclude(combination_key="").order_by("display_order")
         .prefetch_related("option_values__option", "option_values__option_value", "images")
     )
+    prefetch_related_objects([product], "images")
     applied_attribute_ids = {axis.attribute_id for axis in axes if axis.attribute_id}
     recommended_options = []
     if product.category_id:
