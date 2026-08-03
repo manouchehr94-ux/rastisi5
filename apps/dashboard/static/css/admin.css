@@ -186,9 +186,11 @@ body.admin-body{
 .b-gray{background:var(--border);color:var(--muted)}
 
 .thumb{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;font-size:19px;background:var(--primary-soft);flex-shrink:0}
-.prod-cell{display:flex;align-items:center;gap:11px}
-.prod-cell b{display:block;font-size:13px}
-.prod-cell small{color:var(--muted);font-size:11px}
+.prod-cell{display:flex;align-items:center;gap:11px;min-width:0}
+.prod-cell b{display:block;font-size:13px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prod-cell small{color:var(--muted);font-size:11px;display:block;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ellipsis-cell{max-width:105px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:768px){.ellipsis-cell{max-width:none;white-space:normal}}
 
 .form-group{margin-bottom:14px}
 .form-group label{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--muted)}
@@ -513,6 +515,9 @@ body.admin-body{
   .variant-table-responsive td.variant-detail-cell{display:block;padding:8px 2px 2px}
   .product-table-responsive td[data-label="عملیات"]{flex-wrap:wrap;justify-content:flex-start}
   .product-table-responsive td[data-label="کالا"]{align-items:flex-start}
+  .product-table-responsive .ellipsis-cell,
+  .product-table-responsive .prod-cell b,
+  .product-table-responsive .prod-cell small{max-width:none;white-space:normal}
   .table-wrap:has(.variant-table-responsive),.table-wrap:has(.product-table-responsive){overflow-x:visible}
 }
 
@@ -522,7 +527,7 @@ body.admin-body{
    title+aria-label keep the row compact without that risk (task explicitly allows
    this fallback when a robust menu isn't reliably achievable). */
 .v-actions{white-space:nowrap}
-.v-actions .btn-sm{width:32px;height:32px;padding:0;display:inline-grid;place-items:center;font-size:14px}
+.v-actions .btn-sm:not(.btn-primary){width:32px;height:32px;padding:0;display:inline-grid;place-items:center;font-size:14px}
 
 /* pagination */
 .pagination{display:flex;align-items:center;justify-content:center;gap:6px;padding:16px;flex-wrap:wrap}
