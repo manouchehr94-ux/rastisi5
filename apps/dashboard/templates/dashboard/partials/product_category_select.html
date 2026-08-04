@@ -1,61 +1,198 @@
 {% load persian %}
+{{ categories_by_group_json|json_script:"categories-by-group-data" }}
 <div id="categoryField" x-data="{
-       quickOpen: {% if quick_errors %}true{% else %}false{% endif %},
-       selectedPath: '',
-       updatePath(select) {
-         const opt = select.selectedOptions[0];
-         if (!opt || !opt.value) { this.selectedPath = ''; return; }
-         const group = opt.closest('optgroup');
-         this.selectedPath = (group ? group.label + ' ← ' : '') + opt.textContent.trim();
+       pickerOpen: false,
+       quickAddOpen: false,
+       search: '',
+       selectedId: {{ selected_category_id|default:'null' }},
+       selectedPath: '{{ selected_category_path|default:''|escapejs }}',
+       draftId: null,
+       draftPath: '',
+       categoriesByGroup: JSON.parse(document.getElementById('categories-by-group-data').textContent),
+       qStep: 1,
+       qGroupMode: 'existing',
+       qCategoryMode: 'existing',
+       qGroupId: '',
+       qGroupNewName: '',
+       qCategoryId: '',
+       qCategoryNewName: '',
+       qSubName: '',
+       get qCategoryOptions() { return this.categoriesByGroup[this.qGroupId] || []; },
+       get qGroupLabel() {
+         if (this.qGroupMode === 'new') return this.qGroupNewName || '—';
+         const opt = $refs.qGroupSelect ? $refs.qGroupSelect.selectedOptions[0] : null;
+         return opt && opt.value ? opt.textContent.trim() : '—';
+       },
+       get qCategoryLabel() {
+         if (this.qCategoryMode === 'new') return this.qCategoryNewName || '—';
+         const opt = $refs.qCategorySelect ? $refs.qCategorySelect.selectedOptions[0] : null;
+         return opt && opt.value ? opt.textContent.trim() : '—';
+       },
+       get qStep1Done() { return this.qGroupMode === 'new' ? !!this.qGroupNewName.trim() : !!this.qGroupId; },
+       get qStep2Done() { return this.qCategoryMode === 'new' ? !!this.qCategoryNewName.trim() : !!this.qCategoryId; },
+       openPicker() { this.draftId = this.selectedId; this.draftPath = this.selectedPath; this.search = ''; this.pickerOpen = true; },
+       selectDraft(id, path) { this.draftId = id; this.draftPath = path; },
+       confirmSelection() {
+         if (!this.draftId) return;
+         this.selectedId = this.draftId;
+         this.selectedPath = this.draftPath;
+         this.pickerOpen = false;
+         htmx.ajax('GET', '{% if product %}{% url "dashboard:product-attribute-fields-edit" product.pk %}{% else %}{% url "dashboard:product-attribute-fields" %}{% endif %}', {
+           target: '#productAttributeFields', swap: 'outerHTML', values: { category: this.selectedId },
+         });
+       },
+       openQuickAdd() {
+         this.pickerOpen = false;
+         this.quickAddOpen = true;
+         this.qStep = 1;
+         this.qGroupMode = {{ category_tree_rows|length|yesno:'"existing","new"' }};
+         this.qCategoryMode = 'existing';
+         this.qGroupId = ''; this.qGroupNewName = '';
+         this.qCategoryId = ''; this.qCategoryNewName = ''; this.qSubName = '';
+       },
+       qGoNext() {
+         if (this.qStep === 1 && this.qStep1Done) {
+           this.qCategoryMode = (this.qGroupMode === 'existing' && this.qCategoryOptions.length) ? 'existing' : 'new';
+           this.qStep = 2;
+         } else if (this.qStep === 2 && this.qStep2Done) { this.qStep = 3; }
        },
      }"
-     x-init="updatePath($refs.categorySelect)">
-  <select class="inp" id="id_category" name="category" x-ref="categorySelect"
-          hx-get="{% if product %}{% url 'dashboard:product-attribute-fields-edit' product.pk %}{% else %}{% url 'dashboard:product-attribute-fields' %}{% endif %}"
-          hx-trigger="change" hx-target="#productAttributeFields" hx-swap="outerHTML"
-          @change="updatePath($el)">
-    <option value="">— انتخاب کنید —</option>
-    {% regroup category_queryset by parent as category_groups_opt %}
-    {% for group in category_groups_opt %}
-    <optgroup label="{{ group.grouper.icon }} {{ group.grouper.name }}">
-      {% for cat in group.list %}
-      <option value="{{ cat.pk }}" {% if selected_category_id|stringformat:"s" == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.icon }} {{ cat.name }}</option>
-      {% endfor %}
-    </optgroup>
-    {% endfor %}
-  </select>
-  <div class="field-help" x-show="selectedPath" style="font-weight:700;color:var(--primary)" x-text="'مسیرِ انتخاب‌شده: ' + selectedPath"></div>
-  <div class="field-help">کالا باید به یک زیرگروه وصل شود، نه یک گروه اصلی. اگر زیرگروه مناسب وجود ندارد، از دکمه‌ی زیر بسازید.</div>
+     x-init="$watch('qGroupId', () => { qCategoryId = ''; })">
+  <input type="hidden" name="category" id="id_category" :value="selectedId">
 
-  <button type="button" class="quick-add-toggle" @click="quickOpen = !quickOpen">+ ساخت دسته‌بندی جدید</button>
-  <div class="quick-add-panel" x-show="quickOpen" x-cloak>
-    {% if quick_errors %}
-    <div style="flex-basis:100%;color:var(--red);font-size:11.5px">
-      {% for field, errs in quick_errors.items %}{% for err in errs %}<div>{{ err }}</div>{% endfor %}{% endfor %}
+  <button type="button" class="cat-select-box" @click="openPicker()">
+    <span x-text="selectedPath || '— انتخاب دسته‌بندی —'" :class="{ 'cat-select-placeholder': !selectedPath }"></span>
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+  </button>
+  <div class="field-help" x-show="selectedPath" style="font-weight:700;color:var(--primary)" x-text="'مسیرِ انتخاب‌شده: ' + selectedPath"></div>
+  <div class="field-help">فقط زیرگروهِ نهایی (بدونِ زیرمجموعه) قابلِ انتخاب است — برای انتخاب روی کادرِ بالا کلیک کنید.</div>
+  {% if quick_errors %}
+  <div style="color:var(--red);font-size:11.5px;margin-top:4px">
+    {% for field, errs in quick_errors.items %}{% for err in errs %}<div>{{ err }}</div>{% endfor %}{% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- مودالِ انتخاب دسته‌بندی (درخت) -->
+  <div class="overlay" :class="{ open: pickerOpen }" x-cloak @click.self="pickerOpen = false" @keydown.escape.window="pickerOpen = false">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>انتخاب دسته‌بندی</h3>
+        <button type="button" class="x-btn" @click="pickerOpen = false">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="cp-search">
+          <input class="inp" x-model="search" placeholder="جستجویِ دسته‌بندی...">
+        </div>
+        <div class="cp-tree">
+          {% for row in category_tree_rows %}
+          {% include "dashboard/partials/product_category_tree_node.html" with node=row %}
+          {% empty %}
+          <div class="cp-empty">هنوز هیچ دسته‌بندی‌ای ثبت نشده است.</div>
+          {% endfor %}
+        </div>
+        <div class="cp-hint">
+          فقط زیرگروهِ نهایی (بدونِ زیرمجموعه) قابلِ انتخاب است. گروه‌ها و دسته‌هایِ میانی فقط برایِ باز کردنِ زیرمجموعه‌ها کلیک‌پذیرند.
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" @click="pickerOpen = false">انصراف</button>
+        <button type="button" class="btn" @click="openQuickAdd()">+ دسته جدید</button>
+        <button type="button" class="btn btn-primary" :disabled="!draftId" @click="confirmSelection()">تأیید و انتخاب</button>
+      </div>
     </div>
-    {% endif %}
-    {% if category_groups %}
-    <div class="form-group">
-      <label>گروه</label>
-      <select class="inp" id="quickCategoryGroup" name="group">
-        <option value="">— گروه جدید —</option>
-        {% for g in category_groups %}
-        <option value="{{ g.pk }}">{{ g.icon }} {{ g.name }}</option>
-        {% endfor %}
-      </select>
+  </div>
+
+  <!-- مودالِ ساختِ دسته‌بندیِ جدید (۳ مرحله) -->
+  <div class="overlay" :class="{ open: quickAddOpen }" x-cloak @click.self="quickAddOpen = false" @keydown.escape.window="quickAddOpen = false">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>ساختِ دسته‌بندیِ جدید</h3>
+        <button type="button" class="x-btn" @click="quickAddOpen = false">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="qc-steps">
+          <div class="qc-step" :class="{ active: qStep === 1, done: qStep > 1 }">۱. گروهِ اصلی</div>
+          <div class="qc-step" :class="{ active: qStep === 2, done: qStep > 2 }">۲. دسته</div>
+          <div class="qc-step" :class="{ active: qStep === 3 }">۳. زیرگروهِ نهایی</div>
+        </div>
+        <div class="qc-breadcrumb">
+          <span x-text="qGroupLabel"></span> ←
+          <span x-text="qStep >= 2 ? qCategoryLabel : '—'"></span> ←
+          <span x-text="qStep >= 3 ? (qSubName || '—') : '—'"></span>
+        </div>
+
+        <!-- مرحله ۱: گروه اصلی -->
+        <template x-if="qStep === 1">
+          <div>
+            {% if category_tree_rows %}
+            <div class="qc-mode-toggle">
+              <button type="button" :class="{ active: qGroupMode === 'existing' }" @click="qGroupMode = 'existing'">انتخاب از موجود</button>
+              <button type="button" :class="{ active: qGroupMode === 'new' }" @click="qGroupMode = 'new'">گروهِ جدید</button>
+            </div>
+            <div class="form-group" x-show="qGroupMode === 'existing'">
+              <label>گروهِ اصلی</label>
+              <select class="inp" x-ref="qGroupSelect" x-model="qGroupId">
+                <option value="">— انتخاب کنید —</option>
+                {% for row in category_tree_rows %}
+                <option value="{{ row.category.pk }}">{{ row.category.icon|default:"📁" }} {{ row.category.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+            <div class="form-group" x-show="qGroupMode === 'new'">
+              <label>نامِ گروهِ اصلیِ جدید</label>
+              <input class="inp" x-model="qGroupNewName" placeholder="مثلاً: پوشاک">
+            </div>
+          </div>
+        </template>
+
+        <!-- مرحله ۲: دسته -->
+        <template x-if="qStep === 2">
+          <div>
+            <div class="qc-mode-toggle" x-show="qCategoryOptions.length">
+              <button type="button" :class="{ active: qCategoryMode === 'existing' }" @click="qCategoryMode = 'existing'">انتخاب از موجود</button>
+              <button type="button" :class="{ active: qCategoryMode === 'new' }" @click="qCategoryMode = 'new'">دسته‌ی جدید</button>
+            </div>
+            <div class="form-group" x-show="qCategoryMode === 'existing' && qCategoryOptions.length">
+              <label>دسته</label>
+              <select class="inp" x-ref="qCategorySelect" x-model="qCategoryId">
+                <option value="">— انتخاب کنید —</option>
+                <template x-for="c in qCategoryOptions" :key="c.id">
+                  <option :value="c.id" x-text="c.name"></option>
+                </template>
+              </select>
+            </div>
+            <div class="form-group" x-show="qCategoryMode === 'new' || !qCategoryOptions.length">
+              <label>نامِ دسته‌ی جدید</label>
+              <input class="inp" x-model="qCategoryNewName" placeholder="مثلاً: تی‌شرت">
+            </div>
+          </div>
+        </template>
+
+        <!-- مرحله ۳: زیرگروه نهایی -->
+        <template x-if="qStep === 3">
+          <div class="form-group">
+            <label>نامِ زیرگروهِ نهایی *</label>
+            <input class="inp" x-model="qSubName" placeholder="مثلاً: تی‌شرتِ مردانه">
+            <div class="field-help">کالا فقط به همین زیرگروهِ نهایی وصل می‌شود.</div>
+          </div>
+        </template>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" x-show="qStep > 1" @click="qStep--">مرحلهٔ قبل</button>
+        <button type="button" class="btn" @click="quickAddOpen = false">انصراف</button>
+        <button type="button" class="btn btn-primary" x-show="qStep < 3" :disabled="qStep === 1 ? !qStep1Done : !qStep2Done" @click="qGoNext()">مرحلهٔ بعد</button>
+        <button type="button" class="btn btn-primary" x-show="qStep === 3" :disabled="!qSubName.trim()"
+                hx-post="{% if product %}{% url 'dashboard:product-quick-add-category-edit' product.pk %}{% else %}{% url 'dashboard:product-quick-add-category' %}{% endif %}"
+                hx-target="#categoryField" hx-swap="outerHTML"
+                :hx-vals="JSON.stringify({
+                  group: qGroupMode === 'existing' ? qGroupId : '',
+                  new_group_name: qGroupMode === 'new' ? qGroupNewName : '',
+                  category: qCategoryMode === 'existing' ? qCategoryId : '',
+                  new_category_name: qCategoryMode === 'new' ? qCategoryNewName : '',
+                  sub_name: qSubName,
+                })">افزودن</button>
+      </div>
     </div>
-    {% endif %}
-    <div class="form-group">
-      <label>نام گروهِ جدید {% if category_groups %}(اگر گروهِ بالا را انتخاب نکردید){% endif %}</label>
-      <input class="inp" id="quickNewGroupName" name="new_group_name" placeholder="مثلاً: پوشاک">
-    </div>
-    <div class="form-group">
-      <label>نام زیرگروه *</label>
-      <input class="inp" id="quickSubName" name="sub_name" placeholder="مثلاً: تیشرت">
-    </div>
-    <button type="button" class="btn btn-sm btn-primary"
-            hx-post="{% if product %}{% url 'dashboard:product-quick-add-category-edit' product.pk %}{% else %}{% url 'dashboard:product-quick-add-category' %}{% endif %}"
-            hx-include="#quickCategoryGroup,#quickNewGroupName,#quickSubName"
-            hx-target="#categoryField" hx-swap="outerHTML">افزودن</button>
   </div>
 </div>

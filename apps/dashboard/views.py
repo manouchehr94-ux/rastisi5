@@ -340,6 +340,7 @@ from .services.catalog_admin_service import (
     bulk_delete_products,
     bulk_set_product_status,
     can_delete_category,
+    category_chain,
     category_tree_context,
     reorder_categories,
     default_vendor,
@@ -825,7 +826,7 @@ def _product_form_initial(product) -> dict:
     }
 
 
-def _product_form_extra_context(store, product, *, form=None, request=None) -> dict:
+def _product_form_extra_context(store, product, *, form=None, request=None, category=None) -> dict:
     """کانتکستِ مشترکِ فرمِ کالا (چک‌لیستِ انتشار، درصدِ تکمیل، برچسب‌های
     فعلی/پیشنهادی، جدولِ ویژگی/تنوع برایِ تبِ «قیمت و تنوع») — در مسیرِ
     موفق و هر مسیرِ خطا یکسان لازم است.
@@ -840,11 +841,22 @@ def _product_form_extra_context(store, product, *, form=None, request=None) -> d
         existing_tags_list = submitted_tags
     else:
         existing_tags_list = list(product.tags.values_list("name", flat=True)) if product else []
+    resolved_category = category if category is not None else (product.category if product else None)
+    tree_rows = category_tree_context(store)["rows"]
+    categories_by_group = {
+        str(row["category"].pk): [
+            {"id": child["category"].pk, "name": child["category"].name} for child in row["children"]
+        ]
+        for row in tree_rows
+    }
     context = {
         "checklist": build_completion_checklist(product) if product else [],
         "completion_pct": completion_percent(product) if product else 0,
         "existing_tags_list": existing_tags_list,
         "tag_suggestions": suggest_tags(store),
+        "category_tree_rows": tree_rows,
+        "selected_category_path": category_chain(resolved_category) if resolved_category else "",
+        "categories_by_group_json": categories_by_group,
     }
     if product is not None and product.product_type == Product.ProductType.VARIABLE:
         context.update(_product_options_context(request, product))
@@ -894,7 +906,7 @@ def product_form(request, pk=None):
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
-                    **_product_form_extra_context(store, product, form=form, request=request),
+                    **_product_form_extra_context(store, product, form=form, request=request, category=category),
                 })
             except ProductMediaStageError as exc:
                 form.add_error(None, str(exc))
@@ -903,7 +915,7 @@ def product_form(request, pk=None):
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": None, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": "media",
-                    **_product_form_extra_context(store, None, form=form, request=request),
+                    **_product_form_extra_context(store, None, form=form, request=request, category=category),
                 })
             except ProductPublishError as exc:
                 for message in exc.args[0]:
@@ -913,7 +925,7 @@ def product_form(request, pk=None):
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
-                    **_product_form_extra_context(store, product, form=form, request=request),
+                    **_product_form_extra_context(store, product, form=form, request=request, category=category),
                 })
             except ValidationError as exc:
                 for field, messages in exc.message_dict.items():
@@ -924,7 +936,7 @@ def product_form(request, pk=None):
                 return render(request, "dashboard/partials/product_form.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
-                    **_product_form_extra_context(store, product, form=form, request=request),
+                    **_product_form_extra_context(store, product, form=form, request=request, category=category),
                 })
 
             if request.POST.get("keep_open") == "1":
@@ -939,7 +951,7 @@ def product_form(request, pk=None):
                     "form": reopened_form, "product": product, "attribute_fields": attribute_fields,
                     "orphaned_count": orphaned_product_attribute_values(product).count(),
                     "category": category, "category_groups": category_groups, "error_step": "price",
-                    **_product_form_extra_context(store, product, form=reopened_form, request=request),
+                    **_product_form_extra_context(store, product, form=reopened_form, request=request, category=category),
                 })
                 table_html = render_to_string(
                     "dashboard/partials/products_table_inner.html", _product_list_context(request), request=request,
@@ -979,7 +991,7 @@ def product_form(request, pk=None):
     return render(request, "dashboard/partials/product_form.html", {
         "form": form, "product": product, "attribute_fields": attribute_fields, "orphaned_count": orphaned_count,
         "category": category, "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
-        **_product_form_extra_context(store, product, form=form, request=request),
+        **_product_form_extra_context(store, product, form=form, request=request, category=category),
     })
 
 
@@ -1046,33 +1058,43 @@ def product_quick_add_brand(request):
 @staff_required
 @permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
 def product_quick_add_category(request, pk=None):
-    """«+ ساختِ دسته‌بندی جدید» داخل فرمِ کالا. اگر فروشگاه هنوز هیچ گروهی
-    نداشته باشد، همین یک درخواست هم گروه و هم زیرگروه را می‌سازد — کالا
-    فقط به زیرگروه وصل می‌شود (نگاه کنید به ``leaf_categories``)."""
+    """«+ ساختِ دسته‌بندی جدید» داخل فرمِ کالا — همیشه سه‌سطحی (گروه اصلی ←
+    دسته ← زیرگروه نهایی)؛ هر سطح یا گره‌ی موجود را استفاده می‌کند یا
+    تازه می‌سازد. کالا فقط به زیرگروهِ نهایی (برگ) وصل می‌شود (نگاه کنید
+    به ``leaf_categories``)."""
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store) if pk else None
     form = ProductQuickCategoryForm(request.POST, store=store)
     selected_id = None
     selected_category = None
     if form.is_valid():
-        parent = form.cleaned_data["group"]
-        if parent is None:
-            group_name = form.cleaned_data["new_group_name"].strip()
-            parent = Category.objects.create(
-                store=store, name=group_name, icon="📁",
-                slug=generate_unique_slug(Category, group_name, store=store),
+        with transaction.atomic():
+            group = form.cleaned_data["group"]
+            if group is None:
+                group_name = form.cleaned_data["new_group_name"].strip()
+                group = Category.objects.create(
+                    store=store, name=group_name, icon="📁",
+                    slug=generate_unique_slug(Category, group_name, store=store),
+                )
+            category = form.cleaned_data["category"]
+            if category is None:
+                category_name = form.cleaned_data["new_category_name"].strip()
+                category = Category.objects.create(
+                    store=store, name=category_name, parent=group,
+                    slug=generate_unique_slug(Category, category_name, store=store),
+                )
+            sub_name = form.cleaned_data["sub_name"]
+            selected_category = Category.objects.create(
+                store=store, name=sub_name, parent=category,
+                slug=generate_unique_slug(Category, sub_name, store=store),
             )
-        sub_name = form.cleaned_data["sub_name"]
-        selected_category = Category.objects.create(
-            store=store, name=sub_name, parent=parent,
-            slug=generate_unique_slug(Category, sub_name, store=store),
-        )
-        selected_id = selected_category.pk
+            selected_id = selected_category.pk
 
     select_html = render_to_string("dashboard/partials/product_category_select.html", {
-        "product": product, "category_queryset": leaf_categories(store), "selected_category_id": selected_id,
-        "category_groups": Category.objects.filter(store=store, parent__isnull=True).order_by("order", "name"),
+        "product": product, "selected_category_id": selected_id,
         "quick_errors": form.errors if not form.is_valid() else None,
+        "quick_form_data": request.POST if not form.is_valid() else None,
+        **_product_form_extra_context(store, product, category=selected_category),
     }, request=request)
     attribute_fields = _product_attribute_field_context(selected_category, product)
     fields_html = render_to_string("dashboard/partials/product_attribute_fields.html", {

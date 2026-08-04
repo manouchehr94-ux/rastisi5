@@ -60,34 +60,65 @@ class QuickAddBrandTests(ProductQuickAddTestCase):
 
 
 class QuickAddCategoryTests(ProductQuickAddTestCase):
-    def test_creates_subcategory_under_existing_group(self):
+    def test_creates_subcategory_under_existing_group_and_category(self):
         response = self.client.post(reverse("dashboard:product-quick-add-category"), {
-            "group": self.main.pk, "new_group_name": "", "sub_name": "لپ‌تاپ",
+            "group": self.main.pk, "new_group_name": "",
+            "category": self.sub.pk, "new_category_name": "",
+            "sub_name": "لپ‌تاپ",
         })
         self.assertEqual(response.status_code, 200)
-        sub = Category.objects.get(store=self.store, name="لپ‌تاپ")
-        self.assertEqual(sub.parent_id, self.main.pk)
-        self.assertContains(response, f'value="{sub.pk}" selected')
+        leaf = Category.objects.get(store=self.store, name="لپ‌تاپ")
+        self.assertEqual(leaf.parent_id, self.sub.pk)
+        self.assertContains(response, str(leaf.pk))
 
-    def test_creates_group_and_subcategory_together_when_none_selected(self):
+    def test_creates_group_category_and_subcategory_together_when_all_new(self):
         response = self.client.post(reverse("dashboard:product-quick-add-category"), {
-            "group": "", "new_group_name": "پوشاک", "sub_name": "تیشرت",
+            "group": "", "new_group_name": "پوشاک",
+            "category": "", "new_category_name": "تیشرت",
+            "sub_name": "تیشرت مردانه",
         })
         self.assertEqual(response.status_code, 200)
         group = Category.objects.get(store=self.store, name="پوشاک", parent__isnull=True)
-        sub = Category.objects.get(store=self.store, name="تیشرت")
-        self.assertEqual(sub.parent_id, group.pk)
+        category = Category.objects.get(store=self.store, name="تیشرت")
+        leaf = Category.objects.get(store=self.store, name="تیشرت مردانه")
+        self.assertEqual(category.parent_id, group.pk)
+        self.assertEqual(leaf.parent_id, category.pk)
+
+    def test_creates_new_category_under_existing_group(self):
+        response = self.client.post(reverse("dashboard:product-quick-add-category"), {
+            "group": self.main.pk, "new_group_name": "",
+            "category": "", "new_category_name": "پوشیدنی‌ها",
+            "sub_name": "ساعت هوشمند",
+        })
+        self.assertEqual(response.status_code, 200)
+        category = Category.objects.get(store=self.store, name="پوشیدنی‌ها")
+        leaf = Category.objects.get(store=self.store, name="ساعت هوشمند")
+        self.assertEqual(category.parent_id, self.main.pk)
+        self.assertEqual(leaf.parent_id, category.pk)
 
     def test_neither_group_nor_new_name_rejected(self):
         response = self.client.post(reverse("dashboard:product-quick-add-category"), {
-            "group": "", "new_group_name": "", "sub_name": "تیشرت",
+            "group": "", "new_group_name": "",
+            "category": "", "new_category_name": "دسته",
+            "sub_name": "تیشرت",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Category.objects.filter(store=self.store, name="تیشرت").exists())
+
+    def test_neither_category_nor_new_category_name_rejected(self):
+        response = self.client.post(reverse("dashboard:product-quick-add-category"), {
+            "group": self.main.pk, "new_group_name": "",
+            "category": "", "new_category_name": "",
+            "sub_name": "تیشرت",
         })
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Category.objects.filter(store=self.store, name="تیشرت").exists())
 
     def test_refreshes_attribute_fields_out_of_band(self):
         response = self.client.post(reverse("dashboard:product-quick-add-category"), {
-            "group": self.main.pk, "new_group_name": "", "sub_name": "کنسول بازی",
+            "group": self.main.pk, "new_group_name": "",
+            "category": self.sub.pk, "new_category_name": "",
+            "sub_name": "کنسول بازی",
         })
         self.assertContains(response, 'id="productAttributeFields"')
         self.assertContains(response, 'hx-swap-oob="true"')

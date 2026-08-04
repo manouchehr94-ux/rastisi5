@@ -318,14 +318,16 @@ def category_tree_context(store):
         .values("category_id").annotate(total=models.Count("id")).values_list("category_id", "total")
     )
 
-    def build_node(category):
-        children = [build_node(c) for c in children_by_parent.get(category.pk, [])]
+    def build_node(category, ancestor_path=""):
+        path = f"{ancestor_path} › {category.name}" if ancestor_path else category.name
+        children = [build_node(c, path) for c in children_by_parent.get(category.pk, [])]
         product_count = product_counts.get(category.pk, 0) + sum(c["product_count"] for c in children)
         return {
             "category": category,
             "children": children,
             "is_leaf": not children,
             "product_count": product_count,
+            "path": path,
         }
 
     rows = [build_node(root) for root in children_by_parent.get(None, [])]

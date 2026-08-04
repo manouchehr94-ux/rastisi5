@@ -309,22 +309,36 @@ class BrandForm(forms.Form):
 
 
 class ProductQuickCategoryForm(forms.Form):
-    """ساختِ سریعِ زیرگروه از داخلِ فرمِ کالا — یا به یک گروهِ موجود وصل می‌شود
-    یا (اگر فروشگاه هنوز هیچ گروهی ندارد) اول یک گروهِ تازه هم می‌سازد، تا
-    مدیرِ فروشگاه هرگز برای همین یک کالا مجبور به ترکِ فرم نشود."""
+    """ساختِ سریعِ دسته‌بندی سه‌سطحی (گروه اصلی ← دسته ← زیرگروه نهایی) از
+    داخلِ فرمِ کالا — هر مرحله یا یک گره‌ی موجود را انتخاب می‌کند یا نامِ
+    تازه‌ای برایِ ساختِ آن می‌گیرد؛ مدیرِ فروشگاه هرگز برایِ همین یک کالا
+    مجبور به ترکِ فرم نیست. کالا فقط به زیرگروهِ نهایی (برگ) وصل می‌شود."""
 
-    group = forms.ModelChoiceField(label="گروه", queryset=Category.objects.none(), required=False)
-    new_group_name = forms.CharField(label="نام گروهِ جدید", max_length=120, required=False)
-    sub_name = forms.CharField(label="نام زیرگروه", max_length=120)
+    group = forms.ModelChoiceField(label="گروه اصلی", queryset=Category.objects.none(), required=False)
+    new_group_name = forms.CharField(label="نام گروهِ اصلیِ جدید", max_length=120, required=False)
+    category = forms.ModelChoiceField(label="دسته", queryset=Category.objects.none(), required=False)
+    new_category_name = forms.CharField(label="نام دسته‌ی جدید", max_length=120, required=False)
+    sub_name = forms.CharField(label="نام زیرگروه نهایی", max_length=120)
 
     def __init__(self, *args, store, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["group"].queryset = Category.objects.filter(store=store, parent__isnull=True).order_by("order", "name")
+        group_id = self.data.get("group") if self.is_bound else None
+        if group_id:
+            self.fields["category"].queryset = Category.objects.filter(
+                store=store, parent_id=group_id,
+            ).order_by("order", "name")
+        else:
+            self.fields["category"].queryset = Category.objects.none()
 
     def clean(self):
         cleaned = super().clean()
         if not cleaned.get("group") and not (cleaned.get("new_group_name") or "").strip():
-            raise forms.ValidationError("یک گروهِ موجود را انتخاب کنید یا نامِ گروهِ جدید را وارد کنید")
+            raise forms.ValidationError("یک گروهِ اصلیِ موجود را انتخاب کنید یا نامِ گروهِ جدید را وارد کنید")
+        if not cleaned.get("category") and not (cleaned.get("new_category_name") or "").strip():
+            raise forms.ValidationError("یک دسته‌ی موجود را انتخاب کنید یا نامِ دسته‌ی جدید را وارد کنید")
+        if not (cleaned.get("sub_name") or "").strip():
+            raise forms.ValidationError("نامِ زیرگروهِ نهایی الزامی است")
         return cleaned
 
 

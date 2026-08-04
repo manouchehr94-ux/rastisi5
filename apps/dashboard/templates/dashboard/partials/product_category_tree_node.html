@@ -1,0 +1,24 @@
+{% load persian %}
+<div class="cp-node" x-data="{ open: false }"
+     x-show="!search || $el.innerText.toLowerCase().includes(search.toLowerCase())">
+  <div class="cp-row" :class="{ 'cp-row-leaf': {{ node.is_leaf|yesno:'true,false' }}, 'cp-row-selected': draftId === {{ node.category.pk }} }"
+       @click="{% if node.is_leaf %}selectDraft({{ node.category.pk }}, '{{ node.path|escapejs }}'){% else %}open = !open{% endif %}">
+    {% if node.children %}
+    <button type="button" class="cp-toggle" @click.stop="open = !open" :aria-expanded="open.toString()" tabindex="-1">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" :style="{ transform: open ? 'rotate(90deg)' : 'none', transition: '.15s' }"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+    {% else %}
+    <span class="cp-toggle-spacer"></span>
+    {% endif %}
+    <span class="cp-icon">{{ node.category.icon|default:"📁" }}</span>
+    <span class="cp-name">{{ node.category.name }}</span>
+    {% if node.is_leaf %}<span class="cp-badge">قابل انتخاب</span>{% endif %}
+  </div>
+  {% if node.children %}
+  <div class="cp-children" x-show="open || !!search" x-cloak>
+    {% for child in node.children %}
+    {% include "dashboard/partials/product_category_tree_node.html" with node=child %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>

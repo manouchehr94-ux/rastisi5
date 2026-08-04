@@ -293,6 +293,34 @@ body.admin-body{
 .cat-empty-state{text-align:center;padding:36px 20px;color:var(--muted)}
 .cat-empty-state .big{font-size:32px;margin-bottom:8px}
 
+/* انتخاب‌گرِ دسته‌بندی (فرمِ کالا) — کادرِ کلیک‌پذیر + مودالِ درخت */
+.cat-select-box{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:12px;background:var(--card);color:var(--text);font-size:13px;cursor:pointer;transition:.15s}
+.cat-select-box:hover{border-color:var(--primary)}
+.cat-select-placeholder{color:var(--muted)}
+.cp-search{margin-bottom:12px}
+.cp-tree{max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:12px;padding:8px}
+.cp-empty{text-align:center;padding:24px;color:var(--muted);font-size:12.5px}
+.cp-hint{display:flex;gap:8px;align-items:flex-start;color:var(--muted);font-size:11.5px;margin-top:10px;line-height:1.9}
+.cp-row{display:flex;align-items:center;gap:8px;padding:9px 8px;border-radius:9px;cursor:pointer;transition:.15s}
+.cp-row:hover{background:var(--primary-soft)}
+.cp-row-selected{background:var(--primary-soft);box-shadow:inset 0 0 0 1.5px var(--primary)}
+.cp-toggle{background:none;border:0;color:var(--muted);cursor:pointer;width:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.cp-toggle-spacer{width:18px;flex-shrink:0}
+.cp-icon{flex-shrink:0}
+.cp-name{font-weight:700;font-size:13px;flex:1}
+.cp-badge{color:var(--primary-text);background:var(--primary-soft);border-radius:999px;padding:2px 9px;font-size:10.5px;flex-shrink:0}
+.cp-children{margin-inline-start:26px;border-inline-start:1.5px dashed var(--border);padding-inline-start:10px}
+
+/* مودالِ ساختِ دسته‌بندیِ سه‌مرحله‌ای */
+.qc-steps{display:flex;gap:6px;margin-bottom:14px}
+.qc-step{flex:1;text-align:center;padding:8px 6px;border-radius:9px;background:var(--bg);color:var(--muted);font-size:11.5px;font-weight:700;border:1px solid var(--border)}
+.qc-step.active{background:var(--primary-soft);color:var(--primary-text);border-color:var(--primary)}
+.qc-step.done{color:var(--text)}
+.qc-breadcrumb{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:12px;color:var(--muted);margin-bottom:16px;display:flex;gap:6px;flex-wrap:wrap}
+.qc-mode-toggle{display:flex;gap:6px;margin-bottom:12px}
+.qc-mode-toggle button{flex:1;padding:8px;border-radius:9px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:12px;cursor:pointer;transition:.15s}
+.qc-mode-toggle button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
 [x-cloak]{display:none!important}
 
 /* modal */
