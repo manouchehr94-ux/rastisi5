@@ -68,22 +68,36 @@ def _clone_version_content(source: StorefrontLayoutVersion | None, target: Store
 
 @transaction.atomic
 def get_or_create_draft(store, *, user=None) -> StorefrontLayoutVersion:
-    """Draft فعلی فروشگاه را برمی‌گرداند؛ اگر وجود نداشته باشد، یکی می‌سازد
-    (با کپی محتوای نسخه‌ی منتشرشده‌ی فعلی، اگر وجود داشته باشد — تا ویرایشگر
-    همیشه از وضعیت فعلیِ زنده شروع شود، نه خالی)."""
+    """Draft فعلی فروشگاه را برمی‌گرداند؛ اگر وجود نداشته باشد، یکی می‌سازد.
+
+    اگر این فروشگاه هرگز هیچ نسخه‌ای نداشته (نه Draft، نه منتشرشده، نه
+    بایگانی‌شده) — یعنی اولین بار است که ویرایشگر باز می‌شود — Draft از
+    محتوای صفحه اصلی قدیمی (hard-coded) همین فروشگاه بوت‌استرپ می‌شود
+    (``bootstrap_service``) تا هرگز بومِ خالی نشان داده نشود. در غیر این
+    صورت از روی نسخه‌ی منتشرشده‌ی فعلی کپی می‌شود — تا ویرایشگر همیشه از
+    وضعیت فعلیِ زنده شروع شود.
+    """
     layout = get_or_create_layout(store)
     if layout.draft_version_id:
         return layout.draft_version
 
     enforce_rate_limit("storefront_layout.new_draft", str(store.pk), **_NEW_DRAFT_RATE_LIMIT)
 
+    is_first_ever_version = not layout.versions.exists()
     draft = StorefrontLayoutVersion.objects.create(
         layout=layout, version_number=_next_version_number(layout),
         status=StorefrontLayoutVersion.Status.DRAFT,
-        source=StorefrontLayoutVersion.Source.MANUAL,
+        source=(
+            StorefrontLayoutVersion.Source.LEGACY_BOOTSTRAP
+            if is_first_ever_version else StorefrontLayoutVersion.Source.MANUAL
+        ),
         created_by=user if (user and user.is_authenticated) else None,
     )
-    _clone_version_content(layout.published_version, draft)
+    if is_first_ever_version:
+        from . import bootstrap_service
+        bootstrap_service.apply_bootstrap_content(draft, store)
+    else:
+        _clone_version_content(layout.published_version, draft)
     layout.draft_version = draft
     layout.save(update_fields=["draft_version", "updated_at"])
     return draft
