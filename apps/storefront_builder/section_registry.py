@@ -33,11 +33,11 @@ class SectionDefinition:
     max_instances: int | None = None
     duplicable: bool = True
     removable: bool = True
-
-
-def _no_settings_validator(raw: dict) -> dict:
-    """بخش‌هایی که هیچ تنظیمات معناداری ندارند (فقط فعال/غیرفعال/ترتیب)."""
-    return {}
+    #: آیا این نوع بخش تنظیمات قابل‌ویرایش (فرم) دارد؟ اکثر انواع فعلی
+    #: بدون تنظیم، همان داده‌های فعال فروشگاه را (دقیقاً مثل صفحه اصلی قدیمی)
+    #: نمایش می‌دهند — «ویرایش تنظیمات» فقط برای انواعی که واقعاً محتوای
+    #: قابل‌تنظیم دارند (rich_text، image_text) نمایش داده می‌شود.
+    has_settings_form: bool = False
 
 
 def _passthrough_dict(raw: dict) -> dict:
@@ -49,6 +49,42 @@ def _passthrough_dict(raw: dict) -> dict:
 
 def _empty_defaults() -> dict:
     return {}
+
+
+_MAX_RICH_TEXT_LENGTH = 20_000
+_MAX_IMAGE_TEXT_TITLE_LENGTH = 200
+
+
+def _validate_rich_text_settings(raw: dict) -> dict:
+    """``body_html`` — خودِ رشته در سرویس ذخیره می‌شود؛ پاک‌سازیِ HTML واقعی
+    در زمان رندر توسط ``sanitize_rich_text`` (همان ساینیتایزر allowlist
+    توضیحات کالا) انجام می‌شود، نه اینجا — اینجا فقط شکل/طول ورودی چک
+    می‌شود."""
+    if not isinstance(raw, dict):
+        raise ValueError("تنظیمات باید یک شیء JSON باشد")
+    body_html = str(raw.get("body_html", ""))
+    if len(body_html) > _MAX_RICH_TEXT_LENGTH:
+        raise ValueError(f"متن نباید بیشتر از {_MAX_RICH_TEXT_LENGTH} نویسه باشد")
+    return {"body_html": body_html}
+
+
+def _validate_image_text_settings(raw: dict) -> dict:
+    if not isinstance(raw, dict):
+        raise ValueError("تنظیمات باید یک شیء JSON باشد")
+    from django.core.exceptions import ValidationError
+
+    from apps.content.models import validate_external_url
+
+    title = str(raw.get("title", ""))[:_MAX_IMAGE_TEXT_TITLE_LENGTH]
+    body_html = str(raw.get("body_html", ""))[:_MAX_RICH_TEXT_LENGTH]
+    image_url = str(raw.get("image_url", "")).strip()
+    if image_url:
+        try:
+            validate_external_url(image_url)
+        except ValidationError as exc:
+            raise ValueError("; ".join(exc.messages)) from exc
+    position = raw.get("image_position") if raw.get("image_position") in ("left", "right") else "right"
+    return {"title": title, "body_html": body_html, "image_url": image_url, "image_position": position}
 
 
 # ---------------------------------------------------------------- ثبت انواع بخش
@@ -139,14 +175,15 @@ SECTION_REGISTRY: dict[str, SectionDefinition] = {
     "rich_text": SectionDefinition(
         key="rich_text", label_fa="متن غنی", icon="text",
         template_name="storefront_builder/sections/rich_text.html",
-        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        validate_settings=_validate_rich_text_settings, default_settings=lambda: {"body_html": ""},
+        duplicable=True, removable=True, has_settings_form=True,
     ),
     "image_text": SectionDefinition(
         key="image_text", label_fa="متن و تصویر", icon="image-plus",
         template_name="storefront_builder/sections/image_text.html",
-        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        validate_settings=_validate_image_text_settings,
+        default_settings=lambda: {"title": "", "body_html": "", "image_url": "", "image_position": "right"},
+        duplicable=True, removable=True, has_settings_form=True,
     ),
     "trust_features": SectionDefinition(
         key="trust_features", label_fa="ردیف اعتماد و ویژگی‌ها", icon="shield-check",

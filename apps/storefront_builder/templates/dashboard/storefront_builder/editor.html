@@ -1,0 +1,110 @@
+{% extends "dashboard/base_admin.html" %}
+{% load storefront_builder_extras %}
+{% block title %}سازنده بصری صفحه اصلی | پنل مدیریت{% endblock %}
+{% block page_title %}سازنده بصری صفحه اصلی{% endblock %}
+{% block page_sub %}چیدمان هدر، فوتر و بخش‌های صفحه اصلی فروشگاه را بدون نیاز به کد ویرایش کنید{% endblock %}
+
+{% block extra_css %}
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/storefront_builder.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="sfb-shell" x-data="storefrontEditor()" x-init="init()" @beforeunload.window="handleBeforeUnload($event)"
+     @open-settings-modal.window="settingsOpen = true" @close-settings-modal.window="settingsOpen = false">
+
+  <div class="sfb-toolbar">
+    <div class="sfb-toolbar-left">
+      {% if draft.status == "draft" %}
+      <span class="badge b-amber">پیش‌نویس ذخیره‌شده</span>
+      {% endif %}
+      {% if layout.uses_visual_storefront_layout %}
+      <span class="badge b-green">سازنده بصری فعال است</span>
+      {% else %}
+      <span class="badge b-amber">هنوز منتشر نشده — صفحه اصلی فعلی فروشگاه بدون تغییر است</span>
+      {% endif %}
+    </div>
+    <div class="sfb-toolbar-right">
+      <div class="sfb-device-toggle" role="group" aria-label="حالت پیش‌نمایش">
+        <button type="button" class="btn btn-sm" :class="{ active: device === 'desktop' }" @click="setDevice('desktop')" aria-label="پیش‌نمایش دسکتاپ">🖥️ دسکتاپ</button>
+        <button type="button" class="btn btn-sm" :class="{ active: device === 'tablet' }" @click="setDevice('tablet')" aria-label="پیش‌نمایش تبلت">📱 تبلت</button>
+        <button type="button" class="btn btn-sm" :class="{ active: device === 'mobile' }" @click="setDevice('mobile')" aria-label="پیش‌نمایش موبایل">📱 موبایل</button>
+      </div>
+      <a href="{% url 'dashboard:storefront-builder-history' %}" class="btn btn-sm">تاریخچه نسخه‌ها</a>
+      <form method="post" action="{% url 'dashboard:storefront-builder-discard' %}" onsubmit="return confirm('پیش‌نویس فعلی حذف شود؟ تغییرات ذخیره‌نشده از بین می‌روند.')" style="display:inline">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm">رد کردن پیش‌نویس</button>
+      </form>
+      <form method="post" action="{% url 'dashboard:storefront-builder-publish' %}" onsubmit="return confirm('این پیش‌نویس روی فروشگاه عمومی منتشر شود؟')" style="display:inline">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary btn-sm">انتشار</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="sfb-body">
+    <aside class="sfb-sidebar">
+      <div class="sfb-sidebar-section">
+        <h4>هدر و فوتر</h4>
+        <a href="{% url 'dashboard:storefront-builder-header' %}" class="btn btn-sm" style="width:100%">ویرایش هدر</a>
+        <a href="{% url 'dashboard:storefront-builder-footer' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش فوتر</a>
+      </div>
+
+      <div class="sfb-sidebar-section">
+        <h4>بخش‌های صفحه اصلی ({{ sections|length }})</h4>
+        {% include "dashboard/storefront_builder/partials/section_list.html" %}
+      </div>
+
+      <div class="sfb-sidebar-section">
+        <h4>افزودن بخش جدید</h4>
+        <div class="sfb-add-section-list">
+          {% for definition in section_definitions %}
+          <button type="button" class="btn btn-sm sfb-add-btn"
+                  hx-post="{% url 'dashboard:storefront-builder-section-add' %}"
+                  hx-vals='{"section_key": "{{ definition.key }}"}'
+                  hx-target="#storefrontSectionList" hx-swap="outerHTML">
+            <span>{{ definition.icon }}</span> {{ definition.label_fa }}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+    </aside>
+
+    <main class="sfb-preview-pane">
+      <div class="sfb-preview-frame-wrap" :class="'sfb-device-' + device">
+        <iframe id="sfbPreviewFrame" src="{% url 'dashboard:storefront-builder-preview' %}" title="پیش‌نمایش صفحه اصلی"></iframe>
+      </div>
+    </main>
+  </div>
+
+  <div class="overlay" :class="{ open: settingsOpen }" x-cloak @click.self="settingsOpen = false" @keydown.escape.window="settingsOpen = false">
+    <div class="modal">
+      <div id="sfbSettingsModalBody" class="modal-body"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function storefrontEditor() {
+  return {
+    device: 'desktop',
+    settingsOpen: false,
+    init() {
+      document.body.addEventListener('htmx:afterSwap', (evt) => {
+        if (evt.detail.target.id === 'storefrontSectionList') {
+          document.getElementById('sfbPreviewFrame').contentWindow.location.reload();
+        }
+      });
+    },
+    setDevice(d) { this.device = d; },
+    handleBeforeUnload(e) {
+      // چون هر افزودن/حذف/جابه‌جایی بلافاصله ذخیره می‌شود، تنها حالتِ
+      // واقعاً «ذخیره‌نشده» فرمِ باز تنظیماتِ یک بخش است.
+      if (this.settingsOpen) { e.preventDefault(); e.returnValue = ''; }
+    },
+  };
+}
+</script>
+{% endblock %}

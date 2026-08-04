@@ -1,0 +1,21 @@
+{% if tiles %}
+<section class="section"><div class="tiles">
+  {% for cat, tclass in tiles %}
+  <div class="tile {{ tclass }}">
+    <span class="wm">{{ cat.icon }}</span>
+    <h4>مشاهده محصولات {{ cat.name }}</h4>
+    <a class="btn" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">مشاهده محصولات</a>
+  </div>
+  {% endfor %}
+</div></section>
+{% endif %}
+{% if cream_category %}
+<section class="section"><div class="cream">
+  <div>
+    <h3>مجموعه‌ی {{ cream_category.name }}</h3>
+    <p>کیفیت و تنوع در دسته‌ی {{ cream_category.name }} را تجربه کنید — انتخابی مطمئن برای خرید روزمره.</p>
+    <a class="btn btn-ghost" href="{% url 'catalog:product-list' %}?category={{ cream_category.slug }}">مشاهده مجموعه</a>
+  </div>
+  <div class="rack">{{ cream_category.icon }}</div>
+</div></section>
+{% endif %}

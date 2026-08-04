@@ -1,0 +1,23 @@
+{% load content_tags %}
+{% for banner in banners %}
+<section class="section">
+  <div class="promo-dark">
+    <div>
+      {% if banner.title %}<h3>{{ banner.title }}</h3>{% endif %}
+      {% if banner.description %}<p>{{ banner.description }}</p>{% endif %}
+      {% if banner.show_button and banner.button_label %}
+      {% resolve_destination banner as bdest %}
+      {% if bdest.url %}
+      <a class="btn btn-light" href="{{ bdest.url }}" {% if bdest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ banner.button_label }}</a>
+      {% endif %}
+      {% endif %}
+    </div>
+    <div class="mini">
+      <picture>
+        {% if banner.mobile_image %}<source media="(max-width:680px)" srcset="{{ banner.mobile_image.url }}">{% endif %}
+        <img src="{{ banner.desktop_image.url }}" alt="{{ banner.title|default:'بنر' }}" loading="lazy" style="max-height:120px;border-radius:12px">
+      </picture>
+    </div>
+  </div>
+</section>
+{% endfor %}

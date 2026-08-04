@@ -1,5 +1,7 @@
 from django.urls import path
 
+from apps.storefront_builder import views as storefront_builder_views
+
 from . import views
 
 app_name = "dashboard"
@@ -192,6 +194,24 @@ urlpatterns = [
     path("pages/<int:pk>/publish/", views.page_publish, name="page-publish"),
 
     # --- صفحه اصلی ---
+    # --- سازنده بصری صفحه فروشگاه ---
+    path("storefront-builder/", storefront_builder_views.storefront_editor, name="storefront-builder-editor"),
+    path("storefront-builder/preview/", storefront_builder_views.storefront_preview, name="storefront-builder-preview"),
+    path("storefront-builder/sections/", storefront_builder_views.storefront_section_list_partial, name="storefront-builder-section-list"),
+    path("storefront-builder/sections/add/", storefront_builder_views.storefront_section_add, name="storefront-builder-section-add"),
+    path("storefront-builder/sections/reorder/", storefront_builder_views.storefront_section_reorder, name="storefront-builder-section-reorder"),
+    path("storefront-builder/sections/<int:pk>/settings/", storefront_builder_views.storefront_section_settings, name="storefront-builder-section-settings"),
+    path("storefront-builder/sections/<int:pk>/remove/", storefront_builder_views.storefront_section_remove, name="storefront-builder-section-remove"),
+    path("storefront-builder/sections/<int:pk>/toggle/", storefront_builder_views.storefront_section_toggle, name="storefront-builder-section-toggle"),
+    path("storefront-builder/sections/<int:pk>/duplicate/", storefront_builder_views.storefront_section_duplicate, name="storefront-builder-section-duplicate"),
+    path("storefront-builder/sections/<int:pk>/move/", storefront_builder_views.storefront_section_move, name="storefront-builder-section-move"),
+    path("storefront-builder/header/", storefront_builder_views.storefront_header_editor, name="storefront-builder-header"),
+    path("storefront-builder/footer/", storefront_builder_views.storefront_footer_editor, name="storefront-builder-footer"),
+    path("storefront-builder/publish/", storefront_builder_views.storefront_publish, name="storefront-builder-publish"),
+    path("storefront-builder/discard/", storefront_builder_views.storefront_discard, name="storefront-builder-discard"),
+    path("storefront-builder/history/", storefront_builder_views.storefront_history, name="storefront-builder-history"),
+    path("storefront-builder/history/<int:pk>/restore/", storefront_builder_views.storefront_restore, name="storefront-builder-restore"),
+
     path("homepage/hero/", views.hero_list, name="hero-list"),
     path("homepage/hero/add/", views.hero_form, name="hero-add"),
     path("homepage/hero/<int:pk>/edit/", views.hero_form, name="hero-edit"),

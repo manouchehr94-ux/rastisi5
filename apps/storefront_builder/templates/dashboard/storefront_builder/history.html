@@ -1,0 +1,38 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}تاریخچه نسخه‌های چیدمان | پنل مدیریت{% endblock %}
+{% block page_title %}تاریخچه نسخه‌های چیدمان{% endblock %}
+{% block page_sub %}نسخه‌های قبلی صفحه اصلی — بازگردانی همیشه یک پیش‌نویس جدید می‌سازد، بلافاصله منتشر نمی‌شود{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>نسخه</th><th>وضعیت</th><th>منشأ</th><th>تاریخ ایجاد</th><th>تاریخ انتشار</th><th>عملیات</th></tr></thead>
+    <tbody>
+    {% for version in versions %}
+    <tr>
+      <td><b>#{{ version.version_number }}</b>{% if version.label %} — {{ version.label }}{% endif %}</td>
+      <td>
+        {% if version.status == "published" %}<span class="badge b-green">منتشرشده</span>
+        {% elif version.status == "draft" %}<span class="badge b-amber">پیش‌نویس</span>
+        {% else %}<span class="badge">بایگانی‌شده</span>{% endif %}
+      </td>
+      <td>{{ version.get_source_display }}</td>
+      <td>{{ version.created_at|date:"Y/m/d H:i" }}</td>
+      <td>{{ version.published_at|date:"Y/m/d H:i"|default:"—" }}</td>
+      <td>
+        {% if version.status != "draft" %}
+        <form method="post" action="{% url 'dashboard:storefront-builder-restore' version.pk %}" onsubmit="return confirm('محتوای نسخه #{{ version.version_number }} در یک پیش‌نویس جدید بازگردانی شود؟')" style="display:inline">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm">بازگردانی به پیش‌نویس جدید</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" style="color:var(--muted)">هنوز هیچ نسخه‌ای ثبت نشده</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+<a href="{% url 'dashboard:storefront-builder-editor' %}" class="btn" style="margin-top:14px;display:inline-block">بازگشت به ادیتور</a>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% if product %}
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('countdown', (deadlineIso) => ({
+    h: '۰۰', m: '۰۰', s: '۰۰',
+    _timer: null,
+    start() {
+      const faDigits = '۰۱۲۳۴۵۶۷۸۹';
+      const toFa = (n) => String(n).padStart(2, '0').replace(/\d/g, (d) => faDigits[d]);
+      const deadline = new Date(deadlineIso).getTime();
+      const tick = () => {
+        const diff = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+        this.h = toFa(Math.floor(diff / 3600));
+        this.m = toFa(Math.floor((diff % 3600) / 60));
+        this.s = toFa(diff % 60);
+      };
+      tick();
+      this._timer = setInterval(tick, 1000);
+    },
+  }));
+});
+</script>
+<section class="section" id="sec-amazing">
+  <div class="special-wrap">
+    <div class="grid g2">
+      {% include "catalog/partials/product_card.html" %}
+    </div>
+    <div class="special-card" x-data="countdown('{{ deadline }}')" x-init="start()">
+      <h3>⚡ پیشنهاد شگفت‌انگیز</h3>
+      <p>تخفیف ویژه فقط تا پایان زمان‌شمار زیر فعال است. عجله کنید!</p>
+      <div class="countdown">
+        <div class="cd-box"><b x-text="h"></b><small>ساعت</small></div>
+        <div class="cd-box"><b x-text="m"></b><small>دقیقه</small></div>
+        <div class="cd-box"><b x-text="s"></b><small>ثانیه</small></div>
+      </div>
+      <a class="btn btn-light" href="{% url 'catalog:product-detail' product.slug %}">مشاهده محصول</a>
+    </div>
+  </div>
+</section>
+{% endif %}

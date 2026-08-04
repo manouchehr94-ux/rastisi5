@@ -1,0 +1,16 @@
+{% if brands %}
+<section class="section">
+  <div class="sec-head"><h2><span class="bar"></span>برندهای منتخب</h2></div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px">
+    {% for brand in brands %}
+    <a href="{% url 'catalog:product-list' %}?brand={{ brand.slug }}" style="display:flex;align-items:center;justify-content:center;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--card)">
+      {% if brand.logo %}
+      <img src="{{ brand.logo.url }}" alt="{{ brand.name }}" style="max-height:40px;max-width:100%;object-fit:contain">
+      {% else %}
+      <span style="font-size:13px;font-weight:700">{{ brand.name }}</span>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

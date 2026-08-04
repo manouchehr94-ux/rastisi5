@@ -1,0 +1,11 @@
+{% if categories %}
+<section class="section"><div class="tiles">
+  {% for cat in categories %}
+  <div class="tile {% cycle 't1' 't2' 't3' %}">
+    <span class="wm">{{ cat.icon }}</span>
+    <h4>{{ cat.name }}</h4>
+    <a class="btn" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">مشاهده محصولات</a>
+  </div>
+  {% endfor %}
+</div></section>
+{% endif %}

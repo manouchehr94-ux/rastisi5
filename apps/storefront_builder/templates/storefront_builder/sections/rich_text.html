@@ -1,0 +1,10 @@
+{% load storefront_builder_extras %}
+{% with body=settings.body_html %}
+{% if body %}
+<section class="section">
+  <div class="rich-text-section" style="max-width:820px;margin:0 auto;line-height:2">
+    {{ body|sanitize_rich_text }}
+  </div>
+</section>
+{% endif %}
+{% endwith %}

@@ -1,0 +1,39 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}ویرایش هدر | پنل مدیریت{% endblock %}
+{% block page_title %}ویرایش هدر فروشگاه{% endblock %}
+{% block page_sub %}نمایش عناصر هدر و متن نوار اعلان را تنظیم کنید{% endblock %}
+
+{% block content %}
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label><input type="checkbox" name="announcement_enabled" {% if config.announcement_enabled %}checked{% endif %}> نمایش نوار اعلان</label>
+    </div>
+    <div class="form-group">
+      <label for="id_announcement_text">متن نوار اعلان</label>
+      <input type="text" name="announcement_text" id="id_announcement_text" class="form-input" maxlength="300" value="{{ config.announcement_text }}">
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" name="show_search" {% if config.show_search %}checked{% endif %}> نمایش جستجو</label>
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" name="show_account" {% if config.show_account %}checked{% endif %}> نمایش ورود/حساب کاربری</label>
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" name="show_wishlist" {% if config.show_wishlist %}checked{% endif %}> نمایش علاقه‌مندی‌ها</label>
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" name="show_cart" {% if config.show_cart %}checked{% endif %}> نمایش سبد خرید</label>
+      <div class="field-help">دسترسی به سبد خرید همیشه باید در دسترس باشد؛ غیرفعال‌کردن این گزینه توصیه نمی‌شود.</div>
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" name="sticky" {% if config.sticky %}checked{% endif %}> چسبیدن هدر به بالای صفحه هنگام اسکرول</label>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات هدر</button>
+      <a href="{% url 'dashboard:storefront-builder-editor' %}" class="btn">بازگشت به ادیتور</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

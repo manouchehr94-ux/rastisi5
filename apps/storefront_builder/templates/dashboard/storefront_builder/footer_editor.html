@@ -1,0 +1,26 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}ویرایش فوتر | پنل مدیریت{% endblock %}
+{% block page_title %}ویرایش فوتر فروشگاه{% endblock %}
+{% block page_sub %}نمایش هر ستون فوتر را در این چیدمان فعال یا غیرفعال کنید{% endblock %}
+
+{% block content %}
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group"><label><input type="checkbox" name="show_about" {% if config.show_about %}checked{% endif %}> نمایش درباره فروشگاه</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_contact" {% if config.show_contact %}checked{% endif %}> نمایش اطلاعات تماس</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_quick_links" {% if config.show_quick_links %}checked{% endif %}> نمایش لینک‌های مفید</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_categories" {% if config.show_categories %}checked{% endif %}> نمایش لینک دسته‌بندی‌ها</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_social" {% if config.show_social %}checked{% endif %}> نمایش شبکه‌های اجتماعی</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_trust_badges" {% if config.show_trust_badges %}checked{% endif %}> نمایش نشان‌های اعتماد</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_payment_logos" {% if config.show_payment_logos %}checked{% endif %}> نمایش لوگوهای پرداخت</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_newsletter" {% if config.show_newsletter %}checked{% endif %}> نمایش خبرنامه</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_copyright" {% if config.show_copyright %}checked{% endif %}> نمایش کپی‌رایت</label></div>
+    <div class="field-help">محتوای هر بخش (لینک‌ها، نشان‌ها، شبکه‌های اجتماعی) از تنظیمات فوتر و منوها خوانده می‌شود — این صفحه فقط نمایش/عدم‌نمایش هر بخش را در این چیدمان کنترل می‌کند.</div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات فوتر</button>
+      <a href="{% url 'dashboard:storefront-builder-editor' %}" class="btn">بازگشت به ادیتور</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
