@@ -382,6 +382,7 @@
         <div class="field-help" x-show="!hasPrice" style="margin-top:8px">پیش از ذخیره، قیمت را تنظیم کنید.</div>
       </div>
 
+      <template x-teleport="body">
       <div x-show="priceModalOpen" x-cloak class="price-modal-overlay" @click.self="priceModalOpen = false">
         <div class="price-modal-card" @keydown.escape.window="priceModalOpen = false">
           <h4 style="margin:0 0 14px">تنظیمِ قیمت</h4>
@@ -403,6 +404,7 @@
           </div>
         </div>
       </div>
+      </template>
 
       {% if product and product.product_type == "variable" %}
       <div x-show="productType === 'variable'" style="margin-top:16px">

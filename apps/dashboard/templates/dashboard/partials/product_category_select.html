@@ -74,6 +74,10 @@
   {% endif %}
 
   <!-- مودالِ انتخاب دسته‌بندی (درخت) -->
+  <!-- x-teleport: چون این مودال درونِ مودالِ اصلیِ فرمِ کالا (که backdrop-filter دارد) قرار دارد، بدونِ
+       teleport کردن به body، موقعیتِ position:fixed آن نسبت به همان مودالِ والد محاسبه می‌شود نه نسبت به
+       viewport واقعی — و اگر مودالِ والد اسکرول‌شده باشد، این مودال بیرون از دیدِ کاربر باز می‌شود. -->
+  <template x-teleport="body">
   <div class="overlay" :class="{ open: pickerOpen }" x-cloak @click.self="pickerOpen = false" @keydown.escape.window="pickerOpen = false">
     <div class="modal">
       <div class="modal-head">
@@ -102,8 +106,10 @@
       </div>
     </div>
   </div>
+  </template>
 
   <!-- مودالِ ساختِ دسته‌بندیِ جدید (۳ مرحله) -->
+  <template x-teleport="body">
   <div class="overlay" :class="{ open: quickAddOpen }" x-cloak @click.self="quickAddOpen = false" @keydown.escape.window="quickAddOpen = false">
     <div class="modal">
       <div class="modal-head">
@@ -196,4 +202,5 @@
       </div>
     </div>
   </div>
+  </template>
 </div>

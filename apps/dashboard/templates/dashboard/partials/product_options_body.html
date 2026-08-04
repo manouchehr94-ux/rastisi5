@@ -226,6 +226,7 @@
             <button type="button" class="btn btn-sm" @click="bulkActivate('0')">🚫 غیرفعال‌سازیِ انتخاب‌شده‌ها</button>
             <button type="button" class="btn btn-sm" @click="bulkSalesLimitOpen = true">🎯 تنظیمِ گروهیِ محدودیتِ فروش</button>
           </div>
+          <template x-teleport="body">
           <div x-show="bulkSalesLimitOpen" x-cloak class="price-modal-overlay" @click.self="bulkSalesLimitOpen = false">
             <div class="price-modal-card">
               <h4 style="margin:0 0 14px">تنظیمِ گروهیِ محدودیتِ فروش</h4>
@@ -244,6 +245,7 @@
               </div>
             </div>
           </div>
+          </template>
           <div class="table-wrap">
             <table class="variant-table variant-table-responsive">
               <thead>
@@ -294,6 +296,7 @@
                     {% endif %}
                     <input type="hidden" name="variant_price" :value="priceDraft" id="priceDraft{{ variant.pk }}">
                     <input type="hidden" name="variant_discount_percent" :value="discountDraft" id="discountDraft{{ variant.pk }}">
+                    <template x-teleport="body">
                     <div x-show="priceOpen" x-cloak class="price-modal-overlay" @click.self="priceOpen = false">
                       <div class="price-modal-card">
                         <h4 style="margin:0 0 14px">تنظیمِ قیمتِ تنوع</h4>
@@ -318,6 +321,7 @@
                         </div>
                       </div>
                     </div>
+                    </template>
                   </td>
                   <td data-label="محدودیتِ فروش">
                     <button type="button" class="btn btn-sm limit-cell-btn" @click="salesLimitOpen = true" title="تنظیمِ محدودیتِ فروش">
@@ -326,6 +330,7 @@
                       {% elif variant.sales_limit_min %}حداقل {{ variant.sales_limit_min|fa_number }}
                       {% else %}نامحدود{% endif %}
                     </button>
+                    <template x-teleport="body">
                     <div x-show="salesLimitOpen" x-cloak class="price-modal-overlay" @click.self="salesLimitOpen = false">
                       <div class="price-modal-card">
                         <h4 style="margin:0 0 14px">تنظیمِ محدودیتِ فروش</h4>
@@ -353,6 +358,7 @@
                         </div>
                       </div>
                     </div>
+                    </template>
                   </td>
                   <td data-label="موجودی"><input class="inp" name="variant_{{ variant.pk }}_stock" value="{{ variant.stock|stringformat:'d' }}" dir="ltr" inputmode="numeric" style="width:70px"></td>
                   {% for axis in axes %}
