@@ -187,7 +187,16 @@
         <button type="button" class="btn" x-show="qStep > 1" @click="qStep--">مرحلهٔ قبل</button>
         <button type="button" class="btn" @click="quickAddOpen = false">انصراف</button>
         <button type="button" class="btn btn-primary" x-show="qStep < 3" :disabled="qStep === 1 ? !qStep1Done : !qStep2Done" @click="qGoNext()">مرحلهٔ بعد</button>
+        <!-- @click="quickAddOpen = false" اینجا لازم است: چون این مودال با x-teleport به body
+             منتقل شده (برای رفعِ باگِ موقعیت‌یابی، چک‌پوینتِ ddeb7ab)، دیگر فرزندِ #categoryField
+             نیست. وقتی این دکمه با موفقیت درخواست را می‌فرستد و پاسخ با hx-swap="outerHTML" کلِ
+             #categoryField را جایگزین می‌کند، این کپیِ teleport‌شده (چون بیرون از #categoryField
+             نشسته) در DOM بدونِ صاحب باقی می‌ماند و چون هنوز quickAddOpen=true بود، رویِ صفحه باز
+             و گیر می‌کرد — دقیقاً همان چیزی که «دکمه‌ی افزودن کار نمی‌کند» را برایِ کاربر ایجاد
+             می‌کرد. با بستنِ صریحِ مودال همین‌جا (پیش از رفتنِ درخواست)، این کپیِ قدیمی همیشه
+             از قبل پنهان است — چه درخواست موفق شود چه نشود. -->
         <button type="button" class="btn btn-primary" x-show="qStep === 3" :disabled="!qSubName.trim()"
+                @click="quickAddOpen = false"
                 hx-post="{% if product %}{% url 'dashboard:product-quick-add-category-edit' product.pk %}{% else %}{% url 'dashboard:product-quick-add-category' %}{% endif %}"
                 hx-target="#categoryField" hx-swap="outerHTML"
                 :hx-vals="JSON.stringify({

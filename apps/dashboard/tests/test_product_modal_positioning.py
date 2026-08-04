@@ -88,3 +88,27 @@ class NestedModalTeleportTests(TestCase):
         self._assert_teleported(html, 'x-show="bulkSalesLimitOpen"', "bulk sales-limit modal")
         self._assert_teleported(html, 'x-show="priceOpen"', "per-variant price modal")
         self._assert_teleported(html, 'x-show="salesLimitOpen"', "per-variant sales-limit modal")
+
+    def test_quick_add_category_submit_closes_modal_before_its_own_swap(self):
+        """The quick-add-category modal's own successful submit does an
+        ``hx-swap="outerHTML"`` on ``#categoryField`` — its *own* container. Since the
+        modal is teleported to <body> (not a descendant of #categoryField anymore), that
+        swap replaces #categoryField without necessarily tearing down the teleported
+        clone, leaving an orphaned, still-``open`` copy stuck on screen (looks exactly
+        like the "Add button doesn't work" bug: nothing visibly happens because the
+        stale modal is still covering everything). The submit button must close the
+        modal itself (``@click="quickAddOpen = false"``) before/alongside the request so
+        the old copy is already hidden regardless of what happens to the DOM node.
+        """
+        response = self.client.get(reverse("dashboard:product-add"))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        submit_marker = 'hx-target="#categoryField" hx-swap="outerHTML"'
+        idx = html.find(submit_marker)
+        self.assertNotEqual(idx, -1, "quick-add-category submit button not found")
+        preceding = html[max(0, idx - 200):idx]
+        self.assertIn(
+            '@click="quickAddOpen = false"', preceding,
+            "quick-add-category's own submit button must close quickAddOpen itself, "
+            "since its teleported clone won't be torn down just by swapping #categoryField",
+        )
