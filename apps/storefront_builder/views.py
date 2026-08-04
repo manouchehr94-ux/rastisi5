@@ -29,6 +29,7 @@ def storefront_editor(request):
     draft = layout_service.get_or_create_draft(store, user=request.user)
     layout = layout_service.get_or_create_layout(store)
     sections = draft.sections.order_by("order", "id")
+    industry_installation = getattr(store, "industry_installation", None)
     context = {
         "active_page": "storefront_builder",
         "layout": layout,
@@ -36,6 +37,7 @@ def storefront_editor(request):
         "sections": sections,
         "section_definitions": section_registry.list_definitions(),
         "versions": layout_service.list_versions(store),
+        "industry_installation": industry_installation,
     }
     return render(request, "dashboard/storefront_builder/editor.html", context)
 
@@ -255,6 +257,35 @@ def storefront_publish(request):
         messages.error(request, "پیش‌نویسی برای انتشار وجود ندارد")
     except Exception:
         messages.error(request, "محدودیت تعداد انتشار — کمی بعد دوباره تلاش کنید")
+    return redirect("dashboard:storefront-builder-editor")
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+def storefront_apply_industry_layout(request):
+    """چیدمان پیشنهادیِ صنفِ نصب‌شده‌ی این فروشگاه را در یک Draft جدید اعمال
+    می‌کند. اگر فروشگاه از قبل یک نسخه‌ی منتشرشده دارد، بدون
+    ``confirm=1`` (تأیید صریح کاربر در UI) رد می‌شود — هرگز بی‌صدا
+    storefront منتشرشده را رونویسی نمی‌کند."""
+    store = _resolve_store(request)
+    installation = getattr(store, "industry_installation", None)
+    if installation is None:
+        raise Http404
+    force = request.POST.get("confirm") == "1"
+    try:
+        layout_service.apply_industry_layout(
+            store, installation.industry_template, user=request.user, force=force,
+        )
+        messages.success(request, "چیدمان پیشنهادی صنف در یک پیش‌نویس جدید اعمال شد")
+    except layout_service.StorefrontAlreadyPublishedError:
+        messages.error(
+            request,
+            "این فروشگاه از قبل یک نسخه‌ی منتشرشده دارد — برای رونویسی آن با چیدمان صنف، "
+            "دوباره با تأیید صریح تلاش کنید",
+        )
+    except Exception:
+        messages.error(request, "محدودیت تعداد ساخت نسخه — کمی بعد دوباره تلاش کنید")
     return redirect("dashboard:storefront-builder-editor")
 
 

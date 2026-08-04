@@ -1331,6 +1331,15 @@ class IndustryTemplate(TimeStampedModel):
         "اثرانگشت محتوا", max_length=64, blank=True, default="",
         help_text="هش SHA-256 قطعی محتوای قالب — نگاه کنید به ADR-27",
     )
+    default_section_keys = models.JSONField(
+        "بخش‌های پیشنهادی صفحه اصلی", default=list, blank=True,
+        help_text=(
+            "فهرست ترتیب‌دارِ کلیدهای نوع بخش (سازنده‌ی بصری صفحه فروشگاه) که "
+            "چیدمان پیشنهادیِ این صنف را می‌سازند. اعتبارسنجیِ این کلیدها در برابر "
+            "Section Registry در لایه‌ی apps.storefront_builder انجام می‌شود، نه اینجا، "
+            "تا apps.catalog به آن اپ وابسته نشود."
+        ),
+    )
 
     class Meta:
         verbose_name = "قالب صنف"

@@ -6,7 +6,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from PIL import Image
 
-from apps.catalog.models import Category, Product, Vendor
+from apps.catalog.models import Category, IndustryTemplate, Product, Vendor
 from apps.content.models import HeroSlide, PromotionalBanner
 from apps.storefront_builder.models import StorefrontLayoutVersion
 from apps.storefront_builder.services import bootstrap_service, layout_service as svc
@@ -98,3 +98,52 @@ class BootstrapIntegrationWithDraftTests(TestCase):
         svc.get_or_create_draft(store)
         layout = svc.get_or_create_layout(store)
         self.assertFalse(layout.uses_visual_storefront_layout)
+
+
+class IndustryDefaultSectionsTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def test_uses_explicit_default_section_keys_in_order(self):
+        store = _akhlaghi()
+        template = IndustryTemplate.objects.create(
+            slug="test-industry-bootstrap", name="صنف تست",
+            default_section_keys=["hero_banner", "category_grid", "best_sellers"],
+        )
+        sections = bootstrap_service.build_industry_default_sections(store, template)
+        self.assertEqual(
+            [s["section_key"] for s in sections], ["hero_banner", "category_grid", "best_sellers"],
+        )
+        self.assertEqual([s["order"] for s in sections], [0, 1, 2])
+
+    def test_unknown_keys_silently_dropped_never_crashes(self):
+        store = _akhlaghi()
+        template = IndustryTemplate.objects.create(
+            slug="test-industry-unknown-key", name="صنف تست ۲",
+            default_section_keys=["category_grid", "not_a_real_section_type", "best_sellers"],
+        )
+        sections = bootstrap_service.build_industry_default_sections(store, template)
+        self.assertEqual([s["section_key"] for s in sections], ["category_grid", "best_sellers"])
+
+    def test_empty_default_section_keys_falls_back_to_generic_bootstrap(self):
+        store = _akhlaghi()
+        template = IndustryTemplate.objects.create(slug="test-industry-empty", name="صنف تست ۳")
+        sections = bootstrap_service.build_industry_default_sections(store, template)
+        self.assertGreater(len(sections), 0)
+        self.assertIn("category_grid", [s["section_key"] for s in sections])
+
+    def test_apply_industry_content_creates_sections_on_version(self):
+        store = _akhlaghi()
+        template = IndustryTemplate.objects.create(
+            slug="test-industry-apply", name="صنف تست ۴",
+            default_section_keys=["hero_banner", "trust_features"],
+        )
+        layout = svc.get_or_create_layout(store)
+        version = StorefrontLayoutVersion.objects.create(
+            layout=layout, version_number=999, status=StorefrontLayoutVersion.Status.DRAFT,
+        )
+        bootstrap_service.apply_industry_content(version, store, template)
+        self.assertEqual(
+            list(version.sections.order_by("order").values_list("section_key", flat=True)),
+            ["hero_banner", "trust_features"],
+        )

@@ -1,6 +1,7 @@
 from django.core.cache import cache
 from django.test import TestCase
 
+from apps.catalog.models import IndustryTemplate
 from apps.core.services.rate_limit import RateLimitExceeded
 from apps.storefront_builder.models import StorefrontLayoutVersion, StorefrontSection
 from apps.storefront_builder.services import layout_service as svc
@@ -251,3 +252,59 @@ class RateLimitTests(TestCase):
                 svc.restore_version(store, v1.pk)
         finally:
             layout_service._RESTORE_RATE_LIMIT = original
+
+
+class ApplyIndustryLayoutTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def _template(self, slug="test-apply-industry", **keys):
+        return IndustryTemplate.objects.create(
+            slug=slug, name="صنف تست",
+            default_section_keys=keys.get("default_section_keys", ["hero_banner", "category_grid"]),
+        )
+
+    def test_applies_directly_when_never_published(self):
+        store = _akhlaghi()
+        template = self._template()
+        draft = svc.apply_industry_layout(store, template)
+        self.assertEqual(draft.source, StorefrontLayoutVersion.Source.INDUSTRY_TEMPLATE)
+        self.assertEqual(
+            list(draft.sections.order_by("order").values_list("section_key", flat=True)),
+            ["hero_banner", "category_grid"],
+        )
+        layout = svc.get_or_create_layout(store)
+        self.assertEqual(layout.draft_version_id, draft.pk)
+
+    def test_rejected_without_force_when_already_published(self):
+        store = _akhlaghi()
+        svc.get_or_create_draft(store)
+        svc.publish(store)
+        template = self._template(slug="test-apply-industry-published")
+        with self.assertRaises(svc.StorefrontAlreadyPublishedError):
+            svc.apply_industry_layout(store, template)
+
+    def test_applies_with_force_when_already_published_does_not_touch_published_version(self):
+        store = _akhlaghi()
+        svc.get_or_create_draft(store)
+        published = svc.publish(store)
+        template = self._template(slug="test-apply-industry-forced")
+        draft = svc.apply_industry_layout(store, template, force=True)
+        self.assertEqual(draft.source, StorefrontLayoutVersion.Source.INDUSTRY_TEMPLATE)
+        layout = svc.get_or_create_layout(store)
+        self.assertEqual(layout.published_version_id, published.pk)
+        self.assertEqual(layout.draft_version_id, draft.pk)
+
+    def test_replaces_existing_draft_not_stacked(self):
+        store = _akhlaghi()
+        first_draft = svc.get_or_create_draft(store)
+        template = self._template(slug="test-apply-industry-replace")
+        new_draft = svc.apply_industry_layout(store, template)
+        self.assertNotEqual(new_draft.pk, first_draft.pk)
+        self.assertFalse(StorefrontLayoutVersion.objects.filter(pk=first_draft.pk).exists())
+
+    def test_never_leaves_layout_without_draft_on_empty_keys(self):
+        store = _akhlaghi()
+        template = self._template(slug="test-apply-industry-empty", default_section_keys=[])
+        draft = svc.apply_industry_layout(store, template)
+        self.assertGreater(draft.sections.count(), 0)

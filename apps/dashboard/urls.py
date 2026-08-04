@@ -209,6 +209,7 @@ urlpatterns = [
     path("storefront-builder/footer/", storefront_builder_views.storefront_footer_editor, name="storefront-builder-footer"),
     path("storefront-builder/publish/", storefront_builder_views.storefront_publish, name="storefront-builder-publish"),
     path("storefront-builder/discard/", storefront_builder_views.storefront_discard, name="storefront-builder-discard"),
+    path("storefront-builder/apply-industry-layout/", storefront_builder_views.storefront_apply_industry_layout, name="storefront-builder-apply-industry-layout"),
     path("storefront-builder/history/", storefront_builder_views.storefront_history, name="storefront-builder-history"),
     path("storefront-builder/history/<int:pk>/restore/", storefront_builder_views.storefront_restore, name="storefront-builder-restore"),
 

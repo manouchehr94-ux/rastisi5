@@ -39,6 +39,13 @@ class CrossStoreVersionError(Exception):
     """نسخه‌ی درخواست‌شده متعلق به این فروشگاه نیست."""
 
 
+class StorefrontAlreadyPublishedError(Exception):
+    """این فروشگاه از قبل یک نسخه‌ی منتشرشده (سفارشی‌سازی‌شده) دارد — اعمال
+    چیدمان پیشنهادی صنف بدون تأیید صریح کاربر مجاز نیست (تصمیم کاربر:
+    «هرگز storefront سفارشی‌سازی‌شده و منتشرشده را بدون تأیید صریح رونویسی
+    نکن»)."""
+
+
 def get_or_create_layout(store) -> StorefrontLayout:
     return StorefrontLayout.provision_for(store)
 
@@ -179,6 +186,45 @@ def restore_version(store, version_id, *, user=None) -> StorefrontLayoutVersion:
         created_by=user if (user and user.is_authenticated) else None,
     )
     _clone_version_content(source, new_draft)
+    layout.draft_version = new_draft
+    layout.save(update_fields=["draft_version", "updated_at"])
+    return new_draft
+
+
+@transaction.atomic
+def apply_industry_layout(store, industry_template, *, user=None, force: bool = False) -> StorefrontLayoutVersion:
+    """چیدمان پیشنهادی یک صنف را در یک Draft **جدید** اعمال می‌کند — هرگز
+    مستقیماً منتشر نمی‌شود (همان قانون ``restore_version``).
+
+    اگر فروشگاه از قبل یک نسخه‌ی منتشرشده دارد (یعنی صاحب فروشگاه حداقل
+    یک بار storefront بصری را منتشر کرده و ممکن است آن را سفارشی کرده
+    باشد)، بدون ``force=True`` رد می‌شود — این دقیقاً همان تأیید صریحی است
+    که تصمیم کاربر برای «هرگز رونویسی بی‌صدا» می‌خواهد؛ لایه‌ی View مسئول
+    گرفتن تأیید از کاربر (checkbox/confirm) پیش از پاس‌دادن ``force=True``
+    است. Draft فعلی (اگر وجود دارد) جایگزین می‌شود، دقیقاً مثل ``restore_version``."""
+    enforce_rate_limit("storefront_layout.new_draft", str(store.pk), **_NEW_DRAFT_RATE_LIMIT)
+
+    layout = get_or_create_layout(store)
+    if layout.published_version_id and not force:
+        raise StorefrontAlreadyPublishedError(
+            "این فروشگاه از قبل یک نسخه‌ی منتشرشده دارد — برای اعمال چیدمان صنف، تأیید صریح لازم است"
+        )
+
+    if layout.draft_version_id:
+        old_draft = layout.draft_version
+        layout.draft_version = None
+        layout.save(update_fields=["draft_version", "updated_at"])
+        old_draft.delete()
+
+    new_draft = StorefrontLayoutVersion.objects.create(
+        layout=layout, version_number=_next_version_number(layout),
+        status=StorefrontLayoutVersion.Status.DRAFT,
+        source=StorefrontLayoutVersion.Source.INDUSTRY_TEMPLATE,
+        label=f"چیدمان صنف «{industry_template.name}»",
+        created_by=user if (user and user.is_authenticated) else None,
+    )
+    from . import bootstrap_service
+    bootstrap_service.apply_industry_content(new_draft, store, industry_template)
     layout.draft_version = new_draft
     layout.save(update_fields=["draft_version", "updated_at"])
     return new_draft

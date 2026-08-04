@@ -68,6 +68,23 @@
           {% endfor %}
         </div>
       </div>
+
+      {% if industry_installation %}
+      <div class="sfb-sidebar-section">
+        <h4>چیدمان پیشنهادی صنف</h4>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 8px">
+          صنف نصب‌شده: {{ industry_installation.industry_template.name }}
+        </p>
+        <form method="post" action="{% url 'dashboard:storefront-builder-apply-industry-layout' %}"
+              {% if layout.published_version_id %}
+              onsubmit="if(!confirm('این فروشگاه قبلاً منتشر شده است و ممکن است سفارشی‌سازی شده باشد. اعمال چیدمان پیشنهادی صنف، پیش‌نویسِ فعلی را با چیدمانِ جدید جایگزین می‌کند (نسخه‌ی منتشرشده تا انتشارِ دوباره دست‌نخورده می‌ماند). ادامه می‌دهید؟')){return false;} this.confirm.value='1'; return true;"
+              {% endif %}>
+          {% csrf_token %}
+          <input type="hidden" name="confirm" value="0">
+          <button type="submit" class="btn btn-sm" style="width:100%">اعمال چیدمان پیشنهادی صنف</button>
+        </form>
+      </div>
+      {% endif %}
     </aside>
 
     <main class="sfb-preview-pane">

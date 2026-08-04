@@ -16,6 +16,7 @@ from __future__ import annotations
 from apps.catalog.services.product_publish_service import storefront_listing_products
 from apps.content.models import HeroSlide, PromotionalBanner
 
+from .. import section_registry
 from ..models import StorefrontLayoutVersion, StorefrontSection
 
 
@@ -55,6 +56,35 @@ def build_bootstrap_sections(store) -> list[dict]:
 def apply_bootstrap_content(version: StorefrontLayoutVersion, store) -> None:
     """بخش‌های اولیه را روی یک نسخه‌ی تازه‌ساخته (بدون بخش) اعمال می‌کند."""
     sections = build_bootstrap_sections(store)
+    StorefrontSection.objects.bulk_create([
+        StorefrontSection(
+            version=version, section_key=s["section_key"],
+            order=s["order"], settings=s["settings"],
+        )
+        for s in sections
+    ])
+
+
+def build_industry_default_sections(store, industry_template) -> list[dict]:
+    """چیدمان پیشنهادیِ صفحه اصلی یک صنف — از ``industry_template.default_section_keys``.
+
+    کلیدهای نامعتبر/حذف‌شده از Section Registry بی‌صدا کنار گذاشته می‌شوند
+    (هرگز کرش نمی‌کند)؛ اگر صنف هیچ کلید معتبری نداشت، به همان چیدمان
+    پیش‌فرض عمومی (``build_bootstrap_sections``) برمی‌گردد تا هرگز یک
+    Draft خالی ساخته نشود."""
+    keys = list(getattr(industry_template, "default_section_keys", None) or [])
+    valid_keys = [k for k in keys if section_registry.is_valid_section_key(k)]
+    if not valid_keys:
+        return build_bootstrap_sections(store)
+    return [
+        {"section_key": key, "order": order, "settings": section_registry.get_definition(key).default_settings()}
+        for order, key in enumerate(valid_keys)
+    ]
+
+
+def apply_industry_content(version: StorefrontLayoutVersion, store, industry_template) -> None:
+    """چیدمان پیشنهادیِ صنف را روی یک نسخه‌ی تازه‌ساخته (بدون بخش) اعمال می‌کند."""
+    sections = build_industry_default_sections(store, industry_template)
     StorefrontSection.objects.bulk_create([
         StorefrontSection(
             version=version, section_key=s["section_key"],

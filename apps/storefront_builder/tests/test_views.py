@@ -4,6 +4,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.catalog.models import IndustryTemplate, StoreIndustryInstallation
 from apps.storefront_builder.models import StorefrontLayoutVersion, StorefrontSection
 from apps.storefront_builder.services import layout_service as svc
 from apps.stores.authorization import STOREFRONT_LAYOUT_MANAGE
@@ -273,6 +274,54 @@ class PublishDiscardRestoreViewTests(StorefrontBuilderViewsTestCase):
 
         resp = self.client.post(reverse("dashboard:storefront-builder-restore", args=[other_version.pk]))
         self.assertEqual(resp.status_code, 404)
+
+
+class ApplyIndustryLayoutViewTests(StorefrontBuilderViewsTestCase):
+    def _install_template(self, slug="sfb-view-industry", section_keys=None):
+        template = IndustryTemplate.objects.create(
+            slug=slug, name="صنف تست ویو",
+            default_section_keys=section_keys if section_keys is not None else ["hero_banner", "trust_features"],
+        )
+        StoreIndustryInstallation.objects.create(
+            store=self.store, industry_template=template, installed_version=template.version,
+        )
+        return template
+
+    def test_404_when_store_has_no_industry_installation(self):
+        resp = self.client.post(reverse("dashboard:storefront-builder-apply-industry-layout"))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_applies_directly_when_never_published(self):
+        self._install_template()
+        resp = self.client.post(reverse("dashboard:storefront-builder-apply-industry-layout"))
+        self.assertRedirects(resp, reverse("dashboard:storefront-builder-editor"))
+        layout = svc.get_or_create_layout(self.store)
+        self.assertEqual(layout.draft_version.source, StorefrontLayoutVersion.Source.INDUSTRY_TEMPLATE)
+        self.assertEqual(
+            list(layout.draft_version.sections.order_by("order").values_list("section_key", flat=True)),
+            ["hero_banner", "trust_features"],
+        )
+
+    def test_rejected_without_confirm_when_already_published(self):
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+        self._install_template()
+        resp = self.client.post(reverse("dashboard:storefront-builder-apply-industry-layout"))
+        self.assertRedirects(resp, reverse("dashboard:storefront-builder-editor"))
+        layout = svc.get_or_create_layout(self.store)
+        self.assertNotEqual(layout.draft_version.source, StorefrontLayoutVersion.Source.INDUSTRY_TEMPLATE)
+
+    def test_applied_with_explicit_confirm_when_already_published(self):
+        svc.get_or_create_draft(self.store)
+        published = svc.publish(self.store)
+        self._install_template()
+        resp = self.client.post(
+            reverse("dashboard:storefront-builder-apply-industry-layout"), {"confirm": "1"},
+        )
+        self.assertRedirects(resp, reverse("dashboard:storefront-builder-editor"))
+        layout = svc.get_or_create_layout(self.store)
+        self.assertEqual(layout.draft_version.source, StorefrontLayoutVersion.Source.INDUSTRY_TEMPLATE)
+        self.assertEqual(layout.published_version_id, published.pk)
 
 
 class HeaderFooterEditorTests(StorefrontBuilderViewsTestCase):

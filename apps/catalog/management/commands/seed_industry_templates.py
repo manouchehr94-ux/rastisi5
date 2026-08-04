@@ -31,6 +31,25 @@ from apps.catalog.services.template_validation_service import validate_and_persi
 
 INDUSTRY_TEMPLATES = ALL_INDUSTRY_TEMPLATES
 
+# چیدمان پیشنهادیِ صفحه اصلی به‌ازای هر رستهٔ صنف — کلیدها با
+# ``apps.storefront_builder.section_registry.SECTION_REGISTRY`` باید معتبر
+# باشند (در زمان مصرف اعتبارسنجی می‌شود، نه اینجا). هر قالبی که در تعریف
+# خودش (registry.py) صراحتاً ``default_section_keys`` نداده باشد، بر اساس
+# رستهٔ خودش از این نگاشت استفاده می‌کند.
+SECTOR_DEFAULT_SECTIONS = {
+    "retail": ["announcement_bar", "hero_banner", "category_grid", "newest_products", "best_sellers", "brand_carousel", "promo_cards", "trust_features"],
+    "digital": ["announcement_bar", "hero_banner", "category_grid", "amazing_offers", "newest_products", "brand_carousel", "best_sellers", "trust_features"],
+    "food": ["announcement_bar", "hero_banner", "category_grid", "newest_products", "discounted_products", "trust_features"],
+    "home": ["announcement_bar", "image_slider", "category_grid", "best_sellers", "newest_products", "promo_cards", "trust_features"],
+    "beauty": ["announcement_bar", "hero_banner", "category_grid", "best_sellers", "discounted_products", "brand_carousel", "trust_features"],
+    "sport": ["announcement_bar", "image_slider", "category_grid", "newest_products", "best_sellers", "brand_carousel", "trust_features"],
+    "culture": ["announcement_bar", "hero_banner", "category_grid", "newest_products", "rich_text", "trust_features"],
+    "auto": ["announcement_bar", "single_banner", "category_grid", "newest_products", "best_sellers", "trust_features"],
+    "industry": ["announcement_bar", "single_banner", "category_grid", "newest_products", "trust_features"],
+    "services": ["announcement_bar", "hero_banner", "rich_text", "category_grid", "trust_features"],
+    "other": ["announcement_bar", "hero_banner", "category_grid", "newest_products", "best_sellers", "trust_features"],
+}
+
 
 class Command(BaseCommand):
     help = "بارگذاری idempotent قالب‌های صنف (پلتفرم‌محور) از apps.catalog.industry_templates.registry"
@@ -41,15 +60,20 @@ class Command(BaseCommand):
         updated_templates = 0
 
         for entry in INDUSTRY_TEMPLATES:
+            sector = entry.get("sector", IndustryTemplate.Sector.OTHER)
+            default_section_keys = entry.get("default_section_keys") or SECTOR_DEFAULT_SECTIONS.get(
+                sector, SECTOR_DEFAULT_SECTIONS["other"],
+            )
             template, created = IndustryTemplate.objects.update_or_create(
                 slug=entry["slug"], version=entry["version"],
                 defaults={
                     "name": entry["name"],
                     "description": entry.get("description", ""),
                     "icon": entry.get("icon", ""),
-                    "sector": entry.get("sector", IndustryTemplate.Sector.OTHER),
+                    "sector": sector,
                     "display_order": entry.get("display_order", 0),
                     "is_active": entry.get("is_active", True),
+                    "default_section_keys": list(default_section_keys),
                 },
             )
             created_templates += int(created)
