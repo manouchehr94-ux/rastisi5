@@ -3,9 +3,12 @@ from .services import resolve_destination_url
 
 
 def footer_pages(request):
-    """صفحات محتوایی منتشرشده که باید در فوتر نمایش داده شوند."""
+    """صفحات محتوایی منتشرشده‌ی فروشگاه جاری که باید در فوتر نمایش داده شوند."""
+    store = getattr(request, "store", None)
+    if store is None:
+        return {"footer_pages_quick_access": [], "footer_pages_customer_service": []}
     pages = ContentPage.objects.filter(
-        status=ContentPage.Status.PUBLISHED, show_in_footer=True
+        store=store, status=ContentPage.Status.PUBLISHED, show_in_footer=True
     ).only("title", "slug", "footer_column").order_by("display_order", "title")
 
     quick_access = [p for p in pages if p.footer_column == ContentPage.FooterColumn.QUICK_ACCESS]
@@ -71,13 +74,20 @@ def navigation_menus(request):
     """
     from django.db.models import Prefetch
 
+    store = getattr(request, "store", None)
+    if store is None:
+        return {
+            "NAV_HEADER": None, "NAV_FOOTER_1": None, "NAV_FOOTER_2": None,
+            "NAV_FOOTER_3": None, "NAV_MOBILE": None,
+        }
+
     items_qs = MenuItem.objects.filter(is_active=True).select_related(
         "parent", "destination_category", "destination_product", "destination_brand",
     ).order_by("display_order", "id")
 
     active_menus = {
         m.location: m
-        for m in Menu.objects.filter(is_active=True).prefetch_related(
+        for m in Menu.objects.filter(is_active=True, store=store).prefetch_related(
             Prefetch("items", queryset=items_qs),
         )
     }

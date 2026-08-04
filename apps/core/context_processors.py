@@ -58,7 +58,11 @@ def shop_settings(request):
         "SHOP_SECONDARY_FG": foreground_for(secondary),
         "SHOP_PRIMARY_HOVER": darken_hex(primary),
         "SHOP_BORDER_COLOR": mix_hex(text, surface, 0.12),
-        # شبکه‌های اجتماعی
-        "SOCIAL_LINKS_FOOTER": SocialLink.objects.filter(is_active=True, show_in_footer=True).order_by("display_order", "id"),
-        "SOCIAL_LINKS_HEADER": SocialLink.objects.filter(is_active=True, show_in_header=True).order_by("display_order", "id"),
+        # شبکه‌های اجتماعی — store_id (نه shop.store) تا از یک query اضافی برای واکشی خودِ Store پرهیز شود
+        "SOCIAL_LINKS_FOOTER": SocialLink.objects.filter(
+            is_active=True, show_in_footer=True, store_id=shop.store_id,
+        ).order_by("display_order", "id"),
+        "SOCIAL_LINKS_HEADER": SocialLink.objects.filter(
+            is_active=True, show_in_header=True, store_id=shop.store_id,
+        ).order_by("display_order", "id"),
     }

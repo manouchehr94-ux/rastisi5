@@ -17,6 +17,10 @@ def _grant_akhlaghi_membership(user):
         accepted_at=timezone.now(),
     )
 
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
 User = get_user_model()
 
 
@@ -27,7 +31,7 @@ class SocialLinkModelTests(TestCase):
     """تست‌های مدل SocialLink."""
 
     def test_valid_creation(self):
-        link = SocialLink.objects.create(
+        link = SocialLink.objects.create(store=_akhlaghi(), 
             platform="instagram", title="اینستاگرام ما",
             url="https://instagram.com/myshop", is_active=True,
         )
@@ -78,14 +82,14 @@ class SocialLinkModelTests(TestCase):
             link.full_clean()
 
     def test_stable_ordering(self):
-        SocialLink.objects.create(platform="telegram", title="B", url="https://t.me/b", display_order=2)
-        SocialLink.objects.create(platform="instagram", title="A", url="https://instagram.com/a", display_order=1)
+        SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="B", url="https://t.me/b", display_order=2)
+        SocialLink.objects.create(store=_akhlaghi(), platform="instagram", title="A", url="https://instagram.com/a", display_order=1)
         titles = list(SocialLink.objects.values_list("title", flat=True))
         self.assertEqual(titles, ["A", "B"])
 
     def test_ordering_tiebreaker_by_id(self):
-        a = SocialLink.objects.create(platform="telegram", title="First", url="https://t.me/a", display_order=0)
-        b = SocialLink.objects.create(platform="instagram", title="Second", url="https://instagram.com/b", display_order=0)
+        a = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="First", url="https://t.me/a", display_order=0)
+        b = SocialLink.objects.create(store=_akhlaghi(), platform="instagram", title="Second", url="https://instagram.com/b", display_order=0)
         titles = list(SocialLink.objects.values_list("title", flat=True))
         self.assertEqual(titles, ["First", "Second"])
 
@@ -94,7 +98,7 @@ class SocialLinkModelTests(TestCase):
         self.assertEqual(link.get_platform_display(), "اینستاگرام")
 
     def test_custom_platform(self):
-        link = SocialLink.objects.create(
+        link = SocialLink.objects.create(store=_akhlaghi(), 
             platform="custom", title="وبسایت", url="https://example.com"
         )
         self.assertEqual(link.effective_icon_name, "link")
@@ -204,20 +208,20 @@ class SocialLinkDashboardAccessTests(TestCase):
 
     def test_edit_page_accessible(self):
         self.client.login(username="staff_sl", password="pass!")
-        link = SocialLink.objects.create(platform="telegram", title="T", url="https://t.me/x")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="T", url="https://t.me/x")
         response = self.client.get(reverse("dashboard:social-link-edit", args=[link.pk]))
         self.assertEqual(response.status_code, 200)
 
     def test_delete_requires_post(self):
         self.client.login(username="staff_sl", password="pass!")
-        link = SocialLink.objects.create(platform="telegram", title="T", url="https://t.me/x")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="T", url="https://t.me/x")
         response = self.client.get(reverse("dashboard:social-link-delete", args=[link.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(SocialLink.objects.filter(pk=link.pk).exists())
 
     def test_toggle_requires_post(self):
         self.client.login(username="staff_sl", password="pass!")
-        link = SocialLink.objects.create(platform="telegram", title="T", url="https://t.me/x")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="T", url="https://t.me/x")
         response = self.client.get(reverse("dashboard:social-link-toggle", args=[link.pk]))
         self.assertEqual(response.status_code, 405)
 
@@ -226,7 +230,7 @@ class SocialLinkDashboardAccessTests(TestCase):
         from django.test import Client
         client = Client(enforce_csrf_checks=True)
         client.login(username="staff_sl", password="pass!")
-        link = SocialLink.objects.create(platform="telegram", title="T", url="https://t.me/x")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="T", url="https://t.me/x")
         response = client.post(reverse("dashboard:social-link-delete", args=[link.pk]))
         self.assertEqual(response.status_code, 403)
 
@@ -252,7 +256,7 @@ class SocialLinkDashboardCRUDTests(TestCase):
         self.assertTrue(SocialLink.objects.filter(title="اینستاگرام فروشگاه").exists())
 
     def test_edit(self):
-        link = SocialLink.objects.create(platform="telegram", title="Old", url="https://t.me/old")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="Old", url="https://t.me/old")
         response = self.client.post(reverse("dashboard:social-link-edit", args=[link.pk]), {
             "platform": "telegram", "title": "New Title",
             "url": "https://t.me/new", "display_order": "5",
@@ -264,19 +268,19 @@ class SocialLinkDashboardCRUDTests(TestCase):
         self.assertEqual(link.url, "https://t.me/new")
 
     def test_delete(self):
-        link = SocialLink.objects.create(platform="telegram", title="Del", url="https://t.me/del")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="Del", url="https://t.me/del")
         response = self.client.post(reverse("dashboard:social-link-delete", args=[link.pk]))
         self.assertRedirects(response, reverse("dashboard:social-link-list"))
         self.assertFalse(SocialLink.objects.filter(pk=link.pk).exists())
 
     def test_activate(self):
-        link = SocialLink.objects.create(platform="telegram", title="T", url="https://t.me/x", is_active=False)
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="T", url="https://t.me/x", is_active=False)
         self.client.post(reverse("dashboard:social-link-toggle", args=[link.pk]))
         link.refresh_from_db()
         self.assertTrue(link.is_active)
 
     def test_deactivate(self):
-        link = SocialLink.objects.create(platform="telegram", title="T", url="https://t.me/x", is_active=True)
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="T", url="https://t.me/x", is_active=True)
         self.client.post(reverse("dashboard:social-link-toggle", args=[link.pk]))
         link.refresh_from_db()
         self.assertFalse(link.is_active)
@@ -319,7 +323,7 @@ class SocialLinkDashboardCRUDTests(TestCase):
         self.assertFalse(SocialLink.objects.filter(title="Bad").exists())
 
     def test_invalid_edit_preserves_record(self):
-        link = SocialLink.objects.create(platform="telegram", title="Keep", url="https://t.me/keep")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="Keep", url="https://t.me/keep")
         self.client.post(reverse("dashboard:social-link-edit", args=[link.pk]), {
             "platform": "telegram", "title": "",  # Invalid: blank title
             "url": "https://t.me/new", "display_order": "0",
@@ -336,7 +340,7 @@ class SocialLinkStorefrontTests(TestCase):
     """تست‌های نمایش لینک‌های اجتماعی در فروشگاه."""
 
     def test_active_footer_link_renders(self):
-        SocialLink.objects.create(
+        SocialLink.objects.create(store=_akhlaghi(), 
             platform="telegram", title="تلگرام ما",
             url="https://t.me/myshop", is_active=True, show_in_footer=True,
         )
@@ -345,7 +349,7 @@ class SocialLinkStorefrontTests(TestCase):
         self.assertContains(response, 'aria-label="تلگرام ما"')
 
     def test_inactive_link_hidden(self):
-        SocialLink.objects.create(
+        SocialLink.objects.create(store=_akhlaghi(), 
             platform="telegram", title="Hidden",
             url="https://t.me/hidden", is_active=False, show_in_footer=True,
         )
@@ -353,7 +357,7 @@ class SocialLinkStorefrontTests(TestCase):
         self.assertNotContains(response, "https://t.me/hidden")
 
     def test_header_only_absent_from_footer(self):
-        SocialLink.objects.create(
+        SocialLink.objects.create(store=_akhlaghi(), 
             platform="instagram", title="IG",
             url="https://instagram.com/ig", is_active=True,
             show_in_header=True, show_in_footer=False,
@@ -363,7 +367,7 @@ class SocialLinkStorefrontTests(TestCase):
         self.assertNotContains(response, "https://instagram.com/ig")
 
     def test_footer_only_link_renders_in_footer(self):
-        SocialLink.objects.create(
+        SocialLink.objects.create(store=_akhlaghi(), 
             platform="facebook", title="فیسبوک",
             url="https://facebook.com/fb", is_active=True,
             show_in_header=False, show_in_footer=True,
@@ -372,8 +376,8 @@ class SocialLinkStorefrontTests(TestCase):
         self.assertContains(response, "https://facebook.com/fb")
 
     def test_correct_ordering(self):
-        SocialLink.objects.create(platform="telegram", title="Second", url="https://t.me/b", is_active=True, show_in_footer=True, display_order=2)
-        SocialLink.objects.create(platform="instagram", title="First", url="https://instagram.com/a", is_active=True, show_in_footer=True, display_order=1)
+        SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="Second", url="https://t.me/b", is_active=True, show_in_footer=True, display_order=2)
+        SocialLink.objects.create(store=_akhlaghi(), platform="instagram", title="First", url="https://instagram.com/a", is_active=True, show_in_footer=True, display_order=1)
         response = self.client.get("/")
         content = response.content.decode()
         pos_first = content.find("https://instagram.com/a")
@@ -383,7 +387,7 @@ class SocialLinkStorefrontTests(TestCase):
         self.assertLess(pos_first, pos_second)
 
     def test_safe_target_and_rel(self):
-        SocialLink.objects.create(
+        SocialLink.objects.create(store=_akhlaghi(), 
             platform="telegram", title="T",
             url="https://t.me/x", is_active=True, show_in_footer=True,
         )
@@ -392,7 +396,7 @@ class SocialLinkStorefrontTests(TestCase):
         self.assertContains(response, 'rel="noopener noreferrer"')
 
     def test_title_escaped(self):
-        SocialLink.objects.create(
+        SocialLink.objects.create(store=_akhlaghi(), 
             platform="custom", title='<script>alert("xss")</script>',
             url="https://example.com", is_active=True, show_in_footer=True,
         )
@@ -415,7 +419,7 @@ class SocialLinkStorefrontTests(TestCase):
 
     def test_only_inactive_links_omits_wrapper(self):
         """Only inactive links exist → .socials div must not render."""
-        SocialLink.objects.create(
+        SocialLink.objects.create(store=_akhlaghi(), 
             platform="telegram", title="Inactive",
             url="https://t.me/off", is_active=False, show_in_footer=True,
         )
@@ -424,7 +428,7 @@ class SocialLinkStorefrontTests(TestCase):
 
     def test_only_header_links_omits_footer_wrapper(self):
         """Only header-visible links exist → no footer .socials div."""
-        SocialLink.objects.create(
+        SocialLink.objects.create(store=_akhlaghi(), 
             platform="telegram", title="Header Only",
             url="https://t.me/h", is_active=True,
             show_in_header=True, show_in_footer=False,
@@ -434,7 +438,7 @@ class SocialLinkStorefrontTests(TestCase):
 
     def test_active_footer_link_renders_wrapper(self):
         """At least one active footer link → .socials div renders."""
-        SocialLink.objects.create(
+        SocialLink.objects.create(store=_akhlaghi(), 
             platform="instagram", title="IG",
             url="https://instagram.com/x", is_active=True, show_in_footer=True,
         )
@@ -450,7 +454,7 @@ class SocialLinkIconCoherenceTests(TestCase):
 
     def test_standard_platform_derives_correct_icon(self):
         """Instagram platform → icon_name normalized to 'instagram' on save."""
-        link = SocialLink.objects.create(
+        link = SocialLink.objects.create(store=_akhlaghi(), 
             platform="instagram", title="IG", url="https://instagram.com/x"
         )
         self.assertEqual(link.icon_name, "instagram")
@@ -471,7 +475,7 @@ class SocialLinkIconCoherenceTests(TestCase):
         for platform_val, _ in SocialLink.Platform.choices:
             if platform_val == "custom":
                 continue
-            link = SocialLink.objects.create(
+            link = SocialLink.objects.create(store=_akhlaghi(), 
                 platform=platform_val, title=f"T-{platform_val}",
                 url="https://example.com", icon_name="link",  # deliberate mismatch
             )
@@ -479,14 +483,14 @@ class SocialLinkIconCoherenceTests(TestCase):
 
     def test_custom_platform_uses_link_icon(self):
         """Custom platform with no icon → defaults to 'link'."""
-        link = SocialLink.objects.create(
+        link = SocialLink.objects.create(store=_akhlaghi(), 
             platform="custom", title="Site", url="https://example.com", icon_name=""
         )
         self.assertEqual(link.icon_name, "link")
 
     def test_custom_platform_valid_icon_accepted(self):
         """Custom platform with valid icon_name 'telegram' → kept."""
-        link = SocialLink.objects.create(
+        link = SocialLink.objects.create(store=_akhlaghi(), 
             platform="custom", title="Site", url="https://example.com", icon_name="telegram"
         )
         self.assertEqual(link.icon_name, "telegram")
@@ -536,7 +540,7 @@ class SocialLinkIconCoherenceTests(TestCase):
 
     def test_no_raw_markup_in_icon_name(self):
         """Template tags, CSS classes, JS cannot be stored as icon_name for standard."""
-        link = SocialLink.objects.create(
+        link = SocialLink.objects.create(store=_akhlaghi(), 
             platform="telegram", title="T", url="https://t.me/x",
             icon_name="<script>alert(1)</script>",
         )

@@ -45,9 +45,9 @@ def _sitemap_entries(request, store):
         loc = _abs(request, reverse("catalog:product-detail", args=[product.slug]))
         entries.append({"loc": loc, "lastmod": product.updated_at, "priority": "0.7"})
 
-    # صفحاتِ محتوایی (CMS) در این کدبیس سراسری‌اند و همان‌طور که ``page_detail``
-    # سرو می‌کند فقط بر اساسِ انتشار فیلتر می‌شوند.
-    pages = ContentPage.objects.filter(status=ContentPage.Status.PUBLISHED).order_by("slug")[:SITEMAP_LIMIT]
+    pages = ContentPage.objects.filter(
+        store=store, status=ContentPage.Status.PUBLISHED,
+    ).order_by("slug")[:SITEMAP_LIMIT]
     for page in pages:
         loc = _abs(request, reverse("content:page-detail", args=[page.slug]))
         entries.append({"loc": loc, "lastmod": getattr(page, "updated_at", None), "priority": "0.4"})

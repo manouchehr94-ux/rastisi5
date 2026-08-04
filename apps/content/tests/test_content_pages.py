@@ -17,6 +17,10 @@ def _grant_akhlaghi_membership(user):
         accepted_at=timezone.now(),
     )
 
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
 User = get_user_model()
 
 
@@ -24,9 +28,9 @@ class ContentPageModelTests(TestCase):
     """تست‌های مدل ContentPage."""
 
     def test_slug_uniqueness(self):
-        ContentPage.objects.create(title="صفحه ۱", slug="page-1", status="draft")
+        ContentPage.objects.create(store=_akhlaghi(), title="صفحه ۱", slug="page-1", status="draft")
         with self.assertRaises(Exception):
-            ContentPage.objects.create(title="صفحه ۲", slug="page-1", status="draft")
+            ContentPage.objects.create(store=_akhlaghi(), title="صفحه ۲", slug="page-1", status="draft")
 
     def test_reserved_slug_rejected(self):
         page = ContentPage(title="تست", slug="admin")
@@ -57,7 +61,7 @@ class ContentPageModelTests(TestCase):
         self.assertEqual(page.effective_seo_description, "SEO Desc")
 
     def test_get_absolute_url(self):
-        page = ContentPage.objects.create(
+        page = ContentPage.objects.create(store=_akhlaghi(), 
             title="تست", slug="test-url", status="published", published_at=timezone.now()
         )
         self.assertEqual(page.get_absolute_url(), "/pages/test-url/")
@@ -67,11 +71,11 @@ class ContentPageStorefrontViewTests(TestCase):
     """تست‌های ویوی فروشگاه."""
 
     def setUp(self):
-        self.published = ContentPage.objects.create(
+        self.published = ContentPage.objects.create(store=_akhlaghi(), 
             title="حریم خصوصی", slug="privacy", body="متن حریم خصوصی",
             status=ContentPage.Status.PUBLISHED, published_at=timezone.now(),
         )
-        self.draft = ContentPage.objects.create(
+        self.draft = ContentPage.objects.create(store=_akhlaghi(), 
             title="پیش‌نویس", slug="draft-page", body="پیش‌نویس",
             status=ContentPage.Status.DRAFT,
         )
@@ -91,7 +95,7 @@ class ContentPageStorefrontViewTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_seo_title_in_html(self):
-        page = ContentPage.objects.create(
+        page = ContentPage.objects.create(store=_akhlaghi(), 
             title="عنوان", slug="seo-test", seo_title="Custom SEO",
             status="published", published_at=timezone.now(),
         )
@@ -121,7 +125,7 @@ class ContentPageDashboardTests(TestCase):
         self.assertTrue(ContentPage.objects.filter(slug="new-page").exists())
 
     def test_edit_page(self):
-        page = ContentPage.objects.create(title="قدیم", slug="old-page")
+        page = ContentPage.objects.create(store=_akhlaghi(), title="قدیم", slug="old-page")
         response = self.client.post(reverse("dashboard:page-edit", args=[page.pk]), {
             "title": "جدید", "slug": "old-page", "body": "محتوای جدید",
             "summary": "", "seo_title": "", "seo_description": "",
@@ -132,20 +136,20 @@ class ContentPageDashboardTests(TestCase):
         self.assertEqual(page.title, "جدید")
 
     def test_delete_page(self):
-        page = ContentPage.objects.create(title="حذفی", slug="to-delete")
+        page = ContentPage.objects.create(store=_akhlaghi(), title="حذفی", slug="to-delete")
         response = self.client.post(reverse("dashboard:page-delete", args=[page.pk]))
         self.assertRedirects(response, reverse("dashboard:page-list"))
         self.assertFalse(ContentPage.objects.filter(pk=page.pk).exists())
 
     def test_publish_page(self):
-        page = ContentPage.objects.create(title="پیش‌نویس", slug="to-publish", status="draft")
+        page = ContentPage.objects.create(store=_akhlaghi(), title="پیش‌نویس", slug="to-publish", status="draft")
         self.client.post(reverse("dashboard:page-publish", args=[page.pk]))
         page.refresh_from_db()
         self.assertEqual(page.status, ContentPage.Status.PUBLISHED)
         self.assertIsNotNone(page.published_at)
 
     def test_unpublish_page(self):
-        page = ContentPage.objects.create(
+        page = ContentPage.objects.create(store=_akhlaghi(), 
             title="منتشر", slug="to-unpublish",
             status="published", published_at=timezone.now(),
         )
@@ -174,7 +178,7 @@ class FooterIntegrationTests(TestCase):
     """تست‌های یکپارچگی فوتر."""
 
     def test_published_page_in_footer(self):
-        ContentPage.objects.create(
+        ContentPage.objects.create(store=_akhlaghi(), 
             title="قوانین", slug="terms", status="published",
             published_at=timezone.now(), show_in_footer=True,
             footer_column="customer_service",
@@ -184,7 +188,7 @@ class FooterIntegrationTests(TestCase):
         self.assertContains(response, "قوانین")
 
     def test_unpublished_page_not_in_footer(self):
-        ContentPage.objects.create(
+        ContentPage.objects.create(store=_akhlaghi(), 
             title="پیش‌نویس", slug="hidden", status="draft",
             show_in_footer=True, footer_column="customer_service",
         )
@@ -192,7 +196,7 @@ class FooterIntegrationTests(TestCase):
         self.assertNotContains(response, "/pages/hidden/")
 
     def test_footer_never_renders_hash_for_managed_pages(self):
-        ContentPage.objects.create(
+        ContentPage.objects.create(store=_akhlaghi(), 
             title="حریم", slug="priv", status="published",
             published_at=timezone.now(), show_in_footer=True,
             footer_column="quick_access",
@@ -207,7 +211,7 @@ class XSSSecurityTests(TestCase):
     """تست‌های امنیت XSS — اطمینان از اسکیپ خودکار HTML."""
 
     def setUp(self):
-        self.page = ContentPage.objects.create(
+        self.page = ContentPage.objects.create(store=_akhlaghi(), 
             title="تست XSS", slug="xss-page", status="published",
             published_at=timezone.now(),
             body='<script>alert(1)</script><img src=x onerror=alert(1)><a href="javascript:alert(1)">click</a>',
@@ -237,7 +241,7 @@ class SEOMetaDescriptionTests(TestCase):
     """تست‌های رندر متا توضیحات SEO."""
 
     def test_meta_description_rendered_when_configured(self):
-        page = ContentPage.objects.create(
+        page = ContentPage.objects.create(store=_akhlaghi(), 
             title="SEO", slug="seo-desc", status="published",
             published_at=timezone.now(),
             seo_description="توضیح تستی برای موتور جستجو",
@@ -247,7 +251,7 @@ class SEOMetaDescriptionTests(TestCase):
         self.assertContains(response, "توضیح تستی برای موتور جستجو")
 
     def test_meta_description_not_rendered_when_empty(self):
-        page = ContentPage.objects.create(
+        page = ContentPage.objects.create(store=_akhlaghi(), 
             title="No Desc", slug="no-desc", status="published",
             published_at=timezone.now(),
             seo_description="",
@@ -256,7 +260,7 @@ class SEOMetaDescriptionTests(TestCase):
         self.assertNotContains(response, 'name="description"')
 
     def test_meta_description_escapes_dangerous_content(self):
-        page = ContentPage.objects.create(
+        page = ContentPage.objects.create(store=_akhlaghi(), 
             title="Danger", slug="danger-desc", status="published",
             published_at=timezone.now(),
             seo_description='"><script>alert(1)</script>',
@@ -279,7 +283,7 @@ class DashboardValidationTests(TestCase):
         self.client.login(username="staff1", password="pass!")
 
     def test_duplicate_slug_handled_safely(self):
-        ContentPage.objects.create(title="اول", slug="duplicate")
+        ContentPage.objects.create(store=_akhlaghi(), title="اول", slug="duplicate")
         response = self.client.post(reverse("dashboard:page-add"), {
             "title": "دوم", "slug": "duplicate", "body": "",
             "summary": "", "seo_title": "", "seo_description": "",
@@ -297,14 +301,14 @@ class PublicationConstraintTests(TestCase):
         """Database rejects published page without published_at."""
         from django.db import IntegrityError
         with self.assertRaises(IntegrityError):
-            ContentPage.objects.create(
+            ContentPage.objects.create(store=_akhlaghi(), 
                 title="Invalid", slug="invalid-pub",
                 status="published", published_at=None,
             )
 
     def test_draft_without_timestamp_allowed(self):
         """Draft page without published_at is valid."""
-        page = ContentPage.objects.create(
+        page = ContentPage.objects.create(store=_akhlaghi(), 
             title="Draft OK", slug="draft-ok",
             status="draft", published_at=None,
         )

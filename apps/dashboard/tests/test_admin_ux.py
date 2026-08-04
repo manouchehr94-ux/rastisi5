@@ -20,6 +20,10 @@ def _grant_akhlaghi_membership(user):
     )
 
 
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
 class PageGuidanceTests(TestCase):
     """تست وجود راهنما و سرفصل‌های صفحات."""
     def setUp(self):
@@ -60,7 +64,7 @@ class HelpTextTests(TestCase):
         self.assertContains(resp, "field-help")
 
     def test_menu_item_form_help(self):
-        menu = Menu.objects.create(title="T", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="T", location="header")
         resp = self.client.get(reverse("dashboard:menu-item-add", args=[menu.pk]))
         self.assertContains(resp, "field-help")
 
@@ -120,7 +124,7 @@ class DeleteConfirmationTests(TestCase):
         self.client.login(username="ux5", password="p!")
 
     def test_social_link_get_shows_confirmation(self):
-        link = SocialLink.objects.create(platform="telegram", title="TG", url="https://t.me/x")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="TG", url="https://t.me/x")
         resp = self.client.get(reverse("dashboard:social-link-delete", args=[link.pk]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "تأیید حذف")
@@ -128,31 +132,31 @@ class DeleteConfirmationTests(TestCase):
         self.assertTrue(SocialLink.objects.filter(pk=link.pk).exists())
 
     def test_social_link_post_deletes(self):
-        link = SocialLink.objects.create(platform="telegram", title="TG", url="https://t.me/x")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="TG", url="https://t.me/x")
         resp = self.client.post(reverse("dashboard:social-link-delete", args=[link.pk]))
         self.assertEqual(resp.status_code, 302)
         self.assertFalse(SocialLink.objects.filter(pk=link.pk).exists())
 
     def test_menu_get_shows_confirmation(self):
-        menu = Menu.objects.create(title="TestMenu", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="TestMenu", location="header")
         resp = self.client.get(reverse("dashboard:menu-delete", args=[menu.pk]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "TestMenu")
 
     def test_menu_post_deletes_empty(self):
-        menu = Menu.objects.create(title="Empty", location="footer_1")
+        menu = Menu.objects.create(store=_akhlaghi(), title="Empty", location="footer_1")
         resp = self.client.post(reverse("dashboard:menu-delete", args=[menu.pk]))
         self.assertFalse(Menu.objects.filter(pk=menu.pk).exists())
 
     def test_anonymous_blocked(self):
         self.client.logout()
-        link = SocialLink.objects.create(platform="telegram", title="X", url="https://t.me/x")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="X", url="https://t.me/x")
         resp = self.client.get(reverse("dashboard:social-link-delete", args=[link.pk]))
         self.assertEqual(resp.status_code, 302)
         self.assertNotIn("/admin-portal/login/", resp.url)
         self.assertIn("admin_return=", resp.url)
     def test_cancel_url_present(self):
-        link = SocialLink.objects.create(platform="telegram", title="X", url="https://t.me/x")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="X", url="https://t.me/x")
         resp = self.client.get(reverse("dashboard:social-link-delete", args=[link.pk]))
         self.assertContains(resp, reverse("dashboard:social-link-list"))
 
@@ -261,12 +265,12 @@ class DeleteConfirmationFullTests(TestCase):
         self.assertFalse(model_class.objects.filter(pk=pk).exists())
 
     def test_social_link_full_flow(self):
-        link = SocialLink.objects.create(platform="telegram", title="SL-Del", url="https://t.me/x")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="SL-Del", url="https://t.me/x")
         url = reverse("dashboard:social-link-delete", args=[link.pk])
         self._assert_delete_flow(url, url, SocialLink, link.pk, "SL-Del", reverse("dashboard:social-link-list"))
 
     def test_menu_full_flow(self):
-        menu = Menu.objects.create(title="Menu-Del", location="footer_3")
+        menu = Menu.objects.create(store=_akhlaghi(), title="Menu-Del", location="footer_3")
         url = reverse("dashboard:menu-delete", args=[menu.pk])
         self._assert_delete_flow(url, url, Menu, menu.pk, "Menu-Del", reverse("dashboard:menu-list"))
 
@@ -274,7 +278,7 @@ class DeleteConfirmationFullTests(TestCase):
         from apps.catalog.models import Category
         from apps.stores.models import Store
         cat = Category.objects.create(store=Store.objects.get(slug="akhlaghi"), name="DC", slug="dc-del")
-        menu = Menu.objects.create(title="M", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="M", location="header")
         item = MenuItem.objects.create(menu=menu, title="Item-Del", destination_type="category", destination_category=cat)
         url = reverse("dashboard:menu-item-delete", args=[item.pk])
         resp = self.client.get(url)
@@ -303,7 +307,7 @@ class DeleteConfirmationFullTests(TestCase):
 
     def test_anonymous_blocked_all(self):
         self.client.logout()
-        link = SocialLink.objects.create(platform="telegram", title="X", url="https://t.me/x")
+        link = SocialLink.objects.create(store=_akhlaghi(), platform="telegram", title="X", url="https://t.me/x")
         for url in [
             reverse("dashboard:social-link-delete", args=[link.pk]),
         ]:
@@ -328,7 +332,7 @@ class AriaInvalidTests(TestCase):
         self.assertContains(resp, 'aria-invalid="true"')
 
     def test_invalid_menu_location_renders_aria_invalid(self):
-        Menu.objects.create(title="Exists", location="header")
+        Menu.objects.create(store=_akhlaghi(), title="Exists", location="header")
         resp = self.client.post(reverse("dashboard:menu-add"), {
             "title": "Dup", "location": "header", "is_active": "on",
         })

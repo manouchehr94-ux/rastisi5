@@ -4050,7 +4050,8 @@ from apps.content.models import ContentPage
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def page_list(request):
-    pages = ContentPage.objects.all().order_by("-created_at")
+    store = _resolve_dashboard_store(request)
+    pages = ContentPage.objects.filter(store=store).order_by("-created_at")
     context = {"pages": pages, "active_page": "pages"}
     return render(request, "dashboard/pages.html", context)
 
@@ -4060,7 +4061,8 @@ def page_list(request):
 def page_form(request, pk=None):
     from django.utils.text import slugify as django_slugify
 
-    page = get_object_or_404(ContentPage, pk=pk) if pk else None
+    store = _resolve_dashboard_store(request)
+    page = get_object_or_404(ContentPage, pk=pk, store=store) if pk else None
 
     if request.method == "POST":
         title = request.POST.get("title", "").strip()
@@ -4081,7 +4083,7 @@ def page_form(request, pk=None):
             slug = django_slugify(title, allow_unicode=True) or "page"
 
         if page is None:
-            page = ContentPage()
+            page = ContentPage(store=store)
 
         page.title = title
         page.slug = slug
@@ -4115,7 +4117,8 @@ def page_form(request, pk=None):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def page_delete(request, pk):
-    page = get_object_or_404(ContentPage, pk=pk)
+    store = _resolve_dashboard_store(request)
+    page = get_object_or_404(ContentPage, pk=pk, store=store)
     title = page.title
     page.delete()
     messages.success(request, f"صفحه‌ی «{title}» حذف شد")
@@ -4128,7 +4131,8 @@ def page_delete(request, pk):
 def page_publish(request, pk):
     from django.utils import timezone
 
-    page = get_object_or_404(ContentPage, pk=pk)
+    store = _resolve_dashboard_store(request)
+    page = get_object_or_404(ContentPage, pk=pk, store=store)
     if page.status == ContentPage.Status.PUBLISHED:
         page.status = ContentPage.Status.DRAFT
         page.published_at = None
@@ -4152,7 +4156,8 @@ from apps.content.models import HeroSlide, PromotionalBanner
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def hero_list(request):
-    slides = HeroSlide.objects.all().order_by("display_order", "id")
+    store = _resolve_dashboard_store(request)
+    slides = HeroSlide.objects.filter(store=store).order_by("display_order", "id")
     return render(request, "dashboard/hero_list.html", {"slides": slides, "active_page": "homepage"})
 
 
@@ -4162,10 +4167,11 @@ def hero_form(request, pk=None):
     from django.db import transaction
 
     from apps.catalog.models import Brand, Category
-    slide = get_object_or_404(HeroSlide, pk=pk) if pk else None
+    store = _resolve_dashboard_store(request)
+    slide = get_object_or_404(HeroSlide, pk=pk, store=store) if pk else None
 
     if request.method == "POST":
-        obj = slide or HeroSlide()
+        obj = slide or HeroSlide(store=store)
 
         # Capture old file names before modification
         old_desktop_name = obj.desktop_image.name if obj.pk and obj.desktop_image else None
@@ -4223,7 +4229,7 @@ def hero_form(request, pk=None):
             msg = str(exc.message_dict if hasattr(exc, "message_dict") else exc)
             messages.error(request, msg)
 
-    categories = Category.objects.filter(is_active=True).order_by("order", "name")
+    categories = Category.objects.filter(store=store, is_active=True).order_by("order", "name")
     return render(request, "dashboard/hero_form.html", {
         "slide": slide, "active_page": "homepage", "categories": categories,
     })
@@ -4235,7 +4241,8 @@ def hero_form(request, pk=None):
 def hero_delete(request, pk):
     from django.db import transaction
 
-    slide = get_object_or_404(HeroSlide, pk=pk)
+    store = _resolve_dashboard_store(request)
+    slide = get_object_or_404(HeroSlide, pk=pk, store=store)
     desktop_name = slide.desktop_image.name if slide.desktop_image else None
     mobile_name = slide.mobile_image.name if slide.mobile_image else None
     storage = slide.desktop_image.storage
@@ -4258,7 +4265,8 @@ def hero_delete(request, pk):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def hero_toggle(request, pk):
-    slide = get_object_or_404(HeroSlide, pk=pk)
+    store = _resolve_dashboard_store(request)
+    slide = get_object_or_404(HeroSlide, pk=pk, store=store)
     slide.is_active = not slide.is_active
     slide.save(update_fields=["is_active", "updated_at"])
     state = "فعال" if slide.is_active else "غیرفعال"
@@ -4269,7 +4277,8 @@ def hero_toggle(request, pk):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def banner_list(request):
-    banners = PromotionalBanner.objects.all().order_by("display_order", "id")
+    store = _resolve_dashboard_store(request)
+    banners = PromotionalBanner.objects.filter(store=store).order_by("display_order", "id")
     return render(request, "dashboard/banner_list.html", {"banners": banners, "active_page": "homepage"})
 
 
@@ -4279,10 +4288,11 @@ def banner_form(request, pk=None):
     from django.db import transaction
 
     from apps.catalog.models import Brand, Category
-    banner = get_object_or_404(PromotionalBanner, pk=pk) if pk else None
+    store = _resolve_dashboard_store(request)
+    banner = get_object_or_404(PromotionalBanner, pk=pk, store=store) if pk else None
 
     if request.method == "POST":
-        obj = banner or PromotionalBanner()
+        obj = banner or PromotionalBanner(store=store)
 
         # Capture old file names before modification
         old_desktop_name = obj.desktop_image.name if obj.pk and obj.desktop_image else None
@@ -4338,7 +4348,7 @@ def banner_form(request, pk=None):
             msg = str(exc.message_dict if hasattr(exc, "message_dict") else exc)
             messages.error(request, msg)
 
-    categories = Category.objects.filter(is_active=True).order_by("order", "name")
+    categories = Category.objects.filter(store=store, is_active=True).order_by("order", "name")
     return render(request, "dashboard/banner_form.html", {
         "banner": banner, "active_page": "homepage", "categories": categories,
     })
@@ -4350,7 +4360,8 @@ def banner_form(request, pk=None):
 def banner_delete(request, pk):
     from django.db import transaction
 
-    banner = get_object_or_404(PromotionalBanner, pk=pk)
+    store = _resolve_dashboard_store(request)
+    banner = get_object_or_404(PromotionalBanner, pk=pk, store=store)
     desktop_name = banner.desktop_image.name if banner.desktop_image else None
     mobile_name = banner.mobile_image.name if banner.mobile_image else None
     storage = banner.desktop_image.storage
@@ -4373,7 +4384,8 @@ def banner_delete(request, pk):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def banner_toggle(request, pk):
-    banner = get_object_or_404(PromotionalBanner, pk=pk)
+    store = _resolve_dashboard_store(request)
+    banner = get_object_or_404(PromotionalBanner, pk=pk, store=store)
     banner.is_active = not banner.is_active
     banner.save(update_fields=["is_active", "updated_at"])
     state = "فعال" if banner.is_active else "غیرفعال"
@@ -4391,7 +4403,8 @@ from apps.content.models import SocialLink
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def social_link_list(request):
-    links = SocialLink.objects.all().order_by("display_order", "id")
+    store = _resolve_dashboard_store(request)
+    links = SocialLink.objects.filter(store=store).order_by("display_order", "id")
     return render(request, "dashboard/social_links.html", {
         "links": links, "active_page": "social_links",
     })
@@ -4400,11 +4413,12 @@ def social_link_list(request):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def social_link_form(request, pk=None):
-    link = get_object_or_404(SocialLink, pk=pk) if pk else None
+    store = _resolve_dashboard_store(request)
+    link = get_object_or_404(SocialLink, pk=pk, store=store) if pk else None
     field_errors = {}
 
     if request.method == "POST":
-        obj = link or SocialLink()
+        obj = link or SocialLink(store=store)
         obj.platform = request.POST.get("platform", "custom")
         obj.title = request.POST.get("title", "").strip()
         obj.url = request.POST.get("url", "").strip()
@@ -4437,7 +4451,8 @@ def social_link_form(request, pk=None):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def social_link_delete(request, pk):
-    link = get_object_or_404(SocialLink, pk=pk)
+    store = _resolve_dashboard_store(request)
+    link = get_object_or_404(SocialLink, pk=pk, store=store)
     if request.method != "POST":
         return render(request, "dashboard/confirm_delete.html", {
             "object_type": "لینک شبکه اجتماعی",
@@ -4455,7 +4470,8 @@ def social_link_delete(request, pk):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def social_link_toggle(request, pk):
-    link = get_object_or_404(SocialLink, pk=pk)
+    store = _resolve_dashboard_store(request)
+    link = get_object_or_404(SocialLink, pk=pk, store=store)
     link.is_active = not link.is_active
     link.save(update_fields=["is_active", "updated_at"])
     state = "فعال" if link.is_active else "غیرفعال"
@@ -4473,7 +4489,8 @@ from apps.content.models import Menu, MenuItem
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def menu_list(request):
-    menus = Menu.objects.annotate(item_count=Count("items")).order_by("location")
+    store = _resolve_dashboard_store(request)
+    menus = Menu.objects.filter(store=store).annotate(item_count=Count("items")).order_by("location")
     return render(request, "dashboard/menu_list.html", {
         "menus": menus, "active_page": "menus",
     })
@@ -4482,11 +4499,12 @@ def menu_list(request):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def menu_form(request, pk=None):
-    menu = get_object_or_404(Menu, pk=pk) if pk else None
+    store = _resolve_dashboard_store(request)
+    menu = get_object_or_404(Menu, pk=pk, store=store) if pk else None
     field_errors = {}
 
     if request.method == "POST":
-        obj = menu or Menu()
+        obj = menu or Menu(store=store)
         obj.title = request.POST.get("title", "").strip()
         obj.location = request.POST.get("location", "")
         obj.is_active = request.POST.get("is_active") == "on"
@@ -4521,7 +4539,8 @@ def menu_form(request, pk=None):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def menu_delete(request, pk):
-    menu = get_object_or_404(Menu, pk=pk)
+    store = _resolve_dashboard_store(request)
+    menu = get_object_or_404(Menu, pk=pk, store=store)
     if request.method != "POST":
         return render(request, "dashboard/confirm_delete.html", {
             "object_type": "منو",
@@ -4547,7 +4566,8 @@ def menu_delete(request, pk):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def menu_toggle(request, pk):
-    menu = get_object_or_404(Menu, pk=pk)
+    store = _resolve_dashboard_store(request)
+    menu = get_object_or_404(Menu, pk=pk, store=store)
     menu.is_active = not menu.is_active
     menu.save(update_fields=["is_active", "updated_at"])
     state = "فعال" if menu.is_active else "غیرفعال"
@@ -4561,7 +4581,8 @@ def menu_toggle(request, pk):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def menu_item_list(request, menu_id):
-    menu = get_object_or_404(Menu, pk=menu_id)
+    store = _resolve_dashboard_store(request)
+    menu = get_object_or_404(Menu, pk=menu_id, store=store)
     items = menu.items.select_related("parent").order_by("parent__display_order", "parent__id", "display_order", "id")
     # Organize: top-level first, then children grouped under parents
     top_items = [i for i in items if i.parent_id is None]
@@ -4586,11 +4607,12 @@ def menu_item_list(request, menu_id):
 def menu_item_form(request, menu_id=None, pk=None):
     from apps.catalog.models import Category
 
+    store = _resolve_dashboard_store(request)
     if pk:
-        item = get_object_or_404(MenuItem, pk=pk)
+        item = get_object_or_404(MenuItem, pk=pk, menu__store=store)
         menu = item.menu
     else:
-        menu = get_object_or_404(Menu, pk=menu_id)
+        menu = get_object_or_404(Menu, pk=menu_id, store=store)
         item = None
 
     field_errors = {}
@@ -4635,7 +4657,7 @@ def menu_item_form(request, menu_id=None, pk=None):
     if pk:
         parent_options = parent_options.exclude(pk=pk)
 
-    categories = Category.objects.filter(is_active=True).order_by("order", "name")
+    categories = Category.objects.filter(store=store, is_active=True).order_by("order", "name")
     return render(request, "dashboard/menu_item_form.html", {
         "item": item, "menu": menu, "active_page": "menus",
         "parent_options": parent_options, "categories": categories,
@@ -4646,7 +4668,8 @@ def menu_item_form(request, menu_id=None, pk=None):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def menu_item_delete(request, pk):
-    item = get_object_or_404(MenuItem, pk=pk)
+    store = _resolve_dashboard_store(request)
+    item = get_object_or_404(MenuItem, pk=pk, menu__store=store)
     menu_id = item.menu_id
     if request.method != "POST":
         return render(request, "dashboard/confirm_delete.html", {
@@ -4667,7 +4690,8 @@ def menu_item_delete(request, pk):
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def menu_item_toggle(request, pk):
-    item = get_object_or_404(MenuItem, pk=pk)
+    store = _resolve_dashboard_store(request)
+    item = get_object_or_404(MenuItem, pk=pk, menu__store=store)
     item.is_active = not item.is_active
     item.save(update_fields=["is_active", "updated_at"])
     state = "فعال" if item.is_active else "غیرفعال"

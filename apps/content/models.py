@@ -225,8 +225,13 @@ class ContentPage(TimeStampedModel):
         QUICK_ACCESS = "quick_access", "دسترسی سریع"
         CUSTOMER_SERVICE = "customer_service", "خدمات مشتریان"
 
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE,
+        related_name="content_pages", null=True, blank=True,
+        help_text="خالی یعنی رکورد قدیمی که هنوز به هیچ فروشگاهی نسبت داده نشده — در هیچ فروشگاهی نمایش داده نمی‌شود.",
+    )
     title = models.CharField("عنوان", max_length=200)
-    slug = models.SlugField("اسلاگ", max_length=220, unique=True, allow_unicode=True)
+    slug = models.SlugField("اسلاگ", max_length=220, allow_unicode=True)
     body = models.TextField("متن صفحه", blank=True)
     summary = models.CharField("خلاصه", max_length=300, blank=True)
 
@@ -262,6 +267,9 @@ class ContentPage(TimeStampedModel):
                 ),
                 name="content_page_published_requires_timestamp",
             ),
+            models.UniqueConstraint(
+                fields=["store", "slug"], name="content_page_unique_slug_per_store",
+            ),
         ]
 
     def __str__(self):
@@ -292,6 +300,11 @@ class ContentPage(TimeStampedModel):
 class HeroSlide(TimeStampedModel, DestinationMixin):
     """اسلاید اصلی صفحه اول — تصویر + متن + دکمه‌ی CTA."""
 
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE,
+        related_name="hero_slides", null=True, blank=True,
+        help_text="خالی یعنی رکورد قدیمی که هنوز به هیچ فروشگاهی نسبت داده نشده — در هیچ فروشگاهی نمایش داده نمی‌شود.",
+    )
     title = models.CharField("عنوان", max_length=200, blank=True)
     subtitle = models.CharField("زیرعنوان", max_length=300, blank=True)
     desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/hero/", validators=[validate_image_size, validate_image_content])
@@ -320,6 +333,11 @@ class HeroSlide(TimeStampedModel, DestinationMixin):
 class PromotionalBanner(TimeStampedModel, DestinationMixin):
     """بنر تبلیغاتی صفحه اصلی."""
 
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE,
+        related_name="promotional_banners", null=True, blank=True,
+        help_text="خالی یعنی رکورد قدیمی که هنوز به هیچ فروشگاهی نسبت داده نشده — در هیچ فروشگاهی نمایش داده نمی‌شود.",
+    )
     title = models.CharField("عنوان", max_length=200, blank=True)
     description = models.CharField("توضیحات", max_length=500, blank=True)
     desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/banners/", validators=[validate_image_size, validate_image_content])
@@ -405,6 +423,11 @@ class SocialLink(TimeStampedModel):
         FACEBOOK = "facebook", "فیسبوک"
         CUSTOM = "custom", "سفارشی"
 
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE,
+        related_name="social_links", null=True, blank=True,
+        help_text="خالی یعنی رکورد قدیمی که هنوز به هیچ فروشگاهی نسبت داده نشده — در هیچ فروشگاهی نمایش داده نمی‌شود.",
+    )
     platform = models.CharField(
         "پلتفرم", max_length=20, choices=Platform.choices, default=Platform.CUSTOM,
     )
@@ -478,9 +501,14 @@ class Menu(TimeStampedModel):
         FOOTER_3 = "footer_3", "ستون سوم فوتر"
         MOBILE = "mobile", "منوی موبایل"
 
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE,
+        related_name="menus", null=True, blank=True,
+        help_text="خالی یعنی رکورد قدیمی که هنوز به هیچ فروشگاهی نسبت داده نشده — در هیچ فروشگاهی نمایش داده نمی‌شود.",
+    )
     title = models.CharField("عنوان منو", max_length=150)
     location = models.CharField(
-        "مکان نمایش", max_length=20, choices=Location.choices, unique=True,
+        "مکان نمایش", max_length=20, choices=Location.choices,
     )
     is_active = models.BooleanField("فعال", default=True)
 
@@ -488,6 +516,11 @@ class Menu(TimeStampedModel):
         verbose_name = "منو"
         verbose_name_plural = "منوها"
         ordering = ["location"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["store", "location"], name="menu_unique_location_per_store",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.title} ({self.get_location_display()})"

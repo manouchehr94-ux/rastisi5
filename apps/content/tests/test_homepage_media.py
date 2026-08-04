@@ -32,6 +32,10 @@ def _grant_akhlaghi_membership(user):
         accepted_at=timezone.now(),
     )
 
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
 User = get_user_model()
 
 
@@ -43,7 +47,7 @@ def _img(name="test.png"):
 
 class HeroSlideModelTests(TestCase):
     def test_valid_creation(self):
-        slide = HeroSlide.objects.create(
+        slide = HeroSlide.objects.create(store=_akhlaghi(), 
             title="تست", desktop_image=_img(), is_active=True, display_order=0
         )
         self.assertEqual(slide.title, "تست")
@@ -83,8 +87,8 @@ class HeroSlideModelTests(TestCase):
         slide.full_clean()  # OK
 
     def test_ordering(self):
-        HeroSlide.objects.create(title="B", desktop_image=_img(), display_order=2)
-        HeroSlide.objects.create(title="A", desktop_image=_img(), display_order=1)
+        HeroSlide.objects.create(store=_akhlaghi(), title="B", desktop_image=_img(), display_order=2)
+        HeroSlide.objects.create(store=_akhlaghi(), title="A", desktop_image=_img(), display_order=1)
         slides = list(HeroSlide.objects.values_list("title", flat=True))
         self.assertEqual(slides, ["A", "B"])
 
@@ -103,7 +107,7 @@ class HeroSlideModelTests(TestCase):
 
 class PromotionalBannerModelTests(TestCase):
     def test_valid_creation(self):
-        banner = PromotionalBanner.objects.create(
+        banner = PromotionalBanner.objects.create(store=_akhlaghi(), 
             title="بنر", desktop_image=_img(), is_active=True,
         )
         self.assertTrue(banner.pk)
@@ -118,8 +122,8 @@ class PromotionalBannerModelTests(TestCase):
             banner.full_clean()
 
     def test_inactive_not_in_active_queryset(self):
-        PromotionalBanner.objects.create(title="Active", desktop_image=_img(), is_active=True)
-        PromotionalBanner.objects.create(title="Inactive", desktop_image=_img(), is_active=False)
+        PromotionalBanner.objects.create(store=_akhlaghi(), title="Active", desktop_image=_img(), is_active=True)
+        PromotionalBanner.objects.create(store=_akhlaghi(), title="Inactive", desktop_image=_img(), is_active=False)
         active = PromotionalBanner.objects.filter(is_active=True)
         self.assertEqual(active.count(), 1)
         self.assertEqual(active.first().title, "Active")
@@ -127,11 +131,11 @@ class PromotionalBannerModelTests(TestCase):
 
 class HomepageRenderingTests(TestCase):
     def setUp(self):
-        self.slide = HeroSlide.objects.create(
+        self.slide = HeroSlide.objects.create(store=_akhlaghi(), 
             title="اسلاید فعال", desktop_image=_img("hero.png"),
             is_active=True, display_order=0,
         )
-        self.inactive_slide = HeroSlide.objects.create(
+        self.inactive_slide = HeroSlide.objects.create(store=_akhlaghi(), 
             title="غیرفعال", desktop_image=_img("hero2.png"),
             is_active=False, display_order=1,
         )
@@ -148,11 +152,11 @@ class HomepageRenderingTests(TestCase):
 
 class BannerRenderingTests(TestCase):
     def setUp(self):
-        self.banner = PromotionalBanner.objects.create(
+        self.banner = PromotionalBanner.objects.create(store=_akhlaghi(), 
             title="بنر فعال", description="توضیح بنر",
             desktop_image=_img("banner.png"), is_active=True,
         )
-        self.inactive = PromotionalBanner.objects.create(
+        self.inactive = PromotionalBanner.objects.create(store=_akhlaghi(), 
             title="غیرفعال", desktop_image=_img("b2.png"), is_active=False,
         )
 
@@ -196,13 +200,13 @@ class DashboardHeroCRUDTests(TestCase):
         self.assertTrue(HeroSlide.objects.filter(title="New Slide").exists())
 
     def test_toggle_hero(self):
-        slide = HeroSlide.objects.create(title="T", desktop_image=_img(), is_active=True)
+        slide = HeroSlide.objects.create(store=_akhlaghi(), title="T", desktop_image=_img(), is_active=True)
         self.client.post(reverse("dashboard:hero-toggle", args=[slide.pk]))
         slide.refresh_from_db()
         self.assertFalse(slide.is_active)
 
     def test_delete_hero_post_only(self):
-        slide = HeroSlide.objects.create(title="T", desktop_image=_img())
+        slide = HeroSlide.objects.create(store=_akhlaghi(), title="T", desktop_image=_img())
         response = self.client.get(reverse("dashboard:hero-delete", args=[slide.pk]))
         self.assertEqual(response.status_code, 405)
 
@@ -227,13 +231,13 @@ class DashboardBannerCRUDTests(TestCase):
         self.assertTrue(PromotionalBanner.objects.filter(title="New Banner").exists())
 
     def test_toggle_banner(self):
-        b = PromotionalBanner.objects.create(title="B", desktop_image=_img(), is_active=True)
+        b = PromotionalBanner.objects.create(store=_akhlaghi(), title="B", desktop_image=_img(), is_active=True)
         self.client.post(reverse("dashboard:banner-toggle", args=[b.pk]))
         b.refresh_from_db()
         self.assertFalse(b.is_active)
 
     def test_delete_banner_post_only(self):
-        b = PromotionalBanner.objects.create(title="B", desktop_image=_img())
+        b = PromotionalBanner.objects.create(store=_akhlaghi(), title="B", desktop_image=_img())
         response = self.client.get(reverse("dashboard:banner-delete", args=[b.pk]))
         self.assertEqual(response.status_code, 405)
 
@@ -250,7 +254,7 @@ class EmptyStateTests(TestCase):
 
     def test_all_inactive_hero_omits_section(self):
         """All hero slides inactive → hero section absent."""
-        HeroSlide.objects.create(title="غیرفعال", desktop_image=_img(), is_active=False)
+        HeroSlide.objects.create(store=_akhlaghi(), title="غیرفعال", desktop_image=_img(), is_active=False)
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "غیرفعال")
@@ -259,7 +263,7 @@ class EmptyStateTests(TestCase):
 
     def test_all_inactive_banners_omits_section(self):
         """All banners inactive → banner section absent."""
-        PromotionalBanner.objects.create(title="بنر خاموش", desktop_image=_img(), is_active=False)
+        PromotionalBanner.objects.create(store=_akhlaghi(), title="بنر خاموش", desktop_image=_img(), is_active=False)
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "بنر خاموش")
@@ -378,7 +382,7 @@ class TransactionSafeFileLifecycleTests(TransactionTestCase):
 
     def test_hero_delete_removes_files_after_commit(self):
         """Deleting a hero removes its files via on_commit."""
-        slide = HeroSlide.objects.create(title="D", desktop_image=_img("del_hero.png"), is_active=True)
+        slide = HeroSlide.objects.create(store=_akhlaghi(), title="D", desktop_image=_img("del_hero.png"), is_active=True)
         desktop_name = slide.desktop_image.name
         storage = slide.desktop_image.storage
 
@@ -392,14 +396,14 @@ class TransactionSafeFileLifecycleTests(TransactionTestCase):
 
     def test_banner_delete_removes_files_after_commit(self):
         """Deleting a banner removes its files via on_commit."""
-        banner = PromotionalBanner.objects.create(title="D", desktop_image=_img("del_b.png"), is_active=True)
+        banner = PromotionalBanner.objects.create(store=_akhlaghi(), title="D", desktop_image=_img("del_b.png"), is_active=True)
         response = self.client.post(reverse("dashboard:banner-delete", args=[banner.pk]))
         self.assertEqual(response.status_code, 302)
         self.assertFalse(PromotionalBanner.objects.filter(pk=banner.pk).exists())
 
     def test_failed_validation_preserves_existing_hero_image(self):
         """If validation fails on edit, existing desktop image is preserved."""
-        slide = HeroSlide.objects.create(
+        slide = HeroSlide.objects.create(store=_akhlaghi(), 
             title="Keep", desktop_image=_img("keep.png"), is_active=True
         )
         original_name = slide.desktop_image.name
@@ -420,7 +424,7 @@ class TransactionSafeFileLifecycleTests(TransactionTestCase):
 
     def test_failed_validation_preserves_existing_banner_image(self):
         """If validation fails on banner edit, existing desktop image is preserved."""
-        banner = PromotionalBanner.objects.create(
+        banner = PromotionalBanner.objects.create(store=_akhlaghi(), 
             title="Keep", desktop_image=_img("keep_b.png"), is_active=True
         )
         original_name = banner.desktop_image.name

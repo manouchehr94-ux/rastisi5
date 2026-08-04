@@ -35,13 +35,13 @@ def _akhlaghi():
 
 class MenuModelTests(TestCase):
     def test_valid_creation(self):
-        menu = Menu.objects.create(title="منوی اصلی", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="منوی اصلی", location="header")
         self.assertTrue(menu.pk)
 
     def test_unique_location(self):
-        Menu.objects.create(title="M1", location="header")
+        Menu.objects.create(store=_akhlaghi(), title="M1", location="header")
         with self.assertRaises(IntegrityError):
-            Menu.objects.create(title="M2", location="header")
+            Menu.objects.create(store=_akhlaghi(), title="M2", location="header")
 
     def test_required_title(self):
         menu = Menu(title="", location="footer_1")
@@ -49,12 +49,12 @@ class MenuModelTests(TestCase):
             menu.full_clean()
 
     def test_active_default(self):
-        menu = Menu.objects.create(title="T", location="mobile")
+        menu = Menu.objects.create(store=_akhlaghi(), title="T", location="mobile")
         self.assertTrue(menu.is_active)
 
     def test_ordering_by_location(self):
-        Menu.objects.create(title="Footer", location="footer_1")
-        Menu.objects.create(title="Header", location="header")
+        Menu.objects.create(store=_akhlaghi(), title="Footer", location="footer_1")
+        Menu.objects.create(store=_akhlaghi(), title="Header", location="header")
         locations = list(Menu.objects.values_list("location", flat=True))
         self.assertEqual(locations[0], "footer_1")  # f < h alphabetically
 
@@ -72,7 +72,7 @@ class MenuModelTests(TestCase):
 
 class MenuItemModelTests(TestCase):
     def setUp(self):
-        self.menu = Menu.objects.create(title="Header", location="header")
+        self.menu = Menu.objects.create(store=_akhlaghi(), title="Header", location="header")
         self.vendor = Vendor.objects.create(store=_akhlaghi(), name="V", slug="v-nav")
         self.category = Category.objects.create(store=_akhlaghi(), name="Cat", slug="cat-nav")
 
@@ -96,7 +96,7 @@ class MenuItemModelTests(TestCase):
         self.assertEqual(child.parent, parent)
 
     def test_same_menu_parent_required(self):
-        other_menu = Menu.objects.create(title="Other", location="footer_1")
+        other_menu = Menu.objects.create(store=_akhlaghi(), title="Other", location="footer_1")
         parent = MenuItem.objects.create(
             menu=other_menu, title="Other Parent",
             destination_type="none",
@@ -228,32 +228,32 @@ class MenuDashboardAccessTests(TestCase):
 
     def test_menu_edit_accessible(self):
         self.client.login(username="staff_nav", password="p!")
-        menu = Menu.objects.create(title="T", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="T", location="header")
         response = self.client.get(reverse("dashboard:menu-edit", args=[menu.pk]))
         self.assertEqual(response.status_code, 200)
 
     def test_item_management_accessible(self):
         self.client.login(username="staff_nav", password="p!")
-        menu = Menu.objects.create(title="T", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="T", location="header")
         response = self.client.get(reverse("dashboard:menu-item-list", args=[menu.pk]))
         self.assertEqual(response.status_code, 200)
 
     def test_delete_requires_post(self):
         self.client.login(username="staff_nav", password="p!")
-        menu = Menu.objects.create(title="T", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="T", location="header")
         response = self.client.get(reverse("dashboard:menu-delete", args=[menu.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(Menu.objects.filter(pk=menu.pk).exists())
 
     def test_toggle_requires_post(self):
         self.client.login(username="staff_nav", password="p!")
-        menu = Menu.objects.create(title="T", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="T", location="header")
         response = self.client.get(reverse("dashboard:menu-toggle", args=[menu.pk]))
         self.assertEqual(response.status_code, 405)
 
     def test_item_delete_requires_post(self):
         self.client.login(username="staff_nav", password="p!")
-        menu = Menu.objects.create(title="T", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="T", location="header")
         item = MenuItem.objects.create(menu=menu, title="I", destination_type="none")
         response = self.client.get(reverse("dashboard:menu-item-delete", args=[item.pk]))
         self.assertEqual(response.status_code, 200)
@@ -261,7 +261,7 @@ class MenuDashboardAccessTests(TestCase):
 
     def test_item_toggle_requires_post(self):
         self.client.login(username="staff_nav", password="p!")
-        menu = Menu.objects.create(title="T", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="T", location="header")
         item = MenuItem.objects.create(menu=menu, title="I", destination_type="none")
         response = self.client.get(reverse("dashboard:menu-item-toggle", args=[item.pk]))
         self.assertEqual(response.status_code, 405)
@@ -285,7 +285,7 @@ class MenuDashboardCRUDTests(TestCase):
         self.assertTrue(Menu.objects.filter(title="منوی هدر").exists())
 
     def test_edit_menu(self):
-        menu = Menu.objects.create(title="Old", location="footer_1")
+        menu = Menu.objects.create(store=_akhlaghi(), title="Old", location="footer_1")
         self.client.post(reverse("dashboard:menu-edit", args=[menu.pk]), {
             "title": "New Title", "location": "footer_1", "is_active": "on",
         })
@@ -293,24 +293,24 @@ class MenuDashboardCRUDTests(TestCase):
         self.assertEqual(menu.title, "New Title")
 
     def test_delete_empty_menu(self):
-        menu = Menu.objects.create(title="Empty", location="footer_2")
+        menu = Menu.objects.create(store=_akhlaghi(), title="Empty", location="footer_2")
         self.client.post(reverse("dashboard:menu-delete", args=[menu.pk]))
         self.assertFalse(Menu.objects.filter(pk=menu.pk).exists())
 
     def test_prevent_deleting_populated_menu(self):
-        menu = Menu.objects.create(title="Full", location="footer_3")
+        menu = Menu.objects.create(store=_akhlaghi(), title="Full", location="footer_3")
         MenuItem.objects.create(menu=menu, title="I", destination_type="none")
         self.client.post(reverse("dashboard:menu-delete", args=[menu.pk]))
         self.assertTrue(Menu.objects.filter(pk=menu.pk).exists())
 
     def test_toggle_menu(self):
-        menu = Menu.objects.create(title="T", location="header", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="T", location="header", is_active=True)
         self.client.post(reverse("dashboard:menu-toggle", args=[menu.pk]))
         menu.refresh_from_db()
         self.assertFalse(menu.is_active)
 
     def test_create_item(self):
-        menu = Menu.objects.create(title="M", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="M", location="header")
         cat = Category.objects.create(store=_akhlaghi(), name="C", slug="c-nav-crud")
         response = self.client.post(reverse("dashboard:menu-item-add", args=[menu.pk]), {
             "title": "New Item", "display_order": "0", "is_active": "on",
@@ -321,7 +321,7 @@ class MenuDashboardCRUDTests(TestCase):
         self.assertTrue(MenuItem.objects.filter(title="New Item").exists())
 
     def test_edit_item(self):
-        menu = Menu.objects.create(title="M", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="M", location="header")
         cat = Category.objects.create(store=_akhlaghi(), name="EC", slug="ec-edit")
         item = MenuItem.objects.create(
             menu=menu, title="Old", destination_type="category",
@@ -339,13 +339,13 @@ class MenuDashboardCRUDTests(TestCase):
         self.assertEqual(item.display_order, 5)
 
     def test_delete_leaf_item(self):
-        menu = Menu.objects.create(title="M", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="M", location="header")
         item = MenuItem.objects.create(menu=menu, title="Leaf", destination_type="none")
         self.client.post(reverse("dashboard:menu-item-delete", args=[item.pk]))
         self.assertFalse(MenuItem.objects.filter(pk=item.pk).exists())
 
     def test_prevent_deleting_parent_with_children(self):
-        menu = Menu.objects.create(title="M", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="M", location="header")
         parent = MenuItem.objects.create(menu=menu, title="P", destination_type="none")
         MenuItem.objects.create(menu=menu, title="C", parent=parent, destination_type="none")
         self.client.post(reverse("dashboard:menu-item-delete", args=[parent.pk]))
@@ -353,15 +353,15 @@ class MenuDashboardCRUDTests(TestCase):
         self.assertTrue(MenuItem.objects.filter(pk=parent.pk).exists())
 
     def test_toggle_item(self):
-        menu = Menu.objects.create(title="M", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="M", location="header")
         item = MenuItem.objects.create(menu=menu, title="I", destination_type="none", is_active=True)
         self.client.post(reverse("dashboard:menu-item-toggle", args=[item.pk]))
         item.refresh_from_db()
         self.assertFalse(item.is_active)
 
     def test_invalid_parent_rejected(self):
-        menu = Menu.objects.create(title="M", location="header")
-        other_menu = Menu.objects.create(title="O", location="footer_1")
+        menu = Menu.objects.create(store=_akhlaghi(), title="M", location="header")
+        other_menu = Menu.objects.create(store=_akhlaghi(), title="O", location="footer_1")
         other_parent = MenuItem.objects.create(menu=other_menu, title="OP", destination_type="none")
         response = self.client.post(reverse("dashboard:menu-item-add", args=[menu.pk]), {
             "title": "Bad", "display_order": "0", "is_active": "on",
@@ -373,7 +373,7 @@ class MenuDashboardCRUDTests(TestCase):
         self.assertFalse(MenuItem.objects.filter(title="Bad").exists())
 
     def test_invalid_destination_rejected(self):
-        menu = Menu.objects.create(title="M", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="M", location="header")
         response = self.client.post(reverse("dashboard:menu-item-add", args=[menu.pk]), {
             "title": "Bad", "display_order": "0", "is_active": "on",
             "destination_type": "external",
@@ -383,7 +383,7 @@ class MenuDashboardCRUDTests(TestCase):
         self.assertFalse(MenuItem.objects.filter(title="Bad").exists())
 
     def test_duplicate_location_rejected(self):
-        Menu.objects.create(title="M1", location="header")
+        Menu.objects.create(store=_akhlaghi(), title="M1", location="header")
         response = self.client.post(reverse("dashboard:menu-add"), {
             "title": "M2", "location": "header", "is_active": "on",
         })
@@ -399,7 +399,7 @@ class NavigationStorefrontTests(TestCase):
         self.category = Category.objects.create(store=_akhlaghi(), name="Electronics", slug="electronics-nav")
 
     def test_header_menu_renders(self):
-        menu = Menu.objects.create(title="Header", location="header", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="Header", location="header", is_active=True)
         MenuItem.objects.create(
             menu=menu, title="فروشگاه",
             destination_type="category", destination_category=self.category,
@@ -410,7 +410,7 @@ class NavigationStorefrontTests(TestCase):
         self.assertContains(response, "category=electronics-nav")
 
     def test_footer_menu_renders(self):
-        menu = Menu.objects.create(title="Quick", location="footer_1", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="Quick", location="footer_1", is_active=True)
         MenuItem.objects.create(
             menu=menu, title="درباره ما",
             destination_type="external",
@@ -422,7 +422,7 @@ class NavigationStorefrontTests(TestCase):
         self.assertContains(response, "https://example.com/about")
 
     def test_inactive_menu_hidden(self):
-        menu = Menu.objects.create(title="Hidden", location="header", is_active=False)
+        menu = Menu.objects.create(store=_akhlaghi(), title="Hidden", location="header", is_active=False)
         MenuItem.objects.create(
             menu=menu, title="ShouldNotShow",
             destination_type="external",
@@ -433,7 +433,7 @@ class NavigationStorefrontTests(TestCase):
         self.assertNotContains(response, "ShouldNotShow")
 
     def test_inactive_item_hidden(self):
-        menu = Menu.objects.create(title="H", location="header", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="H", location="header", is_active=True)
         MenuItem.objects.create(
             menu=menu, title="ActiveItem",
             destination_type="category", destination_category=self.category,
@@ -450,7 +450,7 @@ class NavigationStorefrontTests(TestCase):
         self.assertNotContains(response, "InactiveItem")
 
     def test_inactive_parent_hides_child(self):
-        menu = Menu.objects.create(title="H", location="header", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="H", location="header", is_active=True)
         parent = MenuItem.objects.create(
             menu=menu, title="Parent",
             destination_type="category", destination_category=self.category,
@@ -466,7 +466,7 @@ class NavigationStorefrontTests(TestCase):
         self.assertNotContains(response, "ChildOfInactive")
 
     def test_top_level_ordering(self):
-        menu = Menu.objects.create(title="H", location="header", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="H", location="header", is_active=True)
         MenuItem.objects.create(
             menu=menu, title="Second",
             destination_type="external", destination_external_url="https://b.com",
@@ -482,7 +482,7 @@ class NavigationStorefrontTests(TestCase):
         self.assertLess(content.find("First"), content.find("Second"))
 
     def test_external_target_rel_safe(self):
-        menu = Menu.objects.create(title="H", location="header", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="H", location="header", is_active=True)
         MenuItem.objects.create(
             menu=menu, title="Ext",
             destination_type="external",
@@ -494,7 +494,7 @@ class NavigationStorefrontTests(TestCase):
         self.assertContains(response, 'rel="noopener noreferrer"')
 
     def test_internal_no_new_tab(self):
-        menu = Menu.objects.create(title="H", location="header", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="H", location="header", is_active=True)
         MenuItem.objects.create(
             menu=menu, title="Internal",
             destination_type="category", destination_category=self.category,
@@ -511,7 +511,7 @@ class NavigationStorefrontTests(TestCase):
         self.assertNotIn('target="_blank"', link_tag)
 
     def test_escaped_item_title(self):
-        menu = Menu.objects.create(title="H", location="header", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="H", location="header", is_active=True)
         MenuItem.objects.create(
             menu=menu, title='<script>xss</script>',
             destination_type="external",
@@ -536,7 +536,7 @@ class NavigationStorefrontTests(TestCase):
 
     def test_no_hardcoded_when_managed_header(self):
         """When managed header exists, no fallback links appear."""
-        menu = Menu.objects.create(title="H", location="header", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="H", location="header", is_active=True)
         MenuItem.objects.create(
             menu=menu, title="ManagedLink",
             destination_type="external",
@@ -554,7 +554,7 @@ class NavigationStorefrontTests(TestCase):
 
     def test_invalid_destination_does_not_crash(self):
         """Item with deleted category → skipped, page doesn't crash."""
-        menu = Menu.objects.create(title="H", location="header", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="H", location="header", is_active=True)
         MenuItem.objects.create(
             menu=menu, title="Stale",
             destination_type="category",
@@ -567,8 +567,8 @@ class NavigationStorefrontTests(TestCase):
 
     def test_footer_locations_independent(self):
         """Footer menus render independently."""
-        menu1 = Menu.objects.create(title="F1", location="footer_1", is_active=True)
-        menu2 = Menu.objects.create(title="F2", location="footer_2", is_active=True)
+        menu1 = Menu.objects.create(store=_akhlaghi(), title="F1", location="footer_1", is_active=True)
+        menu2 = Menu.objects.create(store=_akhlaghi(), title="F2", location="footer_2", is_active=True)
         cat = self.category
         MenuItem.objects.create(menu=menu1, title="Link1", destination_type="category", destination_category=cat, is_active=True)
         MenuItem.objects.create(menu=menu2, title="Link2", destination_type="external", destination_external_url="https://f2.com", is_active=True)
@@ -589,7 +589,7 @@ class NavigationFallbackRemovalTests(TestCase):
 
     def test_inactive_header_menu_no_fallback(self):
         """Inactive header menu → no nav links at all."""
-        menu = Menu.objects.create(title="H", location="header", is_active=False)
+        menu = Menu.objects.create(store=_akhlaghi(), title="H", location="header", is_active=False)
         MenuItem.objects.create(
             menu=menu, title="Should Not Show",
             destination_type="external", destination_external_url="https://x.com",
@@ -605,7 +605,7 @@ class NavigationFallbackRemovalTests(TestCase):
 
     def test_empty_active_header_no_wrapper(self):
         """Active header menu with no items → no nav links rendered."""
-        Menu.objects.create(title="Empty", location="header", is_active=True)
+        Menu.objects.create(store=_akhlaghi(), title="Empty", location="header", is_active=True)
         response = self.client.get("/")
         content = response.content.decode()
         import re
@@ -622,7 +622,7 @@ class NavigationFallbackRemovalTests(TestCase):
 
     def test_inactive_footer_menu_no_column(self):
         """Inactive footer menu → column not rendered."""
-        menu = Menu.objects.create(title="F1", location="footer_1", is_active=False)
+        menu = Menu.objects.create(store=_akhlaghi(), title="F1", location="footer_1", is_active=False)
         MenuItem.objects.create(
             menu=menu, title="Hidden",
             destination_type="external", destination_external_url="https://x.com",
@@ -634,7 +634,7 @@ class NavigationFallbackRemovalTests(TestCase):
     def test_footer_menu_only_inactive_items_no_column(self):
         """Footer menu with only inactive/unresolvable items → column not rendered."""
         cat = Category.objects.create(store=_akhlaghi(), name="FC", slug="fc-fr")
-        menu = Menu.objects.create(title="F1", location="footer_1", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="F1", location="footer_1", is_active=True)
         MenuItem.objects.create(
             menu=menu, title="Inactive",
             destination_type="category", destination_category=cat,
@@ -669,7 +669,7 @@ class DestinationPolicyTests(TestCase):
     """تست‌های سیاست مقصد آیتم‌های منو."""
 
     def setUp(self):
-        self.menu = Menu.objects.create(title="T", location="header")
+        self.menu = Menu.objects.create(store=_akhlaghi(), title="T", location="header")
         self.category = Category.objects.create(store=_akhlaghi(), name="DC", slug="dc-dp")
 
     def test_leaf_with_no_destination_allowed_as_provisional(self):
@@ -706,14 +706,14 @@ class DestinationPolicyTests(TestCase):
 
     def test_provisional_parent_does_not_render(self):
         """Top-level with destination=none and no children → does not render."""
-        menu = Menu.objects.create(title="H", location="footer_2", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="H", location="footer_2", is_active=True)
         MenuItem.objects.create(menu=menu, title="Provisional", destination_type="none", is_active=True)
         response = self.client.get("/")
         self.assertNotContains(response, "Provisional")
 
     def test_no_href_hash_in_storefront(self):
         """Storefront must never produce href='#' for menu items."""
-        menu = Menu.objects.create(title="H", location="footer_1", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="H", location="footer_1", is_active=True)
         MenuItem.objects.create(
             menu=menu, title="Valid",
             destination_type="category", destination_category=self.category,
@@ -729,7 +729,7 @@ class DestinationPolicyTests(TestCase):
     def test_non_clickable_parent_renders_as_span(self):
         """Parent with no URL renders as <span>, not <a href='#'>."""
         # Use a location that won't conflict with setUp's header menu
-        hmenu = Menu.objects.create(title="HH", location="footer_1", is_active=True)
+        hmenu = Menu.objects.create(store=_akhlaghi(), title="HH", location="footer_1", is_active=True)
         p = MenuItem.objects.create(menu=hmenu, title="HeadingItem", destination_type="none")
         MenuItem.objects.create(
             menu=hmenu, title="Sub", parent=p,
@@ -767,34 +767,34 @@ class MenuDeletionProtectionTests(TestCase):
 
     def test_orm_deletion_of_populated_menu_raises_protected(self):
         """Direct ORM deletion of menu with items → ProtectedError."""
-        menu = Menu.objects.create(title="P", location="header")
+        menu = Menu.objects.create(store=_akhlaghi(), title="P", location="header")
         MenuItem.objects.create(menu=menu, title="I", destination_type="none")
         with self.assertRaises(ProtectedError):
             menu.delete()
 
     def test_dashboard_deletion_of_populated_menu_blocked(self):
         """Dashboard delete of populated menu → blocked with message."""
-        menu = Menu.objects.create(title="P", location="footer_1")
+        menu = Menu.objects.create(store=_akhlaghi(), title="P", location="footer_1")
         MenuItem.objects.create(menu=menu, title="I", destination_type="none")
         self.client.post(reverse("dashboard:menu-delete", args=[menu.pk]))
         self.assertTrue(Menu.objects.filter(pk=menu.pk).exists())
 
     def test_empty_menu_deletion_succeeds(self):
         """Empty menu can be deleted."""
-        menu = Menu.objects.create(title="E", location="footer_2")
+        menu = Menu.objects.create(store=_akhlaghi(), title="E", location="footer_2")
         self.client.post(reverse("dashboard:menu-delete", args=[menu.pk]))
         self.assertFalse(Menu.objects.filter(pk=menu.pk).exists())
 
     def test_items_remain_after_blocked_deletion(self):
         """Items remain intact after blocked menu deletion."""
-        menu = Menu.objects.create(title="P", location="footer_3")
+        menu = Menu.objects.create(store=_akhlaghi(), title="P", location="footer_3")
         item = MenuItem.objects.create(menu=menu, title="I", destination_type="none")
         self.client.post(reverse("dashboard:menu-delete", args=[menu.pk]))
         self.assertTrue(MenuItem.objects.filter(pk=item.pk).exists())
 
     def test_no_silent_cascade(self):
         """PROTECT prevents cascade — items survive."""
-        menu = Menu.objects.create(title="P", location="mobile")
+        menu = Menu.objects.create(store=_akhlaghi(), title="P", location="mobile")
         item = MenuItem.objects.create(menu=menu, title="I", destination_type="none")
         try:
             menu.delete()
@@ -813,7 +813,7 @@ class HeaderHierarchyRenderingTests(TestCase):
 
     def setUp(self):
         self.category = Category.objects.create(store=_akhlaghi(), name="HCat", slug="hcat-hr")
-        self.menu = Menu.objects.create(title="Header", location="header", is_active=True)
+        self.menu = Menu.objects.create(store=_akhlaghi(), title="Header", location="header", is_active=True)
 
     def test_parent_and_child_both_render(self):
         parent = MenuItem.objects.create(
@@ -969,7 +969,7 @@ class FooterHierarchyRenderingTests(TestCase):
 
     def test_footer_child_rendered(self):
         """Footer children render in nested <ul>."""
-        menu = Menu.objects.create(title="F1", location="footer_1", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="F1", location="footer_1", is_active=True)
         parent = MenuItem.objects.create(
             menu=menu, title="FParent",
             destination_type="category", destination_category=self.category,
@@ -986,7 +986,7 @@ class FooterHierarchyRenderingTests(TestCase):
         self.assertContains(response, "https://fc.com")
 
     def test_footer_inactive_child_hidden(self):
-        menu = Menu.objects.create(title="F1", location="footer_1", is_active=True)
+        menu = Menu.objects.create(store=_akhlaghi(), title="F1", location="footer_1", is_active=True)
         parent = MenuItem.objects.create(
             menu=menu, title="P",
             destination_type="category", destination_category=self.category,
@@ -1005,7 +1005,7 @@ class ParentCreationWorkflowTests(TestCase):
     """تست‌های گردش کار ایجاد والد موقت."""
 
     def setUp(self):
-        self.menu = Menu.objects.create(title="M", location="header")
+        self.menu = Menu.objects.create(store=_akhlaghi(), title="M", location="header")
         self.category = Category.objects.create(store=_akhlaghi(), name="WC", slug="wc-pcw")
         self.staff = User.objects.create_user(username="staff_pcw", password="p!", is_staff=True)
         _grant_akhlaghi_membership(self.staff)
@@ -1065,7 +1065,7 @@ class NavigationQueryCountTests(TestCase):
 
     def setUp(self):
         self.category = Category.objects.create(store=_akhlaghi(), name="QC", slug="qc-qct")
-        self.menu = Menu.objects.create(title="H", location="header", is_active=True)
+        self.menu = Menu.objects.create(store=_akhlaghi(), title="H", location="header", is_active=True)
         parent = MenuItem.objects.create(
             menu=self.menu, title="P1", destination_type="none", is_active=True,
         )
@@ -1076,7 +1076,7 @@ class NavigationQueryCountTests(TestCase):
                 is_active=True, display_order=i,
             )
         # Second menu
-        self.footer = Menu.objects.create(title="F", location="footer_1", is_active=True)
+        self.footer = Menu.objects.create(store=_akhlaghi(), title="F", location="footer_1", is_active=True)
         MenuItem.objects.create(
             menu=self.footer, title="FL",
             destination_type="external", destination_external_url="https://f.com",
@@ -1089,7 +1089,7 @@ class NavigationQueryCountTests(TestCase):
         from apps.content.context_processors import navigation_menus
 
         class FakeRequest:
-            pass
+            store = _akhlaghi()
 
         from django.test.utils import CaptureQueriesContext
         from django.db import connection
@@ -1112,7 +1112,7 @@ class NavigationAccessibilityTests(TestCase):
 
     def setUp(self):
         self.category = Category.objects.create(store=_akhlaghi(), name="AC", slug="ac-nat")
-        self.menu = Menu.objects.create(title="H", location="header", is_active=True)
+        self.menu = Menu.objects.create(store=_akhlaghi(), title="H", location="header", is_active=True)
 
     def test_escape_handler_present(self):
         """Rendered markup includes @keydown.escape handler."""
