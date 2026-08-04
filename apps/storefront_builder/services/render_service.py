@@ -140,15 +140,27 @@ def build_render_items(version, store) -> list[dict]:
 
     بخش‌هایی با section_key ناشناخته (مثلاً از یک نسخه‌ی قدیمی‌تر که آن نوع
     را دیگر پشتیبانی نمی‌کند) بی‌صدا حذف می‌شوند — پیش‌نمایش/صفحه هرگز crash
-    نمی‌کند."""
+    نمی‌کند.
+
+    بهینه‌سازی کوئری: هیچ‌کدام از توابع ``_CONTEXT_BUILDERS`` به تنظیمات
+    نمونه‌ی خاص یک section وابسته نیستند (فقط به ``store``) — پس اگر تاجر
+    یک نوع section را چند بار تکرار کند (قابلیت پشتیبانی‌شده،
+    ``duplicable=True``)، نتیجه‌ی کوئری برای همان section_key در یک بار
+    رندر همیشه یکسان است. کش سطح-تابع زیر این کوئری‌های تکراری را در یک
+    درخواست حذف می‌کند، بدون افزودن یک لایه‌ی کش خارجی/persistent (که برای
+    این ویو، همیشه باید Draft زنده را نشان دهد، خطر بازگشت داده‌ی کهنه
+    دارد)."""
     items = []
+    context_cache: dict[str, dict] = {}
     for section in version.sections.filter(is_active=True).order_by("order", "id"):
         try:
             definition = get_definition(section.section_key)
         except UnknownSectionTypeError:
             continue
-        builder = _CONTEXT_BUILDERS.get(section.section_key, _static_context)
-        context = builder(store, section)
+        if section.section_key not in context_cache:
+            builder = _CONTEXT_BUILDERS.get(section.section_key, _static_context)
+            context_cache[section.section_key] = builder(store, section)
+        context = dict(context_cache[section.section_key])
         context["section"] = section
         context["settings"] = section.settings or {}
         items.append({
