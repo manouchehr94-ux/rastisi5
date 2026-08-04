@@ -4521,6 +4521,12 @@ def menu_form(request, pk=None):
         except (ValidationError, IntegrityError) as exc:
             if hasattr(exc, "message_dict"):
                 field_errors = {k: v[0] if isinstance(v, list) else str(v) for k, v in exc.message_dict.items()}
+                # UniqueConstraint(store, location) violations are non-field
+                # errors (multi-field constraint) — Django keys them under
+                # "__all__", but the location <select> is the field the
+                # merchant needs to see flagged as invalid.
+                if "__all__" in field_errors and "location" not in field_errors:
+                    field_errors["location"] = field_errors["__all__"]
                 msg = " ".join(field_errors.values())
             elif "UNIQUE constraint" in str(exc) or "unique" in str(exc).lower():
                 msg = "این مکان قبلاً دارای منو است. هر مکان فقط یک منو می‌تواند داشته باشد."
