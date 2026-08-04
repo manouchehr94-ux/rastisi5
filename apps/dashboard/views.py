@@ -2184,22 +2184,41 @@ def product_options(request, pk):
     return render(request, "dashboard/product_options.html", _product_options_context(request, product))
 
 
-def _get_or_create_library_attribute(store, label, value_labels):
+def _get_or_create_library_attribute(store, label, value_labels, color_pairs=None):
     """ویژگی را در کتابخانه‌ی فروشگاه پیدا یا می‌سازد (بخشِ ۲۸) — تطبیقِ نامِ
     غیرِحساس‌به‌حروف در همین Store؛ مقادیرِ داده‌شده که هنوز در کتابخانه نبودند
     اضافه می‌شوند (مقادیرِ موجود دست‌نخورده می‌مانند). هرگز چیزی از کتابخانه
     حذف نمی‌کند — حذفِ یک مقدار از یک کالا فقط همان کالا را تحتِ‌تأثیر
-    قرار می‌دهد."""
+    قرار می‌دهد.
+
+    ``color_pairs``: فهرستِ ``{"label": ..., "color_hex": ...}`` — نوعِ
+    ویژگی (``data_type``) هرگز از کاربر پرسیده نمی‌شود، بلکه خودکار از
+    رویِ وجودِ حداقل یک مقدارِ رنگ به COLOR تنظیم می‌شود (تشخیصِ خودکار،
+    بدونِ فیلدِ «نوعِ ورودی» در UI)."""
+    color_pairs = color_pairs or []
     attribute = Attribute.objects.filter(store=store, label__iexact=label).first()
     if attribute is None:
-        attribute = create_attribute(store, label=label, is_variant_axis=True)
-    elif not attribute.is_variant_axis:
-        update_attribute(attribute, is_variant_axis=True)
+        attribute = create_attribute(
+            store, label=label, is_variant_axis=True,
+            data_type=Attribute.DataType.COLOR if color_pairs else Attribute.DataType.TEXT,
+        )
+    else:
+        updates = {}
+        if not attribute.is_variant_axis:
+            updates["is_variant_axis"] = True
+        if color_pairs and attribute.data_type != Attribute.DataType.COLOR:
+            updates["data_type"] = Attribute.DataType.COLOR
+        if updates:
+            update_attribute(attribute, **updates)
     existing_labels = {v.label for v in attribute.values.all()}
     for value_label in value_labels:
         if value_label not in existing_labels:
             create_attribute_value(attribute, label=value_label)
             existing_labels.add(value_label)
+    for pair in color_pairs:
+        if pair["label"] not in existing_labels:
+            create_attribute_value(attribute, label=pair["label"], color_hex=pair["color_hex"])
+            existing_labels.add(pair["label"])
     return attribute
 
 
@@ -2212,9 +2231,18 @@ def product_option_add(request, pk):
     if form.is_valid():
         raw_values = form.cleaned_data["raw_values"]
         values = parse_bulk_values(raw_values) if raw_values else []
+        color_pairs = form.cleaned_data["color_values_json"]
+        combined_values = values + [pair["label"] for pair in color_pairs]
+        color_hex_by_label = {pair["label"]: pair["color_hex"] for pair in color_pairs}
+        input_type = ProductOption.InputType.COLOR if color_pairs else ProductOption.InputType.TEXT
         try:
-            attribute = _get_or_create_library_attribute(product.store, form.cleaned_data["label"], values)
-            add_product_option(product, label=attribute.label, attribute=attribute, values=values)
+            attribute = _get_or_create_library_attribute(
+                product.store, form.cleaned_data["label"], values, color_pairs=color_pairs,
+            )
+            add_product_option(
+                product, label=attribute.label, attribute=attribute,
+                values=combined_values, input_type=input_type, color_hex_by_label=color_hex_by_label,
+            )
         except (VariantEngineError, AttributeError_) as exc:
             return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
         return _product_options_response(request, product, toast={"message": "محور تنوع اضافه شد", "type": "ok"})

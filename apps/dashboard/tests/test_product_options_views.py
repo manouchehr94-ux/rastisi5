@@ -6,7 +6,15 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.catalog.models import Category, CategoryRecommendedOption, Product, ProductOption, ProductVariant, Vendor
+from apps.catalog.models import (
+    Attribute,
+    Category,
+    CategoryRecommendedOption,
+    Product,
+    ProductOption,
+    ProductVariant,
+    Vendor,
+)
 from apps.catalog.services.attribute_service import create_attribute, create_attribute_value
 from apps.catalog.services.variant_engine_service import add_product_option, generate_variants
 from apps.customers.models import Customer
@@ -107,6 +115,50 @@ class ProductOptionAddViewTests(ProductOptionsViewsTestCase):
         })
         self.assertEqual(response.status_code, 200)
         self.assertFalse(ProductOption.objects.filter(product=self.product).exists())
+
+    def test_color_values_auto_detect_color_type(self):
+        """اگر مقدارِ رنگ داده شود، بدونِ هیچ فیلدِ «نوعِ ورودی»ای در UI،
+        نوعِ محور و ویژگیِ کتابخانه هر دو خودکار COLOR می‌شوند."""
+        response = self.client.post(reverse("dashboard:product-option-add", args=[self.product.pk]), {
+            "label": "رنگ",
+            "color_values_json": json.dumps([
+                {"label": "قرمز", "color_hex": "#ff0000"},
+                {"label": "آبی", "color_hex": "#0000ff"},
+            ]),
+        })
+        self.assertEqual(response.status_code, 200)
+        option = ProductOption.objects.get(product=self.product, label="رنگ")
+        self.assertEqual(option.input_type, ProductOption.InputType.COLOR)
+        self.assertEqual(option.values.count(), 2)
+        red = option.values.get(label="قرمز")
+        self.assertEqual(red.color_hex, "#ff0000")
+        attribute = Attribute.objects.get(store=self.store, label="رنگ")
+        self.assertEqual(attribute.data_type, "color")
+
+    def test_mixing_text_and_color_values_combines_both(self):
+        response = self.client.post(reverse("dashboard:product-option-add", args=[self.product.pk]), {
+            "label": "ویژگی ترکیبی", "raw_values": "متنی۱، متنی۲",
+            "color_values_json": json.dumps([{"label": "قرمز", "color_hex": "#ff0000"}]),
+        })
+        self.assertEqual(response.status_code, 200)
+        option = ProductOption.objects.get(product=self.product, label="ویژگی ترکیبی")
+        self.assertEqual(option.values.count(), 3)
+        self.assertEqual(option.input_type, ProductOption.InputType.COLOR)
+
+    def test_no_color_values_keeps_text_type(self):
+        response = self.client.post(reverse("dashboard:product-option-add", args=[self.product.pk]), {
+            "label": "سایز", "raw_values": "کوچک، بزرگ",
+        })
+        self.assertEqual(response.status_code, 200)
+        option = ProductOption.objects.get(product=self.product, label="سایز")
+        self.assertEqual(option.input_type, ProductOption.InputType.TEXT)
+
+    def test_invalid_color_values_json_rejected_gracefully(self):
+        response = self.client.post(reverse("dashboard:product-option-add", args=[self.product.pk]), {
+            "label": "رنگ", "color_values_json": "not-json-at-all",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(ProductOption.objects.filter(product=self.product, label="رنگ").exists())
 
     def test_cross_store_product_rejected(self):
         other_store = Store.objects.create(name="فروشگاه دیگر", slug="popt-other2", status=Store.Status.ACTIVE)

@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from django import forms
 
-from apps.catalog.models import Attribute, Brand, Category, Product, ProductOption
+from apps.catalog.models import Attribute, Brand, Category, Product
 from apps.core.color_utils import contrast_ratio, safe_hex
 from apps.core.models import ShopSettings
 from apps.core.utils import normalize_digits
@@ -369,16 +369,21 @@ class AttributeValueForm(forms.Form):
 
 
 class ProductOptionForm(forms.Form):
-    """اعتبارسنجی ساختاری فرم افزودن محور تنوع؛ اعتبارسنجی کسب‌وکاری در variant_engine_service است."""
+    """اعتبارسنجی ساختاری فرم افزودن محور تنوع؛ اعتبارسنجی کسب‌وکاری در variant_engine_service است.
+
+    ``input_type`` هرگز از کاربر پرسیده نمی‌شود (بدون فیلد «نوعِ ورودی»
+    در UI) — به‌طور خودکار از رویِ اینکه آیا حداقل یک مقدارِ رنگ داده شده
+    یا نه تشخیص داده می‌شود (نگاه کنید به ``color_values_json``/
+    ``clean_color_values``)."""
 
     label = forms.CharField(label="نامِ ویژگی", max_length=60)
-    input_type = forms.ChoiceField(
-        label="نوعِ ورودی", choices=ProductOption.InputType.choices, initial=ProductOption.InputType.TEXT,
-        required=False,
-    )
     raw_values = forms.CharField(
         label="مقادیر اولیه", widget=forms.Textarea, required=False,
         help_text="هر مقدار را در یک خط، یا با کاما/سمیکالن از هم جدا کنید.",
+    )
+    color_values_json = forms.CharField(
+        label="مقادیرِ رنگ", widget=forms.HiddenInput, required=False,
+        help_text="فهرستِ JSON از {label, color_hex} — از بخشِ «افزودنِ مقدارِ رنگ» ساخته می‌شود.",
     )
 
     def clean_label(self):
@@ -386,6 +391,28 @@ class ProductOptionForm(forms.Form):
         if not label:
             raise forms.ValidationError("عنوان محور نمی‌تواند خالی باشد")
         return label
+
+    def clean_color_values_json(self):
+        import json
+
+        raw = self.cleaned_data.get("color_values_json", "").strip()
+        if not raw:
+            return []
+        try:
+            parsed = json.loads(raw)
+        except (ValueError, TypeError):
+            raise forms.ValidationError("قالبِ مقادیرِ رنگ نامعتبر است")
+        if not isinstance(parsed, list):
+            raise forms.ValidationError("قالبِ مقادیرِ رنگ نامعتبر است")
+        cleaned = []
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
+            label = str(item.get("label", "")).strip()
+            color_hex = str(item.get("color_hex", "")).strip()
+            if label and color_hex:
+                cleaned.append({"label": label, "color_hex": color_hex})
+        return cleaned
 
 
 class ProductOptionValueAddForm(forms.Form):

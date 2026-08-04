@@ -91,7 +91,19 @@
 
       <hr style="margin:16px 0;border-color:var(--border)">
 
-      <div x-data="{ showAddAxis: {{ axes|length|yesno:'false,true' }} }">
+      <div x-data="{
+             showAddAxis: {{ axes|length|yesno:'false,true' }},
+             colorValues: [],
+             colorLabelDraft: '',
+             colorHexDraft: '#ff0000',
+             addColorValue() {
+               const label = this.colorLabelDraft.trim();
+               if (!label) return;
+               this.colorValues.push({ label: label, color_hex: this.colorHexDraft });
+               this.colorLabelDraft = '';
+             },
+             removeColorValue(i) { this.colorValues.splice(i, 1); },
+           }">
         <button type="button" class="btn btn-sm" @click="showAddAxis = !showAddAxis" x-show="!showAddAxis">+ ویژگی جدید</button>
         <div id="axisAddGroup" x-show="showAddAxis" x-cloak>
           <div class="form-group">
@@ -100,11 +112,30 @@
             {% for err in option_form.label.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
           </div>
           <div class="form-group">
-            <label>مقادیر اولیه (اختیاری) <span class="help-icon" title="با ویرگول جدا کنید؛ بعداً هم می‌توانید مقدارِ بیشتری اضافه کنید.">؟</span></label>
-            <textarea class="inp" name="raw_values" rows="2" placeholder="سبز، آبی، زرد">{{ option_form.raw_values.value|default_if_none:'' }}</textarea>
-            <div class="field-help">مثال: «سبز، آبی، زرد»؛ یا «ایرانی، ایتالیایی» برایِ کشورِ سازنده.</div>
+            <label>مقادیرِ متنیِ اولیه (اختیاری) <span class="help-icon" title="با ویرگول جدا کنید؛ بعداً هم می‌توانید مقدارِ بیشتری اضافه کنید.">؟</span></label>
+            <textarea class="inp" name="raw_values" rows="2" placeholder="کوچک، متوسط، بزرگ">{{ option_form.raw_values.value|default_if_none:'' }}</textarea>
+            <div class="field-help">مثال: «کوچک، متوسط، بزرگ»؛ یا «ایرانی، ایتالیایی» برایِ کشورِ سازنده.</div>
+          </div>
+          <div class="form-group">
+            <label>افزودنِ مقدارِ رنگ (اختیاری) <span class="help-icon" title="اگر حداقل یک مقدارِ رنگ اضافه کنید، نوعِ این ویژگی خودکار «رنگ» می‌شود — نیازی به انتخابِ نوعِ ورودی نیست.">؟</span></label>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input class="inp" type="color" x-model="colorHexDraft" style="width:44px;height:38px;padding:2px">
+              <input class="inp" x-model="colorLabelDraft" @keydown.enter.prevent="addColorValue()" placeholder="نامِ رنگ (مثلاً: قرمز)" style="flex:1;min-width:140px">
+              <button type="button" class="btn btn-sm" @click="addColorValue()">افزودنِ مقدارِ رنگ</button>
+            </div>
+            <input type="hidden" name="color_values_json" :value="JSON.stringify(colorValues)">
+            <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px" x-show="colorValues.length">
+              <template x-for="(cv, i) in colorValues" :key="i">
+                <span class="tag" style="display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:4px 10px;font-size:12px">
+                  <span :style="{ display: 'inline-block', width: '12px', height: '12px', 'border-radius': '3px', background: cv.color_hex }"></span>
+                  <span x-text="cv.label"></span>
+                  <button type="button" style="border:0;background:transparent;color:var(--muted);cursor:pointer" @click="removeColorValue(i)">×</button>
+                </span>
+              </template>
+            </div>
           </div>
           {% for err in option_form.non_field_errors %}<div style="color:var(--red);font-size:11.5px;margin-bottom:8px">{{ err }}</div>{% endfor %}
+          {% for err in option_form.color_values_json.errors %}<div style="color:var(--red);font-size:11.5px;margin-bottom:8px">{{ err }}</div>{% endfor %}
           <div style="display:flex;gap:8px">
             <button type="button" class="btn btn-primary"
                     hx-post="{% url 'dashboard:product-option-add' product.pk %}" hx-include="#axisAddGroup"

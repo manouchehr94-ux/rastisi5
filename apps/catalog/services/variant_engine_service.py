@@ -64,7 +64,7 @@ def _has_engine_variants(product: Product) -> bool:
 @transaction.atomic
 def add_product_option(
     product: Product, *, label: str, attribute=None, values: list[str] | None = None,
-    input_type: str = ProductOption.InputType.TEXT,
+    input_type: str = ProductOption.InputType.TEXT, color_hex_by_label: dict[str, str] | None = None,
 ) -> ProductOption:
     """یک محور تنوع جدید به کالا اضافه می‌کند، به‌همراه مقادیر اولیه‌ی اختیاری."""
     label = normalize_text(label)
@@ -96,8 +96,9 @@ def add_product_option(
         raise VariantEngineError("؛ ".join(sum(exc.message_dict.values(), []))) from exc
     option.save()
 
+    color_hex_by_label = color_hex_by_label or {}
     for value_label in (values or []):
-        add_option_value(option, value_label)
+        add_option_value(option, value_label, color_hex=color_hex_by_label.get(value_label, ""))
 
     return option
 
