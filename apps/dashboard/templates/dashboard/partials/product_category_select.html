@@ -129,8 +129,11 @@
         </div>
 
         <!-- مرحله ۱: گروه اصلی -->
-        <template x-if="qStep === 1">
-          <div>
+        <!-- x-show نه x-if: با x-if، رفتنِ به مرحله‌یِ بعد این بخش را کاملاً از DOM حذف
+             می‌کند و x-ref="qGroupSelect" را نابود می‌کند — همان چیزی که در getterِ
+             qGroupLabel به آن نیاز داریم تا breadcrumb درست نمایش داده شود. با x-show
+             این بخش همیشه در DOM می‌ماند (فقط پنهان می‌شود) و ref زنده می‌ماند. -->
+        <div x-show="qStep === 1" x-cloak>
             {% if category_tree_rows %}
             <div class="qc-mode-toggle">
               <button type="button" :class="{ active: qGroupMode === 'existing' }" @click="qGroupMode = 'existing'">انتخاب از موجود</button>
@@ -150,12 +153,10 @@
               <label>نامِ گروهِ اصلیِ جدید</label>
               <input class="inp" x-model="qGroupNewName" placeholder="مثلاً: پوشاک">
             </div>
-          </div>
-        </template>
+        </div>
 
         <!-- مرحله ۲: دسته -->
-        <template x-if="qStep === 2">
-          <div>
+        <div x-show="qStep === 2" x-cloak>
             <div class="qc-mode-toggle" x-show="qCategoryOptions.length">
               <button type="button" :class="{ active: qCategoryMode === 'existing' }" @click="qCategoryMode = 'existing'">انتخاب از موجود</button>
               <button type="button" :class="{ active: qCategoryMode === 'new' }" @click="qCategoryMode = 'new'">دسته‌ی جدید</button>
@@ -173,17 +174,14 @@
               <label>نامِ دسته‌ی جدید</label>
               <input class="inp" x-model="qCategoryNewName" placeholder="مثلاً: تی‌شرت">
             </div>
-          </div>
-        </template>
+        </div>
 
         <!-- مرحله ۳: زیرگروه نهایی -->
-        <template x-if="qStep === 3">
-          <div class="form-group">
-            <label>نامِ زیرگروهِ نهایی *</label>
-            <input class="inp" x-model="qSubName" placeholder="مثلاً: تی‌شرتِ مردانه">
-            <div class="field-help">کالا فقط به همین زیرگروهِ نهایی وصل می‌شود.</div>
-          </div>
-        </template>
+        <div class="form-group" x-show="qStep === 3" x-cloak>
+          <label>نامِ زیرگروهِ نهایی *</label>
+          <input class="inp" x-model="qSubName" placeholder="مثلاً: تی‌شرتِ مردانه">
+          <div class="field-help">کالا فقط به همین زیرگروهِ نهایی وصل می‌شود.</div>
+        </div>
       </div>
       <div class="modal-foot">
         <button type="button" class="btn" x-show="qStep > 1" @click="qStep--">مرحلهٔ قبل</button>

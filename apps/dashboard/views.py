@@ -788,16 +788,16 @@ def _save_product(form, product, *, store):
 #: در آن است، نه همیشه تبِ اول (فرم هر بار از نو با ``x-data`` مقداردهی
 #: می‌شود، پس این تب باید سمتِ سرور محاسبه و به قالب داده شود).
 _PRODUCT_WIZARD_FIELD_STEPS = {
-    # تبِ ۱ — اطلاعات پایه: نام، کد کالا، آیکون، توضیحات، دسته‌بندی، برند، وضعیت، برچسب‌ها
+    # تبِ ۱ — اطلاعات پایه: نام، کد کالا، آیکون، توضیحات، برند، وضعیت، برچسب‌ها
     "name": "basic", "sku": "basic", "icon": "basic", "description": "basic",
-    "category": "basic", "brand": "basic", "status": "basic", "tags": "basic",
+    "brand": "basic", "status": "basic", "tags": "basic",
     # تبِ «تصاویر و ویدیو» فیلدهایِ ProductForm ندارد (images/video_url/video_title
     # مستقیماً از request.POST/FILES خوانده می‌شوند)؛ خطاهایش با error_step="media"
     # مستقیم در ``product_form`` مدیریت می‌شود، نه از این نگاشت.
-    # تبِ ۲ — قیمت و تنوع: قیمت، تخفیف، مالیات، لجستیک، نوعِ کالا، موجودی
+    # تبِ ۲ — نوعِ کالا: نوعِ کالا، دسته‌بندی، قیمت، تخفیف، مالیات، لجستیک، موجودی
     "price": "price", "discount_percent": "price", "tax_class": "price",
     "barcode": "price", "weight_grams": "price", "requires_shipping": "price",
-    "product_type": "price", "stock": "price",
+    "product_type": "price", "stock": "price", "category": "price",
     # تبِ ۳ — سئو و انتشار
     "seo_title": "seo", "seo_description": "seo", "slug": "seo",
 }
