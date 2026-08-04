@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.db import IntegrityError
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
 
 from apps.dashboard.decorators import permission_required, staff_required
@@ -41,9 +42,15 @@ def storefront_editor(request):
 
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
+@xframe_options_sameorigin
 def storefront_preview(request):
     """پیش‌نمایش تمام‌صفحه‌ی Draft فعلی — فقط برای staff همین فروشگاه؛ هرگز
-    برای بازدیدکننده عمومی در دسترس نیست (تصمیم ۱۱ کاربر)."""
+    برای بازدیدکننده عمومی در دسترس نیست (تصمیم ۱۱ کاربر).
+
+    ``xframe_options_sameorigin`` صراحتاً override می‌کند چون این ویو عمداً
+    داخل iframe ادیتور embed می‌شود؛ پیش‌فرض سراسری DENY (میدل‌ور
+    XFrameOptionsMiddleware بدون X_FRAME_OPTIONS) برای همه‌ی ویوهای دیگر
+    دست‌نخورده باقی می‌ماند."""
     from apps.catalog.models import Category
 
     store = _resolve_store(request)

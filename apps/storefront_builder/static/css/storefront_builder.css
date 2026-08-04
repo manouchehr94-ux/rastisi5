@@ -1,5 +1,32 @@
 /* سازنده بصری صفحه فروشگاه — ادیتور و پیش‌نمایش */
 
+/* استحکام هدر پیش‌نمایش در برابر نام فروشگاه‌های طولانی — بدون این قانون،
+   یک نام فروشگاه بلند می‌تواند چیدمانِ flex هدر را در عرض‌های باریک بشکند
+   (چون .logo در CSS پایه flex-shrink:0 دارد و هرگز خودش را کوچک نمی‌کند). */
+.header .logo {
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+}
+.header .h-actions {
+  flex-shrink: 0;
+}
+.header .logo span {
+  min-width: 0;
+  overflow: hidden;
+}
+.header .logo b,
+.header .logo small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.header .wrap {
+  min-width: 0;
+}
+
 .sfb-shell {
   display: flex;
   flex-direction: column;
