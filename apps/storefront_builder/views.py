@@ -13,7 +13,14 @@ from apps.stores.authorization import STOREFRONT_LAYOUT_MANAGE
 from apps.stores.resolution import resolve_store_for_service
 
 from . import section_registry
-from .models import StorefrontLayoutVersion, StorefrontSection
+from .models import (
+    FOOTER_CONFIG_DEFAULTS,
+    FOOTER_TOGGLE_FIELDS,
+    HEADER_CONFIG_DEFAULTS,
+    HEADER_TOGGLE_FIELDS,
+    StorefrontLayoutVersion,
+    StorefrontSection,
+)
 from .services import layout_service
 from .services.render_service import build_render_items
 
@@ -299,16 +306,6 @@ def storefront_discard(request):
     return redirect("dashboard:storefront-builder-editor")
 
 
-_HEADER_TOGGLE_FIELDS = ["show_search", "show_account", "show_cart", "show_wishlist", "sticky", "announcement_enabled"]
-_HEADER_DEFAULTS = {f: True for f in _HEADER_TOGGLE_FIELDS} | {"announcement_text": ""}
-
-_FOOTER_TOGGLE_FIELDS = [
-    "show_about", "show_contact", "show_quick_links", "show_categories",
-    "show_social", "show_trust_badges", "show_payment_logos", "show_newsletter", "show_copyright",
-]
-_FOOTER_DEFAULTS = {f: True for f in _FOOTER_TOGGLE_FIELDS}
-
-
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_header_editor(request):
@@ -316,8 +313,8 @@ def storefront_header_editor(request):
     draft = layout_service.get_or_create_draft(store, user=request.user)
 
     if request.method == "POST":
-        config = dict(_HEADER_DEFAULTS)
-        for field in _HEADER_TOGGLE_FIELDS:
+        config = dict(HEADER_CONFIG_DEFAULTS)
+        for field in HEADER_TOGGLE_FIELDS:
             config[field] = request.POST.get(field) == "on"
         config["announcement_text"] = request.POST.get("announcement_text", "")[:300]
         draft.header_config = config
@@ -325,9 +322,8 @@ def storefront_header_editor(request):
         messages.success(request, "تنظیمات هدر ذخیره شد")
         return redirect("dashboard:storefront-builder-editor")
 
-    config = {**_HEADER_DEFAULTS, **(draft.header_config or {})}
     return render(request, "dashboard/storefront_builder/header_editor.html", {
-        "active_page": "storefront_builder", "config": config, "draft": draft,
+        "active_page": "storefront_builder", "config": draft.effective_header_config(), "draft": draft,
     })
 
 
@@ -338,17 +334,16 @@ def storefront_footer_editor(request):
     draft = layout_service.get_or_create_draft(store, user=request.user)
 
     if request.method == "POST":
-        config = dict(_FOOTER_DEFAULTS)
-        for field in _FOOTER_TOGGLE_FIELDS:
+        config = dict(FOOTER_CONFIG_DEFAULTS)
+        for field in FOOTER_TOGGLE_FIELDS:
             config[field] = request.POST.get(field) == "on"
         draft.footer_config = config
         draft.save(update_fields=["footer_config", "updated_at"])
         messages.success(request, "تنظیمات فوتر ذخیره شد")
         return redirect("dashboard:storefront-builder-editor")
 
-    config = {**_FOOTER_DEFAULTS, **(draft.footer_config or {})}
     return render(request, "dashboard/storefront_builder/footer_editor.html", {
-        "active_page": "storefront_builder", "config": config, "draft": draft,
+        "active_page": "storefront_builder", "config": draft.effective_footer_config(), "draft": draft,
     })
 
 

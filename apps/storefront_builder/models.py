@@ -29,6 +29,22 @@ from django.db import models
 
 from apps.core.models import TimeStampedModel
 
+#: کلیدهای toggle هدر/فوتر و مقادیر پیش‌فرض‌شان — تک‌منبع حقیقت، هم برای
+#: فرم‌های ویرایشگر (views.py) و هم برای رندر (preview/صفحه عمومی). اینجا
+#: تعریف شده‌اند (نه فقط در views.py) دقیقاً برای اینکه
+#: ``StorefrontLayoutVersion.effective_header_config``/``effective_footer_config``
+#: همیشه یک دیکشنری کاملاً پر برگردانند — هرگز کلید ناقص، تا در تمپلیت‌ها
+#: هرگز نیازی به ``|default:True`` (که مقدار صریح ``False`` را هم به اشتباه
+#: falsy می‌گیرد و override می‌کند) نباشد.
+HEADER_TOGGLE_FIELDS = ["show_search", "show_account", "show_cart", "show_wishlist", "sticky", "announcement_enabled"]
+HEADER_CONFIG_DEFAULTS = {f: True for f in HEADER_TOGGLE_FIELDS} | {"announcement_text": ""}
+
+FOOTER_TOGGLE_FIELDS = [
+    "show_about", "show_contact", "show_quick_links", "show_categories",
+    "show_social", "show_trust_badges", "show_payment_logos", "show_newsletter", "show_copyright",
+]
+FOOTER_CONFIG_DEFAULTS = {f: True for f in FOOTER_TOGGLE_FIELDS}
+
 
 class StorefrontLayout(TimeStampedModel):
     """لنگر یک‌به‌یک هر فروشگاه — اشاره‌گر به نسخه‌ی منتشرشده و نسخه‌ی پیش‌نویس.
@@ -129,6 +145,15 @@ class StorefrontLayoutVersion(TimeStampedModel):
 
     def __str__(self):
         return f"نسخه {self.version_number} — {self.get_status_display()}"
+
+    def effective_header_config(self) -> dict:
+        """پیکربندی هدر با پیش‌فرض‌های کامل — کلید ذخیره‌نشده True است، کلید
+        صریحاً ``False`` همان ``False`` باقی می‌ماند (بر خلاف فیلتر
+        Django ``|default:True`` که مقدار صریح False را هم falsy می‌گیرد)."""
+        return {**HEADER_CONFIG_DEFAULTS, **(self.header_config or {})}
+
+    def effective_footer_config(self) -> dict:
+        return {**FOOTER_CONFIG_DEFAULTS, **(self.footer_config or {})}
 
     def compute_fingerprint(self) -> str:
         """هش SHA-256 قطعی از هدر/فوتر/بخش‌ها — مستقل از ترتیب ذخیره‌سازی ردیف‌ها."""

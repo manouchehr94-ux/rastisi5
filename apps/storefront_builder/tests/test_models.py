@@ -53,6 +53,33 @@ class StorefrontLayoutVersionModelTests(TestCase):
         fp_after = v1.compute_fingerprint()
         self.assertNotEqual(fp_before, fp_after)
 
+    def test_effective_header_config_defaults_true_when_unset(self):
+        version = StorefrontLayoutVersion.objects.create(layout=self.layout, version_number=1)
+        self.assertEqual(version.header_config, {})
+        config = version.effective_header_config()
+        self.assertTrue(config["show_search"])
+        self.assertTrue(config["show_cart"])
+        self.assertTrue(config["sticky"])
+
+    def test_effective_header_config_preserves_explicit_false(self):
+        """رگرسیون: فیلتر Django ``|default:True`` مقدار صریح False را هم
+        falsy می‌گیرد و override می‌کند — effective_header_config باید
+        False صریح را دست‌نخورده نگه دارد."""
+        version = StorefrontLayoutVersion.objects.create(
+            layout=self.layout, version_number=1, header_config={"show_cart": False},
+        )
+        config = version.effective_header_config()
+        self.assertFalse(config["show_cart"])
+        self.assertTrue(config["show_search"])
+
+    def test_effective_footer_config_preserves_explicit_false(self):
+        version = StorefrontLayoutVersion.objects.create(
+            layout=self.layout, version_number=1, footer_config={"show_copyright": False},
+        )
+        config = version.effective_footer_config()
+        self.assertFalse(config["show_copyright"])
+        self.assertTrue(config["show_about"])
+
     def test_fingerprint_independent_of_section_insertion_order(self):
         v1 = StorefrontLayoutVersion.objects.create(layout=self.layout, version_number=1)
         StorefrontSection.objects.create(version=v1, section_key="hero_banner", order=0)

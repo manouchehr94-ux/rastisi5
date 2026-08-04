@@ -41,6 +41,35 @@ def _best_products(store, sort_key):
 
 def home(request):
     store = resolve_store_for_storefront(request)
+
+    # اگر این فروشگاه سازنده بصری صفحه اصلی را منتشر کرده (تصمیم ۳ کاربر:
+    # فعال‌سازی تدریجی per-store)، مسیر قدیمی هارد‌کد این پایین اجرا
+    # نمی‌شود — به‌جایش همان نسخه‌ی منتشرشده رندر می‌شود (هرگز Draft،
+    # تصمیم ۱۱ کاربر). Import محلی برای جلوگیری از وابستگی حلقوی
+    # ماژول‌سطح با apps.storefront_builder (که خودش از apps.catalog
+    # استفاده می‌کند).
+    from apps.storefront_builder.models import StorefrontLayout
+    from apps.storefront_builder.services.render_service import build_render_items
+
+    visual_layout = (
+        StorefrontLayout.objects.filter(
+            store=store, uses_visual_storefront_layout=True, published_version__isnull=False,
+        )
+        .select_related("published_version")
+        .first()
+    )
+    if visual_layout is not None:
+        published = visual_layout.published_version
+        top_level_categories = Category.objects.filter(
+            store=store, parent__isnull=True, is_active=True,
+        ).order_by("order", "name")
+        return render(request, "catalog/home_visual.html", {
+            "render_items": build_render_items(published, store),
+            "layout_header_config": published.effective_header_config(),
+            "layout_footer_config": published.effective_footer_config(),
+            "top_level_categories": top_level_categories,
+        })
+
     active_products = storefront_listing_products(store)
 
     top_categories = list(
