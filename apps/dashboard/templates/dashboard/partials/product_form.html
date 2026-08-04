@@ -21,8 +21,22 @@
       finalPriceOf(p, d) { return Math.max(0, Math.round((Number(p) || 0) * (1 - (Number(d) || 0) / 100))); },
       openPriceModal() { this.priceDraftVal = this.priceVal; this.discountDraftVal = this.discountVal; this.priceModalOpen = true; },
       savePrice() { this.priceVal = this.priceDraftVal; this.discountVal = this.discountDraftVal || '0'; this.priceModalOpen = false; },
+      isNewProduct: {{ product|yesno:'false,true' }},
+      autoContinuing: false,
+      maybeAutoContinueToVariants() {
+        if (!this.isNewProduct || this.productType !== 'variable' || this.autoContinuing) return;
+        const name = this.$refs.nameField ? this.$refs.nameField.value.trim() : '';
+        const sku = this.$refs.skuField ? this.$refs.skuField.value.trim() : '';
+        const categoryField = document.getElementById('id_category');
+        const category = categoryField ? categoryField.value : '';
+        if (name && sku && category) {
+          this.autoContinuing = true;
+          this.$refs.keepOpenBtn.click();
+        }
+      },
     }"
-    x-init="$watch('tags', v => $refs.tagsHidden.value = v.join(','))">
+    x-init="$watch('tags', v => $refs.tagsHidden.value = v.join(','))"
+    @category-selected.window="maybeAutoContinueToVariants()">
 <div class="modal-head">
   <h3>{% if product %}ویرایش کالا{% else %}افزودن کالای جدید{% endif %}</h3>
   <button type="button" class="x-btn" @click="modalOpen = false">✕</button>
@@ -63,7 +77,8 @@
     <div class="form-section" x-show="tab === 'basic'" x-ref="tabBasic">
       <div class="form-group">
         <label>نام کالا * <span class="help-icon" title="نامی که مشتری در فروشگاه شما می‌بیند؛ در نبودِ عنوانِ سئوی اختصاصی، همین نام به‌عنوانِ عنوانِ سئو هم استفاده می‌شود.">؟</span></label>
-        <input class="inp" name="name" required value="{{ form.name.value|default_if_none:'' }}" placeholder="مثلاً: هدفون بی‌سیم مدل X20">
+        <input class="inp" name="name" required value="{{ form.name.value|default_if_none:'' }}" placeholder="مثلاً: هدفون بی‌سیم مدل X20"
+               x-ref="nameField" @input="maybeAutoContinueToVariants()">
         <div class="field-help">نامِ کاملِ کالا، همان‌طور که در صفحه‌ی کالا و کارتِ محصول نمایش داده می‌شود.</div>
         {% for err in form.name.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
@@ -90,7 +105,8 @@
       <div class="form-row">
         <div class="form-group">
           <label>کد کالا (SKU) * <span class="help-icon" title="شناسه‌ی داخلیِ یکتا برای این کالا در انبار و گزارش‌ها.">؟</span></label>
-          <input class="inp" name="sku" required value="{{ form.sku.value|default_if_none:'' }}" placeholder="DM-1001" dir="ltr">
+          <input class="inp" name="sku" required value="{{ form.sku.value|default_if_none:'' }}" placeholder="DM-1001" dir="ltr"
+                 x-ref="skuField" @input="maybeAutoContinueToVariants()">
           {% for err in form.sku.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
         </div>
         <div class="form-group">
@@ -328,6 +344,7 @@
           </label>
           <label class="type-choice">
             <input type="radio" name="product_type" value="variable" x-model="productType"
+                   @change="maybeAutoContinueToVariants()"
                    {% if form.product_type.value == "variable" %}checked{% endif %}>
             <div><b>کالای دارای تنوع</b></div>
           </label>
@@ -396,10 +413,20 @@
         </div>
       </div>
       {% else %}
-      <div x-show="productType === 'variable'" x-cloak class="info-box" style="margin-top:16px">
-        برایِ افزودنِ ویژگی‌ها (رنگ، سایز، کشورِ سازنده و ...) و ساختنِ تنوع‌ها، ابتدا کالا را ذخیره کنید — تنظیمِ تنوع اجباری نیست؛ می‌توانید فقط قیمتِ پایه را وارد کرده و کالا را ذخیره کنید و بعداً تنوع‌ها را اضافه کنید.
+      <!-- کالای تازه (بدون ذخیره‌ی قبلی): به‌محضِ اینکه نام و کدِ کالا (تبِ
+           اطلاعاتِ پایه) پر شده باشند، انتخابِ «کالای دارای تنوع» خودکار
+           (بدونِ نیاز به کلیکِ دستیِ کاربر) با keep_open=1 ارسال می‌شود تا
+           پنلِ واقعیِ «ویژگی‌ها و تنوع‌ها» — همان پنلِ بالا — بلافاصله باز
+           شود؛ هیچ پیامِ «ابتدا ذخیره کنید» یا مرحله‌ی جداگانه‌ای دیده
+           نمی‌شود. دکمه‌ی مخفی فقط برایِ تریگرِ برنامه‌ایِ ارسال است. -->
+      <button type="submit" name="keep_open" value="1" x-ref="keepOpenBtn" style="display:none" aria-hidden="true" tabindex="-1"></button>
+      <div x-show="productType === 'variable' && autoContinuing" x-cloak class="info-box" style="margin-top:16px">
+        در حالِ آماده‌سازیِ پنلِ ویژگی‌ها و تنوع‌ها…
+      </div>
+      <div x-show="productType === 'variable' && !autoContinuing" x-cloak class="info-box" style="margin-top:16px">
+        برایِ تنظیمِ ویژگی‌ها (رنگ، سایز و ...) همین‌جا، ابتدا نام و کدِ کالا را در تبِ «اطلاعاتِ پایه» تکمیل کنید.
         <div style="margin-top:10px">
-          <button type="submit" name="keep_open" value="1" class="btn btn-primary btn-sm">💾 ذخیره و ادامه با تنظیمِ ویژگی‌ها</button>
+          <button type="button" class="btn btn-sm" @click="tab = 'basic'">↩️ رفتن به تبِ «اطلاعاتِ پایه»</button>
         </div>
       </div>
       {% endif %}

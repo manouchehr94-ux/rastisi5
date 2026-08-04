@@ -40,6 +40,7 @@
          htmx.ajax('GET', '{% if product %}{% url "dashboard:product-attribute-fields-edit" product.pk %}{% else %}{% url "dashboard:product-attribute-fields" %}{% endif %}', {
            target: '#productAttributeFields', swap: 'outerHTML', values: { category: this.selectedId },
          });
+         window.dispatchEvent(new CustomEvent('category-selected'));
        },
        openQuickAdd() {
          this.pickerOpen = false;
