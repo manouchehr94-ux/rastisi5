@@ -111,6 +111,7 @@ INSTALLED_APPS = [
     "apps.blog",
     "apps.sms",
     "apps.content",
+    "apps.storefront_builder",
     "apps.stores",
     "apps.subscriptions",
     "apps.billing",

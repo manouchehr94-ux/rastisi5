@@ -114,6 +114,12 @@ SETTINGS_MANAGE = "settings.manage"
 PAYMENT_SETTINGS_MANAGE = "settings.payment"
 SMS_SETTINGS_MANAGE = "settings.sms"
 CONTENT_MANAGE = "content.manage"
+# Dedicated boundary for the visual storefront layout builder (header/footer/
+# homepage sections/draft-publish). Deliberately separate from CONTENT_MANAGE
+# — editing the storefront's visual arrangement is a different authorization
+# surface from editing CMS pages/hero slides/menus, even though today the
+# same CONTENT_EDITOR role happens to get both.
+STOREFRONT_LAYOUT_MANAGE = "storefront_layout.manage"
 
 STAFF_MANAGE = "staff.manage"
 DOMAIN_MANAGE = "domain.manage"  # reserved — no domain-management UI yet
@@ -164,7 +170,7 @@ ALL_PERMISSIONS = frozenset({
     REPORTS_VIEW, COUPON_VIEW, DISCOUNT_MANAGE,
     RETURN_VIEW, RETURN_MANAGE, REFUND_VIEW, REFUND_MANAGE,
     AUDIT_LOG_VIEW,
-    SETTINGS_MANAGE, PAYMENT_SETTINGS_MANAGE, SMS_SETTINGS_MANAGE, CONTENT_MANAGE,
+    SETTINGS_MANAGE, PAYMENT_SETTINGS_MANAGE, SMS_SETTINGS_MANAGE, CONTENT_MANAGE, STOREFRONT_LAYOUT_MANAGE,
     STAFF_MANAGE, DOMAIN_MANAGE, SUBSCRIPTION_MANAGE,
     SUBSCRIPTION_VIEW, SUBSCRIPTION_CHANGE, USAGE_VIEW,
     BILLING_VIEW, BILLING_ACCOUNT_MANAGE, BILLING_PAYMENT_MANAGE, SUBSCRIPTION_CANCEL,
@@ -200,7 +206,7 @@ _ORDER_READ_WRITE = frozenset({
     CUSTOMER_EXPORT, CUSTOMER_NOTE_MANAGE, CUSTOMER_TAG_MANAGE,
     CUSTOMER_SEGMENT_VIEW, CUSTOMER_SEGMENT_MANAGE,
 })
-_CONTENT_READ_WRITE = frozenset({CONTENT_MANAGE, MEDIA_MANAGE})
+_CONTENT_READ_WRITE = frozenset({CONTENT_MANAGE, MEDIA_MANAGE, STOREFRONT_LAYOUT_MANAGE})
 # Owner-only: staff/domain management and the billing-tier change decision.
 # SUBSCRIPTION_VIEW/USAGE_VIEW are deliberately NOT here — Administrators (and,
 # for usage, Analysts) may see billing status and quota consumption; only the
