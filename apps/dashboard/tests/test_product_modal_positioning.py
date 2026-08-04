@@ -1,4 +1,5 @@
-"""Regression tests for the nested-modal scroll/positioning bug.
+"""Regression tests for the nested-modal scroll/positioning bug, and for a follow-up
+bug the fix itself introduced.
 
 Every modal that opens *from inside* the already-open product-form modal (category
 picker, quick-add-category, price modal, variant price/sales-limit modals, bulk
@@ -12,6 +13,15 @@ These tests only assert the server-rendered HTML still carries the ``x-teleport=
 wrapper immediately before each affected overlay's opening tag — they can't exercise
 Alpine's runtime DOM relocation itself (that's covered by manual/Playwright browser
 verification), but they guard against someone deleting the wrapper in a future edit.
+
+Second bug (found via live browser testing, not caught by the tests above): htmx only
+wires up ``hx-*`` attributes on elements it swaps in itself. An element Alpine's
+``x-teleport`` moves into <body> via a raw ``appendChild`` is invisible to htmx's own
+processing pipeline, so any ``hx-post``/``hx-get`` button *inside* a teleported modal
+silently does nothing when clicked — no request, no error, nothing. This affected the
+quick-add-category "افزودن" button and the per-variant price/sales-limit "save" buttons.
+Every teleported overlay that contains an ``hx-*`` attribute must call
+``htmx.process($el)`` in its own ``x-init`` so htmx notices it once Alpine mounts it.
 """
 from decimal import Decimal
 
@@ -97,8 +107,17 @@ class NestedModalTeleportTests(TestCase):
         clone, leaving an orphaned, still-``open`` copy stuck on screen (looks exactly
         like the "Add button doesn't work" bug: nothing visibly happens because the
         stale modal is still covering everything). The submit button must close the
-        modal itself (``@click="quickAddOpen = false"``) before/alongside the request so
-        the old copy is already hidden regardless of what happens to the DOM node.
+        modal itself before/alongside the request so the old copy is already hidden
+        regardless of what happens to the DOM node.
+
+        This must NOT be done with a plain ``@click`` on the same button that also
+        carries ``hx-post``: Alpine's ``@click`` and htmx's own click listener both react
+        to the same click event, and if ``@click`` hides the button (via the now-false
+        ``quickAddOpen`` driving its ancestor's ``x-show``) before htmx's listener runs,
+        htmx silently never sends the request at all (confirmed live: zero network
+        requests fired). The state change must instead ride htmx's own
+        ``htmx:before-request`` event via ``hx-on::htmx:before-request``, which only
+        fires once htmx has already committed to sending the request.
         """
         response = self.client.get(reverse("dashboard:product-add"))
         self.assertEqual(response.status_code, 200)
@@ -108,7 +127,60 @@ class NestedModalTeleportTests(TestCase):
         self.assertNotEqual(idx, -1, "quick-add-category submit button not found")
         preceding = html[max(0, idx - 200):idx]
         self.assertIn(
-            '@click="quickAddOpen = false"', preceding,
-            "quick-add-category's own submit button must close quickAddOpen itself, "
-            "since its teleported clone won't be torn down just by swapping #categoryField",
+            'hx-on::htmx:before-request="quickAddOpen = false"', preceding,
+            "quick-add-category's own submit button must close quickAddOpen via the "
+            "htmx:before-request hook, not a plain @click (which races with htmx's own "
+            "click handling and can suppress the request entirely)",
         )
+        self.assertNotIn(
+            '@click="quickAddOpen = false"\n                hx-post', html,
+            "closing the modal via a plain @click on the hx-post button races with "
+            "htmx's click handling and can silently prevent the request from firing",
+        )
+
+    def test_teleported_modals_with_hx_attributes_call_htmx_process(self):
+        """htmx only wires up ``hx-*`` attributes on elements it swaps in itself.
+        Alpine's ``x-teleport`` moves content into <body> via a raw DOM insertion that
+        htmx never sees, so any ``hx-post``/``hx-get`` button inside a teleported modal
+        is otherwise permanently inert — clicking it does nothing, with no error and no
+        network request (confirmed live for the quick-add-category "افزودن" button and
+        the per-variant price/sales-limit "save" buttons). Every teleported overlay that
+        contains an hx-* attribute must call ``htmx.process($el)`` from its own
+        ``x-init`` so htmx notices it once Alpine mounts it.
+        """
+        response = self.client.get(reverse("dashboard:product-add"))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        idx = html.find('class="overlay" :class="{ open: quickAddOpen }"')
+        self.assertNotEqual(idx, -1, "quick-add-category overlay not found")
+        line = html[idx:html.find(">", idx)]
+        self.assertIn(
+            'x-init="htmx.process($el)"', line,
+            "quick-add-category overlay contains an hx-post button, so it must call "
+            "htmx.process($el) in its own x-init once Alpine teleports it into <body>",
+        )
+
+        product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کیف",
+            slug="modalpos-htmxproc-bag", sku="MODALP-HTMXPROC1", price=Decimal("100000"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        option = add_product_option(product, label="رنگ")
+        add_option_value(option, "قرمز")
+        generate_variants(product)
+        response = self.client.get(reverse("dashboard:product-edit", args=[product.pk]))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+
+        for marker, label in [
+            ('x-show="priceOpen"', "per-variant price modal"),
+            ('x-show="salesLimitOpen"', "per-variant sales-limit modal"),
+        ]:
+            idx = html.find(marker)
+            self.assertNotEqual(idx, -1, f"{label} not found")
+            line = html[idx:html.find(">", idx)]
+            self.assertIn(
+                'x-init="htmx.process($el)"', line,
+                f"{label} contains hx-post button(s), so it must call htmx.process($el) "
+                "in its own x-init once Alpine teleports it into <body>",
+            )

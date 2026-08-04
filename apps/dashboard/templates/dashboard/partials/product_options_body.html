@@ -297,7 +297,7 @@
                     <input type="hidden" name="variant_price" :value="priceDraft" id="priceDraft{{ variant.pk }}">
                     <input type="hidden" name="variant_discount_percent" :value="discountDraft" id="discountDraft{{ variant.pk }}">
                     <template x-teleport="body">
-                    <div x-show="priceOpen" x-cloak class="price-modal-overlay" @click.self="priceOpen = false">
+                    <div x-show="priceOpen" x-cloak class="price-modal-overlay" x-init="htmx.process($el)" @click.self="priceOpen = false">
                       <div class="price-modal-card">
                         <h4 style="margin:0 0 14px">تنظیمِ قیمتِ تنوع</h4>
                         <div class="form-group">
@@ -331,7 +331,7 @@
                       {% else %}نامحدود{% endif %}
                     </button>
                     <template x-teleport="body">
-                    <div x-show="salesLimitOpen" x-cloak class="price-modal-overlay" @click.self="salesLimitOpen = false">
+                    <div x-show="salesLimitOpen" x-cloak class="price-modal-overlay" x-init="htmx.process($el)" @click.self="salesLimitOpen = false">
                       <div class="price-modal-card">
                         <h4 style="margin:0 0 14px">تنظیمِ محدودیتِ فروش</h4>
                         <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">حداقل و حداکثر تعدادِ قابلِ‌خرید از این تنوع در یک سفارش. خالی = نامحدود.</p>
