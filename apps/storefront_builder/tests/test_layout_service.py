@@ -32,6 +32,11 @@ class GetOrCreateDraftTests(TestCase):
     def test_new_draft_clones_published_content(self):
         store = _akhlaghi()
         d1 = svc.get_or_create_draft(store)
+        # d1 is the first-ever draft, so it starts pre-populated by the
+        # legacy bootstrap (checkpoint 5) — clear it to isolate exactly
+        # what this test cares about: that publish -> next-draft round-trips
+        # sections faithfully, independent of bootstrap content.
+        d1.sections.all().delete()
         StorefrontSection.objects.create(version=d1, section_key="hero_banner", order=0, settings={"a": 1})
         published = svc.publish(store)
         self.assertEqual(published.sections.count(), 1)
@@ -144,6 +149,7 @@ class RestoreVersionTests(TestCase):
     def test_restore_clones_source_sections(self):
         store = _akhlaghi()
         d1 = svc.get_or_create_draft(store)
+        d1.sections.all().delete()  # isolate from checkpoint-5 legacy-bootstrap defaults
         StorefrontSection.objects.create(version=d1, section_key="hero_banner", order=0, settings={"x": 1})
         v1 = svc.publish(store)
 
