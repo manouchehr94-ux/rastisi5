@@ -8,14 +8,20 @@
   <a class="btn btn-primary" href="{% url 'dashboard:product-variants' product.pk %}">مدیریت تنوع‌های تک‌محوره</a>
 </div>
 {% else %}
-<div x-data="{ variantView: 'table', libraryOpen: false, attrAddOpen: false, newAttrName: '', showAddVariant: false, bulkSalesLimitOpen: false, bulkSalesLimitMinDraft: '', bulkSalesLimitMaxDraft: '',
-     checkedIds() { return [...this.$el.querySelectorAll('tbody input[name=delete_variant_ids]:checked, .variant-card input[name=delete_variant_ids]:checked')].map(cb => cb.value); },
-     bulkFill(field, promptText) {
+<div x-data="{ variantView: 'table', libraryOpen: false, attrAddOpen: false, newAttrName: '', showAddVariant: false, bulkSalesLimitOpen: false, bulkSalesLimitMinDraft: '', bulkSalesLimitMaxDraft: '', bulkStockOpen: false, bulkStockDraft: '',
+     // نکته‌ی مهم: عمداً از ``this.$el`` استفاده نمی‌شود — Alpine مقدارِ ``$el``
+     // را برایِ هر ارزیابیِ یک عبارتِ ``@click`` دوباره به‌خودِ همان عنصرِ
+     // ماشه (مثلاً همین دکمه، که هیچ ``<tbody>``یی زیرش ندارد) محدود می‌کند؛
+     // یعنی این متدها وقتی از یک دکمه فراخوانی می‌شدند همیشه فهرستِ خالی
+     // برمی‌گرداندند و هیچ عملِ گروهی هرگز واقعاً کار نمی‌کرد. اسکوپ‌کردن به
+     // ``#productOptionsBody`` (شناسه‌ی پایدارِ فرزندِ اصلی) این وابستگی به
+     // عنصرِ ماشه را کاملاً حذف می‌کند.
+     checkedIds() { return [...document.querySelectorAll('#productOptionsBody tbody input[name=delete_variant_ids]:checked, #productOptionsBody .variant-card input[name=delete_variant_ids]:checked')].map(cb => cb.value); },
+     applyBulkStock() {
        const ids = this.checkedIds();
-       if (!ids.length) return;
-       const value = prompt(promptText);
-       if (value === null) return;
-       ids.forEach(id => { const input = this.$el.querySelector(`[name=variant_${id}_${field}]`); if (input) input.value = value; });
+       if (!ids.length) { this.bulkStockOpen = false; return; }
+       htmx.ajax('POST', '{% url 'dashboard:product-variants-bulk-stock' product.pk %}', { target: '#productOptionsBody', swap: 'innerHTML', values: { variant_ids: ids, stock: this.bulkStockDraft } });
+       this.bulkStockOpen = false;
      },
      bulkActivate(activate) {
        const ids = this.checkedIds();
@@ -206,11 +212,28 @@
   {% if active_variants %}
   <div id="variantBulkForm">
     <div class="row" style="margin-top:14px">
-      <button type="button" class="btn btn-sm" @click="bulkFill('stock', 'موجودیِ جدید برایِ ردیف‌هایِ انتخاب‌شده:')">📦 تنظیمِ گروهیِ موجودی</button>
+      <button type="button" class="btn btn-sm" @click="bulkStockDraft = ''; bulkStockOpen = true">📦 تنظیمِ گروهیِ موجودی</button>
       <button type="button" class="btn btn-sm" @click="bulkActivate('1')">✅ فعال‌سازیِ انتخاب‌شده‌ها</button>
       <button type="button" class="btn btn-sm" @click="bulkActivate('0')">🚫 غیرفعال‌سازیِ انتخاب‌شده‌ها</button>
       <button type="button" class="btn btn-sm" @click="bulkSalesLimitOpen = true">🎯 محدودیتِ فروشِ گروهی</button>
     </div>
+
+    <template x-teleport="body">
+    <div x-show="bulkStockOpen" x-cloak class="price-modal-overlay" @click.self="bulkStockOpen = false">
+      <div class="price-modal-card">
+        <h4 style="margin:0 0 14px">تنظیمِ گروهیِ موجودی</h4>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">موجودیِ همه‌ی تنوع‌هایِ تیک‌خورده برابرِ این عدد می‌شود.</p>
+        <div class="form-group">
+          <label>موجودیِ جدید</label>
+          <input class="inp" x-model="bulkStockDraft" dir="ltr" inputmode="numeric" placeholder="مثال: ۲۰">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button type="button" class="btn" @click="bulkStockOpen = false">انصراف</button>
+          <button type="button" class="btn btn-primary" :disabled="bulkStockDraft.trim() === ''" @click="applyBulkStock()">اعمال روی انتخاب‌شده‌ها</button>
+        </div>
+      </div>
+    </div>
+    </template>
 
     <template x-teleport="body">
     <div x-show="bulkSalesLimitOpen" x-cloak class="price-modal-overlay" @click.self="bulkSalesLimitOpen = false">

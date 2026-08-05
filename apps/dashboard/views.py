@@ -2762,6 +2762,35 @@ def product_variants_bulk_sales_limit(request, pk):
 @require_POST
 @staff_required
 @permission_required(VARIANT_MANAGE)
+def product_variants_bulk_stock(request, pk):
+    """اعمالِ گروهیِ موجودی رویِ تنوع‌هایِ انتخاب‌شده — بدونِ نیاز به کلیکِ
+    جداگانه‌ی «ذخیره‌ی تغییرات»؛ درست مثلِ الگویِ ``product_variants_bulk_sales_limit``،
+    بلافاصله در دیتابیس اعمال می‌شود."""
+    product = _get_scoped_product(request, pk)
+    variant_ids = [int(v) for v in request.POST.getlist("variant_ids") if v.isdigit()]
+    if not variant_ids:
+        return _product_options_response(request, product, toast={"message": "هیچ تنوعی انتخاب نشده است.", "type": "err"})
+
+    raw_stock = normalize_digits(request.POST.get("stock", "")).strip()
+    if not raw_stock:
+        return _product_options_response(request, product, toast={"message": "موجودیِ جدید را وارد کنید.", "type": "err"})
+    try:
+        stock = int(raw_stock)
+    except ValueError:
+        return _product_options_response(request, product, toast={"message": "موجودی باید یک عدد صحیح باشد.", "type": "err"})
+    if stock < 0:
+        return _product_options_response(request, product, toast={"message": "موجودی نمی‌تواند منفی باشد.", "type": "err"})
+
+    variants = product.variants.filter(pk__in=variant_ids)
+    updated = variants.update(stock=stock)
+    return _product_options_response(
+        request, product, toast={"message": f"موجودیِ {updated} تنوع به‌روزرسانی شد", "type": "ok"},
+    )
+
+
+@require_POST
+@staff_required
+@permission_required(VARIANT_MANAGE)
 def product_variants_bulk_update(request, pk):
     product = _get_scoped_product(request, pk)
     variant_ids = [int(v) for v in request.POST.getlist("variant_ids") if v.isdigit()]

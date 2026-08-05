@@ -86,6 +86,7 @@ urlpatterns = [
     path("products/<int:pk>/options/variants/<int:variant_id>/price/", views.product_variant_set_price, name="product-variant-set-price"),
     path("products/<int:pk>/options/variants/<int:variant_id>/sales-limit/", views.product_variant_set_sales_limit, name="product-variant-set-sales-limit"),
     path("products/<int:pk>/options/variants/bulk-sales-limit/", views.product_variants_bulk_sales_limit, name="product-variants-bulk-sales-limit"),
+    path("products/<int:pk>/options/variants/bulk-stock/", views.product_variants_bulk_stock, name="product-variants-bulk-stock"),
     path("products/<int:pk>/options/bulk-update/", views.product_variants_bulk_update, name="product-variants-bulk-update"),
     path("products/<int:pk>/options/bulk-delete/", views.product_variants_bulk_delete, name="product-variants-bulk-delete"),
     path("products/<int:pk>/options/bulk-activate/", views.product_variants_bulk_activate, name="product-variants-bulk-activate"),
