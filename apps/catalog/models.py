@@ -152,7 +152,16 @@ class Product(TimeStampedModel):
         "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="products",
     )
     vendor = models.ForeignKey(Vendor, verbose_name="فروشنده", on_delete=models.CASCADE, related_name="products")
-    category = models.ForeignKey(Category, verbose_name="دسته‌بندی", on_delete=models.PROTECT, related_name="products")
+    # null=True/blank=True فقط برای پشتیبانی از پیش‌نویسِ داخلیِ در حالِ ساخت
+    # (``is_draft_placeholder``) که پیش از انتخابِ دسته‌بندی توسطِ کاربر
+    # موقتاً بدونِ دسته‌بندی وجود دارد — نگاه کنید به
+    # ``apps.catalog.services.product_draft_service``. ذخیره‌ی نهاییِ کالا
+    # (``_save_product``) همچنان از طریقِ ``ProductForm`` دسته‌بندی را
+    # الزامی می‌کند؛ این کاملاً یک سطحِ برنامه‌ای است، نه شُلیِ دیتابیس.
+    category = models.ForeignKey(
+        Category, verbose_name="دسته‌بندی", on_delete=models.PROTECT, related_name="products",
+        null=True, blank=True,
+    )
     brand = models.ForeignKey(
         Brand, verbose_name="برند", on_delete=models.SET_NULL, null=True, blank=True, related_name="products"
     )
@@ -225,6 +234,26 @@ class Product(TimeStampedModel):
     # سئو (Phase 1C — پیش‌تر هیچ فیلد سئویی روی Product وجود نداشت)
     seo_title = models.CharField("عنوان سئو", max_length=70, blank=True, default="")
     seo_description = models.CharField("توضیحات متا", max_length=160, blank=True, default="")
+
+    # پیش‌نویسِ داخلیِ در حالِ ساخت (Product Entry full-page rebuild) — وقتی
+    # مدیرِ فروشگاه صفحه‌ی «افزودنِ کالا» را باز می‌کند، بلافاصله (پیش از پرکردنِ
+    # نام/دسته‌بندی) یک ردیفِ واقعیِ Product ساخته یا از سر گرفته می‌شود تا
+    # ویژگی‌ها/تنوع‌ها/تصاویر بتوانند همان لحظه به یک pkِ واقعی وصل شوند —
+    # نگاه کنید به ``apps.catalog.services.product_draft_service``. این پرچم
+    # کاملاً مستقل از ``status`` (که وضعیتِ انتشارِ *واقعیِ* یک کالای تکمیل‌شده
+    # را کنترل می‌کند) است: پیش‌نویسِ نیمه‌کاره هرگز در فهرست/آمار/فروشگاه ظاهر
+    # نمی‌شود، فارغ از این‌که status چه مقداری دارد. ذخیره‌ی نهاییِ معتبر
+    # (``_save_product``) همیشه این پرچم را False می‌کند.
+    is_draft_placeholder = models.BooleanField(
+        "پیش‌نویسِ داخلیِ در حالِ ساخت", default=False, db_index=True,
+    )
+    # فقط برایِ اطلاع/حسابرسی (کدام کاربر این پیش‌نویس را شروع کرده) — مالکیتِ
+    # واقعی و ایزوله‌سازیِ چندمستأجری از رویِ ``store`` انجام می‌شود، نه این
+    # فیلد؛ حذفِ کاربر هرگز نباید پیش‌نویس را حذف کند (SET_NULL).
+    draft_created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="سازنده‌ی پیش‌نویس", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+    )
 
     # برچسب‌های آزاد کالا (Product Entry rebuild) — مستقل از ``tag`` (نشانِ
     # بازاریابیِ تک‌انتخابیِ قدیمی مثل «جدید»/«پرفروش») که بدونِ تغییر باقی

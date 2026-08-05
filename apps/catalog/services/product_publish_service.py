@@ -50,7 +50,9 @@ def storefront_visible_products(store, *, now=None) -> QuerySet[Product]:
     «فقط با لینکِ مستقیم» (``Visibility.LINK_ONLY``) هم اینجا هستند — این
     تابع فقط برایِ صفحه‌ی *جزئیاتِ* یک کالایِ مشخص استفاده می‌شود، نه فهرست."""
     now = now or timezone.now()
-    return Product.objects.filter(store=store, status=Product.Status.ACTIVE).filter(
+    return Product.objects.filter(
+        store=store, status=Product.Status.ACTIVE, is_draft_placeholder=False,
+    ).filter(
         Q(publish_at__isnull=True) | Q(publish_at__lte=now)
     )
 
