@@ -33,7 +33,7 @@ from apps.catalog.models import (
     VariantOptionValue,
 )
 from apps.catalog.services.variant_service import generate_variant_sku
-from apps.core.utils import normalize_text
+from apps.core.utils import normalization_key, normalize_text
 
 #: حداکثر تعداد محور تنوع مجاز روی یک کالا. کنترل انفجار ترکیبی: با مقادیر
 #: معمول (۳ تا ۶ مقدار در هر محور) عددی مثل ۴ محور می‌تواند به هزاران ترکیب
@@ -111,6 +111,11 @@ def add_option_value(option: ProductOption, label: str, *, color_hex: str = "", 
     if attribute_value is not None:
         if option.attribute_id is None or attribute_value.attribute_id != option.attribute_id:
             raise VariantEngineError("این مقدار متعلق به ویژگی مرتبط با این محور نیست.")
+    if option.values.filter(is_active=True, normalized_label=normalization_key(label)).exists():
+        # پیامِ پیش‌فرضِ Django برایِ نقضِ ``uniq_active_option_value_label`` به
+        # فارسی ترجمه نمی‌شود (بخشِ ۱۲۹۹ در models.py)؛ این بررسیِ پیشگیرانه
+        # همان محدودیت را با پیامی فارسی و روشن گزارش می‌کند.
+        raise VariantEngineError("این مقدار قبلاً برای این ویژگی ثبت شده است.")
 
     next_order = option.values.count()
     option_value = ProductOptionValue(

@@ -29,13 +29,13 @@
        this.bulkSalesLimitOpen = false;
      },
    }">
-
+{% with pf_exclude="not current_tab,name,sku,category,unit,model_code,country_of_origin,second_group,quick_collection_name,brand,quick_brand_name,price,discount_percent,stock,status,icon,description,product_type,barcode,weight_grams,requires_shipping,tax_class,seo_title,seo_description,slug,visibility,publish_at,tags,__edit_video_url,__edit_video_title,images" %}
 {% if recommended_options %}
 <div class="card">
   <div class="card-title">محورهای تنوع پیشنهادی برای این دسته‌بندی</div>
   <div class="row">
     {% for recommendation in recommended_options %}
-    <button type="button" class="btn btn-sm btn-soft"
+    <button type="button" class="btn btn-sm btn-soft" hx-params="{{ pf_exclude }}"
             hx-post="{% url 'dashboard:product-apply-recommended-option' product.pk recommendation.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">➕ {{ recommendation.attribute.label }}</button>
     {% endfor %}
   </div>
@@ -59,26 +59,30 @@
       <div class="row between">
         <b>نامِ ویژگی: {{ axis.label }}{% if not axis.is_active %} <span class="opt-pill">غیرفعال</span>{% endif %}</b>
         {% if axis.is_active %}
-        <button type="button" class="btn btn-sm btn-danger" title="حذف/غیرفعال‌سازیِ این ویژگی"
+        <button type="button" class="btn btn-sm btn-danger" title="حذف/غیرفعال‌سازیِ این ویژگی" hx-params="none"
                 hx-post="{% url 'dashboard:product-option-deactivate' product.pk axis.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
                 hx-confirm="غیرفعال‌سازی این ویژگی باعث می‌شود در تولید بعدی، ترکیب‌های آن منسوخ شوند. ادامه می‌دهید؟">حذف ویژگی</button>
         {% else %}
-        <button type="button" class="btn btn-sm btn-soft" hx-post="{% url 'dashboard:product-option-activate' product.pk axis.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">فعال‌سازی</button>
+        <button type="button" class="btn btn-sm btn-soft" hx-params="none" hx-post="{% url 'dashboard:product-option-activate' product.pk axis.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">فعال‌سازی</button>
         {% endif %}
       </div>
       <div class="add-value" id="valueAddGroup{{ axis.pk }}">
-        <input name="label" placeholder="افزودن مقدار اولیه، مثال: ۱۶۰ سانتی‌متر"
+        <input name="v_{{ axis.pk }}" placeholder="افزودن مقدار اولیه، مثال: ۱۶۰ سانتی‌متر"
                @keydown.enter.prevent="$event.target.nextElementSibling.click()">
         <button type="button" class="btn btn-sm btn-soft"
-                hx-post="{% url 'dashboard:product-option-value-add' product.pk axis.pk %}" hx-include="#valueAddGroup{{ axis.pk }}"
+                hx-post="{% url 'dashboard:product-option-value-add' product.pk axis.pk %}"
+                hx-include="#valueAddGroup{{ axis.pk }}" hx-params="v_{{ axis.pk }}"
                 hx-target="#productOptionsBody" hx-swap="innerHTML">+ افزودن مقدار اولیه</button>
       </div>
+      {% if value_error.axis_id == axis.pk %}
+      <div class="pe-field-error">{{ value_error.message }}</div>
+      {% endif %}
       <div class="tags">
         {% for value in axis.values.all %}
         <span class="tag"{% if not value.is_active %} style="opacity:.5"{% endif %}>
           {% if value.color_hex %}<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:{{ value.color_hex }}"></span>{% endif %}
           {{ value.label }}{% if not value.is_active %} (غیرفعال){% endif %}
-          <button type="button" hx-post="{% url 'dashboard:product-option-value-remove' product.pk value.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML" hx-confirm="حذف/غیرفعال‌سازی «{{ value.label }}»؟" title="حذف">×</button>
+          <button type="button" hx-params="none" hx-post="{% url 'dashboard:product-option-value-remove' product.pk value.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML" hx-confirm="حذف/غیرفعال‌سازی «{{ value.label }}»؟" title="حذف">×</button>
         </span>
         {% empty %}
         <span class="pe-field-help">هنوز مقداری اضافه نشده است.</span>
@@ -113,7 +117,7 @@
     <div class="modal-foot">
       <button type="button" class="btn" @click="attrAddOpen = false">انصراف</button>
       <button type="button" class="btn btn-primary" x-ref="addAttrBtn" :disabled="!newAttrName.trim()"
-              hx-post="{% url 'dashboard:product-option-add' product.pk %}" hx-include="#newAttrNameInput"
+              hx-post="{% url 'dashboard:product-option-add' product.pk %}" hx-include="#newAttrNameInput" hx-params="label"
               hx-target="#productOptionsBody" hx-swap="innerHTML"
               @click="attrAddOpen = false">افزودن ویژگی</button>
     </div>
@@ -133,7 +137,7 @@
       <p class="field-help" style="margin-bottom:10px">این ویژگی‌ها قبلاً برایِ کالاهایِ دیگرِ همین فروشگاه ساخته شده‌اند. انتخابِ یکی، آن ویژگی و همه‌ی مقادیرش را به این کالا اضافه می‌کند.</p>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         {% for lib_attr in library_attributes %}
-        <button type="button" class="btn btn-sm"
+        <button type="button" class="btn btn-sm" hx-params="none"
                 hx-post="{% url 'dashboard:product-option-add-from-library' product.pk lib_attr.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
                 hx-on::htmx:before-request="libraryOpen = false">
           ✓ {{ lib_attr.label }} <small style="color:var(--muted)">({{ lib_attr.values.count|fa_number }})</small>
@@ -162,7 +166,7 @@
         <button type="button" class="btn btn-sm" :class="{active: variantView==='card'}" @click="variantView='card'">نمای کارت</button>
       </div>
       {% endif %}
-      <button type="button" class="btn btn-sm btn-primary" {% if not axes %}disabled title="ابتدا حداقل یک ویژگی اضافه کنید"{% endif %}
+      <button type="button" class="btn btn-sm btn-primary" {% if not axes %}disabled title="ابتدا حداقل یک ویژگی اضافه کنید"{% endif %} hx-params="none"
               hx-post="{% url 'dashboard:product-variants-generate' product.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
               hx-confirm="ساختِ ترکیب‌ها اجرا شود؟ تنوع‌های موجود حفظ می‌شوند؛ تنوع‌های حذف‌شده منسوخ (نه حذف) خواهند شد.">🔄 ساختِ ترکیب‌ها ({{ combination_preview|fa_number }})</button>
     </div>
@@ -194,7 +198,7 @@
     </div>
     {% endif %}
     {% endfor %}
-    <button type="button" class="btn btn-sm btn-primary"
+    <button type="button" class="btn btn-sm btn-primary" hx-params="{{ pf_exclude }}"
             hx-post="{% url 'dashboard:product-variant-manual-add' product.pk %}" hx-include="#manualVariantGroup"
             hx-target="#productOptionsBody" hx-swap="innerHTML">افزودنِ ردیف</button>
   </div>
@@ -284,7 +288,7 @@
             </td>
             <td><button type="button" class="btn btn-sm" @click="detailOpen = !detailOpen">⋯ جزئیاتِ بیشتر</button></td>
             <td>
-              <button type="button" class="btn btn-sm btn-danger" title="حذفِ این تنوع"
+              <button type="button" class="btn btn-sm btn-danger" title="حذفِ این تنوع" hx-params="delete_variant_ids"
                       hx-post="{% url 'dashboard:product-variants-bulk-delete' product.pk %}" hx-vals='{"delete_variant_ids": [{{ variant.pk }}]}'
                       hx-target="#productOptionsBody" hx-swap="innerHTML" hx-confirm="این تنوع حذف شود؟ تنوعِ استفاده‌شده در سفارش حذف نخواهد شد.">🗑️</button>
             </td>
@@ -310,7 +314,7 @@
                   <button type="button" class="btn" @click="priceOpen = false">انصراف</button>
                   <button type="button" class="btn btn-primary"
                           hx-post="{% url 'dashboard:product-variant-set-price' product.pk variant.pk %}"
-                          hx-include="#priceDraft{{ variant.pk }},#discountDraft{{ variant.pk }}"
+                          hx-include="#priceDraft{{ variant.pk }},#discountDraft{{ variant.pk }}" hx-params="variant_price,variant_discount_percent"
                           hx-target="#productOptionsBody" hx-swap="innerHTML">ذخیره‌ی قیمت</button>
                 </div>
               </div>
@@ -354,11 +358,11 @@
                   {% if variant.is_default %}
                   <span class="opt-pill" style="background:#dcfce7;color:#166534">پیش‌فرض</span>
                   {% else %}
-                  <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:product-variant-set-default' product.pk variant.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">تنظیمِ پیش‌فرض</button>
+                  <button type="button" class="btn btn-sm" hx-params="none" hx-post="{% url 'dashboard:product-variant-set-default' product.pk variant.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">تنظیمِ پیش‌فرض</button>
                   {% endif %}
                 </div>
                 <div class="field" style="margin-bottom:0;align-self:flex-end">
-                  <button type="button" class="btn btn-sm" title="تکرارِ این ردیف"
+                  <button type="button" class="btn btn-sm" title="تکرارِ این ردیف" hx-params="none"
                           hx-post="{% url 'dashboard:product-variant-matrix-duplicate' product.pk variant.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">⧉ تکرار</button>
                 </div>
               </div>
@@ -382,11 +386,11 @@
                   <button type="button" class="btn" @click="salesLimitOpen = false">انصراف</button>
                   <button type="button" class="btn btn-secondary"
                           hx-post="{% url 'dashboard:product-variant-set-sales-limit' product.pk variant.pk %}"
-                          hx-vals='{"sales_limit_min":"","sales_limit_max":""}'
+                          hx-vals='{"sales_limit_min":"","sales_limit_max":""}' hx-params="sales_limit_min,sales_limit_max"
                           hx-target="#productOptionsBody" hx-swap="innerHTML">پاک‌کردنِ محدودیت</button>
                   <button type="button" class="btn btn-primary"
                           hx-post="{% url 'dashboard:product-variant-set-sales-limit' product.pk variant.pk %}"
-                          hx-include="#salesLimitMinDraft{{ variant.pk }},#salesLimitMaxDraft{{ variant.pk }}"
+                          hx-include="#salesLimitMinDraft{{ variant.pk }},#salesLimitMaxDraft{{ variant.pk }}" hx-params="sales_limit_min,sales_limit_max"
                           hx-target="#productOptionsBody" hx-swap="innerHTML">ذخیره</button>
                 </div>
               </div>
@@ -427,7 +431,7 @@
           <label style="display:flex;align-items:center;gap:6px;font-size:12.5px">
             <input type="checkbox" name="variant_{{ variant.pk }}_is_active" {% if variant.is_active %}checked{% endif %}> فعال
           </label>
-          <button type="button" class="btn btn-sm btn-danger"
+          <button type="button" class="btn btn-sm btn-danger" hx-params="delete_variant_ids"
                   hx-post="{% url 'dashboard:product-variants-bulk-delete' product.pk %}" hx-vals='{"delete_variant_ids": [{{ variant.pk }}]}'
                   hx-target="#productOptionsBody" hx-swap="innerHTML" hx-confirm="این تنوع حذف شود؟">🗑️ حذفِ این تنوع</button>
         </div>
@@ -437,10 +441,10 @@
     </div>
 
     <div class="row" style="margin-top:14px">
-      <button type="button" class="btn btn-primary"
+      <button type="button" class="btn btn-primary" hx-params="{{ pf_exclude }}"
               hx-post="{% url 'dashboard:product-variants-bulk-update' product.pk %}" hx-include="#variantBulkForm"
               hx-target="#productOptionsBody" hx-swap="innerHTML">ذخیره‌ی تغییرات (کد، موجودی، فعال، جزئیاتِ بیشتر)</button>
-      <button type="button" class="btn btn-danger"
+      <button type="button" class="btn btn-danger" hx-params="{{ pf_exclude }}"
               hx-post="{% url 'dashboard:product-variants-bulk-delete' product.pk %}" hx-include="#variantBulkForm" hx-target="#productOptionsBody" hx-swap="innerHTML"
               hx-confirm="تنوع‌های انتخاب‌شده حذف شوند؟ تنوعِ استفاده‌شده در سفارش حذف نخواهد شد.">🗑️ حذفِ انتخاب‌شده‌ها</button>
       <button type="button" class="btn btn-sm" style="margin-inline-start:auto"
@@ -466,6 +470,6 @@
   </div>
 </div>
 {% endif %}
-
+{% endwith %}
 </div>
 {% endif %}

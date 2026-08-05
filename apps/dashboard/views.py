@@ -2336,10 +2336,11 @@ def _product_options_context(request, product):
     }
 
 
-def _product_options_response(request, product, *, toast=None):
-    response = render(
-        request, "dashboard/partials/product_options_body.html", _product_options_context(request, product),
-    )
+def _product_options_response(request, product, *, toast=None, value_error=None):
+    context = _product_options_context(request, product)
+    if value_error:
+        context["value_error"] = value_error
+    response = render(request, "dashboard/partials/product_options_body.html", context)
     if toast:
         response["HX-Trigger"] = json.dumps({"toast": toast})
     return response
@@ -2535,7 +2536,16 @@ def product_option_move(request, pk, option_id):
 def product_option_value_add(request, pk, option_id):
     product = _get_scoped_product(request, pk)
     option = get_object_or_404(ProductOption, pk=option_id, product=product)
-    form = ProductOptionValueAddForm(request.POST)
+    # فیلدِ فرم عمداً ``v_<option_id>`` نام‌گذاری شده (نه ``label`` ساده): چون
+    # این دکمه هنوز داخلِ ``<form id="productSaveForm">`` است، htmx مقادیرِ
+    # همه‌ی ورودی‌هایِ آن فرم (و همه‌ی کارت‌هایِ ویژگیِ دیگر) را هم به‌صورتِ
+    # خودکار می‌فرستد؛ اگر این ورودی نامِ مشترکِ ``label`` داشت، مقدارِ خالیِ
+    # یک کارتِ دیگر می‌توانست جای مقدارِ واقعی را بگیرد (چون Django برایِ
+    # کلیدهایِ تکراری آخرین مقدار را برمی‌دارد). نامِ یکتا + ``hx-params``
+    # در قالب، این اثرِ جانبی را کاملاً حذف می‌کند.
+    data = request.POST.copy()
+    data["label"] = request.POST.get(f"v_{option_id}", "")
+    form = ProductOptionValueAddForm(data)
     if form.is_valid():
         label = form.cleaned_data["label"]
         try:
@@ -2548,9 +2558,10 @@ def product_option_value_add(request, pk, option_id):
                     attribute_value = create_attribute_value(option.attribute, label=label)
             add_option_value(option, label, color_hex=form.cleaned_data["color_hex"], attribute_value=attribute_value)
         except (VariantEngineError, AttributeError_) as exc:
-            return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
+            return _product_options_response(request, product, value_error={"axis_id": option.pk, "message": str(exc)})
         return _product_options_response(request, product, toast={"message": "مقدار اضافه شد", "type": "ok"})
-    return _product_options_response(request, product, toast={"message": "لطفاً خطاهای فرم را برطرف کنید", "type": "err"})
+    message = "؛ ".join(form.errors.get("label", [])) or "لطفاً خطاهای فرم را برطرف کنید"
+    return _product_options_response(request, product, value_error={"axis_id": option.pk, "message": message})
 
 
 @require_POST

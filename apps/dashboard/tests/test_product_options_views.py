@@ -221,7 +221,8 @@ class ProductOptionValueViewTests(ProductOptionsViewsTestCase):
     def test_add_value(self):
         option = add_product_option(self.product, label="رنگ", values=["سبز"])
         response = self.client.post(
-            reverse("dashboard:product-option-value-add", args=[self.product.pk, option.pk]), {"label": "آبی"},
+            reverse("dashboard:product-option-value-add", args=[self.product.pk, option.pk]),
+            {f"v_{option.pk}": "آبی"},
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(option.values.filter(label="آبی").exists())

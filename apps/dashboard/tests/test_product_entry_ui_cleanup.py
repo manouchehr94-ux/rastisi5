@@ -158,7 +158,7 @@ class AttributeEntryUxTests(ProductEntryUiCleanupTestCase):
         option = add_product_option(self.product, label="طول")
         response = self.client.post(
             reverse("dashboard:product-option-value-add", args=[self.product.pk, option.pk]),
-            {"label": "100 cm"},
+            {f"v_{option.pk}": "100 cm"},
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(ProductOptionValue.objects.filter(option=option, label="100 cm").exists())
@@ -169,7 +169,7 @@ class AttributeEntryUxTests(ProductEntryUiCleanupTestCase):
         add_option_value(option, "100 cm")
         self.client.post(
             reverse("dashboard:product-option-value-add", args=[self.product.pk, option.pk]),
-            {"label": "100 cm"},
+            {f"v_{option.pk}": "100 cm"},
         )
         self.assertEqual(ProductOptionValue.objects.filter(option=option, label="100 cm").count(), 1)
 
@@ -177,7 +177,7 @@ class AttributeEntryUxTests(ProductEntryUiCleanupTestCase):
         option = add_product_option(self.product, label="طول")
         self.client.post(
             reverse("dashboard:product-option-value-add", args=[self.product.pk, option.pk]),
-            {"label": "   "},
+            {f"v_{option.pk}": "   "},
         )
         self.assertEqual(ProductOptionValue.objects.filter(option=option).count(), 0)
 
