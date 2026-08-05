@@ -292,7 +292,8 @@
                    htmx.trigger($refs.editImagesInput, 'change');
                  ">
             <span style="font-size:26px">🖼️</span>
-            <span>تصاویر را اینجا رها کنید یا کلیک کنید</span>
+            <span>تصاویر را بکشید و رها کنید</span>
+            <span class="dropzone-choose">انتخاب تصاویر</span>
             <small style="color:var(--muted)">فرمت‌های مجاز: jpg، png، webp — حداکثر ۵ مگابایت — چندتصویری هم‌زمان مجاز است</small>
             <input type="file" x-ref="editImagesInput" name="images" multiple accept=".jpg,.jpeg,.png,.webp" style="display:none"
                    hx-post="{% url 'dashboard:product-image-upload' product.pk %}" hx-encoding="multipart/form-data"
@@ -383,7 +384,8 @@
                  @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
                  @drop.prevent="dragging = false; addFiles($event.dataTransfer.files)">
             <span style="font-size:26px">🖼️</span>
-            <span>تصاویر را اینجا رها کنید یا کلیک کنید</span>
+            <span>تصاویر را بکشید و رها کنید</span>
+            <span class="dropzone-choose">انتخاب تصاویر</span>
             <small style="color:var(--muted)">فرمت‌های مجاز: jpg، png، webp — حداکثر ۵ مگابایت — چندتصویری هم‌زمان مجاز است</small>
             <input type="file" x-ref="stagedImagesInput" name="images" multiple accept=".jpg,.jpeg,.png,.webp" style="display:none"
                    @change="addFiles($event.target.files)">
