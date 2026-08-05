@@ -67,9 +67,17 @@ function richTextEditor() {
 }
 </script>
 <script src="{% static 'js/htmx.min.js' %}" defer></script>
-<script src="{% static 'js/alpine.min.js' %}" defer></script>
+{% comment %}
+CKEditor باید پیش از Alpine اجرا شود: هر دو اسکریپت defer دارند و مرورگر
+deferها را دقیقاً به‌ترتیبِ سند اجرا می‌کند؛ اگر Alpine زودتر اجرا شود،
+x-init="mount()" (در richTextEditor بالا) پیش از تعریف‌شدنِ سراسریِ
+ClassicEditor فراخوانی می‌شود و بی‌سروصدا (بدون خطا در کنسول) از ساختِ
+ویرایشگر صرف‌نظر می‌کند — دقیقاً همان چیزی که باعث می‌شد فیلدِ توضیحات
+هرگز ویرایشگرِ متنِ غنی نگیرد و به textarea ساده می‌ماند.
+{% endcomment %}
 <script src="{% static 'js/vendor/ckeditor5-classic/ckeditor.js' %}" defer></script>
 <script src="{% static 'js/vendor/ckeditor5-classic/translations-fa.js' %}" defer></script>
+<script src="{% static 'js/alpine.min.js' %}" defer></script>
 </head>
 <body class="admin-body"
       x-data="{ sidebarOpen: false, modalOpen: false, theme: localStorage.getItem('adminTheme') || '' }"
