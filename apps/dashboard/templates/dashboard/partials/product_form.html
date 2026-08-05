@@ -121,8 +121,24 @@
       <div class="form-row">
         <div class="form-group">
           <label>کد کالا (SKU)<span class="required-star">*</span> <span class="help-icon" title="شناسه‌ی داخلیِ یکتا برای این کالا در انبار و گزارش‌ها.">؟</span></label>
-          <input class="inp" name="sku" required value="{{ form.sku.value|default_if_none:'' }}" placeholder="DM-1001" dir="ltr"
-                 x-ref="skuField" @input="maybeAutoContinueToVariants()">
+          <div style="display:flex;gap:8px">
+            <input class="inp" name="sku" required value="{{ form.sku.value|default_if_none:'' }}" placeholder="DM-1001" dir="ltr"
+                   x-ref="skuField" @input="maybeAutoContinueToVariants()" style="flex:1">
+            <!-- این تولیدِ عمداً از هیچ hx-* استفاده نمی‌کند: نسخه‌ی htmxِ همین پروژه
+                 رویدادهای «afterRequest»-گونه را برایِ ویژگیِ hx-on شلیک نمی‌کند (فقط
+                 رویدادهایِ «beforeRequest»-گونه کار می‌کنند — تأییدشده با یک دکمه‌ی
+                 آزمایشیِ جدا)، پس یک fetch سادّه در محدوده‌ی خودِ الپاین امن‌تر است. -->
+            <button type="button" class="btn btn-sm" title="تولیدِ خودکارِ یک کدِ کالایِ یکتا — قابلِ‌ویرایش پس از تولید"
+                    @click="
+                      fetch('{% url 'dashboard:product-sku-generate' %}', {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': $el.closest('form').querySelector('[name=csrfmiddlewaretoken]').value },
+                      }).then(r => r.text()).then(code => {
+                        $refs.skuField.value = code;
+                        maybeAutoContinueToVariants();
+                      });
+                    ">تولید</button>
+          </div>
           {% for err in form.sku.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
         </div>
         <div class="form-group">

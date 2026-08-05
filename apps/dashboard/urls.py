@@ -24,6 +24,7 @@ urlpatterns = [
     path("products/<int:pk>/attribute-fields/", views.product_attribute_fields, name="product-attribute-fields-edit"),
     path("products/<int:pk>/attribute-fields/cleanup/", views.product_attribute_cleanup_orphans, name="product-attribute-cleanup"),
 
+    path("products/sku/generate/", views.product_sku_generate, name="product-sku-generate"),
     path("products/quick-add/brand/", views.product_quick_add_brand, name="product-quick-add-brand"),
     path("products/quick-add/category/", views.product_quick_add_category, name="product-quick-add-category"),
     path("products/<int:pk>/quick-add/category/", views.product_quick_add_category, name="product-quick-add-category-edit"),

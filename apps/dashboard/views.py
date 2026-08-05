@@ -115,6 +115,7 @@ from apps.cart.services.coupon_service import (
 from apps.catalog.services.pricing_service import resolve_effective_price
 from apps.catalog.services.product_completion_service import build_completion_checklist, completion_percent
 from apps.catalog.services.product_publish_service import validate_product_for_publish
+from apps.catalog.services.product_sku_service import generate_product_sku
 from apps.catalog.services.tag_service import get_or_create_tags, suggest_tags
 from apps.catalog.services.product_specification_service import build_product_specification
 from apps.catalog.services.template_preview_service import build_template_preview, plan_industry_template_installation
@@ -1044,6 +1045,17 @@ def product_attribute_fields(request, pk=None):
     return render(request, "dashboard/partials/product_attribute_fields.html", {
         "attribute_fields": attribute_fields, "product": product, "category": category,
     })
+
+
+@require_POST
+@staff_required
+@permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
+def product_sku_generate(request):
+    """دکمه‌ی «تولید» کنارِ فیلدِ کدِ کالا — فقط یک پیشنهادِ متنیِ ساده
+    برمی‌گرداند (نه رندرِ کلِ فرم)؛ فیلد همچنان توسطِ مدیرِ فروشگاه
+    قابلِ‌ویرایش می‌ماند و یکتاییِ نهایی هنگامِ ذخیره از نو بررسی می‌شود."""
+    store = _resolve_dashboard_store(request)
+    return HttpResponse(generate_product_sku(store), content_type="text/plain")
 
 
 @require_POST
