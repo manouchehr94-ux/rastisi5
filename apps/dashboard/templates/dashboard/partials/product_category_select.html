@@ -1,6 +1,4 @@
 {% load persian %}
-{{ categories_by_group_json|json_script:"categories-by-group-data" }}
-{{ group_leaf_options_json|json_script:"group-leaf-options-data" }}
 <div id="categoryField" x-data="{
        quickAddOpen: false,
        selectedGroupId: '{{ selected_category_group_id|default:'' }}',
@@ -70,7 +68,21 @@
          } else if (this.qStep === 2 && this.qStep2Done) { this.qStep = 3; }
        },
      }"
-     x-init="$watch('qGroupId', () => { qCategoryId = ''; })">
+     x-init="
+       $watch('qGroupId', () => { qCategoryId = ''; });
+       $nextTick(() => { if (selectedId && $refs.categorySelect) $refs.categorySelect.value = selectedId; });
+     ">
+  {% comment %}
+    این دو json_script عمداً داخلِ categoryField# هستند (نه پیش از آن)، چون
+    این دیو با hx-swap="outerHTML" جایگزین می‌شود؛ اگر این تگ‌ها بیرون
+    می‌بودند، هر quick-add یک تگِ اسکریپتِ تکراریِ دیگر کنارِ نسخه‌ی قدیمی
+    اضافه می‌کرد و document.getElementById همیشه اولین (کهنه‌ترین) نسخه را
+    برمی‌گرداند — یعنی groupLeafOptions/categoriesByGroup بعد از quick-add
+    هرگز به‌روز نمی‌شدند. با بودن داخلِ همین دیو، نسخه‌ی قدیمی دقیقاً همراهِ
+    خودِ دیوِ قدیمی از DOM حذف می‌شود.
+  {% endcomment %}
+  {{ categories_by_group_json|json_script:"categories-by-group-data" }}
+  {{ group_leaf_options_json|json_script:"group-leaf-options-data" }}
 
   <div class="grid" style="margin-bottom:0">
     <div class="field">
@@ -88,7 +100,7 @@
     <div class="field">
       <label>زیرگروه<span class="required-star" aria-label="ضروری">*</span></label>
       <div class="field-inline-action">
-        <select name="category" id="id_category" x-model="selectedId" @change="onCategoryChange()" :disabled="!selectedGroupId">
+        <select name="category" id="id_category" x-ref="categorySelect" x-model="selectedId" @change="onCategoryChange()" :disabled="!selectedGroupId">
           <option value="">— انتخاب کنید —</option>
           <template x-for="c in subgroupOptions" :key="c.id">
             <option :value="String(c.id)" x-text="c.name"></option>
