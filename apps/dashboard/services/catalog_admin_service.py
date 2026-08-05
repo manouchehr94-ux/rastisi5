@@ -142,7 +142,7 @@ def filtered_products(
     health: str = "", product_type: str = "",
 ):
     qs = (
-        Product.objects.filter(store=store)
+        Product.objects.filter(store=store, is_draft_placeholder=False)
         .select_related("category", "category__parent", "brand")
         .prefetch_related(
             "images",

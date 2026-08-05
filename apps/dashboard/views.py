@@ -116,6 +116,11 @@ from apps.cart.services.coupon_service import (
 from apps.catalog.services.pricing_service import resolve_effective_price
 from apps.catalog.services.product_completion_service import build_completion_checklist, completion_percent
 from apps.catalog.services.product_publish_service import validate_product_for_publish
+from apps.catalog.services.product_draft_service import (
+    discard_product_draft,
+    get_or_create_product_draft,
+    touch_product_draft,
+)
 from apps.catalog.services.product_sku_service import generate_product_sku
 from apps.catalog.services.tag_service import (
     collection_tags,
@@ -531,7 +536,7 @@ def _product_list_context(request):
     page_number = request.GET.get("page", "1")
     page_obj = paginator.get_page(page_number)
 
-    all_store_products = Product.objects.filter(store=store)
+    all_store_products = Product.objects.filter(store=store, is_draft_placeholder=False)
     stats = {
         "total": all_store_products.count(),
         "active": all_store_products.filter(status=Product.Status.ACTIVE).count(),
@@ -758,13 +763,24 @@ def _save_staged_product_media(request, product) -> None:
 def _save_product(form, product, *, store):
     data = form.cleaned_data
     if product is None:
-        # گیتِ اشتراک/سقفِ کالا (checkpoint 5A، ADR-69) — فقط مسیرِ ساخت.
+        # گیتِ اشتراک/سقفِ کالا (checkpoint 5A، ADR-69) — فقط مسیرِ ساختِ
+        # یک‌مرحله‌ایِ قدیمی (بدونِ پیش‌نویس)؛ مسیرِ اصلیِ تازه (پیش‌نویسِ
+        # تمام‌صفحه) همین گیت را زودتر، هنگامِ خودِ ساختِ پیش‌نویس، اجرا
+        # می‌کند — نگاه کنید به ``apps.catalog.services.product_draft_service.get_or_create_product_draft``.
         from apps.subscriptions.services.enforcement import enforce_can_create_product
 
         enforce_can_create_product(store)
         vendor = default_vendor(store)
         product = Product(store=store, vendor=vendor)
-        product.slug = generate_unique_slug(Product, data["name"], store=store)
+    if not product.slug:
+        # هم برایِ کالایِ کاملاً تازه (بالا) و هم برایِ نهایی‌کردنِ یک
+        # پیش‌نویس (که با slug="" ساخته شده — نگاه کنید به ``product_draft_service``)؛
+        # اگر merchant خودش در تبِ سئو آدرسی وارد کرده باشد، پایین‌تر
+        # (``data.get("slug")``) رویِ همین مقدار می‌نویسد.
+        product.slug = generate_unique_slug(Product, data["name"], store=store, instance=product)
+    # این‌جا رسیدن یعنی فرم با نام/کد/دسته‌بندی/قیمتِ واقعی معتبر بوده —
+    # پیش‌نویسِ داخلیِ در حالِ ساخت (اگر بود) از همین لحظه یک کالای کامل است.
+    product.is_draft_placeholder = False
     product.name = data["name"]
     product.sku = data["sku"]
     product.category = data["category"]
@@ -798,6 +814,12 @@ def _save_product(form, product, *, store):
     product.tags.set([*ordinary_tags, *([second_group] if second_group else [])])
     return product
 
+
+#: کلیدهایِ معتبرِ تبِ فرمِ کالا — همان پنج تبِ ``product_form.html``؛ برایِ
+#: اعتبارسنجیِ ``current_tab``ِ ارسال‌شده (رجوع کنید به هندلرِ موفقیتِ
+#: ``product_form``: بعد از ذخیره‌ی موفق، merchant باید رویِ همان تبی بماند
+#: که رویش بود، نه همیشه تبِ اول).
+_PRODUCT_WIZARD_TAB_KEYS = {"basic", "category", "price", "media", "seo"}
 
 #: نامِ فیلد → کلیدِ تبِ فرمِ کالا (product_form.html) — برایِ اینکه وقتی
 #: اعتبارسنجیِ سمتِ سرور خطا می‌دهد، کاربر مستقیماً به همان تبی برود که خطا
@@ -914,7 +936,13 @@ def _product_form_extra_context(store, product, *, form=None, request=None, cate
         "group_leaf_options_json": group_leaf_options,
         "collection_tags": collection_tags(store),
     }
-    if product is not None and product.product_type == Product.ProductType.VARIABLE:
+    # همیشه (نه فقط وقتی ``product_type`` از قبل ``variable`` است) — تبِ «قیمت
+    # و تنوع» پنلِ ویژگی/تنوع را همیشه رندر می‌کند (نگاه کنید به
+    # ``product_form.html``) تا merchant بتواند در همان لحظه که سوییچِ
+    # کالای‌ساده/کالای‌دارایِ‌تنوع را می‌زند، بدونِ نیازِ ذخیره‌ی پنهانِ
+    # قبلی، ویژگی و تنوع اضافه کند. ``_product_options_context`` برایِ کالایِ
+    # ساده/بدونِ محور هم امن است (فهرست‌هایِ خالی برمی‌گرداند).
+    if product is not None:
         context.update(_product_options_context(request, product))
     return context
 
@@ -932,9 +960,17 @@ def _product_wizard_error_step(form) -> str:
 @staff_required
 @permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
 def product_form(request, pk=None):
+    """صفحه‌ی تمام‌صفحه‌ی «افزودن/ویرایشِ کالا» — پیاده‌سازیِ مشترکِ Create/Edit
+    (بدون سیستمِ موازی). وقتی ``pk`` داده شود، ``product`` می‌تواند یک کالای
+    واقعیِ قبلاً ذخیره‌شده باشد یا یک پیش‌نویسِ داخلیِ در حالِ ساخت
+    (``is_draft_placeholder=True`` — نگاه کنید به ``apps.catalog.services.product_draft_service``
+    و مسیرِ ``product_create_entry`` که آن را می‌سازد/از سر می‌گیرد و به این‌جا
+    هدایت می‌کند)؛ هر دو از همین یک ویو رد می‌شوند، پس تبِ «قیمت و تنوع» از
+    همان اولین بارگذاری یک ``product_id`` واقعی برایِ اتصالِ ویژگی/تنوع دارد."""
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store) if pk else None
     is_new = product is None
+    finalizing_draft = product is not None and product.is_draft_placeholder
     category_groups = Category.objects.filter(store=store, parent__isnull=True).order_by("order", "name")
 
     old_category_id = product.category_id if product else None
@@ -959,7 +995,7 @@ def product_form(request, pk=None):
                 form.add_error(None, str(exc))
                 category = form.cleaned_data.get("category")
                 attribute_fields = _product_attribute_field_context(category, product)
-                return render(request, "dashboard/partials/product_form.html", {
+                return render(request, "dashboard/product_form_page.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
                     **_product_form_extra_context(store, product, form=form, request=request, category=category),
@@ -968,7 +1004,7 @@ def product_form(request, pk=None):
                 form.add_error(None, str(exc))
                 category = form.cleaned_data.get("category")
                 attribute_fields = _product_attribute_field_context(category, None)
-                return render(request, "dashboard/partials/product_form.html", {
+                return render(request, "dashboard/product_form_page.html", {
                     "form": form, "product": None, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": "media",
                     **_product_form_extra_context(store, None, form=form, request=request, category=category),
@@ -978,77 +1014,113 @@ def product_form(request, pk=None):
                     form.add_error(None, message)
                 category = form.cleaned_data.get("category")
                 attribute_fields = _product_attribute_field_context(category, product)
-                return render(request, "dashboard/partials/product_form.html", {
+                return render(request, "dashboard/product_form_page.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
                     **_product_form_extra_context(store, product, form=form, request=request, category=category),
                 })
             except ValidationError as exc:
-                for field, messages in exc.message_dict.items():
-                    for message in messages:
+                # نامِ حلقه عمداً ``messages`` نیست: ``django.contrib.messages``
+                # در همین فایل ایمپورت شده و اگر این نام دوباره اینجا استفاده
+                # شود، پایتون آن را در کلِ تابع محلی می‌کند (حتی در شاخه‌های
+                # دیگر) و ``messages.success(...)``ی پایین‌ترِ همین تابع را با
+                # ``UnboundLocalError`` می‌شکند.
+                for field, field_messages in exc.message_dict.items():
+                    for message in field_messages:
                         form.add_error(field if field in form.fields else None, message)
                 category = form.cleaned_data.get("category")
                 attribute_fields = _product_attribute_field_context(category, product)
-                return render(request, "dashboard/partials/product_form.html", {
+                return render(request, "dashboard/product_form_page.html", {
                     "form": form, "product": product, "attribute_fields": attribute_fields, "category": category,
                     "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
                     **_product_form_extra_context(store, product, form=form, request=request, category=category),
                 })
 
-            if request.POST.get("keep_open") == "1":
-                # «ذخیره و ادامه با تنظیمِ ویژگی‌ها» (بخشِ ۸) — پیکربندیِ تنوع در
-                # حینِ ساختِ کالا باید ممکن باشد، نه اجباری؛ همین مسیر با همان
-                # پارشالِ ``product_options_body.html``یِ صفحه‌ی «پیکربندیِ
-                # تنوع‌ها» کار می‌کند (بدون سیستمِ موازی).
-                category = form.cleaned_data.get("category")
-                attribute_fields = _product_attribute_field_context(category, product)
-                reopened_form = ProductForm(instance=product, initial=_product_form_initial(product), store=store)
-                modal_html = render_to_string(request=request, template_name="dashboard/partials/product_form.html", context={
-                    "form": reopened_form, "product": product, "attribute_fields": attribute_fields,
-                    "orphaned_count": orphaned_product_attribute_values(product).count(),
-                    "category": category, "category_groups": category_groups, "error_step": "price",
-                    **_product_form_extra_context(store, product, form=reopened_form, request=request, category=category),
-                })
-                table_html = render_to_string(
-                    "dashboard/partials/products_table_inner.html", _product_list_context(request), request=request,
-                )
-                oob_table_html = render_to_string(request=request, template_name="dashboard/partials/oob_wrap.html", context={
-                    "target_id": "productsTableWrap", "inner_html": table_html,
-                })
-                return HttpResponse(modal_html + oob_table_html)
-
-            table_html = render_to_string(
-                "dashboard/partials/products_table_inner.html", _product_list_context(request), request=request,
-            )
-            response = render(request, "dashboard/partials/oob_wrap.html", {
-                "target_id": "productsTableWrap", "inner_html": table_html,
-            })
-            action = "ویرایش" if not is_new else "افزوده"
-            toast = {"message": f"کالا با موفقیت {action} شد", "type": "ok"}
+            action = "ویرایش" if not (is_new or finalizing_draft) else "افزوده"
+            toast_message = f"کالا با موفقیت {action} شد"
             if old_category_id and old_category_id != product.category_id:
                 orphan_count = orphaned_product_attribute_values(product).count()
                 if orphan_count:
-                    toast = {
-                        "message": (
-                            f"کالا {action} شد — {orphan_count} مقدار ویژگی با دسته‌بندی جدید مطابقت ندارد "
-                            "و برای بازبینی/پاک‌سازی در فرم ویرایش نگه داشته شده است."
-                        ),
-                        "type": "info",
-                    }
-            response["HX-Trigger"] = json.dumps({"toast": toast, "modal-close": {}})
-            return response
+                    toast_message = (
+                        f"کالا {action} شد — {orphan_count} مقدار ویژگی با دسته‌بندی جدید مطابقت ندارد "
+                        "و برای بازبینی/پاک‌سازی در فرم ویرایش نگه داشته شده است."
+                    )
+            messages.success(request, toast_message)
+            # صفحه‌ی تمام‌صفحه (بدونِ مودال) دوباره همین‌جا رندر می‌شود — نه
+            # ریدایرکت — چون فرم دیگر یک سوآپِ htmx داخلِ یک مودال نیست؛ کالا
+            # (یا پیش‌نویسِ به‌تازگی نهایی‌شده) هنوز دقیقاً همان صفحه‌ی
+            # ویرایشِ تمام‌صفحه‌ای است که merchant رویش بود.
+            category = product.category
+            attribute_fields = _product_attribute_field_context(category, product)
+            orphaned_count = orphaned_product_attribute_values(product).count()
+            reopened_form = ProductForm(instance=product, initial=_product_form_initial(product), store=store)
+            submitted_tab = request.POST.get("current_tab") or "basic"
+            if submitted_tab not in _PRODUCT_WIZARD_TAB_KEYS:
+                submitted_tab = "basic"
+            return render(request, "dashboard/product_form_page.html", {
+                "form": reopened_form, "product": product, "attribute_fields": attribute_fields,
+                "orphaned_count": orphaned_count, "category": category, "category_groups": category_groups,
+                "error_step": submitted_tab,
+                **_product_form_extra_context(store, product, form=reopened_form, request=request, category=category),
+            })
     else:
+        if product is not None and product.is_draft_placeholder:
+            # هر GETِ موفق یعنی merchant هنوز رویِ این پیش‌نویس کار می‌کند —
+            # تایمرِ پاک‌سازیِ خودکار (``cleanup_stale_product_drafts``) را ریست
+            # می‌کند تا کارِ در حالِ انجام هرگز حذف نشود.
+            touch_product_draft(product)
         initial = _product_form_initial(product) if product else {"product_type": Product.ProductType.SIMPLE}
         form = ProductForm(instance=product, initial=initial, store=store)
 
     category = product.category if product else None
     attribute_fields = _product_attribute_field_context(category, product)
     orphaned_count = orphaned_product_attribute_values(product).count() if product else 0
-    return render(request, "dashboard/partials/product_form.html", {
+    return render(request, "dashboard/product_form_page.html", {
         "form": form, "product": product, "attribute_fields": attribute_fields, "orphaned_count": orphaned_count,
         "category": category, "category_groups": category_groups, "error_step": _product_wizard_error_step(form),
         **_product_form_extra_context(store, product, form=form, request=request, category=category),
     })
+
+
+@staff_required
+@permission_required(PRODUCT_CREATE)
+def product_create_entry(request):
+    """نقطه‌ی ورودِ URLِ ``/admin-portal/products/new/`` — GET یک پیش‌نویسِ
+    قابلِ‌ازسرگیری می‌سازد/از سر می‌گیرد و به صفحه‌ی تمام‌صفحه‌ی
+    ``product_form`` (همان پیاده‌سازیِ Edit) هدایت می‌کند، تا آدرسِ مرورگر
+    واقعاً عوض شود، رفرش/دکمه‌ی برگشت کار کند، و تبِ «قیمت و تنوع» از همان
+    اولین لحظه (پیش از تکمیلِ نام/دسته‌بندی) یک کالای واقعی برایِ اتصالِ
+    ویژگی/تنوع داشته باشد — نگاه کنید به گزارشِ ریشه‌ای
+    ``docs/reports/PRODUCT_ENTRY_FULL_PAGE_ROOT_CAUSE.md``.
+
+    POST مستقیم به همین آدرس (سازگاریِ عقب‌رو با فراخوان‌هایِ برنامه‌ای/تستیِ
+    قدیمی که کالا را یک‌مرحله‌ای با کلِ payload می‌سازند) دقیقاً همان
+    ``product_form(request, pk=None)``ِ قبلی را اجرا می‌کند — بدونِ هیچ
+    سیستمِ موازی."""
+    if request.method == "POST":
+        return product_form(request, pk=None)
+    store = _resolve_dashboard_store(request)
+    try:
+        draft = get_or_create_product_draft(store, request.user)
+    except EntitlementError as exc:
+        messages.error(request, str(exc))
+        return redirect("dashboard:product-list")
+    return redirect("dashboard:product-edit", pk=draft.pk)
+
+
+@require_POST
+@staff_required
+@permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
+def product_discard_draft(request, pk):
+    """اکشنِ صریحِ «انصراف» رویِ یک پیش‌نویسِ در حالِ ساخت — کالای واقعیِ
+    قبلاً ذخیره‌شده را هرگز حذف نمی‌کند (فقط ``is_draft_placeholder=True``
+    قابلِ حذف با این مسیر است)، پس تأییدِ کاربر در سمتِ کلاینت کافی است،
+    بدونِ خطرِ از دست رفتنِ کارِ واقعیِ merchant."""
+    store = _resolve_dashboard_store(request)
+    product = get_object_or_404(Product, pk=pk, store=store, is_draft_placeholder=True)
+    discard_product_draft(product)
+    messages.success(request, "پیش‌نویس لغو شد.")
+    return redirect("dashboard:product-list")
 
 
 @staff_required
@@ -2271,6 +2343,28 @@ def _product_options_response(request, product, *, toast=None):
     if toast:
         response["HX-Trigger"] = json.dumps({"toast": toast})
     return response
+
+
+@require_POST
+@staff_required
+@permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
+def product_set_type(request, pk):
+    """AJAXِ سبکِ سوییچِ «کالای ساده / کالای دارای تنوع» — مستقل از خودِ
+    ``ProductForm`` (که فقط با ذخیره‌ی کاملِ فرم اجرا می‌شود). بدونِ این
+    اندپوینت، merchant می‌توانست تبِ «قیمت و تنوع» را رویِ «دارای تنوع»
+    بگذارد و بلافاصله ویژگی/تنوع اضافه کند، اما تا اولین ذخیره‌ی کاملِ فرم
+    ``product.product_type`` همچنان «ساده» می‌ماند و
+    ``generate_variants``/``product-variants-generate`` با خطایِ «این کالا
+    از نوع دارای تنوع نیست» رد می‌شد — دقیقاً سناریویِ بخشِ ۷ (گزارشِ
+    ریشه‌ای). قواعدِ ایمنِ ``set_product_type`` (بلوکه‌کردنِ دارای‌تنوع→ساده
+    وقتی تنوعی وجود دارد) بدونِ تغییر اعمال می‌شوند."""
+    product = _get_scoped_product(request, pk)
+    requested_type = request.POST.get("product_type", "")
+    try:
+        set_product_type(product, requested_type)
+    except ProductTypeError as exc:
+        return _product_options_response(request, product, toast={"message": str(exc), "type": "err"})
+    return _product_options_response(request, product)
 
 
 @staff_required

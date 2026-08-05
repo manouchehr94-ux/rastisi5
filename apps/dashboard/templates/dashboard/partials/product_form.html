@@ -17,37 +17,25 @@
       removeTag(t) { this.tags = this.tags.filter(x => x !== t) },
       priceVal: '{{ form.price.value|default:"" }}',
       discountVal: '{{ form.discount_percent.value|default:"0" }}',
-      isNewProduct: {{ product|yesno:'false,true' }},
-      autoContinuing: false,
-      maybeAutoContinueToVariants() {
-        if (!this.isNewProduct || this.productType !== 'variable' || this.autoContinuing) return;
-        const name = this.$refs.nameField ? this.$refs.nameField.value.trim() : '';
-        const sku = this.$refs.skuField ? this.$refs.skuField.value.trim() : '';
-        const categoryField = document.getElementById('id_category');
-        const category = categoryField ? categoryField.value : '';
-        if (name && sku && category) {
-          this.autoContinuing = true;
-          this.$refs.keepOpenBtn.click();
-        }
-      },
     }"
-    x-init="$watch('tags', v => $refs.tagsHidden.value = v.join(','))"
-    @category-selected.window="maybeAutoContinueToVariants()">
-<form id="productSaveForm" hx-post="{% if product %}{% url 'dashboard:product-edit' product.pk %}{% else %}{% url 'dashboard:product-add' %}{% endif %}"
-      hx-target="#admin-modal-content" hx-swap="innerHTML" hx-encoding="multipart/form-data"
-      hx-on::htmx:config-request="
-        event.detail.parameters.product_type = productType;
-        if (productType === 'variable' && !event.detail.parameters.price) { event.detail.parameters.price = '1'; }
-      ">
+    x-init="$watch('tags', v => $refs.tagsHidden.value = v.join(','))">
+<form id="productSaveForm" method="post" action="{% if product %}{% url 'dashboard:product-edit' product.pk %}{% else %}{% url 'dashboard:product-add' %}{% endif %}"
+      @submit="$refs.currentTabField.value = tab">
   {% csrf_token %}
+  <input type="hidden" name="current_tab" x-ref="currentTabField">
 
   <div class="pe-topbar">
     <div class="pe-title">
-      <h1>{% if product %}ویرایش کالا{% else %}افزودن کالای جدید{% endif %}</h1>
-      <p>{% if product %}{{ product.name }}{% else %}اطلاعاتِ کالای جدید را در پنج مرحله وارد کنید{% endif %}</p>
+      <h1>{% if product and not product.is_draft_placeholder %}ویرایش کالا{% else %}افزودن کالای جدید{% endif %}</h1>
+      <p>{% if product and not product.is_draft_placeholder %}{{ product.name }}{% else %}اطلاعاتِ کالای جدید را در پنج مرحله وارد کنید{% endif %}</p>
     </div>
     <div class="pe-top-actions">
-      <button type="button" class="btn btn-ghost" @click="modalOpen = false">انصراف</button>
+      {% if product and product.is_draft_placeholder %}
+      <button type="button" class="btn btn-ghost"
+              onclick="if (confirm('این پیش‌نویس (و هر ویژگی/تصویری که تا الان اضافه کرده‌اید) کاملاً حذف می‌شود. ادامه می‌دهید؟')) { document.getElementById('discardDraftForm').submit(); }">انصراف</button>
+      {% else %}
+      <a href="{% url 'dashboard:product-list' %}" class="btn btn-ghost">انصراف</a>
+      {% endif %}
       <button type="submit" class="btn btn-primary">ذخیره کالا</button>
     </div>
   </div>
@@ -87,7 +75,7 @@
           <div class="field full">
             <label>نام کالا<span class="required-star">*</span></label>
             <input name="name" required value="{{ form.name.value|default_if_none:'' }}" placeholder="مثلاً: هدفون بی‌سیم مدل X20"
-                   x-ref="nameField" @input="maybeAutoContinueToVariants()">
+                   x-ref="nameField">
             {% for err in form.name.errors %}<div class="pe-field-error">{{ err }}</div>{% endfor %}
           </div>
 
@@ -95,7 +83,7 @@
             <label>کد کالا (SKU)<span class="required-star">*</span></label>
             <div class="row">
               <input name="sku" required value="{{ form.sku.value|default_if_none:'' }}" placeholder="DM-1001" dir="ltr"
-                     x-ref="skuField" @input="maybeAutoContinueToVariants()" style="flex:1">
+                     x-ref="skuField" style="flex:1">
               <button type="button" class="btn btn-sm btn-soft" title="تولیدِ خودکارِ یک کدِ کالایِ یکتا — قابلِ‌ویرایش پس از تولید"
                       @click="
                         fetch('{% url 'dashboard:product-sku-generate' %}', {
@@ -103,7 +91,6 @@
                           headers: { 'X-CSRFToken': $el.closest('form').querySelector('[name=csrfmiddlewaretoken]').value },
                         }).then(r => r.text()).then(code => {
                           $refs.skuField.value = code;
-                          maybeAutoContinueToVariants();
                         });
                       ">تولید</button>
             </div>
@@ -192,8 +179,12 @@
         </div>
 
         <div class="segment">
-          <button type="button" class="seg" :class="{ active: productType === 'simple' }" @click="productType = 'simple'">کالای ساده</button>
-          <button type="button" class="seg" :class="{ active: productType === 'variable' }" @click="productType = 'variable'; maybeAutoContinueToVariants()">کالای دارای تنوع</button>
+          <button type="button" class="seg" :class="{ active: productType === 'simple' }"
+                  {% if product %}hx-post="{% url 'dashboard:product-set-type' product.pk %}" hx-vals='{"product_type": "simple"}' hx-target="#productOptionsBody" hx-swap="innerHTML"{% endif %}
+                  @click="productType = 'simple'">کالای ساده</button>
+          <button type="button" class="seg" :class="{ active: productType === 'variable' }"
+                  {% if product %}hx-post="{% url 'dashboard:product-set-type' product.pk %}" hx-vals='{"product_type": "variable"}' hx-target="#productOptionsBody" hx-swap="innerHTML"{% endif %}
+                  @click="productType = 'variable'; if (!priceVal) priceVal = '1'">کالای دارای تنوع</button>
         </div>
         <input type="hidden" name="product_type" :value="productType">
         {% for err in form.product_type.errors %}<div class="pe-field-error">{{ err }}</div>{% endfor %}
@@ -218,22 +209,11 @@
           <div class="pe-price-unset" x-show="!priceVal" style="margin-top:10px" x-cloak>قیمت هنوز تنظیم نشده است.</div>
         </div>
 
-        {% if product and product.product_type == "variable" %}
+        {% if product %}
         <div x-show="productType === 'variable'" style="margin-top:16px">
           <div class="info">مثال: طول با ۳ مقدار × جنس با ۲ مقدار = ۶ تنوع؛ هر تنوع قیمت، موجودی و کدِ مستقل دارد.</div>
           <div id="productOptionsBody" style="margin-top:14px">
             {% include "dashboard/partials/product_options_body.html" %}
-          </div>
-        </div>
-        {% else %}
-        <button type="submit" name="keep_open" value="1" x-ref="keepOpenBtn" style="display:none" aria-hidden="true" tabindex="-1"></button>
-        <div x-show="productType === 'variable' && autoContinuing" x-cloak class="info" style="margin-top:16px">
-          در حالِ آماده‌سازیِ پنلِ ویژگی‌ها و تنوع‌ها…
-        </div>
-        <div x-show="productType === 'variable' && !autoContinuing" x-cloak class="pe-price-unset" style="margin-top:16px">
-          برایِ تنظیمِ ویژگی‌ها (رنگ، سایز و ...) ابتدا نام و کدِ کالا را در تبِ «اطلاعاتِ پایه» و دسته‌بندی را در تبِ «دسته‌بندی» تکمیل کنید.
-          <div style="margin-top:10px">
-            <button type="button" class="btn btn-sm btn-soft" @click="tab = 'basic'">↩️ رفتن به تبِ «اطلاعاتِ پایه»</button>
           </div>
         </div>
         {% endif %}
@@ -342,104 +322,11 @@
         {% include "dashboard/partials/product_videos_list.html" %}
 
         {% else %}
-        <div class="card-desc" style="margin-bottom:10px">تصاویر همراه با خودِ کالا ذخیره می‌شوند — نیازی به ذخیره‌ی کالا پیش از افزودنِ تصویر نیست.</div>
-        <div x-data="{
-               files: [],
-               coverIndex: 0,
-               dragging: false,
-               maxSize: 5 * 1024 * 1024,
-               allowedExt: ['.jpg', '.jpeg', '.png', '.webp'],
-               addFiles(list) {
-                 for (const f of list) {
-                   const dot = f.name.lastIndexOf('.');
-                   const ext = dot !== -1 ? f.name.slice(dot).toLowerCase() : '';
-                   if (!this.allowedExt.includes(ext)) { alert(f.name + ': فرمتِ تصویر مجاز نیست (فقط jpg، png، webp).'); continue; }
-                   if (f.size > this.maxSize) { alert(f.name + ': حجمِ تصویر نباید بیشتر از ۵ مگابایت باشد.'); continue; }
-                   this.files.push(f);
-                 }
-                 this.syncInput();
-               },
-               removeFile(i) {
-                 this.files.splice(i, 1);
-                 if (this.coverIndex >= this.files.length) this.coverIndex = Math.max(0, this.files.length - 1);
-                 this.syncInput();
-               },
-               moveFile(i, dir) {
-                 const j = i + dir;
-                 if (j < 0 || j >= this.files.length) return;
-                 if (this.coverIndex === i) this.coverIndex = j; else if (this.coverIndex === j) this.coverIndex = i;
-                 const tmp = this.files[i]; this.files[i] = this.files[j]; this.files[j] = tmp;
-                 this.syncInput();
-               },
-               setCover(i) { this.coverIndex = i; },
-               syncInput() {
-                 const dt = new DataTransfer();
-                 this.files.forEach(f => dt.items.add(f));
-                 this.$refs.stagedImagesInput.files = dt.files;
-               },
-               urlFor(f) { return URL.createObjectURL(f); },
-             }">
-          <label class="dropzone" :class="{ dragging: dragging }"
-                 @click.prevent="$refs.stagedImagesInput.click()"
-                 @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
-                 @drop.prevent="dragging = false; addFiles($event.dataTransfer.files)">
-            <span style="font-size:26px">🖼️</span>
-            <span>تصاویر را بکشید و رها کنید</span>
-            <span class="dropzone-choose">انتخاب تصاویر</span>
-            <small style="color:var(--muted)">فرمت‌های مجاز: jpg، png، webp — حداکثر ۵ مگابایت — چندتصویری هم‌زمان مجاز است</small>
-            <input type="file" x-ref="stagedImagesInput" name="images" multiple accept=".jpg,.jpeg,.png,.webp" style="display:none"
-                   @change="addFiles($event.target.files)">
-          </label>
-          <input type="hidden" name="cover_index" :value="coverIndex">
-          <div class="img-manage-grid" x-show="files.length" style="margin-top:14px">
-            <template x-for="(f, i) in files" :key="f.name + '-' + i">
-              <div class="img-manage-item" :class="{ 'is-cover': i === coverIndex }">
-                <div class="img-manage-thumb" :style="'background-image:url(' + urlFor(f) + ')'">
-                  <span class="pill pill-new img-manage-cover-badge" x-show="i === coverIndex">⭐ کاورِ کالا</span>
-                </div>
-                <div class="img-manage-actions">
-                  <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" :disabled="i === 0" @click="moveFile(i, -1)">⬆️</button>
-                  <button type="button" class="btn btn-sm" title="جابه‌جایی به پایین" :disabled="i === files.length - 1" @click="moveFile(i, 1)">⬇️</button>
-                  <button type="button" class="btn btn-sm" x-show="i !== coverIndex" @click="setCover(i)">⭐ تعیینِ کاور</button>
-                  <button type="button" class="btn btn-sm btn-danger" title="حذف" @click="removeFile(i)">🗑️</button>
-                </div>
-              </div>
-            </template>
-          </div>
-        </div>
-
-        <div class="card" style="margin-top:20px" x-data="{
-               url: '', embedUrl: '',
-               youtubePatterns: [/(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/)([\w-]{11})/, /youtu\.be\/([\w-]{11})/, /youtube\.com\/embed\/([\w-]{11})/],
-               aparatPattern: /aparat\.com\/(?:v\/|video\/video\/embed\/videohash\/)([\w-]+)/,
-               checkUrl() {
-                 this.embedUrl = '';
-                 if (!this.url.trim()) return;
-                 for (const p of this.youtubePatterns) {
-                   const m = this.url.match(p);
-                   if (m) { this.embedUrl = 'https://www.youtube.com/embed/' + m[1]; return; }
-                 }
-                 const am = this.url.match(this.aparatPattern);
-                 if (am) { this.embedUrl = 'https://www.aparat.com/video/video/embed/videohash/' + am[1] + '/vt/frame'; return; }
-               },
-             }">
-          <div class="card-title">ویدیویِ معرفیِ کالا (یوتیوب / آپارات) <span class="opt-pill">اختیاری</span></div>
-          <div class="row">
-            <div class="field" style="flex:1;min-width:220px">
-              <label>لینکِ ویدیو</label>
-              <input name="video_url" dir="ltr" placeholder="https://www.youtube.com/watch?v=... یا https://www.aparat.com/v/..."
-                     x-model="url" @input.debounce.300ms="checkUrl()">
-            </div>
-            <div class="field" style="width:150px">
-              <label>عنوان <span class="opt-pill">اختیاری</span></label>
-              <input name="video_title" placeholder="معرفیِ کالا">
-            </div>
-          </div>
-          <div x-show="url.trim() && !embedUrl" x-cloak class="pe-field-error">این لینک شناخته‌شده نیست — فقط لینکِ یوتیوب یا آپارات پذیرفته می‌شود.</div>
-          <div x-show="embedUrl" x-cloak style="margin-top:4px;width:220px;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:#000">
-            <iframe :src="embedUrl" style="width:100%;height:100%;border:0" allowfullscreen loading="lazy"></iframe>
-          </div>
-        </div>
+        {# فقط مسیرِ نادرِ نمایشِ خطا پس از rollbackِ POSTِ یک‌مرحله‌ایِ قدیمی
+           (نگاه کنید به ProductMediaStageError در product_form) به این‌جا
+           می‌رسد — ناوبریِ واقعیِ merchant همیشه یک پیش‌نویسِ واقعی دارد،
+           پس همیشه شاخه‌ی بالا رندر می‌شود. #}
+        <div class="card-desc" style="margin-bottom:10px">خطا در ثبتِ رسانه — لطفاً پس از رفعِ خطایِ بالا دوباره تلاش کنید.</div>
         {% endif %}
       </div>
 
@@ -533,4 +420,9 @@
     </div>
   </div>
 </form>
+{% if product and product.is_draft_placeholder %}
+<form id="discardDraftForm" method="post" action="{% url 'dashboard:product-discard-draft' product.pk %}" style="display:none">
+  {% csrf_token %}
+</form>
+{% endif %}
 </div>

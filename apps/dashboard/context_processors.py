@@ -118,7 +118,7 @@ def nav_badges(request):
     from apps.orders.models import Order
 
     return {
-        "nav_product_count": Product.objects.filter(store=store).count(),
+        "nav_product_count": Product.objects.filter(store=store, is_draft_placeholder=False).count(),
         "nav_pending_order_count": Order.objects.filter(
             store=store, status=Order.Status.PENDING
         ).count(),
