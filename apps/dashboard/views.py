@@ -911,6 +911,16 @@ def _product_form_extra_context(store, product, *, form=None, request=None, cate
         while ancestor.parent_id is not None:
             ancestor = ancestor.parent
         selected_category_group_id = ancestor.pk
+    elif request is not None and request.method == "POST":
+        # اگر merchant «گروهِ اصلی» را انتخاب کرده اما هنوز «زیرگروه» را
+        # انتخاب نکرده (یا هر خطایِ دیگری در فرم باعثِ نامعتبر شدن شده)،
+        # ``resolved_category`` چیزی نمی‌دهد که بشود گروه را از رویِ آن
+        # حدس زد. بدونِ این fallback، سلکتِ «گروهِ اصلی» با هر بار خطا خالی
+        # می‌شد و merchant باید دوباره گروه (و بعد زیرگروه) را انتخاب می‌کرد —
+        # این حلقه اغلب باعث می‌شد ذخیره هیچ‌وقت موفق نشود.
+        submitted_group_id = request.POST.get("category_group", "").strip()
+        if submitted_group_id and submitted_group_id in {str(row["category"].pk) for row in tree_rows}:
+            selected_category_group_id = int(submitted_group_id)
 
     # برایِ دو ‌سلکتِ سادّه‌ی «گروهِ اصلی»/«زیرگروه» (پروتوتایپِ نهاییِ
     # تأییدشده): برخلافِ ``categories_by_group`` (که فقط فرزندانِ مستقیم را
@@ -1072,7 +1082,21 @@ def product_form(request, pk=None):
         initial = _product_form_initial(product) if product else {"product_type": Product.ProductType.SIMPLE}
         form = ProductForm(instance=product, initial=initial, store=store)
 
+    # این نقطه فقط با یک POSTِ نامعتبر (``form.is_valid()`` نادرست) یا یک GET
+    # به این‌جا می‌رسد. برایِ POSTِ نامعتبر، ``product.category`` (دسته‌بندیِ
+    # قبلاً *ذخیره‌شده*) کافی نیست — یک کالای تازه هنوز هیچ دسته‌بندیِ
+    # ذخیره‌شده‌ای ندارد، پس سلکتِ «گروهِ اصلی» با هر بار خطا دوباره خالی
+    # می‌شد و merchant مجبور بود گروه را از نو انتخاب کند (درحالی‌که زیرگروه
+    # هم‌چنان خالی می‌ماند و ذخیره هرگز موفق نمی‌شد). دسته‌بندیِ *ارسال‌شده*
+    # (حتی اگر خودش نامعتبر/ناقص باشد) باید اولویت داشته باشد تا انتخابِ
+    # گروهِ merchant حفظ شود.
     category = product.category if product else None
+    if request.method == "POST":
+        submitted_category_id = request.POST.get("category")
+        category = (
+            Category.objects.filter(store=store, pk=submitted_category_id).first()
+            if submitted_category_id else None
+        ) or category
     attribute_fields = _product_attribute_field_context(category, product)
     orphaned_count = orphaned_product_attribute_values(product).count() if product else 0
     return render(request, "dashboard/product_form_page.html", {
