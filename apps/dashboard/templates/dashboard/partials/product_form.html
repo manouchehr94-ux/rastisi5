@@ -40,11 +40,6 @@
     </div>
   </div>
 
-  <div class="pe-legend">
-    <span><span class="required-star">*</span> = فیلدِ ضروری</span>
-    <span><span class="opt-pill">اختیاری</span> = می‌توانید بعداً هم تکمیل کنید</span>
-  </div>
-
   <div style="padding:0 20px">
     {% if form.non_field_errors %}
     <div class="pe-field-error" style="margin-top:10px">{% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}</div>
@@ -97,11 +92,8 @@
             {% for err in form.sku.errors %}<div class="pe-field-error">{{ err }}</div>{% endfor %}
           </div>
 
-          <div class="field">
-            <label>برند <span class="opt-pill">اختیاری</span></label>
-            {% include "dashboard/partials/product_brand_select.html" with brand_queryset=form.fields.brand.queryset selected_brand_id=form.brand.value %}
-            {% for err in form.brand.errors %}<div class="pe-field-error">{{ err }}</div>{% endfor %}
-          </div>
+          {% include "dashboard/partials/product_brand_select.html" with brand_queryset=form.fields.brand.queryset selected_brand_id=form.brand.value %}
+          {% for err in form.brand.errors %}<div class="pe-field-error">{{ err }}</div>{% endfor %}
 
           <div class="field">
             <label>واحد شمارش<span class="required-star">*</span></label>
