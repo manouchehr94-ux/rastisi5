@@ -8,7 +8,7 @@
   <a class="btn btn-primary" href="{% url 'dashboard:product-variants' product.pk %}">مدیریت تنوع‌های تک‌محوره</a>
 </div>
 {% else %}
-<div x-data="{ variantView: 'table', libraryOpen: false, attrAddOpen: false, showAddVariant: false, bulkSalesLimitOpen: false, bulkSalesLimitMinDraft: '', bulkSalesLimitMaxDraft: '',
+<div x-data="{ variantView: 'table', libraryOpen: false, attrAddOpen: false, newAttrName: '', showAddVariant: false, bulkSalesLimitOpen: false, bulkSalesLimitMinDraft: '', bulkSalesLimitMaxDraft: '',
      checkedIds() { return [...this.$el.querySelectorAll('tbody input[name=delete_variant_ids]:checked, .variant-card input[name=delete_variant_ids]:checked')].map(cb => cb.value); },
      bulkFill(field, promptText) {
        const ids = this.checkedIds();
@@ -57,14 +57,21 @@
     {% for axis in axes %}
     <div class="attribute">
       <div class="row between">
-        <b>{{ axis.label }}{% if not axis.is_active %} <span class="opt-pill">غیرفعال</span>{% endif %}</b>
+        <b>نامِ ویژگی: {{ axis.label }}{% if not axis.is_active %} <span class="opt-pill">غیرفعال</span>{% endif %}</b>
         {% if axis.is_active %}
         <button type="button" class="btn btn-sm btn-danger" title="حذف/غیرفعال‌سازیِ این ویژگی"
                 hx-post="{% url 'dashboard:product-option-deactivate' product.pk axis.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
-                hx-confirm="غیرفعال‌سازی این ویژگی باعث می‌شود در تولید بعدی، ترکیب‌های آن منسوخ شوند. ادامه می‌دهید؟">حذف</button>
+                hx-confirm="غیرفعال‌سازی این ویژگی باعث می‌شود در تولید بعدی، ترکیب‌های آن منسوخ شوند. ادامه می‌دهید؟">حذف ویژگی</button>
         {% else %}
         <button type="button" class="btn btn-sm btn-soft" hx-post="{% url 'dashboard:product-option-activate' product.pk axis.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">فعال‌سازی</button>
         {% endif %}
+      </div>
+      <div class="add-value" id="valueAddGroup{{ axis.pk }}">
+        <input name="label" placeholder="افزودن مقدار اولیه، مثال: ۱۶۰ سانتی‌متر"
+               @keydown.enter.prevent="$event.target.nextElementSibling.click()">
+        <button type="button" class="btn btn-sm btn-soft"
+                hx-post="{% url 'dashboard:product-option-value-add' product.pk axis.pk %}" hx-include="#valueAddGroup{{ axis.pk }}"
+                hx-target="#productOptionsBody" hx-swap="innerHTML">+ افزودن مقدار اولیه</button>
       </div>
       <div class="tags">
         {% for value in axis.values.all %}
@@ -74,15 +81,8 @@
           <button type="button" hx-post="{% url 'dashboard:product-option-value-remove' product.pk value.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML" hx-confirm="حذف/غیرفعال‌سازی «{{ value.label }}»؟" title="حذف">×</button>
         </span>
         {% empty %}
-        <span class="pe-field-help">مقداری ثبت نشده است</span>
+        <span class="pe-field-help">هنوز مقداری اضافه نشده است.</span>
         {% endfor %}
-      </div>
-      <div class="add-value" id="valueAddGroup{{ axis.pk }}">
-        <input name="label" placeholder="مقدار جدید (مثلاً: بنفش)">
-        {% if axis.input_type == "color" %}<input type="color" name="color_hex" style="width:44px;padding:2px">{% endif %}
-        <button type="button" class="btn btn-sm btn-soft"
-                hx-post="{% url 'dashboard:product-option-value-add' product.pk axis.pk %}" hx-include="#valueAddGroup{{ axis.pk }}"
-                hx-target="#productOptionsBody" hx-swap="innerHTML">افزودن مقدار</button>
       </div>
     </div>
     {% empty %}
@@ -91,63 +91,39 @@
   </div>
 
   <div class="attribute-footer">
-    <button type="button" class="btn btn-soft" @click="attrAddOpen = !attrAddOpen" x-show="!attrAddOpen">+ افزودنِ ویژگی جدید</button>
-  </div>
-
-  <div id="axisAddGroup" class="card" style="margin-top:10px;background:#fafbff" x-show="attrAddOpen" x-cloak x-data="{
-         colorValues: [],
-         colorLabelDraft: '',
-         colorHexDraft: '#ff0000',
-         addColorValue() {
-           const label = this.colorLabelDraft.trim();
-           if (!label) return;
-           this.colorValues.push({ label: label, color_hex: this.colorHexDraft });
-           this.colorLabelDraft = '';
-         },
-         removeColorValue(i) { this.colorValues.splice(i, 1); },
-       }">
-    <div class="field">
-      <label>نامِ ویژگی<span class="required-star">*</span></label>
-      <input name="label" placeholder="مثلاً: رنگ، اندازه، طول، کشور سازنده" value="{{ option_form.label.value|default_if_none:'' }}">
-      {% for err in option_form.label.errors %}<div class="pe-field-error">{{ err }}</div>{% endfor %}
-    </div>
-    <div class="field" style="margin-top:10px">
-      <label>مقادیرِ اولیه <span class="opt-pill">اختیاری</span></label>
-      <textarea name="raw_values" rows="2" placeholder="کوچک، متوسط، بزرگ">{{ option_form.raw_values.value|default_if_none:'' }}</textarea>
-      <div class="pe-field-help">با ویرگول جدا کنید؛ بعداً هم می‌توانید مقدارِ بیشتری اضافه کنید.</div>
-    </div>
-    <div class="field" style="margin-top:10px">
-      <label>افزودنِ مقدارِ رنگ <span class="opt-pill">اختیاری</span></label>
-      <div class="row">
-        <input type="color" x-model="colorHexDraft" style="width:44px;padding:2px">
-        <input x-model="colorLabelDraft" @keydown.enter.prevent="addColorValue()" placeholder="نامِ رنگ (مثلاً: قرمز)" style="flex:1;min-width:140px">
-        <button type="button" class="btn btn-sm btn-soft" @click="addColorValue()">افزودن</button>
-      </div>
-      <input type="hidden" name="color_values_json" :value="JSON.stringify(colorValues)">
-      <div class="tags" x-show="colorValues.length">
-        <template x-for="(cv, i) in colorValues" :key="i">
-          <span class="tag">
-            <span :style="{ display: 'inline-block', width: '12px', height: '12px', 'border-radius': '3px', background: cv.color_hex }"></span>
-            <span x-text="cv.label"></span>
-            <button type="button" @click="removeColorValue(i)">×</button>
-          </span>
-        </template>
-      </div>
-    </div>
-    {% for err in option_form.non_field_errors %}<div class="pe-field-error" style="margin-top:8px">{{ err }}</div>{% endfor %}
-    {% for err in option_form.color_values_json.errors %}<div class="pe-field-error" style="margin-top:8px">{{ err }}</div>{% endfor %}
-    <div class="row" style="margin-top:12px">
-      <button type="button" class="btn btn-primary"
-              hx-post="{% url 'dashboard:product-option-add' product.pk %}" hx-include="#axisAddGroup"
-              hx-target="#productOptionsBody" hx-swap="innerHTML">افزودنِ ویژگی</button>
-      <button type="button" class="btn btn-ghost" @click="attrAddOpen = false">انصراف</button>
-    </div>
+    <button type="button" class="btn btn-soft" @click="newAttrName = ''; attrAddOpen = true">+ افزودن ویژگی</button>
   </div>
 </div>
 
+<template x-teleport="body">
+<div class="overlay" :class="{ open: attrAddOpen }" x-cloak x-init="htmx.process($el)" @click.self="attrAddOpen = false" @keydown.escape.window="attrAddOpen = false">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>افزودن ویژگی جدید</h3>
+      <button type="button" class="x-btn" @click="attrAddOpen = false">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>نامِ ویژگی <span class="required-star">*</span></label>
+        <input class="inp" id="newAttrNameInput" name="label" x-model="newAttrName"
+               placeholder="مثال: طول، ارتفاع، جنس، رنگ، سایز" @keydown.enter.prevent="$refs.addAttrBtn.click()">
+      </div>
+      {% for err in option_form.non_field_errors %}<div class="pe-field-error">{{ err }}</div>{% endfor %}
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn" @click="attrAddOpen = false">انصراف</button>
+      <button type="button" class="btn btn-primary" x-ref="addAttrBtn" :disabled="!newAttrName.trim()"
+              hx-post="{% url 'dashboard:product-option-add' product.pk %}" hx-include="#newAttrNameInput"
+              hx-target="#productOptionsBody" hx-swap="innerHTML"
+              @click="attrAddOpen = false">افزودن ویژگی</button>
+    </div>
+  </div>
+</div>
+</template>
+
 {% if library_attributes %}
 <template x-teleport="body">
-<div class="overlay" :class="{ open: libraryOpen }" x-cloak @click.self="libraryOpen = false" @keydown.escape.window="libraryOpen = false">
+<div class="overlay" :class="{ open: libraryOpen }" x-cloak x-init="htmx.process($el)" @click.self="libraryOpen = false" @keydown.escape.window="libraryOpen = false">
   <div class="modal">
     <div class="modal-head">
       <h3>انتخاب از کتابخانه‌ی ویژگی‌ها</h3>
