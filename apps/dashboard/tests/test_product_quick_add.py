@@ -165,7 +165,7 @@ class QuickAddCategoryButtonPlacementTests(ProductQuickAddTestCase):
     ورودشان به مودال فرق دارد."""
 
     def test_both_buttons_render_and_reuse_the_existing_modal(self):
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
         self.assertIn("+ افزودن گروه اصلی", html)
@@ -176,7 +176,7 @@ class QuickAddCategoryButtonPlacementTests(ProductQuickAddTestCase):
         self.assertEqual(html.count('id="categoryField"'), 1)
 
     def test_add_main_group_button_starts_at_step_one(self):
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         html = response.content.decode()
         pos = html.find("+ افزودن گروه اصلی")
         button_html = html[max(0, pos - 200):pos]
@@ -190,7 +190,7 @@ class QuickAddCategoryButtonPlacementTests(ProductQuickAddTestCase):
         این منطق مستقیماً از رویِ ``selectedGroupId`` (مقدارِ اولیه‌ی خودِ
         سلکتِ «گروهِ اصلی») در همان متدِ ``openQuickAddForSubcategory``
         تصمیم می‌گیرد."""
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         html = response.content.decode()
         self.assertIn("selectedGroupId: '',", html)
         self.assertIn("this.qStep = 1;", html)

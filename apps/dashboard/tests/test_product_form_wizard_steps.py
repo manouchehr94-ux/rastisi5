@@ -44,7 +44,7 @@ class ProductFormWizardStepsTests(TestCase):
         self.client.login(username="wizstepsstaff", password="pass12345")
 
     def test_quick_add_category_steps_use_x_show_not_x_if(self):
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
         self.assertNotIn('<template x-if="qStep === 1">', html)
@@ -55,7 +55,7 @@ class ProductFormWizardStepsTests(TestCase):
         self.assertIn('x-show="qStep === 3"', html)
 
     def test_category_field_lives_in_category_step_not_basic_or_price_step(self):
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
 
@@ -81,7 +81,7 @@ class ProductFormWizardStepsTests(TestCase):
         self.assertNotIn('id="categoryField"', basic_section_html)
 
     def test_wizard_step_order_and_labels(self):
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
         self.assertIn(
@@ -96,7 +96,7 @@ class ProductFormWizardStepsTests(TestCase):
         با بررسیِ اینکه پیش از تبِ اطلاعاتِ پایه در HTML ظاهر می‌شود. طبقِ
         override بعدیِ CSSِ پروتوتایپ، ``.pe-sidebar`` همیشه grid/flexِ افقی
         است، هرگز یک راهروی عمودی."""
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
         wizard_progress_pos = html.find('class="pe-sidebar"')

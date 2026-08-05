@@ -83,7 +83,7 @@ class ProductPermissionTests(PermissionEnforcementTestCase):
 
     def test_catalog_manager_can_create_product_form(self):
         self._login(self.catalog_manager)
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertEqual(response.status_code, 200)
 
     def test_catalog_manager_can_delete_product(self):
@@ -113,7 +113,7 @@ class ProductPermissionTests(PermissionEnforcementTestCase):
     def test_owner_can_do_everything(self):
         self._login(self.owner)
         self.assertEqual(self.client.get(reverse("dashboard:product-list")).status_code, 200)
-        self.assertEqual(self.client.get(reverse("dashboard:product-add")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("dashboard:product-add"), follow=True).status_code, 200)
 
 
 class CategoryPermissionTests(PermissionEnforcementTestCase):

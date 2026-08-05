@@ -120,15 +120,15 @@ class ProductSkuGenerateEndpointTests(ProductSkuGenerationTestCase):
 
 class ProductSkuGenerateFormIntegrationTests(ProductSkuGenerationTestCase):
     def test_generate_button_present_and_preserves_sku_field_ref(self):
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         html = response.content.decode()
         self.assertContains(response, "تولید")
         self.assertIn('x-ref="skuField"', html)
-        # دکمه باید مسیرِ افزودنِ کالا (نه اندپوینتِ دیگری) را صدا بزند و پس
-        # از پرکردنِ فیلد، همان تابعِ auto-continue را دوباره اجرا کند تا
-        # اگر نام/دسته‌بندی هم از قبل پر شده باشند، جریانِ خودکار نشکند.
+        # دکمه باید مسیرِ تولیدِ کدِ کالا را صدا بزند. دیگر نیازی به تابعِ
+        # auto-continue نیست — چون صفحه‌ی «افزودنِ کالا» از همان اولین GET
+        # یک پیش‌نویسِ واقعی دارد (نگاه کنید به ``product_create_entry``)،
+        # پس تبِ «قیمت و تنوع» بدونِ توجه به پرشدنِ نام/دسته‌بندی همیشه آماده است.
         self.assertIn(reverse("dashboard:product-sku-generate"), html)
-        self.assertIn("maybeAutoContinueToVariants()", html)
 
     def test_generated_sku_can_be_submitted_and_edited_afterward(self):
         code = generate_product_sku(self.store)
