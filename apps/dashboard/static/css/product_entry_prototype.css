@@ -199,7 +199,7 @@
   .pe-prototype .pe-top-actions .btn{flex:1}
   .pe-prototype .pe-shell{padding:10px 10px 0}
   .pe-prototype .pe-sidebar{display:flex;overflow-x:auto;gap:7px;padding:8px;grid-template-columns:none}
-  .pe-prototype .pe-step{min-width:104px;flex:none}
+  .pe-prototype .pe-step{width:auto;min-width:104px;flex:none}
   .pe-prototype .pe-progress-mini{display:none}
   .pe-prototype .pe-content{padding:14px;border-radius:14px}
   .pe-prototype .segment{grid-template-columns:1fr 1fr}
