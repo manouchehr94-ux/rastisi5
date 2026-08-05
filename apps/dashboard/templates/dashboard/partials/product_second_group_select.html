@@ -1,0 +1,20 @@
+{% load persian %}
+<div id="secondGroupField" class="field" x-data="{ quickOpen: {% if quick_error %}true{% else %}false{% endif %} }">
+  <label>گروه دوم <span class="opt-pill">اختیاری</span></label>
+  <div class="field-inline-action">
+    <select id="id_second_group" name="second_group">
+      <option value="">انتخاب نشود</option>
+      {% for tag in collection_tags %}
+      <option value="{{ tag.pk }}" {% if selected_second_group_id|stringformat:"s" == tag.pk|stringformat:"s" %}selected{% endif %}>{{ tag.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="button" class="btn-add" @click="quickOpen = !quickOpen">+ افزودن گروه دوم</button>
+  </div>
+  <div x-show="quickOpen" x-cloak style="margin-top:8px;display:flex;gap:8px;align-items:flex-start">
+    {% if quick_error %}<div class="pe-field-error" style="flex-basis:100%">{{ quick_error }}</div>{% endif %}
+    <input id="quickSecondGroupName" name="quick_collection_name" placeholder="نامِ گروهِ دوم" style="flex:1">
+    <button type="button" class="btn btn-sm btn-primary"
+            hx-post="{% url 'dashboard:product-quick-add-collection' %}"
+            hx-include="#quickSecondGroupName" hx-target="#secondGroupField" hx-swap="outerHTML">افزودن</button>
+  </div>
+</div>

@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from django import forms
 
-from apps.catalog.models import Attribute, Brand, Category, Product
+from apps.catalog.models import Attribute, Brand, Category, Product, ProductTag
 from apps.core.color_utils import contrast_ratio, safe_hex
 from apps.core.models import ShopSettings
 from apps.core.utils import normalize_digits
@@ -70,6 +70,10 @@ class ProductForm(NumericCleanMixin, forms.Form):
     )
     model_code = forms.CharField(label="مدل یا کد فنی", max_length=80, required=False)
     country_of_origin = forms.CharField(label="کشور سازنده", max_length=80, required=False)
+    # «گروهِ دوم» (Product Entry final prototype) — یک ProductTagِ اختیاری با
+    # purpose=COLLECTION؛ برخلافِ ``tags`` (چندتایی)، اینجا حداکثر یکی قابلِ
+    # انتخاب است — دقیقاً همان قراردادِ ویجتِ تک‌انتخابیِ پروتوتایپ.
+    second_group = forms.ModelChoiceField(label="گروه دوم", queryset=ProductTag.objects.none(), required=False)
     brand = forms.ModelChoiceField(label="برند", queryset=Brand.objects.none(), required=False)
     price = forms.CharField(label="قیمت (تومان)")
     discount_percent = forms.CharField(label="تخفیف (٪)", required=False, initial="0")
@@ -113,6 +117,9 @@ class ProductForm(NumericCleanMixin, forms.Form):
         self.fields["category"].queryset = leaf_categories(store)
         self.fields["brand"].queryset = Brand.objects.filter(store=store).order_by("name")
         self.fields["tax_class"].queryset = TaxClass.objects.filter(store=store, is_active=True).order_by("name")
+        self.fields["second_group"].queryset = ProductTag.objects.filter(
+            store=store, is_active=True, purpose=ProductTag.Purpose.COLLECTION,
+        ).order_by("name")
 
     def clean_slug(self):
         from django.utils.text import slugify

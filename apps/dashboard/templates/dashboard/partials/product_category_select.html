@@ -1,14 +1,13 @@
 {% load persian %}
 {{ categories_by_group_json|json_script:"categories-by-group-data" }}
+{{ group_leaf_options_json|json_script:"group-leaf-options-data" }}
 <div id="categoryField" x-data="{
-       pickerOpen: false,
        quickAddOpen: false,
-       search: '',
-       selectedId: {{ selected_category_id|default:'null' }},
-       selectedPath: '{{ selected_category_path|default:''|escapejs }}',
-       draftId: null,
-       draftPath: '',
+       selectedGroupId: '{{ selected_category_group_id|default:'' }}',
+       selectedId: '{{ selected_category_id|default:'' }}',
        categoriesByGroup: JSON.parse(document.getElementById('categories-by-group-data').textContent),
+       groupLeafOptions: JSON.parse(document.getElementById('group-leaf-options-data').textContent),
+       get subgroupOptions() { return this.groupLeafOptions[this.selectedGroupId] || []; },
        qStep: 1,
        qGroupMode: 'existing',
        qCategoryMode: 'existing',
@@ -30,20 +29,14 @@
        },
        get qStep1Done() { return this.qGroupMode === 'new' ? !!this.qGroupNewName.trim() : !!this.qGroupId; },
        get qStep2Done() { return this.qCategoryMode === 'new' ? !!this.qCategoryNewName.trim() : !!this.qCategoryId; },
-       openPicker() { this.draftId = this.selectedId; this.draftPath = this.selectedPath; this.search = ''; this.pickerOpen = true; },
-       selectDraft(id, path) { this.draftId = id; this.draftPath = path; },
-       confirmSelection() {
-         if (!this.draftId) return;
-         this.selectedId = this.draftId;
-         this.selectedPath = this.draftPath;
-         this.pickerOpen = false;
+       onCategoryChange() {
          htmx.ajax('GET', '{% if product %}{% url "dashboard:product-attribute-fields-edit" product.pk %}{% else %}{% url "dashboard:product-attribute-fields" %}{% endif %}', {
            target: '#productAttributeFields', swap: 'outerHTML', values: { category: this.selectedId },
          });
          window.dispatchEvent(new CustomEvent('category-selected'));
        },
+       onGroupChange() { this.selectedId = ''; },
        openQuickAdd() {
-         this.pickerOpen = false;
          this.quickAddOpen = true;
          this.qStep = 1;
          this.qGroupMode = {{ category_tree_rows|length|yesno:'"existing","new"' }};
@@ -55,15 +48,13 @@
        // در مرحله‌ی ۲ (دسته) باز می‌شود — با گروهِ والدِ دسته‌بندیِ فعلاً انتخاب‌شده
        // (اگر شناخته‌شده باشد) از پیش پرشده — تا مدیرِ فروشگاه مجبور نباشد کلِ
        // مسیرِ سه‌مرحله‌ای را از اول طی کند. اگر گروهی شناخته‌شده نباشد (هنوز هیچ
-       // دسته‌بندی‌ای انتخاب نشده)، صادقانه از مرحله‌ی ۱ شروع می‌شود.
+       // گروهی انتخاب نشده)، صادقانه از مرحله‌ی ۱ شروع می‌شود.
        openQuickAddForSubcategory() {
-         this.pickerOpen = false;
          this.quickAddOpen = true;
          this.qCategoryId = ''; this.qCategoryNewName = ''; this.qSubName = '';
-         const prefillGroupId = {{ selected_category_group_id|default:'null' }};
-         if (prefillGroupId !== null && this.categoriesByGroup[String(prefillGroupId)] !== undefined) {
+         if (this.selectedGroupId && this.categoriesByGroup[this.selectedGroupId] !== undefined) {
            this.qGroupMode = 'existing';
-           this.qGroupId = String(prefillGroupId);
+           this.qGroupId = this.selectedGroupId;
            this.qCategoryMode = this.qCategoryOptions.length ? 'existing' : 'new';
            this.qStep = 2;
          } else {
@@ -80,60 +71,42 @@
        },
      }"
      x-init="$watch('qGroupId', () => { qCategoryId = ''; })">
-  <input type="hidden" name="category" id="id_category" :value="selectedId">
 
-  <button type="button" class="cat-select-box" @click="openPicker()">
-    <span x-text="selectedPath || '— انتخاب دسته‌بندی —'" :class="{ 'cat-select-placeholder': !selectedPath }"></span>
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
-  </button>
-  <div class="field-help" x-show="selectedPath" style="font-weight:700;color:var(--primary)" x-text="'مسیرِ انتخاب‌شده: ' + selectedPath"></div>
-  <div class="field-help">فقط زیرگروهِ نهایی (بدونِ زیرمجموعه) قابلِ انتخاب است — برای انتخاب روی کادرِ بالا کلیک کنید.</div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-    <button type="button" class="btn btn-sm" @click="openQuickAdd()">+ افزودن گروه اصلی</button>
-    <button type="button" class="btn btn-sm" @click="openQuickAddForSubcategory()">+ افزودن زیرگروه</button>
+  <div class="grid" style="margin-bottom:0">
+    <div class="field">
+      <label>گروه اصلی<span class="required-star" aria-label="ضروری">*</span></label>
+      <div class="field-inline-action">
+        <select x-model="selectedGroupId" @change="onGroupChange()">
+          <option value="">— انتخاب کنید —</option>
+          {% for row in category_tree_rows %}
+          <option value="{{ row.category.pk }}">{{ row.category.icon|default:"📁" }} {{ row.category.name }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" class="btn-add" @click="openQuickAdd()">+ افزودن گروه اصلی</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>زیرگروه<span class="required-star" aria-label="ضروری">*</span></label>
+      <div class="field-inline-action">
+        <select name="category" id="id_category" x-model="selectedId" @change="onCategoryChange()" :disabled="!selectedGroupId">
+          <option value="">— انتخاب کنید —</option>
+          <template x-for="c in subgroupOptions" :key="c.id">
+            <option :value="String(c.id)" x-text="c.name"></option>
+          </template>
+        </select>
+        <button type="button" class="btn-add" @click="openQuickAddForSubcategory()">+ افزودن زیرگروه</button>
+      </div>
+    </div>
   </div>
   {% if quick_errors %}
-  <div style="color:var(--red);font-size:11.5px;margin-top:4px">
+  <div class="pe-field-error" style="margin-top:4px">
     {% for field, errs in quick_errors.items %}{% for err in errs %}<div>{{ err }}</div>{% endfor %}{% endfor %}
   </div>
   {% endif %}
 
-  <!-- مودالِ انتخاب دسته‌بندی (درخت) -->
-  <!-- x-teleport: چون این مودال درونِ مودالِ اصلیِ فرمِ کالا (که backdrop-filter دارد) قرار دارد، بدونِ
-       teleport کردن به body، موقعیتِ position:fixed آن نسبت به همان مودالِ والد محاسبه می‌شود نه نسبت به
-       viewport واقعی — و اگر مودالِ والد اسکرول‌شده باشد، این مودال بیرون از دیدِ کاربر باز می‌شود. -->
-  <template x-teleport="body">
-  <div class="overlay" :class="{ open: pickerOpen }" x-cloak @click.self="pickerOpen = false" @keydown.escape.window="pickerOpen = false">
-    <div class="modal">
-      <div class="modal-head">
-        <h3>انتخاب دسته‌بندی</h3>
-        <button type="button" class="x-btn" @click="pickerOpen = false">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="cp-search">
-          <input class="inp" x-model="search" placeholder="جستجویِ دسته‌بندی...">
-        </div>
-        <div class="cp-tree">
-          {% for row in category_tree_rows %}
-          {% include "dashboard/partials/product_category_tree_node.html" with node=row %}
-          {% empty %}
-          <div class="cp-empty">هنوز هیچ دسته‌بندی‌ای ثبت نشده است.</div>
-          {% endfor %}
-        </div>
-        <div class="cp-hint">
-          فقط زیرگروهِ نهایی (بدونِ زیرمجموعه) قابلِ انتخاب است. گروه‌ها و دسته‌هایِ میانی فقط برایِ باز کردنِ زیرمجموعه‌ها کلیک‌پذیرند.
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button type="button" class="btn" @click="pickerOpen = false">انصراف</button>
-        <button type="button" class="btn" @click="openQuickAdd()">+ دسته جدید</button>
-        <button type="button" class="btn btn-primary" :disabled="!draftId" @click="confirmSelection()">تأیید و انتخاب</button>
-      </div>
-    </div>
-  </div>
-  </template>
-
-  <!-- مودالِ ساختِ دسته‌بندیِ جدید (۳ مرحله) -->
+  <!-- مودالِ ساختِ دسته‌بندیِ جدید (۳ مرحله) — همان زیرساختِ واقعیِ Category،
+       فقط با دو دکمه‌ی متفاوت (گروهِ اصلی/زیرگروه) به آن وارد می‌شویم؛ نگاه
+       کنید به openQuickAdd/openQuickAddForSubcategory بالا. -->
   <template x-teleport="body">
   <div class="overlay" :class="{ open: quickAddOpen }" x-cloak x-init="htmx.process($el)" @click.self="quickAddOpen = false" @keydown.escape.window="quickAddOpen = false">
     <div class="modal">

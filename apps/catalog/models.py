@@ -576,6 +576,14 @@ class ProductVariant(TimeStampedModel):
         option_value_ids = {ov.option_value_id for ov in self.option_values.all()}
         return resolve_display_image(self.product, self, option_value_ids)
 
+    @property
+    def discount_percent_display(self):
+        """درصدِ تخفیفِ مشتق‌شده از price/compare_at_price — فقط برایِ نمایش
+        (نه یک فیلدِ ذخیره‌شده)؛ همان قراردادِ ``product_variant_set_price``."""
+        if not self.compare_at_price or not self.price or self.compare_at_price <= self.price:
+            return 0
+        return round((1 - (self.price / self.compare_at_price)) * 100)
+
     def clean(self):
         from django.core.exceptions import ValidationError
 
@@ -1152,13 +1160,25 @@ class ProductTag(TimeStampedModel):
     """برچسبِ Store-owned برای جست‌وجو/فیلتر/مجموعه‌ی کالاها — دقیقاً همان الگویِ
     ``apps.customers.models.CustomerTag``: ``code`` فقط در محدوده‌ی همین Store
     یکتاست، و حذفِ فیزیکی وقتی به کالایی متصل است مجاز نیست؛ به‌جایِ آن آرشیو
-    (``is_active=False``) می‌شود."""
+    (``is_active=False``) می‌شود.
+
+    ``purpose`` (Product Entry final prototype) همان رابطه‌ی M2M را برایِ دو
+    کاربردِ جداگانه تفکیک می‌کند: برچسبِ عادیِ جست‌وجو/فیلتر در برابرِ
+    «گروهِ دوم» (مجموعه‌ی فروش/merchandising) در فرمِ کالا — که یک مفهومِ
+    بازاریابیِ مستقل از درختِ دسته‌بندیِ واقعی است، نه یک سطحِ دومِ
+    دسته‌بندی؛ نگاه کنید به گزارشِ گپ‌آنالیزِ محصول برایِ توجیهِ کاملِ این
+    تصمیم."""
+
+    class Purpose(models.TextChoices):
+        GENERAL = "general", "برچسبِ عادی"
+        COLLECTION = "collection", "مجموعه‌ی فروش (گروهِ دوم)"
 
     store = models.ForeignKey(
         "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="product_tags",
     )
     name = models.CharField("نام", max_length=60)
     code = models.SlugField("کد", max_length=60, allow_unicode=True)
+    purpose = models.CharField("کاربرد", max_length=12, choices=Purpose.choices, default=Purpose.GENERAL)
     is_active = models.BooleanField("فعال", default=True)
 
     class Meta:

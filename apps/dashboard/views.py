@@ -28,6 +28,7 @@ from apps.catalog.models import (
     ProductOption,
     ProductVideo,
     ProductOptionValue,
+    ProductTag,
     ProductVariant,
     StockMovement,
     StoreIndustryInstallation,
@@ -116,7 +117,13 @@ from apps.catalog.services.pricing_service import resolve_effective_price
 from apps.catalog.services.product_completion_service import build_completion_checklist, completion_percent
 from apps.catalog.services.product_publish_service import validate_product_for_publish
 from apps.catalog.services.product_sku_service import generate_product_sku
-from apps.catalog.services.tag_service import get_or_create_tags, suggest_tags
+from apps.catalog.services.tag_service import (
+    collection_tags,
+    ensure_default_collections,
+    get_or_create_collection_tag,
+    get_or_create_tags,
+    suggest_tags,
+)
 from apps.catalog.services.product_specification_service import build_product_specification
 from apps.catalog.services.template_preview_service import build_template_preview, plan_industry_template_installation
 from apps.catalog.services.template_update_service import (
@@ -783,7 +790,12 @@ def _save_product(form, product, *, store):
         product.slug = data["slug"]
     product.full_clean(exclude=["slug"] if not data.get("slug") else [])
     product.save()
-    product.tags.set(get_or_create_tags(store, data.get("tags") or []))
+    # «گروهِ دوم» با همان رابطه‌ی M2M برچسب‌هایِ عادی ذخیره می‌شود (فقط با
+    # purpose=COLLECTION متمایز است) — پس هر دو باید در یک .set() یک‌جا
+    # نوشته شوند، وگرنه فراخوانیِ دومِ .set() اولی را پاک می‌کرد.
+    ordinary_tags = get_or_create_tags(store, data.get("tags") or [])
+    second_group = data.get("second_group")
+    product.tags.set([*ordinary_tags, *([second_group] if second_group else [])])
     return product
 
 
@@ -792,15 +804,17 @@ def _save_product(form, product, *, store):
 #: در آن است، نه همیشه تبِ اول (فرم هر بار از نو با ``x-data`` مقداردهی
 #: می‌شود، پس این تب باید سمتِ سرور محاسبه و به قالب داده شود).
 _PRODUCT_WIZARD_FIELD_STEPS = {
-    # تبِ ۱ — اطلاعات پایه: نام، کد کالا، آیکون، توضیحات، برند، وضعیت، برچسب‌ها
+    # تبِ ۱ — اطلاعات پایه: نام، کد کالا، برند، واحدِ شمارش، مدل/کدِ فنی،
+    # برچسب‌ها، توضیحات، وضعیت — دقیقاً همان چیدمانِ پروتوتایپِ نهاییِ
+    # تأییدشده (unit/model_code اینجا هستند، نه در تبِ دسته‌بندی).
     "name": "basic", "sku": "basic", "icon": "basic", "description": "basic",
     "brand": "basic", "status": "basic", "tags": "basic",
+    "unit": "basic", "model_code": "basic",
     # تبِ «تصاویر و فیلم» فیلدهایِ ProductForm ندارد (images/video_url/video_title
     # مستقیماً از request.POST/FILES خوانده می‌شوند)؛ خطاهایش با error_step="media"
     # مستقیم در ``product_form`` مدیریت می‌شود، نه از این نگاشت.
-    # تبِ ۲ — دسته‌بندی: دسته‌بندی، واحدِ شمارش، مدل/کدِ فنی، کشورِ سازنده
-    "category": "category", "unit": "category", "model_code": "category",
-    "country_of_origin": "category",
+    # تبِ ۲ — دسته‌بندی: دسته‌بندی، گروهِ دوم، کشورِ سازنده
+    "category": "category", "second_group": "category", "country_of_origin": "category",
     # تبِ ۳ — قیمت و تنوع: نوعِ کالا، قیمت، تخفیف، مالیات، لجستیک، موجودی
     "price": "price", "discount_percent": "price", "tax_class": "price",
     "barcode": "price", "weight_grams": "price", "requires_shipping": "price",
@@ -823,6 +837,9 @@ def _product_form_initial(product) -> dict:
         "name": product.name, "sku": product.sku, "category": product.category_id,
         "unit": product.unit, "model_code": product.model_code,
         "country_of_origin": product.country_of_origin,
+        "second_group": (
+            product.tags.filter(purpose=ProductTag.Purpose.COLLECTION).values_list("pk", flat=True).first()
+        ),
         "brand": product.brand_id,
         "price": product.price, "discount_percent": product.discount_percent,
         "stock": product.stock, "status": product.status, "icon": product.icon,
@@ -849,7 +866,11 @@ def _product_form_extra_context(store, product, *, form=None, request=None, cate
     if submitted_tags is not None:
         existing_tags_list = submitted_tags
     else:
-        existing_tags_list = list(product.tags.values_list("name", flat=True)) if product else []
+        existing_tags_list = (
+            list(product.tags.filter(purpose=ProductTag.Purpose.GENERAL).values_list("name", flat=True))
+            if product else []
+        )
+    ensure_default_collections(store)
     resolved_category = category if category is not None else (product.category if product else None)
     tree_rows = category_tree_context(store)["rows"]
     categories_by_group = {
@@ -868,6 +889,19 @@ def _product_form_extra_context(store, product, *, form=None, request=None, cate
         while ancestor.parent_id is not None:
             ancestor = ancestor.parent
         selected_category_group_id = ancestor.pk
+
+    # برایِ دو ‌سلکتِ سادّه‌ی «گروهِ اصلی»/«زیرگروه» (پروتوتایپِ نهاییِ
+    # تأییدشده): برخلافِ ``categories_by_group`` (که فقط فرزندانِ مستقیم را
+    # می‌دهد و توسطِ مودالِ سه‌مرحله‌ایِ ساختِ دسته‌بندی استفاده می‌شود)، این‌جا
+    # برایِ هر گروهِ اصلی، همه‌ی برگ‌هایِ واقعیِ زیرِ آن — با هر عمقی (چه
+    # ساختارِ دوسطحیِ قدیمی، چه گروه←دسته←زیرگروهِ سه‌سطحی) — لازم است، چون
+    # فیلدِ نمایشیِ «زیرگروه» مستقیماً به همان برگ (نه یک گره‌ی میانی) وصل
+    # می‌شود؛ نگاه کنید به ``leaf_categories``.
+    group_leaf_options: dict[str, list[dict]] = {str(row["category"].pk): [] for row in tree_rows}
+    for leaf in leaf_categories(store):
+        root = leaf.parent if leaf.parent.parent_id is None else leaf.parent.parent
+        group_leaf_options.setdefault(str(root.pk), []).append({"id": leaf.pk, "name": leaf.name})
+
     context = {
         "checklist": build_completion_checklist(product) if product else [],
         "completion_pct": completion_percent(product) if product else 0,
@@ -877,6 +911,8 @@ def _product_form_extra_context(store, product, *, form=None, request=None, cate
         "selected_category_path": category_chain(resolved_category) if resolved_category else "",
         "categories_by_group_json": categories_by_group,
         "selected_category_group_id": selected_category_group_id,
+        "group_leaf_options_json": group_leaf_options,
+        "collection_tags": collection_tags(store),
     }
     if product is not None and product.product_type == Product.ProductType.VARIABLE:
         context.update(_product_options_context(request, product))
@@ -1082,6 +1118,29 @@ def product_quick_add_brand(request):
         "brand_queryset": Brand.objects.filter(store=store).order_by("name"),
         "selected_brand_id": selected_id,
         "quick_errors": form.errors if not form.is_valid() else None,
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
+def product_quick_add_collection(request):
+    """«+ افزودن گروه دوم» داخل فرمِ کالا — همان الگویِ «+ افزودن برند»، فقط
+    یک ProductTagِ جدید با purpose=COLLECTION می‌سازد (یا اگر از قبل با همان
+    نام موجود بود، آن را با purpose=COLLECTION فعال می‌کند)."""
+    store = _resolve_dashboard_store(request)
+    name = (request.POST.get("quick_collection_name") or "").strip()
+    selected_id = None
+    error = None
+    if not name:
+        error = "نامِ گروهِ دوم را وارد کنید."
+    else:
+        tag = get_or_create_collection_tag(store, name)
+        selected_id = tag.pk
+    return render(request, "dashboard/partials/product_second_group_select.html", {
+        "collection_tags": collection_tags(store),
+        "selected_second_group_id": selected_id,
+        "quick_error": error,
     })
 
 
@@ -2182,12 +2241,18 @@ def _product_options_context(request, product):
         .prefetch_related("values")
         .order_by("label")
     )
+    active_variants = [v for v in variants if not v.is_obsolete]
+    active_prices = [v.price for v in active_variants if v.price]
     return {
         "product": product,
         "axes": axes,
         "variants": variants,
         "obsolete_variants": [v for v in variants if v.is_obsolete],
-        "active_variants": [v for v in variants if not v.is_obsolete],
+        "active_variants": active_variants,
+        "variant_count": len(active_variants),
+        "variant_total_stock": sum(v.stock for v in active_variants),
+        "variant_price_min": min(active_prices) if active_prices else None,
+        "variant_price_max": max(active_prices) if active_prices else None,
         "combination_preview": preview_combination_count(product),
         "has_legacy_variants": product.variants.filter(combination_key="").exists(),
         "recommended_options": recommended_options,
