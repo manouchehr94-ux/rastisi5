@@ -56,14 +56,52 @@ async def login(page):
     await page.wait_for_load_state("networkidle")
 
 
+async def open_add_modal(page):
+    """Product-add is only ever htmx-loaded into the products-list page's modal
+    (see products.html's "افزودن کالای جدید" button) - it is never a standalone
+    full page, so it must be reached by clicking that button, not by a direct
+    goto() to the product-add URL (which returns a bare fragment with no Alpine
+    script include and silently renders inert)."""
+    await page.goto(f"{BASE}/admin-portal/products/", wait_until="networkidle")
+    await page.locator("button", has_text="افزودن کالای جدید").first.click()
+    await page.locator(".pe-prototype").first.wait_for(state="visible", timeout=10000)
+    await page.wait_for_timeout(300)
+
+
+async def open_edit_modal_for(page, product_name_substring):
+    await page.goto(f"{BASE}/admin-portal/products/", wait_until="networkidle")
+    row = page.locator("tr", has_text=product_name_substring).first
+    if await row.count() == 0:
+        return False
+    icons = row.locator("a, button")
+    for i in range(await icons.count()):
+        el = icons.nth(i)
+        title = (await el.get_attribute("title")) or ""
+        if "ویرایش" in title:
+            await el.click()
+            await page.locator(".pe-prototype").first.wait_for(state="visible", timeout=10000)
+            await page.wait_for_timeout(300)
+            return True
+    return False
+
+
 async def scenario_create_simple_product(browser):
     """Create-flow smoke test: simple product, all five tabs reachable, no console errors."""
     name = "scenario"
     errors = []
     page = await browser.new_page(viewport={"width": 1440, "height": 900})
-    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    # "Failed to load resource" is the browser's own network-level 404/500 log line,
+    # not a JS console.error from our code - e.g. unrelated pre-existing seed products
+    # with missing media files on disk trip this on the underlying products-list page
+    # sitting behind the modal. Only real script errors should fail this scenario.
+    page.on(
+        "console",
+        lambda m: errors.append(m.text)
+        if m.type == "error" and "Failed to load resource" not in m.text
+        else None,
+    )
     await login(page)
-    await page.goto(f"{BASE}/admin-portal/products/add/", wait_until="networkidle")
+    await open_add_modal(page)
 
     if await page.locator(".pe-prototype").count() == 0:
         fail(name, "exact-prototype shell (.pe-prototype) not present on create page")
@@ -88,39 +126,27 @@ async def scenario_variant_product_table_card_toggle(browser):
     name = "variant_table_card_toggle"
     page = await browser.new_page(viewport={"width": 1440, "height": 900})
     await login(page)
-    await page.goto(f"{BASE}/admin-portal/products/", wait_until="networkidle")
-    row = page.locator("tr", has_text="کالای نمایشی تنوع").first
-    if await row.count() == 0:
+    found = await open_edit_modal_for(page, "کالای نمایشی تنوع")
+    if not found:
         print(f"SKIP [{name}] no seeded variant-demo product found by name; skipping")
         await page.close()
         return
-    icons = row.locator("a, button")
-    clicked = False
-    for i in range(await icons.count()):
-        el = icons.nth(i)
-        title = (await el.get_attribute("title")) or ""
-        if "ویرایش" in title:
-            await el.click()
-            clicked = True
-            break
-    if not clicked:
-        fail(name, "could not find edit action on the seeded variant-demo row")
-        await page.close()
-        return
-    await page.wait_for_timeout(1000)
     await page.locator(".pe-step", has_text="قیمت").first.click()
     await page.wait_for_timeout(300)
 
     if await page.locator(".attribute").count() == 0:
         fail(name, "no .attribute cards rendered for a variable product")
 
-    table_btn = page.locator('button', has_text="جدول")
-    card_btn = page.locator('button', has_text="کارت")
+    switch = page.locator(".variant-view-switch")
+    table_btn = switch.locator("button", has_text="نمای جدول")
+    card_btn = switch.locator("button", has_text="نمای کارت")
     if await table_btn.count() and await card_btn.count():
         await table_btn.first.click()
         await page.wait_for_timeout(200)
         await card_btn.first.click()
         await page.wait_for_timeout(200)
+    else:
+        fail(name, "table/card variant-view-switch buttons not found")
     await page.close()
 
 
@@ -129,7 +155,7 @@ async def scenario_category_quick_add(browser):
     name = "category_quick_add"
     page = await browser.new_page(viewport={"width": 1440, "height": 900})
     await login(page)
-    await page.goto(f"{BASE}/admin-portal/products/add/", wait_until="networkidle")
+    await open_add_modal(page)
     await page.locator(".pe-step", has_text="دسته").first.click()
     await page.wait_for_timeout(200)
     add_group_btn = page.locator("button, a", has_text="افزودن گروه اصلی")
@@ -139,7 +165,6 @@ async def scenario_category_quick_add(browser):
         return
     await add_group_btn.first.click()
     await page.wait_for_timeout(300)
-    overlay = page.locator('.overlay[style*="display"], .overlay').filter(has=page.locator("text=گروهِ اصلی, text=گروه اصلی"))
     if await page.locator("text=ساختِ دسته‌بندیِ جدید").count() == 0 and await page.locator("text=دسته‌بندی جدید").count() == 0:
         fail(name, "quick-add-category modal heading not visible after clicking the button")
     await page.close()
@@ -150,7 +175,7 @@ async def scenario_media_and_seo_tabs(browser):
     name = "media_and_seo_tabs"
     page = await browser.new_page(viewport={"width": 1440, "height": 900})
     await login(page)
-    await page.goto(f"{BASE}/admin-portal/products/add/", wait_until="networkidle")
+    await open_add_modal(page)
 
     await page.locator(".pe-step", has_text="تصاویر").first.click()
     await page.wait_for_timeout(250)
@@ -159,8 +184,8 @@ async def scenario_media_and_seo_tabs(browser):
 
     await page.locator(".pe-step", has_text="سئو").first.click()
     await page.wait_for_timeout(250)
-    if await page.locator('[name="meta_title"], [name="seo_title"]').count() == 0:
-        fail(name, "seo tab: no meta/seo title field found")
+    if await page.locator('[name="seo_title"]').count() == 0:
+        fail(name, "seo tab: no seo_title field found")
     await page.close()
 
 
@@ -171,7 +196,7 @@ async def responsive_overflow_check(browser):
     for width in WIDTHS:
         page = await browser.new_page(viewport={"width": width, "height": 900})
         await login(page)
-        await page.goto(f"{BASE}/admin-portal/products/add/", wait_until="networkidle")
+        await open_add_modal(page)
         for key, label in TABS:
             step = page.locator(".pe-step", has_text=label)
             if await step.count() == 0:

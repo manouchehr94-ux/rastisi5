@@ -32,6 +32,9 @@ backups/
 *.bak
 *.backup
 
+# Browser verification script output
+scripts/.verify_output/
+
 # Editors and operating system
 .vscode/
 .idea/
