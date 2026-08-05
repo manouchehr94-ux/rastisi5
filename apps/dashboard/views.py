@@ -791,14 +791,16 @@ _PRODUCT_WIZARD_FIELD_STEPS = {
     # تبِ ۱ — اطلاعات پایه: نام، کد کالا، آیکون، توضیحات، برند، وضعیت، برچسب‌ها
     "name": "basic", "sku": "basic", "icon": "basic", "description": "basic",
     "brand": "basic", "status": "basic", "tags": "basic",
-    # تبِ «تصاویر و ویدیو» فیلدهایِ ProductForm ندارد (images/video_url/video_title
+    # تبِ «تصاویر و فیلم» فیلدهایِ ProductForm ندارد (images/video_url/video_title
     # مستقیماً از request.POST/FILES خوانده می‌شوند)؛ خطاهایش با error_step="media"
     # مستقیم در ``product_form`` مدیریت می‌شود، نه از این نگاشت.
-    # تبِ ۲ — نوعِ کالا: نوعِ کالا، دسته‌بندی، قیمت، تخفیف، مالیات، لجستیک، موجودی
+    # تبِ ۲ — دسته‌بندی
+    "category": "category",
+    # تبِ ۳ — قیمت و تنوع: نوعِ کالا، قیمت، تخفیف، مالیات، لجستیک، موجودی
     "price": "price", "discount_percent": "price", "tax_class": "price",
     "barcode": "price", "weight_grams": "price", "requires_shipping": "price",
-    "product_type": "price", "stock": "price", "category": "price",
-    # تبِ ۳ — سئو و انتشار
+    "product_type": "price", "stock": "price",
+    # تبِ ۵ — سئو و انتشار
     "seo_title": "seo", "seo_description": "seo", "slug": "seo",
 }
 

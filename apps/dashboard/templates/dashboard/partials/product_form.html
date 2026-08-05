@@ -2,7 +2,7 @@
 {{ existing_tags_list|json_script:"existing-tags-data" }}
 <div x-data="{
       tab: '{{ error_step|default:'basic' }}',
-      tabs: [['basic', 'اطلاعات پایه'], ['price', 'نوعِ کالا'], ['media', 'تصاویر و ویدیو'], ['seo', 'سئو و انتشار']],
+      tabs: [['basic', 'اطلاعات پایه'], ['category', 'دسته‌بندی'], ['price', 'قیمت و تنوع'], ['media', 'تصاویر و فیلم'], ['seo', 'سئو و انتشار']],
       get tabIndex() { return this.tabs.findIndex(([key]) => key === this.tab); },
       goPrevTab() { const i = this.tabIndex; if (i > 0) this.tab = this.tabs[i - 1][0]; },
       goNextTab() { const i = this.tabIndex; if (i < this.tabs.length - 1) this.tab = this.tabs[i + 1][0]; },
@@ -82,12 +82,17 @@
       <button type="button" class="btn btn-sm btn-primary" x-show="tabIndex < tabs.length - 1" @click="goNextTab()">مرحلهٔ بعد ▶</button>
     </div>
 
+    <div class="field-legend">
+      <span><span class="required-star">*</span> = فیلدِ ضروری</span>
+      <span><span class="opt-pill">اختیاری</span> = می‌توانید بعداً هم تکمیل کنید</span>
+    </div>
+
     {% include "dashboard/partials/product_no_category_banner.html" with has_leaf_categories=form.fields.category.queryset %}
 
     <!-- تب ۱: اطلاعات پایه -->
     <div class="form-section" x-show="tab === 'basic'" x-ref="tabBasic">
       <div class="form-group">
-        <label>نام کالا * <span class="help-icon" title="نامی که مشتری در فروشگاه شما می‌بیند؛ در نبودِ عنوانِ سئوی اختصاصی، همین نام به‌عنوانِ عنوانِ سئو هم استفاده می‌شود.">؟</span></label>
+        <label>نام کالا<span class="required-star">*</span> <span class="help-icon" title="نامی که مشتری در فروشگاه شما می‌بیند؛ در نبودِ عنوانِ سئوی اختصاصی، همین نام به‌عنوانِ عنوانِ سئو هم استفاده می‌شود.">؟</span></label>
         <input class="inp" name="name" required value="{{ form.name.value|default_if_none:'' }}" placeholder="مثلاً: هدفون بی‌سیم مدل X20"
                x-ref="nameField" @input="maybeAutoContinueToVariants()">
         <div class="field-help">نامِ کاملِ کالا، همان‌طور که در صفحه‌ی کالا و کارتِ محصول نمایش داده می‌شود.</div>
@@ -115,26 +120,26 @@
 
       <div class="form-row">
         <div class="form-group">
-          <label>کد کالا (SKU) * <span class="help-icon" title="شناسه‌ی داخلیِ یکتا برای این کالا در انبار و گزارش‌ها.">؟</span></label>
+          <label>کد کالا (SKU)<span class="required-star">*</span> <span class="help-icon" title="شناسه‌ی داخلیِ یکتا برای این کالا در انبار و گزارش‌ها.">؟</span></label>
           <input class="inp" name="sku" required value="{{ form.sku.value|default_if_none:'' }}" placeholder="DM-1001" dir="ltr"
                  x-ref="skuField" @input="maybeAutoContinueToVariants()">
           {% for err in form.sku.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
         </div>
         <div class="form-group">
-          <label>آیکون (ایموجی)</label>
+          <label>آیکون (ایموجی) <span class="opt-pill">اختیاری</span></label>
           <input class="inp" name="icon" value="{{ form.icon.value|default_if_none:'' }}" placeholder="🛍️">
           <div class="field-help">فقط وقتی نمایش داده می‌شود که کالا هنوز تصویرِ کاور نداشته باشد.</div>
         </div>
       </div>
 
       <div class="form-group">
-        <label>برند <span class="help-icon" title="اختیاری — بسیاری از کالاها برند مشخصی ندارند.">؟</span></label>
+        <label>برند <span class="opt-pill">اختیاری</span> <span class="help-icon" title="اختیاری — بسیاری از کالاها برند مشخصی ندارند.">؟</span></label>
         {% include "dashboard/partials/product_brand_select.html" with brand_queryset=form.fields.brand.queryset selected_brand_id=form.brand.value %}
         {% for err in form.brand.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
 
       <div class="form-group">
-        <label>برچسب‌ها <span class="help-icon" title="برای جست‌وجو، فیلتر و مجموعه‌های کالا استفاده می‌شود.">؟</span></label>
+        <label>برچسب‌ها <span class="opt-pill">اختیاری</span> <span class="help-icon" title="برای جست‌وجو، فیلتر و مجموعه‌های کالا استفاده می‌شود.">؟</span></label>
         <input type="hidden" name="tags" x-ref="tagsHidden" :value="tags.join(',')">
         <div class="inline" style="display:flex;gap:8px">
           <input class="inp" x-model="tagInput" @keydown.enter.prevent="addTag()" list="tagSuggestions" placeholder="برچسب جدید را بنویسید و اینتر بزنید">
@@ -155,12 +160,12 @@
       </div>
 
       <div class="form-group">
-        <label>تصاویر و ویدیوی کالا <span class="help-icon" title="کاور، گالریِ عمومی، تصویرِ اختصاصیِ هر مقدارِ ویژگی (مثلاً رنگ) و تصویرِ دقیقِ هر تنوع — از تبِ «تصاویر و ویدیو» مدیریت می‌شوند.">؟</span></label>
-        <button type="button" class="btn btn-sm" @click="tab = 'media'">🖼️ رفتن به تبِ «تصاویر و ویدیو»</button>
+        <label>تصاویر و ویدیوی کالا <span class="help-icon" title="کاور، گالریِ عمومی، تصویرِ اختصاصیِ هر مقدارِ ویژگی (مثلاً رنگ) و تصویرِ دقیقِ هر تنوع — از تبِ «تصاویر و فیلم» مدیریت می‌شوند.">؟</span></label>
+        <button type="button" class="btn btn-sm" @click="tab = 'media'">🖼️ رفتن به تبِ «تصاویر و فیلم»</button>
       </div>
 
       <div class="form-group">
-        <label>توضیحاتِ کالا <span class="help-icon" title="متنِ کاملِ معرفیِ کالا که در تبِ «توضیحات محصول» صفحه‌ی فروشگاه نمایش داده می‌شود.">؟</span></label>
+        <label>توضیحاتِ کالا <span class="opt-pill">اختیاری</span> <span class="help-icon" title="متنِ کاملِ معرفیِ کالا که در تبِ «توضیحات محصول» صفحه‌ی فروشگاه نمایش داده می‌شود.">؟</span></label>
         <div id="descriptionEditor" x-data="richTextEditor()" x-init="mount()">
           <textarea class="inp" name="description" x-ref="source" style="min-height:160px">{{ form.description.value|default_if_none:'' }}</textarea>
         </div>
@@ -169,7 +174,16 @@
       </div>
     </div>
 
-    <!-- تب: تصاویر و ویدیو -->
+    <!-- تب ۲: دسته‌بندی -->
+    <div class="form-section" x-show="tab === 'category'" x-ref="tabCategory">
+      <div class="form-group">
+        <label>دسته‌بندی کالا<span class="required-star">*</span> <span class="help-icon" title="کالا فقط می‌تواند به یک برگِ واقعیِ درختِ دسته‌بندی وصل شود، نه یک گروهِ اصلی.">؟</span></label>
+        {% include "dashboard/partials/product_category_select.html" with selected_category_id=form.category.value %}
+        {% for err in form.category.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+
+    <!-- تب ۴: تصاویر و فیلم -->
     <div class="form-section" x-show="tab === 'media'" x-ref="tabMedia">
       {% if product %}
       <div class="form-section-title">تصاویرِ کالا</div>
@@ -337,7 +351,7 @@
       {% endif %}
     </div>
 
-    <!-- تب ۲: قیمت -->
+    <!-- تب ۳: قیمت و تنوع -->
     <div class="form-section" x-show="tab === 'price'" x-ref="tabPrice">
       <div class="form-group">
         <label>نوعِ محصول <span class="help-icon" title="بعد از ذخیره هم قابلِ تغییر است.">؟</span></label>
@@ -355,12 +369,6 @@
           </label>
         </div>
         {% for err in form.product_type.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
-      </div>
-
-      <div class="form-group">
-        <label>زیرگروه کالا * <span class="help-icon" title="کالا فقط می‌تواند به یک برگِ واقعیِ درختِ دسته‌بندی وصل شود، نه یک گروهِ اصلی.">؟</span></label>
-        {% include "dashboard/partials/product_category_select.html" with selected_category_id=form.category.value %}
-        {% for err in form.category.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
 
       <!-- قیمت همیشه از طریقِ مودالِ «تنظیمِ قیمت» وارد می‌شود — نه فیلدهایِ
@@ -486,7 +494,7 @@
       </details>
     </div>
 
-    <!-- تب ۳: سئو و انتشار -->
+    <!-- تب ۵: سئو و انتشار -->
     <div class="form-section" x-show="tab === 'seo'" x-ref="tabSeo">
       <div class="form-row">
         <div class="form-group">

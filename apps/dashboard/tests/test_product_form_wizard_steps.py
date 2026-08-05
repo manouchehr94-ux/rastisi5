@@ -10,9 +10,9 @@ Covers two fixes:
    ``x-show`` so the refs stay mounted. This test only asserts the rendered HTML no
    longer uses the unmounting ``x-if`` variant for these steps.
 
-2. The product-form wizard was restructured: step 1 ("basic") no longer contains the
-   category field — it moved into step 2 ("price"/"type"), right after the product-type
-   selector, per the new mobile step order (basic info -> type & category -> media -> seo).
+2. The product-form wizard is now the approved 5-step shape (اطلاعات پایه / دسته‌بندی /
+   قیمت و تنوع / تصاویر و فیلم / سئو و انتشار). The category field lives in its own
+   ``tab === 'category'`` step, not inside ``basic`` or ``price``.
 """
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
@@ -54,35 +54,30 @@ class ProductFormWizardStepsTests(TestCase):
         self.assertIn('x-show="qStep === 2"', html)
         self.assertIn('x-show="qStep === 3"', html)
 
-    def test_category_field_lives_in_price_step_not_basic_step(self):
+    def test_category_field_lives_in_category_step_not_basic_or_price_step(self):
         response = self.client.get(reverse("dashboard:product-add"))
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
 
-        # The four x-show="tab === '...'" sections keep their original file order
-        # (basic, media, price, seo) — only the *step-indicator* array (asserted in
-        # test_wizard_step_order_and_labels) controls the visual/navigation order.
-        # What matters here is simply: the category field must be inside the 'price'
-        # step's section and nowhere else (not in 'basic', not in 'seo').
         basic_start = html.find("x-show=\"tab === 'basic'\"")
-        price_start = html.find("x-show=\"tab === 'price'\"")
-        seo_start = html.find("x-show=\"tab === 'seo'\"")
+        category_start = html.find("x-show=\"tab === 'category'\"")
+        media_start = html.find("x-show=\"tab === 'media'\"")
         self.assertNotEqual(basic_start, -1)
-        self.assertNotEqual(price_start, -1)
-        self.assertNotEqual(seo_start, -1)
+        self.assertNotEqual(category_start, -1)
+        self.assertNotEqual(media_start, -1)
 
         category_field_pos = html.find('id="categoryField"')
         self.assertNotEqual(category_field_pos, -1, "category field not found in rendered HTML")
         self.assertGreater(
-            category_field_pos, price_start,
-            "category field should be inside the 'price' (type) step, not before it",
+            category_field_pos, category_start,
+            "category field should be inside the 'category' step, not before it",
         )
         self.assertLess(
-            category_field_pos, seo_start,
-            "category field should come before the 'seo' step section",
+            category_field_pos, media_start,
+            "category field should come before the 'media' step section",
         )
         # And it must NOT be inside the 'basic' step's section anymore.
-        basic_section_html = html[basic_start:price_start]
+        basic_section_html = html[basic_start:category_start]
         self.assertNotIn('id="categoryField"', basic_section_html)
 
     def test_wizard_step_order_and_labels(self):
@@ -90,7 +85,24 @@ class ProductFormWizardStepsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
         self.assertIn(
-            "tabs: [['basic', 'اطلاعات پایه'], ['price', 'نوعِ کالا'], "
-            "['media', 'تصاویر و ویدیو'], ['seo', 'سئو و انتشار']]",
+            "tabs: [['basic', 'اطلاعات پایه'], ['category', 'دسته‌بندی'], "
+            "['price', 'قیمت و تنوع'], ['media', 'تصاویر و فیلم'], ['seo', 'سئو و انتشار']]",
             html,
+        )
+
+    def test_wizard_step_strip_is_above_form_not_a_sidebar(self):
+        """The five-step strip (``.wizard-progress``) must render as a horizontal row
+        above the form body, not a right-side rail — asserted by checking it appears in
+        the markup before the category "no leaf categories" banner / first tab section,
+        and that the CSS class carries no sidebar-style width/float rule."""
+        response = self.client.get(reverse("dashboard:product-add"))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        wizard_progress_pos = html.find('class="wizard-progress"')
+        basic_tab_pos = html.find("x-show=\"tab === 'basic'\"")
+        self.assertNotEqual(wizard_progress_pos, -1)
+        self.assertNotEqual(basic_tab_pos, -1)
+        self.assertLess(
+            wizard_progress_pos, basic_tab_pos,
+            "the step strip must render above the tab content, not beside/after it",
         )

@@ -213,12 +213,13 @@ class ProductAddViewTests(ProductViewsTestCase):
 
 
 class ProductWizardTests(ProductViewsTestCase):
-    """فرمِ افزودنِ کالا چهار بخشِ اصلی دارد (اطلاعات پایه / تصاویر و ویدیو /
-    قیمت / سئو و انتشار)، همه در یک <form> واحد (بدون از دست رفتنِ داده بین
-    تب‌ها)، با اعتبارسنجیِ سمتِ سرور که کاربر را دقیقاً به تبِ دارایِ خطا
-    هدایت می‌کند. تبِ قیمت خودش ساده است — نوعِ کالا و دکمه‌ی «تنظیمِ
-    قیمت» (که مودال باز می‌کند)؛ مدیریتِ ویژگی/تنوع در صفحه‌ی جداگانه‌ی
-    «پیکربندیِ تنوع‌ها» انجام می‌شود، نه داخلِ ویزارد."""
+    """فرمِ افزودنِ کالا پنج بخشِ اصلی دارد (اطلاعات پایه / دسته‌بندی /
+    قیمت و تنوع / تصاویر و فیلم / سئو و انتشار)، همه در یک <form> واحد
+    (بدون از دست رفتنِ داده بین تب‌ها)، با اعتبارسنجیِ سمتِ سرور که کاربر
+    را دقیقاً به تبِ دارایِ خطا هدایت می‌کند. تبِ قیمت خودش ساده است —
+    نوعِ کالا و دکمه‌ی «تنظیمِ قیمت» (که مودال باز می‌کند)؛ مدیریتِ
+    ویژگی/تنوع در صفحه‌ی جداگانه‌ی «پیکربندیِ تنوع‌ها» انجام می‌شود، نه
+    داخلِ ویزارد."""
 
     def _payload(self, **overrides):
         payload = {
@@ -233,13 +234,15 @@ class ProductWizardTests(ProductViewsTestCase):
         response = self.client.get(reverse("dashboard:product-add"))
         content = response.content.decode()
         self.assertEqual(content.count("<form"), 1)  # یک فرمِ واحد، نه فرم‌های جداگانه‌ی هر تب
-        for ref in ["tabBasic", "tabMedia", "tabPrice", "tabSeo"]:
+        for ref in ["tabBasic", "tabCategory", "tabMedia", "tabPrice", "tabSeo"]:
             self.assertIn(f'x-ref="{ref}"', content)
 
     def test_tab_labels_present(self):
         response = self.client.get(reverse("dashboard:product-add"))
         self.assertContains(response, "اطلاعات پایه")
-        self.assertContains(response, "تصاویر و ویدیو")
+        self.assertContains(response, "دسته‌بندی")
+        self.assertContains(response, "قیمت و تنوع")
+        self.assertContains(response, "تصاویر و فیلم")
         self.assertContains(response, "سئو و انتشار")
 
     def test_pricing_tab_shows_only_type_choice_and_set_price_button(self):
@@ -263,15 +266,17 @@ class ProductWizardTests(ProductViewsTestCase):
         response = self.client.get(reverse("dashboard:product-add"))
         self.assertContains(response, "پیکربندیِ تنوع‌ها")
 
-    def test_basic_info_tab_contains_category_and_brand(self):
-        """دسته‌بندی و برند در تبِ «اطلاعات پایه» هستند."""
+    def test_basic_info_tab_contains_brand(self):
+        """برند در تبِ «اطلاعات پایه» است؛ دسته‌بندی در تبِ جداگانه‌ی «دسته‌بندی»
+        است (نگاه کنید به ``test_product_form_wizard_steps.py`` برای پوششِ
+        دقیقِ محلِ قرارگیریِ فیلدِ دسته‌بندی)."""
         response = self.client.get(reverse("dashboard:product-add"))
         content = response.content.decode()
         tab_start = content.index('x-ref="tabBasic"')
-        tab_end = content.index('x-ref="tabPrice"')
+        tab_end = content.index('x-ref="tabCategory"')
         tab_html = content[tab_start:tab_end]
-        self.assertIn('name="category"', tab_html)
         self.assertIn('name="brand"', tab_html)
+        self.assertNotIn('name="category"', tab_html)
 
     def test_price_tab_contains_attributes_and_variant_type(self):
         """ویژگی‌های اختصاصیِ دسته‌بندی و نوعِ کالا در همان تبِ «قیمت و تنوع» هستند."""
@@ -283,10 +288,10 @@ class ProductWizardTests(ProductViewsTestCase):
         self.assertIn('name="product_type"', tab_html)
         self.assertIn("productAttributeFields", tab_html)
 
-    def test_error_step_routes_to_basic_tab_when_category_missing(self):
+    def test_error_step_routes_to_category_tab_when_category_missing(self):
         response = self.client.post(reverse("dashboard:product-add"), self._payload(category=""))
         self.assertEqual(response.status_code, 200)
-        self.assertIn("tab: 'basic',", response.content.decode())
+        self.assertIn("tab: 'category',", response.content.decode())
 
     def test_error_step_routes_to_price_tab_when_price_missing(self):
         response = self.client.post(reverse("dashboard:product-add"), self._payload(price=""))
