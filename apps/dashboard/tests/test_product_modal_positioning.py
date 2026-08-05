@@ -1,13 +1,18 @@
 """Regression tests for the nested-modal scroll/positioning bug, and for a follow-up
 bug the fix itself introduced.
 
-Every modal that opens *from inside* the already-open product-form modal (category
-picker, quick-add-category, price modal, variant price/sales-limit modals, bulk
-sales-limit modal) must be wrapped in ``<template x-teleport="body">`` so Alpine
-re-parents it to <body> at runtime. Without this, the modal's ``position: fixed``
-resolves against the outer modal's own box (which has ``backdrop-filter`` and can be
-scrolled), not the real viewport, so a scrolled-down outer modal makes the nested
-modal open off-screen above the visible area.
+Every modal that opens *from inside* the already-open product-form modal
+(quick-add-category, variant price/sales-limit modals, bulk sales-limit modal) must be
+wrapped in ``<template x-teleport="body">`` so Alpine re-parents it to <body> at
+runtime. Without this, the modal's ``position: fixed`` resolves against the outer
+modal's own box (which has ``backdrop-filter`` and can be scrolled), not the real
+viewport, so a scrolled-down outer modal makes the nested modal open off-screen above
+the visible area.
+
+(The old category tree-picker modal and the product-level "set price" modal this file
+used to also cover were both removed in the exact-prototype rewrite — category is now
+two plain <select> elements, and simple-product price/discount/stock are inline fields,
+neither behind a modal anymore.)
 
 These tests only assert the server-rendered HTML still carries the ``x-teleport="body"``
 wrapper immediately before each affected overlay's opening tag — they can't exercise
@@ -68,18 +73,17 @@ class NestedModalTeleportTests(TestCase):
             "so this modal escapes the outer product-form modal's backdrop-filter containing block",
         )
 
-    def test_category_picker_and_quick_add_modals_are_teleported(self):
+    def test_quick_add_category_modal_is_teleported(self):
+        """طبقِ پروتوتایپِ نهایی، مودالِ درختیِ انتخابِ دسته‌بندی (pickerOpen)
+        کاملاً حذف شد — دسته‌بندی اکنون دو <select> ساده است (گروهِ اصلی/
+        زیرگروه)، بدونِ هیچ مودالی. فقط مودالِ سه‌مرحله‌ایِ «+ ساختِ
+        دسته‌بندیِ جدید» (quickAddOpen) باقی مانده و همچنان باید teleport
+        شده باشد."""
         response = self.client.get(reverse("dashboard:product-add"))
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
-        self._assert_teleported(html, 'class="overlay" :class="{ open: pickerOpen }"', "category picker modal")
+        self.assertNotIn("pickerOpen", html)
         self._assert_teleported(html, 'class="overlay" :class="{ open: quickAddOpen }"', "quick-add-category modal")
-
-    def test_simple_product_price_modal_is_teleported(self):
-        response = self.client.get(reverse("dashboard:product-add"))
-        self.assertEqual(response.status_code, 200)
-        html = response.content.decode()
-        self._assert_teleported(html, 'x-show="priceModalOpen"', "simple-product price modal")
 
     def test_variant_price_and_sales_limit_modals_are_teleported(self):
         product = Product.objects.create(

@@ -197,14 +197,26 @@ class ProductAddViewTests(ProductViewsTestCase):
         self.assertFalse(Product.objects.filter(sku="SKU-NEW1").exists())
 
     def test_top_level_category_not_offered(self):
-        """The product's own category <select> (#id_category) must only offer
-        leaf categories — a top-level group may still legitimately appear
-        elsewhere on the page, in the quick-add-category panel's group picker."""
+        """زیرگروهِ #id_category دیگر مستقیماً در HTMLِ سمتِ سرور رندر نمی‌شود —
+        طبقِ پروتوتایپِ نهایی، فقط یک placeholderِ خالی سرور رندر می‌کند و
+        Alpine گزینه‌ها را از رویِ group_leaf_options_json (بر اساسِ گروهِ
+        اصلیِ انتخاب‌شده) با x-for می‌سازد؛ نگاه کنید به
+        ``product_category_select.html``. این تست همان قاعده‌ی قدیم را (گروهِ
+        اصلی هرگز به‌عنوانِ یک برگِ قابلِ‌انتخاب ظاهر نمی‌شود، فقط زیرگروهِ
+        واقعی) رویِ همان دادهٔ JSON بررسی می‌کند."""
         response = self.client.get(reverse("dashboard:product-add"))
         content = response.content.decode()
+        script_start = content.index('id="group-leaf-options-data"')
+        script_open = content.index(">", script_start) + 1
+        script_end = content.index("</script>", script_open)
+        group_leaf_options = json.loads(content[script_open:script_end])
+        leaf_ids_under_group = {leaf["id"] for leaf in group_leaf_options.get(str(self.main.id), [])}
+        self.assertIn(self.sub.id, leaf_ids_under_group)
+        self.assertNotIn(self.main.id, leaf_ids_under_group)
+        # خودِ #id_category در HTMLِ خام فقط placeholderِ خالی دارد — گزینه‌ها
+        # کلاینت‌ساخته‌اند، نه سرورساخته.
         category_select = content[content.index('id="id_category"'):content.index("</select>", content.index('id="id_category"'))]
-        self.assertNotIn(f'value="{self.main.id}"', category_select)
-        self.assertIn(f'value="{self.sub.id}"', category_select)
+        self.assertNotIn(f'value="{self.sub.id}"', category_select)
 
     def test_blank_icon_defaults(self):
         self.client.post(reverse("dashboard:product-add"), self._payload(icon=""))
@@ -245,9 +257,13 @@ class ProductWizardTests(ProductViewsTestCase):
         self.assertContains(response, "تصاویر و فیلم")
         self.assertContains(response, "سئو و انتشار")
 
-    def test_pricing_tab_shows_only_type_choice_and_set_price_button(self):
-        """تبِ قیمت فقط دو گزینه‌ی نوعِ کالا و دکمه‌ی «تنظیمِ قیمت» را نشان
-        می‌دهد — نه فیلدهای مستقیمِ قیمت/تخفیف و نه جدولِ تنوع."""
+    def test_pricing_tab_shows_simple_variable_toggle_and_inline_price_fields(self):
+        """تبِ «قیمت و تنوع» طبقِ پروتوتایپِ نهایی: یک سوییچِ دوحالته‌ی
+        کالای‌ساده/کالای‌دارایِ‌تنوع، و برایِ حالتِ ساده فیلدهایِ مستقیمِ
+        قیمت/تخفیف/موجودی — نه دکمه‌ای که مودالِ جداگانه باز کند، و نه
+        فیلدهایِ مخفی. برایِ کالایِ تازه (بدونِ ذخیره‌ی قبلی)، پنلِ
+        productOptionsBody هنوز رندر نمی‌شود (چون هنوز کالایی برایِ
+        اتصالِ محورهایِ تنوع وجود ندارد)."""
         response = self.client.get(reverse("dashboard:product-add"))
         content = response.content.decode()
         tab_start = content.index('x-ref="tabPrice"')
@@ -255,16 +271,27 @@ class ProductWizardTests(ProductViewsTestCase):
         tab_html = content[tab_start:tab_end]
         self.assertIn("کالای ساده", tab_html)
         self.assertIn("کالای دارای تنوع", tab_html)
-        self.assertIn("تنظیمِ قیمت", tab_html)
-        self.assertIn('type="hidden" name="price"', tab_html)
-        self.assertIn('type="hidden" name="discount_percent"', tab_html)
-        self.assertNotIn('type="text" name="price"', tab_html)
+        self.assertIn('id="simpleBox"', tab_html)
+        self.assertIn('name="price"', tab_html)
+        self.assertIn('name="discount_percent"', tab_html)
+        self.assertIn('name="stock"', tab_html)
+        self.assertNotIn('type="hidden" name="price"', tab_html)
         self.assertNotIn("variant-table", tab_html)
         self.assertNotIn("id=\"productOptionsBody\"", content)
 
-    def test_pricing_tab_links_variant_management_to_configure_variants(self):
+    def test_simple_price_field_has_no_fake_default_placeholder(self):
+        """طبقِ الزامِ پروتوتایپ: وقتی قیمت هنوز تنظیم نشده، فیلدِ قیمت باید
+        خالی/placeholderِ «تنظیم نشده» را نشان دهد — نه یک مقدارِ ساختگیِ
+        از پیش‌پرشده (مثلاً «۱ تومان»)."""
         response = self.client.get(reverse("dashboard:product-add"))
-        self.assertContains(response, "پیکربندیِ تنوع‌ها")
+        content = response.content.decode()
+        tab_start = content.index('x-ref="tabPrice"')
+        tab_end = content.index('x-ref="tabSeo"')
+        tab_html = content[tab_start:tab_end]
+        self.assertIn('placeholder="تنظیم نشده"', tab_html)
+        price_input_start = tab_html.index('name="price"')
+        price_input_tag = tab_html[max(0, price_input_start - 40):price_input_start + 120]
+        self.assertNotIn('value="1"', price_input_tag)
 
     def test_basic_info_tab_contains_brand(self):
         """برند در تبِ «اطلاعات پایه» است؛ دسته‌بندی در تبِ جداگانه‌ی «دسته‌بندی»
@@ -326,11 +353,17 @@ class ProductEditViewTests(ProductViewsTestCase):
         self.assertContains(response, "ویرایش کالا")
         self.assertContains(response, "گوشی هوشمند")
 
-    def test_basic_tab_has_nav_button_to_media_tab(self):
-        """تبِ «اطلاعاتِ پایه» باید دکمه‌ی رفتن به تبِ «تصاویر و ویدیو» را داشته باشد
-        (به‌جایِ مدیریتِ تصویر داخلِ خودِ تبِ اطلاعاتِ پایه)."""
+    def test_media_tab_is_reachable_from_the_five_step_tab_strip(self):
+        """طبقِ پروتوتایپِ نهایی، دیگر دکمه‌ی میان‌بُرِ «رفتن به تبِ تصاویر»
+        داخلِ تبِ «اطلاعاتِ پایه» وجود ندارد — ناوبری فقط از طریقِ نوارِ
+        پنج‌مرحله‌ایِ بالای فرم انجام می‌شود (همان‌طور که پروتوتایپ نشان
+        می‌دهد)؛ همان نوار باید دکمه‌ای برایِ تبِ «تصاویر و فیلم» داشته
+        باشد."""
         response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
-        self.assertContains(response, "@click=\"tab = 'media'\"")
+        content = response.content.decode()
+        self.assertNotIn("@click=\"tab = 'media'\"", content)
+        self.assertIn("@click=\"tab = key\"", content)
+        self.assertIn("تصاویر و فیلم", content)
 
     def test_media_tab_uploads_via_htmx_for_existing_product(self):
         """برایِ کالای موجود، آپلودِ تصویر در تبِ «تصاویر و ویدیو» مستقیماً با htmx

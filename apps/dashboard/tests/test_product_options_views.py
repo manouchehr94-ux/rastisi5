@@ -79,12 +79,19 @@ class ProductOptionsPageTests(ProductOptionsViewsTestCase):
         response = self.client.get(reverse("dashboard:product-options", args=[other_product.pk]))
         self.assertEqual(response.status_code, 404)
 
-    def test_two_column_variant_manager_layout(self):
-        """صفحه‌ی «پیکربندیِ تنوع‌ها» باید چیدمانِ دو‌ستونه (چپ: ویژگی‌ها،
-        راست: تنوع‌ها) داشته باشد."""
+    def test_variant_manager_uses_exact_prototype_card_layout(self):
+        """صفحه‌ی «پیکربندیِ تنوع‌ها» همان پارشیالِ ``product_options_body.html``
+        را با فرمِ افزودن/ویرایشِ کالا به‌اشتراک می‌گذارد؛ طبقِ پروتوتایپِ
+        نهایی، این پارشیال دیگر چیدمانِ دو‌ستونه‌ی قدیمی (variant-manager-grid)
+        ندارد — کارت‌هایِ ویژگی (با پس‌زمینه‌ی چرخشیِ رنگی) به‌صورتِ عمودی، و
+        زیرِ آن کارتِ «تنوع‌های ساخته‌شده» با متریک‌های خلاصه. صفحه باید در
+        کلاسِ pe-prototype (تا استایل‌های scope‌شده اعمال شوند) محصور باشد."""
         response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
-        self.assertContains(response, "variant-manager-grid")
+        self.assertNotContains(response, "variant-manager-grid")
         self.assertContains(response, "⚙️ پیکربندیِ تنوع‌ها")
+        self.assertContains(response, 'class="pe-prototype"')
+        self.assertContains(response, 'id="attrs"')
+        self.assertContains(response, "variant-summary")
 
     def test_media_management_link_opens_via_htmx_not_full_navigation(self):
         """لینکِ «مدیریتِ تصاویر» باید با htmx داخلِ مودالِ صفحه باز شود، نه با ناوبریِ کاملِ صفحه.

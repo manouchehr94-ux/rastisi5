@@ -7,7 +7,16 @@
 
 {% block content %}
 <a class="btn btn-sm" href="{% url 'dashboard:product-list' %}" style="margin-bottom:14px;display:inline-block">← بازگشت به فهرست کالاها</a>
-<div id="productOptionsBody">
-  {% include "dashboard/partials/product_options_body.html" %}
+{% comment %}
+  product_options_body.html اکنون از کلاس‌های pe-prototype (همان پوسته‌ی
+  پروتوتایپِ نهاییِ فرمِ کالا) استفاده می‌کند — چون این پارشیال بینِ فرمِ
+  افزودن/ویرایشِ کالا و همین صفحه‌ی مستقل به‌اشتراک گذاشته شده، بدونِ این
+  کلاسِ محصورکننده، تمامِ استایل‌های pe-prototype (که با .pe-prototype
+  scope شده‌اند) اینجا اعمال نمی‌شدند.
+{% endcomment %}
+<div class="pe-prototype">
+  <div id="productOptionsBody">
+    {% include "dashboard/partials/product_options_body.html" %}
+  </div>
 </div>
 {% endblock %}

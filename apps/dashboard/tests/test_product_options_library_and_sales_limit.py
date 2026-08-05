@@ -61,7 +61,7 @@ class ProductOptionsLibraryAndSalesLimitTests(TestCase):
         create_attribute_value(attribute, label="ایتالیایی")
         response = self.client.get(reverse("dashboard:product-options", args=[self.product.pk]))
         self.assertContains(response, "کشور سازنده")
-        self.assertContains(response, "ویژگی‌های استفاده‌شده در فروشگاه")
+        self.assertContains(response, "انتخاب از کتابخانه‌ی ویژگی‌ها")
 
     def test_sales_limit_modal_save_and_clear(self):
         option = add_product_option(self.product, label="کشور سازنده", values=["ایرانی", "ایتالیایی"])
@@ -112,7 +112,7 @@ class ProductOptionsLibraryAndSalesLimitTests(TestCase):
         self.assertEqual(response.status_code, 200)
         new_product = Product.objects.get(sku="OPTLIB-NEW1")
         self.assertEqual(new_product.product_type, Product.ProductType.VARIABLE)
-        self.assertContains(response, "ویژگی‌ها و تنوع‌هایِ کالا")
+        self.assertContains(response, "ویژگی‌های تنوع‌ساز")
         self.assertContains(response, 'id="productOptionsBody"')
         self.assertContains(response, reverse("dashboard:product-edit", args=[new_product.pk]))
 
@@ -143,8 +143,7 @@ class ProductOptionsLibraryAndSalesLimitTests(TestCase):
         self.assertIn('value="کالای تست ریست"', content)
         self.assertIn('value="عنوانِ سئوی تست"', content)
         self.assertIn("productType: 'variable'", content)
-        self.assertRegex(content, r'name="product_type" value="variable"[^>]*\bchecked\b')
-        self.assertRegex(content, r'name="visibility" value="link"[^>]*\bchecked\b')
+        self.assertRegex(content, r'<option value="link" selected>')
 
     def test_editing_variable_product_with_variants_keeps_base_price_intact(self):
         """رگرسیونِ تداخلِ نام‌گذاری: وقتی فرمِ کالا (که حالا شاملِ ردیف‌هایِ

@@ -91,14 +91,15 @@ class ProductFormWizardStepsTests(TestCase):
         )
 
     def test_wizard_step_strip_is_above_form_not_a_sidebar(self):
-        """The five-step strip (``.wizard-progress``) must render as a horizontal row
-        above the form body, not a right-side rail — asserted by checking it appears in
-        the markup before the category "no leaf categories" banner / first tab section,
-        and that the CSS class carries no sidebar-style width/float rule."""
+        """نوارِ پنج‌مرحله‌ای (``.pe-sidebar`` — قدیم: ``.wizard-progress``) باید
+        به‌صورتِ یک ردیفِ افقی *بالایِ* بدنه‌ی فرم رندر شود، نه یک ریلِ کناری —
+        با بررسیِ اینکه پیش از تبِ اطلاعاتِ پایه در HTML ظاهر می‌شود. طبقِ
+        override بعدیِ CSSِ پروتوتایپ، ``.pe-sidebar`` همیشه grid/flexِ افقی
+        است، هرگز یک راهروی عمودی."""
         response = self.client.get(reverse("dashboard:product-add"))
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
-        wizard_progress_pos = html.find('class="wizard-progress"')
+        wizard_progress_pos = html.find('class="pe-sidebar"')
         basic_tab_pos = html.find("x-show=\"tab === 'basic'\"")
         self.assertNotEqual(wizard_progress_pos, -1)
         self.assertNotEqual(basic_tab_pos, -1)

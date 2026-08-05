@@ -184,16 +184,22 @@ class QuickAddCategoryButtonPlacementTests(ProductQuickAddTestCase):
 
     def test_add_subcategory_button_falls_back_to_step_one_when_no_group_known(self):
         """وقتی هنوز هیچ دسته‌بندی‌ای برایِ کالا انتخاب نشده (کالایِ تازه)، گروهی
-        برای پیش‌پرکردن شناخته‌شده نیست — دکمه باید صادقانه به مرحله‌ی ۱ برگردد،
-        نه اینکه وانمود کند گروهی انتخاب شده."""
+        برای پیش‌پرکردن شناخته‌شده نیست — ``openQuickAddForSubcategory`` باید
+        صادقانه به مرحله‌ی ۱ برگردد، نه اینکه وانمود کند گروهی انتخاب شده.
+        دیگر یک ثابتِ جاوااسکریپتیِ جداگانه (``prefillGroupId``) وجود ندارد —
+        این منطق مستقیماً از رویِ ``selectedGroupId`` (مقدارِ اولیه‌ی خودِ
+        سلکتِ «گروهِ اصلی») در همان متدِ ``openQuickAddForSubcategory``
+        تصمیم می‌گیرد."""
         response = self.client.get(reverse("dashboard:product-add"))
         html = response.content.decode()
-        self.assertIn("const prefillGroupId = null;", html)
+        self.assertIn("selectedGroupId: '',", html)
+        self.assertIn("this.qStep = 1;", html)
 
     def test_add_subcategory_button_prefills_parent_group_for_existing_product(self):
-        """وقتی کالا از قبل به یک زیرگروهِ نهایی وصل است، دکمه‌ی «+ افزودن
-        زیرگروه» باید گروهِ اصلیِ همان مسیر را (نه فقط دسته‌ی میانی) به‌عنوانِ
-        پیش‌فرض بشناسد."""
+        """وقتی کالا از قبل به یک زیرگروهِ نهایی وصل است، ``selectedGroupId``یِ
+        اولیه باید گروهِ اصلیِ همان مسیر را (نه فقط دسته‌ی میانی) بشناسد —
+        همان مقداری که ``openQuickAddForSubcategory`` برای پیش‌پرکردنِ
+        مرحله‌ی ۲ استفاده می‌کند."""
         vendor = Vendor.objects.create(store=self.store, name="فروشنده", slug="pqa-vendor")
         product = Product.objects.create(
             store=self.store, vendor=vendor, category=self.sub, name="کالای تست",
@@ -202,7 +208,7 @@ class QuickAddCategoryButtonPlacementTests(ProductQuickAddTestCase):
         response = self.client.get(reverse("dashboard:product-edit", args=[product.pk]))
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
-        self.assertIn(f"const prefillGroupId = {self.main.pk};", html)
+        self.assertIn(f"selectedGroupId: '{self.main.pk}',", html)
 
 
 class ProductQuickAddPermissionTests(ProductQuickAddTestCase):
