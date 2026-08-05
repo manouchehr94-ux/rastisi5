@@ -1577,8 +1577,14 @@ def _video_list_response(request, product, *, toast=None):
 def product_video_add(request, pk):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store)
-    url = request.POST.get("url", "").strip()
-    title = request.POST.get("title", "").strip()
+    # قالب ``product_form.html`` این فیلدها را با نامِ ``__edit_video_url``/
+    # ``__edit_video_title`` می‌فرستد (نامِ dunder-پیشوندی عمداً برای اجتنابِ
+    # از تداخل با فیلدهایِ دیگرِ فرمِ کالا انتخاب شده)؛ این ویو تا پیش از این
+    # نامِ سادّه‌ی ``url``/``title`` را می‌خواند که هرگز در بدنه‌ی POST وجود
+    # نداشت — یعنی افزودنِ ویدیو همیشه (نه فقط گاهی) با پیامِ «لینک
+    # شناخته‌شده نیست» شکست می‌خورد، صرف‌نظر از معتبر بودنِ خودِ لینک.
+    url = request.POST.get("__edit_video_url", request.POST.get("url", "")).strip()
+    title = request.POST.get("__edit_video_title", request.POST.get("title", "")).strip()
     try:
         add_product_video(product, url=url, title=title)
     except ProductVideoError as exc:

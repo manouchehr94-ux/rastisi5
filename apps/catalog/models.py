@@ -368,6 +368,7 @@ class ProductVideo(TimeStampedModel):
     class Provider(models.TextChoices):
         YOUTUBE = "youtube", "یوتیوب"
         APARAT = "aparat", "آپارات"
+        INSTAGRAM = "instagram", "اینستاگرام"
 
     product = models.ForeignKey(Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="videos")
     provider = models.CharField("سرویس", max_length=10, choices=Provider.choices)
@@ -388,6 +389,12 @@ class ProductVideo(TimeStampedModel):
         from apps.catalog.services.product_video_service import embed_url as _compute_embed_url
 
         return _compute_embed_url(self)
+
+    @property
+    def instagram_permalink(self) -> str:
+        from apps.catalog.services.product_video_service import instagram_permalink as _permalink
+
+        return _permalink(self)
 
 
 class VariantMutationError(Exception):

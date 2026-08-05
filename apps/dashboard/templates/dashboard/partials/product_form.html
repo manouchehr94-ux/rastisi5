@@ -274,41 +274,45 @@
         {% include "dashboard/partials/product_images_list.html" %}
 
         <div class="card" style="margin-top:20px" x-data="{
-               url: '', embedUrl: '',
+               url: '', embedUrl: '', recognized: false,
                youtubePatterns: [/(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/)([\w-]{11})/, /youtu\.be\/([\w-]{11})/, /youtube\.com\/embed\/([\w-]{11})/],
                aparatPattern: /aparat\.com\/(?:v\/|video\/video\/embed\/videohash\/)([\w-]+)/,
+               instagramPattern: /instagram\.com\/(p|reel|tv)\/([\w-]+)/,
                checkUrl() {
-                 this.embedUrl = '';
+                 this.embedUrl = ''; this.recognized = false;
                  if (!this.url.trim()) return;
                  for (const p of this.youtubePatterns) {
                    const m = this.url.match(p);
-                   if (m) { this.embedUrl = 'https://www.youtube.com/embed/' + m[1]; return; }
+                   if (m) { this.embedUrl = 'https://www.youtube.com/embed/' + m[1]; this.recognized = true; return; }
                  }
                  const am = this.url.match(this.aparatPattern);
-                 if (am) { this.embedUrl = 'https://www.aparat.com/video/video/embed/videohash/' + am[1] + '/vt/frame'; return; }
+                 if (am) { this.embedUrl = 'https://www.aparat.com/video/video/embed/videohash/' + am[1] + '/vt/frame'; this.recognized = true; return; }
+                 const im = this.url.match(this.instagramPattern);
+                 if (im) { this.recognized = true; return; }
                },
              }">
-          <div class="card-title">ویدیویِ معرفیِ کالا (یوتیوب / آپارات)</div>
+          <div class="card-title">ویدیویِ معرفیِ کالا (یوتیوب / آپارات / اینستاگرام)</div>
           <div class="row">
             <div class="field" style="flex:1;min-width:220px">
               <label>لینکِ ویدیو</label>
-              <input id="editVideoUrlInput" name="__edit_video_url" dir="ltr" placeholder="https://www.youtube.com/watch?v=... یا https://www.aparat.com/v/..."
+              <input id="editVideoUrlInput" name="__edit_video_url" dir="ltr" placeholder="لینکِ یوتیوب، آپارات یا پست/Reelِ عمومیِ اینستاگرام"
                      x-model="url" @input.debounce.300ms="checkUrl()">
             </div>
             <div class="field" style="width:150px">
               <label>عنوان <span class="opt-pill">اختیاری</span></label>
               <input id="editVideoTitleInput" name="__edit_video_title" placeholder="معرفیِ کالا">
             </div>
-            <button type="button" class="btn btn-sm btn-primary" :disabled="!url.trim() || !embedUrl"
+            <button type="button" class="btn btn-sm btn-primary" :disabled="!url.trim() || !recognized"
                     hx-post="{% url 'dashboard:product-video-add' product.pk %}"
                     hx-include="#editVideoUrlInput,#editVideoTitleInput"
                     hx-target="#productVideosList" hx-swap="outerHTML"
-                    @click="url = ''; embedUrl = ''">افزودنِ ویدیو</button>
+                    hx-on::htmx:before-request="url = ''; embedUrl = ''; recognized = false">افزودنِ ویدیو</button>
           </div>
-          <div x-show="url.trim() && !embedUrl" x-cloak class="pe-field-error" style="margin-top:6px">این لینک شناخته‌شده نیست — فقط لینکِ یوتیوب یا آپارات پذیرفته می‌شود.</div>
+          <div x-show="url.trim() && !recognized" x-cloak class="pe-field-error" style="margin-top:6px">این لینک شناخته‌شده نیست — فقط لینکِ یوتیوب، آپارات یا پست/Reelِ عمومیِ اینستاگرام پذیرفته می‌شود.</div>
           <div x-show="embedUrl" x-cloak style="margin-top:10px;width:220px;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:#000">
             <iframe :src="embedUrl" style="width:100%;height:100%;border:0" allowfullscreen loading="lazy"></iframe>
           </div>
+          <div x-show="recognized && !embedUrl" x-cloak class="pe-field-help" style="margin-top:6px">لینکِ اینستاگرام شناخته شد — پیش‌نمایشِ زنده در این‌جا پشتیبانی نمی‌شود؛ پس از افزودن، با کلیک روی نمادِ اینستاگرام در تبِ جدید باز می‌شود.</div>
         </div>
         {% include "dashboard/partials/product_videos_list.html" %}
 
