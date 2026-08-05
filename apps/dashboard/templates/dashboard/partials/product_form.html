@@ -181,6 +181,29 @@
         {% include "dashboard/partials/product_category_select.html" with selected_category_id=form.category.value %}
         {% for err in form.category.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
       </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>واحد شمارش <span class="help-icon" title="واحدی که موجودی و فروشِ این کالا با آن شمرده می‌شود.">؟</span></label>
+          <select class="inp" name="unit">
+            {% for value, label in form.fields.unit.choices %}
+            <option value="{{ value }}" {% if form.unit.value|default:"piece" == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% for err in form.unit.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label>مدل یا کد فنی <span class="opt-pill">اختیاری</span> <span class="help-icon" title="کدِ سازنده/برند برایِ این کالا — با کدِ کالا (SKU) که شناسه‌ی داخلیِ خودِ شما است فرق دارد.">؟</span></label>
+          <input class="inp" name="model_code" value="{{ form.model_code.value|default_if_none:'' }}" dir="ltr" placeholder="مثلاً: X20-BLK">
+          {% for err in form.model_code.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>کشور سازنده <span class="opt-pill">اختیاری</span></label>
+        <input class="inp" name="country_of_origin" value="{{ form.country_of_origin.value|default_if_none:'' }}" placeholder="مثلاً: ایران">
+        {% for err in form.country_of_origin.errors %}<div style="color:var(--red);font-size:11.5px;margin-top:4px">{{ err }}</div>{% endfor %}
+      </div>
     </div>
 
     <!-- تب ۴: تصاویر و فیلم -->

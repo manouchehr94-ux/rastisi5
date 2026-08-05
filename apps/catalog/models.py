@@ -134,6 +134,20 @@ class Product(TimeStampedModel):
         PUBLIC = "public", "نمایش عمومی"
         LINK_ONLY = "link", "فقط با لینک مستقیم"
 
+    class Unit(models.TextChoices):
+        PIECE = "piece", "عدد"
+        PACK = "pack", "بسته"
+        PAIR = "pair", "جفت"
+        SET = "set", "ست"
+        METER = "meter", "متر"
+        SQUARE_METER = "sqm", "مترمربع"
+        LITER = "liter", "لیتر"
+        MILLILITER = "ml", "میلی‌لیتر"
+        GRAM = "gram", "گرم"
+        KILOGRAM = "kg", "کیلوگرم"
+        STRAND = "strand", "شاخه"
+        ROLL = "roll", "رول"
+
     store = models.ForeignKey(
         "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="products",
     )
@@ -180,6 +194,21 @@ class Product(TimeStampedModel):
     tag = models.CharField("برچسب", max_length=10, choices=Tag.choices, blank=True)
     icon = models.CharField("آیکون/اموجی", max_length=20, blank=True)
     tint = models.CharField("رنگ پس‌زمینه کارت", max_length=20, blank=True)
+
+    # واحدِ شمارش (Product Entry final wave 1). ``choices`` ثابت — مثلِ
+    # status/product_type/visibility همین مدل — چون فهرستِ نهایی‌ای است که
+    # فقط با تغییرِ کد گسترش پیدا می‌کند، نه یک مدلِ Store-owned جدا
+    # (over-engineering برایِ این مرحله). پیش‌فرضِ PIECE هم برایِ کالاهایِ
+    # تازه و هم برایِ backfillِ سطرهای قبلی (نگاه کنید به مایگریشنِ افزودنِ
+    # این فیلد) یکسان است — بدونِ نیازِ RunPython.
+    unit = models.CharField("واحد شمارش", max_length=12, choices=Unit.choices, default=Unit.PIECE)
+    # مدل/کدِ فنیِ سازنده — با sku (کدِ داخلیِ فروشنده) اشتباه گرفته نشود؛
+    # این کد از سازنده/برند می‌آید، نه از خودِ فروشگاه.
+    model_code = models.CharField("مدل یا کد فنی", max_length=80, blank=True, default="")
+    # کشورِ سازنده‌یِ خودِ کالا — مستقل از Brand.country (کشورِ برند)، چون
+    # ممکن است برندی در یک کشور ثبت شده باشد اما کالایِ مشخصی را در کشورِ
+    # دیگری تولید کند.
+    country_of_origin = models.CharField("کشور سازنده", max_length=80, blank=True, default="")
 
     # لجستیک و شناسه‌های اضافی (Phase 1C — مطابق فیلدهای موجود در پروتوتایپ
     # merchant-panel-x25، بخش «مشخصات لجستیک»)

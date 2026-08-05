@@ -60,6 +60,16 @@ class ProductForm(NumericCleanMixin, forms.Form):
         label="زیرگروه کالا", queryset=Category.objects.none(),
         error_messages={"required": "انتخاب زیرگروه الزامی است"},
     )
+    # واحدِ شمارش/مدل-کدِ فنی/کشورِ سازنده (Product Entry final wave 1) — هر
+    # سه در تبِ «دسته‌بندی» فرم نمایش داده می‌شوند. ``required=False`` تا
+    # ارسال‌های بدونِ این فیلد (فرم‌های قدیمی/تست‌هایی که آن را نمی‌فرستند —
+    # دقیقاً همان قراردادِ ``product_type`` در همین فرم) رد نشوند؛ خالی یعنی
+    # «پیشِ‌فرضِ PIECE» (نگاه کنید به ``_save_product``)، نه خطا.
+    unit = forms.ChoiceField(
+        label="واحد شمارش", choices=Product.Unit.choices, initial=Product.Unit.PIECE, required=False,
+    )
+    model_code = forms.CharField(label="مدل یا کد فنی", max_length=80, required=False)
+    country_of_origin = forms.CharField(label="کشور سازنده", max_length=80, required=False)
     brand = forms.ModelChoiceField(label="برند", queryset=Brand.objects.none(), required=False)
     price = forms.CharField(label="قیمت (تومان)")
     discount_percent = forms.CharField(label="تخفیف (٪)", required=False, initial="0")

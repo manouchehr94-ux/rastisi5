@@ -449,6 +449,100 @@ class ProductSeoAndLogisticsFieldsTests(ProductViewsTestCase):
         self.assertFalse(Product.objects.filter(sku="SKU-NEW1").exists())
 
 
+class ProductUnitModelCodeCountryFieldsTests(ProductViewsTestCase):
+    """واحدِ شمارش/مدل-کدِ فنی/کشورِ سازنده (Product Entry final wave 1) —
+    هر سه در تبِ «دسته‌بندی» فرم هستند، هر سه اختیاری به‌جز unit (که همیشه
+    یک مقدارِ پیش‌فرضِ معتبر دارد و هرگز واقعاً «الزامی» به‌معنایِ نمایشِ
+    خطا نیست)."""
+
+    def _payload(self, **overrides):
+        payload = {
+            "name": "کالای واحد", "sku": "SKU-UNIT1", "category": self.sub.id,
+            "price": "500000", "discount_percent": "0", "stock": "10",
+            "status": "active", "icon": "🎁", "description": "",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_existing_products_default_to_piece_unit(self):
+        """مایگریشنِ افزودنِ این فیلد بدونِ RunPython، فقط با defaultِ سطحِ
+        اسکیما — کالاهایِ از قبل موجود باید همان لحظه piece شوند."""
+        self.assertEqual(self.product.unit, Product.Unit.PIECE)
+
+    def test_create_persists_unit_model_code_and_country(self):
+        self.client.post(reverse("dashboard:product-add"), self._payload(
+            unit="kg", model_code="MC-100", country_of_origin="آلمان",
+        ))
+        product = Product.objects.get(sku="SKU-UNIT1")
+        self.assertEqual(product.unit, "kg")
+        self.assertEqual(product.model_code, "MC-100")
+        self.assertEqual(product.country_of_origin, "آلمان")
+
+    def test_blank_model_code_and_country_accepted(self):
+        response = self.client.post(reverse("dashboard:product-add"), self._payload(
+            model_code="", country_of_origin="",
+        ))
+        self.assertEqual(response.status_code, 200)
+        product = Product.objects.get(sku="SKU-UNIT1")
+        self.assertEqual(product.model_code, "")
+        self.assertEqual(product.country_of_origin, "")
+
+    def test_missing_unit_falls_back_to_piece_not_an_error(self):
+        payload = self._payload()
+        payload.pop("unit", None)
+        response = self.client.post(reverse("dashboard:product-add"), payload)
+        self.assertEqual(response.status_code, 200)
+        product = Product.objects.get(sku="SKU-UNIT1")
+        self.assertEqual(product.unit, Product.Unit.PIECE)
+
+    def test_invalid_unit_choice_rejected(self):
+        response = self.client.post(reverse("dashboard:product-add"), self._payload(unit="not-a-real-unit"))
+        self.assertFalse(Product.objects.filter(sku="SKU-UNIT1").exists())
+        self.assertEqual(response.status_code, 200)
+
+    def test_edit_prefills_unit_model_code_and_country(self):
+        self.product.unit = "liter"
+        self.product.model_code = "MC-200"
+        self.product.country_of_origin = "ایتالیا"
+        self.product.save()
+        response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
+        html = response.content.decode()
+        self.assertIn('<option value="liter" selected>', html)
+        self.assertIn('value="MC-200"', html)
+        self.assertIn('value="ایتالیا"', html)
+
+    def test_edit_updates_unit_model_code_and_country(self):
+        payload = {
+            "name": self.product.name, "sku": self.product.sku, "category": self.sub.id,
+            "price": "500000", "discount_percent": "0", "stock": "10", "status": "active",
+            "unit": "gram", "model_code": "MC-300", "country_of_origin": "چین",
+        }
+        self.client.post(reverse("dashboard:product-edit", args=[self.product.pk]), payload)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.unit, "gram")
+        self.assertEqual(self.product.model_code, "MC-300")
+        self.assertEqual(self.product.country_of_origin, "چین")
+
+    def test_validation_error_preserves_unit_and_model_code(self):
+        """وقتی اعتبارسنجیِ سرور به دلیلِ خطایِ فیلدِ دیگری شکست می‌خورد،
+        مقادیرِ واردشده برایِ واحد/مدل‌کد نباید بی‌سروصدا از دست بروند."""
+        response = self.client.post(reverse("dashboard:product-add"), self._payload(
+            sku="", unit="kg", model_code="MC-100",
+        ))
+        html = response.content.decode()
+        self.assertIn('<option value="kg" selected>', html)
+        self.assertIn('value="MC-100"', html)
+        self.assertIn("tab: 'basic',", html)
+
+    def test_keep_open_preserves_unit_and_model_code(self):
+        response = self.client.post(reverse("dashboard:product-add"), self._payload(
+            sku="SKU-UNIT2", product_type="variable", unit="kg", model_code="MC-100", keep_open="1",
+        ))
+        html = response.content.decode()
+        self.assertIn('<option value="kg" selected>', html)
+        self.assertIn('value="MC-100"', html)
+
+
 class ProductDeleteViewTests(ProductViewsTestCase):
     def test_deletes_product(self):
         response = self.client.post(reverse("dashboard:product-delete", args=[self.product.pk]))

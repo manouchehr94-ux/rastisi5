@@ -760,6 +760,9 @@ def _save_product(form, product, *, store):
     product.name = data["name"]
     product.sku = data["sku"]
     product.category = data["category"]
+    product.unit = data.get("unit") or Product.Unit.PIECE
+    product.model_code = data.get("model_code") or ""
+    product.country_of_origin = data.get("country_of_origin") or ""
     product.brand = data.get("brand")
     product.price = data["price"]
     product.discount_percent = data["discount_percent"]
@@ -794,8 +797,9 @@ _PRODUCT_WIZARD_FIELD_STEPS = {
     # تبِ «تصاویر و فیلم» فیلدهایِ ProductForm ندارد (images/video_url/video_title
     # مستقیماً از request.POST/FILES خوانده می‌شوند)؛ خطاهایش با error_step="media"
     # مستقیم در ``product_form`` مدیریت می‌شود، نه از این نگاشت.
-    # تبِ ۲ — دسته‌بندی
-    "category": "category",
+    # تبِ ۲ — دسته‌بندی: دسته‌بندی، واحدِ شمارش، مدل/کدِ فنی، کشورِ سازنده
+    "category": "category", "unit": "category", "model_code": "category",
+    "country_of_origin": "category",
     # تبِ ۳ — قیمت و تنوع: نوعِ کالا، قیمت، تخفیف، مالیات، لجستیک، موجودی
     "price": "price", "discount_percent": "price", "tax_class": "price",
     "barcode": "price", "weight_grams": "price", "requires_shipping": "price",
@@ -816,6 +820,8 @@ def _product_form_initial(product) -> dict:
     ممکن می‌کرد."""
     return {
         "name": product.name, "sku": product.sku, "category": product.category_id,
+        "unit": product.unit, "model_code": product.model_code,
+        "country_of_origin": product.country_of_origin,
         "brand": product.brand_id,
         "price": product.price, "discount_percent": product.discount_percent,
         "stock": product.stock, "status": product.status, "icon": product.icon,
