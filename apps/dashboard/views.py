@@ -851,6 +851,16 @@ def _product_form_extra_context(store, product, *, form=None, request=None, cate
         ]
         for row in tree_rows
     }
+    # برایِ دکمه‌ی «+ افزودنِ زیرگروه»: اگر کالا از قبل به یک زیرگروهِ نهایی
+    # وصل است، گروهِ اصلیِ آن (بالاترین جدِ درخت) را پیدا می‌کند تا مودالِ
+    # ساختِ دسته‌بندی بتواند مستقیماً در مرحله‌ی ۲ با همان گروه از پیش‌پرشده
+    # باز شود، بدونِ اینکه مدیرِ فروشگاه دوباره گروه را انتخاب کند.
+    selected_category_group_id = None
+    if resolved_category is not None and resolved_category.parent_id is not None:
+        ancestor = resolved_category
+        while ancestor.parent_id is not None:
+            ancestor = ancestor.parent
+        selected_category_group_id = ancestor.pk
     context = {
         "checklist": build_completion_checklist(product) if product else [],
         "completion_pct": completion_percent(product) if product else 0,
@@ -859,6 +869,7 @@ def _product_form_extra_context(store, product, *, form=None, request=None, cate
         "category_tree_rows": tree_rows,
         "selected_category_path": category_chain(resolved_category) if resolved_category else "",
         "categories_by_group_json": categories_by_group,
+        "selected_category_group_id": selected_category_group_id,
     }
     if product is not None and product.product_type == Product.ProductType.VARIABLE:
         context.update(_product_options_context(request, product))
@@ -1033,7 +1044,7 @@ def product_attribute_fields(request, pk=None):
 @staff_required
 @permission_required(PRODUCT_CREATE, PRODUCT_EDIT)
 def product_quick_add_brand(request):
-    """«+ ساخت برند جدید» داخل فرمِ کالا — بدون ترکِ فرم و بدون از دست رفتنِ
+    """«+ افزودن برند» داخل فرمِ کالا — بدون ترکِ فرم و بدون از دست رفتنِ
     داده‌های واردشده؛ فقط ‌select برند دوباره رندر و مقدارِ تازه انتخاب می‌شود."""
     store = _resolve_dashboard_store(request)
     # ورودیِ نامِ برند در این پنلِ کوچک عمداً ``quick_brand_name`` است، نه

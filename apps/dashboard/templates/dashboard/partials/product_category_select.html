@@ -51,6 +51,27 @@
          this.qGroupId = ''; this.qGroupNewName = '';
          this.qCategoryId = ''; this.qCategoryNewName = ''; this.qSubName = '';
        },
+       // «+ افزودنِ زیرگروه»: همان مودالِ سه‌مرحله‌ایِ ساختِ دسته‌بندی، اما مستقیم
+       // در مرحله‌ی ۲ (دسته) باز می‌شود — با گروهِ والدِ دسته‌بندیِ فعلاً انتخاب‌شده
+       // (اگر شناخته‌شده باشد) از پیش پرشده — تا مدیرِ فروشگاه مجبور نباشد کلِ
+       // مسیرِ سه‌مرحله‌ای را از اول طی کند. اگر گروهی شناخته‌شده نباشد (هنوز هیچ
+       // دسته‌بندی‌ای انتخاب نشده)، صادقانه از مرحله‌ی ۱ شروع می‌شود.
+       openQuickAddForSubcategory() {
+         this.pickerOpen = false;
+         this.quickAddOpen = true;
+         this.qCategoryId = ''; this.qCategoryNewName = ''; this.qSubName = '';
+         const prefillGroupId = {{ selected_category_group_id|default:'null' }};
+         if (prefillGroupId !== null && this.categoriesByGroup[String(prefillGroupId)] !== undefined) {
+           this.qGroupMode = 'existing';
+           this.qGroupId = String(prefillGroupId);
+           this.qCategoryMode = this.qCategoryOptions.length ? 'existing' : 'new';
+           this.qStep = 2;
+         } else {
+           this.qStep = 1;
+           this.qGroupMode = {{ category_tree_rows|length|yesno:'"existing","new"' }};
+           this.qGroupId = ''; this.qGroupNewName = '';
+         }
+       },
        qGoNext() {
          if (this.qStep === 1 && this.qStep1Done) {
            this.qCategoryMode = (this.qGroupMode === 'existing' && this.qCategoryOptions.length) ? 'existing' : 'new';
@@ -67,6 +88,10 @@
   </button>
   <div class="field-help" x-show="selectedPath" style="font-weight:700;color:var(--primary)" x-text="'مسیرِ انتخاب‌شده: ' + selectedPath"></div>
   <div class="field-help">فقط زیرگروهِ نهایی (بدونِ زیرمجموعه) قابلِ انتخاب است — برای انتخاب روی کادرِ بالا کلیک کنید.</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+    <button type="button" class="btn btn-sm" @click="openQuickAdd()">+ افزودن گروه اصلی</button>
+    <button type="button" class="btn btn-sm" @click="openQuickAddForSubcategory()">+ افزودن زیرگروه</button>
+  </div>
   {% if quick_errors %}
   <div style="color:var(--red);font-size:11.5px;margin-top:4px">
     {% for field, errs in quick_errors.items %}{% for err in errs %}<div>{{ err }}</div>{% endfor %}{% endfor %}

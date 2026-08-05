@@ -8,7 +8,7 @@
   </select>
   <div class="field-help">اختیاری — اگر این کالا برند مشخصی ندارد، خالی بگذارید.</div>
 
-  <button type="button" class="quick-add-toggle" @click="quickOpen = !quickOpen">+ ساخت برند جدید</button>
+  <button type="button" class="quick-add-toggle" @click="quickOpen = !quickOpen">+ افزودن برند</button>
   <div class="quick-add-panel" x-show="quickOpen" x-cloak>
     {% if quick_errors %}
     <div style="flex-basis:100%;color:var(--red);font-size:11.5px">
@@ -16,7 +16,7 @@
     </div>
     {% endif %}
     <div class="form-group">
-      <label>نام برند *</label>
+      <label>نام برند<span class="required-star">*</span></label>
       <input class="inp" id="quickBrandName" name="quick_brand_name" placeholder="مثلاً: دیجی‌لوول">
     </div>
     <button type="button" class="btn btn-sm btn-primary"

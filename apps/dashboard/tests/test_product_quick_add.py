@@ -4,7 +4,7 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.catalog.models import Attribute, Brand, Category, CategoryAttributeSchema
+from apps.catalog.models import Attribute, Brand, Category, CategoryAttributeSchema, Product, Vendor
 from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
@@ -157,6 +157,52 @@ class QuickAddAttributeTests(ProductQuickAddTestCase):
         self.assertEqual(
             CategoryAttributeSchema.objects.filter(category=self.sub, attribute__label="رنگ").count(), 1,
         )
+
+
+class QuickAddCategoryButtonPlacementTests(ProductQuickAddTestCase):
+    """«+ افزودن گروه اصلی» و «+ افزودن زیرگروه» هر دو همان مودالِ سه‌مرحله‌ای
+    را دوباره‌استفاده می‌کنند (نه یک فرم/اندپوینت جداگانه) — فقط نقطه‌ی
+    ورودشان به مودال فرق دارد."""
+
+    def test_both_buttons_render_and_reuse_the_existing_modal(self):
+        response = self.client.get(reverse("dashboard:product-add"))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("+ افزودن گروه اصلی", html)
+        self.assertIn("+ افزودن زیرگروه", html)
+        self.assertIn("openQuickAddForSubcategory", html)
+        # هیچ فرم/اندپوینتِ دومی برای دسته‌بندی معرفی نشده — همان مودالِ
+        # سه‌مرحله‌ایِ موجود (qStep) توسطِ هر دو دکمه استفاده می‌شود.
+        self.assertEqual(html.count('id="categoryField"'), 1)
+
+    def test_add_main_group_button_starts_at_step_one(self):
+        response = self.client.get(reverse("dashboard:product-add"))
+        html = response.content.decode()
+        pos = html.find("+ افزودن گروه اصلی")
+        button_html = html[max(0, pos - 200):pos]
+        self.assertIn('@click="openQuickAdd()"', button_html)
+
+    def test_add_subcategory_button_falls_back_to_step_one_when_no_group_known(self):
+        """وقتی هنوز هیچ دسته‌بندی‌ای برایِ کالا انتخاب نشده (کالایِ تازه)، گروهی
+        برای پیش‌پرکردن شناخته‌شده نیست — دکمه باید صادقانه به مرحله‌ی ۱ برگردد،
+        نه اینکه وانمود کند گروهی انتخاب شده."""
+        response = self.client.get(reverse("dashboard:product-add"))
+        html = response.content.decode()
+        self.assertIn("const prefillGroupId = null;", html)
+
+    def test_add_subcategory_button_prefills_parent_group_for_existing_product(self):
+        """وقتی کالا از قبل به یک زیرگروهِ نهایی وصل است، دکمه‌ی «+ افزودن
+        زیرگروه» باید گروهِ اصلیِ همان مسیر را (نه فقط دسته‌ی میانی) به‌عنوانِ
+        پیش‌فرض بشناسد."""
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده", slug="pqa-vendor")
+        product = Product.objects.create(
+            store=self.store, vendor=vendor, category=self.sub, name="کالای تست",
+            slug="pqa-product", sku="PQA-SKU1", price=100000,
+        )
+        response = self.client.get(reverse("dashboard:product-edit", args=[product.pk]))
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn(f"const prefillGroupId = {self.main.pk};", html)
 
 
 class ProductQuickAddPermissionTests(ProductQuickAddTestCase):
