@@ -181,6 +181,81 @@ class BulkVariantActionEndpointTests(ProductEntryUiCleanupTestCase):
         self.assertEqual(self.variants[1].sales_limit_min, 1)
         self.assertEqual(self.variants[1].sales_limit, 5)
 
+    def test_bulk_activate_requires_selection(self):
+        response = self.client.post(
+            reverse("dashboard:product-variants-bulk-activate", args=[self.product.pk]),
+            {"variant_ids": [], "activate": "0"},
+        )
+        self.assertIn("هیچ تنوعی انتخاب نشده است", _toast_message(response))
+        for variant in self.variants:
+            variant.refresh_from_db()
+            self.assertTrue(variant.is_active)
+
+    def test_bulk_activate_rejects_variant_from_a_different_product(self):
+        """امنیت: شناسه‌ی تنوعِ یک کالای دیگر (حتی در همان فروشگاه) هرگز
+        نباید توسطِ اندپوینتِ عملِ گروهیِ *این* کالا اثر بگیرد — نگاه کنید به
+        ``_get_scoped_product``/``product.variants.filter(pk__in=...)``."""
+        other_product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.sub, name="کالای دیگر",
+            slug="uicleanup-other-product", sku="UICLEAN-OTHER-SKU1", price=Decimal("50000"),
+            product_type=Product.ProductType.VARIABLE,
+        )
+        other_axis = add_product_option(other_product, label="سایز")
+        add_option_value(other_axis, "بزرگ")
+        generate_variants(other_product)
+        other_variant = other_product.variants.get()
+        self.assertTrue(other_variant.is_active)
+
+        response = self.client.post(
+            reverse("dashboard:product-variants-bulk-activate", args=[self.product.pk]),
+            {"variant_ids": [other_variant.pk], "activate": "0"},
+        )
+        self.assertEqual(response.status_code, 200)
+        other_variant.refresh_from_db()
+        self.assertTrue(other_variant.is_active, "تنوعِ یک کالای دیگر نباید تغییر کند")
+
+    def test_bulk_delete_requires_selection(self):
+        response = self.client.post(
+            reverse("dashboard:product-variants-bulk-delete", args=[self.product.pk]),
+            {"delete_variant_ids": []},
+        )
+        self.assertIn("هیچ تنوعی انتخاب نشده است", _toast_message(response))
+        self.assertEqual(self.product.variants.count(), 3)
+
+    def test_bulk_update_no_longer_reads_is_active(self):
+        """رگرسیون: حذفِ چک‌باکسِ وضعیت از قالب نباید با کلیکِ «ذخیره‌ی
+        تغییرات» باعثِ غیرفعال‌شدنِ خاموشِ همه‌ی تنوع‌ها شود — این ویو دیگر
+        اصلاً فیلدِ ``variant_*_is_active`` را نمی‌خواند."""
+        payload = {"variant_ids": [v.pk for v in self.variants]}
+        for variant in self.variants:
+            prefix = f"variant_{variant.pk}_"
+            payload[f"{prefix}sku"] = variant.sku
+            payload[f"{prefix}stock"] = "0"
+        response = self.client.post(
+            reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload,
+        )
+        self.assertEqual(response.status_code, 200)
+        for variant in self.variants:
+            variant.refresh_from_db()
+            self.assertTrue(variant.is_active, "بدونِ فیلدِ is_active در payload، وضعیت نباید تغییر کند")
+
+    def test_status_pill_has_no_checkbox_in_table_or_card_view(self):
+        """رگرسیون: «Explicit status — no checkbox» — نه در نمایِ جدول و نه
+        در نمایِ کارت، هیچ ``<input type="checkbox" name="variant_*_is_active">``ی
+        نباید باقی مانده باشد؛ تنها یک پیلِ فقط‌خواندنی مجاز است."""
+        response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
+        content = response.content.decode()
+        self.assertNotIn("_is_active", content)
+        self.assertIn('class="pill on"', content)
+
+    def test_confirmation_dialog_text_present_for_all_three_bulk_actions(self):
+        response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
+        content = response.content.decode()
+        self.assertIn("از فعال‌سازی تنوع‌های انتخاب‌شده مطمئن هستید؟", content)
+        self.assertIn("از غیرفعال‌سازی تنوع‌های انتخاب‌شده مطمئن هستید؟", content)
+        self.assertIn("از حذف تنوع‌های انتخاب‌شده مطمئن هستید؟ این عملیات قابل بازگشت نیست.", content)
+        self.assertNotIn('hx-confirm="تنوع‌های انتخاب‌شده حذف شوند', content)
+
 
 @override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
 class ProductVideoTests(ProductEntryUiCleanupTestCase):
@@ -190,7 +265,7 @@ class ProductVideoTests(ProductEntryUiCleanupTestCase):
     def test_youtube_video_add_with_actual_field_names(self):
         response = self.client.post(
             reverse("dashboard:product-video-add", args=[self.product.pk]),
-            {"__edit_video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "__edit_video_title": "معرفی"},
+            {"video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "video_title": "معرفی"},
         )
         self.assertEqual(response.status_code, 200)
         video = self.product.videos.get()
@@ -200,7 +275,7 @@ class ProductVideoTests(ProductEntryUiCleanupTestCase):
     def test_aparat_video_add(self):
         self.client.post(
             reverse("dashboard:product-video-add", args=[self.product.pk]),
-            {"__edit_video_url": "https://www.aparat.com/v/abc123", "__edit_video_title": ""},
+            {"video_url": "https://www.aparat.com/v/abc123", "video_title": ""},
         )
         video = self.product.videos.get()
         self.assertEqual(video.provider, ProductVideo.Provider.APARAT)
@@ -208,7 +283,7 @@ class ProductVideoTests(ProductEntryUiCleanupTestCase):
     def test_instagram_reel_video_add(self):
         self.client.post(
             reverse("dashboard:product-video-add", args=[self.product.pk]),
-            {"__edit_video_url": "https://www.instagram.com/reel/CzXyZ12345/", "__edit_video_title": ""},
+            {"video_url": "https://www.instagram.com/reel/CzXyZ12345/", "video_title": ""},
         )
         video = self.product.videos.get()
         self.assertEqual(video.provider, ProductVideo.Provider.INSTAGRAM)
@@ -218,7 +293,7 @@ class ProductVideoTests(ProductEntryUiCleanupTestCase):
     def test_instagram_profile_url_rejected(self):
         response = self.client.post(
             reverse("dashboard:product-video-add", args=[self.product.pk]),
-            {"__edit_video_url": "https://www.instagram.com/someaccount/", "__edit_video_title": ""},
+            {"video_url": "https://www.instagram.com/someaccount/", "video_title": ""},
         )
         self.assertFalse(self.product.videos.exists())
         self.assertIn("شناخته‌شده نیست", _toast_message(response))
@@ -226,7 +301,102 @@ class ProductVideoTests(ProductEntryUiCleanupTestCase):
     def test_unsupported_host_rejected(self):
         response = self.client.post(
             reverse("dashboard:product-video-add", args=[self.product.pk]),
-            {"__edit_video_url": "https://example.com/watch", "__edit_video_title": ""},
+            {"video_url": "https://example.com/watch", "video_title": ""},
         )
         self.assertFalse(self.product.videos.exists())
         self.assertIn("شناخته‌شده نیست", _toast_message(response))
+
+    def test_javascript_scheme_url_rejected(self):
+        response = self.client.post(
+            reverse("dashboard:product-video-add", args=[self.product.pk]),
+            {"video_url": "javascript:alert(1)//youtube.com/watch?v=dQw4w9WgXcQ", "video_title": ""},
+        )
+        self.assertFalse(self.product.videos.exists())
+        self.assertIn("شناخته‌شده نیست", _toast_message(response))
+
+    def test_homepage_url_rejected(self):
+        response = self.client.post(
+            reverse("dashboard:product-video-add", args=[self.product.pk]),
+            {"video_url": "https://www.youtube.com/", "video_title": ""},
+        )
+        self.assertFalse(self.product.videos.exists())
+        self.assertIn("شناخته‌شده نیست", _toast_message(response))
+
+    def test_success_response_triggers_video_added_event(self):
+        response = self.client.post(
+            reverse("dashboard:product-video-add", args=[self.product.pk]),
+            {"video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "video_title": ""},
+        )
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertTrue(trigger.get("video-added"))
+
+    def test_rejected_response_does_not_trigger_video_added_event(self):
+        response = self.client.post(
+            reverse("dashboard:product-video-add", args=[self.product.pk]),
+            {"video_url": "https://example.com/watch", "video_title": ""},
+        )
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertNotIn("video-added", trigger)
+        self.assertIn("video-error", trigger)
+
+
+@override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
+class ProductVideoRefreshPersistenceTests(ProductEntryUiCleanupTestCase):
+    """باگِ اصلیِ ویدیو: ذخیره‌سازی در دیتابیس درست کار می‌کرد، اما
+    ``_product_form_extra_context`` هرگز متغیرِ ``videos`` را برای رندرِ
+    GET/رفرشِ کاملِ صفحه تعریف نمی‌کرد — پس ویدیویِ ذخیره‌شده، بعد از هر
+    Refresh، انگار هرگز اضافه نشده بود."""
+
+    def test_video_appears_in_full_page_get_after_add(self):
+        self.client.post(
+            reverse("dashboard:product-video-add", args=[self.product.pk]),
+            {"video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "video_title": "معرفی"},
+        )
+        response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
+        self.assertEqual(list(response.context["videos"]), list(self.product.videos.all()))
+        self.assertContains(response, "https://www.youtube.com/embed/dQw4w9WgXcQ")
+
+    def test_video_still_listed_after_second_full_page_load(self):
+        self.client.post(
+            reverse("dashboard:product-video-add", args=[self.product.pk]),
+            {"video_url": "https://www.aparat.com/v/abc123", "video_title": ""},
+        )
+        first = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
+        second = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
+        self.assertEqual(len(first.context["videos"]), 1)
+        self.assertEqual(len(second.context["videos"]), 1)
+
+    def test_video_delete_persists_after_refresh(self):
+        self.client.post(
+            reverse("dashboard:product-video-add", args=[self.product.pk]),
+            {"video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "video_title": ""},
+        )
+        video = self.product.videos.get()
+        self.client.post(reverse("dashboard:product-video-delete", args=[self.product.pk, video.pk]))
+        response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
+        self.assertEqual(len(response.context["videos"]), 0)
+
+    def test_product_with_no_video_yet_still_has_empty_videos_context(self):
+        response = self.client.get(reverse("dashboard:product-edit", args=[self.product.pk]))
+        self.assertIn("videos", response.context)
+        self.assertEqual(len(response.context["videos"]), 0)
+
+
+@override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
+class ProductVideoCanonicalFieldContractTests(ProductEntryUiCleanupTestCase):
+    """نامِ فیلد باید فقط ``video_url``/``video_title`` باشد — نه نامِ
+    موازیِ قدیمیِ ``__edit_video_url``/``url``."""
+
+    def test_legacy_dunder_field_name_no_longer_recognized(self):
+        self.client.post(
+            reverse("dashboard:product-video-add", args=[self.product.pk]),
+            {"__edit_video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "__edit_video_title": ""},
+        )
+        self.assertFalse(self.product.videos.exists())
+
+    def test_bare_url_field_name_no_longer_recognized(self):
+        self.client.post(
+            reverse("dashboard:product-video-add", args=[self.product.pk]),
+            {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "title": ""},
+        )
+        self.assertFalse(self.product.videos.exists())

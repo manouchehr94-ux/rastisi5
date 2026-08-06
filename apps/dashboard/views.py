@@ -2885,6 +2885,8 @@ def product_variants_bulk_delete(request, pk):
     نمی‌شود، فقط رد می‌شود) برای هر ردیفِ انتخاب‌شده اجرا می‌شود."""
     product = _get_scoped_product(request, pk)
     variant_ids = [int(v) for v in request.POST.getlist("delete_variant_ids") if v.isdigit()]
+    if not variant_ids:
+        return _product_options_response(request, product, toast={"message": "هیچ تنوعی انتخاب نشده است.", "type": "err"})
     variants = product.variants.filter(pk__in=variant_ids)
 
     deleted_count = 0
