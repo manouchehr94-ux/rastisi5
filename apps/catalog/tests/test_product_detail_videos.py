@@ -195,6 +195,58 @@ class ProductDetailVideoTests(TestCase):
         self.assertIn("pdp-video-grid", content)
         self.assertIn("pdp-video-frame", content)
 
+    def test_single_video_uses_large_full_width_modifier_class(self):
+        """رگرسیون: با یک ویدیو، شبکه نباید بازِ کوچکِ ``auto-fill`` با
+        ``minmax(260px,...)`` بماند (باگی که پخش‌کننده را به‌اندازه‌ی یک
+        تامبنیلِ باریک نشان می‌داد) — باید کلاسِ ``pdp-video-grid--single``
+        بگیرد تا CSS آن را تمامِ‌عرض و وسط‌چین رندر کند."""
+        ProductVideo.objects.create(
+            product=self.product, provider=ProductVideo.Provider.YOUTUBE,
+            url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        )
+        response = self.client.get(self.url)
+        content = response.content.decode()
+        self.assertIn("pdp-video-grid--single", content)
+        self.assertNotIn("pdp-video-grid--multi", content)
+
+    def test_multiple_videos_use_multi_modifier_class(self):
+        for i in range(2):
+            ProductVideo.objects.create(
+                product=self.product, provider=ProductVideo.Provider.YOUTUBE,
+                url="https://www.youtube.com/watch?v=dQw4w9WgXcQ", display_order=i,
+            )
+        response = self.client.get(self.url)
+        content = response.content.decode()
+        self.assertIn("pdp-video-grid--multi", content)
+        self.assertNotIn("pdp-video-grid--single", content)
+
+    def test_instagram_link_card_still_uses_shared_responsive_frame_class(self):
+        """پیش‌نمایشِ لینکِ اینستاگرام باید همان کلاسِ ``pdp-video-frame``یِ
+        اسپکت‌ریشوی ۱۶:۹ را داشته باشد تا هم‌عرضِ بقیه‌ی پخش‌کننده‌ها بماند،
+        نه یک کارتِ کوچکِ جداگانه."""
+        ProductVideo.objects.create(
+            product=self.product, provider=ProductVideo.Provider.INSTAGRAM,
+            url="https://www.instagram.com/reel/CzXyZ12345/",
+        )
+        response = self.client.get(self.url)
+        content = response.content.decode()
+        self.assertIn('class="pdp-video-frame pdp-video-linkcard"', content)
+
+    def test_no_hardcoded_small_iframe_dimensions_in_markup(self):
+        """رگرسیون: ``<iframe>`` نباید صفتِ ``width``/``height``ِ اینلاین
+        داشته باشد که بتواند اندازه‌ی CSSِ ریسپانسیو (۱۶:۹، عرضِ ۱۰۰٪) را
+        override کند."""
+        ProductVideo.objects.create(
+            product=self.product, provider=ProductVideo.Provider.YOUTUBE,
+            url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        )
+        response = self.client.get(self.url)
+        content = response.content.decode()
+        iframe_start = content.index("<iframe")
+        iframe_tag = content[iframe_start:content.index(">", iframe_start)]
+        self.assertNotIn("width=", iframe_tag)
+        self.assertNotIn("height=", iframe_tag)
+
     def test_merchant_preview_also_renders_videos(self):
         """پیش‌نمایشِ ادمین (``dashboard:product-preview``) همان تابعِ
         کانتکستِ صفحه‌ی محصول را به اشتراک می‌گذارد — نگاه کنید به
@@ -217,3 +269,51 @@ class ProductDetailVideoTests(TestCase):
         self.client.login(username="pdp-video-staff", password="pass12345")
         response = self.client.get(reverse("dashboard:product-preview", args=[self.product.pk]))
         self.assertContains(response, "ویدئوهای محصول")
+
+
+class ProductVideoCSSSizeTests(TestCase):
+    """رگرسیونِ CSS: باگِ اصلیِ «پخش‌کننده خیلی کوچک است» از
+    ``grid-template-columns:repeat(auto-fill,minmax(260px,1fr))`` می‌آمد —
+    با یک ویدیو، آن قاعده فقط اولین بازِ ۲۶۰px را پر می‌کرد و بقیه‌ی
+    عرضِ ناحیه‌ی محتوا به‌صورتِ فضایِ خالیِ نامرئی رها می‌شد. این تست مستقیماً
+    خودِ فایلِ CSS را می‌خواند تا اگر کسی دوباره یک اندازه‌ی کوچکِ ثابت
+    اضافه کرد، رگرسیون بلافاصله مشخص شود."""
+
+    def _read_css(self):
+        import pathlib
+
+        path = pathlib.Path(__file__).resolve().parents[1] / "static" / "css" / "product_detail.css"
+        return path.read_text(encoding="utf-8")
+
+    def test_no_small_auto_fill_minmax_260_remains(self):
+        css = self._read_css()
+        self.assertNotIn("grid-template-columns:repeat(auto-fill", css)
+        self.assertNotIn("minmax(260px", css)
+
+    def test_single_video_modifier_spans_full_width_with_readable_max_width(self):
+        css = self._read_css()
+        self.assertIn(".pdp-video-grid--single", css)
+        self.assertIn("max-width:1100px", css)
+        self.assertIn("margin:0 auto", css)
+
+    def test_multi_video_modifier_uses_reasonable_minimum_width(self):
+        css = self._read_css()
+        self.assertIn(".pdp-video-grid--multi", css)
+        self.assertIn("minmax(320px,1fr)", css)
+
+    def test_video_frame_uses_responsive_aspect_ratio_not_fixed_height(self):
+        css = self._read_css()
+        self.assertIn(".pdp-video-frame{", css)
+        self.assertIn("aspect-ratio:16/9", css)
+        frame_rule_start = css.index(".pdp-video-frame{")
+        frame_rule = css[frame_rule_start:css.index("}", frame_rule_start)]
+        self.assertNotIn("height:2", frame_rule)  # no fixed pixel height like "height:220px"
+        self.assertIn("width:100%", frame_rule)
+
+    def test_iframe_fills_its_wrapper(self):
+        css = self._read_css()
+        self.assertIn(".pdp-video-frame iframe{", css)
+        iframe_rule_start = css.index(".pdp-video-frame iframe{")
+        iframe_rule = css[iframe_rule_start:css.index("}", iframe_rule_start)]
+        self.assertIn("width:100%", iframe_rule)
+        self.assertIn("height:100%", iframe_rule)

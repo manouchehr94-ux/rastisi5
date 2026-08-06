@@ -247,7 +247,7 @@
   {% if product_videos %}
   <div class="section">
     <div class="sec-head"><h2><span class="bar"></span>ویدئوهای محصول</h2></div>
-    <div class="pdp-video-grid">
+    <div class="pdp-video-grid {% if product_videos|length == 1 %}pdp-video-grid--single{% else %}pdp-video-grid--multi{% endif %}">
       {% for video in product_videos %}
       <div class="pdp-video-card">
         {% if video.embed_url %}
