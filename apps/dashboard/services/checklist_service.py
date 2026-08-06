@@ -114,11 +114,13 @@ def _variants_complete(store, shop):
 
 
 def _inventory_complete(store, shop):
-    return Product.objects.filter(store=store, stock__gt=0).exists()
+    return Product.objects.filter(store=store, stock__gt=0, is_draft_placeholder=False).exists()
 
 
 def _product_publish_complete(store, shop):
-    return Product.objects.filter(store=store, status=Product.Status.ACTIVE).exists()
+    return Product.objects.filter(
+        store=store, status=Product.Status.ACTIVE, is_draft_placeholder=False,
+    ).exists()
 
 
 def _contact_complete(store, shop):
@@ -136,7 +138,7 @@ def _theme_complete(store, shop):
 
 
 def _first_product_complete(store, shop):
-    return Product.objects.filter(store=store).exists()
+    return Product.objects.filter(store=store, is_draft_placeholder=False).exists()
 
 
 def _shipping_complete(store, shop):

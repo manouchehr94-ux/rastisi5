@@ -28,7 +28,9 @@ class UsageError(Exception):
 
 def _count_products(store):
     from apps.catalog.models import Product
-    return Product.objects.filter(store=store).count()
+    # پیش‌نویسِ داخلیِ در حالِ ساخت (``is_draft_placeholder``) هنوز یک کالایِ
+    # واقعی نیست — نباید تا زمانِ ذخیره‌ی نهاییِ معتبر جزوِ سقفِ اشتراک محسوب شود.
+    return Product.objects.filter(store=store, is_draft_placeholder=False).count()
 
 
 def _count_variants(store):

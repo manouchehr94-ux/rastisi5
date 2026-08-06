@@ -138,19 +138,27 @@ class ProductAddViewTests(ProductViewsTestCase):
         return payload
 
     def test_get_returns_empty_form(self):
+        """GETِ ``product-add`` دیگر خودِ فرم را برنمی‌گرداند — یک پیش‌نویسِ
+        داخلی می‌سازد/از سر می‌گیرد و به صفحه‌ی تمام‌صفحه‌ی ویرایشِ همان
+        پیش‌نویس ریدایرکت می‌کند (نگاه کنید به ``product_create_entry``)."""
         response = self.client.get(reverse("dashboard:product-add"))
+        self.assertEqual(response.status_code, 302)
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "افزودن کالای جدید")
 
     def test_valid_post_creates_product(self):
+        """موفقیت دیگر یک HX-Triggerِ «modal-close» نیست (فرمِ کالا دیگر
+        مودال نیست) — همان صفحه‌ی تمام‌صفحه با پیامِ موفقیت دوباره رندر
+        می‌شود (200)، بدونِ ریدایرکت (نگاه کنید به هندلرِ موفقیتِ ``product_form``)."""
         response = self.client.post(reverse("dashboard:product-add"), self._payload())
         self.assertEqual(response.status_code, 200)
+        self.assertNotIn("HX-Trigger", response.headers)
         product = Product.objects.get(sku="SKU-NEW1")
         self.assertEqual(product.name, "کالای جدید")
         self.assertEqual(product.vendor, self.vendor)
         self.assertTrue(product.slug)
-        trigger = json.loads(response.headers["HX-Trigger"])
-        self.assertIn("modal-close", trigger)
+        self.assertFalse(product.is_draft_placeholder)
 
     def test_persian_digits_are_normalized(self):
         response = self.client.post(reverse("dashboard:product-add"), self._payload(
@@ -204,7 +212,7 @@ class ProductAddViewTests(ProductViewsTestCase):
         ``product_category_select.html``. این تست همان قاعده‌ی قدیم را (گروهِ
         اصلی هرگز به‌عنوانِ یک برگِ قابلِ‌انتخاب ظاهر نمی‌شود، فقط زیرگروهِ
         واقعی) رویِ همان دادهٔ JSON بررسی می‌کند."""
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         content = response.content.decode()
         script_start = content.index('id="group-leaf-options-data"')
         script_open = content.index(">", script_start) + 1
@@ -243,14 +251,22 @@ class ProductWizardTests(ProductViewsTestCase):
         return payload
 
     def test_form_renders_all_tabs_in_one_form(self):
-        response = self.client.get(reverse("dashboard:product-add"))
+        """پنج تب در یک ``<form id="productSaveForm">`` واحد‌اند، نه فرم‌های
+        جداگانه‌ی هر تب. (فرم‌های دیگری هم در صفحه هست — مثلاً «افزودنِ سریعِ
+        تنوع» داخلِ productOptionsBody که از همان اولین GET رندر می‌شود، و
+        فرمِ مخفیِ لغوِ پیش‌نویس — اما این‌ها زیرمجموعه‌ی مستقلِ خودشان‌اند، نه
+        شکسته‌شدنِ همین ویزارد به چند فرم.)"""
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         content = response.content.decode()
-        self.assertEqual(content.count("<form"), 1)  # یک فرمِ واحد، نه فرم‌های جداگانه‌ی هر تب
+        self.assertEqual(content.count('id="productSaveForm"'), 1)
+        form_start = content.index('id="productSaveForm"')
+        form_end = content.index("</form>", form_start)
+        wizard_html = content[form_start:form_end]
         for ref in ["tabBasic", "tabCategory", "tabMedia", "tabPrice", "tabSeo"]:
-            self.assertIn(f'x-ref="{ref}"', content)
+            self.assertIn(f'x-ref="{ref}"', wizard_html)
 
     def test_tab_labels_present(self):
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertContains(response, "اطلاعات پایه")
         self.assertContains(response, "دسته‌بندی")
         self.assertContains(response, "قیمت و تنوع")
@@ -261,10 +277,12 @@ class ProductWizardTests(ProductViewsTestCase):
         """تبِ «قیمت و تنوع» طبقِ پروتوتایپِ نهایی: یک سوییچِ دوحالته‌ی
         کالای‌ساده/کالای‌دارایِ‌تنوع، و برایِ حالتِ ساده فیلدهایِ مستقیمِ
         قیمت/تخفیف/موجودی — نه دکمه‌ای که مودالِ جداگانه باز کند، و نه
-        فیلدهایِ مخفی. برایِ کالایِ تازه (بدونِ ذخیره‌ی قبلی)، پنلِ
-        productOptionsBody هنوز رندر نمی‌شود (چون هنوز کالایی برایِ
-        اتصالِ محورهایِ تنوع وجود ندارد)."""
-        response = self.client.get(reverse("dashboard:product-add"))
+        فیلدهایِ مخفی. برخلافِ معماریِ قدیم، GETِ «افزودنِ کالا» از همان
+        ابتدا یک پیش‌نویسِ داخلیِ واقعی می‌سازد (نگاه کنید به
+        ``product_create_entry``)، پس پنلِ productOptionsBody از همان اولین
+        بارگذاری رندر می‌شود — merchant دیگر مجبور نیست ابتدا کالا را ذخیره
+        کند تا بتواند ویژگی/تنوع اضافه کند."""
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         content = response.content.decode()
         tab_start = content.index('x-ref="tabPrice"')
         tab_end = content.index('x-ref="tabSeo"')
@@ -277,13 +295,13 @@ class ProductWizardTests(ProductViewsTestCase):
         self.assertIn('name="stock"', tab_html)
         self.assertNotIn('type="hidden" name="price"', tab_html)
         self.assertNotIn("variant-table", tab_html)
-        self.assertNotIn("id=\"productOptionsBody\"", content)
+        self.assertIn('id="productOptionsBody"', content)
 
     def test_simple_price_field_has_no_fake_default_placeholder(self):
         """طبقِ الزامِ پروتوتایپ: وقتی قیمت هنوز تنظیم نشده، فیلدِ قیمت باید
         خالی/placeholderِ «تنظیم نشده» را نشان دهد — نه یک مقدارِ ساختگیِ
         از پیش‌پرشده (مثلاً «۱ تومان»)."""
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         content = response.content.decode()
         tab_start = content.index('x-ref="tabPrice"')
         tab_end = content.index('x-ref="tabSeo"')
@@ -297,7 +315,7 @@ class ProductWizardTests(ProductViewsTestCase):
         """برند در تبِ «اطلاعات پایه» است؛ دسته‌بندی در تبِ جداگانه‌ی «دسته‌بندی»
         است (نگاه کنید به ``test_product_form_wizard_steps.py`` برای پوششِ
         دقیقِ محلِ قرارگیریِ فیلدِ دسته‌بندی)."""
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         content = response.content.decode()
         tab_start = content.index('x-ref="tabBasic"')
         tab_end = content.index('x-ref="tabCategory"')
@@ -307,7 +325,7 @@ class ProductWizardTests(ProductViewsTestCase):
 
     def test_price_tab_contains_attributes_and_variant_type(self):
         """ویژگی‌های اختصاصیِ دسته‌بندی و نوعِ کالا در همان تبِ «قیمت و تنوع» هستند."""
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         content = response.content.decode()
         tab_start = content.index('x-ref="tabPrice"')
         tab_end = content.index('x-ref="tabSeo"')
@@ -326,13 +344,13 @@ class ProductWizardTests(ProductViewsTestCase):
         self.assertIn("tab: 'price',", response.content.decode())
 
     def test_error_step_defaults_to_basic_on_fresh_get(self):
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertIn("tab: 'basic',", response.content.decode())
 
     def test_missing_category_banner_shown_when_store_has_no_categories(self):
         Product.objects.filter(store=self.store).delete()
         Category.objects.filter(store=self.store).delete()
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertContains(response, "این فروشگاه هنوز هیچ دسته‌بندی‌ای ندارد")
 
     def test_valid_submission_across_all_fields_still_creates_product(self):
@@ -686,7 +704,7 @@ class ProductMediaStagingTests(ProductViewsTestCase):
         return payload
 
     def test_new_product_form_does_not_say_save_first(self):
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertNotContains(response, "پس از ذخیره‌ی این کالا می‌توانید")
 
     def test_images_saved_atomically_with_new_product(self):

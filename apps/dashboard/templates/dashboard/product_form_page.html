@@ -1,0 +1,9 @@
+{% extends "dashboard/base_admin.html" %}
+
+{% block title %}{% if product and not product.is_draft_placeholder %}ویرایشِ «{{ product.name }}»{% else %}افزودنِ کالای جدید{% endif %} | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}{% if product and not product.is_draft_placeholder %}ویرایشِ کالا{% else %}افزودنِ کالای جدید{% endif %}{% endblock %}
+{% block page_sub %}{% if product and not product.is_draft_placeholder %}{{ product.name }}{% else %}اطلاعاتِ کالای جدید را در پنج مرحله وارد کنید{% endif %}{% endblock %}
+
+{% block content %}
+{% include "dashboard/partials/product_form.html" %}
+{% endblock %}

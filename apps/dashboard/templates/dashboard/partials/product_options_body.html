@@ -8,19 +8,67 @@
   <a class="btn btn-primary" href="{% url 'dashboard:product-variants' product.pk %}">مدیریت تنوع‌های تک‌محوره</a>
 </div>
 {% else %}
-<div x-data="{ variantView: 'table', libraryOpen: false, attrAddOpen: false, showAddVariant: false, bulkSalesLimitOpen: false, bulkSalesLimitMinDraft: '', bulkSalesLimitMaxDraft: '',
-     checkedIds() { return [...this.$el.querySelectorAll('tbody input[name=delete_variant_ids]:checked, .variant-card input[name=delete_variant_ids]:checked')].map(cb => cb.value); },
-     bulkFill(field, promptText) {
+<div x-data="{ variantView: 'table', libraryOpen: false, attrAddOpen: false, newAttrName: '', showAddVariant: false, bulkSalesLimitOpen: false, bulkSalesLimitMinDraft: '', bulkSalesLimitMaxDraft: '', bulkStockOpen: false, bulkStockDraft: '',
+     // نکته‌ی مهم: عمداً از ``this.$el`` استفاده نمی‌شود — Alpine مقدارِ ``$el``
+     // را برایِ هر ارزیابیِ یک عبارتِ ``@click`` دوباره به‌خودِ همان عنصرِ
+     // ماشه (مثلاً همین دکمه، که هیچ ``<tbody>``یی زیرش ندارد) محدود می‌کند؛
+     // یعنی این متدها وقتی از یک دکمه فراخوانی می‌شدند همیشه فهرستِ خالی
+     // برمی‌گرداندند و هیچ عملِ گروهی هرگز واقعاً کار نمی‌کرد. اسکوپ‌کردن به
+     // ``#productOptionsBody`` (شناسه‌ی پایدارِ فرزندِ اصلی) این وابستگی به
+     // عنصرِ ماشه را کاملاً حذف می‌کند.
+     // ``selected`` تنها منبعِ معتبرِ ردیف‌هایِ انتخاب‌شده است — چک‌باکسِ نمایِ
+     // جدول و چک‌باکسِ نمایِ کارت هر دو با x-model روی selected[pk] به همین
+     // یک شیِ مشترک در سطحِ بیرونی متصل‌اند، پس هرگز نمی‌توانند دو مقدارِ
+     // متفاوت برایِ یک تنوع داشته باشند (بدونِ نیاز به دی‌دوپ‌کردنِ ورودی‌هایِ
+     // پنهانِ تکراری از دو نما).
+     selected: {},
+     checkedIds() { return Object.keys(this.selected).filter(pk => this.selected[pk]); },
+     applyBulkStock() {
        const ids = this.checkedIds();
-       if (!ids.length) return;
-       const value = prompt(promptText);
-       if (value === null) return;
-       ids.forEach(id => { const input = this.$el.querySelector(`[name=variant_${id}_${field}]`); if (input) input.value = value; });
+       if (!ids.length) { this.bulkStockOpen = false; return; }
+       htmx.ajax('POST', '{% url 'dashboard:product-variants-bulk-stock' product.pk %}', { target: '#productOptionsBody', swap: 'innerHTML', values: { variant_ids: ids, stock: this.bulkStockDraft } });
+       this.bulkStockOpen = false;
      },
-     bulkActivate(activate) {
+     // «فعال‌سازی/غیرفعال‌سازی/حذفِ انتخاب‌شده‌ها» هرگز مستقیماً درخواست
+     // نمی‌فرستند — ابتدا این مودالِ تأییدِ خودِ پروژه (نه confirm() مرورگر) باز
+     // می‌شود و فقط با کلیکِ صریحِ «بله، ...» درخواست ارسال می‌شود.
+     bulkConfirmOpen: false, bulkConfirmKind: '',
+     bulkConfirmText() {
+       if (this.bulkConfirmKind === 'activate') return 'از فعال‌سازی تنوع‌های انتخاب‌شده مطمئن هستید؟';
+       if (this.bulkConfirmKind === 'deactivate') return 'از غیرفعال‌سازی تنوع‌های انتخاب‌شده مطمئن هستید؟';
+       if (this.bulkConfirmKind === 'delete') return 'از حذف تنوع‌های انتخاب‌شده مطمئن هستید؟ این عملیات قابل بازگشت نیست.';
+       return '';
+     },
+     bulkConfirmButtonLabel() {
+       if (this.bulkConfirmKind === 'activate') return 'بله، فعال شوند';
+       if (this.bulkConfirmKind === 'deactivate') return 'بله، غیرفعال شوند';
+       if (this.bulkConfirmKind === 'delete') return 'بله، حذف شوند';
+       return '';
+     },
+     noSelectionToast() {
+       window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'ابتدا حداقل یک تنوع را انتخاب کنید.', type: 'err' } }));
+     },
+     requestBulkActivate(activate) {
+       if (!this.checkedIds().length) { this.noSelectionToast(); return; }
+       this.bulkConfirmKind = activate === '1' ? 'activate' : 'deactivate';
+       this.bulkConfirmOpen = true;
+     },
+     requestBulkDelete() {
+       if (!this.checkedIds().length) { this.noSelectionToast(); return; }
+       this.bulkConfirmKind = 'delete';
+       this.bulkConfirmOpen = true;
+     },
+     confirmBulkAction() {
        const ids = this.checkedIds();
-       if (!ids.length) return;
-       htmx.ajax('POST', '{% url 'dashboard:product-variants-bulk-activate' product.pk %}', { target: '#productOptionsBody', swap: 'innerHTML', values: { variant_ids: ids, activate: activate } });
+       const kind = this.bulkConfirmKind;
+       this.bulkConfirmOpen = false;
+       this.bulkConfirmKind = '';
+       if (!ids.length) { this.noSelectionToast(); return; }
+       if (kind === 'delete') {
+         htmx.ajax('POST', '{% url 'dashboard:product-variants-bulk-delete' product.pk %}', { target: '#productOptionsBody', swap: 'innerHTML', values: { delete_variant_ids: ids } });
+       } else if (kind === 'activate' || kind === 'deactivate') {
+         htmx.ajax('POST', '{% url 'dashboard:product-variants-bulk-activate' product.pk %}', { target: '#productOptionsBody', swap: 'innerHTML', values: { variant_ids: ids, activate: kind === 'activate' ? '1' : '0' } });
+       }
      },
      applyBulkSalesLimit() {
        const ids = this.checkedIds();
@@ -29,13 +77,13 @@
        this.bulkSalesLimitOpen = false;
      },
    }">
-
+{% with pf_exclude="not current_tab,name,sku,category,unit,model_code,country_of_origin,second_group,quick_collection_name,brand,quick_brand_name,price,discount_percent,stock,status,icon,description,product_type,barcode,weight_grams,requires_shipping,tax_class,seo_title,seo_description,slug,visibility,publish_at,tags,video_url,video_title,images" %}
 {% if recommended_options %}
 <div class="card">
   <div class="card-title">محورهای تنوع پیشنهادی برای این دسته‌بندی</div>
   <div class="row">
     {% for recommendation in recommended_options %}
-    <button type="button" class="btn btn-sm btn-soft"
+    <button type="button" class="btn btn-sm btn-soft" hx-params="{{ pf_exclude }}"
             hx-post="{% url 'dashboard:product-apply-recommended-option' product.pk recommendation.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">➕ {{ recommendation.attribute.label }}</button>
     {% endfor %}
   </div>
@@ -57,32 +105,36 @@
     {% for axis in axes %}
     <div class="attribute">
       <div class="row between">
-        <b>{{ axis.label }}{% if not axis.is_active %} <span class="opt-pill">غیرفعال</span>{% endif %}</b>
+        <b>نامِ ویژگی: {{ axis.label }}{% if not axis.is_active %} <span class="opt-pill">غیرفعال</span>{% endif %}</b>
         {% if axis.is_active %}
-        <button type="button" class="btn btn-sm btn-danger" title="حذف/غیرفعال‌سازیِ این ویژگی"
+        <button type="button" class="btn btn-sm btn-danger" title="حذف/غیرفعال‌سازیِ این ویژگی" hx-params="none"
                 hx-post="{% url 'dashboard:product-option-deactivate' product.pk axis.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
-                hx-confirm="غیرفعال‌سازی این ویژگی باعث می‌شود در تولید بعدی، ترکیب‌های آن منسوخ شوند. ادامه می‌دهید؟">حذف</button>
+                hx-confirm="غیرفعال‌سازی این ویژگی باعث می‌شود در تولید بعدی، ترکیب‌های آن منسوخ شوند. ادامه می‌دهید؟">حذف ویژگی</button>
         {% else %}
-        <button type="button" class="btn btn-sm btn-soft" hx-post="{% url 'dashboard:product-option-activate' product.pk axis.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">فعال‌سازی</button>
+        <button type="button" class="btn btn-sm btn-soft" hx-params="none" hx-post="{% url 'dashboard:product-option-activate' product.pk axis.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">فعال‌سازی</button>
         {% endif %}
       </div>
+      <div class="add-value" id="valueAddGroup{{ axis.pk }}">
+        <input name="v_{{ axis.pk }}" placeholder="افزودن مقدار اولیه، مثال: ۱۶۰ سانتی‌متر"
+               @keydown.enter.prevent="$event.target.nextElementSibling.click()">
+        <button type="button" class="btn btn-sm btn-soft"
+                hx-post="{% url 'dashboard:product-option-value-add' product.pk axis.pk %}"
+                hx-include="#valueAddGroup{{ axis.pk }}" hx-params="v_{{ axis.pk }}"
+                hx-target="#productOptionsBody" hx-swap="innerHTML">+ افزودن مقدار اولیه</button>
+      </div>
+      {% if value_error.axis_id == axis.pk %}
+      <div class="pe-field-error">{{ value_error.message }}</div>
+      {% endif %}
       <div class="tags">
         {% for value in axis.values.all %}
         <span class="tag"{% if not value.is_active %} style="opacity:.5"{% endif %}>
           {% if value.color_hex %}<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:{{ value.color_hex }}"></span>{% endif %}
           {{ value.label }}{% if not value.is_active %} (غیرفعال){% endif %}
-          <button type="button" hx-post="{% url 'dashboard:product-option-value-remove' product.pk value.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML" hx-confirm="حذف/غیرفعال‌سازی «{{ value.label }}»؟" title="حذف">×</button>
+          <button type="button" hx-params="none" hx-post="{% url 'dashboard:product-option-value-remove' product.pk value.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML" hx-confirm="حذف/غیرفعال‌سازی «{{ value.label }}»؟" title="حذف">×</button>
         </span>
         {% empty %}
-        <span class="pe-field-help">مقداری ثبت نشده است</span>
+        <span class="pe-field-help">هنوز مقداری اضافه نشده است.</span>
         {% endfor %}
-      </div>
-      <div class="add-value" id="valueAddGroup{{ axis.pk }}">
-        <input name="label" placeholder="مقدار جدید (مثلاً: بنفش)">
-        {% if axis.input_type == "color" %}<input type="color" name="color_hex" style="width:44px;padding:2px">{% endif %}
-        <button type="button" class="btn btn-sm btn-soft"
-                hx-post="{% url 'dashboard:product-option-value-add' product.pk axis.pk %}" hx-include="#valueAddGroup{{ axis.pk }}"
-                hx-target="#productOptionsBody" hx-swap="innerHTML">افزودن مقدار</button>
       </div>
     </div>
     {% empty %}
@@ -91,63 +143,39 @@
   </div>
 
   <div class="attribute-footer">
-    <button type="button" class="btn btn-soft" @click="attrAddOpen = !attrAddOpen" x-show="!attrAddOpen">+ افزودنِ ویژگی جدید</button>
-  </div>
-
-  <div id="axisAddGroup" class="card" style="margin-top:10px;background:#fafbff" x-show="attrAddOpen" x-cloak x-data="{
-         colorValues: [],
-         colorLabelDraft: '',
-         colorHexDraft: '#ff0000',
-         addColorValue() {
-           const label = this.colorLabelDraft.trim();
-           if (!label) return;
-           this.colorValues.push({ label: label, color_hex: this.colorHexDraft });
-           this.colorLabelDraft = '';
-         },
-         removeColorValue(i) { this.colorValues.splice(i, 1); },
-       }">
-    <div class="field">
-      <label>نامِ ویژگی<span class="required-star">*</span></label>
-      <input name="label" placeholder="مثلاً: رنگ، اندازه، طول، کشور سازنده" value="{{ option_form.label.value|default_if_none:'' }}">
-      {% for err in option_form.label.errors %}<div class="pe-field-error">{{ err }}</div>{% endfor %}
-    </div>
-    <div class="field" style="margin-top:10px">
-      <label>مقادیرِ اولیه <span class="opt-pill">اختیاری</span></label>
-      <textarea name="raw_values" rows="2" placeholder="کوچک، متوسط، بزرگ">{{ option_form.raw_values.value|default_if_none:'' }}</textarea>
-      <div class="pe-field-help">با ویرگول جدا کنید؛ بعداً هم می‌توانید مقدارِ بیشتری اضافه کنید.</div>
-    </div>
-    <div class="field" style="margin-top:10px">
-      <label>افزودنِ مقدارِ رنگ <span class="opt-pill">اختیاری</span></label>
-      <div class="row">
-        <input type="color" x-model="colorHexDraft" style="width:44px;padding:2px">
-        <input x-model="colorLabelDraft" @keydown.enter.prevent="addColorValue()" placeholder="نامِ رنگ (مثلاً: قرمز)" style="flex:1;min-width:140px">
-        <button type="button" class="btn btn-sm btn-soft" @click="addColorValue()">افزودن</button>
-      </div>
-      <input type="hidden" name="color_values_json" :value="JSON.stringify(colorValues)">
-      <div class="tags" x-show="colorValues.length">
-        <template x-for="(cv, i) in colorValues" :key="i">
-          <span class="tag">
-            <span :style="{ display: 'inline-block', width: '12px', height: '12px', 'border-radius': '3px', background: cv.color_hex }"></span>
-            <span x-text="cv.label"></span>
-            <button type="button" @click="removeColorValue(i)">×</button>
-          </span>
-        </template>
-      </div>
-    </div>
-    {% for err in option_form.non_field_errors %}<div class="pe-field-error" style="margin-top:8px">{{ err }}</div>{% endfor %}
-    {% for err in option_form.color_values_json.errors %}<div class="pe-field-error" style="margin-top:8px">{{ err }}</div>{% endfor %}
-    <div class="row" style="margin-top:12px">
-      <button type="button" class="btn btn-primary"
-              hx-post="{% url 'dashboard:product-option-add' product.pk %}" hx-include="#axisAddGroup"
-              hx-target="#productOptionsBody" hx-swap="innerHTML">افزودنِ ویژگی</button>
-      <button type="button" class="btn btn-ghost" @click="attrAddOpen = false">انصراف</button>
-    </div>
+    <button type="button" class="btn btn-soft" @click="newAttrName = ''; attrAddOpen = true">+ افزودن ویژگی</button>
   </div>
 </div>
 
+<template x-teleport="body">
+<div class="overlay" :class="{ open: attrAddOpen }" x-cloak x-init="htmx.process($el)" @click.self="attrAddOpen = false" @keydown.escape.window="attrAddOpen = false">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>افزودن ویژگی جدید</h3>
+      <button type="button" class="x-btn" @click="attrAddOpen = false">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>نامِ ویژگی <span class="required-star">*</span></label>
+        <input class="inp" id="newAttrNameInput" name="label" x-model="newAttrName"
+               placeholder="مثال: طول، ارتفاع، جنس، رنگ، سایز" @keydown.enter.prevent="$refs.addAttrBtn.click()">
+      </div>
+      {% for err in option_form.non_field_errors %}<div class="pe-field-error">{{ err }}</div>{% endfor %}
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn" @click="attrAddOpen = false">انصراف</button>
+      <button type="button" class="btn btn-primary" x-ref="addAttrBtn" :disabled="!newAttrName.trim()"
+              hx-post="{% url 'dashboard:product-option-add' product.pk %}" hx-include="#newAttrNameInput" hx-params="label"
+              hx-target="#productOptionsBody" hx-swap="innerHTML"
+              @click="attrAddOpen = false">افزودن ویژگی</button>
+    </div>
+  </div>
+</div>
+</template>
+
 {% if library_attributes %}
 <template x-teleport="body">
-<div class="overlay" :class="{ open: libraryOpen }" x-cloak @click.self="libraryOpen = false" @keydown.escape.window="libraryOpen = false">
+<div class="overlay" :class="{ open: libraryOpen }" x-cloak x-init="htmx.process($el)" @click.self="libraryOpen = false" @keydown.escape.window="libraryOpen = false">
   <div class="modal">
     <div class="modal-head">
       <h3>انتخاب از کتابخانه‌ی ویژگی‌ها</h3>
@@ -157,7 +185,7 @@
       <p class="field-help" style="margin-bottom:10px">این ویژگی‌ها قبلاً برایِ کالاهایِ دیگرِ همین فروشگاه ساخته شده‌اند. انتخابِ یکی، آن ویژگی و همه‌ی مقادیرش را به این کالا اضافه می‌کند.</p>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         {% for lib_attr in library_attributes %}
-        <button type="button" class="btn btn-sm"
+        <button type="button" class="btn btn-sm" hx-params="none"
                 hx-post="{% url 'dashboard:product-option-add-from-library' product.pk lib_attr.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
                 hx-on::htmx:before-request="libraryOpen = false">
           ✓ {{ lib_attr.label }} <small style="color:var(--muted)">({{ lib_attr.values.count|fa_number }})</small>
@@ -186,7 +214,7 @@
         <button type="button" class="btn btn-sm" :class="{active: variantView==='card'}" @click="variantView='card'">نمای کارت</button>
       </div>
       {% endif %}
-      <button type="button" class="btn btn-sm btn-primary" {% if not axes %}disabled title="ابتدا حداقل یک ویژگی اضافه کنید"{% endif %}
+      <button type="button" class="btn btn-sm btn-primary" {% if not axes %}disabled title="ابتدا حداقل یک ویژگی اضافه کنید"{% endif %} hx-params="none"
               hx-post="{% url 'dashboard:product-variants-generate' product.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML"
               hx-confirm="ساختِ ترکیب‌ها اجرا شود؟ تنوع‌های موجود حفظ می‌شوند؛ تنوع‌های حذف‌شده منسوخ (نه حذف) خواهند شد.">🔄 ساختِ ترکیب‌ها ({{ combination_preview|fa_number }})</button>
     </div>
@@ -218,7 +246,7 @@
     </div>
     {% endif %}
     {% endfor %}
-    <button type="button" class="btn btn-sm btn-primary"
+    <button type="button" class="btn btn-sm btn-primary" hx-params="{{ pf_exclude }}"
             hx-post="{% url 'dashboard:product-variant-manual-add' product.pk %}" hx-include="#manualVariantGroup"
             hx-target="#productOptionsBody" hx-swap="innerHTML">افزودنِ ردیف</button>
   </div>
@@ -226,11 +254,28 @@
   {% if active_variants %}
   <div id="variantBulkForm">
     <div class="row" style="margin-top:14px">
-      <button type="button" class="btn btn-sm" @click="bulkFill('stock', 'موجودیِ جدید برایِ ردیف‌هایِ انتخاب‌شده:')">📦 تنظیمِ گروهیِ موجودی</button>
-      <button type="button" class="btn btn-sm" @click="bulkActivate('1')">✅ فعال‌سازیِ انتخاب‌شده‌ها</button>
-      <button type="button" class="btn btn-sm" @click="bulkActivate('0')">🚫 غیرفعال‌سازیِ انتخاب‌شده‌ها</button>
+      <button type="button" class="btn btn-sm" @click="bulkStockDraft = ''; bulkStockOpen = true">📦 تنظیمِ گروهیِ موجودی</button>
+      <button type="button" class="btn btn-sm" @click="requestBulkActivate('1')">✅ فعال‌سازیِ انتخاب‌شده‌ها</button>
+      <button type="button" class="btn btn-sm" @click="requestBulkActivate('0')">🚫 غیرفعال‌سازیِ انتخاب‌شده‌ها</button>
       <button type="button" class="btn btn-sm" @click="bulkSalesLimitOpen = true">🎯 محدودیتِ فروشِ گروهی</button>
     </div>
+
+    <template x-teleport="body">
+    <div x-show="bulkStockOpen" x-cloak class="price-modal-overlay" @click.self="bulkStockOpen = false">
+      <div class="price-modal-card">
+        <h4 style="margin:0 0 14px">تنظیمِ گروهیِ موجودی</h4>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:12px">موجودیِ همه‌ی تنوع‌هایِ تیک‌خورده برابرِ این عدد می‌شود.</p>
+        <div class="form-group">
+          <label>موجودیِ جدید</label>
+          <input class="inp" x-model="bulkStockDraft" dir="ltr" inputmode="numeric" placeholder="مثال: ۲۰">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button type="button" class="btn" @click="bulkStockOpen = false">انصراف</button>
+          <button type="button" class="btn btn-primary" :disabled="bulkStockDraft.trim() === ''" @click="applyBulkStock()">اعمال روی انتخاب‌شده‌ها</button>
+        </div>
+      </div>
+    </div>
+    </template>
 
     <template x-teleport="body">
     <div x-show="bulkSalesLimitOpen" x-cloak class="price-modal-overlay" @click.self="bulkSalesLimitOpen = false">
@@ -253,11 +298,24 @@
     </div>
     </template>
 
+    <template x-teleport="body">
+    <div x-show="bulkConfirmOpen" x-cloak dir="rtl" class="price-modal-overlay" @click.self="bulkConfirmOpen = false" @keydown.escape.window="bulkConfirmOpen = false"
+         x-effect="if (bulkConfirmOpen) $nextTick(() => $refs.bulkConfirmCancelBtn && $refs.bulkConfirmCancelBtn.focus())">
+      <div class="price-modal-card" role="alertdialog" aria-modal="true">
+        <h4 style="margin:0 0 14px" x-text="bulkConfirmText()"></h4>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button type="button" class="btn" x-ref="bulkConfirmCancelBtn" @click="bulkConfirmOpen = false">انصراف</button>
+          <button type="button" class="btn btn-primary" :class="{'btn-danger': bulkConfirmKind === 'delete'}" @click="confirmBulkAction()" x-text="bulkConfirmButtonLabel()"></button>
+        </div>
+      </div>
+    </div>
+    </template>
+
     <div class="table-wrap" x-show="variantView==='table'">
       <table>
         <thead>
           <tr>
-            <th><input type="checkbox" title="انتخابِ همه" @change="const c = $event.target.checked; $el.closest('table').querySelectorAll('tbody input[name=delete_variant_ids]').forEach(cb => cb.checked = c)"></th>
+            <th><input type="checkbox" title="انتخابِ همه" @change="const c = $event.target.checked; [{% for variant in active_variants %}{{ variant.pk }}{% if not forloop.last %},{% endif %}{% endfor %}].forEach(pk => selected[pk] = c)"></th>
             <th>تصویر</th>
             {% for axis in axes %}{% if axis.is_active %}<th>{{ axis.label }}</th>{% endif %}{% endfor %}
             <th>کدِ محصول</th>
@@ -280,7 +338,7 @@
                 finalOf(p, d) { return Math.max(0, Math.round((Number(p) || 0) * (1 - (Number(d) || 0) / 100))); },
               }">
           <tr>
-            <td><input type="checkbox" name="delete_variant_ids" value="{{ variant.pk }}"><input type="hidden" name="variant_ids" value="{{ variant.pk }}"></td>
+            <td><input type="checkbox" name="delete_variant_ids" value="{{ variant.pk }}" x-model="selected[{{ variant.pk }}]"><input type="hidden" name="variant_ids" value="{{ variant.pk }}"></td>
             <td>
               <button type="button" class="variant-image-box" title="مدیریتِ تصویرِ این تنوع"
                       hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML"
@@ -301,14 +359,11 @@
             </td>
             <td>{% if variant.discount_percent_display %}{{ variant.discount_percent_display|fa_number }}٪{% else %}—{% endif %}</td>
             <td>
-              <label class="pill {% if variant.is_active %}on{% else %}off{% endif %}" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">
-                <input type="checkbox" name="variant_{{ variant.pk }}_is_active" {% if variant.is_active %}checked{% endif %} style="margin:0">
-                {% if variant.is_active %}فعال{% else %}غیرفعال{% endif %}
-              </label>
+              <span class="pill {% if variant.is_active %}on{% else %}off{% endif %}">{% if variant.is_active %}فعال{% else %}غیرفعال{% endif %}</span>
             </td>
             <td><button type="button" class="btn btn-sm" @click="detailOpen = !detailOpen">⋯ جزئیاتِ بیشتر</button></td>
             <td>
-              <button type="button" class="btn btn-sm btn-danger" title="حذفِ این تنوع"
+              <button type="button" class="btn btn-sm btn-danger" title="حذفِ این تنوع" hx-params="delete_variant_ids"
                       hx-post="{% url 'dashboard:product-variants-bulk-delete' product.pk %}" hx-vals='{"delete_variant_ids": [{{ variant.pk }}]}'
                       hx-target="#productOptionsBody" hx-swap="innerHTML" hx-confirm="این تنوع حذف شود؟ تنوعِ استفاده‌شده در سفارش حذف نخواهد شد.">🗑️</button>
             </td>
@@ -334,7 +389,7 @@
                   <button type="button" class="btn" @click="priceOpen = false">انصراف</button>
                   <button type="button" class="btn btn-primary"
                           hx-post="{% url 'dashboard:product-variant-set-price' product.pk variant.pk %}"
-                          hx-include="#priceDraft{{ variant.pk }},#discountDraft{{ variant.pk }}"
+                          hx-include="#priceDraft{{ variant.pk }},#discountDraft{{ variant.pk }}" hx-params="variant_price,variant_discount_percent"
                           hx-target="#productOptionsBody" hx-swap="innerHTML">ذخیره‌ی قیمت</button>
                 </div>
               </div>
@@ -378,11 +433,11 @@
                   {% if variant.is_default %}
                   <span class="opt-pill" style="background:#dcfce7;color:#166534">پیش‌فرض</span>
                   {% else %}
-                  <button type="button" class="btn btn-sm" hx-post="{% url 'dashboard:product-variant-set-default' product.pk variant.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">تنظیمِ پیش‌فرض</button>
+                  <button type="button" class="btn btn-sm" hx-params="none" hx-post="{% url 'dashboard:product-variant-set-default' product.pk variant.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">تنظیمِ پیش‌فرض</button>
                   {% endif %}
                 </div>
                 <div class="field" style="margin-bottom:0;align-self:flex-end">
-                  <button type="button" class="btn btn-sm" title="تکرارِ این ردیف"
+                  <button type="button" class="btn btn-sm" title="تکرارِ این ردیف" hx-params="none"
                           hx-post="{% url 'dashboard:product-variant-matrix-duplicate' product.pk variant.pk %}" hx-target="#productOptionsBody" hx-swap="innerHTML">⧉ تکرار</button>
                 </div>
               </div>
@@ -406,11 +461,11 @@
                   <button type="button" class="btn" @click="salesLimitOpen = false">انصراف</button>
                   <button type="button" class="btn btn-secondary"
                           hx-post="{% url 'dashboard:product-variant-set-sales-limit' product.pk variant.pk %}"
-                          hx-vals='{"sales_limit_min":"","sales_limit_max":""}'
+                          hx-vals='{"sales_limit_min":"","sales_limit_max":""}' hx-params="sales_limit_min,sales_limit_max"
                           hx-target="#productOptionsBody" hx-swap="innerHTML">پاک‌کردنِ محدودیت</button>
                   <button type="button" class="btn btn-primary"
                           hx-post="{% url 'dashboard:product-variant-set-sales-limit' product.pk variant.pk %}"
-                          hx-include="#salesLimitMinDraft{{ variant.pk }},#salesLimitMaxDraft{{ variant.pk }}"
+                          hx-include="#salesLimitMinDraft{{ variant.pk }},#salesLimitMaxDraft{{ variant.pk }}" hx-params="sales_limit_min,sales_limit_max"
                           hx-target="#productOptionsBody" hx-swap="innerHTML">ذخیره</button>
                 </div>
               </div>
@@ -427,6 +482,7 @@
       <div class="variant-card" x-data="{ detailOpen: false }">
         <div class="variant-card-head">
           <div class="variant-card-main">
+            <input type="checkbox" name="delete_variant_ids" value="{{ variant.pk }}" x-model="selected[{{ variant.pk }}]" title="انتخابِ این تنوع برایِ عملیاتِ گروهی" style="margin-inline-end:6px">
             <button type="button" class="variant-image-box" title="مدیریتِ تصویرِ این تنوع"
                     hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML"
                     @click="modalOpen = true">
@@ -448,10 +504,7 @@
         <div x-show="detailOpen" x-cloak style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px">
           <input name="variant_{{ variant.pk }}_sku" value="{{ variant.sku }}" dir="ltr" placeholder="کدِ تنوع">
           <input name="variant_{{ variant.pk }}_stock" value="{{ variant.stock|stringformat:'d' }}" dir="ltr" inputmode="numeric" placeholder="موجودی">
-          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px">
-            <input type="checkbox" name="variant_{{ variant.pk }}_is_active" {% if variant.is_active %}checked{% endif %}> فعال
-          </label>
-          <button type="button" class="btn btn-sm btn-danger"
+          <button type="button" class="btn btn-sm btn-danger" hx-params="delete_variant_ids"
                   hx-post="{% url 'dashboard:product-variants-bulk-delete' product.pk %}" hx-vals='{"delete_variant_ids": [{{ variant.pk }}]}'
                   hx-target="#productOptionsBody" hx-swap="innerHTML" hx-confirm="این تنوع حذف شود؟">🗑️ حذفِ این تنوع</button>
         </div>
@@ -461,12 +514,10 @@
     </div>
 
     <div class="row" style="margin-top:14px">
-      <button type="button" class="btn btn-primary"
+      <button type="button" class="btn btn-primary" hx-params="{{ pf_exclude }}"
               hx-post="{% url 'dashboard:product-variants-bulk-update' product.pk %}" hx-include="#variantBulkForm"
-              hx-target="#productOptionsBody" hx-swap="innerHTML">ذخیره‌ی تغییرات (کد، موجودی، فعال، جزئیاتِ بیشتر)</button>
-      <button type="button" class="btn btn-danger"
-              hx-post="{% url 'dashboard:product-variants-bulk-delete' product.pk %}" hx-include="#variantBulkForm" hx-target="#productOptionsBody" hx-swap="innerHTML"
-              hx-confirm="تنوع‌های انتخاب‌شده حذف شوند؟ تنوعِ استفاده‌شده در سفارش حذف نخواهد شد.">🗑️ حذفِ انتخاب‌شده‌ها</button>
+              hx-target="#productOptionsBody" hx-swap="innerHTML">ذخیره‌ی تغییرات (کد، موجودی، جزئیاتِ بیشتر)</button>
+      <button type="button" class="btn btn-danger" @click="requestBulkDelete()">🗑️ حذفِ انتخاب‌شده‌ها</button>
       <button type="button" class="btn btn-sm" style="margin-inline-start:auto"
               hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">🖼️ مدیریتِ تصاویر و اختصاصِ تصویر به تنوع</button>
     </div>
@@ -490,6 +541,6 @@
   </div>
 </div>
 {% endif %}
-
+{% endwith %}
 </div>
 {% endif %}

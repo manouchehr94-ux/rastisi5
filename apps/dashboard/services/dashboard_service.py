@@ -194,7 +194,7 @@ def product_health_counts(store):
     اصلاً ساخته شود، پس این شاخص در این معماری همیشه صفر و بی‌معناست."""
     from django.db.models import Count, Q
 
-    base = Product.objects.filter(store=store)
+    base = Product.objects.filter(store=store, is_draft_placeholder=False)
     return {
         "active": base.filter(status=Product.Status.ACTIVE).count(),
         "draft": base.filter(status=Product.Status.DRAFT).count(),
@@ -242,7 +242,10 @@ def category_chain(category):
 
 def low_stock_products(store, limit: int = 20):
     products = (
-        Product.objects.filter(store=store, status=Product.Status.ACTIVE, stock__lte=LOW_STOCK_THRESHOLD)
+        Product.objects.filter(
+            store=store, status=Product.Status.ACTIVE, stock__lte=LOW_STOCK_THRESHOLD,
+            is_draft_placeholder=False,
+        )
         .select_related("category", "category__parent")
         .order_by("stock")[:limit]
     )
@@ -303,7 +306,7 @@ def build_dashboard_context(store):
         "top_products": top_selling_products(store),
         "low_stock_rows": low_stock_products(store),
         "low_stock_threshold": LOW_STOCK_THRESHOLD,
-        "nav_product_count": Product.objects.filter(store=store).count(),
+        "nav_product_count": Product.objects.filter(store=store, is_draft_placeholder=False).count(),
         "nav_pending_order_count": Order.objects.filter(store=store, status=Order.Status.PENDING).count(),
         "today_jalali": _today_jalali_display(),
         "store_status": store.status,

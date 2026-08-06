@@ -8,7 +8,7 @@
 {% block content %}
 <div style="margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
   <a class="btn btn-sm" href="{% url 'dashboard:product-list' %}">→ بازگشت به فهرست کالاها</a>
-  <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:product-edit' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">✏️ ویرایش کالا</button>
+  <a class="btn btn-sm" href="{% url 'dashboard:product-edit' product.pk %}">✏️ ویرایش کالا</a>
 </div>
 
 {% if not product.is_variable %}
@@ -20,7 +20,7 @@
       این کالا اکنون از قیمت و موجودی ساده‌ی خودش استفاده می‌کند و تا وقتی به «دارای تنوع» تبدیل نشود،
       مدیریت تنوع برای آن ممکن نیست.
     </div>
-    <button type="button" class="btn btn-primary" hx-get="{% url 'dashboard:product-edit' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">تبدیل به کالای دارای تنوع</button>
+    <a class="btn btn-primary" href="{% url 'dashboard:product-edit' product.pk %}">تبدیل به کالای دارای تنوع</a>
   </div>
 </div>
 {% else %}

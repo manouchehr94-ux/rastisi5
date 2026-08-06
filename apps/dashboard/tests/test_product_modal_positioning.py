@@ -79,7 +79,7 @@ class NestedModalTeleportTests(TestCase):
         زیرگروه)، بدونِ هیچ مودالی. فقط مودالِ سه‌مرحله‌ایِ «+ ساختِ
         دسته‌بندیِ جدید» (quickAddOpen) باقی مانده و همچنان باید teleport
         شده باشد."""
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
         self.assertNotIn("pickerOpen", html)
@@ -123,7 +123,7 @@ class NestedModalTeleportTests(TestCase):
         ``htmx:before-request`` event via ``hx-on::htmx:before-request``, which only
         fires once htmx has already committed to sending the request.
         """
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
         submit_marker = 'hx-target="#categoryField" hx-swap="outerHTML"'
@@ -152,7 +152,7 @@ class NestedModalTeleportTests(TestCase):
         contains an hx-* attribute must call ``htmx.process($el)`` from its own
         ``x-init`` so htmx notices it once Alpine mounts it.
         """
-        response = self.client.get(reverse("dashboard:product-add"))
+        response = self.client.get(reverse("dashboard:product-add"), follow=True)
         self.assertEqual(response.status_code, 200)
         html = response.content.decode()
         idx = html.find('class="overlay" :class="{ open: quickAddOpen }"')

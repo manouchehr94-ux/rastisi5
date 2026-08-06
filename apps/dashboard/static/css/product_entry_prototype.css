@@ -10,7 +10,7 @@
   --bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#6b7280;--line:#e5e7eb;
   --primary:#5b5bf6;--primary2:#7c3aed;--soft:#eef0ff;--success:#059669;
   --warning:#d97706;--danger:#dc2626;--radius:18px;--shadow:0 12px 34px rgba(15,23,42,.08);
-  color:var(--text);font-family:Tahoma,Arial,sans-serif;
+  color:var(--text);font-family:'Vazirmatn','Segoe UI',Tahoma,sans-serif;
 }
 .pe-prototype *{box-sizing:border-box}
 .pe-prototype button,.pe-prototype input,.pe-prototype select,.pe-prototype textarea{font:inherit}

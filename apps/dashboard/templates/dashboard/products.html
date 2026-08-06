@@ -90,10 +90,10 @@
         {% endfor %}
       </select>
     </div>
-    <button type="button" class="btn btn-primary" hx-get="{% url 'dashboard:product-add' %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">
+    <a href="{% url 'dashboard:product-add' %}" class="btn btn-primary">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
       افزودن کالای جدید
-    </button>
+    </a>
   </div>
   <div class="table-wrap" id="productsTableWrap">
     {% include "dashboard/partials/products_table_inner.html" %}

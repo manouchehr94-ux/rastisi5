@@ -75,7 +75,12 @@ class ProductForm(NumericCleanMixin, forms.Form):
     # انتخاب است — دقیقاً همان قراردادِ ویجتِ تک‌انتخابیِ پروتوتایپ.
     second_group = forms.ModelChoiceField(label="گروه دوم", queryset=ProductTag.objects.none(), required=False)
     brand = forms.ModelChoiceField(label="برند", queryset=Brand.objects.none(), required=False)
-    price = forms.CharField(label="قیمت (تومان)")
+    # required=False در سطحِ فیلد: چون بررسیِ واقعیِ الزامی‌بودن به status
+    # بستگی دارد (پیش‌نویس مجاز به قیمتِ خالی است)، این تصمیم باید در
+    # ``clean_price`` گرفته شود؛ اگر این فیلد required=True می‌ماند، خودِ
+    # CharField پیش از رسیدن به ``clean_price`` با «این فیلد لازم است» رد
+    # می‌شد و منطقِ ``clean_price`` هرگز اجرا نمی‌شد.
+    price = forms.CharField(label="قیمت (تومان)", required=False)
     discount_percent = forms.CharField(label="تخفیف (٪)", required=False, initial="0")
     stock = forms.CharField(label="موجودی انبار", required=False, initial="0")
     status = forms.ChoiceField(label="وضعیت", choices=STATUS_CHOICES, initial=Product.Status.ACTIVE)
@@ -198,6 +203,14 @@ class ProductForm(NumericCleanMixin, forms.Form):
         return parsed
 
     def clean_price(self):
+        # پیش‌نویس (دکمه‌ی «ذخیره‌ی پیش‌نویس») صراحتاً وعده می‌دهد که فقط
+        # نام/کدِ کالا/دسته‌بندی الزامی‌اند؛ قیمت باید بتواند خالی بماند.
+        # اعتبارسنجیِ واقعیِ «قیمت > ۰» پیش از انتشار همچنان توسط
+        # ``validate_product_for_publish`` (وقتی status=active) اجرا می‌شود —
+        # این‌جا الزامیِ بی‌قیدوشرط بودنِ قیمت با آن وعده در تضاد بود و باعث
+        # می‌شد ذخیره‌ی پیش‌نویسِ بدونِ قیمت بی‌سروصدا شکست بخورد.
+        if not self.data.get("price", "").strip() and self.data.get("status") == Product.Status.DRAFT:
+            return 0
         return self._clean_int("price", min_value=1)
 
     def clean_discount_percent(self):

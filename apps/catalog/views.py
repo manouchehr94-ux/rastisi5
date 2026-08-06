@@ -15,6 +15,7 @@ from apps.stores.resolution import resolve_store_for_storefront
 
 from .models import Brand, Category, Product, Review
 from .services.product_publish_service import storefront_listing_products, storefront_visible_products
+from .services.product_video_service import ProductVideoError
 from .services.storefront_variant_service import build_variant_selector_context
 
 BEST_SORT_OPTIONS = {
@@ -255,6 +256,33 @@ def _can_review(request):
     return request.user.is_authenticated and hasattr(request.user, "customer_profile")
 
 
+def _product_video_render_data(product):
+    """ورودیِ رندرِ ویدیوهایِ کالا برایِ صفحه‌ی عمومیِ محصول — عمداً هر ویدیو
+    را همین‌جا (سمتِ سرور، نه در خودِ قالب) به یک دیکشنریِ ایمن تبدیل
+    می‌کند: ``embed_url``/``instagram_permalink`` هر دو با تجزیه‌یِ مجددِ
+    خودِ ``url`` محاسبه می‌شوند (نگاه کنید به
+    ``product_video_service.detect_provider_and_id``)، و اگر یک ردیف —
+    مثلاً از راهِ دستکاریِ مستقیمِ دیتابیس یا وارداتِ قدیمی — دیگر با هیچ
+    الگویِ پشتیبانی‌شده‌ای تطبیق نداشت، آن ردیف فقط نادیده گرفته می‌شود؛
+    اگر این تبدیل مستقیماً در قالب (به‌صورتِ ``{{ video.embed_url }}``)
+    انجام می‌شد، همان یک ردیفِ نامعتبر کلِ صفحه‌ی محصول را با خطایِ ۵۰۰
+    از کار می‌انداخت."""
+    rendered = []
+    for video in product.videos.all():
+        try:
+            embed_url = video.embed_url
+            permalink = video.instagram_permalink if embed_url is None else ""
+        except ProductVideoError:
+            continue
+        rendered.append({
+            "provider_display": video.get_provider_display(),
+            "title": video.title,
+            "embed_url": embed_url,
+            "permalink": permalink,
+        })
+    return rendered
+
+
 def build_product_detail_context(request, product):
     """کانتکستِ کاملِ صفحه‌ی محصول — هم برایِ نمایشِ عمومیِ فروشگاه (``product_detail``)
     و هم برایِ پیش‌نمایشِ مدیرِ فروشگاه (``dashboard:product-preview``، برایِ
@@ -297,6 +325,12 @@ def build_product_detail_context(request, product):
         "related_products": related_products,
         "can_review": _can_review(request),
         "savings": savings,
+        # ``product.videos`` همیشه فقط به همین کالا (و از طریقِ آن، همین
+        # Store) محدود است — نگاه کنید به ``ProductVideo.product`` (FK).
+        # صفحه‌ی عمومیِ محصول تا پیش از این هرگز این متغیر را در کانتکست
+        # نمی‌گذاشت، پس ویدیوهایی که در ادمین با موفقیت ذخیره شده بودند،
+        # هرگز در فروشگاه رندر نمی‌شدند — صرف‌نظر از درستیِ خودِ ذخیره‌سازی.
+        "product_videos": _product_video_render_data(product),
     }
     return context
 
@@ -304,7 +338,9 @@ def build_product_detail_context(request, product):
 def product_detail(request, slug):
     store = resolve_store_for_storefront(request)
     product = get_object_or_404(
-        storefront_visible_products(store).select_related("brand", "category", "category__parent", "vendor"),
+        storefront_visible_products(store)
+        .select_related("brand", "category", "category__parent", "vendor")
+        .prefetch_related("videos"),
         slug=slug,
     )
     Product.objects.filter(pk=product.pk).update(views_count=F("views_count") + 1)

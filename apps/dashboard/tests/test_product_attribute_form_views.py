@@ -194,8 +194,9 @@ class CategoryChangeOrphanTests(ProductAttributeFormTestCase):
         self.assertEqual(product.category_id, self.other_category.pk)
         # value still exists — never silently deleted
         self.assertTrue(ProductAttributeValue.objects.filter(product=product, attribute=self.material).exists())
-        trigger = json.loads(response.headers["HX-Trigger"])
-        self.assertIn("مطابقت ندارد", trigger["toast"]["message"])
+        # پیامِ موفقیت دیگر HX-Trigger نیست — از طریقِ django.contrib.messages
+        # در همان رندرِ درجاجایِ صفحه‌ی تمام‌صفحه نمایش داده می‌شود.
+        self.assertContains(response, "مطابقت ندارد")
 
     def test_cleanup_endpoint_deletes_orphans_explicitly(self):
         product = Product.objects.create(

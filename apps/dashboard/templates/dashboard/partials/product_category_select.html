@@ -88,7 +88,7 @@
     <div class="field">
       <label>گروه اصلی<span class="required-star" aria-label="ضروری">*</span></label>
       <div class="field-inline-action">
-        <select x-model="selectedGroupId" @change="onGroupChange()">
+        <select name="category_group" x-model="selectedGroupId" @change="onGroupChange()">
           <option value="">— انتخاب کنید —</option>
           {% for row in category_tree_rows %}
           <option value="{{ row.category.pk }}">{{ row.category.icon|default:"📁" }} {{ row.category.name }}</option>

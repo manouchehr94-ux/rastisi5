@@ -50,11 +50,18 @@ def _ancestor_chain(category: Category) -> list[Category]:
     return chain
 
 
-def resolve_category_schema(category: Category) -> list[ResolvedSchemaEntry]:
+def resolve_category_schema(category: Category | None) -> list[ResolvedSchemaEntry]:
     """طرح نرمال‌شده‌ی ویژگی‌های یک دسته‌بندی را برمی‌گرداند — نزدیک‌ترین نگاشت برنده است.
 
     خروجی یک فهرست بدون تکرار (هر Attribute حداکثر یک‌بار)، مرتب‌شده طبق
-    ``group_order``/``display_order``ِ نگاشت *برنده*. نگاه کنید به ADR-23."""
+    ``group_order``/``display_order``ِ نگاشت *برنده*. نگاه کنید به ADR-23.
+
+    ``category=None`` یک فهرستِ خالی می‌دهد — نه خطا: پیش‌نویسِ داخلیِ در حالِ
+    ساختِ کالا (``Product.is_draft_placeholder``) تا پیش از انتخابِ دسته‌بندی
+    توسطِ merchant، ``category=None`` دارد (نگاه کنید به
+    ``apps.catalog.services.product_draft_service``)."""
+    if category is None:
+        return []
     chain = _ancestor_chain(category)
     resolved: dict[int, ResolvedSchemaEntry] = {}
 
