@@ -1,0 +1,20 @@
+{% load persian %}
+<div class="collection-product-search-list" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+  {% for product in results %}
+  <label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:6px;{% if product.pk in existing_ids %}opacity:.5{% endif %}">
+    <input type="checkbox" name="product_ids" value="{{ product.pk }}" form="collectionProductAddForm"
+           {% if product.pk in existing_ids %}disabled{% endif %}>
+    <span class="thumb" style="width:26px;height:26px;flex-shrink:0;background:var(--primary-soft);border-radius:6px;overflow:hidden">
+      {% if product.cover_image %}<img src="{{ product.cover_image.thumbnail.url|default:product.cover_image.image.url }}" alt="" style="width:100%;height:100%;object-fit:cover">{% endif %}
+    </span>
+    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px">{{ product.name }}</span>
+    <span style="font-size:11px;color:var(--muted)" dir="ltr">{{ product.sku }}</span>
+    <span class="badge {% if product.status == 'active' %}b-green{% else %}b-gray{% endif %}" style="font-size:10px">{{ product.get_status_display }}</span>
+    {% if product.pk in existing_ids %}<span style="font-size:11px;color:var(--muted)">(عضو است)</span>{% endif %}
+  </label>
+  {% empty %}
+  <p style="font-size:12px;color:var(--muted);padding:6px 4px">
+    {% if query %}کالایی با این عبارت یافت نشد.{% else %}برای جست‌وجو تایپ کنید یا فهرست کالاهای فروشگاه را ببینید.{% endif %}
+  </p>
+  {% endfor %}
+</div>

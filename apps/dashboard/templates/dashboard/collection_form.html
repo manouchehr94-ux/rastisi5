@@ -1,0 +1,53 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}{% if collection %}ویرایش کالکشن{% else %}کالکشن جدید{% endif %} | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}{% if collection %}ویرایش «{{ collection.name }}»{% else %}کالکشن جدید{% endif %}{% endblock %}
+{% block page_sub %}نام، توضیحات، تصویر و سئوی کالکشن را تنظیم کنید{% endblock %}
+
+{% block content %}
+<div class="card">
+  {% if form.non_field_errors %}
+  <div class="form-error" role="alert" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:14px">
+    {{ form.non_field_errors.0 }}
+  </div>
+  {% endif %}
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-group">
+      <label for="id_name">نام کالکشن</label>
+      <input type="text" class="form-input" id="id_name" name="name" value="{{ form.name.value|default:'' }}" required>
+      {% if form.name.errors %}<div class="field-error">{{ form.name.errors.0 }}</div>{% endif %}
+    </div>
+    <div class="form-group">
+      <label for="id_description">توضیحات (اختیاری)</label>
+      <textarea class="form-input" id="id_description" name="description" rows="4">{{ form.description.value|default:'' }}</textarea>
+    </div>
+    <div class="form-group">
+      <label for="id_image">تصویر کالکشن (اختیاری)</label>
+      {% if collection.image %}
+      <div style="margin-bottom:8px">
+        <img src="{{ collection.image.url }}" alt="" style="max-width:160px;border-radius:8px;display:block;margin-bottom:6px">
+        <label style="font-size:12px;display:flex;align-items:center;gap:6px">
+          <input type="checkbox" name="remove_image" value="1"> حذف تصویر فعلی
+        </label>
+      </div>
+      {% endif %}
+      <input type="file" id="id_image" name="image" accept="image/*">
+      {% if form.image.errors %}<div class="field-error">{{ form.image.errors.0 }}</div>{% endif %}
+    </div>
+    <div class="form-group">
+      <label for="id_seo_title">عنوان سئو (اختیاری)</label>
+      <input type="text" class="form-input" id="id_seo_title" name="seo_title" maxlength="70" value="{{ form.seo_title.value|default:'' }}">
+    </div>
+    <div class="form-group">
+      <label for="id_seo_description">توضیحات متا (اختیاری)</label>
+      <textarea class="form-input" id="id_seo_description" name="seo_description" maxlength="160" rows="2">{{ form.seo_description.value|default:'' }}</textarea>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">{% if collection %}ذخیره تغییرات{% else %}ساخت کالکشن{% endif %}</button>
+      <a href="{% url 'dashboard:collection-list' %}" class="btn">بازگشت به فهرست</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
