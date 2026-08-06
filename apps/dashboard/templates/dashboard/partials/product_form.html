@@ -274,11 +274,12 @@
         {% include "dashboard/partials/product_images_list.html" %}
 
         <div class="card" style="margin-top:20px" x-data="{
-               url: '', embedUrl: '', recognized: false,
+               url: '', embedUrl: '', recognized: false, serverError: '',
                youtubePatterns: [/(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/)([\w-]{11})/, /youtu\.be\/([\w-]{11})/, /youtube\.com\/embed\/([\w-]{11})/],
                aparatPattern: /aparat\.com\/(?:v\/|video\/video\/embed\/videohash\/)([\w-]+)/,
                instagramPattern: /instagram\.com\/(p|reel|tv)\/([\w-]+)/,
                checkUrl() {
+                 this.serverError = '';
                  this.embedUrl = ''; this.recognized = false;
                  if (!this.url.trim()) return;
                  for (const p of this.youtubePatterns) {
@@ -295,20 +296,22 @@
           <div class="row">
             <div class="field" style="flex:1;min-width:220px">
               <label>لینکِ ویدیو</label>
-              <input id="editVideoUrlInput" name="__edit_video_url" dir="ltr" placeholder="لینکِ یوتیوب، آپارات یا پست/Reelِ عمومیِ اینستاگرام"
+              <input id="editVideoUrlInput" name="video_url" dir="ltr" placeholder="لینکِ یوتیوب، آپارات یا پست/Reelِ عمومیِ اینستاگرام"
                      x-model="url" @input.debounce.300ms="checkUrl()">
             </div>
             <div class="field" style="width:150px">
               <label>عنوان <span class="opt-pill">اختیاری</span></label>
-              <input id="editVideoTitleInput" name="__edit_video_title" placeholder="معرفیِ کالا">
+              <input id="editVideoTitleInput" name="video_title" x-ref="videoTitleInput" placeholder="معرفیِ کالا">
             </div>
             <button type="button" class="btn btn-sm btn-primary" :disabled="!url.trim() || !recognized"
                     hx-post="{% url 'dashboard:product-video-add' product.pk %}"
-                    hx-include="#editVideoUrlInput,#editVideoTitleInput"
+                    hx-include="#editVideoUrlInput,#editVideoTitleInput" hx-params="video_url,video_title"
                     hx-target="#productVideosList" hx-swap="outerHTML"
-                    hx-on::htmx:before-request="url = ''; embedUrl = ''; recognized = false">افزودنِ ویدیو</button>
+                    @video-added="url = ''; embedUrl = ''; recognized = false; serverError = ''; $refs.videoTitleInput.value = ''"
+                    @video-error="serverError = $event.detail.message">افزودنِ ویدیو</button>
           </div>
           <div x-show="url.trim() && !recognized" x-cloak class="pe-field-error" style="margin-top:6px">این لینک شناخته‌شده نیست — فقط لینکِ یوتیوب، آپارات یا پست/Reelِ عمومیِ اینستاگرام پذیرفته می‌شود.</div>
+          <div x-show="serverError" x-cloak class="pe-field-error" style="margin-top:6px" x-text="serverError"></div>
           <div x-show="embedUrl" x-cloak style="margin-top:10px;width:220px;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:#000">
             <iframe :src="embedUrl" style="width:100%;height:100%;border:0" allowfullscreen loading="lazy"></iframe>
           </div>

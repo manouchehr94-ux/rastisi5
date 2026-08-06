@@ -954,6 +954,13 @@ def _product_form_extra_context(store, product, *, form=None, request=None, cate
     # ساده/بدونِ محور هم امن است (فهرست‌هایِ خالی برمی‌گرداند).
     if product is not None:
         context.update(_product_options_context(request, product))
+        # ``product_form.html`` تبِ «تصاویر و فیلم» را با
+        # ``{% include "dashboard/partials/product_videos_list.html" %}``
+        # می‌سازد که یک متغیرِ ``videos`` می‌خواهد؛ بدونِ این خط، آن متغیر در
+        # GET/رفرشِ صفحه هرگز تعریف نمی‌شد (Django آن را بی‌صدا خالی می‌گرفت)
+        # پس ویدیوهایی که با موفقیت در دیتابیس ذخیره شده بودند، بعد از هر
+        # Refresh انگار اصلاً وجود نداشتند — صرف‌نظر از درستیِ خودِ ذخیره‌سازی.
+        context["videos"] = product.videos.all()
     return context
 
 
@@ -1562,12 +1569,15 @@ def product_image_option_value_update(request, pk, image_id):
     return _image_list_response(request, product, refresh_table=False)
 
 
-def _video_list_response(request, product, *, toast=None):
+def _video_list_response(request, product, *, toast=None, trigger_extra=None):
     response = render(request, "dashboard/partials/product_videos_list.html", {
         "product": product, "videos": product.videos.all(),
     })
+    trigger = dict(trigger_extra or {})
     if toast:
-        response["HX-Trigger"] = json.dumps({"toast": toast})
+        trigger["toast"] = toast
+    if trigger:
+        response["HX-Trigger"] = json.dumps(trigger)
     return response
 
 
@@ -1577,19 +1587,23 @@ def _video_list_response(request, product, *, toast=None):
 def product_video_add(request, pk):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store)
-    # قالب ``product_form.html`` این فیلدها را با نامِ ``__edit_video_url``/
-    # ``__edit_video_title`` می‌فرستد (نامِ dunder-پیشوندی عمداً برای اجتنابِ
-    # از تداخل با فیلدهایِ دیگرِ فرمِ کالا انتخاب شده)؛ این ویو تا پیش از این
-    # نامِ سادّه‌ی ``url``/``title`` را می‌خواند که هرگز در بدنه‌ی POST وجود
-    # نداشت — یعنی افزودنِ ویدیو همیشه (نه فقط گاهی) با پیامِ «لینک
-    # شناخته‌شده نیست» شکست می‌خورد، صرف‌نظر از معتبر بودنِ خودِ لینک.
-    url = request.POST.get("__edit_video_url", request.POST.get("url", "")).strip()
-    title = request.POST.get("__edit_video_title", request.POST.get("title", "")).strip()
+    # ``video_url``/``video_title`` تنها نامِ معتبرِ این دو فیلد در کلِ
+    # مسیر است — همان نامی که ``_stage_product_media`` (ساختِ یک‌مرحله‌ایِ
+    # کالای جدید) هم می‌خواند؛ هیچ نامِ موازیِ دیگری (مثلِ ``__edit_video_url``
+    # یا ``url``) نگه‌داشته نمی‌شود.
+    url = request.POST.get("video_url", "").strip()
+    title = request.POST.get("video_title", "").strip()
     try:
         add_product_video(product, url=url, title=title)
     except ProductVideoError as exc:
-        return _video_list_response(request, product, toast={"message": str(exc), "type": "err"})
-    return _video_list_response(request, product, toast={"message": "ویدیو اضافه شد", "type": "ok"})
+        return _video_list_response(
+            request, product, toast={"message": str(exc), "type": "err"},
+            trigger_extra={"video-error": {"message": str(exc)}},
+        )
+    return _video_list_response(
+        request, product, toast={"message": "ویدیو اضافه شد", "type": "ok"},
+        trigger_extra={"video-added": True},
+    )
 
 
 @require_POST

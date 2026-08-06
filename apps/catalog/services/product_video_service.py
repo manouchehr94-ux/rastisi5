@@ -33,7 +33,16 @@ class ProductVideoError(Exception):
 
 def detect_provider_and_id(url: str):
     """(provider, external_id) را از رویِ URL تشخیص می‌دهد؛ اگر هیچ‌کدام از
-    سه سرویسِ پشتیبانی‌شده نبود، ``ProductVideoError`` می‌دهد."""
+    سه سرویسِ پشتیبانی‌شده نبود، ``ProductVideoError`` می‌دهد.
+
+    پیش از تطبیقِ الگو، طرحِ URL باید صریحاً ``http(s)://`` باشد — وگرنه
+    یک رشته‌ی دستکاری‌شده مثلِ ``javascript:...//youtube.com/watch?v=...``
+    می‌توانست با جست‌وجویِ زیررشته‌ایِ الگوها قبول شود (حتی اگر هرگز به‌صورتِ
+    ناامن رندر نشود، ذخیره‌کردنِ چنین مقداری هرگز درست نیست)."""
+    if not re.match(r"^https?://", url, re.IGNORECASE):
+        raise ProductVideoError(
+            "این لینک شناخته‌شده نیست — فقط لینکِ یوتیوب، آپارات یا پست/Reel عمومیِ اینستاگرام پذیرفته می‌شود."
+        )
     for pattern in _YOUTUBE_PATTERNS:
         match = pattern.search(url)
         if match:
