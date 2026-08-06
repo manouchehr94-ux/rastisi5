@@ -2837,7 +2837,10 @@ def product_variants_bulk_update(request, pk):
                 variant.tax_class = tax_class
             else:
                 variant.tax_class = None
-            variant.is_active = request.POST.get(f"{prefix}is_active") == "on"
+            # وضعیتِ فعال/غیرفعال دیگر اینجا دست نمی‌خورَد — منحصراً از طریقِ
+            # دکمه‌هایِ «فعال‌سازیِ انتخاب‌شده‌ها»/«غیرفعال‌سازیِ انتخاب‌شده‌ها»
+            # (نگاه کنید به ``product_variants_bulk_activate``) با تأییدِ صریحِ
+            # کاربر مدیریت می‌شود تا با یک بارگذاریِ گروهیِ ناقص خاموش نشود.
             if variant.stock < 0:
                 raise VariantError("موجودی نمی‌تواند منفی باشد.")
             variant.full_clean(exclude=["normalized_attribute", "normalized_value"])
@@ -2850,8 +2853,9 @@ def product_variants_bulk_update(request, pk):
     if errors:
         return _product_options_response(request, product, toast={"message": errors[0], "type": "err"})
 
-    for variant in updated:
-        variant.save()
+    with transaction.atomic():
+        for variant in updated:
+            variant.save()
 
     return _product_options_response(
         request, product, toast={"message": f"{len(updated)} تنوع به‌روزرسانی شد", "type": "ok"},
@@ -2871,12 +2875,13 @@ def product_variants_bulk_delete(request, pk):
 
     deleted_count = 0
     skipped_count = 0
-    for variant in list(variants):
-        try:
-            delete_variant(variant)
-            deleted_count += 1
-        except VariantError:
-            skipped_count += 1
+    with transaction.atomic():
+        for variant in list(variants):
+            try:
+                delete_variant(variant)
+                deleted_count += 1
+            except VariantError:
+                skipped_count += 1
 
     if skipped_count:
         message = f"{deleted_count} تنوع حذف شد — {skipped_count} تنوع چون در سفارشی استفاده شده، حذف نشد."
@@ -2894,8 +2899,11 @@ def product_variants_bulk_activate(request, pk):
     """فعال/غیرفعال‌سازیِ گروهیِ ردیف‌هایِ انتخاب‌شده‌ی جدولِ تنوع — Part 6 مشخصات."""
     product = _get_scoped_product(request, pk)
     variant_ids = [int(v) for v in request.POST.getlist("variant_ids") if v.isdigit()]
+    if not variant_ids:
+        return _product_options_response(request, product, toast={"message": "هیچ تنوعی انتخاب نشده است.", "type": "err"})
     is_active = request.POST.get("activate") == "1"
-    updated = product.variants.filter(pk__in=variant_ids).update(is_active=is_active)
+    with transaction.atomic():
+        updated = product.variants.filter(pk__in=variant_ids).update(is_active=is_active)
     label = "فعال" if is_active else "غیرفعال"
     return _product_options_response(
         request, product, toast={"message": f"{updated} تنوع {label} شد", "type": "ok"},

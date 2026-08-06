@@ -16,17 +16,59 @@
      // برمی‌گرداندند و هیچ عملِ گروهی هرگز واقعاً کار نمی‌کرد. اسکوپ‌کردن به
      // ``#productOptionsBody`` (شناسه‌ی پایدارِ فرزندِ اصلی) این وابستگی به
      // عنصرِ ماشه را کاملاً حذف می‌کند.
-     checkedIds() { return [...document.querySelectorAll('#productOptionsBody tbody input[name=delete_variant_ids]:checked, #productOptionsBody .variant-card input[name=delete_variant_ids]:checked')].map(cb => cb.value); },
+     // ``selected`` تنها منبعِ معتبرِ ردیف‌هایِ انتخاب‌شده است — چک‌باکسِ نمایِ
+     // جدول و چک‌باکسِ نمایِ کارت هر دو با x-model روی selected[pk] به همین
+     // یک شیِ مشترک در سطحِ بیرونی متصل‌اند، پس هرگز نمی‌توانند دو مقدارِ
+     // متفاوت برایِ یک تنوع داشته باشند (بدونِ نیاز به دی‌دوپ‌کردنِ ورودی‌هایِ
+     // پنهانِ تکراری از دو نما).
+     selected: {},
+     checkedIds() { return Object.keys(this.selected).filter(pk => this.selected[pk]); },
      applyBulkStock() {
        const ids = this.checkedIds();
        if (!ids.length) { this.bulkStockOpen = false; return; }
        htmx.ajax('POST', '{% url 'dashboard:product-variants-bulk-stock' product.pk %}', { target: '#productOptionsBody', swap: 'innerHTML', values: { variant_ids: ids, stock: this.bulkStockDraft } });
        this.bulkStockOpen = false;
      },
-     bulkActivate(activate) {
+     // «فعال‌سازی/غیرفعال‌سازی/حذفِ انتخاب‌شده‌ها» هرگز مستقیماً درخواست
+     // نمی‌فرستند — ابتدا این مودالِ تأییدِ خودِ پروژه (نه confirm() مرورگر) باز
+     // می‌شود و فقط با کلیکِ صریحِ «بله، ...» درخواست ارسال می‌شود.
+     bulkConfirmOpen: false, bulkConfirmKind: '',
+     bulkConfirmText() {
+       if (this.bulkConfirmKind === 'activate') return 'از فعال‌سازی تنوع‌های انتخاب‌شده مطمئن هستید؟';
+       if (this.bulkConfirmKind === 'deactivate') return 'از غیرفعال‌سازی تنوع‌های انتخاب‌شده مطمئن هستید؟';
+       if (this.bulkConfirmKind === 'delete') return 'از حذف تنوع‌های انتخاب‌شده مطمئن هستید؟ این عملیات قابل بازگشت نیست.';
+       return '';
+     },
+     bulkConfirmButtonLabel() {
+       if (this.bulkConfirmKind === 'activate') return 'بله، فعال شوند';
+       if (this.bulkConfirmKind === 'deactivate') return 'بله، غیرفعال شوند';
+       if (this.bulkConfirmKind === 'delete') return 'بله، حذف شوند';
+       return '';
+     },
+     noSelectionToast() {
+       window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'ابتدا حداقل یک تنوع را انتخاب کنید.', type: 'err' } }));
+     },
+     requestBulkActivate(activate) {
+       if (!this.checkedIds().length) { this.noSelectionToast(); return; }
+       this.bulkConfirmKind = activate === '1' ? 'activate' : 'deactivate';
+       this.bulkConfirmOpen = true;
+     },
+     requestBulkDelete() {
+       if (!this.checkedIds().length) { this.noSelectionToast(); return; }
+       this.bulkConfirmKind = 'delete';
+       this.bulkConfirmOpen = true;
+     },
+     confirmBulkAction() {
        const ids = this.checkedIds();
-       if (!ids.length) return;
-       htmx.ajax('POST', '{% url 'dashboard:product-variants-bulk-activate' product.pk %}', { target: '#productOptionsBody', swap: 'innerHTML', values: { variant_ids: ids, activate: activate } });
+       const kind = this.bulkConfirmKind;
+       this.bulkConfirmOpen = false;
+       this.bulkConfirmKind = '';
+       if (!ids.length) { this.noSelectionToast(); return; }
+       if (kind === 'delete') {
+         htmx.ajax('POST', '{% url 'dashboard:product-variants-bulk-delete' product.pk %}', { target: '#productOptionsBody', swap: 'innerHTML', values: { delete_variant_ids: ids } });
+       } else if (kind === 'activate' || kind === 'deactivate') {
+         htmx.ajax('POST', '{% url 'dashboard:product-variants-bulk-activate' product.pk %}', { target: '#productOptionsBody', swap: 'innerHTML', values: { variant_ids: ids, activate: kind === 'activate' ? '1' : '0' } });
+       }
      },
      applyBulkSalesLimit() {
        const ids = this.checkedIds();
@@ -213,8 +255,8 @@
   <div id="variantBulkForm">
     <div class="row" style="margin-top:14px">
       <button type="button" class="btn btn-sm" @click="bulkStockDraft = ''; bulkStockOpen = true">📦 تنظیمِ گروهیِ موجودی</button>
-      <button type="button" class="btn btn-sm" @click="bulkActivate('1')">✅ فعال‌سازیِ انتخاب‌شده‌ها</button>
-      <button type="button" class="btn btn-sm" @click="bulkActivate('0')">🚫 غیرفعال‌سازیِ انتخاب‌شده‌ها</button>
+      <button type="button" class="btn btn-sm" @click="requestBulkActivate('1')">✅ فعال‌سازیِ انتخاب‌شده‌ها</button>
+      <button type="button" class="btn btn-sm" @click="requestBulkActivate('0')">🚫 غیرفعال‌سازیِ انتخاب‌شده‌ها</button>
       <button type="button" class="btn btn-sm" @click="bulkSalesLimitOpen = true">🎯 محدودیتِ فروشِ گروهی</button>
     </div>
 
@@ -256,11 +298,23 @@
     </div>
     </template>
 
+    <template x-teleport="body">
+    <div x-show="bulkConfirmOpen" x-cloak dir="rtl" class="price-modal-overlay" @click.self="bulkConfirmOpen = false" @keydown.escape.window="bulkConfirmOpen = false">
+      <div class="price-modal-card" role="alertdialog" aria-modal="true">
+        <h4 style="margin:0 0 14px" x-text="bulkConfirmText()"></h4>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button type="button" class="btn" @click="bulkConfirmOpen = false">انصراف</button>
+          <button type="button" class="btn btn-primary" :class="{'btn-danger': bulkConfirmKind === 'delete'}" @click="confirmBulkAction()" x-text="bulkConfirmButtonLabel()"></button>
+        </div>
+      </div>
+    </div>
+    </template>
+
     <div class="table-wrap" x-show="variantView==='table'">
       <table>
         <thead>
           <tr>
-            <th><input type="checkbox" title="انتخابِ همه" @change="const c = $event.target.checked; $el.closest('table').querySelectorAll('tbody input[name=delete_variant_ids]').forEach(cb => cb.checked = c)"></th>
+            <th><input type="checkbox" title="انتخابِ همه" @change="const c = $event.target.checked; [{% for variant in active_variants %}{{ variant.pk }}{% if not forloop.last %},{% endif %}{% endfor %}].forEach(pk => selected[pk] = c)"></th>
             <th>تصویر</th>
             {% for axis in axes %}{% if axis.is_active %}<th>{{ axis.label }}</th>{% endif %}{% endfor %}
             <th>کدِ محصول</th>
@@ -283,7 +337,7 @@
                 finalOf(p, d) { return Math.max(0, Math.round((Number(p) || 0) * (1 - (Number(d) || 0) / 100))); },
               }">
           <tr>
-            <td><input type="checkbox" name="delete_variant_ids" value="{{ variant.pk }}"><input type="hidden" name="variant_ids" value="{{ variant.pk }}"></td>
+            <td><input type="checkbox" name="delete_variant_ids" value="{{ variant.pk }}" x-model="selected[{{ variant.pk }}]"><input type="hidden" name="variant_ids" value="{{ variant.pk }}"></td>
             <td>
               <button type="button" class="variant-image-box" title="مدیریتِ تصویرِ این تنوع"
                       hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML"
@@ -304,10 +358,7 @@
             </td>
             <td>{% if variant.discount_percent_display %}{{ variant.discount_percent_display|fa_number }}٪{% else %}—{% endif %}</td>
             <td>
-              <label class="pill {% if variant.is_active %}on{% else %}off{% endif %}" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">
-                <input type="checkbox" name="variant_{{ variant.pk }}_is_active" {% if variant.is_active %}checked{% endif %} style="margin:0">
-                {% if variant.is_active %}فعال{% else %}غیرفعال{% endif %}
-              </label>
+              <span class="pill {% if variant.is_active %}on{% else %}off{% endif %}">{% if variant.is_active %}فعال{% else %}غیرفعال{% endif %}</span>
             </td>
             <td><button type="button" class="btn btn-sm" @click="detailOpen = !detailOpen">⋯ جزئیاتِ بیشتر</button></td>
             <td>
@@ -430,6 +481,7 @@
       <div class="variant-card" x-data="{ detailOpen: false }">
         <div class="variant-card-head">
           <div class="variant-card-main">
+            <input type="checkbox" name="delete_variant_ids" value="{{ variant.pk }}" x-model="selected[{{ variant.pk }}]" title="انتخابِ این تنوع برایِ عملیاتِ گروهی" style="margin-inline-end:6px">
             <button type="button" class="variant-image-box" title="مدیریتِ تصویرِ این تنوع"
                     hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML"
                     @click="modalOpen = true">
@@ -451,9 +503,6 @@
         <div x-show="detailOpen" x-cloak style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px">
           <input name="variant_{{ variant.pk }}_sku" value="{{ variant.sku }}" dir="ltr" placeholder="کدِ تنوع">
           <input name="variant_{{ variant.pk }}_stock" value="{{ variant.stock|stringformat:'d' }}" dir="ltr" inputmode="numeric" placeholder="موجودی">
-          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px">
-            <input type="checkbox" name="variant_{{ variant.pk }}_is_active" {% if variant.is_active %}checked{% endif %}> فعال
-          </label>
           <button type="button" class="btn btn-sm btn-danger" hx-params="delete_variant_ids"
                   hx-post="{% url 'dashboard:product-variants-bulk-delete' product.pk %}" hx-vals='{"delete_variant_ids": [{{ variant.pk }}]}'
                   hx-target="#productOptionsBody" hx-swap="innerHTML" hx-confirm="این تنوع حذف شود؟">🗑️ حذفِ این تنوع</button>
@@ -466,10 +515,8 @@
     <div class="row" style="margin-top:14px">
       <button type="button" class="btn btn-primary" hx-params="{{ pf_exclude }}"
               hx-post="{% url 'dashboard:product-variants-bulk-update' product.pk %}" hx-include="#variantBulkForm"
-              hx-target="#productOptionsBody" hx-swap="innerHTML">ذخیره‌ی تغییرات (کد، موجودی، فعال، جزئیاتِ بیشتر)</button>
-      <button type="button" class="btn btn-danger" hx-params="{{ pf_exclude }}"
-              hx-post="{% url 'dashboard:product-variants-bulk-delete' product.pk %}" hx-include="#variantBulkForm" hx-target="#productOptionsBody" hx-swap="innerHTML"
-              hx-confirm="تنوع‌های انتخاب‌شده حذف شوند؟ تنوعِ استفاده‌شده در سفارش حذف نخواهد شد.">🗑️ حذفِ انتخاب‌شده‌ها</button>
+              hx-target="#productOptionsBody" hx-swap="innerHTML">ذخیره‌ی تغییرات (کد، موجودی، جزئیاتِ بیشتر)</button>
+      <button type="button" class="btn btn-danger" @click="requestBulkDelete()">🗑️ حذفِ انتخاب‌شده‌ها</button>
       <button type="button" class="btn btn-sm" style="margin-inline-start:auto"
               hx-get="{% url 'dashboard:product-images' product.pk %}" hx-target="#admin-modal-content" hx-swap="innerHTML" @click="modalOpen = true">🖼️ مدیریتِ تصاویر و اختصاصِ تصویر به تنوع</button>
     </div>
