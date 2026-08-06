@@ -2277,7 +2277,7 @@ def _collections_context(request, *, q=""):
     q = (q or "").strip()
     if q:
         qs = qs.filter(name__icontains=q)
-    return {"collections": qs.order_by("name"), "q": q}
+    return {"collections": qs.order_by("name"), "q": q, "public_collection_url_name": "catalog:collection-detail"}
 
 
 def _collections_table_response(request, *, toast=None):

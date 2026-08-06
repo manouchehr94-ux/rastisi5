@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}کالکشن‌ها | {{ SHOP_NAME }}{% endblock %}
+{% block meta_description %}<meta name="description" content="کالکشن‌های فروشگاه {{ SHOP_NAME }}">{% endblock %}
+{% block canonical %}{{ request.scheme }}://{{ request.get_host }}{% url 'catalog:collection-index' %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/product_list.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="breadcrumb">
+    <a href="/">خانه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span style="color:var(--ink)">کالکشن‌ها</span>
+  </div>
+  <h1 style="margin:0 0 16px">کالکشن‌ها</h1>
+
+  {% if collections %}
+  <div class="grid g3" style="gap:16px">
+    {% for collection in collections %}
+    <a href="{% url 'catalog:collection-detail' collection.slug %}" style="display:block;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);text-decoration:none;color:inherit">
+      <div style="aspect-ratio:16/9;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden">
+        {% if collection.image %}
+        <img src="{{ collection.image.url }}" alt="{{ collection.name }}" style="width:100%;height:100%;object-fit:cover">
+        {% else %}
+        <span style="font-size:32px">🗂️</span>
+        {% endif %}
+      </div>
+      <div style="padding:12px 14px">
+        <div style="font-weight:700">{{ collection.name }}</div>
+        {% if collection.description %}<p style="color:var(--muted);font-size:12.5px;margin:6px 0 0">{{ collection.description|truncatechars:90 }}</p>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="cat-empty-state">
+    <div class="big">🗂️</div>
+    <p>فعلاً کالکشنی برای این فروشگاه منتشر نشده است.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
