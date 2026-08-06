@@ -189,6 +189,19 @@ def storefront_section_toggle(request, pk):
 @require_POST
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
+def storefront_section_collapse_toggle(request, pk):
+    """جمع‌کردن/بازکردن کارت یک بخش داخل ادیتور — فقط UI، مستقل از
+    is_active (A3). ``_get_scoped_section`` تضمین می‌کند فقط بخش‌های
+    همین فروشگاه و فقط در نسخه Draft قابل تغییرند."""
+    section = _get_scoped_section(request, pk)
+    section.collapsed_in_editor = not section.collapsed_in_editor
+    section.save(update_fields=["collapsed_in_editor", "updated_at"])
+    return storefront_section_list_partial(request)
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_section_duplicate(request, pk):
     section = _get_scoped_section(request, pk)
     try:

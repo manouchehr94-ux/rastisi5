@@ -1,7 +1,7 @@
 {% load static storefront_builder_extras %}
 <div id="storefrontSectionList" x-data="{ dragId: null }">
   {% for section in sections %}
-  <div class="sfb-section-row{% if not section.is_active %} sfb-inactive{% endif %}"
+  <div class="sfb-section-row{% if not section.is_active %} sfb-inactive{% endif %}{% if section.collapsed_in_editor %} sfb-collapsed{% endif %}"
        draggable="true" data-id="{{ section.pk }}"
        @dragstart="dragId = {{ section.pk }}; $event.dataTransfer.effectAllowed = 'move'"
        @dragover.prevent
@@ -17,9 +17,19 @@
        ">
     <div class="sfb-drag-handle" title="برای مرتب‌سازی بکشید" aria-hidden="true">⠿</div>
     <div class="sfb-section-info">
+      <button type="button" class="btn btn-sm sfb-collapse-toggle"
+              hx-post="{% url 'dashboard:storefront-builder-section-collapse' section.pk %}"
+              hx-target="#storefrontSectionList" hx-swap="outerHTML"
+              aria-expanded="{% if section.collapsed_in_editor %}false{% else %}true{% endif %}"
+              aria-label="{% if section.collapsed_in_editor %}باز کردن جزئیات «{{ section.section_key|section_label }}»{% else %}جمع‌کردن «{{ section.section_key|section_label }}»{% endif %}"
+              title="{% if section.collapsed_in_editor %}باز کردن{% else %}جمع‌کردن{% endif %}">
+        {% if section.collapsed_in_editor %}▸{% else %}▾{% endif %}
+      </button>
       <span class="sfb-section-label">{{ section.section_key|section_label }}</span>
       {% if not section.is_active %}<span class="badge b-amber">غیرفعال</span>{% endif %}
+      {% if section.collapsed_in_editor %}<span class="badge" aria-hidden="true">جمع‌شده</span>{% endif %}
     </div>
+    {% if not section.collapsed_in_editor %}
     <div class="sfb-section-actions">
       <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}
               hx-post="{% url 'dashboard:storefront-builder-section-move' section.pk %}"
@@ -51,6 +61,7 @@
         {% endif %}
       {% endfor %}
     </div>
+    {% endif %}
   </div>
   {% empty %}
   <p class="sfb-empty-state" style="color:var(--muted);font-size:13px;padding:24px 0;text-align:center">هنوز هیچ بخشی اضافه نشده — از فهرست پایین یک بخش اضافه کنید.</p>

@@ -208,6 +208,7 @@ urlpatterns = [
     path("storefront-builder/sections/<int:pk>/settings/", storefront_builder_views.storefront_section_settings, name="storefront-builder-section-settings"),
     path("storefront-builder/sections/<int:pk>/remove/", storefront_builder_views.storefront_section_remove, name="storefront-builder-section-remove"),
     path("storefront-builder/sections/<int:pk>/toggle/", storefront_builder_views.storefront_section_toggle, name="storefront-builder-section-toggle"),
+    path("storefront-builder/sections/<int:pk>/collapse/", storefront_builder_views.storefront_section_collapse_toggle, name="storefront-builder-section-collapse"),
     path("storefront-builder/sections/<int:pk>/duplicate/", storefront_builder_views.storefront_section_duplicate, name="storefront-builder-section-duplicate"),
     path("storefront-builder/sections/<int:pk>/move/", storefront_builder_views.storefront_section_move, name="storefront-builder-section-move"),
     path("storefront-builder/header/", storefront_builder_views.storefront_header_editor, name="storefront-builder-header"),

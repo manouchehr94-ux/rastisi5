@@ -126,6 +126,70 @@ class SectionActionTests(StorefrontBuilderViewsTestCase):
         section.refresh_from_db()
         self.assertFalse(section.is_active)
 
+    def test_collapse_toggle_default_is_false(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        self.assertFalse(section.collapsed_in_editor)
+
+    def test_collapse_toggle_flips_state_and_persists(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        self.assertEqual(resp.status_code, 200)
+        section.refresh_from_db()
+        self.assertTrue(section.collapsed_in_editor)
+
+        self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        section.refresh_from_db()
+        self.assertFalse(section.collapsed_in_editor)
+
+    def test_collapsing_does_not_disable_section(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0, is_active=True)
+        self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        section.refresh_from_db()
+        self.assertTrue(section.collapsed_in_editor)
+        self.assertTrue(section.is_active)
+
+    def test_inactive_section_can_be_collapsed_and_expanded_independently(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0, is_active=False)
+        self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        section.refresh_from_db()
+        self.assertTrue(section.collapsed_in_editor)
+        self.assertFalse(section.is_active)
+        self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        section.refresh_from_db()
+        self.assertFalse(section.collapsed_in_editor)
+        self.assertFalse(section.is_active)
+
+    def test_collapsed_active_section_still_renders_publicly_after_publish(self):
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="rich_text", order=0, is_active=True,
+            settings={"body_html": "COLLAPSED-BUT-VISIBLE-MARKER"},
+        )
+        self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        svc.publish(self.store)
+        resp = self.client.get(reverse("catalog:home"))
+        self.assertContains(resp, "COLLAPSED-BUT-VISIBLE-MARKER")
+
+    def test_cannot_collapse_another_stores_section(self):
+        other_store = Store.objects.create(name="فروشگاه ث", slug="sfb-collapse-cross", admin_subdomain="sfb-collapse-cross")
+        other_draft = svc.get_or_create_draft(other_store)
+        other_section = StorefrontSection.objects.create(version=other_draft, section_key="rich_text", order=0)
+
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[other_section.pk]))
+        self.assertEqual(resp.status_code, 404)
+        other_section.refresh_from_db()
+        self.assertFalse(other_section.collapsed_in_editor)
+
+    def test_cannot_collapse_published_section_via_draft_endpoint(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        svc.publish(self.store)
+        section.refresh_from_db()
+        self.assertEqual(section.version.status, StorefrontLayoutVersion.Status.PUBLISHED)
+
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        self.assertEqual(resp.status_code, 404)
+        section.refresh_from_db()
+        self.assertFalse(section.collapsed_in_editor)
+
     def test_duplicate_section(self):
         section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0, settings={"body_html": "x"})
         self.client.post(reverse("dashboard:storefront-builder-section-duplicate", args=[section.pk]))
