@@ -1229,6 +1229,103 @@ class ProductTag(TimeStampedModel):
         return self.name
 
 
+class MerchantCollection(TimeStampedModel):
+    """کالکشنِ دستیِ مرچنت — گروه‌بندیِ merchandising مستقل با صفحه‌ی عمومیِ
+    مخصوص به خود (فاز B نقشه‌راه سازنده بصری).
+
+    این مدل معادلِ واقعیِ «Collection»ای است که ممیزیِ فاز قبل
+    (``docs/reports/STOREFRONT_TEMPLATE_AND_BUILDER_AUDIT.md`` بخش ۶) آن را
+    از ``ProductTag(purpose="collection")`` («گروهِ دوم») متمایز کرد: آن
+    مدل فاقدِ تصویر/سئو/ترتیبِ دستی/صفحه‌ی مستقل است و عمداً دست‌نخورده
+    باقی می‌ماند — نگاه کنید به ``apps.catalog.services.tag_service`` و
+    دستورِ اختیاریِ تبدیلِ داده‌های قدیمی
+    ``migrate_legacy_product_tag_collections``.
+
+    ``collection_type`` از روز اول برای ``smart`` رزرو شده اما در این فاز
+    فقط ``manual`` توسطِ سرویس‌ها/UI پذیرفته می‌شود — بدونِ موتورِ قوانینِ
+    هوشمند (که به فازِ بعد موکول شده)."""
+
+    class CollectionType(models.TextChoices):
+        MANUAL = "manual", "دستی"
+        SMART = "smart", "هوشمند"  # رزروشده — هنوز هیچ سرویس/UIای این نوع را نمی‌پذیرد
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="merchant_collections",
+    )
+    name = models.CharField("نام", max_length=150)
+    slug = models.SlugField("اسلاگ", max_length=170, allow_unicode=True)
+    description = models.TextField("توضیحات", blank=True)
+    image = models.ImageField("تصویر", upload_to="collections/images/", null=True, blank=True)
+    is_active = models.BooleanField("فعال", default=True)
+    collection_type = models.CharField(
+        "نوع کالکشن", max_length=10, choices=CollectionType.choices, default=CollectionType.MANUAL,
+    )
+    seo_title = models.CharField("عنوان سئو", max_length=70, blank=True, default="")
+    seo_description = models.CharField("توضیحات متا", max_length=160, blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="ایجادکننده", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="آخرین ویرایشگر", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "کالکشن"
+        verbose_name_plural = "کالکشن‌ها"
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["store", "slug"], name="uniq_merchantcollection_slug_per_store"),
+        ]
+        indexes = [
+            models.Index(fields=["store", "is_active"], name="idx_collection_store_active"),
+            models.Index(fields=["store", "name"], name="idx_collection_store_name"),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class MerchantCollectionItem(TimeStampedModel):
+    """یک کالایِ عضوِ یک کالکشنِ دستی، با ترتیبِ نمایشِ صریح.
+
+    عمداً یک مدلِ ``through`` واقعی است (نه ``ManyToManyField`` ساده)، چون
+    ترتیبِ دستی خودش یک فیلدِ داده‌ای است، نه چیزی که بتوان از ترتیبِ درجِ
+    ردیف حدس زد — نگاه کنید به یافته‌ی ممیزیِ فاز A درباره‌ی
+    ``Product.tags`` (بخش ۶: «بدونِ فیلدِ order روی رابطه»)."""
+
+    collection = models.ForeignKey(
+        MerchantCollection, verbose_name="کالکشن", on_delete=models.CASCADE, related_name="items",
+    )
+    product = models.ForeignKey(
+        Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="collection_items",
+    )
+    order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "قلمِ کالکشن"
+        verbose_name_plural = "اقلامِ کالکشن"
+        ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["collection", "product"], name="uniq_collectionitem_product_per_collection",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["collection", "order"], name="idx_mci_collection_order"),
+        ]
+
+    def __str__(self):
+        return f"{self.collection.name} — {self.product.name}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.collection_id and self.product_id and self.product.store_id != self.collection.store_id:
+            raise ValidationError({"product": "کالا متعلق به فروشگاه دیگری است."})
+
+
 class ProductOption(TimeStampedModel):
     """محور تنوع‌سازِ یک کالای مشخص (مثلاً «رنگ» یا «سایز») — نگاه کنید به ADR-19."""
 
