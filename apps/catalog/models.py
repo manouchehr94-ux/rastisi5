@@ -1270,6 +1270,16 @@ class MerchantCollection(TimeStampedModel):
         settings.AUTH_USER_MODEL, verbose_name="آخرین ویرایشگر", on_delete=models.SET_NULL,
         null=True, blank=True, related_name="+",
     )
+    # ردیابی صرفاً اطلاعاتیِ منشأِ تبدیلِ اختیاریِ «گروه دوم» (همان الگویِ
+    # ``Category.source_template_category``) — فقط توسطِ دستورِ مدیریتیِ
+    # ``migrate_legacy_product_tag_collections`` نوشته می‌شود، هرگز توسطِ
+    # مسیرِ عادیِ ساختِ کالکشن. تنها برایِ idempotent بودنِ اجرایِ دوباره‌ی
+    # همان دستور استفاده می‌شود؛ حذفِ ProductTag مبدأ هرگز این کالکشن یا
+    # داده‌اش را حذف نمی‌کند (SET_NULL).
+    source_legacy_product_tag = models.ForeignKey(
+        "ProductTag", verbose_name="برچسبِ «گروه دوم» مبدأ", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="converted_collections",
+    )
 
     class Meta:
         verbose_name = "کالکشن"
