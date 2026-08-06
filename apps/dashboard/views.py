@@ -2443,7 +2443,12 @@ def collection_products_add(request, pk):
     collection = _get_scoped_collection_or_404(request, pk)
     store = _resolve_dashboard_store(request)
     product_ids = [int(pk_) for pk_ in request.POST.getlist("product_ids") if pk_.strip().isdigit()]
-    products = list(Product.objects.filter(store=store, pk__in=product_ids))
+    # ``pk__in`` ترتیبِ فهرستِ ورودی را حفظ نمی‌کند (ترتیبِ نتیجه دستِ خودِ
+    # دیتابیس است) — برای این‌که ترتیبِ انتخابِ مرچنت در چک‌باکس‌ها همان
+    # ترتیبِ اولیه‌ی کالکشن بماند (قابلِ ویرایش دستی پس از افزودن، نه تصادفی)،
+    # فهرست را دوباره طبقِ همان ترتیبِ پست‌شده می‌سازیم.
+    products_by_id = {p.pk: p for p in Product.objects.filter(store=store, pk__in=product_ids)}
+    products = [products_by_id[pid] for pid in product_ids if pid in products_by_id]
     created = collection_service.add_products(collection, products)
     if created:
         toast = {"message": f"{len(created)} کالا اضافه شد", "type": "ok"}

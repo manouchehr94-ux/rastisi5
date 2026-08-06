@@ -142,6 +142,20 @@ class CollectionProductManagementViewTests(CollectionViewsTestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(self.collection.items.count(), 2)
 
+    def test_add_products_preserves_posted_selection_order(self):
+        """رگرسیون: ``Product.objects.filter(pk__in=...)`` ترتیبِ فهرستِ
+        ورودی را حفظ نمی‌کند — view باید صریحاً همان ترتیبِ پست‌شده را
+        بازسازی کند، وگرنه ترتیبِ اولیه‌ی کالکشن تصادفی می‌شود."""
+        products = [_product(self.store, f"order-preserve-{i}") for i in range(5)]
+        # عمداً به ترتیبِ معکوسِ pk پست می‌شود تا اگر view به ترتیبِ pkِ
+        # دیتابیس برگردد (رفتارِ پیش‌فرضِ pk__in)، تست شکست بخورد.
+        posted_order = list(reversed(products))
+        self.client.post(reverse("dashboard:collection-products-add", args=[self.collection.pk]), {
+            "product_ids": [p.pk for p in posted_order],
+        })
+        actual_order = [item.product_id for item in self.collection.items.order_by("order")]
+        self.assertEqual(actual_order, [p.pk for p in posted_order])
+
     def test_cannot_add_duplicate_via_bulk_endpoint(self):
         product = _product(self.store, "add-view-dup")
         self.client.post(reverse("dashboard:collection-products-add", args=[self.collection.pk]), {"product_ids": [product.pk]})
