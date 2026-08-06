@@ -243,6 +243,34 @@
     </div>
   </div>
 
+  <!-- product videos -->
+  {% if product_videos %}
+  <div class="section">
+    <div class="sec-head"><h2><span class="bar"></span>ویدئوهای محصول</h2></div>
+    <div class="pdp-video-grid">
+      {% for video in product_videos %}
+      <div class="pdp-video-card">
+        {% if video.embed_url %}
+        <div class="pdp-video-frame">
+          <iframe src="{{ video.embed_url }}" title="{{ video.title|default:video.provider_display }}"
+                  allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
+        {% else %}
+        <a class="pdp-video-frame pdp-video-linkcard" href="{{ video.permalink }}" target="_blank" rel="noopener noreferrer">
+          <span class="pdp-video-ig-icon">📷</span>
+          <span class="pdp-video-ig-cta">مشاهده در اینستاگرام</span>
+        </a>
+        {% endif %}
+        <div class="pdp-video-meta">
+          <span class="pdp-video-badge">{{ video.provider_display }}</span>
+          {% if video.title %}<span class="pdp-video-title">{{ video.title }}</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- related products -->
   {% if related_products %}
   <div class="section">
