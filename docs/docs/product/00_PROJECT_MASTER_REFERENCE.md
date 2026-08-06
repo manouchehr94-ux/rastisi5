@@ -857,27 +857,59 @@ plan enforcement همچنان باقی مانده**
 
 این شکاف می‌تواند باعث شود یک Store در Content خود به Category یا Product Store دیگر اشاره کند.
 
-### ناقص نسبت به Target
+### به‌روزرسانی 2026-08-06 — سازنده بصری صفحه اصلی (`apps.storefront_builder`) از قبل پیاده‌سازی شده
 
-- Store ownership کامل؛
-- draft/publish؛
-- versioning؛
-- page builder schema؛
-- section registry؛
-- preview؛
-- rollback؛
-- scheduling؛
-- reusable blocks؛
-- theme version؛
-- page-level SEO؛
-- audit؛
-- safe custom HTML policy؛
-- localization؛
-- media isolation کامل.
+⚠️ نسخه‌های قبلی این سند بخش «ناقص نسبت به Target» زیر را به‌عنوان کار انجام‌نشده فهرست می‌کردند. طبق ممیزی مستقل کد
+(`docs/reports/STOREFRONT_TEMPLATE_AND_BUILDER_AUDIT.md`) و پیاده‌سازی فاز A (`docs/reports/STOREFRONT_TEMPLATE_AND_BUILDER_ARCHITECTURE_PLAN.md`,
+`STOREFRONT_TEMPLATE_AND_BUILDER_IMPLEMENTATION_ROADMAP.md`)، اپ مستقل `apps.storefront_builder` این موارد را **از قبل** برای چیدمان صفحه اصلی
+(section-based layout) + هدر + فوتر پیاده کرده — یک session آینده نباید سازنده بصری را از صفر بسازد. مدل‌ها:
+`StorefrontLayout` (لنگر یک‌به‌یک هر Store)، `StorefrontLayoutVersion` (Draft/Published/Archived + `header_config`/`footer_config`
++ `content_fingerprint` برای تشخیص drift)، `StorefrontSection` (نوع/ترتیب/فعال‌بودن/`collapsed_in_editor`/تنظیمات JSON، چندنمونه‌ای).
+
+پیاده‌شده:
+
+- Store ownership کامل (همه مدل‌ها مستقیم یا از طریق زنجیره FK به Store محدودند)؛
+- Draft/Preview/Publish/Discard/History/Restore کامل (`apps/storefront_builder/services/layout_service.py`) — هر Publish اتمیک است
+  (فقط تعویض اشاره‌گر published/draft)، Rollback همیشه یک Draft جدید می‌سازد (هرگز مستقیم منتشر نمی‌شود)؛
+- Section Registry (`apps/storefront_builder/section_registry.py`) با ۱۶ نوع section ثبت‌شده (`max_instances`، `duplicable`،
+  `removable`، `has_settings_form`)؛
+- چندنمونه‌ای بودن Section (چند نمونه از یک نوع، شناسه واقعی `id` نه `section_key`)؛
+- Preview کامل برای staff (session-based، نه لینک/توکن قابل‌اشتراک — تصمیم گرفته‌شده، به سند معماری بخش ۶.۲ مراجعه شود)؛
+- Header/Footer Editor به‌عنوان بخشی از همان `StorefrontLayoutVersion` (نه نسخه‌بندی جدا) + اعتبارسنجی سرویس (فاز A2:
+  `layout_service.validate_header_config`/`validate_footer_config` — سبد خرید نمی‌تواند از هدر حذف شود، فوتر نمی‌تواند کاملاً خالی باشد)؛
+- Renderer مشترک بدنه‌ی section بین Preview/Storefront (`render_service.build_render_items`) + پوسته صفحه (هدر/فوتر) مشترک از فاز A1
+  (`storefront_builder/templates/storefront_builder/partials/page_shell_header.html`/`page_shell_footer.html`، با پرچم‌های
+  `is_live_storefront`/`is_builder_preview` برای تفاوت‌های عمدی preview-safe)؛
+- مهاجرت بدون‌خرابی فروشگاه‌های موجود (`bootstrap_service` — صفحه اصلی hard-coded قدیمی هر Store به section معادل تبدیل می‌شود،
+  پشت فیچر-فلگ per-store `StorefrontLayout.uses_visual_storefront_layout`)؛
+- مجوز اختصاصی (`STOREFRONT_LAYOUT_MANAGE`، جدا از `CONTENT_MANAGE`) + Rate limiting روی publish/restore/ساخت Draft؛
+- Drag-and-drop + دکمه‌های بالا/پایین (fallback موبایل/کیبورد) برای بازچینش section، اتمیک (فاز A4)؛
+- `collapsed_in_editor` (فاز A3) — فقط UI ادیتور، مستقل از `is_active`، بدون اثر روی رندر عمومی؛
+- تست‌ها: ~۱۴۴+ تست در `apps/storefront_builder/tests/` (مدل/سرویس/رندرر/رجیستری/view/یکپارچگی صفحه اصلی عمومی/پوسته مشترک).
+
+### ناقص نسبت به Target (شکاف‌های واقعی باقی‌مانده — نه فرض‌های قدیمی)
+
+- **Collections**: `MerchantCollection`/`MerchantCollectionItem` مستقل هنوز وجود ندارد — فقط `ProductTag(purpose="collection")`
+  که معادل واقعی Collection نیست (بدون تصویر/SEO/ترتیب دستی/صفحه مستقل)؛
+- **Data Sources**: section‌های محصولی (`featured_products`, `newest_products`, ...) فاقد فیلد `data_source` قابل‌انتخاب در `settings`
+  هستند — هرکدام hard-coded به یک context builder جدا وصل‌اند؛
+- **Template/Preset switching**: تعویض کامل قالب بصری سایت (رنگ+فونت+هدر/فوتر خانواده+کارت به‌صورت یک بسته) وجود ندارد —
+  فقط `apply_industry_layout` (فقط section ordering صفحه اصلی، نه ظاهر/برندینگ) و ۶ پریست رنگی مستقل از فونت/spacing (`apps.core.theme_presets`)؛
+- **Responsive per-section**: تنظیمات نمایش/ستون‌بندی per-device (دسکتاپ/تبلت/موبایل) در `settings` هر section وجود ندارد؛
+- **کش رندر storefront**: بدون لایه کش (بدون `CACHES` سفارشی، بدون `cache_page`)؛
+- **Custom Pages**: فراتر از صفحه اصلی، section builder برای صفحات دلخواه (`ContentPage` ساده فاقد section است) وجود ندارد؛
+- **Scheduled Publishing**: بدون `scheduled_publish_at`/cron dispatch — Publish فقط دستی و فوری است؛
+- Preview لینک/توکن قابل‌اشتراک، Undo/Redo گرانولار، Autosave — عمداً به فازهای بعدی موکول شده (به سند معماری بخش ۶ مراجعه شود)؛
+- برخی destination relationهای Hero/Banner/Menu در `apps.content` (نه `apps.storefront_builder`) هنوز Store-scoped کامل نیستند
+  (نقص مستقل بالا، همچنان باز).
 
 ### وضعیت
 
-**Feature-rich UI foundation; tenant integrity incomplete**
+**Homepage section-layout builder (apps.storefront_builder): production-capable foundation — Draft/Publish/Rollback/Section
+Registry/shared Preview-Storefront shell کامل. باقی‌مانده: Collections، Data Sources، Template/Preset، Responsive per-section،
+caching، Custom Pages، Scheduled Publishing (نگاه کنید به `docs/reports/STOREFRONT_TEMPLATE_AND_BUILDER_*.md`).**
+
+**سایر Content models (`apps.content`): Feature-rich UI foundation; tenant integrity incomplete (نقص destination relation بالا).**
 
 ---
 
@@ -897,16 +929,20 @@ plan enforcement همچنان باقی مانده**
 
 ### ناقص
 
-- versioned draft/publish theme؛
-- visual section editor؛
-- theme package registry؛
+- versioned draft/publish theme (رنگ/برندینگ همچنان بدون Draft/Publish/Rollback مستقیماً روی `ShopSettings` نوشته می‌شود)؛
+- theme package registry (بسته‌ی واحد رنگ+فونت+spacing+radius+انیمیشن)؛
 - font management؛
-- per-page layout؛
-- preview token؛
+- preview token برای theme؛
 - safe custom CSS policy؛
-- rollback؛
+- rollback مستقل برای theme/برندینگ؛
 - theme migration/version compatibility؛
 - Store-specific asset namespaces کامل.
+
+⚠️ **توضیح لازم (به‌روزرسانی 2026-08-06) — این «ناقص» به Theme/برندینگ (رنگ/فونت/لوگو، `ShopSettings` + `apps.core.theme_presets`)
+اشاره دارد، نه به چیدمان محتوای صفحه اصلی.** یک «visual section editor» کامل برای **محتوای** صفحه اصلی (نه رنگ/فونت سایت)
+از قبل در `apps.storefront_builder` پیاده‌سازی شده — Draft/Publish/Preview/Rollback/Section Registry/هدر-فوتر، به بخش ۱۱.۸ بالا
+مراجعه شود. آنچه در همین بخش (۱۱.۹) هنوز غایب است دقیقاً «تعویض قالب بصری کامل سایت به‌صورت یک بسته» (Template/Preset) است —
+جزئیات در `docs/reports/STOREFRONT_TEMPLATE_AND_BUILDER_ARCHITECTURE_PLAN.md` بخش ۱.
 
 ### اصل غیرقابل‌تغییر
 
@@ -922,7 +958,7 @@ Storefront theme و Merchant Admin theme باید مستقل باشند.
 
 ### وضعیت
 
-**Strong foundation; visual builder absent**
+**Strong color/branding foundation; visual Theme/Preset package builder absent (جدا از Page Content Builder موجود در ۱۱.۸)**
 
 ---
 
@@ -1124,8 +1160,9 @@ Storefront theme و Merchant Admin theme باید مستقل باشند.
 | Order | Partial | stateful commerce engine | Store ownership/state machine | بسیار بالا |
 | Payment | Prototype | secure gateway engine | idempotency/encryption/reconciliation | بسیار بالا |
 | Shipping | Basic | rule-driven shipping | ownership/zones/fulfillment | بالا |
-| Content | Rich partial | versioned CMS/page builder | cross-Store relations/draft-publish | بسیار بالا |
-| Theme | Foundation | visual theme editor | versioning/preview/rollback | متوسط |
+| Content | Rich partial | versioned CMS | cross-Store relations در `apps.content` (Hero/Banner/Menu destinations) | بسیار بالا |
+| Storefront Section Builder (`apps.storefront_builder`) | Implemented (homepage layout + header/footer) | no-code storefront layout builder | Collections/Data Sources/Template-Preset/Responsive/caching/Custom Pages/Scheduled Publish — به بخش ۱۱.۸ | متوسط |
+| Theme (رنگ/فونت/برندینگ) | Foundation | versioned Theme/Preset package editor | versioning/preview/rollback برای Theme (جدا از Page Builder بالا) | متوسط |
 | SMS | Partial | reliable async messaging | outbox/retry/security | متوسط |
 | Discount | Basic | promotion engine | eligibility/ledger/concurrency | متوسط |
 | Reporting | Basic | audited per-Store analytics | definitions/export/permissions | متوسط |
@@ -1213,7 +1250,11 @@ Storefront theme و Merchant Admin theme باید مستقل باشند.
 
 ## مرحله H — Page Builder and Theme Versioning
 
-تنها پس از تثبیت Content ownership.
+به‌روزرسانی 2026-08-06: بخش Page Builder این مرحله (چیدمان section-based صفحه اصلی + هدر/فوتر، Draft/Publish/Rollback) از قبل
+در `apps.storefront_builder` پیاده‌سازی شده — نیازی به انتظار برای شروع دوباره از صفر نیست (به بخش ۱۱.۸ مراجعه شود). آنچه از این
+مرحله باقی مانده: Theme Versioning (بسته‌ی رنگ+فونت+spacing+radius+animation با Draft/Publish/Rollback مستقل، به بخش ۱۱.۹
+مراجعه شود) و شکاف‌های فاز بعدی سازنده بصری (Collections، Data Sources، Template/Preset، Responsive per-section، caching،
+Custom Pages، Scheduled Publishing).
 
 ## مرحله I — Messaging Hardening
 
@@ -1797,8 +1838,9 @@ docs/
 - inventory reservation model؛
 - payment adapter contract؛
 - content versioning؛
-- page builder schema؛
-- theme package/versioning؛
+- ~~page builder schema~~ — حل‌شده: `apps.storefront_builder` (`StorefrontLayout`/`StorefrontLayoutVersion`/`StorefrontSection` +
+  `section_registry.py`)، به بخش ۱۱.۸ مراجعه شود؛
+- theme package/versioning (همچنان باز — به بخش ۱۱.۹ مراجعه شود)؛
 - StoreMembership roles؛
 - platform plans/quotas؛
 - async outbox timing؛
@@ -1844,6 +1886,10 @@ docs/
 ---
 
 # 31. کار بعدی پیشنهادی
+
+⚠️ به‌روزرسانی 2026-08-06: ردیف «خارج از Scope» زیر «visual page builder» را به‌عنوان کار آینده فهرست می‌کرد — این بخش دیگر
+صحیح نیست؛ `apps.storefront_builder` از قبل پیاده‌سازی شده (به بخش ۱۱.۸ مراجعه شود). بقیه‌ی این بخش (شکاف Tenant Boundary
+در `apps.content`) هنوز معتبر و باز است.
 
 ## عنوان
 

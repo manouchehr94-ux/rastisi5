@@ -126,6 +126,70 @@ class SectionActionTests(StorefrontBuilderViewsTestCase):
         section.refresh_from_db()
         self.assertFalse(section.is_active)
 
+    def test_collapse_toggle_default_is_false(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        self.assertFalse(section.collapsed_in_editor)
+
+    def test_collapse_toggle_flips_state_and_persists(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        self.assertEqual(resp.status_code, 200)
+        section.refresh_from_db()
+        self.assertTrue(section.collapsed_in_editor)
+
+        self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        section.refresh_from_db()
+        self.assertFalse(section.collapsed_in_editor)
+
+    def test_collapsing_does_not_disable_section(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0, is_active=True)
+        self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        section.refresh_from_db()
+        self.assertTrue(section.collapsed_in_editor)
+        self.assertTrue(section.is_active)
+
+    def test_inactive_section_can_be_collapsed_and_expanded_independently(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0, is_active=False)
+        self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        section.refresh_from_db()
+        self.assertTrue(section.collapsed_in_editor)
+        self.assertFalse(section.is_active)
+        self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        section.refresh_from_db()
+        self.assertFalse(section.collapsed_in_editor)
+        self.assertFalse(section.is_active)
+
+    def test_collapsed_active_section_still_renders_publicly_after_publish(self):
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="rich_text", order=0, is_active=True,
+            settings={"body_html": "COLLAPSED-BUT-VISIBLE-MARKER"},
+        )
+        self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        svc.publish(self.store)
+        resp = self.client.get(reverse("catalog:home"))
+        self.assertContains(resp, "COLLAPSED-BUT-VISIBLE-MARKER")
+
+    def test_cannot_collapse_another_stores_section(self):
+        other_store = Store.objects.create(name="فروشگاه ث", slug="sfb-collapse-cross", admin_subdomain="sfb-collapse-cross")
+        other_draft = svc.get_or_create_draft(other_store)
+        other_section = StorefrontSection.objects.create(version=other_draft, section_key="rich_text", order=0)
+
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[other_section.pk]))
+        self.assertEqual(resp.status_code, 404)
+        other_section.refresh_from_db()
+        self.assertFalse(other_section.collapsed_in_editor)
+
+    def test_cannot_collapse_published_section_via_draft_endpoint(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        svc.publish(self.store)
+        section.refresh_from_db()
+        self.assertEqual(section.version.status, StorefrontLayoutVersion.Status.PUBLISHED)
+
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-collapse", args=[section.pk]))
+        self.assertEqual(resp.status_code, 404)
+        section.refresh_from_db()
+        self.assertFalse(section.collapsed_in_editor)
+
     def test_duplicate_section(self):
         section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0, settings={"body_html": "x"})
         self.client.post(reverse("dashboard:storefront-builder-section-duplicate", args=[section.pk]))
@@ -165,6 +229,48 @@ class SectionActionTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(resp.status_code, 200)
         a.refresh_from_db()
         self.assertEqual(a.order, 0)
+
+    def test_reorder_rejects_duplicate_ids_no_rows_changed(self):
+        """A4: شناسه‌ی تکراری کل عملیات را رد می‌کند — هیچ ردیفی تغییر نمی‌کند."""
+        a = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        b = StorefrontSection.objects.create(version=self.draft, section_key="image_text", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-reorder"), {
+            "section_ids": [str(b.pk), str(b.pk), str(a.pk)],
+        })
+        self.assertEqual(resp.status_code, 200)
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual(a.order, 0)
+        self.assertEqual(b.order, 1)
+
+    def test_reorder_mid_operation_failure_rolls_back_completely(self):
+        from unittest.mock import patch
+
+        from django.db.models.query import QuerySet
+
+        a = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        b = StorefrontSection.objects.create(version=self.draft, section_key="image_text", order=1)
+        c = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=2)
+        original_order = {s.pk: s.order for s in [a, b, c]}
+
+        original_update = QuerySet.update
+        call_count = {"n": 0}
+
+        def flaky_update(self_qs, *args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 2:
+                raise RuntimeError("simulated mid-operation failure")
+            return original_update(self_qs, *args, **kwargs)
+
+        with patch.object(QuerySet, "update", flaky_update):
+            with self.assertRaises(RuntimeError):
+                self.client.post(reverse("dashboard:storefront-builder-section-reorder"), {
+                    "section_ids": [str(c.pk), str(a.pk), str(b.pk)],
+                })
+
+        for section in [a, b, c]:
+            section.refresh_from_db()
+            self.assertEqual(section.order, original_order[section.pk])
 
     def test_cannot_reorder_another_stores_sections(self):
         other_store = Store.objects.create(name="فروشگاه ب", slug="sfb-cross", admin_subdomain="sfb-cross")
@@ -331,13 +437,27 @@ class HeaderFooterEditorTests(StorefrontBuilderViewsTestCase):
 
     def test_header_editor_saves_config(self):
         resp = self.client.post(reverse("dashboard:storefront-builder-header"), {
-            "show_search": "on", "announcement_text": "پیام تست",
+            "show_search": "on", "show_cart": "on", "announcement_text": "پیام تست",
         })
         self.assertEqual(resp.status_code, 302)
         draft = svc.get_or_create_draft(self.store)
         self.assertTrue(draft.header_config["show_search"])
         self.assertFalse(draft.header_config["show_account"])
+        self.assertTrue(draft.header_config["show_cart"])
         self.assertEqual(draft.header_config["announcement_text"], "پیام تست")
+
+    def test_header_editor_rejects_hidden_cart(self):
+        """A2: هدر بدون امکان دسترسی به سبد خرید نباید ذخیره شود — هیچ مسیر
+        جایگزینی برای رسیدن مشتری به سبد خرید در معماری فعلی وجود ندارد."""
+        draft_before = svc.get_or_create_draft(self.store)
+        original_config = dict(draft_before.header_config or {})
+        resp = self.client.post(reverse("dashboard:storefront-builder-header"), {
+            "show_search": "on",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "سبد خرید")
+        draft_after = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft_after.header_config, original_config)
 
     def test_footer_editor_get(self):
         resp = self.client.get(reverse("dashboard:storefront-builder-footer"))
@@ -351,3 +471,22 @@ class HeaderFooterEditorTests(StorefrontBuilderViewsTestCase):
         draft = svc.get_or_create_draft(self.store)
         self.assertTrue(draft.footer_config["show_about"])
         self.assertFalse(draft.footer_config["show_social"])
+
+    def test_footer_editor_rejects_all_blocks_disabled(self):
+        """A2: فوتر کاملاً خالی (همه بخش‌ها غیرفعال) نباید ذخیره شود."""
+        draft_before = svc.get_or_create_draft(self.store)
+        original_config = dict(draft_before.footer_config or {})
+        resp = self.client.post(reverse("dashboard:storefront-builder-footer"), {})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "فوتر")
+        draft_after = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft_after.footer_config, original_config)
+
+    def test_footer_editor_accepts_single_active_block(self):
+        resp = self.client.post(reverse("dashboard:storefront-builder-footer"), {
+            "show_copyright": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        draft = svc.get_or_create_draft(self.store)
+        self.assertTrue(draft.footer_config["show_copyright"])
+        self.assertFalse(draft.footer_config["show_about"])

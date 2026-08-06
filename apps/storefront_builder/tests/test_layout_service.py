@@ -308,3 +308,76 @@ class ApplyIndustryLayoutTests(TestCase):
         template = self._template(slug="test-apply-industry-empty", default_section_keys=[])
         draft = svc.apply_industry_layout(store, template)
         self.assertGreater(draft.sections.count(), 0)
+
+
+class ValidateHeaderConfigTests(TestCase):
+    """A2 — validate_header_config: قواعد اعمال‌شده روی قرارداد واقعی موجود
+    (HEADER_TOGGLE_FIELDS)، نه فرض‌های سند معماری."""
+
+    def test_accepts_full_valid_config(self):
+        cleaned = svc.validate_header_config({
+            "show_search": True, "show_account": True, "show_cart": True,
+            "show_wishlist": True, "sticky": False, "announcement_enabled": True,
+            "announcement_text": "سلام",
+        })
+        self.assertTrue(cleaned["show_cart"])
+        self.assertEqual(cleaned["announcement_text"], "سلام")
+
+    def test_missing_fields_default_to_true(self):
+        cleaned = svc.validate_header_config({})
+        for field in ["show_search", "show_account", "show_cart", "show_wishlist", "sticky", "announcement_enabled"]:
+            self.assertTrue(cleaned[field])
+
+    def test_rejects_hidden_cart(self):
+        with self.assertRaises(svc.HeaderConfigValidationError):
+            svc.validate_header_config({"show_cart": False})
+
+    def test_rejects_non_boolean_toggle(self):
+        with self.assertRaises(svc.HeaderConfigValidationError):
+            svc.validate_header_config({"show_cart": True, "show_search": "yes"})
+
+    def test_rejects_non_string_announcement_text(self):
+        with self.assertRaises(svc.HeaderConfigValidationError):
+            svc.validate_header_config({"show_cart": True, "announcement_text": 12345})
+
+    def test_truncates_long_announcement_text(self):
+        cleaned = svc.validate_header_config({"show_cart": True, "announcement_text": "ا" * 500})
+        self.assertEqual(len(cleaned["announcement_text"]), 300)
+
+    def test_unknown_keys_are_dropped_silently(self):
+        cleaned = svc.validate_header_config({"show_cart": True, "malicious_field": "<script>"})
+        self.assertNotIn("malicious_field", cleaned)
+
+
+class ValidateFooterConfigTests(TestCase):
+    """A2 — validate_footer_config: حداقل یک بخش فعال، طبق تصمیم محصولی
+    این فاز (مستند در layout_service.validate_footer_config)."""
+
+    def test_accepts_config_with_one_active_block(self):
+        all_false_except_copyright = {f: False for f in [
+            "show_about", "show_contact", "show_quick_links", "show_categories",
+            "show_social", "show_trust_badges", "show_payment_logos", "show_newsletter",
+        ]} | {"show_copyright": True}
+        cleaned = svc.validate_footer_config(all_false_except_copyright)
+        self.assertTrue(cleaned["show_copyright"])
+        self.assertFalse(cleaned["show_about"])
+
+    def test_missing_fields_default_to_true(self):
+        cleaned = svc.validate_footer_config({})
+        self.assertTrue(cleaned["show_about"])
+
+    def test_rejects_all_blocks_disabled(self):
+        all_false = {f: False for f in [
+            "show_about", "show_contact", "show_quick_links", "show_categories",
+            "show_social", "show_trust_badges", "show_payment_logos", "show_newsletter", "show_copyright",
+        ]}
+        with self.assertRaises(svc.FooterConfigValidationError):
+            svc.validate_footer_config(all_false)
+
+    def test_rejects_non_boolean_toggle(self):
+        with self.assertRaises(svc.FooterConfigValidationError):
+            svc.validate_footer_config({"show_about": "on"})
+
+    def test_unknown_keys_are_dropped_silently(self):
+        cleaned = svc.validate_footer_config({"show_about": True, "malicious_field": "<script>"})
+        self.assertNotIn("malicious_field", cleaned)

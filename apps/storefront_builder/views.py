@@ -2,7 +2,7 @@
 ``STOREFRONT_LAYOUT_MANAGE`` (نه ``CONTENT_MANAGE``، طبق تصمیم کاربر)."""
 
 from django.contrib import messages
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.clickjacking import xframe_options_sameorigin
@@ -189,6 +189,19 @@ def storefront_section_toggle(request, pk):
 @require_POST
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
+def storefront_section_collapse_toggle(request, pk):
+    """جمع‌کردن/بازکردن کارت یک بخش داخل ادیتور — فقط UI، مستقل از
+    is_active (A3). ``_get_scoped_section`` تضمین می‌کند فقط بخش‌های
+    همین فروشگاه و فقط در نسخه Draft قابل تغییرند."""
+    section = _get_scoped_section(request, pk)
+    section.collapsed_in_editor = not section.collapsed_in_editor
+    section.save(update_fields=["collapsed_in_editor", "updated_at"])
+    return storefront_section_list_partial(request)
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_section_duplicate(request, pk):
     section = _get_scoped_section(request, pk)
     try:
@@ -215,7 +228,11 @@ def storefront_section_reorder(request):
     """قرارداد یکسان با سایر endpointهای reorder موجود (product-image،
     brand، دسته‌بندی و ...): ``section_ids`` فرم‌رمزی‌شده، سرویس دوباره بر
     اساس تفکیک مستأجر فیلتر می‌کند، شناسه نامعتبر/خارجی بی‌صدا حذف می‌شود،
-    ``enumerate()`` ترتیب را از نو ۰..N تنظیم می‌کند."""
+    ``enumerate()`` ترتیب را از نو ۰..N تنظیم می‌کند.
+
+    A4: شناسه‌ی تکراری کل عملیات را رد می‌کند (هیچ ردیفی تغییر نمی‌کند)؛
+    کل حلقه‌ی به‌روزرسانی داخل یک تراکنش است — یا ترتیبِ کامل ذخیره
+    می‌شود یا هیچ‌کدام."""
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
     section_ids = request.POST.getlist("section_ids")
@@ -223,7 +240,10 @@ def storefront_section_reorder(request):
     valid_ids = set(draft.sections.values_list("pk", flat=True))
     ordered_ids = [int(i) for i in section_ids if i.isdigit() and int(i) in valid_ids]
 
-    from django.db import transaction
+    if len(set(ordered_ids)) != len(ordered_ids):
+        messages.error(request, "فهرست مرتب‌سازی شامل شناسه‌ی تکراری است — ترتیب تغییر نکرد")
+        return storefront_section_list_partial(request)
+
     with transaction.atomic():
         for index, section_id in enumerate(ordered_ids):
             StorefrontSection.objects.filter(pk=section_id, version=draft).update(order=index)
@@ -313,10 +333,16 @@ def storefront_header_editor(request):
     draft = layout_service.get_or_create_draft(store, user=request.user)
 
     if request.method == "POST":
-        config = dict(HEADER_CONFIG_DEFAULTS)
-        for field in HEADER_TOGGLE_FIELDS:
-            config[field] = request.POST.get(field) == "on"
-        config["announcement_text"] = request.POST.get("announcement_text", "")[:300]
+        raw = {field: request.POST.get(field) == "on" for field in HEADER_TOGGLE_FIELDS}
+        raw["announcement_text"] = request.POST.get("announcement_text", "")
+        try:
+            config = layout_service.validate_header_config(raw)
+        except layout_service.HeaderConfigValidationError as exc:
+            messages.error(request, str(exc))
+            return render(request, "dashboard/storefront_builder/header_editor.html", {
+                "active_page": "storefront_builder",
+                "config": {**HEADER_CONFIG_DEFAULTS, **raw}, "draft": draft, "error": str(exc),
+            })
         draft.header_config = config
         draft.save(update_fields=["header_config", "updated_at"])
         messages.success(request, "تنظیمات هدر ذخیره شد")
@@ -334,9 +360,15 @@ def storefront_footer_editor(request):
     draft = layout_service.get_or_create_draft(store, user=request.user)
 
     if request.method == "POST":
-        config = dict(FOOTER_CONFIG_DEFAULTS)
-        for field in FOOTER_TOGGLE_FIELDS:
-            config[field] = request.POST.get(field) == "on"
+        raw = {field: request.POST.get(field) == "on" for field in FOOTER_TOGGLE_FIELDS}
+        try:
+            config = layout_service.validate_footer_config(raw)
+        except layout_service.FooterConfigValidationError as exc:
+            messages.error(request, str(exc))
+            return render(request, "dashboard/storefront_builder/footer_editor.html", {
+                "active_page": "storefront_builder",
+                "config": {**FOOTER_CONFIG_DEFAULTS, **raw}, "draft": draft, "error": str(exc),
+            })
         draft.footer_config = config
         draft.save(update_fields=["footer_config", "updated_at"])
         messages.success(request, "تنظیمات فوتر ذخیره شد")

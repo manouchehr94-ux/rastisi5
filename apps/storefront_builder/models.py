@@ -186,6 +186,13 @@ class StorefrontSection(TimeStampedModel):
     order = models.PositiveIntegerField("ترتیب نمایش", default=0)
     is_active = models.BooleanField("فعال", default=True)
     settings = models.JSONField("تنظیمات", default=dict, blank=True)
+    collapsed_in_editor = models.BooleanField(
+        "جمع‌شده در ادیتور", default=False,
+        help_text=(
+            "فقط نمایش فشرده/باز کارت این بخش داخل سازنده بصری را کنترل می‌کند — "
+            "مستقل از is_active؛ هیچ اثری روی نمایش عمومی Storefront ندارد."
+        ),
+    )
 
     class Meta:
         verbose_name = "بخش صفحه فروشگاه"

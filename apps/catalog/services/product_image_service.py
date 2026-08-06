@@ -12,6 +12,7 @@
 from io import BytesIO
 
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.utils.crypto import get_random_string
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -28,6 +29,10 @@ THUMBNAIL_DIMENSION = 400
 
 class ProductImageError(Exception):
     """خطای قابل‌نمایش هنگام اعتبارسنجی/پردازش تصویر کالا."""
+
+
+class ProductImageReorderError(ProductImageError):
+    """ورودیِ مرتب‌سازی نامعتبر است (شناسه‌ی تکراری) — هیچ ردیفی تغییر نکرد."""
 
 
 def _extension(filename: str) -> str:
@@ -173,18 +178,23 @@ def set_image_360(image: ProductImage, is_360: bool) -> ProductImage:
     return image
 
 
+@transaction.atomic
 def reorder_product_images(product, ordered_ids: list[int]) -> None:
     """ترتیبِ نمایشِ تصاویر را طبقِ ``ordered_ids`` بازنویسی می‌کند — برایِ
-    مرتب‌سازیِ کشاندنی (drag)؛ همان الگویِ ``brand_service.reorder_brands``."""
-    images = {img.pk: img for img in product.images.filter(pk__in=ordered_ids)}
-    valid_ids = [image_id for image_id in ordered_ids if image_id in images]
-    updated = []
-    for order, image_id in enumerate(valid_ids):
-        image = images[image_id]
-        image.order = order
-        updated.append(image)
-    if updated:
-        ProductImage.objects.bulk_update(updated, ["order"])
+    مرتب‌سازیِ کشاندنی (drag)؛ همان الگویِ ``brand_service.reorder_brands``.
+
+    قرارداد (A4): شناسه‌ی تکراری کل عملیات را رد می‌کند (هیچ ردیفی تغییر
+    نمی‌کند)؛ شناسه‌ی نامعتبر/متعلق‌به‌کالایِ‌دیگر بی‌صدا نادیده گرفته
+    می‌شود (چون ``product.images`` از قبل به همین کالا محدود است)؛ کل
+    عملیات داخل یک تراکنش است — یا ترتیبِ کامل ذخیره می‌شود یا هیچ‌کدام.
+    """
+    if len(set(ordered_ids)) != len(ordered_ids):
+        raise ProductImageReorderError("فهرست مرتب‌سازی شامل شناسه‌ی تکراری است.")
+
+    valid_id_set = set(product.images.filter(pk__in=ordered_ids).values_list("pk", flat=True))
+    ordered_valid_ids = [image_id for image_id in ordered_ids if image_id in valid_id_set]
+    for order, image_id in enumerate(ordered_valid_ids):
+        ProductImage.objects.filter(pk=image_id, product=product).update(order=order)
 
 
 def set_image_variant(image: ProductImage, variant) -> ProductImage:

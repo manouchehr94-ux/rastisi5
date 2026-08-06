@@ -129,6 +129,15 @@
   opacity: 0.55;
 }
 
+.sfb-section-row.sfb-collapsed {
+  background: var(--surface, var(--bg));
+}
+
+.sfb-collapse-toggle {
+  flex-shrink: 0;
+  min-width: 28px;
+}
+
 .sfb-drag-handle {
   color: var(--muted);
   cursor: grab;
