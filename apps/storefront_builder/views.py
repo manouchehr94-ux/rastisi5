@@ -2,7 +2,7 @@
 ``STOREFRONT_LAYOUT_MANAGE`` (نه ``CONTENT_MANAGE``، طبق تصمیم کاربر)."""
 
 from django.contrib import messages
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.clickjacking import xframe_options_sameorigin
@@ -228,7 +228,11 @@ def storefront_section_reorder(request):
     """قرارداد یکسان با سایر endpointهای reorder موجود (product-image،
     brand، دسته‌بندی و ...): ``section_ids`` فرم‌رمزی‌شده، سرویس دوباره بر
     اساس تفکیک مستأجر فیلتر می‌کند، شناسه نامعتبر/خارجی بی‌صدا حذف می‌شود،
-    ``enumerate()`` ترتیب را از نو ۰..N تنظیم می‌کند."""
+    ``enumerate()`` ترتیب را از نو ۰..N تنظیم می‌کند.
+
+    A4: شناسه‌ی تکراری کل عملیات را رد می‌کند (هیچ ردیفی تغییر نمی‌کند)؛
+    کل حلقه‌ی به‌روزرسانی داخل یک تراکنش است — یا ترتیبِ کامل ذخیره
+    می‌شود یا هیچ‌کدام."""
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
     section_ids = request.POST.getlist("section_ids")
@@ -236,7 +240,10 @@ def storefront_section_reorder(request):
     valid_ids = set(draft.sections.values_list("pk", flat=True))
     ordered_ids = [int(i) for i in section_ids if i.isdigit() and int(i) in valid_ids]
 
-    from django.db import transaction
+    if len(set(ordered_ids)) != len(ordered_ids):
+        messages.error(request, "فهرست مرتب‌سازی شامل شناسه‌ی تکراری است — ترتیب تغییر نکرد")
+        return storefront_section_list_partial(request)
+
     with transaction.atomic():
         for index, section_id in enumerate(ordered_ids):
             StorefrontSection.objects.filter(pk=section_id, version=draft).update(order=index)

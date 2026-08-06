@@ -56,6 +56,7 @@ from apps.catalog.services.attribute_service import (
 from apps.catalog.services.brand_service import (
     BrandError,
     BrandInUseError,
+    BrandReorderError,
     activate_brand,
     archive_brand,
     create_brand,
@@ -139,6 +140,7 @@ from apps.catalog.services.template_update_service import (
 from apps.catalog.services.template_validation_service import latest_production_version
 from apps.catalog.services.product_image_service import (
     ProductImageError,
+    ProductImageReorderError,
     add_product_image,
     delete_product_image,
     move_product_image,
@@ -1492,8 +1494,15 @@ def product_image_reorder(request, pk):
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(Product, pk=pk, store=store)
     ordered_ids = [int(i) for i in request.POST.getlist("image_ids") if i.strip().isdigit()]
-    reorder_product_images(product, ordered_ids)
-    return _image_list_response(request, product, refresh_table=False)
+    error = None
+    try:
+        reorder_product_images(product, ordered_ids)
+    except ProductImageReorderError as exc:
+        error = str(exc)
+    response = _image_list_response(request, product, refresh_table=False)
+    if error:
+        response["HX-Trigger"] = json.dumps({"toast": {"message": error, "type": "error"}})
+    return response
 
 
 @require_POST
@@ -2239,7 +2248,10 @@ def brand_reorder(request):
     ترتیبِ تازه می‌فرستد؛ نگاه کنید به ``brand_service.reorder_brands``."""
     store = _resolve_dashboard_store(request)
     ordered_ids = [int(pk) for pk in request.POST.getlist("brand_ids") if pk.strip().isdigit()]
-    reorder_brands(store, ordered_ids)
+    try:
+        reorder_brands(store, ordered_ids)
+    except BrandReorderError as exc:
+        return _brands_table_response(request, toast={"message": str(exc), "type": "err"})
     return _brands_table_response(request)
 
 

@@ -22,6 +22,10 @@ class BrandInUseError(BrandError):
     """تلاش برای حذف قطعی برندی که هنوز روی حداقل یک کالا استفاده می‌شود."""
 
 
+class BrandReorderError(BrandError):
+    """ورودیِ مرتب‌سازی نامعتبر است (شناسه‌ی تکراری) — هیچ ردیفی تغییر نکرد."""
+
+
 def _unique_slug(store, name: str, *, exclude_pk=None) -> str:
     base = slugify(name, allow_unicode=True).strip("-") or "brand"
     candidate = base
@@ -97,17 +101,24 @@ def delete_brand(brand: Brand) -> None:
     brand.delete()
 
 
+@transaction.atomic
 def reorder_brands(store, ordered_ids: list[int]) -> None:
     """ترتیبِ نمایشِ برندها را طبق ``ordered_ids`` بازنویسی می‌کند — برایِ
     مرتب‌سازیِ کشاندنی (drag) در صفحه‌ی برندها؛ فقط برندهایِ همین Store را
     لمس می‌کند و شناسه‌های نامعتبر/متعلق‌به‌فروشگاهِ‌دیگر را بی‌صدا نادیده
-    می‌گیرد (همان الگویِ ``variant_engine_service.reorder_option_values``)."""
-    brands = {b.pk: b for b in Brand.objects.filter(store=store, pk__in=ordered_ids)}
-    valid_ids = [brand_id for brand_id in ordered_ids if brand_id in brands]
-    updated = []
-    for order, brand_id in enumerate(valid_ids):
-        brand = brands[brand_id]
-        brand.sort_order = order
-        updated.append(brand)
-    if updated:
-        Brand.objects.bulk_update(updated, ["sort_order"])
+    می‌گیرد (همان الگویِ ``variant_engine_service.reorder_option_values``).
+
+    قرارداد (A4 — رفع بدهیِ اتمیک‌بودنِ شناسایی‌شده در ممیزی):
+    - شناسه‌ی تکراری در ``ordered_ids`` کل عملیات را رد می‌کند (هیچ ردیفی
+      تغییر نمی‌کند) — ورودی نامعتبر است، نه چیزی که بشود نادیده گرفت.
+    - شناسه‌ی نامعتبر/متعلق‌به‌فروشگاهِ‌دیگر بی‌صدا از فهرست حذف می‌شود
+      (رفتار قبلی، بدون تغییر).
+    - کل عملیات داخل یک تراکنش است: یا ترتیبِ کامل ذخیره می‌شود یا هیچ‌کدام.
+    """
+    if len(set(ordered_ids)) != len(ordered_ids):
+        raise BrandReorderError("فهرست مرتب‌سازی شامل شناسه‌ی تکراری است.")
+
+    valid_id_set = set(Brand.objects.filter(store=store, pk__in=ordered_ids).values_list("pk", flat=True))
+    ordered_valid_ids = [brand_id for brand_id in ordered_ids if brand_id in valid_id_set]
+    for order, brand_id in enumerate(ordered_valid_ids):
+        Brand.objects.filter(pk=brand_id, store=store).update(sort_order=order)

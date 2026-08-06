@@ -294,3 +294,89 @@ class SetImageOptionValueTests(ProductImageServiceTestCase):
         image.refresh_from_db()
         self.assertIsNone(image.option_value_id)
         self.assertTrue(ProductImage.objects.filter(pk=image.pk).exists())
+
+
+class ReorderProductImagesTests(ProductImageServiceTestCase):
+    """A4 — رفع بدهیِ اتمیک‌بودنِ شناسایی‌شده در ممیزی: reorder_product_images
+    قبلاً بدون ``@transaction.atomic`` بود."""
+
+    def setUp(self):
+        super().setUp()
+        self.img1 = add_product_image(self.product, _make_image_file())
+        self.img2 = add_product_image(self.product, _make_image_file())
+        self.img3 = add_product_image(self.product, _make_image_file())
+
+    def test_reorders_by_posted_id_sequence(self):
+        from apps.catalog.services.product_image_service import reorder_product_images
+
+        reorder_product_images(self.product, [self.img3.pk, self.img1.pk, self.img2.pk])
+        self.img1.refresh_from_db()
+        self.img2.refresh_from_db()
+        self.img3.refresh_from_db()
+        self.assertEqual(self.img3.order, 0)
+        self.assertEqual(self.img1.order, 1)
+        self.assertEqual(self.img2.order, 2)
+
+    def test_duplicate_ids_rejected_no_rows_changed(self):
+        from apps.catalog.services.product_image_service import (
+            ProductImageReorderError,
+            reorder_product_images,
+        )
+
+        original = [(self.img1.pk, self.img1.order), (self.img2.pk, self.img2.order), (self.img3.pk, self.img3.order)]
+        with self.assertRaises(ProductImageReorderError):
+            reorder_product_images(self.product, [self.img1.pk, self.img1.pk, self.img2.pk])
+        for pk, order in original:
+            self.assertEqual(ProductImage.objects.get(pk=pk).order, order)
+
+    def test_missing_ids_from_posted_list_keep_their_current_order(self):
+        """قرارداد مستند: یک شناسه معتبر که در فهرست پست‌شده نیست، اصلاً لمس
+        نمی‌شود (نه حذف می‌شود، نه ترتیبش صفر/تغییر می‌کند)."""
+        from apps.catalog.services.product_image_service import reorder_product_images
+
+        reorder_product_images(self.product, [self.img2.pk, self.img1.pk])
+        self.img3.refresh_from_db()
+        self.assertEqual(self.img3.order, 2)  # دست‌نخورده، مقدار اولیه‌اش از add_product_image
+
+    def test_cross_product_ids_are_ignored(self):
+        from apps.catalog.services.product_image_service import reorder_product_images
+
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه دیگر", slug="pi-shop-reorder-2")
+        from apps.catalog.models import Category
+
+        category = Category.objects.create(store=self.store, name="دسته دیگر", slug="pi-cat-reorder-2")
+        other_product = Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name="کالای دیگر", slug="pi-product-reorder-2",
+            sku="PI-SKU-REORDER-2", price=Decimal("50000"),
+        )
+        other_image = add_product_image(other_product, _make_image_file())
+        other_original_order = other_image.order
+
+        reorder_product_images(self.product, [self.img2.pk, other_image.pk, self.img1.pk])
+        other_image.refresh_from_db()
+        self.assertEqual(other_image.order, other_original_order)
+
+    def test_mid_operation_failure_rolls_back_completely(self):
+        from unittest.mock import patch
+
+        from django.db.models.query import QuerySet
+
+        from apps.catalog.services.product_image_service import reorder_product_images
+
+        original_order = {img.pk: img.order for img in [self.img1, self.img2, self.img3]}
+        original_update = QuerySet.update
+        call_count = {"n": 0}
+
+        def flaky_update(self_qs, *args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 2:
+                raise RuntimeError("simulated mid-operation failure")
+            return original_update(self_qs, *args, **kwargs)
+
+        with patch.object(QuerySet, "update", flaky_update):
+            with self.assertRaises(RuntimeError):
+                reorder_product_images(self.product, [self.img3.pk, self.img1.pk, self.img2.pk])
+
+        for image in [self.img1, self.img2, self.img3]:
+            image.refresh_from_db()
+            self.assertEqual(image.order, original_order[image.pk])

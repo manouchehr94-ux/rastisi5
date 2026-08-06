@@ -230,6 +230,48 @@ class SectionActionTests(StorefrontBuilderViewsTestCase):
         a.refresh_from_db()
         self.assertEqual(a.order, 0)
 
+    def test_reorder_rejects_duplicate_ids_no_rows_changed(self):
+        """A4: شناسه‌ی تکراری کل عملیات را رد می‌کند — هیچ ردیفی تغییر نمی‌کند."""
+        a = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        b = StorefrontSection.objects.create(version=self.draft, section_key="image_text", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-reorder"), {
+            "section_ids": [str(b.pk), str(b.pk), str(a.pk)],
+        })
+        self.assertEqual(resp.status_code, 200)
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual(a.order, 0)
+        self.assertEqual(b.order, 1)
+
+    def test_reorder_mid_operation_failure_rolls_back_completely(self):
+        from unittest.mock import patch
+
+        from django.db.models.query import QuerySet
+
+        a = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        b = StorefrontSection.objects.create(version=self.draft, section_key="image_text", order=1)
+        c = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=2)
+        original_order = {s.pk: s.order for s in [a, b, c]}
+
+        original_update = QuerySet.update
+        call_count = {"n": 0}
+
+        def flaky_update(self_qs, *args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 2:
+                raise RuntimeError("simulated mid-operation failure")
+            return original_update(self_qs, *args, **kwargs)
+
+        with patch.object(QuerySet, "update", flaky_update):
+            with self.assertRaises(RuntimeError):
+                self.client.post(reverse("dashboard:storefront-builder-section-reorder"), {
+                    "section_ids": [str(c.pk), str(a.pk), str(b.pk)],
+                })
+
+        for section in [a, b, c]:
+            section.refresh_from_db()
+            self.assertEqual(section.order, original_order[section.pk])
+
     def test_cannot_reorder_another_stores_sections(self):
         other_store = Store.objects.create(name="فروشگاه ب", slug="sfb-cross", admin_subdomain="sfb-cross")
         other_layout = svc.get_or_create_layout(other_store)
