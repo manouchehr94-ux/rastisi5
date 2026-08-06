@@ -299,11 +299,12 @@
     </template>
 
     <template x-teleport="body">
-    <div x-show="bulkConfirmOpen" x-cloak dir="rtl" class="price-modal-overlay" @click.self="bulkConfirmOpen = false" @keydown.escape.window="bulkConfirmOpen = false">
+    <div x-show="bulkConfirmOpen" x-cloak dir="rtl" class="price-modal-overlay" @click.self="bulkConfirmOpen = false" @keydown.escape.window="bulkConfirmOpen = false"
+         x-effect="if (bulkConfirmOpen) $nextTick(() => $refs.bulkConfirmCancelBtn && $refs.bulkConfirmCancelBtn.focus())">
       <div class="price-modal-card" role="alertdialog" aria-modal="true">
         <h4 style="margin:0 0 14px" x-text="bulkConfirmText()"></h4>
         <div style="display:flex;gap:8px;margin-top:16px">
-          <button type="button" class="btn" @click="bulkConfirmOpen = false">انصراف</button>
+          <button type="button" class="btn" x-ref="bulkConfirmCancelBtn" @click="bulkConfirmOpen = false">انصراف</button>
           <button type="button" class="btn btn-primary" :class="{'btn-danger': bulkConfirmKind === 'delete'}" @click="confirmBulkAction()" x-text="bulkConfirmButtonLabel()"></button>
         </div>
       </div>
