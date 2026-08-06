@@ -24,7 +24,15 @@ from django.utils import timezone
 
 from apps.core.services.rate_limit import enforce_rate_limit
 
-from ..models import StorefrontLayout, StorefrontLayoutVersion, StorefrontSection
+from ..models import (
+    FOOTER_CONFIG_DEFAULTS,
+    FOOTER_TOGGLE_FIELDS,
+    HEADER_CONFIG_DEFAULTS,
+    HEADER_TOGGLE_FIELDS,
+    StorefrontLayout,
+    StorefrontLayoutVersion,
+    StorefrontSection,
+)
 
 _PUBLISH_RATE_LIMIT = dict(max_attempts=20, window_seconds=3600)
 _RESTORE_RATE_LIMIT = dict(max_attempts=20, window_seconds=3600)
@@ -44,6 +52,77 @@ class StorefrontAlreadyPublishedError(Exception):
     چیدمان پیشنهادی صنف بدون تأیید صریح کاربر مجاز نیست (تصمیم کاربر:
     «هرگز storefront سفارشی‌سازی‌شده و منتشرشده را بدون تأیید صریح رونویسی
     نکن»)."""
+
+
+class HeaderConfigValidationError(Exception):
+    """پیکربندی پیشنهادی هدر نامعتبر است — نباید ذخیره شود (پیام فارسی
+    قابل‌نمایش مستقیم به کاربر)."""
+
+
+class FooterConfigValidationError(Exception):
+    """پیکربندی پیشنهادی فوتر نامعتبر است — نباید ذخیره شود (پیام فارسی
+    قابل‌نمایش مستقیم به کاربر)."""
+
+
+def validate_header_config(config: dict) -> dict:
+    """پیکربندی خام هدر (خروجی فرم ادیتور) را اعتبارسنجی و پاک‌سازی می‌کند.
+
+    قوانین بر اساس بررسی مستقیم قرارداد فعلی (نه فرض‌های سند معماری):
+    ``HEADER_TOGGLE_FIELDS`` (``models.py``) و دو تمپلیت مصرف‌کننده
+    (``page_shell_header.html``، مشترک بین Preview و Storefront، فاز A1).
+
+    - فقط کلیدهای شناخته‌شده (``HEADER_TOGGLE_FIELDS`` + ``announcement_text``)
+      وارد پیکربندی نهایی می‌شوند — کلید ناشناخته بی‌صدا حذف می‌شود.
+    - هر toggle باید دقیقاً بولی باشد.
+    - ``show_cart``: در معماری فعلی، آیکون سبد خرید در هدر تنها مسیر
+      موجود به سبد خرید است — نه در فوتر، نه در ناوبری. غیرفعال کردن آن
+      یعنی مشتری هیچ راهی برای رسیدن به سبد خرید ندارد؛ رد می‌شود.
+    - بازگشت به صفحه اصلی (لوگو) در هیچ تمپلیتی پشت هیچ toggle‌ای نیست —
+      همیشه بدون قید رندر می‌شود، پس نیازی به قانون جداگانه ندارد.
+    """
+    cleaned = dict(HEADER_CONFIG_DEFAULTS)
+    for field in HEADER_TOGGLE_FIELDS:
+        value = config.get(field, True)
+        if not isinstance(value, bool):
+            raise HeaderConfigValidationError(f"مقدار فیلد «{field}» باید درست/نادرست باشد")
+        cleaned[field] = value
+
+    announcement_text = config.get("announcement_text", "")
+    if not isinstance(announcement_text, str):
+        raise HeaderConfigValidationError("متن نوار اعلان نامعتبر است")
+    cleaned["announcement_text"] = announcement_text[:300]
+
+    if not cleaned["show_cart"]:
+        raise HeaderConfigValidationError(
+            "دسترسی به سبد خرید نمی‌تواند از هدر حذف شود — در حال حاضر هیچ مسیر "
+            "جایگزینی برای رسیدن مشتری به سبد خرید در ناوبری فروشگاه وجود ندارد."
+        )
+    return cleaned
+
+
+def validate_footer_config(config: dict) -> dict:
+    """پیکربندی خام فوتر را اعتبارسنجی و پاک‌سازی می‌کند.
+
+    قانون: فوتر نباید کاملاً خالی منتشر شود — طبق تصمیم محصولی این فاز،
+    حداقل یکی از ۹ بخش قابل‌تنظیم فوتر (``FOOTER_TOGGLE_FIELDS``) باید
+    فعال بماند. هیچ محتوای اضافه‌ای که معماری فعلی اجازه‌ی غیابش را
+    می‌دهد (مثلاً محتوای هر ستون) اینجا اجباری نشده — فقط از یک نوار
+    فوتر کاملاً نامرئی/تهی جلوگیری می‌شود.
+    """
+    cleaned = dict(FOOTER_CONFIG_DEFAULTS)
+    for field in FOOTER_TOGGLE_FIELDS:
+        value = config.get(field, True)
+        if not isinstance(value, bool):
+            raise FooterConfigValidationError(f"مقدار فیلد «{field}» باید درست/نادرست باشد")
+        cleaned[field] = value
+
+    if not any(cleaned[field] for field in FOOTER_TOGGLE_FIELDS):
+        raise FooterConfigValidationError(
+            "فوتر نمی‌تواند کاملاً خالی باشد — حداقل یکی از بخش‌های فوتر "
+            "(درباره فروشگاه، تماس، لینک‌های مفید، دسته‌بندی‌ها، شبکه‌های اجتماعی، "
+            "نشان‌های اعتماد، لوگوهای پرداخت، خبرنامه یا کپی‌رایت) باید فعال بماند."
+        )
+    return cleaned
 
 
 def get_or_create_layout(store) -> StorefrontLayout:

@@ -331,13 +331,27 @@ class HeaderFooterEditorTests(StorefrontBuilderViewsTestCase):
 
     def test_header_editor_saves_config(self):
         resp = self.client.post(reverse("dashboard:storefront-builder-header"), {
-            "show_search": "on", "announcement_text": "پیام تست",
+            "show_search": "on", "show_cart": "on", "announcement_text": "پیام تست",
         })
         self.assertEqual(resp.status_code, 302)
         draft = svc.get_or_create_draft(self.store)
         self.assertTrue(draft.header_config["show_search"])
         self.assertFalse(draft.header_config["show_account"])
+        self.assertTrue(draft.header_config["show_cart"])
         self.assertEqual(draft.header_config["announcement_text"], "پیام تست")
+
+    def test_header_editor_rejects_hidden_cart(self):
+        """A2: هدر بدون امکان دسترسی به سبد خرید نباید ذخیره شود — هیچ مسیر
+        جایگزینی برای رسیدن مشتری به سبد خرید در معماری فعلی وجود ندارد."""
+        draft_before = svc.get_or_create_draft(self.store)
+        original_config = dict(draft_before.header_config or {})
+        resp = self.client.post(reverse("dashboard:storefront-builder-header"), {
+            "show_search": "on",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "سبد خرید")
+        draft_after = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft_after.header_config, original_config)
 
     def test_footer_editor_get(self):
         resp = self.client.get(reverse("dashboard:storefront-builder-footer"))
@@ -351,3 +365,22 @@ class HeaderFooterEditorTests(StorefrontBuilderViewsTestCase):
         draft = svc.get_or_create_draft(self.store)
         self.assertTrue(draft.footer_config["show_about"])
         self.assertFalse(draft.footer_config["show_social"])
+
+    def test_footer_editor_rejects_all_blocks_disabled(self):
+        """A2: فوتر کاملاً خالی (همه بخش‌ها غیرفعال) نباید ذخیره شود."""
+        draft_before = svc.get_or_create_draft(self.store)
+        original_config = dict(draft_before.footer_config or {})
+        resp = self.client.post(reverse("dashboard:storefront-builder-footer"), {})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "فوتر")
+        draft_after = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft_after.footer_config, original_config)
+
+    def test_footer_editor_accepts_single_active_block(self):
+        resp = self.client.post(reverse("dashboard:storefront-builder-footer"), {
+            "show_copyright": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        draft = svc.get_or_create_draft(self.store)
+        self.assertTrue(draft.footer_config["show_copyright"])
+        self.assertFalse(draft.footer_config["show_about"])

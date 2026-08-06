@@ -313,10 +313,16 @@ def storefront_header_editor(request):
     draft = layout_service.get_or_create_draft(store, user=request.user)
 
     if request.method == "POST":
-        config = dict(HEADER_CONFIG_DEFAULTS)
-        for field in HEADER_TOGGLE_FIELDS:
-            config[field] = request.POST.get(field) == "on"
-        config["announcement_text"] = request.POST.get("announcement_text", "")[:300]
+        raw = {field: request.POST.get(field) == "on" for field in HEADER_TOGGLE_FIELDS}
+        raw["announcement_text"] = request.POST.get("announcement_text", "")
+        try:
+            config = layout_service.validate_header_config(raw)
+        except layout_service.HeaderConfigValidationError as exc:
+            messages.error(request, str(exc))
+            return render(request, "dashboard/storefront_builder/header_editor.html", {
+                "active_page": "storefront_builder",
+                "config": {**HEADER_CONFIG_DEFAULTS, **raw}, "draft": draft, "error": str(exc),
+            })
         draft.header_config = config
         draft.save(update_fields=["header_config", "updated_at"])
         messages.success(request, "تنظیمات هدر ذخیره شد")
@@ -334,9 +340,15 @@ def storefront_footer_editor(request):
     draft = layout_service.get_or_create_draft(store, user=request.user)
 
     if request.method == "POST":
-        config = dict(FOOTER_CONFIG_DEFAULTS)
-        for field in FOOTER_TOGGLE_FIELDS:
-            config[field] = request.POST.get(field) == "on"
+        raw = {field: request.POST.get(field) == "on" for field in FOOTER_TOGGLE_FIELDS}
+        try:
+            config = layout_service.validate_footer_config(raw)
+        except layout_service.FooterConfigValidationError as exc:
+            messages.error(request, str(exc))
+            return render(request, "dashboard/storefront_builder/footer_editor.html", {
+                "active_page": "storefront_builder",
+                "config": {**FOOTER_CONFIG_DEFAULTS, **raw}, "draft": draft, "error": str(exc),
+            })
         draft.footer_config = config
         draft.save(update_fields=["footer_config", "updated_at"])
         messages.success(request, "تنظیمات فوتر ذخیره شد")
