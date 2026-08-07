@@ -321,10 +321,14 @@ class SectionSettingsFormTests(StorefrontBuilderViewsTestCase):
         rendered = str(sanitize_rich_text(self.section.settings["body_html"]))
         self.assertNotIn("<script>", rendered)
 
-    def test_settings_form_404_for_type_without_settings(self):
+    def test_settings_form_shows_only_responsive_block_for_type_without_own_fields(self):
+        """از فازِ D به بعد، ``hero_banner`` (که هیچ فیلدِ اختصاصیِ خودش
+        را ندارد) دیگر ۴۰۴ نمی‌دهد — چون همه‌ی انواع اکنون حداقل بلوکِ
+        «تنظیماتِ نمایش در دستگاه‌ها» را دارند."""
         section = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=1)
         resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "تنظیمات نمایش در دستگاه‌ها")
 
     def test_image_text_rejects_dangerous_url(self):
         section = StorefrontSection.objects.create(version=self.draft, section_key="image_text", order=1)
@@ -334,6 +338,112 @@ class SectionSettingsFormTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(resp.status_code, 200)  # stays on form with error
         section.refresh_from_db()
         self.assertEqual(section.settings.get("image_url", ""), "")
+
+
+class ResponsiveSettingsFormTests(StorefrontBuilderViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+
+    def test_default_new_section_visible_everywhere(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0)
+        self.assertEqual(section.settings, {})
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+        self.assertContains(resp, 'name="show_on_desktop" checked')
+        self.assertContains(resp, 'name="show_on_tablet" checked')
+        self.assertContains(resp, 'name="show_on_mobile" checked')
+
+    def test_unchecking_mobile_hides_only_mobile(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "show_on_desktop": "on", "show_on_tablet": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["responsive"], {
+            "hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": True,
+        })
+
+    def test_hide_all_three_combination(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {})
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["responsive"], {
+            "hide_on_desktop": True, "hide_on_tablet": True, "hide_on_mobile": True,
+        })
+
+    def test_column_controls_absent_for_non_column_aware_type(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0)
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+        self.assertNotContains(resp, "تعداد ستون‌ها")
+
+    def test_column_controls_present_for_column_aware_type(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="category_grid", order=0)
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+        self.assertContains(resp, "تعداد ستون‌ها")
+
+    def test_column_values_saved_for_category_grid(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="category_grid", order=0)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "show_on_desktop": "on", "show_on_tablet": "on", "show_on_mobile": "on",
+            "desktop_columns": "3", "tablet_columns": "2", "mobile_columns": "1",
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["responsive"]["desktop_columns"], 3)
+        self.assertEqual(section.settings["responsive"]["tablet_columns"], 2)
+        self.assertEqual(section.settings["responsive"]["mobile_columns"], 1)
+
+    def test_invalid_column_value_shows_error_and_does_not_save(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="category_grid", order=0)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "show_on_desktop": "on", "show_on_tablet": "on", "show_on_mobile": "on",
+            "desktop_columns": "99",
+        })
+        self.assertEqual(resp.status_code, 200)
+        section.refresh_from_db()
+        self.assertEqual(section.settings, {})
+
+    def test_is_active_independent_of_responsive_visibility(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0, is_active=True)
+        self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {})
+        section.refresh_from_db()
+        self.assertTrue(section.settings["responsive"]["hide_on_mobile"])
+        self.assertTrue(section.is_active)
+
+    def test_collapsed_in_editor_independent_of_responsive_visibility(self):
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="hero_banner", order=0, collapsed_in_editor=True,
+        )
+        self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "show_on_desktop": "on", "show_on_tablet": "on", "show_on_mobile": "on",
+        })
+        section.refresh_from_db()
+        self.assertFalse(section.settings["responsive"]["hide_on_mobile"])
+        self.assertTrue(section.collapsed_in_editor)
+
+    def test_cross_store_section_cannot_be_edited(self):
+        other_store = Store.objects.create(
+            name="فروشگاه دیگر ریسپانسیو", slug="resp-other-store", admin_subdomain="resp-other-store",
+        )
+        other_draft = svc.get_or_create_draft(other_store)
+        other_section = StorefrontSection.objects.create(version=other_draft, section_key="hero_banner", order=0)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[other_section.pk]), {})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_published_section_cannot_be_mutated_through_draft_settings_endpoint(self):
+        """فرمِ تنظیمات فقط section‌هایِ نسخه‌ی Draft را برمی‌گرداند
+        (``_get_scoped_section`` روی ``version__status=DRAFT`` فیلتر
+        می‌کند) — یک section از نسخه‌ی منتشرشده/بایگانی از این مسیر
+        اصلاً یافت نمی‌شود (۴۰۴)، هرگز mutate نمی‌شود."""
+        StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0)
+        published = svc.publish(self.store)
+        published_section = published.sections.get(section_key="hero_banner")
+        resp = self.client.post(
+            reverse("dashboard:storefront-builder-section-settings", args=[published_section.pk]), {},
+        )
+        self.assertEqual(resp.status_code, 404)
 
 
 class ProductSectionSettingsFormTests(StorefrontBuilderViewsTestCase):

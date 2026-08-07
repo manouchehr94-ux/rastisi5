@@ -150,13 +150,20 @@ def storefront_section_settings(request, pk):
                 "title": request.POST.get("title", ""),
                 "subtitle": request.POST.get("subtitle", ""),
             }
-        else:
+        elif section.section_key == "image_text":
             raw = {
                 "title": request.POST.get("title", ""),
                 "body_html": request.POST.get("body_html", ""),
                 "image_url": request.POST.get("image_url", ""),
                 "image_position": request.POST.get("image_position", "right"),
             }
+        elif section.section_key == "rich_text":
+            raw = {"body_html": request.POST.get("body_html", "")}
+        else:
+            # انواعی که هیچ فیلدِ اختصاصیِ خودشان را ندارند (فازِ D) —
+            # تنها چیزی که این فرم برایشان دارد بلوکِ responsive است.
+            raw = {}
+        raw["responsive"] = _extract_responsive_raw(request, section.section_key)
         try:
             cleaned = definition.validate_settings(raw)
             section.settings = cleaned
@@ -166,10 +173,31 @@ def storefront_section_settings(request, pk):
         except ValueError as exc:
             field_errors["general"] = str(exc)
 
-    context = {"section": section, "definition": definition, "field_errors": field_errors}
+    context = {
+        "section": section, "definition": definition, "field_errors": field_errors,
+        "supports_columns": section.section_key in section_registry.COLUMN_AWARE_SECTION_KEYS,
+    }
     if section.section_key == "product_section":
         context.update(_product_section_picker_context(request, section))
     return render(request, "dashboard/storefront_builder/partials/section_settings_form.html", context)
+
+
+def _extract_responsive_raw(request, section_key: str) -> dict:
+    """بلوکِ خامِ «تنظیماتِ نمایش در دستگاه‌ها» را از POST می‌خواند —
+    یک بار نوشته شده، توسطِ فرمِ تنظیماتِ هر ۱۷ نوعِ section استفاده
+    می‌شود (بخشِ ۶ مشخصات: «Use one shared helper where possible»).
+    مرچنت در قالبِ مثبت («نمایش در…») تیک می‌زند؛ اینجا به مدلِ
+    hide_on_* (منفی، قراردادِ ذخیره‌سازی) تبدیل می‌شود."""
+    raw = {
+        "hide_on_desktop": request.POST.get("show_on_desktop") != "on",
+        "hide_on_tablet": request.POST.get("show_on_tablet") != "on",
+        "hide_on_mobile": request.POST.get("show_on_mobile") != "on",
+    }
+    if section_key in section_registry.COLUMN_AWARE_SECTION_KEYS:
+        raw["desktop_columns"] = request.POST.get("desktop_columns")
+        raw["tablet_columns"] = request.POST.get("tablet_columns")
+        raw["mobile_columns"] = request.POST.get("mobile_columns")
+    return raw
 
 
 def _product_section_picker_context(request, section):
