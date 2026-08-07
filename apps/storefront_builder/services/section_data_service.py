@@ -12,9 +12,14 @@ Product برایِ رندر.
 
 from __future__ import annotations
 
+from urllib.parse import urlencode
+
+from django.db.models import Q
 from django.urls import reverse
 
+from apps.catalog.models import Brand, Category
 from apps.catalog.services import collection_service
+from apps.catalog.services.product_publish_service import storefront_listing_products
 
 
 def _reorder_by_ids(products_by_id: dict, ordered_ids: list) -> list:
@@ -39,8 +44,51 @@ def _resolve_collection(store, settings: dict):
     return products, view_all_url
 
 
+def _resolve_category(store, settings: dict):
+    source_id = settings.get("source_id")
+    if not source_id:
+        return [], None
+    try:
+        category = Category.objects.get(pk=source_id, store=store, is_active=True)
+    except Category.DoesNotExist:
+        return [], None
+
+    limit = settings["item_limit"]
+    # همان فیلترِ دقیقِ ``catalog.views._filtered_products``: انتخابِ یک
+    # دسته‌ی والد، محصولاتِ زیردسته‌هایش را هم شامل می‌شود.
+    products = list(
+        storefront_listing_products(store)
+        .filter(Q(category=category) | Q(category__parent=category))
+        .select_related("brand").prefetch_related("images")
+        .order_by("-created_at", "id")[:limit]
+    )
+    view_all_url = reverse("catalog:product-list") + "?" + urlencode({"category": category.slug})
+    return products, view_all_url
+
+
+def _resolve_brand(store, settings: dict):
+    source_id = settings.get("source_id")
+    if not source_id:
+        return [], None
+    try:
+        brand = Brand.objects.get(pk=source_id, store=store, is_active=True)
+    except Brand.DoesNotExist:
+        return [], None
+
+    limit = settings["item_limit"]
+    products = list(
+        storefront_listing_products(store).filter(brand=brand)
+        .select_related("brand").prefetch_related("images")
+        .order_by("-created_at", "id")[:limit]
+    )
+    view_all_url = reverse("catalog:product-list") + "?" + urlencode({"brand": brand.slug})
+    return products, view_all_url
+
+
 _RESOLVERS = {
     "collection": _resolve_collection,
+    "category": _resolve_category,
+    "brand": _resolve_brand,
 }
 
 
