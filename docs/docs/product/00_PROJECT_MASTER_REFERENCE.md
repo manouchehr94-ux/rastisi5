@@ -908,16 +908,59 @@ plan enforcement همچنان باقی مانده**
 - `ProductTag(purpose="collection")` («گروه دوم») **دست‌نخورده باقی مانده** — یک دستورِ مدیریتیِ جداگانه و اختیاری
   (`migrate_legacy_product_tag_collections --dry-run`/`--apply`، idempotent) برای تبدیلِ دستیِ داده‌های قدیمی موجود
   است، اما اجرا نشدن آن هیچ رفتاری را نمی‌شکند؛
-- خارج از scope فاز B (عمداً): اتصال Collection به عنوان Data Source یک Section صفحه اصلی (فاز C)، Smart Collection
-  (فقط فیلدِ `collection_type` رزرو شده)، انتخابگرِ Collection در مقصدِ منو (`apps.content.DestinationMixin` فعلاً
-  فقط `NONE`/`CATEGORY`/`PRODUCT`/`BRAND`/`EXTERNAL` را می‌شناسد — افزودنِ `DestinationType.COLLECTION` یک تغییرِ
-  کوچک و تمیز روی همان الگوی موجود است اما به فاز C موکول شده؛ در همین حال، لینک‌دهیِ دستی به آدرسِ مطلقِ صفحه‌ی
-  کالکشن از طریقِ همان مقصدِ «لینک خارجی» موجود ممکن است).
+- خارج از scope فاز B (عمداً): اتصال Collection به عنوان Data Source یک Section صفحه اصلی (✅ حل‌شده در فاز C،
+  به بروزرسانی زیر مراجعه شود)، Smart Collection (فقط فیلدِ `collection_type` رزرو شده)، انتخابگرِ Collection در
+  مقصدِ منو (`apps.content.DestinationMixin` فعلاً فقط `NONE`/`CATEGORY`/`PRODUCT`/`BRAND`/`EXTERNAL` را می‌شناسد —
+  همچنان باز، افزودنِ `DestinationType.COLLECTION` یک تغییرِ کوچک و تمیز روی همان الگوی موجود است؛ در همین حال،
+  لینک‌دهیِ دستی به آدرسِ مطلقِ صفحه‌ی کالکشن از طریقِ همان مقصدِ «لینک خارجی» موجود ممکن است).
+
+### به‌روزرسانی 2026-08-07 (فاز C) — Data Source ساده برای section محصولی پیاده‌سازی شد
+
+⚠️ سطرِ «Data Sources» زیر در «ناقص نسبت به Target» تا پیش از فاز C صحیح بود؛ اکنون حل شده. طبقِ اصلِ «یک
+پیکربندیِ عمومی به‌جای تکثیرِ نوع»، **یک** نوعِ جدید در Section Registry ثبت شده — `product_section` — نه پنج نوعِ
+جدید؛ ۵ نوعِ محصولیِ قدیمی (`featured_products`/`newest_products`/`best_sellers`/`discounted_products`/
+`amazing_offers`) دست‌نخورده باقی مانده‌اند (بازنویسیِ آن‌ها یعنی ریسکِ شکستنِ صفحاتِ از‌قبل‌منتشرشده؛ همه از
+`_passthrough_dict` بدونِ فرمِ تنظیمات واقعی استفاده می‌کردند، پس «بسط‌دادنِ ایمنِ» آن‌ها ممکن نبود).
+
+- قراردادِ تنظیمات (`section_registry._validate_product_section_settings`): `data_source` (enum بسته‌ی هشت‌تایی:
+  `collection`/`category`/`brand`/`manual`/`newest`/`discounted`/`best_sellers`/`most_viewed`)، `source_id`،
+  `product_ids` (حداکثر ۶۰، بدونِ تکرار)، `item_limit` (۲ تا ۲۴، پیش‌فرض ۸)، `display_mode`
+  (`carousel`/`grid`)، `show_view_all`، `title`، `subtitle` — فقط اعتبارسنجیِ شکل/enum/بازه، بدونِ کوئریِ
+  دیتابیس (طبقِ همان تفکیکِ مسئولیتِ مستندشده در بالایِ `section_registry.py`)؛
+- حلِ Store-scoped منابع در `apps/storefront_builder/services/section_data_service.py` (نقطه‌ی ورودیِ واحد،
+  `resolve_products(store, settings)`) — کالکشن/دسته/برندِ حذف‌شده، غیرفعال، یا متعلق به فروشگاهِ دیگر، بی‌صدا
+  به «بدونِ کالا» تبدیل می‌شود (fail-closed، بدونِ کرش)، دقیقاً همان فلسفه‌ای که `build_render_items` برایِ
+  section_key ناشناخته دارد؛ کالکشن از `apps.catalog.services.collection_service` فازِ B عبور می‌کند (بدونِ
+  کدِ تکراری)، دسته/برند از همان فیلترِ `catalog.views._filtered_products` (والد شاملِ زیردسته)، دستی با حفظِ
+  ترتیبِ انتخابِ مرچنت (نه ترتیبِ دیتابیس)؛
+- **پرفروش‌ترین‌ها (`best_sellers`)**: بررسیِ دقیق نشان داد `Product.sold_count` هیچ writer‌ای در کلِ کدبیس ندارد
+  (فقط در seed/fixture مقداردهی می‌شود) — طبقِ تصمیمِ کاربر، به‌جایِ غیرفعال نگه‌داشتنِ گزینه، الگوریتمِ واقعیِ
+  از‌قبل‌موجودِ داشبورد (`dashboard_service.top_selling_products`، محاسبه‌ی زنده از `OrderItem` واقعی) به
+  `apps.orders.services.best_seller_service` استخراج شد — **تنها الگوریتمِ مجازِ «پرفروش‌ترین» در کلِ کدبیس**،
+  اکنون هم توسط داشبورد و هم توسط این section استفاده می‌شود (نه پیاده‌سازیِ دوباره). section قدیمیِ
+  `best_sellers` (که پیش‌تر با `-sold_count` نامعتبر مرتب می‌شد) هم به همین سرویس اصلاح شد؛
+- **پربازدیدترین‌ها (`most_viewed`)**: بررسی تأیید کرد `Product.views_count` واقعاً نوشته می‌شود
+  (`apps.catalog.views.product_detail`، هر بازدید یک `F("views_count") + 1`) — قابلِ‌اعتماد و مستقیماً استفاده شد؛
+- رندر از همان renderer مشترکِ فازِ A (`render_service.build_render_items`) عبور می‌کند — بدونِ رندررِ دوم؛ چون
+  این نوع (برخلافِ ۱۵ نوعِ قبلی) تنظیماتِ per-instance دارد (کالکشنِ متفاوت در هر نمونه)، کشِ سطح-تابعِ داخلِ
+  `build_render_items` برایِ همین یک نوع کلید-per-instance شد (`PER_INSTANCE_SECTION_KEYS`)، بدونِ تغییرِ رفتارِ
+  ۱۵ نوعِ دیگر؛
+- نمایش «کاروسل»/«گرید» از همان `catalog/partials/product_grid.html`/`product_card.html` عبور می‌کند (بدونِ
+  کارتِ محصولِ دوم)؛ «کاروسل» یک کلاسِ CSS جدیدِ کوچک (`.pcarousel`، اسکرولِ افقی + scroll-snap، بدونِ کتابخانه‌ی
+  جاوااسکریپت) است — هیچ carousel/slider واقعی‌ای پیش از این در کدبیس وجود نداشت؛
+- ادیتورِ مرچنت («تنظیمات بخش») فقط یک منویِ «منبعِ کالاها» با ۸ برچسبِ فارسیِ ساده نشان می‌دهد — `data_source`،
+  شناسه‌های خام، یا JSON هرگز به مرچنت نمایش داده نمی‌شود؛ انتخابگرِ کالایِ دستی از همان بک‌اندِ جست‌وجویِ
+  `collection_service.searchable_products` فازِ B استفاده می‌کند (نه انتخابگرِ دوم)؛
+- به‌عنوانِ اثرِ جانبیِ اصلاحِ این چک‌پوینت، یک باگِ از‌قبل‌موجود پیدا و رفع شد: دکمه‌ی «تنظیمات» هر section با
+  فرم (rich_text/image_text) به تابعِ Alpine ناموجودِ `openSettingsModal()` وصل بود و هیچ‌کاری نمی‌کرد؛ اکنون با
+  `hx-get` ساده کار می‌کند؛
+- خارج از scope فازِ C (عمداً): Smart Collection rules، Template/Preset switching، استایلِ سفارشیِ per-section،
+  CSS/HTML/JS دلخواه، کشِ سراسری، زمان‌بندیِ انتشار، صفحاتِ سفارشی، ادیتورِ ریسپانسیوِ پیچیده، شخصی‌سازیِ
+  مبتنی‌بر رفتار.
 
 ### ناقص نسبت به Target (شکاف‌های واقعی باقی‌مانده — نه فرض‌های قدیمی)
 
-- **Data Sources**: section‌های محصولی (`featured_products`, `newest_products`, ...) فاقد فیلد `data_source` قابل‌انتخاب در `settings`
-  هستند — هرکدام hard-coded به یک context builder جدا وصل‌اند؛
+- **Template/Preset switching**: تعویض کامل قالب بصری سایت (رنگ+فونت+هدر/فوتر خانواده+کارت به‌صورت یک بسته) وجود ندارد —
 - **Template/Preset switching**: تعویض کامل قالب بصری سایت (رنگ+فونت+هدر/فوتر خانواده+کارت به‌صورت یک بسته) وجود ندارد —
   فقط `apply_industry_layout` (فقط section ordering صفحه اصلی، نه ظاهر/برندینگ) و ۶ پریست رنگی مستقل از فونت/spacing (`apps.core.theme_presets`)؛
 - **Responsive per-section**: تنظیمات نمایش/ستون‌بندی per-device (دسکتاپ/تبلت/موبایل) در `settings` هر section وجود ندارد؛
@@ -932,8 +975,11 @@ plan enforcement همچنان باقی مانده**
 
 **Homepage section-layout builder (apps.storefront_builder): production-capable foundation — Draft/Publish/Rollback/Section
 Registry/shared Preview-Storefront shell کامل. Merchant Manual Collections (`apps.catalog.MerchantCollection`) از فاز B
-پیاده‌سازی شده. باقی‌مانده: اتصال Collection به Section به‌عنوان Data Source، سایر Data Sources، Template/Preset،
-Responsive per-section، caching، Custom Pages، Scheduled Publishing (نگاه کنید به `docs/reports/STOREFRONT_TEMPLATE_AND_BUILDER_*.md`).**
+پیاده‌سازی شده. section محصولی با Data Source ساده (Collection/Category/Brand/Manual/Newest/Discounted/BestSellers/
+MostViewed — یک نوعِ عمومیِ `product_section`) از فاز C پیاده‌سازی شده، شاملِ استخراجِ الگوریتمِ واقعیِ
+«پرفروش‌ترین» به `apps.orders.services.best_seller_service` (کانونیک، مشترک با داشبورد). باقی‌مانده: Smart Collection
+rules، Template/Preset، Responsive per-section، caching، Custom Pages، Scheduled Publishing (نگاه کنید به
+`docs/reports/STOREFRONT_TEMPLATE_AND_BUILDER_*.md`).**
 
 **سایر Content models (`apps.content`): Feature-rich UI foundation; tenant integrity incomplete (نقص destination relation بالا).**
 
@@ -1187,8 +1233,8 @@ Storefront theme و Merchant Admin theme باید مستقل باشند.
 | Payment | Prototype | secure gateway engine | idempotency/encryption/reconciliation | بسیار بالا |
 | Shipping | Basic | rule-driven shipping | ownership/zones/fulfillment | بالا |
 | Content | Rich partial | versioned CMS | cross-Store relations در `apps.content` (Hero/Banner/Menu destinations) | بسیار بالا |
-| Storefront Section Builder (`apps.storefront_builder`) | Implemented (homepage layout + header/footer) | no-code storefront layout builder | Section↔Collection Data Source/سایر Data Sources/Template-Preset/Responsive/caching/Custom Pages/Scheduled Publish — به بخش ۱۱.۸ | متوسط |
-| Merchant Collections (`apps.catalog.MerchantCollection`) | Implemented (manual only) | merchandising Collections with public pages | Smart Collections، اتصال به Section به‌عنوان Data Source (فاز C) | متوسط |
+| Storefront Section Builder (`apps.storefront_builder`) | Implemented (homepage layout + header/footer + product section data sources) | no-code storefront layout builder | Template-Preset/Responsive/caching/Custom Pages/Scheduled Publish — به بخش ۱۱.۸ | متوسط |
+| Merchant Collections (`apps.catalog.MerchantCollection`) | Implemented (manual only, usable as a Section Data Source) | merchandising Collections with public pages | Smart Collections | متوسط |
 | Theme (رنگ/فونت/برندینگ) | Foundation | versioned Theme/Preset package editor | versioning/preview/rollback برای Theme (جدا از Page Builder بالا) | متوسط |
 | SMS | Partial | reliable async messaging | outbox/retry/security | متوسط |
 | Discount | Basic | promotion engine | eligibility/ledger/concurrency | متوسط |

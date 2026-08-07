@@ -420,6 +420,53 @@ class ProductSectionSettingsFormTests(StorefrontBuilderViewsTestCase):
         self.section.refresh_from_db()
         self.assertEqual(self.section.settings["source_id"], other_collection.pk)
 
+    def test_duplicate_then_independent_edit_does_not_affect_original(self):
+        """سناریوی «دو نمونه‌ی مستقلِ product_section» (Playwright B) از
+        مسیر تکرار هم: تکرار، تنظیماتِ فعلی را کپی می‌کند؛ اما ویرایشِ
+        بعدیِ نمونه‌ی دوم نباید نمونه‌ی اول را تغییر دهد (دو رکورد کاملاً
+        مستقل در دیتابیس‌اند، فقط JSON اولیه‌شان یکسان بوده)."""
+        from apps.catalog.services import collection_service
+
+        first_collection = collection_service.create_collection(self.store, name="کالکشن اول تکرار")
+        self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[self.section.pk]), {
+            "data_source": "collection", "source_id": str(first_collection.pk), "item_limit": "8",
+            "display_mode": "carousel", "title": "اول",
+        })
+        self.client.post(reverse("dashboard:storefront-builder-section-duplicate", args=[self.section.pk]))
+        duplicate = self.draft.sections.filter(section_key="product_section").exclude(pk=self.section.pk).get()
+
+        second_collection = collection_service.create_collection(self.store, name="کالکشن دوم تکرار")
+        self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[duplicate.pk]), {
+            "data_source": "collection", "source_id": str(second_collection.pk), "item_limit": "8",
+            "display_mode": "carousel", "title": "دوم",
+        })
+
+        self.section.refresh_from_db()
+        duplicate.refresh_from_db()
+        self.assertEqual(self.section.settings["source_id"], first_collection.pk)
+        self.assertEqual(self.section.settings["title"], "اول")
+        self.assertEqual(duplicate.settings["source_id"], second_collection.pk)
+        self.assertEqual(duplicate.settings["title"], "دوم")
+
+    def test_deactivating_section_does_not_affect_collection(self):
+        """سناریوی D (Playwright): غیرفعال‌سازیِ Section نباید خودِ
+        کالکشن را تحت تأثیر قرار دهد — is_active فقط روی StorefrontSection
+        است، MerchantCollection.is_active کاملاً جداست."""
+        from apps.catalog.services import collection_service
+
+        collection = collection_service.create_collection(self.store, name="کالکشن غیرفعال‌سازی سکشن")
+        self.section.settings = {
+            "data_source": "collection", "source_id": collection.pk, "product_ids": [],
+            "item_limit": 8, "display_mode": "carousel", "show_view_all": True, "title": "", "subtitle": "",
+        }
+        self.section.save(update_fields=["settings"])
+
+        self.client.post(reverse("dashboard:storefront-builder-section-toggle", args=[self.section.pk]))
+        self.section.refresh_from_db()
+        collection.refresh_from_db()
+        self.assertFalse(self.section.is_active)
+        self.assertTrue(collection.is_active)
+
 
 class ProductSectionProductSearchTests(StorefrontBuilderViewsTestCase):
     def setUp(self):

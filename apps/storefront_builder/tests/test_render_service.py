@@ -180,3 +180,53 @@ class ProductSectionRenderTests(TestCase):
         item = next(i for i in items if i["section"].pk == section.pk)
         self.assertGreaterEqual(len(item["context"]["products"]), 1)
         self.assertIsNone(item["context"]["view_all_url"])
+
+    def test_two_collection_instances_do_not_multiply_queries_per_extra_product(self):
+        """رگرسیونِ N+1: کشِ per-instance (نه per-section_key) نباید به
+        قیمتِ برگشتن به یک کوئری به‌ازایِ هر کالا تمام شود — هر نمونه
+        باید select_related/prefetch_related را حفظ کند. مقایسه‌ی کوئریِ
+        «۲ کالا در ۱ نمونه» با «۴ کالا در ۲ نمونه» باید تقریباً برابر
+        باشد (همان تعداد کوئریِ ثابت، نه رشدِ خطی با تعدادِ کالا/نمونه)."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from apps.catalog.services import collection_service
+
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="product_section").delete()
+
+        collection_a = collection_service.create_collection(store, name="کالکشن N+1 الف")
+        collection_service.add_product(collection_a, self._product(store, "n1-a1"))
+        collection_service.add_product(collection_a, self._product(store, "n1-a2"))
+        base_settings = {
+            "data_source": "collection", "product_ids": [], "item_limit": 8,
+            "display_mode": "carousel", "show_view_all": True, "title": "", "subtitle": "",
+        }
+        StorefrontSection.objects.create(
+            version=draft, section_key="product_section", order=950,
+            settings={**base_settings, "source_id": collection_a.pk},
+        )
+        with CaptureQueriesContext(connection) as single_ctx:
+            items = build_render_items(draft, store)
+            for item in items:
+                list(item["context"].get("products", []))
+        single_count = len(single_ctx.captured_queries)
+
+        collection_b = collection_service.create_collection(store, name="کالکشن N+1 ب")
+        collection_service.add_product(collection_b, self._product(store, "n1-b1"))
+        collection_service.add_product(collection_b, self._product(store, "n1-b2"))
+        StorefrontSection.objects.create(
+            version=draft, section_key="product_section", order=951,
+            settings={**base_settings, "source_id": collection_b.pk},
+        )
+        with CaptureQueriesContext(connection) as double_ctx:
+            items = build_render_items(draft, store)
+            for item in items:
+                list(item["context"].get("products", []))
+        double_count = len(double_ctx.captured_queries)
+
+        # یک نمونه‌ی دومِ کامل (کالکشن + کالاهایش) چند کوئریِ ثابتِ اضافه
+        # می‌زند (خودِ resolve + prefetch تصاویر) — نه یک کوئری به‌ازایِ
+        # هر کالای اضافه‌شده.
+        self.assertLessEqual(double_count - single_count, 4)
