@@ -68,6 +68,128 @@ def _validate_rich_text_settings(raw: dict) -> dict:
     return {"body_html": body_html}
 
 
+#: منابع مجازِ داده‌یِ بخشِ محصول (فاز C) — enum بسته؛ هر مقدارِ دیگر رد
+#: می‌شود. این تنها لیستِ مجاز در کل کدبیس است — مصرف‌کننده‌ها (فرم
+#: ادیتور، ``section_data_service``) باید همین ثابت را import کنند، نه
+#: رشته را جای دیگری تکرار کنند.
+PRODUCT_SECTION_DATA_SOURCES = (
+    "collection", "category", "brand", "manual",
+    "newest", "discounted", "best_sellers", "most_viewed",
+)
+#: منابعی که به یک شیءِ واحدِ دیگر (کالکشن/دسته/برند) ارجاع می‌دهند —
+#: این‌ها به ``source_id`` نیاز دارند.
+_SINGLE_REFERENCE_SOURCES = {"collection", "category", "brand"}
+
+PRODUCT_SECTION_DISPLAY_MODES = ("carousel", "grid")
+
+_PRODUCT_SECTION_MIN_LIMIT = 2
+_PRODUCT_SECTION_MAX_LIMIT = 24
+_PRODUCT_SECTION_DEFAULT_LIMIT = 8
+_MAX_PRODUCT_SECTION_TITLE_LENGTH = 60
+_MAX_PRODUCT_SECTION_SUBTITLE_LENGTH = 150
+#: سقفِ تعدادِ کالای دستی — به‌قدرِ کافی بزرگ‌تر از بیشینه‌یِ item_limit
+#: تا مرچنت بتواند بیش از حدِ نمایش، کالا انتخاب کند (مثلاً برایِ چرخشِ
+#: بعدی)، اما نه نامحدود.
+_MAX_MANUAL_PRODUCT_IDS = 60
+
+
+class ProductSectionSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ بخشِ محصول نامعتبر است (فقط اعتبارسنجیِ شکل/enum/
+    بازه — مالکیتِ Store برایِ ``source_id``/``product_ids`` در
+    ``services/section_data_service.py`` چک می‌شود، نه اینجا)."""
+
+
+def _clean_positive_int_list(raw_list, *, max_len: int) -> list[int]:
+    if not isinstance(raw_list, list):
+        raise ProductSectionSettingsError("فهرستِ کالاها باید یک آرایه باشد")
+    cleaned: list[int] = []
+    seen = set()
+    for value in raw_list:
+        try:
+            int_value = int(value)
+        except (TypeError, ValueError):
+            raise ProductSectionSettingsError("شناسه‌ی کالا نامعتبر است") from None
+        if int_value <= 0 or int_value in seen:
+            continue
+        seen.add(int_value)
+        cleaned.append(int_value)
+    return cleaned[:max_len]
+
+
+def _validate_product_section_settings(raw: dict) -> dict:
+    """قراردادِ تنظیماتِ «بخشِ محصول» (فازِ C) — تنها اعتبارسنجیِ شکل/
+    enum/بازه‌یِ ایمن؛ هیچ کوئریِ دیتابیس/چکِ مالکیتِ Store اینجا انجام
+    نمی‌شود (طبقِ همان تفکیکِ مسئولیتی که مستندسازیِ بالایِ فایل توصیف
+    می‌کند). خروجی همیشه دقیقاً همین ۸ کلید را دارد — کلیدِ ناشناخته‌یِ
+    ورودی بی‌صدا حذف می‌شود."""
+    if not isinstance(raw, dict):
+        raise ProductSectionSettingsError("تنظیمات باید یک شیء JSON باشد")
+
+    data_source = raw.get("data_source")
+    if data_source not in PRODUCT_SECTION_DATA_SOURCES:
+        raise ProductSectionSettingsError("منبعِ داده‌یِ انتخاب‌شده نامعتبر است")
+
+    display_mode = raw.get("display_mode")
+    if display_mode not in PRODUCT_SECTION_DISPLAY_MODES:
+        display_mode = "carousel"
+
+    try:
+        item_limit = int(raw.get("item_limit", _PRODUCT_SECTION_DEFAULT_LIMIT))
+    except (TypeError, ValueError):
+        raise ProductSectionSettingsError("تعدادِ کالا باید عدد باشد") from None
+    item_limit = max(_PRODUCT_SECTION_MIN_LIMIT, min(_PRODUCT_SECTION_MAX_LIMIT, item_limit))
+
+    show_view_all = raw.get("show_view_all", True)
+    if not isinstance(show_view_all, bool):
+        show_view_all = bool(show_view_all)
+
+    title = str(raw.get("title", "")).strip()[:_MAX_PRODUCT_SECTION_TITLE_LENGTH]
+    subtitle = str(raw.get("subtitle", "")).strip()[:_MAX_PRODUCT_SECTION_SUBTITLE_LENGTH]
+
+    # source_id/product_ids فقط برایِ منبعِ متناظرشان معنا دارند — برایِ
+    # بقیه همیشه به مقدارِ خنثی (None/[]) بازنشانی می‌شوند تا تنظیماتِ
+    # ذخیره‌شده هرگز حاویِ ارجاعِ یتیمِ بی‌ربط به data_source فعلی نباشد.
+    source_id = None
+    if data_source in _SINGLE_REFERENCE_SOURCES:
+        raw_source_id = raw.get("source_id")
+        try:
+            source_id = int(raw_source_id)
+        except (TypeError, ValueError):
+            raise ProductSectionSettingsError("مقصدِ انتخاب‌شده نامعتبر است") from None
+        if source_id <= 0:
+            raise ProductSectionSettingsError("مقصدِ انتخاب‌شده نامعتبر است")
+
+    product_ids: list[int] = []
+    if data_source == "manual":
+        product_ids = _clean_positive_int_list(raw.get("product_ids", []), max_len=_MAX_MANUAL_PRODUCT_IDS)
+        if not product_ids:
+            raise ProductSectionSettingsError("برایِ «کالاهایِ دستی» باید حداقل یک کالا انتخاب شود")
+
+    return {
+        "data_source": data_source,
+        "source_id": source_id,
+        "product_ids": product_ids,
+        "item_limit": item_limit,
+        "display_mode": display_mode,
+        "show_view_all": show_view_all,
+        "title": title,
+        "subtitle": subtitle,
+    }
+
+
+def _product_section_defaults() -> dict:
+    return {
+        "data_source": "newest",
+        "source_id": None,
+        "product_ids": [],
+        "item_limit": _PRODUCT_SECTION_DEFAULT_LIMIT,
+        "display_mode": "carousel",
+        "show_view_all": True,
+        "title": "",
+        "subtitle": "",
+    }
+
+
 def _validate_image_text_settings(raw: dict) -> dict:
     if not isinstance(raw, dict):
         raise ValueError("تنظیمات باید یک شیء JSON باشد")
@@ -183,6 +305,12 @@ SECTION_REGISTRY: dict[str, SectionDefinition] = {
         template_name="storefront_builder/sections/image_text.html",
         validate_settings=_validate_image_text_settings,
         default_settings=lambda: {"title": "", "body_html": "", "image_url": "", "image_position": "right"},
+        duplicable=True, removable=True, has_settings_form=True,
+    ),
+    "product_section": SectionDefinition(
+        key="product_section", label_fa="بخش محصولات", icon="shopping-bag",
+        template_name="storefront_builder/sections/product_section.html",
+        validate_settings=_validate_product_section_settings, default_settings=_product_section_defaults,
         duplicable=True, removable=True, has_settings_form=True,
     ),
     "trust_features": SectionDefinition(

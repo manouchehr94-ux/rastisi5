@@ -2,6 +2,7 @@ from django.test import TestCase
 
 from apps.storefront_builder.section_registry import (
     SECTION_REGISTRY,
+    ProductSectionSettingsError,
     UnknownSectionTypeError,
     get_definition,
     is_valid_section_key,
@@ -12,7 +13,7 @@ EXPECTED_KEYS = {
     "announcement_bar", "hero_banner", "image_slider", "single_banner",
     "multi_banner", "category_grid", "featured_products", "newest_products",
     "best_sellers", "discounted_products", "amazing_offers", "brand_carousel",
-    "promo_cards", "rich_text", "image_text", "trust_features",
+    "promo_cards", "rich_text", "image_text", "product_section", "trust_features",
 }
 
 
@@ -60,3 +61,111 @@ class SectionRegistryTests(TestCase):
         definition = get_definition("hero_banner")
         result = definition.validate_settings({"foo": "bar"})
         self.assertEqual(result, {"foo": "bar"})
+
+
+class ProductSectionSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("product_section")
+
+    def _validate(self, **overrides):
+        raw = {"data_source": "newest"} | overrides
+        return self.definition.validate_settings(raw)
+
+    def test_defaults_are_already_valid(self):
+        cleaned = self.definition.validate_settings(self.definition.default_settings())
+        self.assertEqual(cleaned["data_source"], "newest")
+
+    def test_rejects_unknown_data_source(self):
+        with self.assertRaises(ProductSectionSettingsError):
+            self._validate(data_source="totally_made_up")
+
+    def test_rejects_missing_data_source(self):
+        with self.assertRaises(ProductSectionSettingsError):
+            self.definition.validate_settings({})
+
+    def test_display_mode_falls_back_to_carousel_on_invalid_value(self):
+        cleaned = self._validate(display_mode="not_a_mode")
+        self.assertEqual(cleaned["display_mode"], "carousel")
+
+    def test_display_mode_grid_is_accepted(self):
+        cleaned = self._validate(display_mode="grid")
+        self.assertEqual(cleaned["display_mode"], "grid")
+
+    def test_item_limit_clamped_to_safe_range(self):
+        self.assertEqual(self._validate(item_limit=0)["item_limit"], 2)
+        self.assertEqual(self._validate(item_limit=999)["item_limit"], 24)
+        self.assertEqual(self._validate(item_limit=8)["item_limit"], 8)
+
+    def test_item_limit_non_numeric_rejected(self):
+        with self.assertRaises(ProductSectionSettingsError):
+            self._validate(item_limit="abc")
+
+    def test_title_and_subtitle_trimmed_and_capped(self):
+        cleaned = self._validate(title="  عنوان  ", subtitle="  زیرعنوان  ")
+        self.assertEqual(cleaned["title"], "عنوان")
+        self.assertEqual(cleaned["subtitle"], "زیرعنوان")
+        long_title = "الف" * 200
+        cleaned = self._validate(title=long_title)
+        self.assertEqual(len(cleaned["title"]), 60)
+
+    def test_collection_requires_source_id(self):
+        with self.assertRaises(ProductSectionSettingsError):
+            self._validate(data_source="collection")
+
+    def test_collection_accepts_positive_source_id(self):
+        cleaned = self._validate(data_source="collection", source_id=5)
+        self.assertEqual(cleaned["source_id"], 5)
+        self.assertEqual(cleaned["product_ids"], [])
+
+    def test_collection_rejects_non_positive_source_id(self):
+        with self.assertRaises(ProductSectionSettingsError):
+            self._validate(data_source="collection", source_id=0)
+        with self.assertRaises(ProductSectionSettingsError):
+            self._validate(data_source="collection", source_id=-3)
+
+    def test_category_and_brand_also_require_source_id(self):
+        for source in ("category", "brand"):
+            with self.assertRaises(ProductSectionSettingsError):
+                self._validate(data_source=source)
+            cleaned = self._validate(data_source=source, source_id=1)
+            self.assertEqual(cleaned["source_id"], 1)
+
+    def test_algorithmic_sources_ignore_source_id(self):
+        for source in ("newest", "discounted", "best_sellers", "most_viewed"):
+            cleaned = self._validate(data_source=source, source_id=999)
+            self.assertIsNone(cleaned["source_id"])
+
+    def test_manual_requires_at_least_one_product(self):
+        with self.assertRaises(ProductSectionSettingsError):
+            self._validate(data_source="manual", product_ids=[])
+
+    def test_manual_deduplicates_and_preserves_order(self):
+        cleaned = self._validate(data_source="manual", product_ids=[5, 3, 5, 7])
+        self.assertEqual(cleaned["product_ids"], [5, 3, 7])
+        self.assertIsNone(cleaned["source_id"])
+
+    def test_manual_drops_non_positive_ids(self):
+        cleaned = self._validate(data_source="manual", product_ids=[0, -1, 4])
+        self.assertEqual(cleaned["product_ids"], [4])
+
+    def test_manual_product_ids_capped(self):
+        cleaned = self._validate(data_source="manual", product_ids=list(range(1, 200)))
+        self.assertEqual(len(cleaned["product_ids"]), 60)
+
+    def test_non_manual_source_ignores_product_ids(self):
+        cleaned = self._validate(data_source="newest", product_ids=[1, 2, 3])
+        self.assertEqual(cleaned["product_ids"], [])
+
+    def test_show_view_all_defaults_true(self):
+        self.assertTrue(self._validate()["show_view_all"])
+
+    def test_show_view_all_accepts_false(self):
+        self.assertFalse(self._validate(show_view_all=False)["show_view_all"])
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ProductSectionSettingsError):
+            self.definition.validate_settings("not a dict")
+
+    def test_unknown_keys_silently_dropped(self):
+        cleaned = self._validate(evil_field="<script>")
+        self.assertNotIn("evil_field", cleaned)
