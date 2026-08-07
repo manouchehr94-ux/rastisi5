@@ -230,3 +230,66 @@ class ResolveBrandSourceTests(TestCase):
             self.store, _brand_settings(source_id=self.brand.pk, item_limit=3),
         )
         self.assertEqual(len(products), 3)
+
+
+def _manual_settings(**overrides):
+    return _settings(data_source="manual", **overrides)
+
+
+class ResolveManualSourceTests(TestCase):
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.other_store = Store.objects.create(
+            name="فروشگاه دوم دیتا دستی", slug="section-data-svc-manual-other", admin_subdomain="section-data-svc-manual-other",
+        )
+
+    def test_no_product_ids_returns_empty(self):
+        products, url = section_data_service.resolve_products(self.store, _manual_settings(product_ids=[]))
+        self.assertEqual(products, [])
+        self.assertIsNone(url)
+
+    def test_products_returned_in_manual_order_not_db_order(self):
+        p1 = _product(self.store, "sec-man-p1")
+        p2 = _product(self.store, "sec-man-p2")
+        p3 = _product(self.store, "sec-man-p3")
+        products, url = section_data_service.resolve_products(
+            self.store, _manual_settings(product_ids=[p3.pk, p1.pk, p2.pk]),
+        )
+        self.assertEqual([p.pk for p in products], [p3.pk, p1.pk, p2.pk])
+        self.assertIsNone(url)
+
+    def test_cross_store_product_excluded(self):
+        vendor = Vendor.objects.create(store=self.other_store, name="فروشنده دیگر دستی", slug="v-manual-other")
+        category = Category.objects.create(store=self.other_store, name="دسته دیگر دستی", slug="c-manual-other")
+        other_product = Product.objects.create(
+            store=self.other_store, vendor=vendor, category=category, name="کالای فروشگاه دیگر",
+            slug="manual-other-p1", sku="SKU-MANUAL-OTHER-1", price=Decimal("10000"), status=Product.Status.ACTIVE,
+        )
+        own_product = _product(self.store, "sec-man-own")
+        products, url = section_data_service.resolve_products(
+            self.store, _manual_settings(product_ids=[other_product.pk, own_product.pk]),
+        )
+        self.assertEqual([p.pk for p in products], [own_product.pk])
+
+    def test_deleted_or_missing_product_excluded(self):
+        p1 = _product(self.store, "sec-man-existing")
+        products, url = section_data_service.resolve_products(
+            self.store, _manual_settings(product_ids=[999999, p1.pk]),
+        )
+        self.assertEqual([p.pk for p in products], [p1.pk])
+
+    def test_non_storefront_visible_product_excluded(self):
+        hidden = _product(self.store, "sec-man-hidden", status=Product.Status.DRAFT)
+        visible = _product(self.store, "sec-man-visible")
+        products, url = section_data_service.resolve_products(
+            self.store, _manual_settings(product_ids=[hidden.pk, visible.pk]),
+        )
+        self.assertEqual([p.pk for p in products], [visible.pk])
+
+    def test_item_limit_applied_after_ordering(self):
+        products_created = [_product(self.store, f"sec-man-limit-{i}") for i in range(5)]
+        ordered_ids = [p.pk for p in reversed(products_created)]
+        products, url = section_data_service.resolve_products(
+            self.store, _manual_settings(product_ids=ordered_ids, item_limit=2),
+        )
+        self.assertEqual([p.pk for p in products], ordered_ids[:2])

@@ -85,10 +85,32 @@ def _resolve_brand(store, settings: dict):
     return products, view_all_url
 
 
+def _resolve_manual(store, settings: dict):
+    """کالاهایِ دستیِ مرچنت — ``product_ids`` (اعتبارسنجی‌شده در
+    section_registry: بدونِ تکرار، حداکثر ۶۰ عدد) به همان ترتیبِ
+    انتخابِ مرچنت رندر می‌شود، نه ترتیبِ دلخواهِ دیتابیس. ``pk__in``
+    ترتیب را حفظ نمی‌کند، پس فهرست دستی طبقِ ``product_ids`` بازسازی
+    می‌شود (همان الگویِ ``collection_products_add``ی فازِ B). کالایِ
+    حذف‌شده/متعلق به فروشگاهِ دیگر/دیگر storefront-visible نبودن، بی‌صدا
+    از فهرست کنار گذاشته می‌شود — نه خطا."""
+    product_ids = settings.get("product_ids") or []
+    if not product_ids:
+        return [], None
+    limit = settings["item_limit"]
+    products_by_id = {
+        p.pk: p
+        for p in storefront_listing_products(store).filter(pk__in=product_ids)
+        .select_related("brand").prefetch_related("images")
+    }
+    products = _reorder_by_ids(products_by_id, product_ids)[:limit]
+    return products, None
+
+
 _RESOLVERS = {
     "collection": _resolve_collection,
     "category": _resolve_category,
     "brand": _resolve_brand,
+    "manual": _resolve_manual,
 }
 
 
