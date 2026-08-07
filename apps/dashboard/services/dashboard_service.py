@@ -33,7 +33,8 @@ from django.utils import timezone
 from apps.catalog.models import Product
 from apps.core.utils import to_fa_digits
 from apps.customers.models import Customer
-from apps.orders.models import Order, OrderItem
+from apps.orders.models import Order
+from apps.orders.services import best_seller_service
 
 LOW_STOCK_THRESHOLD = 10
 
@@ -218,17 +219,32 @@ def recent_orders(store, limit: int = 6):
 
 
 def top_selling_products(store, limit: int = 5, days: int = 30):
-    since = timezone.now() - timedelta(days=days)
-    rows = list(
-        OrderItem.objects.filter(order__store=store, order__created_at__gte=since, product__isnull=False)
-        .exclude(order__status=Order.Status.CANCELED)
-        .values("product_id", "product__name", "product__icon", "product__tint")
-        .annotate(total_sold=Sum("quantity"))
-        .order_by("-total_sold")[:limit]
-    )
-    max_sold = max((row["total_sold"] for row in rows), default=0)
-    for row in rows:
-        row["progress_pct"] = round(row["total_sold"] / max_sold * 100) if max_sold else 0
+    """پرفروش‌ترین‌های واقعی این Store — محاسبه‌ی خودِ رتبه‌بندی از
+    ``best_seller_service`` (تنها الگوریتمِ مجاز، به‌اشتراک با سازنده
+    بصری) عبور می‌کند؛ اینجا فقط فیلدهایِ نمایشیِ کارتِ داشبورد
+    (نام/آیکون/رنگ + درصدِ نوار پیشرفت) به آن ضمیمه می‌شود."""
+    totals = best_seller_service.best_selling_totals(store, limit=limit, days=days)
+    if not totals:
+        return []
+    products_by_id = {
+        product.pk: product
+        for product in Product.objects.filter(store=store, pk__in=[pid for pid, _ in totals])
+        .only("id", "name", "icon", "tint")
+    }
+    max_sold = totals[0][1]
+    rows = []
+    for product_id, total_sold in totals:
+        product = products_by_id.get(product_id)
+        if product is None:
+            continue
+        rows.append({
+            "product_id": product_id,
+            "product__name": product.name,
+            "product__icon": product.icon,
+            "product__tint": product.tint,
+            "total_sold": total_sold,
+            "progress_pct": round(total_sold / max_sold * 100) if max_sold else 0,
+        })
     return rows
 
 

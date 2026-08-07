@@ -17,6 +17,7 @@ from __future__ import annotations
 from apps.catalog.models import Brand, Category
 from apps.catalog.services.product_publish_service import storefront_listing_products
 from apps.content.models import HeroSlide, PromotionalBanner
+from apps.orders.services import best_seller_service
 
 from ..section_registry import UnknownSectionTypeError, get_definition
 
@@ -68,10 +69,20 @@ def _newest_products_context(store, section):
 
 
 def _best_sellers_context(store, section):
-    products = (
-        storefront_listing_products(store).select_related("brand").prefetch_related("images")
-        .order_by("-sold_count")[:8]
-    )
+    """پرفروش‌ترین‌هایِ واقعی — از ``best_seller_service`` (محاسبه‌ی زنده
+    از OrderItem)، **نه** ``Product.sold_count`` که هیچ writer‌ای ندارد
+    (به مستندسازیِ ``best_seller_service`` مراجعه شود). ``pk__in`` ترتیبِ
+    رتبه را حفظ نمی‌کند، پس فهرست دستی طبقِ همان ترتیبِ رتبه‌بندی بازسازی
+    می‌شود (همان الگویِ ``collection_products_add``ی فازِ B)."""
+    product_ids = best_seller_service.best_selling_product_ids(store, limit=8)
+    if not product_ids:
+        return {"products": []}
+    products_by_id = {
+        p.pk: p
+        for p in storefront_listing_products(store).filter(pk__in=product_ids)
+        .select_related("brand").prefetch_related("images")
+    }
+    products = [products_by_id[pid] for pid in product_ids if pid in products_by_id]
     return {"products": products}
 
 
