@@ -22,7 +22,7 @@
 
     <div class="form-group" x-show="dataSource === 'collection'" x-cloak>
       <label for="id_ps_collection">انتخاب کالکشن</label>
-      <select name="source_id" id="id_ps_collection" class="form-select">
+      <select name="source_id" id="id_ps_collection" class="form-select" :disabled="dataSource !== 'collection'">
         <option value="">— انتخاب کنید —</option>
         {% for collection in collections %}
         <option value="{{ collection.pk }}" {% if section.settings.data_source == "collection" and section.settings.source_id == collection.pk %}selected{% endif %}>
@@ -35,7 +35,7 @@
 
     <div class="form-group" x-show="dataSource === 'category'" x-cloak>
       <label for="id_ps_category">انتخاب دسته‌بندی</label>
-      <select name="source_id" id="id_ps_category" class="form-select">
+      <select name="source_id" id="id_ps_category" class="form-select" :disabled="dataSource !== 'category'">
         <option value="">— انتخاب کنید —</option>
         {% for category in categories %}
         <option value="{{ category.pk }}" {% if section.settings.data_source == "category" and section.settings.source_id == category.pk %}selected{% endif %}>
@@ -47,7 +47,7 @@
 
     <div class="form-group" x-show="dataSource === 'brand'" x-cloak>
       <label for="id_ps_brand">انتخاب برند</label>
-      <select name="source_id" id="id_ps_brand" class="form-select">
+      <select name="source_id" id="id_ps_brand" class="form-select" :disabled="dataSource !== 'brand'">
         <option value="">— انتخاب کنید —</option>
         {% for brand in brands %}
         <option value="{{ brand.pk }}" {% if section.settings.data_source == "brand" and section.settings.source_id == brand.pk %}selected{% endif %}>
