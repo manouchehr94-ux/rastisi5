@@ -20,6 +20,7 @@ from django.urls import reverse
 from apps.catalog.models import Brand, Category
 from apps.catalog.services import collection_service
 from apps.catalog.services.product_publish_service import storefront_listing_products
+from apps.orders.services import best_seller_service
 
 
 def _reorder_by_ids(products_by_id: dict, ordered_ids: list) -> list:
@@ -106,11 +107,62 @@ def _resolve_manual(store, settings: dict):
     return products, None
 
 
+def _resolve_newest(store, settings: dict):
+    limit = settings["item_limit"]
+    products = list(
+        storefront_listing_products(store).select_related("brand").prefetch_related("images")
+        .order_by("-created_at", "id")[:limit]
+    )
+    return products, None
+
+
+def _resolve_discounted(store, settings: dict):
+    limit = settings["item_limit"]
+    products = list(
+        storefront_listing_products(store).filter(discount_percent__gt=0)
+        .select_related("brand").prefetch_related("images")
+        .order_by("-discount_percent", "id")[:limit]
+    )
+    return products, None
+
+
+def _resolve_best_sellers(store, settings: dict):
+    """پرفروش‌ترین‌هایِ واقعی — از ``best_seller_service`` (محاسبه‌ی زنده
+    از OrderItem، تنها الگوریتمِ مجازِ کل کدبیس)، **نه** از
+    ``Product.sold_count``."""
+    limit = settings["item_limit"]
+    product_ids = best_seller_service.best_selling_product_ids(store, limit=limit)
+    if not product_ids:
+        return [], None
+    products_by_id = {
+        p.pk: p
+        for p in storefront_listing_products(store).filter(pk__in=product_ids)
+        .select_related("brand").prefetch_related("images")
+    }
+    return _reorder_by_ids(products_by_id, product_ids), None
+
+
+def _resolve_most_viewed(store, settings: dict):
+    """``Product.views_count`` — بر خلافِ ``sold_count``، این فیلد واقعاً
+    نوشته می‌شود (``apps.catalog.views.product_detail``، هر بازدید)، پس
+    مستقیماً قابلِ استفاده است (به مستندسازیِ ممیزیِ فازِ C مراجعه شود)."""
+    limit = settings["item_limit"]
+    products = list(
+        storefront_listing_products(store).select_related("brand").prefetch_related("images")
+        .order_by("-views_count", "id")[:limit]
+    )
+    return products, None
+
+
 _RESOLVERS = {
     "collection": _resolve_collection,
     "category": _resolve_category,
     "brand": _resolve_brand,
     "manual": _resolve_manual,
+    "newest": _resolve_newest,
+    "discounted": _resolve_discounted,
+    "best_sellers": _resolve_best_sellers,
+    "most_viewed": _resolve_most_viewed,
 }
 
 

@@ -1,0 +1,14 @@
+<section class="section">
+  <div class="sec-head">
+    <h2><span class="bar"></span>{{ settings.title|default:"محصولات" }}</h2>
+    {% if view_all_url and settings.show_view_all %}
+    <a href="{{ view_all_url }}" class="btn btn-sm">مشاهده همه</a>
+    {% endif %}
+  </div>
+  {% if settings.subtitle %}
+  <p style="color:var(--muted);font-size:13px;margin:-10px 0 16px">{{ settings.subtitle }}</p>
+  {% endif %}
+  <div class="{% if settings.display_mode == "grid" %}grid g4{% else %}pcarousel{% endif %}">
+    {% include "catalog/partials/product_grid.html" with products=products %}
+  </div>
+</section>

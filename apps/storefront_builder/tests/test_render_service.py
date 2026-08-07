@@ -107,3 +107,76 @@ class BuildRenderItemsTests(TestCase):
         for item in hero_items:
             titles = [s.title for s in item["context"]["hero_slides"]]
             self.assertIn("اسلاید تست", titles)
+
+
+class ProductSectionRenderTests(TestCase):
+    """product_section به‌عمد جزوِ ``PER_INSTANCE_SECTION_KEYS`` است —
+    این کلاس دقیقاً همان چیزی را تأیید می‌کند که آن پرچم برایش اضافه شد:
+    دو نمونه‌ی تکرارشده با تنظیماتِ متفاوت (اینجا: دو کالکشنِ متفاوت)
+    باید محتوایِ متفاوت نشان دهند، نه محتوایِ «قرض‌گرفته‌شده» از نمونه‌ی
+    اول (باگی که کشِ سطح section_key بدونِ این فیکس ایجاد می‌کرد)."""
+
+    def setUp(self):
+        cache.clear()
+
+    def _product(self, store, slug, *, vendor=None, category=None):
+        from decimal import Decimal
+
+        from apps.catalog.models import Category, Vendor
+
+        vendor = vendor or Vendor.objects.create(store=store, name=f"فروشنده {slug}", slug=f"v-{slug}")
+        category = category or Category.objects.create(store=store, name=f"دسته {slug}", slug=f"c-{slug}")
+        from apps.catalog.models import Product
+
+        return Product.objects.create(
+            store=store, vendor=vendor, category=category, name=f"کالای {slug}", slug=slug,
+            sku=f"SKU-{slug}", price=Decimal("10000"), status=Product.Status.ACTIVE,
+        )
+
+    def test_two_instances_with_different_collections_do_not_share_products(self):
+        from apps.catalog.services import collection_service
+
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+
+        collection_a = collection_service.create_collection(store, name="کالکشن الف رندر")
+        collection_b = collection_service.create_collection(store, name="کالکشن ب رندر")
+        product_a = self._product(store, "render-ps-a")
+        product_b = self._product(store, "render-ps-b")
+        collection_service.add_product(collection_a, product_a)
+        collection_service.add_product(collection_b, product_b)
+
+        base_settings = {
+            "data_source": "collection", "product_ids": [], "item_limit": 8,
+            "display_mode": "carousel", "show_view_all": True, "title": "", "subtitle": "",
+        }
+        section_a = StorefrontSection.objects.create(
+            version=draft, section_key="product_section", order=900,
+            settings={**base_settings, "source_id": collection_a.pk},
+        )
+        section_b = StorefrontSection.objects.create(
+            version=draft, section_key="product_section", order=901,
+            settings={**base_settings, "source_id": collection_b.pk},
+        )
+
+        items = build_render_items(draft, store)
+        item_a = next(i for i in items if i["section"].pk == section_a.pk)
+        item_b = next(i for i in items if i["section"].pk == section_b.pk)
+        self.assertEqual([p.pk for p in item_a["context"]["products"]], [product_a.pk])
+        self.assertEqual([p.pk for p in item_b["context"]["products"]], [product_b.pk])
+
+    def test_algorithmic_sources_reachable_through_full_pipeline(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        self._product(store, "render-ps-newest")
+        section = StorefrontSection.objects.create(
+            version=draft, section_key="product_section", order=902,
+            settings={
+                "data_source": "newest", "source_id": None, "product_ids": [], "item_limit": 8,
+                "display_mode": "grid", "show_view_all": True, "title": "جدیدترین", "subtitle": "",
+            },
+        )
+        items = build_render_items(draft, store)
+        item = next(i for i in items if i["section"].pk == section.pk)
+        self.assertGreaterEqual(len(item["context"]["products"]), 1)
+        self.assertIsNone(item["context"]["view_all_url"])

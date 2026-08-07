@@ -20,6 +20,7 @@ from apps.content.models import HeroSlide, PromotionalBanner
 from apps.orders.services import best_seller_service
 
 from ..section_registry import UnknownSectionTypeError, get_definition
+from . import section_data_service
 
 TILE_CLASSES = ["t1", "t2", "t3"]
 
@@ -126,6 +127,25 @@ def _static_context(store, section):
     return {}
 
 
+def _product_section_context(store, section):
+    """برخلافِ همه‌ی builderهایِ دیگرِ این فایل، این یکی به تنظیماتِ
+    خاصِ همین section (``data_source``/``source_id``/``product_ids``)
+    وابسته است — پس در ``PER_INSTANCE_SECTION_KEYS`` زیر ثبت شده تا
+    ``build_render_items`` آن را برایِ هر نمونه جداگانه محاسبه کند، نه
+    یک‌بار برایِ کلِ section_key (بازنویسی‌شدن با کش، دقیقاً همان باگی
+    که این پرچم برایِ جلوگیری از آن اضافه شده)."""
+    products, view_all_url = section_data_service.resolve_products(store, section.settings or {})
+    return {"products": products, "view_all_url": view_all_url}
+
+
+#: کلیدهایی که context builder‌شان به تنظیماتِ خودِ همان نمونه‌ی section
+#: وابسته است (نه فقط به store) — برایِ این‌ها، کشِ سطح-تابعِ
+#: ``build_render_items`` باید per-instance باشد، وگرنه دو نمونه‌ی
+#: تکرارشده (duplicable) با تنظیماتِ متفاوت (مثلاً دو کالکشنِ متفاوت)
+#: محتوایِ یکسان (نمونه‌ی اول) نشان می‌دهند.
+PER_INSTANCE_SECTION_KEYS = {"product_section"}
+
+
 _CONTEXT_BUILDERS = {
     "announcement_bar": _static_context,
     "hero_banner": _hero_banner_context,
@@ -142,6 +162,7 @@ _CONTEXT_BUILDERS = {
     "promo_cards": _category_context_for_promo_cards,
     "rich_text": _static_context,
     "image_text": _static_context,
+    "product_section": _product_section_context,
     "trust_features": _static_context,
 }
 
@@ -153,25 +174,35 @@ def build_render_items(version, store) -> list[dict]:
     را دیگر پشتیبانی نمی‌کند) بی‌صدا حذف می‌شوند — پیش‌نمایش/صفحه هرگز crash
     نمی‌کند.
 
-    بهینه‌سازی کوئری: هیچ‌کدام از توابع ``_CONTEXT_BUILDERS`` به تنظیمات
-    نمونه‌ی خاص یک section وابسته نیستند (فقط به ``store``) — پس اگر تاجر
-    یک نوع section را چند بار تکرار کند (قابلیت پشتیبانی‌شده،
+    بهینه‌سازی کوئری: اکثرِ توابعِ ``_CONTEXT_BUILDERS`` به تنظیماتِ
+    نمونه‌ی خاصِ یک section وابسته نیستند (فقط به ``store``) — پس اگر
+    تاجر یک نوع section را چند بار تکرار کند (قابلیت پشتیبانی‌شده،
     ``duplicable=True``)، نتیجه‌ی کوئری برای همان section_key در یک بار
-    رندر همیشه یکسان است. کش سطح-تابع زیر این کوئری‌های تکراری را در یک
-    درخواست حذف می‌کند، بدون افزودن یک لایه‌ی کش خارجی/persistent (که برای
-    این ویو، همیشه باید Draft زنده را نشان دهد، خطر بازگشت داده‌ی کهنه
-    دارد)."""
+    رندر همیشه یکسان است و کش سطح-تابع زیر این کوئری‌های تکراری را در یک
+    درخواست حذف می‌کند. استثنا: کلیدهایِ ``PER_INSTANCE_SECTION_KEYS``
+    (فعلاً فقط ``product_section``) که تنظیماتِ per-instance دارند
+    (مثلاً کالکشنِ متفاوت در هر نمونه) — برایِ این‌ها کش با
+    ``(section_key, section.pk)`` کلیددهی می‌شود، نه فقط section_key، تا
+    نمونه‌ی دوم محتوایِ نمونه‌ی اول را «قرض» نگیرد. این یک لایه‌ی کش
+    خارجی/persistent نیست (که برای این ویو، همیشه باید Draft زنده را
+    نشان دهد، خطر بازگشت داده‌ی کهنه دارد) — فقط حذفِ کوئریِ تکراری در
+    یک درخواست."""
     items = []
-    context_cache: dict[str, dict] = {}
+    context_cache: dict = {}
     for section in version.sections.filter(is_active=True).order_by("order", "id"):
         try:
             definition = get_definition(section.section_key)
         except UnknownSectionTypeError:
             continue
-        if section.section_key not in context_cache:
+        cache_key = (
+            (section.section_key, section.pk)
+            if section.section_key in PER_INSTANCE_SECTION_KEYS
+            else section.section_key
+        )
+        if cache_key not in context_cache:
             builder = _CONTEXT_BUILDERS.get(section.section_key, _static_context)
-            context_cache[section.section_key] = builder(store, section)
-        context = dict(context_cache[section.section_key])
+            context_cache[cache_key] = builder(store, section)
+        context = dict(context_cache[cache_key])
         context["section"] = section
         context["settings"] = section.settings or {}
         items.append({

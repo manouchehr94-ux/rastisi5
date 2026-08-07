@@ -85,3 +85,48 @@ class PublicHomepageIntegrationTests(TestCase):
         svc.publish(self.store)
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         self.assertEqual(resp.status_code, 200)
+
+    def test_published_product_section_collection_source_renders_products(self):
+        from decimal import Decimal
+
+        from apps.catalog.models import Category, Product, Vendor
+        from apps.catalog.services import collection_service
+
+        collection = collection_service.create_collection(self.store, name="وایر شمع صفحه اصلی")
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده صفحه اصلی", slug="v-home-ps")
+        category = Category.objects.create(store=self.store, name="دسته صفحه اصلی", slug="c-home-ps")
+        product = Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name="کالای صفحه اصلی خاص",
+            slug="home-ps-p1", sku="SKU-HOME-PS-1", price=Decimal("10000"), status=Product.Status.ACTIVE,
+        )
+        collection_service.add_product(collection, product)
+
+        draft = svc.get_or_create_draft(self.store)
+        StorefrontSection.objects.create(
+            version=draft, section_key="product_section", order=999,
+            settings={
+                "data_source": "collection", "source_id": collection.pk, "product_ids": [],
+                "item_limit": 8, "display_mode": "carousel", "show_view_all": True,
+                "title": "وایر شمع", "subtitle": "",
+            },
+        )
+        svc.publish(self.store)
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "وایر شمع")
+        self.assertContains(resp, "کالای صفحه اصلی خاص")
+
+    def test_published_product_section_with_deleted_collection_does_not_crash(self):
+        draft = svc.get_or_create_draft(self.store)
+        StorefrontSection.objects.create(
+            version=draft, section_key="product_section", order=999,
+            settings={
+                "data_source": "collection", "source_id": 999999, "product_ids": [],
+                "item_limit": 8, "display_mode": "grid", "show_view_all": True,
+                "title": "کالکشن حذف‌شده", "subtitle": "",
+            },
+        )
+        svc.publish(self.store)
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "کالکشن حذف‌شده")
