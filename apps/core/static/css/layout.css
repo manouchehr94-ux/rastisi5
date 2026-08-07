@@ -127,6 +127,22 @@
   .cat-dropdown{grid-template-columns:1fr;right:auto;left:0}
 }
 
+/* ===== نمایش در دستگاه‌ها (فاز D — سازنده بصری) =====
+   همان سه‌بخشیِ دسکتاپ/تبلت/موبایلِ بالا (۱۰۰۰px/۶۸۰px)، برایِ هر
+   نوع section یکسان — .rsec یک wrapper مشترک است که هم پیش‌نمایشِ
+   ادیتور و هم صفحه‌ی عمومی از یک partial واحد می‌سازند (هرگز فورک
+   نمی‌شود). عمداً از سه بازه‌ی مجزا (نه cascade) استفاده شده تا
+   «نمایش در تبلت» مستقل از «نمایش در دسکتاپ» باشد. */
+@media(min-width:1001px){
+  .rsec[data-hide-desktop]{display:none}
+}
+@media(max-width:1000px) and (min-width:681px){
+  .rsec[data-hide-tablet]{display:none}
+}
+@media(max-width:680px){
+  .rsec[data-hide-mobile]{display:none}
+}
+
 
 
 /* --- Navigation submenu --- */

@@ -52,3 +52,25 @@
 @media(max-width:680px){
   .pcarousel .pcard{flex-basis:150px}
 }
+
+/* تعدادِ ستونِ per-device بخشِ محصول (فازِ D) — مقادیرِ --cols-* روی
+   .rsec (پارتیالِ مشترکِ پیش‌نمایش/عمومی) ست می‌شوند و اینجا فقط
+   مصرف می‌شوند؛ .rsec-cols فقط داخلِ product_section.html استفاده
+   می‌شود، نه انواعِ دیگرِ column-aware (که چیدمانِ ثابتِ فعلی‌شان
+   دست‌نخورده می‌ماند). fallback (بعد از کاما) برایِ نمونه‌های خیلی
+   قدیمی که هرگز از فرمِ جدید عبور نکرده‌اند و متغیرِ CSS ندارند. */
+.grid.rsec-cols{grid-template-columns:repeat(var(--cols-desktop, 4), 1fr)}
+@media(max-width:1000px){
+  .grid.rsec-cols{grid-template-columns:repeat(var(--cols-tablet, 3), 1fr)}
+}
+@media(max-width:680px){
+  .grid.rsec-cols{grid-template-columns:repeat(var(--cols-mobile, 2), 1fr)}
+}
+
+.pcarousel.rsec-cols .pcard{flex-basis:calc((100% - (var(--cols-desktop, 4) - 1) * 16px) / var(--cols-desktop, 4))}
+@media(max-width:1000px){
+  .pcarousel.rsec-cols .pcard{flex-basis:calc((100% - (var(--cols-tablet, 3) - 1) * 16px) / var(--cols-tablet, 3))}
+}
+@media(max-width:680px){
+  .pcarousel.rsec-cols .pcard{flex-basis:calc((100% - (var(--cols-mobile, 2) - 1) * 16px) / var(--cols-mobile, 2))}
+}

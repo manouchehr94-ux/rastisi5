@@ -130,3 +130,37 @@ class PublicHomepageIntegrationTests(TestCase):
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "کالکشن حذف‌شده")
+
+    def test_view_all_link_actually_renders_on_public_page(self):
+        """رگرسیون: ``view_all_url`` قبلاً در include مشترکِ
+        home_visual.html/preview.html پاس داده نمی‌شد، پس دکمه‌ی
+        «مشاهده همه» هرگز رندر نمی‌شد — با اضافه‌شدنِ
+        responsive_section_wrapper.html اصلاح شد."""
+        from decimal import Decimal
+
+        from apps.catalog.models import Category, Product, Vendor
+        from apps.catalog.services import collection_service
+
+        collection = collection_service.create_collection(self.store, name="کالکشن دکمه مشاهده همه")
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده دکمه", slug="v-viewall")
+        category = Category.objects.create(store=self.store, name="دسته دکمه", slug="c-viewall")
+        product = Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name="کالای دکمه مشاهده همه",
+            slug="viewall-p1", sku="SKU-VIEWALL-1", price=Decimal("10000"), status=Product.Status.ACTIVE,
+        )
+        collection_service.add_product(collection, product)
+
+        draft = svc.get_or_create_draft(self.store)
+        StorefrontSection.objects.create(
+            version=draft, section_key="product_section", order=999,
+            settings={
+                "data_source": "collection", "source_id": collection.pk, "product_ids": [],
+                "item_limit": 8, "display_mode": "carousel", "show_view_all": True,
+                "title": "دکمه مشاهده همه", "subtitle": "",
+            },
+        )
+        svc.publish(self.store)
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        self.assertContains(resp, "مشاهده همه")
+        from urllib.parse import quote
+        self.assertContains(resp, f"/collections/{quote(collection.slug)}/")
