@@ -1,6 +1,119 @@
 <div class="modal-body">
   <h3 style="margin:0 0 12px">ویرایش تنظیمات — {{ definition.label_fa }}</h3>
   {% if field_errors.general %}<div class="field-error" style="margin-bottom:10px">{{ field_errors.general }}</div>{% endif %}
+  {% if section.section_key == "product_section" %}
+  {{ initial_manual_products|json_script:"ps-initial-products" }}
+  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
+        x-data="productSectionForm('{{ section.settings.data_source|default:"newest" }}', JSON.parse(document.getElementById('ps-initial-products').textContent))">
+    {% csrf_token %}
+    <div class="form-group">
+      <label for="id_ps_source">منبع کالاها</label>
+      <select name="data_source" id="id_ps_source" class="form-select" x-model="dataSource">
+        <option value="newest">جدیدترین محصولات</option>
+        <option value="discounted">محصولات تخفیف‌دار</option>
+        <option value="best_sellers">پرفروش‌ترین‌ها</option>
+        <option value="most_viewed">پربازدیدترین‌ها</option>
+        <option value="collection">کالکشن</option>
+        <option value="category">دسته‌بندی</option>
+        <option value="brand">برند</option>
+        <option value="manual">کالاهای دستی (انتخاب تکی)</option>
+      </select>
+    </div>
+
+    <div class="form-group" x-show="dataSource === 'collection'" x-cloak>
+      <label for="id_ps_collection">انتخاب کالکشن</label>
+      <select name="source_id" id="id_ps_collection" class="form-select">
+        <option value="">— انتخاب کنید —</option>
+        {% for collection in collections %}
+        <option value="{{ collection.pk }}" {% if section.settings.data_source == "collection" and section.settings.source_id == collection.pk %}selected{% endif %}>
+          {{ collection.name }}{% if not collection.is_active %} (غیرفعال){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      {% if not collections %}<p style="color:var(--muted);font-size:12px;margin:6px 0 0">هنوز هیچ کالکشنی نساخته‌اید.</p>{% endif %}
+    </div>
+
+    <div class="form-group" x-show="dataSource === 'category'" x-cloak>
+      <label for="id_ps_category">انتخاب دسته‌بندی</label>
+      <select name="source_id" id="id_ps_category" class="form-select">
+        <option value="">— انتخاب کنید —</option>
+        {% for category in categories %}
+        <option value="{{ category.pk }}" {% if section.settings.data_source == "category" and section.settings.source_id == category.pk %}selected{% endif %}>
+          {{ category.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group" x-show="dataSource === 'brand'" x-cloak>
+      <label for="id_ps_brand">انتخاب برند</label>
+      <select name="source_id" id="id_ps_brand" class="form-select">
+        <option value="">— انتخاب کنید —</option>
+        {% for brand in brands %}
+        <option value="{{ brand.pk }}" {% if section.settings.data_source == "brand" and section.settings.source_id == brand.pk %}selected{% endif %}>
+          {{ brand.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group" x-show="dataSource === 'manual'" x-cloak>
+      <label for="id_ps_search">جست‌وجو و افزودن کالا</label>
+      <input type="text" class="form-input" id="id_ps_search" autocomplete="off" placeholder="نام یا کد کالا را تایپ کنید..."
+             hx-get="{% url 'dashboard:storefront-builder-section-product-search' section.pk %}"
+             hx-trigger="keyup changed delay:300ms" hx-target="#ps-search-results" hx-swap="innerHTML" name="q">
+      <div id="ps-search-results"></div>
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
+        <template x-for="p in selected" :key="p.id">
+          <span class="badge" style="display:inline-flex;align-items:center;gap:5px;padding:5px 8px">
+            <input type="hidden" name="product_ids" :value="p.id">
+            <span x-text="p.name"></span>
+            <button type="button" @click="removeProduct(p.id)" aria-label="حذف" style="border:none;background:none;cursor:pointer;color:inherit">×</button>
+          </span>
+        </template>
+        <p x-show="selected.length === 0" style="color:var(--muted);font-size:12px;margin:0">هنوز کالایی انتخاب نشده</p>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="id_ps_title">عنوان بخش</label>
+      <input type="text" name="title" id="id_ps_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'' }}">
+    </div>
+
+    <div class="form-group">
+      <label for="id_ps_display">نوع نمایش</label>
+      <select name="display_mode" id="id_ps_display" class="form-select">
+        <option value="carousel" {% if section.settings.display_mode != "grid" %}selected{% endif %}>کاروسل (اسلایدی)</option>
+        <option value="grid" {% if section.settings.display_mode == "grid" %}selected{% endif %}>گرید (شبکه‌ای)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="id_ps_limit">تعداد کالا</label>
+      <input type="number" name="item_limit" id="id_ps_limit" class="form-input" min="2" max="24"
+             value="{{ section.settings.item_limit|default:8 }}">
+    </div>
+
+    <details style="margin-top:6px">
+      <summary style="cursor:pointer;font-size:13px;color:var(--muted)">تنظیمات بیشتر</summary>
+      <div class="form-group" style="margin-top:10px">
+        <label for="id_ps_subtitle">زیرعنوان (اختیاری)</label>
+        <input type="text" name="subtitle" id="id_ps_subtitle" class="form-input" maxlength="150" value="{{ section.settings.subtitle|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
+          <input type="checkbox" name="show_view_all" {% if section.settings.show_view_all|default:True %}checked{% endif %}>
+          نمایش دکمه «مشاهده همه»
+        </label>
+      </div>
+    </details>
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+    </div>
+  </form>
+  {% else %}
   <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
     {% csrf_token %}
     {% if section.section_key == "image_text" %}
@@ -31,4 +144,5 @@
       <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
     </div>
   </form>
+  {% endif %}
 </div>
