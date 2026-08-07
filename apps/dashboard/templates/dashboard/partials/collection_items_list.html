@@ -1,0 +1,45 @@
+{% load persian %}
+<div id="collectionItemsList" class="img-manage-grid" x-data="{ dragId: null }">
+  {% for item in items %}
+  <div class="img-manage-item" draggable="true" data-id="{{ item.pk }}"
+       @dragstart="dragId = {{ item.pk }}"
+       @dragover.prevent
+       @drop.prevent="
+         if (dragId !== null && dragId !== {{ item.pk }}) {
+           const grid = $el.parentElement;
+           const from = grid.querySelector('[data-id=\'' + dragId + '\']');
+           if (from) {
+             grid.insertBefore(from, from.compareDocumentPosition($el) & Node.DOCUMENT_POSITION_FOLLOWING ? $el.nextSibling : $el);
+             const ids = [...grid.children].filter(c => c.dataset.id).map(c => c.dataset.id);
+             htmx.ajax('POST', '{% url 'dashboard:collection-products-reorder' collection.pk %}', {values: {item_ids: ids}, target: '#collectionItemsList', swap: 'outerHTML'});
+           }
+         }
+         dragId = null;
+       "
+       style="cursor:grab">
+    <div class="img-manage-thumb" style="background-image:url('{% if item.product.cover_image %}{{ item.product.cover_image.thumbnail.url|default:item.product.cover_image.image.url }}{% endif %}')">
+      {% if not item.product.cover_image %}<span class="emo">🛍️</span>{% endif %}
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:700;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ item.product.name }}</div>
+      <div style="font-size:11px;color:var(--muted);display:flex;gap:6px;align-items:center;margin-top:2px">
+        <span dir="ltr">{{ item.product.sku }}</span>
+        <span class="badge {% if item.product.status == 'active' %}b-green{% else %}b-gray{% endif %}">{{ item.product.get_status_display }}</span>
+      </div>
+    </div>
+    <div class="img-manage-actions">
+      <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}
+              hx-post="{% url 'dashboard:collection-product-move' collection.pk item.pk %}" hx-vals='{"direction":"up"}'
+              hx-target="#collectionItemsList" hx-swap="outerHTML">⬆️</button>
+      <button type="button" class="btn btn-sm" title="جابه‌جایی به پایین" {% if forloop.last %}disabled{% endif %}
+              hx-post="{% url 'dashboard:collection-product-move' collection.pk item.pk %}" hx-vals='{"direction":"down"}'
+              hx-target="#collectionItemsList" hx-swap="outerHTML">⬇️</button>
+      <button type="button" class="btn btn-sm btn-danger" title="حذف از کالکشن"
+              hx-post="{% url 'dashboard:collection-product-remove' collection.pk item.pk %}"
+              hx-target="#collectionItemsList" hx-swap="outerHTML" hx-confirm="«{{ item.product.name }}» از این کالکشن حذف شود؟">🗑️</button>
+    </div>
+  </div>
+  {% empty %}
+  <p class="img-manage-empty">هنوز کالایی به این کالکشن اضافه نشده است — از پنل سمت راست جست‌وجو و اضافه کنید.</p>
+  {% endfor %}
+</div>

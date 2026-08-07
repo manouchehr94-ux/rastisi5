@@ -887,10 +887,35 @@ plan enforcement همچنان باقی مانده**
 - `collapsed_in_editor` (فاز A3) — فقط UI ادیتور، مستقل از `is_active`، بدون اثر روی رندر عمومی؛
 - تست‌ها: ~۱۴۴+ تست در `apps/storefront_builder/tests/` (مدل/سرویس/رندرر/رجیستری/view/یکپارچگی صفحه اصلی عمومی/پوسته مشترک).
 
+### به‌روزرسانی 2026-08-06 (فاز B) — کالکشن‌های دستیِ مرچنت پیاده‌سازی شد
+
+⚠️ ردیفِ «Collections» زیر در «ناقص نسبت به Target» تا پیش از فاز B صحیح بود؛ اکنون حل شده. دو مدلِ مستقل
+`apps.catalog.MerchantCollection`/`MerchantCollectionItem` (نه بسط‌دادنِ `ProductTag`) اضافه شده‌اند:
+
+- `MerchantCollection`: `store` (یکتاییِ `slug` فقط در محدوده‌ی Store)، `name`، `description`، `image`، `is_active`،
+  `collection_type` (فقط `manual` قابل‌استفاده — `smart` از روز اول رزرو شده اما هیچ سرویس/فرمی آن را نمی‌پذیرد)،
+  `seo_title`/`seo_description`، `created_by`/`updated_by`، و `source_legacy_product_tag` (ردیابیِ صرفاً اطلاعاتیِ
+  تبدیلِ اختیاری از «گروه دوم» — به پایین مراجعه شود)؛
+- `MerchantCollectionItem`: مدلِ `through` واقعی (نه M2M ساده) با `order` صریح — دقیقاً همان شکافی که ممیزیِ فاز A
+  برای `Product.tags` (بدونِ فیلدِ ترتیب) شناسایی کرده بود، اینجا از ابتدا درست ساخته شده؛
+- سرویس اختصاصی `apps.catalog.services.collection_service` (Store-scoped، اتمیک، رد کالای بین‌فروشگاهی) + مجوزِ
+  اختصاصیِ `COLLECTION_MANAGE` (جدا از `CONTENT_MANAGE`/`STOREFRONT_LAYOUT_MANAGE` — به Owner/Administrator/Content
+  Editor داده شده)؛
+- داشبوردِ مدیریت کامل (`/admin-portal/collections/...`: فهرست، ساخت/ویرایش، مدیریتِ کالا با جست‌وجو/افزودن/حذف/
+  Drag-and-Drop + fallback بالا/پایین)؛
+- صفحاتِ عمومی (`/collections/` و `/collections/<slug>/`) با سئو، فقط کالاهایِ `storefront_listing_products` (بدونِ
+  تکرارِ منطقِ نمایش)، ترتیبِ دستی، pagination، بدونِ N+1؛
+- `ProductTag(purpose="collection")` («گروه دوم») **دست‌نخورده باقی مانده** — یک دستورِ مدیریتیِ جداگانه و اختیاری
+  (`migrate_legacy_product_tag_collections --dry-run`/`--apply`، idempotent) برای تبدیلِ دستیِ داده‌های قدیمی موجود
+  است، اما اجرا نشدن آن هیچ رفتاری را نمی‌شکند؛
+- خارج از scope فاز B (عمداً): اتصال Collection به عنوان Data Source یک Section صفحه اصلی (فاز C)، Smart Collection
+  (فقط فیلدِ `collection_type` رزرو شده)، انتخابگرِ Collection در مقصدِ منو (`apps.content.DestinationMixin` فعلاً
+  فقط `NONE`/`CATEGORY`/`PRODUCT`/`BRAND`/`EXTERNAL` را می‌شناسد — افزودنِ `DestinationType.COLLECTION` یک تغییرِ
+  کوچک و تمیز روی همان الگوی موجود است اما به فاز C موکول شده؛ در همین حال، لینک‌دهیِ دستی به آدرسِ مطلقِ صفحه‌ی
+  کالکشن از طریقِ همان مقصدِ «لینک خارجی» موجود ممکن است).
+
 ### ناقص نسبت به Target (شکاف‌های واقعی باقی‌مانده — نه فرض‌های قدیمی)
 
-- **Collections**: `MerchantCollection`/`MerchantCollectionItem` مستقل هنوز وجود ندارد — فقط `ProductTag(purpose="collection")`
-  که معادل واقعی Collection نیست (بدون تصویر/SEO/ترتیب دستی/صفحه مستقل)؛
 - **Data Sources**: section‌های محصولی (`featured_products`, `newest_products`, ...) فاقد فیلد `data_source` قابل‌انتخاب در `settings`
   هستند — هرکدام hard-coded به یک context builder جدا وصل‌اند؛
 - **Template/Preset switching**: تعویض کامل قالب بصری سایت (رنگ+فونت+هدر/فوتر خانواده+کارت به‌صورت یک بسته) وجود ندارد —
@@ -906,8 +931,9 @@ plan enforcement همچنان باقی مانده**
 ### وضعیت
 
 **Homepage section-layout builder (apps.storefront_builder): production-capable foundation — Draft/Publish/Rollback/Section
-Registry/shared Preview-Storefront shell کامل. باقی‌مانده: Collections، Data Sources، Template/Preset، Responsive per-section،
-caching، Custom Pages، Scheduled Publishing (نگاه کنید به `docs/reports/STOREFRONT_TEMPLATE_AND_BUILDER_*.md`).**
+Registry/shared Preview-Storefront shell کامل. Merchant Manual Collections (`apps.catalog.MerchantCollection`) از فاز B
+پیاده‌سازی شده. باقی‌مانده: اتصال Collection به Section به‌عنوان Data Source، سایر Data Sources، Template/Preset،
+Responsive per-section، caching، Custom Pages، Scheduled Publishing (نگاه کنید به `docs/reports/STOREFRONT_TEMPLATE_AND_BUILDER_*.md`).**
 
 **سایر Content models (`apps.content`): Feature-rich UI foundation; tenant integrity incomplete (نقص destination relation بالا).**
 
@@ -1161,7 +1187,8 @@ Storefront theme و Merchant Admin theme باید مستقل باشند.
 | Payment | Prototype | secure gateway engine | idempotency/encryption/reconciliation | بسیار بالا |
 | Shipping | Basic | rule-driven shipping | ownership/zones/fulfillment | بالا |
 | Content | Rich partial | versioned CMS | cross-Store relations در `apps.content` (Hero/Banner/Menu destinations) | بسیار بالا |
-| Storefront Section Builder (`apps.storefront_builder`) | Implemented (homepage layout + header/footer) | no-code storefront layout builder | Collections/Data Sources/Template-Preset/Responsive/caching/Custom Pages/Scheduled Publish — به بخش ۱۱.۸ | متوسط |
+| Storefront Section Builder (`apps.storefront_builder`) | Implemented (homepage layout + header/footer) | no-code storefront layout builder | Section↔Collection Data Source/سایر Data Sources/Template-Preset/Responsive/caching/Custom Pages/Scheduled Publish — به بخش ۱۱.۸ | متوسط |
+| Merchant Collections (`apps.catalog.MerchantCollection`) | Implemented (manual only) | merchandising Collections with public pages | Smart Collections، اتصال به Section به‌عنوان Data Source (فاز C) | متوسط |
 | Theme (رنگ/فونت/برندینگ) | Foundation | versioned Theme/Preset package editor | versioning/preview/rollback برای Theme (جدا از Page Builder بالا) | متوسط |
 | SMS | Partial | reliable async messaging | outbox/retry/security | متوسط |
 | Discount | Basic | promotion engine | eligibility/ledger/concurrency | متوسط |
@@ -1253,8 +1280,9 @@ Storefront theme و Merchant Admin theme باید مستقل باشند.
 به‌روزرسانی 2026-08-06: بخش Page Builder این مرحله (چیدمان section-based صفحه اصلی + هدر/فوتر، Draft/Publish/Rollback) از قبل
 در `apps.storefront_builder` پیاده‌سازی شده — نیازی به انتظار برای شروع دوباره از صفر نیست (به بخش ۱۱.۸ مراجعه شود). آنچه از این
 مرحله باقی مانده: Theme Versioning (بسته‌ی رنگ+فونت+spacing+radius+animation با Draft/Publish/Rollback مستقل، به بخش ۱۱.۹
-مراجعه شود) و شکاف‌های فاز بعدی سازنده بصری (Collections، Data Sources، Template/Preset، Responsive per-section، caching،
-Custom Pages، Scheduled Publishing).
+مراجعه شود) و شکاف‌های فاز بعدی سازنده بصری (Data Sources — شاملِ اتصال Collection به Section، Template/Preset، Responsive
+per-section، caching، Custom Pages، Scheduled Publishing). Merchant Manual Collections (`apps.catalog.MerchantCollection`)
+از فاز B پیاده‌سازی شده — به بخش ۱۱.۸ مراجعه شود.
 
 ## مرحله I — Messaging Hardening
 

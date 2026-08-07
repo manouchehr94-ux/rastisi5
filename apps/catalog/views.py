@@ -14,6 +14,7 @@ from apps.customers.models import Customer
 from apps.stores.resolution import resolve_store_for_storefront
 
 from .models import Brand, Category, Product, Review
+from .services import collection_service
 from .services.product_publish_service import storefront_listing_products, storefront_visible_products
 from .services.product_video_service import ProductVideoError
 from .services.storefront_variant_service import build_variant_selector_context
@@ -388,3 +389,26 @@ def product_review_create(request, slug):
         {"toast": {"message": "نظر شما ثبت شد و پس از بررسی نمایش داده می‌شود", "type": "ok"}}
     )
     return response
+
+
+def collection_index(request):
+    """فهرستِ کالکشن‌هایِ فعالِ این Store — عمداً فقط ``name``/``image``/
+    ``description`` را نشان می‌دهد، بدونِ کالاهایِ داخلِ هرکدام (که در
+    ``collection_detail`` است) تا کوئری‌بودجه‌ی این صفحه ثابت بماند."""
+    store = resolve_store_for_storefront(request)
+    collections = collection_service.public_collection_queryset(store)
+    return render(request, "catalog/collection_index.html", {"collections": collections})
+
+
+def collection_detail(request, slug):
+    store = resolve_store_for_storefront(request)
+    collection = get_object_or_404(collection_service.public_collection_queryset(store), slug=slug)
+    items = collection_service.collection_visible_items(collection, store)
+
+    paginator = Paginator(items, PRODUCTS_PER_PAGE)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    products = [item.product for item in page_obj.object_list]
+
+    return render(request, "catalog/collection_detail.html", {
+        "collection": collection, "page_obj": page_obj, "products": products,
+    })

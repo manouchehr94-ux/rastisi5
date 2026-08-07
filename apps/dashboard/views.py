@@ -22,6 +22,8 @@ from apps.catalog.models import (
     CategoryAttributeSchema,
     CategoryRecommendedOption,
     IndustryTemplate,
+    MerchantCollection,
+    MerchantCollectionItem,
     Product,
     ProductAttributeValue,
     ProductImage,
@@ -63,6 +65,14 @@ from apps.catalog.services.brand_service import (
     delete_brand,
     reorder_brands,
     update_brand,
+)
+from apps.catalog.services import collection_service
+from apps.catalog.services.collection_service import (
+    CollectionError,
+    CollectionNotFoundError,
+    CollectionReorderError,
+    DuplicateProductError,
+    ProductNotFoundError as CollectionProductNotFoundError,
 )
 from apps.catalog.services.category_schema_service import (
     CategorySchemaError,
@@ -259,6 +269,7 @@ from apps.stores.authorization import (
     BILLING_VIEW,
     BRAND_MANAGE,
     CATEGORY_MANAGE,
+    COLLECTION_MANAGE,
     CONTENT_MANAGE,
     CUSTOMER_EXPORT,
     CUSTOMER_NOTE_MANAGE,
@@ -311,6 +322,7 @@ from .forms import (
     BrandForm,
     CategoryAttributeAddForm,
     CategoryEditForm,
+    CollectionForm,
     FinanceSettingsForm,
     MainCategoryForm,
     ProductForm,
@@ -2253,6 +2265,238 @@ def brand_reorder(request):
     except BrandReorderError as exc:
         return _brands_table_response(request, toast={"message": str(exc), "type": "err"})
     return _brands_table_response(request)
+
+
+# ---------------------------------------------------------------------------
+# کالکشن‌های دستیِ مرچنت (Merchant Manual Collections — فاز B)
+# ---------------------------------------------------------------------------
+
+def _collections_context(request, *, q=""):
+    store = _resolve_dashboard_store(request)
+    qs = MerchantCollection.objects.filter(store=store).annotate(product_count=Count("items"))
+    q = (q or "").strip()
+    if q:
+        qs = qs.filter(name__icontains=q)
+    return {"collections": qs.order_by("name"), "q": q, "public_collection_url_name": "catalog:collection-detail"}
+
+
+def _collections_table_response(request, *, toast=None):
+    response = render(request, "dashboard/partials/collections_table.html", _collections_context(request, q=request.GET.get("q", "")))
+    if toast:
+        response["HX-Trigger"] = json.dumps({"toast": toast})
+    return response
+
+
+@staff_required
+@permission_required(COLLECTION_MANAGE)
+def collection_list(request):
+    return render(request, "dashboard/collections.html", {
+        "active_page": "collections", **_collections_context(request, q=request.GET.get("q", "")),
+    })
+
+
+@staff_required
+@permission_required(COLLECTION_MANAGE)
+def collection_table(request):
+    return render(request, "dashboard/partials/collections_table.html", _collections_context(request, q=request.GET.get("q", "")))
+
+
+@staff_required
+@permission_required(COLLECTION_MANAGE)
+def collection_add(request):
+    store = _resolve_dashboard_store(request)
+
+    if request.method == "POST":
+        form = CollectionForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                collection = collection_service.create_collection(
+                    store, name=form.cleaned_data["name"], description=form.cleaned_data["description"],
+                    image=form.cleaned_data.get("image"), seo_title=form.cleaned_data["seo_title"],
+                    seo_description=form.cleaned_data["seo_description"], user=request.user,
+                )
+            except CollectionError as exc:
+                form.add_error(None, str(exc))
+            else:
+                messages.success(request, f"کالکشن «{collection.name}» ساخته شد — حالا کالاها را اضافه کنید")
+                return redirect("dashboard:collection-products", pk=collection.pk)
+    else:
+        form = CollectionForm()
+
+    return render(request, "dashboard/collection_form.html", {
+        "active_page": "collections", "form": form, "collection": None,
+    })
+
+
+@staff_required
+@permission_required(COLLECTION_MANAGE)
+def collection_edit(request, pk):
+    store = _resolve_dashboard_store(request)
+    try:
+        collection = collection_service.get_scoped_collection(store, pk)
+    except CollectionNotFoundError:
+        raise Http404
+
+    if request.method == "POST":
+        form = CollectionForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                collection_service.update_collection(
+                    collection, name=form.cleaned_data["name"], description=form.cleaned_data["description"],
+                    seo_title=form.cleaned_data["seo_title"], seo_description=form.cleaned_data["seo_description"],
+                    image=form.cleaned_data.get("image"),
+                    remove_image=(request.POST.get("remove_image") == "1"), user=request.user,
+                )
+            except CollectionError as exc:
+                form.add_error(None, str(exc))
+            else:
+                messages.success(request, "کالکشن ویرایش شد")
+                return redirect("dashboard:collection-list")
+    else:
+        form = CollectionForm(initial={
+            "name": collection.name, "description": collection.description,
+            "seo_title": collection.seo_title, "seo_description": collection.seo_description,
+        })
+
+    return render(request, "dashboard/collection_form.html", {
+        "active_page": "collections", "form": form, "collection": collection,
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(COLLECTION_MANAGE)
+def collection_delete(request, pk):
+    store = _resolve_dashboard_store(request)
+    try:
+        collection = collection_service.get_scoped_collection(store, pk)
+    except CollectionNotFoundError:
+        raise Http404
+    name = collection.name
+    collection_service.delete_collection(collection)
+    return _collections_table_response(request, toast={"message": f"کالکشن «{name}» حذف شد", "type": "info"})
+
+
+@require_POST
+@staff_required
+@permission_required(COLLECTION_MANAGE)
+def collection_toggle(request, pk):
+    store = _resolve_dashboard_store(request)
+    try:
+        collection = collection_service.get_scoped_collection(store, pk)
+    except CollectionNotFoundError:
+        raise Http404
+    if collection.is_active:
+        collection_service.deactivate_collection(collection)
+        toast = {"message": f"«{collection.name}» غیرفعال شد", "type": "info"}
+    else:
+        collection_service.activate_collection(collection)
+        toast = {"message": f"«{collection.name}» فعال شد", "type": "ok"}
+    return _collections_table_response(request, toast=toast)
+
+
+def _get_scoped_collection_or_404(request, pk):
+    store = _resolve_dashboard_store(request)
+    try:
+        return collection_service.get_scoped_collection(store, pk)
+    except CollectionNotFoundError:
+        raise Http404
+
+
+def _collection_items_response(request, collection, *, toast=None):
+    response = render(request, "dashboard/partials/collection_items_list.html", {
+        "collection": collection,
+        "items": collection.items.select_related("product").prefetch_related("product__images").order_by("order", "id"),
+    })
+    if toast:
+        response["HX-Trigger"] = json.dumps({"toast": toast})
+    return response
+
+
+@staff_required
+@permission_required(COLLECTION_MANAGE)
+def collection_products(request, pk):
+    collection = _get_scoped_collection_or_404(request, pk)
+    return render(request, "dashboard/collection_products.html", {
+        "active_page": "collections", "collection": collection,
+        "items": collection.items.select_related("product").prefetch_related("product__images").order_by("order", "id"),
+    })
+
+
+@staff_required
+@permission_required(COLLECTION_MANAGE)
+def collection_products_search(request, pk):
+    collection = _get_scoped_collection_or_404(request, pk)
+    store = _resolve_dashboard_store(request)
+    query = request.GET.get("q", "")
+    existing_ids = set(collection.items.values_list("product_id", flat=True))
+    results = collection_service.searchable_products(store, query=query)[:30]
+    return render(request, "dashboard/partials/collection_product_search_results.html", {
+        "collection": collection, "results": results, "existing_ids": existing_ids, "query": query,
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(COLLECTION_MANAGE)
+def collection_products_add(request, pk):
+    collection = _get_scoped_collection_or_404(request, pk)
+    store = _resolve_dashboard_store(request)
+    product_ids = [int(pk_) for pk_ in request.POST.getlist("product_ids") if pk_.strip().isdigit()]
+    # ``pk__in`` ترتیبِ فهرستِ ورودی را حفظ نمی‌کند (ترتیبِ نتیجه دستِ خودِ
+    # دیتابیس است) — برای این‌که ترتیبِ انتخابِ مرچنت در چک‌باکس‌ها همان
+    # ترتیبِ اولیه‌ی کالکشن بماند (قابلِ ویرایش دستی پس از افزودن، نه تصادفی)،
+    # فهرست را دوباره طبقِ همان ترتیبِ پست‌شده می‌سازیم.
+    products_by_id = {p.pk: p for p in Product.objects.filter(store=store, pk__in=product_ids)}
+    products = [products_by_id[pid] for pid in product_ids if pid in products_by_id]
+    created = collection_service.add_products(collection, products)
+    if created:
+        toast = {"message": f"{len(created)} کالا اضافه شد", "type": "ok"}
+    else:
+        toast = {"message": "کالایی برای افزودن انتخاب نشده یا همه از قبل عضو بودند", "type": "info"}
+    return _collection_items_response(request, collection, toast=toast)
+
+
+@require_POST
+@staff_required
+@permission_required(COLLECTION_MANAGE)
+def collection_product_remove(request, pk, item_id):
+    collection = _get_scoped_collection_or_404(request, pk)
+    try:
+        collection_service.remove_product(collection, item_id)
+    except CollectionProductNotFoundError:
+        raise Http404
+    return _collection_items_response(request, collection, toast={"message": "کالا از کالکشن حذف شد", "type": "info"})
+
+
+@require_POST
+@staff_required
+@permission_required(COLLECTION_MANAGE)
+def collection_products_reorder(request, pk):
+    collection = _get_scoped_collection_or_404(request, pk)
+    item_ids = [int(pk_) for pk_ in request.POST.getlist("item_ids") if pk_.strip().isdigit()]
+    try:
+        collection_service.reorder_items(collection, item_ids)
+    except CollectionReorderError as exc:
+        return _collection_items_response(request, collection, toast={"message": str(exc), "type": "err"})
+    return _collection_items_response(request, collection)
+
+
+@require_POST
+@staff_required
+@permission_required(COLLECTION_MANAGE)
+def collection_product_move(request, pk, item_id):
+    collection = _get_scoped_collection_or_404(request, pk)
+    direction = request.POST.get("direction")
+    siblings = list(collection.items.order_by("order", "id"))
+    index = next((i for i, item in enumerate(siblings) if item.pk == item_id), None)
+    if index is not None:
+        swap_index = index - 1 if direction == "up" else index + 1
+        if 0 <= swap_index < len(siblings):
+            ordered_ids = [item.pk for item in siblings]
+            ordered_ids[index], ordered_ids[swap_index] = ordered_ids[swap_index], ordered_ids[index]
+            collection_service.reorder_items(collection, ordered_ids)
+    return _collection_items_response(request, collection)
 
 
 @staff_required

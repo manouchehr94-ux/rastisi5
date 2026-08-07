@@ -121,6 +121,14 @@ CONTENT_MANAGE = "content.manage"
 # same CONTENT_EDITOR role happens to get both.
 STOREFRONT_LAYOUT_MANAGE = "storefront_layout.manage"
 
+# Merchant Manual Collections (Phase B) — a Collection has its own public
+# page + SEO fields, like Content, not like a catalog-internal grouping
+# (Category/Brand). Deliberately its own key, not reused from CONTENT_MANAGE
+# or STOREFRONT_LAYOUT_MANAGE (a Collection is a distinct authorization
+# surface from either CMS pages or the homepage layout builder, even though
+# in this phase the same CONTENT_EDITOR role happens to get all three).
+COLLECTION_MANAGE = "collection.manage"
+
 STAFF_MANAGE = "staff.manage"
 DOMAIN_MANAGE = "domain.manage"  # reserved — no domain-management UI yet
 SUBSCRIPTION_MANAGE = "subscription.manage"  # coarse legacy key — kept for back-compat
@@ -171,6 +179,7 @@ ALL_PERMISSIONS = frozenset({
     RETURN_VIEW, RETURN_MANAGE, REFUND_VIEW, REFUND_MANAGE,
     AUDIT_LOG_VIEW,
     SETTINGS_MANAGE, PAYMENT_SETTINGS_MANAGE, SMS_SETTINGS_MANAGE, CONTENT_MANAGE, STOREFRONT_LAYOUT_MANAGE,
+    COLLECTION_MANAGE,
     STAFF_MANAGE, DOMAIN_MANAGE, SUBSCRIPTION_MANAGE,
     SUBSCRIPTION_VIEW, SUBSCRIPTION_CHANGE, USAGE_VIEW,
     BILLING_VIEW, BILLING_ACCOUNT_MANAGE, BILLING_PAYMENT_MANAGE, SUBSCRIPTION_CANCEL,
@@ -206,7 +215,7 @@ _ORDER_READ_WRITE = frozenset({
     CUSTOMER_EXPORT, CUSTOMER_NOTE_MANAGE, CUSTOMER_TAG_MANAGE,
     CUSTOMER_SEGMENT_VIEW, CUSTOMER_SEGMENT_MANAGE,
 })
-_CONTENT_READ_WRITE = frozenset({CONTENT_MANAGE, MEDIA_MANAGE, STOREFRONT_LAYOUT_MANAGE})
+_CONTENT_READ_WRITE = frozenset({CONTENT_MANAGE, MEDIA_MANAGE, STOREFRONT_LAYOUT_MANAGE, COLLECTION_MANAGE})
 # Owner-only: staff/domain management and the billing-tier change decision.
 # SUBSCRIPTION_VIEW/USAGE_VIEW are deliberately NOT here — Administrators (and,
 # for usage, Analysts) may see billing status and quota consumption; only the

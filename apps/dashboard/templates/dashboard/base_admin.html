@@ -237,7 +237,7 @@ ClassicEditor فراخوانی می‌شود و بی‌سروصدا (بدون خ
       </div>
       {% endif %}
 
-      {% if can_manage_content or can_manage_storefront_layout %}
+      {% if can_manage_content or can_manage_storefront_layout or can_manage_collections %}
       <div class="nav-group" data-group="appearance">
         <button type="button" class="nav-group-head" @click="toggle('appearance')" :aria-expanded="groups.appearance.toString()">
           <span class="nav-group-icon">🎨</span>
@@ -249,6 +249,12 @@ ClassicEditor فراخوانی می‌شود و بی‌سروصدا (بدون خ
           <a class="nav-item{% if active_page == 'storefront_builder' %} active{% endif %}" data-page="storefront_builder" href="{% url 'dashboard:storefront-builder-editor' %}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             سازنده بصری صفحه اصلی
+          </a>
+          {% endif %}
+          {% if can_manage_collections %}
+          <a class="nav-item{% if active_page == 'collections' %} active{% endif %}" data-page="collections" href="{% url 'dashboard:collection-list' %}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16V8z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
+            کالکشن‌ها
           </a>
           {% endif %}
           {% if can_manage_content %}

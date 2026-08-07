@@ -338,6 +338,22 @@ class BrandForm(forms.Form):
         return name
 
 
+class CollectionForm(forms.Form):
+    """اعتبارسنجی ساختاری فرم کالکشن؛ یکتاییِ اسلاگ در ``collection_service`` انجام می‌شود."""
+
+    name = forms.CharField(label="نام کالکشن", max_length=150)
+    description = forms.CharField(label="توضیحات (اختیاری)", required=False, widget=forms.Textarea)
+    image = forms.ImageField(label="تصویر (اختیاری)", required=False)
+    seo_title = forms.CharField(label="عنوان سئو (اختیاری)", max_length=70, required=False)
+    seo_description = forms.CharField(label="توضیحات متا (اختیاری)", max_length=160, required=False, widget=forms.Textarea)
+
+    def clean_name(self):
+        name = self.cleaned_data["name"].strip()
+        if not name:
+            raise forms.ValidationError("نام کالکشن نمی‌تواند خالی باشد")
+        return name
+
+
 class ProductQuickCategoryForm(forms.Form):
     """ساختِ سریعِ دسته‌بندی سه‌سطحی (گروه اصلی ← دسته ← زیرگروه نهایی) از
     داخلِ فرمِ کالا — هر مرحله یا یک گره‌ی موجود را انتخاب می‌کند یا نامِ

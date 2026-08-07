@@ -1,0 +1,41 @@
+{% extends "dashboard/base_admin.html" %}
+{% load persian %}
+
+{% block title %}کالاهای «{{ collection.name }}» | پنل مدیریت {{ SHOP_NAME }}{% endblock %}
+{% block page_title %}کالاهای «{{ collection.name }}»{% endblock %}
+{% block page_sub %}کالاها را جست‌وجو و اضافه کنید و ترتیب نمایش را با کشیدن یا دکمه‌های بالا/پایین تنظیم کنید{% endblock %}
+
+{% block content %}
+<div class="collection-products-layout" style="display:flex;gap:16px;flex-wrap:wrap">
+  <div class="card" style="flex:1;min-width:280px">
+    <div class="card-head">
+      <b>افزودن کالا</b>
+    </div>
+    <div class="card-body">
+      <input class="inp" id="collectionProductSearch" name="q" placeholder="جست‌وجوی نام یا SKU کالا..." style="width:100%;margin-bottom:10px"
+             hx-get="{% url 'dashboard:collection-products-search' collection.pk %}" hx-target="#collectionProductSearchResults" hx-swap="innerHTML"
+             hx-trigger="keyup changed delay:300ms, load">
+      <form id="collectionProductAddForm" method="post" action="{% url 'dashboard:collection-products-add' collection.pk %}"
+            hx-post="{% url 'dashboard:collection-products-add' collection.pk %}" hx-target="#collectionItemsList" hx-swap="outerHTML">
+        {% csrf_token %}
+        <div id="collectionProductSearchResults"></div>
+        <button type="submit" class="btn btn-primary btn-sm" style="margin-top:10px">➕ افزودنِ انتخاب‌شده‌ها</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card" style="flex:2;min-width:320px">
+    <div class="card-head">
+      <b>کالاهای این کالکشن ({{ items|length }})</b>
+    </div>
+    <div class="card-body">
+      <p class="field-help" style="margin-bottom:10px">🖐️ برای تغییرِ ترتیبِ نمایش در صفحه‌ی عمومی، کارت‌ها را بکشید یا از دکمه‌های ▲▼ استفاده کنید.</p>
+      {% include "dashboard/partials/collection_items_list.html" %}
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:14px">
+  <a href="{% url 'dashboard:collection-list' %}" class="btn btn-sm">بازگشت به فهرست کالکشن‌ها</a>
+</div>
+{% endblock %}
