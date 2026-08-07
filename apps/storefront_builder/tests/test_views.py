@@ -195,6 +195,31 @@ class SectionActionTests(StorefrontBuilderViewsTestCase):
         self.client.post(reverse("dashboard:storefront-builder-section-duplicate", args=[section.pk]))
         self.assertEqual(self.draft.sections.filter(section_key="rich_text").count(), 2)
 
+    def test_duplicate_copies_responsive_settings_and_stays_independent(self):
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="category_grid", order=0,
+            settings={
+                "responsive": {
+                    "hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": True,
+                    "desktop_columns": 3, "tablet_columns": 2, "mobile_columns": 1,
+                },
+            },
+        )
+        self.client.post(reverse("dashboard:storefront-builder-section-duplicate", args=[section.pk]))
+        duplicate = self.draft.sections.filter(section_key="category_grid").exclude(pk=section.pk).get()
+        self.assertEqual(duplicate.settings["responsive"], section.settings["responsive"])
+
+        self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[duplicate.pk]), {
+            "show_on_desktop": "on", "show_on_tablet": "on", "show_on_mobile": "on",
+            "desktop_columns": "6", "tablet_columns": "3", "mobile_columns": "2",
+        })
+        section.refresh_from_db()
+        duplicate.refresh_from_db()
+        self.assertTrue(section.settings["responsive"]["hide_on_mobile"])
+        self.assertEqual(section.settings["responsive"]["desktop_columns"], 3)
+        self.assertFalse(duplicate.settings["responsive"]["hide_on_mobile"])
+        self.assertEqual(duplicate.settings["responsive"]["desktop_columns"], 6)
+
     def test_duplicate_non_duplicable_rejected(self):
         section = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0)
         self.client.post(reverse("dashboard:storefront-builder-section-duplicate", args=[section.pk]))
