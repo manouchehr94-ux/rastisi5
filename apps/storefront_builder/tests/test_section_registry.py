@@ -1,12 +1,16 @@
 from django.test import TestCase
 
 from apps.storefront_builder.section_registry import (
+    COLUMN_AWARE_SECTION_KEYS,
     SECTION_REGISTRY,
     ProductSectionSettingsError,
+    ResponsiveSettingsError,
     UnknownSectionTypeError,
+    default_responsive_settings,
     get_definition,
     is_valid_section_key,
     list_definitions,
+    validate_responsive_settings,
 )
 
 EXPECTED_KEYS = {
@@ -58,9 +62,15 @@ class SectionRegistryTests(TestCase):
             definition.validate_settings("not a dict")
 
     def test_validate_settings_accepts_dict(self):
+        """از فازِ D به بعد، خروجیِ هر validate_settings همیشه یک بلوکِ
+        ``responsive`` پیش‌فرض (نمایان همه‌جا) هم دارد — بدونِ تغییرِ
+        رفتارِ خودِ منطقِ passthrough."""
         definition = get_definition("hero_banner")
         result = definition.validate_settings({"foo": "bar"})
-        self.assertEqual(result, {"foo": "bar"})
+        self.assertEqual(result["foo"], "bar")
+        self.assertEqual(result["responsive"], {
+            "hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False,
+        })
 
 
 class ProductSectionSettingsTests(TestCase):
@@ -169,3 +179,110 @@ class ProductSectionSettingsTests(TestCase):
     def test_unknown_keys_silently_dropped(self):
         cleaned = self._validate(evil_field="<script>")
         self.assertNotIn("evil_field", cleaned)
+
+
+class ResponsiveSettingsContractTests(TestCase):
+    """اعتبارسنجیِ خودِ ``validate_responsive_settings`` — تابعِ مشترکِ
+    فازِ D، مستقل از این‌که کدام نوعِ section از آن استفاده می‌کند."""
+
+    def test_none_input_means_fully_visible_defaults(self):
+        cleaned = validate_responsive_settings(None, supports_columns=False)
+        self.assertEqual(cleaned, {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False})
+
+    def test_default_responsive_settings_matches_none_input(self):
+        self.assertEqual(
+            default_responsive_settings(supports_columns=False),
+            validate_responsive_settings(None, supports_columns=False),
+        )
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ResponsiveSettingsError):
+            validate_responsive_settings("not a dict", supports_columns=False)
+
+    def test_booleans_strictly_normalized(self):
+        cleaned = validate_responsive_settings(
+            {"hide_on_desktop": 1, "hide_on_tablet": 0, "hide_on_mobile": "yes"}, supports_columns=False,
+        )
+        self.assertEqual(cleaned, {"hide_on_desktop": True, "hide_on_tablet": False, "hide_on_mobile": True})
+
+    def test_unknown_keys_silently_dropped(self):
+        cleaned = validate_responsive_settings({"hide_on_desktop": True, "evil": "<script>"}, supports_columns=False)
+        self.assertNotIn("evil", cleaned)
+
+    def test_columns_absent_when_not_supported(self):
+        cleaned = validate_responsive_settings({"desktop_columns": 3}, supports_columns=False)
+        self.assertNotIn("desktop_columns", cleaned)
+
+    def test_columns_default_when_supported(self):
+        cleaned = validate_responsive_settings(None, supports_columns=True)
+        self.assertEqual(cleaned["desktop_columns"], 4)
+        self.assertEqual(cleaned["tablet_columns"], 3)
+        self.assertEqual(cleaned["mobile_columns"], 2)
+
+    def test_columns_accept_closed_choices(self):
+        cleaned = validate_responsive_settings(
+            {"desktop_columns": 6, "tablet_columns": 1, "mobile_columns": 1}, supports_columns=True,
+        )
+        self.assertEqual(cleaned["desktop_columns"], 6)
+        self.assertEqual(cleaned["tablet_columns"], 1)
+        self.assertEqual(cleaned["mobile_columns"], 1)
+
+    def test_columns_reject_out_of_range_values(self):
+        with self.assertRaises(ResponsiveSettingsError):
+            validate_responsive_settings({"desktop_columns": 7}, supports_columns=True)
+        with self.assertRaises(ResponsiveSettingsError):
+            validate_responsive_settings({"tablet_columns": 4}, supports_columns=True)
+        with self.assertRaises(ResponsiveSettingsError):
+            validate_responsive_settings({"mobile_columns": 3}, supports_columns=True)
+
+    def test_columns_reject_non_numeric(self):
+        with self.assertRaises(ResponsiveSettingsError):
+            validate_responsive_settings({"desktop_columns": "abc"}, supports_columns=True)
+
+    def test_columns_reject_zero_and_negative(self):
+        with self.assertRaises(ResponsiveSettingsError):
+            validate_responsive_settings({"mobile_columns": 0}, supports_columns=True)
+        with self.assertRaises(ResponsiveSettingsError):
+            validate_responsive_settings({"desktop_columns": -1}, supports_columns=True)
+
+
+class ResponsiveIntegrationAcrossRegistryTests(TestCase):
+    """هر ۱۷ تعریفِ Section Registry باید بلوکِ responsive را پشتیبانی
+    کند — نه فقط product_section."""
+
+    def test_every_definition_default_settings_has_responsive_block(self):
+        for definition in list_definitions():
+            defaults = definition.default_settings()
+            self.assertIn("responsive", defaults, definition.key)
+            self.assertEqual(defaults["responsive"]["hide_on_desktop"], False, definition.key)
+
+    def test_every_definition_has_settings_form(self):
+        for definition in list_definitions():
+            self.assertTrue(definition.has_settings_form, definition.key)
+
+    def test_column_aware_keys_get_column_defaults(self):
+        for key in COLUMN_AWARE_SECTION_KEYS:
+            defaults = get_definition(key).default_settings()
+            self.assertIn("desktop_columns", defaults["responsive"], key)
+
+    def test_non_column_aware_keys_have_no_column_fields(self):
+        for key, definition in SECTION_REGISTRY.items():
+            if key in COLUMN_AWARE_SECTION_KEYS:
+                continue
+            defaults = definition.default_settings()
+            self.assertNotIn("desktop_columns", defaults["responsive"], key)
+
+    def test_existing_settings_without_responsive_key_still_validate(self):
+        """سکشن‌هایِ از‌قبل‌موجود که هرگز از این فرم عبور نکرده‌اند —
+        شبیه‌سازیِ ذخیره‌ی مجددِ تنظیماتِ فعلی‌شان بدونِ کلیدِ
+        responsive نباید کرش کند و باید پیش‌فرضِ نمایان‌همه‌جا بدهد."""
+        definition = get_definition("hero_banner")
+        cleaned = definition.validate_settings({})
+        self.assertEqual(cleaned["responsive"]["hide_on_desktop"], False)
+
+    def test_product_section_non_dict_still_raises_typed_error(self):
+        """اطمینان از این‌که پوششِ responsive نوعِ خطایِ اختصاصیِ
+        product_section را با یک ValueError عمومی جایگزین نکرده."""
+        definition = get_definition("product_section")
+        with self.assertRaises(ProductSectionSettingsError):
+            definition.validate_settings("not a dict")

@@ -33,10 +33,13 @@ class SectionDefinition:
     max_instances: int | None = None
     duplicable: bool = True
     removable: bool = True
-    #: آیا این نوع بخش تنظیمات قابل‌ویرایش (فرم) دارد؟ اکثر انواع فعلی
-    #: بدون تنظیم، همان داده‌های فعال فروشگاه را (دقیقاً مثل صفحه اصلی قدیمی)
-    #: نمایش می‌دهند — «ویرایش تنظیمات» فقط برای انواعی که واقعاً محتوای
-    #: قابل‌تنظیم دارند (rich_text، image_text) نمایش داده می‌شود.
+    #: آیا این نوع بخش تنظیمات قابل‌ویرایش (فرم) دارد؟ تا فازِ C فقط
+    #: انواعی که واقعاً محتوای قابل‌تنظیم داشتند (rich_text، image_text،
+    #: product_section) این پرچم را True داشتند. از فازِ D به بعد **همه‌ی**
+    #: انواع True هستند — چون همه اکنون حداقل بلوکِ «تنظیماتِ نمایش در
+    #: دستگاه‌ها» (``responsive``) را دارند؛ این پرچم دیگر توسطِ کدِ
+    #: دستی در registry تنظیم نمی‌شود، بلکه توسطِ ``_finalize_registry``
+    #: پایینِ همین فایل، یکنواخت روی True قرار می‌گیرد.
     has_settings_form: bool = False
 
 
@@ -190,6 +193,114 @@ def _product_section_defaults() -> dict:
     }
 
 
+#: انواعی که واقعاً «ستون» به‌عنوان مفهوم بصری معنا دارد (فازِ D، بخشِ ۴
+#: مشخصات) — کنترلِ تعدادِ ستون فقط برایِ این‌ها در فرمِ تنظیمات نمایش
+#: داده می‌شود. توجهِ مهم: در این چک‌پوینت، اثرِ بصریِ واقعیِ تعدادِ
+#: ستون فقط برایِ ``product_section`` پیاده‌سازی شده (تنها نوعی که از
+#: ابتدا یک grid/carousel پارامتری دارد) — چهار نوعِ دیگر همچنان
+#: تنظیمات را اعتبارسنجی/ذخیره می‌کنند (قراردادِ آینده‌نگر) اما چیدمانِ
+#: ثابتِ فعلی‌شان (tiles/ردیفِ بنر/auto-fill) دست‌نخورده می‌ماند —
+#: بازطراحیِ آن ۴ قالب یک کارِ جداگانه و بزرگ‌تر از scope این فاز است.
+COLUMN_AWARE_SECTION_KEYS = frozenset({
+    "product_section", "category_grid", "multi_banner", "promo_cards", "brand_carousel",
+})
+
+#: مقادیرِ مجازِ enum بستهٔ تعدادِ ستون به‌ازای هر دستگاه — طبقِ بخشِ ۴
+#: مشخصات؛ هیچ عددِ دلخواهی پذیرفته نمی‌شود.
+MOBILE_COLUMN_CHOICES = (1, 2)
+TABLET_COLUMN_CHOICES = (1, 2, 3)
+DESKTOP_COLUMN_CHOICES = (1, 2, 3, 4, 5, 6)
+
+_DEFAULT_MOBILE_COLUMNS = 2
+_DEFAULT_TABLET_COLUMNS = 3
+_DEFAULT_DESKTOP_COLUMNS = 4
+
+
+class ResponsiveSettingsError(ValueError):
+    """شکلِ خامِ بلوکِ ``responsive`` نامعتبر است — پیامِ فارسیِ
+    قابل‌نمایشِ مستقیم به تاجر."""
+
+
+def _closed_column_choice(raw_value, choices: tuple[int, ...], *, default: int, field_label: str) -> int:
+    if raw_value is None:
+        return default
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        raise ResponsiveSettingsError(f"تعدادِ ستونِ «{field_label}» نامعتبر است") from None
+    if value not in choices:
+        raise ResponsiveSettingsError(f"تعدادِ ستونِ «{field_label}» باید یکی از مقادیرِ مجاز باشد")
+    return value
+
+
+def validate_responsive_settings(raw, *, supports_columns: bool) -> dict:
+    """قراردادِ مشترکِ «تنظیماتِ نمایش در دستگاه‌ها» — یک بار نوشته شده و
+    توسطِ همه‌یِ ۱۷ نوعِ section (نه فقط ``product_section``) استفاده
+    می‌شود (بخشِ ۶ مشخصات: «Use one shared helper where possible»).
+
+    غایب بودنِ کلیدِ ``responsive`` (سکشن‌هایِ از‌قبل‌موجود که هرگز از
+    این فرم عبور نکرده‌اند) دقیقاً هم‌ارزِ خروجیِ پیش‌فرضِ این تابع
+    است — یعنی «نمایان در همه‌یِ دستگاه‌ها»، رفتارِ فعلیِ بدونِ تغییر.
+    کلیدِ ناشناخته بی‌صدا حذف می‌شود (همان قراردادِ
+    ``layout_service.validate_header_config``/``validate_footer_config``)."""
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise ResponsiveSettingsError("تنظیماتِ نمایش در دستگاه‌ها باید یک شیء باشد")
+
+    cleaned = {
+        "hide_on_desktop": bool(raw.get("hide_on_desktop", False)),
+        "hide_on_tablet": bool(raw.get("hide_on_tablet", False)),
+        "hide_on_mobile": bool(raw.get("hide_on_mobile", False)),
+    }
+    if supports_columns:
+        cleaned["desktop_columns"] = _closed_column_choice(
+            raw.get("desktop_columns"), DESKTOP_COLUMN_CHOICES, default=_DEFAULT_DESKTOP_COLUMNS, field_label="دسکتاپ",
+        )
+        cleaned["tablet_columns"] = _closed_column_choice(
+            raw.get("tablet_columns"), TABLET_COLUMN_CHOICES, default=_DEFAULT_TABLET_COLUMNS, field_label="تبلت",
+        )
+        cleaned["mobile_columns"] = _closed_column_choice(
+            raw.get("mobile_columns"), MOBILE_COLUMN_CHOICES, default=_DEFAULT_MOBILE_COLUMNS, field_label="موبایل",
+        )
+    return cleaned
+
+
+def default_responsive_settings(*, supports_columns: bool) -> dict:
+    """پیش‌فرضِ بلوکِ ``responsive`` — دقیقاً معادلِ عبور از
+    ``validate_responsive_settings(None, ...)`` (نمایان همه‌جا، ستونِ
+    پیش‌فرض)، جدا نوشته شده فقط تا ``default_settings`` نیازی به
+    اعتبارسنجیِ یک دیکشنریِ خالی نداشته باشد."""
+    return validate_responsive_settings(None, supports_columns=supports_columns)
+
+
+def _with_responsive(section_key: str, validate_fn, default_fn):
+    """هر جفتِ (validate_settings, default_settings) موجود را با پشتیبانیِ
+    بلوکِ ``responsive`` می‌پوشاند — منطقِ خودِ نوع (rich_text/image_text/
+    product_section/passthrough) کاملاً دست‌نخورده و بی‌خبر از این پوشش
+    باقی می‌ماند؛ کلیدِ ``responsive`` قبل از رسیدن به تابعِ اصلی جدا
+    می‌شود و بعد از آن دوباره به نتیجه اضافه می‌شود."""
+    supports_columns = section_key in COLUMN_AWARE_SECTION_KEYS
+
+    def wrapped_validate(raw: dict) -> dict:
+        if not isinstance(raw, dict):
+            # اجازه بده تابعِ اصلیِ همان نوع خطایِ تایپ‌شده‌یِ خودش را
+            # برایِ ورودیِ غیر-dict پرتاب کند (مثلاً ProductSectionSettingsError)
+            # — این wrapper یک نوعِ خطایِ عمومی‌تر را جایگزینِ آن نمی‌کند.
+            return validate_fn(raw)
+        responsive_raw = raw.get("responsive")
+        base_raw = {k: v for k, v in raw.items() if k != "responsive"}
+        cleaned = validate_fn(base_raw)
+        cleaned["responsive"] = validate_responsive_settings(responsive_raw, supports_columns=supports_columns)
+        return cleaned
+
+    def wrapped_default() -> dict:
+        base = default_fn()
+        return {**base, "responsive": default_responsive_settings(supports_columns=supports_columns)}
+
+    return wrapped_validate, wrapped_default
+
+
 def _validate_image_text_settings(raw: dict) -> dict:
     if not isinstance(raw, dict):
         raise ValueError("تنظیمات باید یک شیء JSON باشد")
@@ -215,7 +326,7 @@ def _validate_image_text_settings(raw: dict) -> dict:
 # محصول/متن غنی) اضافه می‌شود؛ اینجا فقط استخوان‌بندی allowlist با
 # اعتبارسنج‌های placeholder ایمن (رد هر چیز غیر-dict) ثبت می‌شود تا خودِ
 # Registry از روز اول قابل‌اعتماد و قابل‌تست باشد.
-SECTION_REGISTRY: dict[str, SectionDefinition] = {
+_BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
     "announcement_bar": SectionDefinition(
         key="announcement_bar", label_fa="نوار اعلان", icon="megaphone",
         template_name="storefront_builder/sections/announcement_bar.html",
@@ -320,6 +431,24 @@ SECTION_REGISTRY: dict[str, SectionDefinition] = {
         max_instances=1, duplicable=False, removable=True,
     ),
 }
+
+
+def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionDefinition]:
+    """هر ۱۷ تعریفِ بالا را با پشتیبانیِ ``responsive`` می‌پوشاند و
+    ``has_settings_form`` را یکنواخت True می‌کند (فازِ D) — منطقِ
+    اختصاصیِ هر نوع (rich_text/image_text/product_section/passthrough)
+    در ``_BASE_SECTION_REGISTRY`` بالا کاملاً دست‌نخورده می‌ماند؛ این تابع
+    فقط یک لایه‌یِ یکسان روی همه می‌کشد، نه بازنویسیِ تک‌تکِ ۱۷ ورودی."""
+    finalized = {}
+    for key, definition in base.items():
+        validate_fn, default_fn = _with_responsive(key, definition.validate_settings, definition.default_settings)
+        finalized[key] = dataclasses.replace(
+            definition, validate_settings=validate_fn, default_settings=default_fn, has_settings_form=True,
+        )
+    return finalized
+
+
+SECTION_REGISTRY: dict[str, SectionDefinition] = _finalize_registry(_BASE_SECTION_REGISTRY)
 
 
 class UnknownSectionTypeError(ValueError):
