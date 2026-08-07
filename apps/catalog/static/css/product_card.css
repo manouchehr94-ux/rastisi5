@@ -44,3 +44,11 @@
 @media(max-width:680px){
   .g4,.g3{grid-template-columns:repeat(2,1fr)}
 }
+
+/* حالت نمایش «کاروسل» بخش محصولات (فاز C) — همان .pcard، فقط در یک
+   ردیفِ اسکرول‌شونده‌ی افقی به‌جای گرید؛ بدون کتابخانه‌ی جاوااسکریپت. */
+.pcarousel{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+.pcarousel .pcard{flex:0 0 220px;scroll-snap-align:start}
+@media(max-width:680px){
+  .pcarousel .pcard{flex-basis:150px}
+}

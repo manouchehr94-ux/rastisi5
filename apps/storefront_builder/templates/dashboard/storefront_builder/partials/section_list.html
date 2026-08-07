@@ -46,7 +46,10 @@
       </button>
       {% for definition in section_definitions %}
         {% if definition.key == section.section_key and definition.has_settings_form %}
-        <button type="button" class="btn btn-sm" @click="openSettingsModal({{ section.pk }})">تنظیمات</button>
+        <button type="button" class="btn btn-sm"
+                hx-get="{% url 'dashboard:storefront-builder-section-settings' section.pk %}"
+                hx-target="#sfbSettingsModalBody" hx-swap="innerHTML"
+                @click="settingsOpen = true">تنظیمات</button>
         {% endif %}
         {% if definition.key == section.section_key and definition.duplicable %}
         <button type="button" class="btn btn-sm"

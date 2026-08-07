@@ -336,6 +336,177 @@ class SectionSettingsFormTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(section.settings.get("image_url", ""), "")
 
 
+class ProductSectionSettingsFormTests(StorefrontBuilderViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+        self.section = StorefrontSection.objects.create(
+            version=self.draft, section_key="product_section", order=0,
+            settings={
+                "data_source": "newest", "source_id": None, "product_ids": [],
+                "item_limit": 8, "display_mode": "carousel", "show_view_all": True,
+                "title": "", "subtitle": "",
+            },
+        )
+
+    def test_settings_form_get(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[self.section.pk]))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_save_collection_source(self):
+        from apps.catalog.services import collection_service
+        collection = collection_service.create_collection(self.store, name="کالکشن تنظیمات")
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[self.section.pk]), {
+            "data_source": "collection", "source_id": str(collection.pk), "item_limit": "8",
+            "display_mode": "carousel", "title": "وایر شمع",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.section.refresh_from_db()
+        self.assertEqual(self.section.settings["data_source"], "collection")
+        self.assertEqual(self.section.settings["source_id"], collection.pk)
+        self.assertEqual(self.section.settings["title"], "وایر شمع")
+
+    def test_save_manual_products(self):
+        from decimal import Decimal
+
+        from apps.catalog.models import Category, Product, Vendor
+
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده تنظیمات", slug="v-ps-settings")
+        category = Category.objects.create(store=self.store, name="دسته تنظیمات", slug="c-ps-settings")
+        product = Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name="کالای تنظیمات",
+            slug="ps-settings-p1", sku="SKU-PS-SETTINGS-1", price=Decimal("10000"), status=Product.Status.ACTIVE,
+        )
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[self.section.pk]), {
+            "data_source": "manual", "product_ids": [str(product.pk)], "item_limit": "8",
+            "display_mode": "grid", "title": "دستی",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.section.refresh_from_db()
+        self.assertEqual(self.section.settings["product_ids"], [product.pk])
+        self.assertEqual(self.section.settings["display_mode"], "grid")
+
+    def test_manual_without_products_shows_error(self):
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[self.section.pk]), {
+            "data_source": "manual", "item_limit": "8", "display_mode": "carousel",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.section.refresh_from_db()
+        self.assertEqual(self.section.settings["data_source"], "newest")  # unchanged
+
+    def test_collection_without_source_id_shows_error(self):
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[self.section.pk]), {
+            "data_source": "collection", "item_limit": "8", "display_mode": "carousel",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.section.refresh_from_db()
+        self.assertEqual(self.section.settings["data_source"], "newest")  # unchanged
+
+    def test_cross_store_collection_rejected_by_data_service_not_crash(self):
+        """انتخابِ یک کالکشنِ متعلق به فروشگاهِ دیگر (مثلاً با دستکاریِ
+        فرم) نباید کرش کند — در سطحِ section_registry هر source_id مثبت
+        پذیرفته می‌شود (بدونِ چکِ مالکیت)؛ مالکیت در section_data_service
+        در زمانِ رندر چک می‌شود، نه اینجا."""
+        other_store = Store.objects.create(
+            name="فروشگاه دیگر تنظیمات", slug="ps-settings-other-store", admin_subdomain="ps-settings-other-store",
+        )
+        from apps.catalog.services import collection_service
+        other_collection = collection_service.create_collection(other_store, name="کالکشن فروشگاه دیگر")
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[self.section.pk]), {
+            "data_source": "collection", "source_id": str(other_collection.pk), "item_limit": "8",
+            "display_mode": "carousel",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.section.refresh_from_db()
+        self.assertEqual(self.section.settings["source_id"], other_collection.pk)
+
+    def test_duplicate_then_independent_edit_does_not_affect_original(self):
+        """سناریوی «دو نمونه‌ی مستقلِ product_section» (Playwright B) از
+        مسیر تکرار هم: تکرار، تنظیماتِ فعلی را کپی می‌کند؛ اما ویرایشِ
+        بعدیِ نمونه‌ی دوم نباید نمونه‌ی اول را تغییر دهد (دو رکورد کاملاً
+        مستقل در دیتابیس‌اند، فقط JSON اولیه‌شان یکسان بوده)."""
+        from apps.catalog.services import collection_service
+
+        first_collection = collection_service.create_collection(self.store, name="کالکشن اول تکرار")
+        self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[self.section.pk]), {
+            "data_source": "collection", "source_id": str(first_collection.pk), "item_limit": "8",
+            "display_mode": "carousel", "title": "اول",
+        })
+        self.client.post(reverse("dashboard:storefront-builder-section-duplicate", args=[self.section.pk]))
+        duplicate = self.draft.sections.filter(section_key="product_section").exclude(pk=self.section.pk).get()
+
+        second_collection = collection_service.create_collection(self.store, name="کالکشن دوم تکرار")
+        self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[duplicate.pk]), {
+            "data_source": "collection", "source_id": str(second_collection.pk), "item_limit": "8",
+            "display_mode": "carousel", "title": "دوم",
+        })
+
+        self.section.refresh_from_db()
+        duplicate.refresh_from_db()
+        self.assertEqual(self.section.settings["source_id"], first_collection.pk)
+        self.assertEqual(self.section.settings["title"], "اول")
+        self.assertEqual(duplicate.settings["source_id"], second_collection.pk)
+        self.assertEqual(duplicate.settings["title"], "دوم")
+
+    def test_deactivating_section_does_not_affect_collection(self):
+        """سناریوی D (Playwright): غیرفعال‌سازیِ Section نباید خودِ
+        کالکشن را تحت تأثیر قرار دهد — is_active فقط روی StorefrontSection
+        است، MerchantCollection.is_active کاملاً جداست."""
+        from apps.catalog.services import collection_service
+
+        collection = collection_service.create_collection(self.store, name="کالکشن غیرفعال‌سازی سکشن")
+        self.section.settings = {
+            "data_source": "collection", "source_id": collection.pk, "product_ids": [],
+            "item_limit": 8, "display_mode": "carousel", "show_view_all": True, "title": "", "subtitle": "",
+        }
+        self.section.save(update_fields=["settings"])
+
+        self.client.post(reverse("dashboard:storefront-builder-section-toggle", args=[self.section.pk]))
+        self.section.refresh_from_db()
+        collection.refresh_from_db()
+        self.assertFalse(self.section.is_active)
+        self.assertTrue(collection.is_active)
+
+
+class ProductSectionProductSearchTests(StorefrontBuilderViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+        self.section = StorefrontSection.objects.create(version=self.draft, section_key="product_section", order=0)
+
+    def test_empty_query_returns_no_results(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-product-search", args=[self.section.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn(b"pp-result-row", resp.content)
+
+    def test_matching_query_returns_result(self):
+        from decimal import Decimal
+
+        from apps.catalog.models import Category, Product, Vendor
+
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده جست‌وجو", slug="v-ps-search")
+        category = Category.objects.create(store=self.store, name="دسته جست‌وجو", slug="c-ps-search")
+        Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name="کالای جست‌وجوی خاص",
+            slug="ps-search-p1", sku="SKU-PS-SEARCH-1", price=Decimal("10000"), status=Product.Status.ACTIVE,
+        )
+        resp = self.client.get(
+            reverse("dashboard:storefront-builder-section-product-search", args=[self.section.pk]), {"q": "جست‌وجوی خاص"},
+        )
+        self.assertContains(resp, "کالای جست‌وجوی خاص")
+
+    def test_other_store_section_pk_rejected(self):
+        other_store = Store.objects.create(
+            name="فروشگاه دیگر جست‌وجو", slug="ps-search-other-store", admin_subdomain="ps-search-other-store",
+        )
+        other_draft = svc.get_or_create_draft(other_store)
+        other_section = StorefrontSection.objects.create(version=other_draft, section_key="product_section", order=0)
+        resp = self.client.get(
+            reverse("dashboard:storefront-builder-section-product-search", args=[other_section.pk]), {"q": "test"},
+        )
+        self.assertEqual(resp.status_code, 404)
+
+
 class PublishDiscardRestoreViewTests(StorefrontBuilderViewsTestCase):
     def test_publish_redirects_and_sets_flag(self):
         svc.get_or_create_draft(self.store)

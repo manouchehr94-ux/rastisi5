@@ -123,5 +123,21 @@ function storefrontEditor() {
     },
   };
 }
+
+function productSectionForm(initialDataSource, initialProducts) {
+  return {
+    dataSource: initialDataSource,
+    selected: initialProducts,
+    addProduct(id, name) {
+      id = parseInt(id, 10);
+      if (!this.selected.some((p) => p.id === id)) {
+        this.selected.push({ id, name });
+      }
+    },
+    removeProduct(id) {
+      this.selected = this.selected.filter((p) => p.id !== id);
+    },
+  };
+}
 </script>
 {% endblock %}

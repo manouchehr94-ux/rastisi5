@@ -139,12 +139,24 @@ def storefront_section_settings(request, pk):
 
     field_errors = {}
     if request.method == "POST":
-        raw = {
-            "title": request.POST.get("title", ""),
-            "body_html": request.POST.get("body_html", ""),
-            "image_url": request.POST.get("image_url", ""),
-            "image_position": request.POST.get("image_position", "right"),
-        }
+        if section.section_key == "product_section":
+            raw = {
+                "data_source": request.POST.get("data_source", ""),
+                "source_id": request.POST.get("source_id") or None,
+                "product_ids": request.POST.getlist("product_ids"),
+                "item_limit": request.POST.get("item_limit", ""),
+                "display_mode": request.POST.get("display_mode", ""),
+                "show_view_all": request.POST.get("show_view_all") == "on",
+                "title": request.POST.get("title", ""),
+                "subtitle": request.POST.get("subtitle", ""),
+            }
+        else:
+            raw = {
+                "title": request.POST.get("title", ""),
+                "body_html": request.POST.get("body_html", ""),
+                "image_url": request.POST.get("image_url", ""),
+                "image_position": request.POST.get("image_position", "right"),
+            }
         try:
             cleaned = definition.validate_settings(raw)
             section.settings = cleaned
@@ -154,8 +166,45 @@ def storefront_section_settings(request, pk):
         except ValueError as exc:
             field_errors["general"] = str(exc)
 
-    return render(request, "dashboard/storefront_builder/partials/section_settings_form.html", {
-        "section": section, "definition": definition, "field_errors": field_errors,
+    context = {"section": section, "definition": definition, "field_errors": field_errors}
+    if section.section_key == "product_section":
+        context.update(_product_section_picker_context(request, section))
+    return render(request, "dashboard/storefront_builder/partials/section_settings_form.html", context)
+
+
+def _product_section_picker_context(request, section):
+    """کالکشن‌ها/دسته‌بندی‌ها/برندهایِ همین Store (برایِ کشوهای انتخابِ
+    منبع) + کالاهایِ دستیِ فعلاً انتخاب‌شده (برایِ نمایشِ اولیه‌یِ
+    چیپ‌هایِ ادیتور «کالاهایِ دستی» — نه بازسازیِ آن‌ها از صفر در JS)."""
+    from apps.catalog.models import Brand, Category, MerchantCollection, Product
+
+    store = _resolve_store(request)
+    product_ids = section.settings.get("product_ids") or []
+    products_by_id = {p.pk: p for p in Product.objects.filter(store=store, pk__in=product_ids)}
+    return {
+        "collections": MerchantCollection.objects.filter(store=store).order_by("name"),
+        "categories": Category.objects.filter(store=store).order_by("name"),
+        "brands": Brand.objects.filter(store=store).order_by("name"),
+        "initial_manual_products": [
+            {"id": pid, "name": products_by_id[pid].name} for pid in product_ids if pid in products_by_id
+        ],
+    }
+
+
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+def storefront_section_product_search(request, pk):
+    """جست‌وجویِ کالا برایِ ویجتِ «کالاهایِ دستی» تنظیماتِ بخشِ محصول —
+    از همان ``collection_service.searchable_products`` فازِ B عبور
+    می‌کند (نه پیاده‌سازیِ دوباره‌ی جست‌وجو)."""
+    from apps.catalog.services import collection_service
+
+    _get_scoped_section(request, pk)
+    store = _resolve_store(request)
+    query = request.GET.get("q", "").strip()
+    results = collection_service.searchable_products(store, query=query)[:20] if query else []
+    return render(request, "dashboard/storefront_builder/partials/product_section_search_results.html", {
+        "results": results, "query": query,
     })
 
 
