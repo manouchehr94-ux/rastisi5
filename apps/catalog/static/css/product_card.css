@@ -7,7 +7,10 @@
 .sec-head h2{font-size:19px;font-weight:900;display:flex;align-items:center;gap:9px}
 .sec-head h2 .bar{width:5px;height:22px;border-radius:4px;background:linear-gradient(var(--violet),var(--violet-3))}
 .grid{display:grid;gap:16px}
-.g4{grid-template-columns:repeat(4,1fr)}
+/* تعدادِ ستونِ پیش‌فرض از Templateِ فعال می‌آید (بخش‌هایی که هنوز
+   per-section column-aware نیستند: جدیدترین‌ها، پرفروش‌ترین‌ها، ...) —
+   پیش‌فرض دقیقاً همان ۴ ستونِ قبلی. */
+.g4{grid-template-columns:repeat(var(--sfb-grid-density, 4),1fr)}
 .g3{grid-template-columns:repeat(3,1fr)}
 .g2{grid-template-columns:repeat(2,1fr)}
 .pcard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:.2s;display:flex;flex-direction:column;cursor:pointer}
@@ -15,6 +18,17 @@
 .pcard .img{position:relative;aspect-ratio:1/1;display:grid;place-items:center;font-size:70px;overflow:hidden}
 .pcard .img .emo{transition:transform .3s}
 .pcard:hover .img .emo{transform:scale(1.08)}
+
+/* سایه/رفتارِ hoverِ کارت — از Templateِ فعال می‌آید. پیش‌فرض
+   (data-sfb-card-shadow="soft"، data-sfb-card-hover="lift") دقیقاً
+   همان دو قانونِ بالاست، بدون تغییر. */
+html[data-sfb-card-shadow="none"] .pcard:hover{box-shadow:none}
+html[data-sfb-card-shadow="strong"] .pcard{box-shadow:0 4px 14px rgba(20,10,40,.10)}
+html[data-sfb-card-shadow="strong"] .pcard:hover{box-shadow:0 16px 40px rgba(20,10,40,.22)}
+html[data-sfb-card-hover="none"] .pcard:hover{transform:none;box-shadow:none;border-color:var(--line)}
+html[data-sfb-card-hover="none"] .pcard:hover .img .emo{transform:none}
+html[data-sfb-card-hover="zoom"] .pcard:hover{transform:none}
+html[data-sfb-card-hover="zoom"] .pcard:hover .img .emo{transform:scale(1.16)}
 .pcard .heart{position:absolute;top:10px;left:10px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center;color:var(--muted);transition:.15s;backdrop-filter:blur(2px)}
 .pcard .heart:hover{color:var(--pink);background:#fff}
 .pcard .heart.on{color:var(--pink)}

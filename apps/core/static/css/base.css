@@ -10,7 +10,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{
-  font-family:'Vazirmatn','Segoe UI',Tahoma,sans-serif;
+  font-family:var(--sfb-font, 'Vazirmatn'),'Segoe UI',Tahoma,sans-serif;
   background:var(--bg);
   color:var(--ink);
   line-height:1.8;
@@ -22,5 +22,13 @@ body{
 a{color:inherit;text-decoration:none}
 button{font-family:inherit;cursor:pointer;border:0;background:none}
 img{max-width:100%}
-.wrap{max-width:1240px;margin:0 auto;padding:0 18px}
+/* عرضِ محتوا از Templateِ فعال می‌آید — پیش‌فرض دقیقاً همان ۱۲۴۰px قبلی. */
+.wrap{max-width:var(--sfb-content-width, 1240px);margin:0 auto;padding:0 18px}
 .hidden{display:none!important}
+
+/* حرکت — احترام به prefers-reduced-motion صرف‌نظر از Templateِ انتخابی
+   (طبقِ الزامِ صریحِ کار) + احترام به data-sfb-motion="none" خودِ Template. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
+html[data-sfb-motion="none"] *{transition:none!important;animation:none!important}

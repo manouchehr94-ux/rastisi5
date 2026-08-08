@@ -331,3 +331,118 @@ class PaletteOverrideWorkflowTests(TestCase):
         draft = svc.get_or_create_draft(self.store)
         self.assertEqual(draft.appearance_config["palette_slug"], "forest")
         self.assertEqual(draft.appearance_config["color_overrides"], {})
+
+
+class TemplateRegistryTests(TestCase):
+    def test_at_least_ten_templates_registered(self):
+        self.assertGreaterEqual(len(appearance_registry.list_templates()), 10)
+
+    def test_templates_are_structurally_distinct_not_just_color(self):
+        """الزامِ صریحِ کار: «Template صرفاً رنگ نیست» — این تست تأیید
+        می‌کند حداقل چند فیلدِ ساختاریِ واقعی (نه رنگ) بینِ قالب‌ها واقعاً
+        فرق دارد، نه این‌که همه یک مقدارِ یکسان را کپی کرده باشند."""
+        templates = appearance_registry.list_templates()
+        content_widths = {t.content_width for t in templates}
+        grid_densities = {t.grid_density for t in templates}
+        radii = {t.radius for t in templates}
+        hero_styles = {t.hero_style for t in templates}
+        card_shadows = {t.card_shadow for t in templates}
+        self.assertGreater(len(content_widths), 1)
+        self.assertGreater(len(grid_densities), 1)
+        self.assertGreater(len(radii), 1)
+        self.assertGreater(len(hero_styles), 1)
+        self.assertGreater(len(card_shadows), 1)
+
+    def test_modern_template_matches_pre_template_system_defaults(self):
+        """قالبِ پیش‌فرض نباید هیچ فروشگاهی را که هنوز به این سیستم دست
+        نزده تغییر دهد."""
+        modern = appearance_registry.get_template("modern")
+        self.assertEqual(modern.radius, 18)
+        self.assertEqual(modern.button_radius, 12)
+        self.assertEqual(modern.content_width, 1200)
+
+
+class TemplateSwitchViewTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        self.store.admin_subdomain = HOST.split(".")[0]
+        self.store.save(update_fields=["admin_subdomain"])
+        self.staff = User.objects.create_user(username="template_owner", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.client = Client(HTTP_HOST=HOST)
+        self.client.login(username="template_owner", password="pass12345")
+
+    def test_switching_template_with_no_palette_selected_does_not_crash(self):
+        """رگرسیونِ باگِ واقعی: حلقه‌ی فرمِ گالریِ قالب یک‌بار مقدارِ
+        Noneِ پایتون را به‌صورتِ رشته‌ی literal «None» در فیلدِ مخفیِ
+        palette_slug رندر می‌کرد — این تست دقیقاً همان سناریو (فروشگاهی
+        که هنوز هیچ Paletteی انتخاب نکرده) را شبیه‌سازی می‌کند."""
+        draft = svc.get_or_create_draft(self.store)
+        self.assertIsNone(draft.effective_appearance_config()["palette_slug"])
+
+        resp = self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            "template_slug": "boutique", "font": "Tahoma", "radius": "24",
+            "button_radius": "22", "density": "relaxed", "motion": "subtle",
+        })
+        self.assertEqual(resp.status_code, 302)
+        draft = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft.appearance_config["template_slug"], "boutique")
+        self.assertIsNone(draft.appearance_config.get("palette_slug"))
+
+    def test_switching_template_preserves_color_overrides(self):
+        draft = svc.get_or_create_draft(self.store)
+        draft.appearance_config = svc.validate_appearance_config({"color_overrides": {"text": "#123123"}})
+        draft.save(update_fields=["appearance_config"])
+
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            "template_slug": "tech", "font": "Tahoma", "radius": "14",
+            "button_radius": "10", "density": "normal", "motion": "dynamic",
+        })
+        draft = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft.appearance_config["template_slug"], "tech")
+        self.assertEqual(draft.appearance_config["color_overrides"], {"text": "#123123"})
+
+
+@override_settings(ALLOWED_HOSTS=["sfb-template-public.example.com", "testserver", HOST])
+class TemplateStructuralChangeReachesPublicPageTests(TestCase):
+    """قدمِ Q/R/S/T واکینگِ کاربر: انتخابِ Marketplace → Publish → تغییرِ
+    ساختاریِ محسوس؛ سپس تغییر به Boutique بدونِ تغییرِ محصولات/کالکشن‌ها."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        StoreDomain.objects.create(
+            store=self.store, hostname="sfb-template-public.example.com", is_primary=True,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+
+    def _publish_with_template(self, template_slug):
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+        draft = svc.get_or_create_draft(self.store)
+        draft.appearance_config = svc.validate_appearance_config({"template_slug": template_slug})
+        draft.save(update_fields=["appearance_config"])
+        svc.publish(self.store)
+
+    def test_marketplace_template_changes_content_width_on_public_page(self):
+        self._publish_with_template("marketplace")
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST="sfb-template-public.example.com")
+        self.assertContains(resp, "data-sfb-template=\"marketplace\"")
+        self.assertContains(resp, "--sfb-content-width:1320px")
+
+    def test_switching_to_boutique_does_not_touch_products(self):
+        from apps.catalog.models import Product
+
+        product_count_before = Product.objects.filter(store=self.store).count()
+        self._publish_with_template("marketplace")
+        self._publish_with_template("boutique")
+        product_count_after = Product.objects.filter(store=self.store).count()
+        self.assertEqual(product_count_before, product_count_after)
+
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST="sfb-template-public.example.com")
+        self.assertContains(resp, "data-sfb-template=\"boutique\"")
+        self.assertContains(resp, "data-sfb-hero-style=\"tall\"")

@@ -23,6 +23,14 @@
 .hero-arrow:disabled{opacity:.35;cursor:not-allowed}
 .hero-arrow-prev{right:16px}
 .hero-arrow-next{left:16px}
+
+/* تناسبِ اسلایدرِ اصلی — از Templateِ فعال می‌آید. پیش‌فرض
+   (data-sfb-hero-style="wide") دقیقاً همان چیدمانِ بالاست. */
+html[data-sfb-hero-style="tall"] .hero-inner{grid-template-columns:1fr;text-align:center;min-height:460px;padding:56px 40px}
+html[data-sfb-hero-style="tall"] .hero-text h1,
+html[data-sfb-hero-style="tall"] .hero-text p{max-width:100%;margin-inline:auto}
+html[data-sfb-hero-style="tall"] .hero-btns{justify-content:center}
+html[data-sfb-hero-style="tall"] .hero-visual{order:-1;min-height:260px}
 .float-card{position:absolute;background:#fff;color:var(--ink);border-radius:14px;padding:10px 14px;box-shadow:0 12px 30px rgba(60,30,120,.25);font-size:12px;font-weight:700;display:flex;align-items:center;gap:9px}
 .float-card .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:17px}
 .fc1{top:8px;right:-6px}.fc1 .ic{background:var(--pink-soft)}

@@ -4,6 +4,27 @@ from apps.core.models import ShopSettings, ShopSettingsNotProvisionedError
 from apps.stores.resolution import StoreResolutionError
 
 
+def _versioned_appearance(request):
+    """معادلِ ``_versioned_colors`` برایِ فیلدهایِ *ساختاریِ* ظاهر
+    (Template) — رنگ‌ها و ساختار هر دو فقط وقتی از نسخه می‌آیند که
+    ``request.storefront_appearance_version`` صریحاً ست شده باشد؛ در غیرِ
+    این صورت None برمی‌گردد و base.html از پیش‌فرض‌هایِ سخت‌کدشده (دقیقاً
+    معادلِ قالبِ «modern» — یعنی ظاهرِ فعلیِ سایت) استفاده می‌کند. طبقِ
+    همان محدودیتِ مستندشده‌یِ ``_versioned_colors``: صفحاتِ غیرِ Builder-aware
+    (checkout, جزئیاتِ کالا, ...) فعلاً همیشه «modern» می‌بینند، حتی اگر
+    فروشگاه Template دیگری منتشر کرده باشد — این یک محدودیتِ شناخته‌شده و
+    مستندشده است (به گزارشِ نهایی مراجعه شود)، نه یک باگ."""
+    version = getattr(request, "storefront_appearance_version", None)
+    if version is None:
+        return None
+
+    from apps.storefront_builder import appearance_registry
+
+    config = version.effective_appearance_config()
+    template = appearance_registry.get_template(config["template_slug"]) or appearance_registry.get_template("modern")
+    return {"template": template, "config": config}
+
+
 def _versioned_colors(request):
     """اگر همین request توسطِ یک ویوِ سازنده بصری (Preview یا صفحه‌ی
     عمومیِ حالتِ Visual Layout) مشخصاً روی ``request.storefront_appearance_version``
@@ -75,6 +96,39 @@ def shop_settings(request):
         muted = safe_hex(shop.muted_text_color, "#8B86A3")
         border = mix_hex(text, surface, 0.12)
 
+    appearance = _versioned_appearance(request)
+    if appearance is not None:
+        template = appearance["template"]
+        config = appearance["config"]
+        shop_template_slug = template.slug
+        shop_font = config["font"]
+        shop_radius = config["radius"]
+        shop_button_radius = config["button_radius"]
+        shop_button_style = config.get("button_style") or template.button_style
+        shop_density = config["density"]
+        shop_motion = config["motion"]
+        shop_content_width = template.content_width
+        shop_grid_density = template.grid_density
+        shop_card_shadow = template.card_shadow
+        shop_card_hover = template.card_hover
+        shop_hero_style = template.hero_style
+    else:
+        from apps.storefront_builder import appearance_registry
+
+        _default_template = appearance_registry.get_template("modern")
+        shop_template_slug = "modern"
+        shop_font = _default_template.font
+        shop_radius = _default_template.radius
+        shop_button_radius = _default_template.button_radius
+        shop_button_style = _default_template.button_style
+        shop_density = _default_template.density
+        shop_motion = _default_template.motion
+        shop_content_width = _default_template.content_width
+        shop_grid_density = _default_template.grid_density
+        shop_card_shadow = _default_template.card_shadow
+        shop_card_hover = _default_template.card_hover
+        shop_hero_style = _default_template.hero_style
+
     return {
         "SHOP_NAME": shop.name,
         "SHOP_TAGLINE": shop.tagline,
@@ -99,6 +153,20 @@ def shop_settings(request):
         "SHOP_SECONDARY_FG": foreground_for(secondary),
         "SHOP_PRIMARY_HOVER": darken_hex(primary),
         "SHOP_BORDER_COLOR": border,
+        # ساختارِ ظاهر (Template) — فقط برایِ مسیرهایِ Builder-aware از
+        # نسخه می‌آید؛ نگاه کنید به ``_versioned_appearance``.
+        "SHOP_TEMPLATE_SLUG": shop_template_slug,
+        "SHOP_FONT": shop_font,
+        "SHOP_RADIUS": shop_radius,
+        "SHOP_BUTTON_RADIUS": shop_button_radius,
+        "SHOP_BUTTON_STYLE": shop_button_style,
+        "SHOP_DENSITY": shop_density,
+        "SHOP_MOTION": shop_motion,
+        "SHOP_CONTENT_WIDTH": shop_content_width,
+        "SHOP_GRID_DENSITY": shop_grid_density,
+        "SHOP_CARD_SHADOW": shop_card_shadow,
+        "SHOP_CARD_HOVER": shop_card_hover,
+        "SHOP_HERO_STYLE": shop_hero_style,
         # شبکه‌های اجتماعی — store_id (نه shop.store) تا از یک query اضافی برای واکشی خودِ Store پرهیز شود
         "SOCIAL_LINKS_FOOTER": SocialLink.objects.filter(
             is_active=True, show_in_footer=True, store_id=shop.store_id,

@@ -93,9 +93,12 @@
       <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}">
         {% csrf_token %}
         <input type="hidden" name="template_slug" value="{{ t.slug }}">
-        {% for key, value in config.items %}
-          {% if key != "template_slug" and key != "color_overrides" %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}
-        {% endfor %}
+        {% if config.palette_slug %}<input type="hidden" name="palette_slug" value="{{ config.palette_slug }}">{% endif %}
+        <input type="hidden" name="font" value="{{ config.font }}">
+        <input type="hidden" name="radius" value="{{ config.radius }}">
+        <input type="hidden" name="button_radius" value="{{ config.button_radius }}">
+        <input type="hidden" name="density" value="{{ config.density }}">
+        <input type="hidden" name="motion" value="{{ config.motion }}">
         <button type="submit" class="sfb-template-card {% if config.template_slug == t.slug %}active{% endif %}">
           <strong>{{ t.name_fa }}</strong>
           <span class="tiny" style="color:var(--muted)">{{ t.group_fa }}</span>

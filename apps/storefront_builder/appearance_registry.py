@@ -51,6 +51,17 @@ class TemplateDefinition:
     button_style: str
     density: str
     motion: str
+    #: فیلدهایِ *ساختاریِ* واقعی — این‌ها هستند که Template را از یک
+    #: «Paletteِ دیگر» متمایز می‌کنند (طبقِ الزامِ صریحِ کار: «Template
+    #: صرفاً رنگ نیست»). هر کدام مستقیماً یک CSS custom property می‌شود
+    #: (``--sfb-content-width`` و...) که در تمپلیت‌هایِ CSS موجود
+    #: (``home.css``/``product_card.css``) مصرف می‌شود — نه فورکِ کاملِ
+    #: تمپلیت به‌ازای هر Template.
+    content_width: int  # px — عرضِ حداکثرِ محتوا (.wrap)
+    grid_density: int  # تعدادِ ستونِ پیش‌فرضِ گریدِ محصول در دسکتاپ
+    card_shadow: str  # "none" | "soft" | "strong"
+    card_hover: str  # "none" | "lift" | "zoom"
+    hero_style: str  # "wide" | "tall" | "split"
     #: نمونه‌رنگ‌هایِ گالری (برایِ mini-preview) — لزوماً همان پالتِ فعلیِ
     #: مرچنت نیست؛ فقط برایِ نمایشِ کارتِ گالری.
     swatch: list[str]
@@ -154,12 +165,106 @@ for _slug, _name, _group, _primary, _secondary, _accent, _background, _surface, 
 del _slug, _name, _group, _primary, _secondary, _accent, _background, _surface, _text, _muted, _border
 
 
-# قالبِ پایه — همیشه باید وجود داشته باشد چون
-# ``APPEARANCE_CONFIG_DEFAULTS["template_slug"]`` (models.py) به آن اشاره
-# می‌کند؛ سایرِ قالب‌ها در چکپوینتِ Template Architecture اضافه می‌شوند.
+# ---------------------------------------------------------------- ۱۰ قالبِ واقعی
+#
+# «قالب صرفاً رنگ نیست» — طبقِ الزامِ صریحِ کار. تفاوتِ واقعیِ این ۱۰ قالب
+# در ترکیبِ ``content_width``/``grid_density``/``card_shadow``/``card_hover``/
+# ``hero_style``/``density``/``motion``/``radius``/``button_style``/``font``
+# است، نه صرفاً رنگ — این‌ها به CSS custom property تبدیل می‌شوند
+# (``apps/core/static/css/tokens.css``) و در CSSِ *موجود*
+# (``home.css``/``product_card.css``/``layout.css``) مصرف می‌شوند؛ هیچ
+# فورکِ کاملِ تمپلیت‌هایِ Django به‌ازای هر Template ساخته نشده — دقیقاً
+# همان معماریِ توصیه‌شده‌یِ گزارشِ ممیزی («shared renderer + design tokens
+# + closed visual variants»، نه N×M فورک).
+#
+# ``modern`` قالبِ پیش‌فرض/پایه است — دقیقاً معادلِ ظاهرِ فعلیِ سایت پیش از
+# این چکپوینت (تا انتخابِ آن هیچ فروشگاهی را تغییر ندهد).
 register_template(TemplateDefinition(
     slug="modern", name_fa="فروشگاه مدرن", group_fa="فروشگاهی",
     description_fa="هدر تمیز، کارت‌های شناور و چیدمان متعادل — قالب پیش‌فرض.",
     font="Vazirmatn", radius=18, button_radius=12, button_style="filled",
-    density="normal", motion="subtle", swatch=["#6D28D9", "#FF4D77", "#FFFFFF"],
+    density="normal", motion="subtle", content_width=1200, grid_density=4,
+    card_shadow="soft", card_hover="lift", hero_style="wide",
+    swatch=["#6D28D9", "#FF4D77", "#FFFFFF"],
+))
+
+register_template(TemplateDefinition(
+    slug="marketplace", name_fa="مارکت‌پلیس", group_fa="فروشگاهی",
+    description_fa="متراکم، محصول‌محور و مناسب فروشگاه‌های بزرگ با تعداد کالای زیاد.",
+    font="Vazirmatn", radius=10, button_radius=8, button_style="filled",
+    density="compact", motion="subtle", content_width=1320, grid_density=6,
+    card_shadow="none", card_hover="none", hero_style="wide",
+    swatch=["#E52B50", "#F3F4F6", "#FFFFFF"],
+))
+
+register_template(TemplateDefinition(
+    slug="minimal", name_fa="مینیمال", group_fa="مینیمال",
+    description_fa="فضای سفید زیاد، خطوط ظریف و تمرکز روی محتوا — بدون حرکت اضافه.",
+    font="Arial", radius=8, button_radius=6, button_style="outline",
+    density="relaxed", motion="none", content_width=1100, grid_density=3,
+    card_shadow="none", card_hover="none", hero_style="tall",
+    swatch=["#111111", "#FFFFFF", "#F6F6F6"],
+))
+
+register_template(TemplateDefinition(
+    slug="boutique", name_fa="بوتیک", group_fa="مد و زیبایی",
+    description_fa="چیدمان نرم و تصویری با کارت‌های لطیف — مناسب مد و زیبایی.",
+    font="Tahoma", radius=24, button_radius=22, button_style="soft",
+    density="relaxed", motion="subtle", content_width=1150, grid_density=3,
+    card_shadow="soft", card_hover="zoom", hero_style="tall",
+    swatch=["#8A5A44", "#E8D6C8", "#FFF9F5"],
+))
+
+register_template(TemplateDefinition(
+    slug="luxury", name_fa="لوکس", group_fa="مد و زیبایی",
+    description_fa="تایپوگرافی سنگین، گوشه‌های تیز و حرکت آرام کارت‌ها.",
+    font="Georgia", radius=4, button_radius=4, button_style="outline",
+    density="relaxed", motion="subtle", content_width=1200, grid_density=4,
+    card_shadow="none", card_hover="lift", hero_style="wide",
+    swatch=["#171717", "#C9A227", "#F6F0E6"],
+))
+
+register_template(TemplateDefinition(
+    slug="tech", name_fa="تکنولوژی", group_fa="دیجیتال",
+    description_fa="کنتراست بالا، سایه‌های قوی و کارت‌های واکنش‌گرا با حرکت پویا.",
+    font="Tahoma", radius=14, button_radius=10, button_style="filled",
+    density="normal", motion="dynamic", content_width=1280, grid_density=5,
+    card_shadow="strong", card_hover="zoom", hero_style="wide",
+    swatch=["#1267FF", "#00C2FF", "#0B1020"],
+))
+
+register_template(TemplateDefinition(
+    slug="editorial", name_fa="مجله‌ای", group_fa="محتوا",
+    description_fa="عنوان‌های بزرگ، ریتم تحریریه و تصاویر شاخص — بدون حرکت اضافه.",
+    font="Georgia", radius=2, button_radius=2, button_style="outline",
+    density="relaxed", motion="none", content_width=1100, grid_density=3,
+    card_shadow="none", card_hover="none", hero_style="tall",
+    swatch=["#A11D33", "#FAF7F2", "#1E1E1E"],
+))
+
+register_template(TemplateDefinition(
+    slug="compact", name_fa="فشرده حرفه‌ای", group_fa="فروشگاهی",
+    description_fa="نمایش محصولات بیشتر در هر اسکرول و هدر کم‌ارتفاع.",
+    font="Vazirmatn", radius=6, button_radius=6, button_style="filled",
+    density="compact", motion="subtle", content_width=1320, grid_density=6,
+    card_shadow="none", card_hover="lift", hero_style="wide",
+    swatch=["#0A6C55", "#EAF5F1", "#FFFFFF"],
+))
+
+register_template(TemplateDefinition(
+    slug="playful", name_fa="شاد و پویا", group_fa="خانواده",
+    description_fa="گوشه‌های گرد، حرکت نرم و رنگ‌های زنده — مناسب فروشگاه خانواده/کودک.",
+    font="Vazirmatn", radius=28, button_radius=24, button_style="soft",
+    density="normal", motion="dynamic", content_width=1200, grid_density=4,
+    card_shadow="soft", card_hover="zoom", hero_style="wide",
+    swatch=["#7C3AED", "#FF6B6B", "#FFF8DE"],
+))
+
+register_template(TemplateDefinition(
+    slug="glass", name_fa="شیشه‌ای", group_fa="مدرن",
+    description_fa="سطوح نیمه‌شفاف، سایه نرم و عمق بصری بیشتر.",
+    font="Vazirmatn", radius=22, button_radius=16, button_style="soft",
+    density="normal", motion="subtle", content_width=1200, grid_density=4,
+    card_shadow="strong", card_hover="lift", hero_style="wide",
+    swatch=["#4F46E5", "#06B6D4", "#EEF2FF"],
 ))
