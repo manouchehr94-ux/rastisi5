@@ -555,6 +555,164 @@ def default_brand_carousel_settings() -> dict:
     return {"title": "", "display_mode": "grid", "show_view_all": False, "brand_ids": []}
 
 
+class CollectionTilesSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ «کارت‌های کالکشن» نامعتبر است."""
+
+
+_MAX_COLLECTION_TILES_IDS = 12
+
+
+def _validate_collection_tiles_settings(raw: dict) -> dict:
+    """چکپوینتِ ۱۲: بخشِ جدیدِ «کارت‌های کالکشن» — خودِ کالکشن‌ها را نشان
+    می‌دهد (تصویر/نام/تعدادِ کالا/لینک به صفحه‌ی کالکشن)، نه کالاهایِ
+    *داخلِ* یک کالکشن (که همان ``product_section`` با ``data_source=collection``
+    است). ``collection_ids`` خالی = نمایشِ خودکارِ همه‌ی کالکشن‌های فعال."""
+    if not isinstance(raw, dict):
+        raise CollectionTilesSettingsError("تنظیمات باید یک شیء JSON باشد")
+    title = str(raw.get("title", "")).strip()[:_MAX_SECTION_TITLE_LENGTH]
+    collection_ids = _clean_positive_int_list(
+        raw.get("collection_ids", []), max_len=_MAX_COLLECTION_TILES_IDS,
+        error_cls=CollectionTilesSettingsError, error_message="شناسه‌ی کالکشن نامعتبر است",
+    )
+    return {"title": title, "collection_ids": collection_ids}
+
+
+def default_collection_tiles_settings() -> dict:
+    return {"title": "", "collection_ids": []}
+
+
+class QuickLinksSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ «دسترسی سریع» نامعتبر است."""
+
+
+def _validate_quick_links_settings(raw: dict) -> dict:
+    """چکپوینتِ ۱۲: «دسترسی سریع» — به‌جایِ اختراعِ یک مدلِ لینکِ جدید،
+    مستقیماً یک ``Menu`` موجود (همان زیرساختِ Menu/MenuItem/Destination
+    که برایِ ناوبریِ هدر/فوتر استفاده می‌شود) را به‌شکلِ ردیفی از
+    کارت‌های بصری نمایش می‌دهد — مالکیتِ Storeِ ``menu_id`` در
+    ``render_service`` چک می‌شود."""
+    if not isinstance(raw, dict):
+        raise QuickLinksSettingsError("تنظیمات باید یک شیء JSON باشد")
+    title = str(raw.get("title", "")).strip()[:_MAX_SECTION_TITLE_LENGTH]
+    menu_id = raw.get("menu_id")
+    if menu_id is not None:
+        try:
+            menu_id = int(menu_id)
+        except (TypeError, ValueError):
+            raise QuickLinksSettingsError("منویِ انتخاب‌شده نامعتبر است") from None
+        if menu_id <= 0:
+            menu_id = None
+    return {"title": title, "menu_id": menu_id}
+
+
+def default_quick_links_settings() -> dict:
+    return {"title": "", "menu_id": None}
+
+
+class FaqSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ «سوالات متداول» نامعتبر است."""
+
+
+_MAX_FAQ_ITEMS = 20
+_MAX_FAQ_QUESTION_LENGTH = 200
+_MAX_FAQ_ANSWER_LENGTH = 1000
+
+
+def _validate_faq_settings(raw: dict) -> dict:
+    """چکپوینتِ ۱۲: هر آیتم فقط دو فیلدِ متنیِ ساده (سوال/پاسخ) — نه HTML
+    غنی (سوءاستفاده/XSS از یک بخشِ به‌ظاهر ساده بی‌معناست؛ اگر مرچنت به
+    فرمت‌بندیِ غنی نیاز داشت، ``rich_text`` همین حالا برایش هست)."""
+    if not isinstance(raw, dict):
+        raise FaqSettingsError("تنظیمات باید یک شیء JSON باشد")
+    title = str(raw.get("title", "")).strip()[:_MAX_SECTION_TITLE_LENGTH] or "سوالات متداول"
+
+    raw_items = raw.get("items", [])
+    if not isinstance(raw_items, list):
+        raise FaqSettingsError("فهرستِ سوالات باید یک آرایه باشد")
+    items = []
+    for raw_item in raw_items[:_MAX_FAQ_ITEMS]:
+        if not isinstance(raw_item, dict):
+            continue
+        question = str(raw_item.get("question", "")).strip()[:_MAX_FAQ_QUESTION_LENGTH]
+        answer = str(raw_item.get("answer", "")).strip()[:_MAX_FAQ_ANSWER_LENGTH]
+        if not question or not answer:
+            continue
+        items.append({"question": question, "answer": answer})
+    return {"title": title, "items": items}
+
+
+def default_faq_settings() -> dict:
+    return {"title": "سوالات متداول", "items": []}
+
+
+class TestimonialsSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ «نظرات مشتریان» نامعتبر است."""
+
+
+_MAX_TESTIMONIAL_ITEMS = 20
+_MAX_TESTIMONIAL_NAME_LENGTH = 80
+_MAX_TESTIMONIAL_ROLE_LENGTH = 80
+_MAX_TESTIMONIAL_QUOTE_LENGTH = 400
+
+
+def _validate_testimonials_settings(raw: dict) -> dict:
+    if not isinstance(raw, dict):
+        raise TestimonialsSettingsError("تنظیمات باید یک شیء JSON باشد")
+    title = str(raw.get("title", "")).strip()[:_MAX_SECTION_TITLE_LENGTH] or "نظرات مشتریان"
+
+    raw_items = raw.get("items", [])
+    if not isinstance(raw_items, list):
+        raise TestimonialsSettingsError("فهرستِ نظرات باید یک آرایه باشد")
+    items = []
+    for raw_item in raw_items[:_MAX_TESTIMONIAL_ITEMS]:
+        if not isinstance(raw_item, dict):
+            continue
+        name = str(raw_item.get("name", "")).strip()[:_MAX_TESTIMONIAL_NAME_LENGTH]
+        quote = str(raw_item.get("quote", "")).strip()[:_MAX_TESTIMONIAL_QUOTE_LENGTH]
+        role = str(raw_item.get("role", "")).strip()[:_MAX_TESTIMONIAL_ROLE_LENGTH]
+        if not name or not quote:
+            continue
+        items.append({"name": name, "quote": quote, "role": role})
+    return {"title": title, "items": items}
+
+
+def default_testimonials_settings() -> dict:
+    return {"title": "نظرات مشتریان", "items": []}
+
+
+class VideoSectionSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ «بخشِ ویدیو» نامعتبر است."""
+
+
+_MAX_VIDEO_CAPTION_LENGTH = 200
+
+
+def _validate_video_section_settings(raw: dict) -> dict:
+    """چکپوینتِ ۱۲: دقیقاً همان تشخیصِ ارائه‌دهنده/اعتبارسنجیِ URL که
+    برایِ ویدیویِ کالا استفاده می‌شود (``product_video_service``) — بدونِ
+    بازنویسیِ دوباره‌ی regex/قوانین. آدرسِ نامعتبر رد می‌شود، نه ذخیره‌ی
+    بی‌صدا و شکستِ بعدیِ رندر."""
+    if not isinstance(raw, dict):
+        raise VideoSectionSettingsError("تنظیمات باید یک شیء JSON باشد")
+    title = str(raw.get("title", "")).strip()[:_MAX_SECTION_TITLE_LENGTH]
+    caption = str(raw.get("caption", "")).strip()[:_MAX_VIDEO_CAPTION_LENGTH]
+
+    video_url = str(raw.get("video_url", "")).strip()
+    if video_url:
+        from apps.catalog.services.product_video_service import ProductVideoError, detect_provider_and_id
+
+        try:
+            detect_provider_and_id(video_url)
+        except ProductVideoError as exc:
+            raise VideoSectionSettingsError(str(exc)) from exc
+
+    return {"title": title, "video_url": video_url, "caption": caption}
+
+
+def default_video_section_settings() -> dict:
+    return {"title": "", "video_url": "", "caption": ""}
+
+
 def _validate_image_text_settings(raw: dict) -> dict:
     if not isinstance(raw, dict):
         raise ValueError("تنظیمات باید یک شیء JSON باشد")
@@ -695,6 +853,37 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         template_name="storefront_builder/sections/trust_features.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
         max_instances=1, duplicable=False, removable=True, category_fa="ساختار",
+    ),
+    # -------------------------------------------------- چکپوینتِ ۱۲: بخش‌های جدید
+    "collection_tiles": SectionDefinition(
+        key="collection_tiles", label_fa="کارت‌های کالکشن", icon="layers",
+        template_name="storefront_builder/sections/collection_tiles.html",
+        validate_settings=_validate_collection_tiles_settings, default_settings=default_collection_tiles_settings,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="کشف و خرید",
+    ),
+    "quick_links": SectionDefinition(
+        key="quick_links", label_fa="دسترسی سریع", icon="compass",
+        template_name="storefront_builder/sections/quick_links.html",
+        validate_settings=_validate_quick_links_settings, default_settings=default_quick_links_settings,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="کشف و خرید",
+    ),
+    "faq": SectionDefinition(
+        key="faq", label_fa="سوالات متداول", icon="help-circle",
+        template_name="storefront_builder/sections/faq.html",
+        validate_settings=_validate_faq_settings, default_settings=default_faq_settings,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="محتوا",
+    ),
+    "testimonials": SectionDefinition(
+        key="testimonials", label_fa="نظرات مشتریان", icon="message-circle",
+        template_name="storefront_builder/sections/testimonials.html",
+        validate_settings=_validate_testimonials_settings, default_settings=default_testimonials_settings,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="محتوا",
+    ),
+    "video_section": SectionDefinition(
+        key="video_section", label_fa="بخش ویدیو", icon="play-circle",
+        template_name="storefront_builder/sections/video_section.html",
+        validate_settings=_validate_video_section_settings, default_settings=default_video_section_settings,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="محتوا",
     ),
 }
 

@@ -1,0 +1,20 @@
+{% comment %}
+چکپوینتِ ۱۲: بخشِ ویدیو — همان تشخیصِ ارائه‌دهنده/embed_url که برایِ
+ویدیویِ کالا استفاده می‌شود؛ اینستاگرام همیشه فقط لینکِ امنِ بازشونده در
+تبِ جدید است، نه iframe (همان سیاستِ مستندشده‌یِ product_video_service).
+{% endcomment %}
+{% if video_embed_url or video_is_instagram %}
+<section class="section">
+  {% if settings.title %}
+  <div class="sec-head"><h2><span class="bar"></span>{{ settings.title }}</h2></div>
+  {% endif %}
+  <div class="video-embed-wrap">
+    {% if video_embed_url %}
+    <iframe src="{{ video_embed_url }}" allowfullscreen loading="lazy" title="{{ settings.title|default:'ویدیو' }}"></iframe>
+    {% elif video_is_instagram %}
+    <a href="{{ video_permalink }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">مشاهده در اینستاگرام</a>
+    {% endif %}
+  </div>
+  {% if settings.caption %}<p style="color:var(--muted);font-size:13px;margin-top:10px;text-align:center">{{ settings.caption }}</p>{% endif %}
+</section>
+{% endif %}

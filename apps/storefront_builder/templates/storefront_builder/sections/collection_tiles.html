@@ -1,0 +1,25 @@
+{% comment %}چکپوینتِ ۱۲: خودِ کالکشن‌ها (نه کالاهایِ داخلشان).{% endcomment %}
+{% if collection_tiles %}
+<section class="section">
+  {% if settings.title %}
+  <div class="sec-head"><h2><span class="bar"></span>{{ settings.title }}</h2></div>
+  {% endif %}
+  <div class="grid g4">
+    {% for row in collection_tiles %}
+    <a href="{% url 'catalog:collection-detail' row.collection.slug %}" class="pcard">
+      <div class="img">
+        {% if row.collection.image %}
+        <img src="{{ row.collection.image.url }}" alt="{{ row.collection.name }}" style="width:100%;height:100%;object-fit:cover">
+        {% else %}
+        <span class="emo">🗂️</span>
+        {% endif %}
+      </div>
+      <div class="body">
+        <div class="name">{{ row.collection.name }}</div>
+        <div class="rate">{{ row.item_count }} کالا</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

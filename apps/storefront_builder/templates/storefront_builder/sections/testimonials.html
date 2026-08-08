@@ -1,0 +1,14 @@
+{% comment %}چکپوینتِ ۱۲: نظرات مشتریان.{% endcomment %}
+{% if settings.items %}
+<section class="section">
+  <div class="sec-head"><h2><span class="bar"></span>{{ settings.title|default:"نظرات مشتریان" }}</h2></div>
+  <div class="testimonial-list">
+    {% for item in settings.items %}
+    <div class="testimonial-card">
+      <p class="quote">«{{ item.quote }}»</p>
+      <div class="who"><strong>{{ item.name }}</strong>{% if item.role %}<span>{{ item.role }}</span>{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

@@ -321,6 +321,176 @@
     </div>
   </form>
 
+  {% elif section.section_key == "collection_tiles" %}
+  {{ initial_selected_collections|json_script:"ct-initial-selected" }}
+  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
+        x-data="multiPickerForm(JSON.parse(document.getElementById('ct-initial-selected').textContent))">
+    {% csrf_token %}
+    <div class="form-group">
+      <label for="id_ct_title">عنوان بخش (اختیاری)</label>
+      <input type="text" name="title" id="id_ct_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'' }}">
+    </div>
+    <div class="form-group">
+      <label for="id_ct_add">افزودن کالکشن</label>
+      <select id="id_ct_add" class="form-select" @change="if($event.target.value){ addItem($event.target.value, $event.target.selectedOptions[0].text); $event.target.value=''; }">
+        <option value="">— انتخاب کنید —</option>
+        {% for collection in all_collections %}
+        <option value="{{ collection.pk }}">{{ collection.name }}</option>
+        {% endfor %}
+      </select>
+      <p style="color:var(--muted);font-size:12px;margin:6px 0 0">خالی = نمایشِ خودکارِ همه‌ی کالکشن‌های فعال.</p>
+      {% if not all_collections %}<p style="color:var(--muted);font-size:12px;margin:6px 0 0">هنوز هیچ کالکشنی نساخته‌اید.</p>{% endif %}
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
+        <template x-for="(item, index) in selected" :key="item.id">
+          <span class="badge" style="display:flex;align-items:center;gap:8px;padding:6px 8px;justify-content:space-between">
+            <input type="hidden" name="collection_ids" :value="item.id">
+            <span x-text="item.name" style="flex:1"></span>
+            <span style="display:flex;gap:4px">
+              <button type="button" class="btn btn-sm" @click="moveUp(index)" :disabled="index === 0" aria-label="بالا">▲</button>
+              <button type="button" class="btn btn-sm" @click="moveDown(index)" :disabled="index === selected.length - 1" aria-label="پایین">▼</button>
+              <button type="button" class="btn btn-sm btn-danger" @click="removeItem(item.id)" aria-label="حذف">×</button>
+            </span>
+          </span>
+        </template>
+        <p x-show="selected.length === 0" style="color:var(--muted);font-size:12px;margin:0">کالکشنی انتخاب نشده — حالتِ خودکار فعال است.</p>
+      </div>
+    </div>
+
+    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+    </div>
+  </form>
+
+  {% elif section.section_key == "quick_links" %}
+  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+    {% csrf_token %}
+    <div class="form-group">
+      <label for="id_ql_title">عنوان بخش (اختیاری)</label>
+      <input type="text" name="title" id="id_ql_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'' }}">
+    </div>
+    <div class="form-group">
+      <label for="id_ql_menu">منو</label>
+      <select name="menu_id" id="id_ql_menu" class="form-select">
+        <option value="">— انتخاب کنید —</option>
+        {% for menu in all_menus %}
+        <option value="{{ menu.pk }}" {% if section.settings.menu_id == menu.pk %}selected{% endif %}>{{ menu.title }} ({{ menu.get_location_display }})</option>
+        {% endfor %}
+      </select>
+      <p style="color:var(--muted);font-size:12px;margin:6px 0 0">لینک‌های همان منو به‌شکلِ کارت‌هایِ بصری نمایش داده می‌شوند.</p>
+      {% if not all_menus %}<p style="color:var(--muted);font-size:12px;margin:6px 0 0">هنوز هیچ منویی نساخته‌اید — از «منوها» در پنل مدیریت یک منو بسازید.</p>{% endif %}
+    </div>
+
+    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+    </div>
+  </form>
+
+  {% elif section.section_key == "faq" %}
+  {{ section.settings.items|json_script:"faq-initial-items" }}
+  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
+        x-data="itemRepeaterForm(JSON.parse(document.getElementById('faq-initial-items').textContent), {question:'', answer:''})">
+    {% csrf_token %}
+    <div class="form-group">
+      <label for="id_faq_title">عنوان بخش</label>
+      <input type="text" name="title" id="id_faq_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'سوالات متداول' }}">
+    </div>
+    <template x-for="(row, index) in rows" :key="index">
+      <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
+        <div class="form-group">
+          <label>سوال</label>
+          <input type="text" name="question" class="form-input" x-model="row.question" maxlength="200">
+        </div>
+        <div class="form-group">
+          <label>پاسخ</label>
+          <textarea name="answer" class="inp" x-model="row.answer" maxlength="1000" style="min-height:70px"></textarea>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="btn btn-sm" @click="moveUp(index)" :disabled="index === 0">▲</button>
+          <button type="button" class="btn btn-sm" @click="moveDown(index)" :disabled="index === rows.length - 1">▼</button>
+          <button type="button" class="btn btn-sm btn-danger" @click="removeRow(index)">حذف این سوال</button>
+        </div>
+      </div>
+    </template>
+    <button type="button" class="btn btn-sm" @click="addRow()">+ افزودن سوال</button>
+
+    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+    </div>
+  </form>
+
+  {% elif section.section_key == "testimonials" %}
+  {{ section.settings.items|json_script:"testimonials-initial-items" }}
+  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
+        x-data="itemRepeaterForm(JSON.parse(document.getElementById('testimonials-initial-items').textContent), {name:'', quote:'', role:''})">
+    {% csrf_token %}
+    <div class="form-group">
+      <label for="id_tm_title">عنوان بخش</label>
+      <input type="text" name="title" id="id_tm_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'نظرات مشتریان' }}">
+    </div>
+    <template x-for="(row, index) in rows" :key="index">
+      <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
+        <div class="form-group">
+          <label>نام مشتری</label>
+          <input type="text" name="t_name" class="form-input" x-model="row.name" maxlength="80">
+        </div>
+        <div class="form-group">
+          <label>نظر</label>
+          <textarea name="t_quote" class="inp" x-model="row.quote" maxlength="400" style="min-height:60px"></textarea>
+        </div>
+        <div class="form-group">
+          <label>سمت/شهر (اختیاری)</label>
+          <input type="text" name="t_role" class="form-input" x-model="row.role" maxlength="80">
+        </div>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="btn btn-sm" @click="moveUp(index)" :disabled="index === 0">▲</button>
+          <button type="button" class="btn btn-sm" @click="moveDown(index)" :disabled="index === rows.length - 1">▼</button>
+          <button type="button" class="btn btn-sm btn-danger" @click="removeRow(index)">حذف این نظر</button>
+        </div>
+      </div>
+    </template>
+    <button type="button" class="btn btn-sm" @click="addRow()">+ افزودن نظر</button>
+
+    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+    </div>
+  </form>
+
+  {% elif section.section_key == "video_section" %}
+  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+    {% csrf_token %}
+    <div class="form-group">
+      <label for="id_vs_title">عنوان بخش (اختیاری)</label>
+      <input type="text" name="title" id="id_vs_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'' }}">
+    </div>
+    <div class="form-group">
+      <label for="id_vs_url">لینک ویدیو (یوتیوب، آپارات یا پست/Reel اینستاگرام)</label>
+      <input type="url" name="video_url" id="id_vs_url" class="form-input" dir="ltr" value="{{ section.settings.video_url|default:'' }}" placeholder="https://...">
+    </div>
+    <div class="form-group">
+      <label for="id_vs_caption">زیرنویس (اختیاری)</label>
+      <input type="text" name="caption" id="id_vs_caption" class="form-input" maxlength="200" value="{{ section.settings.caption|default:'' }}">
+    </div>
+
+    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+    </div>
+  </form>
+
   {% elif section.section_key == "single_banner" or section.section_key == "multi_banner" %}
   <a href="{% url 'dashboard:storefront-builder-section-media-list' pk=section.pk kind='banners' %}" class="btn btn-primary" style="width:100%;margin-bottom:14px;text-align:center;display:block">مدیریت بنرها ({{ section.banners.count }})</a>
   <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">

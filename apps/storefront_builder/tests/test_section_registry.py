@@ -24,6 +24,7 @@ EXPECTED_KEYS = {
     "multi_banner", "category_grid", "featured_products", "newest_products",
     "best_sellers", "discounted_products", "amazing_offers", "brand_carousel",
     "promo_cards", "rich_text", "image_text", "product_section", "trust_features",
+    "collection_tiles", "quick_links", "faq", "testimonials", "video_section",
 }
 
 
@@ -308,6 +309,132 @@ class BrandCarouselSettingsTests(TestCase):
     def test_brand_carousel_is_per_instance_duplicable(self):
         self.assertTrue(self.definition.duplicable)
         self.assertIsNone(self.definition.max_instances)
+
+
+class CollectionTilesSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("collection_tiles")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertEqual(cleaned["collection_ids"], [])
+        self.assertEqual(cleaned["title"], "")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings("not a dict")
+
+    def test_collection_ids_deduplicated_preserving_order(self):
+        cleaned = self.definition.validate_settings({"collection_ids": [9, 1, 9]})
+        self.assertEqual(cleaned["collection_ids"], [9, 1])
+
+    def test_duplicable_and_unbounded(self):
+        self.assertTrue(self.definition.duplicable)
+        self.assertIsNone(self.definition.max_instances)
+
+
+class QuickLinksSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("quick_links")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertIsNone(cleaned["menu_id"])
+        self.assertEqual(cleaned["title"], "")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings("not a dict")
+
+    def test_menu_id_accepted(self):
+        cleaned = self.definition.validate_settings({"menu_id": 7})
+        self.assertEqual(cleaned["menu_id"], 7)
+
+    def test_non_positive_menu_id_becomes_none(self):
+        cleaned = self.definition.validate_settings({"menu_id": -3})
+        self.assertIsNone(cleaned["menu_id"])
+
+    def test_invalid_menu_id_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings({"menu_id": "not-a-number"})
+
+
+class FaqSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("faq")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertEqual(cleaned["items"], [])
+        self.assertEqual(cleaned["title"], "سوالات متداول")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings("not a dict")
+
+    def test_items_with_both_fields_kept(self):
+        cleaned = self.definition.validate_settings({"items": [{"question": "س", "answer": "پ"}]})
+        self.assertEqual(cleaned["items"], [{"question": "س", "answer": "پ"}])
+
+    def test_items_missing_a_field_dropped(self):
+        cleaned = self.definition.validate_settings({"items": [{"question": "س", "answer": ""}]})
+        self.assertEqual(cleaned["items"], [])
+
+    def test_non_list_items_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings({"items": "not a list"})
+
+    def test_items_capped_at_twenty(self):
+        raw_items = [{"question": f"س{i}", "answer": f"پ{i}"} for i in range(30)]
+        cleaned = self.definition.validate_settings({"items": raw_items})
+        self.assertEqual(len(cleaned["items"]), 20)
+
+
+class TestimonialsSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("testimonials")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertEqual(cleaned["items"], [])
+        self.assertEqual(cleaned["title"], "نظرات مشتریان")
+
+    def test_items_requires_name_and_quote_role_optional(self):
+        cleaned = self.definition.validate_settings({"items": [{"name": "علی", "quote": "عالی بود", "role": ""}]})
+        self.assertEqual(cleaned["items"], [{"name": "علی", "quote": "عالی بود", "role": ""}])
+
+    def test_items_missing_quote_dropped(self):
+        cleaned = self.definition.validate_settings({"items": [{"name": "علی", "quote": ""}]})
+        self.assertEqual(cleaned["items"], [])
+
+
+class VideoSectionSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("video_section")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertEqual(cleaned["video_url"], "")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings("not a dict")
+
+    def test_valid_youtube_url_accepted(self):
+        cleaned = self.definition.validate_settings({"video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"})
+        self.assertIn("youtube.com", cleaned["video_url"])
+
+    def test_unrecognized_url_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings({"video_url": "https://example.com/not-a-video"})
+
+    def test_dangerous_scheme_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings({"video_url": "javascript:alert(1)//youtube.com/watch?v=dQw4w9WgXcQ"})
+
+    def test_empty_url_allowed_not_configured_yet(self):
+        cleaned = self.definition.validate_settings({"video_url": ""})
+        self.assertEqual(cleaned["video_url"], "")
 
 
 class ResponsiveSettingsContractTests(TestCase):

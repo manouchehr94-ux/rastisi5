@@ -1,0 +1,20 @@
+{% comment %}
+چکپوینتِ ۱۲: «دسترسی سریع» — کارت‌هایِ بصریِ یک Menuِ موجود (زیرساختِ
+Menu/MenuItem/Destinationِ همان ناوبریِ هدر/فوتر)؛ تا وقتی مرچنت منویی
+انتخاب نکرده هیچ‌چیز رندر نمی‌شود (نه محتوایِ جعلی).
+{% endcomment %}
+{% if quick_link_items %}
+<section class="section">
+  {% if settings.title %}
+  <div class="sec-head"><h2><span class="bar"></span>{{ settings.title }}</h2></div>
+  {% endif %}
+  <div class="grid g4">
+    {% for item in quick_link_items %}
+    <a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}
+       style="display:flex;align-items:center;justify-content:center;text-align:center;padding:20px 14px;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);font-weight:700;font-size:13px;transition:.2s">
+      {{ item.title }}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

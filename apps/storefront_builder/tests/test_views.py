@@ -1043,3 +1043,143 @@ class RenderedPreviewIntegrationTests(StorefrontBuilderViewsTestCase):
         self.assertContains(resp, "برندِ رندرشدهٔ ب")
         self.assertContains(resp, "برندهای بخش اول")
         self.assertContains(resp, "برندهای بخش دوم")
+
+
+class NewSectionTypesRenderedPreviewTests(StorefrontBuilderViewsTestCase):
+    """چکپوینتِ ۱۲ — همان کلاسِ رگرسیونِ ``RenderedPreviewIntegrationTests``:
+    برایِ هر نوعِ section جدید، حداقل یک context key که فقط در سرویس
+    ساخته می‌شود باید واقعاً تا HTML رندرشده برسد (نه فقط دیکشنریِ context
+    که ``test_render_service.py`` چک می‌کند)."""
+
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+
+    def test_collection_tiles_reach_rendered_html(self):
+        from apps.catalog.models import MerchantCollection
+
+        collection = MerchantCollection.objects.create(
+            store=self.store, name="کالکشنِ رندرشده", slug="np-collection", is_active=True,
+        )
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="collection_tiles", order=901,
+            settings={"title": "", "collection_ids": [collection.pk],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "کالکشنِ رندرشده")
+        self.assertContains(resp, "0 کالا")
+
+    def test_quick_links_reach_rendered_html(self):
+        from apps.catalog.models import Category
+        from apps.content.models import DestinationType, Menu, MenuItem
+
+        category = Category.objects.create(store=self.store, name="دستهٔ دسترسیِ سریع", slug="np-ql-cat", is_active=True)
+        menu = Menu.objects.create(store=self.store, title="منوی تست", location=Menu.Location.HEADER, is_active=True)
+        MenuItem.objects.create(
+            menu=menu, title="لینکِ رندرشده", display_order=0, is_active=True,
+            destination_type=DestinationType.CATEGORY, destination_category=category,
+        )
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="quick_links", order=901,
+            settings={"title": "", "menu_id": menu.pk,
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "لینکِ رندرشده")
+
+    def test_faq_items_reach_rendered_html(self):
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="faq", order=901,
+            settings={"title": "سوالات متداول", "items": [{"question": "سوالِ رندرشده؟", "answer": "پاسخِ رندرشده"}],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "سوالِ رندرشده؟")
+        self.assertContains(resp, "پاسخِ رندرشده")
+
+    def test_testimonials_reach_rendered_html(self):
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="testimonials", order=901,
+            settings={"title": "نظرات مشتریان", "items": [{"name": "مشتریِ رندرشده", "quote": "نظرِ رندرشده", "role": ""}],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "مشتریِ رندرشده")
+        self.assertContains(resp, "نظرِ رندرشده")
+
+    def test_video_section_reaches_rendered_html(self):
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="video_section", order=901,
+            settings={"title": "", "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "caption": "زیرنویسِ رندرشده",
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "youtube.com/embed/dQw4w9WgXcQ")
+        self.assertContains(resp, "زیرنویسِ رندرشده")
+
+
+class NewSectionTypesSettingsFormTests(StorefrontBuilderViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+
+    def test_faq_settings_form_saves_items_in_order(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="faq", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "سوالات متداول",
+            "question": ["سوال یک", "سوال دو"],
+            "answer": ["پاسخ یک", "پاسخ دو"],
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["items"], [
+            {"question": "سوال یک", "answer": "پاسخ یک"},
+            {"question": "سوال دو", "answer": "پاسخ دو"},
+        ])
+
+    def test_testimonials_settings_form_saves_items(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="testimonials", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "نظرات مشتریان",
+            "t_name": ["سارا"], "t_quote": ["عالی بود"], "t_role": ["تهران"],
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["items"], [{"name": "سارا", "quote": "عالی بود", "role": "تهران"}])
+
+    def test_video_section_settings_form_rejects_unrecognized_url(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="video_section", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "", "video_url": "https://example.com/not-a-video", "caption": "",
+        })
+        self.assertEqual(resp.status_code, 200)
+        section.refresh_from_db()
+        self.assertEqual(section.settings, {})
+
+    def test_video_section_settings_form_saves_valid_url(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="video_section", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "", "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "caption": "",
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["video_url"], "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+
+    def test_collection_tiles_settings_form_get_shows_picker(self):
+        from apps.catalog.models import MerchantCollection
+
+        MerchantCollection.objects.create(store=self.store, name="کالکشنِ انتخابی", slug="np-form-coll", is_active=True)
+        section = StorefrontSection.objects.create(version=self.draft, section_key="collection_tiles", order=1)
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "کالکشنِ انتخابی")
+
+    def test_quick_links_settings_form_get_shows_menu_picker(self):
+        from apps.content.models import Menu
+
+        Menu.objects.create(store=self.store, title="منویِ انتخابی", location=Menu.Location.FOOTER_1, is_active=True)
+        section = StorefrontSection.objects.create(version=self.draft, section_key="quick_links", order=1)
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "منویِ انتخابی")

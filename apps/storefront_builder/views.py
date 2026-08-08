@@ -184,6 +184,40 @@ def storefront_section_settings(request, pk):
                 "show_view_all": request.POST.get("show_view_all") == "on",
                 "brand_ids": request.POST.getlist("brand_ids"),
             }
+        elif section.section_key == "collection_tiles":
+            raw = {
+                "title": request.POST.get("title", ""),
+                "collection_ids": request.POST.getlist("collection_ids"),
+            }
+        elif section.section_key == "quick_links":
+            raw = {
+                "title": request.POST.get("title", ""),
+                "menu_id": request.POST.get("menu_id") or None,
+            }
+        elif section.section_key == "faq":
+            questions = request.POST.getlist("question")
+            answers = request.POST.getlist("answer")
+            raw = {
+                "title": request.POST.get("title", ""),
+                "items": [{"question": q, "answer": a} for q, a in zip(questions, answers)],
+            }
+        elif section.section_key == "testimonials":
+            names = request.POST.getlist("t_name")
+            quotes = request.POST.getlist("t_quote")
+            roles = request.POST.getlist("t_role")
+            raw = {
+                "title": request.POST.get("title", ""),
+                "items": [
+                    {"name": n, "quote": q, "role": r}
+                    for n, q, r in zip(names, quotes, roles)
+                ],
+            }
+        elif section.section_key == "video_section":
+            raw = {
+                "title": request.POST.get("title", ""),
+                "video_url": request.POST.get("video_url", ""),
+                "caption": request.POST.get("caption", ""),
+            }
         else:
             # انواعی که هیچ فیلدِ اختصاصیِ خودشان را ندارند (فازِ D) —
             # تنها چیزی که این فرم برایشان دارد بلوکِ responsive است.
@@ -214,6 +248,10 @@ def storefront_section_settings(request, pk):
         context.update(_category_grid_picker_context(request, section))
     if section.section_key == "brand_carousel":
         context.update(_brand_carousel_picker_context(request, section))
+    if section.section_key == "collection_tiles":
+        context.update(_collection_tiles_picker_context(request, section))
+    if section.section_key == "quick_links":
+        context.update(_quick_links_picker_context(request, section))
     if section.section_key in section_registry.DESTINATION_AWARE_SECTION_KEYS:
         context.update(_destination_picker_context(request, section))
     return render(request, "dashboard/storefront_builder/partials/section_settings_form.html", context)
@@ -245,6 +283,27 @@ def _brand_carousel_picker_context(request, section):
             {"id": bid, "name": brands_by_id[bid].name} for bid in brand_ids if bid in brands_by_id
         ],
     }
+
+
+def _collection_tiles_picker_context(request, section):
+    from apps.catalog.models import MerchantCollection
+
+    store = _resolve_store(request)
+    collection_ids = (section.settings or {}).get("collection_ids") or []
+    collections_by_id = {c.pk: c for c in MerchantCollection.objects.filter(store=store, pk__in=collection_ids)}
+    return {
+        "all_collections": MerchantCollection.objects.filter(store=store, is_active=True).order_by("name"),
+        "initial_selected_collections": [
+            {"id": cid, "name": collections_by_id[cid].name} for cid in collection_ids if cid in collections_by_id
+        ],
+    }
+
+
+def _quick_links_picker_context(request, section):
+    from apps.content.models import Menu
+
+    store = _resolve_store(request)
+    return {"all_menus": Menu.objects.filter(store=store, is_active=True).order_by("title")}
 
 
 def _extract_destination_raw(request) -> dict:

@@ -498,3 +498,179 @@ class BrandCarouselRenderTests(TestCase):
         item = self._items_for(draft, store)[0]
         self.assertIsNotNone(item["context"]["view_all_url"])
         self.assertIn(category.slug, item["context"]["view_all_url"])
+
+
+class CollectionTilesRenderTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def _items_for(self, draft, store):
+        items = build_render_items(draft, store)
+        return [i for i in items if i["section"].section_key == "collection_tiles"]
+
+    def test_empty_selection_falls_back_to_all_active_collections(self):
+        from apps.catalog.models import MerchantCollection
+
+        store = _akhlaghi()
+        MerchantCollection.objects.create(store=store, name="کالکشن فعال", slug="ct-active", is_active=True)
+        MerchantCollection.objects.create(store=store, name="کالکشن غیرفعال", slug="ct-inactive", is_active=False)
+        draft = svc.get_or_create_draft(store)
+        StorefrontSection.objects.create(version=draft, section_key="collection_tiles", order=900)
+        item = self._items_for(draft, store)[0]
+        names = [row["collection"].name for row in item["context"]["collection_tiles"]]
+        self.assertEqual(names, ["کالکشن فعال"])
+
+    def test_two_independent_collection_tile_sections_show_different_collections(self):
+        from apps.catalog.models import MerchantCollection
+
+        store = _akhlaghi()
+        coll_a = MerchantCollection.objects.create(store=store, name="کالکشن A", slug="ct-a", is_active=True)
+        coll_b = MerchantCollection.objects.create(store=store, name="کالکشن B", slug="ct-b", is_active=True)
+        draft = svc.get_or_create_draft(store)
+        section_a = StorefrontSection.objects.create(
+            version=draft, section_key="collection_tiles", order=900,
+            settings={"title": "", "collection_ids": [coll_a.pk]},
+        )
+        section_b = StorefrontSection.objects.create(
+            version=draft, section_key="collection_tiles", order=901,
+            settings={"title": "", "collection_ids": [coll_b.pk]},
+        )
+        items = self._items_for(draft, store)
+        names_by_section = {
+            i["context"]["section"].pk: [row["collection"].name for row in i["context"]["collection_tiles"]]
+            for i in items
+        }
+        self.assertEqual(names_by_section[section_a.pk], ["کالکشن A"])
+        self.assertEqual(names_by_section[section_b.pk], ["کالکشن B"])
+
+    def test_item_count_reflects_real_products_in_collection(self):
+        from decimal import Decimal
+
+        from apps.catalog.models import Category, MerchantCollection, MerchantCollectionItem, Product, Vendor
+
+        store = _akhlaghi()
+        vendor = Vendor.objects.create(store=store, name="فروشنده ct-count", slug="v-ct-count")
+        category = Category.objects.create(store=store, name="دسته", slug="ct-count-cat", is_active=True)
+        collection = MerchantCollection.objects.create(store=store, name="کالکشن شمارشی", slug="ct-count", is_active=True)
+        for i in range(3):
+            product = Product.objects.create(
+                store=store, vendor=vendor, category=category, name=f"کالای {i}", slug=f"ct-count-p{i}",
+                sku=f"SKU-CT-{i}", price=Decimal("10000"), status=Product.Status.ACTIVE,
+            )
+            MerchantCollectionItem.objects.create(collection=collection, product=product, order=i)
+        draft = svc.get_or_create_draft(store)
+        StorefrontSection.objects.create(
+            version=draft, section_key="collection_tiles", order=900,
+            settings={"title": "", "collection_ids": [collection.pk]},
+        )
+        item = self._items_for(draft, store)[0]
+        self.assertEqual(item["context"]["collection_tiles"][0]["item_count"], 3)
+
+
+class QuickLinksRenderTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def _items_for(self, draft, store):
+        items = build_render_items(draft, store)
+        return [i for i in items if i["section"].section_key == "quick_links"]
+
+    def test_no_menu_configured_renders_no_items(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        StorefrontSection.objects.create(version=draft, section_key="quick_links", order=900)
+        item = self._items_for(draft, store)[0]
+        self.assertEqual(item["context"]["quick_link_items"], [])
+
+    def test_menu_items_resolved_with_real_destination_urls(self):
+        from apps.catalog.models import Category
+        from apps.content.models import DestinationType, Menu, MenuItem
+
+        store = _akhlaghi()
+        category = Category.objects.create(store=store, name="دسته دسترسی سریع", slug="ql-cat", is_active=True)
+        menu = Menu.objects.create(store=store, title="دسترسی سریع", location=Menu.Location.HEADER, is_active=True)
+        MenuItem.objects.create(
+            menu=menu, title="مشاهده دسته", display_order=0, is_active=True,
+            destination_type=DestinationType.CATEGORY, destination_category=category,
+        )
+        draft = svc.get_or_create_draft(store)
+        StorefrontSection.objects.create(
+            version=draft, section_key="quick_links", order=900,
+            settings={"title": "", "menu_id": menu.pk},
+        )
+        item = self._items_for(draft, store)[0]
+        items = item["context"]["quick_link_items"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["title"], "مشاهده دسته")
+        self.assertIn(category.slug, items[0]["url"])
+
+    def test_menu_from_another_store_never_leaks(self):
+        from apps.content.models import Menu
+
+        store = _akhlaghi()
+        other_store = Store.objects.exclude(pk=store.pk).first()
+        if other_store is None:
+            self.skipTest("no second store fixture available")
+        other_menu = Menu.objects.create(store=other_store, title="منوی فروشگاه دیگر", location=Menu.Location.HEADER, is_active=True)
+        draft = svc.get_or_create_draft(store)
+        StorefrontSection.objects.create(
+            version=draft, section_key="quick_links", order=900,
+            settings={"title": "", "menu_id": other_menu.pk},
+        )
+        item = self._items_for(draft, store)[0]
+        self.assertEqual(item["context"]["quick_link_items"], [])
+
+
+class VideoSectionRenderTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def _items_for(self, draft, store):
+        items = build_render_items(draft, store)
+        return [i for i in items if i["section"].section_key == "video_section"]
+
+    def test_no_url_renders_nothing(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        StorefrontSection.objects.create(version=draft, section_key="video_section", order=900)
+        item = self._items_for(draft, store)[0]
+        self.assertIsNone(item["context"]["video_embed_url"])
+        self.assertFalse(item["context"]["video_is_instagram"])
+
+    def test_youtube_url_produces_embed_url(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        StorefrontSection.objects.create(
+            version=draft, section_key="video_section", order=900,
+            settings={"title": "", "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "caption": ""},
+        )
+        item = self._items_for(draft, store)[0]
+        self.assertIn("youtube.com/embed/dQw4w9WgXcQ", item["context"]["video_embed_url"])
+
+    def test_instagram_url_never_produces_an_iframe_only_a_permalink(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        StorefrontSection.objects.create(
+            version=draft, section_key="video_section", order=900,
+            settings={"title": "", "video_url": "https://instagram.com/p/ABC123xyz/", "caption": ""},
+        )
+        item = self._items_for(draft, store)[0]
+        self.assertIsNone(item["context"]["video_embed_url"])
+        self.assertTrue(item["context"]["video_is_instagram"])
+        self.assertIsNotNone(item["context"]["video_permalink"])
+
+    def test_two_independent_video_sections_show_different_videos(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        section_a = StorefrontSection.objects.create(
+            version=draft, section_key="video_section", order=900,
+            settings={"title": "", "video_url": "https://www.youtube.com/watch?v=aaaaaaaaaaa", "caption": ""},
+        )
+        section_b = StorefrontSection.objects.create(
+            version=draft, section_key="video_section", order=901,
+            settings={"title": "", "video_url": "https://www.youtube.com/watch?v=bbbbbbbbbbb", "caption": ""},
+        )
+        items = self._items_for(draft, store)
+        urls_by_section = {i["context"]["section"].pk: i["context"]["video_embed_url"] for i in items}
+        self.assertIn("aaaaaaaaaaa", urls_by_section[section_a.pk])
+        self.assertIn("bbbbbbbbbbb", urls_by_section[section_b.pk])

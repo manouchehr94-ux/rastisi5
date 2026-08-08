@@ -23,6 +23,7 @@ from ..section_registry import (
     UnknownSectionTypeError,
     default_brand_carousel_settings,
     default_category_grid_settings,
+    default_quick_links_settings,
     get_definition,
 )
 from . import section_data_service
@@ -184,6 +185,78 @@ def _brand_carousel_context(store, section):
     return {"brands": brands, "brand_carousel_settings": settings, "view_all_url": view_all_url}
 
 
+def _collection_tiles_context(store, section):
+    """چکپوینتِ ۱۲: بخشِ جدید — خودِ MerchantCollectionها را نشان می‌دهد
+    (نه کالاهایِ داخلشان). ``collection_ids`` خالی = همه‌ی کالکشن‌های
+    فعال (ترتیبِ ایجاد، جدیدترین اول)."""
+    from apps.catalog.models import MerchantCollection
+
+    collection_ids = (section.settings or {}).get("collection_ids") or []
+    if collection_ids:
+        by_id = {
+            c.pk: c for c in MerchantCollection.objects.filter(store=store, pk__in=collection_ids, is_active=True)
+        }
+        collections = [by_id[cid] for cid in collection_ids if cid in by_id]
+    else:
+        collections = list(
+            MerchantCollection.objects.filter(store=store, is_active=True).order_by("-created_at")
+        )
+    # شمارشِ کالا با یک کوئریِ جمعی (annotate)، نه N+1 در تمپلیت
+    from django.db.models import Count
+
+    counts_qs = MerchantCollection.objects.filter(pk__in=[c.pk for c in collections]).annotate(item_count=Count("items"))
+    counts_by_id = {row.pk: row.item_count for row in counts_qs}
+    tiles = [{"collection": c, "item_count": counts_by_id.get(c.pk, 0)} for c in collections]
+    return {"collection_tiles": tiles}
+
+
+def _quick_links_context(store, section):
+    """چکپوینتِ ۱۲: «دسترسی سریع» — یک Menuِ موجود (همان زیرساختِ
+    Menu/MenuItem/Destinationِ ناوبریِ هدر/فوتر) را به‌شکلِ کارت‌هایِ
+    بصری نشان می‌دهد؛ هیچ مدلِ لینکِ جدیدی ساخته نشده."""
+    from apps.content.models import Menu
+    from apps.content.services import resolve_destination_url
+
+    settings = {**default_quick_links_settings(), **(section.settings or {})}
+    menu_id = settings["menu_id"]
+    items = []
+    menu = None
+    if menu_id:
+        menu = Menu.objects.filter(store=store, pk=menu_id, is_active=True).prefetch_related(
+            "items__destination_category", "items__destination_product", "items__destination_brand",
+        ).first()
+    if menu is not None:
+        for menu_item in menu.items.filter(is_active=True, parent__isnull=True).order_by("display_order", "id"):
+            url = resolve_destination_url(menu_item)
+            if url:
+                items.append({"title": menu_item.title, "url": url, "open_in_new_tab": menu_item.open_in_new_tab})
+    return {"quick_link_items": items}
+
+
+def _video_section_context(store, section):
+    """چکپوینتِ ۱۲: از همان تشخیصِ ارائه‌دهنده/محاسبه‌ی embed_url که برایِ
+    ویدیویِ کالا استفاده می‌شود عبور می‌کند (نه بازنویسیِ دوباره) — یک
+    نمونه‌ی موقتِ (ذخیره‌نشده‌یِ) ``ProductVideo`` فقط برایِ عبور از همان
+    منطق ساخته می‌شود."""
+    video_url = (section.settings or {}).get("video_url") or ""
+    if not video_url:
+        return {"video_embed_url": None, "video_is_instagram": False, "video_permalink": None}
+
+    from apps.catalog.models import ProductVideo
+    from apps.catalog.services import product_video_service
+
+    try:
+        provider, _external_id = product_video_service.detect_provider_and_id(video_url)
+    except product_video_service.ProductVideoError:
+        return {"video_embed_url": None, "video_is_instagram": False, "video_permalink": None}
+
+    temp_video = ProductVideo(provider=provider, url=video_url)
+    if provider == ProductVideo.Provider.INSTAGRAM:
+        return {"video_embed_url": None, "video_is_instagram": True,
+                "video_permalink": product_video_service.instagram_permalink(temp_video)}
+    return {"video_embed_url": product_video_service.embed_url(temp_video), "video_is_instagram": False, "video_permalink": None}
+
+
 def _category_context_for_promo_cards(store, section):
     categories = Category.objects.filter(store=store, is_active=True).order_by("order", "name")[:4]
     return {"categories": categories}
@@ -233,7 +306,7 @@ def _product_section_context(store, section):
 #: محتوایِ یکسان (نمونه‌ی اول) نشان می‌دهند.
 PER_INSTANCE_SECTION_KEYS = {
     "product_section", "image_text", "hero_banner", "image_slider", "single_banner", "multi_banner",
-    "category_grid", "brand_carousel",
+    "category_grid", "brand_carousel", "collection_tiles", "quick_links", "video_section",
 }
 
 
@@ -255,6 +328,11 @@ _CONTEXT_BUILDERS = {
     "image_text": _resolved_destination_context,
     "product_section": _product_section_context,
     "trust_features": _static_context,
+    "collection_tiles": _collection_tiles_context,
+    "quick_links": _quick_links_context,
+    "faq": _static_context,
+    "testimonials": _static_context,
+    "video_section": _video_section_context,
 }
 
 

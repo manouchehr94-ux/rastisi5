@@ -217,6 +217,26 @@ function multiPickerForm(initialSelected) {
   };
 }
 
+function itemRepeaterForm(initialRows, emptyRow) {
+  return {
+    rows: initialRows && initialRows.length ? initialRows : [],
+    addRow() {
+      this.rows.push({ ...emptyRow });
+    },
+    removeRow(index) {
+      this.rows.splice(index, 1);
+    },
+    moveUp(index) {
+      if (index === 0) return;
+      [this.rows[index - 1], this.rows[index]] = [this.rows[index], this.rows[index - 1]];
+    },
+    moveDown(index) {
+      if (index === this.rows.length - 1) return;
+      [this.rows[index + 1], this.rows[index]] = [this.rows[index], this.rows[index + 1]];
+    },
+  };
+}
+
 function destinationPicker(initialType, initialId, initialName) {
   return {
     type: initialType || 'none',
