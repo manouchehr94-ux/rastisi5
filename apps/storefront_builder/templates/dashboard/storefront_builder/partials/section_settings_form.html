@@ -108,15 +108,17 @@
       </div>
     </details>
 
+    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
     </div>
   </form>
-  {% else %}
+
+  {% elif section.section_key == "image_text" %}
   <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
     {% csrf_token %}
-    {% if section.section_key == "image_text" %}
     <div class="form-group">
       <label for="id_title">عنوان</label>
       <input type="text" name="title" id="id_title" class="form-input" maxlength="200" value="{{ section.settings.title|default:'' }}">
@@ -132,13 +134,46 @@
         <option value="left" {% if section.settings.image_position == "left" %}selected{% endif %}>چپ</option>
       </select>
     </div>
-    {% endif %}
     <div class="form-group">
       <label for="id_body_html">متن</label>
       <div x-data="richTextEditor()" x-init="mount()">
         <textarea class="inp" name="body_html" id="id_body_html" x-ref="source" style="min-height:160px">{{ section.settings.body_html|default:"" }}</textarea>
       </div>
     </div>
+
+    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+    </div>
+  </form>
+
+  {% elif section.section_key == "rich_text" %}
+  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+    {% csrf_token %}
+    <div class="form-group">
+      <label for="id_body_html">متن</label>
+      <div x-data="richTextEditor()" x-init="mount()">
+        <textarea class="inp" name="body_html" id="id_body_html" x-ref="source" style="min-height:160px">{{ section.settings.body_html|default:"" }}</textarea>
+      </div>
+    </div>
+
+    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+    </div>
+  </form>
+
+  {% else %}
+  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+    {% csrf_token %}
+    <p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">این بخش تنظیمات محتوایی ندارد — فقط نمایش در دستگاه‌ها قابل تنظیم است.</p>
+
+    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>

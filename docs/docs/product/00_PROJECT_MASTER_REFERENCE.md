@@ -958,12 +958,51 @@ plan enforcement همچنان باقی مانده**
   CSS/HTML/JS دلخواه، کشِ سراسری، زمان‌بندیِ انتشار، صفحاتِ سفارشی، ادیتورِ ریسپانسیوِ پیچیده، شخصی‌سازیِ
   مبتنی‌بر رفتار.
 
+### به‌روزرسانی 2026-08-07 (فاز D) — کنترل‌هایِ ساده و امنِ ریسپانسیو per-section پیاده‌سازی شد
+
+⚠️ سطرِ «Responsive per-section» زیر در «ناقص نسبت به Target» تا پیش از فاز D صحیح بود؛ اکنون حل شده (فقط دو کنترلِ
+امن، نه یک ادیتورِ CSS دلخواه — طبقِ محدودیتِ صریحِ همین فاز).
+
+- بریک‌پوینت‌هایِ واقعیِ سایت ممیزی شد پیش از پیاده‌سازی: `apps/catalog/static/css/product_card.css` (گریدِ
+  محصول، `.g4`/`.g3`/`.g2`) و `apps/core/static/css/layout.css` (هدر/فوتر/ناوبری) هر دو دقیقاً از همان دو
+  بریک‌پوینت استفاده می‌کنند — `max-width:1000px` و `max-width:680px` — نه یک سیستمِ بریک‌پوینتِ جدا. نگاشتِ
+  مفهومِ مرچنت: دسکتاپ = >۱۰۰۰px، تبلت = ۶۸۱ تا ۱۰۰۰px، موبایل = ≤۶۸۰px. دستگیره‌یِ دستگاهِ Preview
+  (`.sfb-device-tablet{width:768px}`/`.sfb-device-mobile{width:390px}`) واقعاً iframe را resize می‌کند، پس
+  همین بریک‌پوینت‌ها بدونِ هیچ ویژه‌کاری در Preview هم درست فعال می‌شوند؛
+- قراردادِ تنظیمات: یک بلوکِ اختیاریِ `responsive` داخلِ `section.settings` (`hide_on_desktop/tablet/mobile` +
+  `desktop/tablet/mobile_columns` برایِ انواعِ column-aware) — یک تابعِ اعتبارسنجیِ مشترک
+  (`section_registry.validate_responsive_settings`) که هر ۱۷ نوعِ section (نه فقط `product_section`) را
+  می‌پوشاند، بدونِ بازنویسیِ منطقِ اختصاصیِ هیچ‌کدام؛ غیابِ کاملِ کلید (همه‌ی section‌هایِ از‌قبل‌موجود) دقیقاً
+  هم‌ارزِ «نمایان همه‌جا» است — رفتارِ فعلی بدونِ تغییر؛
+- تعدادِ ستون فقط از یک enum بسته پذیرفته می‌شود (موبایل ۱-۲، تبلت ۱-۳، دسکتاپ ۱-۶) و فقط برایِ ۵ نوعِ
+  column-aware (`product_section`، `category_grid`، `multi_banner`، `promo_cards`، `brand_carousel`) در فرم
+  نمایش داده می‌شود؛
+- اثرِ بصریِ واقعیِ تعدادِ ستون در این چک‌پوینت **فقط برایِ `product_section`** پیاده‌سازی شده (کلاسِ جدیدِ
+  `.rsec-cols` در `product_card.css`، هم برایِ حالتِ grid و هم carousel — کاروسل با `flex-basis` درصدی، «تعدادِ
+  کارتِ قابل‌مشاهده»، نه یک مدلِ گریدِ اجباری، طبقِ دستورالعملِ صریحِ مشخصات — نه یک عرضِ ثابتِ px مثلِ قبل، پس
+  اسکرول/swipe دست‌نخورده می‌ماند)؛ ۴ نوعِ column-aware دیگر تنظیمات را اعتبارسنجی/ذخیره می‌کنند (قراردادِ
+  آینده‌نگر) اما چیدمانِ ثابتِ فعلی‌شان (tiles/ردیفِ بنر/auto-fill) دست‌نخورده مانده — بازطراحیِ آن ۴ قالب یک
+  کارِ جداگانه و بزرگ‌تر از scope این فاز است؛
+- رندر از همان یک partial مشترک (`responsive_section_wrapper.html`) عبور می‌کند که هم Preview
+  (`storefront_builder/preview.html`) و هم صفحه‌ی عمومی (`catalog/home_visual.html`) include می‌کنند — هرگز
+  فورک نشده؛ حذفِ per-device با سه بازه‌ی مستقلِ CSS (نه cascade) پیاده شده تا «نمایش در تبلت» کاملاً مستقل از
+  «نمایش در دسکتاپ» باشد؛
+- `is_active` (وجودِ section در storefront منتشرشده)، مرئی‌بودنِ ریسپانسیو (نمایان‌بودن در یک دسته‌یِ دستگاهِ
+  خاص)، و `collapsed_in_editor` (فقط UI ادیتور) سه مفهومِ کاملاً مستقلِ باقی‌مانده‌اند — تست‌هایِ اختصاصی این
+  استقلال را تأیید می‌کنند؛
+- به‌عنوانِ اثرِ جانبیِ لمسِ دقیقاً همین include مشترک، یک باگِ واقعیِ فازِ C پیدا و رفع شد: `view_all_url` هرگز
+  به `{% include item.template_name %}` پاس داده نمی‌شد، پس دکمه‌ی «مشاهده همه» با وجودِ `show_view_all: true`
+  هرگز رندر نمی‌شد — نه فقط در تئوری، با یک درخواستِ واقعی به صفحه‌ی عمومی تأیید شد؛
+- خارج از scope فازِ D (عمداً): Template/Preset، CSS/HTML/JS سفارشی، مارجین/پدینگِ دلخواه، بریک‌پوینتِ سفارشی،
+  فونتِ دلخواه، ترتیبِ سفارشیِ per-device، تکرارِ محتوایِ device-specific.
+
 ### ناقص نسبت به Target (شکاف‌های واقعی باقی‌مانده — نه فرض‌های قدیمی)
 
 - **Template/Preset switching**: تعویض کامل قالب بصری سایت (رنگ+فونت+هدر/فوتر خانواده+کارت به‌صورت یک بسته) وجود ندارد —
-- **Template/Preset switching**: تعویض کامل قالب بصری سایت (رنگ+فونت+هدر/فوتر خانواده+کارت به‌صورت یک بسته) وجود ندارد —
   فقط `apply_industry_layout` (فقط section ordering صفحه اصلی، نه ظاهر/برندینگ) و ۶ پریست رنگی مستقل از فونت/spacing (`apps.core.theme_presets`)؛
-- **Responsive per-section**: تنظیمات نمایش/ستون‌بندی per-device (دسکتاپ/تبلت/موبایل) در `settings` هر section وجود ندارد؛
+- **Responsive per-section پیشرفته**: کنترل‌هایِ فعلی عمداً محدود به نمایش/عدم‌نمایش + تعدادِ ستون‌اند —
+  مارجین/پدینگِ سفارشی، عرضِ دلخواه، بریک‌پوینتِ سفارشی، فونتِ سفارشی، یا ترتیبِ متفاوتِ per-device پیاده نشده
+  (عمداً، طبقِ محدودیتِ صریحِ فازِ D)؛
 - **کش رندر storefront**: بدون لایه کش (بدون `CACHES` سفارشی، بدون `cache_page`)؛
 - **Custom Pages**: فراتر از صفحه اصلی، section builder برای صفحات دلخواه (`ContentPage` ساده فاقد section است) وجود ندارد؛
 - **Scheduled Publishing**: بدون `scheduled_publish_at`/cron dispatch — Publish فقط دستی و فوری است؛
@@ -977,8 +1016,10 @@ plan enforcement همچنان باقی مانده**
 Registry/shared Preview-Storefront shell کامل. Merchant Manual Collections (`apps.catalog.MerchantCollection`) از فاز B
 پیاده‌سازی شده. section محصولی با Data Source ساده (Collection/Category/Brand/Manual/Newest/Discounted/BestSellers/
 MostViewed — یک نوعِ عمومیِ `product_section`) از فاز C پیاده‌سازی شده، شاملِ استخراجِ الگوریتمِ واقعیِ
-«پرفروش‌ترین» به `apps.orders.services.best_seller_service` (کانونیک، مشترک با داشبورد). باقی‌مانده: Smart Collection
-rules، Template/Preset، Responsive per-section، caching، Custom Pages، Scheduled Publishing (نگاه کنید به
+«پرفروش‌ترین» به `apps.orders.services.best_seller_service` (کانونیک، مشترک با داشبورد). کنترل‌هایِ ساده و امنِ
+ریسپانسیو per-section (نمایش/عدمِ‌نمایش per-device + تعدادِ ستون برایِ انواعِ column-aware) از فاز D پیاده‌سازی
+شده، مشترک بینِ Preview و صفحه‌ی عمومی. باقی‌مانده: Smart Collection rules، Template/Preset، Responsive
+per-section پیشرفته (مارجین/پدینگ/بریک‌پوینتِ سفارشی)، caching، Custom Pages، Scheduled Publishing (نگاه کنید به
 `docs/reports/STOREFRONT_TEMPLATE_AND_BUILDER_*.md`).**
 
 **سایر Content models (`apps.content`): Feature-rich UI foundation; tenant integrity incomplete (نقص destination relation بالا).**
@@ -1233,7 +1274,7 @@ Storefront theme و Merchant Admin theme باید مستقل باشند.
 | Payment | Prototype | secure gateway engine | idempotency/encryption/reconciliation | بسیار بالا |
 | Shipping | Basic | rule-driven shipping | ownership/zones/fulfillment | بالا |
 | Content | Rich partial | versioned CMS | cross-Store relations در `apps.content` (Hero/Banner/Menu destinations) | بسیار بالا |
-| Storefront Section Builder (`apps.storefront_builder`) | Implemented (homepage layout + header/footer + product section data sources) | no-code storefront layout builder | Template-Preset/Responsive/caching/Custom Pages/Scheduled Publish — به بخش ۱۱.۸ | متوسط |
+| Storefront Section Builder (`apps.storefront_builder`) | Implemented (homepage layout + header/footer + product section data sources + basic responsive controls) | no-code storefront layout builder | Template-Preset/advanced Responsive/caching/Custom Pages/Scheduled Publish — به بخش ۱۱.۸ | متوسط |
 | Merchant Collections (`apps.catalog.MerchantCollection`) | Implemented (manual only, usable as a Section Data Source) | merchandising Collections with public pages | Smart Collections | متوسط |
 | Theme (رنگ/فونت/برندینگ) | Foundation | versioned Theme/Preset package editor | versioning/preview/rollback برای Theme (جدا از Page Builder بالا) | متوسط |
 | SMS | Partial | reliable async messaging | outbox/retry/security | متوسط |

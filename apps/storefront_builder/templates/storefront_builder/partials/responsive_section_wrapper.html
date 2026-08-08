@@ -1,0 +1,22 @@
+{% comment %}
+تنها نقطه‌ی مشترک اعمالِ «تنظیماتِ نمایش در دستگاه‌ها» (فازِ D) — هم
+پیش‌نمایشِ ادیتور (preview.html) و هم صفحه‌ی عمومی (home_visual.html)
+دقیقاً همین یک partial را include می‌کنند، پس رفتارِ ریسپانسیو هرگز
+بینِ آن دو مسیر فورک نمی‌شود. فرض می‌کند که ``item`` (از حلقه‌ی
+render_items بیرونی) در دسترس است.
+
+data-hide-* فقط وقتی حاضر است که واقعاً پنهان باشد؛ غیابِ کاملِ کلیدِ
+``responsive`` (section‌های از‌قبل‌موجود) به‌طورِ خاموش یعنی «نمایان
+همه‌جا» — دقیقاً همان رفتارِ فعلی، بدونِ تغییر.
+
+متغیرهایِ CSS ستون همیشه نوشته می‌شوند (حتی برایِ انواعی که ستون
+معنا ندارد) — بی‌ضرر، چون فقط ``product_section.html`` از آن‌ها
+استفاده می‌کند (``.rsec-cols``).
+{% endcomment %}
+<div class="rsec"
+     {% if item.context.settings.responsive.hide_on_desktop %}data-hide-desktop{% endif %}
+     {% if item.context.settings.responsive.hide_on_tablet %}data-hide-tablet{% endif %}
+     {% if item.context.settings.responsive.hide_on_mobile %}data-hide-mobile{% endif %}
+     style="--cols-desktop:{{ item.context.settings.responsive.desktop_columns|default:4 }};--cols-tablet:{{ item.context.settings.responsive.tablet_columns|default:3 }};--cols-mobile:{{ item.context.settings.responsive.mobile_columns|default:2 }}">
+  {% include item.template_name with section=item.context.section settings=item.context.settings hero_slides=item.context.hero_slides banners=item.context.banners tiles=item.context.tiles cream_category=item.context.cream_category top_categories=item.context.top_categories products=item.context.products product=item.context.product deadline=item.context.deadline brands=item.context.brands categories=item.context.categories view_all_url=item.context.view_all_url %}
+</div>

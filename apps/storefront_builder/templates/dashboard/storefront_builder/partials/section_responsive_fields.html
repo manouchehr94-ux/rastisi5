@@ -1,0 +1,54 @@
+<details style="margin-top:6px">
+  <summary style="cursor:pointer;font-size:13px;color:var(--muted)">تنظیمات نمایش در دستگاه‌ها</summary>
+  <div style="margin-top:10px">
+    <div class="form-group">
+      <label>نمایش در:</label>
+      <div style="display:flex;gap:14px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
+          <input type="checkbox" name="show_on_desktop" {% if not section.settings.responsive.hide_on_desktop %}checked{% endif %}>
+          دسکتاپ
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
+          <input type="checkbox" name="show_on_tablet" {% if not section.settings.responsive.hide_on_tablet %}checked{% endif %}>
+          تبلت
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
+          <input type="checkbox" name="show_on_mobile" {% if not section.settings.responsive.hide_on_mobile %}checked{% endif %}>
+          موبایل
+        </label>
+      </div>
+    </div>
+
+    {% if supports_columns %}
+    <div class="form-group">
+      <label>تعداد ستون‌ها:</label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div>
+          <label for="id_resp_mobile_cols" style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">موبایل</label>
+          <select name="mobile_columns" id="id_resp_mobile_cols" class="form-select">
+            {% for n in "12" %}
+            <option value="{{ n }}" {% if section.settings.responsive.mobile_columns|default:2|stringformat:"s" == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="id_resp_tablet_cols" style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">تبلت</label>
+          <select name="tablet_columns" id="id_resp_tablet_cols" class="form-select">
+            {% for n in "123" %}
+            <option value="{{ n }}" {% if section.settings.responsive.tablet_columns|default:3|stringformat:"s" == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="id_resp_desktop_cols" style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px">دسکتاپ</label>
+          <select name="desktop_columns" id="id_resp_desktop_cols" class="form-select">
+            {% for n in "123456" %}
+            <option value="{{ n }}" {% if section.settings.responsive.desktop_columns|default:4|stringformat:"s" == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</details>

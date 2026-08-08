@@ -17,7 +17,7 @@
 {% block content %}
 <div class="wrap sfb-preview-sections">
   {% for item in render_items %}
-  {% include item.template_name with section=item.context.section settings=item.context.settings hero_slides=item.context.hero_slides banners=item.context.banners tiles=item.context.tiles cream_category=item.context.cream_category top_categories=item.context.top_categories products=item.context.products product=item.context.product deadline=item.context.deadline brands=item.context.brands categories=item.context.categories %}
+  {% include "storefront_builder/partials/responsive_section_wrapper.html" %}
   {% empty %}
   <div class="sfb-empty-preview" style="padding:60px 20px;text-align:center;color:var(--muted)">
     هنوز هیچ بخش فعالی در این چیدمان وجود ندارد.
