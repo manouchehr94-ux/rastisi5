@@ -27,5 +27,6 @@ data-hide-* فقط وقتی حاضر است که واقعاً پنهان باش�
      {% if item.context.settings.responsive.hide_on_tablet %}data-hide-tablet{% endif %}
      {% if item.context.settings.responsive.hide_on_mobile %}data-hide-mobile{% endif %}
      style="--cols-desktop:{{ item.context.settings.responsive.desktop_columns|default:4 }};--cols-tablet:{{ item.context.settings.responsive.tablet_columns|default:3 }};--cols-mobile:{{ item.context.settings.responsive.mobile_columns|default:2 }}">
+  {% if is_preview %}<span class="sfb-rsec-drag-handle" draggable="true" title="برای جابه‌جایی بکشید" aria-hidden="true">⠿</span>{% endif %}
   {% include item.template_name with section=item.context.section settings=item.context.settings hero_slides=item.context.hero_slides slider_settings=item.context.slider_settings banners=item.context.banners tiles=item.context.tiles cream_category=item.context.cream_category top_categories=item.context.top_categories products=item.context.products product=item.context.product deadline=item.context.deadline brands=item.context.brands categories=item.context.categories view_all_url=item.context.view_all_url destination=item.context.destination %}
 </div>

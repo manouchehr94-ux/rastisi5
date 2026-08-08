@@ -90,7 +90,8 @@
     <main class="sfb-preview-pane">
       <div class="sfb-preview-frame-wrap" :class="'sfb-device-' + device">
         <iframe id="sfbPreviewFrame" src="{% url 'dashboard:storefront-builder-preview' %}" title="پیش‌نمایش صفحه اصلی"
-                data-settings-url-template="{% url 'dashboard:storefront-builder-section-settings' 0 %}"></iframe>
+                data-settings-url-template="{% url 'dashboard:storefront-builder-section-settings' 0 %}"
+                data-reorder-url="{% url 'dashboard:storefront-builder-section-reorder' %}"></iframe>
       </div>
     </main>
   </div>
@@ -121,11 +122,22 @@ function storefrontEditor() {
       // یک iframe دیگر/مبدأ خارجی اعتماد نشود.
       window.addEventListener('message', (evt) => {
         if (evt.origin !== window.location.origin) return;
-        if (!evt.data || evt.data.type !== 'sfb:selectSection') return;
-        this.selectSection(evt.data.sectionId);
+        if (!evt.data || !evt.data.type) return;
+        if (evt.data.type === 'sfb:selectSection') this.selectSection(evt.data.sectionId);
+        if (evt.data.type === 'sfb:reorderSections') this.reorderSections(evt.data.sectionIds);
       });
     },
     setDevice(d) { this.device = d; },
+    reorderSections(sectionIds) {
+      // منبعِ حقیقتِ نهایی همیشه پاسخِ سرور است — چیدمانِ خوش‌بینانه‌ای
+      // که خودِ preview.html در DOM انجام داده صرفاً بازخوردِ فوریِ بصری
+      // است؛ afterSwap زیر iframe را دوباره بارگذاری می‌کند تا هر دو
+      // طرف (سایدبار و پیش‌نمایش) دقیقاً همان ترتیبی را نشان دهند که
+      // واقعاً ذخیره شده — even اگر درخواست رد شود (مثلاً rate limit).
+      const iframe = document.getElementById('sfbPreviewFrame');
+      const url = iframe.getAttribute('data-reorder-url');
+      htmx.ajax('POST', url, { values: { section_ids: sectionIds }, target: '#storefrontSectionList', swap: 'outerHTML' });
+    },
     selectSection(sectionId) {
       document.querySelectorAll('.sfb-section-row.sfb-row-selected').forEach((el) => el.classList.remove('sfb-row-selected'));
       const row = document.querySelector('.sfb-section-row[data-id="' + sectionId + '"]');

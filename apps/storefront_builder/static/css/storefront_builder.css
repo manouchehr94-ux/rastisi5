@@ -290,3 +290,50 @@
   outline: 2px solid var(--violet, #6d28d9);
   outline-offset: 2px;
 }
+
+/* دستگیره‌ی درگ مستقیمِ Preview — چکپوینتِ Preview Drag/Reorder. فقط
+   خودِ دستگیره draggable است، نه کلِ section (تا کلیک روی لینک/دکمه‌ی
+   داخلِ section را خراب نکند). */
+.sfb-preview-sections .rsec[data-section-id] .sfb-rsec-drag-handle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 51;
+  display: none;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  background: var(--violet, #6d28d9);
+  color: #fff;
+  border-radius: 6px;
+  cursor: grab;
+  font-size: 15px;
+  user-select: none;
+}
+
+.sfb-preview-sections .rsec[data-section-id]:hover .sfb-rsec-drag-handle,
+.sfb-preview-sections .rsec[data-section-id].sfb-rsec-dragging .sfb-rsec-drag-handle {
+  display: flex;
+}
+
+@media (hover: none) {
+  /* روی لمسی hover واقعی نیست — دستگیره فقط وقتی section با tap
+     انتخاب شده نشان داده شود، نه به‌طورِ همیشگی (شلوغی) و نه هرگز
+     (غیرقابل‌دسترس). */
+  .sfb-preview-sections .rsec[data-section-id]:hover .sfb-rsec-drag-handle {
+    display: none;
+  }
+  .sfb-preview-sections .rsec[data-section-id].sfb-rsec-selected .sfb-rsec-drag-handle {
+    display: flex;
+  }
+}
+
+.sfb-preview-sections .rsec[data-section-id].sfb-rsec-dragging {
+  opacity: 0.4;
+}
+
+.sfb-preview-sections .rsec[data-section-id].sfb-rsec-drop-target {
+  outline: 2px dashed var(--violet, #6d28d9);
+  outline-offset: -2px;
+}

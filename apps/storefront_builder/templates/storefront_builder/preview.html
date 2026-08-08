@@ -33,14 +33,18 @@
 {% block extra_js %}
 <script>
 (function () {
+  var inParentFrame = window.parent && window.parent !== window;
+  var justDragged = false;
+
   // شناساییِ مستقیمِ بصری — کلیک/لمسِ هر section در Preview یک پیامِ
   // postMessage به پنجره‌ی والد (ادیتور) می‌فرستد تا تنظیماتِ همان
   // section باز شود و ردیفِ متناظرش در فهرست Highlight شود. کلیک هم
   // روی دسکتاپ (mouse) و هم روی موبایل/لمسی (tap) به‌طورِ یکسان کار
   // می‌کند — نیازی به رویدادِ جداگانه‌ی touch نیست.
   document.addEventListener('click', function (evt) {
+    if (justDragged) { justDragged = false; return; }
     var el = evt.target.closest('[data-section-id]');
-    if (!el || !window.parent || window.parent === window) return;
+    if (!el || !inParentFrame) return;
     var previouslySelected = document.querySelector('.sfb-rsec-selected');
     if (previouslySelected && previouslySelected !== el) previouslySelected.classList.remove('sfb-rsec-selected');
     el.classList.add('sfb-rsec-selected');
@@ -50,6 +54,65 @@
       sectionKey: el.getAttribute('data-section-key'),
     }, window.location.origin);
   });
+
+  // درگ مستقیم در Preview — چکپوینتِ Preview Drag/Reorder. درگ واقعی
+  // (dragstart→drop) کاملاً داخلِ همین iframe اتفاق می‌افتد (بدونِ نیازِ
+  // native drag-and-drop بینِ دو مبدأ که در مرورگرها قابل‌اعتماد نیست)؛
+  // فقط نتیجه‌ی نهایی (فهرستِ id به ترتیبِ جدید) با postMessage به والد
+  // فرستاده می‌شود — والد همان endpoint موجودِ reorder سایدبار را صدا
+  // می‌زند (تنها مسیرِ نوشتن، بدونِ منطقِ persistence تکراری اینجا).
+  // محدوده‌ی جستجو عمداً فقط ``.sfb-preview-sections`` است — هدر/فوتر
+  // اصلاً داخلِ آن نیستند، پس ساختاراً هرگز نمی‌توانند بخشی از این
+  // بازچینش شوند.
+  var container = document.querySelector('.sfb-preview-sections');
+  if (!container) return;
+  var dragId = null;
+
+  container.addEventListener('dragstart', function (evt) {
+    var handle = evt.target.closest('.sfb-rsec-drag-handle');
+    if (!handle) { evt.preventDefault(); return; }
+    var rsec = handle.closest('[data-section-id]');
+    if (!rsec) { evt.preventDefault(); return; }
+    dragId = rsec.getAttribute('data-section-id');
+    rsec.classList.add('sfb-rsec-dragging');
+    evt.dataTransfer.effectAllowed = 'move';
+    evt.dataTransfer.setData('text/plain', dragId);
+  });
+
+  container.addEventListener('dragover', function (evt) {
+    var target = evt.target.closest('[data-section-id]');
+    if (!target || dragId === null) return;
+    evt.preventDefault();
+    document.querySelectorAll('.sfb-rsec-drop-target').forEach(function (el) { el.classList.remove('sfb-rsec-drop-target'); });
+    if (target.getAttribute('data-section-id') !== dragId) target.classList.add('sfb-rsec-drop-target');
+  });
+
+  container.addEventListener('drop', function (evt) {
+    var target = evt.target.closest('[data-section-id]');
+    if (!target || dragId === null) return;
+    evt.preventDefault();
+    var from = container.querySelector('[data-section-id="' + dragId + '"]');
+    if (from && target !== from) {
+      var goesAfter = from.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING;
+      container.insertBefore(from, goesAfter ? target.nextSibling : target);
+      justDragged = true;
+      if (inParentFrame) {
+        var ids = Array.prototype.slice.call(container.querySelectorAll('[data-section-id]')).map(function (el) {
+          return el.getAttribute('data-section-id');
+        });
+        window.parent.postMessage({ type: 'sfb:reorderSections', sectionIds: ids }, window.location.origin);
+      }
+    }
+    cleanupDrag();
+  });
+
+  container.addEventListener('dragend', cleanupDrag);
+
+  function cleanupDrag() {
+    document.querySelectorAll('.sfb-rsec-dragging').forEach(function (el) { el.classList.remove('sfb-rsec-dragging'); });
+    document.querySelectorAll('.sfb-rsec-drop-target').forEach(function (el) { el.classList.remove('sfb-rsec-drop-target'); });
+    dragId = null;
+  }
 })();
 </script>
 {% endblock %}
