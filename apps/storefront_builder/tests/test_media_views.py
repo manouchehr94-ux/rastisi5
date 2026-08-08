@@ -48,6 +48,19 @@ class MediaViewsTestCase(TestCase):
 
 
 class HeroSlideCrudTests(MediaViewsTestCase):
+    def test_media_list_page_renders(self):
+        """رگرسیونِ باگِ واقعی: ``{% load storefront_builder_extras %}``
+        بعد از اولین استفاده از فیلترِ ``section_label`` (در
+        ``{% block title %}``) آمده بود — یعنی خودِ صفحه‌ی «مدیریت
+        اسلایدها» با TemplateSyntaxError کرش می‌کرد. هیچ تستِ قبلی این
+        مسیرِ GET را صدا نمی‌زد (فقط POSTِ افزودن/ویرایش/حذف تست شده
+        بودند)، پس این کرش فقط با یک بازدیدِ واقعیِ مرورگر پیدا شد."""
+        resp = self.client.get(
+            reverse("dashboard:storefront-builder-section-media-list", args=[self.hero_section.pk, "hero-slides"])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "اسلایدر اصلی")
+
     def test_add_slide(self):
         resp = self.client.post(
             reverse("dashboard:storefront-builder-section-media-add", args=[self.hero_section.pk, "hero-slides"]),
@@ -136,6 +149,12 @@ class HeroSlideCrudTests(MediaViewsTestCase):
 
 
 class BannerCrudTests(MediaViewsTestCase):
+    def test_media_list_page_renders(self):
+        resp = self.client.get(
+            reverse("dashboard:storefront-builder-section-media-list", args=[self.banner_section.pk, "banners"])
+        )
+        self.assertEqual(resp.status_code, 200)
+
     def test_add_banner(self):
         resp = self.client.post(
             reverse("dashboard:storefront-builder-section-media-add", args=[self.banner_section.pk, "banners"]),
