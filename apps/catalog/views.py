@@ -65,6 +65,13 @@ def home(request):
         top_level_categories = Category.objects.filter(
             store=store, parent__isnull=True, is_active=True,
         ).order_by("order", "name")
+        # تنظیماتِ ظاهر باید از همین نسخه‌ی منتشرشده خوانده شود، نه
+        # ShopSettings زنده — نگاه کنید به
+        # ``apps.core.context_processors._versioned_colors``. این تنها
+        # مسیرِ عمومی است که این attribute را ست می‌کند؛ هر صفحه‌ی دیگرِ
+        # همین فروشگاه (پرداخت، جزئیاتِ کالا، ...) دست‌نخورده روی
+        # ShopSettings زنده باقی می‌ماند.
+        request.storefront_appearance_version = published
         return render(request, "catalog/home_visual.html", {
             "render_items": build_render_items(published, store),
             "layout_header_config": published.effective_header_config(),

@@ -50,6 +50,15 @@ class PublicHomepageIntegrationTests(TestCase):
         self.assertIn("catalog/home_visual.html", template_names)
         self.assertNotIn("catalog/home.html", template_names)
 
+    def test_public_page_never_exposes_section_ids(self):
+        """چکپوینتِ Direct Visual Editing: data-section-id فقط برایِ
+        Preview (staff-only) اضافه می‌شود — صفحه‌ی عمومی هرگز نباید
+        شناسه‌ی دیتابیسِ داخلی را در HTML به بازدیدکننده نشان دهد."""
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        self.assertNotContains(resp, "data-section-id")
+
     def test_public_page_shows_published_content_not_later_draft_edits(self):
         """تصمیم ۱۱ کاربر: صفحه عمومی هرگز Draft را نمی‌بیند — ویرایش‌های
         بعد از Publish تا Publish دوباره روی صفحه عمومی ظاهر نمی‌شوند."""
@@ -78,6 +87,46 @@ class PublicHomepageIntegrationTests(TestCase):
         svc.publish(self.store)
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         self.assertNotContains(resp, 'class="copy"')
+
+    def test_newsletter_block_requires_both_layout_toggle_and_live_footer_setting(self):
+        """چکپوینتِ ۹: قبل از این رفعِ باگ، ``footer_config.show_newsletter``
+        هیچ اثری در رندر نداشت (فرگمنتِ خبرنامه اصلاً از این کلید
+        استفاده نمی‌کرد) — این آزمون هر دو حالتِ لازم را تأیید می‌کند:
+        هر دو باید True باشند تا بلوکِ خبرنامه نمایش داده شود."""
+        from apps.content.models import FooterSettings
+
+        draft = svc.get_or_create_draft(self.store)
+        draft.footer_config = {**(draft.footer_config or {}), "show_newsletter": True}
+        draft.save(update_fields=["footer_config"])
+        svc.publish(self.store)
+
+        fs = FooterSettings.load(store=self.store)
+        fs.show_newsletter = False
+        fs.save(update_fields=["show_newsletter"])
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        self.assertNotContains(resp, 'class="news"')
+
+        fs.show_newsletter = True
+        fs.newsletter_title = "عضویتِ تستی"
+        fs.save(update_fields=["show_newsletter", "newsletter_title"])
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        self.assertContains(resp, 'class="news"')
+        self.assertContains(resp, "عضویتِ تستی")
+
+    def test_newsletter_block_hidden_when_layout_toggle_off_even_if_live_setting_on(self):
+        from apps.content.models import FooterSettings
+
+        fs = FooterSettings.load(store=self.store)
+        fs.show_newsletter = True
+        fs.save(update_fields=["show_newsletter"])
+
+        draft = svc.get_or_create_draft(self.store)
+        draft.footer_config = {**(draft.footer_config or {}), "show_newsletter": False}
+        draft.save(update_fields=["footer_config"])
+        svc.publish(self.store)
+
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        self.assertNotContains(resp, 'class="news"')
 
     def test_unknown_section_type_in_published_version_never_crashes_public_page(self):
         draft = svc.get_or_create_draft(self.store)

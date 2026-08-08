@@ -2,7 +2,11 @@
 <div class="pp-results" style="border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;margin-top:6px">
   {% for product in results %}
   <div class="pp-result-row" style="padding:8px 10px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--border);font-size:13px"
-       @click="addProduct({{ product.pk }}, '{{ product.name|escapejs }}')">
+       {% if mode == "destination" %}
+       @click="productId = {{ product.pk }}; productName = '{{ product.name|escapejs }}'"
+       {% else %}
+       @click="addProduct({{ product.pk }}, '{{ product.name|escapejs }}')"
+       {% endif %}>
     <span>{{ product.name }}</span>
     <span style="color:var(--muted);font-size:12px;white-space:nowrap">{{ product.sku }}</span>
   </div>

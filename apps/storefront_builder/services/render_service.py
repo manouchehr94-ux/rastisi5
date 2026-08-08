@@ -19,45 +19,94 @@ from apps.catalog.services.product_publish_service import storefront_listing_pro
 from apps.content.models import HeroSlide, PromotionalBanner
 from apps.orders.services import best_seller_service
 
-from ..section_registry import UnknownSectionTypeError, get_definition
+from ..section_registry import (
+    UnknownSectionTypeError,
+    default_brand_carousel_settings,
+    default_category_grid_settings,
+    default_quick_links_settings,
+    get_definition,
+)
 from . import section_data_service
 
 TILE_CLASSES = ["t1", "t2", "t3"]
 
 
-def _hero_banner_context(store, section):
-    slides = HeroSlide.objects.filter(store=store, is_active=True).select_related(
-        "destination_category", "destination_product", "destination_brand",
+_DESTINATION_SELECT_RELATED = (
+    "destination_category", "destination_product", "destination_brand", "destination_collection",
+)
+
+
+def _scoped_hero_slides(store, section):
+    """اسلایدهای *مخصوصِ همین نمونه* section (اگر مرچنت از داخل سازنده
+    بصری برایِ آن اسلاید اضافه کرده) — اگر این section هیچ اسلایدِ
+    اختصاصی نداشت، به اسلایدهای سراسریِ فروشگاه (section=None، رفتارِ
+    قدیمیِ پیش از این چکپوینت) برمی‌گردد. این دقیقاً همان مکانیزمی است که
+    اجازه می‌دهد دو نمونه‌ی اسلایدر مستقل (با اسلایدهای متفاوت) وجود
+    داشته باشند، بدون این‌که فروشگاه‌های قدیمی که هرگز این ویژگی را لمس
+    نکرده‌اند رفتارشان تغییر کند."""
+    scoped = HeroSlide.objects.filter(section=section, is_active=True).select_related(
+        *_DESTINATION_SELECT_RELATED,
     ).order_by("display_order", "id")
-    return {"hero_slides": slides}
+    if scoped.exists():
+        return scoped
+    return HeroSlide.objects.filter(store=store, section__isnull=True, is_active=True).select_related(
+        *_DESTINATION_SELECT_RELATED,
+    ).order_by("display_order", "id")
+
+
+def _hero_banner_context(store, section):
+    from ..section_registry import default_slider_settings
+
+    slider_settings = {**default_slider_settings(), **(section.settings or {})}
+    return {"hero_slides": _scoped_hero_slides(store, section), "slider_settings": slider_settings}
 
 
 def _image_slider_context(store, section):
     return _hero_banner_context(store, section)
 
 
+def _scoped_banners(store, section):
+    scoped = PromotionalBanner.objects.filter(section=section, is_active=True).select_related(
+        *_DESTINATION_SELECT_RELATED,
+    ).order_by("display_order", "id")
+    if scoped.exists():
+        return scoped
+    return PromotionalBanner.objects.filter(store=store, section__isnull=True, is_active=True).select_related(
+        *_DESTINATION_SELECT_RELATED,
+    ).order_by("display_order", "id")
+
+
 def _single_banner_context(store, section):
-    banners = PromotionalBanner.objects.filter(store=store, is_active=True).select_related(
-        "destination_category", "destination_product", "destination_brand",
-    ).order_by("display_order", "id")[:1]
-    return {"banners": banners}
+    return {"banners": _scoped_banners(store, section)[:1]}
 
 
 def _multi_banner_context(store, section):
-    banners = PromotionalBanner.objects.filter(store=store, is_active=True).select_related(
-        "destination_category", "destination_product", "destination_brand",
-    ).order_by("display_order", "id")
-    return {"banners": banners}
+    return {"banners": _scoped_banners(store, section)}
 
 
 def _category_grid_context(store, section):
-    top_categories = list(
-        Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
-    )
+    """چکپوینتِ ۱۱: اگر مرچنت صراحتاً دسته‌بندی انتخاب کرده باشد
+    (``category_ids``)، دقیقاً همان‌ها به همان ترتیب نمایش داده می‌شوند —
+    وگرنه (فروشگاهی که هنوز این تنظیمات را لمس نکرده) دقیقاً همان
+    رفتارِ auto-pick قبل از این چکپوینت (۳+۱ دسته‌ی اولِ فعالِ سطحِ اول)
+    بازتولید می‌شود. ``pk__in`` ترتیب را حفظ نمی‌کند، پس فهرستِ
+    انتخاب‌شده دستی طبقِ همان ترتیبِ ذخیره‌شده بازسازی می‌شود (همان الگویِ
+    ``_best_sellers_context``)."""
+    category_ids = (section.settings or {}).get("category_ids") or []
+    if category_ids:
+        by_id = {
+            c.pk: c for c in Category.objects.filter(store=store, pk__in=category_ids, is_active=True)
+        }
+        categories = [by_id[cid] for cid in category_ids if cid in by_id]
+    else:
+        categories = list(
+            Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
+        )
     return {
-        "tiles": list(zip(top_categories[:3], TILE_CLASSES)),
-        "cream_category": top_categories[3] if len(top_categories) > 3 else None,
-        "top_categories": top_categories,
+        "tiles": list(zip(categories[:3], TILE_CLASSES)),
+        "cream_category": categories[3] if len(categories) > 3 else None,
+        "top_categories": categories,
+        "category_grid_settings": {**default_category_grid_settings(), **(section.settings or {})},
     }
 
 
@@ -114,8 +163,108 @@ def _featured_products_context(store, section):
 
 
 def _brand_carousel_context(store, section):
-    brands = Brand.objects.filter(store=store, is_active=True).order_by("sort_order", "name")
-    return {"brands": brands}
+    """چکپوینتِ ۱۱: همان الگویِ ``_category_grid_context`` — ``brand_ids``
+    خالی یعنی رفتارِ auto (همه‌ی برندهایِ فعال) دست‌نخورده می‌ماند."""
+    settings = {**default_brand_carousel_settings(), **(section.settings or {})}
+    brand_ids = settings["brand_ids"]
+    if brand_ids:
+        by_id = {b.pk: b for b in Brand.objects.filter(store=store, pk__in=brand_ids, is_active=True)}
+        brands = [by_id[bid] for bid in brand_ids if bid in by_id]
+    else:
+        brands = list(Brand.objects.filter(store=store, is_active=True).order_by("sort_order", "name"))
+
+    view_all_url = None
+    if settings["show_view_all"]:
+        destination = (section.settings or {}).get("destination") or {}
+        if destination.get("destination_type", "none") != "none":
+            from apps.content.services import resolve_destination_setting
+
+            resolved = resolve_destination_setting(store, destination)
+            view_all_url = resolved["url"]
+
+    return {"brands": brands, "brand_carousel_settings": settings, "view_all_url": view_all_url}
+
+
+def _collection_tiles_context(store, section):
+    """چکپوینتِ ۱۲: بخشِ جدید — خودِ MerchantCollectionها را نشان می‌دهد
+    (نه کالاهایِ داخلشان). ``collection_ids`` خالی = همه‌ی کالکشن‌های
+    فعال (ترتیبِ ایجاد، جدیدترین اول)."""
+    from apps.catalog.models import MerchantCollection
+
+    collection_ids = (section.settings or {}).get("collection_ids") or []
+    if collection_ids:
+        by_id = {
+            c.pk: c for c in MerchantCollection.objects.filter(store=store, pk__in=collection_ids, is_active=True)
+        }
+        collections = [by_id[cid] for cid in collection_ids if cid in by_id]
+    else:
+        collections = list(
+            MerchantCollection.objects.filter(store=store, is_active=True).order_by("-created_at")
+        )
+    # شمارشِ کالا با یک کوئریِ جمعی (annotate)، نه N+1 در تمپلیت
+    from django.db.models import Count
+
+    counts_qs = MerchantCollection.objects.filter(pk__in=[c.pk for c in collections]).annotate(item_count=Count("items"))
+    counts_by_id = {row.pk: row.item_count for row in counts_qs}
+    tiles = [{"collection": c, "item_count": counts_by_id.get(c.pk, 0)} for c in collections]
+    return {"collection_tiles": tiles}
+
+
+def _quick_links_context(store, section):
+    """چکپوینتِ ۱۲: «دسترسی سریع» — یک Menuِ موجود (همان زیرساختِ
+    Menu/MenuItem/Destinationِ ناوبریِ هدر/فوتر) را به‌شکلِ کارت‌هایِ
+    بصری نشان می‌دهد؛ هیچ مدلِ لینکِ جدیدی ساخته نشده.
+
+    ``Prefetch`` با یک queryset از پیش‌فیلترشده (نه ``prefetch_related``یِ
+    ساده + یک ``.filter()`` دیگر رویِ ``menu.items`` بعداً) — وگرنه آن
+    فیلترِ دوم یک کوئریِ کاملاً جدا اجرا می‌کرد و کشِ prefetch را بی‌اثر
+    می‌گذاشت (همان الگویِ ``apps.content.context_processors.navigation_menus``)."""
+    from django.db.models import Prefetch
+
+    from apps.content.models import Menu, MenuItem
+    from apps.content.services import resolve_destination_url
+
+    settings = {**default_quick_links_settings(), **(section.settings or {})}
+    menu_id = settings["menu_id"]
+    items = []
+    menu = None
+    if menu_id:
+        items_qs = MenuItem.objects.filter(is_active=True, parent__isnull=True).select_related(
+            "destination_category", "destination_product", "destination_brand",
+        ).order_by("display_order", "id")
+        menu = Menu.objects.filter(store=store, pk=menu_id, is_active=True).prefetch_related(
+            Prefetch("items", queryset=items_qs),
+        ).first()
+    if menu is not None:
+        for menu_item in menu.items.all():
+            url = resolve_destination_url(menu_item)
+            if url:
+                items.append({"title": menu_item.title, "url": url, "open_in_new_tab": menu_item.open_in_new_tab})
+    return {"quick_link_items": items}
+
+
+def _video_section_context(store, section):
+    """چکپوینتِ ۱۲: از همان تشخیصِ ارائه‌دهنده/محاسبه‌ی embed_url که برایِ
+    ویدیویِ کالا استفاده می‌شود عبور می‌کند (نه بازنویسیِ دوباره) — یک
+    نمونه‌ی موقتِ (ذخیره‌نشده‌یِ) ``ProductVideo`` فقط برایِ عبور از همان
+    منطق ساخته می‌شود."""
+    video_url = (section.settings or {}).get("video_url") or ""
+    if not video_url:
+        return {"video_embed_url": None, "video_is_instagram": False, "video_permalink": None}
+
+    from apps.catalog.models import ProductVideo
+    from apps.catalog.services import product_video_service
+
+    try:
+        provider, _external_id = product_video_service.detect_provider_and_id(video_url)
+    except product_video_service.ProductVideoError:
+        return {"video_embed_url": None, "video_is_instagram": False, "video_permalink": None}
+
+    temp_video = ProductVideo(provider=provider, url=video_url)
+    if provider == ProductVideo.Provider.INSTAGRAM:
+        return {"video_embed_url": None, "video_is_instagram": True,
+                "video_permalink": product_video_service.instagram_permalink(temp_video)}
+    return {"video_embed_url": product_video_service.embed_url(temp_video), "video_is_instagram": False, "video_permalink": None}
 
 
 def _category_context_for_promo_cards(store, section):
@@ -127,6 +276,21 @@ def _static_context(store, section):
     return {}
 
 
+def _resolved_destination_context(store, section):
+    """بلوکِ ``destination`` این section (اگر داشته باشد) را به URL/تب‌جدید
+    واقعی حل می‌کند — برایِ انواعی که در ``DESTINATION_AWARE_SECTION_KEYS``
+    عضوند و لینکشان واقعاً «سطحِ خودِ section» است (نه per-slide/per-banner
+    مثلِ hero/banner که مقصدشان داخلِ خودِ مدلِ ``HeroSlide``/
+    ``PromotionalBanner`` است)."""
+    destination = (section.settings or {}).get("destination") or {}
+    if destination.get("destination_type", "none") == "none":
+        return {"destination": {"url": None, "open_new_tab": False, "rel": ""}}
+
+    from apps.content.services import resolve_destination_setting
+
+    return {"destination": resolve_destination_setting(store, destination)}
+
+
 def _product_section_context(store, section):
     """برخلافِ همه‌ی builderهایِ دیگرِ این فایل، این یکی به تنظیماتِ
     خاصِ همین section (``data_source``/``source_id``/``product_ids``)
@@ -135,6 +299,13 @@ def _product_section_context(store, section):
     یک‌بار برایِ کلِ section_key (بازنویسی‌شدن با کش، دقیقاً همان باگی
     که این پرچم برایِ جلوگیری از آن اضافه شده)."""
     products, view_all_url = section_data_service.resolve_products(store, section.settings or {})
+    destination = (section.settings or {}).get("destination") or {}
+    if destination.get("destination_type", "none") != "none":
+        from apps.content.services import resolve_destination_setting
+
+        resolved = resolve_destination_setting(store, destination)
+        if resolved["url"]:
+            view_all_url = resolved["url"]
     return {"products": products, "view_all_url": view_all_url}
 
 
@@ -143,7 +314,10 @@ def _product_section_context(store, section):
 #: ``build_render_items`` باید per-instance باشد، وگرنه دو نمونه‌ی
 #: تکرارشده (duplicable) با تنظیماتِ متفاوت (مثلاً دو کالکشنِ متفاوت)
 #: محتوایِ یکسان (نمونه‌ی اول) نشان می‌دهند.
-PER_INSTANCE_SECTION_KEYS = {"product_section"}
+PER_INSTANCE_SECTION_KEYS = {
+    "product_section", "image_text", "hero_banner", "image_slider", "single_banner", "multi_banner",
+    "category_grid", "brand_carousel", "collection_tiles", "quick_links", "video_section",
+}
 
 
 _CONTEXT_BUILDERS = {
@@ -161,9 +335,14 @@ _CONTEXT_BUILDERS = {
     "brand_carousel": _brand_carousel_context,
     "promo_cards": _category_context_for_promo_cards,
     "rich_text": _static_context,
-    "image_text": _static_context,
+    "image_text": _resolved_destination_context,
     "product_section": _product_section_context,
     "trust_features": _static_context,
+    "collection_tiles": _collection_tiles_context,
+    "quick_links": _quick_links_context,
+    "faq": _static_context,
+    "testimonials": _static_context,
+    "video_section": _video_section_context,
 }
 
 

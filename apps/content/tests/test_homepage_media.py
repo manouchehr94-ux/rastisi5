@@ -210,6 +210,23 @@ class DashboardHeroCRUDTests(TestCase):
         response = self.client.get(reverse("dashboard:hero-delete", args=[slide.pk]))
         self.assertEqual(response.status_code, 405)
 
+    def test_no_deprecation_notice_when_builder_not_published(self):
+        """چکپوینتِ بازبینیِ نهایی (بخشِ ۲۳): تا وقتی سازنده بصری برایِ
+        این فروشگاه منتشر نشده، این صفحه هنوز مسیرِ واقعیِ ویرایشِ
+        اسلایدر است — نباید هشدارِ «دیگر اثری ندارد» نشان دهد."""
+        response = self.client.get(reverse("dashboard:hero-list"))
+        self.assertNotContains(response, "دیگر روی صفحه‌ی عمومی اثری ندارد")
+
+    def test_deprecation_notice_when_builder_published(self):
+        from apps.storefront_builder.services import layout_service as sfb_svc
+
+        store = _akhlaghi()
+        sfb_svc.get_or_create_draft(store)
+        sfb_svc.publish(store)
+
+        response = self.client.get(reverse("dashboard:hero-list"))
+        self.assertContains(response, "دیگر روی صفحه‌ی عمومی اثری ندارد")
+
 
 class DashboardBannerCRUDTests(TestCase):
     def setUp(self):

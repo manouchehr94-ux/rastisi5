@@ -14,8 +14,30 @@
 .hero-text h1{font-size:30px;font-weight:900;line-height:1.5;margin-bottom:14px;max-width:480px}
 .hero-text p{font-size:14px;opacity:.92;max-width:430px;margin-bottom:24px}
 .hero-btns{display:flex;gap:12px;flex-wrap:wrap}
-.hero-visual{position:relative;z-index:2;display:grid;place-items:center}
+.hero-visual{position:relative;z-index:2;display:grid;place-items:center;width:100%;height:100%;min-height:220px}
+.hero-visual picture{display:block;width:100%;height:100%}
+.hero-visual img{width:100%;height:100%;object-fit:cover;border-radius:18px;max-height:280px}
 .hero-frame{width:240px;height:260px;background:rgba(255,255,255,.16);border:1.5px solid rgba(255,255,255,.3);border-radius:24px;display:grid;place-items:center;font-size:120px;backdrop-filter:blur(2px);box-shadow:0 20px 50px rgba(60,30,120,.3)}
+.hero-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,.85);color:var(--ink,#241c3a);font-size:20px;line-height:1;cursor:pointer;display:grid;place-items:center;transition:.15s}
+.hero-arrow:hover{background:#fff}
+.hero-arrow:disabled{opacity:.35;cursor:not-allowed}
+.hero-arrow-prev{right:16px}
+.hero-arrow-next{left:16px}
+
+/* تناسبِ اسلایدرِ اصلی — از Templateِ فعال می‌آید. پیش‌فرض
+   (data-sfb-hero-style="wide") دقیقاً همان چیدمانِ بالاست. */
+html[data-sfb-hero-style="tall"] .hero-inner{grid-template-columns:1fr;text-align:center;min-height:460px;padding:56px 40px}
+html[data-sfb-hero-style="tall"] .hero-text h1,
+html[data-sfb-hero-style="tall"] .hero-text p{max-width:100%;margin-inline:auto}
+html[data-sfb-hero-style="tall"] .hero-btns{justify-content:center}
+html[data-sfb-hero-style="tall"] .hero-visual{order:-1;min-height:260px}
+
+/* تراکم/فاصله‌گذاری (density) — کنترلِ مستقیمِ تاجر، مستقلِ از
+   hero-style/Template؛ همان الگویِ overrideهایِ hero-style بالا. */
+html[data-sfb-density="compact"] .hero-inner{padding:28px}
+html[data-sfb-density="relaxed"] .hero-inner{padding:58px}
+html[data-sfb-density="compact"] .hero{padding:14px 0 4px}
+html[data-sfb-density="relaxed"] .hero{padding:32px 0 10px}
 .float-card{position:absolute;background:#fff;color:var(--ink);border-radius:14px;padding:10px 14px;box-shadow:0 12px 30px rgba(60,30,120,.25);font-size:12px;font-weight:700;display:flex;align-items:center;gap:9px}
 .float-card .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:17px}
 .fc1{top:8px;right:-6px}.fc1 .ic{background:var(--pink-soft)}
@@ -40,6 +62,8 @@
 
 /* ===== section head ===== */
 .section{margin:34px 0}
+html[data-sfb-density="compact"] .section{margin:18px 0}
+html[data-sfb-density="relaxed"] .section{margin:54px 0}
 .sec-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
 .sec-head h2{font-size:19px;font-weight:900;display:flex;align-items:center;gap:9px}
 .sec-head h2 .bar{width:5px;height:22px;border-radius:4px;background:linear-gradient(var(--violet),var(--violet-3))}
@@ -73,6 +97,14 @@
 .t1{background:linear-gradient(135deg,#0ea5a3,#13c2c2)}
 .t2{background:linear-gradient(135deg,#334155,#475569)}
 .t3{background:linear-gradient(135deg,#e0567f,#f06595)}
+
+/* حالتِ کاروسلِ گریدِ دسته‌بندی (چکپوینتِ ۱۱) — همان .tile، فقط در یک
+   ردیفِ اسکرول‌شونده‌ی افقی به‌جای گرید. */
+.tiles-carousel{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+.tiles-carousel .tile{flex:0 0 240px;scroll-snap-align:start;min-height:180px}
+@media(max-width:680px){
+  .tiles-carousel .tile{flex-basis:200px}
+}
 
 /* ===== cream banner ===== */
 .cream{position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(100deg,#f3e9d8,#efe2cb);display:grid;grid-template-columns:1fr 1fr;align-items:center;padding:36px 40px;gap:20px}
@@ -120,6 +152,8 @@
 
 /* ===== features ===== */
 .features{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:34px 0}
+html[data-sfb-density="compact"] .features{gap:10px;margin:18px 0}
+html[data-sfb-density="relaxed"] .features{gap:22px;margin:54px 0}
 .feat{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:20px;display:flex;align-items:center;gap:13px}
 .feat .ic{width:50px;height:50px;border-radius:14px;background:var(--violet-soft);color:var(--violet);display:grid;place-items:center;flex-shrink:0}
 .feat .ic svg{width:24px;height:24px}
@@ -145,3 +179,30 @@
   .catstrip-promo{border-left:0;border-bottom:1px dashed var(--line);padding:0 0 14px}
   .features{grid-template-columns:1fr}
 }
+
+/* ===== brand carousel/grid (چکپوینتِ ۱۱) ===== */
+.brand-tile{display:flex;align-items:center;justify-content:center;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.brand-tile img{max-height:40px;max-width:100%;object-fit:contain}
+.brand-tile-name{font-size:13px;font-weight:700}
+.brand-carousel{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+.brand-carousel .brand-tile{flex:0 0 140px;scroll-snap-align:start}
+
+/* ===== FAQ / testimonials / video (چکپوینتِ ۱۲) ===== */
+.faq-list{display:flex;flex-direction:column;gap:10px;max-width:760px;margin:0 auto}
+.faq-item{border:1px solid var(--line);border-radius:12px;padding:14px 18px;background:var(--card)}
+.faq-item summary{cursor:pointer;font-weight:700;font-size:13.5px;list-style:none}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item summary::before{content:'+';display:inline-block;width:18px;color:var(--violet);font-weight:900}
+.faq-item[open] summary::before{content:'−'}
+.faq-item p{margin-top:10px;color:var(--muted);font-size:13px;line-height:1.9}
+
+.testimonial-list{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.testimonial-card{border:1px solid var(--line);border-radius:14px;padding:20px;background:var(--card)}
+.testimonial-card .quote{font-size:13.5px;line-height:1.9;margin-bottom:12px}
+.testimonial-card .who strong{display:block;font-size:13px}
+.testimonial-card .who span{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+@media(max-width:1000px){.testimonial-list{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:680px){.testimonial-list{grid-template-columns:1fr}}
+
+.video-embed-wrap{position:relative;max-width:860px;margin:0 auto;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center}
+.video-embed-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}

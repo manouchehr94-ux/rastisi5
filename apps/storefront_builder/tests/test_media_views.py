@@ -1,0 +1,220 @@
+from io import BytesIO
+
+from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import Client, TestCase
+from django.urls import reverse
+from django.utils import timezone
+from PIL import Image
+
+from apps.content.models import HeroSlide, PromotionalBanner
+from apps.storefront_builder.models import StorefrontSection
+from apps.storefront_builder.services import layout_service as svc
+from apps.stores.models import Store, StoreMembership
+
+User = get_user_model()
+
+HOST = "sfb-media-test.rastisi.localhost"
+
+
+def _akhlaghi():
+    return Store.objects.get(slug="akhlaghi")
+
+
+def _img(name="test.png"):
+    buf = BytesIO()
+    Image.new("RGB", (800, 400), (10, 20, 30)).save(buf, "PNG")
+    return SimpleUploadedFile(name, buf.getvalue(), content_type="image/png")
+
+
+class MediaViewsTestCase(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        self.store.admin_subdomain = HOST.split(".")[0]
+        self.store.save(update_fields=["admin_subdomain"])
+        self.staff = User.objects.create_user(username="media_owner", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.client = Client(HTTP_HOST=HOST)
+        self.client.login(username="media_owner", password="pass12345")
+        self.draft = svc.get_or_create_draft(self.store)
+        self.draft.sections.filter(section_key__in=["hero_banner", "multi_banner"]).delete()
+        self.hero_section = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=900)
+        self.banner_section = StorefrontSection.objects.create(version=self.draft, section_key="multi_banner", order=901)
+
+
+class HeroSlideCrudTests(MediaViewsTestCase):
+    def test_media_list_page_renders(self):
+        """رگرسیونِ باگِ واقعی: ``{% load storefront_builder_extras %}``
+        بعد از اولین استفاده از فیلترِ ``section_label`` (در
+        ``{% block title %}``) آمده بود — یعنی خودِ صفحه‌ی «مدیریت
+        اسلایدها» با TemplateSyntaxError کرش می‌کرد. هیچ تستِ قبلی این
+        مسیرِ GET را صدا نمی‌زد (فقط POSTِ افزودن/ویرایش/حذف تست شده
+        بودند)، پس این کرش فقط با یک بازدیدِ واقعیِ مرورگر پیدا شد."""
+        resp = self.client.get(
+            reverse("dashboard:storefront-builder-section-media-list", args=[self.hero_section.pk, "hero-slides"])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "اسلایدر اصلی")
+
+    def test_add_slide(self):
+        resp = self.client.post(
+            reverse("dashboard:storefront-builder-section-media-add", args=[self.hero_section.pk, "hero-slides"]),
+            {"title": "اسلاید تست", "subtitle": "زیر", "show_button": "on", "button_label": "برو",
+             "destination_type": "external", "destination_external_url": "https://example.com",
+             "desktop_image": _img(), "is_active": "on"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        slide = HeroSlide.objects.get(section=self.hero_section)
+        self.assertEqual(slide.title, "اسلاید تست")
+        self.assertEqual(slide.store_id, self.store.pk)
+
+    def test_add_slide_without_image_rejected(self):
+        resp = self.client.post(
+            reverse("dashboard:storefront-builder-section-media-add", args=[self.hero_section.pk, "hero-slides"]),
+            {"title": "بدون تصویر", "destination_type": "none"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(HeroSlide.objects.filter(section=self.hero_section).exists())
+
+    def test_edit_slide(self):
+        slide = HeroSlide.objects.create(store=self.store, section=self.hero_section, title="قدیم", desktop_image=_img())
+        resp = self.client.post(
+            reverse("dashboard:storefront-builder-section-media-edit", args=[self.hero_section.pk, "hero-slides", slide.pk]),
+            {"title": "جدید", "destination_type": "none", "is_active": "on"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        slide.refresh_from_db()
+        self.assertEqual(slide.title, "جدید")
+
+    def test_delete_slide(self):
+        slide = HeroSlide.objects.create(store=self.store, section=self.hero_section, title="حذف‌شو", desktop_image=_img())
+        resp = self.client.post(
+            reverse("dashboard:storefront-builder-section-media-delete", args=[self.hero_section.pk, "hero-slides", slide.pk]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(HeroSlide.objects.filter(pk=slide.pk).exists())
+
+    def test_toggle_slide(self):
+        slide = HeroSlide.objects.create(store=self.store, section=self.hero_section, title="ت", desktop_image=_img(), is_active=True)
+        self.client.post(
+            reverse("dashboard:storefront-builder-section-media-toggle", args=[self.hero_section.pk, "hero-slides", slide.pk]),
+        )
+        slide.refresh_from_db()
+        self.assertFalse(slide.is_active)
+
+    def test_reorder_slides(self):
+        s1 = HeroSlide.objects.create(store=self.store, section=self.hero_section, title="1", desktop_image=_img(), display_order=0)
+        s2 = HeroSlide.objects.create(store=self.store, section=self.hero_section, title="2", desktop_image=_img(), display_order=1)
+        resp = self.client.post(
+            reverse("dashboard:storefront-builder-section-media-reorder", args=[self.hero_section.pk, "hero-slides"]),
+            {"item_ids": [str(s2.pk), str(s1.pk)]},
+        )
+        self.assertEqual(resp.status_code, 200)
+        s1.refresh_from_db()
+        s2.refresh_from_db()
+        self.assertEqual(s2.display_order, 0)
+        self.assertEqual(s1.display_order, 1)
+
+    def test_move_up(self):
+        s1 = HeroSlide.objects.create(store=self.store, section=self.hero_section, title="1", desktop_image=_img(), display_order=0)
+        s2 = HeroSlide.objects.create(store=self.store, section=self.hero_section, title="2", desktop_image=_img(), display_order=1)
+        self.client.post(
+            reverse("dashboard:storefront-builder-section-media-move", args=[self.hero_section.pk, "hero-slides", s2.pk]),
+            {"direction": "up"},
+        )
+        s1.refresh_from_db()
+        s2.refresh_from_db()
+        self.assertEqual(s2.display_order, 0)
+        self.assertEqual(s1.display_order, 1)
+
+    def test_wrong_kind_for_section_type_is_404(self):
+        """اسلاید نمی‌تواند به یک section از نوعِ product_section وصل شود —
+        allowlistِ ``section_keys`` در ``_media_config`` باید رد کند."""
+        other_section = StorefrontSection.objects.create(version=self.draft, section_key="product_section", order=902)
+        resp = self.client.get(
+            reverse("dashboard:storefront-builder-section-media-list", args=[other_section.pk, "hero-slides"]),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_unknown_kind_is_404(self):
+        resp = self.client.get(
+            reverse("dashboard:storefront-builder-section-media-list", args=[self.hero_section.pk, "not-a-real-kind"]),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+
+class BannerCrudTests(MediaViewsTestCase):
+    def test_media_list_page_renders(self):
+        resp = self.client.get(
+            reverse("dashboard:storefront-builder-section-media-list", args=[self.banner_section.pk, "banners"])
+        )
+        self.assertEqual(resp.status_code, 200)
+
+    def test_add_banner(self):
+        resp = self.client.post(
+            reverse("dashboard:storefront-builder-section-media-add", args=[self.banner_section.pk, "banners"]),
+            {"title": "بنر تست", "description": "توضیح", "destination_type": "none", "desktop_image": _img(), "is_active": "on"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        banner = PromotionalBanner.objects.get(section=self.banner_section)
+        self.assertEqual(banner.title, "بنر تست")
+
+    def test_external_link_with_dangerous_scheme_rejected(self):
+        resp = self.client.post(
+            reverse("dashboard:storefront-builder-section-media-add", args=[self.banner_section.pk, "banners"]),
+            {"title": "بنر", "destination_type": "external", "destination_external_url": "javascript:alert(1)",
+             "desktop_image": _img(), "is_active": "on"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(PromotionalBanner.objects.filter(section=self.banner_section).exists())
+
+
+class MediaCrossStoreIsolationTests(MediaViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.other_store = Store.objects.create(
+            name="فروشگاه دیگر رسانه", slug="sfb-media-other", admin_subdomain="sfb-media-other", status=Store.Status.ACTIVE,
+        )
+        self.other_staff = User.objects.create_user(username="media_other_owner", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.other_store, user=self.other_staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.other_client = Client(HTTP_HOST="sfb-media-other.rastisi.localhost")
+        self.other_client.login(username="media_other_owner", password="pass12345")
+
+    def test_other_store_cannot_see_section_media_list(self):
+        resp = self.other_client.get(
+            reverse("dashboard:storefront-builder-section-media-list", args=[self.hero_section.pk, "hero-slides"]),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_other_store_cannot_edit_slide(self):
+        slide = HeroSlide.objects.create(store=self.store, section=self.hero_section, title="محرمانه", desktop_image=_img())
+        resp = self.other_client.post(
+            reverse("dashboard:storefront-builder-section-media-edit", args=[self.hero_section.pk, "hero-slides", slide.pk]),
+            {"title": "دستکاری‌شده", "destination_type": "none"},
+        )
+        self.assertEqual(resp.status_code, 404)
+        slide.refresh_from_db()
+        self.assertEqual(slide.title, "محرمانه")
+
+    def test_other_store_cannot_delete_slide(self):
+        slide = HeroSlide.objects.create(store=self.store, section=self.hero_section, title="محرمانه", desktop_image=_img())
+        resp = self.other_client.post(
+            reverse("dashboard:storefront-builder-section-media-delete", args=[self.hero_section.pk, "hero-slides", slide.pk]),
+        )
+        self.assertEqual(resp.status_code, 404)
+        self.assertTrue(HeroSlide.objects.filter(pk=slide.pk).exists())
+
+    def test_anonymous_denied(self):
+        self.client.logout()
+        resp = self.client.get(
+            reverse("dashboard:storefront-builder-section-media-list", args=[self.hero_section.pk, "hero-slides"]),
+        )
+        self.assertEqual(resp.status_code, 302)

@@ -1,3 +1,27 @@
+{% comment %}
+چکپوینتِ ۱۱: اگر مرچنت صراحتاً دسته‌بندی انتخاب کرده (category_grid_settings.category_ids)،
+همه‌ی آن‌ها به‌شکلِ یکنواخت (گرید/کاروسل، طبقِ display_mode) نمایش داده
+می‌شوند؛ حالتِ auto (بدونِ انتخاب — سازگاریِ کامل با گذشته) دقیقاً همان
+چیدمانِ موزاییکِ ۳+۱ قدیمی را حفظ می‌کند.
+{% endcomment %}
+{% if category_grid_settings.category_ids %}
+{% if top_categories %}
+<section class="section">
+  {% if category_grid_settings.title %}
+  <div class="sec-head"><h2><span class="bar"></span>{{ category_grid_settings.title }}</h2></div>
+  {% endif %}
+  <div class="{% if category_grid_settings.display_mode == 'carousel' %}tiles-carousel{% else %}tiles{% endif %}">
+    {% for cat in top_categories %}
+    <div class="tile {% cycle 't1' 't2' 't3' %}">
+      <span class="wm">{{ cat.icon }}</span>
+      <h4>مشاهده محصولات {{ cat.name }}</h4>
+      <a class="btn" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">مشاهده محصولات</a>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% else %}
 {% if tiles %}
 <section class="section"><div class="tiles">
   {% for cat, tclass in tiles %}
@@ -18,4 +42,5 @@
   </div>
   <div class="rack">{{ cream_category.icon }}</div>
 </div></section>
+{% endif %}
 {% endif %}

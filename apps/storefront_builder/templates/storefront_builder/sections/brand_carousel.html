@@ -1,13 +1,23 @@
+{% comment %}
+چکپوینتِ ۱۱: brand_ids خالی (auto) = دقیقاً همان رفتارِ قدیمی (همه‌ی
+برندهایِ فعال). عنوان و «مشاهده همه» اختیاری‌اند — «مشاهده همه» فقط
+وقتی نمایش داده می‌شود که مرچنت هم فعالش کرده و هم یک مقصدِ واقعی
+انتخاب کرده (بدونِ مقصد = هیچ لینکی، طبقِ الزامِ «هرگز دکمه‌ی بی‌اثر»).
+{% endcomment %}
 {% if brands %}
 <section class="section">
-  <div class="sec-head"><h2><span class="bar"></span>برندهای منتخب</h2></div>
-  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px">
+  <div class="sec-head">
+    <h2><span class="bar"></span>{{ brand_carousel_settings.title|default:"برندهای منتخب" }}</h2>
+    {% if view_all_url %}<a class="more" href="{{ view_all_url }}">مشاهده همه ›</a>{% endif %}
+  </div>
+  <div class="{% if brand_carousel_settings.display_mode == 'carousel' %}brand-carousel{% else %}grid{% endif %}"
+       {% if brand_carousel_settings.display_mode != 'carousel' %}style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px"{% endif %}>
     {% for brand in brands %}
-    <a href="{% url 'catalog:product-list' %}?brand={{ brand.slug }}" style="display:flex;align-items:center;justify-content:center;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--card)">
+    <a href="{% url 'catalog:product-list' %}?brand={{ brand.slug }}" class="brand-tile">
       {% if brand.logo %}
-      <img src="{{ brand.logo.url }}" alt="{{ brand.name }}" style="max-height:40px;max-width:100%;object-fit:contain">
+      <img src="{{ brand.logo.url }}" alt="{{ brand.name }}">
       {% else %}
-      <span style="font-size:13px;font-weight:700">{{ brand.name }}</span>
+      <span class="brand-tile-name">{{ brand.name }}</span>
       {% endif %}
     </a>
     {% endfor %}

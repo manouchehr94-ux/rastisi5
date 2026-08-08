@@ -1,0 +1,69 @@
+{% comment %}
+نسخه‌ی «داخل سازنده»‌یِ ویرایشِ هدر — دقیقاً همان فرم/همان ویو/همان
+validate_header_config، فقط بدونِ خروج از سازنده (طبقِ الزامِ صریحِ کار:
+«هدر باید بخشی از سازنده بصری احساس شود»). نسخه‌ی تمام‌صفحه
+(``header_editor.html``) هم‌چنان برایِ دسترسیِ مستقیم/URL باقی می‌ماند.
+{% endcomment %}
+<div class="sfb-appearance-panel" x-data>
+  <button type="button" class="btn btn-ghost btn-sm" @click="$dispatch('close-settings-drawer')">بستن</button>
+
+  <div class="sfb-appearance-intro">
+    <strong>هدر فروشگاه</strong>
+    <p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">نمایش عناصر هدر و متن نوار اعلان — تغییرات فقط در پیش‌نویس اعمال می‌شوند.</p>
+  </div>
+
+  {% if error %}
+  <div class="form-error" role="alert" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin:12px 0">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="{% url 'dashboard:storefront-builder-header' %}">
+    {% csrf_token %}
+
+    <div class="sfb-layer sfb-layer-structure" style="cursor:default">
+      <span class="sfb-layer-main"><span class="sfb-layer-name">🖼 لوگو و نام فروشگاه</span><span class="sfb-layer-meta">همیشه فعال</span></span>
+    </div>
+
+    <label class="toggle-field">
+      <input type="checkbox" name="show_search" {% if config.show_search %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">🔍 جستجو</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_account" {% if config.show_account %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">👤 ورود / حساب کاربری</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_wishlist" {% if config.show_wishlist %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">🤍 علاقه‌مندی‌ها</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_cart" {% if config.show_cart %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">🛒 سبد خرید</span><span class="toggle-desc">دسترسی به سبد خرید همیشه باید در دسترس باشد؛ غیرفعال‌کردن توصیه نمی‌شود.</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="sticky" {% if config.sticky %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">📌 چسبیدن هدر به بالای صفحه هنگام اسکرول</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="announcement_enabled" {% if config.announcement_enabled %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">📣 نوار اعلان</span></div>
+    </label>
+    <div class="form-group">
+      <label for="id_announcement_text">متن نوار اعلان</label>
+      <input type="text" name="announcement_text" id="id_announcement_text" class="form-input" maxlength="300" value="{{ config.announcement_text }}">
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات هدر</button>
+    </div>
+  </form>
+
+  <div class="sfb-appearance-intro" style="margin-top:22px">
+    <strong>لوگو و منوی اصلی</strong>
+    <p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">
+      لوگو و نام فروشگاه از «اطلاعات فروشگاه» و لینک‌های منوی اصلی از «منوها» خوانده می‌شوند —
+      این‌ها هویتِ زنده‌ی فروشگاه‌اند، نه بخشی از پیش‌نویس/انتشار سازنده.
+    </p>
+  </div>
+  <a href="{% url 'dashboard:settings-shop-info' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش لوگو و نام فروشگاه</a>
+  <a href="{% url 'dashboard:menu-list' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش منوی اصلی ناوبری</a>
+</div>

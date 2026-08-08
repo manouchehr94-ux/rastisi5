@@ -1,3 +1,4 @@
+{% load storefront_builder_extras %}
 {% comment %}
 تنها نقطه‌ی مشترک اعمالِ «تنظیماتِ نمایش در دستگاه‌ها» (فازِ D) — هم
 پیش‌نمایشِ ادیتور (preview.html) و هم صفحه‌ی عمومی (home_visual.html)
@@ -12,11 +13,20 @@ data-hide-* فقط وقتی حاضر است که واقعاً پنهان باش�
 متغیرهایِ CSS ستون همیشه نوشته می‌شوند (حتی برایِ انواعی که ستون
 معنا ندارد) — بی‌ضرر، چون فقط ``product_section.html`` از آن‌ها
 استفاده می‌کند (``.rsec-cols``).
+
+``data-section-id``/``data-section-key``/``data-section-label`` فقط وقتی
+حاضرند که ``is_preview`` صریحاً True باشد (متغیرِ از‌قبل‌موجودِ
+``storefront_preview`` view — هرگز روی صفحه‌ی عمومی/``home_visual.html``
+ست نمی‌شود) — عمداً هرگز به بازدیدکننده‌ی عمومی نشان داده نمی‌شود
+(نه شناسه‌ی دیتابیس، نه هیچ hookِ انتخابِ بصری). زیرساختِ «شناساییِ
+مستقیمِ بصری» (چکپوینتِ Direct Visual Editing).
 {% endcomment %}
 <div class="rsec"
+     {% if is_preview %}data-section-id="{{ item.section.pk }}" data-section-key="{{ item.section.section_key }}" data-section-label="{{ item.section.section_key|section_label }}"{% endif %}
      {% if item.context.settings.responsive.hide_on_desktop %}data-hide-desktop{% endif %}
      {% if item.context.settings.responsive.hide_on_tablet %}data-hide-tablet{% endif %}
      {% if item.context.settings.responsive.hide_on_mobile %}data-hide-mobile{% endif %}
      style="--cols-desktop:{{ item.context.settings.responsive.desktop_columns|default:4 }};--cols-tablet:{{ item.context.settings.responsive.tablet_columns|default:3 }};--cols-mobile:{{ item.context.settings.responsive.mobile_columns|default:2 }}">
-  {% include item.template_name with section=item.context.section settings=item.context.settings hero_slides=item.context.hero_slides banners=item.context.banners tiles=item.context.tiles cream_category=item.context.cream_category top_categories=item.context.top_categories products=item.context.products product=item.context.product deadline=item.context.deadline brands=item.context.brands categories=item.context.categories view_all_url=item.context.view_all_url %}
+  {% if is_preview %}<span class="sfb-rsec-drag-handle" draggable="true" title="برای جابه‌جایی بکشید" aria-hidden="true">⠿</span>{% endif %}
+  {% include item.template_name with section=item.context.section settings=item.context.settings hero_slides=item.context.hero_slides slider_settings=item.context.slider_settings banners=item.context.banners tiles=item.context.tiles cream_category=item.context.cream_category top_categories=item.context.top_categories products=item.context.products product=item.context.product deadline=item.context.deadline brands=item.context.brands categories=item.context.categories view_all_url=item.context.view_all_url destination=item.context.destination category_grid_settings=item.context.category_grid_settings brand_carousel_settings=item.context.brand_carousel_settings collection_tiles=item.context.collection_tiles quick_link_items=item.context.quick_link_items video_embed_url=item.context.video_embed_url video_is_instagram=item.context.video_is_instagram video_permalink=item.context.video_permalink %}
 </div>

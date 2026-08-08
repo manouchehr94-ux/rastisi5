@@ -20,6 +20,18 @@ from .. import section_registry
 from ..models import StorefrontLayoutVersion, StorefrontSection
 
 
+def _defaults(section_key: str) -> dict:
+    """تنظیماتِ پیش‌فرضِ کاملاً معتبر (نه ``{}`` خام) — طبقِ همان الگویی که
+    ``build_industry_default_sections`` پایینِ همین فایل و
+    ``storefront_section_add`` (``views.py``) از قبل استفاده می‌کنند.
+    اهمیتِ این تفاوت: بعضی انواع section (مثلاً ``hero_banner``/
+    ``image_slider``) پیش‌فرضِ True برایِ برخی کلیدها دارند (autoplay) —
+    اگر ``settings`` خام ``{}`` ذخیره شود، تمپلیت‌ها هرگز نمی‌توانند بینِ
+    «کلید غایب» و «صریحاً False» تمایز درست بگذارند (بر خلافِ
+    ``responsive`` که پیش‌فرضش با «کلید غایب» تصادفاً یکی است)."""
+    return section_registry.get_definition(section_key).default_settings()
+
+
 def build_bootstrap_sections(store) -> list[dict]:
     """فهرست بخش‌های اولیه — دقیقاً همان چیزی که در حال حاضر روی صفحه اصلی
     قدیمی این Store رندر می‌شود (بخش ۲.۲ گزارش ممیزی)."""
@@ -27,30 +39,65 @@ def build_bootstrap_sections(store) -> list[dict]:
     order = 0
 
     if HeroSlide.objects.filter(store=store, is_active=True).exists():
-        sections.append({"section_key": "hero_banner", "order": order, "settings": {}})
+        sections.append({"section_key": "hero_banner", "order": order, "settings": _defaults("hero_banner")})
         order += 1
 
     if PromotionalBanner.objects.filter(store=store, is_active=True).exists():
-        sections.append({"section_key": "multi_banner", "order": order, "settings": {}})
+        sections.append({"section_key": "multi_banner", "order": order, "settings": _defaults("multi_banner")})
         order += 1
 
-    sections.append({"section_key": "category_grid", "order": order, "settings": {}})
+    sections.append({"section_key": "category_grid", "order": order, "settings": _defaults("category_grid")})
     order += 1
 
-    sections.append({"section_key": "newest_products", "order": order, "settings": {}})
+    sections.append({"section_key": "newest_products", "order": order, "settings": _defaults("newest_products")})
     order += 1
 
-    sections.append({"section_key": "best_sellers", "order": order, "settings": {}})
+    sections.append({"section_key": "best_sellers", "order": order, "settings": _defaults("best_sellers")})
     order += 1
 
     if storefront_listing_products(store).filter(discount_percent__gt=0).exists():
-        sections.append({"section_key": "discounted_products", "order": order, "settings": {}})
+        sections.append({"section_key": "discounted_products", "order": order, "settings": _defaults("discounted_products")})
         order += 1
 
-    sections.append({"section_key": "trust_features", "order": order, "settings": {}})
+    sections.append({"section_key": "trust_features", "order": order, "settings": _defaults("trust_features")})
     order += 1
 
     return sections
+
+
+def bootstrap_appearance_config(store) -> dict:
+    """پیکربندیِ اولیه‌ی ظاهر برایِ اولین Draft — رنگ‌هایِ *زنده‌ی فعلیِ*
+    ``ShopSettings`` را به‌عنوانِ ``color_overrides`` (بدونِ Palette
+    نام‌دار) کپی می‌کند تا این مهاجرت هرگز ظاهرِ فروشگاه را عوض نکند
+    (دقیقاً همان الزامِ «فروشگاه‌های موجود باید بدونِ تغییرِ بصری بمانند»
+    — بخشِ ۴۰ کارِ کاربر). اگر ``ShopSettings`` هنوز provision نشده،
+    پیش‌فرضِ ``appearance_registry.DEFAULT_COLORS`` (که خودش دقیقاً
+    برابرِ پیش‌فرض‌هایِ مدلِ ShopSettings است) بی‌صدا استفاده می‌شود."""
+    from apps.core.color_utils import mix_hex, safe_hex
+    from apps.core.models import ShopSettings, ShopSettingsNotProvisionedError
+
+    from .. import appearance_registry
+
+    try:
+        shop = ShopSettings.load(store=store)
+    except ShopSettingsNotProvisionedError:
+        return {"palette_slug": None, "color_overrides": {}}
+
+    text = safe_hex(shop.text_color, "#241C3A")
+    surface = safe_hex(shop.surface_color, "#FFFFFF")
+    return {
+        "palette_slug": None,
+        "color_overrides": {
+            "primary": safe_hex(shop.primary_color, "#6D28D9"),
+            "secondary": safe_hex(shop.secondary_color, "#7C3AED"),
+            "accent": safe_hex(shop.accent_color, "#FF4D77"),
+            "background": safe_hex(shop.background_color, "#F7F5FC"),
+            "surface": surface,
+            "text": text,
+            "muted": safe_hex(shop.muted_text_color, "#8B86A3"),
+            "border": mix_hex(text, surface, 0.12),
+        },
+    }
 
 
 def apply_bootstrap_content(version: StorefrontLayoutVersion, store) -> None:
@@ -63,6 +110,8 @@ def apply_bootstrap_content(version: StorefrontLayoutVersion, store) -> None:
         )
         for s in sections
     ])
+    version.appearance_config = bootstrap_appearance_config(store)
+    version.save(update_fields=["appearance_config"])
 
 
 def build_industry_default_sections(store, industry_template) -> list[dict]:

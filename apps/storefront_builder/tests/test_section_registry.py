@@ -2,14 +2,20 @@ from django.test import TestCase
 
 from apps.storefront_builder.section_registry import (
     COLUMN_AWARE_SECTION_KEYS,
+    DESTINATION_AWARE_SECTION_KEYS,
+    SECTION_LIBRARY_CATEGORIES,
     SECTION_REGISTRY,
+    DestinationSettingsError,
     ProductSectionSettingsError,
     ResponsiveSettingsError,
     UnknownSectionTypeError,
+    default_destination_settings,
     default_responsive_settings,
     get_definition,
     is_valid_section_key,
     list_definitions,
+    list_library_groups,
+    validate_destination_settings,
     validate_responsive_settings,
 )
 
@@ -18,6 +24,7 @@ EXPECTED_KEYS = {
     "multi_banner", "category_grid", "featured_products", "newest_products",
     "best_sellers", "discounted_products", "amazing_offers", "brand_carousel",
     "promo_cards", "rich_text", "image_text", "product_section", "trust_features",
+    "collection_tiles", "quick_links", "faq", "testimonials", "video_section",
 }
 
 
@@ -51,13 +58,67 @@ class SectionRegistryTests(TestCase):
         self.assertEqual(len(list_definitions()), len(SECTION_REGISTRY))
 
     def test_singleton_sections_capped_at_one(self):
-        for key in ("announcement_bar", "hero_banner", "trust_features"):
+        # hero_banner دیگر singleton نیست (چکپوینتِ اسلایدرِ اصلی) — یک
+        # مرچنت باید بتواند چند نمونه‌ی مستقل از اسلایدر داشته باشد.
+        for key in ("announcement_bar", "trust_features"):
             definition = get_definition(key)
             self.assertEqual(definition.max_instances, 1)
             self.assertFalse(definition.duplicable)
 
-    def test_validate_settings_rejects_non_dict(self):
+    def test_hero_banner_is_now_duplicable(self):
+        """اسلایدر اصلی باید بتواند چند نمونه‌ی مستقل (با اسلایدهای
+        متفاوت) داشته باشد — نگاه کنید به ``HeroSlide.section``."""
         definition = get_definition("hero_banner")
+        self.assertTrue(definition.duplicable)
+        self.assertIsNone(definition.max_instances)
+
+    def test_announcement_bar_is_hidden_from_add_section_library(self):
+        """چکپوینتِ ۹: نوارِ اعلانِ section (متنِ سخت‌کدشده، بدونِ تنظیماتِ
+        واقعی) با تنظیماتِ نوارِ اعلانِ هدر (متن/فعال‌بودنِ واقعاً
+        قابل‌تنظیم) هم‌پوشانی داشت — امکانِ ساختِ نمونه‌ی *جدید* از این
+        نوع پنهان شده تا مرچنت به‌جایش از تنظیماتِ هدر استفاده کند؛
+        نمونه‌های قدیمیِ موجود هم‌چنان کاملاً کار می‌کنند (تغییر نکرده)."""
+        definition = get_definition("announcement_bar")
+        self.assertTrue(definition.hidden_from_library)
+        self.assertTrue(definition.removable)
+        # منطقِ render/validate/default دست‌نخورده مانده — فقط از کتابخانه پنهان است
+        self.assertEqual(definition.validate_settings({"foo": "bar"})["foo"], "bar")
+
+    def test_most_sections_are_not_hidden_from_library(self):
+        definitions = list_definitions()
+        visible = [d for d in definitions if not d.hidden_from_library]
+        self.assertGreater(len(visible), len(definitions) - 2)
+
+    def test_every_registered_definition_has_a_valid_library_category(self):
+        for definition in list_definitions():
+            self.assertIn(
+                definition.category_fa, SECTION_LIBRARY_CATEGORIES,
+                f"{definition.key} has an unregistered category_fa: {definition.category_fa!r}",
+            )
+
+    def test_library_groups_cover_every_visible_definition_exactly_once(self):
+        groups = list_library_groups()
+        category_names = [name for name, _members in groups]
+        self.assertEqual(category_names, sorted(category_names, key=SECTION_LIBRARY_CATEGORIES.index))
+
+        seen_keys = []
+        for _category, members in groups:
+            seen_keys.extend(d.key for d in members)
+        visible_keys = {d.key for d in list_definitions() if not d.hidden_from_library}
+        self.assertEqual(set(seen_keys), visible_keys)
+        self.assertEqual(len(seen_keys), len(set(seen_keys)))  # هیچ کلیدی دوبار ظاهر نمی‌شود
+
+    def test_library_groups_never_include_hidden_types(self):
+        groups = list_library_groups()
+        all_keys = {d.key for _category, members in groups for d in members}
+        self.assertNotIn("announcement_bar", all_keys)
+
+    def test_library_groups_never_render_an_empty_category(self):
+        for _category, members in list_library_groups():
+            self.assertGreater(len(members), 0)
+
+    def test_validate_settings_rejects_non_dict(self):
+        definition = get_definition("announcement_bar")
         with self.assertRaises(ValueError):
             definition.validate_settings("not a dict")
 
@@ -65,7 +126,7 @@ class SectionRegistryTests(TestCase):
         """از فازِ D به بعد، خروجیِ هر validate_settings همیشه یک بلوکِ
         ``responsive`` پیش‌فرض (نمایان همه‌جا) هم دارد — بدونِ تغییرِ
         رفتارِ خودِ منطقِ passthrough."""
-        definition = get_definition("hero_banner")
+        definition = get_definition("announcement_bar")
         result = definition.validate_settings({"foo": "bar"})
         self.assertEqual(result["foo"], "bar")
         self.assertEqual(result["responsive"], {
@@ -181,6 +242,201 @@ class ProductSectionSettingsTests(TestCase):
         self.assertNotIn("evil_field", cleaned)
 
 
+class CategoryGridSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("category_grid")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertEqual(cleaned["category_ids"], [])
+        self.assertEqual(cleaned["display_mode"], "grid")
+        self.assertEqual(cleaned["title"], "")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings("not a dict")
+
+    def test_category_ids_deduplicated_preserving_order(self):
+        cleaned = self.definition.validate_settings({"category_ids": [5, 3, 5, 3, 8]})
+        self.assertEqual(cleaned["category_ids"], [5, 3, 8])
+
+    def test_non_positive_ids_dropped(self):
+        cleaned = self.definition.validate_settings({"category_ids": [0, -1, 4]})
+        self.assertEqual(cleaned["category_ids"], [4])
+
+    def test_invalid_display_mode_falls_back_to_grid(self):
+        cleaned = self.definition.validate_settings({"display_mode": "not-a-real-mode"})
+        self.assertEqual(cleaned["display_mode"], "grid")
+
+    def test_carousel_display_mode_accepted(self):
+        cleaned = self.definition.validate_settings({"display_mode": "carousel"})
+        self.assertEqual(cleaned["display_mode"], "carousel")
+
+    def test_title_trimmed_and_capped(self):
+        cleaned = self.definition.validate_settings({"title": "  " + ("ط" * 100) + "  "})
+        self.assertEqual(len(cleaned["title"]), 60)
+        self.assertFalse(cleaned["title"].startswith(" "))
+
+    def test_category_grid_is_per_instance_duplicable(self):
+        self.assertTrue(self.definition.duplicable)
+        self.assertIsNone(self.definition.max_instances)
+
+
+class BrandCarouselSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("brand_carousel")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertEqual(cleaned["brand_ids"], [])
+        self.assertEqual(cleaned["display_mode"], "grid")
+        self.assertFalse(cleaned["show_view_all"])
+        # عضوِ DESTINATION_AWARE_SECTION_KEYS است — بلوکِ destination هم باید حاضر باشد
+        self.assertEqual(cleaned["destination"]["destination_type"], "none")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings("not a dict")
+
+    def test_brand_ids_deduplicated_preserving_order(self):
+        cleaned = self.definition.validate_settings({"brand_ids": [7, 2, 7]})
+        self.assertEqual(cleaned["brand_ids"], [7, 2])
+
+    def test_show_view_all_accepts_true(self):
+        cleaned = self.definition.validate_settings({"show_view_all": True})
+        self.assertTrue(cleaned["show_view_all"])
+
+    def test_brand_carousel_is_per_instance_duplicable(self):
+        self.assertTrue(self.definition.duplicable)
+        self.assertIsNone(self.definition.max_instances)
+
+
+class CollectionTilesSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("collection_tiles")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertEqual(cleaned["collection_ids"], [])
+        self.assertEqual(cleaned["title"], "")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings("not a dict")
+
+    def test_collection_ids_deduplicated_preserving_order(self):
+        cleaned = self.definition.validate_settings({"collection_ids": [9, 1, 9]})
+        self.assertEqual(cleaned["collection_ids"], [9, 1])
+
+    def test_duplicable_and_unbounded(self):
+        self.assertTrue(self.definition.duplicable)
+        self.assertIsNone(self.definition.max_instances)
+
+
+class QuickLinksSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("quick_links")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertIsNone(cleaned["menu_id"])
+        self.assertEqual(cleaned["title"], "")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings("not a dict")
+
+    def test_menu_id_accepted(self):
+        cleaned = self.definition.validate_settings({"menu_id": 7})
+        self.assertEqual(cleaned["menu_id"], 7)
+
+    def test_non_positive_menu_id_becomes_none(self):
+        cleaned = self.definition.validate_settings({"menu_id": -3})
+        self.assertIsNone(cleaned["menu_id"])
+
+    def test_invalid_menu_id_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings({"menu_id": "not-a-number"})
+
+
+class FaqSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("faq")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertEqual(cleaned["items"], [])
+        self.assertEqual(cleaned["title"], "سوالات متداول")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings("not a dict")
+
+    def test_items_with_both_fields_kept(self):
+        cleaned = self.definition.validate_settings({"items": [{"question": "س", "answer": "پ"}]})
+        self.assertEqual(cleaned["items"], [{"question": "س", "answer": "پ"}])
+
+    def test_items_missing_a_field_dropped(self):
+        cleaned = self.definition.validate_settings({"items": [{"question": "س", "answer": ""}]})
+        self.assertEqual(cleaned["items"], [])
+
+    def test_non_list_items_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings({"items": "not a list"})
+
+    def test_items_capped_at_twenty(self):
+        raw_items = [{"question": f"س{i}", "answer": f"پ{i}"} for i in range(30)]
+        cleaned = self.definition.validate_settings({"items": raw_items})
+        self.assertEqual(len(cleaned["items"]), 20)
+
+
+class TestimonialsSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("testimonials")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertEqual(cleaned["items"], [])
+        self.assertEqual(cleaned["title"], "نظرات مشتریان")
+
+    def test_items_requires_name_and_quote_role_optional(self):
+        cleaned = self.definition.validate_settings({"items": [{"name": "علی", "quote": "عالی بود", "role": ""}]})
+        self.assertEqual(cleaned["items"], [{"name": "علی", "quote": "عالی بود", "role": ""}])
+
+    def test_items_missing_quote_dropped(self):
+        cleaned = self.definition.validate_settings({"items": [{"name": "علی", "quote": ""}]})
+        self.assertEqual(cleaned["items"], [])
+
+
+class VideoSectionSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("video_section")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertEqual(cleaned["video_url"], "")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings("not a dict")
+
+    def test_valid_youtube_url_accepted(self):
+        cleaned = self.definition.validate_settings({"video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"})
+        self.assertIn("youtube.com", cleaned["video_url"])
+
+    def test_unrecognized_url_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings({"video_url": "https://example.com/not-a-video"})
+
+    def test_dangerous_scheme_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings({"video_url": "javascript:alert(1)//youtube.com/watch?v=dQw4w9WgXcQ"})
+
+    def test_empty_url_allowed_not_configured_yet(self):
+        cleaned = self.definition.validate_settings({"video_url": ""})
+        self.assertEqual(cleaned["video_url"], "")
+
+
 class ResponsiveSettingsContractTests(TestCase):
     """اعتبارسنجیِ خودِ ``validate_responsive_settings`` — تابعِ مشترکِ
     فازِ D، مستقل از این‌که کدام نوعِ section از آن استفاده می‌کند."""
@@ -286,3 +542,85 @@ class ResponsiveIntegrationAcrossRegistryTests(TestCase):
         definition = get_definition("product_section")
         with self.assertRaises(ProductSectionSettingsError):
             definition.validate_settings("not a dict")
+
+
+class DestinationSettingsTests(TestCase):
+    """قراردادِ مشترکِ بلوکِ ``destination`` — چکپوینتِ استانداردسازیِ لینک."""
+
+    def test_default_is_no_destination(self):
+        self.assertEqual(default_destination_settings(), {
+            "destination_type": "none",
+            "destination_id": None,
+            "destination_external_url": "",
+            "open_in_new_tab": False,
+        })
+
+    def test_none_type_ignores_extra_fields(self):
+        cleaned = validate_destination_settings({"destination_type": "none", "destination_id": 5})
+        self.assertEqual(cleaned["destination_type"], "none")
+        self.assertIsNone(cleaned["destination_id"])
+
+    def test_category_requires_positive_id(self):
+        with self.assertRaises(DestinationSettingsError):
+            validate_destination_settings({"destination_type": "category", "destination_id": None})
+        with self.assertRaises(DestinationSettingsError):
+            validate_destination_settings({"destination_type": "category", "destination_id": -1})
+
+    def test_category_accepts_positive_id(self):
+        cleaned = validate_destination_settings({"destination_type": "category", "destination_id": "7"})
+        self.assertEqual(cleaned["destination_id"], 7)
+
+    def test_collection_type_accepted(self):
+        cleaned = validate_destination_settings({"destination_type": "collection", "destination_id": 3})
+        self.assertEqual(cleaned["destination_type"], "collection")
+        self.assertEqual(cleaned["destination_id"], 3)
+
+    def test_external_requires_safe_url(self):
+        with self.assertRaises(DestinationSettingsError):
+            validate_destination_settings({"destination_type": "external", "destination_external_url": "javascript:alert(1)"})
+        cleaned = validate_destination_settings({"destination_type": "external", "destination_external_url": "https://example.com"})
+        self.assertEqual(cleaned["destination_external_url"], "https://example.com")
+
+    def test_unknown_type_rejected(self):
+        with self.assertRaises(DestinationSettingsError):
+            validate_destination_settings({"destination_type": "not-a-real-type"})
+
+    def test_none_raw_defaults(self):
+        self.assertEqual(validate_destination_settings(None), default_destination_settings())
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(DestinationSettingsError):
+            validate_destination_settings("nope")
+
+    def test_open_in_new_tab_coerced_bool(self):
+        cleaned = validate_destination_settings({"destination_type": "none", "open_in_new_tab": 1})
+        self.assertIs(cleaned["open_in_new_tab"], True)
+
+
+class DestinationAwareIntegrationTests(TestCase):
+    def test_destination_aware_keys_get_destination_defaults(self):
+        for key in DESTINATION_AWARE_SECTION_KEYS:
+            defaults = get_definition(key).default_settings()
+            self.assertIn("destination", defaults, key)
+            self.assertEqual(defaults["destination"]["destination_type"], "none", key)
+
+    def test_non_destination_aware_keys_have_no_destination_field(self):
+        for key, definition in SECTION_REGISTRY.items():
+            if key in DESTINATION_AWARE_SECTION_KEYS:
+                continue
+            defaults = definition.default_settings()
+            self.assertNotIn("destination", defaults, key)
+
+    def test_existing_settings_without_destination_key_still_validate(self):
+        definition = get_definition("image_text")
+        cleaned = definition.validate_settings({"title": "hi"})
+        self.assertEqual(cleaned["destination"]["destination_type"], "none")
+
+    def test_product_section_destination_round_trips(self):
+        definition = get_definition("product_section")
+        cleaned = definition.validate_settings({
+            "data_source": "newest",
+            "destination": {"destination_type": "collection", "destination_id": 4},
+        })
+        self.assertEqual(cleaned["destination"]["destination_type"], "collection")
+        self.assertEqual(cleaned["destination"]["destination_id"], 4)

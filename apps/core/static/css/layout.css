@@ -56,7 +56,7 @@
 .cat-dropdown-group ul a:hover{color:var(--violet)}
 
 /* ===== buttons ===== */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:11px 22px;font-weight:700;font-size:13.5px;transition:.18s}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--button-radius, 12px);padding:11px 22px;font-weight:700;font-size:13.5px;transition:.18s}
 .btn svg{width:18px;height:18px}
 .btn-primary{background:linear-gradient(135deg,var(--violet),var(--violet-3));color:var(--brand-primary-fg, #fff);box-shadow:0 8px 20px rgba(124,58,237,.3)}
 .btn-primary:hover{filter:brightness(1.07);transform:translateY(-1px)}
@@ -64,6 +64,13 @@
 .btn-ghost:hover{background:var(--violet-soft)}
 .btn-light{background:rgba(255,255,255,.18);color:#fff;border:1.5px solid rgba(255,255,255,.4)}
 .btn-light:hover{background:rgba(255,255,255,.28)}
+
+/* سبکِ دکمه — از Templateِ فعال می‌آید (data-sfb-button-style روی
+   <html>). پیش‌فرضِ «filled» همان استایلِ بالا (بدون تغییر) است. */
+html[data-sfb-button-style="outline"] .btn-primary{background:transparent;color:var(--violet);border:1.5px solid var(--violet);box-shadow:none}
+html[data-sfb-button-style="outline"] .btn-primary:hover{background:var(--violet-soft);transform:none}
+html[data-sfb-button-style="soft"] .btn-primary{background:var(--violet-soft);color:var(--violet);box-shadow:none}
+html[data-sfb-button-style="soft"] .btn-primary:hover{background:var(--violet-soft);filter:brightness(0.96);transform:none}
 
 /* ===== footer ===== */
 .footer{background:#fff;border-top:1px solid var(--line);margin-top:40px}

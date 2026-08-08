@@ -39,6 +39,16 @@ class EditorAccessTests(StorefrontBuilderViewsTestCase):
         resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
         self.assertEqual(resp.status_code, 200)
 
+    def test_editor_add_section_library_is_grouped_by_business_category(self):
+        """چکپوینتِ ۱۰: کتابخانه‌ی «افزودن بخش جدید» باید در گروه‌های
+        کسب‌وکاری آکاردئونی نمایش داده شود، نه یک فهرستِ تخت."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        for category in ("محصولات", "تصاویر و تبلیغات", "کشف و خرید", "محتوا", "ساختار"):
+            self.assertContains(resp, category)
+        self.assertContains(resp, "sfb-add-section-category")
+        # نوارِ اعلانِ section نباید در کتابخانه ظاهر شود (چکپوینتِ ۹)
+        self.assertNotContains(resp, 'section_key": "announcement_bar"')
+
     def test_anonymous_denied(self):
         self.client.logout()
         resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
@@ -68,6 +78,14 @@ class EditorAccessTests(StorefrontBuilderViewsTestCase):
     def test_preview_accessible_to_staff_only(self):
         resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
         self.assertEqual(resp.status_code, 200)
+
+    def test_preview_exposes_section_ids_for_direct_selection(self):
+        """چکپوینتِ Direct Visual Editing — برخلافِ صفحه‌ی عمومی، Preview
+        (فقط staff همین فروشگاه) باید data-section-id داشته باشد تا کلیک
+        روی یک section در Preview بتواند تنظیماتِ همان section را باز کند."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "data-section-id")
+        self.assertContains(resp, "data-section-key")
 
     def test_preview_never_shows_another_stores_draft(self):
         other_store = Store.objects.create(
@@ -106,9 +124,9 @@ class SectionActionTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(self.draft.sections.count(), 0)
 
     def test_add_beyond_max_instances_rejected(self):
-        StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0)
-        self.client.post(reverse("dashboard:storefront-builder-section-add"), {"section_key": "hero_banner"})
-        self.assertEqual(self.draft.sections.filter(section_key="hero_banner").count(), 1)
+        StorefrontSection.objects.create(version=self.draft, section_key="announcement_bar", order=0)
+        self.client.post(reverse("dashboard:storefront-builder-section-add"), {"section_key": "announcement_bar"})
+        self.assertEqual(self.draft.sections.filter(section_key="announcement_bar").count(), 1)
 
     def test_remove_section(self):
         section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
@@ -221,9 +239,9 @@ class SectionActionTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(duplicate.settings["responsive"]["desktop_columns"], 6)
 
     def test_duplicate_non_duplicable_rejected(self):
-        section = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0)
+        section = StorefrontSection.objects.create(version=self.draft, section_key="announcement_bar", order=0)
         self.client.post(reverse("dashboard:storefront-builder-section-duplicate", args=[section.pk]))
-        self.assertEqual(self.draft.sections.filter(section_key="hero_banner").count(), 1)
+        self.assertEqual(self.draft.sections.filter(section_key="announcement_bar").count(), 1)
 
     def test_move_up(self):
         a = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
@@ -363,6 +381,64 @@ class SectionSettingsFormTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(resp.status_code, 200)  # stays on form with error
         section.refresh_from_db()
         self.assertEqual(section.settings.get("image_url", ""), "")
+
+
+class CategoryGridBrandCarouselSettingsFormTests(StorefrontBuilderViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+
+    def test_category_grid_settings_form_get_shows_picker(self):
+        from apps.catalog.models import Category
+
+        Category.objects.create(store=self.store, name="دسته انتخابی", slug="cat-picker", is_active=True)
+        section = StorefrontSection.objects.create(version=self.draft, section_key="category_grid", order=1)
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "دسته انتخابی")
+
+    def test_category_grid_settings_form_saves_selection_and_order(self):
+        from apps.catalog.models import Category
+
+        cat_a = Category.objects.create(store=self.store, name="آ", slug="cg-a", is_active=True)
+        cat_b = Category.objects.create(store=self.store, name="ب", slug="cg-b", is_active=True)
+        section = StorefrontSection.objects.create(version=self.draft, section_key="category_grid", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "دسته‌های ویژه", "display_mode": "carousel",
+            "category_ids": [str(cat_b.pk), str(cat_a.pk)],
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["title"], "دسته‌های ویژه")
+        self.assertEqual(section.settings["display_mode"], "carousel")
+        self.assertEqual(section.settings["category_ids"], [cat_b.pk, cat_a.pk])
+
+    def test_brand_carousel_settings_form_saves_selection(self):
+        from apps.catalog.models import Brand
+
+        brand = Brand.objects.create(store=self.store, name="برند تست", slug="bc-a", is_active=True)
+        section = StorefrontSection.objects.create(version=self.draft, section_key="brand_carousel", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "", "display_mode": "grid", "brand_ids": [str(brand.pk)],
+            "destination_type": "none",
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["brand_ids"], [brand.pk])
+
+    def test_brand_carousel_view_all_requires_no_specific_error_when_destination_none(self):
+        """نمایشِ لینکِ «مشاهده همه» بدونِ مقصد اجازه دارد ذخیره شود — فقط
+        در رندر هیچ لینکی نشان داده نمی‌شود (نه یک خطایِ اعتبارسنجیِ
+        گیج‌کننده روی این چک‌باکس)."""
+        section = StorefrontSection.objects.create(version=self.draft, section_key="brand_carousel", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "", "display_mode": "grid", "show_view_all": "on", "brand_ids": [],
+            "destination_type": "none",
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertTrue(section.settings["show_view_all"])
+        self.assertEqual(section.settings["destination"]["destination_type"], "none")
 
 
 class ResponsiveSettingsFormTests(StorefrontBuilderViewsTestCase):
@@ -836,3 +912,274 @@ class HeaderFooterEditorTests(StorefrontBuilderViewsTestCase):
         draft = svc.get_or_create_draft(self.store)
         self.assertTrue(draft.footer_config["show_copyright"])
         self.assertFalse(draft.footer_config["show_about"])
+
+    def test_header_editor_htmx_request_renders_embeddable_panel_not_full_page(self):
+        """چکپوینتِ ۹: هدر باید بدونِ خروج از سازنده قابل‌ویرایش باشد —
+        درخواستِ htmx باید فرگمنتِ داخلِ سازنده (بدونِ چیدمانِ کاملِ
+        base_admin) برگرداند، نه صفحه‌ی مستقلِ قدیمی."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-header"), HTTP_HX_REQUEST="true")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "هدر فروشگاه")
+        self.assertNotContains(resp, "بازگشت به ادیتور")
+
+    def test_header_editor_non_htmx_request_still_renders_full_page(self):
+        """درخواستِ مستقیمِ URL (بدونِ htmx) هم‌چنان صفحه‌ی کامل را
+        برمی‌گرداند — سازگاریِ کامل با مسیرِ قدیمی."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-header"))
+        self.assertContains(resp, "بازگشت به ادیتور")
+
+    def test_footer_editor_htmx_request_renders_embeddable_panel_not_full_page(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-footer"), HTTP_HX_REQUEST="true")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "فوتر فروشگاه")
+        self.assertNotContains(resp, "بازگشت به ادیتور")
+
+    def test_footer_editor_non_htmx_request_still_renders_full_page(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-footer"))
+        self.assertContains(resp, "بازگشت به ادیتور")
+
+    def test_header_and_footer_reachable_from_appearance_hub_without_leaving_builder(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-appearance"))
+        self.assertContains(resp, reverse("dashboard:storefront-builder-header"))
+        self.assertContains(resp, reverse("dashboard:storefront-builder-footer"))
+
+
+class RenderedPreviewIntegrationTests(StorefrontBuilderViewsTestCase):
+    """رندرِ واقعیِ HTML از طریقِ preview endpoint — نه صرفاً بررسیِ دیکشنریِ
+    context (که ``test_render_service.py`` انجام می‌دهد). این کلاس مشخصاً
+    برایِ گرفتنِ باگ‌هایی نوشته شده که فقط در سطحِ template اتفاق می‌افتند —
+    مثلاً یک context key که در سرویس درست ساخته می‌شود اما در
+    ``{% include ... with %}`` ی ``responsive_section_wrapper.html`` فراموش
+    شده باشد (این دقیقاً همان باگی بود که نبودِ این تست باعث شد فاش نشود)."""
+
+    def setUp(self):
+        super().setUp()
+        from io import BytesIO
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image
+
+        from apps.content.models import HeroSlide
+
+        buf = BytesIO()
+        Image.new("RGB", (800, 400), (10, 20, 30)).save(buf, "PNG")
+        self.img = SimpleUploadedFile("t.png", buf.getvalue(), content_type="image/png")
+
+        self.draft = svc.get_or_create_draft(self.store)
+        self.draft.sections.filter(section_key="hero_banner").delete()
+        self.hero_section = StorefrontSection.objects.create(
+            version=self.draft, section_key="hero_banner", order=900,
+            settings={"autoplay": False, "interval_ms": 4500, "show_arrows": True, "show_dots": True, "loop": True,
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        HeroSlide.objects.create(store=self.store, section=self.hero_section, title="اسلایدِ رندرشده", desktop_image=self.img, is_active=True)
+        HeroSlide.objects.create(store=self.store, section=self.hero_section, title="اسلایدِ دوم", desktop_image=self.img, is_active=True)
+
+    def test_hero_slider_settings_reach_the_rendered_html(self):
+        """اگر ``slider_settings`` در ``{% include with %}`` فراموش شود،
+        تمپلیت به مقدارِ پیش‌فرضِ ``{{ slider_settings.autoplay|yesno }}``
+        (رشته‌ی خالی) برمی‌گردد که به ``false`` تفسیر می‌شود — این تست فقط
+        وقتی رد می‌شود که واقعاً به مقدارِ *صحیحِ* ذخیره‌شده (این‌جا False)
+        برسد، نه به یک پیش‌فرضِ تصادفاً هم‌ارز."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "اسلایدِ رندرشده")
+        self.assertContains(resp, "autoplay: false")
+
+    def test_image_text_destination_link_reaches_rendered_html(self):
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="image_text", order=901,
+            settings={
+                "title": "عنوانِ تست", "body_html": "", "image_url": "https://example.com/x.png", "image_position": "right",
+                "destination": {"destination_type": "external", "destination_id": None,
+                                 "destination_external_url": "https://example.com/landing", "open_in_new_tab": False},
+                "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False},
+            },
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "https://example.com/landing")
+
+    def test_two_duplicated_category_grids_render_different_categories(self):
+        """چکپوینتِ ۱۱ — رگرسیونِ همان کلاسِ باگ: اگر ``category_grid_settings``
+        در ``{% include with %}`` فراموش شود، هر دو نمونه به رفتارِ auto
+        (یکسان) برمی‌گردند، نه انتخابِ per-instance."""
+        from apps.catalog.models import Category
+
+        cat_a = Category.objects.create(store=self.store, name="دستهٔ رندرشدهٔ آ", slug="cat-render-a", is_active=True)
+        cat_b = Category.objects.create(store=self.store, name="دستهٔ رندرشدهٔ ب", slug="cat-render-b", is_active=True)
+        self.draft.sections.filter(section_key="category_grid").delete()
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="category_grid", order=901,
+            settings={"title": "", "display_mode": "grid", "category_ids": [cat_a.pk],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="category_grid", order=902,
+            settings={"title": "", "display_mode": "grid", "category_ids": [cat_b.pk],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "دستهٔ رندرشدهٔ آ")
+        self.assertContains(resp, "دستهٔ رندرشدهٔ ب")
+
+    def test_two_duplicated_brand_carousels_render_different_brands_and_titles(self):
+        from apps.catalog.models import Brand
+
+        brand_a = Brand.objects.create(store=self.store, name="برندِ رندرشدهٔ آ", slug="brand-render-a", is_active=True)
+        brand_b = Brand.objects.create(store=self.store, name="برندِ رندرشدهٔ ب", slug="brand-render-b", is_active=True)
+        self.draft.sections.filter(section_key="brand_carousel").delete()
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="brand_carousel", order=901,
+            settings={"title": "برندهای بخش اول", "display_mode": "grid", "show_view_all": False, "brand_ids": [brand_a.pk],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="brand_carousel", order=902,
+            settings={"title": "برندهای بخش دوم", "display_mode": "grid", "show_view_all": False, "brand_ids": [brand_b.pk],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "برندِ رندرشدهٔ آ")
+        self.assertContains(resp, "برندِ رندرشدهٔ ب")
+        self.assertContains(resp, "برندهای بخش اول")
+        self.assertContains(resp, "برندهای بخش دوم")
+
+
+class NewSectionTypesRenderedPreviewTests(StorefrontBuilderViewsTestCase):
+    """چکپوینتِ ۱۲ — همان کلاسِ رگرسیونِ ``RenderedPreviewIntegrationTests``:
+    برایِ هر نوعِ section جدید، حداقل یک context key که فقط در سرویس
+    ساخته می‌شود باید واقعاً تا HTML رندرشده برسد (نه فقط دیکشنریِ context
+    که ``test_render_service.py`` چک می‌کند)."""
+
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+
+    def test_collection_tiles_reach_rendered_html(self):
+        from apps.catalog.models import MerchantCollection
+
+        collection = MerchantCollection.objects.create(
+            store=self.store, name="کالکشنِ رندرشده", slug="np-collection", is_active=True,
+        )
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="collection_tiles", order=901,
+            settings={"title": "", "collection_ids": [collection.pk],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "کالکشنِ رندرشده")
+        self.assertContains(resp, "0 کالا")
+
+    def test_quick_links_reach_rendered_html(self):
+        from apps.catalog.models import Category
+        from apps.content.models import DestinationType, Menu, MenuItem
+
+        category = Category.objects.create(store=self.store, name="دستهٔ دسترسیِ سریع", slug="np-ql-cat", is_active=True)
+        menu = Menu.objects.create(store=self.store, title="منوی تست", location=Menu.Location.HEADER, is_active=True)
+        MenuItem.objects.create(
+            menu=menu, title="لینکِ رندرشده", display_order=0, is_active=True,
+            destination_type=DestinationType.CATEGORY, destination_category=category,
+        )
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="quick_links", order=901,
+            settings={"title": "", "menu_id": menu.pk,
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "لینکِ رندرشده")
+
+    def test_faq_items_reach_rendered_html(self):
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="faq", order=901,
+            settings={"title": "سوالات متداول", "items": [{"question": "سوالِ رندرشده؟", "answer": "پاسخِ رندرشده"}],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "سوالِ رندرشده؟")
+        self.assertContains(resp, "پاسخِ رندرشده")
+
+    def test_testimonials_reach_rendered_html(self):
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="testimonials", order=901,
+            settings={"title": "نظرات مشتریان", "items": [{"name": "مشتریِ رندرشده", "quote": "نظرِ رندرشده", "role": ""}],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "مشتریِ رندرشده")
+        self.assertContains(resp, "نظرِ رندرشده")
+
+    def test_video_section_reaches_rendered_html(self):
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="video_section", order=901,
+            settings={"title": "", "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "caption": "زیرنویسِ رندرشده",
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "youtube.com/embed/dQw4w9WgXcQ")
+        self.assertContains(resp, "زیرنویسِ رندرشده")
+
+
+class NewSectionTypesSettingsFormTests(StorefrontBuilderViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+
+    def test_faq_settings_form_saves_items_in_order(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="faq", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "سوالات متداول",
+            "question": ["سوال یک", "سوال دو"],
+            "answer": ["پاسخ یک", "پاسخ دو"],
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["items"], [
+            {"question": "سوال یک", "answer": "پاسخ یک"},
+            {"question": "سوال دو", "answer": "پاسخ دو"},
+        ])
+
+    def test_testimonials_settings_form_saves_items(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="testimonials", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "نظرات مشتریان",
+            "t_name": ["سارا"], "t_quote": ["عالی بود"], "t_role": ["تهران"],
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["items"], [{"name": "سارا", "quote": "عالی بود", "role": "تهران"}])
+
+    def test_video_section_settings_form_rejects_unrecognized_url(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="video_section", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "", "video_url": "https://example.com/not-a-video", "caption": "",
+        })
+        self.assertEqual(resp.status_code, 200)
+        section.refresh_from_db()
+        self.assertEqual(section.settings, {})
+
+    def test_video_section_settings_form_saves_valid_url(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="video_section", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "", "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "caption": "",
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["video_url"], "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+
+    def test_collection_tiles_settings_form_get_shows_picker(self):
+        from apps.catalog.models import MerchantCollection
+
+        MerchantCollection.objects.create(store=self.store, name="کالکشنِ انتخابی", slug="np-form-coll", is_active=True)
+        section = StorefrontSection.objects.create(version=self.draft, section_key="collection_tiles", order=1)
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "کالکشنِ انتخابی")
+
+    def test_quick_links_settings_form_get_shows_menu_picker(self):
+        from apps.content.models import Menu
+
+        Menu.objects.create(store=self.store, title="منویِ انتخابی", location=Menu.Location.FOOTER_1, is_active=True)
+        section = StorefrontSection.objects.create(version=self.draft, section_key="quick_links", order=1)
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "منویِ انتخابی")

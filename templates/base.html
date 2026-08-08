@@ -1,5 +1,15 @@
 {% load static persian %}<!DOCTYPE html>
-<html lang="fa" dir="rtl" style="--brand-primary:{{ SHOP_PRIMARY_COLOR }};--brand-accent:{{ SHOP_ACCENT_COLOR }};--brand-primary-fg:{{ SHOP_PRIMARY_FG }};--brand-accent-fg:{{ SHOP_ACCENT_FG }};--brand-secondary:{{ SHOP_SECONDARY_COLOR }};--brand-secondary-fg:{{ SHOP_SECONDARY_FG }};--brand-background:{{ SHOP_BACKGROUND_COLOR }};--brand-surface:{{ SHOP_SURFACE_COLOR }};--brand-text:{{ SHOP_TEXT_COLOR }};--brand-muted:{{ SHOP_MUTED_TEXT_COLOR }};--brand-primary-hover:{{ SHOP_PRIMARY_HOVER }};--brand-border:{{ SHOP_BORDER_COLOR }}">
+<html lang="fa" dir="rtl"
+      data-sfb-template="{{ SHOP_TEMPLATE_SLUG|default:'modern' }}"
+      data-sfb-density="{{ SHOP_DENSITY|default:'normal' }}"
+      data-sfb-motion="{{ SHOP_MOTION|default:'subtle' }}"
+      data-sfb-card-shadow="{{ SHOP_CARD_SHADOW|default:'soft' }}"
+      data-sfb-card-hover="{{ SHOP_CARD_HOVER|default:'lift' }}"
+      data-sfb-hero-style="{{ SHOP_HERO_STYLE|default:'wide' }}"
+      data-sfb-button-style="{{ SHOP_BUTTON_STYLE|default:'filled' }}"
+      data-sfb-image-fit="{{ SHOP_IMAGE_FIT|default:'cover' }}"
+      data-sfb-image-hover="{{ SHOP_IMAGE_HOVER|default:'zoom' }}"
+      style="--brand-primary:{{ SHOP_PRIMARY_COLOR }};--brand-accent:{{ SHOP_ACCENT_COLOR }};--brand-primary-fg:{{ SHOP_PRIMARY_FG }};--brand-accent-fg:{{ SHOP_ACCENT_FG }};--brand-secondary:{{ SHOP_SECONDARY_COLOR }};--brand-secondary-fg:{{ SHOP_SECONDARY_FG }};--brand-background:{{ SHOP_BACKGROUND_COLOR }};--brand-surface:{{ SHOP_SURFACE_COLOR }};--brand-text:{{ SHOP_TEXT_COLOR }};--brand-muted:{{ SHOP_MUTED_TEXT_COLOR }};--brand-primary-hover:{{ SHOP_PRIMARY_HOVER }};--brand-border:{{ SHOP_BORDER_COLOR }};--sfb-font:'{{ SHOP_FONT|default:"Vazirmatn" }}';--sfb-radius:{{ SHOP_RADIUS|default:18 }}px;--sfb-button-radius:{{ SHOP_BUTTON_RADIUS|default:12 }}px;--sfb-content-width:{{ SHOP_CONTENT_WIDTH|default:1200 }}px;--sfb-grid-density:{{ SHOP_GRID_DENSITY|default:4 }};--sfb-heading-size:{{ SHOP_HEADING_SIZE|default:19 }}px;--sfb-body-size:{{ SHOP_BODY_SIZE|default:14 }}px;--sfb-product-name-size:{{ SHOP_PRODUCT_NAME_SIZE|default:13 }}px;--sfb-price-size:{{ SHOP_PRICE_SIZE|default:15 }}px;--sfb-muted-size:{{ SHOP_MUTED_TEXT_SIZE|default:11 }}px;--sfb-image-fit:{{ SHOP_IMAGE_FIT|default:'cover' }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">

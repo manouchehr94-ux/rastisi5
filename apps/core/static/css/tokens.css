@@ -13,5 +13,9 @@
   --bg:var(--brand-background, #f7f5fc); --card:var(--brand-surface, #ffffff);
   --green:#16a34a; --green-soft:#e6f6ec; --amber:#f59e0b;
   --shadow:0 2px 6px rgba(80,50,160,.06), 0 10px 30px rgba(80,50,160,.07);
-  --radius:18px;
+  /* گردی/عرضِ محتوا/تعدادِ ستون از Templateِ فعالِ سازنده بصری می‌آید
+     (--sfb-* روی <html>، تزریق‌شده در base.html) — پیش‌فرض دقیقاً همان
+     مقدارِ قبل از سیستمِ Template. */
+  --radius:var(--sfb-radius, 18px);
+  --button-radius:var(--sfb-button-radius, 12px);
 }

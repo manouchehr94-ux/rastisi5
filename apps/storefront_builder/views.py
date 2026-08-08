@@ -43,10 +43,38 @@ def storefront_editor(request):
         "draft": draft,
         "sections": sections,
         "section_definitions": section_registry.list_definitions(),
+        "section_library_groups": section_registry.list_library_groups(),
         "versions": layout_service.list_versions(store),
         "industry_installation": industry_installation,
     }
     return render(request, "dashboard/storefront_builder/editor.html", context)
+
+
+class _CandidateAppearanceVersion:
+    """جای‌گزینِ سبکِ ``StorefrontLayoutVersion`` برایِ پیش‌نمایشِ
+    غیرمخربِ یک Templateِ کاندید (چکپوینتِ «پیش‌نمایشِ قبل از اعمال»،
+    بخشِ ۱۰ بازبینیِ نهایی) — فقط همان یک متدی را دارد که
+    ``apps.core.context_processors`` روی ``request.storefront_appearance_version``
+    صدا می‌زند (``effective_appearance_config``)، هرگز به دیتابیس
+    نمی‌نویسد. تعویضِ template_slug دقیقاً همان معنایی را دارد که
+    ``storefront_appearance_editor`` هنگامِ POSTِ واقعیِ تعویضِ Template
+    اعمال می‌کند (فیلدهایِ ساختاری به پیش‌فرض‌هایِ همان Template بازنشانی
+    می‌شوند) — تا پیش‌نمایش دقیقاً همان چیزی باشد که اعمالِ واقعی تولید
+    می‌کند."""
+
+    def __init__(self, base_config, *, template_slug):
+        from . import appearance_registry
+
+        config = dict(base_config)
+        config["template_slug"] = template_slug
+        template = appearance_registry.get_template(template_slug)
+        if template is not None:
+            for field in ("font", "radius", "button_radius", "density", "motion", "type_scale"):
+                config[field] = getattr(template, field)
+        self._config = config
+
+    def effective_appearance_config(self):
+        return self._config
 
 
 @staff_required
@@ -62,10 +90,27 @@ def storefront_preview(request):
     دست‌نخورده باقی می‌ماند."""
     from apps.catalog.models import Category
 
+    from . import appearance_registry
+
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
     items = build_render_items(draft, store)
     top_level_categories = Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
+    # تنظیماتِ ظاهر باید از همین Draft خوانده شود، نه ShopSettings زنده —
+    # نگاه کنید به ``apps.core.context_processors._versioned_colors``.
+    #
+    # ``?preview_template=<slug>`` (چکپوینتِ «پیش‌نمایشِ غیرمخربِ قالب»،
+    # بخشِ ۱۰ بازبینیِ نهایی) به مرچنت اجازه می‌دهد ظاهرِ یک Templateِ
+    # دیگر را در همین iframe ببیند **بدونِ** ذخیره‌شدن روی Draft — فقط
+    # همین رندر، هرگز دیتابیس. اسلاگِ نامعتبر/ناشناخته بی‌صدا نادیده
+    # گرفته می‌شود (پیش‌نمایشِ Draftِ واقعی، دقیقاً رفتارِ قبل)."""
+    preview_template_slug = request.GET.get("preview_template")
+    if preview_template_slug and appearance_registry.get_template(preview_template_slug) is not None:
+        request.storefront_appearance_version = _CandidateAppearanceVersion(
+            draft.effective_appearance_config(), template_slug=preview_template_slug,
+        )
+    else:
+        request.storefront_appearance_version = draft
     return render(request, "storefront_builder/preview.html", {
         "store": store, "version": draft, "render_items": items, "is_preview": True,
         "top_level_categories": top_level_categories,
@@ -159,11 +204,68 @@ def storefront_section_settings(request, pk):
             }
         elif section.section_key == "rich_text":
             raw = {"body_html": request.POST.get("body_html", "")}
+        elif section.section_key in ("hero_banner", "image_slider"):
+            raw = {
+                "autoplay": request.POST.get("autoplay") == "on",
+                "interval_ms": request.POST.get("interval_ms", ""),
+                "show_arrows": request.POST.get("show_arrows") == "on",
+                "show_dots": request.POST.get("show_dots") == "on",
+                "loop": request.POST.get("loop") == "on",
+            }
+        elif section.section_key == "category_grid":
+            raw = {
+                "title": request.POST.get("title", ""),
+                "display_mode": request.POST.get("display_mode", ""),
+                "category_ids": request.POST.getlist("category_ids"),
+            }
+        elif section.section_key == "brand_carousel":
+            raw = {
+                "title": request.POST.get("title", ""),
+                "display_mode": request.POST.get("display_mode", ""),
+                "show_view_all": request.POST.get("show_view_all") == "on",
+                "brand_ids": request.POST.getlist("brand_ids"),
+            }
+        elif section.section_key == "collection_tiles":
+            raw = {
+                "title": request.POST.get("title", ""),
+                "collection_ids": request.POST.getlist("collection_ids"),
+            }
+        elif section.section_key == "quick_links":
+            raw = {
+                "title": request.POST.get("title", ""),
+                "menu_id": request.POST.get("menu_id") or None,
+            }
+        elif section.section_key == "faq":
+            questions = request.POST.getlist("question")
+            answers = request.POST.getlist("answer")
+            raw = {
+                "title": request.POST.get("title", ""),
+                "items": [{"question": q, "answer": a} for q, a in zip(questions, answers)],
+            }
+        elif section.section_key == "testimonials":
+            names = request.POST.getlist("t_name")
+            quotes = request.POST.getlist("t_quote")
+            roles = request.POST.getlist("t_role")
+            raw = {
+                "title": request.POST.get("title", ""),
+                "items": [
+                    {"name": n, "quote": q, "role": r}
+                    for n, q, r in zip(names, quotes, roles)
+                ],
+            }
+        elif section.section_key == "video_section":
+            raw = {
+                "title": request.POST.get("title", ""),
+                "video_url": request.POST.get("video_url", ""),
+                "caption": request.POST.get("caption", ""),
+            }
         else:
             # انواعی که هیچ فیلدِ اختصاصیِ خودشان را ندارند (فازِ D) —
             # تنها چیزی که این فرم برایشان دارد بلوکِ responsive است.
             raw = {}
         raw["responsive"] = _extract_responsive_raw(request, section.section_key)
+        if section.section_key in section_registry.DESTINATION_AWARE_SECTION_KEYS:
+            raw["destination"] = _extract_destination_raw(request)
         try:
             cleaned = definition.validate_settings(raw)
             section.settings = cleaned
@@ -183,7 +285,113 @@ def storefront_section_settings(request, pk):
     }
     if section.section_key == "product_section":
         context.update(_product_section_picker_context(request, section))
+    if section.section_key == "category_grid":
+        context.update(_category_grid_picker_context(request, section))
+    if section.section_key == "brand_carousel":
+        context.update(_brand_carousel_picker_context(request, section))
+    if section.section_key == "collection_tiles":
+        context.update(_collection_tiles_picker_context(request, section))
+    if section.section_key == "quick_links":
+        context.update(_quick_links_picker_context(request, section))
+    if section.section_key in section_registry.DESTINATION_AWARE_SECTION_KEYS:
+        context.update(_destination_picker_context(request, section))
     return render(request, "dashboard/storefront_builder/partials/section_settings_form.html", context)
+
+
+def _category_grid_picker_context(request, section):
+    from apps.catalog.models import Category
+
+    store = _resolve_store(request)
+    category_ids = (section.settings or {}).get("category_ids") or []
+    categories_by_id = {c.pk: c for c in Category.objects.filter(store=store, pk__in=category_ids)}
+    return {
+        "all_categories": Category.objects.filter(store=store, is_active=True).order_by("name"),
+        "initial_selected_categories": [
+            {"id": cid, "name": categories_by_id[cid].name} for cid in category_ids if cid in categories_by_id
+        ],
+    }
+
+
+def _brand_carousel_picker_context(request, section):
+    from apps.catalog.models import Brand
+
+    store = _resolve_store(request)
+    brand_ids = (section.settings or {}).get("brand_ids") or []
+    brands_by_id = {b.pk: b for b in Brand.objects.filter(store=store, pk__in=brand_ids)}
+    return {
+        "all_brands": Brand.objects.filter(store=store, is_active=True).order_by("name"),
+        "initial_selected_brands": [
+            {"id": bid, "name": brands_by_id[bid].name} for bid in brand_ids if bid in brands_by_id
+        ],
+    }
+
+
+def _collection_tiles_picker_context(request, section):
+    from apps.catalog.models import MerchantCollection
+
+    store = _resolve_store(request)
+    collection_ids = (section.settings or {}).get("collection_ids") or []
+    collections_by_id = {c.pk: c for c in MerchantCollection.objects.filter(store=store, pk__in=collection_ids)}
+    return {
+        "all_collections": MerchantCollection.objects.filter(store=store, is_active=True).order_by("name"),
+        "initial_selected_collections": [
+            {"id": cid, "name": collections_by_id[cid].name} for cid in collection_ids if cid in collections_by_id
+        ],
+    }
+
+
+def _quick_links_picker_context(request, section):
+    from apps.content.models import Menu
+
+    store = _resolve_store(request)
+    return {"all_menus": Menu.objects.filter(store=store, is_active=True).order_by("title")}
+
+
+def _extract_destination_raw(request) -> dict:
+    """بلوکِ خامِ «لینک این بخش» را از POST می‌خواند — یک بار نوشته شده،
+    توسطِ هر نوع سکشنِ عضوِ ``DESTINATION_AWARE_SECTION_KEYS`` استفاده
+    می‌شود. فرمِ ادیتور یک ``<select name="destination_type">`` مشترک دارد
+    و بسته به مقدارش، یکی از چهار فیلدِ ``destination_*_id`` را پر می‌کند —
+    اینجا همان یکیِ متناظر با نوعِ انتخاب‌شده به ``destination_id`` عمومی
+    نگاشت می‌شود."""
+    dtype = request.POST.get("destination_type", "none")
+    id_field_by_type = {
+        "category": "destination_category_id",
+        "brand": "destination_brand_id",
+        "collection": "destination_collection_id",
+        "product": "destination_product_id",
+    }
+    destination_id = None
+    if dtype in id_field_by_type:
+        destination_id = request.POST.get(id_field_by_type[dtype]) or None
+    return {
+        "destination_type": dtype,
+        "destination_id": destination_id,
+        "destination_external_url": request.POST.get("destination_external_url", ""),
+        "open_in_new_tab": request.POST.get("open_in_new_tab") == "on",
+    }
+
+
+def _destination_picker_context(request, section) -> dict:
+    """کالکشن‌ها/دسته‌بندی‌ها/برندهایِ همین Store برایِ کشوهای انتخابِ
+    مقصدِ بلوکِ ``destination`` + نامِ محصولِ فعلاً انتخاب‌شده (اگر
+    destination_type فعلی «محصول» باشد) برایِ نمایشِ اولیه — دقیقاً همان
+    الگویِ ``_product_section_picker_context`` بالا، عمداً جداگانه چون
+    قراردادِ ``destination`` عمومی‌تر (برایِ هر نوع section) است."""
+    from apps.catalog.models import Brand, Category, MerchantCollection, Product
+
+    store = _resolve_store(request)
+    dest = (section.settings or {}).get("destination") or {}
+    product_name = ""
+    if dest.get("destination_type") == "product" and dest.get("destination_id"):
+        product = Product.objects.filter(store=store, pk=dest["destination_id"]).first()
+        product_name = product.name if product else ""
+    return {
+        "collections": MerchantCollection.objects.filter(store=store).order_by("name"),
+        "categories": Category.objects.filter(store=store).order_by("name"),
+        "brands": Brand.objects.filter(store=store).order_by("name"),
+        "destination_product_name": product_name,
+    }
 
 
 def _extract_responsive_raw(request, section_key: str) -> dict:
@@ -238,10 +446,10 @@ def storefront_section_product_search(request, pk):
 
     _get_scoped_section(request, pk)
     store = _resolve_store(request)
-    query = request.GET.get("q", "").strip()
+    query = (request.GET.get("q") or request.GET.get("q_dest_product") or "").strip()
     results = collection_service.searchable_products(store, query=query)[:20] if query else []
     return render(request, "dashboard/storefront_builder/partials/product_section_search_results.html", {
-        "results": results, "query": query,
+        "results": results, "query": query, "mode": request.GET.get("mode", ""),
     })
 
 
@@ -414,6 +622,124 @@ def storefront_discard(request):
 
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
+def storefront_appearance_editor(request):
+    """پنلِ «ظاهر سایت» — هابِ Template/Palette/رنگ‌های سفارشی/فونت و
+    گردی/تراکم/حرکت. برخلافِ هدر/فوتر (صفحه‌ی کاملاً جدا)، این پنل به
+    htmx داخلِ همان صفحه‌ی سازنده بارگذاری می‌شود (طبقِ الزامِ صریحِ کار:
+    «مرچنت نباید مجبور شود از سازنده بصری خارج شود») — نگاه کنید به
+    ``editor.html`` (تبِ «ظاهر سایت»)."""
+    store = _resolve_store(request)
+    draft = layout_service.get_or_create_draft(store, user=request.user)
+
+    if request.method == "POST":
+        from . import appearance_registry
+
+        current = draft.effective_appearance_config()
+        new_palette_slug = request.POST.get("palette_slug") or current.get("palette_slug")
+        # تعویضِ Palette یعنی شروعِ تازه — override هایِ پالتِ قبلی روی
+        # پالتِ جدید بی‌معنا/گیج‌کننده‌اند (طبقِ الزامِ صریحِ کار: انتخابِ
+        # پالت یعنی «تمامِ رنگ‌های هماهنگ با هم تغییر کنند»). فقط زمانی
+        # این‌طور رفتار می‌شود که واقعاً palette_slug عوض شده باشد — نه
+        # هر submit ای (فرمِ خودِ صفحه‌ی رنگ‌ها همیشه palette_slug فعلی
+        # را دوباره می‌فرستد، پس این شرط برایِ آن هرگز صدق نمی‌کند).
+        palette_changed = new_palette_slug != current.get("palette_slug")
+        color_overrides = {} if palette_changed else dict(current.get("color_overrides") or {})
+
+        new_template_slug = request.POST.get("template_slug", current["template_slug"])
+        # تعویضِ Template هم دقیقاً همان منطقِ Palette را دارد: انتخابِ
+        # Templateِ جدید یعنی «پیش‌فرض‌هایِ کاملِ آن Template اعمال شود»
+        # (فونت/گردی/گردیِ دکمه/تراکم/حرکت/مقیاسِ متن) — نه صرفاً رنگ،
+        # طبقِ الزامِ صریحِ کار «Template صرفاً رنگ نیست». اگر این‌طور
+        # نبود، کلیک روی کارتِ یک Templateِ دیگر در گالری (که فیلدهایِ
+        # مخفی‌اش مقدارِ *فعلیِ* config را حمل می‌کنند، نه مقدارِ خودِ
+        # Templateِ جدید) عملاً هیچ تغییرِ محسوسی در این فیلدها ایجاد
+        # نمی‌کرد. فقط وقتی template_slug واقعاً عوض شده این‌طور رفتار
+        # می‌شود — نه هر submit ای (فرمِ پیشرفته همیشه template_slug فعلی
+        # را دوباره می‌فرستد، پس این شرط برایِ آن هرگز صدق نمی‌کند).
+        template_changed = new_template_slug != current.get("template_slug")
+        new_template = appearance_registry.get_template(new_template_slug) if template_changed else None
+
+        def _field(name):
+            if new_template is not None:
+                return getattr(new_template, name)
+            return request.POST.get(name, current[name])
+
+        raw = {
+            "template_slug": new_template_slug,
+            "palette_slug": new_palette_slug,
+            "color_overrides": color_overrides,
+            "font": _field("font"),
+            "radius": _field("radius"),
+            "button_radius": _field("button_radius"),
+            "density": _field("density"),
+            "motion": _field("motion"),
+            "type_scale": _field("type_scale"),
+            "button_style": _field("button_style"),
+            # رفتارِ تصویر، برخلافِ فیلدهایِ بالا، جزوِ «هویتِ Templateِ»
+            # نیست (Template دیتاکلاسی چنین فیلدی ندارد) — همیشه مستقیماً
+            # از فرمِ مرچنت خوانده می‌شود، حتی وقتی تعویضِ Template هم در
+            # همین POST رخ داده باشد.
+            "image_fit": request.POST.get("image_fit", current["image_fit"]),
+            "image_hover": request.POST.get("image_hover", current["image_hover"]),
+        }
+        from .models import APPEARANCE_COLOR_KEYS
+
+        reset_key = request.POST.get("reset_color")
+        if request.POST.get("reset_all_overrides") == "1":
+            # بازگردانیِ کلِ پالت — کلِ override ها پاک می‌شود، حتی اگر
+            # فیلدهایِ رنگِ دیگر هم در همین POST حاضر باشند (چون همان
+            # فرمِ خودِ صفحه‌ی رنگ‌هاست) — این دکمه عمداً هر ادعایِ دیگری
+            # را نادیده می‌گیرد.
+            raw["color_overrides"] = {}
+        elif reset_key:
+            # بازگردانیِ *فقط یک* رنگ — عمداً بقیه‌ی فیلدهایِ ``color_*``ی
+            # همین POST را نادیده می‌گیرد (آن‌ها فقط مقدارِ نمایشیِ فعلیِ
+            # input رنگی‌اند، نه تغییرِ واقعیِ مرچنت) وگرنه همان لحظه با
+            # مقدارِ فعلی دوباره override می‌شدند و «بازگردانی» بی‌اثر
+            # می‌ماند.
+            raw["color_overrides"].pop(reset_key, None)
+        else:
+            for color_key in APPEARANCE_COLOR_KEYS:
+                posted = request.POST.get(f"color_{color_key}")
+                if posted:
+                    raw["color_overrides"][color_key] = posted
+        try:
+            config = layout_service.validate_appearance_config(raw)
+        except layout_service.AppearanceConfigValidationError as exc:
+            messages.error(request, str(exc))
+            return redirect("dashboard:storefront-builder-editor")
+        draft.appearance_config = config
+        draft.save(update_fields=["appearance_config", "updated_at"])
+        messages.success(request, "تنظیمات ظاهر ذخیره شد")
+        return redirect("dashboard:storefront-builder-editor")
+
+    from . import appearance_registry
+
+    config = draft.effective_appearance_config()
+    color_field_labels = [
+        ("primary", "رنگ اصلی"), ("secondary", "رنگ مکمل"), ("accent", "رنگ تأکیدی"),
+        ("background", "پس‌زمینه"), ("surface", "سطح و کارت‌ها"), ("text", "متن اصلی"),
+        ("muted", "متن کم‌رنگ"), ("border", "حاشیه‌ها"),
+    ]
+    return render(request, "dashboard/storefront_builder/partials/appearance_panel.html", {
+        "draft": draft,
+        "config": config,
+        "resolved_colors": appearance_registry.resolve_colors(config),
+        "palettes": appearance_registry.list_palettes(),
+        "templates": appearance_registry.list_templates(),
+        "font_choices": appearance_registry.FONT_CHOICES,
+        "density_choices": appearance_registry.DENSITY_CHOICES,
+        "motion_choices": appearance_registry.MOTION_CHOICES,
+        "type_scale_choices": appearance_registry.TYPE_SCALE_CHOICES,
+        "button_style_choices": appearance_registry.BUTTON_STYLE_CHOICES,
+        "image_fit_choices": appearance_registry.IMAGE_FIT_CHOICES,
+        "image_hover_choices": appearance_registry.IMAGE_HOVER_CHOICES,
+        "color_field_labels": color_field_labels,
+    })
+
+
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_header_editor(request):
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
@@ -434,7 +760,12 @@ def storefront_header_editor(request):
         messages.success(request, "تنظیمات هدر ذخیره شد")
         return redirect("dashboard:storefront-builder-editor")
 
-    return render(request, "dashboard/storefront_builder/header_editor.html", {
+    template_name = (
+        "dashboard/storefront_builder/partials/header_panel.html"
+        if request.headers.get("HX-Request") == "true"
+        else "dashboard/storefront_builder/header_editor.html"
+    )
+    return render(request, template_name, {
         "active_page": "storefront_builder", "config": draft.effective_header_config(), "draft": draft,
     })
 
@@ -460,7 +791,12 @@ def storefront_footer_editor(request):
         messages.success(request, "تنظیمات فوتر ذخیره شد")
         return redirect("dashboard:storefront-builder-editor")
 
-    return render(request, "dashboard/storefront_builder/footer_editor.html", {
+    template_name = (
+        "dashboard/storefront_builder/partials/footer_panel.html"
+        if request.headers.get("HX-Request") == "true"
+        else "dashboard/storefront_builder/footer_editor.html"
+    )
+    return render(request, template_name, {
         "active_page": "storefront_builder", "config": draft.effective_footer_config(), "draft": draft,
     })
 
