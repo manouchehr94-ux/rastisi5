@@ -38,7 +38,14 @@ html[data-sfb-image-hover="none"] .pcard:hover .img .cover-photo{transform:none}
 html[data-sfb-card-shadow="none"] .pcard:hover{box-shadow:none}
 html[data-sfb-card-shadow="strong"] .pcard{box-shadow:0 4px 14px rgba(20,10,40,.10)}
 html[data-sfb-card-shadow="strong"] .pcard:hover{box-shadow:0 16px 40px rgba(20,10,40,.22)}
-html[data-sfb-card-hover="none"] .pcard:hover{transform:none;box-shadow:none;border-color:var(--line)}
+html[data-sfb-card-hover="none"] .pcard:hover{transform:none!important;box-shadow:none;border-color:var(--line)}
+
+/* سبکِ حرکت (motion) — کنترلِ مستقیمِ تاجر. «بدون حرکت» از قبل (base.css)
+   همه‌ی transition/animation را غیرفعال می‌کند؛ «پویا» برخلافِ «ملایم»
+   (پیش‌فرض) باید واقعاً محسوس‌تر باشد، نه فقط یک انتخابِ بی‌اثر —
+   جابه‌جاییِ بیشتر و ترنزیشنِ سریع‌تر روی هاورِ کارت. */
+html[data-sfb-motion="dynamic"] .pcard{transition: 0.12s cubic-bezier(0.34, 1.56, 0.64, 1)}
+html[data-sfb-motion="dynamic"] .pcard:hover{transform: translateY(-7px) scale(1.015)}
 html[data-sfb-card-hover="none"] .pcard:hover .img .emo{transform:none}
 html[data-sfb-card-hover="zoom"] .pcard:hover{transform:none}
 html[data-sfb-card-hover="zoom"] .pcard:hover .img .emo{transform:scale(1.16)}

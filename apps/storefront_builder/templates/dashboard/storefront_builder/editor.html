@@ -40,7 +40,12 @@
     </div>
   </div>
 
-  <div class="sfb-body">
+  <div class="sfb-mobile-switch" role="group" aria-label="حالت نمایش در موبایل">
+    <button type="button" class="btn btn-sm" :class="{ active: mobileView === 'edit' }" @click="mobileView = 'edit'">✏️ ساخت صفحه</button>
+    <button type="button" class="btn btn-sm" :class="{ active: mobileView === 'preview' }" @click="mobileView = 'preview'">👁 پیش‌نمایش</button>
+  </div>
+
+  <div class="sfb-body" :class="'sfb-mobile-view-' + mobileView">
     <main class="sfb-preview-pane">
       <div class="sfb-preview-toolbar">
         <div class="sfb-device-toggle" role="group" aria-label="حالت پیش‌نمایش">
@@ -169,6 +174,7 @@ function storefrontEditor() {
     device: 'desktop',
     drawerOpen: false,
     mainTab: 'page',
+    mobileView: 'edit',
     candidateTemplate: null,
     candidateTemplateName: '',
     init() {

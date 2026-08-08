@@ -469,6 +469,49 @@ button.sfb-layer-main {
   }
 }
 
+/* موبایل — «بدونِ سرریزِ افقی» کافی نیست: چیدمانِ ستون‌کناری‌روی‌پیش‌نمایش
+   هنوز یک ادیتورِ دسکتاپیِ چیده‌شده‌ی عمودی است (مرچنت باید برایِ رسیدن
+   به Preview از کنارِ فهرستِ بخش‌ها اسکرول کند). به‌جایِ آن، زیرِ ۶۸۰px
+   یک سوئیچِ حالت («ساخت صفحه» / «پیش‌نمایش») نشان داده می‌شود و فقط یکی
+   از دو ناحیه (نه هر دو هم‌زمان) در هر لحظه کلِ ارتفاعِ صفحه را می‌گیرد —
+   دقیقاً همان نقطه‌شکستِ خودِ پروتوتایپِ V5 (``builder.css``). */
+.sfb-mobile-switch {
+  display: none;
+}
+
+@media (max-width: 680px) {
+  .sfb-mobile-switch {
+    display: flex;
+    gap: 8px;
+    padding: 8px 14px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--bg, #f7f7fb);
+    border-bottom: 1px solid var(--line);
+  }
+  .sfb-mobile-switch .btn {
+    flex: 1;
+  }
+  .sfb-mobile-switch .btn.active {
+    background: var(--violet, #6d28d9);
+    color: #fff;
+    border-color: var(--violet, #6d28d9);
+  }
+  .sfb-body.sfb-mobile-view-edit .sfb-preview-pane {
+    display: none;
+  }
+  .sfb-body.sfb-mobile-view-preview .sfb-sidebar {
+    display: none;
+  }
+  .sfb-body.sfb-mobile-view-preview .sfb-preview-pane {
+    min-height: calc(100vh - 130px);
+  }
+  .sfb-body.sfb-mobile-view-edit .sfb-sidebar {
+    max-height: none;
+  }
+}
+
 /* شناساییِ مستقیمِ بصری در Preview — چکپوینتِ Direct Visual Editing.
    data-section-id فقط داخلِ preview.html وجود دارد (never روی صفحه‌ی
    عمومی) — نگاه کنید به responsive_section_wrapper.html. */

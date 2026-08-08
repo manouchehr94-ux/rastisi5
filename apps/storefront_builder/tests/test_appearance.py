@@ -78,6 +78,39 @@ class ValidateAppearanceConfigTests(TestCase):
         cleaned = svc.validate_appearance_config({"type_scale": "large"})
         self.assertEqual(cleaned["type_scale"], "large")
 
+    def test_invalid_button_style_rejected(self):
+        with self.assertRaises(svc.AppearanceConfigValidationError):
+            svc.validate_appearance_config({"button_style": "glowing"})
+
+    def test_valid_button_style_accepted(self):
+        cleaned = svc.validate_appearance_config({"button_style": "outline"})
+        self.assertEqual(cleaned["button_style"], "outline")
+
+    def test_invalid_image_fit_rejected(self):
+        with self.assertRaises(svc.AppearanceConfigValidationError):
+            svc.validate_appearance_config({"image_fit": "stretch"})
+
+    def test_valid_image_fit_accepted(self):
+        cleaned = svc.validate_appearance_config({"image_fit": "contain"})
+        self.assertEqual(cleaned["image_fit"], "contain")
+
+    def test_invalid_image_hover_rejected(self):
+        with self.assertRaises(svc.AppearanceConfigValidationError):
+            svc.validate_appearance_config({"image_hover": "spin"})
+
+    def test_valid_image_hover_accepted(self):
+        cleaned = svc.validate_appearance_config({"image_hover": "none"})
+        self.assertEqual(cleaned["image_hover"], "none")
+
+    def test_image_and_button_defaults_preserve_pre_existing_behavior(self):
+        """رگرسیون: پیش‌فرض‌ها باید دقیقاً همان رفتارِ سخت‌کدشده‌یِ قبل
+        از این چکپوینت باشند (object-fit:cover، زوم روی هاور، دکمه‌ی پر‌رنگ)
+        — یعنی هیچ فروشگاهی که هرگز این فیلدها را لمس نکرده تغییری نبیند."""
+        cleaned = svc.validate_appearance_config({})
+        self.assertEqual(cleaned["image_fit"], "cover")
+        self.assertEqual(cleaned["image_hover"], "zoom")
+        self.assertEqual(cleaned["button_style"], "filled")
+
 
 class TypographyScaleTests(TestCase):
     """چکپوینتِ ۸: مقیاسِ تایپوگرافی — پنج نقشِ معنادار (نه اندازه‌یِ
@@ -267,10 +300,14 @@ class AppearanceDraftPublishIsolationTests(TestCase):
         public_resp = self.client.get(reverse("catalog:home"), HTTP_HOST="sfb-appearance-public.example.com")
         self.assertContains(public_resp, "--sfb-heading-size:22px")
 
-    def test_other_pages_still_use_live_shopsettings_not_draft(self):
-        """صفحاتِ غیرِ Builder-aware (مثلاً checkout/product) نباید هرگز
-        appearance_config درگیرشان کند — چون storefront_appearance_version
-        روی request آن‌ها اصلاً ست نمی‌شود."""
+    def test_other_pages_use_live_shopsettings_when_nothing_published_yet(self):
+        """صفحاتِ غیرِ Builder-aware (مثلاً product-list) قبل از اولین
+        انتشار دقیقاً مثلِ قبل رفتار می‌کنند — رنگِ زنده‌یِ ShopSettings،
+        نه Draft (که هرگز نباید بیرون از Preview دیده شود). بعد از
+        publish شدن، این صفحات هویتِ *سراسری* را از همان نسخه‌ی منتشرشده
+        می‌خوانند — نگاه کنید به
+        ``test_published_global_identity_reaches_non_builder_aware_pages``
+        برایِ آن سناریو."""
         draft = svc.get_or_create_draft(self.store)
         draft.appearance_config = svc.validate_appearance_config({"color_overrides": {"primary": "#00FF00"}})
         draft.save(update_fields=["appearance_config"])
@@ -282,6 +319,51 @@ class AppearanceDraftPublishIsolationTests(TestCase):
         resp = self.client.get(reverse("catalog:product-list"), HTTP_HOST="sfb-appearance-public.example.com")
         self.assertContains(resp, live_primary.upper())
         self.assertNotContains(resp, "#00FF00")
+
+    def test_published_global_identity_reaches_non_builder_aware_pages(self):
+        """بخشِ ۲۲ بازبینیِ نهایی: هویتِ *سراسری* (رنگ، فونت، گردی، سبکِ
+        دکمه، حرکت، اندازه‌متن، رفتارِ تصویر) بعد از publish باید در
+        صفحاتِ غیرِ Builder-aware هم دیده شود — نه فقط صفحه‌ی اصلی —
+        وگرنه مشتری در جزئیاتِ کالا برندِ متفاوتی با صفحه‌ی اصلی می‌بیند."""
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+
+        draft = svc.get_or_create_draft(self.store)
+        draft.appearance_config = svc.validate_appearance_config({
+            "color_overrides": {"primary": "#00FF00"}, "font": "Georgia", "button_style": "outline",
+        })
+        draft.save(update_fields=["appearance_config"])
+
+        # قبل از publish — هنوز رنگِ زنده (این Draft هرگز نباید بیرون درز کند)
+        resp = self.client.get(reverse("catalog:product-list"), HTTP_HOST="sfb-appearance-public.example.com")
+        self.assertNotContains(resp, "#00FF00")
+
+        svc.publish(self.store)
+
+        resp = self.client.get(reverse("catalog:product-list"), HTTP_HOST="sfb-appearance-public.example.com")
+        self.assertContains(resp, "#00FF00")
+        self.assertContains(resp, "data-sfb-button-style=\"outline\"")
+
+    def test_unpublished_store_never_leaks_draft_to_other_pages_even_with_history(self):
+        """اگر Draftِ فعلی تغییر کند اما دوباره publish نشود، صفحاتِ
+        غیرِ Builder-aware باید همچنان همان نسخه‌ی *قبلاً منتشرشده* را
+        ببینند — نه Draftِ جدیدِ ذخیره‌نشده."""
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)  # published v1، رنگِ پیش‌فرض
+
+        draft = svc.get_or_create_draft(self.store)
+        draft.appearance_config = svc.validate_appearance_config({"color_overrides": {"primary": "#123456"}})
+        draft.save(update_fields=["appearance_config"])
+        svc.publish(self.store)  # published v2 — #123456
+
+        # یک Draftِ *جدیدِ* دیگر (منتشرنشده) با رنگِ متفاوت
+        draft2 = svc.get_or_create_draft(self.store)
+        draft2.appearance_config = svc.validate_appearance_config({"color_overrides": {"primary": "#ABCDEF"}})
+        draft2.save(update_fields=["appearance_config"])
+
+        resp = self.client.get(reverse("catalog:product-list"), HTTP_HOST="sfb-appearance-public.example.com")
+        self.assertContains(resp, "#123456")
+        self.assertNotContains(resp, "#ABCDEF")
 
 
 class PaletteRegistryTests(TestCase):
@@ -513,6 +595,65 @@ class TemplateSwitchViewTests(TestCase):
         draft = svc.get_or_create_draft(self.store)
         self.assertEqual(draft.appearance_config["template_slug"], "tech")
         self.assertEqual(draft.appearance_config["color_overrides"], {"text": "#123123"})
+
+
+class NonDestructiveTemplatePreviewTests(TestCase):
+    """چکپوینتِ «پیش‌نمایشِ غیرمخربِ قالب» (بخشِ ۱۰ بازبینیِ نهایی):
+    ``?preview_template=<slug>`` باید ظاهرِ Templateِ کاندید را در
+    iframeِ پیش‌نمایش نشان دهد بدونِ این‌که چیزی روی Draft ذخیره شود."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        self.store.admin_subdomain = HOST.split(".")[0]
+        self.store.save(update_fields=["admin_subdomain"])
+        self.staff = User.objects.create_user(username="preview_owner", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.client = Client(HTTP_HOST=HOST)
+        self.client.login(username="preview_owner", password="pass12345")
+
+    def test_preview_template_param_shows_candidate_without_saving(self):
+        draft = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft.effective_appearance_config()["template_slug"], "modern")
+
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"), {"preview_template": "boutique"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "data-sfb-template=\"boutique\"")
+
+        # Draft در دیتابیس دست‌نخورده مانده
+        draft_after = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft_after.effective_appearance_config()["template_slug"], "modern")
+
+    def test_preview_without_param_shows_real_draft(self):
+        draft = svc.get_or_create_draft(self.store)
+        draft.appearance_config = svc.validate_appearance_config({"template_slug": "tech"})
+        draft.save(update_fields=["appearance_config"])
+
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "data-sfb-template=\"tech\"")
+
+    def test_unknown_preview_template_slug_falls_back_to_real_draft(self):
+        """اسلاگِ نامعتبر/جعلی هرگز نباید خطا بدهد یا صفحه را بشکند —
+        فقط بی‌صدا نادیده گرفته می‌شود (پیش‌نمایشِ Draftِ واقعی)."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"), {"preview_template": "not-a-real-template"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "data-sfb-template=\"modern\"")
+
+    def test_preview_candidate_resets_structural_fields_to_candidate_template_defaults(self):
+        """پیش‌نمایش باید دقیقاً همان چیزی را نشان دهد که Applyِ واقعی
+        تولید می‌کند — یعنی فیلدهایِ ساختاری (اینجا: گردی) به پیش‌فرضِ
+        Templateِ کاندید بازنشانی شوند، نه این‌که مقدارِ Draftِ فعلی را
+        نگه دارند."""
+        draft = svc.get_or_create_draft(self.store)
+        draft.appearance_config = svc.validate_appearance_config({"template_slug": "modern", "radius": 18})
+        draft.save(update_fields=["appearance_config"])
+
+        boutique = appearance_registry.get_template("boutique")
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"), {"preview_template": "boutique"})
+        self.assertContains(resp, f"--sfb-radius:{boutique.radius}px")
 
 
 @override_settings(ALLOWED_HOSTS=["sfb-template-public.example.com", "testserver", HOST])
