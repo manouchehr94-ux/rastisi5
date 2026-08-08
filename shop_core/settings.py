@@ -324,12 +324,12 @@ LOGGING = {
 SHOP_FREE_SHIPPING_THRESHOLD = 500_000
 SHOP_TAX_PERCENT = 9
 
-# ظ‡ظˆغŒطھ ط¹ظ…ظˆظ…غŒ ظ¾ظ„طھظپط±ظ… (ظ†ظ‡ غŒع© ظپط±ظˆط´ظ†ط¯ظ‡â€ŒغŒ ط®ط§طµ) â€” ظ…ط·ط§ط¨ظ‚ ط§طµظ„ ط¬ظ†ط±غŒع©â€Œط¨ظˆط¯ظ† ط³ظ†ط¯ ظ…ط´ط®طµط§طھ
-SHOP_NAME = "ط¯غŒط¬غŒâ€Œظ…ط§ط±ع©طھ"
-SHOP_TAGLINE = "ظپط±ظˆط´ع¯ط§ظ‡ ط§غŒظ†طھط±ظ†طھغŒ ع†ظ†ط¯ظ…ظ†ط¸ظˆط±ظ‡"
+# هویت عمومی پلتفرم (نه یک فروشنده‌ی خاص) — مطابق اصل جنریک‌بودن سند مشخصات
+SHOP_NAME = "دیجی‌مارکت"
+SHOP_TAGLINE = "فروشگاه اینترنتی چندمنظوره"
 SHOP_CONTACT_PHONE = "021-91008877"
 SHOP_CONTACT_EMAIL = "info@digimarket.ir"
-SHOP_CONTACT_ADDRESS = "طھظ‡ط±ط§ظ†طŒ ط®غŒط§ط¨ط§ظ† ظˆظ„غŒط¹طµط±"
+SHOP_CONTACT_ADDRESS = "تهران، خیابان ولیعصر"
 
 # Platform admin-subdomain suffix (Phase 1B): a Store's stable merchant admin
 # host is f"{store.admin_subdomain}.{RASTISI_ADMIN_DOMAIN_SUFFIX}" â€” see
