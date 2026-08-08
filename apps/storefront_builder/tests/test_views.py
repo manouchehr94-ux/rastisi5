@@ -836,3 +836,59 @@ class HeaderFooterEditorTests(StorefrontBuilderViewsTestCase):
         draft = svc.get_or_create_draft(self.store)
         self.assertTrue(draft.footer_config["show_copyright"])
         self.assertFalse(draft.footer_config["show_about"])
+
+
+class RenderedPreviewIntegrationTests(StorefrontBuilderViewsTestCase):
+    """رندرِ واقعیِ HTML از طریقِ preview endpoint — نه صرفاً بررسیِ دیکشنریِ
+    context (که ``test_render_service.py`` انجام می‌دهد). این کلاس مشخصاً
+    برایِ گرفتنِ باگ‌هایی نوشته شده که فقط در سطحِ template اتفاق می‌افتند —
+    مثلاً یک context key که در سرویس درست ساخته می‌شود اما در
+    ``{% include ... with %}`` ی ``responsive_section_wrapper.html`` فراموش
+    شده باشد (این دقیقاً همان باگی بود که نبودِ این تست باعث شد فاش نشود)."""
+
+    def setUp(self):
+        super().setUp()
+        from io import BytesIO
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image
+
+        from apps.content.models import HeroSlide
+
+        buf = BytesIO()
+        Image.new("RGB", (800, 400), (10, 20, 30)).save(buf, "PNG")
+        self.img = SimpleUploadedFile("t.png", buf.getvalue(), content_type="image/png")
+
+        self.draft = svc.get_or_create_draft(self.store)
+        self.draft.sections.filter(section_key="hero_banner").delete()
+        self.hero_section = StorefrontSection.objects.create(
+            version=self.draft, section_key="hero_banner", order=900,
+            settings={"autoplay": False, "interval_ms": 4500, "show_arrows": True, "show_dots": True, "loop": True,
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        HeroSlide.objects.create(store=self.store, section=self.hero_section, title="اسلایدِ رندرشده", desktop_image=self.img, is_active=True)
+        HeroSlide.objects.create(store=self.store, section=self.hero_section, title="اسلایدِ دوم", desktop_image=self.img, is_active=True)
+
+    def test_hero_slider_settings_reach_the_rendered_html(self):
+        """اگر ``slider_settings`` در ``{% include with %}`` فراموش شود،
+        تمپلیت به مقدارِ پیش‌فرضِ ``{{ slider_settings.autoplay|yesno }}``
+        (رشته‌ی خالی) برمی‌گردد که به ``false`` تفسیر می‌شود — این تست فقط
+        وقتی رد می‌شود که واقعاً به مقدارِ *صحیحِ* ذخیره‌شده (این‌جا False)
+        برسد، نه به یک پیش‌فرضِ تصادفاً هم‌ارز."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "اسلایدِ رندرشده")
+        self.assertContains(resp, "autoplay: false")
+
+    def test_image_text_destination_link_reaches_rendered_html(self):
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="image_text", order=901,
+            settings={
+                "title": "عنوانِ تست", "body_html": "", "image_url": "https://example.com/x.png", "image_position": "right",
+                "destination": {"destination_type": "external", "destination_id": None,
+                                 "destination_external_url": "https://example.com/landing", "open_in_new_tab": False},
+                "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False},
+            },
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "https://example.com/landing")
