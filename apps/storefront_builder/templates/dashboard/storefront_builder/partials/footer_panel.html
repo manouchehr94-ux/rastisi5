@@ -17,15 +17,42 @@ validate_footer_config، فقط بدونِ خروج از سازنده. نسخه�
 
   <form method="post" action="{% url 'dashboard:storefront-builder-footer' %}">
     {% csrf_token %}
-    <div class="form-group"><label><input type="checkbox" name="show_about" {% if config.show_about %}checked{% endif %}> نمایش درباره فروشگاه</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_contact" {% if config.show_contact %}checked{% endif %}> نمایش اطلاعات تماس</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_quick_links" {% if config.show_quick_links %}checked{% endif %}> نمایش لینک‌های مفید</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_categories" {% if config.show_categories %}checked{% endif %}> نمایش لینک دسته‌بندی‌ها</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_social" {% if config.show_social %}checked{% endif %}> نمایش شبکه‌های اجتماعی</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_trust_badges" {% if config.show_trust_badges %}checked{% endif %}> نمایش نشان‌های اعتماد</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_payment_logos" {% if config.show_payment_logos %}checked{% endif %}> نمایش لوگوهای پرداخت</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_newsletter" {% if config.show_newsletter %}checked{% endif %}> نمایش خبرنامه</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_copyright" {% if config.show_copyright %}checked{% endif %}> نمایش کپی‌رایت</label></div>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_about" {% if config.show_about %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">🏬 درباره فروشگاه</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_contact" {% if config.show_contact %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">☎️ تماس با ما</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_quick_links" {% if config.show_quick_links %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">🔗 لینک‌های مهم</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_categories" {% if config.show_categories %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">🗂 دسته‌بندی‌ها</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_social" {% if config.show_social %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">📱 شبکه‌های اجتماعی</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_trust_badges" {% if config.show_trust_badges %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">🛡 نمادهای اعتماد</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_payment_logos" {% if config.show_payment_logos %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">💳 لوگوهای پرداخت</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_newsletter" {% if config.show_newsletter %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">✉️ خبرنامه</span></div>
+    </label>
+    <label class="toggle-field">
+      <input type="checkbox" name="show_copyright" {% if config.show_copyright %}checked{% endif %}>
+      <div class="toggle-content"><span class="toggle-title">©️ کپی‌رایت</span></div>
+    </label>
     <div class="field-help">محتوای هر بخش (متن، لینک‌ها، نشان‌ها، شبکه‌های اجتماعی) از تنظیمات زیر خوانده می‌شود — این فرم فقط نمایش/عدم‌نمایش هر بخش را در این چیدمان کنترل می‌کند.</div>
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات فوتر</button>
