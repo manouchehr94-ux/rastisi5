@@ -175,7 +175,11 @@ def storefront_section_settings(request, pk):
 
     context = {
         "section": section, "definition": definition, "field_errors": field_errors,
-        "supports_columns": section.section_key in section_registry.COLUMN_AWARE_SECTION_KEYS,
+        # فقط انواعی که واقعاً چیدمانِ پارامتری دارند کنترلِ «تعدادِ
+        # ستون‌ها» را می‌بینند (COLUMN_VISUAL_SECTION_KEYS، نه
+        # COLUMN_AWARE_SECTION_KEYS) — طبقِ فیکسِ فازِ D؛ به مستندسازیِ
+        # section_registry.py مراجعه شود.
+        "supports_columns": section.section_key in section_registry.COLUMN_VISUAL_SECTION_KEYS,
     }
     if section.section_key == "product_section":
         context.update(_product_section_picker_context(request, section))
@@ -193,6 +197,11 @@ def _extract_responsive_raw(request, section_key: str) -> dict:
         "hide_on_tablet": request.POST.get("show_on_tablet") != "on",
         "hide_on_mobile": request.POST.get("show_on_mobile") != "on",
     }
+    # عمداً روی مجموعه‌ی عمومی‌ترِ COLUMN_AWARE_SECTION_KEYS (نه
+    # COLUMN_VISUAL_SECTION_KEYSِ محدودترِ بالا) — قراردادِ ذخیره‌سازی
+    # باید عمومی/آینده‌نگر بماند؛ برایِ چهار نوعی که فعلاً کنترلِ UI
+    # ندارند، این فیلدها صرفاً در POST حاضر نیستند و
+    # validate_responsive_settings به‌طورِ امن پیش‌فرض را جایگزین می‌کند.
     if section_key in section_registry.COLUMN_AWARE_SECTION_KEYS:
         raw["desktop_columns"] = request.POST.get("desktop_columns")
         raw["tablet_columns"] = request.POST.get("tablet_columns")

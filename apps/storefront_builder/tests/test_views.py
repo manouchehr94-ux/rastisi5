@@ -403,12 +403,38 @@ class ResponsiveSettingsFormTests(StorefrontBuilderViewsTestCase):
         resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
         self.assertNotContains(resp, "تعداد ستون‌ها")
 
-    def test_column_controls_present_for_column_aware_type(self):
-        section = StorefrontSection.objects.create(version=self.draft, section_key="category_grid", order=0)
+    def test_column_controls_present_for_visually_functional_type(self):
+        """فقط product_section (تنها نوعی که الان چیدمانِ پارامتری واقعی
+        دارد) باید کنترلِ «تعداد ستون‌ها» را در فرم ببیند."""
+        section = StorefrontSection.objects.create(version=self.draft, section_key="product_section", order=0)
         resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
         self.assertContains(resp, "تعداد ستون‌ها")
 
-    def test_column_values_saved_for_category_grid(self):
+    def test_column_controls_absent_for_column_aware_but_visually_static_types(self):
+        """فیکسِ فازِ D — تستِ دستیِ کاربر روی Brand Carousel نشان داد
+        تغییرِ تعدادِ ستون هیچ اثرِ بصری‌ای ندارد؛ این چهار نوع همچنان
+        در ``COLUMN_AWARE_SECTION_KEYS`` (قراردادِ ذخیره‌سازیِ عمومی)
+        هستند اما دیگر نباید کنترلِ گمراه‌کننده را در UI نشان دهند."""
+        for section_key in ("category_grid", "multi_banner", "promo_cards", "brand_carousel"):
+            section = StorefrontSection.objects.create(version=self.draft, section_key=section_key, order=0)
+            resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+            self.assertNotContains(resp, "تعداد ستون‌ها", msg_prefix=f"section_key={section_key}")
+
+    def test_visibility_controls_still_present_for_column_aware_but_visually_static_types(self):
+        """نمایش/عدمِ‌نمایش per-device باید برایِ همه‌ی انواع (از جمله این
+        چهار نوع) همچنان کار کند — فقط کنترلِ ستون حذف شده، نه ریسپانسیوِ
+        نمایش."""
+        for section_key in ("category_grid", "multi_banner", "promo_cards", "brand_carousel"):
+            section = StorefrontSection.objects.create(version=self.draft, section_key=section_key, order=0)
+            resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+            self.assertContains(resp, "نمایش در:", msg_prefix=f"section_key={section_key}")
+            self.assertContains(resp, "show_on_mobile", msg_prefix=f"section_key={section_key}")
+
+    def test_column_values_still_saved_for_category_grid_despite_no_ui(self):
+        """قراردادِ ذخیره‌سازی عمداً عمومی می‌ماند (بخشِ ۵ مشخصاتِ فیکس) —
+        حتی بدونِ UI، اگر مقدار پست شود همچنان اعتبارسنجی/ذخیره می‌شود؛
+        این تفاوتِ «UI کنترل نمی‌کند» با «سرور اصلاً پشتیبانی نمی‌کند» را
+        روشن می‌کند."""
         section = StorefrontSection.objects.create(version=self.draft, section_key="category_grid", order=0)
         resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
             "show_on_desktop": "on", "show_on_tablet": "on", "show_on_mobile": "on",
@@ -419,6 +445,20 @@ class ResponsiveSettingsFormTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(section.settings["responsive"]["desktop_columns"], 3)
         self.assertEqual(section.settings["responsive"]["tablet_columns"], 2)
         self.assertEqual(section.settings["responsive"]["mobile_columns"], 1)
+
+    def test_category_grid_save_without_column_fields_uses_defaults(self):
+        """چون UI دیگر این فیلدها را برایِ category_grid پست نمی‌کند،
+        ذخیره‌ی معمولی (بدونِ desktop_columns/…) باید بدونِ خطا به
+        پیش‌فرض‌ها برگردد — نه کرش کند."""
+        section = StorefrontSection.objects.create(version=self.draft, section_key="category_grid", order=0)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "show_on_desktop": "on", "show_on_tablet": "on", "show_on_mobile": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["responsive"]["desktop_columns"], 4)
+        self.assertEqual(section.settings["responsive"]["tablet_columns"], 3)
+        self.assertEqual(section.settings["responsive"]["mobile_columns"], 2)
 
     def test_invalid_column_value_shows_error_and_does_not_save(self):
         section = StorefrontSection.objects.create(version=self.draft, section_key="category_grid", order=0)
