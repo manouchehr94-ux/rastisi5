@@ -65,18 +65,21 @@
 
       <div class="sfb-sidebar-section">
         <h4>افزودن بخش جدید</h4>
-        <div class="sfb-add-section-list">
-          {% for definition in section_definitions %}
-          {% if not definition.hidden_from_library %}
-          <button type="button" class="btn btn-sm sfb-add-btn"
-                  hx-post="{% url 'dashboard:storefront-builder-section-add' %}"
-                  hx-vals='{"section_key": "{{ definition.key }}"}'
-                  hx-target="#storefrontSectionList" hx-swap="outerHTML">
-            <span>{{ definition.icon }}</span> {{ definition.label_fa }}
-          </button>
-          {% endif %}
-          {% endfor %}
-        </div>
+        {% for category, definitions in section_library_groups %}
+        <details class="sfb-add-section-category" {% if forloop.first %}open{% endif %}>
+          <summary>{{ category }} <span class="tiny" style="color:var(--muted)">({{ definitions|length }})</span></summary>
+          <div class="sfb-add-section-list">
+            {% for definition in definitions %}
+            <button type="button" class="btn btn-sm sfb-add-btn"
+                    hx-post="{% url 'dashboard:storefront-builder-section-add' %}"
+                    hx-vals='{"section_key": "{{ definition.key }}"}'
+                    hx-target="#storefrontSectionList" hx-swap="outerHTML">
+              <span>{{ definition.icon }}</span> {{ definition.label_fa }}
+            </button>
+            {% endfor %}
+          </div>
+        </details>
+        {% endfor %}
       </div>
 
       {% if industry_installation %}

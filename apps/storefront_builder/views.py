@@ -43,6 +43,7 @@ def storefront_editor(request):
         "draft": draft,
         "sections": sections,
         "section_definitions": section_registry.list_definitions(),
+        "section_library_groups": section_registry.list_library_groups(),
         "versions": layout_service.list_versions(store),
         "industry_installation": industry_installation,
     }

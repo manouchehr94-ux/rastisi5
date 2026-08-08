@@ -96,12 +96,43 @@
   font-weight: 700;
 }
 
+.sfb-add-section-category {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 2px 8px;
+  margin-bottom: 8px;
+}
+
+.sfb-add-section-category summary {
+  cursor: pointer;
+  padding: 8px 2px;
+  font-size: 12.5px;
+  font-weight: 700;
+  list-style: none;
+}
+
+.sfb-add-section-category summary::-webkit-details-marker {
+  display: none;
+}
+
+.sfb-add-section-category summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-left: 6px;
+  transition: transform 0.15s;
+}
+
+.sfb-add-section-category[open] summary::before {
+  transform: rotate(90deg);
+}
+
 .sfb-add-section-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
   max-height: 260px;
   overflow-y: auto;
+  padding-bottom: 8px;
 }
 
 .sfb-add-btn {

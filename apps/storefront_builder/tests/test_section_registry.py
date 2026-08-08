@@ -3,6 +3,7 @@ from django.test import TestCase
 from apps.storefront_builder.section_registry import (
     COLUMN_AWARE_SECTION_KEYS,
     DESTINATION_AWARE_SECTION_KEYS,
+    SECTION_LIBRARY_CATEGORIES,
     SECTION_REGISTRY,
     DestinationSettingsError,
     ProductSectionSettingsError,
@@ -13,6 +14,7 @@ from apps.storefront_builder.section_registry import (
     get_definition,
     is_valid_section_key,
     list_definitions,
+    list_library_groups,
     validate_destination_settings,
     validate_responsive_settings,
 )
@@ -85,6 +87,34 @@ class SectionRegistryTests(TestCase):
         definitions = list_definitions()
         visible = [d for d in definitions if not d.hidden_from_library]
         self.assertGreater(len(visible), len(definitions) - 2)
+
+    def test_every_registered_definition_has_a_valid_library_category(self):
+        for definition in list_definitions():
+            self.assertIn(
+                definition.category_fa, SECTION_LIBRARY_CATEGORIES,
+                f"{definition.key} has an unregistered category_fa: {definition.category_fa!r}",
+            )
+
+    def test_library_groups_cover_every_visible_definition_exactly_once(self):
+        groups = list_library_groups()
+        category_names = [name for name, _members in groups]
+        self.assertEqual(category_names, sorted(category_names, key=SECTION_LIBRARY_CATEGORIES.index))
+
+        seen_keys = []
+        for _category, members in groups:
+            seen_keys.extend(d.key for d in members)
+        visible_keys = {d.key for d in list_definitions() if not d.hidden_from_library}
+        self.assertEqual(set(seen_keys), visible_keys)
+        self.assertEqual(len(seen_keys), len(set(seen_keys)))  # هیچ کلیدی دوبار ظاهر نمی‌شود
+
+    def test_library_groups_never_include_hidden_types(self):
+        groups = list_library_groups()
+        all_keys = {d.key for _category, members in groups for d in members}
+        self.assertNotIn("announcement_bar", all_keys)
+
+    def test_library_groups_never_render_an_empty_category(self):
+        for _category, members in list_library_groups():
+            self.assertGreater(len(members), 0)
 
     def test_validate_settings_rejects_non_dict(self):
         definition = get_definition("announcement_bar")

@@ -48,6 +48,11 @@ class SectionDefinition:
     #: دقیقاً همان قابلیت را به‌شکلِ واقعاً قابل‌تنظیم پوشش می‌دهد — طبقِ
     #: الزامِ صریحِ کار «هرگز کنترلی که اثری ندارد نشان داده نشود».
     hidden_from_library: bool = False
+    #: دسته‌بندیِ کسب‌وکاریِ کتابخانه‌ی «افزودن بخش جدید» (چکپوینتِ ۱۰) —
+    #: پنج گروهِ ثابت (نگاه کنید به ``SECTION_LIBRARY_CATEGORIES``)، نه
+    #: اصطلاحِ فنی/مدل. هر ورودی در ``_BASE_SECTION_REGISTRY`` صراحتاً
+    #: مقدار می‌دهد — پیش‌فرض اینجا صرفاً محدودیتِ dataclass را دور می‌زند.
+    category_fa: str = "محتوا"
 
 
 def _passthrough_dict(raw: dict) -> dict:
@@ -496,6 +501,11 @@ def _validate_image_text_settings(raw: dict) -> dict:
 
 # ---------------------------------------------------------------- ثبت انواع بخش
 
+#: ترتیبِ نمایشِ گروه‌هایِ کتابخانه‌ی «افزودن بخش جدید» (چکپوینتِ ۱۰) —
+#: پنج گروهِ کسب‌وکاریِ ثابت، نه اصطلاحِ فنی؛ ``category_fa`` هر
+#: ``SectionDefinition`` باید دقیقاً یکی از این‌ها باشد (تست می‌شود).
+SECTION_LIBRARY_CATEGORIES = ["محصولات", "تصاویر و تبلیغات", "کشف و خرید", "محتوا", "ساختار"]
+
 # تعاریف کامل settings-schema هر کلید در چکپوینت‌های ۱۱ تا ۱۴ (بنر/دسته/
 # محصول/متن غنی) اضافه می‌شود؛ اینجا فقط استخوان‌بندی allowlist با
 # اعتبارسنج‌های placeholder ایمن (رد هر چیز غیر-dict) ثبت می‌شود تا خودِ
@@ -505,7 +515,7 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         key="announcement_bar", label_fa="نوار اعلان", icon="megaphone",
         template_name="storefront_builder/sections/announcement_bar.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        max_instances=1, duplicable=False, removable=True,
+        max_instances=1, duplicable=False, removable=True, category_fa="ساختار",
         # پنهان از کتابخانه: تنظیماتِ «نوار اعلان» هدر (متن/فعال‌بودن،
         # همیشه بالای صفحه) همین قابلیت را به‌شکلِ واقعاً قابل‌تنظیم
         # پوشش می‌دهد (نگاه کنید به ``storefront_header_editor``) — این
@@ -518,98 +528,98 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         key="hero_banner", label_fa="اسلایدر اصلی", icon="image",
         template_name="storefront_builder/sections/hero_banner.html",
         validate_settings=_validate_slider_settings, default_settings=default_slider_settings,
-        duplicable=True, removable=True, has_settings_form=True,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="تصاویر و تبلیغات",
     ),
     "image_slider": SectionDefinition(
         key="image_slider", label_fa="اسلایدر تصویر", icon="images",
         template_name="storefront_builder/sections/image_slider.html",
         validate_settings=_validate_slider_settings, default_settings=default_slider_settings,
-        duplicable=True, removable=True, has_settings_form=True,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="تصاویر و تبلیغات",
     ),
     "single_banner": SectionDefinition(
         key="single_banner", label_fa="بنر تکی", icon="image",
         template_name="storefront_builder/sections/single_banner.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        duplicable=True, removable=True, category_fa="تصاویر و تبلیغات",
     ),
     "multi_banner": SectionDefinition(
         key="multi_banner", label_fa="ردیف چند بنری", icon="layout-grid",
         template_name="storefront_builder/sections/multi_banner.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        duplicable=True, removable=True, category_fa="تصاویر و تبلیغات",
     ),
     "category_grid": SectionDefinition(
         key="category_grid", label_fa="گرید دسته‌بندی", icon="grid",
         template_name="storefront_builder/sections/category_grid.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        duplicable=True, removable=True, category_fa="کشف و خرید",
     ),
     "featured_products": SectionDefinition(
         key="featured_products", label_fa="محصولات ویژه", icon="star",
         template_name="storefront_builder/sections/featured_products.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        duplicable=True, removable=True, category_fa="محصولات",
     ),
     "newest_products": SectionDefinition(
         key="newest_products", label_fa="جدیدترین محصولات", icon="sparkles",
         template_name="storefront_builder/sections/newest_products.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        duplicable=True, removable=True, category_fa="محصولات",
     ),
     "best_sellers": SectionDefinition(
         key="best_sellers", label_fa="پرفروش‌ترین‌ها", icon="trending-up",
         template_name="storefront_builder/sections/best_sellers.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        duplicable=True, removable=True, category_fa="محصولات",
     ),
     "discounted_products": SectionDefinition(
         key="discounted_products", label_fa="محصولات تخفیف‌دار", icon="percent",
         template_name="storefront_builder/sections/discounted_products.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        duplicable=True, removable=True, category_fa="محصولات",
     ),
     "amazing_offers": SectionDefinition(
         key="amazing_offers", label_fa="پیشنهادهای شگفت‌انگیز", icon="zap",
         template_name="storefront_builder/sections/amazing_offers.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        duplicable=True, removable=True, category_fa="محصولات",
     ),
     "brand_carousel": SectionDefinition(
         key="brand_carousel", label_fa="کاروسل برندها", icon="award",
         template_name="storefront_builder/sections/brand_carousel.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        duplicable=True, removable=True, category_fa="کشف و خرید",
     ),
     "promo_cards": SectionDefinition(
         key="promo_cards", label_fa="کارت‌های تبلیغاتی", icon="layout",
         template_name="storefront_builder/sections/promo_cards.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        duplicable=True, removable=True, category_fa="تصاویر و تبلیغات",
     ),
     "rich_text": SectionDefinition(
         key="rich_text", label_fa="متن غنی", icon="text",
         template_name="storefront_builder/sections/rich_text.html",
         validate_settings=_validate_rich_text_settings, default_settings=lambda: {"body_html": ""},
-        duplicable=True, removable=True, has_settings_form=True,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="محتوا",
     ),
     "image_text": SectionDefinition(
         key="image_text", label_fa="متن و تصویر", icon="image-plus",
         template_name="storefront_builder/sections/image_text.html",
         validate_settings=_validate_image_text_settings,
         default_settings=lambda: {"title": "", "body_html": "", "image_url": "", "image_position": "right"},
-        duplicable=True, removable=True, has_settings_form=True,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="محتوا",
     ),
     "product_section": SectionDefinition(
         key="product_section", label_fa="بخش محصولات", icon="shopping-bag",
         template_name="storefront_builder/sections/product_section.html",
         validate_settings=_validate_product_section_settings, default_settings=_product_section_defaults,
-        duplicable=True, removable=True, has_settings_form=True,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="محصولات",
     ),
     "trust_features": SectionDefinition(
         key="trust_features", label_fa="ردیف اعتماد و ویژگی‌ها", icon="shield-check",
         template_name="storefront_builder/sections/trust_features.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        max_instances=1, duplicable=False, removable=True,
+        max_instances=1, duplicable=False, removable=True, category_fa="ساختار",
     ),
 }
 
@@ -654,6 +664,20 @@ def get_definition(section_key: str) -> SectionDefinition:
 
 def list_definitions() -> list[SectionDefinition]:
     return list(SECTION_REGISTRY.values())
+
+
+def list_library_groups() -> list[tuple[str, list[SectionDefinition]]]:
+    """کتابخانه‌ی «افزودن بخش جدید» (چکپوینتِ ۱۰)، گروه‌بندی‌شده در پنج
+    دسته‌ی کسب‌وکاریِ ثابت (``SECTION_LIBRARY_CATEGORIES``) — نوع‌هایِ
+    ``hidden_from_library`` هرگز اینجا ظاهر نمی‌شوند (نمونه‌های موجودشان
+    هم‌چنان از ``list_definitions()`` کامل resolve می‌شوند). گروه‌هایِ
+    خالی حذف می‌شوند تا هرگز یک آکاردئونِ بی‌محتوا نشان داده نشود."""
+    groups: list[tuple[str, list[SectionDefinition]]] = []
+    for category in SECTION_LIBRARY_CATEGORIES:
+        members = [d for d in SECTION_REGISTRY.values() if d.category_fa == category and not d.hidden_from_library]
+        if members:
+            groups.append((category, members))
+    return groups
 
 
 def is_valid_section_key(section_key: str) -> bool:

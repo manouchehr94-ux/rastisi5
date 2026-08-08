@@ -39,6 +39,16 @@ class EditorAccessTests(StorefrontBuilderViewsTestCase):
         resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
         self.assertEqual(resp.status_code, 200)
 
+    def test_editor_add_section_library_is_grouped_by_business_category(self):
+        """چکپوینتِ ۱۰: کتابخانه‌ی «افزودن بخش جدید» باید در گروه‌های
+        کسب‌وکاری آکاردئونی نمایش داده شود، نه یک فهرستِ تخت."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        for category in ("محصولات", "تصاویر و تبلیغات", "کشف و خرید", "محتوا", "ساختار"):
+            self.assertContains(resp, category)
+        self.assertContains(resp, "sfb-add-section-category")
+        # نوارِ اعلانِ section نباید در کتابخانه ظاهر شود (چکپوینتِ ۹)
+        self.assertNotContains(resp, 'section_key": "announcement_bar"')
+
     def test_anonymous_denied(self):
         self.client.logout()
         resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
