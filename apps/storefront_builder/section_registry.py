@@ -417,6 +417,57 @@ def _with_destination(section_key: str, validate_fn, default_fn):
     return wrapped_validate, wrapped_default
 
 
+#: بازه‌یِ مجازِ فاصله‌یِ خودکارِ اسلایدر (میلی‌ثانیه) — enum بسته نیست
+#: (چون یک بازه‌یِ عددیِ معقول است، نه چند گزینه‌یِ مجزا)، اما clamp
+#: می‌شود تا هرگز مقدارِ نامعقول (خیلی سریع/خیلی کند) ذخیره نشود.
+_SLIDER_MIN_INTERVAL_MS = 2000
+_SLIDER_MAX_INTERVAL_MS = 10000
+_SLIDER_DEFAULT_INTERVAL_MS = 4500
+
+
+def _validate_slider_settings(raw: dict) -> dict:
+    """قراردادِ تنظیماتِ سطحِ اسلایدر (نه تک‌تکِ اسلایدها — آن‌ها روی خودِ
+    ``HeroSlide`` ذخیره می‌شوند) — برایِ ``hero_banner``/``image_slider``.
+    اسلایدهایِ خودِ section از طریقِ ``HeroSlide.section`` (نه اینجا)
+    مدیریت می‌شوند؛ این فقط رفتارِ نمایشِ اسلایدر را کنترل می‌کند."""
+    if not isinstance(raw, dict):
+        raise ValueError("تنظیمات باید یک شیء JSON باشد")
+
+    autoplay = raw.get("autoplay", True)
+    if not isinstance(autoplay, bool):
+        autoplay = bool(autoplay)
+
+    try:
+        interval_ms = int(raw.get("interval_ms", _SLIDER_DEFAULT_INTERVAL_MS))
+    except (TypeError, ValueError):
+        interval_ms = _SLIDER_DEFAULT_INTERVAL_MS
+    interval_ms = max(_SLIDER_MIN_INTERVAL_MS, min(_SLIDER_MAX_INTERVAL_MS, interval_ms))
+
+    show_arrows = raw.get("show_arrows", True)
+    if not isinstance(show_arrows, bool):
+        show_arrows = bool(show_arrows)
+
+    show_dots = raw.get("show_dots", True)
+    if not isinstance(show_dots, bool):
+        show_dots = bool(show_dots)
+
+    loop = raw.get("loop", True)
+    if not isinstance(loop, bool):
+        loop = bool(loop)
+
+    return {
+        "autoplay": autoplay, "interval_ms": interval_ms,
+        "show_arrows": show_arrows, "show_dots": show_dots, "loop": loop,
+    }
+
+
+def default_slider_settings() -> dict:
+    return {
+        "autoplay": True, "interval_ms": _SLIDER_DEFAULT_INTERVAL_MS,
+        "show_arrows": True, "show_dots": True, "loop": True,
+    }
+
+
 def _validate_image_text_settings(raw: dict) -> dict:
     if not isinstance(raw, dict):
         raise ValueError("تنظیمات باید یک شیء JSON باشد")
@@ -450,16 +501,16 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         max_instances=1, duplicable=False, removable=True,
     ),
     "hero_banner": SectionDefinition(
-        key="hero_banner", label_fa="بنر هیرو", icon="image",
+        key="hero_banner", label_fa="اسلایدر اصلی", icon="image",
         template_name="storefront_builder/sections/hero_banner.html",
-        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        max_instances=1, duplicable=False, removable=True,
+        validate_settings=_validate_slider_settings, default_settings=default_slider_settings,
+        duplicable=True, removable=True, has_settings_form=True,
     ),
     "image_slider": SectionDefinition(
         key="image_slider", label_fa="اسلایدر تصویر", icon="images",
         template_name="storefront_builder/sections/image_slider.html",
-        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True,
+        validate_settings=_validate_slider_settings, default_settings=default_slider_settings,
+        duplicable=True, removable=True, has_settings_form=True,
     ),
     "single_banner": SectionDefinition(
         key="single_banner", label_fa="بنر تکی", icon="image",

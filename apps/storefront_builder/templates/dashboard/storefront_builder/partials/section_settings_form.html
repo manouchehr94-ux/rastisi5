@@ -172,6 +172,64 @@
     </div>
   </form>
 
+  {% elif section.section_key == "hero_banner" or section.section_key == "image_slider" %}
+  <a href="{% url 'dashboard:storefront-builder-section-media-list' pk=section.pk kind='hero-slides' %}" class="btn btn-primary" style="width:100%;margin-bottom:14px;text-align:center;display:block">مدیریت اسلایدها ({{ section.hero_slides.count }})</a>
+  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+    {% csrf_token %}
+    {# عمداً «is not False» به‌جایِ فیلترِ «|default:True» — همان دلیلِ
+       مستندشده در ``models.py::effective_header_config``: |default مقدارِ
+       صریحِ False را هم falsy می‌گیرد و آن را با True override می‌کند. #}
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
+        <input type="checkbox" name="autoplay" {% if section.settings.autoplay is not False %}checked{% endif %}>
+        پخش خودکار
+      </label>
+    </div>
+    <div class="form-group">
+      <label for="id_interval_ms">فاصله‌ی پخش خودکار (میلی‌ثانیه)</label>
+      <input type="number" name="interval_ms" id="id_interval_ms" class="form-input" min="2000" max="10000" step="500" value="{{ section.settings.interval_ms|default:4500 }}">
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
+        <input type="checkbox" name="show_arrows" {% if section.settings.show_arrows is not False %}checked{% endif %}>
+        نمایش فلش‌های جابه‌جایی
+      </label>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
+        <input type="checkbox" name="show_dots" {% if section.settings.show_dots is not False %}checked{% endif %}>
+        نمایش نقطه‌های صفحه
+      </label>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
+        <input type="checkbox" name="loop" {% if section.settings.loop is not False %}checked{% endif %}>
+        چرخش پیوسته (بعد از آخرین اسلاید به اول برگردد)
+      </label>
+    </div>
+
+    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+    </div>
+  </form>
+
+  {% elif section.section_key == "single_banner" or section.section_key == "multi_banner" %}
+  <a href="{% url 'dashboard:storefront-builder-section-media-list' pk=section.pk kind='banners' %}" class="btn btn-primary" style="width:100%;margin-bottom:14px;text-align:center;display:block">مدیریت بنرها ({{ section.banners.count }})</a>
+  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+    {% csrf_token %}
+    <p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">تصویر/عنوان/لینکِ هر بنر از دکمه‌ی بالا مدیریت می‌شود.</p>
+
+    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+    </div>
+  </form>
+
   {% else %}
   <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
     {% csrf_token %}

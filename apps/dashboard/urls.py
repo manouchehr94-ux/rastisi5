@@ -1,5 +1,6 @@
 from django.urls import path
 
+from apps.storefront_builder import media_views as storefront_builder_media_views
 from apps.storefront_builder import views as storefront_builder_views
 
 from . import views
@@ -232,6 +233,13 @@ urlpatterns = [
     path("storefront-builder/apply-industry-layout/", storefront_builder_views.storefront_apply_industry_layout, name="storefront-builder-apply-industry-layout"),
     path("storefront-builder/history/", storefront_builder_views.storefront_history, name="storefront-builder-history"),
     path("storefront-builder/history/<int:pk>/restore/", storefront_builder_views.storefront_restore, name="storefront-builder-restore"),
+    path("storefront-builder/sections/<int:pk>/media/<str:kind>/", storefront_builder_media_views.storefront_section_media_list, name="storefront-builder-section-media-list"),
+    path("storefront-builder/sections/<int:pk>/media/<str:kind>/add/", storefront_builder_media_views.storefront_section_media_form, name="storefront-builder-section-media-add"),
+    path("storefront-builder/sections/<int:pk>/media/<str:kind>/<int:item_pk>/edit/", storefront_builder_media_views.storefront_section_media_form, name="storefront-builder-section-media-edit"),
+    path("storefront-builder/sections/<int:pk>/media/<str:kind>/<int:item_pk>/delete/", storefront_builder_media_views.storefront_section_media_delete, name="storefront-builder-section-media-delete"),
+    path("storefront-builder/sections/<int:pk>/media/<str:kind>/<int:item_pk>/toggle/", storefront_builder_media_views.storefront_section_media_toggle, name="storefront-builder-section-media-toggle"),
+    path("storefront-builder/sections/<int:pk>/media/<str:kind>/<int:item_pk>/move/", storefront_builder_media_views.storefront_section_media_move, name="storefront-builder-section-media-move"),
+    path("storefront-builder/sections/<int:pk>/media/<str:kind>/reorder/", storefront_builder_media_views.storefront_section_media_reorder, name="storefront-builder-section-media-reorder"),
 
     path("homepage/hero/", views.hero_list, name="hero-list"),
     path("homepage/hero/add/", views.hero_form, name="hero-add"),

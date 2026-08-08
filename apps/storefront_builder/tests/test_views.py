@@ -106,9 +106,9 @@ class SectionActionTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(self.draft.sections.count(), 0)
 
     def test_add_beyond_max_instances_rejected(self):
-        StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0)
-        self.client.post(reverse("dashboard:storefront-builder-section-add"), {"section_key": "hero_banner"})
-        self.assertEqual(self.draft.sections.filter(section_key="hero_banner").count(), 1)
+        StorefrontSection.objects.create(version=self.draft, section_key="announcement_bar", order=0)
+        self.client.post(reverse("dashboard:storefront-builder-section-add"), {"section_key": "announcement_bar"})
+        self.assertEqual(self.draft.sections.filter(section_key="announcement_bar").count(), 1)
 
     def test_remove_section(self):
         section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
@@ -221,9 +221,9 @@ class SectionActionTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(duplicate.settings["responsive"]["desktop_columns"], 6)
 
     def test_duplicate_non_duplicable_rejected(self):
-        section = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0)
+        section = StorefrontSection.objects.create(version=self.draft, section_key="announcement_bar", order=0)
         self.client.post(reverse("dashboard:storefront-builder-section-duplicate", args=[section.pk]))
-        self.assertEqual(self.draft.sections.filter(section_key="hero_banner").count(), 1)
+        self.assertEqual(self.draft.sections.filter(section_key="announcement_bar").count(), 1)
 
     def test_move_up(self):
         a = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)

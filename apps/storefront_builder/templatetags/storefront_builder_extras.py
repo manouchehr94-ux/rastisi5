@@ -23,3 +23,13 @@ def sanitize_rich_text(value):
     from apps.catalog.services.html_sanitizer import sanitize_product_description
 
     return mark_safe(sanitize_product_description(value or ""))
+
+
+@register.filter
+def getattribute(obj, attr_name):
+    """دسترسیِ پویا به یک attribute که نامش در یک متغیرِ تمپلیت است — برای
+    فرمِ عمومیِ رسانه (``section_media_form.html``) که فیلدِ متنیِ دوم
+    (``subtitle`` برایِ اسلاید، ``description`` برایِ بنر) بسته به ``kind``
+    فرق می‌کند؛ Django به‌طورِ پیش‌فرض فقط دسترسیِ attribute با نامِ ثابت
+    (نه متغیر) را در تمپلیت پشتیبانی می‌کند."""
+    return getattr(obj, attr_name, "")

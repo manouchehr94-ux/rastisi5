@@ -25,29 +25,57 @@ from . import section_data_service
 TILE_CLASSES = ["t1", "t2", "t3"]
 
 
-def _hero_banner_context(store, section):
-    slides = HeroSlide.objects.filter(store=store, is_active=True).select_related(
-        "destination_category", "destination_product", "destination_brand",
+_DESTINATION_SELECT_RELATED = (
+    "destination_category", "destination_product", "destination_brand", "destination_collection",
+)
+
+
+def _scoped_hero_slides(store, section):
+    """اسلایدهای *مخصوصِ همین نمونه* section (اگر مرچنت از داخل سازنده
+    بصری برایِ آن اسلاید اضافه کرده) — اگر این section هیچ اسلایدِ
+    اختصاصی نداشت، به اسلایدهای سراسریِ فروشگاه (section=None، رفتارِ
+    قدیمیِ پیش از این چکپوینت) برمی‌گردد. این دقیقاً همان مکانیزمی است که
+    اجازه می‌دهد دو نمونه‌ی اسلایدر مستقل (با اسلایدهای متفاوت) وجود
+    داشته باشند، بدون این‌که فروشگاه‌های قدیمی که هرگز این ویژگی را لمس
+    نکرده‌اند رفتارشان تغییر کند."""
+    scoped = HeroSlide.objects.filter(section=section, is_active=True).select_related(
+        *_DESTINATION_SELECT_RELATED,
     ).order_by("display_order", "id")
-    return {"hero_slides": slides}
+    if scoped.exists():
+        return scoped
+    return HeroSlide.objects.filter(store=store, section__isnull=True, is_active=True).select_related(
+        *_DESTINATION_SELECT_RELATED,
+    ).order_by("display_order", "id")
+
+
+def _hero_banner_context(store, section):
+    from ..section_registry import default_slider_settings
+
+    slider_settings = {**default_slider_settings(), **(section.settings or {})}
+    return {"hero_slides": _scoped_hero_slides(store, section), "slider_settings": slider_settings}
 
 
 def _image_slider_context(store, section):
     return _hero_banner_context(store, section)
 
 
+def _scoped_banners(store, section):
+    scoped = PromotionalBanner.objects.filter(section=section, is_active=True).select_related(
+        *_DESTINATION_SELECT_RELATED,
+    ).order_by("display_order", "id")
+    if scoped.exists():
+        return scoped
+    return PromotionalBanner.objects.filter(store=store, section__isnull=True, is_active=True).select_related(
+        *_DESTINATION_SELECT_RELATED,
+    ).order_by("display_order", "id")
+
+
 def _single_banner_context(store, section):
-    banners = PromotionalBanner.objects.filter(store=store, is_active=True).select_related(
-        "destination_category", "destination_product", "destination_brand",
-    ).order_by("display_order", "id")[:1]
-    return {"banners": banners}
+    return {"banners": _scoped_banners(store, section)[:1]}
 
 
 def _multi_banner_context(store, section):
-    banners = PromotionalBanner.objects.filter(store=store, is_active=True).select_related(
-        "destination_category", "destination_product", "destination_brand",
-    ).order_by("display_order", "id")
-    return {"banners": banners}
+    return {"banners": _scoped_banners(store, section)}
 
 
 def _category_grid_context(store, section):
@@ -165,7 +193,9 @@ def _product_section_context(store, section):
 #: ``build_render_items`` باید per-instance باشد، وگرنه دو نمونه‌ی
 #: تکرارشده (duplicable) با تنظیماتِ متفاوت (مثلاً دو کالکشنِ متفاوت)
 #: محتوایِ یکسان (نمونه‌ی اول) نشان می‌دهند.
-PER_INSTANCE_SECTION_KEYS = {"product_section", "image_text"}
+PER_INSTANCE_SECTION_KEYS = {
+    "product_section", "image_text", "hero_banner", "image_slider", "single_banner", "multi_banner",
+}
 
 
 _CONTEXT_BUILDERS = {

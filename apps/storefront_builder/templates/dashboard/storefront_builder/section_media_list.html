@@ -1,0 +1,14 @@
+{% extends "dashboard/base_admin.html" %}
+{% block title %}{{ config.label_plural }} — {{ section.section_key|section_label }} | پنل مدیریت{% endblock %}
+{% load storefront_builder_extras %}
+{% block page_title %}{{ config.label_plural }}{% endblock %}
+{% block page_sub %}این {{ config.label_plural }} فقط داخلِ همین بخش («{{ section.section_key|section_label }}») در صفحه‌ی اصلی نمایش داده می‌شوند{% endblock %}
+
+{% block content %}
+<div class="panel" style="margin-bottom:16px">
+  <a href="{% url 'dashboard:storefront-builder-editor' %}" class="btn btn-sm">← بازگشت به سازنده بصری</a>
+  <a href="{% url 'dashboard:storefront-builder-section-media-add' pk=section.pk kind=kind %}" class="btn btn-primary btn-sm" style="margin-inline-start:8px">+ افزودن {{ config.label }}</a>
+</div>
+
+{% include "dashboard/storefront_builder/partials/section_media_list_body.html" %}
+{% endblock %}

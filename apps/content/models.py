@@ -318,6 +318,17 @@ class HeroSlide(TimeStampedModel, DestinationMixin):
         related_name="hero_slides", null=True, blank=True,
         help_text="خالی یعنی رکورد قدیمی که هنوز به هیچ فروشگاهی نسبت داده نشده — در هیچ فروشگاهی نمایش داده نمی‌شود.",
     )
+    section = models.ForeignKey(
+        "storefront_builder.StorefrontSection", verbose_name="بخشِ سازنده بصری",
+        on_delete=models.CASCADE, null=True, blank=True, related_name="hero_slides",
+        help_text=(
+            "خالی یعنی اسلایدِ سراسریِ فروشگاه (رفتارِ قدیمی، پیش از سازنده بصری) — "
+            "هر section از نوع hero_banner/image_slider که خودش هیچ اسلایدِ اختصاصی "
+            "ندارد، همچنان همین اسلایدهای سراسری را نشان می‌دهد (سازگاریِ کامل با گذشته). "
+            "وقتی مرچنت از داخلِ سازنده بصری اسلاید اضافه می‌کند، این فیلد به همان section "
+            "مقداردهی می‌شود تا هر نمونه از این section بتواند اسلایدهای مستقلِ خودش را داشته باشد."
+        ),
+    )
     title = models.CharField("عنوان", max_length=200, blank=True)
     subtitle = models.CharField("زیرعنوان", max_length=300, blank=True)
     desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/hero/", validators=[validate_image_size, validate_image_content])
@@ -350,6 +361,15 @@ class PromotionalBanner(TimeStampedModel, DestinationMixin):
         "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE,
         related_name="promotional_banners", null=True, blank=True,
         help_text="خالی یعنی رکورد قدیمی که هنوز به هیچ فروشگاهی نسبت داده نشده — در هیچ فروشگاهی نمایش داده نمی‌شود.",
+    )
+    section = models.ForeignKey(
+        "storefront_builder.StorefrontSection", verbose_name="بخشِ سازنده بصری",
+        on_delete=models.CASCADE, null=True, blank=True, related_name="banners",
+        help_text=(
+            "خالی یعنی بنرِ سراسریِ فروشگاه (رفتارِ قدیمی) — هر section از نوع "
+            "single_banner/multi_banner که خودش هیچ بنرِ اختصاصی ندارد، همچنان "
+            "همین بنرهای سراسری را نشان می‌دهد."
+        ),
     )
     title = models.CharField("عنوان", max_length=200, blank=True)
     description = models.CharField("توضیحات", max_length=500, blank=True)

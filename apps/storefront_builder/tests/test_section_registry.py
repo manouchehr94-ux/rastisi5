@@ -55,13 +55,22 @@ class SectionRegistryTests(TestCase):
         self.assertEqual(len(list_definitions()), len(SECTION_REGISTRY))
 
     def test_singleton_sections_capped_at_one(self):
-        for key in ("announcement_bar", "hero_banner", "trust_features"):
+        # hero_banner دیگر singleton نیست (چکپوینتِ اسلایدرِ اصلی) — یک
+        # مرچنت باید بتواند چند نمونه‌ی مستقل از اسلایدر داشته باشد.
+        for key in ("announcement_bar", "trust_features"):
             definition = get_definition(key)
             self.assertEqual(definition.max_instances, 1)
             self.assertFalse(definition.duplicable)
 
-    def test_validate_settings_rejects_non_dict(self):
+    def test_hero_banner_is_now_duplicable(self):
+        """اسلایدر اصلی باید بتواند چند نمونه‌ی مستقل (با اسلایدهای
+        متفاوت) داشته باشد — نگاه کنید به ``HeroSlide.section``."""
         definition = get_definition("hero_banner")
+        self.assertTrue(definition.duplicable)
+        self.assertIsNone(definition.max_instances)
+
+    def test_validate_settings_rejects_non_dict(self):
+        definition = get_definition("announcement_bar")
         with self.assertRaises(ValueError):
             definition.validate_settings("not a dict")
 
@@ -69,7 +78,7 @@ class SectionRegistryTests(TestCase):
         """از فازِ D به بعد، خروجیِ هر validate_settings همیشه یک بلوکِ
         ``responsive`` پیش‌فرض (نمایان همه‌جا) هم دارد — بدونِ تغییرِ
         رفتارِ خودِ منطقِ passthrough."""
-        definition = get_definition("hero_banner")
+        definition = get_definition("announcement_bar")
         result = definition.validate_settings({"foo": "bar"})
         self.assertEqual(result["foo"], "bar")
         self.assertEqual(result["responsive"], {

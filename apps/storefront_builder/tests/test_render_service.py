@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from PIL import Image
 
-from apps.content.models import HeroSlide
+from apps.content.models import HeroSlide, PromotionalBanner
 from apps.storefront_builder.models import StorefrontSection
 from apps.storefront_builder.services import layout_service as svc
 from apps.storefront_builder.services.render_service import build_render_items
@@ -230,3 +230,124 @@ class ProductSectionRenderTests(TestCase):
         # می‌زند (خودِ resolve + prefetch تصاویر) — نه یک کوئری به‌ازایِ
         # هر کالای اضافه‌شده.
         self.assertLessEqual(double_count - single_count, 4)
+
+
+class ScopedHeroSlidesTests(TestCase):
+    """چکپوینتِ ادغامِ اسلایدرِ اصلی در سازنده بصری — اسلایدهایِ مخصوصِ یک
+    section در برابرِ fallback به اسلایدهایِ سراسری (رفتارِ قدیمی)."""
+
+    def setUp(self):
+        cache.clear()
+
+    def _items_for(self, draft, store, section_key):
+        items = build_render_items(draft, store)
+        return next(i for i in items if i["section"].section_key == section_key)
+
+    def test_legacy_global_slides_still_render_when_section_has_none_scoped(self):
+        """سازگاریِ کامل با گذشته: یک section جدید بدونِ اسلایدِ اختصاصی
+        باید همچنان اسلایدهایِ سراسریِ فروشگاه (section=None) را نشان دهد."""
+        store = _akhlaghi()
+        HeroSlide.objects.create(store=store, section=None, title="اسلایدِ سراسری", desktop_image=_img(), is_active=True)
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="hero_banner").delete()
+        section = StorefrontSection.objects.create(version=draft, section_key="hero_banner", order=900)
+        item = self._items_for(draft, store, "hero_banner")
+        self.assertEqual(item["context"]["section"].pk, section.pk)
+        titles = [s.title for s in item["context"]["hero_slides"]]
+        self.assertIn("اسلایدِ سراسری", titles)
+
+    def test_scoped_slides_take_priority_over_global(self):
+        store = _akhlaghi()
+        HeroSlide.objects.create(store=store, section=None, title="سراسری", desktop_image=_img(), is_active=True)
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="hero_banner").delete()
+        section = StorefrontSection.objects.create(version=draft, section_key="hero_banner", order=900)
+        HeroSlide.objects.create(store=store, section=section, title="اختصاصی", desktop_image=_img(), is_active=True)
+        item = self._items_for(draft, store, "hero_banner")
+        titles = [s.title for s in item["context"]["hero_slides"]]
+        self.assertEqual(titles, ["اختصاصی"])
+
+    def test_two_independent_hero_sections_show_different_slides(self):
+        """الزامِ صریحِ کار: «Hero Slider A و Hero Slider B با اسلایدهایِ
+        متفاوت» — قلبِ چکپوینتِ اسلایدرِ اصلی."""
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        section_a = StorefrontSection.objects.create(version=draft, section_key="hero_banner", order=900)
+        section_b = StorefrontSection.objects.create(version=draft, section_key="hero_banner", order=901)
+        HeroSlide.objects.create(store=store, section=section_a, title="A1", desktop_image=_img(), is_active=True)
+        HeroSlide.objects.create(store=store, section=section_b, title="B1", desktop_image=_img(), is_active=True)
+
+        items = build_render_items(draft, store)
+        hero_items = [i for i in items if i["section"].section_key == "hero_banner"]
+        self.assertEqual(len(hero_items), 2)
+        titles_by_section = {
+            i["context"]["section"].pk: [s.title for s in i["context"]["hero_slides"]] for i in hero_items
+        }
+        self.assertEqual(titles_by_section[section_a.pk], ["A1"])
+        self.assertEqual(titles_by_section[section_b.pk], ["B1"])
+
+    def test_slider_settings_default_when_settings_empty(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        StorefrontSection.objects.create(version=draft, section_key="hero_banner", order=900, settings={})
+        item = self._items_for(draft, store, "hero_banner")
+        self.assertIs(item["context"]["slider_settings"]["autoplay"], True)
+        self.assertEqual(item["context"]["slider_settings"]["interval_ms"], 4500)
+
+    def test_slider_settings_explicit_false_preserved(self):
+        """همان دلیلِ ``effective_header_config`` — False صریح نباید با
+        پیش‌فرضِ True بازنویسی شود."""
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        StorefrontSection.objects.create(
+            version=draft, section_key="hero_banner", order=900,
+            settings={"autoplay": False, "interval_ms": 4500, "show_arrows": True, "show_dots": True, "loop": True},
+        )
+        item = self._items_for(draft, store, "hero_banner")
+        self.assertIs(item["context"]["slider_settings"]["autoplay"], False)
+
+    def test_inactive_scoped_slide_falls_back_to_global(self):
+        """اگر تنها اسلایدِ اختصاصیِ یک section غیرفعال شود، باید دقیقاً
+        مثلِ «هیچ اسلایدِ اختصاصی ندارد» رفتار شود (fail-closed، نه بومِ
+        خالی) — نه نمایشِ خالی و نه نمایشِ اسلایدِ غیرفعال."""
+        store = _akhlaghi()
+        HeroSlide.objects.create(store=store, section=None, title="سراسری", desktop_image=_img(), is_active=True)
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="hero_banner").delete()
+        section = StorefrontSection.objects.create(version=draft, section_key="hero_banner", order=900)
+        HeroSlide.objects.create(store=store, section=section, title="غیرفعال", desktop_image=_img(), is_active=False)
+        item = self._items_for(draft, store, "hero_banner")
+        titles = [s.title for s in item["context"]["hero_slides"]]
+        self.assertEqual(titles, ["سراسری"])
+
+
+class ScopedBannersTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def test_two_multi_banner_sections_show_different_banners(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        section_a = StorefrontSection.objects.create(version=draft, section_key="multi_banner", order=900)
+        section_b = StorefrontSection.objects.create(version=draft, section_key="multi_banner", order=901)
+        PromotionalBanner.objects.create(store=store, section=section_a, title="بنر A", desktop_image=_img(), is_active=True)
+        PromotionalBanner.objects.create(store=store, section=section_b, title="بنر B", desktop_image=_img(), is_active=True)
+
+        items = build_render_items(draft, store)
+        banner_items = [i for i in items if i["section"].section_key == "multi_banner"]
+        titles_by_section = {
+            i["context"]["section"].pk: [b.title for b in i["context"]["banners"]] for i in banner_items
+        }
+        self.assertEqual(titles_by_section[section_a.pk], ["بنر A"])
+        self.assertEqual(titles_by_section[section_b.pk], ["بنر B"])
+
+    def test_single_banner_takes_first_scoped_banner_only(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        section = StorefrontSection.objects.create(version=draft, section_key="single_banner", order=900)
+        PromotionalBanner.objects.create(store=store, section=section, title="اول", desktop_image=_img(), is_active=True, display_order=0)
+        PromotionalBanner.objects.create(store=store, section=section, title="دوم", desktop_image=_img(), is_active=True, display_order=1)
+        items = build_render_items(draft, store)
+        item = next(i for i in items if i["section"].section_key == "single_banner")
+        titles = [b.title for b in item["context"]["banners"]]
+        self.assertEqual(titles, ["اول"])

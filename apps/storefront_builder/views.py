@@ -159,6 +159,14 @@ def storefront_section_settings(request, pk):
             }
         elif section.section_key == "rich_text":
             raw = {"body_html": request.POST.get("body_html", "")}
+        elif section.section_key in ("hero_banner", "image_slider"):
+            raw = {
+                "autoplay": request.POST.get("autoplay") == "on",
+                "interval_ms": request.POST.get("interval_ms", ""),
+                "show_arrows": request.POST.get("show_arrows") == "on",
+                "show_dots": request.POST.get("show_dots") == "on",
+                "loop": request.POST.get("loop") == "on",
+            }
         else:
             # انواعی که هیچ فیلدِ اختصاصیِ خودشان را ندارند (فازِ D) —
             # تنها چیزی که این فرم برایشان دارد بلوکِ responsive است.
