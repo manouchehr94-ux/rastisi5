@@ -6,6 +6,15 @@ Preview-only intentional-difference policy.
 {% endcomment %}
 {% with fc=footer_config %}
 <footer class="footer"><div class="wrap">
+  {% if fc.show_newsletter and FOOTER_SETTINGS.show_newsletter %}
+  <div class="news">
+    <div><h3>{% if FOOTER_SETTINGS.newsletter_title %}{{ FOOTER_SETTINGS.newsletter_title }}{% else %}📬 عضویت در خبرنامه{% endif %}</h3><p>{% if FOOTER_SETTINGS.newsletter_description %}{{ FOOTER_SETTINGS.newsletter_description }}{% else %}از جدیدترین تخفیف‌ها و محصولات باخبر شوید{% endif %}</p></div>
+    <form @submit.prevent="$el.reset()">
+      <input type="email" placeholder="ایمیل خود را وارد کنید" disabled>
+      <button type="button" disabled>به‌زودی</button>
+    </form>
+  </div>
+  {% endif %}
   <div class="cols">
     {% if fc.show_about %}
     <div class="about">

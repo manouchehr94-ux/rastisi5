@@ -54,6 +54,24 @@
       </div>
       <span class="sfb-appearance-action">شخصی‌سازی ←</span>
     </button>
+
+    <button type="button" class="sfb-appearance-card"
+            hx-get="{% url 'dashboard:storefront-builder-header' %}" hx-target="#sfbAppearancePanel" hx-swap="innerHTML">
+      <div>
+        <span class="sfb-appearance-kicker">هدر فروشگاه</span>
+        <strong>جستجو، حساب کاربری، سبد خرید و نوار اعلان</strong>
+      </div>
+      <span class="sfb-appearance-action">ویرایش هدر ←</span>
+    </button>
+
+    <button type="button" class="sfb-appearance-card"
+            hx-get="{% url 'dashboard:storefront-builder-footer' %}" hx-target="#sfbAppearancePanel" hx-swap="innerHTML">
+      <div>
+        <span class="sfb-appearance-kicker">فوتر فروشگاه</span>
+        <strong>ستون‌های فوتر و نمایش هرکدام</strong>
+      </div>
+      <span class="sfb-appearance-action">ویرایش فوتر ←</span>
+    </button>
   </div>
 
   <div x-show="view === 'palettes'">

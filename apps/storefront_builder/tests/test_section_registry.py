@@ -69,6 +69,23 @@ class SectionRegistryTests(TestCase):
         self.assertTrue(definition.duplicable)
         self.assertIsNone(definition.max_instances)
 
+    def test_announcement_bar_is_hidden_from_add_section_library(self):
+        """چکپوینتِ ۹: نوارِ اعلانِ section (متنِ سخت‌کدشده، بدونِ تنظیماتِ
+        واقعی) با تنظیماتِ نوارِ اعلانِ هدر (متن/فعال‌بودنِ واقعاً
+        قابل‌تنظیم) هم‌پوشانی داشت — امکانِ ساختِ نمونه‌ی *جدید* از این
+        نوع پنهان شده تا مرچنت به‌جایش از تنظیماتِ هدر استفاده کند؛
+        نمونه‌های قدیمیِ موجود هم‌چنان کاملاً کار می‌کنند (تغییر نکرده)."""
+        definition = get_definition("announcement_bar")
+        self.assertTrue(definition.hidden_from_library)
+        self.assertTrue(definition.removable)
+        # منطقِ render/validate/default دست‌نخورده مانده — فقط از کتابخانه پنهان است
+        self.assertEqual(definition.validate_settings({"foo": "bar"})["foo"], "bar")
+
+    def test_most_sections_are_not_hidden_from_library(self):
+        definitions = list_definitions()
+        visible = [d for d in definitions if not d.hidden_from_library]
+        self.assertGreater(len(visible), len(definitions) - 2)
+
     def test_validate_settings_rejects_non_dict(self):
         definition = get_definition("announcement_bar")
         with self.assertRaises(ValueError):

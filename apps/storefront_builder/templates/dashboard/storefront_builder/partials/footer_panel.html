@@ -1,0 +1,47 @@
+{% comment %}
+نسخه‌ی «داخل سازنده»‌یِ ویرایشِ فوتر — دقیقاً همان فرم/همان ویو/همان
+validate_footer_config، فقط بدونِ خروج از سازنده. نسخه‌ی تمام‌صفحه
+(``footer_editor.html``) هم‌چنان برایِ دسترسیِ مستقیم/URL باقی می‌ماند.
+{% endcomment %}
+<div class="sfb-appearance-panel">
+  <button type="button" class="btn btn-ghost btn-sm"
+          hx-get="{% url 'dashboard:storefront-builder-appearance' %}" hx-target="#sfbAppearancePanel" hx-swap="innerHTML">← بازگشت</button>
+
+  <div class="sfb-appearance-intro">
+    <strong>فوتر فروشگاه</strong>
+    <p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">نمایش/عدم‌نمایش هر ستون فوتر در این چیدمان — تغییرات فقط در پیش‌نویس اعمال می‌شوند.</p>
+  </div>
+
+  {% if error %}
+  <div class="form-error" role="alert" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin:12px 0">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="{% url 'dashboard:storefront-builder-footer' %}">
+    {% csrf_token %}
+    <div class="form-group"><label><input type="checkbox" name="show_about" {% if config.show_about %}checked{% endif %}> نمایش درباره فروشگاه</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_contact" {% if config.show_contact %}checked{% endif %}> نمایش اطلاعات تماس</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_quick_links" {% if config.show_quick_links %}checked{% endif %}> نمایش لینک‌های مفید</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_categories" {% if config.show_categories %}checked{% endif %}> نمایش لینک دسته‌بندی‌ها</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_social" {% if config.show_social %}checked{% endif %}> نمایش شبکه‌های اجتماعی</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_trust_badges" {% if config.show_trust_badges %}checked{% endif %}> نمایش نشان‌های اعتماد</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_payment_logos" {% if config.show_payment_logos %}checked{% endif %}> نمایش لوگوهای پرداخت</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_newsletter" {% if config.show_newsletter %}checked{% endif %}> نمایش خبرنامه</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_copyright" {% if config.show_copyright %}checked{% endif %}> نمایش کپی‌رایت</label></div>
+    <div class="field-help">محتوای هر بخش (متن، لینک‌ها، نشان‌ها، شبکه‌های اجتماعی) از تنظیمات زیر خوانده می‌شود — این فرم فقط نمایش/عدم‌نمایش هر بخش را در این چیدمان کنترل می‌کند.</div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات فوتر</button>
+    </div>
+  </form>
+
+  <div class="sfb-appearance-intro" style="margin-top:22px">
+    <strong>محتوای فوتر</strong>
+    <p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">
+      متن درباره/تماس، خبرنامه، نشان‌های اعتماد و لوگوهای پرداخت هویتِ زنده‌ی فروشگاه‌اند
+      (نه بخشی از پیش‌نویس/انتشار سازنده) — همیشه فوری روی فروشگاه اعمال می‌شوند.
+    </p>
+  </div>
+  <a href="{% url 'dashboard:footer-settings' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش متن و خبرنامه فوتر</a>
+  <a href="{% url 'dashboard:footer-trust-badge-list' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش نشان‌های اعتماد</a>
+  <a href="{% url 'dashboard:footer-payment-logo-list' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش لوگوهای پرداخت</a>
+  <a href="{% url 'dashboard:menu-list' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش لینک‌های مفید فوتر</a>
+</div>

@@ -845,6 +845,36 @@ class HeaderFooterEditorTests(StorefrontBuilderViewsTestCase):
         self.assertTrue(draft.footer_config["show_copyright"])
         self.assertFalse(draft.footer_config["show_about"])
 
+    def test_header_editor_htmx_request_renders_embeddable_panel_not_full_page(self):
+        """چکپوینتِ ۹: هدر باید بدونِ خروج از سازنده قابل‌ویرایش باشد —
+        درخواستِ htmx باید فرگمنتِ داخلِ سازنده (بدونِ چیدمانِ کاملِ
+        base_admin) برگرداند، نه صفحه‌ی مستقلِ قدیمی."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-header"), HTTP_HX_REQUEST="true")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "هدر فروشگاه")
+        self.assertNotContains(resp, "بازگشت به ادیتور")
+
+    def test_header_editor_non_htmx_request_still_renders_full_page(self):
+        """درخواستِ مستقیمِ URL (بدونِ htmx) هم‌چنان صفحه‌ی کامل را
+        برمی‌گرداند — سازگاریِ کامل با مسیرِ قدیمی."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-header"))
+        self.assertContains(resp, "بازگشت به ادیتور")
+
+    def test_footer_editor_htmx_request_renders_embeddable_panel_not_full_page(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-footer"), HTTP_HX_REQUEST="true")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "فوتر فروشگاه")
+        self.assertNotContains(resp, "بازگشت به ادیتور")
+
+    def test_footer_editor_non_htmx_request_still_renders_full_page(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-footer"))
+        self.assertContains(resp, "بازگشت به ادیتور")
+
+    def test_header_and_footer_reachable_from_appearance_hub_without_leaving_builder(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-appearance"))
+        self.assertContains(resp, reverse("dashboard:storefront-builder-header"))
+        self.assertContains(resp, reverse("dashboard:storefront-builder-footer"))
+
 
 class RenderedPreviewIntegrationTests(StorefrontBuilderViewsTestCase):
     """رندرِ واقعیِ HTML از طریقِ preview endpoint — نه صرفاً بررسیِ دیکشنریِ

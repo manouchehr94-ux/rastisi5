@@ -41,6 +41,13 @@ class SectionDefinition:
     #: دستی در registry تنظیم نمی‌شود، بلکه توسطِ ``_finalize_registry``
     #: پایینِ همین فایل، یکنواخت روی True قرار می‌گیرد.
     has_settings_form: bool = False
+    #: اگر True، این نوع در کتابخانه‌ی «افزودن بخش جدید» نمایش داده
+    #: نمی‌شود (نمونه‌های موجود دست‌نخورده می‌مانند — رندر/تنظیمات/حذف
+    #: کاملاً کار می‌کنند، فقط امکانِ ساختنِ نمونه‌ی *جدید* پنهان است).
+    #: مورد استفاده: وقتی یک نوعِ دیگر (اینجا: تنظیماتِ نوارِ اعلانِ هدر)
+    #: دقیقاً همان قابلیت را به‌شکلِ واقعاً قابل‌تنظیم پوشش می‌دهد — طبقِ
+    #: الزامِ صریحِ کار «هرگز کنترلی که اثری ندارد نشان داده نشود».
+    hidden_from_library: bool = False
 
 
 def _passthrough_dict(raw: dict) -> dict:
@@ -499,6 +506,13 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         template_name="storefront_builder/sections/announcement_bar.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
         max_instances=1, duplicable=False, removable=True,
+        # پنهان از کتابخانه: تنظیماتِ «نوار اعلان» هدر (متن/فعال‌بودن،
+        # همیشه بالای صفحه) همین قابلیت را به‌شکلِ واقعاً قابل‌تنظیم
+        # پوشش می‌دهد (نگاه کنید به ``storefront_header_editor``) — این
+        # نوعِ section هرگز settings واقعی نداشته (فقط متنِ سخت‌کدشده)،
+        # پس امکانِ ساختِ نمونه‌ی جدید از آن گمراه‌کننده است. نمونه‌های
+        # قدیمیِ موجود کاملاً دست‌نخورده و کارکردی می‌مانند.
+        hidden_from_library=True,
     ),
     "hero_banner": SectionDefinition(
         key="hero_banner", label_fa="اسلایدر اصلی", icon="image",

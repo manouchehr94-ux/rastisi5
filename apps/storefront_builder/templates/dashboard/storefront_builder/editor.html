@@ -52,8 +52,10 @@
     <aside class="sfb-sidebar" x-show="mainTab === 'page'">
       <div class="sfb-sidebar-section">
         <h4>هدر و فوتر</h4>
-        <a href="{% url 'dashboard:storefront-builder-header' %}" class="btn btn-sm" style="width:100%">ویرایش هدر</a>
-        <a href="{% url 'dashboard:storefront-builder-footer' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش فوتر</a>
+        <button type="button" class="btn btn-sm" style="width:100%" @click="mainTab = 'appearance'"
+                hx-get="{% url 'dashboard:storefront-builder-header' %}" hx-target="#sfbAppearancePanel" hx-swap="innerHTML">ویرایش هدر</button>
+        <button type="button" class="btn btn-sm" style="width:100%;margin-top:6px" @click="mainTab = 'appearance'"
+                hx-get="{% url 'dashboard:storefront-builder-footer' %}" hx-target="#sfbAppearancePanel" hx-swap="innerHTML">ویرایش فوتر</button>
       </div>
 
       <div class="sfb-sidebar-section">
@@ -65,12 +67,14 @@
         <h4>افزودن بخش جدید</h4>
         <div class="sfb-add-section-list">
           {% for definition in section_definitions %}
+          {% if not definition.hidden_from_library %}
           <button type="button" class="btn btn-sm sfb-add-btn"
                   hx-post="{% url 'dashboard:storefront-builder-section-add' %}"
                   hx-vals='{"section_key": "{{ definition.key }}"}'
                   hx-target="#storefrontSectionList" hx-swap="outerHTML">
             <span>{{ definition.icon }}</span> {{ definition.label_fa }}
           </button>
+          {% endif %}
           {% endfor %}
         </div>
       </div>

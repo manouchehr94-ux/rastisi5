@@ -604,7 +604,12 @@ def storefront_header_editor(request):
         messages.success(request, "تنظیمات هدر ذخیره شد")
         return redirect("dashboard:storefront-builder-editor")
 
-    return render(request, "dashboard/storefront_builder/header_editor.html", {
+    template_name = (
+        "dashboard/storefront_builder/partials/header_panel.html"
+        if request.headers.get("HX-Request") == "true"
+        else "dashboard/storefront_builder/header_editor.html"
+    )
+    return render(request, template_name, {
         "active_page": "storefront_builder", "config": draft.effective_header_config(), "draft": draft,
     })
 
@@ -630,7 +635,12 @@ def storefront_footer_editor(request):
         messages.success(request, "تنظیمات فوتر ذخیره شد")
         return redirect("dashboard:storefront-builder-editor")
 
-    return render(request, "dashboard/storefront_builder/footer_editor.html", {
+    template_name = (
+        "dashboard/storefront_builder/partials/footer_panel.html"
+        if request.headers.get("HX-Request") == "true"
+        else "dashboard/storefront_builder/footer_editor.html"
+    )
+    return render(request, template_name, {
         "active_page": "storefront_builder", "config": draft.effective_footer_config(), "draft": draft,
     })
 
