@@ -164,6 +164,8 @@ def storefront_section_settings(request, pk):
             # تنها چیزی که این فرم برایشان دارد بلوکِ responsive است.
             raw = {}
         raw["responsive"] = _extract_responsive_raw(request, section.section_key)
+        if section.section_key in section_registry.DESTINATION_AWARE_SECTION_KEYS:
+            raw["destination"] = _extract_destination_raw(request)
         try:
             cleaned = definition.validate_settings(raw)
             section.settings = cleaned
@@ -183,7 +185,56 @@ def storefront_section_settings(request, pk):
     }
     if section.section_key == "product_section":
         context.update(_product_section_picker_context(request, section))
+    if section.section_key in section_registry.DESTINATION_AWARE_SECTION_KEYS:
+        context.update(_destination_picker_context(request, section))
     return render(request, "dashboard/storefront_builder/partials/section_settings_form.html", context)
+
+
+def _extract_destination_raw(request) -> dict:
+    """بلوکِ خامِ «لینک این بخش» را از POST می‌خواند — یک بار نوشته شده،
+    توسطِ هر نوع سکشنِ عضوِ ``DESTINATION_AWARE_SECTION_KEYS`` استفاده
+    می‌شود. فرمِ ادیتور یک ``<select name="destination_type">`` مشترک دارد
+    و بسته به مقدارش، یکی از چهار فیلدِ ``destination_*_id`` را پر می‌کند —
+    اینجا همان یکیِ متناظر با نوعِ انتخاب‌شده به ``destination_id`` عمومی
+    نگاشت می‌شود."""
+    dtype = request.POST.get("destination_type", "none")
+    id_field_by_type = {
+        "category": "destination_category_id",
+        "brand": "destination_brand_id",
+        "collection": "destination_collection_id",
+        "product": "destination_product_id",
+    }
+    destination_id = None
+    if dtype in id_field_by_type:
+        destination_id = request.POST.get(id_field_by_type[dtype]) or None
+    return {
+        "destination_type": dtype,
+        "destination_id": destination_id,
+        "destination_external_url": request.POST.get("destination_external_url", ""),
+        "open_in_new_tab": request.POST.get("open_in_new_tab") == "on",
+    }
+
+
+def _destination_picker_context(request, section) -> dict:
+    """کالکشن‌ها/دسته‌بندی‌ها/برندهایِ همین Store برایِ کشوهای انتخابِ
+    مقصدِ بلوکِ ``destination`` + نامِ محصولِ فعلاً انتخاب‌شده (اگر
+    destination_type فعلی «محصول» باشد) برایِ نمایشِ اولیه — دقیقاً همان
+    الگویِ ``_product_section_picker_context`` بالا، عمداً جداگانه چون
+    قراردادِ ``destination`` عمومی‌تر (برایِ هر نوع section) است."""
+    from apps.catalog.models import Brand, Category, MerchantCollection, Product
+
+    store = _resolve_store(request)
+    dest = (section.settings or {}).get("destination") or {}
+    product_name = ""
+    if dest.get("destination_type") == "product" and dest.get("destination_id"):
+        product = Product.objects.filter(store=store, pk=dest["destination_id"]).first()
+        product_name = product.name if product else ""
+    return {
+        "collections": MerchantCollection.objects.filter(store=store).order_by("name"),
+        "categories": Category.objects.filter(store=store).order_by("name"),
+        "brands": Brand.objects.filter(store=store).order_by("name"),
+        "destination_product_name": product_name,
+    }
 
 
 def _extract_responsive_raw(request, section_key: str) -> dict:
@@ -238,10 +289,10 @@ def storefront_section_product_search(request, pk):
 
     _get_scoped_section(request, pk)
     store = _resolve_store(request)
-    query = request.GET.get("q", "").strip()
+    query = (request.GET.get("q") or request.GET.get("q_dest_product") or "").strip()
     results = collection_service.searchable_products(store, query=query)[:20] if query else []
     return render(request, "dashboard/storefront_builder/partials/product_section_search_results.html", {
-        "results": results, "query": query,
+        "results": results, "query": query, "mode": request.GET.get("mode", ""),
     })
 
 

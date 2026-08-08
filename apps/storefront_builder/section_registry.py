@@ -316,6 +316,107 @@ def _with_responsive(section_key: str, validate_fn, default_fn):
     return wrapped_validate, wrapped_default
 
 
+#: انواعی که یک بلوکِ «لینک/مقصد» استاندارد (چکپوینتِ استانداردسازیِ لینک)
+#: در تنظیماتشان دارند — معادلِ JSON-شکلِ ``apps.content.models.DestinationMixin``
+#: برایِ محتوایِ ذخیره‌شده در ``StorefrontSection.settings`` (نه یک ردیفِ
+#: مدلِ جدا). عمداً مثلِ ``COLUMN_AWARE_SECTION_KEYS`` یک allowlist صریح
+#: است، نه پیش‌فرضِ همه‌ی انواع — چون بعضی انواع (rich_text، trust_features)
+#: اصلاً معنایِ «لینکِ سطحِ section» ندارند، و بعضیِ دیگر (hero_banner،
+#: single_banner/multi_banner) لینکشان per-slide/per-banner است، نه
+#: per-section (نگاه کنید به مدلِ ``HeroSlide``/``PromotionalBanner`` که
+#: خودشان از قبل ``DestinationMixin`` واقعی دارند). برایِ ``product_section``
+#: این بلوک معنایِ «override دستیِ لینکِ "مشاهده همه"» را دارد؛ برایِ
+#: ``image_text`` معنایِ «لینکِ تصویر/دکمه» را دارد.
+DESTINATION_AWARE_SECTION_KEYS = frozenset({"image_text", "product_section"})
+
+_DEFAULT_DESTINATION_SETTINGS = {
+    "destination_type": "none",
+    "destination_id": None,
+    "destination_external_url": "",
+    "open_in_new_tab": False,
+}
+
+
+class DestinationSettingsError(ValueError):
+    """شکلِ خامِ بلوکِ ``destination`` نامعتبر است — پیامِ فارسیِ
+    قابل‌نمایشِ مستقیم به تاجر."""
+
+
+def validate_destination_settings(raw) -> dict:
+    """قراردادِ مشترکِ «لینک/مقصد» — معادلِ JSON بلوکِ ``DestinationMixin``
+    برایِ تنظیماتِ یک section (نه یک ردیفِ مدلِ جدا). فقط شکل/enum را چک
+    می‌کند — مالکیتِ Store برایِ ``destination_id`` (دسته/محصول/برند/کالکشن)
+    عمداً اینجا چک نمی‌شود، دقیقاً همان تفکیکِ مسئولیتی که
+    ``_validate_product_section_settings`` برایِ ``source_id`` دارد؛ چکِ
+    واقعی در ``apps.content.services.resolve_destination_setting`` انجام
+    می‌شود.
+
+    غایب بودنِ کلیدِ ``destination`` (سکشن‌هایِ از‌قبل‌موجود که هرگز از این
+    فرم عبور نکرده‌اند) دقیقاً هم‌ارزِ «بدون مقصد» است."""
+    from apps.content.models import DestinationType, validate_external_url
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise DestinationSettingsError("تنظیماتِ لینک باید یک شیء باشد")
+
+    valid_types = {choice.value for choice in DestinationType}
+    dtype = raw.get("destination_type") or "none"
+    if dtype not in valid_types:
+        raise DestinationSettingsError("نوع مقصدِ انتخاب‌شده نامعتبر است")
+
+    cleaned = dict(_DEFAULT_DESTINATION_SETTINGS)
+    cleaned["destination_type"] = dtype
+    cleaned["open_in_new_tab"] = bool(raw.get("open_in_new_tab", False))
+
+    if dtype in ("category", "product", "brand", "collection"):
+        try:
+            destination_id = int(raw.get("destination_id"))
+        except (TypeError, ValueError):
+            raise DestinationSettingsError("مقصدِ انتخاب‌شده نامعتبر است") from None
+        if destination_id <= 0:
+            raise DestinationSettingsError("مقصدِ انتخاب‌شده نامعتبر است")
+        cleaned["destination_id"] = destination_id
+    elif dtype == "external":
+        external_url = str(raw.get("destination_external_url", "")).strip()
+        try:
+            validate_external_url(external_url)
+        except DjangoValidationError as exc:
+            raise DestinationSettingsError("; ".join(exc.messages)) from exc
+        cleaned["destination_external_url"] = external_url
+
+    return cleaned
+
+
+def default_destination_settings() -> dict:
+    return dict(_DEFAULT_DESTINATION_SETTINGS)
+
+
+def _with_destination(section_key: str, validate_fn, default_fn):
+    """هر جفتِ (validate_settings, default_settings) موجود را با پشتیبانیِ
+    بلوکِ ``destination`` می‌پوشاند — فقط برایِ کلیدهایِ
+    ``DESTINATION_AWARE_SECTION_KEYS``. دقیقاً همان الگویِ ``_with_responsive``
+    بالا: منطقِ خودِ نوع کاملاً دست‌نخورده می‌ماند."""
+    if section_key not in DESTINATION_AWARE_SECTION_KEYS:
+        return validate_fn, default_fn
+
+    def wrapped_validate(raw: dict) -> dict:
+        if not isinstance(raw, dict):
+            return validate_fn(raw)
+        destination_raw = raw.get("destination")
+        base_raw = {k: v for k, v in raw.items() if k != "destination"}
+        cleaned = validate_fn(base_raw)
+        cleaned["destination"] = validate_destination_settings(destination_raw)
+        return cleaned
+
+    def wrapped_default() -> dict:
+        base = default_fn()
+        return {**base, "destination": default_destination_settings()}
+
+    return wrapped_validate, wrapped_default
+
+
 def _validate_image_text_settings(raw: dict) -> dict:
     if not isinstance(raw, dict):
         raise ValueError("تنظیمات باید یک شیء JSON باشد")
@@ -456,7 +557,8 @@ def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionD
     فقط یک لایه‌یِ یکسان روی همه می‌کشد، نه بازنویسیِ تک‌تکِ ۱۷ ورودی."""
     finalized = {}
     for key, definition in base.items():
-        validate_fn, default_fn = _with_responsive(key, definition.validate_settings, definition.default_settings)
+        validate_fn, default_fn = _with_destination(key, definition.validate_settings, definition.default_settings)
+        validate_fn, default_fn = _with_responsive(key, validate_fn, default_fn)
         finalized[key] = dataclasses.replace(
             definition, validate_settings=validate_fn, default_settings=default_fn, has_settings_form=True,
         )

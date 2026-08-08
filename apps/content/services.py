@@ -44,6 +44,12 @@ def resolve_destination_url(instance) -> str | None:
             return None
         return reverse("catalog:product-list") + f"?brand={brand.slug}"
 
+    if dtype == DestinationType.COLLECTION:
+        collection = instance.destination_collection
+        if collection is None:
+            return None
+        return reverse("catalog:collection-detail", args=[collection.slug])
+
     if dtype == DestinationType.EXTERNAL:
         url = (instance.destination_external_url or "").strip()
         return url if url else None
@@ -67,3 +73,87 @@ def resolve_destination_context(instance) -> dict:
         "open_new_tab": instance.open_in_new_tab,
         "rel": "noopener noreferrer" if (is_external and instance.open_in_new_tab) else "",
     }
+
+
+def resolve_destination_setting(store, destination: dict | None) -> dict:
+    """معادل ``resolve_destination_context`` برای مقصدهای ذخیره‌شده در JSON
+    (نه یک شیء مدل ``DestinationMixin``) — یعنی بلوک ``destination`` داخل
+    ``StorefrontSection.settings`` (سازنده بصری).
+
+    برخلاف ``section_registry.validate_destination_settings`` (که فقط شکل/
+    enum را چک می‌کند و هرگز دیتابیس را لمس نمی‌کند)، این تابع همان لایه‌ای
+    است که مالکیت Store را چک می‌کند — دقیقاً همان تفکیک مسئولیتی که
+    ``section_data_service.resolve_products`` برای منابع داده محصول دارد.
+    ارجاع حذف‌شده/غیرفعال/متعلق به فروشگاه دیگر بی‌صدا به «بدون مقصد»
+    (``url=None``) تبدیل می‌شود — هرگز کرش نمی‌کند."""
+    destination = destination or {}
+    dtype = destination.get("destination_type", DestinationType.NONE)
+    open_in_new_tab = bool(destination.get("open_in_new_tab", False))
+    url = None
+
+    if dtype == DestinationType.CATEGORY:
+        from apps.catalog.models import Category
+
+        url = _category_url(store, destination.get("destination_id"), Category)
+    elif dtype == DestinationType.PRODUCT:
+        from apps.catalog.models import Product
+
+        url = _product_url(store, destination.get("destination_id"), Product)
+    elif dtype == DestinationType.BRAND:
+        from apps.catalog.models import Brand
+
+        url = _brand_url(store, destination.get("destination_id"), Brand)
+    elif dtype == DestinationType.COLLECTION:
+        from apps.catalog.models import MerchantCollection
+
+        url = _collection_url(store, destination.get("destination_id"), MerchantCollection)
+    elif dtype == DestinationType.EXTERNAL:
+        raw_url = (destination.get("destination_external_url") or "").strip()
+        url = raw_url or None
+
+    is_external = dtype == DestinationType.EXTERNAL
+    return {
+        "url": url,
+        "open_new_tab": open_in_new_tab,
+        "rel": "noopener noreferrer" if (is_external and open_in_new_tab) else "",
+    }
+
+
+def _category_url(store, pk, Category):
+    if not pk:
+        return None
+    try:
+        category = Category.objects.get(pk=pk, store=store, is_active=True)
+    except Category.DoesNotExist:
+        return None
+    return reverse("catalog:product-list") + f"?category={category.slug}"
+
+
+def _product_url(store, pk, Product):
+    if not pk:
+        return None
+    try:
+        product = Product.objects.get(pk=pk, store=store)
+    except Product.DoesNotExist:
+        return None
+    return reverse("catalog:product-detail", args=[product.slug])
+
+
+def _brand_url(store, pk, Brand):
+    if not pk:
+        return None
+    try:
+        brand = Brand.objects.get(pk=pk, store=store, is_active=True)
+    except Brand.DoesNotExist:
+        return None
+    return reverse("catalog:product-list") + f"?brand={brand.slug}"
+
+
+def _collection_url(store, pk, MerchantCollection):
+    if not pk:
+        return None
+    try:
+        collection = MerchantCollection.objects.get(pk=pk, store=store, is_active=True)
+    except MerchantCollection.DoesNotExist:
+        return None
+    return reverse("catalog:collection-detail", args=[collection.slug])

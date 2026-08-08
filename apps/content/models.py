@@ -115,6 +115,7 @@ class DestinationType(models.TextChoices):
     CATEGORY = "category", "دسته‌بندی"
     PRODUCT = "product", "محصول"
     BRAND = "brand", "برند"
+    COLLECTION = "collection", "کالکشن"
     EXTERNAL = "external", "لینک خارجی"
 
 
@@ -146,6 +147,11 @@ class DestinationMixin(models.Model):
         on_delete=models.SET_NULL, null=True, blank=True,
         related_name="+",
     )
+    destination_collection = models.ForeignKey(
+        "catalog.MerchantCollection", verbose_name="کالکشن مقصد",
+        on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="+",
+    )
     destination_external_url = models.CharField(
         "آدرس لینک خارجی", max_length=500, blank=True,
     )
@@ -164,9 +170,10 @@ class DestinationMixin(models.Model):
         cat = self.destination_category_id
         prod = self.destination_product_id
         brand = self.destination_brand_id
+        collection = self.destination_collection_id
         ext = (self.destination_external_url or "").strip()
 
-        internal_set = [f for f in [cat, prod, brand] if f]
+        internal_set = [f for f in [cat, prod, brand, collection] if f]
         has_ext = bool(ext)
 
         if dtype == DestinationType.NONE:
@@ -176,20 +183,26 @@ class DestinationMixin(models.Model):
         elif dtype == DestinationType.CATEGORY:
             if not cat:
                 raise ValidationError("دسته‌بندی مقصد باید انتخاب شود")
-            if prod or brand or has_ext:
+            if prod or brand or collection or has_ext:
                 raise ValidationError("فقط دسته‌بندی باید انتخاب شود")
 
         elif dtype == DestinationType.PRODUCT:
             if not prod:
                 raise ValidationError("محصول مقصد باید انتخاب شود")
-            if cat or brand or has_ext:
+            if cat or brand or collection or has_ext:
                 raise ValidationError("فقط محصول باید انتخاب شود")
 
         elif dtype == DestinationType.BRAND:
             if not brand:
                 raise ValidationError("برند مقصد باید انتخاب شود")
-            if cat or prod or has_ext:
+            if cat or prod or collection or has_ext:
                 raise ValidationError("فقط برند باید انتخاب شود")
+
+        elif dtype == DestinationType.COLLECTION:
+            if not collection:
+                raise ValidationError("کالکشن مقصد باید انتخاب شود")
+            if cat or prod or brand or has_ext:
+                raise ValidationError("فقط کالکشن باید انتخاب شود")
 
         elif dtype == DestinationType.EXTERNAL:
             if not has_ext:

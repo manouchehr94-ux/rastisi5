@@ -2,14 +2,18 @@ from django.test import TestCase
 
 from apps.storefront_builder.section_registry import (
     COLUMN_AWARE_SECTION_KEYS,
+    DESTINATION_AWARE_SECTION_KEYS,
     SECTION_REGISTRY,
+    DestinationSettingsError,
     ProductSectionSettingsError,
     ResponsiveSettingsError,
     UnknownSectionTypeError,
+    default_destination_settings,
     default_responsive_settings,
     get_definition,
     is_valid_section_key,
     list_definitions,
+    validate_destination_settings,
     validate_responsive_settings,
 )
 
@@ -286,3 +290,85 @@ class ResponsiveIntegrationAcrossRegistryTests(TestCase):
         definition = get_definition("product_section")
         with self.assertRaises(ProductSectionSettingsError):
             definition.validate_settings("not a dict")
+
+
+class DestinationSettingsTests(TestCase):
+    """قراردادِ مشترکِ بلوکِ ``destination`` — چکپوینتِ استانداردسازیِ لینک."""
+
+    def test_default_is_no_destination(self):
+        self.assertEqual(default_destination_settings(), {
+            "destination_type": "none",
+            "destination_id": None,
+            "destination_external_url": "",
+            "open_in_new_tab": False,
+        })
+
+    def test_none_type_ignores_extra_fields(self):
+        cleaned = validate_destination_settings({"destination_type": "none", "destination_id": 5})
+        self.assertEqual(cleaned["destination_type"], "none")
+        self.assertIsNone(cleaned["destination_id"])
+
+    def test_category_requires_positive_id(self):
+        with self.assertRaises(DestinationSettingsError):
+            validate_destination_settings({"destination_type": "category", "destination_id": None})
+        with self.assertRaises(DestinationSettingsError):
+            validate_destination_settings({"destination_type": "category", "destination_id": -1})
+
+    def test_category_accepts_positive_id(self):
+        cleaned = validate_destination_settings({"destination_type": "category", "destination_id": "7"})
+        self.assertEqual(cleaned["destination_id"], 7)
+
+    def test_collection_type_accepted(self):
+        cleaned = validate_destination_settings({"destination_type": "collection", "destination_id": 3})
+        self.assertEqual(cleaned["destination_type"], "collection")
+        self.assertEqual(cleaned["destination_id"], 3)
+
+    def test_external_requires_safe_url(self):
+        with self.assertRaises(DestinationSettingsError):
+            validate_destination_settings({"destination_type": "external", "destination_external_url": "javascript:alert(1)"})
+        cleaned = validate_destination_settings({"destination_type": "external", "destination_external_url": "https://example.com"})
+        self.assertEqual(cleaned["destination_external_url"], "https://example.com")
+
+    def test_unknown_type_rejected(self):
+        with self.assertRaises(DestinationSettingsError):
+            validate_destination_settings({"destination_type": "not-a-real-type"})
+
+    def test_none_raw_defaults(self):
+        self.assertEqual(validate_destination_settings(None), default_destination_settings())
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(DestinationSettingsError):
+            validate_destination_settings("nope")
+
+    def test_open_in_new_tab_coerced_bool(self):
+        cleaned = validate_destination_settings({"destination_type": "none", "open_in_new_tab": 1})
+        self.assertIs(cleaned["open_in_new_tab"], True)
+
+
+class DestinationAwareIntegrationTests(TestCase):
+    def test_destination_aware_keys_get_destination_defaults(self):
+        for key in DESTINATION_AWARE_SECTION_KEYS:
+            defaults = get_definition(key).default_settings()
+            self.assertIn("destination", defaults, key)
+            self.assertEqual(defaults["destination"]["destination_type"], "none", key)
+
+    def test_non_destination_aware_keys_have_no_destination_field(self):
+        for key, definition in SECTION_REGISTRY.items():
+            if key in DESTINATION_AWARE_SECTION_KEYS:
+                continue
+            defaults = definition.default_settings()
+            self.assertNotIn("destination", defaults, key)
+
+    def test_existing_settings_without_destination_key_still_validate(self):
+        definition = get_definition("image_text")
+        cleaned = definition.validate_settings({"title": "hi"})
+        self.assertEqual(cleaned["destination"]["destination_type"], "none")
+
+    def test_product_section_destination_round_trips(self):
+        definition = get_definition("product_section")
+        cleaned = definition.validate_settings({
+            "data_source": "newest",
+            "destination": {"destination_type": "collection", "destination_id": 4},
+        })
+        self.assertEqual(cleaned["destination"]["destination_type"], "collection")
+        self.assertEqual(cleaned["destination"]["destination_id"], 4)

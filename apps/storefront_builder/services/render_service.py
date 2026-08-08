@@ -127,6 +127,21 @@ def _static_context(store, section):
     return {}
 
 
+def _resolved_destination_context(store, section):
+    """بلوکِ ``destination`` این section (اگر داشته باشد) را به URL/تب‌جدید
+    واقعی حل می‌کند — برایِ انواعی که در ``DESTINATION_AWARE_SECTION_KEYS``
+    عضوند و لینکشان واقعاً «سطحِ خودِ section» است (نه per-slide/per-banner
+    مثلِ hero/banner که مقصدشان داخلِ خودِ مدلِ ``HeroSlide``/
+    ``PromotionalBanner`` است)."""
+    destination = (section.settings or {}).get("destination") or {}
+    if destination.get("destination_type", "none") == "none":
+        return {"destination": {"url": None, "open_new_tab": False, "rel": ""}}
+
+    from apps.content.services import resolve_destination_setting
+
+    return {"destination": resolve_destination_setting(store, destination)}
+
+
 def _product_section_context(store, section):
     """برخلافِ همه‌ی builderهایِ دیگرِ این فایل، این یکی به تنظیماتِ
     خاصِ همین section (``data_source``/``source_id``/``product_ids``)
@@ -135,6 +150,13 @@ def _product_section_context(store, section):
     یک‌بار برایِ کلِ section_key (بازنویسی‌شدن با کش، دقیقاً همان باگی
     که این پرچم برایِ جلوگیری از آن اضافه شده)."""
     products, view_all_url = section_data_service.resolve_products(store, section.settings or {})
+    destination = (section.settings or {}).get("destination") or {}
+    if destination.get("destination_type", "none") != "none":
+        from apps.content.services import resolve_destination_setting
+
+        resolved = resolve_destination_setting(store, destination)
+        if resolved["url"]:
+            view_all_url = resolved["url"]
     return {"products": products, "view_all_url": view_all_url}
 
 
@@ -143,7 +165,7 @@ def _product_section_context(store, section):
 #: ``build_render_items`` باید per-instance باشد، وگرنه دو نمونه‌ی
 #: تکرارشده (duplicable) با تنظیماتِ متفاوت (مثلاً دو کالکشنِ متفاوت)
 #: محتوایِ یکسان (نمونه‌ی اول) نشان می‌دهند.
-PER_INSTANCE_SECTION_KEYS = {"product_section"}
+PER_INSTANCE_SECTION_KEYS = {"product_section", "image_text"}
 
 
 _CONTEXT_BUILDERS = {
@@ -161,7 +183,7 @@ _CONTEXT_BUILDERS = {
     "brand_carousel": _brand_carousel_context,
     "promo_cards": _category_context_for_promo_cards,
     "rich_text": _static_context,
-    "image_text": _static_context,
+    "image_text": _resolved_destination_context,
     "product_section": _product_section_context,
     "trust_features": _static_context,
 }

@@ -139,5 +139,13 @@ function productSectionForm(initialDataSource, initialProducts) {
     },
   };
 }
+
+function destinationPicker(initialType, initialId, initialName) {
+  return {
+    type: initialType || 'none',
+    productId: initialType === 'product' ? initialId : null,
+    productName: initialType === 'product' ? initialName : '',
+  };
+}
 </script>
 {% endblock %}

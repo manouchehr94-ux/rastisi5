@@ -1,0 +1,83 @@
+{% comment %}
+بلوکِ استانداردِ «لینک این بخش» — یک بار نوشته شده، توسطِ هر نوع سکشنی که
+در ``DESTINATION_AWARE_SECTION_KEYS`` عضو است include می‌شود (فعلاً
+image_text و product_section). معادلِ merchant-facing بلوکِ JSON
+``destination`` در ``section_registry.validate_destination_settings`` —
+اصطلاحاتِ داخلی مثلِ destination_type/destination_id هرگز به تاجر نشان
+داده نمی‌شوند، فقط برچسبِ فارسیِ گزینه‌ها.
+{% endcomment %}
+{% with dest=section.settings.destination %}
+<details style="margin-top:6px" {% if dest.destination_type and dest.destination_type != "none" %}open{% endif %}>
+  <summary style="cursor:pointer;font-size:13px;color:var(--muted)">لینک این بخش</summary>
+  <div style="margin-top:10px" x-data="destinationPicker(
+        '{{ dest.destination_type|default:"none" }}',
+        {{ dest.destination_id|default:"null" }},
+        '{{ destination_product_name|default:""|escapejs }}')">
+    <div class="form-group">
+      <label>لینک به</label>
+      <select name="destination_type" class="form-select" x-model="type">
+        <option value="none">بدون لینک</option>
+        <option value="category">دسته‌بندی</option>
+        <option value="brand">برند</option>
+        <option value="collection">کالکشن</option>
+        <option value="product">محصول</option>
+        <option value="external">آدرس خارجی</option>
+      </select>
+    </div>
+
+    <div class="form-group" x-show="type === 'category'" x-cloak>
+      <label>انتخاب دسته‌بندی</label>
+      <select name="destination_category_id" class="form-select">
+        <option value="">— انتخاب کنید —</option>
+        {% for category in categories %}
+        <option value="{{ category.pk }}" {% if dest.destination_type == "category" and dest.destination_id == category.pk %}selected{% endif %}>{{ category.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group" x-show="type === 'brand'" x-cloak>
+      <label>انتخاب برند</label>
+      <select name="destination_brand_id" class="form-select">
+        <option value="">— انتخاب کنید —</option>
+        {% for brand in brands %}
+        <option value="{{ brand.pk }}" {% if dest.destination_type == "brand" and dest.destination_id == brand.pk %}selected{% endif %}>{{ brand.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group" x-show="type === 'collection'" x-cloak>
+      <label>انتخاب کالکشن</label>
+      <select name="destination_collection_id" class="form-select">
+        <option value="">— انتخاب کنید —</option>
+        {% for collection in collections %}
+        <option value="{{ collection.pk }}" {% if dest.destination_type == "collection" and dest.destination_id == collection.pk %}selected{% endif %}>{{ collection.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group" x-show="type === 'product'" x-cloak>
+      <label>جست‌وجوی محصول</label>
+      <input type="text" class="form-input" autocomplete="off" placeholder="نام یا کد کالا را تایپ کنید..."
+             hx-get="{% url 'dashboard:storefront-builder-section-product-search' section.pk %}"
+             hx-vals='{"mode": "destination"}'
+             hx-trigger="keyup changed delay:300ms" hx-target="next .dest-product-results" hx-swap="innerHTML" name="q_dest_product">
+      <div class="dest-product-results"></div>
+      <input type="hidden" name="destination_product_id" :value="productId">
+      <p x-show="productId" style="font-size:12.5px;margin:6px 0 0">محصولِ انتخاب‌شده: <strong x-text="productName"></strong></p>
+    </div>
+
+    <div class="form-group" x-show="type === 'external'" x-cloak>
+      <label>آدرس خارجی</label>
+      <input type="url" name="destination_external_url" class="form-input" dir="ltr"
+             value="{% if dest.destination_type == 'external' %}{{ dest.destination_external_url|default:'' }}{% endif %}" placeholder="https://...">
+    </div>
+
+    <div class="form-group" x-show="type !== 'none'" x-cloak>
+      <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
+        <input type="checkbox" name="open_in_new_tab" {% if dest.open_in_new_tab %}checked{% endif %}>
+        باز شدن در تب جدید
+      </label>
+    </div>
+  </div>
+</details>
+{% endwith %}
