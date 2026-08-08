@@ -22,6 +22,12 @@ MOTION_CHOICES = ("none", "subtle", "dynamic")
 BUTTON_STYLE_CHOICES = ("filled", "soft", "outline")
 TYPE_SCALE_CHOICES = ("compact", "normal", "large")
 
+#: رفتارِ تصویرِ کارتِ محصول — کنترلِ مستقیمِ تاجر، مستقل از Template؛
+#: پیش‌فرض‌ها دقیقاً معادلِ رفتارِ سخت‌کدشده‌یِ قبل از این چکپوینت
+#: هستند (``object-fit:cover``، بزرگ‌نماییِ ملایم روی hover).
+IMAGE_FIT_CHOICES = ("cover", "contain")
+IMAGE_HOVER_CHOICES = ("none", "zoom")
+
 #: فونت‌هایِ مجاز — مجموعه‌ی کوچک و کیوریت‌شده، هرکدام واقعاً برایِ
 #: فارسی/RTL مناسب (نه هر فونتِ دلخواه؛ طبقِ الزامِ صریحِ کار: «مرچنت فونت
 #: را با نام انتخاب کند، نه CSS خام آپلود کند»).

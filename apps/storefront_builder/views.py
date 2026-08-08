@@ -50,6 +50,33 @@ def storefront_editor(request):
     return render(request, "dashboard/storefront_builder/editor.html", context)
 
 
+class _CandidateAppearanceVersion:
+    """جای‌گزینِ سبکِ ``StorefrontLayoutVersion`` برایِ پیش‌نمایشِ
+    غیرمخربِ یک Templateِ کاندید (چکپوینتِ «پیش‌نمایشِ قبل از اعمال»،
+    بخشِ ۱۰ بازبینیِ نهایی) — فقط همان یک متدی را دارد که
+    ``apps.core.context_processors`` روی ``request.storefront_appearance_version``
+    صدا می‌زند (``effective_appearance_config``)، هرگز به دیتابیس
+    نمی‌نویسد. تعویضِ template_slug دقیقاً همان معنایی را دارد که
+    ``storefront_appearance_editor`` هنگامِ POSTِ واقعیِ تعویضِ Template
+    اعمال می‌کند (فیلدهایِ ساختاری به پیش‌فرض‌هایِ همان Template بازنشانی
+    می‌شوند) — تا پیش‌نمایش دقیقاً همان چیزی باشد که اعمالِ واقعی تولید
+    می‌کند."""
+
+    def __init__(self, base_config, *, template_slug):
+        from . import appearance_registry
+
+        config = dict(base_config)
+        config["template_slug"] = template_slug
+        template = appearance_registry.get_template(template_slug)
+        if template is not None:
+            for field in ("font", "radius", "button_radius", "density", "motion", "type_scale"):
+                config[field] = getattr(template, field)
+        self._config = config
+
+    def effective_appearance_config(self):
+        return self._config
+
+
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
 @xframe_options_sameorigin
@@ -63,13 +90,27 @@ def storefront_preview(request):
     دست‌نخورده باقی می‌ماند."""
     from apps.catalog.models import Category
 
+    from . import appearance_registry
+
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
     items = build_render_items(draft, store)
     top_level_categories = Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
     # تنظیماتِ ظاهر باید از همین Draft خوانده شود، نه ShopSettings زنده —
     # نگاه کنید به ``apps.core.context_processors._versioned_colors``.
-    request.storefront_appearance_version = draft
+    #
+    # ``?preview_template=<slug>`` (چکپوینتِ «پیش‌نمایشِ غیرمخربِ قالب»،
+    # بخشِ ۱۰ بازبینیِ نهایی) به مرچنت اجازه می‌دهد ظاهرِ یک Templateِ
+    # دیگر را در همین iframe ببیند **بدونِ** ذخیره‌شدن روی Draft — فقط
+    # همین رندر، هرگز دیتابیس. اسلاگِ نامعتبر/ناشناخته بی‌صدا نادیده
+    # گرفته می‌شود (پیش‌نمایشِ Draftِ واقعی، دقیقاً رفتارِ قبل)."""
+    preview_template_slug = request.GET.get("preview_template")
+    if preview_template_slug and appearance_registry.get_template(preview_template_slug) is not None:
+        request.storefront_appearance_version = _CandidateAppearanceVersion(
+            draft.effective_appearance_config(), template_slug=preview_template_slug,
+        )
+    else:
+        request.storefront_appearance_version = draft
     return render(request, "storefront_builder/preview.html", {
         "store": store, "version": draft, "render_items": items, "is_preview": True,
         "top_level_categories": top_level_categories,
@@ -633,6 +674,13 @@ def storefront_appearance_editor(request):
             "density": _field("density"),
             "motion": _field("motion"),
             "type_scale": _field("type_scale"),
+            "button_style": _field("button_style"),
+            # رفتارِ تصویر، برخلافِ فیلدهایِ بالا، جزوِ «هویتِ Templateِ»
+            # نیست (Template دیتاکلاسی چنین فیلدی ندارد) — همیشه مستقیماً
+            # از فرمِ مرچنت خوانده می‌شود، حتی وقتی تعویضِ Template هم در
+            # همین POST رخ داده باشد.
+            "image_fit": request.POST.get("image_fit", current["image_fit"]),
+            "image_hover": request.POST.get("image_hover", current["image_hover"]),
         }
         from .models import APPEARANCE_COLOR_KEYS
 
@@ -683,6 +731,9 @@ def storefront_appearance_editor(request):
         "density_choices": appearance_registry.DENSITY_CHOICES,
         "motion_choices": appearance_registry.MOTION_CHOICES,
         "type_scale_choices": appearance_registry.TYPE_SCALE_CHOICES,
+        "button_style_choices": appearance_registry.BUTTON_STYLE_CHOICES,
+        "image_fit_choices": appearance_registry.IMAGE_FIT_CHOICES,
+        "image_hover_choices": appearance_registry.IMAGE_HOVER_CHOICES,
         "color_field_labels": color_field_labels,
     })
 

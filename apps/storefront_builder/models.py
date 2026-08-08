@@ -67,6 +67,9 @@ APPEARANCE_CONFIG_DEFAULTS = {
     "density": "normal",
     "motion": "subtle",
     "type_scale": "normal",
+    "button_style": "filled",
+    "image_fit": "cover",
+    "image_hover": "zoom",
 }
 
 

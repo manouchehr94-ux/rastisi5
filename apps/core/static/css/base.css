@@ -32,3 +32,10 @@ img{max-width:100%}
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
 }
 html[data-sfb-motion="none"] *{transition:none!important;animation:none!important}
+
+/* تراکم/فاصله‌گذاری (density) — کنترلِ مستقیمِ تاجر (فشرده/عادی/باز)،
+   مستقلِ از density ذاتیِ Template؛ همان الگویِ overrideهایِ بالا
+   (data-sfb-motion) برایِ حاشیه‌ی افقیِ ظرفِ محتوا. «عادی» چیزی
+   override نمی‌کند — دقیقاً همان ۱۸px قبلی. */
+html[data-sfb-density="compact"] .wrap{padding:0 12px}
+html[data-sfb-density="relaxed"] .wrap{padding:0 26px}

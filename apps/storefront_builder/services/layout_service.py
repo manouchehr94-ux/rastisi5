@@ -208,6 +208,21 @@ def validate_appearance_config(config: dict) -> dict:
         raise AppearanceConfigValidationError("اندازه‌ی متنِ انتخاب‌شده نامعتبر است")
     cleaned["type_scale"] = type_scale
 
+    button_style = config.get("button_style", APPEARANCE_CONFIG_DEFAULTS["button_style"])
+    if button_style not in appearance_registry.BUTTON_STYLE_CHOICES:
+        raise AppearanceConfigValidationError("سبکِ دکمه‌یِ انتخاب‌شده نامعتبر است")
+    cleaned["button_style"] = button_style
+
+    image_fit = config.get("image_fit", APPEARANCE_CONFIG_DEFAULTS["image_fit"])
+    if image_fit not in appearance_registry.IMAGE_FIT_CHOICES:
+        raise AppearanceConfigValidationError("نوعِ نمایشِ تصویرِ انتخاب‌شده نامعتبر است")
+    cleaned["image_fit"] = image_fit
+
+    image_hover = config.get("image_hover", APPEARANCE_CONFIG_DEFAULTS["image_hover"])
+    if image_hover not in appearance_registry.IMAGE_HOVER_CHOICES:
+        raise AppearanceConfigValidationError("افکتِ هاورِ تصویرِ انتخاب‌شده نامعتبر است")
+    cleaned["image_hover"] = image_hover
+
     return cleaned
 
 

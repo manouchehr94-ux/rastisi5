@@ -7,6 +7,12 @@
 .sec-head h2{font-size:var(--sfb-heading-size, 19px);font-weight:900;display:flex;align-items:center;gap:9px}
 .sec-head h2 .bar{width:5px;height:22px;border-radius:4px;background:linear-gradient(var(--violet),var(--violet-3))}
 .grid{display:grid;gap:16px}
+/* تراکم/فاصله‌گذاری (density) — کنترلِ مستقیمِ تاجر؛ همان الگویِ
+   overrideهایِ data-sfb-card-shadow/hover پایین‌تر در همین فایل. */
+html[data-sfb-density="compact"] .grid{gap:10px}
+html[data-sfb-density="relaxed"] .grid{gap:24px}
+html[data-sfb-density="compact"] .pcarousel{gap:10px}
+html[data-sfb-density="relaxed"] .pcarousel{gap:24px}
 /* تعدادِ ستونِ پیش‌فرض از Templateِ فعال می‌آید (بخش‌هایی که هنوز
    per-section column-aware نیستند: جدیدترین‌ها، پرفروش‌ترین‌ها، ...) —
    پیش‌فرض دقیقاً همان ۴ ستونِ قبلی. */
@@ -18,6 +24,13 @@
 .pcard .img{position:relative;aspect-ratio:1/1;display:grid;place-items:center;font-size:70px;overflow:hidden}
 .pcard .img .emo{transition:transform .3s}
 .pcard:hover .img .emo{transform:scale(1.08)}
+.pcard .img .cover-photo{transition:transform .3s}
+/* هاورِ تصویرِ محصول — کنترلِ مستقیمِ تاجر (data-sfb-image-hover)،
+   مستقل از data-sfb-card-hover (که رفتارِ کلِ کارت را کنترل می‌کند).
+   پیش‌فرض ("zoom") دقیقاً همان رفتارِ ایموجیِ جای‌گزین بالاست، حالا
+   برایِ تصویرِ واقعیِ محصول هم. */
+html[data-sfb-image-hover="zoom"] .pcard:hover .img .cover-photo{transform:scale(1.08)}
+html[data-sfb-image-hover="none"] .pcard:hover .img .cover-photo{transform:none}
 
 /* سایه/رفتارِ hoverِ کارت — از Templateِ فعال می‌آید. پیش‌فرض
    (data-sfb-card-shadow="soft"، data-sfb-card-hover="lift") دقیقاً
@@ -43,6 +56,8 @@ html[data-sfb-card-hover="zoom"] .pcard:hover .img .emo{transform:scale(1.16)}
 .pcard .addbar button{width:100%;background:linear-gradient(135deg,var(--violet),var(--violet-3));color:#fff;height:38px;border-radius:10px;font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:7px}
 .pcard .addbar button svg{width:16px;height:16px}
 .pcard .body{padding:13px 14px 15px;display:flex;flex-direction:column;gap:7px;flex:1}
+html[data-sfb-density="compact"] .pcard .body{padding:8px 10px 10px;gap:4px}
+html[data-sfb-density="relaxed"] .pcard .body{padding:18px 18px 20px;gap:10px}
 .pcard .brand{font-size:11px;color:var(--muted)}
 .pcard .name{font-size:var(--sfb-product-name-size, 13px);font-weight:600;line-height:1.6;height:42px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .pcard .rate{display:flex;align-items:center;gap:5px;font-size:var(--sfb-muted-size, 11px);color:var(--muted)}

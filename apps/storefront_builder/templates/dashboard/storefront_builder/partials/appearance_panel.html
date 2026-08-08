@@ -107,25 +107,27 @@
 
   <div x-show="view === 'templates'">
     <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
+    <p style="font-size:12.5px;color:var(--muted);margin:8px 0 12px">قبل از اعمال، هر قالب را روی پیش‌نمایش زنده امتحان کنید — چیزی ذخیره نمی‌شود تا خودتان «اعمال قالب» را بزنید.</p>
     <div class="sfb-template-gallery">
       {% for t in templates %}
-      <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}">
-        {% csrf_token %}
-        <input type="hidden" name="template_slug" value="{{ t.slug }}">
-        {% if config.palette_slug %}<input type="hidden" name="palette_slug" value="{{ config.palette_slug }}">{% endif %}
-        <input type="hidden" name="font" value="{{ config.font }}">
-        <input type="hidden" name="radius" value="{{ config.radius }}">
-        <input type="hidden" name="button_radius" value="{{ config.button_radius }}">
-        <input type="hidden" name="density" value="{{ config.density }}">
-        <input type="hidden" name="motion" value="{{ config.motion }}">
-        <input type="hidden" name="type_scale" value="{{ config.type_scale }}">
-        <button type="submit" class="sfb-template-card {% if config.template_slug == t.slug %}active{% endif %}">
-          <strong>{{ t.name_fa }}</strong>
-          <span class="tiny" style="color:var(--muted)">{{ t.group_fa }}</span>
-          <p style="font-size:12px;margin:6px 0 0">{{ t.description_fa }}</p>
-          <div class="sfb-appearance-stripe">{% for c in t.swatch %}<span style="background:{{ c }}"></span>{% endfor %}</div>
-        </button>
-      </form>
+      <div class="sfb-template-card {% if config.template_slug == t.slug %}active{% endif %}">
+        <div class="sfb-template-mini" aria-hidden="true"
+             style="--sfb-mini-primary:{{ t.swatch.0 }};--sfb-mini-accent:{{ t.swatch.1|default:t.swatch.0 }}"><span></span><b></b><i></i></div>
+        <strong>{{ t.name_fa }}</strong>
+        <span class="tiny" style="color:var(--muted)">{{ t.group_fa }}</span>
+        <p style="font-size:12px;margin:6px 0 0">{{ t.description_fa }}</p>
+        <div class="sfb-appearance-stripe">{% for c in t.swatch %}<span style="background:{{ c }}"></span>{% endfor %}</div>
+        <div class="sfb-template-card-actions">
+          <button type="button" class="btn btn-sm"
+                  @click="$dispatch('preview-candidate-template', {slug: '{{ t.slug }}', name: '{{ t.name_fa|escapejs }}'})">پیش‌نمایش</button>
+          <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}">
+            {% csrf_token %}
+            <input type="hidden" name="template_slug" value="{{ t.slug }}">
+            {% if config.palette_slug %}<input type="hidden" name="palette_slug" value="{{ config.palette_slug }}">{% endif %}
+            <button type="submit" class="btn btn-sm btn-primary">اعمال قالب</button>
+          </form>
+        </div>
+      </div>
       {% endfor %}
     </div>
   </div>
@@ -187,6 +189,12 @@
         <input type="range" name="button_radius" min="0" max="32" value="{{ config.button_radius }}" class="form-input">
       </div>
       <div class="form-group">
+        <label>سبک دکمه‌ها</label>
+        <select name="button_style" class="form-select">
+          {% for b in button_style_choices %}<option value="{{ b }}" {% if config.button_style == b %}selected{% endif %}>{% if b == "soft" %}نرم{% elif b == "outline" %}خط‌دور{% else %}پر‌رنگ{% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
         <label>تراکم فاصله‌ها</label>
         <select name="density" class="form-select">
           {% for d in density_choices %}<option value="{{ d }}" {% if config.density == d %}selected{% endif %}>{% if d == "compact" %}فشرده{% elif d == "relaxed" %}باز{% else %}عادی{% endif %}</option>{% endfor %}
@@ -204,6 +212,19 @@
           {% for s in type_scale_choices %}<option value="{{ s }}" {% if config.type_scale == s %}selected{% endif %}>{% if s == "compact" %}کوچک{% elif s == "large" %}بزرگ{% else %}متوسط{% endif %}</option>{% endfor %}
         </select>
         <p style="font-size:12px;color:var(--muted);margin:6px 0 0">اندازه‌ی عنوان‌ها، نام محصول، قیمت و متن کم‌رنگ در کل فروشگاه.</p>
+      </div>
+      <div class="form-group">
+        <label>نمایش تصویر محصول</label>
+        <select name="image_fit" class="form-select">
+          {% for f in image_fit_choices %}<option value="{{ f }}" {% if config.image_fit == f %}selected{% endif %}>{% if f == "contain" %}کامل و بدون برش (Contain){% else %}پرکردن قاب (Cover){% endif %}</option>{% endfor %}
+        </select>
+        <p style="font-size:12px;color:var(--muted);margin:6px 0 0">«پرکردن قاب» ممکن است لبه‌های تصویر را ببرد؛ «کامل و بدون برش» کل تصویر را نگه می‌دارد و ممکن است حاشیه خالی بگذارد.</p>
+      </div>
+      <div class="form-group">
+        <label>هاور تصویر محصول</label>
+        <select name="image_hover" class="form-select">
+          {% for h in image_hover_choices %}<option value="{{ h }}" {% if config.image_hover == h %}selected{% endif %}>{% if h == "none" %}بدون افکت{% else %}بزرگ‌نمایی ملایم{% endif %}</option>{% endfor %}
+        </select>
       </div>
       <div style="display:flex;gap:10px;margin-top:16px">
         <button type="submit" class="btn btn-primary">اعمال شخصی‌سازی</button>

@@ -5,15 +5,20 @@ from apps.stores.resolution import StoreResolutionError
 
 
 def _versioned_appearance(request):
-    """معادلِ ``_versioned_colors`` برایِ فیلدهایِ *ساختاریِ* ظاهر
-    (Template) — رنگ‌ها و ساختار هر دو فقط وقتی از نسخه می‌آیند که
-    ``request.storefront_appearance_version`` صریحاً ست شده باشد؛ در غیرِ
-    این صورت None برمی‌گردد و base.html از پیش‌فرض‌هایِ سخت‌کدشده (دقیقاً
-    معادلِ قالبِ «modern» — یعنی ظاهرِ فعلیِ سایت) استفاده می‌کند. طبقِ
-    همان محدودیتِ مستندشده‌یِ ``_versioned_colors``: صفحاتِ غیرِ Builder-aware
-    (checkout, جزئیاتِ کالا, ...) فعلاً همیشه «modern» می‌بینند، حتی اگر
-    فروشگاه Template دیگری منتشر کرده باشد — این یک محدودیتِ شناخته‌شده و
-    مستندشده است (به گزارشِ نهایی مراجعه شود)، نه یک باگ."""
+    """نسخه‌ای که فیلدهایِ *ساختاریِ* هومپیجِ Template (content_width،
+    grid_density، hero_style، card_shadow، card_hover) باید از آن خوانده
+    شوند — این‌ها فقط وقتی از نسخه می‌آیند که
+    ``request.storefront_appearance_version`` صریحاً ست شده باشد (یعنی
+    واقعاً همان صفحه‌ی Builder-aware در حالِ رندر است: Preview یا خودِ
+    صفحه‌ی اصلیِ عمومی)؛ در غیرِ این صورت None برمی‌گردد و base.html از
+    پیش‌فرض‌هایِ سخت‌کدشده (معادلِ قالبِ «modern») استفاده می‌کند.
+
+    این قصداً از توکن‌هایِ *سراسریِ* هویت (رنگ/فونت/گردی/دکمه/حرکت/اندازه‌متن
+    — نگاه کنید به ``_global_identity_version``) جدا مانده: چیدمانِ
+    ساختاریِ صفحه‌ی اصلی (عرضِ محتوا، تعدادِ ستون، سبکِ هیرو) معنایی برایِ
+    پرداخت/جزئیاتِ کالا ندارد و اعمالِ اجباریِ آن می‌تواند چیدمانِ آن
+    صفحات را بشکند — طبقِ تصمیمِ معماریِ صریح (بخشِ «هویتِ طراحیِ سراسری
+    در برابرِ ساختارِ صفحه‌ی اصلی» در گزارشِ نهایی)."""
     version = getattr(request, "storefront_appearance_version", None)
     if version is None:
         return None
@@ -25,23 +30,51 @@ def _versioned_appearance(request):
     return {"template": template, "config": config}
 
 
-def _versioned_colors(request):
-    """اگر همین request توسطِ یک ویوِ سازنده بصری (Preview یا صفحه‌ی
-    عمومیِ حالتِ Visual Layout) مشخصاً روی ``request.storefront_appearance_version``
-    ست شده باشد، رنگ‌های نهایی از همان نسخه (Draft یا Published) حل
-    می‌شوند — نه از ``ShopSettings`` زنده.
+def _global_identity_version(request, store_id):
+    """نسخه‌ای که توکن‌های *سراسریِ* هویتِ فروشگاه (رنگ‌ها، فونت، گردی،
+    سبکِ دکمه، سبکِ حرکت، اندازه‌ی متن) باید از آن خوانده شوند — برخلافِ
+    ``_versioned_appearance`` (فقط ساختارِ صفحه‌ی اصلی)، این‌ها هویتِ
+    *کلِ* فروشگاه‌اند: مشتری نباید در جزئیاتِ کالا یا پرداخت برندِ
+    متفاوتی با صفحه‌ی اصلی ببیند، حتی وقتی آن صفحه هنوز چیدمانِ
+    ساختاریِ Builder را ندارد (تصمیمِ معماریِ صریح — بخشِ ۲۲ بازبینیِ
+    نهایی: «مشتری نباید هنگامِ دیدنِ جزئیاتِ کالا برندِ متفاوتی با
+    صفحه‌ی اصلی ببیند»).
 
-    این تنها هوکِ صریحی است که دو مسیرِ متفاوت (Builder-aware در برابرِ
-    هر صفحه‌ی دیگر — پرداخت، جزئیاتِ کالا، ...) را از هم جدا می‌کند:
-    این context processor خودش هرگز حدس نمی‌زند کدام View در حالِ اجراست
-    (بر اساسِ URL/pattern-matching)، فقط یک attribute صریح را می‌خواند
-    که همان View از قبل تنظیم کرده — دقیقاً همان دلیلی که گزارشِ ممیزی
-    این را «ریسک‌دارترین بخشِ این تغییر» نامیده بود: حدس‌زدن بر اساسِ URL
-    شکننده است، یک attribute صریح نیست.
-
-    هر صفحه‌ی دیگر (که این attribute را ست نمی‌کند) دقیقاً مثلِ قبل رفتار
-    می‌کند — رنگِ زنده‌ی ``ShopSettings``، بدونِ هیچ مفهومِ Draft."""
+    اگر ``request.storefront_appearance_version`` صریحاً ست شده باشد
+    (Preview یا خودِ صفحه‌ی اصلیِ عمومی)، همان استفاده می‌شود. وگرنه، اگر
+    همین Store (بر اساسِ ``store_id`` — **نه** ``request.store``، که در
+    صفحاتِ storefront غیرِ Builder-aware همیشه None است؛ ویوهای این
+    صفحات Store را محلی resolve می‌کنند، نه از میان‌افزار — دقیقاً همان
+    دلیلی که ``shop_settings`` پایین‌تر برایِ SOCIAL_LINKS_* از
+    ``shop.store_id`` استفاده می‌کند، نه ``request.store``) یک نسخه‌ی
+    *منتشرشده* دارد (هرگز Draft — یک صفحه‌ی غیرِ Builder-aware هرگز نباید
+    محتوایِ منتشرنشده ببیند)، همان نسخه برمی‌گردد؛ در غیرِ این صورت None
+    (یعنی ``ShopSettings`` زنده، دقیقاً رفتارِ قبلی)."""
     version = getattr(request, "storefront_appearance_version", None)
+    if version is not None:
+        return version
+
+    if store_id is None:
+        return None
+
+    from apps.storefront_builder.models import StorefrontLayout
+
+    layout = (
+        StorefrontLayout.objects.filter(
+            store_id=store_id, uses_visual_storefront_layout=True, published_version__isnull=False,
+        )
+        .select_related("published_version")
+        .first()
+    )
+    return layout.published_version if layout is not None else None
+
+
+def _versioned_colors(request, store_id):
+    """رنگ‌های نهایی از ``_global_identity_version`` حل می‌شوند — نگاه
+    کنید به مستنداتِ آن برای این‌که چرا این دیگر محدود به
+    Builder-aware نیست. هر Store بدونِ نسخه‌ی منتشرشده دقیقاً مثلِ قبل
+    رفتار می‌کند — رنگِ زنده‌ی ``ShopSettings``."""
+    version = _global_identity_version(request, store_id)
     if version is None:
         return None
 
@@ -68,15 +101,21 @@ def shop_settings(request):
     خراب کند. یک دیکشنری خالی برمی‌گرداند — تمپلیت‌ها با فیلتر ``|default``
     از قبل برای نبود این متغیرها آماده‌اند.
 
-    رنگ‌ها (فقط رنگ‌ها) ممکن است به‌جایِ ``ShopSettings`` زنده، از نسخه‌ی
-    Draft/Published سازنده بصری بیایند — نگاه کنید به ``_versioned_colors``.
+    توکن‌هایِ *سراسریِ* هویت (رنگ‌ها، فونت، گردی، سبکِ دکمه، سبکِ حرکت،
+    اندازه‌ی متن، رفتارِ تصویر) ممکن است به‌جایِ ``ShopSettings`` زنده، از
+    نسخه‌ی منتشرشده‌ی سازنده بصری بیایند — حتی در صفحاتِ غیرِ
+    Builder-aware (پرداخت، جزئیاتِ کالا)، تا برندِ فروشگاه در کلِ سایت
+    یکدست بماند؛ نگاه کنید به ``_global_identity_version``. ساختارِ
+    *صفحه‌ی اصلی* (عرضِ محتوا/تعدادِ ستون/سبکِ هیرو/تراکم) برخلافِ آن،
+    عمداً محدود به صفحاتِ Builder-aware می‌ماند — نگاه کنید به
+    ``_versioned_appearance``.
     """
     try:
         shop = ShopSettings.load(store=getattr(request, "store", None))
     except (StoreResolutionError, ShopSettingsNotProvisionedError):
         return {}
 
-    versioned = _versioned_colors(request)
+    versioned = _versioned_colors(request, shop.store_id)
     if versioned is not None:
         primary = safe_hex(versioned.get("primary"), "#6D28D9")
         accent = safe_hex(versioned.get("accent"), "#FF4D77")
@@ -96,42 +135,60 @@ def shop_settings(request):
         muted = safe_hex(shop.muted_text_color, "#8B86A3")
         border = mix_hex(text, surface, 0.12)
 
+    from apps.storefront_builder import appearance_registry as _appearance_registry
+
+    _default_template = _appearance_registry.get_template("modern")
+
+    # توکن‌هایِ سراسریِ هویت (رنگ از قبل بالا حل شد؛ اینجا فونت/گردی/
+    # دکمه/حرکت/اندازه‌متن/رفتارِ تصویر) — از هر Storeیی که نسخه‌ی
+    # منتشرشده دارد می‌آیند، نه فقط صفحاتِ Builder-aware؛ نگاه کنید به
+    # ``_global_identity_version``.
+    global_version = _global_identity_version(request, shop.store_id)
+    if global_version is not None:
+        global_config = global_version.effective_appearance_config()
+        global_template = (
+            _appearance_registry.get_template(global_config["template_slug"]) or _default_template
+        )
+        shop_font = global_config["font"]
+        shop_radius = global_config["radius"]
+        shop_button_radius = global_config["button_radius"]
+        shop_button_style = global_config.get("button_style") or global_template.button_style
+        shop_motion = global_config["motion"]
+        shop_type_scale = global_config.get("type_scale") or global_template.type_scale
+        shop_image_fit = global_config.get("image_fit", "cover")
+        shop_image_hover = global_config.get("image_hover", "zoom")
+    else:
+        shop_font = _default_template.font
+        shop_radius = _default_template.radius
+        shop_button_radius = _default_template.button_radius
+        shop_button_style = _default_template.button_style
+        shop_motion = _default_template.motion
+        shop_type_scale = _default_template.type_scale
+        shop_image_fit = "cover"
+        shop_image_hover = "zoom"
+
+    # ساختارِ *صفحه‌ی اصلی* (عرضِ محتوا/تعدادِ ستون/سبکِ هیرو/سایه و
+    # هاورِ کارت/تراکم) — عمداً محدود به صفحاتِ Builder-aware می‌ماند؛
+    # نگاه کنید به ``_versioned_appearance``.
     appearance = _versioned_appearance(request)
     if appearance is not None:
         template = appearance["template"]
         config = appearance["config"]
         shop_template_slug = template.slug
-        shop_font = config["font"]
-        shop_radius = config["radius"]
-        shop_button_radius = config["button_radius"]
-        shop_button_style = config.get("button_style") or template.button_style
         shop_density = config["density"]
-        shop_motion = config["motion"]
         shop_content_width = template.content_width
         shop_grid_density = template.grid_density
         shop_card_shadow = template.card_shadow
         shop_card_hover = template.card_hover
         shop_hero_style = template.hero_style
-        shop_type_scale = config.get("type_scale") or template.type_scale
     else:
-        from apps.storefront_builder import appearance_registry
-
-        _default_template = appearance_registry.get_template("modern")
         shop_template_slug = "modern"
-        shop_font = _default_template.font
-        shop_radius = _default_template.radius
-        shop_button_radius = _default_template.button_radius
-        shop_button_style = _default_template.button_style
         shop_density = _default_template.density
-        shop_motion = _default_template.motion
         shop_content_width = _default_template.content_width
         shop_grid_density = _default_template.grid_density
         shop_card_shadow = _default_template.card_shadow
         shop_card_hover = _default_template.card_hover
         shop_hero_style = _default_template.hero_style
-        shop_type_scale = _default_template.type_scale
-
-    from apps.storefront_builder import appearance_registry as _appearance_registry
 
     typography = _appearance_registry.resolve_typography(shop_type_scale)
 
@@ -173,6 +230,8 @@ def shop_settings(request):
         "SHOP_CARD_SHADOW": shop_card_shadow,
         "SHOP_CARD_HOVER": shop_card_hover,
         "SHOP_HERO_STYLE": shop_hero_style,
+        "SHOP_IMAGE_FIT": shop_image_fit,
+        "SHOP_IMAGE_HOVER": shop_image_hover,
         # سلسله‌مراتبِ تایپوگرافی — پنج نقشِ معنادار، نه اندازه‌یِ دلخواه؛
         # نگاه کنید به ``appearance_registry.TYPE_SCALE_SIZES``.
         "SHOP_TYPE_SCALE": shop_type_scale,

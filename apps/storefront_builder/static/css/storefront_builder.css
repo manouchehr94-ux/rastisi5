@@ -302,6 +302,22 @@ button.sfb-layer-main {
   color: var(--muted);
 }
 
+/* نوارِ «در حالِ پیش‌نمایشِ قالبِ کاندید» — چکپوینتِ پیش‌نمایشِ غیرمخرب. */
+.sfb-candidate-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0 0 10px;
+  font-size: 12.5px;
+}
+
 .sfb-preview-frame-wrap {
   flex: 1;
   min-height: 0;
@@ -639,12 +655,82 @@ button.sfb-layer-main {
   border: 2px solid var(--border, #e5e7eb);
   border-radius: 12px;
   padding: 12px;
-  cursor: pointer;
 }
 
 .sfb-template-card.active {
   border-color: var(--violet, #6d28d9);
 }
+
+.sfb-template-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.sfb-template-card-actions form {
+  flex: none;
+}
+
+/* بندانگشتیِ CSS-only هر Template — فقط ساختارِ نسبیِ هدر/هیرو/گرید را
+   نشان می‌دهد (نه یک اسکرین‌شاتِ واقعی)، رنگ‌ها از سواچِ همان Template
+   می‌آید (``t.swatch``) تا واقعاً «۱۰ فروشگاهِ متفاوت» به نظر برسند، نه
+   صرفاً کارتِ متنی. */
+.sfb-template-mini {
+  position: relative;
+  height: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #eef0f6;
+  margin-bottom: 8px;
+}
+
+.sfb-template-mini span {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 12px;
+  background: rgba(20, 15, 35, 0.14);
+}
+
+.sfb-template-mini b {
+  position: absolute;
+  top: 16px;
+  right: 6px;
+  left: 6px;
+  bottom: 24px;
+  border-radius: 5px;
+  background: var(--sfb-mini-primary, #6d28d9);
+  opacity: 0.85;
+}
+
+.sfb-template-mini i,
+.sfb-template-mini i::before,
+.sfb-template-mini i::after {
+  position: absolute;
+  bottom: 6px;
+  height: 14px;
+  width: 22%;
+  border-radius: 3px;
+  background: var(--sfb-mini-accent, #ff4d77);
+  font-style: normal;
+}
+
+.sfb-template-mini i {
+  right: 6px;
+}
+
+.sfb-template-mini i::before {
+  content: '';
+  right: 26%;
+}
+
+.sfb-template-mini i::after {
+  content: '';
+  right: 52%;
+}
+
+/* --sfb-mini-primary/--sfb-mini-accent با style پرزی روی خودِ .sfb-template-mini در تمپلیت ست می‌شوند. */
 
 .sfb-palette-gallery {
   display: grid;

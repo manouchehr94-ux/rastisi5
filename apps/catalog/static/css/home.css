@@ -31,6 +31,13 @@ html[data-sfb-hero-style="tall"] .hero-text h1,
 html[data-sfb-hero-style="tall"] .hero-text p{max-width:100%;margin-inline:auto}
 html[data-sfb-hero-style="tall"] .hero-btns{justify-content:center}
 html[data-sfb-hero-style="tall"] .hero-visual{order:-1;min-height:260px}
+
+/* تراکم/فاصله‌گذاری (density) — کنترلِ مستقیمِ تاجر، مستقلِ از
+   hero-style/Template؛ همان الگویِ overrideهایِ hero-style بالا. */
+html[data-sfb-density="compact"] .hero-inner{padding:28px}
+html[data-sfb-density="relaxed"] .hero-inner{padding:58px}
+html[data-sfb-density="compact"] .hero{padding:14px 0 4px}
+html[data-sfb-density="relaxed"] .hero{padding:32px 0 10px}
 .float-card{position:absolute;background:#fff;color:var(--ink);border-radius:14px;padding:10px 14px;box-shadow:0 12px 30px rgba(60,30,120,.25);font-size:12px;font-weight:700;display:flex;align-items:center;gap:9px}
 .float-card .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:17px}
 .fc1{top:8px;right:-6px}.fc1 .ic{background:var(--pink-soft)}
@@ -55,6 +62,8 @@ html[data-sfb-hero-style="tall"] .hero-visual{order:-1;min-height:260px}
 
 /* ===== section head ===== */
 .section{margin:34px 0}
+html[data-sfb-density="compact"] .section{margin:18px 0}
+html[data-sfb-density="relaxed"] .section{margin:54px 0}
 .sec-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
 .sec-head h2{font-size:19px;font-weight:900;display:flex;align-items:center;gap:9px}
 .sec-head h2 .bar{width:5px;height:22px;border-radius:4px;background:linear-gradient(var(--violet),var(--violet-3))}
@@ -143,6 +152,8 @@ html[data-sfb-hero-style="tall"] .hero-visual{order:-1;min-height:260px}
 
 /* ===== features ===== */
 .features{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:34px 0}
+html[data-sfb-density="compact"] .features{gap:10px;margin:18px 0}
+html[data-sfb-density="relaxed"] .features{gap:22px;margin:54px 0}
 .feat{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:20px;display:flex;align-items:center;gap:13px}
 .feat .ic{width:50px;height:50px;border-radius:14px;background:var(--violet-soft);color:var(--violet);display:grid;place-items:center;flex-shrink:0}
 .feat .ic svg{width:24px;height:24px}
