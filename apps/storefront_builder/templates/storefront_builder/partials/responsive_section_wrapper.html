@@ -1,3 +1,4 @@
+{% load storefront_builder_extras %}
 {% comment %}
 تنها نقطه‌ی مشترک اعمالِ «تنظیماتِ نمایش در دستگاه‌ها» (فازِ D) — هم
 پیش‌نمایشِ ادیتور (preview.html) و هم صفحه‌ی عمومی (home_visual.html)
@@ -12,8 +13,16 @@ data-hide-* فقط وقتی حاضر است که واقعاً پنهان باش�
 متغیرهایِ CSS ستون همیشه نوشته می‌شوند (حتی برایِ انواعی که ستون
 معنا ندارد) — بی‌ضرر، چون فقط ``product_section.html`` از آن‌ها
 استفاده می‌کند (``.rsec-cols``).
+
+``data-section-id``/``data-section-key``/``data-section-label`` فقط وقتی
+حاضرند که ``is_preview`` صریحاً True باشد (متغیرِ از‌قبل‌موجودِ
+``storefront_preview`` view — هرگز روی صفحه‌ی عمومی/``home_visual.html``
+ست نمی‌شود) — عمداً هرگز به بازدیدکننده‌ی عمومی نشان داده نمی‌شود
+(نه شناسه‌ی دیتابیس، نه هیچ hookِ انتخابِ بصری). زیرساختِ «شناساییِ
+مستقیمِ بصری» (چکپوینتِ Direct Visual Editing).
 {% endcomment %}
 <div class="rsec"
+     {% if is_preview %}data-section-id="{{ item.section.pk }}" data-section-key="{{ item.section.section_key }}" data-section-label="{{ item.section.section_key|section_label }}"{% endif %}
      {% if item.context.settings.responsive.hide_on_desktop %}data-hide-desktop{% endif %}
      {% if item.context.settings.responsive.hide_on_tablet %}data-hide-tablet{% endif %}
      {% if item.context.settings.responsive.hide_on_mobile %}data-hide-mobile{% endif %}

@@ -89,7 +89,8 @@
 
     <main class="sfb-preview-pane">
       <div class="sfb-preview-frame-wrap" :class="'sfb-device-' + device">
-        <iframe id="sfbPreviewFrame" src="{% url 'dashboard:storefront-builder-preview' %}" title="پیش‌نمایش صفحه اصلی"></iframe>
+        <iframe id="sfbPreviewFrame" src="{% url 'dashboard:storefront-builder-preview' %}" title="پیش‌نمایش صفحه اصلی"
+                data-settings-url-template="{% url 'dashboard:storefront-builder-section-settings' 0 %}"></iframe>
       </div>
     </main>
   </div>
@@ -114,8 +115,31 @@ function storefrontEditor() {
           document.getElementById('sfbPreviewFrame').contentWindow.location.reload();
         }
       });
+      // شناساییِ مستقیمِ بصری — پیامِ postMessage از preview.html (همان
+      // frame که با کلیک/لمسِ یک section آن را می‌فرستد). مبداء پیام باید
+      // دقیقاً هم‌مبدأ (same-origin) خودِ همین صفحه باشد — هرگز به پیامِ
+      // یک iframe دیگر/مبدأ خارجی اعتماد نشود.
+      window.addEventListener('message', (evt) => {
+        if (evt.origin !== window.location.origin) return;
+        if (!evt.data || evt.data.type !== 'sfb:selectSection') return;
+        this.selectSection(evt.data.sectionId);
+      });
     },
     setDevice(d) { this.device = d; },
+    selectSection(sectionId) {
+      document.querySelectorAll('.sfb-section-row.sfb-row-selected').forEach((el) => el.classList.remove('sfb-row-selected'));
+      const row = document.querySelector('.sfb-section-row[data-id="' + sectionId + '"]');
+      if (row) {
+        row.classList.add('sfb-row-selected');
+        row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+      const iframe = document.getElementById('sfbPreviewFrame');
+      const template = iframe.getAttribute('data-settings-url-template');
+      const url = template.replace('/0/settings/', '/' + sectionId + '/settings/');
+      htmx.ajax('GET', url, { target: '#sfbSettingsModalBody', swap: 'innerHTML' }).then(() => {
+        this.settingsOpen = true;
+      });
+    },
     handleBeforeUnload(e) {
       // چون هر افزودن/حذف/جابه‌جایی بلافاصله ذخیره می‌شود، تنها حالتِ
       // واقعاً «ذخیره‌نشده» فرمِ باز تنظیماتِ یک بخش است.

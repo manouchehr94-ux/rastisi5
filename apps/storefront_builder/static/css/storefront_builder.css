@@ -238,3 +238,55 @@
     flex: 1;
   }
 }
+
+/* شناساییِ مستقیمِ بصری در Preview — چکپوینتِ Direct Visual Editing.
+   data-section-id فقط داخلِ preview.html وجود دارد (never روی صفحه‌ی
+   عمومی) — نگاه کنید به responsive_section_wrapper.html. */
+.sfb-preview-sections .rsec[data-section-id] {
+  position: relative;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transition: outline-color 0.12s ease;
+}
+
+.sfb-preview-sections .rsec[data-section-id]:hover,
+.sfb-preview-sections .rsec[data-section-id].sfb-rsec-selected {
+  outline-color: var(--violet, #6d28d9);
+}
+
+.sfb-preview-sections .rsec[data-section-id]:hover::before,
+.sfb-preview-sections .rsec[data-section-id].sfb-rsec-selected::before {
+  content: attr(data-section-label);
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 50;
+  background: var(--violet, #6d28d9);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* روی لمسی: hover واقعی وجود ندارد — فقط با tap (که کلاسِ
+   sfb-rsec-selected را از JS اضافه می‌کند) برچسب/outline نشان داده شود،
+   نه با شبیه‌سازیِ hover مرورگر که رفتارِ غیرقابل‌پیش‌بینی دارد. */
+@media (hover: none) {
+  .sfb-preview-sections .rsec[data-section-id]:hover {
+    outline-color: transparent;
+  }
+  .sfb-preview-sections .rsec[data-section-id]:hover::before {
+    content: none;
+  }
+}
+
+/* Highlightِ ردیفِ متناظر در فهرستِ سایدبار وقتی section مربوطه در
+   Preview کلیک/لمس شود — چکپوینتِ Direct Visual Editing. */
+.sfb-section-row.sfb-row-selected {
+  outline: 2px solid var(--violet, #6d28d9);
+  outline-offset: 2px;
+}

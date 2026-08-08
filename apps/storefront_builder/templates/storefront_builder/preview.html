@@ -29,3 +29,27 @@
 {% block footer %}
 {% include "storefront_builder/partials/page_shell_footer.html" with footer_config=version.effective_footer_config is_live_storefront=False is_builder_preview=True %}
 {% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // شناساییِ مستقیمِ بصری — کلیک/لمسِ هر section در Preview یک پیامِ
+  // postMessage به پنجره‌ی والد (ادیتور) می‌فرستد تا تنظیماتِ همان
+  // section باز شود و ردیفِ متناظرش در فهرست Highlight شود. کلیک هم
+  // روی دسکتاپ (mouse) و هم روی موبایل/لمسی (tap) به‌طورِ یکسان کار
+  // می‌کند — نیازی به رویدادِ جداگانه‌ی touch نیست.
+  document.addEventListener('click', function (evt) {
+    var el = evt.target.closest('[data-section-id]');
+    if (!el || !window.parent || window.parent === window) return;
+    var previouslySelected = document.querySelector('.sfb-rsec-selected');
+    if (previouslySelected && previouslySelected !== el) previouslySelected.classList.remove('sfb-rsec-selected');
+    el.classList.add('sfb-rsec-selected');
+    window.parent.postMessage({
+      type: 'sfb:selectSection',
+      sectionId: el.getAttribute('data-section-id'),
+      sectionKey: el.getAttribute('data-section-key'),
+    }, window.location.origin);
+  });
+})();
+</script>
+{% endblock %}

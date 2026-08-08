@@ -69,6 +69,14 @@ class EditorAccessTests(StorefrontBuilderViewsTestCase):
         resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
         self.assertEqual(resp.status_code, 200)
 
+    def test_preview_exposes_section_ids_for_direct_selection(self):
+        """چکپوینتِ Direct Visual Editing — برخلافِ صفحه‌ی عمومی، Preview
+        (فقط staff همین فروشگاه) باید data-section-id داشته باشد تا کلیک
+        روی یک section در Preview بتواند تنظیماتِ همان section را باز کند."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "data-section-id")
+        self.assertContains(resp, "data-section-key")
+
     def test_preview_never_shows_another_stores_draft(self):
         other_store = Store.objects.create(
             name="فروشگاه دیگر", slug="sfb-other", admin_subdomain="sfb-other", status=Store.Status.ACTIVE,

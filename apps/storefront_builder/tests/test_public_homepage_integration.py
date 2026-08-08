@@ -50,6 +50,15 @@ class PublicHomepageIntegrationTests(TestCase):
         self.assertIn("catalog/home_visual.html", template_names)
         self.assertNotIn("catalog/home.html", template_names)
 
+    def test_public_page_never_exposes_section_ids(self):
+        """چکپوینتِ Direct Visual Editing: data-section-id فقط برایِ
+        Preview (staff-only) اضافه می‌شود — صفحه‌ی عمومی هرگز نباید
+        شناسه‌ی دیتابیسِ داخلی را در HTML به بازدیدکننده نشان دهد."""
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        self.assertNotContains(resp, "data-section-id")
+
     def test_public_page_shows_published_content_not_later_draft_edits(self):
         """تصمیم ۱۱ کاربر: صفحه عمومی هرگز Draft را نمی‌بیند — ویرایش‌های
         بعد از Publish تا Publish دوباره روی صفحه عمومی ظاهر نمی‌شوند."""
