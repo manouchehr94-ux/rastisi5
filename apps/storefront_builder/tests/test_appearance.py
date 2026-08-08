@@ -216,3 +216,118 @@ class AppearanceDraftPublishIsolationTests(TestCase):
         resp = self.client.get(reverse("catalog:product-list"), HTTP_HOST="sfb-appearance-public.example.com")
         self.assertContains(resp, live_primary.upper())
         self.assertNotContains(resp, "#00FF00")
+
+
+class PaletteRegistryTests(TestCase):
+    def test_at_least_twenty_palettes_registered(self):
+        self.assertGreaterEqual(len(appearance_registry.list_palettes()), 20)
+
+    def test_every_palette_has_all_eight_color_keys(self):
+        from apps.storefront_builder.models import APPEARANCE_COLOR_KEYS
+
+        for palette in appearance_registry.list_palettes():
+            self.assertEqual(set(palette.colors.keys()), set(APPEARANCE_COLOR_KEYS), palette.slug)
+
+    def test_palette_slugs_are_unique(self):
+        slugs = [p.slug for p in appearance_registry.list_palettes()]
+        self.assertEqual(len(slugs), len(set(slugs)))
+
+    def test_at_least_one_template_registered(self):
+        self.assertGreaterEqual(len(appearance_registry.list_templates()), 1)
+        self.assertIsNotNone(appearance_registry.get_template("modern"))
+
+
+class PaletteOverrideWorkflowTests(TestCase):
+    """سناریوی دقیقاً همان مثالِ کارِ کاربر: انتخابِ پالت → override فقط
+    یک رنگ → بازگردانیِ همان یک رنگ → بازگردانیِ کلِ پالت."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        self.store.admin_subdomain = HOST.split(".")[0]
+        self.store.save(update_fields=["admin_subdomain"])
+        self.staff = User.objects.create_user(username="palette_owner", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.client = Client(HTTP_HOST=HOST)
+        self.client.login(username="palette_owner", password="pass12345")
+
+    def _base_fields(self, draft):
+        config = draft.effective_appearance_config()
+        return {
+            "template_slug": config["template_slug"], "font": config["font"],
+            "radius": config["radius"], "button_radius": config["button_radius"],
+            "density": config["density"], "motion": config["motion"],
+        }
+
+    def test_selecting_palette_sets_all_coordinated_colors(self):
+        draft = svc.get_or_create_draft(self.store)
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            **self._base_fields(draft), "palette_slug": "ocean",
+        })
+        draft = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft.appearance_config["palette_slug"], "ocean")
+        colors = appearance_registry.resolve_colors(draft.appearance_config)
+        self.assertEqual(colors, appearance_registry.get_palette("ocean").colors)
+
+    def test_overriding_only_text_preserves_rest_of_palette(self):
+        draft = svc.get_or_create_draft(self.store)
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            **self._base_fields(draft), "palette_slug": "ocean",
+        })
+        draft = svc.get_or_create_draft(self.store)
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            **self._base_fields(draft), "palette_slug": "ocean", "color_text": "#000000",
+        })
+        draft = svc.get_or_create_draft(self.store)
+        colors = appearance_registry.resolve_colors(draft.appearance_config)
+        base = appearance_registry.get_palette("ocean").colors
+        self.assertEqual(colors["text"], "#000000")
+        for key in ("primary", "secondary", "accent", "background", "surface", "muted", "border"):
+            self.assertEqual(colors[key], base[key], key)
+
+    def test_reset_one_color_restores_only_that_key(self):
+        draft = svc.get_or_create_draft(self.store)
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            **self._base_fields(draft), "palette_slug": "ocean", "color_text": "#000000", "color_primary": "#00FF00",
+        })
+        draft = svc.get_or_create_draft(self.store)
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            **self._base_fields(draft), "palette_slug": "ocean",
+            "color_text": "#000000", "color_primary": "#00FF00", "reset_color": "text",
+        })
+        draft = svc.get_or_create_draft(self.store)
+        overrides = draft.appearance_config["color_overrides"]
+        self.assertNotIn("text", overrides)
+        self.assertEqual(overrides["primary"], "#00FF00")
+
+    def test_reset_all_overrides_clears_everything_but_keeps_palette(self):
+        draft = svc.get_or_create_draft(self.store)
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            **self._base_fields(draft), "palette_slug": "ocean", "color_text": "#000000", "color_primary": "#00FF00",
+        })
+        draft = svc.get_or_create_draft(self.store)
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            **self._base_fields(draft), "palette_slug": "ocean",
+            "color_text": "#000000", "color_primary": "#00FF00", "reset_all_overrides": "1",
+        })
+        draft = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft.appearance_config["color_overrides"], {})
+        self.assertEqual(draft.appearance_config["palette_slug"], "ocean")
+
+    def test_switching_palette_clears_previous_overrides(self):
+        draft = svc.get_or_create_draft(self.store)
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            **self._base_fields(draft), "palette_slug": "ocean", "color_text": "#000000",
+        })
+        draft = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft.appearance_config["color_overrides"], {"text": "#000000"})
+
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            **self._base_fields(draft), "palette_slug": "forest",
+        })
+        draft = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft.appearance_config["palette_slug"], "forest")
+        self.assertEqual(draft.appearance_config["color_overrides"], {})

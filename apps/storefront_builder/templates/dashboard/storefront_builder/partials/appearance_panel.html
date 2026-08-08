@@ -26,7 +26,7 @@
     <button type="button" class="sfb-appearance-card" @click="view = 'palettes'">
       <div>
         <span class="sfb-appearance-kicker">پالت فعلی</span>
-        <strong>{% if config.palette_slug %}{% for p in palettes %}{% if p.slug == config.palette_slug %}{{ p.name_fa }}{% endif %}{% endfor %}{% else %}رنگ‌های سفارشی{% endif %}</strong>
+        <strong>{% if config.palette_slug %}{% for p in palettes %}{% if p.slug == config.palette_slug %}{{ p.name_fa }}{% endif %}{% endfor %}{% else %}رنگ‌های سفارشی{% endif %}{% if config.color_overrides %} — شخصی‌سازی‌شده{% endif %}</strong>
       </div>
       <div class="sfb-appearance-stripe">
         <span style="background:{{ resolved_colors.primary }}"></span>
@@ -56,12 +56,35 @@
     </button>
   </div>
 
-  {% if not palettes %}
   <div x-show="view === 'palettes'">
     <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
-    <p style="color:var(--muted);font-size:12.5px;padding:16px 0">پالت‌های آماده به‌زودی اضافه می‌شوند.</p>
+    <p style="color:var(--muted);font-size:12.5px;margin:8px 0 12px">با یک کلیک، تمام رنگ‌های هماهنگ سایت با هم تغییر می‌کنند — شخصی‌سازیِ قبلیِ شما بازنشانی می‌شود.</p>
+    <div class="sfb-palette-gallery">
+      {% for p in palettes %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}">
+        {% csrf_token %}
+        <input type="hidden" name="palette_slug" value="{{ p.slug }}">
+        <input type="hidden" name="template_slug" value="{{ config.template_slug }}">
+        <input type="hidden" name="font" value="{{ config.font }}">
+        <input type="hidden" name="radius" value="{{ config.radius }}">
+        <input type="hidden" name="button_radius" value="{{ config.button_radius }}">
+        <input type="hidden" name="density" value="{{ config.density }}">
+        <input type="hidden" name="motion" value="{{ config.motion }}">
+        <button type="submit" class="sfb-palette-card {% if config.palette_slug == p.slug %}active{% endif %}">
+          <strong>{{ p.name_fa }}</strong>
+          <span class="tiny" style="color:var(--muted)">{{ p.group_fa }}</span>
+          <div class="sfb-appearance-stripe">
+            <span style="background:{{ p.colors.primary }}"></span>
+            <span style="background:{{ p.colors.secondary }}"></span>
+            <span style="background:{{ p.colors.accent }}"></span>
+            <span style="background:{{ p.colors.surface }}"></span>
+            <span style="background:{{ p.colors.text }}"></span>
+          </div>
+        </button>
+      </form>
+      {% endfor %}
+    </div>
   </div>
-  {% endif %}
 
   <div x-show="view === 'templates'">
     <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
@@ -86,6 +109,7 @@
 
   <div x-show="view === 'colors'">
     <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
+    <p style="font-size:12.5px;color:var(--muted);margin:8px 0 12px">مثلاً فقط رنگ متن را تغییر دهید؛ بقیه رنگ‌های پالت همان می‌مانند.</p>
     <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}">
       {% csrf_token %}
       <input type="hidden" name="template_slug" value="{{ config.template_slug }}">
@@ -101,11 +125,19 @@
           <label style="display:block">{{ label }}</label>
           <span class="tiny" style="color:var(--muted)" dir="ltr">{{ resolved_colors|dictget:key }}</span>
         </div>
-        <input type="color" name="color_{{ key }}" value="{{ resolved_colors|dictget:key }}">
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="color" name="color_{{ key }}" value="{{ resolved_colors|dictget:key }}">
+          {% if key in config.color_overrides %}
+          <button type="submit" name="reset_color" value="{{ key }}" class="btn btn-ghost btn-sm" title="بازگردانی این رنگ به پالت" formnovalidate>↺</button>
+          {% endif %}
+        </div>
       </div>
       {% endfor %}
       <div style="display:flex;gap:10px;margin-top:16px">
         <button type="submit" class="btn btn-primary">اعمال تغییرات</button>
+        {% if config.color_overrides %}
+        <button type="submit" name="reset_all_overrides" value="1" class="btn btn-danger" formnovalidate>بازگردانی کل پالت</button>
+        {% endif %}
       </div>
     </form>
   </div>

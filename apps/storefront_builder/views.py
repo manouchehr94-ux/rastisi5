@@ -487,10 +487,20 @@ def storefront_appearance_editor(request):
 
     if request.method == "POST":
         current = draft.effective_appearance_config()
+        new_palette_slug = request.POST.get("palette_slug") or current.get("palette_slug")
+        # تعویضِ Palette یعنی شروعِ تازه — override هایِ پالتِ قبلی روی
+        # پالتِ جدید بی‌معنا/گیج‌کننده‌اند (طبقِ الزامِ صریحِ کار: انتخابِ
+        # پالت یعنی «تمامِ رنگ‌های هماهنگ با هم تغییر کنند»). فقط زمانی
+        # این‌طور رفتار می‌شود که واقعاً palette_slug عوض شده باشد — نه
+        # هر submit ای (فرمِ خودِ صفحه‌ی رنگ‌ها همیشه palette_slug فعلی
+        # را دوباره می‌فرستد، پس این شرط برایِ آن هرگز صدق نمی‌کند).
+        palette_changed = new_palette_slug != current.get("palette_slug")
+        color_overrides = {} if palette_changed else dict(current.get("color_overrides") or {})
+
         raw = {
             "template_slug": request.POST.get("template_slug", current["template_slug"]),
-            "palette_slug": request.POST.get("palette_slug") or current.get("palette_slug"),
-            "color_overrides": dict(current.get("color_overrides") or {}),
+            "palette_slug": new_palette_slug,
+            "color_overrides": color_overrides,
             "font": request.POST.get("font", current["font"]),
             "radius": request.POST.get("radius", current["radius"]),
             "button_radius": request.POST.get("button_radius", current["button_radius"]),
@@ -498,10 +508,26 @@ def storefront_appearance_editor(request):
             "motion": request.POST.get("motion", current["motion"]),
         }
         from .models import APPEARANCE_COLOR_KEYS
-        for color_key in APPEARANCE_COLOR_KEYS:
-            posted = request.POST.get(f"color_{color_key}")
-            if posted:
-                raw["color_overrides"][color_key] = posted
+
+        reset_key = request.POST.get("reset_color")
+        if request.POST.get("reset_all_overrides") == "1":
+            # بازگردانیِ کلِ پالت — کلِ override ها پاک می‌شود، حتی اگر
+            # فیلدهایِ رنگِ دیگر هم در همین POST حاضر باشند (چون همان
+            # فرمِ خودِ صفحه‌ی رنگ‌هاست) — این دکمه عمداً هر ادعایِ دیگری
+            # را نادیده می‌گیرد.
+            raw["color_overrides"] = {}
+        elif reset_key:
+            # بازگردانیِ *فقط یک* رنگ — عمداً بقیه‌ی فیلدهایِ ``color_*``ی
+            # همین POST را نادیده می‌گیرد (آن‌ها فقط مقدارِ نمایشیِ فعلیِ
+            # input رنگی‌اند، نه تغییرِ واقعیِ مرچنت) وگرنه همان لحظه با
+            # مقدارِ فعلی دوباره override می‌شدند و «بازگردانی» بی‌اثر
+            # می‌ماند.
+            raw["color_overrides"].pop(reset_key, None)
+        else:
+            for color_key in APPEARANCE_COLOR_KEYS:
+                posted = request.POST.get(f"color_{color_key}")
+                if posted:
+                    raw["color_overrides"][color_key] = posted
         try:
             config = layout_service.validate_appearance_config(raw)
         except layout_service.AppearanceConfigValidationError as exc:

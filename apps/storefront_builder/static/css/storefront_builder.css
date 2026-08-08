@@ -431,3 +431,24 @@
 .sfb-template-card.active {
   border-color: var(--violet, #6d28d9);
 }
+
+.sfb-palette-gallery {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sfb-palette-card {
+  display: block;
+  width: 100%;
+  text-align: right;
+  background: var(--card, #fff);
+  border: 2px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.sfb-palette-card.active {
+  border-color: var(--violet, #6d28d9);
+}
