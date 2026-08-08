@@ -351,3 +351,150 @@ class ScopedBannersTests(TestCase):
         item = next(i for i in items if i["section"].section_key == "single_banner")
         titles = [b.title for b in item["context"]["banners"]]
         self.assertEqual(titles, ["اول"])
+
+
+class CategoryGridRenderTests(TestCase):
+    """چکپوینتِ ۱۱: category_grid از یک بلوکِ auto سراسری به یک section
+    واقعاً per-instance ارتقا یافت."""
+
+    def setUp(self):
+        cache.clear()
+
+    def _items_for(self, draft, store):
+        items = build_render_items(draft, store)
+        return [i for i in items if i["section"].section_key == "category_grid"]
+
+    def test_empty_selection_falls_back_to_legacy_auto_pick(self):
+        """سازگاریِ کامل با گذشته: section بدونِ category_ids دقیقاً همان
+        رفتارِ ۳+۱ قبل از این چکپوینت را دارد."""
+        from apps.catalog.models import Category
+
+        store = _akhlaghi()
+        for i in range(5):
+            Category.objects.create(store=store, name=f"دسته {i}", slug=f"cat-{i}", order=i, is_active=True)
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="category_grid").delete()
+        StorefrontSection.objects.create(version=draft, section_key="category_grid", order=900)
+        item = self._items_for(draft, store)[0]
+        self.assertEqual(len(item["context"]["tiles"]), 3)
+        self.assertIsNotNone(item["context"]["cream_category"])
+
+    def test_two_independent_category_grids_show_different_categories(self):
+        """الزامِ صریحِ کار: تکرارِ گرید دسته‌بندی باید دسته‌های متفاوت
+        نشان دهد — نه همان فهرستِ نمونه‌ی اول."""
+        from apps.catalog.models import Category
+
+        store = _akhlaghi()
+        cat_a = Category.objects.create(store=store, name="دسته A", slug="cat-a", is_active=True)
+        cat_b = Category.objects.create(store=store, name="دسته B", slug="cat-b", is_active=True)
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="category_grid").delete()
+        section_a = StorefrontSection.objects.create(
+            version=draft, section_key="category_grid", order=900,
+            settings={"title": "", "display_mode": "grid", "category_ids": [cat_a.pk]},
+        )
+        section_b = StorefrontSection.objects.create(
+            version=draft, section_key="category_grid", order=901,
+            settings={"title": "", "display_mode": "grid", "category_ids": [cat_b.pk]},
+        )
+        items = self._items_for(draft, store)
+        names_by_section = {i["context"]["section"].pk: [c.name for c in i["context"]["top_categories"]] for i in items}
+        self.assertEqual(names_by_section[section_a.pk], ["دسته A"])
+        self.assertEqual(names_by_section[section_b.pk], ["دسته B"])
+
+    def test_selection_preserves_merchant_order_not_database_order(self):
+        from apps.catalog.models import Category
+
+        store = _akhlaghi()
+        cat_a = Category.objects.create(store=store, name="آ", slug="cat-aa", is_active=True)
+        cat_b = Category.objects.create(store=store, name="ب", slug="cat-bb", is_active=True)
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="category_grid").delete()
+        StorefrontSection.objects.create(
+            version=draft, section_key="category_grid", order=900,
+            settings={"title": "", "display_mode": "grid", "category_ids": [cat_b.pk, cat_a.pk]},
+        )
+        item = self._items_for(draft, store)[0]
+        self.assertEqual([c.name for c in item["context"]["top_categories"]], ["ب", "آ"])
+
+    def test_inactive_category_silently_excluded(self):
+        from apps.catalog.models import Category
+
+        store = _akhlaghi()
+        cat = Category.objects.create(store=store, name="غیرفعال", slug="cat-inactive", is_active=False)
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="category_grid").delete()
+        StorefrontSection.objects.create(
+            version=draft, section_key="category_grid", order=900,
+            settings={"title": "", "display_mode": "grid", "category_ids": [cat.pk]},
+        )
+        item = self._items_for(draft, store)[0]
+        self.assertEqual(item["context"]["top_categories"], [])
+
+
+class BrandCarouselRenderTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def _items_for(self, draft, store):
+        items = build_render_items(draft, store)
+        return [i for i in items if i["section"].section_key == "brand_carousel"]
+
+    def test_empty_selection_falls_back_to_all_active_brands(self):
+        from apps.catalog.models import Brand
+
+        store = _akhlaghi()
+        Brand.objects.create(store=store, name="برند فعال", slug="brand-active", is_active=True)
+        Brand.objects.create(store=store, name="برند غیرفعال", slug="brand-inactive", is_active=False)
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="brand_carousel").delete()
+        StorefrontSection.objects.create(version=draft, section_key="brand_carousel", order=900)
+        item = self._items_for(draft, store)[0]
+        self.assertEqual([b.name for b in item["context"]["brands"]], ["برند فعال"])
+
+    def test_two_independent_brand_carousels_show_different_brands(self):
+        from apps.catalog.models import Brand
+
+        store = _akhlaghi()
+        brand_a = Brand.objects.create(store=store, name="برند A", slug="brand-a", is_active=True)
+        brand_b = Brand.objects.create(store=store, name="برند B", slug="brand-b", is_active=True)
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="brand_carousel").delete()
+        section_a = StorefrontSection.objects.create(
+            version=draft, section_key="brand_carousel", order=900,
+            settings={"title": "", "display_mode": "grid", "show_view_all": False, "brand_ids": [brand_a.pk]},
+        )
+        section_b = StorefrontSection.objects.create(
+            version=draft, section_key="brand_carousel", order=901,
+            settings={"title": "", "display_mode": "grid", "show_view_all": False, "brand_ids": [brand_b.pk]},
+        )
+        items = self._items_for(draft, store)
+        names_by_section = {i["context"]["section"].pk: [b.name for b in i["context"]["brands"]] for i in items}
+        self.assertEqual(names_by_section[section_a.pk], ["برند A"])
+        self.assertEqual(names_by_section[section_b.pk], ["برند B"])
+
+    def test_view_all_link_absent_without_show_view_all(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="brand_carousel").delete()
+        StorefrontSection.objects.create(version=draft, section_key="brand_carousel", order=900)
+        item = self._items_for(draft, store)[0]
+        self.assertIsNone(item["context"]["view_all_url"])
+
+    def test_view_all_link_resolves_when_enabled_with_destination(self):
+        from apps.catalog.models import Category
+
+        store = _akhlaghi()
+        category = Category.objects.create(store=store, name="همه برندها", slug="all-brands-cat", is_active=True)
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="brand_carousel").delete()
+        StorefrontSection.objects.create(
+            version=draft, section_key="brand_carousel", order=900,
+            settings={
+                "title": "", "display_mode": "grid", "show_view_all": True, "brand_ids": [],
+                "destination": {"destination_type": "category", "destination_id": category.pk, "open_in_new_tab": False},
+            },
+        )
+        item = self._items_for(draft, store)[0]
+        self.assertIsNotNone(item["context"]["view_all_url"])
+        self.assertIn(category.slug, item["context"]["view_all_url"])

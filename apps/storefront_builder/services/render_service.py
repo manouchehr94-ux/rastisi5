@@ -19,7 +19,12 @@ from apps.catalog.services.product_publish_service import storefront_listing_pro
 from apps.content.models import HeroSlide, PromotionalBanner
 from apps.orders.services import best_seller_service
 
-from ..section_registry import UnknownSectionTypeError, get_definition
+from ..section_registry import (
+    UnknownSectionTypeError,
+    default_brand_carousel_settings,
+    default_category_grid_settings,
+    get_definition,
+)
 from . import section_data_service
 
 TILE_CLASSES = ["t1", "t2", "t3"]
@@ -79,13 +84,28 @@ def _multi_banner_context(store, section):
 
 
 def _category_grid_context(store, section):
-    top_categories = list(
-        Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
-    )
+    """چکپوینتِ ۱۱: اگر مرچنت صراحتاً دسته‌بندی انتخاب کرده باشد
+    (``category_ids``)، دقیقاً همان‌ها به همان ترتیب نمایش داده می‌شوند —
+    وگرنه (فروشگاهی که هنوز این تنظیمات را لمس نکرده) دقیقاً همان
+    رفتارِ auto-pick قبل از این چکپوینت (۳+۱ دسته‌ی اولِ فعالِ سطحِ اول)
+    بازتولید می‌شود. ``pk__in`` ترتیب را حفظ نمی‌کند، پس فهرستِ
+    انتخاب‌شده دستی طبقِ همان ترتیبِ ذخیره‌شده بازسازی می‌شود (همان الگویِ
+    ``_best_sellers_context``)."""
+    category_ids = (section.settings or {}).get("category_ids") or []
+    if category_ids:
+        by_id = {
+            c.pk: c for c in Category.objects.filter(store=store, pk__in=category_ids, is_active=True)
+        }
+        categories = [by_id[cid] for cid in category_ids if cid in by_id]
+    else:
+        categories = list(
+            Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
+        )
     return {
-        "tiles": list(zip(top_categories[:3], TILE_CLASSES)),
-        "cream_category": top_categories[3] if len(top_categories) > 3 else None,
-        "top_categories": top_categories,
+        "tiles": list(zip(categories[:3], TILE_CLASSES)),
+        "cream_category": categories[3] if len(categories) > 3 else None,
+        "top_categories": categories,
+        "category_grid_settings": {**default_category_grid_settings(), **(section.settings or {})},
     }
 
 
@@ -142,8 +162,26 @@ def _featured_products_context(store, section):
 
 
 def _brand_carousel_context(store, section):
-    brands = Brand.objects.filter(store=store, is_active=True).order_by("sort_order", "name")
-    return {"brands": brands}
+    """چکپوینتِ ۱۱: همان الگویِ ``_category_grid_context`` — ``brand_ids``
+    خالی یعنی رفتارِ auto (همه‌ی برندهایِ فعال) دست‌نخورده می‌ماند."""
+    settings = {**default_brand_carousel_settings(), **(section.settings or {})}
+    brand_ids = settings["brand_ids"]
+    if brand_ids:
+        by_id = {b.pk: b for b in Brand.objects.filter(store=store, pk__in=brand_ids, is_active=True)}
+        brands = [by_id[bid] for bid in brand_ids if bid in by_id]
+    else:
+        brands = list(Brand.objects.filter(store=store, is_active=True).order_by("sort_order", "name"))
+
+    view_all_url = None
+    if settings["show_view_all"]:
+        destination = (section.settings or {}).get("destination") or {}
+        if destination.get("destination_type", "none") != "none":
+            from apps.content.services import resolve_destination_setting
+
+            resolved = resolve_destination_setting(store, destination)
+            view_all_url = resolved["url"]
+
+    return {"brands": brands, "brand_carousel_settings": settings, "view_all_url": view_all_url}
 
 
 def _category_context_for_promo_cards(store, section):
@@ -195,6 +233,7 @@ def _product_section_context(store, section):
 #: محتوایِ یکسان (نمونه‌ی اول) نشان می‌دهند.
 PER_INSTANCE_SECTION_KEYS = {
     "product_section", "image_text", "hero_banner", "image_slider", "single_banner", "multi_banner",
+    "category_grid", "brand_carousel",
 }
 
 

@@ -114,16 +114,19 @@ class ProductSectionSettingsError(ValueError):
     ``services/section_data_service.py`` چک می‌شود، نه اینجا)."""
 
 
-def _clean_positive_int_list(raw_list, *, max_len: int) -> list[int]:
+def _clean_positive_int_list(raw_list, *, max_len: int, error_cls=None, error_message: str | None = None) -> list[int]:
+    """دِدوپ + پاک‌سازیِ یک فهرستِ شناسه (کالای دستی/دسته‌بندی/برند) —
+    ترتیبِ ورودی حفظ می‌شود (ترتیبِ انتخابِ مرچنت، نه ترتیبِ دیتابیس)."""
+    error_cls = error_cls or ProductSectionSettingsError
     if not isinstance(raw_list, list):
-        raise ProductSectionSettingsError("فهرستِ کالاها باید یک آرایه باشد")
+        raise error_cls(error_message or "فهرستِ شناسه‌ها باید یک آرایه باشد")
     cleaned: list[int] = []
     seen = set()
     for value in raw_list:
         try:
             int_value = int(value)
         except (TypeError, ValueError):
-            raise ProductSectionSettingsError("شناسه‌ی کالا نامعتبر است") from None
+            raise error_cls(error_message or "شناسه نامعتبر است") from None
         if int_value <= 0 or int_value in seen:
             continue
         seen.add(int_value)
@@ -339,7 +342,7 @@ def _with_responsive(section_key: str, validate_fn, default_fn):
 #: خودشان از قبل ``DestinationMixin`` واقعی دارند). برایِ ``product_section``
 #: این بلوک معنایِ «override دستیِ لینکِ "مشاهده همه"» را دارد؛ برایِ
 #: ``image_text`` معنایِ «لینکِ تصویر/دکمه» را دارد.
-DESTINATION_AWARE_SECTION_KEYS = frozenset({"image_text", "product_section"})
+DESTINATION_AWARE_SECTION_KEYS = frozenset({"image_text", "product_section", "brand_carousel"})
 
 _DEFAULT_DESTINATION_SETTINGS = {
     "destination_type": "none",
@@ -480,6 +483,78 @@ def default_slider_settings() -> dict:
     }
 
 
+class CategoryGridSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ «گرید دسته‌بندی» نامعتبر است (فقط شکل/enum —
+    مالکیتِ Storeِ ``category_ids`` در خودِ ``render_service`` چک می‌شود،
+    چون یک کوئریِ QuerySet ساده است، نه سرویسِ جداگانه)."""
+
+
+_MAX_CATEGORY_GRID_IDS = 12
+_MAX_SECTION_TITLE_LENGTH = 60
+CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel")
+
+
+def _validate_category_grid_settings(raw: dict) -> dict:
+    """چکپوینتِ ۱۱: ``category_grid`` از یک بلوکِ سراسریِ ثابت (۳+۱ دسته‌ی
+    اولِ فروشگاه) به یک section واقعاً per-instance ارتقا یافت —
+    ``category_ids`` خالی یعنی «هنوز مرچنت انتخاب نکرده»، که در
+    ``render_service`` دقیقاً همان رفتارِ قبل از این چکپوینت (auto-pick
+    از دسته‌های فعالِ سطحِ اول) را بازتولید می‌کند — سازگاریِ کامل با
+    گذشته."""
+    if not isinstance(raw, dict):
+        raise CategoryGridSettingsError("تنظیمات باید یک شیء JSON باشد")
+
+    title = str(raw.get("title", "")).strip()[:_MAX_SECTION_TITLE_LENGTH]
+    display_mode = raw.get("display_mode")
+    if display_mode not in CATEGORY_GRID_DISPLAY_MODES:
+        display_mode = "grid"
+    category_ids = _clean_positive_int_list(
+        raw.get("category_ids", []), max_len=_MAX_CATEGORY_GRID_IDS,
+        error_cls=CategoryGridSettingsError, error_message="شناسه‌ی دسته‌بندی نامعتبر است",
+    )
+    return {"title": title, "display_mode": display_mode, "category_ids": category_ids}
+
+
+def default_category_grid_settings() -> dict:
+    return {"title": "", "display_mode": "grid", "category_ids": []}
+
+
+class BrandCarouselSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ «کاروسل برندها» نامعتبر است."""
+
+
+_MAX_BRAND_CAROUSEL_IDS = 24
+BRAND_CAROUSEL_DISPLAY_MODES = ("grid", "carousel")
+
+
+def _validate_brand_carousel_settings(raw: dict) -> dict:
+    """چکپوینتِ ۱۱: همان ارتقایِ ``category_grid`` برایِ ``brand_carousel``
+    — ``brand_ids`` خالی یعنی رفتارِ قبل از این چکپوینت (همه‌ی برندهایِ
+    فعالِ فروشگاه) دست‌نخورده می‌ماند. ``destination`` (لینکِ اختیاریِ
+    «مشاهده همه») از طریقِ ``DESTINATION_AWARE_SECTION_KEYS`` عمومی
+    اضافه می‌شود، نه اینجا — دقیقاً همان زیرساختِ لینکِ استانداردِ کارِ
+    ۱."""
+    if not isinstance(raw, dict):
+        raise BrandCarouselSettingsError("تنظیمات باید یک شیء JSON باشد")
+
+    title = str(raw.get("title", "")).strip()[:_MAX_SECTION_TITLE_LENGTH]
+    display_mode = raw.get("display_mode")
+    if display_mode not in BRAND_CAROUSEL_DISPLAY_MODES:
+        display_mode = "grid"
+    show_view_all = raw.get("show_view_all", False)
+    if not isinstance(show_view_all, bool):
+        show_view_all = bool(show_view_all)
+    brand_ids = _clean_positive_int_list(
+        raw.get("brand_ids", []), max_len=_MAX_BRAND_CAROUSEL_IDS,
+        error_cls=BrandCarouselSettingsError, error_message="شناسه‌ی برند نامعتبر است",
+    )
+    return {"title": title, "display_mode": display_mode, "show_view_all": show_view_all, "brand_ids": brand_ids}
+
+
+def default_brand_carousel_settings() -> dict:
+    return {"title": "", "display_mode": "grid", "show_view_all": False, "brand_ids": []}
+
+
 def _validate_image_text_settings(raw: dict) -> dict:
     if not isinstance(raw, dict):
         raise ValueError("تنظیمات باید یک شیء JSON باشد")
@@ -551,8 +626,8 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
     "category_grid": SectionDefinition(
         key="category_grid", label_fa="گرید دسته‌بندی", icon="grid",
         template_name="storefront_builder/sections/category_grid.html",
-        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True, category_fa="کشف و خرید",
+        validate_settings=_validate_category_grid_settings, default_settings=default_category_grid_settings,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="کشف و خرید",
     ),
     "featured_products": SectionDefinition(
         key="featured_products", label_fa="محصولات ویژه", icon="star",
@@ -587,8 +662,8 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
     "brand_carousel": SectionDefinition(
         key="brand_carousel", label_fa="کاروسل برندها", icon="award",
         template_name="storefront_builder/sections/brand_carousel.html",
-        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True, category_fa="کشف و خرید",
+        validate_settings=_validate_brand_carousel_settings, default_settings=default_brand_carousel_settings,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="کشف و خرید",
     ),
     "promo_cards": SectionDefinition(
         key="promo_cards", label_fa="کارت‌های تبلیغاتی", icon="layout",

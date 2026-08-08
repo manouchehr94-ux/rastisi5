@@ -383,6 +383,64 @@ class SectionSettingsFormTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(section.settings.get("image_url", ""), "")
 
 
+class CategoryGridBrandCarouselSettingsFormTests(StorefrontBuilderViewsTestCase):
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+
+    def test_category_grid_settings_form_get_shows_picker(self):
+        from apps.catalog.models import Category
+
+        Category.objects.create(store=self.store, name="دسته انتخابی", slug="cat-picker", is_active=True)
+        section = StorefrontSection.objects.create(version=self.draft, section_key="category_grid", order=1)
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "دسته انتخابی")
+
+    def test_category_grid_settings_form_saves_selection_and_order(self):
+        from apps.catalog.models import Category
+
+        cat_a = Category.objects.create(store=self.store, name="آ", slug="cg-a", is_active=True)
+        cat_b = Category.objects.create(store=self.store, name="ب", slug="cg-b", is_active=True)
+        section = StorefrontSection.objects.create(version=self.draft, section_key="category_grid", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "دسته‌های ویژه", "display_mode": "carousel",
+            "category_ids": [str(cat_b.pk), str(cat_a.pk)],
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["title"], "دسته‌های ویژه")
+        self.assertEqual(section.settings["display_mode"], "carousel")
+        self.assertEqual(section.settings["category_ids"], [cat_b.pk, cat_a.pk])
+
+    def test_brand_carousel_settings_form_saves_selection(self):
+        from apps.catalog.models import Brand
+
+        brand = Brand.objects.create(store=self.store, name="برند تست", slug="bc-a", is_active=True)
+        section = StorefrontSection.objects.create(version=self.draft, section_key="brand_carousel", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "", "display_mode": "grid", "brand_ids": [str(brand.pk)],
+            "destination_type": "none",
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["brand_ids"], [brand.pk])
+
+    def test_brand_carousel_view_all_requires_no_specific_error_when_destination_none(self):
+        """نمایشِ لینکِ «مشاهده همه» بدونِ مقصد اجازه دارد ذخیره شود — فقط
+        در رندر هیچ لینکی نشان داده نمی‌شود (نه یک خطایِ اعتبارسنجیِ
+        گیج‌کننده روی این چک‌باکس)."""
+        section = StorefrontSection.objects.create(version=self.draft, section_key="brand_carousel", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "", "display_mode": "grid", "show_view_all": "on", "brand_ids": [],
+            "destination_type": "none",
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertTrue(section.settings["show_view_all"])
+        self.assertEqual(section.settings["destination"]["destination_type"], "none")
+
+
 class ResponsiveSettingsFormTests(StorefrontBuilderViewsTestCase):
     def setUp(self):
         super().setUp()
@@ -940,3 +998,48 @@ class RenderedPreviewIntegrationTests(StorefrontBuilderViewsTestCase):
         )
         resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
         self.assertContains(resp, "https://example.com/landing")
+
+    def test_two_duplicated_category_grids_render_different_categories(self):
+        """چکپوینتِ ۱۱ — رگرسیونِ همان کلاسِ باگ: اگر ``category_grid_settings``
+        در ``{% include with %}`` فراموش شود، هر دو نمونه به رفتارِ auto
+        (یکسان) برمی‌گردند، نه انتخابِ per-instance."""
+        from apps.catalog.models import Category
+
+        cat_a = Category.objects.create(store=self.store, name="دستهٔ رندرشدهٔ آ", slug="cat-render-a", is_active=True)
+        cat_b = Category.objects.create(store=self.store, name="دستهٔ رندرشدهٔ ب", slug="cat-render-b", is_active=True)
+        self.draft.sections.filter(section_key="category_grid").delete()
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="category_grid", order=901,
+            settings={"title": "", "display_mode": "grid", "category_ids": [cat_a.pk],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="category_grid", order=902,
+            settings={"title": "", "display_mode": "grid", "category_ids": [cat_b.pk],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "دستهٔ رندرشدهٔ آ")
+        self.assertContains(resp, "دستهٔ رندرشدهٔ ب")
+
+    def test_two_duplicated_brand_carousels_render_different_brands_and_titles(self):
+        from apps.catalog.models import Brand
+
+        brand_a = Brand.objects.create(store=self.store, name="برندِ رندرشدهٔ آ", slug="brand-render-a", is_active=True)
+        brand_b = Brand.objects.create(store=self.store, name="برندِ رندرشدهٔ ب", slug="brand-render-b", is_active=True)
+        self.draft.sections.filter(section_key="brand_carousel").delete()
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="brand_carousel", order=901,
+            settings={"title": "برندهای بخش اول", "display_mode": "grid", "show_view_all": False, "brand_ids": [brand_a.pk],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="brand_carousel", order=902,
+            settings={"title": "برندهای بخش دوم", "display_mode": "grid", "show_view_all": False, "brand_ids": [brand_b.pk],
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "برندِ رندرشدهٔ آ")
+        self.assertContains(resp, "برندِ رندرشدهٔ ب")
+        self.assertContains(resp, "برندهای بخش اول")
+        self.assertContains(resp, "برندهای بخش دوم")

@@ -241,6 +241,75 @@ class ProductSectionSettingsTests(TestCase):
         self.assertNotIn("evil_field", cleaned)
 
 
+class CategoryGridSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("category_grid")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertEqual(cleaned["category_ids"], [])
+        self.assertEqual(cleaned["display_mode"], "grid")
+        self.assertEqual(cleaned["title"], "")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings("not a dict")
+
+    def test_category_ids_deduplicated_preserving_order(self):
+        cleaned = self.definition.validate_settings({"category_ids": [5, 3, 5, 3, 8]})
+        self.assertEqual(cleaned["category_ids"], [5, 3, 8])
+
+    def test_non_positive_ids_dropped(self):
+        cleaned = self.definition.validate_settings({"category_ids": [0, -1, 4]})
+        self.assertEqual(cleaned["category_ids"], [4])
+
+    def test_invalid_display_mode_falls_back_to_grid(self):
+        cleaned = self.definition.validate_settings({"display_mode": "not-a-real-mode"})
+        self.assertEqual(cleaned["display_mode"], "grid")
+
+    def test_carousel_display_mode_accepted(self):
+        cleaned = self.definition.validate_settings({"display_mode": "carousel"})
+        self.assertEqual(cleaned["display_mode"], "carousel")
+
+    def test_title_trimmed_and_capped(self):
+        cleaned = self.definition.validate_settings({"title": "  " + ("ط" * 100) + "  "})
+        self.assertEqual(len(cleaned["title"]), 60)
+        self.assertFalse(cleaned["title"].startswith(" "))
+
+    def test_category_grid_is_per_instance_duplicable(self):
+        self.assertTrue(self.definition.duplicable)
+        self.assertIsNone(self.definition.max_instances)
+
+
+class BrandCarouselSettingsTests(TestCase):
+    def setUp(self):
+        self.definition = get_definition("brand_carousel")
+
+    def test_defaults_when_empty(self):
+        cleaned = self.definition.validate_settings({})
+        self.assertEqual(cleaned["brand_ids"], [])
+        self.assertEqual(cleaned["display_mode"], "grid")
+        self.assertFalse(cleaned["show_view_all"])
+        # عضوِ DESTINATION_AWARE_SECTION_KEYS است — بلوکِ destination هم باید حاضر باشد
+        self.assertEqual(cleaned["destination"]["destination_type"], "none")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings("not a dict")
+
+    def test_brand_ids_deduplicated_preserving_order(self):
+        cleaned = self.definition.validate_settings({"brand_ids": [7, 2, 7]})
+        self.assertEqual(cleaned["brand_ids"], [7, 2])
+
+    def test_show_view_all_accepts_true(self):
+        cleaned = self.definition.validate_settings({"show_view_all": True})
+        self.assertTrue(cleaned["show_view_all"])
+
+    def test_brand_carousel_is_per_instance_duplicable(self):
+        self.assertTrue(self.definition.duplicable)
+        self.assertIsNone(self.definition.max_instances)
+
+
 class ResponsiveSettingsContractTests(TestCase):
     """اعتبارسنجیِ خودِ ``validate_responsive_settings`` — تابعِ مشترکِ
     فازِ D، مستقل از این‌که کدام نوعِ section از آن استفاده می‌کند."""

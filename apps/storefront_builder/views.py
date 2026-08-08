@@ -171,6 +171,19 @@ def storefront_section_settings(request, pk):
                 "show_dots": request.POST.get("show_dots") == "on",
                 "loop": request.POST.get("loop") == "on",
             }
+        elif section.section_key == "category_grid":
+            raw = {
+                "title": request.POST.get("title", ""),
+                "display_mode": request.POST.get("display_mode", ""),
+                "category_ids": request.POST.getlist("category_ids"),
+            }
+        elif section.section_key == "brand_carousel":
+            raw = {
+                "title": request.POST.get("title", ""),
+                "display_mode": request.POST.get("display_mode", ""),
+                "show_view_all": request.POST.get("show_view_all") == "on",
+                "brand_ids": request.POST.getlist("brand_ids"),
+            }
         else:
             # انواعی که هیچ فیلدِ اختصاصیِ خودشان را ندارند (فازِ D) —
             # تنها چیزی که این فرم برایشان دارد بلوکِ responsive است.
@@ -197,9 +210,41 @@ def storefront_section_settings(request, pk):
     }
     if section.section_key == "product_section":
         context.update(_product_section_picker_context(request, section))
+    if section.section_key == "category_grid":
+        context.update(_category_grid_picker_context(request, section))
+    if section.section_key == "brand_carousel":
+        context.update(_brand_carousel_picker_context(request, section))
     if section.section_key in section_registry.DESTINATION_AWARE_SECTION_KEYS:
         context.update(_destination_picker_context(request, section))
     return render(request, "dashboard/storefront_builder/partials/section_settings_form.html", context)
+
+
+def _category_grid_picker_context(request, section):
+    from apps.catalog.models import Category
+
+    store = _resolve_store(request)
+    category_ids = (section.settings or {}).get("category_ids") or []
+    categories_by_id = {c.pk: c for c in Category.objects.filter(store=store, pk__in=category_ids)}
+    return {
+        "all_categories": Category.objects.filter(store=store, is_active=True).order_by("name"),
+        "initial_selected_categories": [
+            {"id": cid, "name": categories_by_id[cid].name} for cid in category_ids if cid in categories_by_id
+        ],
+    }
+
+
+def _brand_carousel_picker_context(request, section):
+    from apps.catalog.models import Brand
+
+    store = _resolve_store(request)
+    brand_ids = (section.settings or {}).get("brand_ids") or []
+    brands_by_id = {b.pk: b for b in Brand.objects.filter(store=store, pk__in=brand_ids)}
+    return {
+        "all_brands": Brand.objects.filter(store=store, is_active=True).order_by("name"),
+        "initial_selected_brands": [
+            {"id": bid, "name": brands_by_id[bid].name} for bid in brand_ids if bid in brands_by_id
+        ],
+    }
 
 
 def _extract_destination_raw(request) -> dict:

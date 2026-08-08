@@ -194,6 +194,29 @@ function productSectionForm(initialDataSource, initialProducts) {
   };
 }
 
+function multiPickerForm(initialSelected) {
+  return {
+    selected: initialSelected,
+    addItem(id, name) {
+      id = parseInt(id, 10);
+      if (!this.selected.some((item) => item.id === id)) {
+        this.selected.push({ id, name });
+      }
+    },
+    removeItem(id) {
+      this.selected = this.selected.filter((item) => item.id !== id);
+    },
+    moveUp(index) {
+      if (index === 0) return;
+      [this.selected[index - 1], this.selected[index]] = [this.selected[index], this.selected[index - 1]];
+    },
+    moveDown(index) {
+      if (index === this.selected.length - 1) return;
+      [this.selected[index + 1], this.selected[index]] = [this.selected[index], this.selected[index + 1]];
+    },
+  };
+}
+
 function destinationPicker(initialType, initialId, initialName) {
   return {
     type: initialType || 'none',
