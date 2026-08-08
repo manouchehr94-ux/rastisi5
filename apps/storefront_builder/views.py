@@ -486,6 +486,8 @@ def storefront_appearance_editor(request):
     draft = layout_service.get_or_create_draft(store, user=request.user)
 
     if request.method == "POST":
+        from . import appearance_registry
+
         current = draft.effective_appearance_config()
         new_palette_slug = request.POST.get("palette_slug") or current.get("palette_slug")
         # تعویضِ Palette یعنی شروعِ تازه — override هایِ پالتِ قبلی روی
@@ -497,15 +499,35 @@ def storefront_appearance_editor(request):
         palette_changed = new_palette_slug != current.get("palette_slug")
         color_overrides = {} if palette_changed else dict(current.get("color_overrides") or {})
 
+        new_template_slug = request.POST.get("template_slug", current["template_slug"])
+        # تعویضِ Template هم دقیقاً همان منطقِ Palette را دارد: انتخابِ
+        # Templateِ جدید یعنی «پیش‌فرض‌هایِ کاملِ آن Template اعمال شود»
+        # (فونت/گردی/گردیِ دکمه/تراکم/حرکت/مقیاسِ متن) — نه صرفاً رنگ،
+        # طبقِ الزامِ صریحِ کار «Template صرفاً رنگ نیست». اگر این‌طور
+        # نبود، کلیک روی کارتِ یک Templateِ دیگر در گالری (که فیلدهایِ
+        # مخفی‌اش مقدارِ *فعلیِ* config را حمل می‌کنند، نه مقدارِ خودِ
+        # Templateِ جدید) عملاً هیچ تغییرِ محسوسی در این فیلدها ایجاد
+        # نمی‌کرد. فقط وقتی template_slug واقعاً عوض شده این‌طور رفتار
+        # می‌شود — نه هر submit ای (فرمِ پیشرفته همیشه template_slug فعلی
+        # را دوباره می‌فرستد، پس این شرط برایِ آن هرگز صدق نمی‌کند).
+        template_changed = new_template_slug != current.get("template_slug")
+        new_template = appearance_registry.get_template(new_template_slug) if template_changed else None
+
+        def _field(name):
+            if new_template is not None:
+                return getattr(new_template, name)
+            return request.POST.get(name, current[name])
+
         raw = {
-            "template_slug": request.POST.get("template_slug", current["template_slug"]),
+            "template_slug": new_template_slug,
             "palette_slug": new_palette_slug,
             "color_overrides": color_overrides,
-            "font": request.POST.get("font", current["font"]),
-            "radius": request.POST.get("radius", current["radius"]),
-            "button_radius": request.POST.get("button_radius", current["button_radius"]),
-            "density": request.POST.get("density", current["density"]),
-            "motion": request.POST.get("motion", current["motion"]),
+            "font": _field("font"),
+            "radius": _field("radius"),
+            "button_radius": _field("button_radius"),
+            "density": _field("density"),
+            "motion": _field("motion"),
+            "type_scale": _field("type_scale"),
         }
         from .models import APPEARANCE_COLOR_KEYS
 
@@ -555,6 +577,7 @@ def storefront_appearance_editor(request):
         "font_choices": appearance_registry.FONT_CHOICES,
         "density_choices": appearance_registry.DENSITY_CHOICES,
         "motion_choices": appearance_registry.MOTION_CHOICES,
+        "type_scale_choices": appearance_registry.TYPE_SCALE_CHOICES,
         "color_field_labels": color_field_labels,
     })
 

@@ -50,7 +50,7 @@
     <button type="button" class="sfb-appearance-card" @click="view = 'advanced'">
       <div>
         <span class="sfb-appearance-kicker">تنظیمات بیشتر</span>
-        <strong>فونت، گردی و فاصله‌ها</strong>
+        <strong>فونت، اندازه متن، گردی و فاصله‌ها</strong>
       </div>
       <span class="sfb-appearance-action">شخصی‌سازی ←</span>
     </button>
@@ -70,6 +70,7 @@
         <input type="hidden" name="button_radius" value="{{ config.button_radius }}">
         <input type="hidden" name="density" value="{{ config.density }}">
         <input type="hidden" name="motion" value="{{ config.motion }}">
+        <input type="hidden" name="type_scale" value="{{ config.type_scale }}">
         <button type="submit" class="sfb-palette-card {% if config.palette_slug == p.slug %}active{% endif %}">
           <strong>{{ p.name_fa }}</strong>
           <span class="tiny" style="color:var(--muted)">{{ p.group_fa }}</span>
@@ -99,6 +100,7 @@
         <input type="hidden" name="button_radius" value="{{ config.button_radius }}">
         <input type="hidden" name="density" value="{{ config.density }}">
         <input type="hidden" name="motion" value="{{ config.motion }}">
+        <input type="hidden" name="type_scale" value="{{ config.type_scale }}">
         <button type="submit" class="sfb-template-card {% if config.template_slug == t.slug %}active{% endif %}">
           <strong>{{ t.name_fa }}</strong>
           <span class="tiny" style="color:var(--muted)">{{ t.group_fa }}</span>
@@ -122,6 +124,7 @@
       <input type="hidden" name="button_radius" value="{{ config.button_radius }}">
       <input type="hidden" name="density" value="{{ config.density }}">
       <input type="hidden" name="motion" value="{{ config.motion }}">
+      <input type="hidden" name="type_scale" value="{{ config.type_scale }}">
       {% for key, label in color_field_labels %}
       <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
         <div>
@@ -176,6 +179,13 @@
         <select name="motion" class="form-select">
           {% for m in motion_choices %}<option value="{{ m }}" {% if config.motion == m %}selected{% endif %}>{% if m == "none" %}بدون حرکت{% elif m == "dynamic" %}پویا{% else %}ملایم{% endif %}</option>{% endfor %}
         </select>
+      </div>
+      <div class="form-group">
+        <label>اندازه متن</label>
+        <select name="type_scale" class="form-select">
+          {% for s in type_scale_choices %}<option value="{{ s }}" {% if config.type_scale == s %}selected{% endif %}>{% if s == "compact" %}کوچک{% elif s == "large" %}بزرگ{% else %}متوسط{% endif %}</option>{% endfor %}
+        </select>
+        <p style="font-size:12px;color:var(--muted);margin:6px 0 0">اندازه‌ی عنوان‌ها، نام محصول، قیمت و متن کم‌رنگ در کل فروشگاه.</p>
       </div>
       <div style="display:flex;gap:10px;margin-top:16px">
         <button type="submit" class="btn btn-primary">اعمال شخصی‌سازی</button>

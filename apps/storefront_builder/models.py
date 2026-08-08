@@ -66,6 +66,7 @@ APPEARANCE_CONFIG_DEFAULTS = {
     "button_radius": 12,
     "density": "normal",
     "motion": "subtle",
+    "type_scale": "normal",
 }
 
 

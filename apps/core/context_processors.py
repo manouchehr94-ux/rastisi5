@@ -112,6 +112,7 @@ def shop_settings(request):
         shop_card_shadow = template.card_shadow
         shop_card_hover = template.card_hover
         shop_hero_style = template.hero_style
+        shop_type_scale = config.get("type_scale") or template.type_scale
     else:
         from apps.storefront_builder import appearance_registry
 
@@ -128,6 +129,11 @@ def shop_settings(request):
         shop_card_shadow = _default_template.card_shadow
         shop_card_hover = _default_template.card_hover
         shop_hero_style = _default_template.hero_style
+        shop_type_scale = _default_template.type_scale
+
+    from apps.storefront_builder import appearance_registry as _appearance_registry
+
+    typography = _appearance_registry.resolve_typography(shop_type_scale)
 
     return {
         "SHOP_NAME": shop.name,
@@ -167,6 +173,14 @@ def shop_settings(request):
         "SHOP_CARD_SHADOW": shop_card_shadow,
         "SHOP_CARD_HOVER": shop_card_hover,
         "SHOP_HERO_STYLE": shop_hero_style,
+        # سلسله‌مراتبِ تایپوگرافی — پنج نقشِ معنادار، نه اندازه‌یِ دلخواه؛
+        # نگاه کنید به ``appearance_registry.TYPE_SCALE_SIZES``.
+        "SHOP_TYPE_SCALE": shop_type_scale,
+        "SHOP_HEADING_SIZE": typography["heading"],
+        "SHOP_BODY_SIZE": typography["body"],
+        "SHOP_PRODUCT_NAME_SIZE": typography["product_name"],
+        "SHOP_PRICE_SIZE": typography["price"],
+        "SHOP_MUTED_TEXT_SIZE": typography["muted"],
         # شبکه‌های اجتماعی — store_id (نه shop.store) تا از یک query اضافی برای واکشی خودِ Store پرهیز شود
         "SOCIAL_LINKS_FOOTER": SocialLink.objects.filter(
             is_active=True, show_in_footer=True, store_id=shop.store_id,

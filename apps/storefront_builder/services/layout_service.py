@@ -203,6 +203,11 @@ def validate_appearance_config(config: dict) -> dict:
         raise AppearanceConfigValidationError("سبکِ حرکتِ انتخاب‌شده نامعتبر است")
     cleaned["motion"] = motion
 
+    type_scale = config.get("type_scale", APPEARANCE_CONFIG_DEFAULTS["type_scale"])
+    if type_scale not in appearance_registry.TYPE_SCALE_CHOICES:
+        raise AppearanceConfigValidationError("اندازه‌ی متنِ انتخاب‌شده نامعتبر است")
+    cleaned["type_scale"] = type_scale
+
     return cleaned
 
 

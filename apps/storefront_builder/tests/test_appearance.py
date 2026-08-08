@@ -30,6 +30,7 @@ class ValidateAppearanceConfigTests(TestCase):
         self.assertEqual(cleaned["template_slug"], "modern")
         self.assertIsNone(cleaned["palette_slug"])
         self.assertEqual(cleaned["color_overrides"], {})
+        self.assertEqual(cleaned["type_scale"], "normal")
 
     def test_unknown_template_rejected(self):
         with self.assertRaises(svc.AppearanceConfigValidationError):
@@ -68,6 +69,44 @@ class ValidateAppearanceConfigTests(TestCase):
     def test_invalid_motion_rejected(self):
         with self.assertRaises(svc.AppearanceConfigValidationError):
             svc.validate_appearance_config({"motion": "extreme"})
+
+    def test_invalid_type_scale_rejected(self):
+        with self.assertRaises(svc.AppearanceConfigValidationError):
+            svc.validate_appearance_config({"type_scale": "huge"})
+
+    def test_valid_type_scale_accepted(self):
+        cleaned = svc.validate_appearance_config({"type_scale": "large"})
+        self.assertEqual(cleaned["type_scale"], "large")
+
+
+class TypographyScaleTests(TestCase):
+    """چکپوینتِ ۸: مقیاسِ تایپوگرافی — پنج نقشِ معنادار (نه اندازه‌یِ
+    دلخواه در هر جای CSS)."""
+
+    def test_normal_scale_matches_pre_existing_hardcoded_sizes(self):
+        """رگرسیون: مقیاسِ پیش‌فرض نباید هیچ فروشگاهی را تغییر دهد —
+        دقیقاً همان مقادیرِ سخت‌کدشده‌یِ قبل از این چکپوینت."""
+        sizes = appearance_registry.resolve_typography("normal")
+        self.assertEqual(sizes, {"heading": 19, "body": 14, "product_name": 13, "price": 15, "muted": 11})
+
+    def test_all_scale_choices_define_all_five_roles(self):
+        for scale in appearance_registry.TYPE_SCALE_CHOICES:
+            sizes = appearance_registry.resolve_typography(scale)
+            self.assertEqual(set(sizes), {"heading", "body", "product_name", "price", "muted"})
+
+    def test_unknown_scale_falls_back_to_normal(self):
+        self.assertEqual(
+            appearance_registry.resolve_typography("not-a-real-scale"),
+            appearance_registry.resolve_typography("normal"),
+        )
+
+    def test_scales_are_genuinely_ordered(self):
+        compact = appearance_registry.resolve_typography("compact")
+        normal = appearance_registry.resolve_typography("normal")
+        large = appearance_registry.resolve_typography("large")
+        for role in ("heading", "body", "product_name", "price", "muted"):
+            self.assertLess(compact[role], normal[role])
+            self.assertLess(normal[role], large[role])
 
 
 class ResolveColorsTests(TestCase):
@@ -142,6 +181,15 @@ class AppearanceEditorViewTests(TestCase):
         shop_after = ShopSettings.load(store=self.store)
         self.assertEqual(shop_after.primary_color, original_primary)
 
+    def test_post_saves_type_scale_to_draft(self):
+        resp = self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            "template_slug": "modern", "font": "Vazirmatn", "radius": "18", "button_radius": "12",
+            "density": "normal", "motion": "subtle", "type_scale": "large",
+        })
+        self.assertEqual(resp.status_code, 302)
+        draft = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft.appearance_config["type_scale"], "large")
+
     def test_invalid_color_shows_error_without_saving(self):
         draft_before = svc.get_or_create_draft(self.store)
         original = dict(draft_before.appearance_config or {})
@@ -200,6 +248,24 @@ class AppearanceDraftPublishIsolationTests(TestCase):
 
         public_resp = self.client.get(reverse("catalog:home"), HTTP_HOST="sfb-appearance-public.example.com")
         self.assertContains(public_resp, "#00FF00")
+
+    def test_draft_type_scale_change_invisible_on_public_page_until_publish(self):
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+
+        draft = svc.get_or_create_draft(self.store)
+        draft.appearance_config = svc.validate_appearance_config({"type_scale": "large"})
+        draft.save(update_fields=["appearance_config"])
+
+        public_resp = self.client.get(reverse("catalog:home"), HTTP_HOST="sfb-appearance-public.example.com")
+        self.assertNotContains(public_resp, "--sfb-heading-size:22px")
+
+        preview_resp = self.admin_client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(preview_resp, "--sfb-heading-size:22px")
+
+        svc.publish(self.store)
+        public_resp = self.client.get(reverse("catalog:home"), HTTP_HOST="sfb-appearance-public.example.com")
+        self.assertContains(public_resp, "--sfb-heading-size:22px")
 
     def test_other_pages_still_use_live_shopsettings_not_draft(self):
         """صفحاتِ غیرِ Builder-aware (مثلاً checkout/product) نباید هرگز
@@ -393,6 +459,48 @@ class TemplateSwitchViewTests(TestCase):
         self.assertEqual(draft.appearance_config["template_slug"], "boutique")
         self.assertIsNone(draft.appearance_config.get("palette_slug"))
 
+    def test_switching_template_applies_its_own_presentation_defaults(self):
+        """رگرسیون: کلیک روی کارتِ یک Templateِ دیگر در گالری باید
+        پیش‌فرض‌هایِ *همان* Template (فونت/گردی/تراکم/حرکت/مقیاسِ متن)
+        را اعمال کند — حتی اگر مقادیرِ فرم (مثلاً فیلدهایِ مخفیِ گالری)
+        هنوز مقدارِ Templateِ *قبلی* را حمل کنند؛ در غیرِ این صورت تعویضِ
+        Template هیچ حسِ محسوسی در این فیلدها نداشت."""
+        boutique = appearance_registry.get_template("boutique")
+        draft = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft.effective_appearance_config()["template_slug"], "modern")
+
+        resp = self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            # عمداً مقادیرِ Templateِ *قبلی* (modern) فرستاده می‌شود —
+            # دقیقاً شبیه‌سازیِ فیلدِ مخفیِ گالری که هنوز عوض نشده.
+            "template_slug": "boutique", "font": "Vazirmatn", "radius": "18",
+            "button_radius": "12", "density": "normal", "motion": "subtle", "type_scale": "normal",
+        })
+        self.assertEqual(resp.status_code, 302)
+
+        config = svc.get_or_create_draft(self.store).appearance_config
+        self.assertEqual(config["template_slug"], "boutique")
+        self.assertEqual(config["font"], boutique.font)
+        self.assertEqual(config["radius"], boutique.radius)
+        self.assertEqual(config["button_radius"], boutique.button_radius)
+        self.assertEqual(config["density"], boutique.density)
+        self.assertEqual(config["motion"], boutique.motion)
+        self.assertEqual(config["type_scale"], boutique.type_scale)
+
+    def test_resubmitting_same_template_does_not_override_manual_customization(self):
+        """اگر مرچنت بعد از انتخابِ Template دستی radius را عوض کرده،
+        submitِ دوباره‌یِ همان فرم (بدونِ تغییرِ template_slug) نباید آن
+        شخصی‌سازی را با پیش‌فرضِ Template بازنویسی کند."""
+        draft = svc.get_or_create_draft(self.store)
+        draft.appearance_config = svc.validate_appearance_config({"template_slug": "modern", "radius": 5})
+        draft.save(update_fields=["appearance_config"])
+
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {
+            "template_slug": "modern", "font": "Vazirmatn", "radius": "5",
+            "button_radius": "12", "density": "normal", "motion": "subtle", "type_scale": "normal",
+        })
+        config = svc.get_or_create_draft(self.store).appearance_config
+        self.assertEqual(config["radius"], 5)
+
     def test_switching_template_preserves_color_overrides(self):
         draft = svc.get_or_create_draft(self.store)
         draft.appearance_config = svc.validate_appearance_config({"color_overrides": {"text": "#123123"}})
@@ -421,10 +529,18 @@ class TemplateStructuralChangeReachesPublicPageTests(TestCase):
         )
 
     def _publish_with_template(self, template_slug):
+        """شبیه‌سازیِ همان چیزی که ``storefront_appearance_editor`` واقعاً
+        هنگامِ کلیکِ مرچنت روی کارتِ Template انجام می‌دهد: پیش‌فرض‌هایِ
+        *همانِ* Template اعمال می‌شوند (نگاه کنید به ``views.py``)."""
         svc.get_or_create_draft(self.store)
         svc.publish(self.store)
         draft = svc.get_or_create_draft(self.store)
-        draft.appearance_config = svc.validate_appearance_config({"template_slug": template_slug})
+        template = appearance_registry.get_template(template_slug)
+        draft.appearance_config = svc.validate_appearance_config({
+            "template_slug": template_slug,
+            "font": template.font, "radius": template.radius, "button_radius": template.button_radius,
+            "density": template.density, "motion": template.motion, "type_scale": template.type_scale,
+        })
         draft.save(update_fields=["appearance_config"])
         svc.publish(self.store)
 
@@ -433,6 +549,14 @@ class TemplateStructuralChangeReachesPublicPageTests(TestCase):
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST="sfb-template-public.example.com")
         self.assertContains(resp, "data-sfb-template=\"marketplace\"")
         self.assertContains(resp, "--sfb-content-width:1320px")
+
+    def test_editorial_template_increases_heading_size_on_public_page(self):
+        """قالبِ ``editorial`` مقیاسِ تایپوگرافیِ پیش‌فرضِ ``large`` دارد —
+        این آزمون تأیید می‌کند این پیش‌فرض واقعاً تا CSS custom property
+        رویِ صفحه‌ی عمومی می‌رسد، نه فقط در appearance_registry."""
+        self._publish_with_template("editorial")
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST="sfb-template-public.example.com")
+        self.assertContains(resp, "--sfb-heading-size:22px")
 
     def test_switching_to_boutique_does_not_touch_products(self):
         from apps.catalog.models import Product
