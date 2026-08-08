@@ -4,9 +4,8 @@ validate_header_config، فقط بدونِ خروج از سازنده (طبقِ 
 «هدر باید بخشی از سازنده بصری احساس شود»). نسخه‌ی تمام‌صفحه
 (``header_editor.html``) هم‌چنان برایِ دسترسیِ مستقیم/URL باقی می‌ماند.
 {% endcomment %}
-<div class="sfb-appearance-panel">
-  <button type="button" class="btn btn-ghost btn-sm"
-          hx-get="{% url 'dashboard:storefront-builder-appearance' %}" hx-target="#sfbAppearancePanel" hx-swap="innerHTML">← بازگشت</button>
+<div class="sfb-appearance-panel" x-data>
+  <button type="button" class="btn btn-ghost btn-sm" @click="$dispatch('close-settings-drawer')">بستن</button>
 
   <div class="sfb-appearance-intro">
     <strong>هدر فروشگاه</strong>

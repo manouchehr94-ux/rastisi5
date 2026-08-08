@@ -55,6 +55,10 @@
   flex-wrap: wrap;
 }
 
+.sfb-brand-text {
+  font-size: 13.5px;
+}
+
 .sfb-device-toggle {
   display: flex;
   gap: 4px;
@@ -68,135 +72,216 @@
   color: #fff;
 }
 
+/* شِلِ اصلی — پیش‌نمایشِ بزرگ سمتِ چپ (main)، پنلِ فشرده‌یِ سازنده
+   سمتِ راست (aside) — دقیقاً همان چیدمانِ پروتوتایپِ V5. */
 .sfb-body {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 360px;
   gap: 12px;
   flex: 1;
   min-height: 0;
 }
 
 .sfb-sidebar {
-  width: 340px;
-  flex-shrink: 0;
   overflow-y: auto;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 14px;
+  padding: 12px;
 }
 
-.sfb-sidebar-section {
-  margin-bottom: 20px;
-}
-
-.sfb-sidebar-section h4 {
+.sfb-panel-title {
   font-size: 12.5px;
-  color: var(--muted);
-  margin: 0 0 10px;
-  font-weight: 700;
+  font-weight: 900;
+  margin: 16px 2px 8px;
+  color: var(--ink);
 }
 
-.sfb-add-section-category {
+/* کتابخانه‌ی «افزودن بخش جدید» */
+.sfb-library {
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 2px 8px;
-  margin-bottom: 8px;
+  background: linear-gradient(180deg, var(--violet-softer, #f7f5fc), var(--card));
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 6px;
 }
 
-.sfb-add-section-category summary {
+.sfb-library summary {
   cursor: pointer;
-  padding: 8px 2px;
-  font-size: 12.5px;
-  font-weight: 700;
+  padding: 12px 14px;
+  font-weight: 900;
+  font-size: 13px;
   list-style: none;
 }
 
-.sfb-add-section-category summary::-webkit-details-marker {
+.sfb-library summary::-webkit-details-marker {
   display: none;
 }
 
-.sfb-add-section-category summary::before {
-  content: "▸";
-  display: inline-block;
-  margin-left: 6px;
-  transition: transform 0.15s;
+.sfb-library-body {
+  padding: 0 10px 10px;
 }
 
-.sfb-add-section-category[open] summary::before {
-  transform: rotate(90deg);
+.sfb-add-section-category {
+  margin-bottom: 10px;
+}
+
+.sfb-add-section-category-title {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--muted);
+  padding: 4px 4px 6px;
 }
 
 .sfb-add-section-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.sfb-lib-card {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 9px 10px;
+  text-align: right;
+  font-size: 11.5px;
+  transition: 0.15s;
+}
+
+.sfb-lib-card-icon {
+  flex: none;
+  display: flex;
+  color: var(--violet, #6d28d9);
+}
+
+.sfb-lib-card-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sfb-lib-card:hover {
+  border-color: var(--violet);
+  background: var(--violet-softer, #f7f5fc);
+}
+
+/* فهرستِ بخش‌های صفحه — ردیف‌هایِ فشرده، فقط آیکون برایِ اقداماتِ
+   پرتکرار (بالا/پایین/فعال‌سازی/تنظیمات)؛ کپی/حذف داخلِ Drawer است. */
+.sfb-layers {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 260px;
-  overflow-y: auto;
-  padding-bottom: 8px;
 }
 
-.sfb-add-btn {
+.sfb-layer {
   display: flex;
   align-items: center;
   gap: 8px;
-  justify-content: flex-start;
-  text-align: right;
-}
-
-.sfb-section-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  padding: 9px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  margin-bottom: 6px;
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.sfb-layer.sfb-inactive {
+  opacity: 0.6;
   background: var(--bg);
-  cursor: grab;
-  flex-wrap: wrap;
 }
 
-.sfb-section-row.sfb-inactive {
-  opacity: 0.55;
-}
-
-.sfb-section-row.sfb-collapsed {
-  background: var(--surface, var(--bg));
-}
-
-.sfb-collapse-toggle {
-  flex-shrink: 0;
-  min-width: 28px;
-}
-
-.sfb-drag-handle {
+.sfb-layer-drag {
   color: var(--muted);
   cursor: grab;
   flex-shrink: 0;
+  font-size: 14px;
 }
 
-.sfb-section-info {
+.sfb-layer-collapse {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.sfb-layer-main {
   flex: 1;
-  min-width: 100px;
+  min-width: 0;
+  text-align: right;
   display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-  font-weight: 700;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.sfb-section-actions {
+button.sfb-layer-main {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sfb-layer-name {
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sfb-layer-meta {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.sfb-layer-actions {
   display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.sfb-layer-actions button {
+  width: 27px;
+  height: 27px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sfb-layer-actions button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.sfb-layer-settings-btn {
+  background: var(--violet-softer, #f1ecfd) !important;
+  color: var(--violet);
+}
+
+.sfb-layer-structure {
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: right;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sfb-empty-state {
+  border: 1px dashed var(--line);
+  border-radius: 12px;
 }
 
 .sfb-preview-pane {
-  flex: 1;
   min-width: 0;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 10px;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -204,11 +289,26 @@
   overflow: auto;
 }
 
+.sfb-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sfb-preview-hint {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
 .sfb-preview-frame-wrap {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  margin: 0 auto;
   transition: width 0.2s ease;
   background: #fff;
-  border-radius: 10px;
+  border-radius: 12px;
   box-shadow: var(--shadow);
   overflow: hidden;
 }
@@ -239,12 +339,88 @@
   z-index: 10;
 }
 
+/* Drawerِ تنظیماتِ بخش — کشوییِ کنارِ صفحه (سمتِ چپ، مثلِ پروتوتایپ)،
+   نه یک modalِ وسط‌چین — تا فضایِ کافی برایِ فرم‌هایِ پیچیده (اسلایدر،
+   بنرها) داشته باشد و همزمان پیش‌نمایش/سایدبار پشتش دیده شود. */
+.sfb-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 440px;
+  max-width: 92vw;
+  background: var(--card);
+  border-left: 1px solid var(--line);
+  box-shadow: 15px 0 40px rgba(26, 31, 44, 0.12);
+  z-index: 1200;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.sfb-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 15, 35, 0.28);
+  z-index: 1100;
+}
+
+.sfb-drawer-head {
+  position: sticky;
+  top: -16px;
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0 12px;
+  margin: -16px -16px 12px;
+  padding-inline: 16px;
+  padding-top: 16px;
+  border-bottom: 1px solid var(--line);
+  z-index: 2;
+}
+
+.sfb-drawer-close {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.sfb-drawer-subtitle {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+
+.sfb-drawer-danger-zone {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.sfb-inline-confirm {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.sfb-inline-confirm p {
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+
 /* واکنش‌گرا — زیر ۱۰۲۴px، ستون کناری و پیش‌نمایش زیر هم قرار می‌گیرند */
 @media (max-width: 1024px) {
   .sfb-shell {
     height: auto;
   }
   .sfb-body {
+    display: flex;
     flex-direction: column;
   }
   .sfb-sidebar {
@@ -253,6 +429,10 @@
   }
   .sfb-preview-pane {
     min-height: 480px;
+  }
+  .sfb-drawer {
+    width: 100%;
+    max-width: 100%;
   }
 }
 
@@ -267,6 +447,9 @@
   }
   .sfb-device-toggle .btn {
     flex: 1;
+  }
+  .sfb-add-section-list {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -317,7 +500,7 @@
 
 /* Highlightِ ردیفِ متناظر در فهرستِ سایدبار وقتی section مربوطه در
    Preview کلیک/لمس شود — چکپوینتِ Direct Visual Editing. */
-.sfb-section-row.sfb-row-selected {
+.sfb-layer.sfb-row-selected {
   outline: 2px solid var(--violet, #6d28d9);
   outline-offset: 2px;
 }

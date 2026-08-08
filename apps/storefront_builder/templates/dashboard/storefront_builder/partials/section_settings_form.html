@@ -1,5 +1,5 @@
-<div class="modal-body">
-  <h3 style="margin:0 0 12px">ویرایش تنظیمات — {{ definition.label_fa }}</h3>
+<div class="sfb-drawer-body" x-data="{ deleteConfirmOpen: false }">
+  <p class="sfb-drawer-subtitle">{{ definition.label_fa }} — تنظیمات ساده و قابل فهم</p>
   {% if field_errors.general %}<div class="field-error" style="margin-bottom:10px">{{ field_errors.general }}</div>{% endif %}
   {% if section.section_key == "product_section" %}
   {{ initial_manual_products|json_script:"ps-initial-products" }}
@@ -115,7 +115,7 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
 
@@ -150,7 +150,7 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
 
@@ -168,7 +168,7 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
 
@@ -212,7 +212,7 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
 
@@ -261,7 +261,7 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
 
@@ -317,7 +317,7 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
 
@@ -360,7 +360,7 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
 
@@ -387,7 +387,7 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
 
@@ -423,7 +423,7 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
 
@@ -463,7 +463,7 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
 
@@ -487,7 +487,7 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
 
@@ -501,7 +501,7 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
 
@@ -514,8 +514,38 @@
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
-      <button type="button" class="btn" @click="$dispatch('close-settings-modal')">انصراف</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
   </form>
+  {% endif %}
+
+  {% if definition.duplicable or definition.removable %}
+  <div class="sfb-drawer-danger-zone">
+    <div class="sfb-panel-title">اقدامات دیگر</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      {% if definition.duplicable %}
+      <button type="button" class="btn"
+              hx-post="{% url 'dashboard:storefront-builder-section-duplicate' section.pk %}"
+              hx-target="#storefrontSectionList" hx-swap="outerHTML"
+              @click="$dispatch('close-settings-drawer')">کپی این بخش</button>
+      {% endif %}
+      {% if definition.removable %}
+      <button type="button" class="btn btn-danger"
+              @click="deleteConfirmOpen = true">حذف این بخش</button>
+      {% endif %}
+    </div>
+    {% if definition.removable %}
+    <div class="sfb-inline-confirm" x-show="deleteConfirmOpen" x-cloak>
+      <p>این بخش برای همیشه حذف شود؟</p>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="btn btn-sm" @click="deleteConfirmOpen = false">انصراف</button>
+        <button type="button" class="btn btn-sm btn-danger"
+                hx-post="{% url 'dashboard:storefront-builder-section-remove' section.pk %}"
+                hx-target="#storefrontSectionList" hx-swap="outerHTML"
+                @click="$dispatch('close-settings-drawer')">بله، حذف شود</button>
+      </div>
+    </div>
+    {% endif %}
+  </div>
   {% endif %}
 </div>

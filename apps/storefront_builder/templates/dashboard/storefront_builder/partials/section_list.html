@@ -1,7 +1,7 @@
 {% load static storefront_builder_extras %}
 <div id="storefrontSectionList" x-data="{ dragId: null }">
   {% for section in sections %}
-  <div class="sfb-section-row{% if not section.is_active %} sfb-inactive{% endif %}{% if section.collapsed_in_editor %} sfb-collapsed{% endif %}"
+  <div class="sfb-layer{% if not section.is_active %} sfb-inactive{% endif %}{% if section.collapsed_in_editor %} sfb-collapsed{% endif %}"
        draggable="true" data-id="{{ section.pk }}"
        @dragstart="dragId = {{ section.pk }}; $event.dataTransfer.effectAllowed = 'move'"
        @dragover.prevent
@@ -15,54 +15,37 @@
          }
          dragId = null;
        ">
-    <div class="sfb-drag-handle" title="برای مرتب‌سازی بکشید" aria-hidden="true">⠿</div>
-    <div class="sfb-section-info">
-      <button type="button" class="btn btn-sm sfb-collapse-toggle"
-              hx-post="{% url 'dashboard:storefront-builder-section-collapse' section.pk %}"
-              hx-target="#storefrontSectionList" hx-swap="outerHTML"
-              aria-expanded="{% if section.collapsed_in_editor %}false{% else %}true{% endif %}"
-              aria-label="{% if section.collapsed_in_editor %}باز کردن جزئیات «{{ section.section_key|section_label }}»{% else %}جمع‌کردن «{{ section.section_key|section_label }}»{% endif %}"
-              title="{% if section.collapsed_in_editor %}باز کردن{% else %}جمع‌کردن{% endif %}">
-        {% if section.collapsed_in_editor %}▸{% else %}▾{% endif %}
-      </button>
-      <span class="sfb-section-label">{{ section.section_key|section_label }}</span>
-      {% if not section.is_active %}<span class="badge b-amber">غیرفعال</span>{% endif %}
-      {% if section.collapsed_in_editor %}<span class="badge" aria-hidden="true">جمع‌شده</span>{% endif %}
+    <span class="sfb-layer-drag" title="برای مرتب‌سازی بکشید" aria-hidden="true">⠿</span>
+    <button type="button" class="sfb-layer-collapse"
+            hx-post="{% url 'dashboard:storefront-builder-section-collapse' section.pk %}"
+            hx-target="#storefrontSectionList" hx-swap="outerHTML"
+            aria-expanded="{% if section.collapsed_in_editor %}false{% else %}true{% endif %}"
+            aria-label="{% if section.collapsed_in_editor %}باز کردن جزئیات «{{ section.section_key|section_label }}»{% else %}جمع‌کردن «{{ section.section_key|section_label }}»{% endif %}">
+      {% if section.collapsed_in_editor %}▸{% else %}▾{% endif %}
+    </button>
+    <div class="sfb-layer-main">
+      <div class="sfb-layer-name">{% if section.settings.title %}{{ section.settings.title }}{% else %}{{ section.section_key|section_label }}{% endif %}</div>
+      {% if not section.collapsed_in_editor %}
+      <div class="sfb-layer-meta">{{ section.section_key|section_label }} • {% if section.is_active %}فعال{% else %}غیرفعال{% endif %}</div>
+      {% endif %}
     </div>
     {% if not section.collapsed_in_editor %}
-    <div class="sfb-section-actions">
-      <button type="button" class="btn btn-sm" title="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}
+    <div class="sfb-layer-actions">
+      <button type="button" title="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}
               hx-post="{% url 'dashboard:storefront-builder-section-move' section.pk %}"
               hx-vals='{"direction": "up"}' hx-target="#storefrontSectionList" hx-swap="outerHTML"
-              aria-label="جابه‌جایی «{{ section.section_key }}» به بالا">▲</button>
-      <button type="button" class="btn btn-sm" title="جابه‌جایی به پایین" {% if forloop.last %}disabled{% endif %}
+              aria-label="جابه‌جایی «{{ section.section_key|section_label }}» به بالا">↑</button>
+      <button type="button" title="جابه‌جایی به پایین" {% if forloop.last %}disabled{% endif %}
               hx-post="{% url 'dashboard:storefront-builder-section-move' section.pk %}"
               hx-vals='{"direction": "down"}' hx-target="#storefrontSectionList" hx-swap="outerHTML"
-              aria-label="جابه‌جایی «{{ section.section_key }}» به پایین">▼</button>
-      <button type="button" class="btn btn-sm"
+              aria-label="جابه‌جایی «{{ section.section_key|section_label }}» به پایین">↓</button>
+      <button type="button" title="{% if section.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}"
               hx-post="{% url 'dashboard:storefront-builder-section-toggle' section.pk %}"
-              hx-target="#storefrontSectionList" hx-swap="outerHTML">
-        {% if section.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}
-      </button>
-      {% for definition in section_definitions %}
-        {% if definition.key == section.section_key and definition.has_settings_form %}
-        <button type="button" class="btn btn-sm"
-                hx-get="{% url 'dashboard:storefront-builder-section-settings' section.pk %}"
-                hx-target="#sfbSettingsModalBody" hx-swap="innerHTML"
-                @click="settingsOpen = true">تنظیمات</button>
-        {% endif %}
-        {% if definition.key == section.section_key and definition.duplicable %}
-        <button type="button" class="btn btn-sm"
-                hx-post="{% url 'dashboard:storefront-builder-section-duplicate' section.pk %}"
-                hx-target="#storefrontSectionList" hx-swap="outerHTML">تکرار</button>
-        {% endif %}
-        {% if definition.key == section.section_key and definition.removable %}
-        <button type="button" class="btn btn-sm btn-danger"
-                hx-post="{% url 'dashboard:storefront-builder-section-remove' section.pk %}"
-                hx-target="#storefrontSectionList" hx-swap="outerHTML"
-                hx-confirm="این بخش حذف شود؟">حذف</button>
-        {% endif %}
-      {% endfor %}
+              hx-target="#storefrontSectionList" hx-swap="outerHTML">{% if section.is_active %}👁{% else %}⊘{% endif %}</button>
+      <button type="button" class="sfb-layer-settings-btn" title="تنظیمات"
+              hx-get="{% url 'dashboard:storefront-builder-section-settings' section.pk %}"
+              hx-target="#sfbDrawerBody" hx-swap="innerHTML"
+              @click="$dispatch('open-settings-drawer'); selectedSectionId = {{ section.pk }}">⚙</button>
     </div>
     {% endif %}
   </div>
