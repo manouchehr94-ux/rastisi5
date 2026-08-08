@@ -65,6 +65,41 @@ def build_bootstrap_sections(store) -> list[dict]:
     return sections
 
 
+def bootstrap_appearance_config(store) -> dict:
+    """پیکربندیِ اولیه‌ی ظاهر برایِ اولین Draft — رنگ‌هایِ *زنده‌ی فعلیِ*
+    ``ShopSettings`` را به‌عنوانِ ``color_overrides`` (بدونِ Palette
+    نام‌دار) کپی می‌کند تا این مهاجرت هرگز ظاهرِ فروشگاه را عوض نکند
+    (دقیقاً همان الزامِ «فروشگاه‌های موجود باید بدونِ تغییرِ بصری بمانند»
+    — بخشِ ۴۰ کارِ کاربر). اگر ``ShopSettings`` هنوز provision نشده،
+    پیش‌فرضِ ``appearance_registry.DEFAULT_COLORS`` (که خودش دقیقاً
+    برابرِ پیش‌فرض‌هایِ مدلِ ShopSettings است) بی‌صدا استفاده می‌شود."""
+    from apps.core.color_utils import mix_hex, safe_hex
+    from apps.core.models import ShopSettings, ShopSettingsNotProvisionedError
+
+    from .. import appearance_registry
+
+    try:
+        shop = ShopSettings.load(store=store)
+    except ShopSettingsNotProvisionedError:
+        return {"palette_slug": None, "color_overrides": {}}
+
+    text = safe_hex(shop.text_color, "#241C3A")
+    surface = safe_hex(shop.surface_color, "#FFFFFF")
+    return {
+        "palette_slug": None,
+        "color_overrides": {
+            "primary": safe_hex(shop.primary_color, "#6D28D9"),
+            "secondary": safe_hex(shop.secondary_color, "#7C3AED"),
+            "accent": safe_hex(shop.accent_color, "#FF4D77"),
+            "background": safe_hex(shop.background_color, "#F7F5FC"),
+            "surface": surface,
+            "text": text,
+            "muted": safe_hex(shop.muted_text_color, "#8B86A3"),
+            "border": mix_hex(text, surface, 0.12),
+        },
+    }
+
+
 def apply_bootstrap_content(version: StorefrontLayoutVersion, store) -> None:
     """بخش‌های اولیه را روی یک نسخه‌ی تازه‌ساخته (بدون بخش) اعمال می‌کند."""
     sections = build_bootstrap_sections(store)
@@ -75,6 +110,8 @@ def apply_bootstrap_content(version: StorefrontLayoutVersion, store) -> None:
         )
         for s in sections
     ])
+    version.appearance_config = bootstrap_appearance_config(store)
+    version.save(update_fields=["appearance_config"])
 
 
 def build_industry_default_sections(store, industry_template) -> list[dict]:

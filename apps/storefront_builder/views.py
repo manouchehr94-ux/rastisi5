@@ -66,6 +66,9 @@ def storefront_preview(request):
     draft = layout_service.get_or_create_draft(store, user=request.user)
     items = build_render_items(draft, store)
     top_level_categories = Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
+    # تنظیماتِ ظاهر باید از همین Draft خوانده شود، نه ShopSettings زنده —
+    # نگاه کنید به ``apps.core.context_processors._versioned_colors``.
+    request.storefront_appearance_version = draft
     return render(request, "storefront_builder/preview.html", {
         "store": store, "version": draft, "render_items": items, "is_preview": True,
         "top_level_categories": top_level_categories,
@@ -469,6 +472,65 @@ def storefront_discard(request):
     layout_service.discard_draft(store)
     messages.success(request, "پیش‌نویس رد شد")
     return redirect("dashboard:storefront-builder-editor")
+
+
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+def storefront_appearance_editor(request):
+    """پنلِ «ظاهر سایت» — هابِ Template/Palette/رنگ‌های سفارشی/فونت و
+    گردی/تراکم/حرکت. برخلافِ هدر/فوتر (صفحه‌ی کاملاً جدا)، این پنل به
+    htmx داخلِ همان صفحه‌ی سازنده بارگذاری می‌شود (طبقِ الزامِ صریحِ کار:
+    «مرچنت نباید مجبور شود از سازنده بصری خارج شود») — نگاه کنید به
+    ``editor.html`` (تبِ «ظاهر سایت»)."""
+    store = _resolve_store(request)
+    draft = layout_service.get_or_create_draft(store, user=request.user)
+
+    if request.method == "POST":
+        current = draft.effective_appearance_config()
+        raw = {
+            "template_slug": request.POST.get("template_slug", current["template_slug"]),
+            "palette_slug": request.POST.get("palette_slug") or current.get("palette_slug"),
+            "color_overrides": dict(current.get("color_overrides") or {}),
+            "font": request.POST.get("font", current["font"]),
+            "radius": request.POST.get("radius", current["radius"]),
+            "button_radius": request.POST.get("button_radius", current["button_radius"]),
+            "density": request.POST.get("density", current["density"]),
+            "motion": request.POST.get("motion", current["motion"]),
+        }
+        from .models import APPEARANCE_COLOR_KEYS
+        for color_key in APPEARANCE_COLOR_KEYS:
+            posted = request.POST.get(f"color_{color_key}")
+            if posted:
+                raw["color_overrides"][color_key] = posted
+        try:
+            config = layout_service.validate_appearance_config(raw)
+        except layout_service.AppearanceConfigValidationError as exc:
+            messages.error(request, str(exc))
+            return redirect("dashboard:storefront-builder-editor")
+        draft.appearance_config = config
+        draft.save(update_fields=["appearance_config", "updated_at"])
+        messages.success(request, "تنظیمات ظاهر ذخیره شد")
+        return redirect("dashboard:storefront-builder-editor")
+
+    from . import appearance_registry
+
+    config = draft.effective_appearance_config()
+    color_field_labels = [
+        ("primary", "رنگ اصلی"), ("secondary", "رنگ مکمل"), ("accent", "رنگ تأکیدی"),
+        ("background", "پس‌زمینه"), ("surface", "سطح و کارت‌ها"), ("text", "متن اصلی"),
+        ("muted", "متن کم‌رنگ"), ("border", "حاشیه‌ها"),
+    ]
+    return render(request, "dashboard/storefront_builder/partials/appearance_panel.html", {
+        "draft": draft,
+        "config": config,
+        "resolved_colors": appearance_registry.resolve_colors(config),
+        "palettes": appearance_registry.list_palettes(),
+        "templates": appearance_registry.list_templates(),
+        "font_choices": appearance_registry.FONT_CHOICES,
+        "density_choices": appearance_registry.DENSITY_CHOICES,
+        "motion_choices": appearance_registry.MOTION_CHOICES,
+        "color_field_labels": color_field_labels,
+    })
 
 
 @staff_required

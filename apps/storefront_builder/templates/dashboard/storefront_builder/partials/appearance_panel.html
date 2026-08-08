@@ -1,0 +1,150 @@
+{% load storefront_builder_extras %}
+{% comment %}
+هابِ «ظاهر سایت» — قالب، پالت، رنگ‌های سفارشی و شخصی‌سازیِ تکمیلی همه
+اینجا هستند (طبقِ الزامِ صریحِ کار: «یک فرمِ غول‌پیکر نه؛ یک هاب ساده»).
+هرگز destination_type/JSON/model اصطلاحاتِ داخلی به تاجر نشان داده
+نمی‌شود — فقط برچسبِ فارسیِ گزینه‌ها.
+{% endcomment %}
+<div class="sfb-appearance-panel" x-data="{ view: 'hub' }">
+
+  <div x-show="view === 'hub'">
+    <div class="sfb-appearance-intro">
+      <strong>ظاهر سایت</strong>
+      <p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">قالب، پالت رنگ و شخصی‌سازی — همه اینجا. تغییرات فقط در پیش‌نویس اعمال می‌شوند، تا انتشار روی فروشگاه عمومی دیده نمی‌شوند.</p>
+    </div>
+
+    {% with active_template=templates|first %}
+    <button type="button" class="sfb-appearance-card" @click="view = 'templates'">
+      <div>
+        <span class="sfb-appearance-kicker">قالب فعلی</span>
+        <strong>{% for t in templates %}{% if t.slug == config.template_slug %}{{ t.name_fa }}{% endif %}{% endfor %}</strong>
+      </div>
+      <span class="sfb-appearance-action">تغییر قالب ←</span>
+    </button>
+    {% endwith %}
+
+    <button type="button" class="sfb-appearance-card" @click="view = 'palettes'">
+      <div>
+        <span class="sfb-appearance-kicker">پالت فعلی</span>
+        <strong>{% if config.palette_slug %}{% for p in palettes %}{% if p.slug == config.palette_slug %}{{ p.name_fa }}{% endif %}{% endfor %}{% else %}رنگ‌های سفارشی{% endif %}</strong>
+      </div>
+      <div class="sfb-appearance-stripe">
+        <span style="background:{{ resolved_colors.primary }}"></span>
+        <span style="background:{{ resolved_colors.secondary }}"></span>
+        <span style="background:{{ resolved_colors.accent }}"></span>
+        <span style="background:{{ resolved_colors.surface }}"></span>
+        <span style="background:{{ resolved_colors.text }}"></span>
+      </div>
+      <span class="sfb-appearance-action">تغییر پالت ←</span>
+    </button>
+
+    <button type="button" class="sfb-appearance-card" @click="view = 'colors'">
+      <div>
+        <span class="sfb-appearance-kicker">رنگ‌های دلخواه</span>
+        <strong>ویرایش رنگ‌ها</strong>
+        <p style="font-size:12px;color:var(--muted);margin:2px 0 0">مثلاً فقط رنگ متن را عوض کنید و بقیه پالت حفظ شود.</p>
+      </div>
+      <span class="sfb-appearance-action">ویرایش رنگ‌ها ←</span>
+    </button>
+
+    <button type="button" class="sfb-appearance-card" @click="view = 'advanced'">
+      <div>
+        <span class="sfb-appearance-kicker">تنظیمات بیشتر</span>
+        <strong>فونت، گردی و فاصله‌ها</strong>
+      </div>
+      <span class="sfb-appearance-action">شخصی‌سازی ←</span>
+    </button>
+  </div>
+
+  {% if not palettes %}
+  <div x-show="view === 'palettes'">
+    <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
+    <p style="color:var(--muted);font-size:12.5px;padding:16px 0">پالت‌های آماده به‌زودی اضافه می‌شوند.</p>
+  </div>
+  {% endif %}
+
+  <div x-show="view === 'templates'">
+    <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
+    <div class="sfb-template-gallery">
+      {% for t in templates %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}">
+        {% csrf_token %}
+        <input type="hidden" name="template_slug" value="{{ t.slug }}">
+        {% for key, value in config.items %}
+          {% if key != "template_slug" and key != "color_overrides" %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}
+        {% endfor %}
+        <button type="submit" class="sfb-template-card {% if config.template_slug == t.slug %}active{% endif %}">
+          <strong>{{ t.name_fa }}</strong>
+          <span class="tiny" style="color:var(--muted)">{{ t.group_fa }}</span>
+          <p style="font-size:12px;margin:6px 0 0">{{ t.description_fa }}</p>
+          <div class="sfb-appearance-stripe">{% for c in t.swatch %}<span style="background:{{ c }}"></span>{% endfor %}</div>
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div x-show="view === 'colors'">
+    <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
+    <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}">
+      {% csrf_token %}
+      <input type="hidden" name="template_slug" value="{{ config.template_slug }}">
+      <input type="hidden" name="palette_slug" value="{{ config.palette_slug|default:'' }}">
+      <input type="hidden" name="font" value="{{ config.font }}">
+      <input type="hidden" name="radius" value="{{ config.radius }}">
+      <input type="hidden" name="button_radius" value="{{ config.button_radius }}">
+      <input type="hidden" name="density" value="{{ config.density }}">
+      <input type="hidden" name="motion" value="{{ config.motion }}">
+      {% for key, label in color_field_labels %}
+      <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div>
+          <label style="display:block">{{ label }}</label>
+          <span class="tiny" style="color:var(--muted)" dir="ltr">{{ resolved_colors|dictget:key }}</span>
+        </div>
+        <input type="color" name="color_{{ key }}" value="{{ resolved_colors|dictget:key }}">
+      </div>
+      {% endfor %}
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button type="submit" class="btn btn-primary">اعمال تغییرات</button>
+      </div>
+    </form>
+  </div>
+
+  <div x-show="view === 'advanced'">
+    <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
+    <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}">
+      {% csrf_token %}
+      <input type="hidden" name="template_slug" value="{{ config.template_slug }}">
+      <input type="hidden" name="palette_slug" value="{{ config.palette_slug|default:'' }}">
+      <div class="form-group">
+        <label>فونت</label>
+        <select name="font" class="form-select">
+          {% for f in font_choices %}<option value="{{ f }}" {% if config.font == f %}selected{% endif %}>{{ f }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>گردی کارت‌ها</label>
+        <input type="range" name="radius" min="0" max="32" value="{{ config.radius }}" class="form-input">
+      </div>
+      <div class="form-group">
+        <label>گردی دکمه‌ها</label>
+        <input type="range" name="button_radius" min="0" max="32" value="{{ config.button_radius }}" class="form-input">
+      </div>
+      <div class="form-group">
+        <label>تراکم فاصله‌ها</label>
+        <select name="density" class="form-select">
+          {% for d in density_choices %}<option value="{{ d }}" {% if config.density == d %}selected{% endif %}>{% if d == "compact" %}فشرده{% elif d == "relaxed" %}باز{% else %}عادی{% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>سبک حرکت</label>
+        <select name="motion" class="form-select">
+          {% for m in motion_choices %}<option value="{{ m }}" {% if config.motion == m %}selected{% endif %}>{% if m == "none" %}بدون حرکت{% elif m == "dynamic" %}پویا{% else %}ملایم{% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button type="submit" class="btn btn-primary">اعمال شخصی‌سازی</button>
+      </div>
+    </form>
+  </div>
+</div>

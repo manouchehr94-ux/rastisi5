@@ -26,6 +26,16 @@ def sanitize_rich_text(value):
 
 
 @register.filter
+def dictget(d, key):
+    """دسترسیِ پویا به یک کلیدِ dict که نامش در یک متغیرِ تمپلیت است —
+    برایِ حلقه‌هایِ رنگِ ظاهر (``appearance_panel.html``) که کلید از یک
+    متغیرِ حلقه (``color_field_labels``) می‌آید، نه یک رشته‌ی ثابت."""
+    if not isinstance(d, dict):
+        return ""
+    return d.get(key, "")
+
+
+@register.filter
 def getattribute(obj, attr_name):
     """دسترسیِ پویا به یک attribute که نامش در یک متغیرِ تمپلیت است — برای
     فرمِ عمومیِ رسانه (``section_media_form.html``) که فیلدِ متنیِ دوم

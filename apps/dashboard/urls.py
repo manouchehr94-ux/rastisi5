@@ -226,6 +226,7 @@ urlpatterns = [
     path("storefront-builder/sections/<int:pk>/collapse/", storefront_builder_views.storefront_section_collapse_toggle, name="storefront-builder-section-collapse"),
     path("storefront-builder/sections/<int:pk>/duplicate/", storefront_builder_views.storefront_section_duplicate, name="storefront-builder-section-duplicate"),
     path("storefront-builder/sections/<int:pk>/move/", storefront_builder_views.storefront_section_move, name="storefront-builder-section-move"),
+    path("storefront-builder/appearance/", storefront_builder_views.storefront_appearance_editor, name="storefront-builder-appearance"),
     path("storefront-builder/header/", storefront_builder_views.storefront_header_editor, name="storefront-builder-header"),
     path("storefront-builder/footer/", storefront_builder_views.storefront_footer_editor, name="storefront-builder-footer"),
     path("storefront-builder/publish/", storefront_builder_views.storefront_publish, name="storefront-builder-publish"),

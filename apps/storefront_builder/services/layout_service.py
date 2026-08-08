@@ -24,7 +24,10 @@ from django.utils import timezone
 
 from apps.core.services.rate_limit import enforce_rate_limit
 
+from .. import appearance_registry
 from ..models import (
+    APPEARANCE_COLOR_KEYS,
+    APPEARANCE_CONFIG_DEFAULTS,
     FOOTER_CONFIG_DEFAULTS,
     FOOTER_TOGGLE_FIELDS,
     HEADER_CONFIG_DEFAULTS,
@@ -56,6 +59,11 @@ class StorefrontAlreadyPublishedError(Exception):
 
 class HeaderConfigValidationError(Exception):
     """پیکربندی پیشنهادی هدر نامعتبر است — نباید ذخیره شود (پیام فارسی
+    قابل‌نمایش مستقیم به کاربر)."""
+
+
+class AppearanceConfigValidationError(Exception):
+    """پیکربندی پیشنهادی ظاهر نامعتبر است — نباید ذخیره شود (پیام فارسی
     قابل‌نمایش مستقیم به کاربر)."""
 
 
@@ -125,6 +133,79 @@ def validate_footer_config(config: dict) -> dict:
     return cleaned
 
 
+def validate_appearance_config(config: dict) -> dict:
+    """پیکربندی خامِ ظاهر (Template/Palette/Override/فونت/گردی/تراکم/حرکت)
+    را اعتبارسنجی و پاک‌سازی می‌کند — دقیقاً همان الگویِ
+    ``validate_header_config``: کلیدِ ناشناخته بی‌صدا حذف می‌شود، هر
+    مقدار در برابرِ یک enum بسته/بازه‌ی معقول چک می‌شود.
+
+    ``template_slug``/``palette_slug`` در برابرِ ``appearance_registry``
+    (نه یک لیستِ رشته‌ایِ تکراری اینجا) چک می‌شوند — همان الگویی که
+    ``StorefrontSection.section_key`` در برابرِ ``SECTION_REGISTRY`` چک
+    می‌شود. ``palette_slug=None`` مجاز است (یعنی «بدونِ پالتِ نام‌دار،
+    فقط رنگ‌هایِ دستی») — دقیقاً حالتِ فروشگاه‌هایی که هنوز به این سیستم
+    مهاجرت نکرده‌اند."""
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    from apps.core.models import validate_hex_color
+
+    if not isinstance(config, dict):
+        raise AppearanceConfigValidationError("تنظیمات ظاهر باید یک شیء باشد")
+
+    cleaned = dict(APPEARANCE_CONFIG_DEFAULTS)
+
+    template_slug = config.get("template_slug", APPEARANCE_CONFIG_DEFAULTS["template_slug"])
+    if appearance_registry.get_template(template_slug) is None:
+        raise AppearanceConfigValidationError(f"قالبِ «{template_slug}» در دسترس نیست")
+    cleaned["template_slug"] = template_slug
+
+    palette_slug = config.get("palette_slug")
+    if palette_slug is not None:
+        if appearance_registry.get_palette(palette_slug) is None:
+            raise AppearanceConfigValidationError(f"پالتِ «{palette_slug}» در دسترس نیست")
+    cleaned["palette_slug"] = palette_slug
+
+    raw_overrides = config.get("color_overrides") or {}
+    if not isinstance(raw_overrides, dict):
+        raise AppearanceConfigValidationError("رنگ‌های سفارشی باید یک شیء باشد")
+    cleaned_overrides = {}
+    for key, value in raw_overrides.items():
+        if key not in APPEARANCE_COLOR_KEYS:
+            continue
+        if not isinstance(value, str):
+            raise AppearanceConfigValidationError(f"رنگِ «{key}» نامعتبر است")
+        try:
+            validate_hex_color(value)
+        except DjangoValidationError as exc:
+            raise AppearanceConfigValidationError("; ".join(exc.messages)) from exc
+        cleaned_overrides[key] = value
+    cleaned["color_overrides"] = cleaned_overrides
+
+    font = config.get("font", APPEARANCE_CONFIG_DEFAULTS["font"])
+    if font not in appearance_registry.FONT_CHOICES:
+        raise AppearanceConfigValidationError("فونتِ انتخاب‌شده در فهرستِ فونت‌های مجاز نیست")
+    cleaned["font"] = font
+
+    for field, min_v, max_v in (("radius", 0, 32), ("button_radius", 0, 32)):
+        try:
+            value = int(config.get(field, APPEARANCE_CONFIG_DEFAULTS[field]))
+        except (TypeError, ValueError):
+            raise AppearanceConfigValidationError(f"مقدار «{field}» باید عدد باشد") from None
+        cleaned[field] = max(min_v, min(max_v, value))
+
+    density = config.get("density", APPEARANCE_CONFIG_DEFAULTS["density"])
+    if density not in appearance_registry.DENSITY_CHOICES:
+        raise AppearanceConfigValidationError("تراکمِ انتخاب‌شده نامعتبر است")
+    cleaned["density"] = density
+
+    motion = config.get("motion", APPEARANCE_CONFIG_DEFAULTS["motion"])
+    if motion not in appearance_registry.MOTION_CHOICES:
+        raise AppearanceConfigValidationError("سبکِ حرکتِ انتخاب‌شده نامعتبر است")
+    cleaned["motion"] = motion
+
+    return cleaned
+
+
 def get_or_create_layout(store) -> StorefrontLayout:
     return StorefrontLayout.provision_for(store)
 
@@ -140,7 +221,8 @@ def _clone_version_content(source: StorefrontLayoutVersion | None, target: Store
         return
     target.header_config = dict(source.header_config or {})
     target.footer_config = dict(source.footer_config or {})
-    target.save(update_fields=["header_config", "footer_config"])
+    target.appearance_config = dict(source.appearance_config or {})
+    target.save(update_fields=["header_config", "footer_config", "appearance_config"])
     sections = [
         StorefrontSection(
             version=target, section_key=s.section_key, order=s.order,

@@ -42,8 +42,14 @@
     </div>
   </div>
 
+  <div class="sfb-main-tabs" role="tablist">
+    <button type="button" class="sfb-main-tab" :class="{ active: mainTab === 'page' }" @click="mainTab = 'page'" role="tab">ساخت صفحه</button>
+    <button type="button" class="sfb-main-tab" :class="{ active: mainTab === 'appearance' }" @click="mainTab = 'appearance'" role="tab"
+            hx-get="{% url 'dashboard:storefront-builder-appearance' %}" hx-trigger="click once" hx-target="#sfbAppearancePanel" hx-swap="innerHTML">ظاهر سایت</button>
+  </div>
+
   <div class="sfb-body">
-    <aside class="sfb-sidebar">
+    <aside class="sfb-sidebar" x-show="mainTab === 'page'">
       <div class="sfb-sidebar-section">
         <h4>هدر و فوتر</h4>
         <a href="{% url 'dashboard:storefront-builder-header' %}" class="btn btn-sm" style="width:100%">ویرایش هدر</a>
@@ -87,6 +93,10 @@
       {% endif %}
     </aside>
 
+    <aside class="sfb-sidebar" x-show="mainTab === 'appearance'" x-cloak id="sfbAppearancePanel">
+      <p style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center">در حال بارگذاری…</p>
+    </aside>
+
     <main class="sfb-preview-pane">
       <div class="sfb-preview-frame-wrap" :class="'sfb-device-' + device">
         <iframe id="sfbPreviewFrame" src="{% url 'dashboard:storefront-builder-preview' %}" title="پیش‌نمایش صفحه اصلی"
@@ -110,6 +120,7 @@ function storefrontEditor() {
   return {
     device: 'desktop',
     settingsOpen: false,
+    mainTab: 'page',
     init() {
       document.body.addEventListener('htmx:afterSwap', (evt) => {
         if (evt.detail.target.id === 'storefrontSectionList') {

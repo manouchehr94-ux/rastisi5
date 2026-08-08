@@ -45,6 +45,29 @@ FOOTER_TOGGLE_FIELDS = [
 ]
 FOOTER_CONFIG_DEFAULTS = {f: True for f in FOOTER_TOGGLE_FIELDS}
 
+#: کلیدهایِ رنگِ توکنِ ظاهر — دقیقاً همان مجموعه‌ای که ``tokens.css``ی
+#: موجود از قبل به‌عنوانِ ``--brand-*`` مصرف می‌کند (audit شده قبل از
+#: نهایی‌کردن؛ نگاه کنید به گزارشِ ممیزی، بخشِ «Site Appearance»)، به‌علاوه
+#: ``border`` که امروز فقط derived است (``mix_hex(text, surface)``) و
+#: اینجا برایِ اولین‌بار به یک توکنِ قابلِ‌override واقعی تبدیل می‌شود.
+APPEARANCE_COLOR_KEYS = ["primary", "secondary", "accent", "background", "surface", "text", "muted", "border"]
+
+#: پیش‌فرض‌هایِ ظاهر — عمداً دقیقاً برابرِ مقادیرِ پیش‌فرضِ فعلیِ
+#: ``ShopSettings`` (``apps/core/models.py``) هستند تا فروشگاه‌هایی که
+#: هنوز به سیستمِ ظاهرِ نسخه‌بندی‌شده دست نزده‌اند، هیچ تغییرِ بصری‌ای
+#: نبینند — دقیقاً همان الزامِ سازگاریِ کاملِ با گذشته که برایِ
+#: header_config/footer_config هم رعایت شده.
+APPEARANCE_CONFIG_DEFAULTS = {
+    "template_slug": "modern",
+    "palette_slug": None,
+    "color_overrides": {},
+    "font": "Vazirmatn",
+    "radius": 18,
+    "button_radius": 12,
+    "density": "normal",
+    "motion": "subtle",
+}
+
 
 class StorefrontLayout(TimeStampedModel):
     """لنگر یک‌به‌یک هر فروشگاه — اشاره‌گر به نسخه‌ی منتشرشده و نسخه‌ی پیش‌نویس.
@@ -121,6 +144,14 @@ class StorefrontLayoutVersion(TimeStampedModel):
 
     header_config = models.JSONField("پیکربندی هدر", default=dict, blank=True)
     footer_config = models.JSONField("پیکربندی فوتر", default=dict, blank=True)
+    appearance_config = models.JSONField(
+        "پیکربندی ظاهر", default=dict, blank=True,
+        help_text=(
+            "قالب/پالت/فونت/گردی/تراکم/حرکت — دقیقاً همان الگویِ header_config/"
+            "footer_config (JSON روی خودِ نسخه) تا تغییراتِ ظاهری هم از همان "
+            "چرخه‌ی Draft/Preview/Publish/Restore عبور کنند، نه یک مسیرِ زنده‌ی جدا."
+        ),
+    )
 
     content_fingerprint = models.CharField(
         "اثر انگشت محتوا", max_length=64, blank=True,
@@ -155,8 +186,18 @@ class StorefrontLayoutVersion(TimeStampedModel):
     def effective_footer_config(self) -> dict:
         return {**FOOTER_CONFIG_DEFAULTS, **(self.footer_config or {})}
 
+    def effective_appearance_config(self) -> dict:
+        """پیکربندیِ ظاهر با پیش‌فرض‌هایِ کامل — همان الگویِ
+        ``effective_header_config``. کلیدِ ``color_overrides`` عمداً به
+        شکلِ shallow merge نمی‌شود (یک دیکشنریِ تودرتو است) — اگر مقداری
+        ذخیره شده باشد، دقیقاً همان مقدار استفاده می‌شود؛ حل‌کردنِ نهاییِ
+        رنگ‌ها (پالت پایه + override) وظیفه‌ی ``appearance_service`` است،
+        نه این متد (که فقط defaults را کامل می‌کند، دقیقاً مثلِ
+        header/footer)."""
+        return {**APPEARANCE_CONFIG_DEFAULTS, **(self.appearance_config or {})}
+
     def compute_fingerprint(self) -> str:
-        """هش SHA-256 قطعی از هدر/فوتر/بخش‌ها — مستقل از ترتیب ذخیره‌سازی ردیف‌ها."""
+        """هش SHA-256 قطعی از هدر/فوتر/ظاهر/بخش‌ها — مستقل از ترتیب ذخیره‌سازی ردیف‌ها."""
         sections = [
             {"section_key": s.section_key, "order": s.order, "is_active": s.is_active, "settings": s.settings}
             for s in self.sections.order_by("order", "id")
@@ -164,6 +205,7 @@ class StorefrontLayoutVersion(TimeStampedModel):
         payload = {
             "header_config": self.header_config,
             "footer_config": self.footer_config,
+            "appearance_config": self.appearance_config,
             "sections": sections,
         }
         serialized = json.dumps(payload, sort_keys=True, ensure_ascii=True)

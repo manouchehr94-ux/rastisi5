@@ -337,3 +337,97 @@
   outline: 2px dashed var(--violet, #6d28d9);
   outline-offset: -2px;
 }
+
+/* دو تبِ اصلیِ سازنده بصری — «ساخت صفحه» / «ظاهر سایت». */
+.sfb-main-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 16px 0;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.sfb-main-tab {
+  padding: 10px 18px;
+  border: none;
+  background: none;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--muted, #64748b);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.sfb-main-tab.active {
+  color: var(--violet, #6d28d9);
+  border-bottom-color: var(--violet, #6d28d9);
+}
+
+/* هابِ ظاهر سایت */
+.sfb-appearance-intro {
+  margin-bottom: 12px;
+}
+
+.sfb-appearance-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: right;
+  background: var(--card, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.sfb-appearance-card:hover {
+  border-color: var(--violet, #6d28d9);
+}
+
+.sfb-appearance-kicker {
+  display: block;
+  font-size: 11px;
+  color: var(--muted, #64748b);
+  margin-bottom: 3px;
+}
+
+.sfb-appearance-action {
+  font-size: 12px;
+  color: var(--violet, #6d28d9);
+  white-space: nowrap;
+}
+
+.sfb-appearance-stripe {
+  display: flex;
+  gap: 4px;
+}
+
+.sfb-appearance-stripe span {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.sfb-template-gallery {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.sfb-template-card {
+  display: block;
+  width: 100%;
+  text-align: right;
+  background: var(--card, #fff);
+  border: 2px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
+}
+
+.sfb-template-card.active {
+  border-color: var(--violet, #6d28d9);
+}
