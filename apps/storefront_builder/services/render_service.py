@@ -213,8 +213,15 @@ def _collection_tiles_context(store, section):
 def _quick_links_context(store, section):
     """چکپوینتِ ۱۲: «دسترسی سریع» — یک Menuِ موجود (همان زیرساختِ
     Menu/MenuItem/Destinationِ ناوبریِ هدر/فوتر) را به‌شکلِ کارت‌هایِ
-    بصری نشان می‌دهد؛ هیچ مدلِ لینکِ جدیدی ساخته نشده."""
-    from apps.content.models import Menu
+    بصری نشان می‌دهد؛ هیچ مدلِ لینکِ جدیدی ساخته نشده.
+
+    ``Prefetch`` با یک queryset از پیش‌فیلترشده (نه ``prefetch_related``یِ
+    ساده + یک ``.filter()`` دیگر رویِ ``menu.items`` بعداً) — وگرنه آن
+    فیلترِ دوم یک کوئریِ کاملاً جدا اجرا می‌کرد و کشِ prefetch را بی‌اثر
+    می‌گذاشت (همان الگویِ ``apps.content.context_processors.navigation_menus``)."""
+    from django.db.models import Prefetch
+
+    from apps.content.models import Menu, MenuItem
     from apps.content.services import resolve_destination_url
 
     settings = {**default_quick_links_settings(), **(section.settings or {})}
@@ -222,11 +229,14 @@ def _quick_links_context(store, section):
     items = []
     menu = None
     if menu_id:
+        items_qs = MenuItem.objects.filter(is_active=True, parent__isnull=True).select_related(
+            "destination_category", "destination_product", "destination_brand",
+        ).order_by("display_order", "id")
         menu = Menu.objects.filter(store=store, pk=menu_id, is_active=True).prefetch_related(
-            "items__destination_category", "items__destination_product", "items__destination_brand",
+            Prefetch("items", queryset=items_qs),
         ).first()
     if menu is not None:
-        for menu_item in menu.items.filter(is_active=True, parent__isnull=True).order_by("display_order", "id"):
+        for menu_item in menu.items.all():
             url = resolve_destination_url(menu_item)
             if url:
                 items.append({"title": menu_item.title, "url": url, "open_in_new_tab": menu_item.open_in_new_tab})

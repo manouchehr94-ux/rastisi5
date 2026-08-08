@@ -604,6 +604,40 @@ class QuickLinksRenderTests(TestCase):
         self.assertEqual(items[0]["title"], "مشاهده دسته")
         self.assertIn(category.slug, items[0]["url"])
 
+    def test_menu_items_query_count_is_constant_not_per_item(self):
+        """رگرسیون: نسخه‌ی اولِ این تابع ``prefetch_related`` را با یک
+        ``.filter()`` دیگر رویِ ``menu.items`` ترکیب می‌کرد که کشِ
+        prefetch را بی‌اثر می‌گذاشت — این تست تضمین می‌کند تعدادِ کوئریِ
+        خودِ این section (نه کلِ صفحه — سکشن‌های bootstrap-شده‌ی دیگر
+        کوئریِ خودشان را دارند) با تعدادِ آیتم‌های منو رشد نمی‌کند."""
+        from apps.catalog.models import Category
+        from apps.content.models import DestinationType, Menu, MenuItem
+
+        def _query_count_for(item_count):
+            store = _akhlaghi()
+            MenuItem.objects.filter(menu__store=store, menu__location=Menu.Location.HEADER).delete()
+            Menu.objects.filter(store=store, location=Menu.Location.HEADER).delete()
+            menu = Menu.objects.create(store=store, title="منوی کوئری", location=Menu.Location.HEADER, is_active=True)
+            for i in range(item_count):
+                category = Category.objects.create(store=store, name=f"دسته {i}", slug=f"ql-q-{item_count}-{i}", is_active=True)
+                MenuItem.objects.create(
+                    menu=menu, title=f"آیتم {i}", display_order=i, is_active=True,
+                    destination_type=DestinationType.CATEGORY, destination_category=category,
+                )
+            draft = svc.get_or_create_draft(store)
+            draft.sections.all().delete()
+            StorefrontSection.objects.create(
+                version=draft, section_key="quick_links", order=900, settings={"title": "", "menu_id": menu.pk},
+            )
+            with CaptureQueriesContext(connection) as ctx:
+                item = self._items_for(draft, store)[0]
+                self.assertEqual(len(item["context"]["quick_link_items"]), item_count)
+            return len(ctx.captured_queries)
+
+        small_count = _query_count_for(2)
+        large_count = _query_count_for(15)
+        self.assertEqual(small_count, large_count)
+
     def test_menu_from_another_store_never_leaks(self):
         from apps.content.models import Menu
 
