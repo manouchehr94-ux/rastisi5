@@ -4743,12 +4743,28 @@ def page_publish(request, pk):
 from apps.content.models import HeroSlide, PromotionalBanner
 
 
+def _uses_visual_storefront_layout(store) -> bool:
+    """آیا سازنده بصری برای این فروشگاه منتشر شده — دقیقاً همان شرطی که
+    ``apps.catalog.views.home`` برایِ انتخابِ بینِ مسیرِ Builder و مسیرِ
+    قدیمیِ سخت‌کدشده چک می‌کند. اگر True باشد، صفحاتِ قدیمیِ اسلایدر/بنر
+    (``hero_list``/``banner_list``) دیگر هیچ اثری روی صفحه‌ی عمومیِ این
+    فروشگاه ندارند — چون بخشِ ``hero_banner``ی سازنده جای‌گزینِ آن‌هاست."""
+    from apps.storefront_builder.models import StorefrontLayout
+
+    return StorefrontLayout.objects.filter(
+        store=store, uses_visual_storefront_layout=True, published_version__isnull=False,
+    ).exists()
+
+
 @staff_required
 @permission_required(CONTENT_MANAGE)
 def hero_list(request):
     store = _resolve_dashboard_store(request)
     slides = HeroSlide.objects.filter(store=store).order_by("display_order", "id")
-    return render(request, "dashboard/hero_list.html", {"slides": slides, "active_page": "homepage"})
+    return render(request, "dashboard/hero_list.html", {
+        "slides": slides, "active_page": "homepage",
+        "storefront_builder_active": _uses_visual_storefront_layout(store),
+    })
 
 
 @staff_required
@@ -4869,7 +4885,10 @@ def hero_toggle(request, pk):
 def banner_list(request):
     store = _resolve_dashboard_store(request)
     banners = PromotionalBanner.objects.filter(store=store).order_by("display_order", "id")
-    return render(request, "dashboard/banner_list.html", {"banners": banners, "active_page": "homepage"})
+    return render(request, "dashboard/banner_list.html", {
+        "banners": banners, "active_page": "homepage",
+        "storefront_builder_active": _uses_visual_storefront_layout(store),
+    })
 
 
 @staff_required
