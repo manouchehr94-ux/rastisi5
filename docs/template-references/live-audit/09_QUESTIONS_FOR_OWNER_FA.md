@@ -20,21 +20,22 @@
 - **Recommendation:** گزینه A — دقیقاً همان چیزی که Master Prompt صریحاً خواسته و تنها گزینه‌ای که معیار پذیرش آن را برآورده می‌کند؛ هزینه‌ی افزوده (فایل‌های partial جدید) در سند ۰۸ بخش ۱۱ کاملاً مشخص و محدود شده است.
 - **Default if deferred:** بدون پاسخ صریح امکان ادامه‌ی معماری وجود ندارد — **No safe default — blocking.**
 - **Affected scope:** تمام پنج خانواده؛ تمام مدل‌ها/تمپلیت‌های بخش ۴ سند ۰۸؛ کل نقشه فایل بخش ۱۱ سند ۰۸.
-- **Status:** `UNANSWERED`
-- **Owner answer:**
-- **Recorded decision:**
+- **Status:** `ANSWERED`
+- **Owner answer:** گزینه A تأیید شد، با ۱۰ ملاحظه معماری صریح (عیناً، خلاصه‌شده در `10_OWNER_DECISION_LOG.md`): (۱) فورک واقعی DOM فقط برای اجزای هویت‌ساز (Header/Nav، Hero، Category/Collection، Product Card، Homepage composition، Product Detail Page، Footer، رفتار موبایل)؛ (۲) هسته دامنه/مدل‌های داده/Tenant isolation/محصولات/کالکشن/سبد/سفارش/رسانه/Preview/Publish/Rollback باید کاملاً مشترک بمانند — این گزینه A هرگز به معنای پنج سایت یا پنج معماری مستقل نیست؛ (۳) معماری باید ترکیبی باشد: قراردادهای داده مشترک + Primitiveهای مشترک + Rendererهای family-specific + Section schema مشترک تا حد ممکن + تنظیمات family-specific namespaced؛ (۴) `appearance_registry.py` نباید حذف/بی‌استفاده شود — دقیقاً برای رنگ/فونت/فاصله/تراکم/گردی/سایه/Motion/Palette درون هر خانواده باقی می‌ماند؛ (۵) فقط اجزای هویت‌ساز نیاز به Markup/Composition متفاوت دارند، نه هر بلوک کوچک؛ (۶) هر ۱۰ Template و ۲۰ Palette موجود باید حفظ شوند، بدون حذف/بازنویسی مخرب، بدون تغییر ظاهر/تنظیمات فروشگاه‌های فعلی؛ (۷) مسیر انتخاب مرچنت باید مفهوماً: انتخاب Template Family ← انتخاب Preset/Palette درون آن خانواده ← تنظیم Sections/محتوا/رنگ/فونت/Responsive؛ (۸) تغییر خانواده هرگز نباید داده اصلی (محصول/کالکشن/رسانه) را حذف کند؛ تنظیمات مشترک منتقل شوند، تنظیمات اختصاصی هر خانواده بدون Data loss نگه‌داری شوند؛ (۹) انتخاب Renderer باید از طریق یک Registry/Strategy توسعه‌پذیر انجام شود، نه زنجیره‌های پراکنده `if/elif`؛ (۱۰) در این مرحله فقط ثبت تصمیم — بدون ورود به پیاده‌سازی/Migration/تغییر کد.
+- **Recorded decision:** گزینه A پذیرفته شد به‌عنوان معماری هدف، دقیقاً همان‌طور که در `docs/template-references/live-audit/08_TARGET_ARCHITECTURE_AND_FILE_PLAN.md` (بخش‌های ۱ تا ۴) پیش‌نویس شده بود — با تأکید و محدودسازی صریح مالک بر نکات ۱ تا ۹ بالا، که همگی با پیشنهاد اصلی سند ۰۸ همسو هستند (هیچ‌کدام نیازمند بازنویسی سند ۰۸ نیستند؛ نکته ۹ فقط الزام می‌کند که `family_registry.py` پیشنهادی سند ۰۸ حتماً به‌صورت یک Registry/Strategy واقعی — نه شرط‌های پراکنده — ساخته شود، که از ابتدا همین‌طور طراحی شده بود). این تصمیم مبنای پاسخ‌گویی به Q-02 و تمام سؤالات وابسته (Q-07 تا Q-13) قرار می‌گیرد.
 
-### Q-02 — هم‌زیستی `family_slug` جدید با `template_slug` موجود
+### Q-02 — مکانیزم دقیق سلسله‌مراتب Family ← Preset/Palette
 
-- **Question:** با فرض تأیید گزینه A در Q-01: آیا انتخاب یک «خانواده» (family_slug جدید) باید **مستقل** از انتخاب Template رنگی/تراکمی موجود (۱۰ عدد فعلی) باشد — یعنی مرچنت هر دو را جدا انتخاب می‌کند، با یک پیش‌فرض خودکار Template برای هر خانواده — یا انتخاب خانواده باید کاملاً Template فعلی را override/غیرفعال کند؟
-- **Why it matters:** روی شکل دقیق داده (`appearance_config`) و روی این‌که آیا مرچنت پس از انتخاب خانواده هنوز می‌تواند رادیوس/تراکم/حرکت را دستی عوض کند (الزام صریح Master Prompt: «Palette, Typography, Motion... independently overrideable») اثر مستقیم دارد.
-- **Evidence:** `docs/template-references/live-audit/08_TARGET_ARCHITECTURE_AND_FILE_PLAN.md` بخش ۱.
+- **Question:** طبق بند ۷ پاسخ Q-01، مسیر انتخاب مرچنت مفهوماً سلسله‌مراتبی است: «انتخاب Template Family ← انتخاب Preset/Palette **درون** آن خانواده». این سلسله‌مراتب دقیقاً به چه شکل اجرا شود؟
+- **Why it matters:** روی شکل دقیق داده (`appearance_config`) و روی تجربه واقعی مرچنت در Builder اثر مستقیم دارد؛ گزینه‌های زیر همگی با بند ۷ پاسخ Q-01 همخوان‌اند اما جزئیات اجرایی متفاوتی دارند.
+- **Evidence:** `docs/template-references/live-audit/08_TARGET_ARCHITECTURE_AND_FILE_PLAN.md` بخش ۱ و ۳؛ بند ۷ پاسخ Q-01 در `10_OWNER_DECISION_LOG.md`.
 - **Options:**
-  - A. هم‌زیستی مستقل + پیش‌فرض خودکار قابل‌override (توصیه سند ۰۸).
-  - B. انتخاب خانواده، Template را کاملاً قفل/مخفی می‌کند (سادگی بیشتر برای مرچنت، اما نقض جزئی الزام override مستقل).
-- **Recommendation:** گزینه A.
-- **Default if deferred:** **No safe default — blocking** (وابسته به Q-01).
-- **Affected scope:** `StorefrontLayoutVersion.appearance_config`، پنل انتخاب Template/Family در Builder.
+  - A. هر خانواده یک **زیرمجموعه پیشنهادی** از ۲۰ Palette/۱۰ Template موجود دارد (مثلاً `heritage_premium` معمولاً با پالت‌های گروه «لوکس»/«گرم» + Template نزدیک به `luxury`/`boutique` نمایش داده می‌شود) اما مرچنت می‌تواند از **کل** فهرست موجود انتخاب کند — «درون آن خانواده» فقط به معنای «پیش‌فرض/چیدمان گالری»، نه یک محدودیت واقعی انتخاب.
+  - B. هر خانواده فهرست Palette/Template را واقعاً **محدود و فیلتر می‌کند** — یعنی برخی از ۲۰ Palette/۱۰ Template موجود برای برخی خانواده‌ها اصلاً در گالری انتخاب نشان داده نمی‌شوند (چون با آن هویت ساختاری همخوانی بصری ندارند).
+  - C. هر خانواده یک Template/Palette **پیش‌فرض** دارد (خودکار، بدون کلیک مرچنت) که مرچنت می‌تواند بعداً آزادانه از کل فهرست موجود تغییر دهد — بدون فیلتر گالری، بدون زیرمجموعه پیشنهادی، فقط یک نقطه شروع هوشمند.
+- **Recommendation:** گزینه C — کمترین محدودیت برای مرچنت (مطابق اصل «حداکثر آزادی طراحی» Master Prompt)، ساده‌ترین اجرا (فقط یک مقدار `default_appearance_template_slug`/`default_palette_slug` per خانواده، بدون منطق فیلترکردن گالری)، و همچنان کاملاً با بند ۷ پاسخ Q-01 همخوان (مرچنت همچنان از خانواده شروع می‌کند، سپس Preset/Palette را — حالا با یک پیش‌فرض هوشمند — تنظیم می‌کند).
+- **Default if deferred:** **No safe default — blocking** (شکل دقیق `appearance_config` و UI گالری به این تصمیم وابسته است).
+- **Affected scope:** `StorefrontLayoutVersion.appearance_config`، `family_registry.py` (فیلد `default_appearance_template_slug`)، پنل انتخاب Family/Template/Palette در Builder.
 - **Status:** `UNANSWERED`
 - **Owner answer:**
 - **Recorded decision:**
