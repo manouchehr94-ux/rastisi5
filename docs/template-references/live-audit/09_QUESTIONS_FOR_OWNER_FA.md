@@ -1,0 +1,420 @@
+# ۰۹ — فهرست کامل سؤالات برای مالک پروژه
+
+**وضعیت: پیاده‌سازی محصولی (Gate 3) هنوز شروع نشده است.** هیچ مدل، migration، view، URL، template، CSS یا JavaScript‌ای تغییر نکرده. این سند فقط فهرست تصمیمات باز است.
+
+**یادداشت درباره ترتیب.** سؤالات زیر تحت ۱۱ گروه موضوعی الزام‌شده در دستور اصلی (Master Prompt) دسته‌بندی شده‌اند، اما شماره‌گذاری Q-01 تا Q-21 بر اساس **وابستگی واقعی**، نه صرفاً ترتیب گروه‌ها، انتخاب شده — چون Q-01 و Q-02 (تعارض معماری خانواده در برابر سیستم Template/Preset موجود) عملاً پیش‌نیاز تقریباً همه‌ی سؤالات دیگر هستند. طبق دستور کار، فقط **Q-01** در چت پرسیده می‌شود؛ باقی سؤالات پس از پاسخ به سؤال قبلی، یکی‌یکی مطرح می‌شوند.
+
+---
+
+## گروه ۱ — تعارض بنیادین معماری (پیش‌نیاز اکثر سؤالات دیگر)
+
+### Q-01 — پنج خانواده در برابر سیستم Template/Preset موجود (`appearance_registry.py`)
+
+- **Question:** مخزن از قبل یک سیستم بالغ و به‌تازگی توسعه‌یافته «Template + Palette» دارد (`apps/storefront_builder/appearance_registry.py`، ۱۰ Template + ۲۰ Palette، کامیت‌های اخیر `d08b762`/`276bc79`/`88f32a3`) که **عمداً** یک هدر مشترک، یک فوتر مشترک، یک کارت محصول مشترک و یک صفحه محصول مشترک دارد و فقط از طریق CSS custom property/داده-attribute تفاوت ایجاد می‌کند (نقل مستقیم از خودِ کامیت: «shared renderer + design tokens + closed CSS variants, not N×M forked Django templates»). در مقابل، Master Prompt این کار صریحاً می‌خواهد که پنج خانواده جدید **DOM/Markup واقعاً متفاوت** برای هدر/هیرو/کارت محصول/صفحه محصول داشته باشند («A single DOM with five CSS class names fails the design requirement»). این یک تعارض واقعی بین منبع Master Prompt و رفتار فعلی/عمدی مخزن است (نه یک شکاف قدیمی) و باید به‌صراحت حل شود.
+- **Why it matters:** تعیین می‌کند آیا اصلاً باید DOM جدید فورک شود (کار زیاد، ریسک بصری بالا، اما مطابق معیار پذیرش Master Prompt) یا سیستم فعلی گسترش یابد (کار کم، ریسک پایین، اما طبق شواهد سند ۰۱/۰۷ نمی‌تواند معیار «پنج خانواده قابل‌تشخیص با DOM متفاوت» را برآورده کند).
+- **Evidence:** `docs/template-references/live-audit/01_REPOSITORY_ARCHITECTURE_AND_GAPS.md` بخش ۲.۲/۲.۳؛ `docs/template-references/live-audit/07_CROSS_REFERENCE_MATRIX.md` بخش «Matrix C»؛ `apps/storefront_builder/appearance_registry.py`؛ `apps/catalog/templates/catalog/partials/product_card.html`؛ `apps/storefront_builder/templates/storefront_builder/partials/page_shell_header.html`/`page_shell_footer.html`.
+- **Options:**
+  - A. فورک واقعی DOM per family برای هدر/هیرو/دسته‌بندی/کارت محصول/صفحه محصول (طبق سند ۰۸ بخش ۴)، و استفاده مجدد کامل از `appearance_registry.py` فقط برای رنگ/فونت/تراکم/گردی/حرکت **درون** هر خانواده — این معماری پیشنهادی سند ۰۸ است.
+  - B. گسترش سیستم فعلی با توکن‌های CSS بیشتر بدون فورک DOM — سریع‌تر، اما طبق شواهد سند ۰۷ نمی‌تواند تفاوت‌های ساختاری الزام‌شده (نسبت تصویر ۱:۱ در برابر ۹:۱۲، حذف کامل بخش دسته‌بندی در Nordic Living، عدم‌وجود Search box در هدر Deeyar) را واقعاً بسازد.
+  - C. توقف کار روی این محور تا کاربر دامنه را دوباره تعریف کند.
+- **Recommendation:** گزینه A — دقیقاً همان چیزی که Master Prompt صریحاً خواسته و تنها گزینه‌ای که معیار پذیرش آن را برآورده می‌کند؛ هزینه‌ی افزوده (فایل‌های partial جدید) در سند ۰۸ بخش ۱۱ کاملاً مشخص و محدود شده است.
+- **Default if deferred:** بدون پاسخ صریح امکان ادامه‌ی معماری وجود ندارد — **No safe default — blocking.**
+- **Affected scope:** تمام پنج خانواده؛ تمام مدل‌ها/تمپلیت‌های بخش ۴ سند ۰۸؛ کل نقشه فایل بخش ۱۱ سند ۰۸.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+### Q-02 — هم‌زیستی `family_slug` جدید با `template_slug` موجود
+
+- **Question:** با فرض تأیید گزینه A در Q-01: آیا انتخاب یک «خانواده» (family_slug جدید) باید **مستقل** از انتخاب Template رنگی/تراکمی موجود (۱۰ عدد فعلی) باشد — یعنی مرچنت هر دو را جدا انتخاب می‌کند، با یک پیش‌فرض خودکار Template برای هر خانواده — یا انتخاب خانواده باید کاملاً Template فعلی را override/غیرفعال کند؟
+- **Why it matters:** روی شکل دقیق داده (`appearance_config`) و روی این‌که آیا مرچنت پس از انتخاب خانواده هنوز می‌تواند رادیوس/تراکم/حرکت را دستی عوض کند (الزام صریح Master Prompt: «Palette, Typography, Motion... independently overrideable») اثر مستقیم دارد.
+- **Evidence:** `docs/template-references/live-audit/08_TARGET_ARCHITECTURE_AND_FILE_PLAN.md` بخش ۱.
+- **Options:**
+  - A. هم‌زیستی مستقل + پیش‌فرض خودکار قابل‌override (توصیه سند ۰۸).
+  - B. انتخاب خانواده، Template را کاملاً قفل/مخفی می‌کند (سادگی بیشتر برای مرچنت، اما نقض جزئی الزام override مستقل).
+- **Recommendation:** گزینه A.
+- **Default if deferred:** **No safe default — blocking** (وابسته به Q-01).
+- **Affected scope:** `StorefrontLayoutVersion.appearance_config`، پنل انتخاب Template/Family در Builder.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+---
+
+## گروه ۲ — Visual fidelity و تعارض منابع (بقیه)
+
+### Q-03 — عدم دسترسی به پنج سایت زنده (Blocker محیط اجرا)
+
+- **Question:** در این Session، دسترسی شبکه به تمام پنج دامنه مرجع (`beraito.com`, `cactusleather.ir`, `deeyarstore.com`, `ibolak.com`, `www.ikala-jam.ir`) هم از طریق مرورگر واقعی (Playwright/Chromium) و هم از طریق ابزار Fetch، توسط پروکسی خروجی همین محیط اجرا با خطای `EGRESS_BLOCKED`/`ERR_TUNNEL_CONNECTION_FAILED` مسدود شد — یک محدودیت زیرساختی این Session، نه محدودیت خودِ سایت‌ها. چگونه ادامه دهیم؟
+- **Why it matters:** بدون این شواهد، تمام مستندات ممیزی خانواده‌ها (اسناد ۰۲ تا ۰۶) صرفاً بر پایه‌ی بسته سبک آپلود‌شده و متن Master Prompt‌اند (شواهد Provisional)، نه اندازه‌گیری واقعی از سایت زنده.
+- **Evidence:** پیام افتتاحیه Gate 1 این Session؛ `docs/template-references/live-audit/00_REPOSITORY_BASELINE.md`.
+- **Options:**
+  - A. ادامه با بسته سبک به‌عنوان تنها شاهد (بسته سبک به‌گفته‌ی خودش ساختار/نسبت/سلسله‌مراتب/رفتار موبایل را دقیق منتقل می‌کند؛ فقط نور/بافت/Art-direction واقعی را ندارد — طبق `README_FIRST_FA.md`).
+  - B. کاربر چند اسکرین‌شات مشخص و کوچک (نه کل سایت) برای نکات مبهم بفرستد — مثلاً دقیقاً هدر iBolak یا هیروی واقعی Cactus.
+  - C. یک Session/Environment با Network Policy متفاوت (دسترسی اینترنت آزاد) برای همین کار به‌طور جدا راه‌اندازی شود.
+- **Recommendation:** گزینه A برای شروع (کار را متوقف نمی‌کند)، با گزینه B به‌صورت موردی اگر در حین پیاده‌سازی یک جزئیات بصری خاص واقعاً مبهم ماند — دقیقاً همان مسیری که خودِ بسته سبک در `README_FIRST_FA.md` پیشنهاد داده است.
+- **Default if deferred:** ادامه با گزینه A (بدون‌ضرر و reversible — در هر زمان بعداً یک اسکرین‌شات اضافه قابل درخواست است).
+- **Affected scope:** دقت بصری هر پنج خانواده (نه معماری/داده).
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+### Q-04 — مغایرت‌های داخلی خودِ بسته سبک
+
+- **Question:** بسته سبک آپلودشده در چند مورد با خودش ناهماهنگ است: (۱) `IMPLEMENTATION_SPEC_FA.md` یک بنر تبلیغاتی برای Cactus و بنرهای بیشتر برای Deeyar را در متن فهرست می‌کند که در HTML/JS واقعی ساخته نشده؛ (۲) Hero چرخشی سه‌اسلایدی برای iBolak در متن ادعا می‌شود اما در JS واقعی فقط یک اسلاید استاتیک ساخته شده؛ (۳) عنوان Renderer «`catalog_second_image`» برای Nordic Living یک Crossfade تصویر دوم را نام می‌برد که در کد JS واقعی پیاده نشده. کدام نسخه معیار باشد؟
+- **Why it matters:** بدون تصمیم صریح، پیاده‌سازی ممکن است چیزی بسازد که نه در بسته واقعاً build شده و نه توسط کاربر تأیید شده است.
+- **Evidence:** اسناد ۰۳/۰۵/۰۶ (بخش‌های ۶ و ۱۸ هرکدام).
+- **Options:**
+  - A. نسخه‌ی واقعاً build‌شده در `app.js`/`shared.css` معیار قطعی نسخه اول باشد؛ موارد متن-فقط (بنر بیشتر، کارusel واقعی، Crossfade واقعی) به فاز بعد موکول شوند مگر کاربر صریحاً بخواهد اکنون اضافه شوند.
+  - B. متن کامل `IMPLEMENTATION_SPEC_FA.md` معیار باشد و هرچه در JS نیست هم در نسخه اول ساخته شود.
+- **Recommendation:** گزینه A برای هر سه مورد **به‌جز** Crossfade تصویر دوم Nordic Living که در Q-13 جدا پرسیده می‌شود (چون نام Renderer صراحتاً همین قابلیت را وعده می‌دهد).
+- **Default if deferred:** گزینه A (نسخه build‌شده، کم‌ریسک‌ترین و کمترین دامنه).
+- **Affected scope:** Beraito/Cactus (بنر)، Modern Fashion (Hero).
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+---
+
+## گروه ۳ — دامنه دقیق صفحات فعلی
+
+### Q-05 — آیا صفحه دسته‌بندی/لیست هم باید per-family شود؟
+
+- **Question:** Master Prompt صریحاً می‌گوید صفحه دسته‌بندی «شواهد پشتیبان» است، نه بخشی خودکار از دامنه اجرا. آیا صفحه Category/Listing هرکدام از پنج خانواده هم باید ظاهر متفاوت بگیرد، یا فقط از Renderer عمومی فعلی پلتفرم (بدون تغییر ساختاری per-family) استفاده کند؟
+- **Why it matters:** اثر مستقیم روی حجم فایل‌های جدید (سند ۰۸ بخش ۱۱) — افزودن این صفحه یعنی حداقل ۵ partial جدید دیگر.
+- **Evidence:** متن Master Prompt، بخش «Required pages per reference» و «implementation scope is not automatically expanded to category pages».
+- **Options:**
+  - A. فقط Home + Product در نسخه اول؛ Category بدون تغییر (توصیه).
+  - B. Category هم per-family شود، همزمان با Home+Product.
+- **Recommendation:** گزینه A.
+- **Default if deferred:** گزینه A.
+- **Affected scope:** حجم کار فاز پیاده‌سازی هر پنج خانواده.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+### Q-06 — دامنه Cart/Checkout
+
+- **Question:** آیا صفحات سبد خرید/تسویه‌حساب هم باید ظاهر family-specific بگیرند؟
+- **Why it matters:** این صفحات امروز کاملاً مستقل از سیستم Template/Appearance هستند؛ گنجاندنشان دامنه را به‌طور قابل‌توجه گسترش می‌دهد.
+- **Evidence:** بسته سبک هیچ صفحه Cart/Checkout ندارد؛ Master Prompt هم آن‌ها را ذکر نمی‌کند.
+- **Options:**
+  - A. کاملاً خارج از دامنه، بدون تغییر (توصیه).
+  - B. حداقل رنگ/فونت (از طریق Palette فعلی که از قبل global است) روی این صفحات هم اعمال شود — این عملاً از قبل رخ می‌دهد چون Palette سراسری Store است، نه per-family.
+- **Recommendation:** گزینه A (و توضیح این‌که گزینه B عملاً همین الان به‌طور خودکار برقرار است چون Palette از قبل global است).
+- **Default if deferred:** گزینه A.
+- **Affected scope:** خارج از دامنه پنج خانواده.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+---
+
+## گروه ۴ — رفتار اختصاصی هر خانواده
+
+### Q-07 — افزودن ۵ ورودی جدید به `TEMPLATE_REGISTRY` موجود؟
+
+- **Question:** آیا برای هرکدام از پنج خانواده یک `TemplateDefinition` جدید (با مقادیر رادیوس/تراکم/حرکت/فونت دقیقاً برگرفته از بسته سبک) به `appearance_registry.TEMPLATE_REGISTRY` موجود اضافه شود (۱۰→۱۵)، یا هر خانواده صرفاً به نزدیک‌ترین Template موجود ارجاع دهد بدون ورودی جدید؟
+- **Why it matters:** افزودن ورودی جدید، مقادیر پیش‌فرض دقیق‌تر و خودتوصیف‌تری می‌دهد؛ ارجاع به موجود، کار کمتر اما دقت کمتر.
+- **Evidence:** `docs/template-references/live-audit/08_TARGET_ARCHITECTURE_AND_FILE_PLAN.md` بخش ۳؛ مقادیر دقیق در `SPECS` بسته سبک (`app.js`) — رادیوس Beraito=۱۰، Cactus=۸، Deeyar=۸-۱۵، iBolak=۱۶، IkalaJam=۴.
+- **Options:**
+  - A. افزودن ۵ ورودی جدید (توصیه).
+  - B. ارجاع به نزدیک‌ترین ورودی موجود، بدون ورودی جدید.
+- **Recommendation:** گزینه A — ریسک افزایشی و پایین (فقط افزودن، بدون تغییر ۱۰ ورودی فعلی).
+- **Default if deferred:** گزینه A.
+- **Affected scope:** `appearance_registry.py`.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+### Q-08 — مشتق‌سازی خودکار `render_variant` از خانواده فعال
+
+- **Question:** برای بخش‌های Hero/دسته‌بندی که چند Variant دارند، آیا مقدار پیش‌فرض Variant باید خودکار از خانواده فعال فروشگاه گرفته شود (صفر کلیک برای مرچنت) یا مرچنت هر بار صریحاً باید انتخاب کند؟
+- **Why it matters:** روی تجربه مرچنت و روی تعداد کنترل‌های Builder جدید اثر دارد.
+- **Evidence:** `docs/template-references/live-audit/08_TARGET_ARCHITECTURE_AND_FILE_PLAN.md` بخش ۲.
+- **Options:**
+  - A. خودکار از خانواده مشتق شود، با کنترل override اختیاری در دسترس (توصیه).
+  - B. همیشه انتخاب دستی صریح، بدون پیش‌فرض خودکار.
+- **Recommendation:** گزینه A.
+- **Default if deferred:** گزینه A.
+- **Affected scope:** بخش‌های `hero_banner`/`category_grid`/`product_section`.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+### Q-09 — Renderer کارت محصول: ثابت per-family یا انتخاب per-section؟
+
+- **Question:** آیا Renderer کارت محصول باید per-family ثابت باشد (هر بخش محصولی همان یک کارت خانواده را نشان دهد) — به‌جز Cactus که دو حالت (`premium_portrait`/`premium_campaign`) دارد و طبق متن صریح Master Prompt باید per-section انتخاب‌پذیر باشد — یا برای همه پنج خانواده انتخاب per-section (آزادی کامل، ریسک ناهماهنگی بصری) باشد؟
+- **Why it matters:** روی تعداد کنترل Builder و روی ریسک «Frankenstein page» (ترکیب ناهماهنگ چند سبک کارت در یک صفحه) اثر مستقیم دارد.
+- **Evidence:** `docs/template-references/live-audit/08_TARGET_ARCHITECTURE_AND_FILE_PLAN.md` بخش ۴؛ متن Master Prompt بخش «Heritage Premium» که صراحتاً دو Renderer را نام می‌برد.
+- **Options:**
+  - A. ثابت per-family برای همه، با استثنای صریح Cactus (دو حالت انتخاب‌پذیر per-section) — توصیه.
+  - B. انتخاب کاملاً آزاد per-section برای هر پنج خانواده.
+- **Recommendation:** گزینه A.
+- **Default if deferred:** **No safe default — blocking** (روی طراحی UI Builder اثر مستقیم دارد).
+- **Affected scope:** `product_section` settings schema، پنل تنظیمات Builder.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+### Q-10 — سه قابلیت محتوایی بدون فیلد دیتابیسی موجود
+
+- **Question:** سه قابلیت محتوایی امروز هیچ فیلد دیتابیسی متناظر ندارند: (۱) **راهنمای سایز** (لازم برای Heritage Premium و Modern Fashion، صریحاً در checklist پذیرش هر دو آمده)، (۲) **متادیتای سازنده/منطقه** (اختیاری برای Artisan Editorial)، (۳) **داده واقعی کمپین/قسط** (اختیاری برای Heritage Premium — نسخه فعلی مشابه‌ترین چیز موجود، Countdown بخش `amazing_offers`، کاملاً ساختگی و هارد-کد ۸ ساعته است و نباید کپی شود). برای هرکدام، آیا فیلد/مدل جدید ساخته شود، یا فعلاً از قالب حذف/اختیاری بماند؟
+- **Why it matters:** راهنمای سایز و متادیتای سازنده مستقیماً در معیار پذیرش دو خانواده آمده‌اند؛ بدون فیلد واقعی، آن قسمت از UI باید یا حذف شود یا محتوای Placeholder غیرقابل‌قبول نشان دهد.
+- **Evidence:** `docs/template-references/live-audit/01_REPOSITORY_ARCHITECTURE_AND_GAPS.md` بخش ۳.۱ (شامل ارجاع دقیق به کد ساختگی Countdown، `render_service.py:155`).
+- **Options:**
+  - A. برای راهنمای سایز: یک فیلد rich-text/متن ساده روی `Product` (یا `Category`، برای اشتراک بین محصولات مشابه) اضافه شود.
+  - B. برای راهنمای سایز: در نسخه اول کاملاً حذف شود؛ خانواده‌های Heritage Premium/Modern Fashion بدون این بخش عرضه شوند.
+  - (مشابه، جدا برای متادیتای سازنده و برای کمپین/قسط.)
+- **Recommendation:** راهنمای سایز و متادیتای سازنده: گزینه A (فیلد جدید کوچک و کم‌ریسک) در فاز E/Template اضافه شود؛ کمپین/قسط: در نسخه اول کاملاً حذف/اختیاری (مطابق متن صریح Master Prompt که آن را «اختیاری» می‌خواند).
+- **Default if deferred:** راهنمای سایز/متادیتا: **No safe default — blocking** (در checklist پذیرش دو خانواده صریحاً آمده). کمپین/قسط: NON-BLOCKING، پیش‌فرض بدون Overlay کمپین.
+- **Affected scope:** `apps/catalog/models.py` (Product یا مدل کوچک جدید)، Heritage Premium، Modern Fashion، Artisan Editorial.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+### Q-11 — غیاب بخش دسته‌بندی در هومپیج Nordic Living
+
+- **Question:** طبق بسته سبک، Nordic Living هیچ بخش Category/دسته‌بندی مستقلی در هومپیج ندارد (دسترسی فقط از طریق Mega-menu هدر). آیا این عمداً همین‌طور بماند یا یک نسخه پیش‌فرض (حتی مینیمال) اضافه شود؟
+- **Why it matters:** این یک تفاوت ساختاری واقعی و قابل‌توجه با چهار خانواده دیگر است (همه آن‌ها یک بخش دسته‌بندی صریح در هومپیج دارند)؛ باید تصمیم عمدی باشد، نه سهو.
+- **Evidence:** `docs/template-references/live-audit/06_IKALAJAM_NORDIC_LIVING_AUDIT.md` بخش ۹.
+- **Options:**
+  - A. همان‌طور که هست بماند — بدون بخش دسته‌بندی در هومپیج (توصیه، مطابق بسته).
+  - B. یک بخش دسته‌بندی مینیمال (مثلاً یک ردیف بنر) اضافه شود حتی اگر بسته سبک آن را نداشته باشد.
+- **Recommendation:** گزینه A.
+- **Default if deferred:** گزینه A.
+- **Affected scope:** Nordic Living homepage section map.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+### Q-12 — Hero چرخشی واقعی برای Modern Fashion؟
+
+- **Question:** آیا Hero سه‌اسلایدی با Autoplay/Pause/Swipe واقعی برای Modern Fashion در نسخه اول لازم است، یا نسخه تک‌اسلاید استاتیک (که در بسته واقعاً build شده) کافی است؟
+- **Why it matters:** ساخت Carousel واقعی یک بخش/Renderer جدید (`image_slider` موجود انطباق کامل ندارد چون برای Hero نیست) با کنترل‌های Accessibility (Pause، Keyboard، `prefers-reduced-motion`) نیاز دارد — کار قابل‌توجهی بیشتر از یک Hero استاتیک.
+- **Evidence:** `docs/template-references/live-audit/05_IBOLAK_MODERN_FASHION_AUDIT.md` بخش ۸/۱۸.
+- **Options:**
+  - A. تک‌اسلاید استاتیک در نسخه اول (توصیه)؛ Carousel واقعی به فاز بعد موکول شود.
+  - B. Carousel واقعی از همین ابتدا ساخته شود.
+- **Recommendation:** گزینه A.
+- **Default if deferred:** گزینه A.
+- **Affected scope:** Modern Fashion hero variant.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+### Q-13 — Second-Image Crossfade واقعی برای کارت Nordic Living
+
+- **Question:** نام Renderer «`catalog_second_image`» صراحتاً یک Crossfade تصویر دوم را وعده می‌دهد، اما نه در بسته سبک (JS واقعی) و نه در کد فعلی مخزن (هیچ کارتی امروز Crossfade ندارد) این مکانیزم واقعاً ساخته نشده. آیا باید ساخته شود (با قانون صریح: فقط وقتی محصول ≥۲ تصویر دارد فعال شود، با Fallback بدون Crossfade برای محصول تک‌تصویری) یا در نسخه اول به کارت تک‌تصویری ساده موکول شود؟
+- **Why it matters:** این دقیقاً یکی از پنج Renderer اجباری صریح Master Prompt است؛ حذف بی‌صدای این قابلیت یعنی نام Renderer با رفتار واقعی آن مطابقت ندارد.
+- **Evidence:** `docs/template-references/live-audit/06_IKALAJAM_NORDIC_LIVING_AUDIT.md` بخش ۱۰/۱۸.
+- **Options:**
+  - A. ساخته شود، با قانون Fallback صریح بالا (توصیه).
+  - B. در نسخه اول حذف؛ کارت فقط یک تصویر ثابت نشان دهد (نام Renderer بدون تغییر باقی بماند، فقط این یک رفتار فرعی به فاز بعد موکول شود).
+- **Recommendation:** گزینه A — چون این دقیقاً همان چیزی است که نام Renderer وعده می‌دهد و داده لازم (تصویر دوم محصول) از قبل در مدل `ProductImage` موجود است.
+- **Default if deferred:** **No safe default — blocking** (چون بدون تصمیم صریح، نام Renderer با رفتار واقعی مغایرت می‌ماند).
+- **Affected scope:** `catalog_second_image` card renderer.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+---
+
+## گروه ۵ — دانه‌بندی کنترل‌های Builder
+
+### Q-14 — طراحی UI انتخابگر خانواده (Family Picker)
+
+- **Question:** آیا گالری انتخاب خانواده جدید باید دقیقاً از همان الگوی UI انتخابگر Template رنگی فعلی (`appearance_panel.html` — کارت Swatch + دکمه «پیش‌نمایش») استفاده کند، یا طراحی متفاوتی (مثلاً تصویر واقعی هومپیج هر خانواده به‌جای Swatch رنگی) لازم است؟
+- **Why it matters:** الگوی موجود آشنا و کم‌ریسک است اما فقط رنگ نشان می‌دهد؛ چون خانواده‌ها تفاوت ساختاری دارند (نه فقط رنگی)، شاید یک Thumbnail واقعی‌تر لازم باشد تا مرچنت واقعاً تفاوت را قبل از انتخاب ببیند.
+- **Evidence:** `docs/template-references/live-audit/08_TARGET_ARCHITECTURE_AND_FILE_PLAN.md` بخش ۶.
+- **Options:**
+  - A. همان الگوی Swatch موجود (توصیه برای نسخه اول، کم‌ریسک).
+  - B. Thumbnail واقعی‌تر (نیازمند طراحی UI/UX جدا، خارج از دامنه Backend این فاز).
+- **Recommendation:** گزینه A برای نسخه اول؛ گزینه B به‌عنوان بهبود بعدی.
+- **Default if deferred:** گزینه A.
+- **Affected scope:** پنل Builder، تجربه انتخاب خانواده.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+---
+
+## گروه ۶ — رفتار محصول و Variant
+
+### Q-15 — کدام سیستم Variant برای Selectorهای رنگ/سایز پنج خانواده؟
+
+- **Question:** مخزن امروز دو سیستم Variant مستقل و هم‌زمان دارد: سیستم ساده‌ی قدیمی `attribute`/`value` روی `ProductVariant`، و سیستم چندمحوره‌ی جدیدتر `ProductOption`/`ProductOptionValue`. آیا Selectorهای رنگ/سایز در صفحه محصول هر پنج خانواده باید فقط یکی از این دو را پشتیبانی کنند، یا هرکدام که آن فروشگاه خاص پر کرده باشد (دقیقاً مثل صفحه محصول فعلی پلتفرم)؟
+- **Why it matters:** یکی‌کردن این دو سیستم یک تصمیم محصولی/مهندسی مستقل و بزرگ‌تر است که این کار نباید در حاشیه‌ی پنج خانواده تصمیم‌گیری کند.
+- **Evidence:** یافته عامل تحقیق پس‌زمینه، تأییدشده با `grep`: `apps/catalog/models.py:1339` (`ProductOption`)، `:1394` (`ProductOptionValue`)، در کنار `ProductVariant.attribute`/`value` (`models.py:496-497`).
+- **Options:**
+  - A. هرکدام که فروشگاه پر کرده باشد رندر شود، دقیقاً مثل رفتار فعلی صفحه محصول عمومی (توصیه — بدون تصمیم‌گیری جدید درباره یکسان‌سازی این دو سیستم).
+  - B. فقط یکی از دو سیستم پشتیبانی شود (نیازمند مهاجرت داده و خارج از دامنه این کار).
+- **Recommendation:** گزینه A.
+- **Default if deferred:** گزینه A.
+- **Affected scope:** پنل خرید صفحه محصول هر پنج خانواده.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+---
+
+## گروه ۷ — رفتار موبایل و Responsive
+
+### Q-16 — Breakpoint دقیق بسته سبک در برابر Breakpoint فعلی پلتفرم
+
+- **Question:** بسته سبک از دو Breakpoint ثابت (۱۰۲۴px و ۷۲۰px) استفاده می‌کند. آیا این اعداد دقیق باید معیار باشند، یا فقط **رفتار** (کدام عنصر در موبایل به Rail افقی تبدیل شود، کدام مخفی شود) از بسته اقتباس شود و اعداد دقیق Breakpoint از سیستم Responsive موجود و از‌قبل‌تست‌شده‌ی پلتفرم (`section_responsive_fields.html`) گرفته شود؟
+- **Why it matters:** استفاده از دو سیستم Breakpoint مختلف (یکی برای پنج خانواده، یکی برای بقیه پلتفرم) ریسک ناهماهنگی بصری در نقاط مرزی صفحه ایجاد می‌کند.
+- **Evidence:** بسته سبک `shared.css` خطوط ۲۲۵/۲۳۹؛ `docs/template-references/live-audit/01_REPOSITORY_ARCHITECTURE_AND_GAPS.md` بخش ۲.۱ (Responsive settings موجود).
+- **Options:**
+  - A. فقط رفتار اقتباس شود؛ اعداد دقیق از سیستم Responsive موجود پلتفرم گرفته شود (توصیه).
+  - B. دو Breakpoint دقیق بسته سبک عیناً برای این پنج خانواده اعمال شود.
+- **Recommendation:** گزینه A.
+- **Default if deferred:** گزینه A.
+- **Affected scope:** رفتار موبایل/تبلت هر پنج خانواده.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+---
+
+## گروه ۸ — سازگاری و مهاجرت
+
+### Q-17 — تست Regression صریح «بدون تغییر ظاهر» پیش از هر تغییر دیگر
+
+- **Question:** الزام غیرقابل‌مذاکره Master Prompt این است که فروشگاه‌های موجود (بدون خانواده انتخاب‌شده) نباید هیچ تغییر ظاهری‌ای ببینند. آیا صرفِ پیش‌فرض `family_slug=None` (که این سند پیشنهاد می‌دهد) کافی است، یا باید **قبل از هر تغییر دیگری در همین کار**، یک تست Regression خودکار صریح («خروجی HTML فروشگاه بدون family، قبل و بعد از این تغییرات، بایت‌به‌بایت یکسان است») اضافه شود؟
+- **Why it matters:** این دقیقاً همان بندی است که هر گونه تخلف از آن در فهرست «Prohibited shortcuts» صریحاً Failure اعلام شده است.
+- **Evidence:** متن Master Prompt، بخش «Existing stores must not silently change appearance».
+- **Options:**
+  - A. تست Regression صریح، به‌عنوان اولین کامیت فاز مشترک (Phase 11)، پیش از هر کار دیگر (توصیه).
+  - B. اعتماد به پیش‌فرض‌های موجود بدون تست جدید (ریسک بالاتر).
+- **Recommendation:** گزینه A.
+- **Default if deferred:** **No safe default — blocking** (این دقیقاً بند غیرقابل‌مذاکره Master Prompt است).
+- **Affected scope:** کل Phase 11 (قراردادهای مشترک).
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+---
+
+## گروه ۹ — محتوای گالری/دمو
+
+### Q-18 — Store دمو برای گالری بازبینی داخلی
+
+- **Question:** Phase 13 دستور کار یک «گالری بازبینی» داخلی می‌خواهد که با داده دمو یکسان (Palette/Typography/محصولات یکسان) هر پنج خانواده را مقایسه کند. آیا Store دمو/تولیدی موجود (`akhlaghi`) برای این کار استفاده شود، یا یک Store دمو کاملاً جدید و مجزا (با محصولات Placeholder کاملاً بی‌طرف، نه محصولات واقعی Akhlaghi) ساخته شود؟
+- **Why it matters:** استفاده از Store واقعی برای این مقایسه یعنی محصولات/برندینگ واقعی Akhlaghi در گالری داخلی نمایش داده می‌شود که هدف «مقایسه بی‌طرف پنج خانواده» را کمرنگ می‌کند.
+- **Evidence:** متن Master Prompt، Phase 13 («deterministic seeded demo data owned by an appropriate demo tenant/store»)؛ `docs/docs/product/architecture/SAAS_ARCHITECTURE.md` (تنها Store موجود امروز `akhlaghi` است، طبق حالت Compatibility توضیح‌داده‌شده در آن سند).
+- **Options:**
+  - A. یک Store دمو کاملاً جدید و مجزا با داده Seed شده بی‌طرف (توصیه — دقیقاً همان چیزی که متن Master Prompt می‌خواهد: «demo tenant», نه لزوماً tenant تولیدی موجود).
+  - B. استفاده از همان Store موجود (`akhlaghi`) با یک حالت نمایش دمو موقت.
+- **Recommendation:** گزینه A.
+- **Default if deferred:** **No safe default — blocking** (اثر مستقیم روی Phase 13 و روی این‌که آیا یک Store جدید باید Provision شود).
+- **Affected scope:** Phase 13 (گالری بازبینی).
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+---
+
+## گروه ۱۰ — ترتیب اجرا و دروازه‌های تحویل
+
+### Q-19 — تأیید ترتیب پیش‌فرض پیاده‌سازی پنج خانواده
+
+- **Question:** ترتیب پیش‌فرض Master Prompt این است: Modern Fashion → Artisan Editorial → Nordic Living → Heritage Premium → Vibrant Catalog. آیا همین ترتیب تأیید می‌شود یا کاربر ترتیب دیگری می‌خواهد؟
+- **Why it matters:** Gate 3 باید دقیقاً یک ترتیب مشخص و تأییدشده داشته باشد؛ یک پاسخ اتفاقی به یک سؤال دیگر برای این تصمیم کافی نیست (طبق تأکید صریح Master Prompt).
+- **Evidence:** متن Master Prompt، Phase 12.
+- **Options:**
+  - A. همان ترتیب پیش‌فرض (توصیه).
+  - B. ترتیب دیگری که کاربر مشخص می‌کند.
+- **Recommendation:** گزینه A.
+- **Default if deferred:** **No safe default — blocking** (Gate 3 بدون این تأیید صریح شروع نمی‌شود، طبق متن صریح Master Prompt).
+- **Affected scope:** کل Phase 12.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+---
+
+## گروه ۱۱ — تست، اسکرین‌شات، کامیت، سیاست Push/PR
+
+### Q-20 — سیاست Commit/Push/PR برای این کار
+
+- **Question:** طبق دستورالعمل کلی همین Session، هرگز بدون تأیید صریح Push/PR/Merge انجام نمی‌شود. آیا برای این کار مشخصاً، در پایان هر خانواده (یا در پایان Gate 3) باید Push به Branch (`claude/jolly-fermat-ypr2ff`) یا یک Pull Request باز شود، یا فقط Commit محلی کافی است تا کاربر خودش زمان Push/PR را بعداً مشخص کند؟
+- **Why it matters:** سیاست صریح لازم است تا در پایان هر کامیت پایدار (طبق برنامه Commit سند ۰۸) رفتار درست و بدون ابهام مشخص باشد.
+- **Evidence:** دستورالعمل عمومی Git این Session («Never push, merge, or open a PR without explicit owner authorization»).
+- **Options:**
+  - A. فقط Commit محلی روی همان Branch؛ Push/PR جدا و صریح بعداً درخواست می‌شود (توصیه، مطابق سیاست پیش‌فرض امن).
+  - B. در پایان هر خانواده Push انجام شود (بدون PR).
+  - C. در پایان Gate 3 یک PR واحد باز شود.
+- **Recommendation:** گزینه A.
+- **Default if deferred:** گزینه A (امن‌ترین و کاملاً Reversible).
+- **Affected scope:** تمام کامیت‌های Gate 3.
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+### Q-21 — استراتژی مقایسه بصری (Visual Regression)
+
+- **Question:** هیچ ابزار Visual-regression/Screenshot-diff خاصی در مخزن یافت نشد (بدون Playwright/Percy/Chromatic تنظیم‌شده برای این پروژه). آیا مقایسه بصری هر خانواده در این فاز صرفاً دستی (بازبینی کاربر از روی Preview واقعی در چند اندازه صفحه) خواهد بود، یا باید زیرساخت Visual-regression جدیدی (که هزینه/وابستگی جدید به همراه دارد) اضافه شود؟
+- **Why it matters:** تعیین می‌کند آیا معیار پذیرش «مقایسه بصری در Viewportهای بازبینی‌شده» (Phase 15) با ابزار خودکار یا با بازبینی دستی برآورده می‌شود.
+- **Evidence:** جستجوی مستقیم مخزن — بدون یافتن هیچ فایل تنظیمات Visual-regression.
+- **Options:**
+  - A. دستی، توسط کاربر، از روی Preview واقعی Builder (توصیه — بدون وابستگی/هزینه جدید).
+  - B. افزودن زیرساخت Visual-regression جدید (وابستگی و پیچیدگی جدید، خارج از آنچه Master Prompt الزام کرده).
+- **Recommendation:** گزینه A.
+- **Default if deferred:** گزینه A.
+- **Affected scope:** Phase 14/15 (اعتبارسنجی و پذیرش بصری).
+- **Status:** `UNANSWERED`
+- **Owner answer:**
+- **Recorded decision:**
+
+---
+
+## جدول سؤالات BLOCKING
+
+| شناسه | عنوان | گروه |
+|---|---|---|
+| Q-01 | خانواده‌ها در برابر سیستم Template/Preset موجود | تعارض بنیادین معماری |
+| Q-02 | هم‌زیستی family_slug با template_slug | تعارض بنیادین معماری |
+| Q-03 | عدم دسترسی به پنج سایت زنده | Visual fidelity |
+| Q-05 | دامنه صفحه Category | دامنه صفحات |
+| Q-09 | Renderer کارت: ثابت یا per-section | رفتار خانواده |
+| Q-10 | راهنمای سایز + متادیتای سازنده (بخش بلاکینگ) | رفتار خانواده |
+| Q-13 | Second-image crossfade Nordic Living | رفتار خانواده |
+| Q-17 | تست Regression صریح بدون‌تغییر-ظاهر | سازگاری/مهاجرت |
+| Q-18 | Store دمو گالری بازبینی | گالری/دمو |
+| Q-19 | تأیید ترتیب پیاده‌سازی پنج خانواده | ترتیب اجرا |
+| Q-20 | سیاست Commit/Push/PR | تست/کامیت/Push |
+
+## جدول سؤالات NON-BLOCKING
+
+| شناسه | عنوان | پیش‌فرض در صورت عدم پاسخ |
+|---|---|---|
+| Q-04 | مغایرت‌های داخلی بسته سبک | نسخه واقعاً build‌شده در JS |
+| Q-06 | دامنه Cart/Checkout | کاملاً خارج از دامنه |
+| Q-07 | افزودن ۵ ورودی جدید به TEMPLATE_REGISTRY | افزودن ۵ ورودی جدید |
+| Q-08 | مشتق‌سازی خودکار render_variant | خودکار با امکان override |
+| Q-10 (بخش کمپین/قسط) | داده واقعی کمپین/قسط | بدون Overlay کمپین در v1 |
+| Q-11 | غیاب بخش دسته‌بندی Nordic Living | همان‌طور که هست بماند (غایب) |
+| Q-12 | Hero چرخشی واقعی Modern Fashion | تک‌اسلاید استاتیک در v1 |
+| Q-14 | طراحی UI Family Picker | همان الگوی appearance_panel موجود |
+| Q-15 | کدام سیستم Variant | هرکدام فروشگاه پر کرده |
+| Q-16 | Breakpoint دقیق بسته در برابر پلتفرم | رفتار اقتباس شود، اعداد از پلتفرم |
+| Q-21 | استراتژی Visual Regression | دستی توسط کاربر |
+
+## وابستگی/ترتیب بین سؤالات
+
+- Q-02، Q-08، Q-09 مستقیماً به پاسخ Q-01 وابسته‌اند (نمی‌توان قبل از تعیین این‌که آیا DOM واقعاً فورک می‌شود یا نه، جزئیات هم‌زیستی/Variant/Renderer را قطعی کرد).
+- Q-05 مستقل است اما روی حجم کار Q-01/Q-02 اثر می‌گذارد (تصمیم به گنجاندن Category یعنی حجم کار بیشتر).
+- Q-10، Q-11، Q-12، Q-13 هرکدام مستقل و مخصوص یک خانواده‌اند؛ می‌توانند به هر ترتیب پاسخ داده شوند اما همه به Q-01 (آیا DOM فورک می‌شود) وابسته‌اند چون بدون آن، اصلاً این جزئیات موضوعیت ندارند.
+- Q-17 باید قبل از شروع واقعی Phase 11 (قراردادهای مشترک) پاسخ داده شده باشد.
+- Q-18 باید قبل از Phase 13 (گالری بازبینی) پاسخ داده شده باشد؛ می‌تواند بعد از شروع Phase 12 (یک خانواده) پاسخ داده شود.
+- Q-19 باید پیش از شروع Phase 12 (اولین خانواده) صریحاً پاسخ داده شده باشد.
+- Q-20 باید پیش از اولین Commit واقعی پاسخ داده شده باشد (اگرچه پیش‌فرض امن آن اجازه می‌دهد بدون پاسخ هم به‌صورت «فقط Commit محلی» ادامه یابد).
+
+## تعداد کل سؤالات
+
+**۲۱ سؤال** (۱۱ سؤال Blocking، ۱۰ سؤال Non-blocking؛ Q-10 هم بخش Blocking و هم بخش Non-blocking دارد، طبق توضیح بالا).
+
+## تأیید صریح وضعیت
+
+**پیاده‌سازی محصولی (Gate 3) شروع نشده است.** هیچ مدل، migration، view، URL، template، CSS یا JavaScript‌ای در این کامیت تغییر نکرده. تنها فایل‌های تغییریافته، اسناد ممیزی/تصمیم زیر `docs/template-references/` هستند.
