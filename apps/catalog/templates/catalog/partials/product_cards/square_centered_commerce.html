@@ -1,0 +1,31 @@
+{% load persian catalog_extras %}
+{% comment %}
+کارتِ محصولِ خانواده‌ی «کاتالوگ رنگی» (``square_centered_commerce``) —
+تصویر ۱:۱، عنوان/قیمت وسط‌چین، Badge تخفیف، CTA لمس‌پذیر (Add-bar).
+{% endcomment %}
+<a class="pcard vc-card" href="{% url 'catalog:product-detail' product.slug %}">
+  <div class="img">
+    {% if product.cover_image %}
+    <img class="cover-photo" src="{{ product.cover_image.thumbnail.url|default:product.cover_image.image.url }}"
+         alt="{{ product.cover_image.alt|default:product.name }}"
+         style="position:absolute;inset:0;width:100%;height:100%;object-fit:var(--sfb-image-fit, cover)">
+    {% else %}
+    <span class="emo">🛍️</span>
+    {% endif %}
+    {% include "customers/partials/wishlist_button.html" %}
+    {% if product.discount_percent > 0 %}<span class="pill pill-disc">{{ product.discount_percent|fa_number }}٪</span>{% endif %}
+    <div class="addbar">
+      <button type="button" hx-post="{% url 'cart:add' product.slug %}" hx-vals='{"quantity": 1}' hx-swap="none" onclick="event.preventDefault();event.stopPropagation()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+        افزودن به سبد
+      </button>
+    </div>
+  </div>
+  <div class="body vc-card-body">
+    <div class="name">{{ product.name }}</div>
+    <div class="price">
+      <div class="now">{{ product.final_price|toman }}</div>
+      {% if product.discount_percent > 0 %}<div class="old">{{ product.price|toman }}</div>{% endif %}
+    </div>
+  </div>
+</a>

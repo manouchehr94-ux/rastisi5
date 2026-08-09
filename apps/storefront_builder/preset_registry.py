@@ -98,3 +98,25 @@ register_preset(PresetDefinition(
     card_shadow="none", card_hover="none", hero_style="wide",
     default_palette_slug="navy",
 ))
+
+register_preset(PresetDefinition(
+    slug="heritage_premium_default",
+    family_slug="heritage_premium",
+    name_fa="پرمیوم اصیل — پیش‌فرض",
+    description_fa="فضای سفید فراوان، رادیوس کوچک، ریتم آرام؛ دقیقاً مطابق مرجع تحلیلی خانواده.",
+    font="Vazirmatn", radius=8, button_radius=8, button_style="outline",
+    density="relaxed", motion="subtle", type_scale="normal",
+    card_shadow="none", card_hover="lift", hero_style="wide",
+    default_palette_slug="forest",
+))
+
+register_preset(PresetDefinition(
+    slug="vibrant_catalog_default",
+    family_slug="vibrant_catalog",
+    name_fa="کاتالوگ رنگی — پیش‌فرض",
+    description_fa="رادیوس کوچک، تراکمِ زیاد، حرکتِ کوتاه؛ دقیقاً مطابق مرجع تحلیلی خانواده.",
+    font="Vazirmatn", radius=10, button_radius=10, button_style="filled",
+    density="compact", motion="subtle", type_scale="compact",
+    card_shadow="soft", card_hover="lift", hero_style="wide",
+    default_palette_slug="digired",
+))

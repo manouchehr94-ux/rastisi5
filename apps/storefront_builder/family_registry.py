@@ -118,3 +118,32 @@ register_family(FamilyDefinition(
     default_preset_slug="nordic_living_default",
     swatch=("#183E85", "#FFDB01", "#F2F2F2"),
 ))
+
+register_family(FamilyDefinition(
+    slug="heritage_premium",
+    name_fa="پرمیوم اصیل",
+    description_fa="فروشگاه پرمیوم و تصویرمحور با هدر آرام، هیروی کمپینِ تمام‌عرض، دسته‌بندیِ پرتره‌ای، و دو حالتِ کارتِ محصول (استاندارد/کمپین).",
+    header_variant="storefront_builder/partials/families/heritage_premium/header.html",
+    hero_variant="storefront_builder/partials/families/heritage_premium/hero.html",
+    category_variant="storefront_builder/partials/families/heritage_premium/category.html",
+    footer_variant="storefront_builder/partials/families/heritage_premium/footer.html",
+    product_card_variant="catalog/partials/product_cards/premium_portrait.html",
+    product_card_campaign_variant="catalog/partials/product_cards/premium_campaign.html",
+    product_page_variant="catalog/partials/product_pages/heritage_premium.html",
+    default_preset_slug="heritage_premium_default",
+    swatch=("#07705E", "#DDB475", "#F1EBE1"),
+))
+
+register_family(FamilyDefinition(
+    slug="vibrant_catalog",
+    name_fa="کاتالوگ رنگی",
+    description_fa="فروشگاه پرتراکم و قیمت‌محور با هدر سه‌لایه، هیرویِ Promo Dashboard چندتایلی، دسته‌بندیِ آیکونیِ سریع، کارتِ محصولِ ۱:۱ وسط‌چین.",
+    header_variant="storefront_builder/partials/families/vibrant_catalog/header.html",
+    hero_variant="storefront_builder/partials/families/vibrant_catalog/hero.html",
+    category_variant="storefront_builder/partials/families/vibrant_catalog/category.html",
+    footer_variant="storefront_builder/partials/families/vibrant_catalog/footer.html",
+    product_card_variant="catalog/partials/product_cards/square_centered_commerce.html",
+    product_page_variant="catalog/partials/product_pages/vibrant_catalog.html",
+    default_preset_slug="vibrant_catalog_default",
+    swatch=("#FD445D", "#FFE6EB", "#F4F5F9"),
+))
