@@ -320,10 +320,12 @@
         {% include "dashboard/partials/product_videos_list.html" %}
 
         {% else %}
-        {# فقط مسیرِ نادرِ نمایشِ خطا پس از rollbackِ POSTِ یک‌مرحله‌ایِ قدیمی
-           (نگاه کنید به ProductMediaStageError در product_form) به این‌جا
-           می‌رسد — ناوبریِ واقعیِ merchant همیشه یک پیش‌نویسِ واقعی دارد،
-           پس همیشه شاخه‌ی بالا رندر می‌شود. #}
+        {% comment %}
+        فقط مسیرِ نادرِ نمایشِ خطا پس از rollbackِ POSTِ یک‌مرحله‌ایِ قدیمی
+        (نگاه کنید به ProductMediaStageError در product_form) به این‌جا
+        می‌رسد — ناوبریِ واقعیِ merchant همیشه یک پیش‌نویسِ واقعی دارد،
+        پس همیشه شاخه‌ی بالا رندر می‌شود.
+        {% endcomment %}
         <div class="card-desc" style="margin-bottom:10px">خطا در ثبتِ رسانه — لطفاً پس از رفعِ خطایِ بالا دوباره تلاش کنید.</div>
         {% endif %}
       </div>

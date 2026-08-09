@@ -243,3 +243,24 @@ class FamilyPublicRenderingTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "mf-header")
         self.assertContains(resp, 'data-sfb-family="modern_fashion"')
+
+    def test_public_homepage_never_leaks_django_comment_markers(self):
+        """باگِ گزارش‌شده: `{# ... #}`ی چندخطی در ``templates/base.html``
+        به‌عنوانِ متنِ خامِ HTML رندر می‌شد — چون تگِ کامنتِ تک‌خطیِ Django
+        نمی‌تواند چند خط را دربر بگیرد (باید ``{% comment %}`` باشد).
+        این تست برایِ هر ۵ Family اثبات می‌کند که هیچ نشانه‌ی `{#`/`#}` یا
+        متنِ توضیحیِ توسعه‌دهنده در HTMLِ نهاییِ صفحه‌ی اصلیِ عمومی نیست."""
+        for family in family_registry.list_families():
+            with self.subTest(family=family.slug):
+                draft = svc.get_or_create_draft(self.store)
+                draft.appearance_config = svc.validate_appearance_config({
+                    "family_slug": family.slug, "preset_slug": family.default_preset_slug,
+                })
+                draft.save(update_fields=["appearance_config"])
+                svc.publish(self.store)
+                resp = self.client.get(reverse("catalog:home"), HTTP_HOST="sfb-family-public.example.com")
+                self.assertEqual(resp.status_code, 200)
+                html = resp.content.decode("utf-8")
+                self.assertNotIn("{#", html)
+                self.assertNotIn("#}", html)
+                self.assertNotIn("توکن‌های DOM را کامل نمی‌کند", html)

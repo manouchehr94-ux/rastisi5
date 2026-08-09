@@ -29,9 +29,11 @@
 <link rel="stylesheet" href="{% static 'css/base.css' %}">
 <link rel="stylesheet" href="{% static 'css/layout.css' %}">
 {% if SHOP_FAMILY %}
-{# CSS اختصاصیِ Family — فقط توکن‌های DOM را کامل نمی‌کند، بلکه چیدمانِ
-   واقعاً متفاوتِ هدر/هیرو/دسته‌بندی/کارت/فوتر همین خانواده را می‌سازد
-   (تصمیمِ مالک Q-01: «تفاوت قالب‌ها نباید فقط رنگ/فونت/رادیوس باشد»). #}
+{% comment %}
+CSS اختصاصیِ Family — فقط توکن‌های DOM را کامل نمی‌کند، بلکه چیدمانِ
+واقعاً متفاوتِ هدر/هیرو/دسته‌بندی/کارت/فوتر همین خانواده را می‌سازد
+(تصمیمِ مالک Q-01: «تفاوت قالب‌ها نباید فقط رنگ/فونت/رادیوس باشد»).
+{% endcomment %}
 <link rel="stylesheet" href="{% static 'css/families/'|add:SHOP_FAMILY.slug|add:'.css' %}">
 {% endif %}
 {% block extra_css %}{% endblock %}
