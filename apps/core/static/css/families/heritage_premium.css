@@ -1,0 +1,64 @@
+/*
+  خانواده‌ی «پرمیوم اصیل» (heritage_premium) — CSS اختصاصیِ اجزایِ هویت‌ساز.
+*/
+html[data-sfb-family="heritage_premium"] .wrap{max-width:var(--sfb-content-width, 1500px)}
+
+/* ===== header — آرام، دو‌ردیفه ===== */
+html[data-sfb-family="heritage_premium"] .hp-promo-strip{background:var(--brand-primary);color:var(--brand-primary-fg,#fff);text-align:center;font-size:11px;padding:8px 0}
+html[data-sfb-family="heritage_premium"] .hp-header{background:var(--brand-surface,#fff);border-bottom:1px solid var(--brand-border,var(--line))}
+html[data-sfb-family="heritage_premium"] .hp-header.sfb-sticky{position:sticky;top:0;z-index:60}
+html[data-sfb-family="heritage_premium"] .hp-header-main{display:flex;align-items:center;gap:24px;height:92px}
+html[data-sfb-family="heritage_premium"] .hp-search{flex:1;max-width:520px;display:flex;align-items:center;background:var(--bg);border-radius:var(--sfb-radius,8px);height:46px;padding:0 6px}
+html[data-sfb-family="heritage_premium"] .hp-search svg{width:18px;height:18px;color:var(--muted);margin:0 12px}
+html[data-sfb-family="heritage_premium"] .hp-search input{flex:1;border:0;outline:0;background:transparent;font-size:13.5px}
+html[data-sfb-family="heritage_premium"] .hp-nav{border-top:1px solid var(--brand-border,var(--line))}
+html[data-sfb-family="heritage_premium"] .hp-nav-row{display:flex;align-items:center;justify-content:center;gap:8px;height:48px}
+
+/* ===== hero — کمپینِ تمام‌عرض، Capsule نامتقارن ===== */
+html[data-sfb-family="heritage_premium"] .hp-hero-wrap .hero-inner{border-radius:0;background:linear-gradient(120deg,var(--brand-background),var(--brand-surface) 55%,var(--brand-accent))}
+html[data-sfb-family="heritage_premium"] .hp-hero-wrap .hero-visual{border-radius:0 999px 999px 0}
+html[data-sfb-family="heritage_premium"] .hp-hero-wrap .hero-visual img{border-radius:0 999px 999px 0}
+
+/* ===== category — ردیفِ پرتره‌ای، گوشه‌های بالای Arched ===== */
+html[data-sfb-family="heritage_premium"] .hp-portrait-row{display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
+html[data-sfb-family="heritage_premium"] .hp-portrait{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+html[data-sfb-family="heritage_premium"] .hp-portrait .wm{width:100%;aspect-ratio:3/4;display:grid;place-items:center;font-size:44px;border-radius:120px 120px 12px 12px;background:linear-gradient(160deg,var(--brand-background),var(--brand-surface))}
+html[data-sfb-family="heritage_premium"] .hp-portrait-title{font-size:12px;font-weight:700;color:var(--ink)}
+
+/* ===== product card — ۳:۴، اطلاعات زیرِ تصویر، Overlayِ کمپین ===== */
+html[data-sfb-family="heritage_premium"] .hp-card .img{aspect-ratio:3/4}
+html[data-sfb-family="heritage_premium"] .hp-campaign-overlay{position:absolute;inset:auto 0 0 0;padding:14px;background:linear-gradient(to top,rgba(0,0,0,.55),transparent)}
+html[data-sfb-family="heritage_premium"] .hp-campaign-pill{display:inline-block;background:var(--brand-accent);color:#1a1a1a;font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px}
+
+/* ===== product page — ستونِ Thumbnail عمودیِ ۸۴px ===== */
+html[data-sfb-family="heritage_premium"] .hp-pdp{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);gap:48px;padding:22px 0}
+html[data-sfb-family="heritage_premium"] .hp-gallery{display:grid;grid-template-columns:84px 1fr;gap:12px}
+html[data-sfb-family="heritage_premium"] .hp-thumbs{display:flex;flex-direction:column;gap:10px}
+html[data-sfb-family="heritage_premium"] .hp-thumbs .th{width:100%;height:76px;border-radius:8px;border:1px solid var(--brand-border,var(--line));display:grid;place-items:center;font-size:22px;overflow:hidden;flex-shrink:0}
+html[data-sfb-family="heritage_premium"] .hp-thumbs .th.active{border-color:var(--brand-primary);border-width:2px}
+html[data-sfb-family="heritage_premium"] .hp-main{position:relative;aspect-ratio:3/4;border-radius:var(--sfb-radius,8px);overflow:hidden}
+html[data-sfb-family="heritage_premium"] .hp-cta-sticky{display:none}
+
+/* ===== footer — روشن ===== */
+html[data-sfb-family="heritage_premium"] .hp-footer{background:#f4f1eb;color:#272727;margin-top:40px}
+html[data-sfb-family="heritage_premium"] .hp-footer p,html[data-sfb-family="heritage_premium"] .hp-footer ul a{color:#606060}
+html[data-sfb-family="heritage_premium"] .hp-footer-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:30px;padding:44px 0 26px}
+html[data-sfb-family="heritage_premium"] .hp-footer-copy{grid-column:1/-1;border-top:1px solid #e2ddd2;padding-top:16px;font-size:11.5px;color:#606060}
+
+@media(max-width:1000px){
+  html[data-sfb-family="heritage_premium"] .hp-portrait-row{grid-template-columns:repeat(3,1fr)}
+  html[data-sfb-family="heritage_premium"] .hp-pdp{grid-template-columns:1fr}
+  html[data-sfb-family="heritage_premium"] .hp-footer-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:680px){
+  html[data-sfb-family="heritage_premium"] .hp-search{display:none}
+  html[data-sfb-family="heritage_premium"] .hp-portrait-row{display:flex;overflow-x:auto;gap:14px}
+  html[data-sfb-family="heritage_premium"] .hp-portrait{flex:0 0 42vw}
+  html[data-sfb-family="heritage_premium"] .hp-gallery{grid-template-columns:1fr}
+  html[data-sfb-family="heritage_premium"] .hp-thumbs{flex-direction:row;overflow-x:auto}
+  html[data-sfb-family="heritage_premium"] .hp-thumbs .th{width:64px;height:64px;flex:0 0 64px}
+  html[data-sfb-family="heritage_premium"] .hp-desktop-cta{display:none}
+  html[data-sfb-family="heritage_premium"] .hp-cta-sticky{display:flex;position:sticky;bottom:0;z-index:12;padding:10px 18px;margin:0 -18px;background:var(--brand-surface,#fff);box-shadow:0 -8px 24px rgba(0,0,0,.08)}
+  html[data-sfb-family="heritage_premium"] .hp-cta-sticky .btn{width:100%}
+  html[data-sfb-family="heritage_premium"] .hp-footer-grid{grid-template-columns:1fr}
+}

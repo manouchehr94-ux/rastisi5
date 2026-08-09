@@ -1,0 +1,27 @@
+{% comment %}فوترِ خانواده‌ی «خانه آرام» — چندسطحی، Navy تیره.{% endcomment %}
+{% with fc=footer_config %}
+<footer class="nl-footer"><div class="wrap nl-footer-grid">
+  {% if fc.show_about %}
+  <div>
+    <a class="logo" href="{% if is_live_storefront %}/{% else %}#{% endif %}"{% if is_builder_preview %} onclick="return false"{% endif %}>
+      {% if SHOP_LOGO %}<img src="{{ SHOP_LOGO.url }}" alt="{{ SHOP_NAME }}" style="max-height:32px;max-width:130px">{% else %}<b>{{ SHOP_NAME }}</b>{% endif %}
+    </a>
+    <p>{{ SHOP_TAGLINE }}</p>
+    {% if fc.show_social and SOCIAL_LINKS_FOOTER %}<div class="socials">{% for slink in SOCIAL_LINKS_FOOTER %}<a href="{{ slink.url }}" aria-label="{{ slink.title }}" target="_blank" rel="noopener noreferrer">{% include "partials/social_icon.html" with icon=slink.effective_icon_name %}</a>{% endfor %}</div>{% endif %}
+  </div>
+  {% endif %}
+  {% if fc.show_quick_links and NAV_FOOTER_1 %}
+  <div><h5>{{ NAV_FOOTER_1.title }}</h5><ul>{% for item in NAV_FOOTER_1.items %}<li>{% if item.url %}<a href="{{ item.url }}">{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}</li>{% endfor %}</ul></div>
+  {% endif %}
+  {% if fc.show_categories %}
+  <div><h5>دسته‌بندی‌ها</h5><ul>{% for cat in top_level_categories %}<li><a href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">{{ cat.name }}</a></li>{% endfor %}</ul></div>
+  {% endif %}
+  {% if fc.show_contact %}
+  <div><h5>تماس با ما</h5><ul>
+    {% if SHOP_CONTACT_PHONE %}<li><a href="tel:{{ SHOP_CONTACT_PHONE }}" dir="ltr">{{ SHOP_CONTACT_PHONE }}</a></li>{% endif %}
+    {% if SHOP_CONTACT_EMAIL %}<li><a href="mailto:{{ SHOP_CONTACT_EMAIL }}" dir="ltr">{{ SHOP_CONTACT_EMAIL }}</a></li>{% endif %}
+  </ul></div>
+  {% endif %}
+  {% if fc.show_copyright %}<div class="nl-footer-copy">© {{ SHOP_NAME }}</div>{% endif %}
+</div></footer>
+{% endwith %}

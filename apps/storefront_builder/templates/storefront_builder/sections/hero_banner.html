@@ -1,1 +1,1 @@
-{% include "storefront_builder/partials/hero_slider_body.html" %}
+{% if SHOP_FAMILY %}{% include SHOP_FAMILY.hero_variant %}{% else %}{% include "storefront_builder/partials/hero_slider_body.html" %}{% endif %}

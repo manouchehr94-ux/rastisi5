@@ -312,6 +312,21 @@ class Product(TimeStampedModel):
                 return img
         return images[0]
 
+    @property
+    def secondary_image(self):
+        """دومین تصویرِ گالریِ کالا (اولین تصویرِ غیرِ کاور) — برای رندررهایِ
+        کارتی که تصویرِ دوم را هنگامِ Hover نشان می‌دهند (مثلاً
+        ``catalog_second_image``، تصمیمِ مالک Q-13). محصولِ تک‌تصویری
+        ``None`` برمی‌گرداند — کارت باید بدونِ Crossfade، فقط تصویرِ ثابت
+        نشان دهد؛ همان cache مربوط به ``prefetch_related('images')`` را
+        استفاده می‌کند، بدونِ کوئریِ اضافه."""
+        images = list(self.images.all())
+        cover = self.cover_image
+        for img in images:
+            if img.pk != getattr(cover, "pk", None):
+                return img
+        return None
+
 
 class ProductImage(TimeStampedModel):
     product = models.ForeignKey(Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="images")

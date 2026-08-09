@@ -1,0 +1,74 @@
+{% load persian %}{% comment %}
+هدرِ خانواده‌ی «خانه آرام» — سه‌ردیفه: Announcement → Utility → ردیفِ
+اصلیِ Search-first با کادرِ رنگی‌شده. همان قراردادِ context ایِ عمومی.
+{% endcomment %}
+{% with hc=header_config %}
+{% if hc.announcement_enabled %}
+<div class="nl-announce"><div class="wrap"><span>{{ hc.announcement_text|default:"ارسال به سراسر کشور" }}</span></div></div>
+{% endif %}
+<div class="nl-utility"><div class="wrap">
+  <span>سفارش اختصاصی · پشتیبانی</span>
+  <span>پیگیری سفارش</span>
+</div></div>
+<header class="nl-header{% if hc.sticky %} sfb-sticky{% endif %}"><div class="wrap nl-header-main">
+  <button class="h-btn burger" @click="mobileNavOpen = !mobileNavOpen" aria-label="منو">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <a class="logo" href="{% if is_live_storefront %}/{% else %}#{% endif %}"{% if is_builder_preview %} onclick="return false"{% endif %}>
+    {% if SHOP_LOGO %}<img src="{{ SHOP_LOGO.url }}" alt="{{ SHOP_NAME }}" style="max-height:36px;max-width:140px">{% else %}<b>{{ SHOP_NAME }}</b>{% endif %}
+  </a>
+  {% if hc.show_search %}
+  {% if is_live_storefront %}
+  <form class="nl-search" action="{% url 'catalog:product-list' %}" method="get">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input type="search" name="q" placeholder="جستجو در خانه، آشپزخانه و دکور...">
+  </form>
+  {% else %}
+  <form class="nl-search" onsubmit="return false" title="جستجو در پیش‌نمایش غیرفعال است">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input type="search" placeholder="جستجو در خانه، آشپزخانه و دکور..." disabled>
+  </form>
+  {% endif %}
+  {% endif %}
+  <div class="h-actions">
+    {% if hc.show_account %}
+    {% if is_live_storefront and request.user.is_authenticated %}
+    <a class="h-btn" href="{% url 'customers:account' %}" title="حساب من"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></a>
+    {% elif is_live_storefront %}
+    <button type="button" class="h-btn" @click="loginOpen = true" title="ورود"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+    {% else %}
+    <button type="button" class="h-btn" disabled title="ورود در پیش‌نمایش غیرفعال است"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+    {% endif %}
+    {% endif %}
+    {% if hc.show_wishlist %}
+    <a class="h-btn" href="{% if is_live_storefront %}{% url 'customers:wishlist' %}{% else %}#{% endif %}" {% if not is_live_storefront %}onclick="return false"{% endif %} title="علاقه‌مندی‌ها"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>{% if is_live_storefront %}<span class="cnt" id="wishlist-count">{{ wishlist_count|fa_number }}</span>{% endif %}</a>
+    {% endif %}
+    {% if hc.show_cart %}
+    <a class="h-btn" href="{% if is_live_storefront %}{% url 'cart:detail' %}{% else %}#{% endif %}" {% if not is_live_storefront %}onclick="return false"{% endif %} title="سبد خرید"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>{% if is_live_storefront %}<span class="cnt" id="cart-count">{{ cart_count|fa_number }}</span>{% endif %}</a>
+    {% endif %}
+  </div>
+</div></header>
+<nav class="nl-nav" :class="{ hidden: !mobileNavOpen }"><div class="wrap nl-nav-row">
+  <div style="position:relative" @click.outside="catMenuOpen = false">
+    <button type="button" class="cat-btn" @click="catMenuOpen = !catMenuOpen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      همه محصولات
+    </button>
+    <div class="cat-dropdown" x-show="catMenuOpen" x-cloak @click="catMenuOpen = false">
+      {% for cat in nav_categories %}
+      <div class="cat-dropdown-group">
+        <a class="top" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}"><span>{{ cat.icon }}</span><span>{{ cat.name }}</span></a>
+        {% if cat.children.all %}<ul>{% for child in cat.children.all %}<li><a href="{% url 'catalog:product-list' %}?category={{ child.slug }}">{{ child.icon }} {{ child.name }}</a></li>{% endfor %}</ul>{% endif %}
+      </div>
+      {% empty %}
+      <div class="cat-dropdown-group"><div class="top">فعلاً دسته‌بندی‌ای ثبت نشده است</div></div>
+      {% endfor %}
+    </div>
+  </div>
+  {% if NAV_HEADER %}
+  {% for item in NAV_HEADER.items %}
+  {% if item.url %}<a class="nl" href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% endif %}
+  {% endfor %}
+  {% endif %}
+</div></nav>
+{% endwith %}

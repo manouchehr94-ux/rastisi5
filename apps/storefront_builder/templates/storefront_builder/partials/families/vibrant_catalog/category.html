@@ -1,0 +1,27 @@
+{% comment %}دسته‌بندیِ خانواده‌ی «کاتالوگ رنگی» — گریدِ آیکونیِ فشرده (نه بنرِ تصویری بزرگ).{% endcomment %}
+{% if category_grid_settings.category_ids %}
+{% if top_categories %}
+<section class="section vc-category-section">
+  {% if category_grid_settings.title %}<div class="sec-head"><h2><span class="bar"></span>{{ category_grid_settings.title }}</h2></div>{% endif %}
+  <div class="vc-quick-grid">
+    {% for cat in top_categories %}
+    <a class="vc-quick" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}"><span class="vc-quick-icon">{{ cat.icon }}</span><p>{{ cat.name }}</p></a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% else %}
+{% if tiles %}
+<section class="section vc-category-section"><div class="vc-quick-grid">
+  {% for cat, tclass in tiles %}
+  <a class="vc-quick" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}"><span class="vc-quick-icon">{{ cat.icon }}</span><p>{{ cat.name }}</p></a>
+  {% endfor %}
+</div></section>
+{% endif %}
+{% if cream_category %}
+<section class="section"><div class="cream">
+  <div><h3>مجموعه‌ی {{ cream_category.name }}</h3><p>کیفیت و تنوع در دسته‌ی {{ cream_category.name }} را تجربه کنید.</p><a class="btn btn-ghost" href="{% url 'catalog:product-list' %}?category={{ cream_category.slug }}">مشاهده مجموعه</a></div>
+  <div class="rack">{{ cream_category.icon }}</div>
+</div></section>
+{% endif %}
+{% endif %}

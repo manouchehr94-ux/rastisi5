@@ -9,6 +9,6 @@
   <p style="color:var(--muted);font-size:13px;margin:-10px 0 16px">{{ settings.subtitle }}</p>
   {% endif %}
   <div class="{% if settings.display_mode == "grid" %}grid{% else %}pcarousel{% endif %} rsec-cols">
-    {% include "catalog/partials/product_grid.html" with products=products %}
+    {% include "catalog/partials/product_grid.html" with products=products card_mode=settings.card_mode %}
   </div>
 </section>

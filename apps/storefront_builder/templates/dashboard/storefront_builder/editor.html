@@ -13,7 +13,9 @@
 <div class="sfb-shell" x-data="storefrontEditor()" x-init="init()" @beforeunload.window="handleBeforeUnload($event)"
      @open-settings-drawer.window="drawerOpen = true" @close-settings-drawer.window="drawerOpen = false"
      @preview-candidate-template.window="previewCandidateTemplate($event.detail.slug, $event.detail.name)"
-     @apply-candidate-template.window="applyCandidateTemplate()">
+     @apply-candidate-template.window="applyCandidateTemplate()"
+     @preview-candidate-family.window="previewCandidateFamily($event.detail.slug, $event.detail.name)"
+     @apply-candidate-family.window="applyCandidateFamily()">
 
   <div class="sfb-toolbar">
     <div class="sfb-toolbar-left">
@@ -53,13 +55,14 @@
           <button type="button" class="btn btn-sm" :class="{ active: device === 'tablet' }" @click="setDevice('tablet')" aria-label="پیش‌نمایش تبلت">تبلت</button>
           <button type="button" class="btn btn-sm" :class="{ active: device === 'mobile' }" @click="setDevice('mobile')" aria-label="پیش‌نمایش موبایل">موبایل</button>
         </div>
-        <span class="sfb-preview-hint" x-show="!candidateTemplate">روی هر بخش مکث کنید تا نامش را ببینید؛ بخش‌ها را مستقیم بکشید و جابه‌جا کنید.</span>
+        <span class="sfb-preview-hint" x-show="!candidateTemplate && !candidateFamily">روی هر بخش مکث کنید تا نامش را ببینید؛ بخش‌ها را مستقیم بکشید و جابه‌جا کنید.</span>
       </div>
-      <div class="sfb-candidate-banner" x-show="candidateTemplate" x-cloak>
-        <span>در حال پیش‌نمایشِ قالبِ «<b x-text="candidateTemplateName"></b>» — هنوز چیزی ذخیره نشده.</span>
+      <div class="sfb-candidate-banner" x-show="candidateTemplate || candidateFamily" x-cloak>
+        <span x-show="candidateTemplate">در حال پیش‌نمایشِ قالبِ «<b x-text="candidateTemplateName"></b>» — هنوز چیزی ذخیره نشده.</span>
+        <span x-show="candidateFamily">در حال پیش‌نمایشِ خانواده‌ی «<b x-text="candidateFamilyName"></b>» — هنوز چیزی ذخیره نشده.</span>
         <div style="display:flex;gap:8px">
           <button type="button" class="btn btn-sm" @click="cancelCandidatePreview()">بازگشت به پیش‌نویس فعلی</button>
-          <button type="button" class="btn btn-sm btn-primary" @click="$dispatch('apply-candidate-template')">اعمال این قالب</button>
+          <button type="button" class="btn btn-sm btn-primary" @click="candidateTemplate ? $dispatch('apply-candidate-template') : $dispatch('apply-candidate-family')">اعمال این مورد</button>
         </div>
       </div>
       <div class="sfb-preview-frame-wrap" :class="'sfb-device-' + device">
@@ -156,6 +159,17 @@
     {% endwith %}
   </form>
 
+  {% comment %}
+  فرمِ مخفیِ «اعمالِ خانواده‌ی کاندید» — دقیقاً همان الگوی فرمِ Template
+  بالا. عمداً ``palette_slug`` را نمی‌فرستد — تعویضِ Family باید Preset/
+  Paletteِ پیشنهادیِ همان Family را اعمال کند (تصمیمِ مالک Q-02)، نه
+  Paletteِ فعلی را حفظ کند.
+  {% endcomment %}
+  <form id="sfbApplyFamilyForm" method="post" action="{% url 'dashboard:storefront-builder-appearance' %}" style="display:none">
+    {% csrf_token %}
+    <input type="hidden" name="family_slug" id="sfbApplyFamilySlug" value="">
+  </form>
+
   <aside class="sfb-drawer" x-show="drawerOpen" x-cloak @keydown.escape.window="drawerOpen = false">
     <div class="sfb-drawer-head">
       <strong>تنظیمات بخش</strong>
@@ -177,6 +191,8 @@ function storefrontEditor() {
     mobileView: 'edit',
     candidateTemplate: null,
     candidateTemplateName: '',
+    candidateFamily: null,
+    candidateFamilyName: '',
     init() {
       document.body.addEventListener('htmx:afterSwap', (evt) => {
         if (evt.detail.target.id === 'storefrontSectionList') {
@@ -200,15 +216,32 @@ function storefrontEditor() {
     // بارگذاری می‌شود (نگاه کنید به _CandidateAppearanceVersion در
     // views.py).
     previewCandidateTemplate(slug, name) {
+      this.candidateFamily = null;
+      this.candidateFamilyName = '';
       this.candidateTemplate = slug;
       this.candidateTemplateName = name;
       const iframe = document.getElementById('sfbPreviewFrame');
       const base = iframe.getAttribute('data-preview-url');
       iframe.src = base + '?preview_template=' + encodeURIComponent(slug);
     },
+    // پیش‌نمایشِ غیرمخربِ یک Familyِ کاندید — دقیقاً همان الگویِ Template
+    // بالا (``?preview_family=``، نگاه کنید به ``_CandidateAppearanceVersion``
+    // در views.py). انتخابِ Family/Template متقابلاً انحصاری است، پس
+    // کاندیدِ دیگری (اگر باز بود) پاک می‌شود.
+    previewCandidateFamily(slug, name) {
+      this.candidateTemplate = null;
+      this.candidateTemplateName = '';
+      this.candidateFamily = slug;
+      this.candidateFamilyName = name;
+      const iframe = document.getElementById('sfbPreviewFrame');
+      const base = iframe.getAttribute('data-preview-url');
+      iframe.src = base + '?preview_family=' + encodeURIComponent(slug);
+    },
     cancelCandidatePreview() {
       this.candidateTemplate = null;
       this.candidateTemplateName = '';
+      this.candidateFamily = null;
+      this.candidateFamilyName = '';
       const iframe = document.getElementById('sfbPreviewFrame');
       iframe.src = iframe.getAttribute('data-preview-url');
     },
@@ -216,6 +249,11 @@ function storefrontEditor() {
       if (!this.candidateTemplate) return;
       document.getElementById('sfbApplyTemplateSlug').value = this.candidateTemplate;
       document.getElementById('sfbApplyTemplateForm').submit();
+    },
+    applyCandidateFamily() {
+      if (!this.candidateFamily) return;
+      document.getElementById('sfbApplyFamilySlug').value = this.candidateFamily;
+      document.getElementById('sfbApplyFamilyForm').submit();
     },
     reorderSections(sectionIds) {
       // منبعِ حقیقتِ نهایی همیشه پاسخِ سرور است — چیدمانِ خوش‌بینانه‌ای

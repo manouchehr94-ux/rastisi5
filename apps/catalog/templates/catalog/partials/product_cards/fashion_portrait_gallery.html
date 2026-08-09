@@ -1,0 +1,30 @@
+{% load persian catalog_extras %}
+{% comment %}
+کارتِ محصولِ خانواده‌ی «مد امروز» (``fashion_portrait_gallery``، تصمیمِ
+مالک Q-01) — تصویر ۹:۱۲، Wishlist رویِ کارت، عنوان/قیمت Split (نه
+وسط‌چین). داده‌محور و کاملاً پویا — همان context ایی که ``product_card.html``
+عمومی مصرف می‌کند (``product``)، هیچ داده‌ی نمونه Hard-code نشده.
+{% endcomment %}
+<a class="pcard mf-card" href="{% url 'catalog:product-detail' product.slug %}">
+  <div class="img">
+    {% if product.cover_image %}
+    <img class="cover-photo" src="{{ product.cover_image.thumbnail.url|default:product.cover_image.image.url }}"
+         alt="{{ product.cover_image.alt|default:product.name }}"
+         style="position:absolute;inset:0;width:100%;height:100%;object-fit:var(--sfb-image-fit, cover)">
+    {% else %}
+    <span class="emo">🛍️</span>
+    {% endif %}
+    {% include "customers/partials/wishlist_button.html" %}
+    {% if product.discount_percent > 0 %}<span class="pill pill-disc mf-card-pill">{{ product.discount_percent|fa_number }}٪</span>{% endif %}
+  </div>
+  <div class="body mf-card-split">
+    <div class="mf-card-title">
+      <div class="brand">{{ product.brand.name|default:"" }}</div>
+      <div class="name">{{ product.name }}</div>
+    </div>
+    <div class="price">
+      <div class="now">{{ product.final_price|toman }}</div>
+      {% if product.discount_percent > 0 %}<div class="old">{{ product.price|toman }}</div>{% endif %}
+    </div>
+  </div>
+</a>

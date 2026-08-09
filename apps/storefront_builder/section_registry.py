@@ -96,6 +96,8 @@ PRODUCT_SECTION_DATA_SOURCES = (
 _SINGLE_REFERENCE_SOURCES = {"collection", "category", "brand"}
 
 PRODUCT_SECTION_DISPLAY_MODES = ("carousel", "grid")
+#: حالتِ کارتِ محصول — enum بسته، مستقل از هر Familyی خاص (تصمیمِ مالک Q-09).
+PRODUCT_SECTION_CARD_MODES = ("default", "campaign")
 
 _PRODUCT_SECTION_MIN_LIMIT = 2
 _PRODUCT_SECTION_MAX_LIMIT = 24
@@ -164,6 +166,17 @@ def _validate_product_section_settings(raw: dict) -> dict:
     title = str(raw.get("title", "")).strip()[:_MAX_PRODUCT_SECTION_TITLE_LENGTH]
     subtitle = str(raw.get("subtitle", "")).strip()[:_MAX_PRODUCT_SECTION_SUBTITLE_LENGTH]
 
+    # حالتِ کارتِ محصول — فقط برایِ Familyهایی معنا دارد که واقعاً بیش از
+    # یک Renderer کارت دارند (تصمیمِ مالک، Q-09: ثابت per-family، با
+    # استثنایِ صریحِ Heritage Premium که دو حالت دارد). این کلید عمداً
+    # عمومی/بی‌نام‌ Familyی خاص است — یک مکانیزمِ توسعه‌پذیر برایِ *هر*
+    # Familyی که در آینده حالتِ دوم اضافه کند، نه شرطِ سخت‌کدشده‌یِ
+    # «اگر Family == heritage_premium». Familyهایی بدونِ حالتِ دوم این
+    # کلید را نادیده می‌گیرند (نگاه کنید به ``FamilyDefinition.product_card_campaign_variant``).
+    card_mode = raw.get("card_mode")
+    if card_mode not in PRODUCT_SECTION_CARD_MODES:
+        card_mode = "default"
+
     # source_id/product_ids فقط برایِ منبعِ متناظرشان معنا دارند — برایِ
     # بقیه همیشه به مقدارِ خنثی (None/[]) بازنشانی می‌شوند تا تنظیماتِ
     # ذخیره‌شده هرگز حاویِ ارجاعِ یتیمِ بی‌ربط به data_source فعلی نباشد.
@@ -192,6 +205,7 @@ def _validate_product_section_settings(raw: dict) -> dict:
         "show_view_all": show_view_all,
         "title": title,
         "subtitle": subtitle,
+        "card_mode": card_mode,
     }
 
 
@@ -203,6 +217,7 @@ def _product_section_defaults() -> dict:
         "item_limit": _PRODUCT_SECTION_DEFAULT_LIMIT,
         "display_mode": "carousel",
         "show_view_all": True,
+        "card_mode": "default",
         "title": "",
         "subtitle": "",
     }

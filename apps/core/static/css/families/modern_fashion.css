@@ -1,0 +1,92 @@
+/*
+  خانواده‌ی «مد امروز» (modern_fashion) — CSS اختصاصیِ اجزایِ هویت‌ساز
+  (هدر/ناوبری/هیرو/دسته‌بندی/کارتِ محصول/صفحه‌ی محصول/فوتر)؛ رنگ/فونت/
+  رادیوس/تراکم/حرکت همچنان از توکن‌های مشترکِ ``tokens.css``/``--sfb-*``
+  می‌آیند (Preset — تصمیمِ مالک Q-02)، اینجا دوباره تعریف نمی‌شوند.
+  فقط زیرِ ``[data-sfb-family="modern_fashion"]`` (روی ``<html>``، از
+  ``base.html``) اعمال می‌شود — هیچ فروشگاهِ بدونِ این Family را لمس
+  نمی‌کند.
+*/
+html[data-sfb-family="modern_fashion"] .wrap{max-width:var(--sfb-content-width, 1380px)}
+
+/* ===== announce ===== */
+html[data-sfb-family="modern_fashion"] .mf-announce{background:var(--brand-primary);color:var(--brand-primary-fg,#fff);font-size:11px;text-align:center;padding:6px 0}
+
+/* ===== header — دو ردیف، بدونِ نوارِ Utility ===== */
+html[data-sfb-family="modern_fashion"] .mf-header{background:var(--brand-surface,#fff);border-bottom:1px solid var(--brand-border,var(--line))}
+html[data-sfb-family="modern_fashion"] .mf-header.sfb-sticky{position:sticky;top:0;z-index:60}
+html[data-sfb-family="modern_fashion"] .mf-header-main{display:flex;align-items:center;gap:22px;height:86px}
+html[data-sfb-family="modern_fashion"] .mf-search{flex:1;max-width:640px;display:flex;align-items:center;background:var(--bg);border:1.5px solid transparent;border-radius:var(--sfb-radius,16px);height:50px;padding:0 6px 0 0;transition:.2s}
+html[data-sfb-family="modern_fashion"] .mf-search:focus-within{border-color:var(--brand-primary);background:var(--brand-surface,#fff)}
+html[data-sfb-family="modern_fashion"] .mf-search svg{width:18px;height:18px;color:var(--muted);margin:0 14px}
+html[data-sfb-family="modern_fashion"] .mf-search input{flex:1;border:0;outline:0;background:transparent;font-size:14px;color:var(--ink)}
+html[data-sfb-family="modern_fashion"] .mf-search button{background:var(--brand-primary);color:var(--brand-primary-fg,#fff);height:36px;padding:0 20px;border-radius:var(--sfb-button-radius,14px);font-size:13px;font-weight:700}
+
+html[data-sfb-family="modern_fashion"] .mf-nav{background:var(--brand-surface,#fff);border-bottom:1px solid var(--brand-border,var(--line))}
+html[data-sfb-family="modern_fashion"] .mf-nav-row{display:flex;align-items:center;gap:16px;height:52px}
+html[data-sfb-family="modern_fashion"] .mf-nav-links{display:flex;align-items:center;gap:6px;flex:1;overflow-x:auto}
+html[data-sfb-family="modern_fashion"] .mf-nav-social{display:flex;gap:8px;flex-shrink:0}
+html[data-sfb-family="modern_fashion"] .mf-nav-social a{width:32px;height:32px;border-radius:50%;background:var(--bg);display:grid;place-items:center;color:var(--brand-primary)}
+
+/* ===== hero — لفافِ هندسیِ نامتقارن + تصویرِ Capsule گردشده ===== */
+html[data-sfb-family="modern_fashion"] .mf-hero-wrap .hero-inner{border-radius:28px;overflow:hidden;background:linear-gradient(120deg,var(--brand-background),var(--brand-surface) 58%,var(--brand-accent) 150%)}
+html[data-sfb-family="modern_fashion"] .mf-hero-wrap .hero-visual{border-radius:0 999px 999px 0}
+html[data-sfb-family="modern_fashion"] .mf-hero-wrap .hero-visual img{border-radius:0 999px 999px 0}
+
+/* ===== category — تایل‌هایِ عمودیِ بلند ===== */
+html[data-sfb-family="modern_fashion"] .mf-category-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+html[data-sfb-family="modern_fashion"] .mf-category-tile{position:relative;display:flex;flex-direction:column;justify-content:flex-end;aspect-ratio:3/4;border-radius:var(--sfb-radius,16px);background:linear-gradient(160deg,var(--brand-background),var(--brand-surface));overflow:hidden;padding:16px;transition:.2s}
+html[data-sfb-family="modern_fashion"] .mf-category-tile:hover{transform:translateY(-3px)}
+html[data-sfb-family="modern_fashion"] .mf-category-tile .wm{position:absolute;inset:0;display:grid;place-items:center;font-size:64px;opacity:.35}
+html[data-sfb-family="modern_fashion"] .mf-category-tile h4{position:relative;font-size:14px;font-weight:800;color:var(--ink)}
+
+/* ===== product card — ۹:۱۲، Wishlist، عنوان/قیمت Split ===== */
+html[data-sfb-family="modern_fashion"] .mf-card .img{aspect-ratio:9/12;font-size:56px}
+html[data-sfb-family="modern_fashion"] .mf-card-split{flex-direction:row;align-items:flex-start;justify-content:space-between;gap:8px}
+html[data-sfb-family="modern_fashion"] .mf-card-title{min-width:0}
+html[data-sfb-family="modern_fashion"] .mf-card .price{border-top:0;padding-top:0;flex-direction:column;align-items:flex-end;margin-top:0}
+html[data-sfb-family="modern_fashion"] .mf-card-pill{position:absolute;bottom:10px;right:10px;top:auto}
+
+/* ===== product page — Thumbnail عمودی کنارِ تصویر، CTA ثابتِ موبایل ===== */
+html[data-sfb-family="modern_fashion"] .mf-pdp{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);gap:48px;padding:22px 0}
+html[data-sfb-family="modern_fashion"] .mf-gallery{display:grid;grid-template-columns:92px 1fr;gap:14px}
+html[data-sfb-family="modern_fashion"] .mf-thumbs{display:flex;flex-direction:column;gap:10px}
+html[data-sfb-family="modern_fashion"] .mf-thumbs .th{width:100%;height:76px;border-radius:12px;border:1px solid var(--brand-border,var(--line));display:grid;place-items:center;font-size:22px;overflow:hidden;flex-shrink:0}
+html[data-sfb-family="modern_fashion"] .mf-thumbs .th.active{border-color:var(--brand-primary);border-width:2px}
+html[data-sfb-family="modern_fashion"] .mf-main{position:relative;aspect-ratio:9/12;border-radius:var(--sfb-radius,16px);overflow:hidden}
+html[data-sfb-family="modern_fashion"] .mf-wish{position:absolute;top:14px;left:14px;z-index:3;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center}
+html[data-sfb-family="modern_fashion"] .mf-info h1{margin:10px 0 8px;font-size:26px;line-height:1.5}
+html[data-sfb-family="modern_fashion"] .mf-eyebrow{color:var(--brand-primary);font-size:11px;font-weight:800;letter-spacing:.04em}
+html[data-sfb-family="modern_fashion"] .mf-pricebox{padding:16px 0;border-top:1px solid var(--brand-border,var(--line));display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+html[data-sfb-family="modern_fashion"] .mf-pricebox .now{font-size:22px;font-weight:900}
+html[data-sfb-family="modern_fashion"] .mf-cta-sticky{display:none}
+
+/* ===== footer — مینیمال و سبک ===== */
+html[data-sfb-family="modern_fashion"] .mf-footer{background:var(--brand-surface,#fff);border-top:1px solid var(--brand-border,var(--line));margin-top:40px}
+html[data-sfb-family="modern_fashion"] .mf-footer-row{display:flex;align-items:center;gap:20px;padding:26px 0;flex-wrap:wrap}
+html[data-sfb-family="modern_fashion"] .mf-footer-links{display:flex;gap:16px;flex:1;font-size:12.5px;color:var(--muted)}
+html[data-sfb-family="modern_fashion"] .mf-footer-links a{color:var(--muted)}
+html[data-sfb-family="modern_fashion"] .mf-footer .socials{display:flex;gap:8px}
+html[data-sfb-family="modern_fashion"] .mf-footer .copy{width:100%;font-size:11.5px;color:var(--muted);padding-top:14px;border-top:1px solid var(--brand-border,var(--line))}
+
+/* ===== Responsive — دقیقاً همان دو بازه‌ی سراسریِ پلتفرم (۱۰۰۰px/۶۸۰px)،
+   نه اعدادِ بسته‌ی سبک (تصمیمِ مالک: رفتار اقتباس شود، اعداد از پلتفرم). ===== */
+@media(max-width:1000px){
+  html[data-sfb-family="modern_fashion"] .mf-category-tiles{grid-template-columns:repeat(2,1fr)}
+  html[data-sfb-family="modern_fashion"] .mf-pdp{grid-template-columns:1fr}
+}
+@media(max-width:680px){
+  html[data-sfb-family="modern_fashion"] .mf-search{display:none}
+  html[data-sfb-family="modern_fashion"] .mf-header-main{gap:10px}
+  html[data-sfb-family="modern_fashion"] .mf-nav-links{display:none}
+  html[data-sfb-family="modern_fashion"] .mf-category-tiles{display:flex;overflow-x:auto;gap:12px}
+  html[data-sfb-family="modern_fashion"] .mf-category-tile{flex:0 0 62vw}
+  html[data-sfb-family="modern_fashion"] .mf-gallery{grid-template-columns:1fr}
+  html[data-sfb-family="modern_fashion"] .mf-thumbs{flex-direction:row;overflow-x:auto}
+  html[data-sfb-family="modern_fashion"] .mf-thumbs .th{width:64px;height:64px;flex:0 0 64px}
+  /* CTAِ دسکتاپ حذف و CTAِ ثابتِ موبایل جایگزین می‌شود — طبقِ الزامِ
+     صریحِ «هیچ اکشنِ حیاتی فقط با Hover/فقط دسکتاپ در دسترس نباشد». */
+  html[data-sfb-family="modern_fashion"] .mf-desktop-cta{display:none}
+  html[data-sfb-family="modern_fashion"] .mf-cta-sticky{display:flex;position:sticky;bottom:0;z-index:12;padding:10px 18px;margin:0 -18px;background:var(--brand-surface,#fff);box-shadow:0 -8px 24px rgba(0,0,0,.08)}
+  html[data-sfb-family="modern_fashion"] .mf-cta-sticky .btn{width:100%}
+}

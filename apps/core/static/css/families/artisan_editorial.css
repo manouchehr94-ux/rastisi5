@@ -1,0 +1,50 @@
+/*
+  خانواده‌ی «روایتِ هنر» (artisan_editorial) — CSS اختصاصیِ اجزایِ
+  هویت‌ساز. رنگ/فونت/رادیوس/تراکم/حرکت از توکن‌های مشترک (Preset) می‌آیند.
+*/
+html[data-sfb-family="artisan_editorial"] .wrap{max-width:var(--sfb-content-width, 1300px)}
+
+/* ===== header — تک‌ردیفه، بدونِ Search Box ===== */
+html[data-sfb-family="artisan_editorial"] .ae-header{background:var(--brand-surface,#fff);border-bottom:1px solid var(--brand-border,var(--line))}
+html[data-sfb-family="artisan_editorial"] .ae-header.sfb-sticky{position:sticky;top:0;z-index:60}
+html[data-sfb-family="artisan_editorial"] .ae-header-main{display:flex;align-items:center;justify-content:space-between;height:80px}
+html[data-sfb-family="artisan_editorial"] .ae-nav{background:var(--brand-background);border-bottom:1px solid var(--brand-border,var(--line))}
+html[data-sfb-family="artisan_editorial"] .ae-nav-row{display:flex;align-items:center;justify-content:center;gap:8px;height:48px}
+
+/* ===== hero — لبه‌تیز، بدونِ Radius ===== */
+html[data-sfb-family="artisan_editorial"] .ae-hero-wrap .hero-inner{border-radius:0;background:var(--brand-background)}
+html[data-sfb-family="artisan_editorial"] .ae-hero-wrap .hero-visual{border-radius:0}
+html[data-sfb-family="artisan_editorial"] .ae-hero-wrap .hero-visual img{border-radius:0}
+
+/* ===== category — گریدِ ۲×۲ با عنوانِ Overlay ===== */
+html[data-sfb-family="artisan_editorial"] .ae-banner-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+html[data-sfb-family="artisan_editorial"] .ae-banner{position:relative;display:block;aspect-ratio:1/1;border-radius:var(--sfb-radius,12px);overflow:hidden;background:linear-gradient(160deg,var(--brand-background),var(--brand-surface))}
+html[data-sfb-family="artisan_editorial"] .ae-banner .wm{position:absolute;inset:0;display:grid;place-items:center;font-size:56px;opacity:.4}
+html[data-sfb-family="artisan_editorial"] .ae-banner-title{position:absolute;right:14px;bottom:12px;left:14px;color:var(--ink);font-weight:800;font-size:13px;background:rgba(255,255,255,.72);backdrop-filter:blur(3px);border-radius:8px;padding:6px 10px}
+
+/* ===== product card — بدونِ سایه/Motion، عنوانِ وسط‌چین ===== */
+html[data-sfb-family="artisan_editorial"] .ae-card{box-shadow:none;transition:none}
+html[data-sfb-family="artisan_editorial"] .ae-card:hover{transform:none;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+html[data-sfb-family="artisan_editorial"] .ae-card-body{text-align:center;align-items:center}
+html[data-sfb-family="artisan_editorial"] .ae-card-body .price{justify-content:center;border-top:0}
+
+/* ===== product page — خلاصه‌ی داستان نزدیکِ عنوان/قیمت ===== */
+html[data-sfb-family="artisan_editorial"] .ae-pdp{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);gap:48px;padding:22px 0}
+html[data-sfb-family="artisan_editorial"] .ae-gallery .main{border-radius:0}
+html[data-sfb-family="artisan_editorial"] .ae-story-excerpt{color:var(--muted);font-size:13px;line-height:2.1;margin:14px 0;padding-right:14px;border-right:2px solid var(--brand-primary)}
+
+/* ===== footer — گرم ===== */
+html[data-sfb-family="artisan_editorial"] .ae-footer{background:var(--brand-background);border-top:1px solid var(--brand-border,var(--line));margin-top:40px}
+html[data-sfb-family="artisan_editorial"] .ae-footer-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:30px;padding:44px 0 26px}
+html[data-sfb-family="artisan_editorial"] .ae-footer-about p{color:var(--muted);font-size:12.5px;line-height:2;margin-top:10px}
+html[data-sfb-family="artisan_editorial"] .ae-footer .socials{display:flex;gap:8px;margin-top:14px}
+html[data-sfb-family="artisan_editorial"] .ae-footer-copy{grid-column:1/-1;border-top:1px solid var(--brand-border,var(--line));padding-top:16px;font-size:11.5px;color:var(--muted)}
+
+@media(max-width:1000px){
+  html[data-sfb-family="artisan_editorial"] .ae-banner-grid{grid-template-columns:repeat(2,1fr)}
+  html[data-sfb-family="artisan_editorial"] .ae-pdp{grid-template-columns:1fr}
+  html[data-sfb-family="artisan_editorial"] .ae-footer-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:680px){
+  html[data-sfb-family="artisan_editorial"] .ae-footer-grid{grid-template-columns:1fr}
+}

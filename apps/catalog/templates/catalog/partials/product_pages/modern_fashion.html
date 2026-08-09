@@ -1,0 +1,258 @@
+{% load static persian catalog_extras %}
+{% comment %}
+ترکیب‌بندیِ صفحه‌ی محصولِ خانواده‌ی «مد امروز» (modern_fashion) — بازآراییِ
+واقعیِ DOM (نه فقط CSS): ستونِ Thumbnail عمودی *کنارِ* تصویرِ اصلی (نه
+زیرِ آن)، عنوان/برند/قیمت در یک نوارِ بالا، و یک CTA ثابتِ موبایل. تمامِ
+دیتا/منطق (Variant Selector Alpine component، مدل رنگ/سایز، Gallery،
+ویدیو، محصولاتِ مرتبط) دقیقاً همان چیزی است که ترکیب‌بندیِ عمومی مصرف
+می‌کند (تصمیمِ مالک، بندِ ۱۹: «این رفتارها قابلیتِ عمومیِ Builder‌اند، نه
+Hard-coded یک قالبِ خاص») — هیچ داده‌ی نمونه/فروشگاهِ مرجع اینجا وجود
+ندارد.
+{% endcomment %}
+<div class="wrap mf-product">
+  {% if is_merchant_preview %}
+  <div class="notice" style="border-right-color:#f59e0b;background:#fff7ed;color:#9a3412;margin-bottom:14px">
+    👁️ این یک پیش‌نمایشِ مدیریتی است — این کالا با وضعیتِ «{{ product.get_status_display }}» ثبت شده و ممکن است برایِ مشتری‌ها قابلِ مشاهده نباشد.
+  </div>
+  {% endif %}
+  <div class="breadcrumb">
+    <a href="/">خانه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <a href="{% url 'catalog:product-list' %}">فروشگاه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    {% if product.category.parent %}
+    <a href="{% url 'catalog:product-list' %}?category={{ product.category.parent.slug }}">{{ product.category.parent.name }}</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    {% endif %}
+    <a href="{% url 'catalog:product-list' %}?category={{ product.category.slug }}">{{ product.category.name }}</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span style="color:var(--ink)">{{ product.name }}</span>
+  </div>
+
+  {{ variant_selector|json_script:"variant-selector-data" }}
+  {{ product_price_json|json_script:"product-price-data" }}
+  <div class="mf-pdp" x-data="variantSelector(
+         JSON.parse(document.getElementById('variant-selector-data').textContent),
+         JSON.parse(document.getElementById('product-price-data').textContent)
+       )">
+    <!-- gallery: ستونِ Thumbnail عمودی کنارِ تصویرِ اصلی (نه زیرِ آن) -->
+    <div class="mf-gallery">
+      <div class="mf-thumbs">
+        {% for slide in gallery_slides %}
+        <button type="button" class="th" :class="{ active: activeSlide === {{ forloop.counter0 }} }" @click="activeSlide = {{ forloop.counter0 }}"
+                style="{% if slide.type == 'image' %}background-image:url('{{ slide.thumb_url }}');background-size:cover{% else %}background:{{ slide.tint }}{% endif %}"
+                aria-label="تصویر {{ forloop.counter|fa_number }}">
+          {% if slide.type == "emoji" %}{{ slide.emoji }}{% endif %}
+        </button>
+        {% endfor %}
+      </div>
+      <div class="mf-main">
+        {% for slide in gallery_slides %}
+          {% if slide.type == "image" %}
+          <img data-slide data-slide-url="{{ slide.url }}" data-cover="{% if slide.is_cover %}true{% else %}false{% endif %}" x-show="activeSlide === {{ forloop.counter0 }}" src="{{ slide.url }}" alt="{{ slide.alt }}"
+               style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+          {% else %}
+          <span data-slide data-slide-url="" data-cover="false" x-show="activeSlide === {{ forloop.counter0 }}"
+                style="position:absolute;inset:0;display:grid;place-items:center;background:{{ slide.tint }}">{{ slide.emoji }}</span>
+          {% endif %}
+        {% endfor %}
+        <span class="pill pill-disc" x-show="displayPrice.savings > 0" x-text="discountPercentText()"></span>
+        {% include "customers/partials/wishlist_button.html" with button_class="mf-wish" %}
+      </div>
+    </div>
+
+    <!-- info: عنوان/قیمت جداشده (Split)، دقیقاً طبقِ مشخصاتِ خانواده -->
+    <div class="mf-info">
+      <div class="mf-eyebrow">{% if product.brand %}{{ product.brand.name }}{% else %}{{ product.category.name }}{% endif %}</div>
+      <h1>{{ product.name }}</h1>
+      <div class="topline">
+        <span class="rate"><span class="stars">{{ product.rating|star_rating }}</span>{{ product.rating|floatformat:1|fa_number }}</span>
+        <span>|</span><span>{{ review_count|fa_number }} نظر</span>
+      </div>
+
+      <form hx-post="{% url 'cart:add' product.slug %}" hx-swap="none" @submit="if (!canAddToCart) $event.preventDefault()">
+        {% csrf_token %}
+        <input type="hidden" name="variant_id" :value="current ? current.variant_id : ''">
+
+        <template x-for="axis in axes" :key="axis.id">
+          <div class="opt-block">
+            <div class="lbl"><span x-text="axis.label"></span>: <span x-text="selectedLabel(axis)"></span></div>
+            <template x-if="axis.values.some(v => v.color_hex)">
+              <div class="swatches">
+                <template x-for="v in axis.values" :key="v.id">
+                  <div class="swatch" :class="{ active: selected[axis.id] === v.id, unavailable: !isValueAvailable(axis.id, v.id) }"
+                       :style="'background:' + v.color_hex" :title="v.label"
+                       @click="selectAxisValue(axis.id, v.id)"></div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!axis.values.some(v => v.color_hex)">
+              <div class="sizes">
+                <template x-for="v in axis.values" :key="v.id">
+                  <button type="button" class="size" :class="{ active: selected[axis.id] === v.id, unavailable: !isValueAvailable(axis.id, v.id) }"
+                          @click="selectAxisValue(axis.id, v.id)" x-text="v.label"></button>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <template x-for="group in groups" :key="group.label">
+          <div class="opt-block">
+            <div class="lbl"><span x-text="group.label"></span>: <span x-text="currentLegacyLabel(group)"></span></div>
+            <template x-if="group.values.some(v => v.color_hex)">
+              <div class="swatches">
+                <template x-for="v in group.values" :key="v.id">
+                  <div class="swatch" :class="{ active: selectedVariantId === v.id, unavailable: !v.is_purchasable }"
+                       :style="'background:' + v.color_hex" :title="v.label"
+                       @click="selectLegacy(v.id)"></div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!group.values.some(v => v.color_hex)">
+              <div class="sizes">
+                <template x-for="v in group.values" :key="v.id">
+                  <button type="button" class="size" :class="{ active: selectedVariantId === v.id, unavailable: !v.is_purchasable }"
+                          @click="selectLegacy(v.id)" x-text="v.label"></button>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <div class="mf-pricebox">
+          <div class="now" x-text="formatToman(displayPrice.price)"></div>
+          <div class="row1" x-show="displayPrice.savings > 0">
+            <span class="old" x-text="formatToman(displayPrice.regular)"></span>
+            <span class="save" x-text="'صرفه‌جویی ' + formatToman(displayPrice.savings)"></span>
+          </div>
+          <div class="stock">
+            <template x-if="displayStock > 0"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="vertical-align:-3px"><path d="M20 6L9 17l-5-5"/></svg> موجود در انبار</span></template>
+            <template x-if="displayStock <= 0"><span style="color:var(--pink)">ناموجود</span></template>
+          </div>
+        </div>
+
+        <div class="qty" x-data="{ qty: 1 }">
+          <span class="lbl">تعداد:</span>
+          <div class="stepper">
+            <button type="button" @click="qty = Math.max(1, qty - 1)">−</button>
+            <input name="quantity" :value="qty" readonly>
+            <button type="button" @click="qty = Math.min(Math.max(displayStock, 1), qty + 1)">+</button>
+          </div>
+        </div>
+
+        <!-- دسکتاپ: CTA درون فرم؛ موبایل: همین دکمه با mf-cta-sticky تکرار می‌شود -->
+        <div class="pdp-actions mf-desktop-cta">
+          <button type="submit" class="btn btn-primary" :disabled="!canAddToCart">
+            <span x-text="needsSelection ? 'ابتدا یک گزینه را انتخاب کنید' : (displayStock <= 0 ? 'ناموجود' : 'افزودن به سبد خرید')"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CTA ثابتِ موبایل — طبقِ الزامِ صریحِ مالک: هیچ اکشنِ حیاتی فقط با Hover در دسترس نباشد؛ اینجا حتی روی موبایل بدون کلیکِ اضافه در دسترس است -->
+  <div class="mf-cta-sticky" x-data="{}">
+    <button type="button" class="btn btn-primary" :disabled="!canAddToCart"
+            @click="$el.closest('.mf-product').querySelector('form').requestSubmit()">
+      <span x-text="needsSelection ? 'انتخاب گزینه' : (displayStock <= 0 ? 'ناموجود' : 'افزودن به سبد خرید')"></span>
+    </button>
+  </div>
+
+  <!-- tabs -->
+  <div class="pdp-tabs" x-data="{ tab: 'desc' }">
+    <div class="tabline">
+      <button type="button" class="t" :class="{ active: tab === 'desc' }" @click="tab = 'desc'">توضیحات محصول</button>
+      <button type="button" class="t" :class="{ active: tab === 'spec' }" @click="tab = 'spec'">مشخصات فنی</button>
+      <button type="button" class="t" :class="{ active: tab === 'review' }" @click="tab = 'review'">نظرات کاربران</button>
+    </div>
+
+    <div class="tabpane" :class="{ active: tab === 'desc' }">
+      <div class="desc-text">
+        {% if product.description %}{{ product.description|product_description_html }}{% else %}<p>توضیحاتی برای این کالا ثبت نشده است.</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="tabpane" :class="{ active: tab === 'spec' }">
+      <table class="spec-table">
+        <tr><td>دسته‌بندی</td><td>{{ product.category.name }}</td></tr>
+        {% if product.brand %}<tr><td>برند</td><td>{{ product.brand.name }}</td></tr>{% endif %}
+        <tr><td>کد کالا (SKU)</td><td dir="ltr" style="text-align:left">{{ product.sku }}</td></tr>
+        {% for attribute, values in spec_variant_summary.items %}
+        <tr><td>{{ attribute }}‌های موجود</td><td>{{ values }}</td></tr>
+        {% endfor %}
+        <tr><td>وضعیت موجودی</td><td>{% if product.stock > 0 %}موجود ({{ product.stock|fa_number }} عدد){% else %}ناموجود{% endif %}</td></tr>
+      </table>
+    </div>
+
+    <div class="tabpane" :class="{ active: tab === 'review' }">
+      <div class="review-sum">
+        <div class="big">
+          <b>{{ product.rating|floatformat:1|fa_number }}</b>
+          <div class="stars">{{ product.rating|star_rating }}</div>
+          <small>از مجموع {{ review_count|fa_number }} نظر</small>
+        </div>
+        <div>
+          {% for row in rating_breakdown %}
+          <div class="rbar">
+            <span>{{ row.star|fa_number }} ★</span>
+            <div class="track"><i style="width:{{ row.pct }}%"></i></div>
+            <span style="color:var(--muted)">{{ row.pct|fa_number }}٪</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% for review in approved_reviews %}
+      <div class="review">
+        <div class="head">
+          <span class="av">{{ review.customer.full_name|slice:":1" }}</span>
+          <div><b>{{ review.customer.full_name }}</b><small>{{ review.created_at|jalali }}</small></div>
+          <span class="stars">{{ review.rating|star_rating }}</span>
+        </div>
+        <p>{{ review.text }}</p>
+      </div>
+      {% empty %}
+      <p style="color:var(--muted);font-size:13px;margin-bottom:16px">هنوز نظری برای این کالا ثبت نشده — اولین نفری باشید که نظر می‌دهد!</p>
+      {% endfor %}
+      <div id="review-form-container">
+        {% include "catalog/partials/review_form.html" %}
+      </div>
+    </div>
+  </div>
+
+  {% if product_videos %}
+  <div class="section">
+    <div class="sec-head"><h2><span class="bar"></span>ویدئوهای محصول</h2></div>
+    <div class="pdp-video-grid {% if product_videos|length == 1 %}pdp-video-grid--single{% else %}pdp-video-grid--multi{% endif %}">
+      {% for video in product_videos %}
+      <div class="pdp-video-card">
+        {% if video.embed_url %}
+        <div class="pdp-video-frame">
+          <iframe src="{{ video.embed_url }}" title="{{ video.title|default:video.provider_display }}" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
+        {% else %}
+        <a class="pdp-video-frame pdp-video-linkcard" href="{{ video.permalink }}" target="_blank" rel="noopener noreferrer">
+          <span class="pdp-video-ig-icon">📷</span><span class="pdp-video-ig-cta">مشاهده در اینستاگرام</span>
+        </a>
+        {% endif %}
+        <div class="pdp-video-meta">
+          <span class="pdp-video-badge">{{ video.provider_display }}</span>
+          {% if video.title %}<span class="pdp-video-title">{{ video.title }}</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if related_products %}
+  <div class="section">
+    <div class="sec-head"><h2><span class="bar"></span>محصولات مرتبط</h2></div>
+    <div class="grid g4">
+      {% for product in related_products %}
+      {% include "catalog/partials/product_card.html" %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
