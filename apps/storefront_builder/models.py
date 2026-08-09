@@ -70,6 +70,14 @@ APPEARANCE_CONFIG_DEFAULTS = {
     "button_style": "filled",
     "image_fit": "cover",
     "image_hover": "zoom",
+    # خانواده‌ی قالب (DOM/Renderer اختصاصی — تصمیمِ مالک Q-01/Q-02،
+    # docs/template-references/live-audit/10_OWNER_DECISION_LOG.md) و
+    # Presetِ فعالِ درونِ همان خانواده (family_registry.py/preset_registry.py).
+    # None یعنی «بدون Family» — همان DOM مشترکِ ۱۰ Template قدیمی، دقیقاً
+    # رفتار فعلی، بدون تغییر برای فروشگاه‌هایی که این سیستم را انتخاب
+    # نکرده‌اند.
+    "family_slug": None,
+    "preset_slug": None,
 }
 
 

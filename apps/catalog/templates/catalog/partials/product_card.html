@@ -1,4 +1,5 @@
 {% load persian catalog_extras %}
+{% if SHOP_FAMILY %}{% include SHOP_FAMILY.product_card_variant %}{% else %}
 <a class="pcard" href="{% url 'catalog:product-detail' product.slug %}">
   <div class="img" style="background:{{ product.tint|default:'#eceef3' }}">
     {% if product.cover_image %}
@@ -42,3 +43,4 @@
     </div>
   </div>
 </a>
+{% endif %}

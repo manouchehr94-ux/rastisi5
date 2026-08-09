@@ -39,3 +39,11 @@ html[data-sfb-motion="none"] *{transition:none!important;animation:none!importan
    override نمی‌کند — دقیقاً همان ۱۸px قبلی. */
 html[data-sfb-density="compact"] .wrap{padding:0 12px}
 html[data-sfb-density="relaxed"] .wrap{padding:0 26px}
+
+/* اندازه‌ی فونتِ فیلدهایِ قابل‌ویرایش در موبایل حداقل ۱۶px — جلوگیری از
+   Auto-zoomِ خودکارِ iOS Safari هنگامِ فوکوس (تصمیمِ صریحِ مالک، بندِ ۱۸
+   تصمیمِ جامع نهایی؛ سراسری است، نه فقط پنج خانواده‌ی جدید — قاعده روی
+   *همه‌ی* Templateهای موجود هم صدق می‌کند). */
+@media (max-width:640px){
+  input,textarea,select{font-size:16px}
+}

@@ -1,4 +1,4 @@
-{% comment %}
+{% if SHOP_FAMILY %}{% include SHOP_FAMILY.footer_variant %}{% else %}{% comment %}
 Canonical Footer shell — the single implementation shared by the public
 Storefront and the Builder Preview. See page_shell_header.html for the
 context contract (header_config there, footer_config here) and the
@@ -83,3 +83,4 @@ Preview-only intentional-difference policy.
   {% endif %}
 </div></footer>
 {% endwith %}
+{% endif %}
