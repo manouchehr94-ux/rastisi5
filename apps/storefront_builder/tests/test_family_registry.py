@@ -165,6 +165,52 @@ class FamilySwitchViewTests(TestCase):
         self.assertEqual(draft_after.appearance_config, original)
 
 
+class FamilyAppearancePanelUITests(TestCase):
+    """گالریِ ۵ خانواده در هاب «ظاهر سایت» — بدون افشای واژه‌های
+    داخلیِ Family/Preset/Palette به تاجر (تصمیمِ مالک #12)."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        self.store.admin_subdomain = HOST.split(".")[0]
+        self.store.save(update_fields=["admin_subdomain"])
+        self.staff = User.objects.create_user(username="family_panel_owner", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.staff, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.client = Client(HTTP_HOST=HOST)
+        self.client.login(username="family_panel_owner", password="pass12345")
+
+    def test_hub_shows_store_template_label_and_no_family_active(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-appearance"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "قالب فروشگاه")
+
+    def test_templates_view_lists_all_five_family_cards(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-appearance"))
+        self.assertEqual(resp.status_code, 200)
+        for family in family_registry.list_families():
+            self.assertContains(resp, family.name_fa)
+        self.assertContains(resp, "preview-candidate-family")
+
+    def test_hub_reflects_active_family_name_once_selected(self):
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {"family_slug": "heritage_premium"})
+        resp = self.client.get(reverse("dashboard:storefront-builder-appearance"))
+        self.assertEqual(resp.status_code, 200)
+        family = family_registry.get_family("heritage_premium")
+        self.assertContains(resp, family.name_fa)
+
+    def test_classic_template_card_not_marked_active_when_family_selected(self):
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {"family_slug": "vibrant_catalog"})
+        resp = self.client.get(reverse("dashboard:storefront-builder-appearance"))
+        self.assertEqual(resp.status_code, 200)
+        # قالبِ کلاسیکِ زیرین (بدون‌اثر) نباید هم‌زمان با کارتِ Family
+        # به‌عنوانِ «فعال» نشان داده شود — فقط دقیقاً یک کارت باید active باشد.
+        html = resp.content.decode("utf-8")
+        self.assertEqual(html.count("sfb-template-card active"), 1)
+
+
 @override_settings(ALLOWED_HOSTS=["sfb-family-public.example.com", "testserver", HOST])
 class FamilyPublicRenderingTests(TestCase):
     """رندرِ واقعیِ صفحه‌ی اصلیِ عمومی — الزامِ اصلیِ Gate 3: فروشگاهِ
