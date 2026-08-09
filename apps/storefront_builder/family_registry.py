@@ -45,6 +45,11 @@ class FamilyDefinition:
     #: بدهد (تصمیمِ مالک، بندِ ۱۱ تصمیمِ جامع).
     default_preset_slug: str
     schema_version: int = 1
+    #: Rendererِ اختیاریِ «حالتِ کمپین» کارتِ محصول — فقط Familyهایی که
+    #: واقعاً بیش از یک حالت دارند (تصمیمِ مالک Q-09: امروز فقط Heritage
+    #: Premium) این را مقدار می‌دهند؛ بقیه None می‌مانند و ``card_mode``
+    #: هر Section (اگر مرچنت آن را «campaign» بگذارد) بی‌اثر می‌ماند.
+    product_card_campaign_variant: str | None = None
     #: فقط برایِ گالریِ انتخابِ Family در Builder — بدونِ اثرِ رفتاری.
     swatch: tuple = ("#6D28D9", "#FF4D77", "#FFFFFF")
 
@@ -84,4 +89,32 @@ register_family(FamilyDefinition(
     product_page_variant="catalog/partials/product_pages/modern_fashion.html",
     default_preset_slug="modern_fashion_default",
     swatch=("#FCBD15", "#FF0080", "#FFFFFF"),
+))
+
+register_family(FamilyDefinition(
+    slug="artisan_editorial",
+    name_fa="روایت هنر",
+    description_fa="فروشگاه صنایع‌دستی/داستان‌محور با هدر آرام تک‌ردیفه، هیروی تحریریه‌ایِ لبه‌تیز، کارتِ محصول با متادیتای اختیاریِ سازنده/منطقه.",
+    header_variant="storefront_builder/partials/families/artisan_editorial/header.html",
+    hero_variant="storefront_builder/partials/families/artisan_editorial/hero.html",
+    category_variant="storefront_builder/partials/families/artisan_editorial/category.html",
+    footer_variant="storefront_builder/partials/families/artisan_editorial/footer.html",
+    product_card_variant="catalog/partials/product_cards/artisan_story_card.html",
+    product_page_variant="catalog/partials/product_pages/artisan_editorial.html",
+    default_preset_slug="artisan_editorial_default",
+    swatch=("#888210", "#EFEADF", "#3B2923"),
+))
+
+register_family(FamilyDefinition(
+    slug="nordic_living",
+    name_fa="خانه آرام",
+    description_fa="فروشگاه خانه و دکور Search-first با هدر سه‌ردیفه، هیروی خنثیِ دایره‌ای، کارتِ محصول با Crossfade تصویرِ دوم و Action Rail.",
+    header_variant="storefront_builder/partials/families/nordic_living/header.html",
+    hero_variant="storefront_builder/partials/families/nordic_living/hero.html",
+    category_variant="storefront_builder/partials/families/nordic_living/category.html",
+    footer_variant="storefront_builder/partials/families/nordic_living/footer.html",
+    product_card_variant="catalog/partials/product_cards/catalog_second_image.html",
+    product_page_variant="catalog/partials/product_pages/nordic_living.html",
+    default_preset_slug="nordic_living_default",
+    swatch=("#183E85", "#FFDB01", "#F2F2F2"),
 ))

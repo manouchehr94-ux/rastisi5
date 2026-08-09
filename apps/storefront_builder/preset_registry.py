@@ -76,3 +76,25 @@ register_preset(PresetDefinition(
     card_shadow="soft", card_hover="zoom", hero_style="wide",
     default_palette_slug="amber",
 ))
+
+register_preset(PresetDefinition(
+    slug="artisan_editorial_default",
+    family_slug="artisan_editorial",
+    name_fa="روایت هنر — پیش‌فرض",
+    description_fa="فضای گرم، رادیوس کوچک، بدون حرکت اضافه؛ دقیقاً مطابق مرجع تحلیلی خانواده.",
+    font="Vazirmatn", radius=12, button_radius=10, button_style="outline",
+    density="relaxed", motion="none", type_scale="normal",
+    card_shadow="none", card_hover="none", hero_style="tall",
+    default_palette_slug="olive",
+))
+
+register_preset(PresetDefinition(
+    slug="nordic_living_default",
+    family_slug="nordic_living",
+    name_fa="خانه آرام — پیش‌فرض",
+    description_fa="رادیوس بسیار کوچک (Squared)، بدون سایه؛ دقیقاً مطابق مرجع تحلیلی خانواده.",
+    font="Vazirmatn", radius=4, button_radius=4, button_style="filled",
+    density="normal", motion="subtle", type_scale="normal",
+    card_shadow="none", card_hover="none", hero_style="wide",
+    default_palette_slug="navy",
+))

@@ -1,5 +1,5 @@
 {% load persian catalog_extras %}
-{% if SHOP_FAMILY %}{% include SHOP_FAMILY.product_card_variant %}{% else %}
+{% if SHOP_FAMILY %}{% if card_mode == "campaign" and SHOP_FAMILY.product_card_campaign_variant %}{% include SHOP_FAMILY.product_card_campaign_variant %}{% else %}{% include SHOP_FAMILY.product_card_variant %}{% endif %}{% else %}
 <a class="pcard" href="{% url 'catalog:product-detail' product.slug %}">
   <div class="img" style="background:{{ product.tint|default:'#eceef3' }}">
     {% if product.cover_image %}
