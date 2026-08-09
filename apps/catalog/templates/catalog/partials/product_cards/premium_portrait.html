@@ -12,6 +12,7 @@
     {% else %}
     <span class="emo">👜</span>
     {% endif %}
+    {% include "customers/partials/wishlist_button.html" %}
     {% if product.discount_percent > 0 %}<span class="pill pill-disc">{{ product.discount_percent|fa_number }}٪</span>{% endif %}
   </div>
   <div class="body">

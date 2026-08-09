@@ -3,21 +3,35 @@
 */
 html[data-sfb-family="heritage_premium"] .wrap{max-width:var(--sfb-content-width, 1500px)}
 
-/* ===== header — آرام، دو‌ردیفه ===== */
+/* ===== header — ۳بخشی: لوگو | جستجویِ متمرکز | اکشن‌ها (مرجعِ cactusleather.ir) ===== */
 html[data-sfb-family="heritage_premium"] .hp-promo-strip{background:var(--brand-primary);color:var(--brand-primary-fg,#fff);text-align:center;font-size:11px;padding:8px 0}
 html[data-sfb-family="heritage_premium"] .hp-header{background:var(--brand-surface,#fff);border-bottom:1px solid var(--brand-border,var(--line))}
 html[data-sfb-family="heritage_premium"] .hp-header.sfb-sticky{position:sticky;top:0;z-index:60}
-html[data-sfb-family="heritage_premium"] .hp-header-main{display:flex;align-items:center;gap:24px;height:92px}
-html[data-sfb-family="heritage_premium"] .hp-search{flex:1;max-width:520px;display:flex;align-items:center;background:var(--bg);border-radius:var(--sfb-radius,8px);height:46px;padding:0 6px}
-html[data-sfb-family="heritage_premium"] .hp-search svg{width:18px;height:18px;color:var(--muted);margin:0 12px}
-html[data-sfb-family="heritage_premium"] .hp-search input{flex:1;border:0;outline:0;background:transparent;font-size:13.5px}
+html[data-sfb-family="heritage_premium"] .hp-header-3col{display:grid;grid-template-columns:1fr minmax(320px,520px) 1fr;align-items:center;gap:20px;height:92px}
+html[data-sfb-family="heritage_premium"] .hp-header-logo{display:flex;align-items:center;gap:10px}
+html[data-sfb-family="heritage_premium"] .hp-header-3col .h-actions{justify-self:start}
+html[data-sfb-family="heritage_premium"] .hp-search{display:flex;align-items:center;background:var(--bg);border-radius:var(--sfb-radius,8px);height:46px;padding:0 6px}
+html[data-sfb-family="heritage_premium"] .hp-search input{flex:1;border:0;outline:0;background:transparent;font-size:13.5px;padding:0 12px}
+html[data-sfb-family="heritage_premium"] .hp-search button{width:36px;height:36px;display:grid;place-items:center;color:var(--muted)}
+html[data-sfb-family="heritage_premium"] .hp-search button svg{width:18px;height:18px}
 html[data-sfb-family="heritage_premium"] .hp-nav{border-top:1px solid var(--brand-border,var(--line))}
-html[data-sfb-family="heritage_premium"] .hp-nav-row{display:flex;align-items:center;justify-content:center;gap:8px;height:48px}
+html[data-sfb-family="heritage_premium"] .hp-nav-row{display:flex;align-items:center;justify-content:center;gap:26px;height:48px;overflow-x:auto}
+html[data-sfb-family="heritage_premium"] .hp-nav-item{position:relative;flex-shrink:0}
+html[data-sfb-family="heritage_premium"] .hp-nav-item>a{font-size:13px;font-weight:700;white-space:nowrap}
+html[data-sfb-family="heritage_premium"] .hp-nav-dropdown{position:absolute;top:100%;right:50%;transform:translateX(50%);z-index:70;background:var(--brand-surface,#fff);border:1px solid var(--brand-border,var(--line));border-radius:0 0 var(--sfb-radius,8px) var(--sfb-radius,8px);box-shadow:0 20px 40px rgba(0,0,0,.12);padding:14px 18px;display:flex;flex-direction:column;gap:8px;min-width:190px}
+html[data-sfb-family="heritage_premium"] .hp-nav-dropdown a{font-size:12.5px;color:var(--muted);white-space:nowrap}
+html[data-sfb-family="heritage_premium"] .hp-nav-empty{font-size:12.5px;color:var(--muted)}
 
-/* ===== hero — کمپینِ تمام‌عرض، Capsule نامتقارن ===== */
-html[data-sfb-family="heritage_premium"] .hp-hero-wrap .hero-inner{border-radius:0;background:linear-gradient(120deg,var(--brand-background),var(--brand-surface) 55%,var(--brand-accent))}
-html[data-sfb-family="heritage_premium"] .hp-hero-wrap .hero-visual{border-radius:0 999px 999px 0}
-html[data-sfb-family="heritage_premium"] .hp-hero-wrap .hero-visual img{border-radius:0 999px 999px 0}
+/* ===== سبدِ شناور با پیش‌نمایشِ Hover ===== */
+html[data-sfb-family="heritage_premium"] .hp-hover-basket{position:relative}
+html[data-sfb-family="heritage_premium"] .hp-basket-panel{position:absolute;top:100%;left:0;z-index:70;background:var(--brand-surface,#fff);border:1px solid var(--brand-border,var(--line));border-radius:var(--sfb-radius,8px);box-shadow:0 20px 40px rgba(0,0,0,.14);padding:16px;width:220px;text-align:center}
+html[data-sfb-family="heritage_premium"] .hp-basket-panel p{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+
+/* ===== hero — نسبتِ عریض/کوتاهِ مرجع، بدونِ لفافِ Capsule ===== */
+html[data-sfb-family="heritage_premium"] .hero .hero-inner{border-radius:0;grid-template-columns:1fr;padding:0;min-height:0;background:none}
+html[data-sfb-family="heritage_premium"] .hero .hero-text{display:none}
+html[data-sfb-family="heritage_premium"] .hero .hero-visual{border-radius:0;width:100%;height:auto;min-height:0;aspect-ratio:32/10}
+html[data-sfb-family="heritage_premium"] .hero .hero-visual img{border-radius:0;object-fit:cover;max-height:none}
 
 /* ===== category — ردیفِ پرتره‌ای، گوشه‌های بالای Arched ===== */
 html[data-sfb-family="heritage_premium"] .hp-portrait-row{display:grid;grid-template-columns:repeat(6,1fr);gap:16px}

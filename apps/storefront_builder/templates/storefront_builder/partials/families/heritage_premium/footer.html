@@ -1,4 +1,8 @@
-{% comment %}فوترِ خانواده‌ی «پرمیوم اصیل» — روشن و هویتی.{% endcomment %}
+{% comment %}
+فوترِ خانواده‌ی «پرمیوم اصیل» — طبقِ سندِ ۱۱ (مرجعِ cactusleather.ir):
+ستونِ اول = هویتِ «تولیدِ مستقیم/کارخانه‌ای» با آدرس/ساعتِ کاری/تلفن
+(دقیقاً همان تأکیدِ برندیِ مرجع)، نه فقط لینکِ ساده‌ی تماس.
+{% endcomment %}
 {% with fc=footer_config %}
 <footer class="hp-footer"><div class="wrap hp-footer-grid">
   {% if fc.show_about %}
@@ -14,9 +18,11 @@
   <div><h5>{{ NAV_FOOTER_1.title }}</h5><ul>{% for item in NAV_FOOTER_1.items %}<li>{% if item.url %}<a href="{{ item.url }}">{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}</li>{% endfor %}</ul></div>
   {% endif %}
   {% if fc.show_contact %}
-  <div><h5>تماس با ما</h5><ul>
-    {% if SHOP_CONTACT_PHONE %}<li><a href="tel:{{ SHOP_CONTACT_PHONE }}" dir="ltr">{{ SHOP_CONTACT_PHONE }}</a></li>{% endif %}
-    {% if SHOP_CONTACT_EMAIL %}<li><a href="mailto:{{ SHOP_CONTACT_EMAIL }}" dir="ltr">{{ SHOP_CONTACT_EMAIL }}</a></li>{% endif %}
+  <div class="hp-footer-factory"><h5>آدرس و تماس</h5><ul>
+    {% if FOOTER_SETTINGS.address %}<li>📍 {{ FOOTER_SETTINGS.address }}</li>{% endif %}
+    {% if FOOTER_SETTINGS.working_hours %}<li>🕘 {{ FOOTER_SETTINGS.working_hours }}</li>{% endif %}
+    {% if SHOP_CONTACT_PHONE %}<li><a href="tel:{{ SHOP_CONTACT_PHONE }}" dir="ltr">📞 {{ SHOP_CONTACT_PHONE }}</a></li>{% endif %}
+    {% if SHOP_CONTACT_EMAIL %}<li><a href="mailto:{{ SHOP_CONTACT_EMAIL }}" dir="ltr">✉️ {{ SHOP_CONTACT_EMAIL }}</a></li>{% endif %}
   </ul></div>
   {% endif %}
   {% if fc.show_copyright %}<div class="hp-footer-copy">© {{ SHOP_NAME }}</div>{% endif %}

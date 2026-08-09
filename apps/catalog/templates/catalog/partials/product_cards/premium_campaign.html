@@ -16,6 +16,7 @@ Provider-neutral و اختیاری بماند، نه یک ادعایِ Hard-code
     {% else %}
     <span class="emo">👜</span>
     {% endif %}
+    {% include "customers/partials/wishlist_button.html" %}
     {% if product.discount_percent > 0 %}
     <div class="hp-campaign-overlay">
       <span class="hp-campaign-pill">{{ product.discount_percent|fa_number }}٪ تخفیف</span>

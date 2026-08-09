@@ -1,6 +1,18 @@
-{% comment %}فوترِ خانواده‌ی «روایتِ هنر» — گرم، داستان‌محور.{% endcomment %}
+{% comment %}
+فوترِ خانواده‌ی «روایتِ هنر» — طبقِ سندِ ۱۱ (مرجعِ deeyarstore.com):
+نوارِ آیکونیِ اعتماد **بالایِ** ستون‌هایِ فوتر (نه پایین/کنار)، سپس
+ستونِ سوم = فرمِ خبرنامه (نه فقط لینکِ ساده‌ی تماس).
+{% endcomment %}
 {% with fc=footer_config %}
-<footer class="ae-footer"><div class="wrap ae-footer-grid">
+<footer class="ae-footer">
+{% if fc.show_trust_badges and FOOTER_TRUST_BADGES %}
+<div class="ae-trust-strip"><div class="wrap">
+  {% for badge in FOOTER_TRUST_BADGES %}
+  {% if badge.destination_url %}<a href="{{ badge.destination_url }}" target="_blank" rel="noopener noreferrer"><img src="{{ badge.image.url }}" alt="{{ badge.title }}">{{ badge.title }}</a>{% else %}<span><img src="{{ badge.image.url }}" alt="{{ badge.title }}">{{ badge.title }}</span>{% endif %}
+  {% endfor %}
+</div></div>
+{% endif %}
+<div class="wrap ae-footer-grid">
   {% if fc.show_about %}
   <div class="ae-footer-about">
     <a class="logo" href="{% if is_live_storefront %}/{% else %}#{% endif %}"{% if is_builder_preview %} onclick="return false"{% endif %}>
@@ -28,6 +40,15 @@
     {% if SHOP_CONTACT_PHONE %}<li><a href="tel:{{ SHOP_CONTACT_PHONE }}" dir="ltr">{{ SHOP_CONTACT_PHONE }}</a></li>{% endif %}
     {% if SHOP_CONTACT_EMAIL %}<li><a href="mailto:{{ SHOP_CONTACT_EMAIL }}" dir="ltr">{{ SHOP_CONTACT_EMAIL }}</a></li>{% endif %}
   </ul></div>
+  {% endif %}
+  {% if fc.show_newsletter and FOOTER_SETTINGS.show_newsletter %}
+  <div class="ae-footer-newsletter">
+    <h5>{% if FOOTER_SETTINGS.newsletter_title %}{{ FOOTER_SETTINGS.newsletter_title }}{% else %}عضویت در خبرنامه{% endif %}</h5>
+    <form @submit.prevent="$el.reset()">
+      <input type="email" placeholder="ایمیل خود را وارد کنید" disabled>
+      <button type="button" disabled>به‌زودی</button>
+    </form>
+  </div>
   {% endif %}
   {% if fc.show_copyright %}<div class="ae-footer-copy">© {{ SHOP_NAME }}</div>{% endif %}
 </div></footer>

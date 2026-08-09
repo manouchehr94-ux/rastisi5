@@ -1,7 +1,19 @@
 {% comment %}
-هیرویِ خانواده‌ی «روایتِ هنر» — همان بدنه‌ی پویایِ اسلایدرِ مشترک، با
-لفافِ لبه‌تیز (بدونِ Radius) به‌جایِ Capsule/گردشده — تفاوتِ هندسیِ واقعی.
+هیرویِ خانواده‌ی «روایتِ هنر» — طبقِ سندِ ۱۱ (مرجعِ deeyarstore.com):
+مرجع اصلاً اسلایدرِ چرخشی ندارد — یک بنرِ ثابتِ تمام‌عرض (فقط اسلایدِ
+اول، بدونِ Autoplay/فلش/نقطه)، سپس یک H1ِ واقعیِ متنی (نه پوشیده)، سپس
+موزائیکِ ۴ دسته‌ی Portraitِ نامتقارن با کپشنِ رویِ عکس — دقیقاً معادلِ
+ساختاریِ مرجع، از رویِ دادهٔ واقعیِ Category (نه بنرهایِ ساختگی).
 {% endcomment %}
-<div class="ae-hero-wrap">
-  {% include "storefront_builder/partials/hero_slider_body.html" %}
+{% include "storefront_builder/partials/hero_slider_body.html" with hero_slides=hero_slides|slice:":1" %}
+{% if SHOP_TAGLINE %}<h1 class="ae-tagline wrap">{{ SHOP_TAGLINE }}</h1>{% endif %}
+{% if nav_categories %}
+<div class="ae-mosaic wrap">
+  {% for cat in nav_categories|slice:":4" %}
+  <a class="ae-mosaic-tile ae-mosaic-tile-{{ forloop.counter }}" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+    <span class="wm">{{ cat.icon|default:"🎨" }}</span>
+    <span class="ae-mosaic-caption">{{ cat.name }}</span>
+  </a>
+  {% endfor %}
 </div>
+{% endif %}

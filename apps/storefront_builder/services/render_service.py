@@ -58,7 +58,14 @@ def _hero_banner_context(store, section):
     from ..section_registry import default_slider_settings
 
     slider_settings = {**default_slider_settings(), **(section.settings or {})}
-    return {"hero_slides": _scoped_hero_slides(store, section), "slider_settings": slider_settings}
+    return {
+        "hero_slides": _scoped_hero_slides(store, section),
+        "slider_settings": slider_settings,
+        # فقط مصرف‌شونده توسط Familyهایی که زیرِ Hero یک ردیفِ بنرِ کوچک
+        # می‌خواهند (مثلِ modern_fashion — نگاه کنید به گزارشِ
+        # 11_REFERENCE_FIDELITY_GAP_ANALYSIS.md)؛ برای بقیه بی‌اثر است.
+        "banners": _scoped_banners(store, section),
+    }
 
 
 def _image_slider_context(store, section):

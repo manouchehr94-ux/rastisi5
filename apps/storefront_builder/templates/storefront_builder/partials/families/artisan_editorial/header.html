@@ -1,22 +1,33 @@
 {% load persian %}{% comment %}
-هدرِ خانواده‌ی «روایتِ هنر» — تک‌ردیفه (Space-between)، بدونِ Search-Boxِ
-ورودی (فقط آیکون)، ناوبریِ جداگانه‌ی وسط‌چین. همان قراردادِ context ایِ
-هدرِ عمومی.
+هدرِ خانواده‌ی «روایتِ هنر» — بازنویسیِ ساختاری طبقِ سندِ ۱۱ (مرجعِ
+deeyarstore.com): ردیفِ هدرِ ۳بخشیِ متقارن با **لوگو دقیقاً در وسط**
+(جستجو یک‌طرف، سبد/کاربر طرفِ دیگر) — تفاوتِ اصلیِ این Family نسبت به
+بقیه؛ سپس ناوبریِ افقیِ آیکون‌دار با Dropdownِ تخت (نه Megamenuِ ستونی).
 {% endcomment %}
 {% with hc=header_config %}
-<header class="ae-header{% if hc.sticky %} sfb-sticky{% endif %}"><div class="wrap ae-header-main">
-  <a class="logo" href="{% if is_live_storefront %}/{% else %}#{% endif %}"{% if is_builder_preview %} onclick="return false"{% endif %}>
-    {% if SHOP_LOGO %}<img src="{{ SHOP_LOGO.url }}" alt="{{ SHOP_NAME }}" style="max-height:34px;max-width:130px">{% else %}<b>{{ SHOP_NAME }}</b>{% endif %}
-  </a>
-  <div class="h-actions">
+<header class="ae-header{% if hc.sticky %} sfb-sticky{% endif %}"><div class="wrap ae-header-3col">
+  <div class="ae-header-side ae-header-search">
     <button class="h-btn burger" @click="mobileNavOpen = !mobileNavOpen" aria-label="منو">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
     {% if hc.show_search %}
-    <a class="h-btn" href="{% if is_live_storefront %}{% url 'catalog:product-list' %}{% else %}#{% endif %}" {% if not is_live_storefront %}onclick="return false"{% endif %} title="جستجو">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-    </a>
+    {% if is_live_storefront %}
+    <form class="ae-search" action="{% url 'catalog:product-list' %}" method="get">
+      <button type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></button>
+      <input type="search" name="q" placeholder="جستجو">
+    </form>
+    {% else %}
+    <form class="ae-search" onsubmit="return false" title="جستجو در پیش‌نمایش غیرفعال است">
+      <button type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></button>
+      <input type="search" placeholder="جستجو" disabled>
+    </form>
     {% endif %}
+    {% endif %}
+  </div>
+  <a class="logo ae-logo-center" href="{% if is_live_storefront %}/{% else %}#{% endif %}"{% if is_builder_preview %} onclick="return false"{% endif %}>
+    {% if SHOP_LOGO %}<img src="{{ SHOP_LOGO.url }}" alt="{{ SHOP_NAME }}" style="max-height:40px;max-width:150px">{% else %}<b>{{ SHOP_NAME }}</b>{% endif %}
+  </a>
+  <div class="ae-header-side h-actions">
     {% if hc.show_account %}
     {% if is_live_storefront and request.user.is_authenticated %}
     <a class="h-btn" href="{% url 'customers:account' %}" title="حساب من"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></a>
@@ -25,6 +36,11 @@
     {% else %}
     <button type="button" class="h-btn" disabled title="ورود در پیش‌نمایش غیرفعال است"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
     {% endif %}
+    {% endif %}
+    {% if hc.show_wishlist %}
+    <a class="h-btn" href="{% if is_live_storefront %}{% url 'customers:wishlist' %}{% else %}#{% endif %}" {% if not is_live_storefront %}onclick="return false"{% endif %} title="علاقه‌مندی‌ها">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
+    </a>
     {% endif %}
     {% if hc.show_cart %}
     <a class="h-btn" href="{% if is_live_storefront %}{% url 'cart:detail' %}{% else %}#{% endif %}" {% if not is_live_storefront %}onclick="return false"{% endif %} title="سبد خرید">
@@ -35,22 +51,29 @@
   </div>
 </div></header>
 <nav class="ae-nav" :class="{ hidden: !mobileNavOpen }"><div class="wrap ae-nav-row">
-  <div style="position:relative" @click.outside="catMenuOpen = false">
-    <button type="button" class="cat-btn" @click="catMenuOpen = !catMenuOpen">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-      صنایع‌دستی
+  <a class="ae-nav-link ae-nav-home" href="{% if is_live_storefront %}/{% else %}#{% endif %}">
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V9.5"/></svg>
+    خانه
+  </a>
+  {% for cat in nav_categories %}
+  <div class="ae-nav-item" x-data="{ open: false }" @click.outside="open = false">
+    <button type="button" class="ae-nav-link" @click="open = !open">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      {{ cat.name }}
+      {% if cat.children.all %}<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>{% endif %}
     </button>
-    <div class="cat-dropdown" x-show="catMenuOpen" x-cloak @click="catMenuOpen = false">
-      {% for cat in nav_categories %}
-      <div class="cat-dropdown-group"><a class="top" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}"><span>{{ cat.icon }}</span><span>{{ cat.name }}</span></a></div>
-      {% empty %}
-      <div class="cat-dropdown-group"><div class="top">فعلاً دسته‌بندی‌ای ثبت نشده است</div></div>
+    {% if cat.children.all %}
+    <ul class="ae-nav-dropdown" x-show="open" x-cloak>
+      {% for child in cat.children.all %}
+      <li><a href="{% url 'catalog:product-list' %}?category={{ child.slug }}">{{ child.name }}</a></li>
       {% endfor %}
-    </div>
+    </ul>
+    {% endif %}
   </div>
+  {% endfor %}
   {% if NAV_HEADER %}
   {% for item in NAV_HEADER.items %}
-  {% if item.url %}<a class="nl" href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% endif %}
+  {% if item.url %}<a class="ae-nav-link" href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% endif %}
   {% endfor %}
   {% endif %}
 </div></nav>
