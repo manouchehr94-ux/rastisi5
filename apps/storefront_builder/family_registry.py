@@ -50,6 +50,14 @@ class FamilyDefinition:
     #: Premium) این را مقدار می‌دهند؛ بقیه None می‌مانند و ``card_mode``
     #: هر Section (اگر مرچنت آن را «campaign» بگذارد) بی‌اثر می‌ماند.
     product_card_campaign_variant: str | None = None
+    #: چیدمانِ پیش‌فرضِ واقعیِ صفحه‌ی اصلیِ همین Family — ترتیب و نوعِ
+    #: Sectionهایی که با انتخابِ *فقط همین Family* (بدونِ هیچ تنظیمِ
+    #: دستیِ دیگر) باید ساخته شوند (تصمیمِ مالک، مشکلِ ۳: «تغییرِ Family
+    #: باید پیش‌فرضِ واقعیِ همان Family را بارگذاری کند»، نه چیدمانِ
+    #: Familyِ قبلی را نگه دارد). دقیقاً همان الگویِ
+    #: ``bootstrap_service.build_industry_default_sections`` برایِ قالبِ
+    #: صنف — کلیدهایِ نامعتبر بی‌صدا کنار گذاشته می‌شوند.
+    default_section_keys: tuple = ()
     #: فقط برایِ گالریِ انتخابِ Family در Builder — بدونِ اثرِ رفتاری.
     swatch: tuple = ("#6D28D9", "#FF4D77", "#FFFFFF")
 
@@ -88,6 +96,10 @@ register_family(FamilyDefinition(
     product_card_variant="catalog/partials/product_cards/fashion_portrait_gallery.html",
     product_page_variant="catalog/partials/product_pages/modern_fashion.html",
     default_preset_slug="modern_fashion_default",
+    default_section_keys=(
+        "hero_banner", "category_grid", "newest_products", "best_sellers",
+        "discounted_products", "trust_features",
+    ),
     swatch=("#FCBD15", "#FF0080", "#FFFFFF"),
 ))
 
@@ -102,6 +114,10 @@ register_family(FamilyDefinition(
     product_card_variant="catalog/partials/product_cards/artisan_story_card.html",
     product_page_variant="catalog/partials/product_pages/artisan_editorial.html",
     default_preset_slug="artisan_editorial_default",
+    # مرجع (deeyarstore.com) بعد از هیرو (که خودش موزائیکِ دسته‌ها را در
+    # دل دارد — نگاه کنید به hero.html) مستقیماً به فهرستِ محصولات می‌رود؛
+    # category_grid جداگانه ندارد.
+    default_section_keys=("hero_banner", "newest_products", "best_sellers", "trust_features"),
     swatch=("#888210", "#EFEADF", "#3B2923"),
 ))
 
@@ -116,6 +132,9 @@ register_family(FamilyDefinition(
     product_card_variant="catalog/partials/product_cards/catalog_second_image.html",
     product_page_variant="catalog/partials/product_pages/nordic_living.html",
     default_preset_slug="nordic_living_default",
+    # طبقِ خودِ category.html این Family: دسترسیِ دسته‌بندی از طریقِ
+    # Mega-menuِ هدر است، نه یک Sectionِ جداگانه در صفحه‌ی اصلی.
+    default_section_keys=("hero_banner", "newest_products", "best_sellers", "trust_features"),
     swatch=("#183E85", "#FFDB01", "#F2F2F2"),
 ))
 
@@ -131,6 +150,10 @@ register_family(FamilyDefinition(
     product_card_campaign_variant="catalog/partials/product_cards/premium_campaign.html",
     product_page_variant="catalog/partials/product_pages/heritage_premium.html",
     default_preset_slug="heritage_premium_default",
+    default_section_keys=(
+        "hero_banner", "category_grid", "newest_products", "best_sellers",
+        "discounted_products", "trust_features",
+    ),
     swatch=("#07705E", "#DDB475", "#F1EBE1"),
 ))
 
@@ -145,5 +168,9 @@ register_family(FamilyDefinition(
     product_card_variant="catalog/partials/product_cards/square_centered_commerce.html",
     product_page_variant="catalog/partials/product_pages/vibrant_catalog.html",
     default_preset_slug="vibrant_catalog_default",
+    default_section_keys=(
+        "hero_banner", "category_grid", "newest_products", "best_sellers",
+        "discounted_products", "amazing_offers", "trust_features",
+    ),
     swatch=("#FD445D", "#FFE6EB", "#F4F5F9"),
 ))

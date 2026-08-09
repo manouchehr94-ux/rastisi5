@@ -27,8 +27,8 @@
   <div class="body mf-card-body">
     <div class="name">{{ product.name }}</div>
     <div class="mf-card-price">
-      {% if product.discount_percent > 0 %}<span class="old">{{ product.price|toman }}</span>{% endif %}
-      <span class="now">{{ product.final_price|toman }}</span>
+      {% if product.discount_percent > 0 %}<span class="old">{{ product.price|toman_raw }}</span>{% endif %}
+      <span class="now">{{ product.final_price|toman_raw }}</span>
       <span class="unit">تومان</span>
       {% if product.discount_percent > 0 %}<span class="mf-card-disc">{{ product.discount_percent|fa_number }}٪</span>{% endif %}
     </div>

@@ -10,12 +10,13 @@
 {% endblock %}
 
 {% block content %}
-<div class="sfb-shell" x-data="storefrontEditor()" x-init="init()" @beforeunload.window="handleBeforeUnload($event)"
+<div class="sfb-shell" :class="{ 'sfb-fullscreen': fullscreen }" x-data="storefrontEditor()" x-init="init()" @beforeunload.window="handleBeforeUnload($event)"
      @open-settings-drawer.window="drawerOpen = true" @close-settings-drawer.window="drawerOpen = false"
      @preview-candidate-template.window="previewCandidateTemplate($event.detail.slug, $event.detail.name)"
      @apply-candidate-template.window="applyCandidateTemplate()"
      @preview-candidate-family.window="previewCandidateFamily($event.detail.slug, $event.detail.name)"
-     @apply-candidate-family.window="applyCandidateFamily()">
+     @apply-candidate-family.window="applyCandidateFamily()"
+     @keydown.escape.window="if (fullscreen) fullscreen = false">
 
   <div class="sfb-toolbar">
     <div class="sfb-toolbar-left">
@@ -50,12 +51,28 @@
   <div class="sfb-body" :class="'sfb-mobile-view-' + mobileView">
     <main class="sfb-preview-pane">
       <div class="sfb-preview-toolbar">
-        <div class="sfb-device-toggle" role="group" aria-label="حالت پیش‌نمایش">
-          <button type="button" class="btn btn-sm" :class="{ active: device === 'desktop' }" @click="setDevice('desktop')" aria-label="پیش‌نمایش دسکتاپ">دسکتاپ</button>
-          <button type="button" class="btn btn-sm" :class="{ active: device === 'tablet' }" @click="setDevice('tablet')" aria-label="پیش‌نمایش تبلت">تبلت</button>
-          <button type="button" class="btn btn-sm" :class="{ active: device === 'mobile' }" @click="setDevice('mobile')" aria-label="پیش‌نمایش موبایل">موبایل</button>
+        <div class="sfb-device-and-fullscreen">
+          <div class="sfb-device-toggle" role="group" aria-label="حالت پیش‌نمایش">
+            <button type="button" class="btn btn-sm" :class="{ active: device === 'desktop' }" @click="setDevice('desktop')" aria-label="پیش‌نمایش دسکتاپ">دسکتاپ</button>
+            <button type="button" class="btn btn-sm" :class="{ active: device === 'tablet' }" @click="setDevice('tablet')" aria-label="پیش‌نمایش تبلت">تبلت</button>
+            <button type="button" class="btn btn-sm" :class="{ active: device === 'mobile' }" @click="setDevice('mobile')" aria-label="پیش‌نمایش موبایل">موبایل</button>
+          </div>
+          {% comment %}
+          دکمه‌ی «تمام‌صفحه» — کنارِ کنترل‌هایِ دستگاه، طبقِ الزامِ صریحِ
+          کار. هیچ Renderer/Tab/پنجره‌ی جدیدی نمی‌سازد؛ فقط یک کلاسِ CSS
+          رویِ همینِ ``.sfb-shell`` می‌گذارد که Chromeِ غیرضروری (نوارِ
+          ابزارِ بالا، سایدبار، خودِ صفحه‌ی مدیریت) را مخفی و همین
+          Preview Paneِ مشترک را تمامِ Viewport می‌کند — وضعیتِ Alpine
+          (Section انتخاب‌شده، Drawer باز، Scroll iframe) دست‌نخورده
+          می‌ماند چون هیچ‌چیز دوباره رندر نمی‌شود.
+          {% endcomment %}
+          <button type="button" class="btn btn-sm sfb-fullscreen-btn" @click="fullscreen = true" x-show="!fullscreen" aria-label="تمام‌صفحه">⛶ تمام‌صفحه</button>
         </div>
-        <span class="sfb-preview-hint" x-show="!candidateTemplate && !candidateFamily">روی هر بخش مکث کنید تا نامش را ببینید؛ بخش‌ها را مستقیم بکشید و جابه‌جا کنید.</span>
+        <span class="sfb-preview-hint" x-show="!candidateTemplate && !candidateFamily && !fullscreen">روی هر بخش مکث کنید تا نامش را ببینید؛ بخش‌ها را مستقیم بکشید و جابه‌جا کنید.</span>
+        <div class="sfb-fullscreen-float" x-show="fullscreen" x-cloak>
+          <span class="sfb-fullscreen-save-status">✓ تغییرات به‌صورت خودکار ذخیره می‌شوند</span>
+          <button type="button" class="btn btn-sm" @click="fullscreen = false">خروج از تمام‌صفحه ✕</button>
+        </div>
       </div>
       <div class="sfb-candidate-banner" x-show="candidateTemplate || candidateFamily" x-cloak>
         <span x-show="candidateTemplate">در حال پیش‌نمایشِ قالبِ «<b x-text="candidateTemplateName"></b>» — هنوز چیزی ذخیره نشده.</span>
@@ -168,6 +185,7 @@
   <form id="sfbApplyFamilyForm" method="post" action="{% url 'dashboard:storefront-builder-appearance' %}" style="display:none">
     {% csrf_token %}
     <input type="hidden" name="family_slug" id="sfbApplyFamilySlug" value="">
+    <input type="hidden" name="confirm_family_switch" value="1">
   </form>
 
   <aside class="sfb-drawer" x-show="drawerOpen" x-cloak @keydown.escape.window="drawerOpen = false">
@@ -186,6 +204,7 @@
 function storefrontEditor() {
   return {
     device: 'desktop',
+    fullscreen: false,
     drawerOpen: false,
     mainTab: 'page',
     mobileView: 'edit',
@@ -252,6 +271,10 @@ function storefrontEditor() {
     },
     applyCandidateFamily() {
       if (!this.candidateFamily) return;
+      // تعویضِ Family چیدمانِ Sectionهای صفحه‌ی اصلیِ همین Draft را با
+      // چیدمانِ پیش‌فرضِ Familyِ جدید جایگزین می‌کند — تأییدِ صریح، دقیقاً
+      // همان الگویِ «اعمالِ چیدمانِ پیشنهادیِ صنف».
+      if (!confirm('با انتخابِ این Family، چیدمانِ فعلیِ Sectionهای صفحه‌ی اصلیِ پیش‌نویس با چیدمانِ پیشنهادیِ همین Family جایگزین می‌شود (محصولات، دسته‌بندی‌ها و اطلاعاتِ فروشگاه دست‌نخورده می‌مانند). ادامه می‌دهید؟')) return;
       document.getElementById('sfbApplyFamilySlug').value = this.candidateFamily;
       document.getElementById('sfbApplyFamilyForm').submit();
     },

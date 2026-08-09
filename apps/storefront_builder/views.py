@@ -665,6 +665,22 @@ def storefront_appearance_editor(request):
         template_changed = new_template_slug != current.get("template_slug")
         family_changed = new_family_slug != current.get("family_slug")
 
+        # مشکلِ ۳ (تصمیمِ مالک): تغییرِ Family باید چیدمانِ واقعیِ همان
+        # Family را بارگذاری کند — یعنی Sectionهای صفحه‌ی اصلیِ Draft هم
+        # (نه فقط رنگ/فونت) با پیش‌فرضِ Family جدید جایگزین می‌شوند. این
+        # عملیاتِ مخرب روی چیدمانِ Draft است، پس دقیقاً همان الگویِ
+        # ``storefront_apply_industry_layout``: اگر چیزی برایِ از دست‌دادن
+        # وجود دارد (Draft همین حالا Sectionی دارد)، بدونِ تأییدِ صریح رد
+        # می‌شود — محصولات/دسته‌بندی‌ها/اطلاعاتِ فروشگاه هرگز اینجا لمس
+        # نمی‌شوند (این تابع فقط رویِ ``StorefrontSection`` کار می‌کند).
+        if family_changed and draft.sections.exists() and request.POST.get("confirm_family_switch") != "1":
+            messages.error(
+                request,
+                "تغییرِ این Family چیدمانِ Sectionهای صفحه‌ی اصلیِ پیش‌نویسِ فعلی را جایگزین می‌کند — "
+                "برای ادامه، تأیید صریح لازم است",
+            )
+            return redirect("dashboard:storefront-builder-editor")
+
         # Family و Template دو مسیرِ ساختاریِ متقابلاً انحصاری‌اند (تصمیمِ
         # مالک، Q-01/Q-02): انتخابِ یک Familyِ جدید یعنی جایگزینیِ کاملِ
         # DOMِ مشترکِ ۱۰ قالبِ قدیمی با Renderer اختصاصیِ همان Family؛
@@ -765,7 +781,13 @@ def storefront_appearance_editor(request):
             return redirect("dashboard:storefront-builder-editor")
         draft.appearance_config = config
         draft.save(update_fields=["appearance_config", "updated_at"])
-        messages.success(request, "تنظیمات ظاهر ذخیره شد")
+        if family_changed and new_family is not None:
+            from .services import bootstrap_service
+
+            bootstrap_service.apply_family_default_sections(draft, new_family)
+            messages.success(request, "تنظیمات ظاهر ذخیره شد و چیدمانِ پیش‌فرضِ همین Family اعمال شد")
+        else:
+            messages.success(request, "تنظیمات ظاهر ذخیره شد")
         return redirect("dashboard:storefront-builder-editor")
 
     from . import appearance_registry, family_registry, preset_registry

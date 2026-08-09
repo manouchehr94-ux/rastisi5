@@ -141,3 +141,39 @@ def apply_industry_content(version: StorefrontLayoutVersion, store, industry_tem
         )
         for s in sections
     ])
+
+
+def build_family_default_sections(family) -> list[dict]:
+    """چیدمانِ پیش‌فرضِ واقعیِ همین Family (``family.default_section_keys``).
+
+    دقیقاً همان الگویِ ``build_industry_default_sections`` — کلیدهایِ
+    نامعتبر/حذف‌شده از Section Registry بی‌صدا کنار گذاشته می‌شوند؛ اگر
+    Family هیچ کلیدِ معتبری نداشت (هنوز پیکربندی نشده)، فهرست خالی
+    برمی‌گردد — Section بی‌معنا اضافه نمی‌شود."""
+    keys = list(getattr(family, "default_section_keys", None) or [])
+    valid_keys = [k for k in keys if section_registry.is_valid_section_key(k)]
+    return [
+        {"section_key": key, "order": order, "settings": section_registry.get_definition(key).default_settings()}
+        for order, key in enumerate(valid_keys)
+    ]
+
+
+def apply_family_default_sections(version: StorefrontLayoutVersion, family) -> None:
+    """چیدمانِ Draft فعلی را با چیدمانِ پیش‌فرضِ واقعیِ Familyِ تازه‌انتخاب‌شده
+    جایگزین می‌کند (تصمیمِ مالک، مشکلِ ۳: «تغییرِ Family باید پیش‌فرضِ
+    واقعیِ همان Family را بارگذاری کند»، نه چیدمانِ Familyِ قبلی را نگه
+    دارد). فقط رکوردهایِ ``StorefrontSection`` همینِ نسخه (Draft) حذف
+    می‌شوند — محصولات/دسته‌بندی‌ها/اطلاعاتِ فروشگاه/لوگو/سفارش‌ها/مشتریان
+    هرگز اینجا لمس نمی‌شوند (مدل‌هایِ کاملاً مجزا در اپ‌هایِ دیگر). این
+    عملیات مخربِ *صریحاً خواسته‌شده* روی چیدمانِ Draft است — تأییدِ کاربر
+    پیش از فراخوانیِ این تابع، در view (نه اینجا) گرفته می‌شود، دقیقاً
+    همان الگویِ ``storefront_apply_industry_layout``."""
+    version.sections.all().delete()
+    sections = build_family_default_sections(family)
+    StorefrontSection.objects.bulk_create([
+        StorefrontSection(
+            version=version, section_key=s["section_key"],
+            order=s["order"], settings=s["settings"],
+        )
+        for s in sections
+    ])

@@ -123,7 +123,7 @@ class FamilySwitchViewTests(TestCase):
 
     def test_selecting_family_resets_template_and_applies_preset_defaults(self):
         resp = self.client.post(reverse("dashboard:storefront-builder-appearance"), {
-            "family_slug": "modern_fashion",
+            "family_slug": "modern_fashion", "confirm_family_switch": "1",
         })
         self.assertEqual(resp.status_code, 302)
         draft = svc.get_or_create_draft(self.store)
@@ -135,7 +135,7 @@ class FamilySwitchViewTests(TestCase):
         self.assertEqual(config["palette_slug"], "amber")
 
     def test_selecting_legacy_template_after_family_clears_family(self):
-        self.client.post(reverse("dashboard:storefront-builder-appearance"), {"family_slug": "modern_fashion"})
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {"family_slug": "modern_fashion", "confirm_family_switch": "1"})
         resp = self.client.post(reverse("dashboard:storefront-builder-appearance"), {
             "template_slug": "boutique", "font": "Tahoma", "radius": "24", "button_radius": "22",
             "density": "relaxed", "motion": "subtle",
@@ -149,7 +149,7 @@ class FamilySwitchViewTests(TestCase):
 
     def test_explicit_palette_wins_over_preset_default_in_same_submission(self):
         resp = self.client.post(reverse("dashboard:storefront-builder-appearance"), {
-            "family_slug": "modern_fashion", "palette_slug": "ocean",
+            "family_slug": "modern_fashion", "palette_slug": "ocean", "confirm_family_switch": "1",
         })
         self.assertEqual(resp.status_code, 302)
         draft = svc.get_or_create_draft(self.store)
@@ -195,14 +195,14 @@ class FamilyAppearancePanelUITests(TestCase):
         self.assertContains(resp, "preview-candidate-family")
 
     def test_hub_reflects_active_family_name_once_selected(self):
-        self.client.post(reverse("dashboard:storefront-builder-appearance"), {"family_slug": "heritage_premium"})
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {"family_slug": "heritage_premium", "confirm_family_switch": "1"})
         resp = self.client.get(reverse("dashboard:storefront-builder-appearance"))
         self.assertEqual(resp.status_code, 200)
         family = family_registry.get_family("heritage_premium")
         self.assertContains(resp, family.name_fa)
 
     def test_classic_template_card_not_marked_active_when_family_selected(self):
-        self.client.post(reverse("dashboard:storefront-builder-appearance"), {"family_slug": "vibrant_catalog"})
+        self.client.post(reverse("dashboard:storefront-builder-appearance"), {"family_slug": "vibrant_catalog", "confirm_family_switch": "1"})
         resp = self.client.get(reverse("dashboard:storefront-builder-appearance"))
         self.assertEqual(resp.status_code, 200)
         # قالبِ کلاسیکِ زیرین (بدون‌اثر) نباید هم‌زمان با کارتِ Family

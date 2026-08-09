@@ -118,9 +118,11 @@
         <div class="sfb-template-card-actions">
           <button type="button" class="btn btn-sm"
                   @click="$dispatch('preview-candidate-family', {slug: '{{ f.slug }}', name: '{{ f.name_fa|escapejs }}'})">پیش‌نمایش</button>
-          <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}">
+          <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}"
+                onsubmit="if(!confirm('با انتخابِ این Family، چیدمانِ فعلیِ Sectionهای صفحه‌ی اصلیِ پیش‌نویس با چیدمانِ پیشنهادیِ همین Family جایگزین می‌شود (محصولات، دسته‌بندی‌ها و اطلاعاتِ فروشگاه دست‌نخورده می‌مانند). ادامه می‌دهید؟')){return false;} this.confirm_family_switch.value='1'; return true;">
             {% csrf_token %}
             <input type="hidden" name="family_slug" value="{{ f.slug }}">
+            <input type="hidden" name="confirm_family_switch" value="0">
             <button type="submit" class="btn btn-sm btn-primary">اعمال قالب</button>
           </form>
         </div>

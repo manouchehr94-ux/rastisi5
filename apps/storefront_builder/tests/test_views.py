@@ -107,6 +107,55 @@ class EditorAccessTests(StorefrontBuilderViewsTestCase):
         self.assertNotContains(resp, "SECRET-STORE-A-TEXT")
 
 
+class FullscreenEditorTests(StorefrontBuilderViewsTestCase):
+    """مشکلِ ۴ (تصمیمِ مالک): دکمه‌ی «تمام‌صفحه» کنارِ کنترل‌های
+    دسکتاپ/تبلت/موبایل — بدونِ Renderer/Tab/پنجره‌ی جدید؛ همان
+    ``#sfbPreviewFrame``ی مشترکِ Preview/Storefront عمومی."""
+
+    def test_fullscreen_button_present_next_to_device_controls(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode("utf-8")
+        device_toggle_pos = html.index("sfb-device-toggle")
+        fullscreen_btn_pos = html.index("sfb-fullscreen-btn")
+        # دکمه‌ی تمام‌صفحه باید همان نزدیکیِ کنترل‌هایِ دستگاه باشد، نه
+        # جایی کاملاً نامرتبط در صفحه.
+        self.assertLess(fullscreen_btn_pos - device_toggle_pos, 2000)
+        self.assertContains(resp, "تمام‌صفحه")
+
+    def test_fullscreen_exit_toolbar_present_with_save_status(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertContains(resp, "sfb-fullscreen-float")
+        self.assertContains(resp, "خروج از تمام‌صفحه")
+        self.assertContains(resp, "sfb-fullscreen-save-status")
+
+    def test_escape_key_handler_wired_to_exit_fullscreen(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertContains(resp, "@keydown.escape.window")
+        self.assertContains(resp, "fullscreen = false")
+
+    def test_fullscreen_reuses_the_same_shared_preview_iframe(self):
+        """هیچ Renderer/iframe/URLِ جداگانه‌ای برایِ تمام‌صفحه ساخته
+        نشود — همان ``sfbPreviewFrame``ی مشترکِ Preview/Storefront عمومی
+        باید زیرِ حالتِ تمام‌صفحه هم استفاده شود."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        html = resp.content.decode("utf-8")
+        self.assertEqual(html.count('id="sfbPreviewFrame"'), 1)
+        self.assertContains(resp, reverse("dashboard:storefront-builder-preview"))
+
+    def test_fullscreen_state_is_a_pure_css_toggle_not_a_new_route(self):
+        """طبقِ الزامِ صریح: بازشدنِ Tab/پنجره‌ی جدید مجاز نیست — دکمه‌ی
+        تمام‌صفحه فقط یک متغیرِ Alpineِ محلی را تغییر می‌دهد (``fullscreen``)،
+        نه هیچ ناوبری/hx-get/window.open ای."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        html = resp.content.decode("utf-8")
+        btn_start = html.index("sfb-fullscreen-btn")
+        btn_tag = html[max(0, btn_start - 300):btn_start + 200]
+        self.assertIn("fullscreen = true", btn_tag)
+        self.assertNotIn("window.open", btn_tag)
+        self.assertNotIn("target=\"_blank\"", btn_tag)
+
+
 class SectionActionTests(StorefrontBuilderViewsTestCase):
     def setUp(self):
         super().setUp()
