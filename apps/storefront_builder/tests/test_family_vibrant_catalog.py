@@ -25,11 +25,25 @@ class VibrantCatalogRegistryTests(TestCase):
         self.assertEqual(preset.family_slug, "vibrant_catalog")
 
     def test_all_five_families_registered(self):
+        """رگرسیونِ پنج Familyِ اصلی — این تست فقط باید ثابت کند این پنج
+        اسلاگِ اصلی هنوز در Registry حضور دارند (subset)، نه این‌که Registry
+        دقیقاً همین پنج مورد را دارد و هیچ‌چیزِ دیگری اضافه نشده. با افزودنِ
+        شش Familyِ جدید (atlas_catalog، ava_fashion، toranj_gifting،
+        sarv_stock، sepidar_handmade، zarrin_jewelry) به Registry، مجموعِ
+        کلی حالا ۱۱ عضو دارد — این افزایش، تصمیمِ محصولیِ عمدی است، نه یک
+        رگرسیون. ادعایِ «دقیقاً ۱۱ Family» جای دیگری (در
+        ``test_eleven_families.py::ElevenFamilyRegistryTests.test_exactly_11_families``)
+        صاحبِ خودش را دارد؛ این تست فقط باید مطمئن شود پنج Familyِ اصلی هنوز
+        حذف/تغییرنام/ادغام نشده‌اند."""
         slugs = {f.slug for f in family_registry.list_families()}
-        self.assertEqual(slugs, {
+        original_five = {
             "modern_fashion", "artisan_editorial", "nordic_living",
             "heritage_premium", "vibrant_catalog",
-        })
+        }
+        self.assertTrue(
+            original_five.issubset(slugs),
+            f"یکی یا چند مورد از پنج Familyِ اصلی از Registry حذف شده‌اند: {original_five - slugs}",
+        )
 
 
 @override_settings(ALLOWED_HOSTS=["sfb-vc-public.example.com", "testserver"])
