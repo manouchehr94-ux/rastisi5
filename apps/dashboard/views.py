@@ -692,6 +692,18 @@ def _product_attribute_field_context(category, product=None):
     return fields
 
 
+def _save_product_metafields(request, product):
+    """ذخیره‌ی متادیتاهایِ فرم‌محور (سایزگاید/سازنده/منطقه) از POST data."""
+    from apps.catalog.services.metafield_service import save_product_metafields_from_form
+
+    save_product_metafields_from_form(
+        product,
+        size_guide_content=request.POST.get("metafield_size_guide", "").strip(),
+        maker=request.POST.get("metafield_maker", "").strip(),
+        region=request.POST.get("metafield_region", "").strip(),
+    )
+
+
 def _save_product_attribute_values(request, product):
     """مقادیر فیلدهای پویا (``attr_<id>``) را طبق طرح ویژگیِ دسته‌بندیِ فعلی کالا ذخیره می‌کند."""
     for entry in resolve_category_schema(product.category):
@@ -975,6 +987,9 @@ def _product_form_extra_context(store, product, *, form=None, request=None, cate
         # پس ویدیوهایی که با موفقیت در دیتابیس ذخیره شده بودند، بعد از هر
         # Refresh انگار اصلاً وجود نداشتند — صرف‌نظر از درستیِ خودِ ذخیره‌سازی.
         context["videos"] = product.videos.all()
+        # متادیتاهایِ فرم‌محور (سایزگاید/سازنده/منطقه) — برایِ pre-fill
+        from apps.catalog.services.metafield_service import get_product_metafield_values
+        context["metafield_values"] = get_product_metafield_values(product)
     return context
 
 
@@ -1016,6 +1031,7 @@ def product_form(request, pk=None):
                     if requested_type and requested_type != product.product_type:
                         set_product_type(product, requested_type)
                     _save_product_attribute_values(request, product)
+                    _save_product_metafields(request, product)
                     if is_new:
                         _save_staged_product_media(request, product)
                     if product.status == Product.Status.ACTIVE:

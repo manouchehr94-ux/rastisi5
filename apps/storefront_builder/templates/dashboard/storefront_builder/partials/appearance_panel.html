@@ -249,6 +249,22 @@
           {% for h in image_hover_choices %}<option value="{{ h }}" {% if config.image_hover == h %}selected{% endif %}>{% if h == "none" %}بدون افکت{% else %}بزرگ‌نمایی ملایم{% endif %}</option>{% endfor %}
         </select>
       </div>
+      <div class="form-group">
+        <label>تصویر دومِ محصول (Crossfade)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px">
+          <input type="hidden" name="card_image_crossfade" value="">
+          <input type="checkbox" name="card_image_crossfade" value="1" {% if config.card_image_crossfade %}checked{% endif %}>
+          نمایشِ تصویرِ دوم هنگامِ هاور (مستقل از بزرگ‌نمایی)
+        </label>
+      </div>
+      <div class="form-group">
+        <label>بزرگ‌نمایی تصویرِ محصول (Zoom)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px">
+          <input type="hidden" name="card_image_zoom" value="">
+          <input type="checkbox" name="card_image_zoom" value="1" {% if config.card_image_zoom %}checked{% endif %}>
+          بزرگ‌نمایی ملایمِ تصویر هنگامِ هاور (مستقل از Crossfade)
+        </label>
+      </div>
       <div style="display:flex;gap:10px;margin-top:16px">
         <button type="submit" class="btn btn-primary">اعمال شخصی‌سازی</button>
       </div>

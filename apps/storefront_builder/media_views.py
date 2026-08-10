@@ -28,7 +28,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from apps.content.models import HeroSlide, PromotionalBanner
+from apps.content.models import HeroSlide, PromotionalBanner, StoryRailItem
 from apps.dashboard.decorators import permission_required, staff_required
 from apps.stores.authorization import STOREFRONT_LAYOUT_MANAGE
 
@@ -54,6 +54,15 @@ _MEDIA_KINDS = {
         "text_field": "description",
         "text_label": "توضیحات",
         "section_keys": {"single_banner", "multi_banner"},
+    },
+    "story-items": {
+        "model": StoryRailItem,
+        "label": "آیتم استوری",
+        "label_plural": "آیتم‌های استوری",
+        "text_field": "title",
+        "text_label": "عنوان",
+        "section_keys": {"story_rail"},
+        "image_field": "image",  # single image, not desktop/mobile pair
     },
 }
 

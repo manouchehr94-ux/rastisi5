@@ -1,11 +1,11 @@
 {% load catalog_extras %}{% comment %}
-راهنمای سایز — بخشِ مشترکِ اختیاریِ صفحه‌ی محصول. فقط وقتی رندر
-می‌شود که محصول یک metafield از namespace ``size_guide`` با key
-``chart_html`` داشته باشد. خانواده‌ها می‌توانند این partial را include
-کنند — محصولاتِ بدونِ سایزگاید بی‌صدا هیچ‌چیز رندر نمی‌کنند.
+راهنمای سایز — بخشِ مشترکِ اختیاریِ صفحه‌ی محصول. دو حالت:
 
-Context مورد انتظار:
-  product: instance از Product (الزامی)
+1) value_json ساختاری (ترجیحی): جدول سایز از داده‌ی ساختاری رندر می‌شود.
+2) value_text (legacy): HTML از طریقِ sanitizer مشترک (product_description_html)
+   فیلتر می‌شود — هرگز با |safe خام رندر نمی‌شود.
+
+اگر محصول هیچ metafield سایزگایدی نداشته باشد، هیچ‌چیز رندر نمی‌شود.
 {% endcomment %}
 {% product_metafield product "size_guide" "chart_html" as size_chart %}
 {% if size_chart %}
@@ -15,7 +15,7 @@ Context مورد انتظار:
     راهنمای سایز
   </button>
   <div class="size-guide-panel" id="size-guide-panel-{{ product.pk }}" x-show="open" x-cloak @click.outside="open = false" @keydown.escape.window="open = false" role="dialog" aria-label="راهنمای سایز">
-    <div class="size-guide-content">{{ size_chart|safe }}</div>
+    <div class="size-guide-content">{{ size_chart|product_description_html }}</div>
     <button type="button" class="size-guide-close" @click="open = false" aria-label="بستن">×</button>
   </div>
 </div>

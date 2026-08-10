@@ -158,14 +158,19 @@ class StoryRailSectionTests(TestCase):
         self.assertEqual(defn.max_instances, 1)
         self.assertEqual(defn.category_fa, "کشف و خرید")
 
-    def test_story_rail_in_modern_fashion_defaults(self):
-        """story_rail باید در default_section_keys خانواده‌ی مد امروز باشد."""
-        family = family_registry.get_family("modern_fashion")
+    def test_story_rail_in_artisan_editorial_defaults(self):
+        """story_rail باید در default_section_keys خانواده‌ی روایت هنر باشد."""
+        family = family_registry.get_family("artisan_editorial")
         self.assertIn("story_rail", family.default_section_keys)
 
+    def test_story_rail_not_in_modern_fashion_defaults(self):
+        """story_rail در modern_fashion پیش‌فرض نیست (تصحیح شد)."""
+        family = family_registry.get_family("modern_fashion")
+        self.assertNotIn("story_rail", family.default_section_keys)
+
     def test_story_rail_not_in_other_families_by_default(self):
-        """story_rail فقط در modern_fashion پیش‌فرض است — بقیه ندارند."""
-        for slug in ("heritage_premium", "artisan_editorial", "vibrant_catalog", "nordic_living"):
+        """story_rail فقط در artisan_editorial پیش‌فرض است — بقیه ندارند."""
+        for slug in ("heritage_premium", "vibrant_catalog", "nordic_living"):
             family = family_registry.get_family(slug)
             self.assertNotIn("story_rail", family.default_section_keys,
                              f"story_rail should not be in {slug} defaults")
