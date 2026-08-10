@@ -118,6 +118,8 @@
           </div>
         </template>
 
+        {% include "catalog/partials/size_guide.html" %}
+
         <div class="sp-stock">
           <template x-if="displayStock > 0"><span>✓ موجود</span></template>
           <template x-if="displayStock <= 0"><span style="color:var(--pink)">ناموجود</span></template>

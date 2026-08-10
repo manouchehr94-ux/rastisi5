@@ -15,6 +15,9 @@
     {% if product.discount_percent > 0 %}
     <span class="ac-badge-coral">{{ product.discount_percent|fa_number }}٪</span>
     {% endif %}
+    {% if product.stock <= 0 %}
+    <span class="ac-out-of-stock">ناموجود</span>
+    {% endif %}
     {% include "customers/partials/wishlist_button.html" %}
   </a>
   <div class="ac-dense-body">
@@ -23,11 +26,12 @@
       <span class="ac-price-now">{{ product.final_price|toman }}</span>
       {% if product.discount_percent > 0 %}<span class="ac-price-old">{{ product.price|toman }}</span>{% endif %}
     </div>
+    {% if product.stock > 0 %}
     <div class="ac-dense-actions" x-data="{ qty: 1 }">
       <div class="ac-qty-control">
-        <button type="button" @click="qty = Math.max(1, qty - 1)">−</button>
+        <button type="button" @click="qty = Math.max(1, qty - 1)" aria-label="کاهش تعداد">−</button>
         <span x-text="qty"></span>
-        <button type="button" @click="qty++">+</button>
+        <button type="button" @click="qty++" aria-label="افزایش تعداد">+</button>
       </div>
       <button type="button" class="ac-add-btn"
               hx-post="{% url 'cart:add' product.slug %}"
@@ -38,5 +42,8 @@
         افزودن
       </button>
     </div>
+    {% else %}
+    <button type="button" class="ac-add-btn" disabled aria-disabled="true">ناموجود</button>
+    {% endif %}
   </div>
 </div>

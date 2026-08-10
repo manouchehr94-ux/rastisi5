@@ -23,3 +23,7 @@ html[data-sfb-family="ava_fashion"] .av-footer{background:var(--brand-surface,#f
   html[data-sfb-family="ava_fashion"] .av-mosaic{grid-template-columns:repeat(2,1fr);grid-template-rows:auto}
   html[data-sfb-family="ava_fashion"] .av-card-img-2{display:none}
 }
+
+
+/* ===== Out-of-stock badge (per badge-matrix.yaml: image_center, translucent panel) ===== */
+html[data-sfb-family="ava_fashion"] .av-out-of-stock{position:absolute;inset:0;margin:auto;top:45%;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:#fff;font-size:11.5px;font-weight:700;width:fit-content;padding:0 16px;border-radius:6px;z-index:3}

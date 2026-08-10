@@ -46,29 +46,29 @@
       <div class="av-actions">
         {% if hc.show_account %}
         {% if is_live_storefront and request.user.is_authenticated %}
-        <a class="av-action-btn" href="{% url 'customers:account' %}" title="حساب من">
+        <a class="av-action-btn" href="{% url 'customers:account' %}" aria-label="حساب من" title="حساب من">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </a>
         {% elif is_live_storefront %}
-        <button type="button" class="av-action-btn" @click="loginOpen = true" title="ورود">
+        <button type="button" class="av-action-btn" @click="loginOpen = true" aria-label="ورود" title="ورود">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </button>
         {% else %}
-        <button type="button" class="av-action-btn" disabled>
+        <button type="button" class="av-action-btn" disabled aria-label="ورود" title="ورود در پیش‌نمایش غیرفعال است">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </button>
         {% endif %}
         {% endif %}
 
         {% if hc.show_wishlist %}
-        <a class="av-action-btn" href="{% if is_live_storefront %}{% url 'customers:wishlist' %}{% else %}#{% endif %}"{% if not is_live_storefront %} onclick="return false"{% endif %} title="علاقه‌مندی‌ها">
+        <a class="av-action-btn" href="{% if is_live_storefront %}{% url 'customers:wishlist' %}{% else %}#{% endif %}"{% if not is_live_storefront %} onclick="return false"{% endif %} aria-label="علاقه‌مندی‌ها" title="علاقه‌مندی‌ها">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
           {% if is_live_storefront %}<span class="av-badge">{{ wishlist_count|fa_number }}</span>{% endif %}
         </a>
         {% endif %}
 
         {% if hc.show_cart %}
-        <a class="av-action-btn" href="{% if is_live_storefront %}{% url 'cart:detail' %}{% else %}#{% endif %}"{% if not is_live_storefront %} onclick="return false"{% endif %} title="سبد خرید">
+        <a class="av-action-btn" href="{% if is_live_storefront %}{% url 'cart:detail' %}{% else %}#{% endif %}"{% if not is_live_storefront %} onclick="return false"{% endif %} aria-label="سبد خرید" title="سبد خرید">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg>
           {% if is_live_storefront %}<span class="av-badge">{{ cart_count|fa_number }}</span>{% endif %}
         </a>

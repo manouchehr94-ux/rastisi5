@@ -14,6 +14,9 @@
     {% if product.discount_percent > 0 %}
     <span class="tj-badge-blush">{{ product.discount_percent|fa_number }}٪</span>
     {% endif %}
+    {% if product.stock <= 0 %}
+    <span class="tj-out-of-stock">ناموجود</span>
+    {% endif %}
     {% include "customers/partials/wishlist_button.html" %}
   </div>
   <div class="tj-card-body">
@@ -24,6 +27,7 @@
       <span class="tj-price-old">{{ product.price|toman }}</span>
       {% endif %}
     </div>
+    {% if product.stock > 0 %}
     <button type="button" class="tj-pill-btn"
             hx-post="{% url 'cart:add' product.slug %}"
             hx-vals='{"quantity": 1}'
@@ -31,5 +35,8 @@
             onclick="event.preventDefault();event.stopPropagation()">
       افزودن به سبد 🎁
     </button>
+    {% else %}
+    <button type="button" class="tj-pill-btn" disabled aria-disabled="true">ناموجود</button>
+    {% endif %}
   </div>
 </a>

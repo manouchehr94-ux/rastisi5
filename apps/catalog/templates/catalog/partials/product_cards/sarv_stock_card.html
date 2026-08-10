@@ -18,6 +18,9 @@
     {% if product.discount_percent > 0 %}
     <span class="sv-badge-red">{{ product.discount_percent|fa_number }}٪</span>
     {% endif %}
+    {% if product.stock <= 0 %}
+    <span class="sv-out-of-stock">اتمام موجودی</span>
+    {% endif %}
     {% include "customers/partials/wishlist_button.html" %}
   </a>
   <div class="sv-card-body">
@@ -29,6 +32,7 @@
       <span class="sv-price-old">{{ product.price|toman }}</span>
       {% endif %}
     </div>
+    {% if product.stock > 0 %}
     <button type="button" class="sv-cart-btn"
             hx-post="{% url 'cart:add' product.slug %}"
             hx-vals='{"quantity": 1}'
@@ -37,5 +41,8 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
       افزودن
     </button>
+    {% else %}
+    <button type="button" class="sv-cart-btn" disabled aria-disabled="true">ناموجود</button>
+    {% endif %}
   </div>
 </div>

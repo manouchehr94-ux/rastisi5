@@ -25,3 +25,8 @@ html[data-sfb-family="atlas_catalog"] .ac-footer-grid{display:grid;grid-template
   html[data-sfb-family="atlas_catalog"] .ac-hero-grid{grid-template-columns:1fr}
   html[data-sfb-family="atlas_catalog"] .ac-footer-grid{grid-template-columns:1fr}
 }
+
+
+/* ===== Out-of-stock badge (per badge-matrix.yaml: image_center, charcoal pill) ===== */
+html[data-sfb-family="atlas_catalog"] .ac-out-of-stock{position:absolute;inset:0;margin:auto;top:45%;height:28px;display:flex;align-items:center;justify-content:center;background:rgba(40,40,40,.88);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:0 14px;width:fit-content;z-index:3}
+html[data-sfb-family="atlas_catalog"] .ac-add-btn[disabled]{background:var(--muted, #999);cursor:not-allowed;opacity:.6}

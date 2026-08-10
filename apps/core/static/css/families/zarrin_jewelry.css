@@ -25,3 +25,8 @@ html[data-sfb-family="zarrin_jewelry"] .zr-social a:hover{color:#E5AA61}
   html[data-sfb-family="zarrin_jewelry"] .zr-card-img-2{display:none}
   html[data-sfb-family="zarrin_jewelry"] .zr-hero{aspect-ratio:4/5}
 }
+
+
+/* ===== Out-of-stock (per badge-matrix.yaml: price_area, text only, muted gray) ===== */
+html[data-sfb-family="zarrin_jewelry"] .zr-out-of-stock{position:absolute;inset:0;margin:auto;top:45%;height:28px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);color:#fff;font-size:10.5px;font-weight:700;width:fit-content;padding:0 14px;border-radius:3px;z-index:3}
+html[data-sfb-family="zarrin_jewelry"] .zr-stock-label{color:#6B7C93;font-size:10.5px;font-weight:700}

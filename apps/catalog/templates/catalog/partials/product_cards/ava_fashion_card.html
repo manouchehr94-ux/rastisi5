@@ -18,6 +18,9 @@
     {% if product.discount_percent > 0 %}
     <span class="av-badge-pink">{{ product.discount_percent|fa_number }}٪ تخفیف</span>
     {% endif %}
+    {% if product.stock <= 0 %}
+    <span class="av-out-of-stock">ناموجود</span>
+    {% endif %}
     {% include "customers/partials/wishlist_button.html" %}
   </div>
   <div class="av-card-body">

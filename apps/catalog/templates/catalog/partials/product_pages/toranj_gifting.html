@@ -119,13 +119,7 @@
           </div>
         </template>
 
-        {# افزونه‌ها (اختیاری) #}
-        <div class="tj-addon-note">
-          <label>
-            <input type="checkbox" name="gift_wrap" value="1">
-            🎀 بسته‌بندیِ هدیه (رایگان)
-          </label>
-        </div>
+        {% include "catalog/partials/size_guide.html" %}
 
         <div class="tj-stock">
           <template x-if="displayStock > 0"><span>✓ موجود</span></template>

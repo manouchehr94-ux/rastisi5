@@ -18,6 +18,9 @@
     {% if product.discount_percent > 0 %}
     <span class="zr-badge-gold">{{ product.discount_percent|fa_number }}٪</span>
     {% endif %}
+    {% if product.stock <= 0 %}
+    <span class="zr-out-of-stock">ناموجود</span>
+    {% endif %}
     {% include "customers/partials/wishlist_button.html" %}
   </div>
   <div class="zr-card-body">
@@ -27,6 +30,7 @@
       {% if product.discount_percent > 0 %}
       <span class="zr-price-old">{{ product.price|toman }}</span>
       {% endif %}
+      {% if product.stock <= 0 %}<span class="zr-stock-label">ناموجود</span>{% endif %}
     </div>
   </div>
 </a>

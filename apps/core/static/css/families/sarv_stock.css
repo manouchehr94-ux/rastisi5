@@ -25,3 +25,8 @@ html[data-sfb-family="sarv_stock"] .sv-footer-grid{display:grid;grid-template-co
   html[data-sfb-family="sarv_stock"] .sv-card-img-2{display:none}
   html[data-sfb-family="sarv_stock"] .sv-footer-grid{grid-template-columns:1fr}
 }
+
+
+/* ===== Out-of-stock badge (per badge-matrix.yaml: image_center, dark-green 90% rounded rect) ===== */
+html[data-sfb-family="sarv_stock"] .sv-out-of-stock{position:absolute;inset:0;margin:auto;top:45%;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(22,101,52,.9);color:#fff;font-size:11px;font-weight:700;width:fit-content;padding:0 16px;border-radius:8px;z-index:3}
+html[data-sfb-family="sarv_stock"] .sv-cart-btn[disabled]{background:var(--muted, #999);cursor:not-allowed;opacity:.6}

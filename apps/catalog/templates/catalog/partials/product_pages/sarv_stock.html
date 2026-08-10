@@ -140,6 +140,8 @@
           </div>
         </template>
 
+        {% include "catalog/partials/size_guide.html" %}
+
         <div class="sv-stock">
           <template x-if="displayStock > 0"><span class="sv-in-stock">✓ موجود در انبار</span></template>
           <template x-if="displayStock <= 0"><span class="sv-no-stock">ناموجود</span></template>
