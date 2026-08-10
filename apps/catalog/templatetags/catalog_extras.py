@@ -40,10 +40,13 @@ def product_metafield(product, namespace, key, default=""):
             if mf.namespace == namespace and mf.key == key:
                 return mf.value_text or default
         return default
+    product_id = getattr(product, "pk", None)
+    if product_id is None:
+        return default
     # Fallback: اگر prefetch نشده باشد (مثلاً صفحه‌ی تکی محصول)
     from apps.catalog.models import ProductMetafield as MF
     try:
-        mf = MF.objects.get(product=product, namespace=namespace, key=key)
+        mf = MF.objects.get(product_id=product_id, namespace=namespace, key=key)
         return mf.value_text or default
     except MF.DoesNotExist:
         return default
