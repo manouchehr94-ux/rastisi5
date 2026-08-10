@@ -1,0 +1,21 @@
+/* خانواده‌ی «سپیدار» (sepidar_handmade) — صنایع‌دستی کرم */
+html[data-sfb-family="sepidar_handmade"] .wrap{max-width:var(--sfb-content-width, 1180px)}
+html[data-sfb-family="sepidar_handmade"] .sp-header{background:var(--brand-surface,#FDF6E3);border-radius:999px;margin:12px 16px;padding:0 24px;box-shadow:0 2px 12px rgba(0,0,0,.04)}
+html[data-sfb-family="sepidar_handmade"] .sp-header.sfb-sticky{position:sticky;top:12px;z-index:60}
+html[data-sfb-family="sepidar_handmade"] .sp-header-row{display:flex;align-items:center;gap:16px;height:56px}
+html[data-sfb-family="sepidar_handmade"] .sp-search-capsule{display:flex;align-items:center;gap:12px;background:var(--brand-surface,#FDF6E3);border:1px solid #A8907A33;border-radius:999px;padding:8px 16px;margin:8px 0}
+html[data-sfb-family="sepidar_handmade"] .sp-search-capsule input{flex:1;border:0;outline:0;background:transparent;font-size:14px}
+html[data-sfb-family="sepidar_handmade"] .sp-cat-capsules{display:flex;gap:8px;overflow-x:auto;padding:8px 0}
+html[data-sfb-family="sepidar_handmade"] .sp-cat-pill{padding:8px 18px;border-radius:999px;border:1px solid #A8907A44;background:var(--brand-surface,#FDF6E3);font-size:12.5px;white-space:nowrap}
+html[data-sfb-family="sepidar_handmade"] .sp-hero{aspect-ratio:16/10;border-radius:8px;overflow:hidden;position:relative;margin:16px 0}
+html[data-sfb-family="sepidar_handmade"] .sp-card{border:1px solid #A8907A22;border-radius:8px;transition:border-color .2s,box-shadow .2s}
+html[data-sfb-family="sepidar_handmade"] .sp-card:hover{border-color:#A8907A;box-shadow:0 4px 16px rgba(168,144,122,.1)}
+html[data-sfb-family="sepidar_handmade"] .sp-card .img{aspect-ratio:1/1;border-radius:8px 8px 0 0;overflow:hidden}
+html[data-sfb-family="sepidar_handmade"] .sp-card .img img{transition:transform .3s}
+html[data-sfb-family="sepidar_handmade"] .sp-card:hover .img img{transform:scale(1.03)}
+html[data-sfb-family="sepidar_handmade"] .sp-disc-badge{position:absolute;top:8px;left:8px;z-index:2;background:#A8907A;color:#fff;padding:4px 10px;border-radius:99px;font-size:10.5px}
+html[data-sfb-family="sepidar_handmade"] .sp-footer{background:#FDF6E3;border-top:1px solid #A8907A22;padding:28px 0 14px}
+@media(max-width:680px){
+  html[data-sfb-family="sepidar_handmade"] .sp-header{margin:8px;border-radius:999px;padding:0 14px}
+  html[data-sfb-family="sepidar_handmade"] .sp-hero{aspect-ratio:4/3;margin:8px 0}
+}

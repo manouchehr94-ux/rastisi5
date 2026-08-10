@@ -128,3 +128,75 @@ register_preset(PresetDefinition(
     card_shadow="soft", card_hover="lift", hero_style="wide",
     default_palette_slug="digired",
 ))
+
+
+# ============================================================ شش Preset جدید (Phase 5)
+
+register_preset(PresetDefinition(
+    slug="atlas_catalog_default",
+    family_slug="atlas_catalog",
+    name_fa="اطلس — پیش‌فرض",
+    description_fa="تراکم زیاد، رادیوس ۱۰، رنگ‌های پرانرژی.",
+    font="Vazirmatn", radius=10, button_radius=10, button_style="filled",
+    density="compact", motion="subtle", type_scale="compact",
+    card_shadow="soft", card_hover="lift", hero_style="wide",
+    default_palette_slug="coral",
+))
+
+register_preset(PresetDefinition(
+    slug="ava_fashion_default",
+    family_slug="ava_fashion",
+    name_fa="آوا — پیش‌فرض",
+    description_fa="فضای باز، رادیوس ۱۴، Story-first.",
+    font="Vazirmatn", radius=14, button_radius=14, button_style="soft",
+    density="normal", motion="subtle", type_scale="normal",
+    card_shadow="soft", card_hover="zoom", hero_style="wide",
+    default_palette_slug="amber",
+    card_image_crossfade=True, card_image_zoom=False,
+))
+
+register_preset(PresetDefinition(
+    slug="toranj_gifting_default",
+    family_slug="toranj_gifting",
+    name_fa="ترنج — پیش‌فرض",
+    description_fa="فضای گرم، Pill buttons، رادیوس ۹۹.",
+    font="Vazirmatn", radius=16, button_radius=99, button_style="filled",
+    density="normal", motion="subtle", type_scale="normal",
+    card_shadow="none", card_hover="lift", hero_style="wide",
+    default_palette_slug="brown",
+))
+
+register_preset(PresetDefinition(
+    slug="sarv_stock_default",
+    family_slug="sarv_stock",
+    name_fa="سرو — پیش‌فرض",
+    description_fa="سبز تیره، رادیوس ۲۰، دکمه پر.",
+    font="Vazirmatn", radius=20, button_radius=15, button_style="filled",
+    density="compact", motion="subtle", type_scale="normal",
+    card_shadow="soft", card_hover="lift", hero_style="wide",
+    default_palette_slug="forest",
+    card_image_crossfade=True, card_image_zoom=False,
+))
+
+register_preset(PresetDefinition(
+    slug="sepidar_handmade_default",
+    family_slug="sepidar_handmade",
+    name_fa="سپیدار — پیش‌فرض",
+    description_fa="کرم و نسکافه‌ای، رادیوس ۸، Editorial.",
+    font="Vazirmatn", radius=8, button_radius=8, button_style="outline",
+    density="relaxed", motion="none", type_scale="normal",
+    card_shadow="none", card_hover="none", hero_style="tall",
+    default_palette_slug="olive",
+))
+
+register_preset(PresetDefinition(
+    slug="zarrin_jewelry_default",
+    family_slug="zarrin_jewelry",
+    name_fa="زرین — پیش‌فرض",
+    description_fa="مینیمال، بژ و طلایی، رادیوس ۵.",
+    font="Vazirmatn", radius=5, button_radius=5, button_style="outline",
+    density="normal", motion="subtle", type_scale="normal",
+    card_shadow="none", card_hover="none", hero_style="wide",
+    default_palette_slug="gold",
+    card_image_crossfade=True, card_image_zoom=False,
+))

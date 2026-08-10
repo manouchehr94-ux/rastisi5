@@ -1,0 +1,25 @@
+/* خانواده‌ی «آوا» (ava_fashion) — مد داستان‌محور */
+html[data-sfb-family="ava_fashion"] .wrap{max-width:var(--sfb-content-width, 1320px)}
+html[data-sfb-family="ava_fashion"] .av-campaign{background:var(--brand-primary);color:var(--brand-primary-fg,#fff);text-align:center;font-size:11.5px;padding:7px 0}
+html[data-sfb-family="ava_fashion"] .av-header{background:var(--brand-surface,#fff);border-bottom:1px solid var(--brand-border,#eee)}
+html[data-sfb-family="ava_fashion"] .av-header.sfb-sticky{position:sticky;top:0;z-index:60}
+html[data-sfb-family="ava_fashion"] .av-header-row{display:flex;align-items:center;gap:20px;height:76px}
+html[data-sfb-family="ava_fashion"] .av-search{flex:1;max-width:460px;display:flex;align-items:center;background:var(--bg);border-radius:14px;height:44px;padding:0 14px}
+html[data-sfb-family="ava_fashion"] .av-search input{flex:1;border:0;outline:0;background:transparent;font-size:14px}
+html[data-sfb-family="ava_fashion"] .av-nav{border-bottom:1px solid var(--brand-border,#eee)}
+html[data-sfb-family="ava_fashion"] .av-nav-row{display:flex;align-items:center;gap:22px;height:46px;overflow-x:auto;font-size:13px}
+html[data-sfb-family="ava_fashion"] .av-hero .hero-visual{aspect-ratio:16/8;border-radius:0;width:100%}
+html[data-sfb-family="ava_fashion"] .av-mosaic{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);gap:12px}
+html[data-sfb-family="ava_fashion"] .av-mosaic-tile{position:relative;aspect-ratio:3/4;border-radius:14px;overflow:hidden;display:flex;align-items:flex-end;padding:12px}
+html[data-sfb-family="ava_fashion"] .av-mosaic-tile img,.av-mosaic-tile .cat-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+html[data-sfb-family="ava_fashion"] .av-mosaic-title{position:relative;z-index:2;color:#fff;font-weight:700;font-size:13px;text-shadow:0 1px 4px rgba(0,0,0,.4)}
+html[data-sfb-family="ava_fashion"] .av-card .img{aspect-ratio:3/4;position:relative;overflow:hidden}
+html[data-sfb-family="ava_fashion"] .av-card-img-2{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s ease}
+html[data-sfb-family="ava_fashion"] .av-card:hover .av-card-img-2{opacity:1}
+html[data-sfb-family="ava_fashion"] .av-disc-badge{position:absolute;top:10px;right:10px;z-index:2;background:#EC4899;color:#fff;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:800}
+html[data-sfb-family="ava_fashion"] .av-card-price .now{color:var(--brand-primary);font-weight:900}
+html[data-sfb-family="ava_fashion"] .av-footer{background:var(--brand-surface,#fff);border-top:1px solid var(--brand-border,#eee);padding:32px 0 16px}
+@media(max-width:680px){
+  html[data-sfb-family="ava_fashion"] .av-mosaic{grid-template-columns:repeat(2,1fr);grid-template-rows:auto}
+  html[data-sfb-family="ava_fashion"] .av-card-img-2{display:none}
+}

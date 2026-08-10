@@ -174,3 +174,116 @@ register_family(FamilyDefinition(
     ),
     swatch=("#FD445D", "#FFE6EB", "#F4F5F9"),
 ))
+
+
+# ============================================================ شش خانواده‌ی جدید (Phase 5)
+
+register_family(FamilyDefinition(
+    slug="atlas_catalog",
+    name_fa="اطلس",
+    description_fa="فروشگاه کاتالوگی پرتراکم و رنگارنگ با هدر چندلایه، هیروی تقسیم‌شده، ریل دسته‌بندی دایره‌ای و کارت محصول فشرده با کنترل تعداد.",
+    header_variant="storefront_builder/partials/families/atlas_catalog/header.html",
+    hero_variant="storefront_builder/partials/families/atlas_catalog/hero.html",
+    category_variant="storefront_builder/partials/families/atlas_catalog/category.html",
+    footer_variant="storefront_builder/partials/families/atlas_catalog/footer.html",
+    product_card_variant="catalog/partials/product_cards/atlas_dense_card.html",
+    product_page_variant="catalog/partials/product_pages/atlas_catalog.html",
+    default_preset_slug="atlas_catalog_default",
+    default_section_keys=(
+        "hero_banner", "category_grid", "trust_features",
+        "newest_products", "best_sellers", "discounted_products",
+        "brand_carousel", "trust_features",
+    ),
+    swatch=("#EF4444", "#10B981", "#FFFFFF"),
+))
+
+register_family(FamilyDefinition(
+    slug="ava_fashion",
+    name_fa="آوا",
+    description_fa="فروشگاه مد داستان‌محور با هیروی عریض، ریل استوری دایره‌ای، موزاییک دسته‌بندی و کارت مد ۳:۴ با تصویر دوم.",
+    header_variant="storefront_builder/partials/families/ava_fashion/header.html",
+    hero_variant="storefront_builder/partials/families/ava_fashion/hero.html",
+    category_variant="storefront_builder/partials/families/ava_fashion/category.html",
+    footer_variant="storefront_builder/partials/families/ava_fashion/footer.html",
+    product_card_variant="catalog/partials/product_cards/ava_fashion_card.html",
+    product_page_variant="catalog/partials/product_pages/ava_fashion.html",
+    default_preset_slug="ava_fashion_default",
+    default_section_keys=(
+        "story_rail", "hero_banner", "category_grid",
+        "discounted_products", "newest_products", "best_sellers",
+    ),
+    swatch=("#F59E0B", "#EC4899", "#FFFFFF"),
+))
+
+register_family(FamilyDefinition(
+    slug="toranj_gifting",
+    name_fa="ترنج",
+    description_fa="فروشگاه هدیه با فضای گرم، هدر قهوه‌ای، هیروی سه‌کارته و دکمه‌های Pill قهوه‌ای روی بوم آبی روشن.",
+    header_variant="storefront_builder/partials/families/toranj_gifting/header.html",
+    hero_variant="storefront_builder/partials/families/toranj_gifting/hero.html",
+    category_variant="storefront_builder/partials/families/toranj_gifting/category.html",
+    footer_variant="storefront_builder/partials/families/toranj_gifting/footer.html",
+    product_card_variant="catalog/partials/product_cards/toranj_gift_card.html",
+    product_page_variant="catalog/partials/product_pages/toranj_gifting.html",
+    default_preset_slug="toranj_gifting_default",
+    default_section_keys=(
+        "story_rail", "hero_banner", "category_grid",
+        "newest_products", "discounted_products", "best_sellers",
+        "trust_features",
+    ),
+    swatch=("#78350F", "#DBEAFE", "#FFFFFF"),
+))
+
+register_family(FamilyDefinition(
+    slug="sarv_stock",
+    name_fa="سرو",
+    description_fa="فروشگاه انبارداری با پس‌زمینه سبز روشن، هدر شناور گرد و کارت محصول با دکمه سبز پر.",
+    header_variant="storefront_builder/partials/families/sarv_stock/header.html",
+    hero_variant="storefront_builder/partials/families/sarv_stock/hero.html",
+    category_variant="storefront_builder/partials/families/sarv_stock/category.html",
+    footer_variant="storefront_builder/partials/families/sarv_stock/footer.html",
+    product_card_variant="catalog/partials/product_cards/sarv_stock_card.html",
+    product_page_variant="catalog/partials/product_pages/sarv_stock.html",
+    default_preset_slug="sarv_stock_default",
+    default_section_keys=(
+        "hero_banner", "category_grid", "discounted_products",
+        "newest_products", "best_sellers", "trust_features",
+    ),
+    swatch=("#166534", "#DCFCE7", "#FFFFFF"),
+))
+
+register_family(FamilyDefinition(
+    slug="sepidar_handmade",
+    name_fa="سپیدار",
+    description_fa="فروشگاه صنایع‌دستی با پس‌زمینه کرم، هدر کپسولی و سبک ویرایشی آرام با تأکیدات نسکافه‌ای.",
+    header_variant="storefront_builder/partials/families/sepidar_handmade/header.html",
+    hero_variant="storefront_builder/partials/families/sepidar_handmade/hero.html",
+    category_variant="storefront_builder/partials/families/sepidar_handmade/category.html",
+    footer_variant="storefront_builder/partials/families/sepidar_handmade/footer.html",
+    product_card_variant="catalog/partials/product_cards/sepidar_editorial_card.html",
+    product_page_variant="catalog/partials/product_pages/sepidar_handmade.html",
+    default_preset_slug="sepidar_handmade_default",
+    default_section_keys=(
+        "hero_banner", "trust_features", "discounted_products",
+        "newest_products", "best_sellers",
+    ),
+    swatch=("#A8907A", "#FDF6E3", "#FFFFFF"),
+))
+
+register_family(FamilyDefinition(
+    slug="zarrin_jewelry",
+    name_fa="زرین",
+    description_fa="فروشگاه جواهرات مینیمال با عکاسی بژ و طلایی، هدر تک‌ردیفه و کارت بدون حاشیه سنگین.",
+    header_variant="storefront_builder/partials/families/zarrin_jewelry/header.html",
+    hero_variant="storefront_builder/partials/families/zarrin_jewelry/hero.html",
+    category_variant="storefront_builder/partials/families/zarrin_jewelry/category.html",
+    footer_variant="storefront_builder/partials/families/zarrin_jewelry/footer.html",
+    product_card_variant="catalog/partials/product_cards/zarrin_minimal_card.html",
+    product_page_variant="catalog/partials/product_pages/zarrin_jewelry.html",
+    default_preset_slug="zarrin_jewelry_default",
+    default_section_keys=(
+        "hero_banner", "category_grid", "newest_products",
+        "best_sellers", "faq", "trust_features",
+    ),
+    swatch=("#E5AA61", "#45424E", "#F5F0EB"),
+))
