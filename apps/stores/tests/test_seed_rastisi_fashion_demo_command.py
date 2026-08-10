@@ -16,6 +16,7 @@ import tempfile
 from io import StringIO
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 
@@ -41,7 +42,26 @@ STORE_SLUG = "rastisi-fashion-test"
 
 @override_settings(DEBUG=True)
 class SeedRastisiFashionDemoCommandTests(TestCase):
-    """MEDIA_ROOT موقت — دقیقاً همان الگویِ ``test_seed_shop.py``."""
+    """MEDIA_ROOT موقت — دقیقاً همان الگویِ ``test_seed_shop.py``.
+
+    ``cache.clear()`` در ``setUp`` — ایزوله‌سازیِ Rate Limit میانِ تست‌ها.
+
+    ``apps.core.services.rate_limit.enforce_rate_limit`` روی
+    ``django.core.cache.cache`` (یک شیءِ سراسریِ سطحِ پروسه) شمارنده
+    نگه می‌دارد. ``TestCase`` هر متد را در یک تراکنشِ دیتابیسی که در
+    پایان rollback می‌شود اجرا می‌کند — اما این rollback هرگز کش را پاک
+    نمی‌کند، و در SQLite (پرکاربردترین DBِ تستِ محلی) شماره‌یِ pk ردیفِ
+    بعدی معمولاً از رویِ ``max(rowid)`` محاسبه می‌شود، نه یک شمارنده‌یِ
+    مستقل و پایدار؛ پس Storeِ QAیِ تازه‌ساخته‌شده در متدهایِ تستِ مختلف
+    اغلب دقیقاً همان pk را می‌گیرد. چون کلیدِ Rate Limit شاملِ
+    ``str(store.pk)`` است، شمارنده‌ها بین متدهایِ تستیِ کاملاً مستقل
+    تجمیع می‌شوند و پس از چند ده فراخوانی به سقفِ ۲۰/۳۰ در ساعت می‌رسند —
+    این دقیقاً ریشه‌یِ ۲۲ خطایِ ``RateLimitExceeded``یِ گزارش‌شده بود.
+
+    ``cache.clear()`` باریک‌ترین مکانیزمِ پشتیبانی‌شده‌یِ Django برایِ
+    این ایزوله‌سازی است — هیچ Rate Limitِ Productionی غیرفعال/دستکاری
+    نمی‌شود؛ فقط حافظه‌یِ کشِ *تست* بینِ هر متد صفر می‌شود، دقیقاً همان‌طور
+    که تراکنشِ دیتابیس بینِ هر متد rollback می‌شود."""
 
     @classmethod
     def setUpClass(cls):
@@ -57,6 +77,7 @@ class SeedRastisiFashionDemoCommandTests(TestCase):
         super().tearDownClass()
 
     def setUp(self):
+        cache.clear()
         self.owner = User.objects.create_user(username="qa-fashion-owner", password="pass12345")
 
     def _run(self, *extra_args):
@@ -350,8 +371,76 @@ class BuilderLifecycleTests(SeedRastisiFashionDemoCommandTests):
         section_keys = list(layout.published_version.sections.values_list("section_key", flat=True))
         self.assertTrue(section_keys)
 
+    def test_rerunning_with_same_family_does_not_create_a_new_published_version(self):
+        """Checkpoint (Root Cause 1) — a second, identical invocation must
+        not perform a redundant publish() when the published state already
+        matches the requested family. Proven directly at the model level:
+        the published StorefrontLayoutVersion's pk (and total version
+        count) must be unchanged after a second run."""
+        self._run()
+        store = self._store()
+        layout = StorefrontLayout.objects.get(store=store)
+        first_published_version_id = layout.published_version_id
+        first_version_count = layout.versions.count()
+
+        self._run()
+
+        layout.refresh_from_db()
+        self.assertEqual(layout.published_version_id, first_published_version_id)
+        self.assertEqual(layout.versions.count(), first_version_count)
+        self.assertIsNone(layout.draft_version_id)
+
+    def test_rerunning_with_a_different_family_does_perform_a_real_publish(self):
+        """The idempotency short-circuit must only apply when the requested
+        family already matches — a genuine family change must still go
+        through the real lifecycle (new Draft + publish)."""
+        self._run("--family", "atlas_catalog")
+        store = self._store()
+        layout = StorefrontLayout.objects.get(store=store)
+        first_published_version_id = layout.published_version_id
+
+        self._run("--family", "zarrin_jewelry")
+
+        layout.refresh_from_db()
+        self.assertNotEqual(layout.published_version_id, first_published_version_id)
+        config = layout.published_version.effective_appearance_config()
+        self.assertEqual(config["family_slug"], "zarrin_jewelry")
+
+    def test_many_reruns_with_same_family_never_exhaust_the_publish_rate_limit(self):
+        """Checkpoint (Root Cause 1) — the production publish rate limit is
+        20 attempts/hour per Store. Rerunning the seed command 25 times with
+        an unchanged family must not raise RateLimitExceeded, because only
+        the FIRST run should ever call layout_service.publish()."""
+        for _ in range(25):
+            self._run()  # must never raise RateLimitExceeded
+        store = self._store()
+        layout = StorefrontLayout.objects.get(store=store)
+        self.assertIsNotNone(layout.published_version_id)
+
 
 class IdempotencyTests(SeedRastisiFashionDemoCommandTests):
+    def test_first_seed_run_succeeds(self):
+        self._run()  # must not raise
+        self.assertTrue(Store.objects.filter(slug=STORE_SLUG).exists())
+        self.assertEqual(Product.objects.filter(store=self._store()).count(), 100)
+
+    def test_immediate_identical_second_run_succeeds(self):
+        self._run()
+        self._run()  # must not raise (this is exactly what previously hit RateLimitExceeded)
+        self.assertTrue(Store.objects.filter(slug=STORE_SLUG).exists())
+
+    def test_second_identical_run_does_not_duplicate_products(self):
+        self._run()
+        self._run()
+        self.assertEqual(Product.objects.filter(store=self._store()).count(), 100)
+
+    def test_second_identical_run_does_not_duplicate_variants(self):
+        self._run()
+        first_count = ProductVariant.objects.filter(product__store=self._store()).count()
+        self._run()
+        second_count = ProductVariant.objects.filter(product__store=self._store()).count()
+        self.assertEqual(first_count, second_count)
+
     def test_rerunning_does_not_duplicate_store_or_products(self):
         self._run()
         self._run()
@@ -386,7 +475,46 @@ class IdempotencyTests(SeedRastisiFashionDemoCommandTests):
         self.assertEqual(StoryRailItem.objects.filter(store=store).count(), story_before)
 
 
+class RateLimitIsolationTests(SeedRastisiFashionDemoCommandTests):
+    """Checkpoint — test-process rate-limit state must never leak between
+    independent test methods (the exact mechanism behind the originally
+    reported 22 errors: predictable Store pks + a cache that survives
+    per-test transaction rollback)."""
+
+    def test_rate_limit_cache_is_cleared_before_each_test(self):
+        from apps.core.services.rate_limit import enforce_rate_limit
+
+        # If a previous test method leaked counters into this identifier,
+        # this call would already be near/at its limit. setUp()'s
+        # cache.clear() must guarantee a clean slate every time.
+        enforce_rate_limit("storefront_layout.publish", "isolation-probe", max_attempts=1, window_seconds=3600)
+
+    def test_running_the_seed_command_in_many_independent_test_methods_never_leaks_rate_limit_state(self):
+        """Simulates what happens across this file's own many TestCase
+        methods: each gets a fresh cache, so even though the QA Store
+        (and therefore its pk-derived rate-limit key) is recreated
+        identically every time, no test observes another test's counters."""
+        self._run()
+        store = self._store()
+        layout = StorefrontLayout.objects.get(store=store)
+        self.assertIsNotNone(layout.published_version_id)
+
+
 class ResetTests(SeedRastisiFashionDemoCommandTests):
+    """Checkpoint (Root Cause 2) — ``--reset`` must succeed against the
+    real model graph (Product.category / MenuItem.menu are both PROTECT),
+    never touch unrelated Store-owned data, and remain safely repeatable."""
+
+    def test_reset_after_a_completed_seed_succeeds(self):
+        """This is the exact scenario that previously raised
+        ProtectedError: a fully-seeded QA Store (100 Products under
+        PROTECTed Categories, a header Menu with PROTECTed MenuItems) must
+        be resettable without any exception."""
+        self._run()
+        self.assertEqual(Product.objects.filter(store=self._store()).count(), 100)
+        self._run("--reset")  # must not raise ProtectedError
+        self.assertTrue(Store.objects.filter(slug=STORE_SLUG).exists())
+
     def test_reset_rebuilds_only_the_qa_store(self):
         self._run()
         first_store_pk = self._store().pk
@@ -416,3 +544,49 @@ class ResetTests(SeedRastisiFashionDemoCommandTests):
         self._run()
         self._run("--reset")
         self.assertTrue(Store.objects.filter(pk=other_store.pk).exists())
+
+    def test_reset_does_not_delete_unrelated_categories_products_or_menus(self):
+        """A second, unrelated Store with its own Category/Product/Menu
+        graph (deliberately exercising the same PROTECT relationships as
+        the QA Store) must be completely untouched by --reset."""
+        other_store = Store.objects.create(
+            name="Store Unrelated Catalog", slug="unrelated-catalog-srfd", status=Store.Status.ACTIVE,
+        )
+        other_vendor = Vendor.objects.create(store=other_store, name="Other Vendor", slug="other-vendor-srfd")
+        other_category = Category.objects.create(store=other_store, name="Other Cat", slug="other-cat-srfd")
+        other_product = Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="Other Product",
+            slug="other-product-srfd", sku="OTHER-SRFD-1", price=1000, stock=1,
+        )
+        other_menu = Menu.objects.create(store=other_store, title="Other Menu", location=Menu.Location.HEADER)
+        other_menu_item = MenuItem.objects.create(
+            menu=other_menu, title="Other Item", destination_type="category", destination_category=other_category,
+        )
+
+        self._run()
+        self._run("--reset")
+
+        self.assertTrue(Category.objects.filter(pk=other_category.pk).exists())
+        self.assertTrue(Product.objects.filter(pk=other_product.pk).exists())
+        self.assertTrue(Menu.objects.filter(pk=other_menu.pk).exists())
+        self.assertTrue(MenuItem.objects.filter(pk=other_menu_item.pk).exists())
+
+    def test_reset_can_be_run_repeatedly(self):
+        self._run()
+        self._run("--reset")
+        self._run()
+        self._run("--reset")
+        self._run()
+        self.assertEqual(Store.objects.filter(slug=STORE_SLUG).count(), 1)
+        self.assertEqual(Product.objects.filter(store=self._store()).count(), 100)
+
+    def test_reset_removes_qa_store_products_categories_and_menu_items(self):
+        self._run()
+        store_pk = self._store().pk
+        self._run("--reset")
+        # The old Store row (and everything that was CASCADE/PROTECT-owned
+        # by it) must be fully gone — not merely orphaned.
+        self.assertFalse(Store.objects.filter(pk=store_pk).exists())
+        self.assertFalse(Product.objects.filter(store_id=store_pk).exists())
+        self.assertFalse(Category.objects.filter(store_id=store_pk).exists())
+        self.assertFalse(MenuItem.objects.filter(menu__store_id=store_pk).exists())

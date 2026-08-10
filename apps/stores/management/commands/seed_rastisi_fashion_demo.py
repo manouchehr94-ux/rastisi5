@@ -338,16 +338,45 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def _reset(self, owner_username):
-        """فقط Storeِ QA با همینِ اسلاگِ ثابت را حذف می‌کند — cascade مدلِ
-        Django (``on_delete=CASCADE`` رویِ ``store`` در همه‌ی مدل‌هایِ
-        Store-owned) بقیه‌ی رکوردهایِ همینِ Store را خودکار پاک می‌کند.
-        هرگز Storeِ دیگری (حتی اگر همان owner عضوش باشد) را لمس نمی‌کند.
-        اتمیک: اگر حذف در میانه شکست بخورد، هیچ‌چیزی نصفه‌کاره حذف نمی‌شود."""
+        """فقط Storeِ QA با همینِ اسلاگِ ثابت را حذف می‌کند — هرگز Storeِ
+        دیگری (حتی اگر همان owner عضوش باشد) را لمس نمی‌کند. اتمیک: اگر حذف
+        در میانه شکست بخورد، هیچ‌چیزی نصفه‌کاره حذف نمی‌شود.
+
+        ``Store.delete()`` مستقیم به‌تنهایی کافی نیست: دو زنجیره‌یِ
+        ``on_delete=PROTECT`` واقعاً روی گراف دادهٔ همین دستور وجود دارد —
+        ``Product.category`` (PROTECT) و ``MenuItem.menu`` (PROTECT). وقتی
+        Django سعی می‌کند از طریقِ CASCADEِ ``Category.store``/``Menu.store``
+        این دو مدل را هم حذف کند، وجودِ Productها/MenuItemهایِ هنوز-موجود
+        باعثِ ``ProtectedError`` می‌شود. راه‌حل: ابتدا خودِ Productها و
+        MenuItemها (که آن دو PROTECT را نگه داشته‌اند) صریحاً و فقط برایِ
+        همینِ Storeِ QA حذف می‌شوند — پس از آن، ``Store.delete()`` بقیه‌ی
+        گراف (Category/Brand/Vendor/Menu/MerchantCollection/ContentPage/
+        HeroSlide/PromotionalBanner/StoryRailItem/FooterSettings/
+        ShopSettings/StoreMembership/StoreDomain/StorefrontLayout+نسخه‌ها+
+        بخش‌ها) را کاملاً امن و بدونِ خطا از طریقِ CASCADEِ معمولی پاک می‌کند.
+        هیچ مدلی از PROTECT به CASCADE تغییر داده نشده و هیچ راهِ حذفِ خام/
+        بدونِ‌قید (raw SQL) استفاده نشده — فقط ترتیبِ حذف اصلاح شده است."""
         existing = Store.objects.filter(slug=STORE_SLUG).first()
         if existing is None:
             self.stdout.write("  --reset: Storeِ QA از قبل وجود نداشت — چیزی حذف نشد.")
             return
         self.stdout.write(f"  --reset: حذفِ کاملِ Storeِ QA «{existing.slug}» (pk={existing.pk})…")
+
+        # قدمِ ۱ — Productهایِ همینِ Store را حذف کن تا PROTECTِ
+        # Product.category آزاد شود (ProductVariant/ProductImage/
+        # MerchantCollectionItem/... همه از طریقِ CASCADEِ خودِ Product پاک
+        # می‌شوند). فیلترِ ``store=existing`` تضمین می‌کند هیچ کالایِ
+        # فروشگاهِ دیگری لمس نشود.
+        Product.objects.filter(store=existing).delete()
+
+        # قدمِ ۲ — MenuItemهایِ منوهایِ همینِ Store را حذف کن تا PROTECTِ
+        # MenuItem.menu آزاد شود. فیلترِ ``menu__store=existing`` تضمین
+        # می‌کند هیچ آیتمِ منویِ فروشگاهِ دیگری لمس نشود.
+        MenuItem.objects.filter(menu__store=existing).delete()
+
+        # قدمِ ۳ — اکنون Store.delete() بدونِ هیچ PROTECTِ باقی‌مانده، امن
+        # است؛ بقیه‌ی گرافِ Store-owned از طریقِ CASCADEِ معمولیِ مدل‌ها پاک
+        # می‌شود.
         existing.delete()
 
     # ------------------------------------------------------------------ Store/Domain/Membership
@@ -861,11 +890,40 @@ class Command(BaseCommand):
     def _seed_builder(self, store: Store, owner, family) -> None:
         """چیدمانِ Builder را دقیقاً از طریقِ همان سرویس‌هایِ Production
         می‌سازد — هرگز StorefrontSection/StorefrontLayoutVersion را دستی
-        نمی‌سازد. اولین ``get_or_create_draft`` روی یک Storeِ کاملاً تازه
-        خودکار bootstrap عمومی می‌سازد؛ سپس appearance_config با Familyِ
-        درخواستی تنظیم و چیدمانِ Sectionِ *واقعیِ* همان Family جایگزین،
-        و در پایان منتشر می‌شود — دقیقاً همان مسیرِ کدی که
-        ``storefront_appearance_editor`` (خودِ Builder UI) طی می‌کند."""
+        نمی‌سازد.
+
+        Idempotent و rate-limit-آگاه (تصمیمِ صریحِ این اصلاح): ``publish``
+        و ``get_or_create_draft`` هرکدام پشتِ یک Rate Limitِ واقعیِ
+        Production‌اند (به‌ترتیب ۲۰/۳۰ فراخوانی در هر ساعت، به‌ازایِ هر
+        Store — ``apps.core.services.rate_limit``، تعریف‌شده در
+        ``layout_service.py``). این محدودیت‌ها برایِ محافظت از سوءاستفادهٔ
+        واقعی‌اند و اینجا هرگز دور زده/غیرفعال/بالا برده نمی‌شوند.
+
+        به‌جایِ آن، این متد ابتدا وضعیتِ *فعلیِ* ``StorefrontLayout`` را
+        می‌خواند (بدونِ فراخوانیِ هیچ سرویسِ Rate-Limitedی):
+          * اگر از قبل یک نسخه‌ی منتشرشده وجود دارد که Familyِ آن دقیقاً
+            برابرِ ``family`` است و هیچ Draftِ باقی‌مانده‌ای ندارد — یعنی
+            اجرایِ قبلیِ همینِ دستور دقیقاً همین حالت را ساخته — هیچ چیزی
+            دوباره فراخوانی نمی‌شود (نه Draft جدید، نه publish جدید).
+          * در غیرِ این صورت (اولین اجرا، یا Familyِ متفاوت، یا Draftِ
+            نصفه‌کارهٔ باقی‌مانده)، دقیقاً همان مسیرِ Production طی می‌شود:
+            ``get_or_create_draft`` → ``validate_appearance_config`` →
+            ``apply_family_default_sections`` → ``publish``.
+        این یعنی یک اجرایِ دومِ کاملاً یکسانِ همینِ دستور، هیچ عملیاتِ
+        rate-limited اضافه‌ای مصرف نمی‌کند — دقیقاً همان الزامِ صریحِ کار."""
+        layout = layout_service.get_or_create_layout(store)
+        if layout.published_version_id and not layout.draft_version_id:
+            current_config = layout.published_version.effective_appearance_config()
+            if current_config.get("family_slug") == family.slug:
+                self._log(
+                    "StorefrontLayoutVersion", 0,
+                    note=(
+                        f"از قبل با Family «{family.slug}» منتشر شده — بدونِ فراخوانیِ "
+                        "دوبارهٔ publish/new_draft (idempotent)"
+                    ),
+                )
+                return
+
         draft = layout_service.get_or_create_draft(store, user=owner)
         cleaned = layout_service.validate_appearance_config({
             "family_slug": family.slug, "preset_slug": family.default_preset_slug,
