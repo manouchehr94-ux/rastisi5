@@ -1,0 +1,25 @@
+{% load persian %}{% comment %}
+دسته‌بندیِ خانواده‌ی «سرو استاک» (sarv_stock) — شش تایلِ مستطیلیِ دسته‌بندی.
+تصویرِ کاور با overlay سبز.
+{% endcomment %}
+{% if nav_categories %}
+<section class="section sv-category-section">
+  <div class="wrap">
+    {% if category_grid_settings.title %}
+    <div class="sec-head"><h2><span class="bar"></span>{{ category_grid_settings.title }}</h2></div>
+    {% endif %}
+    <div class="sv-category-grid">
+      {% for cat in nav_categories|slice:":6" %}
+      <a class="sv-category-tile" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+        <div class="sv-tile-img">
+          {% if cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">{% else %}<span class="wm">{{ cat.icon|default:"🌿" }}</span>{% endif %}
+        </div>
+        <div class="sv-tile-overlay">
+          <h4>{{ cat.name }}</h4>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}

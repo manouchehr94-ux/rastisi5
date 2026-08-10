@@ -1,0 +1,23 @@
+{% load persian %}{% comment %}
+دسته‌بندیِ خانواده‌ی «ترنج هدیه» (toranj_gifting) — گریدِ دسته‌بندی با
+شکلِ قرصی (Pill-shaped). ۲ ردیف قرص.
+{% endcomment %}
+{% if nav_categories %}
+<section class="section tj-category-section">
+  <div class="wrap">
+    {% if category_grid_settings.title %}
+    <div class="sec-head"><h2><span class="bar"></span>{{ category_grid_settings.title }}</h2></div>
+    {% endif %}
+    <div class="tj-category-pills">
+      {% for cat in nav_categories %}
+      <a class="tj-pill" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+        <span class="tj-pill-icon">
+          {% if cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">{% else %}<span class="wm">{{ cat.icon|default:"🎁" }}</span>{% endif %}
+        </span>
+        <span class="tj-pill-name">{{ cat.name }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}

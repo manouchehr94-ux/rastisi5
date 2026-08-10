@@ -1,0 +1,35 @@
+{% load persian catalog_extras %}{% comment %}
+کارتِ محصولِ خانواده‌ی «ترنج هدیه» (toranj_gift_card) — کارتِ هدیه:
+تصویر ۱:۱، بَج تخفیفِ نرم (دایره‌ی بلاشِ ملایم)، دکمه‌ی قرصیِ قهوه‌ای،
+چیدمانِ مرکزی.
+{% endcomment %}
+<a class="pcard tj-gift-card" href="{% url 'catalog:product-detail' product.slug %}">
+  <div class="tj-card-img">
+    {% if product.cover_image %}
+    <img src="{{ product.cover_image.thumbnail.url|default:product.cover_image.image.url }}"
+         alt="{{ product.cover_image.alt|default:product.name }}" loading="lazy">
+    {% else %}
+    <span class="emo">🎁</span>
+    {% endif %}
+    {% if product.discount_percent > 0 %}
+    <span class="tj-badge-blush">{{ product.discount_percent|fa_number }}٪</span>
+    {% endif %}
+    {% include "customers/partials/wishlist_button.html" %}
+  </div>
+  <div class="tj-card-body">
+    <div class="tj-card-title">{{ product.name }}</div>
+    <div class="tj-card-price">
+      <span class="tj-price-now">{{ product.final_price|toman }}</span>
+      {% if product.discount_percent > 0 %}
+      <span class="tj-price-old">{{ product.price|toman }}</span>
+      {% endif %}
+    </div>
+    <button type="button" class="tj-pill-btn"
+            hx-post="{% url 'cart:add' product.slug %}"
+            hx-vals='{"quantity": 1}'
+            hx-swap="none"
+            onclick="event.preventDefault();event.stopPropagation()">
+      افزودن به سبد 🎁
+    </button>
+  </div>
+</a>

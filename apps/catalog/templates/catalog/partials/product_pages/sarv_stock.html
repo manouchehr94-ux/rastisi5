@@ -1,0 +1,210 @@
+{% load static persian catalog_extras %}{% comment %}
+صفحه‌ی محصولِ خانواده‌ی «سرو استاک» (sarv_stock) — چیدمانِ سه‌ستونه:
+گالری ۳۶٪ / فکت‌ها ۳۴٪ / خرید ۳۰٪. مشخصاتِ فنی. FAQ. محصولاتِ مشابه.
+{% endcomment %}
+<div class="wrap sv-product">
+  {% if is_merchant_preview %}
+  <div class="notice" style="border-right-color:#166534;background:#f0fdf4;color:#166534;margin-bottom:14px">
+    👁️ پیش‌نمایشِ مدیریتی — وضعیت: «{{ product.get_status_display }}»
+  </div>
+  {% endif %}
+
+  <div class="breadcrumb">
+    <a href="/">خانه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <a href="{% url 'catalog:product-list' %}">فروشگاه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    {% if product.category.parent %}
+    <a href="{% url 'catalog:product-list' %}?category={{ product.category.parent.slug }}">{{ product.category.parent.name }}</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    {% endif %}
+    <a href="{% url 'catalog:product-list' %}?category={{ product.category.slug }}">{{ product.category.name }}</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span>{{ product.name }}</span>
+  </div>
+
+  {{ variant_selector|json_script:"variant-selector-data" }}
+  {{ product_price_json|json_script:"product-price-data" }}
+  <div class="sv-pdp" x-data="variantSelector(
+         JSON.parse(document.getElementById('variant-selector-data').textContent),
+         JSON.parse(document.getElementById('product-price-data').textContent)
+       )">
+
+    {# ستون ۱: گالری (36%) #}
+    <div class="sv-gallery">
+      <div class="sv-gallery-main">
+        {% for slide in gallery_slides %}
+          {% if slide.type == "image" %}
+          <img x-show="activeSlide === {{ forloop.counter0 }}" src="{{ slide.url }}" alt="{{ slide.alt }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+          {% else %}
+          <span x-show="activeSlide === {{ forloop.counter0 }}" style="display:grid;place-items:center;background:{{ slide.tint }}">{{ slide.emoji }}</span>
+          {% endif %}
+        {% endfor %}
+        {% include "customers/partials/wishlist_button.html" with button_class="sv-wish" %}
+      </div>
+      <div class="sv-gallery-thumbs">
+        {% for slide in gallery_slides %}
+        <button type="button" class="sv-thumb" :class="{ active: activeSlide === {{ forloop.counter0 }} }" @click="activeSlide = {{ forloop.counter0 }}"
+                style="{% if slide.type == 'image' %}background-image:url('{{ slide.thumb_url }}');background-size:cover{% else %}background:{{ slide.tint }}{% endif %}">
+          {% if slide.type == "emoji" %}{{ slide.emoji }}{% endif %}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# ستون ۲: فکت‌ها (34%) #}
+    <div class="sv-facts">
+      <h1>{{ product.name }}</h1>
+      {% if product.brand %}<div class="sv-brand">{{ product.brand.name }}</div>{% endif %}
+      <div class="sv-rating">
+        <span class="stars">{{ product.rating|star_rating }}</span>
+        <span>{{ product.rating|floatformat:1|fa_number }} ({{ review_count|fa_number }} نظر)</span>
+      </div>
+
+      {# مشخصات فنی #}
+      <div class="sv-spec-table">
+        <table class="spec-table">
+          <tr><td>دسته‌بندی</td><td>{{ product.category.name }}</td></tr>
+          {% if product.brand %}<tr><td>برند</td><td>{{ product.brand.name }}</td></tr>{% endif %}
+          <tr><td>SKU</td><td dir="ltr">{{ product.sku }}</td></tr>
+          {% for attribute, values in spec_variant_summary.items %}
+          <tr><td>{{ attribute }}</td><td>{{ values }}</td></tr>
+          {% endfor %}
+          <tr><td>موجودی</td><td>{% if product.stock > 0 %}{{ product.stock|fa_number }} عدد{% else %}ناموجود{% endif %}</td></tr>
+        </table>
+      </div>
+
+      {# توضیحات #}
+      <div class="sv-desc">
+        {% if product.description %}{{ product.description|product_description_html }}{% else %}<p>توضیحاتی ثبت نشده.</p>{% endif %}
+      </div>
+    </div>
+
+    {# ستون ۳: خرید (30%) #}
+    <div class="sv-purchase">
+      <div class="sv-price-box">
+        <div class="sv-price-now" x-text="formatToman(displayPrice.price)"></div>
+        <div class="sv-price-row" x-show="displayPrice.savings > 0">
+          <span class="sv-price-old" x-text="formatToman(displayPrice.regular)"></span>
+          <span class="sv-disc-tag" x-text="discountPercentText()"></span>
+        </div>
+      </div>
+
+      <form hx-post="{% url 'cart:add' product.slug %}" hx-swap="none" @submit="if (!canAddToCart) $event.preventDefault()">
+        {% csrf_token %}
+        <input type="hidden" name="variant_id" :value="current ? current.variant_id : ''">
+
+        <template x-for="axis in axes" :key="axis.id">
+          <div class="sv-opt">
+            <div class="sv-opt-label"><span x-text="axis.label"></span>: <b x-text="selectedLabel(axis)"></b></div>
+            <template x-if="axis.values.some(v => v.color_hex)">
+              <div class="swatches">
+                <template x-for="v in axis.values" :key="v.id">
+                  <div class="swatch" :class="{ active: selected[axis.id] === v.id, unavailable: !isValueAvailable(axis.id, v.id) }"
+                       :style="'background:' + v.color_hex" :title="v.label"
+                       @click="selectAxisValue(axis.id, v.id)"></div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!axis.values.some(v => v.color_hex)">
+              <div class="sizes">
+                <template x-for="v in axis.values" :key="v.id">
+                  <button type="button" class="size" :class="{ active: selected[axis.id] === v.id, unavailable: !isValueAvailable(axis.id, v.id) }"
+                          @click="selectAxisValue(axis.id, v.id)" x-text="v.label"></button>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <template x-for="group in groups" :key="group.label">
+          <div class="sv-opt">
+            <div class="sv-opt-label"><span x-text="group.label"></span>: <b x-text="currentLegacyLabel(group)"></b></div>
+            <template x-if="group.values.some(v => v.color_hex)">
+              <div class="swatches">
+                <template x-for="v in group.values" :key="v.id">
+                  <div class="swatch" :class="{ active: selectedVariantId === v.id, unavailable: !v.is_purchasable }"
+                       :style="'background:' + v.color_hex" :title="v.label"
+                       @click="selectLegacy(v.id)"></div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!group.values.some(v => v.color_hex)">
+              <div class="sizes">
+                <template x-for="v in group.values" :key="v.id">
+                  <button type="button" class="size" :class="{ active: selectedVariantId === v.id, unavailable: !v.is_purchasable }"
+                          @click="selectLegacy(v.id)" x-text="v.label"></button>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <div class="sv-stock">
+          <template x-if="displayStock > 0"><span class="sv-in-stock">✓ موجود در انبار</span></template>
+          <template x-if="displayStock <= 0"><span class="sv-no-stock">ناموجود</span></template>
+        </div>
+
+        <div class="sv-qty" x-data="{ qty: 1 }">
+          <span>تعداد:</span>
+          <div class="stepper">
+            <button type="button" @click="qty = Math.max(1, qty - 1)">−</button>
+            <input name="quantity" :value="qty" readonly>
+            <button type="button" @click="qty = Math.min(Math.max(displayStock, 1), qty + 1)">+</button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn sv-btn-add" :disabled="!canAddToCart">
+          <span x-text="needsSelection ? 'انتخاب گزینه' : (displayStock <= 0 ? 'ناموجود' : 'افزودن به سبد خرید')"></span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {# FAQ #}
+  <div class="sv-faq" x-data="{ openQ: null }">
+    <h3>پرسش‌های متداول</h3>
+    <div class="sv-faq-item">
+      <button type="button" @click="openQ = openQ === 'ship' ? null : 'ship'" class="sv-faq-q">🚚 زمان ارسال چقدر است؟</button>
+      <div class="sv-faq-a" x-show="openQ === 'ship'" x-cloak>معمولاً ۲ تا ۵ روز کاری.</div>
+    </div>
+    <div class="sv-faq-item">
+      <button type="button" @click="openQ = openQ === 'return' ? null : 'return'" class="sv-faq-q">🔄 شرایط بازگشت کالا؟</button>
+      <div class="sv-faq-a" x-show="openQ === 'return'" x-cloak>تا هفت روز پس از دریافت، بدون نیاز به ارائه‌ی دلیل.</div>
+    </div>
+    <div class="sv-faq-item">
+      <button type="button" @click="openQ = openQ === 'warranty' ? null : 'warranty'" class="sv-faq-q">✅ آیا گارانتی دارد؟</button>
+      <div class="sv-faq-a" x-show="openQ === 'warranty'" x-cloak>بله، تمامی محصولات از ضمانتِ اصالت برخوردارند.</div>
+    </div>
+  </div>
+
+  {# تب نظرات #}
+  <div class="pdp-tabs" x-data="{ tab: 'review' }">
+    <div class="tabline">
+      <button type="button" class="t" :class="{ active: tab === 'review' }" @click="tab = 'review'">نظرات ({{ review_count|fa_number }})</button>
+    </div>
+    <div class="tabpane" :class="{ active: tab === 'review' }">
+      {% for review in approved_reviews %}
+      <div class="review">
+        <div class="head"><span class="av">{{ review.customer.full_name|slice:":1" }}</span><div><b>{{ review.customer.full_name }}</b><small>{{ review.created_at|jalali }}</small></div><span class="stars">{{ review.rating|star_rating }}</span></div>
+        <p>{{ review.text }}</p>
+      </div>
+      {% empty %}
+      <p style="color:var(--muted)">هنوز نظری ثبت نشده.</p>
+      {% endfor %}
+      <div id="review-form-container">{% include "catalog/partials/review_form.html" %}</div>
+    </div>
+  </div>
+
+  {# محصولات مشابه #}
+  {% if related_products %}
+  <div class="section">
+    <div class="sec-head"><h2><span class="bar"></span>محصولات مشابه</h2></div>
+    <div class="grid g4">
+      {% for product in related_products %}
+      {% include "catalog/partials/product_card.html" %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>

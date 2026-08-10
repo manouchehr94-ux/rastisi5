@@ -1,0 +1,194 @@
+{% load static persian catalog_extras %}{% comment %}
+صفحه‌ی محصولِ خانواده‌ی «ترنج هدیه» (toranj_gifting) — چیدمان:
+گالری (52%) + کارتِ خریدِ گرد (48%). افزونه‌های اختیاری. تب‌ها و نظرات.
+{% endcomment %}
+<div class="wrap tj-product">
+  {% if is_merchant_preview %}
+  <div class="notice" style="border-right-color:#92400e;background:#fef3c7;color:#92400e;margin-bottom:14px">
+    👁️ پیش‌نمایشِ مدیریتی — وضعیت: «{{ product.get_status_display }}»
+  </div>
+  {% endif %}
+
+  <div class="breadcrumb">
+    <a href="/">خانه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <a href="{% url 'catalog:product-list' %}">فروشگاه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    {% if product.category.parent %}
+    <a href="{% url 'catalog:product-list' %}?category={{ product.category.parent.slug }}">{{ product.category.parent.name }}</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    {% endif %}
+    <a href="{% url 'catalog:product-list' %}?category={{ product.category.slug }}">{{ product.category.name }}</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span>{{ product.name }}</span>
+  </div>
+
+  {{ variant_selector|json_script:"variant-selector-data" }}
+  {{ product_price_json|json_script:"product-price-data" }}
+  <div class="tj-pdp" x-data="variantSelector(
+         JSON.parse(document.getElementById('variant-selector-data').textContent),
+         JSON.parse(document.getElementById('product-price-data').textContent)
+       )">
+
+    {# گالری (52%) #}
+    <div class="tj-gallery">
+      <div class="tj-gallery-main">
+        {% for slide in gallery_slides %}
+          {% if slide.type == "image" %}
+          <img x-show="activeSlide === {{ forloop.counter0 }}" src="{{ slide.url }}" alt="{{ slide.alt }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+          {% else %}
+          <span x-show="activeSlide === {{ forloop.counter0 }}" style="display:grid;place-items:center;background:{{ slide.tint }}">{{ slide.emoji }}</span>
+          {% endif %}
+        {% endfor %}
+        <span class="tj-disc-badge" x-show="displayPrice.savings > 0" x-text="discountPercentText()"></span>
+        {% include "customers/partials/wishlist_button.html" with button_class="tj-wish" %}
+      </div>
+      <div class="tj-gallery-thumbs">
+        {% for slide in gallery_slides %}
+        <button type="button" class="tj-thumb" :class="{ active: activeSlide === {{ forloop.counter0 }} }" @click="activeSlide = {{ forloop.counter0 }}"
+                style="{% if slide.type == 'image' %}background-image:url('{{ slide.thumb_url }}');background-size:cover{% else %}background:{{ slide.tint }}{% endif %}">
+          {% if slide.type == "emoji" %}{{ slide.emoji }}{% endif %}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# کارت خرید گرد (48%) #}
+    <div class="tj-purchase-card">
+      <h1>{{ product.name }}</h1>
+      {% if product.brand %}<div class="tj-brand">{{ product.brand.name }}</div>{% endif %}
+      <div class="tj-rating">
+        <span class="stars">{{ product.rating|star_rating }}</span>
+        <span>{{ product.rating|floatformat:1|fa_number }}</span>
+        <span>({{ review_count|fa_number }} نظر)</span>
+      </div>
+
+      <div class="tj-pricebox">
+        <span class="tj-price-current" x-text="formatToman(displayPrice.price)"></span>
+        <span class="tj-price-was" x-show="displayPrice.savings > 0" x-text="formatToman(displayPrice.regular)"></span>
+        <span class="tj-save-tag" x-show="displayPrice.savings > 0" x-text="discountPercentText() + ' تخفیف'"></span>
+      </div>
+
+      <form hx-post="{% url 'cart:add' product.slug %}" hx-swap="none" @submit="if (!canAddToCart) $event.preventDefault()">
+        {% csrf_token %}
+        <input type="hidden" name="variant_id" :value="current ? current.variant_id : ''">
+
+        <template x-for="axis in axes" :key="axis.id">
+          <div class="tj-opt">
+            <div class="tj-opt-label"><span x-text="axis.label"></span>: <b x-text="selectedLabel(axis)"></b></div>
+            <template x-if="axis.values.some(v => v.color_hex)">
+              <div class="swatches">
+                <template x-for="v in axis.values" :key="v.id">
+                  <div class="swatch" :class="{ active: selected[axis.id] === v.id, unavailable: !isValueAvailable(axis.id, v.id) }"
+                       :style="'background:' + v.color_hex" :title="v.label"
+                       @click="selectAxisValue(axis.id, v.id)"></div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!axis.values.some(v => v.color_hex)">
+              <div class="sizes">
+                <template x-for="v in axis.values" :key="v.id">
+                  <button type="button" class="size" :class="{ active: selected[axis.id] === v.id, unavailable: !isValueAvailable(axis.id, v.id) }"
+                          @click="selectAxisValue(axis.id, v.id)" x-text="v.label"></button>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <template x-for="group in groups" :key="group.label">
+          <div class="tj-opt">
+            <div class="tj-opt-label"><span x-text="group.label"></span>: <b x-text="currentLegacyLabel(group)"></b></div>
+            <template x-if="group.values.some(v => v.color_hex)">
+              <div class="swatches">
+                <template x-for="v in group.values" :key="v.id">
+                  <div class="swatch" :class="{ active: selectedVariantId === v.id, unavailable: !v.is_purchasable }"
+                       :style="'background:' + v.color_hex" :title="v.label"
+                       @click="selectLegacy(v.id)"></div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!group.values.some(v => v.color_hex)">
+              <div class="sizes">
+                <template x-for="v in group.values" :key="v.id">
+                  <button type="button" class="size" :class="{ active: selectedVariantId === v.id, unavailable: !v.is_purchasable }"
+                          @click="selectLegacy(v.id)" x-text="v.label"></button>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        {# افزونه‌ها (اختیاری) #}
+        <div class="tj-addon-note">
+          <label>
+            <input type="checkbox" name="gift_wrap" value="1">
+            🎀 بسته‌بندیِ هدیه (رایگان)
+          </label>
+        </div>
+
+        <div class="tj-stock">
+          <template x-if="displayStock > 0"><span>✓ موجود</span></template>
+          <template x-if="displayStock <= 0"><span style="color:var(--pink)">ناموجود</span></template>
+        </div>
+
+        <div class="tj-qty" x-data="{ qty: 1 }">
+          <span>تعداد:</span>
+          <div class="stepper">
+            <button type="button" @click="qty = Math.max(1, qty - 1)">−</button>
+            <input name="quantity" :value="qty" readonly>
+            <button type="button" @click="qty = Math.min(Math.max(displayStock, 1), qty + 1)">+</button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn tj-btn-add" :disabled="!canAddToCart">
+          <span x-text="needsSelection ? 'انتخاب گزینه' : (displayStock <= 0 ? 'ناموجود' : '🎁 افزودن به سبد خرید')"></span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {# تب‌ها #}
+  <div class="pdp-tabs" x-data="{ tab: 'desc' }">
+    <div class="tabline">
+      <button type="button" class="t" :class="{ active: tab === 'desc' }" @click="tab = 'desc'">توضیحات</button>
+      <button type="button" class="t" :class="{ active: tab === 'spec' }" @click="tab = 'spec'">مشخصات</button>
+      <button type="button" class="t" :class="{ active: tab === 'review' }" @click="tab = 'review'">نظرات ({{ review_count|fa_number }})</button>
+    </div>
+    <div class="tabpane" :class="{ active: tab === 'desc' }">
+      {% if product.description %}{{ product.description|product_description_html }}{% else %}<p>توضیحاتی ثبت نشده.</p>{% endif %}
+    </div>
+    <div class="tabpane" :class="{ active: tab === 'spec' }">
+      <table class="spec-table">
+        <tr><td>دسته‌بندی</td><td>{{ product.category.name }}</td></tr>
+        {% if product.brand %}<tr><td>برند</td><td>{{ product.brand.name }}</td></tr>{% endif %}
+        <tr><td>SKU</td><td dir="ltr">{{ product.sku }}</td></tr>
+        {% for attribute, values in spec_variant_summary.items %}
+        <tr><td>{{ attribute }}</td><td>{{ values }}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+    <div class="tabpane" :class="{ active: tab === 'review' }">
+      {% for review in approved_reviews %}
+      <div class="review">
+        <div class="head"><span class="av">{{ review.customer.full_name|slice:":1" }}</span><div><b>{{ review.customer.full_name }}</b><small>{{ review.created_at|jalali }}</small></div><span class="stars">{{ review.rating|star_rating }}</span></div>
+        <p>{{ review.text }}</p>
+      </div>
+      {% empty %}
+      <p style="color:var(--muted)">هنوز نظری ثبت نشده.</p>
+      {% endfor %}
+      <div id="review-form-container">{% include "catalog/partials/review_form.html" %}</div>
+    </div>
+  </div>
+
+  {% if related_products %}
+  <div class="section">
+    <div class="sec-head"><h2><span class="bar"></span>هدایای مرتبط</h2></div>
+    <div class="grid g4">
+      {% for product in related_products %}
+      {% include "catalog/partials/product_card.html" %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>

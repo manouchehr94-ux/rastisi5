@@ -1,0 +1,32 @@
+{% load persian catalog_extras %}{% comment %}
+کارتِ محصولِ خانواده‌ی «زرّین جواهر» (zarrin_minimal_card) — کارتِ مینیمال:
+تصویر ۱:۱، crossfade، بدونِ بوردرِ سنگین، سایه‌ی مینیمال، تگِ طلایی برای
+تخفیف.
+{% endcomment %}
+<a class="pcard zr-minimal-card" href="{% url 'catalog:product-detail' product.slug %}">
+  <div class="zr-card-img">
+    {% if product.cover_image %}
+    <img class="zr-img-primary" src="{{ product.cover_image.thumbnail.url|default:product.cover_image.image.url }}"
+         alt="{{ product.cover_image.alt|default:product.name }}" loading="lazy">
+    {% if product.secondary_image %}
+    <img class="zr-img-secondary" src="{{ product.secondary_image.thumbnail.url|default:product.secondary_image.image.url }}"
+         alt="{{ product.name }}" loading="lazy">
+    {% endif %}
+    {% else %}
+    <span class="emo">💎</span>
+    {% endif %}
+    {% if product.discount_percent > 0 %}
+    <span class="zr-badge-gold">{{ product.discount_percent|fa_number }}٪</span>
+    {% endif %}
+    {% include "customers/partials/wishlist_button.html" %}
+  </div>
+  <div class="zr-card-body">
+    <div class="zr-card-title">{{ product.name }}</div>
+    <div class="zr-card-price">
+      <span class="zr-price-now">{{ product.final_price|toman }}</span>
+      {% if product.discount_percent > 0 %}
+      <span class="zr-price-old">{{ product.price|toman }}</span>
+      {% endif %}
+    </div>
+  </div>
+</a>

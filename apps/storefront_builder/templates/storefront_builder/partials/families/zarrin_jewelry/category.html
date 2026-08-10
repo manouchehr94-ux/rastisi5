@@ -1,0 +1,23 @@
+{% load persian %}{% comment %}
+دسته‌بندیِ خانواده‌ی «زرّین جواهر» (zarrin_jewelry) — موزاییکِ چهارستونیِ
+دسته‌بندی (قابلِ تکرار). ظاهرِ مینیمال، بوردرِ طلایی.
+{% endcomment %}
+{% if nav_categories %}
+<section class="section zr-category-section">
+  <div class="wrap">
+    {% if category_grid_settings.title %}
+    <div class="sec-head"><h2><span class="bar"></span>{{ category_grid_settings.title }}</h2></div>
+    {% endif %}
+    <div class="zr-category-mosaic">
+      {% for cat in nav_categories %}
+      <a class="zr-mosaic-tile" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+        <div class="zr-mosaic-img">
+          {% if cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">{% else %}<span class="wm">{{ cat.icon|default:"💎" }}</span>{% endif %}
+        </div>
+        <h4 class="zr-mosaic-name">{{ cat.name }}</h4>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}

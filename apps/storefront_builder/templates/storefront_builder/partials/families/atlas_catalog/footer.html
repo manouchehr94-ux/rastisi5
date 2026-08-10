@@ -1,0 +1,79 @@
+{% load persian %}{% comment %}
+فوترِ خانواده‌ی «اطلسِ کاتالوگ» (atlas_catalog) — فوترِ چهارستونیِ متراکم
+با پس‌زمینه‌ی تیره. ستون‌ها: لینک‌های سریع، دسته‌بندی‌ها، اطلاعات تماس، نمادهای اعتماد.
+{% endcomment %}
+{% with fc=footer_config %}
+<footer class="ac-footer">
+  <div class="wrap ac-footer-grid">
+    {# ستون ۱: درباره فروشگاه #}
+    {% if fc.show_about %}
+    <div class="ac-footer-col">
+      <h5>{{ SHOP_NAME }}</h5>
+      <p>{{ SHOP_NAME }}، {{ SHOP_TAGLINE }} — خرید آسان و مطمئن.</p>
+      {% if fc.show_social and SOCIAL_LINKS_FOOTER %}
+      <div class="ac-footer-socials">
+        {% for slink in SOCIAL_LINKS_FOOTER %}
+        <a href="{{ slink.url }}" aria-label="{{ slink.title }}" target="_blank" rel="noopener noreferrer">{% include "partials/social_icon.html" with icon=slink.effective_icon_name %}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# ستون ۲: لینک‌های سریع #}
+    {% if fc.show_quick_links and NAV_FOOTER_1 %}
+    <div class="ac-footer-col">
+      <h5>{{ NAV_FOOTER_1.title|default:"دسترسی سریع" }}</h5>
+      <ul>
+        {% for item in NAV_FOOTER_1.items %}
+        <li>{% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# ستون ۳: دسته‌بندی‌ها #}
+    {% if NAV_FOOTER_2 %}
+    <div class="ac-footer-col">
+      <h5>{{ NAV_FOOTER_2.title|default:"دسته‌بندی‌ها" }}</h5>
+      <ul>
+        {% for item in NAV_FOOTER_2.items %}
+        <li>{% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% elif fc.show_categories and top_level_categories %}
+    <div class="ac-footer-col">
+      <h5>دسته‌بندی‌ها</h5>
+      <ul>
+        {% for cat in top_level_categories %}
+        <li><a href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">{{ cat.name }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# ستون ۴: تماس + نمادهای اعتماد #}
+    <div class="ac-footer-col">
+      {% if fc.show_contact %}
+      <h5>تماس با ما</h5>
+      <ul class="ac-footer-contact">
+        {% if SHOP_CONTACT_PHONE %}<li><a href="tel:{{ SHOP_CONTACT_PHONE }}" dir="ltr">📞 {{ SHOP_CONTACT_PHONE }}</a></li>{% endif %}
+        {% if SHOP_CONTACT_EMAIL %}<li><a href="mailto:{{ SHOP_CONTACT_EMAIL }}" dir="ltr">✉️ {{ SHOP_CONTACT_EMAIL }}</a></li>{% endif %}
+      </ul>
+      {% endif %}
+      {% if fc.show_trust_badges and FOOTER_TRUST_BADGES %}
+      <div class="ac-trust-badges">
+        {% for badge in FOOTER_TRUST_BADGES %}
+        {% if badge.destination_url %}<a href="{{ badge.destination_url }}" target="_blank" rel="noopener noreferrer"><img src="{{ badge.image.url }}" alt="{{ badge.title }}"></a>{% else %}<img src="{{ badge.image.url }}" alt="{{ badge.title }}">{% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if fc.show_copyright %}
+  <div class="ac-footer-copy"><span>© {{ SHOP_NAME }} — تمامی حقوق محفوظ است.</span></div>
+  {% endif %}
+</footer>
+{% endwith %}

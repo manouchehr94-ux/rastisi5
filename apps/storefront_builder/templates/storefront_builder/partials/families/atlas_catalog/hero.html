@@ -1,0 +1,34 @@
+{% load persian %}{% comment %}
+هیرویِ خانواده‌ی «اطلسِ کاتالوگ» (atlas_catalog) — گریدِ تقسیم‌شده (3fr/1fr):
+بخشِ اصلی: اسلایدرِ hero (از hero_slider_body.html)
+پنلِ کناری: پیشنهادِ ویژه / Flash offer
+{% endcomment %}
+{% load content_tags %}
+<div class="ac-hero-grid wrap">
+  <div class="ac-hero-main">
+    {% include "storefront_builder/partials/hero_slider_body.html" %}
+  </div>
+  <aside class="ac-hero-flash">
+    <div class="ac-flash-header">
+      <span class="ac-flash-icon">⚡</span>
+      <span class="ac-flash-title">پیشنهاد لحظه‌ای</span>
+    </div>
+    {% if banners %}
+    {% with b=banners.0 %}
+    {% resolve_destination b as dest %}
+    <a class="ac-flash-card" href="{{ dest.url|default:'#' }}" {% if dest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>
+      <picture>
+        {% if b.mobile_image %}<source media="(max-width:680px)" srcset="{{ b.mobile_image.url }}">{% endif %}
+        <img src="{{ b.desktop_image.url }}" alt="{{ b.title|default:'پیشنهاد ویژه' }}" loading="lazy">
+      </picture>
+      {% if b.title %}<span class="ac-flash-label">{{ b.title }}</span>{% endif %}
+    </a>
+    {% endwith %}
+    {% else %}
+    <div class="ac-flash-placeholder">
+      <span>🔥</span>
+      <p>پیشنهادِ ویژه‌ی امروز به‌زودی اعلام می‌شود</p>
+    </div>
+    {% endif %}
+  </aside>
+</div>
