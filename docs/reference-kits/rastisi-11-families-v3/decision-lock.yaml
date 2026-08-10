@@ -1,0 +1,69 @@
+schema_version: 3.0
+project:
+  name: RastiSi4
+  local_path_windows: D:\Projects\RastiSi4
+  canonical_repository: https://github.com/manouchehr94-ux/RastiSi4
+  working_branch: claude/family-visual-fidelity-fix
+  merge_to_main: forbidden_until_visual_qa_passes
+
+family_count:
+  existing: 5
+  add: 6
+  final: 11
+  replace_existing: false
+
+existing_families_preserve_exactly:
+  - modern_fashion
+  - heritage_premium
+  - artisan_editorial
+  - vibrant_catalog
+  - nordic_living
+
+new_families:
+  - slug: atlas_catalog
+    public_name_fa: اطلس
+    reference_docs_only: Beraito
+  - slug: ava_fashion
+    public_name_fa: آوا
+    reference_docs_only: iBolak
+  - slug: toranj_gifting
+    public_name_fa: ترنج
+    reference_docs_only: Khaneh Shokolati
+  - slug: sarv_stock
+    public_name_fa: سرو
+    reference_docs_only: Kian Stock
+  - slug: sepidar_handmade
+    public_name_fa: سپیدار
+    reference_docs_only: Gallery Chiic
+  - slug: zarrin_jewelry
+    public_name_fa: زرین
+    reference_docs_only: Sarmey
+
+production_rules:
+  reference_brand_names_in_public_ui: forbidden
+  reference_logos_or_photos: forbidden
+  reference_products_or_prices_hardcoded: forbidden
+  third_party_html_css_copied_to_runtime: forbidden
+  merchant_data_source_required: true
+  tenant_isolation_required: true
+  shared_preview_public_renderer_required: true
+  draft_preview_publish_rollback_required: true
+  home_and_product_renderer_per_family_required: true
+  desktop_and_mobile_required: true
+  merchant_section_reorder_hide_duplicate_edit_required: true
+  functional_controls_required: true
+
+ambiguity_resolution:
+  ask_user_during_implementation: false
+  priority:
+    - decision-lock.yaml
+    - contracts
+    - page screenshot
+    - machine/reference-dna.json
+    - repository architecture
+  missing_optional_content: hide_section_without_blank_gap
+  missing_required_image: use_existing_project_neutral_placeholder
+  missing_family_icon: use_project_svg_icon_registry_with_family_style_tokens
+  missing_mobile_screenshot: use_RESPONSIVE_CONTRACT_FA_md
+  conflict_with_security_or_tenant_isolation: preserve_security_and_log_deviation
+

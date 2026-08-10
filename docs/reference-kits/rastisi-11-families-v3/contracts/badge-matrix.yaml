@@ -1,0 +1,41 @@
+schema_version: 3.0
+logic:
+  discount_percent: round((compare_at_price - price) / compare_at_price * 100)
+  show_discount: compare_at_price > price
+  show_out_of_stock: inventory_policy_marks_unavailable
+  show_new: merchant_new_window_days_or_manual_flag
+  show_featured: merchant_featured_flag
+  never_show_zero_discount: true
+
+families:
+  atlas_catalog:
+    discount: {position: image_top_end, shape: rounded_circle, background: coral_red, color: white, format: "٪{percent}", min_size_px: 38}
+    featured: {position: image_top_start, shape: pill, label_fa: پیشنهاد ویژه, background: green}
+    out_of_stock: {position: image_center, shape: pill, label_fa: ناموجود, background: charcoal_88pct}
+    price: {old: struck_muted, new: near_black, currency_below_or_inline: inline}
+  ava_fashion:
+    discount: {position: image_top_start, shape: rounded_corner_block, background: hot_pink, color: white, format: "٪ {percent}", padding_px: "8 14"}
+    new: {position: image_top_end, shape: pill, label_fa: جدید, background: golden_yellow, color: near_black}
+    out_of_stock: {position: image_center, shape: translucent_panel, label_fa: ناموجود}
+    price: {old: struck_light_gray, new: golden_yellow_bold, currency: muted_gray}
+  toranj_gifting:
+    discount: {position: image_top_end, shape: soft_circle, background: pale_blush, color: white, format: "-{percent}%", diameter_px: 42}
+    featured: {position: section_header, shape: text_with_gift_icon, label_fa: پیشنهاد شگفت‌انگیز}
+    out_of_stock: {position: card_action_area, shape: brown_pill, label_fa: ناموجود}
+    price: {old: struck_muted_brown, new: near_black_bold}
+  sarv_stock:
+    discount: {position: card_bottom_start_above_price, shape: compact_rectangle, background: dark_green, color: white, format: "٪{percent}", radius_px: 2}
+    featured: {position: section_title, shape: text_only, label_fa: تخفیفات شگفت‌انگیز}
+    out_of_stock: {position: image_center, shape: rounded_rectangle, label_fa: اتمام موجودی, background: dark_green_90pct}
+    price: {old: struck_gray, new: red_bold, currency: red}
+  sepidar_handmade:
+    discount: {position: image_top_end, shape: quiet_pill, background: tan, color: white, format: "{percent}%"}
+    new: {position: image_top_start, shape: outline_pill, label_fa: تازه, border: tan}
+    out_of_stock: {position: card_action_area, shape: text_only, label_fa: ناموجود, color: muted_brown}
+    price: {old: struck_muted, new: dark_charcoal}
+  zarrin_jewelry:
+    discount: {position: image_top_end, shape: compact_tag, background: gold_accent, color: white, format: تخفیف}
+    new: {position: image_top_start, shape: text_only, label_fa: جدید, color: gold_accent}
+    out_of_stock: {position: price_area, shape: text_only, label_fa: ناموجود, color: muted_gray}
+    price: {old: struck_muted_gray, new: blue_gray_or_dark_charcoal}
+

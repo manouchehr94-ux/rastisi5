@@ -1,0 +1,204 @@
+schema_version: 3.0
+common:
+  direction: rtl
+  content_source: current_store_tenant_only
+  empty_optional_section: hidden
+  empty_required_collection: render_neutral_editor_placeholder_only_in_preview
+  public_empty_state: hidden
+  section_capabilities: [reorder, hide, show, duplicate, edit, delete, schedule]
+  product_card_minimum_fields: [image, title, price, availability, product_url]
+  product_page_minimum_fields: [breadcrumbs, gallery, title, price, availability, variant_or_quantity, add_to_cart]
+
+families:
+  atlas_catalog:
+    identity: dense colorful utility catalog
+    container_max_px: 1280
+    home_order:
+      - utility_topbar
+      - desktop_header_logo_search_account
+      - category_navigation
+      - narrow_identity_banner
+      - split_hero_with_flash_offer
+      - circular_category_rail
+      - trust_strip_five_items
+      - colored_collection_rail_repeatable
+      - flash_offer_split_panel
+      - paired_compact_collections
+      - brand_rail
+      - blog_rail
+      - dense_multicolumn_footer
+    home_rules:
+      hero_grid_desktop: 3fr 1fr
+      card_columns_desktop: 6
+      card_columns_tablet: 4
+      colored_collection_background: per_section_editable
+      product_card: image_title_price_quantity_cart
+    product_order:
+      - utility_topbar
+      - header
+      - breadcrumbs
+      - product_gallery_and_summary
+      - trust_strip
+      - specifications_tabs
+      - related_products
+      - footer
+    product_layout_desktop: gallery_42_content_30_purchase_28
+
+  ava_fashion:
+    identity: airy fashion story-first storefront
+    container_max_px: 1320
+    home_order:
+      - campaign_strip
+      - header_search_account_cart
+      - category_navigation
+      - circular_story_rail
+      - large_fashion_hero
+      - category_mosaic_2x4
+      - discount_product_rail
+      - newest_product_rail
+      - category_product_rails_repeatable
+      - editorial_blog_cards
+      - light_footer
+    home_rules:
+      hero_ratio_desktop: 16:8
+      category_mosaic_desktop: 4_columns_2_rows
+      product_cards_desktop: 5
+      product_image_ratio: 3:4
+      product_card: image_discount_title_old_price_new_price
+    product_order:
+      - campaign_strip
+      - header
+      - breadcrumbs
+      - vertical_thumbnail_gallery_and_product_configurator
+      - delivery_or_return_notes
+      - details_tabs
+      - related_products
+      - footer
+    product_layout_desktop: thumbnails_8_gallery_42_summary_50
+
+  toranj_gifting:
+    identity: warm gift shop with brown controls and pale blue canvas
+    container_max_px: 1280
+    home_order:
+      - brown_header_search_logo_cart
+      - two_row_category_navigation
+      - circular_story_rail
+      - three_card_hero_carousel
+      - pill_category_grid_2_rows
+      - promotional_banner
+      - tabbed_new_products
+      - three_column_campaign_mosaic
+      - flash_products
+      - trust_or_social_split
+      - product_collections_repeatable
+      - magazine_cards
+      - black_wave_footer
+    home_rules:
+      hero_card_columns_desktop: 3
+      product_cards_desktop: 4
+      card_button: brown_pill
+      page_background: pale_blue
+      product_image_ratio: 1:1
+    product_order:
+      - header
+      - breadcrumbs_on_brown_gradient
+      - rounded_gallery_and_rounded_purchase_card
+      - optional_addons
+      - tabs_and_reviews
+      - related_products
+      - footer
+    product_layout_desktop: gallery_52_summary_48
+
+  sarv_stock:
+    identity: pale green stock catalog with dark green controls
+    container_max_px: 1320
+    home_order:
+      - red_payment_campaign_strip
+      - rounded_floating_header
+      - wide_green_hero
+      - six_rectangular_category_tiles
+      - discounted_products
+      - newest_products
+      - product_collections_repeatable
+      - instagram_branch_panel
+      - green_contact_strip
+      - three_column_footer
+    home_rules:
+      product_cards_desktop: 6
+      product_card: image_title_category_old_price_new_price_filled_cart
+      section_title: right_title_long_rule_left_view_all
+      page_background: pale_green
+    product_order:
+      - campaign_strip
+      - floating_header
+      - rounded_breadcrumbs
+      - gallery_facts_purchase_three_columns
+      - technical_specs
+      - faq
+      - similar_products
+      - footer
+    product_layout_desktop: gallery_36_facts_34_purchase_30
+
+  sepidar_handmade:
+    identity: cream handmade editorial with tan accents
+    container_max_px: 1180
+    home_order:
+      - capsule_header_logo_nav_account_cart
+      - secondary_search_and_category_capsule
+      - editorial_hero
+      - trust_reasons
+      - sale_products
+      - timed_offer
+      - instagram_gallery
+      - blog_cards
+      - compact_editorial_footer
+    home_rules:
+      background: warm_cream
+      accent: tan
+      hero_ratio_desktop: 16:10
+      product_cards_desktop: 4
+      card_style: quiet_border_low_shadow
+    product_order:
+      - capsule_header
+      - secondary_search
+      - breadcrumbs
+      - gallery_and_summary
+      - service_guarantee_tiles
+      - reviews
+      - related_products
+      - footer
+    product_layout_desktop: gallery_52_summary_48
+    loader_policy: never_block_content; skeleton_timeout_ms_2500_then_content
+
+  zarrin_jewelry:
+    identity: minimal jewelry editorial with beige and gold photography
+    container_max_px: 1200
+    home_order:
+      - minimal_single_row_header
+      - full_width_editorial_hero
+      - four_column_category_mosaic_repeatable
+      - two_large_campaign_tiles
+      - newest_products
+      - best_sellers
+      - editorial_story_banner
+      - size_guide_banner
+      - faq_accordion
+      - minimal_footer
+    home_rules:
+      category_mosaic_desktop: 4_columns
+      product_cards_desktop: 4
+      product_image_ratio: 1:1
+      card_style: minimal_shadow_no_heavy_border
+    product_order:
+      - minimal_header
+      - breadcrumbs
+      - product_title_and_gallery
+      - old_and_new_price
+      - variant_selector
+      - quantity_and_add_to_cart
+      - social_share
+      - related_products
+      - faq_or_size_guide_when_configured
+      - footer
+    product_layout_desktop: gallery_55_summary_45
+

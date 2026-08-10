@@ -1,0 +1,77 @@
+schema_version: 3.0
+common:
+  keyboard_accessible: true
+  focus_visible_required: true
+  reduced_motion_supported: true
+  no_control_is_decorative: true
+  cart_mutations_are_tenant_scoped: true
+  variant_selection_updates_price_stock_sku_and_image: true
+  image_zoom_requires_real_high_resolution_asset: true
+
+interactions:
+  header_search:
+    desktop: expand_or_dropdown_results_after_2_chars
+    mobile: full_width_overlay_below_header
+    close_on_escape: true
+    empty_result_fa: نتیجه‌ای پیدا نشد
+  menu:
+    desktop: hover_and_keyboard_focus_mega_menu
+    mobile: offcanvas_nested_accordion
+  story_rail:
+    desktop: horizontal_buttons_with_arrows_if_overflow
+    mobile: touch_scroll_snap
+    click: open_configured_link_or_story_viewer
+  product_slider:
+    desktop: arrows_plus_drag
+    mobile: touch_scroll_snap_with_partial_next_card
+  cart:
+    add: optimistic_pending_then_server_confirmation
+    quick_add_simple_product: allowed
+    configurable_product: route_to_product_or_open_variant_sheet
+    mini_cart: side_drawer_or_family_specific_popover
+  wishlist:
+    anonymous: persist_session_then_merge_after_login
+    authenticated: persist_server_side
+  compare:
+    show_only_when_store_feature_enabled: true
+    max_items_default: 4
+  product_gallery:
+    thumbnails: selectable
+    arrows: loop_when_more_than_one
+    zoom: desktop_only_pointer_zoom_plus_lightbox
+    mobile: swipe_plus_pinch_lightbox
+    video: play_button_over_thumbnail
+  quantity:
+    min: product_min_quantity_or_1
+    max: stock_or_product_max_quantity
+    disable_invalid_buttons: true
+  faq:
+    single_or_multiple_open: family_configurable
+    keyboard: enter_space_toggle
+
+family_overrides:
+  atlas_catalog:
+    product_card_hover: subtle_raise_and_shadow
+    quantity_control_visible_on_card_desktop: true
+    mini_cart: compact_popover
+  ava_fashion:
+    product_card_hover: crossfade_to_secondary_image
+    story_rail_required: true
+    mobile_variant_picker: bottom_sheet
+  toranj_gifting:
+    hero: centered_three_card_carousel
+    product_card_hover: image_soft_zoom
+    optional_addon_checkbox_updates_total: true
+  sarv_stock:
+    product_card_hover: image_swap_if_secondary_exists
+    gallery_side_actions: [share, video_if_available, wishlist]
+    purchase_column_sticky_desktop: true
+  sepidar_handmade:
+    hero: editorial_fade
+    product_card_hover: gentle_zoom_and_tan_outline
+    loader: skeleton_max_2500ms_then_render_available_content
+  zarrin_jewelry:
+    product_card_hover: image_crossfade
+    faq_accordion_required_when_configured: true
+    size_guide_opens_modal_or_inline_panel: true
+

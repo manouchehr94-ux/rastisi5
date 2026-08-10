@@ -1,0 +1,89 @@
+schema_version: 3.0
+implementation:
+  source: existing_project_svg_icon_registry
+  external_icon_font_runtime_dependency: forbidden
+  accessibility: aria-label_required_for_icon_only_buttons
+  touch_target_mobile_min_px: 44
+  optical_alignment: center
+  required_states: [default, hover, focus_visible, active, disabled]
+
+global_semantics:
+  - menu
+  - search
+  - account
+  - login
+  - cart
+  - wishlist
+  - compare
+  - share
+  - zoom_in
+  - gallery_previous
+  - gallery_next
+  - chevron_down
+  - plus
+  - minus
+  - remove
+  - close
+  - filter
+  - sort
+  - grid
+  - list
+  - play
+  - instagram
+  - telegram
+  - whatsapp
+  - phone
+  - location
+  - delivery
+  - secure_payment
+  - authenticity
+  - return_package
+
+families:
+  atlas_catalog:
+    stroke_width: 1.8
+    default_size_px: 22
+    shape: rounded_outline
+    icon_button: {size_px: 40, radius_px: 10, border: none}
+    cart: {filled_container: true, container_color: green, glyph_color: white}
+    trust_icons: {size_px: 32, color: coral_red, outline: true}
+    hover: {translate_y_px: -1, background_alpha: 0.08}
+  ava_fashion:
+    stroke_width: 1.6
+    default_size_px: 22
+    shape: clean_outline
+    icon_button: {size_px: 44, radius_px: 14, border_color: light_gray}
+    active_accent: golden_yellow
+    wishlist_share: {size_px: 28, container: rounded_square}
+    hover: {border_color: near_black, background: white}
+  toranj_gifting:
+    stroke_width: 1.8
+    default_size_px: 20
+    shape: compact_outline
+    icon_button: {size_px: 38, radius_px: 999, border_color: translucent_brown}
+    cart: {color: white_on_brown_header}
+    trust_icons: {size_px: 28, color: warm_brown}
+    hover: {background: warm_brown, glyph_color: white}
+  sarv_stock:
+    stroke_width: 2.0
+    default_size_px: 21
+    shape: bold_rounded
+    icon_button: {size_px: 38, radius_px: 10, background: dark_green, glyph_color: white}
+    product_cart: {filled_container: true, always_visible: true}
+    share_video_wishlist: {vertical_stack_on_gallery: true, background: white}
+    hover: {background: darker_green, scale: 1.03}
+  sepidar_handmade:
+    stroke_width: 1.5
+    default_size_px: 21
+    shape: delicate_outline
+    icon_button: {size_px: 40, radius_px: 999, border_color: tan_30pct}
+    count_badge: {diameter_px: 16, background: tan, color: white}
+    hover: {background: tan, glyph_color: white}
+  zarrin_jewelry:
+    stroke_width: 1.4
+    default_size_px: 20
+    shape: minimal_outline
+    icon_button: {size_px: 36, radius_px: 5, border: none}
+    social_icons: {size_px: 18, color: muted_gray}
+    hover: {color: gold_accent, background: transparent}
+

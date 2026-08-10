@@ -1,0 +1,55 @@
+schema_version: 3.0
+never_hardcode_reference_content: true
+
+bindings:
+  logo: store.brand.logo
+  store_name: store.brand.name
+  navigation: store.navigation.active_tree
+  announcement: storefront.sections.announcement
+  hero_slides: storefront.sections.hero.items
+  stories: storefront.sections.story_rail.items
+  categories: catalog.categories.active_ordered
+  collections: storefront.sections.product_collection.collection_or_rule
+  banners: storefront.sections.banner.items
+  blog_posts: content.posts.published
+  faqs: content.faqs.published
+  footer_links: store.navigation.footer_groups
+  contact: store.contact
+  social_links: store.social_links
+  trust_items: storefront.sections.trust_strip.items
+  product_title: product.title
+  product_images: product.media.ordered
+  product_video: product.media.video
+  product_price: selected_variant.price_or_product_price
+  compare_at_price: selected_variant.compare_at_price
+  product_stock: selected_variant.inventory_or_product_inventory
+  product_attributes: product.attributes
+  product_variants: product.variants
+  variant_image: selected_variant.media_mapping
+  size_guide: product.size_guide_or_category_size_guide
+  related_products: catalog.related_products
+
+collection_rules:
+  explicit_selection: preserve_merchant_order
+  automatic_rule: use_rule_sort_and_limit
+  view_all_link: collection_public_url
+  no_products_public: hide_section
+  no_products_preview: show_editor_hint_without_fake_product
+
+image_rules:
+  aspect_handling: object_fit_cover_unless_family_contract_says_contain
+  focal_point: merchant_media_focal_point
+  responsive_sources: required
+  alt_text: merchant_alt_or_product_title
+  reference_site_assets: forbidden
+
+fallbacks:
+  absent_secondary_image: keep_primary_no_crossfade
+  absent_product_video: hide_video_control
+  absent_compare_at_price: hide_discount_badge_and_old_price
+  absent_size_guide: hide_size_guide_control
+  absent_story_items: hide_story_rail_without_gap
+  absent_blog_posts: hide_blog_section_without_gap
+  absent_footer_group: collapse_grid_columns
+  unavailable_variant: disable_option_keep_visible_with_unavailable_state
+
