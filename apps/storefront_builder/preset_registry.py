@@ -34,14 +34,16 @@ class PresetDefinition:
     card_shadow: str
     card_hover: str
     hero_style: str
-    #: تنظیماتِ مستقلِ تصویرِ کارتِ محصول — هر Preset می‌تواند پیش‌فرضِ
-    #: خودش را داشته باشد؛ مرچنت بعداً می‌تواند آزادانه override کند.
-    card_image_crossfade: bool = False
-    card_image_zoom: bool = True
     #: Paletteِ پیشنهادیِ این Preset (``appearance_registry.PALETTE_REGISTRY``)
     #: — مرچنت همچنان می‌تواند بعداً آزادانه از کلِ ۲۰ Palette موجود
     #: انتخابِ دیگری کند؛ Palette همیشه Global می‌ماند (تصمیمِ مالک).
     default_palette_slug: str
+    #: --- فیلدهایِ اختیاری (دارایِ مقدارِ پیش‌فرض) — باید بعد از تمامِ
+    #: فیلدهایِ الزامی بیایند (قاعده‌ی dataclass پایتون). ---
+    #: تنظیماتِ مستقلِ تصویرِ کارتِ محصول — هر Preset می‌تواند پیش‌فرضِ
+    #: خودش را داشته باشد؛ مرچنت بعداً می‌تواند آزادانه override کند.
+    card_image_crossfade: bool = False
+    card_image_zoom: bool = True
     #: چیدمانِ اولیه‌یِ پیشنهادیِ Sectionهایِ Homepage (فهرستِ section_key
     #: هایِ SECTION_REGISTRY موجود) — در این چک‌پوینت ثبت شده اما هنوز
     #: هیچ سرویسی آن را به‌طور خودکار اعمال نمی‌کند (فروشگاه‌هایِ موجود از
