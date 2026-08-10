@@ -121,7 +121,7 @@ docs/template-references/live-audit/11_REFERENCE_FIDELITY_GAP_ANALYSIS.md
 <div class="mf-quickcats"><div class="wrap mf-quickcats-row">
   {% for cat in nav_categories %}
   <a class="mf-quickcat" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
-    <span class="mf-quickcat-avatar">{{ cat.icon|default:"🛍️" }}</span>
+    <span class="mf-quickcat-avatar">{% if cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">{% else %}{{ cat.icon|default:"🛍️" }}{% endif %}</span>
     <span class="mf-quickcat-name">{{ cat.name }}</span>
   </a>
   {% endfor %}

@@ -752,6 +752,10 @@ def storefront_appearance_editor(request):
             # همین POST رخ داده باشد.
             "image_fit": request.POST.get("image_fit", current["image_fit"]),
             "image_hover": request.POST.get("image_hover", current["image_hover"]),
+            # تنظیماتِ مستقلِ تصویرِ کارت — Preset مقدارِ پیش‌فرض را تعیین
+            # می‌کند، مرچنت می‌تواند override کند.
+            "card_image_crossfade": _field("card_image_crossfade") if new_preset is not None and hasattr(new_preset, "card_image_crossfade") else (request.POST.get("card_image_crossfade", "") == "1" if "card_image_crossfade" in request.POST else current.get("card_image_crossfade", False)),
+            "card_image_zoom": _field("card_image_zoom") if new_preset is not None and hasattr(new_preset, "card_image_zoom") else (request.POST.get("card_image_zoom", "") == "1" if "card_image_zoom" in request.POST else current.get("card_image_zoom", True)),
         }
         from .models import APPEARANCE_COLOR_KEYS
 

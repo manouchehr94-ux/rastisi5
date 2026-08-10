@@ -19,3 +19,55 @@
   --radius:var(--sfb-radius, 18px);
   --button-radius:var(--sfb-button-radius, 12px);
 }
+
+
+/* ===== Independent Card Image Settings (crossfade + zoom) ===== */
+/* کنترلِ مستقلِ تصویرِ دوم (crossfade) و بزرگ‌نمایی (zoom) —
+   این دو مستقل هستند: یکی دیگری را فعال/غیرفعال نمی‌کند.
+   data-sfb-card-crossfade="1" → تصویر دوم را در hover نشان بده
+   data-sfb-card-zoom="1" → تصویر اول را در hover بزرگ‌تر کن */
+
+/* Crossfade: تصویرِ دوم فقط وقتی فعال باشد opacity transition دارد */
+html:not([data-sfb-card-crossfade="1"]) .pcard .mf-card-img-2,
+html:not([data-sfb-card-crossfade="1"]) .pcard .nl-card-img-2{display:none}
+
+/* Zoom: scale بر روی تصویرِ اول فقط وقتی فعال باشد */
+html[data-sfb-card-zoom="1"] .pcard .img img.cover-photo{transition:transform .3s ease}
+html[data-sfb-card-zoom="1"] .pcard:hover .img img.cover-photo{transform:scale(1.06)}
+
+/* Reduced motion: هر دو غیرفعال */
+@media(prefers-reduced-motion:reduce){
+  .pcard .img img{transition:none !important;transform:none !important}
+  .pcard .mf-card-img-2,.pcard .nl-card-img-2{transition:none !important}
+}
+
+
+
+/* ===== Story Rail — shared circular items rail ===== */
+.story-rail-wrap{overflow:hidden}
+.story-rail{display:flex;gap:16px;overflow-x:auto;padding:18px 0;scrollbar-width:none}
+.story-rail::-webkit-scrollbar{display:none}
+.story-item{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;text-decoration:none;color:var(--ink)}
+.story-avatar{width:68px;height:68px;border-radius:50%;border:2.5px solid var(--brand-primary, var(--violet));overflow:hidden;display:grid;place-items:center;background:var(--bg)}
+.story-avatar img{width:100%;height:100%;object-fit:cover}
+.story-label{font-size:10.5px;max-width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+
+
+
+/* ===== Size Guide — shared accessible panel ===== */
+.size-guide{margin:12px 0}
+.size-guide-trigger{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--brand-border, var(--line));border-radius:var(--radius);background:transparent;font-size:12.5px;color:var(--ink);cursor:pointer}
+.size-guide-trigger:hover{background:var(--bg)}
+.size-guide-panel{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.4);padding:20px}
+.size-guide-panel .size-guide-content{background:var(--card, #fff);border-radius:var(--radius);padding:24px;max-width:680px;width:100%;max-height:80vh;overflow-y:auto;position:relative}
+.size-guide-panel .size-guide-content table{width:100%;border-collapse:collapse;font-size:12.5px;margin:12px 0}
+.size-guide-panel .size-guide-content th,.size-guide-panel .size-guide-content td{padding:8px 12px;border:1px solid var(--brand-border, var(--line));text-align:center}
+.size-guide-panel .size-guide-content th{background:var(--bg);font-weight:700}
+.size-guide-close{position:absolute;top:12px;left:12px;width:32px;height:32px;border-radius:50%;border:0;background:var(--bg);font-size:18px;cursor:pointer;display:grid;place-items:center}
+
+/* ===== Maker/Region — artisan card metadata ===== */
+.maker-region{font-size:11px;color:var(--muted);margin-bottom:4px}
+.maker-sep{margin:0 4px}
+
+/* ===== Category Cover Image (shared across families) ===== */
+.cat-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit}

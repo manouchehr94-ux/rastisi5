@@ -803,3 +803,42 @@ class FooterPaymentLogo(TimeStampedModel):
 
     def __str__(self):
         return self.title
+
+
+
+
+# ---------------------------------------------------------------- Story Rail
+
+class StoryRailItem(TimeStampedModel, DestinationMixin):
+    """آیتمِ ریلِ استوری — محتوایِ دایره‌ایِ قابل‌اسکرول (شبیهِ استوریِ
+    اینستاگرام) که مرچنت می‌تواند به دسته‌بندی، محصول، کالکشن یا لینکِ
+    خارجی پیوند بدهد. مشترک بین تمامِ خانواده‌ها — هر خانواده‌ای
+    می‌تواند این Section را اضافه کند.
+
+    مدلِ رسانه‌ای: یک تصویرِ دایره‌ای (thumbnail) + عنوانِ کوتاه.
+    بدونِ وابستگی به شبکه‌ی اجتماعی یا APIِ خارجی."""
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE,
+        related_name="story_rail_items",
+    )
+    section = models.ForeignKey(
+        "storefront_builder.StorefrontSection", verbose_name="بخشِ سازنده بصری",
+        on_delete=models.CASCADE, null=True, blank=True, related_name="story_items",
+        help_text="خالی یعنی آیتمِ سراسریِ فروشگاه (مثلِ HeroSlide). وقتی مرچنت استوری را از Builder اضافه می‌کند، به همان section وصل می‌شود.",
+    )
+    title = models.CharField("عنوان", max_length=60, blank=True)
+    image = models.ImageField(
+        "تصویر", upload_to="storyrail/",
+        validators=[validate_image_size, validate_image_content],
+    )
+    is_active = models.BooleanField("فعال", default=True)
+    display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+
+    class Meta:
+        verbose_name = "آیتم استوری"
+        verbose_name_plural = "آیتم‌های استوری"
+        ordering = ["display_order", "id"]
+
+    def __str__(self):
+        return self.title or f"استوری #{self.pk}"

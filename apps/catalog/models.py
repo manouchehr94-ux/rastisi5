@@ -52,6 +52,10 @@ class Category(TimeStampedModel):
     name = models.CharField("نام", max_length=120)
     slug = models.SlugField("اسلاگ", max_length=140, allow_unicode=True)
     icon = models.CharField("آیکون", max_length=20, blank=True)
+    image = models.ImageField(
+        "تصویر دسته‌بندی", upload_to="categories/images/", null=True, blank=True,
+        help_text="تصویر واقعی برای نمایش در کارت/تایلِ دسته‌بندی. اگر خالی باشد، آیکون (ایموجی) به‌عنوان جایگزین نمایش داده می‌شود.",
+    )
     parent = models.ForeignKey(
         "self",
         verbose_name="دسته‌ی والد",
@@ -1242,6 +1246,65 @@ class ProductTag(TimeStampedModel):
 
     def __str__(self):
         return self.name
+
+
+class ProductMetafield(TimeStampedModel):
+    """متادیتایِ توسعه‌پذیرِ محصول — مکانیزمِ مشترک برایِ هر نوع اطلاعاتِ
+    ساختاریِ اختیاری (سایزگاید، سازنده/منطقه، ویژگی‌های خاص و...).
+
+    طراحی:
+    - ``namespace``: دسته‌بندیِ منطقی (مثلاً ``size_guide``, ``artisan``, ``specs``)
+    - ``key``: کلیدِ مشخص در آن namespace (مثلاً ``chart_html``, ``maker``, ``region``)
+    - ``value_text``: مقدارِ متنی (برای متن ساده و HTML)
+    - ``value_json``: مقدارِ ساختاری (برای جدول سایز، لیست‌ها و...)
+
+    یک محصول می‌تواند تعداد دلخواه metafield داشته باشد. تمپلیت‌ها از
+    یک template tag مشترک استفاده می‌کنند.
+
+    Store-owned: هر metafield به یک Product وصل است و Product خودش
+    Store-owned است — پس ایزولاسیونِ چندمستأجری از طریقِ Product تضمین
+    می‌شود (نیازی به فیلدِ store مستقیم نیست)."""
+
+    product = models.ForeignKey(
+        Product, verbose_name="کالا", on_delete=models.CASCADE, related_name="metafields",
+    )
+    namespace = models.CharField(
+        "فضای نام", max_length=40, db_index=True,
+        help_text="دسته‌بندیِ منطقی: size_guide, artisan, specs, custom",
+    )
+    key = models.CharField(
+        "کلید", max_length=60,
+        help_text="کلیدِ مشخص: chart_html, maker, region, material, dimensions",
+    )
+    value_text = models.TextField(
+        "مقدارِ متنی", blank=True, default="",
+        help_text="برای متن ساده، HTML امن (سایزگاید)، یا مقادیرِ کوتاه.",
+    )
+    value_json = models.JSONField(
+        "مقدارِ ساختاری", null=True, blank=True, default=None,
+        help_text="برای داده‌ی ساختاری: جدول سایز، لیست ویژگی‌ها و...",
+    )
+
+    class Meta:
+        verbose_name = "متادیتای کالا"
+        verbose_name_plural = "متادیتاهای کالا"
+        ordering = ["namespace", "key"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "namespace", "key"],
+                name="uniq_product_metafield",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.namespace}.{self.key} = {self.value_text[:50] or '(JSON)'}"
+
+
+# ---------------------------------------------------------------- Namespace constants (convenience)
+METAFIELD_NS_SIZE_GUIDE = "size_guide"
+METAFIELD_NS_ARTISAN = "artisan"
+METAFIELD_NS_SPECS = "specs"
+METAFIELD_NS_CUSTOM = "custom"
 
 
 class MerchantCollection(TimeStampedModel):

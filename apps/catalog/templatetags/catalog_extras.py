@@ -22,3 +22,43 @@ def star_rating(value):
         rounded = 0
     rounded = max(0, min(5, rounded))
     return "★" * rounded + "☆" * (5 - rounded)
+
+
+
+@register.simple_tag
+def product_metafield(product, namespace, key, default=""):
+    """دسترسیِ امن به یک metafield از cache/prefetch (بدونِ N+1 query).
+
+    Usage: {% product_metafield product "artisan" "maker" as maker %}
+           {% product_metafield product "size_guide" "chart_html" as size_chart %}
+
+    اگر prefetch_related('metafields') روی queryset فراخوانی شده باشد،
+    هیچ query اضافه‌ای اجرا نمی‌شود."""
+    metafields = getattr(product, "_prefetched_objects_cache", {}).get("metafields")
+    if metafields is not None:
+        for mf in metafields:
+            if mf.namespace == namespace and mf.key == key:
+                return mf.value_text or default
+        return default
+    # Fallback: اگر prefetch نشده باشد (مثلاً صفحه‌ی تکی محصول)
+    from apps.catalog.models import ProductMetafield as MF
+    try:
+        mf = MF.objects.get(product=product, namespace=namespace, key=key)
+        return mf.value_text or default
+    except MF.DoesNotExist:
+        return default
+
+
+@register.filter
+def metafield_json(product_metafield_value):
+    """تبدیلِ value_json یک metafield به dict/list قابل استفاده در template.
+    اگر null باشد، dict خالی برمی‌گرداند."""
+    import json
+    if product_metafield_value is None:
+        return {}
+    if isinstance(product_metafield_value, str):
+        try:
+            return json.loads(product_metafield_value)
+        except (json.JSONDecodeError, ValueError):
+            return {}
+    return product_metafield_value

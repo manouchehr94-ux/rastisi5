@@ -50,14 +50,13 @@ cactusleather.ir):
     <a class="h-btn" href="{% if is_live_storefront %}{% url 'customers:wishlist' %}{% else %}#{% endif %}" {% if not is_live_storefront %}onclick="return false"{% endif %} title="علاقه‌مندی‌ها"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>{% if is_live_storefront %}<span class="cnt" id="wishlist-count">{{ wishlist_count|fa_number }}</span>{% endif %}</a>
     {% endif %}
     {% if hc.show_cart %}
-    <div class="hp-hover-basket" x-data="{ basketOpen: false }" @mouseenter="basketOpen = true" @mouseleave="basketOpen = false">
-      <a class="h-btn" href="{% if is_live_storefront %}{% url 'cart:detail' %}{% else %}#{% endif %}" {% if not is_live_storefront %}onclick="return false"{% endif %} title="سبد خرید"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>{% if is_live_storefront %}<span class="cnt" id="cart-count">{{ cart_count|fa_number }}</span>{% endif %}</a>
-      <div class="hp-basket-panel" x-show="basketOpen" x-cloak>
-        {% if is_live_storefront and cart_count > 0 %}
-        <p>{{ cart_count|fa_number }} کالا در سبدِ خرید</p>
-        <a class="btn btn-primary btn-sm" href="{% url 'cart:detail' %}">مشاهده و تکمیلِ خرید</a>
+    <div class="hp-hover-basket" x-data="{ basketOpen: false }" @mouseenter="basketOpen = true" @mouseleave="basketOpen = false" @keydown.escape.window="basketOpen = false">
+      <a class="h-btn" href="{% if is_live_storefront %}{% url 'cart:detail' %}{% else %}#{% endif %}" {% if not is_live_storefront %}onclick="return false"{% endif %} title="سبد خرید" aria-haspopup="true" :aria-expanded="basketOpen.toString()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>{% if is_live_storefront %}<span class="cnt" id="cart-count">{{ cart_count|fa_number }}</span>{% endif %}</a>
+      <div class="hp-basket-panel" x-show="basketOpen" x-cloak @click.outside="basketOpen = false" role="dialog" aria-label="پیش‌نمایش سبد خرید">
+        {% if is_live_storefront %}
+        {% include "cart/partials/cart_preview.html" %}
         {% else %}
-        <p>سبدِ خریدِ شما خالی است</p>
+        <p class="cart-preview-empty">پیش‌نمایش سبد در حالت ادیتور غیرفعال است</p>
         {% endif %}
       </div>
     </div>

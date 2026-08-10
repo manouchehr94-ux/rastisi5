@@ -70,6 +70,10 @@ APPEARANCE_CONFIG_DEFAULTS = {
     "button_style": "filled",
     "image_fit": "cover",
     "image_hover": "zoom",
+    # تنظیماتِ مستقلِ تصویرِ کارتِ محصول (تصمیمِ مالک: crossfade و zoom
+    # باید مستقل باشند — یکی دیگری را فعال/غیرفعال نمی‌کند):
+    "card_image_crossfade": False,   # نمایشِ تصویرِ دوم هنگامِ hover
+    "card_image_zoom": True,         # بزرگ‌نماییِ تصویر هنگامِ hover
     # خانواده‌ی قالب (DOM/Renderer اختصاصی — تصمیمِ مالک Q-01/Q-02،
     # docs/template-references/live-audit/10_OWNER_DECISION_LOG.md) و
     # Presetِ فعالِ درونِ همان خانواده (family_registry.py/preset_registry.py).

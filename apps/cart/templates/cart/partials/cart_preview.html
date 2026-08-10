@@ -1,0 +1,48 @@
+{% load persian %}{% comment %}
+پیش‌نمایشِ مشترکِ سبدِ خرید — دو حالت:
+  count_link: فقط تعداد + لینکِ «مشاهده سبد» (سبکِ پیش‌فرض)
+  mini_cart: لیستِ کوتاهِ اقلام + مجموع + لینک (heritage_premium دسکتاپ)
+
+Context مورد انتظار (از cart_preview.get_cart_preview_data):
+  cart_preview_mode, cart_count, cart_items_preview, cart_total, cart_is_empty
+  + cart_url (از URL resolver خارجی)
+
+این partial داخلِ یک container با interaction مناسب (hover/click/Alpine)
+include می‌شود — مسئولیتِ باز/بسته‌کردن با خانواده/هدر است، نه اینجا.
+{% endcomment %}
+{% if cart_preview_mode == "mini_cart" %}
+<div class="cart-preview-body" role="region" aria-label="پیش‌نمایش سبد خرید">
+  {% if cart_is_empty %}
+  <p class="cart-preview-empty">سبدِ خرید شما خالی است</p>
+  {% else %}
+  <ul class="cart-preview-items">
+    {% for item in cart_items_preview %}
+    <li class="cart-preview-item">
+      {% if item.image_url %}<img src="{{ item.image_url }}" alt="{{ item.product_name }}" class="cart-preview-thumb" loading="lazy">{% endif %}
+      <div class="cart-preview-info">
+        <span class="cart-preview-name">{{ item.product_name }}</span>
+        {% if item.variant_label %}<span class="cart-preview-variant">{{ item.variant_label }}</span>{% endif %}
+        <span class="cart-preview-qty">{{ item.quantity|fa_number }} عدد</span>
+      </div>
+      <span class="cart-preview-price">{{ item.line_total|fa_number }} تومان</span>
+    </li>
+    {% endfor %}
+  </ul>
+  <div class="cart-preview-footer">
+    <span class="cart-preview-total"><b>جمع:</b> {{ cart_total|fa_number }} تومان</span>
+    <span class="cart-preview-count">{{ cart_count|fa_number }} کالا</span>
+  </div>
+  {% endif %}
+  <a class="btn btn-primary btn-sm cart-preview-link" href="{% url 'cart:detail' %}">مشاهده و تکمیلِ خرید</a>
+</div>
+{% else %}
+{# count_link mode — minimal #}
+<div class="cart-preview-body cart-preview-count-link" role="region" aria-label="پیش‌نمایش سبد خرید">
+  {% if cart_is_empty %}
+  <p class="cart-preview-empty">سبدِ خرید شما خالی است</p>
+  {% else %}
+  <p>{{ cart_count|fa_number }} کالا در سبدِ خرید</p>
+  {% endif %}
+  <a class="btn btn-primary btn-sm cart-preview-link" href="{% url 'cart:detail' %}">مشاهده سبد خرید</a>
+</div>
+{% endif %}

@@ -102,3 +102,22 @@ def _header_counts_context(request):
     from apps.cart.context_processors import cart_badge
 
     return cart_badge(request)
+
+
+
+def cart_preview_partial(request):
+    """پارشیالِ پیش‌نمایشِ سبد — برایِ بارگذاریِ htmx داخلِ پنلِ hover/کلیکیِ
+    هدر. حالتِ پیش‌نمایش از query param ``mode`` خوانده می‌شود (پیش‌فرض:
+    ``count_link``)."""
+    from .services.cart_preview import (
+        CART_PREVIEW_MODE_COUNT_LINK,
+        CART_PREVIEW_MODE_MINI_CART,
+        CART_PREVIEW_MODES,
+        get_cart_preview_data,
+    )
+
+    mode = request.GET.get("mode", CART_PREVIEW_MODE_COUNT_LINK)
+    if mode not in CART_PREVIEW_MODES:
+        mode = CART_PREVIEW_MODE_COUNT_LINK
+    data = get_cart_preview_data(request, mode=mode)
+    return render(request, "cart/partials/cart_preview.html", data)

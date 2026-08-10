@@ -1,0 +1,26 @@
+{% load persian content_tags %}{% comment %}
+ریلِ استوری — بخشِ مشترکِ اختیاریِ Builder. آیتم‌های دایره‌ای با تصویر +
+عنوانِ کوتاه، افقی‌اسکرول‌شونده. هر آیتم می‌تواند مقصدی (دسته‌بندی/محصول/
+لینک خارجی) داشته باشد. اگر هیچ آیتمِ فعالی وجود نداشته باشد، هیچ‌چیز
+رندر نمی‌شود (بی‌صدا خالی). قابل استفاده در هر خانواده‌ای.
+{% endcomment %}
+{% if story_items %}
+<div class="story-rail-wrap">
+  <div class="story-rail" role="region" aria-label="استوری‌ها">
+    {% for item in story_items %}
+    {% resolve_destination item as dest %}
+    {% if dest.url %}
+    <a class="story-item" href="{{ dest.url }}" {% if dest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>
+      <span class="story-avatar"><img src="{{ item.image.url }}" alt="{{ item.title|default:'استوری' }}" loading="lazy"></span>
+      {% if item.title %}<span class="story-label">{{ item.title }}</span>{% endif %}
+    </a>
+    {% else %}
+    <div class="story-item">
+      <span class="story-avatar"><img src="{{ item.image.url }}" alt="{{ item.title|default:'استوری' }}" loading="lazy"></span>
+      {% if item.title %}<span class="story-label">{{ item.title }}</span>{% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}

@@ -96,6 +96,7 @@ Variant Selector همان منطقِ پویایِ مشترک است.
           <span class="lbl">تعداد:</span>
           <div class="stepper"><button type="button" @click="qty = Math.max(1, qty - 1)">−</button><input name="quantity" :value="qty" readonly><button type="button" @click="qty = Math.min(Math.max(displayStock, 1), qty + 1)">+</button></div>
         </div>
+        {% include "catalog/partials/size_guide.html" %}
         <div class="pdp-actions">
           <button type="submit" class="btn btn-primary" :disabled="!canAddToCart"><span x-text="needsSelection ? 'ابتدا یک گزینه را انتخاب کنید' : (displayStock <= 0 ? 'ناموجود' : 'افزودن به سبد خرید')"></span></button>
           {% include "customers/partials/wishlist_button.html" with button_class="wish" %}

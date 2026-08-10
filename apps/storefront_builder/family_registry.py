@@ -97,7 +97,7 @@ register_family(FamilyDefinition(
     product_page_variant="catalog/partials/product_pages/modern_fashion.html",
     default_preset_slug="modern_fashion_default",
     default_section_keys=(
-        "hero_banner", "category_grid", "newest_products", "best_sellers",
+        "story_rail", "hero_banner", "category_grid", "newest_products", "best_sellers",
         "discounted_products", "trust_features",
     ),
     swatch=("#FCBD15", "#FF0080", "#FFFFFF"),

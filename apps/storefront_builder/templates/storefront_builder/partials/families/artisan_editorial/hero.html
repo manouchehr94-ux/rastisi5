@@ -11,7 +11,7 @@
 <div class="ae-mosaic wrap">
   {% for cat in nav_categories|slice:":4" %}
   <a class="ae-mosaic-tile ae-mosaic-tile-{{ forloop.counter }}" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
-    <span class="wm">{{ cat.icon|default:"🎨" }}</span>
+    {% if cat.image %}<img class="cat-cover" src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">{% else %}<span class="wm">{{ cat.icon|default:"🎨" }}</span>{% endif %}
     <span class="ae-mosaic-caption">{{ cat.name }}</span>
   </a>
   {% endfor %}

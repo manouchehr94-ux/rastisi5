@@ -900,6 +900,13 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         validate_settings=_validate_video_section_settings, default_settings=default_video_section_settings,
         duplicable=True, removable=True, has_settings_form=True, category_fa="محتوا",
     ),
+    # -------------------------------------------------- Story Rail (بخشِ مشترکِ اختیاری)
+    "story_rail": SectionDefinition(
+        key="story_rail", label_fa="ریلِ استوری", icon="circle",
+        template_name="storefront_builder/sections/story_rail.html",
+        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
+        max_instances=1, duplicable=False, removable=True, category_fa="کشف و خرید",
+    ),
 }
 
 

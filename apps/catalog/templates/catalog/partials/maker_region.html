@@ -1,0 +1,17 @@
+{% load catalog_extras %}{% comment %}
+اطلاعاتِ سازنده/منطقه — بخشِ مشترکِ اختیاری. از metafield با namespace
+``artisan`` استفاده می‌کند. فقط وقتی رندر می‌شود که حداقل یکی از
+``maker`` یا ``region`` وجود داشته باشد.
+
+Context مورد انتظار:
+  product: instance از Product (الزامی)
+{% endcomment %}
+{% product_metafield product "artisan" "maker" as maker %}
+{% product_metafield product "artisan" "region" as region %}
+{% if maker or region %}
+<div class="maker-region">
+  {% if maker %}<span class="maker-name">{{ maker }}</span>{% endif %}
+  {% if maker and region %}<span class="maker-sep">·</span>{% endif %}
+  {% if region %}<span class="maker-region-name">{{ region }}</span>{% endif %}
+</div>
+{% endif %}

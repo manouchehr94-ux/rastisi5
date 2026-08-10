@@ -80,3 +80,10 @@ html[data-sfb-family="artisan_editorial"] .ae-footer-copy{grid-column:1/-1;borde
   html[data-sfb-family="artisan_editorial"] .ae-tagline{font-size:14.5px;margin:18px auto 14px;padding:0 16px}
   html[data-sfb-family="artisan_editorial"] .ae-footer-grid{grid-template-columns:1fr}
 }
+
+
+
+/* ===== Category banner with real image ===== */
+html[data-sfb-family="artisan_editorial"] .ae-banner{position:relative;overflow:hidden}
+html[data-sfb-family="artisan_editorial"] .ae-banner .cat-cover{z-index:0}
+html[data-sfb-family="artisan_editorial"] .ae-banner-title{position:relative;z-index:2;background:rgba(0,0,0,.35);color:#fff;padding:6px 14px;border-radius:4px;backdrop-filter:blur(4px)}

@@ -1,0 +1,15 @@
+{% comment %}
+رسانه‌ی مشترکِ دسته‌بندی — یک قطعه‌ی include-شونده که تصویرِ واقعی را
+(اگر موجود باشد) نمایش می‌دهد، و در صورتِ نبودِ تصویر، ایموجیِ آیکون را
+به‌عنوانِ جایگزین رندر می‌کند. هر خانواده می‌تواند از این partial با
+css_class دلخواه و اندازه‌ی متفاوت استفاده کند.
+
+Context مورد انتظار:
+  - cat: instance از Category (الزامی)
+  - media_class: کلاس CSS اضافی برای container (اختیاری)
+{% endcomment %}
+{% if cat.image %}
+<img src="{{ cat.image.url }}" alt="{{ cat.name }}" class="cat-img {{ media_class|default:'' }}" loading="lazy" style="width:100%;height:100%;object-fit:cover">
+{% else %}
+<span class="wm {{ media_class|default:'' }}">{{ cat.icon|default:"🛍️" }}</span>
+{% endif %}

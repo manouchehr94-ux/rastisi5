@@ -66,3 +66,10 @@ html[data-sfb-family="nordic_living"] .nl-footer-copy{grid-column:1/-1;border-to
   html[data-sfb-family="nordic_living"] .nl-action-rail{position:static;transform:none;margin-top:8px}
   html[data-sfb-family="nordic_living"] .nl-footer-grid{grid-template-columns:1fr}
 }
+
+
+
+/* ===== Banner with real image ===== */
+html[data-sfb-family="nordic_living"] .nl-banner{position:relative;overflow:hidden}
+html[data-sfb-family="nordic_living"] .nl-banner .cat-cover{z-index:0;border-radius:4px}
+html[data-sfb-family="nordic_living"] .nl-banner-title{position:relative;z-index:2}

@@ -492,6 +492,7 @@ class CategoryAttributeAddForm(forms.Form):
 class MainCategoryForm(forms.Form):
     name = forms.CharField(label="نام گروه", max_length=120)
     icon = forms.CharField(label="آیکون (ایموجی)", max_length=10, required=False, initial="📁")
+    image = forms.ImageField(label="تصویر دسته‌بندی", required=False)
 
 
 class SubCategoryForm(forms.Form):
@@ -532,6 +533,8 @@ class SubSubCategoryForm(forms.Form):
 class CategoryEditForm(forms.Form):
     name = forms.CharField(label="نام", max_length=120)
     icon = forms.CharField(label="آیکون (ایموجی)", max_length=10, required=False)
+    image = forms.ImageField(label="تصویر دسته‌بندی", required=False)
+    clear_image = forms.BooleanField(label="حذف تصویر", required=False)
 
 
 class ShopInfoForm(forms.Form):

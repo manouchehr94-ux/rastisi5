@@ -1,11 +1,9 @@
 {% load persian catalog_extras %}
 {% comment %}
 کارتِ محصولِ خانواده‌ی «روایتِ هنر» (``artisan_story_card``) — عنوانِ
-وسط‌چین، بدونِ سایه/Motion اضافه. متادیتای سازنده/منطقه در این چکپوینت
-عمداً رندر نمی‌شود چون امروز هیچ فیلدِ واقعیِ داده‌ای برایِ آن وجود ندارد
-(شکافِ ثبت‌شده در ``01_REPOSITORY_ARCHITECTURE_AND_GAPS.md`` §۳.۱، سؤالِ
-Q-10) — افزودنِ آن بدونِ داده‌ی واقعی یعنی محتوایِ ساختگی، که صریحاً ممنوع
-است.
+وسط‌چین، بدونِ سایه/Motion اضافه. متادیتای سازنده/منطقه از مکانیزمِ
+مشترکِ ProductMetafield (namespace=artisan, key=maker/region) خوانده
+می‌شود — اگر محصول این اطلاعات را نداشته باشد، بی‌صدا حذف می‌شود.
 {% endcomment %}
 <a class="pcard ae-card" href="{% url 'catalog:product-detail' product.slug %}">
   <div class="img">
@@ -19,6 +17,7 @@ Q-10) — افزودنِ آن بدونِ داده‌ی واقعی یعنی مح�
     {% if product.discount_percent > 0 %}<span class="pill pill-disc">{{ product.discount_percent|fa_number }}٪</span>{% endif %}
   </div>
   <div class="body ae-card-body">
+    {% include "catalog/partials/maker_region.html" %}
     <div class="name">{{ product.name }}</div>
     <div class="price">
       <div class="now">{{ product.final_price|toman }}</div>

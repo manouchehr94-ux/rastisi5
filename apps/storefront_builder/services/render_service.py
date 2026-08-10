@@ -119,7 +119,7 @@ def _category_grid_context(store, section):
 
 def _newest_products_context(store, section):
     products = (
-        storefront_listing_products(store).select_related("brand").prefetch_related("images")
+        storefront_listing_products(store).select_related("brand").prefetch_related("images", "metafields")
         .order_by("-created_at")[:8]
     )
     return {"products": products}
@@ -137,7 +137,7 @@ def _best_sellers_context(store, section):
     products_by_id = {
         p.pk: p
         for p in storefront_listing_products(store).filter(pk__in=product_ids)
-        .select_related("brand").prefetch_related("images")
+        .select_related("brand").prefetch_related("images", "metafields")
     }
     products = [products_by_id[pid] for pid in product_ids if pid in products_by_id]
     return {"products": products}
@@ -145,7 +145,7 @@ def _best_sellers_context(store, section):
 
 def _discounted_products_context(store, section):
     products = (
-        storefront_listing_products(store).select_related("brand").prefetch_related("images")
+        storefront_listing_products(store).select_related("brand").prefetch_related("images", "metafields")
         .filter(discount_percent__gt=0).order_by("-discount_percent")[:6]
     )
     return {"products": products}
@@ -323,8 +323,20 @@ def _product_section_context(store, section):
 #: محتوایِ یکسان (نمونه‌ی اول) نشان می‌دهند.
 PER_INSTANCE_SECTION_KEYS = {
     "product_section", "image_text", "hero_banner", "image_slider", "single_banner", "multi_banner",
-    "category_grid", "brand_carousel", "collection_tiles", "quick_links", "video_section",
+    "category_grid", "brand_carousel", "collection_tiles", "quick_links", "video_section", "story_rail",
 }
+
+
+def _story_rail_context(store, section):
+    """ریلِ استوری — آیتم‌هایِ فعالِ همین Section (یا سراسریِ فروشگاه اگر
+    section-specific نداشته باشد). همان الگویِ hero_slides."""
+    from apps.content.models import StoryRailItem
+
+    scoped = StoryRailItem.objects.filter(section=section, is_active=True).order_by("display_order", "id")
+    if scoped.exists():
+        return {"story_items": scoped}
+    # Fallback: آیتم‌هایِ سراسریِ فروشگاه (section__isnull=True)
+    return {"story_items": StoryRailItem.objects.filter(store=store, section__isnull=True, is_active=True).order_by("display_order", "id")}
 
 
 _CONTEXT_BUILDERS = {
@@ -350,6 +362,7 @@ _CONTEXT_BUILDERS = {
     "faq": _static_context,
     "testimonials": _static_context,
     "video_section": _video_section_context,
+    "story_rail": _story_rail_context,
 }
 
 

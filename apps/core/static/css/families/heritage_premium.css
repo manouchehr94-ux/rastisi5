@@ -76,3 +76,9 @@ html[data-sfb-family="heritage_premium"] .hp-footer-copy{grid-column:1/-1;border
   html[data-sfb-family="heritage_premium"] .hp-cta-sticky .btn{width:100%}
   html[data-sfb-family="heritage_premium"] .hp-footer-grid{grid-template-columns:1fr}
 }
+
+
+
+/* ===== Category portrait with real image ===== */
+html[data-sfb-family="heritage_premium"] .hp-portrait{position:relative;overflow:hidden}
+html[data-sfb-family="heritage_premium"] .hp-portrait .cat-cover{border-radius:120px 120px 12px 12px}

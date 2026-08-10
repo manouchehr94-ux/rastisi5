@@ -157,6 +157,8 @@ def shop_settings(request):
         shop_type_scale = global_config.get("type_scale") or global_template.type_scale
         shop_image_fit = global_config.get("image_fit", "cover")
         shop_image_hover = global_config.get("image_hover", "zoom")
+        shop_card_image_crossfade = global_config.get("card_image_crossfade", False)
+        shop_card_image_zoom = global_config.get("card_image_zoom", True)
         shop_family_slug = global_config.get("family_slug")
     else:
         shop_font = _default_template.font
@@ -167,6 +169,8 @@ def shop_settings(request):
         shop_type_scale = _default_template.type_scale
         shop_image_fit = "cover"
         shop_image_hover = "zoom"
+        shop_card_image_crossfade = False
+        shop_card_image_zoom = True
         shop_family_slug = None
 
     # Family (تصمیمِ مالک، Q-01/Q-02 — docs/template-references/live-audit/10_OWNER_DECISION_LOG.md):
@@ -247,6 +251,8 @@ def shop_settings(request):
         "SHOP_HERO_STYLE": shop_hero_style,
         "SHOP_IMAGE_FIT": shop_image_fit,
         "SHOP_IMAGE_HOVER": shop_image_hover,
+        "SHOP_CARD_IMAGE_CROSSFADE": "1" if shop_card_image_crossfade else "",
+        "SHOP_CARD_IMAGE_ZOOM": "1" if shop_card_image_zoom else "",
         # خانواده‌ی قالب (Family) — None یعنی همان DOMِ مشترکِ ۱۰ Template
         # قدیمی، بدون تغییر. نگاه کنید به یادداشتِ بالا.
         "SHOP_FAMILY_SLUG": shop_family_slug,

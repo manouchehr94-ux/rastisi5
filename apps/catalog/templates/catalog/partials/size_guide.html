@@ -1,0 +1,22 @@
+{% load catalog_extras %}{% comment %}
+راهنمای سایز — بخشِ مشترکِ اختیاریِ صفحه‌ی محصول. فقط وقتی رندر
+می‌شود که محصول یک metafield از namespace ``size_guide`` با key
+``chart_html`` داشته باشد. خانواده‌ها می‌توانند این partial را include
+کنند — محصولاتِ بدونِ سایزگاید بی‌صدا هیچ‌چیز رندر نمی‌کنند.
+
+Context مورد انتظار:
+  product: instance از Product (الزامی)
+{% endcomment %}
+{% product_metafield product "size_guide" "chart_html" as size_chart %}
+{% if size_chart %}
+<div class="size-guide" x-data="{ open: false }">
+  <button type="button" class="size-guide-trigger" @click="open = !open" :aria-expanded="open.toString()" aria-controls="size-guide-panel-{{ product.pk }}">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3h18v18H3z"/><path d="M7 3v4M11 3v2M15 3v4M19 3v2"/></svg>
+    راهنمای سایز
+  </button>
+  <div class="size-guide-panel" id="size-guide-panel-{{ product.pk }}" x-show="open" x-cloak @click.outside="open = false" @keydown.escape.window="open = false" role="dialog" aria-label="راهنمای سایز">
+    <div class="size-guide-content">{{ size_chart|safe }}</div>
+    <button type="button" class="size-guide-close" @click="open = false" aria-label="بستن">×</button>
+  </div>
+</div>
+{% endif %}
