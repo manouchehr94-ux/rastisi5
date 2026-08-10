@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ("content", "0017_scope_hero_slides_and_banners_to_section"),
         ("stores", "0001_initial"),
-        ("storefront_builder", "0007_subscriptioncreditnote_subscriptionrefund_and_more"),
+        ("storefront_builder", "0003_storefrontlayoutversion_appearance_config"),
     ]
 
     operations = [
