@@ -28,10 +28,32 @@ class StoryRailMigrationDependencyTest(unittest.TestCase):
             "apps/stores/migrations/0001_initial.py",
         ("storefront_builder", "0003_storefrontlayoutversion_appearance_config"):
             "apps/storefront_builder/migrations/0003_storefrontlayoutversion_appearance_config.py",
+        ("catalog", "0036_merchantcollection_source_legacy_product_tag"):
+            "apps/catalog/migrations/0036_merchantcollection_source_legacy_product_tag.py",
     }
 
     # The invalid dependency that caused the original failure
     INVALID_DEPENDENCY = ("storefront_builder", "0007_subscriptioncreditnote_subscriptionrefund_and_more")
+
+    # Fields that must exist with correct names (not the wrong names from the broken version)
+    REQUIRED_FIELD_NAMES = {
+        "open_in_new_tab",  # NOT "destination_open_new_tab"
+        "destination_type",
+        "destination_external_url",
+        "destination_category",
+        "destination_product",
+        "destination_brand",
+        "destination_collection",
+        "title",
+        "image",
+        "is_active",
+        "display_order",
+        "store",
+        "section",
+    }
+    WRONG_FIELD_NAMES = {
+        "destination_open_new_tab",  # was wrongly used in the first version
+    }
 
     def _repo_root(self):
         """Find the repository root (contains manage.py)."""
@@ -102,6 +124,62 @@ class StoryRailMigrationDependencyTest(unittest.TestCase):
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
         self.assertNotIn('"billing"', content)
+
+    def test_uses_charfield_for_external_url(self):
+        """destination_external_url must be CharField (not URLField) matching DestinationMixin."""
+        path = os.path.normpath(self.MIGRATION_FILE)
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        # Must use CharField for destination_external_url (canonical pattern)
+        self.assertIn("destination_external_url", content)
+        # Must NOT use URLField (which was the broken version)
+        lines = content.split("\n")
+        for line in lines:
+            if "destination_external_url" in line or ("external_url" in line and "models." in line):
+                self.assertNotIn("URLField", line,
+                                 "destination_external_url must be CharField, not URLField")
+
+    def test_field_name_is_open_in_new_tab(self):
+        """Field must be named 'open_in_new_tab' (not 'destination_open_new_tab')."""
+        path = os.path.normpath(self.MIGRATION_FILE)
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn('"open_in_new_tab"', content)
+        self.assertNotIn('"destination_open_new_tab"', content)
+
+    def test_no_page_destination_type(self):
+        """DestinationType does not include 'page' — must not appear in choices."""
+        path = os.path.normpath(self.MIGRATION_FILE)
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        # 'page' was incorrectly included in the first version's choices
+        self.assertNotIn('("page"', content)
+
+    def test_all_required_fields_present(self):
+        """All expected StoryRailItem fields exist in the migration."""
+        path = os.path.normpath(self.MIGRATION_FILE)
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        for field_name in self.REQUIRED_FIELD_NAMES:
+            self.assertIn(f'"{field_name}"', content,
+                          f"Required field '{field_name}' not found in migration")
+
+    def test_no_wrong_field_names(self):
+        """Wrong field names must not appear."""
+        path = os.path.normpath(self.MIGRATION_FILE)
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        for field_name in self.WRONG_FIELD_NAMES:
+            self.assertNotIn(f'"{field_name}"', content,
+                             f"Wrong field name '{field_name}' still in migration")
+
+    def test_catalog_dependency_for_destination_fks(self):
+        """Migration must depend on catalog app (for Product/Category/Brand/Collection FKs)."""
+        path = os.path.normpath(self.MIGRATION_FILE)
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn('"catalog"', content,
+                      "Migration must have a catalog dependency for destination FKs")
 
 
 class CatalogNewMigrationsTest(unittest.TestCase):
