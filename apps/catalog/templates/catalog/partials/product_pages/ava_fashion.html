@@ -125,6 +125,7 @@
           <template x-if="displayStock > 0"><span>✓ موجود</span></template>
           <template x-if="displayStock <= 0"><span style="color:var(--pink)">ناموجود</span></template>
         </div>
+        <div class="av-sku-line" x-show="current && current.sku" style="font-size:12px;color:var(--muted)">کد کالا: <span dir="ltr" x-text="current ? current.sku : ''"></span></div>
 
         <div class="av-qty" x-data="{ qty: 1 }">
           <span>تعداد:</span>
@@ -178,6 +179,8 @@
       <div id="review-form-container">{% include "catalog/partials/review_form.html" %}</div>
     </div>
   </div>
+
+  {% include "catalog/partials/product_videos_block.html" %}
 
   {% if related_products %}
   <div class="section">

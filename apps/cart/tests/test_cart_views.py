@@ -54,10 +54,76 @@ class CartAddViewTests(TestCase):
         response = self.client.get(reverse("cart:add", args=[self.product.slug]))
         self.assertEqual(response.status_code, 405)
 
-    def test_add_invalid_quantity_defaults_to_one(self):
+    def test_add_invalid_quantity_is_rejected_not_added(self):
+        """Checkpoint (server-side stock enforcement): a non-numeric quantity
+        must be rejected outright — it must NOT silently default to 1 and
+        succeed, since that would hide a tampered/malformed request behind
+        an apparently successful add."""
         response = self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": "not-a-number"})
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(CartItem.objects.first().quantity, 1)
+        self.assertEqual(response.status_code, 200)  # htmx error convention: 200 + err toast, no body swap
+        self.assertEqual(CartItem.objects.count(), 0)
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertEqual(trigger["toast"]["type"], "err")
+
+    def test_add_zero_quantity_is_rejected_not_added(self):
+        response = self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 0})
+        self.assertEqual(CartItem.objects.count(), 0)
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertEqual(trigger["toast"]["type"], "err")
+
+    def test_add_negative_quantity_is_rejected_not_added(self):
+        response = self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": -5})
+        self.assertEqual(CartItem.objects.count(), 0)
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertEqual(trigger["toast"]["type"], "err")
+
+    def test_add_zero_stock_product_is_rejected(self):
+        zero_stock = Product.objects.create(
+            store=Store.objects.get(slug="akhlaghi"), vendor=self.product.vendor, category=self.product.category,
+            name="کالای بدون موجودی", slug="sample-cav-zero", sku="SKU-CAV-ZERO",
+            price=Decimal("100000"), stock=0,
+        )
+        response = self.client.post(reverse("cart:add", args=[zero_stock.slug]), {"quantity": 1})
+        self.assertEqual(CartItem.objects.count(), 0)
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertEqual(trigger["toast"]["type"], "err")
+
+    def test_add_quantity_exceeding_stock_is_rejected(self):
+        response = self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 999})
+        self.assertEqual(CartItem.objects.count(), 0)
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertEqual(trigger["toast"]["type"], "err")
+
+    def test_add_zero_stock_variant_is_rejected(self):
+        from apps.catalog.models import ProductVariant
+
+        variant = ProductVariant.objects.create(
+            product=self.product, attribute="رنگ", value="قرمز", stock=0, is_active=True,
+        )
+        response = self.client.post(
+            reverse("cart:add", args=[self.product.slug]), {"variant_id": variant.pk, "quantity": 1}
+        )
+        self.assertEqual(CartItem.objects.count(), 0)
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertEqual(trigger["toast"]["type"], "err")
+
+    def test_existing_cart_quantity_counted_toward_stock_limit(self):
+        """Adding a second time must count the quantity already in the cart
+        against available stock, not just the newly-requested quantity."""
+        self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 8})
+        self.assertEqual(CartItem.objects.get().quantity, 8)
+        # Stock is 10; 8 already in cart + 5 more would be 13 > 10 → rejected.
+        response = self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 5})
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertEqual(trigger["toast"]["type"], "err")
+        self.assertEqual(CartItem.objects.get().quantity, 8)  # unchanged — not partially bumped
+
+    def test_add_within_remaining_stock_after_existing_cart_quantity_succeeds(self):
+        self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 8})
+        response = self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 2})
+        trigger = json.loads(response.headers["HX-Trigger"])
+        self.assertEqual(trigger["toast"]["type"], "ok")
+        self.assertEqual(CartItem.objects.get().quantity, 10)
 
 
 class CartDetailViewTests(TestCase):

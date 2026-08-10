@@ -15,6 +15,8 @@ from apps.stores.resolution import resolve_store_for_storefront
 
 from .models import Brand, Category, Product, Review
 from .services import collection_service
+from apps.cart.services.gift_wrap_service import is_gift_wrap_available, resolve_gift_wrap_price
+
 from .services.product_publish_service import storefront_listing_products, storefront_visible_products
 from .services.product_video_service import ProductVideoError
 from .services.storefront_variant_service import build_variant_selector_context
@@ -317,14 +319,19 @@ def build_product_detail_context(request, product):
     )
 
     savings = product.price - product.final_price
+    gift_wrap_available = is_gift_wrap_available(store)
+    gift_wrap_price = resolve_gift_wrap_price(store) if gift_wrap_available else 0
     context = {
         "product": product,
         "variant_groups": variant_groups,
         "spec_variant_summary": spec_variant_summary,
         "variant_selector": build_variant_selector_context(product),
+        "gift_wrap_available": gift_wrap_available,
+        "gift_wrap_price": gift_wrap_price,
         "product_price_json": {
             "price": int(product.final_price), "regular": int(product.price),
             "savings": int(savings), "stock": product.stock, "sku": product.sku,
+            "gift_wrap_price": int(gift_wrap_price),
         },
         "gallery_slides": _gallery_slides(product),
         "approved_reviews": approved_reviews,

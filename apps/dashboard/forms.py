@@ -571,6 +571,20 @@ class FinanceSettingsForm(NumericCleanMixin, forms.Form):
         return self._clean_int("free_shipping_threshold", min_value=0)
 
 
+class GiftWrapSettingsForm(NumericCleanMixin, forms.Form):
+    """کادوپیچی — افزونه‌ی اختیاریِ سبد خرید (toranj_gifting و هر خانواده‌ی
+    دیگری که این کنترل را نمایش دهد). مستقل از خانواده‌ی بصریِ فروشگاه؛
+    مدیرِ هر Storeای می‌تواند این را روشن/خاموش کند."""
+
+    gift_wrap_available = forms.BooleanField(label="کادوپیچی در دسترس است", required=False)
+    gift_wrap_price = forms.CharField(
+        label="هزینه‌ی کادوپیچی (تومان، هر قلم)", widget=forms.TextInput(attrs={"class": "inp"})
+    )
+
+    def clean_gift_wrap_price(self):
+        return self._clean_int("gift_wrap_price", min_value=0)
+
+
 class SmsConnectionForm(forms.Form):
     """تنظیماتِ پیامکِ قابلِ‌مشاهده‌یِ Store — زیرساختِ ارسال (ارائه‌دهنده،
     کلیدِ API، شماره‌ی فرستنده) دیگر اینجا نیست؛ آن‌ها فقط از Platform Admin

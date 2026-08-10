@@ -192,6 +192,42 @@ class SettingsFinanceViewTests(SettingsViewsTestCase):
         self.assertContains(response, "تنظیمات مالی و مالیات")  # Stays on finance section
 
 
+class SettingsGiftWrapViewTests(SettingsViewsTestCase):
+    """Checkpoint — merchant-configurable gift wrap availability/price
+    (toranj_gifting: optional_addon_checkbox_updates_total)."""
+
+    def test_valid_post_enables_gift_wrap_and_sets_price(self):
+        response = self.client.post(reverse("dashboard:settings-gift-wrap"), {
+            "gift_wrap_available": "on", "gift_wrap_price": "۱۵۰۰۰",
+        })
+        self.assertRedirects(response, "/admin-portal/settings/?section=finance")
+        shop = ShopSettings.load()
+        self.assertTrue(shop.gift_wrap_available)
+        self.assertEqual(shop.gift_wrap_price, Decimal("15000"))
+
+    def test_omitting_checkbox_disables_gift_wrap(self):
+        shop = ShopSettings.load()
+        shop.gift_wrap_available = True
+        shop.gift_wrap_price = Decimal("10000")
+        shop.save(update_fields=["gift_wrap_available", "gift_wrap_price"])
+
+        self.client.post(reverse("dashboard:settings-gift-wrap"), {"gift_wrap_price": "10000"})
+        shop = ShopSettings.load()
+        self.assertFalse(shop.gift_wrap_available)
+
+    def test_negative_price_rejected(self):
+        response = self.client.post(reverse("dashboard:settings-gift-wrap"), {
+            "gift_wrap_available": "on", "gift_wrap_price": "-500",
+        })
+        self.assertEqual(response.status_code, 200)
+        shop = ShopSettings.load()
+        self.assertFalse(shop.gift_wrap_available)  # unchanged — form rejected
+
+    def test_finance_section_renders_gift_wrap_card(self):
+        response = self.client.get(reverse("dashboard:settings") + "?section=finance")
+        self.assertContains(response, "کادوپیچی")
+
+
 class SettingsGatewayToggleViewTests(SettingsViewsTestCase):
     def test_toggle_flips_is_active_and_persists(self):
         response = self.client.post(reverse("dashboard:settings-gateway-toggle", args=[self.gateway.pk]))

@@ -160,10 +160,18 @@ def cart_totals(
     )
     tax = tax_result["line_tax_total"]
     shipping_tax = tax_result["shipping_tax"]
+
+    # کادوپیچی (toranj_gifting: optional_addon_checkbox_updates_total) — جمعِ
+    # هزینه‌ی کادوپیچیِ همه‌ی اقلامِ سبد. عمداً هیچ تخفیف/کدِ تخفیفی روی این
+    # مبلغ اعمال نمی‌شود (یک افزونه‌ی خدماتی است، نه بخشی از قیمتِ کالا) و
+    # مالیات هم روی آن محاسبه نمی‌شود — این یک تصمیمِ سکوپِ محدودِ همین
+    # افزونه است، نه یک قاعده‌ی مالیاتیِ جدیدِ عمومی.
+    gift_wrap_total = sum((item.gift_wrap_line_total for item in items), Decimal("0"))
+
     # وقتی قیمت‌ها inclusive باشند، مالیاتِ کالا از قبل داخلِ items_total
     # نشسته و نباید دوباره افزوده شود — نگاه کنید به ADR-45 و
     # ``tax_service``'s ``tax_added_to_grand_total``.
-    grand_total = after_coupon + shipping_cost + tax_result["tax_added_to_grand_total"]
+    grand_total = after_coupon + shipping_cost + tax_result["tax_added_to_grand_total"] + gift_wrap_total
 
     return {
         "items_total": items_total,
@@ -178,6 +186,7 @@ def cart_totals(
         "tax_lines": tax_result["lines"],
         "prices_include_tax": tax_result["prices_include_tax"],
         "tax_rounding_policy": tax_result["tax_rounding_policy"],
+        "gift_wrap_total": gift_wrap_total,
         "grand_total": grand_total,
         "coupon_applied": coupon_applied,
     }

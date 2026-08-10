@@ -64,7 +64,7 @@
       </div>
 
       <div class="tj-pricebox">
-        <span class="tj-price-current" x-text="formatToman(displayPrice.price)"></span>
+        <span class="tj-price-current" x-text="formatToman(displayTotalWithGiftWrap)"></span>
         <span class="tj-price-was" x-show="displayPrice.savings > 0" x-text="formatToman(displayPrice.regular)"></span>
         <span class="tj-save-tag" x-show="displayPrice.savings > 0" x-text="discountPercentText() + ' تخفیف'"></span>
       </div>
@@ -126,6 +126,24 @@
           <template x-if="displayStock <= 0"><span style="color:var(--pink)">ناموجود</span></template>
         </div>
 
+        <div class="tj-sku-line" x-show="current && current.sku" style="font-size:12px;color:var(--muted)">کد کالا: <span dir="ltr" x-text="current ? current.sku : ''"></span></div>
+
+        {% if gift_wrap_available %}
+        {# افزونهٔ کادوپیچی (interactions.yaml → toranj_gifting:
+           optional_addon_checkbox_updates_total) — فقط وقتی مدیر آن را
+           فعال کرده نمایش داده می‌شود (apps.core.models.ShopSettings.gift_wrap_available)؛
+           انتخاب، جمعِ نمایشی را بلافاصله به‌روزرسانی می‌کند (displayTotalWithGiftWrap)
+           و در POSTِ افزودن به سبد (name="gift_wrap") ارسال می‌شود؛ سرور
+           دوباره در دسترس‌بودن/قیمت را از ShopSettings بررسی می‌کند
+           (apps.cart.services.gift_wrap_service) — کلاینت فقط یک درخواست
+           می‌فرستد، نه قیمتِ نهایی. #}
+        <label class="tj-opt tj-giftwrap" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" name="gift_wrap" value="1" x-model="giftWrapSelected"
+                 aria-label="افزودن کادوپیچی به این سفارش">
+          <span>🎁 کادوپیچی این هدیه (+{{ gift_wrap_price|toman }})</span>
+        </label>
+        {% endif %}
+
         <div class="tj-qty" x-data="{ qty: 1 }">
           <span>تعداد:</span>
           <div class="stepper">
@@ -174,6 +192,8 @@
       <div id="review-form-container">{% include "catalog/partials/review_form.html" %}</div>
     </div>
   </div>
+
+  {% include "catalog/partials/product_videos_block.html" %}
 
   {% if related_products %}
   <div class="section">

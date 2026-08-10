@@ -298,6 +298,12 @@ def create_order_from_cart(
             tax_rate_percent=tax_line.get("tax_rate_percent"),
             unit_tax=tax_line.get("unit_tax") or 0,
             total_tax=tax_line.get("total_tax") or 0,
+            # کادوپیچی — دقیقاً همان اسنپ‌شاتِ سطحِ قلمِ سبد (نه بازخوانیِ
+            # دوباره‌ی ShopSettings) تا اگر مدیر بین افزودن به سبد و ثبتِ
+            # سفارش قیمتِ کادوپیچی را تغییر دهد، این ردیفِ تاریخی دست‌نخورده
+            # بماند — دقیقاً همان استدلالِ unit_price بالا.
+            gift_wrap_selected=item.gift_wrap_selected,
+            gift_wrap_unit_price=item.gift_wrap_unit_price,
         )
         # با قفلِ قبلی (_lock_and_revalidate_items)، شکستِ رزرو/مصرف عملاً
         # نباید پیش بیاید — reserve_inventory همچنان دوباره (به‌صورت اتمیک،

@@ -109,6 +109,19 @@ class ShopSettings(TimeStampedModel):
     # تازه، فقط نشانه‌ی تکمیلِ مرحله‌ی چک‌لیست.
     tax_setup_confirmed_at = models.DateTimeField("زمانِ تاییدِ صریحِ تنظیماتِ مالیات", null=True, blank=True)
 
+    # کادوپیچی (Gift wrap) — افزونه‌ی اختیاریِ سبد خرید که فقط با تنظیمِ صریحِ
+    # مدیر در دسترسِ مشتری قرار می‌گیرد (toranj_gifting family:
+    # ``optional_addon_checkbox_updates_total``). ``gift_wrap_available=False``
+    # (پیش‌فرض) یعنی هیچ چک‌باکسِ کادوپیچی به مشتری نمایش داده نمی‌شود — نه در
+    # این خانواده و نه در بقیه؛ این کنترل کاملاً مستقل از خانواده‌ی بصریِ
+    # فروشگاه است (هر Storeای، با هر خانواده، می‌تواند این را فعال کند).
+    # قیمت همیشه از همین رکورد (سمتِ سرور) خوانده می‌شود — سبد/سرور هرگز به
+    # قیمتِ ارسال‌شده‌ی کلاینت برای این افزونه اعتماد نمی‌کند.
+    gift_wrap_available = models.BooleanField("کادوپیچی در دسترس است", default=False)
+    gift_wrap_price = models.DecimalField(
+        "هزینه‌ی کادوپیچی (تومان، هر قلم)", max_digits=12, decimal_places=0, default=0,
+    )
+
     class SmsBackend(models.TextChoices):
         CONSOLE = "console", "کنسول (فقط لاگ، برای توسعه)"
         MELIPAYAMAK = "melipayamak", "ملی‌پیامک"

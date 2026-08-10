@@ -300,6 +300,12 @@ document.addEventListener('alpine:init', () => {
     current: null,
     activeSlide: 0,
     rootEl: null,
+    // کادوپیچی (toranj_gifting: optional_addon_checkbox_updates_total) —
+    // فقط یک پرچمِ UI برایِ به‌روزرسانیِ زنده‌یِ جمعِ *نمایشی*؛ منبعِ
+    // حقیقتِ نهاییِ قیمت/در دسترس‌بودن همیشه سرور است (cart_service.add_item_to_cart
+    // با gift_wrap_service.resolve_gift_wrap_selection دوباره بررسی می‌کند) —
+    // این مقدار هرگز به‌تنهایی به سرور اعتماد نمی‌شود.
+    giftWrapSelected: false,
 
     init() {
       // $el داخلِ متدهایی که از یک @click در x-forِ تودرتو صدا زده می‌شوند،
@@ -399,6 +405,16 @@ document.addEventListener('alpine:init', () => {
     },
     get canAddToCart() {
       return !this.needsSelection && this.displayStock > 0;
+    },
+    get giftWrapUnitPrice() {
+      return productData.gift_wrap_price || 0;
+    },
+    // جمعِ نمایشیِ «قیمت + کادوپیچی (اگر انتخاب شده)» — برایِ نمایشِ زنده‌یِ
+    // بروزرسانیِ جمعِ کل روی خودِ صفحه‌ی محصول، پیش از افزودن به سبد. جمعِ
+    // *واقعیِ* سبد/تسویه‌حساب همچنان توسطِ apps.cart.services.pricing.cart_totals
+    // (سمتِ سرور) محاسبه می‌شود؛ این فقط یک پیش‌نمایشِ سمتِ کلاینت است.
+    get displayTotalWithGiftWrap() {
+      return this.displayPrice.price + (this.giftWrapSelected ? this.giftWrapUnitPrice : 0);
     },
   }));
 });

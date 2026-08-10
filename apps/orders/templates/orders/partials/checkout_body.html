@@ -162,6 +162,9 @@
           {% if totals.coupon_discount > 0 %}
           <div class="ln disc"><span>کد تخفیف ({{ coupon.code }})</span><b>− {{ totals.coupon_discount|toman }}</b></div>
           {% endif %}
+          {% if totals.gift_wrap_total > 0 %}
+          <div class="ln"><span>🎁 کادوپیچی</span><b>{{ totals.gift_wrap_total|toman }}</b></div>
+          {% endif %}
           <div class="ln{% if totals.free_shipping %} free{% endif %}"><span>هزینه ارسال</span><b>{% if totals.free_shipping %}رایگان{% else %}{{ totals.shipping_cost|toman }}{% endif %}</b></div>
           <div class="ln"><span>مالیات بر ارزش افزوده ({{ SHOP_TAX_PERCENT|fa_number }}٪)</span><b>{{ totals.tax|toman }}</b></div>
           <div class="ln grand"><span>مبلغ قابل پرداخت</span><span class="v">{{ totals.grand_total|toman }}</span></div>

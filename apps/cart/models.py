@@ -36,6 +36,17 @@ class CartItem(TimeStampedModel):
     quantity = models.PositiveIntegerField("تعداد", default=1)
     unit_price = models.DecimalField("قیمت واحد (اسنپ‌شات)", max_digits=12, decimal_places=0)
 
+    # کادوپیچی (toranj_gifting: optional_addon_checkbox_updates_total) — یک
+    # افزونه‌ی سطحِ قلم، نه سطحِ سبد: هر قلم می‌تواند مستقل از بقیه کادوپیچی
+    # شود. ``gift_wrap_unit_price`` همیشه یک اسنپ‌شاتِ سمتِ سرور از
+    # ``ShopSettings.gift_wrap_price`` در لحظه‌ی انتخاب است (دقیقاً همان
+    # الگویِ ``unit_price`` خودِ این مدل) — هرگز از ورودیِ کلاینت خوانده
+    # نمی‌شود؛ نگاه کنید به ``apps.cart.services.gift_wrap_service``.
+    gift_wrap_selected = models.BooleanField("کادوپیچی انتخاب شده", default=False)
+    gift_wrap_unit_price = models.DecimalField(
+        "هزینه‌ی کادوپیچی (اسنپ‌شات)", max_digits=12, decimal_places=0, default=0,
+    )
+
     class Meta:
         verbose_name = "قلم سبد خرید"
         verbose_name_plural = "اقلام سبد خرید"
@@ -43,6 +54,15 @@ class CartItem(TimeStampedModel):
 
     def __str__(self):
         return f"{self.product.name} × {self.quantity}"
+
+    @property
+    def gift_wrap_line_total(self):
+        """جمعِ هزینه‌ی کادوپیچیِ این قلم = تعداد × قیمتِ واحدِ کادوپیچی —
+        وقتی انتخاب نشده باشد صفر است، نه ``gift_wrap_unit_price`` تنها
+        (که ممکن است از انتخاب‌های قبلی مقدار داشته باشد)."""
+        if not self.gift_wrap_selected:
+            return 0
+        return self.gift_wrap_unit_price * self.quantity
 
 
 class Coupon(TimeStampedModel):

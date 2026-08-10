@@ -324,6 +324,7 @@ from .forms import (
     CategoryEditForm,
     CollectionForm,
     FinanceSettingsForm,
+    GiftWrapSettingsForm,
     MainCategoryForm,
     ProductForm,
     ProductImageAltForm,
@@ -4092,7 +4093,9 @@ THEME_TOKEN_DEFAULTS = {
 }
 
 
-def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=None, visual_form=None):
+def _settings_context(
+    request, *, shop_form=None, finance_form=None, gift_wrap_form=None, sms_form=None, visual_form=None,
+):
     store = _resolve_dashboard_store(request)
     shop = ShopSettings.load(store=store)
     theme_values = {
@@ -4107,6 +4110,9 @@ def _settings_context(request, *, shop_form=None, finance_form=None, sms_form=No
         }),
         "finance_form": finance_form or FinanceSettingsForm(initial={
             "tax_percent": shop.tax_percent, "free_shipping_threshold": shop.free_shipping_threshold,
+        }),
+        "gift_wrap_form": gift_wrap_form or GiftWrapSettingsForm(initial={
+            "gift_wrap_available": shop.gift_wrap_available, "gift_wrap_price": shop.gift_wrap_price,
         }),
         "sms_form": sms_form or SmsConnectionForm(initial={
             "sms_enabled": shop.sms_enabled, "sms_backend": shop.sms_backend,
@@ -4309,6 +4315,26 @@ def settings_finance(request):
         messages.success(request, "تنظیمات مالی ذخیره شد")
         return redirect("/admin-portal/settings/?section=finance")
     context = _settings_context(request, finance_form=form)
+    context["sections"] = SETTINGS_SECTIONS
+    context["active_section"] = "finance"
+    return render(request, "dashboard/settings.html", context)
+
+
+@require_POST
+@staff_required
+@permission_required(SETTINGS_MANAGE)
+def settings_gift_wrap(request):
+    """کادوپیچی (toranj_gifting: optional_addon_checkbox_updates_total) —
+    فعال‌سازی/قیمت‌گذاری در دسترسِ مدیرِ فروشگاه، مستقل از خانواده‌ی بصری."""
+    form = GiftWrapSettingsForm(request.POST)
+    if form.is_valid():
+        shop = ShopSettings.load(store=request.store)
+        shop.gift_wrap_available = form.cleaned_data["gift_wrap_available"]
+        shop.gift_wrap_price = form.cleaned_data["gift_wrap_price"]
+        shop.save(update_fields=["gift_wrap_available", "gift_wrap_price", "updated_at"])
+        messages.success(request, "تنظیمات کادوپیچی ذخیره شد")
+        return redirect("/admin-portal/settings/?section=finance")
+    context = _settings_context(request, gift_wrap_form=form)
     context["sections"] = SETTINGS_SECTIONS
     context["active_section"] = "finance"
     return render(request, "dashboard/settings.html", context)

@@ -108,7 +108,55 @@ class CartAddSecurityTests(TestCase):
         resp = self._add("cs-a-draft")
         self.assertEqual(resp.status_code, 404)
 
-    def test_negative_quantity_clamped(self):
+    def test_negative_quantity_rejected(self):
+        """Checkpoint (server-side stock enforcement): a negative quantity
+        must be rejected outright, not silently clamped to 1 and added —
+        clamping a tampered request to a 'valid-looking' quantity hides the
+        fact that the request was malformed."""
         self._add("cs-a-phone", variant_id=self.active_variant.pk, quantity=-5)
-        item = CartItem.objects.get()
-        self.assertGreaterEqual(item.quantity, 1)
+        self.assertEqual(CartItem.objects.count(), 0)
+
+    def test_zero_quantity_rejected(self):
+        self._add("cs-a-phone", variant_id=self.active_variant.pk, quantity=0)
+        self.assertEqual(CartItem.objects.count(), 0)
+
+    def test_zero_stock_product_rejected(self):
+        zero_stock_product = Product.objects.create(
+            store=self.store_a, vendor=self.vendor_a, category=self.cat_a, name="A Zero Stock",
+            slug="cs-a-zero-stock", sku="SKU-CS-A-ZERO", price=Decimal("1000"), stock=0,
+            status=Product.Status.ACTIVE,
+        )
+        resp = self._add("cs-a-zero-stock", quantity=1)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(CartItem.objects.count(), 0)
+
+    def test_zero_stock_variant_rejected(self):
+        zero_stock_variant = ProductVariant.objects.create(
+            product=self.product_a, store=self.store_a, attribute="رنگ", value="سبز", stock=0, is_active=True,
+        )
+        resp = self._add("cs-a-phone", variant_id=zero_stock_variant.pk, quantity=1)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(CartItem.objects.count(), 0)
+
+    def test_quantity_exceeding_stock_rejected(self):
+        # active_variant has stock=5.
+        resp = self._add("cs-a-phone", variant_id=self.active_variant.pk, quantity=6)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(CartItem.objects.count(), 0)
+
+    def test_existing_cart_quantity_counted_against_variant_stock(self):
+        # active_variant has stock=5. Add 3, then try to add 3 more (total 6 > 5) — rejected.
+        self._add("cs-a-phone", variant_id=self.active_variant.pk, quantity=3)
+        self.assertEqual(CartItem.objects.get().quantity, 3)
+        self._add("cs-a-phone", variant_id=self.active_variant.pk, quantity=3)
+        self.assertEqual(CartItem.objects.get().quantity, 3)  # unchanged, second add rejected
+
+    def test_cross_store_variant_stock_never_consulted_for_store_a_product(self):
+        """A variant belonging to Store B can never be used to add Store A's
+        product to a cart, regardless of Store B's stock level — the 404 on
+        cross-store variant lookup happens before any stock check runs."""
+        self.variant_b.stock = 0
+        self.variant_b.save(update_fields=["stock"])
+        resp = self._add("cs-a-phone", variant_id=self.variant_b.pk, quantity=1)
+        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(CartItem.objects.count(), 0)

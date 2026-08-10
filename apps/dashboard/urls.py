@@ -178,6 +178,7 @@ urlpatterns = [
     path("settings/industry/update/apply/", views.settings_industry_update_apply, name="settings-industry-update-apply"),
     path("settings/industry/update/history/", views.settings_industry_update_history, name="settings-industry-update-history"),
     path("settings/finance/", views.settings_finance, name="settings-finance"),
+    path("settings/gift-wrap/", views.settings_gift_wrap, name="settings-gift-wrap"),
     path("settings/appearance/", views.settings_appearance, name="settings-appearance"),
     path("settings/gateways/<int:pk>/toggle/", views.settings_gateway_toggle, name="settings-gateway-toggle"),
     path("settings/shipping/<int:pk>/toggle/", views.settings_shipping_toggle, name="settings-shipping-toggle"),

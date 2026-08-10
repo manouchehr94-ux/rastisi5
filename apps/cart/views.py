@@ -10,7 +10,7 @@ from apps.catalog.services.product_publish_service import storefront_visible_pro
 from apps.stores.resolution import resolve_store_for_service
 
 from .models import CartItem
-from .services.cart_service import add_item_to_cart, get_cart
+from .services.cart_service import UnavailableStockError, add_item_to_cart, get_cart
 from .services.pricing import cart_totals
 
 
@@ -39,9 +39,21 @@ def cart_detail(request):
     return render(request, "cart/cart_detail.html", _cart_context(request, cart))
 
 
+def _cart_add_error_response(request, message):
+    """پاسخِ خطا برایِ افزودنِ ناموفق به سبد — طبقِ همان قراردادِ خطایِ
+    موجودِ پروژه (200 + ``HX-Trigger`` توستِ ``err``، نه یک بدنه‌یِ خطایِ
+    جدا؛ نگاه کنید به ``apps.orders.views._dynamic_response``). هرگز چیزی
+    به سبد اضافه نمی‌شود — شمارنده‌یِ هدر هم بدونِ تغییر دوباره رندر می‌شود."""
+    response = render(request, "cart/partials/header_counts_oob.html", _header_counts_context(request))
+    response["HX-Trigger"] = json.dumps({"toast": {"message": message, "type": "err"}})
+    return response
+
+
 @require_POST
 def cart_add(request, slug):
     store = resolve_store_for_service(request)
+    # storefront_visible_products(store) به‌تنهایی محدودِ همینِ Store است —
+    # هرگز کالای Storeِ دیگری بازگردانده نمی‌شود (404 در غیرِ این صورت).
     product = get_object_or_404(storefront_visible_products(store), slug=slug)
 
     variant = None
@@ -54,14 +66,31 @@ def cart_add(request, slug):
         # never from POST.
         variant = get_object_or_404(ProductVariant, pk=variant_id, product=product, is_active=True)
 
+    # تعدادِ نامعتبر (غیرِعددی، صفر یا منفی) به‌جایِ کِلَمپ‌شدنِ بی‌صدا به ۱،
+    # صریحاً رد می‌شود — پیش از این، هر مقدارِ نامعتبر بی‌صدا ۱ تفسیر می‌شد که
+    # امکانِ تشخیصِ درخواست‌هایِ دستکاری‌شده را از بین می‌برد. کالا هرگز با
+    # تعدادِ نامعتبر به سبد اضافه نمی‌شود.
+    quantity_raw = request.POST.get("quantity", "1")
     try:
-        quantity = int(request.POST.get("quantity", 1))
+        quantity = int(quantity_raw)
     except (TypeError, ValueError):
-        quantity = 1
-    quantity = max(1, quantity)
+        return _cart_add_error_response(request, "تعداد درخواستی نامعتبر است.")
+    if quantity <= 0:
+        return _cart_add_error_response(request, "تعداد درخواستی باید بزرگ‌تر از صفر باشد.")
 
     cart = get_cart(request, create=True)
-    add_item_to_cart(cart, product, variant, quantity)
+
+    # چک‌باکسِ کادوپیچی (toranj_gifting و هر خانواده‌ی دیگری که آن را نمایش
+    # دهد) — مقدارِ خام از فرم صرفاً یک *درخواست* است؛ در دسترس‌بودن/قیمتِ
+    # واقعی همیشه در add_item_to_cart از ShopSettings حل می‌شود، نه از اینجا.
+    gift_wrap_requested = request.POST.get("gift_wrap") in ("1", "true", "on", "yes")
+
+    try:
+        add_item_to_cart(cart, product, variant, quantity, gift_wrap_requested=gift_wrap_requested)
+    except UnavailableStockError as exc:
+        # موجودیِ ناکافی/کالایِ ناموجود — چیزی به سبد اضافه نمی‌شود (نه حتی
+        # با کِلَمپ‌کردنِ تعداد)؛ کاربر با پیامِ صریح آگاه می‌شود.
+        return _cart_add_error_response(request, exc.message)
 
     response = render(request, "cart/partials/header_counts_oob.html", _header_counts_context(request))
     response["HX-Trigger"] = json.dumps(
@@ -80,9 +109,29 @@ def cart_item_update(request, item_id):
     except (TypeError, ValueError):
         quantity = 1
     quantity = max(1, quantity)
-    available_stock = item.variant.stock if item.variant_id else item.product.stock
-    if available_stock > 0:
-        quantity = min(quantity, available_stock)
+
+    # موجودیِ فعلی (نه در لحظه‌ی افزودنِ اولیه) دوباره خوانده می‌شود — کالا
+    # ممکن است از آن زمان تا الان کاملاً بدونِ موجودی شده باشد. پیش از این
+    # اصلاح، وقتی available_stock == 0 بود، شرط ``if available_stock > 0``
+    # کاذب می‌شد و quantity هرگز کِلَمپ نمی‌شد — یعنی کاربر می‌توانست تعدادِ
+    # دلخواهی را برایِ یک قلمِ کاملاً ناموجود ثبت کند. حالا کالای بدون‌موجودی
+    # از سبد حذف می‌شود (نه این‌که با تعدادِ نامعتبر باقی بماند).
+    if item.variant_id:
+        item.variant.refresh_from_db()
+        available_stock = item.variant.stock
+    else:
+        item.product.refresh_from_db()
+        available_stock = item.product.stock
+
+    if available_stock <= 0:
+        item.delete()
+        response = render(request, "cart/partials/cart_page_body.html", _cart_context(request, cart))
+        response["HX-Trigger"] = json.dumps(
+            {"toast": {"message": "این کالا دیگر موجود نیست و از سبد حذف شد", "type": "err"}}
+        )
+        return response
+
+    quantity = min(quantity, available_stock)
 
     item.quantity = quantity
     item.save(update_fields=["quantity", "updated_at"])

@@ -254,8 +254,28 @@ def checkout_item_update(request, item_id):
     except (TypeError, ValueError):
         quantity = 1
     quantity = max(1, quantity)
-    if item.product.stock > 0:
-        quantity = min(quantity, item.product.stock)
+
+    # موجودیِ مرجع باید همانِ تنوعِ انتخاب‌شده باشد، نه کالای مادر — پیش از
+    # این اصلاح، این ویو همیشه ``item.product.stock`` را بررسی می‌کرد، حتی
+    # برای اقلامِ دارای تنوع (ADR-31: کالای دارای تنوع می‌تواند
+    # Product.stock صفر و ProductVariant.stock مثبت داشته باشد یا برعکس).
+    # همچنین، وقتی موجودی صفر بود، شرطِ قبلی کِلَمپ‌کردن را کاملاً رد
+    # می‌کرد (نه این‌که به صفر/حذف برساند) — یعنی مشتری می‌توانست در صفحه‌ی
+    # تسویه‌حساب تعدادِ دلخواهی از یک قلمِ کاملاً ناموجود را نگه دارد.
+    if item.variant_id:
+        item.variant.refresh_from_db()
+        available_stock = item.variant.stock
+    else:
+        item.product.refresh_from_db()
+        available_stock = item.product.stock
+
+    if available_stock <= 0:
+        item.delete()
+        return _dynamic_response(
+            request, cart, toast_message="این کالا دیگر موجود نیست و از سبد حذف شد", toast_type="err",
+        )
+
+    quantity = min(quantity, available_stock)
 
     item.quantity = quantity
     item.save(update_fields=["quantity", "updated_at"])

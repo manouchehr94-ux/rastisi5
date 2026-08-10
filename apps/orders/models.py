@@ -493,10 +493,25 @@ class OrderItem(TimeStampedModel):
         null=True, blank=True, related_name="fulfilled_order_items",
     )
 
+    # کادوپیچی (اسنپ‌شات) — دقیقاً از ``CartItem.gift_wrap_selected``/
+    # ``gift_wrap_unit_price`` در لحظه‌ی ثبتِ سفارش کپی می‌شود (نگاه کنید به
+    # ``order_service.create_order_from_cart``)؛ تغییرِ بعدیِ
+    # ``ShopSettings.gift_wrap_price`` هرگز این ردیفِ تاریخی را عوض نمی‌کند.
+    gift_wrap_selected = models.BooleanField("کادوپیچی انتخاب شده", default=False)
+    gift_wrap_unit_price = models.DecimalField(
+        "هزینه‌ی کادوپیچی (اسنپ‌شات)", max_digits=12, decimal_places=0, default=0,
+    )
+
     class Meta:
         verbose_name = "قلم سفارش"
         verbose_name_plural = "اقلام سفارش"
         ordering = ["id"]
+
+    @property
+    def gift_wrap_line_total(self):
+        if not self.gift_wrap_selected:
+            return 0
+        return self.gift_wrap_unit_price * self.quantity
 
     def __str__(self):
         return f"{self.product_name} × {self.quantity}"

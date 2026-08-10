@@ -133,6 +133,10 @@
           <template x-if="displayStock > 0"><span class="ac-in-stock">✓ موجود در انبار</span></template>
           <template x-if="displayStock <= 0"><span class="ac-no-stock">ناموجود</span></template>
         </div>
+        {# کدِ کالایِ زنده — با انتخابِ هر تنوع به‌روزرسانی می‌شود (current.sku)؛
+           پیش از این، هیچ‌کدام از تمپلیت‌هایِ اختصاصیِ خانواده این را نداشتند
+           و همیشه فقط product.sku (ثابت، بدونِ تنوع) نمایش می‌دادند. #}
+        <div class="ac-sku-line" x-show="current && current.sku" style="font-size:12px;color:var(--muted)">کد کالا: <span dir="ltr" x-text="current ? current.sku : ''"></span></div>
 
         <div class="ac-qty" x-data="{ qty: 1 }">
           <span>تعداد:</span>
@@ -191,6 +195,8 @@
       <div id="review-form-container">{% include "catalog/partials/review_form.html" %}</div>
     </div>
   </div>
+
+  {% include "catalog/partials/product_videos_block.html" %}
 
   {# محصولات مرتبط #}
   {% if related_products %}
