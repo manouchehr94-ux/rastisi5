@@ -20,15 +20,27 @@ from .models import (
     HEADER_CONFIG_DEFAULTS,
     HEADER_TOGGLE_FIELDS,
     StorefrontLayoutVersion,
+    StorefrontPage,
     StorefrontSection,
 )
 from .services import layout_service
 from .services.layout_service import _clone_section_scoped_media
-from .services.render_service import build_render_items
+from .services.render_service import build_page_render_items
 
 
 def _resolve_store(request):
     return resolve_store_for_service(request)
+
+
+def _resolve_page_type(raw) -> str:
+    """Phase 2 (سازنده‌ی تک‌صفحه‌ای): رشته‌یِ خامِ ``page`` (از querystring
+    یا فرمِ POST) را به یکی از شش نوعِ معتبرِ ``StorefrontPage.PageType``
+    حل می‌کند — مقدارِ غایب/نامعتبر بی‌صدا به ``HOME`` بازمی‌گردد (نه
+    خطا) تا لینک/فرمِ قدیمیِ بدونِ این پارامتر (پیش از این چکپوینت)
+    دقیقاً همان رفتارِ فعلی را حفظ کند."""
+    if raw in StorefrontPage.PageType.values:
+        return raw
+    return StorefrontPage.PageType.HOME
 
 
 @staff_required
@@ -37,15 +49,21 @@ def storefront_editor(request):
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
     layout = layout_service.get_or_create_layout(store)
-    # Phase 1A: ادیتورِ فعلی فقط صفحه‌ی اصلی را نشان/ویرایش می‌کند — پس
-    # عمداً ``draft.home_page().sections`` (نه property تجمیعیِ
-    # ``draft.sections``، که شاملِ همه‌ی شش صفحه می‌شود).
-    sections = draft.home_page().sections.order_by("order", "id")
+    # Phase 2 (سازنده‌ی تک‌صفحه‌ای): صفحه‌یِ در حالِ ویرایش از
+    # ``?page=<page_type>`` (وضعیتِ صریح در URL) حل می‌شود — غیاب/نامعتبر
+    # بودنِ آن دقیقاً معادلِ رفتارِ قبل از این چکپوینت (همیشه صفحه‌ی
+    # اصلی) است.
+    page_type = _resolve_page_type(request.GET.get("page"))
+    page = draft.get_page(page_type)
+    sections = page.sections.order_by("order", "id")
     industry_installation = getattr(store, "industry_installation", None)
     context = {
         "active_page": "storefront_builder",
         "layout": layout,
         "draft": draft,
+        "page": page,
+        "page_type": page_type,
+        "page_types": StorefrontPage.PageType.choices,
         "sections": sections,
         "section_definitions": section_registry.list_definitions(),
         "section_library_groups": section_registry.list_library_groups(),
@@ -115,7 +133,12 @@ def storefront_preview(request):
 
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
-    items = build_render_items(draft, store)
+    # Phase 2: پیش‌نمایش هم باید همان صفحه‌ای را نشان دهد که ادیتور در
+    # حالِ ویرایشِ آن است — ``?page=`` دقیقاً همان پارامتری است که
+    # ``storefront_editor`` به iframe پاس می‌دهد.
+    page_type = _resolve_page_type(request.GET.get("page"))
+    page = draft.get_page(page_type)
+    items = build_page_render_items(page, store)
     top_level_categories = Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
     # تنظیماتِ ظاهر باید از همین Draft خوانده شود، نه ShopSettings زنده —
     # نگاه کنید به ``apps.core.context_processors._versioned_colors``.
@@ -140,20 +163,31 @@ def storefront_preview(request):
     else:
         request.storefront_appearance_version = draft
     return render(request, "storefront_builder/preview.html", {
-        "store": store, "version": draft, "render_items": items, "is_preview": True,
+        "store": store, "version": draft, "page": page, "page_type": page_type,
+        "render_items": items, "is_preview": True,
         "top_level_categories": top_level_categories,
     })
 
 
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
-def storefront_section_list_partial(request):
-    """پارشیال لیست بخش‌ها — برای بازآوری htmx پس از هر تغییر."""
+def storefront_section_list_partial(request, page_type=None):
+    """پارشیال لیست بخش‌ها — برای بازآوری htmx پس از هر تغییر.
+
+    Phase 2: ``page_type`` یا صریحاً توسطِ فراخوانِ Pythonیِ دیگرِ همین
+    ماژول پاس داده می‌شود (وقتی آن ویو خودش صفحه‌ی درگیر را از قبل
+    می‌داند — مثلاً از رویِ ``section.page``)، یا اگر ``None`` باشد از
+    ``page``یِ فرم/querystringِ همینِ درخواست حل می‌شود (وقتی این ویو
+    مستقیماً هدفِ یک htmx GET/POST است)."""
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
+    if page_type is None:
+        page_type = _resolve_page_type(request.POST.get("page") or request.GET.get("page"))
+    page = draft.get_page(page_type)
     context = {
         "draft": draft,
-        "sections": draft.home_page().sections.order_by("order", "id"),
+        "page_type": page_type,
+        "sections": page.sections.order_by("order", "id"),
         "section_definitions": section_registry.list_definitions(),
     }
     return render(request, "dashboard/storefront_builder/partials/section_list.html", context)
@@ -165,6 +199,8 @@ def storefront_section_list_partial(request):
 def storefront_section_add(request):
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
+    page_type = _resolve_page_type(request.POST.get("page"))
+    page = draft.get_page(page_type)
     section_key = request.POST.get("section_key", "")
 
     try:
@@ -172,20 +208,19 @@ def storefront_section_add(request):
     except section_registry.UnknownSectionTypeError:
         return HttpResponseBadRequest("نوع بخش نامعتبر است")
 
-    home_page = draft.home_page()
-    existing_count = home_page.sections.filter(section_key=section_key).count()
+    existing_count = page.sections.filter(section_key=section_key).count()
     if definition.max_instances is not None and existing_count >= definition.max_instances:
         messages.error(request, f"«{definition.label_fa}» فقط یک بار قابل افزودن است")
-        return storefront_section_list_partial(request)
+        return storefront_section_list_partial(request, page_type=page_type)
 
-    last = home_page.sections.order_by("-order").first()
+    last = page.sections.order_by("-order").first()
     new_order = (last.order + 1) if last else 0
     StorefrontSection.objects.create(
-        page=home_page, section_key=section_key, order=new_order,
+        page=page, section_key=section_key, order=new_order,
         settings=definition.default_settings(),
     )
     messages.success(request, f"«{definition.label_fa}» اضافه شد")
-    return storefront_section_list_partial(request)
+    return storefront_section_list_partial(request, page_type=page_type)
 
 
 def _get_scoped_section(request, pk):
@@ -491,16 +526,17 @@ def storefront_section_product_search(request, pk):
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_section_remove(request, pk):
     section = _get_scoped_section(request, pk)
+    page_type = section.page.page_type
     try:
         definition = section_registry.get_definition(section.section_key)
         if not definition.removable:
             messages.error(request, f"«{definition.label_fa}» قابل حذف نیست")
-            return storefront_section_list_partial(request)
+            return storefront_section_list_partial(request, page_type=page_type)
     except section_registry.UnknownSectionTypeError:
         pass
     section.delete()
     messages.success(request, "بخش حذف شد")
-    return storefront_section_list_partial(request)
+    return storefront_section_list_partial(request, page_type=page_type)
 
 
 @require_POST
@@ -510,7 +546,7 @@ def storefront_section_toggle(request, pk):
     section = _get_scoped_section(request, pk)
     section.is_active = not section.is_active
     section.save(update_fields=["is_active", "updated_at"])
-    return storefront_section_list_partial(request)
+    return storefront_section_list_partial(request, page_type=section.page.page_type)
 
 
 @require_POST
@@ -523,7 +559,7 @@ def storefront_section_collapse_toggle(request, pk):
     section = _get_scoped_section(request, pk)
     section.collapsed_in_editor = not section.collapsed_in_editor
     section.save(update_fields=["collapsed_in_editor", "updated_at"])
-    return storefront_section_list_partial(request)
+    return storefront_section_list_partial(request, page_type=section.page.page_type)
 
 
 @require_POST
@@ -549,14 +585,14 @@ def storefront_section_duplicate(request, pk):
         definition = section_registry.get_definition(section.section_key)
         if not definition.duplicable:
             messages.error(request, f"«{definition.label_fa}» قابل تکرار نیست")
-            return storefront_section_list_partial(request)
+            return storefront_section_list_partial(request, page_type=section.page.page_type)
     except section_registry.UnknownSectionTypeError:
         pass
     # Phase 1A: تکرار همیشه رویِ **همان صفحه‌ای** که section بهش تعلق
     # دارد اتفاق می‌افتد (``section.page``، نه ``section.version.home_page()``
-    # که اگر section از یک صفحه‌ی غیرِ اصلی باشد اشتباه می‌بود) — فعلاً
-    # همیشه صفحه‌ی اصلی است چون این ادیتور فقط رویِ آن کار می‌کند، اما
-    # این نوشتار عمداً به آن فرض متکی نیست.
+    # که اگر section از یک صفحه‌ی غیرِ اصلی باشد اشتباه می‌بود) — از
+    # Phase 2 (سازنده‌ی تک‌صفحه‌ای) به بعد، ادیتور واقعاً رویِ هر شش صفحه
+    # کار می‌کند، پس این نوشتار دیگر صرفاً یک احتیاطِ آینده‌نگر نیست.
     last = section.page.sections.order_by("-order").first()
     new_order = (last.order + 1) if last else 0
     new_section = StorefrontSection.objects.create(
@@ -567,7 +603,7 @@ def storefront_section_duplicate(request, pk):
     )
     _clone_section_scoped_media(section, new_section)
     messages.success(request, "بخش تکرار شد")
-    return storefront_section_list_partial(request)
+    return storefront_section_list_partial(request, page_type=section.page.page_type)
 
 
 @require_POST
@@ -584,21 +620,22 @@ def storefront_section_reorder(request):
     می‌شود یا هیچ‌کدام."""
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
-    home_page = draft.home_page()
+    page_type = _resolve_page_type(request.POST.get("page"))
+    page = draft.get_page(page_type)
     section_ids = request.POST.getlist("section_ids")
 
-    valid_ids = set(home_page.sections.values_list("pk", flat=True))
+    valid_ids = set(page.sections.values_list("pk", flat=True))
     ordered_ids = [int(i) for i in section_ids if i.isdigit() and int(i) in valid_ids]
 
     if len(set(ordered_ids)) != len(ordered_ids):
         messages.error(request, "فهرست مرتب‌سازی شامل شناسه‌ی تکراری است — ترتیب تغییر نکرد")
-        return storefront_section_list_partial(request)
+        return storefront_section_list_partial(request, page_type=page_type)
 
     with transaction.atomic():
         for index, section_id in enumerate(ordered_ids):
-            StorefrontSection.objects.filter(pk=section_id, page=home_page).update(order=index)
+            StorefrontSection.objects.filter(pk=section_id, page=page).update(order=index)
 
-    return storefront_section_list_partial(request)
+    return storefront_section_list_partial(request, page_type=page_type)
 
 
 @require_POST
@@ -623,7 +660,7 @@ def storefront_section_move(request, pk):
         other = siblings[swap_index]
         section.order, other.order = other.order, section.order
         StorefrontSection.objects.bulk_update([section, other], ["order"])
-    return storefront_section_list_partial(request)
+    return storefront_section_list_partial(request, page_type=section.page.page_type)
 
 
 @require_POST

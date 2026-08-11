@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.catalog.models import IndustryTemplate, StoreIndustryInstallation
-from apps.storefront_builder.models import StorefrontLayoutVersion, StorefrontSection
+from apps.storefront_builder.models import StorefrontLayoutVersion, StorefrontPage, StorefrontSection
 from apps.storefront_builder.services import layout_service as svc
 from apps.stores.authorization import STOREFRONT_LAYOUT_MANAGE
 from apps.stores.models import Store, StoreMembership
@@ -1232,3 +1232,113 @@ class NewSectionTypesSettingsFormTests(StorefrontBuilderViewsTestCase):
         resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "منویِ انتخابی")
+
+
+class PageSwitchingTests(StorefrontBuilderViewsTestCase):
+    """Phase 2 (سازنده‌ی تک‌صفحه‌ای): ادیتور اکنون رویِ هر شش نوعِ صفحه
+    کار می‌کند — ``?page=<page_type>`` صریحاً در URL، پیش‌فرضِ غایب/
+    نامعتبر همیشه ``home`` (سازگاری کامل با رفتارِ پیش از این چکپوینت)."""
+
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+        self.draft.sections.all().delete()
+        self.listing_page = self.draft.get_page(StorefrontPage.PageType.LISTING)
+        self.home_page = self.draft.home_page()
+
+    def test_editor_defaults_to_home_page(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["page_type"], "home")
+        self.assertEqual(resp.context["page"].pk, self.home_page.pk)
+
+    def test_editor_shows_page_switcher_for_all_six_pages(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        for _value, label in StorefrontPage.PageType.choices:
+            self.assertContains(resp, label)
+        self.assertContains(resp, "sfb-page-switcher")
+
+    def test_editor_switches_to_requested_page(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"), {"page": "listing"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["page_type"], "listing")
+        self.assertEqual(resp.context["page"].pk, self.listing_page.pk)
+
+    def test_editor_invalid_page_falls_back_to_home(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"), {"page": "not-a-real-page"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["page_type"], "home")
+
+    def test_add_section_targets_requested_page(self):
+        self.client.post(reverse("dashboard:storefront-builder-section-add"), {"section_key": "rich_text", "page": "listing"})
+        self.assertTrue(self.listing_page.sections.filter(section_key="rich_text").exists())
+        self.assertFalse(self.home_page.sections.filter(section_key="rich_text").exists())
+
+    def test_add_section_without_page_param_defaults_to_home(self):
+        self.client.post(reverse("dashboard:storefront-builder-section-add"), {"section_key": "rich_text"})
+        self.assertTrue(self.home_page.sections.filter(section_key="rich_text").exists())
+        self.assertFalse(self.listing_page.sections.filter(section_key="rich_text").exists())
+
+    def test_reorder_scoped_to_page_does_not_affect_other_pages(self):
+        home_a = StorefrontSection.objects.create(page=self.home_page, section_key="rich_text", order=0)
+        listing_a = StorefrontSection.objects.create(page=self.listing_page, section_key="rich_text", order=0)
+        listing_b = StorefrontSection.objects.create(page=self.listing_page, section_key="image_text", order=1)
+
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-reorder"), {
+            "section_ids": [str(listing_b.pk), str(listing_a.pk)], "page": "listing",
+        })
+        self.assertEqual(resp.status_code, 200)
+        listing_a.refresh_from_db()
+        listing_b.refresh_from_db()
+        home_a.refresh_from_db()
+        self.assertEqual(listing_b.order, 0)
+        self.assertEqual(listing_a.order, 1)
+        self.assertEqual(home_a.order, 0)
+
+    def test_reorder_cannot_reach_a_different_pages_section(self):
+        """یک section از صفحه‌ی اصلی نباید با ``page=listing`` جابه‌جا شود —
+        ``valid_ids`` باید به صفحه‌یِ درخواست‌شده محدود بماند."""
+        home_a = StorefrontSection.objects.create(page=self.home_page, section_key="rich_text", order=0)
+        listing_a = StorefrontSection.objects.create(page=self.listing_page, section_key="rich_text", order=5)
+
+        self.client.post(reverse("dashboard:storefront-builder-section-reorder"), {
+            "section_ids": [str(home_a.pk)], "page": "listing",
+        })
+        home_a.refresh_from_db()
+        listing_a.refresh_from_db()
+        self.assertEqual(home_a.order, 0)
+        self.assertEqual(listing_a.order, 5)
+
+    def test_move_toggle_duplicate_operate_on_sections_own_page(self):
+        home_marker = StorefrontSection.objects.create(page=self.home_page, section_key="rich_text", order=0, settings={"body_html": "HOME-MARKER"})
+        listing_marker = StorefrontSection.objects.create(page=self.listing_page, section_key="rich_text", order=0, settings={"body_html": "LISTING-MARKER"})
+
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-toggle", args=[listing_marker.pk]))
+        self.assertEqual(resp.status_code, 200)
+        listing_marker.refresh_from_db()
+        home_marker.refresh_from_db()
+        self.assertFalse(listing_marker.is_active)
+        self.assertTrue(home_marker.is_active)
+
+    def test_duplicate_stays_on_originating_page(self):
+        listing_section = StorefrontSection.objects.create(page=self.listing_page, section_key="rich_text", order=0)
+        self.client.post(reverse("dashboard:storefront-builder-section-duplicate", args=[listing_section.pk]))
+        self.assertEqual(self.listing_page.sections.filter(section_key="rich_text").count(), 2)
+        self.assertEqual(self.home_page.sections.filter(section_key="rich_text").count(), 0)
+
+    def test_preview_shows_requested_pages_sections(self):
+        StorefrontSection.objects.create(page=self.home_page, section_key="rich_text", order=0, settings={"body_html": "HOME-PREVIEW-MARKER"})
+        StorefrontSection.objects.create(page=self.listing_page, section_key="rich_text", order=0, settings={"body_html": "LISTING-PREVIEW-MARKER"})
+
+        home_resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(home_resp, "HOME-PREVIEW-MARKER")
+        self.assertNotContains(home_resp, "LISTING-PREVIEW-MARKER")
+
+        listing_resp = self.client.get(reverse("dashboard:storefront-builder-preview"), {"page": "listing"})
+        self.assertContains(listing_resp, "LISTING-PREVIEW-MARKER")
+        self.assertNotContains(listing_resp, "HOME-PREVIEW-MARKER")
+
+    def test_non_home_page_with_no_sections_shows_empty_state(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"), {"page": "cart"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "هنوز هیچ بخش فعالی")

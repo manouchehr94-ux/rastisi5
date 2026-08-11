@@ -233,6 +233,17 @@ class StorefrontLayoutVersion(TimeStampedModel):
         کار: «Prefer an explicit page-aware contract»."""
         return self.pages.get(page_type=StorefrontPage.PageType.HOME)
 
+    def get_page(self, page_type: str) -> "StorefrontPage":
+        """دسترسیِ صریح به یک ``StorefrontPage`` مشخص از همین نسخه —
+        Phase 2 (سازنده‌ی تک‌صفحه‌ای): تعمیمِ ``home_page()`` برایِ هر
+        شش نوعِ صفحه. ``page_type`` نامعتبر همان ``DoesNotExist``یِ
+        Djangoِ استاندارد را پرتاب می‌کند — فراخوان‌ها (ویوها) مسئولِ
+        عبورِ یک مقدارِ از‌قبل‌اعتبارسنجی‌شده (یکی از
+        ``StorefrontPage.PageType.values``) هستند، دقیقاً همان تفکیکِ
+        مسئولیتی که ``ensure_version_pages`` برایِ ساختنِ هر شش صفحه
+        دارد."""
+        return self.pages.get(page_type=page_type)
+
     def effective_appearance_config(self) -> dict:
         """پیکربندیِ ظاهر با پیش‌فرض‌هایِ کامل — همان الگویِ
         ``effective_header_config``. کلیدِ ``color_overrides`` عمداً به

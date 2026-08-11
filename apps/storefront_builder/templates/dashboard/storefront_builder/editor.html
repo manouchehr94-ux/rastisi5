@@ -1,8 +1,8 @@
 {% extends "dashboard/base_admin.html" %}
 {% load storefront_builder_extras %}
-{% block title %}سازنده بصری صفحه اصلی | پنل مدیریت{% endblock %}
-{% block page_title %}سازنده بصری صفحه اصلی{% endblock %}
-{% block page_sub %}چیدمان هدر، فوتر و بخش‌های صفحه اصلی فروشگاه را بدون نیاز به کد ویرایش کنید{% endblock %}
+{% block title %}سازنده بصری — {{ page.get_page_type_display }} | پنل مدیریت{% endblock %}
+{% block page_title %}سازنده بصری — {{ page.get_page_type_display }}{% endblock %}
+{% block page_sub %}چیدمان هدر، فوتر و بخش‌های هر صفحه‌ی فروشگاه را بدون نیاز به کد ویرایش کنید{% endblock %}
 
 {% block extra_css %}
 {% load static %}
@@ -10,7 +10,8 @@
 {% endblock %}
 
 {% block content %}
-<div class="sfb-shell" :class="{ 'sfb-fullscreen': fullscreen }" x-data="storefrontEditor()" x-init="init()" @beforeunload.window="handleBeforeUnload($event)"
+<div class="sfb-shell" :class="{ 'sfb-fullscreen': fullscreen }" x-data="storefrontEditor()" x-init="init()"
+     data-page-type="{{ page_type }}" @beforeunload.window="handleBeforeUnload($event)"
      @open-settings-drawer.window="drawerOpen = true" @close-settings-drawer.window="drawerOpen = false"
      @preview-candidate-template.window="previewCandidateTemplate($event.detail.slug, $event.detail.name)"
      @apply-candidate-template.window="applyCandidateTemplate()"
@@ -41,6 +42,21 @@
         <button type="submit" class="btn btn-primary btn-sm">انتشار</button>
       </form>
     </div>
+  </div>
+
+  {% comment %}
+  انتخاب‌گرِ صفحه — Phase 2 (سازنده‌ی تک‌صفحه‌ای): وضعیتِ صفحه‌یِ در حالِ
+  ویرایش صراحتاً در URL است (``?page=<page_type>``)، نه یک متغیرِ Alpine
+  که با رفرش گم شود. تعویضِ صفحه یک ناوبریِ کاملِ مرورگر است (نه
+  htmx/SPA) — همان الگویِ ساده‌ای که ``history.html``/``header_editor.html``
+  از قبل برایِ صفحاتِ جداگانه استفاده می‌کنند، پس همیشه Draft/سایدبار/
+  iframeِ پیش‌نمایش را دقیقاً هماهنگِ همان صفحه بارگذاری می‌کند — بدونِ
+  نیاز به همگام‌سازیِ دستیِ چند بخشِ مستقلِ صفحه.
+  {% endcomment %}
+  <div class="sfb-page-switcher" role="group" aria-label="انتخاب صفحه">
+    {% for value, label in page_types %}
+    <a href="?page={{ value }}" class="btn btn-sm{% if value == page_type %} active{% endif %}">{{ label }}</a>
+    {% endfor %}
   </div>
 
   <div class="sfb-mobile-switch" role="group" aria-label="حالت نمایش در موبایل">
@@ -83,8 +99,8 @@
         </div>
       </div>
       <div class="sfb-preview-frame-wrap" :class="'sfb-device-' + device">
-        <iframe id="sfbPreviewFrame" src="{% url 'dashboard:storefront-builder-preview' %}" title="پیش‌نمایش صفحه اصلی"
-                data-preview-url="{% url 'dashboard:storefront-builder-preview' %}"
+        <iframe id="sfbPreviewFrame" src="{% url 'dashboard:storefront-builder-preview' %}?page={{ page_type }}" title="پیش‌نمایش {{ page.get_page_type_display }}"
+                data-preview-url="{% url 'dashboard:storefront-builder-preview' %}?page={{ page_type }}"
                 data-settings-url-template="{% url 'dashboard:storefront-builder-section-settings' 0 %}"
                 data-reorder-url="{% url 'dashboard:storefront-builder-section-reorder' %}"></iframe>
       </div>
@@ -108,7 +124,7 @@
                 {% for definition in definitions %}
                 <button type="button" class="sfb-lib-card"
                         hx-post="{% url 'dashboard:storefront-builder-section-add' %}"
-                        hx-vals='{"section_key": "{{ definition.key }}"}'
+                        hx-vals='{"section_key": "{{ definition.key }}", "page": "{{ page_type }}"}'
                         hx-target="#storefrontSectionList" hx-swap="outerHTML">
                   <span class="sfb-lib-card-icon">{{ definition.icon|icon_svg }}</span>
                   <strong>{{ definition.label_fa }}</strong>
@@ -208,11 +224,13 @@ function storefrontEditor() {
     drawerOpen: false,
     mainTab: 'page',
     mobileView: 'edit',
+    pageType: 'home',
     candidateTemplate: null,
     candidateTemplateName: '',
     candidateFamily: null,
     candidateFamilyName: '',
     init() {
+      this.pageType = this.$el.dataset.pageType || 'home';
       document.body.addEventListener('htmx:afterSwap', (evt) => {
         if (evt.detail.target.id === 'storefrontSectionList') {
           document.getElementById('sfbPreviewFrame').contentWindow.location.reload();
@@ -241,7 +259,7 @@ function storefrontEditor() {
       this.candidateTemplateName = name;
       const iframe = document.getElementById('sfbPreviewFrame');
       const base = iframe.getAttribute('data-preview-url');
-      iframe.src = base + '?preview_template=' + encodeURIComponent(slug);
+      iframe.src = base + '&preview_template=' + encodeURIComponent(slug);
     },
     // پیش‌نمایشِ غیرمخربِ یک Familyِ کاندید — دقیقاً همان الگویِ Template
     // بالا (``?preview_family=``، نگاه کنید به ``_CandidateAppearanceVersion``
@@ -254,7 +272,7 @@ function storefrontEditor() {
       this.candidateFamilyName = name;
       const iframe = document.getElementById('sfbPreviewFrame');
       const base = iframe.getAttribute('data-preview-url');
-      iframe.src = base + '?preview_family=' + encodeURIComponent(slug);
+      iframe.src = base + '&preview_family=' + encodeURIComponent(slug);
     },
     cancelCandidatePreview() {
       this.candidateTemplate = null;
@@ -286,7 +304,7 @@ function storefrontEditor() {
       // واقعاً ذخیره شده — even اگر درخواست رد شود (مثلاً rate limit).
       const iframe = document.getElementById('sfbPreviewFrame');
       const url = iframe.getAttribute('data-reorder-url');
-      htmx.ajax('POST', url, { values: { section_ids: sectionIds }, target: '#storefrontSectionList', swap: 'outerHTML' });
+      htmx.ajax('POST', url, { values: { section_ids: sectionIds, page: this.pageType }, target: '#storefrontSectionList', swap: 'outerHTML' });
     },
     selectSection(sectionId) {
       document.querySelectorAll('.sfb-layer.sfb-row-selected').forEach((el) => el.classList.remove('sfb-row-selected'));

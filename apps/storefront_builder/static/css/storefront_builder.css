@@ -72,6 +72,30 @@
   color: #fff;
 }
 
+/* انتخاب‌گرِ صفحه — Phase 2: ردیفِ لینک‌هایِ شش نوعِ صفحه، بالایِ
+   نوارِ ابزار. لینک‌هایِ ساده (نه Alpine) چون تعویضِ صفحه یک ناوبریِ
+   کاملِ مرورگر است، نه یک تعویضِ حالتِ کلاینت-ساید. */
+.sfb-page-switcher {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 6px 14px;
+  margin-bottom: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.sfb-page-switcher .btn.active {
+  background: var(--violet);
+  color: #fff;
+  border-color: var(--violet);
+}
+
+.sfb-shell.sfb-fullscreen .sfb-page-switcher {
+  display: none;
+}
+
 /* شِلِ اصلی — پیش‌نمایشِ بزرگ سمتِ چپ (main)، پنلِ فشرده‌یِ سازنده
    سمتِ راست (aside) — دقیقاً همان چیدمانِ پروتوتایپِ V5. */
 .sfb-body {
