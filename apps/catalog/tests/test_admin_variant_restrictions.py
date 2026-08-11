@@ -87,7 +87,8 @@ class ProductTypeReadOnlyTests(DjangoAdminVariantFixture):
         url = reverse("admin:catalog_product_change", args=[self.product.pk])
         get_resp = self.client.get(url)
         data = _full_inline_post_data(get_resp, self.product, self.category, self.vendor)
-        data["product_type"] = "variable"  # تلاش برای تغییر مستقیم — چون فیلد readonly است باید نادیده گرفته شود
+        data["unit"] = self.product.unit
+        data["product_type"] = "variable"   
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, 302, response.content[:2000])
         self.product.refresh_from_db()
