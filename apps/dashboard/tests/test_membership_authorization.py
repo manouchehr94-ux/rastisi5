@@ -10,11 +10,13 @@ Phase 1C additionally requires every admin request to resolve through a
 Store's real ``admin_subdomain`` host (or the approved local-dev/test
 allowlist) — see ``apps.stores.resolution.resolve_store_for_admin_request``.
 These tests therefore use two real Stores identified purely by their
-``admin_subdomain`` hosts (``<subdomain>.rastisi.ir``), not a public
-``StoreDomain`` — this file is about *membership* authorization, not host
-enforcement (see ``test_admin_host_enforcement.py`` for that).
+``admin_subdomain`` hosts (``<subdomain>.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}``),
+not a public ``StoreDomain`` — this file is about *membership*
+authorization, not host enforcement (see ``test_admin_host_enforcement.py``
+for that).
 """
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -26,8 +28,8 @@ from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
 
-HOST_A = "memauth-a.rastisi.ir"
-HOST_B = "memauth-b.rastisi.ir"
+HOST_A = f"memauth-a.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
+HOST_B = f"memauth-b.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
 
 
 def _membership(store, user, role=StoreMembership.Role.OWNER, status=StoreMembership.MembershipStatus.ACTIVE):

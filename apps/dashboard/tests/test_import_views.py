@@ -5,6 +5,7 @@ CSV template downloads."""
 
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
@@ -19,7 +20,7 @@ from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
 
-HOST = "import-view-test.rastisi.ir"
+HOST = f"import-view-test.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
 
 PRODUCT_HEADER = (
     "product_id,sku,name,slug,barcode,status,brand_code,category_code,"

@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -11,7 +12,7 @@ from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
 
-HOST = "shipping-tax-test.rastisi.ir"
+HOST = f"shipping-tax-test.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
 
 
 def _akhlaghi():

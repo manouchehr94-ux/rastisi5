@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -94,7 +95,7 @@ class IntegrationSettingsSectionTests(TestCase):
         self.assertNotIn("super-unique-code-999", connection.encrypted_credentials)
 
 
-_HOST_B = "integration-view-store-b.rastisi.ir"
+_HOST_B = f"integration-view-store-b.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
 
 
 @override_settings(ALLOWED_HOSTS=[_HOST_B, "testserver"])

@@ -3,6 +3,7 @@ history views, permission gating (SUBSCRIPTION_VIEW / SUBSCRIPTION_CHANGE /
 USAGE_VIEW), and that plan selection is restricted to publicly-selectable
 published versions (a merchant cannot POST an arbitrary version id)."""
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -27,7 +28,7 @@ from apps.subscriptions.services import plan_change_service as pcs
 
 User = get_user_model()
 
-HOST = "sub-test.rastisi.ir"
+HOST = f"sub-test.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
 
 
 class RolePermissionMappingTests(TestCase):

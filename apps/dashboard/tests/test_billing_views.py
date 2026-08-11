@@ -5,6 +5,7 @@ permission gating (BILLING_VIEW / BILLING_ACCOUNT_MANAGE / BILLING_PAYMENT_MANAG
 
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -17,7 +18,7 @@ from apps.subscriptions.models import Plan, PlanVersion
 from apps.subscriptions.services import subscription_service as sub_svc
 
 User = get_user_model()
-HOST = "billui.rastisi.ir"
+HOST = f"billui.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
 
 
 @override_settings(ALLOWED_HOSTS=[HOST, "testserver"])

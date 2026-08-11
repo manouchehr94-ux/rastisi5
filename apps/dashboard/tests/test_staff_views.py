@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -8,7 +9,7 @@ from apps.stores.services.membership_service import add_staff_member, revoke_mem
 
 User = get_user_model()
 
-HOST = "staff-test.rastisi.ir"
+HOST = f"staff-test.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
 
 
 def _akhlaghi():

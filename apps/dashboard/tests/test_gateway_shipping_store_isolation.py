@@ -9,6 +9,7 @@ select another Store's shipping method or payment gateway.
 
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -23,8 +24,8 @@ from apps.stores.models import Store, StoreDomain, StoreMembership
 
 User = get_user_model()
 
-HOST_A = "dgs-a.rastisi.ir"
-HOST_B = "dgs-b.rastisi.ir"
+HOST_A = f"dgs-a.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
+HOST_B = f"dgs-b.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
 
 
 def _verified_domain(store, hostname):

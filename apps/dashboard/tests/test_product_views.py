@@ -4,6 +4,7 @@ import tempfile
 from decimal import Decimal
 from io import BytesIO
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
@@ -22,7 +23,7 @@ def _make_image_file(name="staged.jpg", color="#3355ff"):
 
 User = get_user_model()
 
-HOST = "pv-test.rastisi.ir"
+HOST = f"pv-test.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
 
 
 def _akhlaghi():

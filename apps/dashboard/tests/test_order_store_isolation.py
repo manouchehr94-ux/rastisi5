@@ -12,6 +12,7 @@ aggregates (order_count/paid_total) never leak another Store's totals.
 
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -26,8 +27,8 @@ from apps.stores.models import Store, StoreDomain, StoreMembership
 
 User = get_user_model()
 
-HOST_A = "dord-a.rastisi.ir"
-HOST_B = "dord-b.rastisi.ir"
+HOST_A = f"dord-a.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
+HOST_B = f"dord-b.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
 
 
 def _verified_domain(store, hostname):
