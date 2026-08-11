@@ -4,6 +4,7 @@ from io import BytesIO
 
 from PIL import Image
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -387,7 +388,7 @@ class DashboardFooterCRUDTests(TestCase):
 
 @override_settings(
     MEDIA_ROOT="/tmp/test_media_footer",
-    ALLOWED_HOSTS=["store-a.rastisi.ir"],
+    ALLOWED_HOSTS=[f"store-a.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"],
 )
 class DashboardFooterCrossStoreIsolationTests(TestCase):
     """A Store A dashboard request must never mutate Store B's footer rows.
@@ -396,9 +397,18 @@ class DashboardFooterCrossStoreIsolationTests(TestCase):
     closed (see apps.stores.resolution) — so "a Store A request" here means
     a request through a verified StoreDomain for Store A, exactly as it
     would work in production, not an unresolved/compat-mode request.
+
+    ``HOST_A`` must be a real, resolvable Merchant Admin host — i.e.
+    ``<admin_subdomain>.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}`` — not a
+    hard-coded production suffix, since the local/test suffix
+    (``rastisi.localhost`` in DEBUG) differs from the production one
+    (``rastisi.ir``). A hard-coded ``.rastisi.ir`` host here would never
+    match ``store_a.admin_subdomain`` under the locally configured suffix,
+    causing every Dashboard request in this class to fall through to the
+    public storefront resolver instead of the admin-portal one.
     """
 
-    HOST_A = "store-a.rastisi.ir"
+    HOST_A = f"store-a.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
 
     def setUp(self):
         from django.utils import timezone
