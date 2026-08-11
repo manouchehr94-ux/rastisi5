@@ -154,8 +154,11 @@ class HeroSlideCloneTests(TestCase):
         draft_titles = set(HeroSlide.objects.filter(section=draft_section).values_list("title", flat=True))
         self.assertEqual(draft_titles, {"اسلاید یک", "عنوان دومی"})
         # both draft rows must be genuinely new rows, not the same PKs as
-        # the published ones.
-        published_pks = set(HeroSlide.objects.filter(section__version__status="published").values_list("pk", flat=True))
+        # the published ones. Phase 1A: the lookup chain grows one hop
+        # deeper (section__page__version__status) since StorefrontSection
+        # now belongs to a StorefrontPage rather than directly to a
+        # StorefrontLayoutVersion.
+        published_pks = set(HeroSlide.objects.filter(section__page__version__status="published").values_list("pk", flat=True))
         draft_pks = set(HeroSlide.objects.filter(section=draft_section).values_list("pk", flat=True))
         self.assertEqual(published_pks & draft_pks, set())
 
@@ -181,7 +184,7 @@ class PromotionalBannerCloneTests(TestCase):
         d2 = svc.get_or_create_draft(self.store)
         draft_section = d2.sections.get(section_key="single_banner")
         self.assertTrue(PromotionalBanner.objects.filter(section=draft_section, title="بنر اصلی").exists())
-        self.assertTrue(PromotionalBanner.objects.filter(section__version__status="published", title="بنر اصلی").exists())
+        self.assertTrue(PromotionalBanner.objects.filter(section__page__version__status="published", title="بنر اصلی").exists())
 
 
 class StoryRailItemCloneTests(TestCase):
@@ -205,7 +208,7 @@ class StoryRailItemCloneTests(TestCase):
         d2 = svc.get_or_create_draft(self.store)
         draft_section = d2.sections.get(section_key="story_rail")
         self.assertTrue(StoryRailItem.objects.filter(section=draft_section, title="استوری اصلی").exists())
-        self.assertTrue(StoryRailItem.objects.filter(section__version__status="published", title="استوری اصلی").exists())
+        self.assertTrue(StoryRailItem.objects.filter(section__page__version__status="published", title="استوری اصلی").exists())
 
 
 class DraftDiscardMediaSafetyTests(TestCase):
@@ -280,9 +283,11 @@ class RestoreMediaCloneTests(TestCase):
         self.assertTrue(HeroSlide.objects.filter(section=restored_section, title="نسخه یک").exists())
 
         # v2 (still the currently-published version at the time of
-        # restore) must be completely unaffected.
+        # restore) must be completely unaffected. Phase 1A: one extra hop
+        # (section__page__version) since section no longer FKs the
+        # version directly.
         v2.refresh_from_db()
-        self.assertTrue(HeroSlide.objects.filter(section__version=v2, title="نسخه دو").exists())
+        self.assertTrue(HeroSlide.objects.filter(section__page__version=v2, title="نسخه دو").exists())
 
 
 class ApplyIndustryLayoutMediaSafetyTests(TestCase):

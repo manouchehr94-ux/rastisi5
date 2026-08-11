@@ -143,6 +143,10 @@ class IndustryDefaultSectionsTests(TestCase):
             layout=layout, version_number=999, status=StorefrontLayoutVersion.Status.DRAFT,
         )
         bootstrap_service.apply_industry_content(version, store, template)
+        # Phase 1A: apply_industry_content targets the version's home page
+        # specifically; the aggregating `version.sections` property still
+        # works (it spans all six pages) and is correct here too since
+        # this version has content on exactly one page.
         self.assertEqual(
             list(version.sections.order_by("order").values_list("section_key", flat=True)),
             ["hero_banner", "trust_features"],

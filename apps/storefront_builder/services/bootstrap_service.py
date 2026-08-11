@@ -101,11 +101,16 @@ def bootstrap_appearance_config(store) -> dict:
 
 
 def apply_bootstrap_content(version: StorefrontLayoutVersion, store) -> None:
-    """بخش‌های اولیه را روی یک نسخه‌ی تازه‌ساخته (بدون بخش) اعمال می‌کند."""
+    """بخش‌های اولیه را روی صفحه‌یِ اصلیِ یک نسخه‌ی تازه‌ساخته (بدون بخش)
+    اعمال می‌کند — Phase 1A: صفحه اصلیِ قدیمیِ hard-coded دقیقاً معادلِ
+    صفحه‌یِ ``home`` است؛ پنج صفحه‌ی دیگر (``StorefrontLayoutVersion.save()``
+    از قبل ساخته) عمداً خالی می‌مانند — Builder UI فعلی فقط صفحه‌ی اصلی
+    را ویرایش می‌کند."""
+    home_page = version.home_page()
     sections = build_bootstrap_sections(store)
     StorefrontSection.objects.bulk_create([
         StorefrontSection(
-            version=version, section_key=s["section_key"],
+            page=home_page, section_key=s["section_key"],
             order=s["order"], settings=s["settings"],
         )
         for s in sections
@@ -132,11 +137,13 @@ def build_industry_default_sections(store, industry_template) -> list[dict]:
 
 
 def apply_industry_content(version: StorefrontLayoutVersion, store, industry_template) -> None:
-    """چیدمان پیشنهادیِ صنف را روی یک نسخه‌ی تازه‌ساخته (بدون بخش) اعمال می‌کند."""
+    """چیدمان پیشنهادیِ صنف را روی صفحه‌یِ اصلیِ یک نسخه‌ی تازه‌ساخته
+    (بدون بخش) اعمال می‌کند — Phase 1A: همان توضیحِ ``apply_bootstrap_content``."""
+    home_page = version.home_page()
     sections = build_industry_default_sections(store, industry_template)
     StorefrontSection.objects.bulk_create([
         StorefrontSection(
-            version=version, section_key=s["section_key"],
+            page=home_page, section_key=s["section_key"],
             order=s["order"], settings=s["settings"],
         )
         for s in sections
@@ -167,12 +174,19 @@ def apply_family_default_sections(version: StorefrontLayoutVersion, family) -> N
     هرگز اینجا لمس نمی‌شوند (مدل‌هایِ کاملاً مجزا در اپ‌هایِ دیگر). این
     عملیات مخربِ *صریحاً خواسته‌شده* روی چیدمانِ Draft است — تأییدِ کاربر
     پیش از فراخوانیِ این تابع، در view (نه اینجا) گرفته می‌شود، دقیقاً
-    همان الگویِ ``storefront_apply_industry_layout``."""
-    version.sections.all().delete()
+    همان الگویِ ``storefront_apply_industry_layout``.
+
+    Phase 1A: عمداً فقط صفحه‌ی اصلی را حذف/جایگزین می‌کند (نه
+    ``version.sections`` تجمیعیِ همه‌ی صفحات) — Family فقط رویِ چیدمانِ
+    صفحه‌ی اصلی اثر دارد؛ پنج صفحه‌یِ دیگر (فعلاً همیشه خالی، چون Builder
+    UI هنوز فقط صفحه‌ی اصلی را ویرایش می‌کند) نباید هرگز به این عملیات
+    حساس باشند."""
+    home_page = version.home_page()
+    home_page.sections.all().delete()
     sections = build_family_default_sections(family)
     StorefrontSection.objects.bulk_create([
         StorefrontSection(
-            version=version, section_key=s["section_key"],
+            page=home_page, section_key=s["section_key"],
             order=s["order"], settings=s["settings"],
         )
         for s in sections

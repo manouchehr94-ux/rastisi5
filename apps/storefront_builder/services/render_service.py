@@ -367,7 +367,20 @@ _CONTEXT_BUILDERS = {
 
 
 def build_render_items(version, store) -> list[dict]:
-    """فهرست بخش‌های فعالِ یک نسخه، هرکدام با template_name + context آماده.
+    """فهرست بخش‌های فعالِ **صفحه‌ی اصلیِ** یک نسخه، هرکدام با template_name +
+    context آماده.
+
+    Phase 1A: امضایِ این تابع عمداً بدونِ تغییر باقی مانده
+    (``build_render_items(version, store)``، نه
+    ``build_render_items(page, store)``) — طبقِ الزامِ صریحِ کار: هر دو
+    فراخوانِ تولیدیِ موجود (``apps.catalog.views.home()`` و
+    ``storefront_builder.views.storefront_preview()``) یک
+    ``StorefrontLayoutVersion`` پاس می‌دهند، نه یک ``StorefrontPage``؛
+    تغییرِ امضا یعنی ویرایشِ هر دو فراخوان بدونِ دلیلِ واقعی (چون در
+    Phase 1A هنوز فقط صفحه‌ی اصلی محتوایِ Section-based دارد). داخلِ تابع،
+    ``version.home_page()`` صریحاً صدا زده می‌شود — نه property تجمیعیِ
+    ``version.sections`` — تا این تابع همیشه *فقط* صفحه‌ی اصلی را رندر
+    کند، حتی وقتی در آینده صفحاتِ دیگر هم Section داشته باشند.
 
     بخش‌هایی با section_key ناشناخته (مثلاً از یک نسخه‌ی قدیمی‌تر که آن نوع
     را دیگر پشتیبانی نمی‌کند) بی‌صدا حذف می‌شوند — پیش‌نمایش/صفحه هرگز crash
@@ -388,7 +401,8 @@ def build_render_items(version, store) -> list[dict]:
     یک درخواست."""
     items = []
     context_cache: dict = {}
-    for section in version.sections.filter(is_active=True).order_by("order", "id"):
+    home_page = version.home_page()
+    for section in home_page.sections.filter(is_active=True).order_by("order", "id"):
         try:
             definition = get_definition(section.section_key)
         except UnknownSectionTypeError:

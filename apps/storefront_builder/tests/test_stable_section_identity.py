@@ -110,9 +110,15 @@ class StableIdDuplicateTests(TestCase):
 
 
 class StableIdUniquenessConstraintTests(TestCase):
-    """A.3-adjacent: uniqueness is scoped to (version, stable_id), not
-    global — the same stable_id must be allowed across two different
-    versions, but rejected twice within the same version."""
+    """A.3-adjacent: uniqueness is scoped to (version, stable_id) at the
+    time this Phase 0.5 test file was written; Phase 1A moved the actual
+    DB constraint to (page, stable_id) — see test_storefront_page.py's
+    `StableIdPageScopedUniquenessTests` for the page-scoped tests. The
+    two sections created below via `version=` both resolve to the SAME
+    home page (through the compatibility shim), so this test's outcome is
+    unaffected by that change and remains a correct regression check: the
+    same stable_id must be allowed across two different versions, but
+    rejected twice within the same version/page."""
 
     def setUp(self):
         cache.clear()

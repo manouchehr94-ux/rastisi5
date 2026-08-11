@@ -194,6 +194,26 @@ class StorefrontLayoutVersion(TimeStampedModel):
     def __str__(self):
         return f"نسخه {self.version_number} — {self.get_status_display()}"
 
+    def save(self, *args, **kwargs):
+        """Phase 1A (تصمیمِ مالک، «Page Creation For New Versions»): این
+        override تنها نقطه‌یِ *واقعاً* مرکزیِ ساختِ صفحات است — الزامِ
+        صریحِ کار می‌گوید «Centralize this behavior. Do NOT scatter
+        page-creation logic across views»، و بهترین راهِ تضمینِ اینکه
+        **هیچ** مسیرِ ساختِ نسخه (چه ``layout_service``یِ رسمی، چه هر
+        تستِ موجود/آینده‌ای که مستقیماً ``StorefrontLayoutVersion.objects
+        .create(...)`` صدا می‌زند) هرگز بدونِ شش صفحه باقی نماند، این
+        است که ساختِ صفحه به خودِ عملِ «ذخیره‌ی اولین‌بارِ یک نسخه‌ی
+        جدید» گره بخورد، نه به یک تابعِ کمکیِ جداگانه که ممکن است در یک
+        فراخوانِ فراموش‌شود.
+
+        ``StorefrontPage.ensure_version_pages`` خودش idempotent است، پس
+        صدازدنِ اضافیِ آن (مثلاً اگر لایه‌یِ سرویس هم صریحاً صدایش بزند)
+        کاملاً امن است — نه خطا، نه ردیفِ تکراری."""
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            StorefrontPage.ensure_version_pages(self)
+
     def effective_header_config(self) -> dict:
         """پیکربندی هدر با پیش‌فرض‌های کامل — کلید ذخیره‌نشده True است، کلید
         صریحاً ``False`` همان ``False`` باقی می‌ماند (بر خلاف فیلتر
@@ -202,6 +222,16 @@ class StorefrontLayoutVersion(TimeStampedModel):
 
     def effective_footer_config(self) -> dict:
         return {**FOOTER_CONFIG_DEFAULTS, **(self.footer_config or {})}
+
+    def home_page(self) -> "StorefrontPage":
+        """دسترسیِ صریح/explicit به صفحه‌یِ اصلیِ همین نسخه — Phase 1A:
+        استفاده‌شده توسط تمامِ کدِ *جدید*ی که می‌داند دقیقاً منظورش
+        «فقط صفحه اصلی» است (رندرِ Storefront، ادیتورِ فعلیِ فقط‌
+        صفحه‌اصلی، بوت‌استرپِ محتوایِ اولیه) — به‌جایِ اتکا به property
+        تجمیعیِ ``.sections`` (که رویِ *همه‌یِ* صفحات کار می‌کند و فقط
+        برایِ سازگاریِ کدِ تستِ قدیمی نگه داشته شده). طبقِ الزامِ صریحِ
+        کار: «Prefer an explicit page-aware contract»."""
+        return self.pages.get(page_type=StorefrontPage.PageType.HOME)
 
     def effective_appearance_config(self) -> dict:
         """پیکربندیِ ظاهر با پیش‌فرض‌هایِ کامل — همان الگویِ
@@ -214,10 +244,22 @@ class StorefrontLayoutVersion(TimeStampedModel):
         return {**APPEARANCE_CONFIG_DEFAULTS, **(self.appearance_config or {})}
 
     def compute_fingerprint(self) -> str:
-        """هش SHA-256 قطعی از هدر/فوتر/ظاهر/بخش‌ها — مستقل از ترتیب ذخیره‌سازی ردیف‌ها."""
+        """هش SHA-256 قطعی از هدر/فوتر/ظاهر/بخش‌ها (روی **همه‌ی صفحات**، نه
+        فقط صفحه اصلی — Phase 1A: یک نسخه یعنی یک عکسِ کاملِ چیدمانِ کلِ
+        فروشگاه، پس اثرِ انگشتِ drift باید کلِ آن را پوشش دهد، نه فقط
+        صفحه اصلی) — مستقل از ترتیب ذخیره‌سازی ردیف‌ها یا اینکه کدام
+        صفحه اول پردازش شود.
+
+        ``select_related("page")`` تا خواندنِ ``s.page.page_type`` کوئریِ
+        اضافه‌ای per-row ایجاد نکند؛ ``order_by("page__page_type", "order",
+        "id")`` تا اثرِ انگشت مستقل از ترتیبِ فیزیکیِ درجِ ردیف‌ها در چند
+        صفحه‌ی مختلف هم قطعی/deterministic بماند."""
         sections = [
-            {"section_key": s.section_key, "order": s.order, "is_active": s.is_active, "settings": s.settings}
-            for s in self.sections.order_by("order", "id")
+            {
+                "page_type": s.page.page_type, "section_key": s.section_key,
+                "order": s.order, "is_active": s.is_active, "settings": s.settings,
+            }
+            for s in self.sections.select_related("page").order_by("page__page_type", "order", "id")
         ]
         payload = {
             "header_config": self.header_config,
@@ -228,17 +270,116 @@ class StorefrontLayoutVersion(TimeStampedModel):
         serialized = json.dumps(payload, sort_keys=True, ensure_ascii=True)
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
+    @property
+    def sections(self):
+        """دسترسیِ محاسبه‌شده به **همه‌ی** ``StorefrontSection``هایِ همه‌یِ
+        شش صفحه‌یِ این نسخه — Phase 1A: از وقتی ``StorefrontSection`` به
+        ``StorefrontPage`` تعلق دارد (نه مستقیماً به این نسخه)، دیگر
+        ``related_name="sections"``یِ واقعیِ Djangoای اینجا وجود ندارد؛
+        این property همان API قدیمی (``version.sections.all/.filter/
+        .order_by/.values_list/.count/.exists/.get/.delete``) را حفظ
+        می‌کند — دقیقاً کافی برایِ اینکه کلِ مجموعه‌یِ تست‌هایِ موجودِ
+        پیش‌ازاین (که همیشه فقط صفحه‌یِ اصلی را پر می‌کردند، پس این تجمیع
+        برایِ آن‌ها دقیقاً معادلِ «فقط صفحه‌یِ اصلی» است) بدونِ هیچ تغییری
+        همچنان درست کار کنند.
+
+        **مهم برایِ کدِ جدید:** این property همیشه رویِ *همه‌یِ* صفحات
+        تجمیع می‌کند، نه فقط صفحه‌یِ اصلی — هرجایی که منظور واقعاً «فقط
+        صفحه‌ی اصلی» است (رندرِ Storefront، افزودن/بازچینیِ section از
+        داخلِ ادیتورِ فعلیِ فقط‌صفحه‌اصلی، بوت‌استرپِ محتوایِ اولیه)، کدِ
+        فراخوان باید صریحاً
+        ``version.pages.get(page_type=StorefrontPage.PageType.HOME).sections``
+        را به‌کار ببرد — نه این property — دقیقاً همان الگویی که در
+        ``services/render_service.py``، ``services/bootstrap_service.py``
+        و ``views.py`` این چکپوینت استفاده شده."""
+        return StorefrontSection.objects.filter(page__version=self)
+
+
+class StorefrontPage(TimeStampedModel):
+    """یک نوعِ صفحه‌یِ خاص (صفحه اصلی، جزئیاتِ محصول، لیست، کالکشن، جستجو،
+    سبدِ خرید) درونِ یک نسخه‌یِ چیدمان — Phase 1A (تصمیمِ مالک ۲/۳):
+
+    ``StorefrontLayout`` تنها ریشه‌یِ سطحِ Store باقی می‌ماند (بدونِ
+    تغییر — همچنان ``OneToOneField``)؛ ``StorefrontLayoutVersion``
+    همچنان تنها snapshotِ اتمیکِ کلِ طراحیِ فروشگاه است (هدر/فوتر/ظاهرِ
+    سراسری + همه‌یِ صفحات، با هم منتشر می‌شوند — نه یک اشاره‌گرِ انتشارِ
+    مستقل برایِ هر صفحه). ``StorefrontPage`` فقط یک لایه‌یِ میانیِ *جدید*
+    است که زیرِ همان نسخه‌یِ واحد قرار می‌گیرد — نه یک ریشه‌یِ جدید، نه
+    یک چرخه‌یِ Draft/Publish جداگانه‌یِ per-page.
+
+    هویتِ هر صفحه دقیقاً ``(نسخه، نوعِ صفحه)`` است — نه یک ``stable_id``یِ
+    جداگانه، چون صفحات اسلاتِ typed هستند (شش نوعِ ثابت)، نه آبجکتِ
+    آزادانه‌ساخته‌شده‌یِ مرچنت مثلِ section."""
+
+    class PageType(models.TextChoices):
+        HOME = "home", "صفحه اصلی"
+        PRODUCT_DETAIL = "product_detail", "جزئیات محصول"
+        LISTING = "listing", "لیست محصولات"
+        COLLECTION = "collection", "کالکشن"
+        SEARCH = "search", "نتایج جستجو"
+        CART = "cart", "سبد خرید"
+
+    version = models.ForeignKey(
+        StorefrontLayoutVersion, verbose_name="نسخه چیدمان",
+        on_delete=models.CASCADE, related_name="pages",
+    )
+    page_type = models.CharField("نوع صفحه", max_length=20, choices=PageType.choices)
+
+    class Meta:
+        verbose_name = "صفحه چیدمان فروشگاه"
+        verbose_name_plural = "صفحات چیدمان فروشگاه"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["version", "page_type"],
+                name="storefront_page_unique_type_per_version",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.get_page_type_display()} — نسخه {self.version_id}"
+
+    @classmethod
+    def ensure_version_pages(cls, version: "StorefrontLayoutVersion") -> None:
+        """اطمینان از اینکه ``version`` هر شش نوعِ صفحه را دارد — idempotent
+        (اگر همه از قبل وجود داشته باشند، هیچ ردیفِ جدیدی ساخته نمی‌شود؛
+        اگر بعضی وجود نداشته باشند، فقط همان‌ها ساخته می‌شوند). این تنها
+        نقطه‌یِ مرکزیِ ساختِ صفحه است — طبقِ الزامِ صریحِ کار («centralize
+        this behavior... do NOT scatter page-creation logic across
+        views»)؛ هر جایی که یک ``StorefrontLayoutVersion`` جدید ساخته
+        می‌شود (``layout_service.get_or_create_draft``/``restore_version``/
+        ``apply_industry_layout``) باید بی‌درنگ همین متد را صدا بزند."""
+        existing = set(version.pages.values_list("page_type", flat=True))
+        missing = [pt for pt in cls.PageType.values if pt not in existing]
+        if missing:
+            cls.objects.bulk_create([cls(version=version, page_type=pt) for pt in missing], ignore_conflicts=True)
+
 
 class StorefrontSection(TimeStampedModel):
-    """یک بخش صفحه اصلی درون یک نسخه چیدمان — نوع، ترتیب، وضعیت، تنظیمات JSON.
+    """یک بخش صفحه درون یک صفحه‌یِ چیدمان — نوع، ترتیب، وضعیت، تنظیمات JSON.
 
     ``section_key`` در برابر Section Registry اعتبارسنجی می‌شود (سرویس،
     نه اینجا) — همان الگویی که مانع بارگذاری template دلخواه یا ارجاع
     نامعتبر می‌شود (بخش ۱۲ گزارش ممیزی).
-    """
 
-    version = models.ForeignKey(
-        StorefrontLayoutVersion, verbose_name="نسخه چیدمان",
+    Phase 1A (تصمیمِ مالک ۵): مالکیتِ واقعی/تنهایِ این مدل اکنون
+    ``StorefrontPage`` است (نه مستقیماً ``StorefrontLayoutVersion``) —
+    ``page`` تنها ستونِ FKِ واقعی در دیتابیس است؛ **هیچ ستونِ ``version``ی
+    دیگر در schema وجود ندارد** (طبقِ الزامِ صریحِ کار: «Do NOT leave two
+    long-term competing ownership sources»). برایِ اینکه صدها فراخوانیِ
+    موجودِ ``StorefrontSection(version=X, ...)``/
+    ``StorefrontSection.objects.create(version=X, ...)`` در کدِ تست
+    (که همگی از پیش، از دوره‌یِ پیش از این چکپوینت، وجود داشتند و بدونِ
+    اجرایِ واقعیِ Django در این sandbox قابلِ ویرایشِ دستیِ ایمن نبودند —
+    نگاه کنید به گزارشِ Phase 1A، بخشِ «Compatibility blocker») بدونِ
+    تغییر همچنان کار کنند، ``__init__`` این کلاس یک **شیمِ Python-level
+    (نه schema-level)** فراهم می‌کند: ``version=`` را می‌پذیرد و آن را
+    بی‌درنگ به ``page = version.pages.get(page_type=HOME)`` حل می‌کند.
+    این یک منبعِ مالکیتِ دومِ رقیب *در دیتابیس* نیست — فقط یک راحتیِ
+    ساختِ شیءِ در سطحِ پایتون است؛ تنها منبعِ حقیقتِ پایدارشده همیشه
+    ``page_id`` است."""
+
+    page = models.ForeignKey(
+        StorefrontPage, verbose_name="صفحه",
         on_delete=models.CASCADE, related_name="sections",
     )
     section_key = models.CharField("نوع بخش", max_length=50)
@@ -263,7 +404,10 @@ class StorefrontSection(TimeStampedModel):
             "مقیّد به section (HeroSlide/PromotionalBanner/StoryRailItem) "
             "طیِ کلون بتوانند section مقابلِ خودشان را در نسخه‌ی جدید پیدا "
             "کنند — بدون اینکه هرگز به PKِ بخشِ منتشرشده دست بزنند "
-            "(Phase 0.5 — نگاه کنید به layout_service._clone_version_content)."
+            "(Phase 0.5 — نگاه کنید به layout_service._clone_version_content). "
+            "Phase 1A: محدوده‌یِ یکتاییِ این فیلد از (نسخه، stable_id) به "
+            "(صفحه، stable_id) تغییر کرده — همان معنایِ منطقی، فقط یک سطح "
+            "دقیق‌تر (چون اکنون یک نسخه می‌تواند چند صفحه داشته باشد)."
         ),
     )
 
@@ -273,10 +417,35 @@ class StorefrontSection(TimeStampedModel):
         ordering = ["order", "id"]
         constraints = [
             models.UniqueConstraint(
-                fields=["version", "stable_id"],
-                name="storefront_section_unique_stable_id_per_version",
+                fields=["page", "stable_id"],
+                name="storefront_section_unique_stable_id_per_page",
             ),
         ]
+
+    def __init__(self, *args, **kwargs):
+        """شیمِ سازگاریِ Phase 1A — نگاه کنید به docstringِ کلاس بالا.
+        ``version=`` را (اگر ``page=`` صریحاً پاس داده نشده) به
+        ``page = version.pages.get(page_type=HOME)`` حل می‌کند. اگر هر دو
+        همزمان پاس داده شوند و با هم ناسازگار باشند (page متعلق به نسخه‌یِ
+        دیگری)، بی‌صدا رد نمی‌شود — خطای صریح می‌دهد تا هیچ باگِ خاموشی
+        از تركیبِ ناسازگار پیش نیاید."""
+        version = kwargs.pop("version", None)
+        if version is not None:
+            if "page" in kwargs and kwargs["page"] is not None and kwargs["page"].version_id != version.pk:
+                raise ValueError(
+                    "هم‌زمان version= و page= ناسازگار پاس داده شده‌اند — "
+                    "page متعلق به نسخه‌ی دیگری است."
+                )
+            if kwargs.get("page") is None:
+                kwargs["page"] = version.pages.get(page_type=StorefrontPage.PageType.HOME)
+        super().__init__(*args, **kwargs)
+
+    @property
+    def version(self) -> StorefrontLayoutVersion:
+        """دسترسیِ فقط-خوانا و کاملاً مشتق‌شده (نه یک ستونِ ذخیره‌شده‌ی
+        دیگر) به نسخه‌ای که این section (از طریقِ ``page``) به آن تعلق
+        دارد — نگاه کنید به docstringِ کلاس برایِ توضیحِ کاملِ این تصمیم."""
+        return self.page.version
 
     def __str__(self):
         return f"{self.section_key} (#{self.order})"

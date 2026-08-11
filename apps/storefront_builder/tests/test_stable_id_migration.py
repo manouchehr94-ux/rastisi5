@@ -169,12 +169,21 @@ class StableIdConstraintBehaviorTests(TestCase):
             )
 
     def test_same_stable_id_allowed_across_two_different_versions(self):
+        """Phase 1A note: uniqueness scope moved from (version, stable_id)
+        to (page, stable_id) — the assertion below now queries via
+        ``page__version=`` (the real, physical FK chain) instead of the
+        no-longer-existent ``version=`` column directly on
+        StorefrontSection; this is exactly the ``.filter(version=...)``
+        style of call site the Phase 1A migration removed from the
+        schema (production code was updated the same way in views.py)."""
         other_version = StorefrontLayoutVersion.objects.create(
             layout=self.layout, version_number=9002, status=StorefrontLayoutVersion.Status.ARCHIVED,
         )
         a = StorefrontSection.objects.create(version=self.version, section_key="rich_text", order=0)
         shared_id = a.stable_id
-        # must NOT raise — uniqueness is scoped per-version, not global.
+        # must NOT raise — uniqueness is scoped per-page (transitively
+        # per-version, since each page belongs to exactly one version),
+        # not global.
         StorefrontSection.objects.create(version=other_version, section_key="rich_text", order=0, stable_id=shared_id)
-        self.assertTrue(StorefrontSection.objects.filter(version=self.version, stable_id=shared_id).exists())
-        self.assertTrue(StorefrontSection.objects.filter(version=other_version, stable_id=shared_id).exists())
+        self.assertTrue(StorefrontSection.objects.filter(page__version=self.version, stable_id=shared_id).exists())
+        self.assertTrue(StorefrontSection.objects.filter(page__version=other_version, stable_id=shared_id).exists())

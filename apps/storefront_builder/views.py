@@ -37,7 +37,10 @@ def storefront_editor(request):
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
     layout = layout_service.get_or_create_layout(store)
-    sections = draft.sections.order_by("order", "id")
+    # Phase 1A: ادیتورِ فعلی فقط صفحه‌ی اصلی را نشان/ویرایش می‌کند — پس
+    # عمداً ``draft.home_page().sections`` (نه property تجمیعیِ
+    # ``draft.sections``، که شاملِ همه‌ی شش صفحه می‌شود).
+    sections = draft.home_page().sections.order_by("order", "id")
     industry_installation = getattr(store, "industry_installation", None)
     context = {
         "active_page": "storefront_builder",
@@ -150,7 +153,7 @@ def storefront_section_list_partial(request):
     draft = layout_service.get_or_create_draft(store, user=request.user)
     context = {
         "draft": draft,
-        "sections": draft.sections.order_by("order", "id"),
+        "sections": draft.home_page().sections.order_by("order", "id"),
         "section_definitions": section_registry.list_definitions(),
     }
     return render(request, "dashboard/storefront_builder/partials/section_list.html", context)
@@ -169,15 +172,16 @@ def storefront_section_add(request):
     except section_registry.UnknownSectionTypeError:
         return HttpResponseBadRequest("نوع بخش نامعتبر است")
 
-    existing_count = draft.sections.filter(section_key=section_key).count()
+    home_page = draft.home_page()
+    existing_count = home_page.sections.filter(section_key=section_key).count()
     if definition.max_instances is not None and existing_count >= definition.max_instances:
         messages.error(request, f"«{definition.label_fa}» فقط یک بار قابل افزودن است")
         return storefront_section_list_partial(request)
 
-    last = draft.sections.order_by("-order").first()
+    last = home_page.sections.order_by("-order").first()
     new_order = (last.order + 1) if last else 0
     StorefrontSection.objects.create(
-        version=draft, section_key=section_key, order=new_order,
+        page=home_page, section_key=section_key, order=new_order,
         settings=definition.default_settings(),
     )
     messages.success(request, f"«{definition.label_fa}» اضافه شد")
@@ -185,10 +189,14 @@ def storefront_section_add(request):
 
 
 def _get_scoped_section(request, pk):
+    """Phase 1A: مسیرِ فیلترِ تفکیکِ مستأجر یک لایه‌یِ ``page__`` عمیق‌تر
+    شده (``page__version__...`` به‌جایِ ``version__...`` قبلی) — دقیقاً
+    همان دو شرط (فروشگاهِ درست، وضعیتِ Draft)، فقط از طریقِ زنجیره‌یِ
+    ارجاعِ جدید."""
     store = _resolve_store(request)
     return get_object_or_404(
-        StorefrontSection, pk=pk, version__layout__store=store,
-        version__status=StorefrontLayoutVersion.Status.DRAFT,
+        StorefrontSection, pk=pk, page__version__layout__store=store,
+        page__version__status=StorefrontLayoutVersion.Status.DRAFT,
     )
 
 
@@ -544,10 +552,15 @@ def storefront_section_duplicate(request, pk):
             return storefront_section_list_partial(request)
     except section_registry.UnknownSectionTypeError:
         pass
-    last = section.version.sections.order_by("-order").first()
+    # Phase 1A: تکرار همیشه رویِ **همان صفحه‌ای** که section بهش تعلق
+    # دارد اتفاق می‌افتد (``section.page``، نه ``section.version.home_page()``
+    # که اگر section از یک صفحه‌ی غیرِ اصلی باشد اشتباه می‌بود) — فعلاً
+    # همیشه صفحه‌ی اصلی است چون این ادیتور فقط رویِ آن کار می‌کند، اما
+    # این نوشتار عمداً به آن فرض متکی نیست.
+    last = section.page.sections.order_by("-order").first()
     new_order = (last.order + 1) if last else 0
     new_section = StorefrontSection.objects.create(
-        version=section.version, section_key=section.section_key,
+        page=section.page, section_key=section.section_key,
         order=new_order, is_active=section.is_active, settings=dict(section.settings or {}),
         # stable_id عمداً اینجا پاس داده نمی‌شود — پیش‌فرضِ فیلد
         # (``uuid.uuid4``) خودش یک شناسه‌ی منطقیِ تازه تولید می‌کند.
@@ -571,9 +584,10 @@ def storefront_section_reorder(request):
     می‌شود یا هیچ‌کدام."""
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
+    home_page = draft.home_page()
     section_ids = request.POST.getlist("section_ids")
 
-    valid_ids = set(draft.sections.values_list("pk", flat=True))
+    valid_ids = set(home_page.sections.values_list("pk", flat=True))
     ordered_ids = [int(i) for i in section_ids if i.isdigit() and int(i) in valid_ids]
 
     if len(set(ordered_ids)) != len(ordered_ids):
@@ -582,7 +596,7 @@ def storefront_section_reorder(request):
 
     with transaction.atomic():
         for index, section_id in enumerate(ordered_ids):
-            StorefrontSection.objects.filter(pk=section_id, version=draft).update(order=index)
+            StorefrontSection.objects.filter(pk=section_id, page=home_page).update(order=index)
 
     return storefront_section_list_partial(request)
 
@@ -595,7 +609,11 @@ def storefront_section_move(request, pk):
     drag-and-drop عملی نیست."""
     direction = request.POST.get("direction")
     section = _get_scoped_section(request, pk)
-    siblings = list(section.version.sections.order_by("order", "id"))
+    # Phase 1A: جابه‌جایی همیشه بینِ خواهر-وبرادرهایِ **همان صفحه** انجام
+    # می‌شود (``section.page.sections``، نه ``section.version.sections``ی
+    # تجمیعیِ همه‌ی صفحات که خواهر-وبرادرهایِ صفحاتِ دیگر را هم قاطی
+    # می‌کرد).
+    siblings = list(section.page.sections.order_by("order", "id"))
     index = next((i for i, s in enumerate(siblings) if s.pk == section.pk), None)
     if index is None:
         return storefront_section_list_partial(request)
@@ -691,7 +709,7 @@ def storefront_appearance_editor(request):
         # وجود دارد (Draft همین حالا Sectionی دارد)، بدونِ تأییدِ صریح رد
         # می‌شود — محصولات/دسته‌بندی‌ها/اطلاعاتِ فروشگاه هرگز اینجا لمس
         # نمی‌شوند (این تابع فقط رویِ ``StorefrontSection`` کار می‌کند).
-        if family_changed and draft.sections.exists() and request.POST.get("confirm_family_switch") != "1":
+        if family_changed and draft.home_page().sections.exists() and request.POST.get("confirm_family_switch") != "1":
             messages.error(
                 request,
                 "تغییرِ این Family چیدمانِ Sectionهای صفحه‌ی اصلیِ پیش‌نویسِ فعلی را جایگزین می‌کند — "

@@ -345,17 +345,25 @@ def _clone_section_scoped_media(source_section: StorefrontSection, target_sectio
 
 
 def _clone_version_content(source: StorefrontLayoutVersion | None, target: StorefrontLayoutVersion) -> None:
-    """کپی هدر/فوتر/بخش‌های ``source`` روی ``target`` (که تازه ساخته شده و
-    بدون بخش است).
+    """کپی هدر/فوتر/تمامِ صفحات/بخش‌های ``source`` روی ``target``.
 
-    Phase 0.5 (تصمیمِ مالک ۳/۴/۵ — پیشتر: باگِ کلونِ رسانه‌یِ section-scoped):
+    Phase 1A (تصمیمِ مالک ۲/۳/۵ — ارتقاءِ کلون از «فقط صفحه اصلی» به
+    «همه‌یِ شش صفحه»):
+    - ``target`` از قبل هر شش ``StorefrontPage`` را دارد (خودکار، از
+      طریقِ ``StorefrontLayoutVersion.save()`` — نگاه کنید به
+      ``models.py``) — این تابع فقط بخش‌هایِ **موجودِ** هر صفحه‌یِ منبع
+      را رویِ صفحه‌یِ متناظرِ همان نوع در ``target`` کلون می‌کند؛ صفحاتی
+      که هنوز هیچ بخشی ندارند (فعلاً همه‌یِ صفحات غیرِ صفحه‌اصلی، چون
+      Builder UI هنوز فقط صفحه‌اصلی را ویرایش می‌کند) دقیقاً خالی
+      می‌مانند — نه محتوایِ ساختگی.
     - هر ``StorefrontSection`` کلون‌شده ``stable_id`` را دقیقاً حفظ می‌کند
       (همان بخشِ منطقی است، فقط در نسخه‌ی دیگر) — نه یک UUID تازه.
     - برایِ هر بخشِ کلون‌شده، رسانه‌یِ section-scoped (HeroSlide/
       PromotionalBanner/StoryRailItem) هم کلون می‌شود — هرگز از بخشِ منبع
       حذف/جابه‌جا نمی‌شود، فقط یک ردیفِ جدید با همان ارجاعِ MediaAsset
       ساخته می‌شود. Placementِ منبع (که معمولاً به نسخه‌ی Published تعلق
-      دارد) کاملاً دست‌نخورده می‌ماند."""
+      دارد) کاملاً دست‌نخورده می‌ماند — Phase 0.5's مدل رسانه بدونِ هیچ
+      تغییری اینجا دوباره استفاده می‌شود (نه بازنویسی)."""
     if source is None:
         return
     target.header_config = dict(source.header_config or {})
@@ -363,33 +371,45 @@ def _clone_version_content(source: StorefrontLayoutVersion | None, target: Store
     target.appearance_config = dict(source.appearance_config or {})
     target.save(update_fields=["header_config", "footer_config", "appearance_config"])
 
-    source_sections = list(source.sections.order_by("order", "id"))
-    cloned_sections = [
-        StorefrontSection(
-            version=target, section_key=s.section_key, order=s.order,
-            is_active=s.is_active, settings=dict(s.settings or {}),
-            stable_id=s.stable_id,
-        )
-        for s in source_sections
-    ]
-    if not cloned_sections:
-        return
-    StorefrontSection.objects.bulk_create(cloned_sections)
-
-    # bulk_create روی بک‌اندهایی که RETURNING را پشتیبانی می‌کنند (PostgreSQL،
-    # SQLite جدید) PKهایِ تازه را روی خودِ آبجکت‌ها پر می‌کند — اما برایِ
-    # اطمینانِ کامل (و سازگاری با هر بک‌اندی)، دوباره از دیتابیس با
-    # ``stable_id`` بازخوانی می‌کنیم؛ همین ``stable_id`` تنها کلیدِ قابلِ‌اعتماد
-    # برایِ نگاشتِ «این بخشِ منبع → کدام بخشِ کلون‌شده» است (نه ترتیب، نه
-    # section_key، چون ممکن است چند نمونه از یک section_key وجود داشته باشد).
-    cloned_by_stable_id = {
-        row.stable_id: row for row in target.sections.all()
-    }
-    for source_section in source_sections:
-        target_section = cloned_by_stable_id.get(source_section.stable_id)
-        if target_section is None:
+    target_pages_by_type = {p.page_type: p for p in target.pages.all()}
+    for source_page in source.pages.all():
+        target_page = target_pages_by_type.get(source_page.page_type)
+        if target_page is None:
+            # نباید هرگز رخ دهد — ``StorefrontLayoutVersion.save()`` همیشه
+            # هر شش صفحه را می‌سازد — اما به‌جایِ کرش، defensive skip
+            # (همان الگویِ section_key ناشناخته در render_service).
             continue
-        _clone_section_scoped_media(source_section, target_section)
+
+        source_sections = list(source_page.sections.order_by("order", "id"))
+        cloned_sections = [
+            StorefrontSection(
+                page=target_page, section_key=s.section_key, order=s.order,
+                is_active=s.is_active, settings=dict(s.settings or {}),
+                stable_id=s.stable_id,
+            )
+            for s in source_sections
+        ]
+        if not cloned_sections:
+            continue
+        StorefrontSection.objects.bulk_create(cloned_sections)
+
+        # bulk_create روی بک‌اندهایی که RETURNING را پشتیبانی می‌کنند (PostgreSQL،
+        # SQLite جدید) PKهایِ تازه را روی خودِ آبجکت‌ها پر می‌کند — اما برایِ
+        # اطمینانِ کامل (و سازگاری با هر بک‌اندی)، دوباره از دیتابیس با
+        # ``stable_id`` بازخوانی می‌کنیم؛ همین ``stable_id`` تنها کلیدِ قابلِ‌اعتماد
+        # برایِ نگاشتِ «این بخشِ منبع → کدام بخشِ کلون‌شده» است (نه ترتیب، نه
+        # section_key، چون ممکن است چند نمونه از یک section_key وجود داشته باشد).
+        # اسکوپِ این map به همینِ صفحه محدود است (نه کلِ نسخه) — دقیقاً
+        # همان معنایِ (page, stable_id) که Phase 1A محدوده‌یِ یکتاییِ
+        # stable_id را به آن تغییر داده.
+        cloned_by_stable_id = {
+            row.stable_id: row for row in target_page.sections.all()
+        }
+        for source_section in source_sections:
+            target_section = cloned_by_stable_id.get(source_section.stable_id)
+            if target_section is None:
+                continue
+            _clone_section_scoped_media(source_section, target_section)
 
 
 @transaction.atomic
