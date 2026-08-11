@@ -8,7 +8,11 @@
   - Independent image settings (4.4)
   - Story Rail section (4.5)
   - Maker/region via ProductMetafield (4.6)
-  - All five families registered with correct defaults (5.x)
+  - All eleven families registered with correct defaults (5.x — originally
+    written/verified for the first five families at Phase 5; six more
+    families were registered in a later checkpoint and this section's
+    fixture/class name has been updated accordingly, see the note above
+    AllElevenFamiliesRegisteredTests below)
 """
 
 from decimal import Decimal
@@ -176,15 +180,32 @@ class StoryRailSectionTests(TestCase):
                              f"story_rail should not be in {slug} defaults")
 
 
-# ============================================================ 5.x All Five Families
+# ============================================================ 5.x All Eleven Families
+#
+# Originally written when only five families existed (this file's own
+# docstring is titled "Phase 5 Family Implementation"). Six more families
+# (atlas_catalog, ava_fashion, toranj_gifting, sarv_stock, sepidar_handmade,
+# zarrin_jewelry) were registered in a later checkpoint — dedicated
+# coverage for the full eleven-family contract (exact slug set, five
+# original preserved, six new registered, valid presets, valid section
+# keys, complete variant paths) already exists in
+# apps/storefront_builder/tests/test_eleven_families.py. This class's own
+# EXPECTED_FAMILIES fixture was simply never updated when those six
+# families were added; renamed from "AllFiveFamiliesRegisteredTests" to
+# "AllElevenFamiliesRegisteredTests" so the class name matches its actual,
+# current assertions rather than the historical five-family checkpoint.
 
-class AllFiveFamiliesRegisteredTests(TestCase):
-    """تمام پنج خانواده باید ثبت شده و با تعریفات کامل باشند."""
 
-    EXPECTED_FAMILIES = {"modern_fashion", "heritage_premium", "artisan_editorial", "vibrant_catalog", "nordic_living"}
+class AllElevenFamiliesRegisteredTests(TestCase):
+    """تمام یازده خانواده باید ثبت شده و با تعریفات کامل باشند."""
 
-    def test_all_five_registered(self):
-        """هر ۵ خانواده در FAMILY_REGISTRY ثبت شده‌اند."""
+    EXPECTED_FAMILIES = {
+        "modern_fashion", "heritage_premium", "artisan_editorial", "vibrant_catalog", "nordic_living",
+        "atlas_catalog", "ava_fashion", "toranj_gifting", "sarv_stock", "sepidar_handmade", "zarrin_jewelry",
+    }
+
+    def test_all_eleven_registered(self):
+        """هر ۱۱ خانواده در FAMILY_REGISTRY ثبت شده‌اند."""
         registered = {f.slug for f in family_registry.list_families()}
         self.assertEqual(registered, self.EXPECTED_FAMILIES)
 
@@ -226,7 +247,7 @@ class AllFiveFamiliesRegisteredTests(TestCase):
             family = family_registry.get_family(slug)
             self.assertEqual(len(family.swatch), 3)
             swatches.add(family.swatch)
-        self.assertEqual(len(swatches), 5, "All five families must have distinct swatches")
+        self.assertEqual(len(swatches), 11, "All eleven families must have distinct swatches")
 
 
 class BackwardCompatibilityTests(TestCase):

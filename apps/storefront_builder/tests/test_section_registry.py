@@ -25,6 +25,14 @@ EXPECTED_KEYS = {
     "best_sellers", "discounted_products", "amazing_offers", "brand_carousel",
     "promo_cards", "rich_text", "image_text", "product_section", "trust_features",
     "collection_tiles", "quick_links", "faq", "testimonials", "video_section",
+    # story_rail is a deliberate, intentional addition (Phase 5 Family
+    # Implementation checkpoint) — dedicated coverage already exists in
+    # test_shared_capabilities.py::StoryRailSectionTests (registered,
+    # definition attributes, family-default wiring) and this file's own
+    # SectionRegistryTests already exercises story_rail indirectly via
+    # list_definitions()/ResponsiveIntegrationAcrossRegistryTests. This
+    # fixture was simply never updated when story_rail was added.
+    "story_rail",
 }
 
 

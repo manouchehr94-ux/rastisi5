@@ -27,8 +27,22 @@ class PresetRegistryImportTest(TestCase):
         self.assertTrue(hasattr(module, "PRESET_REGISTRY"))
         self.assertGreater(len(module.PRESET_REGISTRY), 0)
 
-    def test_all_five_presets_registered(self):
-        """All 5 family presets are registered."""
+    def test_all_eleven_presets_registered(self):
+        """All 11 family presets are registered.
+
+        Originally written when only five families/presets existed (this
+        was `test_all_five_presets_registered`). Six more presets
+        (atlas_catalog_default, ava_fashion_default, toranj_gifting_default,
+        sarv_stock_default, sepidar_handmade_default, zarrin_jewelry_default)
+        were registered in a later checkpoint alongside their six new
+        families — dedicated coverage for the full eleven-preset contract
+        (exact count, each family_slug matches, each has a valid palette)
+        already exists in
+        apps.storefront_builder.tests.test_eleven_families. This
+        assertion's expected set was simply never updated when those six
+        presets were added; renamed to match its actual, current
+        assertion rather than the historical five-preset checkpoint.
+        """
         from apps.storefront_builder.preset_registry import PRESET_REGISTRY
 
         expected = {
@@ -37,6 +51,12 @@ class PresetRegistryImportTest(TestCase):
             "nordic_living_default",
             "heritage_premium_default",
             "vibrant_catalog_default",
+            "atlas_catalog_default",
+            "ava_fashion_default",
+            "toranj_gifting_default",
+            "sarv_stock_default",
+            "sepidar_handmade_default",
+            "zarrin_jewelry_default",
         }
         self.assertEqual(set(PRESET_REGISTRY.keys()), expected)
 
@@ -83,7 +103,9 @@ class PresetRegistryImportTest(TestCase):
         self.assertTrue(p.card_image_zoom)
 
     def test_all_families_still_resolvable(self):
-        """All 5 families resolve with matching presets."""
+        """All eleven families resolve with matching presets (iterates
+        family_registry.list_families() dynamically — this assertion was
+        never actually stale, only its docstring wording was outdated)."""
         from apps.storefront_builder import family_registry, preset_registry
 
         for family in family_registry.list_families():
