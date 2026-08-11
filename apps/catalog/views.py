@@ -52,34 +52,23 @@ def home(request):
     # تصمیم ۱۱ کاربر). Import محلی برای جلوگیری از وابستگی حلقوی
     # ماژول‌سطح با apps.storefront_builder (که خودش از apps.catalog
     # استفاده می‌کند).
-    from apps.storefront_builder.models import StorefrontLayout
-    from apps.storefront_builder.services.render_service import build_render_items
-
-    visual_layout = (
-        StorefrontLayout.objects.filter(
-            store=store, uses_visual_storefront_layout=True, published_version__isnull=False,
-        )
-        .select_related("published_version")
-        .first()
+    #
+    # Phase 1B: منطقِ تشخیص/ساختِ کانتکست دیگر اینجا تکرار نمی‌شود —
+    # ``build_universal_storefront_context`` تنها نقطه‌ی این تصمیم برایِ
+    # هر شش نوع صفحه است (نگاه کنید به گزارشِ Phase 1B).
+    from apps.storefront_builder.services.storefront_context_service import (
+        build_universal_storefront_context,
     )
-    if visual_layout is not None:
-        published = visual_layout.published_version
-        top_level_categories = Category.objects.filter(
-            store=store, parent__isnull=True, is_active=True,
-        ).order_by("order", "name")
-        # تنظیماتِ ظاهر باید از همین نسخه‌ی منتشرشده خوانده شود، نه
-        # ShopSettings زنده — نگاه کنید به
-        # ``apps.core.context_processors._versioned_colors``. این تنها
-        # مسیرِ عمومی است که این attribute را ست می‌کند؛ هر صفحه‌ی دیگرِ
-        # همین فروشگاه (پرداخت، جزئیاتِ کالا، ...) دست‌نخورده روی
-        # ShopSettings زنده باقی می‌ماند.
-        request.storefront_appearance_version = published
-        return render(request, "catalog/home_visual.html", {
-            "render_items": build_render_items(published, store),
-            "layout_header_config": published.effective_header_config(),
-            "layout_footer_config": published.effective_footer_config(),
-            "top_level_categories": top_level_categories,
-        })
+    from apps.storefront_builder.models import StorefrontPage
+
+    universal_context = build_universal_storefront_context(
+        request, store, StorefrontPage.PageType.HOME,
+    )
+    if universal_context["uses_universal_shell"]:
+        # ``top_level_categories`` از قبل توسطِ ``build_universal_storefront_context``
+        # محاسبه شده (نگاه کنید به ``storefront_context_service._top_level_categories``)
+        # — دیگر نیازی به کوئریِ جداگانه‌یِ اینجا نیست.
+        return render(request, "catalog/home_visual.html", universal_context)
 
     active_products = storefront_listing_products(store)
 
@@ -226,6 +215,19 @@ def product_list(request):
 
     if request.headers.get("HX-Request") == "true":
         return render(request, "catalog/partials/product_list_results.html", context)
+
+    # Phase 1B: این یک route است که هم «لیست/دسته‌بندی» و هم «جستجو» را
+    # پوشش می‌دهد (بدون URL جداگانه‌ی جستجو — نگاه کنید به گزارشِ ممیزیِ
+    # این فاز) — نوعِ صفحه‌ی V2 بر اساسِ وجودِ ``q`` انتخاب می‌شود؛ خودِ
+    # کوئری/فیلتر/مرتب‌سازیِ کاتالوگ (بالا) کاملاً مستقل از این انتخاب و
+    # بدونِ تغییر باقی می‌ماند.
+    from apps.storefront_builder.services.storefront_context_service import (
+        build_universal_storefront_context,
+    )
+    from apps.storefront_builder.models import StorefrontPage
+
+    page_type = StorefrontPage.PageType.SEARCH if query else StorefrontPage.PageType.LISTING
+    context.update(build_universal_storefront_context(request, store, page_type))
     return render(request, "catalog/product_list.html", context)
 
 
@@ -361,7 +363,21 @@ def product_detail(request, slug):
     Product.objects.filter(pk=product.pk).update(views_count=F("views_count") + 1)
     product.views_count += 1
 
+    # Phase 1B: پوسته‌ی سراسری برایِ Storeهایی که Storefront V2 منتشر
+    # کرده‌اند — منطقِ تجاریِ خودِ صفحه‌ی محصول (build_product_detail_context)
+    # کاملاً دست‌نخورده می‌ماند؛ فقط هدر/فوتر (از طریقِ
+    # ``templates/storefront_shell.html``ی که این تمپلیت اکنون extend
+    # می‌کند) با همان نسخه‌یِ منتشرشده‌ای که صفحه‌ی اصلیِ همینِ Store دارد
+    # یکسان می‌شود.
+    from apps.storefront_builder.services.storefront_context_service import (
+        build_universal_storefront_context,
+    )
+    from apps.storefront_builder.models import StorefrontPage
+
     context = build_product_detail_context(request, product)
+    context.update(build_universal_storefront_context(
+        request, store, StorefrontPage.PageType.PRODUCT_DETAIL,
+    ))
     return render(request, "catalog/product_detail.html", context)
 
 
@@ -411,7 +427,15 @@ def collection_index(request):
     ``collection_detail`` است) تا کوئری‌بودجه‌ی این صفحه ثابت بماند."""
     store = resolve_store_for_storefront(request)
     collections = collection_service.public_collection_queryset(store)
-    return render(request, "catalog/collection_index.html", {"collections": collections})
+
+    from apps.storefront_builder.services.storefront_context_service import (
+        build_universal_storefront_context,
+    )
+    from apps.storefront_builder.models import StorefrontPage
+
+    context = {"collections": collections}
+    context.update(build_universal_storefront_context(request, store, StorefrontPage.PageType.COLLECTION))
+    return render(request, "catalog/collection_index.html", context)
 
 
 def collection_detail(request, slug):
@@ -423,6 +447,11 @@ def collection_detail(request, slug):
     page_obj = paginator.get_page(request.GET.get("page"))
     products = [item.product for item in page_obj.object_list]
 
-    return render(request, "catalog/collection_detail.html", {
-        "collection": collection, "page_obj": page_obj, "products": products,
-    })
+    from apps.storefront_builder.services.storefront_context_service import (
+        build_universal_storefront_context,
+    )
+    from apps.storefront_builder.models import StorefrontPage
+
+    context = {"collection": collection, "page_obj": page_obj, "products": products}
+    context.update(build_universal_storefront_context(request, store, StorefrontPage.PageType.COLLECTION))
+    return render(request, "catalog/collection_detail.html", context)

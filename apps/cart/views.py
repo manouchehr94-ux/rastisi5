@@ -36,7 +36,24 @@ def _cart_context(request, cart):
 
 def cart_detail(request):
     cart = get_cart(request, create=True)
-    return render(request, "cart/cart_detail.html", _cart_context(request, cart))
+    context = _cart_context(request, cart)
+
+    # Phase 1B: پوسته‌ی سراسری — منطقِ سبد (بالا، بدونِ تغییر) کاملاً از
+    # این جدا است؛ ``resolve_store_for_storefront`` (نه
+    # ``resolve_store_for_service``ی که ``cart_totals`` داخلی استفاده
+    # می‌کند) عمداً اینجا صدا زده می‌شود چون این تنها فراخوانِ صریحِ
+    # تفکیکِ Store در این ویو است — دقیقاً همان resolverای که پنج ویوِ
+    # دیگرِ Storefront استفاده می‌کنند (fail-closed: میزبانِ ناشناخته →
+    # ۴۰۴، Storeِ غیرِ عمومی → ۴۰۳).
+    from apps.stores.resolution import resolve_store_for_storefront
+    from apps.storefront_builder.services.storefront_context_service import (
+        build_universal_storefront_context,
+    )
+    from apps.storefront_builder.models import StorefrontPage
+
+    store = resolve_store_for_storefront(request)
+    context.update(build_universal_storefront_context(request, store, StorefrontPage.PageType.CART))
+    return render(request, "cart/cart_detail.html", context)
 
 
 def _cart_add_error_response(request, message):

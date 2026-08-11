@@ -366,21 +366,18 @@ _CONTEXT_BUILDERS = {
 }
 
 
-def build_render_items(version, store) -> list[dict]:
-    """فهرست بخش‌های فعالِ **صفحه‌ی اصلیِ** یک نسخه، هرکدام با template_name +
-    context آماده.
+def build_page_render_items(page, store) -> list[dict]:
+    """فهرست بخش‌های فعالِ **یک ``StorefrontPage`` مشخص**، هرکدام با
+    template_name + context آماده — Phase 1B: نسخه‌یِ صفحه‌آگاهِ عمومیِ
+    این تابع؛ ``build_render_items(version, store)`` (پایین) اکنون فقط
+    یک wrapperِ سازگاریِ نازک است که ``version.home_page()`` را حل کرده و
+    به همینجا صدا می‌زند — پیاده‌سازیِ واقعی همیشه اینجا زندگی می‌کند، نه
+    دوباره‌نویسیِ آن برایِ هر صفحه.
 
-    Phase 1A: امضایِ این تابع عمداً بدونِ تغییر باقی مانده
-    (``build_render_items(version, store)``، نه
-    ``build_render_items(page, store)``) — طبقِ الزامِ صریحِ کار: هر دو
-    فراخوانِ تولیدیِ موجود (``apps.catalog.views.home()`` و
-    ``storefront_builder.views.storefront_preview()``) یک
-    ``StorefrontLayoutVersion`` پاس می‌دهند، نه یک ``StorefrontPage``؛
-    تغییرِ امضا یعنی ویرایشِ هر دو فراخوان بدونِ دلیلِ واقعی (چون در
-    Phase 1A هنوز فقط صفحه‌ی اصلی محتوایِ Section-based دارد). داخلِ تابع،
-    ``version.home_page()`` صریحاً صدا زده می‌شود — نه property تجمیعیِ
-    ``version.sections`` — تا این تابع همیشه *فقط* صفحه‌ی اصلی را رندر
-    کند، حتی وقتی در آینده صفحاتِ دیگر هم Section داشته باشند.
+    برایِ صفحه‌ای که هنوز هیچ Section‌ای ندارد (Phase 1A/1B: همه‌یِ
+    صفحاتِ غیرِ اصلی امروز عمداً خالی‌اند)، این تابع بدونِ خطا فقط یک
+    فهرستِ خالی برمی‌گرداند — نه محتوایِ ساختگی، نه crash؛ دقیقاً همان
+    الزامِ صریحِ کار («Do NOT auto-create arbitrary visual blocks»).
 
     بخش‌هایی با section_key ناشناخته (مثلاً از یک نسخه‌ی قدیمی‌تر که آن نوع
     را دیگر پشتیبانی نمی‌کند) بی‌صدا حذف می‌شوند — پیش‌نمایش/صفحه هرگز crash
@@ -401,8 +398,7 @@ def build_render_items(version, store) -> list[dict]:
     یک درخواست."""
     items = []
     context_cache: dict = {}
-    home_page = version.home_page()
-    for section in home_page.sections.filter(is_active=True).order_by("order", "id"):
+    for section in page.sections.filter(is_active=True).order_by("order", "id"):
         try:
             definition = get_definition(section.section_key)
         except UnknownSectionTypeError:
@@ -425,3 +421,16 @@ def build_render_items(version, store) -> list[dict]:
             "context": context,
         })
     return items
+
+
+def build_render_items(version, store) -> list[dict]:
+    """فهرست بخش‌های فعالِ **صفحه‌ی اصلیِ** یک نسخه — wrapperِ سازگاریِ
+    نازک، حفظ‌شده عمداً برایِ هر دو فراخوانِ تولیدیِ موجودِ پیش از Phase 1B
+    (``apps.catalog.views.home()`` و
+    ``storefront_builder.views.storefront_preview()``) که همیشه یک
+    ``StorefrontLayoutVersion`` پاس می‌دهند، نه یک ``StorefrontPage`` — و
+    برایِ کلِ مجموعه‌ی تست‌هایِ موجودِ ``test_render_service.py`` که همین
+    امضا را مستقیماً صدا می‌زنند. پیاده‌سازیِ واقعی از Phase 1B به بعد
+    ``build_page_render_items`` است؛ این تابع فقط ``version.home_page()``
+    را حل می‌کند و به آن تابع صدا می‌زند — تکراریِ منطق نیست."""
+    return build_page_render_items(version.home_page(), store)

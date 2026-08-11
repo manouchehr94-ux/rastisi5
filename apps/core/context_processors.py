@@ -57,15 +57,16 @@ def _global_identity_version(request, store_id):
     if store_id is None:
         return None
 
-    from apps.storefront_builder.models import StorefrontLayout
-
-    layout = (
-        StorefrontLayout.objects.filter(
-            store_id=store_id, uses_visual_storefront_layout=True, published_version__isnull=False,
-        )
-        .select_related("published_version")
-        .first()
+    # Phase 1B: کوئریِ «آیا این Store یک Storefront V2 منتشرشده دارد؟»
+    # اکنون در یک نقطه‌ی مرکزیِ واحد نوشته شده — نگاه کنید به
+    # ``apps.storefront_builder.services.page_resolution_service``. پیش از
+    # این فاز، همین شرط (``uses_visual_storefront_layout=True AND
+    # published_version__isnull=False``) اینجا هم مستقلاً تکرار شده بود.
+    from apps.storefront_builder.services.page_resolution_service import (
+        get_published_layout_for_store_id,
     )
+
+    layout = get_published_layout_for_store_id(store_id)
     return layout.published_version if layout is not None else None
 
 
