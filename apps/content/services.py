@@ -157,3 +157,49 @@ def _collection_url(store, pk, MerchantCollection):
     except MerchantCollection.DoesNotExist:
         return None
     return reverse("catalog:collection-detail", args=[collection.slug])
+
+
+# ---------------------------------------------------------------- Media Asset cleanup (Phase 0.5)
+#
+# Explicit service function, deliberately NOT a Django signal (post_delete/
+# pre_delete) — per the Phase 0.5 brief: "avoid fragile Django signals that
+# delete files blindly on row deletion; prefer an explicit asset cleanup
+# service." A signal fired on every Placement delete would have no easy way
+# to express "only delete the physical file if truly nothing else still
+# needs it" without duplicating this exact same reference check anyway —
+# an explicit, callable function keeps that decision visible at every call
+# site instead of hidden in signal-dispatch order.
+
+
+def delete_media_asset_if_unreferenced(asset) -> bool:
+    """اگر ``asset`` دیگر توسط هیچ Placementی (در هیچ نسخه‌ای — Published،
+    Draft یا بایگانی‌شده) ارجاع نمی‌شود، خودِ ردیف را (و فایلِ فیزیکی‌اش را،
+    فقط پس از commitِ موفقِ تراکنش) حذف می‌کند و ``True`` برمی‌گرداند.
+
+    اگر هنوز حداقل یک Placement به آن ارجاع می‌دهد، **هیچ کاری نمی‌کند** و
+    ``False`` برمی‌گرداند — قانونِ حیاتیِ Phase 0.5: هرگز فایلِ فیزیکیِ
+    زیرِ یک asset را حذف نکن اگر Placementِ دیگری (مثلاً نسخه‌ی Published)
+    هنوز به همان ردیف اشاره می‌کند.
+
+    ``asset`` می‌تواند ``None`` باشد (مثلاً وقتی Placementِ حذف‌شده هنوز از
+    قبل از Phase 0.5 است و هیچ FKِ assetای نداشت) — در این حالت بی‌صدا
+    ``False`` برمی‌گرداند؛ فراخوان مسئولِ رفتارِ fallback (حذفِ مستقیمِ
+    فایلِ قدیمی از طریقِ نامِ فایل) است، نه این تابع."""
+    if asset is None:
+        return False
+    if asset.is_referenced():
+        return False
+
+    from django.db import transaction
+
+    file_name = asset.image.name if asset.image else None
+    storage = asset.image.storage if asset.image else None
+    asset.delete()
+
+    if file_name and storage:
+        def _cleanup():
+            if storage.exists(file_name):
+                storage.delete(file_name)
+
+        transaction.on_commit(_cleanup)
+    return True

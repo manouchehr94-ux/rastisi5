@@ -307,7 +307,57 @@ class ContentPage(TimeStampedModel):
 
 
 
-# ---------------------------------------------------------------- محتوای صفحه اصلی
+# ---------------------------------------------------------------- Media Asset (Phase 0.5)
+
+
+class MediaAsset(TimeStampedModel):
+    """فایلِ فیزیکیِ رسانه — مالکیتِ آن مستقل از هر Placementِ خاص (Section/
+    نسخه/صفحه) است.
+
+    هدف (Phase 0.5 — تصمیمِ مالک ۵): جداکردنِ «فایلِ فیزیکی» از «محلِ
+    استفاده‌ی نسخه/section-ایِ آن». یک ``MediaAsset`` می‌تواند همزمان توسط
+    چند Placement (مثلاً یک HeroPlacementِ Published و یک HeroPlacementِ
+    Draft) ارجاع شود — حذفِ یک Placement هرگز این ردیف را حذف نمی‌کند
+    (نگاه کنید به ``on_delete=PROTECT`` روی فیلدهایِ asset در HeroSlide/
+    PromotionalBanner/StoryRailItem).
+
+    عمداً حداقلی نگه داشته شده — بدونِ فیلدهایِ اضافیِ «شاید بعداً لازم
+    شود» (caption، تگ، دسته‌بندی و ...). اگر آینده به آن‌ها نیاز داشت،
+    می‌توان بعداً افزود؛ بدونِ فیلدهایِ حدسی، ریسکِ Migration/معنایِ
+    نامشخص حذف می‌شود."""
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE,
+        related_name="media_assets",
+    )
+    image = models.ImageField(
+        "تصویر", upload_to="media-assets/",
+        validators=[validate_image_size, validate_image_content],
+    )
+
+    class Meta:
+        verbose_name = "فایل رسانه"
+        verbose_name_plural = "فایل‌های رسانه"
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"رسانه #{self.pk}"
+
+    def is_referenced(self) -> bool:
+        """آیا هنوز حداقل یک Placement (در هر نسخه‌ای — Published، Draft یا
+        بایگانی‌شده) به این asset ارجاع می‌دهد؟
+
+        این تنها راهِ امنِ بررسیِ «آیا حذفِ فیزیکیِ این فایل امن است؟» است —
+        هرگز فرض نکنید یک asset بدون‌ارجاع است صرفاً چون یک Placementِ
+        خاص حذف شده؛ ممکن است Placementِ دیگری (نسخه‌ی دیگر) هنوز به همین
+        ردیف اشاره کند."""
+        return (
+            self.hero_placements.exists()
+            or self.banner_desktop_placements.exists()
+            or self.banner_mobile_placements.exists()
+            or self.hero_mobile_placements.exists()
+            or self.story_placements.exists()
+        )
 
 
 class HeroSlide(TimeStampedModel, DestinationMixin):
@@ -333,6 +383,23 @@ class HeroSlide(TimeStampedModel, DestinationMixin):
     subtitle = models.CharField("زیرعنوان", max_length=300, blank=True)
     desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/hero/", validators=[validate_image_size, validate_image_content])
     mobile_image = models.ImageField("تصویر موبایل", upload_to="homepage/hero/", blank=True, validators=[validate_image_size, validate_image_content])
+    desktop_asset = models.ForeignKey(
+        "MediaAsset", verbose_name="فایلِ رسانه — دسکتاپ",
+        on_delete=models.PROTECT, null=True, blank=True, related_name="hero_placements",
+        help_text=(
+            "Phase 0.5 — ارجاع به فایلِ فیزیکیِ به‌اشتراک‌گذاشته‌شده. خالی یعنی "
+            "این ردیفِ قدیمی‌تر از این فیلد است (هنوز فقط desktop_image مستقیم "
+            "دارد) — رندر همچنان از desktop_image استفاده می‌کند تا زمانی که "
+            "همه‌ی مسیرهای مصرف‌کننده به‌طورِ کامل به این فیلد منتقل شوند. "
+            "``on_delete=PROTECT``: حذفِ این Placement هرگز نباید بی‌درنگ اجازه‌ی "
+            "حذفِ فایلِ فیزیکیِ زیرِ آن را بدهد اگر Placementِ دیگری (مثلاً "
+            "نسخه‌ی Published) هنوز به همان asset اشاره می‌کند."
+        ),
+    )
+    mobile_asset = models.ForeignKey(
+        "MediaAsset", verbose_name="فایلِ رسانه — موبایل",
+        on_delete=models.PROTECT, null=True, blank=True, related_name="hero_mobile_placements",
+    )
     button_label = models.CharField("متن دکمه", max_length=60, blank=True)
     show_button = models.BooleanField("نمایش دکمه", default=False)
     is_active = models.BooleanField("فعال", default=True)
@@ -352,6 +419,17 @@ class HeroSlide(TimeStampedModel, DestinationMixin):
             raise ValidationError({"button_label": "وقتی دکمه فعال است، متن دکمه الزامی است"})
         if self.show_button and self.destination_type == DestinationType.NONE:
             raise ValidationError({"destination_type": "وقتی دکمه فعال است، مقصد باید انتخاب شود"})
+        self._validate_asset_store_ownership()
+
+    def _validate_asset_store_ownership(self):
+        """Phase 0.5 — تصمیمِ مالک ۵ (ایمنیِ ارجاع): یک Placement نمی‌تواند
+        به ``MediaAsset``ی متعلق به فروشگاهِ دیگر ارجاع بدهد — همان الگویِ
+        ``MerchantCollectionItem.clean()`` برایِ رد‌کردنِ محصولِ فروشگاهِ
+        دیگر."""
+        for field_name in ("desktop_asset", "mobile_asset"):
+            asset = getattr(self, field_name, None)
+            if asset is not None and self.store_id is not None and asset.store_id != self.store_id:
+                raise ValidationError({field_name: "فایلِ رسانه‌ی انتخاب‌شده متعلق به فروشگاهِ دیگری است"})
 
 
 class PromotionalBanner(TimeStampedModel, DestinationMixin):
@@ -375,6 +453,19 @@ class PromotionalBanner(TimeStampedModel, DestinationMixin):
     description = models.CharField("توضیحات", max_length=500, blank=True)
     desktop_image = models.ImageField("تصویر دسکتاپ", upload_to="homepage/banners/", validators=[validate_image_size, validate_image_content])
     mobile_image = models.ImageField("تصویر موبایل", upload_to="homepage/banners/", blank=True, validators=[validate_image_size, validate_image_content])
+    desktop_asset = models.ForeignKey(
+        "MediaAsset", verbose_name="فایلِ رسانه — دسکتاپ",
+        on_delete=models.PROTECT, null=True, blank=True, related_name="banner_desktop_placements",
+        help_text=(
+            "Phase 0.5 — همان الگویِ HeroSlide.desktop_asset. خالی یعنی این "
+            "ردیف قدیمی‌تر از این فیلد است؛ رندر همچنان از desktop_image استفاده "
+            "می‌کند."
+        ),
+    )
+    mobile_asset = models.ForeignKey(
+        "MediaAsset", verbose_name="فایلِ رسانه — موبایل",
+        on_delete=models.PROTECT, null=True, blank=True, related_name="banner_mobile_placements",
+    )
     button_label = models.CharField("متن دکمه", max_length=60, blank=True)
     show_button = models.BooleanField("نمایش دکمه", default=False)
     is_active = models.BooleanField("فعال", default=True)
@@ -394,6 +485,14 @@ class PromotionalBanner(TimeStampedModel, DestinationMixin):
             raise ValidationError({"button_label": "وقتی دکمه فعال است، متن دکمه الزامی است"})
         if self.show_button and self.destination_type == DestinationType.NONE:
             raise ValidationError({"destination_type": "وقتی دکمه فعال است، مقصد باید انتخاب شود"})
+        self._validate_asset_store_ownership()
+
+    def _validate_asset_store_ownership(self):
+        """Phase 0.5 — همان الگویِ ``HeroSlide._validate_asset_store_ownership``."""
+        for field_name in ("desktop_asset", "mobile_asset"):
+            asset = getattr(self, field_name, None)
+            if asset is not None and self.store_id is not None and asset.store_id != self.store_id:
+                raise ValidationError({field_name: "فایلِ رسانه‌ی انتخاب‌شده متعلق به فروشگاهِ دیگری است"})
 
 
 
@@ -832,6 +931,15 @@ class StoryRailItem(TimeStampedModel, DestinationMixin):
         "تصویر", upload_to="storyrail/",
         validators=[validate_image_size, validate_image_content],
     )
+    image_asset = models.ForeignKey(
+        "MediaAsset", verbose_name="فایلِ رسانه",
+        on_delete=models.PROTECT, null=True, blank=True, related_name="story_placements",
+        help_text=(
+            "Phase 0.5 — همان الگویِ HeroSlide.desktop_asset (اینجا فقط یک "
+            "تصویرِ واحد، نه جفتِ دسکتاپ/موبایل). خالی یعنی این ردیف قدیمی‌تر "
+            "از این فیلد است؛ رندر همچنان از image استفاده می‌کند."
+        ),
+    )
     is_active = models.BooleanField("فعال", default=True)
     display_order = models.PositiveIntegerField("ترتیب نمایش", default=0)
 
@@ -842,3 +950,8 @@ class StoryRailItem(TimeStampedModel, DestinationMixin):
 
     def __str__(self):
         return self.title or f"استوری #{self.pk}"
+
+    def clean(self):
+        super().clean()
+        if self.image_asset is not None and self.store_id is not None and self.image_asset.store_id != self.store_id:
+            raise ValidationError({"image_asset": "فایلِ رسانه‌ی انتخاب‌شده متعلق به فروشگاهِ دیگری است"})

@@ -253,23 +253,143 @@ def _next_version_number(layout: StorefrontLayout) -> int:
     return (last.version_number + 1) if last else 1
 
 
+#: نگاشتِ نوعِ رسانه‌یِ مقیّد به section → (نامِ related_name رویِ
+#: StorefrontSection، لیستِ فیلدهایی که مستقیماً کپی می‌شوند بدونِ تغییرِ
+#: معنا). ``asset`` فیلدهای FKِ اشاره‌گر به ``MediaAsset`` عمداً از این
+#: لیست جدا نگه داشته شده‌اند (نگاه کنید به ``_ASSET_FK_FIELDS`` پایین) —
+#: تصمیمِ مالک ۴/۵: کلون‌کردنِ Placement هرگز نباید Placementِ منبع (که
+#: معمولاً به نسخه‌ی Published تعلق دارد) را تغییر دهد؛ فقط یک ردیفِ
+#: **جدید** با همان اشاره‌گرِ MediaAsset ساخته می‌شود.
+_SCOPED_MEDIA_MODELS = ("hero_slides", "banners", "story_items")
+
+#: هر مدلِ Placement کدام فیلدهایِ FKِ اشاره‌گر به ``MediaAsset`` دارد —
+#: این‌ها هم دقیقاً مثلِ بقیه‌ی فیلدها کپی می‌شوند (همان مقدارِ
+#: asset_id، نه ساختنِ asset تازه) چون تصمیمِ مالک ۵ صریحاً می‌گوید
+#: Placementِ کلون‌شده باید به **همان** ``MediaAsset`` اشاره کند، نه یک
+#: کپیِ تازه از فایل.
+_ASSET_FK_FIELDS = {
+    "hero_slides": ("desktop_asset_id", "mobile_asset_id"),
+    "banners": ("desktop_asset_id", "mobile_asset_id"),
+    "story_items": ("image_asset_id",),
+}
+
+#: فیلدهایِ محتواییِ غیرِ FK هر مدلِ Placement — کپی می‌شوند دقیقاً همان‌طور
+#: که هستند (بدونِ منطقِ خاص).
+_PLACEMENT_CONTENT_FIELDS = {
+    "hero_slides": (
+        "title", "subtitle", "button_label", "show_button", "is_active", "display_order",
+        "destination_type", "destination_category_id", "destination_product_id",
+        "destination_brand_id", "destination_collection_id", "destination_external_url",
+        "open_in_new_tab",
+    ),
+    "banners": (
+        "title", "description", "button_label", "show_button", "is_active", "display_order",
+        "destination_type", "destination_category_id", "destination_product_id",
+        "destination_brand_id", "destination_collection_id", "destination_external_url",
+        "open_in_new_tab",
+    ),
+    "story_items": (
+        "title", "is_active", "display_order",
+        "destination_type", "destination_category_id", "destination_product_id",
+        "destination_brand_id", "destination_collection_id", "destination_external_url",
+        "open_in_new_tab",
+    ),
+}
+
+
+def _clone_section_scoped_media(source_section: StorefrontSection, target_section: StorefrontSection) -> None:
+    """برایِ ``source_section`` (متعلق به نسخه‌ی منبع — معمولاً Published)،
+    هر ردیفِ رسانه‌یِ section-scoped (``HeroSlide``/``PromotionalBanner``/
+    ``StoryRailItem`` که ``section == source_section``) را روی
+    ``target_section`` (بخشِ تازه‌کلون‌شده، متعلق به نسخه‌ی جدید) **کلون
+    می‌کند** — یعنی یک ردیفِ کاملاً جدید می‌سازد، هرگز ردیفِ منبع را
+    UPDATE یا MOVE نمی‌کند (تصمیمِ مالک ۴: «Published و Draft باید همزمان
+    و مستقل قابل‌رندر باشند»).
+
+    ردیفِ جدید دقیقاً همان فیلدهایِ FKِ MediaAsset را کپی می‌کند (همان
+    asset_id — بدونِ ساختنِ asset تازه، بدونِ کپیِ بایتِ فایل؛ تصمیمِ
+    مالک ۵) — پس اگر Placementِ منبع به یک ``MediaAsset`` مشترک اشاره
+    می‌کند، Placementِ جدیدِ کلون‌شده هم به **همان** ردیفِ ``MediaAsset``
+    اشاره می‌کند."""
+    from apps.content.models import HeroSlide, PromotionalBanner, StoryRailItem
+
+    model_by_related_name = {
+        "hero_slides": HeroSlide, "banners": PromotionalBanner, "story_items": StoryRailItem,
+    }
+    for related_name in _SCOPED_MEDIA_MODELS:
+        model = model_by_related_name[related_name]
+        source_rows = getattr(source_section, related_name).all()
+        clones = []
+        for row in source_rows:
+            kwargs = {"store_id": row.store_id, "section": target_section}
+            for field in _PLACEMENT_CONTENT_FIELDS[related_name]:
+                kwargs[field] = getattr(row, field)
+            for field in _ASSET_FK_FIELDS[related_name]:
+                kwargs[field] = getattr(row, field)
+            # فیلدهایِ فایلِ legacy (desktop_image/mobile_image/image) عمداً
+            # کپی نمی‌شوند — این کلون فقط برایِ Placementهایی معنا دارد که
+            # از قبل به یک MediaAsset منتقل شده‌اند (نگاه کنید به
+            # STOREFRONT_BUILDER_V2_PHASE_0_5_REPORT.md، محدودیت‌ها). یک
+            # Placementِ section-scoped که هنوز asset FK ندارد (خیلی
+            # قدیمی، از قبلِ Phase 0.5 و هرگز ازطریقِ فرمِ ویرایش لمس‌
+            # نشده) در این کلون نادیده گرفته می‌شود — نه خطا، نه کرش؛ فقط
+            # در نسخه‌ی جدید ظاهر نمی‌شود، دقیقاً همان رفتاری که پیش از
+            # این Fix هم برایِ *همه‌ی* Placementهایِ section-scoped وجود
+            # داشت (نگاه کنید به بخشِ «محدودیت‌های باقی‌مانده» در گزارش).
+            has_any_asset = any(kwargs[f] for f in _ASSET_FK_FIELDS[related_name])
+            if not has_any_asset:
+                continue
+            clones.append(model(**kwargs))
+        if clones:
+            model.objects.bulk_create(clones)
+
+
 def _clone_version_content(source: StorefrontLayoutVersion | None, target: StorefrontLayoutVersion) -> None:
-    """کپی هدر/فوتر/بخش‌های ``source`` روی ``target`` (که تازه ساخته شده و بدون بخش است)."""
+    """کپی هدر/فوتر/بخش‌های ``source`` روی ``target`` (که تازه ساخته شده و
+    بدون بخش است).
+
+    Phase 0.5 (تصمیمِ مالک ۳/۴/۵ — پیشتر: باگِ کلونِ رسانه‌یِ section-scoped):
+    - هر ``StorefrontSection`` کلون‌شده ``stable_id`` را دقیقاً حفظ می‌کند
+      (همان بخشِ منطقی است، فقط در نسخه‌ی دیگر) — نه یک UUID تازه.
+    - برایِ هر بخشِ کلون‌شده، رسانه‌یِ section-scoped (HeroSlide/
+      PromotionalBanner/StoryRailItem) هم کلون می‌شود — هرگز از بخشِ منبع
+      حذف/جابه‌جا نمی‌شود، فقط یک ردیفِ جدید با همان ارجاعِ MediaAsset
+      ساخته می‌شود. Placementِ منبع (که معمولاً به نسخه‌ی Published تعلق
+      دارد) کاملاً دست‌نخورده می‌ماند."""
     if source is None:
         return
     target.header_config = dict(source.header_config or {})
     target.footer_config = dict(source.footer_config or {})
     target.appearance_config = dict(source.appearance_config or {})
     target.save(update_fields=["header_config", "footer_config", "appearance_config"])
-    sections = [
+
+    source_sections = list(source.sections.order_by("order", "id"))
+    cloned_sections = [
         StorefrontSection(
             version=target, section_key=s.section_key, order=s.order,
             is_active=s.is_active, settings=dict(s.settings or {}),
+            stable_id=s.stable_id,
         )
-        for s in source.sections.order_by("order", "id")
+        for s in source_sections
     ]
-    if sections:
-        StorefrontSection.objects.bulk_create(sections)
+    if not cloned_sections:
+        return
+    StorefrontSection.objects.bulk_create(cloned_sections)
+
+    # bulk_create روی بک‌اندهایی که RETURNING را پشتیبانی می‌کنند (PostgreSQL،
+    # SQLite جدید) PKهایِ تازه را روی خودِ آبجکت‌ها پر می‌کند — اما برایِ
+    # اطمینانِ کامل (و سازگاری با هر بک‌اندی)، دوباره از دیتابیس با
+    # ``stable_id`` بازخوانی می‌کنیم؛ همین ``stable_id`` تنها کلیدِ قابلِ‌اعتماد
+    # برایِ نگاشتِ «این بخشِ منبع → کدام بخشِ کلون‌شده» است (نه ترتیب، نه
+    # section_key، چون ممکن است چند نمونه از یک section_key وجود داشته باشد).
+    cloned_by_stable_id = {
+        row.stable_id: row for row in target.sections.all()
+    }
+    for source_section in source_sections:
+        target_section = cloned_by_stable_id.get(source_section.stable_id)
+        if target_section is None:
+            continue
+        _clone_section_scoped_media(source_section, target_section)
 
 
 @transaction.atomic

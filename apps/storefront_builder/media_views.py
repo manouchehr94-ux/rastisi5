@@ -46,6 +46,11 @@ _MEDIA_KINDS = {
         "text_field": "subtitle",
         "text_label": "زیرعنوان",
         "section_keys": {"hero_banner", "image_slider"},
+        # Phase 0.5 — تصمیمِ مالک ۵: نگاشتِ فیلدِ فایلِ قدیمی → فیلدِ FKِ
+        # asset متناظر، برایِ اینکه ``storefront_section_media_form`` بتواند
+        # ردیفِ MediaAsset را ایجاد/به‌روزرسانی کند — بدونِ کپیِ بایتِ فایل،
+        # فقط با اشاره‌گر به همان فایلِ تازه‌آپلودشده.
+        "asset_fields": {"desktop_image": "desktop_asset", "mobile_image": "mobile_asset"},
     },
     "banners": {
         "model": PromotionalBanner,
@@ -54,6 +59,7 @@ _MEDIA_KINDS = {
         "text_field": "description",
         "text_label": "توضیحات",
         "section_keys": {"single_banner", "multi_banner"},
+        "asset_fields": {"desktop_image": "desktop_asset", "mobile_image": "mobile_asset"},
     },
     "story-items": {
         "model": StoryRailItem,
@@ -63,6 +69,17 @@ _MEDIA_KINDS = {
         "text_label": "عنوان",
         "section_keys": {"story_rail"},
         "image_field": "image",  # single image, not desktop/mobile pair
+        # توجه (پیش از Phase 0.5، محدودیتِ از‌قبل‌موجود): این kind از طریقِ
+        # همین فرمِ عمومیِ ایجاد/ویرایش (``storefront_section_media_form``،
+        # که به‌طورِ سخت‌کدشده ``desktop_image``/``mobile_image`` می‌خواند)
+        # قابل‌ایجاد/ویرایش نیست — ``StoryRailItem`` فقط یک فیلدِ واحدِ
+        # ``image`` دارد. این محدودیت مستقل از Phase 0.5 است و اینجا رفع
+        # نمی‌شود (خارج از محدوده‌ی این چکپوینت). عمداً در ``asset_fields``
+        # ثبت نشده تا ``storefront_section_media_form`` تلاش نکند
+        # ``desktop_image``/``mobile_image``ی ناموجود را روی این مدل بخواند.
+        # ``asset_fields`` فقط برایِ مسیرِ حذف (Part 8) استفاده می‌شود —
+        # نگاه کنید به ``storefront_section_media_delete``.
+        "delete_asset_fields": {"image": "image_asset"},
     },
 }
 
@@ -112,6 +129,37 @@ def _apply_destination_fields(obj, request):
     obj.destination_collection_id = int(collection_id) if collection_id else None
 
 
+def _sync_asset_references(obj, config, store, *, changed_fields: set[str]) -> None:
+    """Phase 0.5 — تصمیمِ مالک ۵: پس از ذخیره‌ی موفقِ ``obj`` (که فیلدِ
+    فایلِ قدیمی‌اش از قبل ذخیره شده)، برایِ هر جفتِ (فیلدِ فایلِ قدیمی →
+    فیلدِ FKِ asset) که واقعاً تغییر کرده، یک ``MediaAsset`` جدید ایجاد
+    می‌کند که به همان فایلِ تازه‌ذخیره‌شده اشاره می‌کند — **بدونِ کپیِ
+    بایتِ فایل** (فقط ``image=obj.<file_field>.name``، همان مسیرِ ذخیره‌شده).
+
+    اگر فیلدِ فایل حذف شده باشد (مثلاً ``remove_mobile``)، FKِ asset متناظر
+    فقط به ``None`` تنظیم می‌شود — هرگز خودِ ردیفِ ``MediaAsset`` را حذف
+    نمی‌کند (ممکن است Placementِ دیگری، مثلاً نسخه‌ی Published، هنوز به
+    همان asset ارجاع بدهد؛ نگاه کنید به ``MediaAsset.is_referenced``)."""
+    asset_fields = config.get("asset_fields")
+    if not asset_fields:
+        return
+    from apps.content.models import MediaAsset
+
+    update_fields = []
+    for file_field, asset_field in asset_fields.items():
+        if file_field not in changed_fields:
+            continue
+        file_obj = getattr(obj, file_field)
+        if file_obj:
+            asset = MediaAsset.objects.create(store=store, image=file_obj.name)
+            setattr(obj, f"{asset_field}_id", asset.pk)
+        else:
+            setattr(obj, f"{asset_field}_id", None)
+        update_fields.append(asset_field)
+    if update_fields:
+        obj.save(update_fields=update_fields)
+
+
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_section_media_form(request, pk, kind, item_pk=None):
@@ -149,14 +197,27 @@ def storefront_section_media_form(request, pk, kind, item_pk=None):
             storage = model.desktop_image.field.storage
             new_desktop_name = obj.desktop_image.name if obj.desktop_image else None
             new_mobile_name = obj.mobile_image.name if obj.mobile_image else None
+            desktop_changed = old_desktop_name != new_desktop_name
+            mobile_changed = old_mobile_name != new_mobile_name
             files_to_delete = [
                 name for name in (
-                    old_desktop_name if old_desktop_name != new_desktop_name else None,
-                    old_mobile_name if old_mobile_name != new_mobile_name else None,
+                    old_desktop_name if desktop_changed else None,
+                    old_mobile_name if mobile_changed else None,
                 ) if name
             ]
             if files_to_delete:
                 transaction.on_commit(lambda: [storage.delete(f) for f in files_to_delete if storage.exists(f)])
+            # Phase 0.5 — تصمیمِ مالک ۵: فقط برایِ فیلدهایی که واقعاً تغییر
+            # کردند (نه هر بار ذخیره)، یک ردیفِ MediaAsset تازه بساز و FKِ
+            # asset را به آن وصل کن. اگر چیزی تغییر نکرده (مثلاً فقط عنوان
+            # ویرایش شده)، asset FKِ قبلی (اگر باشد) دست‌نخورده می‌ماند.
+            changed = set()
+            if desktop_changed:
+                changed.add("desktop_image")
+            if mobile_changed:
+                changed.add("mobile_image")
+            if changed:
+                _sync_asset_references(obj, config, store, changed_fields=changed)
             messages.success(request, f"«{config['label']}» ذخیره شد")
             return redirect("dashboard:storefront-builder-section-media-list", pk=section.pk, kind=kind)
         except (ValidationError, IntegrityError) as exc:
@@ -176,22 +237,60 @@ def storefront_section_media_form(request, pk, kind, item_pk=None):
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_section_media_delete(request, pk, kind, item_pk):
+    """حذفِ یک Placement.
+
+    Phase 0.5 — تصمیمِ مالک ۸ (حذفِ امن): این Placement حذف می‌شود، اما
+    ``MediaAsset``هایی که ارجاع می‌دهد **مستقیماً** حذف نمی‌شوند — به‌جایِ
+    آن، ``delete_media_asset_if_unreferenced`` صدا زده می‌شود که فقط اگر
+    هیچ Placementِ دیگری (مثلاً همینِ اسلاید در نسخه‌ی Published) به همان
+    asset ارجاع ندهد، آن را (و فایلِ فیزیکی‌اش را) حذف می‌کند.
+
+    برایِ ردیف‌هایِ قدیمی‌تر (بدونِ asset FK — از قبل از Phase 0.5) دقیقاً
+    همان رفتارِ قبلی حفظ شده: پاک‌سازیِ مستقیمِ فایلِ فیزیکی بر اساسِ نامِ
+    فیلدِ تصویرِ قدیمی."""
+    from apps.content.services import delete_media_asset_if_unreferenced
+
     section = _get_scoped_section(request, pk)
     config = _media_config(kind, section)
     item = get_object_or_404(config["model"], pk=item_pk, section=section)
-    desktop_name = item.desktop_image.name if item.desktop_image else None
-    mobile_name = item.mobile_image.name if item.mobile_image else None
-    storage = item.desktop_image.storage
+    # ``asset_fields`` (hero-slides/banners) یا ``delete_asset_fields``
+    # (story-items — فقط همین یکی چون مسیرِ نوشتنِ آن هنوز به asset FK
+    # متصل نشده، اما فیلدِ image_asset ممکن است از طریقِ Migrationِ
+    # Backfill پر شده باشد) — هرکدام موجود بود استفاده می‌شود.
+    asset_field_map = config.get("asset_fields") or config.get("delete_asset_fields") or {}
+
+    # جفتِ (asset موجود، نامِ فایلِ legacy) — فقط برایِ فیلدهایی که asset
+    # FK ندارند (ردیفِ قدیمی‌تر) نامِ فایل ذخیره می‌شود؛ برایِ بقیه، حذفِ
+    # فایلِ فیزیکی کاملاً به عهده‌ی ``delete_media_asset_if_unreferenced``
+    # است (که خودش reference-safety را چک می‌کند).
+    legacy_cleanup_names = []
+    assets_to_check = []
+    for file_field, asset_field in asset_field_map.items():
+        asset = getattr(item, asset_field, None)
+        if asset is not None:
+            assets_to_check.append(asset)
+        else:
+            file_obj = getattr(item, file_field, None)
+            if file_obj:
+                legacy_cleanup_names.append(file_obj.name)
+    storage_field = getattr(item, "desktop_image", None)
+    if storage_field is None:
+        storage_field = getattr(item, "image", None)
+    storage = storage_field.storage if storage_field is not None else None
 
     item.delete()
 
-    def _cleanup():
-        if desktop_name and storage.exists(desktop_name):
-            storage.delete(desktop_name)
-        if mobile_name and storage.exists(mobile_name):
-            storage.delete(mobile_name)
+    for asset in assets_to_check:
+        delete_media_asset_if_unreferenced(asset)
 
-    transaction.on_commit(_cleanup)
+    if legacy_cleanup_names and storage is not None:
+        def _cleanup():
+            for name in legacy_cleanup_names:
+                if storage.exists(name):
+                    storage.delete(name)
+
+        transaction.on_commit(_cleanup)
+
     messages.success(request, f"«{config['label']}» حذف شد")
     return _media_list_body(request, section, kind, config)
 

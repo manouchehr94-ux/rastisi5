@@ -23,6 +23,7 @@
 
 import hashlib
 import json
+import uuid
 
 from django.conf import settings
 from django.db import models
@@ -251,11 +252,31 @@ class StorefrontSection(TimeStampedModel):
             "مستقل از is_active؛ هیچ اثری روی نمایش عمومی Storefront ندارد."
         ),
     )
+    stable_id = models.UUIDField(
+        "شناسه منطقی پایدار", default=uuid.uuid4, editable=False, db_index=True,
+        help_text=(
+            "هویتِ منطقیِ این بخش که مستقل از PK پایگاه‌داده است — طیِ کلونِ "
+            "نسخه (Published → Draft جدید، Restore) دقیقاً همان مقدار حفظ "
+            "می‌شود (چون همان بخشِ منطقی است، فقط در نسخه‌ی دیگری). طیِ "
+            "تکرار (Duplicate) عمداً یک UUID تازه می‌گیرد (چون یک بخشِ "
+            "منطقیِ *جدید* است). این فیلد اجازه می‌دهد ردیف‌های رسانه‌ی "
+            "مقیّد به section (HeroSlide/PromotionalBanner/StoryRailItem) "
+            "طیِ کلون بتوانند section مقابلِ خودشان را در نسخه‌ی جدید پیدا "
+            "کنند — بدون اینکه هرگز به PKِ بخشِ منتشرشده دست بزنند "
+            "(Phase 0.5 — نگاه کنید به layout_service._clone_version_content)."
+        ),
+    )
 
     class Meta:
         verbose_name = "بخش صفحه فروشگاه"
         verbose_name_plural = "بخش‌های صفحه فروشگاه"
         ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["version", "stable_id"],
+                name="storefront_section_unique_stable_id_per_version",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.section_key} (#{self.order})"

@@ -23,6 +23,7 @@ from .models import (
     StorefrontSection,
 )
 from .services import layout_service
+from .services.layout_service import _clone_section_scoped_media
 from .services.render_service import build_render_items
 
 
@@ -521,6 +522,20 @@ def storefront_section_collapse_toggle(request, pk):
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_section_duplicate(request, pk):
+    """تکرارِ یک بخش — یک بخشِ منطقیِ **جدید** می‌سازد.
+
+    Phase 0.5 (تصمیمِ مالک ۳/۹): برخلافِ کلونِ نسخه (که ``stable_id`` را
+    حفظ می‌کند چون همان بخشِ منطقی است)، تکرار عمداً یک ``stable_id`` تازه
+    می‌گیرد (پیش‌فرضِ فیلد — ``uuid.uuid4()``، نه چیزی که اینجا صریحاً
+    ست شود) — این یک بخشِ منطقیِ کاملاً جدید و مستقل است.
+
+    اگر بخشِ منبع رسانه‌یِ section-scoped (HeroSlide/PromotionalBanner/
+    StoryRailItem) داشته باشد، آن هم تکرار می‌شود — Placementهایِ جدید به
+    **همان** ``MediaAsset``هایِ منبع اشاره می‌کنند (بدونِ کپیِ بایتِ فایل)،
+    اما تنظیماتِ خودشان (عنوان/دکمه/مقصد/ترتیب) به‌طورِ کاملاً مستقل کپی
+    می‌شود — ویرایشِ بعدیِ Placementِ تکرارشده هرگز روی Placementِ منبع
+    اثر نمی‌گذارد (همان الگویِ استقلالِ ``settings`` که از قبل برایِ خودِ
+    section وجود داشت)."""
     section = _get_scoped_section(request, pk)
     try:
         definition = section_registry.get_definition(section.section_key)
@@ -531,10 +546,13 @@ def storefront_section_duplicate(request, pk):
         pass
     last = section.version.sections.order_by("-order").first()
     new_order = (last.order + 1) if last else 0
-    StorefrontSection.objects.create(
+    new_section = StorefrontSection.objects.create(
         version=section.version, section_key=section.section_key,
         order=new_order, is_active=section.is_active, settings=dict(section.settings or {}),
+        # stable_id عمداً اینجا پاس داده نمی‌شود — پیش‌فرضِ فیلد
+        # (``uuid.uuid4``) خودش یک شناسه‌ی منطقیِ تازه تولید می‌کند.
     )
+    _clone_section_scoped_media(section, new_section)
     messages.success(request, "بخش تکرار شد")
     return storefront_section_list_partial(request)
 
