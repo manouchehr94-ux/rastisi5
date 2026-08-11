@@ -2,6 +2,8 @@
 
 **Phase:** Audit checkpoint. Documentation only.
 
+> **Pointer note (added during the subsequent architecture-revision pass):** the route/template/shell findings below are unchanged factual observations and are not re-litigated here. The owner has since locked the target multi-page domain model (`StorefrontLayoutVersion → StorefrontPage → StorefrontSection`, see `STOREFRONT_BUILDER_V2_IMPLEMENTATION_PLAN.md` §1) that Phase 1 will use to make every route below Section/Block-composable. The "V2 migration requirement" column below still accurately describes what each route needs; it should now be read as "needs a `StorefrontPage` of the corresponding `page_type`" rather than an open/undecided shape.
+
 All evidence below is `SOURCE_ONLY` (templates, views, and urls.py read directly; no request was executed against a running server — no Django runtime is available in this sandbox, see `STOREFRONT_BUILDER_V2_EXISTING_CAPABILITY_AUDIT.md` §0).
 
 Tenant resolution for **every** route below is `apps.stores.resolution.resolve_store_for_storefront(request)` — the single authoritative "which Store" resolver, fail-closed (404 for unresolvable/ineligible host, 403 for a real-but-not-publicly-visible Store).

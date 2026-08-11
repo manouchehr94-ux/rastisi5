@@ -2,6 +2,8 @@
 
 **Phase:** Audit / Reconnaissance checkpoint (per `UNIVERSAL_STOREFRONT_BUILDER_V2_SPEC.md`) — documentation only, no application behavior changed.
 
+> **Pointer note (added during the subsequent architecture-revision pass):** the factual findings in this document are unchanged and not re-litigated here. The owner has since locked nine architecture decisions that determine *what to do* with several findings below — most notably §2 (section-bound media clone bug: the fix direction described there as a possibility is superseded; see `STOREFRONT_BUILDER_V2_IMPLEMENTATION_PLAN.md` §5.2–5.3 for the rejected vs. approved fix) and §4 (Family system: "pending owner decision" language elsewhere in the docs is now resolved to a locked freeze — see `STOREFRONT_BUILDER_V2_REUSE_MATRIX.md`). Read this document for **what exists and how it behaves today**; read the Implementation Plan for **what the owner has decided to do about it**. This document also originally used the term "TESTED" to mean "test assertions read, not executed" — later documents use the clearer term `SOURCE_WITH_TEST_COVERAGE` for this same meaning; this document's own wording is left as originally written for historical accuracy.
+
 **Branch:** `claude/family-visual-fidelity-fix`
 **Base commit:** `152a6e440383dd5a0bdca1847a5eee0cb92ca9a0`
 **Date:** 2026-08-11
