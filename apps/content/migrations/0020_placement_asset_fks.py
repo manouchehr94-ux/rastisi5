@@ -10,6 +10,26 @@
 # on_delete=PROTECT is deliberate: deleting a placement row must never be
 # allowed to cascade into deleting a MediaAsset another placement (e.g. a
 # Published one) may still reference.
+#
+# --------------------------------------------------------------------
+# Repair note (Phase 0.5 local-validation fix): the owner's local
+# `makemigrations --check --dry-run` flagged drift on
+# HeroSlide.desktop_asset only. Root cause confirmed by direct
+# byte-for-byte comparison against apps/content/models.py: the model's
+# help_text wraps `on_delete=PROTECT` in RST double-backticks
+# (``on_delete=PROTECT``); this migration's recorded help_text had the
+# same sentence WITHOUT the backticks. This is pure migration-state /
+# docstring metadata — it does not correspond to any different column
+# type, nullability, on_delete behavior, or constraint, so it does not
+# require a different physical database schema. Per the task's explicit
+# instruction, this migration (already applied on the owner's local
+# database as of this repair) is corrected IN PLACE rather than
+# reconciled via a new migration, since the only difference is this
+# non-schema metadata string. No other field on this migration (
+# mobile_asset, desktop_asset/mobile_asset on PromotionalBanner,
+# image_asset on StoryRailItem) showed any drift in the owner's report —
+# only HeroSlide.desktop_asset's help_text is corrected below.
+# --------------------------------------------------------------------
 
 import django.db.models.deletion
 from django.db import migrations, models
@@ -31,14 +51,13 @@ class Migration(migrations.Migration):
                 related_name="hero_placements", to="content.mediaasset",
                 verbose_name="فایلِ رسانه — دسکتاپ",
                 help_text=(
-                    "Phase 0.5 — ارجاع به فایلِ فیزیکیِ به‌اشتراک‌گذاشته‌شده. خالی "
-                    "یعنی این ردیفِ قدیمی‌تر از این فیلد است (هنوز فقط "
-                    "desktop_image مستقیم دارد) — رندر همچنان از desktop_image "
-                    "استفاده می‌کند تا زمانی که همه‌ی مسیرهای مصرف‌کننده به‌طورِ "
-                    "کامل به این فیلد منتقل شوند. on_delete=PROTECT: حذفِ این "
-                    "Placement هرگز نباید بی‌درنگ اجازه‌ی حذفِ فایلِ فیزیکیِ زیرِ "
-                    "آن را بدهد اگر Placementِ دیگری (مثلاً نسخه‌ی Published) "
-                    "هنوز به همان asset اشاره می‌کند."
+                    "Phase 0.5 — ارجاع به فایلِ فیزیکیِ به‌اشتراک‌گذاشته‌شده. خالی یعنی "
+                    "این ردیفِ قدیمی‌تر از این فیلد است (هنوز فقط desktop_image مستقیم "
+                    "دارد) — رندر همچنان از desktop_image استفاده می‌کند تا زمانی که "
+                    "همه‌ی مسیرهای مصرف‌کننده به‌طورِ کامل به این فیلد منتقل شوند. "
+                    "``on_delete=PROTECT``: حذفِ این Placement هرگز نباید بی‌درنگ اجازه‌ی "
+                    "حذفِ فایلِ فیزیکیِ زیرِ آن را بدهد اگر Placementِ دیگری (مثلاً "
+                    "نسخه‌ی Published) هنوز به همان asset اشاره می‌کند."
                 ),
             ),
         ),

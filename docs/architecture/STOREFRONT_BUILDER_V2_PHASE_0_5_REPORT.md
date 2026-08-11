@@ -259,6 +259,105 @@ If the owner also wants to specifically re-reproduce and then re-verify the exac
 
 ---
 
+## 13.5. Repair addendum — local validation failure and fix (post-initial-implementation)
+
+The owner ran local validation on Django 5.2.16 + SQLite and found this phase's initial commit (`13f5adf`) did **not** pass. This addendum documents the failure and the fix, applied in-place to the existing migrations (no new `0005`/`0022` migration files were created).
+
+### 13.5.1 What failed
+
+`python manage.py migrate` failed on `storefront_builder.0004_storefrontsection_stable_id` with:
+
+```
+django.db.utils.IntegrityError: UNIQUE constraint failed:
+new__storefront_builder_storefrontsection.version_id,
+new__storefront_builder_storefrontsection.stable_id
+```
+
+`python manage.py makemigrations --check --dry-run` also reported drift, proposing two new migrations (`content/0022_alter_heroslide_desktop_asset.py`, `storefront_builder/0005_alter_storefrontsection_stable_id.py`) — these were correctly treated as diagnostic-only symptoms, not accepted as the fix.
+
+### 13.5.2 Root cause of the `0004` `IntegrityError`
+
+The original `0004` migration's `AddField` step declared `stable_id` as nullable **but still carrying `default=uuid.uuid4`**. On SQLite, Django implements `AddField` (and most other ALTERs) via a full table-rebuild strategy (`CREATE TABLE new__..., INSERT INTO new__... SELECT ... FROM old, DROP old, RENAME new__ TO old`). During that rebuild, a column's callable default can be evaluated and applied to every pre-existing row as part of the `INSERT ... SELECT`, rather than genuinely leaving them `NULL` for a later data migration to fill in per-row. In practice this meant every pre-existing `StorefrontSection` row ended up with the **same** (non-distinct) `stable_id` value immediately after `AddField`, not `NULL`.
+
+The subsequent `RunPython` backfill step (`backfill_stable_ids`) was never itself wrong — its `.filter(stable_id__isnull=True)` genuinely assigns a fresh, distinct UUID to every row it matches. But because `AddField` had already given every row a non-null (collided) value, the filter matched **zero** rows, so nothing was corrected. The final `AddConstraint(UniqueConstraint(version, stable_id))` then failed for the first version that had more than one pre-existing section, because they all shared the one leaked-through value.
+
+### 13.5.3 Fix applied to `0004` (in-place, no new migration)
+
+`AddField`'s field declaration now has **no `default=` at all** (only `null=True`, matching the owner's required sequence exactly). This forces every pre-existing row to genuinely land on `NULL` after `AddField`, so the existing, already-correct `RunPython` backfill loop is the only thing that ever assigns a value to a pre-existing row — guaranteeing distinctness before `AlterField`/`AddConstraint` run. The final `AlterField`'s field declaration (which restores `default=uuid.uuid4` for future new rows and sets `null=False`) is otherwise unchanged in shape, only corrected to be byte-identical to the model (see 13.5.4).
+
+Verified (`SOURCE_ONLY`, by direct code inspection — not executed): the operation sequence is now `AddField(no default, nullable) → RunPython(per-row backfill) → AlterField(default + not-null) → AddConstraint`, exactly the four-step sequence the owner specified.
+
+### 13.5.4 Migration-state drift: `StorefrontSection.stable_id`
+
+Separately from the `IntegrityError`, `makemigrations --check` found that `0004`'s final `AlterField`'s `help_text` did not exactly match the model's current `help_text` — the model's help_text had been extended (to also explain the section-scoped-media clone rationale) after `0004` was originally written, but the migration's recorded final state still had the shorter, earlier text. This is a pure migration-state/metadata drift (Django tracks the full field declaration, including `help_text`, as part of migration state for consistency checking — it does not correspond to any different column type or constraint). **Confirmed via direct byte-for-byte string comparison of the two help_text values** (543 characters each once corrected) that after this fix, the migration's final `AlterField` field declaration is identical to the model's live declaration.
+
+### 13.5.5 Migration-state drift: `HeroSlide.desktop_asset`
+
+`makemigrations --check` also found drift specifically on `HeroSlide.desktop_asset` (and no other field in `0020`). Root cause, confirmed by direct byte-for-byte comparison: the model's `help_text` wraps `on_delete=PROTECT` in RST-style double backticks (`` ``on_delete=PROTECT`` ``); the migration's recorded `help_text` for this one field had the same sentence **without** the backticks. Every other field added by `0020` (`HeroSlide.mobile_asset`, `PromotionalBanner.desktop_asset`/`mobile_asset`, `StoryRailItem.image_asset`) was checked the same way and found to already match exactly — confirmed there is no other drift in this migration.
+
+**This is confirmed to be pure migration-state/docstring metadata, not a real database-schema difference** — it does not change the column type, nullability, `on_delete` behavior, or any constraint. Per the task's explicit instruction ("If you find a real schema difference, STOP and report it instead of silently rewriting an already-applied migration"): **no real schema difference was found.** `content.0020` is already applied on the owner's local database as of this repair; correcting only the `help_text` string in place does not require any different physical schema and is safe to apply directly to the already-migrated file, because Django's migration-state consistency check compares the full recorded field declaration (including `help_text`) against the live model, not the database schema itself — the database column is completely unaffected by this specific correction.
+
+### 13.5.6 Encoding check
+
+Per the task's explicit instruction, no Persian text was rewritten based on the PowerShell `Get-Content` mojibake report. Every file touched by this repair (and, for due diligence, every file touched by the original Phase 0.5 commit) was re-verified this session to decode successfully as UTF-8 with no errors — confirming the mojibake the owner observed is a Windows console/`Get-Content` display-encoding artifact, not a source-file corruption. No source file's actual bytes were altered for encoding reasons.
+
+### 13.5.7 New test added for this repair
+
+`apps/storefront_builder/tests/test_stable_id_migration.py` — two test classes:
+- `MigrationOperationOrderTests` (`SimpleTestCase`, no DB) — a **static/structural** check that reads `Migration.operations` directly from the `0004` module and asserts: the first operation is `AddField` with no default (the exact regression point), the second is the `RunPython` backfill, the third is `AlterField` with a default and `null=False`, and the fourth (last) is `AddConstraint`. Also inspects the backfill function's source to confirm the `uuid.uuid4()` call happens inside the per-row loop, not once outside it. This is the test that would have caught the original bug without needing to execute a real migration.
+- `StableIdConstraintBehaviorTests` (`TestCase`, full DB) — functional confirmation of the end state: new sections get distinct `uuid4` defaults, duplicate `stable_id` within the same version is rejected by the live `UniqueConstraint`, and the same `stable_id` is correctly allowed across two different versions.
+
+A full end-to-end reproduction of the original SQLite table-rebuild bug (via genuinely running `python manage.py migrate` against a pre-`0004` database state) was **not** attempted in a Django `TestCase`, because Django's test framework always runs against the fully-migrated final schema — there is no way to construct the exact broken intermediate state (colliding non-null values before the fix, or genuine per-row NULLs before backfill) through the ORM once the final `NOT NULL` + `UniqueConstraint` are already live, without the database itself rejecting the setup for unrelated reasons. The static operation-order check in `MigrationOperationOrderTests` is the strongest test possible under this sandbox's constraints; **actually running `python manage.py migrate` against a fresh database is the only way to fully prove the fix**, and that is asked of the owner explicitly in §13.5.8 below.
+
+### 13.5.8 Owner commands to re-validate this specific repair
+
+```bash
+python manage.py makemigrations --check --dry-run
+# ^ must now report "No changes detected" for BOTH apps (content and
+#   storefront_builder) — confirms the help_text drift on both
+#   HeroSlide.desktop_asset and StorefrontSection.stable_id is fully
+#   resolved, with no new migration file needed.
+
+# From the owner's exact current local DB state (content 0019/0020/0021
+# applied, storefront_builder 0004 unapplied/failed):
+python manage.py migrate storefront_builder 0004
+# ^ must now succeed cleanly — this is the definitive proof the
+#   SQLite table-rebuild/default-leak bug is fixed. If the owner's local
+#   database already has any partially-applied leftover state from the
+#   failed attempt (e.g. a lingering new__storefront_builder_storefrontsection
+#   table from SQLite's aborted rebuild), it may be necessary to inspect
+#   that table manually or restore from a pre-migration backup before
+#   retrying — this could not be predicted or repaired from this sandbox
+#   since it depends on exactly what SQLite left behind after the failed
+#   transaction rolled back (SQLite's ALTER-via-rebuild is normally
+#   transactional and self-cleaning on failure, so a plain retry should
+#   normally be sufficient, but this is flagged rather than assumed).
+
+python manage.py migrate
+# ^ confirm the rest of the migration graph still applies cleanly.
+
+python manage.py test \
+  apps.storefront_builder.tests.test_layout_service \
+  apps.storefront_builder.tests.test_render_service \
+  apps.storefront_builder.tests.test_media_views \
+  apps.storefront_builder.tests.test_page_shell \
+  apps.storefront_builder.tests.test_public_homepage_integration \
+  apps.storefront_builder.tests.test_views \
+  --verbosity 2
+# ^ the original 220-test baseline — must remain green.
+
+python manage.py test \
+  apps.storefront_builder.tests.test_stable_section_identity \
+  apps.storefront_builder.tests.test_media_asset_lifecycle \
+  apps.storefront_builder.tests.test_media_write_path \
+  apps.storefront_builder.tests.test_stable_id_migration \
+  --verbosity 2
+# ^ the full new Phase 0.5 suite, including this repair's new migration
+#   regression test.
+```
+
+---
+
 ## 14. Summary — what was and was not done
 
 **Done:** stable section identity (Part 1), minimal `MediaAsset` model (Part 2), placements evolved to reference it while keeping legacy fields (Part 3), backward-compatible backfill migration (Part 4), updated write path for create/edit (Part 5), corrected clone algorithm (Part 6), legacy global media left untouched (Part 7), safe explicit deletion service (Part 8), section-duplication now duplicates media correctly (Part 9), regression tests for all of the above (Part 11), migrations kept small and separate (Part 13), this report (Part 14).
