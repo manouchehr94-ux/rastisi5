@@ -1,76 +1,55 @@
-{% load persian %}{% comment %}
-فوترِ خانواده‌ی «سرو استاک» (sarv_stock) — فوترِ سه‌ستونه با نوارِ تماسِ
-سبز بالای فوتر.
-{% endcomment %}
+{% load persian %}{% comment %}فوتر داده‌محور stock/catalog.{% endcomment %}
 {% with fc=footer_config %}
-{# نوار تماس سبز #}
 {% if fc.show_contact %}
 <div class="sv-contact-strip">
   <div class="wrap sv-contact-row">
-    {% if SHOP_CONTACT_PHONE %}<a href="tel:{{ SHOP_CONTACT_PHONE }}" dir="ltr">📞 {{ SHOP_CONTACT_PHONE }}</a>{% endif %}
-    {% if SHOP_CONTACT_EMAIL %}<a href="mailto:{{ SHOP_CONTACT_EMAIL }}" dir="ltr">✉️ {{ SHOP_CONTACT_EMAIL }}</a>{% endif %}
-    {% if fc.show_social and SOCIAL_LINKS_FOOTER %}
-    <div class="sv-contact-socials">
-      {% for slink in SOCIAL_LINKS_FOOTER %}
-      <a href="{{ slink.url }}" aria-label="{{ slink.title }}" target="_blank" rel="noopener noreferrer">{% include "partials/social_icon.html" with icon=slink.effective_icon_name %}</a>
-      {% endfor %}
+    <div><b>پشتیبانی فروشگاه</b>{% if FOOTER_SETTINGS.working_hours %}<small>{{ FOOTER_SETTINGS.working_hours }}</small>{% endif %}</div>
+    <div class="sv-contact-links">
+      {% if FOOTER_SETTINGS.phone %}<a href="tel:{{ FOOTER_SETTINGS.phone }}" dir="ltr">{{ FOOTER_SETTINGS.phone }} ☎</a>{% elif SHOP_CONTACT_PHONE %}<a href="tel:{{ SHOP_CONTACT_PHONE }}" dir="ltr">{{ SHOP_CONTACT_PHONE }} ☎</a>{% endif %}
+      {% if FOOTER_SETTINGS.secondary_phone %}<a href="tel:{{ FOOTER_SETTINGS.secondary_phone }}" dir="ltr">{{ FOOTER_SETTINGS.secondary_phone }} ☎</a>{% endif %}
+      {% if FOOTER_SETTINGS.email %}<a href="mailto:{{ FOOTER_SETTINGS.email }}" dir="ltr">{{ FOOTER_SETTINGS.email }}</a>{% elif SHOP_CONTACT_EMAIL %}<a href="mailto:{{ SHOP_CONTACT_EMAIL }}" dir="ltr">{{ SHOP_CONTACT_EMAIL }}</a>{% endif %}
     </div>
-    {% endif %}
+    {% if fc.show_social and SOCIAL_LINKS_FOOTER %}<div class="sv-contact-socials">{% for slink in SOCIAL_LINKS_FOOTER %}<a href="{{ slink.url }}" aria-label="{{ slink.title }}" target="_blank" rel="noopener noreferrer">{% include "partials/social_icon.html" with icon=slink.effective_icon_name %}<span>{{ slink.title }}</span></a>{% endfor %}</div>{% endif %}
   </div>
 </div>
 {% endif %}
 
 <footer class="sv-footer">
   <div class="wrap sv-footer-grid">
-    {# ستون ۱: درباره #}
     {% if fc.show_about %}
-    <div class="sv-footer-col">
-      <h5>{{ SHOP_NAME }}</h5>
-      <p>{{ SHOP_NAME }}، {{ SHOP_TAGLINE }}</p>
+    <div class="sv-footer-col sv-footer-about">
+      <a class="sv-footer-logo" href="{% if is_live_storefront %}/{% else %}#{% endif %}"{% if is_builder_preview %} onclick="return false"{% endif %}>{{ SHOP_NAME }}</a>
+      {% if SHOP_TAGLINE %}<p>{{ SHOP_TAGLINE }}</p>{% endif %}
+      {% if FOOTER_SETTINGS.address %}<p>{{ FOOTER_SETTINGS.address }}</p>{% endif %}
     </div>
     {% endif %}
 
-    {# ستون ۲: لینک‌های سریع #}
-    {% if fc.show_quick_links and NAV_FOOTER_1 %}
+    {% if fc.show_quick_links %}
     <div class="sv-footer-col">
-      <h5>{{ NAV_FOOTER_1.title|default:"دسترسی سریع" }}</h5>
+      <h5>دسترسی سریع</h5>
       <ul>
-        {% for item in NAV_FOOTER_1.items %}
-        <li>{% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}</li>
-        {% endfor %}
+        {% if NAV_FOOTER_1 %}{% for item in NAV_FOOTER_1.items %}<li>{% if item.url %}<a href="{{ item.url }}">{{ item.title }}</a>{% endif %}</li>{% endfor %}{% endif %}
+        {% for page in footer_pages_quick_access %}<li><a href="{{ page.get_absolute_url }}">{{ page.title }}</a></li>{% endfor %}
+      </ul>
+    </div>
+
+    <div class="sv-footer-col">
+      <h5>خدمات مشتریان</h5>
+      <ul>
+        {% if NAV_FOOTER_2 %}{% for item in NAV_FOOTER_2.items %}<li>{% if item.url %}<a href="{{ item.url }}">{{ item.title }}</a>{% endif %}</li>{% endfor %}{% endif %}
+        {% for page in footer_pages_customer_service %}<li><a href="{{ page.get_absolute_url }}">{{ page.title }}</a></li>{% endfor %}
       </ul>
     </div>
     {% endif %}
 
-    {# ستون ۳: نمادها #}
+    {% if fc.show_categories and top_level_categories %}
     <div class="sv-footer-col">
-      {% if NAV_FOOTER_2 %}
-      <h5>{{ NAV_FOOTER_2.title|default:"بیشتر" }}</h5>
-      <ul>
-        {% for item in NAV_FOOTER_2.items %}
-        <li>{% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}</li>
-        {% endfor %}
-      </ul>
-      {% elif fc.show_categories and top_level_categories %}
       <h5>دسته‌بندی‌ها</h5>
-      <ul>
-        {% for cat in top_level_categories %}
-        <li><a href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">{{ cat.name }}</a></li>
-        {% endfor %}
-      </ul>
-      {% endif %}
-      {% if fc.show_trust_badges and FOOTER_TRUST_BADGES %}
-      <div class="sv-trust-badges">
-        {% for badge in FOOTER_TRUST_BADGES %}
-        {% if badge.destination_url %}<a href="{{ badge.destination_url }}" target="_blank" rel="noopener noreferrer"><img src="{{ badge.image.url }}" alt="{{ badge.title }}"></a>{% else %}<img src="{{ badge.image.url }}" alt="{{ badge.title }}">{% endif %}
-        {% endfor %}
-      </div>
-      {% endif %}
+      <ul>{% for cat in top_level_categories|slice:":8" %}<li><a href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">{{ cat.name }}</a></li>{% endfor %}</ul>
     </div>
+    {% endif %}
   </div>
 
-  {% if fc.show_copyright %}
-  <div class="sv-footer-copy"><span>© {{ SHOP_NAME }}</span></div>
-  {% endif %}
+  {% if fc.show_copyright %}<div class="wrap sv-footer-copy"><span>© {{ SHOP_NAME }}</span><small>تمامی حقوق این فروشگاه محفوظ است.</small></div>{% endif %}
 </footer>
 {% endwith %}

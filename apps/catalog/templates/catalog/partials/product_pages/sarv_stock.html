@@ -164,22 +164,16 @@
     </div>
   </div>
 
-  {# FAQ #}
-  <div class="sv-faq" x-data="{ openQ: null }">
-    <h3>پرسش‌های متداول</h3>
-    <div class="sv-faq-item">
-      <button type="button" @click="openQ = openQ === 'ship' ? null : 'ship'" class="sv-faq-q">🚚 زمان ارسال چقدر است؟</button>
-      <div class="sv-faq-a" x-show="openQ === 'ship'" x-cloak>معمولاً ۲ تا ۵ روز کاری.</div>
-    </div>
-    <div class="sv-faq-item">
-      <button type="button" @click="openQ = openQ === 'return' ? null : 'return'" class="sv-faq-q">🔄 شرایط بازگشت کالا؟</button>
-      <div class="sv-faq-a" x-show="openQ === 'return'" x-cloak>تا هفت روز پس از دریافت، بدون نیاز به ارائه‌ی دلیل.</div>
-    </div>
-    <div class="sv-faq-item">
-      <button type="button" @click="openQ = openQ === 'warranty' ? null : 'warranty'" class="sv-faq-q">✅ آیا گارانتی دارد؟</button>
-      <div class="sv-faq-a" x-show="openQ === 'warranty'" x-cloak>بله، تمامی محصولات از ضمانتِ اصالت برخوردارند.</div>
+  {# راهنمای داده‌محور فروشگاه — به‌جای policyهای hard-code شده در Family #}
+  {% if footer_pages_quick_access or footer_pages_customer_service %}
+  <div class="sv-service-pages">
+    <h3>راهنمای خرید و خدمات</h3>
+    <div class="sv-service-links">
+      {% for page in footer_pages_quick_access %}<a href="{{ page.get_absolute_url }}">{{ page.title }}</a>{% endfor %}
+      {% for page in footer_pages_customer_service %}<a href="{{ page.get_absolute_url }}">{{ page.title }}</a>{% endfor %}
     </div>
   </div>
+  {% endif %}
 
   {# تب نظرات #}
   <div class="pdp-tabs" x-data="{ tab: 'review' }">
