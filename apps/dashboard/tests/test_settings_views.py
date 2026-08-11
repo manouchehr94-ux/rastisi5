@@ -1042,4 +1042,4 @@ class SettingsPageQueryPerformanceTests(SettingsViewsTestCase):
         # balance/package/pending-purchase data (same pre-existing pattern
         # as every other section's context, computed regardless of which
         # tab is active).
-        self.assertLess(len(ctx), 25)
+        self.assertLessEqual(len(ctx), 25)

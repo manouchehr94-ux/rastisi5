@@ -454,9 +454,14 @@ class ProductImageDragHintAndCoverLabelTests(ProductImageViewsTestCase):
 
 
 class ProductVideoViewTests(ProductImageViewsTestCase):
+    """``product_video_add``'s only accepted field names are ``video_url``/
+    ``video_title`` (see ``apps.dashboard.views.product_video_add``'s own
+    docstring — the legacy ``url``/``title`` aliases were deliberately not
+    kept). These tests POST the canonical field names accordingly."""
+
     def test_adds_youtube_video(self):
         response = self.client.post(reverse("dashboard:product-video-add", args=[self.product.pk]), {
-            "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "title": "معرفی کالا",
+            "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "video_title": "معرفی کالا",
         })
         self.assertEqual(response.status_code, 200)
         video = self.product.videos.get()
@@ -465,7 +470,7 @@ class ProductVideoViewTests(ProductImageViewsTestCase):
 
     def test_adds_aparat_video(self):
         response = self.client.post(reverse("dashboard:product-video-add", args=[self.product.pk]), {
-            "url": "https://www.aparat.com/v/abc123",
+            "video_url": "https://www.aparat.com/v/abc123",
         })
         self.assertEqual(response.status_code, 200)
         video = self.product.videos.get()
@@ -476,7 +481,7 @@ class ProductVideoViewTests(ProductImageViewsTestCase):
         import json
 
         response = self.client.post(reverse("dashboard:product-video-add", args=[self.product.pk]), {
-            "url": "https://vimeo.com/12345",
+            "video_url": "https://vimeo.com/12345",
         })
         self.assertEqual(response.status_code, 200)
         self.assertFalse(self.product.videos.exists())
@@ -485,7 +490,7 @@ class ProductVideoViewTests(ProductImageViewsTestCase):
 
     def test_deletes_video(self):
         self.client.post(reverse("dashboard:product-video-add", args=[self.product.pk]), {
-            "url": "https://youtu.be/dQw4w9WgXcQ",
+            "video_url": "https://youtu.be/dQw4w9WgXcQ",
         })
         video = self.product.videos.get()
         response = self.client.post(reverse("dashboard:product-video-delete", args=[self.product.pk, video.pk]))
@@ -501,6 +506,6 @@ class ProductVideoViewTests(ProductImageViewsTestCase):
             slug="piv-other-p", sku="PIV-OTHER-SKU", price=Decimal("1000"),
         )
         response = self.client.post(reverse("dashboard:product-video-add", args=[other_product.pk]), {
-            "url": "https://youtu.be/dQw4w9WgXcQ",
+            "video_url": "https://youtu.be/dQw4w9WgXcQ",
         })
         self.assertEqual(response.status_code, 404)

@@ -443,25 +443,27 @@ class ProductVariantsBulkUpdatePriceTaxWeightTests(ProductOptionsViewsTestCase):
         v1.refresh_from_db()
         self.assertIsNone(v1.tax_class_id)
 
-    def test_sets_sales_limit(self):
-        variants = self._generate()
-        v1 = variants[0]
-        payload = {"variant_ids": [v1.pk]}
-        payload.update(self._base_fields(v1, sales_limit="3"))
-        self.client.post(reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload)
-        v1.refresh_from_db()
-        self.assertEqual(v1.sales_limit, 3)
-
-    def test_blank_sales_limit_means_no_limit(self):
+    def test_bulk_update_does_not_touch_sales_limit(self):
+        """رگرسیون: محدودیتِ فروش دیگر جزوِ فیلدهایِ ``product_variants_bulk_update``
+        نیست (نگاه کنید به کامنتِ خودِ آن view — «محدودیتِ فروش... منحصراً از
+        طریقِ مودالِ تنظیمِ محدودیتِ فروش مدیریت می‌شود») — پس اگر یک ``sales_limit``
+        در بدنه‌ی درخواست وجود داشته باشد هم، این view باید آن را کاملاً نادیده
+        بگیرد. تنظیم/پاک‌کردنِ واقعیِ محدودیتِ فروش را
+        ``ProductOptionsLibraryAndSalesLimitTests.test_sales_limit_modal_save_and_clear``
+        (که مسیرِ اختصاصیِ ``product-variant-set-sales-limit`` را تست می‌کند)
+        پوشش می‌دهد — این تست فقط عدمِ اثرِ جانبیِ روی endpointِ عمومی را
+        بررسی می‌کند، نه رفتارِ خودِ محدودیتِ فروش را."""
         variants = self._generate()
         v1 = variants[0]
         v1.sales_limit = 3
         v1.save(update_fields=["sales_limit"])
         payload = {"variant_ids": [v1.pk]}
-        payload.update(self._base_fields(v1, sales_limit=""))
+        # تلاشِ عمدی برای ارسالِ یک sales_limit روی endpointِ عمومی — اگر این
+        # view دوباره به‌اشتباه این فیلد را بخواند، این تست آن را می‌گیرد.
+        payload.update(self._base_fields(v1, sales_limit="99"))
         self.client.post(reverse("dashboard:product-variants-bulk-update", args=[self.product.pk]), payload)
         v1.refresh_from_db()
-        self.assertIsNone(v1.sales_limit)
+        self.assertEqual(v1.sales_limit, 3, "sales_limit must remain untouched by the generic bulk-update endpoint")
 
 
 class ProductVariantTableDynamicColumnsTests(ProductOptionsViewsTestCase):

@@ -80,14 +80,22 @@ class IndustrySettingsPageTests(IndustrySettingsTestCase):
         self.assertContains(response, "seed_industry_templates")
 
     def test_only_latest_version_shown(self):
-        IndustryTemplate.objects.create(
+        v2 = IndustryTemplate.objects.create(
             slug="isv-clothing", name="پوشاک نسخه‌ی دو", version=2,
             readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
         )
         response = self.client.get(reverse("dashboard:settings") + "?section=industry")
         self.assertContains(response, "پوشاک نسخه‌ی دو")
-        # only the newer version's card is rendered — one install button for this slug, not two
-        self.assertContains(response, "نصب این الگو", count=1)
+        # only the newer version's card/install action is rendered once —
+        # asserted against the install form's action URL (which is unique
+        # per template pk) rather than the button's wording, since the
+        # button label itself ("نصب") is UI copy, not the actual contract
+        # under test.
+        install_url = reverse("dashboard:settings-industry-install", args=[v2.pk])
+        self.assertContains(response, f'action="{install_url}"', count=1)
+        # and the older version's own install action must not also appear.
+        old_install_url = reverse("dashboard:settings-industry-install", args=[self.template.pk])
+        self.assertNotContains(response, f'action="{old_install_url}"')
 
 
 class IndustryInstallViewTests(IndustrySettingsTestCase):
