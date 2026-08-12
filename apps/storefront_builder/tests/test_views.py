@@ -1342,3 +1342,38 @@ class PageSwitchingTests(StorefrontBuilderViewsTestCase):
         resp = self.client.get(reverse("dashboard:storefront-builder-preview"), {"page": "cart"})
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "هنوز هیچ بخش فعالی")
+
+
+class CsrfEnforcementTests(StorefrontBuilderViewsTestCase):
+    """چکپوینتِ ممیزیِ Phase 2: هیچ تستِ موجودی صراحتاً اجرایِ CSRF را
+    برایِ این اپ اثبات نمی‌کرد (خودِ محافظت از قبل از طریقِ میدل‌ورِ
+    سراسریِ جنگو برقرار است — هیچ ``csrf_exempt``ی در این اپ وجود ندارد
+    — این کلاس صرفاً همان محافظتِ موجود را اثبات می‌کند، مکانیزمِ جدیدی
+    اضافه نمی‌کند)."""
+
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+        self.draft.sections.all().delete()
+        self.csrf_client = Client(HTTP_HOST=HOST, enforce_csrf_checks=True)
+        self.csrf_client.login(username="sfb_owner", password="pass12345")
+
+    def test_section_add_without_csrf_token_rejected(self):
+        resp = self.csrf_client.post(reverse("dashboard:storefront-builder-section-add"), {"section_key": "rich_text"})
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(self.draft.sections.count(), 0)
+
+    def test_section_reorder_without_csrf_token_rejected(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        resp = self.csrf_client.post(reverse("dashboard:storefront-builder-section-reorder"), {"section_ids": [str(section.pk)]})
+        self.assertEqual(resp.status_code, 403)
+
+    def test_section_remove_without_csrf_token_rejected(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        resp = self.csrf_client.post(reverse("dashboard:storefront-builder-section-remove", args=[section.pk]))
+        self.assertEqual(resp.status_code, 403)
+        self.assertTrue(StorefrontSection.objects.filter(pk=section.pk).exists())
+
+    def test_publish_without_csrf_token_rejected(self):
+        resp = self.csrf_client.post(reverse("dashboard:storefront-builder-publish"))
+        self.assertEqual(resp.status_code, 403)
