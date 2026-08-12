@@ -9,7 +9,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="wrap">
+<div class="wrap sfb-preview-sections">
   <div class="breadcrumb">
     <a href="/">خانه</a>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
@@ -17,7 +17,9 @@
   </div>
 
   <div id="cart-container">
-    {% include "cart/partials/cart_page_body.html" %}
+    {% for item in render_items %}
+    {% include "storefront_builder/partials/responsive_section_wrapper.html" %}
+    {% endfor %}
   </div>
 </div>
 {% endblock %}

@@ -163,11 +163,85 @@ class MultipleExistingSectionsAllLandOnHomeTests(TestCase):
 
         self.assertEqual(draft.pages.count(), 6)
         self.assertEqual(home.sections.count(), 3)
+        # Phase 5: این پنج صفحه دیگر خالی نمی‌مانند (چیدمانِ پیش‌فرضِ ثابتِ
+        # خودشان را دارند) — نکته‌ای که این تست واقعاً اثبات می‌کند این
+        # است که آن‌ها هرگز sectionهای صفحه‌ی اصلی را «قرض» نمی‌گیرند.
+        home_section_keys = {"hero_banner", "newest_products", "trust_features"}
         for other_type in ("product_detail", "listing", "collection", "search", "cart"):
-            self.assertEqual(draft.pages.get(page_type=other_type).sections.count(), 0)
+            other_keys = set(
+                draft.pages.get(page_type=other_type).sections.values_list("section_key", flat=True)
+            )
+            self.assertGreater(len(other_keys), 0, other_type)
+            self.assertEqual(other_keys & home_section_keys, set(), other_type)
 
         ordered = list(home.sections.order_by("order", "id"))
         self.assertEqual([s.section_key for s in ordered], ["hero_banner", "newest_products", "trust_features"])
         self.assertEqual(ordered[0].settings, {"a": 1})
         self.assertFalse(ordered[1].is_active)
         self.assertEqual({s.pk for s in ordered}, {s1.pk, s2.pk, s3.pk})
+
+
+class SeedDefaultNonHomeSectionsMigrationFunctionTests(TestCase):
+    """Phase 5 — exercises migration 0011's actual seed function directly
+    (same _LiveAppsShim pattern as the 0008 backfill tests above)."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+
+    def _load_seed_fn(self):
+        module = _load_migration_module("0011_seed_default_non_home_sections")
+        return module.seed_default_sections
+
+    class _LiveAppsShim:
+        @staticmethod
+        def get_model(app_label, model_name):
+            assert app_label == "storefront_builder"
+            return {
+                "StorefrontLayoutVersion": StorefrontLayoutVersion,
+                "StorefrontSection": StorefrontSection,
+            }[model_name]
+
+    def test_seeds_every_empty_non_home_page_of_every_version(self):
+        from apps.storefront_builder.services import layout_service as svc
+
+        draft = svc.get_or_create_draft(self.store)
+        # پاک کردنِ همه چیز تا حالتِ «پیش از فازِ ۵» را دقیقاً شبیه‌سازی کند.
+        draft.pages.exclude(page_type="home").first().sections.all().delete()
+        for page in draft.pages.exclude(page_type="home"):
+            page.sections.all().delete()
+
+        seed = self._load_seed_fn()
+        seed(self._LiveAppsShim(), None)
+
+        pd_keys = list(draft.get_page("product_detail").sections.order_by("order").values_list("section_key", flat=True))
+        self.assertEqual(pd_keys, ["product_main", "product_description", "product_video", "related_products"])
+        cart_keys = list(draft.get_page("cart").sections.order_by("order").values_list("section_key", flat=True))
+        self.assertEqual(cart_keys, ["cart_items", "cart_summary"])
+
+    def test_never_overwrites_a_page_that_already_has_sections(self):
+        from apps.storefront_builder.services import layout_service as svc
+
+        draft = svc.get_or_create_draft(self.store)
+        pd_page = draft.get_page("product_detail")
+        pd_page.sections.filter(section_key="related_products").delete()
+        before = set(pd_page.sections.values_list("section_key", flat=True))
+
+        seed = self._load_seed_fn()
+        seed(self._LiveAppsShim(), None)
+
+        after = set(pd_page.sections.values_list("section_key", flat=True))
+        self.assertEqual(before, after)
+        self.assertNotIn("related_products", after)
+
+    def test_never_touches_home_page(self):
+        from apps.storefront_builder.services import layout_service as svc
+
+        draft = svc.get_or_create_draft(self.store)
+        home_before = list(draft.home_page().sections.order_by("order").values_list("section_key", flat=True))
+
+        seed = self._load_seed_fn()
+        seed(self._LiveAppsShim(), None)
+
+        home_after = list(draft.home_page().sections.order_by("order").values_list("section_key", flat=True))
+        self.assertEqual(home_before, home_after)

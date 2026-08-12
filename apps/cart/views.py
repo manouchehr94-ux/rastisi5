@@ -36,12 +36,14 @@ def _cart_context(request, cart):
 
 def _render_cart_container(request, cart):
     """Phase 5: پاسخِ مشترکِ هر دو htmx endpointِ سبد (به‌روزرسانی/حذفِ
-    قلم) — اگر این Store composition سازنده برایِ صفحه‌ی سبد دارد، دقیقاً
-    همان section‌ها (با همان ترتیب/تنظیماتِ ریسپانسیوِ پیکربندی‌شده)
-    دوباره رندر می‌شوند، نه partialِ سخت‌کدشده‌ی قدیمی — تا شخصی‌سازیِ
-    مرچنت هرگز بعد از یک اکشنِ htmx «ریست» نشود. منطقِ تجاریِ خودِ سبد
-    (بالا) کاملاً دست‌نخورده و جدا می‌ماند؛ این فقط تصمیمِ presentation
-    است که کدام partial رندر شود."""
+    قلم) — دقیقاً همان section‌ها (با همان ترتیب/تنظیماتِ ریسپانسیوِ
+    پیکربندی‌شده) دوباره رندر می‌شوند، نه partialِ سخت‌کدشده‌ی قدیمی — تا
+    شخصی‌سازیِ مرچنت هرگز بعد از یک اکشنِ htmx «ریست» نشود. منطقِ تجاریِ
+    خودِ سبد (بالا) کاملاً دست‌نخورده و جدا می‌ماند؛ این فقط تصمیمِ
+    presentation است. Storeهایی که هنوز هیچ Storefront V2ای منتشر
+    نکرده‌اند هم همین مسیر را می‌گیرند — ``build_default_render_items``
+    همان دو section پیش‌فرض را بدونِ ردیفِ واقعی در دیتابیس می‌سازد،
+    دقیقاً همان الگویِ ``storefront_context_service.build_universal_storefront_context``."""
     from apps.storefront_builder.models import StorefrontPage
     from apps.storefront_builder.services import page_resolution_service, render_service
     from apps.stores.resolution import resolve_store_for_storefront
@@ -51,8 +53,9 @@ def _render_cart_container(request, cart):
     resolved = page_resolution_service.resolve_published_page(store, StorefrontPage.PageType.CART)
     if resolved.is_resolved:
         render_items = render_service.build_page_render_items(resolved.page, store, page_context=context)
-        return render(request, "cart/partials/cart_sections_body.html", {**context, "render_items": render_items})
-    return render(request, "cart/partials/cart_page_body.html", context)
+    else:
+        render_items = render_service.build_default_render_items(StorefrontPage.PageType.CART, store, page_context=context)
+    return render(request, "cart/partials/cart_sections_body.html", {**context, "render_items": render_items})
 
 
 def cart_detail(request):

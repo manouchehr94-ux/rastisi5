@@ -86,7 +86,13 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
             "page_type": page_type,
             "layout_header_config": None,
             "layout_footer_config": None,
-            "render_items": [],
+            # Phase 5: پنج صفحه‌ی محصول/لیست/کالکشن/جستجو/سبد پیش از این
+            # فاز محتوایِ سخت‌کدشده‌ی خودشان را کاملاً مستقل از انتشارِ V2
+            # نشان می‌دادند — این تابع همان تجربه را حفظ می‌کند (نگاه کنید
+            # به build_default_render_items). ``home`` بی‌اثر می‌ماند، چون
+            # صفحه‌ی اصلیِ منتشرنشده از تمپلیتِ کاملاً جداگانه‌ی
+            # ``catalog/home.html`` استفاده می‌کند، نه render_items.
+            "render_items": render_service.build_default_render_items(page_type, store, page_context=page_context),
             "top_level_categories": _top_level_categories(store),
         }
 

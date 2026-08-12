@@ -59,7 +59,11 @@ class FamilyDefaultSectionResetTests(TestCase):
         resp = self._switch_family("nordic_living")
         self.assertEqual(resp.status_code, 302)
         draft = svc.get_or_create_draft(self.store)
-        keys = list(draft.sections.order_by("order").values_list("section_key", flat=True))
+        # Family فقط رویِ چیدمانِ صفحه‌ی اصلی اثر دارد (Phase 5: چهار صفحه‌ی
+        # غیرِ اصلیِ دیگر اکنون چیدمانِ پیش‌فرضِ ثابتِ خودشان را دارند، که
+        # به این تجمیعِ سراسریِ ``draft.sections`` هم اضافه می‌شود — پس این
+        # تست باید صریحاً فقط صفحه‌ی اصلی را بررسی کند).
+        keys = list(draft.home_page().sections.order_by("order").values_list("section_key", flat=True))
         nordic = family_registry.get_family("nordic_living")
         self.assertEqual(keys, list(nordic.default_section_keys))
         # طبقِ خودِ Familyِ nordic_living: category_grid به‌طور پیش‌فرض نیست.
@@ -68,7 +72,7 @@ class FamilyDefaultSectionResetTests(TestCase):
     def test_previous_family_customization_does_not_leak_into_new_family(self):
         self._switch_family("modern_fashion")
         draft = svc.get_or_create_draft(self.store)
-        custom = draft.sections.first()
+        custom = draft.home_page().sections.first()
         custom.settings = {**(custom.settings or {}), "title": "عنوانِ سفارشیِ من"}
         custom.is_active = False
         custom.save(update_fields=["settings", "is_active"])
@@ -76,9 +80,9 @@ class FamilyDefaultSectionResetTests(TestCase):
         self._switch_family("artisan_editorial")
         draft.refresh_from_db()
         artisan = family_registry.get_family("artisan_editorial")
-        keys = list(draft.sections.order_by("order").values_list("section_key", flat=True))
+        keys = list(draft.home_page().sections.order_by("order").values_list("section_key", flat=True))
         self.assertEqual(keys, list(artisan.default_section_keys))
-        for section in draft.sections.all():
+        for section in draft.home_page().sections.all():
             self.assertTrue(section.is_active)
             self.assertNotIn("عنوانِ سفارشیِ من", str(section.settings))
 
@@ -123,13 +127,13 @@ class FamilyDefaultSectionResetTests(TestCase):
         نه ترکیبی از تنظیماتِ Familyهای قبلی»."""
         self._switch_family("heritage_premium")
         draft = svc.get_or_create_draft(self.store)
-        first = list(draft.sections.order_by("order").values_list("section_key", "settings"))
+        first = list(draft.home_page().sections.order_by("order").values_list("section_key", "settings"))
 
         # خارج‌شدن به یک Familyِ دیگر و سفارشی‌کردنِ آن...
         self._switch_family("modern_fashion")
         draft.refresh_from_db()
-        draft.sections.filter(section_key="trust_features").update(is_active=False)
-        custom = draft.sections.first()
+        draft.home_page().sections.filter(section_key="trust_features").update(is_active=False)
+        custom = draft.home_page().sections.first()
         custom.settings = {**(custom.settings or {}), "title": "دستکاریِ موقت"}
         custom.save(update_fields=["settings"])
 
@@ -137,10 +141,10 @@ class FamilyDefaultSectionResetTests(TestCase):
         # اولیه باشد، نه ترکیبی از modern_fashion.
         self._switch_family("heritage_premium")
         draft.refresh_from_db()
-        second = list(draft.sections.order_by("order").values_list("section_key", "settings"))
+        second = list(draft.home_page().sections.order_by("order").values_list("section_key", "settings"))
         self.assertEqual(first, second)
-        self.assertTrue(all(s.is_active for s in draft.sections.all()))
-        self.assertNotIn("دستکاریِ موقت", str(list(draft.sections.values_list("settings", flat=True))))
+        self.assertTrue(all(s.is_active for s in draft.home_page().sections.all()))
+        self.assertNotIn("دستکاریِ موقت", str(list(draft.home_page().sections.values_list("settings", flat=True))))
 
     def test_family_switch_rejected_without_confirmation_when_sections_exist(self):
         draft = svc.get_or_create_draft(self.store)
@@ -174,6 +178,6 @@ class FamilyDefaultSectionResetTests(TestCase):
 
         bootstrap_service.apply_family_default_sections(draft, family)
 
-        keys = list(draft.sections.order_by("order").values_list("section_key", flat=True))
+        keys = list(draft.home_page().sections.order_by("order").values_list("section_key", flat=True))
         self.assertEqual(keys, list(family.default_section_keys))
         self.assertNotIn("rich_text", keys)

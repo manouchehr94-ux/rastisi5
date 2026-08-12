@@ -68,15 +68,31 @@ class BuildRenderItemsBackwardCompatibilityTests(TestCase):
 
 
 class BuildPageRenderItemsForNonHomePagesTests(TestCase):
-    """12 — empty non-home StorefrontPage renders zero items, no crash, no
-    fabricated content."""
+    """12 — a genuinely empty non-home StorefrontPage (no rows at all)
+    renders zero items, no crash, no fabricated content — the underlying
+    safety property `build_page_render_items` must always have.
+
+    Phase 5 update: as of the default-composition feature, a freshly
+    bootstrapped store's five non-home pages are no longer empty by
+    default (see `bootstrap_service.apply_default_non_home_sections`) —
+    that is Phase 5's own explicit, documented default content, not
+    "fabricated" in the sense this checkpoint originally guarded against
+    (silently synthesizing content for a page a merchant deliberately
+    emptied). These tests now cover both: the still-true "empty in, empty
+    out" mechanism, and the new "first draft is never empty" contract."""
 
     def setUp(self):
         cache.clear()
         self.store = _akhlaghi()
 
-    def test_empty_non_home_page_returns_empty_list(self):
+    def test_explicitly_emptied_non_home_page_returns_empty_list(self):
         draft = svc.get_or_create_draft(self.store)
+        for page_type in (
+            StorefrontPage.PageType.PRODUCT_DETAIL, StorefrontPage.PageType.LISTING,
+            StorefrontPage.PageType.COLLECTION, StorefrontPage.PageType.SEARCH,
+            StorefrontPage.PageType.CART,
+        ):
+            draft.pages.get(page_type=page_type).sections.all().delete()
         published = svc.publish(self.store)
         for page_type in (
             StorefrontPage.PageType.PRODUCT_DETAIL, StorefrontPage.PageType.LISTING,
@@ -87,9 +103,24 @@ class BuildPageRenderItemsForNonHomePagesTests(TestCase):
             items = build_page_render_items(page, self.store)
             self.assertEqual(items, [])
 
+    def test_first_draft_non_home_pages_are_not_empty_by_default(self):
+        """Phase 5: برخلافِ صفحه‌ی اصلی، این پنج صفحه دیگر با یک بومِ
+        خالی شروع نمی‌کنند."""
+        draft = svc.get_or_create_draft(self.store)
+        published = svc.publish(self.store)
+        for page_type in (
+            StorefrontPage.PageType.PRODUCT_DETAIL, StorefrontPage.PageType.LISTING,
+            StorefrontPage.PageType.COLLECTION, StorefrontPage.PageType.SEARCH,
+            StorefrontPage.PageType.CART,
+        ):
+            page = published.pages.get(page_type=page_type)
+            items = build_page_render_items(page, self.store)
+            self.assertGreater(len(items), 0, page_type)
+
     def test_non_home_page_with_a_section_renders_it_correctly(self):
         draft = svc.get_or_create_draft(self.store)
         listing_page = draft.pages.get(page_type=StorefrontPage.PageType.LISTING)
+        listing_page.sections.all().delete()
         StorefrontSection.objects.create(page=listing_page, section_key="trust_features", order=0)
         published = svc.publish(self.store)
         published_listing = published.pages.get(page_type=StorefrontPage.PageType.LISTING)

@@ -100,12 +100,62 @@ def bootstrap_appearance_config(store) -> dict:
     }
 
 
+#: Phase 5: چیدمانِ پیش‌فرضِ ثابتِ هرکدام از پنج صفحه‌یِ غیرِ اصلی — طبقِ
+#: الزامِ صریحِ کار «Default composition should work immediately for a
+#: new store... Do not require a merchant to build a commerce page from
+#: an empty canvas». برخلافِ صفحه‌ی اصلی (که بسته به داده‌یِ هر Store
+#: متفاوت است — مثلاً وجود/عدمِ HeroSlide)، این پنج صفحه یک چیدمانِ
+#: کاملاً ثابت و بدونِ وابستگی به داده دارند: دقیقاً همان section‌های
+#: context-aware‌ای که این فاز ساخته، به همان ترتیبی که تمپلیتِ
+#: سخت‌کدشده‌یِ قدیمی محتوا را نشان می‌داد.
+_DEFAULT_NON_HOME_SECTION_KEYS = {
+    "product_detail": ["product_main", "product_description", "product_video", "related_products"],
+    "listing": ["product_listing"],
+    "collection": ["collection_header", "collection_products"],
+    "search": ["product_listing"],
+    "cart": ["cart_items", "cart_summary"],
+}
+
+
+def build_default_non_home_sections(page_type: str) -> list[dict]:
+    """چیدمانِ پیش‌فرضِ ``page_type`` (یکی از چهار نوعِ غیرِ اصلیِ
+    غیرِ-``home``) — کلیدِ نامعتبر (که اینجا هرگز نباید رخ دهد، چون
+    ``_DEFAULT_NON_HOME_SECTION_KEYS`` ثابت است، نه ورودیِ کاربر) بی‌صدا
+    نادیده گرفته می‌شود، دقیقاً همان محافظه‌کاریِ
+    ``build_industry_default_sections``."""
+    keys = _DEFAULT_NON_HOME_SECTION_KEYS.get(page_type, [])
+    valid_keys = [k for k in keys if section_registry.is_valid_section_key(k)]
+    return [
+        {"section_key": key, "order": order, "settings": section_registry.get_definition(key).default_settings()}
+        for order, key in enumerate(valid_keys)
+    ]
+
+
+def apply_default_non_home_sections(version: StorefrontLayoutVersion) -> None:
+    """چیدمانِ پیش‌فرض را رویِ هرکدام از چهار صفحه‌یِ غیرِ اصلیِ همین
+    نسخه اعمال می‌کند — **فقط** اگر آن صفحه هنوز هیچ Sectionای نداشته
+    باشد (idempotent، بی‌خطر برایِ فراخوانیِ دوباره؛ هرگز محتوایِ
+    دست‌ساختِ مرچنت را بازنویسی نمی‌کند). دو فراخوان‌کننده: (۱)
+    ``apply_bootstrap_content`` برایِ اولین Draftِ هر Storeِ تازه، (۲)
+    مایگریشنِ داده‌ایِ Phase 5 برایِ Storeهایی که پیش از این فاز از
+    قبل یک Draft/Published داشتند (که ``StorefrontPage``هایِ غیرِ اصلی‌شان
+    طبقِ طراحیِ فازهایِ قبل عمداً خالی بود)."""
+    for page in version.pages.exclude(page_type="home"):
+        if page.sections.exists():
+            continue
+        sections = build_default_non_home_sections(page.page_type)
+        StorefrontSection.objects.bulk_create([
+            StorefrontSection(page=page, section_key=s["section_key"], order=s["order"], settings=s["settings"])
+            for s in sections
+        ])
+
+
 def apply_bootstrap_content(version: StorefrontLayoutVersion, store) -> None:
     """بخش‌های اولیه را روی صفحه‌یِ اصلیِ یک نسخه‌ی تازه‌ساخته (بدون بخش)
     اعمال می‌کند — Phase 1A: صفحه اصلیِ قدیمیِ hard-coded دقیقاً معادلِ
-    صفحه‌یِ ``home`` است؛ پنج صفحه‌ی دیگر (``StorefrontLayoutVersion.save()``
-    از قبل ساخته) عمداً خالی می‌مانند — Builder UI فعلی فقط صفحه‌ی اصلی
-    را ویرایش می‌کند."""
+    صفحه‌یِ ``home`` است. Phase 5: پنج صفحه‌یِ دیگر دیگر خالی نمی‌مانند —
+    هرکدام چیدمانِ پیش‌فرضِ ثابتِ خودشان را می‌گیرند
+    (``apply_default_non_home_sections``)."""
     home_page = version.home_page()
     sections = build_bootstrap_sections(store)
     StorefrontSection.objects.bulk_create([
@@ -115,6 +165,7 @@ def apply_bootstrap_content(version: StorefrontLayoutVersion, store) -> None:
         )
         for s in sections
     ])
+    apply_default_non_home_sections(version)
     version.appearance_config = bootstrap_appearance_config(store)
     version.save(update_fields=["appearance_config"])
 

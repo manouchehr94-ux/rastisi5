@@ -1192,6 +1192,10 @@ def product_preview(request, pk):
     (فعال) نیست؛ همان قالبِ صفحه‌ی محصولِ فروشگاه را با همان کانتکست رندر
     می‌کند (نگاه کنید به apps.catalog.views.build_product_detail_context)."""
     from apps.catalog.views import build_product_detail_context
+    from apps.storefront_builder.models import StorefrontPage
+    from apps.storefront_builder.services.storefront_context_service import (
+        build_universal_storefront_context,
+    )
 
     store = _resolve_dashboard_store(request)
     product = get_object_or_404(
@@ -1200,6 +1204,13 @@ def product_preview(request, pk):
     )
     context = build_product_detail_context(request, product)
     context["is_merchant_preview"] = True
+    # Phase 5: همان پوسته/چیدمانِ منتشرشده‌یِ همینِ Store — بدونِ این،
+    # render_items خالی می‌ماند و پیش‌نمایشِ کالایِ منتشرنشده هیچ بدنه‌ای
+    # نشان نمی‌دهد (نگاه کنید به apps.catalog.views.product_detail که
+    # همین الگو را برایِ محصولاتِ منتشرشده استفاده می‌کند).
+    context.update(build_universal_storefront_context(
+        request, store, StorefrontPage.PageType.PRODUCT_DETAIL, page_context=context,
+    ))
     return render(request, "catalog/product_detail.html", context)
 
 

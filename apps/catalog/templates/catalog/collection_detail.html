@@ -14,7 +14,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="wrap">
+<div class="wrap sfb-preview-sections">
   <div class="breadcrumb">
     <a href="/">خانه</a>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
@@ -23,50 +23,8 @@
     <span style="color:var(--ink)">{{ collection.name }}</span>
   </div>
 
-  <div class="collection-hero" style="display:flex;gap:16px;align-items:center;margin-bottom:20px;flex-wrap:wrap">
-    {% if collection.image %}
-    <img src="{{ collection.image.url }}" alt="{{ collection.name }}" style="width:96px;height:96px;object-fit:cover;border-radius:14px;flex-shrink:0">
-    {% endif %}
-    <div style="min-width:0">
-      <h1 style="margin:0 0 6px">{{ collection.name }}</h1>
-      {% if collection.description %}<p style="color:var(--muted);margin:0;max-width:640px">{{ collection.description }}</p>{% endif %}
-    </div>
-  </div>
-
-  {% if products %}
-  <div class="grid g3">
-    {% for product in products %}
-    {% include "catalog/partials/product_card.html" %}
-    {% endfor %}
-  </div>
-
-  {% if page_obj.paginator.num_pages > 1 %}
-  <div class="pagination">
-    {% if page_obj.has_previous %}
-    <a href="?page={{ page_obj.previous_page_number }}">قبلی</a>
-    {% else %}
-    <span class="disabled">قبلی</span>
-    {% endif %}
-    {% for num in page_obj.paginator.page_range %}
-      {% if num == page_obj.number %}
-      <span class="current">{{ num|fa_number }}</span>
-      {% else %}
-      <a href="?page={{ num }}">{{ num|fa_number }}</a>
-      {% endif %}
-    {% endfor %}
-    {% if page_obj.has_next %}
-    <a href="?page={{ page_obj.next_page_number }}">بعدی</a>
-    {% else %}
-    <span class="disabled">بعدی</span>
-    {% endif %}
-  </div>
-  {% endif %}
-
-  {% else %}
-  <div class="cat-empty-state">
-    <div class="big">🗂️</div>
-    <p>فعلاً کالایی در این کالکشن برای نمایش وجود ندارد.</p>
-  </div>
-  {% endif %}
+  {% for item in render_items %}
+  {% include "storefront_builder/partials/responsive_section_wrapper.html" %}
+  {% endfor %}
 </div>
 {% endblock %}

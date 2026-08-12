@@ -728,6 +728,7 @@ class PageContextPassthroughTests(TestCase):
         store = _akhlaghi()
         draft = svc.get_or_create_draft(store)
         page = draft.get_page("cart")
+        page.sections.all().delete()
         StorefrontSection.objects.create(page=page, section_key="trust_features", order=0)
 
         received = {}
@@ -798,6 +799,11 @@ class ProductDetailContextAwareSectionsTests(TestCase):
         )
         self.draft = svc.get_or_create_draft(self.store)
         self.page = self.draft.get_page("product_detail")
+        # Phase 5: از فازِ ۹ به بعد این صفحه چیدمانِ پیش‌فرضِ خودش را دارد
+        # (product_main/product_description/...) — این کلاس هر بار دقیقاً
+        # یک section مشخص می‌سازد و انتظار دارد ``len(items) == 1`` باشد،
+        # پس باید ابتدا آن پیش‌فرض‌ها را پاک کند.
+        self.page.sections.all().delete()
 
     def _page_context(self, **overrides):
         base = {
@@ -867,6 +873,7 @@ class ProductDetailContextAwareSectionsTests(TestCase):
         یک ردیفِ StorefrontSection نامعتبر (دستکاریِ مستقیمِ دیتابیس) روی
         صفحه‌ی اشتباه بنشیند، رندر همچنان بدونِ کرش کار می‌کند."""
         cart_page = self.draft.get_page("cart")
+        cart_page.sections.all().delete()
         StorefrontSection.objects.create(page=cart_page, section_key="product_main", order=0)
         items = build_page_render_items(cart_page, self.store, page_context={"cart": None})
         self.assertEqual(len(items), 1)
@@ -885,6 +892,7 @@ class ProductListingContextAwareSectionTests(TestCase):
 
     def test_receives_listing_context_unchanged(self):
         page = self.draft.get_page("listing")
+        page.sections.all().delete()
         StorefrontSection.objects.create(page=page, section_key="product_listing", order=0)
         page_context = {
             "page_obj": "PAGE-OBJ-SENTINEL", "products": ["p1"], "query": "", "sort_key": "newest",
@@ -898,12 +906,14 @@ class ProductListingContextAwareSectionTests(TestCase):
 
     def test_allowed_on_search_page_too(self):
         page = self.draft.get_page("search")
+        page.sections.all().delete()
         StorefrontSection.objects.create(page=page, section_key="product_listing", order=0)
         items = build_page_render_items(page, self.store, page_context={})
         self.assertEqual(len(items), 1)
 
     def test_missing_page_context_keys_default_safely(self):
         page = self.draft.get_page("listing")
+        page.sections.all().delete()
         StorefrontSection.objects.create(page=page, section_key="product_listing", order=0)
         items = build_page_render_items(page, self.store, page_context={})
         context = items[0]["context"]
@@ -921,6 +931,7 @@ class CollectionContextAwareSectionsTests(TestCase):
         self.store = _akhlaghi()
         self.draft = svc.get_or_create_draft(self.store)
         self.page = self.draft.get_page("collection")
+        self.page.sections.all().delete()
 
     def _item_for(self, section_key, page_context):
         StorefrontSection.objects.create(page=self.page, section_key=section_key, order=0)
@@ -968,6 +979,7 @@ class CartContextAwareSectionsTests(TestCase):
         self.store = _akhlaghi()
         self.draft = svc.get_or_create_draft(self.store)
         self.page = self.draft.get_page("cart")
+        self.page.sections.all().delete()
 
     def _item_for(self, section_key, page_context):
         StorefrontSection.objects.create(page=self.page, section_key=section_key, order=0)
@@ -991,3 +1003,46 @@ class CartContextAwareSectionsTests(TestCase):
         item = self._item_for("cart_summary", {"cart": "CART", "item_count": 2, "totals": {"grand_total": 5000}})
         self.assertEqual(item["context"]["totals"], {"grand_total": 5000})
         self.assertEqual(item["context"]["item_count"], 2)
+
+
+class BuildDefaultRenderItemsTests(TestCase):
+    """Phase 5: Storeای که هرگز Storefront V2 منتشر نکرده باید هنوز هم
+    دقیقاً همان محتوایِ سخت‌کدشده‌ی قدیمی را رویِ پنج صفحه‌ی محصول/لیست/
+    کالکشن/جستجو/سبد ببیند — بدونِ نیاز به هیچ ``StorefrontPage``/
+    ``StorefrontSection`` واقعی در دیتابیس."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+
+    def test_returns_same_keys_as_build_default_non_home_sections(self):
+        from apps.storefront_builder.services import bootstrap_service
+        from apps.storefront_builder.services.render_service import build_default_render_items
+
+        for page_type in ("product_detail", "listing", "collection", "search", "cart"):
+            items = build_default_render_items(page_type, self.store)
+            expected_keys = [s["section_key"] for s in bootstrap_service.build_default_non_home_sections(page_type)]
+            self.assertEqual([i["section"].section_key for i in items], expected_keys, page_type)
+
+    def test_home_returns_empty_list(self):
+        from apps.storefront_builder.services.render_service import build_default_render_items
+        self.assertEqual(build_default_render_items("home", self.store), [])
+
+    def test_synthesized_sections_are_never_persisted(self):
+        from apps.storefront_builder.models import StorefrontSection
+        from apps.storefront_builder.services.render_service import build_default_render_items
+
+        before = StorefrontSection.objects.count()
+        items = build_default_render_items("cart", self.store)
+        after = StorefrontSection.objects.count()
+        self.assertEqual(before, after)
+        for item in items:
+            self.assertIsNone(item["section"].pk)
+
+    def test_page_context_still_reaches_context_aware_builders(self):
+        from apps.storefront_builder.services.render_service import build_default_render_items
+
+        items = build_default_render_items("cart", self.store, page_context={"cart": "SENTINEL", "item_count": 4})
+        cart_items_item = next(i for i in items if i["section"].section_key == "cart_items")
+        self.assertEqual(cart_items_item["context"]["cart"], "SENTINEL")
+        self.assertEqual(cart_items_item["context"]["item_count"], 4)

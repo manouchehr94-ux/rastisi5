@@ -151,3 +151,87 @@ class IndustryDefaultSectionsTests(TestCase):
             list(version.sections.order_by("order").values_list("section_key", flat=True)),
             ["hero_banner", "trust_features"],
         )
+
+
+class DefaultNonHomeSectionsTests(TestCase):
+    """Phase 5: چهار صفحه‌ی غیرِ اصلی (product_detail/listing/collection/
+    search/cart) دیگر خالی نمی‌مانند — نه یک صفحه‌ی «بومِ خالی» برایِ
+    فروشگاهِ تازه."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_build_default_non_home_sections_matches_expected_keys_per_page(self):
+        self.assertEqual(
+            [s["section_key"] for s in bootstrap_service.build_default_non_home_sections("product_detail")],
+            ["product_main", "product_description", "product_video", "related_products"],
+        )
+        self.assertEqual(
+            [s["section_key"] for s in bootstrap_service.build_default_non_home_sections("listing")],
+            ["product_listing"],
+        )
+        self.assertEqual(
+            [s["section_key"] for s in bootstrap_service.build_default_non_home_sections("search")],
+            ["product_listing"],
+        )
+        self.assertEqual(
+            [s["section_key"] for s in bootstrap_service.build_default_non_home_sections("collection")],
+            ["collection_header", "collection_products"],
+        )
+        self.assertEqual(
+            [s["section_key"] for s in bootstrap_service.build_default_non_home_sections("cart")],
+            ["cart_items", "cart_summary"],
+        )
+
+    def test_build_default_non_home_sections_unknown_page_type_returns_empty(self):
+        self.assertEqual(bootstrap_service.build_default_non_home_sections("home"), [])
+        self.assertEqual(bootstrap_service.build_default_non_home_sections("not_a_real_page"), [])
+
+    def test_first_draft_seeds_all_five_non_home_pages(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        for page_type, expected_first_key in [
+            ("product_detail", "product_main"), ("listing", "product_listing"),
+            ("collection", "collection_header"), ("search", "product_listing"),
+            ("cart", "cart_items"),
+        ]:
+            page = draft.get_page(page_type)
+            keys = list(page.sections.order_by("order").values_list("section_key", flat=True))
+            self.assertGreater(len(keys), 0, page_type)
+            self.assertEqual(keys[0], expected_first_key, page_type)
+
+    def test_apply_default_non_home_sections_is_idempotent(self):
+        """صدا زدنِ دوباره روی صفحه‌ای که از قبل Section دارد، چیزی
+        تکراری اضافه نمی‌کند و محتوایِ موجود را بازنویسی نمی‌کند."""
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        pd_page = draft.get_page("product_detail")
+        before = list(pd_page.sections.order_by("order").values_list("section_key", flat=True))
+
+        bootstrap_service.apply_default_non_home_sections(draft)
+
+        after = list(pd_page.sections.order_by("order").values_list("section_key", flat=True))
+        self.assertEqual(before, after)
+
+    def test_apply_default_non_home_sections_never_overwrites_merchant_content(self):
+        """اگر مرچنت خودش چیدمانِ یک صفحه را دستی تغییر داده (مثلاً
+        related_products را حذف کرده)، فراخوانیِ دوباره‌ی این تابع آن را
+        برنمی‌گرداند — چون صفحه دیگر خالی نیست."""
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        pd_page = draft.get_page("product_detail")
+        pd_page.sections.filter(section_key="related_products").delete()
+        remaining_before = set(pd_page.sections.values_list("section_key", flat=True))
+        self.assertNotIn("related_products", remaining_before)
+
+        bootstrap_service.apply_default_non_home_sections(draft)
+
+        remaining_after = set(pd_page.sections.values_list("section_key", flat=True))
+        self.assertEqual(remaining_before, remaining_after)
+
+    def test_settings_are_valid_defaults_not_raw_empty_dict_where_applicable(self):
+        """همان الگویی که ``_defaults`` بالایِ همین فایل مستند می‌کند —
+        هر ``settings`` باید از خودِ ``default_settings()`` بیاید، نه
+        ``{}`` خام، تا حداقل بلوکِ ``responsive`` همیشه حاضر باشد."""
+        for section in bootstrap_service.build_default_non_home_sections("cart"):
+            self.assertIn("responsive", section["settings"])

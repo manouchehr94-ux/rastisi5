@@ -515,9 +515,21 @@ def build_page_render_items(page, store, page_context: dict | None = None) -> li
     نشان دهد، خطر بازگشت داده‌ی کهنه دارد) — فقط حذفِ کوئریِ تکراری در
     یک درخواست."""
     page_context = page_context or {}
+    sections = page.sections.filter(is_active=True).order_by("order", "id")
+    return _build_items_from_sections(sections, store, page_context)
+
+
+def _build_items_from_sections(sections, store, page_context: dict) -> list[dict]:
+    """پیاده‌سازیِ مشترکِ واقعی — رویِ هر iterableای از آبجکت‌هایِ
+    ``StorefrontSection``-شکل کار می‌کند، نه فقط یک QuerySetِ ذخیره‌شده در
+    دیتابیس. ``build_page_render_items`` (بالا) این را با سطرهایِ واقعیِ
+    یک ``StorefrontPage`` صدا می‌زند؛ ``build_default_render_items``
+    (پایین) با نمونه‌هایِ **ذخیره‌نشده** (in-memory) برایِ Storeهایی که
+    هنوز اصلاً یک Storefront V2 منتشر نکرده‌اند — دقیقاً همان قراردادِ
+    context/cache/skip-unknown-key اینجا برایِ هر دو مسیر یکسان می‌ماند."""
     items = []
     context_cache: dict = {}
-    for section in page.sections.filter(is_active=True).order_by("order", "id"):
+    for section in sections:
         try:
             definition = get_definition(section.section_key)
         except UnknownSectionTypeError:
@@ -544,6 +556,38 @@ def build_page_render_items(page, store, page_context: dict | None = None) -> li
             "context": context,
         })
     return items
+
+
+def build_default_render_items(page_type: str, store, page_context: dict | None = None) -> list[dict]:
+    """معادلِ ``build_page_render_items``، اما برایِ Storeهایی که **هنوز
+    هیچ نسخه‌ی Storefront V2ای منتشر نکرده‌اند** (``uses_universal_shell=False``
+    — نگاه کنید به ``storefront_context_service.build_universal_storefront_context``)
+    — پس اصلاً هیچ ``StorefrontPage``/``StorefrontSection`` واقعی‌ای در
+    دیتابیس برایِ آن‌ها وجود ندارد که resolve شود.
+
+    Phase 5: پیش از این چکپوینت، پنج صفحه‌ی محصول/لیست/کالکشن/جستجو/سبد
+    همیشه محتوایِ سخت‌کدشده‌ی خودشان را نشان می‌دادند — کاملاً مستقل از
+    اینکه Store اصلاً Builder را لمس کرده باشد یا نه (برخلافِ صفحه‌ی
+    اصلی که برایِ Storeهایِ منتشرنکرده از یک تمپلیتِ کاملاً جداگانه —
+    ``catalog/home.html`` — استفاده می‌کند، نه این مکانیزم). حالا که
+    بدنه‌ی این پنج تمپلیت به ``render_items`` منتقل شده، این تابع همان
+    محتوایِ پیش‌فرضِ ثابت (``bootstrap_service.build_default_non_home_sections``)
+    را با نمونه‌هایِ ``StorefrontSection`` **ذخیره‌نشده** (``pk=None``، هرگز
+    در دیتابیس نمی‌نشینند) رندر می‌کند — دقیقاً همان section_keyهایی که
+    اولین Draftِ هر Storeِ تازه هم می‌گیرد، پس تجربه‌یِ بصریِ یک فروشگاهِ
+    «هرگز منتشرنکرده» با «تازه منتشرکرده» یکسان می‌ماند. برایِ ``home``
+    (که در ``_DEFAULT_NON_HOME_SECTION_KEYS`` نیست) بی‌صدا فهرستِ خالی
+    برمی‌گرداند — بی‌اثر، چون صفحه‌ی اصلیِ منتشرنشده اصلاً از این تابع
+    استفاده نمی‌کند."""
+    from .bootstrap_service import build_default_non_home_sections
+    from ..models import StorefrontSection
+
+    page_context = page_context or {}
+    sections = [
+        StorefrontSection(section_key=s["section_key"], order=s["order"], settings=s["settings"], is_active=True)
+        for s in build_default_non_home_sections(page_type)
+    ]
+    return _build_items_from_sections(sections, store, page_context)
 
 
 def build_render_items(version, store) -> list[dict]:
