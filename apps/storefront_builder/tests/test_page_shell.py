@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from apps.catalog.models import Category, Product, Vendor
 from apps.catalog.services import collection_service
+from apps.content.models import Menu, MenuItem, SocialLink
 from apps.storefront_builder.services import layout_service as svc
 from apps.stores.models import Store, StoreDomain, StoreMembership
 
@@ -196,3 +197,47 @@ class SharedPageShellTests(TestCase):
             self.assertIn("SIX-PAGE-CONSISTENCY-MARKER", body, f"missing header marker on {url}")
             self.assertIn("data-shell-hide-mobile", body, f"missing responsive attribute on {url}")
             self.assertIn('class="copy"', body, f"missing footer on {url}")
+
+    # Phase 4 — بندهای ۲۱/۲۲: هر شیءِ ارجاع‌شده در هدر/فوتر (SocialLink،
+    # Menu/MenuItem) باید در سطحِ کوئریِ رندر هم store-scoped باشد — این
+    # سند در ممیزیِ فاز ۴ فقط با خواندنِ کد تأیید شده بود؛ این تست با دو
+    # Store واقعی و دو میزبانِ متفاوت آن را اثبات می‌کند.
+    def test_social_link_and_menu_never_leak_across_stores(self):
+        other_store = Store.objects.create(
+            name="فروشگاه دیگرِ پوسته", slug="sfb-shell-other", status=Store.Status.ACTIVE,
+        )
+        StoreDomain.objects.create(
+            store=other_store, hostname="sfb-shell-other-public.example.com", is_primary=True,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+
+        SocialLink.objects.create(
+            store=self.store, platform=SocialLink.Platform.INSTAGRAM, title="اینستاگرام فروشگاهِ من",
+            url="https://instagram.com/store-a", show_in_footer=True,
+        )
+        SocialLink.objects.create(
+            store=other_store, platform=SocialLink.Platform.TELEGRAM, title="تلگرامِ فروشگاهِ دیگر",
+            url="https://t.me/store-b-secret", show_in_footer=True,
+        )
+        menu_a = Menu.objects.create(store=self.store, title="منوی من", location=Menu.Location.HEADER)
+        MenuItem.objects.create(
+            menu=menu_a, title="STORE-A-MENU-ITEM",
+            destination_type="external", destination_external_url="https://example.com/a",
+        )
+        menu_b = Menu.objects.create(store=other_store, title="منوی دیگر", location=Menu.Location.HEADER)
+        MenuItem.objects.create(
+            menu=menu_b, title="STORE-B-SECRET-MENU-ITEM",
+            destination_type="external", destination_external_url="https://example.com/b",
+        )
+
+        draft = svc.get_or_create_draft(self.store)
+        draft.header_config = svc.validate_header_config({"show_cart": True})
+        draft.footer_config = svc.validate_footer_config({"show_social": True, "show_copyright": True})
+        draft.save(update_fields=["header_config", "footer_config"])
+        svc.publish(self.store)
+
+        body = self.public_client.get(reverse("catalog:home")).content.decode()
+        self.assertIn("store-a", body)
+        self.assertIn("STORE-A-MENU-ITEM", body)
+        self.assertNotIn("store-b-secret", body)
+        self.assertNotIn("STORE-B-SECRET-MENU-ITEM", body)

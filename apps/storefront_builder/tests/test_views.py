@@ -87,6 +87,31 @@ class EditorAccessTests(StorefrontBuilderViewsTestCase):
         self.assertContains(resp, "data-section-id")
         self.assertContains(resp, "data-section-key")
 
+    # Phase 4: هدر/فوتر همان دکوریتورهای مشترکِ ``@staff_required`` +
+    # ``@permission_required(STOREFRONT_LAYOUT_MANAGE)`` را (که در بالا
+    # برای editor/preview اثبات شده) استفاده می‌کنند — این دو تست فقط
+    # همان مکانیزم را صراحتاً روی دو Endpoint این فاز هم اثبات می‌کنند.
+    def test_header_editor_anonymous_denied(self):
+        self.client.logout()
+        resp = self.client.get(reverse("dashboard:storefront-builder-header"))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_footer_editor_anonymous_denied(self):
+        self.client.logout()
+        resp = self.client.get(reverse("dashboard:storefront-builder-footer"))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_header_editor_without_storefront_permission_denied(self):
+        analyst = User.objects.create_user(username="sfb_hf_analyst", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=analyst, role=StoreMembership.Role.ANALYST,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        client = Client(HTTP_HOST=HOST)
+        client.login(username="sfb_hf_analyst", password="pass12345")
+        resp = client.get(reverse("dashboard:storefront-builder-header"))
+        self.assertEqual(resp.status_code, 403)
+
     def test_preview_never_shows_another_stores_draft(self):
         other_store = Store.objects.create(
             name="فروشگاه دیگر", slug="sfb-other", admin_subdomain="sfb-other", status=Store.Status.ACTIVE,
@@ -1538,3 +1563,21 @@ class CsrfEnforcementTests(StorefrontBuilderViewsTestCase):
     def test_publish_without_csrf_token_rejected(self):
         resp = self.csrf_client.post(reverse("dashboard:storefront-builder-publish"))
         self.assertEqual(resp.status_code, 403)
+
+    # Phase 4: هدر/فوتر هم مثلِ بقیه‌ی Endpointهای POST این اپ زیرِ
+    # میدل‌ورِ سراسریِ CSRF جنگو هستند — هیچ csrf_exempt ای اضافه نشده.
+    def test_header_editor_without_csrf_token_rejected(self):
+        draft = svc.get_or_create_draft(self.store)
+        original_config = dict(draft.header_config or {})
+        resp = self.csrf_client.post(reverse("dashboard:storefront-builder-header"), {"show_search": "on", "show_cart": "on"})
+        self.assertEqual(resp.status_code, 403)
+        draft.refresh_from_db()
+        self.assertEqual(draft.header_config, original_config)
+
+    def test_footer_editor_without_csrf_token_rejected(self):
+        draft = svc.get_or_create_draft(self.store)
+        original_config = dict(draft.footer_config or {})
+        resp = self.csrf_client.post(reverse("dashboard:storefront-builder-footer"), {"show_copyright": "on"})
+        self.assertEqual(resp.status_code, 403)
+        draft.refresh_from_db()
+        self.assertEqual(draft.footer_config, original_config)
