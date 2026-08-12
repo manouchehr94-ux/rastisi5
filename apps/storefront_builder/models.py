@@ -118,6 +118,13 @@ APPEARANCE_CONFIG_DEFAULTS = {
     # نکرده‌اند.
     "family_slug": None,
     "preset_slug": None,
+    # Phase 6: کلیدِ آخرین Preset ساختاریِ V2 اعمال‌شده (``layout_preset_registry``)
+    # — کاملاً مستقل از ``family_slug``/``preset_slug`` بالا (سیستمِ منجمدِ
+    # قدیمی). فقط برایِ نمایش «کدام Preset فعال است» در ادیتور و
+    # idempotency؛ اعمالِ دوباره‌ی همان Preset هیچ محدودیتی ندارد و مرچنت
+    # پس از اعمال هنوز کاملاً آزاد است هر بخش را دستی تغییر دهد — این
+    # کلید صرفاً یک برچسبِ آخرین‌اعمال‌شده است، نه یک قفل.
+    "layout_preset_key": None,
 }
 
 

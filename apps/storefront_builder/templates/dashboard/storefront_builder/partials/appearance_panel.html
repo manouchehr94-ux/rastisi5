@@ -53,6 +53,15 @@
       <span class="sfb-appearance-action">شخصی‌سازی ←</span>
     </button>
 
+    <button type="button" class="sfb-appearance-card" @click="view = 'presets'">
+      <div>
+        <span class="sfb-appearance-kicker">پیش‌تنظیمِ صفحه‌آرایی</span>
+        <strong>{% if active_layout_preset_key %}{% for lp in layout_presets %}{% if lp.key == active_layout_preset_key %}{{ lp.label_fa }}{% endif %}{% endfor %}{% else %}چیدمانِ فعلی{% endif %}</strong>
+        <p style="font-size:12px;color:var(--muted);margin:2px 0 0">شروعِ سریع با یک چیدمانِ کاملِ آماده — بعداً هر بخش را آزادانه ویرایش کنید.</p>
+      </div>
+      <span class="sfb-appearance-action">انتخابِ پیش‌تنظیم ←</span>
+    </button>
+
     <button type="button" class="sfb-appearance-card"
             hx-get="{% url 'dashboard:storefront-builder-header' %}" hx-target="#sfbAppearancePanel" hx-swap="innerHTML">
       <div>
@@ -148,6 +157,32 @@
             <input type="hidden" name="template_slug" value="{{ t.slug }}">
             {% if config.palette_slug %}<input type="hidden" name="palette_slug" value="{{ config.palette_slug }}">{% endif %}
             <button type="submit" class="btn btn-sm btn-primary">اعمال قالب</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div x-show="view === 'presets'">
+    <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
+    <p style="font-size:12.5px;color:var(--muted);margin:8px 0 12px">
+      هرکدام یک چیدمانِ کاملِ پیشنهادی برایِ صفحه‌ی اصلی، جزئیاتِ محصول، لیست، کالکشن، جستجو و سبدِ خرید است —
+      بعد از اعمال هم می‌توانید هر بخش را دستی اضافه/حذف/جابه‌جا/ویرایش کنید. رنگِ فعلیِ شما دست‌نخورده می‌ماند
+      مگر هنوز هیچ پالتی انتخاب نکرده باشید.
+    </p>
+    <div class="sfb-template-gallery">
+      {% for lp in layout_presets %}
+      <div class="sfb-template-card {% if active_layout_preset_key == lp.key %}active{% endif %}">
+        <strong>{{ lp.label_fa }}</strong>
+        <p style="font-size:12px;margin:6px 0 0">{{ lp.description_fa }}</p>
+        <div class="sfb-template-card-actions">
+          <form method="post" action="{% url 'dashboard:storefront-builder-apply-preset' %}"
+                onsubmit="if(!confirm('اعمالِ این پیش‌تنظیم، چیدمانِ صفحاتِ پوشش‌داده‌شده در پیش‌نویسِ فعلی را جایگزین می‌کند. ادامه می‌دهید؟')){return false;} this.confirm_preset_apply.value='1'; return true;">
+            {% csrf_token %}
+            <input type="hidden" name="preset_key" value="{{ lp.key }}">
+            <input type="hidden" name="confirm_preset_apply" value="0">
+            <button type="submit" class="btn btn-sm btn-primary">اعمالِ این پیش‌تنظیم</button>
           </form>
         </div>
       </div>

@@ -24,7 +24,7 @@ from django.utils import timezone
 
 from apps.core.services.rate_limit import enforce_rate_limit
 
-from .. import appearance_registry, family_registry, preset_registry
+from .. import appearance_registry, family_registry, layout_preset_registry, preset_registry
 from ..models import (
     APPEARANCE_COLOR_KEYS,
     APPEARANCE_CONFIG_DEFAULTS,
@@ -271,6 +271,14 @@ def validate_appearance_config(config: dict) -> dict:
         if family_slug is None or preset.family_slug != family_slug:
             raise AppearanceConfigValidationError("پیش‌تنظیمِ انتخاب‌شده متعلق به این خانواده نیست")
     cleaned["preset_slug"] = preset_slug
+
+    # Phase 6: layout_preset_key — کاملاً مستقل از family_slug/preset_slug
+    # بالا (سیستمِ منجمدِ قدیمی). بدونِ هیچ الزامِ تطبیقِ Family (طبقِ
+    # الزامِ صریحِ کار: یک Preset جدید نباید به یک Family خاص قفل شود).
+    layout_preset_key = config.get("layout_preset_key", APPEARANCE_CONFIG_DEFAULTS["layout_preset_key"])
+    if layout_preset_key is not None and layout_preset_registry.get_layout_preset(layout_preset_key) is None:
+        raise AppearanceConfigValidationError(f"پیش‌تنظیمِ «{layout_preset_key}» در دسترس نیست")
+    cleaned["layout_preset_key"] = layout_preset_key
 
     return cleaned
 

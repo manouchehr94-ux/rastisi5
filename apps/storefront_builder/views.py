@@ -742,6 +742,47 @@ def storefront_publish(request):
 @require_POST
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
+def storefront_apply_layout_preset(request):
+    """اعمالِ یکی از چهار Preset درون‌ساختِ V2 (``layout_preset_registry``)
+    روی Draftِ فعلی — Phase 6. کاملاً مستقل از فرمِ Family/Template/Palette
+    در ``storefront_appearance_editor`` (همان ویو دست‌نخورده می‌ماند)؛
+    عمداً یک ویویِ جدا با همان قراردادِ ``storefront_apply_industry_layout``:
+    اگر هرکدام از صفحاتی که این Preset پوشش می‌دهد از قبل Sectionی دارند،
+    بدونِ ``confirm_preset_apply=1`` (تأییدِ صریحِ کاربر در UI) رد می‌شود."""
+    from . import layout_preset_registry
+    from .services import preset_service
+
+    store = _resolve_store(request)
+    draft = layout_service.get_or_create_draft(store, user=request.user)
+
+    key = request.POST.get("preset_key")
+    preset = layout_preset_registry.get_layout_preset(key)
+    if preset is None:
+        messages.error(request, "پیش‌تنظیمِ انتخاب‌شده یافت نشد")
+        return redirect("dashboard:storefront-builder-editor")
+
+    would_replace = any(
+        draft.get_page(page_type).sections.exists() for page_type in preset.pages
+    )
+    if would_replace and request.POST.get("confirm_preset_apply") != "1":
+        messages.error(
+            request,
+            "اعمالِ این پیش‌تنظیم، چیدمانِ صفحاتِ پوشش‌داده‌شده در پیش‌نویسِ فعلی را جایگزین می‌کند — "
+            "برای ادامه، تأیید صریح لازم است",
+        )
+        return redirect("dashboard:storefront-builder-editor")
+
+    try:
+        preset_service.apply_preset(draft, preset)
+        messages.success(request, f"پیش‌تنظیمِ «{preset.label_fa}» اعمال شد")
+    except preset_service.InvalidPresetError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:storefront-builder-editor")
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_apply_industry_layout(request):
     """چیدمان پیشنهادیِ صنفِ نصب‌شده‌ی این فروشگاه را در یک Draft جدید اعمال
     می‌کند. اگر فروشگاه از قبل یک نسخه‌ی منتشرشده دارد، بدون
@@ -928,7 +969,7 @@ def storefront_appearance_editor(request):
             messages.success(request, "تنظیمات ظاهر ذخیره شد")
         return redirect("dashboard:storefront-builder-editor")
 
-    from . import appearance_registry, family_registry, preset_registry
+    from . import appearance_registry, family_registry, layout_preset_registry, preset_registry
 
     config = draft.effective_appearance_config()
     color_field_labels = [
@@ -957,6 +998,10 @@ def storefront_appearance_editor(request):
         "image_fit_choices": appearance_registry.IMAGE_FIT_CHOICES,
         "image_hover_choices": appearance_registry.IMAGE_HOVER_CHOICES,
         "color_field_labels": color_field_labels,
+        # Phase 6 — چهار Preset درون‌ساختِ V2؛ کاملاً مستقل از Family/
+        # Template/Palette بالا (نگاه کنید به ``layout_preset_registry.py``).
+        "layout_presets": layout_preset_registry.list_layout_presets(),
+        "active_layout_preset_key": config.get("layout_preset_key"),
     })
 
 
