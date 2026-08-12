@@ -1029,6 +1029,64 @@ class HeaderFooterEditorTests(StorefrontBuilderViewsTestCase):
         self.assertContains(resp, reverse("dashboard:storefront-builder-header"))
         self.assertContains(resp, reverse("dashboard:storefront-builder-footer"))
 
+    def test_header_editor_saves_responsive_settings(self):
+        resp = self.client.post(reverse("dashboard:storefront-builder-header"), {
+            "show_search": "on", "show_cart": "on",
+            "show_search__hide_on_mobile": "on", "show_search__hide_on_tablet": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        draft = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft.header_config["responsive"]["show_search"], {"hide_on_tablet": True, "hide_on_mobile": True})
+        # کامپوننتِ دیگر دست‌نخورده می‌ماند
+        self.assertEqual(draft.header_config["responsive"]["show_account"], {"hide_on_tablet": False, "hide_on_mobile": False})
+
+    def test_header_editor_form_shows_responsive_checkboxes(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-header"))
+        self.assertContains(resp, "show_search__hide_on_mobile")
+        self.assertContains(resp, "show_search__hide_on_tablet")
+        # سبدِ خرید عمداً کنترلِ «نمایش در دستگاه‌ها» ندارد
+        self.assertNotContains(resp, "show_cart__hide_on_mobile")
+
+    def test_footer_editor_saves_responsive_settings(self):
+        resp = self.client.post(reverse("dashboard:storefront-builder-footer"), {
+            "show_about": "on", "show_about__hide_on_mobile": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        draft = svc.get_or_create_draft(self.store)
+        self.assertEqual(draft.footer_config["responsive"]["show_about"], {"hide_on_tablet": False, "hide_on_mobile": True})
+
+    def test_footer_editor_form_shows_responsive_checkboxes(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-footer"))
+        self.assertContains(resp, "show_copyright__hide_on_mobile")
+
+    def test_header_responsive_attribute_reaches_rendered_preview(self):
+        draft = svc.get_or_create_draft(self.store)
+        draft.header_config = svc.validate_header_config({
+            "show_search": True, "show_cart": True,
+            "responsive": {"show_search": {"hide_on_tablet": False, "hide_on_mobile": True}},
+        })
+        draft.save(update_fields=["header_config"])
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "data-shell-hide-mobile")
+        self.assertNotContains(resp, "data-shell-hide-tablet")
+
+    def test_footer_responsive_attribute_reaches_rendered_preview(self):
+        draft = svc.get_or_create_draft(self.store)
+        draft.footer_config = svc.validate_footer_config({
+            "show_copyright": True,
+            "responsive": {"show_copyright": {"hide_on_tablet": True, "hide_on_mobile": False}},
+        })
+        draft.save(update_fields=["footer_config"])
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "data-shell-hide-tablet")
+
+    def test_header_responsive_absent_by_default_no_hide_attributes(self):
+        """پیش‌فرض (بدونِ تنظیمِ صریح) یعنی نمایان در همه‌جا — هیچ
+        data-shell-hide-* ای نباید رندر شود."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertNotContains(resp, "data-shell-hide-mobile")
+        self.assertNotContains(resp, "data-shell-hide-tablet")
+
 
 class RenderedPreviewIntegrationTests(StorefrontBuilderViewsTestCase):
     """رندرِ واقعیِ HTML از طریقِ preview endpoint — نه صرفاً بررسیِ دیکشنریِ

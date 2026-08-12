@@ -1,0 +1,19 @@
+{% comment %}
+بلوکِ مشترکِ «نمایش در دستگاه‌ها»یِ هر کامپوننتِ هدر/فوتر (Phase 4) —
+یک بار نوشته شده، توسطِ هر کامپوننتِ عضوِ HEADER_RESPONSIVE_AWARE_KEYS/
+FOOTER_RESPONSIVE_AWARE_KEYS include می‌شود. چک‌باکس‌ها مستقیماً همان
+شکلِ ذخیره‌سازی را دارند (``hide_on_tablet``/``hide_on_mobile``) — بدونِ
+وارونه‌سازی، چون این‌ها خودشان چک‌باکسِ «پنهان» هستند (نه «نمایش» مثلِ
+سطحِ section). نام‌گذاریِ فیلد با ``{{ key }}__`` پیشوند می‌شود تا با
+خودِ toggleِ اصلیِ کامپوننت (``name="{{ key }}"``) تداخل نکند.
+{% endcomment %}
+<div class="sfb-shell-responsive-fields" style="margin:-6px 0 10px 0;padding-inline-start:26px">
+  <label style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);font-weight:normal;margin-inline-end:14px">
+    <input type="checkbox" name="{{ key }}__hide_on_tablet" {% if component.hide_on_tablet %}checked{% endif %}>
+    پنهان در تبلت
+  </label>
+  <label style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);font-weight:normal">
+    <input type="checkbox" name="{{ key }}__hide_on_mobile" {% if component.hide_on_mobile %}checked{% endif %}>
+    پنهان در موبایل
+  </label>
+</div>

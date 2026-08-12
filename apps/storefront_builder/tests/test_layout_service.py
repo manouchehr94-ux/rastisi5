@@ -348,6 +348,36 @@ class ValidateHeaderConfigTests(TestCase):
         cleaned = svc.validate_header_config({"show_cart": True, "malicious_field": "<script>"})
         self.assertNotIn("malicious_field", cleaned)
 
+    def test_responsive_defaults_to_visible_everywhere(self):
+        """Phase 4 — کلیدِ ``responsive`` غایب یعنی «نمایان در همه‌جا»،
+        دقیقاً همان قراردادِ سطحِ section."""
+        cleaned = svc.validate_header_config({"show_cart": True})
+        for key in ["show_search", "show_account", "show_wishlist", "announcement_enabled"]:
+            self.assertEqual(cleaned["responsive"][key], {"hide_on_tablet": False, "hide_on_mobile": False})
+
+    def test_responsive_round_trips(self):
+        cleaned = svc.validate_header_config({
+            "show_cart": True,
+            "responsive": {"show_search": {"hide_on_tablet": True, "hide_on_mobile": True}},
+        })
+        self.assertEqual(cleaned["responsive"]["show_search"], {"hide_on_tablet": True, "hide_on_mobile": True})
+        # کلیدهایِ دیگر دست‌نخورده/پیش‌فرض می‌مانند — ورودیِ جزئی رد نمی‌شود.
+        self.assertEqual(cleaned["responsive"]["show_account"], {"hide_on_tablet": False, "hide_on_mobile": False})
+
+    def test_responsive_has_no_show_cart_key(self):
+        """سبدِ خرید عمداً از HEADER_RESPONSIVE_AWARE_KEYS کنار گذاشته شده —
+        نمی‌تواند در هیچ دستگاهی پنهان شود (نگاه کنید به مستنداتِ
+        HEADER_RESPONSIVE_AWARE_KEYS در models.py)."""
+        cleaned = svc.validate_header_config({"show_cart": True})
+        self.assertNotIn("show_cart", cleaned["responsive"])
+
+    def test_responsive_ignores_unknown_component_key(self):
+        cleaned = svc.validate_header_config({
+            "show_cart": True,
+            "responsive": {"not_a_real_component": {"hide_on_mobile": True}},
+        })
+        self.assertNotIn("not_a_real_component", cleaned["responsive"])
+
 
 class ValidateFooterConfigTests(TestCase):
     """A2 — validate_footer_config: حداقل یک بخش فعال، طبق تصمیم محصولی
@@ -381,3 +411,20 @@ class ValidateFooterConfigTests(TestCase):
     def test_unknown_keys_are_dropped_silently(self):
         cleaned = svc.validate_footer_config({"show_about": True, "malicious_field": "<script>"})
         self.assertNotIn("malicious_field", cleaned)
+
+    def test_responsive_defaults_to_visible_everywhere(self):
+        cleaned = svc.validate_footer_config({"show_about": True})
+        self.assertEqual(cleaned["responsive"]["show_copyright"], {"hide_on_tablet": False, "hide_on_mobile": False})
+
+    def test_responsive_round_trips_all_nine_components(self):
+        """برخلافِ هدر، هر ۹ بخشِ فوتر کاندیدِ «نمایش در دستگاه‌ها» هستند —
+        نگاه کنید به FOOTER_RESPONSIVE_AWARE_KEYS در models.py."""
+        raw_responsive = {
+            f: {"hide_on_tablet": False, "hide_on_mobile": True} for f in [
+                "show_about", "show_contact", "show_quick_links", "show_categories",
+                "show_social", "show_trust_badges", "show_payment_logos", "show_newsletter", "show_copyright",
+            ]
+        }
+        cleaned = svc.validate_footer_config({"show_about": True, "responsive": raw_responsive})
+        for key, value in raw_responsive.items():
+            self.assertEqual(cleaned["responsive"][key], value)

@@ -150,6 +150,21 @@ html[data-sfb-button-style="soft"] .btn-primary:hover{background:var(--violet-so
   .rsec[data-hide-mobile]{display:none}
 }
 
+/* ===== نمایش در دستگاه‌ها — کامپوننت‌های هدر/فوتر (Phase 4 — Header/Footer
+   Composer). همان سه‌بازه‌ی بالا؛ فقط تبلت/موبایل معنا دارد (دسکتاپ
+   همیشه خط‌مبناست، نگاه کنید به STOREFRONT_BUILDER_V2_PHASE_4_AUDIT.md).
+   ``.sfb-shell-inline`` فقط یک wrapperِ بی‌اثر (``display:contents``) است
+   برایِ کامپوننت‌هایِ هدری که چند شاخه‌ی template دارند (حساب/جستجو/
+   علاقه‌مندی‌ها) و نیاز به یک عنصرِ واحد برایِ گذاشتنِ data-attribute
+   رویش دارند — چیدمانِ flexِ والد (``.h-actions``) را نمی‌شکند. */
+.sfb-shell-inline{display:contents}
+@media(max-width:1000px) and (min-width:681px){
+  [data-shell-hide-tablet]{display:none}
+}
+@media(max-width:680px){
+  [data-shell-hide-mobile]{display:none}
+}
+
 
 
 /* --- Navigation submenu --- */

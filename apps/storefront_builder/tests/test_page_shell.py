@@ -3,12 +3,16 @@
 (``storefront_builder/partials/page_shell_header.html`` و
 ``page_shell_footer.html``) استفاده کنند — نه دو تمپلیت مستقل کپی‌شده."""
 
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.catalog.models import Category, Product, Vendor
+from apps.catalog.services import collection_service
 from apps.storefront_builder.services import layout_service as svc
 from apps.stores.models import Store, StoreDomain, StoreMembership
 
@@ -155,3 +159,40 @@ class SharedPageShellTests(TestCase):
         body = self._preview().content.decode()
         self.assertNotIn('id="cart-count"', body)
         self.assertNotIn('id="wishlist-count"', body)
+
+    # Phase 4 — الزامِ صریحِ کار: همان هدر/فوترِ همان نسخه‌ی منتشرشده باید
+    # روی هر شش نوعِ صفحه‌ی عمومی دیده شود (مشکلِ اصلیِ معماریِ خانواده‌های
+    # قدیمی که V2 باید غیرممکنش کند).
+    def test_all_six_public_page_types_render_identical_header_footer(self):
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده شش‌صفحه", slug="vendor-6page")
+        category = Category.objects.create(store=self.store, name="دسته شش‌صفحه", slug="cat-6page", is_active=True)
+        product = Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name="کالای شش‌صفحه", slug="product-6page",
+            sku="SIX-PAGE-1", price=Decimal("10000"), stock=5, status=Product.Status.ACTIVE,
+        )
+        collection = collection_service.create_collection(self.store, name="کالکشن شش‌صفحه")
+        collection_service.add_product(collection, product)
+
+        draft = svc.get_or_create_draft(self.store)
+        draft.header_config = svc.validate_header_config({
+            "show_cart": True, "announcement_enabled": True,
+            "announcement_text": "SIX-PAGE-CONSISTENCY-MARKER",
+            "responsive": {"announcement_enabled": {"hide_on_tablet": False, "hide_on_mobile": True}},
+        })
+        draft.footer_config = svc.validate_footer_config({"show_copyright": True})
+        draft.save(update_fields=["header_config", "footer_config"])
+        svc.publish(self.store)
+
+        routes = [
+            reverse("catalog:home"),
+            reverse("catalog:product-detail", args=[product.slug]),
+            reverse("catalog:product-list"),
+            reverse("catalog:collection-detail", args=[collection.slug]),
+            reverse("catalog:product-list") + "?q=کالای",
+            reverse("cart:detail"),
+        ]
+        for url in routes:
+            body = self.public_client.get(url).content.decode()
+            self.assertIn("SIX-PAGE-CONSISTENCY-MARKER", body, f"missing header marker on {url}")
+            self.assertIn("data-shell-hide-mobile", body, f"missing responsive attribute on {url}")
+            self.assertIn('class="copy"', body, f"missing footer on {url}")

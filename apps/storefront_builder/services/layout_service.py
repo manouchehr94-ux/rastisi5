@@ -29,8 +29,10 @@ from ..models import (
     APPEARANCE_COLOR_KEYS,
     APPEARANCE_CONFIG_DEFAULTS,
     FOOTER_CONFIG_DEFAULTS,
+    FOOTER_RESPONSIVE_AWARE_KEYS,
     FOOTER_TOGGLE_FIELDS,
     HEADER_CONFIG_DEFAULTS,
+    HEADER_RESPONSIVE_AWARE_KEYS,
     HEADER_TOGGLE_FIELDS,
     StorefrontLayout,
     StorefrontLayoutVersion,
@@ -72,6 +74,27 @@ class FooterConfigValidationError(Exception):
     قابل‌نمایش مستقیم به کاربر)."""
 
 
+def _validate_shell_component_responsive(raw, allowed_keys: list[str]) -> dict:
+    """قراردادِ مشترکِ «نمایش در دستگاه‌ها» برایِ کامپوننت‌هایِ هدر/فوتر
+    (Phase 4) — دقیقاً همان الگویِ ``section_registry.validate_responsive_settings``
+    (بخشِ سازنده بصری برایِ section‌ها): کلیدِ غایب/شکلِ نامعتبر یعنی
+    «نمایان در همه‌جا» (بی‌صدا، نه خطا)؛ فقط کلیدهایِ عضوِ ``allowed_keys``
+    خوانده می‌شوند — بقیه‌یِ کلیدهایِ ورودی (حتی اگر تاجر چیزِ دیگری
+    فرستاده باشد) بی‌صدا نادیده گرفته می‌شوند."""
+    if not isinstance(raw, dict):
+        raw = {}
+    cleaned = {}
+    for key in allowed_keys:
+        component_raw = raw.get(key)
+        if not isinstance(component_raw, dict):
+            component_raw = {}
+        cleaned[key] = {
+            "hide_on_tablet": bool(component_raw.get("hide_on_tablet", False)),
+            "hide_on_mobile": bool(component_raw.get("hide_on_mobile", False)),
+        }
+    return cleaned
+
+
 def validate_header_config(config: dict) -> dict:
     """پیکربندی خام هدر (خروجی فرم ادیتور) را اعتبارسنجی و پاک‌سازی می‌کند.
 
@@ -100,6 +123,10 @@ def validate_header_config(config: dict) -> dict:
         raise HeaderConfigValidationError("متن نوار اعلان نامعتبر است")
     cleaned["announcement_text"] = announcement_text[:300]
 
+    cleaned["responsive"] = _validate_shell_component_responsive(
+        config.get("responsive"), HEADER_RESPONSIVE_AWARE_KEYS,
+    )
+
     if not cleaned["show_cart"]:
         raise HeaderConfigValidationError(
             "دسترسی به سبد خرید نمی‌تواند از هدر حذف شود — در حال حاضر هیچ مسیر "
@@ -123,6 +150,10 @@ def validate_footer_config(config: dict) -> dict:
         if not isinstance(value, bool):
             raise FooterConfigValidationError(f"مقدار فیلد «{field}» باید درست/نادرست باشد")
         cleaned[field] = value
+
+    cleaned["responsive"] = _validate_shell_component_responsive(
+        config.get("responsive"), FOOTER_RESPONSIVE_AWARE_KEYS,
+    )
 
     if not any(cleaned[field] for field in FOOTER_TOGGLE_FIELDS):
         raise FooterConfigValidationError(

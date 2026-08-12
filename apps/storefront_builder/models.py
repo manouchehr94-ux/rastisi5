@@ -38,13 +38,48 @@ from apps.core.models import TimeStampedModel
 #: هرگز نیازی به ``|default:True`` (که مقدار صریح ``False`` را هم به اشتباه
 #: falsy می‌گیرد و override می‌کند) نباشد.
 HEADER_TOGGLE_FIELDS = ["show_search", "show_account", "show_cart", "show_wishlist", "sticky", "announcement_enabled"]
-HEADER_CONFIG_DEFAULTS = {f: True for f in HEADER_TOGGLE_FIELDS} | {"announcement_text": ""}
+
+#: زیرمجموعه‌یِ HEADER_TOGGLE_FIELDS که «نمایش در دستگاه‌ها» (Phase 4)
+#: برایشان معنا دارد — عمداً یک allowlist صریح، نه همه‌یِ ۶ فیلد:
+#: ``show_cart`` عمداً کنار گذاشته شده چون ``validate_header_config``
+#: از قبل تضمین می‌کند سبد خرید هرگز از هدر غیرقابل‌دسترس نشود (تنها
+#: مسیرِ فعلیِ سبد خرید)؛ اجازه‌دادن به «پنهان در موبایل» دقیقاً همان
+#: نقضِ همان قانون را از یک لایه‌ی دیگر ممکن می‌کرد. ``sticky`` هم یک
+#: رفتار است نه یک المانِ قابل‌مشاهده‌یِ مستقل، پس «نمایش در دستگاه‌ها»
+#: برایش بی‌معناست.
+HEADER_RESPONSIVE_AWARE_KEYS = ["show_search", "show_account", "show_wishlist", "announcement_enabled"]
+
+#: پیش‌فرضِ «نمایش در دستگاه‌ها»یِ هر کامپوننتِ هدر — همیشه نمایان
+#: (دقیقاً معادلِ رفتارِ قبل از Phase 4، برایِ نسخه‌هایی که هنوز این
+#: بلوک را ندارند). فقط تبلت/موبایل — دسکتاپ همیشه خط‌مبناست (نگاه
+#: کنید به ``STOREFRONT_BUILDER_V2_PHASE_4_AUDIT.md``، بخش ۱۳).
+HEADER_RESPONSIVE_DEFAULTS = {
+    key: {"hide_on_tablet": False, "hide_on_mobile": False} for key in HEADER_RESPONSIVE_AWARE_KEYS
+}
+
+HEADER_CONFIG_DEFAULTS = (
+    {f: True for f in HEADER_TOGGLE_FIELDS}
+    | {"announcement_text": "", "responsive": HEADER_RESPONSIVE_DEFAULTS}
+)
 
 FOOTER_TOGGLE_FIELDS = [
     "show_about", "show_contact", "show_quick_links", "show_categories",
     "show_social", "show_trust_badges", "show_payment_logos", "show_newsletter", "show_copyright",
 ]
-FOOTER_CONFIG_DEFAULTS = {f: True for f in FOOTER_TOGGLE_FIELDS}
+
+#: برخلافِ هدر، همه‌یِ ۹ بخشِ فوتر کاندیدِ معقولِ «نمایش در دستگاه‌ها»
+#: هستند — هیچ‌کدام مثلِ سبدِ خرید تنها مسیرِ دسترسی به یک قابلیتِ
+#: حیاتی نیستند (``validate_footer_config`` همچنان تضمین می‌کند خودِ
+#: toggleِ سطحِ بالا نمی‌تواند همه‌شان را همزمان خاموش کند؛ این بلوک
+#: فقط نمایش/عدمِ‌نمایشِ per-device را کنترل می‌کند، نه فعال/غیرفعالِ
+#: کلی).
+FOOTER_RESPONSIVE_AWARE_KEYS = list(FOOTER_TOGGLE_FIELDS)
+
+FOOTER_RESPONSIVE_DEFAULTS = {
+    key: {"hide_on_tablet": False, "hide_on_mobile": False} for key in FOOTER_RESPONSIVE_AWARE_KEYS
+}
+
+FOOTER_CONFIG_DEFAULTS = {f: True for f in FOOTER_TOGGLE_FIELDS} | {"responsive": FOOTER_RESPONSIVE_DEFAULTS}
 
 #: کلیدهایِ رنگِ توکنِ ظاهر — دقیقاً همان مجموعه‌ای که ``tokens.css``ی
 #: موجود از قبل به‌عنوانِ ``--brand-*`` مصرف می‌کند (audit شده قبل از

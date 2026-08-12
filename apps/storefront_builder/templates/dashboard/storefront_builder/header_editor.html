@@ -12,6 +12,7 @@
     {% csrf_token %}
     <div class="form-group">
       <label><input type="checkbox" name="announcement_enabled" {% if config.announcement_enabled %}checked{% endif %}> نمایش نوار اعلان</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="announcement_enabled" component=config.responsive.announcement_enabled %}
     </div>
     <div class="form-group">
       <label for="id_announcement_text">متن نوار اعلان</label>
@@ -19,12 +20,15 @@
     </div>
     <div class="form-group">
       <label><input type="checkbox" name="show_search" {% if config.show_search %}checked{% endif %}> نمایش جستجو</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_search" component=config.responsive.show_search %}
     </div>
     <div class="form-group">
       <label><input type="checkbox" name="show_account" {% if config.show_account %}checked{% endif %}> نمایش ورود/حساب کاربری</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_account" component=config.responsive.show_account %}
     </div>
     <div class="form-group">
       <label><input type="checkbox" name="show_wishlist" {% if config.show_wishlist %}checked{% endif %}> نمایش علاقه‌مندی‌ها</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_wishlist" component=config.responsive.show_wishlist %}
     </div>
     <div class="form-group">
       <label><input type="checkbox" name="show_cart" {% if config.show_cart %}checked{% endif %}> نمایش سبد خرید</label>

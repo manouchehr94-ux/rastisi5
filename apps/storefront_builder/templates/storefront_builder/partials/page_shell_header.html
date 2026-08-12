@@ -18,9 +18,9 @@ search/account/wishlist/cart controls are read-only placeholders inside the
 Builder Preview iframe (non-navigating, no live customer session/cart is ever
 touched from Preview) — everything else (mega-menu, categories) is identical.
 {% endcomment %}
-{% with hc=header_config %}
+{% with hc=header_config rc=header_config.responsive %}
 {% if hc.announcement_enabled %}
-<div class="announce"><div class="wrap">
+<div class="announce" {% if rc.announcement_enabled.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.announcement_enabled.hide_on_mobile %}data-shell-hide-mobile{% endif %}><div class="wrap">
   <span>{{ hc.announcement_text|default:"🚚 ارسال رایگان برای سفارش‌های بالای ۵۰۰,۰۰۰ تومان" }}</span>
   <div class="links">
     <a href="#">پیگیری سفارش</a>
@@ -43,6 +43,7 @@ touched from Preview) — everything else (mega-menu, categories) is identical.
     <span><b>{{ SHOP_NAME }}</b><small>{{ SHOP_TAGLINE }}</small></span>
   </a>
   {% if hc.show_search %}
+  <div class="sfb-shell-inline" {% if rc.show_search.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
   {% if is_live_storefront %}
   <form class="search" action="{% url 'catalog:product-list' %}" method="get">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
@@ -55,9 +56,11 @@ touched from Preview) — everything else (mega-menu, categories) is identical.
     <input type="search" placeholder="جستجوی کالا، برند و دسته‌بندی..." disabled>
   </form>
   {% endif %}
+  </div>
   {% endif %}
   <div class="h-actions">
     {% if hc.show_account %}
+    <div class="sfb-shell-inline" {% if rc.show_account.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_account.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
     {% if is_live_storefront %}
     {% if request.user.is_authenticated %}
     <a class="login-btn" href="{% url 'customers:account' %}">
@@ -82,8 +85,10 @@ touched from Preview) — everything else (mega-menu, categories) is identical.
       <span>ورود | ثبت‌نام</span>
     </button>
     {% endif %}
+    </div>
     {% endif %}
     {% if hc.show_wishlist %}
+    <div class="sfb-shell-inline" {% if rc.show_wishlist.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_wishlist.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
     {% if is_live_storefront %}
     <a class="h-btn" href="{% url 'customers:wishlist' %}" title="علاقه‌مندی‌ها">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
@@ -94,6 +99,7 @@ touched from Preview) — everything else (mega-menu, categories) is identical.
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
     </a>
     {% endif %}
+    </div>
     {% endif %}
     {% if hc.show_cart %}
     {% if is_live_storefront %}

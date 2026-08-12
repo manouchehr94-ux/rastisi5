@@ -21,38 +21,47 @@ validate_footer_config، فقط بدونِ خروج از سازنده. نسخه�
       <input type="checkbox" name="show_about" {% if config.show_about %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">🏬 درباره فروشگاه</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_about" component=config.responsive.show_about %}
     <label class="toggle-field">
       <input type="checkbox" name="show_contact" {% if config.show_contact %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">☎️ تماس با ما</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_contact" component=config.responsive.show_contact %}
     <label class="toggle-field">
       <input type="checkbox" name="show_quick_links" {% if config.show_quick_links %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">🔗 لینک‌های مهم</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_quick_links" component=config.responsive.show_quick_links %}
     <label class="toggle-field">
       <input type="checkbox" name="show_categories" {% if config.show_categories %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">🗂 دسته‌بندی‌ها</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_categories" component=config.responsive.show_categories %}
     <label class="toggle-field">
       <input type="checkbox" name="show_social" {% if config.show_social %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">📱 شبکه‌های اجتماعی</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_social" component=config.responsive.show_social %}
     <label class="toggle-field">
       <input type="checkbox" name="show_trust_badges" {% if config.show_trust_badges %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">🛡 نمادهای اعتماد</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_trust_badges" component=config.responsive.show_trust_badges %}
     <label class="toggle-field">
       <input type="checkbox" name="show_payment_logos" {% if config.show_payment_logos %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">💳 لوگوهای پرداخت</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_payment_logos" component=config.responsive.show_payment_logos %}
     <label class="toggle-field">
       <input type="checkbox" name="show_newsletter" {% if config.show_newsletter %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">✉️ خبرنامه</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_newsletter" component=config.responsive.show_newsletter %}
     <label class="toggle-field">
       <input type="checkbox" name="show_copyright" {% if config.show_copyright %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">©️ کپی‌رایت</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_copyright" component=config.responsive.show_copyright %}
     <div class="field-help">محتوای هر بخش (متن، لینک‌ها، نشان‌ها، شبکه‌های اجتماعی) از تنظیمات زیر خوانده می‌شود — این فرم فقط نمایش/عدم‌نمایش هر بخش را در این چیدمان کنترل می‌کند.</div>
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات فوتر</button>

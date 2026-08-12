@@ -10,15 +10,24 @@
   {% endif %}
   <form method="post">
     {% csrf_token %}
-    <div class="form-group"><label><input type="checkbox" name="show_about" {% if config.show_about %}checked{% endif %}> نمایش درباره فروشگاه</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_contact" {% if config.show_contact %}checked{% endif %}> نمایش اطلاعات تماس</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_quick_links" {% if config.show_quick_links %}checked{% endif %}> نمایش لینک‌های مفید</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_categories" {% if config.show_categories %}checked{% endif %}> نمایش لینک دسته‌بندی‌ها</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_social" {% if config.show_social %}checked{% endif %}> نمایش شبکه‌های اجتماعی</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_trust_badges" {% if config.show_trust_badges %}checked{% endif %}> نمایش نشان‌های اعتماد</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_payment_logos" {% if config.show_payment_logos %}checked{% endif %}> نمایش لوگوهای پرداخت</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_newsletter" {% if config.show_newsletter %}checked{% endif %}> نمایش خبرنامه</label></div>
-    <div class="form-group"><label><input type="checkbox" name="show_copyright" {% if config.show_copyright %}checked{% endif %}> نمایش کپی‌رایت</label></div>
+    <div class="form-group"><label><input type="checkbox" name="show_about" {% if config.show_about %}checked{% endif %}> نمایش درباره فروشگاه</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_about" component=config.responsive.show_about %}</div>
+    <div class="form-group"><label><input type="checkbox" name="show_contact" {% if config.show_contact %}checked{% endif %}> نمایش اطلاعات تماس</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_contact" component=config.responsive.show_contact %}</div>
+    <div class="form-group"><label><input type="checkbox" name="show_quick_links" {% if config.show_quick_links %}checked{% endif %}> نمایش لینک‌های مفید</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_quick_links" component=config.responsive.show_quick_links %}</div>
+    <div class="form-group"><label><input type="checkbox" name="show_categories" {% if config.show_categories %}checked{% endif %}> نمایش لینک دسته‌بندی‌ها</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_categories" component=config.responsive.show_categories %}</div>
+    <div class="form-group"><label><input type="checkbox" name="show_social" {% if config.show_social %}checked{% endif %}> نمایش شبکه‌های اجتماعی</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_social" component=config.responsive.show_social %}</div>
+    <div class="form-group"><label><input type="checkbox" name="show_trust_badges" {% if config.show_trust_badges %}checked{% endif %}> نمایش نشان‌های اعتماد</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_trust_badges" component=config.responsive.show_trust_badges %}</div>
+    <div class="form-group"><label><input type="checkbox" name="show_payment_logos" {% if config.show_payment_logos %}checked{% endif %}> نمایش لوگوهای پرداخت</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_payment_logos" component=config.responsive.show_payment_logos %}</div>
+    <div class="form-group"><label><input type="checkbox" name="show_newsletter" {% if config.show_newsletter %}checked{% endif %}> نمایش خبرنامه</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_newsletter" component=config.responsive.show_newsletter %}</div>
+    <div class="form-group"><label><input type="checkbox" name="show_copyright" {% if config.show_copyright %}checked{% endif %}> نمایش کپی‌رایت</label>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_copyright" component=config.responsive.show_copyright %}</div>
     <div class="field-help">محتوای هر بخش (لینک‌ها، نشان‌ها، شبکه‌های اجتماعی) از تنظیمات فوتر و منوها خوانده می‌شود — این صفحه فقط نمایش/عدم‌نمایش هر بخش را در این چیدمان کنترل می‌کند.</div>
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات فوتر</button>

@@ -16,8 +16,10 @@ from . import section_registry
 from .models import (
     APPEARANCE_CONFIG_DEFAULTS,
     FOOTER_CONFIG_DEFAULTS,
+    FOOTER_RESPONSIVE_AWARE_KEYS,
     FOOTER_TOGGLE_FIELDS,
     HEADER_CONFIG_DEFAULTS,
+    HEADER_RESPONSIVE_AWARE_KEYS,
     HEADER_TOGGLE_FIELDS,
     StorefrontLayoutVersion,
     StorefrontPage,
@@ -907,6 +909,21 @@ def storefront_appearance_editor(request):
     })
 
 
+def _extract_shell_responsive_raw(request, keys: list[str]) -> dict:
+    """بلوکِ خامِ «نمایش در دستگاه‌ها»یِ هدر/فوتر را از POST می‌خواند —
+    Phase 4، معادلِ ``_extract_responsive_raw`` سطحِ section اما با
+    قراردادِ نام‌گذاریِ مستقیم (``{key}__hide_on_tablet``) چون چک‌باکسِ
+    UI اینجا خودش «پنهان در ...» است، نه «نمایش در ...» (پس نیازی به
+    وارونه‌سازیِ مضاعف نیست)."""
+    return {
+        key: {
+            "hide_on_tablet": request.POST.get(f"{key}__hide_on_tablet") == "on",
+            "hide_on_mobile": request.POST.get(f"{key}__hide_on_mobile") == "on",
+        }
+        for key in keys
+    }
+
+
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_header_editor(request):
@@ -916,6 +933,7 @@ def storefront_header_editor(request):
     if request.method == "POST":
         raw = {field: request.POST.get(field) == "on" for field in HEADER_TOGGLE_FIELDS}
         raw["announcement_text"] = request.POST.get("announcement_text", "")
+        raw["responsive"] = _extract_shell_responsive_raw(request, HEADER_RESPONSIVE_AWARE_KEYS)
         try:
             config = layout_service.validate_header_config(raw)
         except layout_service.HeaderConfigValidationError as exc:
@@ -947,6 +965,7 @@ def storefront_footer_editor(request):
 
     if request.method == "POST":
         raw = {field: request.POST.get(field) == "on" for field in FOOTER_TOGGLE_FIELDS}
+        raw["responsive"] = _extract_shell_responsive_raw(request, FOOTER_RESPONSIVE_AWARE_KEYS)
         try:
             config = layout_service.validate_footer_config(raw)
         except layout_service.FooterConfigValidationError as exc:

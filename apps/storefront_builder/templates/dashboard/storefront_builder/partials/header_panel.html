@@ -27,14 +27,17 @@ validate_header_config، فقط بدونِ خروج از سازنده (طبقِ 
       <input type="checkbox" name="show_search" {% if config.show_search %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">🔍 جستجو</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_search" component=config.responsive.show_search %}
     <label class="toggle-field">
       <input type="checkbox" name="show_account" {% if config.show_account %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">👤 ورود / حساب کاربری</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_account" component=config.responsive.show_account %}
     <label class="toggle-field">
       <input type="checkbox" name="show_wishlist" {% if config.show_wishlist %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">🤍 علاقه‌مندی‌ها</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_wishlist" component=config.responsive.show_wishlist %}
     <label class="toggle-field">
       <input type="checkbox" name="show_cart" {% if config.show_cart %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">🛒 سبد خرید</span><span class="toggle-desc">دسترسی به سبد خرید همیشه باید در دسترس باشد؛ غیرفعال‌کردن توصیه نمی‌شود.</span></div>
@@ -47,6 +50,7 @@ validate_header_config، فقط بدونِ خروج از سازنده (طبقِ 
       <input type="checkbox" name="announcement_enabled" {% if config.announcement_enabled %}checked{% endif %}>
       <div class="toggle-content"><span class="toggle-title">📣 نوار اعلان</span></div>
     </label>
+    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="announcement_enabled" component=config.responsive.announcement_enabled %}
     <div class="form-group">
       <label for="id_announcement_text">متن نوار اعلان</label>
       <input type="text" name="announcement_text" id="id_announcement_text" class="form-input" maxlength="300" value="{{ config.announcement_text }}">
