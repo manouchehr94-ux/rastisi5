@@ -137,13 +137,9 @@ def _preview_page_context(request, store, page_type: str) -> dict:
         return build_product_detail_context(request, product) if product is not None else {}
 
     if page_type in (StorefrontPage.PageType.LISTING, StorefrontPage.PageType.SEARCH):
-        from django.core.paginator import Paginator
+        from apps.catalog.views import build_product_listing_context
 
-        from apps.catalog.views import PRODUCTS_PER_PAGE, _filtered_products
-
-        qs, sort_key, query = _filtered_products(request, store)
-        page_obj = Paginator(qs, PRODUCTS_PER_PAGE).get_page(request.GET.get("page"))
-        return {"page_obj": page_obj, "products": page_obj.object_list, "query": query, "sort_key": sort_key}
+        return build_product_listing_context(request, store)
 
     if page_type == StorefrontPage.PageType.COLLECTION:
         from django.core.paginator import Paginator

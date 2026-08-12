@@ -1658,3 +1658,44 @@ class ProductDetailContextAwareSectionsPreviewTests(StorefrontBuilderViewsTestCa
         StorefrontSection.objects.create(page=self.pd_page, section_key="product_main", order=0)
         resp = self.client.get(reverse("dashboard:storefront-builder-preview"), {"page": "cart"})
         self.assertNotContains(resp, "کالای پیش‌نمایشِ رندرشده")
+
+
+class ProductListingContextAwareSectionPreviewTests(StorefrontBuilderViewsTestCase):
+    """Phase 5: ``product_listing`` تا HTML رندرشده‌ی Preview می‌رسد —
+    روی هر دو تبِ listing و search."""
+
+    def setUp(self):
+        super().setUp()
+        from decimal import Decimal
+
+        from apps.catalog.models import Category, Product, Vendor
+
+        self.draft = svc.get_or_create_draft(self.store)
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده لیست", slug="listing-vendor")
+        category = Category.objects.create(store=self.store, name="دسته لیست", slug="listing-cat", is_active=True)
+        Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name="کالای لیستِ رندرشده",
+            slug="listing-render-product", sku="LISTING-RENDER-1", price=Decimal("30000"), stock=5,
+            status=Product.Status.ACTIVE,
+        )
+
+    def test_product_listing_reaches_rendered_html_on_listing_tab(self):
+        page = self.draft.get_page("listing")
+        StorefrontSection.objects.create(page=page, section_key="product_listing", order=0)
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"), {"page": "listing"})
+        self.assertContains(resp, "کالای لیستِ رندرشده")
+        self.assertContains(resp, "اعمال فیلتر")
+
+    def test_product_listing_reaches_rendered_html_on_search_tab(self):
+        page = self.draft.get_page("search")
+        StorefrontSection.objects.create(page=page, section_key="product_listing", order=0)
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"), {"page": "search"})
+        self.assertContains(resp, "کالای لیستِ رندرشده")
+
+    def test_product_listing_not_addable_to_cart(self):
+        cart_page = self.draft.get_page("cart")
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-add"), {
+            "section_key": "product_listing", "page": "cart",
+        })
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(cart_page.sections.filter(section_key="product_listing").count(), 0)

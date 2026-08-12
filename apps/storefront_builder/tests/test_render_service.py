@@ -871,3 +871,42 @@ class ProductDetailContextAwareSectionsTests(TestCase):
         items = build_page_render_items(cart_page, self.store, page_context={"cart": None})
         self.assertEqual(len(items), 1)
         self.assertNotIn("product", items[0]["context"])
+
+
+class ProductListingContextAwareSectionTests(TestCase):
+    """Phase 5: ``product_listing`` روی هر دو نوعِ صفحه (listing/search)
+    مجاز است و همیشه (حتی بدونِ هیچ کلیدی در page_context) بی‌خطا رندر
+    می‌شود — برخلافِ چهار نوعِ صفحه محصول، هیچ «شیءِ لازم»ی ندارد."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        self.draft = svc.get_or_create_draft(self.store)
+
+    def test_receives_listing_context_unchanged(self):
+        page = self.draft.get_page("listing")
+        StorefrontSection.objects.create(page=page, section_key="product_listing", order=0)
+        page_context = {
+            "page_obj": "PAGE-OBJ-SENTINEL", "products": ["p1"], "query": "", "sort_key": "newest",
+            "sort_options": {"newest": ("x", "جدیدترین")}, "filter_categories": [], "brands": [],
+            "selected_category": "", "selected_brand": "", "min_price": "", "max_price": "",
+            "discounted_only": False, "querystring": "",
+        }
+        items = build_page_render_items(page, self.store, page_context=page_context)
+        self.assertEqual(items[0]["context"]["page_obj"], "PAGE-OBJ-SENTINEL")
+        self.assertEqual(items[0]["context"]["products"], ["p1"])
+
+    def test_allowed_on_search_page_too(self):
+        page = self.draft.get_page("search")
+        StorefrontSection.objects.create(page=page, section_key="product_listing", order=0)
+        items = build_page_render_items(page, self.store, page_context={})
+        self.assertEqual(len(items), 1)
+
+    def test_missing_page_context_keys_default_safely(self):
+        page = self.draft.get_page("listing")
+        StorefrontSection.objects.create(page=page, section_key="product_listing", order=0)
+        items = build_page_render_items(page, self.store, page_context={})
+        context = items[0]["context"]
+        self.assertEqual(context["query"], "")
+        self.assertEqual(context["discounted_only"], False)
+        self.assertIsNone(context["page_obj"])

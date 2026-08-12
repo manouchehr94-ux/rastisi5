@@ -1,0 +1,74 @@
+{% comment %}
+Phase 5 — فیلتر/مرتب‌سازی/گریدِ محصولات؛ روی هر دو صفحه‌یِ listing و
+search مجاز است (همان مسیرِ کوئری/ویو، فقط نوعِ صفحه‌یِ V2 متفاوت است).
+{% endcomment %}
+<div class="wrap">
+  <div class="plp">
+    <aside class="plp-filters">
+      <form id="filterForm" hx-get="{% url 'catalog:product-list' %}" hx-target="#product-results"
+            hx-push-url="true" hx-trigger="submit, change" hx-indicator="#plpLoading">
+        <h3>جستجو</h3>
+        <div class="plp-fg">
+          <input class="plp-inp" type="text" name="q" placeholder="نام کالا، برند یا دسته..." value="{{ query }}">
+        </div>
+
+        <h3>دسته‌بندی</h3>
+        <div class="plp-fg">
+          <select class="plp-inp" name="category">
+            <option value="">همه دسته‌ها</option>
+            {% for cat in filter_categories %}
+            <optgroup label="{{ cat.icon }} {{ cat.name }}">
+              <option value="{{ cat.slug }}" {% if selected_category == cat.slug %}selected{% endif %}>همه‌ی {{ cat.name }}</option>
+              {% for child in cat.children.all %}
+              <option value="{{ child.slug }}" {% if selected_category == child.slug %}selected{% endif %}>{{ child.icon }} {{ child.name }}</option>
+              {% endfor %}
+            </optgroup>
+            {% endfor %}
+          </select>
+        </div>
+
+        <h3>برند</h3>
+        <div class="plp-fg">
+          <select class="plp-inp" name="brand">
+            <option value="">همه برندها</option>
+            {% for b in brands %}
+            <option value="{{ b.slug }}" {% if selected_brand == b.slug %}selected{% endif %}>{{ b.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <h3>بازه‌ی قیمت (تومان)</h3>
+        <div class="plp-price-row">
+          <input class="plp-inp" type="number" name="min_price" placeholder="از" min="0" value="{{ min_price }}">
+          <input class="plp-inp" type="number" name="max_price" placeholder="تا" min="0" value="{{ max_price }}">
+        </div>
+
+        <label class="plp-check">
+          <input type="checkbox" name="discounted" value="1" {% if discounted_only %}checked{% endif %}>
+          فقط کالاهای تخفیف‌دار
+        </label>
+
+        <h3>مرتب‌سازی</h3>
+        <div class="plp-fg">
+          <select class="plp-inp" name="sort">
+            {% for key, opt in sort_options.items %}
+            <option value="{{ key }}" {% if sort_key == key %}selected{% endif %}>{{ opt.1 }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%">اعمال فیلتر</button>
+        <a href="{% url 'catalog:product-list' %}" class="plp-reset">حذف همه‌ی فیلترها</a>
+      </form>
+    </aside>
+
+    <div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+        <span id="plpLoading" class="htmx-indicator plp-loading">⏳ در حال بارگذاری...</span>
+      </div>
+      <div id="product-results" class="plp-results">
+        {% include "catalog/partials/product_list_results.html" %}
+      </div>
+    </div>
+  </div>
+</div>

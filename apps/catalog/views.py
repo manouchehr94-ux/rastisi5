@@ -186,8 +186,11 @@ def _querystring_without_page(request):
     return params.urlencode()
 
 
-def product_list(request):
-    store = resolve_store_for_storefront(request)
+def build_product_listing_context(request, store):
+    """کانتکستِ کاملِ صفحه‌ی لیست/جستجو — هم برایِ ``product_list`` (مسیرِ
+    عمومی) و هم برایِ Preview سازنده (Phase 5، section context-aware
+    ``product_listing``) استفاده می‌شود تا فیلتر/مرتب‌سازی/صفحه‌بندی هرگز
+    دوباره‌نویسی نشود؛ دقیقاً همان الگویِ ``build_product_detail_context``."""
     qs, sort_key, query = _filtered_products(request, store)
 
     paginator = Paginator(qs, PRODUCTS_PER_PAGE)
@@ -197,7 +200,7 @@ def product_list(request):
         Prefetch("children", queryset=Category.objects.filter(store=store, is_active=True).order_by("order", "name"))
     ).order_by("order", "name")
 
-    context = {
+    return {
         "page_obj": page_obj,
         "products": page_obj.object_list,
         "query": query,
@@ -213,6 +216,11 @@ def product_list(request):
         "querystring": _querystring_without_page(request),
     }
 
+
+def product_list(request):
+    store = resolve_store_for_storefront(request)
+    context = build_product_listing_context(request, store)
+
     if request.headers.get("HX-Request") == "true":
         return render(request, "catalog/partials/product_list_results.html", context)
 
@@ -226,7 +234,7 @@ def product_list(request):
     )
     from apps.storefront_builder.models import StorefrontPage
 
-    page_type = StorefrontPage.PageType.SEARCH if query else StorefrontPage.PageType.LISTING
+    page_type = StorefrontPage.PageType.SEARCH if context["query"] else StorefrontPage.PageType.LISTING
     context.update(build_universal_storefront_context(request, store, page_type, page_context=context))
     return render(request, "catalog/product_list.html", context)
 

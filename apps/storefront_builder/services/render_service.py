@@ -388,11 +388,34 @@ def _related_products_context(store, section, page_context):
     return {"related_products": page_context.get("related_products")}
 
 
+def _product_listing_context(store, section, page_context):
+    """listing و search هر دو همین را استفاده می‌کنند — بدونِ «محصولِ
+    جاری»ای که فقدانش باید fail-safe شود؛ حتی صفحه‌ای که Preview هنوز
+    هیچ کوئری‌ای برایش نساخته (کلیدها غایب) با مقادیرِ خنثی رندر می‌شود،
+    نه crash."""
+    return {
+        "page_obj": page_context.get("page_obj"),
+        "products": page_context.get("products"),
+        "query": page_context.get("query", ""),
+        "sort_key": page_context.get("sort_key"),
+        "sort_options": page_context.get("sort_options"),
+        "filter_categories": page_context.get("filter_categories"),
+        "brands": page_context.get("brands"),
+        "selected_category": page_context.get("selected_category", ""),
+        "selected_brand": page_context.get("selected_brand", ""),
+        "min_price": page_context.get("min_price", ""),
+        "max_price": page_context.get("max_price", ""),
+        "discounted_only": page_context.get("discounted_only", False),
+        "querystring": page_context.get("querystring", ""),
+    }
+
+
 _CONTEXT_AWARE_BUILDERS: dict = {
     "product_main": _product_main_context,
     "product_description": _product_description_context,
     "product_video": _product_video_context,
     "related_products": _related_products_context,
+    "product_listing": _product_listing_context,
 }
 
 

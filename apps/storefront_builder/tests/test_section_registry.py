@@ -56,6 +56,8 @@ EXPECTED_KEYS = {
     # Phase 5 — context-aware product_detail-only section types, dedicated
     # coverage in test_render_service.py/test_page_shell.py.
     "product_main", "product_description", "product_video", "related_products",
+    # Phase 5 — context-aware listing+search section type.
+    "product_listing",
 }
 
 
@@ -779,29 +781,33 @@ class PageTypeConstantsMatchModelTests(TestCase):
 
 
 class PageTypeAllowlistTests(TestCase):
-    #: انواعِ context-aware (Phase 5) عمداً از این تست مستثنی‌اند — page_types
-    #: محدودشان دقیقاً همان چیزی است که PageTypeAllowlistTests.
-    #: test_context_aware_types_restricted_to_their_own_page اثبات می‌کند.
-    _CONTEXT_AWARE_KEYS = {"product_main", "product_description", "product_video", "related_products"}
+    #: انواعِ context-aware (Phase 5) عمداً از تستِ «همه‌جا مجاز» مستثنی‌اند —
+    #: page_types محدودشان اینجا، در ``test_context_aware_types_restricted_to_their_own_page``
+    #: به‌ازایِ هرکدام جداگانه اثبات می‌شود.
+    _CONTEXT_AWARE_PAGE_TYPES = {
+        "product_main": frozenset({PAGE_TYPE_PRODUCT_DETAIL}),
+        "product_description": frozenset({PAGE_TYPE_PRODUCT_DETAIL}),
+        "product_video": frozenset({PAGE_TYPE_PRODUCT_DETAIL}),
+        "related_products": frozenset({PAGE_TYPE_PRODUCT_DETAIL}),
+        "product_listing": frozenset({PAGE_TYPE_LISTING, PAGE_TYPE_SEARCH}),
+    }
 
     def test_existing_section_types_default_to_all_pages(self):
         """۱۷ نوعِ محتواییِ عمومیِ موجود از پیش نباید با این چکپوینت رفتار
         تغییر کنند — پیش‌فرض یعنی «همه‌جا مجاز»."""
-        for key in EXPECTED_KEYS - self._CONTEXT_AWARE_KEYS:
+        for key in EXPECTED_KEYS - set(self._CONTEXT_AWARE_PAGE_TYPES):
             definition = get_definition(key)
             self.assertEqual(definition.page_types, ALL_PAGE_TYPES, key)
             for page_type in StorefrontPage.PageType.values:
                 self.assertTrue(is_section_allowed_on_page(key, page_type), f"{key} on {page_type}")
 
     def test_context_aware_types_restricted_to_their_own_page(self):
-        for key in self._CONTEXT_AWARE_KEYS:
+        for key, expected_pages in self._CONTEXT_AWARE_PAGE_TYPES.items():
             definition = get_definition(key)
-            self.assertEqual(definition.page_types, frozenset({PAGE_TYPE_PRODUCT_DETAIL}), key)
-            self.assertTrue(is_section_allowed_on_page(key, PAGE_TYPE_PRODUCT_DETAIL))
+            self.assertEqual(definition.page_types, expected_pages, key)
             for page_type in StorefrontPage.PageType.values:
-                if page_type == PAGE_TYPE_PRODUCT_DETAIL:
-                    continue
-                self.assertFalse(is_section_allowed_on_page(key, page_type), f"{key} on {page_type}")
+                allowed = is_section_allowed_on_page(key, page_type)
+                self.assertEqual(allowed, page_type in expected_pages, f"{key} on {page_type}")
 
     def test_unknown_section_key_never_allowed_on_any_page(self):
         for page_type in StorefrontPage.PageType.values:

@@ -1077,6 +1077,16 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         max_instances=1, duplicable=False, removable=True, category_fa="محصولات",
         page_types=frozenset({PAGE_TYPE_PRODUCT_DETAIL}),
     ),
+    # -------------------------------------------------- Phase 5: بخشِ context-aware صفحه لیست/جستجو
+    "product_listing": SectionDefinition(
+        key="product_listing", label_fa="فیلتر و گرید محصولات", icon="shopping-bag",
+        template_name="storefront_builder/sections/product_listing.html",
+        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
+        # همان دلیلِ product_main: بدونِ این بلوک صفحه‌یِ لیست/جستجو هیچ
+        # راهی برایِ دیدنِ کالاها ندارد.
+        max_instances=1, duplicable=False, removable=False, category_fa="محصولات",
+        page_types=frozenset({PAGE_TYPE_LISTING, PAGE_TYPE_SEARCH}),
+    ),
 }
 
 
