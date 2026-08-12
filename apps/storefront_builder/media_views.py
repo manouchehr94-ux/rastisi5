@@ -225,11 +225,14 @@ def storefront_section_media_form(request, pk, kind, item_pk=None):
             messages.error(request, error_message)
             item = obj
 
-    from apps.catalog.models import Category
+    from apps.catalog.models import Brand, Category, MerchantCollection
 
     categories = Category.objects.filter(store=store, is_active=True).order_by("order", "name")
+    brands = Brand.objects.filter(store=store, is_active=True).order_by("name")
+    collections = MerchantCollection.objects.filter(store=store, is_active=True).order_by("name")
     return render(request, "dashboard/storefront_builder/partials/section_media_form.html", {
-        "section": section, "item": item, "kind": kind, "config": config, "categories": categories,
+        "section": section, "item": item, "kind": kind, "config": config,
+        "categories": categories, "brands": brands, "collections": collections,
     })
 
 

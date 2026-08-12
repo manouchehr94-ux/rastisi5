@@ -78,12 +78,22 @@
           </select>
         </div>
         <div class="form-group" x-show="type === 'brand'" x-cloak>
-          <label>شناسه‌ی برند</label>
-          <input type="number" name="destination_brand" class="form-input" value="{% if item.destination_type == 'brand' %}{{ item.destination_brand_id }}{% endif %}">
+          <label>انتخاب برند</label>
+          <select name="destination_brand" class="form-select">
+            <option value="">— انتخاب کنید —</option>
+            {% for brand in brands %}
+            <option value="{{ brand.pk }}" {% if item.destination_type == "brand" and item.destination_brand_id == brand.pk %}selected{% endif %}>{{ brand.name }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div class="form-group" x-show="type === 'collection'" x-cloak>
-          <label>شناسه‌ی کالکشن</label>
-          <input type="number" name="destination_collection" class="form-input" value="{% if item.destination_type == 'collection' %}{{ item.destination_collection_id }}{% endif %}">
+          <label>انتخاب کالکشن</label>
+          <select name="destination_collection" class="form-select">
+            <option value="">— انتخاب کنید —</option>
+            {% for collection in collections %}
+            <option value="{{ collection.pk }}" {% if item.destination_type == "collection" and item.destination_collection_id == collection.pk %}selected{% endif %}>{{ collection.name }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div class="form-group" x-show="type === 'product'" x-cloak>
           <label>جست‌وجوی محصول</label>

@@ -169,6 +169,37 @@ class DestinationMixin(models.Model):
     def clean(self):
         super().clean()
         self._validate_destination_coherence()
+        self._validate_destination_store_ownership()
+
+    def _destination_owner_store_id(self):
+        """شناسه‌ی Storeیی که مقصدهای این رکورد باید متعلق به آن باشند —
+        پیش‌فرض از فیلدِ مستقیمِ ``store`` خوانده می‌شود؛ زیرکلاس‌هایی که
+        Store را از طریقِ یک رابطه‌ی غیرمستقیم دارند (مثلاً ``MenuItem``
+        که فقط ``menu.store`` را دارد) این متد را override می‌کنند. اگر
+        هنوز نامشخص است (مثلاً هنگامِ ساختِ رکورد پیش از تنظیمِ رابطه)،
+        ``None`` برمی‌گردد و بررسیِ مالکیت رد می‌شود — بررسیِ کوهرنسِ نوعِ
+        مقصد در ``_validate_destination_coherence`` هم‌چنان مستقل اجرا
+        می‌شود."""
+        return getattr(self, "store_id", None)
+
+    def _validate_destination_store_ownership(self):
+        """دفاعِ لایه‌ی دوم — حتی اگر یک مسیرِ ورودی (مثلاً فرمی که هنوز
+        شناسه‌ی خام می‌گیرد) بررسیِ مالکیت را در UI انجام نداده باشد، این
+        سطح هرگز اجازه نمی‌دهد مقصدی از یک Store دیگر ذخیره شود."""
+        store_id = self._destination_owner_store_id()
+        if store_id is None:
+            return
+        from apps.catalog.models import Brand, Category, MerchantCollection, Product
+
+        checks = (
+            (self.destination_category_id, Category, "دسته‌بندی مقصد"),
+            (self.destination_product_id, Product, "محصول مقصد"),
+            (self.destination_brand_id, Brand, "برند مقصد"),
+            (self.destination_collection_id, MerchantCollection, "کالکشن مقصد"),
+        )
+        for ref_id, model, label in checks:
+            if ref_id and not model.objects.filter(pk=ref_id, store_id=store_id).exists():
+                raise ValidationError(f"{label} متعلق به این فروشگاه نیست")
 
     def _validate_destination_coherence(self):
         """اعتبارسنجی انسجام مقصد: دقیقاً یک مقصد مطابق نوع انتخاب‌شده."""
@@ -704,6 +735,9 @@ class MenuItem(DestinationMixin, TimeStampedModel):
         super().clean()
         self._validate_hierarchy()
         self._validate_destination_requirement()
+
+    def _destination_owner_store_id(self):
+        return self.menu.store_id if self.menu_id else None
 
     def _validate_destination_requirement(self):
         """سیاست مقصد آیتم‌های منو.

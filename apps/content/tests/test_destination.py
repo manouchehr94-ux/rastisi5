@@ -16,8 +16,8 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
-from apps.catalog.models import Brand, Category, Product, Vendor
-from apps.content.models import DestinationType, HeroSlide, validate_external_url
+from apps.catalog.models import Brand, Category, MerchantCollection, Product, Vendor
+from apps.content.models import DestinationType, HeroSlide, Menu, MenuItem, validate_external_url
 from apps.content.services import resolve_destination_url
 from apps.stores.models import Store
 
@@ -220,6 +220,94 @@ class DestinationValidationTests(TestCase):
         obj = _make_instance(destination_type=DestinationType.CART, destination_external_url="https://example.com")
         with self.assertRaises(ValidationError):
             obj.clean()
+
+
+class DestinationStoreOwnershipTests(TestCase):
+    """Phase 8 P0-1 — لایه‌ی دومِ دفاعی: مقصدهایی که از یک Store دیگر
+    باشند (مثلاً از طریقِ فرمِ رسانه‌ی section که پیش‌تر شناسه‌ی خامِ
+    برند/کالکشن می‌گرفت) هرگز نباید ذخیره شوند — حتی اگر مسیرِ UI این
+    بررسی را انجام نداده باشد."""
+
+    def setUp(self):
+        self.store = Store.objects.get(slug="akhlaghi")
+        self.other_store = Store.objects.create(
+            name="فروشگاه دیگر", slug="dest-ownership-other", admin_subdomain="dest-ownership-other",
+        )
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده", slug="vendor-own")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-own")
+        self.product = Product.objects.create(
+            store=self.store, vendor=vendor, category=self.category,
+            name="محصول", slug="prod-own", sku="OWN-1", price=Decimal("100000"), stock=10,
+        )
+        self.brand = Brand.objects.create(store=self.store, name="برند", slug="brand-own")
+        self.collection = MerchantCollection.objects.create(store=self.store, name="کالکشن", slug="coll-own")
+
+        other_vendor = Vendor.objects.create(store=self.other_store, name="فروشنده دیگر", slug="vendor-other")
+        self.other_category = Category.objects.create(store=self.other_store, name="دسته دیگر", slug="cat-other")
+        self.other_product = Product.objects.create(
+            store=self.other_store, vendor=other_vendor, category=self.other_category,
+            name="محصول دیگر", slug="prod-other", sku="OTH-1", price=Decimal("50000"), stock=5,
+        )
+        self.other_brand = Brand.objects.create(store=self.other_store, name="برند دیگر", slug="brand-other")
+        self.other_collection = MerchantCollection.objects.create(
+            store=self.other_store, name="کالکشن دیگر", slug="coll-other",
+        )
+
+    def _slide(self, **kwargs):
+        obj = _make_instance(store=self.store, **kwargs)
+        return obj
+
+    def test_own_brand_passes(self):
+        obj = self._slide(destination_type=DestinationType.BRAND, destination_brand=self.brand)
+        obj.clean()
+
+    def test_cross_tenant_brand_rejected(self):
+        obj = self._slide(destination_type=DestinationType.BRAND, destination_brand=self.other_brand)
+        with self.assertRaises(ValidationError):
+            obj.clean()
+
+    def test_own_collection_passes(self):
+        obj = self._slide(destination_type=DestinationType.COLLECTION, destination_collection=self.collection)
+        obj.clean()
+
+    def test_cross_tenant_collection_rejected(self):
+        obj = self._slide(destination_type=DestinationType.COLLECTION, destination_collection=self.other_collection)
+        with self.assertRaises(ValidationError):
+            obj.clean()
+
+    def test_cross_tenant_category_rejected(self):
+        obj = self._slide(destination_type=DestinationType.CATEGORY, destination_category=self.other_category)
+        with self.assertRaises(ValidationError):
+            obj.clean()
+
+    def test_cross_tenant_product_rejected(self):
+        obj = self._slide(destination_type=DestinationType.PRODUCT, destination_product=self.other_product)
+        with self.assertRaises(ValidationError):
+            obj.clean()
+
+    def test_legacy_row_with_no_store_skips_ownership_check(self):
+        """رکوردهای قدیمیِ بدونِ Store (Nullable — رفتارِ قبل از سازنده
+        بصری) نباید توسطِ این لایه‌ی جدید مسدود شوند؛ کوهرنسِ نوعِ مقصد
+        هم‌چنان مستقل بررسی می‌شود."""
+        obj = _make_instance(destination_type=DestinationType.BRAND, destination_brand=self.other_brand)
+        obj.clean()  # باید بدونِ خطا عبور کند — store تنظیم نشده
+
+    def test_menuitem_ownership_resolved_via_menu_store(self):
+        menu = Menu.objects.create(store=self.store, title="منوی اصلی", location=Menu.Location.HEADER)
+        item = MenuItem(
+            menu=menu, title="لینک", destination_type=DestinationType.BRAND,
+        )
+        item.destination_brand_id = self.other_brand.pk
+        with self.assertRaises(ValidationError):
+            item.clean()
+
+    def test_menuitem_own_brand_passes(self):
+        menu = Menu.objects.create(store=self.store, title="منوی اصلی۲", location=Menu.Location.FOOTER_1)
+        item = MenuItem(
+            menu=menu, title="لینک", destination_type=DestinationType.BRAND,
+        )
+        item.destination_brand_id = self.brand.pk
+        item.clean()
 
 
 class DestinationResolverTests(TestCase):
