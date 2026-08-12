@@ -234,3 +234,71 @@ class CartItemUpdateRemoveTests(TestCase):
         self.assertEqual(response.status_code, 200)
         variant_item.refresh_from_db()
         self.assertEqual(variant_item.quantity, 2)
+
+
+class CartItemUpdateUsesComposedCartSectionsTests(TestCase):
+    """Phase 5: وقتی این Store یک composition واقعی برای صفحه‌ی سبد
+    منتشر کرده، htmxِ به‌روزرسانی/حذفِ قلم باید همان section‌ها (با همان
+    ترتیبِ پیکربندی‌شده در سازنده) را دوباره رندر کند — نه partialِ
+    سخت‌کدشده‌ی قدیمی که ترتیب/تنظیماتِ مرچنت را نادیده می‌گرفت."""
+
+    HOST = "cart-compose-test.example.com"
+
+    def setUp(self):
+        from django.test import Client, override_settings
+        from django.utils import timezone
+
+        from apps.storefront_builder.models import StorefrontSection
+        from apps.storefront_builder.services import layout_service as svc
+        from apps.stores.models import StoreDomain
+
+        self._override = override_settings(ALLOWED_HOSTS=[self.HOST, "testserver"])
+        self._override.enable()
+        self.addCleanup(self._override.disable)
+
+        self.store = Store.objects.get(slug="akhlaghi")
+        StoreDomain.objects.create(
+            store=self.store, hostname=self.HOST, is_primary=True,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
+        )
+        vendor = Vendor.objects.create(store=self.store, name="فروشگاه ترکیب سبد", slug="shop-cart-compose")
+        category = Category.objects.create(store=self.store, name="دیجیتال ترکیب سبد", slug="digital-cart-compose")
+        self.product = Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name="کالای ترکیب سبد", slug="sample-cart-compose",
+            sku="SKU-CARTCOMP1", price=Decimal("120000"), stock=5,
+        )
+
+        draft = svc.get_or_create_draft(self.store)
+        cart_page = draft.get_page("cart")
+        cart_page.sections.all().delete()
+        # عمداً ترتیبِ معکوس نسبت به پیش‌فرض (خلاصه قبل از قلم‌ها) — دقیقاً
+        # همان چیزی که این تست باید بعد از htmx هم دست‌نخورده ببیند.
+        StorefrontSection.objects.create(page=cart_page, section_key="cart_summary", order=0)
+        StorefrontSection.objects.create(page=cart_page, section_key="cart_items", order=1)
+        svc.publish(self.store)
+
+        self.client = Client(HTTP_HOST=self.HOST)
+        self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 1})
+        self.item = CartItem.objects.get(product=self.product)
+
+    def test_update_quantity_preserves_merchant_configured_section_order(self):
+        response = self.client.post(reverse("cart:item-update", args=[self.item.id]), {"quantity": 2})
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        self.assertIn("خلاصه سفارش", body)
+        self.assertIn("کالاهای سبد خرید", body)
+        self.assertLess(body.index("خلاصه سفارش"), body.index("کالاهای سبد خرید"))
+
+    def test_update_quantity_still_updates_totals_and_item_count(self):
+        response = self.client.post(reverse("cart:item-update", args=[self.item.id]), {"quantity": 3})
+        body = response.content.decode()
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.quantity, 3)
+        self.assertIn("۳</span> قلم", body)
+
+    def test_remove_last_item_shows_empty_state_within_composed_section(self):
+        response = self.client.post(reverse("cart:item-remove", args=[self.item.id]))
+        self.assertContains(response, "سبد خرید شما خالی است")
+        # cart_summary باید در حالتِ خالی چیزی رندر نکند (مسئولیتِ حالتِ
+        # خالی فقط با cart_items است).
+        self.assertNotContains(response, "خلاصه سفارش")

@@ -60,6 +60,8 @@ EXPECTED_KEYS = {
     "product_listing",
     # Phase 5 — context-aware collection-only section types.
     "collection_header", "collection_products",
+    # Phase 5 — context-aware cart-only section types.
+    "cart_items", "cart_summary",
 }
 
 
@@ -794,6 +796,8 @@ class PageTypeAllowlistTests(TestCase):
         "product_listing": frozenset({PAGE_TYPE_LISTING, PAGE_TYPE_SEARCH}),
         "collection_header": frozenset({PAGE_TYPE_COLLECTION}),
         "collection_products": frozenset({PAGE_TYPE_COLLECTION}),
+        "cart_items": frozenset({PAGE_TYPE_CART}),
+        "cart_summary": frozenset({PAGE_TYPE_CART}),
     }
 
     def test_existing_section_types_default_to_all_pages(self):

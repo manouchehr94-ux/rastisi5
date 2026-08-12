@@ -1,0 +1,54 @@
+{% load persian %}
+{% comment %}
+Phase 5 — قلم‌های سبدِ خرید؛ اگر سبد خالی باشد، همینجا حالتِ خالیِ کامل
+(نه cart_summary) نمایش داده می‌شود — چون «خالی» ویژگیِ همین داده است.
+{% endcomment %}
+{% if not cart or item_count == 0 %}
+<div class="wrap">
+  <div class="empty">
+    <div class="em">🛒</div>
+    <h3>سبد خرید شما خالی است</h3>
+    <p>برای ادامه، ابتدا کالاهای موردنظر را از فروشگاه به سبد خرید اضافه کنید.</p>
+    <a class="btn btn-primary" href="{% url 'catalog:product-list' %}">مشاهده محصولات فروشگاه</a>
+  </div>
+</div>
+{% else %}
+<div class="wrap">
+  <div class="card">
+    <div class="card-h"><span class="ic">🛍️</span>کالاهای سبد خرید (<span>{{ item_count|fa_number }}</span> قلم)</div>
+    <div class="card-b">
+      {% for item in cart_items %}
+      <div class="citem">
+        <div class="thumb" style="background:{{ item.product.tint|default:'#eceef3' }}">{{ item.product.icon|default:"🛍️" }}</div>
+        <div class="info">
+          <b>{{ item.product.name }}</b>
+          {% if item.variant %}
+          <div class="meta">
+            <span>{% if item.variant.value_hex %}<span class="sw" style="background:{{ item.variant.value_hex }}"></span>{% endif %}{{ item.variant.attribute }}: {{ item.variant.value }}</span>
+          </div>
+          {% endif %}
+          {% if item.gift_wrap_selected %}
+          <div class="meta"><span>🎁 کادوپیچی شده (+{{ item.gift_wrap_unit_price|toman }} به‌ازای هر عدد)</span></div>
+          {% endif %}
+        </div>
+        <div class="right">
+          <div class="lp">
+            {{ item.unit_price|toman }}
+            {% if item.regular_price > item.unit_price %}<small>{{ item.regular_price|toman }}</small>{% endif %}
+          </div>
+          <div class="stepper">
+            <button type="button" hx-post="{% url 'cart:item-update' item.id %}" hx-vals='{"quantity": {{ item.quantity|add:"-1" }}}' hx-target="#cart-container" hx-swap="innerHTML">−</button>
+            <input value="{{ item.quantity|fa_number }}" readonly>
+            <button type="button" hx-post="{% url 'cart:item-update' item.id %}" hx-vals='{"quantity": {{ item.quantity|add:"1" }}}' hx-target="#cart-container" hx-swap="innerHTML">+</button>
+          </div>
+          <button type="button" class="rm" hx-post="{% url 'cart:item-remove' item.id %}" hx-target="#cart-container" hx-swap="innerHTML">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+            حذف
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}

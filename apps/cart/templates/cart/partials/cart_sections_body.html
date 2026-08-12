@@ -1,0 +1,13 @@
+{% comment %}
+Phase 5 — پاسخِ htmxِ به‌روزرسانی/حذفِ قلمِ سبد، وقتی این Store از
+composition سازنده برایِ صفحه‌ی سبد استفاده می‌کند: دقیقاً همان
+render_items (همان ترتیب/تنظیماتِ ریسپانسیوِ پیکربندی‌شده در سازنده)
+دوباره رندر می‌شود — نه یک partialِ سخت‌کدشده‌ی مستقل — تا شخصی‌سازیِ
+مرچنت هرگز بعد از یک اکشنِ htmx «ریست» نشود. هدفِ ``hx-target="#cart-container"``
+همیشه همین محتواست (بدونِ خودِ wrapperِ ``id="cart-container"`` — آن در
+قالبِ صفحه است، نه اینجا؛ ``hx-swap="innerHTML"`` فقط داخلِ آن را عوض می‌کند).
+{% endcomment %}
+{% for item in render_items %}
+{% include "storefront_builder/partials/responsive_section_wrapper.html" %}
+{% endfor %}
+{% include "cart/partials/header_counts_oob.html" %}

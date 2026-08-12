@@ -1102,6 +1102,25 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         max_instances=1, duplicable=False, removable=False, category_fa="محصولات",
         page_types=frozenset({PAGE_TYPE_COLLECTION}),
     ),
+    # -------------------------------------------------- Phase 5: بخش‌های context-aware صفحه سبد خرید
+    "cart_items": SectionDefinition(
+        key="cart_items", label_fa="قلم‌های سبد خرید", icon="shopping-cart",
+        template_name="storefront_builder/sections/cart_items.html",
+        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
+        # همان استدلالِ product_main: بدونِ این بلوک سبدِ خرید هیچ راهی
+        # برایِ دیدن/ویرایشِ قلم‌ها ندارد.
+        max_instances=1, duplicable=False, removable=False, category_fa="محصولات",
+        page_types=frozenset({PAGE_TYPE_CART}),
+    ),
+    "cart_summary": SectionDefinition(
+        key="cart_summary", label_fa="خلاصه سفارش و تسویه‌حساب", icon="receipt",
+        template_name="storefront_builder/sections/cart_summary.html",
+        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
+        # حذفِ این بلوک یعنی مشتری راهی برایِ رفتن به تسویه‌حساب ندارد —
+        # دقیقاً همان استدلالِ show_cart در هدر.
+        max_instances=1, duplicable=False, removable=False, category_fa="محصولات",
+        page_types=frozenset({PAGE_TYPE_CART}),
+    ),
 }
 
 

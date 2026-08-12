@@ -428,6 +428,22 @@ def _collection_products_context(store, section, page_context):
     }
 
 
+def _cart_items_context(store, section, page_context):
+    return {
+        "cart": page_context.get("cart"),
+        "cart_items": page_context.get("cart_items") or [],
+        "item_count": page_context.get("item_count", 0),
+    }
+
+
+def _cart_summary_context(store, section, page_context):
+    return {
+        "cart": page_context.get("cart"),
+        "item_count": page_context.get("item_count", 0),
+        "totals": page_context.get("totals"),
+    }
+
+
 _CONTEXT_AWARE_BUILDERS: dict = {
     "product_main": _product_main_context,
     "product_description": _product_description_context,
@@ -436,6 +452,8 @@ _CONTEXT_AWARE_BUILDERS: dict = {
     "product_listing": _product_listing_context,
     "collection_header": _collection_header_context,
     "collection_products": _collection_products_context,
+    "cart_items": _cart_items_context,
+    "cart_summary": _cart_summary_context,
 }
 
 

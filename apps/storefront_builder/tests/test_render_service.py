@@ -954,3 +954,40 @@ class CollectionContextAwareSectionsTests(TestCase):
         item = self._item_for("collection_products", {})
         self.assertNotIn("collection", item["context"])
         self.assertNotIn("products", item["context"])
+
+
+class CartContextAwareSectionsTests(TestCase):
+    """Phase 5: ``cart_items``/``cart_summary`` — سبد همیشه در page_context
+    حاضر است (حتی سبدِ خالی/None، که ``_cart_context`` خودش fail-safe
+    مدیریت می‌کند)، پس این دو (برخلافِ چهار نوعِ صفحه محصول) هرگز نیازی
+    به یک early-return «چیزی رندر نکن» ندارند — خودِ template تصمیم
+    می‌گیرد."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        self.draft = svc.get_or_create_draft(self.store)
+        self.page = self.draft.get_page("cart")
+
+    def _item_for(self, section_key, page_context):
+        StorefrontSection.objects.create(page=self.page, section_key=section_key, order=0)
+        items = build_page_render_items(self.page, self.store, page_context=page_context)
+        self.assertEqual(len(items), 1)
+        return items[0]
+
+    def test_cart_items_passes_through_items_and_count(self):
+        item = self._item_for("cart_items", {"cart": "CART", "cart_items": ["i1"], "item_count": 3})
+        self.assertEqual(item["context"]["cart"], "CART")
+        self.assertEqual(item["context"]["cart_items"], ["i1"])
+        self.assertEqual(item["context"]["item_count"], 3)
+
+    def test_cart_items_defaults_safely_on_empty_page_context(self):
+        item = self._item_for("cart_items", {})
+        self.assertIsNone(item["context"]["cart"])
+        self.assertEqual(item["context"]["cart_items"], [])
+        self.assertEqual(item["context"]["item_count"], 0)
+
+    def test_cart_summary_passes_through_totals(self):
+        item = self._item_for("cart_summary", {"cart": "CART", "item_count": 2, "totals": {"grand_total": 5000}})
+        self.assertEqual(item["context"]["totals"], {"grand_total": 5000})
+        self.assertEqual(item["context"]["item_count"], 2)

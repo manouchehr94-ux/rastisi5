@@ -1737,3 +1737,39 @@ class CollectionContextAwareSectionsPreviewTests(StorefrontBuilderViewsTestCase)
         })
         self.assertEqual(resp.status_code, 400)
         self.assertEqual(pd_page.sections.filter(section_key="collection_header").count(), 0)
+
+
+class CartContextAwareSectionsPreviewTests(StorefrontBuilderViewsTestCase):
+    """Phase 5: ``cart_items``/``cart_summary`` تا HTML رندرشده‌ی Preview
+    می‌رسند — Preview هرگز سبدِ واقعیِ کاربر را نشان نمی‌دهد (نگاه کنید به
+    Phase 4)، پس همیشه حالتِ خالی نشان داده می‌شود."""
+
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+        self.cart_page = self.draft.get_page("cart")
+
+    def _preview(self):
+        return self.client.get(reverse("dashboard:storefront-builder-preview"), {"page": "cart"})
+
+    def test_cart_items_shows_empty_state_in_preview(self):
+        StorefrontSection.objects.create(page=self.cart_page, section_key="cart_items", order=0)
+        resp = self._preview()
+        self.assertContains(resp, "سبد خرید شما خالی است")
+
+    def test_cart_summary_renders_nothing_in_preview_empty_state(self):
+        # data-section-label (فقط برای Preview، همیشه حاضر تا مرچنت بتواند
+        # جایگاهِ خالی را هم انتخاب کند) خودش شاملِ عبارتِ «خلاصه سفارش»ست —
+        # این تست باید محتوایِ واقعیِ کارت را چک کند، نه برچسبِ section.
+        StorefrontSection.objects.create(page=self.cart_page, section_key="cart_summary", order=0)
+        resp = self._preview()
+        self.assertNotContains(resp, "جمع قابل پرداخت")
+        self.assertNotContains(resp, "ادامه و تسویه‌حساب")
+
+    def test_cart_sections_not_addable_to_home(self):
+        home_page = self.draft.get_page("home")
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-add"), {
+            "section_key": "cart_items", "page": "home",
+        })
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(home_page.sections.filter(section_key="cart_items").count(), 0)

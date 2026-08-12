@@ -1,0 +1,33 @@
+{% load persian %}
+{% comment %}
+Phase 5 — خلاصه‌ی سفارش (جمع/تخفیف/مالیات) + دکمه‌ی تسویه‌حساب. وقتی سبد
+خالی است چیزی رندر نمی‌شود (حالتِ خالی مسئولیتِ cart_items است).
+{% endcomment %}
+{% if cart and item_count > 0 %}
+<div class="wrap">
+  <div class="card">
+    <div class="card-h"><span class="ic">🧾</span>خلاصه سفارش</div>
+    <div class="card-b">
+      <div class="totals">
+        <div class="ln"><span>جمع کالاها</span><b>{{ totals.items_total|toman }}</b></div>
+        {% if totals.product_discount > 0 %}
+        <div class="ln disc"><span>تخفیف کالاها</span><b>− {{ totals.product_discount|toman }}</b></div>
+        {% endif %}
+        {% if totals.gift_wrap_total > 0 %}
+        <div class="ln"><span>🎁 کادوپیچی</span><b>{{ totals.gift_wrap_total|toman }}</b></div>
+        {% endif %}
+        <div class="ln"><span>مالیات بر ارزش افزوده</span><b>{{ totals.tax|toman }}</b></div>
+        <div class="ln grand"><span>جمع قابل پرداخت</span><span class="v">{{ totals.grand_total|toman }}</span></div>
+      </div>
+      {% if totals.product_discount > 0 %}
+      <div class="save-note">🎁 شما در این سبد {{ totals.product_discount|toman }} صرفه‌جویی کردید!</div>
+      {% endif %}
+      <a href="{% url 'orders:checkout-step1' %}" class="btn btn-primary btn-block" style="margin-top:14px;height:52px;display:flex">ادامه و تسویه‌حساب</a>
+      <div class="trust">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        هزینه‌ی نهایی و ارسال در مرحله‌ی تسویه‌حساب محاسبه می‌شود
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}

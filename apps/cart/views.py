@@ -34,6 +34,27 @@ def _cart_context(request, cart):
     return {"cart": cart, "cart_items": items, "totals": totals, "item_count": item_count}
 
 
+def _render_cart_container(request, cart):
+    """Phase 5: پاسخِ مشترکِ هر دو htmx endpointِ سبد (به‌روزرسانی/حذفِ
+    قلم) — اگر این Store composition سازنده برایِ صفحه‌ی سبد دارد، دقیقاً
+    همان section‌ها (با همان ترتیب/تنظیماتِ ریسپانسیوِ پیکربندی‌شده)
+    دوباره رندر می‌شوند، نه partialِ سخت‌کدشده‌ی قدیمی — تا شخصی‌سازیِ
+    مرچنت هرگز بعد از یک اکشنِ htmx «ریست» نشود. منطقِ تجاریِ خودِ سبد
+    (بالا) کاملاً دست‌نخورده و جدا می‌ماند؛ این فقط تصمیمِ presentation
+    است که کدام partial رندر شود."""
+    from apps.storefront_builder.models import StorefrontPage
+    from apps.storefront_builder.services import page_resolution_service, render_service
+    from apps.stores.resolution import resolve_store_for_storefront
+
+    context = _cart_context(request, cart)
+    store = resolve_store_for_storefront(request)
+    resolved = page_resolution_service.resolve_published_page(store, StorefrontPage.PageType.CART)
+    if resolved.is_resolved:
+        render_items = render_service.build_page_render_items(resolved.page, store, page_context=context)
+        return render(request, "cart/partials/cart_sections_body.html", {**context, "render_items": render_items})
+    return render(request, "cart/partials/cart_page_body.html", context)
+
+
 def cart_detail(request):
     cart = get_cart(request, create=True)
     context = _cart_context(request, cart)
@@ -142,7 +163,7 @@ def cart_item_update(request, item_id):
 
     if available_stock <= 0:
         item.delete()
-        response = render(request, "cart/partials/cart_page_body.html", _cart_context(request, cart))
+        response = _render_cart_container(request, cart)
         response["HX-Trigger"] = json.dumps(
             {"toast": {"message": "این کالا دیگر موجود نیست و از سبد حذف شد", "type": "err"}}
         )
@@ -153,7 +174,7 @@ def cart_item_update(request, item_id):
     item.quantity = quantity
     item.save(update_fields=["quantity", "updated_at"])
 
-    return render(request, "cart/partials/cart_page_body.html", _cart_context(request, cart))
+    return _render_cart_container(request, cart)
 
 
 @require_POST
@@ -161,7 +182,7 @@ def cart_item_remove(request, item_id):
     cart = get_cart(request, create=True)
     item = get_object_or_404(CartItem, pk=item_id, cart=cart)
     item.delete()
-    return render(request, "cart/partials/cart_page_body.html", _cart_context(request, cart))
+    return _render_cart_container(request, cart)
 
 
 def _header_counts_context(request):
