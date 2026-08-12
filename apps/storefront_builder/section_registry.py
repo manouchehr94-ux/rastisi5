@@ -1087,6 +1087,21 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         max_instances=1, duplicable=False, removable=False, category_fa="محصولات",
         page_types=frozenset({PAGE_TYPE_LISTING, PAGE_TYPE_SEARCH}),
     ),
+    # -------------------------------------------------- Phase 5: بخش‌های context-aware صفحه کالکشن
+    "collection_header": SectionDefinition(
+        key="collection_header", label_fa="عنوان و توضیح کالکشن", icon="layers",
+        template_name="storefront_builder/sections/collection_header.html",
+        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
+        max_instances=1, duplicable=False, removable=True, category_fa="محصولات",
+        page_types=frozenset({PAGE_TYPE_COLLECTION}),
+    ),
+    "collection_products": SectionDefinition(
+        key="collection_products", label_fa="محصولات کالکشن", icon="grid",
+        template_name="storefront_builder/sections/collection_products.html",
+        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
+        max_instances=1, duplicable=False, removable=False, category_fa="محصولات",
+        page_types=frozenset({PAGE_TYPE_COLLECTION}),
+    ),
 }
 
 

@@ -1699,3 +1699,41 @@ class ProductListingContextAwareSectionPreviewTests(StorefrontBuilderViewsTestCa
         })
         self.assertEqual(resp.status_code, 400)
         self.assertEqual(cart_page.sections.filter(section_key="product_listing").count(), 0)
+
+
+class CollectionContextAwareSectionsPreviewTests(StorefrontBuilderViewsTestCase):
+    """Phase 5: ``collection_header``/``collection_products`` تا HTML
+    رندرشده‌ی Preview می‌رسند — Preview جدیدترین کالکشنِ فروشگاه را
+    به‌عنوانِ «کالکشنِ جاری» نماینده انتخاب می‌کند."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.catalog.services import collection_service
+
+        self.draft = svc.get_or_create_draft(self.store)
+        self.collection_page = self.draft.get_page("collection")
+        self.collection = collection_service.create_collection(
+            self.store, name="کالکشنِ پیش‌نمایشِ رندرشده", description="توضیحِ کالکشنِ پیش‌نمایش",
+        )
+
+    def _preview(self):
+        return self.client.get(reverse("dashboard:storefront-builder-preview"), {"page": "collection"})
+
+    def test_collection_header_reaches_rendered_html(self):
+        StorefrontSection.objects.create(page=self.collection_page, section_key="collection_header", order=0)
+        resp = self._preview()
+        self.assertContains(resp, "کالکشنِ پیش‌نمایشِ رندرشده")
+        self.assertContains(resp, "توضیحِ کالکشنِ پیش‌نمایش")
+
+    def test_collection_products_reaches_rendered_html_and_shows_empty_state(self):
+        StorefrontSection.objects.create(page=self.collection_page, section_key="collection_products", order=0)
+        resp = self._preview()
+        self.assertContains(resp, "فعلاً کالایی در این کالکشن برای نمایش وجود ندارد")
+
+    def test_collection_sections_not_addable_to_product_detail(self):
+        pd_page = self.draft.get_page("product_detail")
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-add"), {
+            "section_key": "collection_header", "page": "product_detail",
+        })
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(pd_page.sections.filter(section_key="collection_header").count(), 0)

@@ -1,0 +1,41 @@
+{% load persian %}
+{% comment %}Phase 5 — گریدِ محصولاتِ کالکشنِ جاری (route-resolved)؛ غیابِ کالکشن یعنی چیزی رندر نمی‌شود.{% endcomment %}
+{% if collection %}
+<div class="wrap">
+  {% if products %}
+  <div class="grid g3">
+    {% for product in products %}
+    {% include "catalog/partials/product_card.html" %}
+    {% endfor %}
+  </div>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="pagination">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}">قبلی</a>
+    {% else %}
+    <span class="disabled">قبلی</span>
+    {% endif %}
+    {% for num in page_obj.paginator.page_range %}
+      {% if num == page_obj.number %}
+      <span class="current">{{ num|fa_number }}</span>
+      {% else %}
+      <a href="?page={{ num }}">{{ num|fa_number }}</a>
+      {% endif %}
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}">بعدی</a>
+    {% else %}
+    <span class="disabled">بعدی</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="cat-empty-state">
+    <div class="big">🗂️</div>
+    <p>فعلاً کالایی در این کالکشن برای نمایش وجود ندارد.</p>
+  </div>
+  {% endif %}
+</div>
+{% endif %}

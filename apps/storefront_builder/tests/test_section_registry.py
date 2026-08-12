@@ -58,6 +58,8 @@ EXPECTED_KEYS = {
     "product_main", "product_description", "product_video", "related_products",
     # Phase 5 — context-aware listing+search section type.
     "product_listing",
+    # Phase 5 — context-aware collection-only section types.
+    "collection_header", "collection_products",
 }
 
 
@@ -790,6 +792,8 @@ class PageTypeAllowlistTests(TestCase):
         "product_video": frozenset({PAGE_TYPE_PRODUCT_DETAIL}),
         "related_products": frozenset({PAGE_TYPE_PRODUCT_DETAIL}),
         "product_listing": frozenset({PAGE_TYPE_LISTING, PAGE_TYPE_SEARCH}),
+        "collection_header": frozenset({PAGE_TYPE_COLLECTION}),
+        "collection_products": frozenset({PAGE_TYPE_COLLECTION}),
     }
 
     def test_existing_section_types_default_to_all_pages(self):

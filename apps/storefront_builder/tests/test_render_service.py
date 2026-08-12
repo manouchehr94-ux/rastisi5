@@ -910,3 +910,47 @@ class ProductListingContextAwareSectionTests(TestCase):
         self.assertEqual(context["query"], "")
         self.assertEqual(context["discounted_only"], False)
         self.assertIsNone(context["page_obj"])
+
+
+class CollectionContextAwareSectionsTests(TestCase):
+    """Phase 5: ``collection_header``/``collection_products`` — «کالکشنِ
+    جاری» همیشه از ``page_context`` می‌آید، هرگز از یک ID در settings."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        self.draft = svc.get_or_create_draft(self.store)
+        self.page = self.draft.get_page("collection")
+
+    def _item_for(self, section_key, page_context):
+        StorefrontSection.objects.create(page=self.page, section_key=section_key, order=0)
+        items = build_page_render_items(self.page, self.store, page_context=page_context)
+        self.assertEqual(len(items), 1)
+        return items[0]
+
+    def test_collection_header_receives_current_collection(self):
+        from apps.catalog.services import collection_service
+
+        collection = collection_service.create_collection(self.store, name="کالکشنِ رندر هدر")
+        item = self._item_for("collection_header", {"collection": collection})
+        self.assertEqual(item["context"]["collection"], collection)
+
+    def test_collection_header_fails_safe_without_a_collection(self):
+        item = self._item_for("collection_header", {})
+        self.assertNotIn("collection", item["context"])
+
+    def test_collection_products_receives_products_and_page_obj(self):
+        from apps.catalog.services import collection_service
+
+        collection = collection_service.create_collection(self.store, name="کالکشنِ رندر محصولات")
+        item = self._item_for(
+            "collection_products", {"collection": collection, "products": ["p1"], "page_obj": "OBJ"},
+        )
+        self.assertEqual(item["context"]["collection"], collection)
+        self.assertEqual(item["context"]["products"], ["p1"])
+        self.assertEqual(item["context"]["page_obj"], "OBJ")
+
+    def test_collection_products_fails_safe_without_a_collection(self):
+        item = self._item_for("collection_products", {})
+        self.assertNotIn("collection", item["context"])
+        self.assertNotIn("products", item["context"])

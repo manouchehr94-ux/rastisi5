@@ -410,12 +410,32 @@ def _product_listing_context(store, section, page_context):
     }
 
 
+def _collection_header_context(store, section, page_context):
+    collection = page_context.get("collection")
+    if collection is None:
+        return {}
+    return {"collection": collection}
+
+
+def _collection_products_context(store, section, page_context):
+    collection = page_context.get("collection")
+    if collection is None:
+        return {}
+    return {
+        "collection": collection,
+        "products": page_context.get("products"),
+        "page_obj": page_context.get("page_obj"),
+    }
+
+
 _CONTEXT_AWARE_BUILDERS: dict = {
     "product_main": _product_main_context,
     "product_description": _product_description_context,
     "product_video": _product_video_context,
     "related_products": _related_products_context,
     "product_listing": _product_listing_context,
+    "collection_header": _collection_header_context,
+    "collection_products": _collection_products_context,
 }
 
 

@@ -1,0 +1,27 @@
+{% comment %}
+Phase 5 — بردکرامب + عنوان/توضیح/تصویرِ کالکشنِ جاری؛ «جاری» همیشه از
+مسیر resolve می‌شود (هرگز یک ID ذخیره‌شده در settings) — غیابِ آن (مثلاً
+صفحه‌ی فهرستِ کالکشن‌ها که «کالکشنِ جاری»ای ندارد) یعنی چیزی رندر
+نمی‌شود، نه crash.
+{% endcomment %}
+{% if collection %}
+<div class="wrap">
+  <div class="breadcrumb">
+    <a href="/">خانه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <a href="{% url 'catalog:collection-index' %}">کالکشن‌ها</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span style="color:var(--ink)">{{ collection.name }}</span>
+  </div>
+
+  <div class="collection-hero" style="display:flex;gap:16px;align-items:center;margin-bottom:20px;flex-wrap:wrap">
+    {% if collection.image %}
+    <img src="{{ collection.image.url }}" alt="{{ collection.name }}" style="width:96px;height:96px;object-fit:cover;border-radius:14px;flex-shrink:0">
+    {% endif %}
+    <div style="min-width:0">
+      <h1 style="margin:0 0 6px">{{ collection.name }}</h1>
+      {% if collection.description %}<p style="color:var(--muted);margin:0;max-width:640px">{{ collection.description }}</p>{% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
