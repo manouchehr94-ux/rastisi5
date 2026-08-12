@@ -23,7 +23,7 @@ document.addEventListener('alpine:init', () => {
 <section class="section" id="sec-amazing">
   <div class="special-wrap">
     <div class="grid g2">
-      {% include "catalog/partials/product_card.html" %}
+      {% include "catalog/partials/product_card.html" with card_settings=settings.card %}
     </div>
     <div class="special-card" x-data="countdown('{{ deadline }}')" x-init="start()">
       <h3>⚡ پیشنهاد شگفت‌انگیز</h3>

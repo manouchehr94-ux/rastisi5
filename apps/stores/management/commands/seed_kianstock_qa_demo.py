@@ -619,7 +619,7 @@ class Command(FashionSeedCommand):
             add("product_section", {
                 "data_source":"collection", "source_id":collection_map[slug].id,
                 "item_limit":10, "display_mode":"carousel", "show_view_all":True,
-                "title":title, "subtitle":"", "card_mode":"default",
+                "title":title, "subtitle":"",
                 "responsive":{"desktop_columns":5,"tablet_columns":3,"mobile_columns":2},
             })
         add("brand_carousel", {"title":"برندهای موجود", "display_mode":"carousel", "show_view_all":False, "brand_ids":[b.id for b in list(brands.values())[:18]]})

@@ -373,6 +373,8 @@ def storefront_section_settings(request, pk):
             raw["destination"] = _extract_destination_raw(request)
         if section.section_key in section_registry.MOTION_AWARE_SECTION_KEYS:
             raw["motion"] = {"style": request.POST.get("motion_style", "none")}
+        if section.section_key in section_registry.CARD_AWARE_SECTION_KEYS:
+            raw["card"] = _extract_card_raw(request)
         try:
             cleaned = definition.validate_settings(raw)
             section.settings = cleaned
@@ -389,6 +391,7 @@ def storefront_section_settings(request, pk):
         # COLUMN_AWARE_SECTION_KEYS) — طبقِ فیکسِ فازِ D؛ به مستندسازیِ
         # section_registry.py مراجعه شود.
         "supports_columns": section.section_key in section_registry.COLUMN_VISUAL_SECTION_KEYS,
+        "supports_card": section.section_key in section_registry.CARD_AWARE_SECTION_KEYS,
     }
     if section.section_key == "product_section":
         context.update(_product_section_picker_context(request, section))
@@ -522,6 +525,23 @@ def _extract_responsive_raw(request, section_key: str) -> dict:
         raw["tablet_columns"] = request.POST.get("tablet_columns")
         raw["mobile_columns"] = request.POST.get("mobile_columns")
     return raw
+
+
+def _extract_card_raw(request) -> dict:
+    """Phase 8 P0-2 — بلوکِ خامِ «ظاهرِ کارتِ محصول» را از POST می‌خواند،
+    فقط برایِ ``CARD_AWARE_SECTION_KEYS``. دقیقاً همان الگویِ
+    ``_extract_responsive_raw``: تیک‌های مثبت («نمایشِ …») مستقیم به
+    کلیدهایِ ``show_*`` تبدیل می‌شوند (بدونِ وارونگیِ منفی، چون خودِ
+    ``validate_card_settings`` هم مثبت است)."""
+    return {
+        "show_brand": request.POST.get("card_show_brand") == "on",
+        "show_price": request.POST.get("card_show_price") == "on",
+        "show_badge": request.POST.get("card_show_badge") == "on",
+        "show_wishlist": request.POST.get("card_show_wishlist") == "on",
+        "show_quick_add": request.POST.get("card_show_quick_add") == "on",
+        "card_border": request.POST.get("card_border") == "on",
+        "image_ratio": request.POST.get("card_image_ratio", "square"),
+    }
 
 
 def _product_section_picker_context(request, section):

@@ -4,9 +4,9 @@
 </div>
 
 {% if products %}
-<div class="grid g3">
+<div class="grid rsec-cols">
   {% for product in products %}
-  {% include "catalog/partials/product_card.html" %}
+  {% include "catalog/partials/product_card.html" with card_settings=card_settings %}
   {% endfor %}
 </div>
 

@@ -21,7 +21,12 @@ html[data-sfb-density="relaxed"] .pcarousel{gap:24px}
 .g2{grid-template-columns:repeat(2,1fr)}
 .pcard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:.2s;display:flex;flex-direction:column;cursor:pointer}
 .pcard:hover{box-shadow:var(--shadow);transform:translateY(-3px);border-color:#ddd2f5}
+.pcard.no-border{border-color:transparent}
+.pcard.no-border:hover{border-color:transparent}
 .pcard .img{position:relative;aspect-ratio:1/1;display:grid;place-items:center;font-size:70px;overflow:hidden}
+/* Phase 8 P0-2 — نسبتِ تصویرِ کارتِ محصول، بستهٔ بسته (مربع/عمودی/افقی) — نه aspect-ratio دلخواه */
+.pcard.ratio-portrait .img{aspect-ratio:3/4}
+.pcard.ratio-landscape .img{aspect-ratio:4/3}
 .pcard .img .emo{transition:transform .3s}
 .pcard:hover .img .emo{transform:scale(1.08)}
 .pcard .img .cover-photo{transition:transform .3s}

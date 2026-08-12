@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from apps.catalog.models import Category, Product, Vendor
 from apps.catalog.services import collection_service
-from apps.storefront_builder.models import StorefrontSection
+from apps.storefront_builder.models import StorefrontPage, StorefrontSection
 from apps.storefront_builder.services import layout_service as svc
 from apps.stores.models import Store, StoreDomain
 
@@ -195,11 +195,15 @@ class ProductSectionColumnRenderingTests(TestCase):
 
     def test_non_column_aware_type_has_no_rsec_cols_class(self):
         """rich_text (column-unaware) نباید کلاسِ rsec-cols بگیرد — این
-        کلاس فقط داخلِ خودِ product_section.html نوشته شده، نه توسطِ
-        wrapper، پس به‌طور طبیعی فقط همان یک نوع را تحت تأثیر قرار
-        می‌دهد."""
+        کلاس فقط داخلِ خودِ templateِ انواعِ عضوِ ``COLUMN_VISUAL_SECTION_KEYS``
+        نوشته شده، نه توسطِ wrapper، پس به‌طور طبیعی فقط همان انواع را
+        تحت تأثیر قرار می‌دهد. Phase 8 P0-2 این مجموعه را به ۶ نوعِ
+        محصولیِ دیگر (newest_products/best_sellers/...) هم گسترش داد، پس
+        این تست باید فقط صفحه‌ی حاویِ همین یک section را بررسی کند — نه
+        کلِ صفحه‌ی اصلیِ پیش‌فرض که حالا آن انواعِ محصولی را هم دارد."""
         draft = svc.get_or_create_draft(self.store)
-        draft.sections.filter(section_key="rich_text").delete()
+        home_page = draft.pages.get(page_type=StorefrontPage.PageType.HOME)
+        home_page.sections.all().delete()
         StorefrontSection.objects.create(
             version=draft, section_key="rich_text", order=999,
             settings={"body_html": "<p>سلام</p>", "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},

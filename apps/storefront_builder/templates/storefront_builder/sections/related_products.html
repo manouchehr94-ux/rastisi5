@@ -3,9 +3,9 @@
 <div class="wrap">
   <div class="section">
     <div class="sec-head"><h2><span class="bar"></span>محصولات مرتبط</h2></div>
-    <div class="grid g4">
+    <div class="grid rsec-cols">
       {% for product in related_products %}
-      {% include "catalog/partials/product_card.html" %}
+      {% include "catalog/partials/product_card.html" with card_settings=settings.card %}
       {% endfor %}
     </div>
   </div>

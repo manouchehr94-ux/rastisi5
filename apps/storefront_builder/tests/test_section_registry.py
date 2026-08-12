@@ -3,9 +3,11 @@ from django.test import TestCase
 from apps.storefront_builder.models import StorefrontPage
 from apps.storefront_builder.section_registry import (
     ALL_PAGE_TYPES,
+    CARD_AWARE_SECTION_KEYS,
     COLUMN_AWARE_SECTION_KEYS,
     COLUMN_VISUAL_SECTION_KEYS,
     DESTINATION_AWARE_SECTION_KEYS,
+    IMAGE_RATIO_CHOICES,
     MOTION_AWARE_SECTION_KEYS,
     MOTION_CHOICES,
     PAGE_TYPE_CART,
@@ -16,12 +18,14 @@ from apps.storefront_builder.section_registry import (
     PAGE_TYPE_SEARCH,
     SECTION_LIBRARY_CATEGORIES,
     SECTION_REGISTRY,
+    CardSettingsError,
     DestinationSettingsError,
     MotionSettingsError,
     NewsletterSettingsError,
     ProductSectionSettingsError,
     ResponsiveSettingsError,
     UnknownSectionTypeError,
+    default_card_settings,
     default_destination_settings,
     default_motion_settings,
     default_responsive_settings,
@@ -30,6 +34,7 @@ from apps.storefront_builder.section_registry import (
     is_valid_section_key,
     list_definitions,
     list_library_groups,
+    validate_card_settings,
     validate_destination_settings,
     validate_motion_settings,
     validate_responsive_settings,
@@ -734,6 +739,89 @@ class MultiBannerColumnLayoutTests(TestCase):
         for key in ("category_grid", "promo_cards", "brand_carousel"):
             self.assertIn(key, COLUMN_AWARE_SECTION_KEYS)
             self.assertNotIn(key, COLUMN_VISUAL_SECTION_KEYS)
+
+
+class CardSettingsTests(TestCase):
+    """Phase 8 P0-2 — بلوکِ مشترکِ «ظاهرِ کارتِ محصول»."""
+
+    def test_default_shows_everything_square(self):
+        defaults = default_card_settings()
+        self.assertEqual(defaults, {
+            "show_brand": True, "show_price": True, "show_badge": True,
+            "show_wishlist": True, "show_quick_add": True, "card_border": True,
+            "image_ratio": "square",
+        })
+
+    def test_none_raw_defaults(self):
+        self.assertEqual(validate_card_settings(None), default_card_settings())
+
+    def test_explicit_false_toggles_are_respected(self):
+        cleaned = validate_card_settings({
+            "show_brand": False, "show_price": False, "show_badge": False,
+            "show_wishlist": False, "show_quick_add": False, "card_border": False,
+        })
+        for key in ("show_brand", "show_price", "show_badge", "show_wishlist", "show_quick_add", "card_border"):
+            self.assertFalse(cleaned[key], key)
+
+    def test_valid_image_ratios_accepted(self):
+        for ratio in IMAGE_RATIO_CHOICES:
+            self.assertEqual(validate_card_settings({"image_ratio": ratio})["image_ratio"], ratio)
+
+    def test_unknown_image_ratio_falls_back_to_square(self):
+        self.assertEqual(validate_card_settings({"image_ratio": "circle"})["image_ratio"], "square")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(CardSettingsError):
+            validate_card_settings("nope")
+
+
+class CardAwareIntegrationTests(TestCase):
+    def test_card_aware_keys_get_card_defaults(self):
+        for key in CARD_AWARE_SECTION_KEYS:
+            defaults = get_definition(key).default_settings()
+            self.assertIn("card", defaults, key)
+            self.assertEqual(defaults["card"], default_card_settings(), key)
+
+    def test_non_card_aware_keys_have_no_card_field(self):
+        for key, definition in SECTION_REGISTRY.items():
+            if key in CARD_AWARE_SECTION_KEYS:
+                continue
+            defaults = definition.default_settings()
+            self.assertNotIn("card", defaults, key)
+
+    def test_card_round_trips(self):
+        definition = get_definition("product_section")
+        cleaned = definition.validate_settings({
+            "data_source": "newest", "card": {"show_brand": False, "image_ratio": "portrait"},
+        })
+        self.assertFalse(cleaned["card"]["show_brand"])
+        self.assertEqual(cleaned["card"]["image_ratio"], "portrait")
+
+    def test_unknown_card_awareness_types_are_the_expected_nine(self):
+        """طبقِ برنامه‌ی پیاده‌سازیِ فاز ۸ — همان ۸ نوعی که واقعاً کارتِ
+        محصول رندر می‌کنند (به‌علاوه‌ی amazing_offers)."""
+        self.assertEqual(CARD_AWARE_SECTION_KEYS, frozenset({
+            "product_section", "featured_products", "newest_products", "best_sellers",
+            "discounted_products", "amazing_offers", "related_products", "product_listing",
+            "collection_products",
+        }))
+
+
+class Phase8ColumnExpansionTests(TestCase):
+    """Phase 8 P0-2 — کنترلِ «تعدادِ ستون‌ها» از ۲ نوع به ۸ نوعِ محصولی
+    گسترش یافت؛ سه نوعِ غیرِمحصولیِ قبلی (category_grid/promo_cards/
+    brand_carousel) عمداً دست‌نخورده باقی می‌مانند (نگاه کنید به
+    MultiBannerColumnLayoutTests بالا)."""
+
+    def test_all_eight_product_listing_types_are_column_visual(self):
+        expected = {
+            "product_section", "multi_banner", "featured_products", "newest_products",
+            "best_sellers", "discounted_products", "related_products", "collection_products",
+            "product_listing",
+        }
+        self.assertEqual(expected, COLUMN_VISUAL_SECTION_KEYS)
+        for key in expected:
+            self.assertIn(key, COLUMN_AWARE_SECTION_KEYS, key)
 
 
 class NewsletterSectionRegistryTests(TestCase):

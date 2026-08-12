@@ -1,6 +1,6 @@
 <section class="section">
   <div class="sec-head"><h2><span class="bar"></span>محصولات تخفیف‌دار</h2></div>
-  <div class="grid g4">
-    {% include "catalog/partials/product_grid.html" with products=products %}
+  <div class="grid rsec-cols">
+    {% include "catalog/partials/product_grid.html" with products=products card_settings=settings.card %}
   </div>
 </section>

@@ -1,5 +1,15 @@
 {% load persian catalog_extras %}
-<a class="pcard" href="{% url 'catalog:product-detail' product.slug %}">
+{% comment %}
+Phase 8 P0-2 — ``card_settings`` (بلوکِ ``settings.card``، از
+``section_registry.validate_card_settings``) کاملاً اختیاری است — وقتی
+include‌کننده آن را پاس نمی‌دهد (مثلاً ``home.html``/``wishlist.html``ی
+قدیمی)، رفتارِ فعلی (همه‌چیز نمایان، نسبتِ مربعی) دقیقاً بدونِ تغییر
+باقی می‌ماند. تبدیلِ صریحِ ``is not False`` (نه فیلترِ ``default``) —
+همان بگ/قراردادِ مستندشده‌ی ``effective_header_config``: فیلترِ
+``default`` مقدارِ صریحِ False را هم falsy می‌گیرد و با True override
+می‌کند.
+{% endcomment %}
+<a class="pcard{% if card_settings.card_border is False %} no-border{% endif %}{% if card_settings.image_ratio == "portrait" %} ratio-portrait{% elif card_settings.image_ratio == "landscape" %} ratio-landscape{% endif %}" href="{% url 'catalog:product-detail' product.slug %}">
   <div class="img" style="background:{{ product.tint|default:'#eceef3' }}">
     {% if product.cover_image %}
     <img class="cover-photo" src="{{ product.cover_image.thumbnail.url|default:product.cover_image.image.url }}"
@@ -8,7 +18,10 @@
     {% else %}
     <span class="emo">{{ product.icon|default:"🛍️" }}</span>
     {% endif %}
+    {% if card_settings.show_wishlist is not False %}
     {% include "customers/partials/wishlist_button.html" %}
+    {% endif %}
+    {% if card_settings.show_badge is not False %}
     <div class="badges">
       {% if product.discount_percent > 0 %}<span class="pill pill-disc">{{ product.discount_percent|fa_number }}٪</span>{% endif %}
       {% if product.tag == "new" %}
@@ -19,6 +32,8 @@
         <span class="pill pill-new" style="background:var(--pink)">حراج</span>
       {% endif %}
     </div>
+    {% endif %}
+    {% if card_settings.show_quick_add is not False %}
     <div class="addbar">
       <button type="button" hx-post="{% url 'cart:add' product.slug %}" hx-vals='{"quantity": 1}' hx-swap="none"
               onclick="event.preventDefault();event.stopPropagation()">
@@ -26,19 +41,24 @@
         افزودن به سبد خرید
       </button>
     </div>
+    {% endif %}
   </div>
   <div class="body">
+    {% if card_settings.show_brand is not False %}
     <div class="brand">{{ product.brand.name|default:"" }}</div>
+    {% endif %}
     <div class="name">{{ product.name }}</div>
     <div class="rate">
       <span class="stars">{{ product.rating|star_rating }}</span>{{ product.rating|fa_number }}
       <span style="opacity:.6">({{ product.reviews_count|fa_number }})</span>
     </div>
+    {% if card_settings.show_price is not False %}
     <div class="price">
       <div class="now">
         {{ product.final_price|toman }}
         {% if product.discount_percent > 0 %}<div class="old">{{ product.price|toman }}</div>{% endif %}
       </div>
     </div>
+    {% endif %}
   </div>
 </a>

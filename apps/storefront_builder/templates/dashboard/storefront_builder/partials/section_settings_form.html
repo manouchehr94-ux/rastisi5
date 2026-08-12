@@ -112,6 +112,7 @@
     <p style="color:var(--muted);font-size:12px;margin:2px 0 0">اگر لینک تعیین کنید، دکمه «مشاهده همه» به‌جای آدرس خودکار به این مقصد می‌رود.</p>
 
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+    {% include "dashboard/storefront_builder/partials/section_card_fields.html" %}
     {% include "dashboard/storefront_builder/partials/section_motion_fields.html" %}
 
     <div style="display:flex;gap:10px;margin-top:16px">
@@ -542,9 +543,16 @@
   {% else %}
   <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
     {% csrf_token %}
+    {% if supports_card %}
+    <p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">این بخش عنوان/محتوای اختصاصی ندارد — نمایش در دستگاه‌ها و ظاهر کارت‌های محصول قابل تنظیم است.</p>
+    {% else %}
     <p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">این بخش تنظیمات محتوایی ندارد — فقط نمایش در دستگاه‌ها قابل تنظیم است.</p>
+    {% endif %}
 
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+    {% if supports_card %}
+    {% include "dashboard/storefront_builder/partials/section_card_fields.html" %}
+    {% endif %}
 
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>

@@ -67,7 +67,7 @@ search مجاز است (همان مسیرِ کوئری/ویو، فقط نوعِ 
         <span id="plpLoading" class="htmx-indicator plp-loading">⏳ در حال بارگذاری...</span>
       </div>
       <div id="product-results" class="plp-results">
-        {% include "catalog/partials/product_list_results.html" %}
+        {% include "catalog/partials/product_list_results.html" with card_settings=settings.card %}
       </div>
     </div>
   </div>

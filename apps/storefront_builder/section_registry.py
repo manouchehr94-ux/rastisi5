@@ -122,8 +122,6 @@ PRODUCT_SECTION_DATA_SOURCES = (
 _SINGLE_REFERENCE_SOURCES = {"collection", "category", "brand"}
 
 PRODUCT_SECTION_DISPLAY_MODES = ("carousel", "grid")
-#: حالتِ کارتِ محصول — enum بسته، مستقل از هر Familyی خاص (تصمیمِ مالک Q-09).
-PRODUCT_SECTION_CARD_MODES = ("default", "campaign")
 
 _PRODUCT_SECTION_MIN_LIMIT = 2
 _PRODUCT_SECTION_MAX_LIMIT = 24
@@ -192,17 +190,6 @@ def _validate_product_section_settings(raw: dict) -> dict:
     title = str(raw.get("title", "")).strip()[:_MAX_PRODUCT_SECTION_TITLE_LENGTH]
     subtitle = str(raw.get("subtitle", "")).strip()[:_MAX_PRODUCT_SECTION_SUBTITLE_LENGTH]
 
-    # حالتِ کارتِ محصول — فقط برایِ Familyهایی معنا دارد که واقعاً بیش از
-    # یک Renderer کارت دارند (تصمیمِ مالک، Q-09: ثابت per-family، با
-    # استثنایِ صریحِ Heritage Premium که دو حالت دارد). این کلید عمداً
-    # عمومی/بی‌نام‌ Familyی خاص است — یک مکانیزمِ توسعه‌پذیر برایِ *هر*
-    # Familyی که در آینده حالتِ دوم اضافه کند، نه شرطِ سخت‌کدشده‌یِ
-    # «اگر Family == heritage_premium». Familyهایی بدونِ حالتِ دوم این
-    # کلید را نادیده می‌گیرند (نگاه کنید به ``FamilyDefinition.product_card_campaign_variant``).
-    card_mode = raw.get("card_mode")
-    if card_mode not in PRODUCT_SECTION_CARD_MODES:
-        card_mode = "default"
-
     # source_id/product_ids فقط برایِ منبعِ متناظرشان معنا دارند — برایِ
     # بقیه همیشه به مقدارِ خنثی (None/[]) بازنشانی می‌شوند تا تنظیماتِ
     # ذخیره‌شده هرگز حاویِ ارجاعِ یتیمِ بی‌ربط به data_source فعلی نباشد.
@@ -231,7 +218,6 @@ def _validate_product_section_settings(raw: dict) -> dict:
         "show_view_all": show_view_all,
         "title": title,
         "subtitle": subtitle,
-        "card_mode": card_mode,
     }
 
 
@@ -243,7 +229,6 @@ def _product_section_defaults() -> dict:
         "item_limit": _PRODUCT_SECTION_DEFAULT_LIMIT,
         "display_mode": "carousel",
         "show_view_all": True,
-        "card_mode": "default",
         "title": "",
         "subtitle": "",
     }
@@ -262,6 +247,8 @@ def _product_section_defaults() -> dict:
 #: ``COLUMN_VISUAL_SECTION_KEYS`` پایین استفاده کنید.
 COLUMN_AWARE_SECTION_KEYS = frozenset({
     "product_section", "category_grid", "multi_banner", "promo_cards", "brand_carousel",
+    "featured_products", "newest_products", "best_sellers", "discounted_products",
+    "related_products", "product_listing", "collection_products",
 })
 
 #: زیرمجموعه‌یِ ``COLUMN_AWARE_SECTION_KEYS`` که تغییرِ تعدادِ ستون
@@ -277,7 +264,15 @@ COLUMN_AWARE_SECTION_KEYS = frozenset({
 #: شد). وقتی چیدمانِ ``category_grid``/``promo_cards``/``brand_carousel``
 #: هم در آینده بازطراحی شد، همان کلید را از ``COLUMN_AWARE_SECTION_KEYS``
 #: به اینجا هم منتقل کنید.
-COLUMN_VISUAL_SECTION_KEYS = frozenset({"product_section", "multi_banner"})
+#: Phase 8 P0-2 — این ۶ نوعِ دیگر هم اکنون از همان کلاسِ ``.grid.rsec-cols``
+#: استفاده می‌کنند (templateهایِ مربوطه به‌روزرسانی شدند)، پس دیگر
+#: «گمراه‌کننده» نیستند — تعدادِ ستونِ انتخابیِ تاجر واقعاً چیدمانِ
+#: رندرشده را تغییر می‌دهد.
+COLUMN_VISUAL_SECTION_KEYS = frozenset({
+    "product_section", "multi_banner", "featured_products", "newest_products",
+    "best_sellers", "discounted_products", "related_products", "collection_products",
+    "product_listing",
+})
 
 #: مقادیرِ مجازِ enum بستهٔ تعدادِ ستون به‌ازای هر دستگاه — طبقِ بخشِ ۴
 #: مشخصات؛ هیچ عددِ دلخواهی پذیرفته نمی‌شود.
@@ -472,6 +467,69 @@ def _with_destination(section_key: str, validate_fn, default_fn):
     def wrapped_default() -> dict:
         base = default_fn()
         return {**base, "destination": default_destination_settings()}
+
+    return wrapped_validate, wrapped_default
+
+
+#: Phase 8 P0-2 — انواعی که واقعاً کارتِ محصول رندر می‌کنند (مستقیم یا از
+#: طریقِ ``product_grid.html``) — تنها اینجا بلوکِ ``card`` معنا دارد.
+#: عمداً یک allowlist صریح، دقیقاً همان الگویِ بالا (بقیه‌یِ انواع مثلِ
+#: rich_text/hero_banner اصلاً کارتِ محصول ندارند).
+CARD_AWARE_SECTION_KEYS = frozenset({
+    "product_section", "featured_products", "newest_products", "best_sellers",
+    "discounted_products", "amazing_offers", "related_products", "product_listing",
+    "collection_products",
+})
+
+#: enum بستهٔ نسبتِ تصویرِ کارتِ محصول — طبقِ اصلِ «۴-۵ انتخابِ معنادار
+#: به‌جایِ عددِ دلخواهِ CSS» (نه aspect-ratio خام).
+IMAGE_RATIO_CHOICES = ("square", "portrait", "landscape")
+
+_CARD_TOGGLE_FIELDS = ("show_brand", "show_price", "show_badge", "show_wishlist", "show_quick_add", "card_border")
+
+
+class CardSettingsError(ValueError):
+    """شکلِ خامِ بلوکِ ``card`` نامعتبر است — پیامِ فارسیِ قابل‌نمایشِ مستقیم به تاجر."""
+
+
+def validate_card_settings(raw) -> dict:
+    """قراردادِ مشترکِ «نمایشِ کارتِ محصول» — غیابِ کلیدِ ``card`` (سکشن‌هایِ
+    از‌قبل‌موجود) دقیقاً هم‌ارزِ همه‌چیز-نمایان/نسبتِ مربعی است — رفتارِ
+    فعلیِ بدونِ تغییر، بدونِ Migration."""
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise CardSettingsError("تنظیماتِ کارتِ محصول باید یک شیء باشد")
+
+    cleaned = {field: bool(raw.get(field, True)) for field in _CARD_TOGGLE_FIELDS}
+    ratio = raw.get("image_ratio")
+    cleaned["image_ratio"] = ratio if ratio in IMAGE_RATIO_CHOICES else "square"
+    return cleaned
+
+
+def default_card_settings() -> dict:
+    return validate_card_settings(None)
+
+
+def _with_card(section_key: str, validate_fn, default_fn):
+    """هر جفتِ (validate_settings, default_settings) موجود را با پشتیبانیِ
+    بلوکِ ``card`` می‌پوشاند — فقط برایِ ``CARD_AWARE_SECTION_KEYS``. دقیقاً
+    همان الگویِ ``_with_responsive``/``_with_destination``/``_with_motion``."""
+    if section_key not in CARD_AWARE_SECTION_KEYS:
+        return validate_fn, default_fn
+
+    def wrapped_validate(raw: dict) -> dict:
+        if not isinstance(raw, dict):
+            return validate_fn(raw)
+        card_raw = raw.get("card")
+        base_raw = {k: v for k, v in raw.items() if k != "card"}
+        cleaned = validate_fn(base_raw)
+        cleaned["card"] = validate_card_settings(card_raw)
+        return cleaned
+
+    def wrapped_default() -> dict:
+        base = default_fn()
+        return {**base, "card": default_card_settings()}
 
     return wrapped_validate, wrapped_default
 
@@ -1135,6 +1193,7 @@ def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionD
         validate_fn, default_fn = _with_destination(key, definition.validate_settings, definition.default_settings)
         validate_fn, default_fn = _with_responsive(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_motion(key, validate_fn, default_fn)
+        validate_fn, default_fn = _with_card(key, validate_fn, default_fn)
         finalized[key] = dataclasses.replace(
             definition, validate_settings=validate_fn, default_settings=default_fn, has_settings_form=True,
         )
