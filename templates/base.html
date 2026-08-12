@@ -1,6 +1,5 @@
 {% load static persian %}<!DOCTYPE html>
 <html lang="fa" dir="rtl"
-      data-sfb-family="{{ SHOP_FAMILY_SLUG|default:'' }}"
       data-sfb-template="{{ SHOP_TEMPLATE_SLUG|default:'modern' }}"
       data-sfb-density="{{ SHOP_DENSITY|default:'normal' }}"
       data-sfb-motion="{{ SHOP_MOTION|default:'subtle' }}"
@@ -30,14 +29,6 @@
 <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
 <link rel="stylesheet" href="{% static 'css/base.css' %}">
 <link rel="stylesheet" href="{% static 'css/layout.css' %}">
-{% if SHOP_FAMILY %}
-{% comment %}
-CSS اختصاصیِ Family — فقط توکن‌های DOM را کامل نمی‌کند، بلکه چیدمانِ
-واقعاً متفاوتِ هدر/هیرو/دسته‌بندی/کارت/فوتر همین خانواده را می‌سازد
-(تصمیمِ مالک Q-01: «تفاوت قالب‌ها نباید فقط رنگ/فونت/رادیوس باشد»).
-{% endcomment %}
-<link rel="stylesheet" href="{% static 'css/families/'|add:SHOP_FAMILY.slug|add:'.css' %}">
-{% endif %}
 {% block extra_css %}{% endblock %}
 <script src="{% static 'js/htmx.min.js' %}" defer></script>
 <script src="{% static 'js/alpine.min.js' %}" defer></script>
