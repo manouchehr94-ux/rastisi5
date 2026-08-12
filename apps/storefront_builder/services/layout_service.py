@@ -95,6 +95,54 @@ def _validate_shell_component_responsive(raw, allowed_keys: list[str]) -> dict:
     return cleaned
 
 
+#: Phase 8 P0-3 — انواعِ مجازِ بلوکِ اختیاریِ هدر؛ allowlist صریح، دقیقاً
+#: همان الگویِ section_registry (هیچ نوعِ دلخواه/آزادِ دیگری پذیرفته
+#: نمی‌شود). ``phone``/``social`` دوباره از داده‌ی هویتِ زنده‌یِ موجودِ
+#: فروشگاه می‌خوانند (``SHOP_CONTACT_PHONE``/``SOCIAL_LINKS_HEADER`` —
+#: از پیش در context processorها موجود بودند، بدونِ مصرف‌کننده)، نه
+#: یک کپیِ تازه‌یِ آن داده در پیکربندیِ Draft.
+HEADER_EXTRA_BLOCK_TYPES = ("phone", "social", "cta", "spacer")
+_MAX_HEADER_EXTRA_BLOCKS = 6
+_MAX_HEADER_CTA_LABEL_LENGTH = 30
+
+
+class HeaderBlockError(Exception):
+    """شکلِ خامِ یک بلوکِ اختیاریِ هدر نامعتبر است."""
+
+
+def _validate_header_extra_blocks(raw) -> list[dict]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise HeaderBlockError("فهرستِ بلوک‌هایِ هدر نامعتبر است")
+    if len(raw) > _MAX_HEADER_EXTRA_BLOCKS:
+        raise HeaderBlockError(f"حداکثر {_MAX_HEADER_EXTRA_BLOCKS} بلوکِ اضافی در هدر مجاز است")
+
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    from apps.content.models import validate_external_url
+
+    cleaned = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            raise HeaderBlockError("شکلِ یکی از بلوک‌هایِ هدر نامعتبر است")
+        block_type = entry.get("type")
+        if block_type not in HEADER_EXTRA_BLOCK_TYPES:
+            raise HeaderBlockError("نوعِ یکی از بلوک‌هایِ هدر نامعتبر است")
+        block = {"type": block_type}
+        if block_type == "cta":
+            block["label"] = str(entry.get("label", "")).strip()[:_MAX_HEADER_CTA_LABEL_LENGTH]
+            url = str(entry.get("url", "")).strip()
+            if url:
+                try:
+                    validate_external_url(url)
+                except DjangoValidationError as exc:
+                    raise HeaderBlockError("; ".join(exc.messages)) from exc
+            block["url"] = url
+        cleaned.append(block)
+    return cleaned
+
+
 def validate_header_config(config: dict) -> dict:
     """پیکربندی خام هدر (خروجی فرم ادیتور) را اعتبارسنجی و پاک‌سازی می‌کند.
 
@@ -126,6 +174,11 @@ def validate_header_config(config: dict) -> dict:
     cleaned["responsive"] = _validate_shell_component_responsive(
         config.get("responsive"), HEADER_RESPONSIVE_AWARE_KEYS,
     )
+
+    try:
+        cleaned["extra_blocks"] = _validate_header_extra_blocks(config.get("extra_blocks"))
+    except HeaderBlockError as exc:
+        raise HeaderConfigValidationError(str(exc)) from exc
 
     if not cleaned["show_cart"]:
         raise HeaderConfigValidationError(

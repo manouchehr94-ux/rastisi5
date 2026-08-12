@@ -57,9 +57,14 @@ HEADER_RESPONSIVE_DEFAULTS = {
     key: {"hide_on_tablet": False, "hide_on_mobile": False} for key in HEADER_RESPONSIVE_AWARE_KEYS
 }
 
+#: Phase 8 P0-3 — بلوک‌هایِ اختیاریِ قابل‌افزودن/حذف/بازچینیِ ردیفِ اصلیِ
+#: هدر (تلفن/شبکه‌ی اجتماعی/دکمه‌ی CTA/فاصله) — علاوه بر ۴ آیکونِ ثابتِ
+#: بالا (جستجو/حساب/علاقه‌مندی/سبد)، نه جایگزینِ آن‌ها. هر مورد یک
+#: دیکشنری با کلیدِ ``type`` (از ``HEADER_EXTRA_BLOCK_TYPES`` در
+#: layout_service.py) است؛ ``cta`` علاوه‌بر آن ``label``/``url`` هم دارد.
 HEADER_CONFIG_DEFAULTS = (
     {f: True for f in HEADER_TOGGLE_FIELDS}
-    | {"announcement_text": "", "responsive": HEADER_RESPONSIVE_DEFAULTS}
+    | {"announcement_text": "", "responsive": HEADER_RESPONSIVE_DEFAULTS, "extra_blocks": []}
 )
 
 FOOTER_TOGGLE_FIELDS = [

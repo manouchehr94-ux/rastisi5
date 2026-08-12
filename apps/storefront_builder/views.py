@@ -961,6 +961,24 @@ def _extract_shell_responsive_raw(request, keys: list[str]) -> dict:
     }
 
 
+def _extract_header_extra_blocks_raw(request) -> list[dict]:
+    """Phase 8 P0-3 — بلوک‌هایِ اختیاریِ هدر (تلفن/شبکه‌ی اجتماعی/CTA/
+    فاصله) را از سه فهرستِ POSTِ موازی می‌خواند — دقیقاً همان الگویِ
+    itemRepeaterFormِ از‌قبل‌موجود (FAQ/نظراتِ مشتریان، ``editor.html``):
+    ترتیبِ سه فهرست، ترتیبِ بلوک‌هاست."""
+    types = request.POST.getlist("block_type")
+    labels = request.POST.getlist("block_label")
+    urls = request.POST.getlist("block_url")
+    blocks = []
+    for i, block_type in enumerate(types):
+        block = {"type": block_type}
+        if block_type == "cta":
+            block["label"] = labels[i] if i < len(labels) else ""
+            block["url"] = urls[i] if i < len(urls) else ""
+        blocks.append(block)
+    return blocks
+
+
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_header_editor(request):
@@ -971,6 +989,7 @@ def storefront_header_editor(request):
         raw = {field: request.POST.get(field) == "on" for field in HEADER_TOGGLE_FIELDS}
         raw["announcement_text"] = request.POST.get("announcement_text", "")
         raw["responsive"] = _extract_shell_responsive_raw(request, HEADER_RESPONSIVE_AWARE_KEYS)
+        raw["extra_blocks"] = _extract_header_extra_blocks_raw(request)
         try:
             config = layout_service.validate_header_config(raw)
         except layout_service.HeaderConfigValidationError as exc:

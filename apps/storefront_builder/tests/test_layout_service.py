@@ -379,6 +379,66 @@ class ValidateHeaderConfigTests(TestCase):
         self.assertNotIn("not_a_real_component", cleaned["responsive"])
 
 
+class HeaderExtraBlocksTests(TestCase):
+    """Phase 8 P0-3 — بلوک‌هایِ اختیاریِ ردیفِ اصلیِ هدر (تلفن/شبکه‌ی
+    اجتماعی/CTA/فاصله)."""
+
+    def test_default_is_empty(self):
+        cleaned = svc.validate_header_config({"show_cart": True})
+        self.assertEqual(cleaned["extra_blocks"], [])
+
+    def test_valid_types_accepted_in_order(self):
+        cleaned = svc.validate_header_config({
+            "show_cart": True,
+            "extra_blocks": [{"type": "phone"}, {"type": "spacer"}, {"type": "social"}],
+        })
+        self.assertEqual([b["type"] for b in cleaned["extra_blocks"]], ["phone", "spacer", "social"])
+
+    def test_cta_requires_no_hard_url_but_stores_label_and_url(self):
+        cleaned = svc.validate_header_config({
+            "show_cart": True,
+            "extra_blocks": [{"type": "cta", "label": "خرید کنید", "url": "https://example.com/sale"}],
+        })
+        block = cleaned["extra_blocks"][0]
+        self.assertEqual(block["label"], "خرید کنید")
+        self.assertEqual(block["url"], "https://example.com/sale")
+
+    def test_cta_with_unsafe_url_rejected(self):
+        with self.assertRaises(svc.HeaderConfigValidationError):
+            svc.validate_header_config({
+                "show_cart": True,
+                "extra_blocks": [{"type": "cta", "label": "کلیک", "url": "javascript:alert(1)"}],
+            })
+
+    def test_cta_label_truncated(self):
+        cleaned = svc.validate_header_config({
+            "show_cart": True,
+            "extra_blocks": [{"type": "cta", "label": "ا" * 100, "url": ""}],
+        })
+        self.assertEqual(len(cleaned["extra_blocks"][0]["label"]), 30)
+
+    def test_unknown_block_type_rejected(self):
+        with self.assertRaises(svc.HeaderConfigValidationError):
+            svc.validate_header_config({"show_cart": True, "extra_blocks": [{"type": "not_a_real_block"}]})
+
+    def test_non_list_rejected(self):
+        with self.assertRaises(svc.HeaderConfigValidationError):
+            svc.validate_header_config({"show_cart": True, "extra_blocks": "nope"})
+
+    def test_too_many_blocks_rejected(self):
+        with self.assertRaises(svc.HeaderConfigValidationError):
+            svc.validate_header_config({
+                "show_cart": True,
+                "extra_blocks": [{"type": "spacer"}] * 7,
+            })
+
+    def test_non_cta_blocks_have_no_label_or_url_keys(self):
+        cleaned = svc.validate_header_config({"show_cart": True, "extra_blocks": [{"type": "phone"}]})
+        block = cleaned["extra_blocks"][0]
+        self.assertNotIn("label", block)
+        self.assertNotIn("url", block)
+
+
 class ValidateFooterConfigTests(TestCase):
     """A2 — validate_footer_config: حداقل یک بخش فعال، طبق تصمیم محصولی
     این فاز (مستند در layout_service.validate_footer_config)."""

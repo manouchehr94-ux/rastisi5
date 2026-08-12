@@ -59,6 +59,24 @@ touched from Preview) — everything else (mega-menu, categories) is identical.
   </div>
   {% endif %}
   <div class="h-actions">
+    {% for block in hc.extra_blocks %}
+    {% if block.type == "phone" and SHOP_CONTACT_PHONE %}
+    <a class="h-btn sfb-header-block-phone" href="tel:{{ SHOP_CONTACT_PHONE }}" title="تماس با فروشگاه" dir="ltr">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.362 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+      <span>{{ SHOP_CONTACT_PHONE }}</span>
+    </a>
+    {% elif block.type == "social" and SOCIAL_LINKS_HEADER %}
+    <div class="sfb-header-block-social" style="display:flex;gap:8px;align-items:center">
+      {% for slink in SOCIAL_LINKS_HEADER %}
+      <a class="h-btn" href="{{ slink.url }}" aria-label="{{ slink.title }}" target="_blank" rel="noopener noreferrer">{% include "partials/social_icon.html" with icon=slink.effective_icon_name %}</a>
+      {% endfor %}
+    </div>
+    {% elif block.type == "cta" and block.url %}
+    <a class="btn btn-primary sfb-header-block-cta" href="{{ block.url }}" target="_blank" rel="noopener noreferrer">{{ block.label|default:"مشاهده" }}</a>
+    {% elif block.type == "spacer" %}
+    <span class="sfb-header-block-spacer" style="flex:1"></span>
+    {% endif %}
+    {% endfor %}
     {% if hc.show_account %}
     <div class="sfb-shell-inline" {% if rc.show_account.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_account.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
     {% if is_live_storefront %}
