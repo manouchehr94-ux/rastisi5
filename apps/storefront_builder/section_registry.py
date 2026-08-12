@@ -534,6 +534,68 @@ def _with_card(section_key: str, validate_fn, default_fn):
     return wrapped_validate, wrapped_default
 
 
+#: Phase 8 P0-5 — انواعی که «عرضِ محتوا» برایشان معنایِ بصریِ روشنی
+#: دارد (بلوک‌هایِ تصویری/بنری کاملاً عرض‌گیر) — یک allowlist صریح،
+#: دقیقاً همان الگویِ بالا.
+LAYOUT_WIDTH_AWARE_SECTION_KEYS = frozenset({
+    "hero_banner", "image_slider", "image_text", "single_banner", "multi_banner",
+})
+#: زیرمجموعه‌ای از بالا که «ارتفاع» هم برایشان معنا دارد — فقط
+#: اسلایدرها (ارتفاعِ ثابتِ ``.hero-inner``)؛ برایِ بقیه (image_text/
+#: بنرها) ارتفاع یک مفهومِ محتوامحورِ متغیر است، نه یک بلوکِ با
+#: ارتفاعِ ثابتِ قابلِ‌تنظیم — نمایشِ این کنترل برایِ آن‌ها گمراه‌کننده
+#: بود (دقیقاً همان درسِ ``COLUMN_VISUAL_SECTION_KEYS`` در بالا).
+LAYOUT_HEIGHT_AWARE_SECTION_KEYS = frozenset({"hero_banner", "image_slider"})
+
+CONTENT_WIDTH_CHOICES = ("narrow", "standard", "full")
+HEIGHT_CHOICES = ("compact", "standard", "tall")
+
+
+class LayoutSettingsError(ValueError):
+    """شکلِ خامِ بلوکِ ``layout`` نامعتبر است."""
+
+
+def validate_layout_settings(raw, *, supports_height: bool) -> dict:
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise LayoutSettingsError("تنظیماتِ چیدمان باید یک شیء باشد")
+    width = raw.get("content_width")
+    cleaned = {"content_width": width if width in CONTENT_WIDTH_CHOICES else "standard"}
+    if supports_height:
+        height = raw.get("height")
+        cleaned["height"] = height if height in HEIGHT_CHOICES else "standard"
+    return cleaned
+
+
+def default_layout_settings(*, supports_height: bool) -> dict:
+    return validate_layout_settings(None, supports_height=supports_height)
+
+
+def _with_layout(section_key: str, validate_fn, default_fn):
+    """هر جفتِ (validate_settings, default_settings) موجود را با پشتیبانیِ
+    بلوکِ ``layout`` می‌پوشاند — فقط برایِ ``LAYOUT_WIDTH_AWARE_SECTION_KEYS``.
+    دقیقاً همان الگویِ ``_with_card``/``_with_responsive`` بالا."""
+    if section_key not in LAYOUT_WIDTH_AWARE_SECTION_KEYS:
+        return validate_fn, default_fn
+    supports_height = section_key in LAYOUT_HEIGHT_AWARE_SECTION_KEYS
+
+    def wrapped_validate(raw: dict) -> dict:
+        if not isinstance(raw, dict):
+            return validate_fn(raw)
+        layout_raw = raw.get("layout")
+        base_raw = {k: v for k, v in raw.items() if k != "layout"}
+        cleaned = validate_fn(base_raw)
+        cleaned["layout"] = validate_layout_settings(layout_raw, supports_height=supports_height)
+        return cleaned
+
+    def wrapped_default() -> dict:
+        base = default_fn()
+        return {**base, "layout": default_layout_settings(supports_height=supports_height)}
+
+    return wrapped_validate, wrapped_default
+
+
 #: انواعی که یک بلوکِ «حرکت» (Phase 3: کتابخانه‌ی بلوک‌هایِ صفحه‌ی
 #: اصلی) دارند — جلوه‌ی ورود/hover که کاملاً config-محور است (CSS در
 #: storefront_builder.css)، نه کدِ Renderer/family. عمداً یک allowlist
@@ -1194,6 +1256,7 @@ def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionD
         validate_fn, default_fn = _with_responsive(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_motion(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_card(key, validate_fn, default_fn)
+        validate_fn, default_fn = _with_layout(key, validate_fn, default_fn)
         finalized[key] = dataclasses.replace(
             definition, validate_settings=validate_fn, default_settings=default_fn, has_settings_form=True,
         )

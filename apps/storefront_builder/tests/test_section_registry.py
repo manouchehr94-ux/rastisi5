@@ -6,8 +6,12 @@ from apps.storefront_builder.section_registry import (
     CARD_AWARE_SECTION_KEYS,
     COLUMN_AWARE_SECTION_KEYS,
     COLUMN_VISUAL_SECTION_KEYS,
+    CONTENT_WIDTH_CHOICES,
     DESTINATION_AWARE_SECTION_KEYS,
+    HEIGHT_CHOICES,
     IMAGE_RATIO_CHOICES,
+    LAYOUT_HEIGHT_AWARE_SECTION_KEYS,
+    LAYOUT_WIDTH_AWARE_SECTION_KEYS,
     MOTION_AWARE_SECTION_KEYS,
     MOTION_CHOICES,
     PAGE_TYPE_CART,
@@ -20,6 +24,7 @@ from apps.storefront_builder.section_registry import (
     SECTION_REGISTRY,
     CardSettingsError,
     DestinationSettingsError,
+    LayoutSettingsError,
     MotionSettingsError,
     NewsletterSettingsError,
     ProductSectionSettingsError,
@@ -27,6 +32,7 @@ from apps.storefront_builder.section_registry import (
     UnknownSectionTypeError,
     default_card_settings,
     default_destination_settings,
+    default_layout_settings,
     default_motion_settings,
     default_responsive_settings,
     get_definition,
@@ -36,6 +42,7 @@ from apps.storefront_builder.section_registry import (
     list_library_groups,
     validate_card_settings,
     validate_destination_settings,
+    validate_layout_settings,
     validate_motion_settings,
     validate_responsive_settings,
 )
@@ -822,6 +829,74 @@ class Phase8ColumnExpansionTests(TestCase):
         self.assertEqual(expected, COLUMN_VISUAL_SECTION_KEYS)
         for key in expected:
             self.assertIn(key, COLUMN_AWARE_SECTION_KEYS, key)
+
+
+class LayoutSettingsTests(TestCase):
+    """Phase 8 P0-5 — بلوکِ مشترکِ «اندازه‌ی بخش» (عرض/ارتفاع)."""
+
+    def test_default_is_standard(self):
+        self.assertEqual(
+            default_layout_settings(supports_height=True),
+            {"content_width": "standard", "height": "standard"},
+        )
+        self.assertEqual(
+            default_layout_settings(supports_height=False),
+            {"content_width": "standard"},
+        )
+
+    def test_none_raw_defaults(self):
+        self.assertEqual(validate_layout_settings(None, supports_height=True), default_layout_settings(supports_height=True))
+
+    def test_valid_widths_accepted(self):
+        for width in CONTENT_WIDTH_CHOICES:
+            self.assertEqual(
+                validate_layout_settings({"content_width": width}, supports_height=False)["content_width"], width,
+            )
+
+    def test_valid_heights_accepted(self):
+        for height in HEIGHT_CHOICES:
+            self.assertEqual(
+                validate_layout_settings({"height": height}, supports_height=True)["height"], height,
+            )
+
+    def test_unknown_width_falls_back_to_standard(self):
+        self.assertEqual(
+            validate_layout_settings({"content_width": "huge"}, supports_height=False)["content_width"], "standard",
+        )
+
+    def test_height_absent_when_not_supported(self):
+        cleaned = validate_layout_settings({"height": "tall"}, supports_height=False)
+        self.assertNotIn("height", cleaned)
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(LayoutSettingsError):
+            validate_layout_settings("nope", supports_height=True)
+
+
+class LayoutAwareIntegrationTests(TestCase):
+    def test_width_aware_keys_get_layout_defaults(self):
+        for key in LAYOUT_WIDTH_AWARE_SECTION_KEYS:
+            defaults = get_definition(key).default_settings()
+            self.assertIn("layout", defaults, key)
+            self.assertEqual(defaults["layout"]["content_width"], "standard", key)
+            self.assertEqual("height" in defaults["layout"], key in LAYOUT_HEIGHT_AWARE_SECTION_KEYS, key)
+
+    def test_non_width_aware_keys_have_no_layout_field(self):
+        for key, definition in SECTION_REGISTRY.items():
+            if key in LAYOUT_WIDTH_AWARE_SECTION_KEYS:
+                continue
+            defaults = definition.default_settings()
+            self.assertNotIn("layout", defaults, key)
+
+    def test_height_only_aware_for_hero_and_slider(self):
+        self.assertEqual(LAYOUT_HEIGHT_AWARE_SECTION_KEYS, frozenset({"hero_banner", "image_slider"}))
+        self.assertTrue(LAYOUT_HEIGHT_AWARE_SECTION_KEYS.issubset(LAYOUT_WIDTH_AWARE_SECTION_KEYS))
+
+    def test_layout_round_trips(self):
+        definition = get_definition("image_text")
+        cleaned = definition.validate_settings({"layout": {"content_width": "full"}})
+        self.assertEqual(cleaned["layout"]["content_width"], "full")
+        self.assertNotIn("height", cleaned["layout"])
 
 
 class NewsletterSectionRegistryTests(TestCase):

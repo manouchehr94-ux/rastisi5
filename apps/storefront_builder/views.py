@@ -375,6 +375,8 @@ def storefront_section_settings(request, pk):
             raw["motion"] = {"style": request.POST.get("motion_style", "none")}
         if section.section_key in section_registry.CARD_AWARE_SECTION_KEYS:
             raw["card"] = _extract_card_raw(request)
+        if section.section_key in section_registry.LAYOUT_WIDTH_AWARE_SECTION_KEYS:
+            raw["layout"] = _extract_layout_raw(request)
         try:
             cleaned = definition.validate_settings(raw)
             section.settings = cleaned
@@ -392,6 +394,7 @@ def storefront_section_settings(request, pk):
         # section_registry.py مراجعه شود.
         "supports_columns": section.section_key in section_registry.COLUMN_VISUAL_SECTION_KEYS,
         "supports_card": section.section_key in section_registry.CARD_AWARE_SECTION_KEYS,
+        "supports_height": section.section_key in section_registry.LAYOUT_HEIGHT_AWARE_SECTION_KEYS,
     }
     if section.section_key == "product_section":
         context.update(_product_section_picker_context(request, section))
@@ -541,6 +544,18 @@ def _extract_card_raw(request) -> dict:
         "show_quick_add": request.POST.get("card_show_quick_add") == "on",
         "card_border": request.POST.get("card_border") == "on",
         "image_ratio": request.POST.get("card_image_ratio", "square"),
+    }
+
+
+def _extract_layout_raw(request) -> dict:
+    """Phase 8 P0-5 — بلوکِ خامِ «اندازه‌ی بخش» (عرض/ارتفاع) را از POST
+    می‌خواند، فقط برایِ ``LAYOUT_WIDTH_AWARE_SECTION_KEYS``. کلیدِ
+    ``height`` حتی برایِ انواعی که ارتفاع پشتیبانی نمی‌شود بی‌ضرر
+    فرستاده می‌شود — ``validate_layout_settings`` آن را بر اساسِ
+    ``supports_height`` نادیده می‌گیرد."""
+    return {
+        "content_width": request.POST.get("layout_content_width", "standard"),
+        "height": request.POST.get("layout_height", "standard"),
     }
 
 

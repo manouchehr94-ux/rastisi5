@@ -1,0 +1,23 @@
+<details style="margin-top:6px">
+  <summary style="cursor:pointer;font-size:13px;color:var(--muted)">اندازه بخش</summary>
+  <div style="margin-top:10px">
+    <div class="form-group">
+      <label>عرض محتوا</label>
+      <select name="layout_content_width" class="form-select">
+        <option value="narrow" {% if section.settings.layout.content_width == "narrow" %}selected{% endif %}>باریک</option>
+        <option value="standard" {% if section.settings.layout.content_width != "narrow" and section.settings.layout.content_width != "full" %}selected{% endif %}>استاندارد</option>
+        <option value="full" {% if section.settings.layout.content_width == "full" %}selected{% endif %}>تمام‌عرض</option>
+      </select>
+    </div>
+    {% if supports_height %}
+    <div class="form-group">
+      <label>ارتفاع</label>
+      <select name="layout_height" class="form-select">
+        <option value="compact" {% if section.settings.layout.height == "compact" %}selected{% endif %}>کوتاه</option>
+        <option value="standard" {% if section.settings.layout.height != "compact" and section.settings.layout.height != "tall" %}selected{% endif %}>استاندارد</option>
+        <option value="tall" {% if section.settings.layout.height == "tall" %}selected{% endif %}>بلند</option>
+      </select>
+    </div>
+    {% endif %}
+  </div>
+</details>

@@ -150,6 +150,23 @@ html[data-sfb-button-style="soft"] .btn-primary:hover{background:var(--violet-so
   .rsec[data-hide-mobile]{display:none}
 }
 
+/* ===== عرض/ارتفاعِ محتوا (Phase 8 P0-5) — بلوکِ settings.layout، فقط
+   برایِ LAYOUT_WIDTH_AWARE_SECTION_KEYS/LAYOUT_HEIGHT_AWARE_SECTION_KEYS
+   (section_registry.py). غیابِ attribute (یا مقدارِ "standard") یعنی
+   دقیقاً رفتارِ فعلی/بدونِ‌تغییر — این قاعده‌ها فقط برایِ حالت‌هایِ
+   صریحاً غیرِ پیش‌فرض نوشته می‌شوند (نگاه کنید به responsive_section_wrapper.html). */
+.rsec[data-width="narrow"] > .section{max-width:760px;margin-inline:auto}
+/* عمداً بدونِ ترفندِ ``100vw``/``50vw`` — آن تکنیک با وجودِ اسکرول‌بارِ
+   عمودی می‌تواند باعثِ سرریزِ افقی شود (دقیقاً همان چیزی که QA مرورگر
+   بررسی می‌کند). به‌جایش فقط پدینگِ افقیِ خودِ ``.wrap`` (که body هیچ
+   پدینگِ دیگری ندارد) خنثی می‌شود — تا لبه‌ی viewport بدونِ نیاز به
+   واحدِ vw، پس بدونِ ریسکِ اسکرول‌بار. */
+.rsec[data-width="full"] > .section{max-width:none;margin-inline:-18px}
+html[data-sfb-density="compact"] .rsec[data-width="full"] > .section{margin-inline:-12px}
+html[data-sfb-density="relaxed"] .rsec[data-width="full"] > .section{margin-inline:-26px}
+.rsec[data-height="compact"] .hero-inner{min-height:200px}
+.rsec[data-height="tall"] .hero-inner{min-height:480px}
+
 /* ===== نمایش در دستگاه‌ها — کامپوننت‌های هدر/فوتر (Phase 4 — Header/Footer
    Composer). همان سه‌بازه‌ی بالا؛ فقط تبلت/موبایل معنا دارد (دسکتاپ
    همیشه خط‌مبناست، نگاه کنید به STOREFRONT_BUILDER_V2_PHASE_4_AUDIT.md).
