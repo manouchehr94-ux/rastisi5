@@ -1,7 +1,9 @@
 """دستور idempotent برای ساختِ یک فروشگاهِ QA/Demo کاملاً جدا (پوشاک) —
-«فروشگاه لباس تستی راستی سی» — برایِ آزمونِ بصری/تعاملیِ شش Familyِ جدید
-(atlas_catalog، ava_fashion، toranj_gifting، sarv_stock، sepidar_handmade،
-zarrin_jewelry) رویِ یک مجموعه‌دادهٔ واقعیِ یکسان.
+«فروشگاه لباس تستی راستی سی» — برایِ آزمونِ بصری/تعاملیِ سیستمِ Layout
+Presetِ V2 (Phase 6) رویِ یک مجموعه‌دادهٔ واقعیِ یکسان. پیش از Phase 7
+این دستور شش Familyِ قدیمی را منتشر می‌کرد؛ با بازنشستگیِ کاملِ سیستمِ
+Family، اکنون یک Layout Preset (``layout_preset_registry``) منتشر
+می‌کند — همان مجموعه‌دادهٔ کاتالوگ/محتوا دست‌نخورده می‌ماند.
 
 فقط برایِ محیطِ توسعه: در ``DEBUG=False`` اجرا نمی‌شود (این دستور دادهٔ
 تستیِ فراوان می‌سازد و هرگز نباید در یک دیتابیسِ Production اجرا شود).
@@ -55,8 +57,8 @@ from apps.content.models import (
     StoryRailItem,
 )
 from apps.core.models import ShopSettings
-from apps.storefront_builder import family_registry
-from apps.storefront_builder.services import bootstrap_service, layout_service
+from apps.storefront_builder import layout_preset_registry
+from apps.storefront_builder.services import layout_service, preset_service
 from apps.stores.hostnames import normalize_admin_subdomain
 from apps.stores.models import Store, StoreDomain, StoreMembership
 
@@ -72,8 +74,8 @@ STORE_CONTACT = {
     "tagline": "پوشاکِ روزمره — دادهٔ QA/آزمونی",
     "description": (
         "این فروشگاه صرفاً یک مجموعه‌دادهٔ آزمایشیِ محلی برایِ آزمونِ بصریِ "
-        "شش Familyِ جدیدِ Storefront Builder است — هیچ داده‌ای در این فروشگاه "
-        "واقعی نیست."
+        "سیستمِ Layout Presetِ Storefront Builder است — هیچ داده‌ای در این "
+        "فروشگاه واقعی نیست."
     ),
     "contact_phone": "09123456789",
     "contact_email": "test-fashion@example.com",
@@ -203,7 +205,7 @@ CONTENT_PAGES = [
      "body": "این یک متنِ آزمایشیِ حریمِ خصوصی است — صرفاً برایِ آزمونِ فروشگاهِ QA."},
 ]
 
-DEFAULT_FAMILY_SLUG = "atlas_catalog"
+DEFAULT_LAYOUT_PRESET_KEY = "editorial_story"
 
 
 def _text_font(size: int):
@@ -246,7 +248,7 @@ def _uploaded_image(*, filename: str, width: int, height: int, bg_hex: str, labe
 class Command(BaseCommand):
     help = (
         "می‌سازد/بازمی‌سازد یک فروشگاهِ QA/Demo کاملاً جدا (پوشاک، «فروشگاه لباس "
-        "تستی راستی سی») برایِ آزمونِ بصریِ شش Familyِ جدیدِ Storefront Builder. "
+        "تستی راستی سی») برایِ آزمونِ بصریِ سیستمِ Layout Presetِ Storefront Builder. "
         "Idempotent، Tenant-scoped، فقط در DEBUG اجرا می‌شود."
     )
 
@@ -263,8 +265,8 @@ class Command(BaseCommand):
             ),
         )
         parser.add_argument(
-            "--family", default=DEFAULT_FAMILY_SLUG,
-            help=f"اسلاگِ Familyی که در پایان منتشر می‌شود (پیش‌فرض: {DEFAULT_FAMILY_SLUG}).",
+            "--preset", default=DEFAULT_LAYOUT_PRESET_KEY,
+            help=f"کلیدِ Layout Presetی که در پایان منتشر می‌شود (پیش‌فرض: {DEFAULT_LAYOUT_PRESET_KEY}).",
         )
 
     def handle(self, *args, **options):
@@ -284,11 +286,11 @@ class Command(BaseCommand):
                 "یا مسیرِ ثبت‌نامِ عادیِ فروشگاه بسازید، سپس دوباره اجرا کنید."
             ) from exc
 
-        family_slug = options["family"]
-        family = family_registry.get_family(family_slug)
-        if family is None:
-            valid = ", ".join(sorted(family_registry.FAMILY_REGISTRY.keys()))
-            raise CommandError(f"Familyِ «{family_slug}» در Registry ثبت نشده. Familyهایِ معتبر: {valid}")
+        preset_key = options["preset"]
+        preset = layout_preset_registry.get_layout_preset(preset_key)
+        if preset is None:
+            valid = ", ".join(sorted(layout_preset_registry.LAYOUT_PRESET_REGISTRY.keys()))
+            raise CommandError(f"Presetِ «{preset_key}» در Registry ثبت نشده. Presetهایِ معتبر: {valid}")
 
         if options["reset"]:
             self._reset(owner_username)
@@ -311,7 +313,7 @@ class Command(BaseCommand):
             story_count = self._seed_story_rail(store, categories, products, collections)
             menu_item_count = self._seed_navigation(store, categories, collections)
             content_page_count = self._seed_content_pages(store)
-            self._seed_builder(store, owner, family)
+            self._seed_builder(store, owner, preset)
 
         self.stdout.write(self.style.SUCCESS(
             "seed_rastisi_fashion_demo با موفقیت اجرا شد:\n"
@@ -328,7 +330,7 @@ class Command(BaseCommand):
             f"  آیتمِ استوری: {story_count}\n"
             f"  آیتمِ منو: {menu_item_count}\n"
             f"  صفحهٔ محتوایی: {content_page_count}\n"
-            f"  Familyِ منتشرشده: {family.slug}\n"
+            f"  Presetِ منتشرشده: {preset.key}\n"
             "  ویدیویِ کالا: SKIPPED — نیازمندِ یک لینکِ خارجیِ واقعیِ یوتیوب/آپارات/"
             "اینستاگرام است (apps.catalog.models.ProductVideo.url)؛ هیچ گزینهٔ محلیِ "
             "کپی‌رایت-ایمن برایِ این مدل وجود ندارد، پس عمداً seed نشد."
@@ -887,7 +889,7 @@ class Command(BaseCommand):
 
     # ------------------------------------------------------------------ Builder lifecycle
 
-    def _seed_builder(self, store: Store, owner, family) -> None:
+    def _seed_builder(self, store: Store, owner, preset) -> None:
         """چیدمانِ Builder را دقیقاً از طریقِ همان سرویس‌هایِ Production
         می‌سازد — هرگز StorefrontSection/StorefrontLayoutVersion را دستی
         نمی‌سازد.
@@ -901,38 +903,33 @@ class Command(BaseCommand):
 
         به‌جایِ آن، این متد ابتدا وضعیتِ *فعلیِ* ``StorefrontLayout`` را
         می‌خواند (بدونِ فراخوانیِ هیچ سرویسِ Rate-Limitedی):
-          * اگر از قبل یک نسخه‌ی منتشرشده وجود دارد که Familyِ آن دقیقاً
-            برابرِ ``family`` است و هیچ Draftِ باقی‌مانده‌ای ندارد — یعنی
+          * اگر از قبل یک نسخه‌ی منتشرشده وجود دارد که Presetِ آن دقیقاً
+            برابرِ ``preset`` است و هیچ Draftِ باقی‌مانده‌ای ندارد — یعنی
             اجرایِ قبلیِ همینِ دستور دقیقاً همین حالت را ساخته — هیچ چیزی
             دوباره فراخوانی نمی‌شود (نه Draft جدید، نه publish جدید).
-          * در غیرِ این صورت (اولین اجرا، یا Familyِ متفاوت، یا Draftِ
+          * در غیرِ این صورت (اولین اجرا، یا Presetِ متفاوت، یا Draftِ
             نصفه‌کارهٔ باقی‌مانده)، دقیقاً همان مسیرِ Production طی می‌شود:
-            ``get_or_create_draft`` → ``validate_appearance_config`` →
-            ``apply_family_default_sections`` → ``publish``.
+            ``get_or_create_draft`` → ``preset_service.apply_preset`` →
+            ``publish``.
         این یعنی یک اجرایِ دومِ کاملاً یکسانِ همینِ دستور، هیچ عملیاتِ
         rate-limited اضافه‌ای مصرف نمی‌کند — دقیقاً همان الزامِ صریحِ کار."""
         layout = layout_service.get_or_create_layout(store)
         if layout.published_version_id and not layout.draft_version_id:
             current_config = layout.published_version.effective_appearance_config()
-            if current_config.get("family_slug") == family.slug:
+            if current_config.get("layout_preset_key") == preset.key:
                 self._log(
                     "StorefrontLayoutVersion", 0,
                     note=(
-                        f"از قبل با Family «{family.slug}» منتشر شده — بدونِ فراخوانیِ "
+                        f"از قبل با Preset «{preset.key}» منتشر شده — بدونِ فراخوانیِ "
                         "دوبارهٔ publish/new_draft (idempotent)"
                     ),
                 )
                 return
 
         draft = layout_service.get_or_create_draft(store, user=owner)
-        cleaned = layout_service.validate_appearance_config({
-            "family_slug": family.slug, "preset_slug": family.default_preset_slug,
-        })
-        draft.appearance_config = cleaned
-        draft.save(update_fields=["appearance_config"])
-        bootstrap_service.apply_family_default_sections(draft, family)
+        preset_service.apply_preset(draft, preset)
         layout_service.publish(store, user=owner)
-        self._log("StorefrontLayoutVersion", 0, note=f"Draft ساخته و با Family «{family.slug}» منتشر شد")
+        self._log("StorefrontLayoutVersion", 0, note=f"Draft ساخته و با Preset «{preset.key}» منتشر شد")
 
     # ------------------------------------------------------------------ Logging
 

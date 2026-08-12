@@ -28,9 +28,9 @@ from apps.content.models import (
     PromotionalBanner, SocialLink, StoryRailItem,
 )
 from apps.core.models import ShopSettings
-from apps.storefront_builder import family_registry, section_registry
+from apps.storefront_builder import section_registry
 from apps.storefront_builder.models import StorefrontSection
-from apps.storefront_builder.services import bootstrap_service, layout_service
+from apps.storefront_builder.services import layout_service
 from apps.stores.hostnames import normalize_admin_subdomain
 from apps.stores.models import Store
 from apps.stores.management.commands.seed_rastisi_fashion_demo import Command as FashionSeedCommand
@@ -42,7 +42,6 @@ User = get_user_model()
 STORE_SLUG = "kianstock-qa"
 STORE_NAME = "کیان استوک"
 STORE_ADMIN_SUBDOMAIN = "kianstock-qa"
-DEFAULT_FAMILY_SLUG = "sarv_stock"
 PUBLIC_PHONE = "09361428775"
 KIDS_PHONE = "09147992815"
 PERFUME_PHONE = "09383850097"
@@ -125,7 +124,6 @@ class Command(FashionSeedCommand):
     def add_arguments(self, parser):
         parser.add_argument("--owner-username", required=True)
         parser.add_argument("--reset", action="store_true")
-        parser.add_argument("--family", default=DEFAULT_FAMILY_SLUG)
 
     def handle(self, *args, **options):
         if not settings.DEBUG:
@@ -134,9 +132,6 @@ class Command(FashionSeedCommand):
             owner = User.objects.get(username=options["owner_username"])
         except User.DoesNotExist as exc:
             raise CommandError("owner-username باید یک کاربر موجود باشد؛ کاربر ناامن خودکار ساخته نمی‌شود.") from exc
-        family = family_registry.get_family(options["family"])
-        if family is None:
-            raise CommandError(f"Family نامعتبر: {options['family']}")
         if options["reset"]:
             self._reset(options["owner_username"])
 
@@ -159,7 +154,7 @@ class Command(FashionSeedCommand):
             menu_count = self._seed_navigation(store, categories)
             social_count = self._seed_social_links(store)
             page_count = self._seed_content_pages(store)
-            self._seed_builder(store, owner, family, categories, brands, collections)
+            self._seed_builder(store, owner, categories, brands, collections)
 
         self.stdout.write(self.style.SUCCESS(
             "seed_kianstock_qa_demo با موفقیت اجرا شد:\n"
@@ -172,7 +167,6 @@ class Command(FashionSeedCommand):
             f"  Collections: {len(collections)}\n"
             f"  Hero/Banner/Story: {hero_count}/{banner_count}/{story_count}\n"
             f"  Menu/Social/Page: {menu_count}/{social_count}/{page_count}\n"
-            f"  Family: {family.slug}\n"
             "  Note: تصاویر و متن‌های بلند سایت مرجع کپی نشده‌اند؛ تصاویر QA محلی synthetic هستند."
         ))
 
@@ -571,20 +565,17 @@ class Command(FashionSeedCommand):
         self._log("ContentPage", count)
         return count
 
-    def _seed_builder(self, store, owner, family, categories, brands, collections):
+    def _seed_builder(self, store, owner, categories, brands, collections):
         layout = layout_service.get_or_create_layout(store)
         marker_title = "تخفیفات شگفت انگیز"
         if layout.published_version_id and not layout.draft_version_id:
-            config = layout.published_version.effective_appearance_config()
             has_marker = layout.published_version.sections.filter(section_key="product_section", settings__title=marker_title).exists()
-            if config.get("family_slug") == family.slug and has_marker:
+            if has_marker:
                 self._log("StorefrontLayoutVersion", 0, note="چیدمان KianStock-QA از قبل منتشر است")
                 return
 
         draft = layout_service.get_or_create_draft(store, user=owner)
         appearance = layout_service.validate_appearance_config({
-            "family_slug": family.slug,
-            "preset_slug": family.default_preset_slug,
             "palette_slug": None,
             "color_overrides": {
                 "primary":"#111111", "secondary":"#3A3A3A", "accent":"#D71920",
@@ -607,8 +598,9 @@ class Command(FashionSeedCommand):
         })
         draft.save(update_fields=["appearance_config","header_config","footer_config","updated_at"])
 
-        # از defaultهای Family شروع کن و سپس همان Draft را به homepage پرتراکم تبدیل کن.
-        bootstrap_service.apply_family_default_sections(draft, family)
+        # هومپیجِ پرتراکمِ QA این فروشگاه کاملاً دستی/صریح ساخته می‌شود
+        # (نه از پیش‌فرضِ یک Preset) — همیشه صفحه‌ی اصلیِ Draft را قبل از
+        # ساختِ ردیف‌های زیر خالی می‌کند.
         draft.sections.all().delete()
 
         order = 0
@@ -644,4 +636,4 @@ class Command(FashionSeedCommand):
         ]})
         add("trust_features", {})
         layout_service.publish(store, user=owner)
-        self._log("StorefrontLayoutVersion", 0, note=f"KianStock-QA با Family «{family.slug}» منتشر شد")
+        self._log("StorefrontLayoutVersion", 0, note="KianStock-QA منتشر شد")

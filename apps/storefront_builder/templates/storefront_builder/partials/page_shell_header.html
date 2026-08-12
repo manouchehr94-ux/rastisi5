@@ -1,4 +1,4 @@
-{% load persian %}{% if SHOP_FAMILY %}{% include SHOP_FAMILY.header_variant %}{% else %}{% comment %}
+{% load persian %}{% comment %}
 Canonical Header/Navigation shell — the single implementation shared by the
 public Storefront (apps/catalog/templates/catalog/home_visual.html) and the
 Builder Preview (apps/storefront_builder/templates/storefront_builder/preview.html).
@@ -168,4 +168,3 @@ touched from Preview) — everything else (mega-menu, categories) is identical.
   </div>
 </nav>
 {% endwith %}
-{% endif %}

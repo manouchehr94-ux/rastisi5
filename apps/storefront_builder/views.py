@@ -77,37 +77,22 @@ def storefront_editor(request):
 
 class _CandidateAppearanceVersion:
     """جای‌گزینِ سبکِ ``StorefrontLayoutVersion`` برایِ پیش‌نمایشِ
-    غیرمخربِ یک Template/Familyِ کاندید (چکپوینتِ «پیش‌نمایشِ قبل از
-    اعمال»، بخشِ ۱۰ بازبینیِ نهایی؛ Family اضافه‌شده طبقِ تصمیمِ مالک
-    Q-01/Q-02) — فقط همان یک متدی را دارد که ``apps.core.context_processors``
-    روی ``request.storefront_appearance_version`` صدا می‌زند
-    (``effective_appearance_config``)، هرگز به دیتابیس نمی‌نویسد.
-    تعویضِ template_slug/family_slug دقیقاً همان معنایی را دارد که
+    غیرمخربِ یک Templateِ کاندید (چکپوینتِ «پیش‌نمایشِ قبل از اعمال»،
+    بخشِ ۱۰ بازبینیِ نهایی) — فقط همان یک متدی را دارد که
+    ``apps.core.context_processors`` روی ``request.storefront_appearance_version``
+    صدا می‌زند (``effective_appearance_config``)، هرگز به دیتابیس
+    نمی‌نویسد. تعویضِ template_slug دقیقاً همان معنایی را دارد که
     ``storefront_appearance_editor`` هنگامِ POSTِ واقعیِ تعویض اعمال
-    می‌کند (فیلدهایِ ساختاری به پیش‌فرض‌هایِ همان Template/Preset
-    بازنشانی می‌شوند) — تا پیش‌نمایش دقیقاً همان چیزی باشد که اعمالِ
-    واقعی تولید می‌کند."""
+    می‌کند (فیلدهایِ ساختاری به پیش‌فرض‌هایِ همان Template بازنشانی
+    می‌شوند) — تا پیش‌نمایش دقیقاً همان چیزی باشد که اعمالِ واقعی تولید
+    می‌کند."""
 
-    def __init__(self, base_config, *, template_slug=None, family_slug=None):
-        from . import appearance_registry, family_registry, preset_registry
+    def __init__(self, base_config, *, template_slug=None):
+        from . import appearance_registry
 
         config = dict(base_config)
-        if family_slug is not None:
-            # پیش‌نمایشِ یک Family کاندید — دقیقاً همان معنایِ پیش‌نمایشِ
-            # Template: Familyِ کاندید + Presetِ پیش‌فرضِ همان Family
-            # اعمال می‌شود، Template به پیش‌فرض بازمی‌گردد (انحصارِ متقابل،
-            # دقیقاً مثلِ ``storefront_appearance_editor``).
-            family = family_registry.get_family(family_slug)
-            config["family_slug"] = family_slug
-            config["template_slug"] = APPEARANCE_CONFIG_DEFAULTS["template_slug"]
-            preset = preset_registry.get_preset(family.default_preset_slug) if family is not None else None
-            if preset is not None:
-                for field in ("font", "radius", "button_radius", "density", "motion", "type_scale"):
-                    config[field] = getattr(preset, field)
-                config["palette_slug"] = preset.default_palette_slug
-        elif template_slug is not None:
+        if template_slug is not None:
             config["template_slug"] = template_slug
-            config["family_slug"] = None
             template = appearance_registry.get_template(template_slug)
             if template is not None:
                 for field in ("font", "radius", "button_radius", "density", "motion", "type_scale"):
@@ -175,7 +160,7 @@ def storefront_preview(request):
     دست‌نخورده باقی می‌ماند."""
     from apps.catalog.models import Category
 
-    from . import appearance_registry, family_registry
+    from . import appearance_registry
 
     store = _resolve_store(request)
     draft = layout_service.get_or_create_draft(store, user=request.user)
@@ -189,20 +174,13 @@ def storefront_preview(request):
     # تنظیماتِ ظاهر باید از همین Draft خوانده شود، نه ShopSettings زنده —
     # نگاه کنید به ``apps.core.context_processors._versioned_colors``.
     #
-    # ``?preview_template=<slug>``/``?preview_family=<slug>`` (چکپوینتِ
-    # «پیش‌نمایشِ غیرمخربِ قالب/خانواده») به مرچنت اجازه می‌دهد ظاهرِ یک
-    # Template/Familyِ دیگر را در همین iframe ببیند **بدونِ** ذخیره‌شدن
-    # روی Draft — فقط همین رندر، هرگز دیتابیس. اسلاگِ نامعتبر/ناشناخته
-    # بی‌صدا نادیده گرفته می‌شود (پیش‌نمایشِ Draftِ واقعی، دقیقاً رفتارِ
-    # قبل). ``preview_family`` بر ``preview_template`` اولویت دارد (هر دو
-    # همزمان در یک URL معنا ندارد)."""
-    preview_family_slug = request.GET.get("preview_family")
+    # ``?preview_template=<slug>`` (چکپوینتِ «پیش‌نمایشِ غیرمخربِ قالب»)
+    # به مرچنت اجازه می‌دهد ظاهرِ یک Templateِ دیگر را در همین iframe
+    # ببیند **بدونِ** ذخیره‌شدن روی Draft — فقط همین رندر، هرگز دیتابیس.
+    # اسلاگِ نامعتبر/ناشناخته بی‌صدا نادیده گرفته می‌شود (پیش‌نمایشِ
+    # Draftِ واقعی، دقیقاً رفتارِ قبل)."""
     preview_template_slug = request.GET.get("preview_template")
-    if preview_family_slug and family_registry.get_family(preview_family_slug) is not None:
-        request.storefront_appearance_version = _CandidateAppearanceVersion(
-            draft.effective_appearance_config(), family_slug=preview_family_slug,
-        )
-    elif preview_template_slug and appearance_registry.get_template(preview_template_slug) is not None:
+    if preview_template_slug and appearance_registry.get_template(preview_template_slug) is not None:
         request.storefront_appearance_version = _CandidateAppearanceVersion(
             draft.effective_appearance_config(), template_slug=preview_template_slug,
         )
@@ -831,87 +809,31 @@ def storefront_appearance_editor(request):
     draft = layout_service.get_or_create_draft(store, user=request.user)
 
     if request.method == "POST":
-        from . import appearance_registry, family_registry, preset_registry
+        from . import appearance_registry
 
         current = draft.effective_appearance_config()
 
         new_template_slug = request.POST.get("template_slug", current["template_slug"])
-        new_family_slug = request.POST.get("family_slug", current.get("family_slug"))
         template_changed = new_template_slug != current.get("template_slug")
-        family_changed = new_family_slug != current.get("family_slug")
-
-        # مشکلِ ۳ (تصمیمِ مالک): تغییرِ Family باید چیدمانِ واقعیِ همان
-        # Family را بارگذاری کند — یعنی Sectionهای صفحه‌ی اصلیِ Draft هم
-        # (نه فقط رنگ/فونت) با پیش‌فرضِ Family جدید جایگزین می‌شوند. این
-        # عملیاتِ مخرب روی چیدمانِ Draft است، پس دقیقاً همان الگویِ
-        # ``storefront_apply_industry_layout``: اگر چیزی برایِ از دست‌دادن
-        # وجود دارد (Draft همین حالا Sectionی دارد)، بدونِ تأییدِ صریح رد
-        # می‌شود — محصولات/دسته‌بندی‌ها/اطلاعاتِ فروشگاه هرگز اینجا لمس
-        # نمی‌شوند (این تابع فقط رویِ ``StorefrontSection`` کار می‌کند).
-        if family_changed and draft.home_page().sections.exists() and request.POST.get("confirm_family_switch") != "1":
-            messages.error(
-                request,
-                "تغییرِ این Family چیدمانِ Sectionهای صفحه‌ی اصلیِ پیش‌نویسِ فعلی را جایگزین می‌کند — "
-                "برای ادامه، تأیید صریح لازم است",
-            )
-            return redirect("dashboard:storefront-builder-editor")
-
-        # Family و Template دو مسیرِ ساختاریِ متقابلاً انحصاری‌اند (تصمیمِ
-        # مالک، Q-01/Q-02): انتخابِ یک Familyِ جدید یعنی جایگزینیِ کاملِ
-        # DOMِ مشترکِ ۱۰ قالبِ قدیمی با Renderer اختصاصیِ همان Family؛
-        # انتخابِ یک Templateِ قدیمی یعنی بازگشت به همان DOMِ مشترک.
-        # انتخابِ صریحِ یکی، دیگری را خودکار به حالتِ پیش‌فرض/خالی
-        # برمی‌گرداند — هرگز هر دو همزمان معنا ندارند.
-        if family_changed:
-            new_family = family_registry.get_family(new_family_slug)
-            new_template_slug = APPEARANCE_CONFIG_DEFAULTS["template_slug"]
-            template_changed = new_template_slug != current.get("template_slug")
-            new_preset_slug = new_family.default_preset_slug if new_family is not None else None
-        else:
-            new_family = None
-            if template_changed:
-                new_family_slug = None
-                new_preset_slug = None
-            else:
-                new_preset_slug = request.POST.get("preset_slug", current.get("preset_slug"))
-        preset_changed = new_preset_slug != current.get("preset_slug")
-        new_preset = (
-            preset_registry.get_preset(new_preset_slug) if (family_changed or preset_changed) else None
-        )
         new_template = appearance_registry.get_template(new_template_slug) if template_changed else None
 
-        # تعویضِ Palette (دستی، یا خودکار از Presetِ پیشنهادیِ Family/Preset
-        # تازه‌انتخاب‌شده) یعنی شروعِ تازه — override هایِ پالتِ قبلی روی
+        # تعویضِ Palette یعنی شروعِ تازه — override هایِ پالتِ قبلی روی
         # پالتِ جدید بی‌معنا/گیج‌کننده‌اند (طبقِ الزامِ صریحِ کار: انتخابِ
-        # پالت یعنی «تمامِ رنگ‌های هماهنگ با هم تغییر کنند»). ترتیبِ
-        # اولویت دقیقاً طبقِ تصمیمِ مالک: Palette صریحاً پُست‌شده > Presetِ
-        # تازه‌انتخاب‌شده > Palette فعلی (بدون تغییر).
+        # پالت یعنی «تمامِ رنگ‌های هماهنگ با هم تغییر کنند»).
         posted_palette_slug = request.POST.get("palette_slug")
-        if posted_palette_slug:
-            new_palette_slug = posted_palette_slug
-        elif new_preset is not None:
-            new_palette_slug = new_preset.default_palette_slug
-        else:
-            new_palette_slug = current.get("palette_slug")
+        new_palette_slug = posted_palette_slug if posted_palette_slug else current.get("palette_slug")
         palette_changed = new_palette_slug != current.get("palette_slug")
         color_overrides = {} if palette_changed else dict(current.get("color_overrides") or {})
 
         def _field(name):
-            # اولویتِ منبعِ فیلدهایِ ساختاری: Presetِ Family (اگر Family/Preset
-            # همین الان تغییر کرده) > Templateِ قدیمی (اگر Template همین
-            # الان تغییر کرده) > مقدارِ پست‌شده > مقدارِ فعلی — دقیقاً همان
-            # منطقی که پیش از این فقط برایِ Template وجود داشت، اکنون با
-            # Preset هم‌سطح شده.
-            if new_preset is not None and hasattr(new_preset, name):
-                return getattr(new_preset, name)
+            # اولویتِ منبعِ فیلدهایِ ساختاری: Templateِ قدیمی (اگر Template
+            # همین الان تغییر کرده) > مقدارِ پست‌شده > مقدارِ فعلی.
             if new_template is not None:
                 return getattr(new_template, name)
             return request.POST.get(name, current[name])
 
         raw = {
             "template_slug": new_template_slug,
-            "family_slug": new_family_slug,
-            "preset_slug": new_preset_slug,
             "palette_slug": new_palette_slug,
             "color_overrides": color_overrides,
             "font": _field("font"),
@@ -921,16 +843,13 @@ def storefront_appearance_editor(request):
             "motion": _field("motion"),
             "type_scale": _field("type_scale"),
             "button_style": _field("button_style"),
-            # رفتارِ تصویر، برخلافِ فیلدهایِ بالا، جزوِ «هویتِ Template/Preset»
-            # نیست (هیچ‌کدام چنین فیلدی ندارند) — همیشه مستقیماً از فرمِ
-            # مرچنت خوانده می‌شود، حتی وقتی تعویضِ Template/Family هم در
-            # همین POST رخ داده باشد.
+            # رفتارِ تصویر — همیشه مستقیماً از فرمِ مرچنت خوانده می‌شود،
+            # حتی وقتی تعویضِ Template هم در همین POST رخ داده باشد
+            # (هیچ Templateای چنین فیلدی ندارد).
             "image_fit": request.POST.get("image_fit", current["image_fit"]),
             "image_hover": request.POST.get("image_hover", current["image_hover"]),
-            # تنظیماتِ مستقلِ تصویرِ کارت — Preset مقدارِ پیش‌فرض را تعیین
-            # می‌کند، مرچنت می‌تواند override کند.
-            "card_image_crossfade": _field("card_image_crossfade") if new_preset is not None and hasattr(new_preset, "card_image_crossfade") else (request.POST.get("card_image_crossfade", "") == "1" if "card_image_crossfade" in request.POST else current.get("card_image_crossfade", False)),
-            "card_image_zoom": _field("card_image_zoom") if new_preset is not None and hasattr(new_preset, "card_image_zoom") else (request.POST.get("card_image_zoom", "") == "1" if "card_image_zoom" in request.POST else current.get("card_image_zoom", True)),
+            "card_image_crossfade": (request.POST.get("card_image_crossfade", "") == "1" if "card_image_crossfade" in request.POST else current.get("card_image_crossfade", False)),
+            "card_image_zoom": (request.POST.get("card_image_zoom", "") == "1" if "card_image_zoom" in request.POST else current.get("card_image_zoom", True)),
         }
         from .models import APPEARANCE_COLOR_KEYS
 
@@ -960,16 +879,10 @@ def storefront_appearance_editor(request):
             return redirect("dashboard:storefront-builder-editor")
         draft.appearance_config = config
         draft.save(update_fields=["appearance_config", "updated_at"])
-        if family_changed and new_family is not None:
-            from .services import bootstrap_service
-
-            bootstrap_service.apply_family_default_sections(draft, new_family)
-            messages.success(request, "تنظیمات ظاهر ذخیره شد و چیدمانِ پیش‌فرضِ همین Family اعمال شد")
-        else:
-            messages.success(request, "تنظیمات ظاهر ذخیره شد")
+        messages.success(request, "تنظیمات ظاهر ذخیره شد")
         return redirect("dashboard:storefront-builder-editor")
 
-    from . import appearance_registry, family_registry, layout_preset_registry, preset_registry
+    from . import appearance_registry, layout_preset_registry
 
     config = draft.effective_appearance_config()
     color_field_labels = [
@@ -977,19 +890,12 @@ def storefront_appearance_editor(request):
         ("background", "پس‌زمینه"), ("surface", "سطح و کارت‌ها"), ("text", "متن اصلی"),
         ("muted", "متن کم‌رنگ"), ("border", "حاشیه‌ها"),
     ]
-    active_family = family_registry.get_family(config.get("family_slug"))
     return render(request, "dashboard/storefront_builder/partials/appearance_panel.html", {
         "draft": draft,
         "config": config,
         "resolved_colors": appearance_registry.resolve_colors(config),
         "palettes": appearance_registry.list_palettes(),
         "templates": appearance_registry.list_templates(),
-        # پنج قالبِ جدید (Family) — طبقِ الزامِ صریحِ مالک (بندِ ۱۲ تصمیمِ
-        # جامع)، در UI به‌سادگی کنارِ ۱۰ Template قدیمی، زیرِ همان عنوانِ
-        # واحدِ «قالب فروشگاه» نمایش داده می‌شوند؛ پیچیدگیِ داخلیِ
-        # Family/Preset/Palette به مرچنت نشان داده نمی‌شود.
-        "families": family_registry.list_families(),
-        "active_family": active_family,
         "font_choices": appearance_registry.FONT_CHOICES,
         "density_choices": appearance_registry.DENSITY_CHOICES,
         "motion_choices": appearance_registry.MOTION_CHOICES,

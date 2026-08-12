@@ -16,7 +16,7 @@
     <button type="button" class="sfb-appearance-card" @click="view = 'templates'">
       <div>
         <span class="sfb-appearance-kicker">قالب فروشگاه</span>
-        <strong>{% if active_family %}{{ active_family.name_fa }}{% else %}{% for t in templates %}{% if t.slug == config.template_slug %}{{ t.name_fa }}{% endif %}{% endfor %}{% endif %}</strong>
+        <strong>{% for t in templates %}{% if t.slug == config.template_slug %}{{ t.name_fa }}{% endif %}{% endfor %}</strong>
       </div>
       <span class="sfb-appearance-action">تغییر قالب ←</span>
     </button>
@@ -115,34 +115,9 @@
   <div x-show="view === 'templates'">
     <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
     <p style="font-size:12.5px;color:var(--muted);margin:8px 0 12px">قبل از اعمال، هر قالب را روی پیش‌نمایش زنده امتحان کنید — چیزی ذخیره نمی‌شود تا خودتان «اعمال قالب» را بزنید.</p>
-    {% if families %}
-    <div class="sfb-template-gallery">
-      {% for f in families %}
-      <div class="sfb-template-card {% if config.family_slug == f.slug %}active{% endif %}">
-        <div class="sfb-template-mini" aria-hidden="true"
-             style="--sfb-mini-primary:{{ f.swatch.0 }};--sfb-mini-accent:{{ f.swatch.1|default:f.swatch.0 }}"><span></span><b></b><i></i></div>
-        <strong>{{ f.name_fa }}</strong>
-        <p style="font-size:12px;margin:6px 0 0">{{ f.description_fa }}</p>
-        <div class="sfb-appearance-stripe">{% for c in f.swatch %}<span style="background:{{ c }}"></span>{% endfor %}</div>
-        <div class="sfb-template-card-actions">
-          <button type="button" class="btn btn-sm"
-                  @click="$dispatch('preview-candidate-family', {slug: '{{ f.slug }}', name: '{{ f.name_fa|escapejs }}'})">پیش‌نمایش</button>
-          <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}"
-                onsubmit="if(!confirm('با انتخابِ این Family، چیدمانِ فعلیِ Sectionهای صفحه‌ی اصلیِ پیش‌نویس با چیدمانِ پیشنهادیِ همین Family جایگزین می‌شود (محصولات، دسته‌بندی‌ها و اطلاعاتِ فروشگاه دست‌نخورده می‌مانند). ادامه می‌دهید؟')){return false;} this.confirm_family_switch.value='1'; return true;">
-            {% csrf_token %}
-            <input type="hidden" name="family_slug" value="{{ f.slug }}">
-            <input type="hidden" name="confirm_family_switch" value="0">
-            <button type="submit" class="btn btn-sm btn-primary">اعمال قالب</button>
-          </form>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    <p style="font-size:11.5px;color:var(--muted);margin:18px 0 8px">قالب‌های پایه (سبک/رنگ روی چیدمانِ فعلی)</p>
-    {% endif %}
     <div class="sfb-template-gallery">
       {% for t in templates %}
-      <div class="sfb-template-card {% if not config.family_slug and config.template_slug == t.slug %}active{% endif %}">
+      <div class="sfb-template-card {% if config.template_slug == t.slug %}active{% endif %}">
         <div class="sfb-template-mini" aria-hidden="true"
              style="--sfb-mini-primary:{{ t.swatch.0 }};--sfb-mini-accent:{{ t.swatch.1|default:t.swatch.0 }}"><span></span><b></b><i></i></div>
         <strong>{{ t.name_fa }}</strong>

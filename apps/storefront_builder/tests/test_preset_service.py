@@ -325,21 +325,6 @@ class PaletteSeparationTests(PresetServiceTestCase):
         self.assertEqual(draft.appearance_config.get("color_overrides"), {"primary": "#123456"})
 
 
-class FamilyCompatibilityTests(PresetServiceTestCase):
-    """۲۷ — اعمالِ Preset مستقل از ``family_slug`` فعلیِ Draft کار می‌کند
-    (کوپلینگِ ۱:۱ با Family عمداً پیاده‌سازی نشده — نگاه کنید به Phase 6
-    Audit، بخشِ «Family compatibility»)."""
-
-    def test_apply_succeeds_regardless_of_current_family_slug(self):
-        draft = svc.get_or_create_draft(self.store)
-        draft.appearance_config = {**draft.effective_appearance_config(), "family_slug": "modern_fashion", "preset_slug": "modern_fashion_default"}
-        draft.save(update_fields=["appearance_config"])
-
-        preset_service.apply_preset(draft, self.preset)  # نباید خطا بدهد
-        draft.refresh_from_db()
-        self.assertEqual(draft.appearance_config.get("family_slug"), "modern_fashion")  # دست‌نخورده
-
-
 class ViewLevelTests(PresetServiceTestCase):
     """۲۴، ۲۵، ۲۶ — احراز هویت، CSRF، کلیدِ نامعتبر."""
 

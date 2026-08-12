@@ -20,15 +20,12 @@ def cart_badge(request):
     if cart is not None:
         cart_count = cart.items.aggregate(total=Sum("quantity"))["total"] or 0
 
-    # تعیینِ حالتِ پیش‌نمایشِ سبد بر اساسِ خانواده‌ی فعال — heritage_premium
-    # به‌صورتِ پیش‌فرض mini_cart دارد، بقیه count_link.
+    # Phase 7: پیش‌تر این پیش‌فرض بر اساسِ Familyِ فعال تعیین می‌شد
+    # (heritage_premium=mini_cart)؛ با بازنشستگیِ سیستمِ Family، پیش‌فرضِ
+    # سراسری همیشه count_link است. حالتِ mini_cart همچنان از طریقِ
+    # پارامترِ ``mode`` در ``cart_preview_partial`` در دسترس می‌ماند
+    # (نگاه کنید به ``apps/cart/views.py::cart_preview_partial``).
     cart_preview_mode = "count_link"
-    appearance_version = getattr(request, "storefront_appearance_version", None)
-    if appearance_version is not None:
-        config = getattr(appearance_version, "effective_appearance_config", lambda: {})()
-        family_slug = config.get("family_slug")
-        if family_slug == "heritage_premium":
-            cart_preview_mode = "mini_cart"
 
     result = {"cart_count": cart_count, "wishlist_count": wishlist_count, "cart_preview_mode": cart_preview_mode}
 

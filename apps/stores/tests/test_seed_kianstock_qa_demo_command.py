@@ -132,14 +132,12 @@ class SeedKianstockQADemoTests(TestCase):
         for item in MenuItem.objects.filter(menu__store=store):
             self.assertNotEqual(item.destination_type, "none", item.title)
 
-    def test_builder_publishes_sarv_with_ten_real_collection_sections(self):
+    def test_builder_publishes_with_ten_real_collection_sections(self):
         self._run()
         store = self._store()
         layout = StorefrontLayout.objects.get(store=store)
         self.assertIsNone(layout.draft_version_id)
         self.assertIsNotNone(layout.published_version_id)
-        config = layout.published_version.effective_appearance_config()
-        self.assertEqual(config["family_slug"], "sarv_stock")
         sections = list(layout.published_version.sections.order_by("order"))
         product_sections = [s for s in sections if s.section_key == "product_section"]
         self.assertEqual(len(product_sections), 10)

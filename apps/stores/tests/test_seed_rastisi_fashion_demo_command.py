@@ -1,5 +1,5 @@
 """Django tests for ``seed_rastisi_fashion_demo`` — the deterministic QA/demo
-Store seeder for the six-family visual-testing dataset.
+Store seeder for the Layout Preset visual-testing dataset.
 
 MEDIA_ROOT is overridden to a temporary directory (same pattern as
 ``apps.core.tests.test_seed_shop.SeedShopCommandTests``) so the generated
@@ -104,9 +104,9 @@ class SafetyGateTests(SeedRastisiFashionDemoCommandTests):
         self.assertFalse(Store.objects.filter(slug=STORE_SLUG).exists())
         self.assertFalse(User.objects.filter(username="does-not-exist-at-all").exists())
 
-    def test_unknown_family_slug_raises(self):
+    def test_unknown_preset_key_raises(self):
         with self.assertRaises(CommandError):
-            self._run("--family", "not_a_real_family")
+            self._run("--preset", "not_a_real_preset")
 
     def test_never_creates_an_insecure_default_user(self):
         """The command must never silently create a user for the requested
@@ -350,31 +350,31 @@ class BuilderLifecycleTests(SeedRastisiFashionDemoCommandTests):
         self.assertIsNotNone(layout.published_version_id)
         self.assertIsNone(layout.draft_version_id)  # publish() clears the draft pointer
 
-    def test_published_family_matches_requested_family(self):
-        self._run("--family", "zarrin_jewelry")
+    def test_published_preset_matches_requested_preset(self):
+        self._run("--preset", "premium_boutique")
         store = self._store()
         layout = StorefrontLayout.objects.get(store=store)
         config = layout.published_version.effective_appearance_config()
-        self.assertEqual(config["family_slug"], "zarrin_jewelry")
+        self.assertEqual(config["layout_preset_key"], "premium_boutique")
 
-    def test_default_family_is_atlas_catalog(self):
+    def test_default_preset_is_editorial_story(self):
         self._run()
         store = self._store()
         layout = StorefrontLayout.objects.get(store=store)
         config = layout.published_version.effective_appearance_config()
-        self.assertEqual(config["family_slug"], "atlas_catalog")
+        self.assertEqual(config["layout_preset_key"], "editorial_story")
 
-    def test_published_version_has_real_family_default_sections(self):
+    def test_published_version_has_real_preset_default_sections(self):
         self._run()
         store = self._store()
         layout = StorefrontLayout.objects.get(store=store)
         section_keys = list(layout.published_version.sections.values_list("section_key", flat=True))
         self.assertTrue(section_keys)
 
-    def test_rerunning_with_same_family_does_not_create_a_new_published_version(self):
+    def test_rerunning_with_same_preset_does_not_create_a_new_published_version(self):
         """Checkpoint (Root Cause 1) — a second, identical invocation must
         not perform a redundant publish() when the published state already
-        matches the requested family. Proven directly at the model level:
+        matches the requested preset. Proven directly at the model level:
         the published StorefrontLayoutVersion's pk (and total version
         count) must be unchanged after a second run."""
         self._run()
@@ -390,26 +390,26 @@ class BuilderLifecycleTests(SeedRastisiFashionDemoCommandTests):
         self.assertEqual(layout.versions.count(), first_version_count)
         self.assertIsNone(layout.draft_version_id)
 
-    def test_rerunning_with_a_different_family_does_perform_a_real_publish(self):
+    def test_rerunning_with_a_different_preset_does_perform_a_real_publish(self):
         """The idempotency short-circuit must only apply when the requested
-        family already matches — a genuine family change must still go
+        preset already matches — a genuine preset change must still go
         through the real lifecycle (new Draft + publish)."""
-        self._run("--family", "atlas_catalog")
+        self._run("--preset", "editorial_story")
         store = self._store()
         layout = StorefrontLayout.objects.get(store=store)
         first_published_version_id = layout.published_version_id
 
-        self._run("--family", "zarrin_jewelry")
+        self._run("--preset", "premium_boutique")
 
         layout.refresh_from_db()
         self.assertNotEqual(layout.published_version_id, first_published_version_id)
         config = layout.published_version.effective_appearance_config()
-        self.assertEqual(config["family_slug"], "zarrin_jewelry")
+        self.assertEqual(config["layout_preset_key"], "premium_boutique")
 
-    def test_many_reruns_with_same_family_never_exhaust_the_publish_rate_limit(self):
+    def test_many_reruns_with_same_preset_never_exhaust_the_publish_rate_limit(self):
         """Checkpoint (Root Cause 1) — the production publish rate limit is
         20 attempts/hour per Store. Rerunning the seed command 25 times with
-        an unchanged family must not raise RateLimitExceeded, because only
+        an unchanged preset must not raise RateLimitExceeded, because only
         the FIRST run should ever call layout_service.publish()."""
         for _ in range(25):
             self._run()  # must never raise RateLimitExceeded

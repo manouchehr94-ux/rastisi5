@@ -21,7 +21,6 @@
 {% endblock %}
 
 {% block content %}
-{% if SHOP_FAMILY %}{% include SHOP_FAMILY.product_page_variant %}{% else %}
 <div class="wrap sfb-preview-sections">
   {% if is_merchant_preview %}
   <div class="notice" style="border-right-color:#f59e0b;background:#fff7ed;color:#9a3412;margin-bottom:14px">
@@ -32,7 +31,6 @@
   {% include "storefront_builder/partials/responsive_section_wrapper.html" %}
   {% endfor %}
 </div>
-{% endif %}
 {% endblock %}
 
 {% block extra_js %}

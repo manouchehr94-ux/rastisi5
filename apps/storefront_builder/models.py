@@ -110,14 +110,9 @@ APPEARANCE_CONFIG_DEFAULTS = {
     # باید مستقل باشند — یکی دیگری را فعال/غیرفعال نمی‌کند):
     "card_image_crossfade": False,   # نمایشِ تصویرِ دوم هنگامِ hover
     "card_image_zoom": True,         # بزرگ‌نماییِ تصویر هنگامِ hover
-    # خانواده‌ی قالب (DOM/Renderer اختصاصی — تصمیمِ مالک Q-01/Q-02،
-    # docs/template-references/live-audit/10_OWNER_DECISION_LOG.md) و
-    # Presetِ فعالِ درونِ همان خانواده (family_registry.py/preset_registry.py).
-    # None یعنی «بدون Family» — همان DOM مشترکِ ۱۰ Template قدیمی، دقیقاً
-    # رفتار فعلی، بدون تغییر برای فروشگاه‌هایی که این سیستم را انتخاب
-    # نکرده‌اند.
-    "family_slug": None,
-    "preset_slug": None,
+    # Phase 7: family_slug/preset_slug (سیستمِ منجمدِ Family/Legacy-Preset)
+    # از اینجا حذف شده‌اند — دیگر هیچ اثرِ رندریِ فعالی نداشتند؛ نگاه
+    # کنید به docs/architecture/STOREFRONT_BUILDER_V2_LEGACY_RETIREMENT_MAP.md.
     # Phase 6: کلیدِ آخرین Preset ساختاریِ V2 اعمال‌شده (``layout_preset_registry``)
     # — کاملاً مستقل از ``family_slug``/``preset_slug`` بالا (سیستمِ منجمدِ
     # قدیمی). فقط برایِ نمایش «کدام Preset فعال است» در ادیتور و

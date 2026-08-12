@@ -24,7 +24,7 @@ from django.utils import timezone
 
 from apps.core.services.rate_limit import enforce_rate_limit
 
-from .. import appearance_registry, family_registry, layout_preset_registry, preset_registry
+from .. import appearance_registry, layout_preset_registry
 from ..models import (
     APPEARANCE_COLOR_KEYS,
     APPEARANCE_CONFIG_DEFAULTS,
@@ -254,27 +254,12 @@ def validate_appearance_config(config: dict) -> dict:
         raise AppearanceConfigValidationError("افکتِ هاورِ تصویرِ انتخاب‌شده نامعتبر است")
     cleaned["image_hover"] = image_hover
 
-    # Family/Preset — تصمیمِ مالک Q-01/Q-02. family_slug=None (پیش‌فرض)
-    # یعنی «بدونِ Family»، همان DOMِ مشترکِ ۱۰ Templateِ قدیمی. هر دو
-    # مستقل از Palette اعتبارسنجی می‌شوند (Palette همیشه Global می‌ماند،
-    # حتی وقتی Family انتخاب شده — تصمیمِ صریحِ مالک).
-    family_slug = config.get("family_slug", APPEARANCE_CONFIG_DEFAULTS["family_slug"])
-    if family_slug is not None and family_registry.get_family(family_slug) is None:
-        raise AppearanceConfigValidationError(f"خانواده‌ی «{family_slug}» در دسترس نیست")
-    cleaned["family_slug"] = family_slug
-
-    preset_slug = config.get("preset_slug", APPEARANCE_CONFIG_DEFAULTS["preset_slug"])
-    if preset_slug is not None:
-        preset = preset_registry.get_preset(preset_slug)
-        if preset is None:
-            raise AppearanceConfigValidationError(f"پیش‌تنظیمِ «{preset_slug}» در دسترس نیست")
-        if family_slug is None or preset.family_slug != family_slug:
-            raise AppearanceConfigValidationError("پیش‌تنظیمِ انتخاب‌شده متعلق به این خانواده نیست")
-    cleaned["preset_slug"] = preset_slug
-
-    # Phase 6: layout_preset_key — کاملاً مستقل از family_slug/preset_slug
-    # بالا (سیستمِ منجمدِ قدیمی). بدونِ هیچ الزامِ تطبیقِ Family (طبقِ
-    # الزامِ صریحِ کار: یک Preset جدید نباید به یک Family خاص قفل شود).
+    # Phase 7: family_slug/preset_slug (سیستمِ منجمدِ قدیمیِ Family) از
+    # اینجا و از APPEARANCE_CONFIG_DEFAULTS حذف شده‌اند — دیگر هیچ اثرِ
+    # رندریِ فعالی نداشتند (نگاه کنید به Phase 7 Retirement Map). کلیدِ
+    # باقی‌مانده‌یِ احتمالی در appearance_configِ ذخیره‌شده‌یِ قدیمی
+    # بی‌صدا نادیده گرفته می‌شود (همان الگویِ «کلیدِ ناشناخته حذف
+    # می‌شود» که این تابع همیشه داشته).
     layout_preset_key = config.get("layout_preset_key", APPEARANCE_CONFIG_DEFAULTS["layout_preset_key"])
     if layout_preset_key is not None and layout_preset_registry.get_layout_preset(layout_preset_key) is None:
         raise AppearanceConfigValidationError(f"پیش‌تنظیمِ «{layout_preset_key}» در دسترس نیست")

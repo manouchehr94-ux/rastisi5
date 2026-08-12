@@ -1,18 +1,16 @@
-"""تست‌هایِ جامعِ قابلیت‌هایِ مشترکِ خانواده‌ها — Phase 5 Family Implementation.
+"""تست‌هایِ قابلیت‌هایِ مشترکِ Storefront (اصلاً خاصِ Family نبودند).
 
-این فایل تمامِ shared capabilities ای که در این فاز اضافه شدند را پوشش
-می‌دهد:
+Phase 7: بخش‌هایِ مربوط به سیستمِ منجمدِ Family/Legacy-Preset (پیش‌فرض‌هایِ
+Preset برایِ crossfade/zoom، ``story_rail`` در ``default_section_keys``ی
+هر Family، و ثبتِ کاملِ ۱۱ Family) از این فایل حذف شده‌اند — نگاه کنید به
+``docs/architecture/STOREFRONT_BUILDER_V2_LEGACY_RETIREMENT_MAP.md``.
+باقیِ این فایل قابلیت‌هایِ کاملاً مستقل از Family را می‌پوشاند:
   - Category image field (4.1)
   - Cart preview engine (4.2)
   - Size guide via ProductMetafield (4.3)
-  - Independent image settings (4.4)
-  - Story Rail section (4.5)
+  - Independent image settings — فقط پیش‌فرض‌هایِ سراسری (4.4)
+  - Story Rail section — فقط ثبتِ آن در section_registry (4.5)
   - Maker/region via ProductMetafield (4.6)
-  - All eleven families registered with correct defaults (5.x — originally
-    written/verified for the first five families at Phase 5; six more
-    families were registered in a later checkpoint and this section's
-    fixture/class name has been updated accordingly, see the note above
-    AllElevenFamiliesRegisteredTests below)
 """
 
 from decimal import Decimal
@@ -23,7 +21,7 @@ from apps.catalog.models import (
     Category, Product, ProductMetafield,
     METAFIELD_NS_SIZE_GUIDE, METAFIELD_NS_ARTISAN, METAFIELD_NS_CUSTOM,
 )
-from apps.storefront_builder import family_registry, preset_registry, section_registry
+from apps.storefront_builder import section_registry
 from apps.storefront_builder.models import APPEARANCE_CONFIG_DEFAULTS
 
 
@@ -115,27 +113,6 @@ class IndependentImageSettingsTests(TestCase):
         self.assertFalse(APPEARANCE_CONFIG_DEFAULTS["card_image_crossfade"])
         self.assertTrue(APPEARANCE_CONFIG_DEFAULTS["card_image_zoom"])
 
-    def test_modern_fashion_preset_has_crossfade(self):
-        """preset مد امروز: crossfade=True, zoom=False."""
-        preset = preset_registry.get_preset("modern_fashion_default")
-        self.assertIsNotNone(preset)
-        self.assertTrue(preset.card_image_crossfade)
-        self.assertFalse(preset.card_image_zoom)
-
-    def test_nordic_living_preset_has_crossfade(self):
-        """preset خانه آرام: crossfade=True, zoom=False."""
-        preset = preset_registry.get_preset("nordic_living_default")
-        self.assertIsNotNone(preset)
-        self.assertTrue(preset.card_image_crossfade)
-        self.assertFalse(preset.card_image_zoom)
-
-    def test_heritage_premium_preset_defaults(self):
-        """preset پرمیوم: crossfade=False (پیش‌فرض), zoom=True (پیش‌فرض)."""
-        preset = preset_registry.get_preset("heritage_premium_default")
-        self.assertIsNotNone(preset)
-        self.assertFalse(preset.card_image_crossfade)
-        self.assertTrue(preset.card_image_zoom)
-
     def test_settings_are_independent(self):
         """تغییر یکی نباید دیگری را تغییر دهد — هر دو field مستقل‌اند."""
         # هر دو True باید مجاز باشد
@@ -162,109 +139,9 @@ class StoryRailSectionTests(TestCase):
         self.assertEqual(defn.max_instances, 1)
         self.assertEqual(defn.category_fa, "کشف و خرید")
 
-    def test_story_rail_in_artisan_editorial_defaults(self):
-        """story_rail باید در default_section_keys خانواده‌ی روایت هنر باشد."""
-        family = family_registry.get_family("artisan_editorial")
-        self.assertIn("story_rail", family.default_section_keys)
-
-    def test_story_rail_not_in_modern_fashion_defaults(self):
-        """story_rail در modern_fashion پیش‌فرض نیست (تصحیح شد)."""
-        family = family_registry.get_family("modern_fashion")
-        self.assertNotIn("story_rail", family.default_section_keys)
-
-    def test_story_rail_not_in_other_families_by_default(self):
-        """story_rail فقط در artisan_editorial پیش‌فرض است — بقیه ندارند."""
-        for slug in ("heritage_premium", "vibrant_catalog", "nordic_living"):
-            family = family_registry.get_family(slug)
-            self.assertNotIn("story_rail", family.default_section_keys,
-                             f"story_rail should not be in {slug} defaults")
-
-
-# ============================================================ 5.x All Eleven Families
-#
-# Originally written when only five families existed (this file's own
-# docstring is titled "Phase 5 Family Implementation"). Six more families
-# (atlas_catalog, ava_fashion, toranj_gifting, sarv_stock, sepidar_handmade,
-# zarrin_jewelry) were registered in a later checkpoint — dedicated
-# coverage for the full eleven-family contract (exact slug set, five
-# original preserved, six new registered, valid presets, valid section
-# keys, complete variant paths) already exists in
-# apps/storefront_builder/tests/test_eleven_families.py. This class's own
-# EXPECTED_FAMILIES fixture was simply never updated when those six
-# families were added; renamed from "AllFiveFamiliesRegisteredTests" to
-# "AllElevenFamiliesRegisteredTests" so the class name matches its actual,
-# current assertions rather than the historical five-family checkpoint.
-
-
-class AllElevenFamiliesRegisteredTests(TestCase):
-    """تمام یازده خانواده باید ثبت شده و با تعریفات کامل باشند."""
-
-    EXPECTED_FAMILIES = {
-        "modern_fashion", "heritage_premium", "artisan_editorial", "vibrant_catalog", "nordic_living",
-        "atlas_catalog", "ava_fashion", "toranj_gifting", "sarv_stock", "sepidar_handmade", "zarrin_jewelry",
-    }
-
-    def test_all_eleven_registered(self):
-        """هر ۱۱ خانواده در FAMILY_REGISTRY ثبت شده‌اند."""
-        registered = {f.slug for f in family_registry.list_families()}
-        self.assertEqual(registered, self.EXPECTED_FAMILIES)
-
-    def test_each_family_has_complete_variant_paths(self):
-        """هر خانواده باید تمام ۶ variant path را داشته باشد."""
-        for slug in self.EXPECTED_FAMILIES:
-            family = family_registry.get_family(slug)
-            self.assertTrue(family.header_variant, f"{slug} missing header_variant")
-            self.assertTrue(family.hero_variant, f"{slug} missing hero_variant")
-            self.assertTrue(family.category_variant, f"{slug} missing category_variant")
-            self.assertTrue(family.footer_variant, f"{slug} missing footer_variant")
-            self.assertTrue(family.product_card_variant, f"{slug} missing product_card_variant")
-            self.assertTrue(family.product_page_variant, f"{slug} missing product_page_variant")
-
-    def test_each_family_has_default_preset(self):
-        """هر خانواده باید یک preset پیش‌فرض معتبر داشته باشد."""
-        for slug in self.EXPECTED_FAMILIES:
-            family = family_registry.get_family(slug)
-            preset = preset_registry.get_preset(family.default_preset_slug)
-            self.assertIsNotNone(preset, f"{slug}: preset '{family.default_preset_slug}' not found")
-            self.assertEqual(preset.family_slug, slug)
-
-    def test_each_family_has_default_section_keys(self):
-        """هر خانواده باید حداقل ۳ section key پیش‌فرض داشته باشد."""
-        for slug in self.EXPECTED_FAMILIES:
-            family = family_registry.get_family(slug)
-            self.assertGreaterEqual(len(family.default_section_keys), 3,
-                                    f"{slug} has fewer than 3 default sections")
-            for key in family.default_section_keys:
-                self.assertTrue(
-                    section_registry.is_valid_section_key(key),
-                    f"{slug}: default section '{key}' is not a valid section key",
-                )
-
-    def test_families_have_distinct_swatches(self):
-        """هر خانواده باید swatch رنگی متفاوت داشته باشد."""
-        swatches = set()
-        for slug in self.EXPECTED_FAMILIES:
-            family = family_registry.get_family(slug)
-            self.assertEqual(len(family.swatch), 3)
-            swatches.add(family.swatch)
-        self.assertEqual(len(swatches), 11, "All eleven families must have distinct swatches")
-
 
 class BackwardCompatibilityTests(TestCase):
-    """سازگاری عقب — فروشگاه‌های موجود بدون family_slug نباید تغییر کنند."""
-
-    def test_no_family_slug_default(self):
-        """family_slug پیش‌فرض None است — خانواده‌ای فعال نیست."""
-        self.assertIsNone(APPEARANCE_CONFIG_DEFAULTS["family_slug"])
-
-    def test_no_preset_slug_default(self):
-        """preset_slug پیش‌فرض None است."""
-        self.assertIsNone(APPEARANCE_CONFIG_DEFAULTS["preset_slug"])
-
-    def test_get_family_returns_none_for_null(self):
-        """get_family(None) باید None برگرداند."""
-        self.assertIsNone(family_registry.get_family(None))
-        self.assertIsNone(family_registry.get_family(""))
+    """سازگاری عقب — فروشگاه‌های موجود بدون تنظیماتِ ظاهرِ سفارشی نباید تغییر کنند."""
 
     def test_new_appearance_fields_have_safe_defaults(self):
         """فیلدهای جدید (card_image_crossfade, card_image_zoom) باید safe default داشته باشند."""

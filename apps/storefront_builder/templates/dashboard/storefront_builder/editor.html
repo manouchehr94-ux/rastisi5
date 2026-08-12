@@ -15,8 +15,6 @@
      @open-settings-drawer.window="drawerOpen = true" @close-settings-drawer.window="drawerOpen = false"
      @preview-candidate-template.window="previewCandidateTemplate($event.detail.slug, $event.detail.name)"
      @apply-candidate-template.window="applyCandidateTemplate()"
-     @preview-candidate-family.window="previewCandidateFamily($event.detail.slug, $event.detail.name)"
-     @apply-candidate-family.window="applyCandidateFamily()"
      @keydown.escape.window="if (fullscreen) fullscreen = false">
 
   <div class="sfb-toolbar">
@@ -84,18 +82,17 @@
           {% endcomment %}
           <button type="button" class="btn btn-sm sfb-fullscreen-btn" @click="fullscreen = true" x-show="!fullscreen" aria-label="تمام‌صفحه">⛶ تمام‌صفحه</button>
         </div>
-        <span class="sfb-preview-hint" x-show="!candidateTemplate && !candidateFamily && !fullscreen">روی هر بخش مکث کنید تا نامش را ببینید؛ بخش‌ها را مستقیم بکشید و جابه‌جا کنید.</span>
+        <span class="sfb-preview-hint" x-show="!candidateTemplate && !fullscreen">روی هر بخش مکث کنید تا نامش را ببینید؛ بخش‌ها را مستقیم بکشید و جابه‌جا کنید.</span>
         <div class="sfb-fullscreen-float" x-show="fullscreen" x-cloak>
           <span class="sfb-fullscreen-save-status">✓ تغییرات به‌صورت خودکار ذخیره می‌شوند</span>
           <button type="button" class="btn btn-sm" @click="fullscreen = false">خروج از تمام‌صفحه ✕</button>
         </div>
       </div>
-      <div class="sfb-candidate-banner" x-show="candidateTemplate || candidateFamily" x-cloak>
+      <div class="sfb-candidate-banner" x-show="candidateTemplate" x-cloak>
         <span x-show="candidateTemplate">در حال پیش‌نمایشِ قالبِ «<b x-text="candidateTemplateName"></b>» — هنوز چیزی ذخیره نشده.</span>
-        <span x-show="candidateFamily">در حال پیش‌نمایشِ خانواده‌ی «<b x-text="candidateFamilyName"></b>» — هنوز چیزی ذخیره نشده.</span>
         <div style="display:flex;gap:8px">
           <button type="button" class="btn btn-sm" @click="cancelCandidatePreview()">بازگشت به پیش‌نویس فعلی</button>
-          <button type="button" class="btn btn-sm btn-primary" @click="candidateTemplate ? $dispatch('apply-candidate-template') : $dispatch('apply-candidate-family')">اعمال این مورد</button>
+          <button type="button" class="btn btn-sm btn-primary" @click="$dispatch('apply-candidate-template')">اعمال این مورد</button>
         </div>
       </div>
       <div class="sfb-preview-frame-wrap" :class="'sfb-device-' + device">
@@ -192,18 +189,6 @@
     {% endwith %}
   </form>
 
-  {% comment %}
-  فرمِ مخفیِ «اعمالِ خانواده‌ی کاندید» — دقیقاً همان الگوی فرمِ Template
-  بالا. عمداً ``palette_slug`` را نمی‌فرستد — تعویضِ Family باید Preset/
-  Paletteِ پیشنهادیِ همان Family را اعمال کند (تصمیمِ مالک Q-02)، نه
-  Paletteِ فعلی را حفظ کند.
-  {% endcomment %}
-  <form id="sfbApplyFamilyForm" method="post" action="{% url 'dashboard:storefront-builder-appearance' %}" style="display:none">
-    {% csrf_token %}
-    <input type="hidden" name="family_slug" id="sfbApplyFamilySlug" value="">
-    <input type="hidden" name="confirm_family_switch" value="1">
-  </form>
-
   <aside class="sfb-drawer" x-show="drawerOpen" x-cloak @keydown.escape.window="drawerOpen = false">
     <div class="sfb-drawer-head">
       <strong>تنظیمات بخش</strong>
@@ -227,8 +212,6 @@ function storefrontEditor() {
     pageType: 'home',
     candidateTemplate: null,
     candidateTemplateName: '',
-    candidateFamily: null,
-    candidateFamilyName: '',
     init() {
       this.pageType = this.$el.dataset.pageType || 'home';
       document.body.addEventListener('htmx:afterSwap', (evt) => {
@@ -253,32 +236,15 @@ function storefrontEditor() {
     // بارگذاری می‌شود (نگاه کنید به _CandidateAppearanceVersion در
     // views.py).
     previewCandidateTemplate(slug, name) {
-      this.candidateFamily = null;
-      this.candidateFamilyName = '';
       this.candidateTemplate = slug;
       this.candidateTemplateName = name;
       const iframe = document.getElementById('sfbPreviewFrame');
       const base = iframe.getAttribute('data-preview-url');
       iframe.src = base + '&preview_template=' + encodeURIComponent(slug);
     },
-    // پیش‌نمایشِ غیرمخربِ یک Familyِ کاندید — دقیقاً همان الگویِ Template
-    // بالا (``?preview_family=``، نگاه کنید به ``_CandidateAppearanceVersion``
-    // در views.py). انتخابِ Family/Template متقابلاً انحصاری است، پس
-    // کاندیدِ دیگری (اگر باز بود) پاک می‌شود.
-    previewCandidateFamily(slug, name) {
-      this.candidateTemplate = null;
-      this.candidateTemplateName = '';
-      this.candidateFamily = slug;
-      this.candidateFamilyName = name;
-      const iframe = document.getElementById('sfbPreviewFrame');
-      const base = iframe.getAttribute('data-preview-url');
-      iframe.src = base + '&preview_family=' + encodeURIComponent(slug);
-    },
     cancelCandidatePreview() {
       this.candidateTemplate = null;
       this.candidateTemplateName = '';
-      this.candidateFamily = null;
-      this.candidateFamilyName = '';
       const iframe = document.getElementById('sfbPreviewFrame');
       iframe.src = iframe.getAttribute('data-preview-url');
     },
@@ -286,15 +252,6 @@ function storefrontEditor() {
       if (!this.candidateTemplate) return;
       document.getElementById('sfbApplyTemplateSlug').value = this.candidateTemplate;
       document.getElementById('sfbApplyTemplateForm').submit();
-    },
-    applyCandidateFamily() {
-      if (!this.candidateFamily) return;
-      // تعویضِ Family چیدمانِ Sectionهای صفحه‌ی اصلیِ همین Draft را با
-      // چیدمانِ پیش‌فرضِ Familyِ جدید جایگزین می‌کند — تأییدِ صریح، دقیقاً
-      // همان الگویِ «اعمالِ چیدمانِ پیشنهادیِ صنف».
-      if (!confirm('با انتخابِ این Family، چیدمانِ فعلیِ Sectionهای صفحه‌ی اصلیِ پیش‌نویس با چیدمانِ پیشنهادیِ همین Family جایگزین می‌شود (محصولات، دسته‌بندی‌ها و اطلاعاتِ فروشگاه دست‌نخورده می‌مانند). ادامه می‌دهید؟')) return;
-      document.getElementById('sfbApplyFamilySlug').value = this.candidateFamily;
-      document.getElementById('sfbApplyFamilyForm').submit();
     },
     reorderSections(sectionIds) {
       // منبعِ حقیقتِ نهایی همیشه پاسخِ سرور است — چیدمانِ خوش‌بینانه‌ای

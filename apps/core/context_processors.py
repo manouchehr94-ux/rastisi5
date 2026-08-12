@@ -160,7 +160,6 @@ def shop_settings(request):
         shop_image_hover = global_config.get("image_hover", "zoom")
         shop_card_image_crossfade = global_config.get("card_image_crossfade", False)
         shop_card_image_zoom = global_config.get("card_image_zoom", True)
-        shop_family_slug = global_config.get("family_slug")
     else:
         shop_font = _default_template.font
         shop_radius = _default_template.radius
@@ -172,20 +171,6 @@ def shop_settings(request):
         shop_image_hover = "zoom"
         shop_card_image_crossfade = False
         shop_card_image_zoom = True
-        shop_family_slug = None
-
-    # Family (تصمیمِ مالک، Q-01/Q-02 — docs/template-references/live-audit/10_OWNER_DECISION_LOG.md):
-    # برخلافِ توکن‌هایِ ساختاریِ *صفحه‌ی اصلی* (``_versioned_appearance``،
-    # عمداً محدود به صفحاتِ Builder-aware)، Family باید در **کل** سایت
-    # (هدر/فوتر/کارتِ محصول/صفحه‌ی محصول، نه فقط صفحه‌ی اصلی) یکدست بماند
-    # — دقیقاً همان دلیلِ ``_global_identity_version`` برایِ رنگ/فونت.
-    # ``SHOP_FAMILY`` همان ``FamilyDefinition`` واقعی است (یا None)؛
-    # تمپلیت‌های مشترک (``page_shell_header.html``/``product_card.html``/…)
-    # مستقیماً ``{% include SHOP_FAMILY.header_variant %}`` می‌زنند —
-    # تنها نقطه‌ی انتخابِ Renderer، بدونِ if/elif پراکنده.
-    from apps.storefront_builder import family_registry as _family_registry
-
-    shop_family = _family_registry.get_family(shop_family_slug)
 
     # ساختارِ *صفحه‌ی اصلی* (عرضِ محتوا/تعدادِ ستون/سبکِ هیرو/سایه و
     # هاورِ کارت/تراکم) — عمداً محدود به صفحاتِ Builder-aware می‌ماند؛
@@ -254,10 +239,6 @@ def shop_settings(request):
         "SHOP_IMAGE_HOVER": shop_image_hover,
         "SHOP_CARD_IMAGE_CROSSFADE": "1" if shop_card_image_crossfade else "",
         "SHOP_CARD_IMAGE_ZOOM": "1" if shop_card_image_zoom else "",
-        # خانواده‌ی قالب (Family) — None یعنی همان DOMِ مشترکِ ۱۰ Template
-        # قدیمی، بدون تغییر. نگاه کنید به یادداشتِ بالا.
-        "SHOP_FAMILY_SLUG": shop_family_slug,
-        "SHOP_FAMILY": shop_family,
         # سلسله‌مراتبِ تایپوگرافی — پنج نقشِ معنادار، نه اندازه‌یِ دلخواه؛
         # نگاه کنید به ``appearance_registry.TYPE_SCALE_SIZES``.
         "SHOP_TYPE_SCALE": shop_type_scale,
