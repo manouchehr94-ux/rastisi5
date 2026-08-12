@@ -1,0 +1,276 @@
+{% load persian catalog_extras %}
+{% comment %}
+Phase 5 — گالری/عنوان/قیمت/انتخابِ تنوع/تعداد/افزودن‌به‌سبد صفحه محصول.
+یک بلوکِ Alpine واحد (``variantSelector``) — طبقِ همان دلیلِ فنی که
+section_registry.py مستند کرده، تجزیه نمی‌شود. ``product`` غایب یعنی
+Preview بدونِ هیچ محصولی در این فروشگاه — چیزی رندر نمی‌شود (fail-safe).
+{% endcomment %}
+{% if product %}
+<div class="wrap">
+  <div class="breadcrumb">
+    <a href="/">خانه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <a href="{% url 'catalog:product-list' %}">فروشگاه</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    {% if product.category.parent %}
+    <a href="{% url 'catalog:product-list' %}?category={{ product.category.parent.slug }}">{{ product.category.parent.name }}</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    {% endif %}
+    <a href="{% url 'catalog:product-list' %}?category={{ product.category.slug }}">{{ product.category.name }}</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    <span style="color:var(--ink)">{{ product.name }}</span>
+  </div>
+
+  {{ variant_selector|json_script:"variant-selector-data" }}
+  {{ product_price_json|json_script:"product-price-data" }}
+  <div class="pdp" x-data="variantSelector(
+         JSON.parse(document.getElementById('variant-selector-data').textContent),
+         JSON.parse(document.getElementById('product-price-data').textContent)
+       )">
+    <div class="gallery">
+      <div class="main">
+        {% for slide in gallery_slides %}
+          {% if slide.type == "image" %}
+          <img data-slide data-slide-url="{{ slide.url }}" data-cover="{% if slide.is_cover %}true{% else %}false{% endif %}" x-show="activeSlide === {{ forloop.counter0 }}" src="{{ slide.url }}" alt="{{ slide.alt }}"
+               style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:22px">
+          {% else %}
+          <span data-slide data-slide-url="" data-cover="false" x-show="activeSlide === {{ forloop.counter0 }}"
+                style="position:absolute;inset:0;display:grid;place-items:center;border-radius:22px;background:{{ slide.tint }}">{{ slide.emoji }}</span>
+          {% endif %}
+        {% endfor %}
+        <span class="pill pill-disc" x-show="displayPrice.savings > 0" x-text="discountPercentText()"></span>
+      </div>
+      <div class="thumbs">
+        {% for slide in gallery_slides %}
+        <button type="button" class="th" :class="{ active: activeSlide === {{ forloop.counter0 }} }" @click="activeSlide = {{ forloop.counter0 }}"
+                style="{% if slide.type == 'image' %}background-image:url('{{ slide.thumb_url }}');background-size:cover{% else %}background:{{ slide.tint }}{% endif %}">
+          {% if slide.type == "emoji" %}{{ slide.emoji }}{% endif %}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="pinfo">
+      <h1>{{ product.name }}</h1>
+      <div class="topline">
+        {% if product.brand %}
+        <span class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>{{ product.brand.name }}</span>
+        {% endif %}
+        <span class="rate"><span class="stars">{{ product.rating|star_rating }}</span>{{ product.rating|floatformat:1|fa_number }}</span>
+        <span>|</span><span>{{ review_count|fa_number }} نظر</span>
+        <span>|</span><span>{{ product.sold_count|fa_number }} فروش</span>
+      </div>
+
+      <form hx-post="{% url 'cart:add' product.slug %}" hx-swap="none" @submit="if (!canAddToCart) $event.preventDefault()">
+        {% csrf_token %}
+        <input type="hidden" name="variant_id" :value="current ? current.variant_id : ''">
+
+        <template x-for="axis in axes" :key="axis.id">
+          <div class="opt-block">
+            <div class="lbl"><span x-text="axis.label"></span>: <span x-text="selectedLabel(axis)"></span></div>
+            <template x-if="axis.values.some(v => v.color_hex)">
+              <div class="swatches">
+                <template x-for="v in axis.values" :key="v.id">
+                  <div class="swatch" :class="{ active: selected[axis.id] === v.id, unavailable: !isValueAvailable(axis.id, v.id) }"
+                       :style="'background:' + v.color_hex" :title="v.label"
+                       @click="selectAxisValue(axis.id, v.id)"></div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!axis.values.some(v => v.color_hex)">
+              <div class="sizes">
+                <template x-for="v in axis.values" :key="v.id">
+                  <button type="button" class="size" :class="{ active: selected[axis.id] === v.id, unavailable: !isValueAvailable(axis.id, v.id) }"
+                          @click="selectAxisValue(axis.id, v.id)" x-text="v.label"></button>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <template x-for="group in groups" :key="group.label">
+          <div class="opt-block">
+            <div class="lbl"><span x-text="group.label"></span>: <span x-text="currentLegacyLabel(group)"></span></div>
+            <template x-if="group.values.some(v => v.color_hex)">
+              <div class="swatches">
+                <template x-for="v in group.values" :key="v.id">
+                  <div class="swatch" :class="{ active: selectedVariantId === v.id, unavailable: !v.is_purchasable }"
+                       :style="'background:' + v.color_hex" :title="v.label"
+                       @click="selectLegacy(v.id)"></div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!group.values.some(v => v.color_hex)">
+              <div class="sizes">
+                <template x-for="v in group.values" :key="v.id">
+                  <button type="button" class="size" :class="{ active: selectedVariantId === v.id, unavailable: !v.is_purchasable }"
+                          @click="selectLegacy(v.id)" x-text="v.label"></button>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <div class="pricebox">
+          <div class="row1" x-show="displayPrice.savings > 0">
+            <span class="save" x-text="'صرفه‌جویی ' + formatToman(displayPrice.savings)"></span>
+            <span class="old" x-text="formatToman(displayPrice.regular)"></span>
+          </div>
+          <div class="now" x-text="formatToman(displayPrice.price)"></div>
+          <div class="stock">
+            <template x-if="displayStock > 0">
+              <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="vertical-align:-3px"><path d="M20 6L9 17l-5-5"/></svg> موجود در انبار — آماده ارسال</span>
+            </template>
+            <template x-if="displayStock <= 0">
+              <span style="color:var(--pink)">ناموجود</span>
+            </template>
+          </div>
+          <div class="sku-line" x-show="current && current.sku">کد کالا: <span dir="ltr" x-text="current ? current.sku : ''"></span></div>
+        </div>
+
+        <div class="qty" x-data="{ qty: 1 }">
+          <span class="lbl">تعداد:</span>
+          <div class="stepper">
+            <button type="button" @click="qty = Math.max(1, qty - 1)">−</button>
+            <input name="quantity" :value="qty" readonly>
+            <button type="button" @click="qty = Math.min(Math.max(displayStock, 1), qty + 1)">+</button>
+          </div>
+        </div>
+
+        <div class="pdp-actions">
+          <button type="submit" class="btn btn-primary" :disabled="!canAddToCart">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+            <span x-text="needsSelection ? 'ابتدا یک گزینه را انتخاب کنید' : (displayStock <= 0 ? 'ناموجود' : 'افزودن به سبد خرید')"></span>
+          </button>
+          {% include "customers/partials/wishlist_button.html" with button_class="wish" %}
+        </div>
+      </form>
+
+      <div class="guarantee">
+        <div class="g"><span class="ic">🛡️</span>ضمانت اصالت کالا</div>
+        <div class="g"><span class="ic">🚚</span>ارسال سریع و بیمه‌شده</div>
+        <div class="g"><span class="ic">↩️</span>۷ روز ضمانت بازگشت</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('variantSelector', (selectorData, productData) => ({
+    mode: selectorData.mode,
+    axes: selectorData.axes,
+    matrix: selectorData.matrix,
+    groups: selectorData.groups,
+    selected: {},
+    selectedVariantId: null,
+    current: null,
+    activeSlide: 0,
+    rootEl: null,
+    giftWrapSelected: false,
+
+    init() {
+      this.rootEl = this.$el;
+      if (this.mode === 'multi_axis') {
+        const defaultKey = selectorData.default_key;
+        if (defaultKey && this.matrix[defaultKey]) {
+          const parts = defaultKey.split('|');
+          this.axes.forEach((axis, i) => { this.selected[axis.id] = parseInt(parts[i], 10); });
+        } else {
+          this.axes.forEach(axis => { if (axis.values.length) this.selected[axis.id] = axis.values[0].id; });
+        }
+        this.resolveMultiAxis();
+      } else if (this.mode === 'legacy') {
+        const defaultKey = selectorData.default_key;
+        this.selectedVariantId = defaultKey ? parseInt(defaultKey, 10) : ((this.groups[0] && this.groups[0].values[0]) ? this.groups[0].values[0].id : null);
+        this.resolveLegacy();
+      }
+      this.updateGallery();
+    },
+
+    formatToman(n) {
+      const fa = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+      const grouped = Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '٬');
+      return grouped.replace(/[0-9]/g, (d) => fa[d]) + ' تومان';
+    },
+    discountPercentText() {
+      const p = this.displayPrice;
+      if (!p.regular || p.regular <= 0) return '';
+      const percent = Math.round((p.savings / p.regular) * 100);
+      const fa = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+      return String(percent).replace(/[0-9]/g, (d) => fa[d]) + '٪ تخفیف';
+    },
+
+    selectedLabel(axis) {
+      const value = axis.values.find((v) => v.id === this.selected[axis.id]);
+      return value ? value.label : '';
+    },
+    currentLegacyLabel(group) {
+      const value = group.values.find((v) => v.id === this.selectedVariantId);
+      return value ? value.label : '';
+    },
+
+    selectAxisValue(axisId, valueId) {
+      this.selected[axisId] = valueId;
+      this.resolveMultiAxis();
+    },
+    resolveMultiAxis() {
+      const key = this.axes.map((axis) => this.selected[axis.id]).join('|');
+      this.current = this.matrix[key] || null;
+      this.selectedVariantId = this.current ? this.current.variant_id : null;
+      this.updateGallery();
+    },
+    selectLegacy(valueId) {
+      this.selectedVariantId = valueId;
+      this.resolveLegacy();
+    },
+    resolveLegacy() {
+      this.current = null;
+      for (const group of this.groups) {
+        const match = group.values.find((v) => v.id === this.selectedVariantId);
+        if (match) { this.current = match; break; }
+      }
+      this.updateGallery();
+    },
+
+    isValueAvailable(axisId, valueId) {
+      if (this.mode !== 'multi_axis') return true;
+      const trial = Object.assign({}, this.selected);
+      trial[axisId] = valueId;
+      const key = this.axes.map((axis) => trial[axis.id]).join('|');
+      const entry = this.matrix[key];
+      return !!entry && entry.is_purchasable;
+    },
+
+    updateGallery() {
+      const url = this.current ? this.current.image_url : '';
+      const slides = [...this.rootEl.querySelectorAll('[data-slide]')];
+      let idx = url ? slides.findIndex((s) => s.dataset.slideUrl === url) : -1;
+      if (idx < 0) idx = slides.findIndex((s) => s.dataset.cover === 'true');
+      this.activeSlide = idx >= 0 ? idx : 0;
+    },
+
+    get displayPrice() {
+      if (this.current) {
+        return { price: this.current.price, regular: this.current.regular_price, savings: this.current.savings };
+      }
+      return { price: productData.price, regular: productData.regular, savings: productData.savings };
+    },
+    get displayStock() {
+      return this.current ? this.current.stock : productData.stock;
+    },
+    get needsSelection() {
+      return this.mode !== 'none' && !this.current;
+    },
+    get canAddToCart() {
+      return !this.needsSelection && this.displayStock > 0;
+    },
+    get giftWrapUnitPrice() {
+      return productData.gift_wrap_price || 0;
+    },
+    get displayTotalWithGiftWrap() {
+      return this.displayPrice.price + (this.giftWrapSelected ? this.giftWrapUnitPrice : 0);
+    },
+  }));
+});
+</script>
+{% endif %}

@@ -1,0 +1,72 @@
+{% load persian catalog_extras %}
+{% comment %}
+Phase 5 — سه‌تبِ توضیحات/مشخصات/نظراتِ صفحه محصول؛ یک کامپوننتِ Alpine
+مشترک (``x-data="{ tab: 'desc' }"``) — طبقِ الزامِ «prefer sensible
+compositional primitives»، یک بلوکِ واحد می‌ماند.
+{% endcomment %}
+{% if product %}
+<div class="wrap">
+  <div class="pdp-tabs" x-data="{ tab: 'desc' }">
+    <div class="tabline">
+      <button type="button" class="t" :class="{ active: tab === 'desc' }" @click="tab = 'desc'">توضیحات محصول</button>
+      <button type="button" class="t" :class="{ active: tab === 'spec' }" @click="tab = 'spec'">مشخصات فنی</button>
+      <button type="button" class="t" :class="{ active: tab === 'review' }" @click="tab = 'review'">نظرات کاربران</button>
+    </div>
+
+    <div class="tabpane" :class="{ active: tab === 'desc' }">
+      <div class="desc-text">
+        {% if product.description %}{{ product.description|product_description_html }}{% else %}<p>توضیحاتی برای این کالا ثبت نشده است.</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="tabpane" :class="{ active: tab === 'spec' }">
+      <table class="spec-table">
+        <tr><td>دسته‌بندی</td><td>{{ product.category.name }}</td></tr>
+        {% if product.brand %}<tr><td>برند</td><td>{{ product.brand.name }}</td></tr>{% endif %}
+        <tr><td>کد کالا (SKU)</td><td dir="ltr" style="text-align:left">{{ product.sku }}</td></tr>
+        {% for attribute, values in spec_variant_summary.items %}
+        <tr><td>{{ attribute }}‌های موجود</td><td>{{ values }}</td></tr>
+        {% endfor %}
+        <tr><td>وضعیت موجودی</td><td>{% if product.stock > 0 %}موجود ({{ product.stock|fa_number }} عدد){% else %}ناموجود{% endif %}</td></tr>
+        <tr><td>تاریخ افزودن</td><td>{{ product.created_at|jalali }}</td></tr>
+      </table>
+    </div>
+
+    <div class="tabpane" :class="{ active: tab === 'review' }">
+      <div class="review-sum">
+        <div class="big">
+          <b>{{ product.rating|floatformat:1|fa_number }}</b>
+          <div class="stars">{{ product.rating|star_rating }}</div>
+          <small>از مجموع {{ review_count|fa_number }} نظر</small>
+        </div>
+        <div>
+          {% for row in rating_breakdown %}
+          <div class="rbar">
+            <span>{{ row.star|fa_number }} ★</span>
+            <div class="track"><i style="width:{{ row.pct }}%"></i></div>
+            <span style="color:var(--muted)">{{ row.pct|fa_number }}٪</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% for review in approved_reviews %}
+      <div class="review">
+        <div class="head">
+          <span class="av">{{ review.customer.full_name|slice:":1" }}</span>
+          <div><b>{{ review.customer.full_name }}</b><small>{{ review.created_at|jalali }}</small></div>
+          <span class="stars">{{ review.rating|star_rating }}</span>
+        </div>
+        <p>{{ review.text }}</p>
+      </div>
+      {% empty %}
+      <p style="color:var(--muted);font-size:13px;margin-bottom:16px">هنوز نظری برای این کالا ثبت نشده — اولین نفری باشید که نظر می‌دهد!</p>
+      {% endfor %}
+
+      <div id="review-form-container">
+        {% include "catalog/partials/review_form.html" %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}

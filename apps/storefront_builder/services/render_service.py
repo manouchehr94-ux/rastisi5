@@ -347,7 +347,53 @@ def _story_rail_context(store, section):
 #: نمی‌شود (که مسیرِ Draft/Publish را می‌شکست و تفکیکِ Store را به خطر
 #: می‌انداخت)، بلکه همیشه از همان کوئریِ موجود و از قبل تفکیک‌شده‌یِ Store
 #: که ویو خودش زده resolve می‌شود — صفر کوئریِ اضافه، صفر منطقِ تکراری.
-_CONTEXT_AWARE_BUILDERS: dict = {}
+
+
+def _product_main_context(store, section, page_context):
+    product = page_context.get("product")
+    if product is None:
+        return {}
+    return {
+        "product": product,
+        "variant_selector": page_context.get("variant_selector"),
+        "product_price_json": page_context.get("product_price_json"),
+        "gallery_slides": page_context.get("gallery_slides"),
+        "review_count": page_context.get("review_count", 0),
+    }
+
+
+def _product_description_context(store, section, page_context):
+    product = page_context.get("product")
+    if product is None:
+        return {}
+    return {
+        "product": product,
+        "spec_variant_summary": page_context.get("spec_variant_summary", {}),
+        "approved_reviews": page_context.get("approved_reviews"),
+        "review_count": page_context.get("review_count", 0),
+        "rating_breakdown": page_context.get("rating_breakdown", []),
+        "can_review": page_context.get("can_review", False),
+    }
+
+
+def _product_video_context(store, section, page_context):
+    if page_context.get("product") is None:
+        return {}
+    return {"product_videos": page_context.get("product_videos") or []}
+
+
+def _related_products_context(store, section, page_context):
+    if page_context.get("product") is None:
+        return {}
+    return {"related_products": page_context.get("related_products")}
+
+
+_CONTEXT_AWARE_BUILDERS: dict = {
+    "product_main": _product_main_context,
+    "product_description": _product_description_context,
+    "product_video": _product_video_context,
+    "related_products": _related_products_context,
+}
 
 
 _CONTEXT_BUILDERS = {

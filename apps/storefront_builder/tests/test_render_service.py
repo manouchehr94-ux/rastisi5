@@ -1,3 +1,4 @@
+from decimal import Decimal
 from io import BytesIO
 from unittest import mock
 
@@ -8,10 +9,11 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from PIL import Image
 
+from apps.catalog.models import Category, Product, Vendor
 from apps.content.models import HeroSlide, PromotionalBanner
 from apps.storefront_builder.models import StorefrontSection
 from apps.storefront_builder.services import layout_service as svc
-from apps.storefront_builder.services.render_service import build_render_items
+from apps.storefront_builder.services.render_service import build_page_render_items, build_render_items
 from apps.stores.models import Store
 
 
@@ -778,3 +780,94 @@ class PageContextPassthroughTests(TestCase):
             page, store, page_context={"anything": "irrelevant-to-trust-features"},
         )
         self.assertEqual(without[0]["context"]["settings"], with_noise[0]["context"]["settings"])
+
+
+class ProductDetailContextAwareSectionsTests(TestCase):
+    """Phase 5: چهار نوعِ context-aware صفحه محصول — داده از
+    ``page_context`` می‌آید (شبیه‌سازیِ همان دیکشنری که
+    ``build_product_detail_context`` واقعاً می‌سازد)، هرگز کوئریِ تازه."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشنده رندر", slug="render-vendor")
+        self.category = Category.objects.create(store=self.store, name="دسته رندر", slug="render-cat", is_active=True)
+        self.product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای رندر",
+            slug="render-product", sku="RENDER-1", price=Decimal("50000"), stock=3, status=Product.Status.ACTIVE,
+        )
+        self.draft = svc.get_or_create_draft(self.store)
+        self.page = self.draft.get_page("product_detail")
+
+    def _page_context(self, **overrides):
+        base = {
+            "product": self.product,
+            "variant_selector": {"mode": "none"},
+            "product_price_json": {"price": 50000, "regular": 50000, "savings": 0, "stock": 3, "sku": "RENDER-1"},
+            "gallery_slides": [],
+            "review_count": 2,
+            "spec_variant_summary": {},
+            "approved_reviews": [],
+            "rating_breakdown": [],
+            "can_review": False,
+            "product_videos": [],
+            "related_products": [],
+        }
+        base.update(overrides)
+        return base
+
+    def _item_for(self, section_key, page_context):
+        StorefrontSection.objects.create(page=self.page, section_key=section_key, order=0)
+        items = build_page_render_items(self.page, self.store, page_context=page_context)
+        self.assertEqual(len(items), 1)
+        return items[0]
+
+    def test_product_main_receives_the_current_product(self):
+        item = self._item_for("product_main", self._page_context())
+        self.assertEqual(item["context"]["product"], self.product)
+        self.assertEqual(item["context"]["review_count"], 2)
+
+    def test_product_main_fails_safe_without_a_product(self):
+        item = self._item_for("product_main", {})
+        self.assertNotIn("product", item["context"])
+
+    def test_product_description_receives_review_and_spec_data(self):
+        item = self._item_for("product_description", self._page_context(spec_variant_summary={"رنگ": "قرمز"}))
+        self.assertEqual(item["context"]["product"], self.product)
+        self.assertEqual(item["context"]["spec_variant_summary"], {"رنگ": "قرمز"})
+
+    def test_product_description_fails_safe_without_a_product(self):
+        item = self._item_for("product_description", {})
+        self.assertNotIn("product", item["context"])
+
+    def test_product_video_passes_through_video_list(self):
+        item = self._item_for("product_video", self._page_context(product_videos=[{"title": "v"}]))
+        self.assertEqual(item["context"]["product_videos"], [{"title": "v"}])
+
+    def test_product_video_fails_safe_without_a_product(self):
+        item = self._item_for("product_video", {})
+        self.assertNotIn("product_videos", item["context"])
+
+    def test_related_products_passes_through_queryset(self):
+        other = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای مرتبط",
+            slug="render-related", sku="RENDER-2", price=Decimal("10000"), stock=1, status=Product.Status.ACTIVE,
+        )
+        item = self._item_for("related_products", self._page_context(related_products=[other]))
+        self.assertEqual(list(item["context"]["related_products"]), [other])
+
+    def test_related_products_fails_safe_without_a_product(self):
+        item = self._item_for("related_products", {})
+        self.assertNotIn("related_products", item["context"])
+
+    def test_context_aware_sections_only_resolve_on_product_detail_page(self):
+        """صفحاتِ دیگر (مثلاً cart) اصلاً امکانِ داشتنِ این section_key را
+        ندارند (allowlist سمتِ سرور در ``storefront_section_add`` رد
+        می‌کند) — این تست خودِ لایه‌یِ رندر را مستقل اثبات می‌کند: حتی اگر
+        یک ردیفِ StorefrontSection نامعتبر (دستکاریِ مستقیمِ دیتابیس) روی
+        صفحه‌ی اشتباه بنشیند، رندر همچنان بدونِ کرش کار می‌کند."""
+        cart_page = self.draft.get_page("cart")
+        StorefrontSection.objects.create(page=cart_page, section_key="product_main", order=0)
+        items = build_page_render_items(cart_page, self.store, page_context={"cart": None})
+        self.assertEqual(len(items), 1)
+        self.assertNotIn("product", items[0]["context"])

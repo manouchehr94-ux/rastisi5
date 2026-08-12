@@ -1,0 +1,13 @@
+{% comment %}Phase 5 — محصولات مرتبط (همان دسته‌بندی)؛ غیاب یعنی چیزی رندر نمی‌شود.{% endcomment %}
+{% if related_products %}
+<div class="wrap">
+  <div class="section">
+    <div class="sec-head"><h2><span class="bar"></span>محصولات مرتبط</h2></div>
+    <div class="grid g4">
+      {% for product in related_products %}
+      {% include "catalog/partials/product_card.html" %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}

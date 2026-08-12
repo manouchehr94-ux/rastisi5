@@ -53,6 +53,9 @@ EXPECTED_KEYS = {
     # in test_views.py::NewsletterSectionTests and apps.content's own
     # NewsletterSubscriber/subscribe_to_newsletter/view tests.
     "newsletter",
+    # Phase 5 — context-aware product_detail-only section types, dedicated
+    # coverage in test_render_service.py/test_page_shell.py.
+    "product_main", "product_description", "product_video", "related_products",
 }
 
 
@@ -776,32 +779,49 @@ class PageTypeConstantsMatchModelTests(TestCase):
 
 
 class PageTypeAllowlistTests(TestCase):
+    #: انواعِ context-aware (Phase 5) عمداً از این تست مستثنی‌اند — page_types
+    #: محدودشان دقیقاً همان چیزی است که PageTypeAllowlistTests.
+    #: test_context_aware_types_restricted_to_their_own_page اثبات می‌کند.
+    _CONTEXT_AWARE_KEYS = {"product_main", "product_description", "product_video", "related_products"}
+
     def test_existing_section_types_default_to_all_pages(self):
         """۱۷ نوعِ محتواییِ عمومیِ موجود از پیش نباید با این چکپوینت رفتار
         تغییر کنند — پیش‌فرض یعنی «همه‌جا مجاز»."""
-        for key in EXPECTED_KEYS:
+        for key in EXPECTED_KEYS - self._CONTEXT_AWARE_KEYS:
             definition = get_definition(key)
             self.assertEqual(definition.page_types, ALL_PAGE_TYPES, key)
             for page_type in StorefrontPage.PageType.values:
                 self.assertTrue(is_section_allowed_on_page(key, page_type), f"{key} on {page_type}")
 
+    def test_context_aware_types_restricted_to_their_own_page(self):
+        for key in self._CONTEXT_AWARE_KEYS:
+            definition = get_definition(key)
+            self.assertEqual(definition.page_types, frozenset({PAGE_TYPE_PRODUCT_DETAIL}), key)
+            self.assertTrue(is_section_allowed_on_page(key, PAGE_TYPE_PRODUCT_DETAIL))
+            for page_type in StorefrontPage.PageType.values:
+                if page_type == PAGE_TYPE_PRODUCT_DETAIL:
+                    continue
+                self.assertFalse(is_section_allowed_on_page(key, page_type), f"{key} on {page_type}")
+
     def test_unknown_section_key_never_allowed_on_any_page(self):
         for page_type in StorefrontPage.PageType.values:
             self.assertFalse(is_section_allowed_on_page("does_not_exist", page_type))
 
-    def test_list_library_groups_unfiltered_still_returns_everything(self):
-        unfiltered = list_library_groups()
-        filtered_home = list_library_groups(page_type=PAGE_TYPE_HOME)
-        self.assertEqual(unfiltered, filtered_home)
+    def test_list_library_groups_unfiltered_includes_page_restricted_types_too(self):
+        """بدونِ ``page_type``، فیلتری اعمال نمی‌شود — کتابخانه‌ی نامحدود
+        شاملِ حتی انواعِ محدودشده (مثلِ product_main) هم می‌شود."""
+        unfiltered_keys = {d.key for _c, members in list_library_groups() for d in members}
+        self.assertIn("product_main", unfiltered_keys)
 
     def test_list_library_groups_can_be_scoped_to_a_page_type(self):
-        # همه‌ی ۱۷ نوعِ موجود روی هر صفحه‌ای مجازند، پس فیلترشده‌ی هر صفحه
-        # باید دقیقاً همان تعداد بخش را نشان دهد — این تست خودش تغییر
-        # نمی‌کند وقتی بخش‌های context-aware جدید اضافه می‌شوند، چون آن‌ها
-        # ``hidden_from_library`` نیستند اما ``page_types``شان محدود است؛
-        # هدف این تست فقط اثباتِ اینکه فیلتر اصلاً اثر می‌گذارد.
-        cart_groups = list_library_groups(page_type=PAGE_TYPE_CART)
-        cart_count = sum(len(members) for _, members in cart_groups)
-        home_groups = list_library_groups(page_type=PAGE_TYPE_HOME)
-        home_count = sum(len(members) for _, members in home_groups)
-        self.assertEqual(cart_count, home_count)
+        cart_keys = {d.key for _c, members in list_library_groups(page_type=PAGE_TYPE_CART) for d in members}
+        product_detail_keys = {
+            d.key for _c, members in list_library_groups(page_type=PAGE_TYPE_PRODUCT_DETAIL) for d in members
+        }
+        context_aware = {"product_main", "product_description", "product_video", "related_products"}
+        # کتابخانه‌ی product_detail دقیقاً همان ۴ نوعِ context-aware را
+        # نسبت به کتابخانه‌ی cart بیشتر دارد — بقیه (همه‌ی انواعِ عمومی)
+        # روی هر دو صفحه یکسان‌اند.
+        self.assertEqual(product_detail_keys - cart_keys, context_aware)
+        self.assertTrue(context_aware <= product_detail_keys)
+        self.assertFalse(context_aware & cart_keys)

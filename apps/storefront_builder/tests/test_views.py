@@ -1581,3 +1581,80 @@ class CsrfEnforcementTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(resp.status_code, 403)
         draft.refresh_from_db()
         self.assertEqual(draft.footer_config, original_config)
+
+
+class ProductDetailContextAwareSectionsPreviewTests(StorefrontBuilderViewsTestCase):
+    """Phase 5: چهار نوعِ context-aware صفحه محصول واقعاً تا HTML رندرشده‌ی
+    Preview می‌رسند (نه فقط dict، که test_render_service.py چک می‌کند) —
+    Preview یک محصولِ نماینده (جدیدترین) را به‌جایِ «محصولِ جاری» انتخاب
+    می‌کند، چون هیچ URLای برایِ یک محصولِ خاص در Preview وجود ندارد."""
+
+    def setUp(self):
+        super().setUp()
+        from decimal import Decimal
+
+        from apps.catalog.models import Category, Product, Vendor
+
+        self.draft = svc.get_or_create_draft(self.store)
+        self.pd_page = self.draft.get_page("product_detail")
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده پیش‌نمایش", slug="preview-vendor")
+        category = Category.objects.create(store=self.store, name="دسته پیش‌نمایش", slug="preview-cat", is_active=True)
+        self.product = Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name="کالای پیش‌نمایشِ رندرشده",
+            slug="preview-render-product", sku="PREVIEW-RENDER-1", price=Decimal("75000"), stock=4,
+            status=Product.Status.ACTIVE, description="توضیحاتِ کاملِ کالای پیش‌نمایش",
+        )
+
+    def _preview(self):
+        return self.client.get(reverse("dashboard:storefront-builder-preview"), {"page": "product_detail"})
+
+    def test_product_main_reaches_rendered_html(self):
+        StorefrontSection.objects.create(page=self.pd_page, section_key="product_main", order=0)
+        resp = self._preview()
+        self.assertContains(resp, "کالای پیش‌نمایشِ رندرشده")
+        self.assertContains(resp, "افزودن به سبد خرید")
+
+    def test_product_description_reaches_rendered_html(self):
+        StorefrontSection.objects.create(page=self.pd_page, section_key="product_description", order=0)
+        resp = self._preview()
+        self.assertContains(resp, "توضیحاتِ کاملِ کالای پیش‌نمایش")
+        self.assertContains(resp, "مشخصات فنی")
+
+    def test_related_products_reaches_rendered_html_when_related_exist(self):
+        from datetime import timedelta
+        from decimal import Decimal
+
+        from django.utils import timezone
+
+        from apps.catalog.models import Product
+
+        related = Product.objects.create(
+            store=self.store, vendor=self.product.vendor, category=self.product.category,
+            name="کالای مرتبطِ پیش‌نمایش", slug="preview-related-product", sku="PREVIEW-RELATED-1",
+            price=Decimal("20000"), stock=2, status=Product.Status.ACTIVE,
+        )
+        # Preview انتخابِ «محصولِ جاری» را از رویِ جدیدترینِ محصولِ فروشگاه
+        # انجام می‌دهد (``_preview_page_context``) — این تست باید مطمئن
+        # باشد ``self.product`` (نه ``related``) همان «جاری» است، تا
+        # ``related`` واقعاً در گریدِ محصولاتِ مرتبط ظاهر شود.
+        Product.objects.filter(pk=related.pk).update(created_at=timezone.now() - timedelta(days=1))
+        StorefrontSection.objects.create(page=self.pd_page, section_key="related_products", order=0)
+        resp = self._preview()
+        self.assertContains(resp, "کالای مرتبطِ پیش‌نمایش")
+
+    def test_product_video_section_renders_nothing_without_videos(self):
+        """محصولِ نماینده هیچ ویدیویی ندارد — section باید بی‌خطا و بدونِ
+        هیچ نشانه‌ای از گرید ویدیو رندر شود (fail-safe، نه crash)."""
+        StorefrontSection.objects.create(page=self.pd_page, section_key="product_video", order=0)
+        resp = self._preview()
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, "pdp-video-grid")
+
+    def test_context_aware_sections_absent_on_other_page_tabs(self):
+        """این چهار section فقط با ``?page=product_detail`` دیده می‌شوند —
+        اگر همان section (با دستکاریِ مستقیم) رویِ صفحه‌ی دیگری بنشیند،
+        Preview آن صفحه هرگز آن را رندر نمی‌کند (چون اصلاً section آن
+        صفحه نیست)."""
+        StorefrontSection.objects.create(page=self.pd_page, section_key="product_main", order=0)
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"), {"page": "cart"})
+        self.assertNotContains(resp, "کالای پیش‌نمایشِ رندرشده")

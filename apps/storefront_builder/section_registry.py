@@ -1034,6 +1034,49 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         # story_rail، تکرارِ آن (دو فرمِ مستقل روی یک صفحه) گیج‌کننده است.
         max_instances=1, duplicable=False, removable=True, has_settings_form=True, category_fa="محتوا",
     ),
+    # -------------------------------------------------- Phase 5: بخش‌های context-aware صفحه محصول
+    # هر چهار نوعِ زیر فقط رویِ product_detail قابل‌افزودن‌اند (page_types)
+    # و بدونِ تنظیماتِ واقعی هستند (passthrough) — داده‌شان همیشه از
+    # ``page_context``ی که ویوِ مسیر پاس می‌دهد resolve می‌شود، هرگز از
+    # یک ID ذخیره‌شده در settings؛ نگاه کنید به
+    # ``render_service._CONTEXT_AWARE_BUILDERS``.
+    "product_main": SectionDefinition(
+        key="product_main", label_fa="گالری و خرید محصول", icon="shopping-bag",
+        template_name="storefront_builder/sections/product_main.html",
+        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
+        # گالری/قیمت/انتخابِ تنوع/افزودن‌به‌سبد یک کامپوننتِ Alpine واحد
+        # است (``x-data="variantSelector(...)"``) — تجزیه‌ی آن به
+        # section‌های کوچک‌تر اسکوپِ آن کامپوننت را می‌شکست؛ حذفِ کاملِ آن
+        # هم یعنی صفحه‌ی محصول هیچ راهی برایِ خرید ندارد، پس removable=False
+        # (دقیقاً همان استدلالِ ``show_cart`` در هدر).
+        max_instances=1, duplicable=False, removable=False, category_fa="محصولات",
+        page_types=frozenset({PAGE_TYPE_PRODUCT_DETAIL}),
+    ),
+    "product_description": SectionDefinition(
+        key="product_description", label_fa="توضیحات، مشخصات و نظرات", icon="text",
+        template_name="storefront_builder/sections/product_description.html",
+        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
+        # سه‌تب (توضیحات/مشخصات/نظرات) یک کامپوننتِ Alpine مشترک
+        # (``x-data="{ tab: 'desc' }"``) هستند — طبقِ الزامِ صریحِ کار
+        # («prefer sensible compositional primitives... may remain one
+        # structured block»)، یک بلوکِ واحد می‌مانند، نه سه section جدا.
+        max_instances=1, duplicable=False, removable=True, category_fa="محصولات",
+        page_types=frozenset({PAGE_TYPE_PRODUCT_DETAIL}),
+    ),
+    "product_video": SectionDefinition(
+        key="product_video", label_fa="ویدئوهای محصول", icon="play-circle",
+        template_name="storefront_builder/sections/product_video.html",
+        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
+        max_instances=1, duplicable=False, removable=True, category_fa="محصولات",
+        page_types=frozenset({PAGE_TYPE_PRODUCT_DETAIL}),
+    ),
+    "related_products": SectionDefinition(
+        key="related_products", label_fa="محصولات مرتبط", icon="grid",
+        template_name="storefront_builder/sections/related_products.html",
+        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
+        max_instances=1, duplicable=False, removable=True, category_fa="محصولات",
+        page_types=frozenset({PAGE_TYPE_PRODUCT_DETAIL}),
+    ),
 }
 
 
