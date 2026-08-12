@@ -73,6 +73,25 @@ class HeroSlideCrudTests(MediaViewsTestCase):
         self.assertEqual(slide.title, "اسلاید تست")
         self.assertEqual(slide.store_id, self.store.pk)
 
+    def test_add_form_shows_search_and_cart_destination_options(self):
+        """چکپوینتِ سازگاریِ Phase 3: این فرمِ جداگانه (نه بلوکِ JSONِ
+        section_destination_fields.html) هم باید همان دو مقصدِ جدید را
+        نشان دهد — قراردادِ مقصد باید یکسان باشد، هرچه UI آن دو باشد."""
+        resp = self.client.get(
+            reverse("dashboard:storefront-builder-section-media-add", args=[self.hero_section.pk, "hero-slides"])
+        )
+        self.assertContains(resp, '<option value="search">')
+        self.assertContains(resp, '<option value="cart">')
+
+    def test_add_slide_with_search_destination(self):
+        resp = self.client.post(
+            reverse("dashboard:storefront-builder-section-media-add", args=[self.hero_section.pk, "hero-slides"]),
+            {"title": "اسلایدِ جستجو", "destination_type": "search", "desktop_image": _img(), "is_active": "on"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        slide = HeroSlide.objects.get(section=self.hero_section)
+        self.assertEqual(slide.destination_type, "search")
+
     def test_add_slide_without_image_rejected(self):
         resp = self.client.post(
             reverse("dashboard:storefront-builder-section-media-add", args=[self.hero_section.pk, "hero-slides"]),
@@ -163,6 +182,15 @@ class BannerCrudTests(MediaViewsTestCase):
         self.assertEqual(resp.status_code, 302)
         banner = PromotionalBanner.objects.get(section=self.banner_section)
         self.assertEqual(banner.title, "بنر تست")
+
+    def test_add_banner_with_cart_destination(self):
+        resp = self.client.post(
+            reverse("dashboard:storefront-builder-section-media-add", args=[self.banner_section.pk, "banners"]),
+            {"title": "بنرِ سبد خرید", "destination_type": "cart", "desktop_image": _img(), "is_active": "on"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        banner = PromotionalBanner.objects.get(section=self.banner_section)
+        self.assertEqual(banner.destination_type, "cart")
 
     def test_external_link_with_dangerous_scheme_rejected(self):
         resp = self.client.post(
