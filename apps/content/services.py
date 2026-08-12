@@ -50,6 +50,12 @@ def resolve_destination_url(instance) -> str | None:
             return None
         return reverse("catalog:collection-detail", args=[collection.slug])
 
+    if dtype == DestinationType.SEARCH:
+        return reverse("catalog:product-list")
+
+    if dtype == DestinationType.CART:
+        return reverse("cart:detail")
+
     if dtype == DestinationType.EXTERNAL:
         url = (instance.destination_external_url or "").strip()
         return url if url else None
@@ -107,6 +113,10 @@ def resolve_destination_setting(store, destination: dict | None) -> dict:
         from apps.catalog.models import MerchantCollection
 
         url = _collection_url(store, destination.get("destination_id"), MerchantCollection)
+    elif dtype == DestinationType.SEARCH:
+        url = reverse("catalog:product-list")
+    elif dtype == DestinationType.CART:
+        url = reverse("cart:detail")
     elif dtype == DestinationType.EXTERNAL:
         raw_url = (destination.get("destination_external_url") or "").strip()
         url = raw_url or None

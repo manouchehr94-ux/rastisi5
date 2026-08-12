@@ -96,6 +96,45 @@
   display: none;
 }
 
+/* Phase 3 — حرکتِ per-block (``data-motion`` رویِ ``.rsec``، از
+   ``settings.motion.style``) — کاملاً CSS، هیچ کدِ Renderer/family
+   جدیدی نیست. داخلِ ``prefers-reduced-motion: no-preference`` تا
+   کاربرانی که حرکتِ کاهش‌یافته را ترجیح می‌دهند هیچ جلوه‌ای نبینند. */
+@media (prefers-reduced-motion: no-preference) {
+  .rsec[data-motion="fade"] {
+    animation: rsec-fade-in 0.6s ease both;
+  }
+  .rsec[data-motion="slide"] {
+    animation: rsec-slide-in 0.6s ease both;
+  }
+  .rsec[data-motion="subtle_zoom"] {
+    overflow: hidden;
+  }
+  .rsec[data-motion="subtle_zoom"] img {
+    transition: transform 0.4s ease;
+  }
+  .rsec[data-motion="subtle_zoom"]:hover img {
+    transform: scale(1.03);
+  }
+  .rsec[data-motion="hover_lift"] {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .rsec[data-motion="hover_lift"]:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, .10);
+  }
+}
+
+@keyframes rsec-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes rsec-slide-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* شِلِ اصلی — پیش‌نمایشِ بزرگ سمتِ چپ (main)، پنلِ فشرده‌یِ سازنده
    سمتِ راست (aside) — دقیقاً همان چیدمانِ پروتوتایپِ V5. */
 .sfb-body {

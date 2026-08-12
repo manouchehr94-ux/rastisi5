@@ -2,20 +2,26 @@ from django.test import TestCase
 
 from apps.storefront_builder.section_registry import (
     COLUMN_AWARE_SECTION_KEYS,
+    COLUMN_VISUAL_SECTION_KEYS,
     DESTINATION_AWARE_SECTION_KEYS,
+    MOTION_AWARE_SECTION_KEYS,
+    MOTION_CHOICES,
     SECTION_LIBRARY_CATEGORIES,
     SECTION_REGISTRY,
     DestinationSettingsError,
+    MotionSettingsError,
     ProductSectionSettingsError,
     ResponsiveSettingsError,
     UnknownSectionTypeError,
     default_destination_settings,
+    default_motion_settings,
     default_responsive_settings,
     get_definition,
     is_valid_section_key,
     list_definitions,
     list_library_groups,
     validate_destination_settings,
+    validate_motion_settings,
     validate_responsive_settings,
 )
 
@@ -593,6 +599,16 @@ class DestinationSettingsTests(TestCase):
         with self.assertRaises(DestinationSettingsError):
             validate_destination_settings({"destination_type": "not-a-real-type"})
 
+    def test_search_type_accepted_and_needs_no_id(self):
+        cleaned = validate_destination_settings({"destination_type": "search"})
+        self.assertEqual(cleaned["destination_type"], "search")
+        self.assertIsNone(cleaned["destination_id"])
+
+    def test_cart_type_accepted_and_needs_no_id(self):
+        cleaned = validate_destination_settings({"destination_type": "cart"})
+        self.assertEqual(cleaned["destination_type"], "cart")
+        self.assertIsNone(cleaned["destination_id"])
+
     def test_none_raw_defaults(self):
         self.assertEqual(validate_destination_settings(None), default_destination_settings())
 
@@ -632,3 +648,66 @@ class DestinationAwareIntegrationTests(TestCase):
         })
         self.assertEqual(cleaned["destination"]["destination_type"], "collection")
         self.assertEqual(cleaned["destination"]["destination_id"], 4)
+
+
+class MotionSettingsTests(TestCase):
+    """Phase 3 (کتابخانه‌ی بلوک‌های صفحه اصلی) — بلوکِ مشترکِ «حرکت»."""
+
+    def test_default_is_none(self):
+        self.assertEqual(default_motion_settings(), {"style": "none"})
+
+    def test_none_raw_defaults(self):
+        self.assertEqual(validate_motion_settings(None), default_motion_settings())
+
+    def test_valid_styles_accepted(self):
+        for style in MOTION_CHOICES:
+            self.assertEqual(validate_motion_settings({"style": style}), {"style": style})
+
+    def test_unknown_style_falls_back_to_none(self):
+        """برخلافِ destination (که خطا می‌دهد)، سبکِ نامعتبر بی‌صدا به
+        none بازمی‌گردد — یک جلوه‌ی صرفاً بصری هرگز نباید کلِ فرمِ
+        ذخیره‌سازی را رد کند."""
+        self.assertEqual(validate_motion_settings({"style": "not-a-real-style"}), {"style": "none"})
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(MotionSettingsError):
+            validate_motion_settings("nope")
+
+
+class MotionAwareIntegrationTests(TestCase):
+    def test_motion_aware_keys_get_motion_defaults(self):
+        for key in MOTION_AWARE_SECTION_KEYS:
+            defaults = get_definition(key).default_settings()
+            self.assertIn("motion", defaults, key)
+            self.assertEqual(defaults["motion"]["style"], "none", key)
+
+    def test_non_motion_aware_keys_have_no_motion_field(self):
+        for key, definition in SECTION_REGISTRY.items():
+            if key in MOTION_AWARE_SECTION_KEYS:
+                continue
+            defaults = definition.default_settings()
+            self.assertNotIn("motion", defaults, key)
+
+    def test_existing_settings_without_motion_key_still_validate(self):
+        definition = get_definition("category_grid")
+        cleaned = definition.validate_settings({"title": "hi"})
+        self.assertEqual(cleaned["motion"]["style"], "none")
+
+    def test_motion_round_trips(self):
+        definition = get_definition("hero_banner")
+        cleaned = definition.validate_settings({"motion": {"style": "fade"}})
+        self.assertEqual(cleaned["motion"]["style"], "fade")
+
+
+class MultiBannerColumnLayoutTests(TestCase):
+    """Phase 3 — ``multi_banner`` از ``COLUMN_AWARE`` به ``COLUMN_VISUAL``
+    منتقل شد (چیدمانِ گریدِ واقعی، نگاه کنید به multi_banner.html)."""
+
+    def test_multi_banner_is_column_aware_and_visual(self):
+        self.assertIn("multi_banner", COLUMN_AWARE_SECTION_KEYS)
+        self.assertIn("multi_banner", COLUMN_VISUAL_SECTION_KEYS)
+
+    def test_other_previously_static_types_remain_non_visual(self):
+        for key in ("category_grid", "promo_cards", "brand_carousel"):
+            self.assertIn(key, COLUMN_AWARE_SECTION_KEYS)
+            self.assertNotIn(key, COLUMN_VISUAL_SECTION_KEYS)

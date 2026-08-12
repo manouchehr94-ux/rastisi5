@@ -116,6 +116,12 @@ class DestinationType(models.TextChoices):
     PRODUCT = "product", "محصول"
     BRAND = "brand", "برند"
     COLLECTION = "collection", "کالکشن"
+    #: Phase 3 (کتابخانه‌ی بلوک‌های صفحه اصلی) — دو مقصدِ بدون-پارامتر
+    #: (مثلِ NONE/EXTERNAL: نه destination_id نیاز دارند نه URL خارجی)
+    #: که در طرح اصلیِ کار به‌عنوان مقصدهای استانداردِ لینک/دکمه خواسته
+    #: شده بودند اما پیاده نشده بودند.
+    SEARCH = "search", "جستجو"
+    CART = "cart", "سبد خرید"
     EXTERNAL = "external", "لینک خارجی"
 
 
@@ -179,6 +185,12 @@ class DestinationMixin(models.Model):
         if dtype == DestinationType.NONE:
             if internal_set or has_ext:
                 raise ValidationError("وقتی نوع مقصد «بدون مقصد» است، نباید مقصدی انتخاب شود")
+
+        elif dtype in (DestinationType.SEARCH, DestinationType.CART):
+            # هر دو بدون-پارامترند — درست مثلِ NONE، هیچ FK/URL خارجی‌ای
+            # نباید همراهشان ذخیره شده باشد.
+            if internal_set or has_ext:
+                raise ValidationError("این نوع مقصد پارامتر نمی‌پذیرد — نباید مقصد دیگری انتخاب شود")
 
         elif dtype == DestinationType.CATEGORY:
             if not cat:

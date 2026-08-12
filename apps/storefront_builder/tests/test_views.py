@@ -529,18 +529,24 @@ class ResponsiveSettingsFormTests(StorefrontBuilderViewsTestCase):
         self.assertNotContains(resp, "تعداد ستون‌ها")
 
     def test_column_controls_present_for_visually_functional_type(self):
-        """فقط product_section (تنها نوعی که الان چیدمانِ پارامتری واقعی
-        دارد) باید کنترلِ «تعداد ستون‌ها» را در فرم ببیند."""
-        section = StorefrontSection.objects.create(version=self.draft, section_key="product_section", order=0)
-        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
-        self.assertContains(resp, "تعداد ستون‌ها")
+        """``product_section``/``multi_banner`` — تنها دو نوعی که الان
+        چیدمانِ پارامتریِ واقعی دارند (Phase 3: ``multi_banner`` به
+        ``COLUMN_VISUAL_SECTION_KEYS`` منتقل شد، نگاه کنید به
+        ``STOREFRONT_BUILDER_V2_PHASE_3_AUDIT.md``) — باید کنترلِ «تعداد
+        ستون‌ها» را در فرم ببینند."""
+        for section_key in ("product_section", "multi_banner"):
+            section = StorefrontSection.objects.create(version=self.draft, section_key=section_key, order=0)
+            resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+            self.assertContains(resp, "تعداد ستون‌ها", msg_prefix=f"section_key={section_key}")
 
     def test_column_controls_absent_for_column_aware_but_visually_static_types(self):
         """فیکسِ فازِ D — تستِ دستیِ کاربر روی Brand Carousel نشان داد
-        تغییرِ تعدادِ ستون هیچ اثرِ بصری‌ای ندارد؛ این چهار نوع همچنان
+        تغییرِ تعدادِ ستون هیچ اثرِ بصری‌ای ندارد؛ این سه نوع همچنان
         در ``COLUMN_AWARE_SECTION_KEYS`` (قراردادِ ذخیره‌سازیِ عمومی)
-        هستند اما دیگر نباید کنترلِ گمراه‌کننده را در UI نشان دهند."""
-        for section_key in ("category_grid", "multi_banner", "promo_cards", "brand_carousel"):
+        هستند اما دیگر نباید کنترلِ گمراه‌کننده را در UI نشان دهند.
+        (``multi_banner`` از این فهرست در Phase 3 خارج شد — چیدمانِ
+        گریدش دیگر واقعاً پارامتری است، نگاه کنید به تستِ بالا.)"""
+        for section_key in ("category_grid", "promo_cards", "brand_carousel"):
             section = StorefrontSection.objects.create(version=self.draft, section_key=section_key, order=0)
             resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
             self.assertNotContains(resp, "تعداد ستون‌ها", msg_prefix=f"section_key={section_key}")
@@ -554,6 +560,37 @@ class ResponsiveSettingsFormTests(StorefrontBuilderViewsTestCase):
             resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
             self.assertContains(resp, "نمایش در:", msg_prefix=f"section_key={section_key}")
             self.assertContains(resp, "show_on_mobile", msg_prefix=f"section_key={section_key}")
+
+    def test_motion_controls_present_for_motion_aware_type(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0)
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+        self.assertContains(resp, 'name="motion_style"')
+
+    def test_motion_controls_absent_for_non_motion_aware_type(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+        self.assertNotContains(resp, 'name="motion_style"')
+
+    def test_motion_style_saved_for_motion_aware_type(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="hero_banner", order=0)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "motion_style": "hover_lift",
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["motion"], {"style": "hover_lift"})
+
+    def test_motion_style_ignored_for_non_motion_aware_type(self):
+        """پستِ ``motion_style`` برایِ نوعی که موتور از آن پشتیبانی نمی‌کند
+        (مثلاً یک درخواستِ دستکاری‌شده) نباید چیزی در settings بنویسد —
+        فقط ``MOTION_AWARE_SECTION_KEYS`` این کلید را از POST می‌خواند."""
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "body_html": "متن", "motion_style": "fade",
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertNotIn("motion", section.settings)
 
     def test_column_values_still_saved_for_category_grid_despite_no_ui(self):
         """قراردادِ ذخیره‌سازی عمداً عمومی می‌ماند (بخشِ ۵ مشخصاتِ فیکس) —
@@ -1047,6 +1084,41 @@ class RenderedPreviewIntegrationTests(StorefrontBuilderViewsTestCase):
         )
         resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
         self.assertContains(resp, "https://example.com/landing")
+
+    def test_image_text_search_destination_reaches_rendered_html(self):
+        """Phase 3 — مقصدِ جدیدِ ``search`` (بدون‌پارامتر، مثلِ external
+        اما بدونِ URL دستی) باید تا HTMLِ رندرشده برسد."""
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="image_text", order=902,
+            settings={
+                "title": "لینک به جستجو", "body_html": "", "image_url": "https://example.com/y.png", "image_position": "right",
+                "destination": {"destination_type": "search", "destination_id": None,
+                                 "destination_external_url": "", "open_in_new_tab": False},
+                "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False},
+            },
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, reverse("catalog:product-list"))
+
+    def test_motion_style_reaches_rendered_data_attribute(self):
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="category_grid", order=903,
+            settings={
+                "title": "", "display_mode": "grid", "category_ids": [],
+                "motion": {"style": "fade"},
+                "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False},
+            },
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, 'data-motion="fade"')
+
+    def test_missing_motion_key_defaults_to_none_in_rendered_html(self):
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="rich_text", order=904,
+            settings={"body_html": "پیشین"},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, 'data-motion="none"')
 
     def test_two_duplicated_category_grids_render_different_categories(self):
         """چکپوینتِ ۱۱ — رگرسیونِ همان کلاسِ باگ: اگر ``category_grid_settings``

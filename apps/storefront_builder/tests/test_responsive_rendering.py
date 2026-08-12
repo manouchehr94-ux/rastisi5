@@ -277,3 +277,68 @@ class DraftPreviewPublishResponsiveTests(TestCase):
         restored = svc.restore_version(self.store, v1.pk)
         restored_section = restored.sections.get(section_key="hero_banner")
         self.assertFalse(restored_section.settings["responsive"]["hide_on_mobile"])
+
+
+def _banner_image():
+    from io import BytesIO
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGB", (800, 400), (10, 20, 30)).save(buf, "PNG")
+    return SimpleUploadedFile("banner.png", buf.getvalue(), content_type="image/png")
+
+
+class MultiBannerColumnRenderingTests(TestCase):
+    """Phase 3 — ``multi_banner`` اکنون یک گریدِ واقعاً پارامتری است
+    (``COLUMN_VISUAL_SECTION_KEYS``)، دقیقاً همان الگویِ
+    ``ProductSectionColumnRenderingTests`` بالا."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        from django.test import override_settings
+        self._override = override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
+        self._override.enable()
+        self.addCleanup(self._override.disable)
+        _verified_domain(self.store, HOST)
+
+    def _make_banner_section(self, **responsive_overrides):
+        from apps.content.models import PromotionalBanner
+
+        draft = svc.get_or_create_draft(self.store)
+        draft.sections.filter(section_key="multi_banner").delete()
+        responsive = {
+            "hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False,
+            "desktop_columns": 2, "tablet_columns": 2, "mobile_columns": 1,
+        }
+        responsive.update(responsive_overrides)
+        section = StorefrontSection.objects.create(
+            version=draft, section_key="multi_banner", order=999,
+            settings={"responsive": responsive},
+        )
+        PromotionalBanner.objects.create(store=self.store, section=section, title="بنر یک", desktop_image=_banner_image(), is_active=True)
+        PromotionalBanner.objects.create(store=self.store, section=section, title="بنر دو", desktop_image=_banner_image(), is_active=True)
+        return section
+
+    def test_multi_banner_gets_grid_rsec_cols_class(self):
+        self._make_banner_section()
+        svc.publish(self.store)
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        self.assertContains(resp, 'class="grid rsec-cols"')
+
+    def test_multi_banner_column_css_variables_rendered(self):
+        self._make_banner_section(desktop_columns=2, tablet_columns=2, mobile_columns=1)
+        svc.publish(self.store)
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        content = resp.content.decode()
+        self.assertIn("--cols-desktop:2", content)
+        self.assertIn("--cols-mobile:1", content)
+
+    def test_both_banners_render_inside_the_grid(self):
+        self._make_banner_section()
+        svc.publish(self.store)
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        self.assertContains(resp, "بنر یک")
+        self.assertContains(resp, "بنر دو")

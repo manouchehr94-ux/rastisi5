@@ -228,12 +228,12 @@ def _product_section_defaults() -> dict:
 #: آینده‌نگر و عمومی، طبقِ بخشِ ۵ مشخصاتِ فیکسِ فازِ D: «Keep the
 #: responsive contract generic internally for future expansion»).
 #: **این ثابت هرگز مستقیماً برایِ تصمیمِ نمایش/عدم‌نمایشِ کنترلِ UI
-#: استفاده نشود** — چهار نوعِ ``category_grid``/``multi_banner``/
+#: استفاده نشود** — سه نوعِ باقی‌مانده‌یِ ``category_grid``/
 #: ``promo_cards``/``brand_carousel`` مقدار را ذخیره می‌کنند اما
-#: چیدمانِ ثابتِ فعلی‌شان (tiles/ردیفِ بنر/auto-fill) اصلاً آن را در
-#: رندر نمی‌خواند — نمایشِ کنترل به تاجر برایِ این چهار نوع صرفاً
-#: گمراه‌کننده است (تغییرِ عدد هیچ اثرِ بصری‌ای ندارد). برایِ آن تصمیم
-#: از ``COLUMN_VISUAL_SECTION_KEYS`` پایین استفاده کنید.
+#: چیدمانِ ثابتِ فعلی‌شان (tiles/auto-fill) اصلاً آن را در رندر
+#: نمی‌خواند — نمایشِ کنترل به تاجر برایِ این سه نوع صرفاً گمراه‌کننده
+#: است (تغییرِ عدد هیچ اثرِ بصری‌ای ندارد). برایِ آن تصمیم از
+#: ``COLUMN_VISUAL_SECTION_KEYS`` پایین استفاده کنید.
 COLUMN_AWARE_SECTION_KEYS = frozenset({
     "product_section", "category_grid", "multi_banner", "promo_cards", "brand_carousel",
 })
@@ -243,12 +243,15 @@ COLUMN_AWARE_SECTION_KEYS = frozenset({
 #: تستِ دستیِ کاربر روی Brand Carousel: تغییرِ ستونِ موبایل هیچ اثرِ
 #: بصری‌ای نداشت). فقط همین مجموعه باید کنترلِ «تعدادِ ستون‌ها» را در
 #: فرمِ تنظیماتِ ادیتور نشان دهد — نه ``COLUMN_AWARE_SECTION_KEYS``ی
-#: بالا. امروز فقط ``product_section`` یک grid/carousel پارامتری دارد
-#: (``.rsec-cols`` در ``product_card.css``)؛ وقتی چیدمانِ یکی از آن
-#: چهار نوعِ دیگر در آینده بازطراحی شد، همان کلید را از
-#: ``COLUMN_AWARE_SECTION_KEYS`` به اینجا هم منتقل کنید — بدونِ نیاز
-#: به تغییرِ لایه‌ی اعتبارسنجی، چون قرارداد از قبل عمومی است.
-COLUMN_VISUAL_SECTION_KEYS = frozenset({"product_section"})
+#: بالا. ``product_section`` از قبل یک grid/carousel پارامتری دارد
+#: (``.rsec-cols`` در ``product_card.css``)؛ ``multi_banner`` در Phase 3
+#: (کتابخانه‌ی بلوک‌هایِ صفحه‌ی اصلی — بستنِ شکافِ «Two-Banner Row»/
+#: «Multi-Banner Grid») به همین مجموعه اضافه شد و از همان کلاسِ
+#: ``.grid.rsec-cols``یِ موجود استفاده می‌کند (کدِ CSSِ تازه‌ای نساخته
+#: شد). وقتی چیدمانِ ``category_grid``/``promo_cards``/``brand_carousel``
+#: هم در آینده بازطراحی شد، همان کلید را از ``COLUMN_AWARE_SECTION_KEYS``
+#: به اینجا هم منتقل کنید.
+COLUMN_VISUAL_SECTION_KEYS = frozenset({"product_section", "multi_banner"})
 
 #: مقادیرِ مجازِ enum بستهٔ تعدادِ ستون به‌ازای هر دستگاه — طبقِ بخشِ ۴
 #: مشخصات؛ هیچ عددِ دلخواهی پذیرفته نمی‌شود.
@@ -443,6 +446,68 @@ def _with_destination(section_key: str, validate_fn, default_fn):
     def wrapped_default() -> dict:
         base = default_fn()
         return {**base, "destination": default_destination_settings()}
+
+    return wrapped_validate, wrapped_default
+
+
+#: انواعی که یک بلوکِ «حرکت» (Phase 3: کتابخانه‌ی بلوک‌هایِ صفحه‌ی
+#: اصلی) دارند — جلوه‌ی ورود/hover که کاملاً config-محور است (CSS در
+#: storefront_builder.css)، نه کدِ Renderer/family. عمداً یک allowlist
+#: صریح است (مثلِ ``COLUMN_AWARE_SECTION_KEYS``/``DESTINATION_AWARE_SECTION_KEYS``
+#: بالا)، نه پیش‌فرضِ همه‌ی انواع — بعضی انواع (rich_text/faq/testimonials/
+#: quick_links/video_section/trust_features/...) معنایِ بصریِ روشنی برایِ
+#: hover/ورودِ متحرک ندارند.
+MOTION_AWARE_SECTION_KEYS = frozenset({
+    "hero_banner", "image_slider", "single_banner", "multi_banner",
+    "category_grid", "brand_carousel", "product_section", "collection_tiles",
+    "image_text",
+})
+
+#: enum بستهٔ سبکِ حرکت — ``none`` پیش‌فرض (رفتارِ فعلی، بدونِ تغییر).
+MOTION_CHOICES = ("none", "fade", "slide", "subtle_zoom", "hover_lift")
+
+
+class MotionSettingsError(ValueError):
+    """شکلِ خامِ بلوکِ ``motion`` نامعتبر است."""
+
+
+def validate_motion_settings(raw) -> dict:
+    """قراردادِ مشترکِ «حرکت» — سبکِ نامعتبر/غایب بی‌صدا به ``none``
+    بازمی‌گردد (نه خطا)، دقیقاً همان تسامحی که ``validate_responsive_settings``
+    برایِ کلیدهایِ ناشناخته/غایب دارد."""
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise MotionSettingsError("تنظیماتِ حرکت باید یک شیء باشد")
+    style = raw.get("style")
+    if style not in MOTION_CHOICES:
+        style = "none"
+    return {"style": style}
+
+
+def default_motion_settings() -> dict:
+    return {"style": "none"}
+
+
+def _with_motion(section_key: str, validate_fn, default_fn):
+    """هر جفتِ (validate_settings, default_settings) موجود را با پشتیبانیِ
+    بلوکِ ``motion`` می‌پوشاند — فقط برایِ کلیدهایِ ``MOTION_AWARE_SECTION_KEYS``.
+    دقیقاً همان الگویِ ``_with_responsive``/``_with_destination`` بالا."""
+    if section_key not in MOTION_AWARE_SECTION_KEYS:
+        return validate_fn, default_fn
+
+    def wrapped_validate(raw: dict) -> dict:
+        if not isinstance(raw, dict):
+            return validate_fn(raw)
+        motion_raw = raw.get("motion")
+        base_raw = {k: v for k, v in raw.items() if k != "motion"}
+        cleaned = validate_fn(base_raw)
+        cleaned["motion"] = validate_motion_settings(motion_raw)
+        return cleaned
+
+    def wrapped_default() -> dict:
+        base = default_fn()
+        return {**base, "motion": default_motion_settings()}
 
     return wrapped_validate, wrapped_default
 
@@ -920,6 +985,7 @@ def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionD
     for key, definition in base.items():
         validate_fn, default_fn = _with_destination(key, definition.validate_settings, definition.default_settings)
         validate_fn, default_fn = _with_responsive(key, validate_fn, default_fn)
+        validate_fn, default_fn = _with_motion(key, validate_fn, default_fn)
         finalized[key] = dataclasses.replace(
             definition, validate_settings=validate_fn, default_settings=default_fn, has_settings_form=True,
         )

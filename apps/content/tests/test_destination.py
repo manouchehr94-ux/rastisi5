@@ -203,6 +203,24 @@ class DestinationValidationTests(TestCase):
         )
         obj.clean()  # Should pass after strip
 
+    def test_search_with_no_destination_passes(self):
+        obj = _make_instance(destination_type=DestinationType.SEARCH)
+        obj.clean()
+
+    def test_search_with_category_fails(self):
+        obj = _make_instance(destination_type=DestinationType.SEARCH, destination_category=self.category)
+        with self.assertRaises(ValidationError):
+            obj.clean()
+
+    def test_cart_with_no_destination_passes(self):
+        obj = _make_instance(destination_type=DestinationType.CART)
+        obj.clean()
+
+    def test_cart_with_external_url_fails(self):
+        obj = _make_instance(destination_type=DestinationType.CART, destination_external_url="https://example.com")
+        with self.assertRaises(ValidationError):
+            obj.clean()
+
 
 class DestinationResolverTests(TestCase):
     """تست‌های حل‌کننده‌ی مقصد."""
@@ -269,6 +287,17 @@ class DestinationResolverTests(TestCase):
         )
         obj.destination_product_id = None
         self.assertIsNone(resolve_destination_url(obj))
+
+    def test_search_resolves(self):
+        obj = _make_instance(destination_type=DestinationType.SEARCH)
+        url = resolve_destination_url(obj)
+        self.assertIsNotNone(url)
+        self.assertIn("/products/", url)
+
+    def test_cart_resolves(self):
+        obj = _make_instance(destination_type=DestinationType.CART)
+        url = resolve_destination_url(obj)
+        self.assertIsNotNone(url)
 
     def test_resolver_never_returns_hash(self):
         """Resolver must never return '#' under any circumstance."""

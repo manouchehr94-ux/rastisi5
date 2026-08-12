@@ -1,0 +1,16 @@
+{% comment %}
+بلوکِ استانداردِ «حرکت» — Phase 3: یک بار نوشته شده، توسطِ هر نوع سکشنی
+که در ``MOTION_AWARE_SECTION_KEYS`` عضو است include می‌شود. پیاده‌سازیِ
+واقعیِ جلوه فقط CSS است (storefront_builder.css)، هیچ Renderer/کدِ
+family-محورِ جدیدی نمی‌سازد — دقیقاً همان الزامِ صریحِ کار.
+{% endcomment %}
+<div class="form-group" style="margin-top:10px">
+  <label for="id_motion_style">حرکت</label>
+  <select name="motion_style" id="id_motion_style" class="form-select">
+    <option value="none" {% if section.settings.motion.style|default:"none" == "none" %}selected{% endif %}>بدون حرکت</option>
+    <option value="fade" {% if section.settings.motion.style == "fade" %}selected{% endif %}>محو‌شدن (Fade)</option>
+    <option value="slide" {% if section.settings.motion.style == "slide" %}selected{% endif %}>لغزش (Slide)</option>
+    <option value="subtle_zoom" {% if section.settings.motion.style == "subtle_zoom" %}selected{% endif %}>بزرگ‌نماییِ ملایم (Hover)</option>
+    <option value="hover_lift" {% if section.settings.motion.style == "hover_lift" %}selected{% endif %}>بالاآمدنِ ملایم (Hover)</option>
+  </select>
+</div>

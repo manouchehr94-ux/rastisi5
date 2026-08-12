@@ -334,6 +334,8 @@ def storefront_section_settings(request, pk):
         raw["responsive"] = _extract_responsive_raw(request, section.section_key)
         if section.section_key in section_registry.DESTINATION_AWARE_SECTION_KEYS:
             raw["destination"] = _extract_destination_raw(request)
+        if section.section_key in section_registry.MOTION_AWARE_SECTION_KEYS:
+            raw["motion"] = {"style": request.POST.get("motion_style", "none")}
         try:
             cleaned = definition.validate_settings(raw)
             section.settings = cleaned
