@@ -1,0 +1,15 @@
+{% comment %}
+بلوکِ «خبرنامه» — Phase 3 (کتابخانه‌ی بلوک‌هایِ صفحه‌ی اصلی). عمداً
+حداقلی: فقط عنوان/زیرعنوان + فرمِ ثبتِ ایمیل (``NewsletterSubscriber``)،
+بدونِ کمپین/ارسال. ``id`` رویِ wrapper فقط برایِ خوانایی است — خودِ
+htmx-target از ``closest div`` استفاده می‌کند (نگاه کنید به
+``content/partials/newsletter_form.html``)، پس نیازی به یکتاییِ سراسریِ
+این id نیست.
+{% endcomment %}
+<section class="section" style="text-align:center">
+  {% if settings.title %}<h2><span class="bar"></span>{{ settings.title }}</h2>{% endif %}
+  {% if settings.subtitle %}<p style="color:var(--muted);font-size:13px;margin:-6px 0 16px">{{ settings.subtitle }}</p>{% endif %}
+  <div id="newsletter-form-{{ section.pk }}">
+    {% include "content/partials/newsletter_form.html" with button_label=settings.button_label %}
+  </div>
+</section>

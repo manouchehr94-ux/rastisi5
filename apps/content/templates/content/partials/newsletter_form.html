@@ -1,0 +1,19 @@
+{% comment %}
+فرمِ عمومیِ «خبرنامه» — چکپوینتِ Phase 3 (کتابخانه‌ی بلوک‌هایِ صفحه‌ی
+اصلی). خودِ ``<div>``یِ بیرونی (در ``storefront_builder/sections/
+newsletter.html``) هدفِ htmx است — این partial با ``hx-target="closest
+div"`` دوباره جایگزینِ خودش می‌شود، دقیقاً همان الگویِ
+``catalog/partials/review_form.html``. ``store`` هرگز از کلاینت پاس
+داده نمی‌شود — ویو همیشه از Host حل می‌کند.
+{% endcomment %}
+{% if subscribed %}
+<div class="newsletter-success" style="color:var(--green);font-weight:700">✅ متشکریم! ایمیلِ شما ثبت شد.</div>
+{% else %}
+<form class="newsletter-form" hx-post="{% url 'content:newsletter-subscribe' %}" hx-target="closest div" hx-swap="innerHTML"
+      style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;max-width:420px;margin:0 auto">
+  {% csrf_token %}
+  {% if error %}<div style="width:100%;color:var(--pink);font-size:12.5px;margin-bottom:6px">{{ error }}</div>{% endif %}
+  <input type="email" name="email" required placeholder="ایمیل شما" class="form-input" dir="ltr" style="flex:1;min-width:200px">
+  <button type="submit" class="btn btn-primary">{{ button_label|default:"عضویت" }}</button>
+</form>
+{% endif %}

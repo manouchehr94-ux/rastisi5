@@ -499,6 +499,31 @@
     </div>
   </form>
 
+  {% elif section.section_key == "newsletter" %}
+  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+    {% csrf_token %}
+    <p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">ایمیلِ ثبت‌شده در بخشِ «مشترکینِ خبرنامه»یِ پنلِ مدیریت ذخیره می‌شود — ارسالِ خبرنامه هنوز خودکار نیست.</p>
+    <div class="form-group">
+      <label for="id_nl_title">عنوان</label>
+      <input type="text" name="title" id="id_nl_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'عضویت در خبرنامه' }}">
+    </div>
+    <div class="form-group">
+      <label for="id_nl_subtitle">زیرعنوان (اختیاری)</label>
+      <input type="text" name="subtitle" id="id_nl_subtitle" class="form-input" maxlength="150" value="{{ section.settings.subtitle|default:'' }}">
+    </div>
+    <div class="form-group">
+      <label for="id_nl_button">متنِ دکمه</label>
+      <input type="text" name="button_label" id="id_nl_button" class="form-input" maxlength="30" value="{{ section.settings.button_label|default:'عضویت' }}">
+    </div>
+
+    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
+      <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
+    </div>
+  </form>
+
   {% elif section.section_key == "single_banner" or section.section_key == "multi_banner" %}
   <a href="{% url 'dashboard:storefront-builder-section-media-list' pk=section.pk kind='banners' %}" class="btn btn-primary" style="width:100%;margin-bottom:14px;text-align:center;display:block">مدیریت بنرها ({{ section.banners.count }})</a>
   <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">

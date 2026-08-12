@@ -213,3 +213,30 @@ def delete_media_asset_if_unreferenced(asset) -> bool:
 
         transaction.on_commit(_cleanup)
     return True
+
+
+class NewsletterSubscribeError(ValueError):
+    """ایمیلِ خامِ ارسال‌شده به بلوکِ «خبرنامه» نامعتبر است — پیامِ فارسیِ
+    قابل‌نمایشِ مستقیم به بازدیدکننده."""
+
+
+def subscribe_to_newsletter(store, raw_email: str):
+    """ایمیل را (پس از اعتبارسنجیِ شکل) به‌ازای همین ``store`` ثبت می‌کند.
+
+    دقیقاً همان الگویِ idempotent محلِ دیگرِ کدبیس (مثلِ
+    ``StorefrontLayout.provision_for``) — عضویتِ دوباره‌یِ همان ایمیل هرگز
+    خطا نیست، فقط همان ردیفِ موجود را برمی‌گرداند (``created=False``)."""
+    from django.core.exceptions import ValidationError as DjangoValidationError
+    from django.core.validators import EmailValidator
+
+    from .models import NewsletterSubscriber
+
+    email = (raw_email or "").strip().lower()
+    if not email:
+        raise NewsletterSubscribeError("ایمیل را وارد کنید")
+    try:
+        EmailValidator()(email)
+    except DjangoValidationError as exc:
+        raise NewsletterSubscribeError("ایمیلِ واردشده معتبر نیست") from exc
+
+    return NewsletterSubscriber.objects.get_or_create(store=store, email=email)

@@ -327,6 +327,12 @@ def storefront_section_settings(request, pk):
                 "video_url": request.POST.get("video_url", ""),
                 "caption": request.POST.get("caption", ""),
             }
+        elif section.section_key == "newsletter":
+            raw = {
+                "title": request.POST.get("title", ""),
+                "subtitle": request.POST.get("subtitle", ""),
+                "button_label": request.POST.get("button_label", ""),
+            }
         else:
             # انواعی که هیچ فیلدِ اختصاصیِ خودشان را ندارند (فازِ D) —
             # تنها چیزی که این فرم برایشان دارد بلوکِ responsive است.

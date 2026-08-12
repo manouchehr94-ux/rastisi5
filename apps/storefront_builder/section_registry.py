@@ -793,6 +793,33 @@ def default_video_section_settings() -> dict:
     return {"title": "", "video_url": "", "caption": ""}
 
 
+class NewsletterSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ «خبرنامه» نامعتبر است."""
+
+
+_MAX_NEWSLETTER_TITLE_LENGTH = 60
+_MAX_NEWSLETTER_SUBTITLE_LENGTH = 150
+_MAX_NEWSLETTER_BUTTON_LABEL_LENGTH = 30
+
+
+def _validate_newsletter_settings(raw: dict) -> dict:
+    """Phase 3 (کتابخانه‌ی بلوک‌هایِ صفحه‌ی اصلی) — فقط متنِ نمایشی؛ خودِ
+    منطقِ ثبتِ ایمیل (اعتبارسنجی/دی‌دوپ/تنظیمِ ذخیره‌سازی) در
+    ``apps.content.services.subscribe_to_newsletter`` است، نه اینجا —
+    دقیقاً همان تفکیکِ مسئولیتی که ``_validate_product_section_settings``
+    برایِ ``source_id`` دارد."""
+    if not isinstance(raw, dict):
+        raise NewsletterSettingsError("تنظیمات باید یک شیء JSON باشد")
+    title = str(raw.get("title", "")).strip()[:_MAX_NEWSLETTER_TITLE_LENGTH]
+    subtitle = str(raw.get("subtitle", "")).strip()[:_MAX_NEWSLETTER_SUBTITLE_LENGTH]
+    button_label = str(raw.get("button_label", "")).strip()[:_MAX_NEWSLETTER_BUTTON_LABEL_LENGTH] or "عضویت"
+    return {"title": title, "subtitle": subtitle, "button_label": button_label}
+
+
+def default_newsletter_settings() -> dict:
+    return {"title": "عضویت در خبرنامه", "subtitle": "", "button_label": "عضویت"}
+
+
 def _validate_image_text_settings(raw: dict) -> dict:
     if not isinstance(raw, dict):
         raise ValueError("تنظیمات باید یک شیء JSON باشد")
@@ -971,6 +998,15 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         template_name="storefront_builder/sections/story_rail.html",
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
         max_instances=1, duplicable=False, removable=True, category_fa="کشف و خرید",
+    ),
+    # -------------------------------------------------- Phase 3: کتابخانه‌ی بلوک‌های صفحه اصلی
+    "newsletter": SectionDefinition(
+        key="newsletter", label_fa="خبرنامه", icon="mail",
+        template_name="storefront_builder/sections/newsletter.html",
+        validate_settings=_validate_newsletter_settings, default_settings=default_newsletter_settings,
+        # یک بلوکِ ثبتِ ایمیلِ سراسری کافی‌ست — مثلِ trust_features/
+        # story_rail، تکرارِ آن (دو فرمِ مستقل روی یک صفحه) گیج‌کننده است.
+        max_instances=1, duplicable=False, removable=True, has_settings_form=True, category_fa="محتوا",
     ),
 }
 

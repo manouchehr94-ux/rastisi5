@@ -1239,6 +1239,21 @@ class NewSectionTypesRenderedPreviewTests(StorefrontBuilderViewsTestCase):
         self.assertContains(resp, "youtube.com/embed/dQw4w9WgXcQ")
         self.assertContains(resp, "زیرنویسِ رندرشده")
 
+    def test_newsletter_reaches_rendered_html(self):
+        """Phase 3 — عنوان/زیرعنوان/متنِ دکمه باید تا HTML برسند، و خودِ
+        فرم باید به endpointِ عمومیِ ثبتِ ایمیل اشاره کند (نه یک مسیرِ
+        داشبورد)."""
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="newsletter", order=901,
+            settings={"title": "عنوانِ خبرنامه", "subtitle": "زیرعنوانِ خبرنامه", "button_label": "عضوِ من کن",
+                      "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False}},
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "عنوانِ خبرنامه")
+        self.assertContains(resp, "زیرعنوانِ خبرنامه")
+        self.assertContains(resp, "عضوِ من کن")
+        self.assertContains(resp, reverse("content:newsletter-subscribe"))
+
 
 class NewSectionTypesSettingsFormTests(StorefrontBuilderViewsTestCase):
     def setUp(self):
@@ -1304,6 +1319,22 @@ class NewSectionTypesSettingsFormTests(StorefrontBuilderViewsTestCase):
         resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "منویِ انتخابی")
+
+    def test_newsletter_settings_form_saves_fields(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="newsletter", order=1)
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), {
+            "title": "عنوان جدید", "subtitle": "زیرعنوان جدید", "button_label": "بزن بریم",
+        })
+        self.assertEqual(resp.status_code, 302)
+        section.refresh_from_db()
+        self.assertEqual(section.settings["title"], "عنوان جدید")
+        self.assertEqual(section.settings["subtitle"], "زیرعنوان جدید")
+        self.assertEqual(section.settings["button_label"], "بزن بریم")
+
+    def test_newsletter_only_one_instance_allowed(self):
+        StorefrontSection.objects.create(version=self.draft, section_key="newsletter", order=1)
+        self.client.post(reverse("dashboard:storefront-builder-section-add"), {"section_key": "newsletter"})
+        self.assertEqual(self.draft.sections.filter(section_key="newsletter").count(), 1)
 
 
 class PageSwitchingTests(StorefrontBuilderViewsTestCase):

@@ -10,6 +10,7 @@ from apps.storefront_builder.section_registry import (
     SECTION_REGISTRY,
     DestinationSettingsError,
     MotionSettingsError,
+    NewsletterSettingsError,
     ProductSectionSettingsError,
     ResponsiveSettingsError,
     UnknownSectionTypeError,
@@ -39,6 +40,10 @@ EXPECTED_KEYS = {
     # list_definitions()/ResponsiveIntegrationAcrossRegistryTests. This
     # fixture was simply never updated when story_rail was added.
     "story_rail",
+    # newsletter — Phase 3 (Home page reusable blocks), dedicated coverage
+    # in test_views.py::NewsletterSectionTests and apps.content's own
+    # NewsletterSubscriber/subscribe_to_newsletter/view tests.
+    "newsletter",
 }
 
 
@@ -711,3 +716,34 @@ class MultiBannerColumnLayoutTests(TestCase):
         for key in ("category_grid", "promo_cards", "brand_carousel"):
             self.assertIn(key, COLUMN_AWARE_SECTION_KEYS)
             self.assertNotIn(key, COLUMN_VISUAL_SECTION_KEYS)
+
+
+class NewsletterSectionRegistryTests(TestCase):
+    """Phase 3 — بلوکِ «خبرنامه» در Section Registry."""
+
+    def test_registered_single_instance_only(self):
+        definition = get_definition("newsletter")
+        self.assertEqual(definition.max_instances, 1)
+        self.assertFalse(definition.duplicable)
+
+    def test_default_settings(self):
+        defaults = get_definition("newsletter").default_settings()
+        self.assertEqual(defaults["title"], "عضویت در خبرنامه")
+        self.assertEqual(defaults["button_label"], "عضویت")
+
+    def test_blank_title_and_button_label_falls_back(self):
+        cleaned = get_definition("newsletter").validate_settings({"title": "", "button_label": ""})
+        self.assertEqual(cleaned["button_label"], "عضویت")
+        self.assertEqual(cleaned["title"], "")
+
+    def test_custom_values_round_trip(self):
+        cleaned = get_definition("newsletter").validate_settings({
+            "title": "عنوانِ من", "subtitle": "زیرعنوانِ من", "button_label": "برو",
+        })
+        self.assertEqual(cleaned["title"], "عنوانِ من")
+        self.assertEqual(cleaned["subtitle"], "زیرعنوانِ من")
+        self.assertEqual(cleaned["button_label"], "برو")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(NewsletterSettingsError):
+            get_definition("newsletter").validate_settings("nope")

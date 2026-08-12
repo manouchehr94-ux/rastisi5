@@ -55,6 +55,14 @@ Moved `multi_banner` from "column count stored but inert" to `COLUMN_VISUAL_SECT
 
 Added a genuinely functional but deliberately small `newsletter` section type: a new store-scoped `NewsletterSubscriber` model (email + store, unique per store), a subscribe service function reusing Django's built-in email validation, and a public POST endpoint (CSRF-protected, duplicate-safe — resubscribing is a no-op, not an error). No campaign/sending/export/unsubscribe UI was built — that would be a distinct, much larger product surface the master prompt does not ask for ("a strong extensible foundation, not every imaginable block").
 
+## 4.5 Implementation evidence
+
+**Slice 1** (destinations + motion + multi_banner grid): `apps.content.tests.test_destination`, `apps.storefront_builder.tests.test_section_registry`, `apps.storefront_builder.tests.test_responsive_rendering`, `ResponsiveSettingsFormTests`, `RenderedPreviewIntegrationTests` — 205 tests, OK. `manage.py check`: OK. `makemigrations --check --dry-run`: no drift (after migration `0022_alter_heroslide_destination_type_and_more`, a `choices=`-only change, no schema alteration).
+
+**Slice 2** (Newsletter): new `NewsletterSubscriber` model + migration `0023_newslettersubscriber`, `subscribe_to_newsletter` service (reuses Django's `EmailValidator`, `apps.core.services.rate_limit.enforce_rate_limit` — the existing public-form rate limiter also used by OTP/contact-form flows), public `content:newsletter-subscribe` endpoint (POST-only, htmx-first, store-resolved from Host — never a client-supplied tenant ID), `newsletter` section type (single-instance, like `trust_features`/`story_rail`). `apps.content.tests.test_newsletter` + `apps.storefront_builder.tests.test_section_registry` — 135 tests, OK. `apps.storefront_builder.tests.test_views` (`NewSectionTypesRenderedPreviewTests`, `NewSectionTypesSettingsFormTests`, `EditorAccessTests`) — 22 tests, OK. `manage.py check`: OK. `makemigrations --check --dry-run`: no drift.
+
+All test runs above are `RUNTIME_VERIFIED` (executed, not just written) — a working Django environment was available this session. No browser QA was performed for Phase 3 (not attempted this session; flagged as remaining work, same as it was for Phase 2's Slice 1 before that phase's dedicated browser-QA pass).
+
 ## 5. Explicitly not built (and why)
 
 - **Blog teaser** — `apps.blog.BlogPost` isn't tenant-scoped; out of scope per §2.

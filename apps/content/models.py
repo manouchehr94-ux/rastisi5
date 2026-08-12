@@ -967,3 +967,30 @@ class StoryRailItem(TimeStampedModel, DestinationMixin):
         super().clean()
         if self.image_asset is not None and self.store_id is not None and self.image_asset.store_id != self.store_id:
             raise ValidationError({"image_asset": "فایلِ رسانه‌ی انتخاب‌شده متعلق به فروشگاهِ دیگری است"})
+
+
+class NewsletterSubscriber(TimeStampedModel):
+    """ایمیلِ ثبت‌شده از بلوکِ «خبرنامه»یِ سازنده بصری (Phase 3 — کتابخانه‌ی
+    بلوک‌هایِ صفحه‌ی اصلی).
+
+    عمداً حداقلی — فقط ثبت/دی‌دوپِ ایمیل به‌ازای هر فروشگاه. ارسالِ واقعیِ
+    کمپین/خبرنامه، برچسب‌گذاری، لغوِ اشتراک، خروجی/CSV و مدیریتِ رضایتِ
+    GDPR-محور به‌عمد اینجا ساخته نشده‌اند — این یک زیرساختِ ثبتِ ایمیلِ
+    قابلِ‌اعتماد است، نه یک سیستمِ بازاریابیِ ایمیلی (فراتر از چیزی است که
+    این چکپوینت می‌خواهد؛ «یک بنیادِ قوی، نه هر بلوکِ قابلِ‌تصور»)."""
+
+    store = models.ForeignKey(
+        "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE,
+        related_name="newsletter_subscribers",
+    )
+    email = models.EmailField("ایمیل")
+
+    class Meta:
+        verbose_name = "مشترکِ خبرنامه"
+        verbose_name_plural = "مشترکینِ خبرنامه"
+        constraints = [
+            models.UniqueConstraint(fields=["store", "email"], name="newsletter_subscriber_unique_per_store"),
+        ]
+
+    def __str__(self):
+        return f"{self.email} — {self.store_id}"
