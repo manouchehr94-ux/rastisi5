@@ -20,6 +20,7 @@ docs/architecture/STOREFRONT_BUILDER_V2_PHASE_7_REPORT.md برایِ نگاشت�
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -78,6 +79,15 @@ class RegistryModulesAreGoneTests(TestCase):
 @override_settings(ALLOWED_HOSTS=[ADMIN_HOST, PUBLIC_HOST, "testserver"])
 class Phase7RetirementTestCase(TestCase):
     def setUp(self):
+        # چندین متدِ این کلاس get_or_create_draft/publish را (که هرکدام
+        # پشتِ Rate Limitِ واقعیِ Production‌اند، بر رویِ همان
+        # storeِ مشترکِ akhlaghi) صدا می‌زنند — cache (بر خلافِ
+        # تراکنشِ دیتابیس) بینِ متدهای تست rollback نمی‌شود، پس بدونِ
+        # این پاک‌سازی شمارنده‌ها از تست‌های دیگرِ همین Suite (که همان
+        # Storeِ مشترک را با هم به اشتراک می‌گذارند) تجمیع می‌شوند —
+        # دقیقاً همان الگویِ تثبیت‌شده در سراسرِ این پوشه (مثلاً
+        # test_layout_service.py، test_appearance.py).
+        cache.clear()
         self.store = _akhlaghi()
         self.store.admin_subdomain = ADMIN_HOST.split(".")[0]
         self.store.save(update_fields=["admin_subdomain"])
