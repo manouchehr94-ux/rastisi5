@@ -52,7 +52,7 @@ def cart_detail(request):
     from apps.storefront_builder.models import StorefrontPage
 
     store = resolve_store_for_storefront(request)
-    context.update(build_universal_storefront_context(request, store, StorefrontPage.PageType.CART))
+    context.update(build_universal_storefront_context(request, store, StorefrontPage.PageType.CART, page_context=context))
     return render(request, "cart/cart_detail.html", context)
 
 

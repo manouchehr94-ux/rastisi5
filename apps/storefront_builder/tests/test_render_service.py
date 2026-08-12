@@ -1,4 +1,5 @@
 from io import BytesIO
+from unittest import mock
 
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -708,3 +709,72 @@ class VideoSectionRenderTests(TestCase):
         urls_by_section = {i["context"]["section"].pk: i["context"]["video_embed_url"] for i in items}
         self.assertIn("aaaaaaaaaaa", urls_by_section[section_a.pk])
         self.assertIn("bbbbbbbbbbb", urls_by_section[section_b.pk])
+
+
+class PageContextPassthroughTests(TestCase):
+    """Phase 5: ``build_page_render_items``یِ ``page_context`` را عیناً و
+    بدونِ کوئریِ اضافه به سازنده‌یِ context-awareِ همان section_key پاس
+    می‌دهد — این تست مکانیزم را مستقل از هر نوعِ section واقعیِ آینده
+    اثبات می‌کند (با یک builderِ آزمایشی موقت در ``_CONTEXT_AWARE_BUILDERS``)."""
+
+    def setUp(self):
+        cache.clear()
+        from apps.storefront_builder.services import render_service
+        self.render_service = render_service
+
+    def test_page_context_reaches_a_context_aware_builder_unchanged(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        page = draft.get_page("cart")
+        StorefrontSection.objects.create(page=page, section_key="trust_features", order=0)
+
+        received = {}
+
+        def _fake_builder(store_arg, section_arg, page_context_arg):
+            received["store"] = store_arg
+            received["page_context"] = page_context_arg
+            return {"marker": "PAGE-CONTEXT-REACHED"}
+
+        with mock.patch.dict(
+            self.render_service._CONTEXT_AWARE_BUILDERS, {"trust_features": _fake_builder},
+        ):
+            sentinel = {"cart": "SENTINEL-CART-OBJECT"}
+            items = self.render_service.build_page_render_items(page, store, page_context=sentinel)
+
+        self.assertEqual(received["store"], store)
+        self.assertIs(received["page_context"], sentinel)
+        self.assertEqual(items[0]["context"]["marker"], "PAGE-CONTEXT-REACHED")
+
+    def test_missing_page_context_defaults_to_empty_dict_not_none(self):
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        page = draft.get_page("cart")
+        StorefrontSection.objects.create(page=page, section_key="trust_features", order=0)
+
+        received = {}
+
+        def _fake_builder(store_arg, section_arg, page_context_arg):
+            received["page_context"] = page_context_arg
+            return {}
+
+        with mock.patch.dict(
+            self.render_service._CONTEXT_AWARE_BUILDERS, {"trust_features": _fake_builder},
+        ):
+            self.render_service.build_page_render_items(page, store)
+
+        self.assertEqual(received["page_context"], {})
+
+    def test_non_context_aware_sections_unaffected_by_page_context(self):
+        """بخش‌هایِ معمولی (مثلِ trust_features واقعی، بدونِ mock) باید
+        دقیقاً همان context را بگیرند، صرف‌نظر از اینکه page_context چه
+        باشد — مکانیزمِ جدید نباید رفتارِ ۱۷ نوعِ موجود را تغییر دهد."""
+        store = _akhlaghi()
+        draft = svc.get_or_create_draft(store)
+        page = draft.get_page("home")
+        StorefrontSection.objects.create(page=page, section_key="trust_features", order=0)
+
+        without = self.render_service.build_page_render_items(page, store)
+        with_noise = self.render_service.build_page_render_items(
+            page, store, page_context={"anything": "irrelevant-to-trust-features"},
+        )
+        self.assertEqual(without[0]["context"]["settings"], with_noise[0]["context"]["settings"])

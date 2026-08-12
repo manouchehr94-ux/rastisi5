@@ -339,6 +339,17 @@ def _story_rail_context(store, section):
     return {"story_items": StoryRailItem.objects.filter(store=store, section__isnull=True, is_active=True).order_by("display_order", "id")}
 
 
+#: Phase 5: توابعِ context-aware — امضایِ ``(store, section, page_context)``،
+#: نه ``(store, section)``یِ معمولِ بالا. ``page_context`` همان دیکشنریِ
+#: کاملی است که ویوِ مسیرِ عمومی (یا Preview، با یک نمونه‌یِ نماینده) از
+#: قبل برایِ رندرِ سخت‌کدشده‌ی خودِ صفحه ساخته — یعنی محصول/کالکشن/جستجو/
+#: سبدِ «جاری» هرگز از رویِ IDای که در ``settings`` ذخیره شده resolve
+#: نمی‌شود (که مسیرِ Draft/Publish را می‌شکست و تفکیکِ Store را به خطر
+#: می‌انداخت)، بلکه همیشه از همان کوئریِ موجود و از قبل تفکیک‌شده‌یِ Store
+#: که ویو خودش زده resolve می‌شود — صفر کوئریِ اضافه، صفر منطقِ تکراری.
+_CONTEXT_AWARE_BUILDERS: dict = {}
+
+
 _CONTEXT_BUILDERS = {
     "announcement_bar": _static_context,
     "hero_banner": _hero_banner_context,
@@ -366,7 +377,7 @@ _CONTEXT_BUILDERS = {
 }
 
 
-def build_page_render_items(page, store) -> list[dict]:
+def build_page_render_items(page, store, page_context: dict | None = None) -> list[dict]:
     """فهرست بخش‌های فعالِ **یک ``StorefrontPage`` مشخص**، هرکدام با
     template_name + context آماده — Phase 1B: نسخه‌یِ صفحه‌آگاهِ عمومیِ
     این تابع؛ ``build_render_items(version, store)`` (پایین) اکنون فقط
@@ -396,6 +407,7 @@ def build_page_render_items(page, store) -> list[dict]:
     خارجی/persistent نیست (که برای این ویو، همیشه باید Draft زنده را
     نشان دهد، خطر بازگشت داده‌ی کهنه دارد) — فقط حذفِ کوئریِ تکراری در
     یک درخواست."""
+    page_context = page_context or {}
     items = []
     context_cache: dict = {}
     for section in page.sections.filter(is_active=True).order_by("order", "id"):
@@ -409,8 +421,12 @@ def build_page_render_items(page, store) -> list[dict]:
             else section.section_key
         )
         if cache_key not in context_cache:
-            builder = _CONTEXT_BUILDERS.get(section.section_key, _static_context)
-            context_cache[cache_key] = builder(store, section)
+            if section.section_key in _CONTEXT_AWARE_BUILDERS:
+                builder = _CONTEXT_AWARE_BUILDERS[section.section_key]
+                context_cache[cache_key] = builder(store, section, page_context)
+            else:
+                builder = _CONTEXT_BUILDERS.get(section.section_key, _static_context)
+                context_cache[cache_key] = builder(store, section)
         context = dict(context_cache[cache_key])
         context["section"] = section
         context["settings"] = section.settings or {}

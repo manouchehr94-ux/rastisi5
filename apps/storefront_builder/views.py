@@ -118,6 +118,54 @@ class _CandidateAppearanceVersion:
         return self._config
 
 
+def _preview_page_context(request, store, page_type: str) -> dict:
+    """Phase 5: معادلِ ``page_context``یِ مسیرِ عمومی، اما برایِ Preview که
+    هیچ «محصول/کالکشن/جستجویِ جاری» واقعی از URL ندارد — یک نمونه‌یِ
+    نماینده (جدیدترین محصول/کالکشن همین Store) با **همان توابعِ** مسیرِ
+    عمومی ساخته می‌شود (نه بازنویسیِ منطق)، تا section‌هایِ context-aware
+    در پیش‌نمایش هم چیزیِ واقعی و درست-تفکیک‌شده نشان دهند. برایِ سبد،
+    دقیقاً همان مسیرِ «سبدِ خالی»یِ ``_cart_context(request, None)`` استفاده
+    می‌شود — Preview هرگز نباید سبدِ واقعیِ کاربر را نشان دهد (نگاه کنید
+    به ``test_preview_never_shows_real_cart_or_wishlist_count``، Phase 4).
+    غیابِ داده (مثلاً فروشگاهی که هنوز هیچ محصولی ندارد) بی‌صدا دیکشنریِ
+    خالی برمی‌گرداند — section مربوطه fail-safe چیزی رندر نمی‌کند."""
+    if page_type == StorefrontPage.PageType.PRODUCT_DETAIL:
+        from apps.catalog.services.product_publish_service import storefront_visible_products
+        from apps.catalog.views import build_product_detail_context
+
+        product = storefront_visible_products(store).order_by("-created_at").first()
+        return build_product_detail_context(request, product) if product is not None else {}
+
+    if page_type in (StorefrontPage.PageType.LISTING, StorefrontPage.PageType.SEARCH):
+        from django.core.paginator import Paginator
+
+        from apps.catalog.views import PRODUCTS_PER_PAGE, _filtered_products
+
+        qs, sort_key, query = _filtered_products(request, store)
+        page_obj = Paginator(qs, PRODUCTS_PER_PAGE).get_page(request.GET.get("page"))
+        return {"page_obj": page_obj, "products": page_obj.object_list, "query": query, "sort_key": sort_key}
+
+    if page_type == StorefrontPage.PageType.COLLECTION:
+        from django.core.paginator import Paginator
+
+        from apps.catalog.services import collection_service
+        from apps.catalog.views import PRODUCTS_PER_PAGE
+
+        collection = collection_service.public_collection_queryset(store).order_by("-created_at").first()
+        if collection is None:
+            return {}
+        items = collection_service.collection_visible_items(collection, store)
+        page_obj = Paginator(items, PRODUCTS_PER_PAGE).get_page(request.GET.get("page"))
+        return {"collection": collection, "page_obj": page_obj, "products": [item.product for item in page_obj.object_list]}
+
+    if page_type == StorefrontPage.PageType.CART:
+        from apps.cart.views import _cart_context
+
+        return _cart_context(request, None)
+
+    return {}
+
+
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
 @xframe_options_sameorigin
@@ -140,7 +188,7 @@ def storefront_preview(request):
     # ``storefront_editor`` به iframe پاس می‌دهد.
     page_type = _resolve_page_type(request.GET.get("page"))
     page = draft.get_page(page_type)
-    items = build_page_render_items(page, store)
+    items = build_page_render_items(page, store, page_context=_preview_page_context(request, store, page_type))
     top_level_categories = Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
     # تنظیماتِ ظاهر باید از همین Draft خوانده شود، نه ShopSettings زنده —
     # نگاه کنید به ``apps.core.context_processors._versioned_colors``.

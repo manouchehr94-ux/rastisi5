@@ -227,7 +227,7 @@ def product_list(request):
     from apps.storefront_builder.models import StorefrontPage
 
     page_type = StorefrontPage.PageType.SEARCH if query else StorefrontPage.PageType.LISTING
-    context.update(build_universal_storefront_context(request, store, page_type))
+    context.update(build_universal_storefront_context(request, store, page_type, page_context=context))
     return render(request, "catalog/product_list.html", context)
 
 
@@ -376,7 +376,7 @@ def product_detail(request, slug):
 
     context = build_product_detail_context(request, product)
     context.update(build_universal_storefront_context(
-        request, store, StorefrontPage.PageType.PRODUCT_DETAIL,
+        request, store, StorefrontPage.PageType.PRODUCT_DETAIL, page_context=context,
     ))
     return render(request, "catalog/product_detail.html", context)
 
@@ -434,7 +434,7 @@ def collection_index(request):
     from apps.storefront_builder.models import StorefrontPage
 
     context = {"collections": collections}
-    context.update(build_universal_storefront_context(request, store, StorefrontPage.PageType.COLLECTION))
+    context.update(build_universal_storefront_context(request, store, StorefrontPage.PageType.COLLECTION, page_context=context))
     return render(request, "catalog/collection_index.html", context)
 
 
@@ -453,5 +453,5 @@ def collection_detail(request, slug):
     from apps.storefront_builder.models import StorefrontPage
 
     context = {"collection": collection, "page_obj": page_obj, "products": products}
-    context.update(build_universal_storefront_context(request, store, StorefrontPage.PageType.COLLECTION))
+    context.update(build_universal_storefront_context(request, store, StorefrontPage.PageType.COLLECTION, page_context=context))
     return render(request, "catalog/collection_detail.html", context)

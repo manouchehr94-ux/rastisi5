@@ -49,7 +49,7 @@ def _top_level_categories(store):
     return Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
 
 
-def build_universal_storefront_context(request, store, page_type: str) -> dict:
+def build_universal_storefront_context(request, store, page_type: str, page_context: dict | None = None) -> dict:
     """کانتکستِ سراسریِ Storefront برایِ ``store`` و ``page_type`` مشخص.
 
     عوارضِ جانبیِ عمدی (دقیقاً همان الگویِ قبلیِ ``home()``، حالا
@@ -64,7 +64,18 @@ def build_universal_storefront_context(request, store, page_type: str) -> dict:
     یک درخواست است، نه یک شرطِ صحت). قبل از Phase 1B این attribute فقط
     توسطِ ``home()`` ست می‌شد — اکنون توسطِ هر شش نوع صفحه‌ای که از این
     تابع عبور می‌کند ست می‌شود، دقیقاً همان چیزی که «یک قراردادِ نسخه‌یِ
-    واحد برایِ همه‌یِ شش نوعِ صفحه» به آن نیاز دارد."""
+    واحد برایِ همه‌یِ شش نوعِ صفحه» به آن نیاز دارد.
+
+    ``page_context`` (Phase 5): همان دیکشنریِ کاملی که فراخوان (ویوِ
+    مسیرِ عمومی) از قبل برایِ رندرِ سخت‌کدشده‌یِ خودِ صفحه ساخته (مثلاً
+    ``build_product_detail_context``یِ ``product_detail``، یا
+    ``{"cart": ..., "totals": ...}``یِ سبد) — به‌طورِ کامل و بدونِ تغییر
+    به ``render_service.build_page_render_items`` پاس داده می‌شود تا
+    section‌هایِ context-aware (محصولِ جاری/کالکشنِ جاری/سبدِ جاری) بتوانند
+    بدونِ کوئریِ تکراری و بدونِ ذخیره‌یِ هیچ IDای در ``settings`` به همان
+    دادهٔ از پیش تفکیک‌شده‌یِ Store دسترسی داشته باشند. غیابِ آن (``None``)
+    دقیقاً معادلِ دیکشنریِ خالی است — صفحاتِ بدونِ section context-aware
+    (یا Storeهایی که هنوز منتشر نکرده‌اند) هیچ رفتاری تغییر نمی‌کند."""
     resolved = page_resolution_service.resolve_published_page(store, page_type)
 
     if not resolved.is_resolved:
@@ -93,6 +104,6 @@ def build_universal_storefront_context(request, store, page_type: str) -> dict:
         "page_type": page_type,
         "layout_header_config": version.effective_header_config(),
         "layout_footer_config": version.effective_footer_config(),
-        "render_items": render_service.build_page_render_items(page, store),
+        "render_items": render_service.build_page_render_items(page, store, page_context=page_context),
         "top_level_categories": _top_level_categories(store),
     }
