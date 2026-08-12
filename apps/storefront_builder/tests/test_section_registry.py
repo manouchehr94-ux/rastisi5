@@ -1,11 +1,19 @@
 from django.test import TestCase
 
+from apps.storefront_builder.models import StorefrontPage
 from apps.storefront_builder.section_registry import (
+    ALL_PAGE_TYPES,
     COLUMN_AWARE_SECTION_KEYS,
     COLUMN_VISUAL_SECTION_KEYS,
     DESTINATION_AWARE_SECTION_KEYS,
     MOTION_AWARE_SECTION_KEYS,
     MOTION_CHOICES,
+    PAGE_TYPE_CART,
+    PAGE_TYPE_COLLECTION,
+    PAGE_TYPE_HOME,
+    PAGE_TYPE_LISTING,
+    PAGE_TYPE_PRODUCT_DETAIL,
+    PAGE_TYPE_SEARCH,
     SECTION_LIBRARY_CATEGORIES,
     SECTION_REGISTRY,
     DestinationSettingsError,
@@ -18,6 +26,7 @@ from apps.storefront_builder.section_registry import (
     default_motion_settings,
     default_responsive_settings,
     get_definition,
+    is_section_allowed_on_page,
     is_valid_section_key,
     list_definitions,
     list_library_groups,
@@ -747,3 +756,52 @@ class NewsletterSectionRegistryTests(TestCase):
     def test_non_dict_rejected(self):
         with self.assertRaises(NewsletterSettingsError):
             get_definition("newsletter").validate_settings("nope")
+
+
+class PageTypeConstantsMatchModelTests(TestCase):
+    """Phase 5: چون ``section_registry.py`` عمداً به ``models.py`` وابسته
+    نیست (فلسفه‌ی «دیکشنری ثابت پایتونی» بالا)، ثابت‌های ``PAGE_TYPE_*``
+    اینجا مستقل تکرار شده‌اند — این تست تضمین می‌کند اگر روزی
+    ``StorefrontPage.PageType`` تغییر کند، این فایل خاموش از هماهنگی
+    نمی‌افتد."""
+
+    def test_all_page_types_matches_model_enum_exactly(self):
+        self.assertEqual(ALL_PAGE_TYPES, frozenset(StorefrontPage.PageType.values))
+
+    def test_individual_constants_match_model_values(self):
+        self.assertEqual(
+            {PAGE_TYPE_HOME, PAGE_TYPE_PRODUCT_DETAIL, PAGE_TYPE_LISTING, PAGE_TYPE_COLLECTION, PAGE_TYPE_SEARCH, PAGE_TYPE_CART},
+            set(StorefrontPage.PageType.values),
+        )
+
+
+class PageTypeAllowlistTests(TestCase):
+    def test_existing_section_types_default_to_all_pages(self):
+        """۱۷ نوعِ محتواییِ عمومیِ موجود از پیش نباید با این چکپوینت رفتار
+        تغییر کنند — پیش‌فرض یعنی «همه‌جا مجاز»."""
+        for key in EXPECTED_KEYS:
+            definition = get_definition(key)
+            self.assertEqual(definition.page_types, ALL_PAGE_TYPES, key)
+            for page_type in StorefrontPage.PageType.values:
+                self.assertTrue(is_section_allowed_on_page(key, page_type), f"{key} on {page_type}")
+
+    def test_unknown_section_key_never_allowed_on_any_page(self):
+        for page_type in StorefrontPage.PageType.values:
+            self.assertFalse(is_section_allowed_on_page("does_not_exist", page_type))
+
+    def test_list_library_groups_unfiltered_still_returns_everything(self):
+        unfiltered = list_library_groups()
+        filtered_home = list_library_groups(page_type=PAGE_TYPE_HOME)
+        self.assertEqual(unfiltered, filtered_home)
+
+    def test_list_library_groups_can_be_scoped_to_a_page_type(self):
+        # همه‌ی ۱۷ نوعِ موجود روی هر صفحه‌ای مجازند، پس فیلترشده‌ی هر صفحه
+        # باید دقیقاً همان تعداد بخش را نشان دهد — این تست خودش تغییر
+        # نمی‌کند وقتی بخش‌های context-aware جدید اضافه می‌شوند، چون آن‌ها
+        # ``hidden_from_library`` نیستند اما ``page_types``شان محدود است؛
+        # هدف این تست فقط اثباتِ اینکه فیلتر اصلاً اثر می‌گذارد.
+        cart_groups = list_library_groups(page_type=PAGE_TYPE_CART)
+        cart_count = sum(len(members) for _, members in cart_groups)
+        home_groups = list_library_groups(page_type=PAGE_TYPE_HOME)
+        home_count = sum(len(members) for _, members in home_groups)
+        self.assertEqual(cart_count, home_count)

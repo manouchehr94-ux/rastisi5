@@ -20,6 +20,24 @@ from __future__ import annotations
 import dataclasses
 from typing import Callable
 
+#: شش نوعِ صفحه — دقیقاً همان رشته‌های ``StorefrontPage.PageType.values``
+#: (``apps/storefront_builder/models.py``)، اینجا به‌شکلِ ثابتِ رشته‌ای
+#: تکرار شده‌اند تا این ماژول (طبقِ فلسفه‌یِ صریحِ خودش در docstring بالا:
+#: «دیکشنری ثابت پایتونی»، بدونِ وابستگی به مدل/دیتابیس) به ``models.py``
+#: وابسته نشود — هماهنگی با enum واقعی توسطِ
+#: ``test_section_registry.py::PageTypeConstantsMatchModelTests`` تضمین
+#: می‌شود، نه import مستقیم.
+PAGE_TYPE_HOME = "home"
+PAGE_TYPE_PRODUCT_DETAIL = "product_detail"
+PAGE_TYPE_LISTING = "listing"
+PAGE_TYPE_COLLECTION = "collection"
+PAGE_TYPE_SEARCH = "search"
+PAGE_TYPE_CART = "cart"
+ALL_PAGE_TYPES: frozenset[str] = frozenset({
+    PAGE_TYPE_HOME, PAGE_TYPE_PRODUCT_DETAIL, PAGE_TYPE_LISTING,
+    PAGE_TYPE_COLLECTION, PAGE_TYPE_SEARCH, PAGE_TYPE_CART,
+})
+
 
 @dataclasses.dataclass(frozen=True)
 class SectionDefinition:
@@ -33,6 +51,14 @@ class SectionDefinition:
     max_instances: int | None = None
     duplicable: bool = True
     removable: bool = True
+    #: Phase 5: این نوع section روی کدام نوع(های) صفحه قابلِ افزودن است.
+    #: پیش‌فرض یعنی «همه‌جا» — ۱۷ نوعِ محتواییِ عمومیِ موجود از پیش
+    #: (hero/banner/rich_text/faq/...) بدونِ تغییرِ رفتار همین پیش‌فرض
+    #: را نگه می‌دارند (طبقِ الزامِ صریحِ کار: «Home-only sections may be
+    #: reusable where appropriate»). فقط انواعِ جدیدِ context-aware
+    #: (``product_main``، ``cart_items``، ...) این را صریحاً به یک/دو
+    #: نوعِ صفحه محدود می‌کنند.
+    page_types: frozenset[str] = ALL_PAGE_TYPES
     #: آیا این نوع بخش تنظیمات قابل‌ویرایش (فرم) دارد؟ تا فازِ C فقط
     #: انواعی که واقعاً محتوای قابل‌تنظیم داشتند (rich_text، image_text،
     #: product_section) این پرچم را True داشتند. از فازِ D به بعد **همه‌ی**
@@ -1054,15 +1080,25 @@ def list_definitions() -> list[SectionDefinition]:
     return list(SECTION_REGISTRY.values())
 
 
-def list_library_groups() -> list[tuple[str, list[SectionDefinition]]]:
+def list_library_groups(page_type: str | None = None) -> list[tuple[str, list[SectionDefinition]]]:
     """کتابخانه‌ی «افزودن بخش جدید» (چکپوینتِ ۱۰)، گروه‌بندی‌شده در پنج
     دسته‌ی کسب‌وکاریِ ثابت (``SECTION_LIBRARY_CATEGORIES``) — نوع‌هایِ
     ``hidden_from_library`` هرگز اینجا ظاهر نمی‌شوند (نمونه‌های موجودشان
     هم‌چنان از ``list_definitions()`` کامل resolve می‌شوند). گروه‌هایِ
-    خالی حذف می‌شوند تا هرگز یک آکاردئونِ بی‌محتوا نشان داده نشود."""
+    خالی حذف می‌شوند تا هرگز یک آکاردئونِ بی‌محتوا نشان داده نشود.
+
+    Phase 5: اگر ``page_type`` داده شود، فقط انواعی که ``page_types``شان
+    شاملِ آن صفحه است نمایش داده می‌شوند (مثلاً ``product_main`` هرگز در
+    کتابخانه‌ی صفحه‌یِ Cart دیده نمی‌شود) — این فقط لایه‌ی UI است؛ رد
+    واقعیِ ترکیبِ نامعتبر همیشه سمتِ سرور در ``is_section_allowed_on_page``
+    انجام می‌شود، نه اینجا."""
     groups: list[tuple[str, list[SectionDefinition]]] = []
     for category in SECTION_LIBRARY_CATEGORIES:
-        members = [d for d in SECTION_REGISTRY.values() if d.category_fa == category and not d.hidden_from_library]
+        members = [
+            d for d in SECTION_REGISTRY.values()
+            if d.category_fa == category and not d.hidden_from_library
+            and (page_type is None or page_type in d.page_types)
+        ]
         if members:
             groups.append((category, members))
     return groups
@@ -1070,3 +1106,14 @@ def list_library_groups() -> list[tuple[str, list[SectionDefinition]]]:
 
 def is_valid_section_key(section_key: str) -> bool:
     return section_key in SECTION_REGISTRY
+
+
+def is_section_allowed_on_page(section_key: str, page_type: str) -> bool:
+    """تکِ نقطه‌ی ورودیِ اجباریِ سمتِ سرور برایِ اعتبارسنجیِ ترکیبِ
+    section/page — Phase 5. کلیدِ ناشناخته همیشه ``False`` برمی‌گرداند
+    (fail-closed)، نه پرتاب کردنِ خطا؛ فراخوان (``storefront_section_add``)
+    خودش پیش از این تابع کلیدِ نامعتبر را جدا رد می‌کند."""
+    definition = SECTION_REGISTRY.get(section_key)
+    if definition is None:
+        return False
+    return page_type in definition.page_types

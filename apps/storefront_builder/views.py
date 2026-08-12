@@ -68,7 +68,7 @@ def storefront_editor(request):
         "page_types": StorefrontPage.PageType.choices,
         "sections": sections,
         "section_definitions": section_registry.list_definitions(),
-        "section_library_groups": section_registry.list_library_groups(),
+        "section_library_groups": section_registry.list_library_groups(page_type=page_type),
         "versions": layout_service.list_versions(store),
         "industry_installation": industry_installation,
     }
@@ -209,6 +209,13 @@ def storefront_section_add(request):
         definition = section_registry.get_definition(section_key)
     except section_registry.UnknownSectionTypeError:
         return HttpResponseBadRequest("نوع بخش نامعتبر است")
+
+    # Phase 5: اجرایِ سمتِ سرورِ allowlistِ نوع‌صفحه — کتابخانه‌ی UI هم
+    # صریحاً فیلتر شده (``list_library_groups(page_type=...)``)، اما این
+    # چک اینجا تنها نقطه‌ای‌ست که واقعاً رد می‌کند؛ حتی یک POST دستی با
+    # section_key معتبر اما نامتناسب با این صفحه باید رد شود.
+    if not section_registry.is_section_allowed_on_page(section_key, page_type):
+        return HttpResponseBadRequest("این نوع بخش برای این صفحه مجاز نیست")
 
     existing_count = page.sections.filter(section_key=section_key).count()
     if definition.max_instances is not None and existing_count >= definition.max_instances:
