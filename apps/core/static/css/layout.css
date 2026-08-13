@@ -182,6 +182,17 @@ html[data-sfb-density="relaxed"] .rsec[data-width="full"] > .section{margin-inli
   [data-shell-hide-mobile]{display:none}
 }
 
+/* Phase 8 P0-3 — بلوک‌هایِ اضافیِ هدر (تلفن/شبکه‌ی اجتماعی/CTA) روی
+   موبایلِ باریک با آیکون‌های ثابتِ هدر (سبد/علاقه‌مندی/حساب/منو) رقابتِ
+   عرض دارند و می‌توانند کلِ نوارِ هدر را سرریز کنند؛ این بلوک‌های
+   تکمیلی (نه اقدام‌های اصلیِ خرید) در این بازه پنهان می‌شوند —
+   ناوبریِ اصلی/سبد/حساب دست‌نخورده می‌ماند. */
+@media(max-width:480px){
+  .sfb-header-block-phone,
+  .sfb-header-block-social,
+  .sfb-header-block-cta{display:none}
+}
+
 
 
 /* --- Navigation submenu --- */
