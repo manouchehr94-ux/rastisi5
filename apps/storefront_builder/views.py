@@ -544,6 +544,7 @@ def _extract_card_raw(request) -> dict:
         "show_quick_add": request.POST.get("card_show_quick_add") == "on",
         "card_border": request.POST.get("card_border") == "on",
         "image_ratio": request.POST.get("card_image_ratio", "square"),
+        "quick_add_reveal": request.POST.get("card_quick_add_reveal", "hover_slide"),
     }
 
 

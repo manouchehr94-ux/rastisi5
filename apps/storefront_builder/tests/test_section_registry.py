@@ -10,6 +10,7 @@ from apps.storefront_builder.section_registry import (
     DESTINATION_AWARE_SECTION_KEYS,
     HEIGHT_CHOICES,
     IMAGE_RATIO_CHOICES,
+    QUICK_ADD_REVEAL_CHOICES,
     LAYOUT_HEIGHT_AWARE_SECTION_KEYS,
     LAYOUT_WIDTH_AWARE_SECTION_KEYS,
     MOTION_AWARE_SECTION_KEYS,
@@ -756,7 +757,7 @@ class CardSettingsTests(TestCase):
         self.assertEqual(defaults, {
             "show_brand": True, "show_price": True, "show_badge": True,
             "show_wishlist": True, "show_quick_add": True, "card_border": True,
-            "image_ratio": "square",
+            "image_ratio": "square", "quick_add_reveal": "hover_slide",
         })
 
     def test_none_raw_defaults(self):
@@ -776,6 +777,13 @@ class CardSettingsTests(TestCase):
 
     def test_unknown_image_ratio_falls_back_to_square(self):
         self.assertEqual(validate_card_settings({"image_ratio": "circle"})["image_ratio"], "square")
+
+    def test_valid_quick_add_reveal_modes_accepted(self):
+        for mode in QUICK_ADD_REVEAL_CHOICES:
+            self.assertEqual(validate_card_settings({"quick_add_reveal": mode})["quick_add_reveal"], mode)
+
+    def test_unknown_quick_add_reveal_falls_back_to_hover_slide(self):
+        self.assertEqual(validate_card_settings({"quick_add_reveal": "bounce"})["quick_add_reveal"], "hover_slide")
 
     def test_non_dict_rejected(self):
         with self.assertRaises(CardSettingsError):

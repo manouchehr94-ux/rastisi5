@@ -65,6 +65,9 @@ html[data-sfb-card-hover="zoom"] .pcard:hover .img .emo{transform:scale(1.16)}
 .pill-hot{background:var(--amber);color:#fff}
 .pcard .addbar{position:absolute;left:0;right:0;bottom:0;transform:translateY(100%);transition:.25s;padding:10px}
 .pcard:hover .addbar{transform:none}
+.pcard.quickadd-hover-fade .addbar{transform:none;opacity:0;transition:opacity .25s}
+.pcard.quickadd-hover-fade:hover .addbar{opacity:1}
+.pcard.quickadd-always .addbar{transform:none;opacity:1}
 .pcard .addbar button{width:100%;background:linear-gradient(135deg,var(--violet),var(--violet-3));color:#fff;height:38px;border-radius:10px;font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:7px}
 .pcard .addbar button svg{width:16px;height:16px}
 .pcard .body{padding:13px 14px 15px;display:flex;flex-direction:column;gap:7px;flex:1}

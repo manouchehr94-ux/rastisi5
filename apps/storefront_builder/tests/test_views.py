@@ -764,6 +764,17 @@ class ProductSectionSettingsFormTests(StorefrontBuilderViewsTestCase):
         self.section.refresh_from_db()
         self.assertEqual(self.section.settings["data_source"], "newest")  # unchanged
 
+    def test_card_quick_add_reveal_persists(self):
+        """P1 — گزینه‌ی نحوه‌ی نمایانِ دکمه‌ی افزودنِ سریع باید در
+        ``settings.card.quick_add_reveal`` ذخیره شود."""
+        resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[self.section.pk]), {
+            "data_source": "newest", "item_limit": "8", "display_mode": "carousel",
+            "card_quick_add_reveal": "hover_fade",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.section.refresh_from_db()
+        self.assertEqual(self.section.settings["card"]["quick_add_reveal"], "hover_fade")
+
     def test_collection_without_source_id_shows_error(self):
         resp = self.client.post(reverse("dashboard:storefront-builder-section-settings", args=[self.section.pk]), {
             "data_source": "collection", "item_limit": "8", "display_mode": "carousel",

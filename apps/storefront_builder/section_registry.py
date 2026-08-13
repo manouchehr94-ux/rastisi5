@@ -485,6 +485,11 @@ CARD_AWARE_SECTION_KEYS = frozenset({
 #: به‌جایِ عددِ دلخواهِ CSS» (نه aspect-ratio خام).
 IMAGE_RATIO_CHOICES = ("square", "portrait", "landscape")
 
+#: Phase 8 P1 — نحوه‌ی نمایانِ دکمه‌ی «افزودنِ سریع». ``hover_slide``
+#: دقیقاً رفتارِ فعلیِ از‌پیش‌موجود است (پیش‌فرض، بدونِ تغییرِ بصری برایِ
+#: کارت‌هایِ موجود)؛ ``hover_fade``/``always`` گزینه‌هایِ تازه‌اند.
+QUICK_ADD_REVEAL_CHOICES = ("hover_slide", "hover_fade", "always")
+
 _CARD_TOGGLE_FIELDS = ("show_brand", "show_price", "show_badge", "show_wishlist", "show_quick_add", "card_border")
 
 
@@ -504,6 +509,8 @@ def validate_card_settings(raw) -> dict:
     cleaned = {field: bool(raw.get(field, True)) for field in _CARD_TOGGLE_FIELDS}
     ratio = raw.get("image_ratio")
     cleaned["image_ratio"] = ratio if ratio in IMAGE_RATIO_CHOICES else "square"
+    reveal = raw.get("quick_add_reveal")
+    cleaned["quick_add_reveal"] = reveal if reveal in QUICK_ADD_REVEAL_CHOICES else "hover_slide"
     return cleaned
 
 

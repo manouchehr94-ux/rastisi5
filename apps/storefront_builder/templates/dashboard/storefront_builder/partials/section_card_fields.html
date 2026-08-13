@@ -38,5 +38,13 @@
         </label>
       </div>
     </div>
+    <div class="form-group">
+      <label>نحوه نمایان‌شدن دکمه افزودن سریع</label>
+      <select name="card_quick_add_reveal" class="form-select">
+        <option value="hover_slide" {% if section.settings.card.quick_add_reveal != "hover_fade" and section.settings.card.quick_add_reveal != "always" %}selected{% endif %}>هنگام هاور — سُر بخورد بالا</option>
+        <option value="hover_fade" {% if section.settings.card.quick_add_reveal == "hover_fade" %}selected{% endif %}>هنگام هاور — محو شود</option>
+        <option value="always" {% if section.settings.card.quick_add_reveal == "always" %}selected{% endif %}>همیشه نمایان</option>
+      </select>
+    </div>
   </div>
 </details>

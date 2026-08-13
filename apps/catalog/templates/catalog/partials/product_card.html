@@ -9,7 +9,7 @@ include‌کننده آن را پاس نمی‌دهد (مثلاً ``home.html``/
 ``default`` مقدارِ صریحِ False را هم falsy می‌گیرد و با True override
 می‌کند.
 {% endcomment %}
-<a class="pcard{% if card_settings.card_border is False %} no-border{% endif %}{% if card_settings.image_ratio == "portrait" %} ratio-portrait{% elif card_settings.image_ratio == "landscape" %} ratio-landscape{% endif %}" href="{% url 'catalog:product-detail' product.slug %}">
+<a class="pcard{% if card_settings.card_border is False %} no-border{% endif %}{% if card_settings.image_ratio == "portrait" %} ratio-portrait{% elif card_settings.image_ratio == "landscape" %} ratio-landscape{% endif %}{% if card_settings.quick_add_reveal == "hover_fade" %} quickadd-hover-fade{% elif card_settings.quick_add_reveal == "always" %} quickadd-always{% endif %}" href="{% url 'catalog:product-detail' product.slug %}">
   <div class="img" style="background:{{ product.tint|default:'#eceef3' }}">
     {% if product.cover_image %}
     <img class="cover-photo" src="{{ product.cover_image.thumbnail.url|default:product.cover_image.image.url }}"
