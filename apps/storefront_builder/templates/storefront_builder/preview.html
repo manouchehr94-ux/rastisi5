@@ -43,8 +43,23 @@
   // می‌کند — نیازی به رویدادِ جداگانه‌ی touch نیست.
   document.addEventListener('click', function (evt) {
     if (justDragged) { justDragged = false; return; }
+    if (!inParentFrame) return;
+    // Phase 8 P0-6 — ابزارِ شناورِ روی خودِ بخش (up/down/duplicate/toggle/
+    // remove) — دقیقاً همان چهار endpointِ سایدبار، فقط از خودِ Canvas
+    // صدا زده می‌شوند؛ هیچ منطقِ نوشتنِ تکراری‌ای اینجا نیست.
+    var cmdBtn = evt.target.closest('[data-cmd]');
+    if (cmdBtn) {
+      var rsec = cmdBtn.closest('[data-section-id]');
+      if (!rsec) return;
+      var cmd = cmdBtn.getAttribute('data-cmd');
+      if (cmd === 'remove' && !window.confirm('این بخش برای همیشه حذف شود؟')) return;
+      window.parent.postMessage({
+        type: 'sfb:sectionCommand', command: cmd, sectionId: rsec.getAttribute('data-section-id'),
+      }, window.location.origin);
+      return;
+    }
     var el = evt.target.closest('[data-section-id]');
-    if (!el || !inParentFrame) return;
+    if (!el) return;
     var previouslySelected = document.querySelector('.sfb-rsec-selected');
     if (previouslySelected && previouslySelected !== el) previouslySelected.classList.remove('sfb-rsec-selected');
     el.classList.add('sfb-rsec-selected');

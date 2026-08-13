@@ -59,6 +59,14 @@ class PublicHomepageIntegrationTests(TestCase):
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         self.assertNotContains(resp, "data-section-id")
 
+    def test_public_page_never_exposes_inline_canvas_toolbar(self):
+        """Phase 8 P0-6 — ابزارِ شناورِ Canvas هم دقیقاً همان محافظتی را
+        دارد که data-section-id دارد: فقط Preview، هرگز صفحه‌ی عمومی."""
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        self.assertNotContains(resp, "sfb-rsec-toolbar")
+
     def test_public_page_shows_published_content_not_later_draft_edits(self):
         """تصمیم ۱۱ کاربر: صفحه عمومی هرگز Draft را نمی‌بیند — ویرایش‌های
         بعد از Publish تا Publish دوباره روی صفحه عمومی ظاهر نمی‌شوند."""

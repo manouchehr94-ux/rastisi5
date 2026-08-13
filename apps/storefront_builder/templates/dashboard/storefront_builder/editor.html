@@ -10,7 +10,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="sfb-shell" :class="{ 'sfb-fullscreen': fullscreen }" x-data="storefrontEditor()" x-init="init()"
+<div class="sfb-shell" :class="{ 'sfb-fullscreen': fullscreen }" x-data="storefrontEditor()"
      data-page-type="{{ page_type }}" @beforeunload.window="handleBeforeUnload($event)"
      @open-settings-drawer.window="drawerOpen = true" @close-settings-drawer.window="drawerOpen = false"
      @keydown.escape.window="if (fullscreen) fullscreen = false">
@@ -90,7 +90,11 @@
         <iframe id="sfbPreviewFrame" src="{% url 'dashboard:storefront-builder-preview' %}?page={{ page_type }}" title="پیش‌نمایش {{ page.get_page_type_display }}"
                 data-preview-url="{% url 'dashboard:storefront-builder-preview' %}?page={{ page_type }}"
                 data-settings-url-template="{% url 'dashboard:storefront-builder-section-settings' 0 %}"
-                data-reorder-url="{% url 'dashboard:storefront-builder-section-reorder' %}"></iframe>
+                data-reorder-url="{% url 'dashboard:storefront-builder-section-reorder' %}"
+                data-move-url-template="{% url 'dashboard:storefront-builder-section-move' 0 %}"
+                data-duplicate-url-template="{% url 'dashboard:storefront-builder-section-duplicate' 0 %}"
+                data-toggle-url-template="{% url 'dashboard:storefront-builder-section-toggle' 0 %}"
+                data-remove-url-template="{% url 'dashboard:storefront-builder-section-remove' 0 %}"></iframe>
       </div>
     </main>
 
@@ -200,6 +204,7 @@ function storefrontEditor() {
         if (!evt.data || !evt.data.type) return;
         if (evt.data.type === 'sfb:selectSection') this.selectSection(evt.data.sectionId);
         if (evt.data.type === 'sfb:reorderSections') this.reorderSections(evt.data.sectionIds);
+        if (evt.data.type === 'sfb:sectionCommand') this.sectionCommand(evt.data.sectionId, evt.data.command);
       });
     },
     setDevice(d) { this.device = d; },
@@ -226,6 +231,21 @@ function storefrontEditor() {
       htmx.ajax('GET', url, { target: '#sfbDrawerBody', swap: 'innerHTML' }).then(() => {
         this.drawerOpen = true;
       });
+    },
+    // Phase 8 P0-6 — ابزارِ شناورِ روی خودِ بخش در Canvas؛ دقیقاً همان
+    // چهار endpointِ سایدبار (section_list.html)، فقط از preview.html
+    // صدا زده می‌شوند — afterSwapِ بالا خودش iframe را دوباره بارگذاری
+    // می‌کند، پس نیازی به منطقِ رفرشِ تکراری اینجا نیست.
+    sectionCommand(sectionId, command) {
+      const iframe = document.getElementById('sfbPreviewFrame');
+      const segments = { up: ['data-move-url-template', 'move'], down: ['data-move-url-template', 'move'], duplicate: ['data-duplicate-url-template', 'duplicate'], toggle: ['data-toggle-url-template', 'toggle'], remove: ['data-remove-url-template', 'remove'] };
+      const mapped = segments[command];
+      if (!mapped) return;
+      const template = iframe.getAttribute(mapped[0]);
+      const url = template.replace('/0/' + mapped[1] + '/', '/' + sectionId + '/' + mapped[1] + '/');
+      const options = { target: '#storefrontSectionList', swap: 'outerHTML' };
+      if (command === 'up' || command === 'down') options.values = { direction: command };
+      htmx.ajax('POST', url, options);
     },
     handleBeforeUnload(e) {
       // چون هر افزودن/حذف/جابه‌جایی بلافاصله ذخیره می‌شود، تنها حالتِ

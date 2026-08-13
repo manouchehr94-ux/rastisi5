@@ -87,6 +87,14 @@ class EditorAccessTests(StorefrontBuilderViewsTestCase):
         self.assertContains(resp, "data-section-id")
         self.assertContains(resp, "data-section-key")
 
+    def test_preview_exposes_inline_canvas_toolbar(self):
+        """Phase 8 P0-6 — ابزارِ شناورِ روی خودِ section در Canvas؛ فقط
+        در Preview (نه صفحه‌ی عمومی)، دقیقاً کنارِ data-section-id."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "sfb-rsec-toolbar")
+        self.assertContains(resp, 'data-cmd="duplicate"')
+        self.assertContains(resp, 'data-cmd="remove"')
+
     # Phase 4: هدر/فوتر همان دکوریتورهای مشترکِ ``@staff_required`` +
     # ``@permission_required(STOREFRONT_LAYOUT_MANAGE)`` را (که در بالا
     # برای editor/preview اثبات شده) استفاده می‌کنند — این دو تست فقط

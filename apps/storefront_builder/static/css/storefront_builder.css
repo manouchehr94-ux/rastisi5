@@ -731,6 +731,56 @@ button.sfb-layer-main {
   opacity: 0.4;
 }
 
+/* Phase 8 P0-6 — ابزارِ شناورِ روی خودِ section (up/down/duplicate/toggle/
+   remove) — دقیقاً همان الگویِ sfb-rsec-drag-handle بالا: فقط با hover/
+   انتخاب نمایان می‌شود، دکمه‌ها (نه کلِ section) قابل‌کلیک‌اند. زیرِ
+   برچسبِ نامِ section (top:8px) قرار می‌گیرد تا رویِ هم نیفتند. */
+.sfb-preview-sections .rsec[data-section-id] .sfb-rsec-toolbar {
+  position: absolute;
+  top: 44px;
+  right: 8px;
+  z-index: 51;
+  display: none;
+  gap: 2px;
+  background: #161f2d;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.sfb-preview-sections .rsec[data-section-id] .sfb-rsec-toolbar button {
+  border: 0;
+  border-left: 1px solid #3b4555;
+  background: transparent;
+  color: #fff;
+  padding: 7px 9px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.sfb-preview-sections .rsec[data-section-id] .sfb-rsec-toolbar button:last-child {
+  border-left: 0;
+}
+
+.sfb-preview-sections .rsec[data-section-id] .sfb-rsec-toolbar button:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.sfb-preview-sections .rsec[data-section-id]:hover .sfb-rsec-toolbar,
+.sfb-preview-sections .rsec[data-section-id].sfb-rsec-selected .sfb-rsec-toolbar {
+  display: flex;
+}
+
+@media (hover: none) {
+  .sfb-preview-sections .rsec[data-section-id]:hover .sfb-rsec-toolbar {
+    display: none;
+  }
+  .sfb-preview-sections .rsec[data-section-id].sfb-rsec-selected .sfb-rsec-toolbar {
+    display: flex;
+  }
+}
+
 .sfb-preview-sections .rsec[data-section-id].sfb-rsec-drop-target {
   outline: 2px dashed var(--violet, #6d28d9);
   outline-offset: -2px;
