@@ -84,7 +84,14 @@ FOOTER_RESPONSIVE_DEFAULTS = {
     key: {"hide_on_tablet": False, "hide_on_mobile": False} for key in FOOTER_RESPONSIVE_AWARE_KEYS
 }
 
-FOOTER_CONFIG_DEFAULTS = {f: True for f in FOOTER_TOGGLE_FIELDS} | {"responsive": FOOTER_RESPONSIVE_DEFAULTS}
+#: Phase 8 P0-4 — ستون‌هایِ اضافیِ قابل‌افزودن/حذف/بازچینیِ فوتر (متنِ
+#: دلخواه/لینکِ تکی/شبکه‌ی اجتماعیِ تکراری) — علاوه بر ۹ بخشِ ثابتِ بالا،
+#: نه جایگزینِ آن‌ها. هر مورد یک دیکشنری با کلیدِ ``type`` (از
+#: ``FOOTER_EXTRA_BLOCK_TYPES`` در layout_service.py) است.
+FOOTER_CONFIG_DEFAULTS = (
+    {f: True for f in FOOTER_TOGGLE_FIELDS}
+    | {"responsive": FOOTER_RESPONSIVE_DEFAULTS, "extra_blocks": []}
+)
 
 #: کلیدهایِ رنگِ توکنِ ظاهر — دقیقاً همان مجموعه‌ای که ``tokens.css``ی
 #: موجود از قبل به‌عنوانِ ``--brand-*`` مصرف می‌کند (audit شده قبل از

@@ -488,3 +488,62 @@ class ValidateFooterConfigTests(TestCase):
         cleaned = svc.validate_footer_config({"show_about": True, "responsive": raw_responsive})
         for key, value in raw_responsive.items():
             self.assertEqual(cleaned["responsive"][key], value)
+
+
+class FooterExtraBlocksTests(TestCase):
+    """Phase 8 P0-4 — ستون‌هایِ اضافیِ فوتر (متنِ دلخواه/لینکِ تکی/شبکه‌ی
+    اجتماعیِ تکراری)."""
+
+    def test_default_is_empty(self):
+        cleaned = svc.validate_footer_config({"show_about": True})
+        self.assertEqual(cleaned["extra_blocks"], [])
+
+    def test_valid_types_accepted_in_order(self):
+        cleaned = svc.validate_footer_config({
+            "show_about": True,
+            "extra_blocks": [{"type": "social"}, {"type": "custom_text", "title": "ت", "text": "م"}],
+        })
+        self.assertEqual([b["type"] for b in cleaned["extra_blocks"]], ["social", "custom_text"])
+
+    def test_custom_text_stores_title_and_text(self):
+        cleaned = svc.validate_footer_config({
+            "show_about": True,
+            "extra_blocks": [{"type": "custom_text", "title": "درباره", "text": "متن دلخواه"}],
+        })
+        block = cleaned["extra_blocks"][0]
+        self.assertEqual(block["title"], "درباره")
+        self.assertEqual(block["text"], "متن دلخواه")
+
+    def test_link_with_unsafe_url_rejected(self):
+        with self.assertRaises(svc.FooterConfigValidationError):
+            svc.validate_footer_config({
+                "show_about": True,
+                "extra_blocks": [{"type": "link", "label": "کلیک", "url": "javascript:alert(1)"}],
+            })
+
+    def test_link_with_safe_url_accepted(self):
+        cleaned = svc.validate_footer_config({
+            "show_about": True,
+            "extra_blocks": [{"type": "link", "label": "راهنما", "url": "https://example.com/guide"}],
+        })
+        block = cleaned["extra_blocks"][0]
+        self.assertEqual(block["label"], "راهنما")
+        self.assertEqual(block["url"], "https://example.com/guide")
+
+    def test_unknown_block_type_rejected(self):
+        with self.assertRaises(svc.FooterConfigValidationError):
+            svc.validate_footer_config({"show_about": True, "extra_blocks": [{"type": "not_a_real_block"}]})
+
+    def test_non_list_rejected(self):
+        with self.assertRaises(svc.FooterConfigValidationError):
+            svc.validate_footer_config({"show_about": True, "extra_blocks": "nope"})
+
+    def test_too_many_blocks_rejected(self):
+        with self.assertRaises(svc.FooterConfigValidationError):
+            svc.validate_footer_config({"show_about": True, "extra_blocks": [{"type": "social"}] * 5})
+
+    def test_social_block_has_no_text_or_url_keys(self):
+        cleaned = svc.validate_footer_config({"show_about": True, "extra_blocks": [{"type": "social"}]})
+        block = cleaned["extra_blocks"][0]
+        self.assertNotIn("text", block)
+        self.assertNotIn("url", block)

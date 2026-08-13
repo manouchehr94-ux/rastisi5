@@ -106,7 +106,7 @@ _MAX_HEADER_EXTRA_BLOCKS = 6
 _MAX_HEADER_CTA_LABEL_LENGTH = 30
 
 
-class HeaderBlockError(Exception):
+class ShellBlockError(Exception):
     """شکلِ خامِ یک بلوکِ اختیاریِ هدر نامعتبر است."""
 
 
@@ -114,9 +114,9 @@ def _validate_header_extra_blocks(raw) -> list[dict]:
     if raw is None:
         return []
     if not isinstance(raw, list):
-        raise HeaderBlockError("فهرستِ بلوک‌هایِ هدر نامعتبر است")
+        raise ShellBlockError("فهرستِ بلوک‌هایِ هدر نامعتبر است")
     if len(raw) > _MAX_HEADER_EXTRA_BLOCKS:
-        raise HeaderBlockError(f"حداکثر {_MAX_HEADER_EXTRA_BLOCKS} بلوکِ اضافی در هدر مجاز است")
+        raise ShellBlockError(f"حداکثر {_MAX_HEADER_EXTRA_BLOCKS} بلوکِ اضافی در هدر مجاز است")
 
     from django.core.exceptions import ValidationError as DjangoValidationError
 
@@ -125,10 +125,10 @@ def _validate_header_extra_blocks(raw) -> list[dict]:
     cleaned = []
     for entry in raw:
         if not isinstance(entry, dict):
-            raise HeaderBlockError("شکلِ یکی از بلوک‌هایِ هدر نامعتبر است")
+            raise ShellBlockError("شکلِ یکی از بلوک‌هایِ هدر نامعتبر است")
         block_type = entry.get("type")
         if block_type not in HEADER_EXTRA_BLOCK_TYPES:
-            raise HeaderBlockError("نوعِ یکی از بلوک‌هایِ هدر نامعتبر است")
+            raise ShellBlockError("نوعِ یکی از بلوک‌هایِ هدر نامعتبر است")
         block = {"type": block_type}
         if block_type == "cta":
             block["label"] = str(entry.get("label", "")).strip()[:_MAX_HEADER_CTA_LABEL_LENGTH]
@@ -137,7 +137,7 @@ def _validate_header_extra_blocks(raw) -> list[dict]:
                 try:
                     validate_external_url(url)
                 except DjangoValidationError as exc:
-                    raise HeaderBlockError("; ".join(exc.messages)) from exc
+                    raise ShellBlockError("; ".join(exc.messages)) from exc
             block["url"] = url
         cleaned.append(block)
     return cleaned
@@ -177,7 +177,7 @@ def validate_header_config(config: dict) -> dict:
 
     try:
         cleaned["extra_blocks"] = _validate_header_extra_blocks(config.get("extra_blocks"))
-    except HeaderBlockError as exc:
+    except ShellBlockError as exc:
         raise HeaderConfigValidationError(str(exc)) from exc
 
     if not cleaned["show_cart"]:
@@ -185,6 +185,53 @@ def validate_header_config(config: dict) -> dict:
             "دسترسی به سبد خرید نمی‌تواند از هدر حذف شود — در حال حاضر هیچ مسیر "
             "جایگزینی برای رسیدن مشتری به سبد خرید در ناوبری فروشگاه وجود ندارد."
         )
+    return cleaned
+
+
+#: Phase 8 P0-4 — انواعِ مجازِ ستونِ اضافیِ فوتر؛ همان الگویِ
+#: HEADER_EXTRA_BLOCK_TYPES بالا. ``social`` دوباره از همان دادهٔ
+#: هویتِ زنده (``SOCIAL_LINKS_FOOTER``) می‌خواند که ``show_social``ی
+#: موجود هم استفاده می‌کند — تکرارِ همان بلوک، مثلاً برایِ نمایشِ آن در
+#: هر دو انتهای فوتر.
+FOOTER_EXTRA_BLOCK_TYPES = ("custom_text", "link", "social")
+_MAX_FOOTER_EXTRA_BLOCKS = 4
+_MAX_FOOTER_BLOCK_TITLE_LENGTH = 40
+_MAX_FOOTER_BLOCK_TEXT_LENGTH = 400
+
+
+def _validate_footer_extra_blocks(raw) -> list[dict]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ShellBlockError("فهرستِ ستون‌هایِ اضافیِ فوتر نامعتبر است")
+    if len(raw) > _MAX_FOOTER_EXTRA_BLOCKS:
+        raise ShellBlockError(f"حداکثر {_MAX_FOOTER_EXTRA_BLOCKS} ستونِ اضافی در فوتر مجاز است")
+
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    from apps.content.models import validate_external_url
+
+    cleaned = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            raise ShellBlockError("شکلِ یکی از ستون‌هایِ فوتر نامعتبر است")
+        block_type = entry.get("type")
+        if block_type not in FOOTER_EXTRA_BLOCK_TYPES:
+            raise ShellBlockError("نوعِ یکی از ستون‌هایِ فوتر نامعتبر است")
+        block = {"type": block_type}
+        if block_type == "custom_text":
+            block["title"] = str(entry.get("title", "")).strip()[:_MAX_FOOTER_BLOCK_TITLE_LENGTH]
+            block["text"] = str(entry.get("text", "")).strip()[:_MAX_FOOTER_BLOCK_TEXT_LENGTH]
+        elif block_type == "link":
+            block["label"] = str(entry.get("label", "")).strip()[:_MAX_FOOTER_BLOCK_TITLE_LENGTH]
+            url = str(entry.get("url", "")).strip()
+            if url:
+                try:
+                    validate_external_url(url)
+                except DjangoValidationError as exc:
+                    raise ShellBlockError("; ".join(exc.messages)) from exc
+            block["url"] = url
+        cleaned.append(block)
     return cleaned
 
 
@@ -207,6 +254,11 @@ def validate_footer_config(config: dict) -> dict:
     cleaned["responsive"] = _validate_shell_component_responsive(
         config.get("responsive"), FOOTER_RESPONSIVE_AWARE_KEYS,
     )
+
+    try:
+        cleaned["extra_blocks"] = _validate_footer_extra_blocks(config.get("extra_blocks"))
+    except ShellBlockError as exc:
+        raise FooterConfigValidationError(str(exc)) from exc
 
     if not any(cleaned[field] for field in FOOTER_TOGGLE_FIELDS):
         raise FooterConfigValidationError(

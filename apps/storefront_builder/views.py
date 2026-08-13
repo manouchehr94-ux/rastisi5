@@ -979,6 +979,28 @@ def _extract_header_extra_blocks_raw(request) -> list[dict]:
     return blocks
 
 
+def _extract_footer_extra_blocks_raw(request) -> list[dict]:
+    """Phase 8 P0-4 — ستون‌هایِ اضافیِ فوتر (متنِ دلخواه/لینک/شبکه‌ی
+    اجتماعیِ تکراری) را از سه فهرستِ POSTِ موازی می‌خواند — همان الگویِ
+    ``_extract_header_extra_blocks_raw`` بالا."""
+    types = request.POST.getlist("footer_block_type")
+    titles = request.POST.getlist("footer_block_title")
+    texts = request.POST.getlist("footer_block_text")
+    labels = request.POST.getlist("footer_block_label")
+    urls = request.POST.getlist("footer_block_url")
+    blocks = []
+    for i, block_type in enumerate(types):
+        block = {"type": block_type}
+        if block_type == "custom_text":
+            block["title"] = titles[i] if i < len(titles) else ""
+            block["text"] = texts[i] if i < len(texts) else ""
+        elif block_type == "link":
+            block["label"] = labels[i] if i < len(labels) else ""
+            block["url"] = urls[i] if i < len(urls) else ""
+        blocks.append(block)
+    return blocks
+
+
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_header_editor(request):
@@ -1022,6 +1044,7 @@ def storefront_footer_editor(request):
     if request.method == "POST":
         raw = {field: request.POST.get(field) == "on" for field in FOOTER_TOGGLE_FIELDS}
         raw["responsive"] = _extract_shell_responsive_raw(request, FOOTER_RESPONSIVE_AWARE_KEYS)
+        raw["extra_blocks"] = _extract_footer_extra_blocks_raw(request)
         try:
             config = layout_service.validate_footer_config(raw)
         except layout_service.FooterConfigValidationError as exc:

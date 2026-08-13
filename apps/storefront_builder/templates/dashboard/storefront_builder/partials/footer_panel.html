@@ -63,6 +63,61 @@ validate_footer_config، فقط بدونِ خروج از سازنده. نسخه�
     </label>
     {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_copyright" component=config.responsive.show_copyright %}
     <div class="field-help">محتوای هر بخش (متن، لینک‌ها، نشان‌ها، شبکه‌های اجتماعی) از تنظیمات زیر خوانده می‌شود — این فرم فقط نمایش/عدم‌نمایش هر بخش را در این چیدمان کنترل می‌کند.</div>
+
+    {{ config.extra_blocks|json_script:"footer-extra-blocks-initial" }}
+    <div class="sfb-panel-title" style="margin-top:18px">ستون‌های اضافی فوتر</div>
+    <p style="color:var(--muted);font-size:12px;margin:0 0 10px">علاوه بر بخش‌های بالا — متن دلخواه، یک لینک تکی یا شبکه‌های اجتماعی؛ ترتیب و تعداد این‌ها دلخواه شماست.</p>
+    <div x-data="itemRepeaterForm(JSON.parse(document.getElementById('footer-extra-blocks-initial').textContent), {type: 'custom_text', title: '', text: '', label: '', url: ''})">
+      <template x-for="(row, index) in rows" :key="index">
+        <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
+          <div class="form-group">
+            <label>نوع ستون</label>
+            <select name="footer_block_type" class="form-select" x-model="row.type">
+              <option value="custom_text">📝 متن دلخواه</option>
+              <option value="link">🔗 لینک تکی</option>
+              <option value="social">📱 شبکه‌های اجتماعی</option>
+            </select>
+          </div>
+          <template x-if="row.type === 'custom_text'">
+            <div>
+              <div class="form-group">
+                <label>عنوان</label>
+                <input type="text" name="footer_block_title" class="form-input" x-model="row.title" maxlength="40">
+              </div>
+              <div class="form-group">
+                <label>متن</label>
+                <textarea name="footer_block_text" class="inp" x-model="row.text" maxlength="400" style="min-height:60px"></textarea>
+              </div>
+            </div>
+          </template>
+          <template x-if="row.type !== 'custom_text'">
+            <input type="hidden" name="footer_block_title" value=""><input type="hidden" name="footer_block_text" value="">
+          </template>
+          <template x-if="row.type === 'link'">
+            <div>
+              <div class="form-group">
+                <label>متن لینک</label>
+                <input type="text" name="footer_block_label" class="form-input" x-model="row.label" maxlength="40">
+              </div>
+              <div class="form-group">
+                <label>آدرس مقصد</label>
+                <input type="url" name="footer_block_url" class="form-input" dir="ltr" x-model="row.url" placeholder="https://...">
+              </div>
+            </div>
+          </template>
+          <template x-if="row.type !== 'link'">
+            <input type="hidden" name="footer_block_label" value=""><input type="hidden" name="footer_block_url" value="">
+          </template>
+          <div style="display:flex;gap:6px">
+            <button type="button" class="btn btn-sm" @click="moveUp(index)" :disabled="index === 0">▲</button>
+            <button type="button" class="btn btn-sm" @click="moveDown(index)" :disabled="index === rows.length - 1">▼</button>
+            <button type="button" class="btn btn-sm btn-danger" @click="removeRow(index)">حذف</button>
+          </div>
+        </div>
+      </template>
+      <button type="button" class="btn btn-sm" @click="addRow()">+ افزودن ستون</button>
+    </div>
+
     <div style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات فوتر</button>
     </div>
