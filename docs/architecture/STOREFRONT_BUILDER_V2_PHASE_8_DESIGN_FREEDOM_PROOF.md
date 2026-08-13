@@ -52,6 +52,42 @@ each store's own `StorefrontLayoutVersion` row.
 | Card badge | shown | shown | hidden | Section settings → ظاهر کارت محصول |
 | Home section count / composition | 6 sections (story_rail, hero_banner, image_text, featured_products, testimonials, newsletter) | 27 sections (dense hero→banners→9× product carousels→brand carousel→story rail→testimonials→FAQ→trust→newsletter→more banners/image-text) | 7 sections (category_grid, newest, best-sellers, discounted, amazing-offers, brand carousel, trust) | Existing per-store composition, edited/kept via the section list |
 
+## Required dimension matrix (kickoff-mandated list)
+
+For every dimension the kickoff required this proof to cover, this shows
+whether/how it differs, and through which Builder mechanism the difference
+was achieved (never "special template code for Store X").
+
+| Dimension | Demo A | Demo B | Demo C | Achieved via |
+|---|---|---|---|---|
+| Header structure | phone + CTA blocks, search+account+wishlist+cart | social + CTA blocks, same base icons | spacer block only, same base icons | Header composer (P0-3 extra blocks) |
+| Navigation | store's own main menu (unchanged, live identity, not Draft-scoped by design) | same | same | N/A — menu is intentionally outside Draft/Publish, per existing architecture |
+| Announcement | store's existing announcement bar (unchanged by this pass) | same | same | Header hub toggle (pre-existing, not touched — no forced difference needed to prove the point) |
+| Hero | tall, narrow-content | wide, full-content, compact height | split style (no hero section in this store's composition) | Appearance "سبک هیرو" + per-section layout width/height (P0-5) |
+| Home section order/composition | 6 sections, editorial rhythm (story→hero→content→products→testimonials→newsletter) | 27 sections, catalog rhythm (hero→banners→9 product carousels→trust/FAQ→more banners) | 7 sections, minimal rhythm (categories→4 product rails→brand→trust) | Section add/remove/reorder (pre-existing Builder core) |
+| Category presentation | via main nav only | dedicated `category_grid` section | dedicated `category_grid` section | Section library choice |
+| Product-card presentation | portrait ratio, no border, hover-fade quick-add | square ratio, bordered, always-visible quick-add | landscape ratio, no border, no badge, hover-slide quick-add | Section settings → card block (P0-2 + P1) |
+| Product density | 3 columns | 6 columns | 4 columns | Appearance → grid density (P0-7) |
+| Banner structure | 1 `image_text` banner | 2 `multi_banner` blocks + 7 `image_text` | 0 dedicated banners (category_grid instead) | Section composition |
+| Typography | store's existing font token (unchanged) | same | same | Appearance → font (pre-existing, not the axis under test) |
+| Colors | `peach` palette | `digired` palette | `mono` palette | Appearance → Palette gallery |
+| Shape/radius | store's existing radius (unchanged) | same | same | Appearance → radius slider (pre-existing, not the axis under test) |
+| Section spacing | site density unchanged (per-section spacing remains a known P2 gap, see report) | same | same | N/A — documented remaining gap |
+| Motion | store's existing motion token (unchanged) | same | same | Appearance → motion (pre-existing) |
+| Footer composition | custom-text block ("درباره ما") | link block ("پیگیری سفارش") | custom-text block ("اخلاقی") | Footer composer (P0-4 extra blocks) |
+| Product Detail composition | store's existing PDP composition (unchanged by this pass — PDP freedom was proven independently in the P0/P1 slices' own tests) | same | same | Not re-varied here; already `COMPLETE` in the Phase 8A gap matrix, rows 53 |
+| Mobile header | phone/social/CTA blocks hidden below 480px (fixed this pass), base icons unchanged | same fix applies | spacer block has no visual footprint either way | Global CSS fix (see caveats below) — not a per-store setting, applies uniformly |
+| Mobile layout | narrow content_width carries through responsively; verified zero horizontal overflow at 390px | wide content_width carries through responsively; verified zero horizontal overflow at 390px | standard content_width; verified zero horizontal overflow at 390px | Responsive CSS (pre-existing) + this pass's mobile QA |
+
+Several rows above are intentionally marked "unchanged" rather than forced to
+differ — typography, radius, motion, announcement and PDP composition were
+already proven independently configurable in Phase 8A/P0 work and are not
+re-litigated here; forcing every single axis to differ across all three
+stores just for this table would not add evidence beyond what the rows that
+*do* differ already establish, and several of the "unchanged" axes (radius,
+motion, font) are still real merchant-configurable dials, just not the ones
+chosen to differentiate these particular three demos.
+
 None of these fields overlap with a "Template" concept — Template
 (`template_slug`) is Phase 8 P0-7's internal-only fallback source and was
 never touched by any of these three builds; every value above is either an
