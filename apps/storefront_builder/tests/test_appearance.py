@@ -111,6 +111,77 @@ class ValidateAppearanceConfigTests(TestCase):
         self.assertEqual(cleaned["image_hover"], "zoom")
         self.assertEqual(cleaned["button_style"], "filled")
 
+    def test_card_image_crossfade_and_zoom_are_actually_persisted(self):
+        """Phase 8 P0-7 — رگرسیونِ یک باگِ واقعی: قبل از این فیکس، این دو
+        کلید هیچ‌وقت از ``config`` ورودی خوانده نمی‌شدند — خروجی همیشه
+        فقط پیش‌فرضِ ثابت (False/True) بود، حتی اگر مرچنت صریحاً چک‌باکسِ
+        مربوطه را در فرم عوض می‌کرد."""
+        cleaned = svc.validate_appearance_config({"card_image_crossfade": True, "card_image_zoom": False})
+        self.assertTrue(cleaned["card_image_crossfade"])
+        self.assertFalse(cleaned["card_image_zoom"])
+
+    def test_card_image_crossfade_and_zoom_default_unchanged(self):
+        cleaned = svc.validate_appearance_config({})
+        self.assertFalse(cleaned["card_image_crossfade"])
+        self.assertTrue(cleaned["card_image_zoom"])
+
+
+class SiteStructuralFieldsTests(TestCase):
+    """Phase 8 P0-7 — ۵ فیلدِ ساختاریِ سراسری که قبلاً فقط از طریقِ
+    انتخابِ یک Templateِ کامل قابلِ‌تغییر بودند، اکنون مستقیماً در
+    ``appearance_config`` قابلِ‌override‌اند."""
+
+    def test_absent_by_default(self):
+        """این ۵ کلید عمداً در APPEARANCE_CONFIG_DEFAULTS نیستند —
+        غیابشان یعنی «فروشگاه هنوز این پنل را لمس نکرده»، تا
+        ``context_processors`` بتواند به‌درستی به Templateِ ذخیره‌شده
+        بازگردد (نگاه کنید به تست‌هایِ context_processors)."""
+        cleaned = svc.validate_appearance_config({})
+        for key in ("content_width", "grid_density", "card_shadow", "card_hover", "hero_style"):
+            self.assertNotIn(key, cleaned, key)
+
+    def test_valid_content_widths_accepted(self):
+        for width in appearance_registry.SITE_CONTENT_WIDTH_CHOICES:
+            cleaned = svc.validate_appearance_config({"content_width": width})
+            self.assertEqual(cleaned["content_width"], width)
+
+    def test_invalid_content_width_rejected(self):
+        with self.assertRaises(svc.AppearanceConfigValidationError):
+            svc.validate_appearance_config({"content_width": 9999})
+
+    def test_valid_grid_densities_accepted(self):
+        for n in appearance_registry.SITE_GRID_DENSITY_CHOICES:
+            cleaned = svc.validate_appearance_config({"grid_density": n})
+            self.assertEqual(cleaned["grid_density"], n)
+
+    def test_invalid_grid_density_rejected(self):
+        with self.assertRaises(svc.AppearanceConfigValidationError):
+            svc.validate_appearance_config({"grid_density": 99})
+
+    def test_valid_card_shadow_accepted(self):
+        cleaned = svc.validate_appearance_config({"card_shadow": "strong"})
+        self.assertEqual(cleaned["card_shadow"], "strong")
+
+    def test_invalid_card_shadow_rejected(self):
+        with self.assertRaises(svc.AppearanceConfigValidationError):
+            svc.validate_appearance_config({"card_shadow": "glowing"})
+
+    def test_valid_card_hover_accepted(self):
+        cleaned = svc.validate_appearance_config({"card_hover": "zoom"})
+        self.assertEqual(cleaned["card_hover"], "zoom")
+
+    def test_invalid_card_hover_rejected(self):
+        with self.assertRaises(svc.AppearanceConfigValidationError):
+            svc.validate_appearance_config({"card_hover": "spin"})
+
+    def test_valid_hero_style_accepted(self):
+        cleaned = svc.validate_appearance_config({"hero_style": "split"})
+        self.assertEqual(cleaned["hero_style"], "split")
+
+    def test_invalid_hero_style_rejected(self):
+        with self.assertRaises(svc.AppearanceConfigValidationError):
+            svc.validate_appearance_config({"hero_style": "not-a-style"})
+
 
 class TypographyScaleTests(TestCase):
     """چکپوینتِ ۸: مقیاسِ تایپوگرافی — پنج نقشِ معنادار (نه اندازه‌یِ
@@ -213,6 +284,24 @@ class AppearanceEditorViewTests(TestCase):
         # ShopSettings زنده دست‌نخورده مانده — این تغییر فقط در Draft است
         shop_after = ShopSettings.load(store=self.store)
         self.assertEqual(shop_after.primary_color, original_primary)
+
+    def test_hub_no_longer_has_standalone_template_card(self):
+        """Phase 8 P0-7 — کارتِ مستقلِ «قالب فروشگاه» و گالریِ آن از هابِ
+        ظاهر حذف شده‌اند؛ پیش‌تنظیم/پالت/تنظیماتِ بیشتر جایگزینش شده‌اند."""
+        resp = self.client.get(reverse("dashboard:storefront-builder-appearance"))
+        body = resp.content.decode()
+        self.assertNotIn("قالب فروشگاه", body)
+        self.assertNotIn("اعمال قالب", body)
+        self.assertIn("پیش‌تنظیمِ صفحه‌آرایی", body)
+
+    def test_advanced_panel_has_new_structural_controls(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-appearance"))
+        body = resp.content.decode()
+        self.assertIn("عرض محتوای سایت", body)
+        self.assertIn("تعداد ستون گرید محصول", body)
+        self.assertIn("سایه‌ی کارت محصول", body)
+        self.assertIn("هاور کارت محصول", body)
+        self.assertIn("سبک هیرو", body)
 
     def test_post_saves_type_scale_to_draft(self):
         resp = self.client.post(reverse("dashboard:storefront-builder-appearance"), {
@@ -711,3 +800,29 @@ class TemplateStructuralChangeReachesPublicPageTests(TestCase):
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST="sfb-template-public.example.com")
         self.assertContains(resp, "data-sfb-template=\"boutique\"")
         self.assertContains(resp, "data-sfb-hero-style=\"tall\"")
+
+    def test_explicit_structural_override_wins_over_stored_template_default(self):
+        """Phase 8 P0-7 — یک فروشگاهِ روی Templateِ ``modern`` (که
+        content_width پیش‌فرضش ۱۲۰۰ است) با override صریح ۱۱۰۰ باید
+        همان ۱۱۰۰ را روی صفحه‌ی عمومی نشان دهد — نه پیش‌فرضِ Template."""
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+        draft = svc.get_or_create_draft(self.store)
+        draft.appearance_config = svc.validate_appearance_config({
+            "template_slug": "modern", "content_width": 1100,
+        })
+        draft.save(update_fields=["appearance_config"])
+        svc.publish(self.store)
+
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST="sfb-template-public.example.com")
+        self.assertContains(resp, "--sfb-content-width:1100px")
+
+    def test_store_never_touching_structural_advanced_panel_keeps_stored_template_defaults(self):
+        """رگرسیون: فروشگاهی که هرگز پنلِ جدید را لمس نکرده (فقط
+        template_slug ذخیره دارد) باید دقیقاً همان مقادیرِ Templateِ
+        خودش را ببیند — بدونِ نیاز به Migration."""
+        self._publish_with_template("editorial")
+        editorial = appearance_registry.get_template("editorial")
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST="sfb-template-public.example.com")
+        self.assertContains(resp, f"--sfb-content-width:{editorial.content_width}px")
+        self.assertContains(resp, f"data-sfb-hero-style=\"{editorial.hero_style}\"")

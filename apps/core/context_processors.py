@@ -181,11 +181,16 @@ def shop_settings(request):
         config = appearance["config"]
         shop_template_slug = template.slug
         shop_density = config["density"]
-        shop_content_width = template.content_width
-        shop_grid_density = template.grid_density
-        shop_card_shadow = template.card_shadow
-        shop_card_hover = template.card_hover
-        shop_hero_style = template.hero_style
+        # Phase 8 P0-7 — این ۵ فیلد اکنون مستقیماً در appearance_config
+        # قابلِ‌override‌اند (پنلِ «تنظیماتِ بیشتر»)؛ غیابشان (فروشگاهی
+        # که این پنلِ جدید را هرگز لمس نکرده) یعنی هم‌چنان از Templateِ
+        # ذخیره‌شده بیایند — دقیقاً همان رفتارِ قبل از این چکپوینت،
+        # بدونِ نیاز به Migration.
+        shop_content_width = config.get("content_width") or template.content_width
+        shop_grid_density = config.get("grid_density") or template.grid_density
+        shop_card_shadow = config.get("card_shadow") or template.card_shadow
+        shop_card_hover = config.get("card_hover") or template.card_hover
+        shop_hero_style = config.get("hero_style") or template.hero_style
     else:
         shop_template_slug = "modern"
         shop_density = _default_template.density

@@ -885,6 +885,15 @@ def storefront_appearance_editor(request):
             "image_hover": request.POST.get("image_hover", current["image_hover"]),
             "card_image_crossfade": (request.POST.get("card_image_crossfade", "") == "1" if "card_image_crossfade" in request.POST else current.get("card_image_crossfade", False)),
             "card_image_zoom": (request.POST.get("card_image_zoom", "") == "1" if "card_image_zoom" in request.POST else current.get("card_image_zoom", True)),
+            # Phase 8 P0-7 — این ۵ فیلد اختیاری‌اند (نه بخشی از
+            # APPEARANCE_CONFIG_DEFAULTS)؛ اگر فرمِ POSTکننده آن‌ها را
+            # حمل نکند (مثلاً یک فرمِ قدیمی‌تر)، به مقدارِ فعلیِ ذخیره‌شده
+            # برمی‌گردیم، نه به یک پیش‌فرضِ سخت‌کدشده.
+            "content_width": request.POST.get("content_width", current.get("content_width")),
+            "grid_density": request.POST.get("grid_density", current.get("grid_density")),
+            "card_shadow": request.POST.get("card_shadow", current.get("card_shadow")),
+            "card_hover": request.POST.get("card_hover", current.get("card_hover")),
+            "hero_style": request.POST.get("hero_style", current.get("hero_style")),
         }
         from .models import APPEARANCE_COLOR_KEYS
 
@@ -939,6 +948,11 @@ def storefront_appearance_editor(request):
         "image_fit_choices": appearance_registry.IMAGE_FIT_CHOICES,
         "image_hover_choices": appearance_registry.IMAGE_HOVER_CHOICES,
         "color_field_labels": color_field_labels,
+        "site_content_width_choices": appearance_registry.SITE_CONTENT_WIDTH_CHOICES,
+        "site_grid_density_choices": appearance_registry.SITE_GRID_DENSITY_CHOICES,
+        "site_card_shadow_choices": appearance_registry.SITE_CARD_SHADOW_CHOICES,
+        "site_card_hover_choices": appearance_registry.SITE_CARD_HOVER_CHOICES,
+        "site_hero_style_choices": appearance_registry.SITE_HERO_STYLE_CHOICES,
         # Phase 6 — چهار Preset درون‌ساختِ V2؛ کاملاً مستقل از Family/
         # Template/Palette بالا (نگاه کنید به ``layout_preset_registry.py``).
         "layout_presets": layout_preset_registry.list_layout_presets(),

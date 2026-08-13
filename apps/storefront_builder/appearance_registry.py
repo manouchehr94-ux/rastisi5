@@ -28,6 +28,17 @@ TYPE_SCALE_CHOICES = ("compact", "normal", "large")
 IMAGE_FIT_CHOICES = ("cover", "contain")
 IMAGE_HOVER_CHOICES = ("none", "zoom")
 
+#: Phase 8 P0-7 — این ۵ فیلدِ ساختاری قبلاً فقط از طریقِ انتخابِ یک
+#: Templateِ کامل قابلِ‌تغییر بودند (نگاه کنید به TemplateDefinition
+#: پایین). حالا مستقیماً در پنلِ «تنظیماتِ بیشتر» به‌عنوانِ کنترل‌هایِ
+#: مستقل در دسترس‌اند — این‌ها فقط enum بستهٔ مجازِ همان مقادیری هستند
+#: که Templateهایِ موجود از قبل استفاده می‌کنند، نه محدوده‌ی جدیدی.
+SITE_CONTENT_WIDTH_CHOICES = (1100, 1200, 1320)
+SITE_GRID_DENSITY_CHOICES = (3, 4, 5, 6)
+SITE_CARD_SHADOW_CHOICES = ("none", "soft", "strong")
+SITE_CARD_HOVER_CHOICES = ("none", "lift", "zoom")
+SITE_HERO_STYLE_CHOICES = ("wide", "tall", "split")
+
 #: فونت‌هایِ مجاز — مجموعه‌ی کوچک و کیوریت‌شده، هرکدام واقعاً برایِ
 #: فارسی/RTL مناسب (نه هر فونتِ دلخواه؛ طبقِ الزامِ صریحِ کار: «مرچنت فونت
 #: را با نام انتخاب کند، نه CSS خام آپلود کند»).

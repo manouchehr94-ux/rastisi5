@@ -13,8 +13,6 @@
 <div class="sfb-shell" :class="{ 'sfb-fullscreen': fullscreen }" x-data="storefrontEditor()" x-init="init()"
      data-page-type="{{ page_type }}" @beforeunload.window="handleBeforeUnload($event)"
      @open-settings-drawer.window="drawerOpen = true" @close-settings-drawer.window="drawerOpen = false"
-     @preview-candidate-template.window="previewCandidateTemplate($event.detail.slug, $event.detail.name)"
-     @apply-candidate-template.window="applyCandidateTemplate()"
      @keydown.escape.window="if (fullscreen) fullscreen = false">
 
   <div class="sfb-toolbar">
@@ -82,17 +80,10 @@
           {% endcomment %}
           <button type="button" class="btn btn-sm sfb-fullscreen-btn" @click="fullscreen = true" x-show="!fullscreen" aria-label="تمام‌صفحه">⛶ تمام‌صفحه</button>
         </div>
-        <span class="sfb-preview-hint" x-show="!candidateTemplate && !fullscreen">روی هر بخش مکث کنید تا نامش را ببینید؛ بخش‌ها را مستقیم بکشید و جابه‌جا کنید.</span>
+        <span class="sfb-preview-hint" x-show="!fullscreen">روی هر بخش مکث کنید تا نامش را ببینید؛ بخش‌ها را مستقیم بکشید و جابه‌جا کنید.</span>
         <div class="sfb-fullscreen-float" x-show="fullscreen" x-cloak>
           <span class="sfb-fullscreen-save-status">✓ تغییرات به‌صورت خودکار ذخیره می‌شوند</span>
           <button type="button" class="btn btn-sm" @click="fullscreen = false">خروج از تمام‌صفحه ✕</button>
-        </div>
-      </div>
-      <div class="sfb-candidate-banner" x-show="candidateTemplate" x-cloak>
-        <span x-show="candidateTemplate">در حال پیش‌نمایشِ قالبِ «<b x-text="candidateTemplateName"></b>» — هنوز چیزی ذخیره نشده.</span>
-        <div style="display:flex;gap:8px">
-          <button type="button" class="btn btn-sm" @click="cancelCandidatePreview()">بازگشت به پیش‌نویس فعلی</button>
-          <button type="button" class="btn btn-sm btn-primary" @click="$dispatch('apply-candidate-template')">اعمال این مورد</button>
         </div>
       </div>
       <div class="sfb-preview-frame-wrap" :class="'sfb-device-' + device">
@@ -172,23 +163,6 @@
     </aside>
   </div>
 
-  {% comment %}
-  فرمِ مخفیِ «اعمالِ قالبِ کاندید» — چکپوینتِ پیش‌نمایشِ غیرمخرب؛ بیرون
-  از appearance_panel.html نگه داشته می‌شود تا حتی اگر مرچنت هنگامِ
-  پیش‌نمایش از تبِ «ظاهر سایت» خارج شده باشد هم «اعمال این قالب» در
-  نوارِ بالایِ Preview کار کند. فقط template_slug لازم است — تعویضِ
-  Template به‌خودیِ‌خود فیلدهای فونت/گردی/تراکم/حرکت/اندازه‌متن را به
-  پیش‌فرض‌هایِ همان Template بازنشانی می‌کند (نگاه کنید به
-  storefront_appearance_editor).
-  {% endcomment %}
-  <form id="sfbApplyTemplateForm" method="post" action="{% url 'dashboard:storefront-builder-appearance' %}" style="display:none">
-    {% csrf_token %}
-    <input type="hidden" name="template_slug" id="sfbApplyTemplateSlug" value="">
-    {% with current_palette=draft.effective_appearance_config.palette_slug %}
-    {% if current_palette %}<input type="hidden" name="palette_slug" value="{{ current_palette }}">{% endif %}
-    {% endwith %}
-  </form>
-
   <aside class="sfb-drawer" x-show="drawerOpen" x-cloak @keydown.escape.window="drawerOpen = false">
     <div class="sfb-drawer-head">
       <strong>تنظیمات بخش</strong>
@@ -210,8 +184,6 @@ function storefrontEditor() {
     mainTab: 'page',
     mobileView: 'edit',
     pageType: 'home',
-    candidateTemplate: null,
-    candidateTemplateName: '',
     init() {
       this.pageType = this.$el.dataset.pageType || 'home';
       document.body.addEventListener('htmx:afterSwap', (evt) => {
@@ -231,28 +203,6 @@ function storefrontEditor() {
       });
     },
     setDevice(d) { this.device = d; },
-    // پیش‌نمایشِ غیرمخربِ یک Templateِ کاندید — Draft دست‌نخورده می‌ماند؛
-    // فقط iframe با query param به سمتِ storefront_preview دوباره
-    // بارگذاری می‌شود (نگاه کنید به _CandidateAppearanceVersion در
-    // views.py).
-    previewCandidateTemplate(slug, name) {
-      this.candidateTemplate = slug;
-      this.candidateTemplateName = name;
-      const iframe = document.getElementById('sfbPreviewFrame');
-      const base = iframe.getAttribute('data-preview-url');
-      iframe.src = base + '&preview_template=' + encodeURIComponent(slug);
-    },
-    cancelCandidatePreview() {
-      this.candidateTemplate = null;
-      this.candidateTemplateName = '';
-      const iframe = document.getElementById('sfbPreviewFrame');
-      iframe.src = iframe.getAttribute('data-preview-url');
-    },
-    applyCandidateTemplate() {
-      if (!this.candidateTemplate) return;
-      document.getElementById('sfbApplyTemplateSlug').value = this.candidateTemplate;
-      document.getElementById('sfbApplyTemplateForm').submit();
-    },
     reorderSections(sectionIds) {
       // منبعِ حقیقتِ نهایی همیشه پاسخِ سرور است — چیدمانِ خوش‌بینانه‌ای
       // که خودِ preview.html در DOM انجام داده صرفاً بازخوردِ فوریِ بصری

@@ -359,6 +359,13 @@ def validate_appearance_config(config: dict) -> dict:
         raise AppearanceConfigValidationError("افکتِ هاورِ تصویرِ انتخاب‌شده نامعتبر است")
     cleaned["image_hover"] = image_hover
 
+    # رفعِ باگ — این دو کلید قبلاً هرگز از ``config`` ورودی خوانده
+    # نمی‌شدند؛ خروجی همیشه فقط پیش‌فرضِ ``APPEARANCE_CONFIG_DEFAULTS``
+    # (False/True) بود، حتی وقتی مرچنت صریحاً چک‌باکسِ مربوطه را در فرم
+    # عوض می‌کرد — یعنی این دو تنظیم عملاً هرگز قابلِ تغییر نبودند.
+    cleaned["card_image_crossfade"] = bool(config.get("card_image_crossfade", APPEARANCE_CONFIG_DEFAULTS["card_image_crossfade"]))
+    cleaned["card_image_zoom"] = bool(config.get("card_image_zoom", APPEARANCE_CONFIG_DEFAULTS["card_image_zoom"]))
+
     # Phase 7: family_slug/preset_slug (سیستمِ منجمدِ قدیمیِ Family) از
     # اینجا و از APPEARANCE_CONFIG_DEFAULTS حذف شده‌اند — دیگر هیچ اثرِ
     # رندریِ فعالی نداشتند (نگاه کنید به Phase 7 Retirement Map). کلیدِ
@@ -369,6 +376,55 @@ def validate_appearance_config(config: dict) -> dict:
     if layout_preset_key is not None and layout_preset_registry.get_layout_preset(layout_preset_key) is None:
         raise AppearanceConfigValidationError(f"پیش‌تنظیمِ «{layout_preset_key}» در دسترس نیست")
     cleaned["layout_preset_key"] = layout_preset_key
+
+    # Phase 8 P0-7 — این ۵ فیلدِ *ساختاری* قبلاً فقط از طریقِ انتخابِ یک
+    # Template به‌طورِ غیرمستقیم قابلِ‌تغییر بودند (نگاه کنید به
+    # appearance_registry.TemplateDefinition). حالا مستقیماً در پنلِ
+    # «تنظیماتِ بیشتر» قابلِ‌ویرایش‌اند — عمداً *در APPEARANCE_CONFIG_DEFAULTS
+    # نیستند* و فقط وقتی مقدارِ معتبر و غیرِخالی پست شده باشد در خروجی
+    # ذخیره می‌شوند؛ غیابشان یعنی «هنوز صراحتاً تغییر نکرده» — در آن حالت
+    # apps.core.context_processors هم‌چنان از Templateِ ذخیره‌شده (که
+    # خودش دیگر توسطِ مرچنت از طریقِ UI عوض نمی‌شود، اما در دیتابیسِ
+    # فروشگاه‌هایِ قدیمی‌تر ممکن است غیرِ «modern» باشد) به‌عنوانِ fallback
+    # می‌خواند — یعنی صفر تغییرِ بصری برایِ فروشگاه‌هایی که این پنلِ جدید
+    # را هرگز لمس نکرده‌اند.
+    content_width = config.get("content_width")
+    if content_width:
+        try:
+            content_width = int(content_width)
+        except (TypeError, ValueError):
+            raise AppearanceConfigValidationError("مقدارِ «عرضِ محتوایِ سایت» نامعتبر است") from None
+        if content_width not in appearance_registry.SITE_CONTENT_WIDTH_CHOICES:
+            raise AppearanceConfigValidationError("عرضِ محتوایِ سایتِ انتخاب‌شده نامعتبر است")
+        cleaned["content_width"] = content_width
+
+    grid_density = config.get("grid_density")
+    if grid_density:
+        try:
+            grid_density = int(grid_density)
+        except (TypeError, ValueError):
+            raise AppearanceConfigValidationError("مقدارِ «تعدادِ ستونِ گریدِ محصول» نامعتبر است") from None
+        if grid_density not in appearance_registry.SITE_GRID_DENSITY_CHOICES:
+            raise AppearanceConfigValidationError("تعدادِ ستونِ گریدِ محصولِ انتخاب‌شده نامعتبر است")
+        cleaned["grid_density"] = grid_density
+
+    card_shadow = config.get("card_shadow")
+    if card_shadow:
+        if card_shadow not in appearance_registry.SITE_CARD_SHADOW_CHOICES:
+            raise AppearanceConfigValidationError("سایه‌یِ کارتِ انتخاب‌شده نامعتبر است")
+        cleaned["card_shadow"] = card_shadow
+
+    card_hover = config.get("card_hover")
+    if card_hover:
+        if card_hover not in appearance_registry.SITE_CARD_HOVER_CHOICES:
+            raise AppearanceConfigValidationError("هاورِ کارتِ انتخاب‌شده نامعتبر است")
+        cleaned["card_hover"] = card_hover
+
+    hero_style = config.get("hero_style")
+    if hero_style:
+        if hero_style not in appearance_registry.SITE_HERO_STYLE_CHOICES:
+            raise AppearanceConfigValidationError("سبکِ هیرویِ انتخاب‌شده نامعتبر است")
+        cleaned["hero_style"] = hero_style
 
     return cleaned
 
