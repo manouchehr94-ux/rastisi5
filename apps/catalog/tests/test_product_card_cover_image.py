@@ -71,3 +71,22 @@ class ProductCardCoverImageRenderTests(ProductCoverImageTestCase):
         response = self.client.get(reverse("catalog:product-list"), {"q": "کاور"})
         self.assertContains(response, "cover-photo")
         self.assertContains(response, image.thumbnail.url)
+
+
+class ProductCardSecondaryImageRenderTests(ProductCoverImageTestCase):
+    """Phase 8 P1 — تصویرِ دومِ کارت (crossfade هنگامِ hover)، از
+    ``Product.secondary_image`` که از قبل موجود بود اما هرگز به
+    ``product_card.html`` وصل نشده بود (کلاسِ CSSِ هدف، ``.mf-card-img-2``،
+    توسطِ هیچ templateی امروز نوشته نمی‌شد)."""
+
+    def test_single_image_product_has_no_secondary_photo(self):
+        add_product_image(self.product, _make_image_file())
+        response = self.client.get(reverse("catalog:product-list"), {"q": "کاور"})
+        self.assertNotContains(response, "cover-photo-2")
+
+    def test_second_image_renders_as_secondary_photo(self):
+        add_product_image(self.product, _make_image_file("1.jpg"))
+        second = add_product_image(self.product, _make_image_file("2.jpg"))
+        response = self.client.get(reverse("catalog:product-list"), {"q": "کاور"})
+        self.assertContains(response, "cover-photo-2")
+        self.assertContains(response, second.thumbnail.url)

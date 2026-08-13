@@ -15,6 +15,11 @@ include‌کننده آن را پاس نمی‌دهد (مثلاً ``home.html``/
     <img class="cover-photo" src="{{ product.cover_image.thumbnail.url|default:product.cover_image.image.url }}"
          alt="{{ product.cover_image.alt|default:product.name }}"
          style="position:absolute;inset:0;width:100%;height:100%;object-fit:var(--sfb-image-fit, cover)">
+    {% if product.secondary_image %}
+    <img class="cover-photo-2" src="{{ product.secondary_image.thumbnail.url|default:product.secondary_image.image.url }}"
+         alt="" aria-hidden="true"
+         style="position:absolute;inset:0;width:100%;height:100%;object-fit:var(--sfb-image-fit, cover)">
+    {% endif %}
     {% else %}
     <span class="emo">{{ product.icon|default:"🛍️" }}</span>
     {% endif %}

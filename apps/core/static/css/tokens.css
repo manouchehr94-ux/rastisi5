@@ -27,9 +27,15 @@
    data-sfb-card-crossfade="1" → تصویر دوم را در hover نشان بده
    data-sfb-card-zoom="1" → تصویر اول را در hover بزرگ‌تر کن */
 
-/* Crossfade: تصویرِ دوم فقط وقتی فعال باشد opacity transition دارد */
-html:not([data-sfb-card-crossfade="1"]) .pcard .mf-card-img-2,
-html:not([data-sfb-card-crossfade="1"]) .pcard .nl-card-img-2{display:none}
+/* Crossfade: تصویرِ دوم فقط وقتی فعال باشد opacity transition دارد —
+   Phase 8 P1: ``.cover-photo-2`` (``product_card.html``، از
+   ``Product.secondary_image``) کلاسِ واقعیِ رندرشده است؛ دو نامِ قدیمیِ
+   ``.mf-card-img-2``/``.nl-card-img-2`` هرگز توسطِ هیچ templateی امروز
+   نوشته نمی‌شدند (باقی‌مانده‌یِ دورانِ Family) — به همینِ کلاسِ واقعی
+   اصلاح شدند. */
+html:not([data-sfb-card-crossfade="1"]) .pcard .cover-photo-2{display:none}
+html[data-sfb-card-crossfade="1"] .pcard .cover-photo-2{opacity:0;transition:opacity .3s ease}
+html[data-sfb-card-crossfade="1"] .pcard:hover .cover-photo-2{opacity:1}
 
 /* Zoom: scale بر روی تصویرِ اول فقط وقتی فعال باشد */
 html[data-sfb-card-zoom="1"] .pcard .img img.cover-photo{transition:transform .3s ease}
@@ -38,7 +44,7 @@ html[data-sfb-card-zoom="1"] .pcard:hover .img img.cover-photo{transform:scale(1
 /* Reduced motion: هر دو غیرفعال */
 @media(prefers-reduced-motion:reduce){
   .pcard .img img{transition:none !important;transform:none !important}
-  .pcard .mf-card-img-2,.pcard .nl-card-img-2{transition:none !important}
+  .pcard .cover-photo-2{transition:none !important}
 }
 
 
