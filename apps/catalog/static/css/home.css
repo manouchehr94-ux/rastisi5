@@ -106,6 +106,22 @@ html[data-sfb-density="relaxed"] .section{margin:54px 0}
   .tiles-carousel .tile{flex-basis:200px}
 }
 
+/* حالتِ دایره‌ای گریدِ دسته‌بندی (Phase 3 — Universal: بدونِ دپندنسی به
+   هیچ Presetی، فقط یک display_mode دیگر کنارِ grid/carousel). تصویرِ
+   واقعیِ Category.image (تنانت‌سیف، مدلِ موجود) — بدونِ آن، آیکونِ متنیِ
+   موجود fallback است، هرگز محتوایِ ثابت/کپچرشده. */
+.tiles-circular{display:flex;flex-wrap:wrap;justify-content:center;gap:28px}
+.tile-circle{display:flex;flex-direction:column;align-items:center;gap:10px;width:120px;text-align:center;color:var(--ink)}
+.tile-circle-img{width:104px;height:104px;border-radius:50%;overflow:hidden;background:var(--violet-softer);border:1px solid var(--line);display:grid;place-items:center;transition:.2s}
+.tile-circle:hover .tile-circle-img{transform:translateY(-3px);box-shadow:0 10px 22px rgba(80,50,160,.18)}
+.tile-circle-img img{width:100%;height:100%;object-fit:cover}
+.tile-circle-wm{font-size:38px}
+.tile-circle-label{font-size:12.5px;font-weight:700}
+@media(max-width:680px){
+  .tile-circle{width:84px}
+  .tile-circle-img{width:76px;height:76px}
+}
+
 /* ===== cream banner ===== */
 .cream{position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(100deg,#f3e9d8,#efe2cb);display:grid;grid-template-columns:1fr 1fr;align-items:center;padding:36px 40px;gap:20px}
 .cream h3{font-size:22px;font-weight:900;color:#5b4326;margin-bottom:10px}
@@ -151,11 +167,14 @@ html[data-sfb-density="relaxed"] .section{margin:54px 0}
 .blog-card .read svg{width:14px;height:14px}
 
 /* ===== features ===== */
-.features{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:34px 0}
+/* Phase 3 — Universal: settings.items اکنون تعدادِ متغیر (تا ۶) دارد؛
+   auto-fit به‌جایِ ستونِ ثابتِ ۴تایی تا خودش با تعدادِ آیتم‌ها هماهنگ شود
+   (بدونِ نیازِ به یک فیلدِ تنظیمِ ستونِ جداگانه برایِ این بلوکِ ساده). */
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:34px 0}
 html[data-sfb-density="compact"] .features{gap:10px;margin:18px 0}
 html[data-sfb-density="relaxed"] .features{gap:22px;margin:54px 0}
 .feat{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:20px;display:flex;align-items:center;gap:13px}
-.feat .ic{width:50px;height:50px;border-radius:14px;background:var(--violet-soft);color:var(--violet);display:grid;place-items:center;flex-shrink:0}
+.feat .ic{width:50px;height:50px;border-radius:14px;background:var(--violet-soft);color:var(--violet);display:grid;place-items:center;flex-shrink:0;font-size:22px}
 .feat .ic svg{width:24px;height:24px}
 .feat b{font-size:13.5px;display:block}
 .feat small{color:var(--muted);font-size:11.5px}

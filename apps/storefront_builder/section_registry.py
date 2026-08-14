@@ -943,7 +943,7 @@ class CategoryGridSettingsError(ValueError):
 
 _MAX_CATEGORY_GRID_IDS = 12
 _MAX_SECTION_TITLE_LENGTH = 60
-CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel")
+CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular")
 
 
 def _validate_category_grid_settings(raw: dict) -> dict:
@@ -969,6 +969,49 @@ def _validate_category_grid_settings(raw: dict) -> dict:
 
 def default_category_grid_settings() -> dict:
     return {"title": "", "display_mode": "grid", "category_ids": []}
+
+
+#: Phase 3 (Universal Storefront — V5 Golden Homepage) — ``trust_features``
+#: تا پیش از این چکپوینت یک بلوکِ کاملاً ثابتِ ۴ آیتمی بود (هیچ کلیدی از
+#: ``settings`` خوانده نمی‌شد)، پس واقعاً «تنظیم‌پذیر» نبود — یک شکافِ
+#: واقعی نسبت به الزامِ «تعدادِ متغیرِ آیتم، متنِ دلخواه» که V5 نیاز دارد.
+#: ``items`` خالی (پیش‌فرض) دقیقاً همان ۴ آیتمِ ثابتِ قبلی را در تمپلیت
+#: بدونِ تغییر بازتولید می‌کند — سازگاریِ کامل با گذشته برایِ فروشگاه‌هایی
+#: که هنوز شخصی‌سازی نکرده‌اند.
+_MAX_TRUST_FEATURE_ITEMS = 6
+_MAX_TRUST_FEATURE_ICON_LENGTH = 8
+_MAX_TRUST_FEATURE_TEXT_LENGTH = 40
+
+
+class TrustFeaturesSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ ردیفِ اعتماد نامعتبر است — پیامِ فارسیِ قابل‌نمایشِ مستقیم به تاجر."""
+
+
+def _validate_trust_feature_item(raw) -> dict:
+    if not isinstance(raw, dict):
+        raise TrustFeaturesSettingsError("هر آیتمِ ردیفِ اعتماد باید یک شیء باشد")
+    title = str(raw.get("title", "")).strip()[:_MAX_TRUST_FEATURE_TEXT_LENGTH]
+    if not title:
+        raise TrustFeaturesSettingsError("عنوانِ آیتمِ ردیفِ اعتماد نمی‌تواند خالی باشد")
+    return {
+        "icon": str(raw.get("icon", "")).strip()[:_MAX_TRUST_FEATURE_ICON_LENGTH],
+        "title": title,
+        "subtitle": str(raw.get("subtitle", "")).strip()[:_MAX_TRUST_FEATURE_TEXT_LENGTH],
+    }
+
+
+def validate_trust_features_settings(raw: dict) -> dict:
+    if not isinstance(raw, dict):
+        raise TrustFeaturesSettingsError("تنظیمات باید یک شیء JSON باشد")
+    raw_items = raw.get("items", [])
+    if not isinstance(raw_items, list):
+        raise TrustFeaturesSettingsError("فهرستِ آیتم‌ها نامعتبر است")
+    items = [_validate_trust_feature_item(item) for item in raw_items[:_MAX_TRUST_FEATURE_ITEMS]]
+    return {"items": items}
+
+
+def default_trust_features_settings() -> dict:
+    return {"items": []}
 
 
 class BrandCarouselSettingsError(ValueError):
@@ -1330,8 +1373,8 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
     "trust_features": SectionDefinition(
         key="trust_features", label_fa="ردیف اعتماد و ویژگی‌ها", icon="shield-check",
         template_name="storefront_builder/sections/trust_features.html",
-        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        max_instances=1, duplicable=False, removable=True, category_fa="ساختار",
+        validate_settings=validate_trust_features_settings, default_settings=default_trust_features_settings,
+        max_instances=1, duplicable=False, removable=True, has_settings_form=True, category_fa="ساختار",
     ),
     # -------------------------------------------------- چکپوینتِ ۱۲: بخش‌های جدید
     "collection_tiles": SectionDefinition(
