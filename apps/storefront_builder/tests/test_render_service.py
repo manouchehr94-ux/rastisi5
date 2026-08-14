@@ -13,7 +13,7 @@ from apps.catalog.models import Category, Product, Vendor
 from apps.content.models import HeroSlide, PromotionalBanner
 from apps.storefront_builder.models import StorefrontSection
 from apps.storefront_builder.services import layout_service as svc
-from apps.storefront_builder.services.render_service import build_page_render_items, build_render_items
+from apps.storefront_builder.services.render_service import build_page_render_items, build_render_items, group_items_into_rows
 from apps.stores.models import Store
 
 
@@ -25,6 +25,61 @@ def _img(name="test.png"):
     buf = BytesIO()
     Image.new("RGB", (800, 400), (100, 50, 200)).save(buf, "PNG")
     return SimpleUploadedFile(name, buf.getvalue(), content_type="image/png")
+
+
+class GroupItemsIntoRowsTests(TestCase):
+    """Phase 1 (معماریِ Universal Block/Data) — تبدیلِ دادهٔ خالص، بدونِ
+    رندرِ HTML. هنوز توسطِ هیچ view/templateای صدا زده نمی‌شود (نگاه کنید
+    به docstring خودِ تابع)."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        self.draft = svc.get_or_create_draft(self.store)
+        self.draft.sections.all().delete()
+
+    def test_sections_without_row_key_each_become_their_own_row(self):
+        StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        StorefrontSection.objects.create(version=self.draft, section_key="trust_features", order=1)
+        items = build_render_items(self.draft, self.store)
+        rows = group_items_into_rows(items)
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(row["row_key"] == "" for row in rows))
+        self.assertTrue(all(len(row["items"]) == 1 for row in rows))
+
+    def test_adjacent_same_row_key_grouped_together(self):
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="hero_banner", order=0, row_key="hero-row", row_span=8,
+        )
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="amazing_offers", order=1, row_key="hero-row", row_span=4,
+        )
+        StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=2)
+        items = build_render_items(self.draft, self.store)
+        rows = group_items_into_rows(items)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["row_key"], "hero-row")
+        self.assertEqual(len(rows[0]["items"]), 2)
+        self.assertEqual(rows[1]["row_key"], "")
+        self.assertEqual(len(rows[1]["items"]), 1)
+
+    def test_non_adjacent_same_row_key_becomes_two_separate_rows(self):
+        """ورودیِ ناسازگار (که ``row_service.validate_page_row_layout`` باید
+        پیش‌تر رد کرده باشد) نباید این تابع را کرش بدهد — فقط دو گروهِ
+        مجاورِ جدا برمی‌گرداند، نه یک گروهِ اشتباهاً ادغام‌شده."""
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="hero_banner", order=0, row_key="split-row", row_span=6,
+        )
+        StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=1)
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="amazing_offers", order=2, row_key="split-row", row_span=6,
+        )
+        items = build_render_items(self.draft, self.store)
+        rows = group_items_into_rows(items)
+        self.assertEqual([row["row_key"] for row in rows], ["split-row", "", "split-row"])
+
+    def test_empty_items_returns_empty_rows(self):
+        self.assertEqual(group_items_into_rows([]), [])
 
 
 class BuildRenderItemsTests(TestCase):

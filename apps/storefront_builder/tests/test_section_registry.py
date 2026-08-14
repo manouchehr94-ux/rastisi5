@@ -3,6 +3,8 @@ from django.test import TestCase
 from apps.storefront_builder.models import StorefrontPage
 from apps.storefront_builder.section_registry import (
     ALL_PAGE_TYPES,
+    BACKGROUND_AWARE_SECTION_KEYS,
+    BACKGROUND_MODE_CHOICES,
     CARD_AWARE_SECTION_KEYS,
     COLUMN_AWARE_SECTION_KEYS,
     COLUMN_VISUAL_SECTION_KEYS,
@@ -23,6 +25,9 @@ from apps.storefront_builder.section_registry import (
     PAGE_TYPE_SEARCH,
     SECTION_LIBRARY_CATEGORIES,
     SECTION_REGISTRY,
+    SPACING_AWARE_SECTION_KEYS,
+    SPACING_SIZE_CHOICES,
+    BackgroundSettingsError,
     CardSettingsError,
     DestinationSettingsError,
     LayoutSettingsError,
@@ -30,22 +35,27 @@ from apps.storefront_builder.section_registry import (
     NewsletterSettingsError,
     ProductSectionSettingsError,
     ResponsiveSettingsError,
+    SpacingSettingsError,
     UnknownSectionTypeError,
+    default_background_settings,
     default_card_settings,
     default_destination_settings,
     default_layout_settings,
     default_motion_settings,
     default_responsive_settings,
+    default_spacing_settings,
     get_definition,
     is_section_allowed_on_page,
     is_valid_section_key,
     list_definitions,
     list_library_groups,
+    validate_background_settings,
     validate_card_settings,
     validate_destination_settings,
     validate_layout_settings,
     validate_motion_settings,
     validate_responsive_settings,
+    validate_spacing_settings,
 )
 
 EXPECTED_KEYS = {
@@ -905,6 +915,133 @@ class LayoutAwareIntegrationTests(TestCase):
         cleaned = definition.validate_settings({"layout": {"content_width": "full"}})
         self.assertEqual(cleaned["layout"]["content_width"], "full")
         self.assertNotIn("height", cleaned["layout"])
+
+
+class BackgroundSettingsTests(TestCase):
+    """spec §9 (Background System) + §10.2 (Custom Color Overrides)."""
+
+    def test_missing_key_defaults_to_theme(self):
+        cleaned = validate_background_settings(None)
+        self.assertEqual(cleaned, default_background_settings())
+        self.assertEqual(cleaned["mode"], "theme")
+
+    def test_valid_color_mode(self):
+        cleaned = validate_background_settings({"mode": "color", "color": "#E62B35"})
+        self.assertEqual(cleaned["mode"], "color")
+        self.assertEqual(cleaned["color"], "#E62B35")
+
+    def test_invalid_hex_color_rejected(self):
+        with self.assertRaises(BackgroundSettingsError):
+            validate_background_settings({"mode": "color", "color": "not-a-color"})
+
+    def test_color_mode_without_color_falls_back_to_theme(self):
+        cleaned = validate_background_settings({"mode": "color", "color": ""})
+        self.assertEqual(cleaned["mode"], "theme")
+
+    def test_valid_image_mode(self):
+        cleaned = validate_background_settings({"mode": "image", "image_url": "https://cdn.example.com/bg.jpg"})
+        self.assertEqual(cleaned["mode"], "image")
+        self.assertEqual(cleaned["image_url"], "https://cdn.example.com/bg.jpg")
+
+    def test_dangerous_image_url_rejected(self):
+        with self.assertRaises(BackgroundSettingsError):
+            validate_background_settings({"mode": "image", "image_url": "javascript:alert(1)"})
+
+    def test_pattern_mode_with_empty_registry_falls_back_to_theme(self):
+        """PATTERN_REGISTRY عمداً در Phase 1 خالی است (هنوز هیچ دارایی‌ای
+        ساخته نشده) — یک pattern_slug همیشه به‌شکلِ امن رد می‌شود، نه خطا."""
+        cleaned = validate_background_settings({"mode": "pattern", "pattern_slug": "stationery"})
+        self.assertEqual(cleaned["mode"], "theme")
+        self.assertEqual(cleaned["pattern_slug"], "")
+
+    def test_unknown_mode_falls_back_to_theme(self):
+        cleaned = validate_background_settings({"mode": "not-a-real-mode"})
+        self.assertEqual(cleaned["mode"], "theme")
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(BackgroundSettingsError):
+            validate_background_settings("nope")
+
+
+class BackgroundAwareIntegrationTests(TestCase):
+    def test_background_aware_keys_get_background_defaults(self):
+        for key in BACKGROUND_AWARE_SECTION_KEYS:
+            defaults = get_definition(key).default_settings()
+            self.assertIn("background", defaults, key)
+            self.assertEqual(defaults["background"]["mode"], "theme", key)
+
+    def test_non_background_aware_keys_have_no_background_field(self):
+        for key, definition in SECTION_REGISTRY.items():
+            if key in BACKGROUND_AWARE_SECTION_KEYS:
+                continue
+            defaults = definition.default_settings()
+            self.assertNotIn("background", defaults, key)
+
+    def test_protected_context_sections_excluded(self):
+        """spec §59 — sectionهایِ حیاتیِ محافظت‌شده (خرید/سبد/لیست) عمداً
+        از override پس‌زمینه کنار گذاشته شده‌اند."""
+        protected = {"product_main", "product_listing", "cart_items", "cart_summary", "collection_products"}
+        self.assertTrue(protected.isdisjoint(BACKGROUND_AWARE_SECTION_KEYS))
+
+    def test_background_round_trips(self):
+        definition = get_definition("multi_banner")
+        cleaned = definition.validate_settings({"background": {"mode": "color", "color": "#112233"}})
+        self.assertEqual(cleaned["background"]["mode"], "color")
+        self.assertEqual(cleaned["background"]["color"], "#112233")
+
+
+class SpacingSettingsTests(TestCase):
+    """spec §8 (Basic: Small/Normal/Large — Advanced: exact padding/margin)."""
+
+    def test_missing_key_defaults_to_normal_no_advanced_override(self):
+        cleaned = validate_spacing_settings(None)
+        self.assertEqual(cleaned, default_spacing_settings())
+        self.assertEqual(cleaned["vertical_spacing"], "normal")
+        self.assertTrue(all(v is None for v in cleaned["advanced"].values()))
+
+    def test_valid_basic_size(self):
+        cleaned = validate_spacing_settings({"vertical_spacing": "large"})
+        self.assertEqual(cleaned["vertical_spacing"], "large")
+
+    def test_unknown_size_falls_back_to_normal(self):
+        cleaned = validate_spacing_settings({"vertical_spacing": "huge"})
+        self.assertEqual(cleaned["vertical_spacing"], "normal")
+
+    def test_advanced_override_clamped_to_range(self):
+        cleaned = validate_spacing_settings({"advanced": {"padding_top": 9999, "margin_top": -50}})
+        self.assertEqual(cleaned["advanced"]["padding_top"], 200)
+        self.assertEqual(cleaned["advanced"]["margin_top"], 0)
+
+    def test_advanced_field_left_none_when_not_supplied(self):
+        cleaned = validate_spacing_settings({"advanced": {"padding_top": 40}})
+        self.assertEqual(cleaned["advanced"]["padding_top"], 40)
+        self.assertIsNone(cleaned["advanced"]["padding_bottom"])
+
+    def test_non_numeric_advanced_value_rejected(self):
+        with self.assertRaises(SpacingSettingsError):
+            validate_spacing_settings({"advanced": {"padding_top": "lots"}})
+
+    def test_non_dict_rejected(self):
+        with self.assertRaises(SpacingSettingsError):
+            validate_spacing_settings("nope")
+
+
+class SpacingAwareIntegrationTests(TestCase):
+    def test_spacing_aware_keys_get_spacing_defaults(self):
+        for key in SPACING_AWARE_SECTION_KEYS:
+            defaults = get_definition(key).default_settings()
+            self.assertIn("spacing", defaults, key)
+            self.assertEqual(defaults["spacing"]["vertical_spacing"], "normal", key)
+
+    def test_non_spacing_aware_keys_have_no_spacing_field(self):
+        for key, definition in SECTION_REGISTRY.items():
+            if key in SPACING_AWARE_SECTION_KEYS:
+                continue
+            defaults = definition.default_settings()
+            self.assertNotIn("spacing", defaults, key)
+
+    def test_background_and_spacing_share_exactly_the_same_allowlist(self):
+        self.assertEqual(BACKGROUND_AWARE_SECTION_KEYS, SPACING_AWARE_SECTION_KEYS)
 
 
 class NewsletterSectionRegistryTests(TestCase):

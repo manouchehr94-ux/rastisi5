@@ -590,6 +590,42 @@ def build_default_render_items(page_type: str, store, page_context: dict | None 
     return _build_items_from_sections(sections, store, page_context)
 
 
+def group_items_into_rows(items: list[dict]) -> list[dict]:
+    """تبدیلِ خروجیِ تخت ``build_page_render_items``/``build_render_items`` به
+    فهرستی از «ردیف‌ها» — Phase 1 (معماریِ Universal Block/Data)، آماده‌سازیِ
+    دادهٔ لازم برایِ Phase 2 (Universal Renderer).
+
+    این تابع **هیچ HTML/templateای رندر نمی‌کند** و هنوز توسطِ هیچ view/
+    templateی صدا زده نمی‌شود — یک تبدیلِ دادهٔ خالص است که قراردادِ
+    ``StorefrontSection.row_key``/``row_span`` (نگاه کنید به
+    ``services/row_service.py``) را به شکلی تبدیل می‌کند که مصرفِ آن توسطِ
+    یک الگویِ CSS Grid/Flex در Phase 2 مستقیم باشد، بدونِ اینکه Phase 2
+    مجبور باشد دوباره منطقِ گروه‌بندیِ مجاورت را بازنویسی کند.
+
+    ورودی همان فهرستِ ``item`` است (هرکدام حاویِ ``item["section"]``)؛
+    خروجی فهرستی از دیکشنری‌هایِ ``{"row_key": str, "items": [item, ...]}``
+    — یک section مستقل (row_key خالی) هم به‌شکلِ یک «ردیفِ تک‌عضوی»
+    (``row_key=""``) بازگردانده می‌شود، تا فراخوان همیشه یک قراردادِ یکسان
+    (فهرستی از ردیف‌ها) داشته باشد، نه دو شکلِ متفاوت برایِ section مستقل/
+    عضوِ ردیف.
+
+    گروه‌بندی صرفاً بر اساسِ **مجاورت** در همین فهرستِ ورودی انجام می‌شود
+    (نه جست‌وجویِ سراسریِ همه‌ی sectionهایِ هم‌row_key در کلِ صفحه) — دقیقاً
+    همان قاعدهٔ ``row_service._grouped_by_row_key``؛ اگر ورودی از قبل با
+    ``row_service.validate_page_row_layout`` تأیید شده باشد (که پیش از هر
+    ذخیره‌یِ row_key/row_span باید صدا زده شود)، این دو تعریفِ «مجاورت» همیشه
+    یکسان نتیجه می‌دهند."""
+    rows: list[dict] = []
+    for item in items:
+        section = item["section"]
+        key = section.row_key or ""
+        if rows and rows[-1]["row_key"] == key and key != "":
+            rows[-1]["items"].append(item)
+        else:
+            rows.append({"row_key": key, "items": [item]})
+    return rows
+
+
 def build_render_items(version, store) -> list[dict]:
     """فهرست بخش‌های فعالِ **صفحه‌ی اصلیِ** یک نسخه — wrapperِ سازگاریِ
     نازک، حفظ‌شده عمداً برایِ هر دو فراخوانِ تولیدیِ موجودِ پیش از Phase 1B

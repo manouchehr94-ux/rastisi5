@@ -602,6 +602,12 @@ def storefront_section_product_search(request, pk):
 def storefront_section_remove(request, pk):
     section = _get_scoped_section(request, pk)
     page_type = section.page.page_type
+    # Phase 1 (spec §37 — Lock): «It cannot be deleted» — چک می‌شود پیش از
+    # چکِ removable نوعِ section (اگر هر دو نقض شده باشند، تاجر پیامِ
+    # قفل‌بودن را می‌بیند، چون آن یک تصمیمِ per-instance و آگاهانه‌تر است).
+    if section.is_locked:
+        messages.error(request, "این بخش قفل است — ابتدا قفل آن را باز کنید")
+        return storefront_section_list_partial(request, page_type=page_type)
     try:
         definition = section_registry.get_definition(section.section_key)
         if not definition.removable:
@@ -634,6 +640,20 @@ def storefront_section_collapse_toggle(request, pk):
     section = _get_scoped_section(request, pk)
     section.collapsed_in_editor = not section.collapsed_in_editor
     section.save(update_fields=["collapsed_in_editor", "updated_at"])
+    return storefront_section_list_partial(request, page_type=section.page.page_type)
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+def storefront_section_lock_toggle(request, pk):
+    """قفل/بازکردنِ یک بخش — Phase 1 (spec §37). دقیقاً همان الگویِ
+    ``storefront_section_collapse_toggle``؛ خودِ اثرِ قفل‌بودن (منعِ حذف/
+    جابه‌جایی) در ``storefront_section_remove``/``storefront_section_move``
+    اعمال می‌شود، نه اینجا — این view فقط پرچم را toggle می‌کند."""
+    section = _get_scoped_section(request, pk)
+    section.is_locked = not section.is_locked
+    section.save(update_fields=["is_locked", "updated_at"])
     return storefront_section_list_partial(request, page_type=section.page.page_type)
 
 
@@ -721,6 +741,10 @@ def storefront_section_move(request, pk):
     drag-and-drop عملی نیست."""
     direction = request.POST.get("direction")
     section = _get_scoped_section(request, pk)
+    # Phase 1 (spec §37 — Lock): «It cannot be moved».
+    if section.is_locked:
+        messages.error(request, "این بخش قفل است — ابتدا قفل آن را باز کنید")
+        return storefront_section_list_partial(request, page_type=section.page.page_type)
     # Phase 1A: جابه‌جایی همیشه بینِ خواهر-وبرادرهایِ **همان صفحه** انجام
     # می‌شود (``section.page.sections``، نه ``section.version.sections``ی
     # تجمیعیِ همه‌ی صفحات که خواهر-وبرادرهایِ صفحاتِ دیگر را هم قاطی

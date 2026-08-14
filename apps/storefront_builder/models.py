@@ -470,6 +470,39 @@ class StorefrontSection(TimeStampedModel):
             "دقیق‌تر (چون اکنون یک نسخه می‌تواند چند صفحه داشته باشد)."
         ),
     )
+    row_key = models.CharField(
+        "کلید ردیف", max_length=40, blank=True, default="",
+        help_text=(
+            "Phase 1 (معماریِ Universal Block/Data): خالی یعنی این section به‌تنهایی و "
+            "با عرضِ کامل در ردیفِ خودش نمایش داده می‌شود — رفتارِ فعلی، بدونِ تغییر. "
+            "اگر مقدار داشته باشد، این section با دیگر sectionهایی که دقیقاً همین "
+            "مقدار را دارند (در همان صفحه) در یک «ردیفِ ترکیبی» (Layout Group) قرار "
+            "می‌گیرند — مثلاً پیوستنِ Hero و Instant Offer در یک ردیف با عرض‌های نامساوی. "
+            "شکلِ این‌که ۲/۳/۴ بلوک واقعاً چطور یک ردیف را می‌سازند در "
+            "``services/row_service.py`` اعتبارسنجی می‌شود، نه اینجا — همان تفکیکِ "
+            "مسئولیتیِ section_key/SECTION_REGISTRY."
+        ),
+    )
+    row_span = models.PositiveSmallIntegerField(
+        "عرض در ردیف (از ۱۲)", default=12,
+        help_text=(
+            "فقط وقتی row_key خالی نیست معنا دارد — تعدادِ واحد از ۱۲ واحدِ عرضِ ردیف "
+            "که این section اشغال می‌کند (مثلاً ۴ برای یک‌سوم، ۸ برای دو‌سوم، ۶ برای "
+            "نصف). مجموعِ row_span همه‌ی اعضایِ یک row_key باید دقیقاً ۱۲ شود — "
+            "``row_service.validate_page_row_layout`` این را چک می‌کند. پیش‌فرضِ ۱۲ "
+            "برایِ sectionهایِ بدونِ row_key (اکثریتِ قریب‌به‌اتفاق) بی‌اثر است — همیشه "
+            "«عرضِ کامل» به‌همان‌شکلِ امروز باقی می‌ماند."
+        ),
+    )
+    is_locked = models.BooleanField(
+        "قفل‌شده", default=False,
+        help_text=(
+            "بخشِ قفل‌شده قابلِ جابه‌جایی (بالا/پایین) یا حذف نیست — تا وقتی که ابتدا "
+            "باز قفل شود (spec §37: «It cannot be moved / It cannot be deleted»). "
+            "مستقل از is_active (پنهان/نمایان) و duplicable/removable (که نوعِ خودِ "
+            "section را محدود می‌کنند، نه یک نمونه‌یِ خاص را)."
+        ),
+    )
 
     class Meta:
         verbose_name = "بخش صفحه فروشگاه"

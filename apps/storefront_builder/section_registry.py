@@ -541,6 +541,208 @@ def _with_card(section_key: str, validate_fn, default_fn):
     return wrapped_validate, wrapped_default
 
 
+#: Phase 1 (معماریِ Universal Block/Data، بخشِ ۹ مشخصات: «Background
+#: System» + بخشِ ۱۰.۲: «Custom Color Overrides») — انواعی که یک پس‌زمینه‌یِ
+#: مستقل از پالتِ سراسری برایشان معنا دارد. یک allowlist صریح (همان الگویِ
+#: بالا)، نه پیش‌فرضِ همه‌ی انواع — عمداً پنج نوعِ context-aware با
+#: ``removable=False`` (``product_main``/``product_listing``/``cart_items``/
+#: ``cart_summary``/``collection_products`` — محافظت‌شده طبقِ بخشِ ۵۹ مشخصات:
+#: «Mandatory Components») و ``announcement_bar`` (نوارِ باریکِ سراسریِ هدر،
+#: پس‌زمینه‌یِ مستقل برایش بی‌معناست) کنار گذاشته شده‌اند.
+BACKGROUND_AWARE_SECTION_KEYS = frozenset({
+    "hero_banner", "image_slider", "single_banner", "multi_banner", "category_grid",
+    "featured_products", "newest_products", "best_sellers", "discounted_products",
+    "amazing_offers", "brand_carousel", "promo_cards", "rich_text", "image_text",
+    "product_section", "trust_features", "collection_tiles", "quick_links", "faq",
+    "testimonials", "video_section", "story_rail", "newsletter",
+    "product_description", "product_video", "related_products", "collection_header",
+})
+
+#: همان allowlist برایِ «فاصله‌گذاری» (بخشِ ۸ مشخصات) — دقیقاً همان مجموعه،
+#: چون هر دو معنایِ «این section چطور در صفحه جا می‌گیرد» دارند، نه محتوایِ
+#: خودِ section.
+SPACING_AWARE_SECTION_KEYS = BACKGROUND_AWARE_SECTION_KEYS
+
+BACKGROUND_MODE_CHOICES = ("theme", "color", "image", "pattern")
+
+#: بخشِ ۹ مشخصات: «Patterns must be reusable system assets and must not
+#: depend on a specific preset's custom renderer.» — Phase 1 عمداً این
+#: رجیستری را **خالی** نگه می‌دارد: هنوز هیچ دارایی/CSSِ الگو (pattern) در
+#: پلتفرم ساخته نشده (تأیید شده با جست‌وجوی کدبیس)، پس ساختنِ یک لیستِ
+#: ثابتِ اسلاگ که به هیچ فایلِ واقعی اشاره نمی‌کند دقیقاً همان «ساختنِ
+#: چیزی که هنوز طراحی نشده» است که کارِ این فاز آن را ممنوع کرده. شکلِ
+#: قرارداد (``mode="pattern"`` + ``pattern_slug``) از همین حالا آماده است؛
+#: وقتی دارایی‌هایِ الگویِ واقعی ساخته شدند (Phase 2/3)، فقط کافی‌ست اینجا
+#: با همان الگویِ ``PALETTE_REGISTRY`` (``appearance_registry.py``) پر شود
+#: — هیچ تغییرِ دیگری در schema/migration لازم نیست.
+PATTERN_REGISTRY: dict[str, str] = {}
+
+_MAX_BACKGROUND_IMAGE_URL_LENGTH = 500
+
+
+class BackgroundSettingsError(ValueError):
+    """شکلِ خامِ بلوکِ ``background`` نامعتبر است — پیامِ فارسیِ قابل‌نمایشِ
+    مستقیم به تاجر."""
+
+
+def validate_background_settings(raw) -> dict:
+    """قراردادِ مشترکِ «پس‌زمینه» — بخشِ ۹ مشخصات (رنگ/تصویر/الگو) + بخشِ
+    ۱۰.۲ («○ Use Theme Color / ● Custom Color»، اینجا ``mode="theme"`` در
+    برابرِ ``mode="color"``). غیابِ کلیدِ ``background`` (sectionهایِ
+    از‌قبل‌موجود) دقیقاً هم‌ارزِ ``mode="theme"`` است — رفتارِ فعلی، بدونِ
+    تغییر، بدونِ نیاز به Migration دادهٔ JSON."""
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    from apps.content.models import validate_external_url
+    from apps.core.models import validate_hex_color
+
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise BackgroundSettingsError("تنظیماتِ پس‌زمینه باید یک شیء باشد")
+
+    mode = raw.get("mode")
+    if mode not in BACKGROUND_MODE_CHOICES:
+        mode = "theme"
+
+    color = ""
+    if mode == "color":
+        color = str(raw.get("color", "")).strip()
+        if color:
+            try:
+                validate_hex_color(color)
+            except DjangoValidationError as exc:
+                raise BackgroundSettingsError("; ".join(exc.messages)) from exc
+        else:
+            mode = "theme"  # رنگِ خالی برای mode=color یعنی چیزی برای نمایش نیست — به پیش‌فرضِ امن برگرد
+
+    image_url = ""
+    if mode == "image":
+        image_url = str(raw.get("image_url", "")).strip()[:_MAX_BACKGROUND_IMAGE_URL_LENGTH]
+        if image_url:
+            try:
+                validate_external_url(image_url)
+            except DjangoValidationError as exc:
+                raise BackgroundSettingsError("; ".join(exc.messages)) from exc
+        else:
+            mode = "theme"
+
+    pattern_slug = ""
+    if mode == "pattern":
+        candidate = str(raw.get("pattern_slug", "")).strip()
+        # رجیستری هنوز خالی است (نگاه کنید به docstring بالایِ PATTERN_REGISTRY)
+        # — هر اسلاگی امروز نامعتبر است؛ به‌جایِ خطا (که هیچ تاجری امروز راهی
+        # برایِ رفعِ آن ندارد)، مثلِ ``validate_motion_settings`` بی‌صدا به
+        # حالتِ امن (theme) برمی‌گردیم.
+        if candidate in PATTERN_REGISTRY:
+            pattern_slug = candidate
+        else:
+            mode = "theme"
+
+    return {"mode": mode, "color": color, "image_url": image_url, "pattern_slug": pattern_slug}
+
+
+def default_background_settings() -> dict:
+    return {"mode": "theme", "color": "", "image_url": "", "pattern_slug": ""}
+
+
+def _with_background(section_key: str, validate_fn, default_fn):
+    """هر جفتِ (validate_settings, default_settings) موجود را با پشتیبانیِ
+    بلوکِ ``background`` می‌پوشاند — فقط برایِ ``BACKGROUND_AWARE_SECTION_KEYS``.
+    دقیقاً همان الگویِ ``_with_card``/``_with_layout`` بالا."""
+    if section_key not in BACKGROUND_AWARE_SECTION_KEYS:
+        return validate_fn, default_fn
+
+    def wrapped_validate(raw: dict) -> dict:
+        if not isinstance(raw, dict):
+            return validate_fn(raw)
+        background_raw = raw.get("background")
+        base_raw = {k: v for k, v in raw.items() if k != "background"}
+        cleaned = validate_fn(base_raw)
+        cleaned["background"] = validate_background_settings(background_raw)
+        return cleaned
+
+    def wrapped_default() -> dict:
+        base = default_fn()
+        return {**base, "background": default_background_settings()}
+
+    return wrapped_validate, wrapped_default
+
+
+#: بخشِ ۸ مشخصات: «Basic Mode: Small/Normal/Large» + «Advanced Mode: Padding
+#: Top/Bottom, Margin Top/Bottom». enum بستهٔ حالتِ ساده — Advanced اختیاری
+#: و فقط اگر تاجر صریحاً واردش شود مقدار می‌گیرد (``None`` یعنی «از حالتِ
+#: ساده مشتق کن»، تفسیرِ عددیِ دقیق در Phase 2/CSS انجام می‌شود، نه اینجا).
+SPACING_SIZE_CHOICES = ("small", "normal", "large")
+_SPACING_ADVANCED_FIELDS = ("padding_top", "padding_bottom", "margin_top", "margin_bottom")
+_MAX_SPACING_PX = 200
+
+
+class SpacingSettingsError(ValueError):
+    """شکلِ خامِ بلوکِ ``spacing`` نامعتبر است — پیامِ فارسیِ قابل‌نمایشِ
+    مستقیم به تاجر."""
+
+
+def validate_spacing_settings(raw) -> dict:
+    """قراردادِ مشترکِ «فاصله‌گذاریِ عمودی» — غیابِ کلیدِ ``spacing``
+    (sectionهایِ از‌قبل‌موجود) دقیقاً هم‌ارزِ ``vertical_spacing="normal"``
+    و بدونِ override پیشرفته است — رفتارِ فعلی، بدونِ تغییر."""
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise SpacingSettingsError("تنظیماتِ فاصله‌گذاری باید یک شیء باشد")
+
+    size = raw.get("vertical_spacing")
+    if size not in SPACING_SIZE_CHOICES:
+        size = "normal"
+
+    raw_advanced = raw.get("advanced")
+    if raw_advanced is not None and not isinstance(raw_advanced, dict):
+        raise SpacingSettingsError("تنظیماتِ پیشرفته‌یِ فاصله‌گذاری باید یک شیء باشد")
+    raw_advanced = raw_advanced or {}
+
+    advanced = {}
+    for field in _SPACING_ADVANCED_FIELDS:
+        value = raw_advanced.get(field)
+        if value is None:
+            advanced[field] = None
+            continue
+        try:
+            int_value = int(value)
+        except (TypeError, ValueError):
+            raise SpacingSettingsError(f"مقدارِ «{field}» باید عدد باشد") from None
+        advanced[field] = max(0, min(_MAX_SPACING_PX, int_value))
+
+    return {"vertical_spacing": size, "advanced": advanced}
+
+
+def default_spacing_settings() -> dict:
+    return {"vertical_spacing": "normal", "advanced": {field: None for field in _SPACING_ADVANCED_FIELDS}}
+
+
+def _with_spacing(section_key: str, validate_fn, default_fn):
+    """هر جفتِ (validate_settings, default_settings) موجود را با پشتیبانیِ
+    بلوکِ ``spacing`` می‌پوشاند — فقط برایِ ``SPACING_AWARE_SECTION_KEYS``.
+    دقیقاً همان الگویِ ``_with_background`` بالا."""
+    if section_key not in SPACING_AWARE_SECTION_KEYS:
+        return validate_fn, default_fn
+
+    def wrapped_validate(raw: dict) -> dict:
+        if not isinstance(raw, dict):
+            return validate_fn(raw)
+        spacing_raw = raw.get("spacing")
+        base_raw = {k: v for k, v in raw.items() if k != "spacing"}
+        cleaned = validate_fn(base_raw)
+        cleaned["spacing"] = validate_spacing_settings(spacing_raw)
+        return cleaned
+
+    def wrapped_default() -> dict:
+        base = default_fn()
+        return {**base, "spacing": default_spacing_settings()}
+
+    return wrapped_validate, wrapped_default
+
+
 #: Phase 8 P0-5 — انواعی که «عرضِ محتوا» برایشان معنایِ بصریِ روشنی
 #: دارد (بلوک‌هایِ تصویری/بنری کاملاً عرض‌گیر) — یک allowlist صریح،
 #: دقیقاً همان الگویِ بالا.
@@ -1264,6 +1466,8 @@ def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionD
         validate_fn, default_fn = _with_motion(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_card(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_layout(key, validate_fn, default_fn)
+        validate_fn, default_fn = _with_background(key, validate_fn, default_fn)
+        validate_fn, default_fn = _with_spacing(key, validate_fn, default_fn)
         finalized[key] = dataclasses.replace(
             definition, validate_settings=validate_fn, default_settings=default_fn, has_settings_form=True,
         )

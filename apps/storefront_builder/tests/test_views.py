@@ -417,6 +417,59 @@ class SectionActionTests(StorefrontBuilderViewsTestCase):
         self.assertTrue(StorefrontSection.objects.filter(pk=other_section.pk).exists())
 
 
+class LockSectionTests(StorefrontBuilderViewsTestCase):
+    """Phase 1 (spec §37 — Lock): «It cannot be moved / It cannot be
+    deleted»."""
+
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+        self.draft.sections.all().delete()
+
+    def test_lock_toggle_flips_flag(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        self.assertFalse(section.is_locked)
+        self.client.post(reverse("dashboard:storefront-builder-section-lock", args=[section.pk]))
+        section.refresh_from_db()
+        self.assertTrue(section.is_locked)
+        self.client.post(reverse("dashboard:storefront-builder-section-lock", args=[section.pk]))
+        section.refresh_from_db()
+        self.assertFalse(section.is_locked)
+
+    def test_locked_section_cannot_be_removed(self):
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="rich_text", order=0, is_locked=True,
+        )
+        self.client.post(reverse("dashboard:storefront-builder-section-remove", args=[section.pk]))
+        self.assertTrue(StorefrontSection.objects.filter(pk=section.pk).exists())
+
+    def test_unlocked_section_still_removable(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        self.client.post(reverse("dashboard:storefront-builder-section-remove", args=[section.pk]))
+        self.assertFalse(StorefrontSection.objects.filter(pk=section.pk).exists())
+
+    def test_locked_section_cannot_be_moved(self):
+        a = StorefrontSection.objects.create(
+            version=self.draft, section_key="rich_text", order=0, is_locked=True,
+        )
+        b = StorefrontSection.objects.create(version=self.draft, section_key="image_text", order=1)
+        self.client.post(reverse("dashboard:storefront-builder-section-move", args=[a.pk]), {"direction": "down"})
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual(a.order, 0)
+        self.assertEqual(b.order, 1)
+
+    def test_locked_section_still_duplicable(self):
+        """قفل فقط جابه‌جایی/حذفِ *همان* section را منع می‌کند — تکرار یک
+        نمونه‌ی منطقاً جدید می‌سازد (spec §37 صراحتاً فقط move/delete را
+        نام می‌برد)."""
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="rich_text", order=0, is_locked=True,
+        )
+        self.client.post(reverse("dashboard:storefront-builder-section-duplicate", args=[section.pk]))
+        self.assertEqual(self.draft.sections.filter(section_key="rich_text").count(), 2)
+
+
 class SectionSettingsFormTests(StorefrontBuilderViewsTestCase):
     def setUp(self):
         super().setUp()

@@ -112,3 +112,14 @@ class StorefrontSectionModelTests(TestCase):
         section = StorefrontSection.objects.create(version=self.version, section_key="x", order=0)
         self.version.delete()
         self.assertFalse(StorefrontSection.objects.filter(pk=section.pk).exists())
+
+    def test_row_and_lock_defaults_reproduce_pre_phase1_behavior(self):
+        """Phase 1 (معماریِ Universal Block/Data): ``row_key``/``row_span``/
+        ``is_locked`` باید برایِ هر section از‌قبل‌موجود (که هرگز این
+        قابلیت را لمس نکرده) دقیقاً همان چیزی باشند که رفتارِ پیش از این
+        فاز را بازتولید می‌کنند — section مستقل، عرضِ کامل، باز — تا
+        Migration ``0012`` هیچ فروشگاهی را تغییر ندهد."""
+        section = StorefrontSection.objects.create(version=self.version, section_key="x", order=0)
+        self.assertEqual(section.row_key, "")
+        self.assertEqual(section.row_span, 12)
+        self.assertFalse(section.is_locked)
