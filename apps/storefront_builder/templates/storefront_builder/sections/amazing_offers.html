@@ -1,4 +1,4 @@
-{% if product %}
+{% if products %}
 <script>
 document.addEventListener('alpine:init', () => {
   Alpine.data('countdown', (deadlineIso) => ({
@@ -23,17 +23,19 @@ document.addEventListener('alpine:init', () => {
 <section class="section" id="sec-amazing">
   <div class="special-wrap">
     <div class="grid g2">
-      {% include "catalog/partials/product_card.html" with card_settings=settings.card %}
+      {% for p in products %}
+      {% include "catalog/partials/product_card.html" with product=p card_settings=settings.card %}
+      {% endfor %}
     </div>
     <div class="special-card" x-data="countdown('{{ deadline }}')" x-init="start()">
-      <h3>⚡ پیشنهاد شگفت‌انگیز</h3>
+      <h3>{{ settings.title|default:"⚡ پیشنهاد شگفت‌انگیز" }}</h3>
       <p>تخفیف ویژه فقط تا پایان زمان‌شمار زیر فعال است. عجله کنید!</p>
       <div class="countdown">
         <div class="cd-box"><b x-text="h"></b><small>ساعت</small></div>
         <div class="cd-box"><b x-text="m"></b><small>دقیقه</small></div>
         <div class="cd-box"><b x-text="s"></b><small>ثانیه</small></div>
       </div>
-      <a class="btn btn-light" href="{% url 'catalog:product-detail' product.slug %}">مشاهده محصول</a>
+      <a class="btn btn-light" href="{% url 'catalog:product-detail' products.0.slug %}">مشاهده محصول</a>
     </div>
   </div>
 </section>

@@ -1014,6 +1014,45 @@ def default_trust_features_settings() -> dict:
     return {"items": []}
 
 
+#: Phase 3 (Universal Storefront — V5 Golden Homepage) — ``amazing_offers``
+#: تا پیش از این چکپوینت همیشه دقیقاً یک محصول نمایش می‌داد (تنظیمات اصلاً
+#: خوانده نمی‌شد) — «Product Spotlight» یِ V5 چند پیشنهادِ هم‌زمان لازم دارد.
+#: ``item_limit`` پیش‌فرضش ۱ است تا رفتارِ فروشگاه‌هایی که پیش از این
+#: چکپوینت این بخش را بدونِ تنظیمِ خاصی افزوده‌اند، دقیقاً بدونِ تغییر
+#: بماند — فقط با تنظیمِ صریح (مثلِ Preset ی V5) عدد بزرگ‌تر می‌شود.
+_MIN_AMAZING_OFFER_ITEMS = 1
+_MAX_AMAZING_OFFER_ITEMS = 4
+_DEFAULT_AMAZING_OFFER_ITEMS = 1
+_MIN_AMAZING_OFFER_HOURS = 1
+_MAX_AMAZING_OFFER_HOURS = 168
+_DEFAULT_AMAZING_OFFER_HOURS = 8
+
+
+class AmazingOffersSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ «پیشنهادهای شگفت‌انگیز» نامعتبر است — پیامِ فارسیِ قابل‌نمایشِ مستقیم به تاجر."""
+
+
+def validate_amazing_offers_settings(raw: dict) -> dict:
+    if not isinstance(raw, dict):
+        raise AmazingOffersSettingsError("تنظیمات باید یک شیء JSON باشد")
+    try:
+        item_limit = int(raw.get("item_limit", _DEFAULT_AMAZING_OFFER_ITEMS))
+    except (TypeError, ValueError):
+        raise AmazingOffersSettingsError("تعدادِ پیشنهادها باید عدد باشد") from None
+    item_limit = max(_MIN_AMAZING_OFFER_ITEMS, min(_MAX_AMAZING_OFFER_ITEMS, item_limit))
+    try:
+        deadline_hours = int(raw.get("deadline_hours", _DEFAULT_AMAZING_OFFER_HOURS))
+    except (TypeError, ValueError):
+        raise AmazingOffersSettingsError("مدتِ زمان‌شمار باید عدد باشد") from None
+    deadline_hours = max(_MIN_AMAZING_OFFER_HOURS, min(_MAX_AMAZING_OFFER_HOURS, deadline_hours))
+    title = str(raw.get("title", "")).strip()[:_MAX_SECTION_TITLE_LENGTH]
+    return {"item_limit": item_limit, "deadline_hours": deadline_hours, "title": title}
+
+
+def default_amazing_offers_settings() -> dict:
+    return {"item_limit": _DEFAULT_AMAZING_OFFER_ITEMS, "deadline_hours": _DEFAULT_AMAZING_OFFER_HOURS, "title": ""}
+
+
 class BrandCarouselSettingsError(ValueError):
     """شکلِ خامِ تنظیماتِ «کاروسل برندها» نامعتبر است."""
 
@@ -1336,8 +1375,8 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
     "amazing_offers": SectionDefinition(
         key="amazing_offers", label_fa="پیشنهادهای شگفت‌انگیز", icon="zap",
         template_name="storefront_builder/sections/amazing_offers.html",
-        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
-        duplicable=True, removable=True, category_fa="محصولات",
+        validate_settings=validate_amazing_offers_settings, default_settings=default_amazing_offers_settings,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="محصولات",
     ),
     "brand_carousel": SectionDefinition(
         key="brand_carousel", label_fa="کاروسل برندها", icon="award",

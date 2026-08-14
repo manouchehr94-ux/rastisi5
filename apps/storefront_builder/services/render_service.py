@@ -155,11 +155,19 @@ def _amazing_offers_context(store, section):
     from django.utils import timezone
     from datetime import timedelta
 
-    product = (
+    settings = section.settings or {}
+    item_limit = settings.get("item_limit", 1)
+    deadline_hours = settings.get("deadline_hours", 8)
+    products = list(
         storefront_listing_products(store).filter(discount_percent__gt=0)
-        .order_by("-discount_percent").first()
+        .select_related("brand").prefetch_related("images", "metafields")
+        .order_by("-discount_percent")[:item_limit]
     )
-    return {"product": product, "deadline": (timezone.now() + timedelta(hours=8)).isoformat()}
+    return {
+        "products": products,
+        "product": products[0] if products else None,
+        "deadline": (timezone.now() + timedelta(hours=deadline_hours)).isoformat(),
+    }
 
 
 def _featured_products_context(store, section):
