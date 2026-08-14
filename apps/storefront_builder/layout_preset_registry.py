@@ -68,6 +68,13 @@ class PresetSectionEntry:
     #: دیکشنریِ *جزئی* اینجا می‌آید — ``validate_settings`` خودِ آن نوع،
     #: کلیدهایِ غایب را با پیش‌فرضِ امنِ خودشان پر می‌کند.
     settings: dict | None = None
+    #: Phase 3 (Universal Storefront — V5 Golden Homepage) — عضویتِ ردیفِ
+    #: ترکیبی (``row_service``/Phase 1 معماری). خالی (پیش‌فرض) یعنی
+    #: section مستقل/عرضِ کامل — دقیقاً همان معنایی که خودِ مدل دارد؛ یک
+    #: Preset که هرگز از ردیفِ ترکیبی استفاده نمی‌کند (اکثریتِ Presetهای
+    #: قبل از این فاز) بدونِ هیچ تغییری همچنان معتبر می‌ماند.
+    row_key: str = ""
+    row_span: int = 12
 
 
 @dataclasses.dataclass(frozen=True)
@@ -153,6 +160,20 @@ def _validate_page_composition_shape(definition: LayoutPresetDefinition) -> None
                 raise InvalidLayoutPresetError(
                     f"Preset «{definition.key}»: تنظیماتِ section «{entry.section_key}» نامعتبر است: {exc}"
                 ) from exc
+
+        # Phase 3 — عضویتِ ردیفِ ترکیبی (``row_key``/``row_span``) هم در
+        # زمانِ import اعتبارسنجی می‌شود — همان ``row_service`` که
+        # مسیرهایِ نوشتنِ Section استفاده می‌کنند (duck-typing: فقط به
+        # ``row_key``/``row_span``/``section_key`` نیاز دارد، هرگز به
+        # مدلِ Django — پس اینجا هم امن است).
+        from .services import row_service
+
+        try:
+            row_service.validate_page_row_layout(entries)
+        except row_service.RowAssignmentError as exc:
+            raise InvalidLayoutPresetError(
+                f"Preset «{definition.key}»: ترکیبِ ردیفِ صفحه‌ی «{page_type}» نامعتبر است: {exc}"
+            ) from exc
 
 
 # ==================================================================
@@ -321,6 +342,126 @@ register_layout_preset(LayoutPresetDefinition(
         "cart": (
             PresetSectionEntry("cart_items"),
             PresetSectionEntry("cart_summary"),
+        ),
+    },
+))
+
+
+# ==================================================================
+# Phase 3 — Universal Storefront: V5 Golden Homepage preset.
+#
+# This is pure DATA — block order, row composition, and per-block
+# settings — built entirely from the Universal Block capabilities
+# added/verified in Checkpoints A-D. It never selects a renderer or
+# template; the same universal templates every other preset uses
+# render this preset's sections. It intentionally omits every
+# non-home page (spec scope: Homepage only for this phase) and never
+# references a specific Store's category/brand/collection IDs (preset
+# Reference Safety rule) — category_grid ships with category_ids=[]
+# (merchant must pick real categories before the circular style has
+# content to show, exactly like any other store using this section
+# type) and multi_banner ships with no per-instance PromotionalBanner
+# rows (those are merchant-managed Media, never preset data).
+#
+# default_palette_slug is intentionally left unset — color fidelity to
+# the approved V5 reference is a later, separate pass (this phase's
+# scope was structural fidelity, per the explicit A->F priority order),
+# and Palette stays a fully independent, merchant-editable concern per
+# the Owner's standing decision.
+# ==================================================================
+register_layout_preset(LayoutPresetDefinition(
+    key="v5_golden_homepage",
+    label_fa="فروشگاه کامل (V5)",
+    description_fa=(
+        "چیدمانِ کاملِ صفحه‌ی اصلی با مگامنو، ردیفِ Hero و پیشنهادِ لحظه‌ای، "
+        "استریپِ دسته‌بندیِ دایره‌ای، ردیف‌های محصولِ متعدد، پیشنهادِ "
+        "شگفت‌انگیزِ چندآیتمی، بلوکِ محصولِ فشرده، برندها و وبلاگ."
+    ),
+    appearance={
+        "font": "Vazirmatn", "radius": 4, "button_radius": 8,
+        "density": "normal", "motion": "subtle", "type_scale": "normal",
+        "button_style": "filled", "image_fit": "cover", "image_hover": "zoom",
+        "card_image_crossfade": False, "card_image_zoom": False,
+    },
+    header={
+        "sticky": True, "announcement_enabled": True,
+        "show_search": True, "show_account": True, "show_wishlist": True, "show_cart": True,
+        "extra_blocks": [{"type": "phone"}],
+    },
+    footer={
+        "show_about": True, "show_contact": True, "show_categories": True,
+        "show_social": True, "show_trust_badges": True, "show_payment_logos": True,
+        "show_newsletter": False, "show_copyright": True,
+    },
+    pages={
+        "home": (
+            # Hero + Instant Offer -- two independent blocks sharing one
+            # row (9+3), never fused into a single section.
+            PresetSectionEntry("hero_banner", row_key="v5-hero-row", row_span=9),
+            PresetSectionEntry(
+                "product_section", row_key="v5-hero-row", row_span=3,
+                settings={
+                    "title": "پیشنهاد لحظه‌ای", "data_source": "newest", "item_limit": 3,
+                    "display_mode": "carousel", "show_view_all": False,
+                    "responsive": {"desktop_columns": 1, "tablet_columns": 1, "mobile_columns": 1},
+                },
+            ),
+            PresetSectionEntry(
+                "category_grid",
+                settings={"title": "دسته‌بندی‌ها", "display_mode": "circular", "category_ids": []},
+            ),
+            PresetSectionEntry(
+                "trust_features",
+                settings={"items": [
+                    {"icon": "🚚", "title": "ارسال سریع", "subtitle": "به سراسر کشور"},
+                    {"icon": "💯", "title": "ضمانت اصالت", "subtitle": "کالای اورجینال"},
+                    {"icon": "🎧", "title": "پشتیبانی ۲۴/۷", "subtitle": "پاسخگویی همه‌روزه"},
+                    {"icon": "↩️", "title": "۷ روز ضمانت بازگشت", "subtitle": "بدون دردسر"},
+                    {"icon": "🔒", "title": "پرداخت امن", "subtitle": "درگاه بانکی معتبر"},
+                ]},
+            ),
+            PresetSectionEntry(
+                "multi_banner",
+                settings={"responsive": {"desktop_columns": 4, "tablet_columns": 2, "mobile_columns": 1}},
+            ),
+            PresetSectionEntry(
+                "product_section",
+                settings={
+                    "title": "پرفروش‌ترین‌های هفته", "data_source": "newest", "item_limit": 6,
+                    "display_mode": "carousel",
+                    "background": {"mode": "color", "color": "#F4F5F9", "media_asset_id": None, "pattern_slug": ""},
+                },
+            ),
+            PresetSectionEntry(
+                "amazing_offers",
+                settings={"item_limit": 4, "deadline_hours": 8, "title": "⚡ پیشنهاد شگفت‌انگیز"},
+            ),
+            PresetSectionEntry(
+                "multi_banner",
+                settings={"responsive": {"desktop_columns": 2, "tablet_columns": 2, "mobile_columns": 1}},
+            ),
+            # Compact/paired Product Rail -- two ordinary product_section
+            # instances sharing a 6+6 row; the narrower/shorter "compact"
+            # look is a pure function of the resulting column count, no
+            # separate card-density field.
+            PresetSectionEntry(
+                "product_section", row_key="v5-compact-row", row_span=6,
+                settings={
+                    "title": "پیشنهادِ منتخب ۱", "data_source": "newest", "item_limit": 4,
+                    "display_mode": "grid",
+                    "responsive": {"desktop_columns": 2, "tablet_columns": 2, "mobile_columns": 1},
+                },
+            ),
+            PresetSectionEntry(
+                "product_section", row_key="v5-compact-row", row_span=6,
+                settings={
+                    "title": "پیشنهادِ منتخب ۲", "data_source": "discounted", "item_limit": 4,
+                    "display_mode": "grid",
+                    "responsive": {"desktop_columns": 2, "tablet_columns": 2, "mobile_columns": 1},
+                },
+            ),
+            PresetSectionEntry("brand_carousel", settings={"title": "برندهای منتخب", "display_mode": "carousel"}),
+            PresetSectionEntry("blog_posts"),
         ),
     },
 ))

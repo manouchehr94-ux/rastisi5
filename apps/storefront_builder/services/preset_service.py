@@ -111,7 +111,10 @@ def _build_sections_for_page(page, entries) -> list[StorefrontSection]:
             settings = definition.default_settings()
         else:
             settings = definition.validate_settings(entry.settings)
-        rows.append(StorefrontSection(page=page, section_key=entry.section_key, order=order, settings=settings))
+        rows.append(StorefrontSection(
+            page=page, section_key=entry.section_key, order=order, settings=settings,
+            row_key=entry.row_key, row_span=entry.row_span,
+        ))
     return rows
 
 
