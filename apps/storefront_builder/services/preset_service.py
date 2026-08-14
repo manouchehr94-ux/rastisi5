@@ -37,6 +37,17 @@ class UnknownPresetError(InvalidPresetError):
     """کلیدِ Preset درخواست‌شده در ``LAYOUT_PRESET_REGISTRY`` وجود ندارد."""
 
 
+class LockedSectionsPresentError(InvalidPresetError):
+    """Phase 1 correction (spec §37 — Lock): یک/چند section از صفحاتی که
+    این Preset صریحاً می‌خواهد جایگزین کند قفل هستند. اعمالِ Preset
+    یعنی حذفِ کاملِ sectionهایِ آن صفحه و ساختِ فهرستِ تازه — این دقیقاً
+    همان «حذفِ یک section قفل‌شده» است که ``storefront_section_remove``
+    از مسیرِ تک‌section از قبل رد می‌کند؛ یک «مسیرِ جایگزین» (Preset) نباید
+    بتواند همان محافظت را دور بزند. ``InvalidPresetError`` را ارث‌بری
+    می‌کند تا کدِ ویوِ موجود (``except InvalidPresetError``) بدونِ تغییر
+    این خطا را هم درست نشان دهد."""
+
+
 def _validate_appearance_overlay(base_config: dict, overlay: dict) -> dict:
     """اعتبارسنجیِ زیرمجموعه‌ی ساختاریِ ``appearance`` یک Preset — رویِ
     یک پیکربندیِ پایه (پیش‌فرضِ خنثی یا پیکربندیِ واقعیِ یک Draft) قرار
@@ -144,6 +155,15 @@ def apply_preset(draft: StorefrontLayoutVersion, preset: LayoutPresetDefinition)
     pages_to_replace = {}
     for page_type, entries in preset.pages.items():
         page = draft.get_page(page_type)
+        # Phase 1 correction (spec §37 — Lock): این صفحه به‌طورِ کامل
+        # جایگزین می‌شود (زیر را نگاه کنید) — اگر یکی از sectionهایِ فعلی‌اش
+        # قفل باشد، اعمالِ Preset باید کاملاً رد شود، نه اینکه بی‌صدا آن
+        # section را هم مثلِ بقیه حذف کند.
+        if page.sections.filter(is_locked=True).exists():
+            raise LockedSectionsPresentError(
+                f"Preset «{preset.key}» قابلِ اعمال نیست — صفحه‌ی "
+                f"«{page.get_page_type_display()}» بخشِ قفل‌شده دارد؛ ابتدا قفل آن را باز کنید"
+            )
         pages_to_replace[page] = _build_sections_for_page(page, entries)
 
     # --- ۳) نوشتن — فقط پس از موفقیتِ کاملِ بخشِ اعتبارسنجی ---

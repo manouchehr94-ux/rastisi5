@@ -469,6 +469,137 @@ class LockSectionTests(StorefrontBuilderViewsTestCase):
         self.client.post(reverse("dashboard:storefront-builder-section-duplicate", args=[section.pk]))
         self.assertEqual(self.draft.sections.filter(section_key="rich_text").count(), 2)
 
+    def test_moving_a_neighbor_into_a_locked_section_is_blocked(self):
+        """Phase 1 correction: یک section قفل‌نشده نباید بتواند با swap،
+        همسایه‌ی *قفل‌شده* را جابه‌جا کند."""
+        a = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        b = StorefrontSection.objects.create(
+            version=self.draft, section_key="image_text", order=1, is_locked=True,
+        )
+        self.client.post(reverse("dashboard:storefront-builder-section-move", args=[a.pk]), {"direction": "down"})
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual(a.order, 0)
+        self.assertEqual(b.order, 1)
+
+    def test_locked_section_cannot_be_moved_via_bulk_reorder(self):
+        """Phase 1 correction: قفل باید مسیرِ جایگزینِ بازچینیِ دسته‌ای
+        (drag-and-drop) را هم رد کند، نه فقط دکمه‌هایِ بالا/پایین."""
+        a = StorefrontSection.objects.create(
+            version=self.draft, section_key="rich_text", order=0, is_locked=True,
+        )
+        b = StorefrontSection.objects.create(version=self.draft, section_key="image_text", order=1)
+        self.client.post(reverse("dashboard:storefront-builder-section-reorder"), {
+            "section_ids": [str(b.pk), str(a.pk)],
+        })
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual(a.order, 0)
+        self.assertEqual(b.order, 1)
+
+    def test_unlocked_bulk_reorder_still_works(self):
+        a = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        b = StorefrontSection.objects.create(version=self.draft, section_key="image_text", order=1)
+        self.client.post(reverse("dashboard:storefront-builder-section-reorder"), {
+            "section_ids": [str(b.pk), str(a.pk)],
+        })
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual(b.order, 0)
+        self.assertEqual(a.order, 1)
+
+
+class RowCompositionEnforcementTests(StorefrontBuilderViewsTestCase):
+    """Phase 1 correction: ``row_service.validate_page_row_layout`` باید
+    واقعاً رویِ مسیرهایِ جهش (حذف/جابه‌جایی/بازچینیِ دسته‌ای) اجرا شود، نه
+    فقط به‌عنوانِ یک تابعِ مستقلِ تست‌شده بدونِ هیچ فراخوانِ واقعی."""
+
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store)
+        self.draft.sections.all().delete()
+
+    def test_removing_a_row_member_is_blocked(self):
+        a = StorefrontSection.objects.create(
+            version=self.draft, section_key="hero_banner", order=0, row_key="r1", row_span=8,
+        )
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="amazing_offers", order=1, row_key="r1", row_span=4,
+        )
+        self.client.post(reverse("dashboard:storefront-builder-section-remove", args=[a.pk]))
+        self.assertTrue(StorefrontSection.objects.filter(pk=a.pk).exists())
+
+    def test_removing_a_standalone_section_still_works(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        self.client.post(reverse("dashboard:storefront-builder-section-remove", args=[section.pk]))
+        self.assertFalse(StorefrontSection.objects.filter(pk=section.pk).exists())
+
+    def test_move_that_would_split_a_row_is_blocked(self):
+        """ردیفِ ``r1`` (a, b) ابتدا پیوسته است (order ۰،۱)؛ جابه‌جاییِ
+        section مستقلِ بعدی به بالا آن را وسطِ ردیف می‌فرستد و پیوستگی را
+        می‌شکند — باید رد شود."""
+        a = StorefrontSection.objects.create(
+            version=self.draft, section_key="hero_banner", order=0, row_key="r1", row_span=8,
+        )
+        b = StorefrontSection.objects.create(
+            version=self.draft, section_key="amazing_offers", order=1, row_key="r1", row_span=4,
+        )
+        standalone = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=2)
+        # Move the standalone section up — swaps it with `b`, which would
+        # place it between the two row members.
+        self.client.post(
+            reverse("dashboard:storefront-builder-section-move", args=[standalone.pk]), {"direction": "up"},
+        )
+        a.refresh_from_db()
+        b.refresh_from_db()
+        standalone.refresh_from_db()
+        self.assertEqual([a.order, b.order, standalone.order], [0, 1, 2])
+
+    def test_move_within_a_row_is_allowed(self):
+        a = StorefrontSection.objects.create(
+            version=self.draft, section_key="hero_banner", order=0, row_key="r1", row_span=8,
+        )
+        b = StorefrontSection.objects.create(
+            version=self.draft, section_key="amazing_offers", order=1, row_key="r1", row_span=4,
+        )
+        self.client.post(reverse("dashboard:storefront-builder-section-move", args=[b.pk]), {"direction": "up"})
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual(b.order, 0)
+        self.assertEqual(a.order, 1)
+
+    def test_bulk_reorder_that_would_split_a_row_is_blocked(self):
+        a = StorefrontSection.objects.create(
+            version=self.draft, section_key="hero_banner", order=0, row_key="r1", row_span=8,
+        )
+        standalone = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=1)
+        b = StorefrontSection.objects.create(
+            version=self.draft, section_key="amazing_offers", order=2, row_key="r1", row_span=4,
+        )
+        self.client.post(reverse("dashboard:storefront-builder-section-reorder"), {
+            "section_ids": [str(a.pk), str(standalone.pk), str(b.pk)],  # interleaves the row
+        })
+        a.refresh_from_db()
+        standalone.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual([a.order, standalone.order, b.order], [0, 1, 2])
+
+    def test_bulk_reorder_that_keeps_row_contiguous_succeeds(self):
+        a = StorefrontSection.objects.create(
+            version=self.draft, section_key="hero_banner", order=0, row_key="r1", row_span=8,
+        )
+        b = StorefrontSection.objects.create(
+            version=self.draft, section_key="amazing_offers", order=1, row_key="r1", row_span=4,
+        )
+        standalone = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=2)
+        self.client.post(reverse("dashboard:storefront-builder-section-reorder"), {
+            "section_ids": [str(standalone.pk), str(a.pk), str(b.pk)],
+        })
+        standalone.refresh_from_db()
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual([standalone.order, a.order, b.order], [0, 1, 2])
+
 
 class SectionSettingsFormTests(StorefrontBuilderViewsTestCase):
     def setUp(self):

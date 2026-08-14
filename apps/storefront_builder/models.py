@@ -313,11 +313,22 @@ class StorefrontLayoutVersion(TimeStampedModel):
         ``select_related("page")`` تا خواندنِ ``s.page.page_type`` کوئریِ
         اضافه‌ای per-row ایجاد نکند؛ ``order_by("page__page_type", "order",
         "id")`` تا اثرِ انگشت مستقل از ترتیبِ فیزیکیِ درجِ ردیف‌ها در چند
-        صفحه‌ی مختلف هم قطعی/deterministic بماند."""
+        صفحه‌ی مختلف هم قطعی/deterministic بماند.
+
+        Phase 1 correction: ``row_key``/``row_span`` صراحتاً به این فهرست
+        اضافه شدند — این دو خروجیِ رندرِ عمومی را واقعاً تغییر می‌دهند
+        (کدام section در کدام ردیف/با چه عرضی نمایش داده می‌شود)، پس باید
+        بخشی از drift-detection باشند، دقیقاً مثلِ ``order``/``is_active``.
+        ``is_locked`` عمداً **اضافه نشده** — تصمیمِ صریح: قفل فقط رفتارِ
+        ادیتور را کنترل می‌کند (منعِ حذف/جابه‌جایی)، هیچ اثری روی HTMLِ
+        منتشرشده/عمومی ندارد، پس تغییرِ آن نباید یک نسخه‌ی جدید را از نظرِ
+        محتوا «متفاوت» نشان دهد — دقیقاً همان استدلالی که
+        ``collapsed_in_editor`` را هم از قبل از این فهرست کنار گذاشته بود."""
         sections = [
             {
                 "page_type": s.page.page_type, "section_key": s.section_key,
                 "order": s.order, "is_active": s.is_active, "settings": s.settings,
+                "row_key": s.row_key, "row_span": s.row_span,
             }
             for s in self.sections.select_related("page").order_by("page__page_type", "order", "id")
         ]

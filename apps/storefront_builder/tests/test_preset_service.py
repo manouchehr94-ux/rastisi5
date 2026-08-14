@@ -7,6 +7,7 @@
 from unittest import mock
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -38,6 +39,13 @@ def _second_store():
 @override_settings(ALLOWED_HOSTS=[ADMIN_HOST, PUBLIC_HOST, "testserver"])
 class PresetServiceTestCase(TestCase):
     def setUp(self):
+        # Phase 1 correction: ``get_or_create_draft`` نرخِ خودش را بر رویِ
+        # ``cache`` (نه دیتابیس/تراکنش) می‌شمارد — بدونِ پاک‌سازیِ آن بینِ
+        # تست‌ها، فراخوان‌هایِ تجمعیِ کلاس‌هایِ *بعدیِ* همین فایل (که همگی
+        # همین Store ثابتِ «akhlaghi» را به اشتراک می‌گذارند) می‌توانند سقفِ
+        # ``_NEW_DRAFT_RATE_LIMIT`` را رد کنند — دقیقاً همان الگویی که
+        # ``test_render_service.py::BuildRenderItemsTests`` از قبل رعایت می‌کند.
+        cache.clear()
         self.store = _akhlaghi()
         self.store.admin_subdomain = ADMIN_HOST.split(".")[0]
         self.store.save(update_fields=["admin_subdomain"])
@@ -209,6 +217,52 @@ class MerchantContentPreservationTests(PresetServiceTestCase):
         preset_service.apply_preset(draft, self.preset)
         after = Product.objects.filter(store=self.store).count()
         self.assertEqual(before, after)
+
+
+class LockedSectionsBlockPresetApplyTests(PresetServiceTestCase):
+    """Phase 1 correction (spec §37 — Lock): اعمالِ Preset یعنی حذفِ کاملِ
+    sectionهایِ هر صفحه‌ای که پوشش می‌دهد — این «مسیرِ جایگزین» هم باید
+    دقیقاً همان محافظتی را رعایت کند که ``storefront_section_remove``
+    برایِ حذفِ تک‌section دارد."""
+
+    def test_locked_section_on_covered_page_blocks_apply(self):
+        draft = svc.get_or_create_draft(self.store)
+        home = draft.home_page()
+        home.sections.all().delete()
+        locked = StorefrontSection.objects.create(
+            page=home, section_key="rich_text", order=0, is_locked=True,
+        )
+        with self.assertRaises(preset_service.LockedSectionsPresentError):
+            preset_service.apply_preset(draft, self.preset)
+        # هیچ نوشتنی نباید اتفاق افتاده باشد — نه section، نه appearance/header/footer
+        self.assertTrue(StorefrontSection.objects.filter(pk=locked.pk).exists())
+        draft.refresh_from_db()
+        self.assertNotEqual(draft.appearance_config.get("layout_preset_key"), self.preset.key)
+
+    def test_unlocked_draft_still_applies_normally(self):
+        draft = svc.get_or_create_draft(self.store)
+        preset_service.apply_preset(draft, self.preset)  # نباید خطا بدهد
+        draft.refresh_from_db()
+        self.assertEqual(draft.appearance_config.get("layout_preset_key"), self.preset.key)
+
+    def test_locked_section_error_subclasses_invalid_preset_error(self):
+        """کدِ ویویِ موجود فقط ``InvalidPresetError`` را می‌گیرد — این خطایِ
+        جدید باید بدونِ تغییرِ آن کد هم درست نمایش داده شود."""
+        self.assertTrue(issubclass(preset_service.LockedSectionsPresentError, preset_service.InvalidPresetError))
+
+    def test_apply_view_shows_lock_message_and_leaves_section_intact(self):
+        draft = svc.get_or_create_draft(self.store)
+        home = draft.home_page()
+        home.sections.all().delete()
+        locked = StorefrontSection.objects.create(
+            page=home, section_key="rich_text", order=0, is_locked=True,
+        )
+        resp = self.admin_client.post(
+            reverse("dashboard:storefront-builder-apply-preset"),
+            {"preset_key": self.preset.key, "confirm_preset_apply": "1"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(StorefrontSection.objects.filter(pk=locked.pk).exists())
 
 
 class TenantIsolationTests(PresetServiceTestCase):

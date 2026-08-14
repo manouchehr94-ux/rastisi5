@@ -129,6 +129,33 @@ def resolve_destination_setting(store, destination: dict | None) -> dict:
     }
 
 
+def resolve_background_media_url(store, background: dict | None) -> str | None:
+    """URL نهاییِ قابل‌رندرِ پس‌زمینه‌یِ یک section را حل می‌کند — Phase 1
+    correction (tenant safety): ``section_registry.validate_background_settings``
+    فقط ``media_asset_id`` را به‌شکلِ یک عددِ صحیحِ ساده اعتبارسنجی می‌کند
+    (بدونِ دسترسی به دیتابیس)؛ این تابع همان لایه‌ای است که مالکیتِ Store
+    را واقعاً چک می‌کند — دقیقاً همان تفکیکِ مسئولیتی که
+    ``resolve_destination_setting`` بالا برایِ بلوکِ ``destination`` دارد.
+
+    ``mode`` غیرِ ``"image"`` یا ``media_asset_id`` غایب/متعلق به فروشگاهِ
+    دیگر/حذف‌شده همیشه ``None`` برمی‌گرداند — هرگز کرش نمی‌کند، هرگز رسانه‌ی
+    فروشگاهِ دیگری را برنمی‌گرداند."""
+    background = background or {}
+    if background.get("mode") != "image":
+        return None
+    media_asset_id = background.get("media_asset_id")
+    if not media_asset_id:
+        return None
+
+    from .models import MediaAsset
+
+    try:
+        asset = MediaAsset.objects.get(pk=media_asset_id, store=store)
+    except MediaAsset.DoesNotExist:
+        return None
+    return asset.image.url
+
+
 def _category_url(store, pk, Category):
     if not pk:
         return None

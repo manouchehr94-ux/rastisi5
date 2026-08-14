@@ -938,14 +938,35 @@ class BackgroundSettingsTests(TestCase):
         cleaned = validate_background_settings({"mode": "color", "color": ""})
         self.assertEqual(cleaned["mode"], "theme")
 
-    def test_valid_image_mode(self):
-        cleaned = validate_background_settings({"mode": "image", "image_url": "https://cdn.example.com/bg.jpg"})
+    def test_valid_image_mode_stores_media_asset_id_not_a_url(self):
+        """Phase 1 correction (tenant safety): تنظیماتِ خامِ mode=image فقط
+        یک شناسه‌ی عددیِ اشاره‌گر به MediaAsset را می‌پذیرد، هرگز یک رشته‌ی
+        URL دلخواه را — حلِ مالکیتِ Store در
+        ``apps.content.services.resolve_background_media_url`` است، نه اینجا."""
+        cleaned = validate_background_settings({"mode": "image", "media_asset_id": 42})
         self.assertEqual(cleaned["mode"], "image")
-        self.assertEqual(cleaned["image_url"], "https://cdn.example.com/bg.jpg")
+        self.assertEqual(cleaned["media_asset_id"], 42)
+        self.assertNotIn("image_url", cleaned)
 
-    def test_dangerous_image_url_rejected(self):
+    def test_image_mode_without_media_asset_id_falls_back_to_theme(self):
+        cleaned = validate_background_settings({"mode": "image"})
+        self.assertEqual(cleaned["mode"], "theme")
+        self.assertIsNone(cleaned["media_asset_id"])
+
+    def test_non_integer_media_asset_id_rejected(self):
         with self.assertRaises(BackgroundSettingsError):
-            validate_background_settings({"mode": "image", "image_url": "javascript:alert(1)"})
+            validate_background_settings({"mode": "image", "media_asset_id": "not-a-number"})
+
+    def test_non_positive_media_asset_id_rejected(self):
+        with self.assertRaises(BackgroundSettingsError):
+            validate_background_settings({"mode": "image", "media_asset_id": 0})
+
+    def test_arbitrary_url_in_media_asset_id_field_rejected(self):
+        """طبقِ تصمیمِ ایمنیِ مستأجر: حتی اگر مرچنت/کلاینتِ مخرب سعی کند یک
+        رشته‌ی URL را در همان کلید پاس بدهد، به‌عنوانِ شناسه‌ی نامعتبر رد
+        می‌شود — نه اینکه بی‌صدا به‌عنوانِ URL پذیرفته شود."""
+        with self.assertRaises(BackgroundSettingsError):
+            validate_background_settings({"mode": "image", "media_asset_id": "https://evil.example.com/x.jpg"})
 
     def test_pattern_mode_with_empty_registry_falls_back_to_theme(self):
         """PATTERN_REGISTRY عمداً در Phase 1 خالی است (هنوز هیچ دارایی‌ای

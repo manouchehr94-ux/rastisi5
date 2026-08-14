@@ -25,7 +25,7 @@ from .models import (
     StorefrontPage,
     StorefrontSection,
 )
-from .services import layout_service
+from .services import layout_service, row_service
 from .services.layout_service import _clone_section_scoped_media
 from .services.render_service import build_page_render_items
 
@@ -608,6 +608,15 @@ def storefront_section_remove(request, pk):
     if section.is_locked:
         messages.error(request, "این بخش قفل است — ابتدا قفل آن را باز کنید")
         return storefront_section_list_partial(request, page_type=page_type)
+    # Phase 1 correction: حذفِ یک عضوِ ردیف، آن ردیف را نامعتبر می‌کند
+    # (کمتر از حداقلِ عضو یا مجموعِ عرضِ ناقص) — باید صریحاً رد شود، نه
+    # اینکه یک ردیفِ شکسته در دیتابیس باقی بماند.
+    if row_service.is_row_member(section):
+        messages.error(
+            request,
+            "این بخش عضوِ یک ردیفِ ترکیبی است — ابتدا آن را از ردیف خارج کنید",
+        )
+        return storefront_section_list_partial(request, page_type=page_type)
     try:
         definition = section_registry.get_definition(section.section_key)
         if not definition.removable:
@@ -719,11 +728,33 @@ def storefront_section_reorder(request):
     page = draft.get_page(page_type)
     section_ids = request.POST.getlist("section_ids")
 
-    valid_ids = set(page.sections.values_list("pk", flat=True))
-    ordered_ids = [int(i) for i in section_ids if i.isdigit() and int(i) in valid_ids]
+    all_sections = list(page.sections.all())
+    sections_by_id = {s.pk: s for s in all_sections}
+    ordered_ids = [int(i) for i in section_ids if i.isdigit() and int(i) in sections_by_id]
 
     if len(set(ordered_ids)) != len(ordered_ids):
         messages.error(request, "فهرست مرتب‌سازی شامل شناسه‌ی تکراری است — ترتیب تغییر نکرد")
+        return storefront_section_list_partial(request, page_type=page_type)
+
+    # Phase 1 correction (spec §37 — Lock): موقعیتِ نهاییِ یک section
+    # قفل‌شده باید دقیقاً با موقعیتِ فعلی‌اش یکسان بماند — بازچینیِ دسته‌ای
+    # نباید بتواند قفل را از این مسیرِ جایگزین دور بزند.
+    for index, section_id in enumerate(ordered_ids):
+        candidate = sections_by_id[section_id]
+        if candidate.is_locked and candidate.order != index:
+            messages.error(request, "یک یا چند بخشِ قفل‌شده در این چیدمان است — ترتیب تغییر نکرد")
+            return storefront_section_list_partial(request, page_type=page_type)
+
+    # Phase 1 correction: ترکیبِ ردیف — ترتیبِ نهاییِ شبیه‌سازی‌شده (روی
+    # همه‌ی sectionهایِ صفحه، نه فقط زیرمجموعه‌ی ارسال‌شده) باید یک چیدمانِ
+    # ردیفِ معتبر بماند؛ اگر نه، کلِ بازچینی رد می‌شود — هیچ ردیفی تغییر
+    # نمی‌کند (همان قراردادِ «شناسه‌ی تکراری» بالا).
+    for index, section_id in enumerate(ordered_ids):
+        sections_by_id[section_id].order = index
+    try:
+        row_service.validate_page_row_layout(sorted(all_sections, key=lambda s: (s.order, s.id)))
+    except row_service.RowAssignmentError as exc:
+        messages.error(request, str(exc))
         return storefront_section_list_partial(request, page_type=page_type)
 
     with transaction.atomic():
@@ -757,7 +788,30 @@ def storefront_section_move(request, pk):
     swap_index = index - 1 if direction == "up" else index + 1
     if 0 <= swap_index < len(siblings):
         other = siblings[swap_index]
+        # Phase 1 correction: یک section قفل‌نشده هم نباید بتواند یک
+        # همسایه‌ی *قفل‌شده* را جابه‌جا کند — swap یعنی هر دو طرف حرکت
+        # می‌کنند، پس قفلِ هرکدام باید کلِ عملیات را رد کند، نه فقط قفلِ
+        # section مبدأ.
+        if other.is_locked:
+            messages.error(request, "بخشِ همسایه قفل است — ابتدا قفل آن را باز کنید")
+            return storefront_section_list_partial(request, page_type=section.page.page_type)
         section.order, other.order = other.order, section.order
+        # ``section`` (از ``_get_scoped_section``) یک کوئریِ *جدا* از
+        # ``siblings`` (از ``section.page.sections``) است — یعنی
+        # ``siblings[index]`` یک آبجکتِ تکراریِ دیگر برایِ همان ردیف است که
+        # هنوز مقدارِ order قدیمی را دارد. برایِ اینکه شبیه‌سازیِ زیر رویِ
+        # دادهٔ واقعاً به‌روز کار کند، نسخهٔ به‌روزشدهٔ ``section`` جایگزینِ
+        # آن کپیِ قدیمی در فهرست می‌شود (نه یک آبجکتِ سوم/نامتقارن).
+        siblings[index] = section
+        # Phase 1 correction: یک swap ساده بینِ دو همسایه می‌تواند پیوستگیِ
+        # یک ردیفِ ترکیبی را بشکند (اگر فقط یکی از دو طرف عضوِ آن ردیف
+        # باشد) — قبل از نوشتن، ترکیبِ شبیه‌سازی‌شده‌ی کلِ صفحه اعتبارسنجی
+        # می‌شود؛ نامعتبر بودن یعنی swap اصلاً اتفاق نمی‌افتد (نه نیمه‌انجام).
+        try:
+            row_service.validate_page_row_layout(sorted(siblings, key=lambda s: (s.order, s.id)))
+        except row_service.RowAssignmentError as exc:
+            messages.error(request, str(exc))
+            return storefront_section_list_partial(request, page_type=section.page.page_type)
         StorefrontSection.objects.bulk_update([section, other], ["order"])
     return storefront_section_list_partial(request, page_type=section.page.page_type)
 

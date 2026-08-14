@@ -3,6 +3,14 @@
 **Phase:** 1 — Universal Block/Data Architecture.
 **Branch:** `feature/universal-storefront-engine-v1`, cut from the approved baseline
 `9b867c457527137e95bfb14a5891b2cf39a1281b` on `claude/family-visual-fidelity-fix`.
+
+**Correction pass (same day):** the initial Phase 1 pass left row-composition
+validation and Lock enforcement unwired from the mutation paths that could actually
+violate them, and the background-image field trusted an arbitrary merchant-supplied
+URL. All three are fixed below (§3.2, §3.3, §3.5) and the fingerprint gap this
+introduced is fixed in §6. Sections below describe the corrected, current state —
+they are not a diff log; see the correction commit message for the itemized change
+list.
 **Scope:** models, schema, validation services, tests. No visual/frontend template work.
 No V5 reproduction. No Builder UI beyond the minimal lock-toggle endpoint described below.
 
@@ -118,9 +126,34 @@ with "prefer reuse/extension over duplication."
 `services/row_service.py` (new) provides `validate_page_row_layout(ordered_sections)` —
 fail-closed validation of a page's full row composition (group size 2-4, contiguous
 membership, spans summing to exactly 12, each span between 1 and 12) — and
-`is_row_member(section)`. This function is not yet wired into any create/reorder
-endpoint (that wiring belongs to the Builder UI work explicitly deferred past this
-phase); it exists now as the tested, ready-to-call contract Phase 2+ will build on.
+`is_row_member(section)`.
+
+**Correction:** the initial pass left this validator unwired from every actual mutation
+path, meaning a row set up any way at all (fixture, admin, a future Preset) could be
+silently broken by routine editing. It is now enforced, fail-closed, on every path that
+can change row composition on an *existing* Draft:
+
+- `storefront_section_remove` — rejects deleting a row member (`row_service.is_row_member`)
+  rather than leaving an orphaned/undersized row behind.
+- `storefront_section_move` (up/down) — simulates the swap in memory and runs
+  `validate_page_row_layout` on the result before writing; also blocks moving into a
+  *locked* neighbor (see §3.5). A subtlety worth recording: the section fetched via
+  `_get_scoped_section` and its duplicate inside the freshly-queried `siblings` list are
+  two distinct Python objects for the same row — the fix explicitly replaces the stale
+  list entry with the mutated one before validating, otherwise the simulation would
+  validate against pre-swap data for one side of the swap.
+- `storefront_section_reorder` (bulk/drag-and-drop) — simulates the full proposed
+  ordering (including sections *not* present in the posted `section_ids`, at their
+  existing `order`) and validates before writing anything.
+- `preset_service.apply_preset` — see §3.5; wholesale page replacement is a row-breaking
+  operation too, not just a lock-breaking one, and is covered by the same guard.
+
+No new "canonical setter" function was added for *writing* `row_key`/`row_span` in the
+first place, because nothing writes them yet (no Builder UI exposes row assignment) —
+inventing one now would be new UI-adjacent surface with no caller, which is exactly the
+scope expansion this phase was told to avoid. What was missing, and is now fixed, is
+that the mutation paths that already exist cannot silently corrupt a row however it got
+there.
 
 `render_service.group_items_into_rows(items)` (new, additive) is a pure data
 transformation: given the existing flat `build_page_render_items` output, it returns a
@@ -139,15 +172,42 @@ context-aware page-critical types — `product_main`, `product_listing`, `cart_i
 
 ```python
 {"mode": "theme" | "color" | "image" | "pattern",
- "color": "#RRGGBB" | "", "image_url": "...", "pattern_slug": "..."}
+ "color": "#RRGGBB" | "", "media_asset_id": int | None, "pattern_slug": "..."}
 ```
 
 `mode="theme"` (no override — today's only behavior) is the default and the fallback for
 any invalid/incomplete input, matching the codebase's established lenient-fallback
 convention for closed-choice settings (e.g. `validate_motion_settings`). Colors are
-validated with the platform's existing `validate_hex_color`; image URLs with the
-platform's existing `validate_external_url` (rejects `javascript:`/`data:`/
-protocol-relative URLs — same validator `image_text` already uses).
+validated with the platform's existing `validate_hex_color`.
+
+**Correction — tenant safety:** the initial pass validated `mode="image"` as a free
+`image_url` string checked only for a safe *scheme* (`validate_external_url`, the same
+validator `image_text` uses), with no relationship to the current Store at all. That is
+a materially different, weaker guarantee than every other per-instance reference in this
+codebase (`source_id`, `destination_id`, `category_ids`, `brand_ids`, ...), which are all
+opaque integer IDs resolved against the current Store later. A raw external URL is
+schema-safe (no XSS/protocol injection) but not *tenant*-safe — nothing stopped a section
+from pointing at any arbitrary external image forever, and the pattern doesn't compose
+with the platform's actual media storage.
+
+Fixed by replacing `image_url` with `media_asset_id` — shape-validated here as a plain
+positive integer (mirroring `source_id`), never touching the database at this layer, per
+the file's own established separation of concerns. The store-scoped resolution now
+lives in `apps/content/services.py::resolve_background_media_url(store, background)`,
+directly alongside — and following the exact same fail-closed shape as —
+`resolve_destination_setting`: it looks up `apps.content.models.MediaAsset` filtered by
+`(pk=media_asset_id, store=store)`, and returns `None` (never an exception, never another
+store's file) for anything missing, deleted, or foreign. `mode="image"` with no
+`media_asset_id` supplied falls back to `theme`, matching every other optional-reference
+field in this file.
+
+No Media Picker UI was built (out of scope per the correction brief) — there is
+currently no way for a merchant to actually set `media_asset_id` through the Builder
+UI, which is an honest reflection of reality, not a gap introduced by this fix: the same
+was already true of `mode="pattern"` before this correction (empty registry, no UI), and
+remains true of `mode="image"` now (real reference, but no picker yet). What changed is
+that the *data contract itself* can no longer represent "trust this arbitrary external
+URL" — only "resolve this Store's own uploaded asset, or show nothing."
 
 `pattern_slug` is validated against a new `PATTERN_REGISTRY: dict[str, str] = {}` —
 **deliberately empty**. No pattern/texture CSS assets exist anywhere in this codebase
@@ -190,15 +250,43 @@ as `density`/`motion` tokens already work at the store-wide level.
   `storefront_section_collapse_toggle`) + one new URL,
   `storefront-builder/sections/<pk>/lock/` (`dashboard:storefront-builder-section-lock`).
 
-**Deliberately not touched:** the bulk `storefront_section_reorder` endpoint (drag-and-
-drop). Making that endpoint lock-aware requires deciding Builder-UI-level behavior (does
-a locked section silently stay put while others reflow around it? is it undraggable at
-the DOM level? does the request get rejected wholesale?) that has no drag-and-drop UI to
-answer against yet — real design work belongs with the Builder phase, not invented here.
-`storefront_section_duplicate` is also untouched: spec §37 names only move and delete;
-duplication creates an independent new logical section (its own fresh `stable_id`,
-exactly like duplicating an unlocked section today), so a lock on the source has no
-bearing on it.
+**Correction — the enforcement above was incomplete; three real bypasses were found and
+closed:**
+
+1. **`storefront_section_move`'s swap partner.** A move is a swap of two neighbors; the
+   original guard only checked the section being explicitly moved, so an *unlocked*
+   neighbor could still be moved "up"/"down" straight into — and thereby displace — a
+   *locked* one. Fixed: the guard now also checks `other.is_locked` (the computed swap
+   target) before performing the swap.
+2. **`storefront_section_reorder` (bulk/drag-and-drop) had no lock check at all** — this
+   was previously deferred with the reasoning that it needed real Builder-UI design work
+   first. On reflection that reasoning doesn't hold at the backend-enforcement level: no
+   UI decision is needed to state the invariant "a locked section's final position must
+   equal its current position," and leaving the *backend* unenforced meant the lock
+   guarantee was only ever a UI-disabling convention, never a real one, for this path.
+   Fixed: the endpoint now computes each candidate's resulting index and rejects the
+   entire reorder (matching the pre-existing "duplicate IDs" all-or-nothing convention)
+   if any locked section's index would change.
+3. **`preset_service.apply_preset`** wholesale-deletes every section on each page a
+   Preset covers (`page.sections.all().delete()`) and rebuilds from the Preset's list —
+   an "alternate service path" that bypassed `storefront_section_remove`'s guard
+   entirely. Fixed: `apply_preset` now raises `LockedSectionsPresentError` (a subclass of
+   the existing `InvalidPresetError`, so the calling view's existing exception handling
+   needed no changes) if any page it would replace currently has a locked section —
+   checked in the function's existing validate-everything-before-writing pass, so a
+   rejection leaves the Draft completely untouched (header/footer/appearance included).
+
+**Still deliberately not touched:** `storefront_section_duplicate`. Spec §37 names only
+move and delete; duplication creates an independent new logical section (its own fresh
+`stable_id`, and — since `row_key`/`is_locked` are real model fields never copied by the
+duplicate view's explicit field list — a duplicate is never locked and never a row member
+regardless of the source), so a lock on the source has no bearing on it. Also
+deliberately not touched: whole-*version* replacement paths (`discard_draft`,
+`restore_version`'s pre-restore cleanup, `apply_industry_layout`'s draft replacement) —
+these already require their own explicit user confirmation before running and are a
+different, coarser action ("start over") than the per-block protection Lock is for;
+treating them as another Lock bypass would be scope creep into a product decision that
+wasn't asked for.
 
 ## 4. Preset representation (verified, not changed)
 
@@ -224,14 +312,35 @@ independent of layout Preset (spec §10.3), with `resolve_colors()` implementing
 section itself, exactly matching spec §10.2's "○ Use Theme Color / ● Custom Color"
 per-block picture. No changes were needed to the global palette system.
 
-## 6. Draft/Published behavior (verified, not changed)
+## 6. Draft/Published behavior
 
 `StorefrontLayout.published_version`/`draft_version` pointer pair, atomic
 `layout_service.publish()`, and `restore_version()` (which always creates a new Draft,
-never republishes directly) are unchanged. The three new `StorefrontSection` fields
-participate in the existing `StorefrontLayoutVersion.compute_fingerprint()` drift-
-detection hash automatically (it serializes each section's full field set including any
-new columns added here) — no change to that method was required.
+never republishes directly) are unchanged.
+
+**Correction:** the initial pass's claim that the three new `StorefrontSection` fields
+"participate in `compute_fingerprint()` automatically" was checked against the actual
+code for this pass and found to be wrong — `compute_fingerprint()` builds its per-section
+payload from an explicit, hand-written dict of four named keys
+(`page_type`/`section_key`/`order`/`is_active`/`settings`), not a wholesale field
+serialization, so a new *model* column (as opposed to a new key inside the `settings`
+JSONField, which *is* covered automatically) is invisible to it unless added by name.
+
+Fixed with an explicit, tested product decision for each new field:
+
+- **`row_key`/`row_span` — included.** They change what the public render actually looks
+  like (which section sits in which row, at what width), so a Draft that only changes
+  these must be detected as different from the currently-Published version — exactly the
+  same reasoning that already covers `order`/`is_active`.
+- **`background`/`spacing` — already included, no change needed.** Both live inside the
+  `settings` JSONField, which the fingerprint already serializes wholesale.
+- **`is_locked` — explicitly excluded.** It has zero effect on public rendering (editor-
+  only, like the pre-existing `collapsed_in_editor`, which this fingerprint has also
+  never included) — locking or unlocking a section must not make an otherwise-identical
+  Draft register as "changed" for publish/drift purposes.
+
+Verified with two new tests: changing `row_key`/`row_span` changes the fingerprint;
+toggling `is_locked` does not.
 
 ## 7. Tenant safety (verified, not changed; explicitly checked for the new fields)
 
@@ -296,22 +405,33 @@ phase.
 
 ## 12. Deferred items (explicitly out of scope for this phase)
 
-- Wiring `row_service.validate_page_row_layout` into the section-add/reorder views —
-  belongs with the Builder UI work that lets a merchant actually place two blocks into a
-  row (drag-and-drop grouping interaction design).
-- Wiring `render_service.group_items_into_rows` into an actual template/CSS grid output
-  — this is Phase 2 ("Universal Renderer") by the approved phase order.
-- Lock-awareness in the bulk drag-and-drop reorder endpoint.
+- **Superseded by the correction pass** (previously listed here, now done): wiring row
+  validation into remove/move/reorder/preset-apply; lock enforcement on bulk reorder and
+  the move swap-partner; lock enforcement in `preset_service.apply_preset`.
+- A UI for actually *assigning* `row_key`/`row_span` to sections (placing two blocks into
+  a row) — still correctly out of scope; this phase closed the *validation* gap (nothing
+  can silently corrupt a row through an existing mutation path), not the *authoring* gap
+  (there is still no way to create a row in the first place through the Builder UI). Both
+  belong with the Builder UI work.
+- A Media Picker UI for choosing a `MediaAsset` for `background.media_asset_id` — the
+  data contract and store-scoped resolver are ready and tested; no picker was built, per
+  the explicit "do not overbuild" instruction.
+- Wiring `render_service.group_items_into_rows` and
+  `apps.content.services.resolve_background_media_url` into an actual template/CSS
+  output — this is Phase 2 ("Universal Renderer") by the approved phase order.
 - Populating `PATTERN_REGISTRY` with real pattern assets.
 - A `Featured` product data source distinct from the existing `newest`-fallback (a
   pre-existing, previously-documented gap this phase did not touch — it is a data-source
   addition, not a Universal-architecture gap, and was not raised as blocking by the
   Owner).
+- Lock-awareness for whole-*version* replacement actions (`discard_draft`,
+  `restore_version`, `apply_industry_layout`) — considered and deliberately excluded; see
+  §3.5's closing paragraph for the reasoning.
 - Any V5-specific configuration/Preset — explicitly Phase 3.
 
 ## 13. Risks / unresolved issues
 
 None identified that require an Owner decision at this time. The row/grid design
-decision (Section 3.2) was made using the criteria the Owner specified, and is
-documented here for review rather than raised as an open question, since the brief
-asked for a decision with rationale, not a fresh question.
+decision (§3.2) and the whole-version-replacement exclusion (§3.5) were both made using
+the criteria/reasoning the Owner's briefs specified, and are documented here for review
+rather than raised as open questions.

@@ -577,9 +577,6 @@ BACKGROUND_MODE_CHOICES = ("theme", "color", "image", "pattern")
 #: — هیچ تغییرِ دیگری در schema/migration لازم نیست.
 PATTERN_REGISTRY: dict[str, str] = {}
 
-_MAX_BACKGROUND_IMAGE_URL_LENGTH = 500
-
-
 class BackgroundSettingsError(ValueError):
     """شکلِ خامِ بلوکِ ``background`` نامعتبر است — پیامِ فارسیِ قابل‌نمایشِ
     مستقیم به تاجر."""
@@ -590,10 +587,28 @@ def validate_background_settings(raw) -> dict:
     ۱۰.۲ («○ Use Theme Color / ● Custom Color»، اینجا ``mode="theme"`` در
     برابرِ ``mode="color"``). غیابِ کلیدِ ``background`` (sectionهایِ
     از‌قبل‌موجود) دقیقاً هم‌ارزِ ``mode="theme"`` است — رفتارِ فعلی، بدونِ
-    تغییر، بدونِ نیاز به Migration دادهٔ JSON."""
+    تغییر، بدونِ نیاز به Migration دادهٔ JSON.
+
+    Phase 1 correction — تصمیمِ ایمنیِ مستأجر (tenant safety): برایِ
+    ``mode="image"`` این تابع یک URL دلخواهِ ذخیره‌شده توسطِ مرچنت را
+    قبول/اعتبارسنجی **نمی‌کند**. ذخیره‌ی مستقیمِ یک رشته‌ی URL در تنظیماتِ
+    section، مستقل از هرگونه بررسیِ مالکیتِ Store، دقیقاً همان الگویِ
+    ناامنی است که این کدبیس همه‌جایِ دیگر آگاهانه رد کرده (نگاه کنید به
+    ``source_id``/``destination_id``/``category_ids``/... که همه فقط یک
+    شناسه‌ی عدد صحیح ذخیره می‌کنند، نه یک URL خام). به‌جایِ آن، فقط
+    ``media_asset_id`` (اشاره‌گر به یک ``apps.content.models.MediaAsset``
+    موجود) ذخیره می‌شود — دقیقاً همان قراردادِ «فقط شکل/enum اینجا، مالکیتِ
+    Store در لایه‌ی سرویس» که این فایل برایِ بقیه‌ی ارجاعات دارد؛ حلِ
+    واقعیِ آن (آیا این ID واقعاً متعلق به همین Store است؟ URLِ نهاییِ
+    قابلِ‌رندر چیست؟) در ``apps.content.services.resolve_background_media_url``
+    انجام می‌شود — همان محلی که ``resolve_destination_setting`` قبلاً
+    همین نقش را برایِ بلوکِ ``destination`` بازی می‌کند. هنوز هیچ
+    Media Picker UIای برایِ انتخابِ یک asset موجود ساخته نشده (طبقِ
+    محدودیتِ صریحِ کار: بدونِ overbuild) — یعنی این mode امروز از طریقِ
+    Builder UI قابلِ‌تنظیم نیست، دقیقاً مثلِ ``mode="pattern"`` (رجیستریِ
+    خالی)، اما قرارداد از هم‌اکنون ایمن/آماده است."""
     from django.core.exceptions import ValidationError as DjangoValidationError
 
-    from apps.content.models import validate_external_url
     from apps.core.models import validate_hex_color
 
     if raw is None:
@@ -616,16 +631,18 @@ def validate_background_settings(raw) -> dict:
         else:
             mode = "theme"  # رنگِ خالی برای mode=color یعنی چیزی برای نمایش نیست — به پیش‌فرضِ امن برگرد
 
-    image_url = ""
+    media_asset_id = None
     if mode == "image":
-        image_url = str(raw.get("image_url", "")).strip()[:_MAX_BACKGROUND_IMAGE_URL_LENGTH]
-        if image_url:
-            try:
-                validate_external_url(image_url)
-            except DjangoValidationError as exc:
-                raise BackgroundSettingsError("; ".join(exc.messages)) from exc
+        raw_id = raw.get("media_asset_id")
+        if raw_id is None:
+            mode = "theme"  # هیچ asset‌ای انتخاب نشده — چیزی برای نمایش نیست
         else:
-            mode = "theme"
+            try:
+                media_asset_id = int(raw_id)
+            except (TypeError, ValueError):
+                raise BackgroundSettingsError("رسانه‌ی انتخاب‌شده نامعتبر است") from None
+            if media_asset_id <= 0:
+                raise BackgroundSettingsError("رسانه‌ی انتخاب‌شده نامعتبر است")
 
     pattern_slug = ""
     if mode == "pattern":
@@ -639,11 +656,11 @@ def validate_background_settings(raw) -> dict:
         else:
             mode = "theme"
 
-    return {"mode": mode, "color": color, "image_url": image_url, "pattern_slug": pattern_slug}
+    return {"mode": mode, "color": color, "media_asset_id": media_asset_id, "pattern_slug": pattern_slug}
 
 
 def default_background_settings() -> dict:
-    return {"mode": "theme", "color": "", "image_url": "", "pattern_slug": ""}
+    return {"mode": "theme", "color": "", "media_asset_id": None, "pattern_slug": ""}
 
 
 def _with_background(section_key: str, validate_fn, default_fn):

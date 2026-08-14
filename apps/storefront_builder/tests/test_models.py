@@ -92,6 +92,30 @@ class StorefrontLayoutVersionModelTests(TestCase):
         fp2 = v2.compute_fingerprint()
         self.assertEqual(fp1, fp2)
 
+    def test_fingerprint_changes_when_row_key_changes(self):
+        """Phase 1 correction: row_key/row_span واقعاً خروجیِ رندرِ عمومی را
+        تغییر می‌دهند (کدام section در کدام ردیف است)، پس باید بخشی از
+        drift-detection باشند."""
+        v1 = StorefrontLayoutVersion.objects.create(layout=self.layout, version_number=1)
+        section = StorefrontSection.objects.create(version=v1, section_key="hero_banner", order=0)
+        fp_before = v1.compute_fingerprint()
+        section.row_key = "r1"
+        section.row_span = 8
+        section.save(update_fields=["row_key", "row_span"])
+        fp_after = v1.compute_fingerprint()
+        self.assertNotEqual(fp_before, fp_after)
+
+    def test_fingerprint_unaffected_by_lock_state(self):
+        """تصمیمِ صریح: قفل فقط رفتارِ ادیتور را کنترل می‌کند، هیچ اثری روی
+        HTMLِ عمومیِ منتشرشده ندارد — پس نباید نسخه را «متفاوت» نشان دهد."""
+        v1 = StorefrontLayoutVersion.objects.create(layout=self.layout, version_number=1)
+        section = StorefrontSection.objects.create(version=v1, section_key="hero_banner", order=0)
+        fp_before = v1.compute_fingerprint()
+        section.is_locked = True
+        section.save(update_fields=["is_locked"])
+        fp_after = v1.compute_fingerprint()
+        self.assertEqual(fp_before, fp_after)
+
 
 class StorefrontSectionModelTests(TestCase):
     def setUp(self):
