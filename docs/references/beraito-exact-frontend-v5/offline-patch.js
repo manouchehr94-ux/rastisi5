@@ -1,0 +1,1 @@
+document.addEventListener('click',function(e){const a=e.target.closest('a[href]');if(!a)return;const h=a.getAttribute('href')||'';if(/^https?:\/\//i.test(h)&&!e.ctrlKey&&!e.metaKey)e.preventDefault();},true);

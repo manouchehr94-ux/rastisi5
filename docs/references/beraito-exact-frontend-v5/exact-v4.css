@@ -1,0 +1,139 @@
+/* Exact desktop repairs based on the captured Beraito layout. */
+@media (min-width: 992px) {
+  /* The approved reference uses a single fixed-aspect hero. Owl was inheriting
+     an oversized stage height in the offline capture, which created the large
+     empty band below the banner. */
+  .elementor-element-43f074b2 .dina-slider,
+  .elementor-element-43f074b2 .dina-slider-con,
+  .elementor-element-43f074b2 .dina-slider-con .owl-stage-outer,
+  .elementor-element-43f074b2 .dina-slider-con .owl-stage,
+  .elementor-element-43f074b2 .dina-slider-con .owl-item,
+  .elementor-element-43f074b2 .dina-slider-con .item,
+  .elementor-element-43f074b2 .dina-slider-con .item > a,
+  .elementor-element-43f074b2 .dina-slider-con picture {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+  .elementor-element-43f074b2 .dina-slider-con {
+    aspect-ratio: 1053 / 420;
+    position: relative;
+    overflow: hidden !important;
+  }
+  .elementor-element-43f074b2 .dina-slider-con .owl-stage-outer,
+  .elementor-element-43f074b2 .dina-slider-con .owl-stage,
+  .elementor-element-43f074b2 .dina-slider-con .owl-item,
+  .elementor-element-43f074b2 .dina-slider-con .item,
+  .elementor-element-43f074b2 .dina-slider-con .item > a,
+  .elementor-element-43f074b2 .dina-slider-con picture {
+    height: 100% !important;
+  }
+  .elementor-element-43f074b2 .dina-slider-con .dina-slider-img {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: none !important;
+    object-fit: cover !important;
+  }
+  .elementor-element-43f074b2 .dina-slider-title {
+    bottom: 0 !important;
+  }
+
+  /* Instant offer: preserve the original 1/3 column and force the captured
+     mini-product carousel to be visible even when Elementor's widget hook is
+     not dispatched by the static offline page. */
+  .elementor-element-493e643c,
+  .elementor-element-493e643c .elementor-widget-container,
+  .elementor-element-493e643c .dina-offer-block {
+    height: 100% !important;
+  }
+  .elementor-element-493e643c .dina-offer-block {
+    position: relative;
+    min-height: 0 !important;
+    overflow: hidden;
+  }
+  .elementor-element-493e643c .dina-offer-block > .owl-carousel {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: 100% !important;
+  }
+  .elementor-element-493e643c .dina-offer-block .dina-mini-product {
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+  .elementor-element-493e643c .dina-offer-block .dina-product-link {
+    height: 100% !important;
+    align-content: flex-start;
+    box-sizing: border-box;
+  }
+  .elementor-element-493e643c .dina-offer-block .dina-product-link > img {
+    display: block !important;
+    width: min(100%, 255px) !important;
+    height: 255px !important;
+    max-height: 255px !important;
+    object-fit: contain !important;
+    margin: 0 auto 4px !important;
+  }
+  .elementor-element-493e643c .dina-offer-block .product-title {
+    width: 100%;
+    height: auto !important;
+    min-height: 44px;
+    padding: 4px 12px 0;
+    text-align: center;
+    line-height: 1.8;
+  }
+  .elementor-element-493e643c .dina-offer-block .dina-product-price {
+    width: 100%;
+    padding: 0 12px 8px;
+    text-align: center;
+  }
+}
+
+/* When Owl has not initialized yet, show one clean frame rather than a blank
+   block. The companion JS turns this into a working auto-slider. */
+.elementor-element-493e643c .dina-offer-block > .owl-carousel:not(.owl-loaded) > .item {
+  display: none;
+}
+.elementor-element-493e643c .dina-offer-block > .owl-carousel:not(.owl-loaded) > .item:first-child {
+  display: block;
+}
+
+/* V4 offline-fidelity repairs ------------------------------------------------ */
+/* Product primary images are now fully localized from the WebScrapBook capture.
+   Keep the normal primary frame visible until the actual hover interaction. */
+.dina-img-con > a > img:not(.dina-second-img) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+/* Special offer is an Elementor/Owl widget whose original initialization hook
+   does not fire in a plain static replay. Never let the left 2/3 panel collapse
+   to an empty white box while JS is initializing. */
+.dina-special-slider:not(.owl-loaded) {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 300px;
+}
+.dina-special-slider:not(.owl-loaded) > .item { display: none; }
+.dina-special-slider:not(.owl-loaded) > .item:first-child { display: flex; }
+.dina-special-slider.offline-special-fallback > .item {
+  width: 100%;
+  min-height: 300px;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+.dina-special-slider.offline-special-fallback .dina-special-img img {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  width: auto !important;
+  max-width: 100% !important;
+  max-height: 270px !important;
+  object-fit: contain;
+}
+.dina-special-title .dina-slider-nav > li.active {
+  color: var(--dina-custom-color, #ef5350);
+  border-left: 3px solid var(--dina-custom-color, #ef5350);
+}

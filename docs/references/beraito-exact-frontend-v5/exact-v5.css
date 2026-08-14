@@ -1,0 +1,97 @@
+/* V5 final desktop fidelity pass.
+   Scope: only the four compact paired product panels that were still too tall
+   in the offline replay. Footer and all already-approved lower-page sections
+   are intentionally untouched. */
+
+@media (min-width: 992px) {
+  /* Two paired-panel groups in the captured homepage. */
+  .elementor-element-b73e294 .dina-product-block,
+  .elementor-element-b27b840 .dina-product-block,
+  .elementor-element-693c4c5 .dina-product-block,
+  .elementor-element-429efd1 .dina-product-block {
+    padding: 18px !important;
+  }
+
+  .elementor-element-b73e294 .dina-product-block .owl-stage,
+  .elementor-element-b27b840 .dina-product-block .owl-stage,
+  .elementor-element-693c4c5 .dina-product-block .owl-stage,
+  .elementor-element-429efd1 .dina-product-block .owl-stage {
+    margin-top: 12px !important;
+  }
+
+  /* A few zero-byte responsive image candidates in the archived HAR made
+     Chromium reserve a 300px broken-image box.  Those candidates are removed
+     in index.html; these alignment guards make each card use its natural
+     content height instead of stretching to an erroneously tall Owl row. */
+  .elementor-element-b73e294 .owl-item,
+  .elementor-element-b27b840 .owl-item,
+  .elementor-element-693c4c5 .owl-item,
+  .elementor-element-429efd1 .owl-item,
+  .elementor-element-b73e294 .item,
+  .elementor-element-b27b840 .item,
+  .elementor-element-693c4c5 .item,
+  .elementor-element-429efd1 .item {
+    align-items: flex-start !important;
+  }
+
+  .elementor-element-b73e294 .dina-mini-product,
+  .elementor-element-b27b840 .dina-mini-product,
+  .elementor-element-693c4c5 .dina-mini-product,
+  .elementor-element-429efd1 .dina-mini-product {
+    height: auto !important;
+    min-height: 0 !important;
+    align-content: flex-start !important;
+    padding: 8px !important;
+  }
+
+  .elementor-element-b73e294 .dina-img-con,
+  .elementor-element-b27b840 .dina-img-con,
+  .elementor-element-693c4c5 .dina-img-con,
+  .elementor-element-429efd1 .dina-img-con {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  .elementor-element-b73e294 .dina-img-con > a,
+  .elementor-element-b27b840 .dina-img-con > a,
+  .elementor-element-693c4c5 .dina-img-con > a,
+  .elementor-element-429efd1 .dina-img-con > a {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .elementor-element-b73e294 .dina-img-con img:not(.dina-second-img),
+  .elementor-element-b27b840 .dina-img-con img:not(.dina-second-img),
+  .elementor-element-693c4c5 .dina-img-con img:not(.dina-second-img),
+  .elementor-element-429efd1 .dina-img-con img:not(.dina-second-img) {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 220px !important;
+    object-fit: contain !important;
+    margin: 0 auto !important;
+  }
+
+  .elementor-element-b73e294 .dina-product-detail,
+  .elementor-element-b27b840 .dina-product-detail,
+  .elementor-element-693c4c5 .dina-product-detail,
+  .elementor-element-429efd1 .dina-product-detail {
+    flex: 0 0 100% !important;
+    align-content: flex-start !important;
+  }
+
+  .elementor-element-b73e294 .product-title,
+  .elementor-element-b27b840 .product-title,
+  .elementor-element-693c4c5 .product-title,
+  .elementor-element-429efd1 .product-title {
+    margin-top: 10px !important;
+    height: 44px !important;
+  }
+
+  .elementor-element-b73e294 .dina-product-price,
+  .elementor-element-b27b840 .dina-product-price,
+  .elementor-element-693c4c5 .dina-product-price,
+  .elementor-element-429efd1 .dina-product-price {
+    margin-top: 6px !important;
+  }
+}

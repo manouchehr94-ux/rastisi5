@@ -1,0 +1,13 @@
+(function(){function enhance(wrap){var retryCount=0;if(wrap.__dgsEnhanced)return;wrap.__dgsEnhanced=!0;var visual=wrap.querySelector('.dgs-visual');var img=visual?visual.querySelector('.dgs-img'):null;var btn=wrap.querySelector('.dgs-btn');var tokInp=wrap.querySelector('input[name=dgs_token]');var txtInp=wrap.querySelector('.dgs-input');if(!visual||!btn||!tokInp)return;var refreshTimer=null;var autoRefresh=!1;var firstInteraction=!1;function showLoading(on){if(on){visual.classList.add('dgs-loading');btn.classList.add('dgs-busy')}else{visual.classList.remove('dgs-loading');btn.classList.remove('dgs-busy')}}
+function fetchCaptcha(){showLoading(!0);fetch(DGS_CAPTCHA.fast,{cache:"no-store",credentials:"omit",headers:{'Accept':'application/json'}}).then(function(r){if(r.status===429)throw new Error('rate_limit');if(!r.ok)throw new Error('network_error');return r.json()}).then(function(j){if(!j||!j.token||!j.data_url)return;tokInp.value=j.token;img.src=j.data_url;retryCount=0;if(autoRefresh){scheduleRefresh()}}).catch(function(e){if(e.message!=='rate_limit'&&retryCount<3){retryCount++;setTimeout(fetchCaptcha,5000)}}).finally(function(){showLoading(!1)})}
+function scheduleRefresh(){if(refreshTimer){clearTimeout(refreshTimer)}
+refreshTimer=setTimeout(function(){fetchCaptcha()},60000)}
+function onFirstInteraction(){if(firstInteraction)return;firstInteraction=!0;autoRefresh=!0;fetchCaptcha()}
+var form=wrap.closest('form');var isComment=!1;if(form){if(form.id==='commentform'||form.classList.contains('comment-form')||form.classList.contains('wpd_comm_form')||form.classList.contains('wpd_main_comm_form')){isComment=!0}}
+if(isComment){img.src="data:image/svg+xml;base64,"+btoa('<svg xmlns="http://www.w3.org/2000/svg" width="110" height="42"><rect width="100%" height="100%" fill="#f1f5f9"/></svg>');var targets=form.querySelectorAll('textarea,input.dgs-input');targets.forEach(function(el){el.addEventListener('focus',onFirstInteraction)})}else{if(!tokInp.value){fetchCaptcha()}}
+btn.addEventListener('click',function(e){e.preventDefault();if(isComment&&!firstInteraction){onFirstInteraction();return}
+fetchCaptcha()})}
+function initExisting(){document.querySelectorAll('.dgs-wrap').forEach(enhance)}
+function observeNew(){var moTimeout;var mo=new MutationObserver(function(muts){var hasNewElements=!1;for(var i=0;i<muts.length;i++){if(muts[i].addedNodes.length>0){hasNewElements=!0;break}}
+if(hasNewElements){clearTimeout(moTimeout);moTimeout=setTimeout(function(){document.querySelectorAll('.dgs-wrap').forEach(enhance)},50)}});mo.observe(document.documentElement,{childList:!0,subtree:!0})}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){initExisting();observeNew()})}else{initExisting();observeNew()}})()
