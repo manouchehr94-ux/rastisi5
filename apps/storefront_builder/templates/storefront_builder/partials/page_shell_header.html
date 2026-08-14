@@ -136,28 +136,58 @@ touched from Preview) — everything else (mega-menu, categories) is identical.
 
 <nav class="nav" :class="{ hidden: !mobileNavOpen }">
   <div class="wrap">
-    <div style="position:relative" @click.outside="catMenuOpen = false">
+    {% comment %}
+    Mega Menu — real Category Tree (nav_categories, store-scoped,
+    prefetched children), never hardcoded categories. Right-side rail
+    (category list, active state on hover/focus) + left content pane
+    (multi-column child links, optional promo image from the category's
+    own `image` field when set). Distinct `cat-mega-*` classes on purpose
+    — never reuses the plain `.cat-dropdown` rules below, which stay the
+    unmodified legacy fallback for pages outside the Universal Storefront
+    shell.
+    {% endcomment %}
+    <div class="cat-mega" @click.outside="catMenuOpen = false" x-data="{ activeCat: null }">
       <button type="button" class="cat-btn" @click="catMenuOpen = !catMenuOpen">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
         دسته‌بندی کالاها
       </button>
-      <div class="cat-dropdown" x-show="catMenuOpen" x-cloak @click="catMenuOpen = false">
-        {% for cat in nav_categories %}
-        <div class="cat-dropdown-group">
-          <a class="top" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}"><span>{{ cat.icon }}</span><span>{{ cat.name }}</span></a>
-          {% if cat.children.all %}
-          <ul>
-            {% for child in cat.children.all %}
-            <li><a href="{% url 'catalog:product-list' %}?category={{ child.slug }}">{{ child.icon }} {{ child.name }}</a></li>
-            {% endfor %}
-          </ul>
-          {% endif %}
+      <div class="cat-mega-overlay" x-show="catMenuOpen" x-cloak @click="catMenuOpen = false"></div>
+      <div class="cat-mega-panel" x-show="catMenuOpen" x-cloak>
+        <div class="cat-mega-rail" x-init="activeCat = $el.firstElementChild ? $el.firstElementChild.dataset.catId : null">
+          {% for cat in nav_categories %}
+          <a href="{% url 'catalog:product-list' %}?category={{ cat.slug }}"
+             class="cat-mega-rail-item" data-cat-id="{{ cat.id }}"
+             :class="activeCat === '{{ cat.id }}' ? 'active' : ''"
+             @mouseenter="activeCat = '{{ cat.id }}'" @focus="activeCat = '{{ cat.id }}'">
+            <span>{{ cat.icon }}</span><span>{{ cat.name }}</span>
+          </a>
+          {% empty %}
+          <div class="cat-mega-empty">فعلاً دسته‌بندی‌ای ثبت نشده است</div>
+          {% endfor %}
         </div>
-        {% empty %}
-        <div class="cat-dropdown-group">
-          <div class="top">فعلاً دسته‌بندی‌ای ثبت نشده است</div>
+        {% if nav_categories %}
+        <div class="cat-mega-content">
+          {% for cat in nav_categories %}
+          <div class="cat-mega-pane" x-show="activeCat === '{{ cat.id }}'" x-cloak>
+            {% if cat.children.all %}
+            <div class="cat-mega-cols{% if cat.children.all|length > 6 %} cols-2{% endif %}">
+              {% for child in cat.children.all %}
+              <a href="{% url 'catalog:product-list' %}?category={{ child.slug }}">{{ child.icon }} {{ child.name }}</a>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="cat-mega-empty-children">فعلاً زیردسته‌ای برای «{{ cat.name }}» ثبت نشده است</p>
+            {% endif %}
+            {% if cat.image %}
+            <a class="cat-mega-promo" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+              <img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">
+              <span>{{ cat.name }}</span>
+            </a>
+            {% endif %}
+          </div>
+          {% endfor %}
         </div>
-        {% endfor %}
+        {% endif %}
       </div>
     </div>
     <div class="nav-links-scroll">
