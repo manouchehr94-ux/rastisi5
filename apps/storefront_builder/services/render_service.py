@@ -170,6 +170,18 @@ def _amazing_offers_context(store, section):
     }
 
 
+def _blog_posts_context(store, section):
+    """مطالبِ وبلاگ سراسریِ پلتفرم است (بدونِ FK به Store — واقعیتی از
+    قبل موجود در ``apps.blog.models.BlogPost``، نه فیلترِ تنانتی که این
+    تابع اضافه می‌کند)؛ دقیقاً همان کوئری‌ای که ``apps.catalog.views.home``
+    از قبل استفاده می‌کند."""
+    from apps.blog.models import BlogPost
+
+    item_limit = (section.settings or {}).get("item_limit", 5)
+    posts = list(BlogPost.objects.order_by("-published_at")[:item_limit])
+    return {"posts": posts}
+
+
 def _featured_products_context(store, section):
     # هیچ فیلد is_featured‌ای در Product وجود ندارد (شکاف تأییدشده در گزارش
     # ممیزی) — تا زمانی که آن قابلیت واقعاً ساخته شود، این بخش از جدیدترین‌ها
@@ -332,6 +344,10 @@ def _product_section_context(store, section):
 PER_INSTANCE_SECTION_KEYS = {
     "product_section", "image_text", "hero_banner", "image_slider", "single_banner", "multi_banner",
     "category_grid", "brand_carousel", "collection_tiles", "quick_links", "video_section", "story_rail",
+    #: Phase 3 — این دو context builder هم اکنون به تنظیماتِ خودِ همان
+    #: نمونه (``item_limit``/``deadline_hours``) وابسته‌اند، دقیقاً همان
+    #: دلیلِ بالا (``product_section``).
+    "amazing_offers", "blog_posts",
 }
 
 
@@ -481,6 +497,7 @@ _CONTEXT_BUILDERS = {
     "promo_cards": _category_context_for_promo_cards,
     "rich_text": _static_context,
     "image_text": _resolved_destination_context,
+    "blog_posts": _blog_posts_context,
     "product_section": _product_section_context,
     "trust_features": _static_context,
     "collection_tiles": _collection_tiles_context,

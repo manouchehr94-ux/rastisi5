@@ -1053,6 +1053,42 @@ def default_amazing_offers_settings() -> dict:
     return {"item_limit": _DEFAULT_AMAZING_OFFER_ITEMS, "deadline_hours": _DEFAULT_AMAZING_OFFER_HOURS, "title": ""}
 
 
+#: Phase 3 (Universal Storefront — V5 Golden Homepage) — بلوکِ کاملاً
+#: جدید «مطالب وبلاگ» (طبقِ نقشه‌ی V5→Universal Block، ردیفِ «Blog»: نه
+#: هیچ بلوکِ موجودی این نقش را پوشش می‌دهد، نه توجیهی برایِ بیش‌سازی
+#: هست — طبقِ الزامِ صریحِ کار «keep simple, do not overbuild»).
+#: ``apps.blog.models.BlogPost`` سراسریِ پلتفرم است (بدونِ FK به Store —
+#: واقعیتی از قبل موجود، نه چیزی که این چکپوینت اصلاح می‌کند)؛ این بخش
+#: صرفاً جدیدترین مطالبِ منتشرشده را نمایش می‌دهد. صفحه‌ی جزئیاتِ مطلب
+#: هنوز در پروژه وجود ندارد (``apps/blog`` فاقدِ url/view است) — دقیقاً
+#: همان محدودیتی که تمپلیتِ قدیمیِ ``catalog/home.html`` هم داشت
+#: (``href="#"``)؛ ساختنِ آن صفحه خارج از دامنه‌ی این فاز (Homepage
+#: فقط) است.
+_MIN_BLOG_POST_ITEMS = 3
+_MAX_BLOG_POST_ITEMS = 6
+_DEFAULT_BLOG_POST_ITEMS = 5
+
+
+class BlogPostsSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ «مطالبِ وبلاگ» نامعتبر است — پیامِ فارسیِ قابل‌نمایشِ مستقیم به تاجر."""
+
+
+def validate_blog_posts_settings(raw: dict) -> dict:
+    if not isinstance(raw, dict):
+        raise BlogPostsSettingsError("تنظیمات باید یک شیء JSON باشد")
+    try:
+        item_limit = int(raw.get("item_limit", _DEFAULT_BLOG_POST_ITEMS))
+    except (TypeError, ValueError):
+        raise BlogPostsSettingsError("تعدادِ مطالب باید عدد باشد") from None
+    item_limit = max(_MIN_BLOG_POST_ITEMS, min(_MAX_BLOG_POST_ITEMS, item_limit))
+    title = str(raw.get("title", "")).strip()[:_MAX_SECTION_TITLE_LENGTH]
+    return {"item_limit": item_limit, "title": title}
+
+
+def default_blog_posts_settings() -> dict:
+    return {"item_limit": _DEFAULT_BLOG_POST_ITEMS, "title": ""}
+
+
 class BrandCarouselSettingsError(ValueError):
     """شکلِ خامِ تنظیماتِ «کاروسل برندها» نامعتبر است."""
 
@@ -1402,6 +1438,12 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         validate_settings=_validate_image_text_settings,
         default_settings=lambda: {"title": "", "body_html": "", "image_url": "", "image_position": "right"},
         duplicable=True, removable=True, has_settings_form=True, category_fa="محتوا",
+    ),
+    "blog_posts": SectionDefinition(
+        key="blog_posts", label_fa="مطالب وبلاگ", icon="newspaper",
+        template_name="storefront_builder/sections/blog_posts.html",
+        validate_settings=validate_blog_posts_settings, default_settings=default_blog_posts_settings,
+        max_instances=1, duplicable=False, removable=True, has_settings_form=True, category_fa="محتوا",
     ),
     "product_section": SectionDefinition(
         key="product_section", label_fa="بخش محصولات", icon="shopping-bag",

@@ -156,9 +156,12 @@ html[data-sfb-density="relaxed"] .section{margin:54px 0}
 .orig .promo .pc{font-size:34px}
 
 /* ===== blog ===== */
+.blog-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
 .blog-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:.2s}
 .blog-card:hover{box-shadow:var(--shadow);transform:translateY(-3px)}
 .blog-card .th{height:130px;display:grid;place-items:center;font-size:46px}
+.blog-card .th-photo{padding:0}
+.blog-card .th-photo img{width:100%;height:100%;object-fit:cover}
 .blog-card .bd{padding:14px 16px}
 .blog-card .meta{font-size:11px;color:var(--muted);display:flex;gap:10px;margin-bottom:7px}
 .blog-card .meta .cat{color:var(--violet);font-weight:700}
