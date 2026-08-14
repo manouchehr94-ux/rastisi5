@@ -85,6 +85,11 @@ EXPECTED_KEYS = {
     "collection_header", "collection_products",
     # Phase 5 — context-aware cart-only section types.
     "cart_items", "cart_summary",
+    # Phase 3 (Universal Storefront — V5 Golden Homepage) — genuinely new,
+    # deliberately simple "Blog" block (no existing block covered this
+    # role in the V5→Universal Block mapping); dedicated coverage in
+    # test_phase3_v5_golden.py.
+    "blog_posts",
 }
 
 
