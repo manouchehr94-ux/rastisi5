@@ -17,19 +17,31 @@ class BuiltInPresetsValidateTests(SimpleTestCase):
     دیتابیس) بدونِ خطا معتبر باشند — دقیقاً همان الگویِ
     ``test_preset_registry_import.py`` برایِ رجیستریِ قدیمی."""
 
-    def test_exactly_four_built_in_presets(self):
-        self.assertEqual(len(lpr.LAYOUT_PRESET_REGISTRY), 4)
+    def test_exactly_five_built_in_presets(self):
+        # Phase 3 (Universal Storefront — V5 Golden Homepage) added a
+        # fifth built-in preset ("v5_golden_homepage").
+        self.assertEqual(len(lpr.LAYOUT_PRESET_REGISTRY), 5)
 
     def test_all_built_in_presets_have_unique_keys(self):
         keys = [p.key for p in lpr.list_layout_presets()]
         self.assertEqual(len(keys), len(set(keys)))
 
+    #: Phase 3 (Universal Storefront — V5 Golden Homepage) — این Preset
+    #: عمداً فقط صفحه‌ی اصلی را پوشش می‌دهد (دامنه‌ی صریحِ این فاز:
+    #: Homepage only)؛ دقیقاً همان استثنایی که خودِ docstring پایین
+    #: از قبل مجاز می‌داند («a preset may omit a page deliberately»).
+    _HOME_ONLY_PRESET_KEYS = {"v5_golden_homepage"}
+
     def test_every_built_in_preset_covers_all_six_pages(self):
         """۱۱ — معماری باید از هر ۶ نوع صفحه پشتیبانی کند؛ هرکدام از
-        Presetهای درون‌ساخت واقعاً هر ۶ صفحه را پوشش می‌دهند (طبقِ
-        طراحیِ این فاز، نه یک الزامِ اجباریِ معماری — یک Preset مجاز است
-        صفحه‌ای را عمداً جا بیندازد)."""
+        Presetهای درون‌ساختِ چندصفحه‌ای واقعاً هر ۶ صفحه را پوشش می‌دهند
+        (طبقِ طراحیِ این فاز، نه یک الزامِ اجباریِ معماری — یک Preset
+        مجاز است صفحه‌ای را عمداً جا بیندازد، مثلِ ``v5_golden_homepage``
+        بالا)."""
         for preset in lpr.list_layout_presets():
+            if preset.key in self._HOME_ONLY_PRESET_KEYS:
+                self.assertEqual(set(preset.pages.keys()), {"home"}, preset.key)
+                continue
             self.assertEqual(set(preset.pages.keys()), section_registry.ALL_PAGE_TYPES, preset.key)
 
     def test_no_built_in_preset_embeds_a_tenant_specific_id(self):
