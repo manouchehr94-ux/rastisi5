@@ -527,6 +527,8 @@ def _build_items_from_sections(sections, store, page_context: dict) -> list[dict
     (پایین) با نمونه‌هایِ **ذخیره‌نشده** (in-memory) برایِ Storeهایی که
     هنوز اصلاً یک Storefront V2 منتشر نکرده‌اند — دقیقاً همان قراردادِ
     context/cache/skip-unknown-key اینجا برایِ هر دو مسیر یکسان می‌ماند."""
+    from apps.content.services import resolve_background_media_url
+
     items = []
     context_cache: dict = {}
     for section in sections:
@@ -549,6 +551,16 @@ def _build_items_from_sections(sections, store, page_context: dict) -> list[dict
         context = dict(context_cache[cache_key])
         context["section"] = section
         context["settings"] = section.settings or {}
+        # Phase 2: حلِ Store-scopedِ رسانه‌یِ پس‌زمینه (Phase 1:
+        # ``background.media_asset_id``) — همینجا (نه در template) چون
+        # نیازمندِ یک کوئریِ دیتابیسِ store-scoped است؛ همان تفکیکِ
+        # مسئولیتی که ``_resolved_destination_context`` برایِ ``destination``
+        # دارد. per-instance (نه context_cache) چون دو نمونه از یک
+        # section_key می‌توانند رسانه‌های متفاوت داشته باشند. ``None`` برایِ
+        # هر چیزی غیر از mode="image" یا هر ارجاعِ نامعتبر/خارجی — هرگز کرش.
+        context["background_media_url"] = resolve_background_media_url(
+            store, context["settings"].get("background"),
+        )
         items.append({
             "section": section,
             "template_name": definition.template_name,

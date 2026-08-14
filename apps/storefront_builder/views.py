@@ -27,7 +27,7 @@ from .models import (
 )
 from .services import layout_service, row_service
 from .services.layout_service import _clone_section_scoped_media
-from .services.render_service import build_page_render_items
+from .services.render_service import build_page_render_items, group_items_into_rows
 
 
 def _resolve_store(request):
@@ -188,7 +188,10 @@ def storefront_preview(request):
         request.storefront_appearance_version = draft
     return render(request, "storefront_builder/preview.html", {
         "store": store, "version": draft, "page": page, "page_type": page_type,
-        "render_items": items, "is_preview": True,
+        "render_items": items,
+        # Phase 2: نگاه کنید به توضیحِ همین کلید در storefront_context_service.py.
+        "rows": group_items_into_rows(items),
+        "is_preview": True,
         "top_level_categories": top_level_categories,
     })
 

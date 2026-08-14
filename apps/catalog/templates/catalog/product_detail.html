@@ -18,6 +18,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/product_card.css' %}">
 <link rel="stylesheet" href="{% static 'css/product_detail.css' %}">
+<link rel="stylesheet" href="{% static 'css/storefront_builder.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -27,9 +28,7 @@
     👁️ این یک پیش‌نمایشِ مدیریتی است — این کالا با وضعیتِ «{{ product.get_status_display }}» ثبت شده و ممکن است برایِ مشتری‌ها قابلِ مشاهده نباشد.
   </div>
   {% endif %}
-  {% for item in render_items %}
-  {% include "storefront_builder/partials/responsive_section_wrapper.html" %}
-  {% endfor %}
+  {% include "storefront_builder/partials/render_rows.html" %}
 </div>
 {% endblock %}
 

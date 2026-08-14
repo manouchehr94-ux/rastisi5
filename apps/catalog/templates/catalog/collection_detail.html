@@ -11,6 +11,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/product_card.css' %}">
 <link rel="stylesheet" href="{% static 'css/product_list.css' %}">
+<link rel="stylesheet" href="{% static 'css/storefront_builder.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -23,8 +24,6 @@
     <span style="color:var(--ink)">{{ collection.name }}</span>
   </div>
 
-  {% for item in render_items %}
-  {% include "storefront_builder/partials/responsive_section_wrapper.html" %}
-  {% endfor %}
+  {% include "storefront_builder/partials/render_rows.html" %}
 </div>
 {% endblock %}

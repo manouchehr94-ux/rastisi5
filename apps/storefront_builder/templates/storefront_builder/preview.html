@@ -16,13 +16,13 @@
 
 {% block content %}
 <div class="wrap sfb-preview-sections">
-  {% for item in render_items %}
-  {% include "storefront_builder/partials/responsive_section_wrapper.html" %}
-  {% empty %}
+  {% if rows %}
+  {% include "storefront_builder/partials/render_rows.html" %}
+  {% else %}
   <div class="sfb-empty-preview" style="padding:60px 20px;text-align:center;color:var(--muted)">
     هنوز هیچ بخش فعالی در این چیدمان وجود ندارد.
   </div>
-  {% endfor %}
+  {% endif %}
 </div>
 {% endblock %}
 

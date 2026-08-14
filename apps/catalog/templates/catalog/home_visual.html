@@ -13,9 +13,7 @@
 
 {% block content %}
 <div class="wrap sfb-preview-sections">
-  {% for item in render_items %}
-  {% include "storefront_builder/partials/responsive_section_wrapper.html" %}
-  {% endfor %}
+  {% include "storefront_builder/partials/render_rows.html" %}
 </div>
 {% endblock %}
 

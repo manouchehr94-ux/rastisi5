@@ -25,6 +25,10 @@ arbitrary visual blocks» برایِ صفحاتِ خالی؛ اینجا معاد
         "render_items": list[dict],         # همیشه [] اگر صفحه هنوز
                                              # Sectionای ندارد یا Store
                                              # اصلاً منتشر نکرده
+        "rows": list[dict],                 # Phase 2: همان render_items
+                                             # بالا، گروه‌بندی‌شده به ردیف —
+                                             # نگاه کنید به
+                                             # render_service.group_items_into_rows
     }
 
 فراخوان (view) این دیکشنری را مستقیماً به کانتکستِ template اضافه
@@ -79,6 +83,7 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
     resolved = page_resolution_service.resolve_published_page(store, page_type)
 
     if not resolved.is_resolved:
+        items = render_service.build_default_render_items(page_type, store, page_context=page_context)
         return {
             "uses_universal_shell": False,
             "storefront_version": None,
@@ -92,7 +97,13 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
             # به build_default_render_items). ``home`` بی‌اثر می‌ماند، چون
             # صفحه‌ی اصلیِ منتشرنشده از تمپلیتِ کاملاً جداگانه‌ی
             # ``catalog/home.html`` استفاده می‌کند، نه render_items.
-            "render_items": render_service.build_default_render_items(page_type, store, page_context=page_context),
+            "render_items": items,
+            # Phase 2 (Universal Renderer): فهرستِ تخت بالا را به «ردیف‌ها»
+            # گروه‌بندی می‌کند (نگاه کنید به ``render_service.group_items_into_rows``)
+            # — تمپلیت‌های عمومی از این کلید برای رندر واقعی استفاده می‌کنند،
+            # نه ``render_items`` مستقیم (که فقط برای سازگاریِ عقب‌رو/مصرفِ
+            # احتمالیِ دیگر نگه داشته شده).
+            "rows": render_service.group_items_into_rows(items),
             "top_level_categories": _top_level_categories(store),
         }
 
@@ -103,6 +114,7 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
     # صفحه یکسان است، نه فقط صفحه‌ی اصلی.
     request.storefront_appearance_version = version
 
+    items = render_service.build_page_render_items(page, store, page_context=page_context)
     return {
         "uses_universal_shell": True,
         "storefront_version": version,
@@ -110,6 +122,7 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
         "page_type": page_type,
         "layout_header_config": version.effective_header_config(),
         "layout_footer_config": version.effective_footer_config(),
-        "render_items": render_service.build_page_render_items(page, store, page_context=page_context),
+        "render_items": items,
+        "rows": render_service.group_items_into_rows(items),
         "top_level_categories": _top_level_categories(store),
     }

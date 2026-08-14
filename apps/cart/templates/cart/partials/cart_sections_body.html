@@ -7,7 +7,5 @@ render_items (همان ترتیب/تنظیماتِ ریسپانسیوِ پیکر
 همیشه همین محتواست (بدونِ خودِ wrapperِ ``id="cart-container"`` — آن در
 قالبِ صفحه است، نه اینجا؛ ``hx-swap="innerHTML"`` فقط داخلِ آن را عوض می‌کند).
 {% endcomment %}
-{% for item in render_items %}
-{% include "storefront_builder/partials/responsive_section_wrapper.html" %}
-{% endfor %}
+{% include "storefront_builder/partials/render_rows.html" %}
 {% include "cart/partials/header_counts_oob.html" %}

@@ -1,0 +1,36 @@
+{% comment %}
+Phase 2 (Universal Renderer) — تنها نقطه‌ی مشترکِ رندرِ «ردیف‌ها»، هم برایِ
+پیش‌نمایشِ ادیتور (preview.html) هم برایِ هر پنج تمپلیتِ عمومی و پارتیالِ
+htmxِ سبد. دقیقاً همان فلسفه‌ی ``responsive_section_wrapper.html`` (که این
+پارتیال به ازای هر section همچنان همان را include می‌کند، بدونِ تغییر): یک
+نقطه‌ی واحد، هرگز فورک‌شده بینِ مسیرها.
+
+``rows`` (از ``render_service.group_items_into_rows``) همیشه یک فهرستِ
+یکنواخت است — حتی یک section مستقل هم یک «ردیفِ تک‌عضوی» با ``row_key=""``
+است؛ پس اینجا همیشه دقیقاً یک شکلِ رندر داریم، نه دو مسیرِ جدا برایِ
+section مستقل/عضوِ ردیف.
+
+ردیفِ تک‌عضوی دقیقاً همان خروجیِ امروز را تولید می‌کند (بدونِ wrapperِ
+grid اضافه) — یعنی سوئیچِ ۷ تمپلیتِ عمومی از حلقه‌ی مستقیمِ ``render_items``
+به این پارتیال، هیچ تغییرِ بصری‌ای برایِ اکثریتِ قریب‌به‌اتفاقِ صفحاتِ
+موجود (که هنوز هیچ row_key‌ای تنظیم نکرده‌اند) ایجاد نمی‌کند.
+
+``--row-span`` رویِ هر عضوِ یک ردیفِ چندعضوی ست می‌شود — گریدِ CSS واقعی
+(۱۲ واحدی، خودکار جمع‌شونده به تک‌ستون زیرِ ۱۰۰۰px) در storefront_builder.css
+تعریف شده (``.rsec-row``/``.rsec-row-item``)، نه اینجا.
+{% endcomment %}
+{% for row in rows %}
+{% if row.items|length > 1 %}
+<div class="rsec-row" data-row-key="{{ row.row_key }}">
+  {% for item in row.items %}
+  <div class="rsec-row-item" style="--row-span:{{ item.section.row_span }}">
+    {% include "storefront_builder/partials/responsive_section_wrapper.html" %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+{% with item=row.items.0 %}
+{% include "storefront_builder/partials/responsive_section_wrapper.html" %}
+{% endwith %}
+{% endif %}
+{% endfor %}

@@ -55,7 +55,9 @@ def _render_cart_container(request, cart):
         render_items = render_service.build_page_render_items(resolved.page, store, page_context=context)
     else:
         render_items = render_service.build_default_render_items(StorefrontPage.PageType.CART, store, page_context=context)
-    return render(request, "cart/partials/cart_sections_body.html", {**context, "render_items": render_items})
+    # Phase 2: نگاه کنید به توضیحِ کلیدِ «rows» در storefront_context_service.py.
+    rows = render_service.group_items_into_rows(render_items)
+    return render(request, "cart/partials/cart_sections_body.html", {**context, "render_items": render_items, "rows": rows})
 
 
 def cart_detail(request):

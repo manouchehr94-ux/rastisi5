@@ -135,6 +135,68 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Phase 2 (Universal Renderer) — ردیفِ ترکیبی (row_key/row_span، Phase 1).
+   گریدِ ۱۲-واحدیِ استاندارد: هر عضو ``--row-span`` خودش را (از
+   render_rows.html) به تعدادِ واحد از ۱۲ می‌گیرد. کاملاً مستقل از هر
+   Preset/Family — یک قاعده‌ی عمومی که فقط قراردادِ row_key/row_span را
+   می‌خواند، دقیقاً همان چیزی که معماریِ Phase 1 نویدش را داده بود.
+
+   ریسپانسیوِ خودکار (بخشِ ۱۰ مشخصات — «بدونِ چیدمانِ موبایلِ دستی»):
+   زیرِ ۱۰۰۰px (همان breakpointِ تبلتِ باقیِ این فایل/product_card.css)
+   ردیف به‌طورِ خودکار تک‌ستونه می‌شود — merchant هرگز مجبور نیست عرضِ
+   موبایل را جداگانه تنظیم کند. */
+.rsec-row {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 20px;
+  align-items: stretch;
+  margin: 20px 0;
+}
+.rsec-row-item {
+  grid-column: span var(--row-span, 12);
+  min-width: 0;
+}
+.rsec-row-item > .rsec {
+  margin: 0;
+  height: 100%;
+}
+@media (max-width: 1000px) {
+  .rsec-row {
+    grid-template-columns: 1fr;
+  }
+  .rsec-row-item {
+    grid-column: span 1;
+  }
+}
+
+/* Phase 2 — فاصله‌گذاریِ عمودیِ per-block (``settings.spacing``، Phase 1).
+   مقیاسِ «ساده» (Small/Normal/Large، بخشِ ۸ مشخصات) — override هایِ
+   پیشرفته (padding/margin دقیق) به‌شکلِ inline style مستقیماً از تمپلیت
+   می‌آیند (specificity بالاتر، پس همیشه بر این قواعد غالب‌اند). غیابِ
+   ``data-spacing`` (رفتارِ پیش‌فرض/فعلی) یعنی هیچ فاصله‌ی اضافه‌ای اعمال
+   نمی‌شود — دقیقاً همان چیدمانِ امروزِ هر section. */
+.rsec[data-spacing="small"] {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.rsec[data-spacing="large"] {
+  padding-top: 40px;
+  padding-bottom: 40px;
+}
+
+/* Phase 2 — پس‌زمینه‌یِ per-block (``settings.background``، Phase 1).
+   رنگ/تصویر به‌شکلِ inline style از تمپلیت اعمال می‌شوند (چون خودِ
+   مقدار — رنگِ هگز یا URLِ رسانه‌یِ store-scoped — پویا و per-instance
+   است، نه یک enum بسته‌یِ قابلِ‌بیان با selector)؛ این قاعده فقط ظاهرِ
+   عمومیِ حالتِ «تصویر» (پوششِ کاملِ ناحیه، بدونِ کِرِنش) را می‌دهد.
+   ``data-bg-mode="pattern"`` عمداً امروز بدونِ قاعده‌ی بصری است — رجیستریِ
+   الگو هنوز خالی است (نگاه کنید به section_registry.PATTERN_REGISTRY)،
+   پس هرگز این مقدار امروز واقعاً نوشته نمی‌شود. */
+.rsec[data-bg-mode="color"],
+.rsec[data-bg-mode="image"] {
+  border-radius: var(--radius);
+}
+
 /* شِلِ اصلی — پیش‌نمایشِ بزرگ سمتِ چپ (main)، پنلِ فشرده‌یِ سازنده
    سمتِ راست (aside) — دقیقاً همان چیدمانِ پروتوتایپِ V5. */
 .sfb-body {

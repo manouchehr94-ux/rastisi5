@@ -22,6 +22,18 @@ section‌هایِ از‌قبل‌موجود) یعنی ``none`` — دقیقا�
 معنا ندارد) — بی‌ضرر، چون فقط ``product_section.html`` از آن‌ها
 استفاده می‌کند (``.rsec-cols``).
 
+``data-bg-mode``/``data-spacing`` — Phase 2: بلوک‌هایِ ``settings.background``/
+``settings.spacing`` (Phase 1، فقط برایِ انواعِ عضوِ
+``BACKGROUND_AWARE_SECTION_KEYS``/``SPACING_AWARE_SECTION_KEYS``). دقیقاً
+همان الگویِ ``data-width``/``data-height`` بالا: فقط وقتی مقدار از حالتِ
+پیش‌فرض («theme»/«normal») فرق دارد نوشته می‌شود. رنگ/تصویرِ پس‌زمینه و
+override هایِ پیشرفته‌یِ فاصله‌گذاری به‌شکلِ inline style (نه custom
+property) اعمال می‌شوند — چون specificity باید همیشه بر رویِ قواعدِ
+attribute-selectorِ پایه (در storefront_builder.css) غالب باشد.
+``item.context.background_media_url`` از قبل در ``render_service`` حل شده
+(store-scoped، هرگز مستقیماً از تنظیماتِ خام) — این تمپلیت هرگز مستقیماً
+مالکیتِ Store را چک نمی‌کند/URL خام نمی‌سازد.
+
 ``data-section-id``/``data-section-key``/``data-section-label`` فقط وقتی
 حاضرند که ``is_preview`` صریحاً True باشد (متغیرِ از‌قبل‌موجودِ
 ``storefront_preview`` view — هرگز روی صفحه‌ی عمومی/``home_visual.html``
@@ -37,7 +49,9 @@ section‌هایِ از‌قبل‌موجود) یعنی ``none`` — دقیقا�
      data-motion="{{ item.context.settings.motion.style|default:"none" }}"
      {% if item.context.settings.layout.content_width and item.context.settings.layout.content_width != "standard" %}data-width="{{ item.context.settings.layout.content_width }}"{% endif %}
      {% if item.context.settings.layout.height and item.context.settings.layout.height != "standard" %}data-height="{{ item.context.settings.layout.height }}"{% endif %}
-     style="--cols-desktop:{{ item.context.settings.responsive.desktop_columns|default:4 }};--cols-tablet:{{ item.context.settings.responsive.tablet_columns|default:3 }};--cols-mobile:{{ item.context.settings.responsive.mobile_columns|default:2 }}">
+     {% if item.context.settings.background.mode and item.context.settings.background.mode != "theme" %}data-bg-mode="{{ item.context.settings.background.mode }}"{% endif %}
+     {% if item.context.settings.spacing.vertical_spacing and item.context.settings.spacing.vertical_spacing != "normal" %}data-spacing="{{ item.context.settings.spacing.vertical_spacing }}"{% endif %}
+     style="--cols-desktop:{{ item.context.settings.responsive.desktop_columns|default:4 }};--cols-tablet:{{ item.context.settings.responsive.tablet_columns|default:3 }};--cols-mobile:{{ item.context.settings.responsive.mobile_columns|default:2 }}{% if item.context.settings.background.mode == "color" and item.context.settings.background.color %};background-color:{{ item.context.settings.background.color }}{% endif %}{% if item.context.settings.background.mode == "image" and item.context.background_media_url %};background-image:url('{{ item.context.background_media_url }}');background-size:cover;background-position:center{% endif %}{% if item.context.settings.spacing.advanced.padding_top is not None %};padding-top:{{ item.context.settings.spacing.advanced.padding_top }}px{% endif %}{% if item.context.settings.spacing.advanced.padding_bottom is not None %};padding-bottom:{{ item.context.settings.spacing.advanced.padding_bottom }}px{% endif %}{% if item.context.settings.spacing.advanced.margin_top is not None %};margin-top:{{ item.context.settings.spacing.advanced.margin_top }}px{% endif %}{% if item.context.settings.spacing.advanced.margin_bottom is not None %};margin-bottom:{{ item.context.settings.spacing.advanced.margin_bottom }}px{% endif %}">
   {% if is_preview %}
   <span class="sfb-rsec-drag-handle" draggable="true" title="برای جابه‌جایی بکشید" aria-hidden="true">⠿</span>
   {% comment %}
