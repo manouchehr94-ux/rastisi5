@@ -1,103 +1,113 @@
 {% comment %}
-Canonical Footer shell — the single implementation shared by the public
-Storefront and the Builder Preview. See page_shell_header.html for the
-context contract (header_config there, footer_config here) and the
-Preview-only intentional-difference policy.
+Canonical Footer shell shared by the public Storefront and Builder Preview.
+The footer is deliberately composition/data-driven: menu columns, Store
+identity, contact information, trust/payment media and optional custom blocks
+all come from the existing universal footer contract.  No preset/store branch
+exists here.
 {% endcomment %}
 {% with fc=footer_config rc=footer_config.responsive %}
-<footer class="footer"><div class="wrap">
-  {% if fc.show_newsletter and FOOTER_SETTINGS.show_newsletter %}
-  <div class="news" {% if rc.show_newsletter.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_newsletter.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
-    <div><h3>{% if FOOTER_SETTINGS.newsletter_title %}{{ FOOTER_SETTINGS.newsletter_title }}{% else %}📬 عضویت در خبرنامه{% endif %}</h3><p>{% if FOOTER_SETTINGS.newsletter_description %}{{ FOOTER_SETTINGS.newsletter_description }}{% else %}از جدیدترین تخفیف‌ها و محصولات باخبر شوید{% endif %}</p></div>
-    <form @submit.prevent="$el.reset()">
-      <input type="email" placeholder="ایمیل خود را وارد کنید" disabled>
-      <button type="button" disabled>به‌زودی</button>
-    </form>
-  </div>
-  {% endif %}
-  <div class="cols">
-    {% if fc.show_about %}
-    <div class="about" {% if rc.show_about.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_about.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
-      <a class="logo" href="{% if is_live_storefront %}/{% else %}#{% endif %}"{% if is_builder_preview %} onclick="return false"{% endif %}>
-        {% if SHOP_LOGO %}
-        <img src="{{ SHOP_LOGO.url }}" alt="{{ SHOP_NAME }}" style="max-height:36px;max-width:140px">
-        {% else %}
-        <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 00-1 3.73V8L3 14v2h18v-2L13 8V6.73A2 2 0 0012 3z"/></svg></span>
-        {% endif %}
-        <span><b>{{ SHOP_NAME }}</b></span>
-      </a>
-      <p>{{ SHOP_NAME }}، {{ SHOP_TAGLINE }} با ضمانت اصالت کالا و ارسال سریع به سراسر کشور.</p>
-      {% if fc.show_social and SOCIAL_LINKS_FOOTER %}
-      <div class="socials" {% if rc.show_social.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_social.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
-        {% for slink in SOCIAL_LINKS_FOOTER %}
-        <a href="{{ slink.url }}" aria-label="{{ slink.title }}" target="_blank" rel="noopener noreferrer">{% include "partials/social_icon.html" with icon=slink.effective_icon_name %}</a>
-        {% endfor %}
-      </div>
+<footer class="footer">
+  <div class="wrap footer-shell">
+    {% if fc.show_newsletter and FOOTER_SETTINGS.show_newsletter %}
+    <div class="news" {% if rc.show_newsletter.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_newsletter.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+      <div><h3>{% if FOOTER_SETTINGS.newsletter_title %}{{ FOOTER_SETTINGS.newsletter_title }}{% else %}عضویت در خبرنامه{% endif %}</h3><p>{% if FOOTER_SETTINGS.newsletter_description %}{{ FOOTER_SETTINGS.newsletter_description }}{% else %}از جدیدترین تخفیف‌ها و محصولات باخبر شوید{% endif %}</p></div>
+      <form @submit.prevent="$el.reset()">
+        <input type="email" placeholder="ایمیل خود را وارد کنید" disabled>
+        <button type="button" disabled>به‌زودی</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <div class="footer-main-grid">
+      {% if fc.show_quick_links and NAV_FOOTER_1 %}
+      <section class="footer-col footer-col-links" {% if rc.show_quick_links.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_quick_links.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        <h5>{{ NAV_FOOTER_1.title }}</h5>
+        <ul>{% for item in NAV_FOOTER_1.items|slice:":7" %}<li>{% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}</li>{% endfor %}</ul>
+      </section>
       {% endif %}
-    </div>
-    {% endif %}
-    {% if fc.show_quick_links and NAV_FOOTER_1 %}
-    <div {% if rc.show_quick_links.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_quick_links.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
-      <h5>{{ NAV_FOOTER_1.title }}</h5>
-      <ul>
-        {% for item in NAV_FOOTER_1.items %}
-        <li>{% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}</li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-    {% if fc.show_categories %}
-    <div {% if rc.show_categories.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_categories.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
-      <h5>دسته‌بندی‌ها</h5>
-      <ul>
-        {% for cat in top_level_categories %}
-        <li><a href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">{{ cat.name }}</a></li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-    {% if fc.show_contact %}
-    <div {% if rc.show_contact.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_contact.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
-      <h5>تماس با ما</h5>
-      <ul>
-        {% if SHOP_CONTACT_PHONE %}<li><a href="tel:{{ SHOP_CONTACT_PHONE }}" dir="ltr">📞 {{ SHOP_CONTACT_PHONE }}</a></li>{% endif %}
-        {% if SHOP_CONTACT_EMAIL %}<li><a href="mailto:{{ SHOP_CONTACT_EMAIL }}" dir="ltr">✉️ {{ SHOP_CONTACT_EMAIL }}</a></li>{% endif %}
-      </ul>
-    </div>
-    {% endif %}
-    {% for block in fc.extra_blocks %}
-    {% if block.type == "custom_text" and block.text %}
-    <div class="sfb-footer-block-text">
-      {% if block.title %}<h5>{{ block.title }}</h5>{% endif %}
-      <p>{{ block.text }}</p>
-    </div>
-    {% elif block.type == "link" and block.url %}
-    <div class="sfb-footer-block-link">
-      <ul><li><a href="{{ block.url }}" target="_blank" rel="noopener noreferrer">{{ block.label|default:block.url }}</a></li></ul>
-    </div>
-    {% elif block.type == "social" and SOCIAL_LINKS_FOOTER %}
-    <div class="sfb-footer-block-social socials" style="display:flex;gap:8px">
-      {% for slink in SOCIAL_LINKS_FOOTER %}
-      <a href="{{ slink.url }}" aria-label="{{ slink.title }}" target="_blank" rel="noopener noreferrer">{% include "partials/social_icon.html" with icon=slink.effective_icon_name %}</a>
+
+
+
+      {% if fc.show_categories %}
+      <section class="footer-col footer-col-categories" {% if rc.show_categories.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_categories.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        <h5>دسته‌بندی‌ها</h5>
+        <ul>{% for cat in top_level_categories|slice:":7" %}<li><a href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">{{ cat.name }}</a></li>{% endfor %}</ul>
+      </section>
+      {% endif %}
+
+      {% if fc.show_contact %}
+      <section class="footer-col footer-col-contact" {% if rc.show_contact.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_contact.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        <h5>ارتباط با ما</h5>
+        <ul class="footer-contact-list">
+          {% if FOOTER_SETTINGS.phone %}<li><a href="tel:{{ FOOTER_SETTINGS.phone }}" dir="ltr">☎ {{ FOOTER_SETTINGS.phone }}</a></li>{% elif SHOP_CONTACT_PHONE %}<li><a href="tel:{{ SHOP_CONTACT_PHONE }}" dir="ltr">☎ {{ SHOP_CONTACT_PHONE }}</a></li>{% endif %}
+          {% if FOOTER_SETTINGS.secondary_phone %}<li><a href="tel:{{ FOOTER_SETTINGS.secondary_phone }}" dir="ltr">☎ {{ FOOTER_SETTINGS.secondary_phone }}</a></li>{% endif %}
+          {% if FOOTER_SETTINGS.email %}<li><a href="mailto:{{ FOOTER_SETTINGS.email }}" dir="ltr">✉ {{ FOOTER_SETTINGS.email }}</a></li>{% elif SHOP_CONTACT_EMAIL %}<li><a href="mailto:{{ SHOP_CONTACT_EMAIL }}" dir="ltr">✉ {{ SHOP_CONTACT_EMAIL }}</a></li>{% endif %}
+        </ul>
+        {% if FOOTER_SETTINGS.working_hours %}<p class="footer-working-hours">{{ FOOTER_SETTINGS.working_hours }}</p>{% endif %}
+      </section>
+
+      {% if FOOTER_SETTINGS.address %}
+      <section class="footer-col footer-col-address" {% if rc.show_contact.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_contact.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        <h5>آدرس فروشگاه</h5>
+        <p class="footer-address">⌖ {{ FOOTER_SETTINGS.address }}</p>
+      </section>
+      {% endif %}
+      {% endif %}
+
+      {% for block in fc.extra_blocks %}
+      {% if block.type == "custom_text" and block.text %}
+      <section class="footer-col footer-col-service">
+        {% if block.title %}<h5>{{ block.title }}</h5>{% endif %}
+        <p>{{ block.text }}</p>
+      </section>
+      {% elif block.type == "link" and block.url %}
+      <section class="footer-col footer-col-service"><h5>{{ block.label|default:"پیوند" }}</h5><a href="{{ block.url }}" target="_blank" rel="noopener noreferrer">{{ block.label|default:block.url }}</a></section>
+      {% endif %}
       {% endfor %}
     </div>
+
+    {% if fc.show_about %}
+    <section class="footer-description" {% if rc.show_about.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_about.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+      <div class="footer-description-copy">
+        {% if FOOTER_SETTINGS.description %}<p>{{ FOOTER_SETTINGS.description }}</p>{% elif SHOP_TAGLINE %}<p>{{ SHOP_TAGLINE }}</p>{% endif %}
+      </div>
+      <div class="footer-description-brand footer-col-brand">
+        <a class="footer-brand" href="{% if is_live_storefront %}/{% else %}#{% endif %}"{% if is_builder_preview %} onclick="return false"{% endif %}>
+          {% if SHOP_LOGO %}
+          <img src="{{ SHOP_LOGO.url }}" alt="{{ SHOP_NAME }}">
+          {% else %}
+          <span class="footer-brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a2 2 0 00-1 3.73V8L3 14v2h18v-2L13 8V6.73A2 2 0 0012 3z"/></svg></span>
+          {% endif %}
+          <span><b>{{ SHOP_NAME }}</b><small>{{ SHOP_TAGLINE|default:"فروشگاه اینترنتی" }}</small></span>
+        </a>
+      </div>
+    </section>
     {% endif %}
-    {% endfor %}
+
+    {% if fc.show_trust_badges or fc.show_payment_logos %}
+    <section class="footer-credibility">
+      <div class="footer-credibility-copy"><strong>خرید مطمئن و پرداخت امن</strong><span>نمادها و روش‌های پرداخت فعال فروشگاه</span></div>
+      <div class="footer-credibility-media">
+        {% if fc.show_trust_badges and FOOTER_TRUST_BADGES %}
+        <div class="trust-badges" {% if rc.show_trust_badges.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_trust_badges.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+          {% for badge in FOOTER_TRUST_BADGES %}<div class="trust-badge-item">{% if badge.destination_url %}<a href="{{ badge.destination_url }}" target="_blank" rel="noopener noreferrer"><img src="{{ badge.image.url }}" alt="{{ badge.title }}"></a>{% else %}<img src="{{ badge.image.url }}" alt="{{ badge.title }}">{% endif %}</div>{% endfor %}
+        </div>
+        {% endif %}
+        {% if fc.show_payment_logos and FOOTER_PAYMENT_LOGOS %}
+        <div class="payment-logos" {% if rc.show_payment_logos.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_payment_logos.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+          {% for logo in FOOTER_PAYMENT_LOGOS %}<span><img src="{{ logo.image.url }}" alt="{{ logo.title }}"></span>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    <div class="footer-bottom">
+      {% if fc.show_social and SOCIAL_LINKS_FOOTER %}
+      <div class="socials" {% if rc.show_social.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_social.hide_on_mobile %}data-shell-hide-mobile{% endif %}>{% for slink in SOCIAL_LINKS_FOOTER %}<a href="{{ slink.url }}" aria-label="{{ slink.title }}" target="_blank" rel="noopener noreferrer">{% include "partials/social_icon.html" with icon=slink.effective_icon_name %}</a>{% endfor %}</div>
+      {% endif %}
+      {% if fc.show_copyright %}<div class="copy" {% if rc.show_copyright.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_copyright.hide_on_mobile %}data-shell-hide-mobile{% endif %}><span>{% if FOOTER_SETTINGS.copyright_text %}{{ FOOTER_SETTINGS.copyright_text }}{% else %}© {{ SHOP_NAME }}{% endif %}</span></div>{% endif %}
+    </div>
   </div>
-  {% if fc.show_trust_badges and FOOTER_TRUST_BADGES %}
-  <div class="trust-badges" {% if rc.show_trust_badges.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_trust_badges.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
-    {% for badge in FOOTER_TRUST_BADGES %}
-    {% if badge.destination_url %}<a href="{{ badge.destination_url }}" target="_blank" rel="noopener noreferrer"><img src="{{ badge.image.url }}" alt="{{ badge.title }}"></a>{% else %}<img src="{{ badge.image.url }}" alt="{{ badge.title }}">{% endif %}
-    {% endfor %}
-  </div>
-  {% endif %}
-  {% if fc.show_payment_logos and FOOTER_PAYMENT_LOGOS %}
-  <div class="payment-logos" {% if rc.show_payment_logos.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_payment_logos.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
-    {% for logo in FOOTER_PAYMENT_LOGOS %}<img src="{{ logo.image.url }}" alt="{{ logo.title }}">{% endfor %}
-  </div>
-  {% endif %}
-  {% if fc.show_copyright %}
-  <div class="copy" {% if rc.show_copyright.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_copyright.hide_on_mobile %}data-shell-hide-mobile{% endif %}><span>© {{ SHOP_NAME }}</span></div>
-  {% endif %}
-</div></footer>
+</footer>
 {% endwith %}

@@ -30,7 +30,7 @@ from apps.catalog.models import (
     ProductVariant,
     Vendor,
 )
-from apps.content.models import ContentPage, FooterSettings, HeroSlide, Menu, MenuItem, PromotionalBanner, StoryRailItem
+from apps.content.models import (ContentPage, DestinationType, FooterPaymentLogo, FooterSettings, FooterTrustBadge, HeroSlide, Menu, MenuItem, PromotionalBanner, SocialLink, StoryRailItem)
 from apps.core.models import ShopSettings
 from apps.storefront_builder.models import StorefrontLayout
 from apps.stores.models import Store, StoreDomain, StoreMembership
@@ -311,7 +311,23 @@ class HeroBannerStoryTests(SeedRastisiFashionDemoCommandTests):
     def test_creates_at_least_4_promotional_banners(self):
         self._run()
         store = self._store()
-        self.assertGreaterEqual(PromotionalBanner.objects.filter(store=store).count(), 4)
+        self.assertGreaterEqual(PromotionalBanner.objects.filter(store=store).count(), 13)
+
+    def test_promotional_banners_have_real_click_destinations(self):
+        self._run()
+        store = self._store()
+        banners = PromotionalBanner.objects.filter(store=store, is_active=True)
+        self.assertGreaterEqual(banners.count(), 13)
+        self.assertFalse(banners.filter(destination_type=DestinationType.NONE).exists())
+
+    def test_rerun_upgrades_legacy_non_clickable_banners(self):
+        self._run()
+        store = self._store()
+        PromotionalBanner.objects.filter(store=store).update(destination_type=DestinationType.NONE)
+        self._run()
+        self.assertFalse(
+            PromotionalBanner.objects.filter(store=store, destination_type=DestinationType.NONE).exists()
+        )
 
     def test_creates_at_least_10_story_rail_items(self):
         self._run()
@@ -341,6 +357,15 @@ class NavigationAndContentTests(SeedRastisiFashionDemoCommandTests):
         for page in pages:
             self.assertEqual(page.status, ContentPage.Status.PUBLISHED)
 
+    def test_creates_populated_footer_menu_and_footer_media(self):
+        self._run()
+        store = self._store()
+        menu = Menu.objects.get(store=store, location=Menu.Location.FOOTER_1)
+        self.assertGreaterEqual(menu.items.count(), 4)
+        self.assertGreaterEqual(FooterTrustBadge.objects.filter(store=store, is_active=True).count(), 4)
+        self.assertGreaterEqual(FooterPaymentLogo.objects.filter(store=store, is_active=True).count(), 2)
+        self.assertGreaterEqual(SocialLink.objects.filter(store=store, is_active=True, show_in_footer=True).count(), 3)
+
 
 class BuilderLifecycleTests(SeedRastisiFashionDemoCommandTests):
     def test_storefront_layout_belongs_to_qa_store_with_published_version(self):
@@ -357,12 +382,12 @@ class BuilderLifecycleTests(SeedRastisiFashionDemoCommandTests):
         config = layout.published_version.effective_appearance_config()
         self.assertEqual(config["layout_preset_key"], "premium_boutique")
 
-    def test_default_preset_is_editorial_story(self):
+    def test_default_preset_is_v5_golden_homepage(self):
         self._run()
         store = self._store()
         layout = StorefrontLayout.objects.get(store=store)
         config = layout.published_version.effective_appearance_config()
-        self.assertEqual(config["layout_preset_key"], "editorial_story")
+        self.assertEqual(config["layout_preset_key"], "v5_golden_homepage")
 
     def test_published_version_has_real_preset_default_sections(self):
         self._run()
@@ -454,7 +479,7 @@ class IdempotencyTests(SeedRastisiFashionDemoCommandTests):
         self._run()
         store = self._store()
         self.assertEqual(Category.objects.filter(store=store).count(), 30)
-        self.assertEqual(Brand.objects.filter(store=store).count(), 4)
+        self.assertEqual(Brand.objects.filter(store=store).count(), 6)
 
     def test_rerunning_does_not_duplicate_variants(self):
         self._run()
@@ -469,10 +494,18 @@ class IdempotencyTests(SeedRastisiFashionDemoCommandTests):
         hero_before = HeroSlide.objects.filter(store=store).count()
         banner_before = PromotionalBanner.objects.filter(store=store).count()
         story_before = StoryRailItem.objects.filter(store=store).count()
+        footer_menu_before = MenuItem.objects.filter(menu__store=store, menu__location=Menu.Location.FOOTER_1).count()
+        trust_before = FooterTrustBadge.objects.filter(store=store).count()
+        payment_before = FooterPaymentLogo.objects.filter(store=store).count()
+        social_before = SocialLink.objects.filter(store=store).count()
         self._run()
         self.assertEqual(HeroSlide.objects.filter(store=store).count(), hero_before)
         self.assertEqual(PromotionalBanner.objects.filter(store=store).count(), banner_before)
         self.assertEqual(StoryRailItem.objects.filter(store=store).count(), story_before)
+        self.assertEqual(MenuItem.objects.filter(menu__store=store, menu__location=Menu.Location.FOOTER_1).count(), footer_menu_before)
+        self.assertEqual(FooterTrustBadge.objects.filter(store=store).count(), trust_before)
+        self.assertEqual(FooterPaymentLogo.objects.filter(store=store).count(), payment_before)
+        self.assertEqual(SocialLink.objects.filter(store=store).count(), social_before)
 
 
 class RateLimitIsolationTests(SeedRastisiFashionDemoCommandTests):

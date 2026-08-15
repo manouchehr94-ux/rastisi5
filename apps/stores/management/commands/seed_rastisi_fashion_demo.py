@@ -26,7 +26,9 @@ User/StoreMembership مرتبط) می‌سازد/می‌خواند — هرگز 
 from __future__ import annotations
 
 from decimal import Decimal
+from datetime import timedelta
 from io import BytesIO
+import hashlib
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -36,6 +38,7 @@ from django.db import transaction
 from django.utils import timezone
 from PIL import Image, ImageDraw, ImageFont
 
+from apps.blog.models import BlogPost
 from apps.catalog.models import (
     Brand,
     Category,
@@ -49,11 +52,14 @@ from apps.catalog.services.variant_service import create_variant
 from apps.content.models import (
     ContentPage,
     DestinationType,
+    FooterPaymentLogo,
     FooterSettings,
+    FooterTrustBadge,
     HeroSlide,
     Menu,
     MenuItem,
     PromotionalBanner,
+    SocialLink,
     StoryRailItem,
 )
 from apps.core.models import ShopSettings
@@ -71,15 +77,14 @@ STORE_NAME = "فروشگاه لباس تستی راستی سی"
 STORE_ADMIN_SUBDOMAIN = "rastisi-fashion-test"
 
 STORE_CONTACT = {
-    "tagline": "پوشاکِ روزمره — دادهٔ QA/آزمونی",
+    "tagline": "استایل امروز، انتخاب ماندگار",
     "description": (
-        "این فروشگاه صرفاً یک مجموعه‌دادهٔ آزمایشیِ محلی برایِ آزمونِ بصریِ "
-        "سیستمِ Layout Presetِ Storefront Builder است — هیچ داده‌ای در این "
-        "فروشگاه واقعی نیست."
+        "راستی استایل یک فروشگاه نمایشی پوشاک برای ارزیابی واقعی صفحهٔ فروشگاه است؛ "
+        "از لباس روزمره و رسمی تا کفش، کیف و اکسسوری با اطلاعات کامل محصول، تنوع رنگ و سایز."
     ),
-    "contact_phone": "09123456789",
-    "contact_email": "test-fashion@example.com",
-    "contact_address": "تهران، خیابان تست راستی سی، پلاک ۱۲۳، واحد ۴",
+    "contact_phone": "09121234567",
+    "contact_email": "hello@rastistyle.test",
+    "contact_address": "تهران، بلوار میرداماد، مجتمع راستی استایل",
 }
 STORE_TELEPHONE = "02112345678"
 STORE_POSTAL_CODE = "1234512345"
@@ -133,10 +138,12 @@ PRIMARY_CATEGORIES = [
 ]
 
 BRANDS = [
-    {"name": "آریا استایل", "slug": "aria-style"},
-    {"name": "ویرا پوش", "slug": "vira-poosh"},
-    {"name": "ماهان مد", "slug": "mahan-mode"},
-    {"name": "رایان کژوال", "slug": "rayan-casual"},
+    {"name": "آریا استایل", "name_en": "ARIA", "slug": "aria-style", "country": "ایران", "description": "پوشاک مینیمال و روزمره"},
+    {"name": "ویرا پوش", "name_en": "VIRA", "slug": "vira-poosh", "country": "ایران", "description": "استایل شهری و نیمه‌رسمی"},
+    {"name": "ماهان مد", "name_en": "MAHAN", "slug": "mahan-mode", "country": "ایران", "description": "کالکشن‌های زنانه و اکسسوری"},
+    {"name": "رایان کژوال", "name_en": "RAYAN", "slug": "rayan-casual", "country": "ایران", "description": "پوشاک کژوال و ورزشی"},
+    {"name": "نورا", "name_en": "NORA", "slug": "nora", "country": "ایران", "description": "مانتو و رویه‌های مدرن"},
+    {"name": "اُربان", "name_en": "URBAN", "slug": "urban", "country": "ایران", "description": "استایل خیابانی و راحت"},
 ]
 
 VENDOR = {"name": "فروشندهٔ QA راستی سی", "slug": "rastisi-fashion-vendor"}
@@ -205,7 +212,7 @@ CONTENT_PAGES = [
      "body": "این یک متنِ آزمایشیِ حریمِ خصوصی است — صرفاً برایِ آزمونِ فروشگاهِ QA."},
 ]
 
-DEFAULT_LAYOUT_PRESET_KEY = "editorial_story"
+DEFAULT_LAYOUT_PRESET_KEY = "v5_golden_homepage"
 
 
 def _text_font(size: int):
@@ -215,34 +222,162 @@ def _text_font(size: int):
         return ImageFont.load_default()
 
 
+def _rgb(hex_color: str) -> tuple[int, int, int]:
+    value = hex_color.lstrip("#")
+    if len(value) != 6:
+        return (124, 58, 237)
+    return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def _mix(color: tuple[int, int, int], target: tuple[int, int, int], amount: float) -> tuple[int, int, int]:
+    return tuple(round(a + (b - a) * amount) for a, b in zip(color, target))
+
+
+def _fashion_kind(label: str) -> str:
+    text = (label or "").lower()
+    if any(key in text for key in ("شلوار", "جین", "pants", "jeans")):
+        return "pants"
+    if any(key in text for key in ("کفش", "shoe", "sneaker")):
+        return "shoe"
+    if any(key in text for key in ("کیف", "bag")):
+        return "bag"
+    if any(key in text for key in ("شال", "روسری", "کمربند", "کلاه", "accessory")):
+        return "accessory"
+    if any(key in text for key in ("کت", "کاپشن", "مانتو", "رویه", "hoodie", "هودی")):
+        return "outerwear"
+    return "top"
+
+
+def _draw_garment(draw: ImageDraw.ImageDraw, box, color, kind: str, accent) -> None:
+    x0, y0, x1, y1 = [int(v) for v in box]
+    w, h = x1 - x0, y1 - y0
+    cx = x0 + w // 2
+    outline = _mix(color, (0, 0, 0), .28)
+
+    if kind == "pants":
+        waist_y = y0 + int(h * .10)
+        crotch_y = y0 + int(h * .45)
+        leg_bottom = y1 - int(h * .06)
+        draw.rounded_rectangle((x0 + int(w*.25), waist_y, x1 - int(w*.25), crotch_y), radius=max(6, w//28), fill=color, outline=outline, width=max(2, w//90))
+        draw.polygon([(x0+int(w*.28), crotch_y-4), (cx-5, crotch_y), (cx-int(w*.10), leg_bottom), (x0+int(w*.18), leg_bottom)], fill=color, outline=outline)
+        draw.polygon([(cx+5, crotch_y), (x1-int(w*.28), crotch_y-4), (x1-int(w*.18), leg_bottom), (cx+int(w*.10), leg_bottom)], fill=color, outline=outline)
+        draw.line((cx, waist_y+8, cx, crotch_y-5), fill=accent, width=max(2, w//100))
+    elif kind == "shoe":
+        sole_y = y0 + int(h*.72)
+        draw.rounded_rectangle((x0+int(w*.12), sole_y, x1-int(w*.08), sole_y+int(h*.10)), radius=max(8, h//28), fill=_mix(color,(255,255,255),.15), outline=outline, width=max(2,w//90))
+        draw.polygon([(x0+int(w*.20), sole_y), (x0+int(w*.33), y0+int(h*.35)), (x0+int(w*.55), y0+int(h*.38)), (x0+int(w*.70), y0+int(h*.58)), (x1-int(w*.08), sole_y)], fill=color, outline=outline)
+        for i in range(3):
+            yy=y0+int(h*(.46+i*.06))
+            draw.line((x0+int(w*.38),yy,x0+int(w*.58),yy+4),fill=accent,width=max(2,w//100))
+    elif kind == "bag":
+        by0=y0+int(h*.30)
+        by1=y1-int(h*.10)
+        draw.rounded_rectangle((x0+int(w*.17),by0,x1-int(w*.17),by1),radius=max(12,w//18),fill=color,outline=outline,width=max(2,w//90))
+        draw.arc((x0+int(w*.32),y0+int(h*.08),x1-int(w*.32),y0+int(h*.48)),180,360,fill=outline,width=max(5,w//45))
+        draw.rounded_rectangle((cx-int(w*.11),by0+int(h*.16),cx+int(w*.11),by0+int(h*.22)),radius=6,fill=accent)
+    elif kind == "accessory":
+        draw.ellipse((x0+int(w*.20),y0+int(h*.20),x1-int(w*.20),y1-int(h*.20)),fill=color,outline=outline,width=max(3,w//80))
+        draw.ellipse((x0+int(w*.34),y0+int(h*.34),x1-int(w*.34),y1-int(h*.34)),fill=_mix(color,(255,255,255),.55))
+        draw.rounded_rectangle((cx-int(w*.06),y0+int(h*.18),cx+int(w*.06),y1-int(h*.18)),radius=8,fill=accent)
+    else:
+        neck_w=int(w*.16)
+        shoulder_y=y0+int(h*.17)
+        body_top=y0+int(h*.24)
+        body_bottom=y1-int(h*.06)
+        if kind == "outerwear":
+            left=x0+int(w*.18); right=x1-int(w*.18)
+            draw.rounded_rectangle((left,body_top,right,body_bottom),radius=max(14,w//24),fill=color,outline=outline,width=max(2,w//90))
+            draw.polygon([(left,body_top+int(h*.06)),(x0+int(w*.04),y0+int(h*.40)),(x0+int(w*.12),y0+int(h*.52)),(left+int(w*.07),y0+int(h*.39))],fill=color,outline=outline)
+            draw.polygon([(right,body_top+int(h*.06)),(x1-int(w*.04),y0+int(h*.40)),(x1-int(w*.12),y0+int(h*.52)),(right-int(w*.07),y0+int(h*.39))],fill=color,outline=outline)
+            draw.line((cx,body_top+6,cx,body_bottom-8),fill=accent,width=max(2,w//90))
+        else:
+            points=[(cx-neck_w,body_top),(x0+int(w*.13),shoulder_y+int(h*.08)),(x0+int(w*.03),y0+int(h*.40)),(x0+int(w*.18),y0+int(h*.46)),(x0+int(w*.24),body_bottom),(x1-int(w*.24),body_bottom),(x1-int(w*.18),y0+int(h*.46)),(x1-int(w*.03),y0+int(h*.40)),(x1-int(w*.13),shoulder_y+int(h*.08)),(cx+neck_w,body_top)]
+            draw.polygon(points,fill=color,outline=outline)
+        draw.ellipse((cx-neck_w,y0+int(h*.09),cx+neck_w,y0+int(h*.27)),fill=_mix(color,(255,255,255),.65),outline=outline)
+
+
 def _generate_image_bytes(*, width: int, height: int, bg_hex: str, label: str) -> bytes:
-    """یک تصویرِ Portrait ساختگیِ برندنشان‌دار (فقط یک هندسه‌ی ساده + متن)
-    را در حافظه می‌سازد — هرگز دانلود/کپیِ تصویرِ سایتِ ثالث نیست."""
-    image = Image.new("RGB", (width, height), bg_hex)
-    draw = ImageDraw.Draw(image)
-    # هندسه‌ی ساده‌ی شبیه‌به‌پوشاک — یک ذوزنقه/بیضی به‌جایِ عکسِ واقعی.
-    inset_x = int(width * 0.18)
-    top = int(height * 0.18)
-    bottom = int(height * 0.82)
-    lighten = tuple(min(255, c + 40) for c in Image.new("RGB", (1, 1), bg_hex).getpixel((0, 0)))
-    draw.rounded_rectangle((inset_x, top, width - inset_x, bottom), radius=24, fill=lighten)
-    draw.ellipse((width * 0.35, top - 30, width * 0.65, top + 30), fill=lighten)
-    font = _text_font(28)
-    text = label[:28]
-    try:
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    except AttributeError:
-        text_w, text_h = draw.textsize(text, font=font)
-    draw.text(((width - text_w) / 2, height - text_h - 24), text, fill="#111111", font=font)
+    """تصویرِ کاملاً محلی و کپی‌رایت-ایمن برای Demo پوشاک.
+
+    به‌جایِ کارتِ متنیِ قدیمی، یک تصویرِ استودیوییِ تمیز با سیلوئتِ واقعیِ
+    نوعِ محصول می‌سازد. هدف، ارزیابیِ جدیِ نسبتِ عکس/کارت/بنر در Storefront
+    است؛ هیچ فایل یا URL خارجی در Runtime لازم نیست.
+    """
+    seed = hashlib.sha256((label or "fashion").encode("utf-8")).digest()
+    source = _rgb(bg_hex)
+    garment = _mix(source, (30, 30, 36), .24 if sum(source) > 500 else .02)
+    accent = _mix(garment, (255, 255, 255), .70)
+    kind = _fashion_kind(label)
+
+    # Hero/banner: قاب ادیتوریالِ عریض با دو محصول بزرگ و فضای خالی برای متن HTML.
+    if width / max(height, 1) > 1.55:
+        base = _mix(source, (250, 249, 246), .40)
+        image = Image.new("RGB", (width, height), base)
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((-int(width*.08), -int(height*.45), int(width*.42), int(height*.90)), fill=_mix(source,(255,255,255),.12))
+        draw.ellipse((int(width*.64), int(height*.30), int(width*1.05), int(height*1.18)), fill=_mix(source,(255,255,255),.24))
+        # soft floor/shadows
+        draw.ellipse((int(width*.08), int(height*.77), int(width*.52), int(height*.92)), fill=_mix(base,(0,0,0),.10))
+        draw.ellipse((int(width*.43), int(height*.72), int(width*.80), int(height*.88)), fill=_mix(base,(0,0,0),.08))
+        _draw_garment(draw,(width*.10,height*.10,width*.42,height*.84),garment,kind,accent)
+        second=_mix(garment,(255,255,255),.30)
+        _draw_garment(draw,(width*.44,height*.17,width*.70,height*.78),second,"outerwear" if kind!="outerwear" else "top",_mix(second,(255,255,255),.68))
+    else:
+        # Product/category: بک‌گراند استودیویی خنثی، سایه، پودیوم و پوشاک.
+        bg = (247, 246, 243)
+        image = Image.new("RGB", (width, height), bg)
+        draw = ImageDraw.Draw(image)
+        panel = _mix(source, (255,255,255), .72)
+        margin=int(width*.07)
+        draw.rounded_rectangle((margin,margin,width-margin,height-margin),radius=max(18,width//22),fill=panel)
+        draw.ellipse((int(width*.18),int(height*.76),int(width*.82),int(height*.88)),fill=_mix(panel,(0,0,0),.12))
+        shift=(seed[0] % max(1,int(width*.04))) - int(width*.02)
+        _draw_garment(draw,(width*.17+shift,height*.10,width*.83+shift,height*.78),garment,kind,accent)
+
     buffer = BytesIO()
-    image.save(buffer, format="JPEG", quality=85)
+    image.save(buffer, format="JPEG", quality=90, optimize=True)
     return buffer.getvalue()
 
 
 def _uploaded_image(*, filename: str, width: int, height: int, bg_hex: str, label: str) -> SimpleUploadedFile:
     data = _generate_image_bytes(width=width, height=height, bg_hex=bg_hex, label=label)
     return SimpleUploadedFile(filename, data, content_type="image/jpeg")
+
+
+def _uploaded_brand_logo(*, filename: str, text: str, bg_hex: str) -> SimpleUploadedFile:
+    image = Image.new("RGB", (420, 180), "#FFFFFF")
+    draw = ImageDraw.Draw(image)
+    color = _rgb(bg_hex)
+    draw.rounded_rectangle((12, 12, 408, 168), radius=24, outline=_mix(color,(255,255,255),.35), width=3)
+    font = _text_font(44)
+    label = (text or "STYLE")[:12]
+    try:
+        bbox = draw.textbbox((0,0), label, font=font)
+        tw, th = bbox[2]-bbox[0], bbox[3]-bbox[1]
+    except AttributeError:
+        tw, th = draw.textsize(label, font=font)
+    draw.text(((420-tw)/2,(180-th)/2-4),label,font=font,fill=color)
+    buffer=BytesIO(); image.save(buffer,format="JPEG",quality=92,optimize=True)
+    return SimpleUploadedFile(filename,buffer.getvalue(),content_type="image/jpeg")
+
+
+
+def _uploaded_footer_badge(*, filename: str, text: str, bg_hex: str) -> SimpleUploadedFile:
+    """Small local-only trust/payment badge used by the demo Store."""
+    image = Image.new("RGB", (180, 180), "#FFFFFF")
+    draw = ImageDraw.Draw(image)
+    color = _rgb(bg_hex)
+    draw.rounded_rectangle((10, 10, 170, 170), radius=24, outline=_mix(color, (255,255,255), .25), width=4)
+    draw.ellipse((54, 28, 126, 100), fill=_mix(color, (255,255,255), .70), outline=color, width=3)
+    font = _text_font(24)
+    label = (text or "SAFE")[:8]
+    try:
+        bbox = draw.textbbox((0,0), label, font=font); tw, th = bbox[2]-bbox[0], bbox[3]-bbox[1]
+    except AttributeError:
+        tw, th = draw.textsize(label, font=font)
+    draw.text(((180-tw)/2, 116), label, font=font, fill=color)
+    buffer = BytesIO(); image.save(buffer, format="JPEG", quality=92, optimize=True)
+    return SimpleUploadedFile(filename, buffer.getvalue(), content_type="image/jpeg")
 
 
 class Command(BaseCommand):
@@ -301,8 +436,11 @@ class Command(BaseCommand):
             self._seed_membership(store, owner)
             self._seed_shop_settings(store)
             self._seed_footer_settings(store)
+            footer_media_stats = self._seed_footer_media(store)
+            social_link_count = self._seed_social_links(store)
             vendor = self._seed_vendor(store)
             categories = self._seed_categories(store)
+            category_image_count = self._seed_category_images(categories)
             brands = self._seed_brands(store)
             products = self._seed_products(store, vendor, categories, brands)
             variant_stats = self._seed_variants(products)
@@ -312,7 +450,9 @@ class Command(BaseCommand):
             banner_count = self._seed_banners(store)
             story_count = self._seed_story_rail(store, categories, products, collections)
             menu_item_count = self._seed_navigation(store, categories, collections)
+            footer_menu_count = self._seed_footer_menus(store, categories, collections)
             content_page_count = self._seed_content_pages(store)
+            blog_post_count = self._seed_blog_posts()
             self._seed_builder(store, owner, preset)
 
         self.stdout.write(self.style.SUCCESS(
@@ -320,6 +460,7 @@ class Command(BaseCommand):
             f"  Store: {store.slug} (admin_subdomain={store.admin_subdomain})\n"
             f"  دسته‌بندی: {Category.objects.filter(store=store).count()}\n"
             f"  برند: {Brand.objects.filter(store=store).count()}\n"
+            f"  تصویر دسته‌بندی: {category_image_count}\n"
             f"  کالا: {Product.objects.filter(store=store).count()}\n"
             f"  تنوع: {variant_stats['total']} (روی {variant_stats['products_with_variants']} کالا؛ "
             f"{variant_stats['image_mapped']} تنوعِ تصویرمحور)\n"
@@ -328,8 +469,12 @@ class Command(BaseCommand):
             f"  اسلایدِ هیرو: {hero_count}\n"
             f"  بنر تبلیغاتی: {banner_count}\n"
             f"  آیتمِ استوری: {story_count}\n"
-            f"  آیتمِ منو: {menu_item_count}\n"
+            f"  آیتمِ منوی هدر: {menu_item_count}\n"
+            f"  آیتمِ منوی فوتر: {footer_menu_count}\n"
+            f"  نماد اعتماد/پرداخت: {footer_media_stats['trust']}/{footer_media_stats['payment']}\n"
+            f"  شبکه‌های اجتماعی فوتر: {social_link_count}\n"
             f"  صفحهٔ محتوایی: {content_page_count}\n"
+            f"  مطلب وبلاگ نمایشی: {blog_post_count}\n"
             f"  Presetِ منتشرشده: {preset.key}\n"
             "  ویدیویِ کالا: SKIPPED — نیازمندِ یک لینکِ خارجیِ واقعیِ یوتیوب/آپارات/"
             "اینستاگرام است (apps.catalog.models.ProductVideo.url)؛ هیچ گزینهٔ محلیِ "
@@ -375,6 +520,13 @@ class Command(BaseCommand):
         # MenuItem.menu آزاد شود. فیلترِ ``menu__store=existing`` تضمین
         # می‌کند هیچ آیتمِ منویِ فروشگاهِ دیگری لمس نشود.
         MenuItem.objects.filter(menu__store=existing).delete()
+
+        # MediaAsset is Store-owned, while homepage placements reference it
+        # through PROTECT. Remove only this QA Store's placements first so
+        # Store.delete() can safely cascade through its MediaAsset rows.
+        HeroSlide.objects.filter(store=existing).delete()
+        PromotionalBanner.objects.filter(store=existing).delete()
+        StoryRailItem.objects.filter(store=existing).delete()
 
         # قدمِ ۳ — اکنون Store.delete() بدونِ هیچ PROTECTِ باقی‌مانده، امن
         # است؛ بقیه‌ی گرافِ Store-owned از طریقِ CASCADEِ معمولیِ مدل‌ها پاک
@@ -443,7 +595,7 @@ class Command(BaseCommand):
 
     def _seed_shop_settings(self, store: Store) -> None:
         shop = ShopSettings.provision_for(store)
-        shop.name = STORE_NAME
+        shop.name = "راستی استایل"
         shop.tagline = STORE_CONTACT["tagline"]
         shop.description = STORE_CONTACT["description"]
         shop.contact_phone = STORE_CONTACT["contact_phone"]
@@ -466,10 +618,63 @@ class Command(BaseCommand):
         footer.email = STORE_CONTACT["contact_email"]
         footer.working_hours = STORE_SUPPORT_HOURS
         footer.show_navigation = True
-        footer.show_social_links = False
-        footer.copyright_text = "© فروشگاه لباس تستی راستی سی — دادهٔ QA"
+        footer.show_social_links = True
+        footer.show_trust_badges = True
+        footer.show_payment_logos = True
+        footer.copyright_text = "© راستی استایل — همه حقوق محفوظ است"
         footer.save()
         self._log("FooterSettings", 0, note="provision + به‌روزرسانیِ هویت")
+
+    def _seed_footer_media(self, store: Store) -> dict:
+        trust_defs = [("نماد اعتماد", "TRUST", "#0F766E"), ("ضمانت خرید", "SAFE", "#1D4ED8"), ("اصالت کالا", "ORIG", "#7C3AED"), ("پشتیبانی", "HELP", "#B45309")]
+        payment_defs = [("پرداخت امن", "PAY", "#16A34A"), ("کارت بانکی", "CARD", "#334155")]
+        trust_created = 0; payment_created = 0
+        for order, (title, text, color) in enumerate(trust_defs):
+            if FooterTrustBadge.objects.filter(store=store, title=title).exists():
+                continue
+            badge = FooterTrustBadge(store=store, title=title, display_order=order, is_active=True)
+            badge.image = _uploaded_footer_badge(filename=f"trust-{order}.jpg", text=text, bg_hex=color)
+            badge.save(); trust_created += 1
+        for order, (title, text, color) in enumerate(payment_defs):
+            if FooterPaymentLogo.objects.filter(store=store, title=title).exists():
+                continue
+            logo = FooterPaymentLogo(store=store, title=title, display_order=order, is_active=True)
+            logo.image = _uploaded_footer_badge(filename=f"payment-{order}.jpg", text=text, bg_hex=color)
+            logo.save(); payment_created += 1
+        self._log("FooterTrustBadge", trust_created)
+        self._log("FooterPaymentLogo", payment_created)
+        return {"trust": FooterTrustBadge.objects.filter(store=store).count(), "payment": FooterPaymentLogo.objects.filter(store=store).count()}
+
+
+    def _seed_social_links(self, store: Store) -> int:
+        """A small deterministic footer-social set for realistic shell QA."""
+        entries = [
+            (SocialLink.Platform.INSTAGRAM, "اینستاگرام", "https://www.instagram.com/"),
+            (SocialLink.Platform.TELEGRAM, "تلگرام", "https://t.me/"),
+            (SocialLink.Platform.X, "ایکس", "https://x.com/"),
+        ]
+        created_count = 0
+        for order, (platform, title, url) in enumerate(entries):
+            link, created = SocialLink.objects.get_or_create(
+                store=store, platform=platform,
+                defaults={
+                    "title": title, "url": url, "display_order": order,
+                    "is_active": True, "show_in_header": False, "show_in_footer": True,
+                },
+            )
+            if not created:
+                changed = False
+                for field, value in (
+                    ("title", title), ("url", url), ("display_order", order),
+                    ("is_active", True), ("show_in_header", False), ("show_in_footer", True),
+                ):
+                    if getattr(link, field) != value:
+                        setattr(link, field, value); changed = True
+                if changed:
+                    link.save()
+            created_count += int(created)
+        self._log("SocialLink", created_count)
+        return SocialLink.objects.filter(store=store, is_active=True, show_in_footer=True).count()
 
     # ------------------------------------------------------------------ Vendor/Category/Brand
 
@@ -500,13 +705,41 @@ class Command(BaseCommand):
         self._log("Category", created_count)
         return by_slug
 
+    def _seed_category_images(self, categories: dict) -> int:
+        palette = ["#D9C7B5", "#B8C7D9", "#C9B8D9", "#BFD3C1", "#D8B7B7", "#B9C8C0", "#D4C5A7", "#B7C3D8", "#D8B7CB", "#C5B9A7"]
+        created = 0
+        for index, data in enumerate(PRIMARY_CATEGORIES):
+            category = categories[data["slug"]]
+            if category.image:
+                continue
+            category.image = _uploaded_image(
+                filename=f"category-{data['slug']}.jpg", width=640, height=640,
+                bg_hex=palette[index % len(palette)], label=data["name"],
+            )
+            category.save(update_fields=["image", "updated_at"])
+            created += 1
+        self._log("CategoryImage", created)
+        return created
+
     def _seed_brands(self, store: Store) -> dict:
         by_slug = {}
         created_count = 0
-        for data in BRANDS:
+        logo_colors = ["#111827", "#7C3AED", "#BE123C", "#0F766E", "#B45309", "#334155"]
+        for index, data in enumerate(BRANDS):
             brand, created = Brand.objects.get_or_create(
-                store=store, slug=data["slug"], defaults={"name": data["name"], "is_active": True},
+                store=store, slug=data["slug"],
+                defaults={
+                    "name": data["name"], "name_en": data.get("name_en", ""),
+                    "description": data.get("description", ""), "country": data.get("country", ""),
+                    "sort_order": index, "is_active": True,
+                },
             )
+            if not brand.logo:
+                brand.logo = _uploaded_brand_logo(
+                    filename=f"brand-{data['slug']}.jpg", text=data.get("name_en") or data["slug"],
+                    bg_hex=logo_colors[index % len(logo_colors)],
+                )
+                brand.save(update_fields=["logo", "updated_at"])
             created_count += int(created)
             by_slug[data["slug"]] = brand
         self._log("Brand", created_count)
@@ -567,9 +800,18 @@ class Command(BaseCommand):
                     defaults={
                         "vendor": vendor, "category": category, "brand": brand,
                         "name": name, "slug": slug,
-                        "description": f"{name} — کالایِ آزمایشیِ QA برایِ آزمونِ بصریِ Storefront Builder.",
+                        "description": (
+                            f"{name} با پارچهٔ باکیفیت و دوخت تمیز؛ مناسب استفادهٔ روزمره و استایل شهری. "
+                            "راهنمای انتخاب سایز و رنگ در صفحهٔ محصول در دسترس است."
+                        ),
                         "price": price, "discount_percent": discount_percent, "stock": stock,
                         "status": status, "unit": Product.Unit.PIECE,
+                        "rating": Decimal(str(4 + ((product_index % 9) / 10))),
+                        "reviews_count": 12 + (product_index * 7) % 180,
+                        "sold_count": 18 + (product_index * 13) % 420,
+                        "views_count": 120 + (product_index * 29) % 2400,
+                        "tag": [Product.Tag.NEW, Product.Tag.HOT, Product.Tag.SALE, ""][product_index % 4],
+                        "icon": primary["icon"],
                     },
                 )
                 created_count += int(created)
@@ -754,11 +996,19 @@ class Command(BaseCommand):
         created_count = 0
         colors = ["#111827", "#7C2D12", "#0F172A", "#78350F"]
         for order, (title, subtitle) in enumerate(titles):
-            if HeroSlide.objects.filter(store=store, title=title).exists():
+            slide = HeroSlide.objects.filter(store=store, title=title).first()
+            if slide is not None:
+                slide.subtitle = subtitle
+                slide.display_order = order
+                slide.is_active = True
+                slide.show_button = True
+                slide.button_label = "خرید"
+                slide.destination_type = DestinationType.SEARCH
+                slide.save(update_fields=["subtitle", "display_order", "is_active", "show_button", "button_label", "destination_type", "updated_at"])
                 continue
             slide = HeroSlide(
                 store=store, title=title, subtitle=subtitle, display_order=order, is_active=True,
-                show_button=False, destination_type=DestinationType.NONE,
+                show_button=True, button_label="خرید", destination_type=DestinationType.SEARCH,
             )
             slide.desktop_image = _uploaded_image(
                 filename=f"hero-{order}.jpg", width=1600, height=700, bg_hex=colors[order % len(colors)], label=title,
@@ -769,15 +1019,34 @@ class Command(BaseCommand):
         return created_count
 
     def _seed_banners(self, store: Store) -> int:
-        titles = ["پرفروش‌های تابستان", "جدیدترین کلکسیون", "تخفیف ویژهٔ اعضا", "ارسال رایگان بالای ۵۰۰ هزار تومان"]
+        # Enough distinct Store-owned assets for the repeated Universal banner
+        # blocks in the Golden composition.  The renderer selects slices via
+        # offset/item_limit; no banner ID is ever hard-coded into the preset.
+        titles = [
+            "پرفروش‌های تابستان", "جدیدترین کلکسیون", "تخفیف ویژهٔ اعضا", "ارسال رایگان بالای ۵۰۰ هزار تومان",
+            "انتخاب رسمی این هفته", "استایل روزمره", "پیشنهاد اعضای باشگاه", "ارسال رایگان امروز",
+            "راهنمای انتخاب استایل", "کالکشن شهری", "پیشنهاد فصل", "منتخب راستی استایل",
+            "راستی استایل کنار شما",
+        ]
         created_count = 0
-        colors = ["#334155", "#7C3AED", "#B45309", "#0E7490"]
+        colors = ["#334155", "#7C3AED", "#B45309", "#0E7490", "#9F1239", "#0F766E", "#4338CA", "#C2410C", "#475569", "#6D28D9", "#0369A1", "#A16207", "#0F766E"]
         for order, title in enumerate(titles):
-            if PromotionalBanner.objects.filter(store=store, title=title).exists():
+            banner = PromotionalBanner.objects.filter(store=store, title=title).first()
+            if banner is not None:
+                changed = False
+                for field, value in (
+                    ("display_order", order), ("is_active", True),
+                    ("show_button", False), ("destination_type", DestinationType.SEARCH),
+                ):
+                    if getattr(banner, field) != value:
+                        setattr(banner, field, value)
+                        changed = True
+                if changed:
+                    banner.save(update_fields=["display_order", "is_active", "show_button", "destination_type", "updated_at"])
                 continue
             banner = PromotionalBanner(
                 store=store, title=title, display_order=order, is_active=True,
-                show_button=False, destination_type=DestinationType.NONE,
+                show_button=False, destination_type=DestinationType.SEARCH,
             )
             banner.desktop_image = _uploaded_image(
                 filename=f"banner-{order}.jpg", width=1200, height=500, bg_hex=colors[order % len(colors)], label=title,
@@ -869,6 +1138,58 @@ class Command(BaseCommand):
         self._log("MenuItem", created_count)
         return created_count
 
+    def _seed_footer_menus(self, store: Store, categories: dict, collections: list) -> int:
+        """Seed the one reusable quick-link column consumed by the public footer.
+
+        Category links are rendered from ``top_level_categories`` by the shared
+        footer shell, so they stay automatically in sync with the Store catalog
+        and do not need a second, duplicated menu dataset.
+        """
+        collection_by_slug = {c.slug: c for c in collections}
+        entries = [
+            ("جستجوی محصولات", DestinationType.SEARCH, None),
+            ("سبد خرید", DestinationType.CART, None),
+            ("تازه رسیده‌ها", DestinationType.COLLECTION, collection_by_slug.get("new-arrivals-rastisi")),
+            ("تخفیف‌ها", DestinationType.COLLECTION, collection_by_slug.get("special-discount-rastisi")),
+        ]
+        menu, _ = Menu.objects.get_or_create(
+            store=store, location=Menu.Location.FOOTER_1,
+            defaults={"title": "راهنمای خرید", "is_active": True},
+        )
+        if menu.title != "راهنمای خرید" or not menu.is_active:
+            menu.title = "راهنمای خرید"
+            menu.is_active = True
+            menu.save(update_fields=["title", "is_active", "updated_at"])
+
+        created_count = 0
+        for order, (item_title, destination_type, target) in enumerate(entries):
+            if destination_type == DestinationType.COLLECTION and target is None:
+                continue
+            defaults = {
+                "display_order": order, "is_active": True,
+                "destination_type": destination_type,
+            }
+            if destination_type == DestinationType.COLLECTION:
+                defaults["destination_collection"] = target
+            item, created = MenuItem.objects.get_or_create(
+                menu=menu, title=item_title, parent=None, defaults=defaults,
+            )
+            if not created:
+                changed = False
+                if item.display_order != order:
+                    item.display_order = order; changed = True
+                if not item.is_active:
+                    item.is_active = True; changed = True
+                if item.destination_type != destination_type:
+                    item.destination_type = destination_type; changed = True
+                if destination_type == DestinationType.COLLECTION and item.destination_collection_id != target.pk:
+                    item.destination_collection = target; changed = True
+                if changed:
+                    item.save()
+            created_count += int(created)
+        self._log("FooterMenuItem", created_count)
+        return created_count
+
     # ------------------------------------------------------------------ Content pages
 
     def _seed_content_pages(self, store: Store) -> int:
@@ -886,6 +1207,35 @@ class Command(BaseCommand):
             created_count += int(created)
         self._log("ContentPage", created_count)
         return created_count
+
+    # ------------------------------------------------------------------ Fashion blog (platform-wide demo records)
+
+    def _seed_blog_posts(self) -> int:
+        posts = [
+            ("راهنمای ساخت کمد کپسولی برای هر فصل", "راهنمای استایل", "چطور با چند تکهٔ کاربردی، استایل‌های متنوع و هماهنگ بسازیم."),
+            ("۵ ترکیب رنگی ساده برای استایل روزمره", "مد و رنگ", "ترکیب‌های مطمئن و قابل استفاده برای محیط کار، دانشگاه و آخر هفته."),
+            ("راهنمای انتخاب سایز شلوار جین", "راهنمای خرید", "نکات اندازه‌گیری دور کمر، قد و فیت مناسب قبل از خرید اینترنتی."),
+            ("چطور از لباس‌های نخی بهتر مراقبت کنیم؟", "مراقبت از لباس", "شست‌وشو، خشک‌کردن و نگهداری صحیح برای حفظ فرم و رنگ لباس."),
+        ]
+        colors = ["#E7DDD2", "#D9E5E2", "#E4DCE8", "#DEE4EC"]
+        created = 0
+        now = timezone.now()
+        for index, (title, category, excerpt) in enumerate(posts):
+            slug = f"rastisi-fashion-guide-{index+1}"
+            if BlogPost.objects.filter(slug=slug).exists():
+                continue
+            post = BlogPost(
+                title=title, slug=slug, category_label=category, excerpt=excerpt,
+                body=excerpt + " این مطلب برای فروشگاه نمایشی راستی استایل تهیه شده است.",
+                tint=colors[index], published_at=now - timedelta(days=index * 4),
+            )
+            post.cover_image = _uploaded_image(
+                filename=f"blog-fashion-{index+1}.jpg", width=900, height=620,
+                bg_hex=colors[index], label=title,
+            )
+            post.save(); created += 1
+        self._log("BlogPost", created)
+        return created
 
     # ------------------------------------------------------------------ Builder lifecycle
 

@@ -88,7 +88,26 @@ def _single_banner_context(store, section):
 
 
 def _multi_banner_context(store, section):
-    return {"banners": _scoped_banners(store, section)}
+    """Resolve a reusable slice of active promotional banners.
+
+    ``offset``/``item_limit`` live in the section JSON so several independent
+    banner blocks can compose different parts of the same Store-owned banner
+    pool without hard-coded banner IDs.  Values are clamped defensively; old
+    sections without either key keep the legacy behaviour (all banners).
+    """
+    settings = section.settings or {}
+    try:
+        offset = max(0, min(50, int(settings.get("offset", 0))))
+    except (TypeError, ValueError):
+        offset = 0
+    raw_limit = settings.get("item_limit")
+    if raw_limit in (None, ""):
+        return {"banners": _scoped_banners(store, section)}
+    try:
+        limit = max(1, min(24, int(raw_limit)))
+    except (TypeError, ValueError):
+        limit = 24
+    return {"banners": _scoped_banners(store, section)[offset:offset + limit]}
 
 
 def _category_grid_context(store, section):
@@ -109,11 +128,16 @@ def _category_grid_context(store, section):
         categories = list(
             Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
         )
+    settings = {**default_category_grid_settings(), **(section.settings or {})}
+    try:
+        item_limit = max(2, min(12, int(settings.get("item_limit", 12))))
+    except (TypeError, ValueError):
+        item_limit = 12
     return {
         "tiles": list(zip(categories[:3], TILE_CLASSES)),
         "cream_category": categories[3] if len(categories) > 3 else None,
-        "top_categories": categories,
-        "category_grid_settings": {**default_category_grid_settings(), **(section.settings or {})},
+        "top_categories": categories[:item_limit],
+        "category_grid_settings": settings,
     }
 
 

@@ -1,35 +1,22 @@
 {% load content_tags %}
 {% if banners %}
-<section class="section">
-  {% comment %}
-  Phase 3: چیدمانِ واقعیِ گرید/ردیف — پیش از این چکپوینت هر بنر بی‌قیدوشرط
-  زیرِ بنرِ قبلی چیده می‌شد (تعدادِ ستونِ ذخیره‌شده هیچ اثرِ بصری‌ای
-  نداشت). اکنون از همان کلاسِ ``.grid.rsec-cols``یِ موجود (product_card.css)
-  استفاده می‌شود — دقیقاً همان مکانیزمِ ``product_section.html``، بدونِ
-  ساختنِ قاعده‌ی CSSِ تازه. ``desktop_columns=2`` یعنی «ردیفِ دو بنری»؛
-  عددِ بزرگ‌تر یعنی «گریدِ چند بنری» — یک بلوکِ پیکربندی‌پذیر، نه دو نوعِ
-  ثبت‌شده‌ی جدا.
-  {% endcomment %}
-  <div class="grid rsec-cols">
+<section class="section banner-section banner-section--{{ settings.layout_variant|default:'default' }}">
+  <div class="grid rsec-cols promo-grid promo-grid--{{ settings.layout_variant|default:'default' }}">
     {% for banner in banners %}
-    <div class="promo-dark">
-      <div>
-        {% if banner.title %}<h3>{{ banner.title }}</h3>{% endif %}
-        {% if banner.description %}<p>{{ banner.description }}</p>{% endif %}
-        {% if banner.show_button and banner.button_label %}
-        {% resolve_destination banner as bdest %}
-        {% if bdest.url %}
-        <a class="btn btn-light" href="{{ bdest.url }}" {% if bdest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ banner.button_label }}</a>
-        {% endif %}
-        {% endif %}
-      </div>
-      <div class="mini">
-        <picture>
-          {% if banner.mobile_image %}<source media="(max-width:680px)" srcset="{{ banner.mobile_image.url }}">{% endif %}
-          <img src="{{ banner.desktop_image.url }}" alt="{{ banner.title|default:'بنر' }}" loading="lazy" style="max-height:120px;border-radius:12px">
-        </picture>
-      </div>
-    </div>
+    {% resolve_destination banner as bdest %}
+    {% if bdest.url %}<a class="promo-card is-clickable" href="{{ bdest.url }}" aria-label="{{ banner.button_label|default:banner.title|default:'مشاهده پیشنهاد' }}" {% if bdest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{% else %}<div class="promo-card">{% endif %}
+      <picture class="promo-media">
+        {% if banner.mobile_image %}<source media="(max-width:680px)" srcset="{{ banner.mobile_image.url }}">{% endif %}
+        <img src="{{ banner.desktop_image.url }}" alt="{{ banner.title|default:'بنر' }}" loading="lazy">
+      </picture>
+      {% if banner.title or banner.description or banner.button_label %}
+      <span class="promo-overlay">
+        {% if banner.title %}<strong>{{ banner.title }}</strong>{% endif %}
+        {% if banner.description %}<small>{{ banner.description }}</small>{% endif %}
+        {% if banner.show_button and banner.button_label %}<em>{{ banner.button_label }}</em>{% endif %}
+      </span>
+      {% endif %}
+    {% if bdest.url %}</a>{% else %}</div>{% endif %}
     {% endfor %}
   </div>
 </section>

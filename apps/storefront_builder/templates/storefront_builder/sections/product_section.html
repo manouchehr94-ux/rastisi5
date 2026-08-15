@@ -1,14 +1,71 @@
-<section class="section">
+<section class="section product-section{% if settings.carousel_autoplay and settings.display_mode == 'carousel' %} product-section--spotlight{% endif %}">
+  {% if settings.header_position != "inside" %}
   <div class="sec-head">
     <h2><span class="bar"></span>{{ settings.title|default:"محصولات" }}</h2>
     {% if view_all_url and settings.show_view_all %}
     <a href="{{ view_all_url }}" class="btn btn-sm">مشاهده همه</a>
     {% endif %}
   </div>
-  {% if settings.subtitle %}
-  <p style="color:var(--muted);font-size:13px;margin:-10px 0 16px">{{ settings.subtitle }}</p>
   {% endif %}
+
+  {% if settings.subtitle and settings.header_position != "inside" %}
+  <p class="product-section-subtitle">{{ settings.subtitle }}</p>
+  {% endif %}
+
+  {% if settings.display_mode == "carousel" and settings.carousel_autoplay %}
+  <div class="product-spotlight-slider"
+       x-data="{ active: 0, count: {{ products|length }}, timer: null,
+                  next() { this.active = (this.active + 1) % this.count },
+                  prev() { this.active = (this.active - 1 + this.count) % this.count },
+                  start() { if (this.count > 1 && !this.timer) this.timer = setInterval(() => this.next(), {{ settings.carousel_interval_ms|default:3500 }}) },
+                  stop() { if (this.timer) { clearInterval(this.timer); this.timer = null } } }"
+       x-init="start()"
+       @mouseenter="stop()"
+       @mouseleave="start()">
+
+    {% if settings.header_position == "inside" %}
+    <div class="product-spotlight-head">
+      <h2><span class="bar"></span>{{ settings.title|default:"محصولات" }}</h2>
+      {% if settings.subtitle %}<p>{{ settings.subtitle }}</p>{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="product-spotlight-track">
+      {% if products %}
+      {% for product in products %}
+      <div class="product-spotlight-slide"
+           x-show="active === {{ forloop.counter0 }}"
+           x-cloak
+           x-transition:enter="product-spotlight-enter"
+           x-transition:enter-start="product-spotlight-enter-start"
+           x-transition:enter-end="product-spotlight-enter-end"
+           x-transition:leave="product-spotlight-leave"
+           x-transition:leave-start="product-spotlight-leave-start"
+           x-transition:leave-end="product-spotlight-leave-end">
+        {% include "catalog/partials/product_card.html" with card_settings=settings.card %}
+      </div>
+      {% endfor %}
+      {% else %}
+      <p class="product-spotlight-empty">فعلاً کالایی برای نمایش وجود ندارد.</p>
+      {% endif %}
+    </div>
+
+    {% if settings.carousel_show_arrows and products|length > 1 %}
+    <button type="button" class="product-spotlight-arrow product-spotlight-prev" @click="prev(); start()" aria-label="محصول قبلی">‹</button>
+    <button type="button" class="product-spotlight-arrow product-spotlight-next" @click="next(); start()" aria-label="محصول بعدی">›</button>
+    {% endif %}
+
+    {% if products|length > 1 %}
+    <div class="product-spotlight-dots" aria-label="محصولات پیشنهاد لحظه‌ای">
+      {% for product in products %}
+      <button type="button" @click="active={{ forloop.counter0 }}; start()" :class="{ 'active': active === {{ forloop.counter0 }} }" aria-label="محصول {{ forloop.counter }}"></button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
   <div class="{% if settings.display_mode == "grid" %}grid{% else %}pcarousel{% endif %} rsec-cols">
     {% include "catalog/partials/product_grid.html" with products=products card_settings=settings.card %}
   </div>
+  {% endif %}
 </section>

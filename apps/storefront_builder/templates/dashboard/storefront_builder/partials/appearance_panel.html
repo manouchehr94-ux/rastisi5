@@ -220,7 +220,7 @@ Phase 8 P0-7 — کارتِ مستقلِ «قالب فروشگاه» و گالر
         <label>عرض محتوای سایت</label>
         <select name="content_width" class="form-select">
           {% for w in site_content_width_choices %}
-          <option value="{{ w }}" {% if config.content_width == w or not config.content_width and w == 1200 %}selected{% endif %}>{% if w == 1100 %}باریک{% elif w == 1320 %}عریض{% else %}استاندارد{% endif %}</option>
+          <option value="{{ w }}" {% if config.content_width == w or not config.content_width and w == 1200 %}selected{% endif %}>{% if w == 1100 %}باریک{% elif w == 1320 %}عریض{% elif w == 1500 %}خیلی عریض{% else %}استاندارد{% endif %}</option>
           {% endfor %}
         </select>
         <p style="font-size:12px;color:var(--muted);margin:6px 0 0">حداکثر عرضِ محتوایِ صفحه‌ی اصلی روی صفحه‌نمایش‌های بزرگ.</p>

@@ -33,7 +33,7 @@ IMAGE_HOVER_CHOICES = ("none", "zoom")
 #: پایین). حالا مستقیماً در پنلِ «تنظیماتِ بیشتر» به‌عنوانِ کنترل‌هایِ
 #: مستقل در دسترس‌اند — این‌ها فقط enum بستهٔ مجازِ همان مقادیری هستند
 #: که Templateهایِ موجود از قبل استفاده می‌کنند، نه محدوده‌ی جدیدی.
-SITE_CONTENT_WIDTH_CHOICES = (1100, 1200, 1320)
+SITE_CONTENT_WIDTH_CHOICES = (1100, 1200, 1320, 1500)
 SITE_GRID_DENSITY_CHOICES = (3, 4, 5, 6)
 SITE_CARD_SHADOW_CHOICES = ("none", "soft", "strong")
 SITE_CARD_HOVER_CHOICES = ("none", "lift", "zoom")

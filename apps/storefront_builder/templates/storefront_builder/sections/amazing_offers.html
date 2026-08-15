@@ -1,9 +1,9 @@
+{% load persian %}
 {% if products %}
 <script>
 document.addEventListener('alpine:init', () => {
   Alpine.data('countdown', (deadlineIso) => ({
-    h: '۰۰', m: '۰۰', s: '۰۰',
-    _timer: null,
+    h: '۰۰', m: '۰۰', s: '۰۰', _timer: null,
     start() {
       const faDigits = '۰۱۲۳۴۵۶۷۸۹';
       const toFa = (n) => String(n).padStart(2, '0').replace(/\d/g, (d) => faDigits[d]);
@@ -14,28 +14,51 @@ document.addEventListener('alpine:init', () => {
         this.m = toFa(Math.floor((diff % 3600) / 60));
         this.s = toFa(diff % 60);
       };
-      tick();
-      this._timer = setInterval(tick, 1000);
+      tick(); this._timer = setInterval(tick, 1000);
     },
   }));
 });
 </script>
-<section class="section" id="sec-amazing">
-  <div class="special-wrap">
-    <div class="grid g2">
-      {% for p in products %}
-      {% include "catalog/partials/product_card.html" with product=p card_settings=settings.card %}
-      {% endfor %}
-    </div>
-    <div class="special-card" x-data="countdown('{{ deadline }}')" x-init="start()">
-      <h3>{{ settings.title|default:"⚡ پیشنهاد شگفت‌انگیز" }}</h3>
-      <p>تخفیف ویژه فقط تا پایان زمان‌شمار زیر فعال است. عجله کنید!</p>
-      <div class="countdown">
-        <div class="cd-box"><b x-text="h"></b><small>ساعت</small></div>
-        <div class="cd-box"><b x-text="m"></b><small>دقیقه</small></div>
-        <div class="cd-box"><b x-text="s"></b><small>ثانیه</small></div>
+<section class="section amazing-offers-section" id="sec-amazing">
+  <div class="special-wrap" x-data="{ active: 0 }">
+    <aside class="special-list" aria-label="محصولات پیشنهاد ویژه">
+      <div class="special-list-title">
+        <span>{{ settings.title|default:"پیشنهاد شگفت‌انگیز" }}</span>
+        <span class="special-count" x-data="countdown('{{ deadline }}')" x-init="start()">
+          <b x-text="h"></b>:<b x-text="m"></b>:<b x-text="s"></b>
+        </span>
       </div>
-      <a class="btn btn-light" href="{% url 'catalog:product-detail' products.0.slug %}">مشاهده محصول</a>
+      {% for p in products %}
+      <button type="button" @click="active={{ forloop.counter0 }}" :class="{ 'active': active === {{ forloop.counter0 }} }">
+        <span class="special-list-name">{{ p.name }}</span>
+        <span class="special-list-price">{{ p.final_price|toman }}</span>
+      </button>
+      {% endfor %}
+    </aside>
+
+    <div class="special-panels">
+      {% for p in products %}
+      <article class="special-main" x-show="active === {{ forloop.counter0 }}" x-cloak>
+        <div class="special-copy">
+          <span class="special-kicker">انتخاب ویژه امروز</span>
+          {% if p.discount_percent > 0 %}<span class="special-discount">٪{{ p.discount_percent|fa_number }}</span>{% endif %}
+          <h3>{{ p.name }}</h3>
+          {% if p.brand %}<p class="special-brand">{{ p.brand.name }}</p>{% endif %}
+          <div class="special-price">
+            <strong>{{ p.final_price|toman }}</strong>
+            {% if p.discount_percent > 0 %}<del>{{ p.price|toman }}</del>{% endif %}
+          </div>
+          <a class="special-buy" href="{% url 'catalog:product-detail' p.slug %}">مشاهده و خرید محصول</a>
+        </div>
+        <a class="special-image" href="{% url 'catalog:product-detail' p.slug %}" aria-label="{{ p.name }}">
+          {% if p.cover_image %}
+          <img src="{{ p.cover_image.thumbnail.url|default:p.cover_image.image.url }}" alt="{{ p.name }}">
+          {% else %}
+          <span class="product-placeholder"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M18 23h28l-2 30H20l-2-30z"/><path d="M25 25v-5a7 7 0 0114 0v5"/><path d="M15 31h34"/></svg></span>
+          {% endif %}
+        </a>
+      </article>
+      {% endfor %}
     </div>
   </div>
 </section>

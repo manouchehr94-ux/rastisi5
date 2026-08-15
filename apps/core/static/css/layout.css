@@ -229,3 +229,319 @@ html[data-sfb-density="relaxed"] .rsec[data-width="full"] > .section{margin-inli
 .nav-submenu{position:absolute;top:100%;right:0;min-width:160px;background:var(--card,#fff);border-radius:var(--radius,12px);box-shadow:var(--shadow);padding:8px 0;list-style:none;margin:4px 0 0;z-index:100}
 .nav-submenu li a{display:block;padding:8px 16px;color:var(--ink,#241c3a);text-decoration:none;font-size:13px;white-space:nowrap}
 .nav-submenu li a:hover{background:var(--violet-soft,#f1ecfd);color:var(--violet,#6d28d9)}
+
+
+/* ========================================================================
+   Universal commerce shell — compact, neutral, image-first storefront
+   ------------------------------------------------------------------------
+   This is the new Universal Renderer baseline.  It intentionally does not
+   mention a preset/family/store.  The previous purple prototype shell was
+   architecture proof; these late rules establish a production-oriented
+   neutral commerce shell that any merchant configuration can use.
+   ======================================================================== */
+.announce{background:#f3f4f6;color:#4b5563;border-bottom:1px solid #e5e7eb;font-size:10.5px}
+.announce .wrap{height:28px}
+.announce .links{gap:18px}
+.header{position:relative;top:auto;box-shadow:none;border-bottom:1px solid #e6e8eb}
+.header.sfb-sticky{position:sticky;top:0}
+.header .wrap{height:70px;gap:16px}
+.logo{gap:9px;min-width:190px}
+.logo .mark{width:38px;height:38px;border-radius:8px;background:#10b981;box-shadow:none}
+.logo b{font-size:17px;line-height:1.3}
+.logo small{font-size:9.5px}
+.search{max-width:620px;height:40px;border:1px solid #e5e7eb;border-radius:22px;background:#f7f8fa;padding:0 4px}
+.search:focus-within{border-color:#cfd4da;background:#fff;box-shadow:0 0 0 3px rgba(17,24,39,.04)}
+.search svg{width:17px;height:17px;margin:0 11px;color:#4b5563}
+.search input{font-size:12px}
+.search button{height:32px;min-width:68px;padding:0 14px;border-radius:3px;background:#fff;color:#333;border:1px solid #b8bdc5;font-size:11px;box-shadow:none}
+.h-actions{gap:7px}
+.h-btn{width:38px;height:38px;border-radius:4px;background:#fff;border-color:#cfd4da}
+.h-btn:hover{background:#f8fafc;color:#111;border-color:#9ca3af}
+.h-btn .cnt{top:-5px;left:-5px;background:#ef4444;border-width:1px}
+.login-btn{height:38px;padding:0 12px;border:1px solid #8b9098;border-radius:3px;color:#222;font-size:11.5px}
+.login-btn:hover{background:#f7f7f8;color:#111}
+.nav{background:#fff;border-bottom:1px solid #e7e8ea;box-shadow:0 4px 8px rgba(15,23,42,.03)}
+.nav .wrap{height:46px;gap:8px}
+.nav .cat-btn{height:32px;padding:0 10px;border-radius:3px;background:transparent;color:#222;font-size:11.5px}
+.nav a.nl{height:32px;padding:0 10px;border-radius:2px;color:#333;font-size:11.5px;font-weight:500}
+.nav a.nl:hover{background:#f4f5f6;color:#111}
+.nav .nav-hot{font-size:11px;color:#333;font-weight:600}
+.cat-mega-overlay{background:rgba(17,24,39,.18)}
+.cat-mega-panel{border-radius:4px;box-shadow:0 12px 28px rgba(15,23,42,.13)}
+.cat-mega-rail-item{border-radius:2px}
+.cat-mega-rail-item:hover,.cat-mega-rail-item.active{background:#f2f4f5;color:#111}
+.cat-mega-cols a:hover{color:#111}
+
+.storefront-page-title{padding:14px 0 0;background:var(--bg)}
+.storefront-page-title .wrap{padding-top:0;padding-bottom:0}
+.storefront-page-title h1{background:#fff;border:1px solid #e2e5e9;border-radius:9px;box-shadow:0 2px 8px rgba(15,23,42,.06);padding:9px 18px;font-size:21px;line-height:1.6;font-weight:700}
+
+.footer{
+  background:#4b4b53;
+  border-top:0;
+  margin-top:34px;
+  color:#f5f5f6;
+}
+.footer .wrap{position:relative}
+.footer .cols{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:34px;
+  padding:36px 0 24px;
+  align-items:start;
+}
+.footer .footer-col{min-width:0}
+.footer .about .logo{margin-bottom:13px;min-width:0}
+.footer .about .logo b{color:#fff;font-size:16px}
+.footer .about .logo .mark{background:#6d28d9;color:#fff}
+.footer .about p,
+.footer .footer-col p{
+  color:rgba(255,255,255,.76);
+  font-size:11px;
+  line-height:2;
+  margin:0;
+}
+.footer h5{
+  color:#fff;
+  font-size:13px;
+  font-weight:800;
+  margin-bottom:13px;
+}
+.footer ul{gap:8px}
+.footer ul a,
+.footer ul span{
+  color:rgba(255,255,255,.76);
+  font-size:11px;
+  line-height:1.8;
+}
+.footer ul a:hover{color:#fff}
+.footer .footer-contact-list a{display:inline-flex;direction:ltr}
+.footer .footer-working-hours{margin-top:10px!important;max-width:220px}
+.footer .footer-address{max-width:300px;text-align:justify}
+.footer .socials{display:flex;gap:8px;margin-top:15px}
+.footer .socials a{
+  width:34px;height:34px;border-radius:50%;
+  background:transparent;color:#e6e6e6;border:1px solid rgba(255,255,255,.28)
+}
+.footer .socials a:hover{background:#fff;color:#3d3d45;border-color:#fff}
+.footer .footer-description{
+  display:grid;
+  grid-template-columns:150px minmax(0,1fr);
+  gap:20px;
+  align-items:start;
+  padding:18px 0;
+  border-top:1px solid rgba(255,255,255,.16);
+}
+.footer .footer-description strong{color:#fff;font-size:13px}
+.footer .footer-description p{
+  color:rgba(255,255,255,.76);
+  font-size:10.8px;
+  line-height:2.05;
+  text-align:justify;
+  margin:0;
+}
+.footer .trust-badges{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:12px;
+  padding:14px 0 18px;
+  border-top:1px solid rgba(255,255,255,.16);
+}
+.footer .trust-badge-item{
+  width:80px;height:92px;padding:7px;
+  display:grid;place-items:center;
+  background:#fff;border-radius:8px;overflow:hidden
+}
+.footer .trust-badge-item a{width:100%;height:100%;display:grid;place-items:center}
+.footer .trust-badge-item img{max-width:100%;max-height:100%;object-fit:contain}
+.footer .payment-logos{
+  display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
+  padding:12px 0 16px;border-top:1px solid rgba(255,255,255,.12)
+}
+.footer .payment-logos span{
+  width:70px;height:42px;border-radius:6px;background:#fff;padding:6px;display:grid;place-items:center
+}
+.footer .payment-logos img{max-width:100%;max-height:100%;object-fit:contain}
+.footer .copy{
+  margin-top:0;
+  padding:13px 0;
+  border-top:1px solid rgba(255,255,255,.20);
+  color:#e6e6e6;
+  font-size:10.5px;
+  display:flex;
+  justify-content:center;
+  text-align:center;
+  background:#3d3d45;
+  box-shadow:0 0 0 100vmax #3d3d45;
+  clip-path:inset(0 -100vmax);
+}
+.footer .news{
+  border-radius:8px;background:#3d3d45;color:#fff;box-shadow:none;
+  margin-top:-24px;padding:18px 22px;border:1px solid rgba(255,255,255,.15)
+}
+.footer .news input,.footer .news button{height:38px;border-radius:4px}
+
+@media(max-width:1000px){
+  .footer .cols{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}
+  .footer .footer-description{grid-template-columns:1fr;gap:7px}
+}
+
+@media(max-width:680px){
+  .announce .wrap{height:auto;min-height:28px;padding-top:4px;padding-bottom:4px}
+  .announce .links{display:none}
+  .header .wrap{height:58px}
+  .logo{min-width:0;flex:1}
+  .logo b{font-size:14px}.logo small{display:none}
+  .h-btn{width:34px;height:34px}.login-btn{height:34px;padding:0 8px}
+  .nav .wrap{height:42px}.nav .nav-hot{display:none}
+  .storefront-page-title{padding-top:8px}
+  .storefront-page-title h1{font-size:15px;padding:7px 10px}
+  .footer .cols{grid-template-columns:1fr 1fr;padding-top:28px;gap:24px 18px}
+  .footer .about{grid-column:1/-1}
+  .footer .footer-description{padding:14px 0}
+  .footer .trust-badge-item{width:68px;height:68px}
+}
+@media(max-width:480px){
+  .footer .cols{grid-template-columns:1fr}
+  .footer .about{grid-column:auto}
+}
+
+/* ========================================================================
+   V3 universal shell/footer fidelity pass
+   ======================================================================== */
+.wrap{width:min(var(--sfb-content-width,1320px),calc(100% - 28px))}
+.announce .wrap{height:26px}
+.header .wrap{height:64px}
+.nav .wrap{height:42px}
+.footer{margin-top:20px;background:#4a4a52}
+.footer-shell{padding-top:0}
+.footer-main-grid{display:grid;grid-template-columns:1.45fr repeat(3,minmax(130px,.72fr)) 1.05fr;gap:26px;padding:31px 0 23px;align-items:start}
+.footer-col{min-width:0}.footer-col h5{font-size:11.5px;color:#fff;margin:0 0 10px;font-weight:800}.footer-col ul{display:flex;flex-direction:column;gap:5px;list-style:none;margin:0;padding:0}
+.footer-col ul a,.footer-col ul span{font-size:9.8px;color:rgba(255,255,255,.78);line-height:1.75}.footer-col ul a:hover{color:#fff}
+.footer-brand{display:flex;align-items:center;gap:9px;color:#fff;margin-bottom:10px}.footer-brand img{max-height:44px;max-width:150px}.footer-brand-mark{width:38px;height:38px;border-radius:7px;background:#6d28d9;display:grid;place-items:center}.footer-brand-mark svg{width:21px;height:21px}.footer-brand b{display:block;font-size:15px}.footer-brand small{display:block;font-size:8.5px;color:rgba(255,255,255,.7);margin-top:2px}
+.footer-brand-summary,.footer-address,.footer-working-hours{font-size:9.7px!important;line-height:1.95!important;color:rgba(255,255,255,.72)!important;margin:0}.footer-address{margin-top:9px!important}.footer-working-hours{margin-top:7px!important}
+.footer-extra-grid{display:grid;grid-template-columns:1fr;gap:8px;padding:12px 0;border-top:1px solid rgba(255,255,255,.13)}.footer-extra-block{display:flex;align-items:center;gap:16px}.footer-extra-block h5{font-size:10.5px;margin:0;color:#fff}.footer-extra-block p,.footer-extra-block a{font-size:9.5px;color:rgba(255,255,255,.72);margin:0}
+.footer .footer-description{grid-template-columns:175px minmax(0,1fr);padding:17px 0;border-top:1px solid rgba(255,255,255,.13)}.footer-description-title{display:flex;flex-direction:column;gap:3px}.footer-description-title strong{font-size:12px}.footer-description-title span{font-size:8.5px;color:rgba(255,255,255,.55)}.footer .footer-description p{font-size:9.5px;line-height:2.05}
+.footer-credibility{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:18px 0;border-top:1px solid rgba(255,255,255,.13)}.footer-credibility-copy{display:flex;flex-direction:column;gap:4px}.footer-credibility-copy strong{font-size:10.5px}.footer-credibility-copy span{font-size:8.5px;color:rgba(255,255,255,.62)}.footer-credibility-media{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.footer .trust-badges,.footer .payment-logos{padding:0;border:0;display:flex;gap:7px}.footer .trust-badge-item{width:56px;height:60px;padding:4px;border-radius:4px}.footer .payment-logos span{width:54px;height:34px;padding:4px;border-radius:4px}
+.footer-bottom{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:10px 0;background:#3d3d45;box-shadow:0 0 0 100vmax #3d3d45;clip-path:inset(0 -100vmax)}.footer-bottom .copy{padding:0;border:0;background:transparent;box-shadow:none;clip-path:none;font-size:9px;justify-content:flex-start}.footer-bottom .socials{margin:0;display:flex;gap:6px}.footer-bottom .socials a{width:27px;height:27px}
+@media(max-width:1100px){.footer-main-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.footer-col-brand{grid-column:1/-1}.footer-credibility{align-items:flex-start;flex-direction:column}}
+@media(max-width:680px){.wrap{width:min(var(--sfb-content-width,1320px),calc(100% - 18px))}.footer-main-grid{grid-template-columns:1fr 1fr;gap:22px 16px;padding-top:24px}.footer-col-brand,.footer-col-contact{grid-column:1/-1}.footer .footer-description{grid-template-columns:1fr}.footer-bottom{align-items:flex-start;flex-direction:column}.footer-credibility-media{width:100%}}
+@media(max-width:440px){.footer-main-grid{grid-template-columns:1fr}.footer-col-brand,.footer-col-contact{grid-column:auto}}
+
+/* ========================================================================
+   V4 Golden footer polish
+   ======================================================================== */
+.footer-main-grid{gap:24px 28px;padding:34px 0 27px}
+.footer-col h5{font-size:11px;margin-bottom:9px}
+.footer-col ul{gap:4px}
+.footer-col ul a,.footer-col ul span{font-size:9.5px}
+.footer .footer-description{padding:20px 0;gap:22px}
+.footer .footer-description p{line-height:2.15}
+.footer-credibility{padding:21px 0;display:grid;grid-template-columns:minmax(220px,1fr) auto;align-items:end}
+.footer-credibility-media{justify-self:center;align-items:flex-end}
+.footer .trust-badge-item{width:58px;height:62px}
+.footer .payment-logos span{width:56px;height:36px}
+.footer-bottom{padding:11px 0}
+@media(max-width:1100px){
+  .footer-credibility{grid-template-columns:1fr;align-items:start}
+  .footer-credibility-media{justify-self:start}
+}
+
+/* ========================================================================
+   V4.1 Golden shell polish — compact header ribbon + marketplace footer
+   ======================================================================== */
+.announce .wrap{height:22px}
+.header .wrap{height:54px;gap:13px}
+.logo{min-width:170px;gap:7px}
+.logo .mark{width:34px;height:34px;border-radius:6px}
+.logo .mark svg{width:19px;height:19px}
+.logo b{font-size:15px}.logo small{font-size:8.5px}
+.search{height:36px;max-width:640px}.search button{height:28px;min-width:62px;font-size:10px}.search input{font-size:11px}
+.h-actions{gap:5px}.h-btn{width:34px;height:34px}.h-btn svg{width:17px;height:17px}.login-btn{height:34px;padding-inline:10px;font-size:10.5px}
+.nav .wrap{height:34px}.nav .cat-btn{height:28px;font-size:10px;padding-inline:8px}.nav a.nl{height:28px;font-size:10px;padding-inline:8px}.nav .nav-hot{font-size:9.5px}
+.header-tagline-strip{height:28px;background:#fff;border-bottom:1px solid #e5e7eb;position:relative;overflow:hidden;color:#1ca34a}
+.header-tagline-strip .wrap{height:100%;display:flex;align-items:center;justify-content:center;position:relative;z-index:1}
+.header-tagline-strip span{font-size:10px;font-weight:800;letter-spacing:-.1px}
+.header-tagline-strip::before,.header-tagline-strip::after{
+  content:"";position:absolute;top:0;bottom:0;width:min(32vw,260px);opacity:.72;background-repeat:repeat-x;background-position:center;background-size:118px 28px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='118' height='28' viewBox='0 0 118 28'%3E%3Cg fill='none' stroke='%2394a3b8' stroke-opacity='.45' stroke-width='1'%3E%3Cpath d='M7 21l9-11 7 7 6-9M38 7l5 5-5 5M57 20c7-9 14-9 21 0M69 9v14M91 8h14l-2 13H93zM95 8V5h6v3'/%3E%3C/g%3E%3Ccircle cx='32' cy='20' r='2' fill='%23f59e0b' fill-opacity='.55'/%3E%3Ccircle cx='111' cy='8' r='2' fill='%2306b6d4' fill-opacity='.55'/%3E%3C/svg%3E");
+}
+.header-tagline-strip::before{left:0}.header-tagline-strip::after{right:0;transform:scaleX(-1)}
+
+.footer-main-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:30px;padding:32px 0 25px}
+.footer .footer-description{grid-template-columns:minmax(0,1fr) 245px;gap:34px;padding:23px 0 21px;align-items:center}
+.footer-description-copy{min-width:0}.footer-description-copy p{margin:0;text-align:justify}
+.footer-description-brand{justify-self:end;min-width:210px}
+.footer-description-brand .footer-brand{justify-content:flex-start;margin:0}
+.footer-description-brand .footer-brand img{max-height:48px;max-width:155px}
+.footer-description-brand .footer-brand b{font-size:15px}.footer-description-brand .footer-brand small{font-size:8.5px}
+.footer-credibility{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;padding:18px 0 20px}
+.footer-credibility-copy{align-items:center;text-align:center;gap:2px}.footer-credibility-copy strong{font-size:9.5px}.footer-credibility-copy span{font-size:8px}
+.footer-credibility-media{justify-self:auto;justify-content:center;align-items:center;width:100%}
+.footer-bottom{direction:ltr}.footer-bottom .copy{direction:rtl}.footer-bottom .socials{direction:ltr}
+@media(max-width:1100px){
+  .footer-main-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .footer .footer-description{grid-template-columns:1fr 210px}.footer-description-brand{min-width:0}
+}
+@media(max-width:680px){
+  .announce .wrap{min-height:22px}.header .wrap{height:54px}.nav .wrap{height:36px}
+  .header-tagline-strip{height:26px}.header-tagline-strip::before,.header-tagline-strip::after{width:25vw;opacity:.45}
+  .footer-main-grid{grid-template-columns:1fr 1fr}.footer .footer-description{grid-template-columns:1fr;gap:14px}.footer-description-brand{justify-self:start}
+}
+
+/* ========================================================================
+   V4.2 shell readability — preserve V4.1 geometry, restore legibility
+   ======================================================================== */
+.announce{font-size:11px}
+.logo small{font-size:9.2px}
+.search input{font-size:11.6px}
+.search button{font-size:10.6px}
+.login-btn{font-size:11px}
+.nav .cat-btn,.nav a.nl{font-size:11px}
+.nav .nav-hot{font-size:10.2px}
+.header-tagline-strip span{font-size:10.8px}
+.footer-col h5{font-size:12px}
+.footer-col ul a,.footer-col ul span{font-size:10.3px}
+.footer-brand-summary,.footer-address,.footer-working-hours{font-size:10.3px!important}
+.footer-extra-block h5{font-size:11.2px}
+.footer-extra-block p,.footer-extra-block a{font-size:10.1px}
+.footer-description-brand .footer-brand small{font-size:9.2px}
+.footer .footer-description p{font-size:10.3px}
+.footer-credibility-copy strong{font-size:10.2px}
+.footer-credibility-copy span{font-size:8.8px}
+.footer-bottom .copy{font-size:9.6px}
+
+/* ========================================================================
+   V4.2.2 shell readability calibration
+   ======================================================================== */
+.announce{font-size:12.2px}
+.logo b{font-size:17px}
+.logo small{font-size:10.2px}
+.search input{font-size:12.7px}
+.search button{font-size:11.5px}
+.login-btn{font-size:12px}
+.nav .cat-btn,.nav a.nl{font-size:12px}
+.nav .nav-hot{font-size:11.2px}
+.header-tagline-strip span{font-size:11.7px}
+.footer-col h5{font-size:13.2px}
+.footer-col ul a,.footer-col ul span{font-size:11.4px;line-height:1.85}
+.footer-brand-summary,.footer-address,.footer-working-hours{font-size:11.3px!important}
+.footer-extra-block h5{font-size:12.4px}
+.footer-extra-block p,.footer-extra-block a{font-size:11.2px}
+.footer-description-brand .footer-brand b{font-size:16px}
+.footer-description-brand .footer-brand small{font-size:10.2px}
+.footer .footer-description p{font-size:11.3px;line-height:2.05}
+.footer-credibility-copy strong{font-size:11.2px}
+.footer-credibility-copy span{font-size:9.8px}
+.footer-bottom .copy{font-size:10.3px}
+
+@media(max-width:680px){
+  /* Prevent iOS Safari focus zoom while keeping the compact desktop shell. */
+  .search input,.modal .fg input,.footer .news input{font-size:16px}
+  .nav .cat-btn,.nav a.nl{font-size:11.5px}
+  .header-tagline-strip span{font-size:11.3px}
+  .footer-col h5{font-size:13px}
+  .footer-col ul a,.footer-col ul span{font-size:11.5px}
+}

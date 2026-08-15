@@ -2,6 +2,14 @@
   <summary style="cursor:pointer;font-size:13px;color:var(--muted)">ظاهر کارت محصول</summary>
   <div style="margin-top:10px">
     <div class="form-group">
+      <label>سبک کارت</label>
+      <select name="card_style" class="form-select">
+        <option value="standard" {% if section.settings.card.card_style != "compact" and section.settings.card.card_style != "minimal" %}selected{% endif %}>استاندارد</option>
+        <option value="compact" {% if section.settings.card.card_style == "compact" %}selected{% endif %}>فشرده فروشگاهی</option>
+        <option value="minimal" {% if section.settings.card.card_style == "minimal" %}selected{% endif %}>مینیمال</option>
+      </select>
+    </div>
+    <div class="form-group">
       <label>نسبت تصویر</label>
       <select name="card_image_ratio" class="form-select">
         <option value="square" {% if section.settings.card.image_ratio != "portrait" and section.settings.card.image_ratio != "landscape" %}selected{% endif %}>مربعی</option>
@@ -27,6 +35,10 @@
         <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
           <input type="checkbox" name="card_show_wishlist" {% if section.settings.card.show_wishlist is not False %}checked{% endif %}>
           آیکون علاقه‌مندی
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
+          <input type="checkbox" name="card_show_rating" {% if section.settings.card.show_rating is not False %}checked{% endif %}>
+          امتیاز و تعداد نظر
         </label>
         <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
           <input type="checkbox" name="card_show_quick_add" {% if section.settings.card.show_quick_add is not False %}checked{% endif %}>

@@ -1,11 +1,10 @@
 {% load content_tags %}
 {% comment %}
-بدنه‌ی مشترکِ اسلایدرِ اصلی — هم ``hero_banner`` و هم ``image_slider`` از
-همین partial استفاده می‌کنند (نه دو منطقِ رندرِ جدا) تا رفتارِ «اسلایدرِ
-واقعی» (چرخش خودکار، نقطه‌ها، فلش‌ها) برایِ هر دو یکسان باشد — تفاوتِ
-واقعیِ این دو نوع صرفاً برچسب/آیکونشان در کتابخانه‌ی افزودنِ بخش است، نه
-رفتارِ رندر. تنظیماتِ سطحِ اسلایدر (``settings``) از ``_validate_slider_settings``
-می‌آید؛ خودِ اسلایدها از ``hero_slides`` (نتیجه‌ی ``_scoped_hero_slides``).
+Universal image-first hero slider.  The hero is a reusable storefront block;
+its geometry and controls are shared by every preset.  Images remain real,
+Store-scoped HeroSlide media.  Text is an optional overlay rather than a
+second fixed column, which lets the same block reproduce image-led commerce
+banners without introducing a preset-specific template.
 {% endcomment %}
 {% if hero_slides %}
 <section class="section hero">
@@ -18,26 +17,22 @@
        @mouseenter="if (_timer) { clearInterval(_timer); _timer = null }"
        @mouseleave="if (autoplay && !_timer) { _timer = setInterval(() => next(), interval) }">
     {% for s in hero_slides %}
-    <div x-show="slide === {{ forloop.counter0 }}" x-cloak style="display:contents">
+    <article class="hero-slide" x-show="slide === {{ forloop.counter0 }}" x-cloak>
+      <picture class="hero-media">
+        {% if s.mobile_image %}<source media="(max-width:680px)" srcset="{{ s.mobile_image.url }}">{% endif %}
+        <img src="{{ s.desktop_image.url }}" alt="{{ s.title|default:'اسلاید' }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+      </picture>
+      {% if s.title or s.subtitle or s.show_button %}
       <div class="hero-text">
         {% if s.title %}<h1>{{ s.title }}</h1>{% endif %}
         {% if s.subtitle %}<p>{{ s.subtitle }}</p>{% endif %}
         {% if s.show_button and s.button_label %}
-        <div class="hero-btns">
-          {% resolve_destination s as dest %}
-          {% if dest.url %}
-          <a class="btn btn-light" href="{{ dest.url }}" {% if dest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ s.button_label }}</a>
-          {% endif %}
-        </div>
+        {% resolve_destination s as dest %}
+        {% if dest.url %}<a class="hero-cta" href="{{ dest.url }}" {% if dest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ s.button_label }}</a>{% endif %}
         {% endif %}
       </div>
-      <div class="hero-visual">
-        <picture>
-          {% if s.mobile_image %}<source media="(max-width:680px)" srcset="{{ s.mobile_image.url }}">{% endif %}
-          <img src="{{ s.desktop_image.url }}" alt="{{ s.title|default:'اسلاید' }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
-        </picture>
-      </div>
-    </div>
+      {% endif %}
+    </article>
     {% endfor %}
 
     {% if slider_settings.show_arrows|default:True %}
@@ -47,35 +42,31 @@
             {% if not slider_settings.loop|default:True %}:disabled="slide === count - 1"{% endif %}>›</button>
     {% endif %}
 
-    {% if slider_settings.show_dots|default:True %}
-    <div class="hero-dots" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:2">
+    <div class="hero-tabs" aria-label="اسلایدها">
       {% for s in hero_slides %}
-      <button type="button" @click="slide = {{ forloop.counter0 }}" :style="slide === {{ forloop.counter0 }} ? 'opacity:1' : 'opacity:.4'" style="width:8px;height:8px;border-radius:99px;background:#fff;border:none;cursor:pointer" aria-label="اسلاید {{ forloop.counter }}"></button>
+      <button type="button" @click="slide = {{ forloop.counter0 }}" :class="{ 'active': slide === {{ forloop.counter0 }} }">{{ s.title|default:"مشاهده" }}</button>
       {% endfor %}
     </div>
-    {% endif %}
   </div>
   {% else %}
   {% with slide=hero_slides.0 %}
   <div class="hero-inner">
-    <div class="hero-text">
-      {% if slide.title %}<h1>{{ slide.title }}</h1>{% endif %}
-      {% if slide.subtitle %}<p>{{ slide.subtitle }}</p>{% endif %}
-      {% if slide.show_button and slide.button_label %}
-      <div class="hero-btns">
-        {% resolve_destination slide as dest %}
-        {% if dest.url %}
-        <a class="btn btn-light" href="{{ dest.url }}" {% if dest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ slide.button_label }}</a>
-        {% endif %}
-      </div>
-      {% endif %}
-    </div>
-    <div class="hero-visual">
-      <picture>
+    <article class="hero-slide single">
+      <picture class="hero-media">
         {% if slide.mobile_image %}<source media="(max-width:680px)" srcset="{{ slide.mobile_image.url }}">{% endif %}
         <img src="{{ slide.desktop_image.url }}" alt="{{ slide.title|default:'اسلاید' }}" loading="eager">
       </picture>
-    </div>
+      {% if slide.title or slide.subtitle or slide.show_button %}
+      <div class="hero-text">
+        {% if slide.title %}<h1>{{ slide.title }}</h1>{% endif %}
+        {% if slide.subtitle %}<p>{{ slide.subtitle }}</p>{% endif %}
+        {% if slide.show_button and slide.button_label %}
+        {% resolve_destination slide as dest %}
+        {% if dest.url %}<a class="hero-cta" href="{{ dest.url }}" {% if dest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ slide.button_label }}</a>{% endif %}
+        {% endif %}
+      </div>
+      {% endif %}
+    </article>
   </div>
   {% endwith %}
   {% endif %}

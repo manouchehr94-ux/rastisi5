@@ -190,6 +190,25 @@ def _validate_product_section_settings(raw: dict) -> dict:
     title = str(raw.get("title", "")).strip()[:_MAX_PRODUCT_SECTION_TITLE_LENGTH]
     subtitle = str(raw.get("subtitle", "")).strip()[:_MAX_PRODUCT_SECTION_SUBTITLE_LENGTH]
 
+    # رفتارِ کاروسل کاملاً عمومی و data-driven است.  پیش‌فرض خاموش می‌ماند
+    # تا sectionهای قدیمی دقیقاً همان اسکرول افقی قبلی را حفظ کنند؛ preset
+    # یا merchant می‌تواند برای هر product_section مستقل آن را روشن کند.
+    carousel_autoplay = raw.get("carousel_autoplay", False)
+    if not isinstance(carousel_autoplay, bool):
+        carousel_autoplay = bool(carousel_autoplay)
+    carousel_show_arrows = raw.get("carousel_show_arrows", True)
+    if not isinstance(carousel_show_arrows, bool):
+        carousel_show_arrows = bool(carousel_show_arrows)
+    try:
+        carousel_interval_ms = int(raw.get("carousel_interval_ms", 3500))
+    except (TypeError, ValueError):
+        raise ProductSectionSettingsError("فاصله‌ی پخش خودکار باید عدد باشد") from None
+    carousel_interval_ms = max(2000, min(10000, carousel_interval_ms))
+
+    header_position = raw.get("header_position", "above")
+    if header_position not in ("above", "inside"):
+        header_position = "above"
+
     # source_id/product_ids فقط برایِ منبعِ متناظرشان معنا دارند — برایِ
     # بقیه همیشه به مقدارِ خنثی (None/[]) بازنشانی می‌شوند تا تنظیماتِ
     # ذخیره‌شده هرگز حاویِ ارجاعِ یتیمِ بی‌ربط به data_source فعلی نباشد.
@@ -218,6 +237,10 @@ def _validate_product_section_settings(raw: dict) -> dict:
         "show_view_all": show_view_all,
         "title": title,
         "subtitle": subtitle,
+        "carousel_autoplay": carousel_autoplay,
+        "carousel_interval_ms": carousel_interval_ms,
+        "carousel_show_arrows": carousel_show_arrows,
+        "header_position": header_position,
     }
 
 
@@ -231,6 +254,10 @@ def _product_section_defaults() -> dict:
         "show_view_all": True,
         "title": "",
         "subtitle": "",
+        "carousel_autoplay": False,
+        "carousel_interval_ms": 3500,
+        "carousel_show_arrows": True,
+        "header_position": "above",
     }
 
 
@@ -490,7 +517,17 @@ IMAGE_RATIO_CHOICES = ("square", "portrait", "landscape")
 #: کارت‌هایِ موجود)؛ ``hover_fade``/``always`` گزینه‌هایِ تازه‌اند.
 QUICK_ADD_REVEAL_CHOICES = ("hover_slide", "hover_fade", "always")
 
-_CARD_TOGGLE_FIELDS = ("show_brand", "show_price", "show_badge", "show_wishlist", "show_quick_add", "card_border")
+#: Generic visual treatment for a product card.  This is intentionally a
+#: closed, reusable presentation choice -- never a preset/store-specific
+#: renderer selector.  ``standard`` preserves the historical card, while
+#: ``compact`` is the denser marketplace treatment used by product-heavy
+#: storefronts.
+CARD_STYLE_CHOICES = ("standard", "compact", "minimal")
+
+_CARD_TOGGLE_FIELDS = (
+    "show_brand", "show_price", "show_badge", "show_wishlist",
+    "show_quick_add", "show_rating", "card_border",
+)
 
 
 class CardSettingsError(ValueError):
@@ -511,6 +548,8 @@ def validate_card_settings(raw) -> dict:
     cleaned["image_ratio"] = ratio if ratio in IMAGE_RATIO_CHOICES else "square"
     reveal = raw.get("quick_add_reveal")
     cleaned["quick_add_reveal"] = reveal if reveal in QUICK_ADD_REVEAL_CHOICES else "hover_slide"
+    style = raw.get("card_style")
+    cleaned["card_style"] = style if style in CARD_STYLE_CHOICES else "standard"
     return cleaned
 
 
@@ -565,17 +604,16 @@ SPACING_AWARE_SECTION_KEYS = BACKGROUND_AWARE_SECTION_KEYS
 
 BACKGROUND_MODE_CHOICES = ("theme", "color", "image", "pattern")
 
-#: بخشِ ۹ مشخصات: «Patterns must be reusable system assets and must not
-#: depend on a specific preset's custom renderer.» — Phase 1 عمداً این
-#: رجیستری را **خالی** نگه می‌دارد: هنوز هیچ دارایی/CSSِ الگو (pattern) در
-#: پلتفرم ساخته نشده (تأیید شده با جست‌وجوی کدبیس)، پس ساختنِ یک لیستِ
-#: ثابتِ اسلاگ که به هیچ فایلِ واقعی اشاره نمی‌کند دقیقاً همان «ساختنِ
-#: چیزی که هنوز طراحی نشده» است که کارِ این فاز آن را ممنوع کرده. شکلِ
-#: قرارداد (``mode="pattern"`` + ``pattern_slug``) از همین حالا آماده است؛
-#: وقتی دارایی‌هایِ الگویِ واقعی ساخته شدند (Phase 2/3)، فقط کافی‌ست اینجا
-#: با همان الگویِ ``PALETTE_REGISTRY`` (``appearance_registry.py``) پر شود
-#: — هیچ تغییرِ دیگری در schema/migration لازم نیست.
-PATTERN_REGISTRY: dict[str, str] = {}
+#: بخشِ ۹ مشخصات: Patternها دارایی‌هایِ قابل‌استفادهٔ مجددِ سیستم‌اند، نه
+#: CSS سفارشیِ یک preset.  V3 اولین مجموعهٔ واقعی را اضافه می‌کند؛ رندر از
+#: همان data-pattern عمومیِ wrapper استفاده می‌کند و هیچ renderer/preset
+#: خاصی از این اسلاگ‌ها خبر ندارد.
+PATTERN_REGISTRY: dict[str, str] = {
+    # Pattern identity describes geometry only.  Colour remains an independent
+    # section setting so the same reusable system pattern works with any
+    # palette or per-block colour override.
+    "commerce-doodle": "الگوی تجاری خطی",
+}
 
 class BackgroundSettingsError(ValueError):
     """شکلِ خامِ بلوکِ ``background`` نامعتبر است — پیامِ فارسیِ قابل‌نمایشِ
@@ -621,14 +659,14 @@ def validate_background_settings(raw) -> dict:
         mode = "theme"
 
     color = ""
-    if mode == "color":
+    if mode in ("color", "pattern"):
         color = str(raw.get("color", "")).strip()
         if color:
             try:
                 validate_hex_color(color)
             except DjangoValidationError as exc:
                 raise BackgroundSettingsError("; ".join(exc.messages)) from exc
-        else:
+        elif mode == "color":
             mode = "theme"  # رنگِ خالی برای mode=color یعنی چیزی برای نمایش نیست — به پیش‌فرضِ امن برگرد
 
     media_asset_id = None
@@ -647,10 +685,8 @@ def validate_background_settings(raw) -> dict:
     pattern_slug = ""
     if mode == "pattern":
         candidate = str(raw.get("pattern_slug", "")).strip()
-        # رجیستری هنوز خالی است (نگاه کنید به docstring بالایِ PATTERN_REGISTRY)
-        # — هر اسلاگی امروز نامعتبر است؛ به‌جایِ خطا (که هیچ تاجری امروز راهی
-        # برایِ رفعِ آن ندارد)، مثلِ ``validate_motion_settings`` بی‌صدا به
-        # حالتِ امن (theme) برمی‌گردیم.
+        # فقط اسلاگ‌هایِ ثبت‌شدهٔ سیستم پذیرفته می‌شوند؛ مقدار ناشناخته مثل
+        # سایر enumهای بصری بی‌صدا به theme برمی‌گردد.
         if candidate in PATTERN_REGISTRY:
             pattern_slug = candidate
         else:
@@ -943,7 +979,7 @@ class CategoryGridSettingsError(ValueError):
 
 _MAX_CATEGORY_GRID_IDS = 12
 _MAX_SECTION_TITLE_LENGTH = 60
-CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular")
+CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular", "image_strip")
 
 
 def _validate_category_grid_settings(raw: dict) -> dict:
@@ -964,11 +1000,16 @@ def _validate_category_grid_settings(raw: dict) -> dict:
         raw.get("category_ids", []), max_len=_MAX_CATEGORY_GRID_IDS,
         error_cls=CategoryGridSettingsError, error_message="شناسه‌ی دسته‌بندی نامعتبر است",
     )
-    return {"title": title, "display_mode": display_mode, "category_ids": category_ids}
+    try:
+        item_limit = int(raw.get("item_limit", 12))
+    except (TypeError, ValueError):
+        raise CategoryGridSettingsError("تعداد دسته‌بندی باید عدد باشد") from None
+    item_limit = max(2, min(12, item_limit))
+    return {"title": title, "display_mode": display_mode, "category_ids": category_ids, "item_limit": item_limit}
 
 
 def default_category_grid_settings() -> dict:
-    return {"title": "", "display_mode": "grid", "category_ids": []}
+    return {"title": "", "display_mode": "grid", "category_ids": [], "item_limit": 12}
 
 
 #: Phase 3 (Universal Storefront — V5 Golden Homepage) — ``trust_features``

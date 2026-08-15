@@ -96,6 +96,28 @@ class PublicHomepageIntegrationTests(TestCase):
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         self.assertNotContains(resp, 'class="copy"')
 
+    def test_visual_footer_uses_live_footer_settings_and_dense_columns(self):
+        from apps.content.models import FooterSettings
+
+        fs = FooterSettings.load(store=self.store)
+        fs.description = "توضیح اختصاصی فوتر تست"
+        fs.address = "تهران، آدرس اختصاصی تست"
+        fs.phone = "02112345678"
+        fs.working_hours = "شنبه تا چهارشنبه ۹ تا ۱۷"
+        fs.copyright_text = "© متن اختصاصی تست"
+        fs.save(update_fields=["description", "address", "phone", "working_hours", "copyright_text"])
+
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+
+        self.assertContains(resp, 'class="footer-col footer-col-address"')
+        self.assertContains(resp, "توضیح اختصاصی فوتر تست")
+        self.assertContains(resp, "تهران، آدرس اختصاصی تست")
+        self.assertContains(resp, "02112345678")
+        self.assertContains(resp, "شنبه تا چهارشنبه ۹ تا ۱۷")
+        self.assertContains(resp, "© متن اختصاصی تست")
+
     def test_newsletter_block_requires_both_layout_toggle_and_live_footer_setting(self):
         """چکپوینتِ ۹: قبل از این رفعِ باگ، ``footer_config.show_newsletter``
         هیچ اثری در رندر نداشت (فرگمنتِ خبرنامه اصلاً از این کلید

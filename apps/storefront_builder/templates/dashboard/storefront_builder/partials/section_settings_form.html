@@ -106,6 +106,29 @@
           نمایش دکمه «مشاهده همه»
         </label>
       </div>
+      <div class="form-group">
+        <label for="id_ps_header_position">جای عنوان بخش</label>
+        <select name="header_position" id="id_ps_header_position" class="form-select">
+          <option value="above" {% if section.settings.header_position != "inside" %}selected{% endif %}>بالای بخش</option>
+          <option value="inside" {% if section.settings.header_position == "inside" %}selected{% endif %}>داخل قاب کاروسل</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
+          <input type="checkbox" name="carousel_autoplay" {% if section.settings.carousel_autoplay %}checked{% endif %}>
+          پخش خودکار کاروسل
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="id_ps_carousel_interval">فاصله پخش خودکار (میلی‌ثانیه)</label>
+        <input type="number" name="carousel_interval_ms" id="id_ps_carousel_interval" class="form-input" min="2000" max="10000" step="500" value="{{ section.settings.carousel_interval_ms|default:3500 }}">
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal">
+          <input type="checkbox" name="carousel_show_arrows" {% if section.settings.carousel_show_arrows is not False %}checked{% endif %}>
+          نمایش فلش‌های کاروسل
+        </label>
+      </div>
     </details>
 
     {% include "dashboard/storefront_builder/partials/section_destination_fields.html" %}
@@ -236,9 +259,15 @@
     <div class="form-group">
       <label for="id_cg_display">نوع نمایش</label>
       <select name="display_mode" id="id_cg_display" class="form-select">
-        <option value="grid" {% if section.settings.display_mode != "carousel" %}selected{% endif %}>گرید (شبکه‌ای)</option>
+        <option value="grid" {% if section.settings.display_mode == "grid" or not section.settings.display_mode %}selected{% endif %}>گرید (شبکه‌ای)</option>
         <option value="carousel" {% if section.settings.display_mode == "carousel" %}selected{% endif %}>کاروسل (اسلایدی)</option>
+        <option value="circular" {% if section.settings.display_mode == "circular" %}selected{% endif %}>دایره‌ای</option>
+        <option value="image_strip" {% if section.settings.display_mode == "image_strip" %}selected{% endif %}>ردیف تصویری</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label for="id_cg_limit">تعداد دسته‌بندی</label>
+      <input type="number" name="item_limit" id="id_cg_limit" class="form-input" min="2" max="12" value="{{ section.settings.item_limit|default:12 }}">
     </div>
     <div class="form-group">
       <label for="id_cg_add">افزودن دسته‌بندی</label>

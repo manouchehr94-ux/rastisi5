@@ -3,47 +3,63 @@
   (بخش‌های hero تا features) تا وفاداری بصری کامل حفظ شود.
 */
 
-/* ===== hero ===== */
-.hero{padding:22px 0 6px}
-.hero-inner{position:relative;border-radius:26px;overflow:hidden;background:linear-gradient(120deg,#7b54e6,#9a78f0 55%,#b59bf6);padding:46px;display:grid;grid-template-columns:1.1fr .9fr;gap:30px;align-items:center;color:#fff;min-height:330px}
-.hero-inner::before,.hero-inner::after{content:'';position:absolute;border-radius:50%;background:rgba(255,255,255,.12)}
-.hero-inner::before{width:280px;height:280px;top:-90px;left:-60px}
-.hero-inner::after{width:180px;height:180px;bottom:-70px;left:30%}
-.hero-text{position:relative;z-index:2}
-.hero-tag{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);padding:6px 14px;border-radius:30px;font-size:12px;font-weight:700;margin-bottom:16px}
-.hero-text h1{font-size:30px;font-weight:900;line-height:1.5;margin-bottom:14px;max-width:480px}
-.hero-text p{font-size:14px;opacity:.92;max-width:430px;margin-bottom:24px}
-.hero-btns{display:flex;gap:12px;flex-wrap:wrap}
-.hero-visual{position:relative;z-index:2;display:grid;place-items:center;width:100%;height:100%;min-height:220px}
-.hero-visual picture{display:block;width:100%;height:100%}
-.hero-visual img{width:100%;height:100%;object-fit:cover;border-radius:18px;max-height:280px}
-.hero-frame{width:240px;height:260px;background:rgba(255,255,255,.16);border:1.5px solid rgba(255,255,255,.3);border-radius:24px;display:grid;place-items:center;font-size:120px;backdrop-filter:blur(2px);box-shadow:0 20px 50px rgba(60,30,120,.3)}
-.hero-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,.85);color:var(--ink,#241c3a);font-size:20px;line-height:1;cursor:pointer;display:grid;place-items:center;transition:.15s}
+/* ===== universal image-first hero ===== */
+.hero{padding:0;margin:0}
+.hero-inner{
+  position:relative;
+  overflow:hidden;
+  border:1px solid #e2e5ea;
+  border-radius:8px;
+  background:#fff;
+  aspect-ratio:1053/420;
+  min-height:0;
+  color:#fff;
+  box-shadow:0 2px 10px rgba(15,23,42,.05);
+}
+.hero-slide{position:absolute;inset:0;width:100%;height:100%}
+.hero-slide.single{display:block}
+.hero-media{display:block;width:100%;height:100%}
+.hero-media img{display:block;width:100%;height:100%;object-fit:cover}
+.hero-text{
+  position:absolute;
+  z-index:2;
+  inset-inline-end:22px;
+  bottom:42px;
+  max-width:46%;
+  padding:10px 14px;
+  color:#fff;
+  text-shadow:0 1px 4px rgba(0,0,0,.45);
+}
+.hero-text h1{font-size:21px;line-height:1.55;font-weight:800;margin:0 0 4px}
+.hero-text p{font-size:11px;line-height:1.8;margin:0 0 8px;opacity:.96}
+.hero-cta{display:inline-flex;align-items:center;justify-content:center;background:#fff;color:#25282e;border:1px solid rgba(0,0,0,.15);padding:5px 12px;font-size:10px;font-weight:600;border-radius:2px;text-shadow:none}
+.hero-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:4;width:32px;height:32px;border-radius:50%;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.92);color:#333;font-size:18px;line-height:1;display:grid;place-items:center}
 .hero-arrow:hover{background:#fff}
 .hero-arrow:disabled{opacity:.35;cursor:not-allowed}
-.hero-arrow-prev{right:16px}
-.hero-arrow-next{left:16px}
+.hero-arrow-prev{right:12px}.hero-arrow-next{left:12px}
+.hero-tabs{position:absolute;z-index:4;bottom:0;right:0;left:0;display:flex;justify-content:center;background:linear-gradient(0deg,rgba(0,0,0,.30),transparent);padding-top:26px}
+.hero-tabs button{min-width:116px;max-width:180px;height:34px;padding:0 10px;color:#fff;border-inline-start:1px solid rgba(255,255,255,.35);font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.78}
+.hero-tabs button:first-child{border-inline-start:0}
+.hero-tabs button.active{opacity:1;background:rgba(0,0,0,.12)}
+html[data-sfb-density="compact"] .hero,
+html[data-sfb-density="relaxed"] .hero{padding:0}
+html[data-sfb-density="compact"] .hero-inner,
+html[data-sfb-density="relaxed"] .hero-inner{padding:0}
 
-/* تناسبِ اسلایدرِ اصلی — از Templateِ فعال می‌آید. پیش‌فرض
-   (data-sfb-hero-style="wide") دقیقاً همان چیدمانِ بالاست. */
-html[data-sfb-hero-style="tall"] .hero-inner{grid-template-columns:1fr;text-align:center;min-height:460px;padding:56px 40px}
-html[data-sfb-hero-style="tall"] .hero-text h1,
-html[data-sfb-hero-style="tall"] .hero-text p{max-width:100%;margin-inline:auto}
-html[data-sfb-hero-style="tall"] .hero-btns{justify-content:center}
-html[data-sfb-hero-style="tall"] .hero-visual{order:-1;min-height:260px}
-
-/* تراکم/فاصله‌گذاری (density) — کنترلِ مستقیمِ تاجر، مستقلِ از
-   hero-style/Template؛ همان الگویِ overrideهایِ hero-style بالا. */
-html[data-sfb-density="compact"] .hero-inner{padding:28px}
-html[data-sfb-density="relaxed"] .hero-inner{padding:58px}
-html[data-sfb-density="compact"] .hero{padding:14px 0 4px}
-html[data-sfb-density="relaxed"] .hero{padding:32px 0 10px}
-.float-card{position:absolute;background:#fff;color:var(--ink);border-radius:14px;padding:10px 14px;box-shadow:0 12px 30px rgba(60,30,120,.25);font-size:12px;font-weight:700;display:flex;align-items:center;gap:9px}
-.float-card .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:17px}
-.fc1{top:8px;right:-6px}.fc1 .ic{background:var(--pink-soft)}
-.fc2{bottom:30px;left:-14px}.fc2 .ic{background:var(--green-soft)}
-.fc3{bottom:-12px;right:24px}.fc3 .ic{background:var(--violet-soft)}
-.float-card small{display:block;color:var(--muted);font-weight:500;font-size:10.5px}
+@media(max-width:1000px){
+  .hero-inner{aspect-ratio:16/7}
+  .hero-text{max-width:55%;bottom:36px}
+}
+@media(max-width:680px){
+  .hero-inner{aspect-ratio:auto;min-height:300px;border-radius:5px}
+  .hero-media img{object-fit:cover}
+  .hero-text{inset-inline:12px;bottom:38px;max-width:none;text-align:right;padding:8px}
+  .hero-text h1{font-size:17px}
+  .hero-text p{font-size:10.5px}
+  .hero-arrow{width:28px;height:28px}
+  .hero-tabs{overflow-x:auto;justify-content:flex-start;direction:rtl}
+  .hero-tabs button{min-width:90px;height:32px;font-size:8.5px}
+}
 
 /* ===== category strip ===== */
 .catstrip{margin:22px 0}
@@ -228,3 +244,475 @@ html[data-sfb-density="relaxed"] .features{gap:22px;margin:54px 0}
 
 .video-embed-wrap{position:relative;max-width:860px;margin:0 auto;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center}
 .video-embed-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+
+/* ===== universal image-first promotional banners ===== */
+.banner-section{margin:18px 0}
+.promo-grid{gap:16px}
+.promo-card{position:relative;display:block;overflow:hidden;border-radius:8px;background:#fff;border:1px solid #e3e6eb;min-height:190px;box-shadow:0 2px 8px rgba(15,23,42,.04)}
+.promo-media{position:absolute;inset:0;display:block}
+.promo-media img{display:block;width:100%;height:100%;object-fit:cover}
+.promo-overlay{position:absolute;inset:auto 0 0 0;z-index:2;display:flex;flex-direction:column;gap:4px;padding:28px 14px 12px;color:#111;background:linear-gradient(0deg,rgba(255,255,255,.96),rgba(255,255,255,.78) 58%,transparent)}
+.promo-overlay strong{font-size:13px;font-weight:800;line-height:1.6}
+.promo-overlay small{font-size:10px;line-height:1.6;color:#555}
+.promo-overlay em{display:inline-flex;align-self:flex-start;background:#fff;border:1px solid #222;border-radius:2px;padding:2px 8px;font-size:9px;font-style:normal}
+@media(max-width:680px){.promo-card{min-height:170px}.promo-grid{gap:10px}}
+
+
+/* ========================================================================
+   Universal dense storefront modules
+   ======================================================================== */
+.section{margin:22px 0}
+.sec-head{margin-bottom:12px}
+.sec-head h2{font-size:15px;font-weight:700;gap:7px}
+.sec-head h2 .bar{width:3px;height:18px;border-radius:2px;background:#111}
+.sec-head .more{font-size:10.5px;color:#333}
+
+.category-circle-section{margin-top:20px;margin-bottom:14px}
+.tiles-circular{display:flex;flex-wrap:nowrap;justify-content:space-between;gap:14px;overflow-x:auto;padding:4px 2px 7px}
+.tile-circle{flex:0 0 126px;width:126px;gap:7px}
+.tile-circle-img{width:116px;height:116px;background:#fff;border:1px solid #d8dce1;box-shadow:0 1px 5px rgba(15,23,42,.04)}
+.tile-circle-img img{object-fit:contain;background:#fff}
+.tile-circle:hover .tile-circle-img{transform:none;box-shadow:0 2px 8px rgba(15,23,42,.08)}
+.tile-circle-label{font-size:10.5px;font-weight:500;color:#333}
+
+.features{grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0 18px}
+.feat{min-height:62px;border-radius:7px;padding:8px 11px;gap:8px;box-shadow:0 1px 5px rgba(15,23,42,.04)}
+.feat .ic{width:36px;height:36px;border-radius:4px;background:#fff;color:#ef4444;border:0;font-size:18px}
+.feat .ic svg{width:21px;height:21px}
+.feat b{font-size:10.5px;font-weight:600;line-height:1.45}
+.feat small{font-size:8.7px;line-height:1.5}
+
+.banner-section{margin:12px 0}
+.promo-grid{gap:12px}
+.promo-card{min-height:260px;border-radius:8px;border:1px solid #dfe3e8;box-shadow:0 2px 7px rgba(15,23,42,.05)}
+.promo-media img{object-fit:cover}
+.promo-overlay{padding:38px 12px 9px;background:linear-gradient(0deg,rgba(255,255,255,.96),rgba(255,255,255,.70) 58%,transparent)}
+.promo-overlay strong{font-size:12px}
+.promo-overlay small{display:none}
+.promo-overlay em{font-size:8.5px;padding:1px 7px}
+
+.special-wrap{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:0;background:#fff;border:1px solid #e0e3e8;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(15,23,42,.05);min-height:270px}
+.special-list{order:2;background:#fafafa;border-inline-start:1px solid #e7e9ed;padding:10px;display:flex;flex-direction:column;gap:6px}
+.special-list>a{display:flex;align-items:center;min-height:42px;padding:7px 10px;border-radius:4px;background:#f3f4f6;color:#4b4f56;font-size:10.5px;line-height:1.55}
+.special-list>a.active{background:#fff;border-inline-start:2px solid #ef4444;color:#ef4444}
+.special-count{margin-top:auto;display:flex;justify-content:center;gap:3px;color:#ef4444;font-size:11px;padding:6px}
+.special-main{order:1;min-width:0;display:grid;grid-template-columns:1fr 245px;align-items:center;padding:18px 22px;gap:18px}
+.special-copy{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.special-copy small{font-size:11px;color:#333}
+.special-copy h3{font-size:14px;line-height:1.8;font-weight:500;color:#222}
+.special-price{display:flex;align-items:center;gap:8px}
+.special-price strong{font-size:18px;color:#17a34a;font-weight:600}
+.special-price del{font-size:10px;color:#9aa0a6}
+.special-buy{border:1px solid #777;background:#fff;color:#333;border-radius:2px;padding:5px 12px;font-size:9.5px}
+.special-image{height:230px;display:grid;place-items:center;overflow:hidden}
+.special-image img{width:100%;height:100%;object-fit:contain}
+.special-image .product-placeholder{width:120px;height:120px;color:#c5cad0}
+.special-image .product-placeholder svg{width:82px;height:82px}
+
+.brand-carousel{gap:9px;padding-bottom:4px}
+.brand-carousel .brand-tile{flex:0 0 150px}
+.brand-tile{min-height:72px;padding:10px;border-radius:6px;background:#fff}
+.brand-tile img{max-height:48px}
+.brand-tile-name{font-size:11px;font-weight:600;color:#444}
+
+.blog-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.blog-card{border-radius:7px;box-shadow:0 1px 5px rgba(15,23,42,.04)}
+.blog-card:hover{transform:none;box-shadow:0 3px 10px rgba(15,23,42,.08)}
+.blog-card .th{height:150px;font-size:38px}
+.blog-card .bd{padding:10px 11px}
+.blog-card .meta{font-size:8.5px;margin-bottom:4px}
+.blog-card h4{font-size:10.5px;line-height:1.65;margin-bottom:5px}
+.blog-card .read{font-size:9px;color:#444}
+
+@media(max-width:1000px){
+  .features{grid-template-columns:repeat(3,1fr)}
+  .special-wrap{grid-template-columns:1fr}
+  .special-list{order:2;border-inline-start:0;border-top:1px solid #e7e9ed;display:grid;grid-template-columns:repeat(2,1fr)}
+  .special-main{order:1}
+  .blog-grid{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:680px){
+  .section{margin:16px 0}
+  .sec-head h2{font-size:13px}
+  .tile-circle{flex-basis:88px;width:88px}.tile-circle-img{width:78px;height:78px}.tile-circle-label{font-size:9px}
+  .features{display:flex;overflow-x:auto;gap:8px}.feat{flex:0 0 180px;min-height:56px}
+  .promo-card{min-height:185px}
+  .special-main{grid-template-columns:1fr 120px;padding:12px;gap:8px}.special-image{height:150px}.special-copy h3{font-size:12px}.special-price strong{font-size:14px}
+  .special-list{grid-template-columns:1fr}.special-list>a:nth-child(n+4){display:none}
+  .blog-grid{grid-template-columns:repeat(2,1fr);gap:8px}.blog-card .th{height:105px}
+}
+
+/* ========================================================================
+   Product spotlight carousel + Amazing Offers composition
+   ======================================================================== */
+.product-section-subtitle{color:var(--muted);font-size:13px;margin:-8px 0 14px}
+.product-section--spotlight{height:100%;display:flex;flex-direction:column}
+.product-spotlight-slider{
+  position:relative;display:flex;flex-direction:column;flex:1;min-height:0;
+  background:#fff;border:1px solid #e0e3e8;border-radius:8px;overflow:hidden;
+  box-shadow:0 2px 8px rgba(15,23,42,.05)
+}
+.product-spotlight-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 13px 8px;border-bottom:1px solid #eef0f3;background:#fff;z-index:3}
+.product-spotlight-head h2{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:800;margin:0}
+.product-spotlight-head .bar{width:3px;height:18px;border-radius:2px;background:linear-gradient(#16a36b,#7c3aed)}
+.product-spotlight-head p{font-size:9.5px;color:var(--muted);margin:0}
+.product-spotlight-track{position:relative;display:grid;grid-template-columns:minmax(0,1fr);flex:1;min-height:0;background:#fff}
+.product-spotlight-empty{grid-area:1/1;align-self:center;justify-self:center;margin:0;padding:24px 16px;text-align:center;color:var(--muted);font-size:12px}
+.product-spotlight-slide{grid-area:1/1;min-width:0;display:flex;padding:9px}
+.product-spotlight-slide>.pcard{width:100%;height:100%;min-height:0;box-shadow:none}
+.product-spotlight-slide>.pcard .img{min-height:0}
+.product-spotlight-enter{transition:transform .28s ease,opacity .28s ease}
+.product-spotlight-enter-start{transform:translateX(-28px);opacity:0}
+.product-spotlight-enter-end{transform:translateX(0);opacity:1}
+.product-spotlight-leave{transition:transform .22s ease,opacity .22s ease}
+.product-spotlight-leave-start{transform:translateX(0);opacity:1}
+.product-spotlight-leave-end{transform:translateX(28px);opacity:0}
+.product-spotlight-arrow{position:absolute;top:50%;z-index:5;width:30px;height:30px;border-radius:50%;border:1px solid #d9dde3;background:rgba(255,255,255,.94);color:#31343a;display:grid;place-items:center;font-size:20px;line-height:1;box-shadow:0 2px 8px rgba(15,23,42,.08)}
+.product-spotlight-prev{right:8px}.product-spotlight-next{left:8px}
+.product-spotlight-dots{display:flex;justify-content:center;gap:5px;padding:7px 10px 9px;background:#fff}
+.product-spotlight-dots button{width:6px;height:6px;border-radius:999px;background:#d7dbe0;transition:width .2s,background .2s}
+.product-spotlight-dots button.active{width:18px;background:#16a36b}
+
+.amazing-offers-section{margin:18px 0}
+.special-wrap{display:grid;grid-template-columns:300px minmax(0,1fr);gap:0;background:#fff;border:1px solid #e0e3e8;border-radius:10px;overflow:hidden;box-shadow:0 3px 12px rgba(15,23,42,.06);min-height:330px}
+.special-list{order:1;background:#f7f8fa;border-inline-end:1px solid #e5e7eb;padding:12px;display:flex;flex-direction:column;gap:7px;min-width:0}
+.special-list-title{display:flex;flex-direction:column;gap:5px;padding:3px 4px 8px;border-bottom:1px solid #e2e5e9;font-weight:800;font-size:13px;color:#24272c}
+.special-count{display:flex;align-items:center;gap:3px;color:#ef4444;font-size:12px;font-weight:800;direction:ltr}
+.special-list>button{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;width:100%;min-height:54px;padding:8px 10px;border:1px solid transparent;border-radius:6px;background:#fff;color:#4b4f56;text-align:right;cursor:pointer}
+.special-list>button:hover{border-color:#d9dde3;background:#fff}
+.special-list>button.active{border-color:#fecaca;background:#fff;color:#b91c1c;box-shadow:inset -3px 0 #ef4444}
+.special-list-name{min-width:0;font-size:10.5px;line-height:1.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.special-list-price{font-size:9px;color:#767b84;white-space:nowrap}
+.special-panels{order:2;min-width:0;display:grid;background:linear-gradient(135deg,#fff 0%,#fbfbfc 100%)}
+.special-main{grid-area:1/1;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,42%);align-items:center;padding:26px 32px;gap:24px}
+.special-copy{display:flex;flex-direction:column;align-items:flex-start;gap:9px;min-width:0}
+.special-kicker{font-size:10px;color:#ef4444;font-weight:800}
+.special-discount{display:inline-grid;place-items:center;min-width:44px;height:25px;border-radius:999px;background:#ef4444;color:#fff;font-size:10px;font-weight:900}
+.special-copy h3{font-size:20px;line-height:1.75;font-weight:800;color:#222;margin:0;max-width:520px}
+.special-brand{font-size:10px;color:#777d86;margin:0}
+.special-price{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.special-price strong{font-size:20px;color:#169b62;font-weight:800}
+.special-price del{font-size:11px;color:#9aa0a6}
+.special-buy{margin-top:4px;border:1px solid #34383f;background:#fff;color:#292d33;border-radius:4px;padding:8px 16px;font-size:10.5px;font-weight:700}
+.special-buy:hover{background:#292d33;color:#fff}
+.special-image{height:280px;display:grid;place-items:center;overflow:hidden;border-radius:8px;background:#f8f8f7}
+.special-image img{width:100%;height:100%;object-fit:contain;padding:10px}
+.special-image .product-placeholder{width:130px;height:130px;color:#c5cad0;display:grid;place-items:center}
+.special-image .product-placeholder svg{width:84px;height:84px}
+
+@media(max-width:1000px){
+  .special-wrap{grid-template-columns:1fr;min-height:0}
+  .special-list{order:2;border-inline-end:0;border-top:1px solid #e5e7eb;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .special-list-title{grid-column:1/-1}
+  .special-main{order:1;grid-template-columns:minmax(0,1fr) minmax(220px,38%);padding:22px}
+}
+@media(max-width:680px){
+  .product-spotlight-head{padding:9px 10px 7px}.product-spotlight-head h2{font-size:12px}
+  .product-spotlight-slide{padding:7px}.product-spotlight-arrow{width:27px;height:27px}
+  .special-list{grid-template-columns:1fr;padding:8px}.special-list>button:nth-of-type(n+4){display:none}
+  .special-main{grid-template-columns:1fr 126px;padding:14px;gap:10px}.special-image{height:170px}
+  .special-copy h3{font-size:13px}.special-price strong{font-size:15px}.special-buy{padding:6px 10px;font-size:9px}
+}
+
+
+/* ========================================================================
+   Equal-height mixed hero row
+   ------------------------------------------------------------------------
+   Structural rule, not a preset/store branch: whenever the Universal row
+   contains one hero and one autoplay product spotlight, the hero establishes
+   the desktop row height from its own media ratio and the spotlight fills the
+   exact same grid track. The narrow item is removed from intrinsic row-size
+   calculation so a tall product card can never make the two columns uneven.
+   ======================================================================== */
+@media(min-width:1001px){
+  .rsec-row:has(.hero):has(.product-section--spotlight) .rsec-row-item:has(.product-section--spotlight){
+    position:relative;
+    min-height:0;
+  }
+  .rsec-row:has(.hero):has(.product-section--spotlight) .rsec-row-item:has(.product-section--spotlight) > .rsec{
+    position:absolute;
+    inset:0;
+    height:auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+  }
+  .rsec-row:has(.hero):has(.product-section--spotlight) .product-section--spotlight{
+    flex:1 1 auto;
+    height:100%;
+    min-height:0;
+    margin:0;
+    overflow:hidden;
+  }
+  .rsec-row:has(.hero):has(.product-section--spotlight) .product-spotlight-slider,
+  .rsec-row:has(.hero):has(.product-section--spotlight) .product-spotlight-track,
+  .rsec-row:has(.hero):has(.product-section--spotlight) .product-spotlight-slide{
+    min-height:0;
+  }
+  .rsec-row:has(.hero):has(.product-section--spotlight) .product-spotlight-slider{
+    height:100%;
+  }
+  .rsec-row:has(.hero):has(.product-section--spotlight) .product-spotlight-slide{
+    overflow:hidden;
+  }
+  .rsec-row:has(.hero):has(.product-section--spotlight) .product-spotlight-slide > .pcard{
+    max-height:100%;
+  }
+}
+
+/* ========================================================================
+   V3 universal dense-marketplace fidelity pass
+   ======================================================================== */
+.sfb-preview-sections{padding-top:14px;padding-bottom:18px}
+.section{margin:14px 0}
+.sec-head{margin-bottom:9px}
+.sec-head h2{font-size:14px;font-weight:800;gap:6px}
+.sec-head h2 .bar{width:3px;height:17px;background:#111;border-radius:1px}
+.sec-head .btn,.product-section .sec-head .btn{height:23px;min-height:23px;padding:0 9px;border-radius:999px;background:#fff;border:1px solid #e3e5e9;color:#ef4760;font-size:8.5px;font-weight:700;box-shadow:none}
+
+/* Hero/instant-offer pair: compact and visually locked together. */
+.hero-inner{border-radius:6px;box-shadow:0 2px 8px rgba(15,23,42,.05)}
+.hero-text{inset-inline-end:34px;bottom:48px;max-width:48%;padding:7px 10px;text-shadow:none;color:#24252a}
+.hero-text h1{font-size:24px;line-height:1.45;font-weight:900;margin-bottom:2px}
+.hero-text p{font-size:12px;color:#34363d;margin-bottom:9px}
+.hero-cta{min-width:88px;height:30px;border-radius:18px;border:0;background:#fff;color:#222;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.hero-tabs{padding-top:18px;background:linear-gradient(0deg,rgba(40,55,70,.72),transparent)}
+.hero-tabs button{height:30px;font-size:8.5px}
+.product-spotlight-slider{border-radius:6px;border-color:#e0e2e6}
+.product-spotlight-head{padding:9px 10px 7px}
+.product-spotlight-head h2{font-size:12px}
+.product-spotlight-dots{padding:5px 8px 7px}
+
+/* Category rail in the approved reference is intentionally short and airy. */
+.category-circle-section{margin:12px 0 9px}
+.category-circle-section .sec-head{margin-bottom:6px}
+.tiles-circular{gap:28px;justify-content:space-around;padding:2px 12px 5px;overflow:visible}
+.tile-circle{flex:0 1 145px;width:auto;min-width:0;gap:5px}
+.tile-circle-img{width:112px;height:112px;border:0;box-shadow:none;background:transparent}
+.tile-circle-img img{border-radius:50%;background:#fff;border:1px solid #e3e5e8;padding:4px}
+.tile-circle-label{font-size:10px;font-weight:600}
+
+.features{gap:9px;margin:8px 0 10px}
+.feat{min-height:54px;padding:6px 9px;border-radius:5px}
+.feat .ic{width:31px;height:31px;font-size:15px;color:#f43f5e}
+.feat b{font-size:9.8px}.feat small{font-size:8px}
+
+/* Promotional compositions. */
+.banner-section{margin:9px 0}
+.promo-grid{gap:12px}
+.promo-grid--promo-4 .promo-card{min-height:245px}
+.promo-grid--wide-single .promo-card{min-height:185px}
+.promo-grid--mini-4 .promo-card{min-height:118px}
+.promo-grid--strip .promo-card{min-height:74px}
+.promo-grid--strip .promo-media img{object-fit:cover}
+.promo-grid--strip .promo-overlay{padding:16px 18px 9px;background:linear-gradient(0deg,rgba(255,255,255,.94),rgba(255,255,255,.30),transparent)}
+.promo-card{border-radius:5px;box-shadow:0 1px 5px rgba(15,23,42,.05)}
+.promo-overlay{padding:32px 11px 8px}
+.promo-overlay strong{font-size:10.5px}.promo-overlay em{font-size:8px;border-radius:10px}
+
+/* Generic patterned rails — reusable system assets, selected only by data. */
+.rsec[data-pattern]{padding:12px 10px;border-radius:0;color:#fff;background-size:92px 92px;background-repeat:repeat}
+.rsec[data-pattern]>.section{margin:0}
+.rsec[data-pattern]>.section>.sec-head h2{color:#fff}
+.rsec[data-pattern]>.section>.sec-head h2 .bar{background:#ff5a72}
+.rsec[data-pattern]>.section>.sec-head .btn{background:#fff;color:#ef4760;border-color:#fff}
+.rsec[data-pattern] .pcarousel{padding-bottom:1px}
+.rsec[data-pattern="commerce-doodle"]{background-image:radial-gradient(circle at 18px 18px,rgba(255,255,255,.18) 0 2px,transparent 2.5px),linear-gradient(45deg,transparent 46%,rgba(255,255,255,.09) 47% 53%,transparent 54%)}
+
+/* Deal spotlight: horizontal, dense, and closer to the reference geometry. */
+.amazing-offers-section{margin:9px 0}
+.special-wrap{grid-template-columns:290px minmax(0,1fr);min-height:250px;border-radius:5px;box-shadow:0 1px 6px rgba(15,23,42,.05)}
+.special-list{padding:8px;gap:4px}
+.special-list-title{font-size:11px;padding:2px 3px 6px}
+.special-list>button{min-height:42px;padding:6px 8px;border-radius:3px}
+.special-list-name{font-size:9.5px}.special-list-price{font-size:8.5px}
+.special-main{grid-template-columns:minmax(0,1fr) minmax(230px,37%);padding:16px 22px;gap:16px}
+.special-copy{gap:6px}.special-kicker{font-size:9px}.special-discount{height:22px;min-width:39px;font-size:9px}
+.special-copy h3{font-size:17px;line-height:1.55}.special-brand{font-size:9px}
+.special-price strong{font-size:17px}.special-price del{font-size:9px}
+.special-buy{padding:6px 12px;font-size:9px;border-radius:2px}
+.special-image{height:215px;border-radius:4px;background:#fff}
+
+/* Two 6/6 product panels use the same block but read like independent cards. */
+.rsec-row .product-section:not(.product-section--spotlight){min-width:0}
+.rsec-row .product-section:not(.product-section--spotlight)>.sec-head{padding:8px 10px 0}
+.rsec-row .product-section:not(.product-section--spotlight)>.grid{padding:0 10px 10px}
+.rsec-row-item>.rsec>.product-section:not(.product-section--spotlight){background:#fff;border:1px solid #e2e4e8;border-radius:5px}
+
+@media(max-width:1000px){
+  .tiles-circular{overflow-x:auto;justify-content:flex-start;gap:14px}.tile-circle{flex:0 0 110px}.tile-circle-img{width:92px;height:92px}
+  .special-wrap{grid-template-columns:1fr}.special-main{grid-template-columns:1fr minmax(190px,35%)}
+}
+@media(max-width:680px){
+  .sfb-preview-sections{padding-top:8px}
+  .hero-text{inset-inline:12px;bottom:40px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.45)}
+  .hero-text p{color:#fff}.hero-text h1{font-size:17px}
+  .promo-grid--promo-4 .promo-card,.promo-grid--wide-single .promo-card{min-height:170px}.promo-grid--mini-4 .promo-card{min-height:110px}
+  .special-main{grid-template-columns:1fr 120px;padding:12px}.special-image{height:145px}
+}
+
+/* ========================================================================
+   V4 Golden visual polish — reference-level dense marketplace details
+   ======================================================================== */
+
+/* Patterned product rails in the approved reference use sparse commerce
+   doodles, not diagonal stripes.  This asset is embedded, neutral and reusable
+   for every merchant-selected rail color. */
+.rsec[data-pattern="commerce-doodle"]{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='132' height='78' viewBox='0 0 132 78'%3E%3Cg fill='none' stroke='%23fff' stroke-opacity='.17' stroke-width='1.15' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22h15l-1 14H13zM16 22v-3a4 4 0 018 0v3'/%3E%3Cpath d='M52 13l2.2 4.7 5.1.7-3.7 3.6.9 5-4.5-2.4-4.5 2.4.9-5-3.7-3.6 5.1-.7z'/%3E%3Ccircle cx='92' cy='23' r='8'/%3E%3Cpath d='M88 23h8M92 19v8'/%3E%3Cpath d='M112 50h11l2 14h-15zM114 50l2-6h5l2 6'/%3E%3Cpath d='M39 53c5-6 12-6 17 0M47 48v12'/%3E%3Ccircle cx='75' cy='59' r='3.5'/%3E%3Cpath d='M71 59h8'/%3E%3C/g%3E%3C/svg%3E");
+  background-size:132px 78px;
+  background-repeat:repeat;
+}
+
+/* Reference rail headings are small white capsules floating over the color
+   field.  Applying this to all patterned rails keeps it generic. */
+.rsec[data-pattern]>.section>.sec-head{margin-bottom:7px;align-items:center}
+.rsec[data-pattern]>.section>.sec-head h2{
+  width:max-content;max-width:75%;padding:4px 10px;border-radius:999px;
+  background:#fff;color:#ef4760;font-size:9.5px;line-height:1.4;font-weight:800;
+  box-shadow:0 1px 3px rgba(0,0,0,.05);
+}
+.rsec[data-pattern]>.section>.sec-head h2 .bar{display:none}
+.rsec[data-pattern]>.section>.sec-head .btn{
+  height:21px;min-height:21px;padding-inline:8px;font-size:8px;
+  background:rgba(255,255,255,.96);color:#ef4760;border-color:#fff;
+}
+
+/* The approved special-offer module is list-left / content-centre / image-right
+   on desktop.  Direction is set only on layout containers; Persian content
+   remains RTL. */
+@media(min-width:1001px){
+  .amazing-offers-section .special-wrap{direction:ltr;grid-template-columns:270px minmax(0,1fr)}
+  .amazing-offers-section .special-list,
+  .amazing-offers-section .special-panels{direction:rtl}
+  .amazing-offers-section .special-main{
+    direction:ltr;grid-template-columns:minmax(0,1fr) minmax(210px,34%);
+    padding:14px 20px;gap:14px;
+  }
+  .amazing-offers-section .special-copy{direction:rtl;text-align:right;align-items:flex-start}
+  .amazing-offers-section .special-image{direction:rtl;height:205px}
+}
+.amazing-offers-section .special-list{background:#f7f8fa}
+.amazing-offers-section .special-list>button{background:#fff;border-color:#e7e9ec}
+.amazing-offers-section .special-list>button.active{box-shadow:inset -3px 0 #ef4444}
+
+/* The narrow strip before the final rail is a text callout in the reference,
+   not another photographic banner.  `strip` remains a reusable banner variant;
+   the media stays accessible but visually suppressed for this presentation. */
+.promo-grid--strip .promo-card{
+  min-height:48px!important;background:#fff;border:1px solid #e1e4e8;
+  box-shadow:0 1px 4px rgba(15,23,42,.04);
+}
+.promo-grid--strip .promo-media{opacity:0;pointer-events:none}
+.promo-grid--strip .promo-overlay{
+  inset:0;display:flex;align-items:center;justify-content:center;padding:0 14px;
+  background:#fff;text-align:center;color:#e4475d;
+}
+.promo-grid--strip .promo-overlay strong{
+  font-size:10px;font-weight:700;color:#e4475d;text-decoration:underline;
+  text-underline-offset:4px;text-decoration-thickness:1px;
+}
+.promo-grid--strip .promo-overlay small,.promo-grid--strip .promo-overlay em{display:none}
+
+/* Final vertical rhythm: the V3 composition was correct but still a little
+   looser than the captured page. */
+.sfb-preview-sections{padding-top:10px;padding-bottom:13px}
+.banner-section{margin:7px 0}
+.category-circle-section{margin:9px 0 7px}
+.features{margin:7px 0 8px}
+.amazing-offers-section{margin:7px 0}
+
+/* ========================================================================
+   V4.1 reference polish — visual category strip
+   ======================================================================== */
+.category-image-strip-section{margin:8px 0 7px}
+.category-image-strip-section .sec-head{margin-bottom:4px}
+.category-image-strip{
+  display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:20px;
+  align-items:start;padding:1px 8px 3px;
+}
+.category-image-tile{min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;color:#25282d;text-align:center}
+.category-image-media{width:100%;height:112px;display:grid;place-items:center;overflow:hidden;background:transparent}
+.category-image-media img{display:block;width:100%;height:100%;object-fit:contain;border:0;border-radius:0;padding:0;box-shadow:none}
+.category-image-fallback{font-size:42px;line-height:1}
+.category-image-label{font-size:9.5px;font-weight:700;line-height:1.45;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.category-image-tile:hover .category-image-media{transform:translateY(-1px)}
+@media(max-width:1000px){
+  .category-image-strip{display:flex;overflow-x:auto;gap:14px;scroll-snap-type:x proximity;padding-inline:3px}
+  .category-image-tile{flex:0 0 126px;scroll-snap-align:start}.category-image-media{height:98px}
+}
+@media(max-width:680px){
+  .category-image-tile{flex-basis:96px}.category-image-media{height:78px}.category-image-label{font-size:8.5px}
+}
+
+/* ========================================================================
+   V4.2 readability polish — one small step up without changing composition
+   ======================================================================== */
+html[data-sfb-density="compact"] .sec-head h2{font-size:15px}
+html[data-sfb-density="compact"] .sec-head .btn,
+html[data-sfb-density="compact"] .product-section .sec-head .btn{font-size:9.4px;min-height:24px;height:24px}
+html[data-sfb-density="compact"] .category-image-label{font-size:10.5px}
+html[data-sfb-density="compact"] .feat b{font-size:10.6px}
+html[data-sfb-density="compact"] .feat small{font-size:8.8px}
+html[data-sfb-density="compact"] .promo-overlay strong{font-size:11.4px}
+html[data-sfb-density="compact"] .promo-overlay em{font-size:8.8px}
+html[data-sfb-density="compact"] .rsec[data-pattern]>.section>.sec-head h2{font-size:10.4px}
+html[data-sfb-density="compact"] .rsec[data-pattern]>.section>.sec-head .btn{font-size:8.8px}
+html[data-sfb-density="compact"] .special-list-title{font-size:11.6px}
+html[data-sfb-density="compact"] .special-list-name{font-size:10.1px}
+html[data-sfb-density="compact"] .special-list-price{font-size:9px}
+html[data-sfb-density="compact"] .special-kicker{font-size:9.6px}
+html[data-sfb-density="compact"] .special-copy h3{font-size:18px}
+html[data-sfb-density="compact"] .special-brand{font-size:9.6px}
+html[data-sfb-density="compact"] .special-price strong{font-size:18px}
+html[data-sfb-density="compact"] .special-buy{font-size:9.7px}
+.promo-card.is-clickable{cursor:pointer}
+.promo-card.is-clickable:focus-visible{outline:3px solid rgba(22,163,74,.35);outline-offset:2px}
+@media(hover:hover){.promo-card.is-clickable:hover{filter:saturate(1.03) brightness(.99)}}
+
+/* ========================================================================
+   V4.2.2 readability calibration — real desktop text sizes
+   ------------------------------------------------------------------------
+   V4.2 switched the preset type scale back to normal, but several dense
+   marketplace components still had hard-coded 8–11px values. These final
+   component-level overrides keep the same geometry while restoring readable
+   labels, prices, controls and section headings.
+   ======================================================================== */
+.sec-head h2{font-size:16px}
+.sec-head .btn,.product-section .sec-head .btn{font-size:10px}
+.hero-text p{font-size:13px}
+.hero-cta{font-size:11.2px}
+.hero-tabs button{font-size:10px}
+.product-spotlight-head h2{font-size:13.5px}
+.tile-circle-label{font-size:11.8px}
+.feat b{font-size:11px}
+.feat small{font-size:9.5px}
+.promo-overlay strong{font-size:12.2px}
+.promo-overlay small{font-size:10.6px}
+.promo-overlay em{font-size:9.5px}
+.rsec[data-pattern]>.section>.sec-head h2{font-size:11.4px}
+.rsec[data-pattern]>.section>.sec-head .btn{font-size:9.4px}
+.special-list-title{font-size:12px}
+.special-list-name{font-size:10.8px}
+.special-list-price{font-size:9.8px}
+.special-kicker{font-size:10.5px}
+.special-brand{font-size:10px}
+.special-copy h3{font-size:18px}
+.special-price strong{font-size:18px}
+.special-price del{font-size:10px}
+.special-buy{font-size:10.5px}
+html[data-sfb-density="compact"] .feat b{font-size:11px}
+html[data-sfb-density="compact"] .feat small{font-size:9.5px}
+html[data-sfb-density="compact"] .promo-overlay strong{font-size:12.2px}
+html[data-sfb-density="compact"] .promo-overlay em{font-size:9.5px}
+html[data-sfb-density="compact"] .rsec[data-pattern]>.section>.sec-head h2{font-size:11.4px}
+html[data-sfb-density="compact"] .rsec[data-pattern]>.section>.sec-head .btn{font-size:9.4px}
+html[data-sfb-density="compact"] .special-list-name{font-size:10.8px}
+html[data-sfb-density="compact"] .special-list-price{font-size:9.8px}
+
+@media(max-width:680px){
+  .sec-head h2{font-size:15px}
+  .tile-circle-label{font-size:11.5px}
+  .feat b{font-size:10.8px}.feat small{font-size:9.4px}
+  .rsec[data-pattern]>.section>.sec-head h2{font-size:11px}
+}

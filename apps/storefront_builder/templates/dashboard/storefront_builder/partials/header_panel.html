@@ -58,7 +58,7 @@ validate_header_config، فقط بدونِ خروج از سازنده (طبقِ 
 
     {{ config.extra_blocks|json_script:"header-extra-blocks-initial" }}
     <div class="sfb-panel-title" style="margin-top:18px">بلوک‌های اضافی هدر</div>
-    <p style="color:var(--muted);font-size:12px;margin:0 0 10px">علاوه بر آیکون‌های بالا — تلفن، شبکه‌های اجتماعی، دکمه یا فاصله؛ ترتیب و تعداد این‌ها دلخواه شماست.</p>
+    <p style="color:var(--muted);font-size:12px;margin:0 0 10px">علاوه بر آیکون‌های بالا — تلفن، شبکه‌های اجتماعی، دکمه، فاصله یا نوار شعار فروشگاه؛ ترتیب و تعداد این‌ها دلخواه شماست.</p>
     <div x-data="itemRepeaterForm(JSON.parse(document.getElementById('header-extra-blocks-initial').textContent), {type: 'spacer', label: '', url: ''})">
       <template x-for="(row, index) in rows" :key="index">
         <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
@@ -69,6 +69,7 @@ validate_header_config، فقط بدونِ خروج از سازنده (طبقِ 
               <option value="social">📱 شبکه‌های اجتماعی</option>
               <option value="cta">🔘 دکمه</option>
               <option value="spacer">↔️ فاصله</option>
+              <option value="tagline">🏷️ نوار شعار فروشگاه</option>
             </select>
           </div>
           <template x-if="row.type === 'cta'">

@@ -236,6 +236,27 @@ class ProductSectionSettingsTests(TestCase):
         with self.assertRaises(ProductSectionSettingsError):
             self._validate(item_limit="abc")
 
+    def test_carousel_behavior_defaults_are_backward_compatible(self):
+        cleaned = self._validate()
+        self.assertFalse(cleaned["carousel_autoplay"])
+        self.assertEqual(cleaned["carousel_interval_ms"], 3500)
+        self.assertTrue(cleaned["carousel_show_arrows"])
+        self.assertEqual(cleaned["header_position"], "above")
+
+    def test_carousel_behavior_is_validated_and_clamped(self):
+        cleaned = self._validate(
+            carousel_autoplay=True, carousel_interval_ms=99999,
+            carousel_show_arrows=False, header_position="inside",
+        )
+        self.assertTrue(cleaned["carousel_autoplay"])
+        self.assertEqual(cleaned["carousel_interval_ms"], 10000)
+        self.assertFalse(cleaned["carousel_show_arrows"])
+        self.assertEqual(cleaned["header_position"], "inside")
+
+    def test_invalid_carousel_interval_is_rejected(self):
+        with self.assertRaises(ProductSectionSettingsError):
+            self._validate(carousel_interval_ms="fast")
+
     def test_title_and_subtitle_trimmed_and_capped(self):
         cleaned = self._validate(title="  عنوان  ", subtitle="  زیرعنوان  ")
         self.assertEqual(cleaned["title"], "عنوان")
@@ -298,6 +319,14 @@ class ProductSectionSettingsTests(TestCase):
     def test_show_view_all_accepts_false(self):
         self.assertFalse(self._validate(show_view_all=False)["show_view_all"])
 
+
+    def test_valid_card_styles_accepted(self):
+        for style in ("standard", "compact", "minimal"):
+            self.assertEqual(validate_card_settings({"card_style": style})["card_style"], style)
+
+    def test_unknown_card_style_falls_back_to_standard(self):
+        self.assertEqual(validate_card_settings({"card_style": "v5-only"})["card_style"], "standard")
+
     def test_non_dict_rejected(self):
         with self.assertRaises(ProductSectionSettingsError):
             self.definition.validate_settings("not a dict")
@@ -336,6 +365,20 @@ class CategoryGridSettingsTests(TestCase):
     def test_carousel_display_mode_accepted(self):
         cleaned = self.definition.validate_settings({"display_mode": "carousel"})
         self.assertEqual(cleaned["display_mode"], "carousel")
+
+    def test_image_strip_display_mode_accepted(self):
+        cleaned = self.definition.validate_settings({"display_mode": "image_strip"})
+        self.assertEqual(cleaned["display_mode"], "image_strip")
+
+    def test_item_limit_defaults_and_clamps_for_dense_or_sparse_compositions(self):
+        self.assertEqual(self.definition.validate_settings({})["item_limit"], 12)
+        self.assertEqual(self.definition.validate_settings({"item_limit": 1})["item_limit"], 2)
+        self.assertEqual(self.definition.validate_settings({"item_limit": 6})["item_limit"], 6)
+        self.assertEqual(self.definition.validate_settings({"item_limit": 99})["item_limit"], 12)
+
+    def test_non_numeric_item_limit_rejected(self):
+        with self.assertRaises(ValueError):
+            self.definition.validate_settings({"item_limit": "many"})
 
     def test_title_trimmed_and_capped(self):
         cleaned = self.definition.validate_settings({"title": "  " + ("ط" * 100) + "  "})
@@ -771,8 +814,8 @@ class CardSettingsTests(TestCase):
         defaults = default_card_settings()
         self.assertEqual(defaults, {
             "show_brand": True, "show_price": True, "show_badge": True,
-            "show_wishlist": True, "show_quick_add": True, "card_border": True,
-            "image_ratio": "square", "quick_add_reveal": "hover_slide",
+            "show_wishlist": True, "show_quick_add": True, "show_rating": True, "card_border": True,
+            "image_ratio": "square", "quick_add_reveal": "hover_slide", "card_style": "standard",
         })
 
     def test_none_raw_defaults(self):
@@ -781,9 +824,9 @@ class CardSettingsTests(TestCase):
     def test_explicit_false_toggles_are_respected(self):
         cleaned = validate_card_settings({
             "show_brand": False, "show_price": False, "show_badge": False,
-            "show_wishlist": False, "show_quick_add": False, "card_border": False,
+            "show_wishlist": False, "show_quick_add": False, "show_rating": False, "card_border": False,
         })
-        for key in ("show_brand", "show_price", "show_badge", "show_wishlist", "show_quick_add", "card_border"):
+        for key in ("show_brand", "show_price", "show_badge", "show_wishlist", "show_quick_add", "show_rating", "card_border"):
             self.assertFalse(cleaned[key], key)
 
     def test_valid_image_ratios_accepted(self):
@@ -973,12 +1016,19 @@ class BackgroundSettingsTests(TestCase):
         with self.assertRaises(BackgroundSettingsError):
             validate_background_settings({"mode": "image", "media_asset_id": "https://evil.example.com/x.jpg"})
 
-    def test_pattern_mode_with_empty_registry_falls_back_to_theme(self):
-        """PATTERN_REGISTRY عمداً در Phase 1 خالی است (هنوز هیچ دارایی‌ای
-        ساخته نشده) — یک pattern_slug همیشه به‌شکلِ امن رد می‌شود، نه خطا."""
-        cleaned = validate_background_settings({"mode": "pattern", "pattern_slug": "stationery"})
-        self.assertEqual(cleaned["mode"], "theme")
-        self.assertEqual(cleaned["pattern_slug"], "")
+    def test_registered_pattern_is_preserved_and_unknown_pattern_falls_back(self):
+        cleaned = validate_background_settings({"mode": "pattern", "pattern_slug": "commerce-doodle", "color": "#F53247"})
+        self.assertEqual(cleaned["mode"], "pattern")
+        self.assertEqual(cleaned["pattern_slug"], "commerce-doodle")
+        self.assertEqual(cleaned["color"], "#F53247")
+
+        unknown = validate_background_settings({"mode": "pattern", "pattern_slug": "stationery"})
+        self.assertEqual(unknown["mode"], "theme")
+        self.assertEqual(unknown["pattern_slug"], "")
+
+    def test_pattern_color_uses_same_hex_validation_as_solid_background(self):
+        with self.assertRaises(BackgroundSettingsError):
+            validate_background_settings({"mode": "pattern", "pattern_slug": "commerce-doodle", "color": "red"})
 
     def test_unknown_mode_falls_back_to_theme(self):
         cleaned = validate_background_settings({"mode": "not-a-real-mode"})

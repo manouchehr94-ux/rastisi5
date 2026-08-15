@@ -11,8 +11,8 @@
    overrideهایِ data-sfb-card-shadow/hover پایین‌تر در همین فایل. */
 html[data-sfb-density="compact"] .grid{gap:10px}
 html[data-sfb-density="relaxed"] .grid{gap:24px}
-html[data-sfb-density="compact"] .pcarousel{gap:10px}
-html[data-sfb-density="relaxed"] .pcarousel{gap:24px}
+html[data-sfb-density="compact"] .pcarousel{--pcarousel-gap:10px}
+html[data-sfb-density="relaxed"] .pcarousel{--pcarousel-gap:24px}
 /* تعدادِ ستونِ پیش‌فرض از Templateِ فعال می‌آید (بخش‌هایی که هنوز
    per-section column-aware نیستند: جدیدترین‌ها، پرفروش‌ترین‌ها، ...) —
    پیش‌فرض دقیقاً همان ۴ ستونِ قبلی. */
@@ -20,6 +20,14 @@ html[data-sfb-density="relaxed"] .pcarousel{gap:24px}
 .g3{grid-template-columns:repeat(3,1fr)}
 .g2{grid-template-columns:repeat(2,1fr)}
 .pcard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:.2s;display:flex;flex-direction:column;cursor:pointer}
+/* Semantic card click target: the product link is an empty overlay sibling, not
+   a parent of wishlist/quick-add buttons. This keeps the whole card clickable
+   while avoiding invalid nested interactive controls (<button> inside <a>). */
+.pcard{position:relative}
+.pcard-hitarea{position:absolute;inset:0;z-index:1;border-radius:inherit}
+.pcard-hitarea:focus-visible{outline:3px solid var(--violet);outline-offset:-3px}
+.pcard .heart,.pcard .addbar{z-index:3}
+.pcard .compact-actions{position:relative;z-index:3}
 .pcard:hover{box-shadow:var(--shadow);transform:translateY(-3px);border-color:#ddd2f5}
 .pcard.no-border{border-color:transparent}
 .pcard.no-border:hover{border-color:transparent}
@@ -91,7 +99,7 @@ html[data-sfb-density="relaxed"] .pcard .body{padding:18px 18px 20px;gap:10px}
 
 /* حالت نمایش «کاروسل» بخش محصولات (فاز C) — همان .pcard، فقط در یک
    ردیفِ اسکرول‌شونده‌ی افقی به‌جای گرید؛ بدون کتابخانه‌ی جاوااسکریپت. */
-.pcarousel{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+.pcarousel{--pcarousel-gap:16px;display:flex;gap:var(--pcarousel-gap);overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px;-webkit-overflow-scrolling:touch}
 .pcarousel .pcard{flex:0 0 220px;scroll-snap-align:start}
 @media(max-width:680px){
   .pcarousel .pcard{flex-basis:150px}
@@ -111,10 +119,212 @@ html[data-sfb-density="relaxed"] .pcard .body{padding:18px 18px 20px;gap:10px}
   .grid.rsec-cols{grid-template-columns:repeat(var(--cols-mobile, 2), 1fr)}
 }
 
-.pcarousel.rsec-cols .pcard{flex-basis:calc((100% - (var(--cols-desktop, 4) - 1) * 16px) / var(--cols-desktop, 4))}
+.pcarousel.rsec-cols .pcard{flex-basis:calc((100% - (var(--cols-desktop, 4) - 1) * var(--pcarousel-gap, 16px)) / var(--cols-desktop, 4))}
 @media(max-width:1000px){
-  .pcarousel.rsec-cols .pcard{flex-basis:calc((100% - (var(--cols-tablet, 3) - 1) * 16px) / var(--cols-tablet, 3))}
+  .pcarousel.rsec-cols .pcard{flex-basis:calc((100% - (var(--cols-tablet, 3) - 1) * var(--pcarousel-gap, 16px)) / var(--cols-tablet, 3))}
 }
 @media(max-width:680px){
-  .pcarousel.rsec-cols .pcard{flex-basis:calc((100% - (var(--cols-mobile, 2) - 1) * 16px) / var(--cols-mobile, 2))}
+  .pcarousel.rsec-cols .pcard{flex-basis:calc((100% - (var(--cols-mobile, 2) - 1) * var(--pcarousel-gap, 16px)) / var(--cols-mobile, 2))}
+}
+
+/* ========================================================================
+   Dense universal commerce card
+   ------------------------------------------------------------------------
+   Generic closed presentation (card_style="compact").  It is deliberately
+   data-driven and reusable; no preset/store name appears in the renderer or
+   selectors.  Geometry follows the approved product-heavy marketplace
+   reference: contained product image, short title/price stack and a compact
+   quantity/cart affordance rather than a large hover CTA.
+   ======================================================================== */
+.pcard.style-compact{
+  border-radius:8px;
+  border:1px solid #e5e7eb;
+  box-shadow:0 2px 8px rgba(15,23,42,.04);
+  background:#fff;
+  overflow:hidden;
+  min-width:0;
+  transform:none;
+}
+.pcard.style-compact:hover{
+  transform:none;
+  border-color:#d7dbe2;
+  box-shadow:0 5px 16px rgba(15,23,42,.08);
+}
+.pcard.style-compact .img{
+  aspect-ratio:1.14/1;
+  background:#fff!important;
+  padding:10px 10px 2px;
+  font-size:0;
+}
+.pcard.style-compact .img .cover-photo,
+.pcard.style-compact .img .cover-photo-2{
+  inset:10px 10px 2px!important;
+  width:calc(100% - 20px)!important;
+  height:calc(100% - 12px)!important;
+  object-fit:contain!important;
+}
+.pcard.style-compact .product-placeholder{
+  width:64%;
+  height:64%;
+  color:#c7ccd4;
+  display:grid;
+  place-items:center;
+}
+.pcard.style-compact .product-placeholder svg{width:58px;height:58px}
+.pcard.style-compact .heart{width:28px;height:28px;top:7px;left:7px;background:#fff;border:1px solid #edf0f3}
+.pcard.style-compact .heart svg{width:14px;height:14px}
+.pcard.style-compact .badges{top:7px;right:7px}
+.pcard.style-compact .pill{font-size:9px;line-height:1.4;padding:4px 7px;border-radius:999px}
+.pcard.style-compact .body{
+  padding:8px 10px 4px;
+  gap:4px;
+  min-height:94px;
+  text-align:right;
+}
+.pcard.style-compact .brand{font-size:9.5px;color:#8b8f97;min-height:14px}
+.pcard.style-compact .name{
+  font-size:11.5px;
+  line-height:1.75;
+  height:40px;
+  font-weight:500;
+  color:#2c3037;
+  -webkit-line-clamp:2;
+}
+.pcard.style-compact .rate{font-size:9px;gap:3px}
+.pcard.style-compact .stars{font-size:9px}
+.pcard.style-compact .price{
+  padding-top:4px;
+  border-top:0;
+  justify-content:flex-start;
+  min-height:28px;
+}
+.pcard.style-compact .price .now{font-size:12px;font-weight:600;color:#26292f}
+.pcard.style-compact .price .now small{font-size:8px}
+.pcard.style-compact .price .old{font-size:9px;margin-inline-start:3px;color:#9ca0a8}
+.pcard.style-compact .compact-actions{
+  min-height:34px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:5px;
+  padding:0 10px 9px;
+  direction:ltr;
+}
+.pcard.style-compact .compact-cart{
+  width:30px;
+  height:28px;
+  border:1px solid #83878e;
+  background:#fff;
+  color:#33373e;
+  display:grid;
+  place-items:center;
+  border-radius:2px;
+}
+.pcard.style-compact .compact-cart svg{width:16px;height:16px}
+.pcard.style-compact .compact-qty{
+  height:28px;
+  display:grid;
+  grid-template-columns:27px 26px 27px;
+  align-items:center;
+  border:1px solid #e2e4e8;
+  color:#8a8e95;
+  border-radius:2px;
+  font-size:11px;
+  background:#f8f9fa;
+}
+.pcard.style-compact .compact-qty>*{display:grid;place-items:center;height:100%}
+.pcard.style-compact .compact-qty span{background:#fff;color:#555a62;border-inline:1px solid #e2e4e8}
+
+.pcard.style-minimal{border-radius:4px;box-shadow:none}
+.pcard.style-minimal:hover{transform:none;box-shadow:none}
+
+@media(max-width:680px){
+  .pcard.style-compact .img{aspect-ratio:1.05/1}
+  .pcard.style-compact .body{padding:7px 8px 3px;min-height:84px}
+  .pcard.style-compact .name{font-size:10.5px;height:36px}
+  .pcard.style-compact .compact-actions{padding:0 8px 8px}
+}
+
+/* V3 dense marketplace card polish. */
+html[data-sfb-density="compact"] .pcarousel{--pcarousel-gap:8px}
+.pcard.style-compact{border-radius:4px;box-shadow:0 1px 5px rgba(15,23,42,.04)}
+.pcard.style-compact .img{aspect-ratio:1/1.03;padding:6px 6px 0}
+.pcard.style-compact .img .cover-photo,.pcard.style-compact .img .cover-photo-2{inset:6px 6px 0!important;width:calc(100% - 12px)!important;height:calc(100% - 6px)!important}
+.pcard.style-compact .body{padding:6px 8px 2px;gap:2px;min-height:82px}
+.pcard.style-compact .name{font-size:10px;line-height:1.6;height:33px;font-weight:600}
+.pcard.style-compact .brand{font-size:8.5px;min-height:11px}
+.pcard.style-compact .price{padding-top:2px;min-height:23px}
+.pcard.style-compact .price .now{font-size:10.5px;font-weight:700}.pcard.style-compact .price .old{font-size:8px}
+.pcard.style-compact .compact-actions{min-height:31px;padding:0 8px 7px;gap:4px}
+.pcard.style-compact .compact-cart{width:29px;height:26px;background:#17a94d;color:#fff;border-color:#17a94d;border-radius:2px}
+.pcard.style-compact .compact-cart:hover{background:#128c40;border-color:#128c40}
+.pcard.style-compact .compact-qty{height:26px;grid-template-columns:24px 24px 24px;font-size:9px;background:#f8f9fa}
+.pcard.style-compact .pill{font-size:8px;padding:3px 6px}
+.rsec[data-pattern] .pcard.style-compact{border-color:rgba(255,255,255,.82);box-shadow:none}
+
+/* ========================================================================
+   V4 Golden visual polish — compact commerce CTA
+   ------------------------------------------------------------------------
+   The compact card stays universal, but its quick-add affordance now matches
+   the dense-marketplace reference: a readable green pill plus a small quantity
+   control instead of an icon-only square.
+   ======================================================================== */
+.pcard.style-compact .compact-actions{gap:5px;direction:ltr;align-items:center}
+.pcard.style-compact .compact-cart{
+  width:auto;min-width:58px;height:25px;padding:0 8px;border-radius:999px;
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  background:#19a94f;color:#fff;border-color:#19a94f;
+  font-size:8.2px;font-weight:800;white-space:nowrap;
+}
+.pcard.style-compact .compact-cart svg{width:11px;height:11px;flex:none}
+.pcard.style-compact .compact-cart-label{display:inline-block;line-height:1}
+.pcard.style-compact .compact-qty{
+  height:25px;grid-template-columns:20px 20px 20px;font-size:8.5px;
+  border-color:#dfe3e7;background:#fff;
+}
+@media(max-width:680px){
+  .pcard.style-compact .compact-cart{min-width:52px;padding-inline:7px;font-size:7.8px}
+  .pcard.style-compact .compact-qty{grid-template-columns:19px 19px 19px}
+}
+
+/* ========================================================================
+   V4.2 readability + real quick-add affordance
+   ======================================================================== */
+.pcard.style-compact .body{min-height:87px}
+.pcard.style-compact .name{font-size:11.1px;line-height:1.62;height:36px}
+.pcard.style-compact .brand{font-size:9.2px;min-height:12px}
+.pcard.style-compact .price .now{font-size:11.5px}
+.pcard.style-compact .price .old{font-size:8.8px}
+.pcard.style-compact .pill{font-size:8.8px;padding:3px 6px}
+.pcard.style-compact .compact-actions{min-height:34px;padding:0 8px 8px;justify-content:flex-start}
+.pcard.style-compact .compact-cart{min-width:64px;height:27px;padding-inline:9px;font-size:9.2px}
+.pcard.style-compact .compact-cart svg{width:12px;height:12px}
+.pcard.style-compact .compact-qty{display:none!important}
+@media(max-width:680px){
+  .pcard.style-compact .name{font-size:10.8px;height:35px}
+  .pcard.style-compact .compact-cart{min-width:60px;height:27px;font-size:8.8px}
+}
+
+/* ========================================================================
+   V4.2.2 compact-card readability calibration
+   ======================================================================== */
+.pcard.style-compact .body{min-height:94px}
+.pcard.style-compact .name{font-size:12.6px;line-height:1.62;height:41px;font-weight:650}
+.pcard.style-compact .brand{font-size:10.2px;min-height:14px}
+.pcard.style-compact .rate{font-size:10px}
+.pcard.style-compact .stars{font-size:10px}
+.pcard.style-compact .price{min-height:27px}
+.pcard.style-compact .price .now{font-size:13.1px}
+.pcard.style-compact .price .now small{font-size:9.8px}
+.pcard.style-compact .price .old{font-size:9.7px}
+.pcard.style-compact .pill{font-size:9.4px;padding:3px 7px}
+.pcard.style-compact .compact-actions{min-height:37px;padding-bottom:9px}
+.pcard.style-compact .compact-cart{min-width:70px;height:29px;padding-inline:10px;font-size:10.3px}
+.pcard.style-compact .compact-cart svg{width:13px;height:13px}
+
+@media(max-width:680px){
+  .pcard.style-compact .name{font-size:12px;height:39px}
+  .pcard.style-compact .brand{font-size:10px}
+  .pcard.style-compact .price .now{font-size:12.6px}
+  .pcard.style-compact .compact-cart{min-width:68px;height:30px;font-size:10px}
 }

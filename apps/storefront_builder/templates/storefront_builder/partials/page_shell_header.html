@@ -215,4 +215,12 @@ touched from Preview) — everything else (mega-menu, categories) is identical.
     </div>
   </div>
 </nav>
+
+{% for block in hc.extra_blocks %}
+{% if block.type == "tagline" and SHOP_TAGLINE %}
+<div class="header-tagline-strip" role="note">
+  <div class="wrap"><span>{{ SHOP_TAGLINE }}</span></div>
+</div>
+{% endif %}
+{% endfor %}
 {% endwith %}

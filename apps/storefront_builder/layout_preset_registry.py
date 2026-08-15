@@ -348,120 +348,310 @@ register_layout_preset(LayoutPresetDefinition(
 
 
 # ==================================================================
-# Phase 3 — Universal Storefront: V5 Golden Homepage preset.
+# Golden dense-commerce homepage preset — PURE DATA.
 #
-# This is pure DATA — block order, row composition, and per-block
-# settings — built entirely from the Universal Block capabilities
-# added/verified in Checkpoints A-D. It never selects a renderer or
-# template; the same universal templates every other preset uses
-# render this preset's sections. It intentionally omits every
-# non-home page (spec scope: Homepage only for this phase) and never
-# references a specific Store's category/brand/collection IDs (preset
-# Reference Safety rule) — category_grid ships with category_ids=[]
-# (merchant must pick real categories before the circular style has
-# content to show, exactly like any other store using this section
-# type) and multi_banner ships with no per-instance PromotionalBanner
-# rows (those are merchant-managed Media, never preset data).
-#
-# default_palette_slug is intentionally left unset — color fidelity to
-# the approved V5 reference is a later, separate pass (this phase's
-# scope was structural fidelity, per the explicit A->F priority order),
-# and Palette stays a fully independent, merchant-editable concern per
-# the Owner's standing decision.
+# This preset intentionally mirrors the approved dense marketplace reference
+# using only reusable Universal blocks.  No renderer knows this key and no
+# section stores tenant-specific IDs.  Visual variety comes from composition,
+# row spans, responsive columns, reusable banner variants and generic product
+# sources (newest / discounted / best_sellers / most_viewed).
 # ==================================================================
 register_layout_preset(LayoutPresetDefinition(
     key="v5_golden_homepage",
     label_fa="فروشگاه کامل (V5)",
     description_fa=(
-        "چیدمانِ کاملِ صفحه‌ی اصلی با مگامنو، ردیفِ Hero و پیشنهادِ لحظه‌ای، "
-        "استریپِ دسته‌بندیِ دایره‌ای، ردیف‌های محصولِ متعدد، پیشنهادِ "
-        "شگفت‌انگیزِ چندآیتمی، بلوکِ محصولِ فشرده، برندها و وبلاگ."
+        "چیدمان متراکم مارکت‌پلیس: هدر جستجو-محور، Hero و پیشنهاد لحظه‌ای، "
+        "ردیف تصویری دسته‌بندی، بنرهای تبلیغاتی متنوع، ریل‌های رنگی شش‌ستونه، "
+        "پیشنهاد شگفت‌انگیز، پنل‌های منتخب دو ستونه و فوتر اطلاعاتی عمیق."
     ),
     appearance={
-        "font": "Vazirmatn", "radius": 4, "button_radius": 8,
-        "density": "normal", "motion": "subtle", "type_scale": "normal",
-        "button_style": "filled", "image_fit": "cover", "image_hover": "zoom",
+        "font": "Vazirmatn", "radius": 7, "button_radius": 4,
+        "density": "compact", "motion": "none", "type_scale": "normal",
+        "button_style": "filled", "image_fit": "contain", "image_hover": "none",
         "card_image_crossfade": False, "card_image_zoom": False,
+        "content_width": 1500, "grid_density": 6,
+        "card_shadow": "none", "card_hover": "none", "hero_style": "wide",
+        "color_overrides": {
+            "primary": "#16A34A", "secondary": "#168A48", "accent": "#F43F5E",
+            "background": "#F4F5F7", "surface": "#FFFFFF", "text": "#282B30",
+            "muted": "#747982", "border": "#E0E3E8",
+        },
     },
     header={
-        "sticky": True, "announcement_enabled": True,
+        "sticky": False, "announcement_enabled": True,
         "show_search": True, "show_account": True, "show_wishlist": True, "show_cart": True,
-        "extra_blocks": [{"type": "phone"}],
+        "extra_blocks": [{"type": "tagline"}],
     },
     footer={
         "show_about": True, "show_contact": True, "show_categories": True,
-        "show_social": True, "show_trust_badges": True, "show_payment_logos": True,
+        "show_quick_links": True, "show_social": True,
+        "show_trust_badges": True, "show_payment_logos": True,
         "show_newsletter": False, "show_copyright": True,
+        "extra_blocks": [
+            {"type": "custom_text", "title": "خدمات فروشگاه", "text": "ارسال سریع • ضمانت اصالت • امکان مرجوعی • پشتیبانی خرید"},
+        ],
     },
     pages={
         "home": (
-            # Hero + Instant Offer -- two independent blocks sharing one
-            # row (9+3), never fused into a single section.
-            PresetSectionEntry("hero_banner", row_key="v5-hero-row", row_span=9),
             PresetSectionEntry(
-                "product_section", row_key="v5-hero-row", row_span=3,
+                "product_section", row_key="golden-hero-row", row_span=3,
                 settings={
-                    "title": "پیشنهاد لحظه‌ای", "data_source": "newest", "item_limit": 3,
+                    "title": "پیشنهاد لحظه‌ای", "data_source": "discounted", "item_limit": 4,
                     "display_mode": "carousel", "show_view_all": False,
+                    "carousel_autoplay": True, "carousel_interval_ms": 3500,
+                    "carousel_show_arrows": True, "header_position": "inside",
                     "responsive": {"desktop_columns": 1, "tablet_columns": 1, "mobile_columns": 1},
+                    "card": {
+                        "card_style": "compact", "show_brand": False, "show_rating": False,
+                        "show_wishlist": False, "show_quick_add": False, "show_badge": True,
+                        "show_price": True, "card_border": True, "image_ratio": "square",
+                        "quick_add_reveal": "always",
+                    },
+                    "spacing": {"vertical_spacing": "small"},
                 },
             ),
             PresetSectionEntry(
+                "hero_banner", row_key="golden-hero-row", row_span=9,
+                settings={"layout": {"height": "standard"}, "spacing": {"vertical_spacing": "small"}},
+            ),
+            PresetSectionEntry(
                 "category_grid",
-                settings={"title": "دسته‌بندی‌ها", "display_mode": "circular", "category_ids": []},
+                settings={
+                    "title": "دسته‌بندی‌ها", "display_mode": "image_strip", "category_ids": [], "item_limit": 6,
+                    "spacing": {"vertical_spacing": "small"},
+                },
             ),
             PresetSectionEntry(
                 "trust_features",
-                settings={"items": [
-                    {"icon": "🚚", "title": "ارسال سریع", "subtitle": "به سراسر کشور"},
-                    {"icon": "💯", "title": "ضمانت اصالت", "subtitle": "کالای اورجینال"},
-                    {"icon": "🎧", "title": "پشتیبانی ۲۴/۷", "subtitle": "پاسخگویی همه‌روزه"},
-                    {"icon": "↩️", "title": "۷ روز ضمانت بازگشت", "subtitle": "بدون دردسر"},
-                    {"icon": "🔒", "title": "پرداخت امن", "subtitle": "درگاه بانکی معتبر"},
-                ]},
+                settings={
+                    "items": [
+                        {"icon": "↙", "title": "تضمین بهترین قیمت", "subtitle": "خرید مطمئن"},
+                        {"icon": "◎", "title": "ضمانت اصالت کالا", "subtitle": "کالای اصل"},
+                        {"icon": "▣", "title": "پرداخت امن", "subtitle": "درگاه و کارت"},
+                        {"icon": "⌂", "title": "تحویل حضوری", "subtitle": "دریافت آسان"},
+                        {"icon": "⇢", "title": "ارسال سریع", "subtitle": "به سراسر کشور"},
+                    ],
+                    "spacing": {"vertical_spacing": "small"},
+                },
             ),
             PresetSectionEntry(
                 "multi_banner",
-                settings={"responsive": {"desktop_columns": 4, "tablet_columns": 2, "mobile_columns": 1}},
+                settings={
+                    "item_limit": 4, "offset": 0, "layout_variant": "promo-4",
+                    "responsive": {"desktop_columns": 4, "tablet_columns": 2, "mobile_columns": 2},
+                    "spacing": {"vertical_spacing": "small"},
+                },
             ),
             PresetSectionEntry(
                 "product_section",
                 settings={
-                    "title": "پرفروش‌ترین‌های هفته", "data_source": "newest", "item_limit": 6,
-                    "display_mode": "carousel",
-                    "background": {"mode": "color", "color": "#F4F5F9", "media_asset_id": None, "pattern_slug": ""},
+                    "title": "پرفروش‌ترین‌های هفته", "data_source": "most_viewed", "item_limit": 6,
+                    "display_mode": "carousel", "show_view_all": True,
+                    "responsive": {"desktop_columns": 6, "tablet_columns": 3, "mobile_columns": 2},
+                    "card": {
+                        "card_style": "compact", "show_brand": False, "show_rating": False,
+                        "show_wishlist": False, "show_quick_add": True, "show_badge": True,
+                        "show_price": True, "card_border": True, "image_ratio": "square",
+                        "quick_add_reveal": "always",
+                    },
+                    "background": {"mode": "pattern", "pattern_slug": "commerce-doodle", "color": "#F53247"},
+                    "spacing": {"vertical_spacing": "small"},
                 },
             ),
             PresetSectionEntry(
                 "amazing_offers",
-                settings={"item_limit": 4, "deadline_hours": 8, "title": "⚡ پیشنهاد شگفت‌انگیز"},
+                settings={
+                    "item_limit": 4, "deadline_hours": 8, "title": "پیشنهاد شگفت‌انگیز برایتو",
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
+            PresetSectionEntry(
+                "product_section",
+                settings={
+                    "title": "ترندهای این هفته", "data_source": "discounted", "item_limit": 6,
+                    "display_mode": "carousel", "show_view_all": True,
+                    "responsive": {"desktop_columns": 6, "tablet_columns": 3, "mobile_columns": 2},
+                    "card": {
+                        "card_style": "compact", "show_brand": False, "show_rating": False,
+                        "show_wishlist": False, "show_quick_add": True, "show_badge": True,
+                        "show_price": True, "card_border": True, "image_ratio": "square",
+                        "quick_add_reveal": "always",
+                    },
+                    "background": {"mode": "pattern", "pattern_slug": "commerce-doodle", "color": "#16B95F"},
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
+            PresetSectionEntry(
+                "multi_banner", row_key="golden-banner-pair-a", row_span=6,
+                settings={
+                    "item_limit": 1, "offset": 4, "layout_variant": "wide-single",
+                    "responsive": {"desktop_columns": 1, "tablet_columns": 1, "mobile_columns": 1},
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
+            PresetSectionEntry(
+                "multi_banner", row_key="golden-banner-pair-a", row_span=6,
+                settings={
+                    "item_limit": 1, "offset": 5, "layout_variant": "wide-single",
+                    "responsive": {"desktop_columns": 1, "tablet_columns": 1, "mobile_columns": 1},
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
+            PresetSectionEntry(
+                "product_section",
+                settings={
+                    "title": "تازه‌های فروشگاه", "data_source": "newest", "item_limit": 6,
+                    "display_mode": "carousel", "show_view_all": True,
+                    "responsive": {"desktop_columns": 6, "tablet_columns": 3, "mobile_columns": 2},
+                    "card": {
+                        "card_style": "compact", "show_brand": False, "show_rating": False,
+                        "show_wishlist": False, "show_quick_add": True, "show_badge": True,
+                        "show_price": True, "card_border": True, "image_ratio": "square",
+                        "quick_add_reveal": "always",
+                    },
+                    "background": {"mode": "pattern", "pattern_slug": "commerce-doodle", "color": "#C56B00"},
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
+            PresetSectionEntry(
+                "multi_banner", row_key="golden-banner-pair-b", row_span=6,
+                settings={
+                    "item_limit": 1, "offset": 6, "layout_variant": "wide-single",
+                    "responsive": {"desktop_columns": 1, "tablet_columns": 1, "mobile_columns": 1},
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
+            PresetSectionEntry(
+                "multi_banner", row_key="golden-banner-pair-b", row_span=6,
+                settings={
+                    "item_limit": 1, "offset": 7, "layout_variant": "wide-single",
+                    "responsive": {"desktop_columns": 1, "tablet_columns": 1, "mobile_columns": 1},
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
+            PresetSectionEntry(
+                "product_section", row_key="golden-compact-row-a", row_span=6,
+                settings={
+                    "title": "پیشنهادهای منتخب", "data_source": "newest", "item_limit": 3,
+                    "display_mode": "grid", "show_view_all": True,
+                    "responsive": {"desktop_columns": 3, "tablet_columns": 3, "mobile_columns": 1},
+                    "card": {
+                        "card_style": "compact", "show_brand": False, "show_rating": False,
+                        "show_wishlist": False, "show_quick_add": True, "show_badge": True,
+                        "show_price": True, "card_border": True, "image_ratio": "square",
+                        "quick_add_reveal": "always",
+                    },
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
+            PresetSectionEntry(
+                "product_section", row_key="golden-compact-row-a", row_span=6,
+                settings={
+                    "title": "محبوب‌ترین انتخاب‌ها", "data_source": "most_viewed", "item_limit": 3,
+                    "display_mode": "grid", "show_view_all": True,
+                    "responsive": {"desktop_columns": 3, "tablet_columns": 3, "mobile_columns": 1},
+                    "card": {
+                        "card_style": "compact", "show_brand": False, "show_rating": False,
+                        "show_wishlist": False, "show_quick_add": True, "show_badge": True,
+                        "show_price": True, "card_border": True, "image_ratio": "square",
+                        "quick_add_reveal": "always",
+                    },
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
+            PresetSectionEntry(
+                "product_section",
+                settings={
+                    "title": "پیشنهادهای ویژه", "data_source": "most_viewed", "item_limit": 6,
+                    "display_mode": "carousel", "show_view_all": True,
+                    "responsive": {"desktop_columns": 6, "tablet_columns": 3, "mobile_columns": 2},
+                    "card": {
+                        "card_style": "compact", "show_brand": False, "show_rating": False,
+                        "show_wishlist": False, "show_quick_add": True, "show_badge": True,
+                        "show_price": True, "card_border": True, "image_ratio": "square",
+                        "quick_add_reveal": "always",
+                    },
+                    "background": {"mode": "pattern", "pattern_slug": "commerce-doodle", "color": "#352196"},
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
+            PresetSectionEntry(
+                "product_section", row_key="golden-compact-row-b", row_span=6,
+                settings={
+                    "title": "انتخاب روز", "data_source": "discounted", "item_limit": 3,
+                    "display_mode": "grid", "show_view_all": True,
+                    "responsive": {"desktop_columns": 3, "tablet_columns": 3, "mobile_columns": 1},
+                    "card": {
+                        "card_style": "compact", "show_brand": False, "show_rating": False,
+                        "show_wishlist": False, "show_quick_add": True, "show_badge": True,
+                        "show_price": True, "card_border": True, "image_ratio": "square",
+                        "quick_add_reveal": "always",
+                    },
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
+            PresetSectionEntry(
+                "product_section", row_key="golden-compact-row-b", row_span=6,
+                settings={
+                    "title": "بیشتر دیده‌شده‌ها", "data_source": "most_viewed", "item_limit": 3,
+                    "display_mode": "grid", "show_view_all": True,
+                    "responsive": {"desktop_columns": 3, "tablet_columns": 3, "mobile_columns": 1},
+                    "card": {
+                        "card_style": "compact", "show_brand": False, "show_rating": False,
+                        "show_wishlist": False, "show_quick_add": True, "show_badge": True,
+                        "show_price": True, "card_border": True, "image_ratio": "square",
+                        "quick_add_reveal": "always",
+                    },
+                    "spacing": {"vertical_spacing": "small"},
+                },
             ),
             PresetSectionEntry(
                 "multi_banner",
-                settings={"responsive": {"desktop_columns": 2, "tablet_columns": 2, "mobile_columns": 1}},
-            ),
-            # Compact/paired Product Rail -- two ordinary product_section
-            # instances sharing a 6+6 row; the narrower/shorter "compact"
-            # look is a pure function of the resulting column count, no
-            # separate card-density field.
-            PresetSectionEntry(
-                "product_section", row_key="v5-compact-row", row_span=6,
                 settings={
-                    "title": "پیشنهادِ منتخب ۱", "data_source": "newest", "item_limit": 4,
-                    "display_mode": "grid",
-                    "responsive": {"desktop_columns": 2, "tablet_columns": 2, "mobile_columns": 1},
+                    "item_limit": 4, "offset": 8, "layout_variant": "mini-4",
+                    "responsive": {"desktop_columns": 4, "tablet_columns": 2, "mobile_columns": 2},
+                    "spacing": {"vertical_spacing": "small"},
                 },
             ),
             PresetSectionEntry(
-                "product_section", row_key="v5-compact-row", row_span=6,
+                "product_section",
                 settings={
-                    "title": "پیشنهادِ منتخب ۲", "data_source": "discounted", "item_limit": 4,
-                    "display_mode": "grid",
-                    "responsive": {"desktop_columns": 2, "tablet_columns": 2, "mobile_columns": 1},
+                    "title": "محبوب‌های فروشگاه", "data_source": "newest", "item_limit": 6,
+                    "display_mode": "carousel", "show_view_all": True,
+                    "responsive": {"desktop_columns": 6, "tablet_columns": 3, "mobile_columns": 2},
+                    "card": {
+                        "card_style": "compact", "show_brand": False, "show_rating": False,
+                        "show_wishlist": False, "show_quick_add": True, "show_badge": True,
+                        "show_price": True, "card_border": True, "image_ratio": "square",
+                        "quick_add_reveal": "always",
+                    },
+                    "background": {"mode": "pattern", "pattern_slug": "commerce-doodle", "color": "#056CAE"},
+                    "spacing": {"vertical_spacing": "small"},
                 },
             ),
-            PresetSectionEntry("brand_carousel", settings={"title": "برندهای منتخب", "display_mode": "carousel"}),
-            PresetSectionEntry("blog_posts"),
+            PresetSectionEntry(
+                "multi_banner",
+                settings={
+                    "item_limit": 1, "offset": 12, "layout_variant": "strip",
+                    "responsive": {"desktop_columns": 1, "tablet_columns": 1, "mobile_columns": 1},
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
+            PresetSectionEntry(
+                "product_section",
+                settings={
+                    "title": "منتخب برای شما", "data_source": "discounted", "item_limit": 6,
+                    "display_mode": "carousel", "show_view_all": True,
+                    "responsive": {"desktop_columns": 6, "tablet_columns": 3, "mobile_columns": 2},
+                    "card": {
+                        "card_style": "compact", "show_brand": False, "show_rating": False,
+                        "show_wishlist": False, "show_quick_add": True, "show_badge": True,
+                        "show_price": True, "card_border": True, "image_ratio": "square",
+                        "quick_add_reveal": "always",
+                    },
+                    "spacing": {"vertical_spacing": "small"},
+                },
+            ),
         ),
     },
 ))

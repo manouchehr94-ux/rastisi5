@@ -296,6 +296,10 @@ def storefront_section_settings(request, pk):
                 "show_view_all": request.POST.get("show_view_all") == "on",
                 "title": request.POST.get("title", ""),
                 "subtitle": request.POST.get("subtitle", ""),
+                "carousel_autoplay": request.POST.get("carousel_autoplay") == "on",
+                "carousel_interval_ms": request.POST.get("carousel_interval_ms", "3500"),
+                "carousel_show_arrows": request.POST.get("carousel_show_arrows") == "on",
+                "header_position": request.POST.get("header_position", "above"),
             }
         elif section.section_key == "image_text":
             raw = {
@@ -319,6 +323,7 @@ def storefront_section_settings(request, pk):
                 "title": request.POST.get("title", ""),
                 "display_mode": request.POST.get("display_mode", ""),
                 "category_ids": request.POST.getlist("category_ids"),
+                "item_limit": request.POST.get("item_limit", 12),
             }
         elif section.section_key == "brand_carousel":
             raw = {
@@ -545,9 +550,11 @@ def _extract_card_raw(request) -> dict:
         "show_badge": request.POST.get("card_show_badge") == "on",
         "show_wishlist": request.POST.get("card_show_wishlist") == "on",
         "show_quick_add": request.POST.get("card_show_quick_add") == "on",
+        "show_rating": request.POST.get("card_show_rating") == "on",
         "card_border": request.POST.get("card_border") == "on",
         "image_ratio": request.POST.get("card_image_ratio", "square"),
         "quick_add_reveal": request.POST.get("card_quick_add_reveal", "hover_slide"),
+        "card_style": request.POST.get("card_style", "standard"),
     }
 
 

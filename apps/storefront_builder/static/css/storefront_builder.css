@@ -155,6 +155,7 @@
 .rsec-row-item {
   grid-column: span var(--row-span, 12);
   min-width: 0;
+  min-height: 0;
 }
 .rsec-row-item > .rsec {
   margin: 0;
@@ -1032,3 +1033,24 @@ button.sfb-layer-main {
 .sfb-palette-card.active {
   border-color: var(--violet, #6d28d9);
 }
+
+
+/* Universal dense row/surface presentation. */
+.rsec-row{gap:14px;margin:14px 0}
+.rsec[data-bg-mode="color"]{border-radius:0;padding:16px 12px}
+.rsec[data-bg-mode="color"]>.section{margin:0}
+.rsec[data-bg-mode="color"]>.section>.sec-head h2{color:#fff}
+.rsec[data-bg-mode="color"]>.section>.sec-head h2 .bar{background:#fff}
+.rsec[data-bg-mode="color"]>.section>.sec-head .more,.rsec[data-bg-mode="color"]>.section>.sec-head .btn{color:#fff;border-color:rgba(255,255,255,.7)}
+.rsec[data-bg-mode="color"] .pcarousel{padding-bottom:2px}
+@media(max-width:680px){.rsec-row{gap:9px;margin:9px 0}.rsec[data-bg-mode="color"]{padding:12px 8px}}
+
+/* Row owns the vertical rhythm; child sections must align from the same top edge. */
+.rsec-row .rsec > .section{margin-top:0;margin-bottom:0}
+.rsec-row-item > .rsec{display:flex;flex-direction:column}
+.rsec-row-item > .rsec > .section{flex:1}
+
+/* V3: pattern backgrounds are first-class reusable block surfaces. */
+.rsec[data-bg-mode="pattern"]{border-radius:0}
+.rsec-row{gap:12px;margin:10px 0}
+@media(max-width:680px){.rsec-row{gap:8px;margin:8px 0}}

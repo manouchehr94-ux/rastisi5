@@ -17,6 +17,7 @@ elsewhere, per each area's own test file):
 """
 
 from io import BytesIO
+from pathlib import Path
 
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -84,6 +85,22 @@ class V5PresetIsPureDataTests(TestCase):
             # one shared "sections/" directory used by every other preset.
             self.assertTrue(definition.template_name.startswith("storefront_builder/sections/"))
 
+    def test_v5_uses_normal_type_scale_for_readability(self):
+        preset = lpr.get_layout_preset("v5_golden_homepage")
+        self.assertEqual(preset.appearance["type_scale"], "normal")
+
+    def test_v42_readability_change_does_not_mutate_clean_minimal_preset(self):
+        preset = lpr.get_layout_preset("clean_minimal")
+        self.assertEqual(preset.appearance["type_scale"], "compact")
+
+    def test_product_card_keeps_quick_actions_outside_product_link(self):
+        template_path = Path(__file__).resolve().parents[2] / "catalog" / "templates" / "catalog" / "partials" / "product_card.html"
+        source = template_path.read_text(encoding="utf-8")
+        self.assertIn('<article class="pcard ', source)
+        self.assertIn('class="pcard-hitarea"', source)
+        self.assertNotIn('<a class="pcard style-', source)
+        self.assertIn('</a>\n  <div class="img"', source)
+
     def test_preset_settings_never_hardcode_a_tenant_specific_id(self):
         """Reference Safety — a global preset must never store a specific
         Store's category/brand/collection/product id."""
@@ -95,6 +112,58 @@ class V5PresetIsPureDataTests(TestCase):
             for key in suspicious_keys & entry.settings.keys():
                 value = entry.settings[key]
                 self.assertIn(value, ([], None), f"{entry.section_key}.{key} must stay empty in a global preset")
+
+    def test_v3_reference_composition_uses_six_card_colored_rails_and_no_blog_or_brand_blocks(self):
+        preset = lpr.get_layout_preset("v5_golden_homepage")
+        entries = list(preset.pages["home"])
+        section_keys = [entry.section_key for entry in entries]
+        self.assertNotIn("blog_posts", section_keys)
+        self.assertNotIn("brand_carousel", section_keys)
+
+        patterned_rails = [
+            entry for entry in entries
+            if entry.section_key == "product_section"
+            and (entry.settings or {}).get("background", {}).get("mode") == "pattern"
+        ]
+        self.assertEqual(len(patterned_rails), 5)
+        self.assertEqual(
+            {entry.settings["background"]["pattern_slug"] for entry in patterned_rails},
+            {"commerce-doodle"},
+        )
+        self.assertEqual(
+            {entry.settings["background"]["color"].upper() for entry in patterned_rails},
+            {"#F53247", "#16B95F", "#C56B00", "#352196", "#056CAE"},
+        )
+        for entry in patterned_rails:
+            self.assertEqual(entry.settings["item_limit"], 6)
+            self.assertEqual(entry.settings["responsive"]["desktop_columns"], 6)
+
+    def test_v3_reference_composition_has_banner_pairs_strip_and_six_category_limit(self):
+        preset = lpr.get_layout_preset("v5_golden_homepage")
+        entries = list(preset.pages["home"])
+        category = next(entry for entry in entries if entry.section_key == "category_grid")
+        self.assertEqual(category.settings["display_mode"], "image_strip")
+        self.assertEqual(category.settings["item_limit"], 6)
+
+        self.assertTrue(any(block.get("type") == "tagline" for block in preset.header["extra_blocks"]))
+
+        banners = [entry for entry in entries if entry.section_key == "multi_banner"]
+        variants = [entry.settings.get("layout_variant") for entry in banners]
+        self.assertIn("promo-4", variants)
+        self.assertGreaterEqual(variants.count("wide-single"), 4)
+        self.assertIn("mini-4", variants)
+        self.assertIn("strip", variants)
+
+    def test_v3_footer_is_dense_and_uses_existing_universal_footer_capabilities(self):
+        preset = lpr.get_layout_preset("v5_golden_homepage")
+        footer = preset.footer
+        for key in (
+            "show_about", "show_contact", "show_categories", "show_quick_links",
+            "show_social", "show_trust_badges", "show_payment_logos", "show_copyright",
+        ):
+            self.assertTrue(footer[key], key)
+        self.assertFalse(footer["show_newsletter"])
+        self.assertTrue(any(block.get("type") == "custom_text" for block in footer["extra_blocks"]))
 
 
 @override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
@@ -177,6 +246,9 @@ class HeroInstantOfferIndependentBlocksTests(TestCase):
         self.assertNotEqual(hero.pk, offer.pk)
         self.assertEqual(hero.row_span, 9)
         self.assertEqual(offer.row_span, 3)
+        self.assertTrue(offer.settings["carousel_autoplay"])
+        self.assertEqual(offer.settings["header_position"], "inside")
+        self.assertEqual(offer.settings["carousel_interval_ms"], 3500)
         svc.publish(self.store)
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         html = resp.content.decode("utf-8")
@@ -202,7 +274,7 @@ class RepeatedProductRailsAndCardStylesTests(TestCase):
         svc.publish(self.store)
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         html = resp.content.decode("utf-8")
-        for title in ("پیشنهاد لحظه‌ای", "پرفروش‌ترین‌های هفته", "پیشنهادِ منتخب ۱", "پیشنهادِ منتخب ۲"):
+        for title in ("پیشنهاد لحظه‌ای", "پرفروش‌ترین‌های هفته", "پیشنهادهای منتخب", "محبوب‌ترین انتخاب‌ها", "محبوب‌های فروشگاه"):
             self.assertIn(title, html)
 
     def test_two_product_section_instances_keep_independent_card_settings(self):
