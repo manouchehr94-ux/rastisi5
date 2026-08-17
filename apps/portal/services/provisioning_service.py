@@ -27,6 +27,11 @@ from apps.stores.models import Store, StoreDomain, StoreMembership
 from apps.stores.services.platform_code_service import generate_unique_platform_code
 from apps.subscriptions.services.subscription_service import provision_default_subscription
 
+from apps.stores.services.domain_namespace_service import (
+    DomainNamespaceCollisionError,
+    assert_admin_subdomain_namespace_available,
+)
+
 User = get_user_model()
 
 _MAX_SLUG_ATTEMPTS = 20
@@ -104,6 +109,13 @@ def provision_trial_store(*, owner, name: str, industry_template: IndustryTempla
 
     slug = _unique_slug(name)
     store = _create_store_with_unique_platform_code(name=name, slug=slug)
+    try:
+        assert_admin_subdomain_namespace_available(
+            store=store, label=store.admin_subdomain,
+        )
+    except DomainNamespaceCollisionError as exc:
+        raise ProvisioningError(str(exc)) from exc
+
 
     StoreMembership.objects.create(
         store=store, user=owner, role=StoreMembership.Role.OWNER,

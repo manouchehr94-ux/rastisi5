@@ -385,6 +385,16 @@ class StoreDomain(StoresTimestampedModel):
         VERIFIED = "verified", "تأییدشده"
         FAILED = "failed", "ناموفق"
 
+    class RoutingStatus(models.TextChoices):
+        UNCHECKED = "unchecked", "بررسی‌نشده"
+        CONNECTED = "connected", "متصل"
+        NOT_CONNECTED = "not_connected", "متصل نیست"
+
+    class TlsStatus(models.TextChoices):
+        UNCHECKED = "unchecked", "بررسی‌نشده"
+        READY = "ready", "آماده"
+        NOT_READY = "not_ready", "آماده نیست"
+
     class DomainType(models.TextChoices):
         GENERATED_TRIAL = "generated_trial", "زیردامنه‌ی آزمایشی خودکار"
         PLATFORM_SUBDOMAIN = "platform_subdomain", "زیردامنه‌ی انتخابی روی rastisi.ir"
@@ -446,6 +456,32 @@ class StoreDomain(StoresTimestampedModel):
         "زمان درخواست تأیید", null=True, blank=True
     )
     verified_at = models.DateTimeField("زمان تأیید", null=True, blank=True)
+
+    routing_status = models.CharField(
+        "وضعیت اتصال DNS",
+        max_length=20,
+        choices=RoutingStatus.choices,
+        default=RoutingStatus.UNCHECKED,
+        db_index=True,
+        help_text="نتیجه آخرین بررسی اینکه A/CNAME دامنه واقعاً به زیرساخت RastiSi اشاره می‌کند.",
+    )
+    routing_checked_at = models.DateTimeField(
+        "زمان آخرین بررسی اتصال DNS", null=True, blank=True
+    )
+    tls_status = models.CharField(
+        "وضعیت TLS",
+        max_length=20,
+        choices=TlsStatus.choices,
+        default=TlsStatus.UNCHECKED,
+        db_index=True,
+        help_text="نتیجه آخرین handshake واقعی HTTPS برای همین hostname.",
+    )
+    tls_checked_at = models.DateTimeField(
+        "زمان آخرین بررسی TLS", null=True, blank=True
+    )
+    tls_certificate_expires_at = models.DateTimeField(
+        "زمان انقضای گواهی TLS", null=True, blank=True
+    )
 
     class Meta:
         verbose_name = "دامنه‌ی فروشگاه"

@@ -151,6 +151,15 @@ class ActivateDomainViewTests(CustomDomainViewsTestCase):
             mock_resolve.return_value = [_FakeTXTRecord(f"rastisi-verify={domain.verification_token}")]
             self.client.post(f"/app/stores/{self.store.public_id}/domains/{domain.pk}/check/", HTTP_HOST=_HOST)
         domain.refresh_from_db()
+        domain.routing_status = StoreDomain.RoutingStatus.CONNECTED
+        domain.routing_checked_at = timezone.now()
+        domain.tls_status = StoreDomain.TlsStatus.READY
+        domain.tls_checked_at = timezone.now()
+        domain.save(update_fields=[
+            "routing_status", "routing_checked_at",
+            "tls_status", "tls_checked_at", "updated_at",
+        ])
+        domain.refresh_from_db()
         return domain
 
     def test_activation_is_gated_behind_step_up_by_default(self):
@@ -184,8 +193,7 @@ class ActivateDomainViewTests(CustomDomainViewsTestCase):
 
 
 class FinalCheckViewTests(CustomDomainViewsTestCase):
-    """تستِ نهاییِ اتصال (SSL) — صرفاً تشخیصی، هرگز چیزی را در دیتابیس
-    تغییر نمی‌دهد یا فعال‌سازی را انجام نمی‌دهد."""
+    """Owner-facing final readiness check: persisted DNS routing + TLS state."""
 
     def _verified_domain(self):
         self.client.post(self._list_url(), {"action": "add", "hostname": "shop.example.com"}, HTTP_HOST=_HOST)
@@ -198,35 +206,74 @@ class FinalCheckViewTests(CustomDomainViewsTestCase):
         domain.refresh_from_db()
         return domain
 
-    def test_reachable_ssl_shows_success_message(self):
-        from apps.stores.services.domain_verification_service import SslConnectionCheck
+    def _readiness(self, *, connected=True, tls_ready=True, configured=True):
+        from apps.stores.services.domain_verification_service import (
+            DnsRoutingCheck, DomainReadinessCheck, SslConnectionCheck,
+        )
+        routing = DnsRoutingCheck(
+            configured=configured, connected=connected,
+            expected_a_targets=("203.0.113.10",),
+            observed_a_targets=("203.0.113.10",) if connected else (),
+            expected_cname="", observed_cname="", error="",
+        )
+        tls = (
+            SslConnectionCheck(
+                reachable=tls_ready, certificate_expires_at=None,
+                error="" if tls_ready else "not ready",
+            )
+            if connected else None
+        )
+        return DomainReadinessCheck(routing=routing, tls=tls)
 
+    def test_ready_domain_shows_success_message(self):
         domain = self._verified_domain()
         with patch(
-            "apps.portal.views.domain_verification_service.check_ssl_connection",
-            return_value=SslConnectionCheck(reachable=True, certificate_expires_at=None, error=""),
+            "apps.portal.views.domain_verification_service.refresh_custom_domain_readiness",
+            return_value=self._readiness(),
         ):
             response = self.client.post(
                 f"/app/stores/{self.store.public_id}/domains/{domain.pk}/final-check/",
                 HTTP_HOST=_HOST, follow=True,
             )
-        self.assertContains(response, "با موفقیت برقرار شد")
+        self.assertContains(response, "قابل فعال‌سازی است")
 
-    def test_unreachable_ssl_shows_warning_message_and_does_not_activate(self):
-        from apps.stores.services.domain_verification_service import SslConnectionCheck
-
+    def test_disconnected_dns_shows_warning_and_does_not_activate(self):
         domain = self._verified_domain()
         with patch(
-            "apps.portal.views.domain_verification_service.check_ssl_connection",
-            return_value=SslConnectionCheck(reachable=False, certificate_expires_at=None, error="timed out"),
+            "apps.portal.views.domain_verification_service.refresh_custom_domain_readiness",
+            return_value=self._readiness(connected=False),
         ):
             response = self.client.post(
                 f"/app/stores/{self.store.public_id}/domains/{domain.pk}/final-check/",
                 HTTP_HOST=_HOST, follow=True,
             )
-        self.assertContains(response, "هنوز برقرار نیست")
+        self.assertContains(response, "هنوز به مقصد RastiSi نرسیده‌اند")
         domain.refresh_from_db()
         self.assertFalse(domain.is_primary)
+
+    def test_connected_dns_but_unready_tls_shows_warning(self):
+        domain = self._verified_domain()
+        with patch(
+            "apps.portal.views.domain_verification_service.refresh_custom_domain_readiness",
+            return_value=self._readiness(tls_ready=False),
+        ):
+            response = self.client.post(
+                f"/app/stores/{self.store.public_id}/domains/{domain.pk}/final-check/",
+                HTTP_HOST=_HOST, follow=True,
+            )
+        self.assertContains(response, "HTTPS/TLS هنوز آماده نیست")
+
+    def test_unconfigured_platform_targets_show_operational_warning(self):
+        domain = self._verified_domain()
+        with patch(
+            "apps.portal.views.domain_verification_service.refresh_custom_domain_readiness",
+            return_value=self._readiness(connected=False, configured=False),
+        ):
+            response = self.client.post(
+                f"/app/stores/{self.store.public_id}/domains/{domain.pk}/final-check/",
+                HTTP_HOST=_HOST, follow=True,
+            )
+        self.assertContains(response, "زیرساخت RastiSi پیکربندی نشده است")
 
     def test_other_owner_cannot_final_check_someone_elses_domain(self):
         domain = self._verified_domain()

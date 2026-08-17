@@ -2,11 +2,12 @@
 verified by anything other than a real (here, mocked) DNS TXT lookup; a
 failed/absent lookup always leaves it retryable, never silently verified."""
 
+from datetime import timedelta
 from unittest.mock import patch
 
 import dns.resolver
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.stores.models import Store, StoreDomain
@@ -14,8 +15,12 @@ from apps.stores.services.domain_verification_service import (
     DomainVerificationError,
     activate_custom_domain,
     begin_dns_verification,
+    check_dns_routing,
     check_dns_verification,
     check_ssl_connection,
+    custom_domain_connection_instructions,
+    custom_domain_is_ready_for_activation,
+    refresh_custom_domain_readiness,
     request_custom_domain,
     verification_record_name,
 )
@@ -155,6 +160,15 @@ class ActivateCustomDomainTests(DomainVerificationTestCase):
             mock_resolve.return_value = [_FakeTXTRecord(f"rastisi-verify={domain.verification_token}")]
             check_dns_verification(domain=domain, actor=self.actor)
         domain.refresh_from_db()
+        domain.routing_status = StoreDomain.RoutingStatus.CONNECTED
+        domain.routing_checked_at = timezone.now()
+        domain.tls_status = StoreDomain.TlsStatus.READY
+        domain.tls_checked_at = timezone.now()
+        domain.save(update_fields=[
+            "routing_status", "routing_checked_at",
+            "tls_status", "tls_checked_at", "updated_at",
+        ])
+        domain.refresh_from_db()
         return domain
 
     def test_requires_verified_status(self):
@@ -200,6 +214,153 @@ class ActivateCustomDomainTests(DomainVerificationTestCase):
         domain = self._verified_domain()
         with self.assertRaises(DomainVerificationError):
             activate_custom_domain(store=other_store, domain=domain, actor=self.actor)
+
+
+    def test_requires_connected_dns_readiness(self):
+        domain = self._verified_domain()
+        domain.routing_status = StoreDomain.RoutingStatus.NOT_CONNECTED
+        domain.save(update_fields=["routing_status", "updated_at"])
+        with self.assertRaisesRegex(DomainVerificationError, "آماده"):
+            activate_custom_domain(store=self.store, domain=domain, actor=self.actor)
+
+    def test_requires_tls_readiness(self):
+        domain = self._verified_domain()
+        domain.tls_status = StoreDomain.TlsStatus.NOT_READY
+        domain.save(update_fields=["tls_status", "updated_at"])
+        with self.assertRaisesRegex(DomainVerificationError, "آماده"):
+            activate_custom_domain(store=self.store, domain=domain, actor=self.actor)
+
+    @override_settings(RASTISI_CUSTOM_DOMAIN_READINESS_MAX_AGE_SECONDS=60)
+    def test_rejects_stale_readiness(self):
+        domain = self._verified_domain()
+        stale = timezone.now() - timedelta(minutes=5)
+        domain.routing_checked_at = stale
+        domain.tls_checked_at = stale
+        domain.save(update_fields=[
+            "routing_checked_at", "tls_checked_at", "updated_at",
+        ])
+        self.assertFalse(custom_domain_is_ready_for_activation(domain))
+        with self.assertRaisesRegex(DomainVerificationError, "آماده"):
+            activate_custom_domain(store=self.store, domain=domain, actor=self.actor)
+
+
+@override_settings(
+    RASTISI_CUSTOM_DOMAIN_A_TARGETS=("203.0.113.10",),
+    RASTISI_CUSTOM_DOMAIN_CNAME_TARGET="domains.rastisi.ir",
+)
+class CheckDnsRoutingTests(TestCase):
+    def test_connection_instructions_expose_configured_targets(self):
+        result = custom_domain_connection_instructions("shop.example.com")
+        self.assertTrue(result["configured"])
+        self.assertEqual(result["a_targets"], ("203.0.113.10",))
+        self.assertEqual(result["cname_target"], "domains.rastisi.ir")
+
+    def test_matching_a_record_is_connected(self):
+        def resolver(hostname, record_type, lifetime):
+            if record_type == "A":
+                return ["203.0.113.10"]
+            raise dns.resolver.NoAnswer()
+
+        with patch(_resolve_target(), side_effect=resolver):
+            result = check_dns_routing("example.com")
+        self.assertTrue(result.connected)
+
+    def test_matching_cname_is_connected(self):
+        class _Cname:
+            target = "domains.rastisi.ir."
+
+        def resolver(hostname, record_type, lifetime):
+            if record_type == "A":
+                raise dns.resolver.NoAnswer()
+            if record_type == "CNAME":
+                return [_Cname()]
+            raise AssertionError(record_type)
+
+        with patch(_resolve_target(), side_effect=resolver):
+            result = check_dns_routing("shop.example.com")
+        self.assertTrue(result.connected)
+        self.assertEqual(result.observed_cname, "domains.rastisi.ir")
+
+    def test_wrong_records_are_not_connected(self):
+        def resolver(hostname, record_type, lifetime):
+            if record_type == "A":
+                return ["198.51.100.44"]
+            raise dns.resolver.NoAnswer()
+
+        with patch(_resolve_target(), side_effect=resolver):
+            result = check_dns_routing("example.com")
+        self.assertFalse(result.connected)
+
+
+@override_settings(
+    RASTISI_CUSTOM_DOMAIN_A_TARGETS=("203.0.113.10",),
+    RASTISI_CUSTOM_DOMAIN_CNAME_TARGET="",
+)
+class RefreshCustomDomainReadinessTests(DomainVerificationTestCase):
+    def _verified_domain(self):
+        domain = request_custom_domain(
+            store=self.store, hostname="shop.example.com", actor=self.actor
+        )
+        domain.verification_status = StoreDomain.VerificationStatus.VERIFIED
+        domain.verified_at = timezone.now()
+        domain.save(update_fields=[
+            "verification_status", "verified_at", "updated_at",
+        ])
+        return domain
+
+    def test_connected_dns_and_tls_are_persisted_ready(self):
+        from apps.stores.services.domain_verification_service import (
+            DnsRoutingCheck,
+            SslConnectionCheck,
+        )
+        domain = self._verified_domain()
+        routing = DnsRoutingCheck(
+            configured=True, connected=True,
+            expected_a_targets=("203.0.113.10",),
+            observed_a_targets=("203.0.113.10",),
+            expected_cname="", observed_cname="", error="",
+        )
+        tls = SslConnectionCheck(
+            reachable=True, certificate_expires_at=None, error=""
+        )
+        with patch(
+            "apps.stores.services.domain_verification_service.check_dns_routing",
+            return_value=routing,
+        ), patch(
+            "apps.stores.services.domain_verification_service.check_ssl_connection",
+            return_value=tls,
+        ):
+            result = refresh_custom_domain_readiness(
+                domain=domain, actor=self.actor
+            )
+        self.assertTrue(result.ready)
+        domain.refresh_from_db()
+        self.assertEqual(domain.routing_status, StoreDomain.RoutingStatus.CONNECTED)
+        self.assertEqual(domain.tls_status, StoreDomain.TlsStatus.READY)
+
+    def test_disconnected_dns_skips_tls_and_persists_not_connected(self):
+        from apps.stores.services.domain_verification_service import DnsRoutingCheck
+        domain = self._verified_domain()
+        routing = DnsRoutingCheck(
+            configured=True, connected=False,
+            expected_a_targets=("203.0.113.10",),
+            observed_a_targets=("198.51.100.44",),
+            expected_cname="", observed_cname="", error="",
+        )
+        with patch(
+            "apps.stores.services.domain_verification_service.check_dns_routing",
+            return_value=routing,
+        ), patch(
+            "apps.stores.services.domain_verification_service.check_ssl_connection"
+        ) as tls_check:
+            result = refresh_custom_domain_readiness(
+                domain=domain, actor=self.actor
+            )
+        self.assertFalse(result.ready)
+        tls_check.assert_not_called()
+        domain.refresh_from_db()
+        self.assertEqual(domain.routing_status, StoreDomain.RoutingStatus.NOT_CONNECTED)
+        self.assertEqual(domain.tls_status, StoreDomain.TlsStatus.UNCHECKED)
 
 
 class CheckSslConnectionTests(TestCase):

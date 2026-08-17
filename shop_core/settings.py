@@ -353,6 +353,20 @@ RASTISI_ADMIN_DOMAIN_SUFFIX = env_str(
 if DEBUG:
     RASTISI_ADMIN_DOMAIN_SUFFIX = "rastisi.localhost"
 
+# Custom-domain delivery targets. Production must configure at least one real
+# destination before merchants can pass the final DNS-routing readiness check.
+RASTISI_CUSTOM_DOMAIN_A_TARGETS = tuple(
+    value.strip() for value in env_list(
+        "RASTISI_CUSTOM_DOMAIN_A_TARGETS", default=()
+    ) if value.strip()
+)
+RASTISI_CUSTOM_DOMAIN_CNAME_TARGET = env_str(
+    "RASTISI_CUSTOM_DOMAIN_CNAME_TARGET", ""
+).lower().strip().rstrip(".")
+RASTISI_CUSTOM_DOMAIN_READINESS_MAX_AGE_SECONDS = env_int(
+    "RASTISI_CUSTOM_DOMAIN_READINESS_MAX_AGE_SECONDS", default=900
+)
+
 
 # Owner portal (ADR-97): exact Hosts that serve the public marketing site
 # (at "/") and the owner account portal (at "/app/") instead of any per-Store

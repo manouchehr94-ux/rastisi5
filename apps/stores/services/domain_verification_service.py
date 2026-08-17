@@ -11,10 +11,11 @@ import secrets
 import socket
 import ssl
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone as datetime_timezone
 
 import dns.exception
 import dns.resolver
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -160,10 +161,201 @@ def check_ssl_connection(hostname: str) -> SslConnectionCheck:
     not_after = cert.get("notAfter") if cert else None
     if not_after:
         try:
-            expires_at = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
+            expires_at = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=datetime_timezone.utc)
         except ValueError:
             expires_at = None
     return SslConnectionCheck(reachable=True, certificate_expires_at=expires_at, error="")
+
+
+@dataclass(frozen=True)
+class DnsRoutingCheck:
+    """Result of checking whether the customer hostname points to RastiSi."""
+
+    configured: bool
+    connected: bool
+    expected_a_targets: tuple[str, ...]
+    observed_a_targets: tuple[str, ...]
+    expected_cname: str
+    observed_cname: str
+    error: str
+
+
+@dataclass(frozen=True)
+class DomainReadinessCheck:
+    """Combined persisted DNS-routing + TLS readiness result."""
+
+    routing: DnsRoutingCheck
+    tls: SslConnectionCheck | None
+
+    @property
+    def ready(self) -> bool:
+        return bool(self.routing.connected and self.tls and self.tls.reachable)
+
+
+def custom_domain_connection_instructions(hostname: str) -> dict:
+    """Return deployment-configured A/CNAME values safe to show merchants."""
+    a_targets = tuple(
+        str(value).strip()
+        for value in getattr(settings, "RASTISI_CUSTOM_DOMAIN_A_TARGETS", ())
+        if str(value).strip()
+    )
+    cname_target = str(
+        getattr(settings, "RASTISI_CUSTOM_DOMAIN_CNAME_TARGET", "") or ""
+    ).strip().lower().rstrip(".")
+    return {
+        "hostname": hostname,
+        "a_targets": a_targets,
+        "cname_target": cname_target,
+        "configured": bool(a_targets or cname_target),
+    }
+
+
+def _resolve_record_strings(hostname: str, record_type: str) -> tuple[str, ...]:
+    answers = dns.resolver.resolve(
+        hostname, record_type, lifetime=DNS_LOOKUP_TIMEOUT_SECONDS
+    )
+    values = []
+    for answer in answers:
+        if record_type == "CNAME":
+            target = getattr(answer, "target", answer)
+            value = str(target).strip().lower().rstrip(".")
+        else:
+            value = str(answer).strip()
+        if value:
+            values.append(value)
+    return tuple(sorted(set(values)))
+
+
+def check_dns_routing(hostname: str) -> DnsRoutingCheck:
+    """Check A/CNAME against the deployment's declared RastiSi targets."""
+    instructions = custom_domain_connection_instructions(hostname)
+    expected_a = tuple(instructions["a_targets"])
+    expected_cname = instructions["cname_target"]
+    if not instructions["configured"]:
+        return DnsRoutingCheck(
+            configured=False,
+            connected=False,
+            expected_a_targets=expected_a,
+            observed_a_targets=(),
+            expected_cname=expected_cname,
+            observed_cname="",
+            error="custom-domain routing targets are not configured",
+        )
+
+    observed_a = ()
+    observed_cname = ""
+    errors = []
+
+    if expected_a:
+        try:
+            observed_a = _resolve_record_strings(hostname, "A")
+        except (dns.exception.DNSException, OSError) as exc:
+            errors.append(f"A: {exc}")
+
+    if expected_cname:
+        try:
+            cname_values = _resolve_record_strings(hostname, "CNAME")
+            observed_cname = cname_values[0] if cname_values else ""
+        except (dns.exception.DNSException, OSError) as exc:
+            errors.append(f"CNAME: {exc}")
+
+    connected = bool(
+        set(observed_a).intersection(expected_a)
+        or (expected_cname and observed_cname == expected_cname)
+    )
+    return DnsRoutingCheck(
+        configured=True,
+        connected=connected,
+        expected_a_targets=expected_a,
+        observed_a_targets=observed_a,
+        expected_cname=expected_cname,
+        observed_cname=observed_cname,
+        error="; ".join(errors),
+    )
+
+
+def refresh_custom_domain_readiness(*, domain: StoreDomain, actor) -> DomainReadinessCheck:
+    """Run real routing/TLS checks and persist their operational state."""
+    if domain.domain_type != StoreDomain.DomainType.CUSTOM_DOMAIN:
+        raise DomainVerificationError("بررسی اتصال فقط برای دامنه‌ی اختصاصی انجام می‌شود.")
+    if domain.verification_status != StoreDomain.VerificationStatus.VERIFIED:
+        raise DomainVerificationError("ابتدا مالکیت دامنه را با رکورد TXT تأیید کنید.")
+
+    routing = check_dns_routing(domain.hostname)
+    tls_result = check_ssl_connection(domain.hostname) if routing.connected else None
+    checked_at = timezone.now()
+
+    with transaction.atomic():
+        locked = StoreDomain.objects.select_for_update().get(pk=domain.pk)
+        locked.routing_status = (
+            StoreDomain.RoutingStatus.CONNECTED
+            if routing.connected
+            else StoreDomain.RoutingStatus.NOT_CONNECTED
+        )
+        locked.routing_checked_at = checked_at
+
+        if tls_result is None:
+            locked.tls_status = StoreDomain.TlsStatus.UNCHECKED
+            locked.tls_checked_at = None
+            locked.tls_certificate_expires_at = None
+        else:
+            locked.tls_status = (
+                StoreDomain.TlsStatus.READY
+                if tls_result.reachable
+                else StoreDomain.TlsStatus.NOT_READY
+            )
+            locked.tls_checked_at = checked_at
+            locked.tls_certificate_expires_at = tls_result.certificate_expires_at
+
+        locked.save(update_fields=[
+            "routing_status",
+            "routing_checked_at",
+            "tls_status",
+            "tls_checked_at",
+            "tls_certificate_expires_at",
+            "updated_at",
+        ])
+
+    record_audit_event(
+        store=domain.store,
+        actor=actor,
+        action_code="store.custom_domain_readiness_checked",
+        object_type="StoreDomain",
+        object_id=domain.pk,
+        object_label=domain.hostname,
+        after={
+            "routing_connected": routing.connected,
+            "tls_ready": bool(tls_result and tls_result.reachable),
+        },
+    )
+    return DomainReadinessCheck(routing=routing, tls=tls_result)
+
+
+def custom_domain_is_ready_for_activation(domain: StoreDomain) -> bool:
+    """Require a recent successful routing + TLS check before activation."""
+    if (
+        domain.routing_status != StoreDomain.RoutingStatus.CONNECTED
+        or domain.tls_status != StoreDomain.TlsStatus.READY
+        or domain.routing_checked_at is None
+        or domain.tls_checked_at is None
+    ):
+        return False
+
+    max_age = max(
+        1,
+        int(
+            getattr(
+                settings,
+                "RASTISI_CUSTOM_DOMAIN_READINESS_MAX_AGE_SECONDS",
+                900,
+            )
+        ),
+    )
+    now = timezone.now()
+    return (
+        (now - domain.routing_checked_at).total_seconds() <= max_age
+        and (now - domain.tls_checked_at).total_seconds() <= max_age
+    )
 
 
 @transaction.atomic
@@ -187,6 +379,12 @@ def activate_custom_domain(*, store: Store, domain: StoreDomain, actor) -> Store
     if domain.verification_status != StoreDomain.VerificationStatus.VERIFIED:
         raise DomainVerificationError("این دامنه هنوز تأیید نشده؛ ابتدا تأییدِ DNS را کامل کنید.")
 
+    locked_domain = StoreDomain.objects.select_for_update().get(pk=domain.pk)
+    if not custom_domain_is_ready_for_activation(locked_domain):
+        raise DomainVerificationError(
+            "دامنه هنوز آماده‌ی فعال‌سازی نیست؛ ابتدا «بررسی اتصال و SSL» را با موفقیت کامل کنید."
+        )
+
     locked_store = Store.objects.select_for_update().get(pk=store.pk)
     old_primary = StoreDomain.objects.select_for_update().filter(store=locked_store, is_primary=True).first()
     if old_primary is not None and old_primary.pk != domain.pk:
@@ -199,7 +397,6 @@ def activate_custom_domain(*, store: Store, domain: StoreDomain, actor) -> Store
             update_fields.append("retired_at")
         old_primary.save(update_fields=update_fields)
 
-    locked_domain = StoreDomain.objects.select_for_update().get(pk=domain.pk)
     locked_domain.is_primary = True
     locked_domain.save(update_fields=["is_primary", "updated_at"])
 

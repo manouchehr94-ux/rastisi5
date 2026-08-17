@@ -134,6 +134,32 @@ class ClaimPlatformHandleTests(HandleServiceTestCase):
             claim_platform_handle(store=self.store, label="takenlabel", actor=self.actor)
         self.assertTrue(StoreDomain.objects.filter(store=self.store, is_primary=True).exists())
 
+    def test_rejects_label_owned_by_another_stores_admin_namespace(self):
+        self._make_paid_active_subscription()
+        target_store = self.store
+
+        Store.objects.create(
+            name="Namespace Admin Owner Claim",
+            slug="namespace-admin-owner-claim",
+            status=Store.Status.ACTIVE,
+            platform_code=generate_unique_platform_code(),
+            admin_subdomain="cross-namespace-claim",
+        )
+
+        with self.assertRaisesRegex(HandleError, "آدرس مدیریت"):
+            claim_platform_handle(
+                store=target_store,
+                label="cross-namespace-claim",
+                actor=self.actor,
+            )
+
+        self.assertFalse(
+            StoreDomain.objects.filter(
+                store=target_store,
+                hostname="cross-namespace-claim.rastisi.ir",
+            ).exists()
+        )
+
 
 @override_settings(RASTISI_ADMIN_DOMAIN_SUFFIX="rastisi.ir")
 class RenamePlatformHandleAsSuperuserTests(HandleServiceTestCase):
@@ -171,3 +197,31 @@ class RenamePlatformHandleAsSuperuserTests(HandleServiceTestCase):
         rename_platform_handle_as_superuser(store=store, new_label="second", actor=self.actor, reason="r1")
         third = rename_platform_handle_as_superuser(store=store, new_label="third", actor=self.actor, reason="r2")
         self.assertEqual(third.hostname, "third.rastisi.ir")
+
+    def test_rename_rejects_label_owned_by_another_stores_admin_namespace(self):
+        store = self._claimed_store()
+        old_hostname = "oldname.rastisi.ir"
+        target_store = store
+
+        Store.objects.create(
+            name="Namespace Admin Owner Rename",
+            slug="namespace-admin-owner-rename",
+            status=Store.Status.ACTIVE,
+            platform_code=generate_unique_platform_code(),
+            admin_subdomain="cross-namespace-rename",
+        )
+
+        with self.assertRaisesRegex(HandleError, "آدرس مدیریت"):
+            rename_platform_handle_as_superuser(
+                store=target_store,
+                new_label="cross-namespace-rename",
+                actor=self.actor,
+                reason="namespace collision regression",
+            )
+
+        self.assertFalse(
+            StoreDomain.objects.filter(
+                store=target_store,
+                hostname="cross-namespace-rename.rastisi.ir",
+            ).exists()
+        )

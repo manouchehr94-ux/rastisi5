@@ -186,6 +186,16 @@ class JourneyATestCase(TestCase):
         custom_domain.refresh_from_db()
         self.assertEqual(custom_domain.verification_status, StoreDomain.VerificationStatus.VERIFIED)
 
+        # Site Delivery 2B: delivery readiness is separate from TXT ownership.
+        custom_domain.routing_status = StoreDomain.RoutingStatus.CONNECTED
+        custom_domain.routing_checked_at = timezone.now()
+        custom_domain.tls_status = StoreDomain.TlsStatus.READY
+        custom_domain.tls_checked_at = timezone.now()
+        custom_domain.save(update_fields=[
+            "routing_status", "routing_checked_at",
+            "tls_status", "tls_checked_at", "updated_at",
+        ])
+
         _advance_past_step_up_rate_window("09121400001")
         activate_response = self.client.post(
             f"/app/stores/{store.public_id}/domains/{custom_domain.pk}/activate/", HTTP_HOST=_HOST,

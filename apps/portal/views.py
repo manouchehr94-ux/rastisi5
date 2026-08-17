@@ -1030,7 +1030,14 @@ def _domains_view_context(store):
             f"{domain_verification_service.VERIFICATION_VALUE_PREFIX}{domain.verification_token}"
             if domain.verification_token else ""
         )
-        rows.append({"domain": domain, "record_name": record_name, "expected_value": expected_value})
+        rows.append({
+            "domain": domain,
+            "record_name": record_name,
+            "expected_value": expected_value,
+            "connection": domain_verification_service.custom_domain_connection_instructions(
+                domain.hostname
+            ),
+        })
     return rows
 
 
@@ -1109,20 +1116,37 @@ def custom_domain_check(request, store_public_id, domain_id):
 @owner_required
 @require_POST
 def custom_domain_final_check(request, store_public_id, domain_id):
-    """تستِ نهاییِ اتصال (وضعیتِ SSL) — صرفاً تشخیصی، هیچ فیلدی را تغییر
-    نمی‌دهد؛ فقط برایِ نشان‌دادنِ «تکمیل‌شده/در انتظار/نیاز به بررسی» به
-    مرچنتِ غیرفنی، پیش از فعال‌سازیِ نهایی."""
+    """Run and persist the real A/CNAME + HTTPS readiness checks."""
     store = _get_owned_store_or_404(request, store_public_id)
     domain = get_object_or_404(StoreDomain, pk=domain_id, store=store)
-    result = domain_verification_service.check_ssl_connection(domain.hostname)
-    if result.reachable:
-        messages.success(request, f"✅ اتصالِ HTTPS به «{domain.hostname}» با موفقیت برقرار شد.")
-    else:
-        messages.warning(
-            request,
-            f"⚠️ اتصالِ HTTPS به «{domain.hostname}» هنوز برقرار نیست — معمولاً یعنی رکوردهای DNS "
-            "(A/CNAME) دامنه هنوز به‌سمتِ راستیسی تنظیم نشده‌اند یا انتشارِ DNS کامل نشده است.",
+    try:
+        result = domain_verification_service.refresh_custom_domain_readiness(
+            domain=domain, actor=request.user
         )
+    except domain_verification_service.DomainVerificationError as exc:
+        messages.error(request, str(exc))
+    else:
+        if not result.routing.configured:
+            messages.warning(
+                request,
+                "مقصد اتصال دامنه‌های اختصاصی هنوز در زیرساخت RastiSi پیکربندی نشده است؛ "
+                "فعال‌سازی تا تکمیل تنظیمات زیرساخت ممکن نیست.",
+            )
+        elif not result.routing.connected:
+            messages.warning(
+                request,
+                f"⚠️ رکوردهای A/CNAME دامنه «{domain.hostname}» هنوز به مقصد RastiSi نرسیده‌اند.",
+            )
+        elif result.tls and result.tls.reachable:
+            messages.success(
+                request,
+                f"✅ DNS و اتصال HTTPS برای «{domain.hostname}» آماده است؛ دامنه قابل فعال‌سازی است.",
+            )
+        else:
+            messages.warning(
+                request,
+                f"⚠️ DNS دامنه «{domain.hostname}» به RastiSi متصل است، اما HTTPS/TLS هنوز آماده نیست.",
+            )
     return redirect("portal:custom-domains", store_public_id=store.public_id)
 
 

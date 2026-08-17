@@ -51,15 +51,67 @@
       {% csrf_token %}
       <button type="submit" class="p-btn p-btn-ghost" style="width:100%">بررسیِ DNS</button>
     </form>
-    {% elif row.domain.verification_status == "verified" and not row.domain.is_primary %}
+    {% elif row.domain.verification_status == "verified" %}
+    <div style="margin-top:10px;padding:10px;border-radius:10px;background:var(--p-surface);font-size:12px;line-height:1.9">
+      <div><b>۱) مالکیت دامنه:</b> <span class="p-status-pill p-status-done">تأیید شده</span></div>
+      <div style="margin-top:6px"><b>۲) اتصال DNS به RastiSi:</b>
+        {% if row.domain.routing_status == "connected" %}
+          <span class="p-status-pill p-status-done">متصل</span>
+        {% elif row.domain.routing_status == "not_connected" %}
+          <span class="p-status-pill p-status-attention">هنوز متصل نیست</span>
+        {% else %}
+          <span class="p-status-pill p-status-pending">بررسی نشده</span>
+        {% endif %}
+      </div>
+      <div style="margin-top:6px"><b>۳) HTTPS / TLS:</b>
+        {% if row.domain.tls_status == "ready" %}
+          <span class="p-status-pill p-status-done">آماده</span>
+        {% elif row.domain.tls_status == "not_ready" %}
+          <span class="p-status-pill p-status-attention">هنوز آماده نیست</span>
+        {% else %}
+          <span class="p-status-pill p-status-pending">بررسی نشده</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:var(--p-muted);margin-top:10px;direction:ltr;text-align:left;background:var(--p-surface);padding:10px;border-radius:8px;line-height:1.9">
+      <div style="direction:rtl;text-align:right;color:var(--p-text);font-weight:600">رکورد اتصال دامنه</div>
+      {% if row.connection.configured %}
+        {% if row.connection.a_targets %}
+          <div style="margin-top:6px">A record → Host/Name: <b>@</b></div>
+          {% for target in row.connection.a_targets %}
+            <div>Value/IP: <b>{{ target }}</b></div>
+          {% endfor %}
+          <div style="direction:rtl;text-align:right">برای دامنه‌ی ریشه (مثل example.com) از A استفاده کنید.</div>
+        {% endif %}
+        {% if row.connection.cname_target %}
+          <div style="margin-top:6px">CNAME → Value/Target: <b>{{ row.connection.cname_target }}</b></div>
+          <div style="direction:rtl;text-align:right">برای زیردامنه (مثل shop.example.com) CNAME گزینه‌ی پیشنهادی است.</div>
+        {% endif %}
+      {% else %}
+        <div style="direction:rtl;text-align:right;color:var(--p-danger)">
+          مقصد اتصال هنوز توسط زیرساخت RastiSi پیکربندی نشده است.
+        </div>
+      {% endif %}
+    </div>
+
+    {% if not row.domain.is_primary %}
     <form method="post" action="{% url 'portal:custom-domain-final-check' store.public_id row.domain.pk %}" style="margin-top:10px">
       {% csrf_token %}
-      <button type="submit" class="p-btn p-btn-ghost" style="width:100%">تستِ نهاییِ اتصال (SSL)</button>
+      <button type="submit" class="p-btn p-btn-ghost" style="width:100%">بررسی اتصال DNS و SSL</button>
     </form>
+
+    {% if row.domain.routing_status == "connected" and row.domain.tls_status == "ready" %}
     <form method="post" action="{% url 'portal:custom-domain-activate' store.public_id row.domain.pk %}" style="margin-top:8px">
       {% csrf_token %}
       <button type="submit" class="p-btn p-btn-primary" style="width:100%">فعال‌سازی به‌عنوانِ دامنه‌ی اصلی</button>
     </form>
+    {% else %}
+    <div class="p-alert p-alert-warning" style="margin-top:8px">
+      فعال‌سازی بعد از موفق‌شدن هر دو مرحله‌ی «اتصال DNS» و «HTTPS/TLS» باز می‌شود.
+    </div>
+    {% endif %}
+    {% endif %}
     {% endif %}
   </div>
   {% empty %}

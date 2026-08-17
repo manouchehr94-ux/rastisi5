@@ -32,6 +32,11 @@ from apps.stores.hostnames import normalize_platform_subdomain_label
 from apps.stores.models import Store, StoreDomain
 
 
+from apps.stores.services.domain_namespace_service import (
+    DomainNamespaceCollisionError,
+    assert_public_handle_namespace_available,
+)
+
 class HandleError(Exception):
     """خطای قابل‌نمایشِ ثبت/تغییرِ نامِ دائمیِ فروشگاه."""
 
@@ -76,6 +81,11 @@ def claim_platform_handle(*, store: Store, label: str, actor) -> StoreDomain:
         old_primary.is_primary = False
         old_primary.retired_at = timezone.now()
         old_primary.save(update_fields=["is_primary", "retired_at", "updated_at"])
+
+    try:
+        assert_public_handle_namespace_available(store=store, label=label)
+    except DomainNamespaceCollisionError as exc:
+        raise HandleError(str(exc)) from exc
 
     try:
         new_domain = StoreDomain.objects.create(
@@ -130,6 +140,11 @@ def rename_platform_handle_as_superuser(*, store: Store, new_label: str, actor, 
     old_primary.is_primary = False
     old_primary.retired_at = timezone.now()
     old_primary.save(update_fields=["is_primary", "retired_at", "updated_at"])
+
+    try:
+        assert_public_handle_namespace_available(store=store, label=new_label)
+    except DomainNamespaceCollisionError as exc:
+        raise HandleError(str(exc)) from exc
 
     try:
         new_domain = StoreDomain.objects.create(
