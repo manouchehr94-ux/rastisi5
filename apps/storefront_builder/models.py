@@ -62,9 +62,20 @@ HEADER_RESPONSIVE_DEFAULTS = {
 #: بالا (جستجو/حساب/علاقه‌مندی/سبد)، نه جایگزینِ آن‌ها. هر مورد یک
 #: دیکشنری با کلیدِ ``type`` (از ``HEADER_EXTRA_BLOCK_TYPES`` در
 #: layout_service.py) است؛ ``cta`` علاوه‌بر آن ``label``/``url`` هم دارد.
+ANNOUNCEMENT_LINK_DEFAULTS = (
+    {"label": "پیگیری سفارش", "url": "#"},
+    {"label": "سوالات متداول", "url": "#"},
+)
+
 HEADER_CONFIG_DEFAULTS = (
     {f: True for f in HEADER_TOGGLE_FIELDS}
-    | {"announcement_text": "", "responsive": HEADER_RESPONSIVE_DEFAULTS, "extra_blocks": []}
+    | {
+        "announcement_text": "",
+        "announcement_links": ANNOUNCEMENT_LINK_DEFAULTS,
+        "announcement_show_phone": True,
+        "responsive": HEADER_RESPONSIVE_DEFAULTS,
+        "extra_blocks": [],
+    }
 )
 
 FOOTER_TOGGLE_FIELDS = [
@@ -109,6 +120,9 @@ APPEARANCE_CONFIG_DEFAULTS = {
     "template_slug": "modern",
     "palette_slug": None,
     "color_overrides": {},
+    # Overrideهای نقش‌های ناحیه‌ای (هدر/منو/کارت/فوتر/قیمت).
+    # داخل همان JSON نسخه ذخیره می‌شود؛ Model field جدید و migration ندارد.
+    "theme_overrides": {},
     "font": "Vazirmatn",
     "radius": 18,
     "button_radius": 12,
@@ -332,11 +346,34 @@ class StorefrontLayoutVersion(TimeStampedModel):
             }
             for s in self.sections.select_related("page").order_by("page__page_type", "order", "id")
         ]
+        containers = []
+        for container in StorefrontContainer.objects.filter(page__version=self).select_related(
+            "page"
+        ).prefetch_related("cells__section").order_by("page__page_type", "order", "id"):
+            containers.append({
+                "page_type": container.page.page_type,
+                "order": container.order,
+                "layout_key": container.layout_key,
+                "settings": container.settings,
+                "cells": [
+                    {
+                        "order": cell.order,
+                        "span": cell.span,
+                        "settings": cell.settings,
+                        "section_stable_id": (
+                            str(cell.section.stable_id) if cell.section_id else None
+                        ),
+                    }
+                    for cell in container.cells.all().order_by("order", "id")
+                ],
+            })
+
         payload = {
             "header_config": self.header_config,
             "footer_config": self.footer_config,
             "appearance_config": self.appearance_config,
             "sections": sections,
+            "containers": containers,
         }
         serialized = json.dumps(payload, sort_keys=True, ensure_ascii=True)
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
@@ -553,3 +590,184 @@ class StorefrontSection(TimeStampedModel):
 
     def __str__(self):
         return f"{self.section_key} (#{self.order})"
+
+
+class StorefrontContainer(TimeStampedModel):
+    """Layout container for one page in the visual builder.
+
+    A container owns one to four ordered cells.  Content remains a
+    ``StorefrontSection`` (so the existing registry/settings/media system stays
+    intact); a cell only places at most one section.  Empty cells are valid and
+    are the key difference from the legacy ``row_key``/``row_span`` model: the
+    merchant can create the layout first and choose content afterwards.
+
+    ``layout_key`` is a merchant-facing preset hint (``single``, ``half``,
+    ``quarter_left`` ...).  Cell ``span`` values are the actual layout source of
+    truth, which leaves room for a future custom divider without a schema change.
+    """
+
+    page = models.ForeignKey(
+        StorefrontPage,
+        verbose_name="صفحه",
+        on_delete=models.CASCADE,
+        related_name="containers",
+    )
+    order = models.PositiveIntegerField("ترتیب نمایش", default=0)
+    stable_id = models.UUIDField(
+        "شناسه منطقی پایدار",
+        default=uuid.uuid4,
+        editable=False,
+        db_index=True,
+        help_text="در Clone/Restore حفظ می‌شود تا هویت Container بین نسخه‌ها پایدار بماند.",
+    )
+    layout_key = models.CharField(
+        "چینش",
+        max_length=32,
+        default="single",
+        help_text="برچسب Preset رابط کاربری؛ عرض واقعی هر خانه در StorefrontCell.span ذخیره می‌شود.",
+    )
+    settings = models.JSONField(
+        "تنظیمات Container",
+        default=dict,
+        blank=True,
+        help_text="فاصله ستون‌ها، رفتار موبایل، عرض محتوا و تنظیمات توسعه‌پذیر آینده.",
+    )
+    is_locked = models.BooleanField(
+        "قفل‌شده",
+        default=False,
+        help_text="قفل Container مستقل از قفل محتوای داخل Cellها است.",
+    )
+
+    class Meta:
+        verbose_name = "کانتینر چیدمان فروشگاه"
+        verbose_name_plural = "کانتینرهای چیدمان فروشگاه"
+        ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["page", "stable_id"],
+                name="storefront_container_unique_stable_id_per_page",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["page", "order"], name="sfb_container_page_order_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.page_id} / {self.layout_key} / #{self.order}"
+
+
+class StorefrontCell(TimeStampedModel):
+    """One slot inside a ``StorefrontContainer``.
+
+    A Cell may intentionally be empty.  When populated it points to exactly one
+    existing ``StorefrontSection``; deleting that section leaves the Cell empty
+    (``SET_NULL``) rather than deleting the layout itself.  This matches the
+    builder UX where layout and content are separate concepts.
+    """
+
+    container = models.ForeignKey(
+        StorefrontContainer,
+        verbose_name="کانتینر",
+        on_delete=models.CASCADE,
+        related_name="cells",
+    )
+    order = models.PositiveSmallIntegerField("ترتیب خانه", default=0)
+    stable_id = models.UUIDField(
+        "شناسه منطقی پایدار",
+        default=uuid.uuid4,
+        editable=False,
+        db_index=True,
+        help_text="در Clone/Restore حفظ می‌شود تا هویت Cell بین نسخه‌ها پایدار بماند.",
+    )
+    span = models.PositiveSmallIntegerField(
+        "عرض دسکتاپ از ۱۲",
+        default=12,
+        help_text="عرض واقعی Cell روی گرید ۱۲ واحدی؛ مجموع Cellهای هر Container باید ۱۲ باشد.",
+    )
+    section = models.OneToOneField(
+        StorefrontSection,
+        verbose_name="محتوا",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="placement_cell",
+        help_text="خالی بودن مجاز است؛ محتوا بعداً از کتابخانه داخل این Cell قرار می‌گیرد.",
+    )
+    settings = models.JSONField(
+        "تنظیمات خانه",
+        default=dict,
+        blank=True,
+        help_text="تنظیمات توسعه‌پذیر Cell مانند تراز، رفتار موبایل یا overrideهای آینده.",
+    )
+
+    class Meta:
+        verbose_name = "خانه کانتینر فروشگاه"
+        verbose_name_plural = "خانه‌های کانتینر فروشگاه"
+        ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["container", "stable_id"],
+                name="storefront_cell_unique_stable_id_per_container",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(span__gte=1, span__lte=12),
+                name="storefront_cell_span_between_1_and_12",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["container", "order"], name="sfb_cell_container_order_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.container_id} / cell #{self.order} / {self.span}/12"
+
+
+class StorefrontEditHistoryEntry(TimeStampedModel):
+    """Bounded server-side Undo/Redo checkpoint for one mutable Draft.
+
+    This is intentionally separate from ``StorefrontLayoutVersion`` history:
+    published/archived versions remain merchant-visible release history, while
+    these checkpoints are short-lived editor interaction history for the current
+    mutable draft only.  Each entry stores the complete draft state before and
+    after one successful builder mutation so Undo/Redo never touches Published.
+    """
+
+    draft_version = models.ForeignKey(
+        StorefrontLayoutVersion,
+        verbose_name="پیش‌نویس",
+        on_delete=models.CASCADE,
+        related_name="edit_history_entries",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="ویرایشگر",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    sequence = models.PositiveIntegerField("شماره عملیات")
+    action_label = models.CharField("عنوان عملیات", max_length=120)
+    before_state = models.JSONField("وضعیت قبل")
+    after_state = models.JSONField("وضعیت بعد")
+    is_undone = models.BooleanField("برگشت‌خورده", default=False)
+
+    class Meta:
+        verbose_name = "گام تاریخچه ویرایش سازنده"
+        verbose_name_plural = "گام‌های تاریخچه ویرایش سازنده"
+        ordering = ["sequence"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["draft_version", "sequence"],
+                name="storefront_edit_history_unique_sequence_per_draft",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["draft_version", "is_undone", "sequence"],
+                name="sfb_hist_draft_cursor_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.draft_version_id} / {self.sequence} / {self.action_label}"

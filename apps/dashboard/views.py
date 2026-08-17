@@ -236,8 +236,8 @@ from apps.orders.services.return_service import (
     reject_return_request,
     review_return_request,
 )
-from apps.sms.events import EVENT_VARIABLES
-from apps.sms.models import SmsPackage, SmsPackagePurchase, SmsTemplate
+from apps.sms.events import EVENT_VARIABLES, SmsEvent
+from apps.sms.models import SmsBillingPolicy, SmsPackage, SmsPackagePurchase, SmsTemplate
 from apps.sms.services import balance_service
 from apps.sms.services.sms_service import (
     RetryNotEligibleError,
@@ -4130,6 +4130,7 @@ def _settings_context(
         }),
         "smsrasti_device_token": shop.smsrasti_device_token,
         "sms_balance": balance_service.get_or_create_balance(store=store),
+        "sms_billing_policy": SmsBillingPolicy.load(),
         "sms_packages": balance_service.list_active_packages(),
         "sms_package_purchase_form": SmsPackagePurchaseForm(),
         "sms_pending_purchases": store.sms_package_purchases.filter(
@@ -4494,7 +4495,7 @@ def settings_smsrasti_regenerate_token(request):
 @staff_required
 @permission_required(SMS_SETTINGS_MANAGE)
 def sms_template_form(request, pk):
-    template = get_object_or_404(SmsTemplate, pk=pk)
+    template = get_object_or_404(SmsTemplate.objects.exclude(event_key__in=[SmsEvent.PLATFORM_OWNER_OTP, SmsEvent.PLATFORM_TEST, SmsEvent.NOTIFICATION]), pk=pk)
 
     if request.method == "POST":
         form = SmsTemplateForm(request.POST, event_key=template.event_key)
@@ -4528,7 +4529,7 @@ def sms_template_form(request, pk):
 @staff_required
 @permission_required(SMS_SETTINGS_MANAGE)
 def sms_template_toggle(request, pk):
-    template = get_object_or_404(SmsTemplate, pk=pk)
+    template = get_object_or_404(SmsTemplate.objects.exclude(event_key__in=[SmsEvent.PLATFORM_OWNER_OTP, SmsEvent.PLATFORM_TEST, SmsEvent.NOTIFICATION]), pk=pk)
     template.is_active = not template.is_active
     template.save(update_fields=["is_active", "updated_at"])
     state = "فعال" if template.is_active else "غیرفعال"

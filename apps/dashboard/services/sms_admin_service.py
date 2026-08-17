@@ -25,7 +25,10 @@ def templates_with_variables():
     SmsTemplate.ensure_defaults()
     templates = {t.event_key: t for t in SmsTemplate.objects.all()}
     rows = []
+    platform_only = {SmsEvent.PLATFORM_OWNER_OTP, SmsEvent.PLATFORM_TEST, SmsEvent.NOTIFICATION}
     for event_key in SmsEvent.values:
+        if event_key in platform_only:
+            continue
         template = templates.get(event_key)
         if template is None:
             continue

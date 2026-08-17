@@ -37,7 +37,10 @@ OTHER_STORE_ADMIN_HOST = "otherstore-ahe.rastisi.ir"
 UNKNOWN_ADMIN_HOST = "nonexistent-ahe.rastisi.ir"
 
 
-@override_settings(ALLOWED_HOSTS=[PUBLIC_DOMAIN, ADMIN_HOST, OTHER_STORE_ADMIN_HOST, UNKNOWN_ADMIN_HOST, "testserver"])
+@override_settings(
+    ALLOWED_HOSTS=[PUBLIC_DOMAIN, ADMIN_HOST, OTHER_STORE_ADMIN_HOST, UNKNOWN_ADMIN_HOST, "testserver"],
+    RASTISI_ADMIN_DOMAIN_SUFFIX="rastisi.ir",
+)
 class AdminHostEnforcementTests(TestCase):
     def setUp(self):
         self.store = Store.objects.create(
@@ -194,7 +197,10 @@ def ALLOWED_HOSTS_WITH_BARE_SUFFIX():
     return [PUBLIC_DOMAIN, ADMIN_HOST, OTHER_STORE_ADMIN_HOST, UNKNOWN_ADMIN_HOST, "rastisi.ir"]
 
 
-@override_settings(ALLOWED_HOSTS=["dgs-store-real.ir", "dgs-store-real.rastisi.ir", "testserver"])
+@override_settings(
+    ALLOWED_HOSTS=["dgs-store-real.ir", "dgs-store-real.rastisi.ir", "testserver"],
+    RASTISI_ADMIN_DOMAIN_SUFFIX="rastisi.ir",
+)
 class RealMultiStoreProductionShapeTests(TestCase):
     """One more end-to-end sanity check with realistic catalog data —
     proves host enforcement doesn't interfere with actually using the

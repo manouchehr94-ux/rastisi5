@@ -41,8 +41,8 @@ attribute-selectorِ پایه (در storefront_builder.css) غالب باشد.
 (نه شناسه‌ی دیتابیس، نه هیچ hookِ انتخابِ بصری). زیرساختِ «شناساییِ
 مستقیمِ بصری» (چکپوینتِ Direct Visual Editing).
 {% endcomment %}
-<div class="rsec"
-     {% if is_preview %}data-section-id="{{ item.section.pk }}" data-section-key="{{ item.section.section_key }}" data-section-label="{{ item.section.section_key|section_label }}"{% endif %}
+<div class="rsec{% if is_preview and item.section.is_locked %} sfb-rsec-locked{% endif %}"
+     {% if is_preview %}data-section-id="{{ item.section.pk }}" data-section-key="{{ item.section.section_key }}" data-section-label="{{ item.section.section_key|section_label }}" data-section-locked="{% if item.section.is_locked %}1{% else %}0{% endif %}"{% if placement_cell %} data-cell-id="{{ placement_cell.pk }}" data-container-id="{{ placement_cell.container_id }}"{% endif %} data-section-row-key="{{ item.section.row_key }}" data-section-row-span="{{ item.section.row_span }}" role="region" tabindex="0" aria-label="{{ item.section.section_key|section_label }} — بخش قابل ویرایش"{% endif %}
      {% if item.context.settings.responsive.hide_on_desktop %}data-hide-desktop{% endif %}
      {% if item.context.settings.responsive.hide_on_tablet %}data-hide-tablet{% endif %}
      {% if item.context.settings.responsive.hide_on_mobile %}data-hide-mobile{% endif %}
@@ -50,11 +50,12 @@ attribute-selectorِ پایه (در storefront_builder.css) غالب باشد.
      {% if item.context.settings.layout.content_width and item.context.settings.layout.content_width != "standard" %}data-width="{{ item.context.settings.layout.content_width }}"{% endif %}
      {% if item.context.settings.layout.height and item.context.settings.layout.height != "standard" %}data-height="{{ item.context.settings.layout.height }}"{% endif %}
      {% if item.context.settings.background.mode and item.context.settings.background.mode != "theme" %}data-bg-mode="{{ item.context.settings.background.mode }}"{% endif %}
-     {% if item.context.settings.background.mode == "pattern" and item.context.settings.background.pattern_slug %}data-pattern="{{ item.context.settings.background.pattern_slug }}"{% endif %}
+     {% if item.context.settings.background.palette_role %}data-palette-role="{{ item.context.settings.background.palette_role }}"{% endif %}
+     {% if item.context.settings.background.mode == "pattern" or item.context.settings.background.mode == "palette_pattern" %}{% if item.context.settings.background.pattern_slug %}data-pattern="{{ item.context.settings.background.pattern_slug }}"{% endif %}{% endif %}
      {% if item.context.settings.spacing.vertical_spacing and item.context.settings.spacing.vertical_spacing != "normal" %}data-spacing="{{ item.context.settings.spacing.vertical_spacing }}"{% endif %}
      style="--cols-desktop:{{ item.context.settings.responsive.desktop_columns|default:4 }};--cols-tablet:{{ item.context.settings.responsive.tablet_columns|default:3 }};--cols-mobile:{{ item.context.settings.responsive.mobile_columns|default:2 }}{% if item.context.settings.background.mode == "color" and item.context.settings.background.color %};background-color:{{ item.context.settings.background.color }}{% endif %}{% if item.context.settings.background.mode == "pattern" and item.context.settings.background.color %};background-color:{{ item.context.settings.background.color }}{% endif %}{% if item.context.settings.background.mode == "image" and item.context.background_media_url %};background-image:url('{{ item.context.background_media_url }}');background-size:cover;background-position:center{% endif %}{% if item.context.settings.spacing.advanced.padding_top is not None %};padding-top:{{ item.context.settings.spacing.advanced.padding_top }}px{% endif %}{% if item.context.settings.spacing.advanced.padding_bottom is not None %};padding-bottom:{{ item.context.settings.spacing.advanced.padding_bottom }}px{% endif %}{% if item.context.settings.spacing.advanced.margin_top is not None %};margin-top:{{ item.context.settings.spacing.advanced.margin_top }}px{% endif %}{% if item.context.settings.spacing.advanced.margin_bottom is not None %};margin-bottom:{{ item.context.settings.spacing.advanced.margin_bottom }}px{% endif %}">
   {% if is_preview %}
-  <span class="sfb-rsec-drag-handle" draggable="true" title="برای جابه‌جایی بکشید" aria-hidden="true">⠿</span>
+  <span class="sfb-rsec-drag-handle" draggable="{% if placement_cell or item.section.is_locked %}false{% else %}true{% endif %}" title="{% if placement_cell %}جابه‌جایی از کنترل چیدمان انجام می‌شود{% elif item.section.is_locked %}این محتوا قفل است{% else %}برای جابه‌جایی بکشید{% endif %}" aria-hidden="true">{% if item.section.is_locked %}🔒{% elif placement_cell %}⋮⋮{% else %}⠿{% endif %}</span>
   {% comment %}
   Phase 8 P0-6 — ابزارِ شناورِ روی خودِ بخش (طبقِ مدلِ تعاملیِ پروتوتایپ) —
   دقیقاً همان چهار endpoint موجودی که فهرستِ سایدبار هم استفاده می‌کند
@@ -63,11 +64,17 @@ attribute-selectorِ پایه (در storefront_builder.css) غالب باشد.
   می‌فرستد — هیچ endpointِ جدیدی ساخته نمی‌شود.
   {% endcomment %}
   <div class="sfb-rsec-toolbar" role="toolbar" aria-label="ابزار بخش">
-    <button type="button" data-cmd="up" title="جابه‌جایی به بالا" aria-label="جابه‌جایی به بالا">↑</button>
-    <button type="button" data-cmd="down" title="جابه‌جایی به پایین" aria-label="جابه‌جایی به پایین">↓</button>
-    <button type="button" data-cmd="duplicate" title="کپی این بخش" aria-label="کپی این بخش">⧉</button>
-    <button type="button" data-cmd="toggle" title="نمایش یا مخفی‌کردن" aria-label="نمایش یا مخفی‌کردن">👁</button>
-    <button type="button" data-cmd="remove" title="حذف این بخش" aria-label="حذف این بخش">×</button>
+    <button type="button" data-open-settings="{{ item.section.pk }}" data-cell-id="{% if placement_cell %}{{ placement_cell.pk }}{% endif %}" data-container-id="{% if placement_cell %}{{ placement_cell.container_id }}{% endif %}" title="تنظیمات محتوا" aria-label="باز کردن تنظیمات محتوا">⚙</button>
+    <button type="button" data-cmd="up" title="جابه‌جایی به بالا" aria-label="جابه‌جایی به بالا" {% if item.section.is_locked %}disabled{% endif %}>↑</button>
+    <button type="button" data-cmd="down" title="جابه‌جایی به پایین" aria-label="جابه‌جایی به پایین" {% if item.section.is_locked %}disabled{% endif %}>↓</button>
+    <button type="button" data-cmd="duplicate" title="کپی این بخش" aria-label="کپی این بخش" {% if not item.definition.duplicable %}disabled{% endif %}>⧉</button>
+    <button type="button" data-cmd="toggle" title="مخفی کردن محتوا — خانه پر باقی می‌ماند" aria-label="مخفی کردن محتوا؛ حذف نمی‌شود">👁</button>
+    <button type="button" data-cmd="lock" title="{% if item.section.is_locked %}بازکردن قفل{% else %}قفل‌کردن بخش{% endif %}" aria-label="{% if item.section.is_locked %}بازکردن قفل بخش{% else %}قفل‌کردن بخش{% endif %}">{% if item.section.is_locked %}🔓{% else %}🔒{% endif %}</button>
+    {% if placement_cell %}
+    <button type="button" data-cell-clear="{{ placement_cell.pk }}" data-section-id="{{ item.section.pk }}" title="حذف محتوا از این خانه" aria-label="حذف محتوا از این خانه" {% if item.section.is_locked or not item.definition.removable %}disabled{% endif %}>🗑</button>
+    {% else %}
+    <button type="button" data-cmd="remove" title="حذف این بخش" aria-label="حذف این بخش" {% if item.section.is_locked or not item.definition.removable %}disabled{% endif %}>🗑</button>
+    {% endif %}
   </div>
   {% endif %}
   {% include item.template_name with section=item.context.section settings=item.context.settings hero_slides=item.context.hero_slides slider_settings=item.context.slider_settings banners=item.context.banners tiles=item.context.tiles cream_category=item.context.cream_category top_categories=item.context.top_categories products=item.context.products product=item.context.product deadline=item.context.deadline posts=item.context.posts brands=item.context.brands categories=item.context.categories view_all_url=item.context.view_all_url destination=item.context.destination category_grid_settings=item.context.category_grid_settings brand_carousel_settings=item.context.brand_carousel_settings collection_tiles=item.context.collection_tiles quick_link_items=item.context.quick_link_items video_embed_url=item.context.video_embed_url video_is_instagram=item.context.video_is_instagram video_permalink=item.context.video_permalink variant_selector=item.context.variant_selector product_price_json=item.context.product_price_json gallery_slides=item.context.gallery_slides review_count=item.context.review_count spec_variant_summary=item.context.spec_variant_summary approved_reviews=item.context.approved_reviews rating_breakdown=item.context.rating_breakdown can_review=item.context.can_review product_videos=item.context.product_videos related_products=item.context.related_products page_obj=item.context.page_obj query=item.context.query sort_key=item.context.sort_key sort_options=item.context.sort_options filter_categories=item.context.filter_categories selected_category=item.context.selected_category selected_brand=item.context.selected_brand min_price=item.context.min_price max_price=item.context.max_price discounted_only=item.context.discounted_only querystring=item.context.querystring collection=item.context.collection cart=item.context.cart cart_items=item.context.cart_items item_count=item.context.item_count totals=item.context.totals %}

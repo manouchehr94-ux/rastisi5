@@ -46,7 +46,11 @@ urlpatterns = [
     path("payments/manual/", views.payment_manual_add, name="payment-manual-add"),
 
     # --- پیامک ---
-    path("sms/settings/", views.sms_settings, name="sms-settings"),
+    path("sms/settings/", views.sms_settings, name="sms-settings"),  # legacy alias
+    path("sms/providers/", views.sms_providers, name="sms-providers"),
+    path("sms/templates/", views.sms_templates, name="sms-templates"),
+    path("sms/templates/<str:event_key>/", views.sms_template_edit, name="sms-template-edit"),
+    path("sms/messages/", views.sms_messages, name="sms-messages"),
     path("sms/packages/", views.sms_packages, name="sms-packages"),
     path("sms/packages/add/", views.sms_package_form, name="sms-package-add"),
     path("sms/packages/<int:package_id>/edit/", views.sms_package_form, name="sms-package-edit"),

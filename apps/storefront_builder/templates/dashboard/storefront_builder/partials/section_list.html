@@ -26,7 +26,7 @@
     <div class="sfb-layer-main">
       <div class="sfb-layer-name">{% if section.settings.title %}{{ section.settings.title }}{% else %}{{ section.section_key|section_label }}{% endif %}</div>
       {% if not section.collapsed_in_editor %}
-      <div class="sfb-layer-meta">{{ section.section_key|section_label }} • {% if section.is_active %}فعال{% else %}غیرفعال{% endif %}</div>
+      <div class="sfb-layer-meta">{{ section.section_key|section_label }} • {% if section.is_active %}فعال{% else %}غیرفعال{% endif %}{% if section.row_key %} • ردیف {{ section.row_span }}/12{% endif %}{% if section.is_locked %} • قفل{% endif %}</div>
       {% endif %}
     </div>
     {% if not section.collapsed_in_editor %}
@@ -44,8 +44,8 @@
               hx-target="#storefrontSectionList" hx-swap="outerHTML">{% if section.is_active %}👁{% else %}⊘{% endif %}</button>
       <button type="button" class="sfb-layer-settings-btn" title="تنظیمات"
               hx-get="{% url 'dashboard:storefront-builder-section-settings' section.pk %}"
-              hx-target="#sfbDrawerBody" hx-swap="innerHTML"
-              @click="$dispatch('open-settings-drawer'); selectedSectionId = {{ section.pk }}">⚙</button>
+              hx-target="#sfbInspectorBody" hx-swap="innerHTML"
+              @click="inspectorTitle = 'تنظیمات «{{ section.section_key|section_label }}»'">⚙</button>
     </div>
     {% endif %}
   </div>

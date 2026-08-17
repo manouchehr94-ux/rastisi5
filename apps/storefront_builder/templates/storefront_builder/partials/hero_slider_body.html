@@ -9,7 +9,7 @@ banners without introducing a preset-specific template.
 {% if hero_slides %}
 <section class="section hero">
   {% if hero_slides|length > 1 %}
-  <div class="hero-inner"
+  <div class="hero-inner" data-text-position="{{ slider_settings.text_position|default:'end' }}"
        x-data="{ slide: 0, count: {{ hero_slides|length }}, autoplay: {{ slider_settings.autoplay|yesno:'true,false' }}, interval: {{ slider_settings.interval_ms|default:4500 }}, loop: {{ slider_settings.loop|yesno:'true,false' }}, _timer: null,
                   next() { this.slide = (this.slide + 1) % this.count; },
                   prev() { this.slide = (this.slide - 1 + this.count) % this.count; } }"
@@ -42,15 +42,17 @@ banners without introducing a preset-specific template.
             {% if not slider_settings.loop|default:True %}:disabled="slide === count - 1"{% endif %}>›</button>
     {% endif %}
 
+    {% if slider_settings.show_dots|default:True %}
     <div class="hero-tabs" aria-label="اسلایدها">
       {% for s in hero_slides %}
       <button type="button" @click="slide = {{ forloop.counter0 }}" :class="{ 'active': slide === {{ forloop.counter0 }} }">{{ s.title|default:"مشاهده" }}</button>
       {% endfor %}
     </div>
+    {% endif %}
   </div>
   {% else %}
   {% with slide=hero_slides.0 %}
-  <div class="hero-inner">
+  <div class="hero-inner" data-text-position="{{ slider_settings.text_position|default:'end' }}">
     <article class="hero-slide single">
       <picture class="hero-media">
         {% if slide.mobile_image %}<source media="(max-width:680px)" srcset="{{ slide.mobile_image.url }}">{% endif %}

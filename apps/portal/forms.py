@@ -117,9 +117,26 @@ class PlatformSmsConfigForm(forms.ModelForm):
         label="رمز عبور ملی‌پیامک", max_length=100, required=False,
         widget=forms.PasswordInput(render_value=False, attrs={"placeholder": "برای تغییر وارد کنید"}),
     )
+    sms_melipayamak_otp_body_id = forms.CharField(
+        label="BodyId الگوی OTP ملی‌پیامک", max_length=30, required=False,
+        help_text="BodyId الگوی خدماتی تأیید موبایل/OTP در پنل ملی‌پیامک.",
+    )
+    sms_melipayamak_otp_variables_order = forms.CharField(
+        label="ترتیب متغیرهای الگوی OTP", max_length=120, required=False,
+        initial="otp_code",
+        help_text="مثال: otp_code یا otp_code,expire_minutes",
+    )
+    sms_otp_fallback_enabled = forms.BooleanField(
+        label="اگر ملی‌پیامک خطا داد، OTP با کاوه‌نگار ارسال شود",
+        required=False,
+    )
     sms_kavenegar_api_key = forms.CharField(
         label="کلید API کاوه‌نگار", max_length=100, required=False,
         widget=forms.PasswordInput(render_value=False, attrs={"placeholder": "برای تغییر وارد کنید"}),
+    )
+    sms_kavenegar_otp_template = forms.CharField(
+        label="نام Template کاوه‌نگار برای OTP", max_length=100, required=False,
+        help_text="فقط برای Fallback VerifyLookup؛ در حالت عادی استفاده نمی‌شود.",
     )
 
     class Meta:

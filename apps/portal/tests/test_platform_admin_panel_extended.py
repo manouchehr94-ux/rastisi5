@@ -476,6 +476,15 @@ class SupportLoginEndToEndTests(TestCase):
         self.assertEqual(int(consume_client.session["_auth_user_id"]), self.owner.pk)
         self.assertIn("platform_support_mode", consume_client.session)
 
+    def test_support_login_preserves_current_non_default_port(self):
+        response = self.client.post(
+            f"/stores/{self.store.public_id}/support-login/", {}, HTTP_HOST=f"{_HOST}:8765",
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response["Location"].startswith(
+            "http://handoffpastore.rastisi.localhost:8765/admin-portal/handoff/"
+        ))
+
     def test_support_ticket_is_single_use(self):
         from apps.portal.services import handoff_service
 

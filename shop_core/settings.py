@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import sys
 
 from shop_core.env_config import (
     build_database_config,
@@ -136,6 +137,7 @@ MIDDLEWARE = [
     # Middleware (so request.store is already set, even if None on these
     # hosts) and before anything that dispatches on request.urlconf.
     "apps.portal.middleware.PlatformHostRoutingMiddleware",
+    "apps.stores.middleware.StorefrontCanonicalRedirectMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -331,15 +333,23 @@ SHOP_CONTACT_PHONE = "021-91008877"
 SHOP_CONTACT_EMAIL = "info@digimarket.ir"
 SHOP_CONTACT_ADDRESS = "تهران، خیابان ولیعصر"
 
-# Platform admin-subdomain suffix (Phase 1B): a Store's stable merchant admin
-# host is f"{store.admin_subdomain}.{RASTISI_ADMIN_DOMAIN_SUFFIX}" â€” see
-# apps.stores.admin_resolution. Independent of any StoreDomain (public
-# storefront domain), which is why changing the public domain never affects
-# this. Overridable via environment for non-".ir" deployments/tests.
-RASTISI_ADMIN_DOMAIN_SUFFIX = env_str("RASTISI_ADMIN_DOMAIN_SUFFIX", "rastisi.ir")
+# Canonical DNS identity of the Rastisi platform. This is a product/domain-
+# ownership fact, not a local-runtime setting: DEBUG must never make the app
+# forget that ``rastisi.ir`` and every subdomain below it belong to Rastisi.
+# It is used for ownership / namespace-safety decisions such as rejecting
+# ``evil.rastisi.ir`` as a merchant-supplied custom domain.
+RASTISI_CANONICAL_DOMAIN_SUFFIX = env_str(
+    "RASTISI_CANONICAL_DOMAIN_SUFFIX", "rastisi.ir"
+).lower().strip(".")
 
-# Local development must use the reserved .localhost namespace.
-# This avoids public DNS, HTTPS/HSTS and manual hosts-file entries.
+# Runtime suffix used to BUILD sibling Store/admin hosts in this environment.
+# Production defaults to the canonical domain. Local development intentionally
+# swaps only the runtime address to the reserved ``.localhost`` namespace;
+# canonical ownership above remains ``rastisi.ir``.
+RASTISI_ADMIN_DOMAIN_SUFFIX = env_str(
+    "RASTISI_ADMIN_DOMAIN_SUFFIX", RASTISI_CANONICAL_DOMAIN_SUFFIX
+).lower().strip(".")
+
 if DEBUG:
     RASTISI_ADMIN_DOMAIN_SUFFIX = "rastisi.localhost"
 
@@ -403,6 +413,21 @@ RASTISI_OWNER_SMS_USERNAME = env_str("RASTISI_OWNER_SMS_USERNAME", "")
 RASTISI_OWNER_SMS_PASSWORD = env_str("RASTISI_OWNER_SMS_PASSWORD", "")
 RASTISI_OWNER_SMS_SENDER = env_str("RASTISI_OWNER_SMS_SENDER", "")
 RASTISI_OWNER_SMS_API_KEY = env_str("RASTISI_OWNER_SMS_API_KEY", "")
+RASTISI_OWNER_SMS_OTP_BODY_ID = env_str("RASTISI_OWNER_SMS_OTP_BODY_ID", "")
+RASTISI_OWNER_SMS_OTP_VARIABLES_ORDER = env_str(
+    "RASTISI_OWNER_SMS_OTP_VARIABLES_ORDER", "otp_code",
+)
+RASTISI_OWNER_SMS_OTP_FALLBACK_ENABLED = env_bool(
+    "RASTISI_OWNER_SMS_OTP_FALLBACK_ENABLED", default=False,
+)
+RASTISI_OWNER_SMS_KAVENEGAR_OTP_TEMPLATE = env_str(
+    "RASTISI_OWNER_SMS_KAVENEGAR_OTP_TEMPLATE", "",
+)
+# runserver/production هرگز Console OTP را تحویل‌شده فرض نمی‌کنند. فقط
+# Django test command برای سازگاری تست‌های قدیمی اجازه‌ی fake success دارد.
+RASTISI_OWNER_SMS_ALLOW_CONSOLE_OTP = env_bool(
+    "RASTISI_OWNER_SMS_ALLOW_CONSOLE_OTP", default=("test" in sys.argv),
+)
 
 # Checkpoint 5A â€” default subscription plan for newly onboarded stores.
 # ``RASTISI_DEFAULT_PLAN_CODE`` names a Plan.code whose latest published

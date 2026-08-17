@@ -73,6 +73,10 @@ class AdminSubdomainValidationTests(TestCase):
             normalize_admin_subdomain("www")
         with self.assertRaises(ValidationError):
             normalize_admin_subdomain("admin")
+        with self.assertRaises(ValidationError):
+            normalize_admin_subdomain("chatchat")
+        with self.assertRaises(ValidationError):
+            normalize_admin_subdomain("platformadmins")
 
     def test_case_is_normalized(self):
         self.assertEqual(normalize_admin_subdomain("DigiLool"), "digilool")

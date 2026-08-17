@@ -9,6 +9,9 @@ from django.db import models
 
 
 class SmsEvent(models.TextChoices):
+    PLATFORM_OWNER_OTP = "platform_owner_otp", "OTP ثبت‌نام / ورود مالک فروشگاه"
+    PLATFORM_TEST = "platform_test", "تست زیرساخت پیامک"
+    NOTIFICATION = "notification", "اعلان عمومی / امنیتی"
     WELCOME = "welcome", "ثبت‌نام / خوش‌آمدگویی"
     OTP = "otp", "کد ورود یکبار مصرف"
     ORDER_PLACED = "order_placed", "ثبت سفارش"
@@ -22,8 +25,11 @@ class SmsEvent(models.TextChoices):
 
 # متغیرهای مجاز هر رویداد: کد متغیر -> برچسب فارسی (برای راهنمای پنل مدیریت)
 EVENT_VARIABLES: dict[str, dict[str, str]] = {
+    SmsEvent.PLATFORM_OWNER_OTP: {"otp_code": "کد یکبار مصرف", "expire_minutes": "دقیقه اعتبار"},
+    SmsEvent.PLATFORM_TEST: {},
+    SmsEvent.NOTIFICATION: {"message": "متن اعلان"},
     SmsEvent.WELCOME: {"customer_name": "نام مشتری", "shop_name": "نام فروشگاه"},
-    SmsEvent.OTP: {"otp_code": "کد یکبار مصرف", "shop_name": "نام فروشگاه"},
+    SmsEvent.OTP: {"otp_code": "کد یکبار مصرف", "expire_minutes": "دقیقه اعتبار", "shop_name": "نام فروشگاه"},
     SmsEvent.ORDER_PLACED: {
         "customer_name": "نام مشتری", "order_code": "کد سفارش",
         "amount": "مبلغ سفارش", "shop_name": "نام فروشگاه",
@@ -52,6 +58,9 @@ EVENT_VARIABLES: dict[str, dict[str, str]] = {
 }
 
 DEFAULT_TEMPLATES: dict[str, str] = {
+    SmsEvent.PLATFORM_OWNER_OTP: "کد تأیید راستیسی: {otp_code}\nاین کد تا {expire_minutes} دقیقه معتبر است.",
+    SmsEvent.PLATFORM_TEST: "پیامک آزمایشی راستیسی",
+    SmsEvent.NOTIFICATION: "{message}",
     SmsEvent.WELCOME: "{customer_name} عزیز، به {shop_name} خوش آمدید! از این پس می‌توانید با کد یکبار مصرف هم وارد حساب خود شوید.",
     SmsEvent.OTP: "کد ورود شما به {shop_name}: {otp_code}\nاین کد تا ۲ دقیقه معتبر است.",
     SmsEvent.ORDER_PLACED: "{customer_name} عزیز، سفارش {order_code} به مبلغ {amount} تومان با موفقیت ثبت شد. {shop_name}",

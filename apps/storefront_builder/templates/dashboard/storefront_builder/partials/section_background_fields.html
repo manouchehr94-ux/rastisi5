@@ -1,0 +1,69 @@
+{% if supports_background %}
+<details class="sfb-section-background-field" open
+         x-data="{ bgMode: '{{ section.settings.background.mode|default:"theme" }}' }">
+  <summary>پس‌زمینه بخش</summary>
+  <p class="sfb-field-help">اگر می‌خواهی این بخش با تغییر پالت کل سایت خودکار رنگ عوض کند، «رنگ از پالت» یا «پالت + الگو» را انتخاب کن. «رنگ دلخواه» همیشه مستقل می‌ماند.</p>
+  <div class="form-group">
+    <label for="id_section_bg_mode_{{ section.pk }}">نوع پس‌زمینه</label>
+    <select name="background_mode" id="id_section_bg_mode_{{ section.pk }}" class="form-select" x-model="bgMode">
+      <option value="theme">رنگ پیش‌فرض قالب</option>
+      <option value="palette">رنگ از پالت کل سایت</option>
+      <option value="palette_pattern">پالت + الگوی ظریف</option>
+      <option value="color">رنگ دلخواه ثابت</option>
+      <option value="pattern">رنگ دلخواه + الگو</option>
+      <option value="image">تصویر از رسانه‌های فروشگاه</option>
+    </select>
+  </div>
+
+
+  <div class="form-group" x-show="bgMode === 'palette' || bgMode === 'palette_pattern'" x-cloak>
+    <label for="id_section_bg_palette_{{ section.pk }}">رنگ هماهنگ پالت</label>
+    <select name="background_palette_role" id="id_section_bg_palette_{{ section.pk }}" class="form-select">
+      <option value="tone-1" {% if section.settings.background.palette_role == "tone-1" %}selected{% endif %}>رنگ شاخص ۱</option>
+      <option value="tone-2" {% if section.settings.background.palette_role == "tone-2" %}selected{% endif %}>رنگ شاخص ۲</option>
+      <option value="tone-3" {% if section.settings.background.palette_role == "tone-3" %}selected{% endif %}>رنگ شاخص ۳</option>
+      <option value="tone-4" {% if section.settings.background.palette_role == "tone-4" %}selected{% endif %}>رنگ شاخص ۴</option>
+      <option value="tone-5" {% if section.settings.background.palette_role == "tone-5" %}selected{% endif %}>رنگ شاخص ۵</option>
+    </select>
+    <p class="sfb-field-help">با تغییر پالت سایت، این رنگ هم خودکار عوض می‌شود.</p>
+  </div>
+  <div class="form-group" x-show="bgMode === 'color' || bgMode === 'pattern'" x-cloak>
+    <label for="id_section_bg_color_{{ section.pk }}">رنگ پس‌زمینه</label>
+    <div class="sfb-color-control-row">
+      <input type="color" name="background_color" id="id_section_bg_color_{{ section.pk }}"
+             value="{{ section.settings.background.color|default:'#F53247' }}" class="sfb-native-color">
+      <div class="sfb-reference-swatches" aria-label="رنگ‌های پیشنهادی مرجع">
+        <button type="button" class="sfb-reference-swatch" style="--swatch:#F53247" @click="document.getElementById('id_section_bg_color_{{ section.pk }}').value='#F53247'" aria-label="قرمز"></button>
+        <button type="button" class="sfb-reference-swatch" style="--swatch:#16B95F" @click="document.getElementById('id_section_bg_color_{{ section.pk }}').value='#16B95F'" aria-label="سبز"></button>
+        <button type="button" class="sfb-reference-swatch" style="--swatch:#C56B00" @click="document.getElementById('id_section_bg_color_{{ section.pk }}').value='#C56B00'" aria-label="نارنجی"></button>
+        <button type="button" class="sfb-reference-swatch" style="--swatch:#352196" @click="document.getElementById('id_section_bg_color_{{ section.pk }}').value='#352196'" aria-label="بنفش"></button>
+        <button type="button" class="sfb-reference-swatch" style="--swatch:#056CAE" @click="document.getElementById('id_section_bg_color_{{ section.pk }}').value='#056CAE'" aria-label="آبی"></button>
+        <button type="button" class="sfb-reference-swatch" style="--swatch:#FFFFFF" @click="document.getElementById('id_section_bg_color_{{ section.pk }}').value='#FFFFFF'" aria-label="سفید"></button>
+        <button type="button" class="sfb-reference-swatch" style="--swatch:#F4F5F7" @click="document.getElementById('id_section_bg_color_{{ section.pk }}').value='#F4F5F7'" aria-label="خاکستری روشن"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-group" x-show="bgMode === 'pattern' || bgMode === 'palette_pattern'" x-cloak>
+    <label for="id_section_bg_pattern_{{ section.pk }}">الگو</label>
+    <select name="background_pattern_slug" id="id_section_bg_pattern_{{ section.pk }}" class="form-select">
+      {% for slug, label in background_patterns.items %}
+      <option value="{{ slug }}" {% if section.settings.background.pattern_slug == slug %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="form-group" x-show="bgMode === 'image'" x-cloak>
+    <label for="id_section_bg_asset_{{ section.pk }}">تصویر پس‌زمینه</label>
+    <select name="background_media_asset_id" id="id_section_bg_asset_{{ section.pk }}" class="form-select">
+      <option value="">— انتخاب تصویر —</option>
+      {% for asset in background_media_assets %}
+      <option value="{{ asset.pk }}" {% if section.settings.background.media_asset_id == asset.pk %}selected{% endif %}>رسانه #{{ asset.pk }} — {{ asset.image.name }}</option>
+      {% endfor %}
+    </select>
+    {% if not background_media_assets %}
+    <p class="sfb-field-help">هنوز تصویر قابل‌استفاده‌ای در رسانه‌های فروشگاه ثبت نشده است.</p>
+    {% endif %}
+  </div>
+</details>
+{% endif %}

@@ -4,7 +4,7 @@ is retired (never redirected, never deleted, never reassigned)."""
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.stores.models import Store, StoreDomain
@@ -45,6 +45,7 @@ class HandleServiceTestCase(TestCase):
         return sub
 
 
+@override_settings(RASTISI_ADMIN_DOMAIN_SUFFIX="rastisi.ir")
 class ClaimPlatformHandleTests(HandleServiceTestCase):
     def test_rejects_without_a_paid_active_subscription(self):
         with self.assertRaises(HandleError):
@@ -97,6 +98,8 @@ class ClaimPlatformHandleTests(HandleServiceTestCase):
         self._make_paid_active_subscription()
         with self.assertRaises(HandleError):
             claim_platform_handle(store=self.store, label="admin", actor=self.actor)
+        with self.assertRaises(HandleError):
+            claim_platform_handle(store=self.store, label="chatchat", actor=self.actor)
 
     def test_already_taken_label_is_rejected_not_silently_reassigned(self):
         other_store = Store.objects.create(
@@ -132,6 +135,7 @@ class ClaimPlatformHandleTests(HandleServiceTestCase):
         self.assertTrue(StoreDomain.objects.filter(store=self.store, is_primary=True).exists())
 
 
+@override_settings(RASTISI_ADMIN_DOMAIN_SUFFIX="rastisi.ir")
 class RenamePlatformHandleAsSuperuserTests(HandleServiceTestCase):
     def _claimed_store(self):
         self._make_paid_active_subscription()

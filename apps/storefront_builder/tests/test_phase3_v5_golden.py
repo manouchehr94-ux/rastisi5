@@ -228,8 +228,11 @@ class SameRendererPathAsGenericConfigTests(TestCase):
 
 @override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
 class HeroInstantOfferIndependentBlocksTests(TestCase):
-    """9 — Hero and Instant Offer are two ordinary, independent section
-    instances that merely share a row_key — never fused into one section."""
+    """Hero and Instant Offer remain independent Content Blocks.
+
+    Legacy row_key/row_span metadata is preserved during the transition, while
+    the actual public layout source of truth is Container -> Cell -> Section.
+    """
 
     def setUp(self):
         cache.clear()
@@ -249,12 +252,22 @@ class HeroInstantOfferIndependentBlocksTests(TestCase):
         self.assertTrue(offer.settings["carousel_autoplay"])
         self.assertEqual(offer.settings["header_position"], "inside")
         self.assertEqual(offer.settings["carousel_interval_ms"], 3500)
+
+        # Container/Cell is now the visual layout source of truth. The
+        # reference composition is 3/12 offer + 9/12 Hero.
+        container = home.containers.get(layout_key="quarter_left")
+        cells = list(container.cells.select_related("section").order_by("order", "id"))
+        self.assertEqual([cell.span for cell in cells], [3, 9])
+        self.assertEqual(cells[0].section_id, offer.pk)
+        self.assertEqual(cells[1].section_id, hero.pk)
+
         svc.publish(self.store)
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         html = resp.content.decode("utf-8")
-        self.assertIn("--row-span:9", html)
-        self.assertIn("--row-span:3", html)
-        self.assertEqual(html.count('class="rsec-row-item"'), html.count("--row-span:"))
+        self.assertIn('data-layout="quarter_left"', html)
+        self.assertIn("--cell-span:3", html)
+        self.assertIn("--cell-span:9", html)
+        self.assertNotIn("--row-span:", html)
 
 
 @override_settings(ALLOWED_HOSTS=[HOST, "testserver"])

@@ -15,9 +15,9 @@
 {% endblock %}
 
 {% block content %}
-<div class="storefront-page-title"><div class="wrap"><h1>{{ SHOP_NAME }}</h1></div></div>
+{% if page_type != "home" %}<div class="storefront-page-title"><div class="wrap"><h1>{{ SHOP_NAME }}</h1></div></div>{% endif %}
 <div class="wrap sfb-preview-sections">
-  {% if rows %}
+  {% if use_container_layout or rows %}
   {% include "storefront_builder/partials/render_rows.html" %}
   {% else %}
   <div class="sfb-empty-preview" style="padding:60px 20px;text-align:center;color:var(--muted)">
@@ -37,38 +37,252 @@
   var inParentFrame = window.parent && window.parent !== window;
   var justDragged = false;
 
+  function applyBuilderSelection(data) {
+    data = data || {};
+    document.querySelectorAll('.sfb-rsec-selected').forEach(function (el) {
+      el.classList.remove('sfb-rsec-selected');
+      el.removeAttribute('aria-current');
+    });
+    document.querySelectorAll('.sfb-builder-container-selected').forEach(function (el) { el.classList.remove('sfb-builder-container-selected'); });
+    document.querySelectorAll('.sfb-cell-selected').forEach(function (el) { el.classList.remove('sfb-cell-selected'); });
+
+    if (data.containerId) {
+      var containerEl = document.querySelector('.sfb-builder-container[data-container-id="' + data.containerId + '"]');
+      if (containerEl && containerEl.classList.contains('sfb-builder-container')) containerEl.classList.add('sfb-builder-container-selected');
+    }
+    if (data.cellId) {
+      var cellEl = document.querySelector('.rcontainer-cell[data-cell-id="' + data.cellId + '"]');
+      if (cellEl) cellEl.classList.add('sfb-cell-selected');
+    }
+    if (data.sectionId) {
+      var sectionEl = document.querySelector('[data-section-id="' + data.sectionId + '"]');
+      if (sectionEl) {
+        sectionEl.classList.add('sfb-rsec-selected');
+        sectionEl.setAttribute('aria-current', 'true');
+      }
+    }
+  }
+
+  window.addEventListener('message', function (evt) {
+    if (!inParentFrame || evt.origin !== window.location.origin || !evt.data) return;
+    if (evt.data.type === 'sfb:setSelection') applyBuilderSelection(evt.data);
+  });
+
   // شناساییِ مستقیمِ بصری — کلیک/لمسِ هر section در Preview یک پیامِ
-  // postMessage به پنجره‌ی والد (ادیتور) می‌فرستد تا تنظیماتِ همان
-  // section باز شود و ردیفِ متناظرش در فهرست Highlight شود. کلیک هم
-  // روی دسکتاپ (mouse) و هم روی موبایل/لمسی (tap) به‌طورِ یکسان کار
-  // می‌کند — نیازی به رویدادِ جداگانه‌ی touch نیست.
+  // postMessage به پنجره‌ی والد (ادیتور) می‌فرستد تا همان section و Cell
+  // به‌وضوح انتخاب شوند. بازکردن Inspector یک عمل جدا و صریح (⚙/دابل‌کلیک)
+  // است تا انتخاب ساده همیشه Canvas را نپوشاند.
+  function selectSectionElement(el) {
+    if (!el || !inParentFrame) return;
+    applyBuilderSelection({
+      sectionId: el.getAttribute('data-section-id'),
+      cellId: el.getAttribute('data-cell-id'),
+      containerId: el.getAttribute('data-container-id'),
+    });
+    window.parent.postMessage({
+      type: 'sfb:selectSection',
+      sectionId: el.getAttribute('data-section-id'),
+      sectionKey: el.getAttribute('data-section-key'),
+      cellId: el.getAttribute('data-cell-id'),
+      containerId: el.getAttribute('data-container-id'),
+    }, window.location.origin);
+  }
+
+  // Phase 2.6D — The embedded Builder preview is an editing surface, not a
+  // navigation surface. Storefront anchors/forms must stay fully functional in
+  // standalone Preview and on the live storefront, but while this document is
+  // inside the Builder iframe they must never replace the iframe document.
+  // Capture phase runs before section-specific link handlers/default navigation.
+  function blockEmbeddedNavigation(evt) {
+    if (!inParentFrame) return;
+    var target = evt.target && evt.target.closest ? evt.target : null;
+    if (!target) return;
+    var navigationTarget = target.closest('a[href], [role="link"]');
+    if (!navigationTarget) return;
+    evt.preventDefault();
+    evt.stopPropagation();
+    var section = navigationTarget.closest('[data-section-id]');
+    if (section) selectSectionElement(section);
+  }
+
+  document.addEventListener('click', blockEmbeddedNavigation, true);
+  document.addEventListener('auxclick', blockEmbeddedNavigation, true);
+  document.addEventListener('submit', function (evt) {
+    if (!inParentFrame) return;
+    evt.preventDefault();
+    evt.stopPropagation();
+    var form = evt.target;
+    var section = form && form.closest ? form.closest('[data-section-id]') : null;
+    if (section) selectSectionElement(section);
+  }, true);
+
   document.addEventListener('click', function (evt) {
     if (justDragged) { justDragged = false; return; }
     if (!inParentFrame) return;
-    // Phase 8 P0-6 — ابزارِ شناورِ روی خودِ بخش (up/down/duplicate/toggle/
-    // remove) — دقیقاً همان چهار endpointِ سایدبار، فقط از خودِ Canvas
-    // صدا زده می‌شوند؛ هیچ منطقِ نوشتنِ تکراری‌ای اینجا نیست.
+    var headerSettingsBtn = evt.target.closest('[data-open-header-settings]');
+    if (headerSettingsBtn) {
+      window.parent.postMessage({ type: 'sfb:openHeaderSettings' }, window.location.origin);
+      return;
+    }
+    var removeContainerBtn = evt.target.closest('[data-container-remove]');
+    if (removeContainerBtn) {
+      if (!window.confirm('این چیدمان خالی حذف شود؟')) return;
+      window.parent.postMessage({
+        type: 'sfb:containerCommand',
+        command: 'remove',
+        containerId: removeContainerBtn.getAttribute('data-container-remove'),
+      }, window.location.origin);
+      return;
+    }
+    var layoutBtn = evt.target.closest('[data-container-select]');
+    if (layoutBtn) {
+      var layoutContainerId = layoutBtn.getAttribute('data-container-select');
+      applyBuilderSelection({ containerId: layoutContainerId });
+      window.parent.postMessage({
+        type: 'sfb:selectContainer',
+        containerId: layoutContainerId,
+      }, window.location.origin);
+      return;
+    }
+    var settingsBtn = evt.target.closest('[data-open-settings]');
+    if (settingsBtn) {
+      var settingsSectionId = settingsBtn.getAttribute('data-open-settings');
+      var settingsCellId = settingsBtn.getAttribute('data-cell-id') || (settingsBtn.closest('[data-cell-id]') && settingsBtn.closest('[data-cell-id]').getAttribute('data-cell-id'));
+      var settingsContainerId = settingsBtn.getAttribute('data-container-id') || (settingsBtn.closest('[data-container-id]') && settingsBtn.closest('[data-container-id]').getAttribute('data-container-id'));
+      applyBuilderSelection({ sectionId: settingsSectionId, cellId: settingsCellId, containerId: settingsContainerId });
+      window.parent.postMessage({
+        type: 'sfb:openSectionSettings', sectionId: settingsSectionId,
+        cellId: settingsCellId, containerId: settingsContainerId,
+      }, window.location.origin);
+      return;
+    }
+    var emptyCellBtn = evt.target.closest('[data-empty-cell]');
+    if (emptyCellBtn) {
+      applyBuilderSelection({
+        cellId: emptyCellBtn.getAttribute('data-empty-cell'),
+        containerId: emptyCellBtn.getAttribute('data-container-id'),
+      });
+      window.parent.postMessage({
+        type: 'sfb:addToCell',
+        cellId: emptyCellBtn.getAttribute('data-empty-cell'),
+        containerId: emptyCellBtn.getAttribute('data-container-id'),
+      }, window.location.origin);
+      return;
+    }
+    // Hidden content still occupies its Cell. Give hide/show and delete
+    // separate explicit actions so "hide" can never look like "delete".
+    var hiddenToggleBtn = evt.target.closest('[data-hidden-toggle]');
+    if (hiddenToggleBtn) {
+      window.parent.postMessage({
+        type: 'sfb:sectionCommand',
+        command: 'toggle',
+        sectionId: hiddenToggleBtn.getAttribute('data-hidden-toggle'),
+      }, window.location.origin);
+      return;
+    }
+    var clearCellBtn = evt.target.closest('[data-cell-clear]');
+    if (clearCellBtn) {
+      if (clearCellBtn.disabled) return;
+      if (!window.confirm('محتوای این خانه حذف شود؟ خود خانه و چیدمان باقی می‌ماند.')) return;
+      window.parent.postMessage({
+        type: 'sfb:cellCommand',
+        command: 'clear',
+        cellId: clearCellBtn.getAttribute('data-cell-clear'),
+        sectionId: clearCellBtn.getAttribute('data-section-id'),
+      }, window.location.origin);
+      return;
+    }
+    // Content toolbar commands are placement-aware in Container mode.
     var cmdBtn = evt.target.closest('[data-cmd]');
     if (cmdBtn) {
+      if (cmdBtn.disabled) return;
       var rsec = cmdBtn.closest('[data-section-id]');
       if (!rsec) return;
       var cmd = cmdBtn.getAttribute('data-cmd');
+      var containerId = rsec.getAttribute('data-container-id');
+      var cellId = rsec.getAttribute('data-cell-id');
+      if ((cmd === 'up' || cmd === 'down') && containerId) {
+        window.parent.postMessage({ type: 'sfb:containerCommand', command: cmd, containerId: containerId }, window.location.origin);
+        return;
+      }
+      if (cmd === 'remove' && cellId) {
+        if (!window.confirm('محتوای این خانه حذف شود؟ خود خانه و چیدمان باقی می‌ماند.')) return;
+        window.parent.postMessage({
+          type: 'sfb:cellCommand', command: 'clear', cellId: cellId, sectionId: rsec.getAttribute('data-section-id'),
+        }, window.location.origin);
+        return;
+      }
       if (cmd === 'remove' && !window.confirm('این بخش برای همیشه حذف شود؟')) return;
       window.parent.postMessage({
         type: 'sfb:sectionCommand', command: cmd, sectionId: rsec.getAttribute('data-section-id'),
       }, window.location.origin);
       return;
     }
+    var hiddenCard = evt.target.closest('[data-hidden-section]');
+    if (hiddenCard) {
+      var hiddenSectionId = hiddenCard.getAttribute('data-hidden-section');
+      var hiddenCellId = hiddenCard.getAttribute('data-cell-id');
+      var hiddenContainerId = hiddenCard.getAttribute('data-container-id');
+      applyBuilderSelection({ sectionId: hiddenSectionId, cellId: hiddenCellId, containerId: hiddenContainerId });
+      window.parent.postMessage({
+        type: 'sfb:selectSection', sectionId: hiddenSectionId,
+        cellId: hiddenCellId, containerId: hiddenContainerId,
+      }, window.location.origin);
+      return;
+    }
     var el = evt.target.closest('[data-section-id]');
     if (!el) return;
-    var previouslySelected = document.querySelector('.sfb-rsec-selected');
-    if (previouslySelected && previouslySelected !== el) previouslySelected.classList.remove('sfb-rsec-selected');
-    el.classList.add('sfb-rsec-selected');
+    selectSectionElement(el);
+  });
+
+  document.addEventListener('dblclick', function (evt) {
+    if (!inParentFrame) return;
+    var section = evt.target.closest('[data-section-id]');
+    if (!section) return;
+    evt.preventDefault();
     window.parent.postMessage({
-      type: 'sfb:selectSection',
-      sectionId: el.getAttribute('data-section-id'),
-      sectionKey: el.getAttribute('data-section-key'),
+      type: 'sfb:openSectionSettings',
+      sectionId: section.getAttribute('data-section-id'),
+      cellId: section.getAttribute('data-cell-id'),
+      containerId: section.getAttribute('data-container-id'),
     }, window.location.origin);
+  });
+
+  // Library -> Cell drag/drop.  The Library lives in the parent document and
+  // this Canvas in a same-origin iframe; HTML5 DataTransfer safely crosses that
+  // boundary.  Only truly empty Cells accept the drop, so existing content is
+  // never replaced implicitly.
+  function clearLibraryDropState() {
+    document.querySelectorAll('.sfb-cell-library-drop').forEach(function (el) { el.classList.remove('sfb-cell-library-drop'); });
+  }
+  document.addEventListener('dragover', function (evt) {
+    if (!inParentFrame || !evt.dataTransfer) return;
+    var types = Array.prototype.slice.call(evt.dataTransfer.types || []);
+    if (types.indexOf('application/x-rastisi-section-key') === -1) return;
+    var cell = evt.target.closest('.rcontainer-cell[data-cell-id]');
+    clearLibraryDropState();
+    if (!cell || !cell.querySelector('[data-empty-cell]')) return;
+    evt.preventDefault();
+    evt.dataTransfer.dropEffect = 'copy';
+    cell.classList.add('sfb-cell-library-drop');
+  });
+  document.addEventListener('drop', function (evt) {
+    if (!inParentFrame || !evt.dataTransfer) return;
+    var sectionKey = evt.dataTransfer.getData('application/x-rastisi-section-key');
+    if (!sectionKey) return;
+    var cell = evt.target.closest('.rcontainer-cell[data-cell-id]');
+    clearLibraryDropState();
+    if (!cell || !cell.querySelector('[data-empty-cell]')) return;
+    evt.preventDefault();
+    window.parent.postMessage({
+      type: 'sfb:dropLibraryToCell',
+      sectionKey: sectionKey,
+      cellId: cell.getAttribute('data-cell-id'),
+      containerId: cell.getAttribute('data-container-id'),
+    }, window.location.origin);
+  });
+  document.addEventListener('dragleave', function (evt) {
+    if (!evt.relatedTarget) clearLibraryDropState();
   });
 
   // درگ مستقیم در Preview — چکپوینتِ Preview Drag/Reorder. درگ واقعی
@@ -82,13 +296,72 @@
   // بازچینش شوند.
   var container = document.querySelector('.sfb-preview-sections');
   if (!container) return;
+
+  // Phase 2.7.3 — empty blocks remain editable in the Builder Canvas only.
+  // Standalone Preview and the public storefront are not given this class.
+  function markEmptyBuilderSections() {
+    if (!inParentFrame || !container) return;
+    container.querySelectorAll('[data-section-id]').forEach(function (section) {
+      section.classList.remove('sfb-rsec-builder-empty');
+      if (section.getBoundingClientRect().height < 1) {
+        section.classList.add('sfb-rsec-builder-empty');
+      }
+    });
+  }
+  markEmptyBuilderSections();
+
   var dragId = null;
+
+  // Keyboard editing uses the exact same parent commands as the visual toolbar.
+  // Alt+Arrow reorders the focused section; Enter/Space selects it. Focus alone
+  // also announces/selects a section without requiring a mouse.
+  container.addEventListener('focusin', function (evt) {
+    var section = evt.target.matches('[data-section-id]') ? evt.target : null;
+    if (section) selectSectionElement(section);
+  });
+
+  container.addEventListener('keydown', function (evt) {
+    var section = evt.target.closest('[data-section-id]');
+    if (!section || !inParentFrame) return;
+    var editable = evt.target.matches('input, textarea, select, [contenteditable="true"]');
+    var modifier = evt.ctrlKey || evt.metaKey;
+    var key = String(evt.key || '').toLowerCase();
+    if (!editable && modifier && !evt.altKey && (key === 'z' || key === 'y')) {
+      evt.preventDefault();
+      var direction = (key === 'y' || (key === 'z' && evt.shiftKey)) ? 'redo' : 'undo';
+      window.parent.postMessage({ type: 'sfb:historyStep', direction: direction }, window.location.origin);
+      return;
+    }
+    if ((evt.key === 'Enter' || evt.key === ' ') && evt.target === section) {
+      evt.preventDefault();
+      selectSectionElement(section);
+      return;
+    }
+    if (evt.altKey && !evt.ctrlKey && !evt.metaKey && (evt.key === 'ArrowUp' || evt.key === 'ArrowDown')) {
+      if (section.getAttribute('data-section-locked') === '1') return;
+      evt.preventDefault();
+      var containerId = section.getAttribute('data-container-id');
+      if (containerId) {
+        window.parent.postMessage({
+          type: 'sfb:containerCommand',
+          command: evt.key === 'ArrowUp' ? 'up' : 'down',
+          containerId: containerId,
+        }, window.location.origin);
+      } else {
+        window.parent.postMessage({
+          type: 'sfb:sectionCommand',
+          command: evt.key === 'ArrowUp' ? 'up' : 'down',
+          sectionId: section.getAttribute('data-section-id'),
+        }, window.location.origin);
+      }
+    }
+  });
 
   container.addEventListener('dragstart', function (evt) {
     var handle = evt.target.closest('.sfb-rsec-drag-handle');
     if (!handle) { evt.preventDefault(); return; }
     var rsec = handle.closest('[data-section-id]');
-    if (!rsec) { evt.preventDefault(); return; }
+    if (!rsec || rsec.getAttribute('data-section-locked') === '1') { evt.preventDefault(); return; }
     dragId = rsec.getAttribute('data-section-id');
     rsec.classList.add('sfb-rsec-dragging');
     evt.dataTransfer.effectAllowed = 'move';

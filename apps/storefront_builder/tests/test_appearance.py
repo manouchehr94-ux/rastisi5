@@ -432,6 +432,7 @@ class AppearanceDraftPublishIsolationTests(TestCase):
         resp = self.client.get(reverse("catalog:product-list"), HTTP_HOST="sfb-appearance-public.example.com")
         self.assertContains(resp, "#00FF00")
         self.assertContains(resp, "data-sfb-button-style=\"outline\"")
+        self.assertContains(resp, "--sfb-font:'Georgia'")
 
     def test_unpublished_store_never_leaks_draft_to_other_pages_even_with_history(self):
         """اگر Draftِ فعلی تغییر کند اما دوباره publish نشود، صفحاتِ

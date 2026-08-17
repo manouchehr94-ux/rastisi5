@@ -239,48 +239,48 @@ html[data-sfb-density="relaxed"] .rsec[data-width="full"] > .section{margin-inli
    architecture proof; these late rules establish a production-oriented
    neutral commerce shell that any merchant configuration can use.
    ======================================================================== */
-.announce{background:#f3f4f6;color:#4b5563;border-bottom:1px solid #e5e7eb;font-size:10.5px}
+.announce{background:var(--brand-background,#f3f4f6);color:var(--brand-muted,#4b5563);border-bottom:1px solid var(--brand-border,#e5e7eb);font-size:10.5px}
 .announce .wrap{height:28px}
 .announce .links{gap:18px}
-.header{position:relative;top:auto;box-shadow:none;border-bottom:1px solid #e6e8eb}
+.header{position:relative;top:auto;box-shadow:none;border-bottom:1px solid var(--brand-border,#e6e8eb);background:var(--brand-surface,#fff)}
 .header.sfb-sticky{position:sticky;top:0}
 .header .wrap{height:70px;gap:16px}
 .logo{gap:9px;min-width:190px}
-.logo .mark{width:38px;height:38px;border-radius:8px;background:#10b981;box-shadow:none}
+.logo .mark{width:38px;height:38px;border-radius:8px;background:var(--brand-primary,#10b981);box-shadow:none}
 .logo b{font-size:17px;line-height:1.3}
 .logo small{font-size:9.5px}
-.search{max-width:620px;height:40px;border:1px solid #e5e7eb;border-radius:22px;background:#f7f8fa;padding:0 4px}
-.search:focus-within{border-color:#cfd4da;background:#fff;box-shadow:0 0 0 3px rgba(17,24,39,.04)}
-.search svg{width:17px;height:17px;margin:0 11px;color:#4b5563}
+.search{max-width:620px;height:40px;border:1px solid var(--brand-border,#e5e7eb);border-radius:22px;background:var(--brand-background,#f7f8fa);padding:0 4px}
+.search:focus-within{border-color:var(--brand-primary,#cfd4da);background:var(--brand-surface,#fff);box-shadow:0 0 0 3px rgba(17,24,39,.04)}
+.search svg{width:17px;height:17px;margin:0 11px;color:var(--brand-muted,#4b5563)}
 .search input{font-size:12px}
-.search button{height:32px;min-width:68px;padding:0 14px;border-radius:3px;background:#fff;color:#333;border:1px solid #b8bdc5;font-size:11px;box-shadow:none}
+.search button{height:32px;min-width:68px;padding:0 14px;border-radius:3px;background:var(--brand-surface,#fff);color:var(--brand-text,#333);border:1px solid var(--brand-border,#b8bdc5);font-size:11px;box-shadow:none}
 .h-actions{gap:7px}
-.h-btn{width:38px;height:38px;border-radius:4px;background:#fff;border-color:#cfd4da}
-.h-btn:hover{background:#f8fafc;color:#111;border-color:#9ca3af}
-.h-btn .cnt{top:-5px;left:-5px;background:#ef4444;border-width:1px}
-.login-btn{height:38px;padding:0 12px;border:1px solid #8b9098;border-radius:3px;color:#222;font-size:11.5px}
-.login-btn:hover{background:#f7f7f8;color:#111}
-.nav{background:#fff;border-bottom:1px solid #e7e8ea;box-shadow:0 4px 8px rgba(15,23,42,.03)}
+.h-btn{width:38px;height:38px;border-radius:4px;background:var(--brand-surface,#fff);border-color:var(--brand-border,#cfd4da)}
+.h-btn:hover{background:var(--brand-background,#f8fafc);color:var(--brand-primary,#111);border-color:var(--brand-primary,#9ca3af)}
+.h-btn .cnt{top:-5px;left:-5px;background:var(--brand-accent,#ef4444);border-width:1px}
+.login-btn{height:38px;padding:0 12px;border:1px solid var(--brand-border,#8b9098);border-radius:3px;color:var(--brand-text,#222);font-size:11.5px}
+.login-btn:hover{background:var(--brand-background,#f7f7f8);color:var(--brand-primary,#111)}
+.nav{background:var(--brand-surface,#fff);border-bottom:1px solid var(--brand-border,#e7e8ea);box-shadow:0 4px 8px rgba(15,23,42,.03)}
 .nav .wrap{height:46px;gap:8px}
-.nav .cat-btn{height:32px;padding:0 10px;border-radius:3px;background:transparent;color:#222;font-size:11.5px}
-.nav a.nl{height:32px;padding:0 10px;border-radius:2px;color:#333;font-size:11.5px;font-weight:500}
-.nav a.nl:hover{background:#f4f5f6;color:#111}
-.nav .nav-hot{font-size:11px;color:#333;font-weight:600}
+.nav .cat-btn{height:32px;padding:0 10px;border-radius:3px;background:transparent;color:var(--brand-text,#222);font-size:11.5px}
+.nav a.nl{height:32px;padding:0 10px;border-radius:2px;color:var(--brand-text,#333);font-size:11.5px;font-weight:500}
+.nav a.nl:hover{background:var(--brand-background,#f4f5f6);color:var(--brand-primary,#111)}
+.nav .nav-hot{font-size:11px;color:var(--brand-accent,#333);font-weight:600}
 .cat-mega-overlay{background:rgba(17,24,39,.18)}
 .cat-mega-panel{border-radius:4px;box-shadow:0 12px 28px rgba(15,23,42,.13)}
 .cat-mega-rail-item{border-radius:2px}
-.cat-mega-rail-item:hover,.cat-mega-rail-item.active{background:#f2f4f5;color:#111}
-.cat-mega-cols a:hover{color:#111}
+.cat-mega-rail-item:hover,.cat-mega-rail-item.active{background:var(--brand-background,#f2f4f5);color:var(--brand-primary,#111)}
+.cat-mega-cols a:hover{color:var(--brand-primary,#111)}
 
 .storefront-page-title{padding:14px 0 0;background:var(--bg)}
 .storefront-page-title .wrap{padding-top:0;padding-bottom:0}
 .storefront-page-title h1{background:#fff;border:1px solid #e2e5e9;border-radius:9px;box-shadow:0 2px 8px rgba(15,23,42,.06);padding:9px 18px;font-size:21px;line-height:1.6;font-weight:700}
 
 .footer{
-  background:#4b4b53;
+  background:var(--brand-text,#4b4b53);
   border-top:0;
   margin-top:34px;
-  color:#f5f5f6;
+  color:var(--brand-surface,#f5f5f6);
 }
 .footer .wrap{position:relative}
 .footer .cols{
@@ -293,7 +293,7 @@ html[data-sfb-density="relaxed"] .rsec[data-width="full"] > .section{margin-inli
 .footer .footer-col{min-width:0}
 .footer .about .logo{margin-bottom:13px;min-width:0}
 .footer .about .logo b{color:#fff;font-size:16px}
-.footer .about .logo .mark{background:#6d28d9;color:#fff}
+.footer .about .logo .mark{background:var(--brand-primary,#6d28d9);color:var(--brand-primary-fg,#fff)}
 .footer .about p,
 .footer .footer-col p{
   color:rgba(255,255,255,.76);
@@ -544,4 +544,43 @@ html[data-sfb-density="relaxed"] .rsec[data-width="full"] > .section{margin-inli
   .header-tagline-strip span{font-size:11.3px}
   .footer-col h5{font-size:13px}
   .footer-col ul a,.footer-col ul span{font-size:11.5px}
+}
+
+/* Phase 3.10 — homepage Merchant Admin shortcut.
+   Uses existing semantic brand variables; no palette/theme behavior is changed. */
+.store-admin-shortcut{
+  height:38px;
+  padding:0 12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  flex:0 0 auto;
+  border:1px solid var(--brand-primary,#6d28d9);
+  border-radius:var(--sfb-button-radius,8px);
+  background:var(--brand-primary,#6d28d9);
+  color:var(--brand-primary-fg,#fff);
+  font-size:11.5px;
+  font-weight:800;
+  text-decoration:none;
+  white-space:nowrap;
+  transition:transform .15s ease,filter .15s ease,box-shadow .15s ease;
+}
+.store-admin-shortcut svg{width:17px;height:17px;flex:0 0 auto}
+.store-admin-shortcut:hover{
+  color:var(--brand-primary-fg,#fff);
+  filter:brightness(.94);
+  transform:translateY(-1px);
+  box-shadow:0 5px 14px color-mix(in srgb,var(--brand-primary,#6d28d9) 24%,transparent);
+}
+.store-admin-shortcut:focus-visible{
+  outline:2px solid var(--brand-accent,#ff4d77);
+  outline-offset:2px;
+}
+@media(max-width:680px){
+  .store-admin-shortcut{
+    width:38px;
+    padding:0;
+  }
+  .store-admin-shortcut span{display:none}
 }

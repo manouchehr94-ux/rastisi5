@@ -1,0 +1,4 @@
+{% extends "portal/platform_admin/base.html" %}
+{% block title %}قالب‌ها و الگوهای پیامک{% endblock %}
+{% block content %}<div class="pa-pagehead"><div><h1>قالب‌ها و الگوهای پیامک</h1><p>متن RastiSi و شناسه Pattern هر Provider برای هر رویداد، جدا و قابل ویرایش.</p></div></div>
+<div class="pa-card"><div class="pa-tablewrap"><table><thead><tr><th>قالب</th><th>کاراکتر متن پایه</th><th>اعتبار تقریبی</th><th>ملی‌پیامک BodyId</th><th>کاوه‌نگار</th><th></th></tr></thead><tbody>{% for item in templates %}<tr><td><b>{{ item.title }}</b><div class="pa-help">{{ item.event_key }}</div></td><td>{{ item.preview_quote.character_count }}</td><td>{{ item.preview_quote.billable_units }}</td><td>{{ item.melipayamak_body_id|default:"—" }}</td><td>{{ item.kavenegar_template|default:"—" }}</td><td><a class="pa-btn pa-small" href="{% url 'portal_platform_admin:sms-template-edit' item.event_key %}">ویرایش</a></td></tr>{% endfor %}</tbody></table></div></div>{% endblock %}

@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from apps.core.models import ShopSettings
 from apps.sms.events import SmsEvent
-from apps.sms.models import SmsLog, SmsTemplate
+from apps.sms.models import SmsBalance, SmsLog, SmsTemplate
 from apps.stores.models import Store, StoreDomain, StoreMembership
 
 User = get_user_model()
@@ -28,10 +28,14 @@ class SmsAdminViewsTestCase(TestCase):
     def setUp(self):
         SmsTemplate.ensure_defaults()
         self.staff = User.objects.create_user(username="09121193001", password="pass12345", is_staff=True)
+        store = Store.objects.get(slug="akhlaghi")
         StoreMembership.objects.create(
-            store=Store.objects.get(slug="akhlaghi"), user=self.staff, role=StoreMembership.Role.OWNER,
+            store=store, user=self.staff, role=StoreMembership.Role.OWNER,
             status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
         )
+        # این suite رفتار UI قدیمی را می‌سنجد، نه سیاست کمبود اعتبار؛ برای
+        # مستقل‌ماندن تست‌ها از Credit Gate جدید، fixture اعتبار کافی دارد.
+        SmsBalance.objects.update_or_create(store=store, defaults={"credits": 100})
         self.client.login(username="09121193001", password="pass12345")
 
 
@@ -110,6 +114,9 @@ class SmsPackagePurchaseViewTests(SmsAdminViewsTestCase):
     def test_purchase_creates_pending_request_and_does_not_grant_credit_yet(self):
         from apps.sms.models import SmsBalance, SmsPackagePurchase
 
+        store = Store.objects.get(slug="akhlaghi")
+        credits_before = SmsBalance.objects.get(store=store).credits
+
         response = self.client.post(
             reverse("dashboard:settings-sms-package-purchase"), {"package_id": self.package.pk},
         )
@@ -117,7 +124,11 @@ class SmsPackagePurchaseViewTests(SmsAdminViewsTestCase):
         purchase = SmsPackagePurchase.objects.get(package=self.package)
         self.assertEqual(purchase.status, SmsPackagePurchase.Status.PENDING)
         self.assertEqual(purchase.credit_amount, 500)
-        self.assertFalse(SmsBalance.objects.filter(store=purchase.store, credits__gt=0).exists())
+        self.assertEqual(
+            SmsBalance.objects.get(store=purchase.store).credits,
+            credits_before,
+            "درخواست خریدِ pending نباید موجودی فعلی Store را تغییر دهد",
+        )
 
     def test_inactive_package_cannot_be_purchased(self):
         self.package.is_active = False
@@ -271,7 +282,16 @@ class SmsLogListViewTests(SmsAdminViewsTestCase):
         self.assertNotContains(response, "09125556666")
 
     def test_retry_resends_failed_log(self):
-        failed_log = SmsLog.objects.get(status=SmsLog.Status.FAILED)
+        # OTP قدیمی عمداً قابل Retry نیست؛ این تستِ UI باید یک پیام عادیِ
+        # ناموفق را Retry کند و قرارداد امنیتی OTP را دور نزند.
+        failed_log = SmsLog.objects.create(
+            store=self.store,
+            event_key=SmsEvent.WELCOME,
+            recipient="09123335555",
+            message="پیام عادی ناموفق برای Retry",
+            status=SmsLog.Status.FAILED,
+            error_message="خطای آزمایشی",
+        )
         response = self.client.post(reverse("dashboard:sms-log-retry", args=[failed_log.pk]), HTTP_HOST=SMS_HOST_A)
         self.assertEqual(response.status_code, 302)
         failed_log.refresh_from_db()

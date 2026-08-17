@@ -1,0 +1,43 @@
+<div class="sfb-announcement-editor-fields">
+  <div class="form-group">
+    <label for="id_announcement_text">متن اصلی نوار اعلان</label>
+    <input type="text" name="announcement_text" id="id_announcement_text" class="form-input"
+           maxlength="300" value="{{ config.announcement_text }}"
+           placeholder="مثلاً: 🚚 ارسال رایگان برای سفارش‌های بالای ۵۰۰,۰۰۰ تومان">
+  </div>
+
+  {{ config.announcement_links|json_script:"announcement-links-initial" }}
+  <div class="sfb-announcement-links-editor"
+       x-data="itemRepeaterForm(JSON.parse(document.getElementById('announcement-links-initial').textContent), {label: '', url: ''})">
+    <div class="sfb-panel-title">لینک‌های نوار اعلان</div>
+    <p class="field-help">متن و مقصد هر لینک را خودت تعیین کن. آدرس می‌تواند داخلی مثل <code>/faq/</code> یا کامل مثل <code>https://...</code> باشد.</p>
+    <template x-for="(row, index) in rows" :key="index">
+      <div class="sfb-announcement-link-row">
+        <div class="form-group">
+          <label>متن لینک</label>
+          <input type="text" name="announcement_link_label" class="form-input"
+                 maxlength="50" x-model="row.label" placeholder="مثلاً پیگیری سفارش">
+        </div>
+        <div class="form-group">
+          <label>آدرس مقصد</label>
+          <input type="text" name="announcement_link_url" class="form-input" dir="ltr"
+                 maxlength="500" x-model="row.url" placeholder="/track-order/ یا https://...">
+        </div>
+        <div class="sfb-announcement-link-actions">
+          <button type="button" class="btn btn-sm" @click="moveUp(index)" :disabled="index === 0">↑</button>
+          <button type="button" class="btn btn-sm" @click="moveDown(index)" :disabled="index === rows.length - 1">↓</button>
+          <button type="button" class="btn btn-sm btn-danger" @click="removeRow(index)">حذف</button>
+        </div>
+      </div>
+    </template>
+    <button type="button" class="btn btn-sm" @click="addRow()" :disabled="rows.length >= 4">+ افزودن لینک</button>
+  </div>
+
+  <label class="toggle-field sfb-announcement-phone-toggle">
+    <input type="checkbox" name="announcement_show_phone" {% if config.announcement_show_phone %}checked{% endif %}>
+    <div class="toggle-content">
+      <span class="toggle-title">☎️ نمایش تلفن فروشگاه در نوار اعلان</span>
+      <span class="toggle-desc">شماره از اطلاعات اصلی فروشگاه خوانده می‌شود؛ برای تغییر خود شماره، اطلاعات فروشگاه را ویرایش کن.</span>
+    </div>
+  </label>
+</div>

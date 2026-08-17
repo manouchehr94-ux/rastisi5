@@ -79,6 +79,10 @@ class SectionDefinition:
     #: اصطلاحِ فنی/مدل. هر ورودی در ``_BASE_SECTION_REGISTRY`` صراحتاً
     #: مقدار می‌دهد — پیش‌فرض اینجا صرفاً محدودیتِ dataclass را دور می‌زند.
     category_fa: str = "محتوا"
+    #: توضیح کوتاه و merchant-facing برای کارت Library.  اختیاری است تا
+    #: Registry همچنان تنها منبع حقیقت نام/توضیح Block باقی بماند و Template
+    #: مجبور به شرط‌های section-specific نشود.
+    description_fa: str = ""
 
 
 def _passthrough_dict(raw: dict) -> dict:
@@ -602,7 +606,8 @@ BACKGROUND_AWARE_SECTION_KEYS = frozenset({
 #: خودِ section.
 SPACING_AWARE_SECTION_KEYS = BACKGROUND_AWARE_SECTION_KEYS
 
-BACKGROUND_MODE_CHOICES = ("theme", "color", "image", "pattern")
+BACKGROUND_MODE_CHOICES = ("theme", "palette", "palette_pattern", "color", "image", "pattern")
+BACKGROUND_PALETTE_ROLE_CHOICES = ("tone-1", "tone-2", "tone-3", "tone-4", "tone-5")
 
 #: بخشِ ۹ مشخصات: Patternها دارایی‌هایِ قابل‌استفادهٔ مجددِ سیستم‌اند، نه
 #: CSS سفارشیِ یک preset.  V3 اولین مجموعهٔ واقعی را اضافه می‌کند؛ رندر از
@@ -658,6 +663,13 @@ def validate_background_settings(raw) -> dict:
     if mode not in BACKGROUND_MODE_CHOICES:
         mode = "theme"
 
+    palette_role = ""
+    if mode in ("palette", "palette_pattern"):
+        palette_role = str(raw.get("palette_role", "")).strip()
+        if palette_role not in BACKGROUND_PALETTE_ROLE_CHOICES:
+            mode = "theme"
+            palette_role = ""
+
     color = ""
     if mode in ("color", "pattern"):
         color = str(raw.get("color", "")).strip()
@@ -667,7 +679,7 @@ def validate_background_settings(raw) -> dict:
             except DjangoValidationError as exc:
                 raise BackgroundSettingsError("; ".join(exc.messages)) from exc
         elif mode == "color":
-            mode = "theme"  # رنگِ خالی برای mode=color یعنی چیزی برای نمایش نیست — به پیش‌فرضِ امن برگرد
+            mode = "theme"
 
     media_asset_id = None
     if mode == "image":
@@ -683,7 +695,7 @@ def validate_background_settings(raw) -> dict:
                 raise BackgroundSettingsError("رسانه‌ی انتخاب‌شده نامعتبر است")
 
     pattern_slug = ""
-    if mode == "pattern":
+    if mode in ("pattern", "palette_pattern"):
         candidate = str(raw.get("pattern_slug", "")).strip()
         # فقط اسلاگ‌هایِ ثبت‌شدهٔ سیستم پذیرفته می‌شوند؛ مقدار ناشناخته مثل
         # سایر enumهای بصری بی‌صدا به theme برمی‌گردد.
@@ -692,11 +704,17 @@ def validate_background_settings(raw) -> dict:
         else:
             mode = "theme"
 
-    return {"mode": mode, "color": color, "media_asset_id": media_asset_id, "pattern_slug": pattern_slug}
+    return {
+        "mode": mode, "color": color, "media_asset_id": media_asset_id,
+        "pattern_slug": pattern_slug, "palette_role": palette_role,
+    }
 
 
 def default_background_settings() -> dict:
-    return {"mode": "theme", "color": "", "media_asset_id": None, "pattern_slug": ""}
+    return {
+        "mode": "theme", "color": "", "media_asset_id": None,
+        "pattern_slug": "", "palette_role": "",
+    }
 
 
 def _with_background(section_key: str, validate_fn, default_fn):
@@ -958,9 +976,14 @@ def _validate_slider_settings(raw: dict) -> dict:
     if not isinstance(loop, bool):
         loop = bool(loop)
 
+    text_position = raw.get("text_position", "end")
+    if text_position not in {"start", "center", "end"}:
+        text_position = "end"
+
     return {
         "autoplay": autoplay, "interval_ms": interval_ms,
         "show_arrows": show_arrows, "show_dots": show_dots, "loop": loop,
+        "text_position": text_position,
     }
 
 
@@ -968,6 +991,8 @@ def default_slider_settings() -> dict:
     return {
         "autoplay": True, "interval_ms": _SLIDER_DEFAULT_INTERVAL_MS,
         "show_arrows": True, "show_dots": True, "loop": True,
+        # ``end`` preserves the historical overlay side for existing stores.
+        "text_position": "end",
     }
 
 
@@ -1468,10 +1493,11 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         duplicable=True, removable=True, category_fa="تصاویر و تبلیغات",
     ),
     "rich_text": SectionDefinition(
-        key="rich_text", label_fa="متن غنی", icon="text",
+        key="rich_text", label_fa="متن", icon="text",
         template_name="storefront_builder/sections/rich_text.html",
         validate_settings=_validate_rich_text_settings, default_settings=lambda: {"body_html": ""},
         duplicable=True, removable=True, has_settings_form=True, category_fa="محتوا",
+        description_fa="عنوان، پاراگراف، فهرست و لینک؛ بدون نیاز به دیدن کد HTML.",
     ),
     "image_text": SectionDefinition(
         key="image_text", label_fa="متن و تصویر", icon="image-plus",
@@ -1479,6 +1505,7 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         validate_settings=_validate_image_text_settings,
         default_settings=lambda: {"title": "", "body_html": "", "image_url": "", "image_position": "right"},
         duplicable=True, removable=True, has_settings_form=True, category_fa="محتوا",
+        description_fa="یک تصویر در کنار عنوان و متن؛ مناسب معرفی، داستان برند و بنر محتوایی.",
     ),
     "blog_posts": SectionDefinition(
         key="blog_posts", label_fa="مطالب وبلاگ", icon="newspaper",

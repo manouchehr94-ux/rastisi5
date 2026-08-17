@@ -261,17 +261,25 @@ class PlatformConfiguration(TimeStampedModel):
         except (json.JSONDecodeError, TypeError):
             return {}
 
-    def set_sms_credentials(self, **updates) -> None:
-        """کلیدهای دادهشده را با اعتبارنامه‌های موجود ادغام و رمزنگاری می‌کند.
-        مقدارِ خالی/None برایِ یک کلید یعنی «بدونِ تغییر» — نه پاک‌کردن (همان
-        رفتارِ فیلدهایِ رازِ write-only در فرم‌های موجود)."""
+    def set_sms_credentials(self, *, remove_keys=(), **updates) -> None:
+        """اعتبارنامه/پیکربندی SMS را ادغام و رمزنگاری می‌کند.
+
+        Secretهای خالی «بدون تغییر» هستند؛ ``remove_keys`` فقط برای Routeهای
+        غیرمحرمانه مثل BodyId/Template است که باید قابل پاک‌کردن باشند.
+        """
         import json
 
         from apps.orders.encryption import encrypt_credential
 
-        merged = {**self.get_sms_credentials(), **{k: v for k, v in updates.items() if v}}
-        clean = {k: v for k, v in merged.items() if v}
-        self.encrypted_sms_credentials = encrypt_credential(json.dumps(clean, ensure_ascii=False)) if clean else ""
+        merged = dict(self.get_sms_credentials())
+        for key in remove_keys:
+            merged.pop(key, None)
+        merged.update({k: v for k, v in updates.items() if v is not None and v != ""})
+        clean = {k: v for k, v in merged.items() if v is not None and v != ""}
+        self.encrypted_sms_credentials = (
+            encrypt_credential(json.dumps(clean, ensure_ascii=False))
+            if clean else ""
+        )
 
     class Meta:
         verbose_name = "تنظیمات پلتفرم"

@@ -25,9 +25,11 @@ from django.utils import timezone
 from apps.core.services.rate_limit import enforce_rate_limit
 
 from .. import appearance_registry, layout_preset_registry
+from . import container_service
 from ..models import (
     APPEARANCE_COLOR_KEYS,
     APPEARANCE_CONFIG_DEFAULTS,
+    ANNOUNCEMENT_LINK_DEFAULTS,
     FOOTER_CONFIG_DEFAULTS,
     FOOTER_RESPONSIVE_AWARE_KEYS,
     FOOTER_TOGGLE_FIELDS,
@@ -110,6 +112,46 @@ class ShellBlockError(Exception):
     """شکلِ خامِ یک بلوکِ اختیاریِ هدر نامعتبر است."""
 
 
+_MAX_ANNOUNCEMENT_LINKS = 4
+_MAX_ANNOUNCEMENT_LINK_LABEL_LENGTH = 50
+_MAX_ANNOUNCEMENT_LINK_URL_LENGTH = 500
+
+
+def _validate_announcement_links(raw) -> list[dict]:
+    """لینک‌های کوچک نوار اعلان را بدون اجازه‌دادن به scheme خطرناک پاک‌سازی می‌کند."""
+    if raw is None:
+        raw = [dict(item) for item in ANNOUNCEMENT_LINK_DEFAULTS]
+    if not isinstance(raw, (list, tuple)):
+        raise ShellBlockError("فهرست لینک‌های نوار اعلان نامعتبر است")
+    if len(raw) > _MAX_ANNOUNCEMENT_LINKS:
+        raise ShellBlockError(f"حداکثر {_MAX_ANNOUNCEMENT_LINKS} لینک در نوار اعلان مجاز است")
+
+    from django.core.exceptions import ValidationError as DjangoValidationError
+    from apps.content.models import validate_external_url
+
+    cleaned = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            raise ShellBlockError("شکل یکی از لینک‌های نوار اعلان نامعتبر است")
+        label = str(entry.get("label", "")).strip()[:_MAX_ANNOUNCEMENT_LINK_LABEL_LENGTH]
+        url = str(entry.get("url", "")).strip()[:_MAX_ANNOUNCEMENT_LINK_URL_LENGTH]
+        if not label:
+            continue
+        if not url:
+            url = "#"
+
+        is_fragment = url.startswith("#")
+        is_internal = url.startswith("/") and not url.startswith("//")
+        if not is_fragment and not is_internal:
+            try:
+                validate_external_url(url)
+            except DjangoValidationError as exc:
+                raise ShellBlockError("; ".join(exc.messages)) from exc
+
+        cleaned.append({"label": label, "url": url})
+    return cleaned
+
+
 def _validate_header_extra_blocks(raw) -> list[dict]:
     if raw is None:
         return []
@@ -170,6 +212,16 @@ def validate_header_config(config: dict) -> dict:
     if not isinstance(announcement_text, str):
         raise HeaderConfigValidationError("متن نوار اعلان نامعتبر است")
     cleaned["announcement_text"] = announcement_text[:300]
+
+    try:
+        cleaned["announcement_links"] = _validate_announcement_links(config.get("announcement_links"))
+    except ShellBlockError as exc:
+        raise HeaderConfigValidationError(str(exc)) from exc
+
+    announcement_show_phone = config.get("announcement_show_phone", True)
+    if not isinstance(announcement_show_phone, bool):
+        raise HeaderConfigValidationError("تنظیم نمایش تلفن در نوار اعلان نامعتبر است")
+    cleaned["announcement_show_phone"] = announcement_show_phone
 
     cleaned["responsive"] = _validate_shell_component_responsive(
         config.get("responsive"), HEADER_RESPONSIVE_AWARE_KEYS,
@@ -316,6 +368,22 @@ def validate_appearance_config(config: dict) -> dict:
             raise AppearanceConfigValidationError("; ".join(exc.messages)) from exc
         cleaned_overrides[key] = value
     cleaned["color_overrides"] = cleaned_overrides
+
+    raw_theme_overrides = config.get("theme_overrides") or {}
+    if not isinstance(raw_theme_overrides, dict):
+        raise AppearanceConfigValidationError("رنگ‌های ناحیه‌ای سفارشی باید یک شیء باشد")
+    cleaned_theme_overrides = {}
+    for key, value in raw_theme_overrides.items():
+        if key not in appearance_registry.THEME_ROLE_KEYS:
+            continue
+        if not isinstance(value, str):
+            raise AppearanceConfigValidationError(f"رنگ ناحیه‌ای «{key}» نامعتبر است")
+        try:
+            validate_hex_color(value)
+        except DjangoValidationError as exc:
+            raise AppearanceConfigValidationError("; ".join(exc.messages)) from exc
+        cleaned_theme_overrides[key] = value
+    cleaned["theme_overrides"] = cleaned_theme_overrides
 
     font = config.get("font", APPEARANCE_CONFIG_DEFAULTS["font"])
     if font not in appearance_registry.FONT_CHOICES:
@@ -570,23 +638,17 @@ def _clone_version_content(source: StorefrontLayoutVersion | None, target: Store
             StorefrontSection(
                 page=target_page, section_key=s.section_key, order=s.order,
                 is_active=s.is_active, settings=dict(s.settings or {}),
+                collapsed_in_editor=s.collapsed_in_editor,
                 stable_id=s.stable_id,
+                row_key=s.row_key, row_span=s.row_span,
+                is_locked=s.is_locked,
             )
             for s in source_sections
         ]
-        if not cloned_sections:
-            continue
-        StorefrontSection.objects.bulk_create(cloned_sections)
+        if cloned_sections:
+            StorefrontSection.objects.bulk_create(cloned_sections)
 
-        # bulk_create روی بک‌اندهایی که RETURNING را پشتیبانی می‌کنند (PostgreSQL،
-        # SQLite جدید) PKهایِ تازه را روی خودِ آبجکت‌ها پر می‌کند — اما برایِ
-        # اطمینانِ کامل (و سازگاری با هر بک‌اندی)، دوباره از دیتابیس با
-        # ``stable_id`` بازخوانی می‌کنیم؛ همین ``stable_id`` تنها کلیدِ قابلِ‌اعتماد
-        # برایِ نگاشتِ «این بخشِ منبع → کدام بخشِ کلون‌شده» است (نه ترتیب، نه
-        # section_key، چون ممکن است چند نمونه از یک section_key وجود داشته باشد).
-        # اسکوپِ این map به همینِ صفحه محدود است (نه کلِ نسخه) — دقیقاً
-        # همان معنایِ (page, stable_id) که Phase 1A محدوده‌یِ یکتاییِ
-        # stable_id را به آن تغییر داده.
+        # stable_id is the only reliable logical mapping across versions.
         cloned_by_stable_id = {
             row.stable_id: row for row in target_page.sections.all()
         }
@@ -595,6 +657,12 @@ def _clone_version_content(source: StorefrontLayoutVersion | None, target: Store
             if target_section is None:
                 continue
             _clone_section_scoped_media(source_section, target_section)
+
+        # Phase 3.0 — layout placement is cloned independently from content.
+        # Empty Cells therefore survive Draft creation/Restore too.
+        container_service.clone_page_containers(
+            source_page, target_page, cloned_by_stable_id,
+        )
 
 
 @transaction.atomic
@@ -610,6 +678,7 @@ def get_or_create_draft(store, *, user=None) -> StorefrontLayoutVersion:
     """
     layout = get_or_create_layout(store)
     if layout.draft_version_id:
+        container_service.ensure_version_containers(layout.draft_version)
         return layout.draft_version
 
     enforce_rate_limit("storefront_layout.new_draft", str(store.pk), **_NEW_DRAFT_RATE_LIMIT)
@@ -627,6 +696,7 @@ def get_or_create_draft(store, *, user=None) -> StorefrontLayoutVersion:
     if is_first_ever_version:
         from . import bootstrap_service
         bootstrap_service.apply_bootstrap_content(draft, store)
+        container_service.ensure_version_containers(draft)
     else:
         _clone_version_content(layout.published_version, draft)
     layout.draft_version = draft
@@ -659,6 +729,22 @@ def publish(store, *, user=None) -> StorefrontLayoutVersion:
     draft = layout.draft_version
     if draft is None:
         raise NoDraftToPublishError("هیچ پیش‌نویسی برای انتشار وجود ندارد")
+
+    # Phase 3.5A — publication boundary invariant.
+    #
+    # Container/Cell is the public layout source of truth. A Section that
+    # belongs to a page but has no Cell must never silently disappear from the
+    # published storefront. Older internal callers/importers may still create
+    # StorefrontSection directly instead of going through the visual Builder.
+    #
+    # This helper is deliberately conservative: existing Containers and empty
+    # Cells stay exactly as the merchant designed them; each genuinely
+    # unplaced Section is appended in its own new single-column Container.
+    container_service.ensure_version_containers(draft)
+
+    # Undo/Redo is an editor-session concern and must never cross the publish
+    # boundary or accumulate forever on immutable release versions.
+    draft.edit_history_entries.all().delete()
 
     draft.content_fingerprint = draft.compute_fingerprint()
     draft.status = StorefrontLayoutVersion.Status.PUBLISHED
@@ -749,6 +835,7 @@ def apply_industry_layout(store, industry_template, *, user=None, force: bool = 
     )
     from . import bootstrap_service
     bootstrap_service.apply_industry_content(new_draft, store, industry_template)
+    container_service.ensure_version_containers(new_draft)
     layout.draft_version = new_draft
     layout.save(update_fields=["draft_version", "updated_at"])
     return new_draft

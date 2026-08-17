@@ -7,7 +7,7 @@ consistency`` و خواهرانش (billing/inventory)."""
 from django.conf import settings
 from django.db.models import Count
 
-from apps.stores.hostnames import RESERVED_PLATFORM_SUBDOMAINS
+from apps.stores.hostnames import RESERVED_PLATFORM_SUBDOMAINS, rastisi_owned_domain_suffixes
 from apps.stores.models import Store, StoreDomain
 
 
@@ -71,25 +71,26 @@ def check_domain_consistency() -> list:
             "message": f"دامنه‌ی بازنشسته‌ی «{domain.hostname}» هنوز is_primary=True است.",
         })
 
-    # ۵) برخوردِ نامِ رزروشده — برچسبِ چپِ نام میزبان با فهرستِ رزروِ
-    # زیردامنه‌ی پلتفرم برخورد دارد (باید توسطِ اعتبارسنجیِ ادعای زیردامنه
-    # جلوگیری شود؛ اینجا برایِ داده‌ای که از مسیرِ دیگری وارد شده بررسی
-    # می‌شود، مثلاً seed/import دستی).
-    suffix = f".{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
-    for domain in StoreDomain.objects.filter(hostname__endswith=suffix):
-        label = domain.hostname[: -len(suffix)]
-        if "." not in label and label in RESERVED_PLATFORM_SUBDOMAINS:
-            issues.append({
-                "severity": "error",
-                "message": f"نام میزبانِ «{domain.hostname}» از برچسبِ رزروشده‌ی «{label}» استفاده می‌کند.",
-            })
+    # ۵) برخوردِ نامِ رزروشده — این بررسی باید هویتِ canonical راستیسی
+    # (rastisi.ir) را حتی وقتی runtime محلی rastisi.localhost است فراموش نکند.
+    owned_suffixes = tuple(sorted(rastisi_owned_domain_suffixes()))
+    for suffix_value in owned_suffixes:
+        suffix = f".{suffix_value}"
+        for domain in StoreDomain.objects.filter(hostname__endswith=suffix):
+            label = domain.hostname[: -len(suffix)]
+            if "." not in label and label in RESERVED_PLATFORM_SUBDOMAINS:
+                issues.append({
+                    "severity": "error",
+                    "message": f"نام میزبانِ «{domain.hostname}» از برچسبِ رزروشده‌ی «{label}» استفاده می‌کند.",
+                })
 
-    # ۶) برخوردِ دامنه‌ی عمومی با میزبانِ پنل مدیریتِ یک فروشگاه (باید هرگز
-    # رخ ندهد — قیدِ unique=True روی هر دو ستون به‌تنهایی این را ممکن
-    # نمی‌کند مگر با ورودِ دستی).
+    # ۶) برخوردِ دامنه‌ی عمومی با namespace پنل مدیریتِ فروشگاهِ دیگر.
+    # در DEBUG هم canonical .ir و runtime .localhost هر دو بررسی می‌شوند تا
+    # داده‌ی محلی نتواند برخوردی بسازد که در production منفجر شود.
     admin_hosts = {
-        f"{s.admin_subdomain}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}": s.pk
-        for s in Store.objects.only("id", "admin_subdomain")
+        f"{store.admin_subdomain}.{suffix_value}": store.pk
+        for store in Store.objects.only("id", "admin_subdomain")
+        for suffix_value in owned_suffixes
     }
     for domain in StoreDomain.objects.all():
         colliding_store_id = admin_hosts.get(domain.hostname)

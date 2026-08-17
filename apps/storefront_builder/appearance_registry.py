@@ -66,7 +66,12 @@ class PaletteDefinition:
     slug: str
     name_fa: str
     group_fa: str
-    colors: dict[str, str]  # هر ۸ کلیدِ APPEARANCE_COLOR_KEYS
+    colors: dict[str, str]  # هشت رنگ پایه و قابل‌ویرایش
+    # نقش‌های منطقه‌ایِ کل سایت. پالت‌های قدیمی لازم نیست این‌ها را داشته
+    # باشند؛ resolve_theme_roles از هشت رنگ پایه مقادیر امن مشتق می‌کند.
+    theme_roles: dict[str, str] | None = None
+    # پنج رنگ قوی برای ریل‌های رنگی/سطوح تبلیغاتی.
+    section_tones: tuple[str, str, str, str, str] | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -149,13 +154,7 @@ DEFAULT_COLORS = {
 
 
 def resolve_colors(appearance_config: dict) -> dict:
-    """رنگ‌هایِ نهاییِ اثرگذار: پالتِ پایه (اگر انتخاب شده) + override هایِ
-    دستیِ مرچنت رویِ آن — دقیقاً معماریِ «base palette + merchant overrides»
-    که گزارشِ ممیزی توصیه کرده بود (نه flatten مخربِ پرست در override).
-    اگر مرچنت پالتی انتخاب نکرده (``palette_slug=None``)، پایه همان
-    ``DEFAULT_COLORS`` است — یعنی ``color_overrides`` عملاً تمامِ رنگ‌هایِ
-    فعلیِ آن فروشگاه را حمل می‌کند (دقیقاً همان چیزی که ``bootstrap_service``
-    برایِ مهاجرتِ فروشگاه‌هایِ موجود انجام می‌دهد)."""
+    """رنگ‌هایِ نهاییِ اثرگذار: پالتِ پایه + overrideهایِ دستی مرچنت."""
     palette_slug = appearance_config.get("palette_slug")
     palette = get_palette(palette_slug) if palette_slug else None
     base = dict(palette.colors) if palette is not None else dict(DEFAULT_COLORS)
@@ -163,7 +162,270 @@ def resolve_colors(appearance_config: dict) -> dict:
     return {**base, **overrides}
 
 
-# ---------------------------------------------------------------- ۲۰ پالتِ آماده
+THEME_ROLE_KEYS = (
+    "header_bg", "header_text",
+    "nav_bg", "nav_text",
+    "card_bg",
+    "footer_bg", "footer_text",
+    "price",
+)
+
+
+def resolve_theme_roles(appearance_config: dict) -> dict[str, str]:
+    """رنگ‌های ناحیه‌ایِ کل فروشگاه.
+
+    نقش‌های پایه از رنگ‌های نهاییِ پالت مشتق می‌شوند؛ پالت‌های «تم کامل»
+    می‌توانند بعضی/همه‌ی نقش‌ها را دقیق‌تر تعریف کنند. در آخر overrideهای
+    دستی مرچنت اعمال می‌شوند. هیچ CSS/Store-specific branch لازم نیست.
+    """
+    colors = resolve_colors(appearance_config)
+    palette_slug = appearance_config.get("palette_slug")
+    palette = get_palette(palette_slug) if palette_slug else None
+
+    roles = {
+        "header_bg": colors["surface"],
+        "header_text": colors["text"],
+        "nav_bg": colors["surface"],
+        "nav_text": colors["text"],
+        "card_bg": colors["surface"],
+        "footer_bg": colors["text"],
+        "footer_text": colors["surface"],
+        "price": colors["accent"],
+    }
+    if palette is not None and palette.theme_roles:
+        roles.update(palette.theme_roles)
+
+    overrides = appearance_config.get("theme_overrides") or {}
+    return {**roles, **overrides}
+
+
+def resolve_section_tones(appearance_config: dict) -> tuple[str, str, str, str, str]:
+    """پنج tone سراسری برایِ ردیف‌ها/سطوح رنگی.
+
+    اگر خود Palette toneهای کیوریت‌شده داشته باشد و مرچنت رنگ‌های Palette
+    را دستی override نکرده باشد، همان‌ها استفاده می‌شوند. در غیر این صورت
+    toneها از رنگ‌های نهاییِ همان فروشگاه مشتق می‌شوند؛ بنابراین شخصی‌سازی
+    دستی هم رفتار قابل‌پیش‌بینی دارد.
+    """
+    palette_slug = appearance_config.get("palette_slug")
+    palette = get_palette(palette_slug) if palette_slug else None
+    overrides = appearance_config.get("color_overrides") or {}
+    if palette is not None and palette.section_tones and not overrides:
+        return palette.section_tones
+
+    from apps.core.color_utils import mix_hex
+
+    colors = resolve_colors(appearance_config)
+    return (
+        colors["accent"],
+        colors["primary"],
+        colors["secondary"],
+        mix_hex(colors["primary"], colors["accent"], 0.45),
+        mix_hex(colors["secondary"], colors["accent"], 0.45),
+    )
+
+
+
+# ---------------------------------------------------------------- تم‌های کامل
+#
+# این‌ها «صرفاً سه رنگ برند» نیستند: هر تم پس‌زمینه‌ی صفحه، سطح کارت،
+# هدر/منو، فوتر، قیمت و پنج tone ریل‌های رنگی را با هم تعریف می‌کند.
+# مرچنت بعد از انتخاب همچنان می‌تواند هر نقش را جداگانه override کند.
+_FULL_SITE_THEME_DATA = [
+    {
+        "slug": "theme-midnight-electric", "name": "شب الکتریکی", "group": "تم کامل",
+        "colors": {
+            "primary": "#315CFF", "secondary": "#7C3AED", "accent": "#22D3EE",
+            "background": "#060A16", "surface": "#111827", "text": "#F8FAFC",
+            "muted": "#94A3B8", "border": "#263247",
+        },
+        "roles": {
+            "header_bg": "#070B18", "header_text": "#F8FAFC",
+            "nav_bg": "#0B1120", "nav_text": "#E2E8F0",
+            "card_bg": "#111827", "footer_bg": "#050814",
+            "footer_text": "#CBD5E1", "price": "#A3E635",
+        },
+        "tones": ("#315CFF", "#7C3AED", "#0891B2", "#4F46E5", "#0F766E"),
+    },
+    {
+        "slug": "theme-black-gold", "name": "مشکی طلایی", "group": "تم کامل",
+        "colors": {
+            "primary": "#D4AF37", "secondary": "#8F6B16", "accent": "#F59E0B",
+            "background": "#070707", "surface": "#151515", "text": "#FFE76A",
+            "muted": "#C6B86A", "border": "#3A3218",
+        },
+        "roles": {
+            "header_bg": "#050505", "header_text": "#FFE76A",
+            "nav_bg": "#0D0D0D", "nav_text": "#F5E6A8",
+            "card_bg": "#171717", "footer_bg": "#030303",
+            "footer_text": "#E8D98D", "price": "#FFD54A",
+        },
+        "tones": ("#D4AF37", "#8F6B16", "#B7791F", "#6B4F13", "#A16207"),
+    },
+    {
+        "slug": "theme-navy-lime", "name": "سرمه‌ای لیمویی", "group": "تم کامل",
+        "colors": {
+            "primary": "#84CC16", "secondary": "#2563EB", "accent": "#A3E635",
+            "background": "#07111F", "surface": "#0F1B2D", "text": "#F1F5F9",
+            "muted": "#9FB0C4", "border": "#20334C",
+        },
+        "roles": {
+            "header_bg": "#06101D", "header_text": "#F8FAFC",
+            "nav_bg": "#0A1626", "nav_text": "#DCE7F3",
+            "card_bg": "#101F32", "footer_bg": "#040C16",
+            "footer_text": "#D5E2EF", "price": "#BEF264",
+        },
+        "tones": ("#65A30D", "#2563EB", "#0EA5E9", "#4D7C0F", "#1D4ED8"),
+    },
+    {
+        "slug": "theme-graphite-orange", "name": "زغالی نارنجی", "group": "تم کامل",
+        "colors": {
+            "primary": "#F97316", "secondary": "#EA580C", "accent": "#FBBF24",
+            "background": "#111315", "surface": "#1D2024", "text": "#F8FAFC",
+            "muted": "#A8ADB4", "border": "#33383F",
+        },
+        "roles": {
+            "header_bg": "#0D0F11", "header_text": "#FFFFFF",
+            "nav_bg": "#171A1E", "nav_text": "#F3F4F6",
+            "card_bg": "#20242A", "footer_bg": "#090B0D",
+            "footer_text": "#D7DBE0", "price": "#FDBA74",
+        },
+        "tones": ("#F97316", "#C2410C", "#F59E0B", "#9A3412", "#EA580C"),
+    },
+    {
+        "slug": "theme-purple-neon", "name": "بنفش نئونی", "group": "تم کامل",
+        "colors": {
+            "primary": "#8B5CF6", "secondary": "#D946EF", "accent": "#22D3EE",
+            "background": "#0D0718", "surface": "#1A102B", "text": "#FAF5FF",
+            "muted": "#B9A7CF", "border": "#382654",
+        },
+        "roles": {
+            "header_bg": "#090412", "header_text": "#FAF5FF",
+            "nav_bg": "#140B22", "nav_text": "#F3E8FF",
+            "card_bg": "#1C1230", "footer_bg": "#07030E",
+            "footer_text": "#E9D5FF", "price": "#67E8F9",
+        },
+        "tones": ("#8B5CF6", "#D946EF", "#0891B2", "#7E22CE", "#C026D3"),
+    },
+    {
+        "slug": "theme-crimson-charcoal", "name": "زرشکی زغالی", "group": "تم کامل",
+        "colors": {
+            "primary": "#E11D48", "secondary": "#9F1239", "accent": "#FB7185",
+            "background": "#120A0D", "surface": "#211217", "text": "#FFF1F2",
+            "muted": "#C7A7B0", "border": "#46232E",
+        },
+        "roles": {
+            "header_bg": "#0E0709", "header_text": "#FFF1F2",
+            "nav_bg": "#190D11", "nav_text": "#FFE4E6",
+            "card_bg": "#24151A", "footer_bg": "#0A0507",
+            "footer_text": "#FBCFE8", "price": "#FDA4AF",
+        },
+        "tones": ("#E11D48", "#BE123C", "#9F1239", "#F43F5E", "#881337"),
+    },
+    {
+        "slug": "theme-forest-cream", "name": "جنگل و کرم", "group": "تم کامل",
+        "colors": {
+            "primary": "#2F855A", "secondary": "#4D7C0F", "accent": "#D69E2E",
+            "background": "#F3F0E6", "surface": "#FFFDF7", "text": "#17352B",
+            "muted": "#6B7B71", "border": "#D8D5C9",
+        },
+        "roles": {
+            "header_bg": "#17352B", "header_text": "#FFF8E7",
+            "nav_bg": "#23483A", "nav_text": "#FFF8E7",
+            "card_bg": "#FFFDF7", "footer_bg": "#112A21",
+            "footer_text": "#F5EEDB", "price": "#B7791F",
+        },
+        "tones": ("#2F855A", "#4D7C0F", "#B7791F", "#276749", "#657A33"),
+    },
+    {
+        "slug": "theme-cobalt-snow", "name": "کبالت و سفید", "group": "تم کامل",
+        "colors": {
+            "primary": "#1D4ED8", "secondary": "#2563EB", "accent": "#E11D48",
+            "background": "#EEF4FF", "surface": "#FFFFFF", "text": "#10213D",
+            "muted": "#60708A", "border": "#C9D7EE",
+        },
+        "roles": {
+            "header_bg": "#0F2A5F", "header_text": "#FFFFFF",
+            "nav_bg": "#163B82", "nav_text": "#F8FAFC",
+            "card_bg": "#FFFFFF", "footer_bg": "#0B1F46",
+            "footer_text": "#E5EEFF", "price": "#DC2626",
+        },
+        "tones": ("#1D4ED8", "#2563EB", "#0EA5E9", "#4338CA", "#0369A1"),
+    },
+    {
+        "slug": "theme-terracotta-cream", "name": "تراکوتا و کرم", "group": "تم کامل",
+        "colors": {
+            "primary": "#B4533A", "secondary": "#D97757", "accent": "#D59A2A",
+            "background": "#F8EEE5", "surface": "#FFF9F3", "text": "#3C241C",
+            "muted": "#856A60", "border": "#E3CFC1",
+        },
+        "roles": {
+            "header_bg": "#6F3225", "header_text": "#FFF8F0",
+            "nav_bg": "#8B4433", "nav_text": "#FFF8F0",
+            "card_bg": "#FFF9F3", "footer_bg": "#4B241B",
+            "footer_text": "#F7E7DC", "price": "#A63D24",
+        },
+        "tones": ("#B4533A", "#D97757", "#D59A2A", "#8C3F2E", "#C26A47"),
+    },
+    {
+        "slug": "theme-sakura-ink", "name": "ساکورا و جوهر", "group": "تم کامل",
+        "colors": {
+            "primary": "#DB2777", "secondary": "#7C3AED", "accent": "#F472B6",
+            "background": "#FFF1F6", "surface": "#FFFFFF", "text": "#2D1930",
+            "muted": "#8D6B83", "border": "#F0CBDD",
+        },
+        "roles": {
+            "header_bg": "#2D1930", "header_text": "#FFF1F6",
+            "nav_bg": "#44213E", "nav_text": "#FFF1F6",
+            "card_bg": "#FFFFFF", "footer_bg": "#241225",
+            "footer_text": "#FCE7F3", "price": "#BE185D",
+        },
+        "tones": ("#DB2777", "#7C3AED", "#F472B6", "#A21CAF", "#BE185D"),
+    },
+    {
+        "slug": "theme-ice-cyan", "name": "یخی فیروزه‌ای", "group": "تم کامل",
+        "colors": {
+            "primary": "#0891B2", "secondary": "#0EA5E9", "accent": "#14B8A6",
+            "background": "#ECFEFF", "surface": "#FFFFFF", "text": "#12323A",
+            "muted": "#62838A", "border": "#BDE7EC",
+        },
+        "roles": {
+            "header_bg": "#0E7490", "header_text": "#ECFEFF",
+            "nav_bg": "#0891B2", "nav_text": "#F0FDFA",
+            "card_bg": "#FFFFFF", "footer_bg": "#164E63",
+            "footer_text": "#CFFAFE", "price": "#0F766E",
+        },
+        "tones": ("#0891B2", "#0EA5E9", "#14B8A6", "#0E7490", "#0369A1"),
+    },
+    {
+        "slug": "theme-chocolate-mint", "name": "شکلاتی نعنایی", "group": "تم کامل",
+        "colors": {
+            "primary": "#7C4A2D", "secondary": "#2A9D8F", "accent": "#E9C46A",
+            "background": "#F5EFE8", "surface": "#FFFDF9", "text": "#33251F",
+            "muted": "#7D6B61", "border": "#DED2C8",
+        },
+        "roles": {
+            "header_bg": "#3D2B24", "header_text": "#FFF8EC",
+            "nav_bg": "#594034", "nav_text": "#FFF8EC",
+            "card_bg": "#FFFDF9", "footer_bg": "#2B1D18",
+            "footer_text": "#F4E8D7", "price": "#C17B16",
+        },
+        "tones": ("#7C4A2D", "#2A9D8F", "#C17B16", "#5F3622", "#238276"),
+    },
+]
+
+for _theme in _FULL_SITE_THEME_DATA:
+    register_palette(PaletteDefinition(
+        slug=_theme["slug"],
+        name_fa=_theme["name"],
+        group_fa=_theme["group"],
+        colors=_theme["colors"],
+        theme_roles=_theme["roles"],
+        section_tones=_theme["tones"],
+    ))
+del _theme
+
+# ---------------------------------------------------------------- پالت‌های آماده
 
 #: هر ۸ کلید حاضر است — دقیقاً همان audit شده‌یِ ``APPEARANCE_COLOR_KEYS``
 #: (``models.py``)؛ گروه‌بندی (``group_fa``) فقط برایِ فیلترِ گالری است،
@@ -201,6 +463,27 @@ for _slug, _name, _group, _primary, _secondary, _accent, _background, _surface, 
         },
     ))
 del _slug, _name, _group, _primary, _secondary, _accent, _background, _surface, _text, _muted, _border
+
+# پالتِ صفحه‌ی مرجع: هویتِ اصلی ساده/فروشگاهی است، ولی برای ردیف‌های
+# کاتالوگی پنج tone قوی و هماهنگ دارد. این یک Palette عمومی است و هر
+# فروشگاهی می‌تواند با یک کلیک آن را انتخاب کند.
+register_palette(PaletteDefinition(
+    slug="catalog-colorful",
+    name_fa="کاتالوگ رنگی",
+    group_fa="پرفروش",
+    colors={
+        "primary": "#16A34A", "secondary": "#056CAE", "accent": "#F43F5E",
+        "background": "#F4F5F7", "surface": "#FFFFFF", "text": "#282B30",
+        "muted": "#747982", "border": "#E0E3E8",
+    },
+    theme_roles={
+        "header_bg": "#FFFFFF", "header_text": "#282B30",
+        "nav_bg": "#FFFFFF", "nav_text": "#282B30",
+        "card_bg": "#FFFFFF", "footer_bg": "#4A4A52",
+        "footer_text": "#F5F5F6", "price": "#16A34A",
+    },
+    section_tones=("#F53247", "#16B95F", "#C56B00", "#352196", "#056CAE"),
+))
 
 
 # ---------------------------------------------------------------- ۱۰ قالبِ واقعی

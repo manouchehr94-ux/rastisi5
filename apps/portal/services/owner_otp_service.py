@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from apps.portal.models import OwnerOtpChallenge
 
-from .owner_sms_service import send_platform_sms
+from .owner_sms_service import send_platform_otp
 from .rate_limit import RateLimitExceeded, enforce_rate_limit
 
 OTP_LENGTH = 6
@@ -35,6 +35,14 @@ class OtpRateLimitError(Exception):
 
 class OtpInvalidError(Exception):
     """کدِ واردشده معتبر نیست یا منقضی/مصرف‌شده است."""
+
+
+class OtpDeliveryError(OtpRateLimitError):
+    """تحویل واقعی OTP انجام نشده است.
+
+    ارث‌بری از OtpRateLimitError فقط برای سازگاری callerهای فعلی است تا
+    همه‌ی فرم‌ها خطای کنترل‌شده نشان دهند و هیچ مسیر قدیمی 500 نشود.
+    """
 
 
 def _generate_code() -> str:
@@ -63,12 +71,41 @@ def request_otp(*, phone: str, purpose: str, client_ip: str, message: str | None
         raise OtpRateLimitError("تعداد درخواست کد برای این شماره بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
 
     code = _generate_code()
-    OwnerOtpChallenge.objects.create(
+    challenge = OwnerOtpChallenge.objects.create(
         phone=phone, purpose=purpose, code_hash=make_password(code),
         expires_at=timezone.now() + timedelta(seconds=OTP_TTL_SECONDS),
     )
-    text = (message or "کد ورود شما به راستیسی: {code}").format(code=code)
-    send_platform_sms(to=phone, text=f"{text}\nاین کد تا ۲ دقیقه معتبر است.")
+
+    # متن نهایی OTP در Pattern تأییدشده Provider تعریف می‌شود. پارامتر
+    # message برای سازگاری API قدیمی باقی مانده ولی کد خام دیگر وارد متن
+    # آزاد/Console نمی‌شود.
+    expire_minutes = max(1, OTP_TTL_SECONDS // 60)
+    result = send_platform_otp(
+        to=phone, code=code, purpose=purpose, expire_minutes=expire_minutes,
+    )
+
+    # لاگ پلتفرم بدون ذخیره متن/کد OTP؛ فقط طول، Provider و نتیجه نگهداری می‌شود.
+    from apps.sms.events import SmsEvent
+    from apps.sms.models import SmsTemplate
+    from apps.sms.services.billing_policy_service import record_platform_attempt
+    template = SmsTemplate.objects.filter(event_key=SmsEvent.PLATFORM_OWNER_OTP).first()
+    reference_body = (template.body if template else "کد تأیید راستیسی: {otp_code}")
+    try:
+        rendered_for_count = reference_body.format(
+            otp_code=code, expire_minutes=expire_minutes,
+        )
+    except (KeyError, ValueError):
+        rendered_for_count = ""
+    record_platform_attempt(
+        event_key=SmsEvent.PLATFORM_OWNER_OTP, recipient=phone,
+        message=rendered_for_count, result=result, protect_body=True,
+    )
+
+    if not result.success:
+        challenge.delete()
+        raise OtpDeliveryError(
+            "ارسال کد تأیید موقتاً انجام نشد؛ لطفاً دوباره تلاش کنید."
+        )
 
 
 def verify_otp(*, phone: str, purpose: str, code: str) -> bool:

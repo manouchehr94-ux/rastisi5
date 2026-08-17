@@ -14,20 +14,26 @@ class ConsoleBackendTests(TestCase):
         self.assertTrue(result.success)
         self.assertEqual(result.provider_ref_id, "console")
 
-    def test_does_not_log_message_text_at_info_level_or_above(self):
-        """The console backend's logged text can contain an OTP code (the
-        default OTP template embeds {otp_code} directly in the SMS body) —
-        it must never be emitted at INFO or above, since INFO is the
-        production-default DJANGO_LOG_LEVEL and would otherwise leak OTP
-        codes into the production console log stream. It may still log at
-        DEBUG, for local development visibility."""
+    def test_never_logs_or_prints_message_text_even_in_debug(self):
         logger_name = "apps.sms.services.backends"
+        # OTP intentionally does not occur inside the test phone number;
+        # otherwise a safe `to=...` log can create a false-positive leak test.
+        otp = "864209"
+        phone = "09121234567"
+        message = f"کد ورود شما: {otp}"
+
         with self.assertNoLogs(logger_name, level="INFO"):
-            ConsoleBackend().send(to="09121234567", text="کد ورود شما: 123456")
+            ConsoleBackend().send(to=phone, text=message)
 
         with self.assertLogs(logger_name, level="DEBUG") as captured:
-            ConsoleBackend().send(to="09121234567", text="کد ورود شما: 123456")
-        self.assertTrue(any("123456" in message for message in captured.output))
+            ConsoleBackend().send(to=phone, text=message)
+
+        combined = "\n".join(captured.output)
+        self.assertNotIn(otp, combined)
+        self.assertNotIn(message, combined)
+        self.assertNotIn("کد ورود", combined)
+        self.assertIn(phone, combined)
+        self.assertIn("chars=", combined)
 
 
 class MelipayamakBackendTests(TestCase):

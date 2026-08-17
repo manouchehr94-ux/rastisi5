@@ -1,0 +1,139 @@
+{% load storefront_builder_extras %}
+<div class="sfb-drawer-body sfb-container-settings" data-inspector-container-id="{{ container.pk }}">
+  <p class="sfb-drawer-subtitle">چیدمان صفحه — ابتدا شکل خانه‌ها را انتخاب کن، سپس داخل خانه‌های خالی محتوا بگذار.</p>
+
+  <section class="sfb-container-layout-card">
+    <div class="sfb-row-layout-head">
+      <div><strong>شکل چیدمان</strong><span>تغییر شکل، محتوای خانه‌های موجود را حفظ می‌کند و خانه‌های جدید را خالی می‌سازد.</span></div>
+      <span class="sfb-row-layout-badge">{{ cells|length }} خانه</span>
+    </div>
+    <div class="sfb-container-layout-presets">
+      <button type="button" class="{% if container.layout_key == 'single' %}active{% endif %}"
+              hx-post="{% url 'dashboard:storefront-builder-container-layout' container.pk %}" hx-vals='{"layout_key":"single"}' hx-target="#storefrontContainerState" hx-swap="outerHTML">
+        <span class="sfb-span-preview one"><i></i></span><b>یک ستون</b><small>12</small>
+      </button>
+      <button type="button" class="{% if container.layout_key == 'half' %}active{% endif %}"
+              hx-post="{% url 'dashboard:storefront-builder-container-layout' container.pk %}" hx-vals='{"layout_key":"half"}' hx-target="#storefrontContainerState" hx-swap="outerHTML">
+        <span class="sfb-span-preview two"><i></i><i></i></span><b>نصف + نصف</b><small>6 + 6</small>
+      </button>
+      <button type="button" class="{% if container.layout_key == 'quarter_left' %}active{% endif %}"
+              hx-post="{% url 'dashboard:storefront-builder-container-layout' container.pk %}" hx-vals='{"layout_key":"quarter_left"}' hx-target="#storefrontContainerState" hx-swap="outerHTML">
+        <span class="sfb-span-preview split-quarter-left"><i></i><i></i></span><b>کوچک + بزرگ</b><small>3 + 9</small>
+      </button>
+      <button type="button" class="{% if container.layout_key == 'quarter_right' %}active{% endif %}"
+              hx-post="{% url 'dashboard:storefront-builder-container-layout' container.pk %}" hx-vals='{"layout_key":"quarter_right"}' hx-target="#storefrontContainerState" hx-swap="outerHTML">
+        <span class="sfb-span-preview split-quarter-right"><i></i><i></i></span><b>بزرگ + کوچک</b><small>9 + 3</small>
+      </button>
+      <button type="button" class="{% if container.layout_key == 'third_left' %}active{% endif %}"
+              hx-post="{% url 'dashboard:storefront-builder-container-layout' container.pk %}" hx-vals='{"layout_key":"third_left"}' hx-target="#storefrontContainerState" hx-swap="outerHTML">
+        <span class="sfb-span-preview split-left"><i></i><i></i></span><b>یک‌سوم + دو‌سوم</b><small>4 + 8</small>
+      </button>
+      <button type="button" class="{% if container.layout_key == 'third_right' %}active{% endif %}"
+              hx-post="{% url 'dashboard:storefront-builder-container-layout' container.pk %}" hx-vals='{"layout_key":"third_right"}' hx-target="#storefrontContainerState" hx-swap="outerHTML">
+        <span class="sfb-span-preview split-right"><i></i><i></i></span><b>دو‌سوم + یک‌سوم</b><small>8 + 4</small>
+      </button>
+      <button type="button" class="{% if container.layout_key == 'thirds' %}active{% endif %}"
+              hx-post="{% url 'dashboard:storefront-builder-container-layout' container.pk %}" hx-vals='{"layout_key":"thirds"}' hx-target="#storefrontContainerState" hx-swap="outerHTML">
+        <span class="sfb-span-preview three"><i></i><i></i><i></i></span><b>سه ستون</b><small>4 + 4 + 4</small>
+      </button>
+      <button type="button" class="{% if container.layout_key == 'quarters' %}active{% endif %}"
+              hx-post="{% url 'dashboard:storefront-builder-container-layout' container.pk %}" hx-vals='{"layout_key":"quarters"}' hx-target="#storefrontContainerState" hx-swap="outerHTML">
+        <span class="sfb-span-preview four"><i></i><i></i><i></i><i></i></span><b>چهار ستون</b><small>3 + 3 + 3 + 3</small>
+      </button>
+    </div>
+    <div class="sfb-container-cell-status" aria-label="وضعیت خانه‌های چیدمان">
+      {% for cell in cells %}
+      <span class="{% if cell.section_id %}occupied{% else %}empty{% endif %}">
+        خانه {{ forloop.counter }}:
+        {% if cell.section_id %}
+          {{ cell.section.section_key|section_label }}{% if not cell.section.is_active %} — مخفی{% endif %}
+        {% else %}
+          خالی
+        {% endif %}
+      </span>
+      {% endfor %}
+    </div>
+    <p class="sfb-row-layout-note">اگر تعداد ستون‌ها را بیشتر کنی، خانه‌های تازه خالی می‌مانند. برای کم‌کردن ستون‌ها، خانه‌های اضافی باید واقعاً خالی باشند؛ «مخفی کردن» محتوا آن خانه را خالی نمی‌کند.</p>
+  </section>
+
+  <form method="post" action="{% url 'dashboard:storefront-builder-container-settings' container.pk %}"
+        hx-post="{% url 'dashboard:storefront-builder-container-settings' container.pk %}" hx-target="#storefrontContainerState" hx-swap="outerHTML">
+    {% csrf_token %}
+    <div class="form-group">
+      <label for="id_container_gap">فاصله بین خانه‌ها</label>
+      <select name="gap" id="id_container_gap" class="form-select">
+        <option value="6" {% if settings.gap == 6 %}selected{% endif %}>کم</option>
+        <option value="14" {% if settings.gap == 14 %}selected{% endif %}>معمولی</option>
+        <option value="26" {% if settings.gap == 26 %}selected{% endif %}>زیاد</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="id_container_mobile">نمایش در موبایل</label>
+      <select name="mobile_mode" id="id_container_mobile" class="form-select">
+        <option value="stack" {% if settings.mobile_mode == 'stack' %}selected{% endif %}>خانه‌ها زیر هم قرار بگیرند</option>
+        <option value="same" {% if settings.mobile_mode == 'same' %}selected{% endif %}>همان چیدمان دسکتاپ حفظ شود</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="id_container_align">تراز عمودی محتوا</label>
+      <select name="vertical_align" id="id_container_align" class="form-select">
+        <option value="start" {% if settings.vertical_align == 'start' %}selected{% endif %}>بالا — پیشنهادشده برای محتواهای با ارتفاع متفاوت</option>
+        <option value="center" {% if settings.vertical_align == 'center' %}selected{% endif %}>وسط</option>
+        <option value="end" {% if settings.vertical_align == 'end' %}selected{% endif %}>پایین</option>
+      </select>
+      <p class="sfb-row-layout-note">در حالت «ارتفاع طبیعی»، هر خانه فقط به اندازه محتوای خودش قاب می‌گیرد. تراز بالا/وسط/پایین جای همان قاب کوتاه را در ردیف تعیین می‌کند.</p>
+    </div>
+    <div class="form-group">
+      <label for="id_container_height_mode">رفتار ارتفاع خانه‌ها</label>
+      <select name="height_mode" id="id_container_height_mode" class="form-select">
+        <option value="natural" {% if settings.height_mode == "natural" %}selected{% endif %}>ارتفاع طبیعی — هر محتوا اندازه خودش</option>
+        <option value="equal" {% if settings.height_mode == "equal" %}selected{% endif %}>ارتفاع برابر — خانه‌ها یک قاب هماهنگ می‌گیرند</option>
+      </select>
+      <p class="sfb-row-layout-note">«ارتفاع برابر» را فقط برای بخش‌هایی که برای کنار هم بودن طراحی شده‌اند استفاده کن؛ مثل Hero + پیشنهاد جانبی، دو بنر هم‌نوع یا دو ردیف محصول هم‌اندازه. برای محتواهای نامتناسب، حالت طبیعی بهتر است.</p>
+    </div>
+
+    <div class="sfb-container-surface-editor" x-data="{ surfaceMode: '{{ settings.background_mode|default:"transparent" }}' }">
+      <div class="sfb-panel-title">پس‌زمینه کل چیدمان</div>
+      <p class="sfb-field-help">برای رنگ‌دادن به یک ردیف چندخانه‌ای. پس‌زمینه هر محتوای داخل خانه همچنان جداگانه قابل تنظیم است.</p>
+      <div class="form-group">
+        <label for="id_container_bg_mode">نوع پس‌زمینه</label>
+        <select name="container_background_mode" id="id_container_bg_mode" class="form-select" x-model="surfaceMode">
+          <option value="transparent">بدون پس‌زمینه اختصاصی</option>
+          <option value="color">رنگ ساده</option>
+          <option value="pattern">رنگ + الگوی ظریف</option>
+        </select>
+      </div>
+      <div class="form-group" x-show="surfaceMode === 'color' || surfaceMode === 'pattern'" x-cloak>
+        <label for="id_container_bg_color">رنگ پس‌زمینه</label>
+        <div class="sfb-color-control-row">
+          <input type="color" name="container_background_color" id="id_container_bg_color"
+                 value="{{ settings.background_color|default:'#F53247' }}" class="sfb-native-color">
+          <div class="sfb-reference-swatches" aria-label="رنگ‌های پیشنهادی">
+            <button type="button" class="sfb-reference-swatch" style="--swatch:#F53247" @click="document.getElementById('id_container_bg_color').value='#F53247'" aria-label="قرمز"></button>
+            <button type="button" class="sfb-reference-swatch" style="--swatch:#16B95F" @click="document.getElementById('id_container_bg_color').value='#16B95F'" aria-label="سبز"></button>
+            <button type="button" class="sfb-reference-swatch" style="--swatch:#C56B00" @click="document.getElementById('id_container_bg_color').value='#C56B00'" aria-label="نارنجی"></button>
+            <button type="button" class="sfb-reference-swatch" style="--swatch:#352196" @click="document.getElementById('id_container_bg_color').value='#352196'" aria-label="بنفش"></button>
+            <button type="button" class="sfb-reference-swatch" style="--swatch:#056CAE" @click="document.getElementById('id_container_bg_color').value='#056CAE'" aria-label="آبی"></button>
+            <button type="button" class="sfb-reference-swatch" style="--swatch:#FFFFFF" @click="document.getElementById('id_container_bg_color').value='#FFFFFF'" aria-label="سفید"></button>
+            <button type="button" class="sfb-reference-swatch" style="--swatch:#F4F5F7" @click="document.getElementById('id_container_bg_color').value='#F4F5F7'" aria-label="خاکستری روشن"></button>
+          </div>
+        </div>
+      </div>
+      <input type="hidden" name="container_background_pattern" value="commerce-doodle">
+    </div>
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">ذخیره تنظیمات چیدمان</button>
+    </div>
+  </form>
+
+  <div class="sfb-drawer-danger-zone">
+    <div class="sfb-panel-title">جابه‌جایی و حذف چیدمان</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn btn-sm" @click="containerCommand({{ container.pk }}, 'up')">↑ بالاتر</button>
+      <button type="button" class="btn btn-sm" @click="containerCommand({{ container.pk }}, 'down')">↓ پایین‌تر</button>
+      <button type="button" class="btn btn-sm btn-danger" {% if container.is_locked %}disabled{% endif %}
+              @click="if(confirm('این چیدمان خالی حذف شود؟')) containerCommand({{ container.pk }}, 'remove')">حذف چیدمان خالی</button>
+    </div>
+    <p class="sfb-row-layout-note">برای جلوگیری از حذف ناخواسته محتوا، فقط چیدمانی که همه خانه‌هایش خالی باشد حذف می‌شود.</p>
+  </div>
+</div>

@@ -8,4 +8,6 @@ render_items (همان ترتیب/تنظیماتِ ریسپانسیوِ پیکر
 قالبِ صفحه است، نه اینجا؛ ``hx-swap="innerHTML"`` فقط داخلِ آن را عوض می‌کند).
 {% endcomment %}
 {% include "storefront_builder/partials/render_rows.html" %}
+{% if request.method == "POST" %}
 {% include "cart/partials/header_counts_oob.html" %}
+{% endif %}

@@ -4,10 +4,19 @@
   متغیرهای --brand-primary و --brand-accent از هویت بصری فروشگاه تزریق می‌شوند.
 */
 :root{
-  --violet:var(--brand-primary, #6d28d9); --violet-2:#7c3aed; --violet-3:#8b5cf6;
+  --violet:var(--brand-primary, #6d28d9);
+  --violet-2:var(--brand-secondary, #7c3aed);
+  --violet-3:var(--brand-secondary, #8b5cf6);
   --violet-hover:var(--brand-primary-hover, #5b21b6);
-  --violet-soft:#f1ecfd; --violet-softer:#f7f5fc;
-  --pink:var(--brand-accent, #ff4d77); --pink-soft:#ffe7ee;
+  --violet-soft:var(--brand-background, #f1ecfd);
+  --violet-softer:var(--brand-background, #f7f5fc);
+  --pink:var(--brand-accent, #ff4d77);
+  --pink-soft:var(--brand-background, #ffe7ee);
+  --palette-tone-1:var(--brand-tone-1,var(--brand-accent,#ff4d77));
+  --palette-tone-2:var(--brand-tone-2,var(--brand-primary,#6d28d9));
+  --palette-tone-3:var(--brand-tone-3,var(--brand-secondary,#7c3aed));
+  --palette-tone-4:var(--brand-tone-4,var(--brand-primary,#6d28d9));
+  --palette-tone-5:var(--brand-tone-5,var(--brand-secondary,#7c3aed));
   --secondary:var(--brand-secondary, #7c3aed);
   --ink:var(--brand-text, #241c3a); --muted:var(--brand-muted, #8b86a3); --line:var(--brand-border, #ece8f6);
   --bg:var(--brand-background, #f7f5fc); --card:var(--brand-surface, #ffffff);
@@ -77,3 +86,15 @@ html[data-sfb-card-zoom="1"] .pcard:hover .img img.cover-photo{transform:scale(1
 
 /* ===== Category Cover Image (shared across families) ===== */
 .cat-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+
+/* Phase 3.8 — semantic palette surfaces.
+   Sections opt into these roles as DATA. Custom colours remain independent. */
+.rsec[data-palette-role="tone-1"]{--sfb-section-palette-bg:var(--palette-tone-1)}
+.rsec[data-palette-role="tone-2"]{--sfb-section-palette-bg:var(--palette-tone-2)}
+.rsec[data-palette-role="tone-3"]{--sfb-section-palette-bg:var(--palette-tone-3)}
+.rsec[data-palette-role="tone-4"]{--sfb-section-palette-bg:var(--palette-tone-4)}
+.rsec[data-palette-role="tone-5"]{--sfb-section-palette-bg:var(--palette-tone-5)}
+.rsec[data-bg-mode="palette"],
+.rsec[data-bg-mode="palette_pattern"]{
+  background-color:var(--sfb-section-palette-bg,var(--brand-primary));
+}

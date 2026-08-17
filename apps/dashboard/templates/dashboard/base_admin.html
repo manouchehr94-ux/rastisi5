@@ -65,6 +65,43 @@ function richTextEditor() {
     },
   };
 }
+
+// نسخه ساده و فروشنده‌محور برای Builder فروشگاه.
+// فقط ابزارهای لازمِ نوشتن محتوا نمایش داده می‌شوند؛ textarea خام صرفاً
+// منبع ارسال فرم است و در UI به کاربر نشان داده نمی‌شود.
+function storefrontRichTextEditor() {
+  return {
+    editor: null,
+    mount() {
+      const source = this.$refs.source;
+      if (!source || typeof ClassicEditor === "undefined") return;
+      ClassicEditor.create(source, {
+        licenseKey: "GPL",
+        language: "fa",
+        toolbar: [
+          "heading", "|", "bold", "italic", "|",
+          "bulletedList", "numberedList", "|",
+          "link", "|", "undo", "redo",
+        ],
+        heading: {
+          options: [
+            { model: "paragraph", title: "متن", class: "ck-heading_paragraph" },
+            { model: "heading2", view: "h2", title: "عنوان", class: "ck-heading_heading2" },
+          ],
+        },
+      }).then((editor) => {
+        this.editor = editor;
+        source.style.display = "none";
+        source.setAttribute("aria-hidden", "true");
+        source.setAttribute("tabindex", "-1");
+        source.value = editor.getData();
+        editor.model.document.on("change:data", () => {
+          source.value = editor.getData();
+        });
+      }).catch((err) => console.error("Storefront rich-text init failed", err));
+    },
+  };
+}
 </script>
 <script src="{% static 'js/htmx.min.js' %}" defer></script>
 {% comment %}

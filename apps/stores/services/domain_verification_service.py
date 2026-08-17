@@ -20,7 +20,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.core.services.audit_service import record_audit_event
-from apps.stores.hostnames import normalize_hostname
+from apps.stores.hostnames import is_rastisi_owned_hostname, normalize_hostname
 from apps.stores.models import Store, StoreDomain
 
 VERIFICATION_RECORD_PREFIX = "_rastisi-verify"
@@ -38,15 +38,12 @@ def verification_record_name(hostname: str) -> str:
 
 
 def _normalize_or_raise(raw_hostname: str) -> str:
-    from django.conf import settings
-
     try:
         hostname = normalize_hostname(raw_hostname)
     except ValidationError as exc:
         raise DomainVerificationError("؛ ".join(exc.messages)) from exc
 
-    admin_suffix = f".{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
-    if hostname == settings.RASTISI_ADMIN_DOMAIN_SUFFIX or hostname.endswith(admin_suffix):
+    if is_rastisi_owned_hostname(hostname):
         raise DomainVerificationError(
             "دامنه‌ی اختصاصی نمی‌تواند زیردامنه‌ای از خودِ راستیسی باشد؛ برای نامِ دائمی از "
             "بخشِ «نامِ دائمی فروشگاه» استفاده کنید."
@@ -171,9 +168,18 @@ def check_ssl_connection(hostname: str) -> SslConnectionCheck:
 
 @transaction.atomic
 def activate_custom_domain(*, store: Store, domain: StoreDomain, actor) -> StoreDomain:
-    """دامنه‌ی اختصاصیِ تأییدشده را دامنه‌ی اصلیِ فروشگاه می‌کند — دامنه‌ی
-    اصلیِ قبلی (نامِ دائمی/آزمایشی) بازنشسته می‌شود، نه حذف. Step-up OTP
-    (action=``custom_domain_activate``) در لایه‌ی ویو اعمال می‌شود، نه اینجا."""
+    """دامنه‌ی اختصاصیِ تأییدشده را دامنه‌ی اصلیِ فروشگاه می‌کند.
+
+    اگر دامنه‌ی اصلیِ قبلی ``PLATFORM_SUBDOMAIN`` باشد (مثلاً
+    ``digilool.rastisi.ir``)، آن نام دائمی متعلق به همان Store باقی می‌ماند:
+    فقط ``is_primary`` از آن برداشته می‌شود و بازنشسته نمی‌شود تا Middleware
+    بتواند صفحات عمومی آن را به دامنه‌ی اختصاصی جدید 301 کند و
+    ``/admin-portal/`` همچنان روی میزبان RastiSi قابل استفاده باشد.
+
+    دامنه‌ی آزمایشی تصادفی و دامنه‌ی اختصاصی قدیمی، در صورت جایگزینی،
+    همچنان بازنشسته می‌شوند. Step-up OTP
+    (action=``custom_domain_activate``) در لایه‌ی ویو اعمال می‌شود، نه اینجا.
+    """
     if domain.store_id != store.pk:
         raise DomainVerificationError("این دامنه متعلق به این فروشگاه نیست.")
     if domain.domain_type != StoreDomain.DomainType.CUSTOM_DOMAIN:
@@ -185,8 +191,13 @@ def activate_custom_domain(*, store: Store, domain: StoreDomain, actor) -> Store
     old_primary = StoreDomain.objects.select_for_update().filter(store=locked_store, is_primary=True).first()
     if old_primary is not None and old_primary.pk != domain.pk:
         old_primary.is_primary = False
-        old_primary.retired_at = timezone.now()
-        old_primary.save(update_fields=["is_primary", "retired_at", "updated_at"])
+        update_fields = ["is_primary", "updated_at"]
+        if old_primary.domain_type == StoreDomain.DomainType.PLATFORM_SUBDOMAIN:
+            old_primary.retired_at = None
+        else:
+            old_primary.retired_at = timezone.now()
+            update_fields.append("retired_at")
+        old_primary.save(update_fields=update_fields)
 
     locked_domain = StoreDomain.objects.select_for_update().get(pk=domain.pk)
     locked_domain.is_primary = True

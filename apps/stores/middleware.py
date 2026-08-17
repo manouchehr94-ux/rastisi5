@@ -30,7 +30,12 @@ retired hostnames forever; that behavior was a product-decision mistake
 disabled.
 """
 
-from .resolution import resolve_store_for_request
+from django.core.exceptions import DisallowedHost, ValidationError
+from django.http import HttpResponsePermanentRedirect
+
+from .hostnames import normalize_hostname
+from .models import StoreDomain
+from .resolution import resolve_store_for_request, strip_port
 
 
 class StoreResolutionMiddleware:
@@ -40,3 +45,58 @@ class StoreResolutionMiddleware:
     def __call__(self, request):
         request.store = resolve_store_for_request(request)
         return self.get_response(request)
+
+
+_ADMIN_PORTAL_PREFIX = "/admin-portal"
+_LOCAL_ASSET_PREFIXES = ("/static/", "/media/")
+
+
+def _is_merchant_admin_or_local_asset_path(path: str) -> bool:
+    if path == _ADMIN_PORTAL_PREFIX or path.startswith(f"{_ADMIN_PORTAL_PREFIX}/"):
+        return True
+    return path.startswith(_LOCAL_ASSET_PREFIXES)
+
+
+class StorefrontCanonicalRedirectMiddleware:
+    """Redirect permanent Rastisi public handle to the active custom domain.
+
+    Tenant resolution remains separate. This middleware only canonicalizes
+    public requests from a live PLATFORM_SUBDOMAIN when the same Store has a
+    VERIFIED PRIMARY CUSTOM_DOMAIN. Merchant admin and local asset paths stay
+    on the Rastisi host.
+    """
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        store = getattr(request, "store", None)
+        if store is None or _is_merchant_admin_or_local_asset_path(request.path_info):
+            return self.get_response(request)
+
+        try:
+            hostname = normalize_hostname(strip_port(request.get_host()))
+        except (DisallowedHost, ValidationError):
+            return self.get_response(request)
+
+        incoming_platform_domain = StoreDomain.objects.filter(
+            store=store,
+            hostname=hostname,
+            domain_type=StoreDomain.DomainType.PLATFORM_SUBDOMAIN,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED,
+            retired_at__isnull=True,
+        ).only("id").first()
+        if incoming_platform_domain is None:
+            return self.get_response(request)
+
+        canonical_custom_domain = StoreDomain.objects.filter(
+            store=store,
+            domain_type=StoreDomain.DomainType.CUSTOM_DOMAIN,
+            is_primary=True,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED,
+            retired_at__isnull=True,
+        ).only("hostname").first()
+        if canonical_custom_domain is None:
+            return self.get_response(request)
+
+        target = f"https://{canonical_custom_domain.hostname}{request.get_full_path()}"
+        return HttpResponsePermanentRedirect(target)

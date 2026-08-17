@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError
-from django.test import SimpleTestCase
+from django.test import RequestFactory, SimpleTestCase
 
-from apps.stores.hostnames import normalize_hostname
+from apps.stores.hostnames import build_cross_host_url, normalize_hostname
 
 
 class NormalizeHostnameTests(SimpleTestCase):
@@ -126,3 +126,23 @@ class NormalizeHostnameTests(SimpleTestCase):
         self.assertEqual(
             normalize_hostname("xn--mgbh0fb.example"), "xn--mgbh0fb.example"
         )
+
+
+class CrossHostUrlTests(SimpleTestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def test_preserves_explicit_non_default_http_port(self):
+        request = self.factory.get("/", HTTP_HOST="shop.rastisi.localhost:8765")
+        url = build_cross_host_url(request, hostname="rastisi.localhost", path="/login/")
+        self.assertEqual(url, "http://rastisi.localhost:8765/login/")
+
+    def test_omits_port_when_request_has_no_explicit_port(self):
+        request = self.factory.get("/", HTTP_HOST="shop.rastisi.localhost")
+        url = build_cross_host_url(request, hostname="rastisi.localhost", path="/app/")
+        self.assertEqual(url, "http://rastisi.localhost/app/")
+
+    def test_omits_explicit_default_https_port(self):
+        request = self.factory.get("/", secure=True, HTTP_HOST="shop.rastisi.ir:443")
+        url = build_cross_host_url(request, hostname="rastisi.ir", path="login/")
+        self.assertEqual(url, "https://rastisi.ir/login/")

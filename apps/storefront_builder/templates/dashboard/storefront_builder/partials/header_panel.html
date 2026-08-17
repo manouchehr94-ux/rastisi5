@@ -51,10 +51,7 @@ validate_header_config، فقط بدونِ خروج از سازنده (طبقِ 
       <div class="toggle-content"><span class="toggle-title">📣 نوار اعلان</span></div>
     </label>
     {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="announcement_enabled" component=config.responsive.announcement_enabled %}
-    <div class="form-group">
-      <label for="id_announcement_text">متن نوار اعلان</label>
-      <input type="text" name="announcement_text" id="id_announcement_text" class="form-input" maxlength="300" value="{{ config.announcement_text }}">
-    </div>
+    {% include "dashboard/storefront_builder/partials/announcement_editor_fields.html" %}
 
     {{ config.extra_blocks|json_script:"header-extra-blocks-initial" }}
     <div class="sfb-panel-title" style="margin-top:18px">بلوک‌های اضافی هدر</div>

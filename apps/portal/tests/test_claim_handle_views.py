@@ -25,7 +25,10 @@ def _fixed_code(code="556677"):
     return original
 
 
-@override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
+@override_settings(
+    ALLOWED_HOSTS=[_HOST, "testserver"],
+    RASTISI_ADMIN_DOMAIN_SUFFIX="rastisi.ir",
+)
 class ClaimHandleViewTests(TestCase):
     def setUp(self):
         # OTP rate-limit counters are cache-backed, not DB-backed — they

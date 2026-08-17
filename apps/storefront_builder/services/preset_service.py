@@ -25,8 +25,8 @@ from django.db import transaction
 
 from .. import layout_preset_registry, section_registry
 from ..layout_preset_registry import LayoutPresetDefinition
-from ..models import StorefrontLayoutVersion, StorefrontSection
-from . import layout_service
+from ..models import StorefrontContainer, StorefrontLayoutVersion, StorefrontSection
+from . import container_service, layout_service
 
 
 class InvalidPresetError(Exception):
@@ -88,6 +88,10 @@ def validate_layout_preset(preset: LayoutPresetDefinition) -> None:
         _validate_appearance_overlay(dict(APPEARANCE_CONFIG_DEFAULTS), dict(preset.appearance))
         _validate_header_overlay(dict(HEADER_CONFIG_DEFAULTS), preset.header)
         _validate_footer_overlay(dict(FOOTER_CONFIG_DEFAULTS), preset.footer)
+        for page_type, entries in preset.pages.items():
+            _container_settings_for_entries(
+                entries, preset_key=preset.key, page_type=page_type
+            )
     except (
         layout_service.AppearanceConfigValidationError,
         layout_service.HeaderConfigValidationError,
@@ -101,6 +105,72 @@ def validate_layout_preset(preset: LayoutPresetDefinition) -> None:
             raise InvalidPresetError(
                 f"Preset «{preset.key}»: پالتِ پیشنهادیِ «{preset.default_palette_slug}» در دسترس نیست"
             )
+
+
+def _entry_runs(entries):
+    """Group entries exactly like Container legacy-row reconstruction."""
+    entries = list(entries)
+    i = 0
+    while i < len(entries):
+        first = entries[i]
+        key = first.row_key or ""
+        if not key:
+            yield [first]
+            i += 1
+            continue
+        run = [first]
+        i += 1
+        while i < len(entries) and (entries[i].row_key or "") == key:
+            run.append(entries[i])
+            i += 1
+        yield run
+
+
+def _clean_preset_container_settings(raw, *, preset_key: str, page_type: str) -> dict:
+    if raw is None:
+        return container_service.effective_container_settings(None)
+
+    cleaned = container_service.effective_container_settings(raw)
+    # Built-in preset data must fail loudly rather than relying on runtime
+    # fail-safe normalization.
+    for key, value in raw.items():
+        comparable = value
+        if key == "gap":
+            try:
+                comparable = int(value)
+            except (TypeError, ValueError) as exc:
+                raise InvalidPresetError(
+                    f"Preset «{preset_key}» / {page_type}: فاصله‌ی Container نامعتبر است"
+                ) from exc
+        if cleaned.get(key) != comparable:
+            raise InvalidPresetError(
+                f"Preset «{preset_key}» / {page_type}: تنظیم Container «{key}» نامعتبر است"
+            )
+    return cleaned
+
+
+def _container_settings_for_entries(entries, *, preset_key: str, page_type: str) -> list[dict]:
+    prepared = []
+    for run in _entry_runs(entries):
+        explicit = [
+            _clean_preset_container_settings(
+                entry.container_settings,
+                preset_key=preset_key,
+                page_type=page_type,
+            )
+            for entry in run
+            if entry.container_settings is not None
+        ]
+        if explicit:
+            first = explicit[0]
+            if any(item != first for item in explicit[1:]):
+                raise InvalidPresetError(
+                    f"Preset «{preset_key}» / {page_type}: اعضای یک ردیف تنظیمات Container ناسازگار دارند"
+                )
+            prepared.append(first)
+        else:
+            prepared.append(container_service.effective_container_settings(None))
+    return prepared
 
 
 def _build_sections_for_page(page, entries) -> list[StorefrontSection]:
@@ -167,7 +237,12 @@ def apply_preset(draft: StorefrontLayoutVersion, preset: LayoutPresetDefinition)
                 f"Preset «{preset.key}» قابلِ اعمال نیست — صفحه‌ی "
                 f"«{page.get_page_type_display()}» بخشِ قفل‌شده دارد؛ ابتدا قفل آن را باز کنید"
             )
-        pages_to_replace[page] = _build_sections_for_page(page, entries)
+        pages_to_replace[page] = (
+            _build_sections_for_page(page, entries),
+            _container_settings_for_entries(
+                entries, preset_key=preset.key, page_type=page_type
+            ),
+        )
 
     # --- ۳) نوشتن — فقط پس از موفقیتِ کاملِ بخشِ اعتبارسنجی ---
     draft.appearance_config = cleaned_appearance
@@ -180,9 +255,24 @@ def apply_preset(draft: StorefrontLayoutVersion, preset: LayoutPresetDefinition)
         update_fields.append("footer_config")
     draft.save(update_fields=update_fields)
 
-    for page, rows in pages_to_replace.items():
+    for page, (rows, prepared_container_settings) in pages_to_replace.items():
+        # Container/Cell is the new layout layer.  Deleting the page sections
+        # leaves old Cells empty via SET_NULL, so replace those Containers too
+        # and mirror the Preset's legacy row metadata into fresh placements.
+        page.containers.all().delete()
         page.sections.all().delete()
         StorefrontSection.objects.bulk_create(rows)
+        container_service.rebuild_page_from_legacy_rows(page)
+
+        containers = list(page.containers.order_by("order", "id"))
+        if len(containers) != len(prepared_container_settings):
+            raise InvalidPresetError(
+                f"Preset «{preset.key}»: تعداد Containerهای ساخته‌شده با داده‌ی Preset هم‌خوان نیست"
+            )
+        for container, container_settings in zip(containers, prepared_container_settings):
+            container.settings = container_settings
+        if containers:
+            StorefrontContainer.objects.bulk_update(containers, ["settings"])
 
 
 def apply_preset_by_key(draft: StorefrontLayoutVersion, key: str) -> LayoutPresetDefinition:

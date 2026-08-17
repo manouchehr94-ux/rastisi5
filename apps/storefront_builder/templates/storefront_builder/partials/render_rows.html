@@ -19,6 +19,9 @@ grid اضافه) — یعنی سوئیچِ ۷ تمپلیتِ عمومی از ح�
 (۱۲ واحدی، خودکار جمع‌شونده به تک‌ستون زیرِ ۱۰۰۰px) در storefront_builder.css
 تعریف شده (``.rsec-row``/``.rsec-row-item``)، نه اینجا.
 {% endcomment %}
+{% if use_container_layout %}
+{% include "storefront_builder/partials/render_containers.html" %}
+{% else %}
 {% for row in rows %}
 {% if row.items|length > 1 %}
 <div class="rsec-row" data-row-key="{{ row.row_key }}">
@@ -34,3 +37,4 @@ grid اضافه) — یعنی سوئیچِ ۷ تمپلیتِ عمومی از ح�
 {% endwith %}
 {% endif %}
 {% endfor %}
+{% endif %}

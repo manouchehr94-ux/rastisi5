@@ -1,0 +1,207 @@
+/*
+  Phase 3.9 — Full-site Theme Palette contract.
+  Loaded after page-specific CSS by base.html.
+
+  This file intentionally knows only semantic CSS variables/classes. It never
+  branches on Store, industry, preset key, or palette slug.
+*/
+:root{
+  --theme-page:var(--brand-background,#f7f5fc);
+  --theme-surface:var(--brand-surface,#fff);
+  --theme-text:var(--brand-text,#241c3a);
+  --theme-muted:var(--brand-muted,#8b86a3);
+  --theme-border:var(--brand-border,#ece8f6);
+  --theme-primary:var(--brand-primary,#6d28d9);
+  --theme-secondary:var(--brand-secondary,#7c3aed);
+  --theme-accent:var(--brand-accent,#ff4d77);
+}
+
+html,body{background:var(--theme-page);color:var(--theme-text)}
+body{accent-color:var(--theme-primary)}
+::selection{background:var(--theme-primary);color:var(--brand-primary-fg,#fff)}
+::-webkit-scrollbar-track{background:var(--theme-page)}
+::-webkit-scrollbar-thumb{background:var(--theme-border)}
+
+/* Universal top shell */
+.announce{
+  background:var(--theme-primary)!important;
+  color:var(--brand-primary-fg,#fff)!important;
+  border-color:var(--theme-border)!important;
+}
+.announce a{color:inherit}
+.header{
+  background:var(--theme-header-bg,var(--theme-surface))!important;
+  color:var(--theme-header-text,var(--theme-text))!important;
+  border-color:var(--theme-border)!important;
+}
+.header .logo b,.header .h-btn,.header .login-btn{
+  color:var(--theme-header-text,var(--theme-text))!important;
+}
+.header .logo small{color:var(--theme-muted)!important}
+.logo .mark{background:var(--theme-primary)!important;color:var(--brand-primary-fg,#fff)!important}
+.search{
+  background:var(--theme-page)!important;border-color:var(--theme-border)!important;
+  color:var(--theme-text)!important;
+}
+.search input{color:var(--theme-text)!important}
+.search input::placeholder{color:var(--theme-muted)!important}
+.search svg{color:var(--theme-muted)!important}
+.search button{
+  background:var(--theme-primary)!important;color:var(--brand-primary-fg,#fff)!important;
+  border-color:var(--theme-primary)!important;
+}
+.h-btn,.login-btn{background:transparent!important;border-color:var(--theme-border)!important}
+.h-btn:hover,.login-btn:hover{background:var(--theme-page)!important;color:var(--theme-primary)!important}
+
+.nav{
+  background:var(--theme-nav-bg,var(--theme-surface))!important;
+  color:var(--theme-nav-text,var(--theme-text))!important;
+  border-color:var(--theme-border)!important;
+}
+.nav .cat-btn,.nav a.nl,.nav .nav-hot{
+  color:var(--theme-nav-text,var(--theme-text))!important;
+}
+.nav .cat-btn{background:var(--theme-primary)!important;color:var(--brand-primary-fg,#fff)!important}
+.nav a.nl:hover{background:var(--theme-page)!important;color:var(--theme-primary)!important}
+.nav a.nl.hot,.nav .nav-hot{color:var(--theme-accent)!important}
+.cat-mega-panel,.cat-dropdown{
+  background:var(--theme-card-bg,var(--theme-surface))!important;
+  color:var(--theme-text)!important;border-color:var(--theme-border)!important;
+}
+.cat-mega-rail{border-color:var(--theme-border)!important}
+.cat-mega-rail-item,.cat-mega-cols a{color:var(--theme-text)!important}
+.cat-mega-rail-item:hover,.cat-mega-rail-item.active{
+  background:var(--theme-page)!important;color:var(--theme-primary)!important;
+}
+
+/* Core controls */
+.btn-primary,.pcard .addbar button,.pagination .current{
+  background:var(--theme-primary)!important;
+  color:var(--brand-primary-fg,#fff)!important;
+  border-color:var(--theme-primary)!important;
+}
+.btn-ghost{
+  background:var(--theme-card-bg,var(--theme-surface))!important;
+  color:var(--theme-primary)!important;border-color:var(--theme-primary)!important;
+}
+.inp,.plp-inp,input:not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+select,textarea{
+  color:var(--theme-text);
+}
+.inp,.plp-inp,.review-form .inp,.review-form textarea{
+  background:var(--theme-page)!important;border-color:var(--theme-border)!important;
+}
+.inp:focus,.plp-inp:focus,.review-form .inp:focus,.review-form textarea:focus{
+  background:var(--theme-card-bg,var(--theme-surface))!important;
+  border-color:var(--theme-primary)!important;
+}
+
+/* Product cards / listing / common panels */
+.pcard,.card,.plp-filters,.plp-empty,
+.review,.review-form,.pricebox,.res,
+.rcb,.acc-stat,.addr-card{
+  background:var(--theme-card-bg,var(--theme-surface))!important;
+  color:var(--theme-text)!important;
+  border-color:var(--theme-border)!important;
+}
+.pcard:hover{border-color:var(--theme-primary)!important}
+.pcard .heart{
+  background:var(--theme-card-bg,var(--theme-surface))!important;
+  color:var(--theme-muted)!important;
+}
+.pcard .heart:hover{color:var(--theme-accent)!important}
+.pcard .brand,.pcard .old,.pcard .rate span,
+.plp-count,.breadcrumb,.maker-region,
+.pinfo .topline,.sku-line,.pricebox .old,
+.review .head small,.addr-meta{
+  color:var(--theme-muted)!important;
+}
+.pcard .name,.pcard .body,.plp-fg label,
+.pagination a,.pagination span{
+  color:var(--theme-text)!important;
+}
+.pcard .price .now,.pricebox .now,.totals .grand .v{
+  color:var(--theme-price,var(--theme-accent))!important;
+}
+.pill-disc{background:var(--theme-accent)!important}
+.pill-new{background:var(--theme-primary)!important}
+.pagination a,.pagination span{border-color:var(--theme-border)!important}
+
+/* Homepage white surfaces must also follow the palette. */
+.catstrip-inner,.tabs,.blog-card,.feat,.promo-card,
+.special-wrap,.brand-tile,
+.product-spotlight-slider,.product-spotlight-head,
+.product-spotlight-track,.product-spotlight-dots,
+.special-list>button,
+.rsec-row-item>.rsec>.product-section:not(.product-section--spotlight),
+.promo-grid--strip .promo-card,
+.promo-grid--strip .promo-overlay{
+  background:var(--theme-card-bg,var(--theme-surface))!important;
+  color:var(--theme-text)!important;
+  border-color:var(--theme-border)!important;
+}
+.special-list>button,.promo-grid--strip .promo-overlay{color:var(--theme-text)!important}
+.feat .ic{background:var(--theme-page)!important;color:var(--theme-accent)!important}
+.tile-circle-img,.tile-circle-img img{background:var(--theme-card-bg,var(--theme-surface))!important;border-color:var(--theme-border)!important}
+
+/* Palette-linked colored sections keep strong tones while their child cards
+   follow the active card surface. */
+.rsec[data-bg-mode="palette"],
+.rsec[data-bg-mode="palette_pattern"]{
+  color:#fff;
+}
+.rsec[data-bg-mode="palette"]>.section>.sec-head h2,
+.rsec[data-bg-mode="palette_pattern"]>.section>.sec-head h2{
+  color:#fff!important;
+}
+.rsec[data-bg-mode="palette"] .pcard,
+.rsec[data-bg-mode="palette_pattern"] .pcard{
+  background:var(--theme-card-bg,var(--theme-surface))!important;
+  color:var(--theme-text)!important;
+}
+
+/* Product detail */
+.gallery .main,.gallery .thumbs .th,
+.stepper,.pdp-actions .wish,.guarantee .g,
+.review-sum,.spec-table tr:nth-child(odd){
+  background:var(--theme-card-bg,var(--theme-surface))!important;
+  color:var(--theme-text)!important;border-color:var(--theme-border)!important;
+}
+.size,.guarantee .g,.desc-text,.review p{color:var(--theme-text)!important}
+.tabline{border-color:var(--theme-border)!important}
+.tabline .t.active{color:var(--theme-primary)!important;border-color:var(--theme-primary)!important}
+
+/* Cart / checkout / account */
+.top,.stepper-bar{
+  background:var(--theme-card-bg,var(--theme-surface))!important;
+  color:var(--theme-text)!important;border-color:var(--theme-border)!important;
+}
+.step .num{background:var(--theme-page)!important;border-color:var(--theme-border)!important}
+.step.active,.top .back{color:var(--theme-primary)!important}
+.step.active .num{background:var(--theme-primary)!important;color:var(--brand-primary-fg,#fff)!important}
+.rc input:checked + .rcb,.addr-card.is-default{
+  background:var(--theme-page)!important;border-color:var(--theme-primary)!important;
+}
+.fg label{color:var(--theme-text)!important}
+.acc-stat b,.addr-actions button{color:var(--theme-primary)!important}
+
+/* Footer is its own editable theme role. */
+.footer{
+  background:var(--theme-footer-bg,var(--theme-surface))!important;
+  color:var(--theme-footer-text,var(--theme-text))!important;
+  border-color:var(--theme-border)!important;
+}
+.footer h5,.footer .about p,.footer ul a,.footer .copy{
+  color:var(--theme-footer-text,var(--theme-text))!important;
+}
+.footer .news{background:var(--theme-primary)!important;color:var(--brand-primary-fg,#fff)!important}
+.footer .socials a,.footer .copy .pay span{
+  background:var(--theme-page)!important;color:var(--theme-primary)!important;
+}
+
+/* Generic modals / overlays */
+.modal{
+  background:var(--theme-card-bg,var(--theme-surface))!important;
+  color:var(--theme-text)!important;
+}
+.modal .mhead{background:var(--theme-primary)!important;color:var(--brand-primary-fg,#fff)!important}

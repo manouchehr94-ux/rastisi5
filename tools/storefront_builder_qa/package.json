@@ -1,0 +1,12 @@
+{
+  "name": "rastisi-storefront-builder-qa",
+  "private": true,
+  "type": "module",
+  "description": "Local exhaustive browser QA for the RastiSi Storefront Builder",
+  "scripts": {
+    "qa": "node run.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "^1.50.0"
+  }
+}

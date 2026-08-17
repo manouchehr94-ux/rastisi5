@@ -6,6 +6,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 
 from apps.stores.authorization import get_active_membership, membership_has_permission
+from apps.stores.hostnames import build_cross_host_url
 from apps.stores.resolution import resolve_store_for_admin_request
 
 
@@ -82,7 +83,9 @@ def staff_required(view_func):
                 admin_subdomain=store.admin_subdomain, destination_path=request.get_full_path(),
             )
             params = urlencode({"admin_return": token})
-            central_login = f"{request.scheme}://{settings.RASTISI_PLATFORM_PRIMARY_HOST}/login/"
+            central_login = build_cross_host_url(
+                request, hostname=settings.RASTISI_PLATFORM_PRIMARY_HOST, path="/login/",
+            )
             return redirect(f"{central_login}?{params}")
 
         membership = get_active_membership(request.user, store)

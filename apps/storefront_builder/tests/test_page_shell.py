@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.conf import settings
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -197,6 +198,45 @@ class SharedPageShellTests(TestCase):
             self.assertIn("SIX-PAGE-CONSISTENCY-MARKER", body, f"missing header marker on {url}")
             self.assertIn("data-shell-hide-mobile", body, f"missing responsive attribute on {url}")
             self.assertIn('class="copy"', body, f"missing footer on {url}")
+
+
+    # Phase 3.10 — دسترسی مستقیم از صفحه اصلی فروشگاه به پنل مدیریت همان Store.
+    def test_homepage_has_store_admin_shortcut_on_correct_admin_host(self):
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+        body = self._storefront().content.decode()
+        expected = (
+            f"http://{self.store.admin_subdomain}."
+            f"{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}/admin-portal/"
+        )
+        self.assertIn('class="store-admin-shortcut"', body)
+        self.assertIn("پنل مدیریت", body)
+        self.assertIn(f'href="{expected}"', body)
+
+    def test_builder_home_preview_has_admin_shortcut(self):
+        svc.get_or_create_draft(self.store)
+        body = self._preview().content.decode()
+        self.assertIn('class="store-admin-shortcut"', body)
+        self.assertIn('target="_top"', body)
+
+    def test_admin_shortcut_is_homepage_only(self):
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+        body = self.public_client.get(reverse("catalog:product-list")).content.decode()
+        self.assertNotIn('class="store-admin-shortcut"', body)
+
+    def test_admin_shortcut_preserves_local_non_default_port(self):
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+        response = self.public_client.get(
+            reverse("catalog:home"),
+            HTTP_HOST=f"{PUBLIC_HOST}:8765",
+        )
+        expected = (
+            f"http://{self.store.admin_subdomain}."
+            f"{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}:8765/admin-portal/"
+        )
+        self.assertContains(response, f'href="{expected}"')
 
     # Phase 4 — بندهای ۲۱/۲۲: هر شیءِ ارجاع‌شده در هدر/فوتر (SocialLink،
     # Menu/MenuItem) باید در سطحِ کوئریِ رندر هم store-scoped باشد — این

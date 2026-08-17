@@ -4,7 +4,7 @@
 واقعیِ جلوه فقط CSS است (storefront_builder.css)، هیچ Renderer/کدِ
 family-محورِ جدیدی نمی‌سازد — دقیقاً همان الزامِ صریحِ کار.
 {% endcomment %}
-<div class="form-group" style="margin-top:10px">
+<div class="form-group sfb-advanced-field" x-show="inspectorTab === 'advanced'" x-cloak style="margin-top:10px">
   <label for="id_motion_style">حرکت</label>
   <select name="motion_style" id="id_motion_style" class="form-select">
     <option value="none" {% if section.settings.motion.style|default:"none" == "none" %}selected{% endif %}>بدون حرکت</option>

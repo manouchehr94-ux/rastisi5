@@ -36,6 +36,10 @@ class OtpInvalidError(Exception):
     """کد وارد‌شده معتبر/صحیح نیست."""
 
 
+class OtpDeliveryError(OtpRateLimitError):
+    """OTP به دلیل اعتبار/درگاه ارسال نشده است؛ caller همان خطای کنترل‌شده را نشان می‌دهد."""
+
+
 def _generate_code() -> str:
     return f"{secrets.randbelow(10 ** OTP_LENGTH):0{OTP_LENGTH}d}"
 
@@ -64,7 +68,13 @@ def request_otp(phone: str, *, store, ip_address: str) -> OtpCode:
         phone=phone, code_hash=make_password(code),
         expires_at=timezone.now() + timedelta(seconds=OTP_TTL_SECONDS),
     )
-    send_event_sms(SmsEvent.OTP, phone, {"otp_code": code}, store=store)
+    log = send_event_sms(SmsEvent.OTP, phone, {"otp_code": code, "expire_minutes": "2"}, store=store)
+    if log is None or log.status != "sent":
+        otp.delete()
+        raise OtpDeliveryError(
+            log.error_message if log is not None and log.error_message else
+            "ارسال کد تأیید انجام نشد؛ لطفاً دوباره تلاش کنید"
+        )
     return otp
 
 

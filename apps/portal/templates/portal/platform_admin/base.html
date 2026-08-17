@@ -46,10 +46,9 @@
         <svg class="pa-nav-chevron" :class="{open: groups.sms}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </button>
       <div x-show="groups.sms" x-cloak>
-        <a href="{% url 'portal_platform_admin:sms-settings' %}" class="pa-sub {% if active_nav == 'sms-settings' %}active{% endif %}">تنظیمات درگاه</a>
-        <a href="{% url 'portal_platform_admin:sms-packages' %}" class="pa-sub {% if active_nav == 'sms-packages' %}active{% endif %}">بسته‌های پیامک</a>
-        <a href="{% url 'portal_platform_admin:sms-credits' %}" class="pa-sub {% if active_nav == 'sms-credits' %}active{% endif %}">اعتبار فروشگاه‌ها</a>
-        <a href="{% url 'portal_platform_admin:sms-logs' %}" class="pa-sub {% if active_nav == 'sms-logs' %}active{% endif %}">گزارش ارسال</a>
+        <a href="{% url 'portal_platform_admin:sms-providers' %}" class="pa-sub {% if active_nav == 'sms-providers' %}active{% endif %}">شرکت‌های پیامکی</a>
+        <a href="{% url 'portal_platform_admin:sms-templates' %}" class="pa-sub {% if active_nav == 'sms-templates' %}active{% endif %}">قالب‌ها و الگوها</a>
+        <a href="{% url 'portal_platform_admin:sms-messages' %}" class="pa-sub {% if active_nav == 'sms-messages' %}active{% endif %}">همه پیامک‌ها</a>
       </div>
     </nav>
 

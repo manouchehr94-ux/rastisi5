@@ -171,6 +171,27 @@ class ActivateCustomDomainTests(DomainVerificationTestCase):
         self.assertFalse(self.trial_domain.is_primary)
         self.assertIsNotNone(self.trial_domain.retired_at)
 
+    def test_activation_preserves_permanent_rastisi_handle_as_live_alias(self):
+        self.trial_domain.is_primary = False
+        self.trial_domain.retired_at = timezone.now()
+        self.trial_domain.save(update_fields=["is_primary", "retired_at", "updated_at"])
+        permanent = StoreDomain.objects.create(
+            store=self.store,
+            hostname="digilool.rastisi.ir",
+            is_primary=True,
+            domain_type=StoreDomain.DomainType.PLATFORM_SUBDOMAIN,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED,
+            verified_at=timezone.now(),
+        )
+
+        domain = self._verified_domain()
+        activated = activate_custom_domain(store=self.store, domain=domain, actor=self.actor)
+
+        self.assertTrue(activated.is_primary)
+        permanent.refresh_from_db()
+        self.assertFalse(permanent.is_primary)
+        self.assertIsNone(permanent.retired_at)
+
     def test_rejects_a_domain_belonging_to_another_store(self):
         other_store = Store.objects.create(
             name="فروشگاه دیگر فعال‌سازی", slug="domain-verify-activate-other", status=Store.Status.ACTIVE,

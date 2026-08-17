@@ -1,0 +1,25 @@
+{% extends "portal/platform_admin/base.html" %}
+{% block title %}ویرایش قالب پیامک{% endblock %}
+{% block content %}<div class="pa-pagehead"><div><h1>{{ template.title }}</h1><p>{{ template.event_key }}</p></div><a class="pa-btn" href="{% url 'portal_platform_admin:sms-templates' %}">بازگشت</a></div>
+<form method="post" class="pa-card"><div class="pa-cardbody">{% csrf_token %}<input type="hidden" name="action" value="save"><div class="pa-field"><label>عنوان</label><input class="pa-input" name="title" value="{{ template.title }}"></div><div class="pa-field" style="margin-top:10px"><label>متن قالب RastiSi</label><textarea id="sms-template-body" class="pa-input" rows="6" name="body">{{ template.body }}</textarea><p class="pa-help">متغیرهای مجاز: {% for key,label in variables.items %}<code>{% templatetag openvariable %}{{ key }}{% templatetag closevariable %}</code> {{ label }} {% empty %}بدون متغیر{% endfor %}</p></div><div class="pa-help">طول متن فعلی: <b id="sms-char-count">{{ quote.character_count }}</b> کاراکتر — <b id="sms-unit-count">{{ quote.billable_units }}</b> اعتبار — <b id="sms-cost">{{ quote.cost_toman }}</b> تومان با قانون فعلی. در ارسال واقعی، طول متن نهاییِ رندرشده در لاگ ثبت می‌شود.</div>
+<div class="pa-section"><h3>Pattern ملی‌پیامک</h3><div class="pa-grid2"><div class="pa-field"><label>BodyId</label><input class="pa-input" name="melipayamak_body_id" value="{{ template.melipayamak_body_id }}"></div><div class="pa-field"><label>ترتیب متغیرها</label><input class="pa-input" name="melipayamak_variables_order" value="{{ template.melipayamak_variables_order }}" placeholder="otp_code,expire_minutes"></div></div></div>
+<div class="pa-section"><h3>Template کاوه‌نگار</h3><div class="pa-field"><label>نام Template / VerifyLookup</label><input class="pa-input" name="kavenegar_template" value="{{ template.kavenegar_template }}"></div></div><label><input type="checkbox" name="is_active" {% if template.is_active %}checked{% endif %}> فعال</label><div style="margin-top:14px"><button class="pa-btn pa-primary" type="submit">ذخیره قالب</button></div></div></form>
+<form method="post" class="pa-card"><div class="pa-cardhead"><h3>تست همین قالب</h3></div><div class="pa-cardbody">{% csrf_token %}<input type="hidden" name="action" value="test"><div class="pa-field"><label>شماره موبایل</label><input class="pa-input" dir="ltr" name="test_phone" placeholder="09xxxxxxxxx"></div><button class="pa-btn pa-soft" type="submit">ارسال تست</button><p class="pa-help">برای OTP کد آزمایشی 123456 استفاده می‌شود و خود کد در لاگ ذخیره نمی‌شود.</p></div></form>
+<script>
+(function(){
+  const body = document.getElementById('sms-template-body');
+  if (!body) return;
+  const per = {{ policy.chars_per_credit|default:70 }};
+  const price = {{ policy.price_per_credit_toman|default:205 }};
+  const chars = document.getElementById('sms-char-count');
+  const units = document.getElementById('sms-unit-count');
+  const cost = document.getElementById('sms-cost');
+  function update(){
+    const n = Array.from(body.value || '').length;
+    const u = n ? Math.ceil(n / per) : 0;
+    chars.textContent = n; units.textContent = u; cost.textContent = u * price;
+  }
+  body.addEventListener('input', update); update();
+})();
+</script>
+{% endblock %}

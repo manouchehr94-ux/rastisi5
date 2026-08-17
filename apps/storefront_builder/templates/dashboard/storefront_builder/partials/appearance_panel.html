@@ -29,8 +29,8 @@ Phase 8 P0-7 — کارتِ مستقلِ «قالب فروشگاه» و گالر
 
     <button type="button" class="sfb-appearance-card" @click="view = 'palettes'">
       <div>
-        <span class="sfb-appearance-kicker">پالت فعلی</span>
-        <strong>{% if config.palette_slug %}{% for p in palettes %}{% if p.slug == config.palette_slug %}{{ p.name_fa }}{% endif %}{% endfor %}{% else %}رنگ‌های سفارشی{% endif %}{% if config.color_overrides %} — شخصی‌سازی‌شده{% endif %}</strong>
+        <span class="sfb-appearance-kicker">پالت کل سایت</span>
+        <strong>{% if config.palette_slug %}{% for p in palettes %}{% if p.slug == config.palette_slug %}{{ p.name_fa }}{% endif %}{% endfor %}{% else %}رنگ‌های سفارشی{% endif %}{% if config.color_overrides or config.theme_overrides %} — شخصی‌سازی‌شده{% endif %}</strong>
       </div>
       <div class="sfb-appearance-stripe">
         <span style="background:{{ resolved_colors.primary }}"></span>
@@ -69,7 +69,7 @@ Phase 8 P0-7 — کارتِ مستقلِ «قالب فروشگاه» و گالر
     </button>
 
     <button type="button" class="sfb-appearance-card"
-            hx-get="{% url 'dashboard:storefront-builder-header' %}" hx-target="#sfbAppearancePanel" hx-swap="innerHTML">
+            hx-get="{% url 'dashboard:storefront-builder-header' %}" hx-target="#sfbInspectorBody" hx-swap="innerHTML">
       <div>
         <span class="sfb-appearance-kicker">هدر فروشگاه</span>
         <strong>جستجو، حساب کاربری، سبد خرید و نوار اعلان</strong>
@@ -78,7 +78,7 @@ Phase 8 P0-7 — کارتِ مستقلِ «قالب فروشگاه» و گالر
     </button>
 
     <button type="button" class="sfb-appearance-card"
-            hx-get="{% url 'dashboard:storefront-builder-footer' %}" hx-target="#sfbAppearancePanel" hx-swap="innerHTML">
+            hx-get="{% url 'dashboard:storefront-builder-footer' %}" hx-target="#sfbInspectorBody" hx-swap="innerHTML">
       <div>
         <span class="sfb-appearance-kicker">فوتر فروشگاه</span>
         <strong>ستون‌های فوتر و نمایش هرکدام</strong>
@@ -89,7 +89,7 @@ Phase 8 P0-7 — کارتِ مستقلِ «قالب فروشگاه» و گالر
 
   <div x-show="view === 'palettes'">
     <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
-    <p style="color:var(--muted);font-size:12.5px;margin:8px 0 12px">با یک کلیک، تمام رنگ‌های هماهنگ سایت با هم تغییر می‌کنند — شخصی‌سازیِ قبلیِ شما بازنشانی می‌شود.</p>
+    <p style="color:var(--muted);font-size:12.5px;margin:8px 0 12px"><strong>تم کامل:</strong> با یک کلیک پس‌زمینه صفحه، هدر، منو، کارت‌ها، متن‌ها، قیمت‌ها، ردیف‌های رنگی و فوتر تغییر می‌کنند. بعداً هر رنگ را جداگانه می‌توانی اصلاح کنی.</p>
     <div class="sfb-palette-gallery">
       {% for p in palettes %}
       <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}">
@@ -108,6 +108,13 @@ Phase 8 P0-7 — کارتِ مستقلِ «قالب فروشگاه» و گالر
         <input type="hidden" name="card_hover" value="{{ config.card_hover|default:'' }}">
         <input type="hidden" name="hero_style" value="{{ config.hero_style|default:'' }}">
         <button type="submit" class="sfb-palette-card {% if config.palette_slug == p.slug %}active{% endif %}">
+          <div class="sfb-palette-mini"
+               style="--p-bg:{{ p.colors.background }};--p-surface:{{ p.colors.surface }};--p-text:{{ p.colors.text }};--p-primary:{{ p.colors.primary }};--p-accent:{{ p.colors.accent }}">
+            <span class="sfb-palette-mini-header"></span>
+            <span class="sfb-palette-mini-card one"></span>
+            <span class="sfb-palette-mini-card two"></span>
+            <span class="sfb-palette-mini-button"></span>
+          </div>
           <strong>{{ p.name_fa }}</strong>
           <span class="tiny" style="color:var(--muted)">{{ p.group_fa }}</span>
           <div class="sfb-appearance-stripe">
@@ -151,7 +158,8 @@ Phase 8 P0-7 — کارتِ مستقلِ «قالب فروشگاه» و گالر
 
   <div x-show="view === 'colors'">
     <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
-    <p style="font-size:12.5px;color:var(--muted);margin:8px 0 12px">مثلاً فقط رنگ متن را تغییر دهید؛ بقیه رنگ‌های پالت همان می‌مانند.</p>
+    <p style="font-size:12.5px;color:var(--muted);margin:8px 0 12px">هر رنگ را مستقل تغییر بده؛ مثلاً اگر تم «مشکی طلایی» متن را زرد کرده، فقط «رنگ متن اصلی کل سایت» را قرمز کن و باقی تم دست‌نخورده می‌ماند.</p>
+    <h4 style="margin:14px 0 8px">رنگ‌های اصلی</h4>
     <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}">
       {% csrf_token %}
       <input type="hidden" name="template_slug" value="{{ config.template_slug }}">
@@ -181,10 +189,28 @@ Phase 8 P0-7 — کارتِ مستقلِ «قالب فروشگاه» و گالر
         </div>
       </div>
       {% endfor %}
+
+      <h4 style="margin:18px 0 8px">رنگ بخش‌های سایت</h4>
+      <p class="tiny" style="color:var(--muted);margin-bottom:10px">برای کنترل دقیق‌تر هدر، منو، کارت‌ها، فوتر و قیمت‌ها.</p>
+      {% for key, label in theme_field_labels %}
+      <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div>
+          <label style="display:block">{{ label }}</label>
+          <span class="tiny" style="color:var(--muted)" dir="ltr">{{ resolved_theme_roles|dictget:key }}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="color" name="theme_{{ key }}" value="{{ resolved_theme_roles|dictget:key }}">
+          {% if key in config.theme_overrides %}
+          <button type="submit" name="reset_theme" value="{{ key }}" class="btn btn-ghost btn-sm" title="بازگردانی این رنگ به تم" formnovalidate>↺</button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
       <div style="display:flex;gap:10px;margin-top:16px">
         <button type="submit" class="btn btn-primary">اعمال تغییرات</button>
-        {% if config.color_overrides %}
-        <button type="submit" name="reset_all_overrides" value="1" class="btn btn-danger" formnovalidate>بازگردانی کل پالت</button>
+        {% if config.color_overrides or config.theme_overrides %}
+        <button type="submit" name="reset_all_overrides" value="1" class="btn btn-danger" formnovalidate>بازگردانی همه رنگ‌ها به پالت</button>
         {% endif %}
       </div>
     </form>

@@ -110,6 +110,17 @@ class HandoffFullFlowViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
 
+    def test_enter_admin_preserves_current_non_default_port(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            f"/app/stores/{self.store.public_id}/enter-admin/",
+            HTTP_HOST=f"{_PORTAL_HOST}:8765",
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response["Location"].startswith(
+            f"http://handoffstore.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}:8765/admin-portal/handoff/"
+        ))
+
     def test_enter_admin_get_is_not_allowed(self):
         self.client.force_login(self.owner)
         response = self.client.get(f"/app/stores/{self.store.public_id}/enter-admin/", HTTP_HOST=_PORTAL_HOST)

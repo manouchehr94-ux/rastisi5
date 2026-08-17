@@ -77,6 +77,7 @@ def _dns_target():
 @override_settings(
     ALLOWED_HOSTS=[_HOST, "testserver"], RASTISI_DEFAULT_PLAN_CODE="trial",
     RASTISI_BILLING_WEBHOOK_SECRET=_BILLING_WEBHOOK_SECRET, RASTISI_BILLING_PROVIDER="manual",
+    RASTISI_ADMIN_DOMAIN_SUFFIX="rastisi.ir",
 )
 class JourneyATestCase(TestCase):
     """Journey A: register → auto-provision → onboard → purchase →
@@ -197,7 +198,10 @@ class JourneyATestCase(TestCase):
         self.assertTrue(custom_domain.is_primary)
         handle_domain.refresh_from_db()
         self.assertFalse(handle_domain.is_primary)
-        self.assertIsNotNone(handle_domain.retired_at)
+        # Permanent Rastisi handle remains a live alias after custom-domain activation.
+        # It is no longer primary, but it must not be retired so public requests can
+        # 301 to the active custom domain while /admin-portal/ stays on Rastisi.
+        self.assertIsNone(handle_domain.retired_at)
 
         with self.settings(ALLOWED_HOSTS=["shop.example.com", _HOST, "testserver"]):
             self.assertEqual(self.client.get("/", HTTP_HOST="shop.example.com").status_code, 200)
@@ -261,7 +265,10 @@ class JourneyATestCase(TestCase):
         self.assertTrue(StoreMembership.objects.filter(store=store, user=owner, status="active").exists())
 
 
-@override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
+@override_settings(
+    ALLOWED_HOSTS=[_HOST, "testserver"],
+    RASTISI_ADMIN_DOMAIN_SUFFIX="rastisi.ir",
+)
 class AdversarialSweepTests(TestCase):
     """A stranger — authenticated, but with no membership at all on this
     Store — must be refused (never 200, never leak existence via a

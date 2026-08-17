@@ -1,0 +1,8 @@
+{% load storefront_builder_extras %}
+<div id="storefrontContainerState" aria-hidden="true">
+  {% for container in containers %}
+  <span data-container-id="{{ container.pk }}" data-layout="{{ container.layout_key }}" data-container-order="{{ container.order }}">
+    {% for cell in container.cells.all %}<i data-cell-id="{{ cell.pk }}" data-span="{{ cell.span }}" data-section-id="{% if cell.section_id %}{{ cell.section_id }}{% endif %}" data-section-label="{% if cell.section_id %}{{ cell.section.section_key|section_label }}{% endif %}"></i>{% endfor %}
+  </span>
+  {% endfor %}
+</div>

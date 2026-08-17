@@ -9,6 +9,7 @@ from apps.stores.services.platform_code_service import generate_unique_platform_
 
 User = get_user_model()
 _PORTAL_HOST = "rastisi.localhost"
+_ADMIN_HOST = "centrallogin.rastisi.localhost"
 
 
 def _make_store(admin_subdomain="centrallogin"):
@@ -52,8 +53,9 @@ class AdminReturnTokenTests(TestCase):
 
 
 @override_settings(
-    ALLOWED_HOSTS=[_PORTAL_HOST, "centrallogin.rastisi.ir", "testserver"],
+    ALLOWED_HOSTS=[_PORTAL_HOST, _ADMIN_HOST, "testserver"],
     RASTISI_PLATFORM_PRIMARY_HOST=_PORTAL_HOST,
+    RASTISI_ADMIN_DOMAIN_SUFFIX="rastisi.localhost",
 )
 class UnauthenticatedAdminRequestRedirectsCentrallyTests(TestCase):
     def setUp(self):
@@ -61,7 +63,7 @@ class UnauthenticatedAdminRequestRedirectsCentrallyTests(TestCase):
         self.store = _make_store()
 
     def test_unauthenticated_dashboard_request_redirects_to_central_login(self):
-        response = self.client.get("/admin-portal/", HTTP_HOST="centrallogin.rastisi.ir")
+        response = self.client.get("/admin-portal/", HTTP_HOST=_ADMIN_HOST)
         self.assertEqual(response.status_code, 302)
         location = response["Location"]
         self.assertIn(_PORTAL_HOST, location)
@@ -69,13 +71,19 @@ class UnauthenticatedAdminRequestRedirectsCentrallyTests(TestCase):
         self.assertIn("admin_return=", location)
 
     def test_redirect_never_points_at_the_old_local_admin_login_page(self):
-        response = self.client.get("/admin-portal/", HTTP_HOST="centrallogin.rastisi.ir")
-        self.assertNotIn("centrallogin.rastisi.ir/admin-portal/login", response["Location"])
+        response = self.client.get("/admin-portal/", HTTP_HOST=_ADMIN_HOST)
+        self.assertNotIn(f"{_ADMIN_HOST}/admin-portal/login", response["Location"])
+
+    def test_local_dev_redirect_preserves_runserver_port(self):
+        response = self.client.get("/admin-portal/", HTTP_HOST=f"{_ADMIN_HOST}:8000")
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response["Location"].startswith(f"http://{_PORTAL_HOST}:8000/login/?"))
 
 
 @override_settings(
-    ALLOWED_HOSTS=[_PORTAL_HOST, "centrallogin.rastisi.ir", "testserver"],
+    ALLOWED_HOSTS=[_PORTAL_HOST, _ADMIN_HOST, "testserver"],
     RASTISI_PLATFORM_PRIMARY_HOST=_PORTAL_HOST,
+    RASTISI_ADMIN_DOMAIN_SUFFIX="rastisi.localhost",
 )
 class FullCentralLoginHandoffFlowTests(TestCase):
     def setUp(self):
@@ -93,7 +101,7 @@ class FullCentralLoginHandoffFlowTests(TestCase):
 
     def test_full_flow_lands_back_on_the_original_admin_destination(self):
         # 1) Unauthenticated request to a real admin_subdomain page.
-        first = self.client.get("/admin-portal/products/", HTTP_HOST="centrallogin.rastisi.ir")
+        first = self.client.get("/admin-portal/products/", HTTP_HOST=_ADMIN_HOST)
         self.assertEqual(first.status_code, 302)
         central_login_url = first["Location"]
 
@@ -112,16 +120,38 @@ class FullCentralLoginHandoffFlowTests(TestCase):
         response = self.client.post("/verify/", {"phone": "09121234590", "code": code}, HTTP_HOST=_PORTAL_HOST)
         self.assertEqual(response.status_code, 302)
         handoff_url = response["Location"]
-        self.assertIn("centrallogin.rastisi.ir", handoff_url)
+        self.assertIn(_ADMIN_HOST, handoff_url)
         self.assertIn("/admin-portal/handoff/", handoff_url)
 
         # 3) Follow the handoff on a fresh client (no portal cookies).
         admin_client = self.client_class()
         path = "/" + handoff_url.split("://", 1)[1].split("/", 1)[1]
-        final = admin_client.get(path, HTTP_HOST="centrallogin.rastisi.ir")
+        final = admin_client.get(path, HTTP_HOST=_ADMIN_HOST)
         self.assertEqual(final.status_code, 302)
         self.assertEqual(final["Location"], "/admin-portal/products/")
         self.assertIn("_auth_user_id", admin_client.session)
+
+    def test_post_login_handoff_preserves_runserver_port(self):
+        from apps.portal.models import OwnerProfile
+
+        token = build_admin_return_token(
+            admin_subdomain="centrallogin", destination_path="/admin-portal/storefront-builder/",
+        )
+        code = self._fixed_code()
+        phone = "09121234592"
+        self.client.post(
+            f"/login/?admin_return={token}", {"phone": phone},
+            HTTP_HOST=f"{_PORTAL_HOST}:8000",
+        )
+        OwnerProfile.objects.create(user=self.member, phone=phone)
+        response = self.client.post(
+            "/verify/", {"phone": phone, "code": code},
+            HTTP_HOST=f"{_PORTAL_HOST}:8000",
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response["Location"].startswith(
+            f"http://{_ADMIN_HOST}:8000/admin-portal/handoff/"
+        ))
 
     def test_login_without_membership_at_target_store_shows_error_not_leak(self):
         code = self._fixed_code()
@@ -133,4 +163,4 @@ class FullCentralLoginHandoffFlowTests(TestCase):
         # A brand-new, unrelated phone: no membership at "centrallogin" —
         # must never be silently handed off there. Ends up on the normal
         # onboarding/My-Stores path for their own new account instead.
-        self.assertNotIn("centrallogin.rastisi.ir", response.redirect_chain[-1][0] if response.redirect_chain else "")
+        self.assertNotIn(_ADMIN_HOST, response.redirect_chain[-1][0] if response.redirect_chain else "")

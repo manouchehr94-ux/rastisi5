@@ -87,6 +87,11 @@ class EditorAccessTests(StorefrontBuilderViewsTestCase):
         self.assertContains(resp, "data-section-id")
         self.assertContains(resp, "data-section-key")
 
+    def test_home_preview_does_not_inject_store_name_title_before_sections(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"), {"page": "home"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'class="storefront-page-title"')
+
     def test_preview_exposes_inline_canvas_toolbar(self):
         """Phase 8 P0-6 — ابزارِ شناورِ روی خودِ section در Canvas؛ فقط
         در Preview (نه صفحه‌ی عمومی)، دقیقاً کنارِ data-section-id."""
@@ -138,6 +143,130 @@ class EditorAccessTests(StorefrontBuilderViewsTestCase):
         other_client.login(username="sfb_other_owner", password="pass12345")
         resp = other_client.get(reverse("dashboard:storefront-builder-preview"))
         self.assertNotContains(resp, "SECRET-STORE-A-TEXT")
+
+
+class PrototypeV2Phase1ShellTests(StorefrontBuilderViewsTestCase):
+    """Phase 1 — the production editor uses the approved V2 prototype shell
+    while preserving the existing server-backed Draft/section endpoints."""
+
+    def test_editor_has_prototype_three_pane_shell(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertEqual(resp.status_code, 200)
+        for marker in (
+            "sfb-prototype-topbar",
+            "sfb-prototype-main",
+            "sfb-library-panel",
+            "sfb-workspace",
+            "sfb-inspector-panel",
+            'id="sfbInspectorBody"',
+        ):
+            self.assertContains(resp, marker)
+        html = resp.content.decode("utf-8")
+        self.assertLess(html.index("sfb-library-panel"), html.index("sfb-workspace"))
+        self.assertLess(html.index("sfb-workspace"), html.index("sfb-inspector-panel"))
+
+    def test_topbar_matches_prototype_information_architecture(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertContains(resp, "راستی‌سی — سازنده ظاهر")
+        self.assertContains(resp, "پیش‌نویس ذخیره شده")
+        self.assertContains(resp, "پیش‌نمایش")
+        self.assertContains(resp, "انتشار")
+        self.assertContains(resp, "↶ بازگشت")
+        self.assertContains(resp, "↷ جلو")
+        self.assertContains(resp, 'aria-label="انتخاب صفحه"')
+
+    def test_prototype_page_selector_exposes_all_real_builder_pages(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        for page_type, label in StorefrontPage.PageType.choices:
+            self.assertContains(resp, f'value="{page_type}"')
+            self.assertContains(resp, label)
+
+    def test_library_and_modal_reuse_server_side_section_allowlist(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertContains(resp, "کتابخانه اجزا")
+        self.assertContains(resp, "sfb-prototype-search")
+        self.assertContains(resp, "sfb-add-modal")
+        self.assertContains(resp, reverse("dashboard:storefront-builder-section-add"))
+        self.assertContains(resp, 'hx-target="#storefrontSectionList"')
+        # Hidden mutation mirror keeps all existing htmx write paths on the
+        # same proven server endpoints instead of inventing client-only state.
+        self.assertContains(resp, "sfb-section-state")
+        self.assertContains(resp, 'id="storefrontSectionList"')
+
+    def test_inspector_is_permanent_and_uses_existing_settings_endpoint(self):
+        draft = svc.get_or_create_draft(self.store, user=self.staff)
+        page = draft.get_page(StorefrontPage.PageType.HOME)
+        section = page.sections.order_by("order", "id").first()
+        self.assertIsNotNone(section)
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertContains(resp, 'id="sfbInspectorBody"')
+        self.assertContains(resp, reverse("dashboard:storefront-builder-section-settings", args=[0]))
+        self.assertContains(resp, "selectSection(initialId")
+        self.assertNotContains(resp, 'id="sfbDrawerBody"')
+
+    def test_global_header_footer_and_appearance_open_in_same_inspector(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertContains(resp, reverse("dashboard:storefront-builder-header"))
+        self.assertContains(resp, reverse("dashboard:storefront-builder-footer"))
+        self.assertContains(resp, reverse("dashboard:storefront-builder-appearance"))
+        self.assertContains(resp, "openPanelUrl")
+        appearance = self.client.get(
+            reverse("dashboard:storefront-builder-appearance"),
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(appearance.status_code, 200)
+        self.assertContains(appearance, 'hx-target="#sfbInspectorBody"')
+
+    def test_workspace_reuses_one_real_draft_preview_iframe(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        html = resp.content.decode("utf-8")
+        self.assertEqual(html.count('id="sfbPreviewFrame"'), 1)
+        self.assertContains(resp, reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, "sfb-device-toggle")
+        self.assertContains(resp, "دسکتاپ")
+        self.assertContains(resp, "موبایل")
+        self.assertContains(resp, "sfb-floating-add")
+
+
+class PrototypeV2Phase2InteractionFoundationTests(StorefrontBuilderViewsTestCase):
+    """Phase 2.1 — the single-screen builder exposes real section operations
+    and reports unsaved inspector edits truthfully without inventing new write paths."""
+
+    def _first_section(self):
+        draft = svc.get_or_create_draft(self.store, user=self.staff)
+        page = draft.get_page(StorefrontPage.PageType.HOME)
+        section = page.sections.order_by("order", "id").first()
+        self.assertIsNotNone(section)
+        return section
+
+    def test_editor_tracks_unsaved_inspector_edits_and_exposes_lock_endpoint(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertContains(resp, "saveStatusLabel")
+        self.assertContains(resp, "تغییرات ذخیره‌نشده")
+        self.assertContains(resp, "inspector.addEventListener('input'")
+        self.assertContains(resp, "inspector.addEventListener('change'")
+        self.assertContains(resp, 'data-lock-url-template=')
+        self.assertContains(resp, "lock: ['data-lock-url-template', 'lock']")
+
+    def test_section_inspector_surfaces_core_operations_in_one_toolbar(self):
+        section = self._first_section()
+        resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "sfb-inspector-section-actions")
+        for command in ("up", "down", "duplicate", "toggle", "lock", "remove"):
+            self.assertContains(resp, f"sectionCommand({section.pk}, '{command}')")
+
+    def test_locked_section_is_visibly_locked_and_cannot_drag_or_remove_from_canvas(self):
+        section = self._first_section()
+        section.is_locked = True
+        section.save(update_fields=["is_locked", "updated_at"])
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, f'data-section-id="{section.pk}"')
+        self.assertContains(resp, 'data-section-locked="1"')
+        self.assertContains(resp, "sfb-rsec-locked")
+        self.assertContains(resp, 'data-cmd="lock"')
+        self.assertContains(resp, 'draggable="false"')
+
 
 
 class FullscreenEditorTests(StorefrontBuilderViewsTestCase):
@@ -1976,3 +2105,402 @@ class CartContextAwareSectionsPreviewTests(StorefrontBuilderViewsTestCase):
         })
         self.assertEqual(resp.status_code, 400)
         self.assertEqual(home_page.sections.filter(section_key="cart_items").count(), 0)
+
+
+class PrototypeV2Phase2UndoRedoTests(StorefrontBuilderViewsTestCase):
+    """Phase 2.2: topbar Undo/Redo operates on the real server-side Draft."""
+
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store, user=self.staff)
+        self.draft.sections.all().delete()
+        self.draft.edit_history_entries.all().delete()
+
+    def _section_by_stable_id(self, stable_id):
+        return StorefrontSection.objects.get(page__version=self.draft, stable_id=stable_id)
+
+    def test_editor_wires_real_history_endpoints(self):
+        response = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("dashboard:storefront-builder-undo"))
+        self.assertContains(response, reverse("dashboard:storefront-builder-redo"))
+        self.assertContains(response, reverse("dashboard:storefront-builder-edit-history-state"))
+        self.assertContains(response, "historyStep('undo')")
+        self.assertContains(response, "historyStep('redo')")
+        self.assertNotContains(response, "Undo/Redo در فاز ۲ فعال می‌شود")
+
+    def test_toggle_can_be_undone_and_redone(self):
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="rich_text", order=0, is_active=True,
+        )
+        stable_id = section.stable_id
+
+        self.client.post(reverse("dashboard:storefront-builder-section-toggle", args=[section.pk]))
+        current = self._section_by_stable_id(stable_id)
+        self.assertFalse(current.is_active)
+        self.assertEqual(self.draft.edit_history_entries.count(), 1)
+
+        undo = self.client.post(reverse("dashboard:storefront-builder-undo"))
+        self.assertEqual(undo.status_code, 200)
+        self.assertTrue(undo.json()["ok"])
+        self.assertTrue(self._section_by_stable_id(stable_id).is_active)
+        self.assertTrue(undo.json()["can_redo"])
+
+        redo = self.client.post(reverse("dashboard:storefront-builder-redo"))
+        self.assertEqual(redo.status_code, 200)
+        self.assertTrue(redo.json()["ok"])
+        self.assertFalse(self._section_by_stable_id(stable_id).is_active)
+
+    def test_undo_remove_restores_section_scoped_media(self):
+        from apps.content.models import HeroSlide
+
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="hero_banner", order=0,
+        )
+        stable_id = section.stable_id
+        HeroSlide.objects.create(
+            store=self.store,
+            section=section,
+            title="Undo hero",
+            desktop_image="homepage/hero/undo-test.jpg",
+            display_order=0,
+        )
+
+        self.client.post(reverse("dashboard:storefront-builder-section-remove", args=[section.pk]))
+        self.assertFalse(StorefrontSection.objects.filter(page__version=self.draft, stable_id=stable_id).exists())
+        self.assertFalse(HeroSlide.objects.filter(store=self.store, title="Undo hero", section__isnull=False).exists())
+
+        self.client.post(reverse("dashboard:storefront-builder-undo"))
+        restored = self._section_by_stable_id(stable_id)
+        slide = restored.hero_slides.get()
+        self.assertEqual(slide.title, "Undo hero")
+        self.assertEqual(slide.desktop_image.name, "homepage/hero/undo-test.jpg")
+
+    def test_noop_locked_remove_creates_no_history_entry(self):
+        section = StorefrontSection.objects.create(
+            version=self.draft, section_key="rich_text", order=0, is_locked=True,
+        )
+        response = self.client.post(reverse("dashboard:storefront-builder-section-remove", args=[section.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.draft.edit_history_entries.count(), 0)
+
+    def test_new_edit_after_undo_discards_redo_branch(self):
+        section = StorefrontSection.objects.create(version=self.draft, section_key="rich_text", order=0)
+        stable_id = section.stable_id
+        self.client.post(reverse("dashboard:storefront-builder-section-toggle", args=[section.pk]))
+        self.client.post(reverse("dashboard:storefront-builder-undo"))
+
+        restored = self._section_by_stable_id(stable_id)
+        self.client.post(reverse("dashboard:storefront-builder-section-lock", args=[restored.pk]))
+
+        state = self.client.get(reverse("dashboard:storefront-builder-edit-history-state")).json()
+        self.assertTrue(state["can_undo"])
+        self.assertFalse(state["can_redo"])
+        redo = self.client.post(reverse("dashboard:storefront-builder-redo")).json()
+        self.assertFalse(redo["ok"])
+
+    def test_header_settings_are_part_of_undo_snapshot(self):
+        original = dict(self.draft.header_config or {})
+        payload = {
+            "show_search": "on",
+            "show_account": "on",
+            "show_cart": "on",
+            "show_wishlist": "on",
+            "sticky": "on",
+            "announcement_enabled": "on",
+            "announcement_text": "Undoable announcement",
+        }
+        response = self.client.post(reverse("dashboard:storefront-builder-header"), payload)
+        self.assertEqual(response.status_code, 302)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.header_config.get("announcement_text"), "Undoable announcement")
+
+        self.client.post(reverse("dashboard:storefront-builder-undo"))
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.header_config, original)
+
+
+class PrototypeV2Phase23LibraryDragInsertTests(StorefrontBuilderViewsTestCase):
+    """Phase 2.3 — Library blocks can be dragged onto the live Canvas and
+    inserted at a precise server-backed position without bypassing row rules."""
+
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store, user=self.staff)
+        self.page = self.draft.get_page(StorefrontPage.PageType.HOME)
+        self.page.sections.all().delete()
+        self.draft.edit_history_entries.all().delete()
+
+    def _rich_text(self, order, **kwargs):
+        return StorefrontSection.objects.create(
+            page=self.page, section_key="rich_text", order=order,
+            settings={"body_html": f"section-{order}"}, **kwargs,
+        )
+
+    def test_editor_library_targets_real_cells_instead_of_freeform_drop_overlay(self):
+        response = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertEqual(response.status_code, 200)
+        for marker in (
+            'data-cell-add-section-url=',
+            'data-container-add-url=',
+            'openCellLibrary(',
+            'addContentBlock(',
+            'targetCellId',
+            'storefrontContainerState',
+        ):
+            self.assertContains(response, marker)
+        self.assertNotContains(response, 'sfb-library-drop-overlay')
+        self.assertNotContains(response, '@dragstart="beginLibraryDrag')
+
+    def test_add_section_before_reference_inserts_and_resequences(self):
+        first = self._rich_text(0)
+        second = self._rich_text(1)
+        third = self._rich_text(2)
+
+        response = self.client.post(reverse("dashboard:storefront-builder-section-add"), {
+            "section_key": "rich_text",
+            "page": StorefrontPage.PageType.HOME,
+            "before_section_id": str(second.pk),
+        })
+        self.assertEqual(response.status_code, 200)
+
+        ordered = list(self.page.sections.order_by("order", "id"))
+        self.assertEqual(len(ordered), 4)
+        self.assertEqual(ordered[0].pk, first.pk)
+        self.assertNotIn(ordered[1].pk, {first.pk, second.pk, third.pk})
+        self.assertEqual(ordered[2].pk, second.pk)
+        self.assertEqual(ordered[3].pk, third.pk)
+        self.assertEqual([section.order for section in ordered], [0, 1, 2, 3])
+        self.assertIn('"insertAt": 1', response.headers["HX-Trigger-After-Swap"])
+        self.assertIn(f'"sectionId": {ordered[1].pk}', response.headers["HX-Trigger-After-Swap"])
+        self.assertEqual(self.draft.edit_history_entries.count(), 1)
+
+    def test_click_style_add_without_position_still_appends(self):
+        first = self._rich_text(0)
+        response = self.client.post(reverse("dashboard:storefront-builder-section-add"), {
+            "section_key": "rich_text",
+            "page": StorefrontPage.PageType.HOME,
+        })
+        self.assertEqual(response.status_code, 200)
+        ordered = list(self.page.sections.order_by("order", "id"))
+        self.assertEqual(ordered[0].pk, first.pk)
+        self.assertEqual(ordered[-1].order, 1)
+        self.assertNotEqual(ordered[-1].pk, first.pk)
+
+    def test_foreign_page_reference_is_rejected_without_mutation(self):
+        self._rich_text(0)
+        other_page = self.draft.get_page(StorefrontPage.PageType.PRODUCT_DETAIL)
+        foreign = StorefrontSection.objects.create(
+            page=other_page, section_key="rich_text", order=0, settings={"body_html": "other"},
+        )
+        before = list(self.page.sections.values_list("pk", "order"))
+        response = self.client.post(reverse("dashboard:storefront-builder-section-add"), {
+            "section_key": "rich_text",
+            "page": StorefrontPage.PageType.HOME,
+            "before_section_id": str(foreign.pk),
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(list(self.page.sections.values_list("pk", "order")), before)
+        self.assertEqual(self.draft.edit_history_entries.count(), 0)
+
+    def test_drop_inside_composite_row_is_refused_without_breaking_row(self):
+        left = self._rich_text(0, row_key="pair", row_span=6)
+        right = self._rich_text(1, row_key="pair", row_span=6)
+        before = list(self.page.sections.values_list("pk", "order", "row_key", "row_span"))
+
+        response = self.client.post(reverse("dashboard:storefront-builder-section-add"), {
+            "section_key": "rich_text",
+            "page": StorefrontPage.PageType.HOME,
+            "before_section_id": str(right.pk),
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            list(self.page.sections.values_list("pk", "order", "row_key", "row_span")),
+            before,
+        )
+        self.assertTrue(self.page.sections.filter(pk=left.pk, row_key="pair", row_span=6).exists())
+        self.assertTrue(self.page.sections.filter(pk=right.pk, row_key="pair", row_span=6).exists())
+        self.assertEqual(self.draft.edit_history_entries.count(), 0)
+
+
+class PrototypeV2Phase24AdvancedInspectorRowLayoutTests(StorefrontBuilderViewsTestCase):
+    """Phase 2.4 — Basic/Advanced Inspector plus safe 12-column row presets."""
+
+    def setUp(self):
+        super().setUp()
+        self.draft = svc.get_or_create_draft(self.store, user=self.staff)
+        self.page = self.draft.get_page(StorefrontPage.PageType.HOME)
+        self.page.sections.all().delete()
+        self.draft.edit_history_entries.all().delete()
+
+    def _section(self, order, **kwargs):
+        return StorefrontSection.objects.create(
+            page=self.page, section_key="rich_text", order=order,
+            settings={"body_html": f"section-{order}"}, **kwargs,
+        )
+
+    def test_settings_inspector_keeps_content_tabs_but_layout_moves_to_container_inspector(self):
+        section = self._section(0)
+        from apps.storefront_builder.services import container_service
+        container = container_service.create_empty_container(self.page, "single")
+        container_service.place_section(container.cells.get(), section)
+
+        response = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "sfb-inspector-tabs")
+        self.assertContains(response, "inspectorTab === 'advanced'")
+        self.assertContains(response, "این پنل فقط محتوای این خانه را تنظیم می‌کند")
+        self.assertContains(response, "sfb-advanced-field")
+        self.assertNotContains(response, "چیدمان ردیف")
+        self.assertNotContains(response, reverse("dashboard:storefront-builder-section-row-layout", args=[section.pk]))
+
+        layout_response = self.client.get(
+            reverse("dashboard:storefront-builder-container-settings", args=[container.pk]),
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertContains(layout_response, "hx-vals='{\"layout_key\":\"half\"}'")
+        self.assertContains(layout_response, "hx-vals='{\"layout_key\":\"quarter_left\"}'")
+        self.assertContains(layout_response, "hx-vals='{\"layout_key\":\"quarter_right\"}'")
+        self.assertContains(layout_response, "hx-vals='{\"layout_key\":\"thirds\"}'")
+        self.assertContains(layout_response, "hx-vals='{\"layout_key\":\"quarters\"}'")
+
+    def test_half_preset_groups_selected_and_next_section(self):
+        first = self._section(0); second = self._section(1); third = self._section(2)
+        response = self.client.post(reverse("dashboard:storefront-builder-section-row-layout", args=[first.pk]), {"layout_mode": "half"})
+        self.assertEqual(response.status_code, 200)
+        first.refresh_from_db(); second.refresh_from_db(); third.refresh_from_db()
+        self.assertTrue(first.row_key)
+        self.assertEqual(first.row_key, second.row_key)
+        self.assertEqual((first.row_span, second.row_span), (6, 6))
+        self.assertEqual((third.row_key, third.row_span), ("", 12))
+        # Row-layout Inspector refresh intentionally runs after HTMX settle.
+        self.assertIn("sfbRowLayoutChanged", response.headers["HX-Trigger-After-Settle"])
+        self.assertEqual(self.draft.edit_history_entries.count(), 1)
+
+    def test_asymmetric_and_three_column_presets_use_expected_spans(self):
+        first = self._section(0); second = self._section(1); third = self._section(2)
+        self.client.post(reverse("dashboard:storefront-builder-section-row-layout", args=[first.pk]), {"layout_mode": "thirds"})
+        first.refresh_from_db(); second.refresh_from_db(); third.refresh_from_db()
+        self.assertEqual([first.row_span, second.row_span, third.row_span], [4, 4, 4])
+        self.assertEqual(len({first.row_key, second.row_key, third.row_key}), 1)
+        self.client.post(reverse("dashboard:storefront-builder-section-row-layout", args=[first.pk]), {"layout_mode": "full"})
+        for item in (first, second, third): item.refresh_from_db()
+        self.assertEqual([(x.row_key, x.row_span) for x in (first, second, third)], [("", 12)] * 3)
+        self.client.post(reverse("dashboard:storefront-builder-section-row-layout", args=[first.pk]), {"layout_mode": "third_left"})
+        first.refresh_from_db(); second.refresh_from_db()
+        self.assertEqual((first.row_span, second.row_span), (4, 8))
+
+    def test_quarter_asymmetric_presets_use_expected_spans(self):
+        first = self._section(0); second = self._section(1)
+        self.client.post(reverse("dashboard:storefront-builder-section-row-layout", args=[first.pk]), {"layout_mode": "quarter_left"})
+        first.refresh_from_db(); second.refresh_from_db()
+        self.assertEqual((first.row_span, second.row_span), (3, 9))
+        self.assertEqual(first.row_key, second.row_key)
+        self.client.post(reverse("dashboard:storefront-builder-section-row-layout", args=[first.pk]), {"layout_mode": "full"})
+        first.refresh_from_db(); second.refresh_from_db()
+        self.client.post(reverse("dashboard:storefront-builder-section-row-layout", args=[first.pk]), {"layout_mode": "quarter_right"})
+        first.refresh_from_db(); second.refresh_from_db()
+        self.assertEqual((first.row_span, second.row_span), (9, 3))
+        self.assertEqual(first.row_key, second.row_key)
+
+    def test_quarters_requires_four_available_standalone_sections(self):
+        first = self._section(0); self._section(1); self._section(2)
+        before = list(self.page.sections.values_list("pk", "row_key", "row_span"))
+        response = self.client.post(reverse("dashboard:storefront-builder-section-row-layout", args=[first.pk]), {"layout_mode": "quarters"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(self.page.sections.values_list("pk", "row_key", "row_span")), before)
+        self.assertEqual(self.draft.edit_history_entries.count(), 0)
+
+    def test_locked_target_refuses_grouping_without_history(self):
+        first = self._section(0); second = self._section(1, is_locked=True)
+        response = self.client.post(reverse("dashboard:storefront-builder-section-row-layout", args=[first.pk]), {"layout_mode": "half"})
+        self.assertEqual(response.status_code, 200)
+        first.refresh_from_db(); second.refresh_from_db()
+        self.assertEqual((first.row_key, second.row_key), ("", ""))
+        self.assertEqual(self.draft.edit_history_entries.count(), 0)
+
+    def test_existing_row_converts_directly_to_new_preset(self):
+        first = self._section(0, row_key="pair", row_span=6)
+        second = self._section(1, row_key="pair", row_span=6)
+        third = self._section(2)
+        response = self.client.post(
+            reverse("dashboard:storefront-builder-section-row-layout", args=[first.pk]),
+            {"layout_mode": "thirds"},
+        )
+        self.assertEqual(response.status_code, 200)
+        for item in (first, second, third):
+            item.refresh_from_db()
+        self.assertEqual([first.row_span, second.row_span, third.row_span], [4, 4, 4])
+        self.assertEqual({first.row_key, second.row_key, third.row_key}, {"pair"})
+        self.assertEqual(self.draft.edit_history_entries.count(), 1)
+
+    def test_row_assignment_participates_in_real_undo(self):
+        first = self._section(0); second = self._section(1)
+        first_stable_id, second_stable_id = first.stable_id, second.stable_id
+        self.client.post(reverse("dashboard:storefront-builder-section-row-layout", args=[first.pk]), {"layout_mode": "half"})
+        first.refresh_from_db(); second.refresh_from_db(); self.assertTrue(first.row_key)
+        undo = self.client.post(reverse("dashboard:storefront-builder-undo"))
+        self.assertTrue(undo.json()["ok"])
+        first = self.page.sections.get(stable_id=first_stable_id)
+        second = self.page.sections.get(stable_id=second_stable_id)
+        self.assertEqual((first.row_key, first.row_span), ("", 12))
+        self.assertEqual((second.row_key, second.row_span), ("", 12))
+
+
+class PrototypeV2Phase25MobileKeyboardAccessibilityTests(StorefrontBuilderViewsTestCase):
+    """Phase 2.5 — compact navigation and keyboard/a11y hooks reuse real editor paths."""
+
+    def test_editor_has_three_way_mobile_navigation_with_aria_state(self):
+        response = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "sfb-mobile-builder-nav")
+        self.assertContains(response, "sfb-mobile-panel-")
+        self.assertContains(response, "setMobilePanel('library')")
+        self.assertContains(response, "setMobilePanel('canvas')")
+        self.assertContains(response, "setMobilePanel('inspector')")
+        self.assertContains(response, ':aria-pressed="mobilePanel === \'canvas\'"')
+
+    def test_global_keyboard_shortcuts_are_guarded_away_from_editable_fields(self):
+        response = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertContains(response, "handleGlobalKeydown($event)")
+        self.assertContains(response, "isEditableTarget(target)")
+        self.assertContains(response, "event.ctrlKey || event.metaKey")
+        self.assertContains(response, "this.historyStep(event.shiftKey ? 'redo' : 'undo')")
+        self.assertContains(response, "this.sectionCommand(this.selectedSectionId")
+
+    def test_add_dialog_has_focus_management_and_modal_semantics(self):
+        response = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertContains(response, 'id="sfbAddModal"')
+        self.assertContains(response, 'role="dialog"')
+        self.assertContains(response, 'aria-modal="true"')
+        self.assertContains(response, 'x-ref="addModal"')
+        self.assertContains(response, "trapModalFocus($event)")
+        self.assertContains(response, "openAddModal($event)")
+        self.assertContains(response, "closeAddModal()")
+
+    def test_preview_sections_are_keyboard_focusable_regions(self):
+        draft = svc.get_or_create_draft(self.store, user=self.staff)
+        page = draft.get_page(StorefrontPage.PageType.HOME)
+        section = page.sections.order_by("order", "id").first()
+        response = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(response, f'data-section-id="{section.pk}"')
+        self.assertContains(response, 'role="region"')
+        self.assertContains(response, 'tabindex="0"')
+        self.assertContains(response, "بخش قابل ویرایش")
+        self.assertContains(response, "evt.altKey")
+        self.assertContains(response, "'ArrowUp'")
+        self.assertContains(response, "'ArrowDown'")
+        self.assertContains(response, "aria-current")
+        self.assertContains(response, "sfb:historyStep")
+
+    def test_escape_returns_compact_editor_to_canvas_before_exiting_fullscreen(self):
+        response = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertContains(response, "this.mobilePanel !== 'canvas'")
+        self.assertContains(response, "this.setMobilePanel('canvas')")
+        self.assertContains(response, "if (this.fullscreen) this.fullscreen = false")
+
+    def test_mobile_selection_opens_inspector_but_initial_selection_does_not_steal_panel(self):
+        response = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        self.assertContains(response, "options.openInspector !== false")
+        self.assertContains(response, "openInspector: false")
+        self.assertContains(response, "focusPanel('inspector')")

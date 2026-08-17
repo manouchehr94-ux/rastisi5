@@ -1,5 +1,37 @@
-<div class="sfb-drawer-body" x-data="{ deleteConfirmOpen: false }">
-  <p class="sfb-drawer-subtitle">{{ definition.label_fa }} — تنظیمات ساده و قابل فهم</p>
+{% load storefront_builder_extras %}
+<div class="sfb-drawer-body"
+     data-inspector-section-id="{{ section.pk }}"
+     data-inspector-locked="{% if section.is_locked %}1{% else %}0{% endif %}"
+     data-inspector-row-key="{{ section.row_key }}"
+     x-data="{ deleteConfirmOpen: false, inspectorTab: window.sfbInspectorTab || 'basic' }"
+     :class="{ 'is-advanced-tab': inspectorTab === 'advanced' }">
+  <div class="sfb-inspector-tabs" role="tablist" aria-label="سطح تنظیمات">
+    <button type="button" role="tab" :aria-selected="inspectorTab === 'basic'"
+            :class="{ active: inspectorTab === 'basic' }"
+            @click="inspectorTab = 'basic'; window.sfbInspectorTab = 'basic'">پایه</button>
+    <button type="button" role="tab" :aria-selected="inspectorTab === 'advanced'"
+            :class="{ active: inspectorTab === 'advanced' }"
+            @click="inspectorTab = 'advanced'; window.sfbInspectorTab = 'advanced'">پیشرفته</button>
+  </div>
+  <div class="sfb-inspector-section-actions" role="toolbar" aria-label="عملیات محتوا">
+    {% if placement_cell %}
+    <button type="button" @click="containerCommand({{ placement_cell.container_id }}, 'up')" {% if placement_cell.container.is_locked %}disabled{% endif %} title="انتقال چیدمان به بالا">↑</button>
+    <button type="button" @click="containerCommand({{ placement_cell.container_id }}, 'down')" {% if placement_cell.container.is_locked %}disabled{% endif %} title="انتقال چیدمان به پایین">↓</button>
+    {% else %}
+    <button type="button" @click="sectionCommand({{ section.pk }}, 'up')" {% if section.is_locked %}disabled{% endif %} title="انتقال به بالا">↑</button>
+    <button type="button" @click="sectionCommand({{ section.pk }}, 'down')" {% if section.is_locked %}disabled{% endif %} title="انتقال به پایین">↓</button>
+    {% endif %}
+    <button type="button" @click="sectionCommand({{ section.pk }}, 'duplicate')" {% if not definition.duplicable %}disabled{% endif %} title="کپی محتوا">⧉</button>
+    <button type="button" @click="sectionCommand({{ section.pk }}, 'toggle')" title="نمایش/مخفی">{% if section.is_active %}👁{% else %}⊘{% endif %}</button>
+    <button type="button" @click="sectionCommand({{ section.pk }}, 'lock')" title="{% if section.is_locked %}بازکردن قفل{% else %}قفل‌کردن{% endif %}">{% if section.is_locked %}🔓{% else %}🔒{% endif %}</button>
+    {% if placement_cell %}
+    <button type="button" class="danger" @click="if (confirm('محتوای این خانه حذف شود؟ خود خانه و چیدمان باقی می‌ماند.')) cellCommand({{ placement_cell.pk }}, 'clear', {{ section.pk }})" {% if section.is_locked or placement_cell.container.is_locked or not definition.removable %}disabled{% endif %} title="خالی کردن خانه">×</button>
+    {% else %}
+    <button type="button" class="danger" @click="if (confirm('این بخش برای همیشه حذف شود؟')) sectionCommand({{ section.pk }}, 'remove')" {% if section.is_locked or not definition.removable %}disabled{% endif %} title="حذف">×</button>
+    {% endif %}
+  </div>
+  <p class="sfb-drawer-subtitle">{{ definition.label_fa }} — این پنل فقط محتوای این خانه را تنظیم می‌کند{% if placement_cell %} · شکل و اندازه خانه از «تنظیم چیدمان» کنترل می‌شود{% endif %}{% if section.is_locked %} · این محتوا قفل است{% endif %}</p>
+
   {% if field_errors.general %}<div class="field-error" style="margin-bottom:10px">{{ field_errors.general }}</div>{% endif %}
   {% if section.section_key == "product_section" %}
   {{ initial_manual_products|json_script:"ps-initial-products" }}
@@ -138,7 +170,7 @@
     {% include "dashboard/storefront_builder/partials/section_card_fields.html" %}
     {% include "dashboard/storefront_builder/partials/section_motion_fields.html" %}
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -164,18 +196,23 @@
     </div>
     <div class="form-group">
       <label for="id_body_html">متن</label>
-      <div x-data="richTextEditor()" x-init="mount()">
-        <textarea class="inp" name="body_html" id="id_body_html" x-ref="source" style="min-height:160px">{{ section.settings.body_html|default:"" }}</textarea>
+      <p class="sfb-field-help">متن نهایی را بنویس؛ عنوان، پررنگ، فهرست و لینک در همین ویرایشگر در دسترس است.</p>
+      <div class="sfb-rich-editor" x-data="storefrontRichTextEditor()" x-init="mount()">
+        <textarea class="inp sfb-rich-text-source" name="body_html" id="id_body_html" x-ref="source" aria-hidden="true" tabindex="-1">{{ section.settings.body_html|default:"" }}</textarea>
       </div>
     </div>
 
-    {% include "dashboard/storefront_builder/partials/section_destination_fields.html" %}
+    <details class="sfb-advanced-disclosure">
+      <summary>تنظیمات بیشتر</summary>
+      <div class="sfb-advanced-disclosure-body">
+        {% include "dashboard/storefront_builder/partials/section_destination_fields.html" %}
+        {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+        {% include "dashboard/storefront_builder/partials/section_layout_fields.html" %}
+        {% include "dashboard/storefront_builder/partials/section_motion_fields.html" %}
+      </div>
+    </details>
 
-    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
-    {% include "dashboard/storefront_builder/partials/section_layout_fields.html" %}
-    {% include "dashboard/storefront_builder/partials/section_motion_fields.html" %}
-
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -186,14 +223,20 @@
     {% csrf_token %}
     <div class="form-group">
       <label for="id_body_html">متن</label>
-      <div x-data="richTextEditor()" x-init="mount()">
-        <textarea class="inp" name="body_html" id="id_body_html" x-ref="source" style="min-height:160px">{{ section.settings.body_html|default:"" }}</textarea>
+      <p class="sfb-field-help">فقط محتوایی را که مشتری باید ببیند بنویس؛ کد HTML نمایش داده نمی‌شود.</p>
+      <div class="sfb-rich-editor" x-data="storefrontRichTextEditor()" x-init="mount()">
+        <textarea class="inp sfb-rich-text-source" name="body_html" id="id_body_html" x-ref="source" aria-hidden="true" tabindex="-1">{{ section.settings.body_html|default:"" }}</textarea>
       </div>
     </div>
 
-    {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+    <details class="sfb-advanced-disclosure">
+      <summary>تنظیمات بیشتر</summary>
+      <div class="sfb-advanced-disclosure-body">
+        {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
+      </div>
+    </details>
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -236,12 +279,21 @@
         چرخش پیوسته (بعد از آخرین اسلاید به اول برگردد)
       </label>
     </div>
+    <div class="form-group">
+      <label for="id_hero_text_position">جای متن روی تصویر</label>
+      <select name="text_position" id="id_hero_text_position" class="form-select">
+        <option value="start" {% if section.settings.text_position == "start" %}selected{% endif %}>سمت راست</option>
+        <option value="center" {% if section.settings.text_position == "center" %}selected{% endif %}>وسط</option>
+        <option value="end" {% if section.settings.text_position != "start" and section.settings.text_position != "center" %}selected{% endif %}>سمت چپ</option>
+      </select>
+      <p style="color:var(--muted);font-size:12px;margin:6px 0 0">فقط جای عنوان، توضیح و دکمه را تغییر می‌دهد؛ خود تصویر دست‌نخورده می‌ماند.</p>
+    </div>
 
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
     {% include "dashboard/storefront_builder/partials/section_layout_fields.html" %}
     {% include "dashboard/storefront_builder/partials/section_motion_fields.html" %}
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -297,7 +349,7 @@
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
     {% include "dashboard/storefront_builder/partials/section_motion_fields.html" %}
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -354,7 +406,7 @@
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
     {% include "dashboard/storefront_builder/partials/section_motion_fields.html" %}
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -398,7 +450,7 @@
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
     {% include "dashboard/storefront_builder/partials/section_motion_fields.html" %}
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -425,7 +477,7 @@
 
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -461,7 +513,7 @@
 
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -501,7 +553,7 @@
 
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -525,7 +577,7 @@
 
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -550,7 +602,7 @@
 
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -566,7 +618,7 @@
     {% include "dashboard/storefront_builder/partials/section_layout_fields.html" %}
     {% include "dashboard/storefront_builder/partials/section_motion_fields.html" %}
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -586,7 +638,7 @@
     {% include "dashboard/storefront_builder/partials/section_card_fields.html" %}
     {% endif %}
 
-    <div style="display:flex;gap:10px;margin-top:16px">
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px">
       <button type="submit" class="btn btn-primary">ذخیره تنظیمات</button>
       <button type="button" class="btn" @click="$dispatch('close-settings-drawer')">انصراف</button>
     </div>
@@ -605,18 +657,23 @@
       {% endif %}
       {% if definition.removable %}
       <button type="button" class="btn btn-danger"
-              @click="deleteConfirmOpen = true">حذف این بخش</button>
+              @click="deleteConfirmOpen = true">{% if placement_cell %}خالی کردن این خانه{% else %}حذف این بخش{% endif %}</button>
       {% endif %}
     </div>
     {% if definition.removable %}
     <div class="sfb-inline-confirm" x-show="deleteConfirmOpen" x-cloak>
-      <p>این بخش برای همیشه حذف شود؟</p>
+      <p>{% if placement_cell %}محتوای این خانه حذف شود؟ خود خانه و چیدمان باقی می‌ماند.{% else %}این بخش برای همیشه حذف شود؟{% endif %}</p>
       <div style="display:flex;gap:8px">
         <button type="button" class="btn btn-sm" @click="deleteConfirmOpen = false">انصراف</button>
+        {% if placement_cell %}
+        <button type="button" class="btn btn-sm btn-danger"
+                @click="cellCommand({{ placement_cell.pk }}, 'clear', {{ section.pk }}); deleteConfirmOpen = false">بله، محتوا حذف شود</button>
+        {% else %}
         <button type="button" class="btn btn-sm btn-danger"
                 hx-post="{% url 'dashboard:storefront-builder-section-remove' section.pk %}"
                 hx-target="#storefrontSectionList" hx-swap="outerHTML"
                 @click="$dispatch('close-settings-drawer')">بله، حذف شود</button>
+        {% endif %}
       </div>
     </div>
     {% endif %}

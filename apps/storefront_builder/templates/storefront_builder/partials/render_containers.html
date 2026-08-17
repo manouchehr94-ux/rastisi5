@@ -1,0 +1,55 @@
+{% load storefront_builder_extras %}
+{% for composition in render_containers %}
+{% with container=composition.container csettings=composition.settings %}
+<div class="rcontainer{% if is_preview %} sfb-builder-container{% endif %}"
+     style="--container-gap:{{ csettings.gap }}px{% if csettings.background_color %};background-color:{{ csettings.background_color }}{% endif %}"
+     data-layout="{{ container.layout_key }}"
+     data-mobile-mode="{{ csettings.mobile_mode }}"
+     data-content-width="{{ csettings.content_width }}"
+     data-vertical-align="{{ csettings.vertical_align }}"
+     data-height-mode="{{ csettings.height_mode }}"
+     {% if csettings.background_mode != "transparent" %}data-container-bg="{{ csettings.background_mode }}"{% endif %}
+     {% if csettings.background_mode == "pattern" and csettings.background_pattern %}data-container-pattern="{{ csettings.background_pattern }}"{% endif %}
+     {% if is_preview %}data-container-id="{{ container.pk }}" data-container-locked="{% if container.is_locked %}1{% else %}0{% endif %}"{% endif %}>
+  {% if is_preview %}
+  <div class="sfb-rcontainer-toolbar" role="toolbar" aria-label="ابزار چیدمان">
+    <button type="button" class="sfb-rcontainer-select" data-container-select="{{ container.pk }}" title="تنظیم این چیدمان" aria-label="تنظیم این چیدمان">▦</button>
+    {% if not composition.has_placement %}
+    <button type="button" class="sfb-rcontainer-remove" data-container-remove="{{ container.pk }}" title="حذف این چیدمان خالی" aria-label="حذف این چیدمان خالی">🗑</button>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% for cell_entry in composition.cells %}
+  {% with cell=cell_entry.cell item=cell_entry.item %}
+  <div class="rcontainer-cell{% if is_preview and not cell.section_id %} sfb-empty-cell{% endif %}"
+       style="--cell-span:{{ cell.span }}"
+       {% if is_preview %}data-cell-id="{{ cell.pk }}" data-container-id="{{ container.pk }}"{% endif %}>
+    {% if item %}
+      {% with placement_cell=cell placement_container=container %}
+        {% include "storefront_builder/partials/responsive_section_wrapper.html" %}
+      {% endwith %}
+    {% elif is_preview and cell.section_id %}
+      <div class="sfb-hidden-cell-content"
+           data-hidden-section="{{ cell.section_id }}"
+           data-cell-id="{{ cell.pk }}"
+           data-container-id="{{ container.pk }}">
+        <span class="sfb-hidden-cell-icon" aria-hidden="true">👁</span>
+        <strong>{{ cell.section.section_key|section_label }}</strong>
+        <small>این محتوا مخفی است؛ خانه خالی نیست.</small>
+        <div class="sfb-hidden-cell-actions">
+          <button type="button" data-open-settings="{{ cell.section_id }}" data-cell-id="{{ cell.pk }}" data-container-id="{{ container.pk }}">⚙ تنظیمات</button>
+          <button type="button" data-hidden-toggle="{{ cell.section_id }}">👁 نمایش دوباره</button>
+          <button type="button" class="danger" data-cell-clear="{{ cell.pk }}" data-section-id="{{ cell.section_id }}" {% if cell.section.is_locked %}disabled{% endif %}>🗑 حذف محتوا</button>
+        </div>
+      </div>
+    {% elif is_preview %}
+      <button type="button" class="sfb-empty-cell-add" data-empty-cell="{{ cell.pk }}" data-container-id="{{ container.pk }}">
+        <span>＋</span><strong>افزودن محتوا</strong><small>{{ cell.span }}/12</small>
+      </button>
+    {% endif %}
+  </div>
+  {% endwith %}
+  {% endfor %}
+</div>
+{% endwith %}
+{% endfor %}

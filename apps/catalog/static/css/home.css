@@ -716,3 +716,134 @@ html[data-sfb-density="compact"] .special-list-price{font-size:9.8px}
   .feat b{font-size:10.8px}.feat small{font-size:9.4px}
   .rsec[data-pattern]>.section>.sec-head h2{font-size:11px}
 }
+
+/* ========================================================================
+   Phase 3.6 — Container-native reference composition fidelity.
+   Generic component/composition rules only: no preset key, tenant slug or
+   Store identity. Merchants can opt into/out of this via Container settings.
+   ======================================================================== */
+@media (min-width: 1001px) {
+  /* Hero establishes the row height; the compact spotlight fills that track
+     without forcing a taller row from product-card intrinsic height. */
+  .rcontainer[data-height-mode="equal"]:has(.hero):has(.product-section--spotlight)
+    > .rcontainer-cell:has(.product-section--spotlight) {
+    position: relative;
+    min-height: 0;
+  }
+  .rcontainer[data-height-mode="equal"]:has(.hero):has(.product-section--spotlight)
+    > .rcontainer-cell:has(.product-section--spotlight) > .rsec {
+    position: absolute;
+    inset: 0;
+    height: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .rcontainer[data-height-mode="equal"]:has(.hero):has(.product-section--spotlight)
+    .product-section--spotlight {
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+  .rcontainer[data-height-mode="equal"]:has(.hero):has(.product-section--spotlight)
+    .product-spotlight-slider,
+  .rcontainer[data-height-mode="equal"]:has(.hero):has(.product-section--spotlight)
+    .product-spotlight-track,
+  .rcontainer[data-height-mode="equal"]:has(.hero):has(.product-section--spotlight)
+    .product-spotlight-slide {
+    min-height: 0;
+  }
+  .rcontainer[data-height-mode="equal"]:has(.hero):has(.product-section--spotlight)
+    .product-spotlight-slider {
+    height: 100%;
+  }
+  .rcontainer[data-height-mode="equal"]:has(.hero):has(.product-section--spotlight)
+    .product-spotlight-slide {
+    overflow: hidden;
+  }
+  .rcontainer[data-height-mode="equal"]:has(.hero):has(.product-section--spotlight)
+    .product-spotlight-slide > .pcard {
+    max-height: 100%;
+  }
+}
+
+/* "compact + normal type scale" is a reusable appearance combination, not a
+   reference-preset branch. It creates the denser catalog rhythm visible in
+   the approved target while remaining manually selectable by a merchant. */
+html[data-sfb-density="compact"][data-sfb-type-scale="normal"] .sfb-preview-sections {
+  padding-top: 8px;
+  padding-bottom: 14px;
+}
+html[data-sfb-density="compact"][data-sfb-type-scale="normal"] .sfb-preview-sections > .rcontainer {
+  margin-bottom: 10px;
+}
+html[data-sfb-density="compact"][data-sfb-type-scale="normal"] .rcontainer .section {
+  margin-block: 0;
+}
+html[data-sfb-density="compact"][data-sfb-type-scale="normal"] .rcontainer .sec-head {
+  margin-bottom: 7px;
+}
+
+/* ========================================================================
+   Phase 3.7 — top-of-page professional composition.
+   Generic component/settings contracts only.
+   ======================================================================== */
+.hero-inner[data-text-position="start"] .hero-text{
+  inset-inline-start:34px;inset-inline-end:auto;text-align:right;
+}
+.hero-inner[data-text-position="end"] .hero-text{
+  inset-inline-end:34px;inset-inline-start:auto;text-align:right;
+}
+.hero-inner[data-text-position="center"] .hero-text{
+  inset-inline-start:50%;inset-inline-end:auto;transform:translateX(-50%);
+  width:min(560px,70%);max-width:70%;text-align:center;
+}
+.hero-inner[data-text-position="center"] .hero-cta{margin-inline:auto}
+
+.product-section--spotlight{
+  height:100%;margin:0;border:1px solid #e1e4e8;
+  border-top:2px solid var(--brand-accent,#f43f5e);border-radius:6px;
+  background:#fff;overflow:hidden;display:flex;flex-direction:column;
+}
+.product-section--spotlight .product-spotlight-slider{
+  flex:1 1 auto;min-height:0;border:0;border-radius:0;
+}
+.product-section--spotlight .product-spotlight-head{
+  min-height:42px;padding:9px 11px 8px;background:#fff;
+}
+.product-section--spotlight .product-spotlight-head h2 .bar{
+  background:var(--brand-accent,#f43f5e);
+}
+.product-section--spotlight .product-spotlight-slide{
+  padding:8px 10px 6px;align-items:stretch;
+}
+.product-section--spotlight .product-spotlight-slide>.pcard{
+  border:0;border-radius:4px;background:#fff;
+}
+.product-section--spotlight .product-spotlight-dots{
+  border-top:1px solid #f0f1f3;
+}
+
+.category-image-strip{
+  grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
+  gap:14px;padding:2px 6px 4px;
+}
+.category-image-media{height:106px}
+.category-image-label{font-size:10.5px}
+
+.rcontainer:has(.hero):has(.product-section--spotlight){margin-bottom:6px}
+.rcontainer:has(.category-image-strip-section){margin-bottom:5px}
+
+@media(max-width:1000px){
+  .hero-inner[data-text-position="start"] .hero-text,
+  .hero-inner[data-text-position="end"] .hero-text{inset-inline:18px}
+  .hero-inner[data-text-position="center"] .hero-text{width:76%;max-width:76%}
+}
+@media(max-width:680px){
+  .hero-inner[data-text-position] .hero-text{
+    inset-inline:12px;transform:none;width:auto;max-width:none;text-align:right;
+  }
+  .category-image-strip{gap:12px}
+}

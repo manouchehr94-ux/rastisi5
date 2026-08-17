@@ -101,6 +101,37 @@ def normalize_hostname(raw_value):
     return ascii_value
 
 
+def rastisi_owned_domain_suffixes():
+    """All DNS suffixes that are owned/reserved by Rastisi in this process.
+
+    ``RASTISI_CANONICAL_DOMAIN_SUFFIX`` is the real platform identity
+    (normally ``rastisi.ir``). ``RASTISI_ADMIN_DOMAIN_SUFFIX`` is the runtime
+    sibling-host suffix (``rastisi.localhost`` in local development). Keeping
+    both prevents DEBUG from accidentally treating a real ``*.rastisi.ir``
+    hostname as a merchant custom domain.
+    """
+    from django.conf import settings
+
+    values = {
+        str(settings.RASTISI_CANONICAL_DOMAIN_SUFFIX).strip().lower().strip("."),
+        str(settings.RASTISI_ADMIN_DOMAIN_SUFFIX).strip().lower().strip("."),
+    }
+    return frozenset(value for value in values if value)
+
+
+def is_rastisi_owned_hostname(raw_hostname) -> bool:
+    """Return True when ``raw_hostname`` is the platform domain itself or
+    any subdomain below one of Rastisi's owned suffixes."""
+    try:
+        hostname = normalize_hostname(raw_hostname)
+    except ValidationError:
+        return False
+    return any(
+        hostname == suffix or hostname.endswith(f".{suffix}")
+        for suffix in rastisi_owned_domain_suffixes()
+    )
+
+
 #: Subdomains that must never be assigned to a merchant Store's
 #: ``admin_subdomain`` — either because the platform itself uses them
 #: (``www``, ``api``, ``admin``, the panel/portal path names, ...), or
@@ -108,11 +139,40 @@ def normalize_hostname(raw_value):
 #: Mirrors the same intent as ``apps.content.models.RESERVED_SLUGS``, kept
 #: as a separate list since these two namespaces (URL path slugs vs. DNS
 #: subdomain labels) are independent.
+def build_cross_host_url(request, *, hostname: str, path: str) -> str:
+    """Build an absolute URL on a sibling host while preserving an explicit
+    non-default port from the current request.
+
+    This is primarily for local development, where the owner portal and
+    merchant-admin hosts are different ``*.localhost`` names served by the
+    same Django ``runserver`` port (for example ``:8000``). Production
+    requests with no explicit port, or an explicit default 80/443 port,
+    stay clean and do not gain a port suffix.
+    """
+    from urllib.parse import urlsplit
+
+    parsed = urlsplit(f"//{request.get_host()}")
+    port = parsed.port
+    default_port = 443 if request.is_secure() else 80
+
+    authority = hostname
+    if port is not None and port != default_port:
+        authority = f"{hostname}:{port}"
+
+    if not path.startswith("/"):
+        path = f"/{path}"
+
+    return f"{request.scheme}://{authority}{path}"
+
+
 RESERVED_ADMIN_SUBDOMAINS = frozenset({
     "www", "admin", "api", "app", "static", "media", "mail", "smtp", "ftp",
     "ns1", "ns2", "autodiscover", "rastisi", "dashboard", "panel", "portal",
     "support", "help", "status", "blog", "cdn", "assets", "docs", "shop",
     "store", "stores", "billing", "payments",
+    # Platform-owned sibling services. ``chatchat.rastisi.ir`` is a separate
+    # Rastisi project, never a Store. ``platformadmins`` is the operations host.
+    "chatchat", "platformadmins",
 })
 
 

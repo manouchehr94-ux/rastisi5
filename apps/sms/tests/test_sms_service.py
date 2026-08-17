@@ -3,7 +3,7 @@ from django.test import TestCase
 
 from apps.core.models import ShopSettings
 from apps.sms.events import SmsEvent
-from apps.sms.models import SmsLog, SmsTemplate
+from apps.sms.models import SmsBalance, SmsLog, SmsTemplate
 from apps.sms.services.sms_service import (
     RetryNotEligibleError,
     SmsTemplateError,
@@ -124,6 +124,7 @@ class SendEventSmsTests(TestCase):
         cache.clear()
         self.store = _akhlaghi()
         SmsTemplate.ensure_defaults()
+        SmsBalance.objects.update_or_create(store=self.store, defaults={"credits": 100})
 
     def test_creates_sent_log_via_console_backend(self):
         log = send_event_sms(SmsEvent.WELCOME, "09121234567", {"customer_name": "سارا"}, store=self.store)
@@ -132,12 +133,14 @@ class SendEventSmsTests(TestCase):
         self.assertIn("سارا", log.message)
         self.assertEqual(log.recipient, "09121234567")
 
-    def test_successful_send_deducts_one_credit(self):
-        from apps.sms.models import SmsBalance
+    def test_successful_send_deducts_billed_units_by_character_policy(self):
+        from apps.sms.services.billing_policy_service import quote_message
 
-        SmsBalance.objects.create(store=self.store, credits=5)
-        send_event_sms(SmsEvent.WELCOME, "09121234567", {"customer_name": "سارا"}, store=self.store)
-        self.assertEqual(SmsBalance.objects.get(store=self.store).credits, 4)
+        SmsBalance.objects.filter(store=self.store).update(credits=5)
+        log = send_event_sms(SmsEvent.WELCOME, "09121234567", {"customer_name": "سارا"}, store=self.store)
+        expected_units = quote_message(log.message).billable_units
+        self.assertEqual(SmsBalance.objects.get(store=self.store).credits, 5 - expected_units)
+        self.assertEqual(log.billable_units, expected_units)
 
     def test_disabled_system_sends_nothing_and_logs_nothing(self):
         shop = ShopSettings.load(store=self.store)
@@ -200,22 +203,28 @@ class SendEventSmsTests(TestCase):
         self.assertIsNone(result)
         self.assertEqual(SmsLog.objects.count(), count_before)
 
-    def test_otp_event_rejects_smsrasti_backend_with_clear_failed_log(self):
-        """اسمس‌راستی صفی/async است — برای OTP حساس‌به‌تأخیر هرگز استفاده
-        نمی‌شود؛ باید شکستی واضح و قابل‌مشاهده برای مدیر ثبت شود، نه صف‌شدنِ
-        بی‌صدا (apps.sms.models.SmsOutboxItem هرگز نباید برای رویدادِ OTP
-        ساخته شود)."""
+    def test_otp_uses_central_online_provider_even_when_store_selected_smsrasti(self):
+        """SmsRasti فقط برای پیام عادی است؛ OTP نباید به انتخاب async فروشگاه
+        وابسته باشد و همیشه از Provider آنلاین مرکزی عبور می‌کند."""
+        from unittest.mock import patch
         from apps.sms.models import SmsOutboxItem
+        from apps.sms.services.backends import SmsSendResult
 
         shop = ShopSettings.load(store=self.store)
         shop.sms_backend = ShopSettings.SmsBackend.SMSRASTI
         shop.smsrasti_device_token = "dev-token-1"
         shop.save()
 
-        log = send_event_sms(SmsEvent.OTP, "09121234567", {"otp_code": "123456"}, store=self.store)
+        with patch(
+            "apps.portal.services.owner_sms_service.send_platform_otp",
+            return_value=SmsSendResult(success=True, provider_ref_id="otp-1", provider="melipayamak"),
+        ) as send_otp:
+            log = send_event_sms(SmsEvent.OTP, "09121234567", {"otp_code": "123456"}, store=self.store)
 
         self.assertIsNotNone(log)
-        self.assertEqual(log.status, SmsLog.Status.FAILED)
+        self.assertEqual(log.status, SmsLog.Status.SENT)
+        self.assertEqual(log.provider, "melipayamak")
+        send_otp.assert_called_once()
         self.assertEqual(SmsOutboxItem.objects.count(), 0)
 
     def test_non_otp_event_is_allowed_through_smsrasti_backend(self):
@@ -235,6 +244,7 @@ class RetryFailedLogTests(TestCase):
         cache.clear()
         self.store = _akhlaghi()
         SmsTemplate.ensure_defaults()
+        SmsBalance.objects.update_or_create(store=self.store, defaults={"credits": 100})
 
     def test_retry_resends_and_updates_same_row(self):
         log = SmsLog.objects.create(
@@ -276,7 +286,7 @@ class RetryFailedLogTests(TestCase):
         with self.assertRaises(RetryNotEligibleError):
             retry_failed_log(log_id=log.pk, store=self.store)
 
-    def test_otp_log_retry_still_rejects_smsrasti_backend(self):
+    def test_otp_log_retry_is_always_rejected_for_security(self):
         shop = ShopSettings.load(store=self.store)
         shop.sms_backend = ShopSettings.SmsBackend.SMSRASTI
         shop.smsrasti_device_token = "dev-token-1"
@@ -285,8 +295,8 @@ class RetryFailedLogTests(TestCase):
             store=self.store, event_key=SmsEvent.OTP, recipient="09121234567",
             message="رمز یک‌بارمصرف: 123456", status=SmsLog.Status.FAILED,
         )
-        result = retry_failed_log(log_id=log.pk, store=self.store)
-        self.assertEqual(result.status, SmsLog.Status.FAILED)
+        with self.assertRaises(RetryNotEligibleError):
+            retry_failed_log(log_id=log.pk, store=self.store)
 
 
 class RetrySmsrastiOutboxItemTests(TestCase):
@@ -328,6 +338,7 @@ class SendTestSmsTests(TestCase):
         cache.clear()
         self.store = _akhlaghi()
         SmsTemplate.ensure_defaults()
+        SmsBalance.objects.update_or_create(store=self.store, defaults={"credits": 100})
 
     def test_sends_regardless_of_global_disable(self):
         shop = ShopSettings.load(store=self.store)
@@ -344,7 +355,7 @@ class SendTestSmsTests(TestCase):
 
         log = send_test_sms(event_key=SmsEvent.OTP, phone="09121234567", store=self.store)
         self.assertEqual(log.status, SmsLog.Status.SENT)
-        self.assertIn("۱۲۳۴۵۶", log.message)
+        self.assertEqual(log.message, "")
 
     def test_missing_template_raises_clear_error(self):
         SmsTemplate.objects.filter(event_key=SmsEvent.WELCOME).delete()
@@ -390,6 +401,8 @@ class SmsTwoStoreIsolationTests(TestCase):
         shop_b.name = "فروشگاه ب"
         shop_b.sms_backend = ShopSettings.SmsBackend.CONSOLE
         shop_b.save()
+        SmsBalance.objects.update_or_create(store=self.store_a, defaults={"credits": 100})
+        SmsBalance.objects.update_or_create(store=self.store_b, defaults={"credits": 100})
 
     def test_store_a_sms_uses_store_a_shop_name(self):
         log = send_event_sms(SmsEvent.WELCOME, "09121234567", {"customer_name": "سارا"}, store=self.store_a)

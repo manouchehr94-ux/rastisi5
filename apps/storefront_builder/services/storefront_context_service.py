@@ -104,6 +104,8 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
             # نه ``render_items`` مستقیم (که فقط برای سازگاریِ عقب‌رو/مصرفِ
             # احتمالیِ دیگر نگه داشته شده).
             "rows": render_service.group_items_into_rows(items),
+            "render_containers": [],
+            "use_container_layout": False,
             "top_level_categories": _top_level_categories(store),
         }
 
@@ -124,5 +126,7 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
         "layout_footer_config": version.effective_footer_config(),
         "render_items": items,
         "rows": render_service.group_items_into_rows(items),
+        "render_containers": render_service.build_container_render_items(page, items),
+        "use_container_layout": page.containers.exists(),
         "top_level_categories": _top_level_categories(store),
     }

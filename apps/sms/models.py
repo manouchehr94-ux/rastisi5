@@ -15,6 +15,18 @@ class SmsTemplate(TimeStampedModel):
     title = models.CharField("عنوان", max_length=150)
     body = models.TextField("متن قالب")
     is_active = models.BooleanField("فعال", default=True)
+    melipayamak_body_id = models.CharField(
+        "BodyId ملی‌پیامک", max_length=30, blank=True, default="",
+        help_text="شناسه الگوی تاییدشده در وب‌سرویس خدماتی ملی‌پیامک.",
+    )
+    melipayamak_variables_order = models.CharField(
+        "ترتیب متغیرهای ملی‌پیامک", max_length=255, blank=True, default="otp_code",
+        help_text="نام متغیرها به ترتیب Pattern؛ مثال: otp_code,expire_minutes",
+    )
+    kavenegar_template = models.CharField(
+        "Template کاوه‌نگار", max_length=100, blank=True, default="",
+        help_text="نام قالب VerifyLookup برای پیام‌های OTP.",
+    )
 
     class Meta:
         verbose_name = "قالب پیامک"
@@ -33,6 +45,31 @@ class SmsTemplate(TimeStampedModel):
             cls(event_key=event, title=SmsEvent(event).label, body=DEFAULT_TEMPLATES[event])
             for event in missing
         ])
+
+
+class SmsBillingPolicy(TimeStampedModel):
+    """سیاست سراسری قیمت‌گذاری و اعتبار پیامک در سطح پلتفرم.
+
+    فقط رکورد pk=1 توسط پنل مالک پلتفرم استفاده می‌شود. هر ``chars_per_credit``
+    کاراکتر یک واحد اعتبار محسوب می‌شود؛ قیمت هر واحد و سقف بدهی OTP نیز
+    همین‌جا قابل ویرایش‌اند.
+    """
+
+    chars_per_credit = models.PositiveIntegerField("کاراکتر در هر اعتبار", default=70)
+    price_per_credit_toman = models.PositiveIntegerField("قیمت هر اعتبار (تومان)", default=205)
+    otp_overdraft_limit = models.PositiveIntegerField("سقف بدهی OTP", default=10)
+
+    class Meta:
+        verbose_name = "سیاست هزینه پیامک"
+        verbose_name_plural = "سیاست هزینه پیامک"
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return f"هر {self.chars_per_credit} کاراکتر = {self.price_per_credit_toman} تومان"
 
 
 class SmsLog(TimeStampedModel):
@@ -61,6 +98,13 @@ class SmsLog(TimeStampedModel):
     status = models.CharField("وضعیت", max_length=10, choices=Status.choices, default=Status.PENDING)
     error_message = models.TextField("پیام خطا", blank=True)
     provider_ref_id = models.CharField("شناسه‌ی ارجاع سرویس", max_length=100, blank=True)
+    provider = models.CharField("شرکت پیامکی", max_length=20, blank=True, default="")
+    character_count = models.PositiveIntegerField("تعداد کاراکتر", default=0)
+    billable_units = models.PositiveIntegerField("تعداد اعتبار مصرفی", default=0)
+    unit_price_toman = models.PositiveIntegerField("قیمت هر اعتبار (تومان)", default=0)
+    cost_toman = models.PositiveBigIntegerField("هزینه نهایی (تومان)", default=0)
+    balance_before = models.IntegerField("اعتبار قبل", null=True, blank=True)
+    balance_after = models.IntegerField("اعتبار بعد", null=True, blank=True)
     attempt_count = models.PositiveIntegerField("تعداد تلاش", default=0)
     sent_at = models.DateTimeField("زمان ارسال", null=True, blank=True)
 
@@ -117,10 +161,9 @@ class SmsBalance(TimeStampedModel):
     ``apps.sms.services.balance_service``)؛ اعتبار فقط با تکمیلِ یک
     ``SmsPackagePurchase`` افزوده می‌شود.
 
-    فعلاً کسری‌شدنِ اعتبار به صفر مانعِ ارسالِ واقعی نمی‌شود (فقط برای
-    گزارش‌دهی/شفافیت ردیابی می‌شود) — قطعِ واقعیِ ارسال روی اعتبارِ صفر یک
-    تصمیمِ محصولی جداگانه است که هنوز گرفته نشده (نگاه کنید به یادداشتِ
-    TODO در ``apps.sms.services.balance_service.deduct_credit``)."""
+    ارسال‌های عادی بدون اعتبار کافی مسدود می‌شوند. OTP استثنای ایمنی است و
+    می‌تواند تا سقف قابل‌تنظیم ``SmsBillingPolicy.otp_overdraft_limit`` وارد
+    اعتبار منفی شود تا مشتری فروشگاه در زمان کمبود اعتبار قفل نشود."""
 
     store = models.OneToOneField(
         "stores.Store", verbose_name="فروشگاه", on_delete=models.CASCADE, related_name="sms_balance",

@@ -202,6 +202,60 @@ def shop_settings(request):
 
     typography = _appearance_registry.resolve_typography(shop_type_scale)
 
+    tone_config = (
+        global_config
+        if global_version is not None
+        else {
+            "palette_slug": None,
+            "color_overrides": {
+                "primary": primary, "secondary": secondary, "accent": accent,
+                "background": background, "surface": surface, "text": text,
+                "muted": muted, "border": border,
+            },
+        }
+    )
+    section_tones = _appearance_registry.resolve_section_tones(tone_config)
+    theme_roles = _appearance_registry.resolve_theme_roles(tone_config)
+
+    # Phase 3.10 — Storefront -> Merchant Admin shortcut.
+    #
+    # This is intentionally limited to the actual Store homepage and the
+    # Builder's HOME preview. The link is not an authorization mechanism:
+    # /admin-portal/ keeps its existing authentication/authorization gates.
+    # We only compute the correct per-Store host here, preserving a local
+    # non-default port such as :8000.
+    resolver_match = getattr(request, "resolver_match", None)
+    view_name = getattr(resolver_match, "view_name", "") if resolver_match else ""
+    is_home_surface = (
+        view_name == "catalog:home"
+        or (
+            view_name == "dashboard:storefront-builder-preview"
+            and request.GET.get("page", "home") == "home"
+        )
+    )
+    shop_admin_url = ""
+    if is_home_surface:
+        from django.conf import settings as django_settings
+        from apps.stores.hostnames import build_cross_host_url
+        from apps.stores.models import Store
+
+        store = getattr(request, "store", None)
+        if store is None or getattr(store, "pk", None) != shop.store_id:
+            store = (
+                Store.objects.only("id", "admin_subdomain")
+                .filter(pk=shop.store_id)
+                .first()
+            )
+        if store is not None and store.admin_subdomain:
+            admin_hostname = (
+                f"{store.admin_subdomain}.{django_settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
+            )
+            shop_admin_url = build_cross_host_url(
+                request,
+                hostname=admin_hostname,
+                path="/admin-portal/",
+            )
+
     return {
         "SHOP_NAME": shop.name,
         "SHOP_TAGLINE": shop.tagline,
@@ -226,6 +280,21 @@ def shop_settings(request):
         "SHOP_SECONDARY_FG": foreground_for(secondary),
         "SHOP_PRIMARY_HOVER": darken_hex(primary),
         "SHOP_BORDER_COLOR": border,
+        "SHOP_PALETTE_TONE_1": section_tones[0],
+        "SHOP_PALETTE_TONE_2": section_tones[1],
+        "SHOP_PALETTE_TONE_3": section_tones[2],
+        "SHOP_PALETTE_TONE_4": section_tones[3],
+        "SHOP_PALETTE_TONE_5": section_tones[4],
+        "SHOP_THEME_HEADER_BG": theme_roles["header_bg"],
+        "SHOP_THEME_HEADER_TEXT": theme_roles["header_text"],
+        "SHOP_THEME_NAV_BG": theme_roles["nav_bg"],
+        "SHOP_THEME_NAV_TEXT": theme_roles["nav_text"],
+        "SHOP_THEME_CARD_BG": theme_roles["card_bg"],
+        "SHOP_THEME_FOOTER_BG": theme_roles["footer_bg"],
+        "SHOP_THEME_FOOTER_TEXT": theme_roles["footer_text"],
+        "SHOP_THEME_PRICE": theme_roles["price"],
+        "SHOW_ADMIN_SHORTCUT": bool(is_home_surface and shop_admin_url),
+        "SHOP_ADMIN_URL": shop_admin_url,
         # ساختارِ ظاهر (Template) — فقط برایِ مسیرهایِ Builder-aware از
         # نسخه می‌آید؛ نگاه کنید به ``_versioned_appearance``.
         "SHOP_TEMPLATE_SLUG": shop_template_slug,

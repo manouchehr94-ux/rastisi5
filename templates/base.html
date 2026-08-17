@@ -2,6 +2,7 @@
 <html lang="fa" dir="rtl"
       data-sfb-template="{{ SHOP_TEMPLATE_SLUG|default:'modern' }}"
       data-sfb-density="{{ SHOP_DENSITY|default:'normal' }}"
+      data-sfb-type-scale="{{ SHOP_TYPE_SCALE|default:'normal' }}"
       data-sfb-motion="{{ SHOP_MOTION|default:'subtle' }}"
       data-sfb-card-shadow="{{ SHOP_CARD_SHADOW|default:'soft' }}"
       data-sfb-card-hover="{{ SHOP_CARD_HOVER|default:'lift' }}"
@@ -11,7 +12,7 @@
       data-sfb-image-hover="{{ SHOP_IMAGE_HOVER|default:'zoom' }}"
       data-sfb-card-crossfade="{{ SHOP_CARD_IMAGE_CROSSFADE|default:'' }}"
       data-sfb-card-zoom="{{ SHOP_CARD_IMAGE_ZOOM|default:'1' }}"
-      style="--brand-primary:{{ SHOP_PRIMARY_COLOR }};--brand-accent:{{ SHOP_ACCENT_COLOR }};--brand-primary-fg:{{ SHOP_PRIMARY_FG }};--brand-accent-fg:{{ SHOP_ACCENT_FG }};--brand-secondary:{{ SHOP_SECONDARY_COLOR }};--brand-secondary-fg:{{ SHOP_SECONDARY_FG }};--brand-background:{{ SHOP_BACKGROUND_COLOR }};--brand-surface:{{ SHOP_SURFACE_COLOR }};--brand-text:{{ SHOP_TEXT_COLOR }};--brand-muted:{{ SHOP_MUTED_TEXT_COLOR }};--brand-primary-hover:{{ SHOP_PRIMARY_HOVER }};--brand-border:{{ SHOP_BORDER_COLOR }};--sfb-font:'{{ SHOP_FONT|default:"Vazirmatn" }}';--sfb-radius:{{ SHOP_RADIUS|default:18 }}px;--sfb-button-radius:{{ SHOP_BUTTON_RADIUS|default:12 }}px;--sfb-content-width:{{ SHOP_CONTENT_WIDTH|default:1200 }}px;--sfb-grid-density:{{ SHOP_GRID_DENSITY|default:4 }};--sfb-heading-size:{{ SHOP_HEADING_SIZE|default:19 }}px;--sfb-body-size:{{ SHOP_BODY_SIZE|default:14 }}px;--sfb-product-name-size:{{ SHOP_PRODUCT_NAME_SIZE|default:13 }}px;--sfb-price-size:{{ SHOP_PRICE_SIZE|default:15 }}px;--sfb-muted-size:{{ SHOP_MUTED_TEXT_SIZE|default:11 }}px;--sfb-image-fit:{{ SHOP_IMAGE_FIT|default:'cover' }}">
+      style="--brand-primary:{{ SHOP_PRIMARY_COLOR }};--brand-accent:{{ SHOP_ACCENT_COLOR }};--brand-primary-fg:{{ SHOP_PRIMARY_FG }};--brand-accent-fg:{{ SHOP_ACCENT_FG }};--brand-secondary:{{ SHOP_SECONDARY_COLOR }};--brand-secondary-fg:{{ SHOP_SECONDARY_FG }};--brand-background:{{ SHOP_BACKGROUND_COLOR }};--brand-surface:{{ SHOP_SURFACE_COLOR }};--brand-text:{{ SHOP_TEXT_COLOR }};--brand-muted:{{ SHOP_MUTED_TEXT_COLOR }};--brand-primary-hover:{{ SHOP_PRIMARY_HOVER }};--brand-border:{{ SHOP_BORDER_COLOR }};--brand-tone-1:{{ SHOP_PALETTE_TONE_1 }};--brand-tone-2:{{ SHOP_PALETTE_TONE_2 }};--brand-tone-3:{{ SHOP_PALETTE_TONE_3 }};--brand-tone-4:{{ SHOP_PALETTE_TONE_4 }};--brand-tone-5:{{ SHOP_PALETTE_TONE_5 }};--theme-header-bg:{{ SHOP_THEME_HEADER_BG }};--theme-header-text:{{ SHOP_THEME_HEADER_TEXT }};--theme-nav-bg:{{ SHOP_THEME_NAV_BG }};--theme-nav-text:{{ SHOP_THEME_NAV_TEXT }};--theme-card-bg:{{ SHOP_THEME_CARD_BG }};--theme-footer-bg:{{ SHOP_THEME_FOOTER_BG }};--theme-footer-text:{{ SHOP_THEME_FOOTER_TEXT }};--theme-price:{{ SHOP_THEME_PRICE }};--sfb-font:'{{ SHOP_FONT|default:"Vazirmatn" }}';--sfb-radius:{{ SHOP_RADIUS|default:18 }}px;--sfb-button-radius:{{ SHOP_BUTTON_RADIUS|default:12 }}px;--sfb-content-width:{{ SHOP_CONTENT_WIDTH|default:1200 }}px;--sfb-grid-density:{{ SHOP_GRID_DENSITY|default:4 }};--sfb-heading-size:{{ SHOP_HEADING_SIZE|default:19 }}px;--sfb-body-size:{{ SHOP_BODY_SIZE|default:14 }}px;--sfb-product-name-size:{{ SHOP_PRODUCT_NAME_SIZE|default:13 }}px;--sfb-price-size:{{ SHOP_PRICE_SIZE|default:15 }}px;--sfb-muted-size:{{ SHOP_MUTED_TEXT_SIZE|default:11 }}px;--sfb-image-fit:{{ SHOP_IMAGE_FIT|default:'cover' }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,6 +31,9 @@
 <link rel="stylesheet" href="{% static 'css/base.css' %}">
 <link rel="stylesheet" href="{% static 'css/layout.css' %}">
 {% block extra_css %}{% endblock %}
+{% comment %}Loaded AFTER page CSS so a selected full-site palette can consistently
+theme every storefront page without per-page forks.{% endcomment %}
+<link rel="stylesheet" href="{% static 'css/theme_palette.css' %}">
 <script src="{% static 'js/htmx.min.js' %}" defer></script>
 <script src="{% static 'js/alpine.min.js' %}" defer></script>
 {% block structured_data %}{% endblock %}
@@ -65,6 +69,20 @@
     <button type="submit">جستجو</button>
   </form>
   <div class="h-actions">
+    {% if SHOW_ADMIN_SHORTCUT and SHOP_ADMIN_URL %}
+    <a class="store-admin-shortcut"
+       href="{{ SHOP_ADMIN_URL }}"
+       target="_top"
+       rel="nofollow"
+       title="ورود به پنل مدیریت فروشگاه"
+       aria-label="ورود به پنل مدیریت فروشگاه">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6h.08A1.65 1.65 0 0010 3.09V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9v.08A1.65 1.65 0 0020.91 10H21a2 2 0 110 4h-.09A1.65 1.65 0 0019.4 15z"></path>
+      </svg>
+      <span>پنل مدیریت</span>
+    </a>
+    {% endif %}
     {% if request.user.is_authenticated %}
     <a class="login-btn" href="{% url 'customers:account' %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>

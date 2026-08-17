@@ -22,11 +22,25 @@ MANAGE_PY = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file_
 
 
 def _run_check(extra_env):
-    """Run `manage.py check` in a subprocess with a minimal, controlled env."""
-    env = {
-        "PATH": os.environ.get("PATH", ""),
-        "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
+    """Run ``manage.py check`` with controlled *application* config.
+
+    On Windows, stripping the child process environment down to PATH and
+    PYTHONPATH also removes OS networking/runtime variables that CPython's
+    ``_overlapped``/``asyncio`` stack may need, causing WinError 10106 before
+    Django settings are imported. Preserve the operating-system environment
+    and remove only variables that can configure this application.
+    """
+    env = os.environ.copy()
+    controlled_prefixes = (
+        "DJANGO_", "RASTISI_", "STORES_", "AUTH_", "SHOP_", "PAYMENT_",
+    )
+    controlled_exact = {
+        "DATABASE_URL", "LOG_LEVEL", "PAYMENTS_SIMULATION_ENABLED",
     }
+    for key in list(env):
+        upper = key.upper()
+        if upper.startswith(controlled_prefixes) or upper in controlled_exact:
+            env.pop(key, None)
     env.update(extra_env)
     return subprocess.run(
         [sys.executable, MANAGE_PY, "check"],

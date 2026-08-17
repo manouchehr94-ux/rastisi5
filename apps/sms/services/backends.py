@@ -20,6 +20,7 @@ class SmsSendResult:
     success: bool
     provider_ref_id: str = ""
     error_message: str = ""
+    provider: str = ""
 
 
 class SmsBackend(ABC):
@@ -28,40 +29,108 @@ class SmsBackend(ABC):
         """پیامک را ارسال می‌کند. هرگز نباید Exception پرتاب کند — همیشه SmsSendResult برمی‌گرداند."""
 
 
-class ConsoleBackend(SmsBackend):
-    """برای توسعه — پیامک واقعی ارسال نمی‌کند، فقط در لاگ ثبت می‌کند.
+class UnavailableBackend(SmsBackend):
+    """Provider انتخاب شده ولی غیرفعال/غیرقابل استفاده است؛ هرگز fake-success نمی‌دهد."""
 
-    در سطح DEBUG لاگ می‌شود، نه INFO — چون ``text`` می‌تواند شامل کد OTP یا
-    سایر محتوای حساس رویداد باشد؛ INFO پیش‌فرض Production است (تنظیمات
-    ``DJANGO_LOG_LEVEL``)، پس این پیام هرگز نباید در لاگ Production ظاهر
-    شود. برای دیدنش در توسعه‌ی محلی ``DJANGO_LOG_LEVEL=DEBUG`` تنظیم کنید."""
+    def __init__(self, *, provider_code: str, error_message: str):
+        self.provider_code = provider_code
+        self.error_message = error_message
 
     def send(self, *, to: str, text: str) -> SmsSendResult:
-        logger.debug("[SMS:console] to=%s text=%s", to, text)
+        return SmsSendResult(
+            success=False, error_message=self.error_message, provider=self.provider_code,
+        )
 
-        if settings.DEBUG:
-            print(
-                "\n"
-                "========================================\n"
-                "DEVELOPMENT SMS\n"
-                f"To: {to}\n"
-                f"Message: {text}\n"
-                "========================================\n",
-                flush=True,
-            )
 
+class ConsoleBackend(SmsBackend):
+    provider_code = "console"
+    """Backend غیرواقعی برای تست/توسعه.
+
+    قانون امنیتی سخت: متن پیام (که ممکن است OTP باشد) نه چاپ می‌شود و نه
+    حتی در DEBUG log می‌شود. فقط متادیتای غیرحساس ثبت می‌شود.
+    """
+
+    def send(self, *, to: str, text: str) -> SmsSendResult:
+        logger.debug(
+            "[SMS:console] suppressed real send: to=%s chars=%s",
+            to, len(text or ""),
+        )
         return SmsSendResult(success=True, provider_ref_id="console")
 
 
 class MelipayamakBackend(SmsBackend):
-    """پیاده‌سازی واقعی ملی‌پیامک (REST API سرویس SendSMS)."""
+    provider_code = "melipayamak"
+    """ملی‌پیامک: ارسال متنی + Pattern/BodyId خدماتی برای هر رویداد پیکربندی‌شده."""
 
     SEND_URL = "https://rest.payamak-panel.com/api/SendSMS/SendSMS"
+    PATTERN_URL = "https://rest.payamak-panel.com/api/SendSMS/BaseServiceNumber"
 
     def __init__(self, *, username: str, password: str, sender: str):
         self.username = username
         self.password = password
         self.sender = sender
+
+    @staticmethod
+    def _pattern_text(variables: dict, variables_order: str) -> str:
+        order = [
+            item.strip()
+            for item in str(variables_order or "").replace(";", ",").split(",")
+            if item.strip()
+        ]
+        if not order:
+            order = ["otp_code"]
+        return ";".join(str(variables.get(key, "")) for key in order)
+
+    def send_pattern(
+        self, *, to: str, body_id: str, variables: dict,
+        variables_order: str = "otp_code",
+    ) -> SmsSendResult:
+        """ارسال خدماتی BaseServiceNumber بدون افشای OTP در log."""
+        if not self.username or not self.password:
+            return SmsSendResult(
+                success=False,
+                error_message="نام کاربری/رمز ملی‌پیامک برای Pattern کامل نیست",
+            )
+        body_id = str(body_id or "").strip()
+        if not body_id.isdigit():
+            return SmsSendResult(
+                success=False,
+                error_message="BodyId الگوی ملی‌پیامک تنظیم نشده یا نامعتبر است",
+            )
+        if not to:
+            return SmsSendResult(success=False, error_message="شماره گیرنده خالی است")
+
+        import requests
+
+        payload = {
+            "username": self.username,
+            "password": self.password,
+            "text": self._pattern_text(variables, variables_order),
+            "to": to,
+            "bodyId": int(body_id),
+        }
+        try:
+            response = requests.post(
+                self.PATTERN_URL, json=payload, timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            data = response.json()
+        except Exception as exc:
+            logger.warning(
+                "melipayamak pattern send failed: to=%s error=%s", to, exc,
+            )
+            return SmsSendResult(success=False, error_message=str(exc))
+
+        if data.get("RetStatus") == 1:
+            return SmsSendResult(
+                success=True, provider_ref_id=str(data.get("Value", "")),
+            )
+        value = str(data.get("Value", ""))
+        message = data.get("StrRetStatus") or "خطای نامشخص ملی‌پیامک"
+        return SmsSendResult(
+            success=False,
+            error_message=f"{value}: {message}" if value else str(message),
+        )
 
     def send(self, *, to: str, text: str) -> SmsSendResult:
         if not self.username or not self.password or not self.sender:
@@ -93,7 +162,8 @@ class MelipayamakBackend(SmsBackend):
 
 
 class KavenegarBackend(SmsBackend):
-    """پیاده‌سازی واقعی کاوه‌نگار (REST API ``sms/send``).
+    provider_code = "kavenegar"
+    """کاوه‌نگار: ارسال متنی + VerifyLookup برای OTP رزرو.
 
     برخلافِ پیاده‌سازیِ مرجع در ``reference_imports`` (که فقط نبودِ
     Exception را «موفقیت» می‌دانست)، اینجا ``return.status`` واقعیِ پاسخ
@@ -101,10 +171,46 @@ class KavenegarBackend(SmsBackend):
     نامعتبر را هم با بدنه‌ی JSON معتبر برمی‌گرداند، نه یک Exception."""
 
     SEND_URL_TEMPLATE = "https://api.kavenegar.com/v1/{api_key}/sms/send.json"
+    VERIFY_URL_TEMPLATE = "https://api.kavenegar.com/v1/{api_key}/verify/lookup.json"
 
     def __init__(self, *, api_key: str, sender: str):
         self.api_key = api_key
         self.sender = sender
+
+    def send_verify_lookup(self, *, to: str, token: str, template: str) -> SmsSendResult:
+        """OTP رزرو با VerifyLookup؛ sender لازم نیست."""
+        if not self.api_key or not template:
+            return SmsSendResult(
+                success=False,
+                error_message="کلید API/Template کاوه‌نگار برای OTP کامل نیست",
+            )
+        import requests
+
+        url = self.VERIFY_URL_TEMPLATE.format(api_key=self.api_key)
+        payload = {"receptor": to, "token": str(token), "template": template}
+        try:
+            response = requests.post(url, data=payload, timeout=REQUEST_TIMEOUT_SECONDS)
+            data = response.json()
+        except Exception as exc:
+            safe_message = str(exc).replace(self.api_key, "***")
+            logger.warning(
+                "kavenegar VerifyLookup failed: to=%s error=%s", to, safe_message,
+            )
+            return SmsSendResult(success=False, error_message=safe_message)
+
+        status = (data.get("return") or {}).get("status")
+        if status == 200:
+            entries = data.get("entries") or [{}]
+            return SmsSendResult(
+                success=True,
+                provider_ref_id=str(entries[0].get("messageid", "")),
+            )
+        return SmsSendResult(
+            success=False,
+            error_message=(data.get("return") or {}).get(
+                "message", "خطای نامشخص کاوه‌نگار"
+            ),
+        )
 
     def send(self, *, to: str, text: str) -> SmsSendResult:
         if not self.api_key or not self.sender:
@@ -135,6 +241,7 @@ class KavenegarBackend(SmsBackend):
 
 
 class SmsRastiBackend(SmsBackend):
+    provider_code = "smsrasti"
     """گیت‌وی اندرویدِ SmsRasti — Store-scoped، هرگز برایِ OTP هویتِ
     مالک/کارمندِ پلتفرم استفاده نمی‌شود (``apps.portal.services.
     owner_sms_service`` اصلاً موردی برایِ این backend ندارد، پس حتی با

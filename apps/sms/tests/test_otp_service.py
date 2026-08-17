@@ -5,7 +5,7 @@ from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.sms.models import OtpCode, SmsLog, SmsTemplate
+from apps.sms.models import OtpCode, SmsBalance, SmsLog, SmsTemplate
 from apps.sms.services import otp_service
 from apps.stores.models import Store
 
@@ -29,6 +29,7 @@ class RequestOtpTests(TestCase):
     def setUp(self):
         self.store = _akhlaghi()
         SmsTemplate.ensure_defaults()
+        SmsBalance.objects.update_or_create(store=self.store, defaults={"credits": 100})
         cache.clear()
 
     def test_creates_hashed_code_with_two_minute_expiry(self):
@@ -96,6 +97,7 @@ class VerifyOtpTests(TestCase):
     def setUp(self):
         self.store = _akhlaghi()
         SmsTemplate.ensure_defaults()
+        SmsBalance.objects.update_or_create(store=self.store, defaults={"credits": 100})
         cache.clear()
         original = _fixed_code(self.CODE)
         self.addCleanup(setattr, otp_service, "_generate_code", original)

@@ -29,9 +29,30 @@ def _deliver_one(notification: NotificationOutbox) -> None:
         return  # خودِ ردیف تحویل است — نیازی به ارسالِ خارجی نیست.
 
     if notification.channel == C.SMS:
+        from apps.sms.events import SmsEvent
+
+        if notification.store_id:
+            from apps.sms.services.sms_service import send_raw_sms
+
+            log = send_raw_sms(
+                phone=notification.recipient_phone, message=notification.body,
+                store=notification.store, event_key=SmsEvent.NOTIFICATION,
+            )
+            if log is None or log.status != log.Status.SENT:
+                raise RuntimeError(
+                    log.error_message if log is not None and log.error_message else
+                    "ارسال پیامک فروشگاه انجام نشد"
+                )
+            return
+
         from apps.portal.services.owner_sms_service import send_platform_sms
+        from apps.sms.services.billing_policy_service import record_platform_attempt
 
         result = send_platform_sms(to=notification.recipient_phone, text=notification.body)
+        record_platform_attempt(
+            event_key=SmsEvent.NOTIFICATION, recipient=notification.recipient_phone,
+            message=notification.body, result=result,
+        )
         if not result.success:
             raise RuntimeError(result.error_message or "ارسالِ پیامک ناموفق بود")
         return

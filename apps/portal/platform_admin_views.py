@@ -16,10 +16,12 @@ from django.contrib.auth.decorators import user_passes_test
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from apps.core.models import AuditLogEntry
 from apps.core.services.audit_service import record_audit_event
+from apps.stores.hostnames import build_cross_host_url
 from apps.stores.models import Store, StoreDomain, StoreMembership
 from apps.subscriptions.models import StoreSubscription
 
@@ -217,90 +219,288 @@ def configuration(request):
     return render(request, "portal/platform_admin/configuration.html", {"form": form, "active_nav": "platform-settings"})
 
 
-#: فیلدهایِ رازِ فرمِ تنظیماتِ پیامک که مستقیماً روی مدل نیستند (داخلِ
-#: PlatformConfiguration.encrypted_sms_credentials رمزنگاری‌شده ذخیره
-#: می‌شوند) — هرگز نباید وارد dict قبل/بعدِ رخدادِ حسابرسی شوند.
-_SMS_CREDENTIAL_FORM_FIELDS = ("sms_melipayamak_username", "sms_melipayamak_password", "sms_kavenegar_api_key")
+# ---------------------------------------------------------------- مرکز کنترل پیامک
+
+_SMS_PROVIDER_NONSECRET_KEYS = (
+    "melipayamak_enabled", "melipayamak_sender", "kavenegar_enabled",
+    "kavenegar_sender", "otp_fallback_enabled",
+)
+
+
+def _sms_provider_context(*, config, test_result=None):
+    from apps.sms.models import SmsBillingPolicy
+    credentials = config.get_sms_credentials()
+    return {
+        "config": config,
+        "policy": SmsBillingPolicy.load(),
+        "credentials": credentials,
+        "test_result": test_result,
+        "melipayamak_password_is_configured": bool(credentials.get("melipayamak_password")),
+        "kavenegar_api_key_is_configured": bool(credentials.get("kavenegar_api_key")),
+        "melipayamak_enabled": credentials.get("melipayamak_enabled", "1") != "0",
+        "kavenegar_enabled": credentials.get("kavenegar_enabled", "1") != "0",
+        "otp_fallback_enabled": credentials.get("otp_fallback_enabled", "0") == "1",
+        "active_nav": "sms-providers",
+    }
+
+
+def _save_provider_settings(request, config):
+    from django.core.cache import cache
+
+    primary = (request.POST.get("primary_provider") or request.POST.get("sms_backend") or "melipayamak").strip()
+    if primary not in {"melipayamak", "kavenegar", "console"}:
+        primary = "melipayamak"
+
+    # legacy sender remains as fallback; provider-specific sender lives encrypted.
+    legacy_sender = (request.POST.get("sms_sender_number") or "").strip()
+    mel_sender = (request.POST.get("melipayamak_sender") or legacy_sender).strip()
+    kav_sender = (request.POST.get("kavenegar_sender") or legacy_sender).strip()
+    config.sms_backend = primary
+    config.sms_sender_number = mel_sender if primary == "melipayamak" else kav_sender
+    config.save(update_fields=["sms_backend", "sms_sender_number", "updated_at"])
+
+    credentials = config.get_sms_credentials()
+    updates = {
+        "melipayamak_username": (request.POST.get("sms_melipayamak_username") or request.POST.get("melipayamak_username") or "").strip(),
+        "melipayamak_password": (request.POST.get("sms_melipayamak_password") or request.POST.get("melipayamak_password") or "").strip(),
+        "kavenegar_api_key": (request.POST.get("sms_kavenegar_api_key") or request.POST.get("kavenegar_api_key") or "").strip(),
+        "melipayamak_sender": mel_sender,
+        "kavenegar_sender": kav_sender,
+        "melipayamak_enabled": "1" if ("melipayamak_enabled" in request.POST or request.POST.get("action") not in {"save_providers"}) else "0",
+        "kavenegar_enabled": "1" if ("kavenegar_enabled" in request.POST or request.POST.get("action") not in {"save_providers"}) else "0",
+        "otp_fallback_enabled": "1" if ("otp_fallback_enabled" in request.POST or "sms_otp_fallback_enabled" in request.POST) else "0",
+    }
+    # Legacy Phase-1 POSTs are copied to the new platform-owner OTP template too.
+    body_id = (request.POST.get("sms_melipayamak_otp_body_id") or "").strip()
+    variables_order = (request.POST.get("sms_melipayamak_otp_variables_order") or "").strip()
+    k_template = (request.POST.get("sms_kavenegar_otp_template") or "").strip()
+    if body_id or variables_order or k_template:
+        from apps.sms.events import SmsEvent
+        from apps.sms.models import SmsTemplate
+        SmsTemplate.ensure_defaults()
+        template = SmsTemplate.objects.get(event_key=SmsEvent.PLATFORM_OWNER_OTP)
+        if body_id:
+            template.melipayamak_body_id = body_id
+        if variables_order:
+            template.melipayamak_variables_order = variables_order
+        if k_template:
+            template.kavenegar_template = k_template
+        template.save()
+        # keep old encrypted keys as rollback/backward fallback
+        updates.update({
+            "melipayamak_otp_body_id": body_id,
+            "melipayamak_otp_variables_order": variables_order or credentials.get("melipayamak_otp_variables_order", "otp_code"),
+            "kavenegar_otp_template": k_template,
+        })
+
+    config.set_sms_credentials(remove_keys=_SMS_PROVIDER_NONSECRET_KEYS, **updates)
+    config.save(update_fields=["encrypted_sms_credentials", "updated_at"])
+    cache.delete("portal:platform_configuration")
 
 
 @user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
 def sms_settings(request):
-    """درگاهِ پیامکِ مرکزیِ پلتفرم (بخشِ ۱۲) — فقط برایِ مدیرِ پلتفرم؛ فروشگاه‌ها
-    هرگز این اعتبارنامه‌ها را نمی‌بینند."""
+    """Legacy URL؛ همان مرکز جدید شرکت‌های پیامکی را نمایش می‌دهد."""
+    return sms_providers(request)
+
+
+@user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
+def sms_providers(request):
+    from apps.sms.events import SmsEvent
+    from apps.sms.models import SmsBillingPolicy
+    from apps.sms.services.billing_policy_service import record_platform_attempt
+    from apps.portal.services.owner_sms_service import send_platform_sms
+
     config = get_platform_configuration()
     test_result = None
-    if request.method == "POST" and request.POST.get("action") == "test_sms":
-        phone = (request.POST.get("test_phone") or "").strip()
-        form = PlatformSmsConfigForm(instance=config)
-        if phone:
-            from apps.portal.services.owner_sms_service import send_platform_sms
-
+    if request.method == "POST":
+        action = request.POST.get("action") or "legacy_save"
+        if action == "save_policy":
             try:
-                enforce_rate_limit(
-                    "platform_admin_test_sms", str(request.user.pk), max_attempts=5, window_seconds=600,
+                chars = int(request.POST.get("chars_per_credit") or 0)
+                price = int(request.POST.get("price_per_credit_toman") or 0)
+                overdraft = int(request.POST.get("otp_overdraft_limit") or 0)
+            except ValueError:
+                chars = price = overdraft = -1
+            if not (1 <= chars <= 1000) or not (0 <= price <= 10_000_000) or not (0 <= overdraft <= 1000):
+                messages.error(request, "مقادیر سیاست هزینه نامعتبر است.")
+            else:
+                policy = SmsBillingPolicy.load()
+                before = {"chars": policy.chars_per_credit, "price": policy.price_per_credit_toman, "overdraft": policy.otp_overdraft_limit}
+                policy.chars_per_credit = chars
+                policy.price_per_credit_toman = price
+                policy.otp_overdraft_limit = overdraft
+                policy.save()
+                record_platform_audit_event(
+                    actor=request.user, action_code="platform_sms_policy.updated",
+                    object_type="SmsBillingPolicy", object_id=policy.pk,
+                    before=before, after={"chars": chars, "price": price, "overdraft": overdraft},
                 )
-            except RateLimitExceeded:
-                messages.error(request, "تعداد ارسالِ آزمایشی بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
-                return render(request, "portal/platform_admin/sms_settings.html", {
-                    "form": form, "config": config, "test_result": None,
-                    "sms_melipayamak_password_is_configured": bool(config.get_sms_credentials().get("melipayamak_password")),
-                    "sms_kavenegar_api_key_is_configured": bool(config.get_sms_credentials().get("kavenegar_api_key")),
-                    "active_nav": "sms-settings",
-                })
-
-            result = send_platform_sms(to=phone, text="پیامک آزمایشیِ راستیسی — پیکربندیِ درگاه سالم است.")
-            is_console = config.sms_backend in ("", "console")
-            test_result = {
-                "is_console": is_console,
-                "success": result.success,
-                "error_message": result.error_message,
-                "provider_ref_id": result.provider_ref_id,
-            }
-            record_platform_audit_event(
-                actor=request.user, action_code="platform_sms_settings.test_sent",
-                object_type="PlatformConfiguration", object_id=1,
-                metadata={"backend": config.sms_backend, "is_console": is_console, "success": result.success},
-                result="success" if result.success else "failure",
-            )
+                messages.success(request, "سیاست محاسبه و اعتبار پیامک ذخیره شد.")
+                return redirect("portal_platform_admin:sms-providers")
+        elif action == "test_provider":
+            phone = (request.POST.get("test_phone") or "").strip()
+            provider = (request.POST.get("provider") or "").strip()
+            if not phone or provider not in {"melipayamak", "kavenegar"}:
+                messages.error(request, "شماره موبایل و شرکت پیامکی معتبر لازم است.")
+            else:
+                result = send_platform_sms(to=phone, text="پیامک آزمایشی راستیسی", provider=provider)
+                record_platform_attempt(
+                    event_key=SmsEvent.PLATFORM_TEST, recipient=phone,
+                    message="پیامک آزمایشی راستیسی", result=result,
+                )
+                test_result = {"provider": provider, "success": result.success, "error": result.error_message, "ref": result.provider_ref_id}
         else:
-            messages.error(request, "برایِ ارسالِ آزمایشی، شماره‌ی موبایل را وارد کنید.")
-    elif request.method == "POST":
-        form = PlatformSmsConfigForm(request.POST, instance=config)
-        if form.is_valid():
-            model_changed = [f for f in form.changed_data if f not in _SMS_CREDENTIAL_FORM_FIELDS]
-            before = {name: getattr(config, name) for name in model_changed}
-            form.save()
-
-            sms_credentials_changed = any(form.cleaned_data.get(f) for f in _SMS_CREDENTIAL_FORM_FIELDS)
-            if sms_credentials_changed:
-                config.set_sms_credentials(
-                    melipayamak_username=form.cleaned_data.get("sms_melipayamak_username"),
-                    melipayamak_password=form.cleaned_data.get("sms_melipayamak_password"),
-                    kavenegar_api_key=form.cleaned_data.get("sms_kavenegar_api_key"),
-                )
-                config.save(update_fields=["encrypted_sms_credentials"])
-
-            from django.core.cache import cache
-
-            cache.delete("portal:platform_configuration")
+            _save_provider_settings(request, config)
             record_platform_audit_event(
-                actor=request.user, action_code="platform_sms_settings.updated",
+                actor=request.user, action_code="platform_sms_providers.updated",
                 object_type="PlatformConfiguration", object_id=1,
-                before=before, after={name: form.cleaned_data[name] for name in model_changed},
-                metadata={"sms_credentials_changed": sms_credentials_changed} if sms_credentials_changed else None,
+                metadata={"primary_provider": config.sms_backend},
             )
-            messages.success(request, "تنظیماتِ درگاهِ پیامک به‌روزرسانی شد.")
-            return redirect("portal_platform_admin:sms-settings")
-    else:
-        form = PlatformSmsConfigForm(instance=config)
+            messages.success(request, "تنظیمات شرکت‌های پیامکی ذخیره شد.")
+            return redirect("portal_platform_admin:sms-providers")
 
-    return render(request, "portal/platform_admin/sms_settings.html", {
-        "form": form,
-        "config": config,
-        "test_result": test_result,
-        "sms_melipayamak_password_is_configured": bool(config.get_sms_credentials().get("melipayamak_password")),
-        "sms_kavenegar_api_key_is_configured": bool(config.get_sms_credentials().get("kavenegar_api_key")),
-        "active_nav": "sms-settings",
+    return render(request, "portal/platform_admin/sms_providers.html", _sms_provider_context(config=config, test_result=test_result))
+
+
+@user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
+def sms_templates(request):
+    from apps.sms.events import SmsEvent
+    from apps.sms.models import SmsTemplate
+    from apps.sms.services.billing_policy_service import quote_message
+
+    SmsTemplate.ensure_defaults()
+    templates = list(SmsTemplate.objects.exclude(event_key__in=[SmsEvent.PLATFORM_TEST, SmsEvent.NOTIFICATION]).order_by("event_key"))
+    for item in templates:
+        item.preview_quote = quote_message(item.body)
+    return render(request, "portal/platform_admin/sms_templates.html", {
+        "templates": templates, "active_nav": "sms-templates",
+    })
+
+
+@user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
+def sms_template_edit(request, event_key):
+    from apps.sms.events import EVENT_VARIABLES, SmsEvent
+    from apps.sms.models import SmsBillingPolicy, SmsTemplate
+    from apps.sms.services.billing_policy_service import quote_message, record_platform_attempt
+    from apps.sms.services.sms_service import SmsTemplateError, validate_template_body
+    from apps.portal.services.owner_sms_service import send_platform_otp, send_platform_sms
+
+    SmsTemplate.ensure_defaults()
+    template = get_object_or_404(SmsTemplate, event_key=event_key)
+    if request.method == "POST":
+        action = request.POST.get("action") or "save"
+        if action == "test":
+            phone = (request.POST.get("test_phone") or "").strip()
+            if not phone:
+                messages.error(request, "شماره موبایل تست را وارد کنید.")
+            else:
+                if template.event_key in {SmsEvent.OTP, SmsEvent.PLATFORM_OWNER_OTP}:
+                    result = send_platform_otp(
+                        to=phone, code="123456", purpose="platform_admin_template_test",
+                        template_event_key=template.event_key,
+                    )
+                    sample = template.body.replace("{otp_code}", "123456").replace("{expire_minutes}", "2").replace("{shop_name}", "فروشگاه آزمایشی")
+                    record_platform_attempt(event_key=template.event_key, recipient=phone, message=sample, result=result, protect_body=True)
+                else:
+                    sample = template.body
+                    samples = {"customer_name": "کاربر آزمایشی", "shop_name": "فروشگاه آزمایشی", "order_code": "TEST-1", "amount": "100000", "tracking_code": "TRACK-1"}
+                    for key, value in samples.items():
+                        sample = sample.replace("{" + key + "}", value)
+                    # تست باید دقیقاً مسیر واقعی Production را امتحان کند: اگر
+                    # Provider اصلی ملی‌پیامک و BodyId موجود است، Pattern ارسال شود.
+                    from apps.portal.services.owner_sms_service import get_platform_sms_backend
+                    from apps.sms.services.backends import MelipayamakBackend
+                    backend = get_platform_sms_backend()
+                    if isinstance(backend, MelipayamakBackend) and template.melipayamak_body_id:
+                        result = backend.send_pattern(
+                            to=phone, body_id=template.melipayamak_body_id,
+                            variables=samples, variables_order=template.melipayamak_variables_order or "otp_code",
+                        )
+                        result.provider = "melipayamak"
+                    else:
+                        result = send_platform_sms(to=phone, text=sample)
+                    record_platform_attempt(event_key=template.event_key, recipient=phone, message=sample, result=result)
+                if result.success:
+                    messages.success(request, "پیامک تست با موفقیت به Provider تحویل شد.")
+                else:
+                    messages.error(request, f"ارسال تست ناموفق بود: {result.error_message}")
+        else:
+            title = (request.POST.get("title") or "").strip()
+            body = (request.POST.get("body") or "").strip()
+            try:
+                validate_template_body(template.event_key, body)
+            except SmsTemplateError as exc:
+                messages.error(request, str(exc))
+            else:
+                if not title or not body:
+                    messages.error(request, "عنوان و متن قالب الزامی‌اند.")
+                else:
+                    body_id = (request.POST.get("melipayamak_body_id") or "").strip()
+                    variables_order = (request.POST.get("melipayamak_variables_order") or "").strip() or "otp_code"
+                    order_keys = [key.strip() for key in variables_order.replace(";", ",").split(",") if key.strip()]
+                    allowed_keys = set(EVENT_VARIABLES.get(template.event_key, {}))
+                    unknown_order = [key for key in order_keys if key not in allowed_keys]
+                    if body_id and not body_id.isdigit():
+                        messages.error(request, "BodyId ملی‌پیامک باید عدد باشد.")
+                    elif body_id and unknown_order:
+                        messages.error(request, "ترتیب متغیرهای Pattern شامل متغیر نامعتبر است: " + "، ".join(unknown_order))
+                    else:
+                        template.title = title
+                        template.body = body
+                        template.is_active = "is_active" in request.POST
+                        template.melipayamak_body_id = body_id
+                        template.melipayamak_variables_order = variables_order
+                        template.kavenegar_template = (request.POST.get("kavenegar_template") or "").strip()
+                        template.save()
+                        record_platform_audit_event(
+                            actor=request.user, action_code="platform_sms_template.updated",
+                            object_type="SmsTemplate", object_id=template.pk, object_label=template.title,
+                        )
+                        messages.success(request, "قالب پیامک ذخیره شد.")
+                        return redirect("portal_platform_admin:sms-template-edit", event_key=template.event_key)
+                    # validation error: remain on edit page without mutating the template
+                    quote = quote_message(template.body)
+                    return render(request, "portal/platform_admin/sms_template_edit.html", {
+                        "template": template, "quote": quote, "policy": SmsBillingPolicy.load(),
+                        "variables": EVENT_VARIABLES.get(template.event_key, {}),
+                        "active_nav": "sms-templates",
+                    })
+
+    quote = quote_message(template.body)
+    return render(request, "portal/platform_admin/sms_template_edit.html", {
+        "template": template, "quote": quote, "policy": SmsBillingPolicy.load(),
+        "variables": EVENT_VARIABLES.get(template.event_key, {}),
+        "active_nav": "sms-templates",
+    })
+
+
+@user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
+def sms_messages(request):
+    from apps.sms.events import SmsEvent
+    from apps.sms.models import SmsLog
+
+    query = (request.GET.get("q") or "").strip()
+    status = (request.GET.get("status") or "").strip()
+    event_key = (request.GET.get("event_key") or "").strip()
+    provider = (request.GET.get("provider") or "").strip()
+    queryset = SmsLog.objects.select_related("store").order_by("-created_at")
+    if query:
+        queryset = queryset.filter(Q(recipient__icontains=query) | Q(store__name__icontains=query))
+    if status in SmsLog.Status.values:
+        queryset = queryset.filter(status=status)
+    if event_key in SmsEvent.values:
+        queryset = queryset.filter(event_key=event_key)
+    if provider in {"melipayamak", "kavenegar", "smsrasti", "console"}:
+        queryset = queryset.filter(provider=provider)
+    paginator = Paginator(queryset, 50)
+    page = paginator.get_page(request.GET.get("page"))
+    return render(request, "portal/platform_admin/sms_messages.html", {
+        "page": page, "query": query, "status": status, "event_key": event_key,
+        "provider": provider, "status_choices": SmsLog.Status.choices,
+        "event_choices": SmsEvent.choices,
+        "provider_choices": [("melipayamak", "ملی‌پیامک"), ("kavenegar", "کاوه‌نگار"), ("smsrasti", "SmsRasti"), ("console", "Console")],
+        "active_nav": "sms-messages",
     })
 
 
@@ -463,9 +663,9 @@ def store_support_login(request, store_public_id):
         object_type="Store", object_id=str(store.pk), object_label=store.name,
     )
     admin_host = f"{store.admin_subdomain}.{dj_settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
-    if dj_settings.DEBUG:
-        return redirect(f"http://{admin_host}:8000/admin-portal/handoff/{ticket.token}/")
-    return redirect(f"{request.scheme}://{admin_host}/admin-portal/handoff/{ticket.token}/")
+    return redirect(build_cross_host_url(
+        request, hostname=admin_host, path=f"/admin-portal/handoff/{ticket.token}/",
+    ))
 
 
 @require_POST
@@ -572,7 +772,6 @@ def store_add_note(request, store_public_id):
     )
     messages.success(request, "یادداشت ثبت شد.")
     return redirect("portal_platform_admin:store-detail", store_public_id)
-
 
 # ---------------------------------------------------------------- کاربران و مالکین
 
@@ -1090,26 +1289,10 @@ def sms_credit_adjust(request, store_public_id):
 
 @user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
 def sms_logs(request):
-    from apps.sms.models import SmsLog
-
-    query = (request.GET.get("q") or "").strip()
-    status = (request.GET.get("status") or "").strip()
-    event_key = (request.GET.get("event_key") or "").strip()
-
-    queryset = SmsLog.objects.filter(store__isnull=False).select_related("store").order_by("-created_at")
-    if query:
-        queryset = queryset.filter(Q(recipient__icontains=query) | Q(store__name__icontains=query))
-    if status in SmsLog.Status.values:
-        queryset = queryset.filter(status=status)
-    if event_key:
-        queryset = queryset.filter(event_key=event_key)
-
-    paginator = Paginator(queryset, 50)
-    page = paginator.get_page(request.GET.get("page"))
-    return render(request, "portal/platform_admin/sms_logs.html", {
-        "page": page, "query": query, "status": status, "event_key": event_key,
-        "status_choices": SmsLog.Status.choices, "active_nav": "sms-logs",
-    })
+    """Legacy URL for old bookmarks."""
+    query = request.GET.urlencode()
+    target = reverse("portal_platform_admin:sms-messages")
+    return redirect(f"{target}?{query}" if query else target)
 
 
 # ---------------------------------------------------------------- صنف‌ها و قالب‌ها

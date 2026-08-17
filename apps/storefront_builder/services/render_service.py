@@ -612,6 +612,7 @@ def _build_items_from_sections(sections, store, page_context: dict) -> list[dict
         )
         items.append({
             "section": section,
+            "definition": definition,
             "template_name": definition.template_name,
             "label_fa": definition.label_fa,
             "context": context,
@@ -649,6 +650,52 @@ def build_default_render_items(page_type: str, store, page_context: dict | None 
         for s in build_default_non_home_sections(page_type)
     ]
     return _build_items_from_sections(sections, store, page_context)
+
+
+
+def build_container_render_items(page, items: list[dict], *, include_empty: bool = False) -> list[dict]:
+    """Shape rendered Section items through the real Container/Cell layout.
+
+    ``items`` already contains the expensive, store-scoped Section contexts.
+    This helper only maps those items onto Cells. Inactive/unknown Sections are
+    treated as empty Cells. Public rendering skips completely empty Containers;
+    Builder preview may request ``include_empty=True`` so merchants can see and
+    fill an empty layout before content exists.
+    """
+    from . import container_service
+
+    items_by_section_id = {
+        item["section"].pk: item
+        for item in items
+        if item.get("section") is not None and item["section"].pk is not None
+    }
+    rendered = []
+    containers = page.containers.prefetch_related("cells__section").order_by("order", "id")
+    for container in containers:
+        cells = []
+        has_content = False
+        has_placement = False
+        for cell in container.cells.all():
+            item = items_by_section_id.get(cell.section_id) if cell.section_id else None
+            if cell.section_id:
+                has_placement = True
+            if item is not None:
+                has_content = True
+            cells.append({"cell": cell, "item": item})
+        if not has_content and not include_empty:
+            continue
+        rendered.append({
+            "container": container,
+            "settings": container_service.effective_container_settings(container.settings),
+            "cells": cells,
+            "has_content": has_content,
+            # Hidden content has no active render item but still physically owns
+            # its Cell.  Builder chrome must distinguish that from a truly empty
+            # Container so direct delete never risks hidden data.
+            "has_placement": has_placement,
+        })
+    return rendered
+
 
 
 def group_items_into_rows(items: list[dict]) -> list[dict]:

@@ -40,3 +40,5 @@ scripts/.verify_output/
 .idea/
 .DS_Store
 Thumbs.db
+
+tools/storefront_builder_qa/node_modules/

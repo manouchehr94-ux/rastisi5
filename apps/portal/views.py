@@ -16,6 +16,7 @@ from apps.catalog.services import industry_catalog_service
 from apps.billing.models import SubscriptionPaymentAttempt
 from apps.billing.services import payment_flow_service
 from apps.billing.services import plan_change_billing_service
+from apps.stores.hostnames import build_cross_host_url
 from apps.stores.models import Store, StoreDomain, StoreMembership, StoreOwnershipTransfer
 from apps.stores.services import deletion_service, domain_verification_service, handle_service, ownership_transfer_service
 from apps.subscriptions.models import Plan, PlanVersion, StoreSubscription
@@ -207,7 +208,10 @@ def _post_login_redirect(request, user, *, next_url: str, admin_return: str):
                     messages.error(request, "شما عضوِ فعالِ آن فروشگاه نیستید.")
                 else:
                     admin_host = f"{admin_subdomain}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
-                    return redirect(f"{request.scheme}://{admin_host}/admin-portal/handoff/{ticket.token}/")
+                    return redirect(build_cross_host_url(
+                        request, hostname=admin_host,
+                        path=f"/admin-portal/handoff/{ticket.token}/",
+                    ))
 
     if _is_safe_next(next_url):
         return redirect(next_url)
@@ -552,13 +556,9 @@ def enter_admin(request, store_public_id):
     except handoff_service.HandoffError:
         raise Http404
     admin_host = f"{store.admin_subdomain}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
-    if settings.DEBUG:
-        return redirect(
-            f"http://{admin_host}:8000/admin-portal/handoff/{ticket.token}/"
-        )
-    return redirect(
-        f"{request.scheme}://{admin_host}/admin-portal/handoff/{ticket.token}/"
-    )
+    return redirect(build_cross_host_url(
+        request, hostname=admin_host, path=f"/admin-portal/handoff/{ticket.token}/",
+    ))
 
 
 def _get_owned_store_or_404(request, store_public_id) -> Store:

@@ -75,6 +75,10 @@ class PresetSectionEntry:
     #: قبل از این فاز) بدونِ هیچ تغییری همچنان معتبر می‌ماند.
     row_key: str = ""
     row_span: int = 12
+    #: Optional generic settings for the Container created for this standalone
+    #: entry or contiguous row run. Presets stay pure data; no Store IDs or
+    #: renderer-specific hooks belong here.
+    container_settings: dict | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -160,6 +164,21 @@ def _validate_page_composition_shape(definition: LayoutPresetDefinition) -> None
                 raise InvalidLayoutPresetError(
                     f"Preset «{definition.key}»: تنظیماتِ section «{entry.section_key}» نامعتبر است: {exc}"
                 ) from exc
+            if entry.container_settings is not None:
+                if not isinstance(entry.container_settings, dict):
+                    raise InvalidLayoutPresetError(
+                        f"Preset «{definition.key}»: container_settings باید دیکشنری باشد"
+                    )
+                allowed_container_keys = {
+                    "gap", "mobile_mode", "content_width", "vertical_align",
+                    "height_mode", "background_mode", "background_color",
+                    "background_pattern",
+                }
+                unknown = set(entry.container_settings) - allowed_container_keys
+                if unknown:
+                    raise InvalidLayoutPresetError(
+                        f"Preset «{definition.key}»: کلیدهای ناشناخته‌ی Container: {sorted(unknown)}"
+                    )
 
         # Phase 3 — عضویتِ ردیفِ ترکیبی (``row_key``/``row_span``) هم در
         # زمانِ import اعتبارسنجی می‌شود — همان ``row_service`` که
@@ -358,11 +377,11 @@ register_layout_preset(LayoutPresetDefinition(
 # ==================================================================
 register_layout_preset(LayoutPresetDefinition(
     key="v5_golden_homepage",
-    label_fa="فروشگاه کامل (V5)",
+    label_fa="فروشگاه رنگی و کاتالوگی — مرجع",
     description_fa=(
-        "چیدمان متراکم مارکت‌پلیس: هدر جستجو-محور، Hero و پیشنهاد لحظه‌ای، "
-        "ردیف تصویری دسته‌بندی، بنرهای تبلیغاتی متنوع، ریل‌های رنگی شش‌ستونه، "
-        "پیشنهاد شگفت‌انگیز، پنل‌های منتخب دو ستونه و فوتر اطلاعاتی عمیق."
+        "شروع نزدیک به صفحه مرجع تأییدشده: هدر جستجو-محور، Hero و پیشنهاد جانبی، "
+        "دسته‌بندی تصویری، بنرهای تبلیغاتی، ردیف‌های رنگی محصول، ترکیب‌های دو ستونه "
+        "و فوتر کامل. بعد از اعمال، همه بخش‌ها و پس‌زمینه‌ها آزادانه قابل ویرایش‌اند."
     ),
     appearance={
         "font": "Vazirmatn", "radius": 7, "button_radius": 4,
@@ -371,12 +390,8 @@ register_layout_preset(LayoutPresetDefinition(
         "card_image_crossfade": False, "card_image_zoom": False,
         "content_width": 1500, "grid_density": 6,
         "card_shadow": "none", "card_hover": "none", "hero_style": "wide",
-        "color_overrides": {
-            "primary": "#16A34A", "secondary": "#168A48", "accent": "#F43F5E",
-            "background": "#F4F5F7", "surface": "#FFFFFF", "text": "#282B30",
-            "muted": "#747982", "border": "#E0E3E8",
-        },
     },
+    default_palette_slug="catalog-colorful",
     header={
         "sticky": False, "announcement_enabled": True,
         "show_search": True, "show_account": True, "show_wishlist": True, "show_cart": True,
@@ -395,6 +410,10 @@ register_layout_preset(LayoutPresetDefinition(
         "home": (
             PresetSectionEntry(
                 "product_section", row_key="golden-hero-row", row_span=3,
+                container_settings={
+                    "gap": 8, "mobile_mode": "stack",
+                    "vertical_align": "start", "height_mode": "equal",
+                },
                 settings={
                     "title": "پیشنهاد لحظه‌ای", "data_source": "discounted", "item_limit": 4,
                     "display_mode": "carousel", "show_view_all": False,
@@ -412,12 +431,16 @@ register_layout_preset(LayoutPresetDefinition(
             ),
             PresetSectionEntry(
                 "hero_banner", row_key="golden-hero-row", row_span=9,
-                settings={"layout": {"height": "standard"}, "spacing": {"vertical_spacing": "small"}},
+                settings={
+                    "text_position": "start",
+                    "layout": {"height": "standard"},
+                    "spacing": {"vertical_spacing": "small"},
+                },
             ),
             PresetSectionEntry(
                 "category_grid",
                 settings={
-                    "title": "دسته‌بندی‌ها", "display_mode": "image_strip", "category_ids": [], "item_limit": 6,
+                    "title": "", "display_mode": "image_strip", "category_ids": [], "item_limit": 7,
                     "spacing": {"vertical_spacing": "small"},
                 },
             ),
@@ -454,7 +477,7 @@ register_layout_preset(LayoutPresetDefinition(
                         "show_price": True, "card_border": True, "image_ratio": "square",
                         "quick_add_reveal": "always",
                     },
-                    "background": {"mode": "pattern", "pattern_slug": "commerce-doodle", "color": "#F53247"},
+                    "background": {"mode": "palette_pattern", "pattern_slug": "commerce-doodle", "palette_role": "tone-1"},
                     "spacing": {"vertical_spacing": "small"},
                 },
             ),
@@ -477,12 +500,13 @@ register_layout_preset(LayoutPresetDefinition(
                         "show_price": True, "card_border": True, "image_ratio": "square",
                         "quick_add_reveal": "always",
                     },
-                    "background": {"mode": "pattern", "pattern_slug": "commerce-doodle", "color": "#16B95F"},
+                    "background": {"mode": "palette_pattern", "pattern_slug": "commerce-doodle", "palette_role": "tone-2"},
                     "spacing": {"vertical_spacing": "small"},
                 },
             ),
             PresetSectionEntry(
                 "multi_banner", row_key="golden-banner-pair-a", row_span=6,
+                container_settings={"gap": 10, "mobile_mode": "stack", "height_mode": "equal"},
                 settings={
                     "item_limit": 1, "offset": 4, "layout_variant": "wide-single",
                     "responsive": {"desktop_columns": 1, "tablet_columns": 1, "mobile_columns": 1},
@@ -509,12 +533,13 @@ register_layout_preset(LayoutPresetDefinition(
                         "show_price": True, "card_border": True, "image_ratio": "square",
                         "quick_add_reveal": "always",
                     },
-                    "background": {"mode": "pattern", "pattern_slug": "commerce-doodle", "color": "#C56B00"},
+                    "background": {"mode": "palette_pattern", "pattern_slug": "commerce-doodle", "palette_role": "tone-3"},
                     "spacing": {"vertical_spacing": "small"},
                 },
             ),
             PresetSectionEntry(
                 "multi_banner", row_key="golden-banner-pair-b", row_span=6,
+                container_settings={"gap": 10, "mobile_mode": "stack", "height_mode": "equal"},
                 settings={
                     "item_limit": 1, "offset": 6, "layout_variant": "wide-single",
                     "responsive": {"desktop_columns": 1, "tablet_columns": 1, "mobile_columns": 1},
@@ -531,6 +556,7 @@ register_layout_preset(LayoutPresetDefinition(
             ),
             PresetSectionEntry(
                 "product_section", row_key="golden-compact-row-a", row_span=6,
+                container_settings={"gap": 10, "mobile_mode": "stack", "height_mode": "equal"},
                 settings={
                     "title": "پیشنهادهای منتخب", "data_source": "newest", "item_limit": 3,
                     "display_mode": "grid", "show_view_all": True,
@@ -571,12 +597,13 @@ register_layout_preset(LayoutPresetDefinition(
                         "show_price": True, "card_border": True, "image_ratio": "square",
                         "quick_add_reveal": "always",
                     },
-                    "background": {"mode": "pattern", "pattern_slug": "commerce-doodle", "color": "#352196"},
+                    "background": {"mode": "palette_pattern", "pattern_slug": "commerce-doodle", "palette_role": "tone-4"},
                     "spacing": {"vertical_spacing": "small"},
                 },
             ),
             PresetSectionEntry(
                 "product_section", row_key="golden-compact-row-b", row_span=6,
+                container_settings={"gap": 10, "mobile_mode": "stack", "height_mode": "equal"},
                 settings={
                     "title": "انتخاب روز", "data_source": "discounted", "item_limit": 3,
                     "display_mode": "grid", "show_view_all": True,
@@ -625,7 +652,7 @@ register_layout_preset(LayoutPresetDefinition(
                         "show_price": True, "card_border": True, "image_ratio": "square",
                         "quick_add_reveal": "always",
                     },
-                    "background": {"mode": "pattern", "pattern_slug": "commerce-doodle", "color": "#056CAE"},
+                    "background": {"mode": "palette_pattern", "pattern_slug": "commerce-doodle", "palette_role": "tone-5"},
                     "spacing": {"vertical_spacing": "small"},
                 },
             ),
