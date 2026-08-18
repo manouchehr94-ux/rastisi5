@@ -1,5 +1,6 @@
 import json
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user, get_user_model
 from django.core.cache import cache
@@ -70,6 +71,14 @@ class CheckoutPayTests(TestCase):
         original = otp_service._generate_code
         otp_service._generate_code = lambda: self.CODE
         self.addCleanup(setattr, otp_service, "_generate_code", original)
+
+        # OTP flow should test checkout/session/security behavior, not depend on
+        # an external SMS provider being configured in the test environment.
+        sms_patcher = patch("apps.sms.services.otp_service.send_event_sms")
+        mock_send = sms_patcher.start()
+        mock_send.return_value.status = "sent"
+        mock_send.return_value.error_message = ""
+        self.addCleanup(sms_patcher.stop)
 
     def _login_and_add_to_cart(self, quantity=2):
         # login کلید session را عوض می‌کند؛ برای اینکه سبد آزمون به کاربر
@@ -304,7 +313,7 @@ class CheckoutCouponViewTests(TestCase):
         category = Category.objects.create(store=store, name="دیجیتال", slug="digital-ccv")
         self.product = Product.objects.create(
             store=store, vendor=vendor, category=category, name="کالای نمونه", slug="sample-ccv",
-            sku="SKU-CCV1", price=Decimal("300000"),
+            sku="SKU-CCV1", price=Decimal("300000"), stock=10,
         )
         ShippingMethod.objects.create(store=store, name="پست پیشتاز", slug="post-ccv", cost=45_000)
         PaymentGateway.objects.create(store=store, name="زرین‌پال", slug="zarin-ccv")

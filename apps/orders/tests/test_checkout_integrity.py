@@ -337,6 +337,14 @@ class ExistingPhoneOTPRegressionTests(TestCase):
         otp_service._generate_code = lambda: self.CODE
         self.addCleanup(setattr, otp_service, "_generate_code", original)
 
+        # Existing-phone OTP regression tests exercise the checkout ownership
+        # and session flow. Keep SMS delivery deterministic and local.
+        sms_patcher = patch("apps.sms.services.otp_service.send_event_sms")
+        mock_send = sms_patcher.start()
+        mock_send.return_value.status = "sent"
+        mock_send.return_value.error_message = ""
+        self.addCleanup(sms_patcher.stop)
+
     def test_otp_flow_completes_order_on_existing_account(self):
         # Add to cart as guest
         self.client.post(reverse("cart:add", args=[self.product.slug]), {"quantity": 1})
