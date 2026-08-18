@@ -264,7 +264,13 @@ def shop_settings(request):
     enamad_verification_meta = store_enamad_verification_meta_for_request(
         request, store_id=shop.store_id
     )
-    enamad_badge = store_enamad_badge_for_request(request, store_id=shop.store_id)
+    # Merchant eNamad badge is storefront-only. Avoid the custom-domain
+    # verification lookup on admin pages, where the badge is never rendered.
+    enamad_badge = None
+    if not getattr(request, "path", "").startswith("/admin-portal/"):
+        enamad_badge = store_enamad_badge_for_request(
+            request, store_id=shop.store_id
+        )
 
     return {
         "SHOP_NAME": shop.name,
