@@ -98,3 +98,44 @@ class MerchantEnamadMetaRenderingTests(TestCase):
             self._request("merchant-meta.example", "/products/")
         )
         self.assertEqual(context["SHOP_ENAMAD_VERIFICATION_META_NAME"], "")
+
+    def test_unverified_custom_domain_never_gets_verification_meta(self):
+        StoreDomain.objects.filter(hostname="merchant-meta.example").update(
+            verification_status=StoreDomain.VerificationStatus.UNVERIFIED,
+            verified_at=None,
+        )
+        with override_settings(
+            ALLOWED_HOSTS=["merchant-meta.example", "testserver"]
+        ):
+            context = shop_settings(self._request("merchant-meta.example"))
+        self.assertEqual(context["SHOP_ENAMAD_VERIFICATION_META_NAME"], "")
+        self.assertEqual(context["SHOP_ENAMAD_VERIFICATION_META_CONTENT"], "")
+
+    def test_other_stores_verified_domain_never_gets_this_stores_meta(self):
+        other_store = Store.objects.create(
+            name="Other Merchant",
+            slug="other-merchant",
+            admin_subdomain="other-merchant",
+            status=Store.Status.ACTIVE,
+            onboarding_completed_at=timezone.now(),
+        )
+        ShopSettings.provision_for(other_store)
+        StoreDomain.objects.create(
+            store=other_store,
+            hostname="other-merchant.example",
+            is_primary=True,
+            domain_type=StoreDomain.DomainType.CUSTOM_DOMAIN,
+            verification_status=StoreDomain.VerificationStatus.VERIFIED,
+            verified_at=timezone.now(),
+        )
+        # other_store has no eNamad integration connected at all — its own
+        # verified custom-domain home page must never show store A's meta.
+        request = RequestFactory().get("/", HTTP_HOST="other-merchant.example")
+        request.store = other_store
+        with override_settings(
+            ALLOWED_HOSTS=["other-merchant.example", "testserver"]
+        ):
+            context = shop_settings(request)
+        self.assertEqual(context["SHOP_ENAMAD_VERIFICATION_META_NAME"], "")
+        self.assertEqual(context["SHOP_ENAMAD_VERIFICATION_META_CONTENT"], "")
+        self.assertNotIn("merchant-safe-token", str(context))
