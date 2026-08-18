@@ -256,6 +256,14 @@ def shop_settings(request):
                 path="/admin-portal/",
             )
 
+    from apps.stores.services.enamad_verification_service import (
+        store_enamad_verification_meta_for_request,
+    )
+
+    enamad_verification_meta = store_enamad_verification_meta_for_request(
+        request, store_id=shop.store_id
+    )
+
     return {
         "SHOP_NAME": shop.name,
         "SHOP_TAGLINE": shop.tagline,
@@ -295,6 +303,12 @@ def shop_settings(request):
         "SHOP_THEME_PRICE": theme_roles["price"],
         "SHOW_ADMIN_SHORTCUT": bool(is_home_surface and shop_admin_url),
         "SHOP_ADMIN_URL": shop_admin_url,
+        "SHOP_ENAMAD_VERIFICATION_META_NAME": (
+            enamad_verification_meta.name if enamad_verification_meta else ""
+        ),
+        "SHOP_ENAMAD_VERIFICATION_META_CONTENT": (
+            enamad_verification_meta.content if enamad_verification_meta else ""
+        ),
         # ساختارِ ظاهر (Template) — فقط برایِ مسیرهایِ Builder-aware از
         # نسخه می‌آید؛ نگاه کنید به ``_versioned_appearance``.
         "SHOP_TEMPLATE_SLUG": shop_template_slug,

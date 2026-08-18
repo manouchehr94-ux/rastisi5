@@ -208,6 +208,15 @@ class PlatformConfiguration(TimeStampedModel):
         "درگاه‌های پرداخت فعال", default=list,
         help_text="فهرستِ کدهای درگاه فعال — نمایش‌دادنی در تسویه‌حساب اشتراک.",
     )
+    enamad_verification_meta_tag = models.TextField(
+        "متاتگ احراز فنی اینماد",
+        blank=True,
+        default="",
+        help_text=(
+            "متاتگی که سامانه اینماد برای احراز دسترسی فنی دامنه rastisi.ir "
+            "می‌دهد. فقط یک <meta name=... content=...> امن پذیرفته می‌شود."
+        ),
+    )
 
     # --- درگاهِ پیامکِ مرکزیِ پلتفرم ---
     # زیرساختِ ارسالِ پیامک (ارائه‌دهنده/کلیدِ API/شماره‌ی فرستنده) یک تصمیمِ

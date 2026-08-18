@@ -25,6 +25,20 @@
     </div>
   </div></div>
 
+  <div class="pa-card"><div class="pa-cardhead"><h3>احراز فنی اینماد برای rastisi.ir</h3></div><div class="pa-cardbody">
+    <div class="pa-field">
+      <label>{{ form.enamad_verification_meta_tag.label }}</label>
+      {{ form.enamad_verification_meta_tag }}
+      {% if form.enamad_verification_meta_tag.errors %}<div class="pa-alert pa-alert-error" style="padding:6px 10px;margin:4px 0 0">{{ form.enamad_verification_meta_tag.errors.0 }}</div>{% endif %}
+      <p class="pa-help" style="margin-top:8px">
+        در پنل اینماد روش «افزودن متاتگ در صفحه اصلی» را انتخاب کنید و همان یک تگ
+        <code dir="ltr">&lt;meta name="..." content="..."&gt;</code>
+        را اینجا Paste کنید. RastiSi آن را اعتبارسنجی می‌کند و فقط روی صفحه‌ی اصلی پلتفرم رندر می‌کند؛
+        script، http-equiv و HTML اضافی پذیرفته نمی‌شوند. پس از پایان احراز می‌توانید این فیلد را خالی کنید.
+      </p>
+    </div>
+  </div></div>
+
   <div class="pa-card"><div class="pa-cardhead"><h3>عملیات</h3></div><div class="pa-cardbody">
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:10px">{{ form.maintenance_mode_enabled }} {{ form.maintenance_mode_enabled.label }}</label>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px">{{ form.new_store_registration_enabled }} {{ form.new_store_registration_enabled.label }}</label>

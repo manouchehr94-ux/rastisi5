@@ -21,6 +21,10 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable
 
+from apps.stores.services.enamad_verification_service import (
+    validate_enamad_integration_values,
+)
+
 
 class IntegrationCategory:
     TRUST = "trust"
@@ -81,10 +85,21 @@ PROVIDERS: dict[str, IntegrationProvider] = {
         code="enamad",
         display_name="اینماد (eNamad)",
         category=IntegrationCategory.TRUST,
-        description="نمایشِ نشانِ اعتماد الکترونیکی روی فروشگاه — کدِ نماد از پنلِ enamad.ir دریافت می‌شود.",
+        description=(
+            "برای احراز دسترسی فنی، متاتگِ داده‌شده توسط اینماد را وارد کنید. "
+            "پس از صدور نماد نیز می‌توانید کد نماد را در همین اتصال نگه دارید. "
+            "HTML دلخواه پذیرفته نمی‌شود و فقط یک meta امن با name/content معتبر است."
+        ),
         setup_guide="https://enamad.ir",
-        fields=(IntegrationField(key="enamad_code", label="کدِ نماد"),),
-        validate=_require_non_empty("enamad_code", "کدِ نماد"),
+        fields=(
+            IntegrationField(
+                key="verification_meta_tag",
+                label="متاتگ احراز فنی اینماد",
+                placeholder='<meta name="..." content="...">',
+            ),
+            IntegrationField(key="enamad_code", label="کد نماد پس از صدور (اختیاری)"),
+        ),
+        validate=validate_enamad_integration_values,
     ),
     "torob": IntegrationProvider(
         code="torob",

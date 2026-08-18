@@ -1,5 +1,10 @@
 from django import forms
 
+from apps.stores.services.enamad_verification_service import (
+    EnamadVerificationMetaError,
+    parse_enamad_verification_meta_tag,
+)
+
 
 class OwnerPhoneRequestForm(forms.Form):
     full_name = forms.CharField(label="نام و نام خانوادگی", max_length=150, required=False)
@@ -91,9 +96,27 @@ class PlatformConfigurationForm(forms.ModelForm):
             "primary_brand_color", "secondary_brand_color",
             "temporary_logo_text", "logo",
             "support_contact_phone", "support_contact_email",
-            "default_payment_provider",
+            "default_payment_provider", "enamad_verification_meta_tag",
             "maintenance_mode_enabled", "new_store_registration_enabled",
         ]
+        widgets = {
+            "enamad_verification_meta_tag": forms.Textarea(attrs={
+                "rows": 3,
+                "dir": "ltr",
+                "placeholder": '<meta name="..." content="...">',
+                "spellcheck": "false",
+            }),
+        }
+
+    def clean_enamad_verification_meta_tag(self):
+        value = (self.cleaned_data.get("enamad_verification_meta_tag") or "").strip()
+        if not value:
+            return ""
+        try:
+            parse_enamad_verification_meta_tag(value)
+        except EnamadVerificationMetaError as exc:
+            raise forms.ValidationError(str(exc)) from exc
+        return value
 
     def clean_deletion_retention_days(self):
         days = self.cleaned_data["deletion_retention_days"]

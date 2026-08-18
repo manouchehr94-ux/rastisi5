@@ -80,6 +80,14 @@ class UpdatePlatformConfigurationTests(TestCase):
             )
 
 
+    def test_invalid_enamad_meta_is_rejected_by_service(self):
+        with self.assertRaises(PlatformConfigurationError):
+            update_platform_configuration(
+                actor=self.superuser,
+                enamad_verification_meta_tag='<meta http-equiv="refresh" content="0">',
+            )
+
+
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
 class PlatformConfigurationViewTests(TestCase):
     def setUp(self):
@@ -117,6 +125,51 @@ class PlatformConfigurationViewTests(TestCase):
         config = get_platform_configuration()
         self.assertEqual(config.default_trial_days, 21)
         self.assertEqual(config.deletion_retention_days, 200)
+
+    def test_superuser_can_save_safe_enamad_verification_meta(self):
+        self.client.force_login(self.superuser)
+        meta = '<meta name="enamad-verification" content="platform-token-456">'
+        response = self.client.post(
+            "/configuration/",
+            {
+                "default_trial_days": 30,
+                "deletion_retention_days": 365,
+                "primary_brand_color": "#10a37a",
+                "secondary_brand_color": "#e0a72e",
+                "temporary_logo_text": "راستیسی",
+                "support_contact_phone": "",
+                "support_contact_email": "",
+                "default_payment_provider": "manual",
+                "enamad_verification_meta_tag": meta,
+                "new_store_registration_enabled": "on",
+            },
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 302)
+        config = get_platform_configuration()
+        self.assertEqual(config.enamad_verification_meta_tag, meta)
+
+    def test_platform_configuration_rejects_unsafe_enamad_html(self):
+        self.client.force_login(self.superuser)
+        response = self.client.post(
+            "/configuration/",
+            {
+                "default_trial_days": 30,
+                "deletion_retention_days": 365,
+                "primary_brand_color": "#10a37a",
+                "secondary_brand_color": "#e0a72e",
+                "temporary_logo_text": "راستیسی",
+                "support_contact_phone": "",
+                "support_contact_email": "",
+                "default_payment_provider": "manual",
+                "enamad_verification_meta_tag": '<script>alert(1)</script>',
+                "new_store_registration_enabled": "on",
+            },
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "فقط یک تگ meta ساده")
+        self.assertEqual(get_platform_configuration().enamad_verification_meta_tag, "")
 
     def test_superuser_can_configure_the_central_sms_gateway(self):
         self.client.force_login(self.superuser)

@@ -13,6 +13,10 @@ from apps.portal.models import (
     PlatformAuditLogEntry,
     PlatformConfiguration,
 )
+from apps.stores.services.enamad_verification_service import (
+    EnamadVerificationMetaError,
+    parse_enamad_verification_meta_tag,
+)
 
 _CACHE_KEY = "portal:platform_configuration"
 _CACHE_TIMEOUT = 300
@@ -87,6 +91,15 @@ def update_platform_configuration(*, actor, **fields) -> PlatformConfiguration:
         unknown = set(fields["step_up_actions"]) - STEP_UP_ACTION_KEYS
         if unknown:
             raise PlatformConfigurationError(f"کلید(های) نامعتبر در سیاست تأیید مجدد: {sorted(unknown)}")
+
+    if "enamad_verification_meta_tag" in fields:
+        value = str(fields["enamad_verification_meta_tag"] or "").strip()
+        if value:
+            try:
+                parse_enamad_verification_meta_tag(value)
+            except EnamadVerificationMetaError as exc:
+                raise PlatformConfigurationError(str(exc)) from exc
+        fields["enamad_verification_meta_tag"] = value
 
     config = get_platform_configuration()
 

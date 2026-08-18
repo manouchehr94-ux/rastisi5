@@ -6,6 +6,9 @@
 <title>{% block title %}راستیسی | سایت‌ساز فروشگاه آنلاین{% endblock %}</title>
 {% block meta_description %}<meta name="description" content="راستیسی — فروشگاه آنلاین خودتان را در چند دقیقه راه‌اندازی کنید.">{% endblock %}
 {% block robots_meta %}{% endblock %}
+{% if PLATFORM_ENAMAD_VERIFICATION_META_NAME and PLATFORM_ENAMAD_VERIFICATION_META_CONTENT %}
+<meta name="{{ PLATFORM_ENAMAD_VERIFICATION_META_NAME }}" content="{{ PLATFORM_ENAMAD_VERIFICATION_META_CONTENT }}">
+{% endif %}
 <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
 <link rel="icon" href="{% static 'favicon.ico' %}">
 <link rel="stylesheet" href="{% static 'css/base.css' %}">

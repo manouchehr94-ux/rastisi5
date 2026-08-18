@@ -40,6 +40,40 @@ class IntegrationSettingsSectionTests(TestCase):
         enamad_row = next(row for row in rows if row["provider"].code == "enamad")
         self.assertTrue(enamad_row["is_connected"])
 
+    def test_enamad_meta_field_is_visible_to_merchant_admin(self):
+        response = self.client.get(reverse("dashboard:settings") + "?section=integrations")
+        self.assertContains(response, "متاتگ احراز فنی اینماد")
+
+    def test_enamad_can_connect_with_verification_meta_before_badge_is_issued(self):
+        meta = '<meta name="enamad-verification" content="merchant-token-123">'
+        response = self.client.post(
+            reverse("dashboard:settings-integration-connect", args=["enamad"]),
+            {"verification_meta_tag": meta, "enamad_code": ""},
+        )
+        self.assertRedirects(response, "/admin-portal/settings/?section=integrations")
+        store = Store.objects.get(slug="akhlaghi")
+        row = next(
+            row for row in integration_service.connections_context(store=store)
+            if row["provider"].code == "enamad"
+        )
+        self.assertTrue(row["is_connected"])
+        self.assertEqual(row["credentials"]["verification_meta_tag"], meta)
+
+    def test_enamad_rejects_script_instead_of_storing_raw_html(self):
+        response = self.client.post(
+            reverse("dashboard:settings-integration-connect", args=["enamad"]),
+            {
+                "verification_meta_tag": '<meta name="x" content="y"><script>alert(1)</script>',
+                "enamad_code": "",
+            },
+            follow=True,
+        )
+        self.assertContains(response, "فقط یک تگ meta ساده")
+        store = Store.objects.get(slug="akhlaghi")
+        rows = integration_service.connections_context(store=store)
+        row = next(row for row in rows if row["provider"].code == "enamad")
+        self.assertFalse(row["is_connected"])
+
     def test_connect_with_invalid_format_shows_error(self):
         response = self.client.post(
             reverse("dashboard:settings-integration-connect", args=["google_analytics"]),

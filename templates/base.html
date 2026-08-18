@@ -21,6 +21,9 @@
 {% comment %}SEO: canonical/robots/OG on the tenant's own Host (ADR-90). Private pages
    override robots_meta with noindex; product/category pages override canonical.{% endcomment %}
 {% block robots_meta %}{% endblock %}
+{% if SHOP_ENAMAD_VERIFICATION_META_NAME and SHOP_ENAMAD_VERIFICATION_META_CONTENT %}
+<meta name="{{ SHOP_ENAMAD_VERIFICATION_META_NAME }}" content="{{ SHOP_ENAMAD_VERIFICATION_META_CONTENT }}">
+{% endif %}
 <link rel="canonical" href="{% block canonical %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}">
 {% block og_tags %}<meta property="og:site_name" content="{{ SHOP_NAME }}">
 <meta property="og:type" content="website">
