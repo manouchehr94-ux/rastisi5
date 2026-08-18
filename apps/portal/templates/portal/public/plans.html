@@ -1,32 +1,32 @@
-{% extends "portal/base_platform.html" %}
+{% extends "portal/public/base_public.html" %}
 {% load persian %}
 {% block title %}تعرفه‌ها | راستیسی{% endblock %}
-{% block meta_description %}<meta name="description" content="تعرفه‌ها و پلن‌هایِ راستیسی — از آزمایشیِ رایگان تا پلنِ سازمانی، متناسب با اندازه‌ی فروشگاهِ شما.">{% endblock %}
+{% block meta_description %}<meta name="description" content="پلن‌ها و تعرفه‌های راستیسی؛ گزینه‌های موجود را بر اساس قیمت، دوره پرداخت و دوره آزمایشی مقایسه کنید.">{% endblock %}
 {% block content %}
-<section class="p-section"><div class="p-wrap">
-  <h2>تعرفه‌ها</h2>
-  <p class="lead">پلن مناسب کسب‌وکارتان را انتخاب کنید؛ همیشه می‌توانید بعداً تغییر دهید.</p>
+<section class="r-page-hero"><div class="r-wrap r-page-hero-grid">
+  <div><span class="r-overline">تعرفه‌ها</span><h1 class="r-h1">پلنی برای مرحله‌ای که کسب‌وکارت امروز در آن است.</h1></div>
+  <div><p class="r-lead">پلن‌های فعال را با قیمت، دوره‌ی پرداخت و شرایط شروع هرکدام ببینید و گزینه‌ای را انتخاب کنید که با نیاز امروز فروشگاه شما هماهنگ‌تر است.</p></div>
+</div></section>
+<section class="r-section" style="padding-top:28px"><div class="r-wrap">
   {% if plan_rows %}
-  <div class="p-grid cols-3">
-    {% for row in plan_rows %}
-    <div class="p-card">
-      {% if row.plan.is_recommended %}<span class="p-plan-badge">پیشنهادی</span>{% endif %}
-      <h3 style="margin-top:10px">{{ row.plan.public_title|default:row.plan.name }}</h3>
-      <p style="font-size:26px;font-weight:800;color:var(--p-ink);margin:10px 0">
-        {{ row.version.display_price|toman }}
-        <span style="font-size:13px;font-weight:500;color:var(--p-muted)">/ {{ row.version.get_billing_interval_display }}</span>
-      </p>
-      <p>{{ row.plan.description }}</p>
-      {% if row.version.trial_days %}<p style="color:var(--p-primary);font-weight:600;font-size:13px">{{ row.version.trial_days|fa_number }} روز آزمایشی رایگان</p>{% endif %}
-      <a class="p-btn p-btn-primary" style="width:100%;margin-top:14px" href="{% url 'portal:register' %}">شروع کنید</a>
+  <div class="r-pricing-shell">
+    <div class="r-pricing-head"><div><span class="r-overline">پلن‌های فعال</span><h2 class="r-h2" style="font-size:clamp(28px,3.5vw,46px)">انتخاب روشن، با اطلاعات شفاف هر پلن.</h2></div><span class="r-copy">می‌توانید با توجه به نیاز فروشگاه، پلن مناسب را انتخاب کنید.</span></div>
+    <div class="r-pricing-rail">
+      {% for row in plan_rows %}
+      <article class="r-plan {% if row.plan.is_recommended %}r-plan-recommended{% endif %}">
+        {% if row.plan.is_recommended %}<span class="r-plan-badge">پیشنهادی</span>{% endif %}
+        <h3>{{ row.plan.public_title|default:row.plan.name }}</h3>
+        <p class="r-plan-desc">{{ row.plan.description }}</p>
+        <div class="r-plan-price">{{ row.version.display_price|toman }}<small>{{ row.version.get_billing_interval_display }}</small></div>
+        {% if row.version.trial_days %}<span class="r-plan-trial">{{ row.version.trial_days|fa_number }} روز دوره آزمایشی</span>{% endif %}
+        <a class="r-btn {% if row.plan.is_recommended %}r-btn-primary{% else %}r-btn-secondary{% endif %}" href="{% url 'portal:register' %}">شروع کنید</a>
+      </article>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
   {% else %}
-  <div class="p-card" style="max-width:520px;margin:0 auto;text-align:center">
-    <p>در حال حاضر پلنی برای نمایش عمومی تنظیم نشده است. برای اطلاعات بیشتر با ما تماس بگیرید.</p>
-    <a class="p-btn p-btn-ghost" style="margin-top:14px" href="{% url 'portal:contact' %}">تماس با ما</a>
-  </div>
+  <div class="r-empty-state"><span class="r-overline">تعرفه‌ها</span><h2 class="r-h3" style="margin-top:14px">هنوز پلن عمومی برای نمایش تنظیم نشده است.</h2><p class="r-copy">برای اطلاعات بیشتر می‌توانید با تیم راستیسی در ارتباط باشید.</p><a class="r-btn r-btn-primary" href="{% url 'portal:contact' %}">تماس با ما</a></div>
   {% endif %}
 </div></section>
+<section class="r-section" style="padding-top:0"><div class="r-wrap"><div class="r-editorial-band" style="border:1px solid var(--r-line);border-radius:24px;overflow:hidden"><div class="r-editorial-grid"><div class="r-editorial-main">پلن امروز نباید مسیر رشد فردای فروشگاه را محدود کند.</div><div class="r-editorial-item"><span class="r-num">01</span><b>قیمت واقعی</b><p>قیمت و دوره پرداخت هر پلن به‌صورت روشن نمایش داده می‌شود.</p></div><div class="r-editorial-item"><span class="r-num">02</span><b>دوره‌ی واقعی</b><p>اگر دوره آزمایشی برای پلنی فعال باشد، مدت آن همان‌جا مشخص است.</p></div><div class="r-editorial-item"><span class="r-num">03</span><b>قابل توسعه</b><p>می‌توانید گزینه‌های فعال را کنار هم بررسی و انتخاب کنید.</p></div></div></div></div></section>
 {% endblock %}

@@ -1,22 +1,13 @@
-{% extends "portal/base_platform.html" %}
+{% extends "portal/public/base_public.html" %}
 {% block title %}ایجاد حساب | راستیسی{% endblock %}
 {% block content %}
-<div class="p-wrap">
-<div class="p-form-card">
-  <h2 style="text-align:center;margin-bottom:8px">ایجاد فروشگاه رایگان</h2>
-  <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:20px">با شماره موبایل ثبت‌نام کنید؛ کد تأیید برایتان پیامک می‌شود.</p>
-  <form method="post" novalidate>
-    {% csrf_token %}
-    {% if form.non_field_errors %}<div class="p-alert p-alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
-    <div class="p-field"><label for="id_full_name">نام و نام خانوادگی</label>{{ form.full_name }}{% if form.full_name.errors %}<div class="p-error">{{ form.full_name.errors.0 }}</div>{% endif %}</div>
-    <div class="p-field"><label for="id_phone">شماره موبایل</label>{{ form.phone }}{% if form.phone.errors %}<div class="p-error">{{ form.phone.errors.0 }}</div>{% endif %}</div>
-    {% include "portal/public/_turnstile.html" with turnstile_action="register" %}
-    <button type="submit" class="p-btn p-btn-primary" style="width:100%">دریافت کد تأیید</button>
-  </form>
-  <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--p-muted)">
-    قبلاً حساب دارید؟ <a href="{% url 'portal:login' %}" style="color:var(--p-primary);font-weight:600">وارد شوید</a>
-  </p>
-</div>
-</div>
+<section class="r-auth-section"><div class="r-wrap"><div class="r-auth-shell">
+  <aside class="r-auth-story"><span class="r-overline">شروع مسیر</span><h1>فروشگاهت را با یک پایه‌ی حرفه‌ای شروع کن.</h1><p>ثبت‌نام اولین قدم است. بعد از تأیید شماره، می‌توانی مسیر ساخت فروشگاه را ادامه بدهی.</p><div class="r-auth-points"><div class="r-auth-point">بدون نیاز به دانش برنامه‌نویسی</div><div class="r-auth-point">شروع دوره آزمایشی بر اساس تنظیمات فعال</div><div class="r-auth-point">قابل توسعه برای فروشگاه‌های مختلف</div></div></aside>
+  <div class="r-auth-form"><div class="r-auth-form-head"><h2>ایجاد حساب</h2><p>شماره موبایل را وارد کن تا کد تأیید ارسال شود.</p></div>
+    <form method="post" novalidate>{% csrf_token %}{% if form.non_field_errors %}<div class="p-alert p-alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}<div class="p-field"><label for="id_full_name">نام و نام خانوادگی</label>{{ form.full_name }}{% if form.full_name.errors %}<div class="p-error">{{ form.full_name.errors.0 }}</div>{% endif %}</div><div class="p-field"><label for="id_phone">شماره موبایل</label>{{ form.phone }}{% if form.phone.errors %}<div class="p-error">{{ form.phone.errors.0 }}</div>{% endif %}</div>{% include "portal/public/_turnstile.html" with turnstile_action="register" %}<button type="submit" class="r-btn r-btn-primary r-form-submit">دریافت کد تأیید</button></form>
+    <div class="r-form-links">قبلاً حساب داری؟ <a href="{% url 'portal:login' %}">وارد شو</a></div>
+    <div class="r-security-note">شماره موبایل برای تأیید حساب و ادامه‌ی امن مسیر ثبت‌نام استفاده می‌شود.</div>
+  </div>
+</div></div></section>
 {% endblock %}
-{% block extra_css %}<style>.p-field input{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px}#id_phone{direction:ltr;text-align:left}</style>{% endblock %}
+{% block public_extra_css %}<style>#id_phone{direction:ltr;text-align:left}</style>{% endblock %}

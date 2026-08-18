@@ -1,36 +1,22 @@
-{% extends "portal/base_platform.html" %}
+{% extends "portal/public/base_public.html" %}
 {% load persian %}
 {% block title %}صنوف پشتیبانی‌شده | راستیسی{% endblock %}
-{% block meta_description %}<meta name="description" content="راستیسی از {{ industry_count }} صنف شغلی متنوع + صنف «سایر» پشتیبانی می‌کند؛ صنف کسب‌وکار خود را جست‌وجو کنید.">{% endblock %}
+{% block meta_description %}<meta name="description" content="{% if industry_count %}{{ industry_count }} ساختار صنفی آماده در راستیسی؛ صنف کسب‌وکار خود را جست‌وجو کنید.{% else %}صنوف و ساختارهای آماده برای شروع فروشگاه در راستیسی.{% endif %}">{% endblock %}
 {% block content %}
-<section class="p-section"><div class="p-wrap" style="text-align:center">
-  <h2>صنوف پشتیبانی‌شده</h2>
-  {% if industry_count %}
-  <p class="lead">در حال حاضر {{ industry_count|fa_number }} قالب صنفی آماده در راستیسی قابل انتخاب است؛ اگر صنف شما در فهرست نبود، می‌توانید فروشگاه را بدون قالب صنفی آماده راه‌اندازی و ساختار آن را خودتان تعریف کنید.</p>
-  {% else %}
-  <p class="lead">در حال حاضر قالب صنفی آماده‌ای برای نمایش وجود ندارد؛ فروشگاه همچنان می‌تواند بدون قالب صنفی آماده ساخته و به‌صورت دستی تنظیم شود.</p>
-  {% endif %}
+<div class="r-industries-page">
+<section class="r-page-hero"><div class="r-wrap r-page-hero-grid">
+  <div><span class="r-overline">صنوف</span><h1 class="r-h1">یک نقطه‌ی شروع متناسب با نوع کسب‌وکار.</h1></div>
+  <div>{% if industry_count %}<p class="r-lead">در حال حاضر {{ industry_count|fa_number }} قالب صنفی آماده قابل انتخاب است. اگر صنف شما در فهرست نباشد، همچنان می‌توانید فروشگاه را بدون قالب آماده بسازید و ساختارش را خودتان تعریف کنید.</p>{% else %}<p class="r-lead">در حال حاضر قالب صنفی آماده‌ای برای نمایش وجود ندارد؛ فروشگاه همچنان می‌تواند بدون قالب آماده ساخته و به‌صورت دستی تنظیم شود.</p>{% endif %}</div>
 </div></section>
-
-<section class="p-section" style="padding-top:0"><div class="p-wrap">
+<section class="r-section" style="padding-top:24px"><div class="r-wrap">
   {% include "catalog/partials/industry_filter_bar.html" with sector_tabs=industry_sector_tabs search_placeholder="جستجوی صنف شغلی..." search_input_id="publicIndustrySearch" %}
-
   <div class="industry-grid">
     {% for template in industry_templates %}
-    <div class="industry-card" data-name="{{ template.name }}" data-sector="{{ template.sector }}"
-         data-sector-label="{{ template.get_sector_display }}">
-      <div class="ic-emoji">{{ template.icon|default:"🏷️" }}</div>
-      <div class="ic-name">{{ template.name }}</div>
-      <div class="ic-sector">{{ template.get_sector_display }}</div>
-    </div>
+    <div class="industry-card" data-name="{{ template.name }}" data-sector="{{ template.sector }}" data-sector-label="{{ template.get_sector_display }}"><div class="ic-emoji">{{ template.icon|default:"•" }}</div><div class="ic-name">{{ template.name }}</div><div class="ic-sector">{{ template.get_sector_display }}</div></div>
     {% endfor %}
   </div>
   {% include "catalog/partials/industry_empty_state.html" %}
-
-  <div class="p-card" style="max-width:560px;margin:40px auto 0;text-align:center;padding:26px">
-    <h3 style="margin-bottom:8px">صنف خود را پیدا نکردید؟</h3>
-    <p style="font-size:13.5px;color:var(--p-muted);margin-bottom:16px">صنف «سایر» را در فهرست بالا انتخاب کنید و اطلاعات کسب‌وکار خود را به‌صورت دستی وارد کنید.</p>
-    <a href="{% url 'portal:register' %}" class="p-btn p-btn-primary">شروع کنید</a>
-  </div>
+  <div class="r-empty-state" style="margin-top:40px"><span class="r-overline">صنف شما اینجا نیست؟</span><h2 class="r-h3" style="margin-top:14px">فروشگاه را بدون ساختار آماده شروع کنید.</h2><p class="r-copy">می‌توانید گزینه «سایر» را انتخاب کنید و ساختار کسب‌وکارتان را به‌صورت دستی تعریف کنید.</p><a href="{% url 'portal:register' %}" class="r-btn r-btn-primary">شروع ساخت فروشگاه</a></div>
 </div></section>
+</div>
 {% endblock %}

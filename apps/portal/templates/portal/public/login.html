@@ -1,70 +1,34 @@
-{% extends "portal/base_platform.html" %}
+{% extends "portal/public/base_public.html" %}
 {% block title %}ورود | راستیسی{% endblock %}
 {% block robots_meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 {% block content %}
-<div class="p-wrap">
-<div class="p-form-card" x-data="{ mode: '{% if otp_form.errors %}otp{% else %}password{% endif %}' }">
-  <h2 style="text-align:center;margin-bottom:16px">ورود به حساب مالک</h2>
+<section class="r-auth-section"><div class="r-wrap"><div class="r-auth-shell" x-data="{ mode: '{% if otp_form.errors %}otp{% else %}password{% endif %}' }">
+  <aside class="r-auth-story"><span class="r-overline">حساب مالک</span><h1>به فضای مدیریت کسب‌وکارت برگرد.</h1><p>از همین حساب به فروشگاه‌ها و مسیرهای مدیریتی خودت دسترسی داری.</p><div class="r-auth-points"><div class="r-auth-point">ورود با رمز عبور یا رمز یک‌بارمصرف</div><div class="r-auth-point">حفظ جریان امن Turnstile و CSRF</div><div class="r-auth-point">دسترسی به فروشگاه‌های متصل به حساب</div></div></aside>
+  <div class="r-auth-form">
+    <div class="r-auth-form-head"><h2>ورود به راستیسی</h2><p>روش ورود مناسب را انتخاب کن.</p></div>
+    <div class="r-auth-tabs"><button type="button" class="r-auth-tab" :class="mode === 'password' ? 'is-active' : ''" @click="mode='password'">رمز عبور</button><button type="button" class="r-auth-tab" :class="mode === 'otp' ? 'is-active' : ''" @click="mode='otp'">رمز یک‌بارمصرف</button></div>
 
-  <div style="display:flex;gap:16px;margin-bottom:20px;font-size:13px;justify-content:center">
-    <button type="button" @click="mode = 'password'" :style="mode === 'password' ? 'color:var(--p-primary);font-weight:700' : 'color:var(--p-muted);font-weight:600'">ورود با رمز عبور</button>
-    <button type="button" @click="mode = 'otp'" :style="mode === 'otp' ? 'color:var(--p-primary);font-weight:700' : 'color:var(--p-muted);font-weight:600'">ورود با رمز یک‌بارمصرف</button>
+    <form method="post" action="{% url 'portal:login-password' %}" x-show="mode === 'password'" x-cloak novalidate>
+      {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}{% if admin_return %}<input type="hidden" name="admin_return" value="{{ admin_return }}">{% endif %}
+      {% if password_form.non_field_errors %}<div class="p-alert p-alert-error">{{ password_form.non_field_errors.0 }}</div>{% endif %}
+      <div class="p-field"><label for="id_identifier">ایمیل یا شماره موبایل</label>{{ password_form.identifier }}{% if password_form.identifier.errors %}<div class="p-error">{{ password_form.identifier.errors.0 }}</div>{% endif %}</div>
+      <div class="p-field"><label for="id_password">رمز عبور</label>{{ password_form.password }}{% if password_form.password.errors %}<div class="p-error">{{ password_form.password.errors.0 }}</div>{% endif %}</div>
+      <label class="p-remember-me">{{ password_form.remember_me }} مرا به خاطر بسپار</label>
+      {% include "portal/public/_turnstile.html" with turnstile_action="login_password" %}
+      <button type="submit" class="r-btn r-btn-primary r-form-submit">ورود</button>
+      <div class="r-form-links"><a href="{% url 'portal:password-reset-request' %}">رمز عبور را فراموش کرده‌ام</a></div>
+    </form>
+
+    <form method="post" x-show="mode === 'otp'" x-cloak novalidate>
+      {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}{% if admin_return %}<input type="hidden" name="admin_return" value="{{ admin_return }}">{% endif %}
+      {% if otp_form.non_field_errors %}<div class="p-alert p-alert-error">{{ otp_form.non_field_errors.0 }}</div>{% endif %}
+      <div class="p-field"><label for="id_phone">شماره موبایل</label>{{ otp_form.phone }}{% if otp_form.phone.errors %}<div class="p-error">{{ otp_form.phone.errors.0 }}</div>{% endif %}</div>
+      <label class="p-remember-me">{{ otp_form.remember_me }} مرا به خاطر بسپار</label>
+      {% include "portal/public/_turnstile.html" with turnstile_action="login_otp" %}
+      <button type="submit" class="r-btn r-btn-primary r-form-submit">ارسال رمز یک‌بارمصرف</button>
+    </form>
+    <div class="r-form-links" style="margin-top:22px">حساب ندارید؟ <a href="{% url 'portal:register' %}">ساخت حساب</a></div>
   </div>
-
-  <form method="post" action="{% url 'portal:login-password' %}" x-show="mode === 'password'" x-cloak novalidate>
-    {% csrf_token %}
-    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-    {% if admin_return %}<input type="hidden" name="admin_return" value="{{ admin_return }}">{% endif %}
-    {% if password_form.non_field_errors %}<div class="p-alert p-alert-error">{{ password_form.non_field_errors.0 }}</div>{% endif %}
-    <div class="p-field">
-      <label for="id_identifier">ایمیل یا شماره موبایل</label>
-      {{ password_form.identifier }}
-      {% if password_form.identifier.errors %}<div class="p-error">{{ password_form.identifier.errors.0 }}</div>{% endif %}
-    </div>
-    <div class="p-field">
-      <label for="id_password">رمز عبور</label>
-      {{ password_form.password }}
-      {% if password_form.password.errors %}<div class="p-error">{{ password_form.password.errors.0 }}</div>{% endif %}
-    </div>
-    <label class="p-remember-me">{{ password_form.remember_me }} مرا به خاطر بسپار</label>
-    {% include "portal/public/_turnstile.html" with turnstile_action="login_password" %}
-    <button type="submit" class="p-btn p-btn-primary" style="width:100%">ورود</button>
-    <p style="text-align:center;margin-top:16px;font-size:13px">
-      <a href="{% url 'portal:password-reset-request' %}" style="color:var(--p-muted)">فراموشی رمز عبور</a>
-    </p>
-  </form>
-
-  <form method="post" x-show="mode === 'otp'" x-cloak novalidate>
-    {% csrf_token %}
-    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-    {% if admin_return %}<input type="hidden" name="admin_return" value="{{ admin_return }}">{% endif %}
-    {% if otp_form.non_field_errors %}<div class="p-alert p-alert-error">{{ otp_form.non_field_errors.0 }}</div>{% endif %}
-    <p style="text-align:center;font-size:13px;color:var(--p-muted);margin-bottom:16px">شماره موبایل خود را وارد کنید؛ رمز یک‌بارمصرف برایتان پیامک می‌شود.</p>
-    <div class="p-field">
-      <label for="id_phone">شماره موبایل</label>
-      {{ otp_form.phone }}
-      {% if otp_form.phone.errors %}<div class="p-error">{{ otp_form.phone.errors.0 }}</div>{% endif %}
-    </div>
-    <label class="p-remember-me">{{ otp_form.remember_me }} مرا به خاطر بسپار</label>
-    {% include "portal/public/_turnstile.html" with turnstile_action="login_otp" %}
-    <button type="submit" class="p-btn p-btn-primary" style="width:100%">ارسال رمز یک‌بارمصرف</button>
-    <p style="text-align:center;margin-top:16px;font-size:13px">
-      <button type="button" @click="mode = 'password'" style="background:none;border:0;color:var(--p-muted);font-size:13px;cursor:pointer;padding:0">بازگشت به ورود با رمز عبور</button>
-    </p>
-  </form>
-
-  <p style="text-align:center;margin-top:6px;font-size:13px;color:var(--p-muted)">
-    حساب ندارید؟ <a href="{% url 'portal:register' %}" style="color:var(--p-primary);font-weight:600">ثبت‌نام کنید</a>
-  </p>
-</div>
-</div>
+</div></div></section>
 {% endblock %}
-{% block extra_css %}
-<style>
-[x-cloak]{display:none!important}
-.p-field input{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px}
-#id_identifier,#id_phone{direction:ltr;text-align:left}
-.p-remember-me{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--p-muted);margin:4px 0 16px;cursor:pointer}
-.p-remember-me input{width:auto}
-</style>
-{% endblock %}
+{% block public_extra_css %}<style>#id_identifier,#id_phone{direction:ltr;text-align:left}</style>{% endblock %}

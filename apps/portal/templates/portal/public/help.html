@@ -1,12 +1,14 @@
-{% extends "portal/base_platform.html" %}
-{% block title %}راهنما | راستیسی{% endblock %}
-{% block meta_description %}<meta name="description" content="پاسخِ سؤالاتِ متداول درباره‌ی راه‌اندازی، اشتراک، و مدیریتِ فروشگاهِ آنلاینِ شما در راستیسی.">{% endblock %}
+{% extends "portal/public/base_public.html" %}
+{% block title %}راهنما و سؤالات متداول | راستیسی{% endblock %}
+{% block meta_description %}<meta name="description" content="پاسخ سؤالات متداول درباره ساخت فروشگاه، دوره آزمایشی، دامنه، طراحی و مدیریت فروشگاه در راستیسی.">{% endblock %}
 {% block content %}
-<section class="p-section"><div class="p-wrap" style="max-width:760px">
-  <h2>سؤالات متداول</h2>
-  <div class="p-card" style="margin-bottom:14px"><h3>چطور فروشگاهم را بسازم؟</h3><p>روی «ایجاد فروشگاه رایگان» بزنید، ثبت‌نام کنید، و فروشگاه آزمایشی شما با یک آدرس اختصاصی بلافاصله آماده می‌شود.</p></div>
-  <div class="p-card" style="margin-bottom:14px"><h3>آیا نسخه‌ی رایگان دارید؟</h3><p>هر فروشگاه تازه با یک دوره‌ی آزمایشی رایگان شروع می‌شود؛ جزئیات هر پلن در صفحه‌ی تعرفه‌ها آمده است.</p></div>
-  <div class="p-card" style="margin-bottom:14px"><h3>چطور می‌توانم دامنه‌ی اختصاصی خودم را وصل کنم؟</h3><p>از داخل پنل مالک، پس از ارتقا به پلن پولی، می‌توانید زیردامنه‌ی خواناتر یا دامنه‌ی اختصاصی خودتان را ثبت کنید.</p></div>
-  <div class="p-card"><h3>هنوز سؤال دارید؟</h3><p>از <a href="{% url 'portal:contact' %}">صفحه‌ی تماس</a> با ما در ارتباط باشید.</p></div>
-</div></section>
+<section class="r-page-hero"><div class="r-wrap r-page-hero-grid"><div><span class="r-overline">راهنما</span><h1 class="r-h1">قبل از شروع، جواب سؤال‌های مهم را بدان.</h1></div><div><p class="r-lead">اگر هنوز درباره‌ی ساخت فروشگاه، طراحی، دامنه یا پلن‌ها سؤال دارید، از اینجا شروع کنید.</p></div></div></section>
+<section class="r-section" style="padding-top:24px"><div class="r-wrap r-faq-wrap"><div class="r-faq-list">
+  <details class="r-faq-item" open><summary>چطور فروشگاهم را در راستیسی بسازم؟</summary><div class="r-faq-answer">ثبت‌نام را شروع کنید، مراحل ایجاد فروشگاه را طی کنید و پس از آن می‌توانید اطلاعات و ظاهر فروشگاه را تکمیل کنید.</div></details>
+  <details class="r-faq-item"><summary>آیا برای ساخت فروشگاه نیاز به برنامه‌نویسی دارم؟</summary><div class="r-faq-answer">خیر. هدف راستیسی این است که صاحب کسب‌وکار بتواند بدون درگیر شدن با کدنویسی، فروشگاهش را ایجاد و مدیریت کند.</div></details>
+  <details class="r-faq-item"><summary>آیا دوره‌ی آزمایشی وجود دارد؟</summary><div class="r-faq-answer">فروشگاه‌های جدید می‌توانند بر اساس تنظیمات فعال پلتفرم با دوره‌ی آزمایشی شروع شوند. مدت دقیق هر دوره در همان پلن و جریان ثبت‌نام نمایش داده می‌شود.</div></details>
+  <details class="r-faq-item"><summary>آیا می‌توانم ظاهر فروشگاهم را تغییر بدهم؟</summary><div class="r-faq-answer">راستیسی برای شخصی‌سازی ظاهر و چیدمان فروشگاه طراحی شده است تا فروشگاه بتواند با هویت برند شما هماهنگ‌تر شود.</div></details>
+  <details class="r-faq-item"><summary>آیا می‌توانم دامنه‌ی اختصاصی خودم را متصل کنم؟</summary><div class="r-faq-answer">جریان اتصال دامنه از داخل پنل مالک انجام می‌شود و دسترسی به آن بر اساس وضعیت و پلن فروشگاه مدیریت می‌شود.</div></details>
+  <details class="r-faq-item"><summary>اگر صنف من در فهرست آماده نبود چه می‌شود؟</summary><div class="r-faq-answer">می‌توانید فروشگاه را بدون قالب صنفی آماده بسازید و ساختار آن را متناسب با کسب‌وکار خودتان تعریف کنید.</div></details>
+</div><div class="r-empty-state" style="margin-top:28px"><h2 class="r-h3">هنوز سؤال دارید؟</h2><p class="r-copy">پیامتان را برای ما بفرستید تا از مسیر مناسب راهنمایی شوید.</p><a class="r-btn r-btn-primary" href="{% url 'portal:contact' %}">تماس با ما</a></div></div></section>
 {% endblock %}

@@ -1,24 +1,10 @@
-{% extends "portal/base_platform.html" %}
+{% extends "portal/public/base_public.html" %}
 {% block title %}تماس با ما | راستیسی{% endblock %}
-{% block meta_description %}<meta name="description" content="برایِ پرسش، پشتیبانی، یا همکاری با تیمِ راستیسی تماس بگیرید.">{% endblock %}
+{% block meta_description %}<meta name="description" content="برای پرسش، پشتیبانی یا همکاری با تیم راستیسی پیام خود را ارسال کنید.">{% endblock %}
 {% block content %}
-<section class="p-section"><div class="p-wrap" style="max-width:520px">
-  <h2>تماس با ما</h2>
-  <p class="lead">پیام خود را ارسال کنید، در سریع‌ترین زمان پاسخ می‌دهیم.</p>
-  <div class="p-card">
-    <form method="post">
-      {% csrf_token %}
-      {% if form.non_field_errors %}<div class="p-alert p-alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
-      <div class="p-field"><label for="id_full_name">نام</label>{{ form.full_name }}{% if form.full_name.errors %}<div class="p-error">{{ form.full_name.errors.0 }}</div>{% endif %}</div>
-      <div class="p-field"><label for="id_email">ایمیل</label>{{ form.email }}{% if form.email.errors %}<div class="p-error">{{ form.email.errors.0 }}</div>{% endif %}</div>
-      <div class="p-field"><label for="id_subject">موضوع</label>{{ form.subject }}</div>
-      <div class="p-field"><label for="id_message">پیام</label>{{ form.message }}{% if form.message.errors %}<div class="p-error">{{ form.message.errors.0 }}</div>{% endif %}</div>
-      {% include "portal/public/_turnstile.html" with turnstile_action="contact" %}
-      <button type="submit" class="p-btn p-btn-primary" style="width:100%">ارسال پیام</button>
-    </form>
-  </div>
-</div></section>
-{% endblock %}
-{% block extra_css %}
-<style>.p-field input,.p-field textarea{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px}</style>
+<section class="r-page-hero"><div class="r-wrap r-page-hero-grid"><div><span class="r-overline">تماس</span><h1 class="r-h1">برای یک سؤال واقعی، یک مسیر روشن داشته باش.</h1></div><div><p class="r-lead">اگر درباره شروع فروشگاه، امکانات یا همکاری سؤال دارید، پیام خود را ارسال کنید.</p></div></div></section>
+<section class="r-section" style="padding-top:22px"><div class="r-wrap"><div class="r-contact-shell">
+  <aside class="r-contact-side"><span class="r-overline" style="color:#9fd0c8">ارتباط با راستیسی</span><h2 class="r-h2">از سؤال تا تصمیم، شفاف صحبت کنیم.</h2><p class="r-lead">این فرم برای پرسش‌های عمومی، راهنمایی و ارتباط با تیم راستیسی در نظر گرفته شده است.</p><div class="r-contact-points"><div class="r-contact-point"><b>پرسش درباره محصول</b><span>امکانات، صنوف و مسیر ساخت فروشگاه</span></div><div class="r-contact-point"><b>راهنمایی شروع</b><span>ثبت‌نام، پلن و مراحل اولیه</span></div><div class="r-contact-point"><b>همکاری</b><span>موضوع همکاری را در فرم توضیح دهید.</span></div></div></aside>
+  <div class="r-contact-form"><form method="post" novalidate>{% csrf_token %}{% if form.non_field_errors %}<div class="p-alert p-alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}<div class="p-field"><label for="id_full_name">نام</label>{{ form.full_name }}{% if form.full_name.errors %}<div class="p-error">{{ form.full_name.errors.0 }}</div>{% endif %}</div><div class="p-field"><label for="id_email">ایمیل</label>{{ form.email }}{% if form.email.errors %}<div class="p-error">{{ form.email.errors.0 }}</div>{% endif %}</div><div class="p-field"><label for="id_subject">موضوع</label>{{ form.subject }}</div><div class="p-field"><label for="id_message">پیام</label>{{ form.message }}{% if form.message.errors %}<div class="p-error">{{ form.message.errors.0 }}</div>{% endif %}</div>{% include "portal/public/_turnstile.html" with turnstile_action="contact" %}<button type="submit" class="r-btn r-btn-primary r-form-submit">ارسال پیام</button></form></div>
+</div></div></section>
 {% endblock %}
