@@ -60,6 +60,13 @@
     <a href="{% url 'portal:privacy' %}">حریم خصوصی</a> ·
     <a href="{% url 'portal:contact' %}">تماس با ما</a>
   </p>
+  {% if PLATFORM_ENAMAD_BADGE_PROFILE_URL and PLATFORM_ENAMAD_BADGE_LOGO_URL %}
+  <p style="margin-top:12px">
+    <a referrerpolicy="origin" target="_blank" rel="noopener noreferrer" href="{{ PLATFORM_ENAMAD_BADGE_PROFILE_URL }}">
+      <img referrerpolicy="origin" src="{{ PLATFORM_ENAMAD_BADGE_LOGO_URL }}" alt="نمادِ اعتمادِ الکترونیکیِ اینماد" style="cursor:pointer">
+    </a>
+  </p>
+  {% endif %}
 </div></footer>
 {% endblock %}
 

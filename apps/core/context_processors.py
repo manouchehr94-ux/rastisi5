@@ -257,12 +257,14 @@ def shop_settings(request):
             )
 
     from apps.stores.services.enamad_verification_service import (
+        store_enamad_badge_for_request,
         store_enamad_verification_meta_for_request,
     )
 
     enamad_verification_meta = store_enamad_verification_meta_for_request(
         request, store_id=shop.store_id
     )
+    enamad_badge = store_enamad_badge_for_request(request, store_id=shop.store_id)
 
     return {
         "SHOP_NAME": shop.name,
@@ -309,6 +311,8 @@ def shop_settings(request):
         "SHOP_ENAMAD_VERIFICATION_META_CONTENT": (
             enamad_verification_meta.content if enamad_verification_meta else ""
         ),
+        "SHOP_ENAMAD_BADGE_PROFILE_URL": enamad_badge.profile_url if enamad_badge else "",
+        "SHOP_ENAMAD_BADGE_LOGO_URL": enamad_badge.logo_url if enamad_badge else "",
         # ساختارِ ظاهر (Template) — فقط برایِ مسیرهایِ Builder-aware از
         # نسخه می‌آید؛ نگاه کنید به ``_versioned_appearance``.
         "SHOP_TEMPLATE_SLUG": shop_template_slug,

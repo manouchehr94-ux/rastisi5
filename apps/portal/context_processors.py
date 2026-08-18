@@ -10,10 +10,12 @@ def turnstile(request):
 
 
 def platform_enamad_verification(request):
-    """Expose a validated eNamad meta only on the platform marketing homepage."""
-    if getattr(request, "path", "") != "/":
-        return {}
-
+    """Expose the platform's eNamad state to templates: the technical
+    verification meta only on the platform marketing homepage, and the
+    final issued badge (independent lifecycle — may be on/off regardless
+    of the meta's state) sitewide on platform pages. Both are strictly
+    scoped to the platform's own marketing host — never rendered on a
+    merchant storefront or the admin host."""
     try:
         host = request.get_host().split(":", 1)[0].lower().rstrip(".")
     except Exception:
@@ -30,19 +32,31 @@ def platform_enamad_verification(request):
         get_platform_configuration,
     )
     from apps.stores.services.enamad_verification_service import (
+        EnamadBadgeError,
         EnamadVerificationMetaError,
+        parse_enamad_badge_identifiers,
         parse_enamad_verification_meta_tag,
     )
 
-    raw = get_platform_configuration().enamad_verification_meta_tag
-    try:
-        meta = parse_enamad_verification_meta_tag(raw)
-    except EnamadVerificationMetaError:
-        return {}
-    if meta is None:
-        return {}
+    config = get_platform_configuration()
+    context = {}
 
-    return {
-        "PLATFORM_ENAMAD_VERIFICATION_META_NAME": meta.name,
-        "PLATFORM_ENAMAD_VERIFICATION_META_CONTENT": meta.content,
-    }
+    if getattr(request, "path", "") == "/":
+        try:
+            meta = parse_enamad_verification_meta_tag(config.enamad_verification_meta_tag)
+        except EnamadVerificationMetaError:
+            meta = None
+        if meta is not None:
+            context["PLATFORM_ENAMAD_VERIFICATION_META_NAME"] = meta.name
+            context["PLATFORM_ENAMAD_VERIFICATION_META_CONTENT"] = meta.content
+
+    if config.enamad_badge_enabled:
+        try:
+            badge = parse_enamad_badge_identifiers(config.enamad_id, config.enamad_auth_code)
+        except EnamadBadgeError:
+            badge = None
+        if badge is not None:
+            context["PLATFORM_ENAMAD_BADGE_PROFILE_URL"] = badge.profile_url
+            context["PLATFORM_ENAMAD_BADGE_LOGO_URL"] = badge.logo_url
+
+    return context

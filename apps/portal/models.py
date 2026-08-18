@@ -221,6 +221,17 @@ class PlatformConfiguration(TimeStampedModel):
             "می‌دهد. فقط یک <meta name=... content=...> امن پذیرفته می‌شود."
         ),
     )
+    # --- نمادِ نهاییِ اینماد (پس از صدور) — کاملاً مستقل از متاتگِ احرازِ فنیِ
+    # بالا. فقط دو شناسه‌ی ساختاریافته که خودِ اینماد صادر می‌کند؛ هرگز
+    # HTML/اسکریپتِ دلخواه. RastiSi از رویِ همین دو مقدار، لینک/تصویرِ
+    # امن را با URLِ ثابتِ trustseal.enamad.ir می‌سازد (نگاه کنید به
+    # ``apps.stores.services.enamad_verification_service``).
+    enamad_id = models.CharField("شناسه‌ی نمادِ نهاییِ پلتفرم", max_length=12, blank=True, default="")
+    enamad_auth_code = models.CharField("کدِ تأییدِ نمادِ نهاییِ پلتفرم", max_length=64, blank=True, default="")
+    enamad_badge_enabled = models.BooleanField(
+        "نمایشِ نمادِ نهایی فعال است", default=False,
+        help_text="حتی اگر شناسه/کد ثبت شده باشد، تا این کلید روشن نشود نماد نمایش داده نمی‌شود.",
+    )
 
     # --- درگاهِ پیامکِ مرکزیِ پلتفرم ---
     # زیرساختِ ارسالِ پیامک (ارائه‌دهنده/کلیدِ API/شماره‌ی فرستنده) یک تصمیمِ

@@ -32,7 +32,8 @@ class IntegrationSettingsSectionTests(TestCase):
 
     def test_connect_activates_integration(self):
         response = self.client.post(
-            reverse("dashboard:settings-integration-connect", args=["enamad"]), {"enamad_code": "123456"},
+            reverse("dashboard:settings-integration-connect", args=["enamad"]),
+            {"enamad_id": "123456", "enamad_auth_code": "abcDEF123"},
         )
         self.assertRedirects(response, "/admin-portal/settings/?section=integrations")
         store = Store.objects.get(slug="akhlaghi")
@@ -58,6 +59,22 @@ class IntegrationSettingsSectionTests(TestCase):
         )
         self.assertTrue(row["is_connected"])
         self.assertEqual(row["credentials"]["verification_meta_tag"], meta)
+
+    def test_enamad_can_save_badge_identifiers_independently_of_meta(self):
+        response = self.client.post(
+            reverse("dashboard:settings-integration-connect", args=["enamad"]),
+            {"enamad_id": "221617", "enamad_auth_code": "94MqMPJEnuahlSHjb9kP"},
+        )
+        self.assertRedirects(response, "/admin-portal/settings/?section=integrations")
+        store = Store.objects.get(slug="akhlaghi")
+        row = next(
+            row for row in integration_service.connections_context(store=store)
+            if row["provider"].code == "enamad"
+        )
+        self.assertTrue(row["is_connected"])
+        self.assertEqual(row["credentials"]["enamad_id"], "221617")
+        self.assertEqual(row["credentials"]["enamad_auth_code"], "94MqMPJEnuahlSHjb9kP")
+        self.assertEqual(row["credentials"].get("verification_meta_tag", ""), "")
 
     def test_enamad_rejects_script_instead_of_storing_raw_html(self):
         response = self.client.post(
@@ -123,10 +140,11 @@ class IntegrationSettingsSectionTests(TestCase):
         from apps.stores.models import StoreIntegrationConnection
 
         self.client.post(
-            reverse("dashboard:settings-integration-connect", args=["enamad"]), {"enamad_code": "super-unique-code-999"},
+            reverse("dashboard:settings-integration-connect", args=["enamad"]),
+            {"enamad_id": "555444", "enamad_auth_code": "superUniqueCode999"},
         )
         connection = StoreIntegrationConnection.objects.get(store__slug="akhlaghi", provider_code="enamad")
-        self.assertNotIn("super-unique-code-999", connection.encrypted_credentials)
+        self.assertNotIn("superUniqueCode999", connection.encrypted_credentials)
 
 
 _HOST_B = f"integration-view-store-b.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
@@ -148,7 +166,7 @@ class IntegrationTenantIsolationViewTests(TestCase):
         ShopSettings.provision_for(self.store_b)
         integration_service.connect(
             store=Store.objects.get(slug="akhlaghi"), provider_code="enamad",
-            values={"enamad_code": "akhlaghi-secret"}, actor=None,
+            values={"enamad_id": "111222", "enamad_auth_code": "akhlaghiSecretCode"}, actor=None,
         )
         self.staff_b = User.objects.create_user(username="09121197002", password="pass12345", is_staff=True)
         StoreMembership.objects.create(
@@ -161,4 +179,4 @@ class IntegrationTenantIsolationViewTests(TestCase):
         response = self.client.get(
             reverse("dashboard:settings") + "?section=integrations", HTTP_HOST=_HOST_B,
         )
-        self.assertNotContains(response, "akhlaghi-secret")
+        self.assertNotContains(response, "akhlaghiSecretCode")

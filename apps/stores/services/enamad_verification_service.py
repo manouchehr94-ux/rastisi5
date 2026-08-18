@@ -121,13 +121,64 @@ def parse_enamad_verification_meta_tag(raw: str) -> EnamadVerificationMeta | Non
     return EnamadVerificationMeta(name=name, content=content)
 
 
-def validate_enamad_integration_values(values: dict) -> str | None:
-    """Allow the pre-issuance meta tag or the existing post-issuance badge code."""
-    meta_tag = str(values.get("verification_meta_tag") or "").strip()
-    enamad_code = str(values.get("enamad_code") or "").strip()
+#: eNamad's own trust-seal host (https://trustseal.enamad.ir) — the *only*
+#: origin the generated badge markup ever points to. Never user/DB-supplied.
+TRUSTSEAL_BASE_URL = "https://trustseal.enamad.ir/"
 
-    if not meta_tag and not enamad_code:
-        return "متاتگ احراز فنی یا کد نماد اینماد را وارد کنید."
+_ENAMAD_ID_RE = re.compile(r"^[0-9]{1,12}$")
+_ENAMAD_AUTH_CODE_RE = re.compile(r"^[A-Za-z0-9]{1,64}$")
+
+
+class EnamadBadgeError(ValueError):
+    """The supplied eNamad final-badge identifiers are missing/invalid."""
+
+
+@dataclass(frozen=True)
+class EnamadBadgeIdentifiers:
+    enamad_id: str
+    auth_code: str
+
+    @property
+    def profile_url(self) -> str:
+        return f"{TRUSTSEAL_BASE_URL}?id={self.enamad_id}&Code={self.auth_code}"
+
+    @property
+    def logo_url(self) -> str:
+        return f"{TRUSTSEAL_BASE_URL}logo.aspx?id={self.enamad_id}&Code={self.auth_code}"
+
+
+def parse_enamad_badge_identifiers(enamad_id: str, auth_code: str) -> EnamadBadgeIdentifiers | None:
+    """Validate the two *structured* identifiers eNamad issues once a Store's
+    (or the platform's) trust seal has actually been granted — never a raw
+    HTML/script fragment. Both must be present together; either both blank
+    returns ``None`` (not configured yet, not an error)."""
+    enamad_id = str(enamad_id or "").strip()
+    auth_code = str(auth_code or "").strip()
+
+    if not enamad_id and not auth_code:
+        return None
+    if not enamad_id or not auth_code:
+        raise EnamadBadgeError(
+            "برای نمایشِ نمادِ نهایی، هم «شناسه» و هم «کدِ تأیید» اینماد لازم است."
+        )
+    if not _ENAMAD_ID_RE.fullmatch(enamad_id):
+        raise EnamadBadgeError("شناسه‌ی اینماد باید فقط شامل رقم باشد.")
+    if not _ENAMAD_AUTH_CODE_RE.fullmatch(auth_code):
+        raise EnamadBadgeError("کدِ تأییدِ اینماد نامعتبر است.")
+    return EnamadBadgeIdentifiers(enamad_id=enamad_id, auth_code=auth_code)
+
+
+def validate_enamad_integration_values(values: dict) -> str | None:
+    """Allow the pre-issuance meta tag and/or the post-issuance structured
+    badge identifiers — independently of each other. Never accepts a raw
+    HTML/script fragment for the badge; only the two eNamad-issued
+    identifiers, from which trusted markup is generated server-side."""
+    meta_tag = str(values.get("verification_meta_tag") or "").strip()
+    enamad_id = str(values.get("enamad_id") or "").strip()
+    auth_code = str(values.get("enamad_auth_code") or "").strip()
+
+    if not meta_tag and not enamad_id and not auth_code:
+        return "متاتگ احراز فنی یا شناسه/کدِ نمادِ اینماد را وارد کنید."
 
     if meta_tag:
         try:
@@ -135,10 +186,48 @@ def validate_enamad_integration_values(values: dict) -> str | None:
         except EnamadVerificationMetaError as exc:
             return str(exc)
 
-    if len(enamad_code) > 4000:
-        return "کد نماد اینماد بیش از حد طولانی است."
+    if enamad_id or auth_code:
+        try:
+            parse_enamad_badge_identifiers(enamad_id, auth_code)
+        except EnamadBadgeError as exc:
+            return str(exc)
 
     return None
+
+
+def _store_owns_verified_custom_domain(request, *, store_id: int) -> bool:
+    """True only when the current request's Host is *this exact* Store's own
+    verified custom domain — never a trial/platform subdomain, never
+    another Store's domain. Shared by both the technical-meta and the
+    final-badge renderers so their tenant/host scoping can never drift
+    apart."""
+    try:
+        host = request.get_host().split(":", 1)[0].lower().rstrip(".")
+    except Exception:
+        return False
+    if not host:
+        return False
+
+    from apps.stores.models import StoreDomain
+
+    return StoreDomain.objects.filter(
+        store_id=store_id,
+        hostname=host,
+        domain_type=StoreDomain.DomainType.CUSTOM_DOMAIN,
+        verification_status=StoreDomain.VerificationStatus.VERIFIED,
+        retired_at__isnull=True,
+    ).exists()
+
+
+def _store_enamad_connection(store_id: int):
+    from apps.stores.models import StoreIntegrationConnection
+
+    return (
+        StoreIntegrationConnection.objects
+        .filter(store_id=store_id, provider_code="enamad", is_active=True)
+        .only("encrypted_credentials")
+        .first()
+    )
 
 
 def store_enamad_verification_meta_for_request(
@@ -147,32 +236,10 @@ def store_enamad_verification_meta_for_request(
     """Expose the merchant meta only on that Store's verified custom homepage."""
     if getattr(request, "path", "") != "/":
         return None
-
-    try:
-        host = request.get_host().split(":", 1)[0].lower().rstrip(".")
-    except Exception:
-        return None
-    if not host:
+    if not _store_owns_verified_custom_domain(request, store_id=store_id):
         return None
 
-    from apps.stores.models import StoreDomain, StoreIntegrationConnection
-
-    domain_ok = StoreDomain.objects.filter(
-        store_id=store_id,
-        hostname=host,
-        domain_type=StoreDomain.DomainType.CUSTOM_DOMAIN,
-        verification_status=StoreDomain.VerificationStatus.VERIFIED,
-        retired_at__isnull=True,
-    ).exists()
-    if not domain_ok:
-        return None
-
-    connection = (
-        StoreIntegrationConnection.objects
-        .filter(store_id=store_id, provider_code="enamad", is_active=True)
-        .only("encrypted_credentials")
-        .first()
-    )
+    connection = _store_enamad_connection(store_id)
     if connection is None:
         return None
 
@@ -180,4 +247,29 @@ def store_enamad_verification_meta_for_request(
     try:
         return parse_enamad_verification_meta_tag(raw)
     except EnamadVerificationMetaError:
+        return None
+
+
+def store_enamad_badge_for_request(
+    request, *, store_id: int
+) -> EnamadBadgeIdentifiers | None:
+    """Expose the merchant's final, issued eNamad badge — independent of
+    the technical-verification meta's state (a Store may have one, both,
+    or neither at any time) — sitewide (not home-page-only, matching how
+    a trust badge is normally displayed), but still only on that exact
+    Store's own verified custom domain. A corrupt/legacy stored value
+    fails closed (returns ``None``), never raises into the template."""
+    if not _store_owns_verified_custom_domain(request, store_id=store_id):
+        return None
+
+    connection = _store_enamad_connection(store_id)
+    if connection is None:
+        return None
+
+    credentials = connection.get_credentials()
+    try:
+        return parse_enamad_badge_identifiers(
+            credentials.get("enamad_id", ""), credentials.get("enamad_auth_code", ""),
+        )
+    except EnamadBadgeError:
         return None

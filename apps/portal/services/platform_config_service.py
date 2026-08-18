@@ -14,7 +14,9 @@ from apps.portal.models import (
     PlatformConfiguration,
 )
 from apps.stores.services.enamad_verification_service import (
+    EnamadBadgeError,
     EnamadVerificationMetaError,
+    parse_enamad_badge_identifiers,
     parse_enamad_verification_meta_tag,
 )
 
@@ -100,6 +102,17 @@ def update_platform_configuration(*, actor, **fields) -> PlatformConfiguration:
             except EnamadVerificationMetaError as exc:
                 raise PlatformConfigurationError(str(exc)) from exc
         fields["enamad_verification_meta_tag"] = value
+
+    if "enamad_id" in fields or "enamad_auth_code" in fields:
+        current = get_platform_configuration()
+        enamad_id = str(fields.get("enamad_id", current.enamad_id) or "").strip()
+        auth_code = str(fields.get("enamad_auth_code", current.enamad_auth_code) or "").strip()
+        try:
+            parse_enamad_badge_identifiers(enamad_id, auth_code)
+        except EnamadBadgeError as exc:
+            raise PlatformConfigurationError(str(exc)) from exc
+        fields["enamad_id"] = enamad_id
+        fields["enamad_auth_code"] = auth_code
 
     config = get_platform_configuration()
 

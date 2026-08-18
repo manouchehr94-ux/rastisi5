@@ -25,18 +25,28 @@
     </div>
   </div></div>
 
-  <div class="pa-card"><div class="pa-cardhead"><h3>احراز فنی اینماد برای rastisi.ir</h3></div><div class="pa-cardbody">
+  <div class="pa-card"><div class="pa-cardhead"><h3>اینماد برای rastisi.ir</h3></div><div class="pa-cardbody">
     <div class="pa-field">
-      <label>{{ form.enamad_verification_meta_tag.label }}</label>
+      <label>۱. {{ form.enamad_verification_meta_tag.label }} (احرازِ فنی)</label>
       {{ form.enamad_verification_meta_tag }}
       {% if form.enamad_verification_meta_tag.errors %}<div class="pa-alert pa-alert-error" style="padding:6px 10px;margin:4px 0 0">{{ form.enamad_verification_meta_tag.errors.0 }}</div>{% endif %}
       <p class="pa-help" style="margin-top:8px">
         در پنل اینماد روش «افزودن متاتگ در صفحه اصلی» را انتخاب کنید و همان یک تگ
         <code dir="ltr">&lt;meta name="..." content="..."&gt;</code>
         را اینجا Paste کنید. RastiSi آن را اعتبارسنجی می‌کند و فقط روی صفحه‌ی اصلی پلتفرم رندر می‌کند؛
-        script، http-equiv و HTML اضافی پذیرفته نمی‌شوند. پس از پایان احراز می‌توانید این فیلد را خالی کنید.
+        script، http-equiv و HTML اضافی پذیرفته نمی‌شوند.
       </p>
     </div>
+    <div class="pa-grid2" style="margin-top:16px">
+      <div class="pa-field"><label>۲. سپس در اینماد احراز شوید؛ پس از آن این فیلد را می‌توانید خالی کنید.</label></div>
+    </div>
+    <div class="pa-grid2" style="margin-top:16px">
+      <div class="pa-field"><label>۳. {{ form.enamad_id.label }} (پس از صدور)</label>{{ form.enamad_id }}</div>
+      <div class="pa-field"><label>{{ form.enamad_auth_code.label }} (پس از صدور)</label>{{ form.enamad_auth_code }}</div>
+    </div>
+    {% if form.enamad_auth_code.errors %}<div class="pa-alert pa-alert-error" style="padding:6px 10px;margin:4px 0 0">{{ form.enamad_auth_code.errors.0 }}</div>{% endif %}
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:12px">{{ form.enamad_badge_enabled }} ۴. {{ form.enamad_badge_enabled.label }}</label>
+    <p class="pa-help" style="margin-top:8px">شناسه/کدِ نمادِ نهایی را اینماد پس از صدور در پنلِ خودش نمایش می‌دهد؛ همین دو مقدار را (نه HTML) اینجا Paste کنید — RastiSi خودش تصویر/لینکِ امن را می‌سازد.</p>
   </div></div>
 
   <div class="pa-card"><div class="pa-cardhead"><h3>عملیات</h3></div><div class="pa-cardbody">
