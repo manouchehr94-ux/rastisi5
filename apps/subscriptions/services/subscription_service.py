@@ -275,6 +275,96 @@ def change_plan_version(subscription, target_version, *, actor=None, reason="", 
     return locked
 
 
+# ================================================================== کنترل‌هایِ دستیِ تریال (مدیرِ پلتفرم)
+
+def _require_reason(reason: str) -> str:
+    reason = (reason or "").strip()
+    if not reason:
+        raise SubscriptionError("برایِ این تغییرِ دستی، ثبتِ دلیل الزامی است.")
+    return reason
+
+
+@transaction.atomic
+def extend_trial(subscription, *, days: int, actor, reason: str, idempotency_key="") -> StoreSubscription:
+    """دوره‌ی آزمایشیِ در حالِ اجرا را به‌مدتِ ``days`` روز تمدید می‌کند
+    (بخشِ ۴.۲ — کنترل‌هایِ دستیِ تریال). فقط رویِ اشتراکِ ``trialing`` مجاز
+    است؛ دلیل الزامی است و رخدادِ ``trial_extended`` با پایانِ قبلی/تازه
+    ثبت می‌شود."""
+    reason = _require_reason(reason)
+    if not isinstance(days, int) or days <= 0:
+        raise SubscriptionError("تعدادِ روزهایِ افزوده باید یک عددِ صحیحِ مثبت باشد.")
+    locked = StoreSubscription.objects.select_for_update().get(pk=subscription.pk)
+    if locked.status != S.TRIALING:
+        raise IllegalTransitionError("این فروشگاه در وضعیتِ آزمایشی نیست.")
+    if idempotency_key and locked.events.filter(idempotency_key=idempotency_key).exists():
+        return locked
+    before = locked.trial_end_at
+    base = before or timezone.now()
+    after = base + timezone.timedelta(days=days)
+    locked.trial_end_at = after
+    locked.save(update_fields=["trial_end_at", "updated_at"])
+    _record_event(
+        locked, event_type=ET.TRIAL_EXTENDED, from_status=locked.status, to_status=locked.status,
+        actor=actor, reason=reason, idempotency_key=idempotency_key,
+        metadata={"days_added": days, "previous_trial_end_at": str(before) if before else None,
+                  "new_trial_end_at": str(after)},
+    )
+    return locked
+
+
+@transaction.atomic
+def set_trial_end(subscription, *, end_at, actor, reason: str, idempotency_key="") -> StoreSubscription:
+    """پایانِ دقیقِ تریال را به یک تاریخ/زمانِ صریح تنظیم می‌کند. فقط رویِ
+    اشتراکِ ``trialing`` مجاز است؛ دلیل الزامی است."""
+    reason = _require_reason(reason)
+    if end_at is None or timezone.is_naive(end_at):
+        raise SubscriptionError("پایانِ تریال باید یک زمانِ معتبر و timezone-aware باشد.")
+    locked = StoreSubscription.objects.select_for_update().get(pk=subscription.pk)
+    if locked.status != S.TRIALING:
+        raise IllegalTransitionError("این فروشگاه در وضعیتِ آزمایشی نیست.")
+    if idempotency_key and locked.events.filter(idempotency_key=idempotency_key).exists():
+        return locked
+    before = locked.trial_end_at
+    locked.trial_end_at = end_at
+    locked.save(update_fields=["trial_end_at", "updated_at"])
+    _record_event(
+        locked, event_type=ET.TRIAL_END_SET, from_status=locked.status, to_status=locked.status,
+        actor=actor, reason=reason, idempotency_key=idempotency_key,
+        metadata={"previous_trial_end_at": str(before) if before else None, "new_trial_end_at": str(end_at)},
+    )
+    return locked
+
+
+@transaction.atomic
+def end_trial_now(subscription, *, actor, reason: str, idempotency_key="") -> StoreSubscription:
+    """دورهٔ آزمایشی را همین حالا پایان می‌دهد — دقیقاً همان انتقالی که
+    ارزیاب زمان‌بندی‌شده (``evaluate_subscription_states``) در سررسیدِ
+    طبیعی اعمال می‌کرد (به مهلتِ ارفاقی یا مستقیماً انقضا، بر اساسِ
+    ``grace_period_days`` نسخه‌ی پلن)، امّا هم‌اکنون و با دلیلِ دستی.
+    دیتای فروشگاه پاک نمی‌شود؛ مالک همچنان می‌تواند وارد شود و
+    خرید/تمدید/تغییرِ پلن انجام دهد."""
+    reason = _require_reason(reason)
+    locked = StoreSubscription.objects.select_for_update().get(pk=subscription.pk)
+    if locked.status != S.TRIALING:
+        raise IllegalTransitionError("این فروشگاه در وضعیتِ آزمایشی نیست.")
+    if idempotency_key and locked.events.filter(idempotency_key=idempotency_key).exists():
+        return locked
+    before = locked.trial_end_at
+    now = timezone.now()
+    to_status = S.GRACE_PERIOD if locked.plan_version.grace_period_days else S.EXPIRED
+    extra_fields = {"trial_end_at": now}
+    if to_status == S.GRACE_PERIOD:
+        extra_fields["grace_period_end"] = now + timezone.timedelta(days=locked.plan_version.grace_period_days)
+    else:
+        extra_fields["expired_at"] = now
+    result = _transition(
+        locked, to_status=to_status, event_type=ET.TRIAL_ENDED_MANUALLY, actor=actor,
+        reason=reason, idempotency_key=idempotency_key, extra_fields=extra_fields,
+        metadata={"previous_trial_end_at": str(before) if before else None, "new_trial_end_at": str(now)},
+    )
+    return result
+
+
 # ================================================================== پلنِ پیش‌فرض
 
 def resolve_default_plan_version():

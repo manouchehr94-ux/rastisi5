@@ -671,14 +671,12 @@ def store_support_login(request, store_public_id):
 @require_POST
 @user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
 def store_extend_trial(request, store_public_id):
-    from datetime import timedelta
-
-    from django.utils import timezone
+    from apps.subscriptions.services.subscription_service import SubscriptionError, extend_trial
 
     store = get_object_or_404(Store, public_id=store_public_id)
     subscription = store.subscriptions.filter(is_current=True).first()
-    if subscription is None or subscription.status != StoreSubscription.Status.TRIALING:
-        messages.error(request, "این فروشگاه در وضعیتِ آزمایشی نیست.")
+    if subscription is None:
+        messages.error(request, "این فروشگاه اشتراکِ جاری ندارد.")
         return redirect("portal_platform_admin:store-detail", store_public_id)
 
     raw_days = (request.POST.get("days") or "").strip()
@@ -687,18 +685,75 @@ def store_extend_trial(request, store_public_id):
         messages.error(request, "تعدادِ روزهایِ افزوده باید یک عددِ مثبت باشد.")
         return redirect("portal_platform_admin:store-detail", store_public_id)
 
-    before_end = subscription.trial_end_at
-    base = subscription.trial_end_at or timezone.now()
-    subscription.trial_end_at = base + timedelta(days=days)
-    subscription.save(update_fields=["trial_end_at", "updated_at"])
+    reason = (request.POST.get("reason") or "").strip() or f"تمدیدِ دستیِ {days} روزه توسطِ مدیرِ پلتفرم"
+    try:
+        extend_trial(subscription, days=days, actor=request.user, reason=reason)
+    except SubscriptionError as exc:
+        messages.error(request, str(exc))
+        return redirect("portal_platform_admin:store-detail", store_public_id)
 
-    record_audit_event(
-        store=store, actor=request.user, action_code="platform_admin.trial_extended",
-        object_type="StoreSubscription", object_id=subscription.pk, object_label=store.name,
-        before={"trial_end_at": before_end}, after={"trial_end_at": subscription.trial_end_at},
-        metadata={"days_added": days},
-    )
     messages.success(request, f"دوره‌ی آزمایشیِ «{store.name}» به‌مدتِ {days} روز تمدید شد.")
+    return redirect("portal_platform_admin:store-detail", store_public_id)
+
+
+@require_POST
+@user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
+def store_set_trial_end(request, store_public_id):
+    from datetime import datetime
+
+    from django.utils import timezone
+
+    from apps.subscriptions.services.subscription_service import SubscriptionError, set_trial_end
+
+    store = get_object_or_404(Store, public_id=store_public_id)
+    subscription = store.subscriptions.filter(is_current=True).first()
+    if subscription is None:
+        messages.error(request, "این فروشگاه اشتراکِ جاری ندارد.")
+        return redirect("portal_platform_admin:store-detail", store_public_id)
+
+    raw_end = (request.POST.get("trial_end_at") or "").strip()
+    parsed = None
+    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            parsed = datetime.strptime(raw_end, fmt)
+            break
+        except ValueError:
+            continue
+    if parsed is None:
+        messages.error(request, "تاریخ/زمانِ پایانِ تریال معتبر نیست.")
+        return redirect("portal_platform_admin:store-detail", store_public_id)
+    end_at = timezone.make_aware(parsed) if timezone.is_naive(parsed) else parsed
+
+    reason = (request.POST.get("reason") or "").strip()
+    try:
+        set_trial_end(subscription, end_at=end_at, actor=request.user, reason=reason)
+    except SubscriptionError as exc:
+        messages.error(request, str(exc))
+        return redirect("portal_platform_admin:store-detail", store_public_id)
+
+    messages.success(request, f"پایانِ دوره‌ی آزمایشیِ «{store.name}» تنظیم شد.")
+    return redirect("portal_platform_admin:store-detail", store_public_id)
+
+
+@require_POST
+@user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
+def store_end_trial_now(request, store_public_id):
+    from apps.subscriptions.services.subscription_service import SubscriptionError, end_trial_now
+
+    store = get_object_or_404(Store, public_id=store_public_id)
+    subscription = store.subscriptions.filter(is_current=True).first()
+    if subscription is None:
+        messages.error(request, "این فروشگاه اشتراکِ جاری ندارد.")
+        return redirect("portal_platform_admin:store-detail", store_public_id)
+
+    reason = (request.POST.get("reason") or "").strip()
+    try:
+        end_trial_now(subscription, actor=request.user, reason=reason)
+    except SubscriptionError as exc:
+        messages.error(request, str(exc))
+        return redirect("portal_platform_admin:store-detail", store_public_id)
+
+    messages.success(request, f"دوره‌ی آزمایشیِ «{store.name}» همین حالا پایان یافت.")
     return redirect("portal_platform_admin:store-detail", store_public_id)
 
 

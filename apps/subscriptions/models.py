@@ -317,6 +317,9 @@ class SubscriptionEvent(TimeStampedModel):
         CANCEL_SCHEDULED = "cancel_scheduled", "زمان‌بندیِ لغو"
         CANCELLED = "cancelled", "لغو"
         EXPIRED = "expired", "انقضا"
+        TRIAL_EXTENDED = "trial_extended", "تمدیدِ دستیِ تریال"
+        TRIAL_END_SET = "trial_end_set", "تنظیمِ دستیِ پایانِ تریال"
+        TRIAL_ENDED_MANUALLY = "trial_ended_manually", "پایانِ دستیِ تریال"
 
     subscription = models.ForeignKey(
         StoreSubscription, verbose_name="اشتراک", on_delete=models.CASCADE, related_name="events",
