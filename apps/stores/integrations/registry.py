@@ -87,8 +87,10 @@ PROVIDERS: dict[str, IntegrationProvider] = {
         category=IntegrationCategory.TRUST,
         description=(
             "برای احراز دسترسی فنی، متاتگِ داده‌شده توسط اینماد را وارد کنید. "
-            "پس از صدور نماد نیز می‌توانید کد نماد را در همین اتصال نگه دارید. "
-            "HTML دلخواه پذیرفته نمی‌شود و فقط یک meta امن با name/content معتبر است."
+            "پس از صدورِ نماد، «شناسه» و «کدِ تأیید» را (که اینماد نمایش می‌دهد) "
+            "اینجا وارد کنید تا نمادِ نهایی به‌صورتِ امن نمایش داده شود. "
+            "HTML/اسکریپتِ دلخواه هرگز پذیرفته نمی‌شود — فقط این دو شناسه، و "
+            "RastiSi خودش تصویر/لینکِ امن را می‌سازد."
         ),
         setup_guide="https://enamad.ir",
         fields=(
@@ -97,7 +99,8 @@ PROVIDERS: dict[str, IntegrationProvider] = {
                 label="متاتگ احراز فنی اینماد",
                 placeholder='<meta name="..." content="...">',
             ),
-            IntegrationField(key="enamad_code", label="کد نماد پس از صدور (اختیاری)"),
+            IntegrationField(key="enamad_id", label="شناسه‌ی نمادِ نهایی (پس از صدور)", placeholder="221617"),
+            IntegrationField(key="enamad_auth_code", label="کدِ تأییدِ نمادِ نهایی (پس از صدور)", placeholder="94MqMPJEnuahlSHjb9kP"),
         ),
         validate=validate_enamad_integration_values,
     ),

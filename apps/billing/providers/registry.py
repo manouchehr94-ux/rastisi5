@@ -8,9 +8,11 @@ from django.conf import settings
 
 from apps.billing.providers.base import BillingProviderError
 from apps.billing.providers.manual import ManualProvider
+from apps.billing.providers.zibal import ZibalBillingProvider
 
 _PROVIDERS = {
     ManualProvider.code: ManualProvider(),
+    ZibalBillingProvider.code: ZibalBillingProvider(),
 }
 
 
@@ -24,7 +26,18 @@ def get_provider(code: str | None = None):
 
 
 def active_provider_code() -> str:
-    return getattr(settings, "RASTISI_BILLING_PROVIDER", "manual") or "manual"
+    """کدِ Providerِ فعال — از Platform Admin (``PlatformConfiguration``)
+    قابلِ‌تغییر بدونِ ویرایشِ کد. اگر ردیفِ پیکربندی هنوز موجود نیست (مثلاً
+    حینِ migrate اولیه)، به تنظیماتِ محیط برمی‌گردد (fail-safe به «manual»)."""
+    try:
+        from apps.portal.services.platform_config_service import get_platform_configuration
+
+        code = get_platform_configuration().default_payment_provider
+    except Exception:  # noqa: BLE001 — پایگاه‌داده هنوز آماده نیست/جدول نیست
+        code = None
+    if not code:
+        code = getattr(settings, "RASTISI_BILLING_PROVIDER", "manual")
+    return code or "manual"
 
 
 def webhook_secret() -> str:

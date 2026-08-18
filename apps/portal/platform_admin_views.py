@@ -671,14 +671,12 @@ def store_support_login(request, store_public_id):
 @require_POST
 @user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
 def store_extend_trial(request, store_public_id):
-    from datetime import timedelta
-
-    from django.utils import timezone
+    from apps.subscriptions.services.subscription_service import SubscriptionError, extend_trial
 
     store = get_object_or_404(Store, public_id=store_public_id)
     subscription = store.subscriptions.filter(is_current=True).first()
-    if subscription is None or subscription.status != StoreSubscription.Status.TRIALING:
-        messages.error(request, "این فروشگاه در وضعیتِ آزمایشی نیست.")
+    if subscription is None:
+        messages.error(request, "این فروشگاه اشتراکِ جاری ندارد.")
         return redirect("portal_platform_admin:store-detail", store_public_id)
 
     raw_days = (request.POST.get("days") or "").strip()
@@ -687,18 +685,75 @@ def store_extend_trial(request, store_public_id):
         messages.error(request, "تعدادِ روزهایِ افزوده باید یک عددِ مثبت باشد.")
         return redirect("portal_platform_admin:store-detail", store_public_id)
 
-    before_end = subscription.trial_end_at
-    base = subscription.trial_end_at or timezone.now()
-    subscription.trial_end_at = base + timedelta(days=days)
-    subscription.save(update_fields=["trial_end_at", "updated_at"])
+    reason = (request.POST.get("reason") or "").strip() or f"تمدیدِ دستیِ {days} روزه توسطِ مدیرِ پلتفرم"
+    try:
+        extend_trial(subscription, days=days, actor=request.user, reason=reason)
+    except SubscriptionError as exc:
+        messages.error(request, str(exc))
+        return redirect("portal_platform_admin:store-detail", store_public_id)
 
-    record_audit_event(
-        store=store, actor=request.user, action_code="platform_admin.trial_extended",
-        object_type="StoreSubscription", object_id=subscription.pk, object_label=store.name,
-        before={"trial_end_at": before_end}, after={"trial_end_at": subscription.trial_end_at},
-        metadata={"days_added": days},
-    )
     messages.success(request, f"دوره‌ی آزمایشیِ «{store.name}» به‌مدتِ {days} روز تمدید شد.")
+    return redirect("portal_platform_admin:store-detail", store_public_id)
+
+
+@require_POST
+@user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
+def store_set_trial_end(request, store_public_id):
+    from datetime import datetime
+
+    from django.utils import timezone
+
+    from apps.subscriptions.services.subscription_service import SubscriptionError, set_trial_end
+
+    store = get_object_or_404(Store, public_id=store_public_id)
+    subscription = store.subscriptions.filter(is_current=True).first()
+    if subscription is None:
+        messages.error(request, "این فروشگاه اشتراکِ جاری ندارد.")
+        return redirect("portal_platform_admin:store-detail", store_public_id)
+
+    raw_end = (request.POST.get("trial_end_at") or "").strip()
+    parsed = None
+    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            parsed = datetime.strptime(raw_end, fmt)
+            break
+        except ValueError:
+            continue
+    if parsed is None:
+        messages.error(request, "تاریخ/زمانِ پایانِ تریال معتبر نیست.")
+        return redirect("portal_platform_admin:store-detail", store_public_id)
+    end_at = timezone.make_aware(parsed) if timezone.is_naive(parsed) else parsed
+
+    reason = (request.POST.get("reason") or "").strip()
+    try:
+        set_trial_end(subscription, end_at=end_at, actor=request.user, reason=reason)
+    except SubscriptionError as exc:
+        messages.error(request, str(exc))
+        return redirect("portal_platform_admin:store-detail", store_public_id)
+
+    messages.success(request, f"پایانِ دوره‌ی آزمایشیِ «{store.name}» تنظیم شد.")
+    return redirect("portal_platform_admin:store-detail", store_public_id)
+
+
+@require_POST
+@user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
+def store_end_trial_now(request, store_public_id):
+    from apps.subscriptions.services.subscription_service import SubscriptionError, end_trial_now
+
+    store = get_object_or_404(Store, public_id=store_public_id)
+    subscription = store.subscriptions.filter(is_current=True).first()
+    if subscription is None:
+        messages.error(request, "این فروشگاه اشتراکِ جاری ندارد.")
+        return redirect("portal_platform_admin:store-detail", store_public_id)
+
+    reason = (request.POST.get("reason") or "").strip()
+    try:
+        end_trial_now(subscription, actor=request.user, reason=reason)
+    except SubscriptionError as exc:
+        messages.error(request, str(exc))
+        return redirect("portal_platform_admin:store-detail", store_public_id)
+
+    messages.success(request, f"دوره‌ی آزمایشیِ «{store.name}» همین حالا پایان یافت.")
     return redirect("portal_platform_admin:store-detail", store_public_id)
 
 
@@ -1159,6 +1214,54 @@ def payment_manual_add(request):
     ).select_related("store").order_by("-created_at")[:100]
     return render(request, "portal/platform_admin/payment_manual_add.html", {
         "invoices": invoices, "active_nav": "payments",
+    })
+
+
+@user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
+def billing_zibal_settings(request):
+    """پیکربندیِ زیبال برایِ پرداختِ اشتراکِ خودِ پلتفرم (Phase 3) — کاملاً جدا
+    از اعتبارنامه‌ی زیبالِ هر Store برایِ سفارش‌هایِ مشتریانش
+    (``apps.orders.PaymentGatewayConfig`` / Merchant Admin › درگاه‌ها).
+    Secretِ خالی یعنی «بدون تغییر» (همان الگویِ تنظیماتِ پیامک)."""
+    from django.core.cache import cache
+
+    from apps.billing.providers import registry as billing_registry
+
+    config = get_platform_configuration()
+    if request.method == "POST":
+        active_provider = (request.POST.get("default_payment_provider") or "manual").strip()
+        if active_provider not in {"manual", "zibal"}:
+            messages.error(request, "درگاهِ انتخاب‌شده معتبر نیست.")
+        else:
+            before = {
+                "default_payment_provider": config.default_payment_provider,
+                "zibal_sandbox_mode": config.zibal_sandbox_mode,
+            }
+            config.default_payment_provider = active_provider
+            config.zibal_sandbox_mode = "zibal_sandbox_mode" in request.POST
+            merchant = (request.POST.get("zibal_merchant") or "").strip()
+            config.set_zibal_credentials(merchant=merchant)
+            config.save(update_fields=[
+                "default_payment_provider", "zibal_sandbox_mode",
+                "encrypted_zibal_credentials", "updated_at",
+            ])
+            cache.delete("portal:platform_configuration")
+            record_platform_audit_event(
+                actor=request.user, action_code="platform_billing_zibal.updated",
+                object_type="PlatformConfiguration", object_id=1,
+                before=before,
+                after={"default_payment_provider": active_provider, "zibal_sandbox_mode": config.zibal_sandbox_mode},
+                metadata={"merchant_configured": bool(merchant)},
+            )
+            messages.success(request, "تنظیماتِ زیبالِ پلتفرم ذخیره شد.")
+            return redirect("portal_platform_admin:billing-zibal-settings")
+
+    credentials = config.get_zibal_credentials()
+    return render(request, "portal/platform_admin/billing_zibal_settings.html", {
+        "config": config,
+        "merchant_is_configured": bool(credentials.get("merchant")),
+        "active_provider_code": billing_registry.active_provider_code(),
+        "active_nav": "payments",
     })
 
 

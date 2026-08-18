@@ -345,3 +345,45 @@ class ProcessCallbackTests(GatewayPaymentServiceTestBase):
         attempt.refresh_from_db()
         self.assertEqual(attempt.status, PaymentAttempt.Status.FAILED)
         self.assertEqual(attempt.failure_code, "verify_timeout")
+
+
+class PlatformCredentialIsolationTests(GatewayPaymentServiceTestBase):
+    """Phase 4 (master-prompt §6.2): the platform's own Zibal credentials
+    (apps.portal.PlatformConfiguration, used for RastiSi's own subscription
+    billing — Phase 3) must never be usable as a fallback for a merchant
+    Store's order checkout, and vice versa. These are two structurally
+    separate credential domains with no shared code path; this test locks
+    that in with a concrete, observable assertion (the HTTP payload sent to
+    Zibal) rather than relying only on code inspection."""
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+
+        from apps.portal.services.platform_config_service import get_platform_configuration
+
+        self.addCleanup(cache.clear)
+        cache.clear()
+        platform_config = get_platform_configuration()
+        platform_config.default_payment_provider = "zibal"
+        platform_config.set_zibal_credentials(merchant="platform-only-merchant-should-never-be-used")
+        platform_config.save()
+        cache.clear()
+        # This Store's own merchant differs from the platform's — if they
+        # ever got mixed up, this test would catch it via the sent payload.
+        self.zibal_config.set_credentials({"merchant": "store-own-merchant-abc"})
+        self.zibal_config.save()
+
+    @patch("apps.orders.gateways.zibal.requests.post")
+    def test_checkout_uses_only_the_stores_own_merchant_credential(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"result": 100, "trackId": 999}
+        mock_post.return_value = mock_response
+
+        initiate_payment(
+            order=self.order, gateway_config=self.zibal_config, callback_url="https://x/callback",
+            store=self.store,
+        )
+        sent_merchant = mock_post.call_args.kwargs["json"]["merchant"]
+        self.assertEqual(sent_merchant, "store-own-merchant-abc")
+        self.assertNotEqual(sent_merchant, "platform-only-merchant-should-never-be-used")

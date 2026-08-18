@@ -65,6 +65,8 @@
     <h3>اشتراکِ جاری</h3>
     <div style="display:flex;gap:8px">
       <button class="pa-btn pa-small" type="button" @click="modal='extend-trial'">تمدیدِ آزمایشی</button>
+      <button class="pa-btn pa-small" type="button" @click="modal='set-trial-end'">تنظیمِ پایانِ آزمایشی</button>
+      <button class="pa-btn pa-small" type="button" @click="modal='end-trial-now'">پایانِ فوریِ آزمایشی</button>
       <button class="pa-btn pa-small" type="button" @click="modal='change-plan'">تغییرِ پلن</button>
       <button class="pa-btn pa-small" type="button" @click="modal='extend-sub'">تمدیدِ اشتراک</button>
     </div>
@@ -217,8 +219,39 @@
     <div class="pa-modalhead"><h3>تمدیدِ دوره‌ی آزمایشی</h3><button class="pa-x" type="button" @click="modal=null">✕</button></div>
     <form method="post" action="{% url 'portal_platform_admin:store-extend-trial' store.public_id %}">
       {% csrf_token %}
-      <div class="pa-modalbody"><div class="pa-field"><label>تعدادِ روز</label><input class="pa-input" type="number" name="days" min="1" value="7" required></div></div>
+      <div class="pa-modalbody">
+        <div class="pa-field"><label>تعدادِ روز</label><input class="pa-input" type="number" name="days" min="1" value="7" required></div>
+        <div class="pa-field" style="margin-top:10px"><label>دلیل</label><input class="pa-input" type="text" name="reason"></div>
+      </div>
       <div class="pa-modalfoot"><button class="pa-btn" type="button" @click="modal=null">انصراف</button><button class="pa-btn pa-primary" type="submit">تمدید</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="pa-modal" x-show="modal==='set-trial-end'" x-cloak @click.self="modal=null">
+  <div class="pa-modalbox">
+    <div class="pa-modalhead"><h3>تنظیمِ دقیقِ پایانِ آزمایشی</h3><button class="pa-x" type="button" @click="modal=null">✕</button></div>
+    <form method="post" action="{% url 'portal_platform_admin:store-set-trial-end' store.public_id %}">
+      {% csrf_token %}
+      <div class="pa-modalbody">
+        <div class="pa-field"><label>تاریخ و زمانِ پایان</label><input class="pa-input" type="datetime-local" name="trial_end_at" required></div>
+        <div class="pa-field" style="margin-top:10px"><label>دلیل</label><input class="pa-input" type="text" name="reason" required></div>
+      </div>
+      <div class="pa-modalfoot"><button class="pa-btn" type="button" @click="modal=null">انصراف</button><button class="pa-btn pa-primary" type="submit">تنظیم</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="pa-modal" x-show="modal==='end-trial-now'" x-cloak @click.self="modal=null">
+  <div class="pa-modalbox">
+    <div class="pa-modalhead"><h3>پایانِ فوریِ دوره‌ی آزمایشی</h3><button class="pa-x" type="button" @click="modal=null">✕</button></div>
+    <form method="post" action="{% url 'portal_platform_admin:store-end-trial-now' store.public_id %}">
+      {% csrf_token %}
+      <div class="pa-modalbody">
+        <p class="pa-help">دوره‌ی آزمایشی همین حالا پایان می‌یابد؛ دیتای فروشگاه حذف نمی‌شود و مالک همچنان می‌تواند وارد شده و اشتراک تهیه کند.</p>
+        <div class="pa-field"><label>دلیل</label><input class="pa-input" type="text" name="reason" required></div>
+      </div>
+      <div class="pa-modalfoot"><button class="pa-btn" type="button" @click="modal=null">انصراف</button><button class="pa-btn pa-danger" type="submit">پایانِ فوری</button></div>
     </form>
   </div>
 </div>

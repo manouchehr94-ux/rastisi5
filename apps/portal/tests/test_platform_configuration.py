@@ -215,3 +215,51 @@ class PlatformConfigurationViewTests(TestCase):
         self.client.post("/sms/settings/", {**common_fields, "sms_kavenegar_api_key": "super-secret-key"}, HTTP_HOST=_HOST)
         response = self.client.get("/sms/settings/", HTTP_HOST=_HOST)
         self.assertNotContains(response, "super-secret-key")
+
+    _BASE_CONFIG_FIELDS = {
+        "default_trial_days": 30,
+        "deletion_retention_days": 365,
+        "primary_brand_color": "#10a37a",
+        "secondary_brand_color": "#e0a72e",
+        "temporary_logo_text": "راستیسی",
+        "support_contact_phone": "",
+        "support_contact_email": "",
+        "default_payment_provider": "manual",
+        "new_store_registration_enabled": "on",
+    }
+
+    def test_superuser_can_save_platform_enamad_badge_identifiers(self):
+        self.client.force_login(self.superuser)
+        response = self.client.post(
+            "/configuration/",
+            {**self._BASE_CONFIG_FIELDS, "enamad_id": "998877", "enamad_auth_code": "platformAuthCode123",
+             "enamad_badge_enabled": "on"},
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 302)
+        config = get_platform_configuration()
+        self.assertEqual(config.enamad_id, "998877")
+        self.assertEqual(config.enamad_auth_code, "platformAuthCode123")
+        self.assertTrue(config.enamad_badge_enabled)
+
+    def test_partial_badge_identifiers_rejected(self):
+        self.client.force_login(self.superuser)
+        response = self.client.post(
+            "/configuration/",
+            {**self._BASE_CONFIG_FIELDS, "enamad_id": "998877", "enamad_auth_code": ""},
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 200)
+        config = get_platform_configuration()
+        self.assertEqual(config.enamad_id, "")
+
+    def test_badge_and_verification_meta_saved_independently(self):
+        self.client.force_login(self.superuser)
+        self.client.post(
+            "/configuration/",
+            {**self._BASE_CONFIG_FIELDS, "enamad_id": "998877", "enamad_auth_code": "platformAuthCode123"},
+            HTTP_HOST=_HOST,
+        )
+        config = get_platform_configuration()
+        self.assertEqual(config.enamad_id, "998877")
+        self.assertEqual(config.enamad_verification_meta_tag, "")

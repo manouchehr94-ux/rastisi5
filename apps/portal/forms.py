@@ -1,7 +1,9 @@
 from django import forms
 
 from apps.stores.services.enamad_verification_service import (
+    EnamadBadgeError,
     EnamadVerificationMetaError,
+    parse_enamad_badge_identifiers,
     parse_enamad_verification_meta_tag,
 )
 
@@ -97,6 +99,7 @@ class PlatformConfigurationForm(forms.ModelForm):
             "temporary_logo_text", "logo",
             "support_contact_phone", "support_contact_email",
             "default_payment_provider", "enamad_verification_meta_tag",
+            "enamad_id", "enamad_auth_code", "enamad_badge_enabled",
             "maintenance_mode_enabled", "new_store_registration_enabled",
         ]
         widgets = {
@@ -117,6 +120,18 @@ class PlatformConfigurationForm(forms.ModelForm):
         except EnamadVerificationMetaError as exc:
             raise forms.ValidationError(str(exc)) from exc
         return value
+
+    def clean(self):
+        cleaned_data = super().clean()
+        enamad_id = (cleaned_data.get("enamad_id") or "").strip()
+        auth_code = (cleaned_data.get("enamad_auth_code") or "").strip()
+        try:
+            parse_enamad_badge_identifiers(enamad_id, auth_code)
+        except EnamadBadgeError as exc:
+            self.add_error("enamad_auth_code", str(exc))
+        cleaned_data["enamad_id"] = enamad_id
+        cleaned_data["enamad_auth_code"] = auth_code
+        return cleaned_data
 
     def clean_deletion_retention_days(self):
         days = self.cleaned_data["deletion_retention_days"]

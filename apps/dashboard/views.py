@@ -7557,16 +7557,27 @@ def billing_pay(request, pk):
 @permission_required(BILLING_PAYMENT_MANAGE)
 def billing_payment_result(request):
     from apps.billing.models import SubscriptionPaymentAttempt
+    from apps.billing.providers.base import BillingProviderError
+    from apps.billing.services.confirmation_service import ConfirmationError
+    from apps.billing.services.payment_flow_service import confirm_from_provider_verification
 
     store = _resolve_dashboard_store(request)
     token = request.session.get("billing_last_attempt", "")
     # بازگشتِ مرورگر فقط اطلاعاتی است — وضعیت از رکوردِ سمتِ سرور خوانده می‌شود،
-    # نه از پارامترهایِ query.
+    # نه از پارامترهایِ query. برایِ Providerهایی که Webhookِ فشاری ندارند
+    # (زیبال)، همین بازگشت لحظه‌ای است که سرور verify واقعی را انجام می‌دهد —
+    # امّا خودِ query params هرگز به‌عنوانِ مدرکِ پرداخت اعتماد نمی‌شوند.
     attempt = SubscriptionPaymentAttempt.objects.filter(
         store=store, public_token=token,
     ).select_related("invoice").first()
+    verify_error = ""
+    if attempt is not None:
+        try:
+            attempt = confirm_from_provider_verification(attempt, actor=request.user)
+        except (BillingProviderError, ConfirmationError) as exc:
+            verify_error = str(exc)
     return render(request, "dashboard/billing_payment_result.html", {
-        "attempt": attempt, "active_page": "billing",
+        "attempt": attempt, "verify_error": verify_error, "active_page": "billing",
     })
 
 

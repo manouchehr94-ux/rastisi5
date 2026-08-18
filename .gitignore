@@ -41,6 +41,9 @@ scripts/.verify_output/
 .DS_Store
 Thumbs.db
 
+# Claude Code local tooling (agent worktrees, session scaffolding)
+.claude/
+
 tools/storefront_builder_qa/node_modules/
 /RastiSi4_container_cell_source_pack_20260817-091427.zip
 /RastiSi4_phase33_builder_source_20260817-113430.zip

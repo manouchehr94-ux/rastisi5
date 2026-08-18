@@ -270,6 +270,13 @@ theme every storefront page without per-page forks.{% endcomment %}
     {% endfor %}
   </div>
   {% endif %}
+  {% if SHOP_ENAMAD_BADGE_PROFILE_URL and SHOP_ENAMAD_BADGE_LOGO_URL %}
+  <div class="trust-badges">
+    <a referrerpolicy="origin" target="_blank" rel="noopener noreferrer" href="{{ SHOP_ENAMAD_BADGE_PROFILE_URL }}">
+      <img referrerpolicy="origin" src="{{ SHOP_ENAMAD_BADGE_LOGO_URL }}" alt="نمادِ اعتمادِ الکترونیکیِ اینماد" style="cursor:pointer">
+    </a>
+  </div>
+  {% endif %}
   {% if FOOTER_SETTINGS.show_payment_logos and FOOTER_PAYMENT_LOGOS %}
   <div class="payment-logos">
     {% for logo in FOOTER_PAYMENT_LOGOS %}

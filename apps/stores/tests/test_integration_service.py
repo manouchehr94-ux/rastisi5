@@ -15,14 +15,14 @@ class ConnectTests(TestCase):
 
     def test_valid_credentials_activate_the_connection(self):
         connection = integration_service.connect(
-            store=self.store, provider_code="enamad", values={"enamad_code": "123456"}, actor=None,
+            store=self.store, provider_code="enamad", values={"enamad_id": "111111", "enamad_auth_code": "code123456"}, actor=None,
         )
         self.assertTrue(connection.is_active)
         self.assertIsNotNone(connection.connected_at)
 
     def test_credentials_are_stored_encrypted_not_plaintext(self):
         connection = integration_service.connect(
-            store=self.store, provider_code="enamad", values={"enamad_code": "123456"}, actor=None,
+            store=self.store, provider_code="enamad", values={"enamad_id": "111111", "enamad_auth_code": "code123456"}, actor=None,
         )
         self.assertNotIn("123456", connection.encrypted_credentials)
 
@@ -75,7 +75,7 @@ class DisconnectTests(TestCase):
     def setUp(self):
         self.store = _akhlaghi()
         integration_service.connect(
-            store=self.store, provider_code="enamad", values={"enamad_code": "123456"}, actor=None,
+            store=self.store, provider_code="enamad", values={"enamad_id": "111111", "enamad_auth_code": "code123456"}, actor=None,
         )
 
     def test_disconnect_deactivates(self):
@@ -85,7 +85,7 @@ class DisconnectTests(TestCase):
     def test_disconnect_keeps_credentials_for_reconnect(self):
         integration_service.disconnect(store=self.store, provider_code="enamad", actor=None)
         connection = StoreIntegrationConnection.objects.get(store=self.store, provider_code="enamad")
-        self.assertEqual(connection.get_credentials()["enamad_code"], "123456")
+        self.assertEqual(connection.get_credentials()["enamad_auth_code"], "code123456")
 
     def test_records_an_audit_event(self):
         integration_service.disconnect(store=self.store, provider_code="enamad", actor=None)
@@ -136,12 +136,12 @@ class ConnectionsContextTests(TestCase):
 
     def test_connected_provider_shows_is_connected_true(self):
         integration_service.connect(
-            store=self.store, provider_code="enamad", values={"enamad_code": "123456"}, actor=None,
+            store=self.store, provider_code="enamad", values={"enamad_id": "111111", "enamad_auth_code": "code123456"}, actor=None,
         )
         rows = integration_service.connections_context(store=self.store)
         enamad_row = next(row for row in rows if row["provider"].code == "enamad")
         self.assertTrue(enamad_row["is_connected"])
-        self.assertEqual(enamad_row["credentials"]["enamad_code"], "123456")
+        self.assertEqual(enamad_row["credentials"]["enamad_auth_code"], "code123456")
 
 
 class TenantIsolationTests(TestCase):
@@ -149,7 +149,7 @@ class TenantIsolationTests(TestCase):
         store_a = _akhlaghi()
         store_b = Store.objects.create(name="Store B", slug="integration-store-b", status=Store.Status.ACTIVE)
         integration_service.connect(
-            store=store_a, provider_code="enamad", values={"enamad_code": "a-secret-code"}, actor=None,
+            store=store_a, provider_code="enamad", values={"enamad_id": "222222", "enamad_auth_code": "aSecretCode"}, actor=None,
         )
 
         rows_b = integration_service.connections_context(store=store_b)
@@ -161,7 +161,7 @@ class TenantIsolationTests(TestCase):
         store_a = _akhlaghi()
         store_b = Store.objects.create(name="Store B", slug="integration-store-b2", status=Store.Status.ACTIVE)
         integration_service.connect(
-            store=store_a, provider_code="enamad", values={"enamad_code": "a-code"}, actor=None,
+            store=store_a, provider_code="enamad", values={"enamad_id": "333333", "enamad_auth_code": "aCode123"}, actor=None,
         )
         integration_service.disconnect(store=store_b, provider_code="enamad", actor=None)
 

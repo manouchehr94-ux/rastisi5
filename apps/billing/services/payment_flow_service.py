@@ -48,6 +48,39 @@ def start_payment(invoice, *, return_url, actor=None, idempotency_key="", now=No
     return attempt, session
 
 
+def confirm_from_provider_verification(attempt, *, actor=None, now=None):
+    """برایِ Providerهایی که Webhookِ فشاری ندارند (مثلِ زیبال — ADR-77
+    گسترش‌یافته برایِ Phase 3): پس از بازگشتِ کاربر، سرور مستقیماً وضعیتِ
+    پرداخت را از Provider استعلام می‌کند (``fetch_payment_status`` —
+    verify سرور-به-سرورِ واقعی، نه پارامترهایِ Query) و در صورتِ موفقیت از
+    همان ``confirm_payment`` عبور می‌دهد که مسیرِ Webhook هم استفاده
+    می‌کند — پس idempotent/تراکنشی/بررسیِ مبلغ همه یک‌جا تضمین می‌شوند.
+
+    بازگشتِ مرورگر هرگز به‌تنهایی مدرکِ پرداخت نیست؛ این تابع فقط زمانی
+    وضعیتِ نهایی را عوض می‌کند که خودِ Provider صراحتاً موفقیت را تأیید
+    کرده باشد. برایِ Providerِ بدونِ ``supports_automatic_capture`` (مثلِ
+    manual) کاری نمی‌کند — تأییدِ آن‌ها فقط از راهِ Webhook/اقدامِ مدیر است."""
+    now = now or timezone.now()
+    if attempt.status == SubscriptionPaymentAttempt.Status.SUCCEEDED:
+        return attempt
+
+    provider = registry.get_provider(attempt.provider)
+    if not provider.supports_automatic_capture:
+        return attempt
+    if not attempt.provider_session_id:
+        return attempt
+
+    status = provider.fetch_payment_status(provider_payment_id=attempt.provider_session_id)
+    if not status.succeeded:
+        return attempt
+
+    confirm_payment(
+        attempt=attempt, amount=status.amount, currency=status.currency or attempt.currency,
+        provider_payment_id=status.provider_payment_id, actor=actor, now=now,
+    )
+    return SubscriptionPaymentAttempt.objects.get(pk=attempt.pk)
+
+
 def process_webhook_event(event, *, actor=None, now=None):
     """یک رخدادِ Webhookِ ذخیره‌شده (امضا-تأییدشده) را پردازش می‌کند. idempotent:
     رخدادِ از قبل پردازش‌شده دوباره اعمال نمی‌شود."""
