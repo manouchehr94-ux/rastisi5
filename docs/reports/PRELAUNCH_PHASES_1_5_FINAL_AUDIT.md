@@ -195,8 +195,8 @@ Section 10/11 for exact commands and counts.
   surfaced 8 errors in `apps/stores/tests/test_integration_service.py`
   (a generic connect/disconnect/tenant-isolation test file that reused
   "enamad" as its example provider and posted the now-retired
-  `enamad_code` field) — fixed in commit `6acf8cc`; re-run in progress at
-  time of writing (see Section 9 for how to confirm final status).
+  `enamad_code` field) — fixed in commit `6acf8cc`. Re-run after the fix:
+  **546/546 passed** (confirmed).
 
 ### Gate C (cross-app regression)
 `apps.billing` + `apps.dashboard` + `apps.portal` + `apps.orders` run
@@ -254,11 +254,6 @@ a regression introduced by Phases 1–5.
 ## 9. Known limitations / unresolved items
 
 - **Gate D (full-project suite) was not run** — see Section 7.
-- **The `apps.stores` re-run after the `6acf8cc` fix commit had not
-  finished at the time this report was last saved** — re-run
-  `python manage.py test apps.stores` to get the final confirmed count;
-  the same file (`test_integration_service.py`) was the only source of
-  failure in the prior run and has been fixed.
 - **Browser QA was not performed** (Section 6).
 - **Zibal API facts (Phase 3) were triangulated, not confirmed against
   the primary source** (`docs.zibal.ir` is network-blocked in this
@@ -272,26 +267,22 @@ a regression introduced by Phases 1–5.
   implemented — see the Phase 2 report Section 3/13 for the full
   reasoning and the safe alternative (a new subscription record).
 
-## 10. Push status — GitHub write access blocker
+## 10. Delivery mechanism — Git Bundle (push access not available this session)
 
-**This branch's 8 commits are not yet on the remote.** Both push paths
-available in this session were denied throughout:
+This session's GitHub App installation does not have write access to
+`manouchehr94-ux/rastisi5` — both `git push` (plain `403 Forbidden` from
+GitHub, no credential challenge ever attempted) and the GitHub MCP
+`push_files` tool (`403 Resource not accessible by integration`) were
+denied on every attempt across the session. Per explicit instruction,
+push/PR/merge were not retried further once this was confirmed a genuine
+access gap rather than something fixable from within the session.
 
-- `git push` over HTTPS: `403 Forbidden` directly from GitHub, with no
-  credential challenge ever attempted (confirmed via `GIT_CURL_VERBOSE=1`
-  — the request went out with no `Authorization` header and GitHub
-  rejected it outright).
-- GitHub MCP `push_files`: `403 Resource not accessible by integration`
-  — retried once after the initial failure, same result.
-
-This is a write-permission gap on the session's GitHub App installation
-for `manouchehr94-ux/rastisi5`, not something retrying or routing around
-will fix. **An org admin needs to grant this session's GitHub App write
-access to this repository** (Claude GitHub settings /
-`claude.ai/admin-settings/claude-in-slack`, or by re-authorizing repo
-access for this session/environment) before any of this work reaches the
-remote branch. Everything is committed locally and ready to push
-immediately once access is granted.
+**Delivery instead uses a Git Bundle** containing every commit from the
+baseline (`d0682d7759886f3367054b01625efeba1b21ee61`) to the completed
+`claude/prelaunch-phases-1-5` HEAD, with full commit history preserved.
+See the final handoff message for the bundle filename, SHA256, and
+verification output. Nothing was pushed, no PR was created, and no branch
+was merged.
 
 ## 11. Definition of Done — status against Section 16
 
@@ -322,7 +313,7 @@ immediately once access is granted.
 | No secrets committed | ✅ (verified — no `.env`/credential files staged) |
 | No server/deployment changes | ✅ |
 | No SMS redesign | ✅ (SMS code untouched) |
-| Branch pushed | ❌ **blocked — see Section 10** |
+| Branch pushed | ❌ **not pushed — delivered as a Git Bundle instead, see Section 10** |
 | No PR created | ✅ (none created, per instructions) |
 
 This branch is **not** being represented as "production ready" — real
