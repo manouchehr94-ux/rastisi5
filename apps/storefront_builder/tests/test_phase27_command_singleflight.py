@@ -38,7 +38,9 @@ class Phase276SectionCommandSingleFlightTests(SimpleTestCase):
 
     def test_success_path_does_not_release_guard_before_reload(self):
         start = self.editor.index("sectionCommand(sectionId, command)")
-        end = self.editor.index("handleEscape()", start)
+        # Slice only the section command. Container commands intentionally use
+        # their own promise-finally guard and must not contaminate this check.
+        end = self.editor.index("containerCommand(containerId, command)", start)
         method = self.editor[start:end]
         self.assertNotIn(".finally(() =>", method)
         self.assertIn("Promise.resolve(request).then(() =>", method)

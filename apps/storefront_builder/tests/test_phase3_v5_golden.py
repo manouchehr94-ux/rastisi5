@@ -123,17 +123,21 @@ class V5PresetIsPureDataTests(TestCase):
         patterned_rails = [
             entry for entry in entries
             if entry.section_key == "product_section"
-            and (entry.settings or {}).get("background", {}).get("mode") == "pattern"
+            and (entry.settings or {}).get("background", {}).get("mode") == "palette_pattern"
         ]
         self.assertEqual(len(patterned_rails), 5)
         self.assertEqual(
             {entry.settings["background"]["pattern_slug"] for entry in patterned_rails},
             {"commerce-doodle"},
         )
+        # Phase 3.8 moved the five reference colours into the global palette.
+        # Preset data carries semantic roles so changing the Store palette can
+        # recolour all rails without rewriting individual section settings.
         self.assertEqual(
-            {entry.settings["background"]["color"].upper() for entry in patterned_rails},
-            {"#F53247", "#16B95F", "#C56B00", "#352196", "#056CAE"},
+            {entry.settings["background"]["palette_role"] for entry in patterned_rails},
+            {"tone-1", "tone-2", "tone-3", "tone-4", "tone-5"},
         )
+        self.assertTrue(all("color" not in entry.settings["background"] for entry in patterned_rails))
         for entry in patterned_rails:
             self.assertEqual(entry.settings["item_limit"], 6)
             self.assertEqual(entry.settings["responsive"]["desktop_columns"], 6)
@@ -143,7 +147,9 @@ class V5PresetIsPureDataTests(TestCase):
         entries = list(preset.pages["home"])
         category = next(entry for entry in entries if entry.section_key == "category_grid")
         self.assertEqual(category.settings["display_mode"], "image_strip")
-        self.assertEqual(category.settings["item_limit"], 6)
+        # Phase 3.7 fidelity pass matches the approved reference's seven-item
+        # category strip.
+        self.assertEqual(category.settings["item_limit"], 7)
 
         self.assertTrue(any(block.get("type") == "tagline" for block in preset.header["extra_blocks"]))
 

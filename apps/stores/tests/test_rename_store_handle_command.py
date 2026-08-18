@@ -1,5 +1,6 @@
 from io import StringIO
 
+from django.conf import settings
 from django.core.management import CommandError, call_command
 from django.test import TestCase
 from django.utils import timezone
@@ -33,5 +34,6 @@ class RenameStoreHandleCommandTests(TestCase):
     def test_successful_rename(self):
         out = StringIO()
         call_command("rename_store_handle", "cmd-handle-store", "newlabel", "--reason=owner asked", stdout=out)
-        self.assertTrue(StoreDomain.objects.filter(hostname="newlabel.rastisi.ir", is_primary=True).exists())
-        self.assertIn("newlabel.rastisi.ir", out.getvalue())
+        expected_hostname = f"newlabel.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
+        self.assertTrue(StoreDomain.objects.filter(hostname=expected_hostname, is_primary=True).exists())
+        self.assertIn(expected_hostname, out.getvalue())

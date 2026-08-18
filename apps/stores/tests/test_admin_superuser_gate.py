@@ -35,6 +35,10 @@ User = get_user_model()
 
 HOST_A = "admgate-a.rastisi.ir"
 HOST_B = "admgate-b.rastisi.ir"
+# Merchant Admin uses the DEBUG runtime suffix. Keep HOST_A/HOST_B above for
+# the root/Django-Admin security gate tests; dashboard routing is a distinct
+# host namespace.
+ADMIN_HOST_A = "admgate-a.rastisi.localhost"
 
 
 def _akhlaghi():
@@ -51,7 +55,7 @@ def _verified_domain(store, hostname):
     )
 
 
-@override_settings(ALLOWED_HOSTS=[HOST_A, HOST_B, "testserver"])
+@override_settings(ALLOWED_HOSTS=[HOST_A, HOST_B, ADMIN_HOST_A, "testserver"])
 class AdminSuperuserGateFixture(TestCase):
     def setUp(self):
         self.store_a = _akhlaghi()
@@ -103,7 +107,7 @@ class NonSuperuserStaffDeniedAdminTests(AdminSuperuserGateFixture):
         self.client.login(username="dashboard-only-staff", password="pass12345")
 
     def test_dashboard_still_accessible(self):
-        response = self.client.get(reverse("dashboard:dashboard"), HTTP_HOST=HOST_A)
+        response = self.client.get(reverse("dashboard:dashboard"), HTTP_HOST=ADMIN_HOST_A)
         self.assertEqual(response.status_code, 200)
 
     def test_admin_index_denied(self):
@@ -203,7 +207,7 @@ class SuperuserRetainsAdminAccessTests(AdminSuperuserGateFixture):
         self.assertEqual(response.status_code, 200)
 
     def test_dashboard_also_still_accessible(self):
-        response = self.client.get(reverse("dashboard:dashboard"), HTTP_HOST=HOST_A)
+        response = self.client.get(reverse("dashboard:dashboard"), HTTP_HOST=ADMIN_HOST_A)
         self.assertEqual(response.status_code, 200)
 
 

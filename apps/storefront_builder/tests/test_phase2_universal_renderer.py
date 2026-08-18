@@ -21,6 +21,7 @@ from PIL import Image
 
 from apps.content.models import MediaAsset
 from apps.storefront_builder.models import StorefrontSection
+from apps.storefront_builder.services import container_service
 from apps.storefront_builder.services import layout_service as svc
 from apps.stores.models import Store, StoreDomain
 
@@ -57,9 +58,15 @@ class RowGridRenderingTests(TestCase):
 
     def _publish_home_with(self, sections):
         draft = svc.get_or_create_draft(self.store)
-        draft.home_page().sections.all().delete()
+        page = draft.home_page()
+        page.sections.all().delete()
         for kwargs in sections:
             StorefrontSection.objects.create(version=draft, **kwargs)
+        # These tests intentionally exercise legacy row_key/row_span input.
+        # A modern Draft can already own Container/Cells, so explicitly invoke
+        # the transition bridge before publishing; this mirrors legacy rows
+        # into the current Container/Cell source of truth.
+        container_service.rebuild_page_from_legacy_rows(page)
         svc.publish(self.store)
 
     def test_standalone_sections_render_without_row_wrapper(self):
@@ -80,8 +87,8 @@ class RowGridRenderingTests(TestCase):
         ])
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         html = resp.content.decode("utf-8")
-        self.assertIn('class="rsec-row"', html)
-        self.assertEqual(html.count("--row-span:6"), 2)
+        self.assertIn('data-layout="half"', html)
+        self.assertEqual(html.count("--cell-span:6"), 2)
 
     def test_three_equal_columns_4_plus_4_plus_4(self):
         self._publish_home_with([
@@ -91,7 +98,8 @@ class RowGridRenderingTests(TestCase):
         ])
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         html = resp.content.decode("utf-8")
-        self.assertEqual(html.count("--row-span:4"), 3)
+        self.assertIn('data-layout="thirds"', html)
+        self.assertEqual(html.count("--cell-span:4"), 3)
 
     def test_four_equal_columns_3_plus_3_plus_3_plus_3(self):
         self._publish_home_with([
@@ -102,7 +110,8 @@ class RowGridRenderingTests(TestCase):
         ])
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         html = resp.content.decode("utf-8")
-        self.assertEqual(html.count("--row-span:3"), 4)
+        self.assertIn('data-layout="quarters"', html)
+        self.assertEqual(html.count("--cell-span:3"), 4)
 
     def test_asymmetric_8_plus_4(self):
         """دقیقاً ترکیبِ Hero + Instant Offer در V5 — دو ستونِ نامساوی."""
@@ -112,8 +121,9 @@ class RowGridRenderingTests(TestCase):
         ])
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         html = resp.content.decode("utf-8")
-        self.assertIn("--row-span:8", html)
-        self.assertIn("--row-span:4", html)
+        self.assertIn('data-layout="third_right"', html)
+        self.assertIn("--cell-span:8", html)
+        self.assertIn("--cell-span:4", html)
 
     def test_row_ordering_preserved_alongside_standalone_sections(self):
         self._publish_home_with([
@@ -125,7 +135,7 @@ class RowGridRenderingTests(TestCase):
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         html = resp.content.decode("utf-8")
         before_pos = html.index("BEFORE-ROW")
-        row_pos = html.index('class="rsec-row"')
+        row_pos = html.index('data-layout="half"')
         self.assertLess(before_pos, row_pos)
 
     def test_draft_row_configuration_never_reaches_public_page(self):
@@ -177,14 +187,18 @@ class RowGridPreviewTests(TestCase):
         StorefrontSection.objects.create(
             version=draft, section_key="amazing_offers", order=1, row_key="r1", row_span=4,
         )
+        # Explicitly exercise the same legacy -> Container/Cell bridge in
+        # Draft preview; Container/Cell is now the renderer source of truth.
+        container_service.rebuild_page_from_legacy_rows(draft.home_page())
         resp = self.client.get(
             reverse("dashboard:storefront-builder-preview"),
             HTTP_HOST="sfb-phase2-preview.rastisi.localhost",
         )
         self.assertEqual(resp.status_code, 200)
         html = resp.content.decode("utf-8")
-        self.assertIn("--row-span:8", html)
-        self.assertIn("--row-span:4", html)
+        self.assertIn('data-layout="third_right"', html)
+        self.assertIn("--cell-span:8", html)
+        self.assertIn("--cell-span:4", html)
 
 
 @override_settings(ALLOWED_HOSTS=[HOST, "testserver"])

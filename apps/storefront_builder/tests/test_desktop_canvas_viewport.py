@@ -19,6 +19,10 @@ class PrototypeV2Phase26DesktopCanvasViewportTests(StorefrontBuilderViewsTestCas
 
     def test_library_drop_metrics_account_for_desktop_scale(self):
         response = self.client.get(reverse("dashboard:storefront-builder-editor"))
+        # Real-cell drop zones are projected from iframe coordinates into the
+        # scaled parent canvas using top/left + scaled width/height.
         self.assertContains(response, "rect.top * scale")
-        self.assertContains(response, "rect.bottom * scale")
-        self.assertContains(response, "24 / (this.device === 'desktop'")
+        self.assertContains(response, "rect.width * scale")
+        self.assertContains(response, "rect.height * scale")
+        self.assertContains(response, "bottom: top + height")
+        self.assertContains(response, "30 / (this.device === 'desktop'")

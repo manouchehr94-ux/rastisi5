@@ -98,7 +98,9 @@ class EditorAccessTests(StorefrontBuilderViewsTestCase):
         resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
         self.assertContains(resp, "sfb-rsec-toolbar")
         self.assertContains(resp, 'data-cmd="duplicate"')
-        self.assertContains(resp, 'data-cmd="remove"')
+        # Placed content is removed from its real Cell, not through the legacy
+        # standalone-section remove command.
+        self.assertContains(resp, "data-cell-clear=")
 
     # Phase 4: هدر/فوتر همان دکوریتورهای مشترکِ ``@staff_required`` +
     # ``@permission_required(STOREFRONT_LAYOUT_MANAGE)`` را (که در بالا
@@ -253,8 +255,12 @@ class PrototypeV2Phase2InteractionFoundationTests(StorefrontBuilderViewsTestCase
         resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "sfb-inspector-section-actions")
-        for command in ("up", "down", "duplicate", "toggle", "lock", "remove"):
+        # Content-level operations remain section commands, while placement
+        # movement/removal belongs to the containing layout/cell.
+        for command in ("duplicate", "toggle", "lock"):
             self.assertContains(resp, f"sectionCommand({section.pk}, '{command}')")
+        self.assertContains(resp, "containerCommand(")
+        self.assertContains(resp, "cellCommand(")
 
     def test_locked_section_is_visibly_locked_and_cannot_drag_or_remove_from_canvas(self):
         section = self._first_section()
@@ -1859,7 +1865,10 @@ class PageSwitchingTests(StorefrontBuilderViewsTestCase):
     def test_non_home_page_with_no_sections_shows_empty_state(self):
         resp = self.client.get(reverse("dashboard:storefront-builder-preview"), {"page": "cart"})
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "هنوز هیچ بخش فعالی")
+        # Container/Cell intentionally keeps empty layout cells visible in the
+        # Builder preview so the merchant can add content into them.
+        self.assertContains(resp, "sfb-empty-cell-add")
+        self.assertContains(resp, "افزودن محتوا")
 
 
 class CsrfEnforcementTests(StorefrontBuilderViewsTestCase):
@@ -2250,7 +2259,9 @@ class PrototypeV2Phase23LibraryDragInsertTests(StorefrontBuilderViewsTestCase):
         ):
             self.assertContains(response, marker)
         self.assertNotContains(response, 'sfb-library-drop-overlay')
-        self.assertNotContains(response, '@dragstart="beginLibraryDrag')
+        self.assertContains(response, "sfb-library-cell-drop-layer")
+        self.assertContains(response, '@dragstart="beginLibraryDrag')
+        self.assertContains(response, "updateLibraryCellDropOverlay(")
 
     def test_add_section_before_reference_inserts_and_resequences(self):
         first = self._rich_text(0)

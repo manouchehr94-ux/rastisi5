@@ -53,7 +53,8 @@ class Phase33BuilderUXCompletionTests(StorefrontBuilderViewsTestCase):
             reverse("dashboard:storefront-builder-container-settings", args=[container.pk])
         )
         self.assertContains(response, "هر خانه فقط به اندازه محتوای خودش قاب می‌گیرد")
-        self.assertContains(response, "محتوای کوتاه دیگر تا ارتفاع بلندترین خانه کشیده نمی‌شود")
+        self.assertContains(response, "ارتفاع برابر")
+        self.assertContains(response, "برای محتواهای نامتناسب، حالت طبیعی بهتر است")
 
     def test_phase33_css_contract_keeps_selection_drop_overlay_and_phase34_natural_height(self):
         css = (

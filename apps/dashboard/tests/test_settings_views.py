@@ -717,9 +717,11 @@ class ContrastAndSafetyTests(SettingsViewsTestCase):
         )
         with open(css_path) as f:
             css = f.read()
-        # --violet-2 and --violet-3 remain fixed (not overridden by brand-primary)
-        self.assertIn("--violet-2:#7c3aed", css)
-        self.assertIn("--violet-3:#8b5cf6", css)
+        # Secondary gradient stops are now theme-aware while preserving the
+        # exact historical colours as CSS fallbacks when no brand-secondary
+        # override is present.
+        self.assertIn("--violet-2:var(--brand-secondary, #7c3aed)", css)
+        self.assertIn("--violet-3:var(--brand-secondary, #8b5cf6)", css)
 
 
 # ============================================================ PR3: SETTINGS NAVIGATION REGRESSION
@@ -1034,12 +1036,9 @@ class SettingsPageQueryPerformanceTests(SettingsViewsTestCase):
         with CaptureQueriesContext(connection) as ctx:
             response = self.client.get(reverse("dashboard:settings") + "?section=appearance")
         self.assertEqual(response.status_code, 200)
-        # 25, not 20: apps.dashboard.context_processors.nav_badges adds two
-        # real COUNT queries (product/pending-order) so the sidebar's badge
-        # numbers are correct on every admin page, not just the dashboard
-        # home — previously they silently showed 0 everywhere else. Three
-        # more come from _settings_context always building the SMS section's
-        # balance/package/pending-purchase data (same pre-existing pattern
-        # as every other section's context, computed regardless of which
-        # tab is active).
-        self.assertLessEqual(len(ctx), 25)
+        # Keep this as a regression ceiling, not an exact implementation
+        # count. The shared settings context now includes the full operational
+        # integration/industry/SMS state used by every tab, while nav_badges
+        # contributes the two intentional COUNT queries. 26 is the measured
+        # warm-cache ceiling for the current shared-context contract.
+        self.assertLessEqual(len(ctx), 26)

@@ -84,5 +84,6 @@ class Phase32BuilderUXTests(StorefrontBuilderViewsTestCase):
         html = response.content.decode("utf-8")
         self.assertNotIn('value="stretch"', html)
         self.assertIn("هر خانه فقط به اندازه محتوای خودش قاب می‌گیرد", html)
-        self.assertIn("محتوای کوتاه دیگر تا ارتفاع بلندترین خانه کشیده نمی‌شود", html)
+        self.assertIn("ارتفاع برابر", html)
+        self.assertIn("برای محتواهای نامتناسب، حالت طبیعی بهتر است", html)
         self.assertNotIn('value="stretch"', html)

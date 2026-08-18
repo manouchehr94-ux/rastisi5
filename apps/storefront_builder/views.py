@@ -216,6 +216,11 @@ def storefront_preview(request):
     # ``storefront_editor`` به iframe پاس می‌دهد.
     page_type = _resolve_page_type(request.GET.get("page"))
     page = draft.get_page(page_type)
+    # Container/Cell is primary once a page owns any real Container. Legacy
+    # direct Section rows still need the documented compatibility renderer;
+    # forcing Container mode when none exist makes otherwise valid Draft
+    # sections disappear from Preview.
+    use_container_layout = page.containers.exists()
     items = build_page_render_items(page, store, page_context=_preview_page_context(request, store, page_type))
     top_level_categories = Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
     # تنظیماتِ ظاهر باید از همین Draft خوانده شود، نه ShopSettings زنده —
@@ -240,7 +245,7 @@ def storefront_preview(request):
         # the primary Builder composition source. Empty cells are visible only here.
         "rows": group_items_into_rows(items),
         "render_containers": build_container_render_items(page, items, include_empty=True),
-        "use_container_layout": True,
+        "use_container_layout": use_container_layout,
         "is_preview": True,
         "top_level_categories": top_level_categories,
     })

@@ -17,7 +17,11 @@ class Phase27QAReliabilityTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(response.status_code, 200)
         html = response.content.decode("utf-8")
         self.assertNotIn("this.$el.dataset", html)
-        self.assertIn("this.$root.dataset.sectionAddUrl", html)
+        # Container/Cell is now the primary composition API. The legacy
+        # section-add dataset remains on the root for compatibility, but new
+        # content insertion reads the real cell/container endpoints.
+        self.assertIn("this.$root.dataset.cellAddSectionUrl", html)
+        self.assertIn("this.$root.dataset.containerAddUrl", html)
         self.assertIn("this.$root.dataset.undoUrl", html)
         self.assertIn("this.$root.dataset.redoUrl", html)
         self.assertIn("this.$root.dataset.sectionListUrl", html)
