@@ -203,7 +203,11 @@ class PlatformConfiguration(TimeStampedModel):
         "سیاست تأیید مجدد (Step-up OTP)", default=dict,
         help_text="نگاشتِ کلیدِ عملیات به روشن/خاموش — فقط کلیدهای STEP_UP_ACTION_CHOICES مجازند.",
     )
-    default_payment_provider = models.CharField("درگاه پرداخت پیش‌فرض", max_length=40, default="manual")
+    default_payment_provider = models.CharField(
+        "درگاه پرداخت پیش‌فرض", max_length=40, default="manual",
+        choices=[("manual", "دستی (بدونِ درگاهِ واقعی)"), ("zibal", "زیبال")],
+        help_text="Providerِ فعالِ پرداختِ اشتراکِ خودِ پلتفرم — جدا از درگاهِ پرداختِ سفارشِ هر Store.",
+    )
     enabled_payment_providers = models.JSONField(
         "درگاه‌های پرداخت فعال", default=list,
         help_text="فهرستِ کدهای درگاه فعال — نمایش‌دادنی در تسویه‌حساب اشتراک.",
@@ -269,6 +273,53 @@ class PlatformConfiguration(TimeStampedModel):
             return json.loads(plaintext)
         except (json.JSONDecodeError, TypeError):
             return {}
+
+    # --- زیبال — درگاهِ پرداختِ اشتراکِ خودِ پلتفرم (Phase 3) ---
+    # این اعتبارنامه فقط برایِ پرداختِ اشتراکِ RastiSi از مشتریانِ راستیسی
+    # است (``apps.billing``) — کاملاً جدا از اعتبارنامه‌یِ زیبالِ هر Store
+    # برایِ پرداختِ سفارش‌هایِ مشتریانِ آن Store (``apps.orders.PaymentGatewayConfig``).
+    # این دو دامنه هرگز نباید با هم مخلوط شوند.
+    zibal_sandbox_mode = models.BooleanField(
+        "حالتِ آزمایشیِ زیبال (Sandbox)", default=False,
+        help_text="در حالتِ آزمایشی، merchant واقعی نادیده گرفته و مقدارِ Sandbox زیبال استفاده می‌شود.",
+    )
+    encrypted_zibal_credentials = models.TextField(
+        "اعتبارنامه‌ی زیبالِ پلتفرمِ رمزنگاری‌شده", blank=True, default="",
+        help_text="مقدارِ رمزنگاری‌شده — هرگز مستقیم خوانده نمی‌شود",
+    )
+
+    def get_zibal_credentials(self) -> dict:
+        """رمزگشایی و بازگرداندنِ اعتبارنامه‌ی زیبالِ پلتفرم به‌صورتِ dict."""
+        import json
+
+        from apps.orders.encryption import decrypt_credential
+
+        if not self.encrypted_zibal_credentials:
+            return {}
+        plaintext = decrypt_credential(self.encrypted_zibal_credentials)
+        if not plaintext:
+            return {}
+        try:
+            return json.loads(plaintext)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def set_zibal_credentials(self, *, remove_keys=(), **updates) -> None:
+        """اعتبارنامه‌ی زیبالِ پلتفرم را ادغام و رمزنگاری می‌کند — Secretِ خالی
+        یعنی «بدون تغییر» (همان الگویِ ``set_sms_credentials``)."""
+        import json
+
+        from apps.orders.encryption import encrypt_credential
+
+        merged = dict(self.get_zibal_credentials())
+        for key in remove_keys:
+            merged.pop(key, None)
+        merged.update({k: v for k, v in updates.items() if v is not None and v != ""})
+        clean = {k: v for k, v in merged.items() if v is not None and v != ""}
+        self.encrypted_zibal_credentials = (
+            encrypt_credential(json.dumps(clean, ensure_ascii=False))
+            if clean else ""
+        )
 
     def set_sms_credentials(self, *, remove_keys=(), **updates) -> None:
         """اعتبارنامه/پیکربندی SMS را ادغام و رمزنگاری می‌کند.

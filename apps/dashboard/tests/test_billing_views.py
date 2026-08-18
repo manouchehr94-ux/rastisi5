@@ -4,6 +4,7 @@ permission gating (BILLING_VIEW / BILLING_ACCOUNT_MANAGE / BILLING_PAYMENT_MANAG
 / SUBSCRIPTION_CANCEL)."""
 
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -128,3 +129,102 @@ class BillingViewTests(TestCase):
         # Owner of `akhlaghi` must not see another store's invoice.
         resp = self.client.get(reverse("dashboard:billing-invoice-detail", args=[oinv.pk]))
         self.assertEqual(resp.status_code, 404)
+
+
+@override_settings(ALLOWED_HOSTS=[HOST, "testserver"])
+class ZibalBrowserReturnFlowTests(TestCase):
+    """Phase 3: end-to-end merchant-facing flow through the dashboard when
+    the platform's active billing provider is Zibal — the browser-return
+    endpoint must trigger a real server-side verify (mocked HTTP here) and
+    never trust query params as payment proof."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        from apps.portal.services.platform_config_service import get_platform_configuration
+
+        cache.clear()
+        self.addCleanup(cache.clear)
+        config = get_platform_configuration()
+        config.default_payment_provider = "zibal"
+        config.zibal_sandbox_mode = False
+        config.set_zibal_credentials(merchant="platform-merchant-1")
+        config.save()
+        cache.clear()
+
+        self.client = Client(HTTP_HOST=HOST)
+        self.store = Store.objects.get(slug="akhlaghi")
+        self.store.admin_subdomain = "billui"
+        self.store.save(update_fields=["admin_subdomain"])
+        plan = Plan.objects.create(code="billui-zibal-plan", name="Plan")
+        self.version = PlanVersion.objects.create(
+            plan=plan, version_number=1, status=PlanVersion.Status.PUBLISHED,
+            display_price=Decimal("150000"), currency="IRT",
+        )
+        self.subscription = self.store.subscriptions.filter(is_current=True).first()
+        self.invoice = invoice_service.open_invoice(invoice_service.create_invoice(
+            self.subscription, kind=SubscriptionInvoice.Kind.RENEWAL, plan_version=self.version,
+            lines=[invoice_service.plan_line_spec(self.version)], period_start=timezone.now(),
+        ))
+        self.owner = User.objects.create_user(username="bill-zibal-owner", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=self.store, user=self.owner, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        self.client.login(username="bill-zibal-owner", password="pass12345")
+
+    def _pay(self, mock_post):
+        mock_post.return_value.json.return_value = {"result": 100, "trackId": 5150}
+        resp = self.client.post(reverse("dashboard:billing-pay", args=[self.invoice.pk]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, "https://gateway.zibal.ir/start/5150")
+
+    @patch("apps.billing.providers.zibal.requests.post")
+    def test_pay_redirects_to_zibal_gateway_url(self, mock_post):
+        self._pay(mock_post)
+
+    @patch("apps.billing.providers.zibal.requests.post")
+    def test_browser_return_verifies_server_side_and_marks_paid(self, mock_post):
+        self._pay(mock_post)
+        mock_post.return_value.json.return_value = {"result": 100, "amount": 1_500_000}
+        resp = self.client.get(reverse("dashboard:billing-payment-result"))
+        self.assertEqual(resp.status_code, 200)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.status, SubscriptionInvoice.Status.PAID)
+
+    @patch("apps.billing.providers.zibal.requests.post")
+    def test_browser_return_query_params_alone_never_confirm_payment(self, mock_post):
+        """Even if a malicious/duplicated GET claims success=1 in the query
+        string, the view must ignore it and only trust the real verify call."""
+        self._pay(mock_post)
+        mock_post.return_value.json.return_value = {"result": 202, "message": "not paid yet"}
+        resp = self.client.get(
+            reverse("dashboard:billing-payment-result") + "?success=1&status=1&trackId=5150",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.invoice.refresh_from_db()
+        self.assertNotEqual(self.invoice.status, SubscriptionInvoice.Status.PAID)
+
+    @patch("apps.billing.providers.zibal.requests.post")
+    def test_cross_store_owner_cannot_trigger_verification_on_others_attempt(self, mock_post):
+        self._pay(mock_post)
+        from apps.core.models import ShopSettings
+
+        other_store = Store.objects.create(
+            name="دیگر", slug="billui-zibal-other", admin_subdomain="billui-zibal-other",
+            status=Store.Status.ACTIVE,
+        )
+        ShopSettings.provision_for(other_store)
+        other_owner = User.objects.create_user(username="bill-zibal-other", password="pass12345", is_staff=True)
+        StoreMembership.objects.create(
+            store=other_store, user=other_owner, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
+        other_host = f"billui-zibal-other.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
+        other_client = Client(HTTP_HOST=other_host)
+        with override_settings(ALLOWED_HOSTS=[HOST, other_host, "testserver"]):
+            other_client.login(username="bill-zibal-other", password="pass12345")
+            resp = other_client.get(reverse("dashboard:billing-payment-result"))
+        self.assertEqual(resp.status_code, 200)
+        self.invoice.refresh_from_db()
+        self.assertNotEqual(self.invoice.status, SubscriptionInvoice.Status.PAID)

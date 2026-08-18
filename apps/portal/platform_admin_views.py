@@ -1217,6 +1217,54 @@ def payment_manual_add(request):
     })
 
 
+@user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")
+def billing_zibal_settings(request):
+    """پیکربندیِ زیبال برایِ پرداختِ اشتراکِ خودِ پلتفرم (Phase 3) — کاملاً جدا
+    از اعتبارنامه‌ی زیبالِ هر Store برایِ سفارش‌هایِ مشتریانش
+    (``apps.orders.PaymentGatewayConfig`` / Merchant Admin › درگاه‌ها).
+    Secretِ خالی یعنی «بدون تغییر» (همان الگویِ تنظیماتِ پیامک)."""
+    from django.core.cache import cache
+
+    from apps.billing.providers import registry as billing_registry
+
+    config = get_platform_configuration()
+    if request.method == "POST":
+        active_provider = (request.POST.get("default_payment_provider") or "manual").strip()
+        if active_provider not in {"manual", "zibal"}:
+            messages.error(request, "درگاهِ انتخاب‌شده معتبر نیست.")
+        else:
+            before = {
+                "default_payment_provider": config.default_payment_provider,
+                "zibal_sandbox_mode": config.zibal_sandbox_mode,
+            }
+            config.default_payment_provider = active_provider
+            config.zibal_sandbox_mode = "zibal_sandbox_mode" in request.POST
+            merchant = (request.POST.get("zibal_merchant") or "").strip()
+            config.set_zibal_credentials(merchant=merchant)
+            config.save(update_fields=[
+                "default_payment_provider", "zibal_sandbox_mode",
+                "encrypted_zibal_credentials", "updated_at",
+            ])
+            cache.delete("portal:platform_configuration")
+            record_platform_audit_event(
+                actor=request.user, action_code="platform_billing_zibal.updated",
+                object_type="PlatformConfiguration", object_id=1,
+                before=before,
+                after={"default_payment_provider": active_provider, "zibal_sandbox_mode": config.zibal_sandbox_mode},
+                metadata={"merchant_configured": bool(merchant)},
+            )
+            messages.success(request, "تنظیماتِ زیبالِ پلتفرم ذخیره شد.")
+            return redirect("portal_platform_admin:billing-zibal-settings")
+
+    credentials = config.get_zibal_credentials()
+    return render(request, "portal/platform_admin/billing_zibal_settings.html", {
+        "config": config,
+        "merchant_is_configured": bool(credentials.get("merchant")),
+        "active_provider_code": billing_registry.active_provider_code(),
+        "active_nav": "payments",
+    })
+
+
 # ---------------------------------------------------------------- بسته‌های پیامک
 
 @user_passes_test(_is_platform_staff, login_url="portal_platform_admin:login")

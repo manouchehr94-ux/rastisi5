@@ -46,6 +46,7 @@ urlpatterns = [
     path("payments/", views.payments, name="payments"),
     path("payments/invoice/<int:invoice_id>/", views.payment_invoice_detail, name="payment-invoice-detail"),
     path("payments/manual/", views.payment_manual_add, name="payment-manual-add"),
+    path("payments/zibal/", views.billing_zibal_settings, name="billing-zibal-settings"),
 
     # --- پیامک ---
     path("sms/settings/", views.sms_settings, name="sms-settings"),  # legacy alias

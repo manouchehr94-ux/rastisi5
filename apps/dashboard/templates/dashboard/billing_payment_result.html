@@ -22,6 +22,7 @@
           نشان می‌دهد؛ تأییدِ پرداخت فقط از راهِ درگاه/تأییدِ سیستم انجام می‌شود،
           نه بازگشتِ مرورگر.
         </p>
+        {% if verify_error %}<p style="color:var(--danger, #c0392b)">{{ verify_error }}</p>{% endif %}
       {% endif %}
       <div style="margin-top:16px"><a class="btn" href="{% url 'dashboard:billing-invoice-detail' attempt.invoice.pk %}">مشاهده‌ی فاکتور</a></div>
     {% else %}
