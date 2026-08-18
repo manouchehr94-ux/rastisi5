@@ -335,20 +335,20 @@ class SmsCreditsTests(PlatformAdminExtendedTestCase):
 class SmsLogsTests(PlatformAdminExtendedTestCase):
     def test_masks_recipient_and_hides_message_body(self):
         SmsLog.objects.create(
-            store=self.store, event_key="otp_login", recipient="09121234567", message="کدِ ورود: 123456",
+            store=self.store, event_key="otp", recipient="09121234567", message="کدِ ورود: 123456",
             status=SmsLog.Status.SENT,
         )
-        response = self.client.get("/sms/logs/", HTTP_HOST=_HOST)
+        response = self.client.get("/sms/messages/", HTTP_HOST=_HOST)
         self.assertContains(response, "0912")
         self.assertNotContains(response, "کدِ ورود: 123456")
         self.assertNotContains(response, "123456")
 
     def test_filters_by_status(self):
         SmsLog.objects.create(
-            store=self.store, event_key="otp_login", recipient="09121234567", message="x",
+            store=self.store, event_key="otp", recipient="09121234567", message="x",
             status=SmsLog.Status.FAILED,
         )
-        response = self.client.get("/sms/logs/", {"status": "sent"}, HTTP_HOST=_HOST)
+        response = self.client.get("/sms/messages/", {"status": "sent"}, HTTP_HOST=_HOST)
         self.assertNotContains(response, "09121234567")
 
 
@@ -406,8 +406,25 @@ class DomainsTests(PlatformAdminExtendedTestCase):
         self.assertContains(response, "failed.example.com")
         self.assertNotContains(response, "shop.example.com")
 
-    def test_set_primary_promotes_verified_domain(self):
-        self.client.post(f"/domains/{self.domain.pk}/set-primary/", {}, HTTP_HOST=_HOST)
+    def test_set_primary_promotes_verified_and_delivery_ready_domain(self):
+        now = timezone.now()
+        self.domain.routing_status = StoreDomain.RoutingStatus.CONNECTED
+        self.domain.routing_checked_at = now
+        self.domain.tls_status = StoreDomain.TlsStatus.READY
+        self.domain.tls_checked_at = now
+        self.domain.save(update_fields=[
+            "routing_status",
+            "routing_checked_at",
+            "tls_status",
+            "tls_checked_at",
+            "updated_at",
+        ])
+
+        self.client.post(
+            f"/domains/{self.domain.pk}/set-primary/",
+            {},
+            HTTP_HOST=_HOST,
+        )
         self.domain.refresh_from_db()
         self.assertTrue(self.domain.is_primary)
 

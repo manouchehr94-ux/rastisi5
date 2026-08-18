@@ -27,6 +27,7 @@
       {% if password_form.password.errors %}<div class="p-error">{{ password_form.password.errors.0 }}</div>{% endif %}
     </div>
     <label class="p-remember-me">{{ password_form.remember_me }} مرا به خاطر بسپار</label>
+    {% include "portal/public/_turnstile.html" with turnstile_action="login_password" %}
     <button type="submit" class="p-btn p-btn-primary" style="width:100%">ورود</button>
     <p style="text-align:center;margin-top:16px;font-size:13px">
       <a href="{% url 'portal:password-reset-request' %}" style="color:var(--p-muted)">فراموشی رمز عبور</a>
@@ -45,6 +46,7 @@
       {% if otp_form.phone.errors %}<div class="p-error">{{ otp_form.phone.errors.0 }}</div>{% endif %}
     </div>
     <label class="p-remember-me">{{ otp_form.remember_me }} مرا به خاطر بسپار</label>
+    {% include "portal/public/_turnstile.html" with turnstile_action="login_otp" %}
     <button type="submit" class="p-btn p-btn-primary" style="width:100%">ارسال رمز یک‌بارمصرف</button>
     <p style="text-align:center;margin-top:16px;font-size:13px">
       <button type="button" @click="mode = 'password'" style="background:none;border:0;color:var(--p-muted);font-size:13px;cursor:pointer;padding:0">بازگشت به ورود با رمز عبور</button>

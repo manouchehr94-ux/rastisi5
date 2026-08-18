@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase, override_settings
@@ -183,6 +185,74 @@ class OtpViewFlowTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("_auth_user_id", self.client.session)
         self.assertTrue(User.objects.filter(username="09121234577").exists())
+
+    def test_resend_preserves_registration_name_and_remember_me(self):
+        code = self._fixed_code()
+        self.client.post(
+            "/register/",
+            {
+                "full_name": "Resend Owner",
+                "phone": "09121234582",
+                "remember_me": "on",
+            },
+            HTTP_HOST=_HOST,
+        )
+
+        verify_page = self.client.get("/verify/", HTTP_HOST=_HOST)
+        self.assertContains(
+            verify_page, 'name="full_name" value="Resend Owner"'
+        )
+        self.assertContains(
+            verify_page, 'name="remember_me" value="on"'
+        )
+
+        # Emulate the resend form submission rendered above.
+        response = self.client.post(
+            "/register/",
+            {
+                "full_name": "Resend Owner",
+                "phone": "09121234582",
+                "remember_me": "on",
+            },
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/verify/", response["Location"])
+
+        response = self.client.post(
+            "/verify/",
+            {"phone": "09121234582", "code": code},
+            HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 302)
+        profile = OwnerProfile.objects.get(phone="09121234582")
+        self.assertEqual(profile.full_name, "Resend Owner")
+        self.assertFalse(self.client.session.get_expire_at_browser_close())
+
+    def test_trial_store_provisioning_failure_is_visible_to_new_owner(self):
+        code = self._fixed_code()
+        self.client.post(
+            "/register/",
+            {"full_name": "Provision Failure", "phone": "09121234583"},
+            HTTP_HOST=_HOST,
+        )
+
+        from apps.portal.services import provisioning_service
+
+        with patch(
+            "apps.portal.views.provisioning_service.provision_trial_store",
+            side_effect=provisioning_service.ProvisioningError("boom"),
+        ):
+            response = self.client.post(
+                "/verify/",
+                {"phone": "09121234583", "code": code},
+                HTTP_HOST=_HOST,
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "ساخت فروشگاه آزمایشی کامل نشد")
+        self.assertIn("_auth_user_id", self.client.session)
 
     def test_verify_with_wrong_code_shows_error_and_does_not_log_in(self):
         self._fixed_code()

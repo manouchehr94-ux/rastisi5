@@ -13,6 +13,7 @@
       <div class="p-field"><label for="id_email">ایمیل</label>{{ form.email }}{% if form.email.errors %}<div class="p-error">{{ form.email.errors.0 }}</div>{% endif %}</div>
       <div class="p-field"><label for="id_subject">موضوع</label>{{ form.subject }}</div>
       <div class="p-field"><label for="id_message">پیام</label>{{ form.message }}{% if form.message.errors %}<div class="p-error">{{ form.message.errors.0 }}</div>{% endif %}</div>
+      {% include "portal/public/_turnstile.html" with turnstile_action="contact" %}
       <button type="submit" class="p-btn p-btn-primary" style="width:100%">ارسال پیام</button>
     </form>
   </div>

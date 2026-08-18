@@ -10,6 +10,7 @@
     {% if form.non_field_errors %}<div class="p-alert p-alert-error">{{ form.non_field_errors.0 }}</div>{% endif %}
     <div class="p-field"><label for="id_full_name">نام و نام خانوادگی</label>{{ form.full_name }}{% if form.full_name.errors %}<div class="p-error">{{ form.full_name.errors.0 }}</div>{% endif %}</div>
     <div class="p-field"><label for="id_phone">شماره موبایل</label>{{ form.phone }}{% if form.phone.errors %}<div class="p-error">{{ form.phone.errors.0 }}</div>{% endif %}</div>
+    {% include "portal/public/_turnstile.html" with turnstile_action="register" %}
     <button type="submit" class="p-btn p-btn-primary" style="width:100%">دریافت کد تأیید</button>
   </form>
   <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--p-muted)">

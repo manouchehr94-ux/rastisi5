@@ -46,6 +46,7 @@ from .services import (
     provisioning_service,
     session_service,
     step_up_service,
+    turnstile_service,
 )
 from .services.rate_limit import RateLimitExceeded, enforce_rate_limit
 
@@ -57,6 +58,17 @@ _OTP_SESSION_FULL_NAME_KEY = "portal_otp_full_name"
 _OTP_SESSION_NEXT_KEY = "portal_otp_next"
 _OTP_SESSION_ADMIN_RETURN_KEY = "portal_otp_admin_return"
 _OTP_SESSION_REMEMBER_KEY = "portal_otp_remember_me"
+
+
+def _turnstile_form_is_valid(request, form, *, action: str) -> bool:
+    result = turnstile_service.verify_request(
+        request, expected_action=action
+    )
+    if result.success:
+        return True
+    form.add_error(None, turnstile_service.PUBLIC_ERROR_MESSAGE)
+    return False
+
 
 # ---------------------------------------------------------------------------
 # Public marketing pages (Section A)
@@ -126,6 +138,7 @@ def platform_sitemap_xml(request):
     entries = [
         {"loc": request.build_absolute_uri(reverse("portal:home")), "priority": "1.0", "lastmod": None},
         {"loc": request.build_absolute_uri(reverse("portal:features")), "priority": "0.8", "lastmod": None},
+        {"loc": request.build_absolute_uri(reverse("portal:supported-industries")), "priority": "0.8", "lastmod": None},
         {"loc": request.build_absolute_uri(reverse("portal:plans")), "priority": "0.9", "lastmod": None},
         {"loc": request.build_absolute_uri(reverse("portal:help")), "priority": "0.6", "lastmod": None},
         {"loc": request.build_absolute_uri(reverse("portal:contact")), "priority": "0.5", "lastmod": None},
@@ -146,7 +159,9 @@ def contact(request):
         except RateLimitExceeded:
             messages.error(request, "تعداد ارسال پیام بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
             return render(request, "portal/public/contact.html", {"form": form})
-        if form.is_valid():
+        if form.is_valid() and _turnstile_form_is_valid(
+            request, form, action="contact"
+        ):
             ContactMessage.objects.create(**form.cleaned_data)
             messages.success(request, "پیام شما دریافت شد؛ به‌زودی با شما تماس می‌گیریم.")
             return redirect("portal:contact")
@@ -227,7 +242,9 @@ def register(request):
 
     if request.method == "POST":
         form = OwnerPhoneRequestForm(request.POST)
-        if form.is_valid():
+        if form.is_valid() and _turnstile_form_is_valid(
+            request, form, action="register"
+        ):
             phone, error = _request_otp_and_go_to_verify(
                 request, phone_raw=form.cleaned_data["phone"],
                 full_name=form.cleaned_data.get("full_name", ""), purpose=OwnerOtpChallenge.Purpose.REGISTER,
@@ -261,7 +278,9 @@ def login_view(request):
     admin_return = request.GET.get("admin_return") or request.POST.get("admin_return") or ""
     if request.method == "POST":
         otp_form = OwnerPhoneRequestForm(request.POST)
-        if otp_form.is_valid():
+        if otp_form.is_valid() and _turnstile_form_is_valid(
+            request, otp_form, action="login_otp"
+        ):
             phone, error = _request_otp_and_go_to_verify(
                 request, phone_raw=otp_form.cleaned_data["phone"], full_name="",
                 purpose=OwnerOtpChallenge.Purpose.LOGIN, next_url=next_url, admin_return=admin_return,
@@ -301,7 +320,9 @@ def login_password(request):
     except RateLimitExceeded:
         form.add_error(None, "تعداد تلاش ورود بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
     else:
-        if form.is_valid():
+        if form.is_valid() and _turnstile_form_is_valid(
+            request, form, action="login_password"
+        ):
             user = owner_auth_service.authenticate_owner_by_identifier(
                 request, identifier=form.cleaned_data["identifier"], password=form.cleaned_data["password"],
             )
@@ -361,7 +382,11 @@ def otp_verify(request):
                             owner=user, name=DEFAULT_TRIAL_STORE_NAME,
                         )
                     except provisioning_service.ProvisioningError:
-                        pass
+                        messages.error(
+                            request,
+                            "حساب شما ساخته شد، اما ساخت فروشگاه آزمایشی کامل نشد؛ "
+                            "از صفحه «فروشگاه‌های من» دوباره تلاش کنید.",
+                        )
                     else:
                         return redirect("portal:onboarding", store_public_id=store.public_id)
 
@@ -375,6 +400,8 @@ def otp_verify(request):
             "form": form, "phone": phone, "resend_url": reverse(resend_url_name),
             "resend_next": request.session.get(_OTP_SESSION_NEXT_KEY, ""),
             "resend_admin_return": request.session.get(_OTP_SESSION_ADMIN_RETURN_KEY, ""),
+            "resend_full_name": request.session.get(_OTP_SESSION_FULL_NAME_KEY, ""),
+            "resend_remember_me": request.session.get(_OTP_SESSION_REMEMBER_KEY, False),
         },
     )
 
@@ -394,7 +421,9 @@ def register_email(request):
         except RateLimitExceeded:
             messages.error(request, "تعداد تلاش ثبت‌نام بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
             return render(request, "portal/public/register_email.html", {"form": form})
-        if form.is_valid():
+        if form.is_valid() and _turnstile_form_is_valid(
+            request, form, action="register_email"
+        ):
             try:
                 user = owner_auth_service.register_owner(**form.cleaned_data)
             except owner_auth_service.OwnerAuthError as exc:
@@ -435,7 +464,9 @@ def password_reset_request(request):
         except RateLimitExceeded:
             messages.error(request, "تعداد درخواست بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
             return render(request, "portal/public/password_reset_request.html", {"form": form})
-        if form.is_valid():
+        if form.is_valid() and _turnstile_form_is_valid(
+            request, form, action="password_reset"
+        ):
             base_url = f"{request.scheme}://{request.get_host()}"
             owner_auth_service.request_password_reset(email=form.cleaned_data["email"], base_url=base_url)
             messages.success(request, "اگر این ایمیل ثبت‌نام کرده باشد، پیوند بازیابی رمز برای آن ارسال شد.")
@@ -453,9 +484,15 @@ def password_reset_confirm(request, uidb64, token):
     if request.method == "POST":
         form = PasswordResetConfirmForm(request.POST)
         if form.is_valid():
-            owner_auth_service.set_new_password(user=user, password=form.cleaned_data["password"])
-            messages.success(request, "رمز عبور با موفقیت تغییر کرد؛ اکنون می‌توانید وارد شوید.")
-            return redirect("portal:login-email")
+            try:
+                owner_auth_service.set_new_password(
+                    user=user, password=form.cleaned_data["password"]
+                )
+            except owner_auth_service.OwnerAuthError as exc:
+                form.add_error("password", str(exc))
+            else:
+                messages.success(request, "رمز عبور با موفقیت تغییر کرد؛ اکنون می‌توانید وارد شوید.")
+                return redirect("portal:login-email")
     else:
         form = PasswordResetConfirmForm()
     return render(request, "portal/public/password_reset_confirm.html", {"form": form})

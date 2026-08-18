@@ -273,6 +273,23 @@ class PasswordResetTests(TestCase):
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password("brand-new-strong-pass-9"))
 
+    def test_weak_new_password_returns_form_error_instead_of_500(self):
+        owner_auth_service.request_password_reset(
+            email="reset@example.com", base_url="https://rastisi.ir"
+        )
+        path = mail.outbox[0].body.split("https://rastisi.ir", 1)[1].split()[0].strip()
+
+        response = self.client.post(
+            path,
+            {"password": "123", "password_confirm": "123"},
+            HTTP_HOST=_HOST,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "p-error")
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("a-very-strong-pass-1"))
+
     def test_reused_reset_token_is_rejected(self):
         owner_auth_service.request_password_reset(email="reset@example.com", base_url="https://rastisi.ir")
         path = mail.outbox[0].body.split("https://rastisi.ir", 1)[1].split()[0].strip()

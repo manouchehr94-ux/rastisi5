@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import sys
 
+from django.core.exceptions import ImproperlyConfigured
+
 from shop_core.env_config import (
     build_database_config,
     env_bool,
@@ -158,6 +160,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.portal.context_processors.turnstile",
                 "apps.core.context_processors.shop_settings",
                 "apps.catalog.context_processors.nav_categories",
                 "apps.cart.context_processors.cart_badge",
@@ -206,6 +209,30 @@ AUTH_SESSION_DEFAULT_EXPIRY_SECONDS = env_int("AUTH_SESSION_DEFAULT_EXPIRY_SECON
 AUTH_SESSION_REMEMBER_ME_EXPIRY_SECONDS = env_int(
     "AUTH_SESSION_REMEMBER_ME_EXPIRY_SECONDS", default=60 * 60 * 24 * 30,
 )
+
+# Cloudflare Turnstile bot protection for public account/contact forms.
+TURNSTILE_ENABLED = env_bool("TURNSTILE_ENABLED", default=False)
+TURNSTILE_SITE_KEY = env_str("TURNSTILE_SITE_KEY", "")
+TURNSTILE_SECRET_KEY = env_str("TURNSTILE_SECRET_KEY", "")
+TURNSTILE_EXPECTED_HOSTNAMES = tuple(
+    value.strip().lower().rstrip(".")
+    for value in env_list("TURNSTILE_EXPECTED_HOSTNAMES", default=())
+    if value.strip()
+)
+TURNSTILE_VERIFY_TIMEOUT_SECONDS = env_int(
+    "TURNSTILE_VERIFY_TIMEOUT_SECONDS", default=5
+)
+
+if TURNSTILE_ENABLED:
+    if not TURNSTILE_SITE_KEY or not TURNSTILE_SECRET_KEY:
+        raise ImproperlyConfigured(
+            "TURNSTILE_ENABLED=True requires TURNSTILE_SITE_KEY and "
+            "TURNSTILE_SECRET_KEY."
+        )
+    if not DEBUG and not TURNSTILE_EXPECTED_HOSTNAMES:
+        raise ImproperlyConfigured(
+            "Production Turnstile requires TURNSTILE_EXPECTED_HOSTNAMES."
+        )
 
 
 # Database

@@ -87,6 +87,7 @@ class PlatformRobotsAndSitemapTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/xml")
         body = response.content.decode()
         self.assertIn("/features/", body)
+        self.assertIn("/supported-industries/", body)
         self.assertIn("/plans/", body)
         self.assertIn("/register/", body)
         self.assertNotIn("/app/", body)

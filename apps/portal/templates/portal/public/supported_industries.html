@@ -1,10 +1,15 @@
 {% extends "portal/base_platform.html" %}
+{% load persian %}
 {% block title %}صنوف پشتیبانی‌شده | راستیسی{% endblock %}
 {% block meta_description %}<meta name="description" content="راستیسی از {{ industry_count }} صنف شغلی متنوع + صنف «سایر» پشتیبانی می‌کند؛ صنف کسب‌وکار خود را جست‌وجو کنید.">{% endblock %}
 {% block content %}
 <section class="p-section"><div class="p-wrap" style="text-align:center">
   <h2>صنوف پشتیبانی‌شده</h2>
-  <p class="lead">مهم نیست چه کسب‌وکاری دارید، راستیسی از آن پشتیبانی می‌کند — {{ industry_count|default:"۱۰۰" }} صنف شغلی متنوع در ۱۰ رسته + یک صنف «سایر» برای کسب‌وکارهای خاص.</p>
+  {% if industry_count %}
+  <p class="lead">در حال حاضر {{ industry_count|fa_number }} قالب صنفی آماده در راستیسی قابل انتخاب است؛ اگر صنف شما در فهرست نبود، می‌توانید فروشگاه را بدون قالب صنفی آماده راه‌اندازی و ساختار آن را خودتان تعریف کنید.</p>
+  {% else %}
+  <p class="lead">در حال حاضر قالب صنفی آماده‌ای برای نمایش وجود ندارد؛ فروشگاه همچنان می‌تواند بدون قالب صنفی آماده ساخته و به‌صورت دستی تنظیم شود.</p>
+  {% endif %}
 </div></section>
 
 <section class="p-section" style="padding-top:0"><div class="p-wrap">

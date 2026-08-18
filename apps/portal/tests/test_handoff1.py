@@ -86,7 +86,10 @@ class ConsumeTicketTests(TestCase):
 
 
 @override_settings(ALLOWED_HOSTS=[
-    _PORTAL_HOST, "handoffstore.rastisi.ir", "otherstore.rastisi.ir", "testserver",
+    _PORTAL_HOST,
+    "handoffstore.rastisi.localhost",
+    "otherstore.rastisi.localhost",
+    "testserver",
 ])
 class HandoffFullFlowViewTests(TestCase):
     def setUp(self):
@@ -173,7 +176,8 @@ class HandoffFullFlowViewTests(TestCase):
         handoff_url = response["Location"]
         token = handoff_url.rstrip("/").rsplit("/", 1)[-1]
 
+        wrong_admin_host = f"otherstore.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
         wrong_host_response = self.client_class().get(
-            f"/admin-portal/handoff/{token}/", HTTP_HOST="otherstore.rastisi.ir",
+            f"/admin-portal/handoff/{token}/", HTTP_HOST=wrong_admin_host,
         )
         self.assertEqual(wrong_host_response.status_code, 404)
