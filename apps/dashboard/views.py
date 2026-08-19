@@ -111,6 +111,7 @@ from apps.catalog.services.warehouse_service import (
 )
 from apps.core.services.audit_service import list_audit_events, record_audit_event
 from apps.core.services.export_service import ExportError, run_export
+from apps.core.services.rate_limit import RateLimitExceeded, enforce_rate_limit
 from apps.subscriptions.services.entitlement_service import EntitlementError
 from apps.subscriptions.services import enforcement as subscription_enforcement
 from apps.dashboard.services import import_service
@@ -400,7 +401,11 @@ def admin_login(request):
     """صفحه‌ی ورود اختصاصی پنل مدیریت — مستقل از فروشگاه، اما هنوز هم فقط
     روی میزبان مدیریت مجاز قابل‌دسترسی (نگاه کنید به ``admin_host_required``)."""
     if request.user.is_authenticated and request.user.is_staff:
-        return redirect(request.GET.get("next", "/admin-portal/"))
+        next_url = request.GET.get("next", "/admin-portal/")
+        # Prevent open redirect — ensure next is a relative admin path
+        if not next_url.startswith("/admin-portal/"):
+            next_url = "/admin-portal/"
+        return redirect(next_url)
 
     error = ""
     username = ""
@@ -408,19 +413,26 @@ def admin_login(request):
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
-        user = authenticate(request, username=username, password=password)
-
-        if user is not None and user.is_staff:
-            auth_login(request, user)
-            next_url = request.POST.get("next", request.GET.get("next", "/admin-portal/"))
-            # Prevent open redirect — ensure next is a relative admin path
-            if not next_url.startswith("/admin-portal/"):
-                next_url = "/admin-portal/"
-            return redirect(next_url)
-        elif user is not None and not user.is_staff:
-            error = "شما به پنل مدیریت دسترسی ندارید"
+        try:
+            enforce_rate_limit(
+                "admin_login", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=15, window_seconds=600,
+            )
+        except RateLimitExceeded:
+            error = "تعداد تلاش ورود بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید."
         else:
-            error = "نام کاربری یا رمز عبور اشتباه است"
+            user = authenticate(request, username=username, password=password)
+
+            if user is not None and user.is_staff:
+                auth_login(request, user)
+                next_url = request.POST.get("next", request.GET.get("next", "/admin-portal/"))
+                # Prevent open redirect — ensure next is a relative admin path
+                if not next_url.startswith("/admin-portal/"):
+                    next_url = "/admin-portal/"
+                return redirect(next_url)
+            elif user is not None and not user.is_staff:
+                error = "شما به پنل مدیریت دسترسی ندارید"
+            else:
+                error = "نام کاربری یا رمز عبور اشتباه است"
 
     from apps.stores.resolution import resolve_store_for_admin_request, resolve_storefront_url_for_store
 

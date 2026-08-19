@@ -12,6 +12,7 @@ Proves:
 """
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -76,6 +77,14 @@ class StaffAccessTests(TestCase):
         """Already-authenticated staff visiting login page → redirect to dashboard"""
         self.client.login(username="admin1", password="StaffPass123!")
         response = self.client.get("/admin-portal/login/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/admin-portal/")
+
+    def test_staff_login_page_open_redirect_prevention(self):
+        """Already-authenticated staff visiting the login page with an
+        external ?next= must not be redirected off-site (open redirect)."""
+        self.client.login(username="admin1", password="StaffPass123!")
+        response = self.client.get("/admin-portal/login/?next=https://evil.com/steal")
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, "/admin-portal/")
 
@@ -165,3 +174,38 @@ class AdminLoginFlowTests(TestCase):
         # Follow-up request should work without re-login
         response = self.client.get("/admin-portal/")
         self.assertEqual(response.status_code, 200)
+
+
+class AdminLoginRateLimitTests(TestCase):
+    """The legacy /admin-portal/login/ form must throttle password guessing
+    by IP, same as every other login surface in the codebase (portal/
+    customer login, OTP). Without this, an attacker could brute-force any
+    merchant staff account reachable on that store's admin host."""
+
+    def setUp(self):
+        # rate-limit counters are cache-backed, not DB-backed — not reset by
+        # transaction rollback between tests; isolate this class both ways.
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.staff_user = User.objects.create_user(
+            username="manager", password="ManagerPass123!", is_staff=True
+        )
+        _grant_akhlaghi_membership(self.staff_user)
+
+    def test_excessive_failed_attempts_are_rate_limited(self):
+        for _ in range(15):
+            self.client.post("/admin-portal/login/", {
+                "username": "manager",
+                "password": "WrongPassword",
+                "next": "/admin-portal/",
+            })
+        response = self.client.post("/admin-portal/login/", {
+            "username": "manager",
+            "password": "ManagerPass123!",
+            "next": "/admin-portal/",
+        })
+        # Correct credentials on the 16th attempt within the window are
+        # still rejected — the limiter must trigger before authenticate().
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "بیش از حد مجاز")
+        self.assertFalse(response.wsgi_request.user.is_authenticated)

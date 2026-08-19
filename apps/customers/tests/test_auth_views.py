@@ -131,6 +131,51 @@ class LoginViewTests(TestCase):
         self.assertGreater(self.client.session.get_expiry_age(), 60 * 60 * 24)
 
 
+class LoginRateLimitTests(TestCase):
+    """Storefront customer login must throttle password guessing by IP —
+    without this, credential-stuffing against customer accounts (PII:
+    addresses, orders) is unbounded."""
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.user = User.objects.create_user(username="09121115566", password="StrongPass123")
+        Customer.objects.create(user=self.user, full_name="سینا رستمی", phone="09121115566")
+
+    def test_excessive_failed_attempts_are_rate_limited(self):
+        for _ in range(15):
+            self.client.post(reverse("customers:login"), {
+                "identifier": "09121115566", "password": "wrongpass",
+            })
+        response = self.client.post(reverse("customers:login"), {
+            "identifier": "09121115566", "password": "StrongPass123",
+        })
+        self.assertNotIn("HX-Refresh", response.headers)
+        self.assertContains(response, "بیش از حد مجاز")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+
+class SignupRateLimitTests(TestCase):
+    """Storefront customer signup must throttle account-creation attempts by
+    IP to prevent scripted mass fake-account creation."""
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+
+    def test_excessive_signup_attempts_are_rate_limited(self):
+        for i in range(10):
+            self.client.post(reverse("customers:signup"), {
+                "full_name": "کاربر", "phone": f"0912999{i:04d}", "password": "StrongPass123",
+            })
+        response = self.client.post(reverse("customers:signup"), {
+            "full_name": "کاربر یازدهم", "phone": "09129999999", "password": "StrongPass123",
+        })
+        self.assertNotIn("HX-Refresh", response.headers)
+        self.assertContains(response, "بیش از حد مجاز")
+        self.assertFalse(Customer.objects.filter(phone="09129999999").exists())
+
+
 class LogoutViewTests(TestCase):
     def test_logout_ends_session_and_redirects_home(self):
         user = User.objects.create_user(username="09121116677", password="StrongPass123")
@@ -164,9 +209,13 @@ class OtpLoginViewTests(TestCase):
         self.assertContains(response, "کد تأیید")
         self.assertTrue(OtpCode.objects.filter(phone="09121118899").exists())
 
-    def test_request_for_unknown_phone_shows_error_and_sends_nothing(self):
+    def test_request_for_unknown_phone_sends_nothing_but_looks_like_success(self):
+        """Enumeration-safety: an unregistered phone must get the exact same
+        "moved to verify stage" response as a registered one (no "account
+        not found" message), even though no SMS/OtpCode is actually created."""
         response = self.client.post(reverse("customers:otp-request"), {"phone": "09129990000"})
-        self.assertContains(response, "یافت نشد")
+        self.assertContains(response, "کد تأیید")
+        self.assertNotContains(response, "یافت نشد")
         self.assertFalse(OtpCode.objects.filter(phone="09129990000").exists())
 
     def test_verify_with_correct_code_logs_in(self):

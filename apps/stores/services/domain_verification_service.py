@@ -7,6 +7,7 @@
 جست‌وجو هرگز چیزی را «تأییدشده» نمی‌کند و فاکتور را در همان وضعیتِ
 ``PENDING`` نگه می‌دارد تا تاجر بتواند دوباره تلاش کند."""
 
+import ipaddress
 import secrets
 import socket
 import ssl
@@ -145,13 +146,34 @@ class SslConnectionCheck:
     error: str
 
 
+def _first_public_address(hostname: str) -> str:
+    """اولین آدرسِ IPِ ``hostname`` را resolve می‌کند و اگر private/loopback/
+    link-local/reserved/multicast باشد رد می‌کند — تا این تستِ اتصال (که
+    hostname آن مستقیماً از دامنه‌ی اختصاصیِ تاجر می‌آید) نتواند به‌عنوانِ
+    کاوشگرِ SSRF علیهِ میزبان‌هایِ داخلیِ شبکه به کار برود. resolve و اعتبارسنجی
+    یک‌بار انجام می‌شود و همان IP برایِ اتصال استفاده می‌شود (نه دوباره از
+    hostname) تا در برابرِ چندرکوردیِ DNS/rebinding هم مقاوم باشد."""
+    infos = socket.getaddrinfo(hostname, 443, proto=socket.IPPROTO_TCP)
+    if not infos:
+        raise OSError(f"هیچ آدرسی برای {hostname} یافت نشد")
+    raw_ip = infos[0][4][0]
+    parsed = ipaddress.ip_address(raw_ip)
+    if (
+        parsed.is_private or parsed.is_loopback or parsed.is_link_local
+        or parsed.is_reserved or parsed.is_multicast or parsed.is_unspecified
+    ):
+        raise OSError(f"اتصال به آدرسِ داخلی/محفوظِ {raw_ip} مجاز نیست")
+    return raw_ip
+
+
 def check_ssl_connection(hostname: str) -> SslConnectionCheck:
     """اتصالِ HTTPS واقعی به ``hostname:443`` را امتحان می‌کند — دقیقاً همان
     الگویِ ``_txt_records_match``: هرگز استثنا به بیرون نمی‌اندازد، هر خطای
     شبکه/گواهی صرفاً «در دسترس نیست» به‌حساب می‌آید، نه یک ۵۰۰."""
     try:
+        ip = _first_public_address(hostname)
         context = ssl.create_default_context()
-        with socket.create_connection((hostname, 443), timeout=SSL_CHECK_TIMEOUT_SECONDS) as sock:
+        with socket.create_connection((ip, 443), timeout=SSL_CHECK_TIMEOUT_SECONDS) as sock:
             with context.wrap_socket(sock, server_hostname=hostname) as tls_sock:
                 cert = tls_sock.getpeercert()
     except Exception as exc:  # noqa: BLE001 — هر خطای شبکه/TLS/DNS باید بی‌صدا «ناموفق» شود

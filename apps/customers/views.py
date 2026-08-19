@@ -7,6 +7,7 @@ from django.views.decorators.http import require_POST
 
 from apps.catalog.services.product_publish_service import storefront_visible_products
 from apps.core.services import session_service
+from apps.core.services.rate_limit import RateLimitExceeded, enforce_rate_limit
 from apps.orders.models import Order
 from apps.sms.services import otp_service
 from apps.stores.resolution import resolve_store_for_service
@@ -80,20 +81,27 @@ def _auth_forms_context(*, login_form=None, signup_form=None, active_tab="in"):
 @require_POST
 def login_view(request):
     form = LoginForm(request.POST)
-    if form.is_valid():
-        user = auth_service.authenticate_customer_by_identifier(
-            request, identifier=form.cleaned_data["identifier"], password=form.cleaned_data["password"]
+    try:
+        enforce_rate_limit(
+            "customer_login", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=15, window_seconds=600,
         )
-        if user is not None:
-            # ادغام سبد مهمان باید پیش از auth_login انجام شود چون login()
-            # برای جلوگیری از session fixation، کلید session را عوض می‌کند.
-            auth_service.merge_guest_cart(request, user.customer_profile)
-            auth_login(request, user)
-            session_service.apply_remember_me(request, form.cleaned_data.get("remember_me", False))
-            response = render(request, "customers/partials/auth_forms.html", _auth_forms_context())
-            response["HX-Refresh"] = "true"
-            return response
-        form.add_error(None, auth_service.GENERIC_LOGIN_ERROR)
+    except RateLimitExceeded:
+        form.add_error(None, "تعداد تلاش ورود بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
+    else:
+        if form.is_valid():
+            user = auth_service.authenticate_customer_by_identifier(
+                request, identifier=form.cleaned_data["identifier"], password=form.cleaned_data["password"]
+            )
+            if user is not None:
+                # ادغام سبد مهمان باید پیش از auth_login انجام شود چون login()
+                # برای جلوگیری از session fixation، کلید session را عوض می‌کند.
+                auth_service.merge_guest_cart(request, user.customer_profile)
+                auth_login(request, user)
+                session_service.apply_remember_me(request, form.cleaned_data.get("remember_me", False))
+                response = render(request, "customers/partials/auth_forms.html", _auth_forms_context())
+                response["HX-Refresh"] = "true"
+                return response
+            form.add_error(None, auth_service.GENERIC_LOGIN_ERROR)
 
     response = render(
         request, "customers/partials/auth_forms.html",
@@ -106,25 +114,32 @@ def login_view(request):
 @require_POST
 def signup_view(request):
     form = SignupForm(request.POST)
-    if form.is_valid():
-        try:
-            customer = auth_service.signup(
-                full_name=form.cleaned_data["full_name"],
-                phone=form.cleaned_data["phone"],
-                password=form.cleaned_data["password"],
-                store=resolve_store_for_service(request),
-            )
-        except auth_service.AuthError as exc:
-            form.add_error(None, str(exc))
-        else:
-            user = auth_service.authenticate_customer(
-                request, phone=form.cleaned_data["phone"], password=form.cleaned_data["password"]
-            )
-            auth_service.merge_guest_cart(request, customer)
-            auth_login(request, user)
-            response = render(request, "customers/partials/auth_forms.html", _auth_forms_context())
-            response["HX-Refresh"] = "true"
-            return response
+    try:
+        enforce_rate_limit(
+            "customer_signup", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=10, window_seconds=600,
+        )
+    except RateLimitExceeded:
+        form.add_error(None, "تعداد تلاش ثبت‌نام بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
+    else:
+        if form.is_valid():
+            try:
+                customer = auth_service.signup(
+                    full_name=form.cleaned_data["full_name"],
+                    phone=form.cleaned_data["phone"],
+                    password=form.cleaned_data["password"],
+                    store=resolve_store_for_service(request),
+                )
+            except auth_service.AuthError as exc:
+                form.add_error(None, str(exc))
+            else:
+                user = auth_service.authenticate_customer(
+                    request, phone=form.cleaned_data["phone"], password=form.cleaned_data["password"]
+                )
+                auth_service.merge_guest_cart(request, customer)
+                auth_login(request, user)
+                response = render(request, "customers/partials/auth_forms.html", _auth_forms_context())
+                response["HX-Refresh"] = "true"
+                return response
 
     response = render(
         request, "customers/partials/auth_forms.html",
@@ -152,26 +167,37 @@ def otp_reset_view(request):
 
 @require_POST
 def otp_request_view(request):
-    """گام اول ورود با کد: شماره را می‌گیرد، فقط برای حساب‌های موجود کد می‌فرستد."""
+    """گام اول ورود با کد: شماره را می‌گیرد، فقط برای حساب‌های موجود واقعاً کد
+    پیامک می‌کند — اما صرف‌نظر از وجود حساب پاسخِ یکسانی می‌دهد (هر دو به
+    مرحله‌ی تأیید می‌روند)، تا این فرم نتواند برای شمارشِ شماره‌های ثبت‌شده
+    (enumeration) استفاده شود."""
     form = OtpRequestForm(request.POST)
     if form.is_valid():
         phone = form.cleaned_data["phone"]
         remember_me = form.cleaned_data.get("remember_me", False)
-        if not Customer.objects.filter(phone=phone).exists():
-            form.add_error("phone", "حسابی با این شماره موبایل یافت نشد")
+        ip_address = request.META.get("REMOTE_ADDR", "unknown")
+        try:
+            enforce_rate_limit(
+                "customer_otp_request_ip", ip_address, max_attempts=20, window_seconds=600,
+            )
+        except RateLimitExceeded as exc:
+            form.add_error(None, str(exc))
         else:
-            try:
-                otp_service.request_otp(
-                    phone, store=resolve_store_for_service(request),
-                    ip_address=request.META.get("REMOTE_ADDR", "unknown"),
-                )
-            except otp_service.OtpRateLimitError as exc:
-                form.add_error(None, str(exc))
-            else:
-                return render(
-                    request, "customers/partials/otp_login_body.html",
-                    _otp_login_context(stage="verify", phone=phone, remember_me=remember_me),
-                )
+            if Customer.objects.filter(phone=phone).exists():
+                try:
+                    otp_service.request_otp(
+                        phone, store=resolve_store_for_service(request), ip_address=ip_address,
+                    )
+                except otp_service.OtpRateLimitError as exc:
+                    form.add_error(None, str(exc))
+                    return render(
+                        request, "customers/partials/otp_login_body.html",
+                        _otp_login_context(stage="request", request_form=form),
+                    )
+            return render(
+                request, "customers/partials/otp_login_body.html",
+                _otp_login_context(stage="verify", phone=phone, remember_me=remember_me),
+            )
 
     return render(
         request, "customers/partials/otp_login_body.html",

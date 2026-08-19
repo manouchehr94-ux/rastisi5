@@ -11,7 +11,9 @@ from apps.billing.providers.manual import ManualProvider
 from apps.billing.providers.zibal import ZibalBillingProvider
 
 _PROVIDERS = {
-    ManualProvider.code: ManualProvider(),
+    ManualProvider.code: ManualProvider(
+        tolerance_seconds=getattr(settings, "RASTISI_BILLING_WEBHOOK_TOLERANCE_SECONDS", 300),
+    ),
     ZibalBillingProvider.code: ZibalBillingProvider(),
 }
 

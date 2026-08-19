@@ -301,3 +301,25 @@ class PasswordResetTests(TestCase):
         # once the password changed, the same link must no longer work.
         response = self.client.get(path, HTTP_HOST=_HOST)
         self.assertEqual(response.status_code, 400)
+
+    def test_password_reset_invalidates_a_hijacked_stale_session(self):
+        """If an attacker already has a copy of the user's session cookie
+        (XSS, stolen device, leaked cookie) before the legitimate user
+        resets their password, that stale session must stop working
+        immediately afterwards — it must not remain valid until its own
+        natural expiry. Django enforces this itself via the session's
+        stored auth hash (django.contrib.auth.get_user), which is derived
+        from the password field: set_new_password() need not touch
+        sessions directly, but this proves the guarantee actually holds
+        for owner_auth_service's own implementation (stock ``User`` model,
+        no custom get_session_auth_hash override)."""
+        from django.contrib.auth import SESSION_KEY
+
+        attacker_client = self.client_class()
+        self.assertTrue(attacker_client.login(username="reset@example.com", password="a-very-strong-pass-1"))
+        self.assertIn(SESSION_KEY, attacker_client.session)
+
+        owner_auth_service.set_new_password(user=self.user, password="brand-new-strong-pass-9")
+
+        response = attacker_client.get("/app/", HTTP_HOST=_HOST)
+        self.assertFalse(response.wsgi_request.user.is_authenticated)

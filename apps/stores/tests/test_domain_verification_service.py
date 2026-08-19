@@ -364,9 +364,13 @@ class RefreshCustomDomainReadinessTests(DomainVerificationTestCase):
 
 
 class CheckSslConnectionTests(TestCase):
-    """هرگز اتصالِ شبکه‌ی واقعی برقرار نمی‌کند — socket.create_connection و
-    ssl.create_default_context mock می‌شوند، دقیقاً همان الگویِ mock‌کردنِ
-    dns.resolver.resolve برایِ تستِ TXT."""
+    """هرگز اتصالِ شبکه‌ی واقعی برقرار نمی‌کند — socket.getaddrinfo،
+    socket.create_connection و ssl.create_default_context mock می‌شوند، دقیقاً
+    همان الگویِ mock‌کردنِ dns.resolver.resolve برایِ تستِ TXT.
+    ``_PUBLIC_ADDRINFO`` یک آدرسِ IPv4 عمومی (غیرِ private/loopback/...) را
+    شبیه‌سازی می‌کند تا مسیرِ موفقِ resolve همچنان تست شود."""
+
+    _PUBLIC_ADDRINFO = [(2, 1, 6, "", ("93.184.216.34", 443))]
 
     def test_successful_handshake_reports_reachable_with_expiry(self):
         from unittest.mock import MagicMock
@@ -377,7 +381,10 @@ class CheckSslConnectionTests(TestCase):
         fake_context = MagicMock()
         fake_context.wrap_socket.return_value = fake_tls_sock
 
-        with patch("apps.stores.services.domain_verification_service.socket.create_connection") as mock_conn, \
+        with patch(
+            "apps.stores.services.domain_verification_service.socket.getaddrinfo",
+            return_value=self._PUBLIC_ADDRINFO,
+        ), patch("apps.stores.services.domain_verification_service.socket.create_connection") as mock_conn, \
              patch("apps.stores.services.domain_verification_service.ssl.create_default_context", return_value=fake_context):
             mock_conn.return_value.__enter__.return_value = MagicMock()
             result = check_ssl_connection("shop.example.com")
@@ -385,9 +392,13 @@ class CheckSslConnectionTests(TestCase):
         self.assertTrue(result.reachable)
         self.assertEqual(result.certificate_expires_at.year, 2030)
         self.assertEqual(result.error, "")
+        mock_conn.assert_called_once_with(("93.184.216.34", 443), timeout=4.0)
 
     def test_connection_refused_reports_unreachable_without_raising(self):
         with patch(
+            "apps.stores.services.domain_verification_service.socket.getaddrinfo",
+            return_value=self._PUBLIC_ADDRINFO,
+        ), patch(
             "apps.stores.services.domain_verification_service.socket.create_connection",
             side_effect=OSError("Connection refused"),
         ):
@@ -401,6 +412,9 @@ class CheckSslConnectionTests(TestCase):
         import ssl as ssl_module
 
         with patch(
+            "apps.stores.services.domain_verification_service.socket.getaddrinfo",
+            return_value=self._PUBLIC_ADDRINFO,
+        ), patch(
             "apps.stores.services.domain_verification_service.socket.create_connection",
         ) as mock_conn, patch(
             "apps.stores.services.domain_verification_service.ssl.create_default_context",
@@ -420,10 +434,31 @@ class CheckSslConnectionTests(TestCase):
         fake_context = MagicMock()
         fake_context.wrap_socket.return_value = fake_tls_sock
 
-        with patch("apps.stores.services.domain_verification_service.socket.create_connection") as mock_conn, \
+        with patch(
+            "apps.stores.services.domain_verification_service.socket.getaddrinfo",
+            return_value=self._PUBLIC_ADDRINFO,
+        ), patch("apps.stores.services.domain_verification_service.socket.create_connection") as mock_conn, \
              patch("apps.stores.services.domain_verification_service.ssl.create_default_context", return_value=fake_context):
             mock_conn.return_value.__enter__.return_value = MagicMock()
             result = check_ssl_connection("shop.example.com")
 
         self.assertTrue(result.reachable)
         self.assertIsNone(result.certificate_expires_at)
+
+    def test_private_ip_address_is_rejected_without_connecting(self):
+        """SSRF guard: a merchant-controlled custom domain resolving to an
+        internal/private address must never be connected to, even though
+        DNS ownership (TXT) verification has already succeeded by this
+        point in the flow."""
+        for private_ip in ("127.0.0.1", "10.0.0.5", "169.254.169.254", "192.168.1.1"):
+            with self.subTest(private_ip=private_ip):
+                with patch(
+                    "apps.stores.services.domain_verification_service.socket.getaddrinfo",
+                    return_value=[(2, 1, 6, "", (private_ip, 443))],
+                ), patch(
+                    "apps.stores.services.domain_verification_service.socket.create_connection",
+                ) as mock_conn:
+                    result = check_ssl_connection("evil.example.com")
+
+                mock_conn.assert_not_called()
+                self.assertFalse(result.reachable)
