@@ -185,14 +185,37 @@ class PlatformSmsConfigForm(forms.ModelForm):
 
 
 class OnboardingIdentityForm(forms.Form):
-    """مرحله‌ی ۱ ویزارد آنبوردینگ (Section 5): معرفیِ فروشگاه."""
+    """مرحله‌ی ۱ ویزارد آنبوردینگ (Section 5): معرفیِ فروشگاه.
 
-    name = forms.CharField(label="نام فروشگاه", max_length=150)
-    tagline = forms.CharField(label="شعار فروشگاه", max_length=200, required=False)
-    description = forms.CharField(label="درباره‌ی فروشگاه", widget=forms.Textarea, required=False)
-    contact_phone = forms.CharField(label="شماره تماس", max_length=30, required=False)
-    contact_email = forms.EmailField(label="ایمیل فروشگاه", required=False)
-    contact_address = forms.CharField(label="آدرس", max_length=300, required=False)
+    راهنمای هر فیلدِ اختیاری فقط به‌صورت HTML ``placeholder`` نشان داده
+    می‌شود — یک متنِ نمونه/راهنما هرگز نباید مقدارِ واقعیِ فیلد باشد و
+    هرگز در دیتابیس ذخیره نمی‌شود؛ اگر کاربر چیزی وارد نکند، فیلد واقعاً
+    خالی می‌ماند."""
+
+    name = forms.CharField(
+        label="نام فروشگاه", max_length=150,
+        widget=forms.TextInput(attrs={"placeholder": "مثلاً: فروشگاه لوازم خانگی رضایی"}),
+    )
+    tagline = forms.CharField(
+        label="شعار فروشگاه", max_length=200, required=False,
+        widget=forms.TextInput(attrs={"placeholder": "مثلاً: بهترین کیفیت، مناسب‌ترین قیمت"}),
+    )
+    description = forms.CharField(
+        label="درباره‌ی فروشگاه", required=False,
+        widget=forms.Textarea(attrs={"placeholder": "مثلاً: فروشگاه ما از سال ... با هدف ... راه‌اندازی شده است."}),
+    )
+    contact_phone = forms.CharField(
+        label="شماره تماس", max_length=30, required=False,
+        widget=forms.TextInput(attrs={"placeholder": "مثلاً: 021-12345678"}),
+    )
+    contact_email = forms.EmailField(
+        label="ایمیل فروشگاه", required=False,
+        widget=forms.EmailInput(attrs={"placeholder": "مثلاً: info@example.com"}),
+    )
+    contact_address = forms.CharField(
+        label="آدرس", max_length=300, required=False,
+        widget=forms.TextInput(attrs={"placeholder": "مثلاً: تهران، خیابان ..."}),
+    )
 
 
 class OnboardingIndustryForm(forms.Form):
@@ -202,11 +225,16 @@ class OnboardingIndustryForm(forms.Form):
 
 
 class OnboardingBrandingForm(forms.Form):
-    """مرحله‌ی ۳ ویزارد آنبوردینگ: هویتِ بصریِ فروشگاه (اختیاری)."""
+    """مرحله‌ی ۳ ویزارد آنبوردینگ: هویتِ بصریِ فروشگاه (اختیاری).
+
+    فقط لوگو — انتخابِ رنگِ اصلی/مکمل (کدِ hex) عمداً از آنبوردینگ حذف شده:
+    یک تاجرِ معمولی نباید هنگامِ ساختِ اولیه‌ی فروشگاه با مقادیرِ hex سروکار
+    داشته باشد؛ رنگ‌ها هر زمان از داخلِ Storefront Builder/پنلِ مدیریت
+    قابلِ‌تنظیم‌اند (که کنترل‌های رنگِ خودش را همچنان دارد و از این تغییر
+    متأثر نمی‌شود) — پیش‌فرضِ ``ShopSettings.primary_color``/``accent_color``
+    هم دست‌نخورده می‌ماند."""
 
     logo = forms.ImageField(label="لوگو", required=False)
-    primary_color = forms.CharField(label="رنگ اصلی", max_length=7, required=False)
-    accent_color = forms.CharField(label="رنگ مکمل", max_length=7, required=False)
 
 
 class ContactForm(forms.Form):

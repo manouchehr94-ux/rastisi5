@@ -106,9 +106,17 @@ def consume_ticket(token: str, *, store: Store):
     ط±ط§ ط¨ط±ظ…غŒâ€Œع¯ط±ط¯ط§ظ†ط¯. ``store`` ط¨ط§غŒط¯ ط¯ظ‚غŒظ‚ط§ظ‹ ظ‡ظ…ط§ظ† Storeط§غŒ ط¨ط§ط´ط¯ ع©ظ‡ ط¨ظ„غŒطھ ط¨ط±ط§غŒط´
     طµط§ط¯ط± ط´ط¯ظ‡ â€” غŒع© ط¨ظ„غŒطھظگ ظپط±ظˆط´ع¯ط§ظ‡ظگ ط¯غŒع¯ط±طŒ ط­طھغŒ ظ…ط¹طھط¨ط± ظˆ ظ…طµط±ظپâ€Œظ†ط´ط¯ظ‡طŒ ط§غŒظ†ط¬ط§ ط±ط¯
     ظ…غŒâ€Œط´ظˆط¯. ط¨ظ„غŒطھظگ ظ†ط§ظ…ط¹طھط¨ط±/ظ…ظ†ظ‚ط¶غŒ/ظ…طµط±ظپâ€Œط´ط¯ظ‡/ظپط±ظˆط´ع¯ط§ظ‡ظگ ظ†ط§ط¯ط±ط³طھ None ط¨ط±ظ…غŒâ€Œع¯ط±ط¯ط§ظ†ط¯."""
+    # ``issued_by_platform_admin`` is deliberately left out of
+    # ``select_related`` here: it is a nullable ForeignKey, so joining it
+    # turns this into a LEFT OUTER JOIN — and PostgreSQL rejects
+    # ``SELECT ... FOR UPDATE`` across the nullable side of an outer join
+    # with ``NotSupportedError`` (SQLite has no such restriction, which is
+    # why this only ever surfaced in production). Accessing
+    # ``ticket.issued_by_platform_admin`` below still works — Django just
+    # issues one small extra SELECT for it instead of joining.
     ticket = (
         AdminHandoffTicket.objects.select_for_update()
-        .select_related("user", "store", "issued_by_platform_admin")
+        .select_related("user", "store")
         .filter(token=token, store=store)
         .first()
     )

@@ -208,7 +208,13 @@ class BuildSetupChecklistTests(TestCase):
     def test_industry_steps_incomplete_with_zero_templates_and_zero_installations(self):
         """سناریوی دقیقِ گزارشِ باگ: هیچ ``IndustryTemplate``ای در سامانه
         نیست و هیچ نصبی برایِ این Store وجود ندارد — هر دو مرحله باید
-        ناتمام و قابل‌اقدام (دارای url) بمانند."""
+        ناتمام و قابل‌اقدام (دارای url) بمانند.
+
+        ``0039_bootstrap_industry_templates`` seeds the real platform
+        catalog into every test database now, so this test explicitly
+        clears it first to still exercise the exact "zero templates"
+        scenario it documents."""
+        IndustryTemplate.objects.all().delete()
         self.assertEqual(IndustryTemplate.objects.count(), 0)
         self.assertEqual(StoreIndustryInstallation.objects.filter(store=self.store).count(), 0)
         result = build_setup_checklist(self.store, self.request)
@@ -596,7 +602,8 @@ class BuildIndustrySummaryTests(TestCase):
 
     def test_failed_installation_status_surfaced(self):
         template = IndustryTemplate.objects.create(
-            slug="shoes", name="کفش", version=1, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+            slug="test-shoes-summary", name="کفش", version=1,
+            readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
         )
         StoreIndustryInstallation.objects.create(
             store=self.store, industry_template=template, installed_version=1,

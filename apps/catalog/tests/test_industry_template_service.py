@@ -148,7 +148,7 @@ class InstallIndustryTemplateTests(TestCase):
     def test_atomic_rollback_on_invalid_category_chain(self):
         # Sabotage: point tshirts' parent at a category from a *different* template
         # so full_clean rejects it mid-installation — nothing should be created.
-        other_template = IndustryTemplate.objects.create(slug="other", name="دیگر", version=1)
+        other_template = IndustryTemplate.objects.create(slug="test-other-foreign", name="دیگر", version=1)
         foreign_parent = IndustryTemplateCategory.objects.create(
             industry_template=other_template, code="foreign", name="خارجی",
         )

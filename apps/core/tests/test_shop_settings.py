@@ -132,6 +132,27 @@ class ShopSettingsProvisionForTests(TestCase):
         # retroactively change an already-provisioned row.
         self.assertNotEqual(shop.name, "نام دیگر")
 
+    def test_provision_for_uses_the_stores_real_name_not_the_generic_platform_default(self):
+        """Regression test for Issue 1: ``settings.SHOP_NAME`` ("دیجی‌مارکت")
+        is documented as generic *platform* identity, never a real
+        merchant's data — ``provision_for`` must never persist it (or the
+        matching ``SHOP_TAGLINE``/``SHOP_CONTACT_*`` example content) into a
+        brand-new Store's real ShopSettings row."""
+        store_b = Store.objects.create(
+            name="فروشگاه واقعیِ تاجر", slug="real-merchant-store", status=Store.Status.ACTIVE,
+        )
+        with override_settings(
+            SHOP_NAME="دیجی‌مارکت", SHOP_TAGLINE="فروشگاه اینترنتی چندمنظوره",
+            SHOP_CONTACT_PHONE="021-91008877", SHOP_CONTACT_EMAIL="info@digimarket.ir",
+            SHOP_CONTACT_ADDRESS="تهران، خیابان ولیعصر",
+        ):
+            shop = ShopSettings.provision_for(store_b)
+        self.assertEqual(shop.name, "فروشگاه واقعیِ تاجر")
+        self.assertEqual(shop.tagline, "")
+        self.assertEqual(shop.contact_phone, "")
+        self.assertEqual(shop.contact_email, "")
+        self.assertEqual(shop.contact_address, "")
+
 
 class ShopSettingsOneToOneConstraintTests(TestCase):
     """The database-level "exactly one ShopSettings per Store" invariant."""

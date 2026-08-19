@@ -105,18 +105,38 @@ class OnboardingViewTests(TestCase):
         self.store.refresh_from_db()
         self.assertEqual(self.store.onboarding_stage, Store.OnboardingStage.REVIEW)
 
-    def test_branding_stage_saves_colors(self):
+    def test_branding_stage_has_no_color_fields(self):
+        self._complete_identity()
+        self.client.post(self._url("industry"), {"action": "skip"}, HTTP_HOST=_HOST)
+        response = self.client.get(self._url("branding"), HTTP_HOST=_HOST)
+        self.assertNotContains(response, "primary_color")
+        self.assertNotContains(response, "accent_color")
+        self.assertNotContains(response, "رنگ اصلی")
+        self.assertNotContains(response, "رنگ مکمل")
+
+    def test_branding_stage_post_succeeds_without_color_values(self):
         from apps.core.models import ShopSettings
 
         self._complete_identity()
         self.client.post(self._url("industry"), {"action": "skip"}, HTTP_HOST=_HOST)
+        original = ShopSettings.load(store=self.store)
+        original_primary, original_accent = original.primary_color, original.accent_color
+
+        # No primary_color/accent_color in the POST at all — the step must
+        # not require them to proceed, and any such keys a client sends
+        # anyway must be silently ignored by the (now colorless) form.
         response = self.client.post(
-            self._url("branding"), {"primary_color": "#112233", "accent_color": "#445566"}, HTTP_HOST=_HOST,
+            self._url("branding"),
+            {"primary_color": "#112233", "accent_color": "#445566"},
+            HTTP_HOST=_HOST,
         )
         self.assertRedirects(response, self._url("review"))
+
+        # Existing theme defaults are untouched — onboarding never wrote to
+        # them, even though the client tried to send color values.
         shop_settings = ShopSettings.load(store=self.store)
-        self.assertEqual(shop_settings.primary_color, "#112233")
-        self.assertEqual(shop_settings.accent_color, "#445566")
+        self.assertEqual(shop_settings.primary_color, original_primary)
+        self.assertEqual(shop_settings.accent_color, original_accent)
 
     def test_review_stage_publishes_and_completes_onboarding(self):
         self._complete_identity()
@@ -165,6 +185,180 @@ class OnboardingViewTests(TestCase):
         response = self.client.get(self._url("identity"), HTTP_HOST=_HOST)
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
+
+
+@override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
+class OnboardingIdentityPlaceholderTests(TestCase):
+    """Regression tests for Issue 1 — the onboarding identity step used to
+    persist generic, example platform content (``SHOP_NAME``/``SHOP_TAGLINE``/
+    ``SHOP_CONTACT_*`` — literally "دیجی‌مارکت" / "info@digimarket.ir" /
+    "تهران، خیابان ولیعصر", explicitly documented in settings.py as generic
+    *platform* identity, not any real merchant's data) into a brand-new
+    Store's real ``ShopSettings`` row via ``provision_for``, and the
+    onboarding form then pre-filled those fake values as if they were the
+    merchant's own saved data."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            username="placeholderowner@example.com", email="placeholderowner@example.com",
+            password="a-very-strong-pass-1",
+        )
+        self.store = provisioning_service.provision_trial_store(owner=self.owner, name="فروشگاه شعف")
+        self.client.force_login(self.owner)
+
+    def _url(self):
+        return f"/app/stores/{self.store.public_id}/onboarding/identity/"
+
+    def test_new_store_shop_settings_has_no_fake_example_values(self):
+        from apps.core.models import ShopSettings
+
+        shop_settings = ShopSettings.load(store=self.store)
+        self.assertEqual(shop_settings.name, self.store.name)
+        self.assertNotEqual(shop_settings.name, "دیجی‌مارکت")
+        self.assertEqual(shop_settings.tagline, "")
+        self.assertEqual(shop_settings.contact_phone, "")
+        self.assertEqual(shop_settings.contact_email, "")
+        self.assertEqual(shop_settings.contact_address, "")
+
+    def test_new_store_identity_form_fields_are_genuinely_empty(self):
+        response = self.client.get(self._url(), HTTP_HOST=_HOST)
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        self.assertEqual(form.initial.get("tagline", ""), "")
+        self.assertEqual(form.initial.get("contact_phone", ""), "")
+        self.assertEqual(form.initial.get("contact_email", ""), "")
+        self.assertEqual(form.initial.get("contact_address", ""), "")
+        # Never rendered as a real, submitted value for a brand-new store.
+        self.assertNotContains(response, "info@digimarket.ir")
+        self.assertNotContains(response, "021-91008877")
+        self.assertNotContains(response, "تهران، خیابان ولیعصر")
+
+    def test_guidance_appears_as_html_placeholder_not_a_value(self):
+        response = self.client.get(self._url(), HTTP_HOST=_HOST)
+        self.assertContains(response, 'placeholder="مثلاً: بهترین کیفیت، مناسب‌ترین قیمت"')
+        self.assertContains(response, 'placeholder="مثلاً: 021-12345678"')
+
+    def test_submitting_without_optional_fields_persists_nothing(self):
+        self.client.post(self._url(), {"name": "فروشگاه شعف"}, HTTP_HOST=_HOST)
+        from apps.core.models import ShopSettings
+
+        shop_settings = ShopSettings.load(store=self.store)
+        self.assertEqual(shop_settings.tagline, "")
+        self.assertEqual(shop_settings.contact_phone, "")
+        self.assertEqual(shop_settings.contact_email, "")
+        self.assertEqual(shop_settings.contact_address, "")
+
+    def test_previously_saved_real_value_is_shown_normally_on_return(self):
+        self.client.post(
+            self._url(),
+            {
+                "name": "فروشگاه شعف", "tagline": "بهترین کیفیت شهر",
+                "contact_phone": "09120000000", "contact_email": "real@myshop.ir",
+                "contact_address": "اصفهان، خیابان چهارباغ",
+            },
+            HTTP_HOST=_HOST,
+        )
+        # Revisit the (freely-editable) identity stage.
+        response = self.client.get(self._url(), HTTP_HOST=_HOST)
+        self.assertContains(response, "بهترین کیفیت شهر")
+        self.assertContains(response, "09120000000")
+        self.assertContains(response, "real@myshop.ir")
+        self.assertContains(response, "اصفهان، خیابان چهارباغ")
+
+
+@override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
+class OnboardingIndustryTemplateVisibilityTests(TestCase):
+    """Regression tests for Issue 2 — the onboarding "choose your industry"
+    step must show every active, production-ready Industry Template, must
+    never show an inactive/unusable one, and must only fall back to the
+    empty state when there are genuinely zero usable templates.
+
+    ``IndustryTemplate.objects.all().delete()`` in ``setUp`` clears the
+    rows the ``0039_bootstrap_industry_templates`` migration already
+    seeded, so each test starts from a known, controlled set instead of
+    the full ~100-industry production catalog."""
+
+    _EMPTY_STATE_TEXT = "در حال حاضر قالبِ صنفی برای ارائه موجود نیست."
+
+    def setUp(self):
+        from apps.catalog.models import IndustryTemplate
+
+        IndustryTemplate.objects.all().delete()
+        self.owner = User.objects.create_user(
+            username="industryowner@example.com", email="industryowner@example.com",
+            password="a-very-strong-pass-1",
+        )
+        self.store = provisioning_service.provision_trial_store(owner=self.owner, name="فروشگاه صنف")
+        self.client.force_login(self.owner)
+        self.client.post(
+            f"/app/stores/{self.store.public_id}/onboarding/identity/",
+            {"name": self.store.name}, HTTP_HOST=_HOST,
+        )
+
+    def _industry_url(self):
+        return f"/app/stores/{self.store.public_id}/onboarding/industry/"
+
+    def test_empty_state_shown_when_no_templates_exist_at_all(self):
+        response = self.client.get(self._industry_url(), HTTP_HOST=_HOST)
+        self.assertContains(response, self._EMPTY_STATE_TEXT)
+
+    def test_active_production_ready_template_is_shown(self):
+        from apps.catalog.models import IndustryTemplate
+
+        IndustryTemplate.objects.create(
+            slug="visible-industry", name="صنفِ نمایان", version=1,
+            readiness=IndustryTemplate.Readiness.PRODUCTION_READY, is_active=True,
+        )
+        response = self.client.get(self._industry_url(), HTTP_HOST=_HOST)
+        self.assertContains(response, "صنفِ نمایان")
+        self.assertNotContains(response, self._EMPTY_STATE_TEXT)
+
+    def test_inactive_template_is_never_shown(self):
+        from apps.catalog.models import IndustryTemplate
+
+        IndustryTemplate.objects.create(
+            slug="hidden-inactive", name="صنفِ غیرفعال", version=1,
+            readiness=IndustryTemplate.Readiness.PRODUCTION_READY, is_active=False,
+        )
+        response = self.client.get(self._industry_url(), HTTP_HOST=_HOST)
+        self.assertNotContains(response, "صنفِ غیرفعال")
+        # Nothing else is active either — the empty state must still show.
+        self.assertContains(response, self._EMPTY_STATE_TEXT)
+
+    def test_non_production_ready_template_is_never_shown(self):
+        from apps.catalog.models import IndustryTemplate
+
+        IndustryTemplate.objects.create(
+            slug="hidden-draft", name="صنفِ پیش‌نویس", version=1,
+            readiness=IndustryTemplate.Readiness.DRAFT, is_active=True,
+        )
+        response = self.client.get(self._industry_url(), HTTP_HOST=_HOST)
+        self.assertNotContains(response, "صنفِ پیش‌نویس")
+        self.assertContains(response, self._EMPTY_STATE_TEXT)
+
+    def test_installing_a_template_only_provisions_data_for_this_store(self):
+        from apps.catalog.models import Category, IndustryTemplate, IndustryTemplateCategory
+
+        template = IndustryTemplate.objects.create(
+            slug="isolated-industry", name="صنفِ ایزوله", version=1,
+            readiness=IndustryTemplate.Readiness.PRODUCTION_READY, is_active=True,
+        )
+        IndustryTemplateCategory.objects.create(
+            industry_template=template, code="root-category", name="دسته‌ی ریشه",
+        )
+        other_owner = User.objects.create_user(
+            username="otherstoreowner@example.com", email="otherstoreowner@example.com",
+            password="a-very-strong-pass-1",
+        )
+        other_store = provisioning_service.provision_trial_store(owner=other_owner, name="فروشگاه دیگر")
+
+        response = self.client.post(
+            self._industry_url(), {"industry_template_id": template.pk}, HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        self.assertTrue(Category.objects.filter(store=self.store).exists())
+        self.assertFalse(Category.objects.filter(store=other_store).exists())
 
 
 class RegistrationAutoProvisionsTrialStoreTests(TestCase):

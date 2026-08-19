@@ -1,5 +1,7 @@
+import unittest
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from urllib.parse import urlsplit
@@ -197,3 +199,73 @@ class HandoffFullFlowViewTests(TestCase):
             f"/admin-portal/handoff/{token}/", HTTP_HOST=wrong_admin_host,
         )
         self.assertEqual(wrong_host_response.status_code, 404)
+
+
+@unittest.skipUnless(
+    connection.vendor == "postgresql",
+    "reproduces a PostgreSQL-only row-locking restriction that SQLite (the "
+    "default local/test backend) silently ignores; run with "
+    "DATABASE_URL=postgres://... python manage.py test apps.portal.tests.test_handoff "
+    "to actually exercise it.",
+)
+class ConsumeTicketPostgresProductionParityTests(TestCase):
+    """Regression test for the production HTTP 500 on cross-host admin
+    handoff (Issue 4).
+
+    Root cause: ``handoff_service.consume_ticket`` used
+    ``select_for_update()`` together with
+    ``select_related("issued_by_platform_admin")`` — a *nullable*
+    ForeignKey, so ``select_related`` turns that join into a LEFT OUTER
+    JOIN. PostgreSQL refuses ``SELECT ... FOR UPDATE`` across the nullable
+    side of an outer join and raises
+    ``django.db.utils.NotSupportedError: FOR UPDATE cannot be applied to
+    the nullable side of an outer join`` — an unhandled 500 for every
+    single handoff attempt in production. SQLite (this test suite's
+    default backend) has no such restriction, which is exactly why this
+    was invisible until it hit production Postgres.
+
+    Uses a realistic generated fallback ``admin_subdomain``
+    (``store-c535b10c9246``, the same shape ``Store._fallback_admin_subdomain``
+    produces from a ``public_id``) and the matching production-style host
+    ``store-c535b10c9246.rastisi.ir``, exactly as seen in production.
+    """
+
+    def setUp(self):
+        self.store = Store.objects.create(
+            name="Handoff PG Store", slug="handoff-pg-store", status=Store.Status.ACTIVE,
+            platform_code=generate_unique_platform_code(),
+            admin_subdomain="store-c535b10c9246",
+        )
+        self.owner = _make_owner(self.store, email="pgowner@example.com")
+
+    def test_consume_ticket_does_not_raise_notsupportederror_on_postgres(self):
+        ticket = handoff_service.issue_ticket(user=self.owner, store=self.store)
+        # Before the fix, this raised django.db.utils.NotSupportedError on
+        # PostgreSQL instead of returning a result.
+        result = handoff_service.consume_ticket(ticket.token, store=self.store)
+        self.assertIsNotNone(result)
+        user, destination_path, issued_by_platform_admin = result
+        self.assertEqual(user, self.owner)
+        self.assertEqual(destination_path, "/admin-portal/")
+        self.assertIsNone(issued_by_platform_admin)
+
+    def test_full_handoff_flow_succeeds_on_realistic_generated_admin_host(self):
+        admin_host = f"store-c535b10c9246.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
+        with override_settings(ALLOWED_HOSTS=[_PORTAL_HOST, admin_host, "testserver"]):
+            self.client.force_login(self.owner)
+            response = self.client.post(
+                f"/app/stores/{self.store.public_id}/enter-admin/", HTTP_HOST=_PORTAL_HOST,
+            )
+            self.assertEqual(response.status_code, 302)
+            handoff_url = response["Location"]
+            self.assertIn(admin_host, handoff_url)
+
+            admin_client = self.client_class()
+            resolved_host, path = _handoff_target(handoff_url)
+            # Before the fix, this 500'd with an unhandled NotSupportedError
+            # instead of redirecting.
+            follow_response = admin_client.get(path, HTTP_HOST=resolved_host)
+            self.assertEqual(follow_response.status_code, 302)
+            self.assertEqual(follow_response["Location"], "/admin-portal/")
+            self.assertIn("_auth_user_id", admin_client.session)
+            self.assertEqual(int(admin_client.session["_auth_user_id"]), self.owner.pk)

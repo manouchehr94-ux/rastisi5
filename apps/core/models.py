@@ -211,20 +211,31 @@ class ShopSettings(TimeStampedModel):
     def provision_for(cls, store) -> "ShopSettings":
         """رکورد ShopSettings یک Store را می‌سازد؛ اگر از قبل وجود داشته باشد
         دست‌نخورده برمی‌گردد (idempotent) — هرگز مقادیر تاجر را بازنویسی
-        نمی‌کند. مقادیر پیش‌فرض اولیه از settings.py فقط در اولین ساخت
-        اعمال می‌شوند (رفتار قبلیِ ``load()`` برای رکورد تکی، اکنون به‌ازای
-        هر Store).
+        نمی‌کند.
+
+        ``name`` از ``store.name`` (مقدارِ واقعیِ داده‌شده توسطِ کاربر هنگامِ
+        ساختِ فروشگاه) گرفته می‌شود، نه از ``settings.SHOP_NAME`` — آن
+        تنظیمات فقط هویتِ عمومیِ *پلتفرم* (یک نمونه‌ی نوعی/مثالی، نه هیچ
+        فروشگاهِ واقعی) است و هرگز نباید به‌عنوانِ دادهٔ واقعیِ یک Store تازه
+        در دیتابیس ذخیره شود. مشابهاً ``tagline``/``contact_*`` برایِ یک
+        فروشگاهِ تازه واقعاً خالی می‌مانند، نه مقدارِ نمونه‌ای/مثالیِ همان
+        تنظیمات — تا مرچنت هیچ‌گاه محتوایِ مثالی را به‌اشتباه به‌عنوانِ دادهٔ
+        واقعیِ خودش ذخیره نکند (ویزاردِ آنبوردینگ، ``OnboardingIdentityForm``،
+        این مقادیرِ خالی را به‌عنوانِ placeholder نشان می‌دهد، نه value).
+        مقادیرِ عددیِ کسب‌وکار (``tax_percent``/``free_shipping_threshold``)
+        همچنان از settings.py می‌آیند — آن‌ها پیش‌فرضِ کسب‌وکاری‌اند، نه متنِ
+        هویتی/مثالی.
         """
         from django.conf import settings as django_settings
 
         obj, _ = cls.objects.get_or_create(
             store=store,
             defaults={
-                "name": getattr(django_settings, "SHOP_NAME", "فروشگاه اینترنتی"),
-                "tagline": getattr(django_settings, "SHOP_TAGLINE", ""),
-                "contact_phone": getattr(django_settings, "SHOP_CONTACT_PHONE", ""),
-                "contact_email": getattr(django_settings, "SHOP_CONTACT_EMAIL", ""),
-                "contact_address": getattr(django_settings, "SHOP_CONTACT_ADDRESS", ""),
+                "name": store.name or "فروشگاه اینترنتی",
+                "tagline": "",
+                "contact_phone": "",
+                "contact_email": "",
+                "contact_address": "",
                 "tax_percent": getattr(django_settings, "SHOP_TAX_PERCENT", 9),
                 "free_shipping_threshold": getattr(
                     django_settings, "SHOP_FREE_SHIPPING_THRESHOLD", 500_000

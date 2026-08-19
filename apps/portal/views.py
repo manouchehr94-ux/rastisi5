@@ -733,8 +733,10 @@ def onboarding_industry(request, store_public_id):
 
 @owner_required
 def onboarding_branding(request, store_public_id):
-    """مرحله‌ی ۳: هویتِ بصری — لوگو و رنگ‌های اصلی (اختیاری، رد-شدنی؛
-    ``ShopSettings`` از قبل مقادیرِ پیش‌فرضِ معتبر دارد - ``provision_for``)."""
+    """مرحله‌ی ۳: هویتِ بصری — فقط لوگو (اختیاری، رد-شدنی). انتخابِ رنگ از
+    این مرحله حذف شده؛ ``ShopSettings.primary_color``/``accent_color`` از
+    قبل مقادیرِ پیش‌فرضِ معتبر دارند (``provision_for``) و هر زمان از
+    Storefront Builder/پنلِ مدیریت قابلِ‌تغییرند."""
     from apps.core.models import ShopSettings
 
     store = _get_owned_store_or_404(request, store_public_id)
@@ -750,10 +752,6 @@ def onboarding_branding(request, store_public_id):
             data = form.cleaned_data
             if data.get("logo"):
                 shop_settings.logo = data["logo"]
-            if data.get("primary_color"):
-                shop_settings.primary_color = data["primary_color"]
-            if data.get("accent_color"):
-                shop_settings.accent_color = data["accent_color"]
             try:
                 shop_settings.full_clean()
             except ValidationError as exc:
@@ -765,9 +763,7 @@ def onboarding_branding(request, store_public_id):
                 _advance_onboarding_stage(store, completed=Store.OnboardingStage.BRANDING)
                 return redirect("portal:onboarding-review", store_public_id=store.public_id)
     else:
-        form = OnboardingBrandingForm(initial={
-            "primary_color": shop_settings.primary_color, "accent_color": shop_settings.accent_color,
-        })
+        form = OnboardingBrandingForm()
 
     return render(request, "portal/app/onboarding_branding.html", {
         "store": store, "form": form, "shop_settings": shop_settings,

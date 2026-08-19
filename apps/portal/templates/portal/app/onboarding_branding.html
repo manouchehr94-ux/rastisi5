@@ -20,16 +20,6 @@
       {{ form.logo }}
       {% if form.logo.errors %}<div class="p-error">{{ form.logo.errors.0 }}</div>{% endif %}
     </div>
-    <div class="p-field">
-      <label for="{{ form.primary_color.id_for_label }}">رنگ اصلی</label>
-      {{ form.primary_color }}
-      {% if form.primary_color.errors %}<div class="p-error">{{ form.primary_color.errors.0 }}</div>{% endif %}
-    </div>
-    <div class="p-field">
-      <label for="{{ form.accent_color.id_for_label }}">رنگ مکمل</label>
-      {{ form.accent_color }}
-      {% if form.accent_color.errors %}<div class="p-error">{{ form.accent_color.errors.0 }}</div>{% endif %}
-    </div>
     <button type="submit" class="p-btn p-btn-primary" style="width:100%">ادامه</button>
   </form>
   <form method="post" style="margin-top:8px">
@@ -40,4 +30,4 @@
 </div>
 </div>
 {% endblock %}
-{% block extra_css %}<style>.p-field input[type=text],.p-field input[type=file]{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px}#id_primary_color,#id_accent_color{direction:ltr;text-align:left}</style>{% endblock %}
+{% block extra_css %}<style>.p-field input[type=text],.p-field input[type=file]{width:100%;padding:10px 14px;border:1px solid var(--p-line);border-radius:10px;font-family:inherit;font-size:14px}</style>{% endblock %}

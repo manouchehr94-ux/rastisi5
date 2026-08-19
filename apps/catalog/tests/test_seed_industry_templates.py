@@ -116,6 +116,48 @@ class SeedIndustryTemplatesCommandTests(TestCase):
                 )
 
 
+class IndustryTemplateBootstrapMigrationTests(TestCase):
+    """Regression test for Issue 2 (production had zero Industry Templates).
+
+    Root cause: ``seed_industry_templates`` was a correct, idempotent,
+    production-safe management command — but purely opt-in. Nothing ever
+    invoked it automatically, so a fresh production database that no
+    operator remembered to run it against silently ended up with zero
+    ``IndustryTemplate`` rows, and the onboarding "choose your industry"
+    step fell back to its (otherwise correct) empty state for every
+    merchant.
+
+    The fix is ``apps/catalog/migrations/0039_bootstrap_industry_templates.py``,
+    which runs the exact same idempotent command as part of the schema
+    migration itself. Django's test runner builds the test database by
+    applying every migration before any test runs — so if the bootstrap
+    migration works, this test class's ``IndustryTemplate`` table is
+    already populated here, without this test (or its ``setUp``) ever
+    calling ``seed_industry_templates`` itself. That is exactly what a
+    fresh production database gets from a plain ``python manage.py migrate``,
+    with no extra manual step required.
+    """
+
+    def test_migration_alone_bootstraps_production_ready_templates(self):
+        self.assertGreater(IndustryTemplate.objects.count(), 0)
+        self.assertGreater(
+            IndustryTemplate.objects.filter(
+                is_active=True, readiness=IndustryTemplate.Readiness.PRODUCTION_READY,
+            ).count(),
+            0,
+        )
+
+    def test_migration_alone_matches_the_full_registry(self):
+        seeded_slugs = set(IndustryTemplate.objects.values_list("slug", flat=True))
+        expected_slugs = {entry["slug"] for entry in INDUSTRY_TEMPLATES}
+        self.assertEqual(seeded_slugs, expected_slugs)
+
+    def test_re_running_the_command_after_migration_does_not_duplicate(self):
+        count_after_migration = IndustryTemplate.objects.count()
+        _run_seed()
+        self.assertEqual(IndustryTemplate.objects.count(), count_after_migration)
+
+
 class InstallEverySeededIndustryTests(TestCase):
     """§36.11 — هر صنف ساخته‌شده باید بدون خطا روی یک Store واقعی نصب شود."""
 
