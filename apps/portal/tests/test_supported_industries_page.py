@@ -26,11 +26,6 @@ class SupportedIndustriesPageTests(TestCase):
     می‌شود، نه در سطحِ ماژول)."""
 
     def setUp(self):
-        # ``0039_bootstrap_industry_templates`` seeds the full production
-        # catalog (~100 rows) as part of the test database's migrations —
-        # clear it so this test's counts reflect only the controlled set
-        # created below, not the real platform catalog.
-        IndustryTemplate.objects.all().delete()
         self.active_template = _make_template(slug="pub-active", name="صنفِ فعالِ آزمایشی")
         self.inactive_template = _make_template(
             slug="pub-inactive", name="صنفِ غیرفعالِ آزمایشی", is_active=False,

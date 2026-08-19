@@ -76,6 +76,39 @@ python manage.py migrate
 Run this on every deploy after pulling new code, before restarting the
 application process.
 
+### 3a. Industry Template catalog sync
+
+`IndustryTemplate` rows (the merchant-onboarding "choose your industry"
+catalog — categories, attributes, recommended options) are living,
+version-controlled platform *content*
+(`apps.catalog.industry_templates.registry`), not a one-time historical
+fact — they are deliberately **not** created by a schema migration. A
+migration is a frozen snapshot of a point in schema history; baking today's
+registry into one would mean a fresh database, migrated years from now,
+runs *today's* seed logic against whatever `IndustryTemplate`-family schema
+existed back at that migration — silently breaking fresh installs the
+moment a later migration changes one of those model fields.
+
+Run this immediately after `migrate`, on every deploy:
+
+```
+python manage.py seed_industry_templates
+python manage.py validate_industry_templates
+```
+
+Both are idempotent (`update_or_create` on stable natural keys) and safe to
+run on every deploy, including ones that change nothing — re-running
+`seed_industry_templates` creates no duplicate `IndustryTemplate`/category/
+attribute rows. `validate_industry_templates` is read-only by default and
+exits non-zero (failing the deploy, if your pipeline checks exit codes) the
+moment any template fails validation — never skip or silence this step to
+get a deploy through; fix the registry entry instead.
+
+Skipping this step is exactly the production bug this section exists to
+prevent: a fresh database that never runs `seed_industry_templates` silently
+ends up with zero Industry Templates, and onboarding's industry-selection
+step falls back to its (otherwise correct) empty state for every merchant.
+
 ## 4. Static files
 
 ```
@@ -336,6 +369,8 @@ python manage.py check --deploy
 python manage.py makemigrations --check --dry-run
 python manage.py showmigrations
 python manage.py migrate
+python manage.py seed_industry_templates
+python manage.py validate_industry_templates
 python manage.py provision_default_warehouses
 python manage.py verify_inventory_consistency --strict
 python manage.py collectstatic --noinput

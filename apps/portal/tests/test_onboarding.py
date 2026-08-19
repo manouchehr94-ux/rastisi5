@@ -273,10 +273,14 @@ class OnboardingIndustryTemplateVisibilityTests(TestCase):
     never show an inactive/unusable one, and must only fall back to the
     empty state when there are genuinely zero usable templates.
 
-    ``IndustryTemplate.objects.all().delete()`` in ``setUp`` clears the
-    rows the ``0039_bootstrap_industry_templates`` migration already
-    seeded, so each test starts from a known, controlled set instead of
-    the full ~100-industry production catalog."""
+    ``IndustryTemplate`` rows are living platform content synced only by
+    ``python manage.py seed_industry_templates`` (never by a schema
+    migration — see ``ProductionDeploymentSequenceTests`` in
+    ``apps/catalog/tests/test_seed_industry_templates.py`` for why), so a
+    freshly-migrated test database already starts with zero rows.
+    ``IndustryTemplate.objects.all().delete()`` in ``setUp`` is a defensive
+    no-op today that keeps this class self-contained regardless of what any
+    other fixture/test in the suite may have created."""
 
     _EMPTY_STATE_TEXT = "در حال حاضر قالبِ صنفی برای ارائه موجود نیست."
 

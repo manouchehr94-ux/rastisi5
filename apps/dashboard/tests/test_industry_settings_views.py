@@ -57,10 +57,6 @@ class IndustrySettingsZeroTemplatesTests(TestCase):
         self.client.login(username="09121188009", password="pass12345")
 
     def test_zero_templates_shows_diagnostic_not_success(self):
-        # ``0039_bootstrap_industry_templates`` seeds the real platform
-        # catalog into every test database now — clear it to still exercise
-        # the exact "zero templates" scenario this test documents.
-        IndustryTemplate.objects.all().delete()
         self.assertEqual(IndustryTemplate.objects.count(), 0)
         response = self.client.get(reverse("dashboard:settings") + "?section=industry")
         self.assertEqual(response.status_code, 200)
@@ -76,10 +72,6 @@ class IndustrySettingsPageTests(IndustrySettingsTestCase):
         self.assertContains(response, "پوشاک")
 
     def test_inactive_template_not_listed(self):
-        # Isolate from the real platform catalog seeded by
-        # ``0039_bootstrap_industry_templates`` so "zero active templates"
-        # genuinely means zero, not just zero besides this test's own row.
-        IndustryTemplate.objects.exclude(pk=self.template.pk).delete()
         self.template.is_active = False
         self.template.save(update_fields=["is_active"])
         response = self.client.get(reverse("dashboard:settings") + "?section=industry")
