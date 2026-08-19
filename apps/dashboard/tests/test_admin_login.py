@@ -209,3 +209,31 @@ class AdminLoginRateLimitTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "بیش از حد مجاز")
         self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    def test_one_account_lockout_does_not_block_a_different_account_from_the_same_ip(self):
+        """Phase 1B: the Django test client always reports REMOTE_ADDR as
+        127.0.0.1 for every request — the "all real users share one
+        apparent IP behind Nginx/Gunicorn" scenario. Locking out one staff
+        username must not lock out a different staff username sharing that
+        same apparent IP; only the per-identifier layer should trip."""
+        other_staff = User.objects.create_user(
+            username="other-manager", password="OtherPass123!", is_staff=True
+        )
+        # A store can only have one active OWNER (uniq_active_owner_per_store);
+        # self.staff_user ("manager") already holds that role from setUp().
+        _grant_akhlaghi_membership(other_staff, role=StoreMembership.Role.ADMINISTRATOR)
+
+        for _ in range(15):
+            self.client.post("/admin-portal/login/", {
+                "username": "manager", "password": "WrongPassword", "next": "/admin-portal/",
+            })
+        locked_response = self.client.post("/admin-portal/login/", {
+            "username": "manager", "password": "ManagerPass123!", "next": "/admin-portal/",
+        })
+        self.assertContains(locked_response, "بیش از حد مجاز")
+
+        other_response = self.client.post("/admin-portal/login/", {
+            "username": "other-manager", "password": "OtherPass123!", "next": "/admin-portal/",
+        })
+        self.assertEqual(other_response.status_code, 302)
+        self.assertEqual(other_response.url, "/admin-portal/")

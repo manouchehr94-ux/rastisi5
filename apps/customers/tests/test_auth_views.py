@@ -157,23 +157,65 @@ class LoginRateLimitTests(TestCase):
 
 class SignupRateLimitTests(TestCase):
     """Storefront customer signup must throttle account-creation attempts by
-    IP to prevent scripted mass fake-account creation."""
+    IP to prevent scripted mass fake-account creation. Threshold is
+    deliberately generous (50, not the login/OTP identifier-layer's 15) —
+    see Phase 1B: REMOTE_ADDR can be identical for every real user behind
+    the production Nginx/Gunicorn proxy, and signup has no pre-existing
+    per-identifier target to layer on top (duplicate phones are already
+    rejected by Customer.phone uniqueness), so an aggressive threshold here
+    would risk blocking unrelated real signups sharing that same IP."""
 
     def setUp(self):
         cache.clear()
         self.addCleanup(cache.clear)
 
     def test_excessive_signup_attempts_are_rate_limited(self):
-        for i in range(10):
+        for i in range(50):
             self.client.post(reverse("customers:signup"), {
-                "full_name": "کاربر", "phone": f"0912999{i:04d}", "password": "StrongPass123",
+                "full_name": "کاربر", "phone": f"09129{i:06d}", "password": "StrongPass123",
             })
         response = self.client.post(reverse("customers:signup"), {
-            "full_name": "کاربر یازدهم", "phone": "09129999999", "password": "StrongPass123",
+            "full_name": "کاربر آخر", "phone": "09129999999", "password": "StrongPass123",
         })
         self.assertNotIn("HX-Refresh", response.headers)
         self.assertContains(response, "بیش از حد مجاز")
         self.assertFalse(Customer.objects.filter(phone="09129999999").exists())
+
+
+class LoginIdentifierLayerIsolationTests(TestCase):
+    """Phase 1B: the Django test client always reports REMOTE_ADDR as
+    127.0.0.1 for every request — exactly the "all real users share one
+    apparent IP behind Nginx/Gunicorn" scenario this layer exists for.
+    Proves that exhausting the rate limit for one account's failed login
+    attempts does NOT lock out a different account sharing that same
+    apparent IP; only the identifier layer (scoped per-account) should
+    trip for account B, not a shared-IP bucket."""
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.user_a = User.objects.create_user(username="09121115566", password="StrongPass123")
+        Customer.objects.create(user=self.user_a, full_name="کاربر الف", phone="09121115566")
+        self.user_b = User.objects.create_user(username="09121117799", password="StrongPass123")
+        Customer.objects.create(user=self.user_b, full_name="کاربر ب", phone="09121117799")
+
+    def test_account_a_lockout_does_not_block_account_b_from_the_same_ip(self):
+        for _ in range(15):
+            self.client.post(reverse("customers:login"), {
+                "identifier": "09121115566", "password": "wrongpass",
+            })
+        # Account A is now locked out (identifier layer tripped).
+        response_a = self.client.post(reverse("customers:login"), {
+            "identifier": "09121115566", "password": "StrongPass123",
+        })
+        self.assertContains(response_a, "بیش از حد مجاز")
+
+        # Account B, from the exact same apparent IP, must still be able to
+        # log in — the coarse IP-layer threshold (100) is far from tripped.
+        response_b = self.client.post(reverse("customers:login"), {
+            "identifier": "09121117799", "password": "StrongPass123",
+        })
+        self.assertEqual(response_b.headers.get("HX-Refresh"), "true")
 
 
 class LogoutViewTests(TestCase):

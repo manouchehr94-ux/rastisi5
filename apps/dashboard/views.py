@@ -111,7 +111,7 @@ from apps.catalog.services.warehouse_service import (
 )
 from apps.core.services.audit_service import list_audit_events, record_audit_event
 from apps.core.services.export_service import ExportError, run_export
-from apps.core.services.rate_limit import RateLimitExceeded, enforce_rate_limit
+from apps.core.services.rate_limit import RateLimitExceeded, client_ip_or_unknown, enforce_rate_limit
 from apps.subscriptions.services.entitlement_service import EntitlementError
 from apps.subscriptions.services import enforcement as subscription_enforcement
 from apps.dashboard.services import import_service
@@ -414,9 +414,19 @@ def admin_login(request):
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "")
         try:
+            # لایه‌ی IP — پشتِ Nginx/Gunicorn (Unix socket)، REMOTE_ADDR برایِ
+            # همه‌ی کاربرانِ واقعی می‌تواند یکسان باشد؛ این لایه صرفاً یک
+            # مدارشکنِ درشت‌دانه‌ی سطحِ کل‌سیستم است (آستانه‌ی بالا)، نه خطِ
+            # اصلیِ دفاع — همان چیزی که لایه‌ی identifier پایین‌تر تأمین می‌کند.
             enforce_rate_limit(
-                "admin_login", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=15, window_seconds=600,
+                "admin_login", client_ip_or_unknown(request), max_attempts=100, window_seconds=600,
             )
+            # لایه‌ی حساب — مستقل از IP/پراکسی، همیشه به‌درستی فقط همین یک
+            # نام‌کاربری را قفل می‌کند؛ خطِ واقعیِ دفاع در برابرِ brute-force.
+            if username:
+                enforce_rate_limit(
+                    "admin_login_identifier", username.lower(), max_attempts=15, window_seconds=600,
+                )
         except RateLimitExceeded:
             error = "تعداد تلاش ورود بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید."
         else:

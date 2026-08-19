@@ -7,7 +7,7 @@ from django.views.decorators.http import require_POST
 
 from apps.catalog.services.product_publish_service import storefront_visible_products
 from apps.core.services import session_service
-from apps.core.services.rate_limit import RateLimitExceeded, enforce_rate_limit
+from apps.core.services.rate_limit import RateLimitExceeded, client_ip_or_unknown, enforce_rate_limit
 from apps.orders.models import Order
 from apps.sms.services import otp_service
 from apps.stores.resolution import resolve_store_for_service
@@ -81,10 +81,22 @@ def _auth_forms_context(*, login_form=None, signup_form=None, active_tab="in"):
 @require_POST
 def login_view(request):
     form = LoginForm(request.POST)
+    identifier = request.POST.get("identifier", "").strip().lower()
     try:
+        # لایه‌ی IP — پشتِ Nginx/Gunicorn (Unix socket)، REMOTE_ADDR برایِ
+        # همه‌ی کاربرانِ واقعی می‌تواند یکسان باشد؛ این لایه صرفاً یک
+        # مدارشکنِ درشت‌دانه‌ی سطحِ کل‌سیستم است (آستانه‌ی بالا)، نه خطِ اصلیِ
+        # دفاع — همان چیزی که لایه‌ی identifier پایین‌تر تأمین می‌کند.
         enforce_rate_limit(
-            "customer_login", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=15, window_seconds=600,
+            "customer_login", client_ip_or_unknown(request), max_attempts=100, window_seconds=600,
         )
+        # لایه‌ی حساب — مستقل از IP/پراکسی، همیشه به‌درستی فقط همین یک
+        # شناسه (موبایل/ایمیل) را قفل می‌کند؛ خطِ واقعیِ دفاع در برابرِ
+        # brute-force.
+        if identifier:
+            enforce_rate_limit(
+                "customer_login_identifier", identifier, max_attempts=15, window_seconds=600,
+            )
     except RateLimitExceeded:
         form.add_error(None, "تعداد تلاش ورود بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
     else:
@@ -115,8 +127,14 @@ def login_view(request):
 def signup_view(request):
     form = SignupForm(request.POST)
     try:
+        # آستانه‌ی بالا و بدونِ لایه‌ی identifier عمدی است: هر شماره‌ی
+        # تکراری همین حالا هم توسطِ یکتاییِ Customer.phone رد می‌شود (بدونِ
+        # ساختِ حسابِ دوم)، پس هدفِ اصلیِ این محدودیت صرفاً جلوگیری از
+        # ساختِ انبوهِ حساب‌های جعلی از یک منبع است، نه محافظت از یک شماره‌ی
+        # مشخص — و آستانه‌ی پایین‌تر همراهِ IPِ مشترکِ پشتِ پراکسی می‌توانست
+        # ثبت‌نامِ کاربرانِ واقعیِ دیگر را هم مسدود کند.
         enforce_rate_limit(
-            "customer_signup", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=10, window_seconds=600,
+            "customer_signup", client_ip_or_unknown(request), max_attempts=50, window_seconds=600,
         )
     except RateLimitExceeded:
         form.add_error(None, "تعداد تلاش ثبت‌نام بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
@@ -175,10 +193,16 @@ def otp_request_view(request):
     if form.is_valid():
         phone = form.cleaned_data["phone"]
         remember_me = form.cleaned_data.get("remember_me", False)
-        ip_address = request.META.get("REMOTE_ADDR", "unknown")
+        ip_address = client_ip_or_unknown(request)
         try:
+            # این لایه فقط جلویِ حجمِ ناب probing (شماره‌های ثبت‌نشده که
+            # هرگز به otp_service.request_otp نمی‌رسند) را می‌گیرد؛ محافظتِ
+            # واقعیِ هزینه‌ی پیامک هنوز هم به‌ازایِ شماره (و IP، جدا از این)
+            # داخلِ خودِ otp_service.request_otp انجام می‌شود — آستانه‌ی
+            # بالاتر اینجا فقط بازتابِ همان اصلِ «REMOTE_ADDR پشتِ پراکسی
+            # می‌تواند مشترک باشد» است.
             enforce_rate_limit(
-                "customer_otp_request_ip", ip_address, max_attempts=20, window_seconds=600,
+                "customer_otp_request_ip", ip_address, max_attempts=100, window_seconds=600,
             )
         except RateLimitExceeded as exc:
             form.add_error(None, str(exc))

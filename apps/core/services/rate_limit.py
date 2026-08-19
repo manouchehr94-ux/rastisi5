@@ -28,3 +28,27 @@ def enforce_rate_limit(action: str, identifier: str, *, max_attempts: int, windo
         count = 1
     if count > max_attempts:
         raise RateLimitExceeded(f"تعداد تلاش برای «{action}» بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید")
+
+
+def client_ip_or_unknown(request) -> str:
+    """``REMOTE_ADDR`` را برمی‌گرداند — اما با یک تفاوتِ عمدی نسبت به
+    ``request.META.get("REMOTE_ADDR", "unknown")`` ساده: اگر ``REMOTE_ADDR``
+    *وجود دارد ولی رشته‌ی خالی است* (نه غایب) هم به‌جایِ برگرداندنِ همان رشته‌ی
+    خالی، صریحاً «unknown» می‌دهد.
+
+    این تفاوت مهم است چون Gunicorn پشتِ یک Unix socket (توپولوژیِ واقعیِ
+    RastiSi: Nginx -> Unix socket -> Gunicorn) طبقِ رفتارِ مستندِ خودش
+    ``REMOTE_ADDR`` را برایِ هر درخواست رشته‌ی خالی می‌گذارد، نه غایب — پس
+    الگویِ ``.get(key, default)`` هرگز به آن default نمی‌رسد و همه‌ی
+    کاربرانِ واقعی زیرِ یک کلیدِ یکسان (رشته‌ی خالی) جمع می‌شدند.
+
+    این تابع عمداً به هیچ هدرِ ارسالی از سمتِ کلاینت (``X-Forwarded-For``،
+    ``X-Real-IP``) اعتماد نمی‌کند — چون این کدبیس هنوز هیچ مکانیزمِ trusted-proxy
+    ندارد و اعتماد کورکورانه به چنین هدری یعنی مهاجم می‌تواند IPِ دلخواه جعل
+    کند. نتیجه‌ی این تابع («unknown» یا REMOTE_ADDRِ واقعی) هنوز هم می‌تواند
+    بینِ کاربرانِ واقعیِ پشتِ یک پراکسی مشترک باشد — محافظتِ per-identifier
+    (نگاه کنید به فراخوان‌های ``enforce_rate_limit`` که علاوه بر IP، با
+    شناسه‌ی حساب هم قفل می‌شوند) خطِ دفاعِ واقعی در برابرِ brute-force است، نه
+    این تابع؛ این تابع فقط از تبدیلِ خاموشِ «IP خالی» به یک سطلِ مشترکِ
+    غیرِعمدی جلوگیری می‌کند."""
+    return request.META.get("REMOTE_ADDR") or "unknown"
