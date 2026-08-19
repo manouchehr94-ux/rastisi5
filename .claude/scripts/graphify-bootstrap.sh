@@ -29,6 +29,15 @@ if [ ! -x "$GRAPHIFY" ]; then
     exit 0
 fi
 
+# Persist the project-local Graphify executable for subsequent Claude Code Bash calls.
+# SessionStart environment changes must be written to CLAUDE_ENV_FILE to survive
+# after this hook process exits.
+if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+    if ! grep -Fq "$VENV/bin" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+        printf 'export PATH="%s:$PATH"\n' "$VENV/bin" >>"$CLAUDE_ENV_FILE"
+    fi
+fi
+
 if [ -f "$ROOT/graphify-out/graph.json" ]; then
     "$GRAPHIFY" update "$ROOT" >>"$LOG" 2>&1 || true
 else
