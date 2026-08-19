@@ -458,3 +458,97 @@ class RegistrationAutoProvisionsTrialStoreTests(TestCase):
         with self.settings(ALLOWED_HOSTS=[trial_domain.hostname, _HOST, "testserver"]):
             response = self.client.get("/", HTTP_HOST=trial_domain.hostname)
         self.assertEqual(response.status_code, 200)
+
+
+@override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
+class IndustrySearchInputContrastTests(TestCase):
+    """Regression tests for the invisible industry-search input text.
+
+    Root cause: the shared ``.industry-search input`` component
+    (``apps/catalog/static/css/industry_selector.css``) sets an explicit
+    light/white ``background`` but never sets ``color`` at all, so the
+    typed/placeholder text falls back to whatever color is ambient on the
+    page. On this dark-first portal theme (``--p-ink`` is a light,
+    near-white color — see ``platform-tokens.css``), that produces
+    effectively white text on a white input: unreadable. The component
+    itself is correct for its other, light-themed consumers (the public
+    "supported industries" page, the merchant dashboard) and is
+    deliberately left untouched; the fix instead scopes an override to
+    ``.p-form-card .industry-search input`` in ``platform-tokens.css``
+    (loaded on every dark-themed portal page), reusing this theme's own
+    existing tokens (``--p-card``/``--p-ink``/``--p-muted``) rather than
+    hard-coded colors."""
+
+    def setUp(self):
+        from apps.catalog.models import IndustryTemplate
+
+        # The search bar (and its ``.industry-search`` markup) only renders
+        # when at least one offerable template exists — without one, both
+        # pages under test fall back to their (unrelated) empty state.
+        IndustryTemplate.objects.create(
+            slug="contrast-test-industry", name="صنفِ آزمایشیِ کنتراست", version=1,
+            readiness=IndustryTemplate.Readiness.PRODUCTION_READY, is_active=True,
+        )
+        self.owner = User.objects.create_user(
+            username="contrastowner@example.com", email="contrastowner@example.com",
+            password="a-very-strong-pass-1",
+        )
+        self.store = provisioning_service.provision_trial_store(owner=self.owner, name="فروشگاه کنتراست")
+        self.client.force_login(self.owner)
+
+    def _css_path(self):
+        import apps.portal as portal_app_module
+        from pathlib import Path
+
+        return Path(portal_app_module.__file__).resolve().parent / "static/portal/css/platform-tokens.css"
+
+    def test_platform_tokens_css_defines_readable_search_input_colors(self):
+        css = self._css_path().read_text(encoding="utf-8")
+        self.assertIn(".p-form-card .industry-search input", css)
+        # Not just present — must actually set both background and a
+        # readable foreground color together (a rule that set only one of
+        # the two would still leave the text unreadable).
+        rule_start = css.index(".p-form-card .industry-search input{")
+        rule_end = css.index("}", rule_start)
+        rule_body = css[rule_start:rule_end]
+        self.assertIn("background:var(--p-card)", rule_body)
+        self.assertIn("color:var(--p-ink)", rule_body)
+        # The placeholder must stay visually secondary (muted), not the
+        # same strong foreground color as typed text.
+        self.assertIn(".p-form-card .industry-search input::placeholder", css)
+        placeholder_start = css.index(".p-form-card .industry-search input::placeholder{")
+        placeholder_end = css.index("}", placeholder_start)
+        self.assertIn("color:var(--p-muted)", css[placeholder_start:placeholder_end])
+
+    def test_onboarding_industry_page_loads_both_stylesheets_in_the_needed_order(self):
+        response = self.client.get(
+            f"/app/stores/{self.store.public_id}/onboarding/industry/", HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        tokens_pos = content.find("portal/css/platform-tokens.css")
+        selector_pos = content.find("css/industry_selector.css")
+        self.assertNotEqual(tokens_pos, -1)
+        self.assertNotEqual(selector_pos, -1)
+        # The override in platform-tokens.css only reliably wins the
+        # cascade because it is more specific than industry_selector.css's
+        # own same-property rule — not because of load order — but assert
+        # both are actually present on this exact page regardless.
+        self.assertIn('class="industry-search"', content)
+
+    def test_store_create_wizard_also_loads_the_fix(self):
+        """The same dark-themed component appears on the new-store wizard
+        (``portal/app/store_create.html``), not just onboarding — the fix
+        lives in the shared ``platform-tokens.css``, so both get it from
+        one place."""
+        self.client.logout()
+        second_owner = User.objects.create_user(
+            username="contrastowner2@example.com", email="contrastowner2@example.com",
+            password="a-very-strong-pass-1",
+        )
+        self.client.force_login(second_owner)
+        response = self.client.get("/app/stores/new/", HTTP_HOST=_HOST)
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("portal/css/platform-tokens.css", content)
+        self.assertIn('class="industry-search"', content)

@@ -269,3 +269,138 @@ class ConsumeTicketPostgresProductionParityTests(TestCase):
             self.assertEqual(follow_response["Location"], "/admin-portal/")
             self.assertIn("_auth_user_id", admin_client.session)
             self.assertEqual(int(admin_client.session["_auth_user_id"]), self.owner.pk)
+
+
+def _make_realistic_owner(store, username="09120000001"):
+    """A merchant owner shaped like a real one — created the same way
+    ``apps.portal.services.owner_auth_service.get_or_create_owner_by_phone``
+    creates them for the actual phone+OTP registration flow
+    (``User.objects.create_user(username=phone)``, no ``is_staff``
+    argument, so it defaults to ``False``). Deliberately does NOT use this
+    file's ``_make_owner`` helper above, which passes ``is_staff=True`` and
+    would silently mask the exact bug this regression test exists to
+    catch."""
+    user = User.objects.create_user(username=username)
+    assert user.is_staff is False
+    StoreMembership.objects.create(
+        store=store, user=user, role=StoreMembership.Role.OWNER,
+        status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+    )
+    return user
+
+
+@override_settings(ALLOWED_HOSTS=[
+    _PORTAL_HOST,
+    "store-70dec6023e97.rastisi.ir", "store-70dec6023e97.rastisi.localhost",
+    "unrelated-other-store.rastisi.ir", "unrelated-other-store.rastisi.localhost",
+    "testserver",
+])
+class HandoffLandsOnDashboardNotStorefrontTests(TestCase):
+    """Regression test for the post-deploy production bug: the original
+    PostgreSQL ``NotSupportedError`` 500 (fixed separately) is gone, but a
+    *second*, independent bug sat right behind it — ``staff_required``
+    (``apps.dashboard.decorators``) additionally required
+    ``request.user.is_staff``, which a real merchant owner (created via
+    phone+OTP registration) never has. So every successfully-consumed
+    handoff ticket still landed the merchant on ``GET /admin-portal/`` only
+    to be immediately redirected away to ``catalog:home`` — the *public*
+    storefront root — which itself 404s for an admin-subdomain host with no
+    matching ``StoreDomain``/compatibility-store match, since real
+    production has more than one Store.
+
+    Uses the exact real production Store from the bug report: admin
+    subdomain ``store-70dec6023e97`` (the ``store-{public_id.hex[:12]}``
+    fallback shape for public_id ``70dec602-3e97-490c-be5b-6d8a387f32dc``),
+    host ``store-70dec6023e97.rastisi.ir``.
+    """
+
+    def setUp(self):
+        self.store = Store.objects.create(
+            name="Real Merchant Store", slug="real-merchant-70dec602", status=Store.Status.ACTIVE,
+            platform_code=generate_unique_platform_code(), admin_subdomain="store-70dec6023e97",
+        )
+        # A second, unrelated Store — production has many; this is what
+        # makes ``resolve_compatibility_store()`` fail closed instead of
+        # accidentally "working" for a single-Store test database.
+        Store.objects.create(
+            name="Unrelated Other Store", slug="unrelated-other-store", status=Store.Status.ACTIVE,
+            platform_code=generate_unique_platform_code(), admin_subdomain="unrelated-other-store",
+        )
+        self.owner = _make_realistic_owner(self.store, username="09120000002")
+
+    def _admin_host(self):
+        return f"store-70dec6023e97.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
+
+    def test_full_handoff_flow_lands_on_the_dashboard_not_the_storefront(self):
+        self.client.force_login(self.owner)
+        enter_admin = self.client.post(
+            f"/app/stores/{self.store.public_id}/enter-admin/", HTTP_HOST=_PORTAL_HOST,
+        )
+        self.assertEqual(enter_admin.status_code, 302)
+        handoff_url = enter_admin["Location"]
+        admin_host, path = _handoff_target(handoff_url)
+        self.assertEqual(admin_host, self._admin_host())
+
+        admin_client = self.client_class()
+        consume_response = admin_client.get(path, HTTP_HOST=admin_host)
+        self.assertEqual(consume_response.status_code, 302)
+        self.assertEqual(consume_response["Location"], "/admin-portal/")
+        self.assertIn("_auth_user_id", admin_client.session)
+        self.assertEqual(int(admin_client.session["_auth_user_id"]), self.owner.pk)
+
+        # This is the exact request that used to redirect away to the
+        # public storefront instead of rendering the dashboard.
+        dashboard_response = admin_client.get("/admin-portal/", HTTP_HOST=admin_host)
+        self.assertEqual(dashboard_response.status_code, 200)
+        # The actual merchant dashboard template, never a storefront page.
+        self.assertTemplateUsed(dashboard_response, "dashboard/dashboard.html")
+        self.assertTemplateNotUsed(dashboard_response, "catalog/home_visual.html")
+
+    def test_dashboard_still_resolves_the_correct_store(self):
+        self.client.force_login(self.owner)
+        enter_admin = self.client.post(
+            f"/app/stores/{self.store.public_id}/enter-admin/", HTTP_HOST=_PORTAL_HOST,
+        )
+        admin_host, path = _handoff_target(enter_admin["Location"])
+        admin_client = self.client_class()
+        admin_client.get(path, HTTP_HOST=admin_host)
+
+        dashboard_response = admin_client.get("/admin-portal/", HTTP_HOST=admin_host)
+        self.assertEqual(dashboard_response.status_code, 200)
+        self.assertEqual(dashboard_response.wsgi_request.store, self.store)
+        self.assertEqual(dashboard_response.wsgi_request.store_membership.store_id, self.store.pk)
+
+    def test_cross_tenant_dashboard_access_remains_impossible(self):
+        """A logged-in owner of a *different* Store must never reach this
+        Store's dashboard just because they're authenticated — the
+        StoreMembership check (not just "is authenticated") is what must
+        gate access, both before and after this fix."""
+        other_store = Store.objects.get(slug="unrelated-other-store")
+        other_owner = _make_realistic_owner(other_store, username="09120000003")
+
+        client = self.client_class(HTTP_HOST=self._admin_host())
+        client.force_login(other_owner)
+        response = client.get("/admin-portal/", HTTP_HOST=self._admin_host())
+        # ``fetch_redirect_response=False``: with two Stores in the test
+        # database (this test deliberately creates a second, unrelated one
+        # to prove tenant isolation), "/" itself 404s — the compatibility
+        # single-Store storefront fallback only ever applies with exactly
+        # one Store, matching real production. Only the redirect target
+        # itself is under test here, not what that target page renders.
+        self.assertRedirects(response, "/", fetch_redirect_response=False)
+
+    def test_owner_without_active_membership_still_redirected_away(self):
+        """No StoreMembership at all must still fail closed to the public
+        storefront root, exactly like before this fix — only the specific
+        ``is_staff``-blocks-real-owners bug was removed, not the
+        membership gate itself."""
+        stranger = User.objects.create_user(username="09120000004")
+        self.client.force_login(stranger)
+        response = self.client.get("/admin-portal/", HTTP_HOST=self._admin_host())
+        # ``fetch_redirect_response=False``: with two Stores in the test
+        # database (this test deliberately creates a second, unrelated one
+        # to prove tenant isolation), "/" itself 404s — the compatibility
+        # single-Store storefront fallback only ever applies with exactly
+        # one Store, matching real production. Only the redirect target
+        # itself is under test here, not what that target page renders.
+        self.assertRedirects(response, "/", fetch_redirect_response=False)

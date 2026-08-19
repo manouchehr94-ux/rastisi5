@@ -62,9 +62,15 @@ def staff_required(view_func):
        (``handoff_service.build_admin_return_token``) حمل می‌شود، نه یک
        URL خام — پس نه open-redirect ممکن است، نه دستکاری/بازپخش
        (replay؛ توکن کوتاه‌عمر و متصل به همین admin_subdomain است).
-    3. ``user.is_staff`` به‌تنهایی هرگز کافی نیست: کاربر باید یک
-       ``StoreMembership`` با وضعیت ``ACTIVE`` دقیقاً برای همان Store
-       داشته باشد (نگاه کنید به ``apps.stores.authorization``).
+    3. کاربر باید یک ``StoreMembership`` با وضعیت ``ACTIVE`` دقیقاً برای
+       همان Store داشته باشد (نگاه کنید به ``apps.stores.authorization``) —
+       این تنها معیارِ دسترسی است. ``user.is_staff`` (پرچمِ سراسریِ جنگو
+       برایِ دسترسی به سایتِ ادمین) اینجا عمداً بررسی نمی‌شود: مالکِ یک
+       فروشگاه که از مسیرِ ثبت‌نامِ موبایل+OTP ساخته شده هرگز
+       ``is_staff=True`` نمی‌گیرد، پس بررسیِ آن اینجا هر مالکِ واقعی را
+       رد می‌کرد — دقیقاً همان مشکلِ tenant-blind‌ای که
+       ``apps.stores.authorization`` مستند می‌کند که این دکوراتور باید
+       جایگزینش کرده باشد.
 
     Caches the resolved membership on ``request.store_membership`` so
     ``permission_required`` (and templates, via
@@ -89,7 +95,7 @@ def staff_required(view_func):
             return redirect(f"{central_login}?{params}")
 
         membership = get_active_membership(request.user, store)
-        if not request.user.is_staff or membership is None:
+        if membership is None:
             return redirect("catalog:home")
 
         request.store = store

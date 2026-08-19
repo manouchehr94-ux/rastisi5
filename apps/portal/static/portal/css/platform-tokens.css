@@ -81,3 +81,30 @@
 .p-status-done{background:var(--p-primary-soft);color:var(--p-primary)}
 .p-status-pending{background:#2b2416;color:#f2c38b}
 .p-status-attention{background:#2b1616;color:#f28b82}
+
+/* The shared industry-search input (apps/catalog/static/css/industry_selector.css,
+   used by the "choose your industry" onboarding step and the new-store
+   wizard, both of which extend this dark-themed base) defaults to a
+   light/white input background — correct for that component's other,
+   light-themed consumers (the public "supported industries" page and the
+   merchant dashboard, neither of which loads this stylesheet), but left
+   this page's own ambient light text color unreadable against it
+   (white-on-white). Scoped to only the search input itself, using this
+   page's own existing tokens — the industry cards/tabs already render
+   correctly on this page and are left untouched.
+
+   ``.p-form-card`` (the shared ancestor of every ``industry-search`` usage
+   on this dark theme) is included in the selector, not just
+   ``.industry-search input`` — the industry-selector component's own
+   stylesheet is loaded later in the DOM (from inside the included partial,
+   after this file's ``<head>`` link), so an equal-specificity override here
+   would otherwise lose the cascade to it regardless of source order. */
+.p-form-card .industry-search input{
+  background:var(--p-card);
+  color:var(--p-ink);
+  border-color:var(--p-line);
+}
+.p-form-card .industry-search input::placeholder{
+  color:var(--p-muted);
+  opacity:1;
+}

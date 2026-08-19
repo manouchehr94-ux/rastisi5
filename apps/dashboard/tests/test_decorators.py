@@ -47,3 +47,32 @@ class StaffRequiredDecoratorTests(TestCase):
         self.client.login(username="09121119903", password="pass12345")
         response = self.client.get(reverse("dashboard:dashboard"))
         self.assertRedirects(response, reverse("catalog:home"))
+
+    def test_real_merchant_owner_without_django_is_staff_flag_can_access(self):
+        """Regression test for the post-deploy production bug: a real
+        merchant owner — created via the phone+OTP registration flow
+        (``apps.portal.services.owner_auth_service.get_or_create_owner_by_phone``),
+        which never sets Django's ``is_staff`` flag — must still reach their
+        own Store's dashboard. ``staff_required`` used to additionally
+        require ``request.user.is_staff``, a stray leftover of the
+        "historical, tenant-blind ``user.is_staff`` check" that
+        ``apps.stores.authorization``'s own docstring says this decorator
+        was supposed to have replaced with ``StoreMembership`` — but the
+        ``is_staff`` condition was never actually removed from the code, so
+        every real owner (always ``is_staff=False``) was redirected away
+        from ``/admin-portal/`` to the public storefront instead of ever
+        reaching their dashboard. Every *other* test in this file happened
+        to set ``is_staff=True`` on its fixture user, which is exactly why
+        this was never caught before production."""
+        user = User.objects.create_user(username="09121119904", password="pass12345")
+        self.assertFalse(user.is_staff)
+        StoreMembership.objects.create(
+            store=Store.objects.get(slug="akhlaghi"),
+            user=user,
+            role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE,
+            accepted_at=timezone.now(),
+        )
+        self.client.login(username="09121119904", password="pass12345")
+        response = self.client.get(reverse("dashboard:dashboard"))
+        self.assertEqual(response.status_code, 200)

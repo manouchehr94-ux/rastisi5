@@ -94,15 +94,25 @@ class MembershipAuthorizationTests(TestCase):
         response = self.client.get(reverse("dashboard:dashboard"), HTTP_HOST=HOST_A)
         self.assertRedirects(response, reverse("catalog:home"), fetch_redirect_response=False)
 
-    def test_membership_without_is_staff_still_denied(self):
-        """Membership alone must not bypass the existing is_staff bar —
-        this only adds a requirement, it never removes the old one."""
+    def test_membership_without_is_staff_grants_access(self):
+        """``is_staff`` is Django's own admin-site flag, not this
+        platform's merchant-dashboard authorization signal — a real
+        merchant owner (created via phone+OTP registration, see
+        ``apps.portal.services.owner_auth_service.get_or_create_owner_by_phone``)
+        never gets ``is_staff=True``, and an active ``StoreMembership`` for
+        the resolved Store must be sufficient on its own. ``is_staff`` used
+        to be additionally required by ``staff_required`` — a stray
+        leftover of exactly the "historical, tenant-blind ``user.is_staff``
+        check" that ``apps.stores.authorization``'s own docstring says this
+        module's membership-based authorization was built to replace —
+        which blocked every real merchant owner from ever reaching their
+        own dashboard in production."""
         user = User.objects.create_user(username="memauth-nostaff", password="pass12345", is_staff=False)
         _membership(self.store_a, user)
         self.client.login(username="memauth-nostaff", password="pass12345")
 
         response = self.client.get(reverse("dashboard:dashboard"), HTTP_HOST=HOST_A)
-        self.assertRedirects(response, reverse("catalog:home"), fetch_redirect_response=False)
+        self.assertEqual(response.status_code, 200)
 
     def test_member_of_both_stores_can_access_both(self):
         user = User.objects.create_user(username="memauth-both", password="pass12345", is_staff=True)
