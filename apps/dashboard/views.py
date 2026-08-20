@@ -3541,12 +3541,24 @@ def category_schema_move(request, pk, entry_id):
 # --------------------------------------------------------------- سفارش‌ها
 
 
+ORDERS_PER_PAGE = 20
+
+
 def _order_list_context(request):
+    # فهرست سفارش‌ها قبلاً بدون صفحه‌بندی رندر می‌شد — کل سفارش‌های Store
+    # (که با رشد فروشگاه هزاران ردیف می‌شود) در هر بارِ نمایش/رفرش fetch و
+    # render می‌شد. اینجا دقیقاً همان الگویِ Paginator که برایِ فهرستِ کالا
+    # (``_product_list_context``) از قبل استفاده می‌شود.
     store = _resolve_dashboard_store(request)
     q = request.GET.get("q", "").strip()
     status = request.GET.get("status", "")
+    qs = filtered_orders(store=store, q=q, status=status)
+    paginator = Paginator(qs, ORDERS_PER_PAGE)
+    page_obj = paginator.get_page(request.GET.get("page"))
     return {
-        "orders": filtered_orders(store=store, q=q, status=status),
+        "orders": page_obj,
+        "page_obj": page_obj,
+        "paginator": paginator,
         "q": q,
         "selected_status": status,
         "status_filters": ORDER_STATUS_FILTERS,
@@ -3692,11 +3704,22 @@ def payment_table(request):
 # ---------------------------------------------------------------- مشتریان
 
 
+CUSTOMERS_PER_PAGE = 20
+
+
 def _customer_list_context(request):
+    # همان اصلاحِ فهرستِ سفارش‌ها — قبلاً کل مشتری‌های Store بدون صفحه‌بندی
+    # رندر می‌شد.
     store = _resolve_dashboard_store(request)
     q = request.GET.get("q", "").strip()
+    qs = customers_admin_service.annotated_customers(store=store, q=q)
+    paginator = Paginator(qs, CUSTOMERS_PER_PAGE)
+    page_obj = paginator.get_page(request.GET.get("page"))
     return {
-        "customers": customers_admin_service.annotated_customers(store=store, q=q), "q": q,
+        "customers": page_obj,
+        "page_obj": page_obj,
+        "paginator": paginator,
+        "q": q,
         "bulk_tag_options": CustomerTag.objects.filter(store=store, is_active=True).order_by("name"),
         "bulk_status_options": CustomerProfile.InternalStatus.choices,
         "can_manage_tags": membership_has_permission(request.store_membership, CUSTOMER_TAG_MANAGE),

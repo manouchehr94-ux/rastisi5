@@ -61,4 +61,15 @@
       {% endfor %}
     </tbody>
   </table></div>
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="pagination" style="display:flex;gap:8px;align-items:center;justify-content:center;padding:14px 0">
+    {% if page_obj.has_previous %}
+    <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:customer-table' %}?{{ request.GET.urlencode }}&page={{ page_obj.previous_page_number }}" hx-target="#customersTableWrap" hx-swap="innerHTML">قبلی</button>
+    {% endif %}
+    <span style="font-size:12.5px;color:var(--muted)">صفحه‌ی {{ page_obj.number|fa_number }} از {{ page_obj.paginator.num_pages|fa_number }} — {{ page_obj.paginator.count|fa_number }} مشتری</span>
+    {% if page_obj.has_next %}
+    <button type="button" class="btn btn-sm" hx-get="{% url 'dashboard:customer-table' %}?{{ request.GET.urlencode }}&page={{ page_obj.next_page_number }}" hx-target="#customersTableWrap" hx-swap="innerHTML">بعدی</button>
+    {% endif %}
+  </div>
+  {% endif %}
 </form>

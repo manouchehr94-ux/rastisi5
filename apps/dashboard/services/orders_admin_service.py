@@ -23,7 +23,15 @@ TRANSACTION_STATUS_BADGE = {
 
 
 def filtered_orders(*, store, q: str = "", status: str = ""):
-    qs = Order.objects.filter(store=store).select_related("customer").order_by("-created_at")
+    # ``items_count`` با annotate (نه ``order.items.count()`` در تمپلیت)
+    # — وگرنه هر ردیفِ سفارش یک کوئریِ COUNT جداگانه می‌ساخت (N+1 که با
+    # تعدادِ سفارش‌های صفحه رشد می‌کند). فقط یک join (``items``) روی این
+    # queryset شمارش می‌شود، پس ``distinct`` لازم نیست.
+    qs = (
+        Order.objects.filter(store=store).select_related("customer")
+        .annotate(items_count=Count("items"))
+        .order_by("-created_at")
+    )
     if q:
         qs = qs.filter(Q(code__icontains=q) | Q(customer__full_name__icontains=q) | Q(customer__phone__icontains=q))
     if status:
