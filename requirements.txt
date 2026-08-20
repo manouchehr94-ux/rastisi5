@@ -1,4 +1,4 @@
-Django>=5.2,<6
+Django>=5.2.17,<6
 jdatetime>=6.0,<7
 Pillow>=12.0,<13
 requests>=2.34,<3
