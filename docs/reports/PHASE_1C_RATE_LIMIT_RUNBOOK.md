@@ -28,6 +28,11 @@ and re-scope — it does not belong in this runbook.
 
 ## 1. Install and use Redis
 
+**Before running the commands below, read §4's memory-capacity gate first**
+— the operator has already observed this VPS at 100% swap usage, and §4
+requires that be reviewed/cleared before installing or starting anything
+here.
+
 ```
 sudo apt-get update
 sudo apt-get install redis-server
@@ -46,7 +51,7 @@ counters. The application already assumes it owns the keyspace under the
 `ratelimit:` prefix; do not add a second consumer of the same
 instance/DB without re-auditing key-namespace collisions first.
 
-## 2. Bind Redis only to localhost or a Unix socket
+## 2. Bind Redis only to localhost (TCP)
 
 RastiSi's own Gunicorn already listens only on a Unix socket
 (`/run/rastisi/gunicorn.sock`), never a TCP port directly reachable from the
@@ -58,14 +63,22 @@ In `/etc/redis/redis.conf`:
 ```
 bind 127.0.0.1 -::1
 port 6379
-# or, for a Unix socket instead of TCP:
-# unixsocket /run/redis/redis-rastisi.sock
-# unixsocketperm 770
 ```
 
-If using TCP on localhost, also set a password (`requirepass`) even though
-it never leaves the host — defense in depth against any other local process
-or misconfigured container network path:
+**Localhost TCP only — do not configure a Unix socket for this.** The
+application's env parser (`shop_core.env_config.build_rate_limit_cache_
+config`) currently accepts only `redis://` and `rediss://` URLs and requires
+a hostname; it does not parse or support a `unix://`-style socket URL. A
+Unix-socket Redis is a reasonable *future* hardening step, but it would
+require implementing and testing that URL scheme in the application first —
+out of scope for this runbook. Using it today would silently fail (the URL
+would be rejected by `build_rate_limit_cache_config` at settings-load time,
+with a clear `ImproperlyConfigured` error, not a silent misconfiguration —
+but still not what this runbook should tell an operator to set up).
+
+Set a password (`requirepass`) even though it never leaves the host —
+defense in depth against any other local process or misconfigured container
+network path:
 
 ```
 requirepass <a-real-generated-secret>
@@ -102,24 +115,49 @@ every key in this instance is disposable.
 
 ## 4. Memory limit / eviction policy
 
-Every key this application writes carries an explicit TTL
-(`window_seconds`, currently 300–600s depending on the call site — see
-`apps.core.services.rate_limit.enforce_rate_limit`'s callers). Memory usage
-is bounded by (distinct IPs/identifiers seen per window) × (small per-key
-overhead), which is small for RastiSi's current traffic — no evidence
-exists yet to size a specific number beyond a conservative, cheap default:
+**STOP — do not install or start this Redis instance until host memory
+capacity has been reviewed.** The operator has already observed the current
+VPS reporting **100% swap usage**. Adding any new memory-resident service to
+a host that is already fully swapped is not safe to do casually, regardless
+of how small that service's own footprint is expected to be — the host may
+already be memory-constrained enough that installing/starting Redis (or
+merely `apt-get install`ing it, which can trigger unrelated package-cache
+memory pressure) makes things worse, or Redis itself may fail to start
+cleanly under memory pressure. This runbook does **not** change swap
+configuration and does **not** recommend an arbitrary RAM size to fix
+that — swap/host-memory capacity is explicitly handled during the upcoming
+performance/capacity phases, not here. Resolve or at least explain the
+100%-swap condition (via that later phase) before proceeding past §1 of
+this runbook.
+
+Once that review has cleared this host for a new small service, size
+`maxmemory` from measurement, not a guess. Every key this application
+writes carries an explicit TTL (`window_seconds`, currently 300–600s
+depending on the call site — see `apps.core.services.rate_limit.
+enforce_rate_limit`'s callers), so `maxmemory-policy volatile-ttl` (evict
+the key closest to expiring first, among keys that have a TTL — there are
+no persistent keys in this instance) is the correct policy regardless of
+the number chosen for `maxmemory` itself:
 
 ```
-maxmemory 64mb
 maxmemory-policy volatile-ttl
 ```
 
-`volatile-ttl` (evict the key closest to expiring first, among keys that
-have a TTL) is correct here specifically because every key this application
-writes has a TTL — there are no persistent keys in this instance that could
-be evicted unexpectedly. Revisit the `maxmemory` figure only with real
-`INFO memory` observations after running in production for a while; do not
-guess a larger number without that evidence.
+To choose an actual `maxmemory` value: run this Redis instance (still
+localhost-only, still no other consumer) against real or realistic RastiSi
+traffic for a representative period, then read real usage —
+
+```
+redis-cli info memory | grep used_memory_human
+redis-cli dbsize
+```
+
+— and set `maxmemory` from that observation with headroom (e.g. a small
+multiple of the observed peak), not from a guess made before any traffic
+has been measured. Do not set `maxmemory` at all until that measurement
+exists; an unbounded instance holding only small, short-TTL counters is
+safer than an arbitrary guessed cap that could evict live rate-limit
+counters early under a traffic spike this runbook has no data to predict.
 
 ## 5. Service health check
 
@@ -129,9 +167,24 @@ Add a simple systemd dependency/check, without altering any other service:
 sudo systemctl enable redis-server
 sudo systemctl status redis-server
 redis-cli ping   # expected: PONG
-# if a password was set:
-redis-cli -a '<the-secret>' ping
 ```
+
+If a password was set (§2), do **not** pass it on the command line with
+`redis-cli -a '<password>'` — it then appears in that shell's history file
+and in `ps`/`/proc/<pid>/cmdline` output readable by any other local user
+with process-listing access, for as long as that redis-cli process runs.
+Use the `REDISCLI_AUTH` environment variable instead (`redis-cli` reads it
+automatically and does not echo it), scoped to a single command via a
+subshell so it never lands in the *outer* shell's exported environment or
+history:
+
+```
+( REDISCLI_AUTH=$(sudo grep -oP '(?<=^requirepass ).*' /etc/redis/redis.conf) redis-cli ping )
+```
+
+This reads the password directly from the config file into the child
+subshell's environment only — the literal secret is never typed on the
+command line or written to shell history.
 
 Confirm the socket/port matches whatever `RASTISI_RATE_LIMIT_CACHE_URL`
 will point at (§6).
@@ -197,11 +250,27 @@ python manage.py test apps.sms.tests.test_otp_service
 
 These do not require the real Redis instance (they run under the
 LocMemCache test fallback) — they confirm the *code* is correct before the
-runbook changes the *environment*. After the environment change (§6–§7)
-and before restarting, manually exercise one real request against staging
-that would call `client_ip_or_unknown()` (e.g. a login attempt) and confirm
-via logs/`redis-cli monitor` that a `ratelimit:` key actually appears in
-Redis with the request's real client IP as part of the key — do not trust
+runbook changes the *environment*. Additionally, once this runbook's Redis
+instance is up (§1–§5) but *before* pointing the live application at it
+(§6), run the opt-in real-Redis integration suite against it directly —
+this exercises the actual atomic Lua-script path (count correctness, TTL
+correctness, and the expiry-boundary case) against a genuine running Redis,
+not a mock:
+
+```
+RASTISI_TEST_REDIS_URL=redis://127.0.0.1:6379/9 \
+    python manage.py test apps.core.tests.test_rate_limit.RealRedisIntegrationTests
+```
+
+(DB index `9` here is an arbitrary scratch index for this test run only —
+use one not used by the application's own `RASTISI_RATE_LIMIT_CACHE_URL`
+DB index, since this suite flushes/writes test keys freely.)
+
+After the environment change (§6–§7) and before restarting, manually
+exercise one real request against staging that would call
+`client_ip_or_unknown()` (e.g. a login attempt) and confirm via
+logs/`redis-cli monitor` that a `ratelimit:` key actually appears in Redis
+with the request's real client IP as part of the key — do not trust
 `check --deploy` alone.
 
 ### `check --deploy` before / after
@@ -244,13 +313,21 @@ Both changes in this runbook are env-var-only and independently reversible
 without a code deploy:
 
 1. Remove (or comment out) `RASTISI_RATE_LIMIT_CACHE_URL` from
-   `/etc/rastisi.env` to fall back to the process-local LocMemCache — the
-   application does not fail closed if Redis becomes unreachable, it was
-   never made to depend on Redis being present at import time (§6's setting
-   only takes effect if actually set); however, if Redis *has* been set and
-   later becomes unreachable while still configured, cache operations will
-   raise on that alias — remove the env var and restart rather than leaving
-   the app pointed at a dead Redis.
+   `/etc/rastisi.env` to fall back to the process-local LocMemCache. Note
+   the deliberate **fail-closed** behavior while it *is* configured and
+   Redis is unreachable (service down, network partition, etc.):
+   `enforce_rate_limit` does not catch the resulting Redis/connection
+   exception, so the calling view fails with a 500 rather than silently
+   skipping the rate-limit check and letting the request through — see
+   `apps.core.services.rate_limit.enforce_rate_limit`'s docstring. This is
+   intentional (a security rate limit must not silently turn itself off),
+   but it does mean a Redis outage while this env var is set will surface
+   as 500s on every rate-limited endpoint (login, signup, OTP, contact,
+   etc.), not as degraded-but-working rate limiting. If Redis becomes
+   unreachable in production, treat it as an incident: remove this env var
+   and restart (this step) to restore service on the LocMemCache fallback
+   while Redis itself is repaired, rather than leaving the app pointed at a
+   dead Redis.
 2. Remove (or set to `False`) `RASTISI_TRUST_PROXY_CLIENT_IP` to
    immediately stop trusting `X-Real-IP` and fall back to `REMOTE_ADDR`.
 3. `sudo systemctl restart rastisi.service` (only).
