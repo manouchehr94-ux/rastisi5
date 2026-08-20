@@ -573,14 +573,19 @@ def _product_list_context(request):
     page_number = request.GET.get("page", "1")
     page_obj = paginator.get_page(page_number)
 
+    # چهار .count() جداگانه‌ی قبلی (total/active/draft/low_stock) همگی رویِ
+    # همان queryset پایه بودند — با یک .aggregate() و Count شرطی
+    # (``filter=Q(...)``) در یک کوئری ادغام می‌شوند. ``active_variants``
+    # چون رویِ مدلِ دیگری (ProductVariant) است، جدا می‌ماند.
     all_store_products = Product.objects.filter(store=store, is_draft_placeholder=False)
+    product_counts = all_store_products.aggregate(
+        total=Count("id"),
+        active=Count("id", filter=Q(status=Product.Status.ACTIVE)),
+        draft=Count("id", filter=Q(status=Product.Status.DRAFT)),
+        low_stock=Count("id", filter=Q(status=Product.Status.ACTIVE, stock__lte=LOW_STOCK_THRESHOLD)),
+    )
     stats = {
-        "total": all_store_products.count(),
-        "active": all_store_products.filter(status=Product.Status.ACTIVE).count(),
-        "draft": all_store_products.filter(status=Product.Status.DRAFT).count(),
-        "low_stock": all_store_products.filter(
-            status=Product.Status.ACTIVE, stock__lte=LOW_STOCK_THRESHOLD,
-        ).count(),
+        **product_counts,
         "active_variants": ProductVariant.objects.filter(product__store=store, is_active=True).exclude(
             combination_key="",
         ).count(),

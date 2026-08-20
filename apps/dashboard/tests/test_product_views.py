@@ -127,6 +127,48 @@ class ProductListViewTests(ProductViewsTestCase):
         response = self.client.get(reverse("dashboard:product-list"))
         self.assertNotContains(response, "پیکربندیِ تنوع‌ها")
 
+    def test_product_stats_correct_after_aggregate_rewrite(self):
+        """Phase 2 — total/active/draft/low_stock used to be four separate
+        .count() queries on the same base queryset; now a single
+        .aggregate() with conditional Count(filter=Q(...)). Correctness
+        check for the rewrite."""
+        Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.sub, name="پیش‌نویس", slug="draft-pv",
+            sku="SKU-PV4", price=Decimal("1000"), status=Product.Status.DRAFT,
+        )
+        Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.sub, name="کم‌موجودی", slug="low-pv",
+            sku="SKU-PV5", price=Decimal("1000"), status=Product.Status.ACTIVE, stock=1,
+        )
+        response = self.client.get(reverse("dashboard:product-list"))
+        stats = response.context["product_stats"]
+        self.assertEqual(stats["total"], 3)
+        self.assertEqual(stats["active"], 2)
+        self.assertEqual(stats["draft"], 1)
+        # self.product (setUp, stock=5) is also within LOW_STOCK_THRESHOLD,
+        # alongside the stock=1 product created above.
+        self.assertEqual(stats["low_stock"], 2)
+
+    def test_product_stats_query_count_does_not_grow_with_product_count(self):
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+
+        with CaptureQueriesContext(connection) as few:
+            self.client.get(reverse("dashboard:product-list"))
+        for i in range(15):
+            Product.objects.create(
+                store=self.store, vendor=self.vendor, category=self.sub, name=f"کالای {i}", slug=f"bulk-pv-{i}",
+                sku=f"SKU-BULK{i}", price=Decimal("1000"),
+                status=Product.Status.DRAFT if i % 2 else Product.Status.ACTIVE,
+            )
+        with CaptureQueriesContext(connection) as many:
+            self.client.get(reverse("dashboard:product-list"))
+        self.assertEqual(
+            len(few.captured_queries), len(many.captured_queries),
+            "product-list stats query count must not grow with product count "
+            f"(few={len(few.captured_queries)}, many={len(many.captured_queries)})",
+        )
+
 
 class ProductAddViewTests(ProductViewsTestCase):
     def _payload(self, **overrides):
