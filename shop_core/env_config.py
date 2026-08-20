@@ -25,6 +25,8 @@ _FALSE_VALUES = {"0", "false", "no", "off"}
 
 _SUPPORTED_DATABASE_URL_SCHEMES = {"postgres", "postgresql"}
 
+_SUPPORTED_RATE_LIMIT_CACHE_URL_SCHEMES = {"redis", "rediss"}
+
 _VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
 
@@ -163,6 +165,54 @@ def build_database_config(base_dir, *, environ=None):
         "PASSWORD": parsed.password or "",
         "HOST": parsed.hostname,
         "PORT": str(parsed.port) if parsed.port else "",
+    }
+
+
+def build_rate_limit_cache_config(*, environ=None):
+    """Build the ``CACHES["rate_limit"]`` dict for ``apps.core.services.rate_limit``.
+
+    Falls back to a process-local LocMemCache when ``RASTISI_RATE_LIMIT_
+    CACHE_URL`` is unset — safe for local development/tests and for any
+    single-worker deployment, but NOT a precise security rate-limit store
+    once more than one worker process serves traffic, since each worker
+    then keeps its own counters (see ``apps.core.checks`` for the
+    corresponding system check, which flags — but does not block — that
+    condition under ``DEBUG=False``).
+
+    The LocMem fallback deliberately does NOT set a ``LOCATION`` (so it
+    resolves to Django's own empty-string default, exactly like the
+    "default" alias in ``shop_core.settings``): Django's LocMemCache backend
+    keys its shared process-wide storage dict by ``LOCATION``, so two
+    aliases with the same (empty) LOCATION share the same underlying dict.
+    This means the many pre-existing tests across this codebase that call
+    the plain ``cache.clear()`` (the "default" alias) in ``setUp`` to reset
+    rate-limit counters between tests keep working unchanged — this alias
+    is only genuinely, physically separate from "default" once
+    ``RASTISI_RATE_LIMIT_CACHE_URL`` points it at Redis, which is exactly
+    where cross-store isolation actually matters (production).
+
+    When set, the URL must be ``redis://`` or ``rediss://`` (TLS); anything
+    else raises ``ImproperlyConfigured`` rather than silently keeping the
+    process-local fallback in what was meant to be a shared-backend
+    deployment — mirrors ``build_database_config``'s DATABASE_URL handling.
+    """
+    cache_url = env_str("RASTISI_RATE_LIMIT_CACHE_URL", "", environ=environ)
+    if not cache_url:
+        return {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
+    parsed = urlparse(cache_url)
+    if parsed.scheme not in _SUPPORTED_RATE_LIMIT_CACHE_URL_SCHEMES:
+        raise ImproperlyConfigured(
+            f"RASTISI_RATE_LIMIT_CACHE_URL scheme {parsed.scheme!r} is not supported; "
+            "use redis:// or rediss://."
+        )
+    if not parsed.hostname:
+        raise ImproperlyConfigured(
+            "RASTISI_RATE_LIMIT_CACHE_URL must include a host, e.g. "
+            "redis://127.0.0.1:6379/1."
+        )
+    return {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": cache_url,
     }
 
 

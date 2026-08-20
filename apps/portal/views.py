@@ -48,7 +48,7 @@ from .services import (
     step_up_service,
     turnstile_service,
 )
-from .services.rate_limit import RateLimitExceeded, enforce_rate_limit
+from .services.rate_limit import RateLimitExceeded, client_ip_or_unknown, enforce_rate_limit
 
 _STORE_CREATE_TOKEN_SESSION_KEY = "portal_store_create_token"
 DEFAULT_TRIAL_STORE_NAME = "فروشگاه من"
@@ -154,7 +154,7 @@ def contact(request):
         form = ContactForm(request.POST)
         try:
             enforce_rate_limit(
-                "contact", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=5, window_seconds=600,
+                "contact", client_ip_or_unknown(request), max_attempts=5, window_seconds=600,
             )
         except RateLimitExceeded:
             messages.error(request, "تعداد ارسال پیام بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
@@ -190,7 +190,7 @@ def _request_otp_and_go_to_verify(
 
     try:
         owner_otp_service.request_otp(
-            phone=phone, purpose=purpose, client_ip=request.META.get("REMOTE_ADDR", "unknown"),
+            phone=phone, purpose=purpose, client_ip=client_ip_or_unknown(request),
         )
     except owner_otp_service.OtpRateLimitError as exc:
         return None, str(exc)
@@ -315,7 +315,7 @@ def login_password(request):
     form = OwnerIdentifierLoginForm(request.POST)
     try:
         enforce_rate_limit(
-            "login_password", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=15, window_seconds=600,
+            "login_password", client_ip_or_unknown(request), max_attempts=15, window_seconds=600,
         )
     except RateLimitExceeded:
         form.add_error(None, "تعداد تلاش ورود بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
@@ -416,7 +416,7 @@ def register_email(request):
         form = OwnerRegisterForm(request.POST)
         try:
             enforce_rate_limit(
-                "register_email", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=10, window_seconds=600,
+                "register_email", client_ip_or_unknown(request), max_attempts=10, window_seconds=600,
             )
         except RateLimitExceeded:
             messages.error(request, "تعداد تلاش ثبت‌نام بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
@@ -459,7 +459,7 @@ def password_reset_request(request):
         form = PasswordResetRequestForm(request.POST)
         try:
             enforce_rate_limit(
-                "password_reset", request.META.get("REMOTE_ADDR", "unknown"), max_attempts=5, window_seconds=600,
+                "password_reset", client_ip_or_unknown(request), max_attempts=5, window_seconds=600,
             )
         except RateLimitExceeded:
             messages.error(request, "تعداد درخواست بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید.")
@@ -911,7 +911,7 @@ def billing_checkout(request, store_public_id, plan_version_id):
             step_up_service.begin_challenge(
                 request, action=_STEP_UP_ACTION_SUBSCRIPTION_PURCHASE, target=target, phone=phone,
                 message="کدِ تأییدِ خریدِ اشتراک در راستیسی: {code}",
-                client_ip=request.META.get("REMOTE_ADDR", ""),
+                client_ip=client_ip_or_unknown(request),
             )
         except step_up_service.OtpRateLimitError as exc:
             messages.error(request, str(exc))
@@ -998,7 +998,7 @@ def claim_handle(request, store_public_id):
                 step_up_service.begin_challenge(
                     request, action=_STEP_UP_ACTION_HANDLE_CLAIM, target=target, phone=phone,
                     message="کدِ تأییدِ ثبتِ نامِ دائمیِ فروشگاه: {code}",
-                    client_ip=request.META.get("REMOTE_ADDR", ""),
+                    client_ip=client_ip_or_unknown(request),
                 )
             except step_up_service.OtpRateLimitError as exc:
                 messages.error(request, str(exc))
@@ -1204,7 +1204,7 @@ def custom_domain_activate(request, store_public_id, domain_id):
             step_up_service.begin_challenge(
                 request, action=_STEP_UP_ACTION_DOMAIN_ACTIVATE, target=target, phone=phone,
                 message="کدِ تأییدِ فعال‌سازیِ دامنه‌ی اختصاصی: {code}",
-                client_ip=request.META.get("REMOTE_ADDR", ""),
+                client_ip=client_ip_or_unknown(request),
             )
         except step_up_service.OtpRateLimitError as exc:
             messages.error(request, str(exc))
@@ -1274,7 +1274,7 @@ def request_store_deletion(request, store_public_id):
                 step_up_service.begin_challenge(
                     request, action=_STEP_UP_ACTION_STORE_DELETE, target=target, phone=phone,
                     message="کدِ تأییدِ حذفِ فروشگاه: {code}",
-                    client_ip=request.META.get("REMOTE_ADDR", ""),
+                    client_ip=client_ip_or_unknown(request),
                 )
             except step_up_service.OtpRateLimitError as exc:
                 messages.error(request, str(exc))
@@ -1366,7 +1366,7 @@ def initiate_ownership_transfer(request, store_public_id):
                 step_up_service.begin_challenge(
                     request, action=_STEP_UP_ACTION_OWNERSHIP_TRANSFER, target=target, phone=phone,
                     message="کدِ تأییدِ انتقالِ مالکیتِ فروشگاه: {code}",
-                    client_ip=request.META.get("REMOTE_ADDR", ""),
+                    client_ip=client_ip_or_unknown(request),
                 )
             except step_up_service.OtpRateLimitError as exc:
                 messages.error(request, str(exc))
@@ -1445,7 +1445,7 @@ def accept_ownership_transfer(request, token):
             try:
                 owner_otp_service.request_otp(
                     phone=transfer.target_phone, purpose=OwnerOtpChallenge.Purpose.STEP_UP,
-                    client_ip=request.META.get("REMOTE_ADDR", "unknown"),
+                    client_ip=client_ip_or_unknown(request),
                     message="کدِ پذیرشِ مالکیتِ فروشگاه: {code}",
                 )
                 messages.success(request, "کد ارسال شد.")

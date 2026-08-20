@@ -6,6 +6,8 @@ import logging
 import requests
 from django.conf import settings
 
+from apps.core.services.rate_limit import client_ip_or_unknown
+
 logger = logging.getLogger(__name__)
 
 SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
@@ -94,8 +96,15 @@ def verify_token(*, token: str, remote_ip: str = "", expected_action: str = ""):
 
 
 def verify_request(request, *, expected_action: str):
+    # همان هلپرِ مرکزیِ apps.core.services.rate_limit — یک محلِ واحد برایِ
+    # استخراجِ IPِ کلاینت در کلِ کدبیس، پشتِ همان RASTISI_TRUST_PROXY_
+    # CLIENT_IP. "unknown" (فالبکِ استانداردِ آن هلپر) عمداً به رشته‌ی
+    # خالی نگاشت می‌شود، نه به Cloudflare فرستاده می‌شود: verify_token فقط
+    # وقتی remote_ip truthy باشد فیلدِ اختیاریِ "remoteip" را می‌سازد؛
+    # فرستادنِ رشته‌ی "unknown" یک مقدارِ نامعتبر به یک API خارجی می‌بود.
+    ip_address = client_ip_or_unknown(request)
     return verify_token(
         token=request.POST.get(RESPONSE_FIELD, ""),
-        remote_ip=request.META.get("REMOTE_ADDR", ""),
+        remote_ip=ip_address if ip_address != "unknown" else "",
         expected_action=expected_action,
     )

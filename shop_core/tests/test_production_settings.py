@@ -21,7 +21,7 @@ from shop_core.env_config import DEV_INSECURE_SECRET_KEY
 MANAGE_PY = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "manage.py")
 
 
-def _run_check(extra_env):
+def _run_check(extra_env, *, args=()):
     """Run ``manage.py check`` with controlled *application* config.
 
     On Windows, stripping the child process environment down to PATH and
@@ -43,7 +43,7 @@ def _run_check(extra_env):
             env.pop(key, None)
     env.update(extra_env)
     return subprocess.run(
-        [sys.executable, MANAGE_PY, "check"],
+        [sys.executable, MANAGE_PY, "check", *args],
         cwd=os.path.dirname(MANAGE_PY),
         env=env,
         capture_output=True,
@@ -103,3 +103,67 @@ class ProductionSafetyEnforcedEndToEndTests(SimpleTestCase):
         result = _run_check({"DATABASE_URL": "mysql://user:pass@host/db"})
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("DATABASE_URL scheme", result.stderr)
+
+    def test_invalid_rate_limit_cache_url_fails_with_clear_message(self):
+        result = _run_check({"RASTISI_RATE_LIMIT_CACHE_URL": "memcached://host:11211"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("RASTISI_RATE_LIMIT_CACHE_URL scheme", result.stderr)
+
+
+class RateLimitBackendCheckTests(SimpleTestCase):
+    """apps.core.checks.rate_limit_backend_check (rastisi.core.W001) — only
+    ever a Warning (never blocks `check`/`check --deploy`, see the check's
+    own docstring for why Error would be unsafe here), so it never appears
+    outside `--deploy` output."""
+
+    _base_env = {
+        "DJANGO_DEBUG": "False",
+        "DJANGO_SECRET_KEY": "a-real-unique-production-secret",
+        "DJANGO_ALLOWED_HOSTS": "example.com",
+    }
+
+    def test_debug_false_no_redis_url_warns_under_deploy(self):
+        result = _run_check(self._base_env, args=("--deploy",))
+        self.assertEqual(result.returncode, 0, msg=result.stderr)  # Warning never fails check
+        self.assertIn("rastisi.core.W001", result.stdout + result.stderr)
+
+    def test_debug_false_no_redis_url_still_passes_plain_check(self):
+        """Confirms Warning severity end-to-end: a DEBUG=False deployment
+        with no Redis configured yet (i.e. today's actual production state)
+        must still pass a plain `check` — this is the exact scenario Phase
+        1C must not break."""
+        result = _run_check(self._base_env)
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+
+    def test_debug_false_with_redis_url_configured_no_warning(self):
+        env = dict(self._base_env, RASTISI_RATE_LIMIT_CACHE_URL="redis://127.0.0.1:6379/1")
+        result = _run_check(env, args=("--deploy",))
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertNotIn("rastisi.core.W001", result.stdout + result.stderr)
+
+    def test_debug_true_no_warning_even_without_redis(self):
+        result = _run_check({}, args=("--deploy",))
+        self.assertNotIn("rastisi.core.W001", result.stdout + result.stderr)
+
+
+class TrustProxyDebugCheckTests(SimpleTestCase):
+    """apps.core.checks.trust_proxy_debug_check (rastisi.core.W002)."""
+
+    def test_trust_enabled_with_debug_warns_on_plain_check(self):
+        result = _run_check({"RASTISI_TRUST_PROXY_CLIENT_IP": "true"})
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("rastisi.core.W002", result.stdout + result.stderr)
+
+    def test_trust_disabled_with_debug_no_warning(self):
+        result = _run_check({})
+        self.assertNotIn("rastisi.core.W002", result.stdout + result.stderr)
+
+    def test_trust_enabled_without_debug_no_warning(self):
+        env = {
+            "RASTISI_TRUST_PROXY_CLIENT_IP": "true",
+            "DJANGO_DEBUG": "False",
+            "DJANGO_SECRET_KEY": "a-real-unique-production-secret",
+            "DJANGO_ALLOWED_HOSTS": "example.com",
+        }
+        result = _run_check(env)
+        self.assertNotIn("rastisi.core.W002", result.stdout + result.stderr)

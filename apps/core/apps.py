@@ -8,6 +8,7 @@ class CoreConfig(AppConfig):
     def ready(self):
         from django.urls import register_converter
 
+        from . import checks  # noqa: F401 — import registers the @register()'d checks
         from .converters import UnicodeSlugConverter
 
         register_converter(UnicodeSlugConverter, "uslug")

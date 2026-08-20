@@ -15,6 +15,7 @@ from django.test import SimpleTestCase
 from shop_core.env_config import (
     DEV_INSECURE_SECRET_KEY,
     build_database_config,
+    build_rate_limit_cache_config,
     env_bool,
     env_int,
     env_list,
@@ -196,6 +197,50 @@ class BuildDatabaseConfigTests(SimpleTestCase):
             Path("/tmp"), environ={"DATABASE_URL": "postgres://myuser:mypass@dbhost:5433/mydb"}
         )
         self.assertNotIn("prod", config["PASSWORD"].lower())
+
+
+class BuildRateLimitCacheConfigTests(SimpleTestCase):
+    def test_unset_returns_locmem(self):
+        config = build_rate_limit_cache_config(environ={})
+        self.assertEqual(config["BACKEND"], "django.core.cache.backends.locmem.LocMemCache")
+
+    def test_locmem_fallback_has_no_location_override(self):
+        """No explicit LOCATION on the LocMem fallback is deliberate: it
+        makes this alias share Django's default (empty-LOCATION) process
+        dict with the "default" cache alias, so the many pre-existing
+        tests across this codebase that reset rate-limit counters via the
+        plain `cache.clear()` (the "default" alias) keep working unchanged.
+        See build_rate_limit_cache_config()'s docstring."""
+        config = build_rate_limit_cache_config(environ={})
+        self.assertNotIn("LOCATION", config)
+
+    def test_redis_url_parsed_correctly(self):
+        config = build_rate_limit_cache_config(
+            environ={"RASTISI_RATE_LIMIT_CACHE_URL": "redis://127.0.0.1:6379/1"}
+        )
+        self.assertEqual(
+            config,
+            {
+                "BACKEND": "django.core.cache.backends.redis.RedisCache",
+                "LOCATION": "redis://127.0.0.1:6379/1",
+            },
+        )
+
+    def test_rediss_tls_scheme_also_accepted(self):
+        config = build_rate_limit_cache_config(
+            environ={"RASTISI_RATE_LIMIT_CACHE_URL": "rediss://redis.internal:6380/0"}
+        )
+        self.assertEqual(config["BACKEND"], "django.core.cache.backends.redis.RedisCache")
+
+    def test_unsupported_scheme_raises(self):
+        with self.assertRaises(ImproperlyConfigured):
+            build_rate_limit_cache_config(
+                environ={"RASTISI_RATE_LIMIT_CACHE_URL": "memcached://127.0.0.1:11211"}
+            )
+
+    def test_missing_host_raises(self):
+        with self.assertRaises(ImproperlyConfigured):
+            build_rate_limit_cache_config(environ={"RASTISI_RATE_LIMIT_CACHE_URL": "redis:///1"})
 
 
 class ResolveLogLevelTests(SimpleTestCase):

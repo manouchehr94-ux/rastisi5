@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
 
-from apps.core.services.rate_limit import RateLimitExceeded, enforce_rate_limit
+from apps.core.services.rate_limit import RateLimitExceeded, client_ip_or_unknown, enforce_rate_limit
 from apps.stores.resolution import resolve_store_for_storefront
 
 from .models import ContentPage
@@ -25,7 +25,7 @@ def newsletter_subscribe(request):
     همیشه همان partial را دوباره رندر می‌کند (فرم یا وضعیتِ موفق)، نه
     redirect — دقیقاً همان الگویِ ``product_review_create``."""
     store = resolve_store_for_storefront(request)
-    ip_address = request.META.get("REMOTE_ADDR", "unknown")
+    ip_address = client_ip_or_unknown(request)
 
     try:
         enforce_rate_limit("newsletter_subscribe_ip", ip_address, max_attempts=8, window_seconds=300)

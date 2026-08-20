@@ -30,7 +30,7 @@ from apps.core.services import session_service
 from .forms import OwnerLoginForm, PlatformConfigurationForm, PlatformSmsConfigForm
 from .models import PlatformAuditLogEntry
 from .services.platform_config_service import get_platform_configuration, record_platform_audit_event
-from .services.rate_limit import RateLimitExceeded, enforce_rate_limit
+from .services.rate_limit import RateLimitExceeded, client_ip_or_unknown, enforce_rate_limit
 
 
 def _is_platform_staff(user):
@@ -45,7 +45,7 @@ def login_view(request):
         form = OwnerLoginForm(request.POST)
         try:
             enforce_rate_limit(
-                "platform_admin_login", request.META.get("REMOTE_ADDR", "unknown"),
+                "platform_admin_login", client_ip_or_unknown(request),
                 max_attempts=10, window_seconds=600,
             )
         except RateLimitExceeded:

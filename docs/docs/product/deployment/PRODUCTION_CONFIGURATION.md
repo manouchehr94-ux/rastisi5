@@ -48,6 +48,8 @@ list with placeholder values. Summary:
 | `RASTISI_BILLING_RENEWAL_LEAD_DAYS` | Optional | `3` | Days before period end that renewal invoices are generated (ADR-78) |
 | `RASTISI_BILLING_DUNNING_SCHEDULE` | Optional | `0,3,7,14` | Days-after-due dunning retry schedule (ADR-79) |
 | `RASTISI_BILLING_TAX_RATE` | Optional | `0` | Flat SaaS-billing tax rate; `0` = off. Not a legal VAT guarantee (ADR-82) |
+| `RASTISI_TRUST_PROXY_CLIENT_IP` | Only behind a proxy that overwrites `X-Real-IP` for every request | `False` | See §6a — never enable without confirming the proxy config |
+| `RASTISI_RATE_LIMIT_CACHE_URL` | Recommended once running more than one worker process | unset (process-local LocMemCache) | `redis://host:port/db` or `rediss://...`; see §6a |
 
 Malformed values (an unparseable boolean, integer, or an invalid
 `DATABASE_URL`) raise `ImproperlyConfigured` immediately at process startup
@@ -298,6 +300,34 @@ forwards plain HTTP internally. If you use the latter:
 - `Store` resolution (`apps/stores/resolution.py`) uses Django's own
   `request.get_host()`, gated by `DJANGO_ALLOWED_HOSTS` — make sure your
   proxy passes through the real client-facing `Host` header unchanged.
+
+## 6a. Trusted client IP and shared rate-limit backend (Phase 1C)
+
+Two related, but independent, settings — both default to the safe
+(non-trusting, non-shared) behavior, and both must be deliberately opted
+into:
+
+- `RASTISI_TRUST_PROXY_CLIENT_IP` — whether `apps.core.services.rate_limit.
+  client_ip_or_unknown()` trusts the reverse proxy's `X-Real-IP` header
+  instead of `REMOTE_ADDR`. Only ever set `True` when the reverse proxy is
+  confirmed to unconditionally **overwrite** `X-Real-IP` for every request
+  (never merge/forward a client-supplied value) — otherwise a client can
+  forge the header and spoof their rate-limit identity. `X-Forwarded-For`
+  is never read, even when this is enabled (see the function's docstring).
+- `RASTISI_RATE_LIMIT_CACHE_URL` — a `redis://`/`rediss://` URL for the
+  dedicated `rate_limit` cache alias. Unset means rate-limit counters are
+  process-local (`LocMemCache`) — fine for a single worker process, but
+  each additional Gunicorn/uWSGI worker then keeps its own counters, so a
+  brute-force/OTP-spam limit's effective threshold multiplies by the
+  worker count. `python manage.py check --deploy` warns
+  (`rastisi.core.W001`) about this under `DJANGO_DEBUG=False`, without
+  blocking startup.
+
+See `docs/reports/PHASE_1C_RATE_LIMIT_RUNBOOK.md` for the step-by-step
+operator procedure (Redis install/config, env vars, restart, verification,
+rollback) to actually turn these on for RastiSi's real production topology
+— that runbook is deliberately **not executed** by this PR; it is prepared
+for a later, separate, controlled change.
 
 ## 7. Secure cookies and staged HSTS rollout
 

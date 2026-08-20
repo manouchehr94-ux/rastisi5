@@ -17,3 +17,11 @@ PySocks>=1.7.1,<2
 # verified; apps.stores.services.domain_verification_service actually
 # queries DNS.
 dnspython>=2.6,<3
+
+# Redis client for the optional shared "rate_limit" cache backend
+# (django.core.cache.backends.redis.RedisCache, built into Django 5.2 -
+# this is the only extra dependency it needs). Only actually connects to
+# Redis when RASTISI_RATE_LIMIT_CACHE_URL is set; local development/tests
+# use the LocMemCache fallback and never import this at runtime for real
+# traffic. See docs/deployment/PRODUCTION_CONFIGURATION.md.
+redis>=5.0,<6

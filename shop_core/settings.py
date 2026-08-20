@@ -17,6 +17,7 @@ from django.core.exceptions import ImproperlyConfigured
 
 from shop_core.env_config import (
     build_database_config,
+    build_rate_limit_cache_config,
     env_bool,
     env_int,
     env_list,
@@ -200,6 +201,18 @@ SECURE_HSTS_PRELOAD = env_bool("DJANGO_SECURE_HSTS_PRELOAD", default=False)
 # X-Forwarded-Proto (or equivalent) header is never trusted by default.
 SECURE_PROXY_SSL_HEADER = resolve_secure_proxy_ssl_header()
 
+# Trusted-proxy client IP (Phase 1C): whether apps.core.services.rate_limit.
+# client_ip_or_unknown() may trust the reverse proxy's X-Real-IP header
+# instead of REMOTE_ADDR. False by default - dev/tests/direct deployments
+# must never trust a client-supplied header. Only ever set True for a
+# deployment whose reverse proxy is known to unconditionally OVERWRITE
+# X-Real-IP for every request (never merge/forward a client-supplied
+# value) - see docs/deployment/PRODUCTION_CONFIGURATION.md. Deliberately
+# X-Real-IP, never X-Forwarded-For: the latter can carry a client-supplied
+# chain before the proxy appends to it, while RastiSi's production Nginx
+# sets X-Real-IP := $remote_addr, fully overwriting any client value.
+RASTISI_TRUST_PROXY_CLIENT_IP = env_bool("RASTISI_TRUST_PROXY_CLIENT_IP", default=False)
+
 # "Remember me" session duration (unified login â€” every interactive login
 # form). Applied via apps.portal.services.session_service.apply_remember_me,
 # never hand-rolled per view. Unchecked = 0 (expire when the browser
@@ -242,6 +255,26 @@ if TURNSTILE_ENABLED:
 # postgres:// URL for production. See build_database_config() for validation.
 
 DATABASES = {"default": build_database_config(BASE_DIR)}
+
+
+# Cache (Phase 1C) - a dedicated "rate_limit" alias, independently
+# configurable (see build_rate_limit_cache_config()) from "default" so a
+# future unrelated cache use is never silently coupled to the security
+# rate-limit store once "rate_limit" points at a real, shared Redis in
+# production. "default" is unchanged from Django's own implicit
+# pre-Phase-1C behavior (LocMemCache, no explicit LOCATION) - this phase is
+# specifically about rate limiting (Part B), not a general cache migration.
+# Locally/in tests, "rate_limit" also falls back to LocMemCache with no
+# LOCATION override, which - by Django's own LOCATION-keyed storage lookup
+# - makes it share the same process-local dict as "default"; this is
+# deliberate (see build_rate_limit_cache_config()'s docstring) so the many
+# pre-existing tests that call plain cache.clear() to reset rate-limit
+# counters between tests keep working unchanged. See apps.core.checks for
+# the production-safety system check.
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    "rate_limit": build_rate_limit_cache_config(),
+}
 
 
 # Password validation
