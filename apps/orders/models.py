@@ -432,6 +432,24 @@ class Order(TimeStampedModel):
                 name="uniq_order_idempotency_key_when_set",
             ),
         ]
+        # Phase 2 — پشتیبانِ کوئریِ فهرستِ سفارش‌هایِ ادمینِ فروشگاه
+        # (``apps.dashboard.services.orders_admin_service.filtered_orders``):
+        # ``WHERE store_id = ? ORDER BY created_at DESC LIMIT/OFFSET`` که
+        # حالا (بعد از افزودنِ Paginator به فهرستِ سفارش‌ها) روی *هر* بارِ
+        # نمایش اجرا می‌شود. ایندکسِ تک‌ستونیِ ضمنیِ store_id (از خودِ FK)
+        # فقط ردیف‌هایِ همین Store را محدود می‌کند اما مرتب‌سازیِ created_at
+        # را کمک نمی‌کند — بدونِ این ایندکسِ ترکیبی، دیتابیس باید همه‌یِ
+        # سفارش‌هایِ Store را بخواند و SORT کند، حتی وقتی فقط ۲۰ ردیفِ اولِ
+        # آن لازم است؛ با رشدِ سفارش‌هایِ یک فروشگاه (دقیقاً همان چیزی که
+        # «آماده‌بودن برایِ ۱۰هزار کاربر» به آن اشاره دارد)، این هزینه رشد
+        # می‌کند. هزینه: یک ایندکسِ btree ترکیبیِ اضافه — نگهداریِ کوچک روی
+        # هر INSERT سفارش، بدونِ نگهداریِ اضافه روی UPDATE (created_at بعد
+        # از ساختِ سفارش هرگز تغییر نمی‌کند). اعتبارسنجیِ PostgreSQL هنوز
+        # لازم است (نگاه کنید به گزارشِ Phase 2؛ SQLiteِ محیطِ تست/توسعه
+        # طرحِ کوئریِ PostgreSQLِ تولید را ثابت نمی‌کند).
+        indexes = [
+            models.Index(fields=["store", "-created_at"], name="orders_store_created_idx"),
+        ]
 
     def __str__(self):
         return self.code
