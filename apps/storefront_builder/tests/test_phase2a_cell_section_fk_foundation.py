@@ -152,34 +152,79 @@ class BackfillFunctionUnitTests(TestCase):
 
     def test_empty_cell_backfills_nothing(self):
         """Scenario A — an empty Cell (``section`` is NULL) must never
-        cause any Section to receive a ``cell`` value."""
-        container_service.create_empty_container(self.page, "single")
+        cause any Section to receive a ``cell`` value.
+
+        Deliberately scoped to the one Cell/Section this test controls —
+        NOT a global count. The Django test database already runs every
+        migration (including 0015) during its own setup, and legitimately
+        seeded/default storefront content for OTHER stores/pages may
+        already contain populated Cells that migration 0015 correctly
+        backfilled long before this test ever runs — asserting a global
+        ``cell__isnull=False`` count of zero would incorrectly fail on
+        that pre-existing, correctly-migrated data. What this test must
+        actually prove is narrower and fully self-contained: (a) the one
+        empty Cell created here stays empty, and (b) the one unrelated
+        Section created here (never placed anywhere) is not accidentally
+        picked up by the backfill."""
+        empty_container = container_service.create_empty_container(self.page, "single")
+        empty_cell = empty_container.cells.get()
+        untouched_section = self._section(0)
 
         backfill = self._load_backfill_fn()
         backfill(self._LiveAppsShim(), None)
 
-        self.assertEqual(StorefrontSection.objects.filter(cell__isnull=False).count(), 0)
+        empty_cell.refresh_from_db()
+        untouched_section.refresh_from_db()
+        self.assertIsNone(empty_cell.section_id, "the empty Cell must remain empty after the backfill")
+        self.assertIsNone(untouched_section.cell_id, "a Section never placed in any Cell must not be assigned one")
+        # No Section anywhere ends up pointing at THIS specific empty Cell.
+        self.assertEqual(StorefrontSection.objects.filter(cell_id=empty_cell.pk).count(), 0)
 
     def test_populated_cell_mirrors_into_new_fk_with_cell_order_zero(self):
         """Scenario B — an existing populated Cell: before/after the
         backfill, ``cell.section`` (legacy OneToOne) is byte-identical;
         after the backfill, the referenced Section additionally has
-        ``cell_id == cell.pk`` and ``cell_order == 0``."""
+        ``cell_id == cell.pk`` and ``cell_order == 0``.
+
+        ``container_service.place_section(cell, section)`` internally
+        re-fetches its OWN local ``StorefrontCell`` row
+        (``StorefrontCell.objects.select_for_update()...get(pk=cell.pk)``)
+        and mutates/saves *that* instance — it never mutates the caller's
+        original ``cell`` Python object in place. Reading ``cell.section_id``
+        straight off the pre-call instance (without an explicit
+        ``refresh_from_db()`` or using the instance the function returns)
+        would silently read stale, pre-placement state (``None``) rather
+        than the real post-placement value — exactly the bug this test
+        previously had. Explicitly refreshing before capturing the
+        "before" invariant makes the intent unambiguous."""
         section = self._section(0)
         container = container_service.create_empty_container(self.page, "half")
         cell = container.cells.order_by("order").first()
+
+        # Simulated pre-0015 state, made explicit: a freshly created
+        # Section always starts with cell_id NULL (the new field doesn't
+        # exist in spirit yet, only the legacy OneToOne is meaningful).
+        self.assertIsNone(section.cell_id)
+
         container_service.place_section(cell, section)
+        cell.refresh_from_db()
+        # BEFORE backfill: the legacy OneToOne is the only relationship
+        # reflecting the real placement; the new FK still reflects
+        # nothing (mirrors the simulated pre-0015 state above).
+        self.assertEqual(cell.section_id, section.pk)
         legacy_section_id_before = cell.section_id
+        section.refresh_from_db()
+        self.assertIsNone(section.cell_id)
 
         backfill = self._load_backfill_fn()
         backfill(self._LiveAppsShim(), None)
 
         cell.refresh_from_db()
         section.refresh_from_db()
-        # Legacy OneToOne untouched by the backfill.
+        # AFTER backfill: the legacy OneToOne value must not have changed.
         self.assertEqual(cell.section_id, legacy_section_id_before)
         self.assertEqual(cell.section_id, section.pk)
-        # New transitional FK mirrors the same placement.
+        # New transitional FK now mirrors the same placement.
         self.assertEqual(section.cell_id, cell.pk)
         self.assertEqual(section.cell_order, 0)
 
@@ -226,10 +271,18 @@ class BackfillFunctionUnitTests(TestCase):
     def test_backfill_never_crosses_store_boundaries(self):
         """Scenario D (store dimension) — two different stores' drafts
         each get their own Containers/Cells; backfilling one store's
-        Cells must never touch a Section belonging to another store."""
-        other_store = Store.objects.exclude(pk=self.store.pk).first()
-        if other_store is None:
-            self.skipTest("no second Store fixture available in this test database")
+        Cells must never touch a Section belonging to another store.
+
+        A second Store is created directly (``Store.objects.create``)
+        rather than skipped when no second fixture exists in the test
+        database — this mirrors the exact lightweight pattern already
+        used elsewhere in this codebase for cross-store isolation tests
+        (e.g. ``apps/dashboard/tests/test_collection_views.py``,
+        ``apps/core/tests/test_shop_settings.py``): no factory/fixture
+        framework is needed, ``Store`` has no required fields beyond
+        ``name``/``slug`` for this purpose, and ``layout_service`` only
+        needs a valid ``Store`` row to provision a layout/draft for it."""
+        other_store = Store.objects.create(name="فروشگاه دوم آزمایشی", slug="phase2a-cross-store-check")
         other_draft = svc.get_or_create_draft(other_store)
         other_page = other_draft.get_page(StorefrontPage.PageType.HOME)
         other_page.containers.all().delete()
