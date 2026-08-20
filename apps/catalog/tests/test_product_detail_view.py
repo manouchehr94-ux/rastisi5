@@ -108,6 +108,51 @@ class ProductDetailViewTests(TestCase):
         self.assertContains(response, "عالی")
         self.assertNotContains(response, "تجربه ضعیفی بود")
 
+    def test_rating_breakdown_query_count_does_not_grow_with_review_count(self):
+        """Phase 2 — build_product_detail_context used to run one .count()
+        for review_count plus five more (one per star, 5..1) — six queries
+        that never changed regardless of how many reviews existed. Fixed
+        via a single GROUP BY aggregate; this proves it stays a fixed cost
+        whether there are 0 reviews or 30 spread across every rating."""
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+
+        with CaptureQueriesContext(connection) as no_reviews:
+            self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+
+        for i in range(30):
+            Review.objects.create(
+                product=self.product, customer=self.customer, rating=(i % 5) + 1,
+                text=f"نظر {i}", is_approved=True,
+            )
+        with CaptureQueriesContext(connection) as many_reviews:
+            self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+
+        self.assertEqual(
+            len(no_reviews.captured_queries), len(many_reviews.captured_queries),
+            "product-detail query count must not grow with review count "
+            f"(0 reviews={len(no_reviews.captured_queries)}, 30 reviews={len(many_reviews.captured_queries)})",
+        )
+
+    def test_rating_breakdown_correct_across_all_five_stars(self):
+        """Correctness check for the aggregate rewrite — every star bucket,
+        not just the one tested in test_rating_breakdown_reflects_approved_
+        reviews_only above."""
+        for star, count in {5: 3, 4: 1, 3: 0, 2: 2, 1: 0}.items():
+            for i in range(count):
+                Review.objects.create(
+                    product=self.product, customer=self.customer, rating=star,
+                    text=f"star{star}-{i}", is_approved=True,
+                )
+        response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+        self.assertEqual(response.context["review_count"], 6)
+        breakdown = {row["star"]: row["count"] for row in response.context["rating_breakdown"]}
+        self.assertEqual(breakdown, {5: 3, 4: 1, 3: 0, 2: 2, 1: 0})
+        self.assertEqual(
+            {row["star"]: row["pct"] for row in response.context["rating_breakdown"]},
+            {5: 50, 4: 17, 3: 0, 2: 33, 1: 0},
+        )
+
 
 class ProductReviewCreateTests(TestCase):
     def setUp(self):

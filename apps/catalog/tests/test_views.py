@@ -56,3 +56,20 @@ class HomeViewTests(TestCase):
         response = self.client.get(url, {"sort": "not-a-real-sort"})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "محصول پرفروش")
+
+    def test_highlight_product_reuses_discounted_products_result_no_duplicate_query(self):
+        """Phase 2 — ``highlight_product`` used to be
+        ``discounted_products.first()``, a *separate* lazy evaluation of
+        the queryset (its own SQL query, plus its own prefetch_related
+        query for images) distinct from the queryset later iterated by the
+        template — up to 4 duplicate queries for the same 6 rows on every
+        homepage view. Fixed by evaluating ``discounted_products`` once
+        into a list and taking its first element. Proven here by object
+        identity, not a fragile raw-SQL query count: if the old bug
+        reappeared, ``highlight_product`` would be a different Python
+        object than ``discounted_products[0]`` even though equal in value."""
+        response = self.client.get(reverse("catalog:home"))
+        discounted = response.context["discounted_products"]
+        self.assertIsInstance(discounted, list)
+        self.assertGreater(len(discounted), 0)
+        self.assertIs(response.context["highlight_product"], discounted[0])

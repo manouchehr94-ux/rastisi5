@@ -2,7 +2,7 @@ import json
 from datetime import timedelta
 
 from django.core.paginator import Paginator
-from django.db.models import Avg, F, Max, Prefetch, Q
+from django.db.models import Avg, Count, F, Max, Prefetch, Q
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -82,11 +82,15 @@ def home(request):
     )
 
     new_products = active_products.select_related("brand").prefetch_related("images").order_by("-created_at")[:8]
-    discounted_products = (
+    # ``list(...)`` یک‌بار evaluate می‌شود — قبلاً ``discounted_products``
+    # (یک QuerySetِ تنبل) هم با ``.first()`` (برایِ highlight_product) هم
+    # با iterate شدنِ خودش در تمپلیت، دو بار جداگانه کوئری می‌شد (هرکدام
+    # همراهِ کوئریِ prefetch خودش) — همان نتیجه، دو-تا-چهار کوئریِ تکراری.
+    discounted_products = list(
         active_products.select_related("brand").prefetch_related("images")
         .filter(discount_percent__gt=0).order_by("-discount_percent")[:6]
     )
-    highlight_product = discounted_products.first()
+    highlight_product = discounted_products[0] if discounted_products else None
     most_viewed_product = active_products.order_by("-views_count").first()
 
     stats = active_products.aggregate(avg_rating=Avg("rating"), max_discount=Max("discount_percent"))
@@ -148,9 +152,14 @@ def _filtered_products(request, store):
 
     query = request.GET.get("q", "").strip()
     if query:
+        # ``brand``/``category`` هر دو ForeignKey هستند (نه ManyToMany) —
+        # هر کالا دقیقاً یک brand و یک category دارد، پس این JOIN هرگز
+        # ردیف‌های تکراری برایِ یک کالا نمی‌سازد؛ ``.distinct()`` قبلی روی
+        # چیزی که اصلاً fan-out نمی‌کند اضافه بود (هزینه‌ی SORT/HASH اضافه
+        # روی PostgreSQL، بدونِ فایده).
         qs = qs.filter(
             Q(name__icontains=query) | Q(brand__name__icontains=query) | Q(category__name__icontains=query)
-        ).distinct()
+        )
 
     category_slug = request.GET.get("category", "").strip()
     if category_slug:
@@ -314,12 +323,25 @@ def build_product_detail_context(request, product):
     }
 
     approved_reviews = product.reviews.filter(is_approved=True).select_related("customer").order_by("-created_at")
-    review_count = approved_reviews.count()
-    rating_breakdown = []
-    for star in range(5, 0, -1):
-        count = approved_reviews.filter(rating=star).count()
-        pct = round(count * 100 / review_count) if review_count else 0
-        rating_breakdown.append({"star": star, "count": count, "pct": pct})
+    # یک کوئریِ گروه‌بندی‌شده (GROUP BY rating) به‌جایِ ۶ کوئریِ جداگانه‌ی
+    # قبلی (یک .count() کلی + پنج .count() جداگانه، یکی به‌ازایِ هر ستاره) —
+    # هر بازدیدِ صفحه‌ی کالا (پرترافیک‌ترین مسیرِ استوِرفرانت) این را اجرا
+    # می‌کند. ``.order_by()`` خالی صریحاً مرتب‌سازیِ به‌ارث‌رسیده را پاک
+    # می‌کند — وگرنه GROUP BY به‌طورِ ضمنی created_at را هم اضافه می‌کرد و
+    # هر نظر را گروهِ جداگانه‌ی خودش می‌کرد.
+    rating_counts = dict(
+        product.reviews.filter(is_approved=True).order_by()
+        .values_list("rating").annotate(count=Count("id"))
+    )
+    review_count = sum(rating_counts.values())
+    rating_breakdown = [
+        {
+            "star": star,
+            "count": rating_counts.get(star, 0),
+            "pct": round(rating_counts.get(star, 0) * 100 / review_count) if review_count else 0,
+        }
+        for star in range(5, 0, -1)
+    ]
 
     related_products = (
         storefront_listing_products(store).filter(category=product.category)
