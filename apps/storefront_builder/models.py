@@ -551,6 +551,40 @@ class StorefrontSection(TimeStampedModel):
             "section را محدود می‌کنند، نه یک نمونه‌یِ خاص را)."
         ),
     )
+    cell = models.ForeignKey(
+        "StorefrontCell", verbose_name="خانه (Cell)",
+        on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="blocks",
+        help_text=(
+            "Phase 2A (پایه‌یِ چندبلاکیِ Cell — نگاه کنید به گزارشِ ممیزیِ "
+            "V3، بخشِ ۵/۹): ارجاعِ **موازی و انتقالی** به Cellی که این section "
+            "در آن قرار گرفته — مکملِ (نه جایگزینِ) رابطه‌یِ قدیمیِ "
+            "``StorefrontCell.section`` (OneToOne) که همچنان تنها منبعِ "
+            "حقیقتِ *اجراییِ* امروز است. در Phase 2A این فیلد فقط با "
+            "بک‌فیلِ مهاجرت پر می‌شود و هیچ سرویس/ویو/تمپلیتِ رندر از آن "
+            "نمی‌خوانَد — معماریِ آماده‌برایِ‌آینده برایِ Phase 2B (چند بلاکِ "
+            "مرتب‌شده در یک Cell)، نه یک مسیرِ رندرِ فعال. NULL یعنی این "
+            "section هرگز داخلِ هیچ Cellی قرار نگرفته (اکثریتِ قریب‌به‌اتفاقِ "
+            "sectionهایِ امروز)."
+        ),
+    )
+    cell_order = models.PositiveIntegerField(
+        "ترتیب داخلِ Cell", default=0,
+        help_text=(
+            "فقط وقتی cell خالی (NULL) نباشد معنا دارد — ترتیبِ این section "
+            "در میانِ بلاک‌هایِ همان Cell (Phase 2B: چند section در یک Cell). "
+            "**عمداً جدا از فیلدِ ``order`` بالاست** — ``order`` معنایِ "
+            "قدیمیِ/سطحِ‌صفحه‌ایِ خودش را (ترتیبِ این section در میانِ همه‌یِ "
+            "sectionهایِ همان Page) کاملاً بدونِ تغییر حفظ می‌کند؛ استفاده‌یِ "
+            "دوباره از ``order`` برایِ این معنایِ دوم (به‌شرطِ NULL/غیر-NULL "
+            "بودنِ cell) دقیقاً همان الگویِ «فیلدِ دوپهلو/دو-معنایی» است که "
+            "گزارشِ ممیزی (بخشِ ۵) صریحاً رد کرده — از جمله چون "
+            "``Meta.ordering = ['order', 'id']`` رویِ کوئری‌هایِ ترکیبی "
+            "(section هایِ داخلِ Cell و بیرونِ Cell در یک صفحه) نتیجه‌یِ "
+            "نادرست می‌داد. پیش‌فرضِ ۰ برایِ همه‌یِ sectionهایِ بدونِ cell "
+            "(اکثریتِ قریب‌به‌اتفاق) بی‌اثر است."
+        ),
+    )
 
     class Meta:
         verbose_name = "بخش صفحه فروشگاه"
@@ -560,6 +594,11 @@ class StorefrontSection(TimeStampedModel):
             models.UniqueConstraint(
                 fields=["page", "stable_id"],
                 name="storefront_section_unique_stable_id_per_page",
+            ),
+            models.UniqueConstraint(
+                fields=["cell", "cell_order"],
+                condition=models.Q(cell__isnull=False),
+                name="storefront_section_unique_cell_order_per_cell",
             ),
         ]
 
