@@ -24,7 +24,7 @@ Django's ``FileSystemStorage`` وقتی ``base_url=None``). این یک محاف
 پس مهاجرت‌ها مستقلِ از مسیرِ نصب‌اند."""
 
 from django.conf import settings
-from django.core.files.storage import FileSystemStorage
+from django.core.files.storage import FileSystemStorage, storages
 from django.utils.deconstruct import deconstructible
 
 
@@ -39,4 +39,12 @@ class PrivateFileSystemStorage(FileSystemStorage):
         return ("apps.core.storage.PrivateFileSystemStorage", [], {})
 
 
-private_storage = PrivateFileSystemStorage()
+# Resolved through the "private" alias of Django's STORAGES setting
+# (shop_core/settings.py) rather than instantiated directly here — pointing
+# a future deployment at a non-filesystem backend (once shared/object
+# storage is actually provisioned, see MEDIA_STORAGE_SCALABILITY in
+# docs/reports/10K_ARCHITECTURAL_SCALABILITY_READINESS_REVIEW.md) becomes a
+# one-line change to STORAGES["private"]["BACKEND"], not an edit to this
+# module or its callers (ExportJob/ImportJob's FileFields in
+# apps/core/models.py).
+private_storage = storages["private"]

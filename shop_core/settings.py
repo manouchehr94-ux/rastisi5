@@ -327,6 +327,21 @@ MEDIA_ROOT = Path(env_str("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media")))
 # never a direct URL.
 PRIVATE_MEDIA_ROOT = Path(env_str("DJANGO_PRIVATE_MEDIA_ROOT", str(BASE_DIR / "private_media")))
 
+# Storage backends (Django 4.2+ STORAGES setting) — "default"/"staticfiles"
+# are spelled out explicitly to match Django's own built-in defaults (no
+# behavior change from leaving this setting absent), now that the setting
+# is declared at all. "private" is the one addition: it gives
+# apps/core/storage.py's private_storage a swap point in *configuration*
+# rather than requiring an edit to that module (or any of its callers —
+# ExportJob/ImportJob's FileFields in apps/core/models.py) the day a
+# non-filesystem backend is needed (see MEDIA_STORAGE_SCALABILITY in
+# docs/reports/10K_ARCHITECTURAL_SCALABILITY_READINESS_REVIEW.md).
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "private": {"BACKEND": "apps.core.storage.PrivateFileSystemStorage"},
+}
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
