@@ -175,6 +175,60 @@ are regeneratable/re-uploadable, never the sole copy of any data:
 0 5 * * * cd /path/to/app && python manage.py cleanup_import_files
 ```
 
+### Notifications, inventory reservations, drafts, and domain consistency
+
+Three more commands need external scheduling for the same reason as the ones
+above (no background task queue, ADR-49), plus one optional health check —
+none of these were previously listed in this runbook even though the
+commands themselves already existed in source:
+
+**`python manage.py process_notification_outbox` — PRE_LAUNCH_REQUIRED.**
+`NotificationOutbox` rows (security alerts, and any other in-app/SMS/email
+notification queued via `apps.notifications.services.notification_service`)
+are only ever created in `PENDING` state — delivery is entirely this
+command's job (`deliver_pending`). Without it scheduled, queued
+notifications simply never go out, from the very first one, regardless of
+traffic. Run it frequently (every few minutes is reasonable, since it is
+cheap and idempotent per row):
+
+```
+*/5 * * * * cd /path/to/app && python manage.py process_notification_outbox
+```
+
+**`python manage.py expire_inventory_reservations` — PRE_LAUNCH_REQUIRED.**
+Cart-held stock reservations (ADR-39) that pass their `expires_at` are only
+transitioned to `EXPIRED` — freeing that stock back up for other
+customers — when this command runs. An abandoned cart happens at any
+traffic level, not just at scale, so this is a correctness requirement from
+day one, not a 10k-readiness concern:
+
+```
+*/10 * * * * cd /path/to/app && python manage.py expire_inventory_reservations
+```
+
+**`python manage.py cleanup_stale_product_drafts` — GROWTH_STAGE_REQUIRED.**
+Deletes abandoned "add product" draft placeholders
+(`Product.is_draft_placeholder=True`) older than `--older-than-hours`
+(default 48) that a merchant never finished. Safe to leave unscheduled at
+launch — it is storage/UI hygiene (stale rows a merchant might otherwise
+notice in a product list), not a correctness or data-safety issue, and it
+never touches a draft still being actively edited:
+
+```
+0 2 * * * cd /path/to/app && python manage.py cleanup_stale_product_drafts
+```
+
+**`python manage.py verify_domain_consistency --strict` — OPTIONAL.**
+A **read-only** health check for custom-domain/subdomain inconsistencies,
+following the same `--strict` (non-zero exit on any problem) pattern as
+`verify_subscription_consistency`/`verify_billing_consistency` above. It
+never writes, so scheduling it is a monitoring nicety, not a functional
+requirement:
+
+```
+15 6 * * * cd /path/to/app && python manage.py verify_domain_consistency --strict
+```
+
 ### Subscription state evaluation and consistency (checkpoint 5A)
 
 The subscription domain (plans, entitlements, usage, trials, state machine)
