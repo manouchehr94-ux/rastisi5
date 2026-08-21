@@ -186,17 +186,20 @@ class BackfillFunctionUnitTests(TestCase):
         after the backfill, the referenced Section additionally has
         ``cell_id == cell.pk`` and ``cell_order == 0``.
 
-        ``container_service.place_section(cell, section)`` internally
-        re-fetches its OWN local ``StorefrontCell`` row
-        (``StorefrontCell.objects.select_for_update()...get(pk=cell.pk)``)
-        and mutates/saves *that* instance — it never mutates the caller's
-        original ``cell`` Python object in place. Reading ``cell.section_id``
-        straight off the pre-call instance (without an explicit
-        ``refresh_from_db()`` or using the instance the function returns)
-        would silently read stale, pre-placement state (``None``) rather
-        than the real post-placement value — exactly the bug this test
-        previously had. Explicitly refreshing before capturing the
-        "before" invariant makes the intent unambiguous."""
+        Phase 2B correction: ``container_service.place_section`` now keeps
+        the legacy OneToOne and the new FK synchronized as one atomic write
+        (a real-environment fix made after this migration test was
+        originally written — see ``container_service.place_section``'s
+        updated docstring), so it can no longer be used here to construct
+        the genuinely pre-migration-shaped state this test needs (legacy
+        OneToOne set, new FK still NULL) — calling it would immediately
+        populate the new FK itself, defeating the point of testing the
+        migration's *own* backfill function in isolation. The pre-migration
+        state is instead constructed directly via the plain legacy OneToOne
+        assignment (``cell.section = section; cell.save()``), bypassing
+        ``place_section`` entirely — exactly the shape a real pre-Phase-2B
+        database row had before either the migration backfill or the
+        Phase 2B ``place_section`` fix ever existed."""
         section = self._section(0)
         container = container_service.create_empty_container(self.page, "half")
         cell = container.cells.order_by("order").first()
@@ -206,8 +209,8 @@ class BackfillFunctionUnitTests(TestCase):
         # exist in spirit yet, only the legacy OneToOne is meaningful).
         self.assertIsNone(section.cell_id)
 
-        container_service.place_section(cell, section)
-        cell.refresh_from_db()
+        cell.section = section
+        cell.save(update_fields=["section", "updated_at"])
         # BEFORE backfill: the legacy OneToOne is the only relationship
         # reflecting the real placement; the new FK still reflects
         # nothing (mirrors the simulated pre-0015 state above).
@@ -383,12 +386,21 @@ class ModelInvariantTests(TestCase):
         self.assertEqual(s1.order, 0)
         self.assertEqual(s2.order, 1)
 
-    def test_placing_a_section_in_a_cell_via_legacy_service_does_not_auto_populate_the_new_fk(self):
-        """Phase 2A explicitly does not wire ``container_service.place_section``
-        to write the new ``cell``/``cell_order`` fields yet — only the
-        one-time migration backfill does. This test locks in that Phase
-        2A boundary so a future accidental wiring is caught as an
-        intentional Phase 2B change, not a silent regression."""
+    def test_placing_a_section_in_a_cell_keeps_legacy_and_new_relationship_synchronized(self):
+        """Phase 2A shipped ``place_section`` writing only the legacy
+        OneToOne, with the new FK populated solely by the one-time migration
+        backfill. Real-environment verification of Phase 2B found that
+        boundary insufficient: the current Builder UI still calls
+        ``place_section`` directly, and the new ``get_cell_blocks`` read path
+        prefers the new FK whenever it has any rows — so leaving
+        ``place_section`` from writing only the legacy relationship risked a
+        stale/contradictory new-FK pointer (e.g. left over from an earlier
+        multi-block operation on the same Cell) surviving underneath a
+        legacy write that believes it made ``section`` the Cell's sole
+        content. Phase 2B therefore correctly updated ``place_section`` to
+        keep BOTH relationships synchronized — this test now locks in that
+        corrected, intentional Phase 2B behaviour instead of the superseded
+        Phase 2A-only boundary the old version of this test asserted."""
         section = StorefrontSection.objects.create(
             page=self.page, section_key="rich_text", order=0, settings={}
         )
@@ -399,8 +411,8 @@ class ModelInvariantTests(TestCase):
 
         section.refresh_from_db()
         cell.refresh_from_db()
-        self.assertEqual(cell.section_id, section.pk, "legacy OneToOne must still be the only path place_section writes")
-        self.assertIsNone(section.cell_id, "Phase 2A must not wire place_section to the new FK yet")
+        self.assertEqual(cell.section_id, section.pk, "legacy OneToOne must still be written by place_section")
+        self.assertEqual(section.cell_id, cell.pk, "Phase 2B: place_section must also keep the new FK synchronized")
         self.assertEqual(section.cell_order, 0)
 
     def test_cell_order_uniqueness_only_enforced_when_cell_is_set(self):

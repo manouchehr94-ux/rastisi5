@@ -336,6 +336,39 @@ def create_empty_container(page, layout_key: str = "single", *, order: int | Non
 
 @transaction.atomic
 def place_section(cell: StorefrontCell, section: StorefrontSection) -> StorefrontCell:
+    """Place ``section`` as the sole occupant of ``cell`` — the pre-Phase-2B,
+    single-block compatibility operation every existing Builder write path
+    (views.py's ``storefront_cell_add_section``, and every pre-Phase-2B test)
+    calls unmodified.
+
+    Phase 2B correction (real-environment verification found the original
+    Phase 2B design left this function's contract incomplete): this function
+    keeps writing the legacy ``StorefrontCell.section`` OneToOne exactly as
+    before — that write, and this function's externally-visible single-
+    occupant behaviour/error conditions, are UNCHANGED. What changes is that
+    it now also keeps the new multi-block FK synchronized with the same
+    outcome, so ``get_cell_blocks`` (the single authoritative read path) can
+    never disagree with what this call just established:
+
+    - Any OTHER Section currently attached to ``cell`` via the new FK (a
+      leftover multi-block Block that no longer reflects reality once this
+      call makes ``section`` the Cell's sole occupant) is detached — never
+      deleted, only unlinked from this Cell — exactly like ``remove_block``
+      never deletes a Section it detaches.
+    - ``section`` itself becomes this Cell's sole new-FK Block
+      (``cell_order=0``), regardless of where it previously was attached
+      via the new FK (nowhere, this same Cell, or a different Cell) — if it
+      was attached elsewhere, that other Cell's remaining Blocks are
+      compacted (0..N-1, no gaps), the same guarantee ``remove_block``/
+      ``move_block`` already make.
+
+    This does not change ``place_section``'s single-occupant contract or its
+    two existing rejection conditions (cross-page; Cell already holds a
+    *different* Section) — it only makes sure that contract is honoured by
+    BOTH relationships at once, not just the legacy one, since the current
+    Builder UI still calls this function directly and its result must be
+    trustworthy through the new read path too.
+    """
     cell = StorefrontCell.objects.select_for_update().select_related("container").get(pk=cell.pk)
     if cell.container.page_id != section.page_id:
         raise ContainerLayoutError("این محتوا متعلق به صفحه دیگری است")
@@ -348,6 +381,32 @@ def place_section(cell: StorefrontCell, section: StorefrontSection) -> Storefron
     StorefrontCell.objects.filter(section=section).exclude(pk=cell.pk).update(section=None)
     cell.section = section
     cell.save(update_fields=["section", "updated_at"])
+
+    old_cell_id = section.cell_id
+    stale_siblings = list(
+        StorefrontSection.objects.select_for_update()
+        .filter(cell_id=cell.pk).exclude(pk=section.pk)
+    )
+    for row in stale_siblings:
+        row.cell = None
+        row.cell_order = 0
+    if stale_siblings:
+        StorefrontSection.objects.bulk_update(stale_siblings, ["cell", "cell_order"])
+
+    section.cell = cell
+    section.cell_order = 0
+    section.save(update_fields=["cell", "cell_order", "updated_at"])
+
+    if old_cell_id is not None and old_cell_id != cell.pk:
+        remaining = list(
+            StorefrontSection.objects.select_for_update()
+            .filter(cell_id=old_cell_id)
+            .order_by("cell_order", "id")
+        )
+        for index, row in enumerate(remaining):
+            row.cell_order = index
+        _persist_cell_order(remaining)
+
     return cell
 
 
@@ -374,9 +433,99 @@ def get_cell_blocks(cell: StorefrontCell) -> list[StorefrontSection]:
     blocks = list(cell.blocks.order_by("cell_order", "id"))
     if blocks:
         return blocks
-    if cell.section_id:
-        return [cell.section]
+    # Fallback: read the legacy single-block placement FRESH from the
+    # database rather than trusting `cell.section_id`/`cell.section` on
+    # whatever Python instance the caller happened to pass in.
+    #
+    # `cell.blocks.order_by(...)` above is always a live query regardless of
+    # caller staleness (Django never serves `.order_by()` on a related
+    # manager from a prefetch cache — only a bare `.all()` can do that), but
+    # a plain FK attribute like `cell.section_id` is exactly whatever value
+    # was loaded onto THIS specific instance when it was fetched. Several
+    # existing call sites — most notably `place_section` — intentionally
+    # re-fetch and mutate their OWN internal `StorefrontCell` instance
+    # rather than the caller's (`cell = StorefrontCell.objects...get(...)`
+    # shadows the parameter), so a caller that keeps using the object it
+    # already had (exactly what today's real Builder call sites do) can be
+    # legitimately stale immediately after such a call returns. Verified
+    # against a real Django run: this was the exact cause of
+    # ``get_cell_blocks`` returning ``[]`` right after
+    # ``place_section(cell, section)`` in the caller's own test.
+    #
+    # Since this is meant to be THE single authoritative composition-read
+    # entry point, it must never answer wrong merely because of which
+    # specific Python object was passed in — one extra, cheap, PK-scoped
+    # query (only ever executed in this fallback branch, i.e. only for a
+    # Cell that has no new-FK Blocks yet — the overwhelming majority of
+    # Cells today) is a fully justified, small cost for that guarantee,
+    # and is far safer than requiring every caller to remember to call
+    # ``refresh_from_db()`` first.
+    fresh_cell = StorefrontCell.objects.filter(pk=cell.pk).select_related("section").first()
+    if fresh_cell is not None and fresh_cell.section_id:
+        return [fresh_cell.section]
     return []
+
+
+# Any two-phase temporary `cell_order` value must be larger than any real
+# value the application ever assigns (single-digit-to-low-hundreds per Cell
+# in practice) while staying comfortably inside `PositiveIntegerField`'s
+# range (0..2_147_483_647). Offsetting by each row's own primary key keeps
+# the temporary values trivially unique across a batch without an extra
+# query.
+_CELL_ORDER_TEMP_OFFSET = 1_000_000_000
+
+
+def _persist_cell_order(rows: list[StorefrontSection]) -> None:
+    """Collision-safe write of ``cell_order`` for every row in ``rows`` (all
+    belonging to the same Cell), where each row's ``.cell_order`` attribute
+    has ALREADY been set in memory to its desired FINAL value by the caller.
+
+    Why this exists (root-caused against a real Django+SQLite run, not
+    assumed): ``StorefrontSection`` carries a database-level conditional
+    ``UniqueConstraint(fields=["cell", "cell_order"], condition=Q(cell__isnull=False))``
+    from Phase 2A — correct, and never removed by this fix. A naive single
+    ``bulk_update`` that writes several rows' FINAL values directly (e.g.
+    swapping two rows' positions, or shifting several rows up by one to make
+    room for an insert) can violate that constraint *mid-statement*: neither
+    SQLite nor PostgreSQL guarantees a multi-row UPDATE applies every row
+    "as if simultaneously" — one row being set to a new value can transiently
+    collide with *another* row's still-old value before that other row's own
+    update is applied within the very same statement. This is exactly the
+    ``IntegrityError`` a real Django+SQLite test run reproduced for every
+    reorder/shift/compaction path in this module (``reorder_block``,
+    ``reorder_blocks_in_cell``, ``add_block``'s insert-shift, ``remove_block``'s
+    compaction).
+
+    The fix is the standard collision-free reorder technique: write every
+    participating row into a disjoint SCRATCH range first (Phase 1), then —
+    only once every row's *persisted* value is safely outside the small real
+    ``cell_order`` range — write the real final values (Phase 2). Because the
+    scratch range and the real range never overlap, no row's new value can
+    ever equal another row's not-yet-updated value in *either* phase,
+    regardless of what order the database applies the rows in. Two plain
+    ``bulk_update`` calls (two separate SQL statements, run strictly
+    sequentially inside the caller's ``transaction.atomic()``) are enough;
+    this works identically on SQLite and PostgreSQL because it never depends
+    on intra-statement row-processing order at all.
+
+    Callers pass the FULL set of rows whose ``cell_order`` may need to
+    change for a given operation (not just the subset that actually differs
+    from its old value) — writing a row's already-correct value again is a
+    harmless no-op, and always operating on the full set keeps this one
+    helper trivially correct for every call site rather than requiring each
+    call site to reason about partial-update edge cases independently.
+    """
+    if not rows:
+        return
+    final_orders = [row.cell_order for row in rows]
+    for row in rows:
+        # Every row's primary key is already unique, so offsetting by ``pk``
+        # needs no extra query to guarantee distinct temporary values.
+        row.cell_order = _CELL_ORDER_TEMP_OFFSET + row.pk
+    StorefrontSection.objects.bulk_update(rows, ["cell_order"])
+    for row, order in zip(rows, final_orders):
+        row.cell_order = order
+    StorefrontSection.objects.bulk_update(rows, ["cell_order"])
 
 
 def _clear_stale_legacy_pointer(section: StorefrontSection, *, keep_cell_id: int | None) -> None:
@@ -471,7 +620,7 @@ def add_block(cell: StorefrontCell, section: StorefrontSection, *, at_index: int
         insert_at = len(existing) if at_index is None else max(0, min(at_index, len(existing)))
         for index, row in enumerate(existing):
             row.cell_order = index + 1 if index >= insert_at else index
-        StorefrontSection.objects.bulk_update(existing, ["cell_order"])
+        _persist_cell_order(existing)
         new_order = insert_at
     else:
         new_order = 0
@@ -516,7 +665,7 @@ def remove_block(section: StorefrontSection) -> None:
         )
         for index, row in enumerate(remaining):
             row.cell_order = index
-        StorefrontSection.objects.bulk_update(remaining, ["cell_order"])
+        _persist_cell_order(remaining)
 
 
 def _has_legacy_placement(section: StorefrontSection) -> bool:
@@ -580,7 +729,7 @@ def reorder_block(section: StorefrontSection, *, at_index: int | None = None) ->
     siblings.insert(insert_at, section)
     for index, row in enumerate(siblings):
         row.cell_order = index
-    StorefrontSection.objects.bulk_update(siblings, ["cell_order"])
+    _persist_cell_order(siblings)
     return section
 
 
@@ -612,14 +761,14 @@ def reorder_blocks_in_cell(cell: StorefrontCell, section_ids_in_order: list[int]
     if set(section_ids_in_order) != set(current_by_id):
         raise ContainerLayoutError("ترتیب جدید باید دقیقاً همان بلاک‌های موجود در این خانه باشد")
 
-    updated = []
     for index, section_id in enumerate(section_ids_in_order):
-        row = current_by_id[section_id]
-        if row.cell_order != index:
-            row.cell_order = index
-            updated.append(row)
-    if updated:
-        StorefrontSection.objects.bulk_update(updated, ["cell_order"])
+        current_by_id[section_id].cell_order = index
+    # All participating rows are passed through the collision-safe helper,
+    # not only the ones whose value actually changes — re-writing an
+    # already-correct value is a harmless no-op, and this keeps the helper
+    # trivially correct for every caller without needing per-call-site
+    # partial-update reasoning (see ``_persist_cell_order`` docstring).
+    _persist_cell_order(current)
 
 
 @transaction.atomic

@@ -773,3 +773,348 @@ class MultiBlockFingerprintTests(Phase2BTestCase):
         fp1 = self.draft.compute_fingerprint()
         fp2 = self.draft.compute_fingerprint()
         self.assertEqual(fp1, fp2)
+
+
+
+# ----------------------------------------------------------------------
+# Real-environment fix follow-up — collision-safe reordering
+# ----------------------------------------------------------------------
+#
+# A real Django+SQLite run of the original Phase 2B implementation
+# reproduced ``IntegrityError: UNIQUE constraint failed:
+# storefront_builder_storefrontsection.cell_id,
+# storefront_builder_storefrontsection.cell_order`` for every one of these
+# scenarios — a naive single ``bulk_update`` writing final ``cell_order``
+# values directly (e.g. swapping two rows) can transiently collide with
+# another row's still-old value mid-statement, on both SQLite and
+# PostgreSQL, since neither guarantees a multi-row UPDATE applies "as if
+# simultaneously". ``container_service._persist_cell_order`` (a temporary
+# out-of-range scratch pass, then the real final pass, both inside the
+# caller's ``transaction.atomic()``) is the single, reused fix — this class
+# proves the exact scenarios that previously failed now succeed and leave
+# every row's final ``cell_order`` normalized to exactly 0..N-1.
+
+
+class CollisionSafeReorderTests(Phase2BTestCase):
+    def _cell_order_values(self, cell):
+        return list(
+            container_service.StorefrontSection.objects.filter(cell_id=cell.pk)
+            .order_by("cell_order")
+            .values_list("cell_order", flat=True)
+        )
+
+    def test_swap_two_blocks_via_reorder_blocks_in_cell(self):
+        a = self._section(0)
+        b = self._section(1)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        container_service.add_block(cell, a)
+        container_service.add_block(cell, b)
+
+        container_service.reorder_blocks_in_cell(cell, [b.pk, a.pk])  # must not raise IntegrityError
+
+        self.assertEqual(
+            [x.pk for x in container_service.get_cell_blocks(cell)],
+            [b.pk, a.pk],
+        )
+        self.assertEqual(self._cell_order_values(cell), [0, 1])
+
+    def test_reorder_three_blocks_full_reverse_via_reorder_blocks_in_cell(self):
+        heading = self._section(0)
+        text = self._section(1)
+        button = self._section(2)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        for section in (heading, text, button):
+            container_service.add_block(cell, section)
+
+        container_service.reorder_blocks_in_cell(cell, [button.pk, text.pk, heading.pk])
+
+        self.assertEqual(
+            [x.pk for x in container_service.get_cell_blocks(cell)],
+            [button.pk, text.pk, heading.pk],
+        )
+        self.assertEqual(self._cell_order_values(cell), [0, 1, 2])
+
+    def test_reorder_block_moves_first_to_last(self):
+        heading = self._section(0)
+        text = self._section(1)
+        button = self._section(2)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        for section in (heading, text, button):
+            container_service.add_block(cell, section)
+
+        container_service.reorder_block(heading, at_index=2)
+
+        self.assertEqual(
+            [x.pk for x in container_service.get_cell_blocks(cell)],
+            [text.pk, button.pk, heading.pk],
+        )
+        self.assertEqual(self._cell_order_values(cell), [0, 1, 2])
+
+    def test_reorder_block_moves_last_to_first(self):
+        heading = self._section(0)
+        text = self._section(1)
+        button = self._section(2)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        for section in (heading, text, button):
+            container_service.add_block(cell, section)
+
+        container_service.reorder_block(button, at_index=0)
+
+        self.assertEqual(
+            [x.pk for x in container_service.get_cell_blocks(cell)],
+            [button.pk, heading.pk, text.pk],
+        )
+        self.assertEqual(self._cell_order_values(cell), [0, 1, 2])
+
+    def test_repeated_reorder_stays_collision_free_and_normalized(self):
+        heading = self._section(0)
+        text = self._section(1)
+        button = self._section(2)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        for section in (heading, text, button):
+            container_service.add_block(cell, section)
+
+        # Several reorders in a row on the same Cell — each one must
+        # independently be collision-safe; none of them may raise.
+        container_service.reorder_blocks_in_cell(cell, [text.pk, button.pk, heading.pk])
+        container_service.reorder_blocks_in_cell(cell, [heading.pk, text.pk, button.pk])
+        container_service.reorder_block(button, at_index=0)
+        container_service.move_block(heading, cell, at_index=2)
+
+        self.assertEqual(self._cell_order_values(cell), [0, 1, 2])
+        self.assertEqual(len(container_service.get_cell_blocks(cell)), 3)
+
+    def test_move_within_same_cell_swap_positions_is_collision_safe(self):
+        first = self._section(0)
+        second = self._section(1)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        container_service.add_block(cell, first)
+        container_service.add_block(cell, second)
+
+        container_service.move_block(first, cell, at_index=1)  # same-cell reorder path
+
+        self.assertEqual(
+            [x.pk for x in container_service.get_cell_blocks(cell)],
+            [second.pk, first.pk],
+        )
+        self.assertEqual(self._cell_order_values(cell), [0, 1])
+
+    def test_add_block_insert_shift_is_collision_safe(self):
+        """``add_block``'s insert-at-index path shifts every following
+        sibling's ``cell_order`` up by one — also routed through the
+        collision-safe helper now, proven here with 3 existing Blocks."""
+        a = self._section(0)
+        b = self._section(1)
+        c = self._section(2)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        for section in (a, b, c):
+            container_service.add_block(cell, section)
+        d = self._section(3)
+
+        container_service.add_block(cell, d, at_index=0)
+
+        self.assertEqual(
+            [x.pk for x in container_service.get_cell_blocks(cell)],
+            [d.pk, a.pk, b.pk, c.pk],
+        )
+        self.assertEqual(self._cell_order_values(cell), [0, 1, 2, 3])
+
+    def test_fingerprint_changes_after_a_reorder_that_previously_would_have_raised(self):
+        heading = self._section(0)
+        text = self._section(1)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        container_service.add_block(cell, heading)
+        container_service.add_block(cell, text)
+        before = self.draft.compute_fingerprint()
+
+        container_service.reorder_blocks_in_cell(cell, [text.pk, heading.pk])
+
+        after = self.draft.compute_fingerprint()
+        self.assertNotEqual(before, after)
+
+    def test_undo_restores_order_after_a_swap_reorder(self):
+        heading = self._section(0)
+        text = self._section(1)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        container_service.add_block(cell, heading)
+        container_service.add_block(cell, text)
+        before_state = edit_history_service.snapshot_draft(self.draft)
+
+        container_service.reorder_blocks_in_cell(cell, [text.pk, heading.pk])
+        edit_history_service.record_change(
+            draft=self.draft, actor=None, action_label="جابه‌جایی", before_state=before_state,
+        )
+        self.assertEqual(
+            [x.pk for x in container_service.get_cell_blocks(cell)], [text.pk, heading.pk],
+        )
+
+        edit_history_service.undo(self.draft)
+
+        restored_cell = self.page.containers.get(stable_id=container.stable_id).cells.get(stable_id=cell.stable_id)
+        self.assertEqual(
+            [b.stable_id for b in container_service.get_cell_blocks(restored_cell)],
+            [heading.stable_id, text.stable_id],
+        )
+
+    def test_redo_restores_reordered_state(self):
+        heading = self._section(0)
+        text = self._section(1)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        container_service.add_block(cell, heading)
+        container_service.add_block(cell, text)
+        before_state = edit_history_service.snapshot_draft(self.draft)
+        container_service.reorder_blocks_in_cell(cell, [text.pk, heading.pk])
+        edit_history_service.record_change(
+            draft=self.draft, actor=None, action_label="جابه‌جایی", before_state=before_state,
+        )
+
+        edit_history_service.undo(self.draft)
+        edit_history_service.redo(self.draft)
+
+        restored_cell = self.page.containers.get(stable_id=container.stable_id).cells.get(stable_id=cell.stable_id)
+        self.assertEqual(
+            [b.stable_id for b in container_service.get_cell_blocks(restored_cell)],
+            [text.stable_id, heading.stable_id],
+        )
+
+
+# ----------------------------------------------------------------------
+# Real-environment fix follow-up — legacy write / new read synchronization
+# ----------------------------------------------------------------------
+#
+# ``place_section`` is the exact write path the current Builder UI uses
+# (``views.storefront_cell_add_section``); ``storefront_cell_clear`` (the
+# view) deletes the Section outright rather than merely detaching it. These
+# tests prove the ACTUAL supported legacy workflows leave ``get_cell_blocks``
+# — the new authoritative read path — never disagreeing with what the
+# legacy write just established, and never resurrecting a Section the
+# legacy write believes has been replaced/removed.
+
+
+class LegacyWriteNewReadSynchronizationTests(Phase2BTestCase):
+    def test_scenario_a_replacing_content_via_place_section_does_not_resurrect_old_block(self):
+        """Start: cell.section = X, X.cell = cell (normal mirrored state).
+        Supported current workflow for "replace this Cell's content": clear
+        the old content, then place the new one — exactly what the real
+        Builder UI's two endpoints (``storefront_cell_clear`` then
+        ``storefront_cell_add_section``) do in sequence. Final state must be
+        get_cell_blocks(cell) == [Y], with X no longer an active Block of
+        this Cell."""
+        x = self._section(0)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        container_service.place_section(cell, x)
+        self.assertEqual(container_service.get_cell_blocks(cell), [x])
+
+        # Actual supported legacy workflow: the real cell-clear service path
+        # (mirrors views.storefront_cell_clear exactly: delete the Section,
+        # relying on StorefrontCell.section's SET_NULL) ...
+        x.delete()
+        cell.refresh_from_db()
+        self.assertIsNone(cell.section_id)
+        # ... then place_section the new content.
+        y = self._section(1)
+        container_service.place_section(cell, y)
+
+        self.assertEqual(container_service.get_cell_blocks(cell), [y])
+        self.assertFalse(StorefrontSection.objects.filter(pk=x.pk).exists())
+
+    def test_scenario_a_direct_place_section_replacement_never_leaves_two_sources_of_truth(self):
+        """A second, even more direct variant of Scenario A: placing Y
+        directly into a Cell that currently (via the new FK) holds X as one
+        of several Blocks must detach X from this Cell so it cannot be
+        resurrected — proving ``place_section``'s synchronization, not just
+        the clear+place sequence above."""
+        x = self._section(0)
+        y = self._section(1)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        container_service.add_block(cell, x)  # X becomes a new-FK Block of this Cell
+
+        container_service.place_section(cell, y)
+
+        self.assertEqual(container_service.get_cell_blocks(cell), [y])
+        x.refresh_from_db()
+        self.assertIsNone(x.cell_id, "X must no longer be attached to this Cell through the new FK")
+        # X still exists (place_section never deletes) but is unattached.
+        self.assertTrue(StorefrontSection.objects.filter(pk=x.pk).exists())
+
+    def test_scenario_b_current_cell_clear_leaves_cell_empty_through_new_read_path(self):
+        """Start: cell.section = X, X.cell = cell. Run the actual current
+        Cell-clear behaviour (delete the Section — the real
+        views.storefront_cell_clear path, ``StorefrontCell.section``'s
+        SET_NULL does the rest). Expected: get_cell_blocks(cell) == [],
+        Container and Cell remain alive."""
+        x = self._section(0)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        container_service.place_section(cell, x)
+        container_sid = container.stable_id
+        cell_sid = cell.stable_id
+
+        x.delete()  # the real cell-clear view's exact mechanism
+
+        cell.refresh_from_db()
+        self.assertEqual(container_service.get_cell_blocks(cell), [])
+        self.assertTrue(self.page.containers.filter(stable_id=container_sid).exists())
+        self.assertTrue(container.cells.filter(stable_id=cell_sid).exists())
+
+    def test_scenario_c_legacy_placement_into_empty_cell_is_immediately_visible(self):
+        """Use the exact current write operation the Builder UI uses
+        (``place_section``, called by ``storefront_cell_add_section``) on a
+        genuinely empty Cell. Immediately afterward,
+        get_cell_blocks(cell) must reliably return the newly placed
+        Section — using the SAME ``cell`` Python instance the caller
+        already had, not a freshly re-fetched one, since that is exactly
+        how the real view code is structured."""
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        y = self._section(0)
+
+        container_service.place_section(cell, y)
+
+        self.assertEqual(container_service.get_cell_blocks(cell), [y])
+
+    def test_scenario_d_mirrored_section_renders_exactly_once(self):
+        """When cell.section = X and X.cell = cell (the normal state
+        place_section now establishes), X must render exactly once — this
+        preserves the already-passing no-duplicate-render guarantee under
+        the corrected place_section."""
+        x = self._section(0)
+        container = container_service.create_empty_container(self.page, "single")
+        cell = container.cells.get()
+        container_service.place_section(cell, x)
+
+        blocks = container_service.get_cell_blocks(cell)
+
+        self.assertEqual(blocks, [x])
+        self.assertEqual(len(blocks), 1)
+
+    def test_place_section_moves_section_from_a_different_cell_and_compacts_its_siblings(self):
+        """If a Section is currently one of several new-FK Blocks in Cell A,
+        and the legacy ``place_section`` places it into Cell B, Cell A's
+        remaining Blocks must be compacted (0..N-1) exactly like
+        ``remove_block``/``move_block`` already guarantee."""
+        moving = self._section(0)
+        sibling = self._section(1)
+        container = container_service.create_empty_container(self.page, "half")
+        cell_a, cell_b = list(container.cells.order_by("order", "id"))
+        container_service.add_block(cell_a, moving)
+        container_service.add_block(cell_a, sibling)
+
+        container_service.place_section(cell_b, moving)
+
+        sibling.refresh_from_db()
+        self.assertEqual(sibling.cell_order, 0)
+        self.assertEqual(container_service.get_cell_blocks(cell_a), [sibling])
+        self.assertEqual(container_service.get_cell_blocks(cell_b), [moving])
