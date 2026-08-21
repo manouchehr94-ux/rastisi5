@@ -883,9 +883,12 @@ class LiveBuilderMultiBlockClosureTests(TestCase):
 
     # -- VIEW: new-FK occupancy used by the add-to-cell action ---------
 
-    def test_view_cell_with_new_fk_blocks_and_null_legacy_pointer_is_occupied(self):
+    def test_view_cell_with_new_fk_blocks_and_null_legacy_pointer_accepts_another_block(self):
+        """V3 exposes the Phase-2B multi-block engine through the real live
+        add-to-cell endpoint: new-FK-only occupancy is preserved, then the new
+        Block is appended rather than replacing any existing content."""
         container, survivor, (a, b, c) = self._build_multiblock_cell_via_real_workflow()
-        self.assertIsNone(survivor.section_id)  # the exact scenario the fix targets
+        self.assertIsNone(survivor.section_id)
 
         response = self.client.post(
             reverse("dashboard:storefront-builder-cell-add-section"),
@@ -893,13 +896,11 @@ class LiveBuilderMultiBlockClosureTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        # The add-to-cell action must have been REJECTED as "already
-        # occupied" — not silently placed as a second/competing occupant.
-        self.assertEqual(
-            [x.pk for x in container_service.get_cell_blocks(survivor)],
-            [a.pk, b.pk, c.pk],
-            "current add-to-cell action must not overwrite/duplicate into an occupied multi-block Cell",
-        )
+        blocks = container_service.get_cell_blocks(survivor)
+        self.assertEqual([x.pk for x in blocks[:3]], [a.pk, b.pk, c.pk])
+        self.assertEqual(len(blocks), 4)
+        self.assertEqual(blocks[-1].section_key, "rich_text")
+        self.assertEqual([x.cell_order for x in blocks], [0, 1, 2, 3])
 
     def test_view_add_to_genuinely_empty_cell_still_succeeds(self):
         """Regression guard alongside the fix above: an ACTUALLY empty
@@ -919,6 +920,72 @@ class LiveBuilderMultiBlockClosureTests(TestCase):
         self.assertEqual(len(blocks), 1)
         self.assertEqual(blocks[0].section_key, "rich_text")
 
+    # -- V3 LIVE BLOCK ACTIONS -----------------------------------------
+
+    def test_view_block_remove_deletes_only_selected_block_and_preserves_siblings_and_cell(self):
+        container, survivor, (a, b, c) = self._build_multiblock_cell_via_real_workflow()
+        cell_sid = survivor.stable_id
+
+        response = self.client.post(
+            reverse("dashboard:storefront-builder-block-remove", args=[b.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        survivor = container.cells.get(stable_id=cell_sid)
+        self.assertEqual([x.pk for x in container_service.get_cell_blocks(survivor)], [a.pk, c.pk])
+        self.assertEqual([x.cell_order for x in container_service.get_cell_blocks(survivor)], [0, 1])
+        self.assertFalse(StorefrontSection.objects.filter(pk=b.pk).exists())
+        self.assertTrue(StorefrontSection.objects.filter(pk=a.pk).exists())
+        self.assertTrue(StorefrontSection.objects.filter(pk=c.pk).exists())
+
+    def test_view_block_move_between_cells_preserves_identity_and_orders(self):
+        a, b, c = self._section(0), self._section(1), self._section(2)
+        container = container_service.create_empty_container(self.page, "half")
+        first, second = list(container.cells.order_by("order", "id"))
+        container_service.add_block(first, a)
+        container_service.add_block(first, b)
+        container_service.add_block(second, c)
+
+        response = self.client.post(
+            reverse("dashboard:storefront-builder-block-move", args=[b.pk]),
+            {"target_cell_id": second.pk, "at_index": 0},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        b.refresh_from_db()
+        self.assertEqual(b.cell_id, second.pk)
+        self.assertEqual([x.pk for x in container_service.get_cell_blocks(first)], [a.pk])
+        self.assertEqual([x.pk for x in container_service.get_cell_blocks(second)], [b.pk, c.pk])
+        self.assertEqual([x.cell_order for x in container_service.get_cell_blocks(second)], [0, 1])
+
+    def test_view_block_move_direction_reorders_inside_same_cell(self):
+        container, survivor, (a, b, c) = self._build_multiblock_cell_via_real_workflow()
+
+        response = self.client.post(
+            reverse("dashboard:storefront-builder-block-move", args=[c.pk]),
+            {"target_cell_id": survivor.pk, "direction": "up"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([x.pk for x in container_service.get_cell_blocks(survivor)], [a.pk, c.pk, b.pk])
+        self.assertEqual([x.cell_order for x in container_service.get_cell_blocks(survivor)], [0, 1, 2])
+
+    def test_view_duplicate_placed_block_stays_in_same_cell_after_source(self):
+        container, survivor, (a, b, c) = self._build_multiblock_cell_via_real_workflow()
+        old_ids = {a.pk, b.pk, c.pk}
+
+        response = self.client.post(
+            reverse("dashboard:storefront-builder-section-duplicate", args=[b.pk])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        blocks = container_service.get_cell_blocks(survivor)
+        self.assertEqual(len(blocks), 4)
+        duplicate = next(x for x in blocks if x.pk not in old_ids)
+        self.assertEqual([x.pk for x in blocks], [a.pk, b.pk, duplicate.pk, c.pk])
+        self.assertEqual(duplicate.cell_id, survivor.pk)
+        self.assertNotEqual(duplicate.stable_id, b.stable_id)
+
     # -- VIEW/CONTEXT: new-FK-only Section resolves its Cell -----------
 
     def test_view_new_fk_only_section_settings_context_resolves_its_cell(self):
@@ -927,9 +994,8 @@ class LiveBuilderMultiBlockClosureTests(TestCase):
         relation at all — the real Inspector view
         (``storefront_section_settings``) must still correctly report
         which Cell/Container it belongs to, so the rendered Inspector
-        shows "خالی کردن این خانه" (Cell-scoped controls) rather than
-        incorrectly falling back to "حذف این بخش" (whole-Section-delete,
-        the no-placement UI branch)."""
+        exposes V3 Cell context actions rather than incorrectly falling back
+        to the no-placement whole-Section branch."""
         container, survivor, (a, b, c) = self._build_multiblock_cell_via_real_workflow()
         self.assertIsNone(StorefrontCell.objects.filter(section_id=b.pk).first(), "b has no legacy reverse relation")
 
@@ -940,11 +1006,10 @@ class LiveBuilderMultiBlockClosureTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         html = response.content.decode("utf-8")
-        # Presence of the Cell-scoped "clear this cell" action (only
-        # rendered when ``placement_cell`` resolved correctly) rather than
-        # the whole-Section "remove" action.
-        self.assertIn("خالی کردن این خانه", html)
+        self.assertIn("خالی کردن ستون", html)
+        self.assertIn("حذف فقط همین بلاک", html)
         self.assertIn(f"cellCommand({survivor.pk}, 'clear', {b.pk})", html)
+        self.assertIn(f"blockCommand({b.pk}, 'remove')", html)
 
     # -- LEGACY: single-block clear still behaves exactly as before ----
 

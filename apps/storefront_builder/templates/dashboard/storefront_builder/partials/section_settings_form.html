@@ -3,20 +3,12 @@
      data-inspector-section-id="{{ section.pk }}"
      data-inspector-locked="{% if section.is_locked %}1{% else %}0{% endif %}"
      data-inspector-row-key="{{ section.row_key }}"
-     x-data="{ deleteConfirmOpen: false, inspectorTab: window.sfbInspectorTab || 'basic' }"
+     x-data="{ deleteConfirmOpen: false }"
      :class="{ 'is-advanced-tab': inspectorTab === 'advanced' }">
-  <div class="sfb-inspector-tabs" role="tablist" aria-label="سطح تنظیمات">
-    <button type="button" role="tab" :aria-selected="inspectorTab === 'basic'"
-            :class="{ active: inspectorTab === 'basic' }"
-            @click="inspectorTab = 'basic'; window.sfbInspectorTab = 'basic'">پایه</button>
-    <button type="button" role="tab" :aria-selected="inspectorTab === 'advanced'"
-            :class="{ active: inspectorTab === 'advanced' }"
-            @click="inspectorTab = 'advanced'; window.sfbInspectorTab = 'advanced'">پیشرفته</button>
-  </div>
   <div class="sfb-inspector-section-actions" role="toolbar" aria-label="عملیات محتوا">
     {% if placement_cell %}
-    <button type="button" @click="containerCommand({{ placement_cell.container_id }}, 'up')" {% if placement_cell.container.is_locked %}disabled{% endif %} title="انتقال چیدمان به بالا">↑</button>
-    <button type="button" @click="containerCommand({{ placement_cell.container_id }}, 'down')" {% if placement_cell.container.is_locked %}disabled{% endif %} title="انتقال چیدمان به پایین">↓</button>
+    <button type="button" @click="blockCommand({{ section.pk }}, 'up')" {% if section.is_locked or placement_cell.container.is_locked %}disabled{% endif %} title="انتقال بلاک به بالا در همین ستون">↑</button>
+    <button type="button" @click="blockCommand({{ section.pk }}, 'down')" {% if section.is_locked or placement_cell.container.is_locked %}disabled{% endif %} title="انتقال بلاک به پایین در همین ستون">↓</button>
     {% else %}
     <button type="button" @click="sectionCommand({{ section.pk }}, 'up')" {% if section.is_locked %}disabled{% endif %} title="انتقال به بالا">↑</button>
     <button type="button" @click="sectionCommand({{ section.pk }}, 'down')" {% if section.is_locked %}disabled{% endif %} title="انتقال به پایین">↓</button>
@@ -25,17 +17,23 @@
     <button type="button" @click="sectionCommand({{ section.pk }}, 'toggle')" title="نمایش/مخفی">{% if section.is_active %}👁{% else %}⊘{% endif %}</button>
     <button type="button" @click="sectionCommand({{ section.pk }}, 'lock')" title="{% if section.is_locked %}بازکردن قفل{% else %}قفل‌کردن{% endif %}">{% if section.is_locked %}🔓{% else %}🔒{% endif %}</button>
     {% if placement_cell %}
-    <button type="button" class="danger" @click="if (confirm('محتوای این خانه حذف شود؟ خود خانه و چیدمان باقی می‌ماند.')) cellCommand({{ placement_cell.pk }}, 'clear', {{ section.pk }})" {% if section.is_locked or placement_cell.container.is_locked or not definition.removable %}disabled{% endif %} title="خالی کردن خانه">×</button>
+    <button type="button" class="danger" @click="blockCommand({{ section.pk }}, 'remove')" {% if section.is_locked or placement_cell.container.is_locked or not definition.removable %}disabled{% endif %} title="حذف فقط همین بلاک">×</button>
     {% else %}
     <button type="button" class="danger" @click="if (confirm('این بخش برای همیشه حذف شود؟')) sectionCommand({{ section.pk }}, 'remove')" {% if section.is_locked or not definition.removable %}disabled{% endif %} title="حذف">×</button>
     {% endif %}
   </div>
-  <p class="sfb-drawer-subtitle">{{ definition.label_fa }} — این پنل فقط محتوای این خانه را تنظیم می‌کند{% if placement_cell %} · شکل و اندازه خانه از «تنظیم چیدمان» کنترل می‌شود{% endif %}{% if section.is_locked %} · این محتوا قفل است{% endif %}</p>
+  <p class="sfb-drawer-subtitle">{{ definition.label_fa }} — این پنل فقط همین بلاک را تنظیم می‌کند{% if placement_cell %} · شکل و اندازه ستون از «تنظیم چیدمان» کنترل می‌شود{% endif %}{% if section.is_locked %} · این محتوا قفل است{% endif %}</p>
+  {% if placement_cell %}
+  <div class="sfb-v3-cell-context-actions">
+    <button type="button" @click="selectContainer({{ placement_cell.container_id }})">▦ تنظیم چیدمان</button>
+    <button type="button" class="danger" @click="if (confirm('همه کامپوننت‌های این ستون حذف شوند؟ خود ستون و چیدمان باقی می‌ماند.')) cellCommand({{ placement_cell.pk }}, 'clear', {{ section.pk }})" {% if placement_cell.container.is_locked %}disabled{% endif %}>خالی کردن ستون</button>
+  </div>
+  {% endif %}
 
   {% if field_errors.general %}<div class="field-error" style="margin-bottom:10px">{{ field_errors.general }}</div>{% endif %}
   {% if section.section_key == "product_section" %}
   {{ initial_manual_products|json_script:"ps-initial-products" }}
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
         x-data="productSectionForm('{{ section.settings.data_source|default:"newest" }}', JSON.parse(document.getElementById('ps-initial-products').textContent))">
     {% csrf_token %}
     <div class="form-group">
@@ -177,7 +175,7 @@
   </form>
 
   {% elif section.section_key == "image_text" %}
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
     {% csrf_token %}
     <div class="form-group">
       <label for="id_title">عنوان</label>
@@ -219,7 +217,7 @@
   </form>
 
   {% elif section.section_key == "rich_text" %}
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
     {% csrf_token %}
     <div class="form-group">
       <label for="id_body_html">متن</label>
@@ -244,7 +242,7 @@
 
   {% elif section.section_key == "hero_banner" or section.section_key == "image_slider" %}
   <a href="{% url 'dashboard:storefront-builder-section-media-list' pk=section.pk kind='hero-slides' %}" class="btn btn-primary" style="width:100%;margin-bottom:14px;text-align:center;display:block">مدیریت اسلایدها ({{ section.hero_slides.count }})</a>
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
     {% csrf_token %}
     {% comment %}
     عمداً «is not False» به‌جایِ فیلترِ «|default:True» — همان دلیلِ
@@ -301,7 +299,7 @@
 
   {% elif section.section_key == "category_grid" %}
   {{ initial_selected_categories|json_script:"cg-initial-selected" }}
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
         x-data="multiPickerForm(JSON.parse(document.getElementById('cg-initial-selected').textContent))">
     {% csrf_token %}
     <div class="form-group">
@@ -357,7 +355,7 @@
 
   {% elif section.section_key == "brand_carousel" %}
   {{ initial_selected_brands|json_script:"bc-initial-selected" }}
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
         x-data="multiPickerForm(JSON.parse(document.getElementById('bc-initial-selected').textContent))">
     {% csrf_token %}
     <div class="form-group">
@@ -414,7 +412,7 @@
 
   {% elif section.section_key == "collection_tiles" %}
   {{ initial_selected_collections|json_script:"ct-initial-selected" }}
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
         x-data="multiPickerForm(JSON.parse(document.getElementById('ct-initial-selected').textContent))">
     {% csrf_token %}
     <div class="form-group">
@@ -457,7 +455,7 @@
   </form>
 
   {% elif section.section_key == "quick_links" %}
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
     {% csrf_token %}
     <div class="form-group">
       <label for="id_ql_title">عنوان بخش (اختیاری)</label>
@@ -485,7 +483,7 @@
 
   {% elif section.section_key == "faq" %}
   {{ section.settings.items|json_script:"faq-initial-items" }}
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
         x-data="itemRepeaterForm(JSON.parse(document.getElementById('faq-initial-items').textContent), {question:'', answer:''})">
     {% csrf_token %}
     <div class="form-group">
@@ -521,7 +519,7 @@
 
   {% elif section.section_key == "testimonials" %}
   {{ section.settings.items|json_script:"testimonials-initial-items" }}
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
         x-data="itemRepeaterForm(JSON.parse(document.getElementById('testimonials-initial-items').textContent), {name:'', quote:'', role:''})">
     {% csrf_token %}
     <div class="form-group">
@@ -560,7 +558,7 @@
   </form>
 
   {% elif section.section_key == "video_section" %}
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
     {% csrf_token %}
     <div class="form-group">
       <label for="id_vs_title">عنوان بخش (اختیاری)</label>
@@ -584,7 +582,7 @@
   </form>
 
   {% elif section.section_key == "newsletter" %}
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
     {% csrf_token %}
     <p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">ایمیلِ ثبت‌شده در بخشِ «مشترکینِ خبرنامه»یِ پنلِ مدیریت ذخیره می‌شود — ارسالِ خبرنامه هنوز خودکار نیست.</p>
     <div class="form-group">
@@ -610,7 +608,7 @@
 
   {% elif section.section_key == "single_banner" or section.section_key == "multi_banner" %}
   <a href="{% url 'dashboard:storefront-builder-section-media-list' pk=section.pk kind='banners' %}" class="btn btn-primary" style="width:100%;margin-bottom:14px;text-align:center;display:block">مدیریت بنرها ({{ section.banners.count }})</a>
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
     {% csrf_token %}
     <p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">تصویر/عنوان/لینکِ هر بنر از دکمه‌ی بالا مدیریت می‌شود.</p>
 
@@ -625,7 +623,7 @@
   </form>
 
   {% else %}
-  <form method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
+  <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false">
     {% csrf_token %}
     {% if supports_card %}
     <p style="color:var(--muted);font-size:12.5px;margin:0 0 12px">این بخش عنوان/محتوای اختصاصی ندارد — نمایش در دستگاه‌ها و ظاهر کارت‌های محصول قابل تنظیم است.</p>

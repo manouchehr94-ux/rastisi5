@@ -98,9 +98,10 @@ class EditorAccessTests(StorefrontBuilderViewsTestCase):
         resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
         self.assertContains(resp, "sfb-rsec-toolbar")
         self.assertContains(resp, 'data-cmd="duplicate"')
-        # Placed content is removed from its real Cell, not through the legacy
-        # standalone-section remove command.
-        self.assertContains(resp, "data-cell-clear=")
+        # A visible placed V3 Block is removed independently from its Cell;
+        # clearing the whole Cell remains a separate explicit action used by
+        # the Inspector/hidden-content chrome.
+        self.assertContains(resp, "data-block-remove=")
 
     # Phase 4: هدر/فوتر همان دکوریتورهای مشترکِ ``@staff_required`` +
     # ``@permission_required(STOREFRONT_LAYOUT_MANAGE)`` را (که در بالا
@@ -173,8 +174,9 @@ class PrototypeV2Phase1ShellTests(StorefrontBuilderViewsTestCase):
         self.assertContains(resp, "پیش‌نویس ذخیره شده")
         self.assertContains(resp, "پیش‌نمایش")
         self.assertContains(resp, "انتشار")
-        self.assertContains(resp, "↶ بازگشت")
-        self.assertContains(resp, "↷ جلو")
+        self.assertContains(resp, 'aria-label="Undo"')
+        self.assertContains(resp, 'aria-label="Redo"')
+        self.assertContains(resp, "sfb-v3-zoom-control")
         self.assertContains(resp, 'aria-label="انتخاب صفحه"')
 
     def test_prototype_page_selector_exposes_all_real_builder_pages(self):
@@ -185,15 +187,17 @@ class PrototypeV2Phase1ShellTests(StorefrontBuilderViewsTestCase):
 
     def test_library_and_modal_reuse_server_side_section_allowlist(self):
         resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
-        self.assertContains(resp, "کتابخانه اجزا")
+        self.assertContains(resp, "sfb-v3-component-grid")
         self.assertContains(resp, "sfb-prototype-search")
         self.assertContains(resp, "sfb-add-modal")
-        self.assertContains(resp, reverse("dashboard:storefront-builder-section-add"))
-        self.assertContains(resp, 'hx-target="#storefrontSectionList"')
-        # Hidden mutation mirror keeps all existing htmx write paths on the
-        # same proven server endpoints instead of inventing client-only state.
+        self.assertContains(resp, reverse("dashboard:storefront-builder-cell-add-section"))
+        self.assertContains(resp, "addContentBlockToCell")
+        self.assertContains(resp, "هر کامپوننت را داخل هر ستون")
+        # The visible Layers tree and hidden placement mirror both remain
+        # server-authoritative; V3 does not invent client-only composition.
         self.assertContains(resp, "sfb-section-state")
         self.assertContains(resp, 'id="storefrontSectionList"')
+        self.assertContains(resp, 'id="storefrontContainerState"')
 
     def test_inspector_is_permanent_and_uses_existing_settings_endpoint(self):
         draft = svc.get_or_create_draft(self.store, user=self.staff)
@@ -224,9 +228,11 @@ class PrototypeV2Phase1ShellTests(StorefrontBuilderViewsTestCase):
         html = resp.content.decode("utf-8")
         self.assertEqual(html.count('id="sfbPreviewFrame"'), 1)
         self.assertContains(resp, reverse("dashboard:storefront-builder-preview"))
-        self.assertContains(resp, "sfb-device-toggle")
+        self.assertContains(resp, "sfb-v3-device-switcher")
         self.assertContains(resp, "دسکتاپ")
+        self.assertContains(resp, "تبلت")
         self.assertContains(resp, "موبایل")
+        self.assertContains(resp, "sfb-v3-zoom-control")
         self.assertContains(resp, "sfb-floating-add")
 
 
@@ -255,12 +261,20 @@ class PrototypeV2Phase2InteractionFoundationTests(StorefrontBuilderViewsTestCase
         resp = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "sfb-inspector-section-actions")
-        # Content-level operations remain section commands, while placement
-        # movement/removal belongs to the containing layout/cell.
+        # Content-level duplicate/toggle/lock remain section commands. A placed
+        # V3 Block moves/removes independently; clearing the whole Cell is an
+        # explicit, separate action. During the legacy-cell transition the
+        # authoritative placement decision is the view's resolved context, not
+        # ``section.cell_id`` alone (legacy-only placement may still exist).
         for command in ("duplicate", "toggle", "lock"):
             self.assertContains(resp, f"sectionCommand({section.pk}, '{command}')")
-        self.assertContains(resp, "containerCommand(")
-        self.assertContains(resp, "cellCommand(")
+        placement_cell = resp.context["placement_cell"]
+        if placement_cell is not None:
+            self.assertContains(resp, f"blockCommand({section.pk}, 'up')")
+            self.assertContains(resp, f"blockCommand({section.pk}, 'remove')")
+            self.assertContains(resp, "cellCommand(")
+        else:
+            self.assertContains(resp, f"sectionCommand({section.pk}, 'up')")
 
     def test_locked_section_is_visibly_locked_and_cannot_drag_or_remove_from_canvas(self):
         section = self._first_section()
@@ -276,53 +290,39 @@ class PrototypeV2Phase2InteractionFoundationTests(StorefrontBuilderViewsTestCase
 
 
 class FullscreenEditorTests(StorefrontBuilderViewsTestCase):
-    """مشکلِ ۴ (تصمیمِ مالک): دکمه‌ی «تمام‌صفحه» کنارِ کنترل‌های
-    دسکتاپ/تبلت/موبایل — بدونِ Renderer/Tab/پنجره‌ی جدید؛ همان
-    ``#sfbPreviewFrame``ی مشترکِ Preview/Storefront عمومی."""
+    """V3 keeps fullscreen as a pure state/CSS mode over the one real preview iframe."""
 
-    def test_fullscreen_button_present_next_to_device_controls(self):
+    def test_fullscreen_button_is_in_v3_topbar_with_device_and_zoom_controls(self):
         resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
         self.assertEqual(resp.status_code, 200)
         html = resp.content.decode("utf-8")
-        device_toggle_pos = html.index("sfb-device-toggle")
-        fullscreen_btn_pos = html.index("sfb-fullscreen-btn")
-        # دکمه‌ی تمام‌صفحه باید همان نزدیکیِ کنترل‌هایِ دستگاه باشد، نه
-        # جایی کاملاً نامرتبط در صفحه.
-        self.assertLess(fullscreen_btn_pos - device_toggle_pos, 2000)
-        self.assertContains(resp, "تمام‌صفحه")
-
-    def test_fullscreen_exit_toolbar_present_with_save_status(self):
-        resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
-        self.assertContains(resp, "sfb-fullscreen-float")
-        self.assertContains(resp, "خروج از تمام‌صفحه")
-        self.assertContains(resp, "sfb-fullscreen-save-status")
+        self.assertIn("sfb-v3-device-switcher", html)
+        self.assertIn("sfb-v3-zoom-control", html)
+        self.assertIn(':aria-pressed="fullscreen"', html)
+        self.assertIn('@click="fullscreen = !fullscreen"', html)
+        self.assertIn("تمام‌صفحه", html)
 
     def test_escape_key_handler_wired_to_exit_fullscreen(self):
         resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
         self.assertContains(resp, "@keydown.escape.window")
-        self.assertContains(resp, "fullscreen = false")
+        self.assertContains(resp, "if (this.fullscreen) { this.fullscreen = false; return; }")
 
     def test_fullscreen_reuses_the_same_shared_preview_iframe(self):
-        """هیچ Renderer/iframe/URLِ جداگانه‌ای برایِ تمام‌صفحه ساخته
-        نشود — همان ``sfbPreviewFrame``ی مشترکِ Preview/Storefront عمومی
-        باید زیرِ حالتِ تمام‌صفحه هم استفاده شود."""
         resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
         html = resp.content.decode("utf-8")
         self.assertEqual(html.count('id="sfbPreviewFrame"'), 1)
         self.assertContains(resp, reverse("dashboard:storefront-builder-preview"))
 
     def test_fullscreen_state_is_a_pure_css_toggle_not_a_new_route(self):
-        """طبقِ الزامِ صریح: بازشدنِ Tab/پنجره‌ی جدید مجاز نیست — دکمه‌ی
-        تمام‌صفحه فقط یک متغیرِ Alpineِ محلی را تغییر می‌دهد (``fullscreen``)،
-        نه هیچ ناوبری/hx-get/window.open ای."""
         resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
         html = resp.content.decode("utf-8")
-        btn_start = html.index("sfb-fullscreen-btn")
-        btn_tag = html[max(0, btn_start - 300):btn_start + 200]
-        self.assertIn("fullscreen = true", btn_tag)
-        self.assertNotIn("window.open", btn_tag)
-        self.assertNotIn("target=\"_blank\"", btn_tag)
-
+        marker = '@click="fullscreen = !fullscreen"'
+        fullscreen_button = next(line for line in html.splitlines() if marker in line)
+        self.assertIn('class="sfb-v3-icon-btn"', fullscreen_button)
+        self.assertNotIn("window.open", fullscreen_button)
+        self.assertNotIn('target="_blank"', fullscreen_button)
+        self.assertNotIn("href=", fullscreen_button)
+        self.assertNotIn("hx-get=", fullscreen_button)
 
 class SectionActionTests(StorefrontBuilderViewsTestCase):
     def setUp(self):
@@ -1371,6 +1371,13 @@ class HeaderFooterEditorTests(StorefrontBuilderViewsTestCase):
         self.assertContains(resp, "هدر فروشگاه")
         self.assertNotContains(resp, "بازگشت به ادیتور")
 
+    def test_header_editor_htmx_panel_uses_v3_tabs_and_live_autosave(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-header"), HTTP_HX_REQUEST="true")
+        self.assertContains(resp, 'data-sfb-autosave="true"')
+        self.assertContains(resp, "inspectorTab === 'design'")
+        self.assertContains(resp, "inspectorTab === 'content'")
+        self.assertContains(resp, "inspectorTab === 'advanced'")
+
     def test_header_editor_non_htmx_request_still_renders_full_page(self):
         """درخواستِ مستقیمِ URL (بدونِ htmx) هم‌چنان صفحه‌ی کامل را
         برمی‌گرداند — سازگاریِ کامل با مسیرِ قدیمی."""
@@ -1382,6 +1389,13 @@ class HeaderFooterEditorTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "فوتر فروشگاه")
         self.assertNotContains(resp, "بازگشت به ادیتور")
+
+    def test_footer_editor_htmx_panel_uses_v3_tabs_and_live_autosave(self):
+        resp = self.client.get(reverse("dashboard:storefront-builder-footer"), HTTP_HX_REQUEST="true")
+        self.assertContains(resp, 'data-sfb-autosave="true"')
+        self.assertContains(resp, "inspectorTab === 'design'")
+        self.assertContains(resp, "inspectorTab === 'content'")
+        self.assertContains(resp, "inspectorTab === 'advanced'")
 
     def test_footer_editor_non_htmx_request_still_renders_full_page(self):
         resp = self.client.get(reverse("dashboard:storefront-builder-footer"))
@@ -1587,6 +1601,23 @@ class RenderedPreviewIntegrationTests(StorefrontBuilderViewsTestCase):
         self.assertContains(resp, "برندهای بخش دوم")
 
 
+    def test_auto_category_grid_carousel_display_mode_changes_rendered_markup(self):
+        from apps.catalog.models import Category
+
+        Category.objects.create(store=self.store, name="خودکار آ", slug="auto-a", is_active=True)
+        Category.objects.create(store=self.store, name="خودکار ب", slug="auto-b", is_active=True)
+        self.draft.sections.filter(section_key="category_grid").delete()
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="category_grid", order=905,
+            settings={
+                "title": "", "display_mode": "carousel", "category_ids": [],
+                "responsive": {"hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False},
+            },
+        )
+        resp = self.client.get(reverse("dashboard:storefront-builder-preview"))
+        self.assertContains(resp, 'class="tiles-carousel"')
+
+
 class NewSectionTypesRenderedPreviewTests(StorefrontBuilderViewsTestCase):
     """چکپوینتِ ۱۲ — همان کلاسِ رگرسیونِ ``RenderedPreviewIntegrationTests``:
     برایِ هر نوعِ section جدید، حداقل یک context key که فقط در سرویس
@@ -1780,7 +1811,8 @@ class PageSwitchingTests(StorefrontBuilderViewsTestCase):
         resp = self.client.get(reverse("dashboard:storefront-builder-editor"))
         for _value, label in StorefrontPage.PageType.choices:
             self.assertContains(resp, label)
-        self.assertContains(resp, "sfb-page-switcher")
+        self.assertContains(resp, "sfb-v3-page-picker")
+        self.assertContains(resp, "sfb-v3-pages-list")
 
     def test_editor_switches_to_requested_page(self):
         resp = self.client.get(reverse("dashboard:storefront-builder-editor"), {"page": "listing"})
@@ -2360,7 +2392,7 @@ class PrototypeV2Phase24AdvancedInspectorRowLayoutTests(StorefrontBuilderViewsTe
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "sfb-inspector-tabs")
         self.assertContains(response, "inspectorTab === 'advanced'")
-        self.assertContains(response, "این پنل فقط محتوای این خانه را تنظیم می‌کند")
+        self.assertContains(response, "این پنل فقط همین بلاک را تنظیم می‌کند")
         self.assertContains(response, "sfb-advanced-field")
         self.assertNotContains(response, "چیدمان ردیف")
         self.assertNotContains(response, reverse("dashboard:storefront-builder-section-row-layout", args=[section.pk]))
@@ -2477,7 +2509,7 @@ class PrototypeV2Phase25MobileKeyboardAccessibilityTests(StorefrontBuilderViewsT
         self.assertContains(response, "isEditableTarget(target)")
         self.assertContains(response, "event.ctrlKey || event.metaKey")
         self.assertContains(response, "this.historyStep(event.shiftKey ? 'redo' : 'undo')")
-        self.assertContains(response, "this.sectionCommand(this.selectedSectionId")
+        self.assertContains(response, "this.blockCommand(this.selectedSectionId, direction)")
 
     def test_add_dialog_has_focus_management_and_modal_semantics(self):
         response = self.client.get(reverse("dashboard:storefront-builder-editor"))
@@ -2508,7 +2540,7 @@ class PrototypeV2Phase25MobileKeyboardAccessibilityTests(StorefrontBuilderViewsT
         response = self.client.get(reverse("dashboard:storefront-builder-editor"))
         self.assertContains(response, "this.mobilePanel !== 'canvas'")
         self.assertContains(response, "this.setMobilePanel('canvas')")
-        self.assertContains(response, "if (this.fullscreen) this.fullscreen = false")
+        self.assertContains(response, "if (this.fullscreen) { this.fullscreen = false; return; }")
 
     def test_mobile_selection_opens_inspector_but_initial_selection_does_not_steal_panel(self):
         response = self.client.get(reverse("dashboard:storefront-builder-editor"))

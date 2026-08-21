@@ -1,111 +1,69 @@
 {% comment %}
-نسخه‌ی «داخل سازنده»‌یِ ویرایشِ هدر — دقیقاً همان فرم/همان ویو/همان
-validate_header_config، فقط بدونِ خروج از سازنده (طبقِ الزامِ صریحِ کار:
-«هدر باید بخشی از سازنده بصری احساس شود»). نسخه‌ی تمام‌صفحه
-(``header_editor.html``) هم‌چنان برایِ دسترسیِ مستقیم/URL باقی می‌ماند.
+نسخه‌ی داخل سازنده‌ی ویرایش هدر. V3 سه تب Inspector را از editor.html
+به‌عنوان تنها منبع وضعیت استفاده می‌کند؛ این پنل فقط گروه‌های هر تب را مشخص می‌کند.
 {% endcomment %}
-<div class="sfb-appearance-panel" x-data>
+<div class="sfb-appearance-panel sfb-v3-tabbed-panel" x-data>
   <button type="button" class="btn btn-ghost btn-sm" @click="$dispatch('close-settings-drawer')">بستن</button>
 
   <div class="sfb-appearance-intro">
     <strong>هدر فروشگاه</strong>
-    <p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">نمایش عناصر هدر و متن نوار اعلان — تغییرات فقط در پیش‌نویس اعمال می‌شوند.</p>
+    <p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">هر تغییر این پنل به‌صورت خودکار در پیش‌نویس ذخیره و در Canvas تازه‌سازی می‌شود.</p>
   </div>
 
   {% if error %}
   <div class="form-error" role="alert" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin:12px 0">{{ error }}</div>
   {% endif %}
 
-  <form method="post" action="{% url 'dashboard:storefront-builder-header' %}">
+  <form method="post" action="{% url 'dashboard:storefront-builder-header' %}" data-sfb-autosave="true">
     {% csrf_token %}
 
-    <div class="sfb-layer sfb-layer-structure" style="cursor:default">
-      <span class="sfb-layer-main"><span class="sfb-layer-name">🖼 لوگو و نام فروشگاه</span><span class="sfb-layer-meta">همیشه فعال</span></span>
-    </div>
+    <section class="sfb-v3-inspector-tab-panel" x-show="inspectorTab === 'design'" x-cloak>
+      <div class="sfb-v3-tab-note">طراحی و ساختار هدر</div>
+      <div class="sfb-layer sfb-layer-structure" style="cursor:default">
+        <span class="sfb-layer-main"><span class="sfb-layer-name">🖼 لوگو و نام فروشگاه</span><span class="sfb-layer-meta">همیشه فعال</span></span>
+      </div>
+      <label class="toggle-field"><input type="checkbox" name="show_search" {% if config.show_search %}checked{% endif %}><div class="toggle-content"><span class="toggle-title">🔍 جستجو</span></div></label>
+      <label class="toggle-field"><input type="checkbox" name="show_account" {% if config.show_account %}checked{% endif %}><div class="toggle-content"><span class="toggle-title">👤 ورود / حساب کاربری</span></div></label>
+      <label class="toggle-field"><input type="checkbox" name="show_wishlist" {% if config.show_wishlist %}checked{% endif %}><div class="toggle-content"><span class="toggle-title">🤍 علاقه‌مندی‌ها</span></div></label>
+      <label class="toggle-field"><input type="checkbox" name="show_cart" {% if config.show_cart %}checked{% endif %}><div class="toggle-content"><span class="toggle-title">🛒 سبد خرید</span><span class="toggle-desc">دسترسی به سبد خرید همیشه باید در دسترس باشد.</span></div></label>
+      <label class="toggle-field"><input type="checkbox" name="sticky" {% if config.sticky %}checked{% endif %}><div class="toggle-content"><span class="toggle-title">📌 چسبیدن هدر به بالای صفحه هنگام اسکرول</span></div></label>
+    </section>
 
-    <label class="toggle-field">
-      <input type="checkbox" name="show_search" {% if config.show_search %}checked{% endif %}>
-      <div class="toggle-content"><span class="toggle-title">🔍 جستجو</span></div>
-    </label>
-    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_search" component=config.responsive.show_search %}
-    <label class="toggle-field">
-      <input type="checkbox" name="show_account" {% if config.show_account %}checked{% endif %}>
-      <div class="toggle-content"><span class="toggle-title">👤 ورود / حساب کاربری</span></div>
-    </label>
-    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_account" component=config.responsive.show_account %}
-    <label class="toggle-field">
-      <input type="checkbox" name="show_wishlist" {% if config.show_wishlist %}checked{% endif %}>
-      <div class="toggle-content"><span class="toggle-title">🤍 علاقه‌مندی‌ها</span></div>
-    </label>
-    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_wishlist" component=config.responsive.show_wishlist %}
-    <label class="toggle-field">
-      <input type="checkbox" name="show_cart" {% if config.show_cart %}checked{% endif %}>
-      <div class="toggle-content"><span class="toggle-title">🛒 سبد خرید</span><span class="toggle-desc">دسترسی به سبد خرید همیشه باید در دسترس باشد؛ غیرفعال‌کردن توصیه نمی‌شود.</span></div>
-    </label>
-    <label class="toggle-field">
-      <input type="checkbox" name="sticky" {% if config.sticky %}checked{% endif %}>
-      <div class="toggle-content"><span class="toggle-title">📌 چسبیدن هدر به بالای صفحه هنگام اسکرول</span></div>
-    </label>
-    <label class="toggle-field">
-      <input type="checkbox" name="announcement_enabled" {% if config.announcement_enabled %}checked{% endif %}>
-      <div class="toggle-content"><span class="toggle-title">📣 نوار اعلان</span></div>
-    </label>
-    {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="announcement_enabled" component=config.responsive.announcement_enabled %}
-    {% include "dashboard/storefront_builder/partials/announcement_editor_fields.html" %}
+    <section class="sfb-v3-inspector-tab-panel" x-show="inspectorTab === 'content'" x-cloak>
+      <div class="sfb-v3-tab-note">محتوای هدر</div>
+      <label class="toggle-field"><input type="checkbox" name="announcement_enabled" {% if config.announcement_enabled %}checked{% endif %}><div class="toggle-content"><span class="toggle-title">📣 نوار اعلان</span></div></label>
+      {% include "dashboard/storefront_builder/partials/announcement_editor_fields.html" %}
+      <div class="sfb-appearance-intro" style="margin-top:16px">
+        <strong>لوگو و منوی اصلی</strong>
+        <p style="color:var(--muted);font-size:12px;margin:4px 0 0">لوگو/نام فروشگاه و لینک‌های منو داده‌های زنده فروشگاه‌اند.</p>
+      </div>
+      <a href="{% url 'dashboard:settings-shop-info' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش لوگو و نام فروشگاه</a>
+      <a href="{% url 'dashboard:menu-list' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش منوی اصلی ناوبری</a>
+    </section>
 
-    {{ config.extra_blocks|json_script:"header-extra-blocks-initial" }}
-    <div class="sfb-panel-title" style="margin-top:18px">بلوک‌های اضافی هدر</div>
-    <p style="color:var(--muted);font-size:12px;margin:0 0 10px">علاوه بر آیکون‌های بالا — تلفن، شبکه‌های اجتماعی، دکمه، فاصله یا نوار شعار فروشگاه؛ ترتیب و تعداد این‌ها دلخواه شماست.</p>
-    <div x-data="itemRepeaterForm(JSON.parse(document.getElementById('header-extra-blocks-initial').textContent), {type: 'spacer', label: '', url: ''})">
-      <template x-for="(row, index) in rows" :key="index">
-        <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
-          <div class="form-group">
-            <label>نوع بلوک</label>
-            <select name="block_type" class="form-select" x-model="row.type">
-              <option value="phone">☎️ تلفن فروشگاه</option>
-              <option value="social">📱 شبکه‌های اجتماعی</option>
-              <option value="cta">🔘 دکمه</option>
-              <option value="spacer">↔️ فاصله</option>
-              <option value="tagline">🏷️ نوار شعار فروشگاه</option>
-            </select>
+    <section class="sfb-v3-inspector-tab-panel" x-show="inspectorTab === 'advanced'" x-cloak>
+      <div class="sfb-v3-tab-note">نمایش در دستگاه‌ها و بلوک‌های پیشرفته</div>
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_search" component=config.responsive.show_search %}
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_account" component=config.responsive.show_account %}
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_wishlist" component=config.responsive.show_wishlist %}
+      {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="announcement_enabled" component=config.responsive.announcement_enabled %}
+
+      {{ config.extra_blocks|json_script:"header-extra-blocks-initial" }}
+      <div class="sfb-panel-title" style="margin-top:18px">بلوک‌های اضافی هدر</div>
+      <p style="color:var(--muted);font-size:12px;margin:0 0 10px">تلفن، شبکه اجتماعی، دکمه، فاصله یا نوار شعار؛ ترتیب و تعداد دلخواه است.</p>
+      <div x-data="itemRepeaterForm(JSON.parse(document.getElementById('header-extra-blocks-initial').textContent), {type: 'spacer', label: '', url: ''})">
+        <template x-for="(row, index) in rows" :key="index">
+          <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
+            <div class="form-group"><label>نوع بلوک</label><select name="block_type" class="form-select" x-model="row.type"><option value="phone">☎️ تلفن فروشگاه</option><option value="social">📱 شبکه‌های اجتماعی</option><option value="cta">🔘 دکمه</option><option value="spacer">↔️ فاصله</option><option value="tagline">🏷️ نوار شعار فروشگاه</option></select></div>
+            <template x-if="row.type === 'cta'"><div><div class="form-group"><label>متن دکمه</label><input type="text" name="block_label" class="form-input" x-model="row.label" maxlength="30"></div><div class="form-group"><label>آدرس مقصد</label><input type="url" name="block_url" class="form-input" dir="ltr" x-model="row.url" placeholder="https://..."></div></div></template>
+            <template x-if="row.type !== 'cta'"><div><input type="hidden" name="block_label" value=""><input type="hidden" name="block_url" value=""></div></template>
+            <div style="display:flex;gap:6px"><button type="button" class="btn btn-sm" @click="moveUp(index)" :disabled="index === 0">▲</button><button type="button" class="btn btn-sm" @click="moveDown(index)" :disabled="index === rows.length - 1">▼</button><button type="button" class="btn btn-sm btn-danger" @click="removeRow(index)">حذف</button></div>
           </div>
-          <template x-if="row.type === 'cta'">
-            <div>
-              <div class="form-group">
-                <label>متن دکمه</label>
-                <input type="text" name="block_label" class="form-input" x-model="row.label" maxlength="30">
-              </div>
-              <div class="form-group">
-                <label>آدرس مقصد</label>
-                <input type="url" name="block_url" class="form-input" dir="ltr" x-model="row.url" placeholder="https://...">
-              </div>
-            </div>
-          </template>
-          <template x-if="row.type !== 'cta'">
-            <div><input type="hidden" name="block_label" value=""><input type="hidden" name="block_url" value=""></div>
-          </template>
-          <div style="display:flex;gap:6px">
-            <button type="button" class="btn btn-sm" @click="moveUp(index)" :disabled="index === 0">▲</button>
-            <button type="button" class="btn btn-sm" @click="moveDown(index)" :disabled="index === rows.length - 1">▼</button>
-            <button type="button" class="btn btn-sm btn-danger" @click="removeRow(index)">حذف</button>
-          </div>
-        </div>
-      </template>
-      <button type="button" class="btn btn-sm" @click="addRow()">+ افزودن بلوک</button>
-    </div>
+        </template>
+        <button type="button" class="btn btn-sm" @click="addRow()">+ افزودن بلوک</button>
+      </div>
+    </section>
 
-    <div style="display:flex;gap:10px;margin-top:16px">
-      <button type="submit" class="btn btn-primary">ذخیره تنظیمات هدر</button>
-    </div>
+    <div class="sfb-form-actions" style="display:flex;gap:10px;margin-top:16px"><button type="submit" class="btn btn-primary">ذخیره اکنون</button></div>
   </form>
-
-  <div class="sfb-appearance-intro" style="margin-top:22px">
-    <strong>لوگو و منوی اصلی</strong>
-    <p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">
-      لوگو و نام فروشگاه از «اطلاعات فروشگاه» و لینک‌های منوی اصلی از «منوها» خوانده می‌شوند —
-      این‌ها هویتِ زنده‌ی فروشگاه‌اند، نه بخشی از پیش‌نویس/انتشار سازنده.
-    </p>
-  </div>
-  <a href="{% url 'dashboard:settings-shop-info' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش لوگو و نام فروشگاه</a>
-  <a href="{% url 'dashboard:menu-list' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش منوی اصلی ناوبری</a>
 </div>

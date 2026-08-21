@@ -41,7 +41,10 @@ class Phase31AHiddenCellSemanticsTests(StorefrontBuilderViewsTestCase):
         self.assertNotIn(f'data-empty-cell="{first.pk}"', html)
         self.assertIn(f'data-empty-cell="{second.pk}"', html)
 
-    def test_library_cannot_overwrite_hidden_occupied_cell(self):
+    def test_library_appends_to_hidden_occupied_cell_without_overwriting_hidden_block(self):
+        """V3 Free Layout intentionally supersedes the old single-block
+        rejection: an occupied Cell may receive another Block, while hidden
+        content remains placed and unchanged."""
         hidden = self._section(is_active=False)
         container = container_service.create_empty_container(self.page, "single")
         cell = container.cells.get()
@@ -54,9 +57,17 @@ class Phase31AHiddenCellSemanticsTests(StorefrontBuilderViewsTestCase):
 
         self.assertEqual(response.status_code, 200)
         cell.refresh_from_db()
+        blocks = container_service.get_cell_blocks(cell)
+        self.assertEqual(len(blocks), 2)
+        self.assertEqual(blocks[0].pk, hidden.pk)
+        self.assertFalse(blocks[0].is_active)
+        self.assertEqual(blocks[1].section_key, "rich_text")
+        self.assertEqual([b.cell_order for b in blocks], [0, 1])
+        # The legacy mirror still points at the original first Block; the new
+        # second Block lives only through Section.cell/cell_order.
         self.assertEqual(cell.section_id, hidden.pk)
-        self.assertEqual(self.page.sections.count(), 1)
-        self.assertEqual(self.draft.edit_history_entries.count(), 0)
+        self.assertEqual(self.page.sections.count(), 2)
+        self.assertEqual(self.draft.edit_history_entries.count(), 1)
 
     def test_hidden_trailing_content_survives_shrink_via_merge_not_refusal(self):
         """Phase 2C REPLACES the previous Phase 2B behaviour asserted here
@@ -111,7 +122,7 @@ class Phase31AHiddenCellSemanticsTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(self.page.containers.get(stable_id=container_sid).cells.count(), 2)
         self.assertEqual(self.draft.edit_history_entries.count(), 1)
 
-    def test_active_cell_toolbar_uses_direct_cell_clear_action(self):
+    def test_active_cell_toolbar_removes_only_selected_block_and_keeps_cell_clear_distinct(self):
         section = self._section()
         container = container_service.create_empty_container(self.page, "single")
         cell = container.cells.get()
@@ -120,9 +131,11 @@ class Phase31AHiddenCellSemanticsTests(StorefrontBuilderViewsTestCase):
         response = self.client.get(reverse("dashboard:storefront-builder-preview") + "?page=home")
         html = response.content.decode("utf-8")
 
-        self.assertIn(f'data-cell-clear="{cell.pk}"', html)
-        self.assertIn('title="حذف محتوا از این خانه"', html)
+        self.assertIn(f'data-block-remove="{section.pk}"', html)
+        self.assertIn('title="حذف فقط این بلاک"', html)
         self.assertIn("🗑", html)
+        # Whole-cell clear remains a separate action for hidden/cell-context
+        # controls; it is no longer overloaded by the selected Block toolbar.
         self.assertIn("var clearCellBtn = evt.target.closest('[data-cell-clear]');", html)
 
     def test_container_settings_explains_hidden_is_not_empty(self):

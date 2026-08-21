@@ -1,24 +1,36 @@
 {% load static storefront_builder_extras %}
-<div id="storefrontSectionList" x-data="{ dragId: null }">
+<div id="storefrontSectionList" class="sfb-v3-layers-tree" x-data="{ dragId: null }">
   {% for section in sections %}
   <div class="sfb-layer{% if not section.is_active %} sfb-inactive{% endif %}{% if section.collapsed_in_editor %} sfb-collapsed{% endif %}"
-       draggable="true" data-id="{{ section.pk }}"
-       @dragstart="dragId = {{ section.pk }}; $event.dataTransfer.effectAllowed = 'move'"
+       draggable="{% if section.cell_id %}false{% else %}true{% endif %}"
+       data-id="{{ section.pk }}"
+       data-cell-id="{% if section.cell_id %}{{ section.cell_id }}{% endif %}"
+       @click="selectSection({{ section.pk }}, {openInspector: true, scroll: false})"
+       @dragstart="{% if not section.cell_id %}dragId = {{ section.pk }}; $event.dataTransfer.effectAllowed = 'move'{% endif %}"
        @dragover.prevent
        @drop.prevent="
+         {% if not section.cell_id %}
          if (dragId !== null && dragId !== {{ section.pk }}) {
            const list = $el.parentElement;
            const from = list.querySelector('[data-id=\'' + dragId + '\']');
-           list.insertBefore(from, from.compareDocumentPosition($el) & Node.DOCUMENT_POSITION_FOLLOWING ? $el.nextSibling : $el);
-           const ids = [...list.children].filter(el => el.dataset && el.dataset.id).map(r => r.dataset.id);
-           htmx.ajax('POST', '{% url 'dashboard:storefront-builder-section-reorder' %}', {values: {section_ids: ids, page: '{{ page_type }}'}, target: '#storefrontSectionList', swap: 'outerHTML'});
+           if (from && !from.dataset.cellId) {
+             list.insertBefore(from, from.compareDocumentPosition($el) & Node.DOCUMENT_POSITION_FOLLOWING ? $el.nextSibling : $el);
+             const ids = [...list.children]
+               .filter(el => el.dataset && el.dataset.id && !el.dataset.cellId)
+               .map(r => r.dataset.id);
+             htmx.ajax('POST', '{% url 'dashboard:storefront-builder-section-reorder' %}', {values: {section_ids: ids, page: '{{ page_type }}'}, target: '#storefrontSectionList', swap: 'outerHTML'});
+           }
          }
+         {% endif %}
          dragId = null;
        ">
-    <span class="sfb-layer-drag" title="برای مرتب‌سازی بکشید" aria-hidden="true">⠿</span>
+    <span class="sfb-layer-drag{% if section.cell_id %} is-block{% endif %}"
+          title="{% if section.cell_id %}این بلاک را روی بوم جابه‌جا کنید{% else %}برای مرتب‌سازی بکشید{% endif %}"
+          aria-hidden="true">{% if section.cell_id %}⋮⋮{% else %}⠿{% endif %}</span>
     <button type="button" class="sfb-layer-collapse"
             hx-post="{% url 'dashboard:storefront-builder-section-collapse' section.pk %}"
             hx-target="#storefrontSectionList" hx-swap="outerHTML"
+            @click.stop
             aria-expanded="{% if section.collapsed_in_editor %}false{% else %}true{% endif %}"
             aria-label="{% if section.collapsed_in_editor %}باز کردن جزئیات «{{ section.section_key|section_label }}»{% else %}جمع‌کردن «{{ section.section_key|section_label }}»{% endif %}">
       {% if section.collapsed_in_editor %}▸{% else %}▾{% endif %}
@@ -26,11 +38,19 @@
     <div class="sfb-layer-main">
       <div class="sfb-layer-name">{% if section.settings.title %}{{ section.settings.title }}{% else %}{{ section.section_key|section_label }}{% endif %}</div>
       {% if not section.collapsed_in_editor %}
-      <div class="sfb-layer-meta">{{ section.section_key|section_label }} • {% if section.is_active %}فعال{% else %}غیرفعال{% endif %}{% if section.row_key %} • ردیف {{ section.row_span }}/12{% endif %}{% if section.is_locked %} • قفل{% endif %}</div>
+      <div class="sfb-layer-meta">
+        {{ section.section_key|section_label }} • {% if section.is_active %}فعال{% else %}غیرفعال{% endif %}
+        {% if section.cell_id %} • ستون {{ section.cell.order|add:1 }} • بلاک {{ section.cell_order|add:1 }}{% elif section.row_key %} • ردیف {{ section.row_span }}/12{% endif %}
+        {% if section.is_locked %} • قفل{% endif %}
+      </div>
       {% endif %}
     </div>
     {% if not section.collapsed_in_editor %}
-    <div class="sfb-layer-actions">
+    <div class="sfb-layer-actions" @click.stop>
+      {% if section.cell_id %}
+      <button type="button" title="بلاک بالاتر" @click="blockCommand({{ section.pk }}, 'up')" aria-label="بلاک بالاتر">↑</button>
+      <button type="button" title="بلاک پایین‌تر" @click="blockCommand({{ section.pk }}, 'down')" aria-label="بلاک پایین‌تر">↓</button>
+      {% else %}
       <button type="button" title="جابه‌جایی به بالا" {% if forloop.first %}disabled{% endif %}
               hx-post="{% url 'dashboard:storefront-builder-section-move' section.pk %}"
               hx-vals='{"direction": "up"}' hx-target="#storefrontSectionList" hx-swap="outerHTML"
@@ -39,17 +59,16 @@
               hx-post="{% url 'dashboard:storefront-builder-section-move' section.pk %}"
               hx-vals='{"direction": "down"}' hx-target="#storefrontSectionList" hx-swap="outerHTML"
               aria-label="جابه‌جایی «{{ section.section_key|section_label }}» به پایین">↓</button>
+      {% endif %}
       <button type="button" title="{% if section.is_active %}غیرفعال‌سازی{% else %}فعال‌سازی{% endif %}"
               hx-post="{% url 'dashboard:storefront-builder-section-toggle' section.pk %}"
               hx-target="#storefrontSectionList" hx-swap="outerHTML">{% if section.is_active %}👁{% else %}⊘{% endif %}</button>
       <button type="button" class="sfb-layer-settings-btn" title="تنظیمات"
-              hx-get="{% url 'dashboard:storefront-builder-section-settings' section.pk %}"
-              hx-target="#sfbInspectorBody" hx-swap="innerHTML"
-              @click="inspectorTitle = 'تنظیمات «{{ section.section_key|section_label }}»'">⚙</button>
+              @click="selectSection({{ section.pk }}, {openInspector: true, scroll: false})">⚙</button>
     </div>
     {% endif %}
   </div>
   {% empty %}
-  <p class="sfb-empty-state" style="color:var(--muted);font-size:13px;padding:24px 0;text-align:center">هنوز هیچ بخشی اضافه نشده — از فهرست پایین یک بخش اضافه کنید.</p>
+  <p class="sfb-empty-state" style="color:var(--muted);font-size:13px;padding:24px 0;text-align:center">هنوز هیچ محتوایی اضافه نشده — از تب «افزودن» یک کامپوننت اضافه کنید.</p>
   {% endfor %}
 </div>

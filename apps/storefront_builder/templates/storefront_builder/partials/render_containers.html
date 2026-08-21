@@ -40,6 +40,11 @@
         {% include "storefront_builder/partials/responsive_section_wrapper.html" %}
       {% endwith %}
       {% endfor %}
+      {% if is_preview %}
+      <button type="button" class="sfb-cell-add-more" data-cell-add="{{ cell.pk }}" data-container-id="{{ container.pk }}" aria-label="افزودن کامپوننت دیگر به این ستون">
+        <span aria-hidden="true">＋</span><span>افزودن کامپوننت</span>
+      </button>
+      {% endif %}
     {% elif is_preview and blocks %}
       {% comment %}
       Every Block in this Cell is currently hidden (``is_active=False``) —
@@ -65,6 +70,9 @@
         </div>
       </div>
       {% endwith %}
+      <button type="button" class="sfb-cell-add-more" data-cell-add="{{ cell.pk }}" data-container-id="{{ container.pk }}" aria-label="افزودن کامپوننت دیگر به این ستون">
+        <span aria-hidden="true">＋</span><span>افزودن کامپوننت</span>
+      </button>
     {% elif is_preview %}
       <button type="button" class="sfb-empty-cell-add" data-empty-cell="{{ cell.pk }}" data-container-id="{{ container.pk }}">
         <span>＋</span><strong>افزودن محتوا</strong><small>{{ cell.span }}/12</small>

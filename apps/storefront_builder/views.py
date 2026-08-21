@@ -101,8 +101,15 @@ def storefront_editor(request):
     page_type = _resolve_page_type(request.GET.get("page"))
     page = draft.get_page(page_type)
     container_service.ensure_page_containers(page)
-    sections = page.sections.order_by("order", "id")
+    sections = page.sections.select_related("cell", "cell__container").order_by("order", "id")
     industry_installation = getattr(store, "industry_installation", None)
+
+    # V3 shell quick-style data.  This is only a read projection of the
+    # existing appearance system; palette mutations still go through the
+    # established appearance endpoint and Draft/Publish lifecycle.
+    from . import appearance_registry
+
+    appearance_config = draft.effective_appearance_config()
     context = {
         "active_page": "storefront_builder",
         "layout": layout,
@@ -118,6 +125,9 @@ def storefront_editor(request):
         "versions": layout_service.list_versions(store),
         "industry_installation": industry_installation,
         "edit_history": edit_history_service.history_state(draft),
+        "builder_palettes": appearance_registry.list_palettes(),
+        "active_palette_slug": appearance_config.get("palette_slug"),
+        "builder_resolved_colors": appearance_registry.resolve_colors(appearance_config),
     }
     return render(request, "dashboard/storefront_builder/editor.html", context)
 
@@ -269,7 +279,7 @@ def storefront_section_list_partial(request, page_type=None):
     context = {
         "draft": draft,
         "page_type": page_type,
-        "sections": page.sections.order_by("order", "id"),
+        "sections": page.sections.select_related("cell", "cell__container").order_by("order", "id"),
         "section_definitions": section_registry.list_definitions(),
     }
     return render(request, "dashboard/storefront_builder/partials/section_list.html", context)
@@ -484,7 +494,7 @@ def storefront_container_remove(request, pk):
     if container.is_locked:
         messages.error(request, "این چیدمان قفل است")
         return storefront_container_state_partial(request, page_type=page.page_type)
-    if container.cells.filter(section__isnull=False).exists():
+    if any(container_service.get_cell_blocks(cell) for cell in container.cells.all()):
         messages.error(request, "برای حذف چیدمان، ابتدا محتوای خانه‌های آن را حذف یا جابه‌جا کنید")
         return storefront_container_state_partial(request, page_type=page.page_type)
     container.delete()
@@ -527,21 +537,18 @@ def storefront_cell_add_section(request):
             if cell.container.is_locked:
                 messages.error(request, "این چیدمان قفل است")
                 return storefront_container_state_partial(request, page_type=page_type)
-            # Phase 2C: ``cell.section_id`` alone is NOT a reliable occupancy
-            # check — a Cell can hold Blocks entirely through the new
-            # multi-block FK (e.g. after a merge-on-shrink) while its legacy
-            # OneToOne pointer stays NULL. ``get_cell_blocks`` (the single
-            # authoritative composition-read path) is used instead so the
-            # current single-block "add to cell" UI action can never mistake
-            # such a Cell for empty and silently create a second, orphaned
-            # placement inside it.
-            if container_service.get_cell_blocks(cell):
-                messages.error(request, "این خانه از قبل محتوا دارد")
-                return storefront_container_state_partial(request, page_type=page_type)
+            # V3 Free Layout: a Cell is a real column and may contain 0/1/N
+            # Blocks.  The first placement keeps the legacy mirror alive for
+            # backward compatibility; subsequent placements use the new FK
+            # composition directly and append (or insert) by ``cell_order``.
+            existing_blocks = container_service.get_cell_blocks(cell)
         else:
             container = container_service.create_empty_container(page, "single")
             cell = container.cells.get(order=0)
+            existing_blocks = []
 
+        at_index_raw = (request.POST.get("at_index") or "").strip()
+        at_index = int(at_index_raw) if at_index_raw.isdigit() else None
         last = page.sections.order_by("-order", "-id").first()
         section = StorefrontSection.objects.create(
             page=page,
@@ -549,7 +556,13 @@ def storefront_cell_add_section(request):
             order=(last.order + 1) if last else 0,
             settings=definition.default_settings(),
         )
-        container_service.place_section(cell, section)
+        if existing_blocks:
+            container_service.add_block(cell, section, at_index=at_index)
+        else:
+            # Keep legacy single-block readers safe while the transitional
+            # OneToOne still exists. ``place_section`` also synchronizes the
+            # new FK, so the second Block can immediately use ``add_block``.
+            container_service.place_section(cell, section)
 
     messages.success(request, f"«{definition.label_fa}» داخل خانه قرار گرفت")
     response = _container_state_changed_response(
@@ -1529,18 +1542,117 @@ def storefront_section_duplicate(request, pk):
         # (``uuid.uuid4``) خودش یک شناسه‌ی منطقیِ تازه تولید می‌کند.
     )
     _clone_section_scoped_media(section, new_section)
-    placement = StorefrontCell.objects.filter(section=section).select_related("container").first()
+    # V3 Free Layout: duplicating a Block inside a Cell keeps the duplicate in
+    # that same Cell, directly after its source.  ``section.cell`` is primary;
+    # the legacy reverse relation remains only as a compatibility fallback.
+    placement = section.cell
+    if placement is None:
+        placement = StorefrontCell.objects.filter(section=section).select_related("container").first()
     if placement is not None:
-        # Container mode: duplicate is new content, so it receives its own
-        # single-column Container instead of rebuilding/destroying the current
-        # composition from legacy row metadata.
-        duplicate_container = container_service.create_empty_container(section.page, "single")
-        duplicate_cell = duplicate_container.cells.get(order=0)
-        container_service.place_section(duplicate_cell, new_section)
+        source_index = section.cell_order if section.cell_id == placement.pk else len(container_service.get_cell_blocks(placement)) - 1
+        container_service.add_block(placement, new_section, at_index=max(0, source_index + 1))
     else:
         container_service.rebuild_page_from_legacy_rows(section.page)
     messages.success(request, "بخش تکرار شد")
     return storefront_section_list_partial(request, page_type=section.page.page_type)
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+@_record_edit_history("جابه‌جایی بلاک")
+def storefront_block_move(request, pk):
+    """Move/reorder one V3 Block without touching page-level Section order.
+
+    The visual Builder sends ``target_cell_id`` plus either ``at_index`` from
+    drag/drop or ``direction`` from the small selection toolbar.  Composition
+    remains exclusively ``Section.cell + cell_order``; tenant/page/lock
+    invariants stay centralized in ``container_service.move_block``.
+    """
+    section = _get_scoped_section(request, pk)
+    if section.is_locked:
+        messages.error(request, "این محتوا قفل است — ابتدا قفل آن را باز کنید")
+        return storefront_container_state_partial(request, page_type=section.page.page_type)
+
+    target_raw = (request.POST.get("target_cell_id") or "").strip()
+    target_cell = None
+    if target_raw:
+        if not target_raw.isdigit():
+            return HttpResponseBadRequest("خانه مقصد نامعتبر است")
+        target_cell = _get_scoped_cell(request, int(target_raw))
+    elif section.cell_id:
+        target_cell = _get_scoped_cell(request, section.cell_id)
+    if target_cell is None:
+        return HttpResponseBadRequest("این محتوا داخل خانه قابل جابه‌جایی نیست")
+    if target_cell.container.page_id != section.page_id:
+        return HttpResponseBadRequest("خانه مقصد متعلق به صفحه دیگری است")
+
+    direction = (request.POST.get("direction") or "").strip()
+    at_index_raw = (request.POST.get("at_index") or "").strip()
+    if direction in {"up", "down"} and section.cell_id == target_cell.pk:
+        current_blocks = container_service.get_cell_blocks(target_cell)
+        current_index = next((i for i, block in enumerate(current_blocks) if block.pk == section.pk), None)
+        if current_index is None:
+            return HttpResponseBadRequest("جایگاه فعلی محتوا پیدا نشد")
+        at_index = current_index - 1 if direction == "up" else current_index + 1
+    else:
+        at_index = int(at_index_raw) if at_index_raw.isdigit() else None
+
+    try:
+        container_service.move_block(section, target_cell, at_index=at_index)
+    except container_service.ContainerLayoutError as exc:
+        messages.error(request, str(exc))
+        return storefront_container_state_partial(request, page_type=section.page.page_type)
+
+    response = _container_state_changed_response(
+        request, page_type=section.page.page_type, container_id=target_cell.container_id,
+        cell_id=target_cell.pk, section_id=section.pk,
+    )
+    response["HX-Trigger-After-Settle"] = json.dumps({
+        "sfbBlockMoved": {
+            "sectionId": section.pk,
+            "cellId": target_cell.pk,
+            "containerId": target_cell.container_id,
+            "page": section.page.page_type,
+        },
+        "sfbContainerChanged": {"containerId": target_cell.container_id, "page": section.page.page_type},
+    })
+    return response
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+@_record_edit_history("حذف بلاک")
+def storefront_block_remove(request, pk):
+    """Delete exactly one Block from a Cell and keep sibling Blocks/layout."""
+    section = _get_scoped_section(request, pk)
+    page_type = section.page.page_type
+    cell = section.cell
+    if cell is None:
+        # Transitional fallback for a mirrored legacy-only placement.
+        cell = StorefrontCell.objects.filter(section=section).select_related("container").first()
+    if cell is None:
+        return HttpResponseBadRequest("این محتوا داخل هیچ خانه‌ای نیست")
+    if cell.container.is_locked or section.is_locked:
+        messages.error(request, "این محتوا یا چیدمان قفل است")
+        return storefront_container_state_partial(request, page_type=page_type)
+    try:
+        definition = section_registry.get_definition(section.section_key)
+        if not definition.removable:
+            messages.error(request, f"«{definition.label_fa}» قابل حذف نیست")
+            return storefront_container_state_partial(request, page_type=page_type)
+    except section_registry.UnknownSectionTypeError:
+        pass
+
+    container_id, cell_id = cell.container_id, cell.pk
+    with transaction.atomic():
+        container_service.remove_block(section)
+        section.delete()
+    messages.success(request, "بلاک حذف شد")
+    return _container_state_changed_response(
+        request, page_type=page_type, container_id=container_id, cell_id=cell_id,
+    )
 
 
 @require_POST

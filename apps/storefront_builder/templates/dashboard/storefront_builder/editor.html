@@ -9,8 +9,12 @@
 {% endblock %}
 
 {% block content %}
-<div class="sfb-shell sfb-prototype-shell"
-     :class="{ 'sfb-fullscreen': fullscreen }"
+<div class="sfb-shell sfb-prototype-shell sfb-v3-shell"
+     :class="{
+       'sfb-fullscreen': fullscreen,
+       'sfb-v3-sidebar-collapsed': sidebarCollapsed,
+       'sfb-v3-inspector-collapsed': inspectorCollapsed
+     }"
      x-data="storefrontEditor()"
      x-init="init()"
      data-page-type="{{ page_type }}"
@@ -27,179 +31,221 @@
      data-container-remove-url-template="{% url 'dashboard:storefront-builder-container-remove' 0 %}"
      data-cell-add-section-url="{% url 'dashboard:storefront-builder-cell-add-section' %}"
      data-cell-clear-url-template="{% url 'dashboard:storefront-builder-cell-clear' 0 %}"
+     data-block-move-url-template="{% url 'dashboard:storefront-builder-block-move' 0 %}"
+     data-block-remove-url-template="{% url 'dashboard:storefront-builder-block-remove' 0 %}"
+     data-appearance-url="{% url 'dashboard:storefront-builder-appearance' %}"
      @beforeunload.window="handleBeforeUnload($event)"
      @keydown.escape.window="handleEscape()"
      @keydown.window="handleGlobalKeydown($event)"
      @close-settings-drawer.window="clearInspector()">
 
-  <header class="sfb-prototype-topbar">
-    <div class="sfb-prototype-brand">
-      <div class="sfb-prototype-logo">ر</div>
-      <div>راستی‌سی — سازنده ظاهر</div>
+  <header class="sfb-prototype-topbar sfb-v3-topbar">
+    <div class="sfb-v3-topbar-right">
+      <div class="sfb-v3-brand" aria-label="RastiSi">
+        <span class="sfb-v3-logo-mark">R</span>
+        <strong>RastiSi</strong>
+      </div>
+      <span class="sfb-v3-top-sep" aria-hidden="true">/</span>
+      <label class="sfb-v3-page-picker">
+        <span class="sr-only">صفحه</span>
+        <select aria-label="انتخاب صفحه" @change="changePage($event.target.value)">
+          {% for value, label in page_types %}
+          <option value="{{ value }}" {% if value == page_type %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <span class="sfb-prototype-status sfb-v3-save-status" :class="{ 'is-dirty': inspectorDirty }" aria-live="polite">
+        <span aria-hidden="true" x-text="inspectorDirty ? '●' : '✓'"></span>
+        <span x-text="saveStatusLabel">پیش‌نویس ذخیره شده</span>
+      </span>
+      <button type="button" class="sfb-v3-icon-btn sfb-v3-sidebar-toggle"
+              :class="{ active: !sidebarCollapsed }"
+              :aria-pressed="!sidebarCollapsed"
+              @click="sidebarCollapsed = !sidebarCollapsed; $nextTick(() => syncPreviewViewport())"
+              title="نمایش/پنهان کردن پنل ابزارها" aria-label="نمایش یا پنهان کردن پنل ابزارها">◫</button>
     </div>
 
-    <div class="sfb-prototype-topgroup sfb-page-switcher">
-      <span class="sfb-prototype-top-label">صفحه:</span>
-      <select aria-label="انتخاب صفحه" @change="changePage($event.target.value)">
-        {% for value, label in page_types %}
-        <option value="{{ value }}" {% if value == page_type %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
+    <div class="sfb-v3-topbar-center">
+      <div class="sfb-v3-device-switcher" role="group" aria-label="اندازه پیش‌نمایش">
+        <button type="button" class="sfb-v3-device-btn" :class="{ active: device === 'desktop' }" @click="setDevice('desktop')" title="دسکتاپ" aria-label="دسکتاپ">▱</button>
+        <button type="button" class="sfb-v3-device-btn" :class="{ active: device === 'tablet' }" @click="setDevice('tablet')" title="تبلت" aria-label="تبلت">▯</button>
+        <button type="button" class="sfb-v3-device-btn" :class="{ active: device === 'mobile' }" @click="setDevice('mobile')" title="موبایل" aria-label="موبایل">▯</button>
+      </div>
+      <div class="sfb-v3-zoom-control" aria-label="بزرگ‌نمایی بوم">
+        <button type="button" @click="changeZoom(-10)" aria-label="کوچک‌نمایی">−</button>
+        <span x-text="zoom + '%'">100%</span>
+        <button type="button" @click="changeZoom(10)" aria-label="بزرگ‌نمایی">＋</button>
+      </div>
     </div>
 
-    <div class="sfb-prototype-topgroup sfb-prototype-history-controls" aria-label="تاریخچه ویرایش">
-      <button type="button" :disabled="historyBusy || !canUndo" @click="historyStep('undo')"
-              :title="undoLabel ? 'بازگشت: ' + undoLabel : 'چیزی برای بازگشت نیست'">↶ بازگشت</button>
-      <button type="button" :disabled="historyBusy || !canRedo" @click="historyStep('redo')"
-              :title="redoLabel ? 'جلو: ' + redoLabel : 'چیزی برای جلو رفتن نیست'">↷ جلو</button>
+    <div class="sfb-v3-topbar-left">
+      <button type="button" class="sfb-v3-icon-btn" :disabled="historyBusy || !canUndo" @click="historyStep('undo')"
+              :title="undoLabel ? 'بازگشت: ' + undoLabel : 'چیزی برای بازگشت نیست'" aria-label="Undo">↶</button>
+      <button type="button" class="sfb-v3-icon-btn" :disabled="historyBusy || !canRedo" @click="historyStep('redo')"
+              :title="redoLabel ? 'جلو: ' + redoLabel : 'چیزی برای جلو رفتن نیست'" aria-label="Redo">↷</button>
+      <span class="sfb-v3-divider" aria-hidden="true"></span>
+      <button type="button" class="sfb-v3-icon-btn"
+              :class="{ active: !inspectorCollapsed }"
+              :aria-pressed="!inspectorCollapsed"
+              @click="inspectorCollapsed = !inspectorCollapsed; $nextTick(() => syncPreviewViewport())"
+              title="نمایش/پنهان کردن Inspector" aria-label="نمایش یا پنهان کردن Inspector">☷</button>
+      <button type="button" class="sfb-v3-icon-btn" @click="fullscreen = !fullscreen" :aria-pressed="fullscreen" title="تمام‌صفحه" aria-label="تمام‌صفحه">⛶</button>
+      <a class="sfb-v3-ghost-btn" href="{% url 'dashboard:storefront-builder-preview' %}?page={{ page_type }}" target="_blank" rel="noopener">◎ <span>پیش‌نمایش</span></a>
+      <form method="post" action="{% url 'dashboard:storefront-builder-publish' %}" class="sfb-prototype-publish-form"
+            onsubmit="return confirm('این پیش‌نویس روی فروشگاه عمومی منتشر شود؟')">
+        {% csrf_token %}
+        <button type="submit" class="sfb-v3-primary-btn">انتشار <span aria-hidden="true">←</span></button>
+      </form>
     </div>
-
-    <div class="sfb-prototype-spacer"></div>
-
-    <span class="sfb-prototype-status" :class="{ 'is-dirty': inspectorDirty }" aria-live="polite">
-      <span class="sfb-prototype-status-dot"></span>
-      <span x-text="saveStatusLabel">{% if draft.status == "draft" %}پیش‌نویس ذخیره شده{% else %}نسخه آماده{% endif %}</span>
-    </span>
-
-    <a class="sfb-prototype-top-action" href="{% url 'dashboard:storefront-builder-preview' %}?page={{ page_type }}" target="_blank" rel="noopener">پیش‌نمایش</a>
-
-    <form method="post" action="{% url 'dashboard:storefront-builder-publish' %}" class="sfb-prototype-publish-form"
-          onsubmit="return confirm('این پیش‌نویس روی فروشگاه عمومی منتشر شود؟')">
-      {% csrf_token %}
-      <button type="submit" class="sfb-prototype-top-action active">انتشار</button>
-    </form>
   </header>
 
-  <main class="sfb-prototype-main"
-        :class="['sfb-mobile-panel-' + mobilePanel, {
-          'sfb-library-open': libraryDrawerOpen,
-          'sfb-inspector-open': inspectorDrawerOpen
-        }]">
-    <button type="button"
-            class="sfb-desktop-drawer-backdrop"
-            :class="{ active: !isCompactLayout() && (libraryDrawerOpen || inspectorDrawerOpen) }"
-            @click="closeDesktopDrawers()"
-            aria-label="بستن پنل باز"></button>
-    <aside class="sfb-library-panel sfb-overlay-drawer sfb-overlay-drawer-library"
-           :class="{ 'sfb-overlay-drawer-open': !isCompactLayout() && libraryDrawerOpen }"
-           aria-label="کتابخانه اجزا">
-      <button type="button"
-              class="sfb-desktop-drawer-close sfb-library-drawer-close"
-              @click="libraryDrawerOpen = false; $nextTick(() => syncPreviewViewport())"
-              aria-label="بستن کتابخانه">×</button>
-      <div class="sfb-prototype-panel-head">
-        <h3>کتابخانه محتوا</h3>
-        <p x-text="targetCellId ? 'محتوا را برای خانه انتخاب‌شده انتخاب کن.' : 'یک محتوا انتخاب کن؛ اگر خانه‌ای انتخاب نشده باشد در یک چیدمان تک‌ستونه تازه قرار می‌گیرد.'"></p>
-        <input class="sfb-prototype-search" type="search" x-model.trim="libraryQuery" placeholder="جستجوی بلوک..." aria-label="جستجوی بلوک">
-      </div>
+  <button type="button" class="sfb-v3-exit-fullscreen" x-show="fullscreen" x-cloak
+          @click="fullscreen = false; $nextTick(() => syncPreviewViewport())"
+          aria-label="خروج از تمام‌صفحه">← خروج از تمام‌صفحه</button>
 
-      <div class="sfb-prototype-library-scroll">
-        {% for category, definitions in section_library_groups %}
-        <section class="sfb-add-section-category sfb-prototype-group" x-show="groupHasMatches($el)" x-cloak>
-          <div class="sfb-add-section-category-title sfb-prototype-group-title">{{ category }}</div>
-          <div class="sfb-add-section-list sfb-prototype-blocks">
-            {% for definition in definitions %}
-            <button type="button"
-                    class="sfb-lib-card sfb-prototype-block-btn"
-                    data-library-label="{{ definition.label_fa }} {{ definition.description_fa }} {{ category }}"
-                    data-section-key="{{ definition.key }}"
-                    draggable="true"
-                    title="کلیک برای افزودن؛ یا بکش و داخل خانه خالی رها کن"
-                    x-show="matchesLibrary($el.dataset.libraryLabel)"
-                    @dragstart="beginLibraryDrag($event, '{{ definition.key }}', '{{ definition.label_fa|escapejs }}')"
-                    @dragend="endLibraryDrag()"
-                    @click="if (!libraryDragging) addContentBlock('{{ definition.key }}')">
-              <span class="sfb-lib-card-icon sfb-prototype-block-icon">{{ definition.icon|icon_svg }}</span>
-              <span class="sfb-lib-card-copy"><b>{{ definition.label_fa }}</b>{% if definition.description_fa %}<small>{{ definition.description_fa }}</small>{% endif %}</span>
-            </button>
-            {% endfor %}
-          </div>
-        </section>
-        {% endfor %}
+  <main class="sfb-prototype-main sfb-v3-main"
+        :class="['sfb-mobile-panel-' + mobilePanel]">
 
-        <section class="sfb-prototype-group">
-          <div class="sfb-prototype-group-title">بخش‌های سراسری</div>
-          <div class="sfb-prototype-blocks">
-            <button type="button" class="sfb-prototype-block-btn"
-                    @click="openPanelUrl('{% url 'dashboard:storefront-builder-header' %}', 'هدر فروشگاه')">
-              <span class="sfb-prototype-block-icon">🔝</span><span>هدر</span>
-            </button>
-            <button type="button" class="sfb-prototype-block-btn"
-                    @click="openPanelUrl('{% url 'dashboard:storefront-builder-footer' %}', 'فوتر فروشگاه')">
-              <span class="sfb-prototype-block-icon">🔻</span><span>فوتر</span>
-            </button>
-            <button type="button" class="sfb-prototype-block-btn"
-                    @click="openPanelUrl('{% url 'dashboard:storefront-builder-appearance' %}', 'ظاهر سایت')">
-              <span class="sfb-prototype-block-icon">🎨</span><span>ظاهر سایت</span>
-            </button>
-            <a class="sfb-prototype-block-btn" href="{% url 'dashboard:menu-list' %}">
-              <span class="sfb-prototype-block-icon">☰</span><span>مگامنو</span>
-            </a>
-          </div>
-        </section>
+    <aside class="sfb-library-panel sfb-v3-sidebar-right" aria-label="ابزارهای سازنده">
+      <nav class="sfb-v3-sidebar-tabs" aria-label="پنل ابزارها">
+        <button type="button" :class="{ active: sidebarTab === 'add' }" @click="sidebarTab = 'add'"><span>⊞</span><small>افزودن</small></button>
+        <button type="button" :class="{ active: sidebarTab === 'layers' }" @click="sidebarTab = 'layers'"><span>◇</span><small>ساختار</small></button>
+        <button type="button" :class="{ active: sidebarTab === 'style' }" @click="sidebarTab = 'style'"><span>◉</span><small>استایل</small></button>
+        <button type="button" :class="{ active: sidebarTab === 'pages' }" @click="sidebarTab = 'pages'"><span>▤</span><small>صفحات</small></button>
+      </nav>
 
-        {% if industry_installation %}
-        <section class="sfb-prototype-group">
-          <div class="sfb-prototype-group-title">چیدمان پیشنهادی صنف</div>
-          <p class="sfb-prototype-library-note">{{ industry_installation.industry_template.name }}</p>
-          <form method="post" action="{% url 'dashboard:storefront-builder-apply-industry-layout' %}"
-                {% if layout.published_version_id %}
-                onsubmit="if(!confirm('اعمال چیدمان پیشنهادی، Draft فعلی را جایگزین می‌کند. نسخه منتشرشده تا انتشار دوباره دست‌نخورده می‌ماند. ادامه می‌دهید؟')){return false;} this.confirm.value='1'; return true;"
-                {% endif %}>
+      <section class="sfb-v3-sidebar-panel" x-show="sidebarTab === 'add'" x-cloak>
+        <button type="button" class="sfb-v3-add-layout-entry" @click="openAddModal($event)">
+          <span class="sfb-v3-add-layout-icon">▦</span>
+          <span><strong>افزودن چیدمان</strong><small>۱ تا ۴ ستون آزاد؛ محتوا را بعداً داخل هر ستون قرار بده</small></span>
+          <span aria-hidden="true">＋</span>
+        </button>
+        <div class="sfb-v3-panel-search">
+          <span aria-hidden="true">⌕</span>
+          <input class="sfb-prototype-search" type="search" x-model.trim="libraryQuery" placeholder="جستجوی کامپوننت..." aria-label="جستجوی کامپوننت">
+        </div>
+        <div class="sfb-v3-free-layout-note">
+          هر کامپوننت را داخل هر ستون دلخواه قرار بده؛ چند کامپوننت می‌توانند داخل یک ستون باشند.
+        </div>
+        <div class="sfb-prototype-library-scroll sfb-v3-library-scroll">
+          {% for category, definitions in section_library_groups %}
+          <section class="sfb-add-section-category sfb-prototype-group sfb-v3-library-category" x-show="groupHasMatches($el)" x-cloak>
+            <div class="sfb-v3-category-title"><span>{{ category }}</span><small>{{ definitions|length }}</small></div>
+            <div class="sfb-add-section-list sfb-prototype-blocks sfb-v3-component-grid">
+              {% for definition in definitions %}
+              <button type="button"
+                      class="sfb-lib-card sfb-prototype-block-btn sfb-v3-component-item"
+                      data-library-label="{{ definition.label_fa }} {{ definition.description_fa }} {{ category }}"
+                      data-section-key="{{ definition.key }}"
+                      draggable="true"
+                      title="کلیک برای افزودن یا بکش و داخل هر ستون رها کن"
+                      x-show="matchesLibrary($el.dataset.libraryLabel)"
+                      @dragstart="beginLibraryDrag($event, '{{ definition.key }}', '{{ definition.label_fa|escapejs }}')"
+                      @dragend="endLibraryDrag()"
+                      @click="if (!libraryDragging) addContentBlock('{{ definition.key }}')">
+                <span class="sfb-lib-card-icon sfb-prototype-block-icon sfb-v3-component-preview">{{ definition.icon|icon_svg }}</span>
+                <span class="sfb-lib-card-copy"><b>{{ definition.label_fa }}</b></span>
+              </button>
+              {% endfor %}
+            </div>
+          </section>
+          {% endfor %}
+
+          <section class="sfb-prototype-group sfb-v3-library-category">
+            <div class="sfb-v3-category-title"><span>سراسری</span><small>4</small></div>
+            <div class="sfb-v3-component-grid">
+              <button type="button" class="sfb-v3-component-item" @click="openPanelUrl('{% url 'dashboard:storefront-builder-header' %}', 'هدر فروشگاه')"><span class="sfb-v3-global-icon">⌃</span><b>هدر</b></button>
+              <button type="button" class="sfb-v3-component-item" @click="openPanelUrl('{% url 'dashboard:storefront-builder-footer' %}', 'فوتر فروشگاه')"><span class="sfb-v3-global-icon">⌄</span><b>فوتر</b></button>
+              <button type="button" class="sfb-v3-component-item" @click="openPanelUrl('{% url 'dashboard:storefront-builder-appearance' %}', 'ظاهر سایت')"><span class="sfb-v3-global-icon">◉</span><b>ظاهر</b></button>
+              <a class="sfb-v3-component-item" href="{% url 'dashboard:menu-list' %}"><span class="sfb-v3-global-icon">☰</span><b>مگامنو</b></a>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="sfb-v3-sidebar-panel sfb-v3-layers-panel" x-show="sidebarTab === 'layers'" x-cloak>
+        <div class="sfb-v3-panel-title"><strong>ساختار صفحه</strong><small>چیدمان یا بلاک را برای ویرایش انتخاب کن</small></div>
+        <div class="sfb-v3-layout-layer-list" aria-label="چیدمان‌های صفحه">
+          <div class="sfb-v3-layout-layer-head"><strong>چیدمان‌ها</strong><button type="button" @click="openAddModal($event)">＋ افزودن</button></div>
+          {% for container in containers %}
+          <button type="button" class="sfb-v3-layout-layer"
+                  :class="{ active: selectedContainerId === {{ container.pk }} && !selectedSectionId }"
+                  @click="selectContainer({{ container.pk }})">
+            <span class="sfb-v3-layout-layer-icon">▦</span>
+            <span><b>چیدمان {{ forloop.counter }}</b><small>{{ container.cells.count }} ستون · {% if container.layout_key == "single" %}100٪{% elif container.layout_key == "half" %}50/50{% elif container.layout_key == "third_left" %}33/67{% elif container.layout_key == "third_right" %}67/33{% elif container.layout_key == "quarter_left" %}25/75{% elif container.layout_key == "quarter_right" %}75/25{% elif container.layout_key == "thirds" %}سه‌ستونه{% elif container.layout_key == "quarters" %}چهارستونه{% else %}{{ container.layout_key }}{% endif %}</small></span>
+            <span aria-hidden="true">‹</span>
+          </button>
+          {% empty %}
+          <button type="button" class="sfb-v3-layout-layer is-empty" @click="openAddModal($event)"><span>＋</span><span><b>اولین چیدمان را بساز</b><small>یک ساختار ستونی آزاد اضافه کن</small></span></button>
+          {% endfor %}
+        </div>
+        <div class="sfb-v3-panel-title sfb-v3-blocks-title"><strong>بلاک‌ها</strong><small>محتوای صفحه</small></div>
+        <div class="sfb-v3-layers-tree">
+          {% include "dashboard/storefront_builder/partials/section_list.html" %}
+        </div>
+      </section>
+
+      <section class="sfb-v3-sidebar-panel sfb-v3-style-panel" x-show="sidebarTab === 'style'" x-cloak>
+        <div class="sfb-v3-panel-title"><strong>پالت‌های آماده</strong><small>رنگ کل سایت را یکجا تغییر بده</small></div>
+        <div class="sfb-v3-palette-grid">
+          {% for palette in builder_palettes|slice:":6" %}
+          <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}" class="sfb-v3-palette-card{% if palette.slug == active_palette_slug %} active{% endif %}">
             {% csrf_token %}
-            <input type="hidden" name="confirm" value="0">
-            <button type="submit" class="sfb-prototype-wide-btn">اعمال چیدمان پیشنهادی صنف</button>
+            <input type="hidden" name="palette_slug" value="{{ palette.slug }}">
+            <button type="submit" title="اعمال {{ palette.name_fa }}">
+              <span class="sfb-v3-palette-preview">
+                <i style="background:{{ palette.colors.background }}"></i>
+                <i style="background:{{ palette.colors.primary }}"></i>
+                <i style="background:{{ palette.colors.text }}"></i>
+              </span>
+              <b>{{ palette.name_fa }}</b>
+            </button>
           </form>
-        </section>
-        {% endif %}
+          {% endfor %}
+        </div>
+        <div class="sfb-v3-panel-title sfb-v3-active-colors-title"><strong>رنگ‌های فعال</strong><button type="button" @click="openPanelUrl('{% url 'dashboard:storefront-builder-appearance' %}', 'استایل سایت')">ویرایش کامل</button></div>
+        <div class="sfb-v3-active-colors">
+          <button type="button" @click="openPanelUrl('{% url 'dashboard:storefront-builder-appearance' %}', 'استایل سایت')"><span>پس‌زمینه</span><i style="background:{{ builder_resolved_colors.background }}"></i><small>{{ builder_resolved_colors.background }}</small></button>
+          <button type="button" @click="openPanelUrl('{% url 'dashboard:storefront-builder-appearance' %}', 'استایل سایت')"><span>سطح کارت</span><i style="background:{{ builder_resolved_colors.surface }}"></i><small>{{ builder_resolved_colors.surface }}</small></button>
+          <button type="button" @click="openPanelUrl('{% url 'dashboard:storefront-builder-appearance' %}', 'استایل سایت')"><span>متن اصلی</span><i style="background:{{ builder_resolved_colors.text }}"></i><small>{{ builder_resolved_colors.text }}</small></button>
+          <button type="button" @click="openPanelUrl('{% url 'dashboard:storefront-builder-appearance' %}', 'استایل سایت')"><span>رنگ اصلی</span><i style="background:{{ builder_resolved_colors.primary }}"></i><small>{{ builder_resolved_colors.primary }}</small></button>
+        </div>
+      </section>
 
-        <section class="sfb-prototype-group sfb-prototype-library-links">
+      <section class="sfb-v3-sidebar-panel sfb-v3-pages-panel" x-show="sidebarTab === 'pages'" x-cloak>
+        <div class="sfb-v3-panel-title"><strong>صفحات فروشگاه</strong><small>صفحه‌ای را برای ویرایش انتخاب کن</small></div>
+        <div class="sfb-v3-pages-list">
+          {% for value, label in page_types %}
+          <button type="button" class="sfb-v3-page-item{% if value == page_type %} active{% endif %}" @click="changePage('{{ value }}')">
+            <span aria-hidden="true">▤</span><b>{{ label }}</b>{% if value == page_type %}<small>در حال ویرایش</small>{% endif %}
+          </button>
+          {% endfor %}
+        </div>
+        <div class="sfb-v3-sidebar-utility-links">
           <a href="{% url 'dashboard:storefront-builder-history' %}">تاریخچه نسخه‌ها</a>
-          <form method="post" action="{% url 'dashboard:storefront-builder-discard' %}" onsubmit="return confirm('پیش‌نویس فعلی حذف شود؟')">
-            {% csrf_token %}
-            <button type="submit">رد کردن پیش‌نویس</button>
+          {% if industry_installation %}
+          <form method="post" action="{% url 'dashboard:storefront-builder-apply-industry-layout' %}" {% if layout.published_version_id %}onsubmit="if(!confirm('اعمال چیدمان پیشنهادی، Draft فعلی را جایگزین می‌کند. ادامه می‌دهید؟')){return false;} this.confirm.value='1'; return true;"{% endif %}>
+            {% csrf_token %}<input type="hidden" name="confirm" value="0"><button type="submit">چیدمان پیشنهادی صنف</button>
           </form>
-        </section>
-      </div>
+          {% endif %}
+        </div>
+      </section>
     </aside>
 
-    <section class="sfb-workspace">
-      <div class="sfb-workspace-toolbar">
-        <div class="sfb-workspace-tip">اول چیدمان را بساز؛ سپس داخل هر خانه «افزودن محتوا» را بزن. محتوا و چیدمان از هم مستقل‌اند.</div>
-        <div class="sfb-workspace-tools">
-          <div class="sfb-canvas-drawer-actions" role="group" aria-label="ابزارهای اصلی سازنده">
-            <button type="button" class="sfb-canvas-action sfb-add-layout-shortcut" @click="openAddModal($event)">＋ افزودن چیدمان</button>
-            <button type="button"
-                    class="sfb-canvas-action sfb-library-toggle"
-                    :aria-pressed="libraryDrawerOpen"
-                    @click="targetCellId = null; toggleLibraryDrawer()">＋ کتابخانه محتوا</button>
-            <button type="button"
-                    class="sfb-canvas-action sfb-layout-shortcut"
-                    :disabled="!selectedContainerId"
-                    @click="openSelectedContainerSettings()">▦ تنظیم چیدمان</button>
-            <button type="button"
-                    class="sfb-canvas-action sfb-inspector-toggle"
-                    :disabled="!selectedSectionId"
-                    :aria-pressed="inspectorDrawerOpen"
-                    @click="openInspectorDrawer()">⚙ تنظیمات محتوا</button>
-          </div>
-          <div class="sfb-device-toggle sfb-view-switch" role="group" aria-label="حالت پیش‌نمایش">
-            <button type="button" :class="{ active: device === 'desktop' }" :aria-pressed="device === 'desktop'" @click="setDevice('desktop')">دسکتاپ</button>
-            <button type="button" :class="{ active: device === 'mobile' }" :aria-pressed="device === 'mobile'" @click="setDevice('mobile')">موبایل</button>
-          </div>
-          <button type="button" class="sfb-fullscreen-btn" @click="fullscreen = true" x-show="!fullscreen" aria-label="تمام‌صفحه">⛶</button>
-          <div class="sfb-fullscreen-float" x-show="fullscreen" x-cloak>
-            <span class="sfb-fullscreen-save-status">✓ تغییرات ذخیره می‌شوند</span>
-            <button type="button" @click="fullscreen = false">خروج از تمام‌صفحه ✕</button>
-          </div>
-        </div>
+    <section class="sfb-workspace sfb-v3-canvas-area">
+      <div class="sfb-v3-canvas-breadcrumb" aria-label="مسیر انتخاب">
+        <button type="button" @click="clearInspector(); inspectorCollapsed = false">صفحه اصلی</button>
+        <span>‹</span>
+        <button type="button" class="active" x-text="selectedSectionId ? sectionLabel(selectedSectionId) : (selectedContainerId ? 'چیدمان' : 'بوم')">بوم</button>
       </div>
 
-      <div class="sfb-canvas-shell sfb-preview-frame-wrap" :class="'sfb-device-' + device">
+      <div class="sfb-canvas-shell sfb-preview-frame-wrap sfb-v3-canvas-frame" :class="'sfb-device-' + device" :data-device="device">
         <div class="sfb-canvas">
           <iframe id="sfbPreviewFrame" class="sfb-preview-viewport"
                   src="{% url 'dashboard:storefront-builder-preview' %}?page={{ page_type }}"
-                  data-desktop-viewport-width="1440"
+                  data-desktop-viewport-width="1200"
+                  data-tablet-viewport-width="768"
+                  data-mobile-viewport-width="390"
                   @load="syncPreviewViewport(); syncPreviewSelection()"
                   title="پیش‌نمایش {{ page.get_page_type_display }}"
                   data-preview-url="{% url 'dashboard:storefront-builder-preview' %}?page={{ page_type }}"
@@ -213,81 +259,78 @@
         </div>
       </div>
 
-      <button type="button" class="sfb-floating-add" @click="openAddModal($event)" aria-haspopup="dialog" aria-controls="sfbAddModal">＋ افزودن چیدمان</button>
+      <button type="button" class="sfb-floating-add sfb-v3-floating-add" @click="openAddModal($event)" aria-haspopup="dialog" aria-controls="sfbAddModal"><span>＋</span> افزودن Section</button>
     </section>
 
-    <aside class="sfb-inspector-panel sfb-overlay-drawer sfb-overlay-drawer-inspector"
-           :class="{ 'sfb-overlay-drawer-open': !isCompactLayout() && inspectorDrawerOpen }"
-           aria-label="Inspector تنظیمات">
-      <button type="button"
-              class="sfb-desktop-drawer-close sfb-inspector-drawer-close"
-              @click="inspectorDrawerOpen = false; $nextTick(() => syncPreviewViewport())"
-              aria-label="بستن تنظیمات">×</button>
-      <div class="sfb-prototype-panel-head">
-        <h3 id="sfbInspectorHeading" tabindex="-1" x-text="inspectorTitle">تنظیمات بخش</h3>
-        <p>محتوا، ظاهر و رفتار این بخش را تنظیم کن.</p>
+    <aside class="sfb-inspector-panel sfb-v3-inspector" aria-label="Inspector تنظیمات">
+      <div class="sfb-v3-inspector-head">
+        <button type="button" class="sfb-v3-inspector-close" @click="inspectorCollapsed = true; $nextTick(() => syncPreviewViewport())" aria-label="بستن Inspector">×</button>
+        <div class="sfb-v3-inspector-title-wrap">
+          <span class="sfb-v3-inspector-icon">✦</span>
+          <div><strong id="sfbInspectorHeading" tabindex="-1" x-text="inspectorTitle">تنظیمات</strong><small x-text="selectedSectionId ? 'Section · ' + sectionLabel(selectedSectionId) : (selectedContainerId ? 'Layout · container' : 'یک بخش را انتخاب کن')">یک بخش را انتخاب کن</small></div>
+        </div>
       </div>
-      <div class="sfb-inspector-content" id="sfbInspectorBody">
-        <div class="sfb-empty-inspector">
-          <strong>یک بخش را انتخاب کن</strong>
-          <p>روی یکی از بخش‌های پیش‌نمایش کلیک کن تا تنظیمات واقعی همان بخش اینجا باز شود.</p>
+      <nav class="sfb-v3-inspector-tabs" aria-label="دسته تنظیمات">
+        <button type="button" :class="{ active: inspectorTab === 'design' }" @click="inspectorTab = 'design'">طراحی</button>
+        <button type="button" :class="{ active: inspectorTab === 'content' }" @click="inspectorTab = 'content'">محتوا</button>
+        <button type="button" :class="{ active: inspectorTab === 'advanced' }" @click="inspectorTab = 'advanced'">پیشرفته</button>
+      </nav>
+      <div class="sfb-v3-device-tabs" role="group" aria-label="تنظیمات دستگاه">
+        <button type="button" :class="{ active: device === 'desktop' }" @click="setDevice('desktop')">دسکتاپ</button>
+        <button type="button" :class="{ active: device === 'tablet' }" @click="setDevice('tablet')">تبلت</button>
+        <button type="button" :class="{ active: device === 'mobile' }" @click="setDevice('mobile')">موبایل</button>
+      </div>
+      <div class="sfb-inspector-content sfb-v3-inspector-body" id="sfbInspectorBody" :data-inspector-tab="inspectorTab">
+        <div class="sfb-empty-inspector sfb-v3-empty-inspector">
+          <span>✦</span>
+          <strong>یک بخش یا چیدمان را انتخاب کن</strong>
+          <p>با یک کلیک روی Canvas، تنظیمات واقعی همان مورد اینجا باز می‌شود.</p>
         </div>
       </div>
     </aside>
   </main>
 
   <div class="sfb-library-cell-drop-layer"
-       x-show="libraryDragging"
-       x-cloak
+       x-show="libraryDragging" x-cloak
        @dragover.prevent="updateLibraryCellDropOverlay($event)"
        @drop.prevent="dropLibraryToCellOverlay($event)"
        aria-hidden="true">
     <template x-for="zone in libraryCellDropZones" :key="zone.cellId">
-      <div class="sfb-library-cell-drop-zone"
-           :class="{ active: activeLibraryDropCellId === zone.cellId }"
-           :style="zone.style">
-        <span x-text="activeLibraryDropCellId === zone.cellId ? 'اینجا رها کن' : 'خانه خالی'"></span>
+      <div class="sfb-library-cell-drop-zone" :class="{ active: activeLibraryDropCellId === zone.cellId }" :style="zone.style">
+        <span x-text="activeLibraryDropCellId === zone.cellId ? 'اینجا رها کن' : 'افزودن به ستون'"></span>
       </div>
     </template>
   </div>
 
   <nav class="sfb-mobile-builder-nav" aria-label="ناوبری سازنده در موبایل">
-    <button type="button" :class="{ active: mobilePanel === 'library' }" :aria-pressed="mobilePanel === 'library'" @click="setMobilePanel('library')">
-      <span aria-hidden="true">＋</span><span>کتابخانه</span>
-    </button>
-    <button type="button" :class="{ active: mobilePanel === 'canvas' }" :aria-pressed="mobilePanel === 'canvas'" @click="setMobilePanel('canvas')">
-      <span aria-hidden="true">▣</span><span>صفحه</span>
-    </button>
-    <button type="button" :class="{ active: mobilePanel === 'inspector' }" :aria-pressed="mobilePanel === 'inspector'" @click="setMobilePanel('inspector')">
-      <span aria-hidden="true">⚙</span><span>تنظیمات</span>
-    </button>
+    <button type="button" :class="{ active: mobilePanel === 'library' }" :aria-pressed="mobilePanel === 'library'" @click="setMobilePanel('library')"><span>＋</span><span>افزودن</span></button>
+    <button type="button" :class="{ active: mobilePanel === 'canvas' }" :aria-pressed="mobilePanel === 'canvas'" @click="setMobilePanel('canvas')"><span>▣</span><span>صفحه</span></button>
+    <button type="button" :class="{ active: mobilePanel === 'inspector' }" :aria-pressed="mobilePanel === 'inspector'" @click="setMobilePanel('inspector')"><span>⚙</span><span>تنظیمات</span></button>
   </nav>
 
-  {# state mirror only: HTMX mutations still use the same proven server endpoints; the visual list is intentionally hidden in Phase 1. #}
+  {# Server-authoritative placement mirror; section_list now lives visibly in the Structure tab. #}
   <div class="sfb-section-state" aria-hidden="true">
-    {% include "dashboard/storefront_builder/partials/section_list.html" %}
     {% include "dashboard/storefront_builder/partials/container_state.html" %}
   </div>
 
-  <div id="sfbAddModal" class="sfb-add-modal" x-show="modalOpen" x-cloak @click.self="closeAddModal()">
-    <div class="sfb-add-modal-card sfb-layout-modal-card" x-ref="addModal" role="dialog" aria-modal="true" aria-labelledby="sfbAddModalTitle" tabindex="-1" @keydown.tab="trapModalFocus($event)">
-      <div class="sfb-add-modal-head">
-        <div>
-          <strong id="sfbAddModalTitle">افزودن چیدمان</strong>
-          <p>اول شکل خانه‌ها را انتخاب کن. بعد داخل هر خانه محتوای دلخواهت را قرار بده.</p>
-        </div>
-        <button type="button" class="sfb-add-modal-close" @click="closeAddModal()" aria-label="بستن پنجره افزودن چیدمان">×</button>
+  <div id="sfbAddModal" class="sfb-add-modal sfb-v3-modal" x-show="modalOpen" x-cloak @click.self="closeAddModal()">
+    <div class="sfb-add-modal-card sfb-layout-modal-card sfb-v3-modal-card" x-ref="addModal" role="dialog" aria-modal="true" aria-labelledby="sfbAddModalTitle" tabindex="-1" @keydown.tab="trapModalFocus($event)">
+      <div class="sfb-add-modal-head sfb-v3-modal-head">
+        <div><strong id="sfbAddModalTitle">افزودن Section</strong><p>ساختار ستون‌ها را انتخاب کن؛ محتوا بعداً و مستقل داخل هر ستون قرار می‌گیرد.</p></div>
+        <button type="button" class="sfb-add-modal-close" @click="closeAddModal()" aria-label="بستن">×</button>
       </div>
       <div class="sfb-add-modal-body">
-        <div class="sfb-layout-choice-grid">
-          <button type="button" class="sfb-layout-choice" @click="createContainer('single')"><span class="sfb-span-preview one"><i></i></span><b>یک ستون</b><small>12</small></button>
-          <button type="button" class="sfb-layout-choice" @click="createContainer('half')"><span class="sfb-span-preview two"><i></i><i></i></span><b>نصف + نصف</b><small>6 + 6</small></button>
-          <button type="button" class="sfb-layout-choice" @click="createContainer('quarter_left')"><span class="sfb-span-preview split-quarter-left"><i></i><i></i></span><b>کوچک + بزرگ</b><small>3 + 9</small></button>
-          <button type="button" class="sfb-layout-choice" @click="createContainer('quarter_right')"><span class="sfb-span-preview split-quarter-right"><i></i><i></i></span><b>بزرگ + کوچک</b><small>9 + 3</small></button>
-          <button type="button" class="sfb-layout-choice" @click="createContainer('third_left')"><span class="sfb-span-preview split-left"><i></i><i></i></span><b>یک‌سوم + دو‌سوم</b><small>4 + 8</small></button>
-          <button type="button" class="sfb-layout-choice" @click="createContainer('third_right')"><span class="sfb-span-preview split-right"><i></i><i></i></span><b>دو‌سوم + یک‌سوم</b><small>8 + 4</small></button>
-          <button type="button" class="sfb-layout-choice" @click="createContainer('thirds')"><span class="sfb-span-preview three"><i></i><i></i><i></i></span><b>سه ستون</b><small>4 + 4 + 4</small></button>
-          <button type="button" class="sfb-layout-choice" @click="createContainer('quarters')"><span class="sfb-span-preview four"><i></i><i></i><i></i><i></i></span><b>چهار ستون</b><small>3 + 3 + 3 + 3</small></button>
+        <div class="sfb-v3-modal-kicker">چیدمان آزاد</div>
+        <div class="sfb-layout-choice-grid sfb-v3-layout-grid">
+          <button type="button" class="sfb-layout-choice" @click="createContainer('single')"><span class="sfb-span-preview one"><i></i></span><b>100%</b><small>یک ستون</small></button>
+          <button type="button" class="sfb-layout-choice" @click="createContainer('half')"><span class="sfb-span-preview two"><i></i><i></i></span><b>50 / 50</b><small>دو ستون مساوی</small></button>
+          <button type="button" class="sfb-layout-choice" @click="createContainer('third_left')"><span class="sfb-span-preview split-left"><i></i><i></i></span><b>33 / 67</b><small>یک‌سوم + دو‌سوم</small></button>
+          <button type="button" class="sfb-layout-choice" @click="createContainer('third_right')"><span class="sfb-span-preview split-right"><i></i><i></i></span><b>67 / 33</b><small>دو‌سوم + یک‌سوم</small></button>
+          <button type="button" class="sfb-layout-choice" @click="createContainer('quarter_left')"><span class="sfb-span-preview split-quarter-left"><i></i><i></i></span><b>25 / 75</b><small>کوچک + بزرگ</small></button>
+          <button type="button" class="sfb-layout-choice" @click="createContainer('quarter_right')"><span class="sfb-span-preview split-quarter-right"><i></i><i></i></span><b>75 / 25</b><small>بزرگ + کوچک</small></button>
+          <button type="button" class="sfb-layout-choice" @click="createContainer('thirds')"><span class="sfb-span-preview three"><i></i><i></i><i></i></span><b>33 × 3</b><small>سه ستون</small></button>
+          <button type="button" class="sfb-layout-choice" @click="createContainer('quarters')"><span class="sfb-span-preview four"><i></i><i></i><i></i><i></i></span><b>25 × 4</b><small>چهار ستون</small></button>
+          <button type="button" class="sfb-layout-choice sfb-v3-open-library-choice" @click="closeAddModal(false); sidebarTab='add'; sidebarCollapsed=false"><span>＋</span><b>کامپوننت</b><small>افزودن به ستون انتخابی</small></button>
         </div>
       </div>
     </div>
@@ -303,6 +346,11 @@ function storefrontEditor() {
     fullscreen: false,
     modalOpen: false,
     mobilePanel: 'canvas',
+    sidebarTab: 'add',
+    inspectorTab: 'design',
+    sidebarCollapsed: false,
+    inspectorCollapsed: false,
+    zoom: 100,
     selectedSectionId: null,
     selectedContainerId: null,
     targetCellId: null,
@@ -326,15 +374,23 @@ function storefrontEditor() {
     sectionCommandBusy: {},
     containerCommandBusy: {},
     contentBusy: false,
+    inspectorAutosaveTimer: null,
+    inspectorSaving: false,
+    inspectorSaveQueued: false,
     canUndo: {{ edit_history.can_undo|yesno:"true,false" }},
     canRedo: {{ edit_history.can_redo|yesno:"true,false" }},
     undoLabel: '{{ edit_history.undo_label|escapejs }}',
     redoLabel: '{{ edit_history.redo_label|escapejs }}',
     pageType: 'home',
-    desktopViewportWidth: 1440,
+    desktopViewportWidth: 1200,
+    tabletViewportWidth: 768,
+    mobileViewportWidth: 390,
     previewScale: 1,
     previewResizeObserver: null,
-    get saveStatusLabel() { return this.inspectorDirty ? 'تغییرات ذخیره‌نشده' : 'پیش‌نویس ذخیره شده'; },
+    get saveStatusLabel() {
+      if (this.inspectorSaving) return 'در حال ذخیره…';
+      return this.inspectorDirty ? 'تغییرات ذخیره‌نشده' : 'پیش‌نویس ذخیره شده';
+    },
     init() {
       this.pageType = this.$root.dataset.pageType || 'home';
       document.body.classList.add('sfb-prototype-active');
@@ -375,6 +431,13 @@ function storefrontEditor() {
         this.targetCellId = null;
         if (sectionId) this.$nextTick(() => this.selectSection(sectionId, { containerId, cellId, scroll: false }));
       });
+      document.body.addEventListener('sfbBlockMoved', (evt) => {
+        const detail = evt.detail || {};
+        const sectionId = parseInt(detail.sectionId, 10);
+        const containerId = parseInt(detail.containerId, 10);
+        const cellId = parseInt(detail.cellId, 10);
+        if (sectionId) this.$nextTick(() => this.selectSection(sectionId, { containerId, cellId, scroll: false, openInspector: true }));
+      });
       document.body.addEventListener('sfbContainerChanged', (evt) => {
         const containerId = parseInt(evt.detail && evt.detail.containerId, 10);
         if (containerId && this.selectedContainerId === containerId && !this.selectedSectionId) {
@@ -383,14 +446,20 @@ function storefrontEditor() {
       });
       const inspector = document.getElementById('sfbInspectorBody');
       if (inspector) {
-        inspector.addEventListener('input', () => { this.inspectorDirty = true; });
-        inspector.addEventListener('change', () => { this.inspectorDirty = true; });
+        inspector.addEventListener('input', (evt) => {
+          this.inspectorDirty = true;
+          if (evt.target) this.queueInspectorAutosave(evt.target, evt.target.matches('input[type="range"], input[type="color"]') ? 450 : 900);
+        });
+        inspector.addEventListener('change', (evt) => {
+          this.inspectorDirty = true;
+          this.queueInspectorAutosave(evt.target, 250);
+        });
         inspector.addEventListener('submit', () => { this.inspectorDirty = false; });
       }
       window.addEventListener('message', (evt) => {
         if (evt.origin !== window.location.origin) return;
         if (!evt.data || !evt.data.type) return;
-        if (evt.data.type === 'sfb:selectSection') this.selectSection(evt.data.sectionId, { containerId: evt.data.containerId, cellId: evt.data.cellId });
+        if (evt.data.type === 'sfb:selectSection') this.selectSection(evt.data.sectionId, { containerId: evt.data.containerId, cellId: evt.data.cellId, openInspector: true });
         if (evt.data.type === 'sfb:openSectionSettings') this.selectSection(evt.data.sectionId, { containerId: evt.data.containerId, cellId: evt.data.cellId, openInspector: true });
         if (evt.data.type === 'sfb:openHeaderSettings') this.openPanelUrl('{% url 'dashboard:storefront-builder-header' %}', 'هدر فروشگاه');
         if (evt.data.type === 'sfb:selectContainer') this.selectContainer(evt.data.containerId);
@@ -400,6 +469,8 @@ function storefrontEditor() {
         if (evt.data.type === 'sfb:sectionCommand') this.sectionCommand(evt.data.sectionId, evt.data.command);
         if (evt.data.type === 'sfb:containerCommand') this.containerCommand(evt.data.containerId, evt.data.command);
         if (evt.data.type === 'sfb:cellCommand') this.cellCommand(evt.data.cellId, evt.data.command, evt.data.sectionId);
+        if (evt.data.type === 'sfb:moveBlock') this.moveBlock(evt.data.sectionId, evt.data.targetCellId, evt.data.atIndex);
+        if (evt.data.type === 'sfb:blockCommand') this.blockCommand(evt.data.sectionId, evt.data.command, evt.data);
         if (evt.data.type === 'sfb:historyStep') this.historyStep(evt.data.direction);
       });
       const initialId = parseInt(this.$root.dataset.initialSectionId || '', 10);
@@ -408,7 +479,12 @@ function storefrontEditor() {
     },
     isCompactLayout() { return window.matchMedia('(max-width: 860px)').matches; },
     setDevice(device) {
+      if (!['desktop', 'tablet', 'mobile'].includes(device)) return;
       this.device = device;
+      this.$nextTick(() => this.syncPreviewViewport());
+    },
+    changeZoom(delta) {
+      this.zoom = Math.max(60, Math.min(130, this.zoom + delta));
       this.$nextTick(() => this.syncPreviewViewport());
     },
     installPreviewViewportObserver() {
@@ -428,20 +504,23 @@ function storefrontEditor() {
       if (!iframe) return;
       const canvas = iframe.closest('.sfb-canvas');
       if (!canvas) return;
-      if (this.device !== 'desktop') {
-        this.previewScale = 1;
-        iframe.style.width = '100%';
-        iframe.style.height = '100%';
-        iframe.style.transform = 'none';
-        return;
-      }
-      const requestedWidth = parseInt(iframe.dataset.desktopViewportWidth || this.desktopViewportWidth, 10) || 1440;
-      const availableWidth = Math.max(1, canvas.clientWidth);
-      const scale = Math.min(1, availableWidth / requestedWidth);
+      const widths = {
+        desktop: parseInt(iframe.dataset.desktopViewportWidth || this.desktopViewportWidth, 10) || 1200,
+        tablet: parseInt(iframe.dataset.tabletViewportWidth || this.tabletViewportWidth, 10) || 768,
+        mobile: parseInt(iframe.dataset.mobileViewportWidth || this.mobileViewportWidth, 10) || 390,
+      };
+      const requestedWidth = widths[this.device] || widths.desktop;
+      const availableWidth = Math.max(1, canvas.clientWidth - 2);
+      const fitScale = Math.min(1, availableWidth / requestedWidth);
+      const scale = Math.max(.35, fitScale * (this.zoom / 100));
       this.previewScale = scale;
       iframe.style.width = requestedWidth + 'px';
       iframe.style.height = Math.ceil(canvas.clientHeight / scale) + 'px';
       iframe.style.transform = 'scale(' + scale + ')';
+      iframe.style.transformOrigin = 'top center';
+      iframe.style.left = '50%';
+      iframe.style.marginLeft = (-requestedWidth / 2) + 'px';
+      iframe.style.position = 'absolute';
     },
     syncPreviewSelection() {
       const iframe = document.getElementById('sfbPreviewFrame');
@@ -458,17 +537,9 @@ function storefrontEditor() {
         this.setMobilePanel('library');
         return;
       }
-      this.libraryDrawerOpen = !this.libraryDrawerOpen;
-      if (this.libraryDrawerOpen) this.inspectorDrawerOpen = false;
-      this.$nextTick(() => {
-        this.syncPreviewViewport();
-        if (this.libraryDrawerOpen) {
-          const panel = this.$root.querySelector('.sfb-library-panel');
-          if (panel) panel.scrollTop = 0;
-          const search = this.$root.querySelector('.sfb-prototype-search');
-          if (search) search.focus({ preventScroll: true });
-        }
-      });
+      this.sidebarTab = 'add';
+      this.sidebarCollapsed = !this.sidebarCollapsed;
+      this.$nextTick(() => this.syncPreviewViewport());
     },
     openInspectorDrawer() {
       if (!this.selectedSectionId) return;
@@ -476,19 +547,14 @@ function storefrontEditor() {
         this.setMobilePanel('inspector');
         return;
       }
-      this.inspectorDrawerOpen = true;
-      this.libraryDrawerOpen = false;
+      this.inspectorCollapsed = false;
       const sectionId = this.selectedSectionId;
-      this.selectSection(sectionId, { scroll: false, openInspector: false });
-      this.$nextTick(() => {
-        const panel = this.$root.querySelector('.sfb-inspector-panel');
-        if (panel) panel.scrollTop = 0;
-        this.syncPreviewViewport();
-      });
+      this.selectSection(sectionId, { scroll: false, openInspector: true });
+      this.$nextTick(() => this.syncPreviewViewport());
     },
     closeDesktopDrawers() {
-      this.libraryDrawerOpen = false;
-      this.inspectorDrawerOpen = false;
+      this.sidebarCollapsed = true;
+      this.inspectorCollapsed = true;
       this.$nextTick(() => this.syncPreviewViewport());
     },
     openSelectedContainerSettings() {
@@ -503,11 +569,9 @@ function storefrontEditor() {
       if (this.isCompactLayout()) {
         this.setMobilePanel('library');
       } else {
-        this.libraryDrawerOpen = true;
-        this.inspectorDrawerOpen = false;
+        this.sidebarTab = 'add';
+        this.sidebarCollapsed = false;
         this.$nextTick(() => {
-          const panel = this.$root.querySelector('.sfb-library-panel');
-          if (panel) panel.scrollTop = 0;
           const search = this.$root.querySelector('.sfb-prototype-search');
           if (search) search.focus({ preventScroll: true });
           this.syncPreviewViewport();
@@ -537,7 +601,7 @@ function storefrontEditor() {
         this.contentBusy = false;
         throw error;
       }
-      if (!this.isCompactLayout()) this.libraryDrawerOpen = false;
+      if (!this.isCompactLayout()) this.sidebarCollapsed = false;
     },
     addContentBlockToCell(sectionKey, cellId, containerId) {
       cellId = parseInt(cellId, 10) || null;
@@ -565,10 +629,11 @@ function storefrontEditor() {
       this.selectedSectionId = null;
       this.targetCellId = null;
       this.inspectorTitle = 'تنظیم چیدمان';
+      this.inspectorTab = 'design';
       this.syncPreviewSelection();
       if (options.openInspector !== false) {
         if (this.isCompactLayout()) this.setMobilePanel('inspector', { focus: false });
-        else { this.inspectorDrawerOpen = true; this.libraryDrawerOpen = false; }
+        else this.inspectorCollapsed = false;
       }
       const template = this.$root.dataset.containerSettingsUrlTemplate;
       const url = template.replace('/0/settings/', '/' + containerId + '/settings/');
@@ -642,10 +707,9 @@ function storefrontEditor() {
         return;
       }
       try {
-        const scale = this.device === 'desktop' ? Math.max(this.previewScale, 0.01) : 1;
+        const scale = Math.max(this.previewScale, 0.01);
         const iframeRect = iframe.getBoundingClientRect();
         this.libraryCellDropZones = [...iframe.contentDocument.querySelectorAll('.rcontainer-cell[data-cell-id]')]
-          .filter((cell) => !!cell.querySelector('[data-empty-cell]'))
           .map((cell) => {
             const rect = cell.getBoundingClientRect();
             const left = iframeRect.left + (rect.left * scale);
@@ -676,7 +740,7 @@ function storefrontEditor() {
         );
         if (insideIframe) {
           const edge = 64;
-          const scrollStep = 30 / (this.device === 'desktop' ? Math.max(this.previewScale, 0.01) : 1);
+          const scrollStep = 30 / Math.max(this.previewScale, 0.01);
           if (event.clientY < iframeRect.top + edge) iframe.contentWindow.scrollBy(0, -scrollStep);
           if (event.clientY > iframeRect.bottom - edge) iframe.contentWindow.scrollBy(0, scrollStep);
         }
@@ -714,10 +778,8 @@ function storefrontEditor() {
       this.selectedContainerId = parseInt(options.containerId, 10) || placement.containerId || null;
       this.targetCellId = parseInt(options.cellId, 10) || placement.cellId || null;
       if (this.isCompactLayout() && options.openInspector !== false) this.setMobilePanel('inspector', { focus: false });
-      if (!this.isCompactLayout() && options.openInspector === true) {
-        this.inspectorDrawerOpen = true;
-        this.libraryDrawerOpen = false;
-      }
+      if (!this.isCompactLayout() && options.openInspector !== false) this.inspectorCollapsed = false;
+      this.inspectorTab = options.inspectorTab || this.inspectorTab || 'design';
       this.syncPreviewSelection();
       document.querySelectorAll('.sfb-layer.sfb-row-selected').forEach((el) => el.classList.remove('sfb-row-selected'));
       const row = document.querySelector('.sfb-layer[data-id="' + sectionId + '"]');
@@ -736,11 +798,11 @@ function storefrontEditor() {
       this.selectedContainerId = null;
       this.targetCellId = null;
       this.inspectorTitle = label;
+      this.inspectorTab = 'design';
       if (this.isCompactLayout()) {
         this.setMobilePanel('inspector', { focus: false });
       } else {
-        this.inspectorDrawerOpen = true;
-        this.libraryDrawerOpen = false;
+        this.inspectorCollapsed = false;
       }
       htmx.ajax('GET', url, { target: '#sfbInspectorBody', swap: 'innerHTML' });
     },
@@ -748,7 +810,6 @@ function storefrontEditor() {
       this.selectedSectionId = null;
       this.selectedContainerId = null;
       this.targetCellId = null;
-      this.inspectorDrawerOpen = false;
       this.inspectorTitle = 'تنظیمات';
       this.inspectorDirty = false;
       this.syncPreviewSelection();
@@ -840,6 +901,35 @@ function storefrontEditor() {
       }
       if (command === 'remove') this.clearInspector();
     },
+    moveBlock(sectionId, targetCellId, atIndex = null, direction = '') {
+      sectionId = parseInt(sectionId, 10) || null;
+      targetCellId = parseInt(targetCellId, 10) || null;
+      if (!sectionId || !targetCellId) return;
+      const template = this.$root.dataset.blockMoveUrlTemplate;
+      const url = template.replace('/0/move/', '/' + sectionId + '/move/');
+      const values = { target_cell_id: targetCellId };
+      if (Number.isInteger(parseInt(atIndex, 10))) values.at_index = parseInt(atIndex, 10);
+      if (direction === 'up' || direction === 'down') values.direction = direction;
+      htmx.ajax('POST', url, { values, target: '#storefrontContainerState', swap: 'outerHTML' });
+    },
+    blockCommand(sectionId, command, detail = {}) {
+      sectionId = parseInt(sectionId, 10) || null;
+      if (!sectionId) return;
+      if (command === 'up' || command === 'down') {
+        const placement = this.placementForSection(sectionId);
+        if (placement.cellId) this.moveBlock(sectionId, placement.cellId, null, command);
+        return;
+      }
+      if (command === 'remove') {
+        if (!window.confirm('فقط همین بلاک حذف شود؟ ستون و سایر بلاک‌ها باقی می‌مانند.')) return;
+        const template = this.$root.dataset.blockRemoveUrlTemplate;
+        const url = template.replace('/0/remove/', '/' + sectionId + '/remove/');
+        htmx.ajax('POST', url, { target: '#storefrontContainerState', swap: 'outerHTML' });
+        if (this.selectedSectionId === sectionId) this.clearInspector();
+        return;
+      }
+      this.sectionCommand(sectionId, command);
+    },
     cellCommand(cellId, command, sectionId = null) {
       cellId = parseInt(cellId, 10) || null;
       if (!cellId || command !== 'clear') return;
@@ -847,6 +937,48 @@ function storefrontEditor() {
       const url = template.replace('/0/clear/', '/' + cellId + '/clear/');
       htmx.ajax('POST', url, { target: '#storefrontContainerState', swap: 'outerHTML' });
       if (sectionId && this.selectedSectionId === parseInt(sectionId, 10)) this.clearInspector();
+    },
+    queueInspectorAutosave(target, delay = 250) {
+      if (!target || !target.closest) return;
+      if (target.matches('[hx-get], [data-sfb-no-autosave]') || String(target.name || '').startsWith('q')) return;
+      const form = target.closest('form[data-sfb-autosave="true"]');
+      if (!form) return;
+      if (this.inspectorAutosaveTimer) window.clearTimeout(this.inspectorAutosaveTimer);
+      this.inspectorAutosaveTimer = window.setTimeout(() => this.autosaveInspectorForm(form), delay);
+    },
+    async autosaveInspectorForm(form) {
+      if (!form || !document.contains(form)) return;
+      if (this.inspectorSaving) { this.inspectorSaveQueued = true; return; }
+      this.inspectorSaving = true;
+      this.inspectorSaveQueued = false;
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        if (response.ok && response.redirected) {
+          this.inspectorDirty = false;
+          this.reloadPreview();
+          await this.refreshHistoryState();
+        } else {
+          this.inspectorDirty = true;
+        }
+      } catch (_error) {
+        this.inspectorDirty = true;
+      } finally {
+        this.inspectorSaving = false;
+        if (this.inspectorSaveQueued) {
+          this.inspectorSaveQueued = false;
+          this.$nextTick(() => this.autosaveInspectorForm(form));
+        }
+      }
+    },
+    reloadPreview() {
+      const iframe = document.getElementById('sfbPreviewFrame');
+      if (!iframe || !iframe.contentWindow) return;
+      iframe.contentWindow.location.reload();
     },
     csrfToken() {
       const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
@@ -940,23 +1072,22 @@ function storefrontEditor() {
       }
       if (event.altKey && !modifier && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
         const direction = event.key === 'ArrowUp' ? 'up' : 'down';
-        if (this.selectedContainerId) {
+        if (this.selectedSectionId) {
+          event.preventDefault();
+          const placement = this.placementForSection(this.selectedSectionId);
+          if (placement.cellId) this.blockCommand(this.selectedSectionId, direction);
+          else this.sectionCommand(this.selectedSectionId, direction);
+        } else if (this.selectedContainerId) {
           event.preventDefault();
           this.containerCommand(this.selectedContainerId, direction);
-        } else if (this.selectedSectionId) {
-          event.preventDefault();
-          this.sectionCommand(this.selectedSectionId, direction);
         }
       }
     },
     handleEscape() {
       if (this.modalOpen) { this.closeAddModal(); return; }
       if (this.isCompactLayout() && this.mobilePanel !== 'canvas') { this.setMobilePanel('canvas'); return; }
-      if (!this.isCompactLayout() && (this.libraryDrawerOpen || this.inspectorDrawerOpen)) {
-        this.closeDesktopDrawers();
-        return;
-      }
-      if (this.fullscreen) this.fullscreen = false;
+      if (this.fullscreen) { this.fullscreen = false; return; }
+      if (this.selectedSectionId || this.selectedContainerId) this.clearInspector();
     },
     handleBeforeUnload(e) {
       if (this.inspectorDirty) { e.preventDefault(); e.returnValue = ''; }

@@ -52,7 +52,7 @@ renderer never needs tenant ids inside a global preset.
   {% endif %}
 {% else %}
   {% if tiles %}
-  <section class="section"><div class="tiles">
+  <section class="section"><div class="{% if category_grid_settings.display_mode == 'carousel' %}tiles-carousel{% else %}tiles{% endif %}">
     {% for cat, tclass in tiles %}
     <div class="tile {{ tclass }}">
       <span class="wm">{{ cat.icon }}</span>

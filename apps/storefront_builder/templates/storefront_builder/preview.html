@@ -68,10 +68,9 @@
     if (evt.data.type === 'sfb:setSelection') applyBuilderSelection(evt.data);
   });
 
-  // شناساییِ مستقیمِ بصری — کلیک/لمسِ هر section در Preview یک پیامِ
-  // postMessage به پنجره‌ی والد (ادیتور) می‌فرستد تا همان section و Cell
-  // به‌وضوح انتخاب شوند. بازکردن Inspector یک عمل جدا و صریح (⚙/دابل‌کلیک)
-  // است تا انتخاب ساده همیشه Canvas را نپوشاند.
+  // V3 direct visual editing — one click selects the exact Block/Cell and
+  // the parent opens the persistent Inspector immediately.  No second gear
+  // click is required; the settings button remains only as an explicit shortcut.
   function selectSectionElement(el) {
     if (!el || !inParentFrame) return;
     applyBuilderSelection({
@@ -156,16 +155,15 @@
       }, window.location.origin);
       return;
     }
-    var emptyCellBtn = evt.target.closest('[data-empty-cell]');
-    if (emptyCellBtn) {
-      applyBuilderSelection({
-        cellId: emptyCellBtn.getAttribute('data-empty-cell'),
-        containerId: emptyCellBtn.getAttribute('data-container-id'),
-      });
+    var addCellBtn = evt.target.closest('[data-empty-cell], [data-cell-add]');
+    if (addCellBtn) {
+      var addCellId = addCellBtn.getAttribute('data-empty-cell') || addCellBtn.getAttribute('data-cell-add');
+      var addContainerId = addCellBtn.getAttribute('data-container-id');
+      applyBuilderSelection({ cellId: addCellId, containerId: addContainerId });
       window.parent.postMessage({
         type: 'sfb:addToCell',
-        cellId: emptyCellBtn.getAttribute('data-empty-cell'),
-        containerId: emptyCellBtn.getAttribute('data-container-id'),
+        cellId: addCellId,
+        containerId: addContainerId,
       }, window.location.origin);
       return;
     }
@@ -177,6 +175,16 @@
         type: 'sfb:sectionCommand',
         command: 'toggle',
         sectionId: hiddenToggleBtn.getAttribute('data-hidden-toggle'),
+      }, window.location.origin);
+      return;
+    }
+    var blockRemoveBtn = evt.target.closest('[data-block-remove]');
+    if (blockRemoveBtn) {
+      if (blockRemoveBtn.disabled) return;
+      window.parent.postMessage({
+        type: 'sfb:blockCommand',
+        command: 'remove',
+        sectionId: blockRemoveBtn.getAttribute('data-block-remove'),
       }, window.location.origin);
       return;
     }
@@ -201,14 +209,11 @@
       var cmd = cmdBtn.getAttribute('data-cmd');
       var containerId = rsec.getAttribute('data-container-id');
       var cellId = rsec.getAttribute('data-cell-id');
-      if ((cmd === 'up' || cmd === 'down') && containerId) {
-        window.parent.postMessage({ type: 'sfb:containerCommand', command: cmd, containerId: containerId }, window.location.origin);
-        return;
-      }
-      if (cmd === 'remove' && cellId) {
-        if (!window.confirm('محتوای این خانه حذف شود؟ خود خانه و چیدمان باقی می‌ماند.')) return;
+      if ((cmd === 'up' || cmd === 'down') && cellId) {
         window.parent.postMessage({
-          type: 'sfb:cellCommand', command: 'clear', cellId: cellId, sectionId: rsec.getAttribute('data-section-id'),
+          type: 'sfb:blockCommand', command: cmd,
+          sectionId: rsec.getAttribute('data-section-id'),
+          cellId: cellId, containerId: containerId,
         }, window.location.origin);
         return;
       }
@@ -250,8 +255,8 @@
 
   // Library -> Cell drag/drop.  The Library lives in the parent document and
   // this Canvas in a same-origin iframe; HTML5 DataTransfer safely crosses that
-  // boundary.  Only truly empty Cells accept the drop, so existing content is
-  // never replaced implicitly.
+  // boundary.  V3 Cells accept 0/1/N Blocks: dropping onto an occupied Cell
+  // appends a new Block and never overwrites the existing composition.
   function clearLibraryDropState() {
     document.querySelectorAll('.sfb-cell-library-drop').forEach(function (el) { el.classList.remove('sfb-cell-library-drop'); });
   }
@@ -261,7 +266,7 @@
     if (types.indexOf('application/x-rastisi-section-key') === -1) return;
     var cell = evt.target.closest('.rcontainer-cell[data-cell-id]');
     clearLibraryDropState();
-    if (!cell || !cell.querySelector('[data-empty-cell]')) return;
+    if (!cell) return;
     evt.preventDefault();
     evt.dataTransfer.dropEffect = 'copy';
     cell.classList.add('sfb-cell-library-drop');
@@ -272,7 +277,7 @@
     if (!sectionKey) return;
     var cell = evt.target.closest('.rcontainer-cell[data-cell-id]');
     clearLibraryDropState();
-    if (!cell || !cell.querySelector('[data-empty-cell]')) return;
+    if (!cell) return;
     evt.preventDefault();
     window.parent.postMessage({
       type: 'sfb:dropLibraryToCell',
@@ -311,10 +316,11 @@
   markEmptyBuilderSections();
 
   var dragId = null;
+  var dragBlock = null;
 
   // Keyboard editing uses the exact same parent commands as the visual toolbar.
-  // Alt+Arrow reorders the focused section; Enter/Space selects it. Focus alone
-  // also announces/selects a section without requiring a mouse.
+  // Alt+Arrow moves a Block inside its Cell, while legacy standalone Sections
+  // keep the established page-level move behavior.
   container.addEventListener('focusin', function (evt) {
     var section = evt.target.matches('[data-section-id]') ? evt.target : null;
     if (section) selectSectionElement(section);
@@ -341,11 +347,13 @@
       if (section.getAttribute('data-section-locked') === '1') return;
       evt.preventDefault();
       var containerId = section.getAttribute('data-container-id');
-      if (containerId) {
+      var cellId = section.getAttribute('data-cell-id');
+      if (cellId) {
         window.parent.postMessage({
-          type: 'sfb:containerCommand',
+          type: 'sfb:blockCommand',
           command: evt.key === 'ArrowUp' ? 'up' : 'down',
-          containerId: containerId,
+          sectionId: section.getAttribute('data-section-id'),
+          cellId: cellId, containerId: containerId,
         }, window.location.origin);
       } else {
         window.parent.postMessage({
@@ -357,28 +365,84 @@
     }
   });
 
+  function clearBlockDropState() {
+    document.querySelectorAll('.sfb-rsec-drop-target, .sfb-cell-block-drop').forEach(function (el) {
+      el.classList.remove('sfb-rsec-drop-target');
+      el.classList.remove('sfb-cell-block-drop');
+      el.removeAttribute('data-drop-edge');
+    });
+  }
+
+  function blockDropIndex(cell, target, clientY) {
+    var blocks = Array.prototype.slice.call(cell.querySelectorAll(':scope > [data-section-id]'))
+      .filter(function (el) { return !dragBlock || el.getAttribute('data-section-id') !== dragBlock.sectionId; });
+    if (!target || target.getAttribute('data-section-id') === (dragBlock && dragBlock.sectionId)) return blocks.length;
+    var targetIndex = blocks.indexOf(target);
+    if (targetIndex < 0) return blocks.length;
+    var rect = target.getBoundingClientRect();
+    return targetIndex + (clientY > rect.top + (rect.height / 2) ? 1 : 0);
+  }
+
   container.addEventListener('dragstart', function (evt) {
     var handle = evt.target.closest('.sfb-rsec-drag-handle');
-    if (!handle) { evt.preventDefault(); return; }
+    if (!handle) return;
     var rsec = handle.closest('[data-section-id]');
     if (!rsec || rsec.getAttribute('data-section-locked') === '1') { evt.preventDefault(); return; }
     dragId = rsec.getAttribute('data-section-id');
+    var sourceCellId = rsec.getAttribute('data-cell-id');
+    dragBlock = sourceCellId ? { sectionId: dragId, sourceCellId: sourceCellId } : null;
     rsec.classList.add('sfb-rsec-dragging');
     evt.dataTransfer.effectAllowed = 'move';
-    evt.dataTransfer.setData('text/plain', dragId);
+    evt.dataTransfer.setData(dragBlock ? 'application/x-rastisi-block-id' : 'text/plain', dragId);
   });
 
   container.addEventListener('dragover', function (evt) {
+    if (dragId === null) return;
+    if (dragBlock) {
+      var cell = evt.target.closest('.rcontainer-cell[data-cell-id]');
+      if (!cell) return;
+      evt.preventDefault();
+      evt.dataTransfer.dropEffect = 'move';
+      clearBlockDropState();
+      cell.classList.add('sfb-cell-block-drop');
+      var target = evt.target.closest('[data-section-id]');
+      if (target && target.getAttribute('data-section-id') !== dragBlock.sectionId) {
+        var rect = target.getBoundingClientRect();
+        target.classList.add('sfb-rsec-drop-target');
+        target.setAttribute('data-drop-edge', evt.clientY > rect.top + (rect.height / 2) ? 'after' : 'before');
+      }
+      return;
+    }
     var target = evt.target.closest('[data-section-id]');
-    if (!target || dragId === null) return;
+    if (!target) return;
     evt.preventDefault();
-    document.querySelectorAll('.sfb-rsec-drop-target').forEach(function (el) { el.classList.remove('sfb-rsec-drop-target'); });
+    clearBlockDropState();
     if (target.getAttribute('data-section-id') !== dragId) target.classList.add('sfb-rsec-drop-target');
   });
 
   container.addEventListener('drop', function (evt) {
+    if (dragId === null) return;
+    if (dragBlock) {
+      var targetCell = evt.target.closest('.rcontainer-cell[data-cell-id]');
+      if (!targetCell) { cleanupDrag(); return; }
+      evt.preventDefault();
+      var targetBlock = evt.target.closest('[data-section-id]');
+      var atIndex = blockDropIndex(targetCell, targetBlock, evt.clientY);
+      justDragged = true;
+      if (inParentFrame) {
+        window.parent.postMessage({
+          type: 'sfb:moveBlock',
+          sectionId: dragBlock.sectionId,
+          targetCellId: targetCell.getAttribute('data-cell-id'),
+          atIndex: atIndex,
+        }, window.location.origin);
+      }
+      cleanupDrag();
+      return;
+    }
+
     var target = evt.target.closest('[data-section-id]');
-    if (!target || dragId === null) return;
+    if (!target) { cleanupDrag(); return; }
     evt.preventDefault();
     var from = container.querySelector('[data-section-id="' + dragId + '"]');
     if (from && target !== from) {
@@ -386,7 +450,7 @@
       container.insertBefore(from, goesAfter ? target.nextSibling : target);
       justDragged = true;
       if (inParentFrame) {
-        var ids = Array.prototype.slice.call(container.querySelectorAll('[data-section-id]')).map(function (el) {
+        var ids = Array.prototype.slice.call(container.querySelectorAll('[data-section-id]:not([data-cell-id])')).map(function (el) {
           return el.getAttribute('data-section-id');
         });
         window.parent.postMessage({ type: 'sfb:reorderSections', sectionIds: ids }, window.location.origin);
@@ -399,8 +463,9 @@
 
   function cleanupDrag() {
     document.querySelectorAll('.sfb-rsec-dragging').forEach(function (el) { el.classList.remove('sfb-rsec-dragging'); });
-    document.querySelectorAll('.sfb-rsec-drop-target').forEach(function (el) { el.classList.remove('sfb-rsec-drop-target'); });
+    clearBlockDropState();
     dragId = null;
+    dragBlock = null;
   }
 })();
 </script>

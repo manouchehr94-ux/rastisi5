@@ -31,14 +31,17 @@ class Phase31ContainerCellBuilderTests(StorefrontBuilderViewsTestCase):
         response = self.client.get(reverse("dashboard:storefront-builder-editor"))
         self.assertEqual(response.status_code, 200)
         for marker in (
-            "＋ افزودن چیدمان",
-            "＋ کتابخانه محتوا",
-            "▦ تنظیم چیدمان",
+            "افزودن Section",
+            "هر کامپوننت را داخل هر ستون",
+            "sfb-v3-layout-grid",
+            "چیدمان آزاد",
             "createContainer('half')",
             "addContentBlock(",
             "openCellLibrary(",
             "data-container-add-url=",
             "data-cell-add-section-url=",
+            "data-block-move-url-template=",
+            "data-block-remove-url-template=",
             "storefrontContainerState",
         ):
             self.assertContains(response, marker)
@@ -254,7 +257,7 @@ class Phase31ContainerCellBuilderTests(StorefrontBuilderViewsTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "این پنل فقط محتوای این خانه را تنظیم می‌کند")
+        self.assertContains(response, "این پنل فقط همین بلاک را تنظیم می‌کند")
         self.assertContains(response, "تنظیم چیدمان")
         self.assertNotContains(response, "چیدمان ردیف")
         self.assertNotContains(
