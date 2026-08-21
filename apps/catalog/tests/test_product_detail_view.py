@@ -5,11 +5,12 @@ from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.models import Prefetch
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
-from apps.catalog.models import Category, Product, ProductVariant, Review, Vendor
+from apps.catalog.models import Category, Product, ProductImage, ProductVariant, Review, Vendor
 from apps.catalog.services.product_image_service import add_product_image
 from apps.customers.models import Customer
 from apps.stores.models import Store
@@ -152,7 +153,6 @@ class ProductDetailViewTests(TestCase):
             {row["star"]: row["pct"] for row in response.context["rating_breakdown"]},
             {5: 50, 4: 17, 3: 0, 2: 33, 1: 0},
         )
-
 
 class ProductReviewCreateTests(TestCase):
     def setUp(self):
@@ -329,3 +329,132 @@ class ProductDetailVariantImageSwapTests(TestCase):
         response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '"mode": "none"')
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ProductDetailVariantImagePrefetchTests(TestCase):
+    """Phase 2 (corrected) regression coverage — ``_variant_groups``/
+    ``_gallery_slides`` used to each run as their own always-executed query,
+    uncovered by any prefetch on ``product_detail``'s main queryset (see
+    PHASE_2_DEFERRED_ITEMS_CLASSIFICATION in
+    docs/reports/10K_ARCHITECTURAL_SCALABILITY_READINESS_REVIEW.md). Fixed
+    via ``Prefetch(..., to_attr=...)`` inside
+    ``build_product_detail_context`` — a naive bare
+    ``prefetch_related("variants", "images")`` would not have helped (and
+    would in fact add two wasted queries) since both helpers chain
+    ``.order_by()``, which bypasses the default prefetch cache."""
+
+    @classmethod
+    def tearDownClass(cls):
+        from django.conf import settings
+
+        shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه", slug="shop-pdp-prefetch")
+        self.category = Category.objects.create(store=self.store, name="دسته", slug="cat-pdp-prefetch")
+        self.product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کالای پیش‌واکشی",
+            slug="prefetch-product", sku="SKU-PF1", price=Decimal("150000"),
+        )
+        ProductVariant.objects.create(product=self.product, attribute="رنگ", value="مشکی")
+        add_product_image(self.product, self._make_image_file("cover.jpg"))
+
+    def _make_image_file(self, name="photo.jpg"):
+        buffer = BytesIO()
+        Image.new("RGB", (400, 400), "#ff0000").save(buffer, format="JPEG")
+        return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/jpeg")
+
+    def _prefetch_and_render(self, product):
+        from django.db.models import prefetch_related_objects
+
+        from apps.catalog.views import _gallery_slides, _variant_groups
+
+        prefetch_related_objects(
+            [product],
+            Prefetch(
+                "variants", queryset=ProductVariant.objects.order_by("attribute", "value"),
+                to_attr="prefetched_variants",
+            ),
+            Prefetch(
+                "images", queryset=ProductImage.objects.order_by("order"),
+                to_attr="prefetched_images",
+            ),
+        )
+        _variant_groups(product)
+        _gallery_slides(product)
+
+    def test_query_count_does_not_grow_with_variant_or_image_count(self):
+        """این تست عمداً فقط مکانیسمِ prefetch (نه کلِ صفحه‌ی محصول) را
+        می‌سنجد: ``build_variant_selector_context`` (استفاده‌شده در
+        ``variant_selector`` جداگانه‌ی کانتکست) به‌ازایِ هر تنوع کوئریِ
+        تصویرِ خودش را می‌زند — یک N+1 از قبل موجود و کاملاً مستقل، خارج
+        از دامنه‌ی این Remediation (نگاه کنید به LIMITATIONS در گزارشِ
+        نهاییِ این نشست) — که در غیرِ این صورت این سنجش را آلوده می‌کرد."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        product = Product.objects.get(pk=self.product.pk)
+        with CaptureQueriesContext(connection) as few_rows:
+            self._prefetch_and_render(product)
+
+        for i in range(20):
+            ProductVariant.objects.create(
+                product=self.product, attribute="بسته‌بندی", value=f"گزینه {i}", stock=1
+            )
+        for i in range(19):
+            add_product_image(self.product, self._make_image_file(f"extra-{i}.jpg"))
+
+        product_after = Product.objects.get(pk=self.product.pk)
+        with CaptureQueriesContext(connection) as many_rows:
+            self._prefetch_and_render(product_after)
+
+        self.assertEqual(len(few_rows.captured_queries), 2)  # variants prefetch + images prefetch, nothing more
+        self.assertEqual(
+            len(few_rows.captured_queries), len(many_rows.captured_queries),
+            "the variants/images prefetch query count must not grow with row count "
+            f"(few={len(few_rows.captured_queries)}, many={len(many_rows.captured_queries)})",
+        )
+
+    def test_prefetch_is_actually_consumed_not_a_fallback_query(self):
+        """اثباتِ مستقیم: اگر ``_variant_groups``/``_gallery_slides`` هنوز
+        به ``product.variants.all().order_by(...)``/
+        ``product.images.all().order_by(...)`` متکی بودند (به‌جایِ خواندنِ
+        لیستِ prefetch‌شده)، این تست یک یا چند کوئریِ اضافه ثبت می‌کرد."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from apps.catalog.views import _gallery_slides, _variant_groups
+
+        product = Product.objects.get(pk=self.product.pk)
+        product.prefetched_variants = list(
+            ProductVariant.objects.filter(product=product).order_by("attribute", "value")
+        )
+        product.prefetched_images = list(product.images.all().order_by("order"))
+
+        with CaptureQueriesContext(connection) as ctx:
+            groups = _variant_groups(product)
+            slides = _gallery_slides(product)
+
+        self.assertEqual(len(ctx.captured_queries), 0)
+        self.assertIn("رنگ", groups)
+        self.assertTrue(slides)
+
+    def test_deterministic_ordering_preserved_after_prefetch_fix(self):
+        """ترتیب‌بندیِ قطعی (attribute/value برای تنوع‌ها، order برای
+        تصاویر) باید دقیقاً مثلِ قبل از این Remediation حفظ شود."""
+        ProductVariant.objects.create(product=self.product, attribute="رنگ", value="آبی")
+        ProductVariant.objects.create(product=self.product, attribute="اندازه", value="بزرگ")
+        second_image = add_product_image(self.product, self._make_image_file("second.jpg"))
+
+        response = self.client.get(reverse("catalog:product-detail", args=[self.product.slug]))
+
+        variant_groups = response.context["variant_groups"]
+        self.assertEqual(list(variant_groups.keys()), ["اندازه", "رنگ"])
+        self.assertEqual([v.value for v in variant_groups["رنگ"]], ["آبی", "مشکی"])
+
+        gallery_slides = response.context["gallery_slides"]
+        self.assertEqual(gallery_slides[0]["url"], self.product.images.first().image.url)
+        self.assertEqual(gallery_slides[-1]["url"], second_image.image.url)

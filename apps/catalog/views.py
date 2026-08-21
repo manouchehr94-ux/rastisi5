@@ -2,7 +2,7 @@ import json
 from datetime import timedelta
 
 from django.core.paginator import Paginator
-from django.db.models import Avg, Count, F, Max, Prefetch, Q
+from django.db.models import Avg, Count, F, Max, Prefetch, Q, prefetch_related_objects
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -13,7 +13,7 @@ from apps.content.services import resolve_destination_url
 from apps.customers.models import Customer
 from apps.stores.resolution import resolve_store_for_storefront
 
-from .models import Brand, Category, Product, Review
+from .models import Brand, Category, Product, ProductImage, ProductVariant, Review
 from .services import collection_service
 from apps.cart.services.gift_wrap_service import is_gift_wrap_available, resolve_gift_wrap_price
 
@@ -249,14 +249,22 @@ def product_list(request):
 
 
 def _variant_groups(product):
+    # ``product.prefetched_variants`` — نگاه کنید به
+    # ``build_product_detail_context`` — همیشه از قبل با همین ترتیب
+    # (attribute, value) پر شده است؛ خواندنِ مستقیمِ این لیست (نه
+    # ``product.variants.all().order_by(...)``) یک کوئریِ اضافه‌ی همیشگی
+    # را حذف می‌کند — چون فراخوانیِ ``.order_by()`` روی related manager
+    # کشِ prefetch را نادیده می‌گیرد و مستقل دوباره کوئری می‌زند (نگاه
+    # کنید به Phase 2 audit یادداشتِ product-detail prefetch).
     groups = {}
-    for variant in product.variants.all().order_by("attribute", "value"):
+    for variant in product.prefetched_variants:
         groups.setdefault(variant.attribute, []).append(variant)
     return groups
 
 
 def _gallery_slides(product):
-    images = list(product.images.all().order_by("order"))
+    # نگاه کنید به _variant_groups بالا — همان دلیل، همان الگو.
+    images = product.prefetched_images
     if images:
         return [
             {
@@ -315,7 +323,33 @@ def _product_video_render_data(product):
 def build_product_detail_context(request, product):
     """کانتکستِ کاملِ صفحه‌ی محصول — هم برایِ نمایشِ عمومیِ فروشگاه (``product_detail``)
     و هم برایِ پیش‌نمایشِ مدیرِ فروشگاه (``dashboard:product-preview``، برایِ
-    کالاهایِ منتشرنشده) استفاده می‌شود تا منطق هرگز دوباره‌نویسی نشود."""
+    کالاهایِ منتشرنشده) استفاده می‌شود تا منطق هرگز دوباره‌نویسی نشود.
+
+    سه فراخوان‌کننده (``product_detail``، ``dashboard:product-preview``،
+    پیش‌نمایشِ ``storefront_builder``) هر کدام queryset خودشان را برایِ
+    واکشیِ ``product`` می‌سازند — پس prefetch تنوع‌ها/تصاویر عمداً همین‌جا،
+    رویِ نمونه‌ی از قبل واکشی‌شده (نه در queryset هیچ فراخوان‌کننده‌ای)
+    انجام می‌شود تا هر سه مسیر یکسان از آن بهره ببرند. ``to_attr`` عمداً
+    استفاده شده، نه یک ``prefetch_related("variants", "images")`` ساده:
+    ``_variant_groups``/``_gallery_slides`` پایین‌تر ترتیبِ خودشان
+    (attribute/value برای تنوع‌ها، order برای تصاویر) را نیاز دارند، و
+    فراخوانیِ ``.order_by()`` روی related manager کشِ prefetch را نادیده
+    می‌گیرد و مستقل دوباره کوئری می‌زند — یعنی یک ``prefetch_related``
+    ساده نه‌تنها کمکی نمی‌کرد، بلکه دو کوئریِ کاملاً بلااستفاده هم اضافه
+    می‌کرد. با ``Prefetch(..., to_attr=...)``، ترتیبِ درست همین‌جا در
+    خودِ کوئریِ prefetch اعمال و در یک لیستِ ساده کش می‌شود — بدونِ
+    کوئریِ اضافه‌ی بعدی."""
+    prefetch_related_objects(
+        [product],
+        Prefetch(
+            "variants", queryset=ProductVariant.objects.order_by("attribute", "value"),
+            to_attr="prefetched_variants",
+        ),
+        Prefetch(
+            "images", queryset=ProductImage.objects.order_by("order"),
+            to_attr="prefetched_images",
+        ),
+    )
     store = product.store
     variant_groups = _variant_groups(product)
     spec_variant_summary = {
