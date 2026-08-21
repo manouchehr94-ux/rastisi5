@@ -661,6 +661,19 @@ def build_container_render_items(page, items: list[dict], *, include_empty: bool
     treated as empty Cells. Public rendering skips completely empty Containers;
     Builder preview may request ``include_empty=True`` so merchants can see and
     fill an empty layout before content exists.
+
+    Phase 2B: a Cell may now hold more than one ordered Block. Each Cell's
+    Blocks are resolved through ``container_service.get_cell_blocks`` — the
+    single authoritative read path (new multi-block FK first, transparently
+    falling back to the legacy single-``section`` OneToOne only when the new
+    relationship is completely empty for that Cell, so a Section is never
+    counted/rendered twice — see that function's docstring for the exact
+    rule). Every ``cell_entry`` keeps its original, singular ``"item"`` key —
+    the *first* visible Block's render item, or ``None`` — exactly the
+    pre-Phase-2B contract every existing consumer/test already depends on
+    (e.g. ``test_published_context_uses_container_layout_as_source_of_truth``)
+    — and gains a new ``"items"`` key: the complete ordered list of visible
+    Blocks' render items, for templates that render every Block in a Cell.
     """
     from . import container_service
 
@@ -670,18 +683,32 @@ def build_container_render_items(page, items: list[dict], *, include_empty: bool
         if item.get("section") is not None and item["section"].pk is not None
     }
     rendered = []
-    containers = page.containers.prefetch_related("cells__section").order_by("order", "id")
+    containers = page.containers.prefetch_related(
+        "cells__section", "cells__blocks",
+    ).order_by("order", "id")
     for container in containers:
         cells = []
         has_content = False
         has_placement = False
         for cell in container.cells.all():
-            item = items_by_section_id.get(cell.section_id) if cell.section_id else None
-            if cell.section_id:
+            blocks = container_service.get_cell_blocks(cell)
+            block_items = []
+            for block in blocks:
                 has_placement = True
-            if item is not None:
-                has_content = True
-            cells.append({"cell": cell, "item": item})
+                block_item = items_by_section_id.get(block.pk)
+                if block_item is not None:
+                    has_content = True
+                    block_items.append(block_item)
+            cells.append({
+                "cell": cell,
+                "item": block_items[0] if block_items else None,
+                "items": block_items,
+                # Raw placed Sections (including inactive/hidden ones) — the
+                # builder-only "occupied but all Blocks are hidden" chrome
+                # needs this list; ``items`` above only ever contains
+                # *visible* Blocks' render contexts.
+                "blocks": blocks,
+            })
         if not has_content and not include_empty:
             continue
         rendered.append({

@@ -337,7 +337,14 @@ class StorefrontLayoutVersion(TimeStampedModel):
         ادیتور را کنترل می‌کند (منعِ حذف/جابه‌جایی)، هیچ اثری روی HTMLِ
         منتشرشده/عمومی ندارد، پس تغییرِ آن نباید یک نسخه‌ی جدید را از نظرِ
         محتوا «متفاوت» نشان دهد — دقیقاً همان استدلالی که
-        ``collapsed_in_editor`` را هم از قبل از این فهرست کنار گذاشته بود."""
+        ``collapsed_in_editor`` را هم از قبل از این فهرست کنار گذاشته بود.
+
+        Phase 2B: هر Cell علاوه بر ``section_stable_id`` قدیمی (بدون تغییر)
+        اکنون یک فهرستِ ``blocks`` هم دارد (بلاک‌های چندگانه‌یِ مرتب‌شده‌یِ
+        همان Cell، از رویِ FKِ جدیدِ ``StorefrontSection.cell``/``cell_order``)
+        — چیدمانِ چند-بلاکی و ترتیبِ آن‌ها خروجیِ عمومی/منتشرشده را واقعاً
+        تغییر می‌دهند، پس باید بخشی از drift-detection باشند، دقیقاً همان
+        استدلالِ row_key/row_span بالا."""
         sections = [
             {
                 "page_type": s.page.page_type, "section_key": s.section_key,
@@ -349,7 +356,7 @@ class StorefrontLayoutVersion(TimeStampedModel):
         containers = []
         for container in StorefrontContainer.objects.filter(page__version=self).select_related(
             "page"
-        ).prefetch_related("cells__section").order_by("page__page_type", "order", "id"):
+        ).prefetch_related("cells__section", "cells__blocks").order_by("page__page_type", "order", "id"):
             containers.append({
                 "page_type": container.page.page_type,
                 "order": container.order,
@@ -363,6 +370,23 @@ class StorefrontLayoutVersion(TimeStampedModel):
                         "section_stable_id": (
                             str(cell.section.stable_id) if cell.section_id else None
                         ),
+                        # Phase 2B: a Cell's multi-block composition and
+                        # ordering are real, published-visible content —
+                        # ``[Heading, Text]`` must fingerprint differently
+                        # from ``[Text, Heading]``, and ``[Heading]`` must
+                        # fingerprint differently from ``[Heading, Button]``
+                        # (both required outcomes are a direct consequence of
+                        # this list being both order-sensitive, since it's a
+                        # plain Python list not a set, and length-sensitive).
+                        # A Cell with zero or one Block via the new FK
+                        # produces an empty or one-item list respectively —
+                        # no special-casing needed relative to before this
+                        # phase, since the legacy ``section_stable_id`` key
+                        # above is left completely unchanged either way.
+                        "blocks": [
+                            {"section_stable_id": str(block.stable_id), "cell_order": block.cell_order}
+                            for block in cell.blocks.order_by("cell_order", "id")
+                        ],
                     }
                     for cell in container.cells.all().order_by("order", "id")
                 ],

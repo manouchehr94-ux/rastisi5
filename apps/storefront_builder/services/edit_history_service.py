@@ -89,7 +89,20 @@ def _serialize_cell(cell: StorefrontCell) -> dict:
         "order": cell.order,
         "span": cell.span,
         "settings": dict(cell.settings or {}),
+        # Legacy single-block OneToOne — kept exactly as before (Phase 2A/2B
+        # never remove it); every history entry recorded before Phase 2B
+        # only ever has this key, so ``restore_draft_state`` must go on
+        # restoring it as before regardless of whether ``blocks`` (below) is
+        # present.
         "section_stable_id": (str(cell.section.stable_id) if cell.section_id else None),
+        # Phase 2B: the new multi-block FK's Blocks, in ``cell_order``. A
+        # Cell with exactly one Block here (today's common case) still
+        # produces a one-item list — restore doesn't special-case "single"
+        # vs. "multi" separately, one code path handles both sizes.
+        "blocks": [
+            {"section_stable_id": str(block.stable_id), "cell_order": block.cell_order}
+            for block in cell.blocks.order_by("cell_order", "id")
+        ],
     }
 
 
@@ -102,7 +115,7 @@ def _serialize_container(container: StorefrontContainer) -> dict:
         "is_locked": container.is_locked,
         "cells": [
             _serialize_cell(cell)
-            for cell in container.cells.select_related("section").order_by("order", "id")
+            for cell in container.cells.select_related("section").prefetch_related("blocks").order_by("order", "id")
         ],
     }
 
@@ -193,6 +206,7 @@ def restore_draft_state(draft: StorefrontLayoutVersion, state: dict) -> None:
     # rebuild from their preserved legacy row_key/row_span values.
     container_state = state.get("containers")
     if isinstance(container_state, dict):
+        blocks_to_assign = []  # (stable_id-keyed lookups deferred until every Cell exists)
         for page_type, containers in container_state.items():
             page = page_by_type.get(page_type)
             if page is None:
@@ -218,6 +232,36 @@ def restore_draft_state(draft: StorefrontLayoutVersion, state: dict) -> None:
                     )
                     for cell_data in container_data.get("cells", [])
                 ])
+                # Phase 2B: re-fetch the just-created Cells by stable_id (the
+                # same pattern ``layout_service._clone_version_content`` and
+                # ``container_service.clone_page_containers`` already use)
+                # before wiring up the new multi-block FK — ``bulk_create``
+                # does not reliably populate PKs on every backend, and the
+                # target Cell objects above were never individually saved.
+                cells_by_stable_id = {
+                    str(cell.stable_id): cell for cell in container.cells.all()
+                }
+                for cell_data in container_data.get("cells", []):
+                    target_cell = cells_by_stable_id.get(cell_data["stable_id"])
+                    if target_cell is None:
+                        continue
+                    # Old history entries recorded before Phase 2B never have
+                    # a "blocks" key at all — ``.get(..., [])`` makes restoring
+                    # them behave exactly as before (no multi-block FK ever
+                    # written for those entries, matching the fact that the
+                    # field didn't exist yet when they were recorded).
+                    for block_data in cell_data.get("blocks", []):
+                        block_section = section_map.get(block_data.get("section_stable_id"))
+                        if block_section is None:
+                            continue
+                        blocks_to_assign.append((block_section, target_cell.pk, block_data.get("cell_order", 0)))
+        if blocks_to_assign:
+            updated_sections = []
+            for section, cell_pk, cell_order in blocks_to_assign:
+                section.cell_id = cell_pk
+                section.cell_order = cell_order
+                updated_sections.append(section)
+            StorefrontSection.objects.bulk_update(updated_sections, ["cell", "cell_order"])
     else:
         from . import container_service
         container_service.ensure_version_containers(locked_draft)

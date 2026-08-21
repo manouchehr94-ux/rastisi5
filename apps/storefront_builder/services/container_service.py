@@ -17,6 +17,34 @@ for the editor.
 During the migration window ``row_key``/``row_span`` remain available for
 backward compatibility.  Helpers in this module can mirror legacy rows into the
 new structure without changing public rendering yet.
+
+Phase 2B — multi-block Cell runtime foundation
+-----------------------------------------------
+Phase 2A added two transitional, purely-additive fields to ``StorefrontSection``:
+``cell`` (nullable FK, ``related_name="blocks"``) and ``cell_order`` (int,
+meaningful only when ``cell`` is set).  ``StorefrontCell.section`` (the
+original OneToOne) is deliberately **kept unchanged** during Phase 2B — it
+remains the only relationship every pre-Phase-2B call site reads/writes.
+
+This module now also owns the single authoritative read path for "what is in
+this Cell" (``get_cell_blocks``) and the mutating multi-block operations (add/
+remove/move/reorder) a future editor UI will call.  The read path's precedence
+rule is intentionally simple and matches the owner's explicit spec: if the new
+``cell`` relationship has *any* blocks, use it exclusively; only fall back to
+the legacy ``section`` OneToOne when the new relationship is completely empty
+for that Cell.  A Section that both relationships happen to reference (the
+normal state left behind by the Phase 2A migration backfill) is therefore
+always returned exactly once, never twice — see ``get_cell_blocks`` below for
+the precise rule and ``_clear_stale_legacy_pointer`` for how every mutating
+operation keeps the two relationships from ever describing two *different*
+placements for the same Section (which would otherwise resurrect a stale
+legacy pointer into a duplicate render after a block moves away).
+
+Nothing in this phase changes ``place_section`` (kept as-is, per the owner's
+explicit instruction, as the compatibility operation every pre-existing
+single-block call site — views.py, tests — continues to use unmodified) or
+removes/deprecates the legacy OneToOne.  Phase 2C will decide if/when that
+happens.
 """
 
 from __future__ import annotations
@@ -157,6 +185,13 @@ def validate_container(container: StorefrontContainer, cells=None) -> None:
         total += int(cell.span)
         if cell.section_id and cell.section.page_id != container.page_id:
             raise ContainerLayoutError("محتوای یک خانه باید متعلق به همان صفحه باشد")
+        # Phase 2B: the new multi-block FK's Blocks must obey the exact same
+        # page-scoping invariant as the legacy single-block OneToOne above —
+        # a Block placed via ``add_block``/``move_block`` can never belong to
+        # a different Page than its Cell's Container.
+        for block in cell.blocks.all():
+            if block.page_id != container.page_id:
+                raise ContainerLayoutError("محتوای یک خانه باید متعلق به همان صفحه باشد")
     if total != GRID_UNITS:
         raise ContainerLayoutError(
             f"مجموع عرض خانه‌های چیدمان باید دقیقاً {GRID_UNITS} باشد — مقدار فعلی: {total}"
@@ -166,17 +201,20 @@ def validate_container(container: StorefrontContainer, cells=None) -> None:
 def validate_page_containers(page) -> None:
     placed_sections = set()
     container_orders = set()
-    for container in page.containers.order_by("order", "id").prefetch_related("cells__section"):
+    for container in page.containers.order_by("order", "id").prefetch_related("cells__section", "cells__blocks"):
         if container.order in container_orders:
             raise ContainerLayoutError("ترتیب Containerهای صفحه تکراری است")
         container_orders.add(container.order)
         cells = list(container.cells.all().order_by("order", "id"))
         validate_container(container, cells)
         for cell in cells:
-            if cell.section_id:
-                if cell.section_id in placed_sections:
-                    raise ContainerLayoutError("یک بخش نمی‌تواند هم‌زمان در دو خانه باشد")
-                placed_sections.add(cell.section_id)
+            cell_section_ids = {block.pk for block in cell.blocks.all()} or (
+                {cell.section_id} if cell.section_id else set()
+            )
+            overlap = cell_section_ids & placed_sections
+            if overlap:
+                raise ContainerLayoutError("یک بخش نمی‌تواند هم‌زمان در دو خانه باشد")
+            placed_sections |= cell_section_ids
 
 
 def _legacy_runs(page):
@@ -247,6 +285,14 @@ def ensure_page_containers(page) -> None:
             section__isnull=False,
         ).values_list("section_id", flat=True)
     )
+    # Phase 2B: a Section placed via the new multi-block FK (``add_block``/
+    # ``move_block``) is just as "placed" as one via the legacy OneToOne —
+    # the publish invariant (§13) requires it counts as correctly placed too,
+    # so it must never be treated as orphaned/unplaced and wrapped into a
+    # brand-new single-column Container here.
+    placed_ids |= set(
+        StorefrontSection.objects.filter(page=page, cell__isnull=False).values_list("pk", flat=True)
+    )
     last_order = page.containers.order_by("-order").values_list("order", flat=True).first()
     next_order = (last_order + 1) if last_order is not None else 0
     for section in page.sections.exclude(pk__in=placed_ids).order_by("order", "id"):
@@ -305,12 +351,294 @@ def place_section(cell: StorefrontCell, section: StorefrontSection) -> Storefron
     return cell
 
 
+def get_cell_blocks(cell: StorefrontCell) -> list[StorefrontSection]:
+    """Authoritative read path: the ordered list of Blocks placed in ``cell``.
+
+    Precedence rule (Phase 2B, matches the owner's explicit spec): if the new
+    ``cell.blocks`` relationship has *any* rows, they are the whole answer —
+    ordered by ``cell_order`` then ``id`` for a deterministic tie-break
+    (``StorefrontSection.Meta.ordering`` is ``["order", "id"]``, which is the
+    unrelated *page-level* ordering — never used here). Only when
+    ``cell.blocks`` is completely empty for this Cell does this function fall
+    back to the legacy ``cell.section`` OneToOne, so a Cell that has never
+    been touched by any Phase 2B-aware code (i.e. every Cell today, until a
+    caller starts using ``add_block``/``move_block`` below) keeps behaving
+    exactly as it always has.
+
+    This single rule is what guarantees a Section is never rendered twice
+    even though, immediately after the Phase 2A migration backfill, both
+    relationships legitimately point at the same Section — that state is
+    exactly "``cell.blocks`` has one row", so the legacy branch is never
+    reached for it.
+    """
+    blocks = list(cell.blocks.order_by("cell_order", "id"))
+    if blocks:
+        return blocks
+    if cell.section_id:
+        return [cell.section]
+    return []
+
+
+def _clear_stale_legacy_pointer(section: StorefrontSection, *, keep_cell_id: int | None) -> None:
+    """Prevent a Section from being reachable through *two different*
+    placements at once (new FK vs. legacy OneToOne) after a Phase 2B
+    mutation moves/removes it.
+
+    Immediately after the Phase 2A backfill, and for any Section a
+    Phase-2B-unaware call site has ever placed via ``place_section``, a
+    Section's legacy ``placement_cell`` (``StorefrontCell.section``, reverse
+    OneToOne) and its new ``cell`` FK point at the very same Cell — this is
+    the intended, harmless steady state ``get_cell_blocks`` relies on (one
+    Cell, one set of blocks, no duplication).  But once a Phase 2B operation
+    moves that Section to a *different* Cell (or detaches it entirely) via
+    the new FK, the stale legacy OneToOne would otherwise keep pointing at
+    the Cell the Section just left — which would make that now-vacated Cell's
+    ``get_cell_blocks`` fall back to a Section that no longer belongs there
+    once (in a future step) the new relationship's row for it disappears too,
+    or, more subtly, would let *that original Cell* still "see" the Section
+    via the legacy branch on a request that races the transaction boundary.
+    Clearing the stale pointer whenever the new FK changes a Section's Cell
+    keeps the two relationships from ever describing two different
+    placements for the same Section at once — never left in a state where
+    both are simultaneously true but disagree.
+
+    ``keep_cell_id=None`` means "detach the Section from Cell placement
+    entirely" (used by ``remove_block``); any other value means "the legacy
+    pointer is only allowed to keep pointing at *this* Cell going forward".
+    """
+    try:
+        legacy_cell = section.placement_cell
+    except StorefrontCell.DoesNotExist:
+        legacy_cell = None
+    if legacy_cell is not None and legacy_cell.pk != keep_cell_id:
+        legacy_cell.section = None
+        legacy_cell.save(update_fields=["section", "updated_at"])
+
+
+@transaction.atomic
+def add_block(cell: StorefrontCell, section: StorefrontSection, *, at_index: int | None = None) -> StorefrontSection:
+    """Place ``section`` into ``cell`` as one Block among (possibly several)
+    others already there — the multi-block-capable sibling of
+    ``place_section``, which stays untouched as the single-block compatibility
+    operation.
+
+    Same tenant/page/lock invariants as ``place_section``: the Section must
+    belong to the same Page as the Cell's Container, and a locked Container
+    is rejected — but, unlike ``place_section``, an already-occupied Cell is
+    not itself an error; that is the entire point of this operation.
+
+    ``at_index`` controls the insertion position among the Cell's *existing*
+    blocks (``None``/omitted appends at the end — the common "add one more
+    block" case); every following existing block's ``cell_order`` shifts up
+    by one to make room, so relative order is always preserved and no two
+    blocks in one Cell ever end up sharing a ``cell_order`` value (the exact
+    invariant ``StorefrontSection``'s conditional ``UniqueConstraint`` on
+    ``(cell, cell_order)`` from Phase 2A enforces at the database level).
+
+    If ``section`` is the Cell's own pre-existing legacy single block (i.e.
+    ``cell.section_id == section.pk``, the normal post-Phase-2A-backfill
+    steady state), this call *adopts* that same content into the new FK at
+    position 0 rather than double-placing it — so calling ``add_block`` on a
+    freshly-migrated single-content Cell with its own current content is a
+    safe, idempotent way to "start managing this Cell as multi-block", not a
+    duplicate.
+    """
+    cell = StorefrontCell.objects.select_for_update().select_related("container").get(pk=cell.pk)
+    if cell.container.page_id != section.page_id:
+        raise ContainerLayoutError("این محتوا متعلق به صفحه دیگری است")
+    if cell.container.is_locked:
+        raise ContainerLayoutError("این چیدمان قفل است — ابتدا قفل آن را باز کنید")
+
+    existing = list(
+        StorefrontSection.objects.select_for_update()
+        .filter(cell_id=cell.pk)
+        .order_by("cell_order", "id")
+    )
+    if section.pk in {row.pk for row in existing}:
+        # Already one of this Cell's Blocks (new FK) — nothing to add, and
+        # never treated as an error: repeating an add is a safe no-op.
+        return section
+
+    if not existing and cell.section_id == section.pk:
+        # Adopt the Cell's own legacy single block into the new FK instead of
+        # creating a second placement for the same Section.
+        section.cell = cell
+        section.cell_order = 0
+        section.save(update_fields=["cell", "cell_order", "updated_at"])
+        return section
+
+    if existing:
+        insert_at = len(existing) if at_index is None else max(0, min(at_index, len(existing)))
+        for index, row in enumerate(existing):
+            row.cell_order = index + 1 if index >= insert_at else index
+        StorefrontSection.objects.bulk_update(existing, ["cell_order"])
+        new_order = insert_at
+    else:
+        new_order = 0
+
+    _clear_stale_legacy_pointer(section, keep_cell_id=cell.pk)
+    section.cell = cell
+    section.cell_order = new_order
+    section.save(update_fields=["cell", "cell_order", "updated_at"])
+    return section
+
+
+@transaction.atomic
+def remove_block(section: StorefrontSection) -> None:
+    """Detach ``section`` from whichever Cell currently holds it as a Block —
+    the multi-block sibling of ``storefront_cell_clear``'s legacy behaviour,
+    except this never deletes the Section itself (the legacy view-level
+    ``cell_clear`` endpoint intentionally does delete the Section — see the
+    module docstring's Phase 2B note and ``views.storefront_cell_clear``,
+    which is left completely unmodified in this phase).  Removing one Block
+    must never destroy the Cell or Container, and must never destroy any
+    *other* Block still in the same Cell — only this one Section's placement
+    is cleared, and the remaining Blocks' ``cell_order`` values are
+    compacted (0..N-1, no gaps) so a future insert-at-index stays predictable.
+    """
+    has_new_placement = section.cell_id is not None
+    has_legacy_placement = _has_legacy_placement(section)
+    if not has_new_placement and not has_legacy_placement:
+        return
+
+    cell_id = section.cell_id
+    _clear_stale_legacy_pointer(section, keep_cell_id=None)
+    if has_new_placement:
+        section.cell = None
+        section.cell_order = 0
+        section.save(update_fields=["cell", "cell_order", "updated_at"])
+
+    if cell_id is not None:
+        remaining = list(
+            StorefrontSection.objects.select_for_update()
+            .filter(cell_id=cell_id)
+            .order_by("cell_order", "id")
+        )
+        for index, row in enumerate(remaining):
+            row.cell_order = index
+        StorefrontSection.objects.bulk_update(remaining, ["cell_order"])
+
+
+def _has_legacy_placement(section: StorefrontSection) -> bool:
+    try:
+        return section.placement_cell is not None
+    except StorefrontCell.DoesNotExist:
+        return False
+
+
+@transaction.atomic
+def move_block(section: StorefrontSection, target_cell: StorefrontCell, *, at_index: int | None = None) -> StorefrontSection:
+    """Move ``section`` from wherever it currently is into ``target_cell`` —
+    Cell A -> Cell B, preserving the Section's identity (``stable_id``/PK)
+    and re-homing it to the end of ``target_cell``'s Blocks (or a specific
+    ``at_index``) while compacting the source Cell's remaining Blocks'
+    ``cell_order`` values, exactly like ``remove_block``.
+
+    Same tenant/page/lock invariants as ``add_block``: ``target_cell`` must
+    belong to the same Page as ``section``, and its Container must not be
+    locked.  Moving *within* the same Cell (``target_cell.pk == section.cell_id``)
+    is accepted as a same-Cell reorder-to-position rather than an error.
+    """
+    target_cell = StorefrontCell.objects.select_for_update().select_related("container").get(pk=target_cell.pk)
+    if target_cell.container.page_id != section.page_id:
+        raise ContainerLayoutError("این محتوا متعلق به صفحه دیگری است")
+    if target_cell.container.is_locked:
+        raise ContainerLayoutError("این چیدمان قفل است — ابتدا قفل آن را باز کنید")
+
+    source_cell_id = section.cell_id
+    if source_cell_id == target_cell.pk:
+        # Same-Cell move is just a reorder to a new position.
+        return reorder_block(section, at_index=at_index)
+
+    remove_block(section)
+    return add_block(target_cell, section, at_index=at_index)
+
+
+@transaction.atomic
+def reorder_block(section: StorefrontSection, *, at_index: int | None = None) -> StorefrontSection:
+    """Move ``section`` to position ``at_index`` among the *other* Blocks
+    already in its own current Cell — the same-Cell special case of
+    ``reorder_blocks_in_cell`` below, expressed in terms of a single moved
+    Block rather than a full target ordering (a convenient primitive for a
+    drag-and-drop editor gesture that only knows "this Block moved to this
+    position", not the whole resulting list). ``at_index=None`` leaves the
+    Block at its own current position (a safe no-op — used by ``move_block``
+    when a same-Cell "move" was requested without a specific target index).
+    """
+    if section.cell_id is None:
+        raise ContainerLayoutError("این محتوا داخل هیچ خانه‌ای نیست")
+    if at_index is None:
+        return section
+    cell_id = section.cell_id
+    siblings = list(
+        StorefrontSection.objects.select_for_update()
+        .filter(cell_id=cell_id)
+        .exclude(pk=section.pk)
+        .order_by("cell_order", "id")
+    )
+    insert_at = max(0, min(at_index, len(siblings)))
+    siblings.insert(insert_at, section)
+    for index, row in enumerate(siblings):
+        row.cell_order = index
+    StorefrontSection.objects.bulk_update(siblings, ["cell_order"])
+    return section
+
+
+@transaction.atomic
+def reorder_blocks_in_cell(cell: StorefrontCell, section_ids_in_order: list[int]) -> None:
+    """Rewrite the ``cell_order`` of every Block currently in ``cell`` to
+    match ``section_ids_in_order`` exactly — the batch/"drop this whole new
+    order" primitive (e.g. after a full drag-and-drop reorder gesture that
+    already knows the complete resulting sequence), as opposed to
+    ``reorder_block``'s single-item "moved to position N" primitive above.
+
+    Rejects (raises ``ContainerLayoutError``, safe to show to the merchant)
+    unless ``section_ids_in_order`` is *exactly* the same set of ids
+    currently in the Cell — no partial reorder, no silently dropping or
+    smuggling in a Section that doesn't already belong to this Cell, no
+    duplicate ids. This mirrors the existing ``storefront_section_reorder``
+    view's own "reject the whole operation on any mismatch, all-or-nothing"
+    convention (see ``views.py``) rather than inventing a new one.
+    """
+    cell = StorefrontCell.objects.select_for_update().select_related("container").get(pk=cell.pk)
+    current = list(
+        StorefrontSection.objects.select_for_update()
+        .filter(cell_id=cell.pk)
+        .order_by("cell_order", "id")
+    )
+    current_by_id = {row.pk: row for row in current}
+    if len(section_ids_in_order) != len(set(section_ids_in_order)):
+        raise ContainerLayoutError("شناسه‌های تکراری در ترتیب جدید مجاز نیست")
+    if set(section_ids_in_order) != set(current_by_id):
+        raise ContainerLayoutError("ترتیب جدید باید دقیقاً همان بلاک‌های موجود در این خانه باشد")
+
+    updated = []
+    for index, section_id in enumerate(section_ids_in_order):
+        row = current_by_id[section_id]
+        if row.cell_order != index:
+            row.cell_order = index
+            updated.append(row)
+    if updated:
+        StorefrontSection.objects.bulk_update(updated, ["cell_order"])
+
+
 @transaction.atomic
 def clone_page_containers(source_page, target_page, target_sections_by_stable_id: dict) -> None:
-    """Clone layout placement while preserving logical Container/Cell IDs."""
+    """Clone layout placement while preserving logical Container/Cell IDs.
+
+    Phase 2B: also clones the new multi-block FK placement (``cell``/
+    ``cell_order``) for every Block a source Cell holds, in exactly the same
+    ``cell_order`` sequence, matched onto the already-cloned target Sections
+    by ``stable_id`` — the same identity-preservation mechanism the legacy
+    single-block ``section=`` line above already uses (``target_sections_by_stable_id``
+    is the caller's ``cloned_by_stable_id`` map built from freshly-cloned
+    target Sections, keyed by the *shared* ``stable_id`` both the source and
+    target Section rows carry). Stable IDs are never invented or reassigned
+    here — only looked up.
+    """
     target_page.containers.all().delete()
     source_containers = list(
-        source_page.containers.prefetch_related("cells__section").order_by("order", "id")
+        source_page.containers.prefetch_related("cells__section", "cells__blocks").order_by("order", "id")
     )
     if not source_containers:
         rebuild_page_from_legacy_rows(target_page)
@@ -326,7 +654,8 @@ def clone_page_containers(source_page, target_page, target_sections_by_stable_id
             is_locked=source_container.is_locked,
         )
         cells = []
-        for source_cell in source_container.cells.all().order_by("order", "id"):
+        source_cells = list(source_container.cells.all().order_by("order", "id"))
+        for source_cell in source_cells:
             target_section = None
             if source_cell.section_id:
                 target_section = target_sections_by_stable_id.get(source_cell.section.stable_id)
@@ -339,6 +668,29 @@ def clone_page_containers(source_page, target_page, target_sections_by_stable_id
                 settings=deepcopy(source_cell.settings or {}),
             ))
         StorefrontCell.objects.bulk_create(cells)
+
+        # Second pass (mirrors ``layout_service._clone_version_content``'s own
+        # re-fetch-by-stable_id pattern): bulk_create above does not
+        # reliably populate PKs on every backend, so the just-created target
+        # Cells are re-fetched by ``stable_id`` before wiring up the new
+        # multi-block FK on the matching target Sections.
+        target_cells_by_stable_id = {
+            cell.stable_id: cell for cell in target_container.cells.all()
+        }
+        blocks_to_update = []
+        for source_cell in source_cells:
+            target_cell = target_cells_by_stable_id.get(source_cell.stable_id)
+            if target_cell is None:
+                continue
+            for source_block in source_cell.blocks.order_by("cell_order", "id"):
+                target_block = target_sections_by_stable_id.get(source_block.stable_id)
+                if target_block is None:
+                    continue
+                target_block.cell_id = target_cell.pk
+                target_block.cell_order = source_block.cell_order
+                blocks_to_update.append(target_block)
+        if blocks_to_update:
+            StorefrontSection.objects.bulk_update(blocks_to_update, ["cell", "cell_order"])
 
 @transaction.atomic
 def change_container_layout(container: StorefrontContainer, layout_key: str) -> StorefrontContainer:
@@ -361,6 +713,7 @@ def change_container_layout(container: StorefrontContainer, layout_key: str) -> 
         StorefrontCell.objects.select_for_update()
         .filter(container=container)
         .select_related("section")
+        .prefetch_related("blocks")
         .order_by("order", "id")
     )
     target_count = len(spans)
@@ -374,7 +727,18 @@ def change_container_layout(container: StorefrontContainer, layout_key: str) -> 
 
     if target_count < current_count:
         trailing = cells[target_count:]
-        if any(cell.section_id for cell in trailing):
+        # Phase 2B: a Cell holding one or more Blocks through the new
+        # multi-block FK is exactly as "not empty" as one holding a legacy
+        # single Section — the merge-on-shrink behaviour the owner's V3
+        # prototype implements (moving surviving content into the last Cell
+        # instead of refusing the resize) is deliberately NOT implemented
+        # here (see the Phase 2B report's audit of this function): doing so
+        # safely needs its own dedicated design/tests and is left for
+        # Phase 2C. Extending this existing guard to also see new-FK Blocks
+        # is the minimum required now — it keeps the "never silently delete
+        # content" invariant true for multi-block Cells too, by continuing
+        # to refuse the shrink rather than silently making Blocks invisible.
+        if any(cell.section_id or list(cell.blocks.all()) for cell in trailing):
             raise ContainerLayoutError(
                 "خانه‌های اضافی هنوز محتوا دارند. محتوای مخفی هم محتوا محسوب می‌شود؛ "
                 "ابتدا آن را حذف یا جابه‌جا کنید، سپس تعداد ستون‌ها را کم کنید"
