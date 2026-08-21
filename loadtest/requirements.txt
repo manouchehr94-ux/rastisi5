@@ -1,0 +1,6 @@
+# Load-test tooling dependency — deliberately kept OUT of the main
+# repository requirements.txt (the Django application itself has no
+# runtime dependency on Locust; this file is only for whoever runs the
+# suite in loadtest/, typically from a separate operator machine or
+# dedicated load-generator host, not from the application server).
+locust>=2.46,<3

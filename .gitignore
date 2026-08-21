@@ -50,3 +50,10 @@ tools/storefront_builder_qa/node_modules/
 /RastiSi4_phase35_complete_builder_handoff_20260817-123748.zip
 graphify-out/
 .graphify-venv/
+
+# Locust load-test output (Phase 3, loadtest/) — operator-generated per-run
+# results, never source, never a real fixture the app depends on.
+loadtest/results/
+loadtest/*.csv
+loadtest/*.html
+.venv-loadtest/
