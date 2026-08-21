@@ -40,11 +40,30 @@ operation keeps the two relationships from ever describing two *different*
 placements for the same Section (which would otherwise resurrect a stale
 legacy pointer into a duplicate render after a block moves away).
 
-Nothing in this phase changes ``place_section`` (kept as-is, per the owner's
-explicit instruction, as the compatibility operation every pre-existing
-single-block call site — views.py, tests — continues to use unmodified) or
-removes/deprecates the legacy OneToOne.  Phase 2C will decide if/when that
-happens.
+Phase 2C — content-preserving layout transitions
+--------------------------------------------------
+``change_container_layout``'s shrink branch now merges every removed Cell's
+Blocks into the last surviving Cell (see its docstring) instead of refusing
+the operation — the approved V3 prototype requires a layout change to never
+silently destroy content. ``clear_cell`` was added as the explicit
+multi-block "clear this whole Cell" primitive, kept distinct from
+``remove_block``'s "remove exactly one Block" (views.py's existing
+``storefront_cell_clear`` endpoint is unmodified and still means what it
+always has for the current single-block UI).
+
+``place_section`` remains the compatibility operation every pre-existing
+single-block call site (views.py, tests) uses unmodified, but — since Phase
+2B — it also keeps the new multi-block FK synchronized with the same
+outcome, so it can never leave the two relationships disagreeing.
+``StorefrontCell.section`` (the legacy OneToOne) is deliberately still NOT
+removed from the database in this phase — Phase 2C's goal is only to make
+``StorefrontSection.cell``/``cell_order`` the PRIMARY runtime composition
+model (every read goes through ``get_cell_blocks``, which prefers the new
+FK and only falls back to the legacy OneToOne for a genuinely untouched
+old-style Cell); the legacy field remains as a compatibility mirror/
+fallback for old rows. See the Phase 2C report for the complete audit of
+every remaining runtime use of the legacy field and whether a later Phase
+2D migration removing it is recommended.
 """
 
 from __future__ import annotations
@@ -188,10 +207,29 @@ def validate_container(container: StorefrontContainer, cells=None) -> None:
         # Phase 2B: the new multi-block FK's Blocks must obey the exact same
         # page-scoping invariant as the legacy single-block OneToOne above —
         # a Block placed via ``add_block``/``move_block`` can never belong to
-        # a different Page than its Cell's Container.
-        for block in cell.blocks.all():
+        # a different Page than its Cell's Container. Since every Page
+        # belongs to exactly one Version which belongs to exactly one Store
+        # (``StorefrontPage -> StorefrontLayoutVersion -> StorefrontLayout
+        # -> Store``), this single page-equality check transitively rules
+        # out cross-store AND cross-version placement too — no separate
+        # store/version check is needed on top of it.
+        cell_blocks = list(cell.blocks.all())
+        for block in cell_blocks:
             if block.page_id != container.page_id:
                 raise ContainerLayoutError("محتوای یک خانه باید متعلق به همان صفحه باشد")
+        # Phase 2C: the new FK's ordering must be normalized (0..N-1, no
+        # gaps) for every Cell — the database's own conditional
+        # ``UniqueConstraint(cell, cell_order)`` from Phase 2A already rules
+        # out two Blocks in the same Cell sharing a ``cell_order``, so this
+        # only needs to additionally confirm there's no *gap* (e.g. 0, 2
+        # with no 1) — every mutating operation in this module
+        # (``add_block``/``remove_block``/``move_block``/reorder/merge-on-
+        # shrink) already keeps this true by construction; this check is a
+        # cheap, direct proof of that invariant rather than trusting it.
+        if cell_blocks:
+            actual_orders = sorted(block.cell_order for block in cell_blocks)
+            if actual_orders != list(range(len(cell_blocks))):
+                raise ContainerLayoutError("ترتیب بلاک‌های یک خانه باید نرمال‌شده (بدون شکاف) باشد")
     if total != GRID_UNITS:
         raise ContainerLayoutError(
             f"مجموع عرض خانه‌های چیدمان باید دقیقاً {GRID_UNITS} باشد — مقدار فعلی: {total}"
@@ -528,6 +566,43 @@ def _persist_cell_order(rows: list[StorefrontSection]) -> None:
     StorefrontSection.objects.bulk_update(rows, ["cell_order"])
 
 
+def _persist_cell_placement(rows: list[StorefrontSection], target_cell: StorefrontCell) -> None:
+    """Collision-safe write of BOTH ``cell`` and ``cell_order`` for every row
+    in ``rows`` — moves all of them onto ``target_cell`` with final
+    ``cell_order`` set to exactly ``0..len(rows)-1`` in the given list order.
+
+    Phase 2C sibling of ``_persist_cell_order`` above, needed specifically
+    for merge-on-shrink: unlike a same-Cell reorder (where only
+    ``cell_order`` changes), a merge moves rows that currently belong to
+    *several different* Cells (the ones being removed) — and possibly
+    already-correct rows already in ``target_cell`` — into one single
+    Cell at once. The same two-phase scratch-range technique applies for
+    exactly the same reason (no multi-row UPDATE is guaranteed to apply "as
+    if simultaneously" on either SQLite or PostgreSQL): Phase 1 sets both
+    ``cell`` (its real final value, safe on its own since it's typically a
+    different Cell per row already) and ``cell_order`` (a per-row-unique
+    scratch value, via the same ``pk`` offset) together; Phase 2 then
+    writes the real final ``cell_order`` — and by that point every row
+    ``rows`` care about is already sitting at a large, disjoint scratch
+    value, so the small final values can never collide with each other or
+    with any value still held by a row this call already touched.
+
+    ``rows`` must be the COMPLETE final Block list for ``target_cell`` —
+    i.e. its own pre-existing Blocks (if any) plus every Block being merged
+    in, in the desired final order — never a partial subset, for the exact
+    same reason ``_persist_cell_order`` requires the full set.
+    """
+    if not rows:
+        return
+    for row in rows:
+        row.cell_id = target_cell.pk
+        row.cell_order = _CELL_ORDER_TEMP_OFFSET + row.pk
+    StorefrontSection.objects.bulk_update(rows, ["cell", "cell_order"])
+    for index, row in enumerate(rows):
+        row.cell_order = index
+    StorefrontSection.objects.bulk_update(rows, ["cell_order"])
+
+
 def _clear_stale_legacy_pointer(section: StorefrontSection, *, keep_cell_id: int | None) -> None:
     """Prevent a Section from being reachable through *two different*
     placements at once (new FK vs. legacy OneToOne) after a Phase 2B
@@ -673,6 +748,52 @@ def _has_legacy_placement(section: StorefrontSection) -> bool:
         return section.placement_cell is not None
     except StorefrontCell.DoesNotExist:
         return False
+
+
+@transaction.atomic
+def clear_cell(cell: StorefrontCell) -> list[StorefrontSection]:
+    """Detach EVERY Block currently placed in ``cell`` — the multi-block
+    generalization of "clear this Cell entirely".
+
+    Phase 2C explicitly keeps two conceptual operations distinct at the
+    service layer: ``remove_block(section)`` detaches exactly one specific
+    Block; this function detaches ALL of a Cell's current Blocks (however
+    many there are, and regardless of whether each one is currently placed
+    through the legacy OneToOne fallback or the new multi-block FK — both
+    are resolved once via ``get_cell_blocks``, the single authoritative
+    read path). Neither function ever deletes a Section — only detaches
+    it, leaving the Cell and Container alive, exactly like
+    ``remove_block``'s own already-established "never delete" contract.
+
+    This is intentionally NOT the same thing as the existing Builder view
+    ``views.storefront_cell_clear``, which additionally DELETES the
+    detached Section outright (a view-layer/UI decision, not a service-
+    layer one — the view is unmodified by Phase 2C and continues to mean
+    exactly what it always has for a merchant using the current UI).
+    Callers that need that stronger "delete too" behaviour, or need to
+    correctly clear a Cell that may now legitimately hold more than one
+    Block (a state Phase 2C's merge-on-shrink can create even though no UI
+    yet lets a merchant place a second Block directly), should call this
+    function and then decide what to do with the returned, now-detached
+    Sections themselves — exactly mirroring what the existing view already
+    does for its single-Section case.
+
+    Refuses the WHOLE operation (raises ``ContainerLayoutError``, safe to
+    show to the merchant) if ANY currently-placed Block is locked — the
+    multi-block generalization of the existing single-block refusal in
+    ``views.storefront_cell_clear``: an all-or-nothing clear must never
+    silently detach some Blocks while leaving a locked one behind with no
+    clear indication of why the Cell wasn't fully cleared.
+
+    Returns the list of Sections that were detached (still existing,
+    merely unattached), in their prior ``cell_order``.
+    """
+    blocks = get_cell_blocks(cell)
+    if any(block.is_locked for block in blocks):
+        raise ContainerLayoutError("این خانه محتوای قفل‌شده دارد — ابتدا قفل آن را باز کنید")
+    for block in blocks:
+        remove_block(block)
+    return blocks
 
 
 @transaction.atomic
@@ -845,10 +966,16 @@ def clone_page_containers(source_page, target_page, target_sections_by_stable_id
 def change_container_layout(container: StorefrontContainer, layout_key: str) -> StorefrontContainer:
     """Change one Container preset without treating content as the layout.
 
-    Existing leading Cells keep their content. Growing adds real empty Cells.
-    Shrinking is allowed only when every Cell that would disappear is empty, so
-    content is never silently deleted or moved. This is the core merchant UX:
-    choose the shape first, then fill the empty slots.
+    Existing leading Cells keep their content. Ratio-only changes at the
+    same Cell count (e.g. 50/50 -> 33/67) never move content between Cells —
+    only ``span``/``layout_key`` change; Cell identities and their Blocks
+    stay exactly where they were. Growing adds real empty Cells; existing
+    content is never automatically redistributed into the new Cells.
+    Shrinking merges every removed Cell's Blocks into the last surviving
+    Cell, preserving relative order (Phase 2C — see ``change_container_layout``'s
+    shrink branch below for the full rationale: content must never be
+    silently destroyed, per the approved V3 prototype). This is the core
+    merchant UX: choose the shape first, and content follows safely.
     """
     spans = LAYOUT_PRESETS.get(layout_key)
     if spans is None:
@@ -875,25 +1002,45 @@ def change_container_layout(container: StorefrontContainer, layout_key: str) -> 
         return container
 
     if target_count < current_count:
+        # Phase 2C — merge-on-shrink (approved V3 prototype requirement:
+        # a layout change must NEVER silently destroy content). This
+        # REPLACES the previous Phase 2B behaviour of refusing the shrink
+        # whenever a trailing Cell held content ("خانه‌های اضافی هنوز محتوا
+        # دارند..."). That refusal was a deliberate, temporary, narrower
+        # guard put in place specifically because Phase 2B had not yet
+        # built the multi-block infrastructure a safe merge needs — see the
+        # Phase 2B report's explicit note that it was "left for Phase 2C".
+        # Now that multi-block Cells and the collision-safe ordering
+        # primitive exist, silently refusing is no longer the safest
+        # available behaviour: moving every removed Cell's content into the
+        # last surviving Cell (preserving relative order, never dropping
+        # hidden/inactive content) is strictly more useful to the merchant
+        # than blocking the resize entirely, and is exactly what the
+        # approved prototype's own ``applyLayout()`` does.
         trailing = cells[target_count:]
-        # Phase 2B: a Cell holding one or more Blocks through the new
-        # multi-block FK is exactly as "not empty" as one holding a legacy
-        # single Section — the merge-on-shrink behaviour the owner's V3
-        # prototype implements (moving surviving content into the last Cell
-        # instead of refusing the resize) is deliberately NOT implemented
-        # here (see the Phase 2B report's audit of this function): doing so
-        # safely needs its own dedicated design/tests and is left for
-        # Phase 2C. Extending this existing guard to also see new-FK Blocks
-        # is the minimum required now — it keeps the "never silently delete
-        # content" invariant true for multi-block Cells too, by continuing
-        # to refuse the shrink rather than silently making Blocks invisible.
-        if any(cell.section_id or list(cell.blocks.all()) for cell in trailing):
-            raise ContainerLayoutError(
-                "خانه‌های اضافی هنوز محتوا دارند. محتوای مخفی هم محتوا محسوب می‌شود؛ "
-                "ابتدا آن را حذف یا جابه‌جا کنید، سپس تعداد ستون‌ها را کم کنید"
-            )
+        surviving = cells[:target_count]
+        last_survivor = surviving[-1]
+
+        # ``get_cell_blocks`` (not raw ``cell.section_id``/``cell.blocks``)
+        # is used for every Cell here — it is the single authoritative read
+        # path and correctly returns content regardless of whether that
+        # Cell's content currently lives only through the legacy OneToOne
+        # (e.g. a Cell created by ``ensure_page_containers``/
+        # ``rebuild_page_from_legacy_rows``, which write ``cell.section=``
+        # directly and never touch the new FK) or through the new FK. This
+        # merge is therefore also the point at which any such legacy-only
+        # content gets adopted into the new FK — advancing the new FK
+        # toward being the sole *runtime* source of truth without altering
+        # any externally-visible behaviour.
+        merged_blocks = list(get_cell_blocks(last_survivor))
+        for removed_cell in trailing:
+            merged_blocks.extend(get_cell_blocks(removed_cell))
+
+        if merged_blocks:
+            _persist_cell_placement(merged_blocks, last_survivor)
+
         StorefrontCell.objects.filter(pk__in=[cell.pk for cell in trailing]).delete()
-        cells = cells[:target_count]
+        cells = surviving
     elif target_count > current_count:
         new_cells = [
             StorefrontCell(container=container, order=index, span=spans[index])

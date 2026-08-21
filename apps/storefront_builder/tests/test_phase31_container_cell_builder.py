@@ -88,20 +88,41 @@ class Phase31ContainerCellBuilderTests(StorefrontBuilderViewsTestCase):
         self.assertEqual([cell.span for cell in cells], [3, 3, 3, 3])
         self.assertEqual([cell.section_id for cell in cells], [section.pk, None, None, None])
 
-    def test_shrink_refuses_to_delete_trailing_content_and_records_no_history(self):
+    def test_shrink_merges_trailing_content_into_last_surviving_cell_as_one_history_step(self):
+        """Phase 2C REPLACES the previous Phase 2B behaviour asserted here
+        (refuse the shrink and record no history whenever a trailing Cell
+        held content). The approved V3 prototype's own ``applyLayout()``
+        requires a layout change to NEVER silently destroy content — with
+        Phase 2B's multi-block infrastructure now in place, refusing is no
+        longer the safest available behaviour: the merchant's content is
+        preserved by merging every removed Cell's Blocks into the last
+        surviving Cell (relative order preserved) instead of blocking the
+        resize outright. This is documented, intentional, approved new
+        behaviour, not a regression — the underlying requirement ("content
+        must never be silently destroyed") is honoured even more strongly
+        than before, since now the merchant doesn't have to manually move
+        content out of the way first."""
         first = self._section(0)
         second = self._section(1)
         container = container_service.create_empty_container(self.page, "half")
         cells = list(container.cells.order_by("order", "id"))
         container_service.place_section(cells[0], first)
         container_service.place_section(cells[1], second)
-        before = list(container.cells.values_list("pk", "span", "section_id"))
 
         response = self.client.post(self._layout_url(container), {"layout_key": "single"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(list(container.cells.values_list("pk", "span", "section_id")), before)
-        self.assertEqual(self.draft.edit_history_entries.count(), 0)
+        container.refresh_from_db()
+        remaining_cells = list(container.cells.order_by("order", "id"))
+        self.assertEqual(len(remaining_cells), 1)
+        surviving_cell = remaining_cells[0]
+        self.assertEqual(
+            [b.pk for b in container_service.get_cell_blocks(surviving_cell)],
+            [first.pk, second.pk],
+        )
+        # A single logical layout-change operation, not one history entry
+        # per moved Block.
+        self.assertEqual(self.draft.edit_history_entries.count(), 1)
 
     def test_content_library_adds_section_to_the_exact_empty_cell(self):
         container = container_service.create_empty_container(self.page, "half")

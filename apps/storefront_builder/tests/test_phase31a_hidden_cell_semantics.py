@@ -58,14 +58,21 @@ class Phase31AHiddenCellSemanticsTests(StorefrontBuilderViewsTestCase):
         self.assertEqual(self.page.sections.count(), 1)
         self.assertEqual(self.draft.edit_history_entries.count(), 0)
 
-    def test_hidden_trailing_content_blocks_shrink_without_data_loss(self):
+    def test_hidden_trailing_content_survives_shrink_via_merge_not_refusal(self):
+        """Phase 2C REPLACES the previous Phase 2B behaviour asserted here
+        (refuse the shrink whenever a trailing Cell — including one holding
+        only hidden/inactive content — was non-empty). Hidden content is
+        still content: it must survive a shrink by being merged into the
+        surviving Cell (never dropped merely because its own Cell shrinks
+        away), exactly like visible content. "Not currently visible" must
+        never be treated as "empty" — this test now proves the merge
+        happens, rather than proving the operation was refused."""
         first = self._section(0)
         second = self._section(1, is_active=False)
         container = container_service.create_empty_container(self.page, "half")
         cells = list(container.cells.order_by("order", "id"))
         container_service.place_section(cells[0], first)
         container_service.place_section(cells[1], second)
-        before = list(container.cells.values_list("pk", "span", "section_id"))
 
         response = self.client.post(
             reverse("dashboard:storefront-builder-container-layout", args=[container.pk]),
@@ -73,8 +80,19 @@ class Phase31AHiddenCellSemanticsTests(StorefrontBuilderViewsTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(list(container.cells.values_list("pk", "span", "section_id")), before)
-        self.assertEqual(self.draft.edit_history_entries.count(), 0)
+        container.refresh_from_db()
+        remaining_cells = list(container.cells.order_by("order", "id"))
+        self.assertEqual(len(remaining_cells), 1)
+        surviving_cell = remaining_cells[0]
+        blocks = container_service.get_cell_blocks(surviving_cell)
+        self.assertEqual([b.pk for b in blocks], [first.pk, second.pk])
+        # The hidden Section must still physically exist and remain hidden
+        # (merge never changes is_active) — merely relocated, not deleted
+        # or silently made permanently invisible.
+        second.refresh_from_db()
+        self.assertFalse(second.is_active)
+        self.assertTrue(StorefrontSection.objects.filter(pk=second.pk).exists())
+        self.assertEqual(self.draft.edit_history_entries.count(), 1)
 
     def test_cell_clear_really_deletes_hidden_content_and_keeps_layout(self):
         hidden = self._section(is_active=False)
