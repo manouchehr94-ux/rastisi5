@@ -1,11 +1,14 @@
+import threading
 from decimal import Decimal
+from unittest import skipUnless
 
 from django.contrib.auth import get_user_model
-from django.db import transaction
-from django.test import TestCase
+from django.db import connection, transaction
+from django.test import TestCase, TransactionTestCase
 
 from apps.cart.models import Cart, CartItem, Coupon
 from apps.catalog.models import Category, Product, ProductVariant, StockMovement, Vendor
+from apps.core.models import ShopSettings
 from apps.customers.models import Address, Customer
 from apps.orders.models import Order, OrderStatusHistory, PaymentGateway, ShippingMethod
 from apps.orders.services.order_service import change_order_status, create_order_from_cart
@@ -123,6 +126,241 @@ class CreateOrderFromCartTests(TestCase):
         self.assertEqual(movement.stock_after, 8)
         self.assertEqual(movement.reason, StockMovement.Reason.ORDER_PLACED)
         self.assertEqual(movement.variant, None)
+
+
+class CouponConcurrencySafetyTests(TestCase):
+    """CB-1 regression coverage for the ``select_for_update()`` fix in
+    ``order_service._lock_coupon`` — deterministic, DB-engine-agnostic
+    (SQLite and PostgreSQL both prove these correctness properties). The
+    genuine multi-writer race reproduction, which SQLite cannot validate,
+    lives in ``CouponRedemptionRaceConditionTests`` below."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.user = User.objects.create_user(username="coupon-user", password="pass12345")
+        self.customer = Customer.objects.create(user=self.user, full_name="سارا احمدی", phone="09121230099")
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه کوپن", slug="shop-coupon")
+        self.category = Category.objects.create(store=self.store, name="دیجیتال کوپن", slug="digital-coupon")
+        self.product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="کیبورد", slug="keyboard-coupon",
+            sku="SKU-CPN1", price=Decimal("1000000"), discount_percent=0, stock=100,
+        )
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست", slug="post-coupon", cost=Decimal("45000"))
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="زرین‌پال", slug="zarin-coupon")
+        self.address = Address.objects.create(
+            customer=self.customer, receiver_name="سارا احمدی", phone="09121230099",
+            province="تهران", city="تهران", postal_code="1111111111", full_address="خیابان ولیعصر",
+        )
+
+    def _cart(self, quantity=1):
+        cart = Cart.objects.create(customer=self.customer)
+        CartItem.objects.create(
+            cart=cart, product=self.product, quantity=quantity, unit_price=self.product.final_price
+        )
+        return cart
+
+    def _create(self, cart, coupon=None):
+        return create_order_from_cart(
+            cart, customer=self.customer, vendor=self.vendor, address=self.address,
+            shipping_method=self.shipping, payment_gateway=self.gateway, coupon=coupon,
+            store=self.store,
+        )
+
+    def test_single_redemption_still_applies_discount_and_increments_once(self):
+        coupon = Coupon.objects.create(
+            store=self.store, code="ONCE10", type=Coupon.Type.PERCENT, value=10, usage_limit=5
+        )
+        order = self._create(self._cart(), coupon=coupon)
+        coupon.refresh_from_db()
+        self.assertEqual(coupon.used_count, 1)
+        self.assertGreater(order.coupon_discount, Decimal("0"))
+
+    def test_exhausted_coupon_is_rejected_no_discount_no_further_increment(self):
+        coupon = Coupon.objects.create(
+            store=self.store, code="MAXED", type=Coupon.Type.PERCENT, value=10,
+            usage_limit=1, used_count=1,
+        )
+        order = self._create(self._cart(), coupon=coupon)
+        coupon.refresh_from_db()
+        self.assertEqual(coupon.used_count, 1)  # بدون تغییر — همچنان دقیقاً روی سقف
+        self.assertEqual(order.coupon_discount, Decimal("0"))
+
+    def test_unlimited_coupon_keeps_incrementing_without_being_rejected(self):
+        coupon = Coupon.objects.create(
+            store=self.store, code="UNLIM", type=Coupon.Type.PERCENT, value=5, usage_limit=None
+        )
+        for expected in (1, 2, 3):
+            order = self._create(self._cart(), coupon=coupon)
+            coupon.refresh_from_db()
+            self.assertEqual(coupon.used_count, expected)
+            self.assertGreater(order.coupon_discount, Decimal("0"))
+
+    def test_store_isolation_rejects_coupon_from_other_store_and_leaves_it_untouched(self):
+        other_store = Store.objects.create(name="فروشگاه دیگر", slug="coupon-other-store", status=Store.Status.ACTIVE)
+        foreign_coupon = Coupon.objects.create(store=other_store, code="FOREIGN", type=Coupon.Type.PERCENT, value=10)
+        with self.assertRaises(ValueError):
+            self._create(self._cart(), coupon=foreign_coupon)
+        foreign_coupon.refresh_from_db()
+        self.assertEqual(foreign_coupon.used_count, 0)
+
+    def test_two_stores_with_same_coupon_code_track_usage_independently(self):
+        other_store = Store.objects.create(name="فروشگاه دو", slug="coupon-store-two", status=Store.Status.ACTIVE)
+        ShopSettings.provision_for(other_store)
+        other_vendor = Vendor.objects.create(store=other_store, name="فروشنده دو", slug="vendor-coupon-two")
+        other_category = Category.objects.create(store=other_store, name="دسته دو", slug="cat-coupon-two")
+        other_product = Product.objects.create(
+            store=other_store, vendor=other_vendor, category=other_category, name="ماوس", slug="mouse-coupon-two",
+            sku="SKU-CPN2", price=Decimal("500000"), stock=50,
+        )
+        other_shipping = ShippingMethod.objects.create(store=other_store, name="پست دو", slug="post-coupon-two", cost=Decimal("20000"))
+        other_gateway = PaymentGateway.objects.create(store=other_store, name="درگاه دو", slug="gateway-coupon-two")
+        other_user = User.objects.create_user(username="coupon-user-two", password="pass12345")
+        other_customer = Customer.objects.create(user=other_user, full_name="نگار محمدی", phone="09121230098")
+        other_address = Address.objects.create(
+            customer=other_customer, receiver_name="نگار محمدی", phone="09121230098",
+            province="تهران", city="تهران", postal_code="1111111112", full_address="خیابان کریمخان",
+        )
+        other_cart = Cart.objects.create(customer=other_customer)
+        CartItem.objects.create(
+            cart=other_cart, product=other_product, quantity=1, unit_price=other_product.final_price
+        )
+
+        coupon_a = Coupon.objects.create(store=self.store, code="SHARED", type=Coupon.Type.PERCENT, value=10)
+        coupon_b = Coupon.objects.create(store=other_store, code="SHARED", type=Coupon.Type.PERCENT, value=10)
+
+        self._create(self._cart(), coupon=coupon_a)
+        create_order_from_cart(
+            other_cart, customer=other_customer, vendor=other_vendor, address=other_address,
+            shipping_method=other_shipping, payment_gateway=other_gateway, coupon=coupon_b,
+            store=other_store,
+        )
+
+        coupon_a.refresh_from_db()
+        coupon_b.refresh_from_db()
+        self.assertEqual(coupon_a.used_count, 1)
+        self.assertEqual(coupon_b.used_count, 1)
+
+    def test_rollback_after_coupon_lock_does_not_consume_usage(self):
+        coupon = Coupon.objects.create(
+            store=self.store, code="ROLLBACK1", type=Coupon.Type.PERCENT, value=10, usage_limit=1
+        )
+        try:
+            with transaction.atomic():
+                self._create(self._cart(), coupon=coupon)
+                raise ValueError("خطای عمدی برای رول‌بک")
+        except ValueError:
+            pass
+        coupon.refresh_from_db()
+        self.assertEqual(coupon.used_count, 0)
+
+        # کوپن هنوز کاملاً قابل استفاده است — رول‌بک واقعاً استفاده را مصرف نکرده.
+        order = self._create(self._cart(), coupon=coupon)
+        coupon.refresh_from_db()
+        self.assertEqual(coupon.used_count, 1)
+        self.assertGreater(order.coupon_discount, Decimal("0"))
+
+
+@skipUnless(
+    connection.vendor == "postgresql",
+    "True parallel-writer contention over the same Coupon row needs real "
+    "row-level locking (select_for_update); SQLite serializes writers at "
+    "the database-file level, so the specific lost-update/over-redemption "
+    "race this fix closes is not observable there. Deterministic, "
+    "engine-agnostic coverage of the fix's correctness lives in "
+    "CouponConcurrencySafetyTests above. This is the "
+    "LOCAL_POSTGRESQL_CONCURRENCY_VALIDATION evidence for CB-1.",
+)
+class CouponRedemptionRaceConditionTests(TransactionTestCase):
+    """Real concurrent writers, real PostgreSQL row locks — proves
+    ``_lock_coupon``'s ``select_for_update()`` actually prevents
+    over-redemption of a limited-use coupon, not just a sequential-call
+    simulation. Each worker thread independently re-reads the Coupon row
+    (unlocked) before calling ``create_order_from_cart``, exactly mirroring
+    how ``checkout_service.get_applied_coupon`` resolves it in a real
+    request — a ``threading.Barrier`` forces all workers to perform that
+    unlocked read at the same instant, reproducing the pre-fix race window
+    where every worker could observe the same stale ``used_count``."""
+
+    def setUp(self):
+        # ``TransactionTestCase`` truncates all tables between tests (real
+        # commits, no per-test rollback), so the ``akhlaghi`` Store seeded
+        # by a data migration is not guaranteed to survive across test
+        # methods here — a fresh Store is created explicitly instead,
+        # mirroring the same choice already made by
+        # ``NumberingConcurrencyTests`` in
+        # apps/billing/tests/test_invoice_lines_numbering.py.
+        self.store = Store.objects.create(name="فروشگاه رقابت کوپن", slug="coupon-race-store", status=Store.Status.ACTIVE)
+        ShopSettings.provision_for(self.store)
+        self.vendor = Vendor.objects.create(store=self.store, name="فروشگاه رقابت", slug="shop-race")
+        self.category = Category.objects.create(store=self.store, name="دیجیتال رقابت", slug="digital-race")
+        self.product = Product.objects.create(
+            store=self.store, vendor=self.vendor, category=self.category, name="اسپیکر", slug="speaker-race",
+            sku="SKU-RACE1", price=Decimal("1000000"), discount_percent=0, stock=1000,
+        )
+        self.shipping = ShippingMethod.objects.create(store=self.store, name="پست رقابت", slug="post-race", cost=Decimal("45000"))
+        self.gateway = PaymentGateway.objects.create(store=self.store, name="درگاه رقابت", slug="gateway-race")
+        self.usage_limit = 3
+        self.coupon = Coupon.objects.create(
+            store=self.store, code="RACE10", type=Coupon.Type.PERCENT, value=10, usage_limit=self.usage_limit,
+        )
+
+    def _customer_context(self, index):
+        user = User.objects.create_user(username=f"racer{index}", password="pass12345")
+        customer = Customer.objects.create(
+            user=user, full_name=f"مشتری رقابت {index}", phone=f"0912000{index:04d}"
+        )
+        address = Address.objects.create(
+            customer=customer, receiver_name=f"مشتری رقابت {index}", phone=f"0912000{index:04d}",
+            province="تهران", city="تهران", postal_code="1111111111", full_address="خیابان انقلاب",
+        )
+        cart = Cart.objects.create(customer=customer)
+        CartItem.objects.create(cart=cart, product=self.product, quantity=1, unit_price=self.product.final_price)
+        return customer, address, cart
+
+    def test_concurrent_redemptions_never_exceed_usage_limit(self):
+        thread_count = 8
+        contexts = [self._customer_context(i) for i in range(thread_count)]
+        start_barrier = threading.Barrier(thread_count)
+        discount_applied = []
+        errors = []
+        results_lock = threading.Lock()
+
+        def worker(customer, address, cart):
+            try:
+                start_barrier.wait(timeout=10)
+                # اسنپ‌شاتِ عمداً *بدون* قفل — دقیقاً همان کاری که
+                # checkout_service.get_applied_coupon پیش از فراخوانیِ
+                # create_order_from_cart انجام می‌دهد؛ اصلاح واقعی باید
+                # داخلِ خودِ create_order_from_cart (_lock_coupon) اتفاق
+                # بیفتد، نه این‌جا.
+                unlocked_coupon = Coupon.objects.get(pk=self.coupon.pk)
+                order = create_order_from_cart(
+                    cart, customer=customer, vendor=self.vendor, address=address,
+                    shipping_method=self.shipping, payment_gateway=self.gateway,
+                    coupon=unlocked_coupon, store=self.store,
+                )
+                with results_lock:
+                    discount_applied.append(order.coupon_discount > 0)
+            except Exception as exc:  # noqa: BLE001 — captured for assertion, not swallowed
+                with results_lock:
+                    errors.append(exc)
+            finally:
+                connection.close()
+
+        threads = [threading.Thread(target=worker, args=ctx) for ctx in contexts]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(errors, [])
+        self.coupon.refresh_from_db()
+        # هستهٔ CB-1: بدون قفل، هر ۸ ردهٔ رقابتی می‌توانستند used_count را
+        # از رویِ همان اسنپ‌شاتِ قدیمی بخوانند و مستقل از هم افزایش دهند —
+        # با _lock_coupon، هرگز نباید از سقفِ واقعیِ کوپن فراتر برود.
+        self.assertLessEqual(self.coupon.used_count, self.usage_limit)
+        self.assertEqual(self.coupon.used_count, sum(discount_applied))
+        self.assertEqual(sum(discount_applied), self.usage_limit)
 
 
 class CreateOrderFromCartWithVariantTests(TestCase):

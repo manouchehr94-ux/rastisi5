@@ -7,6 +7,7 @@ import random
 
 from django.db import IntegrityError, transaction
 
+from apps.cart.models import Coupon
 from apps.cart.services.pricing import cart_totals
 from apps.catalog.models import Product, ProductVariant
 from apps.catalog.services.inventory_service import InsufficientStockError, restock_order
@@ -148,6 +149,23 @@ def _lock_and_revalidate_items(items, *, store):
     return locked_products, locked_variants
 
 
+def _lock_coupon(coupon):
+    """قفل ردیف Coupon، درست پیش از محاسبه‌ی تخفیف نهایی (بخش ۹) — همان الگویِ
+    ``_lock_and_revalidate_items`` برای موجودی. بدونِ این قفل، دو تراکنشِ
+    هم‌زمان می‌توانند هر دو ``used_count`` را از رویِ همان اسنپ‌شاتِ قدیمی
+    بخوانند، هر دو سقفِ استفاده را رعایت‌شده تشخیص دهند، و هر دو مستقل از هم
+    ``used_count`` را افزایش دهند — یعنی مصرفِ بیش از سقفِ کوپن (یا لااقل یک
+    lost update در شمارشِ نهایی). قفل‌گرفتنِ همین‌جا (پیش از فراخوانیِ
+    ``cart_totals``) تضمین می‌کند بررسیِ ``coupon_is_applicable`` داخلِ آن —
+    که همان اعتبارسنجیِ کامل (فعال/انقضا/سقفِ استفاده/حداقلِ سفارش) را انجام
+    می‌دهد — رویِ مقدارِ واقعیِ ``used_count`` (نه یک نسخه‌ی از قبل واکشی‌شده
+    و بالقوه بی‌اعتبار) اجرا شود، و هیچ تراکنشِ رقیبِ دیگری نتواند بینِ این
+    خواندن و افزایشِ نهاییِ ``used_count`` (پایینِ همین تابع) واردِ میان شود:
+    قفل تا پایانِ همین تراکنشِ اتمیک (``create_order_from_cart``) نگه داشته
+    می‌شود."""
+    return Coupon.objects.select_for_update().get(pk=coupon.pk)
+
+
 @transaction.atomic
 def create_order_from_cart(
     cart, *, customer, vendor, address, shipping_method, payment_gateway,
@@ -205,6 +223,13 @@ def create_order_from_cart(
         raise ValueError("سبد خرید خالی است")
 
     locked_products, locked_variants = _lock_and_revalidate_items(items, store=store)
+
+    # قفلِ ردیفِ Coupon پیش از محاسبه‌ی تخفیف (cart_totals پایین‌تر) — نگاه
+    # کنید به _lock_coupon برای دلیلِ کاملِ جلوگیری از race سقفِ استفاده
+    # (بخش ۹). از این‌جا به بعد باید همیشه از ``coupon`` (نسخه‌ی قفل‌شده)
+    # استفاده شود، نه پارامترِ ورودیِ تابع.
+    if coupon is not None:
+        coupon = _lock_coupon(coupon)
 
     province = address.province if address is not None else ""
     city = address.city if address is not None else ""
