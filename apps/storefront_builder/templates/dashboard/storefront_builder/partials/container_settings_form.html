@@ -42,11 +42,11 @@
       </button>
     </div>
     <div class="sfb-container-cell-status" aria-label="وضعیت خانه‌های چیدمان">
-      {% for cell in cells %}
-      <span class="{% if cell.section_id %}occupied{% else %}empty{% endif %}">
+      {% for cell, blocks in cells_with_blocks %}
+      <span class="{% if blocks %}occupied{% else %}empty{% endif %}">
         خانه {{ forloop.counter }}:
-        {% if cell.section_id %}
-          {{ cell.section.section_key|section_label }}{% if not cell.section.is_active %} — مخفی{% endif %}
+        {% if blocks %}
+          {% for block in blocks %}{{ block.section_key|section_label }}{% if not block.is_active %} — مخفی{% endif %}{% if not forloop.last %}، {% endif %}{% endfor %}
         {% else %}
           خالی
         {% endif %}

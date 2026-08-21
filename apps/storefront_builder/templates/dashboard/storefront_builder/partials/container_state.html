@@ -2,7 +2,25 @@
 <div id="storefrontContainerState" aria-hidden="true">
   {% for container in containers %}
   <span data-container-id="{{ container.pk }}" data-layout="{{ container.layout_key }}" data-container-order="{{ container.order }}">
-    {% for cell in container.cells.all %}<i data-cell-id="{{ cell.pk }}" data-span="{{ cell.span }}" data-section-id="{% if cell.section_id %}{{ cell.section_id }}{% endif %}" data-section-label="{% if cell.section_id %}{{ cell.section.section_key|section_label }}{% endif %}"></i>{% endfor %}
+    {% for cell in container.cells.all %}
+      {% with blocks=cell_blocks_by_id|dictget:cell.pk %}
+        {% if blocks %}
+          {% comment %}
+          Phase 2C: one marker PER Block, not one per Cell — a real
+          multi-block Cell (created by, e.g., merge-on-shrink) can hold
+          more than one Block, and the editor JS looks these markers up by
+          ``[data-section-id="<id>"]`` for EVERY Block a merchant might
+          click in the Canvas, not only the first. Every marker still
+          carries the same ``data-cell-id``/``data-span`` so
+          ``placementForSection()`` resolves the correct Cell regardless
+          of which of the Cell's Blocks was clicked.
+          {% endcomment %}
+          {% for block in blocks %}<i data-cell-id="{{ cell.pk }}" data-span="{{ cell.span }}" data-section-id="{{ block.pk }}" data-section-label="{{ block.section_key|section_label }}"></i>{% endfor %}
+        {% else %}
+          <i data-cell-id="{{ cell.pk }}" data-span="{{ cell.span }}" data-section-id="" data-section-label=""></i>
+        {% endif %}
+      {% endwith %}
+    {% endfor %}
   </span>
   {% endfor %}
 </div>

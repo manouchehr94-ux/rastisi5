@@ -305,9 +305,25 @@ def storefront_container_state_partial(request, page_type=None):
         page_type = _resolve_page_type(request.POST.get("page") or request.GET.get("page"))
     page = draft.get_page(page_type)
     container_service.ensure_page_containers(page)
+    containers = page.containers.prefetch_related("cells__section", "cells__blocks").order_by("order", "id")
+    # Phase 2C: the editor's JS ``placementForSection(sectionId)`` looks up
+    # a Section's Cell/Container by querying this hidden state for
+    # ``[data-section-id="<id>"]`` — with a real multi-block Cell, EVERY
+    # Block placed in it (not just the legacy single one) must be findable
+    # this way, or clicking a second/third Block in the Canvas would fail
+    # to resolve its Cell/Container. Resolved once here via
+    # ``get_cell_blocks`` (the authoritative composition-read path) rather
+    # than in the template, to avoid the template issuing its own
+    # per-cell composition queries.
+    cell_blocks_by_id = {
+        cell.pk: container_service.get_cell_blocks(cell)
+        for container in containers
+        for cell in container.cells.all()
+    }
     return render(request, "dashboard/storefront_builder/partials/container_state.html", {
         "page_type": page_type,
-        "containers": page.containers.prefetch_related("cells__section").order_by("order", "id"),
+        "containers": containers,
+        "cell_blocks_by_id": cell_blocks_by_id,
     })
 
 
@@ -390,10 +406,22 @@ def storefront_container_settings(request, pk):
             request, page_type=container.page.page_type, container_id=container.pk,
         )
 
-    cells = list(container.cells.select_related("section").order_by("order", "id"))
+    cells = list(
+        container.cells.select_related("section").prefetch_related("blocks").order_by("order", "id")
+    )
+    # Phase 2C: occupancy/label for each Cell is resolved HERE via
+    # ``get_cell_blocks`` (the single authoritative composition-read path)
+    # rather than letting the template branch on ``cell.section_id``/
+    # ``cell.section`` directly — a Cell populated only through the new
+    # multi-block FK (e.g. after a merge-on-shrink) has a NULL legacy
+    # pointer and would otherwise show as incorrectly "empty" here. Passed
+    # as a list of ``(cell, blocks)`` pairs so the template issues no
+    # additional per-cell composition queries of its own.
+    cells_with_blocks = [(cell, container_service.get_cell_blocks(cell)) for cell in cells]
     return render(request, "dashboard/storefront_builder/partials/container_settings_form.html", {
         "container": container,
         "cells": cells,
+        "cells_with_blocks": cells_with_blocks,
         "settings": container_service.effective_container_settings(container.settings),
         "layout_presets": container_service.LAYOUT_PRESETS,
     })
@@ -499,7 +527,15 @@ def storefront_cell_add_section(request):
             if cell.container.is_locked:
                 messages.error(request, "این چیدمان قفل است")
                 return storefront_container_state_partial(request, page_type=page_type)
-            if cell.section_id:
+            # Phase 2C: ``cell.section_id`` alone is NOT a reliable occupancy
+            # check — a Cell can hold Blocks entirely through the new
+            # multi-block FK (e.g. after a merge-on-shrink) while its legacy
+            # OneToOne pointer stays NULL. ``get_cell_blocks`` (the single
+            # authoritative composition-read path) is used instead so the
+            # current single-block "add to cell" UI action can never mistake
+            # such a Cell for empty and silently create a second, orphaned
+            # placement inside it.
+            if container_service.get_cell_blocks(cell):
                 messages.error(request, "این خانه از قبل محتوا دارد")
                 return storefront_container_state_partial(request, page_type=page_type)
         else:
@@ -537,25 +573,47 @@ def storefront_cell_add_section(request):
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
 @_record_edit_history("خالی کردن خانه")
 def storefront_cell_clear(request, pk):
+    """خالی‌کردنِ کاملِ یک خانه — معنایِ ثابت‌شده‌یِ این endpoint («این
+    محتوا برای همیشه حذف شود») بدونِ تغییر باقی می‌ماند؛ فقط قلمروِ آن به
+    **همه‌یِ** بلاک‌هایِ واقعیِ این خانه گسترش می‌یابد، نه فقط بلاکِ تکیِ
+    قدیمی (Phase 2C).
+
+    از ``container_service.get_cell_blocks`` (تنها منبعِ حقیقتِ ترکیب)
+    برایِ خواندنِ فهرستِ کاملِ بلاک‌هایِ این خانه استفاده می‌شود — چه از
+    طریقِ OneToOneِ قدیمی، چه از طریقِ FKِ جدیدِ چند-بلاکی (که Phase 2C's
+    merge-on-shrink می‌تواند واقعاً بیش از یک بلاک را در یک خانه قرار داده
+    باشد، حتی اگر UIِ امروز هنوز مسیرِ افزودنِ بلاکِ دوم را نشان نمی‌دهد).
+    عملیات تماماً همه‌یا‌هیچ است: اگر حتیٰ یکی از بلاک‌ها قفل باشد یا نوعِ
+    آن ``removable=False`` باشد، کلِ عملیات لغو می‌شود و هیچ بلاکی حذف
+    نمی‌شود — دقیقاً همان قاعده‌یِ تک‌بلاکیِ قبلی، فقط تعمیم‌یافته."""
     cell = _get_scoped_cell(request, pk)
     page_type = cell.container.page.page_type
     if cell.container.is_locked:
         messages.error(request, "این چیدمان قفل است")
         return storefront_container_state_partial(request, page_type=page_type)
-    section = cell.section
-    if section is None:
+    blocks = container_service.get_cell_blocks(cell)
+    if not blocks:
         return storefront_container_state_partial(request, page_type=page_type)
-    if section.is_locked:
+    if any(block.is_locked for block in blocks):
         messages.error(request, "این محتوا قفل است — ابتدا قفل آن را باز کنید")
         return storefront_container_state_partial(request, page_type=page_type)
-    try:
-        definition = section_registry.get_definition(section.section_key)
-        if not definition.removable:
-            messages.error(request, f"«{definition.label_fa}» قابل حذف نیست")
-            return storefront_container_state_partial(request, page_type=page_type)
-    except section_registry.UnknownSectionTypeError:
-        pass
-    section.delete()  # StorefrontCell.section uses SET_NULL, so the layout survives.
+    for block in blocks:
+        try:
+            definition = section_registry.get_definition(block.section_key)
+            if not definition.removable:
+                messages.error(request, f"«{definition.label_fa}» قابل حذف نیست")
+                return storefront_container_state_partial(request, page_type=page_type)
+        except section_registry.UnknownSectionTypeError:
+            pass
+    with transaction.atomic():
+        # هر دو رابطه (OneToOneِ قدیمی و FKِ جدید) با حذفِ واقعیِ ردیفِ
+        # StorefrontSection به‌طورِ خودکار پاک می‌شوند
+        # (StorefrontCell.section از SET_NULL استفاده می‌کند، پس خودِ
+        # چیدمان/خانه زنده می‌ماند) — دقیقاً همان مکانیزمِ تک‌بلاکیِ قبلی،
+        # فقط برایِ هر بلاک تکرار می‌شود. هیچ Sectionِ بی‌جا/orphan باقی
+        # نمی‌ماند چون هر بلاک همینجا واقعاً حذف می‌شود، نه فقط detach.
+        for block in blocks:
+            block.delete()
     messages.success(request, "خانه خالی شد — می‌توانید محتوای دیگری اضافه کنید")
     return _container_state_changed_response(
         request, page_type=page_type, container_id=cell.container_id, cell_id=cell.pk,
@@ -827,7 +885,20 @@ def storefront_section_settings(request, pk):
         "row_total_span": sum(item.row_span for item in row_members) if row_members else 12,
         "current_row_mode": current_row_mode,
         "row_has_locked": any(item.is_locked for item in row_members),
-        "placement_cell": StorefrontCell.objects.filter(section=section).select_related("container").first(),
+        # Phase 2C: a Section placed only through the new multi-block FK
+        # (``section.cell``) has no legacy ``placement_cell`` reverse
+        # relation at all — the new FK is checked FIRST (``select_related``
+        # to avoid a second query for the template's own
+        # ``placement_cell.container`` accesses) so the Inspector still
+        # correctly identifies which Cell/Container this Section belongs
+        # to; the legacy reverse-OneToOne lookup remains only as the
+        # fallback for a Section whose placement still lives solely
+        # through the old relationship.
+        "placement_cell": (
+            StorefrontCell.objects.select_related("container").filter(pk=section.cell_id).first()
+            if section.cell_id
+            else StorefrontCell.objects.filter(section=section).select_related("container").first()
+        ),
         # فقط انواعی که واقعاً چیدمانِ پارامتری دارند کنترلِ «تعدادِ
         # ستون‌ها» را می‌بینند (COLUMN_VISUAL_SECTION_KEYS، نه
         # COLUMN_AWARE_SECTION_KEYS) — طبقِ فیکسِ فازِ D؛ به مستندسازیِ
