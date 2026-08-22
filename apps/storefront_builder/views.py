@@ -847,26 +847,26 @@ def storefront_section_settings(request, pk):
             # انواعی که هیچ فیلدِ اختصاصیِ خودشان را ندارند (فازِ D) —
             # تنها چیزی که این فرم برایشان دارد بلوکِ responsive است.
             raw = {}
-        raw["responsive"] = _extract_responsive_raw(request, section.section_key)
+        raw["responsive"] = _extract_responsive_raw(request, definition)
         # Reference-fidelity/editability: Background and spacing are generic
         # visual blocks, not section-specific content.  Preserve them for
         # legacy POST callers that do not send the new controls, and accept
         # explicit merchant changes when the section supports backgrounds.
-        if section.section_key in section_registry.BACKGROUND_AWARE_SECTION_KEYS:
+        if definition.supports_capability("background"):
             raw["background"] = _extract_background_raw(request, section)
-        if section.section_key in section_registry.SPACING_AWARE_SECTION_KEYS:
+        if definition.supports_capability("spacing"):
             raw["spacing"] = (section.settings or {}).get("spacing") or {}
-        if section.section_key in section_registry.DESTINATION_AWARE_SECTION_KEYS:
+        if definition.supports_capability("destination"):
             raw["destination"] = _extract_destination_raw(request)
-        if section.section_key in section_registry.MOTION_AWARE_SECTION_KEYS:
+        if definition.supports_capability("motion"):
             raw["motion"] = {"style": request.POST.get("motion_style", "none")}
-        if section.section_key in section_registry.CARD_AWARE_SECTION_KEYS:
+        if definition.supports_capability("card"):
             raw["card"] = _extract_card_raw(request)
-        if section.section_key in section_registry.LAYOUT_WIDTH_AWARE_SECTION_KEYS:
+        if definition.supports_capability("layout_width"):
             raw["layout"] = _extract_layout_raw(request)
         try:
             cleaned = definition.validate_settings(raw)
-            if section.section_key in section_registry.BACKGROUND_AWARE_SECTION_KEYS:
+            if definition.supports_capability("background"):
                 _validate_background_asset_ownership(request, cleaned.get("background"))
             section.settings = cleaned
             section.save(update_fields=["settings", "updated_at"])
@@ -916,10 +916,10 @@ def storefront_section_settings(request, pk):
         # ستون‌ها» را می‌بینند (COLUMN_VISUAL_SECTION_KEYS، نه
         # COLUMN_AWARE_SECTION_KEYS) — طبقِ فیکسِ فازِ D؛ به مستندسازیِ
         # section_registry.py مراجعه شود.
-        "supports_columns": section.section_key in section_registry.COLUMN_VISUAL_SECTION_KEYS,
-        "supports_card": section.section_key in section_registry.CARD_AWARE_SECTION_KEYS,
-        "supports_height": section.section_key in section_registry.LAYOUT_HEIGHT_AWARE_SECTION_KEYS,
-        "supports_background": section.section_key in section_registry.BACKGROUND_AWARE_SECTION_KEYS,
+        "supports_columns": definition.supports_capability("columns_visual"),
+        "supports_card": definition.supports_capability("card"),
+        "supports_height": definition.supports_capability("layout_height"),
+        "supports_background": definition.supports_capability("background"),
     }
     if section.section_key == "product_section":
         context.update(_product_section_picker_context(request, section))
@@ -931,9 +931,9 @@ def storefront_section_settings(request, pk):
         context.update(_collection_tiles_picker_context(request, section))
     if section.section_key == "quick_links":
         context.update(_quick_links_picker_context(request, section))
-    if section.section_key in section_registry.DESTINATION_AWARE_SECTION_KEYS:
+    if definition.supports_capability("destination"):
         context.update(_destination_picker_context(request, section))
-    if section.section_key in section_registry.BACKGROUND_AWARE_SECTION_KEYS:
+    if definition.supports_capability("background"):
         context.update(_background_picker_context(request, section))
     return render(request, "dashboard/storefront_builder/partials/section_settings_form.html", context)
 
@@ -1076,7 +1076,7 @@ def _destination_picker_context(request, section) -> dict:
     }
 
 
-def _extract_responsive_raw(request, section_key: str) -> dict:
+def _extract_responsive_raw(request, definition) -> dict:
     """بلوکِ خامِ «تنظیماتِ نمایش در دستگاه‌ها» را از POST می‌خواند —
     یک بار نوشته شده، توسطِ فرمِ تنظیماتِ هر ۱۷ نوعِ section استفاده
     می‌شود (بخشِ ۶ مشخصات: «Use one shared helper where possible»).
@@ -1087,12 +1087,12 @@ def _extract_responsive_raw(request, section_key: str) -> dict:
         "hide_on_tablet": request.POST.get("show_on_tablet") != "on",
         "hide_on_mobile": request.POST.get("show_on_mobile") != "on",
     }
-    # عمداً روی مجموعه‌ی عمومی‌ترِ COLUMN_AWARE_SECTION_KEYS (نه
-    # COLUMN_VISUAL_SECTION_KEYSِ محدودترِ بالا) — قراردادِ ذخیره‌سازی
-    # باید عمومی/آینده‌نگر بماند؛ برایِ چهار نوعی که فعلاً کنترلِ UI
-    # ندارند، این فیلدها صرفاً در POST حاضر نیستند و
-    # validate_responsive_settings به‌طورِ امن پیش‌فرض را جایگزین می‌کند.
-    if section_key in section_registry.COLUMN_AWARE_SECTION_KEYS:
+    # عمداً روی capabilityِ عمومی‌ترِ "columns" (نه "columns_visual"ِ
+    # محدودترِ بالا) — قراردادِ ذخیره‌سازی باید عمومی/آینده‌نگر بماند؛
+    # برایِ چهار نوعی که فعلاً کنترلِ UI ندارند، این فیلدها صرفاً در
+    # POST حاضر نیستند و validate_responsive_settings به‌طورِ امن
+    # پیش‌فرض را جایگزین می‌کند.
+    if definition.supports_capability("columns"):
         raw["desktop_columns"] = request.POST.get("desktop_columns")
         raw["tablet_columns"] = request.POST.get("tablet_columns")
         raw["mobile_columns"] = request.POST.get("mobile_columns")

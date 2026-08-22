@@ -139,6 +139,37 @@ class SectionDefinition:
             object.__setattr__(self, "supported_settings", frozenset(self.supported_settings))
         object.__setattr__(self, "variants", tuple(self.variants or ()))
 
+    def supports_capability(self, name: str, *, variant: "VariantDefinition | None" = None) -> bool:
+        """U1B2 — the single query editor/server-side gating code should use
+        instead of importing and checking membership in one of the
+        module-level ``*_AWARE_SECTION_KEYS`` frozensets directly. Backed by
+        ``self.capabilities``, which ``_finalize_registry`` already derives
+        from those exact frozensets (see ``_derived_capabilities``) — so
+        this is provably the same answer, just asked through the
+        authoritative metadata contract instead of a raw constant import.
+
+        ``variant`` is optional: pass the section's currently active
+        ``VariantDefinition`` (e.g. from ``variant_contract.resolve_active_variant``)
+        to check the *effective* capability set (section capabilities
+        unioned with that variant's own) — matches
+        ``variant_contract.resolve_capabilities``'s semantics exactly. Every
+        current production variant declares no capabilities of its own, so
+        passing a real variant today never changes the answer versus
+        omitting it; the parameter exists so future variant-specific
+        capability differences do not require a second query method.
+
+        Current production editor gating (``views.py``) and server-side
+        settings validation (this module's ``_with_*`` wrappers) both call
+        this method without ``variant``, i.e. they gate on base
+        ``SectionDefinition`` capabilities only — variant-specific
+        capabilities are supported by this metadata API but must not be
+        introduced into production ``VariantDefinition``s until
+        variant-aware editor and validation gating is implemented (see
+        ``tests.test_u1b2_capability_metadata_wiring.NoProductionVariantDeclaresCapabilitiesTests``)."""
+        if variant is not None:
+            return name in (self.capabilities | variant.capabilities)
+        return name in self.capabilities
+
 
 def _passthrough_dict(raw: dict) -> dict:
     """اعتبارسنجی placeholder — با اعتبارسنجی دقیق در چکپوینت‌های بعدی جایگزین می‌شود."""
