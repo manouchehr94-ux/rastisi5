@@ -26,6 +26,7 @@ from ..section_registry import (
     default_quick_links_settings,
     get_definition,
 )
+from ..variant_contract import resolve_active_variant, resolve_renderer_template
 from . import section_data_service
 
 TILE_CLASSES = ["t1", "t2", "t3"]
@@ -610,12 +611,31 @@ def _build_items_from_sections(sections, store, page_context: dict) -> list[dict
         context["background_media_url"] = resolve_background_media_url(
             store, context["settings"].get("background"),
         )
+        # U1B1 — variant runtime wiring (variant_contract.py). Pure metadata
+        # lookup, no DB query, no mutation of ``section.settings``. For the
+        # 31 section types with no registered ``variants`` (the overwhelming
+        # majority today), ``resolve_active_variant`` short-circuits to
+        # ``None`` and ``resolve_renderer_template`` returns exactly
+        # ``definition.template_name`` — byte-identical to the pre-U1B1
+        # line this replaces. For the three proven precedents
+        # (category_grid/brand_carousel/product_section), every currently
+        # registered variant declares ``renderer=None`` (Pattern A), so the
+        # resolved template is still ``definition.template_name`` — no
+        # production render output changes. An unrecognized/legacy
+        # persisted value fails safely to ``default_variant`` here (never
+        # raises, never rewrites the stored Section) — see
+        # ``variant_contract.resolve_active_variant``'s own contract.
+        active_variant = resolve_active_variant(definition, section.settings)
         items.append({
             "section": section,
             "definition": definition,
-            "template_name": definition.template_name,
+            "template_name": resolve_renderer_template(definition, active_variant),
             "label_fa": definition.label_fa,
             "context": context,
+            # Exposed for testability/observability (U1B1 §4) and for a
+            # future consumer (U1B2+) — no current template/consumer reads
+            # this key, so adding it changes nothing for existing callers.
+            "active_variant": active_variant,
         })
     return items
 

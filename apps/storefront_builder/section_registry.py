@@ -20,7 +20,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Callable
 
-from .variant_contract import VariantDefinition, validate_variants
+from .variant_contract import VariantDefinition, validate_variant_selection, validate_variants
 
 #: شش نوعِ صفحه — دقیقاً همان رشته‌های ``StorefrontPage.PageType.values``
 #: (``apps/storefront_builder/models.py``)، اینجا به‌شکلِ ثابتِ رشته‌ای
@@ -1802,6 +1802,37 @@ def _derived_capabilities(section_key: str) -> frozenset[str]:
     return frozenset(caps)
 
 
+def _with_variant_validation(definition: SectionDefinition, validate_fn):
+    """U1B1 §5 — the smallest central write-time validation entry point for
+    the generic Variant contract. A pure no-op (returns ``validate_fn``
+    completely unwrapped) for the 31 section types with no registered
+    ``variants`` — zero added closure/overhead for the common case.
+
+    For a definition WITH variants, wraps ``validate_fn`` so
+    ``variant_contract.validate_variant_selection`` runs *after* the
+    section's own ``validate_settings`` has already produced its fully
+    cleaned dict — never before, and never in place of it. This ordering is
+    what makes the wrapper provably backwards-compatible with the three
+    proven precedents: their own validators (``_validate_category_grid_settings``
+    and siblings) already coerce an invalid ``display_mode`` to a valid one
+    *before* this wrapper ever sees the value, so the check below can never
+    fire differently for them than it did before U1B1 — it is a redundant,
+    inert safety net for those three, and the actual enforcement mechanism
+    for any future section that declares ``variants``/``variant_setting_key``
+    without its own closed-enum validator. This is intentionally the ONE
+    place this rule is enforced — not duplicated into any view/form."""
+    if not definition.variants:
+        return validate_fn
+
+    def wrapped_validate(raw):
+        cleaned = validate_fn(raw)
+        if isinstance(cleaned, dict):
+            validate_variant_selection(definition, cleaned)
+        return cleaned
+
+    return wrapped_validate
+
+
 def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionDefinition]:
     """هر ۱۷ تعریفِ بالا را با پشتیبانیِ ``responsive`` می‌پوشاند و
     ``has_settings_form`` را یکنواخت True می‌کند (فازِ D) — منطقِ
@@ -1813,7 +1844,12 @@ def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionD
     ``_derived_capabilities`` اجتماع می‌شود (نه جایگزین) و
     ``variants``/``default_variant`` (اگر تعریف شده) اعتبارسنجی می‌شود —
     هیچ‌کدام رفتارِ ``validate_settings``/``default_settings``/رندر را
-    تغییر نمی‌دهد."""
+    تغییر نمی‌دهد.
+
+    U1B1: ``_with_variant_validation`` به‌عنوانِ بیرونی‌ترین لایه اضافه
+    می‌شود — یعنی پس از تمامِ لایه‌هایِ بالا (که کلیدهایِ خودشان را
+    strip/دوباره اضافه می‌کنند) اجرا می‌شود و رویِ dictِ کاملاً پاک‌شده
+    کار می‌کند، نه رویِ ورودیِ خام."""
     finalized = {}
     for key, definition in base.items():
         validate_variants(definition.variants, default_variant=definition.default_variant)
@@ -1824,6 +1860,7 @@ def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionD
         validate_fn, default_fn = _with_layout(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_background(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_spacing(key, validate_fn, default_fn)
+        validate_fn = _with_variant_validation(definition, validate_fn)
         finalized[key] = dataclasses.replace(
             definition, validate_settings=validate_fn, default_settings=default_fn, has_settings_form=True,
             capabilities=definition.capabilities | _derived_capabilities(key),

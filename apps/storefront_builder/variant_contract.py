@@ -296,6 +296,49 @@ def resolve_active_variant(definition, settings: dict | None) -> VariantDefiniti
     return get_variant(definition, default_key)
 
 
+class UnknownVariantSelectionError(ValueError):
+    """U1B1 §5 (write-time validation) — a newly-submitted settings value
+    names a variant key that is not registered for this
+    ``SectionDefinition``. Deliberately never raised at *read* time —
+    ``resolve_active_variant`` above is the read-time path and always fails
+    safely to ``default_variant`` instead, per its own contract; this
+    exception exists only for the write path that submits a brand-new
+    ``StorefrontSection.settings`` value."""
+
+
+def validate_variant_selection(definition, cleaned_settings: dict) -> None:
+    """اعتبارسنجیِ زمانِ نوشتن (نه رندر) برایِ کلیدِ انتخاب‌کننده‌یِ
+    Variant — پس از عبورِ کاملِ ``cleaned_settings`` از
+    ``validate_settings`` خودِ section (شاملِ هر enum بسته‌ای که خودش از
+    قبل اجرا می‌کند). مقدارِ غایب/خالی هرگز خطا نیست (fallback به
+    ``default_variant`` کارِ زمانِ رندر است، نه زمانِ نوشتن — نگاه کنید
+    به ``resolve_active_variant``). فقط یک مقدارِ *حاضر و غیرِخالی* که به
+    هیچ ``VariantDefinition`` ثبت‌شده‌ای اشاره نکند رد می‌شود.
+
+    برایِ سه نمونه‌ی اثبات‌شده (``category_grid``/``brand_carousel``/
+    ``product_section``) این تابع در عمل هرگز خطا پرتاب نمی‌کند — چون
+    ``validate_settings`` خودِ آن‌ها از قبل مقدارِ نامعتبر را به یک
+    مقدارِ مجاز coerce کرده (نگاه کنید به ``_validate_category_grid_settings``
+    و مشابه‌هایش) پیش از رسیدن به اینجا؛ این تابع برایِ آن‌ها صرفاً یک
+    شبکه‌ی ایمنیِ بی‌اثر است، نه یک قاعده‌ی متضاد یا تکراری. برایِ یک
+    section آینده که خودش چنین enum بسته‌ای اجرا نمی‌کند، این تابع
+    قراردادِ عمومیِ U1B1 را واقعاً اجرا می‌کند."""
+    variants = list_variants(definition)
+    if not variants:
+        return
+    if not isinstance(cleaned_settings, dict):
+        return
+    setting_key = getattr(definition, "variant_setting_key", None) or "variant"
+    value = cleaned_settings.get(setting_key)
+    if not value:
+        return
+    if get_variant(definition, value) is None:
+        raise UnknownVariantSelectionError(
+            f"مقدارِ «{value}» برایِ «{setting_key}» در «{definition.key}» به هیچ "
+            f"Variantِ ثبت‌شده‌ای اشاره نمی‌کند"
+        )
+
+
 def resolve_capabilities(definition, variant: VariantDefinition | None = None) -> frozenset[str]:
     """اجتماعِ capabilities سطحِ section و (اگر داده شده) سطحِ Variant."""
     base = frozenset(getattr(definition, "capabilities", frozenset()) or frozenset())
