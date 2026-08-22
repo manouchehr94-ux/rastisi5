@@ -1,5 +1,11 @@
+import dataclasses
+import inspect
+import re
+
 from django.test import TestCase
 
+from apps.storefront_builder import section_registry as section_registry_module
+from apps.storefront_builder import variant_contract as variant_contract_module
 from apps.storefront_builder.models import StorefrontPage
 from apps.storefront_builder.section_registry import (
     ALL_PAGE_TYPES,
@@ -17,6 +23,7 @@ from apps.storefront_builder.section_registry import (
     LAYOUT_WIDTH_AWARE_SECTION_KEYS,
     MOTION_AWARE_SECTION_KEYS,
     MOTION_CHOICES,
+    MULTI_BANNER_KNOWN_LAYOUT_VARIANTS,
     PAGE_TYPE_CART,
     PAGE_TYPE_COLLECTION,
     PAGE_TYPE_HOME,
@@ -35,6 +42,7 @@ from apps.storefront_builder.section_registry import (
     NewsletterSettingsError,
     ProductSectionSettingsError,
     ResponsiveSettingsError,
+    SectionDefinition,
     SpacingSettingsError,
     UnknownSectionTypeError,
     default_background_settings,
@@ -56,6 +64,27 @@ from apps.storefront_builder.section_registry import (
     validate_motion_settings,
     validate_responsive_settings,
     validate_spacing_settings,
+)
+from apps.storefront_builder.variant_contract import (
+    ENGINE_SCHEMA_VERSION,
+    SECTION_VARIANT_RENDERER_NAMESPACE,
+    SUPPORTED_ENGINE_SCHEMA_VERSIONS,
+    InvalidVariantDefinitionError,
+    UnsupportedEngineSchemaVersionError,
+    VariantDefinition,
+    build_template_provenance,
+    get_variant,
+    list_variants,
+    resolve_active_variant,
+    resolve_capabilities,
+    resolve_motion_defaults,
+    resolve_renderer_template,
+    resolve_required_data,
+    resolve_responsive_defaults,
+    resolve_supported_settings,
+    validate_template_provenance,
+    validate_variant_definition,
+    validate_variants,
 )
 
 EXPECTED_KEYS = {
@@ -1223,3 +1252,628 @@ class PageTypeAllowlistTests(TestCase):
         self.assertEqual(product_detail_keys - cart_keys, context_aware)
         self.assertTrue(context_aware <= product_detail_keys)
         self.assertFalse(context_aware & cart_keys)
+
+
+# ============================================================================
+# U1A — Engine Metadata Contract Foundation
+#
+# These tests prove the additive ``SectionDefinition``/``VariantDefinition``
+# contract (apps/storefront_builder/variant_contract.py) is backwards
+# compatible: every existing section keeps constructing/rendering exactly as
+# before, and the new resolution helpers fail safely for the 31 section
+# types that declare no variants. Nothing here changes persisted setting
+# keys, template output, or SECTION_REGISTRY's key set.
+# ============================================================================
+
+#: U1A test #13 — the SECTION_REGISTRY key set must remain exactly this,
+#: unchanged by the metadata contract. Reuses the same 34-key fixture
+#: already asserted by ``SectionRegistryTests.test_all_required_keys_registered``
+#: above, restated explicitly here so this file's own U1A suite proves it
+#: independently of that other test.
+U1A_EXPECTED_SECTION_KEYS = EXPECTED_KEYS
+
+
+class U1ABackwardsCompatibilityTests(TestCase):
+    """Test #1, #13, #14, #15 — nothing about the existing registry moved."""
+
+    def test_all_34_definitions_still_construct_and_are_gettable(self):
+        self.assertEqual(len(list_definitions()), 34)
+        for key in U1A_EXPECTED_SECTION_KEYS:
+            definition = get_definition(key)
+            self.assertEqual(definition.key, key)
+
+    def test_section_registry_key_set_unchanged(self):
+        self.assertEqual(set(SECTION_REGISTRY.keys()), U1A_EXPECTED_SECTION_KEYS)
+
+    def test_hero_banner_and_image_slider_both_still_exist_unmerged(self):
+        """R1 flagged de-duplicating these two keys as MEDIUM compatibility
+        risk and explicitly out of scope for U1A — this test locks in that
+        neither key was merged, renamed, or aliased. Each keeps its own
+        distinct ``template_name`` (they only share their *rendered body*
+        via a common ``{% include %}`` partial at the template layer, which
+        is unrelated to and untouched by this dataclass-level change); what
+        they do already share, unchanged, is the same validator/defaults
+        function objects."""
+        hero = get_definition("hero_banner")
+        slider = get_definition("image_slider")
+        self.assertEqual(hero.key, "hero_banner")
+        self.assertEqual(slider.key, "image_slider")
+        self.assertNotEqual(hero.template_name, slider.template_name)
+        # Both still resolve through the identical shared slider settings
+        # contract (proven behaviourally, since the wrapped closures aren't
+        # directly comparable by identity after _finalize_registry).
+        self.assertEqual(hero.default_settings(), slider.default_settings())
+
+    def test_default_settings_output_for_the_three_precedent_sections_is_unchanged(self):
+        """Locks in the exact ``default_settings()`` shape for the three
+        proven variant precedents — proves populating ``variants``/
+        ``default_variant``/``variant_setting_key`` did not alter what
+        ``validate_settings``/``default_settings`` themselves produce."""
+        category_defaults = get_definition("category_grid").default_settings()
+        self.assertEqual(category_defaults["display_mode"], "grid")
+        self.assertEqual(category_defaults["category_ids"], [])
+
+        brand_defaults = get_definition("brand_carousel").default_settings()
+        self.assertEqual(brand_defaults["display_mode"], "grid")
+        self.assertEqual(brand_defaults["brand_ids"], [])
+
+        product_defaults = get_definition("product_section").default_settings()
+        self.assertEqual(product_defaults["display_mode"], "carousel")
+        self.assertEqual(product_defaults["data_source"], "newest")
+
+    def test_multi_banner_validator_still_passes_through_any_shape_unchanged(self):
+        """Proves R1 §9's instruction was followed literally: validation was
+        NOT narrowed. An arbitrary, never-seen-before ``layout_variant``
+        string must still pass through unchanged, exactly like a known one."""
+        definition = get_definition("multi_banner")
+        for value in (*MULTI_BANNER_KNOWN_LAYOUT_VARIANTS, "some-future-value-nobody-wrote-yet"):
+            cleaned = definition.validate_settings({"layout_variant": value})
+            self.assertEqual(cleaned["layout_variant"], value)
+
+
+class U1ACapabilitiesConsistencyTests(TestCase):
+    """Test #8 — capabilities are immutable (frozenset) and, per R1 §7,
+    consistent with the pre-existing allowlists they were derived from."""
+
+    _ALLOWLIST_BY_CAPABILITY = {
+        "card": CARD_AWARE_SECTION_KEYS,
+        "background": BACKGROUND_AWARE_SECTION_KEYS,
+        "spacing": SPACING_AWARE_SECTION_KEYS,
+        "motion": MOTION_AWARE_SECTION_KEYS,
+        "destination": DESTINATION_AWARE_SECTION_KEYS,
+        "layout_width": LAYOUT_WIDTH_AWARE_SECTION_KEYS,
+        "layout_height": LAYOUT_HEIGHT_AWARE_SECTION_KEYS,
+        "columns": COLUMN_AWARE_SECTION_KEYS,
+        "columns_visual": COLUMN_VISUAL_SECTION_KEYS,
+    }
+
+    def test_capabilities_field_is_a_frozenset_on_every_definition(self):
+        for definition in list_definitions():
+            self.assertIsInstance(definition.capabilities, frozenset, definition.key)
+
+    def test_every_definition_declares_the_responsive_capability(self):
+        """``_with_responsive`` applies unconditionally to all 34 keys."""
+        for definition in list_definitions():
+            self.assertIn("responsive", definition.capabilities, definition.key)
+
+    def test_capabilities_agree_with_every_pre_existing_allowlist(self):
+        for capability, allowlist in self._ALLOWLIST_BY_CAPABILITY.items():
+            for definition in list_definitions():
+                expected = definition.key in allowlist
+                actual = capability in definition.capabilities
+                self.assertEqual(
+                    actual, expected,
+                    f"{definition.key}: capability {capability!r} disagrees with its allowlist",
+                )
+
+    def test_resolve_capabilities_matches_definition_field_with_no_variant(self):
+        definition = get_definition("rich_text")
+        self.assertEqual(resolve_capabilities(definition), definition.capabilities)
+
+
+class U1AVariantContractTests(TestCase):
+    """Test #2, #3, #6, #7, #9, #10, #11 — the resolution helpers."""
+
+    def test_definition_with_no_variants_resolves_safely(self):
+        """Test #2 — 31 of 34 sections declare no variants at all."""
+        definition = get_definition("rich_text")
+        self.assertEqual(list_variants(definition), ())
+        self.assertIsNone(resolve_active_variant(definition, {"body_html": "x"}))
+        self.assertIsNone(resolve_active_variant(definition, None))
+
+    def test_category_grid_declares_all_four_known_variants(self):
+        """Test #3 — a definition can declare multiple variants."""
+        definition = get_definition("category_grid")
+        keys = {v.key for v in list_variants(definition)}
+        self.assertEqual(keys, {"grid", "carousel", "circular", "image_strip"})
+        self.assertEqual(definition.default_variant, "grid")
+        self.assertEqual(definition.variant_setting_key, "display_mode")
+
+    def test_proven_precedents_map_without_changing_the_persisted_setting_key(self):
+        """Test #6 — category_grid/brand_carousel/product_section keep using
+        their existing ``display_mode`` key; the general contract reads it
+        through ``variant_setting_key``, not a renamed ``"variant"`` key."""
+        cases = (
+            ("category_grid", {"display_mode": "carousel"}),
+            ("brand_carousel", {"display_mode": "carousel"}),
+            # product_section requires a valid data_source too — only
+            # display_mode is the variant-selecting key.
+            ("product_section", {"display_mode": "grid", "data_source": "newest"}),
+        )
+        for section_key, raw_settings in cases:
+            definition = get_definition(section_key)
+            settings = definition.validate_settings(raw_settings)
+            self.assertEqual(settings["display_mode"], raw_settings["display_mode"])  # persisted key untouched
+            variant = resolve_active_variant(definition, settings)
+            self.assertIsNotNone(variant, section_key)
+            self.assertEqual(variant.key, raw_settings["display_mode"], section_key)
+
+    def test_default_variant_is_deterministic_when_setting_is_missing_or_invalid(self):
+        """Test #7 + #11 — missing/garbage values fail safely to
+        ``default_variant``, never an exception, never a site-specific
+        fallback."""
+        definition = get_definition("category_grid")
+        self.assertEqual(resolve_active_variant(definition, {}).key, "grid")
+        self.assertEqual(resolve_active_variant(definition, None).key, "grid")
+        self.assertEqual(
+            resolve_active_variant(definition, {"display_mode": "not_a_real_variant"}).key, "grid",
+        )
+        self.assertEqual(
+            resolve_active_variant(definition, {"display_mode": "<script>x</script>"}).key, "grid",
+        )
+
+    def test_get_variant_returns_none_for_unknown_key_without_raising(self):
+        definition = get_definition("brand_carousel")
+        self.assertIsNone(get_variant(definition, "does-not-exist"))
+        self.assertIsNone(get_variant(definition, None))
+        self.assertIsNone(get_variant(definition, ""))
+
+    def test_supported_settings_defaults_to_none_meaning_everything_supported(self):
+        """Test #9 — deterministic, and matches the current real behaviour
+        (every existing section supports its own full settings shape)."""
+        definition = get_definition("product_section")
+        self.assertIsNone(resolve_supported_settings(definition))
+        variant = get_variant(definition, "grid")
+        self.assertIsNone(resolve_supported_settings(definition, variant))
+
+    def test_required_data_defaults_to_empty_frozenset(self):
+        """Test #10 — deterministic empty set, not None/crash."""
+        definition = get_definition("hero_banner")
+        self.assertEqual(resolve_required_data(definition), frozenset())
+
+
+class U1AVariantRendererSafetyTests(TestCase):
+    """Test #4, #5 — renderer override is optional and only ever comes from
+    Python-authored registry metadata. Uses synthetic, unregistered
+    VariantDefinition instances so no production template/section is
+    touched — U1A introduces no new visual variant."""
+
+    def test_renderer_defaults_to_none_and_falls_back_to_section_template(self):
+        """Test #4 — the three real precedents all leave renderer unset
+        (Pattern A: same template, different settings)."""
+        definition = get_definition("category_grid")
+        for variant in list_variants(definition):
+            self.assertIsNone(variant.renderer)
+            self.assertEqual(resolve_renderer_template(definition, variant), definition.template_name)
+        self.assertEqual(resolve_renderer_template(definition, None), definition.template_name)
+
+    def test_renderer_override_when_present_comes_only_from_the_variant_object(self):
+        """Test #5 — Pattern B, proven with a synthetic definition. No real
+        section is given a second template in U1A."""
+        synthetic = VariantDefinition(
+            key="alt_layout", label_fa="چیدمانِ جایگزین (آزمایشی)",
+            renderer="storefront_builder/sections/synthetic_alt.html",
+        )
+        validate_variant_definition(synthetic)  # must not raise — well-formed
+        section = get_definition("rich_text")
+        self.assertEqual(resolve_renderer_template(section, synthetic), "storefront_builder/sections/synthetic_alt.html")
+        # Still falls back correctly for a variant that doesn't override it.
+        bare = VariantDefinition(key="bare", label_fa="ساده")
+        self.assertEqual(resolve_renderer_template(section, bare), section.template_name)
+
+    def test_unsafe_renderer_paths_are_rejected_at_definition_time(self):
+        with self.assertRaises(InvalidVariantDefinitionError):
+            validate_variant_definition(VariantDefinition(key="x", label_fa="x", renderer="../../etc/passwd"))
+        with self.assertRaises(InvalidVariantDefinitionError):
+            validate_variant_definition(VariantDefinition(key="x", label_fa="x", renderer="/etc/passwd"))
+        with self.assertRaises(InvalidVariantDefinitionError):
+            validate_variant_definition(VariantDefinition(key="x", label_fa="x", renderer=""))
+
+    def test_duplicate_variant_keys_rejected(self):
+        with self.assertRaises(InvalidVariantDefinitionError):
+            validate_variants(
+                (VariantDefinition(key="a", label_fa="A"), VariantDefinition(key="a", label_fa="A دوباره")),
+                default_variant=None,
+            )
+
+    def test_default_variant_must_reference_a_real_variant_key(self):
+        with self.assertRaises(InvalidVariantDefinitionError):
+            validate_variants(
+                (VariantDefinition(key="a", label_fa="A"),), default_variant="does-not-exist",
+            )
+
+    def test_empty_variant_tuple_is_always_valid(self):
+        validate_variants((), default_variant=None)  # must not raise
+
+
+class U1AResponsiveMotionDefaultsExposureTests(TestCase):
+    """Section 5 — least-invasive exposure of responsive/motion defaults,
+    derived from the single existing source of truth
+    (``definition.default_settings()``), never a second copy that could
+    desync from real rendering."""
+
+    def test_responsive_defaults_match_default_settings_for_every_definition(self):
+        for definition in list_definitions():
+            self.assertEqual(
+                resolve_responsive_defaults(definition),
+                definition.default_settings().get("responsive", {}),
+                definition.key,
+            )
+
+    def test_motion_defaults_present_only_for_motion_aware_sections(self):
+        for definition in list_definitions():
+            expected = definition.default_settings().get("motion")
+            actual = resolve_motion_defaults(definition)
+            if expected is None:
+                self.assertIsNone(actual, definition.key)
+            else:
+                self.assertEqual(actual, expected, definition.key)
+
+    def test_variant_level_override_takes_precedence_when_declared(self):
+        section = get_definition("hero_banner")  # a real MOTION_AWARE section
+        override_variant = VariantDefinition(
+            key="v", label_fa="v", motion_defaults={"style": "fade"}, responsive_defaults={"hide_on_mobile": True},
+        )
+        self.assertEqual(resolve_motion_defaults(section, override_variant), {"style": "fade"})
+        self.assertEqual(resolve_responsive_defaults(section, override_variant), {"hide_on_mobile": True})
+
+
+class U1ANoTenantOrTemplateForkingTests(TestCase):
+    """Test #12 — the metadata contract module itself introduces no
+    ``template_key``/``store.slug``/``family_slug`` branching (the exact
+    anti-pattern this phase exists to guard against)."""
+
+    def test_variant_contract_source_contains_no_forbidden_forking_conditionals(self):
+        """External-review correction (U1A pre-commit pass, item 5) — the
+        original version of this test imported ``section_registry_module``
+        but only scanned ``variant_contract_module``, missing the module
+        that actually holds the metadata contract's registration surface
+        (``SectionDefinition``, ``_finalize_registry``, the three populated
+        ``variants`` tuples). Both U1A metadata-implementation surfaces are
+        scanned now.
+
+        Checks for the actual anti-pattern (a live conditional branching on
+        a template/tenant identifier), not for the words themselves — this
+        module's own docstrings/comments necessarily *name* the forbidden
+        pattern in prose (here, and in R1/U1A task comments already present
+        in ``section_registry.py``) to document why it must never appear as
+        code; a plain substring search would false-positive on that prose,
+        so this matches only an actual comparison (``== ``), not a mention."""
+        forbidden_patterns = (
+            r"template_key\s*==", r"store\.slug\s*==", r"family_slug\s*==",
+            r"store_id\s*==", r"\bsite\s*==",
+        )
+        for module in (variant_contract_module, section_registry_module):
+            source = inspect.getsource(module)
+            for pattern in forbidden_patterns:
+                self.assertIsNone(re.search(pattern, source), f"{module.__name__}: {pattern}")
+
+    def test_variant_resolution_is_a_pure_function_of_its_arguments(self):
+        """Calling resolve_active_variant twice with identical inputs must
+        return the same result — no hidden global/tenant state."""
+        definition = get_definition("brand_carousel")
+        settings = {"display_mode": "carousel"}
+        first = resolve_active_variant(definition, settings)
+        second = resolve_active_variant(definition, settings)
+        self.assertEqual(first.key, second.key)
+
+
+# ============================================================================
+# U1A pre-commit correction pass (external review, 6 items) — see
+# docs/architecture/UNIVERSAL_STOREFRONT_U1A_TEMPLATE_REGISTRY_DECISION.md
+# for item 4 (documentation-only, no test needed). Items 1/2/3/6 below.
+# ============================================================================
+
+
+def _synthetic_section_definition(**overrides) -> SectionDefinition:
+    """A standalone SectionDefinition, never registered in SECTION_REGISTRY,
+    used only to prove the dataclass-level immutability contract in
+    isolation — no production section/template is touched by these tests."""
+    base = dict(
+        key="synthetic", label_fa="ساختگی", icon="x",
+        template_name="storefront_builder/sections/synthetic.html",
+        validate_settings=lambda raw: raw, default_settings=lambda: {},
+    )
+    base.update(overrides)
+    return SectionDefinition(**base)
+
+
+class U1ACorrectionImmutabilityTests(TestCase):
+    """Item 1 — registry metadata must be actually immutable/normalized at
+    construction time, not just type-hinted as such."""
+
+    def test_section_definition_rejects_direct_attribute_reassignment(self):
+        definition = get_definition("category_grid")
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            definition.capabilities = frozenset()
+
+    def test_variant_definition_rejects_direct_attribute_reassignment(self):
+        variant = get_definition("category_grid").variants[0]
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            variant.capabilities = frozenset()
+
+    def test_section_definition_coerces_mutable_inputs_to_frozenset(self):
+        """A caller passing a plain ``set``/``list`` must not leave that
+        exact mutable object stored on the definition."""
+        original_capabilities = {"a", "b"}
+        original_required_data = ["c", "d"]
+        definition = _synthetic_section_definition(
+            capabilities=original_capabilities, required_data=original_required_data,
+        )
+        self.assertIsInstance(definition.capabilities, frozenset)
+        self.assertIsInstance(definition.required_data, frozenset)
+        self.assertEqual(definition.capabilities, {"a", "b"})
+        # Mutating the caller's original object afterwards must not affect
+        # the stored definition — proves a copy was made, not a reference.
+        original_capabilities.add("z")
+        self.assertNotIn("z", definition.capabilities)
+
+    def test_section_definition_variants_tuple_coerced_from_list(self):
+        v = VariantDefinition(key="a", label_fa="A")
+        definition = _synthetic_section_definition(variants=[v], default_variant="a")
+        self.assertIsInstance(definition.variants, tuple)
+
+    def test_variant_definition_coerces_mutable_capability_inputs(self):
+        original = {"x"}
+        variant = VariantDefinition(key="v", label_fa="v", capabilities=original, required_data=["y"])
+        self.assertIsInstance(variant.capabilities, frozenset)
+        self.assertIsInstance(variant.required_data, frozenset)
+        original.add("z")
+        self.assertNotIn("z", variant.capabilities)
+
+    def test_variant_definition_responsive_and_motion_defaults_are_read_only(self):
+        original = {"hide_on_mobile": True}
+        variant = VariantDefinition(key="v", label_fa="v", responsive_defaults=original, motion_defaults=dict(style="fade"))
+        # Stored value is a read-only view, not the caller's original dict.
+        with self.assertRaises(TypeError):
+            variant.responsive_defaults["x"] = 1
+        with self.assertRaises(TypeError):
+            variant.motion_defaults["x"] = 1
+        # Mutating the caller's original dict afterwards must not leak in.
+        original["hide_on_mobile"] = False
+        self.assertTrue(variant.responsive_defaults["hide_on_mobile"])
+
+    def test_none_responsive_and_motion_defaults_stay_none(self):
+        """The None-vs-value distinction (item 2's same principle, applied
+        to these two fields) must survive normalization untouched."""
+        variant = VariantDefinition(key="v", label_fa="v")
+        self.assertIsNone(variant.responsive_defaults)
+        self.assertIsNone(variant.motion_defaults)
+
+    def test_resolvers_still_return_ordinary_mutable_dict_copies(self):
+        """The public resolver API is unchanged by the hardening — callers
+        of resolve_responsive_defaults/resolve_motion_defaults still get a
+        plain, freely-mutable dict of their own."""
+        variant = VariantDefinition(key="v", label_fa="v", motion_defaults={"style": "fade"})
+        section = get_definition("hero_banner")
+        result = resolve_motion_defaults(section, variant)
+        self.assertIsInstance(result, dict)
+        result["style"] = "slide"  # must not raise, and must not mutate the variant
+        self.assertEqual(variant.motion_defaults["style"], "fade")
+
+
+class U1ACorrectionSupportedSettingsSemanticsTests(TestCase):
+    """Item 2 — None (inherit/unrestricted) vs. frozenset() (explicitly
+    zero) must remain distinguishable through the whole resolution path."""
+
+    def test_a_section_supported_settings_none_resolves_to_none(self):
+        definition = _synthetic_section_definition(supported_settings=None)
+        self.assertIsNone(resolve_supported_settings(definition))
+
+    def test_b_section_supported_settings_empty_frozenset_resolves_to_empty_frozenset_not_none(self):
+        definition = _synthetic_section_definition(supported_settings=frozenset())
+        result = resolve_supported_settings(definition)
+        self.assertIsNotNone(result)
+        self.assertEqual(result, frozenset())
+
+    def test_c_variant_empty_frozenset_overrides_nonempty_section_value(self):
+        definition = _synthetic_section_definition(supported_settings=frozenset({"title", "subtitle"}))
+        variant = VariantDefinition(key="v", label_fa="v", supported_settings=frozenset())
+        result = resolve_supported_settings(definition, variant)
+        self.assertIsNotNone(result)
+        self.assertEqual(result, frozenset())
+
+    def test_d_variant_none_inherits_section_level_value(self):
+        definition = _synthetic_section_definition(supported_settings=frozenset({"title"}))
+        variant = VariantDefinition(key="v", label_fa="v", supported_settings=None)
+        self.assertEqual(resolve_supported_settings(definition, variant), frozenset({"title"}))
+
+
+class U1ACorrectionRendererNamespaceTests(TestCase):
+    """Item 3 — renderer must be a trusted local section-template path,
+    constrained to the closed ``SECTION_VARIANT_RENDERER_NAMESPACE``, never
+    reachable from persisted merchant settings."""
+
+    def test_none_still_valid_for_pattern_a(self):
+        validate_variant_definition(VariantDefinition(key="a", label_fa="a", renderer=None))  # must not raise
+
+    def test_accepted_path_inside_the_section_template_namespace(self):
+        self.assertEqual(SECTION_VARIANT_RENDERER_NAMESPACE, "storefront_builder/sections/")
+        validate_variant_definition(
+            VariantDefinition(key="a", label_fa="a", renderer="storefront_builder/sections/alt_layout.html"),
+        )  # must not raise
+
+    def test_rejected_absolute_path(self):
+        with self.assertRaises(InvalidVariantDefinitionError):
+            validate_variant_definition(
+                VariantDefinition(key="a", label_fa="a", renderer="/storefront_builder/sections/x.html"),
+            )
+
+    def test_rejected_path_traversal(self):
+        with self.assertRaises(InvalidVariantDefinitionError):
+            validate_variant_definition(
+                VariantDefinition(key="a", label_fa="a", renderer="storefront_builder/sections/../../../etc/passwd"),
+            )
+
+    def test_rejected_windows_drive_path(self):
+        for renderer in (r"C:\storefront_builder\sections\x.html", "C:/storefront_builder/sections/x.html"):
+            with self.assertRaises(InvalidVariantDefinitionError):
+                validate_variant_definition(VariantDefinition(key="a", label_fa="a", renderer=renderer))
+
+    def test_rejected_backslash_path(self):
+        with self.assertRaises(InvalidVariantDefinitionError):
+            validate_variant_definition(
+                VariantDefinition(key="a", label_fa="a", renderer=r"storefront_builder\sections\x.html"),
+            )
+
+    def test_rejected_unc_like_path(self):
+        with self.assertRaises(InvalidVariantDefinitionError):
+            validate_variant_definition(
+                VariantDefinition(key="a", label_fa="a", renderer=r"\\server\share\x.html"),
+            )
+
+    def test_rejected_empty_renderer(self):
+        with self.assertRaises(InvalidVariantDefinitionError):
+            validate_variant_definition(VariantDefinition(key="a", label_fa="a", renderer=""))
+
+    def test_rejected_outside_allowed_namespace(self):
+        for renderer in (
+            "catalog/templates/catalog/product_card.html",
+            "storefront_builder/partials/hero_slider_body.html",
+            "storefront_builder/sectionsx/evil.html",  # prefix-looking but not the real namespace
+        ):
+            with self.assertRaises(InvalidVariantDefinitionError):
+                validate_variant_definition(VariantDefinition(key="a", label_fa="a", renderer=renderer))
+
+    def test_no_renderer_path_can_originate_from_persisted_settings(self):
+        """Structural guarantee, not just a unit test of one function:
+        resolve_renderer_template never reads a "renderer" key out of a
+        settings dict — its only inputs are the SectionDefinition and a
+        VariantDefinition, both Python objects, never raw JSON."""
+        signature = inspect.signature(resolve_renderer_template)
+        self.assertEqual(list(signature.parameters), ["definition", "variant"])
+
+    def test_existing_three_precedents_are_untouched_pattern_a_renderer_none(self):
+        """Do-not-change guarantee (§7) — the three real, live variants
+        still declare no renderer override at all."""
+        for section_key in ("category_grid", "brand_carousel", "product_section"):
+            for variant in get_definition(section_key).variants:
+                self.assertIsNone(variant.renderer, f"{section_key}.{variant.key}")
+
+
+class U1ACorrectionEngineSchemaVersionTests(TestCase):
+    """Item 6 — a future/unsupported schema_version must never be silently
+    treated as known-compatible; missing provenance must still resolve
+    safely to the current neutral shape."""
+
+    def test_missing_provenance_entirely_resolves_to_current_neutral_shape(self):
+        for raw in (None, {}, "not-a-dict", 42):
+            result = validate_template_provenance(raw)
+            self.assertEqual(result, build_template_provenance())
+            self.assertEqual(result["engine"]["schema_version"], ENGINE_SCHEMA_VERSION)
+            self.assertIsNone(result["template"]["key"])
+
+    def test_engine_dict_present_without_schema_version_key_still_resolves_safely(self):
+        result = validate_template_provenance({"engine": {}, "template": {"key": "modern", "version": "1"}})
+        self.assertEqual(result["engine"]["schema_version"], ENGINE_SCHEMA_VERSION)
+        self.assertEqual(result["template"]["key"], "modern")
+
+    def test_current_supported_schema_version_round_trips(self):
+        raw = build_template_provenance(template_key="dense_catalog", template_version="1")
+        result = validate_template_provenance(raw)
+        self.assertEqual(result, raw)
+
+    def test_unsupported_future_schema_version_raises_explicitly(self):
+        with self.assertRaises(UnsupportedEngineSchemaVersionError):
+            validate_template_provenance({"engine": {"schema_version": 999}})
+
+    def test_non_integer_schema_version_raises_explicitly_not_silently_defaulted(self):
+        with self.assertRaises(UnsupportedEngineSchemaVersionError):
+            validate_template_provenance({"engine": {"schema_version": "not-a-number"}})
+
+    def test_strict_int_type_rejects_every_merely_coercible_value(self):
+        """U1A final correction, item 1 — ``int(x)`` would happily accept
+        every one of these; the contract must not. Each of these must raise
+        rather than silently normalize to ``1``."""
+        for bad_version in (999, True, False, 1.0, 1.9, "1", "01", None):
+            with self.assertRaises(UnsupportedEngineSchemaVersionError, msg=repr(bad_version)):
+                validate_template_provenance({"engine": {"schema_version": bad_version}})
+
+    def test_a_real_python_int_is_still_accepted_when_supported(self):
+        result = validate_template_provenance({"engine": {"schema_version": 1}})
+        self.assertEqual(result["engine"]["schema_version"], 1)
+        self.assertIs(type(result["engine"]["schema_version"]), int)
+
+    def test_supported_versions_set_currently_contains_only_the_current_version(self):
+        self.assertEqual(SUPPORTED_ENGINE_SCHEMA_VERSIONS, frozenset({ENGINE_SCHEMA_VERSION}))
+
+
+class U1AFinalDeepImmutabilityTests(TestCase):
+    """U1A final correction, item 2 — the earlier ``MappingProxyType(dict(...))``
+    hardening only protected the outer mapping; a nested dict/list inside
+    ``responsive_defaults``/``motion_defaults`` was still an ordinary
+    mutable object. Proves the fix at every depth (cases A-E from the
+    correction brief), for both fields."""
+
+    def test_a_top_level_mutation_is_rejected(self):
+        variant = VariantDefinition(key="v", label_fa="v", responsive_defaults={"mobile": {"columns": 2}})
+        with self.assertRaises(TypeError):
+            variant.responsive_defaults["mobile"] = {}
+
+    def test_b_nested_mapping_mutation_is_rejected(self):
+        variant = VariantDefinition(key="v", label_fa="v", responsive_defaults={"mobile": {"columns": 2}})
+        with self.assertRaises(TypeError):
+            variant.responsive_defaults["mobile"]["columns"] = 99
+
+    def test_c_mutating_the_original_input_after_construction_does_not_leak_in(self):
+        original = {"mobile": {"columns": 2}}
+        variant = VariantDefinition(key="v", label_fa="v", responsive_defaults=original)
+        original["mobile"]["columns"] = 999
+        original["desktop"] = {"columns": 6}
+        self.assertEqual(variant.responsive_defaults["mobile"]["columns"], 2)
+        self.assertNotIn("desktop", variant.responsive_defaults)
+
+    def test_d_mutating_a_resolve_responsive_defaults_result_does_not_mutate_the_variant(self):
+        variant = VariantDefinition(key="v", label_fa="v", responsive_defaults={"mobile": {"columns": 2}})
+        section = get_definition("hero_banner")  # a real MOTION_AWARE/responsive section
+        resolved = resolve_responsive_defaults(section, variant)
+        self.assertIsInstance(resolved, dict)
+        self.assertIsInstance(resolved["mobile"], dict)  # thawed, not still a MappingProxyType
+        resolved["mobile"]["columns"] = 12345
+        resolved["desktop"] = {"columns": 6}
+        self.assertEqual(variant.responsive_defaults["mobile"]["columns"], 2)
+        self.assertNotIn("desktop", variant.responsive_defaults)
+
+    def test_e_same_invariant_for_motion_defaults(self):
+        variant = VariantDefinition(key="v", label_fa="v", motion_defaults={"style": "fade", "easing": {"curve": "ease-out"}})
+        with self.assertRaises(TypeError):
+            variant.motion_defaults["style"] = "slide"
+        with self.assertRaises(TypeError):
+            variant.motion_defaults["easing"]["curve"] = "linear"
+
+        section = get_definition("hero_banner")
+        resolved = resolve_motion_defaults(section, variant)
+        self.assertIsInstance(resolved, dict)
+        self.assertIsInstance(resolved["easing"], dict)
+        resolved["easing"]["curve"] = "linear"
+        self.assertEqual(variant.motion_defaults["easing"]["curve"], "ease-out")
+
+    def test_lists_and_sets_inside_metadata_are_also_frozen_and_thawed(self):
+        """Beyond the brief's A-E (which only name mappings) — the freeze
+        helper is documented to also normalize list/tuple/set/frozenset;
+        prove that generality actually holds, not just for dicts."""
+        variant = VariantDefinition(
+            key="v", label_fa="v",
+            responsive_defaults={"breakpoints": [320, 768, 1024], "roles": {"admin", "owner"}},
+        )
+        self.assertIsInstance(variant.responsive_defaults["breakpoints"], tuple)
+        self.assertIsInstance(variant.responsive_defaults["roles"], frozenset)
+        with self.assertRaises(AttributeError):
+            variant.responsive_defaults["breakpoints"].append(1440)
+
+        section = get_definition("hero_banner")
+        resolved = resolve_responsive_defaults(section, variant)
+        self.assertIsInstance(resolved["breakpoints"], list)
+        self.assertIsInstance(resolved["roles"], set)
+        resolved["breakpoints"].append(1440)
+        self.assertNotIn(1440, variant.responsive_defaults["breakpoints"])

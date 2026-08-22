@@ -20,6 +20,8 @@ from __future__ import annotations
 import dataclasses
 from typing import Callable
 
+from .variant_contract import VariantDefinition, validate_variants
+
 #: شش نوعِ صفحه — دقیقاً همان رشته‌های ``StorefrontPage.PageType.values``
 #: (``apps/storefront_builder/models.py``)، اینجا به‌شکلِ ثابتِ رشته‌ای
 #: تکرار شده‌اند تا این ماژول (طبقِ فلسفه‌یِ صریحِ خودش در docstring بالا:
@@ -83,6 +85,59 @@ class SectionDefinition:
     #: Registry همچنان تنها منبع حقیقت نام/توضیح Block باقی بماند و Template
     #: مجبور به شرط‌های section-specific نشود.
     description_fa: str = ""
+
+    # --------------------------------------------------- U1A metadata contract
+    # همه‌ی فیلدهای زیر اضافیِ صرف‌اند — هیچ‌کدام هیچ رفتارِ رندر/اعتبارسنجیِ
+    # موجود را عوض نمی‌کنند و هیچ‌کدام برایِ ۳۱ نوعِ باقی‌مانده (از ۳۴ نوعِ
+    # SECTION_REGISTRY) نیاز به مقداردهی ندارند — پیش‌فرضِ خالی/None دقیقاً
+    # هم‌ارزِ «این قابلیت هنوز برای این نوع اعلام نشده» است، نه یک تغییرِ
+    # رفتار. نگاه کنید به ``variant_contract.py`` برای شکلِ کاملِ ``VariantDefinition``
+    # و کمک‌تابع‌هایِ resolve.
+    #: مجموعه‌یِ صریحِ capabilityهای این نوع section — در ``_finalize_registry``
+    #: با نتیجه‌یِ استنتاج‌شده از allowlistهایِ فعلی (CARD_AWARE_SECTION_KEYS و...)
+    #: یکی می‌شود (اجتماع، نه جایگزینی) — پس هیچ کدِ دستیِ اینجا لازم نیست فعلاً
+    #: چیزی اعلام کند.
+    capabilities: frozenset[str] = frozenset()
+    #: دادهٔ لازمِ رندرِ این section (مثلاً «کوئری محصول»، «دسترسی به کالکشن») —
+    #: طبقِ الزامِ کار، فعلاً برای هیچ‌کدام از ۳۴ نوعِ موجود مقداردهی نمی‌شود؛
+    #: قرارداد فقط resolve/تست می‌شود.
+    required_data: frozenset[str] = frozenset()
+    #: اگر ``None``، یعنی «همه‌ی کلیدهایِ تنظیماتِ موجود پشتیبانی می‌شوند»
+    #: (رفتارِ فعلیِ همه‌یِ ۳۴ نوع، بدونِ تغییر).
+    supported_settings: frozenset[str] | None = None
+    #: Variantهایِ ثبت‌شده‌یِ این section — تاپلِ خالی (پیش‌فرض) یعنی «این
+    #: section هنوز هیچ Variantِ رسمی‌ای ندارد» (فallback امن، نگاه کنید به
+    #: ``variant_contract.resolve_active_variant``). فقط سه نوعِ اثبات‌شده
+    #: (``category_grid``/``brand_carousel``/``product_section``) در U1A این
+    #: تاپل را پر می‌کنند — بدونِ تغییرِ ``validate_settings``/``default_settings``
+    #: خودشان.
+    variants: tuple[VariantDefinition, ...] = ()
+    #: کلیدِ Variantِ پیش‌فرض — باید (اگر ``None`` نیست) به یکی از
+    #: ``variants`` اشاره کند؛ ``_finalize_registry`` این را در زمانِ import
+    #: چک می‌کند.
+    default_variant: str | None = None
+    #: کدام کلیدِ *موجودِ* ``settings`` انتخاب‌کننده‌یِ Variant است — طبقِ
+    #: الزامِ صریحِ کارِ U1A: کلیدهایِ persisted شده‌یِ فعلی (مثلاً
+    #: ``display_mode``) نباید به ``"variant"`` تغییرِ نام بدهند. ``None``
+    #: یعنی (اگر روزی این section Variant پیدا کند) پیش‌فرض ``"variant"``
+    #: خوانده می‌شود — نگاه کنید به ``variant_contract.resolve_active_variant``.
+    variant_setting_key: str | None = None
+
+    def __post_init__(self) -> None:
+        """External-review correction (U1A pre-commit pass, item 1) — same
+        rationale as ``VariantDefinition.__post_init__``
+        (``variant_contract.py``): ``frozen=True`` alone does not stop a
+        caller passing a mutable ``set``/``list`` into a field this
+        contract treats as immutable. Normalize at construction time via
+        ``object.__setattr__`` — ``supported_settings=None`` is preserved
+        exactly (never coerced away; see
+        ``variant_contract.resolve_supported_settings``), every other
+        collection field becomes a genuine ``frozenset``/``tuple``."""
+        object.__setattr__(self, "capabilities", frozenset(self.capabilities or ()))
+        object.__setattr__(self, "required_data", frozenset(self.required_data or ()))
+        if self.supported_settings is not None:
+            object.__setattr__(self, "supported_settings", frozenset(self.supported_settings))
+        object.__setattr__(self, "variants", tuple(self.variants or ()))
 
 
 def _passthrough_dict(raw: dict) -> dict:
@@ -1397,6 +1452,17 @@ def _validate_image_text_settings(raw: dict) -> dict:
 
 # ---------------------------------------------------------------- ثبت انواع بخش
 
+#: U1A (R1 §9) — تنها چهار مقداری که تا امروز در کدِ کدبیس (فقط از
+#: طریقِ preset ``v5_golden_homepage``) برایِ ``multi_banner.settings.layout_variant``
+#: نوشته شده‌اند؛ دقیقاً همان چهار کلاسِ CSSای که واقعاً وجود دارند
+#: (``apps/catalog/static/css/home.css``). **این ثابت صرفاً مستندسازی
+#: است — در ``validate_settings`` خوانده/اعمال نمی‌شود** (نگاه کنید به
+#: کامنتِ توضیحیِ کنارِ تعریفِ ``multi_banner`` پایین). چون فرمِ ادیتور
+#: هیچ کنترلی برایِ این کلید ندارد، این فهرست تنها *مسیرِ نوشتنِ شناخته‌شده*
+#: را می‌پوشاند، نه لزوماً هر دیتایِ واقعاً ذخیره‌شده در تولید — پس هنوز
+#: enum بسته‌ی رسمی نیست.
+MULTI_BANNER_KNOWN_LAYOUT_VARIANTS = ("promo-4", "wide-single", "mini-4", "strip")
+
 #: ترتیبِ نمایشِ گروه‌هایِ کتابخانه‌ی «افزودن بخش جدید» (چکپوینتِ ۱۰) —
 #: پنج گروهِ کسب‌وکاریِ ثابت، نه اصطلاحِ فنی؛ ``category_fa`` هر
 #: ``SectionDefinition`` باید دقیقاً یکی از این‌ها باشد (تست می‌شود).
@@ -1441,6 +1507,25 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
     "multi_banner": SectionDefinition(
         key="multi_banner", label_fa="ردیف چند بنری", icon="layout-grid",
         template_name="storefront_builder/sections/multi_banner.html",
+        # U1A finding (R1 §9, characterization only — validate_settings is
+        # DELIBERATELY left as _passthrough_dict, unchanged): the template
+        # reads a raw ``layout_variant`` key that this validator never
+        # checks. The complete write-path enumeration across the repo
+        # (layout_preset_registry.py, tests, fixtures, migrations, seed
+        # commands) found exactly four values ever persisted — all via the
+        # single ``v5_golden_homepage`` preset — matching the only four CSS
+        # classes that actually exist for it
+        # (apps/catalog/static/css/home.css: .promo-grid--promo-4/
+        # wide-single/mini-4/strip). The merchant-facing settings form has
+        # no control for this key at all (section_settings_form.html),
+        # meaning today's *known* write path is fully enumerable — but
+        # ``_passthrough_dict`` accepts any dict shape, so a value written
+        # outside that one known path cannot be ruled out from source alone.
+        # Per R1 §9's explicit rule ("If the complete compatibility-safe
+        # closed set cannot be proven, DO NOT narrow accepted values"),
+        # this constant is informational-only and is NOT read by
+        # ``validate_settings`` — narrowing is deferred to U1B, after the
+        # live data itself (not just the code paths) can be inspected.
         validate_settings=_passthrough_dict, default_settings=_empty_defaults,
         duplicable=True, removable=True, category_fa="تصاویر و تبلیغات",
     ),
@@ -1449,6 +1534,17 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         template_name="storefront_builder/sections/category_grid.html",
         validate_settings=_validate_category_grid_settings, default_settings=default_category_grid_settings,
         duplicable=True, removable=True, has_settings_form=True, category_fa="کشف و خرید",
+        # U1A — نگاشتِ الگویِ A (همان template، شاخه‌زنیِ CSS رویِ همان
+        # کلیدِ enum بستهٔ از‌قبل‌موجود ``display_mode``؛ نگاه کنید به
+        # CATEGORY_GRID_DISPLAY_MODES بالا و category_grid.html) روی
+        # قراردادِ Variant — بدونِ تغییرِ کلیدِ ذخیره‌شده یا ظاهرِ رندرشده.
+        variants=(
+            VariantDefinition(key="grid", label_fa="گرید"),
+            VariantDefinition(key="carousel", label_fa="کاروسل"),
+            VariantDefinition(key="circular", label_fa="دایره‌ای"),
+            VariantDefinition(key="image_strip", label_fa="نوار تصویری"),
+        ),
+        default_variant="grid", variant_setting_key="display_mode",
     ),
     "featured_products": SectionDefinition(
         key="featured_products", label_fa="محصولات ویژه", icon="star",
@@ -1485,6 +1581,12 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         template_name="storefront_builder/sections/brand_carousel.html",
         validate_settings=_validate_brand_carousel_settings, default_settings=default_brand_carousel_settings,
         duplicable=True, removable=True, has_settings_form=True, category_fa="کشف و خرید",
+        # U1A — همان الگویِ A؛ نگاه کنید به BRAND_CAROUSEL_DISPLAY_MODES بالا.
+        variants=(
+            VariantDefinition(key="grid", label_fa="گرید"),
+            VariantDefinition(key="carousel", label_fa="کاروسل"),
+        ),
+        default_variant="grid", variant_setting_key="display_mode",
     ),
     "promo_cards": SectionDefinition(
         key="promo_cards", label_fa="کارت‌های تبلیغاتی", icon="layout",
@@ -1518,6 +1620,12 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         template_name="storefront_builder/sections/product_section.html",
         validate_settings=_validate_product_section_settings, default_settings=_product_section_defaults,
         duplicable=True, removable=True, has_settings_form=True, category_fa="محصولات",
+        # U1A — همان الگویِ A؛ نگاه کنید به PRODUCT_SECTION_DISPLAY_MODES بالا.
+        variants=(
+            VariantDefinition(key="carousel", label_fa="کاروسل"),
+            VariantDefinition(key="grid", label_fa="گرید"),
+        ),
+        default_variant="carousel", variant_setting_key="display_mode",
     ),
     "trust_features": SectionDefinition(
         key="trust_features", label_fa="ردیف اعتماد و ویژگی‌ها", icon="shield-check",
@@ -1662,14 +1770,53 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
 }
 
 
+#: U1A — نگاشتِ نامِ capability به allowlistِ موجودش؛ فقط برایِ استنتاجِ
+#: ``SectionDefinition.capabilities`` در ``_finalize_registry`` استفاده
+#: می‌شود. این allowlistها خودشان **حذف نمی‌شوند** و کدِ فعلیِ
+#: ادیتور/ویو همچنان مستقیماً از خودِ آن‌ها می‌خواند (طبقِ الزامِ صریحِ
+#: کار: «preserve current runtime/editor behavior») — این نگاشت فقط یک
+#: آینه‌یِ اضافی می‌سازد تا آزمونِ سازگاری (تستِ زیر) بتواند دو منبع را
+#: با هم مقایسه کند، و مسیرِ آینده به‌سویِ «SectionDefinition.capabilities
+#: تنها منبعِ حقیقت» باز بماند.
+_DERIVED_CAPABILITY_SOURCES: tuple[tuple[str, frozenset[str]], ...] = (
+    ("card", CARD_AWARE_SECTION_KEYS),
+    ("background", BACKGROUND_AWARE_SECTION_KEYS),
+    ("spacing", SPACING_AWARE_SECTION_KEYS),
+    ("motion", MOTION_AWARE_SECTION_KEYS),
+    ("destination", DESTINATION_AWARE_SECTION_KEYS),
+    ("layout_width", LAYOUT_WIDTH_AWARE_SECTION_KEYS),
+    ("layout_height", LAYOUT_HEIGHT_AWARE_SECTION_KEYS),
+    ("columns", COLUMN_AWARE_SECTION_KEYS),
+    ("columns_visual", COLUMN_VISUAL_SECTION_KEYS),
+)
+
+
+def _derived_capabilities(section_key: str) -> frozenset[str]:
+    """``capabilities``یِ استنتاج‌شده از allowlistهایِ موجود — ``"responsive"``
+    برایِ همه‌ی کلیدها حاضر است چون ``_with_responsive`` بدونِ استثنا رویِ
+    همه اعمال می‌شود (نگاه کنید به حلقه‌ی پایین)."""
+    caps = {"responsive"}
+    for name, keys in _DERIVED_CAPABILITY_SOURCES:
+        if section_key in keys:
+            caps.add(name)
+    return frozenset(caps)
+
+
 def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionDefinition]:
     """هر ۱۷ تعریفِ بالا را با پشتیبانیِ ``responsive`` می‌پوشاند و
     ``has_settings_form`` را یکنواخت True می‌کند (فازِ D) — منطقِ
     اختصاصیِ هر نوع (rich_text/image_text/product_section/passthrough)
     در ``_BASE_SECTION_REGISTRY`` بالا کاملاً دست‌نخورده می‌ماند؛ این تابع
-    فقط یک لایه‌یِ یکسان روی همه می‌کشد، نه بازنویسیِ تک‌تکِ ۱۷ ورودی."""
+    فقط یک لایه‌یِ یکسان روی همه می‌کشد، نه بازنویسیِ تک‌تکِ ۱۷ ورودی.
+
+    U1A: علاوه‌براین، ``capabilities``یِ صریحِ هر تعریف (اگر بود) با
+    ``_derived_capabilities`` اجتماع می‌شود (نه جایگزین) و
+    ``variants``/``default_variant`` (اگر تعریف شده) اعتبارسنجی می‌شود —
+    هیچ‌کدام رفتارِ ``validate_settings``/``default_settings``/رندر را
+    تغییر نمی‌دهد."""
     finalized = {}
     for key, definition in base.items():
+        validate_variants(definition.variants, default_variant=definition.default_variant)
         validate_fn, default_fn = _with_destination(key, definition.validate_settings, definition.default_settings)
         validate_fn, default_fn = _with_responsive(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_motion(key, validate_fn, default_fn)
@@ -1679,6 +1826,7 @@ def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionD
         validate_fn, default_fn = _with_spacing(key, validate_fn, default_fn)
         finalized[key] = dataclasses.replace(
             definition, validate_settings=validate_fn, default_settings=default_fn, has_settings_form=True,
+            capabilities=definition.capabilities | _derived_capabilities(key),
         )
     return finalized
 
