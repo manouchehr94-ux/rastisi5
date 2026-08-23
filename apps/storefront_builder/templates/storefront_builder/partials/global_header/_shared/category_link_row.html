@@ -1,0 +1,13 @@
+{% comment %}
+U2A shared flat top-level-category link row — a lighter-weight alternative
+to ``category_mega_menu.html`` for Global Header Variants whose archetype
+calls for a less dense, non-mega-menu navigation composition (premium,
+boutique, dark tech). Real ``nav_categories`` data, same as the mega-menu
+partial — only the presentation (a plain scrollable link row, no dropdown
+panel/children) differs.
+{% endcomment %}
+{% for cat in nav_categories %}
+<a class="gh-cat-link" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">{{ cat.name }}</a>
+{% empty %}
+<span class="gh-cat-link-empty">فعلاً دسته‌بندی‌ای ثبت نشده است</span>
+{% endfor %}

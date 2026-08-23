@@ -1,0 +1,35 @@
+{% comment %}
+U2A shared search form partial — one semantic search component reused by
+every Global Header Variant that shows search (all four; ``legacy_default``
+keeps its own inline copy in page_shell_header.html, pre-dating this
+partial). Required context: ``is_live_storefront``/``is_builder_preview``.
+Optional ``placeholder_text`` (defaults to the existing copy), ``button_label``
+(defaults to "جستجو") and ``compact`` (default False — when True, the submit
+button's label is visually hidden via ``.sr-only`` but stays in the
+accessible tree, for a variant that only wants an icon-sized submit
+affordance without losing the button's accessible name) and ``field_id``
+(default "gh-search-input" — pass a distinct value if a variant ever needs
+to include this partial more than once on the same page, to keep ``id``s
+unique).
+
+Mobile-safe by construction: the text input never sets an explicit
+font-size below 16px here — each variant's stylesheet must not override it
+to less than 16px, to avoid the iOS Safari input-zoom issue (RastiSi
+storefront QA requirement, U2A §14).
+{% endcomment %}
+{% with placeholder=placeholder_text|default:"جستجوی کالا، برند و دسته‌بندی..." field=field_id|default:"gh-search-input" %}
+{% if is_live_storefront %}
+<form class="gh-search{% if compact %} gh-search-compact{% endif %}" action="{% url 'catalog:product-list' %}" method="get" role="search">
+  <label class="sr-only" for="{{ field }}">{{ placeholder }}</label>
+  {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="search" %}
+  <input id="{{ field }}" type="search" name="q" placeholder="{{ placeholder }}">
+  <button type="submit"><span{% if compact %} class="sr-only"{% endif %}>{{ button_label|default:"جستجو" }}</span></button>
+</form>
+{% else %}
+<form class="gh-search{% if compact %} gh-search-compact{% endif %}" onsubmit="return false" title="جستجو در پیش‌نمایش غیرفعال است" role="search">
+  <label class="sr-only" for="{{ field }}-preview">{{ placeholder }}</label>
+  {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="search" %}
+  <input id="{{ field }}-preview" type="search" placeholder="{{ placeholder }}" disabled>
+</form>
+{% endif %}
+{% endwith %}

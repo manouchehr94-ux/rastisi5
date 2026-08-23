@@ -1,0 +1,21 @@
+{% comment %}
+U2A shared store-admin shortcut — reused by every Global Header Variant.
+``SHOW_ADMIN_SHORTCUT``/``SHOP_ADMIN_URL`` come from the global context
+processor (only true on the homepage, for a staff member of this Store —
+see apps.core.context_processors); identical condition/markup across every
+variant, exactly the legacy_default behavior.
+{% endcomment %}
+{% if SHOW_ADMIN_SHORTCUT and SHOP_ADMIN_URL %}
+<a class="store-admin-shortcut"
+   href="{{ SHOP_ADMIN_URL }}"
+   target="_top"
+   rel="nofollow"
+   title="ورود به پنل مدیریت فروشگاه"
+   aria-label="ورود به پنل مدیریت فروشگاه">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3"></circle>
+    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6h.08A1.65 1.65 0 0010 3.09V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9v.08A1.65 1.65 0 0020.91 10H21a2 2 0 110 4h-.09A1.65 1.65 0 0019.4 15z"></path>
+  </svg>
+  <span>پنل مدیریت</span>
+</a>
+{% endif %}

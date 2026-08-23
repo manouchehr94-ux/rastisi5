@@ -1,0 +1,77 @@
+{% comment %}
+U2A Global Header Variant — Premium Three Column (key: premium_three_column).
+
+Archetype: balanced three-part desktop header (nav | logo | utility),
+navigation visually separated from utility actions, less dense than the
+marketplace variant — a premium/luxury retail feel. Single CSS-grid row
+with three distinct zones is the structural signature (no second nav row,
+no mega-menu panel — navigation here is a plain link row, not a category
+browser).
+
+Required context: same three keys every variant renderer receives
+(``header_config``/``is_live_storefront``/``is_builder_preview``).
+{% endcomment %}
+{% with hc=header_config rc=header_config.responsive %}
+<div class="gh-shell gh-shell--premium" x-data="{ ghMobileOpen: false }">
+{% include "storefront_builder/partials/global_header/_shared/announcement_bar.html" %}
+
+<header class="header gh gh--premium{% if hc.sticky %} sfb-sticky{% endif %}">
+  <div class="wrap gh-premium-grid">
+    <div class="gh-premium-zone gh-premium-zone-nav">
+      <button class="gh-btn gh-burger" @click="ghMobileOpen = !ghMobileOpen" :aria-expanded="ghMobileOpen.toString()" aria-controls="gh-mobile-nav" aria-label="منو">
+        {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="burger" %}
+      </button>
+      <nav class="gh-premium-nav-links" style="scrollbar-width:none;-ms-overflow-style:none">
+        {% include "storefront_builder/partials/global_header/_shared/nav_header_items.html" %}
+      </nav>
+    </div>
+
+    <div class="gh-premium-zone gh-premium-zone-logo">
+      {% include "storefront_builder/partials/global_header/_shared/logo.html" %}
+    </div>
+
+    <div class="gh-premium-zone gh-premium-zone-utility">
+      {% if hc.show_search %}
+      <div class="gh-inline-block" {% if rc.show_search.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_header/_shared/search_form.html" with placeholder_text="جستجو..." compact=True field_id="gh-search-input-premium" %}
+      </div>
+      {% endif %}
+      {% include "storefront_builder/partials/global_header/_shared/admin_shortcut.html" %}
+      {% if hc.show_account %}
+      <div class="gh-inline-block" {% if rc.show_account.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_account.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_header/_shared/account_action.html" with show_label=False %}
+      </div>
+      {% endif %}
+      {% if hc.show_wishlist %}
+      <div class="gh-inline-block" {% if rc.show_wishlist.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_wishlist.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_header/_shared/wishlist_action.html" %}
+      </div>
+      {% endif %}
+      {% if hc.show_cart %}
+      {% include "storefront_builder/partials/global_header/_shared/cart_action.html" %}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if hc.show_search %}
+  <div class="gh-mobile-search gh-premium-mobile-search" {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+    {% include "storefront_builder/partials/global_header/_shared/search_form.html" with placeholder_text="جستجو..." compact=True field_id="gh-search-input-premium-mobile" %}
+  </div>
+  {% endif %}
+
+  <nav id="gh-mobile-nav" class="gh-premium-mobile-nav" :class="{ 'gh-nav-hidden': !ghMobileOpen }">
+    <div class="wrap" style="scrollbar-width:none;-ms-overflow-style:none">
+      {% include "storefront_builder/partials/global_header/_shared/category_link_row.html" %}
+    </div>
+  </nav>
+</header>
+
+{% for block in hc.extra_blocks %}
+{% if block.type == "tagline" and SHOP_TAGLINE %}
+<div class="gh-tagline-strip" role="note"><div class="wrap"><span>{{ SHOP_TAGLINE }}</span></div></div>
+{% elif block.type == "cta" and block.url %}
+<div class="gh-tagline-strip" role="note"><div class="wrap"><a class="btn btn-primary" href="{{ block.url }}" target="_blank" rel="noopener noreferrer">{{ block.label|default:"مشاهده" }}</a></div></div>
+{% endif %}
+{% endfor %}
+</div>
+{% endwith %}

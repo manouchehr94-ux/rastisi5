@@ -75,6 +75,14 @@ HEADER_CONFIG_DEFAULTS = (
         "announcement_show_phone": True,
         "responsive": HEADER_RESPONSIVE_DEFAULTS,
         "extra_blocks": [],
+        #: U2A — کدامیک از ۵ Variantِ ثبت‌شده‌یِ ``global_region_registry
+        #: .GLOBAL_HEADER_REGION`` باید رندر شود؛ پیش‌فرض دقیقاً همان
+        #: کلیدِ ``default_variant``ی آن Region است (``"legacy_default"``)
+        #: — یعنی نسخه‌هایِ قدیمی/بدونِ این کلید دقیقاً همان هدرِ فعلی را
+        #: بدونِ کوچک‌ترین تغییرِ بصری می‌بینند (نگاه کنید به
+        #: ``effective_header_config`` پایین — merge با این پیش‌فرض،
+        #: نه یک مهاجرتِ دیتابیسی).
+        "header_variant": "legacy_default",
     }
 )
 

@@ -17,7 +17,7 @@ from apps.dashboard.decorators import permission_required, staff_required
 from apps.stores.authorization import STOREFRONT_LAYOUT_MANAGE
 from apps.stores.resolution import resolve_store_for_service
 
-from . import section_registry
+from . import global_region_registry, section_registry
 from .models import (
     APPEARANCE_CONFIG_DEFAULTS,
     FOOTER_CONFIG_DEFAULTS,
@@ -248,8 +248,12 @@ def storefront_preview(request):
         )
     else:
         request.storefront_appearance_version = draft
+    header_variant_template = global_region_registry.resolve_global_renderer_template(
+        global_region_registry.GLOBAL_HEADER_REGION, draft.effective_header_config(),
+    )
     return render(request, "storefront_builder/preview.html", {
         "store": store, "version": draft, "page": page, "page_type": page_type,
+        "header_variant_template": header_variant_template,
         "render_items": items,
         # Legacy rows remain as a compatibility fallback; Container/Cell is now
         # the primary Builder composition source. Empty cells are visible only here.
@@ -2149,6 +2153,7 @@ def storefront_header_editor(request):
         raw["announcement_show_phone"] = request.POST.get("announcement_show_phone") == "on"
         raw["responsive"] = _extract_shell_responsive_raw(request, HEADER_RESPONSIVE_AWARE_KEYS)
         raw["extra_blocks"] = _extract_header_extra_blocks_raw(request)
+        raw["header_variant"] = request.POST.get("header_variant", "")
         try:
             config = layout_service.validate_header_config(raw)
         except layout_service.HeaderConfigValidationError as exc:
@@ -2156,6 +2161,7 @@ def storefront_header_editor(request):
             return render(request, "dashboard/storefront_builder/header_editor.html", {
                 "active_page": "storefront_builder",
                 "config": {**HEADER_CONFIG_DEFAULTS, **raw}, "draft": draft, "error": str(exc),
+                "header_variants": global_region_registry.list_global_variants(global_region_registry.GLOBAL_HEADER_REGION),
             })
         draft.header_config = config
         draft.save(update_fields=["header_config", "updated_at"])
@@ -2169,6 +2175,7 @@ def storefront_header_editor(request):
     )
     return render(request, template_name, {
         "active_page": "storefront_builder", "config": draft.effective_header_config(), "draft": draft,
+        "header_variants": global_region_registry.list_global_variants(global_region_registry.GLOBAL_HEADER_REGION),
     })
 
 

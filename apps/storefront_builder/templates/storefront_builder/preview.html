@@ -7,11 +7,11 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/product_card.css' %}">
 <link rel="stylesheet" href="{% static 'css/home.css' %}">
-<link rel="stylesheet" href="{% static 'css/storefront_builder.css' %}">
+<link rel="stylesheet" href="{% static 'css/storefront_builder.css' %}?v=u2a-v5-mobile-20260823">
 {% endblock %}
 
 {% block header %}
-{% include "storefront_builder/partials/page_shell_header.html" with header_config=version.effective_header_config is_live_storefront=False is_builder_preview=True %}
+{% include header_variant_template with header_config=version.effective_header_config is_live_storefront=False is_builder_preview=True %}
 {% endblock %}
 
 {% block content %}

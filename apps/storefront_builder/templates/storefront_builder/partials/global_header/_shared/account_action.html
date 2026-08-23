@@ -1,0 +1,41 @@
+{% comment %}
+U2A shared account/login action — reused by every Global Header Variant.
+Required context: ``is_live_storefront``/``is_builder_preview``. Optional
+``show_label`` (default True; a variant may pass the Python boolean
+``False`` for a visually compact affordance — the label text stays in the
+DOM as ``.sr-only`` so the control always keeps a real accessible name,
+never an icon alone). Compared with ``== False`` rather than a plain
+``{% if %}`` on purpose: an *unset* ``show_label`` renders as Django's
+empty-string placeholder, which is falsy too — only an explicit Python
+``False`` (never the unset/default case) should switch to the compact,
+screen-reader-only label.
+
+Uses the same ``loginOpen`` Alpine state the page body already declares
+(``templates/base.html``'s ``<body x-data="{ loginOpen: false, ... }">``)
+— every variant renders inside that same body, so this keeps working
+without any variant needing its own copy of the login modal trigger.
+{% endcomment %}
+{% if is_live_storefront %}
+{% if request.user.is_authenticated %}
+<a class="gh-account-link" href="{% url 'customers:account' %}">
+  {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="account" %}
+  <span{% if show_label == False %} class="sr-only"{% endif %}>{{ request.user.customer_profile.full_name|default:"حساب من" }}</span>
+</a>
+<form method="post" action="{% url 'customers:logout' %}" class="gh-logout-form">
+  {% csrf_token %}
+  <button type="submit" class="gh-btn" title="خروج" aria-label="خروج از حساب کاربری">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+  </button>
+</form>
+{% else %}
+<button type="button" class="gh-account-link" @click="loginOpen = true" aria-haspopup="dialog">
+  {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="account" %}
+  <span{% if show_label == False %} class="sr-only"{% endif %}>ورود | ثبت‌نام</span>
+</button>
+{% endif %}
+{% else %}
+<button type="button" class="gh-account-link" disabled title="ورود در پیش‌نمایش غیرفعال است">
+  {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="account" %}
+  <span{% if show_label == False %} class="sr-only"{% endif %}>ورود | ثبت‌نام</span>
+</button>
+{% endif %}

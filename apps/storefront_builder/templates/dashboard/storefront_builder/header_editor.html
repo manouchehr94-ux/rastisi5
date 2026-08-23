@@ -11,6 +11,15 @@
   <form method="post">
     {% csrf_token %}
     <div class="form-group">
+      <label for="header_variant_select">سبک هدر</label>
+      <select id="header_variant_select" name="header_variant" class="form-select">
+        {% for variant in header_variants %}
+        <option value="{{ variant.key }}" {% if config.header_variant == variant.key %}selected{% endif %}>{{ variant.label_fa }}</option>
+        {% endfor %}
+      </select>
+      <div class="field-help">ساختار و چیدمانِ کلیِ هدرِ فروشگاه را تغییر می‌دهد — تنظیماتِ بالا (نوار اعلان، جستجو، حساب کاربری و ...) برایِ هر سبک اعمال می‌شود.</div>
+    </div>
+    <div class="form-group">
       <label><input type="checkbox" name="announcement_enabled" {% if config.announcement_enabled %}checked{% endif %}> نمایش نوار اعلان</label>
       {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="announcement_enabled" component=config.responsive.announcement_enabled %}
     </div>

@@ -1,0 +1,17 @@
+{% load persian %}{% comment %}
+U2A shared cart action — reused by every Global Header Variant. Required
+context: ``is_live_storefront``/``is_builder_preview``. ``cart_count``
+comes from the global cart context processor. Cart access is the one
+control ``layout_service.validate_header_config`` already guarantees can
+never be turned off — every variant must render this, unconditionally.
+{% endcomment %}
+{% if is_live_storefront %}
+<a class="gh-btn gh-cart" href="{% url 'cart:detail' %}" title="سبد خرید" aria-label="سبد خرید">
+  {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="cart" %}
+  <span class="gh-cnt" id="cart-count">{{ cart_count|fa_number }}</span>
+</a>
+{% else %}
+<a class="gh-btn gh-cart" href="#" onclick="return false" title="سبد خرید (پیش‌نمایش)" aria-label="سبد خرید">
+  {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="cart" %}
+</a>
+{% endif %}

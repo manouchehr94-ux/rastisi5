@@ -3470,3 +3470,386 @@ a.sfb-v3-component-item,
   .sfb-v3-component-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
   .sfb-v3-layout-grid { grid-template-columns:1fr 1fr;gap:7px;padding:10px; }
 }
+
+
+/* ========================================================================
+   U2A — Global Header Variants (Visual Global Header System)
+   ------------------------------------------------------------------------
+   Shared primitives (prefixed `gh-`, deliberately distinct from the legacy
+   `.header`/`.nav`/`.search`/`.h-actions`/`.h-btn` classes so the new
+   variants never fight the legacy_default renderer's own CSS) plus one
+   layout block per archetype (`.gh--marketplace`/`.gh--premium`/
+   `.gh--boutique`/`.gh--dark`). Every color/radius/shadow value below is a
+   design-token custom property (`--brand-*`, falling back to the same
+   `--violet`/`--radius`/`--shadow` tokens.css already defines) — never a
+   hard-coded merchant brand color, so every variant works with any
+   merchant palette (U2A §11).
+   ======================================================================== */
+
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* ---- shared primitives -------------------------------------------------- */
+/* U2A correction pass — the --gh-* custom properties are defined on the
+   `.gh-shell` wrapper (which contains the announcement bar, the <header>
+   itself, and the tagline strip as siblings), not on `.gh` alone — `.gh`
+   only ever sits on the <header> element, so announcement/tagline (which
+   render as its siblings, not descendants) could never see variables
+   defined only there. `.gh-shell--dark` overrides the palette for
+   dark_tech; every other variant shares the one light-palette default. */
+.gh-shell{--gh-ink:var(--brand-text,var(--ink));--gh-muted:var(--brand-muted,var(--muted));--gh-border:var(--brand-border,var(--line));--gh-surface:var(--brand-surface,var(--card));--gh-bg:var(--brand-background,var(--bg));--gh-accent:var(--brand-primary,var(--violet))}
+.gh-shell--dark{--gh-ink:#f1f0f5;--gh-muted:#a7a6b8;--gh-border:#2a2a37;--gh-surface:#1b1b24;--gh-bg:#121218}
+.gh a,.gh button{color:inherit}
+.gh a:focus-visible,.gh button:focus-visible,.gh input:focus-visible{outline:2px solid var(--brand-accent,#ff4d77);outline-offset:2px}
+
+/* correction pass — these five containers use horizontal overflow-scroll
+   as a graceful-degradation strategy for real, unpredictable-length menu/
+   category content; the browser's native scrollbar track/handle painted
+   as a large bar inside the header looked broken. Hides only the visual
+   scrollbar chrome (Firefox via scrollbar-width, legacy Edge/IE via
+   -ms-overflow-style, Chromium/WebKit via the ::-webkit-scrollbar
+   pseudo-element) — scrolling itself (wheel/trackpad/touch) and keyboard
+   access (Tab still moves focus through the same links, which scrolls
+   them into view natively) are both fully preserved. Scoped to exactly
+   these five U2A header scroll surfaces only — no other scrollbar
+   anywhere in the storefront or the Builder canvas is affected. */
+.gh-nav-links-scroll,
+.gh--premium .gh-premium-nav-links,
+.gh-premium-mobile-nav .wrap,
+.gh-boutique-nav-links,
+.gh--dark .gh-dark-cats,
+.gh-dark-mobile-nav .wrap{scrollbar-width:none;-ms-overflow-style:none}
+.gh-nav-links-scroll::-webkit-scrollbar,
+.gh--premium .gh-premium-nav-links::-webkit-scrollbar,
+.gh-premium-mobile-nav .wrap::-webkit-scrollbar,
+.gh-boutique-nav-links::-webkit-scrollbar,
+.gh--dark .gh-dark-cats::-webkit-scrollbar,
+.gh-dark-mobile-nav .wrap::-webkit-scrollbar{display:none}
+
+.gh-announce{background:var(--gh-bg);color:var(--gh-muted);border-bottom:1px solid var(--gh-border);font-size:11px}
+.gh-announce .wrap{display:flex;align-items:center;justify-content:space-between;height:32px;gap:10px}
+.gh-announce-links{display:flex;align-items:center;gap:16px}
+.gh-announce a{opacity:.92}
+.gh-announce a:hover{opacity:1}
+.gh-announce-phone{direction:ltr}
+
+.gh-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;width:auto;min-width:40px;height:40px;padding-inline:10px;border-radius:var(--radius,10px);border:1px solid var(--gh-border);background:var(--gh-surface);color:var(--gh-ink);transition:.18s}
+.gh-btn svg{width:19px;height:19px;flex:0 0 auto}
+.gh-btn:hover{border-color:var(--gh-accent);color:var(--gh-accent)}
+.gh-btn .gh-cnt{position:absolute;top:-6px;inset-inline-start:-6px;background:var(--brand-accent,var(--pink));color:var(--brand-accent-fg,#fff);font-size:10.5px;font-weight:800;min-width:18px;height:18px;border-radius:10px;display:grid;place-items:center;padding:0 4px;border:2px solid var(--gh-surface)}
+.gh-burger{flex:0 0 auto}
+
+.gh-logo{display:flex;align-items:center;gap:9px;text-decoration:none;flex-shrink:0;min-width:0}
+.gh-logo img{max-height:36px;max-width:150px;display:block}
+.gh-logo-mark{width:36px;height:36px;border-radius:8px;background:var(--gh-accent);color:var(--brand-primary-fg,#fff);display:grid;place-items:center;flex:0 0 auto}
+.gh-logo-mark svg{width:19px;height:19px}
+.gh-logo-text{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.gh-logo-text b{font-size:16px;color:var(--gh-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.gh-logo-text small{font-size:11px;color:var(--gh-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+
+.gh-search{display:flex;align-items:center;gap:8px;background:var(--gh-bg);border:1.5px solid transparent;border-radius:14px;padding-inline:12px;height:44px;transition:.2s;min-width:0}
+.gh-search:focus-within{border-color:var(--gh-accent);background:var(--gh-surface);box-shadow:0 0 0 3px color-mix(in srgb,var(--gh-accent) 12%,transparent)}
+.gh-search svg{width:18px;height:18px;color:var(--gh-muted);flex:0 0 auto}
+.gh-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:16px;color:var(--gh-ink)}
+.gh-search button{background:var(--gh-accent);color:var(--brand-primary-fg,#fff);height:32px;padding-inline:16px;border-radius:10px;font-size:13px;font-weight:700;flex:0 0 auto;white-space:nowrap}
+.gh-search.gh-search-compact button{background:transparent;color:var(--gh-muted);height:32px;padding-inline:6px}
+.gh-search.gh-search-compact button:hover{color:var(--gh-accent)}
+
+.gh-account-link{display:flex;align-items:center;gap:7px;height:40px;padding-inline:12px;border-radius:var(--radius,10px);border:1.5px solid var(--gh-border);color:var(--gh-ink);font-weight:600;font-size:13px;background:var(--gh-surface)}
+.gh-account-link:hover{border-color:var(--gh-accent);color:var(--gh-accent)}
+.gh-account-link svg{width:18px;height:18px}
+.gh-account-link:disabled{opacity:.55;cursor:not-allowed}
+.gh-logout-form{display:contents}
+
+.gh-actions{display:flex;align-items:center;gap:8px}
+.gh-inline-block{display:contents}
+.gh-nav-hidden{display:none}
+.gh-tagline-strip{background:var(--gh-bg);color:var(--gh-muted);border-top:1px solid var(--gh-border);text-align:center;font-size:12.5px;padding:6px 0}
+
+/* nav dropdown (NAV_HEADER items with children) — shared by every variant */
+.gh-nl{padding-inline:12px;height:38px;display:inline-flex;align-items:center;border-radius:8px;font-size:13px;font-weight:600;color:var(--gh-ink);white-space:nowrap;text-decoration:none;transition:.15s}
+.gh-nl:hover{background:var(--gh-bg);color:var(--gh-accent)}
+.gh-nav-dropdown{position:relative;display:inline-flex;align-items:center;gap:2px}
+.gh-nav-submenu-trigger{background:none;border:none;color:inherit;font:inherit;cursor:pointer;padding:4px;display:inline-flex;align-items:center;gap:2px;border-radius:6px}
+.gh-nav-submenu-trigger:hover,.gh-nav-submenu-trigger:focus-visible{background:var(--gh-bg)}
+.gh-nav-submenu{position:absolute;top:100%;inset-inline-start:0;min-width:170px;background:var(--gh-surface);border:1px solid var(--gh-border);border-radius:var(--radius,10px);box-shadow:var(--shadow);padding:8px 0;list-style:none;margin:4px 0 0;z-index:100}
+.gh-nav-submenu li a{display:block;padding:8px 16px;color:var(--gh-ink);text-decoration:none;font-size:13px;white-space:nowrap}
+.gh-nav-submenu li a:hover{background:var(--gh-bg);color:var(--gh-accent)}
+
+/* category mega-menu — shared by variants using the marketplace-style panel */
+.gh-cat-mega{position:relative}
+.gh-cat-btn{display:flex;align-items:center;gap:8px;background:var(--gh-bg);color:var(--gh-accent);height:38px;padding-inline:14px;border:0;border-radius:10px;font-weight:700;font-size:13px;flex-shrink:0}
+.gh-cat-mega-overlay{position:fixed;inset:0;z-index:65;background:rgba(20,14,36,.28)}
+.gh-cat-mega-panel{position:absolute;top:calc(100% + 8px);inset-inline-start:0;z-index:70;display:flex;width:min(640px,calc(100vw - 48px));min-width:0;max-width:calc(100vw - 48px);background:var(--gh-surface);border:1px solid var(--gh-border);border-radius:var(--radius,12px);box-shadow:var(--shadow);overflow:hidden}
+.gh-cat-mega-rail{display:flex;flex-direction:column;flex-shrink:0;width:190px;border-inline-start:1px solid var(--gh-border);padding:8px;gap:2px;max-height:min(288px,calc(100vh - 190px));overflow-y:auto}
+.gh-cat-mega-rail-item{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;font-size:13px;font-weight:600;color:var(--gh-ink);text-decoration:none}
+.gh-cat-mega-rail-item:hover,.gh-cat-mega-rail-item.active{background:var(--gh-bg);color:var(--gh-accent)}
+.gh-cat-mega-empty,.gh-cat-mega-empty-children{padding:10px 12px;font-size:12.5px;color:var(--gh-muted)}
+.gh-cat-mega-content{flex:1;min-width:0;padding:16px;max-height:min(288px,calc(100vh - 190px));overflow-y:auto}
+.gh-cat-mega-cols{column-count:1;column-gap:24px}
+.gh-cat-mega-cols.cols-2{column-count:2}
+.gh-cat-mega-cols a{display:block;break-inside:avoid;font-size:12.5px;color:var(--gh-muted);padding:5px 0;text-decoration:none}
+.gh-cat-mega-cols a:hover{color:var(--gh-accent)}
+.gh-cat-mega-promo{display:block;position:relative;width:100%;max-width:360px;margin-top:14px;border-radius:var(--radius,10px);overflow:hidden;background:var(--gh-bg)}
+.gh-cat-mega-promo img{display:block;width:100%;height:108px;max-height:none;object-fit:cover}
+.gh-cat-mega-promo span{position:absolute;inset-inline:0;bottom:0;padding:8px 12px;font-size:12.5px;font-weight:700;color:#fff;background:linear-gradient(0deg,rgba(20,14,36,.65),transparent)}
+
+/* flat category link row — lighter alternative to the mega-menu */
+.gh-cat-link{padding-inline:10px;height:32px;display:inline-flex;align-items:center;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--gh-muted);white-space:nowrap;text-decoration:none}
+.gh-cat-link:hover{color:var(--gh-accent)}
+.gh-cat-link-empty{font-size:12px;color:var(--gh-muted);padding-inline:10px}
+
+/* ---- marketplace_search_first ------------------------------------------ */
+/* correction pass — .gh-row-main IS the .wrap element (same tag carries
+   both classes), not an ancestor of a separate .wrap descendant; a prior
+   selector nesting one class inside the other therefore matched nothing. */
+.gh--marketplace .gh-row-main{display:flex;align-items:center;gap:16px;height:72px}
+.gh--marketplace .gh-search{flex:1;max-width:680px}
+/* .gh-row-nav is a shared desktop+mobile nav bar (always visible, exactly
+   like legacy_default's own <nav class="nav">) — it only collapses behind
+   the burger toggle below the phone breakpoint, never hidden by default. */
+.gh--marketplace .gh-row-nav{background:var(--gh-surface);border-top:1px solid var(--gh-border)}
+.gh--marketplace .gh-row-nav .wrap{display:flex;align-items:center;gap:8px;height:48px}
+.gh-nav-links-scroll{display:flex;align-items:center;gap:6px;flex:1;min-width:0;overflow-x:auto}
+.gh-nav-spacer{flex:1}
+@media(max-width:1000px){
+  .gh--marketplace .gh-row-main{height:64px;gap:10px}
+  .gh--marketplace .gh-search{max-width:none}
+}
+@media(max-width:680px){
+  .gh--marketplace .gh-row-nav{display:none}
+  .gh--marketplace .gh-row-nav:not(.gh-nav-hidden){display:block;position:relative}
+  .gh--marketplace .gh-logo-text small{display:none}
+}
+
+/* ---- premium_three_column ------------------------------------------------ */
+.gh--premium .gh-premium-grid{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:20px;height:78px}
+.gh--premium .gh-premium-zone-nav{display:flex;align-items:center;gap:6px;min-width:0}
+.gh--premium .gh-premium-zone-logo{display:flex;justify-content:center}
+.gh--premium .gh-premium-zone-utility{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0}
+.gh--premium .gh-premium-nav-links{display:flex;align-items:center;gap:2px;overflow-x:auto}
+.gh--premium .gh-search{max-width:160px}
+.gh--premium .gh-search.gh-search-compact{background:transparent;border-color:var(--gh-border)}
+/* correction pass — .gh-premium-mobile-nav is a dedicated mobile-only
+   category row (the desktop nav lives in .gh-premium-nav-links instead);
+   it must stay hidden above the tablet breakpoint regardless of the
+   initial Alpine mobileNavOpen state, appearing only once the desktop nav
+   links themselves disappear below, and even then only when not toggled
+   closed (.gh-nav-hidden). */
+.gh-premium-mobile-nav{display:none}
+.gh-premium-mobile-nav .wrap{display:flex;align-items:center;gap:4px;height:44px;overflow-x:auto}
+@media(max-width:1000px){
+  .gh--premium .gh-premium-grid{grid-template-columns:auto 1fr auto;height:66px}
+  .gh--premium .gh-premium-zone-nav .gh-premium-nav-links{display:none}
+  .gh-premium-mobile-nav:not(.gh-nav-hidden){display:block}
+}
+@media(max-width:680px){
+  .gh--premium .gh-search{display:none}
+  .gh--premium .gh-logo-text small{display:none}
+}
+
+/* ---- boutique_centered --------------------------------------------------- */
+.gh--boutique .gh-boutique-utility{display:flex;align-items:center;gap:8px;height:44px;font-size:12.5px}
+.gh-boutique-utility-spacer{flex:1}
+.gh--boutique .gh-boutique-search-panel{padding-block:14px;border-top:1px solid var(--gh-border)}
+.gh--boutique .gh-boutique-search-panel .gh-search{max-width:520px;margin-inline:auto}
+.gh--boutique .gh-boutique-logo-row{display:flex;justify-content:center;padding-block:22px}
+.gh--boutique .gh-boutique-logo-row .gh-logo-text b{font-size:22px;letter-spacing:.02em}
+.gh--boutique .gh-boutique-logo-row .gh-logo-text small{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase}
+/* .gh-boutique-nav is a shared desktop+mobile nav row (always visible,
+   the same "dual duty" policy as .gh--marketplace .gh-row-nav above) —
+   collapses behind the burger toggle only below the phone breakpoint. */
+.gh-boutique-nav{border-top:1px solid var(--gh-border)}
+/* Browser QA V4 — the shared core stylesheet also defines `.header .wrap`
+   with a fixed height, so the earlier min-height-only correction did not
+   actually remove the fixed-height constraint from this `.wrap`. Real
+   merchant navigation could still wrap one final item into the tagline
+   strip. Keep boutique navigation intentionally single-line instead:
+   explicitly restore auto height with a more-specific selector, disable
+   wrapping, and degrade to horizontal scrolling when real menu content is
+   wider than the available canvas. `safe center` keeps short menus centered
+   while falling back to a reachable start edge on overflow. */
+.gh--boutique .gh-boutique-nav .gh-boutique-nav-links{display:flex;align-items:center;justify-content:safe center;gap:6px;height:auto;min-height:46px;padding-block:6px;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-inline:contain}
+@media(max-width:680px){
+  .gh--boutique .gh-boutique-logo-row{padding-block:14px}
+  .gh--boutique .gh-boutique-logo-row .gh-logo-text b{font-size:18px}
+  .gh--boutique .gh-boutique-utility .gh-account-link span,
+  .gh--boutique .gh-account-link span:not(.sr-only){display:none}
+  .gh-boutique-nav{display:none}
+  .gh-boutique-nav:not(.gh-nav-hidden){display:block}
+}
+
+/* ---- dark_tech ------------------------------------------------------------ */
+/* dark palette variables now come from the .gh-shell--dark wrapper ancestor
+   (see "shared primitives" above) — .gh--dark itself no longer redefines
+   them, so the header/announcement/tagline all resolve the same values. */
+/* correction pass — real browser QA found the main header row still
+   rendering as a light surface. Root cause traced: apps/core/static/css/
+   theme_palette.css (loaded after storefront_builder.css, site-wide, and
+   entirely out of U2A's scope to modify) carries a bare ".header{...}"
+   rule using "!important" on background/color/border-color, to force
+   every header-classed element to the merchant's chosen site theme.
+   "!important" beats specificity outright, so that rule was winning over
+   this compound selector even though ".gh--dark.header" is more specific.
+   The only clean fix without touching that shared, global stylesheet is
+   to match its own "!important" on this one already-narrow compound
+   selector — it can only ever match an element carrying BOTH ".gh--dark"
+   AND ".header" together, i.e. only the dark_tech variant's own <header>;
+   no other selector, variant, or the legacy_default header is affected. */
+.gh--dark.header{background:var(--gh-bg) !important;color:var(--gh-ink) !important;border-color:var(--gh-border) !important}
+.gh--dark .gh-dark-row{display:flex;align-items:center;gap:14px;height:64px}
+.gh--dark .gh-dark-search{flex:0 1 260px;min-width:120px}
+.gh--dark .gh-search{background:var(--gh-surface);border:1px solid var(--gh-border)}
+.gh--dark .gh-dark-cats{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto}
+.gh--dark .gh-btn,.gh--dark .gh-account-link{background:var(--gh-surface);border-color:var(--gh-border)}
+/* correction pass — .gh-dark-mobile-nav is a dedicated mobile-only nav row
+   (the desktop category row lives in .gh-dark-cats instead); it must stay
+   hidden above the tablet breakpoint regardless of the initial Alpine
+   mobileNavOpen state, appearing only once .gh-dark-cats itself disappears
+   below, and even then only when not toggled closed (.gh-nav-hidden). */
+.gh-dark-mobile-nav{display:none}
+.gh-dark-mobile-nav .wrap{display:flex;align-items:center;gap:4px;height:44px;overflow-x:auto}
+@media(max-width:1000px){
+  .gh--dark .gh-dark-cats{display:none}
+  .gh-dark-mobile-nav:not(.gh-nav-hidden){display:block}
+}
+@media(max-width:680px){
+  .gh--dark .gh-dark-search{display:none}
+  .gh--dark .gh-logo-text small{display:none}
+}
+
+/* ========================================================================
+   U2A Browser QA V5 — intentional mobile header compositions
+   ------------------------------------------------------------------------
+   Desktop archetypes are not merely squeezed into a 332px viewport. Each
+   variant gets an explicit phone composition while reusing the same shared
+   search/logo/action/nav partials and the same merchant data.
+   ======================================================================== */
+.gh-mobile-search{display:none}
+
+/* Marketplace/Boutique use one nav element for both desktop and mobile.
+   Their local Alpine state starts closed for phones; desktop must stay
+   structurally visible regardless of that state. */
+@media(min-width:681px){
+  .gh--marketplace .gh-row-nav.gh-nav-hidden,
+  .gh--boutique .gh-boutique-nav.gh-nav-hidden{display:block}
+}
+
+@media(max-width:680px){
+  /* Shared phone chrome */
+  .gh-shell{max-width:100%;overflow-x:clip}
+  .gh-announce .wrap{height:auto;min-height:26px;padding-block:4px;gap:6px}
+  .gh-announce .wrap>span{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gh-announce-links{display:none}
+  .gh-shell .store-admin-shortcut{display:none}
+  .gh-btn,.gh-account-link{min-width:34px;height:34px;padding-inline:7px}
+  .gh-actions{gap:4px;min-width:0;flex:0 0 auto}
+  .gh-actions .gh-btn,.gh-actions .gh-account-link{width:34px;min-width:34px;height:34px;padding:0}
+  .gh-actions .gh-account-link span:not(.sr-only){position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .gh-logo-mark{width:32px;height:32px;border-radius:7px}
+  .gh-logo-mark svg{width:17px;height:17px}
+  .gh-logo img{max-height:32px;max-width:100px}
+  .gh-logo-text b{font-size:14px;max-width:100px}
+  .gh-tagline-strip{font-size:11px;padding:5px 0}
+
+  /* Marketplace: compact identity/actions row + a real full-width search
+     row. This preserves its search-first identity instead of crushing the
+     search between the logo and four utility actions. */
+  .gh--marketplace .gh-row-main{
+    display:grid;
+    grid-template-columns:34px minmax(0,1fr) auto;
+    grid-template-areas:"burger logo actions" "search search search";
+    align-items:center;
+    height:auto;
+    min-height:0;
+    gap:7px 8px;
+    padding-block:8px;
+  }
+  .gh--marketplace .gh-burger{grid-area:burger}
+  .gh--marketplace .gh-logo{grid-area:logo;min-width:0;max-width:100%}
+  .gh--marketplace .gh-logo-text b{max-width:108px}
+  .gh--marketplace .gh-search{grid-area:search;width:100%;max-width:none;height:42px}
+  .gh--marketplace .gh-search input{font-size:16px}
+  .gh--marketplace .gh-actions{grid-area:actions}
+  .gh--marketplace .gh-row-nav .wrap{height:auto;min-height:44px;padding-block:4px;overflow-x:auto;overscroll-behavior-inline:contain}
+  .gh--marketplace .gh-row-nav .gh-cat-btn{height:34px;padding-inline:10px;font-size:11.5px}
+  .gh--marketplace .gh-row-nav .gh-nl{height:34px;font-size:11.5px;padding-inline:9px}
+
+  /* The desktop mega panel is unusable at 320–390px. On phones it becomes
+     a bounded viewport sheet: category rail first, content below, both
+     independently scrollable without widening the document. */
+  .gh--marketplace .gh-cat-mega-panel{
+    position:fixed;
+    top:auto;
+    right:10px;
+    left:10px;
+    bottom:10px;
+    width:auto;
+    min-width:0;
+    max-width:none;
+    max-height:min(72dvh,560px);
+    display:grid;
+    grid-template-columns:1fr;
+    overflow:auto;
+    border-radius:14px;
+  }
+  .gh--marketplace .gh-cat-mega-rail{width:100%;max-height:190px;border-inline-start:0;border-bottom:1px solid var(--gh-border)}
+  .gh--marketplace .gh-cat-mega-content{max-height:260px;padding:12px}
+  .gh--marketplace .gh-cat-mega-promo{max-width:none}
+
+  /* Premium: true compact three-zone phone row. Desktop search is removed
+     from the utility zone and reintroduced below as a full-width shared
+     search component, so search remains available on mobile. */
+  .gh--premium .gh-premium-grid{
+    grid-template-columns:auto minmax(0,1fr) auto;
+    height:auto;
+    min-height:58px;
+    gap:6px;
+    padding-block:7px;
+  }
+  .gh--premium .gh-premium-zone-nav{gap:0}
+  .gh--premium .gh-premium-zone-logo{min-width:0;justify-content:center}
+  .gh--premium .gh-premium-zone-logo .gh-logo{max-width:100%;min-width:0}
+  .gh--premium .gh-premium-zone-logo .gh-logo-text b{max-width:105px}
+  .gh--premium .gh-premium-zone-utility{gap:4px}
+  .gh--premium .gh-premium-mobile-nav .wrap{height:auto;min-height:42px;padding-block:4px}
+
+  /* Boutique has a separate centered identity row, so the phone utility
+     strip only needs compact controls. Search panel must defeat the shared
+     `.header .wrap` fixed-height rule that previously clipped it. */
+  .gh--boutique .gh-boutique-utility{height:auto;min-height:48px;gap:4px;padding-block:5px}
+  .gh--boutique .gh-boutique-logo-row{height:auto!important;min-height:0;padding-block:12px}
+  .gh--boutique .gh-boutique-logo-row .gh-logo-text b{font-size:18px;max-width:190px}
+  .gh--boutique .gh-boutique-search-panel{height:auto!important;min-height:0;padding-block:8px}
+  .gh--boutique .gh-boutique-search-panel .gh-search{width:100%;max-width:none;height:42px}
+  .gh--boutique .gh-boutique-search-panel .gh-search input{font-size:16px}
+  .gh--boutique .gh-boutique-nav .gh-boutique-nav-links{min-height:42px;padding-block:4px;justify-content:flex-start}
+
+  /* Dark Tech mirrors Premium's phone strategy while keeping the entire
+     surface dark. Search is a second full-width row; categories live only
+     in the burger-controlled mobile nav. */
+  .gh--dark .gh-dark-row{height:auto;min-height:58px;gap:6px;padding-block:7px}
+  .gh--dark .gh-logo{min-width:0;max-width:100%;flex:1 1 auto}
+  .gh--dark .gh-logo-text b{max-width:108px}
+  .gh--dark .gh-dark-mobile-nav .wrap{height:auto;min-height:42px;padding-block:4px}
+
+  /* Shared mobile search rows for Premium + Dark. */
+  .gh-mobile-search{width:calc(100% - 18px);margin-inline:auto;padding-bottom:7px}
+  .gh--premium .gh-mobile-search:not([data-shell-hide-mobile]),
+  .gh--dark .gh-mobile-search:not([data-shell-hide-mobile]){display:block}
+  .gh--premium .gh-mobile-search .gh-search,
+  .gh--dark .gh-mobile-search .gh-search{display:flex;width:100%;max-width:none;height:42px}
+  .gh-mobile-search .gh-search input{font-size:16px}
+
+  /* Never let U2A header internals widen the page. Horizontal navigation
+     scrolls inside its own surface instead. */
+  .gh-row-main,.gh-premium-grid,.gh-boutique-utility,.gh-dark-row,
+  .gh-row-nav,.gh-premium-mobile-nav,.gh-boutique-nav,.gh-dark-mobile-nav{max-width:100%}
+}
+
+@media(max-width:380px){
+  .gh-btn,.gh-account-link{min-width:32px;height:32px}
+  .gh-actions .gh-btn,.gh-actions .gh-account-link{width:32px;min-width:32px;height:32px}
+  .gh--marketplace .gh-row-main{grid-template-columns:32px minmax(0,1fr) auto;gap:6px}
+  .gh--marketplace .gh-logo-text b,.gh--dark .gh-logo-text b{max-width:82px;font-size:13px}
+  .gh--premium .gh-premium-zone-logo .gh-logo-text b{max-width:86px;font-size:13px}
+}

@@ -9,6 +9,13 @@ Family-aware (``page_shell_header.html``/``page_shell_footer.html`` —
 همان تمپلیتی که پیش از این فاز فقط ``catalog/home_visual.html`` و
 ``storefront_builder/preview.html`` استفاده می‌کردند) استفاده کند.
 
+U2A: ``header_variant_template`` (نامِ Templateِ هدرِ فعال) دیگر همیشه
+همان ``page_shell_header.html`` نیست — از ``header_variant``یِ ذخیره‌شده
+در ``layout_header_config`` توسطِ ``global_region_registry`` resolve
+می‌شود (نگاه کنید به ``storefront_context_service.build_universal_storefront_context``)؛
+برایِ نسخه‌هایِ بدونِ این کلید، همچنان دقیقاً همان ``page_shell_header.html``
+است (Variantِ ``legacy_default``) — بدونِ تغییرِ بصری.
+
 قراردادِ اکیداً حفظ‌شده — رفتارِ Storeهایِ قدیمی هرگز تغییر نمی‌کند:
 اگر ``uses_universal_shell`` در کانتکست (توسطِ
 ``apps.storefront_builder.services.storefront_context_service.build_universal_storefront_context``
@@ -32,7 +39,7 @@ Family-aware (``page_shell_header.html``/``page_shell_footer.html`` —
 
 {% block header %}
 {% if uses_universal_shell %}
-{% include "storefront_builder/partials/page_shell_header.html" with header_config=layout_header_config is_live_storefront=True is_builder_preview=False %}
+{% include header_variant_template with header_config=layout_header_config is_live_storefront=True is_builder_preview=False %}
 {% else %}
 {{ block.super }}
 {% endif %}

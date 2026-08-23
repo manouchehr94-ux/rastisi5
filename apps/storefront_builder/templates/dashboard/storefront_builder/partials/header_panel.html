@@ -19,6 +19,14 @@
 
     <section class="sfb-v3-inspector-tab-panel" x-show="inspectorTab === 'design'" x-cloak>
       <div class="sfb-v3-tab-note">طراحی و ساختار هدر</div>
+      <div class="form-group">
+        <label for="header_variant_select">سبک هدر</label>
+        <select id="header_variant_select" name="header_variant" class="form-select">
+          {% for variant in header_variants %}
+          <option value="{{ variant.key }}" {% if config.header_variant == variant.key %}selected{% endif %}>{{ variant.label_fa }}</option>
+          {% endfor %}
+        </select>
+      </div>
       <div class="sfb-layer sfb-layer-structure" style="cursor:default">
         <span class="sfb-layer-main"><span class="sfb-layer-name">🖼 لوگو و نام فروشگاه</span><span class="sfb-layer-meta">همیشه فعال</span></span>
       </div>

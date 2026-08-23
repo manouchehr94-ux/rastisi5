@@ -1,0 +1,15 @@
+{% load persian %}{% comment %}
+U2A shared wishlist action — reused by every Global Header Variant.
+Required context: ``is_live_storefront``/``is_builder_preview``.
+``wishlist_count`` comes from the global cart context processor.
+{% endcomment %}
+{% if is_live_storefront %}
+<a class="gh-btn" href="{% url 'customers:wishlist' %}" title="علاقه‌مندی‌ها" aria-label="علاقه‌مندی‌ها">
+  {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="wishlist" %}
+  <span class="gh-cnt" id="wishlist-count">{{ wishlist_count|fa_number }}</span>
+</a>
+{% else %}
+<a class="gh-btn" href="#" onclick="return false" title="علاقه‌مندی‌ها (پیش‌نمایش)" aria-label="علاقه‌مندی‌ها">
+  {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="wishlist" %}
+</a>
+{% endif %}

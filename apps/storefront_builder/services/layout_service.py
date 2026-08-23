@@ -24,7 +24,7 @@ from django.utils import timezone
 
 from apps.core.services.rate_limit import enforce_rate_limit
 
-from .. import appearance_registry, layout_preset_registry
+from .. import appearance_registry, global_region_registry, layout_preset_registry
 from . import container_service
 from ..models import (
     APPEARANCE_COLOR_KEYS,
@@ -230,6 +230,13 @@ def validate_header_config(config: dict) -> dict:
     try:
         cleaned["extra_blocks"] = _validate_header_extra_blocks(config.get("extra_blocks"))
     except ShellBlockError as exc:
+        raise HeaderConfigValidationError(str(exc)) from exc
+
+    try:
+        cleaned["header_variant"] = global_region_registry.validate_global_variant_selection(
+            global_region_registry.GLOBAL_HEADER_REGION, config.get("header_variant"),
+        )
+    except global_region_registry.UnknownGlobalVariantSelectionError as exc:
         raise HeaderConfigValidationError(str(exc)) from exc
 
     if not cleaned["show_cart"]:

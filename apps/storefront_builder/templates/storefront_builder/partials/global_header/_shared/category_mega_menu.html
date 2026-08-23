@@ -1,0 +1,50 @@
+{% comment %}
+U2A shared category mega-menu — real Category tree (``nav_categories``,
+Store-scoped, prefetched children — never hardcoded), reused by any Global
+Header Variant that wants a marketplace-style category trigger + panel.
+Optional ``trigger_label`` (defaults to "دسته‌بندی کالاها").
+{% endcomment %}
+<div class="gh-cat-mega" @click.outside="catMenuOpen = false" x-data="{ activeCat: null }">
+  <button type="button" class="gh-cat-btn" @click="catMenuOpen = !catMenuOpen" :aria-expanded="catMenuOpen.toString()" aria-haspopup="true">
+    {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="grid" %}
+    {{ trigger_label|default:"دسته‌بندی کالاها" }}
+  </button>
+  <div class="gh-cat-mega-overlay" x-show="catMenuOpen" x-cloak @click="catMenuOpen = false"></div>
+  <div class="gh-cat-mega-panel" x-show="catMenuOpen" x-cloak>
+    <div class="gh-cat-mega-rail" x-init="activeCat = $el.firstElementChild ? $el.firstElementChild.dataset.catId : null">
+      {% for cat in nav_categories %}
+      <a href="{% url 'catalog:product-list' %}?category={{ cat.slug }}"
+         class="gh-cat-mega-rail-item" data-cat-id="{{ cat.id }}"
+         :class="activeCat === '{{ cat.id }}' ? 'active' : ''"
+         @mouseenter="activeCat = '{{ cat.id }}'" @focus="activeCat = '{{ cat.id }}'">
+        <span>{{ cat.icon }}</span><span>{{ cat.name }}</span>
+      </a>
+      {% empty %}
+      <div class="gh-cat-mega-empty">فعلاً دسته‌بندی‌ای ثبت نشده است</div>
+      {% endfor %}
+    </div>
+    {% if nav_categories %}
+    <div class="gh-cat-mega-content">
+      {% for cat in nav_categories %}
+      <div class="gh-cat-mega-pane" x-show="activeCat === '{{ cat.id }}'" x-cloak>
+        {% if cat.children.all %}
+        <div class="gh-cat-mega-cols{% if cat.children.all|length > 6 %} cols-2{% endif %}">
+          {% for child in cat.children.all %}
+          <a href="{% url 'catalog:product-list' %}?category={{ child.slug }}">{{ child.icon }} {{ child.name }}</a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="gh-cat-mega-empty-children">فعلاً زیردسته‌ای برای «{{ cat.name }}» ثبت نشده است</p>
+        {% endif %}
+        {% if cat.image %}
+        <a class="gh-cat-mega-promo" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+          <img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">
+          <span>{{ cat.name }}</span>
+        </a>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>

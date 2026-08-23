@@ -37,6 +37,7 @@ arbitrary visual blocks» برایِ صفحاتِ خالی؛ اینجا معاد
 
 from __future__ import annotations
 
+from .. import global_region_registry
 from . import page_resolution_service
 from . import render_service
 
@@ -117,12 +118,21 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
     request.storefront_appearance_version = version
 
     items = render_service.build_page_render_items(page, store, page_context=page_context)
+    header_config = version.effective_header_config()
     return {
         "uses_universal_shell": True,
         "storefront_version": version,
         "storefront_page": page,
         "page_type": page_type,
-        "layout_header_config": version.effective_header_config(),
+        "layout_header_config": header_config,
+        # U2A — رشته‌ی نامِ Templateِ Djangoِ هدرِ فعال، از رویِ Registryِ
+        # امن resolve شده (نگاه کنید به ``global_region_registry``)؛ هرگز
+        # از JSONِ ذخیره‌شده مستقیماً خوانده نمی‌شود — فقط کلیدِ
+        # ``header_variant``یِ آن بررسی می‌شود، خودِ مسیرِ Template همیشه
+        # یک رشته‌ی ثابتِ نوشته‌شده در کدِ پایتونِ همان Registry است.
+        "header_variant_template": global_region_registry.resolve_global_renderer_template(
+            global_region_registry.GLOBAL_HEADER_REGION, header_config,
+        ),
         "layout_footer_config": version.effective_footer_config(),
         "render_items": items,
         "rows": render_service.group_items_into_rows(items),

@@ -3,6 +3,14 @@ Canonical Header/Navigation shell — the single implementation shared by the
 public Storefront (apps/catalog/templates/catalog/home_visual.html) and the
 Builder Preview (apps/storefront_builder/templates/storefront_builder/preview.html).
 
+U2A: this is now specifically the ``legacy_default`` Global Header Variant's
+renderer (see apps/storefront_builder/global_region_registry.py) — the
+backward-compatible default every Store with no ``header_variant`` set
+still renders, unchanged. Three sibling renderers (marketplace_search_first/
+premium_three_column/boutique_centered/dark_tech) live under
+storefront_builder/partials/global_header/ and share this file's small
+partials (see their own headers) rather than duplicating this whole file.
+
 Required context:
   header_config     — dict from StorefrontLayoutVersion.effective_header_config()
   top_level_categories — queryset/list of active root Categories

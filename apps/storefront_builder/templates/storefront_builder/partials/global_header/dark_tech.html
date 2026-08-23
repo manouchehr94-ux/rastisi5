@@ -1,0 +1,71 @@
+{% comment %}
+U2A Global Header Variant — Dark Tech (key: dark_tech).
+
+Archetype: compact/digital-product feel, dark-compatible structural
+surface, search/account/cart affordances, visually distinct DOM. One
+single dense row (logo, compact search, flat category chip row, actions
+all inline) is the structural signature — no second row, no mega-menu
+panel, no centered/stacked composition. The dark surface itself is a
+structural design choice of this archetype (not a per-merchant brand
+color) — interactive/accent colors still come from the shared design
+tokens (``--violet``/``--pink``/``--brand-*``) so the merchant's own
+palette still shows through the accent/hover states, per U2A §11.
+
+Required context: same three keys every variant renderer receives.
+{% endcomment %}
+{% with hc=header_config rc=header_config.responsive %}
+<div class="gh-shell gh-shell--dark" x-data="{ ghMobileOpen: false }">
+{% include "storefront_builder/partials/global_header/_shared/announcement_bar.html" %}
+
+<header class="header gh gh--dark{% if hc.sticky %} sfb-sticky{% endif %}" style="background:var(--gh-bg) !important;color:var(--gh-ink) !important;border-color:var(--gh-border) !important">
+  <div class="wrap gh-dark-row">
+    <button class="gh-btn gh-burger" @click="ghMobileOpen = !ghMobileOpen" :aria-expanded="ghMobileOpen.toString()" aria-controls="gh-mobile-nav" aria-label="منو">
+      {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="burger" %}
+    </button>
+    {% include "storefront_builder/partials/global_header/_shared/logo.html" with show_tagline=False %}
+    {% if hc.show_search %}
+    <div class="gh-inline-block gh-dark-search" {% if rc.show_search.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+      {% include "storefront_builder/partials/global_header/_shared/search_form.html" with placeholder_text="جستجو..." compact=True field_id="gh-search-input-dark" %}
+    </div>
+    {% endif %}
+    <div class="gh-dark-cats" style="scrollbar-width:none;-ms-overflow-style:none">
+      {% include "storefront_builder/partials/global_header/_shared/category_link_row.html" %}
+    </div>
+    <div class="gh-actions">
+      {% include "storefront_builder/partials/global_header/_shared/admin_shortcut.html" %}
+      {% if hc.show_account %}
+      <div class="gh-inline-block" {% if rc.show_account.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_account.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_header/_shared/account_action.html" with show_label=False %}
+      </div>
+      {% endif %}
+      {% if hc.show_wishlist %}
+      <div class="gh-inline-block" {% if rc.show_wishlist.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_wishlist.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_header/_shared/wishlist_action.html" %}
+      </div>
+      {% endif %}
+      {% if hc.show_cart %}
+      {% include "storefront_builder/partials/global_header/_shared/cart_action.html" %}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if hc.show_search %}
+  <div class="gh-mobile-search gh-dark-mobile-search" {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+    {% include "storefront_builder/partials/global_header/_shared/search_form.html" with placeholder_text="جستجو..." compact=True field_id="gh-search-input-dark-mobile" %}
+  </div>
+  {% endif %}
+
+  <nav id="gh-mobile-nav" class="gh-dark-mobile-nav" :class="{ 'gh-nav-hidden': !ghMobileOpen }">
+    <div class="wrap" style="scrollbar-width:none;-ms-overflow-style:none">
+      {% include "storefront_builder/partials/global_header/_shared/nav_header_items.html" %}
+    </div>
+  </nav>
+</header>
+
+{% for block in hc.extra_blocks %}
+{% if block.type == "tagline" and SHOP_TAGLINE %}
+<div class="gh-tagline-strip" role="note"><div class="wrap"><span>{{ SHOP_TAGLINE }}</span></div></div>
+{% endif %}
+{% endfor %}
+</div>
+{% endwith %}

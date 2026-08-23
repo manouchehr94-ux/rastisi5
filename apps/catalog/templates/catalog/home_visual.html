@@ -2,7 +2,7 @@
 {% load static persian %}
 
 {% block header %}
-{% include "storefront_builder/partials/page_shell_header.html" with header_config=layout_header_config is_live_storefront=True is_builder_preview=False %}
+{% include header_variant_template with header_config=layout_header_config is_live_storefront=True is_builder_preview=False %}
 {% endblock %}
 
 {% block extra_css %}
