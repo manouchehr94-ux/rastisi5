@@ -551,7 +551,8 @@ unaffected by the shipping flag either way.
 ## U7 — Ready Template / Version / Baseline / Reset Engine
 
 - **Starting SHA:** `57e03772f2aba46b7016f80cb262f9a73d56eca5`
-- **Ending SHA:** _(recorded after commit, see below)_
+- **Ending SHA:** `d9978ac818620891fbd4f02273053803b2412198` (verified equal
+  to `origin/feature/storefront-builder-v3-redesign` after push)
 
 ### Audit findings (before implementing)
 
