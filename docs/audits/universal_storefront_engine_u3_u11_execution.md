@@ -172,7 +172,8 @@ capabilities render correctly.
 ## U4 — Hero / Category / Content / Promotion Component System
 
 - **Starting SHA:** `51afac91a1259d50cc7073944e86758e8539e58c`
-- **Ending SHA:** _(recorded after commit, see below)_
+- **Ending SHA:** `3c6cf9ecfa070f450b904a7ee60db83f67dd851d` (verified equal
+  to `origin/feature/storefront-builder-v3-redesign` after push)
 
 ### Audit findings (before implementing)
 
