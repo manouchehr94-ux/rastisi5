@@ -4,7 +4,8 @@ search مجاز است (همان مسیرِ کوئری/ویو، فقط نوعِ 
 {% endcomment %}
 <div class="wrap">
   <div class="plp">
-    <aside class="plp-filters">
+    <details class="plp-filters" open>
+      <summary class="plp-filters-toggle">فیلترها و مرتب‌سازی</summary>
       <form id="filterForm" hx-get="{% url 'catalog:product-list' %}" hx-target="#product-results"
             hx-push-url="true" hx-trigger="submit, change" hx-indicator="#plpLoading">
         <h3>جستجو</h3>
@@ -48,6 +49,11 @@ search مجاز است (همان مسیرِ کوئری/ویو، فقط نوعِ 
           فقط کالاهای تخفیف‌دار
         </label>
 
+        <label class="plp-check">
+          <input type="checkbox" name="in_stock" value="1" {% if in_stock_only %}checked{% endif %}>
+          فقط کالاهای موجود
+        </label>
+
         <h3>مرتب‌سازی</h3>
         <div class="plp-fg">
           <select class="plp-inp" name="sort">
@@ -60,7 +66,7 @@ search مجاز است (همان مسیرِ کوئری/ویو، فقط نوعِ 
         <button type="submit" class="btn btn-primary" style="width:100%">اعمال فیلتر</button>
         <a href="{% url 'catalog:product-list' %}" class="plp-reset">حذف همه‌ی فیلترها</a>
       </form>
-    </aside>
+    </details>
 
     <div>
       <div style="display:flex;justify-content:flex-end;margin-bottom:8px">

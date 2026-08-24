@@ -291,3 +291,133 @@ never appears in the single-slide `split` layout.
 3. **`hero_banner`'s `split` variant shows only the first slide** — a
    documented design constraint of the two-column metaphor, not a data-loss
    bug; additional slides remain fully visible/editable in the Builder.
+
+---
+
+## U5 — Universal Listing / Filter / Search Experience
+
+- **Starting SHA:** `17e3da2abafa2d1f915fdbaac3523f549ba128cd`
+- **Ending SHA:** _(recorded after commit, see below)_
+
+### Audit findings (before implementing)
+
+Read `apps/catalog/views.py` (`_filtered_products`, `build_product_listing_context`,
+`collection_index`, `collection_detail`), `apps/storefront_builder/services/render_service.py`
+(`_product_listing_context`, `_CONTEXT_AWARE_BUILDERS`), and every public
+catalog template. A prior (pre-session) "Phase 5" audit doc
+(`docs/architecture/STOREFRONT_BUILDER_V2_PHASE_5_AUDIT.md`) had flagged
+"`render_items` computed but never rendered on the 5 non-home page types" as
+the single biggest gap in this area — checked whether that gap still exists:
+
+- **It's already closed for 4 of 5 page types.** `product_detail.html`,
+  `product_list.html`, `collection_detail.html`, and the cart templates all
+  already consume `render_rows.html`/`render_items` — confirmed by grep, not
+  assumed. `build_product_listing_context` is already the one shared
+  listing-context builder used by both the public `product_list` route and
+  the composable `product_listing` context-aware section (`_product_listing_context`
+  in `render_service.py`) — exactly the "coherent reusable listing shell"
+  U5 asks for, already built.
+- Already centralized and working: result count (`plp-count`), sorting
+  (`LIST_SORT_OPTIONS`), pagination (`Paginator`/`page_obj`), empty state
+  (`plp-empty`), category/brand/price/search-query filters, and product-card
+  rendering via `product_card.html` (which U3 already rewired onto
+  `product_card_service`) — no rework needed for any of these.
+- **Only `collection_index`** (list-of-collections, not a specific
+  collection's products) stays outside the composable `render_items`
+  architecture — a documented, deliberate pre-existing boundary (it has no
+  "current collection" to be context-aware about; per the old Phase 5 audit
+  §6, "left exactly as found"). Confirmed this is what the master
+  contract's "collection_index has some hard-coded behavior" debt item
+  refers to: it has **no pagination at all** — a store with many
+  collections rendered every one of them on a single unbounded page. That's
+  the concrete, real, in-scope gap this phase closes for it (see below);
+  the render_items/context-aware-section boundary itself is untouched
+  (correctly still out of scope — no "current collection" for it to be
+  aware of).
+- Real gaps found against the master brief's explicit filter-dimension list
+  (price ✓, brand ✓, category ✓ already existed): **availability** (real
+  `Product.stock` data) was missing — added. **Product attributes/options**
+  faceting was missing — audited and deliberately **not** built this phase
+  (see Known limitations): the master contract's own explicit caution ("do
+  NOT load every possible attribute blindly") applies directly here — a
+  safe, store-scoped, N+1-free attribute-value aggregation across a
+  filtered queryset is a real, separate piece of design work, not a
+  drop-in addition, and rushing a shallow version risked exactly the kind
+  of blind-loading the contract warns against.
+- Confirmed via test: no mobile-usable way to collapse the filter panel
+  existed — on a phone, the entire filter form (search/category/brand/
+  price/discount/sort) always rendered above the product grid with no
+  collapse affordance, pushing every visible product below the fold.
+
+### Architecture implemented
+
+- **Availability filter**: `_filtered_products` gained `in_stock=1` (real
+  `Product.stock__gt=0`, the same field U3's `ProductCardData.is_out_of_stock`
+  already reads — no new data source). Threaded through
+  `build_product_listing_context` (`in_stock_only`) and the `product_listing`
+  section template (checkbox, reflects selection).
+- **Mobile filter affordance**: `.plp-filters` (`product_listing.html`)
+  became a native `<details>` disclosure with a `<summary>` toggle,
+  reusing the exact idiom `.faq-item summary` already established
+  (`::-webkit-details-marker` reset, no JS). Ships `open` by default —
+  byte-identical default visibility to before this phase — but a shopper
+  can now actually collapse the panel on a phone after using it;
+  keyboard-operable natively.
+- **`collection_index` pagination**: added `Paginator`/`page_obj` (same
+  `PRODUCTS_PER_PAGE` constant every other listing page already uses) around
+  the existing, unmodified `collection_service.public_collection_queryset(store)`
+  — the query itself (already tenant-scoped, already N+1-free) is untouched;
+  only the previously-missing page-boundary was added, plus pagination
+  controls in the template reusing the `.pagination` CSS class already
+  shared with `product_list_results.html`.
+
+### Migrations
+
+None. `in_stock`/pagination are request-param-driven, not new model fields.
+
+### Focused test results
+
+`apps/catalog/tests/test_u5_listing_filter_search.py` (new, 10 tests):
+**10/10 passed.** Covers: in-stock filter correctness and no-regression
+default behavior, checkbox state round-trip, zero added queries from the
+new facet, store-boundary safety for the new filter (function-level,
+proven directly against `_filtered_products` rather than relying on the
+pre-existing store-scoping alone), the mobile disclosure's markup and that
+it doesn't hide the real filter form, and `collection_index` pagination
+(single page has no controls; 13 collections correctly split 12/1 across
+two pages).
+
+### Regression results
+
+- `python manage.py test apps.catalog` — **792/792 passed** (789 + 3 new
+  in an existing U5 test class expansion — see focused count above; net
+  new across the file is 10 tests, 3 landed after the initial 7-test
+  checkpoint slice).
+- `python manage.py test apps.storefront_builder` — see result recorded at
+  commit time below.
+- `python manage.py makemigrations --check --dry-run` — no changes detected.
+- `git diff --check` — clean.
+
+### Known limitations (explicit capability boundaries, not gaps to hide)
+
+1. **Product attribute/option faceting**: not built. Would need a real,
+   separate design pass (safe aggregation of distinct attribute values
+   across a filtered, store-scoped queryset without loading every
+   attribute blindly or introducing N+1) — deferred rather than shipped
+   shallow.
+2. **Merchant-collection facet** on the product listing page (e.g. "filter
+   by collection X"): not built this phase — same reasoning, and lower
+   priority than availability given collections already have their own
+   dedicated listing page (`collection_detail`).
+3. **"Active filters" are shown via the filter controls' own state**
+   (selected dropdown values, checked checkboxes, filled price inputs) —
+   not a separate removable-chip summary row. Judged adequate for this
+   phase; a chip-based summary would be a presentation-only enhancement,
+   not a new capability, and was left out to keep this phase's diff scoped
+   to real gaps rather than optional polish.
+4. `collection_index`'s inline hardcoded styles (bypassing the shared
+   appearance/token system every composable page uses) were **not**
+   touched — that's a visual/appearance-system concern better scoped to a
+   later phase (U9's advanced/appearance work), not a "listing/filter/
+   search" gap; only the missing pagination (a genuine listing-experience
+   gap) was fixed here.

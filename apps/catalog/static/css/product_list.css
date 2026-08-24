@@ -36,7 +36,23 @@
 .htmx-request .htmx-indicator{visibility:visible}
 .htmx-request.plp-results{opacity:.55;transition:opacity .15s}
 
+.plp-filters-toggle{display:none}
+
 @media(max-width:860px){
   .plp{grid-template-columns:1fr}
-  .plp-filters{position:static}
+  .plp-filters{position:static;padding:0;overflow:hidden}
+  /* U5 — real, accessible mobile filter affordance: a native <details>
+     disclosure (same idiom already established by .faq-item summary).
+     Ships ``open`` by default (byte-identical visible behavior to before
+     this change — filters were always shown), but a shopper can now
+     actually collapse the filter panel out of the way on a phone screen
+     after using it; keyboard-operable, no JS required. */
+  .plp-filters-toggle{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    cursor:pointer;list-style:none;padding:14px 18px;font-size:13.5px;font-weight:800;
+  }
+  .plp-filters-toggle::-webkit-details-marker{display:none}
+  .plp-filters-toggle::after{content:'▾';font-size:11px;color:var(--muted);transition:transform .15s}
+  .plp-filters[open] .plp-filters-toggle::after{transform:rotate(180deg)}
+  .plp-filters form{padding:0 18px 18px}
 }

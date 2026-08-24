@@ -171,6 +171,13 @@ def _filtered_products(request, store):
     if request.GET.get("discounted") == "1":
         qs = qs.filter(discount_percent__gt=0)
 
+    # U5 — availability facet, real stock data (no fabricated "in stock"
+    # claim): ``Product.stock`` is already the single source of truth used
+    # by the card resolver's ``is_out_of_stock`` (U3) and by
+    # ``inventory_service`` — reusing the same field here, not a new one.
+    if request.GET.get("in_stock") == "1":
+        qs = qs.filter(stock__gt=0)
+
     sort_key = request.GET.get("sort", DEFAULT_LIST_SORT)
     if sort_key not in LIST_SORT_OPTIONS:
         sort_key = DEFAULT_LIST_SORT
@@ -213,6 +220,7 @@ def build_product_listing_context(request, store):
         "min_price": request.GET.get("min_price", "").strip(),
         "max_price": request.GET.get("max_price", "").strip(),
         "discounted_only": request.GET.get("discounted") == "1",
+        "in_stock_only": request.GET.get("in_stock") == "1",
         "querystring": _querystring_without_page(request),
     }
 
@@ -432,16 +440,24 @@ def product_review_create(request, slug):
 def collection_index(request):
     """فهرستِ کالکشن‌هایِ فعالِ این Store — عمداً فقط ``name``/``image``/
     ``description`` را نشان می‌دهد، بدونِ کالاهایِ داخلِ هرکدام (که در
-    ``collection_detail`` است) تا کوئری‌بودجه‌ی این صفحه ثابت بماند."""
+    ``collection_detail`` است) تا کوئری‌بودجه‌ی این صفحه ثابت بماند.
+
+    U5 — این صفحه پیش از این هیچ صفحه‌بندی‌ای نداشت (شناخته‌شده به‌عنوانِ
+    بدهیِ فنی در قرارداد اصلی): یک فروشگاه با کالکشن‌هایِ زیاد کلِ فهرست
+    را در یک صفحه‌ی بی‌نهایت‌بلند رندر می‌کرد. همان الگویِ
+    ``build_product_listing_context``/``collection_detail`` (``Paginator``
+    + ``page_obj``) اینجا هم اعمال می‌شود — بدونِ تغییرِ کوئریِ خودِ
+    ``public_collection_queryset`` (هنوز تنانت‌سیف/بدونِ N+1)."""
     store = resolve_store_for_storefront(request)
-    collections = collection_service.public_collection_queryset(store)
+    paginator = Paginator(collection_service.public_collection_queryset(store), PRODUCTS_PER_PAGE)
+    page_obj = paginator.get_page(request.GET.get("page"))
 
     from apps.storefront_builder.services.storefront_context_service import (
         build_universal_storefront_context,
     )
     from apps.storefront_builder.models import StorefrontPage
 
-    context = {"collections": collections}
+    context = {"collections": page_obj.object_list, "page_obj": page_obj}
     context.update(build_universal_storefront_context(request, store, StorefrontPage.PageType.COLLECTION, page_context=context))
     return render(request, "catalog/collection_index.html", context)
 
