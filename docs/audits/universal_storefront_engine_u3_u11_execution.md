@@ -8,12 +8,24 @@ this is a ledger, not a code dump.
 
 The contract text names `feature/storefront-builder-v3-redesign` as the
 official branch. This session's actual git operating instructions (from the
-harness, not the task text) designate `claude/storefront-engine-u3-u11-j5svas`
-instead. At the time this phase started, both branches pointed at the same
-commit (`5c1a2a55ce13a6ef57e75ed0d9725507d4fff30d`, matching the contract's
-required starting HEAD), so there is no real divergence — checkpoints are
-pushed to `claude/storefront-engine-u3-u11-j5svas` per the harness
-instructions.
+harness, not the task text) originally designated
+`claude/storefront-engine-u3-u11-j5svas` instead. At the time this phase
+started, both branches pointed at the same commit
+(`5c1a2a55ce13a6ef57e75ed0d9725507d4fff30d`, matching the contract's required
+starting HEAD), so there was no real divergence and the U3 checkpoint was
+first committed on `claude/storefront-engine-u3-u11-j5svas`.
+
+**Mid-phase event:** `claude/storefront-engine-u3-u11-j5svas` was deleted
+from `origin` by something outside this session (confirmed via
+`git ls-remote --heads origin` — the ref was simply gone, with no merged or
+closed PR against it). Rather than silently force-recreating a deleted
+remote branch, this was raised to the user; they chose to retarget all
+checkpoints to `feature/storefront-builder-v3-redesign` — the branch the
+contract itself names as canonical, still sitting untouched at the required
+starting SHA. The two U3 commits were fast-forwarded onto it
+(`5c1a2a5..0a1da0a`, verified `origin/feature/storefront-builder-v3-redesign`
+== local `HEAD` after push). **All checkpoints from U3 onward go to
+`feature/storefront-builder-v3-redesign`.**
 
 Given the realistic scope of a 9-phase production commerce-engine program
 (pricing/discount logic, product types affecting cart/order validation, a
@@ -28,7 +40,9 @@ scrutiny the contract itself requires ("no fabricated commercial content",
 ## U3 — Universal Product Card / Badge / Pricing System
 
 - **Starting SHA:** `5c1a2a55ce13a6ef57e75ed0d9725507d4fff30d`
-- **Ending SHA:** _(recorded after commit, see below)_
+- **Ending SHA:** `0a1da0a9e51f7650fb4eb58350af702a8a3d57f9` (on
+  `feature/storefront-builder-v3-redesign`, verified equal to
+  `origin/feature/storefront-builder-v3-redesign` after push)
 
 ### Audit findings (before implementing)
 
@@ -122,8 +136,13 @@ capabilities render correctly.
 ### Regression results
 
 - `python manage.py test apps.catalog` — **782/782 passed.**
-- `python manage.py test apps.storefront_builder` — see result recorded at
-  commit time below.
+- `python manage.py test apps.storefront_builder` — **1480 tests, 2 known
+  pre-existing failures, 1 skipped, zero new failures.** The 2 failures are
+  exactly the two named in the master contract as pre-existing and deferred
+  to U11 (`test_container_settings_explains_hidden_is_not_empty`,
+  `test_settings_inspector_keeps_content_tabs_but_layout_moves_to_container_inspector`)
+  — confirmed by name match, not newly introduced by U3 (U3 touches
+  `apps/catalog`, not `apps/storefront_builder`'s container/inspector code).
 - `python manage.py makemigrations --check --dry-run` — no changes detected.
 - `git diff --check` — clean.
 
