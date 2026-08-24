@@ -545,3 +545,148 @@ unaffected by the shipping flag either way.
 3. **PDP capability visibility beyond the shipping-claim fix** (e.g.
    product-type-specific sections/CTAs) was not built, since it would
    depend on the same missing `fulfillment_type` field from limitation #1.
+
+---
+
+## U7 — Ready Template / Version / Baseline / Reset Engine
+
+- **Starting SHA:** `57e03772f2aba46b7016f80cb262f9a73d56eca5`
+- **Ending SHA:** _(recorded after commit, see below)_
+
+### Audit findings (before implementing)
+
+Read `apps/storefront_builder/layout_preset_registry.py`,
+`apps/storefront_builder/services/preset_service.py`,
+`apps/storefront_builder/variant_contract.py`'s provenance section
+(`build_template_provenance`/`validate_template_provenance`/
+`ENGINE_SCHEMA_VERSION` — explicitly commented "for U7... not written by
+any Store/Draft in this phase"), `apps/storefront_builder/models.py`
+(`StorefrontLayoutVersion`), and `apps/storefront_builder/services
+/edit_history_service.py`.
+
+- **The APPLY mechanism already exists and is exactly what U7 needs**:
+  `LayoutPresetDefinition` (page composition + appearance overlay +
+  header/footer config overlay) is already, structurally, the "versioned
+  recipe" the master contract calls a Ready Template.
+  `preset_service.apply_preset` already applies it to a Draft only,
+  atomically, fully validated-before-write, lock-protected, never touching
+  merchant content (media/product selections/announcement text) — the
+  exact "Apply operates on Draft, never auto-publishes" contract U7
+  requires. **Not rebuilt — reused as-is.**
+- **Rollback/version history already exists**: `StorefrontLayoutVersion`
+  (Draft/Publish/Restore, `Source.RESTORED`, immutable-after-publish) plus
+  `edit_history_service.py`'s separate bounded (30-entry) undo/redo stack
+  for the live Draft. **Not rebuilt.**
+- **Real gaps found**: `LayoutPresetDefinition` had no `version` field at
+  all — a Ready Template's identity was just its Python dict key, with no
+  way to distinguish "the exact recipe a store was given" from "whatever
+  this key's Python definition currently is" (which could change under a
+  store in a future release). The U1A-scaffolded provenance contract
+  (`build_template_provenance`) existed but was never actually written by
+  any real code path. No reset-to-baseline function existed at all — a
+  merchant could re-apply *a* preset, but nothing recorded/restored *the
+  specific one they were already on*.
+- Of the 5 existing presets, **none** set `header_variant`/`footer_variant`
+  (U2A/U2B's global-region variant keys) — every preset used the same
+  default global chrome, differing only in section content/appearance,
+  not the "combinations of... global variants..." U10 will need for 8
+  materially different Ready Templates. `layout_service.validate_header_config`/
+  `validate_footer_config` (which `preset_service` already calls) already
+  accept these keys — confirmed by the existing generic
+  `test_all_built_in_presets_pass_validate_layout_preset` test — this was
+  a real, low-risk, high-value gap to close, not a new mechanism to build.
+
+### Architecture implemented
+
+- **`LayoutPresetDefinition.version: str = "1"`** — validated non-empty at
+  import time (`_validate_page_composition_shape`), matching
+  `build_template_provenance`'s existing `str | None` contract.
+- **`StorefrontLayoutVersion.template_provenance`** (new `JSONField`,
+  default `{}`) — additive migration
+  (`0016_storefrontlayoutversion_template_provenance`). Empty dict means
+  "never had a Ready Template applied" — a valid state, not an error
+  (legacy stores, hand-built Drafts).
+- **`preset_service.apply_preset`** now also writes
+  `build_template_provenance(template_key=preset.key, template_version=preset.version)`
+  onto the Draft on every successful apply — same transaction, same
+  validated-before-write ordering as everything else in that function.
+- **`preset_service.reset_storefront_to_baseline(draft)`** (new) — reads
+  the Draft's recorded provenance via `validate_template_provenance`
+  (safe on legacy/missing data), resolves the *exact recorded* key+version,
+  and re-applies it via the existing `apply_preset` — reset **is** apply,
+  scoped to the recorded baseline rather than an arbitrary caller-supplied
+  preset. Three explicit, distinct failure modes, each with its own
+  exception (never a silent wrong-version reset): no provenance recorded
+  (`NoTemplateBaselineError`), the recorded key no longer exists in the
+  registry (`UnknownPresetError`), the recorded version no longer matches
+  the preset's *current* version (`TemplateBaselineVersionChangedError` —
+  directly implements the master contract's "Reset must restore the
+  selected template VERSION baseline," not whatever the key currently
+  means).
+- **4 of 5 presets** (`clean_minimal`, `editorial_story`, `dense_catalog`,
+  `premium_boutique`) now set real `header_variant`/`footer_variant`
+  matched to each preset's identity (e.g. `dense_catalog` →
+  `marketplace_search_first`/`marketplace_dense`, `premium_boutique` →
+  `premium_three_column`/`premium_columns`). `v5_golden_homepage`
+  deliberately left untouched — see Known limitations.
+
+### Migrations
+
+One, additive: `0016_storefrontlayoutversion_template_provenance.py` — adds
+`template_provenance` (`JSONField`, `default=dict`, `blank=True`) to
+`StorefrontLayoutVersion`. No backfill needed (empty dict is the correct,
+valid value for every pre-existing row). Forwards-safe, non-destructive.
+
+### Focused test results
+
+`apps/storefront_builder/tests/test_u7_ready_template_baseline.py` (new, 9
+tests): **9/9 passed.** Plus the pre-existing `test_preset_service.py`
+(incl. `test_all_built_in_presets_pass_validate_layout_preset`, which
+exercises every registered preset including the 4 newly-added
+`header_variant`/`footer_variant` keys) and `test_layout_preset_registry.py`
+regression: **53/53 passed total, zero failures.** Covers: version field
+presence/default, provenance recorded correctly on apply, fresh-draft
+provenance is empty (not fabricated), reset with no provenance / unknown
+key / stale version each raise their own distinct exception, reset
+actually restores deleted home-page sections back to the preset's baseline
+composition, and the 4 updated presets' variant keys are real currently-
+registered `GLOBAL_HEADER_REGION`/`GLOBAL_FOOTER_REGION` entries (not
+typo'd strings that would silently fail-safe to the default at render
+time).
+
+### Regression results
+
+- `python manage.py test apps.storefront_builder` — **1510 tests**, same
+  **2 pre-existing known failures** as U3–U6 (deferred to U11), **zero new
+  failures** — U7's changes touch only preset/provenance/registry code,
+  nothing in the container/inspector area those 2 failures come from.
+- `python manage.py makemigrations --check --dry-run` — no changes detected
+  (the one real migration was generated and applied cleanly).
+- `git diff --check` — clean.
+
+### Known limitations (explicit capability boundaries, not gaps to hide)
+
+1. **Reset granularity is whole-storefront only.** Field/component/section/
+   page/header/footer *individual* reset (the master contract's full list)
+   needs a baseline snapshot stored at that same granularity — re-deriving
+   a single section's baseline from the preset definition alone isn't
+   reliable once a merchant has reordered/duplicated/added sections beyond
+   what the preset originally specified. That's real, separate,
+   non-trivial design work (what does "reset this one section" mean if the
+   merchant duplicated it three times?) — not attempted this phase. The
+   whole-storefront case implemented here is the one granularity where
+   "re-apply the recorded preset" is unambiguously correct.
+2. **No merchant-override-vs-baseline distinction is tracked per field.**
+   `apply_preset`/`reset_storefront_to_baseline` both fully replace a
+   page's sections — there's no record of "the merchant manually changed
+   *this* setting after applying the template," so a future "template
+   update without overwriting merchant edits" feature needs that tracking
+   built first (a real, separate, larger piece of work).
+3. **`v5_golden_homepage` was not given `header_variant`/`footer_variant`**
+   — it already has extensive custom header/footer toggle configuration
+   (`extra_blocks`, many `show_*` fields) and its own dedicated test file
+   (`test_phase3_v5_golden.py`); verifying every one of those toggles
+   still behaves identically under a non-`legacy_default` global-region
+   renderer partial was judged out of scope for this pass's risk budget —
+   left on the implicit default rather than risking an unverified visual
+   regression in an already-tested, heavily-configured preset.

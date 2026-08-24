@@ -26,6 +26,7 @@ from django.db import transaction
 from .. import layout_preset_registry, section_registry
 from ..layout_preset_registry import LayoutPresetDefinition
 from ..models import StorefrontContainer, StorefrontLayoutVersion, StorefrontSection
+from ..variant_contract import build_template_provenance, validate_template_provenance
 from . import container_service, layout_service
 
 
@@ -246,7 +247,14 @@ def apply_preset(draft: StorefrontLayoutVersion, preset: LayoutPresetDefinition)
 
     # --- ۳) نوشتن — فقط پس از موفقیتِ کاملِ بخشِ اعتبارسنجی ---
     draft.appearance_config = cleaned_appearance
-    update_fields = ["appearance_config"]
+    # U7 — records exactly which Ready Template baseline (key + version)
+    # this Draft was just built from, so a later reset can restore that
+    # *recorded* version specifically, not "whatever this preset key
+    # currently means" if its Python definition changes in a future release.
+    draft.template_provenance = build_template_provenance(
+        template_key=preset.key, template_version=preset.version,
+    )
+    update_fields = ["appearance_config", "template_provenance"]
     if cleaned_header is not None:
         draft.header_config = cleaned_header
         update_fields.append("header_config")
@@ -281,5 +289,53 @@ def apply_preset_by_key(draft: StorefrontLayoutVersion, key: str) -> LayoutPrese
     preset = layout_preset_registry.get_layout_preset(key)
     if preset is None:
         raise UnknownPresetError(f"پیش‌تنظیمِ «{key}» یافت نشد")
+    apply_preset(draft, preset)
+    return preset
+
+
+class NoTemplateBaselineError(InvalidPresetError):
+    """U7 — این Draft هرگز یک Ready Template اعمال‌شده ندارد (هیچ
+    ``template_provenance``ای ثبت نشده) — بازنشانی به baseline بی‌معناست
+    و هرگز نباید بی‌صدا یک Presetِ دلخواه را حدس بزند."""
+
+
+class TemplateBaselineVersionChangedError(InvalidPresetError):
+    """U7 — کلیدِ Ready Template ثبت‌شده هنوز در Registry هست، اما نسخه‌یِ
+    فعلیِ آن (``LayoutPresetDefinition.version``) با نسخه‌یِ ثبت‌شده روی
+    این Draft یکی نیست. بازنشانی هرگز بی‌صدا نسخه‌یِ *فعلی* را جایگزینِ
+    نسخه‌ای که مرچنت واقعاً روی آن بود نمی‌کند — طبقِ الزامِ صریحِ کارِ U7
+    («Reset must restore the selected template VERSION baseline»)."""
+
+
+def reset_storefront_to_baseline(draft: StorefrontLayoutVersion) -> LayoutPresetDefinition:
+    """U7 — کلِ فروشگاه (Draft) را به baselineِ همان Ready Template/نسخه‌ای
+    که آخرین‌بار رویش اعمال شده بازمی‌گرداند (``draft.template_provenance``).
+
+    این *دقیقاً همان* ``apply_preset`` است — بازنشانی یعنی «دوباره همان
+    Presetِ ثبت‌شده را اعمال کن»، نه یک مکانیزمِ جداگانه. تنها چیزِ
+    اضافه‌شده، خواندنِ *کدام* Preset/نسخه از رویِ provenanceِ ثبت‌شده است،
+    به‌جایِ گرفتنِ آن از ورودیِ فراخوان (که می‌توانست هر Presetِ دلخواهی
+    باشد — دقیقاً نقطه‌ای که Reset را از Apply متمایز می‌کند).
+
+    Scope (مستندشده، نه یک محدودیتِ پنهان): این تابع فقط granularityِ
+    «کلِ فروشگاه» را پیاده می‌کند — بازنشانیِ یک فیلد/کامپوننت/section/صفحه‌یِ
+    منفرد نیازمندِ ذخیره‌یِ جداگانه‌یِ baseline snapshot در سطحِ همان
+    granularity است (نه فقط کلیدِ Preset)، که در این فاز ساخته نشده — نگاه
+    کنید به دفترچه‌ی اجرا (Known limitations)."""
+    provenance = validate_template_provenance(draft.template_provenance)
+    template_key = provenance["template"]["key"]
+    template_version = provenance["template"]["version"]
+    if not template_key:
+        raise NoTemplateBaselineError(
+            "این Draft هرگز یک Ready Template اعمال‌شده ندارد — چیزی برای بازنشانی وجود ندارد"
+        )
+    preset = layout_preset_registry.get_layout_preset(template_key)
+    if preset is None:
+        raise UnknownPresetError(f"Ready Templateِ «{template_key}» دیگر در Registry موجود نیست")
+    if preset.version != template_version:
+        raise TemplateBaselineVersionChangedError(
+            f"نسخه‌ی ثبت‌شده‌ی «{template_version}» برایِ «{template_key}» با نسخه‌ی فعلیِ "
+            f"«{preset.version}» یکی نیست — بازنشانیِ خودکار به نسخه‌ای متفاوت مجاز نیست"
+        )
     apply_preset(draft, preset)
     return preset

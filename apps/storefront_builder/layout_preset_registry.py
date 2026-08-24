@@ -86,6 +86,19 @@ class LayoutPresetDefinition:
     key: str
     label_fa: str
     description_fa: str
+    #: U7 — Ready Template baseline version. A ``LayoutPresetDefinition`` is
+    #: itself the "versioned recipe" the master contract calls a Ready
+    #: Template (page composition + appearance + header/footer overlay,
+    #: already the exact same shape U10's 8 Ready Templates need) — this
+    #: field is the missing piece that lets ``preset_service.apply_preset``
+    #: record *which* baseline a Draft is currently built from
+    #: (``variant_contract.build_template_provenance``), so a later reset
+    #: can restore that exact recorded version rather than "whatever this
+    #: preset key currently means" (which could have changed under a store
+    #: if the preset's own Python definition is edited in a future release).
+    #: A plain string (not int) to match ``build_template_provenance``'s
+    #: existing ``template_version: str | None`` contract.
+    version: str = "1"
     #: فقط کلیدهایِ ساختاریِ ``appearance_config`` (هرگز رنگ) — زیرمجموعه‌ای
     #: از: font/radius/button_radius/density/motion/type_scale/button_style/
     #: image_fit/image_hover/card_image_crossfade/card_image_zoom. کلیدِ
@@ -139,6 +152,8 @@ def _validate_page_composition_shape(definition: LayoutPresetDefinition) -> None
     ``section_registry`` (کاملاً خالص) وابسته است، پس اینجا امن است.
     اعتبارسنجیِ appearance/header/footer در ``preset_service`` است (به
     ``layout_service`` نیاز دارد — نگاه کنید به docstring بالایِ فایل)."""
+    if not isinstance(definition.version, str) or not definition.version.strip():
+        raise InvalidLayoutPresetError(f"Preset «{definition.key}»: version باید یک رشته‌ی غیرخالی باشد")
     for page_type, entries in definition.pages.items():
         if page_type not in section_registry.ALL_PAGE_TYPES:
             raise InvalidLayoutPresetError(
@@ -215,8 +230,12 @@ register_layout_preset(LayoutPresetDefinition(
         "card_image_crossfade": False, "card_image_zoom": False,
     },
     default_palette_slug="mono",
-    header={"announcement_enabled": False, "sticky": True},
-    footer={"show_newsletter": False},
+    # U7 — header/footer *variant* selection (U2A/U2B global regions), not
+    # just the boolean toggles already here: makes this genuinely a
+    # composed Ready Template (page composition + appearance + global
+    # component variants), not composition-only.
+    header={"announcement_enabled": False, "sticky": True, "header_variant": "legacy_default"},
+    footer={"show_newsletter": False, "footer_variant": "legacy_default"},
     pages={
         "home": (
             PresetSectionEntry("hero_banner"),
@@ -252,7 +271,8 @@ register_layout_preset(LayoutPresetDefinition(
         "card_image_crossfade": True, "card_image_zoom": True,
     },
     default_palette_slug="terracotta",
-    header={"sticky": True, "announcement_enabled": True},
+    header={"sticky": True, "announcement_enabled": True, "header_variant": "boutique_centered"},
+    footer={"footer_variant": "boutique_editorial"},
     pages={
         "home": (
             PresetSectionEntry("story_rail"),
@@ -292,8 +312,8 @@ register_layout_preset(LayoutPresetDefinition(
         "card_image_crossfade": False, "card_image_zoom": False,
     },
     default_palette_slug="slate",
-    header={"sticky": True, "announcement_enabled": False},
-    footer={"show_newsletter": False},
+    header={"sticky": True, "announcement_enabled": False, "header_variant": "marketplace_search_first"},
+    footer={"show_newsletter": False, "footer_variant": "marketplace_dense"},
     pages={
         "home": (
             PresetSectionEntry("category_grid"),
@@ -333,8 +353,8 @@ register_layout_preset(LayoutPresetDefinition(
         "card_image_crossfade": True, "card_image_zoom": True,
     },
     default_palette_slug="luxury-black",
-    header={"sticky": True, "announcement_enabled": True},
-    footer={"show_trust_badges": True, "show_payment_logos": True, "show_newsletter": True},
+    header={"sticky": True, "announcement_enabled": True, "header_variant": "premium_three_column"},
+    footer={"show_trust_badges": True, "show_payment_logos": True, "show_newsletter": True, "footer_variant": "premium_columns"},
     pages={
         "home": (
             PresetSectionEntry("hero_banner"),

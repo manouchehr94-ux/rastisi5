@@ -256,6 +256,16 @@ class StorefrontLayoutVersion(TimeStampedModel):
         "اثر انگشت محتوا", max_length=64, blank=True,
         help_text="هش SHA-256 محتوای سریالایز‌شده — برای تشخیص drift.",
     )
+    template_provenance = models.JSONField(
+        "منشأِ Ready Template", default=dict, blank=True,
+        help_text=(
+            "U7 — شکلِ ``variant_contract.build_template_provenance`` (کلید/نسخه‌یِ "
+            "Ready Templateای که آخرین‌بار روی این Draft اعمال شده — نگاه کنید به "
+            "``preset_service.apply_preset``). دیکشنریِ خالی یعنی «هرگز یک Ready "
+            "Template اعمال نشده» (فروشگاه‌هایِ قدیمی/Draftهایِ دستی) — یک حالتِ "
+            "کاملاً معتبر، نه یک خطا."
+        ),
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="ایجادکننده",
         on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
