@@ -1,0 +1,81 @@
+{% extends "dashboard/base_admin.html" %}
+{% load static %}
+{% block title %}راستی‌سی — قالب‌های آماده{% endblock %}
+{% block page_title %}قالب‌های آماده{% endblock %}
+{% block page_sub %}یک قالبِ حرفه‌ای انتخاب کن؛ محتوا، رنگ و چیدمان را بعداً هرجا خواستی تغییر بده.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/storefront_builder.css' %}">
+<style>
+  .tpl-gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;margin-top:18px}
+  .tpl-card{border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden;display:flex;flex-direction:column}
+  .tpl-card.is-current{border-color:var(--violet);box-shadow:0 0 0 3px rgba(124,58,237,.12)}
+  .tpl-swatch-row{display:flex;height:64px}
+  .tpl-swatch-row span{flex:1}
+  .tpl-card-body{padding:16px;display:flex;flex-direction:column;gap:8px;flex:1}
+  .tpl-card-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .tpl-card-title strong{font-size:14.5px}
+  .tpl-current-badge{font-size:11px;font-weight:700;color:#fff;background:var(--violet);border-radius:20px;padding:3px 10px;white-space:nowrap}
+  .tpl-card-desc{font-size:12.5px;color:var(--muted);line-height:1.9;flex:1}
+  .tpl-card-meta{display:flex;flex-wrap:wrap;gap:6px;font-size:11px;color:var(--muted)}
+  .tpl-card-meta span{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px 8px}
+  .tpl-card-actions{margin-top:4px}
+  .tpl-card-actions button{width:100%}
+  .tpl-empty-swatch{background:repeating-linear-gradient(45deg,var(--bg),var(--bg) 6px,var(--line) 6px,var(--line) 7px)}
+  .tpl-gallery-footer{margin-top:26px;text-align:center}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="tpl-gallery-grid">
+    {% for card in template_cards %}
+    {% with preset=card.preset %}
+    <div class="tpl-card{% if card.is_current %} is-current{% endif %}">
+      <div class="tpl-swatch-row">
+        {% if card.palette_swatch %}
+          {% for color in card.palette_swatch %}
+          <span style="background:{{ color }}"></span>
+          {% endfor %}
+        {% else %}
+        <span class="tpl-empty-swatch"></span>
+        {% endif %}
+      </div>
+      <div class="tpl-card-body">
+        <div class="tpl-card-title">
+          <strong>{{ preset.label_fa }}</strong>
+          {% if card.is_current %}<span class="tpl-current-badge">قالبِ فعلی</span>{% endif %}
+        </div>
+        <p class="tpl-card-desc">{{ preset.description_fa }}</p>
+        <div class="tpl-card-meta">
+          {% if card.header_variant_label %}<span>هدر: {{ card.header_variant_label }}</span>{% endif %}
+          {% if card.footer_variant_label %}<span>فوتر: {{ card.footer_variant_label }}</span>{% endif %}
+        </div>
+        <div class="tpl-card-actions">
+          {% if card.is_current %}
+          <button type="button" class="btn" disabled>در حال استفاده</button>
+          {% else %}
+          <form method="post" action="{% url 'dashboard:storefront-builder-apply-preset' %}"
+                {% if card.would_replace_existing_content %}
+                onsubmit="return confirm('این قالب، چیدمانِ فعلیِ صفحاتِ پوشش‌داده‌شده را جایگزین می‌کند. ادامه می‌دهید؟')"
+                {% endif %}>
+            {% csrf_token %}
+            <input type="hidden" name="preset_key" value="{{ preset.key }}">
+            {% if card.would_replace_existing_content %}
+            <input type="hidden" name="confirm_preset_apply" value="1">
+            {% endif %}
+            <button type="submit" class="btn btn-primary">استفاده از این قالب</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+  </div>
+
+  <div class="tpl-gallery-footer">
+    <a class="sfb-v3-ghost-btn" href="{% url 'dashboard:storefront-builder-editor' %}">ادامه در ویرایشگرِ پیشرفته ←</a>
+  </div>
+</div>
+{% endblock %}

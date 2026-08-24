@@ -691,3 +691,130 @@ time).
    renderer partial was judged out of scope for this pass's risk budget —
    left on the implicit default rather than risking an unverified visual
    regression in an already-tested, heavily-configured preset.
+
+---
+
+## U8 — Template-First Merchant Experience
+
+- **Starting SHA:** `e2f82331bcd7667fce355157d4d88c4a79b32f5c`
+- **Ending SHA:** _(recorded after commit, see below)_
+
+### Audit findings (before implementing)
+
+Read `apps/storefront_builder/views.py` in full for every existing preset/
+appearance/editor view, `apps/storefront_builder/templates/dashboard
+/storefront_builder/editor.html` (1153 lines — the existing Free Layout/V3
+advanced builder), `apps/dashboard/templates/dashboard/base_admin.html`'s
+sidebar nav, and `apps/storefront_builder/appearance_registry.py`.
+
+- **The apply mechanism already had a working, safe backend endpoint**
+  (`storefront_apply_layout_preset` — Draft-only, confirm-before-replace
+  when content would be overwritten, never auto-publishes) — confirmed
+  reused as-is, no new write path introduced this phase.
+- **Zero merchant-facing surface referenced `list_layout_presets()`
+  anywhere** — confirmed via grep across every template in the repo. A
+  merchant had no way to discover or browse the 5 Ready Templates at all;
+  the only way to apply one was already knowing the raw POST endpoint
+  existed. This is the exact, concrete form of U8's stated goal ("the
+  normal user must encounter a professional Template Gallery before
+  needing to understand layout internals") — not a vague aspiration, a
+  literal zero.
+- **A second, separate, also-unused template-like registry was found**:
+  `appearance_registry.TemplateDefinition`/`list_templates()` (9 entries —
+  font/radius/density/motion/content_width/grid_density/card_shadow/
+  hero_style + a `swatch` field explicitly commented "for gallery
+  mini-preview"). It's already passed into
+  `partials/appearance_panel.html`'s context (`"templates": ...`) but that
+  partial never actually renders it — another dead-capability pattern,
+  same shape as U4/U5's findings. This is a pure appearance-token concept
+  (no page composition, no header/footer), narrower than
+  `LayoutPresetDefinition`. **Deliberately not touched or merged into the
+  new gallery this phase** — see Known limitations.
+- Everything else U8 asks for (edit content, replace images, reorder
+  sections, show/hide, add/delete, change colors/typography, publish)
+  already exists in the advanced editor (`editor.html`) — confirmed by
+  reading it, not assumed. U8's real, missing piece was specifically the
+  *entry point* — a simple browse/preview/apply surface before that
+  advanced editor, not a rebuild of editing capabilities that already work.
+
+### Architecture implemented
+
+- **`storefront_template_gallery`** (new view, `GET`, `@staff_required`
+  `@permission_required(STOREFRONT_LAYOUT_MANAGE)`) — reads
+  `layout_preset_registry.list_layout_presets()` and the Draft's U7
+  `template_provenance` to mark the currently-applied template. Purely a
+  read/render view — no new write path. Real, non-fabricated visual
+  preview per template: actual palette colors (`appearance_registry
+  .get_palette(preset.default_palette_slug)`) and actual registered
+  header/footer variant labels (`global_region_registry.get_global_variant`)
+  — never an invented screenshot or mockup.
+- **`_preset_would_replace_content(draft, preset)`** (new, extracted
+  helper) — the exact boolean `storefront_apply_layout_preset` already
+  computed inline, now shared so the gallery's pre-click warning and the
+  endpoint's actual server-side guard can never diverge.
+- **`template_gallery.html`** (new template) — a card grid; each card
+  shows the template's real palette swatch, label/description, real
+  header/footer variant labels when the preset sets them, a "currently in
+  use" state (disabled button, no form) or an apply form posting to the
+  existing, unmodified `storefront-builder-apply-preset` endpoint — same
+  `confirm_preset_apply`/JS `confirm()` safety gate as before, now
+  surfaced *before* the click instead of only after.
+- **Two navigation links added** (no existing routes/views changed):
+  sidebar nav gets "قالب‌های آماده" (Ready Templates) positioned before the
+  existing "سازنده بصری صفحه اصلی" (advanced editor) link — first thing a
+  merchant sees; the advanced editor's topbar gets a "قالب‌های آماده" link
+  back to the gallery. This is the NORMAL↔ADVANCED separation the master
+  contract asks for, done via navigation rather than rebuilding either
+  surface: the gallery is new-and-simple, the advanced editor is
+  untouched-and-still-fully-available.
+
+### Migrations
+
+None. No model changes this phase.
+
+### Focused test results
+
+`apps/storefront_builder/tests/test_u8_template_gallery.py` (new, 11
+tests): **11/11 passed.** Covers: every registered template listed, no
+false "current" badge before any template is applied, correct "current"
+state after applying one, real header/footer variant labels rendered for
+an updated U7 preset, the gallery view makes zero writes (draft/provenance
+unchanged after a GET), the confirm-before-replace guard renders when
+content would be overwritten, anonymous access is rejected, and the two
+new navigation links are present and correctly cross-linked in both
+directions. Plus 2 tests proving the extracted `_preset_would_replace_content`
+helper behaves identically to the endpoint's original inline logic.
+
+### Regression results
+
+- `python manage.py test apps.storefront_builder apps.dashboard` —
+  **2961 tests**, same **2 pre-existing known failures** as U3–U7
+  (deferred to U11), **zero new failures** across either app.
+- `python manage.py makemigrations --check --dry-run` — no changes detected.
+- `git diff --check` — clean.
+
+### Known limitations (explicit capability boundaries, not gaps to hide)
+
+1. **The gallery only covers `LayoutPresetDefinition`** (composition +
+   appearance overlay + header/footer variants) — the separate,
+   also-currently-unused `appearance_registry.TemplateDefinition`
+   (font/radius/density/motion/content_width/grid_density/card_shadow/
+   hero_style) gallery concept was not merged in or wired up. Reconciling
+   two parallel "template" registries into one coherent concept is real,
+   separate design work (which one wins when both are applied? does a
+   `LayoutPresetDefinition` reference a `TemplateDefinition` slug, or do
+   they stay independent axes?) — not attempted this phase.
+2. **No true NORMAL/ADVANCED *mode toggle* inside the editor itself** — the
+   separation implemented is navigational (two distinct pages, cross-linked)
+   rather than a single editor UI that reveals/hides advanced controls via
+   a mode switch. The master contract's UI-language requirement ("do not
+   expose renderer path/registry/JSON config to ordinary merchants") is
+   satisfied by the gallery itself never showing any of that — but the
+   advanced editor (`editor.html`) is unchanged and still shows builder
+   internals to anyone who navigates into it, same as before this phase.
+3. **No live preview thumbnail/screenshot per template** — the swatch +
+   labels are real data, but not a rendered visual mockup of the actual
+   composed page. Building real screenshot/preview rendering is
+   infrastructure this phase didn't attempt (would need either a
+   server-side render-to-image pipeline or an iframe-based live preview
+   per card, both real, separate undertakings).

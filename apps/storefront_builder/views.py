@@ -1820,6 +1820,71 @@ def storefront_publish(request):
     return redirect("dashboard:storefront-builder-editor")
 
 
+def _preset_would_replace_content(draft, preset) -> bool:
+    """آیا اعمالِ این Preset، محتوایِ section-محورِ موجودِ Draft را برایِ
+    حداقل یکی از صفحاتی که Preset پوشش می‌دهد جایگزین می‌کند — دقیقاً همان
+    شرطی که ``storefront_apply_layout_preset`` قبل از نیازِ تأییدِ صریح
+    چک می‌کند؛ در یک تابع مشترک تا گالریِ قالب‌ها (U8) هم دقیقاً همان
+    هشدار را، پیش از کلیک، به مرچنت نشان دهد — نه یک محاسبه‌ی دومِ
+    ممکن‌است-ناهم‌خوان."""
+    return any(draft.get_page(page_type).sections.exists() for page_type in preset.pages)
+
+
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+def storefront_template_gallery(request):
+    """U8 — گالریِ Ready Templateها: نقطه‌ی ورودِ ساده/NORMAL-mode برایِ
+    مرچنت، پیش از ویرایشگرِ پیشرفته (Free Layout/V3). فقط می‌خواند/نمایش
+    می‌دهد — اعمالِ واقعیِ یک Preset همچنان از طریقِ همان
+    ``storefront_apply_layout_preset`` (Draft-only، با تأییدِ صریح اگر
+    صفحه‌ای از قبل section دارد، هرگز publish خودکار) انجام می‌شود؛ این ویو
+    هیچ مسیرِ نوشتنِ جدیدی اضافه نمی‌کند."""
+    from . import appearance_registry, global_region_registry, layout_preset_registry
+    from .variant_contract import validate_template_provenance
+
+    store = _resolve_store(request)
+    draft = layout_service.get_or_create_draft(store, user=request.user)
+    provenance = validate_template_provenance(draft.template_provenance)
+    current_template_key = provenance["template"]["key"]
+
+    def _variant_label(region, variant_key):
+        if not variant_key:
+            return ""
+        variant = global_region_registry.get_global_variant(region, variant_key)
+        return variant.label_fa if variant is not None else ""
+
+    def _palette_swatch(preset):
+        if not preset.default_palette_slug:
+            return []
+        palette = appearance_registry.get_palette(preset.default_palette_slug)
+        if palette is None:
+            return []
+        return [palette.colors[key] for key in ("primary", "secondary", "accent") if key in palette.colors]
+
+    template_cards = [
+        {
+            "preset": preset,
+            "is_current": preset.key == current_template_key,
+            "would_replace_existing_content": _preset_would_replace_content(draft, preset),
+            "palette_swatch": _palette_swatch(preset),
+            "header_variant_label": _variant_label(
+                global_region_registry.GLOBAL_HEADER_REGION, (preset.header or {}).get("header_variant"),
+            ),
+            "footer_variant_label": _variant_label(
+                global_region_registry.GLOBAL_FOOTER_REGION, (preset.footer or {}).get("footer_variant"),
+            ),
+        }
+        for preset in layout_preset_registry.list_layout_presets()
+    ]
+
+    context = {
+        "active_page": "storefront_builder",
+        "template_cards": template_cards,
+        "has_any_template_applied": bool(current_template_key),
+    }
+    return render(request, "dashboard/storefront_builder/template_gallery.html", context)
+
+
 @require_POST
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
@@ -1843,9 +1908,7 @@ def storefront_apply_layout_preset(request):
         messages.error(request, "پیش‌تنظیمِ انتخاب‌شده یافت نشد")
         return redirect("dashboard:storefront-builder-editor")
 
-    would_replace = any(
-        draft.get_page(page_type).sections.exists() for page_type in preset.pages
-    )
+    would_replace = _preset_would_replace_content(draft, preset)
     if would_replace and request.POST.get("confirm_preset_apply") != "1":
         messages.error(
             request,
