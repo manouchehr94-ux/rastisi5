@@ -18,5 +18,5 @@
 {% endblock %}
 
 {% block footer %}
-{% include "storefront_builder/partials/page_shell_footer.html" with footer_config=layout_footer_config is_live_storefront=True is_builder_preview=False %}
+{% include footer_variant_template with footer_config=layout_footer_config is_live_storefront=True is_builder_preview=False %}
 {% endblock %}

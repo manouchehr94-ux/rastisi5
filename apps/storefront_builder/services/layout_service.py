@@ -319,6 +319,13 @@ def validate_footer_config(config: dict) -> dict:
     except ShellBlockError as exc:
         raise FooterConfigValidationError(str(exc)) from exc
 
+    try:
+        cleaned["footer_variant"] = global_region_registry.validate_global_variant_selection(
+            global_region_registry.GLOBAL_FOOTER_REGION, config.get("footer_variant"),
+        )
+    except global_region_registry.UnknownGlobalVariantSelectionError as exc:
+        raise FooterConfigValidationError(str(exc)) from exc
+
     if not any(cleaned[field] for field in FOOTER_TOGGLE_FIELDS):
         raise FooterConfigValidationError(
             "فوتر نمی‌تواند کاملاً خالی باشد — حداقل یکی از بخش‌های فوتر "

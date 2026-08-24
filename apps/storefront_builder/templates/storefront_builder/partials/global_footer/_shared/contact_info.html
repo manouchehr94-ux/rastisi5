@@ -1,0 +1,19 @@
+{% comment %}
+U2B shared footer contact-information partial — reused by every Global
+Footer Variant. Real ``FOOTER_SETTINGS`` fields only (phone/secondary_phone/
+email/working_hours/address), falling back to the same global
+``SHOP_CONTACT_PHONE``/``SHOP_CONTACT_EMAIL`` the legacy_default footer
+already uses — never a fabricated phone number. Renders nothing at all if
+no real contact field is set (no empty heading). The ☎/✉/⌖ glyphs are
+purely decorative next to real link/address text, so they carry
+``aria-hidden="true"`` — the tel:/mailto: link semantics are unchanged.
+{% endcomment %}
+{% if FOOTER_SETTINGS.phone or SHOP_CONTACT_PHONE or FOOTER_SETTINGS.secondary_phone or FOOTER_SETTINGS.email or SHOP_CONTACT_EMAIL or FOOTER_SETTINGS.working_hours or FOOTER_SETTINGS.address %}
+<ul class="gf-contact-list">
+  {% if FOOTER_SETTINGS.phone %}<li><a href="tel:{{ FOOTER_SETTINGS.phone }}" dir="ltr"><span aria-hidden="true">☎</span> {{ FOOTER_SETTINGS.phone }}</a></li>{% elif SHOP_CONTACT_PHONE %}<li><a href="tel:{{ SHOP_CONTACT_PHONE }}" dir="ltr"><span aria-hidden="true">☎</span> {{ SHOP_CONTACT_PHONE }}</a></li>{% endif %}
+  {% if FOOTER_SETTINGS.secondary_phone %}<li><a href="tel:{{ FOOTER_SETTINGS.secondary_phone }}" dir="ltr"><span aria-hidden="true">☎</span> {{ FOOTER_SETTINGS.secondary_phone }}</a></li>{% endif %}
+  {% if FOOTER_SETTINGS.email %}<li><a href="mailto:{{ FOOTER_SETTINGS.email }}" dir="ltr"><span aria-hidden="true">✉</span> {{ FOOTER_SETTINGS.email }}</a></li>{% elif SHOP_CONTACT_EMAIL %}<li><a href="mailto:{{ SHOP_CONTACT_EMAIL }}" dir="ltr"><span aria-hidden="true">✉</span> {{ SHOP_CONTACT_EMAIL }}</a></li>{% endif %}
+  {% if FOOTER_SETTINGS.address %}<li class="gf-contact-address"><span aria-hidden="true">⌖</span> {{ FOOTER_SETTINGS.address }}</li>{% endif %}
+</ul>
+{% if FOOTER_SETTINGS.working_hours %}<p class="gf-working-hours">{{ FOOTER_SETTINGS.working_hours }}</p>{% endif %}
+{% endif %}

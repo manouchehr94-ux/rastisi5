@@ -119,6 +119,7 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
 
     items = render_service.build_page_render_items(page, store, page_context=page_context)
     header_config = version.effective_header_config()
+    footer_config = version.effective_footer_config()
     return {
         "uses_universal_shell": True,
         "storefront_version": version,
@@ -133,7 +134,11 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
         "header_variant_template": global_region_registry.resolve_global_renderer_template(
             global_region_registry.GLOBAL_HEADER_REGION, header_config,
         ),
-        "layout_footer_config": version.effective_footer_config(),
+        "layout_footer_config": footer_config,
+        # U2B — همان الگویِ ``header_variant_template`` بالا، برایِ فوتر.
+        "footer_variant_template": global_region_registry.resolve_global_renderer_template(
+            global_region_registry.GLOBAL_FOOTER_REGION, footer_config,
+        ),
         "render_items": items,
         "rows": render_service.group_items_into_rows(items),
         "render_containers": render_service.build_container_render_items(page, items),

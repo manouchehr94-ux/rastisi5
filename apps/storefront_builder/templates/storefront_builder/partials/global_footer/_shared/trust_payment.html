@@ -1,0 +1,29 @@
+{% comment %}
+U2B shared trust-badges/payment-logos region — real, merchant-uploaded
+``FOOTER_TRUST_BADGES``/``FOOTER_PAYMENT_LOGOS`` querysets only (same
+context processor the legacy_default footer already uses). Trust badges
+and payment logos are two independent components: each is gated by its
+own ``fc.show_trust_badges``/``fc.show_payment_logos`` toggle and carries
+its own ``rc.show_trust_badges``/``rc.show_payment_logos`` responsive
+hide attributes — exactly mirroring page_shell_footer.html's own two
+independent ``footer-credibility-media`` children. Neither component's
+toggle or responsive setting ever controls the other. Renders nothing at
+all when neither is enabled-with-real-data — never a fabricated trust
+badge or payment logo.
+{% endcomment %}
+{% if fc.show_trust_badges and FOOTER_TRUST_BADGES or fc.show_payment_logos and FOOTER_PAYMENT_LOGOS %}
+<div class="gf-credibility">
+  {% if fc.show_trust_badges and FOOTER_TRUST_BADGES %}
+  <div class="gf-trust-badges" {% if rc.show_trust_badges.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_trust_badges.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+    {% for badge in FOOTER_TRUST_BADGES %}
+    <div class="gf-trust-badge-item">{% if badge.destination_url %}<a href="{{ badge.destination_url }}" target="_blank" rel="noopener noreferrer"><img src="{{ badge.image.url }}" alt="{{ badge.title }}"></a>{% else %}<img src="{{ badge.image.url }}" alt="{{ badge.title }}">{% endif %}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if fc.show_payment_logos and FOOTER_PAYMENT_LOGOS %}
+  <div class="gf-payment-logos" {% if rc.show_payment_logos.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_payment_logos.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+    {% for logo in FOOTER_PAYMENT_LOGOS %}<span><img src="{{ logo.image.url }}" alt="{{ logo.title }}"></span>{% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}

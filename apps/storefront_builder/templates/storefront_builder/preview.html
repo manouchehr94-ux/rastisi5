@@ -7,7 +7,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/product_card.css' %}">
 <link rel="stylesheet" href="{% static 'css/home.css' %}">
-<link rel="stylesheet" href="{% static 'css/storefront_builder.css' %}?v=u2a-v5-mobile-20260823">
+<link rel="stylesheet" href="{% static 'css/storefront_builder.css' %}?v=u2b-footer-v3-20260823">
 {% endblock %}
 
 {% block header %}
@@ -28,7 +28,7 @@
 {% endblock %}
 
 {% block footer %}
-{% include "storefront_builder/partials/page_shell_footer.html" with footer_config=version.effective_footer_config is_live_storefront=False is_builder_preview=True %}
+{% include footer_variant_template with footer_config=version.effective_footer_config is_live_storefront=False is_builder_preview=True %}
 {% endblock %}
 
 {% block extra_js %}

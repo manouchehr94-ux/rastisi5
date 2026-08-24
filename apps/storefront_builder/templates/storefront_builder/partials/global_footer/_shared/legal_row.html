@@ -1,0 +1,7 @@
+{% comment %}
+U2B shared legal/copyright row — real ``FOOTER_SETTINGS.copyright_text``
+when the merchant set one, otherwise the same generic "© {shop name}"
+fallback the legacy_default footer already uses — never a fabricated
+legal statement.
+{% endcomment %}
+<span class="gf-copy">{% if FOOTER_SETTINGS.copyright_text %}{{ FOOTER_SETTINGS.copyright_text }}{% else %}© {{ SHOP_NAME }}{% endif %}</span>

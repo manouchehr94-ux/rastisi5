@@ -109,7 +109,18 @@ FOOTER_RESPONSIVE_DEFAULTS = {
 #: ``FOOTER_EXTRA_BLOCK_TYPES`` در layout_service.py) است.
 FOOTER_CONFIG_DEFAULTS = (
     {f: True for f in FOOTER_TOGGLE_FIELDS}
-    | {"responsive": FOOTER_RESPONSIVE_DEFAULTS, "extra_blocks": []}
+    | {
+        "responsive": FOOTER_RESPONSIVE_DEFAULTS, "extra_blocks": [],
+        #: U2B — کدامیک از ۵ Variantِ ثبت‌شده‌یِ ``global_region_registry
+        #: .GLOBAL_FOOTER_REGION`` باید رندر شود؛ پیش‌فرض دقیقاً همان
+        #: کلیدِ ``default_variant``ی آن Region است (``"legacy_default"``)
+        #: — یعنی نسخه‌هایِ قدیمی/بدونِ این کلید دقیقاً همان فوترِ فعلی را
+        #: بدونِ کوچک‌ترین تغییرِ بصری می‌بینند (نگاه کنید به
+        #: ``effective_footer_config`` پایین — merge با این پیش‌فرض،
+        #: نه یک مهاجرتِ دیتابیسی؛ دقیقاً همان الگویِ ``header_variant``یِ
+        #: U2A در ``HEADER_CONFIG_DEFAULTS``).
+        "footer_variant": "legacy_default",
+    }
 )
 
 #: کلیدهایِ رنگِ توکنِ ظاهر — دقیقاً همان مجموعه‌ای که ``tokens.css``ی

@@ -1,0 +1,12 @@
+{% comment %}
+U2B shared footer contact "column" — the section heading and the
+real-data-guarded contact list as ONE unit, so a Store with no contact
+data receives neither (no heading floating over an empty column). Reuses
+the exact same real-data condition ``contact_info.html`` already applies
+— centralized here once instead of being copied into every variant that
+shows a contact heading (marketplace_dense/premium_columns/dark_tech).
+{% endcomment %}
+{% if FOOTER_SETTINGS.phone or SHOP_CONTACT_PHONE or FOOTER_SETTINGS.secondary_phone or FOOTER_SETTINGS.email or SHOP_CONTACT_EMAIL or FOOTER_SETTINGS.working_hours or FOOTER_SETTINGS.address %}
+<h5>ارتباط با ما</h5>
+{% include "storefront_builder/partials/global_footer/_shared/contact_info.html" %}
+{% endif %}

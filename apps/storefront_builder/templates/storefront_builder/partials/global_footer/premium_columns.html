@@ -1,0 +1,73 @@
+{% comment %}
+U2B Global Footer Variant — Premium Columns (key: premium_columns).
+
+Archetype: restrained premium composition, strong typography/hierarchy,
+elegant multi-column structure, generous spacing. Fewer, wider columns
+with a horizontal divider before a centered legal row is the structural
+signature — no dense multi-block grid, no editorial centering of the
+whole footer.
+
+Required context: same three keys every variant renderer receives.
+{% endcomment %}
+{% load storefront_builder_extras %}
+{% has_real_footer_contact_data FOOTER_SETTINGS SHOP_CONTACT_PHONE SHOP_CONTACT_EMAIL as gf_has_contact_data %}
+{% with fc=footer_config rc=footer_config.responsive %}
+<footer class="gf gf--premium">
+  <div class="wrap">
+    {% if fc.show_about or fc.show_quick_links and NAV_FOOTER_1 or fc.show_categories and top_level_categories or fc.show_contact and gf_has_contact_data or fc.extra_blocks|has_renderable_footer_extra_block:SOCIAL_LINKS_FOOTER %}
+    <div class="gf-premium-grid">
+      {% if fc.show_about %}
+      <div class="gf-col gf-col-brand" {% if rc.show_about.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_about.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/brand.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_quick_links %}
+      <div {% if rc.show_quick_links.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_quick_links.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/nav_column.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_categories %}
+      <div {% if rc.show_categories.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_categories.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/categories_column.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_contact %}
+      <div class="gf-col gf-col-contact" {% if rc.show_contact.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_contact.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/contact_column.html" %}
+      </div>
+      {% endif %}
+      {% include "storefront_builder/partials/global_footer/_shared/extra_blocks.html" %}
+    </div>
+    {% endif %}
+
+    {% if fc.show_newsletter and FOOTER_SETTINGS.show_newsletter %}
+    <div class="gf-premium-newsletter" {% if rc.show_newsletter.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_newsletter.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+      {% include "storefront_builder/partials/global_footer/_shared/newsletter.html" %}
+    </div>
+    {% endif %}
+
+    <div class="gf-premium-divider"></div>
+
+    {% if fc.show_copyright or fc.show_social and SOCIAL_LINKS_FOOTER %}
+    <div class="gf-legal-row gf-legal-row-centered">
+      {% if fc.show_social %}
+      <div {% if rc.show_social.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_social.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/social_links.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_copyright %}
+      <div {% if rc.show_copyright.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_copyright.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/legal_row.html" %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if fc.show_trust_badges and FOOTER_TRUST_BADGES or fc.show_payment_logos and FOOTER_PAYMENT_LOGOS %}
+    <div class="gf-premium-credibility">
+      {% include "storefront_builder/partials/global_footer/_shared/trust_payment.html" %}
+    </div>
+    {% endif %}
+  </div>
+</footer>
+{% endwith %}

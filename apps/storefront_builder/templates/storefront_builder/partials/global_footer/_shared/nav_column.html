@@ -1,0 +1,17 @@
+{% comment %}
+U2B shared footer "quick links" column — real merchant menu data
+(``NAV_FOOTER_1``), never hardcoded. Renders nothing if the Store hasn't
+configured this menu (same fallback contract as ``NAV_HEADER`` in U2A).
+Optional ``max_items`` (default 7, matching the legacy_default footer's
+own ``|slice:":7"`` limit).
+{% endcomment %}
+{% if NAV_FOOTER_1 %}
+<div class="gf-col gf-col-links">
+  <h5>{{ NAV_FOOTER_1.title }}</h5>
+  <ul>
+    {% for item in NAV_FOOTER_1.items|slice:":7" %}
+    <li>{% if item.url %}<a href="{{ item.url }}" {% if item.open_in_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ item.title }}</a>{% else %}<span>{{ item.title }}</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}

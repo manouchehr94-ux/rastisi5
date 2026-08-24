@@ -3853,3 +3853,128 @@ a.sfb-v3-component-item,
   .gh--marketplace .gh-logo-text b,.gh--dark .gh-logo-text b{max-width:82px;font-size:13px}
   .gh--premium .gh-premium-zone-logo .gh-logo-text b{max-width:86px;font-size:13px}
 }
+
+
+/* ========================================================================
+   U2B — Global Footer Variants (Footer + Global Region Completion)
+   ------------------------------------------------------------------------
+   Shared primitives (prefixed `gf-`, deliberately distinct from the legacy
+   `.footer`/`.news`/`.footer-main-grid`/`.socials`/`.copy` classes so the
+   new variants never fight the legacy_default renderer's own CSS, and
+   deliberately never reuse the bare `.footer` class either — unlike U2A's
+   header, which had to fight a global `.header{...!important}` theme rule,
+   these footer variants avoid that collision entirely by never sharing the
+   colliding class name) plus one layout block per archetype
+   (`.gf--marketplace`/`.gf--premium`/`.gf--boutique`/`.gf--dark`). Every
+   color/radius/shadow value below is a design-token custom property
+   (`--brand-*`, falling back to the same tokens.css already defines) —
+   never a hard-coded merchant brand color.
+   ======================================================================== */
+
+/* ---- shared primitives -------------------------------------------------- */
+.gf{--gf-ink:var(--brand-text,var(--ink));--gf-muted:var(--brand-muted,var(--muted));--gf-border:var(--brand-border,var(--line));--gf-surface:var(--brand-surface,var(--card));--gf-bg:var(--brand-background,var(--bg));--gf-accent:var(--brand-primary,var(--violet));background:var(--gf-bg);color:var(--gf-ink);border-top:1px solid var(--gf-border)}
+.gf--dark{--gf-ink:#f1f0f5;--gf-muted:#a7a6b8;--gf-border:#2a2a37;--gf-surface:#1b1b24;--gf-bg:#121218}
+.gf a,.gf button{color:inherit}
+.gf a:focus-visible,.gf button:focus-visible,.gf input:focus-visible{outline:2px solid var(--brand-accent,#ff4d77);outline-offset:2px}
+.gf h5{font-size:13px;font-weight:700;color:var(--gf-ink);margin:0 0 10px}
+.gf ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.gf ul a,.gf ul span{font-size:13px;color:var(--gf-muted);text-decoration:none}
+.gf ul a:hover{color:var(--gf-accent)}
+
+.gf-brand{display:inline-flex;align-items:center;gap:9px;text-decoration:none}
+.gf-brand img{max-height:34px;max-width:150px;display:block}
+.gf-brand-mark{width:34px;height:34px;border-radius:8px;background:var(--gf-accent);color:var(--brand-primary-fg,#fff);display:grid;place-items:center;flex:0 0 auto}
+.gf-brand-mark svg{width:18px;height:18px}
+.gf-brand-text b{font-size:15px;color:var(--gf-ink)}
+.gf-brand-description{font-size:13px;color:var(--gf-muted);line-height:1.7;margin:10px 0 0;max-width:38ch}
+
+.gf-contact-list{gap:8px}
+.gf-contact-list a,.gf-contact-list li{font-size:13px;color:var(--gf-muted)}
+.gf-contact-address{line-height:1.6}
+.gf-working-hours{font-size:12.5px;color:var(--gf-muted);margin:8px 0 0}
+
+.gf-socials{display:flex;align-items:center;gap:10px}
+.gf-socials a{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;border:1px solid var(--gf-border);color:var(--gf-muted)}
+.gf-socials a:hover{color:var(--gf-accent);border-color:var(--gf-accent)}
+.gf-socials svg{width:16px;height:16px}
+@media(max-width:680px){
+  /* U2B touch-target hardening — icon-only footer social controls need a
+     >=44x44 usable target on mobile; desktop proportions (34px) are kept
+     as designed. Scoped to .gf-socials only — no other link/button. */
+  .gf-socials a{width:44px;height:44px}
+}
+
+.gf-newsletter{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.gf-newsletter h3{font-size:15px;margin:0 0 4px;color:var(--gf-ink)}
+.gf-newsletter p{font-size:12.5px;color:var(--gf-muted);margin:0}
+.gf-newsletter form{display:flex;align-items:center;gap:8px;background:var(--gf-surface);border:1px solid var(--gf-border);border-radius:12px;padding:4px;min-width:280px}
+.gf-newsletter input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:16px;color:var(--gf-ink);padding-inline:10px}
+.gf-newsletter button{background:var(--gf-accent);color:var(--brand-primary-fg,#fff);height:36px;padding-inline:16px;border-radius:9px;font-size:13px;font-weight:700;white-space:nowrap}
+
+.gf-credibility{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-block:16px;border-top:1px solid var(--gf-border)}
+.gf-trust-badges,.gf-payment-logos{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.gf-trust-badge-item img,.gf-payment-logos img{height:28px;width:auto;display:block}
+
+.gf-legal-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:16px;border-top:1px solid var(--gf-border)}
+.gf-copy{font-size:12.5px;color:var(--gf-muted)}
+
+.gf-col-extra p{font-size:13px;color:var(--gf-muted);line-height:1.7}
+.gf-col-extra a{font-size:13px;color:var(--gf-muted)}
+
+/* ---- marketplace_dense --------------------------------------------------- */
+.gf--marketplace .gf-newsletter-row{padding-block:16px;border-bottom:1px solid var(--gf-border)}
+.gf--marketplace .gf-dense-grid{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:24px;padding-block:32px}
+@media(max-width:1000px){
+  .gf--marketplace .gf-dense-grid{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:680px){
+  .gf--marketplace .gf-dense-grid{grid-template-columns:1fr 1fr;gap:20px 16px}
+  .gf--marketplace .gf-col-brand{grid-column:1/-1}
+  .gf--marketplace .gf-newsletter{flex-direction:column;align-items:stretch}
+  .gf--marketplace .gf-legal-row{flex-direction:column;align-items:flex-start}
+}
+
+/* ---- premium_columns ------------------------------------------------------ */
+.gf--premium .gf-premium-grid{display:grid;grid-template-columns:1.3fr repeat(4,1fr);gap:40px;padding-block:48px}
+.gf--premium .gf-col h5{letter-spacing:.03em;text-transform:uppercase;font-size:12px;color:var(--gf-muted)}
+.gf--premium .gf-premium-newsletter{padding-block:24px;border-top:1px solid var(--gf-border)}
+.gf--premium .gf-premium-divider{height:1px;background:var(--gf-border)}
+.gf--premium .gf-legal-row-centered{justify-content:center;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.gf--premium .gf-premium-credibility .gf-credibility{justify-content:center}
+@media(max-width:1000px){
+  .gf--premium .gf-premium-grid{grid-template-columns:1fr 1fr;gap:28px}
+  .gf--premium .gf-col-brand{grid-column:1/-1}
+}
+@media(max-width:680px){
+  .gf--premium .gf-premium-grid{grid-template-columns:1fr;gap:24px;padding-block:32px}
+}
+
+/* ---- boutique_editorial ---------------------------------------------------- */
+.gf--boutique .gf-boutique-statement{display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;padding-block:40px 24px}
+.gf--boutique .gf-boutique-statement .gf-brand{flex-direction:column;gap:12px}
+.gf--boutique .gf-boutique-statement .gf-brand-text b{font-size:19px;letter-spacing:.02em}
+.gf--boutique .gf-brand-description{max-width:46ch;text-align:center;margin-inline:auto}
+.gf--boutique .gf-boutique-newsletter{width:100%;max-width:420px}
+.gf--boutique .gf-boutique-newsletter .gf-newsletter{flex-direction:column;text-align:center}
+.gf--boutique .gf-boutique-newsletter .gf-newsletter form{width:100%}
+.gf--boutique .gf-boutique-links{display:flex;justify-content:center;gap:56px;flex-wrap:wrap;padding-block:24px;border-top:1px solid var(--gf-border)}
+.gf--boutique .gf-boutique-links ul{align-items:center;text-align:center}
+.gf--boutique .gf-col h5{font-weight:600;font-size:12.5px;letter-spacing:.04em}
+.gf--boutique .gf-boutique-social{display:flex;justify-content:center;padding-block:8px 20px}
+.gf--boutique .gf-boutique-legal{justify-content:center;text-align:center}
+@media(max-width:680px){
+  .gf--boutique .gf-boutique-statement{padding-block:28px 18px}
+  .gf--boutique .gf-boutique-links{gap:28px;flex-direction:column;align-items:center}
+}
+
+/* ---- dark_tech -------------------------------------------------------------- */
+.gf--dark .gf-dark-grid{display:grid;grid-template-columns:1.2fr repeat(4,1fr);gap:24px;padding-block:32px}
+.gf--dark .gf-dark-newsletter{padding-block:20px;border-top:1px solid var(--gf-border)}
+@media(max-width:1000px){
+  .gf--dark .gf-dark-grid{grid-template-columns:1fr 1fr;gap:20px}
+  .gf--dark .gf-col-brand{grid-column:1/-1}
+}
+@media(max-width:680px){
+  .gf--dark .gf-dark-grid{grid-template-columns:1fr;gap:18px;padding-block:24px}
+  .gf--dark .gf-legal-row{flex-direction:column;align-items:flex-start}
+}

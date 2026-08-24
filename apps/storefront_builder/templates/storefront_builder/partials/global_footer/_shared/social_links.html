@@ -1,0 +1,13 @@
+{% comment %}
+U2B shared footer social-links row — real ``SOCIAL_LINKS_FOOTER`` data
+only (same context processor the legacy_default footer already uses).
+Renders nothing when the Store has configured no social links — never a
+fabricated/placeholder social account.
+{% endcomment %}
+{% if SOCIAL_LINKS_FOOTER %}
+<div class="gf-socials">
+  {% for slink in SOCIAL_LINKS_FOOTER %}
+  <a href="{{ slink.url }}" aria-label="{{ slink.title }}" target="_blank" rel="noopener noreferrer">{% include "partials/social_icon.html" with icon=slink.effective_icon_name %}</a>
+  {% endfor %}
+</div>
+{% endif %}

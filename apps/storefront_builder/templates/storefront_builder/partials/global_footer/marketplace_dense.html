@@ -1,0 +1,70 @@
+{% comment %}
+U2B Global Footer Variant — Marketplace Dense (key: marketplace_dense).
+
+Archetype: practical commerce-oriented footer, multiple navigation
+columns, contact/store information, a compact utility/legal region —
+suited to a large catalog. A single dense CSS-grid of columns (brand,
+quick links, categories, contact, any extra blocks) is the structural
+signature — no editorial centering, no restrained single-column
+statement.
+
+Required context: ``footer_config``/``is_live_storefront``/``is_builder_preview``
+— the exact same three the ``legacy_default`` renderer (page_shell_footer.html)
+already receives from ``{% include footer_variant_template with ... %}``.
+{% endcomment %}
+{% load storefront_builder_extras %}
+{% has_real_footer_contact_data FOOTER_SETTINGS SHOP_CONTACT_PHONE SHOP_CONTACT_EMAIL as gf_has_contact_data %}
+{% with fc=footer_config rc=footer_config.responsive %}
+<footer class="gf gf--marketplace">
+  {% if fc.show_newsletter and FOOTER_SETTINGS.show_newsletter %}
+  <div class="wrap gf-newsletter-row" {% if rc.show_newsletter.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_newsletter.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+    {% include "storefront_builder/partials/global_footer/_shared/newsletter.html" %}
+  </div>
+  {% endif %}
+
+  <div class="wrap">
+    {% if fc.show_about or fc.show_quick_links and NAV_FOOTER_1 or fc.show_categories and top_level_categories or fc.show_contact and gf_has_contact_data or fc.extra_blocks|has_renderable_footer_extra_block:SOCIAL_LINKS_FOOTER %}
+    <div class="gf-dense-grid">
+      {% if fc.show_about %}
+      <div class="gf-col gf-col-brand" {% if rc.show_about.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_about.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/brand.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_quick_links %}
+      <div {% if rc.show_quick_links.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_quick_links.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/nav_column.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_categories %}
+      <div {% if rc.show_categories.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_categories.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/categories_column.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_contact %}
+      <div class="gf-col gf-col-contact" {% if rc.show_contact.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_contact.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/contact_column.html" %}
+      </div>
+      {% endif %}
+      {% include "storefront_builder/partials/global_footer/_shared/extra_blocks.html" %}
+    </div>
+    {% endif %}
+
+    {% include "storefront_builder/partials/global_footer/_shared/trust_payment.html" %}
+
+    {% if fc.show_copyright or fc.show_social and SOCIAL_LINKS_FOOTER %}
+    <div class="gf-legal-row">
+      {% if fc.show_social %}
+      <div {% if rc.show_social.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_social.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/social_links.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_copyright %}
+      <div {% if rc.show_copyright.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_copyright.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/legal_row.html" %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</footer>
+{% endwith %}

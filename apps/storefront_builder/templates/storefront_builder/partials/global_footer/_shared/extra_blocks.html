@@ -1,0 +1,24 @@
+{% comment %}
+U2B shared footer extra-blocks loop — real merchant-authored
+``fc.extra_blocks`` entries, covering all three validated
+``FOOTER_EXTRA_BLOCK_TYPES`` (layout_service.py): custom_text/link/social.
+``social`` reuses the shared ``social_links.html`` partial and its own
+``SOCIAL_LINKS_FOOTER`` guard — never invented content, and renders
+nothing when the Store has configured no social links. Every variant
+template sets ``fc=footer_config`` via ``{% with %}`` before including
+this partial.
+{% endcomment %}
+{% for block in fc.extra_blocks %}
+{% if block.type == "custom_text" and block.text %}
+<div class="gf-col gf-col-extra">
+  {% if block.title %}<h5>{{ block.title }}</h5>{% endif %}
+  <p>{{ block.text }}</p>
+</div>
+{% elif block.type == "link" and block.url %}
+<div class="gf-col gf-col-extra"><h5>{{ block.label|default:"پیوند" }}</h5><a href="{{ block.url }}" target="_blank" rel="noopener noreferrer">{{ block.label|default:block.url }}</a></div>
+{% elif block.type == "social" and SOCIAL_LINKS_FOOTER %}
+<div class="gf-col gf-col-extra gf-col-extra-social">
+  {% include "storefront_builder/partials/global_footer/_shared/social_links.html" %}
+</div>
+{% endif %}
+{% endfor %}

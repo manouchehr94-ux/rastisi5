@@ -1,0 +1,17 @@
+{% comment %}
+U2B shared footer categories column — real Store-scoped top-level
+Category data (``top_level_categories``, computed once in
+``storefront_context_service._top_level_categories``), never hardcoded.
+Renders nothing if the Store has no active top-level category (matches
+the legacy_default footer's behavior — an empty ``<ul>`` never shows).
+{% endcomment %}
+{% if top_level_categories %}
+<div class="gf-col gf-col-categories">
+  <h5>دسته‌بندی‌ها</h5>
+  <ul>
+    {% for cat in top_level_categories|slice:":7" %}
+    <li><a href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">{{ cat.name }}</a></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}

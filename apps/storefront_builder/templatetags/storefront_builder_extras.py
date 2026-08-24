@@ -35,6 +35,46 @@ def dictget(d, key):
     return d.get(key, "")
 
 
+@register.simple_tag
+def has_real_footer_contact_data(footer_settings, shop_contact_phone, shop_contact_email):
+    """آیا دادهٔ تماسِ واقعی برایِ فوتر وجود دارد؟ — دقیقاً همان شرطِ
+    استفاده‌شده در ``global_footer/_shared/contact_info.html``/
+    ``contact_column.html``، این‌جا به‌صورتِ یک بولِینِ آماده در دسترس
+    است تا شرطِ «آیا گریدِ بیرونیِ فوتر چیزی برایِ رندر دارد؟» بتواند
+    بدونِ تکرارِ آن عبارتِ طولانی از این مقدار استفاده کند — پوستهٔ گرید
+    هرگز برایِ یک ستونِ تماسِ خالی باز نمی‌ماند."""
+    fs = footer_settings
+    if fs and (fs.phone or fs.secondary_phone or fs.email or fs.working_hours or fs.address):
+        return True
+    return bool(shop_contact_phone or shop_contact_email)
+
+
+@register.filter
+def has_renderable_footer_extra_block(extra_blocks, social_links_footer):
+    """آیا فهرستِ ``extra_blocks`` فوترِ Global دستِ‌کم یک ستونِ واقعاً
+    رندرشدنی دارد؟ — دقیقاً همان سه شرطِ per-block در
+    ``global_footer/_shared/extra_blocks.html`` (custom_text با متنِ
+    واقعی / link با آدرسِ واقعیِ ثبت‌شده / social با دادهٔ واقعیِ
+    SOCIAL_LINKS_FOOTER)؛ چون write-time یک بلوکِ custom_text/link با
+    متن/آدرسِ خالی هم می‌تواند ذخیره شود (بدونِ رد شدن)، صرفِ غیرخالی‌بودنِ
+    فهرست تضمینی برایِ رندرِ واقعی نیست — این تابع همان بررسیِ دقیق را
+    انجام می‌دهد تا پوستهٔ گریدِ بیرونیِ فوتر برایِ یک بلوکِ نامعتبر/خالی
+    باز نماند. هرگز crash نمی‌کند (هم‌آهنگ با قراردادِ این ماژول)."""
+    if not extra_blocks:
+        return False
+    for block in extra_blocks:
+        if not isinstance(block, dict):
+            continue
+        block_type = block.get("type")
+        if block_type == "custom_text" and block.get("text"):
+            return True
+        if block_type == "link" and block.get("url"):
+            return True
+        if block_type == "social" and social_links_footer:
+            return True
+    return False
+
+
 @register.filter
 def getattribute(obj, attr_name):
     """دسترسیِ پویا به یک attribute که نامش در یک متغیرِ تمپلیت است — برای

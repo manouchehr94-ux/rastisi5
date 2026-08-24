@@ -1,4 +1,5 @@
-"""Global Region/Variant Registry — U2A: Visual Global Header System.
+"""Global Region/Variant Registry — U2A: Visual Global Header System,
+extended in U2B to also cover the Footer global region.
 
 ``SECTION_REGISTRY`` (``section_registry.py``) resolves *page-section*
 types (hero_banner, product_section, ...). It is deliberately NOT reused
@@ -111,9 +112,10 @@ class GlobalRegionDefinition:
 #: deliberately a *different* namespace from
 #: ``variant_contract.SECTION_VARIANT_RENDERER_NAMESPACE`` (global regions
 #: are not sections). Broad enough to include the pre-existing, unchanged
-#: ``page_shell_header.html`` (registered below as ``legacy_default``'s
-#: renderer, at its current, un-moved path) as well as the four new
-#: ``global_header/`` variant partials.
+#: ``page_shell_header.html``/``page_shell_footer.html`` (registered below
+#: as each region's ``legacy_default`` renderer, at their current, un-moved
+#: paths) as well as the new ``global_header/``/``global_footer/`` variant
+#: partials.
 GLOBAL_RENDERER_NAMESPACE = "storefront_builder/partials/"
 
 _WINDOWS_DRIVE_PATH_RE = re.compile(r"^[A-Za-z]:[\\/]")
@@ -222,12 +224,59 @@ GLOBAL_HEADER_REGION = GlobalRegionDefinition(
     variant_setting_key="header_variant",
 )
 
+#: U2B — backward-compatible default for the Footer region: the exact,
+#: unmoved, unmodified partial every published-V2 Store renders today.
+#: Same rationale as ``_LEGACY_DEFAULT_VARIANT`` above.
+_FOOTER_LEGACY_DEFAULT_VARIANT = GlobalVariantDefinition(
+    key="legacy_default",
+    label_fa="فعلی / پیش‌فرض",
+    renderer="storefront_builder/partials/page_shell_footer.html",
+)
+
+_FOOTER_MARKETPLACE_DENSE_VARIANT = GlobalVariantDefinition(
+    key="marketplace_dense",
+    label_fa="بازارگاهی (فشرده)",
+    renderer="storefront_builder/partials/global_footer/marketplace_dense.html",
+)
+
+_FOOTER_PREMIUM_COLUMNS_VARIANT = GlobalVariantDefinition(
+    key="premium_columns",
+    label_fa="پرمیوم چندستونه",
+    renderer="storefront_builder/partials/global_footer/premium_columns.html",
+)
+
+_FOOTER_BOUTIQUE_EDITORIAL_VARIANT = GlobalVariantDefinition(
+    key="boutique_editorial",
+    label_fa="بوتیک (نشریه‌ای)",
+    renderer="storefront_builder/partials/global_footer/boutique_editorial.html",
+)
+
+_FOOTER_DARK_TECH_VARIANT = GlobalVariantDefinition(
+    key="dark_tech",
+    label_fa="دیجیتال تیره",
+    renderer="storefront_builder/partials/global_footer/dark_tech.html",
+)
+
+GLOBAL_FOOTER_REGION = GlobalRegionDefinition(
+    key="footer",
+    label_fa="فوتر فروشگاه",
+    variants=(
+        _FOOTER_LEGACY_DEFAULT_VARIANT,
+        _FOOTER_MARKETPLACE_DENSE_VARIANT,
+        _FOOTER_PREMIUM_COLUMNS_VARIANT,
+        _FOOTER_BOUTIQUE_EDITORIAL_VARIANT,
+        _FOOTER_DARK_TECH_VARIANT,
+    ),
+    default_variant="legacy_default",
+    variant_setting_key="footer_variant",
+)
+
 #: Every ``GlobalRegionDefinition`` this module currently defines — U2A
-#: covers header only (navigation/mobile shell are composed *within* the
-#: header variant's own renderer, not separate regions yet); a future
-#: phase (U2B footer, or a later mobile-shell split) extends this tuple,
-#: never replaces the header entry.
-_GLOBAL_REGIONS: tuple[GlobalRegionDefinition, ...] = (GLOBAL_HEADER_REGION,)
+#: added Header, U2B extends this tuple with Footer (navigation/mobile
+#: shell are composed *within* each region's own variant renderer, not
+#: separate regions). A future phase may extend this tuple further; it
+#: never replaces an existing entry.
+_GLOBAL_REGIONS: tuple[GlobalRegionDefinition, ...] = (GLOBAL_HEADER_REGION, GLOBAL_FOOTER_REGION)
 
 for _region in _GLOBAL_REGIONS:
     _validate_global_region(_region)

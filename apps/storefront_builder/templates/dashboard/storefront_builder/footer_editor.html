@@ -10,6 +10,15 @@
   {% endif %}
   <form method="post">
     {% csrf_token %}
+    <div class="form-group">
+      <label for="footer_variant_select">سبک فوتر</label>
+      <select id="footer_variant_select" name="footer_variant" class="form-select">
+        {% for variant in footer_variants %}
+        <option value="{{ variant.key }}" {% if config.footer_variant == variant.key %}selected{% endif %}>{{ variant.label_fa }}</option>
+        {% endfor %}
+      </select>
+      <div class="field-help">ساختار و چیدمانِ کلیِ فوترِ فروشگاه را تغییر می‌دهد — تنظیماتِ بالا (بخش‌های فعال، ستون‌های اضافی) برایِ هر سبک اعمال می‌شود.</div>
+    </div>
     <div class="form-group"><label><input type="checkbox" name="show_about" {% if config.show_about %}checked{% endif %}> نمایش درباره فروشگاه</label>
       {% include "dashboard/storefront_builder/partials/shell_component_responsive_fields.html" with key="show_about" component=config.responsive.show_about %}</div>
     <div class="form-group"><label><input type="checkbox" name="show_contact" {% if config.show_contact %}checked{% endif %}> نمایش اطلاعات تماس</label>

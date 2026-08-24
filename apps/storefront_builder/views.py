@@ -251,9 +251,13 @@ def storefront_preview(request):
     header_variant_template = global_region_registry.resolve_global_renderer_template(
         global_region_registry.GLOBAL_HEADER_REGION, draft.effective_header_config(),
     )
+    footer_variant_template = global_region_registry.resolve_global_renderer_template(
+        global_region_registry.GLOBAL_FOOTER_REGION, draft.effective_footer_config(),
+    )
     return render(request, "storefront_builder/preview.html", {
         "store": store, "version": draft, "page": page, "page_type": page_type,
         "header_variant_template": header_variant_template,
+        "footer_variant_template": footer_variant_template,
         "render_items": items,
         # Legacy rows remain as a compatibility fallback; Container/Cell is now
         # the primary Builder composition source. Empty cells are visible only here.
@@ -2190,6 +2194,7 @@ def storefront_footer_editor(request):
         raw = {field: request.POST.get(field) == "on" for field in FOOTER_TOGGLE_FIELDS}
         raw["responsive"] = _extract_shell_responsive_raw(request, FOOTER_RESPONSIVE_AWARE_KEYS)
         raw["extra_blocks"] = _extract_footer_extra_blocks_raw(request)
+        raw["footer_variant"] = request.POST.get("footer_variant", "")
         try:
             config = layout_service.validate_footer_config(raw)
         except layout_service.FooterConfigValidationError as exc:
@@ -2197,6 +2202,7 @@ def storefront_footer_editor(request):
             return render(request, "dashboard/storefront_builder/footer_editor.html", {
                 "active_page": "storefront_builder",
                 "config": {**FOOTER_CONFIG_DEFAULTS, **raw}, "draft": draft, "error": str(exc),
+                "footer_variants": global_region_registry.list_global_variants(global_region_registry.GLOBAL_FOOTER_REGION),
             })
         draft.footer_config = config
         draft.save(update_fields=["footer_config", "updated_at"])
@@ -2210,6 +2216,7 @@ def storefront_footer_editor(request):
     )
     return render(request, template_name, {
         "active_page": "storefront_builder", "config": draft.effective_footer_config(), "draft": draft,
+        "footer_variants": global_region_registry.list_global_variants(global_region_registry.GLOBAL_FOOTER_REGION),
     })
 
 
