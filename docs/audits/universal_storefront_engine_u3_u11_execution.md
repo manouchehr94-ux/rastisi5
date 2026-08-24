@@ -166,3 +166,127 @@ capabilities render correctly.
    registry — that would have been a second, competing registry for the
    same three keys, which the U1 `variant_contract.py` docstring already
    explicitly warns against for section variants.
+
+---
+
+## U4 — Hero / Category / Content / Promotion Component System
+
+- **Starting SHA:** `51afac91a1259d50cc7073944e86758e8539e58c`
+- **Ending SHA:** _(recorded after commit, see below)_
+
+### Audit findings (before implementing)
+
+Read all 34 `SECTION_REGISTRY` entries and every `validate_settings`
+function. Of the "hero/category/content/promotion" family:
+
+- `category_grid`, `brand_carousel`, `product_section` **already comply**
+  with the U1 variant-contract mechanism (Pattern A, `display_mode` enum) —
+  no work needed, confirmed unchanged.
+- `image_text` already has a genuine, already-coerced, already-safe closed
+  2-value enum (`image_position`: `left`/`right`) that was **never wired**
+  into `variants=` — a zero-risk formalization candidate.
+- `multi_banner`'s historical `layout_variant` values (`promo-4`,
+  `wide-single`, `mini-4`, `strip`) are **deliberately not a closed enum**
+  today — an explicit prior R1 finding (`section_registry.py` comment,
+  `MULTI_BANNER_KNOWN_LAYOUT_VARIANTS`) states the complete write-path
+  cannot be proven closed from source alone (no editor UI control writes
+  it), so narrowing it into `variants=` (which enforces write-time
+  rejection of unrecognized values via `_with_variant_validation`) would
+  violate that explicit "do not narrow without live-data proof" decision
+  and the master contract's own "preserve historical multi_banner values"
+  rule. **Left completely untouched** — guarded by a new tripwire test
+  (`MultiBannerNotNarrowedTests`) so a future phase doesn't "helpfully"
+  narrow it by mistake.
+- `hero_banner`/`image_slider`, `single_banner`, `promo_cards`,
+  `story_rail`, `trust_features`, `testimonials`, `faq`, `newsletter`,
+  `quick_links`, `collection_tiles`, `video_section` had **zero** existing
+  variant concept — one fixed template/treatment each. Building genuine new
+  Pattern-B (different DOM) variants for all of them in one phase would mean
+  many new untested templates; scoped this phase to the two highest-value,
+  safest additions instead (see below), documenting the rest as an open
+  gap rather than rushing shallow variants for all 11.
+- Confirmed via `render_service.py`: `hero_banner` and `image_slider` are
+  literally the same reusable partial (`hero_slider_body.html`) mounted in
+  two places — the new hero variant is deliberately scoped to `hero_banner`
+  only, not forced onto `image_slider` too.
+- Confirmed the exact write-time enforcement mechanism
+  (`section_registry._with_variant_validation`, wraps a definition's own
+  `validate_settings` with `variant_contract.validate_variant_selection`
+  *after* it runs) — so each new variant-selecting key needed adding to its
+  section's own validator, not just the registry tuple, or the key would be
+  silently stripped before a merchant's choice could ever persist.
+
+### Architecture implemented
+
+- **`hero_banner`** — new Pattern B variant `split` (alongside untouched,
+  still-default `overlay`): a new renderer partial
+  (`storefront_builder/sections/hero_banner_split.html`) presenting the
+  exact same real Store-scoped `HeroSlide` data (title/subtitle/button/
+  image — nothing invented) as a text-beside-image layout instead of
+  text-over-image. Renders exactly one real slide (the first, by
+  `display_order`) — a deliberate scope choice documented in the template
+  and ledger, not a bug: re-implementing the overlay layout's full carousel
+  controls for a two-column layout was judged not worth duplicating for
+  this phase. `_validate_slider_settings`/`default_slider_settings` (shared
+  with `image_slider`) gained `hero_style` (`overlay`/`split`, coerced,
+  default `overlay`); `image_slider`'s own `SectionDefinition` was **not**
+  given `variants=`, so the key is inert there — confirmed by test.
+- **`collection_tiles`** — new Pattern A variant `carousel` (alongside
+  untouched, still-default `grid`): same template, `tile_style` (`grid`/
+  `carousel`, coerced, default `grid`) added to
+  `_validate_collection_tiles_settings`/`default_collection_tiles_settings`;
+  template branches container CSS class exactly like `category_grid`
+  already does for `display_mode`. Reuses the existing `.tiles-carousel`
+  scroll-container convention (`category_grid`/`brand_carousel` already
+  established it) with one new scoped CSS rule for `.pcard` sizing (the
+  existing rule only sizes `.tile` children).
+- **`image_text`** — formalized the existing `image_position` enum into
+  `variants=`. Zero template/behavior change — `image_text.html` already
+  branched on this exact setting.
+- New CSS: `.hero-split*` rules and `.collection-tiles-carousel .pcard`
+  sizing in `apps/catalog/static/css/home.css`, following the file's
+  existing responsive-breakpoint conventions.
+
+### Migrations
+
+None. No model fields added — new settings keys live in the existing
+`StorefrontSection.settings` JSON field, additive and defaulted.
+
+### Focused test results
+
+`apps/storefront_builder/tests/test_u4_component_variants.py` (new, 19
+tests): **19/19 passed.** Covers: registered-variant metadata for all three
+touched sections, Pattern A/B renderer resolution, invalid/legacy stored
+value coercion (never raises), the `multi_banner` non-narrowing tripwire,
+`image_slider` non-contamination, and full HTTP end-to-end rendering proof
+for both the unchanged default (overlay/grid) and new (split/carousel)
+paths — including a no-fabrication check that a second real `HeroSlide`
+never appears in the single-slide `split` layout.
+
+### Regression results
+
+- `python manage.py test apps.storefront_builder` — **1499 tests** (1480 +
+  19 new), same **2 pre-existing known failures** as U3 (deferred to U11
+  per the master contract), **zero new failures**.
+- `python manage.py makemigrations --check --dry-run` — no changes detected.
+- `git diff --check` — clean.
+- `apps.catalog` not re-run this phase — U4 touched no `apps/catalog` Python
+  code (only a shared static CSS file and `apps/storefront_builder`
+  templates/registry); U3's catalog regression (782/782) already covers the
+  catalog surface this phase doesn't touch.
+
+### Known limitations (explicit capability boundaries, not gaps to hide)
+
+1. **9 of the 11 "no existing variant concept" section types remain
+   single-treatment**: `single_banner`, `promo_cards`, `story_rail`,
+   `trust_features`, `testimonials`, `faq`, `newsletter`, `quick_links`,
+   `video_section`. Each would need a genuine new Pattern-B template
+   designed, styled, and tested — deliberately not rushed in this phase to
+   keep every shipped variant real and verified rather than shallow.
+2. **`multi_banner` still has no registered variant metadata** — correct
+   per the explicit R1 finding, not an oversight (see audit findings
+   above). A future phase could close this properly by first auditing live
+   `layout_variant` values in production data.
+3. **`hero_banner`'s `split` variant shows only the first slide** — a
+   documented design constraint of the two-column metaphor, not a data-loss
+   bug; additional slides remain fully visible/editable in the Builder.

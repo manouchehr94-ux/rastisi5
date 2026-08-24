@@ -1032,6 +1032,18 @@ _SLIDER_MAX_INTERVAL_MS = 10000
 _SLIDER_DEFAULT_INTERVAL_MS = 4500
 
 
+#: U4 — the closed set of structural variants ``hero_banner`` registers
+#: (see ``_BASE_SECTION_REGISTRY["hero_banner"]`` below). Shared here with
+#: ``_validate_slider_settings`` because that validator is the ONE place
+#: both ``hero_banner`` and ``image_slider`` clean their settings —
+#: ``image_slider`` has no ``variants`` registered, so this key is simply
+#: inert/unused there, exactly like ``text_position`` already is for any
+#: section that doesn't read it. Keeping the key in one shared validator
+#: (rather than forking a second near-identical function) is the same
+#: reuse choice already made for every other slider-level field.
+HERO_STYLE_CHOICES = ("overlay", "split")
+
+
 def _validate_slider_settings(raw: dict) -> dict:
     """قراردادِ تنظیماتِ سطحِ اسلایدر (نه تک‌تکِ اسلایدها — آن‌ها روی خودِ
     ``HeroSlide`` ذخیره می‌شوند) — برایِ ``hero_banner``/``image_slider``.
@@ -1066,10 +1078,20 @@ def _validate_slider_settings(raw: dict) -> dict:
     if text_position not in {"start", "center", "end"}:
         text_position = "end"
 
+    # U4 — ``hero_style`` selects the registered structural variant
+    # (``overlay``/``split``, see ``HERO_STYLE_CHOICES``). Coerced here
+    # (not left to the generic ``variant_contract`` safety net alone) so an
+    # unrecognized/legacy value never round-trips back into storage —
+    # exactly the same discipline ``display_mode`` already gets in
+    # ``_validate_category_grid_settings``.
+    hero_style = raw.get("hero_style", "overlay")
+    if hero_style not in HERO_STYLE_CHOICES:
+        hero_style = "overlay"
+
     return {
         "autoplay": autoplay, "interval_ms": interval_ms,
         "show_arrows": show_arrows, "show_dots": show_dots, "loop": loop,
-        "text_position": text_position,
+        "text_position": text_position, "hero_style": hero_style,
     }
 
 
@@ -1079,6 +1101,10 @@ def default_slider_settings() -> dict:
         "show_arrows": True, "show_dots": True, "loop": True,
         # ``end`` preserves the historical overlay side for existing stores.
         "text_position": "end",
+        # ``overlay`` is the historical, only-ever-rendered hero treatment —
+        # an existing store with no ``hero_style`` written keeps rendering
+        # byte-identically via this default.
+        "hero_style": "overlay",
     }
 
 
@@ -1284,11 +1310,21 @@ class CollectionTilesSettingsError(ValueError):
 _MAX_COLLECTION_TILES_IDS = 12
 
 
+#: U4 — the closed set of structural variants ``collection_tiles`` registers
+#: (see ``_BASE_SECTION_REGISTRY["collection_tiles"]`` below).
+COLLECTION_TILES_STYLE_CHOICES = ("grid", "carousel")
+
+
 def _validate_collection_tiles_settings(raw: dict) -> dict:
     """چکپوینتِ ۱۲: بخشِ جدیدِ «کارت‌های کالکشن» — خودِ کالکشن‌ها را نشان
     می‌دهد (تصویر/نام/تعدادِ کالا/لینک به صفحه‌ی کالکشن)، نه کالاهایِ
     *داخلِ* یک کالکشن (که همان ``product_section`` با ``data_source=collection``
-    است). ``collection_ids`` خالی = نمایشِ خودکارِ همه‌ی کالکشن‌های فعال."""
+    است). ``collection_ids`` خالی = نمایشِ خودکارِ همه‌ی کالکشن‌های فعال.
+
+    U4 اضافه کرد: ``tile_style`` (``grid`` پیش‌فرض / ``carousel``) — همان
+    الگویِ Pattern A که ``category_grid``/``brand_carousel`` قبلاً برایِ
+    ``display_mode`` دارند؛ همان template، فقط کلاسِ CSSِ کانتینر عوض
+    می‌شود."""
     if not isinstance(raw, dict):
         raise CollectionTilesSettingsError("تنظیمات باید یک شیء JSON باشد")
     title = str(raw.get("title", "")).strip()[:_MAX_SECTION_TITLE_LENGTH]
@@ -1296,11 +1332,14 @@ def _validate_collection_tiles_settings(raw: dict) -> dict:
         raw.get("collection_ids", []), max_len=_MAX_COLLECTION_TILES_IDS,
         error_cls=CollectionTilesSettingsError, error_message="شناسه‌ی کالکشن نامعتبر است",
     )
-    return {"title": title, "collection_ids": collection_ids}
+    tile_style = raw.get("tile_style", "grid")
+    if tile_style not in COLLECTION_TILES_STYLE_CHOICES:
+        tile_style = "grid"
+    return {"title": title, "collection_ids": collection_ids, "tile_style": tile_style}
 
 
 def default_collection_tiles_settings() -> dict:
-    return {"title": "", "collection_ids": []}
+    return {"title": "", "collection_ids": [], "tile_style": "grid"}
 
 
 class QuickLinksSettingsError(ValueError):
@@ -1522,6 +1561,17 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         template_name="storefront_builder/sections/hero_banner.html",
         validate_settings=_validate_slider_settings, default_settings=default_slider_settings,
         duplicable=True, removable=True, has_settings_form=True, category_fa="تصاویر و تبلیغات",
+        # U4 — Pattern B: ``split`` is a genuinely different renderer partial
+        # (text beside the image, not overlaid on it), registered only on
+        # ``hero_banner`` (not ``image_slider`` — U4 scopes this to the
+        # "hero" primitive). Same real Store-scoped ``HeroSlide`` data either
+        # way; ``renderer=None`` (``overlay``) keeps every existing store's
+        # exact current template/DOM, unchanged.
+        variants=(
+            VariantDefinition(key="overlay", label_fa="روی تصویر (پیش‌فرض)"),
+            VariantDefinition(key="split", label_fa="متن و تصویر جدا", renderer="storefront_builder/sections/hero_banner_split.html"),
+        ),
+        default_variant="overlay", variant_setting_key="hero_style",
     ),
     "image_slider": SectionDefinition(
         key="image_slider", label_fa="اسلایدر تصویر", icon="images",
@@ -1639,6 +1689,14 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         default_settings=lambda: {"title": "", "body_html": "", "image_url": "", "image_position": "right"},
         duplicable=True, removable=True, has_settings_form=True, category_fa="محتوا",
         description_fa="یک تصویر در کنار عنوان و متن؛ مناسب معرفی، داستان برند و بنر محتوایی.",
+        # U4 — formalizes the closed enum ``_validate_image_text_settings``
+        # already coerces (Pattern A). No template/behavior change: the
+        # renderer already branches on ``image_position`` exactly this way.
+        variants=(
+            VariantDefinition(key="right", label_fa="تصویر سمت راست"),
+            VariantDefinition(key="left", label_fa="تصویر سمت چپ"),
+        ),
+        default_variant="right", variant_setting_key="image_position",
     ),
     "blog_posts": SectionDefinition(
         key="blog_posts", label_fa="مطالب وبلاگ", icon="newspaper",
@@ -1670,6 +1728,13 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         template_name="storefront_builder/sections/collection_tiles.html",
         validate_settings=_validate_collection_tiles_settings, default_settings=default_collection_tiles_settings,
         duplicable=True, removable=True, has_settings_form=True, category_fa="کشف و خرید",
+        # U4 — Pattern A, same convention as category_grid/brand_carousel:
+        # same template, CSS branches on ``tile_style``.
+        variants=(
+            VariantDefinition(key="grid", label_fa="گرید"),
+            VariantDefinition(key="carousel", label_fa="کاروسل"),
+        ),
+        default_variant="grid", variant_setting_key="tile_style",
     ),
     "quick_links": SectionDefinition(
         key="quick_links", label_fa="دسترسی سریع", icon="compass",

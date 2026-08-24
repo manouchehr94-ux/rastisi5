@@ -1,0 +1,34 @@
+{% load content_tags %}
+{% comment %}
+U4 — Hero, "split" structural variant (Pattern B). Same real, Store-scoped
+``HeroSlide`` data as the default "overlay" layout (``hero_slider_body.html``)
+— the split treatment puts text beside the image instead of over it, so it
+renders exactly one real slide (the first, by display order) rather than
+re-implementing the default layout's full carousel controls for a
+two-column layout. Every field shown (title/subtitle/button) is HeroSlide's
+own existing field, nothing invented; additional slides beyond the first
+remain fully visible/editable in the Builder, they simply aren't part of
+this single-hero visual metaphor.
+{% endcomment %}
+{% if hero_slides %}
+{% with slide=hero_slides.0 %}
+<section class="section hero hero-split">
+  <div class="hero-split-inner">
+    <div class="hero-split-text">
+      {% if slide.title %}<h1>{{ slide.title }}</h1>{% endif %}
+      {% if slide.subtitle %}<p>{{ slide.subtitle }}</p>{% endif %}
+      {% if slide.show_button and slide.button_label %}
+      {% resolve_destination slide as dest %}
+      {% if dest.url %}<a class="hero-cta" href="{{ dest.url }}" {% if dest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ slide.button_label }}</a>{% endif %}
+      {% endif %}
+    </div>
+    <div class="hero-split-media">
+      <picture>
+        {% if slide.mobile_image %}<source media="(max-width:680px)" srcset="{{ slide.mobile_image.url }}">{% endif %}
+        <img src="{{ slide.desktop_image.url }}" alt="{{ slide.title|default:'اسلاید' }}" loading="eager">
+      </picture>
+    </div>
+  </div>
+</section>
+{% endwith %}
+{% endif %}

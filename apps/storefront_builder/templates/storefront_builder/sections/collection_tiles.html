@@ -4,7 +4,7 @@
   {% if settings.title %}
   <div class="sec-head"><h2><span class="bar"></span>{{ settings.title }}</h2></div>
   {% endif %}
-  <div class="grid g4">
+  <div class="{% if settings.tile_style == 'carousel' %}tiles-carousel collection-tiles-carousel{% else %}grid g4{% endif %}">
     {% for row in collection_tiles %}
     <a href="{% url 'catalog:collection-detail' row.collection.slug %}" class="pcard">
       <div class="img">
