@@ -697,7 +697,8 @@ time).
 ## U8 — Template-First Merchant Experience
 
 - **Starting SHA:** `e2f82331bcd7667fce355157d4d88c4a79b32f5c`
-- **Ending SHA:** _(recorded after commit, see below)_
+- **Ending SHA:** `fe2d6cf77c86a942685f9e6fea2be6164ceb97f4` (verified equal
+  to `origin/feature/storefront-builder-v3-redesign` after push)
 
 ### Audit findings (before implementing)
 
