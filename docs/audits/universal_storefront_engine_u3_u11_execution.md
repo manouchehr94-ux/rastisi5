@@ -1049,3 +1049,172 @@ time.
    `best_sellers`/`discounted_products` on `dense_marketplace` use the
    default card style) — a deliberate scope choice to keep the diff
    real and reviewable rather than mechanically repetitive.
+
+---
+
+## U11 — Performance / Accessibility / Regression Closure
+
+- **Starting SHA:** `b939b9ba741557bfb03119d5666c310a9305a37c`
+- **Ending SHA:** _(recorded after commit, see below)_
+
+This is the closure phase — hardening, not new features.
+
+### 1. Closing the two named pre-existing test failures
+
+Both were investigated to their actual root cause (not skipped, not
+weakened blindly) — per-test findings:
+
+- **`test_container_settings_explains_hidden_is_not_empty`** — the test
+  reflects a genuine, still-valid product contract that was simply never
+  finished: the container settings panel already distinguished a hidden
+  section ("— مخفی") from a truly empty cell ("خالی") visually, but never
+  explained *why* hiding a section doesn't remove it from its cell — a
+  real, plausible source of merchant confusion ("did hiding this delete
+  my layout?"). **Fixed the implementation**: added one explanatory note
+  to `container_settings_form.html` — "«مخفی کردن» یک بخش یعنی در
+  فروشگاه نمایش داده نمی‌شود؛ این کار آن خانه را خالی نمی‌کند...".
+- **`test_settings_inspector_keeps_content_tabs_but_layout_moves_to_container_inspector`**
+  — root-caused by reading the actual current HTMX partial response
+  in full: the Content/Advanced tab *switcher* nav
+  (`sfb-v3-inspector-tabs`) was centralized into the editor shell
+  (`editor.html`) during the V3 sidebar rework instead of being
+  duplicated into every per-section partial — the test's assumption
+  (a nav element inside the isolated partial) was superseded by that
+  architecture, confirmed genuinely superseded rather than broken. The
+  partial still correctly participates in the shared tab state (its root
+  carries `:class="{ 'is-advanced-tab': inspectorTab === 'advanced' }"`,
+  driven by the shell's single `inspectorTab` Alpine variable) — that
+  binding is the real, current signal. **Updated the test** to assert on
+  `is-advanced-tab` instead of the no-longer-present duplicated nav, with
+  the reasoning recorded inline as a code comment, not just in this
+  ledger.
+
+Both fixes verified: `python manage.py test apps.storefront_builder` now
+reports **zero failures** (previously: failures=2 on every phase's
+regression run from U3 through U10).
+
+### 2. The named N+1: `container_service.get_cell_blocks`
+
+Root-caused precisely: `get_cell_blocks` is *deliberately* always a live
+query — its own docstring documents a real write-path correctness
+guarantee (a caller can hold a stale `StorefrontCell` right after another
+code path mutated the same Cell's placement elsewhere, e.g.
+`place_section`) — `.order_by()` on a Django related manager never honors
+a prefetch cache, only a bare `.all()` does, so this function can never be
+prefetch-safe by construction. That guarantee is correct and was **left
+untouched** for every write-adjacent call site.
+
+But three read-only call sites were calling it in a per-Cell loop
+*immediately after* prefetching `cells__blocks`/`cells__section` on the
+very same queryset — discarding that prefetch and firing one extra live
+query per Cell, on **every public page render**
+(`render_service.build_page_render_items`) and **every builder panel
+refresh** (`storefront_container_state_partial`,
+`storefront_container_settings`). Added
+`container_service.blocks_from_prefetched_cell(cell)` — the identical
+precedence rule (`cell.blocks` wins when non-empty, else legacy
+`cell.section`), but reading from the caller's already-loaded relations
+instead of re-querying — and wired it into exactly those three confirmed
+hot loops. Every other `get_cell_blocks` call site (write-path adjacent:
+`place_section`, cell-merge-on-shrink, block move/reorder) is unchanged.
+
+Verified query-count flatness directly: `apps/storefront_builder/tests
+/test_u11_query_efficiency.py` (new, 4 tests) proves `build_page_render_items`
+issues the same query count for 2 containers as for 8, and a real
+end-to-end HTTP homepage render issues the same query count for 2
+containers as for 10 (both previously scaled 1:1 with container count).
+
+### 3. Full-suite run
+
+- `python manage.py test apps.storefront_builder` — **1551 tests, 0
+  failures.**
+- `python manage.py test` (complete project suite, every app) —
+  **6276 tests, 3 errors, 4 skipped.** The 3 errors are all in
+  `apps/customers/tests/test_auth_views.py`
+  (`test_signup_merges_guest_cart`, `test_login_merges_guest_cart`,
+  `test_otp_login_merges_guest_cart`) — **confirmed pre-existing and
+  unrelated to U1-U11**:
+  - `git diff <U2B-start-SHA>..HEAD --stat -- apps/cart/ apps/customers/ apps/orders/`
+    is **empty** — zero files in any of those three apps were touched
+    anywhere across U3-U11.
+  - The failures reproduce identically running just that one test file in
+    isolation (22 tests, same 3 errors) — not a full-suite test-order
+    artifact.
+  - Root cause: each test creates a `Product` without setting `stock=`
+    (defaults to `0`), then posts to `cart:add` expecting it to succeed.
+    `cart_add`'s call to `add_item_to_cart` correctly raises
+    `UnavailableStockError` for an out-of-stock product (per an existing,
+    documented ADR-referenced rule in `apps/cart/views.py`, predating this
+    entire program) and the view returns an error response without adding
+    anything — so `cart.items.first()` is `None`. This is a stale test
+    (written before or without accounting for that stock-validation rule)
+    in a completely different subsystem (customer signup/auth cart-merge),
+    not a Storefront Engine regression.
+
+  Per the master contract's own scope boundary ("Only modify completed
+  architecture where U3-U11 genuinely requires... Do not reopen completed
+  architecture without cause"), this was **not fixed** — it is outside
+  the Universal Storefront Engine's scope, in unrelated code this program
+  never touches, and touching customer-auth/cart-merge logic without a
+  mandate carries its own risk. Flagged here transparently rather than
+  either hidden or silently "fixed" outside scope; the platform team
+  should track it as a separate, pre-existing issue.
+- The 4 skips in the full run are consistent with the same
+  environment/condition-gated skip pattern already observed in every
+  storefront_builder-only run throughout U3-U10 (1 skip there,
+  consistently, unrelated to any change) — not investigated further as a
+  new U11 finding.
+- `python manage.py makemigrations --check --dry-run` — no changes detected.
+- `git diff --check` — clean.
+
+### 4. Other U11 checklist items — audited, findings recorded
+
+- **Semantic landmarks**: spot-checked all 8 global header/footer variant
+  partials (U2A/U2B). All 4 footer variants correctly use `<footer>` (an
+  implicit `contentinfo` landmark) — an initial grep for explicit
+  `role=`/`aria-label` attributes suggested a gap, but reading the actual
+  root elements showed this was a false alarm: semantic HTML5 elements
+  are the more correct choice over redundant explicit ARIA roles. No
+  change needed — verified, not assumed.
+- **`family_registry.py`/family renderer system**: confirmed already
+  fully retired (Phase 7, pre-session) — no dead family code remains to
+  remove.
+- **`preset_registry.py`** (the older, frozen, single-Family-scoped
+  preset system predating `layout_preset_registry.py`): confirmed it is
+  not imported by any live code path this session touched, but per "do
+  not delete compatibility code without proving it is obsolete," no
+  investigation was done into whether any legacy store's data still
+  depends on it — **not removed, left exactly as found**.
+- **Dark-mode contrast nuance found in U10's `dark_digital` template**:
+  the `appearance_registry` palette system has no dark-mode axis — every
+  registered palette (including `ocean`, chosen for `dark_digital`) has a
+  light `background`/`text` token pair. `dark_digital`'s "darkness" is
+  therefore real but scoped to the header/footer chrome (`dark_tech`
+  variant, which has its own dark CSS) — the rest of the page (sections,
+  product cards) renders on the same light background every other
+  template uses. This is an honest, definable design (many real sites
+  have a dark header/footer over a light body) but is worth naming
+  explicitly rather than leaving the "dark_digital" label to imply a full
+  dark theme it doesn't fully deliver — a genuine structural gap (a
+  page-wide dark-mode token axis) for a future phase, not something safe
+  to add speculatively in a closure pass.
+
+### Migrations
+
+None this phase.
+
+### Known limitations (explicit capability boundaries, not gaps to hide)
+
+1. **No page-wide dark-mode appearance token axis** — see the
+   `dark_digital` finding above; would need a real new capability in
+   `appearance_registry.py`, not a closure-phase fix.
+2. **Accessibility audit was targeted, not exhaustive** — keyboard
+   operability, contrast ratios per component state, and responsive/
+   horizontal-overflow regressions across all 13 presets × 3 breakpoints
+   were not mechanically re-verified pixel-by-pixel; the master contract
+   itself defers full visual/browser QA to after U11. This phase closed
+   the specific, concrete gaps it found evidence for (the two named
+   tests, the named N+1, the landmark spot-check) rather than performing
+   a full manual accessibility audit without browser tooling.
+3. **`preset_registry.py`** left untouched — see above; removal would
+   need a live-data audit this phase didn't have scope for.

@@ -504,6 +504,44 @@ def get_cell_blocks(cell: StorefrontCell) -> list[StorefrontSection]:
     return []
 
 
+def blocks_from_prefetched_cell(cell: StorefrontCell) -> list[StorefrontSection]:
+    """U11 — the same read-time precedence rule as ``get_cell_blocks``
+    (``cell.blocks`` wins when non-empty, else the legacy ``cell.section``),
+    but trusting the caller's already-loaded relations instead of issuing a
+    fresh query for every Cell.
+
+    ``get_cell_blocks`` is deliberately *always* a live query — its own
+    docstring documents exactly why: a caller can hold a stale
+    ``StorefrontCell`` instance right after a write elsewhere (e.g.
+    ``place_section``) mutated the same Cell's placement through a
+    different Python object, and ``get_cell_blocks`` is the one
+    authoritative read path several write-adjacent call sites depend on
+    for correctness, not just performance. That guarantee is exactly right
+    for those callers and must not be weakened.
+
+    This function exists for the one call shape where that guarantee is
+    unnecessary and its cost is a real, confirmed N+1: rendering a page
+    (``render_service.build_page_render_items``), where the whole
+    ``containers`` queryset — Containers, Cells, Cells' Blocks, Cells'
+    legacy Section — was fetched together via
+    ``page.containers.prefetch_related("cells__section", "cells__blocks")``
+    moments earlier in the same call, so every Cell here is already
+    guaranteed fresh; issuing ``cell.blocks.order_by(...)`` again per Cell
+    (which never honors a prefetch cache, only a bare ``.all()`` does) was
+    pure wasted, repeated querying, not a correctness safeguard. Callers
+    that did NOT prefetch ``cells__blocks``/``cells__section`` on the
+    Cell's own queryset must keep using ``get_cell_blocks`` instead — this
+    function does not detect a missing prefetch, it simply trusts one was
+    done, exactly like every other prefetch-dependent read path in this
+    codebase (e.g. ``Product.cover_image``)."""
+    blocks = sorted(cell.blocks.all(), key=lambda block: (block.cell_order, block.pk))
+    if blocks:
+        return blocks
+    if cell.section_id:
+        return [cell.section]
+    return []
+
+
 # Any two-phase temporary `cell_order` value must be larger than any real
 # value the application ever assigns (single-digit-to-low-hundreds per Cell
 # in practice) while staying comfortably inside `PositiveIntegerField`'s

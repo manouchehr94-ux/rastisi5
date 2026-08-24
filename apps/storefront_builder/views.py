@@ -333,8 +333,12 @@ def storefront_container_state_partial(request, page_type=None):
     # ``get_cell_blocks`` (the authoritative composition-read path) rather
     # than in the template, to avoid the template issuing its own
     # per-cell composition queries.
+    # U11 — N+1 fix: ``containers`` above was just fetched with
+    # ``prefetch_related("cells__section", "cells__blocks")``, so every Cell
+    # is already fresh; ``blocks_from_prefetched_cell`` trusts that instead
+    # of ``get_cell_blocks`` issuing one live query per Cell.
     cell_blocks_by_id = {
-        cell.pk: container_service.get_cell_blocks(cell)
+        cell.pk: container_service.blocks_from_prefetched_cell(cell)
         for container in containers
         for cell in container.cells.all()
     }
@@ -435,7 +439,11 @@ def storefront_container_settings(request, pk):
     # pointer and would otherwise show as incorrectly "empty" here. Passed
     # as a list of ``(cell, blocks)`` pairs so the template issues no
     # additional per-cell composition queries of its own.
-    cells_with_blocks = [(cell, container_service.get_cell_blocks(cell)) for cell in cells]
+    # U11 — N+1 fix: ``cells`` above was just fetched with
+    # ``prefetch_related("blocks")``/``select_related("section")``, so
+    # ``blocks_from_prefetched_cell`` can trust that instead of
+    # ``get_cell_blocks`` issuing one live query per Cell.
+    cells_with_blocks = [(cell, container_service.blocks_from_prefetched_cell(cell)) for cell in cells]
     return render(request, "dashboard/storefront_builder/partials/container_settings_form.html", {
         "container": container,
         "cells": cells,

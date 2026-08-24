@@ -711,7 +711,14 @@ def build_container_render_items(page, items: list[dict], *, include_empty: bool
         has_content = False
         has_placement = False
         for cell in container.cells.all():
-            blocks = container_service.get_cell_blocks(cell)
+            # U11 — N+1 fix: ``containers`` above was just fetched with
+            # ``prefetch_related("cells__section", "cells__blocks")``, so
+            # every Cell here is already fresh; ``get_cell_blocks`` would
+            # discard that prefetch and issue one live query per Cell (its
+            # own docstring documents why it always does that — a
+            # guarantee this loop doesn't need, see
+            # ``blocks_from_prefetched_cell``'s docstring).
+            blocks = container_service.blocks_from_prefetched_cell(cell)
             block_items = []
             for block in blocks:
                 has_placement = True

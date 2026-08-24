@@ -2390,7 +2390,19 @@ class PrototypeV2Phase24AdvancedInspectorRowLayoutTests(StorefrontBuilderViewsTe
 
         response = self.client.get(reverse("dashboard:storefront-builder-section-settings", args=[section.pk]), HTTP_HX_REQUEST="true")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "sfb-inspector-tabs")
+        # U11 — superseded by the V3 sidebar rework: the Content/Advanced tab
+        # *switcher* (nav.sfb-v3-inspector-tabs) was centralized once into
+        # the editor shell (editor.html) instead of being duplicated inside
+        # every per-section HTMX-swapped partial (which this GET, isolated
+        # from that shell, can never see). What this partial genuinely still
+        # keeps — and what actually matters for "content tabs stay here" —
+        # is participating in that shared tab state: its root element's
+        # `is-advanced-tab` class is driven by the same `inspectorTab`
+        # Alpine variable the shell's nav controls, and its advanced-only
+        # fields are gated on it below. Asserting that binding is present is
+        # the real, current signal; the old duplicated-nav assumption no
+        # longer reflects (or improves on) the architecture.
+        self.assertContains(response, "is-advanced-tab")
         self.assertContains(response, "inspectorTab === 'advanced'")
         self.assertContains(response, "این پنل فقط همین بلاک را تنظیم می‌کند")
         self.assertContains(response, "sfb-advanced-field")
