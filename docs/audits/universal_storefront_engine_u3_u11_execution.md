@@ -428,7 +428,8 @@ two pages).
 ## U6 — Universal PDP + Product Types
 
 - **Starting SHA:** `1057bb5535ed2b218ce0f47970a68c959b44f4d6`
-- **Ending SHA:** _(recorded after commit, see below)_
+- **Ending SHA:** `fd78651c16b61c60a47eeeca7de8df415be9c727` (verified equal
+  to `origin/feature/storefront-builder-v3-redesign` after push)
 
 ### Audit findings (before implementing)
 
