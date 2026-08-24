@@ -702,3 +702,280 @@ register_layout_preset(LayoutPresetDefinition(
         ),
     },
 ))
+
+
+# ==================================================================
+# U10 — the 8 required Ready Template recipe keys. Each is built purely
+# from the Universal Storefront Engine already completed in U1-U9: real
+# global header/footer variants (U2A/U2B), real registered section
+# variants including U4's additions (hero_style/tile_style/image_position/
+# display_mode), real appearance tokens/palettes, real product_section
+# card settings — never a new renderer, never a store-specific ID, never
+# fabricated commercial copy (no invented discounts/guarantees/stock
+# claims — sections read real store data at render time as always).
+#
+# Difference between templates comes from *combinations* of: home
+# composition, header/footer variant, density/typography/motion, palette,
+# and product-card presentation — exactly the axes the master contract
+# names, not duplicated code. product_detail/listing/collection/search/
+# cart intentionally share one composition across all 8 (see
+# ``_u10_standard_non_home_pages`` below) — the same, already-established
+# pattern the 5 pre-U10 presets already use; real product/cart data drives
+# those pages far more than section arrangement does, so bespoke
+# per-template composition there would be difference for its own sake,
+# not a real one.
+# ==================================================================
+
+_U10_STANDARD_PRODUCT_DETAIL_PAGE = (
+    PresetSectionEntry("product_main"),
+    PresetSectionEntry("product_description"),
+    PresetSectionEntry("related_products"),
+)
+_U10_STANDARD_LISTING_PAGE = (PresetSectionEntry("product_listing"),)
+_U10_STANDARD_COLLECTION_PAGE = (
+    PresetSectionEntry("collection_header"),
+    PresetSectionEntry("collection_products"),
+)
+_U10_STANDARD_CART_PAGE = (
+    PresetSectionEntry("cart_items"),
+    PresetSectionEntry("cart_summary"),
+)
+
+
+def _u10_standard_non_home_pages() -> dict:
+    return {
+        "product_detail": _U10_STANDARD_PRODUCT_DETAIL_PAGE,
+        "listing": _U10_STANDARD_LISTING_PAGE,
+        "collection": _U10_STANDARD_COLLECTION_PAGE,
+        "search": _U10_STANDARD_LISTING_PAGE,
+        "cart": _U10_STANDARD_CART_PAGE,
+    }
+
+
+register_layout_preset(LayoutPresetDefinition(
+    key="dense_marketplace",
+    label_fa="بازارگاه پرتراکم",
+    description_fa="چیدمانِ فشرده و پرمحصول برایِ فروشگاه‌هایی با کاتالوگِ بزرگ که می‌خواهند در نگاهِ اول محصولِ زیادی نشان دهند.",
+    appearance={
+        "font": "Vazirmatn", "radius": 6, "button_radius": 6,
+        "density": "compact", "motion": "none", "type_scale": "compact",
+        "button_style": "filled", "image_fit": "cover", "image_hover": "none",
+        "card_image_crossfade": False, "card_image_zoom": False,
+    },
+    default_palette_slug="digired",
+    header={"sticky": True, "announcement_enabled": True, "header_variant": "marketplace_search_first"},
+    footer={"show_newsletter": False, "footer_variant": "marketplace_dense"},
+    pages={
+        "home": (
+            PresetSectionEntry("category_grid", settings={"display_mode": "image_strip"}),
+            PresetSectionEntry("product_section", settings={
+                "title": "پرفروش‌ترین‌ها", "data_source": "best_sellers", "display_mode": "grid",
+                "item_limit": 12, "card": {"card_style": "compact"},
+            }),
+            PresetSectionEntry("discounted_products"),
+            PresetSectionEntry("amazing_offers"),
+            PresetSectionEntry("brand_carousel", settings={"display_mode": "carousel"}),
+            PresetSectionEntry("trust_features"),
+        ),
+        **_u10_standard_non_home_pages(),
+    },
+))
+
+register_layout_preset(LayoutPresetDefinition(
+    key="premium_leather",
+    label_fa="چرمِ پرمیوم",
+    description_fa="چیدمانِ لوکس با تراکمِ باز و حرکتِ ملایم — مناسبِ برندهایِ چرم/کالایِ دستی با موضعِ قیمتیِ بالا.",
+    appearance={
+        "font": "Georgia", "radius": 10, "button_radius": 10,
+        "density": "relaxed", "motion": "subtle", "type_scale": "large",
+        "button_style": "filled", "image_fit": "cover", "image_hover": "zoom",
+        "card_image_crossfade": True, "card_image_zoom": True,
+    },
+    default_palette_slug="amber",
+    header={"sticky": True, "announcement_enabled": True, "header_variant": "premium_three_column"},
+    footer={"show_trust_badges": True, "show_payment_logos": True, "footer_variant": "premium_columns"},
+    pages={
+        "home": (
+            PresetSectionEntry("hero_banner", settings={"hero_style": "split"}),
+            PresetSectionEntry("brand_carousel"),
+            PresetSectionEntry("product_section", settings={
+                "title": "منتخبِ فصل", "data_source": "newest", "display_mode": "carousel",
+                "item_limit": 8, "card": {"card_style": "standard"},
+            }),
+            PresetSectionEntry("story_rail"),
+            PresetSectionEntry("testimonials"),
+            PresetSectionEntry("trust_features"),
+            PresetSectionEntry("newsletter"),
+        ),
+        **_u10_standard_non_home_pages(),
+    },
+))
+
+register_layout_preset(LayoutPresetDefinition(
+    key="warm_boutique",
+    label_fa="بوتیکِ گرم",
+    description_fa="چیدمانِ گرم و دعوت‌کننده با لوگویِ مرکزی — مناسبِ بوتیک‌ها و برندهایِ کوچکِ خانوادگی.",
+    appearance={
+        "font": "Georgia", "radius": 14, "button_radius": 14,
+        "density": "relaxed", "motion": "subtle", "type_scale": "normal",
+        "button_style": "soft", "image_fit": "cover", "image_hover": "zoom",
+        "card_image_crossfade": True, "card_image_zoom": True,
+    },
+    default_palette_slug="rose",
+    header={"sticky": True, "announcement_enabled": True, "header_variant": "boutique_centered"},
+    footer={"show_newsletter": True, "footer_variant": "boutique_editorial"},
+    pages={
+        "home": (
+            PresetSectionEntry("hero_banner", settings={"hero_style": "overlay"}),
+            PresetSectionEntry("image_text", settings={"image_position": "right"}),
+            PresetSectionEntry("product_section", settings={
+                "title": "پیشنهادِ فروشگاه", "data_source": "newest", "display_mode": "grid",
+                "item_limit": 8, "card": {"card_style": "minimal"},
+            }),
+            PresetSectionEntry("testimonials"),
+            PresetSectionEntry("newsletter"),
+        ),
+        **_u10_standard_non_home_pages(),
+    },
+))
+
+register_layout_preset(LayoutPresetDefinition(
+    key="fashion_promo_catalog",
+    label_fa="کاتالوگِ پوشاک و پیشنهادها",
+    description_fa="چیدمانِ کاتالوگ‌محور با بنرهایِ تبلیغاتیِ متعدد — مناسبِ پوشاک/مدی که مرتب کمپین/تخفیف اجرا می‌کند.",
+    appearance={
+        "font": "Vazirmatn", "radius": 8, "button_radius": 8,
+        "density": "normal", "motion": "dynamic", "type_scale": "normal",
+        "button_style": "filled", "image_fit": "cover", "image_hover": "zoom",
+        "card_image_crossfade": True, "card_image_zoom": True,
+    },
+    default_palette_slug="sunset",
+    header={"sticky": True, "announcement_enabled": True, "header_variant": "marketplace_search_first"},
+    footer={"footer_variant": "marketplace_dense"},
+    pages={
+        "home": (
+            PresetSectionEntry("multi_banner", settings={"layout_variant": "promo-4"}),
+            PresetSectionEntry("promo_cards"),
+            PresetSectionEntry("product_section", settings={
+                "title": "تخفیف‌های این هفته", "data_source": "discounted", "display_mode": "carousel",
+                "item_limit": 10, "card": {"card_style": "standard", "show_badge": True},
+            }),
+            PresetSectionEntry("amazing_offers"),
+            PresetSectionEntry("category_grid", settings={"display_mode": "carousel"}),
+            PresetSectionEntry("brand_carousel", settings={"display_mode": "carousel"}),
+        ),
+        **_u10_standard_non_home_pages(),
+    },
+))
+
+register_layout_preset(LayoutPresetDefinition(
+    key="playful_lifestyle",
+    label_fa="سبکِ زندگیِ شاد",
+    description_fa="چیدمانِ رنگی و پرحرکت با گوشه‌هایِ گرد — مناسبِ برندهایِ سبکِ زندگی/کودک/سرگرمی.",
+    appearance={
+        "font": "Vazirmatn", "radius": 20, "button_radius": 20,
+        "density": "relaxed", "motion": "dynamic", "type_scale": "normal",
+        "button_style": "soft", "image_fit": "cover", "image_hover": "zoom",
+        "card_image_crossfade": True, "card_image_zoom": True,
+    },
+    default_palette_slug="mint",
+    header={"sticky": True, "announcement_enabled": True, "header_variant": "boutique_centered"},
+    footer={"show_newsletter": True, "footer_variant": "boutique_editorial"},
+    pages={
+        "home": (
+            PresetSectionEntry("story_rail"),
+            PresetSectionEntry("hero_banner", settings={"hero_style": "split"}),
+            PresetSectionEntry("category_grid", settings={"display_mode": "circular"}),
+            PresetSectionEntry("product_section", settings={
+                "title": "تازه‌های فروشگاه", "data_source": "newest", "display_mode": "carousel",
+                "item_limit": 8, "card": {"card_style": "standard"},
+            }),
+            PresetSectionEntry("testimonials"),
+        ),
+        **_u10_standard_non_home_pages(),
+    },
+))
+
+register_layout_preset(LayoutPresetDefinition(
+    key="utility_catalog",
+    label_fa="کاتالوگِ ابزار و صنعتی",
+    description_fa="چیدمانِ ساده و کارکردی، بدونِ حرکت/تزیینِ اضافه — مناسبِ ابزار/قطعات/کالایِ صنعتی که تمرکز باید کاملاً رویِ مشخصات و پیدا کردنِ سریعِ کالا باشد.",
+    appearance={
+        "font": "Arial", "radius": 4, "button_radius": 4,
+        "density": "compact", "motion": "none", "type_scale": "compact",
+        "button_style": "outline", "image_fit": "contain", "image_hover": "none",
+        "card_image_crossfade": False, "card_image_zoom": False,
+    },
+    default_palette_slug="navy",
+    header={"sticky": True, "announcement_enabled": False, "header_variant": "legacy_default"},
+    footer={"show_newsletter": False, "footer_variant": "legacy_default"},
+    pages={
+        "home": (
+            PresetSectionEntry("category_grid", settings={"display_mode": "grid"}),
+            PresetSectionEntry("product_section", settings={
+                "title": "جدیدترین کالاها", "data_source": "newest", "display_mode": "grid",
+                "item_limit": 12, "card": {"card_style": "compact", "show_rating": False},
+            }),
+            PresetSectionEntry("best_sellers"),
+            PresetSectionEntry("trust_features"),
+        ),
+        **_u10_standard_non_home_pages(),
+    },
+))
+
+register_layout_preset(LayoutPresetDefinition(
+    key="editorial_jewelry",
+    label_fa="جواهراتِ مجله‌ای",
+    description_fa="چیدمانِ روایت‌محور با تایپوگرافیِ بزرگ و فاصله‌ی باز — مناسبِ جواهر/اکسسوری‌یی که با تصویر و داستان می‌فروشد، نه فقط گرید.",
+    appearance={
+        "font": "Georgia", "radius": 2, "button_radius": 2,
+        "density": "relaxed", "motion": "subtle", "type_scale": "large",
+        "button_style": "outline", "image_fit": "cover", "image_hover": "zoom",
+        "card_image_crossfade": True, "card_image_zoom": True,
+    },
+    default_palette_slug="plum",
+    header={"sticky": True, "announcement_enabled": True, "header_variant": "premium_three_column"},
+    footer={"show_trust_badges": True, "footer_variant": "premium_columns"},
+    pages={
+        "home": (
+            PresetSectionEntry("story_rail"),
+            PresetSectionEntry("image_text", settings={"image_position": "left"}),
+            PresetSectionEntry("hero_banner", settings={"hero_style": "split"}),
+            PresetSectionEntry("product_section", settings={
+                "title": "مجموعه‌ی منتخب", "data_source": "newest", "display_mode": "grid",
+                "item_limit": 6, "card": {"card_style": "minimal", "show_badge": False},
+            }),
+            PresetSectionEntry("testimonials"),
+            PresetSectionEntry("newsletter"),
+        ),
+        **_u10_standard_non_home_pages(),
+    },
+))
+
+register_layout_preset(LayoutPresetDefinition(
+    key="dark_digital",
+    label_fa="دیجیتالِ تیره",
+    description_fa="چیدمانِ تیره و پرحرکت — مناسبِ فروشگاهِ لوازمِ دیجیتال/فناوری که هویتِ بصریِ تک‌محور می‌خواهد.",
+    appearance={
+        "font": "Arial", "radius": 6, "button_radius": 6,
+        "density": "compact", "motion": "dynamic", "type_scale": "normal",
+        "button_style": "filled", "image_fit": "cover", "image_hover": "zoom",
+        "card_image_crossfade": True, "card_image_zoom": True,
+    },
+    default_palette_slug="ocean",
+    header={"sticky": True, "announcement_enabled": True, "header_variant": "dark_tech"},
+    footer={"footer_variant": "dark_tech"},
+    pages={
+        "home": (
+            PresetSectionEntry("hero_banner", settings={"hero_style": "overlay"}),
+            PresetSectionEntry("product_section", settings={
+                "title": "جدیدترین محصولات", "data_source": "newest", "display_mode": "grid",
+                "item_limit": 8, "card": {"card_style": "standard"},
+            }),
+            PresetSectionEntry("discounted_products"),
+            PresetSectionEntry("brand_carousel", settings={"display_mode": "carousel"}),
+            PresetSectionEntry("trust_features"),
+        ),
+        **_u10_standard_non_home_pages(),
+    },
+))

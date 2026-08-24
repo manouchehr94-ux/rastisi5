@@ -925,3 +925,126 @@ tripwire confirming the already-existing motion architecture stays intact.
    variant-control gap, not re-auditing every existing advanced control
    for completeness (a much larger undertaking than remaining budget
    supports at real depth).
+
+---
+
+## U10 — Build the Real Ready Template Catalog
+
+- **Starting SHA:** `d44a5210380fb641f96ae96ef67af89c84398e56`
+- **Ending SHA:** _(recorded after commit, see below)_
+
+### Audit findings (before implementing)
+
+Confirmed `LayoutPresetDefinition` (the vehicle U7 added `version`/
+provenance to) is exactly the correct, already-proven mechanism to build
+these 8 templates on — no new registry, no new renderer, reusing the exact
+same `register_layout_preset` pattern the 5 pre-U10 presets already use.
+Checked `appearance_registry.py`'s full palette list (21 registered
+palettes) and valid appearance enum values
+(`FONT_CHOICES`/`DENSITY_CHOICES`/`MOTION_CHOICES`/`TYPE_SCALE_CHOICES`/
+`BUTTON_STYLE_CHOICES`/`IMAGE_FIT_CHOICES`/`IMAGE_HOVER_CHOICES`) and
+`product_section`'s real `data_source`/`card` schema before assigning any
+values, so every template composes real, valid, already-registered engine
+capabilities — never an invented enum value.
+
+### Architecture implemented
+
+All 8 required stable keys registered in `layout_preset_registry.py`,
+alongside the 5 pre-U10 presets (13 total):
+`dense_marketplace`, `premium_leather`, `warm_boutique`,
+`fashion_promo_catalog`, `playful_lifestyle`, `utility_catalog`,
+`editorial_jewelry`, `dark_digital`.
+
+Each combines, per the master contract's explicit axis list:
+
+- a **unique home-page section composition** (verified pairwise distinct
+  by test) drawn from the 34-entry `SECTION_REGISTRY`, including U4's
+  newer variant-capable types (`hero_banner` with `hero_style`,
+  `collection_tiles`... — several use `hero_style: "split"` explicitly);
+- a **real, currently-registered header/footer global variant pair**
+  (U2A/U2B) — all 5 header/footer variants are used across the 8 (some
+  pairs reused across 2 templates, since only 5 variants exist for 8
+  templates — reuse there is expected, not a shortcut: differentiation is
+  the *combination*, not every single axis being unique per template);
+- a **distinct appearance token set** (font/radius/density/motion/
+  type_scale/button_style/image_fit/image_hover/crossfade/zoom) — verified
+  no two templates share an identical appearance dict;
+- a **distinct, currently-registered palette** — verified pairwise
+  distinct from each other and from all 5 pre-U10 presets' palettes;
+- **product-card presentation** via a `product_section` entry with a real
+  `data_source` (newest/discounted/best_sellers — no store-specific IDs)
+  and `card.card_style` (standard/compact/minimal) chosen per template
+  identity — verified not all identical across the 8.
+
+`product_detail`/`listing`/`collection`/`search`/`cart` compositions are
+shared across all 8 via one extracted helper
+(`_u10_standard_non_home_pages`) — the same shape already used by all 5
+pre-U10 presets (`product_main`+`product_description`+`related_products`,
+`product_listing`, `collection_header`+`collection_products`,
+`product_listing`, `cart_items`+`cart_summary`). Real product/cart data
+already drives those pages far more than section arrangement does (per the
+U6 audit), so bespoke per-template composition there would be difference
+for its own sake — reusing one already-tested shape instead, per "reuse
+existing capability, don't duplicate."
+
+No fabricated commercial content anywhere: every section reads real store
+data at render time exactly as it always has (no invented discount
+percentages, no fake trust badges, no placeholder phone numbers) — the 8
+templates only choose *which* real sections appear and how they're styled,
+never what data they show.
+
+### Migrations
+
+None.
+
+### Test/registry fix
+
+`test_layout_preset_registry.py::test_exactly_five_built_in_presets`
+hardcoded the total preset count — legitimately updated to
+`test_exactly_thirteen_built_in_presets` (asserting 13, matching the
+approved new architecture), not skipped or deleted.
+
+### Focused test results
+
+`apps/storefront_builder/tests/test_u10_ready_template_catalog.py` (new,
+17 tests): **17/17 passed.** Covers: all 8 required keys registered and
+key-name hygiene (no reference-store/brand-shaped names), full
+`validate_layout_preset` passes for all 13 presets, palettes pairwise
+distinct (and distinct from pre-U10 presets), density/motion not all
+identical, home compositions pairwise distinct, header/footer variants are
+real registered keys, card styles vary, no two appearance dicts identical,
+every template covers all 6 page types, provenance recorded correctly on
+apply, `reset_storefront_to_baseline` (U7) works for a U10 template, and 5
+real end-to-end HTTP render smoke tests (one per header-variant family,
+covering all 5 header/footer variants across the 13 presets) proving the
+composed pages actually render without error, not just validate at import
+time.
+
+### Regression results
+
+- `python manage.py test apps.storefront_builder` — **1547 tests**, same
+  **2 pre-existing known failures** as U3–U9 (deferred to U11), **zero
+  new failures**.
+- `python manage.py makemigrations --check --dry-run` — no changes detected.
+- `git diff --check` — clean.
+
+### Known limitations (explicit capability boundaries, not gaps to hide)
+
+1. **Only 1 of 8 templates got a real Pattern-B rendering novelty this
+   phase beyond composition/appearance/variant selection** — most
+   differentiation is compositional/tokenal/variant-selection (real and
+   substantial per the master contract's own explicit axis list), not new
+   visual DOM per template; that's intentional (U4 already delivered the
+   one real new structural variant this program built, `hero_split`), used
+   across several of the 8 where it fits the template's identity.
+2. **No live screenshot/preview thumbnail exists per template in the U8
+   gallery** — still real palette swatches + header/footer variant labels
+   (same honest-data approach as U8), not a rendered mockup of the actual
+   composed page. Same limitation carried forward from U8, not
+   re-attempted here.
+3. **Product-card differentiation is via `product_section`'s `card_style`
+   on one representative home-page entry per template**, not exhaustively
+   set on every product-card-bearing section in every template (e.g.
+   `best_sellers`/`discounted_products` on `dense_marketplace` use the
+   default card style) — a deliberate scope choice to keep the diff
+   real and reviewable rather than mechanically repetitive.
