@@ -297,7 +297,8 @@ never appears in the single-slide `split` layout.
 ## U5 — Universal Listing / Filter / Search Experience
 
 - **Starting SHA:** `17e3da2abafa2d1f915fdbaac3523f549ba128cd`
-- **Ending SHA:** _(recorded after commit, see below)_
+- **Ending SHA:** `37f8a1c81a86a0d48f003bc1cd250677f5390ebc` (verified equal
+  to `origin/feature/storefront-builder-v3-redesign` after push)
 
 ### Audit findings (before implementing)
 
@@ -389,12 +390,12 @@ two pages).
 
 ### Regression results
 
-- `python manage.py test apps.catalog` — **792/792 passed** (789 + 3 new
-  in an existing U5 test class expansion — see focused count above; net
-  new across the file is 10 tests, 3 landed after the initial 7-test
-  checkpoint slice).
-- `python manage.py test apps.storefront_builder` — see result recorded at
-  commit time below.
+- `python manage.py test apps.catalog` — **792/792 passed** (789 + the 3 of
+  10 new U5 tests that live outside the CI-run count already captured
+  above — net new test file is 10 tests total).
+- `python manage.py test apps.storefront_builder` — **1499 tests**, same
+  **2 pre-existing known failures** as U3/U4 (deferred to U11), **zero new
+  failures**.
 - `python manage.py makemigrations --check --dry-run` — no changes detected.
 - `git diff --check` — clean.
 
