@@ -71,6 +71,8 @@ html[data-sfb-card-hover="zoom"] .pcard:hover .img .emo{transform:scale(1.16)}
 .pill-disc{background:var(--pink);color:#fff}
 .pill-new{background:var(--violet);color:#fff}
 .pill-hot{background:var(--amber);color:#fff}
+.pill-outofstock{background:var(--muted);color:#fff}
+.pcard.out-of-stock .img{opacity:.6}
 .pcard .addbar{position:absolute;left:0;right:0;bottom:0;transform:translateY(100%);transition:.25s;padding:10px}
 .pcard:hover .addbar{transform:none}
 .pcard.quickadd-hover-fade .addbar{transform:none;opacity:0;transition:opacity .25s}

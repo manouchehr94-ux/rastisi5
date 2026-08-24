@@ -4,16 +4,21 @@ Universal product card.  Visual differences are closed settings on the card
 contract (``standard`` / ``compact`` / ``minimal``), never a preset-specific
 renderer.  The compact treatment is intentionally useful for any dense
 marketplace storefront.
+
+Business data (price/discount/badges/availability/quick-add eligibility) is
+resolved once, centrally, by ``product_card_data`` (U3) — never re-derived
+here — so every future visual variant reads identical business semantics.
 {% endcomment %}
-<article class="pcard style-{{ card_settings.card_style|default:'standard' }}{% if card_settings.card_border is False %} no-border{% endif %}{% if card_settings.image_ratio == "portrait" %} ratio-portrait{% elif card_settings.image_ratio == "landscape" %} ratio-landscape{% endif %}{% if card_settings.quick_add_reveal == "hover_fade" %} quickadd-hover-fade{% elif card_settings.quick_add_reveal == "always" %} quickadd-always{% endif %}">
-  <a class="pcard-hitarea" href="{% url 'catalog:product-detail' product.slug %}" aria-label="مشاهده {{ product.name }}"></a>
+{% with card=product|product_card_data %}
+<article class="pcard style-{{ card_settings.card_style|default:'standard' }}{% if card_settings.card_border is False %} no-border{% endif %}{% if card_settings.image_ratio == "portrait" %} ratio-portrait{% elif card_settings.image_ratio == "landscape" %} ratio-landscape{% endif %}{% if card_settings.quick_add_reveal == "hover_fade" %} quickadd-hover-fade{% elif card_settings.quick_add_reveal == "always" %} quickadd-always{% endif %}{% if card.is_out_of_stock %} out-of-stock{% endif %}">
+  <a class="pcard-hitarea" href="{{ card.url }}" aria-label="مشاهده {{ card.name }}"></a>
   <div class="img" style="background:{{ product.tint|default:'#ffffff' }}">
-    {% if product.cover_image %}
-    <img class="cover-photo" src="{{ product.cover_image.thumbnail.url|default:product.cover_image.image.url }}"
-         alt="{{ product.cover_image.alt|default:product.name }}"
+    {% if card.image_url %}
+    <img class="cover-photo" src="{{ card.image_url }}"
+         alt="{{ card.image_alt }}"
          style="position:absolute;inset:0;width:100%;height:100%;object-fit:var(--sfb-image-fit, cover)">
-    {% if product.secondary_image %}
-    <img class="cover-photo-2" src="{{ product.secondary_image.thumbnail.url|default:product.secondary_image.image.url }}"
+    {% if card.secondary_image_url %}
+    <img class="cover-photo-2" src="{{ card.secondary_image_url }}"
          alt="" aria-hidden="true"
          style="position:absolute;inset:0;width:100%;height:100%;object-fit:var(--sfb-image-fit, cover)">
     {% endif %}
@@ -28,22 +33,18 @@ marketplace storefront.
     <span class="emo">{{ product.icon|default:"🛍️" }}</span>
     {% endif %}
     {% endif %}
-    {% if card_settings.show_wishlist is not False %}
+    {% if card_settings.show_wishlist is not False and card.is_wishlist_eligible %}
     {% include "customers/partials/wishlist_button.html" %}
     {% endif %}
     {% if card_settings.show_badge is not False %}
     <div class="badges">
-      {% if product.discount_percent > 0 %}<span class="pill pill-disc">{{ product.discount_percent|fa_number }}٪</span>{% endif %}
-      {% if product.tag == "new" %}
-        <span class="pill pill-new">جدید</span>
-      {% elif product.tag == "hot" %}
-        <span class="pill pill-hot">پرفروش</span>
-      {% elif product.tag == "sale" %}
-        <span class="pill pill-new">حراج</span>
-      {% endif %}
+      {% if card.is_on_sale %}<span class="pill pill-disc">{{ card.discount_percent|fa_number }}٪</span>{% endif %}
+      {% for badge in card.badges %}<span class="pill pill-{{ badge.key }}">{{ badge.label_fa }}</span>{% endfor %}
     </div>
     {% endif %}
-    {% if card_settings.show_quick_add is not False and card_settings.card_style != "compact" %}
+    {% if card.is_out_of_stock %}
+    <div class="badges badges-stock"><span class="pill pill-outofstock">ناموجود</span></div>
+    {% elif card_settings.show_quick_add is not False and card.is_quick_add_eligible and card_settings.card_style != "compact" %}
     <div class="addbar">
       <button type="button" hx-post="{% url 'cart:add' product.slug %}" hx-vals='{"quantity": 1}' hx-swap="none"
               onclick="event.preventDefault();event.stopPropagation()">
@@ -55,25 +56,25 @@ marketplace storefront.
   </div>
   <div class="body">
     {% if card_settings.show_brand is not False %}
-    <div class="brand">{{ product.brand.name|default:"" }}</div>
+    <div class="brand">{{ card.brand_name }}</div>
     {% endif %}
-    <div class="name">{{ product.name }}</div>
+    <div class="name">{{ card.name }}</div>
     {% if card_settings.show_rating is not False %}
     <div class="rate">
-      <span class="stars">{{ product.rating|star_rating }}</span>{{ product.rating|fa_number }}
-      <span style="opacity:.6">({{ product.reviews_count|fa_number }})</span>
+      <span class="stars">{{ card.rating|star_rating }}</span>{{ card.rating|fa_number }}
+      <span style="opacity:.6">({{ card.reviews_count|fa_number }})</span>
     </div>
     {% endif %}
     {% if card_settings.show_price is not False %}
     <div class="price">
       <div class="now">
-        {{ product.final_price|toman }}
-        {% if product.discount_percent > 0 %}<div class="old">{{ product.price|toman }}</div>{% endif %}
+        {{ card.price|toman }}
+        {% if card.compare_at_price %}<div class="old">{{ card.compare_at_price|toman }}</div>{% endif %}
       </div>
     </div>
     {% endif %}
   </div>
-  {% if card_settings.show_quick_add is not False and card_settings.card_style == "compact" %}
+  {% if not card.is_out_of_stock and card_settings.show_quick_add is not False and card.is_quick_add_eligible and card_settings.card_style == "compact" %}
   <div class="compact-actions">
     <button class="compact-cart" type="button" hx-post="{% url 'cart:add' product.slug %}" hx-vals='{"quantity": 1}' hx-swap="none" aria-label="افزودن به سبد خرید"
             onclick="event.preventDefault();event.stopPropagation()">
@@ -83,3 +84,4 @@ marketplace storefront.
   </div>
   {% endif %}
 </article>
+{% endwith %}

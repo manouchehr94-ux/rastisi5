@@ -53,6 +53,18 @@ def product_metafield(product, namespace, key, default=""):
 
 
 @register.filter
+def product_card_data(product):
+    """Resolve the shared, centralized business facts (price/badge/
+    availability/quick-add) for one product card — see
+    ``apps.catalog.services.product_card_service``. Used by
+    ``catalog/partials/product_card.html`` so every card-rendering surface
+    reads identical business semantics regardless of visual card variant."""
+    from apps.catalog.services.product_card_service import build_product_card_data
+
+    return build_product_card_data(product)
+
+
+@register.filter
 def metafield_json(product_metafield_value):
     """تبدیلِ value_json یک metafield به dict/list قابل استفاده در template.
     اگر null باشد، dict خالی برمی‌گرداند."""
