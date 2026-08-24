@@ -796,6 +796,12 @@ def storefront_section_settings(request, pk):
                 "show_dots": request.POST.get("show_dots") == "on",
                 "loop": request.POST.get("loop") == "on",
                 "text_position": request.POST.get("text_position", "end"),
+                # U9 — section component variant swap (U4's registered
+                # hero_banner variants). The form only shows this control
+                # for hero_banner, but reading it here for image_slider too
+                # is harmless: image_slider has no registered variants, so
+                # the key is simply inert/unused at render time.
+                "hero_style": request.POST.get("hero_style", "overlay"),
             }
         elif section.section_key == "category_grid":
             raw = {
@@ -815,6 +821,9 @@ def storefront_section_settings(request, pk):
             raw = {
                 "title": request.POST.get("title", ""),
                 "collection_ids": request.POST.getlist("collection_ids"),
+                # U9 — section component variant swap (U4's registered
+                # collection_tiles variants).
+                "tile_style": request.POST.get("tile_style", "grid"),
             }
         elif section.section_key == "quick_links":
             raw = {

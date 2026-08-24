@@ -287,6 +287,18 @@
       <p style="color:var(--muted);font-size:12px;margin:6px 0 0">فقط جای عنوان، توضیح و دکمه را تغییر می‌دهد؛ خود تصویر دست‌نخورده می‌ماند.</p>
     </div>
 
+    {% if section.section_key == "hero_banner" %}
+    {# U9 — section component variant swap: exposes U4's registered hero_banner variants ("overlay"/"split") to the merchant. image_slider has no registered variants, so this control is deliberately hero_banner-only. #}
+    <div class="form-group">
+      <label for="id_hero_style">سبک نمایش</label>
+      <select name="hero_style" id="id_hero_style" class="form-select">
+        <option value="overlay" {% if section.settings.hero_style != "split" %}selected{% endif %}>روی تصویر (پیش‌فرض)</option>
+        <option value="split" {% if section.settings.hero_style == "split" %}selected{% endif %}>متن و تصویر جدا</option>
+      </select>
+      <p style="color:var(--muted);font-size:12px;margin:6px 0 0">«متن و تصویر جدا» فقط اولین اسلاید را نشان می‌دهد؛ اسلایدهای دیگر همچنان از اینجا قابل مدیریت‌اند.</p>
+    </div>
+    {% endif %}
+
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
     {% include "dashboard/storefront_builder/partials/section_layout_fields.html" %}
     {% include "dashboard/storefront_builder/partials/section_motion_fields.html" %}
@@ -443,6 +455,15 @@
         </template>
         <p x-show="selected.length === 0" style="color:var(--muted);font-size:12px;margin:0">کالکشنی انتخاب نشده — حالتِ خودکار فعال است.</p>
       </div>
+    </div>
+
+    {# U9 — section component variant swap: exposes U4's registered collection_tiles variants ("grid"/"carousel"). #}
+    <div class="form-group">
+      <label for="id_ct_style">نمایش</label>
+      <select name="tile_style" id="id_ct_style" class="form-select">
+        <option value="grid" {% if section.settings.tile_style != "carousel" %}selected{% endif %}>گرید (شبکه‌ای)</option>
+        <option value="carousel" {% if section.settings.tile_style == "carousel" %}selected{% endif %}>کاروسل (اسلایدی)</option>
+      </select>
     </div>
 
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}

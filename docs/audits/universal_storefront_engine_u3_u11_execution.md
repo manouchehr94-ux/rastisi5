@@ -819,3 +819,108 @@ helper behaves identically to the endpoint's original inline logic.
    infrastructure this phase didn't attempt (would need either a
    server-side render-to-image pipeline or an iframe-based live preview
    per card, both real, separate undertakings).
+
+---
+
+## U9 — Advanced Storefront Settings
+
+- **Starting SHA:** `c8bf76b9824d2d3e51c249ec5c8c2bc3429143b8`
+- **Ending SHA:** _(recorded after commit, see below)_
+
+### Audit findings (before implementing)
+
+Read `apps/core/static/css/base.css` in full, `apps/storefront_builder
+/templates/storefront_builder/partials/responsive_section_wrapper.html`,
+`apps/storefront_builder/templates/dashboard/storefront_builder/partials
+/section_settings_form.html` (680 lines), and `storefront_section_settings`
+in `views.py`.
+
+- **The central motion architecture already fully exists** — initial
+  grep across `apps/catalog/static/css/*.css` missed it, but
+  `apps/core/static/css/base.css` (loaded by every page via `base.html` →
+  `storefront_shell.html`) already has a global
+  `@media (prefers-reduced-motion: reduce)` override (forcing every
+  transition/animation to near-zero duration regardless of the merchant's
+  chosen `data-sfb-motion`), plus `html[data-sfb-motion="none"] *` and
+  per-section `data-motion="{{ item.context.settings.motion.style }}"`
+  already wired through `responsive_section_wrapper.html`. **Nothing built
+  here — the phase's most commonly-expected task turned out to already be
+  done**, confirmed by reading the actual files rather than trusting the
+  absence of a first grep match. A regression tripwire test was added
+  instead of new code.
+- **Real gap found**: U4 registered two new section component variants
+  (`hero_banner`'s `hero_style`: overlay/split; `collection_tiles`'s
+  `tile_style`: grid/carousel) but never gave merchants a way to actually
+  choose either. Two separate layers were missing: (1) the settings form
+  template had no `<select>` for either key, and (2) even with a control
+  added, `storefront_section_settings`'s POST handler builds an **explicit
+  per-section-type field allowlist** (not a generic passthrough) that
+  didn't include either key — a submitted value would have been silently
+  dropped before reaching `validate_settings`. This is precisely U9's
+  "section component variant swap" requirement, and precisely a
+  continuation of U4's own work (a backend capability shipped without its
+  UI is not yet a usable merchant capability).
+- **"Global component variant swap"** (`header_variant`/`footer_variant`)
+  was already fully wired end-to-end (`header_editor.html`/
+  `footer_editor.html` — real `<select>` controls, already populated from
+  `global_region_registry.list_global_variants`) — confirmed, not rebuilt.
+- Column/layout/spacing/width/alignment/responsive-visibility/typography/
+  appearance-override controls already exist throughout the advanced
+  editor (`section_layout_fields.html`, `section_responsive_fields.html`,
+  `section_motion_fields.html`, the appearance editor) — confirmed present
+  by reading `section_settings_form.html`'s shared includes, not rebuilt.
+
+### Architecture implemented
+
+- **`section_settings_form.html`**: added a `hero_style` `<select>`
+  (`hero_banner`-only — `image_slider` shares the same form block but has
+  no registered variants, so the control is scoped out for it, matching
+  U4's own deliberate scoping) and a `tile_style` `<select>`
+  (`collection_tiles`), both using the exact same idiom already
+  established for `display_mode`/`image_position`.
+- **`storefront_section_settings`**: added `"hero_style"`/`"tile_style"`
+  to the respective type's `raw` dict alongside every other field already
+  read from `request.POST`, so the new form controls actually persist
+  through `validate_settings` (previously would have been silently
+  dropped even with the form control present).
+
+### Migrations
+
+None.
+
+### Focused test results
+
+`apps/storefront_builder/tests/test_u9_advanced_settings.py` (new, 9
+tests): **9/9 passed.** Covers: the `hero_style` control appears for
+`hero_banner` and is absent for `image_slider`, posting `split`/omitting
+the field both persist correctly (split / default overlay), the form
+reflects an already-saved selection, the `tile_style` control appears and
+round-trips (carousel / default grid), and the `prefers-reduced-motion`
+tripwire confirming the already-existing motion architecture stays intact.
+
+### Regression results
+
+- `python manage.py test apps.storefront_builder` — **1530 tests**, same
+  **2 pre-existing known failures** as U3–U8 (deferred to U11), **zero
+  new failures**.
+- `python manage.py makemigrations --check --dry-run` — no changes detected.
+- `git diff --check` — clean.
+
+### Known limitations (explicit capability boundaries, not gaps to hide)
+
+1. **Capability-metadata-driven control visibility was audited, not
+   extended.** `test_u1b2_capability_metadata_wiring.py` already exists
+   and covers the general mechanism; this phase added two new concrete
+   controls following the established manual per-type form pattern rather
+   than building a new generic "capability → auto-rendered control" system
+   — the existing form is already an explicit per-type dispatch (not a
+   forbidden giant renderer conditional — it's UI form composition, a
+   different concern from render-path dispatch), and extending that
+   established pattern was lower-risk than introducing a second,
+   competing mechanism.
+2. **No new spacing/width/alignment/typography controls were added** —
+   confirmed these already exist (`section_layout_fields.html` etc.); this
+   phase's real, scoped contribution was specifically closing U4's
+   variant-control gap, not re-auditing every existing advanced control
+   for completeness (a much larger undertaking than remaining budget
+   supports at real depth).
