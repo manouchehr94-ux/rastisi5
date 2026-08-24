@@ -1055,7 +1055,8 @@ time.
 ## U11 — Performance / Accessibility / Regression Closure
 
 - **Starting SHA:** `b939b9ba741557bfb03119d5666c310a9305a37c`
-- **Ending SHA:** _(recorded after commit, see below)_
+- **Ending SHA:** `ea501e4f554e8b728a7b738aa8e1045aabf27f83` (verified equal
+  to `origin/feature/storefront-builder-v3-redesign` after push)
 
 This is the closure phase — hardening, not new features.
 
