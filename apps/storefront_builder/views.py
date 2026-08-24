@@ -1891,7 +1891,12 @@ def storefront_template_gallery(request):
                 global_region_registry.GLOBAL_FOOTER_REGION, (preset.footer or {}).get("footer_variant"),
             ),
         }
-        for preset in layout_preset_registry.list_layout_presets()
+        # Acceptance Batch 1 (post-U11) — the merchant-facing Gallery must
+        # show only the 8 official Ready Templates, not every registered
+        # LayoutPresetDefinition (5 historical/internal presets remain
+        # registered and applicable elsewhere — e.g. Advanced mode / the
+        # apply-preset endpoint directly — just not surfaced here).
+        for preset in layout_preset_registry.list_ready_templates()
     ]
 
     context = {

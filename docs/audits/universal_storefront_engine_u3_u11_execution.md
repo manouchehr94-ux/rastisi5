@@ -1219,3 +1219,289 @@ None this phase.
    a full manual accessibility audit without browser tooling.
 3. **`preset_registry.py`** left untouched — see above; removal would
    need a live-data audit this phase didn't have scope for.
+
+## Post-U11 Acceptance Fix Batch 1 — Ready Template Integrity + Public Presentation
+
+- **Starting SHA:** `a6c4f2d071c35d9d104e467e50e7c0b796a8c48d` (the U11
+  checkpoint above)
+- One coherent commit on top of that SHA, per the batch's own explicit
+  instruction (not the usual work-commit + ledger-SHA-commit pair used
+  for U3-U11) — see the session's final response for this commit's hash.
+
+Real Windows/browser QA against the completed U3-U11 engine surfaced four
+small, explicitly-scoped acceptance gaps — not a new phase, not a
+redesign of U1-U11.
+
+### Issue 1 — stale palette after applying a Ready Template
+
+**QA evidence:** applying `dense_marketplace`/`dark_digital` (whose
+`default_palette_slug` is `digired`/`ocean`) left the Draft showing
+whatever palette the store had before (e.g. `theme-forest-cream`),
+despite `template_provenance` correctly recording the new Template.
+
+**Root cause:** `preset_service.apply_preset()` only ever applied a
+preset's `default_palette_slug` when the Draft had *no* palette yet
+(`current_appearance.get("palette_slug") is None`). That rule was correct
+for the original Phase 6 concept — applying a legacy, composition-only
+Preset as a one-time content suggestion — but a U7/U10 Ready Template is
+a full baseline (composition + appearance + default palette + header/
+footer variants + provenance); explicitly switching one is a deliberate
+merchant action that must replace the *entire* previous baseline, exactly
+like it already replaces section composition.
+
+**Fix:** `apply_preset()` now applies `preset.default_palette_slug`
+unconditionally whenever the preset defines one — never conditioned on
+whether the Draft already has a palette. Because `reset_storefront_to_baseline()`
+is implemented as a re-`apply_preset()` call against the recorded
+provenance preset, this single change also fixes reset-to-baseline for
+free. The palette remains a fully free merchant override *after* this
+point — the fix only fires at the moment of an explicit apply/reset.
+
+**Tests:** `test_preset_service.py::PaletteSeparationTests` —
+`test_applying_a_template_replaces_the_previous_palette_baseline` (was
+`test_preset_never_overrides_merchants_existing_palette`, rewritten to
+assert the corrected contract; `color_overrides` — a separate
+customization layer — is confirmed untouched by the apply) and the new
+`test_merchant_can_still_freely_change_palette_after_applying_template`.
+`test_u10_ready_template_catalog.py` already exercises `dense_marketplace`/
+`dark_digital`/others end-to-end and continues to pass unchanged.
+
+### Issue 2 — header/nav contrast after the Issue 1 fix
+
+**Audit:** with Issue 1 fixed, a Ready Template's *actual* default
+palette is now always the one in effect — so the QA-reported "nearly
+invisible" marketplace nav text was re-audited against real palettes,
+including the five required header variants
+(`marketplace_search_first`/`premium_three_column`/`boutique_centered`/
+`dark_tech`/`legacy_default`) and their intended U10 Ready Template
+palettes.
+
+**Root cause found — a real, general CSS specificity bug**, not a
+palette-specific issue: `apps/storefront_builder/static/css/storefront_builder.css`
+had `.gh a,.gh button{color:inherit}` (specificity `0,1,1` — a class +
+element-type selector) written *before* the single-class semantic color
+tokens `.gh-nl`/`.gh-btn`/`.gh-account-link` (each `0,1,0`). Because
+`0,1,1 > 0,1,0`, the generic fallback always won, so real nav/header
+links inherited the ancestor `<header>`'s `--theme-header-text` role
+(paired with `header_bg`) while actually sitting on `--gh-surface`
+(paired with `--gh-ink`/`colors.text`) — two different semantic pairings
+that only coincide for a palette with no independently-defined header/nav
+roles. Traced to the exact CSS custom-property chain: `--brand-*`
+(`templates/base.html`, from `SHOP_*` context variables) → `--theme-*`
+(`apps/core/static/css/theme_palette.css`, `!important` on `.header`/
+`.nav`) → `--gh-*` (`.gh-shell` in `storefront_builder.css`). Confirmed
+against `theme-forest-cream` (the palette named in the QA report) — a
+"تم کامل"/full-site-theme with independent `roles.header_text` (`#FFF8E7`,
+cream) meant to pair with the *dark* `roles.header_bg`, not the *light*
+`--gh-surface` a nav link actually renders on — cream-on-near-white,
+exactly matching the reported symptom.
+
+**Scope check:** none of the 8 official U10 Ready Template palettes
+(`digired`/`amber`/`rose`/`sunset`/`mint`/`navy`/`plum`/`ocean`) define
+independent `theme_roles` — they're all plain palettes where
+`header_text == colors.text`, i.e. exactly what `--gh-ink` already
+resolves to. So this specific bug never manifested for any of the 8
+official templates even before this fix (verified by
+`HeaderNavContrastSpecificityTests.test_no_official_ready_template_relies_on_independent_theme_roles`).
+It was, however, a live, general defect for any merchant manually
+selecting a full-site-theme through the (unrelated, pre-existing)
+appearance editor with the newer U2A header — a latent trap, not
+hypothetical.
+
+**Fix — the smallest central correction, not a redesign:** the fallback
+rule was changed to `.gh :where(a,button){color:inherit}` — `:where()`
+gives it zero specificity, so it can never again out-rank any component's
+own semantic color token, for any palette, without touching the token
+rules themselves. No store/Template-specific CSS was added; no magic
+per-palette values; a full sweep of the `.gh` namespace confirmed this
+was the only instance of this defect shape.
+
+**Tests:** `HeaderNavContrastSpecificityTests` in the new
+`test_acceptance_batch1.py` — asserts the broken selector is gone (as an
+actual rule, comment-stripped so the fix's own explanatory comment
+doesn't false-positive), the `:where()` fallback is present, the three
+component color rules are byte-unchanged, and the official-Ready-Template
+scope-check above.
+
+### Issue 3 — Ready Template Gallery must show only the 8 official recipes
+
+**Problem:** the merchant-facing "قالب‌های آماده" Gallery
+(`storefront_template_gallery`) listed all 13 registered
+`LayoutPresetDefinition`s — the 8 official U10 recipes mixed with 5
+historical/internal ones (`clean_minimal`/`editorial_story`/
+`dense_catalog`/`premium_boutique`/`v5_golden_homepage`) kept for
+Advanced-mode/direct-apply use.
+
+**Fix — a registry-level distinction, not a hardcoded filter:** added
+`is_ready_template: bool = False` to `LayoutPresetDefinition`
+(`layout_preset_registry.py`), set `True` on exactly the 8 official keys,
+and added `list_ready_templates()` (filters `list_layout_presets()` by
+that flag). `storefront_template_gallery()` in `views.py` now calls
+`list_ready_templates()` instead of `list_layout_presets()` — a one-line
+call-site change. The 5 historical presets remain fully registered,
+validated, and directly applicable via the existing apply-preset endpoint
+and Advanced mode; nothing about them was removed or hidden anywhere
+except this one Gallery view. A future Ready Template only ever needs
+this one flag, never a parallel registry to keep in sync.
+
+**Current-template clarity:** the Gallery template
+(`template_gallery.html`, built in U8) already marked the currently-applied
+card with a `قالبِ فعلی` badge and rendered a disabled `در حال استفاده`
+button instead of the apply form for that card — confirmed this already
+satisfies the batch's requirement and needed no change.
+
+**Tests A-F** — `ReadyTemplateGallerySeparationTests` in
+`test_acceptance_batch1.py`: (A) the Gallery returns exactly the 8
+official keys (checked via `response.context["template_cards"]`, not by
+scanning rendered text — `editorial_jewelry`'s own description happens to
+share a word with `editorial_story`'s historical label, which would
+false-fail a naive text-absence check); (B) all 5 historical presets
+remain registered (`is_ready_template=False`) and directly applicable
+(`apply_preset` + provenance check); (C) the selected Ready Template is
+marked current and never carries the apply-form action for its own
+preset; (D) a different Ready Template remains applicable from the same
+Gallery response; (E) a second store's currently-applied Template never
+leaks into another store's Gallery view; (F) all 8 keys are lowercase,
+space-free, non-reference-store strings (the same tripwire U10 already
+enforces).
+
+### Issue 4 — empty data-driven sections must not render on the public storefront
+
+**QA evidence:** "پرفروش‌ترین‌ها" (a `product_section` sourced from
+`best_sellers`) rendered publicly with its heading and the merchant-facing
+"فعلاً کالایی برای نمایش وجود ندارد." empty-state message when the store
+had zero qualifying products — correct/useful behavior in the Builder
+(so a merchant understands *why* a section looks empty while composing a
+page), but not something a real shopper should ever see on the live site.
+
+**Fix — a registry-level distinction plus one call in the single public
+context builder, not a template-level special case for one Persian
+title:** added `render_service.OPTIONAL_PRODUCT_DATA_SECTION_KEYS` (a
+mapping of section key → the context key each one's own context builder
+already exposes its resolved product list under) covering
+`product_section`, `featured_products`, `newest_products`,
+`best_sellers`, `discounted_products`, `amazing_offers`, and
+`related_products`. `render_service.hide_empty_public_sections(items)`
+drops any render item in that set whose resolved data is empty. It is
+called exactly twice, both inside
+`storefront_context_service.build_universal_storefront_context()` —
+the module's own documented single central entry point for **all**
+public-page rendering (`apps.catalog.views`, `apps.cart.views`, and the
+staff-only-but-shell-identical `product_preview` in `apps.dashboard.views`)
+— once for the "store never published" branch and once for the normal
+published-page branch, immediately after building `items` and before
+`group_items_into_rows`/`build_container_render_items`, so a dropped item
+never produces a wrapper `<div class="rsec">`, a heading, a Cell, or a
+Container anywhere downstream. The Builder/editor preview
+(`storefront_preview` in `storefront_builder/views.py`) calls
+`build_page_render_items` directly and never passes through
+`build_universal_storefront_context`, so it is architecturally untouched
+— the Builder keeps showing every section, including its own explanatory
+empty-state, without depending on a runtime flag any call site could
+forget to pass.
+
+`product_listing`/`collection_products` (the listing/collection/search
+pages' own body) were deliberately **excluded** from this set — an empty
+result there is itself meaningful shopper feedback ("no results for this
+filter"), not an optional promotional row that should just vanish;
+hiding it would leave the whole page blank instead. Static/editorial
+sections (rich_text, testimonials, trust_features, banners, etc.) were
+never in scope — they were never touched.
+
+**Tests A-E** — `EmptyDataDrivenSectionsHiddenOnPublicTests` in
+`test_acceptance_batch1.py`, built around `dense_marketplace` applied to
+a fresh store (its home page includes a `best_sellers`-sourced
+`product_section`, `discounted_products`, and `amazing_offers`, all
+genuinely empty with no products yet): (A) all three are absent from the
+published public home page — no heading, no empty-state text; (B) the
+same Draft, viewed through the Builder preview endpoint, still shows the
+heading and the empty-state text; (C) adding one real discounted product
+and republishing makes `discounted_products` render normally, with no
+empty-state text; (D) no `data-section-key` wrapper attribute for the
+hidden section survives in the public HTML at all (Builder-only attribute
+regardless, but confirms no dangling wrapper); (E) a second store's own
+product never leaks into the first store's public page, and the first
+store's hidden section stays correctly hidden regardless of the other
+store's data.
+
+**Regression fallout from this fix (expected, fixed in this batch):**
+five pre-existing tests encoded the old "every section always renders
+regardless of emptiness" assumption on a fresh/product-less test store
+and needed updating to the corrected contract — not weakened, each
+re-verified against the fix's actual intent:
+- `test_preset_service.py::test_publish_activates_preset_publicly` —
+  `dense_catalog`'s home has 7 sections, 4 of them empty data-driven ones
+  for a fresh store; updated the expected public `.rsec` count from 7 to
+  3 (documented why).
+- `test_phase3_v5_golden.py::test_publishing_v5_preset_makes_it_appear_publicly`
+  and `::test_repeated_product_rails_show_distinct_titles` — both asserted
+  V5 preset product-rail titles appear publicly with zero products in the
+  store; added a real discounted product to each test's setup (satisfies
+  the `discounted`/`newest`/`most_viewed` data sources these titles use)
+  so the assertion tests real rendering, not the bug being fixed.
+- `test_public_homepage_integration.py::test_published_product_section_with_deleted_collection_does_not_crash` —
+  its own point (no crash on a deleted collection reference) is preserved
+  and still asserted (`status_code == 200`); the title-presence assertion
+  was inverted to `assertNotContains`, matching the corrected contract.
+- `test_responsive_rendering.py::test_multi_banner_gets_grid_rsec_cols_class` —
+  investigation showed this test's literal string match
+  (`class="grid rsec-cols"`, no extra classes) was never actually matching
+  `multi_banner`'s own div (which always renders extra `promo-grid`
+  classes) — it was coincidentally matching the *default bootstrap*
+  `best_sellers`/`newest_products` sections' own empty grid, which this
+  fix now correctly hides. Fixed to assert against `multi_banner`'s own
+  actual rendered class attribute, which is what the test always meant to
+  verify.
+
+### Files changed
+
+- `apps/storefront_builder/services/preset_service.py` — Issue 1 fix.
+- `apps/storefront_builder/layout_preset_registry.py` — Issue 3
+  (`is_ready_template` field, `list_ready_templates()`), plus an updated
+  `default_palette_slug` docstring reflecting the Issue 1 fix.
+- `apps/storefront_builder/views.py` — Issue 3 (`storefront_template_gallery`
+  now calls `list_ready_templates()`).
+- `apps/storefront_builder/static/css/storefront_builder.css` — Issue 2
+  fix.
+- `apps/storefront_builder/services/render_service.py` — Issue 4
+  (`OPTIONAL_PRODUCT_DATA_SECTION_KEYS`, `hide_empty_public_sections`).
+- `apps/storefront_builder/services/storefront_context_service.py` —
+  Issue 4 (two call sites).
+- `apps/storefront_builder/tests/test_acceptance_batch1.py` — new; Issues
+  2, 3, 4.
+- `apps/storefront_builder/tests/test_preset_service.py` — Issue 1 tests
+  updated/added; one Issue 4 regression fallout fix.
+- `apps/storefront_builder/tests/test_u8_template_gallery.py` — two tests
+  updated for the Issue 3 Gallery-scope change (one previously asserted
+  against all 13 presets; one applied a historical preset that's no
+  longer shown in the Gallery it was testing).
+- `apps/storefront_builder/tests/test_phase3_v5_golden.py`,
+  `test_public_homepage_integration.py`, `test_responsive_rendering.py` —
+  Issue 4 regression fallout fixes (see above).
+
+### Testing
+
+Ran, all green: the new `test_acceptance_batch1.py` (15 tests); the full
+`test_preset_service.py`/`test_u7_ready_template_baseline.py`/
+`test_u8_template_gallery.py`/`test_u10_ready_template_catalog.py`/
+`test_u2a_global_header_system.py`/`test_u2b_global_footer_system.py`/
+`test_render_service.py`/`test_layout_preset_registry.py` combined (287
+tests); the entire `apps.storefront_builder` suite (1567 tests, 1
+pre-existing skip, unrelated); the entire `apps.catalog` suite (796
+tests). `python manage.py makemigrations --check --dry-run` → "No changes
+detected" (expected — `is_ready_template` is a plain dataclass field on a
+Python registry object, not a Django model field; no new model/field was
+introduced). `git diff --check` → clean.
+
+### Known limitations (explicit, unchanged from the batch's own scope)
+
+1. Broken category/product/trust/payment images in the original QA
+   screenshots are a QA-environment artifact (media directory not copied
+   with the SQLite DB) — not touched, not a real production defect.
+2. Builder-only outlines/"افزودنِ کامپوننت" controls were re-confirmed to
+   never leak into public rendering — no change made.
+3. True digital/service product semantics, granular field/component/
+   section reset, non-home Ready Template differentiation, and real
+   Template Gallery thumbnails remain out of scope for this batch, per
+   its own explicit exclusions — deferred to a future acceptance batch,
+   not started here.

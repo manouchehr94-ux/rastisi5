@@ -3498,7 +3498,24 @@ a.sfb-v3-component-item,
    dark_tech; every other variant shares the one light-palette default. */
 .gh-shell{--gh-ink:var(--brand-text,var(--ink));--gh-muted:var(--brand-muted,var(--muted));--gh-border:var(--brand-border,var(--line));--gh-surface:var(--brand-surface,var(--card));--gh-bg:var(--brand-background,var(--bg));--gh-accent:var(--brand-primary,var(--violet))}
 .gh-shell--dark{--gh-ink:#f1f0f5;--gh-muted:#a7a6b8;--gh-border:#2a2a37;--gh-surface:#1b1b24;--gh-bg:#121218}
-.gh a,.gh button{color:inherit}
+/* Acceptance Batch 1 (post-U11) — a zero-specificity `:where()` fallback,
+   not `.gh a,.gh button{color:inherit}` (specificity 0,1,1 — a class +
+   element-type selector). That form out-ranked every later, intentionally
+   more specific semantic-token rule using only a single class
+   (`.gh-nl`/`.gh-btn`/`.gh-account-link`, each 0,1,0), so real nav/button
+   links ended up inheriting the ancestor <header>'s `--theme-header-text`
+   (a role paired with `header_bg`) while actually sitting on
+   `--gh-surface` (paired with `--gh-ink`/`colors.text`) — two different
+   semantic pairings that only coincide for a palette with no independent
+   header/nav role overrides. For a full theme that DOES define its own
+   `header_text`/`nav_text` (e.g. a dark header_bg + light header_text
+   pairing), this silently produced near-invisible nav text sitting on the
+   light `--gh-surface` nav-row background — confirmed via real QA. Using
+   `:where()` here keeps this rule's *only* job — a safe default color for
+   any unstyled `<a>`/`<button>` inside `.gh` — without it ever being able
+   to outrank a component's own semantic color token, regardless of
+   palette. Not scoped to any Store/Template/palette. */
+.gh :where(a,button){color:inherit}
 .gh a:focus-visible,.gh button:focus-visible,.gh input:focus-visible{outline:2px solid var(--brand-accent,#ff4d77);outline-offset:2px}
 
 /* correction pass — these five containers use horizontal overflow-scroll

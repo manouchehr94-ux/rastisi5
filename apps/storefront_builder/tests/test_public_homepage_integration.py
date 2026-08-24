@@ -196,6 +196,12 @@ class PublicHomepageIntegrationTests(TestCase):
         self.assertContains(resp, "کالای صفحه اصلی خاص")
 
     def test_published_product_section_with_deleted_collection_does_not_crash(self):
+        """Acceptance Batch 1 (post-U11): a product_section resolving to
+        zero products (here: a deleted/nonexistent collection) must still
+        never crash — the original point of this test — but now correctly
+        renders nothing at all on the public page (see
+        ``render_service.hide_empty_public_sections``) instead of showing
+        its title/shell over an empty grid."""
         draft = svc.get_or_create_draft(self.store)
         StorefrontSection.objects.create(
             version=draft, section_key="product_section", order=999,
@@ -208,7 +214,7 @@ class PublicHomepageIntegrationTests(TestCase):
         svc.publish(self.store)
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "کالکشن حذف‌شده")
+        self.assertNotContains(resp, "کالکشن حذف‌شده")
 
     def test_view_all_link_actually_renders_on_public_page(self):
         """رگرسیون: ``view_all_url`` قبلاً در include مشترکِ

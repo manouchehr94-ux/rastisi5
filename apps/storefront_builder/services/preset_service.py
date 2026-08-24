@@ -205,9 +205,20 @@ def apply_preset(draft: StorefrontLayoutVersion, preset: LayoutPresetDefinition)
     # --- ۱) اعتبارسنجی/آماده‌سازیِ appearance/header/footer (بدونِ نوشتن) ---
     current_appearance = draft.effective_appearance_config()
     overlay = dict(preset.appearance)
-    # Palette فقط اگر مرچنت هنوز هیچ Paletteای انتخاب نکرده — یک پیشنهاد
-    # است، نه بازنویسیِ انتخابِ موجود (تصمیمِ مالک: Palette همیشه آزاد/جدا).
-    if preset.default_palette_slug is not None and current_appearance.get("palette_slug") is None:
+    # Acceptance Batch 1 (post-U11) — correction of the original Phase 6
+    # "palette is only ever a suggestion" rule: that rule was written for
+    # applying a *legacy* Preset as a one-time content suggestion. A U7/U10
+    # Ready Template is a full baseline (composition + appearance + default
+    # palette + global variants + provenance) — explicitly applying one is
+    # a deliberate merchant action that must replace the *entire* previous
+    # baseline, including palette, exactly like it already replaces section
+    # composition and header/footer variant below. Leaving a stale palette
+    # active after an explicit Template switch produced a real, reported
+    # bug (dense_marketplace/dark_digital rendering with whatever palette
+    # the store happened to have before). The palette remains a completely
+    # free merchant override *after* this point — this only fires at the
+    # moment of an explicit apply/reset, never on its own.
+    if preset.default_palette_slug is not None:
         overlay["palette_slug"] = preset.default_palette_slug
     overlay["layout_preset_key"] = preset.key
     try:

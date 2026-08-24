@@ -133,16 +133,26 @@ class DraftOnlyAndPublishLifecycleTests(PresetServiceTestCase):
     def test_publish_activates_preset_publicly(self):
         """``data-section-key`` فقط در Preview درج می‌شود (نگاه کنید به
         ``responsive_section_wrapper.html``)، پس در صفحه‌ی عمومی به‌جایِ آن
-        از تعدادِ بلوک‌هایِ رندرشده (``rsec``) استفاده می‌کنیم — چون
-        ``dense_catalog`` دقیقاً هفت section روی صفحه‌ی اصلی دارد،
-        متفاوت از ترکیبِ پیش‌فرضِ بوت‌استرپ."""
+        از تعدادِ بلوک‌هایِ رندرشده (``rsec``) استفاده می‌کنیم.
+
+        ``dense_catalog`` هفت section روی صفحه‌ی اصلی دارد، اما Acceptance
+        Batch 1 (post-U11) چهارتایِ آن‌ها (``newest_products``/
+        ``best_sellers``/``discounted_products``/``amazing_offers`` — همگی
+        section‌هایِ داده‌محورِ اختیاری) را، وقتی داده‌شان واقعاً خالی است
+        (این Store تازه هیچ کالایی ندارد)، از صفحه‌ی عمومی/زنده حذف
+        می‌کند — نه Builder/editor. پس فقط سه‌تای باقی‌مانده
+        (``category_grid``/``brand_carousel``/``trust_features``) واقعاً
+        رندر می‌شوند؛ نگاه کنید به
+        ``render_service.hide_empty_public_sections`` و
+        ``test_acceptance_batch1.EmptyDataDrivenSectionsHiddenOnPublicTests``
+        برایِ پوششِ کاملِ این قرارداد."""
         draft = svc.get_or_create_draft(self.store)
         preset_service.apply_preset(draft, self.preset)
         svc.publish(self.store)
 
         public_resp = self.public_client.get(reverse("catalog:home"))
         self.assertEqual(public_resp.status_code, 200)
-        self.assertEqual(public_resp.content.decode().count('class="rsec"'), len(self.preset.pages["home"]))
+        self.assertEqual(public_resp.content.decode().count('class="rsec"'), 3)
 
     def test_header_footer_config_land_on_version_not_sections(self):
         draft = svc.get_or_create_draft(self.store)
@@ -368,15 +378,42 @@ class PaletteSeparationTests(PresetServiceTestCase):
         draft.refresh_from_db()
         self.assertEqual(draft.appearance_config.get("palette_slug"), self.preset.default_palette_slug)
 
-    def test_preset_never_overrides_merchants_existing_palette(self):
+    def test_applying_a_template_replaces_the_previous_palette_baseline(self):
+        """Acceptance Batch 1 (post-U11) — corrects the original assumption
+        this test enforced (a Preset's palette was a one-time suggestion
+        that never overrode an existing choice). Real QA found this made
+        an explicit Ready Template switch (dense_marketplace/dark_digital)
+        silently keep whatever palette the store had before, which
+        contradicts the Template baseline including its default palette.
+        Explicitly applying a Ready Template is a deliberate action that
+        replaces the whole previous baseline — exactly like it already
+        replaces section composition — not merely a passive suggestion."""
         draft = svc.get_or_create_draft(self.store)
         draft.appearance_config = {**draft.effective_appearance_config(), "palette_slug": "rose", "color_overrides": {"primary": "#123456"}}
         draft.save(update_fields=["appearance_config"])
 
         preset_service.apply_preset(draft, self.preset)
         draft.refresh_from_db()
-        self.assertEqual(draft.appearance_config.get("palette_slug"), "rose")
+        self.assertEqual(draft.appearance_config.get("palette_slug"), self.preset.default_palette_slug)
+        # color_overrides is a separate, always-free customization layer on
+        # top of whichever palette is active — untouched by a Template
+        # apply, unlike palette_slug itself.
         self.assertEqual(draft.appearance_config.get("color_overrides"), {"primary": "#123456"})
+
+    def test_merchant_can_still_freely_change_palette_after_applying_template(self):
+        """The Template's default palette is only the *baseline* set at
+        apply time — a merchant remains completely free to change it
+        afterward, exactly as before this fix; nothing about applying a
+        Template locks the palette control."""
+        draft = svc.get_or_create_draft(self.store)
+        preset_service.apply_preset(draft, self.preset)
+        draft.refresh_from_db()
+        self.assertEqual(draft.appearance_config.get("palette_slug"), self.preset.default_palette_slug)
+
+        draft.appearance_config = {**draft.effective_appearance_config(), "palette_slug": "rose"}
+        draft.save(update_fields=["appearance_config"])
+        draft.refresh_from_db()
+        self.assertEqual(draft.appearance_config.get("palette_slug"), "rose")
 
 
 class ViewLevelTests(PresetServiceTestCase):

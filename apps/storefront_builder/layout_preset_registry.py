@@ -99,16 +99,32 @@ class LayoutPresetDefinition:
     #: A plain string (not int) to match ``build_template_provenance``'s
     #: existing ``template_version: str | None`` contract.
     version: str = "1"
+    #: Acceptance Batch 1 (post-U11) — the explicit registry-level
+    #: distinction the master contract asked for: ``True`` only for the 8
+    #: official U10 Ready Template recipe keys. ``False`` (default) for
+    #: the 5 historical/internal presets (``clean_minimal``/
+    #: ``editorial_story``/``dense_catalog``/``premium_boutique``/
+    #: ``v5_golden_homepage``) — they remain fully registered and
+    #: applicable (Advanced mode, `apply-preset` endpoint, tests), just not
+    #: surfaced on the normal merchant-facing Ready Template Gallery. A
+    #: plain boolean rather than a separate second registry/file, so a
+    #: future Ready Template only ever needs this one flag, not a parallel
+    #: structure to keep in sync.
+    is_ready_template: bool = False
     #: فقط کلیدهایِ ساختاریِ ``appearance_config`` (هرگز رنگ) — زیرمجموعه‌ای
     #: از: font/radius/button_radius/density/motion/type_scale/button_style/
     #: image_fit/image_hover/card_image_crossfade/card_image_zoom. کلیدِ
     #: غایب یعنی «دست‌نخورده بماند» (نه بازنشانی به پیش‌فرضِ پلتفرم) —
     #: منطقِ merge در ``preset_service.apply_preset`` است.
     appearance: dict = dataclasses.field(default_factory=dict)
-    #: فقط یک *پیشنهاد* — طبقِ تصمیمِ مالک، Palette همیشه آزادانه توسطِ
-    #: مرچنت قابل‌تغییر می‌ماند؛ اگر مرچنت از قبل Paletteای انتخاب کرده
-    #: باشد، اعمالِ Preset آن انتخاب را بازنویسی نمی‌کند (نگاه کنید به
-    #: ``preset_service.apply_preset``).
+    #: Acceptance Batch 1 (post-U11) correction — this is the Ready
+    #: Template's *default baseline* palette, applied unconditionally by
+    #: ``preset_service.apply_preset`` whenever an explicit apply/reset
+    #: happens (see that function's own docstring for why the older
+    #: "only if the merchant has no palette yet" rule was wrong for an
+    #: explicit Template switch). The merchant remains completely free to
+    #: change the palette afterward — this only ever fires at apply/reset
+    #: time, never on its own.
     default_palette_slug: str | None = None
     #: کلیدهایِ جزئیِ ``header_config``/``footer_config`` — دقیقاً همان
     #: قراردادِ ``layout_service.validate_header_config``/
@@ -145,6 +161,15 @@ def get_layout_preset(key: str) -> LayoutPresetDefinition | None:
 
 def list_layout_presets() -> list[LayoutPresetDefinition]:
     return list(LAYOUT_PRESET_REGISTRY.values())
+
+
+def list_ready_templates() -> list[LayoutPresetDefinition]:
+    """Acceptance Batch 1 (post-U11) — the merchant-facing catalog: only
+    the presets explicitly marked ``is_ready_template=True`` (U10's 8
+    official recipe keys). ``list_layout_presets()`` above is unchanged
+    and still returns all 13 — the historical/internal presets remain
+    fully registered and applicable, just not surfaced here."""
+    return [preset for preset in list_layout_presets() if preset.is_ready_template]
 
 
 def _validate_page_composition_shape(definition: LayoutPresetDefinition) -> None:
@@ -754,6 +779,7 @@ def _u10_standard_non_home_pages() -> dict:
 
 register_layout_preset(LayoutPresetDefinition(
     key="dense_marketplace",
+    is_ready_template=True,
     label_fa="بازارگاه پرتراکم",
     description_fa="چیدمانِ فشرده و پرمحصول برایِ فروشگاه‌هایی با کاتالوگِ بزرگ که می‌خواهند در نگاهِ اول محصولِ زیادی نشان دهند.",
     appearance={
@@ -783,6 +809,7 @@ register_layout_preset(LayoutPresetDefinition(
 
 register_layout_preset(LayoutPresetDefinition(
     key="premium_leather",
+    is_ready_template=True,
     label_fa="چرمِ پرمیوم",
     description_fa="چیدمانِ لوکس با تراکمِ باز و حرکتِ ملایم — مناسبِ برندهایِ چرم/کالایِ دستی با موضعِ قیمتیِ بالا.",
     appearance={
@@ -813,6 +840,7 @@ register_layout_preset(LayoutPresetDefinition(
 
 register_layout_preset(LayoutPresetDefinition(
     key="warm_boutique",
+    is_ready_template=True,
     label_fa="بوتیکِ گرم",
     description_fa="چیدمانِ گرم و دعوت‌کننده با لوگویِ مرکزی — مناسبِ بوتیک‌ها و برندهایِ کوچکِ خانوادگی.",
     appearance={
@@ -841,6 +869,7 @@ register_layout_preset(LayoutPresetDefinition(
 
 register_layout_preset(LayoutPresetDefinition(
     key="fashion_promo_catalog",
+    is_ready_template=True,
     label_fa="کاتالوگِ پوشاک و پیشنهادها",
     description_fa="چیدمانِ کاتالوگ‌محور با بنرهایِ تبلیغاتیِ متعدد — مناسبِ پوشاک/مدی که مرتب کمپین/تخفیف اجرا می‌کند.",
     appearance={
@@ -870,6 +899,7 @@ register_layout_preset(LayoutPresetDefinition(
 
 register_layout_preset(LayoutPresetDefinition(
     key="playful_lifestyle",
+    is_ready_template=True,
     label_fa="سبکِ زندگیِ شاد",
     description_fa="چیدمانِ رنگی و پرحرکت با گوشه‌هایِ گرد — مناسبِ برندهایِ سبکِ زندگی/کودک/سرگرمی.",
     appearance={
@@ -898,6 +928,7 @@ register_layout_preset(LayoutPresetDefinition(
 
 register_layout_preset(LayoutPresetDefinition(
     key="utility_catalog",
+    is_ready_template=True,
     label_fa="کاتالوگِ ابزار و صنعتی",
     description_fa="چیدمانِ ساده و کارکردی، بدونِ حرکت/تزیینِ اضافه — مناسبِ ابزار/قطعات/کالایِ صنعتی که تمرکز باید کاملاً رویِ مشخصات و پیدا کردنِ سریعِ کالا باشد.",
     appearance={
@@ -925,6 +956,7 @@ register_layout_preset(LayoutPresetDefinition(
 
 register_layout_preset(LayoutPresetDefinition(
     key="editorial_jewelry",
+    is_ready_template=True,
     label_fa="جواهراتِ مجله‌ای",
     description_fa="چیدمانِ روایت‌محور با تایپوگرافیِ بزرگ و فاصله‌ی باز — مناسبِ جواهر/اکسسوری‌یی که با تصویر و داستان می‌فروشد، نه فقط گرید.",
     appearance={
@@ -954,6 +986,7 @@ register_layout_preset(LayoutPresetDefinition(
 
 register_layout_preset(LayoutPresetDefinition(
     key="dark_digital",
+    is_ready_template=True,
     label_fa="دیجیتالِ تیره",
     description_fa="چیدمانِ تیره و پرحرکت — مناسبِ فروشگاهِ لوازمِ دیجیتال/فناوری که هویتِ بصریِ تک‌محور می‌خواهد.",
     appearance={

@@ -673,6 +673,51 @@ def build_default_render_items(page_type: str, store, page_context: dict | None 
 
 
 
+#: Acceptance Batch 1 (post-U11) — the registry-level distinction the QA
+#: fix needs: section types whose whole reason for existing is an
+#: optional, auto-populated *product grid* (never static/editorial
+#: content), mapped to the context key each one's builder above always
+#: sets that grid under. On the public/live storefront, a genuinely empty
+#: grid here means "nothing to show" and the whole section is skipped —
+#: on the Builder/editor (which never calls ``hide_empty_public_sections``
+#: below), it still renders with its own "چیزی برای نمایش نیست" empty
+#: state so a merchant understands *why* a section looks empty while
+#: composing a page. ``product_listing``/``collection_products`` are
+#: deliberately excluded — those ARE the listing/collection/search page's
+#: own body, where an empty result set is itself meaningful feedback to a
+#: shopper (e.g. "no results for this filter"), not an optional
+#: promotional row that should just disappear.
+OPTIONAL_PRODUCT_DATA_SECTION_KEYS = {
+    "product_section": "products",
+    "featured_products": "products",
+    "newest_products": "products",
+    "best_sellers": "products",
+    "discounted_products": "products",
+    "amazing_offers": "products",
+    "related_products": "related_products",
+}
+
+
+def hide_empty_public_sections(items: list[dict]) -> list[dict]:
+    """Drop render items for ``OPTIONAL_PRODUCT_DATA_SECTION_KEYS`` whose
+    resolved data is empty — called only from the public/live context path
+    (``storefront_context_service.build_universal_storefront_context``),
+    never from the Builder/editor preview path (``storefront_preview``
+    calls ``build_page_render_items`` directly and never sees this
+    function), so the two contracts (hide on live, explain in the editor)
+    stay physically separate rather than depending on a runtime flag one
+    call site could forget to pass. A dropped item never reaches
+    ``group_items_into_rows``/``build_container_render_items`` — no empty
+    wrapper, heading, or Cell/Container survives for it."""
+    visible = []
+    for item in items:
+        context_key = OPTIONAL_PRODUCT_DATA_SECTION_KEYS.get(item["section"].section_key)
+        if context_key is not None and not item["context"].get(context_key):
+            continue
+        visible.append(item)
+    return visible
+
+
 def build_container_render_items(page, items: list[dict], *, include_empty: bool = False) -> list[dict]:
     """Shape rendered Section items through the real Container/Cell layout.
 

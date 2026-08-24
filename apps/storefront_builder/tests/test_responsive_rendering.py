@@ -327,10 +327,23 @@ class MultiBannerColumnRenderingTests(TestCase):
         return section
 
     def test_multi_banner_gets_grid_rsec_cols_class(self):
+        """Acceptance Batch 1 (post-U11) correction: this assertion was
+        matching the *default bootstrap* ``best_sellers``/
+        ``newest_products`` sections' own (unrelated) empty grid div —
+        which happens to render the exact literal
+        ``class="grid rsec-cols"`` (no extra classes) — never
+        ``multi_banner``'s own div (``class="grid rsec-cols promo-grid
+        promo-grid--..."``, so the exact-quoted substring never matched
+        it). Now that a genuinely empty data-driven section like those two
+        is correctly hidden on the public page (see
+        ``render_service.hide_empty_public_sections``), that coincidental
+        match is gone — so this test is fixed to actually assert against
+        ``multi_banner``'s own rendered class, which is what it always
+        meant to test."""
         self._make_banner_section()
         svc.publish(self.store)
         resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
-        self.assertContains(resp, 'class="grid rsec-cols"')
+        self.assertContains(resp, 'class="grid rsec-cols promo-grid promo-grid--default"')
 
     def test_multi_banner_column_css_variables_rendered(self):
         self._make_banner_section(desktop_columns=2, tablet_columns=2, mobile_columns=1)

@@ -57,6 +57,25 @@ def _img(name="v5-test.png"):
     return SimpleUploadedFile(name, buf.getvalue(), content_type="image/png")
 
 
+def _discounted_product(store):
+    """Acceptance Batch 1 (post-U11) — the V5 preset's several
+    ``product_section`` instances (``discounted``/``newest``/``most_viewed``
+    data sources) are now hidden on the public/live storefront whenever
+    they genuinely resolve to zero products (see
+    ``render_service.hide_empty_public_sections``). A single active,
+    discounted product satisfies all three data sources at once (an
+    active product with ``discount_percent>0`` is also "newest" and
+    "most_viewed"), so the tests below that check these titles actually
+    render publicly need real data, not an empty store."""
+    vendor = Vendor.objects.create(store=store, name="فروشنده V5", slug="v5-vendor")
+    category = Category.objects.create(store=store, name="دسته V5", slug="v5-category")
+    return Product.objects.create(
+        store=store, vendor=vendor, category=category, name="کالای طلاییِ V5",
+        slug="v5-golden-product", sku="SKU-V5-GOLDEN", price=Decimal("120000"),
+        discount_percent=10, status=Product.Status.ACTIVE,
+    )
+
+
 def _product(store, slug, *, discount_percent=0):
     vendor = Vendor.objects.create(store=store, name=f"فروشنده {slug}", slug=f"v-{slug}")
     category = Category.objects.create(store=store, name=f"دسته {slug}", slug=f"c-{slug}")
@@ -288,6 +307,12 @@ class RepeatedProductRailsAndCardStylesTests(TestCase):
         _verified_domain(self.store, HOST)
 
     def test_repeated_product_rails_show_distinct_titles(self):
+        # Acceptance Batch 1 (post-U11): these titles all belong to
+        # data-driven product_section instances (discounted/newest/
+        # most_viewed) — a real product is required for any of them to
+        # render at all now that a genuinely empty one is hidden on the
+        # public storefront (see ``_discounted_product``'s docstring).
+        _discounted_product(self.store)
         draft = svc.get_or_create_draft(self.store)
         preset_service.apply_preset(draft, lpr.get_layout_preset("v5_golden_homepage"))
         svc.publish(self.store)
@@ -482,6 +507,12 @@ class PublicUsesPublishedPreviewUsesDraftTests(TestCase):
         self.assertNotContains(resp_after, "پیشنهاد لحظه‌ای")
 
     def test_publishing_v5_preset_makes_it_appear_publicly(self):
+        # Acceptance Batch 1 (post-U11): "پیشنهاد لحظه‌ای" is a
+        # data_source="discounted" product_section — a real discounted
+        # product is required for it to render at all on the public
+        # storefront now that a genuinely empty data section is hidden
+        # there (see ``_discounted_product``'s docstring).
+        _discounted_product(self.store)
         draft = svc.get_or_create_draft(self.store)
         preset_service.apply_preset(draft, lpr.get_layout_preset("v5_golden_homepage"))
         svc.publish(self.store)

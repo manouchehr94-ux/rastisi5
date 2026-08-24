@@ -85,6 +85,14 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
 
     if not resolved.is_resolved:
         items = render_service.build_default_render_items(page_type, store, page_context=page_context)
+        # Acceptance Batch 1 (post-U11) — this function is the single
+        # public/live rendering entry point (see module docstring); the
+        # Builder/editor preview never calls it (it calls
+        # ``build_page_render_items``/``build_default_render_items``
+        # directly), so this only ever hides empty optional product
+        # sections from real shoppers, never from a merchant composing a
+        # page. See ``render_service.hide_empty_public_sections``.
+        items = render_service.hide_empty_public_sections(items)
         return {
             "uses_universal_shell": False,
             "storefront_version": None,
@@ -118,6 +126,9 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
     request.storefront_appearance_version = version
 
     items = render_service.build_page_render_items(page, store, page_context=page_context)
+    # Acceptance Batch 1 (post-U11) — see the note on the unresolved-store
+    # branch above.
+    items = render_service.hide_empty_public_sections(items)
     header_config = version.effective_header_config()
     footer_config = version.effective_footer_config()
     return {

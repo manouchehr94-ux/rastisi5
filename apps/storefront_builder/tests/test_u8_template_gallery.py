@@ -64,9 +64,15 @@ class TemplateGalleryTests(TestCase):
         self.url = reverse("dashboard:storefront-builder-templates")
 
     def test_lists_every_registered_ready_template(self):
+        """Acceptance Batch 1 (post-U11) — the Gallery now shows only the
+        registry-flagged Ready Templates (`list_ready_templates()`), not
+        every `LayoutPresetDefinition` (`list_layout_presets()` still
+        returns all 13, including the 5 historical/internal presets kept
+        for Advanced-mode use). See test_acceptance_batch1.py for the full
+        separation test suite."""
         response = self.admin_client.get(self.url)
         self.assertEqual(response.status_code, 200)
-        for preset in lpr.list_layout_presets():
+        for preset in lpr.list_ready_templates():
             self.assertContains(response, preset.label_fa)
 
     def test_no_template_applied_yet_shows_no_current_badge(self):
@@ -75,8 +81,11 @@ class TemplateGalleryTests(TestCase):
         self.assertNotContains(response, "در حال استفاده")
 
     def test_applied_template_shows_as_current(self):
+        # Acceptance Batch 1 (post-U11): dense_catalog is a historical preset
+        # no longer surfaced in the Gallery — use a Ready Template so the
+        # "current" card is actually rendered to assert against.
         draft = svc.get_or_create_draft(self.store)
-        preset_service.apply_preset(draft, lpr.get_layout_preset("dense_catalog"))
+        preset_service.apply_preset(draft, lpr.get_layout_preset("dense_marketplace"))
         response = self.admin_client.get(self.url)
         self.assertContains(response, "قالبِ فعلی")
         self.assertContains(response, "در حال استفاده")
