@@ -931,7 +931,8 @@ tripwire confirming the already-existing motion architecture stays intact.
 ## U10 — Build the Real Ready Template Catalog
 
 - **Starting SHA:** `d44a5210380fb641f96ae96ef67af89c84398e56`
-- **Ending SHA:** _(recorded after commit, see below)_
+- **Ending SHA:** `7535810cee0888388c06ca4cdf7880edb00f319c` (verified equal
+  to `origin/feature/storefront-builder-v3-redesign` after push)
 
 ### Audit findings (before implementing)
 
