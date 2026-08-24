@@ -825,7 +825,8 @@ helper behaves identically to the endpoint's original inline logic.
 ## U9 — Advanced Storefront Settings
 
 - **Starting SHA:** `c8bf76b9824d2d3e51c249ec5c8c2bc3429143b8`
-- **Ending SHA:** _(recorded after commit, see below)_
+- **Ending SHA:** `4123b4b5bdefc99b01b836194f6489b9a471e7a7` (verified equal
+  to `origin/feature/storefront-builder-v3-redesign` after push)
 
 ### Audit findings (before implementing)
 
