@@ -422,3 +422,125 @@ two pages).
    later phase (U9's advanced/appearance work), not a "listing/filter/
    search" gap; only the missing pagination (a genuine listing-experience
    gap) was fixed here.
+
+---
+
+## U6 — Universal PDP + Product Types
+
+- **Starting SHA:** `1057bb5535ed2b218ce0f47970a68c959b44f4d6`
+- **Ending SHA:** _(recorded after commit, see below)_
+
+### Audit findings (before implementing)
+
+Read `apps/catalog/views.py` (`build_product_detail_context`),
+`apps/storefront_builder/templates/storefront_builder/sections/product_main.html`/
+`product_description.html`, `apps/orders/services/shipping_service.py`
+(`cart_requires_shipping`/`cart_shippable_weight_grams`),
+`apps/orders/services/checkout_service.py` (`build_context`/`submit_order`),
+`apps/orders/services/order_service.py` (`create_order_from_cart`), and
+`apps/orders/models.py`'s `Order` fields.
+
+- **`build_product_detail_context` was already comprehensive** — product
+  identity, media gallery with variant→image switching, video (existing
+  provider detection), variant/option selector, price, stock, description/
+  specs (synthesized), reviews + rating breakdown, related products, gift
+  wrap. No rework needed for any of this — confirmed by reading it, not
+  assumed from the phase name.
+- **Real bug found**: `product_main.html` (the PDP purchase area)
+  unconditionally rendered two physical-shipping claims — "in stock, ready
+  to ship" and "fast, insured shipping" — for **every** product, with zero
+  connection to the existing, real `Product.requires_shipping` field. For
+  any store selling a non-shippable item, this is a literal false shipping
+  promise on the product's own purchase button — exactly what the master
+  contract's "no fabricated... shipping promises" rule forbids. This is
+  the concrete "no physical shipping claim" requirement for both DIGITAL
+  and SERVICE product types.
+- **No field distinguishes "digital" from "service" today** — `Product`
+  only has `requires_shipping` (boolean) and `product_type`
+  (`simple`/`variable`, an unrelated axis — variant structure, not
+  fulfillment kind). Deliberately did **not** invent a new
+  `fulfillment_type`/digital-vs-service split field this phase (see Known
+  limitations) — the repository has no real capability or merchant-facing
+  choice backing that distinction yet, and inventing one to show different
+  cosmetic labels for two states with no real underlying difference would
+  itself be a form of fabricated content.
+- **Deeper gap found, audited but not fixed**: `shipping_service
+  .cart_requires_shipping(items)`/`cart_shippable_weight_grams(items)`
+  already exist, are already correct, and already have dedicated passing
+  tests (`test_all_digital_cart_does_not_require_shipping`) — but neither
+  is actually called from `checkout_service.py`. `submit_order` (`views.py`
+  checkout flow) unconditionally raises `CheckoutError("هیچ روش ارسال فعالی
+  موجود نیست")` when no shipping method is selected, regardless of whether
+  the cart needs one. Tracing further: `Order.shipping_method` is a
+  **mandatory** (`null=False`, `on_delete=PROTECT`) ForeignKey — an Order
+  literally cannot exist in the database today without a real
+  `ShippingMethod` row. Making an all-digital/all-service checkout actually
+  completable would require a schema migration (nullable FK) plus auditing
+  every `order.shipping_method` consumer (invoices, dashboard order views,
+  notifications, `create_order_from_cart` itself, which unconditionally
+  reads `shipping_method.store_id`/`.is_active`/`.is_pickup`/... several
+  lines deep). This is real, business-critical order-creation logic — not
+  safe to touch speculatively in this pass. **Not fixed — documented as a
+  concrete, scoped follow-up**, not silently left unmentioned and not
+  half-fixed in a way that would look done without actually working.
+
+### Architecture implemented
+
+- **`product_main.html`**: both shipping claims now gated on the existing
+  `product.requires_shipping` field (server-side Django conditional — the
+  fact is fixed per-product, not variant-dependent, so no Alpine/JS change
+  needed). The non-shippable branch shows real, honest alternative copy
+  ("available — purchasable" / "no physical shipping needed") rather than
+  a blank gap in the trust-badge row, keeping the row's real content intact
+  without fabricating a shipping claim.
+- Physical products (the default, `requires_shipping=True`) render
+  byte-identical copy to before this phase — zero visible change for every
+  existing store.
+
+### Migrations
+
+None. No model changes — this phase reuses the existing `requires_shipping`
+field.
+
+### Focused test results
+
+`apps/catalog/tests/test_u6_pdp_product_types.py` (new, 4 tests): **4/4
+passed.** Covers: physical-product regression (byte-identical claims),
+non-shippable product makes no shipping claim, non-shippable product shows
+the real honest alternative copy, and the out-of-stock state stays
+unaffected by the shipping flag either way.
+
+### Regression results
+
+- `python manage.py test apps.catalog apps.orders` — **1125 tests passed**,
+  zero failures.
+- `python manage.py test apps.storefront_builder` — **1499 tests**, same
+  **2 pre-existing known failures** as U3–U5 (deferred to U11), **zero new
+  failures**.
+- `python manage.py makemigrations --check --dry-run` — no changes detected.
+- `git diff --check` — clean.
+
+### Known limitations (explicit capability boundaries, not gaps to hide)
+
+1. **No `fulfillment_type` (digital/service) split field** — deliberately
+   not invented this phase; see audit findings above. A future phase
+   wanting genuinely distinct digital vs. service PDP presentation (not
+   just "non-shippable" framed identically for both) needs a real,
+   merchant-facing field first, not a cosmetic label with no data behind
+   it.
+2. **All-digital/all-service checkout still requires a real, selected
+   `ShippingMethod`** — `cart_requires_shipping` exists and is correct but
+   isn't wired into `checkout_service.submit_order`'s validation, and
+   `Order.shipping_method` is a mandatory FK. A store that sells only
+   digital/service products cannot today complete a checkout unless it
+   also configures at least one (possibly nominal/pickup) shipping method.
+   Fixing this properly needs: `Order.shipping_method` migrated to
+   nullable, `create_order_from_cart` guarded for `shipping_method=None`,
+   every downstream consumer of `order.shipping_method` audited
+   (invoices/dashboard/notifications), and `checkout_service` wired to
+   skip the requirement via the already-correct `cart_requires_shipping`.
+   Scoped out of this phase as a real, separate, higher-risk schema change
+   — not silently left unmentioned.
+3. **PDP capability visibility beyond the shipping-claim fix** (e.g.
+   product-type-specific sections/CTAs) was not built, since it would
+   depend on the same missing `fulfillment_type` field from limitation #1.
