@@ -119,11 +119,21 @@ class ManifestTests(SimpleTestCase):
             self.assertTrue(entry["raw_source_relpath"].startswith("raw_user_catalog/"), entry["sku"])
 
     def test_derived_images_have_a_transformation_description(self):
+        """Every entry's ``transformation`` must document what it actually
+        is. A derived entry just needs a non-empty description. A
+        non-derived (real) entry must be explicitly described as real —
+        either the product's cover photo, or (post-demo hardening pass,
+        Issue 2) a genuine additional real color on a multi-color product,
+        never silently indistinguishable from a fallback crop."""
         for entry in self.manifest:
             if entry["derived"]:
                 self.assertTrue(entry["transformation"], entry)
             else:
-                self.assertIn("cover", entry["transformation"].lower())
+                transformation = entry["transformation"].lower()
+                self.assertTrue(
+                    "cover" in transformation or "additional real color" in transformation,
+                    entry,
+                )
 
     def test_cover_image_is_never_marked_derived(self):
         for entry in self.manifest:

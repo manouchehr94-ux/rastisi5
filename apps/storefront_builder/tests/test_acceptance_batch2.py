@@ -207,6 +207,161 @@ class PreApplyCheckpointTests(TestCase):
         self.assertEqual(StorefrontSection.objects.filter(page__version=draft1).count(), sections_before)
 
 
+class ZeroSectionMeaningfulStateCheckpointTests(TestCase):
+    """Post-demo hardening pass, Issue 5: ``checkpoint_draft_before_replacement``'s
+    old "does this Draft have any sections?" shortcut was too weak — a
+    zero-section Draft can still hold meaningful merchant changes
+    (appearance/header/footer/palette/template baseline state) that a
+    template switch must not silently destroy without a recoverable
+    checkpoint. Each test here isolates exactly one global scope, with
+    every *other* scope left at its pristine default, to prove the new
+    meaningful-state policy checks each axis independently."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _second_store()
+        self.staff = User.objects.create_user(username="batch2_zero_section_owner", password="pass12345", is_staff=True)
+
+    def _fresh_pristine_draft(self):
+        draft = svc.get_or_create_draft(self.store, user=self.staff)
+        draft.sections.all().delete()
+        draft.refresh_from_db()
+        return draft
+
+    def _checkpoint(self):
+        return svc.checkpoint_draft_before_replacement(self.store, reason_label="تست چک‌پوینت", user=self.staff)
+
+    def test_empty_pristine_draft_gets_no_unnecessary_checkpoint(self):
+        draft = self._fresh_pristine_draft()
+        result = self._checkpoint()
+        self.assertEqual(result.pk, draft.pk)
+        self.assertEqual(result.status, StorefrontLayoutVersion.Status.DRAFT)
+
+    def test_zero_sections_with_modified_appearance_config_is_checkpointed(self):
+        draft = self._fresh_pristine_draft()
+        draft.appearance_config = {"density": "compact"}
+        draft.save(update_fields=["appearance_config"])
+        result = self._checkpoint()
+        self.assertNotEqual(result.pk, draft.pk)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, StorefrontLayoutVersion.Status.ARCHIVED)
+
+    def test_zero_sections_with_modified_palette_is_checkpointed(self):
+        """Palette lives inside ``appearance_config['palette_slug']`` — a
+        palette-only change must still be recognized as meaningful."""
+        draft = self._fresh_pristine_draft()
+        draft.appearance_config = {"palette_slug": "warm-earth"}
+        draft.save(update_fields=["appearance_config"])
+        result = self._checkpoint()
+        self.assertNotEqual(result.pk, draft.pk)
+
+    def test_zero_sections_with_modified_header_config_is_checkpointed(self):
+        draft = self._fresh_pristine_draft()
+        draft.header_config = {"variant": "centered"}
+        draft.save(update_fields=["header_config"])
+        result = self._checkpoint()
+        self.assertNotEqual(result.pk, draft.pk)
+
+    def test_zero_sections_with_modified_footer_config_is_checkpointed(self):
+        draft = self._fresh_pristine_draft()
+        draft.footer_config = {"variant": "expanded"}
+        draft.save(update_fields=["footer_config"])
+        result = self._checkpoint()
+        self.assertNotEqual(result.pk, draft.pk)
+
+    def test_zero_sections_with_template_provenance_is_checkpointed(self):
+        """Template provenance/baseline state (e.g. a Ready Template was
+        applied and then every section was manually removed) is itself
+        meaningful state — a later replacement must not discard it silently."""
+        draft = self._fresh_pristine_draft()
+        preset_service.apply_preset(draft, lpr.get_layout_preset("dense_marketplace"))
+        draft.refresh_from_db()
+        draft.sections.all().delete()
+        result = self._checkpoint()
+        self.assertNotEqual(result.pk, draft.pk)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, StorefrontLayoutVersion.Status.ARCHIVED)
+
+    def test_checkpoint_clones_full_content_including_the_modified_global_scope(self):
+        draft = self._fresh_pristine_draft()
+        draft.header_config = {"variant": "centered"}
+        draft.save(update_fields=["header_config"])
+        new_draft = self._checkpoint()
+        draft.refresh_from_db()
+        self.assertEqual(draft.header_config, {"variant": "centered"})
+        self.assertEqual(new_draft.header_config, {"variant": "centered"})
+
+
+class SameTemplateNoOpTests(TestCase):
+    """Post-demo hardening pass, Issue 6: applying the exact same,
+    unmodified Ready Template to a Draft that is already exactly at that
+    Template's baseline must not create redundant version-history noise
+    (another archived version / another Draft row) — there is no
+    meaningful change to checkpoint."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _second_store()
+        self.staff = User.objects.create_user(username="batch2_noop_owner", password="pass12345", is_staff=True)
+
+    def test_reapplying_the_same_unmodified_template_creates_no_new_version_or_draft(self):
+        draft = svc.get_or_create_draft(self.store, user=self.staff)
+        preset_service.apply_preset(draft, lpr.get_layout_preset("dense_marketplace"))
+        draft.refresh_from_db()
+        layout = svc.get_or_create_layout(self.store)
+        versions_before = layout.versions.count()
+        draft_id_before = layout.draft_version_id
+
+        result = preset_service.apply_preset_with_checkpoint(
+            self.store, lpr.get_layout_preset("dense_marketplace"), user=self.staff,
+        )
+
+        layout.refresh_from_db()
+        self.assertEqual(layout.versions.count(), versions_before)
+        self.assertEqual(layout.draft_version_id, draft_id_before)
+        self.assertEqual(result.pk, draft_id_before)
+
+    def test_applying_a_genuinely_different_template_still_checkpoints(self):
+        draft = svc.get_or_create_draft(self.store, user=self.staff)
+        preset_service.apply_preset(draft, lpr.get_layout_preset("dense_marketplace"))
+        draft.refresh_from_db()
+        layout = svc.get_or_create_layout(self.store)
+        versions_before = layout.versions.count()
+        draft_id_before = layout.draft_version_id
+
+        result = preset_service.apply_preset_with_checkpoint(
+            self.store, lpr.get_layout_preset("warm_boutique"), user=self.staff,
+        )
+
+        layout.refresh_from_db()
+        self.assertEqual(layout.versions.count(), versions_before + 1)
+        self.assertNotEqual(layout.draft_version_id, draft_id_before)
+        self.assertNotEqual(result.pk, draft_id_before)
+
+    def test_reapplying_same_template_after_a_manual_edit_still_checkpoints(self):
+        """A merchant's manual edit since the last apply is real, recoverable
+        content — re-applying the same Template to revert it must still be
+        checkpointed, exactly like any other meaningful replacement."""
+        draft = svc.get_or_create_draft(self.store, user=self.staff)
+        preset_service.apply_preset(draft, lpr.get_layout_preset("dense_marketplace"))
+        draft.refresh_from_db()
+        section = draft.home_page().sections.first()
+        section.settings = {**section.settings, "_manual_qa_marker": True}
+        section.save(update_fields=["settings"])
+        layout = svc.get_or_create_layout(self.store)
+        versions_before = layout.versions.count()
+        draft_id_before = layout.draft_version_id
+
+        result = preset_service.apply_preset_with_checkpoint(
+            self.store, lpr.get_layout_preset("dense_marketplace"), user=self.staff,
+        )
+
+        layout.refresh_from_db()
+        self.assertEqual(layout.versions.count(), versions_before + 1)
+        self.assertNotEqual(layout.draft_version_id, draft_id_before)
+        self.assertNotEqual(result.pk, draft_id_before)
+
+
 class ImmutableBaselineSnapshotTests(TestCase):
     """Issue 2 — Tests A-H."""
 
@@ -297,6 +452,15 @@ class ImmutableBaselineSnapshotTests(TestCase):
         self.assertNotEqual(draft1.template_baseline_snapshot, draft2.template_baseline_snapshot)
 
     def test_h_legacy_no_snapshot_version_falls_back_safely(self):
+        """Post-demo hardening pass, Issue 4: a version-matched compatibility
+        reset on a pre-Batch-2 Draft (no immutable snapshot) still visibly
+        resets the storefront using the current registry — but must NEVER
+        persist that reconstruction into ``template_baseline_snapshot`` as
+        though it were the exact historical baseline (version equality is
+        not proof the live Registry's content is unchanged since it was
+        applied). The Draft stays a genuine no-snapshot Draft afterward, and
+        granular (section/page/header/footer) reset — which requires a real
+        exact snapshot — correctly stays unavailable for it."""
         draft = svc.get_or_create_draft(self.store)
         preset_service.apply_preset(draft, lpr.get_layout_preset("dense_marketplace"))
         draft.refresh_from_db()
@@ -309,9 +473,16 @@ class ImmutableBaselineSnapshotTests(TestCase):
         self.assertEqual(result.key, "dense_marketplace")
         draft.refresh_from_db()
         self.assertGreater(draft.home_page().sections.count(), 0)
-        # Healed for next time — not a fabrication, just what apply_preset
-        # (the same trusted code path) always records.
-        self.assertTrue(draft.template_baseline_snapshot)
+        # Never fabricated/"healed" into an exact historical snapshot — the
+        # current registry's content is not proof of the exact baseline
+        # that was originally applied, so it must not be persisted as one.
+        self.assertFalse(draft.template_baseline_snapshot)
+        # Granular reset correctly stays disabled — no exact snapshot exists.
+        section = draft.home_page().sections.first()
+        section.template_slot_key = "home:0"
+        section.save(update_fields=["template_slot_key"])
+        with self.assertRaises(preset_service.NoTemplateBaselineError):
+            preset_service.reset_section_to_baseline(draft, section)
 
     def test_h2_legacy_version_mismatch_still_raises_never_fabricates(self):
         from apps.storefront_builder.variant_contract import build_template_provenance
@@ -400,6 +571,68 @@ class GranularResetTests(TestCase):
         self.assertEqual(target.settings, baseline_settings)
         self.assertEqual(target.row_key, baseline_row_key)
         self.assertEqual(target.row_span, baseline_row_span)
+
+    def test_reset_section_restores_a_manually_modified_row_span_and_row_key(self):
+        """Post-demo hardening pass, Issue 7: explicit coverage for the
+        exact scenario the mission's own known-limitations note called
+        out — a merchant manually changes a baseline section's row_key/
+        row_span (e.g. a drag-and-drop resize/regroup), and a single-
+        section reset must restore both back to the Template baseline."""
+        home = self.draft.home_page()
+        target = home.sections.get(section_key="discounted_products")
+        baseline_row_key, baseline_row_span = target.row_key, target.row_span
+
+        target.row_key = f"{baseline_row_key}-merchant-custom"
+        target.row_span = baseline_row_span + 4
+        target.save(update_fields=["row_key", "row_span"])
+
+        preset_service.reset_section_to_baseline(self.draft, target)
+        target.refresh_from_db()
+        self.assertEqual(target.row_key, baseline_row_key)
+        self.assertEqual(target.row_span, baseline_row_span)
+
+    def test_reset_section_does_not_mutate_another_baseline_section(self):
+        home = self.draft.home_page()
+        target = home.sections.get(section_key="discounted_products")
+        sibling = home.sections.exclude(pk=target.pk).first()
+        sibling_settings_before = dict(sibling.settings)
+        sibling_row_key_before, sibling_row_span_before = sibling.row_key, sibling.row_span
+
+        mutated = dict(target.settings)
+        mutated["merchant_marker"] = "changed"
+        target.settings = mutated
+        target.save(update_fields=["settings"])
+
+        preset_service.reset_section_to_baseline(self.draft, target)
+        sibling.refresh_from_db()
+        self.assertEqual(sibling.settings, sibling_settings_before)
+        self.assertEqual(sibling.row_key, sibling_row_key_before)
+        self.assertEqual(sibling.row_span, sibling_row_span_before)
+
+    def test_reset_section_never_touches_the_published_version(self):
+        svc.publish(self.store)
+        layout = svc.get_or_create_layout(self.store)
+        published_before_id = layout.published_version_id
+        published_fingerprint_before = layout.published_version.compute_fingerprint()
+
+        # publish() clears layout.draft_version — get_or_create_draft makes a
+        # brand new (empty) one, so it needs the Template re-applied to have
+        # any baseline-origin section to reset in the first place.
+        draft = svc.get_or_create_draft(self.store)
+        preset_service.apply_preset(draft, self.preset)
+        draft.refresh_from_db()
+        target = draft.home_page().sections.get(section_key="discounted_products")
+        mutated = dict(target.settings)
+        mutated["merchant_marker"] = "changed"
+        target.settings = mutated
+        target.save(update_fields=["settings"])
+
+        preset_service.reset_section_to_baseline(draft, target)
+
+        layout.refresh_from_db()
+        self.assertEqual(layout.published_version_id, published_before_id)
+        layout.published_version.refresh_from_db()
+        self.assertEqual(layout.published_version.compute_fingerprint(), published_fingerprint_before)
 
     def test_cannot_reset_a_merchant_created_section(self):
         custom = StorefrontSection.objects.create(
@@ -613,6 +846,51 @@ class MerchantResetUITests(TestCase):
 
         post_resp = self.admin_client.post(
             reverse("dashboard:storefront-builder-section-reset", args=[target.pk]),
+        )
+        self.assertEqual(post_resp.status_code, 302)
+
+    def test_field_reset_control_shown_for_baseline_sections_with_a_title(self):
+        """Post-demo hardening pass, Issue 7: the RESET FIELD control (only
+        illustrated on ``product_section`` before this pass) is now wired
+        consistently on the "title" field of every baseline-origin section
+        type that has one — proven end-to-end here on two more types."""
+        for section_key in ("category_grid", "brand_carousel"):
+            target = self.draft.home_page().sections.get(section_key=section_key)
+            resp = self.admin_client.get(
+                reverse("dashboard:storefront-builder-section-settings", args=[target.pk]),
+            )
+            self.assertContains(
+                resp, f"action=\"{reverse('dashboard:storefront-builder-section-field-reset', args=[target.pk])}\"",
+                msg_prefix=section_key,
+            )
+            self.assertContains(resp, 'value="title"', msg_prefix=section_key)
+
+            post_resp = self.admin_client.post(
+                reverse("dashboard:storefront-builder-section-field-reset", args=[target.pk]),
+                {"field": "title"},
+            )
+            self.assertEqual(post_resp.status_code, 302, section_key)
+
+    def test_field_reset_control_absent_for_a_merchant_created_section(self):
+        custom = StorefrontSection.objects.create(
+            page=self.draft.home_page(), section_key="category_grid", order=999, settings={"title": "دسته‌های من"},
+        )
+        resp = self.admin_client.get(
+            reverse("dashboard:storefront-builder-section-settings", args=[custom.pk]),
+        )
+        self.assertNotContains(
+            resp, reverse("dashboard:storefront-builder-section-field-reset", args=[custom.pk]),
+        )
+
+    def test_appearance_field_reset_control_shown_and_works_end_to_end(self):
+        resp = self.admin_client.get(reverse("dashboard:storefront-builder-appearance"))
+        self.assertContains(
+            resp, f"action=\"{reverse('dashboard:storefront-builder-appearance-field-reset')}\"",
+        )
+        self.assertContains(resp, 'value="density"')
+
+        post_resp = self.admin_client.post(
+            reverse("dashboard:storefront-builder-appearance-field-reset"), {"field": "density"},
         )
         self.assertEqual(post_resp.status_code, 302)
 

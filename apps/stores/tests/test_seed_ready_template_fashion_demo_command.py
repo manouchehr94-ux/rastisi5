@@ -184,14 +184,25 @@ class SizeAndVariantSemanticsTests(SeedReadyTemplateFashionDemoCommandTests):
     apparel sizes on bags, sensible footwear sizes on shoes/sandals."""
 
     def test_bags_have_no_size_option_and_are_simple_products(self):
+        """Bags never get a meaningful size axis. A single-color bag stays a
+        plain SIMPLE product with zero option axes; a genuine multi-color bag
+        (mission Issue 2 hardening pass) becomes VARIABLE but with ONLY a
+        real colour axis — never a size axis, since bags have no meaningful
+        size."""
         self._run()
         store = self._store()
-        for code, category_name, *_rest in PRODUCT_MATRIX:
+        for code, category_name, *rest in PRODUCT_MATRIX:
             if category_name not in BAG_CATEGORIES:
                 continue
+            color = rest[4]
             product = Product.objects.get(store=store, sku=code)
-            self.assertFalse(product.is_variable, f"{code} should be SIMPLE, no size option")
-            self.assertEqual(product.options.count(), 0, code)
+            self.assertFalse(product.options.filter(label="سایز", is_active=True).exists(), code)
+            if isinstance(color, tuple):
+                self.assertTrue(product.is_variable, f"{code} multi-color bag should be VARIABLE")
+                self.assertEqual(product.options.filter(is_active=True).count(), 1, code)
+            else:
+                self.assertFalse(product.is_variable, f"{code} should be SIMPLE, no size option")
+                self.assertEqual(product.options.count(), 0, code)
 
     def test_footwear_categories_use_plausible_shoe_sizes(self):
         self._run()
@@ -216,13 +227,17 @@ class SizeAndVariantSemanticsTests(SeedReadyTemplateFashionDemoCommandTests):
             self.assertTrue(product.options.filter(label="سایز", is_active=True).exists(), code)
 
     def test_single_visible_color_products_are_not_given_fake_multi_color_variants(self):
-        """Every product in this real-photo dataset shows exactly one real
-        color — mission Step 8: 'Do NOT invent color variants merely to
+        """Post-demo hardening pass (mission Issue 2): a small, verified set
+        of products now has genuine multi-color media (see
+        ``MultiColorProductTests`` below) — every *other* product must still
+        show exactly the one real color it was photographed in, per the
+        original mission Step 8: 'Do NOT invent color variants merely to
         satisfy an old count.'"""
         self._run()
         store = self._store()
-        for code, category_name, *_rest in PRODUCT_MATRIX:
-            if category_name in BAG_CATEGORIES:
+        for row in PRODUCT_MATRIX:
+            code, category_name, color = row[0], row[1], row[6]
+            if category_name in BAG_CATEGORIES or isinstance(color, tuple):
                 continue
             product = Product.objects.get(store=store, sku=code)
             color_option = product.options.get(label="رنگ", is_active=True)
@@ -249,6 +264,128 @@ class StockSemanticsTests(SeedReadyTemplateFashionDemoCommandTests):
         for product in Product.objects.filter(store=store, product_type=Product.ProductType.VARIABLE):
             total = sum(v.stock for v in product.variants.filter(is_obsolete=False))
             self.assertEqual(product.stock, total, product.sku)
+
+
+class MultiColorProductTests(SeedReadyTemplateFashionDemoCommandTests):
+    """Post-demo hardening pass, mission Issue 2: a verified set of products
+    now has genuine multi-color real media (real second/third photos of the
+    same garment/silhouette, never a fabricated label) — this class covers
+    every required contract for those products specifically."""
+
+    def _multi_color_rows(self):
+        return [row for row in PRODUCT_MATRIX if isinstance(row[6], tuple)]
+
+    def test_at_least_eight_products_are_genuinely_multi_color(self):
+        self.assertGreaterEqual(len(self._multi_color_rows()), 8)
+
+    def test_every_declared_color_has_its_own_mapped_option_value(self):
+        self._run()
+        store = self._store()
+        for row in self._multi_color_rows():
+            code, colors = row[0], row[6]
+            product = Product.objects.get(store=store, sku=code)
+            color_option = product.options.get(label="رنگ", is_active=True)
+            mapped_labels = set(color_option.values.filter(is_active=True).values_list("label", flat=True))
+            self.assertEqual(mapped_labels, set(colors), code)
+
+    def test_every_declared_color_has_at_least_one_real_mapped_image(self):
+        """No declared color exists without matching real media — every
+        colour value on the product must be referenced by at least one of
+        that product's own ProductImage rows."""
+        self._run()
+        store = self._store()
+        for row in self._multi_color_rows():
+            code = row[0]
+            product = Product.objects.get(store=store, sku=code)
+            color_option = product.options.get(label="رنگ", is_active=True)
+            mapped_via_images = set(
+                product.images.filter(option_value__isnull=False)
+                .values_list("option_value__label", flat=True)
+            )
+            for value in color_option.values.filter(is_active=True):
+                self.assertIn(value.label, mapped_via_images, f"{code}: color {value.label!r} has no mapped image")
+
+    def test_color_image_mapping_never_points_at_another_products_media(self):
+        """Color selection must never resolve to another SKU's image —
+        every ProductImage a product's color values map to must itself
+        belong to that same product."""
+        self._run()
+        store = self._store()
+        for row in self._multi_color_rows():
+            code = row[0]
+            product = Product.objects.get(store=store, sku=code)
+            for image in product.images.filter(option_value__isnull=False):
+                self.assertEqual(image.product_id, product.id, code)
+
+    def test_multi_color_products_retain_full_size_combinations_per_color(self):
+        """A multi-color apparel/footwear product must still offer every
+        declared size for every declared color — no color is a second-class
+        citizen with a truncated size run."""
+        self._run()
+        store = self._store()
+        for row in self._multi_color_rows():
+            code, category_name, colors, sizes = row[0], row[1], row[6], row[7]
+            if category_name in BAG_CATEGORIES:
+                continue
+            product = Product.objects.get(store=store, sku=code)
+            variants = product.variants.filter(is_obsolete=False)
+            self.assertEqual(variants.count(), len(colors) * len(sizes), code)
+            seen = {tuple(v.value.split(" / ")) for v in variants}
+            expected = {(c, s) for c in colors for s in sizes}
+            self.assertEqual(seen, expected, code)
+
+    def test_stock_varies_across_color_and_size_combinations(self):
+        """A PARTIAL_VARIANT_STOCK multi-color product shows genuine
+        within-product stock variation (not a flat constant); OUT_OF_STOCK
+        and IN_STOCK products are legitimately uniform (all-zero / all
+        healthy, respectively)."""
+        self._run()
+        store = self._store()
+        for row in self._multi_color_rows():
+            code, stock_state = row[0], row[8]
+            product = Product.objects.get(store=store, sku=code)
+            stocks = {v.stock for v in product.variants.filter(is_obsolete=False)}
+            if stock_state == PARTIAL_VARIANT_STOCK:
+                self.assertGreater(len(stocks), 1, f"{code}: expected genuine stock variation")
+                self.assertIn(0, stocks, f"{code}: expected at least one zero-stock combination")
+            elif stock_state == OUT_OF_STOCK:
+                self.assertEqual(stocks, {0}, code)
+            else:
+                self.assertNotIn(0, stocks, code)
+
+    def test_several_partial_stock_cases_cross_color_boundaries(self):
+        """A partial-stock multi-color product must not confine its
+        zero-stock combinations to a single color — the same zero-stock
+        condition (e.g. the first size, or the cover color on a bag) must
+        recur across more than one declared color, proving the shortage is
+        not merely 'one color happens to be entirely OOS'."""
+        self._run()
+        store = self._store()
+        partial_rows = [row for row in self._multi_color_rows() if row[8] == PARTIAL_VARIANT_STOCK]
+        self.assertGreaterEqual(len(partial_rows), 2, "expected several partial-stock multi-color products")
+        crossing_count = 0
+        for row in partial_rows:
+            code, colors = row[0], row[6]
+            product = Product.objects.get(store=store, sku=code)
+            zero_variants = product.variants.filter(is_obsolete=False, stock=0)
+            colors_with_zero_stock = {v.value.split(" / ")[0] for v in zero_variants}
+            if len(colors_with_zero_stock) >= 2:
+                crossing_count += 1
+            self.assertTrue(zero_variants.exists(), f"{code}: PARTIAL_VARIANT_STOCK but nothing is zero-stock")
+        self.assertGreaterEqual(crossing_count, 2, "expected several partial-stock cases to cross color boundaries")
+
+    def test_single_color_products_are_unaffected_by_the_multi_color_mechanism(self):
+        self._run()
+        store = self._store()
+        multi_skus = {row[0] for row in self._multi_color_rows()}
+        for row in PRODUCT_MATRIX:
+            code, category_name, color = row[0], row[1], row[6]
+            if code in multi_skus or category_name in BAG_CATEGORIES:
+                continue
+            product = Product.objects.get(store=store, sku=code)
+            color_option = product.options.get(label="رنگ", is_active=True)
+            self.assertEqual(color_option.values.filter(is_active=True).count(), 1, code)
+            self.assertEqual(color_option.values.get(is_active=True).label, color, code)
 
 
 class MediaImportTests(SeedReadyTemplateFashionDemoCommandTests):

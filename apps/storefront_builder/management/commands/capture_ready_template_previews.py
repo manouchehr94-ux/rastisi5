@@ -50,6 +50,7 @@ from apps.storefront_builder.services.template_preview_service import (
     SCREENSHOT_VERSION,
     meta_relpath,
     preview_content_hash,
+    preview_input_fingerprint,
     screenshot_relpath,
 )
 from apps.stores.models import Store
@@ -226,6 +227,11 @@ class Command(BaseCommand):
             "template_key": preset.key,
             "version": SCREENSHOT_VERSION,
             "content_hash": preview_content_hash(preset),
+            # Post-demo hardening pass (Issue 3) — the canonical staleness
+            # identity ``resolve_real_screenshot`` actually validates against;
+            # covers the Demo Store's real catalog/media/content too, not
+            # just the Template registry (see that function's own docstring).
+            "preview_input_fingerprint": preview_input_fingerprint(preset),
             "capture_source": "rasti-mode-demo",
             "viewport": CANONICAL_VIEWPORT,
         }, ensure_ascii=False, indent=2))

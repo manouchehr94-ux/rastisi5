@@ -272,7 +272,9 @@ def _build_sections_for_page(page, entries, *, preset: LayoutPresetDefinition, p
 
 
 @transaction.atomic
-def apply_preset(draft: StorefrontLayoutVersion, preset: LayoutPresetDefinition) -> None:
+def apply_preset(
+    draft: StorefrontLayoutVersion, preset: LayoutPresetDefinition, *, _record_baseline_snapshot: bool = True,
+) -> None:
     """Preset را روی ``draft`` اعمال می‌کند — Draft-only (فراخوان مسئولِ
     عبورِ یک نسخه‌یِ واقعاً Draft است، دقیقاً همان قراردادِ
     ``apply_family_default_sections``؛ این تابع خودش هرگز
@@ -283,7 +285,22 @@ def apply_preset(draft: StorefrontLayoutVersion, preset: LayoutPresetDefinition)
     نوشتنی (نه روی Section، نه روی خودِ نسخه) اتفاق نمی‌افتد. علاوه‌براین
     خودِ تابع در یک تراکنشِ دیتابیسی (``@transaction.atomic``) پیچیده شده
     تا حتی یک خطایِ غیرمنتظره‌یِ سطحِ دیتابیس هم Draft را نیمه‌اعمال‌شده
-    رها نکند."""
+    رها نکند.
+
+    ``_record_baseline_snapshot`` (فقط داخلی — هرگز از بیرونِ این ماژول
+    صدا زده نشود): پستِ‌دمو hardening pass، Issue 4. تنها فراخوانِ
+    مشروعِ ``False`` مسیرِ سازگاریِ عقب‌رویِ ``reset_storefront_to_baseline``
+    است — جایی که محتوایِ Registryِ *فعلی* صرفاً برایِ یک بازنشانیِ
+    best-effort روی Draftی بدونِ عکسِ baselineِ واقعی خوانده می‌شود، نه
+    به‌عنوانِ اعمالِ صریحِ یک Template. چون تطابقِ شماره‌یِ نسخه هرگز اثباتِ
+    قطعیِ «محتوایِ فعلیِ Registry دقیقاً همان چیزی است که آن‌زمان روی این
+    Draft اعمال شد» نیست (نگاه کنید به توضیحِ خودِ آن مسیر)، نوشتنِ آن
+    به‌عنوانِ یک عکسِ «دقیق» در ``template_baseline_snapshot`` یک تاریخِ
+    ساختگی می‌سازد که granular reset (که به یک عکسِ واقعاً دقیق نیاز دارد)
+    را برایِ چنین Draftی به‌اشتباه فعال می‌کند. با ``False``، این تابع
+    هم‌چنان appearance/header/footer/صفحات را می‌نویسد (خودِ رفتارِ
+    بازنشانی)، اما ``template_baseline_snapshot`` را دست‌نخورده
+    (خالی/غایب) رها می‌کند."""
     # --- ۱) اعتبارسنجی/آماده‌سازیِ appearance/header/footer (بدونِ نوشتن) ---
     current_appearance = draft.effective_appearance_config()
     overlay = dict(preset.appearance)
@@ -366,21 +383,23 @@ def apply_preset(draft: StorefrontLayoutVersion, preset: LayoutPresetDefinition)
     draft.template_provenance = build_template_provenance(
         template_key=preset.key, template_version=preset.version,
     )
-    # Acceptance Batch 2 (post-U11) — Issue 2: an immutable, normalized
-    # snapshot of the *exact* baseline just applied — independent of the
-    # registry's live ``LayoutPresetDefinition`` for this key, which could
-    # (bug or future edit) change its contents without bumping ``version``.
-    # See the model field's own docstring for the full motivating risk.
-    draft.template_baseline_snapshot = {
-        "template_key": preset.key,
-        "template_version": preset.version,
-        "default_palette_slug": preset.default_palette_slug,
-        "appearance": cleaned_appearance,
-        "header_config": cleaned_header,
-        "footer_config": cleaned_footer,
-        "pages": snapshot_pages,
-    }
-    update_fields = ["appearance_config", "template_provenance", "template_baseline_snapshot"]
+    update_fields = ["appearance_config", "template_provenance"]
+    if _record_baseline_snapshot:
+        # Acceptance Batch 2 (post-U11) — Issue 2: an immutable, normalized
+        # snapshot of the *exact* baseline just applied — independent of the
+        # registry's live ``LayoutPresetDefinition`` for this key, which could
+        # (bug or future edit) change its contents without bumping ``version``.
+        # See the model field's own docstring for the full motivating risk.
+        draft.template_baseline_snapshot = {
+            "template_key": preset.key,
+            "template_version": preset.version,
+            "default_palette_slug": preset.default_palette_slug,
+            "appearance": cleaned_appearance,
+            "header_config": cleaned_header,
+            "footer_config": cleaned_footer,
+            "pages": snapshot_pages,
+        }
+        update_fields.append("template_baseline_snapshot")
     if cleaned_header is not None:
         draft.header_config = cleaned_header
         update_fields.append("header_config")
@@ -447,13 +466,21 @@ def reset_storefront_to_baseline(draft: StorefrontLayoutVersion) -> LayoutPreset
 
     مسیرِ سازگاریِ عقب‌رو (Draftهایِ ساخته‌شده پیش از این Batch — فقط
     ``template_provenance`` دارند، بدونِ ``template_baseline_snapshot``):
-    دقیقاً همان رفتارِ *قبل از این Batch* — دوباره‌خوانیِ Preset از
-    Registryِ زنده با چکِ نسخه (``TemplateBaselineVersionChangedError``
-    اگر عوض شده باشد). این‌جا هیچ baselineای «ساختگی» نیست — این همان
-    مسیری است که همیشه، از قبل، رفتارِ رسمی/تنها‌ی سیستم بوده. یک اثرِ
-    جانبیِ بی‌ضرر: ``apply_preset`` که این مسیر صدا می‌زند، از همین لحظه
-    به بعد یک عکسِ باseline برایِ این Draft ثبت می‌کند — یعنی بازنشانیِ
-    *بعدی* همین Draft دیگر از این مسیرِ سازگاری عبور نمی‌کند.
+    دوباره‌خوانیِ Preset از Registryِ زنده با چکِ نسخه
+    (``TemplateBaselineVersionChangedError`` اگر عوض شده باشد) — همان
+    رفتارِ *قبل از این Batch*.
+
+    پستِ‌دمو hardening pass (Issue 4) — تصحیحِ صریح: تطابقِ شماره‌یِ نسخه
+    فقط یک سیاستِ سازگاریِ قابل‌قبول است، نه اثباتِ این‌که محتوایِ *فعلیِ*
+    Registry دقیقاً همان چیزی است که آن‌زمان رویِ این Draft اعمال شد
+    (تعریفِ پایتونیِ همین نسخه می‌توانست، به‌اشتباه/بدونِ افزایشِ نسخه،
+    تغییر کرده باشد). به همین دلیل این مسیر دیگر عکسِ بازسازی‌شده از
+    Registryِ فعلی را به‌عنوانِ یک ``template_baseline_snapshot`` «دقیق»
+    persist نمی‌کند (نگاه کنید به ``apply_preset(..., _record_baseline_snapshot=False)``)
+    — این Draft همچنان بدونِ عکسِ baseline می‌ماند، granular reset برایش
+    (درست) غیرفعال باقی می‌ماند، و بازنشانیِ *بعدیِ* همین Draft دوباره از
+    همین مسیرِ سازگاریِ safe عبور می‌کند، نه این‌که یک تاریخِ ساختگی را
+    به‌عنوانِ واقعی بپذیرد.
 
     Scope (مستندشده، نه یک محدودیتِ پنهان): این تابع خودش هرگز چک‌پوینت/
     تاریخچه نمی‌سازد و همیشه رویِ همان شیءِ ``draft`` که گرفته درجا کار
@@ -484,7 +511,14 @@ def reset_storefront_to_baseline(draft: StorefrontLayoutVersion) -> LayoutPreset
             f"نسخه‌ی ثبت‌شده‌ی «{template_version}» برایِ «{template_key}» با نسخه‌ی فعلیِ "
             f"«{preset.version}» یکی نیست — بازنشانیِ خودکار به نسخه‌ای متفاوت مجاز نیست"
         )
-    apply_preset(draft, preset)
+    # Issue 4 (پستِ‌دمو hardening pass): این فقط یک بازنشانیِ سازگاریِ
+    # best-effort است (Draftی که هرگز عکسِ baselineِ واقعی نداشته) — تطابقِ
+    # شماره‌یِ نسخه ثابت نمی‌کند محتوایِ *فعلیِ* Registry دقیقاً همان چیزی
+    # است که آن‌زمان اعمال شد؛ پس هرگز نباید به‌عنوانِ یک عکسِ «دقیقِ»
+    # تاریخی نوشته/persist شود — طبقِ همان الزامِ صریح: «do NOT fabricate an
+    # exact historical baseline». این Draft همچنان بدونِ عکسِ baseline
+    # می‌ماند و granular reset برایش (درست) غیرفعال باقی می‌ماند.
+    apply_preset(draft, preset, _record_baseline_snapshot=False)
     return preset
 
 
@@ -547,6 +581,48 @@ def apply_baseline_snapshot(draft: StorefrontLayoutVersion, snapshot: dict) -> N
             StorefrontContainer.objects.bulk_update(containers, ["settings"])
 
 
+def _draft_already_matches_preset(draft: StorefrontLayoutVersion, preset: LayoutPresetDefinition) -> bool:
+    """پستِ‌دمو hardening pass (Issue 6) — آیا دوباره‌اعمالِ همین دقیقاً
+    Preset رویِ این Draft هیچ تغییرِ واقعی‌ای ایجاد می‌کند؟ فقط وقتی
+    ``True`` برمی‌گرداند که بتوان با اطمینانِ کامل اثبات کرد — در غیرِ
+    این‌صورت (از جمله Draftِ legacyِ بدونِ عکسِ دقیق — Issue 4) محافظه‌کارانه
+    ``False`` برمی‌گرداند تا مسیرِ امنِ همیشگی (چک‌پوینت + اعمال) اجرا شود؛
+    یک چک‌پوینتِ زائدِ اضافی هرگز خطرناک نیست، اما رد کردنِ یک تغییرِ
+    واقعی به‌اشتباه (به‌عنوانِ no-op) می‌تواند تغییرِ دستیِ مرچنت را بدونِ
+    چک‌پوینت از بین ببرد."""
+    provenance = draft.template_provenance or {}
+    template = provenance.get("template") or {}
+    if template.get("key") != preset.key or template.get("version") != preset.version:
+        return False
+
+    snapshot = draft.template_baseline_snapshot
+    if not snapshot or snapshot.get("template_key") != preset.key or snapshot.get("template_version") != preset.version:
+        return False
+
+    if draft.appearance_config != snapshot["appearance"]:
+        return False
+    if snapshot.get("header_config") is not None and draft.header_config != snapshot["header_config"]:
+        return False
+    if snapshot.get("footer_config") is not None and draft.footer_config != snapshot["footer_config"]:
+        return False
+
+    for page_type, entries in snapshot["pages"].items():
+        page = draft.get_page(page_type)
+        current_sections = list(page.sections.order_by("order", "id"))
+        if len(current_sections) != len(entries):
+            return False
+        for section, entry in zip(current_sections, entries):
+            if (
+                section.section_key != entry["section_key"]
+                or section.settings != entry["settings"]
+                or section.row_key != entry["row_key"]
+                or section.row_span != entry["row_span"]
+                or section.template_slot_key != entry["slot_key"]
+            ):
+                return False
+    return True
+
+
 @transaction.atomic
 def apply_preset_with_checkpoint(store, preset: LayoutPresetDefinition, *, user=None) -> StorefrontLayoutVersion:
     """Acceptance Batch 2 (post-U11) — Issue 1: نقطه‌ی ورودِ مرچنت‌محورِ
@@ -557,8 +633,21 @@ def apply_preset_with_checkpoint(store, preset: LayoutPresetDefinition, *, user=
     (``layout_service.checkpoint_draft_before_replacement``)، و تازه بعد
     از آن Presetِ جدید را رویِ Draftِ فعالِ (احتمالاً تازه) اعمال می‌کند.
 
+    پستِ‌دمو hardening pass (Issue 6) — same-template no-op: اگر همین
+    دقیقاً Preset (کلید+نسخه) از قبل، بدونِ هیچ انحرافی، رویِ همین Draft
+    اعمال شده — یعنی دوباره اعمال‌کردنش هیچ تغییرِ واقعی‌ای نمی‌دهد —
+    هیچ چک‌پوینت/Draftِ جدیدی ساخته نمی‌شود؛ همان Draftِ فعلی بدونِ
+    تغییر برگردانده می‌شود. این فقط برایِ جلوگیری از شلوغیِ بی‌فایده‌یِ
+    تاریخچه است، نه یک بهینه‌سازیِ کارایی — هرجا کوچک‌ترین ابهامی باشد
+    (مثلاً Draftِ legacyِ بدونِ عکسِ دقیق)، مسیرِ همیشگیِ چک‌پوینت+اعمال
+    اجرا می‌شود.
+
     نسخه‌ی منتشرشده هرگز لمس نمی‌شود؛ هرگز خودکار publish نمی‌کند — دقیقاً
     همان تضمینِ ``restore_version``."""
+    current_draft = layout_service.get_or_create_draft(store, user=user)
+    if _draft_already_matches_preset(current_draft, preset):
+        return current_draft
+
     draft = layout_service.checkpoint_draft_before_replacement(
         store, reason_label=f"پیش از اعمال قالب «{preset.label_fa}»", user=user,
     )
@@ -623,11 +712,29 @@ def reset_section_to_baseline(draft: StorefrontLayoutVersion, section: Storefron
     section_key/settings/row_key/row_span ثبت‌شده در baseline بازمی‌گرداند
     — با ``template_slot_key`` (نه موقعیتِ فعلیِ section در فهرست) پیدا
     می‌شود، پس بعد از بازچینی/درج/حذفِ sectionهایِ دیگر هم درست کار
-    می‌کند. جایگاهِ فعلیِ section در صفحه (``order``، عضویتش در یک
-    Container/Cell) — که تصمیمِ چیدمانیِ مرچنت است، نه بخشی از محتوایِ
-    Template — دست‌نخورده می‌ماند؛ همچنین ``is_active``/``is_locked``/
-    ``collapsed_in_editor`` (وضعیتِ ادیتور، نه محتوا) دست‌نخورده می‌مانند.
-    هیچ section دیگری تغییر نمی‌کند."""
+    می‌کند. ``is_active``/``is_locked``/``collapsed_in_editor`` (وضعیتِ
+    ادیتور، نه محتوا) دست‌نخورده می‌مانند. هیچ section دیگری تغییر
+    نمی‌کند.
+
+    محدودیتِ شناخته‌شده و مستندشده (پستِ‌دمو hardening pass، Issue 7 —
+    ممیزیِ صریح پیش از تغییر): این تابع عضویتِ فعلیِ section در
+    Container/Cell (این‌که در کدام Cell/کدام Container قرار دارد،
+    ``order``ِ آن در صفحه) را عمداً دست‌نخورده می‌گذارد — فقط row_key/
+    row_span (که خودِ Cell/Containerِ فعلی از رویِ آن‌ها بازسازی می‌شود)
+    را بازمی‌گرداند. دلیل: هر Container/Cell معمولاً چندین section را
+    هم‌زمان در بر می‌گیرد (اعضایِ دیگرِ همان گروه‌بندی)، و هیچ راهِ امنی
+    برایِ «فقط این یک section را به Cellِ baselineِ خودش برگردان» وجود
+    ندارد بدونِ خطرِ دست‌کاریِ عضویتِ sectionهایِ دیگر (از جمله
+    sectionهایِ کاملاً دستیِ مرچنت که ممکن است حالا در همان Container/Cell
+    نشسته باشند) — دقیقاً همان الزامِ صریحِ کار: «Do NOT blindly rebuild
+    the whole page for a single-section reset» و «preserve unrelated
+    merchant-created sections». اگر مرچنت این section را به‌صورتِ دستی به
+    Cell/Containerِ دیگری منتقل کرده باشد، بازنشانیِ این section محتوای
+    آن را به baseline برمی‌گرداند اما آن را در همان Container/Cellِ
+    فعلی‌اش نگه می‌دارد — این استثنایِ شناخته‌شده و پذیرفته‌شده است، نه
+    یک باگ؛ بازگردانیِ کاملِ چیدمانِ Container/Cell فقط از طریقِ
+    ``reset_page_to_baseline``/``reset_storefront_to_baseline`` (که کلِ
+    صفحه/فروشگاه را عمداً بازمی‌سازند) ممکن است."""
     if not section.template_slot_key:
         raise NotABaselineSectionError(
             "این بخش هرگز از یک Ready Template baseline نیامده — محتوایِ کاملاً دستیِ "

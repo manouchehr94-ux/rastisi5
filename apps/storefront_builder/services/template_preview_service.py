@@ -388,6 +388,67 @@ def preview_content_hash(preset: LayoutPresetDefinition) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+#: Post-demo hardening pass (Issue 3) — filesystem locations of the
+#: deterministic Demo Store definition inputs a real screenshot's PIXELS
+#: actually depend on, beyond the Template registry itself. Both are plain
+#: repo files (never a database query), so reading/hashing them at Gallery
+#: request time stays exactly as cheap/DB-free as the rest of this module.
+#: A missing file hashes as ``b""`` — never raises — so an environment that
+#: has never run the Rasti Mode Demo seed command simply never has a "real"
+#: screenshot to begin with (``resolve_real_screenshot`` already handles a
+#: missing screenshot/meta file safely).
+_DEMO_MEDIA_MANIFEST_PATH = (
+    Path(__file__).resolve().parents[2] / "stores" / "demo_assets" / "rasti_mode_demo"
+    / "selected_product_media_manifest.json"
+)
+_DEMO_SEED_COMMAND_PATH = (
+    Path(__file__).resolve().parents[2] / "stores" / "management" / "commands"
+    / "seed_ready_template_fashion_demo.py"
+)
+
+
+def _file_hash(path: Path) -> str:
+    try:
+        data = path.read_bytes()
+    except OSError:
+        data = b""
+    return hashlib.sha256(data).hexdigest()
+
+
+def preview_input_fingerprint(preset: LayoutPresetDefinition) -> str:
+    """Post-demo hardening pass (Issue 3) — the CANONICAL preview identity:
+    a real screenshot is only "fresh" if BOTH the Template registry data
+    (``preview_content_hash``) AND the deterministic Demo Store definition
+    it was captured against are unchanged.
+
+    ``preview_content_hash`` alone missed a real staleness case: Template
+    ``dense_marketplace`` stays at v1 (registry unchanged) while the Demo
+    Store's real catalog/media/content changes (e.g. this mission's own
+    Issue 2 multi-color rework) — the OLD screenshot still visually shows
+    the stale product photos/colors, but the old hash still matched, so it
+    kept resolving as "healthy". This fingerprint additionally covers:
+
+    - ``selected_product_media_manifest.json`` — identity of every real
+      product image (SKU, color, order, source/derived hashes) the Demo
+      Store's PDP/listing/hero/category renders read.
+    - ``seed_ready_template_fashion_demo.py``'s own source bytes — the
+      single deterministic definition of the Demo Store's catalog/pricing/
+      variants/collections/hero/banner/story-rail content (any real change
+      to what gets seeded is, by construction, a change to this file).
+
+    ``SHA256(template key/version + manifest hash + seed-definition hash)``
+    — exactly the architecture the mission specifies. Still a pure
+    filesystem read, no database access, safe on every normal Gallery GET."""
+    payload = "|".join([
+        preset.key,
+        str(preset.version),
+        preview_content_hash(preset),
+        _file_hash(_DEMO_MEDIA_MANIFEST_PATH),
+        _file_hash(_DEMO_SEED_COMMAND_PATH),
+    ])
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def screenshot_relpath(template_key: str, version: int = SCREENSHOT_VERSION) -> str:
     """The static-relative path a real capture is saved to / read from —
     the exact ``ready_template_previews/<key>/v<version>.webp`` shape the
@@ -406,7 +467,16 @@ def resolve_real_screenshot(preset: LayoutPresetDefinition) -> str | None:
 
     Pure filesystem read (existence check + one small JSON file) — no
     browser, no network, no database write, safe to call on every normal
-    Gallery request."""
+    Gallery request.
+
+    Post-demo hardening pass (Issue 3): staleness is decided by
+    ``preview_input_fingerprint`` — the canonical identity covering BOTH
+    the Template registry AND the Demo Store's real catalog/media/content
+    definition — not the narrower, Template-only ``content_hash``. A
+    sidecar captured under a different Template (or before this mission,
+    with no ``preview_input_fingerprint`` key at all) simply never matches
+    another Template's/the current fingerprint, so it safely falls back
+    rather than ever satisfying the wrong Template."""
     relpath = screenshot_relpath(preset.key)
     image_path = APP_STATIC_DIR / relpath
     meta_path = APP_STATIC_DIR / meta_relpath(preset.key)
@@ -416,6 +486,6 @@ def resolve_real_screenshot(preset: LayoutPresetDefinition) -> str | None:
         meta = json.loads(meta_path.read_text())
     except (OSError, ValueError):
         return None
-    if meta.get("content_hash") != preview_content_hash(preset):
+    if meta.get("preview_input_fingerprint") != preview_input_fingerprint(preset):
         return None
     return relpath

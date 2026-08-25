@@ -3,25 +3,29 @@ deterministic structured inventory of the 345 raw user-supplied QA images
 and renders contact sheets for visual review.
 
 Usage (from repo root, inside the app venv):
-    python apps/stores/demo_assets/rasti_mode_demo/scripts/build_inventory.py
+    python apps/stores/demo_assets/rasti_mode_demo/scripts/build_inventory.py [output_dir]
 
-Outputs (both git-ignored working artifacts, not part of the delivered
-product data):
-    apps/stores/demo_assets/rasti_mode_demo/_work/raw_inventory.json
-    apps/stores/demo_assets/rasti_mode_demo/_work/contact_sheets/<folder>_<n>.jpg
+Outputs are scratch audit artifacts, never part of the delivered product
+data — written OUTSIDE the repository by default (a temp directory) so
+they can never leave confusing untracked noise in `git status`. Pass an
+explicit ``output_dir`` argument to write elsewhere:
+    <output_dir>/raw_inventory.json
+    <output_dir>/contact_sheets/<folder>_<n>.jpg
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import sys
+import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 BASE = Path(__file__).resolve().parents[1]
 RAW = BASE / "raw_user_catalog"
-WORK = BASE / "_work"
+WORK = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(tempfile.gettempdir()) / "rasti_mode_demo_image_audit"
 SHEETS = WORK / "contact_sheets"
 FOLDERS = ["1", "2", "3", "4", "5"]
 

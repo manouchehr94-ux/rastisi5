@@ -119,10 +119,13 @@
       <label for="id_ps_title">عنوان بخش</label>
       <input type="text" name="title" id="id_ps_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'' }}">
       {% if section.template_slot_key %}
-      {# Acceptance Batch 2 (post-U11) — illustrative field-level reset #}
-      {# control (RESET FIELD), placed on the one field every product #}
-      {# section type shares. A plain POST (not htmx) — this view returns #}
-      {# a normal editor redirect, not a partial. #}
+      {# Post-demo hardening pass (Issue 7) — this per-field RESET FIELD #}
+      {# control used to exist only here (Acceptance Batch 2's "illustrative" #}
+      {# instance); it is now wired consistently on the "title" field of #}
+      {# every section type below that has one — the one setting shared #}
+      {# broadly enough across types to give a single, consistent control. #}
+      {# A plain POST (not htmx) — this view returns a normal editor #}
+      {# redirect, not a partial. #}
       <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
             onsubmit="return confirm('عنوانِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
         {% csrf_token %}<input type="hidden" name="field" value="title">
@@ -201,6 +204,13 @@
     <div class="form-group">
       <label for="id_title">عنوان</label>
       <input type="text" name="title" id="id_title" class="form-input" maxlength="200" value="{{ section.settings.title|default:'' }}">
+      {% if section.template_slot_key %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
+            onsubmit="return confirm('عنوانِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+        {% csrf_token %}<input type="hidden" name="field" value="title">
+        <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی عنوان به قالب</button>
+      </form>
+      {% endif %}
     </div>
     <div class="form-group">
       <label for="id_image_url">آدرس تصویر (اختیاری)</label>
@@ -317,6 +327,13 @@
         <option value="split" {% if section.settings.hero_style == "split" %}selected{% endif %}>متن و تصویر جدا</option>
       </select>
       <p style="color:var(--muted);font-size:12px;margin:6px 0 0">«متن و تصویر جدا» فقط اولین اسلاید را نشان می‌دهد؛ اسلایدهای دیگر همچنان از اینجا قابل مدیریت‌اند.</p>
+      {% if section.template_slot_key %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
+            onsubmit="return confirm('سبکِ نمایشِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+        {% csrf_token %}<input type="hidden" name="field" value="hero_style">
+        <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی سبک نمایش به قالب</button>
+      </form>
+      {% endif %}
     </div>
     {% endif %}
 
@@ -338,6 +355,13 @@
     <div class="form-group">
       <label for="id_cg_title">عنوان بخش (اختیاری)</label>
       <input type="text" name="title" id="id_cg_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'' }}">
+      {% if section.template_slot_key %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
+            onsubmit="return confirm('عنوانِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+        {% csrf_token %}<input type="hidden" name="field" value="title">
+        <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی عنوان به قالب</button>
+      </form>
+      {% endif %}
     </div>
     <div class="form-group">
       <label for="id_cg_display">نوع نمایش</label>
@@ -394,6 +418,13 @@
     <div class="form-group">
       <label for="id_bc_title">عنوان بخش (اختیاری)</label>
       <input type="text" name="title" id="id_bc_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'' }}" placeholder="برندهای منتخب">
+      {% if section.template_slot_key %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
+            onsubmit="return confirm('عنوانِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+        {% csrf_token %}<input type="hidden" name="field" value="title">
+        <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی عنوان به قالب</button>
+      </form>
+      {% endif %}
     </div>
     <div class="form-group">
       <label for="id_bc_display">نوع نمایش</label>
@@ -451,6 +482,13 @@
     <div class="form-group">
       <label for="id_ct_title">عنوان بخش (اختیاری)</label>
       <input type="text" name="title" id="id_ct_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'' }}">
+      {% if section.template_slot_key %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
+            onsubmit="return confirm('عنوانِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+        {% csrf_token %}<input type="hidden" name="field" value="title">
+        <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی عنوان به قالب</button>
+      </form>
+      {% endif %}
     </div>
     <div class="form-group">
       <label for="id_ct_add">افزودن کالکشن</label>
@@ -485,6 +523,13 @@
         <option value="grid" {% if section.settings.tile_style != "carousel" %}selected{% endif %}>گرید (شبکه‌ای)</option>
         <option value="carousel" {% if section.settings.tile_style == "carousel" %}selected{% endif %}>کاروسل (اسلایدی)</option>
       </select>
+      {% if section.template_slot_key %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
+            onsubmit="return confirm('نمایشِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+        {% csrf_token %}<input type="hidden" name="field" value="tile_style">
+        <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی نمایش به قالب</button>
+      </form>
+      {% endif %}
     </div>
 
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
@@ -502,6 +547,13 @@
     <div class="form-group">
       <label for="id_ql_title">عنوان بخش (اختیاری)</label>
       <input type="text" name="title" id="id_ql_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'' }}">
+      {% if section.template_slot_key %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
+            onsubmit="return confirm('عنوانِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+        {% csrf_token %}<input type="hidden" name="field" value="title">
+        <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی عنوان به قالب</button>
+      </form>
+      {% endif %}
     </div>
     <div class="form-group">
       <label for="id_ql_menu">منو</label>
@@ -531,6 +583,13 @@
     <div class="form-group">
       <label for="id_faq_title">عنوان بخش</label>
       <input type="text" name="title" id="id_faq_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'سوالات متداول' }}">
+      {% if section.template_slot_key %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
+            onsubmit="return confirm('عنوانِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+        {% csrf_token %}<input type="hidden" name="field" value="title">
+        <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی عنوان به قالب</button>
+      </form>
+      {% endif %}
     </div>
     <template x-for="(row, index) in rows" :key="index">
       <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
@@ -567,6 +626,13 @@
     <div class="form-group">
       <label for="id_tm_title">عنوان بخش</label>
       <input type="text" name="title" id="id_tm_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'نظرات مشتریان' }}">
+      {% if section.template_slot_key %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
+            onsubmit="return confirm('عنوانِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+        {% csrf_token %}<input type="hidden" name="field" value="title">
+        <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی عنوان به قالب</button>
+      </form>
+      {% endif %}
     </div>
     <template x-for="(row, index) in rows" :key="index">
       <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
@@ -605,6 +671,13 @@
     <div class="form-group">
       <label for="id_vs_title">عنوان بخش (اختیاری)</label>
       <input type="text" name="title" id="id_vs_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'' }}">
+      {% if section.template_slot_key %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
+            onsubmit="return confirm('عنوانِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+        {% csrf_token %}<input type="hidden" name="field" value="title">
+        <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی عنوان به قالب</button>
+      </form>
+      {% endif %}
     </div>
     <div class="form-group">
       <label for="id_vs_url">لینک ویدیو (یوتیوب، آپارات یا پست/Reel اینستاگرام)</label>
@@ -630,6 +703,13 @@
     <div class="form-group">
       <label for="id_nl_title">عنوان</label>
       <input type="text" name="title" id="id_nl_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'عضویت در خبرنامه' }}">
+      {% if section.template_slot_key %}
+      <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
+            onsubmit="return confirm('عنوانِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+        {% csrf_token %}<input type="hidden" name="field" value="title">
+        <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی عنوان به قالب</button>
+      </form>
+      {% endif %}
     </div>
     <div class="form-group">
       <label for="id_nl_subtitle">زیرعنوان (اختیاری)</label>

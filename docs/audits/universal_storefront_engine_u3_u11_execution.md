@@ -2472,3 +2472,225 @@ than duplicated here.
    state) and is a reasonable, disclosed side effect of a dev/build-only
    tool that intentionally cycles the *same* isolated demo Store through
    all 8 Templates.
+
+## Post-U11 Acceptance Fix Batch 5 — Final Hardening Pass (Multi-Color, Screenshot Fingerprint, Legacy Baseline, Checkpoint, Reset, Trademarks)
+
+- **Starting SHA:** `8fd297f9c7c4d936401cf11214b7e73ea2ef1c26` (Batch 4's
+  final commit).
+
+**Context.** Independent review of Batch 4 found eight acceptance gaps.
+This Batch closes them without redesigning the system.
+
+**Issue 2 — genuine multi-color products.** Re-audited the 345 raw photos
+by direct visual comparison (never filename/near-duplicate heuristics
+alone — those already had a known false-positive history) and found 8
+honest colorway groups: real second/third photos of the *same*
+garment/silhouette, never two different models. One early candidate group
+(a "3-color" bomber jacket) turned out on sha256 comparison to include a
+byte-identical duplicate file passed off as a distinct color — caught and
+corrected to its true 2 real colors before rollout. Another (a "double-
+buckle sandal" pairing) was caught rendering two different sandal designs
+under one SKU and re-paired to a genuinely matching silhouette. Final: 8
+multi-color SKUs (`FSH-004/006/008/012/022/039/040/049`; `FSH-040` has 3
+real colors, the rest 2), 42 single-color SKUs, still 50 products/10
+categories/150 images. `seed_ready_template_fashion_demo.py`'s
+`PRODUCT_MATRIX` color field now accepts a tuple of colors; `_seed_variants`
+builds one real `ProductOption`/`ProductOptionValue` per declared color
+(plus size, or alone for the one multi-color bag, which becomes VARIABLE
+with a color-only axis instead of SIMPLE); `_seed_product_images` maps
+each of the 3 processed images to its real declared color via
+`set_image_option_value`, verified end-to-end against the actual rendered
+PDP's `variant-selector-data` (distinct `image_url` per color, e.g.
+`FSH-004`'s "کرم" and "سفید" resolve to two different real files). Stock
+intentionally varies per SKU (full OOS, full healthy, and partial — with
+partial cases zeroing the same size across *every* color, so the
+zero-stock combinations genuinely cross color boundaries, not just "one
+color happens to be OOS").
+
+**Issue 3 — screenshot staleness now covers Demo content, not just the
+Template registry.** `preview_content_hash` (Batch 3) only hashed
+template-registry data (appearance/header/footer/section-key order) — a
+Template staying at the same version while the Demo Store's real
+catalog/media/content changed (exactly this Batch's own Issue 2 rework)
+left an old screenshot silently "fresh". New
+`preview_input_fingerprint()` = SHA256(key + version +
+`preview_content_hash` + sha256 of `selected_product_media_manifest.json`
++ sha256 of `seed_ready_template_fashion_demo.py`'s own source) — a pure
+filesystem read, no database access, so a normal Gallery GET stays exactly
+as cheap as before. `resolve_real_screenshot` now validates this
+fingerprint (stored in each `.meta.json` sidecar as
+`preview_input_fingerprint`, alongside the still-present narrower
+`content_hash`). Tests A–F added to `test_ready_template_real_previews.py`
+(`PreviewInputFingerprintTests`): same-version + changed manifest is
+stale; same-version + changed seed-definition is stale; unchanged inputs
+resolve normally; one Template's screenshot never satisfies another's;
+stale falls back to the SVG schematic safely; Gallery GET still never
+imports Playwright.
+
+**Issue 4 — legacy no-snapshot baseline no longer "healed" as exact
+history.** `reset_storefront_to_baseline`'s backward-compatibility branch
+(a pre-Batch-2 Draft with `template_provenance` but no
+`template_baseline_snapshot`) reset the Draft by re-reading the *live*
+registry, then called the same `apply_preset` every genuine new-apply uses
+— which unconditionally (and, for this path, incorrectly) persisted that
+reconstruction into `template_baseline_snapshot` as though it were exact.
+Version-number equality is a compatibility policy, not proof the live
+registry's Python definition is byte-identical to what was actually
+applied historically. Fixed: `apply_preset` gained an internal-only
+`_record_baseline_snapshot` flag; the legacy compatibility path now passes
+`False`, so the Draft keeps applying the current-registry content (the
+visible reset still works) but never fabricates an exact snapshot — it
+stays a genuine no-snapshot Draft, and granular (section/page/header/
+footer) reset — which requires a real exact snapshot — correctly stays
+unavailable for it. `test_h_legacy_no_snapshot_version_falls_back_safely`
+(previously asserting the old "healed" behavior as correct) rewritten to
+assert the opposite, plus a new assertion that granular section reset
+still raises `NoTemplateBaselineError` afterward.
+
+**Issue 5 — zero-section Draft checkpoint now checks meaningful global
+state, not just section count.** `_draft_has_any_content` was
+`draft.sections.exists()` only — a zero-section Draft with a genuinely
+changed `appearance_config`/`header_config`/`footer_config`/`palette`/
+`template_provenance` lost that state silently on the next Template apply.
+Now checks all five axes; `appearance_config` specifically compares
+against `APPEARANCE_CONFIG_DEFAULTS` per-key (excluding `color_overrides`,
+which `bootstrap_service.bootstrap_appearance_config` mirrors from a
+Store's live `ShopSettings` colors at Draft-creation time — a passive
+migration carryover, not a merchant's deliberate in-editor edit; excluding
+it does not hide any real change, since a genuine appearance edit always
+touches at least one other key too). New `ZeroSectionMeaningfulStateCheckpointTests`
+(7 tests): pristine empty Draft still gets no checkpoint; zero sections +
+changed appearance/palette/header/footer/template-provenance each
+independently trigger one; the checkpoint clones the modified scope's
+actual value.
+
+**Issue 6 — same-template no-op no longer creates redundant history.**
+Audited and found a real gap: `apply_preset_with_checkpoint` checkpointed
+unconditionally whenever the Draft had content, even when re-applying the
+*exact* already-applied Template unchanged (verified live: version count
+and Draft id both incremented on a same-template reapply before this fix).
+New `_draft_already_matches_preset` proves — conservatively, falling back
+to the safe checkpoint+apply path on any doubt (including a legacy
+no-snapshot Draft) — that the current Draft's provenance, snapshot,
+appearance/header/footer, and every page's actual sections already
+exactly match what reapplying would produce; only then is the apply
+skipped entirely (same Draft id, same version count). A real edit since
+the last apply (even reapplying the *same* Template to revert it) still
+checkpoints normally. New `SameTemplateNoOpTests` (3 tests) cover the
+no-op, a genuinely different Template still checkpointing, and a manual
+edit still checkpointing before the same-Template revert.
+
+**Issue 7 — granular reset gaps closed/audited.** Audited before
+changing, per the mission's own instruction. (a) Field/component reset:
+`reset_section_setting_to_baseline`/`reset_appearance_setting_to_baseline`
+and their views/URLs already existed but had exactly one illustrative
+button (`product_section`'s title) — extended the same control to the
+"title" field on every other section type that has one (9 more section
+types), the `hero_style`/`tile_style` component-variant selects, and a new
+"density" appearance-field reset control (none existed before). (b)
+Structural section reset: `row_key`/`row_span` were already restored
+correctly (the mission's characterization of this half was stale); the
+real, confirmed-remaining gap is Container/Cell *placement* — a
+single-section reset intentionally never moves a section back to its
+baseline Cell, since a Cell/Container usually holds several sections and
+there is no safe way to move just one without risking a sibling's
+placement (including a fully merchant-created section that may now share
+that Cell) — documented explicitly in `reset_section_to_baseline`'s
+docstring as the accepted exceptional case, per the mission's own
+allowance. New tests: modified row_span/row_key restored on reset;
+unrelated sibling section (settings, row_key, row_span) untouched by a
+different section's reset; Published version's `content_fingerprint`
+unchanged after a section reset.
+
+**Issue 8 — trademark visual consistency.** Audited the final 50 cover
+images at full resolution (thumbnails alone hid this). Folder 1 (all 10
+sneaker-category covers, including 3 of the Issue-2 multi-color anchors)
+is, on full-page review, essentially 100% real branded athletic-footwear
+stock photography (New Balance/Nike/Adidas/Puma/Converse) with no
+unbranded alternative anywhere in the 69-image folder — disclosed as an
+accepted limitation rather than sacrificing the verified multi-color
+pairings or fabricating a fake "clean" substitute. Two clear, fixable
+cases were found and swapped for verified-unbranded alternatives of the
+same style: `FSH-026` (a leather moto jacket whose zipper pull showed a
+legible real brand nametag) and `FSH-050` (a bag whose strap hardware
+showed an unmistakable real luxury-brand wordmark and logo tag). No
+trademark was erased or deceptively cropped — both replacements are
+different real source photos, not edits of the originals.
+
+### Files changed
+
+- `apps/stores/demo_assets/rasti_mode_demo/scripts/select_and_process_media.py` —
+  `SELECTION` rows for the 8 multi-color SKUs restructured to a
+  `color_entries` list; 3 source-file corrections (duplicate-photo and
+  wrong-silhouette catches); 2 trademark swaps (`FSH-026`, `FSH-050`); new
+  `_build_multi_color_images`/`_load_source` helpers.
+- `apps/stores/demo_assets/rasti_mode_demo/scripts/build_inventory.py` —
+  scratch output now defaults outside the repo (`tempfile.gettempdir()`)
+  instead of a committed-adjacent `_work/` directory.
+- `apps/stores/demo_assets/rasti_mode_demo/selected_product_media_manifest.json`,
+  `apps/stores/demo_assets/rasti_mode_demo/products/FSH-*/0{1,2,3}.webp` —
+  regenerated.
+- `apps/stores/management/commands/seed_ready_template_fashion_demo.py` —
+  multi-color `PRODUCT_MATRIX` rows/titles; `_seed_products`/`_seed_variants`/
+  `_seed_product_images` support real per-color options/variants/image
+  mapping and a color-only VARIABLE bag; new composite color-hex entries.
+- `apps/stores/tests/test_seed_ready_template_fashion_demo_command.py` —
+  new `MultiColorProductTests` (9 tests); 2 existing tests narrowed to
+  single-color-only SKUs.
+- `apps/storefront_builder/services/template_preview_service.py` — new
+  `preview_input_fingerprint`/`_file_hash`; `resolve_real_screenshot`
+  validates the new fingerprint.
+- `apps/storefront_builder/management/commands/capture_ready_template_previews.py` —
+  writes `preview_input_fingerprint` into each `.meta.json`.
+- `apps/storefront_builder/tests/test_ready_template_real_previews.py` —
+  new `PreviewInputFingerprintTests` (tests A–F); 2 existing tests updated
+  to the new sidecar key.
+- `apps/storefront_builder/services/preset_service.py` — `apply_preset`'s
+  `_record_baseline_snapshot` flag; `reset_storefront_to_baseline`'s
+  legacy path uses it; new `_draft_already_matches_preset` +
+  `apply_preset_with_checkpoint` no-op short-circuit; `reset_section_to_baseline`
+  docstring documents the Container/Cell placement exception.
+- `apps/storefront_builder/services/layout_service.py` —
+  `_draft_has_any_content` checks all five global-state axes; new
+  `_appearance_config_is_pristine`.
+- `apps/storefront_builder/tests/test_acceptance_batch2.py` — rewrote
+  `test_h_legacy_no_snapshot_version_falls_back_safely`; new
+  `ZeroSectionMeaningfulStateCheckpointTests` (7), `SameTemplateNoOpTests`
+  (3), 3 new `GranularResetTests` structural-reset tests, 3 new
+  `MerchantResetUITests` field/component-reset-UI tests.
+- `apps/storefront_builder/templates/dashboard/storefront_builder/partials/section_settings_form.html` —
+  title-field reset control extended to 9 more section types plus the
+  `hero_style`/`tile_style` component-variant selects.
+- `apps/storefront_builder/templates/dashboard/storefront_builder/partials/appearance_panel.html` —
+  new "density" appearance-field reset control.
+- `apps/storefront_builder/static/ready_template_previews/<key>/v1.webp` +
+  `.meta.json`, `docs/qa_evidence/ready_template_previews/<key>/*.jpg` —
+  all 8 Templates + QA captures regenerated against the final Demo Store.
+
+### Testing
+
+See the mission's own final report (delivered as this Batch's closing
+chat response) for the complete final-regression command, its
+completely-green count, and the individual Batch 1/2/3/PDP-thumbnail
+re-runs — not duplicated here to avoid the two ever drifting apart.
+
+### Known remaining limitations (explicit, not gaps to hide)
+
+1. Real third-party trademarks remain visible on all 10 sneaker-category
+   cover images (3 of them Issue-2 multi-color anchors) — the raw pool's
+   entire sneaker folder is real branded stock photography with no
+   unbranded alternative available; swapping would mean abandoning the
+   category or fabricating a fake "clean" substitute, both explicitly
+   worse than disclosure. Still QA/demo-internal only, never claimed
+   trademark-clear.
+2. Container/Cell *placement* is not restored by a single-section reset
+   (only that section's own content/row_key/row_span) — a documented,
+   deliberate limitation (see Issue 7 above and the function's own
+   docstring), not a silent gap.
+3. Field/component reset UI now covers the "title" field broadly and the
+   two existing component-variant selects, plus one appearance field
+   ("density") — not literally every baseline-controlled field across
+   every section type's bespoke form (a much larger UI surface); the
+   underlying service functions and URL pattern are generic and already
+   proven to extend cleanly to any further field a future pass wants to
+   wire up.

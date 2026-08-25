@@ -13,7 +13,8 @@
     "product_title_fa": "کتانی رانینگ چانکی سبز-کرم",
     "brand": "Demo Motion",
     "dominant_color_fa": "سبز",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-001",
@@ -29,7 +30,8 @@
     "product_title_fa": "کتانی رانینگ چانکی سبز-کرم",
     "brand": "Demo Motion",
     "dominant_color_fa": "سبز",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-001",
@@ -45,7 +47,8 @@
     "product_title_fa": "کتانی رانینگ چانکی سبز-کرم",
     "brand": "Demo Motion",
     "dominant_color_fa": "سبز",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-002",
@@ -61,7 +64,8 @@
     "product_title_fa": "کتانی رانینگ بندی مشکی",
     "brand": "Demo Motion",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-002",
@@ -77,7 +81,8 @@
     "product_title_fa": "کتانی رانینگ بندی مشکی",
     "brand": "Demo Motion",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-002",
@@ -93,7 +98,8 @@
     "product_title_fa": "کتانی رانینگ بندی مشکی",
     "brand": "Demo Motion",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-003",
@@ -109,7 +115,8 @@
     "product_title_fa": "کتانی رانینگ سبک آبی روشن",
     "brand": "Demo Urban",
     "dominant_color_fa": "آبی روشن",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-003",
@@ -125,7 +132,8 @@
     "product_title_fa": "کتانی رانینگ سبک آبی روشن",
     "brand": "Demo Urban",
     "dominant_color_fa": "آبی روشن",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-003",
@@ -141,7 +149,8 @@
     "product_title_fa": "کتانی رانینگ سبک آبی روشن",
     "brand": "Demo Urban",
     "dominant_color_fa": "آبی روشن",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-004",
@@ -152,28 +161,30 @@
     "final_relpath": "products/FSH-004/01.webp",
     "final_sha256": "67911ffbb00632fb96b66025a3eb37e3592c904e5f542cc6e4f93b8f21d02f74",
     "derived": false,
-    "transformation": "cover — full source frame, canvas-normalized only (no crop)",
+    "transformation": "cover — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "کتانی رانینگ",
-    "product_title_fa": "کتانی رانینگ دد-شو کرم",
+    "product_title_fa": "کتانی رانینگ چانکی کلاسیک",
     "brand": "Demo Motion",
     "dominant_color_fa": "کرم",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-004",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-31.jpg",
-    "raw_source_sha256": "0b39068f33a5b99fc778b6ce3faed4bdaf1df8ad0f62f404765d81f9975feec3",
+    "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-9.jpg",
+    "raw_source_sha256": "9031f68bd5b6d02ff3bf66164aaf5c3a9addd9d11e579c584b82a15bb1b90840",
     "final_relpath": "products/FSH-004/02.webp",
-    "final_sha256": "b0b3c81b09e13950ef24bc100c312edfe1e47482230332b44cca17bcfcc9dd18",
-    "derived": true,
-    "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
+    "final_sha256": "68682698065e1852a6e1035522ef1c40e2144c9ee975e1be7daf4e0e17956849",
+    "derived": false,
+    "transformation": "additional real color — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "کتانی رانینگ",
-    "product_title_fa": "کتانی رانینگ دد-شو کرم",
+    "product_title_fa": "کتانی رانینگ چانکی کلاسیک",
     "brand": "Demo Motion",
-    "dominant_color_fa": "کرم",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "سفید",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-004",
@@ -182,14 +193,15 @@
     "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-31.jpg",
     "raw_source_sha256": "0b39068f33a5b99fc778b6ce3faed4bdaf1df8ad0f62f404765d81f9975feec3",
     "final_relpath": "products/FSH-004/03.webp",
-    "final_sha256": "3fd7c85d9429c5dc757e25807b9d2bb4e07fba0aa79a1d4a4eb6b6b31362a48c",
+    "final_sha256": "b0b3c81b09e13950ef24bc100c312edfe1e47482230332b44cca17bcfcc9dd18",
     "derived": true,
-    "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
+    "transformation": "derived — centered 82% non-destructive crop of the cover color's real photo, canvas-normalized",
     "category": "کتانی رانینگ",
-    "product_title_fa": "کتانی رانینگ دد-شو کرم",
+    "product_title_fa": "کتانی رانینگ چانکی کلاسیک",
     "brand": "Demo Motion",
     "dominant_color_fa": "کرم",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-005",
@@ -205,7 +217,8 @@
     "product_title_fa": "کتانی رانینگ مسابقه‌ای مشکی-سفید",
     "brand": "Demo Motion",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-005",
@@ -221,7 +234,8 @@
     "product_title_fa": "کتانی رانینگ مسابقه‌ای مشکی-سفید",
     "brand": "Demo Motion",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-005",
@@ -237,7 +251,8 @@
     "product_title_fa": "کتانی رانینگ مسابقه‌ای مشکی-سفید",
     "brand": "Demo Motion",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-006",
@@ -248,28 +263,30 @@
     "final_relpath": "products/FSH-006/01.webp",
     "final_sha256": "04e559ade96229cf419db0f404f5334d06a37fd60afe59218c17f42bdef4dc79",
     "derived": false,
-    "transformation": "cover — full source frame, canvas-normalized only (no crop)",
+    "transformation": "cover — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "کتانی کژوال",
-    "product_title_fa": "کتانی کژوال راه‌راه سرمه‌ای",
+    "product_title_fa": "کتانی کژوال کلاسیک راه‌راه",
     "brand": "Demo Urban",
-    "dominant_color_fa": "سرمه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "مشکی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-006",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-38.jpg",
-    "raw_source_sha256": "67d8dda63bb8c5afb6e3b12bea647de3204458036fa7c8a48b04e58acd787b0b",
+    "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-11.jpg",
+    "raw_source_sha256": "b0b044a0fb30f74f93f5c4528f76e754b2cdbbfa81e756ff7b11f0a65d52097e",
     "final_relpath": "products/FSH-006/02.webp",
-    "final_sha256": "78e67e7fac387ef7692d2263f33d7df186bd1aecdaa15561a7bc7b4cb6b514c5",
-    "derived": true,
-    "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
+    "final_sha256": "9897acab7e67c97d91def31a2d7a3b69761934d7e40336d8005b50ce79d8f85d",
+    "derived": false,
+    "transformation": "additional real color — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "کتانی کژوال",
-    "product_title_fa": "کتانی کژوال راه‌راه سرمه‌ای",
+    "product_title_fa": "کتانی کژوال کلاسیک راه‌راه",
     "brand": "Demo Urban",
-    "dominant_color_fa": "سرمه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "سفید",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-006",
@@ -278,14 +295,15 @@
     "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-38.jpg",
     "raw_source_sha256": "67d8dda63bb8c5afb6e3b12bea647de3204458036fa7c8a48b04e58acd787b0b",
     "final_relpath": "products/FSH-006/03.webp",
-    "final_sha256": "902b736d7c1dd7299bf945b68fd87490f08bc9ae5a999f8e0fcccee93210d1e5",
+    "final_sha256": "78e67e7fac387ef7692d2263f33d7df186bd1aecdaa15561a7bc7b4cb6b514c5",
     "derived": true,
-    "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
+    "transformation": "derived — centered 82% non-destructive crop of the cover color's real photo, canvas-normalized",
     "category": "کتانی کژوال",
-    "product_title_fa": "کتانی کژوال راه‌راه سرمه‌ای",
+    "product_title_fa": "کتانی کژوال کلاسیک راه‌راه",
     "brand": "Demo Urban",
-    "dominant_color_fa": "سرمه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "مشکی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-007",
@@ -301,7 +319,8 @@
     "product_title_fa": "کتانی کژوال کلاسیک مشکی",
     "brand": "Demo Urban",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-007",
@@ -317,7 +336,8 @@
     "product_title_fa": "کتانی کژوال کلاسیک مشکی",
     "brand": "Demo Urban",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-007",
@@ -333,7 +353,8 @@
     "product_title_fa": "کتانی کژوال کلاسیک مشکی",
     "brand": "Demo Urban",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-008",
@@ -344,28 +365,30 @@
     "final_relpath": "products/FSH-008/01.webp",
     "final_sha256": "817ec1b52380882d6c406d32e764426c0f071cc0de1c85d2d04cedbbcbc759bc",
     "derived": false,
-    "transformation": "cover — full source frame, canvas-normalized only (no crop)",
+    "transformation": "cover — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "کتانی کژوال",
-    "product_title_fa": "کتانی کژوال بلند صورتی",
+    "product_title_fa": "کتانی کژوال بلند کلاسیک",
     "brand": "Demo Urban",
-    "dominant_color_fa": "صورتی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "سفید-صورتی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-008",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-27.jpg",
-    "raw_source_sha256": "f00d2301de1d54760aefcf8f59ae6181be4138e0792cf56cceb9d7261bc3a090",
+    "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-6.jpg",
+    "raw_source_sha256": "e12f7bbdb1172ece9d490a9be9f9c4c93a88ee44de435be8f92edcdb9ee07596",
     "final_relpath": "products/FSH-008/02.webp",
-    "final_sha256": "0845b46c3b94a17edaa0e424024ccdfd0411bd5885babbc1755b22320374a13a",
-    "derived": true,
-    "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
+    "final_sha256": "1a2cb7da3fb4d4c75c46a44cfa3414120725ad7098a26a76c190ba0a7a145a47",
+    "derived": false,
+    "transformation": "additional real color — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "کتانی کژوال",
-    "product_title_fa": "کتانی کژوال بلند صورتی",
+    "product_title_fa": "کتانی کژوال بلند کلاسیک",
     "brand": "Demo Urban",
-    "dominant_color_fa": "صورتی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "مشکی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-008",
@@ -374,62 +397,66 @@
     "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-27.jpg",
     "raw_source_sha256": "f00d2301de1d54760aefcf8f59ae6181be4138e0792cf56cceb9d7261bc3a090",
     "final_relpath": "products/FSH-008/03.webp",
-    "final_sha256": "904fb8cd454a6cbef082aa6d85d4df42aaab1de396103008debad2913a00dc0f",
+    "final_sha256": "0845b46c3b94a17edaa0e424024ccdfd0411bd5885babbc1755b22320374a13a",
     "derived": true,
-    "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
+    "transformation": "derived — centered 82% non-destructive crop of the cover color's real photo, canvas-normalized",
     "category": "کتانی کژوال",
-    "product_title_fa": "کتانی کژوال بلند صورتی",
+    "product_title_fa": "کتانی کژوال بلند کلاسیک",
     "brand": "Demo Urban",
-    "dominant_color_fa": "صورتی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "سفید-صورتی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-009",
     "image_order": 1,
     "cover": true,
-    "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-6.jpg",
-    "raw_source_sha256": "e12f7bbdb1172ece9d490a9be9f9c4c93a88ee44de435be8f92edcdb9ee07596",
+    "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-24.jpg",
+    "raw_source_sha256": "560eb9f06bf65b7a2dd343e3cc9732f6a1536542160daf2f993bcfc9df2da2b9",
     "final_relpath": "products/FSH-009/01.webp",
-    "final_sha256": "1a2cb7da3fb4d4c75c46a44cfa3414120725ad7098a26a76c190ba0a7a145a47",
+    "final_sha256": "39d2d7d2b7da23be1d6d6817569374e57a4459c48753d8c87d3a561a392fc417",
     "derived": false,
     "transformation": "cover — full source frame, canvas-normalized only (no crop)",
     "category": "کتانی کژوال",
-    "product_title_fa": "کتانی کژوال بلند مشکی",
+    "product_title_fa": "کتانی کژوال اسپرت سفید-مشکی",
     "brand": "Demo Motion",
-    "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "سفید",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-009",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-6.jpg",
-    "raw_source_sha256": "e12f7bbdb1172ece9d490a9be9f9c4c93a88ee44de435be8f92edcdb9ee07596",
+    "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-24.jpg",
+    "raw_source_sha256": "560eb9f06bf65b7a2dd343e3cc9732f6a1536542160daf2f993bcfc9df2da2b9",
     "final_relpath": "products/FSH-009/02.webp",
-    "final_sha256": "e58d2ca2e16e21b47c05df825e96b6709482267a27a6f0ede6dd022bd51af8ec",
+    "final_sha256": "39f27c45bcdde38dfb460573dc03c2c065b2bd24207748665aeb7a82378d3d6d",
     "derived": true,
     "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
     "category": "کتانی کژوال",
-    "product_title_fa": "کتانی کژوال بلند مشکی",
+    "product_title_fa": "کتانی کژوال اسپرت سفید-مشکی",
     "brand": "Demo Motion",
-    "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "سفید",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-009",
     "image_order": 3,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-6.jpg",
-    "raw_source_sha256": "e12f7bbdb1172ece9d490a9be9f9c4c93a88ee44de435be8f92edcdb9ee07596",
+    "raw_source_relpath": "raw_user_catalog/1/1_org_zoom-24.jpg",
+    "raw_source_sha256": "560eb9f06bf65b7a2dd343e3cc9732f6a1536542160daf2f993bcfc9df2da2b9",
     "final_relpath": "products/FSH-009/03.webp",
-    "final_sha256": "ea4d2c7ea31464eb008a8bb7c670e882fa692a7a57e84b99316282293c2f6521",
+    "final_sha256": "b9b339f6ad2c989b19ca2c4d7fb3ccceb7a2278378025aabecb2833e0db7bee8",
     "derived": true,
     "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
     "category": "کتانی کژوال",
-    "product_title_fa": "کتانی کژوال بلند مشکی",
+    "product_title_fa": "کتانی کژوال اسپرت سفید-مشکی",
     "brand": "Demo Motion",
-    "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "سفید",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-010",
@@ -445,7 +472,8 @@
     "product_title_fa": "کتانی کژوال ساده سفید",
     "brand": "Demo Urban",
     "dominant_color_fa": "سفید",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-010",
@@ -461,7 +489,8 @@
     "product_title_fa": "کتانی کژوال ساده سفید",
     "brand": "Demo Urban",
     "dominant_color_fa": "سفید",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-010",
@@ -477,7 +506,8 @@
     "product_title_fa": "کتانی کژوال ساده سفید",
     "brand": "Demo Urban",
     "dominant_color_fa": "سفید",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-011",
@@ -493,7 +523,8 @@
     "product_title_fa": "شلوار کتان کژوال سرمه‌ای",
     "brand": "Demo Denim",
     "dominant_color_fa": "سرمه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-011",
@@ -509,7 +540,8 @@
     "product_title_fa": "شلوار کتان کژوال سرمه‌ای",
     "brand": "Demo Denim",
     "dominant_color_fa": "سرمه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-011",
@@ -525,55 +557,59 @@
     "product_title_fa": "شلوار کتان کژوال سرمه‌ای",
     "brand": "Demo Denim",
     "dominant_color_fa": "سرمه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-012",
     "image_order": 1,
     "cover": true,
-    "raw_source_relpath": "raw_user_catalog/2/0_org_zoom-22.jpg",
-    "raw_source_sha256": "4deeb9566b8c94372a48cf7eba0c353b155333d1ee32660129322b2f73071766",
+    "raw_source_relpath": "raw_user_catalog/2/0_org_zoom-34.jpg",
+    "raw_source_sha256": "27eeb5da7b9943e8bba4c7988f39eacbe903c974ef00cf3e3871e538553cce8c",
     "final_relpath": "products/FSH-012/01.webp",
-    "final_sha256": "88665e562022e7b93490b33bba50b4532c02037cfb0f0e3368bdfd3aecd10d06",
+    "final_sha256": "7860f4efc684cc21056715a3e52901d0a1621c749ec1126385047f9b50aa214d",
     "derived": false,
-    "transformation": "cover — full source frame, canvas-normalized only (no crop)",
+    "transformation": "cover — real full-frame photo for this exact color (half-crop of a shared two-color source photo), canvas-normalized only (no crop beyond the declared half)",
     "category": "شلوار کژوال",
-    "product_title_fa": "شلوار کتان کژوال قهوه‌ای تیره",
+    "product_title_fa": "شلوار کتان بندی کژوال",
     "brand": "Demo Denim",
-    "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "بژ",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-012",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/2/0_org_zoom-22.jpg",
-    "raw_source_sha256": "4deeb9566b8c94372a48cf7eba0c353b155333d1ee32660129322b2f73071766",
+    "raw_source_relpath": "raw_user_catalog/2/0_org_zoom-34.jpg",
+    "raw_source_sha256": "27eeb5da7b9943e8bba4c7988f39eacbe903c974ef00cf3e3871e538553cce8c",
     "final_relpath": "products/FSH-012/02.webp",
-    "final_sha256": "f9b27db2a513f28357d48e6e9541c762ac92fdd645d8c0d3da5a9b904755c029",
-    "derived": true,
-    "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
+    "final_sha256": "a0274c8e27b6e3475034dcd2bf5551cfa6384bf9e7b82815bf74610d63caf3e5",
+    "derived": false,
+    "transformation": "additional real color — real full-frame photo for this exact color (half-crop of a shared two-color source photo), canvas-normalized only (no crop beyond the declared half)",
     "category": "شلوار کژوال",
-    "product_title_fa": "شلوار کتان کژوال قهوه‌ای تیره",
+    "product_title_fa": "شلوار کتان بندی کژوال",
     "brand": "Demo Denim",
-    "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "سرمه‌ای",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-012",
     "image_order": 3,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/2/0_org_zoom-22.jpg",
-    "raw_source_sha256": "4deeb9566b8c94372a48cf7eba0c353b155333d1ee32660129322b2f73071766",
+    "raw_source_relpath": "raw_user_catalog/2/0_org_zoom-34.jpg",
+    "raw_source_sha256": "27eeb5da7b9943e8bba4c7988f39eacbe903c974ef00cf3e3871e538553cce8c",
     "final_relpath": "products/FSH-012/03.webp",
-    "final_sha256": "5d70810126e1ae6bdf57bc67c9b1937e3dab99e649de4394894114008d6917c2",
+    "final_sha256": "25cf01ec0d3f0bd6dfd307b2d92ab48739c216955fe8dec6933a4ab3f35218ae",
     "derived": true,
-    "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
+    "transformation": "derived — centered 82% non-destructive crop of the cover color's real photo, canvas-normalized",
     "category": "شلوار کژوال",
-    "product_title_fa": "شلوار کتان کژوال قهوه‌ای تیره",
+    "product_title_fa": "شلوار کتان بندی کژوال",
     "brand": "Demo Denim",
-    "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "بژ",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-013",
@@ -589,7 +625,8 @@
     "product_title_fa": "شلوار کتان مشکی روزمره",
     "brand": "Demo Urban",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-013",
@@ -605,7 +642,8 @@
     "product_title_fa": "شلوار کتان مشکی روزمره",
     "brand": "Demo Urban",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-013",
@@ -621,7 +659,8 @@
     "product_title_fa": "شلوار کتان مشکی روزمره",
     "brand": "Demo Urban",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-014",
@@ -637,7 +676,8 @@
     "product_title_fa": "شلوار کتان کرم ریلکس",
     "brand": "Demo Denim",
     "dominant_color_fa": "کرم",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-014",
@@ -653,7 +693,8 @@
     "product_title_fa": "شلوار کتان کرم ریلکس",
     "brand": "Demo Denim",
     "dominant_color_fa": "کرم",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-014",
@@ -669,7 +710,8 @@
     "product_title_fa": "شلوار کتان کرم ریلکس",
     "brand": "Demo Denim",
     "dominant_color_fa": "کرم",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-015",
@@ -685,7 +727,8 @@
     "product_title_fa": "شلوار کتان زیتونی کژوال",
     "brand": "Demo Denim",
     "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-015",
@@ -701,7 +744,8 @@
     "product_title_fa": "شلوار کتان زیتونی کژوال",
     "brand": "Demo Denim",
     "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-015",
@@ -717,7 +761,8 @@
     "product_title_fa": "شلوار کتان زیتونی کژوال",
     "brand": "Demo Denim",
     "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-016",
@@ -733,7 +778,8 @@
     "product_title_fa": "شلوار جین طوسی راسته",
     "brand": "Demo Denim",
     "dominant_color_fa": "طوسی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-016",
@@ -749,7 +795,8 @@
     "product_title_fa": "شلوار جین طوسی راسته",
     "brand": "Demo Denim",
     "dominant_color_fa": "طوسی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-016",
@@ -765,7 +812,8 @@
     "product_title_fa": "شلوار جین طوسی راسته",
     "brand": "Demo Denim",
     "dominant_color_fa": "طوسی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-017",
@@ -781,7 +829,8 @@
     "product_title_fa": "شلوار جین آبی متوسط اسلیم",
     "brand": "Demo Denim",
     "dominant_color_fa": "آبی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-017",
@@ -797,7 +846,8 @@
     "product_title_fa": "شلوار جین آبی متوسط اسلیم",
     "brand": "Demo Denim",
     "dominant_color_fa": "آبی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-017",
@@ -813,7 +863,8 @@
     "product_title_fa": "شلوار جین آبی متوسط اسلیم",
     "brand": "Demo Denim",
     "dominant_color_fa": "آبی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-018",
@@ -829,7 +880,8 @@
     "product_title_fa": "شلوار جین آبی روشن مام‌فیت",
     "brand": "Demo Denim",
     "dominant_color_fa": "آبی روشن",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-018",
@@ -845,7 +897,8 @@
     "product_title_fa": "شلوار جین آبی روشن مام‌فیت",
     "brand": "Demo Denim",
     "dominant_color_fa": "آبی روشن",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-018",
@@ -861,7 +914,8 @@
     "product_title_fa": "شلوار جین آبی روشن مام‌فیت",
     "brand": "Demo Denim",
     "dominant_color_fa": "آبی روشن",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-019",
@@ -877,7 +931,8 @@
     "product_title_fa": "شلوار جین آبی ریلکس‌فیت",
     "brand": "Demo Layer",
     "dominant_color_fa": "آبی روشن",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-019",
@@ -893,7 +948,8 @@
     "product_title_fa": "شلوار جین آبی ریلکس‌فیت",
     "brand": "Demo Layer",
     "dominant_color_fa": "آبی روشن",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-019",
@@ -909,7 +965,8 @@
     "product_title_fa": "شلوار جین آبی ریلکس‌فیت",
     "brand": "Demo Layer",
     "dominant_color_fa": "آبی روشن",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-020",
@@ -925,7 +982,8 @@
     "product_title_fa": "شلوار جین آبی راسته کلاسیک",
     "brand": "Demo Denim",
     "dominant_color_fa": "آبی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-020",
@@ -941,7 +999,8 @@
     "product_title_fa": "شلوار جین آبی راسته کلاسیک",
     "brand": "Demo Denim",
     "dominant_color_fa": "آبی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-020",
@@ -957,7 +1016,8 @@
     "product_title_fa": "شلوار جین آبی راسته کلاسیک",
     "brand": "Demo Denim",
     "dominant_color_fa": "آبی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-021",
@@ -973,7 +1033,8 @@
     "product_title_fa": "کاپشن بامبر زیتونی",
     "brand": "Demo Layer",
     "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-021",
@@ -989,7 +1050,8 @@
     "product_title_fa": "کاپشن بامبر زیتونی",
     "brand": "Demo Layer",
     "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-021",
@@ -1005,7 +1067,8 @@
     "product_title_fa": "کاپشن بامبر زیتونی",
     "brand": "Demo Layer",
     "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-022",
@@ -1016,28 +1079,30 @@
     "final_relpath": "products/FSH-022/01.webp",
     "final_sha256": "af7d4dfe0608202ed143e87cc31d0f109cbe1563c7f043d9144cce3048ebf923",
     "derived": false,
-    "transformation": "cover — full source frame, canvas-normalized only (no crop)",
+    "transformation": "cover — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "کاپشن و بامبر",
-    "product_title_fa": "کاپشن بامبر کالج مشکی-کرم",
+    "product_title_fa": "کاپشن بامبر کالج",
     "brand": "Demo Layer",
-    "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "کرم-مشکی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-022",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-56.jpg",
-    "raw_source_sha256": "c6d65e204e9f9f70f70f7677ea0f4d53a7eb9402a47906813dc83a0a5e15c2ac",
+    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-63.jpg",
+    "raw_source_sha256": "e0ca22c4039fb131522559468cf0ee2984543f2bfbb09461ee10ef1dd08e20ce",
     "final_relpath": "products/FSH-022/02.webp",
-    "final_sha256": "e89bc994673fdd0c0dd70c4df401fa7c5d0b6c295eaebdf01caa6037655c9756",
-    "derived": true,
-    "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
+    "final_sha256": "a11fead36bd4963d4c142fe91e4dda4b5eeca52539bb03453ab5e287df817376",
+    "derived": false,
+    "transformation": "additional real color — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "کاپشن و بامبر",
-    "product_title_fa": "کاپشن بامبر کالج مشکی-کرم",
+    "product_title_fa": "کاپشن بامبر کالج",
     "brand": "Demo Layer",
-    "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "زیتونی-کرم",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-022",
@@ -1046,62 +1111,66 @@
     "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-56.jpg",
     "raw_source_sha256": "c6d65e204e9f9f70f70f7677ea0f4d53a7eb9402a47906813dc83a0a5e15c2ac",
     "final_relpath": "products/FSH-022/03.webp",
-    "final_sha256": "b6a9d6d4a32b08e82b1a0432d0ae456f82362f329be7963429092963a6ce5e4b",
+    "final_sha256": "e89bc994673fdd0c0dd70c4df401fa7c5d0b6c295eaebdf01caa6037655c9756",
     "derived": true,
-    "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
+    "transformation": "derived — centered 82% non-destructive crop of the cover color's real photo, canvas-normalized",
     "category": "کاپشن و بامبر",
-    "product_title_fa": "کاپشن بامبر کالج مشکی-کرم",
+    "product_title_fa": "کاپشن بامبر کالج",
     "brand": "Demo Layer",
-    "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "کرم-مشکی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-023",
     "image_order": 1,
     "cover": true,
-    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-63.jpg",
-    "raw_source_sha256": "e0ca22c4039fb131522559468cf0ee2984543f2bfbb09461ee10ef1dd08e20ce",
+    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-144.jpg",
+    "raw_source_sha256": "88630acfbb6c04ec7824f14d341631d856d88908630ef6b72b45fcac52aaeb8b",
     "final_relpath": "products/FSH-023/01.webp",
-    "final_sha256": "a11fead36bd4963d4c142fe91e4dda4b5eeca52539bb03453ab5e287df817376",
+    "final_sha256": "86bc5473f474b159ffd6a90206da8587fb98e6c084711dee1dafc4e7b2c4df81",
     "derived": false,
     "transformation": "cover — full source frame, canvas-normalized only (no crop)",
     "category": "کاپشن و بامبر",
-    "product_title_fa": "کاپشن بامبر کالج زیتونی-کرم",
+    "product_title_fa": "کاپشن بامبر مشکی ساده",
     "brand": "Demo Layer",
-    "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "مشکی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-023",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-63.jpg",
-    "raw_source_sha256": "e0ca22c4039fb131522559468cf0ee2984543f2bfbb09461ee10ef1dd08e20ce",
+    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-144.jpg",
+    "raw_source_sha256": "88630acfbb6c04ec7824f14d341631d856d88908630ef6b72b45fcac52aaeb8b",
     "final_relpath": "products/FSH-023/02.webp",
-    "final_sha256": "88af9371b02b387684455f72b393b349189c15dac36cd23b83a84385488f842c",
+    "final_sha256": "402d5820ed42a57a29c053443b9cfb6157b49b011dd0db77cb06ad1d17c40548",
     "derived": true,
     "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
     "category": "کاپشن و بامبر",
-    "product_title_fa": "کاپشن بامبر کالج زیتونی-کرم",
+    "product_title_fa": "کاپشن بامبر مشکی ساده",
     "brand": "Demo Layer",
-    "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "مشکی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-023",
     "image_order": 3,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-63.jpg",
-    "raw_source_sha256": "e0ca22c4039fb131522559468cf0ee2984543f2bfbb09461ee10ef1dd08e20ce",
+    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-144.jpg",
+    "raw_source_sha256": "88630acfbb6c04ec7824f14d341631d856d88908630ef6b72b45fcac52aaeb8b",
     "final_relpath": "products/FSH-023/03.webp",
-    "final_sha256": "bf55eadbef7291973961c6ee126aee863ee9b7d7b60b96e4be6c79ad8f69d522",
+    "final_sha256": "2e42e5b9dc02db3046affa4544ae55106d9bca47cc87f798af4c1a07d8eb0992",
     "derived": true,
     "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
     "category": "کاپشن و بامبر",
-    "product_title_fa": "کاپشن بامبر کالج زیتونی-کرم",
+    "product_title_fa": "کاپشن بامبر مشکی ساده",
     "brand": "Demo Layer",
-    "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "مشکی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-024",
@@ -1117,7 +1186,8 @@
     "product_title_fa": "هودی زیپ‌دار آبی",
     "brand": "Demo Urban",
     "dominant_color_fa": "آبی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-024",
@@ -1133,7 +1203,8 @@
     "product_title_fa": "هودی زیپ‌دار آبی",
     "brand": "Demo Urban",
     "dominant_color_fa": "آبی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-024",
@@ -1149,7 +1220,8 @@
     "product_title_fa": "هودی زیپ‌دار آبی",
     "brand": "Demo Urban",
     "dominant_color_fa": "آبی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-025",
@@ -1165,7 +1237,8 @@
     "product_title_fa": "کاپشن بامبر دودی",
     "brand": "Demo Motion",
     "dominant_color_fa": "دودی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-025",
@@ -1181,7 +1254,8 @@
     "product_title_fa": "کاپشن بامبر دودی",
     "brand": "Demo Motion",
     "dominant_color_fa": "دودی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-025",
@@ -1197,55 +1271,59 @@
     "product_title_fa": "کاپشن بامبر دودی",
     "brand": "Demo Motion",
     "dominant_color_fa": "دودی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-026",
     "image_order": 1,
     "cover": true,
-    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-111.jpg",
-    "raw_source_sha256": "4cbed29a26e1a82533fd6a69c34e5f8967e87f8cda4f227c60d36f1b63f18c86",
+    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-25.jpg",
+    "raw_source_sha256": "d41447d68c0e886382bd1b1101d35740195ac91d7d90e6751be55b57069a6a11",
     "final_relpath": "products/FSH-026/01.webp",
-    "final_sha256": "1853200638de1af953476d23914b22705a870e871d53f662424bbfef0467c6e4",
+    "final_sha256": "cd9ee52460178d4a0f24926337d279192c8a360649249adb2250d8dab4c2de03",
     "derived": false,
     "transformation": "cover — full source frame, canvas-normalized only (no crop)",
     "category": "ژاکت چرم و اورشرت",
     "product_title_fa": "ژاکت چرم مشکی موتوری",
     "brand": "Demo Layer",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-026",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-111.jpg",
-    "raw_source_sha256": "4cbed29a26e1a82533fd6a69c34e5f8967e87f8cda4f227c60d36f1b63f18c86",
+    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-25.jpg",
+    "raw_source_sha256": "d41447d68c0e886382bd1b1101d35740195ac91d7d90e6751be55b57069a6a11",
     "final_relpath": "products/FSH-026/02.webp",
-    "final_sha256": "4e47a3d0789cc0b67406313253ae552827ea03f44eda9b1016ee1504c33c0c1b",
+    "final_sha256": "632512cbd3715200b03d859aee374450993a1fff964e28614fe82e256182e63f",
     "derived": true,
     "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
     "category": "ژاکت چرم و اورشرت",
     "product_title_fa": "ژاکت چرم مشکی موتوری",
     "brand": "Demo Layer",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-026",
     "image_order": 3,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-111.jpg",
-    "raw_source_sha256": "4cbed29a26e1a82533fd6a69c34e5f8967e87f8cda4f227c60d36f1b63f18c86",
+    "raw_source_relpath": "raw_user_catalog/3/1_org_zoom-25.jpg",
+    "raw_source_sha256": "d41447d68c0e886382bd1b1101d35740195ac91d7d90e6751be55b57069a6a11",
     "final_relpath": "products/FSH-026/03.webp",
-    "final_sha256": "76d088b832ed1fc0a579cc31c7439623a07d6cbab3be388eea51150a06ba11ec",
+    "final_sha256": "481d5197d7dbdcf90996607f973b423643eedb4016fee5fe2a94a47baf2ec67f",
     "derived": true,
     "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
     "category": "ژاکت چرم و اورشرت",
     "product_title_fa": "ژاکت چرم مشکی موتوری",
     "brand": "Demo Layer",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-027",
@@ -1261,7 +1339,8 @@
     "product_title_fa": "ژاکت جین آبی کلاسیک",
     "brand": "Demo Denim",
     "dominant_color_fa": "آبی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-027",
@@ -1277,7 +1356,8 @@
     "product_title_fa": "ژاکت جین آبی کلاسیک",
     "brand": "Demo Denim",
     "dominant_color_fa": "آبی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-027",
@@ -1293,7 +1373,8 @@
     "product_title_fa": "ژاکت جین آبی کلاسیک",
     "brand": "Demo Denim",
     "dominant_color_fa": "آبی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-028",
@@ -1309,7 +1390,8 @@
     "product_title_fa": "اورشرت کتان خاکی",
     "brand": "Demo Layer",
     "dominant_color_fa": "خاکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-028",
@@ -1325,7 +1407,8 @@
     "product_title_fa": "اورشرت کتان خاکی",
     "brand": "Demo Layer",
     "dominant_color_fa": "خاکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-028",
@@ -1341,7 +1424,8 @@
     "product_title_fa": "اورشرت کتان خاکی",
     "brand": "Demo Layer",
     "dominant_color_fa": "خاکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-029",
@@ -1357,7 +1441,8 @@
     "product_title_fa": "اورشرت زیپ‌دار قرمز",
     "brand": "Demo Layer",
     "dominant_color_fa": "قرمز",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-029",
@@ -1373,7 +1458,8 @@
     "product_title_fa": "اورشرت زیپ‌دار قرمز",
     "brand": "Demo Layer",
     "dominant_color_fa": "قرمز",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-029",
@@ -1389,7 +1475,8 @@
     "product_title_fa": "اورشرت زیپ‌دار قرمز",
     "brand": "Demo Layer",
     "dominant_color_fa": "قرمز",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-030",
@@ -1405,7 +1492,8 @@
     "product_title_fa": "اورشرت زیتونی تیره",
     "brand": "Demo Muse",
     "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-030",
@@ -1421,7 +1509,8 @@
     "product_title_fa": "اورشرت زیتونی تیره",
     "brand": "Demo Muse",
     "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-030",
@@ -1437,7 +1526,8 @@
     "product_title_fa": "اورشرت زیتونی تیره",
     "brand": "Demo Muse",
     "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-031",
@@ -1453,7 +1543,8 @@
     "product_title_fa": "کفش تخت زنانه کرم",
     "brand": "Demo Muse",
     "dominant_color_fa": "کرم",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-031",
@@ -1469,7 +1560,8 @@
     "product_title_fa": "کفش تخت زنانه کرم",
     "brand": "Demo Muse",
     "dominant_color_fa": "کرم",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-031",
@@ -1485,7 +1577,8 @@
     "product_title_fa": "کفش تخت زنانه کرم",
     "brand": "Demo Muse",
     "dominant_color_fa": "کرم",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-032",
@@ -1501,7 +1594,8 @@
     "product_title_fa": "کفش پاشنه‌بلند قهوه‌ای",
     "brand": "Demo Muse",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-032",
@@ -1517,7 +1611,8 @@
     "product_title_fa": "کفش پاشنه‌بلند قهوه‌ای",
     "brand": "Demo Muse",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-032",
@@ -1533,7 +1628,8 @@
     "product_title_fa": "کفش پاشنه‌بلند قهوه‌ای",
     "brand": "Demo Muse",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-033",
@@ -1549,7 +1645,8 @@
     "product_title_fa": "بوت مچی زنانه مشکی",
     "brand": "Demo Muse",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-033",
@@ -1565,7 +1662,8 @@
     "product_title_fa": "بوت مچی زنانه مشکی",
     "brand": "Demo Muse",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-033",
@@ -1581,7 +1679,8 @@
     "product_title_fa": "بوت مچی زنانه مشکی",
     "brand": "Demo Muse",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-034",
@@ -1597,7 +1696,8 @@
     "product_title_fa": "کفش مویل زنانه قهوه‌ای",
     "brand": "Demo Urban",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-034",
@@ -1613,7 +1713,8 @@
     "product_title_fa": "کفش مویل زنانه قهوه‌ای",
     "brand": "Demo Urban",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-034",
@@ -1629,7 +1730,8 @@
     "product_title_fa": "کفش مویل زنانه قهوه‌ای",
     "brand": "Demo Urban",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-035",
@@ -1645,7 +1747,8 @@
     "product_title_fa": "کفش لوفر زنانه مشکی",
     "brand": "Demo Muse",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-035",
@@ -1661,7 +1764,8 @@
     "product_title_fa": "کفش لوفر زنانه مشکی",
     "brand": "Demo Muse",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-035",
@@ -1677,7 +1781,8 @@
     "product_title_fa": "کفش لوفر زنانه مشکی",
     "brand": "Demo Muse",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-036",
@@ -1693,7 +1798,8 @@
     "product_title_fa": "صندل جواهرنشان قهوه‌ای",
     "brand": "Demo Muse",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-036",
@@ -1709,7 +1815,8 @@
     "product_title_fa": "صندل جواهرنشان قهوه‌ای",
     "brand": "Demo Muse",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-036",
@@ -1725,55 +1832,59 @@
     "product_title_fa": "صندل جواهرنشان قهوه‌ای",
     "brand": "Demo Muse",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-037",
     "image_order": 1,
     "cover": true,
-    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-22.jpg",
-    "raw_source_sha256": "bb8b49bdba505ef3b1c0a5f93d13639d146a931b527c7e99a47df293caa79f54",
+    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-74.jpg",
+    "raw_source_sha256": "b8a297fe1280fc5178e739bbdeb8dc58c5fd91362ee8a01c69b615a4a88532ce",
     "final_relpath": "products/FSH-037/01.webp",
-    "final_sha256": "d5b8272d486a99027997fa37ad9149e1d6120f73aeffa21e26d03c7ed32594a2",
+    "final_sha256": "5b6348a7789157f4eb7e764cd05e34f09802a5ccf448c7e4f176380eb0b0f8f9",
     "derived": false,
     "transformation": "cover — full source frame, canvas-normalized only (no crop)",
     "category": "صندل و دمپایی",
-    "product_title_fa": "دمپایی حلقه‌ای مشکی",
+    "product_title_fa": "دمپایی انگشتی کلاسیک مشکی",
     "brand": "Demo Muse",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-037",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-22.jpg",
-    "raw_source_sha256": "bb8b49bdba505ef3b1c0a5f93d13639d146a931b527c7e99a47df293caa79f54",
+    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-74.jpg",
+    "raw_source_sha256": "b8a297fe1280fc5178e739bbdeb8dc58c5fd91362ee8a01c69b615a4a88532ce",
     "final_relpath": "products/FSH-037/02.webp",
-    "final_sha256": "8bd1c5c9db8e335c6b031f286c98ae710209d088ae5df86c194ded120ca0ef04",
+    "final_sha256": "4e11bc65bb872e75aa11d6eb2db64e2ef5b0631e4a1985adab1f0b3ebcd42b0e",
     "derived": true,
     "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
     "category": "صندل و دمپایی",
-    "product_title_fa": "دمپایی حلقه‌ای مشکی",
+    "product_title_fa": "دمپایی انگشتی کلاسیک مشکی",
     "brand": "Demo Muse",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-037",
     "image_order": 3,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-22.jpg",
-    "raw_source_sha256": "bb8b49bdba505ef3b1c0a5f93d13639d146a931b527c7e99a47df293caa79f54",
+    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-74.jpg",
+    "raw_source_sha256": "b8a297fe1280fc5178e739bbdeb8dc58c5fd91362ee8a01c69b615a4a88532ce",
     "final_relpath": "products/FSH-037/03.webp",
-    "final_sha256": "e469131cc31a3e747401468554e144d45283361496c8e7a62d699bfa90821916",
+    "final_sha256": "ce17aa617b474e53d56fdf9f5fdc9ecc62e429efc2b89d158bff2a301f20ab77",
     "derived": true,
     "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
     "category": "صندل و دمپایی",
-    "product_title_fa": "دمپایی حلقه‌ای مشکی",
+    "product_title_fa": "دمپایی انگشتی کلاسیک مشکی",
     "brand": "Demo Muse",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-038",
@@ -1789,7 +1900,8 @@
     "product_title_fa": "دمپایی حلقه‌ای سبز تیره",
     "brand": "Demo Muse",
     "dominant_color_fa": "سبز",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-038",
@@ -1805,7 +1917,8 @@
     "product_title_fa": "دمپایی حلقه‌ای سبز تیره",
     "brand": "Demo Muse",
     "dominant_color_fa": "سبز",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-038",
@@ -1821,103 +1934,110 @@
     "product_title_fa": "دمپایی حلقه‌ای سبز تیره",
     "brand": "Demo Muse",
     "dominant_color_fa": "سبز",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-039",
     "image_order": 1,
     "cover": true,
-    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-41.jpg",
-    "raw_source_sha256": "394313eb6588889091d3b4b4651892dc25b142ec67a351dba451fe81b7e7b17f",
+    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-8.jpg",
+    "raw_source_sha256": "b82c2af300c4f693067f7c7d1e1535c11948d963af97b3939537a222adc140ee",
     "final_relpath": "products/FSH-039/01.webp",
-    "final_sha256": "ff078f72aad79a873cb2840fe71f887289cc81dc41063f0e58eb315fde6e4a7c",
+    "final_sha256": "19d2d8c43da1d1eba772dcf9d345c80a510879e98d410e79f89ebc2070b9b7ef",
     "derived": false,
-    "transformation": "cover — full source frame, canvas-normalized only (no crop)",
+    "transformation": "cover — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "صندل و دمپایی",
-    "product_title_fa": "صندل تسمه‌ای قهوه‌ای",
+    "product_title_fa": "صندل دوبنده",
     "brand": "Demo Urban",
-    "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "مشکی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-039",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-41.jpg",
-    "raw_source_sha256": "394313eb6588889091d3b4b4651892dc25b142ec67a351dba451fe81b7e7b17f",
+    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-26.jpg",
+    "raw_source_sha256": "cab7c8d622caa0c2b6d0b41c93f0d0fb23272f48b528bab364fee4ef01fa09cd",
     "final_relpath": "products/FSH-039/02.webp",
-    "final_sha256": "86c762ea32f0857fc6165513e963f15a82c96fb6d04b0b093260326d70554ce2",
-    "derived": true,
-    "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
+    "final_sha256": "edfdf06cb83e034e2f82752a2ee23d46cca0ae5a8cfb6b28c5dc8d90b04d3c1b",
+    "derived": false,
+    "transformation": "additional real color — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "صندل و دمپایی",
-    "product_title_fa": "صندل تسمه‌ای قهوه‌ای",
+    "product_title_fa": "صندل دوبنده",
     "brand": "Demo Urban",
-    "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "طوسی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-039",
     "image_order": 3,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-41.jpg",
-    "raw_source_sha256": "394313eb6588889091d3b4b4651892dc25b142ec67a351dba451fe81b7e7b17f",
+    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-8.jpg",
+    "raw_source_sha256": "b82c2af300c4f693067f7c7d1e1535c11948d963af97b3939537a222adc140ee",
     "final_relpath": "products/FSH-039/03.webp",
-    "final_sha256": "59def5026a2f0cf0b4d7b43a83cff315e70e18b18f036618fba0aa697f06a7fb",
+    "final_sha256": "98db2b185d5abd593bef201529c99c1deca57318e8ae6029dbdaa25c8d49e658",
     "derived": true,
-    "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
+    "transformation": "derived — centered 82% non-destructive crop of the cover color's real photo, canvas-normalized",
     "category": "صندل و دمپایی",
-    "product_title_fa": "صندل تسمه‌ای قهوه‌ای",
+    "product_title_fa": "صندل دوبنده",
     "brand": "Demo Urban",
-    "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "مشکی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-040",
     "image_order": 1,
     "cover": true,
-    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-69.jpg",
-    "raw_source_sha256": "89a66debfdb775b5a00a26c60839315b11f27319634c9da9fefef70601b7c5bd",
+    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-9.jpg",
+    "raw_source_sha256": "876b407a48b0ee8b10651c8f518c32c679d29011a709af36b7b11519e02ea18e",
     "final_relpath": "products/FSH-040/01.webp",
-    "final_sha256": "c3745c7b8ac30747aabb1b22d23ec17d1762d501ea63424c637a1cf619100aae",
+    "final_sha256": "551bc58989f0f6751ed0db455deb6c491d60b933ebf2ad1cc10b0acb33b17673",
     "derived": false,
-    "transformation": "cover — full source frame, canvas-normalized only (no crop)",
+    "transformation": "cover — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "صندل و دمپایی",
-    "product_title_fa": "دمپایی اسلاید زیتونی",
+    "product_title_fa": "دمپایی قلب‌نشان",
     "brand": "Demo Muse",
-    "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "کرم",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-040",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-69.jpg",
-    "raw_source_sha256": "89a66debfdb775b5a00a26c60839315b11f27319634c9da9fefef70601b7c5bd",
+    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-91.jpg",
+    "raw_source_sha256": "0596e118758ddb954df5d69b0e777174ce4949e31c9a608d96e880b95e00202b",
     "final_relpath": "products/FSH-040/02.webp",
-    "final_sha256": "b120ddf48196cae1d05835130f78de419b58326e708ff5fb61142fc61f48f0c9",
-    "derived": true,
-    "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
+    "final_sha256": "ea82ab10d167b4bb037bc0065773e4062261e4385fc982987d3d7fabb306aea3",
+    "derived": false,
+    "transformation": "additional real color — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "صندل و دمپایی",
-    "product_title_fa": "دمپایی اسلاید زیتونی",
+    "product_title_fa": "دمپایی قلب‌نشان",
     "brand": "Demo Muse",
-    "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "قهوه‌ای",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-040",
     "image_order": 3,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-69.jpg",
-    "raw_source_sha256": "89a66debfdb775b5a00a26c60839315b11f27319634c9da9fefef70601b7c5bd",
+    "raw_source_relpath": "raw_user_catalog/4/0_org_zoom-22.jpg",
+    "raw_source_sha256": "bb8b49bdba505ef3b1c0a5f93d13639d146a931b527c7e99a47df293caa79f54",
     "final_relpath": "products/FSH-040/03.webp",
-    "final_sha256": "c061c9b955004e512be693a5f45eda8de451ed419f6c7be6f68d337ea94629e6",
-    "derived": true,
-    "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
+    "final_sha256": "d5b8272d486a99027997fa37ad9149e1d6120f73aeffa21e26d03c7ed32594a2",
+    "derived": false,
+    "transformation": "additional real color — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "صندل و دمپایی",
-    "product_title_fa": "دمپایی اسلاید زیتونی",
+    "product_title_fa": "دمپایی قلب‌نشان",
     "brand": "Demo Muse",
-    "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "مشکی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-041",
@@ -1933,7 +2053,8 @@
     "product_title_fa": "کیف تُت چرم مشکی",
     "brand": "Demo Carry",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-041",
@@ -1949,7 +2070,8 @@
     "product_title_fa": "کیف تُت چرم مشکی",
     "brand": "Demo Carry",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-041",
@@ -1965,7 +2087,8 @@
     "product_title_fa": "کیف تُت چرم مشکی",
     "brand": "Demo Carry",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-042",
@@ -1981,7 +2104,8 @@
     "product_title_fa": "کیف تُت زیتونی",
     "brand": "Demo Carry",
     "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-042",
@@ -1997,7 +2121,8 @@
     "product_title_fa": "کیف تُت زیتونی",
     "brand": "Demo Carry",
     "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-042",
@@ -2013,7 +2138,8 @@
     "product_title_fa": "کیف تُت زیتونی",
     "brand": "Demo Carry",
     "dominant_color_fa": "زیتونی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-043",
@@ -2029,7 +2155,8 @@
     "product_title_fa": "کیف تُت جیر قهوه‌ای",
     "brand": "Demo Carry",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-043",
@@ -2045,7 +2172,8 @@
     "product_title_fa": "کیف تُت جیر قهوه‌ای",
     "brand": "Demo Carry",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-043",
@@ -2061,7 +2189,8 @@
     "product_title_fa": "کیف تُت جیر قهوه‌ای",
     "brand": "Demo Carry",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-044",
@@ -2077,7 +2206,8 @@
     "product_title_fa": "کیف تُت روزمره مشکی",
     "brand": "Demo Urban",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-044",
@@ -2093,7 +2223,8 @@
     "product_title_fa": "کیف تُت روزمره مشکی",
     "brand": "Demo Urban",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-044",
@@ -2109,7 +2240,8 @@
     "product_title_fa": "کیف تُت روزمره مشکی",
     "brand": "Demo Urban",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-045",
@@ -2125,7 +2257,8 @@
     "product_title_fa": "کیف تُت خاکی بزرگ",
     "brand": "Demo Carry",
     "dominant_color_fa": "خاکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-045",
@@ -2141,7 +2274,8 @@
     "product_title_fa": "کیف تُت خاکی بزرگ",
     "brand": "Demo Carry",
     "dominant_color_fa": "خاکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-045",
@@ -2157,7 +2291,8 @@
     "product_title_fa": "کیف تُت خاکی بزرگ",
     "brand": "Demo Carry",
     "dominant_color_fa": "خاکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-046",
@@ -2173,7 +2308,8 @@
     "product_title_fa": "کیف دوشی چرم قهوه‌ای",
     "brand": "Demo Carry",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-046",
@@ -2189,7 +2325,8 @@
     "product_title_fa": "کیف دوشی چرم قهوه‌ای",
     "brand": "Demo Carry",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-046",
@@ -2205,7 +2342,8 @@
     "product_title_fa": "کیف دوشی چرم قهوه‌ای",
     "brand": "Demo Carry",
     "dominant_color_fa": "قهوه‌ای",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-047",
@@ -2221,7 +2359,8 @@
     "product_title_fa": "کیف دوشی مشکی کلاسیک",
     "brand": "Demo Carry",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-047",
@@ -2237,7 +2376,8 @@
     "product_title_fa": "کیف دوشی مشکی کلاسیک",
     "brand": "Demo Carry",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-047",
@@ -2253,7 +2393,8 @@
     "product_title_fa": "کیف دوشی مشکی کلاسیک",
     "brand": "Demo Carry",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-048",
@@ -2269,7 +2410,8 @@
     "product_title_fa": "کیف دوشی زنجیری مشکی",
     "brand": "Demo Muse",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-048",
@@ -2285,7 +2427,8 @@
     "product_title_fa": "کیف دوشی زنجیری مشکی",
     "brand": "Demo Muse",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-048",
@@ -2301,7 +2444,8 @@
     "product_title_fa": "کیف دوشی زنجیری مشکی",
     "brand": "Demo Muse",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-049",
@@ -2312,28 +2456,30 @@
     "final_relpath": "products/FSH-049/01.webp",
     "final_sha256": "e652b6ab01b9f395dd358b2b310dc9bbf5402b6824b621acb6b379f4bf136d7f",
     "derived": false,
-    "transformation": "cover — full source frame, canvas-normalized only (no crop)",
+    "transformation": "cover — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "کیف دوشی و مجلسی",
-    "product_title_fa": "کیف مجلسی زرد شنیونی",
+    "product_title_fa": "کیف مجلسی شنیونی",
     "brand": "Demo Carry",
     "dominant_color_fa": "زرد",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-049",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/5/0_org_zoom-56.jpg",
-    "raw_source_sha256": "5474585e6c76cb34d4d8cc684aba934bc1110e029867128a990fedaa541bbece",
+    "raw_source_relpath": "raw_user_catalog/5/0_org_zoom-3.jpg",
+    "raw_source_sha256": "119915ec87b8054b94a52eee9e05f21f5f91fe8f86e59288fd02544d36ef0f2f",
     "final_relpath": "products/FSH-049/02.webp",
-    "final_sha256": "225a6e9cf2609f6b7165c8714d42afefe003ea7a367615b95c780f378de40b83",
-    "derived": true,
-    "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
+    "final_sha256": "1256ac1f5fd9cf22fb272e9b4f34c7ddb14342b1e239fdb32e8fa8d8d804aa2a",
+    "derived": false,
+    "transformation": "additional real color — real full-frame photo for this exact color, canvas-normalized only (no crop)",
     "category": "کیف دوشی و مجلسی",
-    "product_title_fa": "کیف مجلسی زرد شنیونی",
+    "product_title_fa": "کیف مجلسی شنیونی",
     "brand": "Demo Carry",
-    "dominant_color_fa": "زرد",
-    "provenance_status": "user_supplied_qa_source"
+    "dominant_color_fa": "مشکی",
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-049",
@@ -2342,61 +2488,65 @@
     "raw_source_relpath": "raw_user_catalog/5/0_org_zoom-56.jpg",
     "raw_source_sha256": "5474585e6c76cb34d4d8cc684aba934bc1110e029867128a990fedaa541bbece",
     "final_relpath": "products/FSH-049/03.webp",
-    "final_sha256": "47ee1c8fba5d352202bf4b8178a8a12efd8f3cab57c5cc12477880cae121af71",
+    "final_sha256": "225a6e9cf2609f6b7165c8714d42afefe003ea7a367615b95c780f378de40b83",
     "derived": true,
-    "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
+    "transformation": "derived — centered 82% non-destructive crop of the cover color's real photo, canvas-normalized",
     "category": "کیف دوشی و مجلسی",
-    "product_title_fa": "کیف مجلسی زرد شنیونی",
+    "product_title_fa": "کیف مجلسی شنیونی",
     "brand": "Demo Carry",
     "dominant_color_fa": "زرد",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": true
   },
   {
     "sku": "FSH-050",
     "image_order": 1,
     "cover": true,
-    "raw_source_relpath": "raw_user_catalog/5/1_org_zoom-28.jpg",
-    "raw_source_sha256": "ada5a392380e346f314f9a00d10ae74dd5e38ea9ebc66c63c0cf97dbe3b61553",
+    "raw_source_relpath": "raw_user_catalog/5/0_org_zoom-24.jpg",
+    "raw_source_sha256": "02bcfea0fb2e2cb3653ebc32ae0a1b1facfb5d591ae09d8c448de3388e59194d",
     "final_relpath": "products/FSH-050/01.webp",
-    "final_sha256": "1047b38b389dd4a6272a3d55b7ed0007370ce5f0de4de720b748ef6b5f5b7e83",
+    "final_sha256": "ad922107cbbd66ce35a3d9bddd412614daf14857ab7ecdbff20ef1ccc657fd46",
     "derived": false,
     "transformation": "cover — full source frame, canvas-normalized only (no crop)",
     "category": "کیف دوشی و مجلسی",
     "product_title_fa": "کیف دوشی زنجیردار مشکی",
     "brand": "Demo Carry",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-050",
     "image_order": 2,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/5/1_org_zoom-28.jpg",
-    "raw_source_sha256": "ada5a392380e346f314f9a00d10ae74dd5e38ea9ebc66c63c0cf97dbe3b61553",
+    "raw_source_relpath": "raw_user_catalog/5/0_org_zoom-24.jpg",
+    "raw_source_sha256": "02bcfea0fb2e2cb3653ebc32ae0a1b1facfb5d591ae09d8c448de3388e59194d",
     "final_relpath": "products/FSH-050/02.webp",
-    "final_sha256": "c00ca9fad4918f039a4f6b8bbc71b3ef3a381664f43268a63d9306fd165a51d1",
+    "final_sha256": "a46eb4f319063a4e162eb65a191e5d8e94cfe69650ea4d90418f96fed7c3c81a",
     "derived": true,
     "transformation": "derived — centered 82% non-destructive crop, canvas-normalized",
     "category": "کیف دوشی و مجلسی",
     "product_title_fa": "کیف دوشی زنجیردار مشکی",
     "brand": "Demo Carry",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   },
   {
     "sku": "FSH-050",
     "image_order": 3,
     "cover": false,
-    "raw_source_relpath": "raw_user_catalog/5/1_org_zoom-28.jpg",
-    "raw_source_sha256": "ada5a392380e346f314f9a00d10ae74dd5e38ea9ebc66c63c0cf97dbe3b61553",
+    "raw_source_relpath": "raw_user_catalog/5/0_org_zoom-24.jpg",
+    "raw_source_sha256": "02bcfea0fb2e2cb3653ebc32ae0a1b1facfb5d591ae09d8c448de3388e59194d",
     "final_relpath": "products/FSH-050/03.webp",
-    "final_sha256": "32ec89c21b1d76ea7c9ae925beb74c5fcbb1b4950f17bbe055bcd6374dac04c4",
+    "final_sha256": "bd868bbd07ebe4f9f0e4656831a6e2bf9ac70c198b9500e0958016b8eaf9c237",
     "derived": true,
     "transformation": "derived — centered 70% non-destructive crop (slight offset), canvas-normalized",
     "category": "کیف دوشی و مجلسی",
     "product_title_fa": "کیف دوشی زنجیردار مشکی",
     "brand": "Demo Carry",
     "dominant_color_fa": "مشکی",
-    "provenance_status": "user_supplied_qa_source"
+    "provenance_status": "user_supplied_qa_source",
+    "multi_color_product": false
   }
 ]

@@ -154,7 +154,9 @@ COLOR_HEX = {
     "سبز": "#4B6B3A", "مشکی": "#1A1A1A", "آبی روشن": "#8FB6D9", "کرم": "#F1E9D8",
     "سرمه‌ای": "#1E3A5F", "صورتی": "#F4B4C6", "سفید": "#F9FAFB", "طوسی": "#8C8C8C",
     "آبی": "#3B5B8C", "دودی": "#5C6066", "خاکی": "#A38F6D", "قرمز": "#B23A2E",
-    "زرد": "#D9B23C", "قهوه‌ای": "#6B4A32", "زیتونی": "#6B7B3A",
+    "زرد": "#D9B23C", "قهوه‌ای": "#6B4A32", "زیتونی": "#6B7B3A", "بژ": "#E8DCC8",
+    # رنگ‌هایِ دورنگِ واقعی (مأموریتِ چندرنگِ Issue 2) — فقط برایِ swatch:
+    "سفید-صورتی": "#F0C9D2", "کرم-مشکی": "#D8CBB0", "زیتونی-کرم": "#A9A26A",
 }
 _FALLBACK_COLOR_HEX = "#9CA3AF"
 
@@ -174,17 +176,17 @@ PRODUCT_MATRIX = [
     ("FSH-001", "کتانی رانینگ", "کتانی رانینگ چانکی سبز-کرم", "Demo Motion", 3450000, 2750000, "سبز", ["40", "41", "42", "43", "44"], OUT_OF_STOCK),
     ("FSH-002", "کتانی رانینگ", "کتانی رانینگ بندی مشکی", "Demo Motion", 4150000, None, "مشکی", ["41", "42", "43", "44", "45"], PARTIAL_VARIANT_STOCK),
     ("FSH-003", "کتانی رانینگ", "کتانی رانینگ سبک آبی روشن", "Demo Urban", 2890000, 2390000, "آبی روشن", ["39", "40", "41", "42", "43"], IN_STOCK),
-    ("FSH-004", "کتانی رانینگ", "کتانی رانینگ دد-شو کرم", "Demo Motion", 3950000, None, "کرم", ["40", "41", "42", "43"], IN_STOCK),
+    ("FSH-004", "کتانی رانینگ", "کتانی رانینگ چانکی کلاسیک", "Demo Motion", 3950000, None, ("کرم", "سفید"), ["40", "41", "42", "43"], PARTIAL_VARIANT_STOCK),
     ("FSH-005", "کتانی رانینگ", "کتانی رانینگ مسابقه‌ای مشکی-سفید", "Demo Motion", 6450000, 5290000, "مشکی", ["40", "41", "42", "43", "44"], IN_STOCK),
 
-    ("FSH-006", "کتانی کژوال", "کتانی کژوال راه‌راه سرمه‌ای", "Demo Urban", 3250000, None, "سرمه‌ای", ["39", "40", "41", "42"], OUT_OF_STOCK),
+    ("FSH-006", "کتانی کژوال", "کتانی کژوال کلاسیک راه‌راه", "Demo Urban", 3250000, None, ("مشکی", "سفید"), ["39", "40", "41", "42"], OUT_OF_STOCK),
     ("FSH-007", "کتانی کژوال", "کتانی کژوال کلاسیک مشکی", "Demo Urban", 2950000, 2450000, "مشکی", ["40", "41", "42", "43", "44"], PARTIAL_VARIANT_STOCK),
-    ("FSH-008", "کتانی کژوال", "کتانی کژوال بلند صورتی", "Demo Urban", 3650000, None, "صورتی", ["37", "38", "39", "40", "41"], IN_STOCK),
-    ("FSH-009", "کتانی کژوال", "کتانی کژوال بلند مشکی", "Demo Motion", 3150000, 2690000, "مشکی", ["40", "41", "42", "43", "44"], IN_STOCK),
+    ("FSH-008", "کتانی کژوال", "کتانی کژوال بلند کلاسیک", "Demo Urban", 3650000, None, ("سفید-صورتی", "مشکی"), ["37", "38", "39", "40", "41"], IN_STOCK),
+    ("FSH-009", "کتانی کژوال", "کتانی کژوال اسپرت سفید-مشکی", "Demo Motion", 3150000, 2690000, "سفید", ["40", "41", "42", "43", "44"], IN_STOCK),
     ("FSH-010", "کتانی کژوال", "کتانی کژوال ساده سفید", "Demo Urban", 2690000, None, "سفید", ["39", "40", "41", "42", "43"], IN_STOCK),
 
     ("FSH-011", "شلوار کژوال", "شلوار کتان کژوال سرمه‌ای", "Demo Denim", 2450000, 1990000, "سرمه‌ای", ["30", "32", "34", "36"], OUT_OF_STOCK),
-    ("FSH-012", "شلوار کژوال", "شلوار کتان کژوال قهوه‌ای تیره", "Demo Denim", 2690000, None, "قهوه‌ای", ["30", "32", "34", "36", "38"], PARTIAL_VARIANT_STOCK),
+    ("FSH-012", "شلوار کژوال", "شلوار کتان بندی کژوال", "Demo Denim", 2690000, None, ("بژ", "سرمه‌ای"), ["30", "32", "34", "36", "38"], PARTIAL_VARIANT_STOCK),
     ("FSH-013", "شلوار کژوال", "شلوار کتان مشکی روزمره", "Demo Urban", 2290000, 1890000, "مشکی", ["28", "30", "32", "34"], IN_STOCK),
     ("FSH-014", "شلوار کژوال", "شلوار کتان کرم ریلکس", "Demo Denim", 2850000, None, "کرم", ["30", "32", "34", "36"], IN_STOCK),
     ("FSH-015", "شلوار کژوال", "شلوار کتان زیتونی کژوال", "Demo Denim", 3150000, None, "زیتونی", ["30", "32", "34", "36", "38"], IN_STOCK),
@@ -196,8 +198,8 @@ PRODUCT_MATRIX = [
     ("FSH-020", "شلوار جین", "شلوار جین آبی راسته کلاسیک", "Demo Denim", 3050000, 2590000, "آبی", ["30", "32", "34", "36"], IN_STOCK),
 
     ("FSH-021", "کاپشن و بامبر", "کاپشن بامبر زیتونی", "Demo Layer", 5450000, None, "زیتونی", ["S", "M", "L", "XL"], OUT_OF_STOCK),
-    ("FSH-022", "کاپشن و بامبر", "کاپشن بامبر کالج مشکی-کرم", "Demo Layer", 6250000, None, "مشکی", ["S", "M", "L", "XL", "XXL"], PARTIAL_VARIANT_STOCK),
-    ("FSH-023", "کاپشن و بامبر", "کاپشن بامبر کالج زیتونی-کرم", "Demo Layer", 5950000, 4950000, "زیتونی", ["M", "L", "XL"], IN_STOCK),
+    ("FSH-022", "کاپشن و بامبر", "کاپشن بامبر کالج", "Demo Layer", 6250000, None, ("کرم-مشکی", "زیتونی-کرم"), ["S", "M", "L", "XL", "XXL"], PARTIAL_VARIANT_STOCK),
+    ("FSH-023", "کاپشن و بامبر", "کاپشن بامبر مشکی ساده", "Demo Layer", 5950000, 4950000, "مشکی", ["M", "L", "XL"], IN_STOCK),
     ("FSH-024", "کاپشن و بامبر", "هودی زیپ‌دار آبی", "Demo Urban", 4450000, 3790000, "آبی", ["S", "M", "L", "XL"], IN_STOCK),
     ("FSH-025", "کاپشن و بامبر", "کاپشن بامبر دودی", "Demo Motion", 5150000, None, "دودی", ["M", "L", "XL", "XXL"], IN_STOCK),
 
@@ -214,10 +216,10 @@ PRODUCT_MATRIX = [
     ("FSH-035", "کفش زنانه", "کفش لوفر زنانه مشکی", "Demo Muse", 3150000, 2650000, "مشکی", ["37", "38", "39", "40"], IN_STOCK),
 
     ("FSH-036", "صندل و دمپایی", "صندل جواهرنشان قهوه‌ای", "Demo Muse", 2250000, None, "قهوه‌ای", ["36", "37", "38", "39"], OUT_OF_STOCK),
-    ("FSH-037", "صندل و دمپایی", "دمپایی حلقه‌ای مشکی", "Demo Muse", 2050000, None, "مشکی", ["37", "38", "39", "40"], PARTIAL_VARIANT_STOCK),
+    ("FSH-037", "صندل و دمپایی", "دمپایی انگشتی کلاسیک مشکی", "Demo Muse", 2050000, None, "مشکی", ["37", "38", "39", "40"], PARTIAL_VARIANT_STOCK),
     ("FSH-038", "صندل و دمپایی", "دمپایی حلقه‌ای سبز تیره", "Demo Muse", 2150000, 1790000, "سبز", ["36", "37", "38"], IN_STOCK),
-    ("FSH-039", "صندل و دمپایی", "صندل تسمه‌ای قهوه‌ای", "Demo Urban", 2650000, 2190000, "قهوه‌ای", ["37", "38", "39", "40"], IN_STOCK),
-    ("FSH-040", "صندل و دمپایی", "دمپایی اسلاید زیتونی", "Demo Muse", 2050000, None, "زیتونی", ["36", "37", "38", "39"], IN_STOCK),
+    ("FSH-039", "صندل و دمپایی", "صندل دوبنده", "Demo Urban", 2650000, 2190000, ("مشکی", "طوسی"), ["37", "38", "39", "40"], IN_STOCK),
+    ("FSH-040", "صندل و دمپایی", "دمپایی قلب‌نشان", "Demo Muse", 2050000, None, ("کرم", "قهوه‌ای", "مشکی"), ["36", "37", "38", "39"], IN_STOCK),
 
     ("FSH-041", "کیف دستی و Tote", "کیف تُت چرم مشکی", "Demo Carry", 4450000, 3650000, "مشکی", None, OUT_OF_STOCK),
     ("FSH-042", "کیف دستی و Tote", "کیف تُت زیتونی", "Demo Carry", 3950000, None, "زیتونی", None, IN_STOCK),
@@ -228,7 +230,7 @@ PRODUCT_MATRIX = [
     ("FSH-046", "کیف دوشی و مجلسی", "کیف دوشی چرم قهوه‌ای", "Demo Carry", 3650000, None, "قهوه‌ای", None, OUT_OF_STOCK),
     ("FSH-047", "کیف دوشی و مجلسی", "کیف دوشی مشکی کلاسیک", "Demo Carry", 2950000, 2450000, "مشکی", None, IN_STOCK),
     ("FSH-048", "کیف دوشی و مجلسی", "کیف دوشی زنجیری مشکی", "Demo Muse", 4150000, None, "مشکی", None, IN_STOCK),
-    ("FSH-049", "کیف دوشی و مجلسی", "کیف مجلسی زرد شنیونی", "Demo Carry", 3350000, 2790000, "زرد", None, IN_STOCK),
+    ("FSH-049", "کیف دوشی و مجلسی", "کیف مجلسی شنیونی", "Demo Carry", 3350000, 2790000, ("زرد", "مشکی"), None, PARTIAL_VARIANT_STOCK),
     ("FSH-050", "کیف دوشی و مجلسی", "کیف دوشی زنجیردار مشکی", "Demo Carry", 3850000, None, "مشکی", None, IN_STOCK),
 ]
 
@@ -555,6 +557,11 @@ class Command(BaseCommand):
         category_position = {}
         for row in PRODUCT_MATRIX:
             code, category_name, name, brand_name, regular_price, sale_price, color, sizes, stock_state = row
+            # طبقِ الزامِ Issue 2 (پستِ‌دمو hardening): ``color`` یا یک رشته‌یِ
+            # تک‌رنگ است یا یک tuple از رنگ‌هایِ واقعیِ چندگانه (به همان
+            # ترتیبِ تصاویرِ پردازش‌شده در manifest) — این‌جا همیشه به یک
+            # tuple نرمال می‌شود تا بقیه‌یِ کد یک‌دست باشد.
+            colors = color if isinstance(color, tuple) else (color,)
             category_position[category_name] = category_position.get(category_name, 0) + 1
             position = category_position[category_name]
 
@@ -563,14 +570,17 @@ class Command(BaseCommand):
             slug = f"{slugify(name, allow_unicode=True)}-{code.lower()}"
             discount_percent = _compute_discount_percent(regular_price, sale_price)
             is_bag = category_name in BAG_CATEGORIES
-            product_type = Product.ProductType.SIMPLE if is_bag else Product.ProductType.VARIABLE
+            # کیفِ چندرنگ (Issue 2): بدونِ محورِ سایز اما با محورِ رنگِ
+            # واقعی — پس دیگر SIMPLE نیست، باید VARIABLE باشد تا تنوعِ
+            # رنگ‌محور واقعی (نه فقط یک برچسبِ ساختگی) ساخته شود.
+            product_type = Product.ProductType.SIMPLE if (is_bag and len(colors) == 1) else Product.ProductType.VARIABLE
 
             product, created = Product.objects.get_or_create(
                 store=store, sku=code,
                 defaults={
                     "vendor": vendor, "category": category, "brand": brand,
                     "name": name, "slug": slug,
-                    "description": _description_for(name, category_name, color, brand_name),
+                    "description": _description_for(name, category_name, colors[0], brand_name),
                     "price": regular_price, "discount_percent": discount_percent,
                     "status": Product.Status.ACTIVE,
                     "product_type": product_type,
@@ -600,7 +610,7 @@ class Command(BaseCommand):
             tag_names = _tags_for(code, category_name, position, discount_percent > 0)
             product.tags.set([tags[t] for t in tag_names])
 
-            products.append((product, color, sizes, stock_state, is_bag))
+            products.append((product, colors, sizes, stock_state, is_bag))
         return products
 
     # ------------------------------------------------------------------ Variants (apparel/footwear) + SIMPLE stock (bags)
@@ -609,38 +619,56 @@ class Command(BaseCommand):
         total = 0
         products_with_variants = 0
 
-        for product, color, sizes, stock_state, is_bag in products:
-            if is_bag:
-                # کیف: بدونِ محورِ سایز — SIMPLE با Product.stock مستقیم.
+        for product, colors, sizes, stock_state, is_bag in products:
+            if is_bag and len(colors) == 1:
+                # کیفِ تک‌رنگ: بدونِ محورِ رنگ/سایز — SIMPLE با Product.stock مستقیم.
                 new_stock = 0 if stock_state == OUT_OF_STOCK else _SIMPLE_HEALTHY_STOCK
                 if product.stock != new_stock:
                     product.stock = new_stock
                     product.save(update_fields=["stock", "updated_at"])
                 continue
 
+            # از این‌جا به بعد: کالایِ دارایِ محورِ تنوعِ واقعی — یا پوشاک/کفشِ
+            # همیشگی (رنگ×سایز)، یا کیفِ چندرنگِ Issue 2 (فقط محورِ رنگ،
+            # بدونِ سایز — کیف اصلاً سایزِ معنادار ندارد).
             if not product.options.filter(is_active=True).exists():
                 variant_engine_service.add_product_option(
                     product, label="رنگ", input_type=ProductOption.InputType.COLOR,
-                    values=[color], color_hex_by_label={color: COLOR_HEX.get(color, _FALLBACK_COLOR_HEX)},
+                    values=list(colors),
+                    color_hex_by_label={c: COLOR_HEX.get(c, _FALLBACK_COLOR_HEX) for c in colors},
                 )
-                variant_engine_service.add_product_option(product, label="سایز", values=sizes)
+                if sizes:
+                    variant_engine_service.add_product_option(product, label="سایز", values=sizes)
 
             variant_engine_service.generate_variants(product)
 
-            first_size = sizes[0]
+            first_size = sizes[0] if sizes else None
+            first_color = colors[0]
             variants = list(product.variants.filter(is_obsolete=False))
             to_update = []
             product_total_stock = 0
             for variant in variants:
-                _, _, size_label = variant.value.partition(" / ")
+                # محورِ «رنگ» همیشه اول اضافه می‌شود، پس بخشِ اولِ
+                # ``value`` (پیش از اولین " / " اگر سایز هم باشد، یا کلِ
+                # مقدار اگر فقط محورِ رنگ باشد) همیشه برچسبِ رنگِ همین
+                # تنوع است.
+                color_label, _, size_label = variant.value.partition(" / ")
                 if stock_state == OUT_OF_STOCK:
                     new_stock = 0
-                elif stock_state == PARTIAL_VARIANT_STOCK and size_label == first_size:
+                elif stock_state == PARTIAL_VARIANT_STOCK and first_size is not None and size_label == first_size:
+                    # ناموجودیِ اولین سایز — چون این شرط رویِ *همه‌یِ*
+                    # رنگ‌ها اعمال می‌شود، به‌طورِ طبیعی از مرزِ رنگ عبور
+                    # می‌کند (دقیقاً الزامِ صریحِ کار).
                     new_stock = 0
+                elif stock_state == PARTIAL_VARIANT_STOCK and first_size is None:
+                    # کیفِ چندرنگِ بدونِ سایز: فقط اولین رنگِ (کاور) ناموجود
+                    # می‌شود — نمونه‌یِ partial-stock که از مرزِ رنگ عبور
+                    # می‌کند بدونِ محورِ سایز.
+                    new_stock = 0 if color_label == first_color else _SIMPLE_HEALTHY_STOCK
                 elif stock_state == PARTIAL_VARIANT_STOCK:
                     new_stock = _PARTIAL_HEALTHY_VARIANT_STOCK
                 else:
-                    new_stock = _HEALTHY_VARIANT_STOCK
+                    new_stock = _HEALTHY_VARIANT_STOCK if sizes else _SIMPLE_HEALTHY_STOCK
                 product_total_stock += new_stock
                 if variant.stock != new_stock:
                     variant.stock = new_stock
@@ -662,25 +690,28 @@ class Command(BaseCommand):
 
     def _seed_product_images(self, products: list) -> int:
         created_count = 0
-        for product, color, _sizes, _stock_state, is_bag in products:
+        for product, colors, _sizes, _stock_state, _is_bag in products:
             if product.images.count() >= 3:
                 continue
-            color_option = None if is_bag else product.options.filter(label="رنگ", is_active=True).first()
-            color_value = color_option.values.filter(is_active=True).first() if color_option else None
+            color_option = product.options.filter(label="رنگ", is_active=True).first()
+            value_by_label = {}
+            if color_option is not None:
+                value_by_label = {v.label: v for v in color_option.values.filter(is_active=True)}
 
             for order in (1, 2, 3):
                 image = add_product_image(
                     product, _load_processed_image(product.sku, order),
                     alt=f"{product.name} — تصویر {order}",
                 )
-                # تک‌رنگ: نگاشتِ رنگ فقط برایِ کالاهایِ دارایِ محورِ رنگِ
-                # واقعی معنا دارد (نه برایِ کیف‌هایِ SIMPLE بدونِ محور) —
-                # طبقِ الزامِ صریحِ کار «هرگز نگاشتِ ساختگی برایِ کالایِ
-                # تک‌رنگ نسازید»، این‌جا فقط اولین تصویر (کاور) را به تنها
-                # مقدارِ رنگِ موجود وصل می‌کنیم تا در آینده اگر رنگِ دومی
-                # اضافه شود، ساختارِ نگاشت از قبل معتبر باشد.
-                if color_value is not None and order == 1:
-                    set_image_option_value(image, color_value)
+                # نگاشتِ واقعیِ رنگ→تصویر (Issue 2): ترتیبِ تصویرِ ۱..۳ دقیقاً
+                # با ترتیبِ رنگ‌هایِ واقعیِ اعلام‌شده در manifest یکی است —
+                # برایِ کالایِ چندرنگ هر تصویر به رنگِ واقعیِ خودش وصل
+                # می‌شود؛ برایِ کالایِ تک‌رنگ هر سه تصویر به همان تنها مقدارِ
+                # رنگِ موجود وصل می‌شوند (هرگز نگاشتِ ساختگی/حدسی).
+                color_for_order = colors[min(order - 1, len(colors) - 1)]
+                value = value_by_label.get(color_for_order)
+                if value is not None:
+                    set_image_option_value(image, value)
                 created_count += 1
         return created_count
 
@@ -701,7 +732,7 @@ class Command(BaseCommand):
             source_path = PRODUCT_MEDIA_DIR / sku / "01.webp"
             data = _composite_visual_bytes(
                 width=800, height=600, product_paths=[source_path],
-                bg_hex=COLOR_HEX.get(next(c for p, c, *_ in products if p.sku == sku), _FALLBACK_COLOR_HEX),
+                bg_hex=COLOR_HEX.get(next(c for p, c, *_ in products if p.sku == sku)[0], _FALLBACK_COLOR_HEX),
             )
             category.image = SimpleUploadedFile(f"category-{category.slug}.jpg", data, content_type="image/jpeg")
             category.save(update_fields=["image", "updated_at"])
@@ -859,7 +890,7 @@ class Command(BaseCommand):
             path = PRODUCT_MEDIA_DIR / sku / "01.webp"
             item.image = _uploaded_composite(
                 filename=f"story-{order}.jpg", width=400, height=400, product_paths=[path],
-                bg_hex=COLOR_HEX.get(next(c for p, c, *_ in products if p.sku == sku), _FALLBACK_COLOR_HEX),
+                bg_hex=COLOR_HEX.get(next(c for p, c, *_ in products if p.sku == sku)[0], _FALLBACK_COLOR_HEX),
             )
             item.save()
             created_count += 1

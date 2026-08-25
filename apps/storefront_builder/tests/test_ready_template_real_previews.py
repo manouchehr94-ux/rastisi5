@@ -69,7 +69,7 @@ class RealScreenshotResolverTests(TestCase):
 
         with mock.patch.object(Path, "is_file", return_value=True), \
              mock.patch("apps.storefront_builder.services.template_preview_service.json.loads",
-                        return_value={"content_hash": "definitely-not-the-real-hash"}), \
+                        return_value={"preview_input_fingerprint": "definitely-not-the-real-hash"}), \
              mock.patch.object(Path, "read_text", return_value="{}"):
             result = tps.resolve_real_screenshot(preset)
         self.assertIsNone(result)
@@ -77,10 +77,10 @@ class RealScreenshotResolverTests(TestCase):
     def test_matching_content_hash_resolves_the_expected_relpath(self):
         preset = lpr.get_layout_preset("dense_marketplace")
         expected_relpath = tps.screenshot_relpath(preset.key)
-        real_hash = tps.preview_content_hash(preset)
+        real_fingerprint = tps.preview_input_fingerprint(preset)
 
         with mock.patch.object(Path, "is_file", return_value=True), \
-             mock.patch.object(Path, "read_text", return_value=json.dumps({"content_hash": real_hash})):
+             mock.patch.object(Path, "read_text", return_value=json.dumps({"preview_input_fingerprint": real_fingerprint})):
             result = tps.resolve_real_screenshot(preset)
         self.assertEqual(result, expected_relpath)
 
@@ -100,7 +100,7 @@ class RealScreenshotResolverTests(TestCase):
     def test_screenshot_relpath_shape_matches_the_mission_spec(self):
         self.assertEqual(tps.screenshot_relpath("dense_marketplace", 1), "ready_template_previews/dense_marketplace/v1.webp")
 
-    def test_resolve_real_screenshot_never_imports_playwright(self):
+    def test_f_resolve_real_screenshot_never_imports_playwright(self):
         """Structural proof of the no-browser-launch contract (Step 23) —
         the module may *mention* Playwright in prose (it documents the
         offline capture tool that produces the files it reads), but must
@@ -115,6 +115,88 @@ class RealScreenshotResolverTests(TestCase):
             self.assertFalse(stripped.startswith("from playwright"), line)
             self.assertFalse(stripped.startswith("import selenium"), line)
             self.assertFalse(stripped.startswith("from selenium"), line)
+
+
+class PreviewInputFingerprintTests(TestCase):
+    """Post-demo hardening pass, Issue 3 — stale-content tests A-F.
+
+    ``preview_content_hash`` alone (Batch 3/the mission's original real-
+    screenshot work) only covered the Template registry — it missed the
+    real case of "Template unchanged, but the Demo Store's real catalog/
+    media/content changed" (e.g. this mission's own Issue 2 multi-color
+    rework). ``preview_input_fingerprint`` closes that gap; these tests
+    mock the two underlying file hashes directly (never touching the real,
+    possibly-committed screenshot/meta files on disk) to prove each
+    required staleness case without any real capture/browser involved."""
+
+    @staticmethod
+    def _fake_file_hash(manifest_hash: str, seed_hash: str):
+        def fake(path):
+            if path == tps._DEMO_MEDIA_MANIFEST_PATH:
+                return manifest_hash
+            if path == tps._DEMO_SEED_COMMAND_PATH:
+                return seed_hash
+            raise AssertionError(f"unexpected path hashed: {path}")
+        return fake
+
+    def test_c_unchanged_inputs_resolve_normally(self):
+        preset = lpr.get_layout_preset("dense_marketplace")
+        with mock.patch.object(tps, "_file_hash", side_effect=self._fake_file_hash("m1", "s1")):
+            fingerprint = tps.preview_input_fingerprint(preset)
+            with mock.patch.object(Path, "is_file", return_value=True), \
+                 mock.patch.object(Path, "read_text", return_value=json.dumps({"preview_input_fingerprint": fingerprint})):
+                self.assertEqual(tps.resolve_real_screenshot(preset), tps.screenshot_relpath(preset.key))
+
+    def test_a_same_template_version_but_changed_media_manifest_is_stale(self):
+        preset = lpr.get_layout_preset("dense_marketplace")
+        with mock.patch.object(tps, "_file_hash", side_effect=self._fake_file_hash("m1", "s1")):
+            captured_fingerprint = tps.preview_input_fingerprint(preset)
+
+        # Demo media manifest changed (e.g. Issue 2's multi-color rework) —
+        # the Template registry (key/version) is completely untouched.
+        with mock.patch.object(tps, "_file_hash", side_effect=self._fake_file_hash("m2-CHANGED", "s1")), \
+             mock.patch.object(Path, "is_file", return_value=True), \
+             mock.patch.object(Path, "read_text", return_value=json.dumps({"preview_input_fingerprint": captured_fingerprint})):
+            self.assertIsNone(tps.resolve_real_screenshot(preset))
+
+    def test_b_same_template_version_but_changed_demo_catalog_content_is_stale(self):
+        preset = lpr.get_layout_preset("dense_marketplace")
+        with mock.patch.object(tps, "_file_hash", side_effect=self._fake_file_hash("m1", "s1")):
+            captured_fingerprint = tps.preview_input_fingerprint(preset)
+
+        # The seed command's own deterministic catalog/content definition
+        # changed (new products, prices, hero/banner copy, ...) — again,
+        # the Template registry itself is untouched.
+        with mock.patch.object(tps, "_file_hash", side_effect=self._fake_file_hash("m1", "s2-CHANGED")), \
+             mock.patch.object(Path, "is_file", return_value=True), \
+             mock.patch.object(Path, "read_text", return_value=json.dumps({"preview_input_fingerprint": captured_fingerprint})):
+            self.assertIsNone(tps.resolve_real_screenshot(preset))
+
+    def test_d_another_templates_screenshot_cannot_satisfy_the_current_template(self):
+        preset_a = lpr.get_layout_preset("dense_marketplace")
+        preset_b = lpr.get_layout_preset("warm_boutique")
+        with mock.patch.object(tps, "_file_hash", side_effect=self._fake_file_hash("m1", "s1")):
+            fingerprint_a = tps.preview_input_fingerprint(preset_a)
+
+            with mock.patch.object(Path, "is_file", return_value=True), \
+                 mock.patch.object(Path, "read_text", return_value=json.dumps({"preview_input_fingerprint": fingerprint_a})):
+                self.assertIsNone(tps.resolve_real_screenshot(preset_b))
+
+    def test_e_stale_screenshot_falls_back_safely_to_the_svg_schematic(self):
+        """See ``GalleryRealScreenshotIntegrationTests.test_every_card_renders_either_a_real_screenshot_or_the_svg_fallback``
+        for the full HTTP-level proof; this unit-level check proves the
+        resolver's own contract: stale (None) never raises, and the
+        fallback SVG schematic is always independently available."""
+        preset = lpr.get_layout_preset("dense_marketplace")
+        with mock.patch.object(tps, "_file_hash", side_effect=self._fake_file_hash("m1", "s1")):
+            captured_fingerprint = tps.preview_input_fingerprint(preset)
+        with mock.patch.object(tps, "_file_hash", side_effect=self._fake_file_hash("m-STALE", "s1")), \
+             mock.patch.object(Path, "is_file", return_value=True), \
+             mock.patch.object(Path, "read_text", return_value=json.dumps({"preview_input_fingerprint": captured_fingerprint})):
+            self.assertIsNone(tps.resolve_real_screenshot(preset))
+        fallback = tps.resolve_gallery_thumbnail(preset)
+        self.assertTrue(fallback.startswith("<svg"))
+        self.assertTrue(fallback.endswith("</svg>"))
 
 
 class CommittedScreenshotIntegrityTests(TestCase):

@@ -328,5 +328,17 @@ Phase 8 P0-7 — کارتِ مستقلِ «قالب فروشگاه» و گالر
         <button type="submit" class="btn btn-primary">اعمال شخصی‌سازی</button>
       </div>
     </form>
+    {% if draft.template_baseline_snapshot.appearance %}
+    {# Post-demo hardening pass (Issue 7) — RESET FIELD for a top-level #}
+    {# appearance key. Placed as its own standalone form (the big #}
+    {# customization form above already owns a single POST/action, and a #}
+    {# nested <form> would be invalid HTML) — "تراکم فاصله‌ها" (density) #}
+    {# is the one appearance setting every Ready Template baseline sets. #}
+    <form method="post" action="{% url 'dashboard:storefront-builder-appearance-field-reset' %}" style="margin-top:10px"
+          onsubmit="return confirm('«تراکمِ فاصله‌ها» به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+      {% csrf_token %}<input type="hidden" name="field" value="density">
+      <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی «تراکم فاصله‌ها» به قالب</button>
+    </form>
+    {% endif %}
   </div>
 </div>

@@ -833,12 +833,55 @@ def restore_version(store, version_id, *, user=None) -> StorefrontLayoutVersion:
 
 
 def _draft_has_any_content(draft: StorefrontLayoutVersion) -> bool:
-    """Acceptance Batch 2 (post-U11) — آیا این Draft محتوایِ «معنادارِ»
-    واقعاً موجودی دارد (حداقل یک ``StorefrontSection`` در هرکدام از شش
-    صفحه‌اش)؟ یک Draftِ کاملاً خالی (فروشگاهِ تازه، پیش از اولین اعمال/
-    بازنشانی) چیزی برایِ از‌دست‌دادن ندارد — پس checkpoint کردنِ آن فقط
-    شلوغیِ بی‌فایده در تاریخچه‌یِ نسخه‌ها می‌سازد."""
-    return draft.sections.exists()
+    """Acceptance Batch 2 (post-U11)، تصحیحِ پستِ‌دمو hardening pass
+    (Issue 5) — آیا این Draft محتوایِ «معنادارِ» واقعاً موجودی دارد؟
+
+    نسخه‌ی قبلیِ این تابع فقط ``draft.sections.exists()`` را چک می‌کرد —
+    خیلی ضعیف بود: یک Draftِ صفر-Section هنوز می‌تواند appearance_config/
+    header_config/footer_config/پالت/منشأِ Ready Template را واقعاً
+    تغییر داده باشد (مثلاً مرچنت فقط پالت یا هدر را عوض کرده، بدونِ
+    دست‌زدن به هیچ Section)؛ نادیده گرفتنِ آن یعنی اعمالِ یک Presetِ دیگر
+    آن تغییراتِ واقعی را بدونِ هیچ چک‌پوینتِ قابل‌بازیابی از بین می‌برد.
+
+    سیاستِ درست: EMPTY + PRISTINE → چک‌پوینتِ زائد نمی‌خواهد. هرگونه
+    تغییرِ واقعی در هرکدام از این محورهایِ سراسری (حتی بدونِ هیچ Section)
+    → معنادار است و باید چک‌پوینت شود.
+
+    نکته‌یِ ظریف #۱: ``header_config``/``footer_config``/``template_provenance``/
+    ``template_baseline_snapshot`` واقعاً از ``{}`` شروع می‌شوند، اما
+    ``appearance_config`` این‌طور نیست — ``bootstrap_service.bootstrap_appearance_config``
+    از همان لحظه‌یِ ساختِ اولین Draft یک دیکشنریِ غیرِخالی (مثلاً
+    ``{"palette_slug": None, "color_overrides": {}}``) در آن می‌نویسد — پس
+    چکِ سادهٔ truthiness این فیلد را همیشه «معنادار» می‌دید، حتی برایِ
+    Draftی که مرچنت هنوز هیچ تغییرِ ظاهریِ دستی‌ای نداده. به‌جایِ آن با
+    ``APPEARANCE_CONFIG_DEFAULTS`` مقایسه می‌شود — فقط انحرافِ *واقعی* از
+    پیش‌فرض‌ها معنادار است.
+
+    نکته‌یِ ظریف #۲: ``color_overrides`` عمداً از این مقایسه مستثنا است.
+    برایِ فروشگاهی که ``ShopSettings`` واقعاً provision شده،
+    ``bootstrap_appearance_config`` رنگ‌هایِ *زنده‌یِ فعلیِ* آن فروشگاه را
+    (نه یک پیش‌فرضِ خنثی) در همان لحظه‌یِ ساختِ اولین Draft داخلِ
+    ``color_overrides`` کپی می‌کند — این یک انتخابِ صریحِ مرچنت در همین
+    ادیتور نیست، صرفاً یک migration-safety carryover است، پس نباید به‌تنهایی
+    یک Draftِ دست‌نخورده را «معنادار» نشان دهد. یک تغییرِ واقعیِ ظاهر همیشه
+    حداقل یکی از کلیدهایِ دیگر (``palette_slug``، ``font``، ``density``، ...)
+    را هم عوض می‌کند، پس این استثنا هیچ تغییرِ واقعی‌ای را پنهان نمی‌کند."""
+    if draft.sections.exists():
+        return True
+    if draft.header_config or draft.footer_config or draft.template_provenance or draft.template_baseline_snapshot:
+        return True
+    return not _appearance_config_is_pristine(draft.appearance_config)
+
+
+def _appearance_config_is_pristine(appearance_config: dict) -> bool:
+    appearance_config = appearance_config or {}
+    if not set(appearance_config) <= set(APPEARANCE_CONFIG_DEFAULTS):
+        return False
+    return all(
+        appearance_config.get(key, default) == default
+        for key, default in APPEARANCE_CONFIG_DEFAULTS.items()
+        if key != "color_overrides"
+    )
 
 
 @transaction.atomic
