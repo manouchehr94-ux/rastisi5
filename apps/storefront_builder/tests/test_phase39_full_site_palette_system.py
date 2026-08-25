@@ -124,3 +124,41 @@ class Phase39GlobalThemeCssContractTests(StorefrontBuilderViewsTestCase):
         self.assertNotIn("v5_golden_homepage", css)
         self.assertNotIn("golden-hero-row", css)
         self.assertNotIn("rastisi-fashion-test", css)
+
+    def test_product_detail_rule_does_not_reset_thumbnail_background_image(self):
+        """QA hotfix (post-Batch-2) — real browser QA found PDP gallery
+        thumbnails (``product_main.html``'s ``.th`` buttons, each with its
+        own inline ``background-image:url(...)``) rendering blank/white
+        despite the underlying image/thumbnail files and URLs all being
+        correct. Root cause: this Product Detail rule matches
+        ``.gallery .thumbs .th`` and used the ``background`` *shorthand*
+        with ``!important`` — the shorthand resets every background
+        sub-property, including ``background-image``, to its initial value
+        (``none``) even when only a color was written, and ``!important``
+        makes that win over the thumbnail's own inline style. Using
+        ``background-color`` instead only ever sets the theme's surface
+        fallback color, never touching ``background-image``."""
+        root = Path(django_settings.BASE_DIR)
+        css = (root / "apps/core/static/css/theme_palette.css").read_text(encoding="utf-8")
+        rule_start = css.index("/* Product detail */")
+        rule_end = css.index("}", rule_start) + 1
+        rule = css[rule_start:rule_end]
+
+        self.assertIn(".gallery .thumbs .th", rule)
+        self.assertIn("background-color:var(--theme-card-bg,var(--theme-surface))!important", rule)
+        # The exact shorthand form that resets background-image — checked
+        # as its own fragment (not a substring of "background-color:") so
+        # a future edit can't silently reintroduce it.
+        self.assertNotIn("background:var(--theme-card-bg,var(--theme-surface))!important", rule)
+
+    def test_pdp_thumbnail_inline_background_image_is_untouched_by_the_palette_rule(self):
+        """Companion rendering-level check: the PDP template still emits a
+        real inline ``background-image`` on each gallery thumbnail — the
+        CSS fix above is only meaningful because this inline style exists
+        and needs to survive the cascade."""
+        root = Path(django_settings.BASE_DIR)
+        template = (
+            root / "apps/storefront_builder/templates/storefront_builder/sections/product_main.html"
+        ).read_text(encoding="utf-8")
+        self.assertIn('class="th"', template)
+        self.assertIn("background-image:url('{{ slide.thumb_url }}')", template)

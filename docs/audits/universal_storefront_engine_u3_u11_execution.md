@@ -1829,3 +1829,60 @@ clean.
    semantics, non-home Template differentiation, and general color-system
    changes remain explicitly out of scope, per the batch's own exclusions
    — not started here.
+
+## Post-U11 Acceptance QA Hotfix — PDP Thumbnail Theme-Palette Regression
+
+- **Starting SHA:** `842cd40bd4ea2b7dc0c7e73590edb58548901068` (the Batch 2
+  commit above)
+
+**Real browser symptom:** on `rastisi-fashion-test`, product «شلوار کتان
+مدل دنیز» (3 `ProductImage` rows) rendered its large PDP image correctly
+and three thumbnail button slots, but all three thumbnails were blank/
+white.
+
+**Verified media/storage health (ruled out first):** `PRODUCTS=100
+BAD_IMAGE_COUNT=0 BAD_COVER_COUNT=0 BAD_ORDER=0 MISSING_FILES=0`; for this
+product specifically, all 3 images and all 3 thumbnail files existed on
+disk with correct `order`/`is_cover`. Not a media/database problem.
+
+**CSS root cause:** `apps/core/static/css/theme_palette.css`'s Product
+Detail rule matched `.gallery .thumbs .th` (the PDP gallery thumbnail
+button in `product_main.html`, which sets its own inline
+`background-image:url(...)`) and used the `background` **shorthand** with
+`!important`. The shorthand resets every background sub-property —
+including `background-image` — to its initial value even when only a
+color is written; combined with `!important`, it silently overrode the
+thumbnail's own inline `background-image`, leaving only an empty surface
+color.
+
+**Fix (one property, one rule, no other changes):**
+```css
+/* before */
+background:var(--theme-card-bg,var(--theme-surface))!important;
+/* after  */
+background-color:var(--theme-card-bg,var(--theme-surface))!important;
+```
+`background-color` only ever sets the theme's fallback surface color —
+never `background-image`. `!important` was kept (not implicated — the
+shorthand vs. longhand distinction was the entire bug); no other
+`background:` declaration in the file was touched.
+
+**Regression test** — `test_phase39_full_site_palette_system.py::Phase39GlobalThemeCssContractTests`:
+`test_product_detail_rule_does_not_reset_thumbnail_background_image` (CSS
+source: asserts the Product Detail rule contains the `background-color`
+form and not the exact `background:...!important` shorthand fragment —
+scoped to that one rule block, not a file-wide replace) and
+`test_pdp_thumbnail_inline_background_image_is_untouched_by_the_palette_rule`
+(confirms `product_main.html` still emits the inline
+`background-image:url(...)` the fix protects). Confirmed failing against
+parent SHA `842cd40`'s original CSS (`git show 842cd40:apps/core/static/css/theme_palette.css`)
+before writing the fix, passing after.
+
+**Test results:** the 2 new tests + the full
+`test_phase39_full_site_palette_system.py`/`test_acceptance_batch2.py`/
+`test_acceptance_batch1.py`/`test_u2a_global_header_system.py`/
+`test_u2b_global_footer_system.py`/`test_appearance.py` combined (278
+tests) — all pass. Full `apps.storefront_builder` suite (1620 tests, 1
+pre-existing unrelated skip) — all pass. `apps.catalog` untouched, not
+re-run. `makemigrations --check --dry-run` → "No changes detected" (no
+model/schema change — CSS + test only). `git diff --check` → clean.

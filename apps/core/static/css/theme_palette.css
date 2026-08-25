@@ -164,7 +164,13 @@ select,textarea{
 .gallery .main,.gallery .thumbs .th,
 .stepper,.pdp-actions .wish,.guarantee .g,
 .review-sum,.spec-table tr:nth-child(odd){
-  background:var(--theme-card-bg,var(--theme-surface))!important;
+  /* QA hotfix (post-Batch-2) — this was the `background` shorthand, which
+     resets `background-image` to `none` on `.gallery .thumbs .th`, wiping
+     out that button's own inline `background-image:url(...)` thumbnail
+     even though `!important` isn't otherwise wrong here. `background-color`
+     only sets the fallback surface color the theme actually controls,
+     leaving a thumbnail's real background-image untouched. */
+  background-color:var(--theme-card-bg,var(--theme-surface))!important;
   color:var(--theme-text)!important;border-color:var(--theme-border)!important;
 }
 .size,.guarantee .g,.desc-text,.review p{color:var(--theme-text)!important}
