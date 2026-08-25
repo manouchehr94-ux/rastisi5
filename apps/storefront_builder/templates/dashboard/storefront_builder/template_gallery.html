@@ -12,6 +12,8 @@
   .tpl-card.is-current{border-color:var(--violet);box-shadow:0 0 0 3px rgba(124,58,237,.12)}
   .tpl-swatch-row{display:flex;height:64px}
   .tpl-swatch-row span{flex:1}
+  .tpl-thumb{aspect-ratio:300/188;width:100%;overflow:hidden;background:var(--bg);border-bottom:1px solid var(--line)}
+  .tpl-thumb svg{display:block;width:100%;height:100%}
   .tpl-card-body{padding:16px;display:flex;flex-direction:column;gap:8px;flex:1}
   .tpl-card-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .tpl-card-title strong{font-size:14.5px}
@@ -32,6 +34,9 @@
     {% for card in template_cards %}
     {% with preset=card.preset %}
     <div class="tpl-card{% if card.is_current %} is-current{% endif %}">
+      <div class="tpl-thumb" role="img" aria-label="پیش‌نمایشِ چیدمانِ قالبِ «{{ preset.label_fa }}»">
+        {{ card.thumbnail_svg|safe }}
+      </div>
       <div class="tpl-swatch-row">
         {% if card.palette_swatch %}
           {% for color in card.palette_swatch %}

@@ -1886,3 +1886,170 @@ tests) — all pass. Full `apps.storefront_builder` suite (1620 tests, 1
 pre-existing unrelated skip) — all pass. `apps.catalog` untouched, not
 re-run. `makemigrations --check --dry-run` → "No changes detected" (no
 model/schema change — CSS + test only). `git diff --check` → clean.
+
+## Post-U11 Acceptance Fix Batch 3 — Real Ready-Template Gallery Previews/Thumbnails
+
+- **Starting SHA:** `0c425d499f7905adc66a36f49de715c5cb619d47` (the PDP
+  hotfix commit above)
+
+**Original Gallery gap:** each of the 8 official Ready Template cards
+(U8's `template_gallery.html`) only showed a flat 3-color swatch strip
+(`_palette_swatch` — three of the palette's `primary`/`secondary`/`accent`
+hex values as solid bars). Zero structural information — a merchant could
+not tell one Template's header style, hero presence, section composition,
+or footer character from another before applying it.
+
+**Selected thumbnail architecture:** a new pure function,
+`services/template_preview_service.build_template_thumbnail_svg(preset)`,
+returns a deterministic inline `<svg>` schematic computed live from real
+registry data on every Gallery request — no screenshot, no static asset
+file, no database row, no Playwright/browser process anywhere in the
+request path. Wired into `storefront_template_gallery`'s existing
+`template_cards` construction as one new key (`thumbnail_svg`) per card,
+alongside the untouched 3-swatch strip (kept, not replaced, to avoid
+disturbing anything U8 already relied on).
+
+**Why this is not a parallel renderer / not arbitrary art:** every visual
+fact the SVG draws traces to a real registered source, reused directly
+rather than re-derived:
+- Colors: `appearance_registry.resolve_colors`/`resolve_theme_roles` — the
+  *exact same functions* the real context processors call — applied to
+  `{**preset.appearance, "palette_slug": preset.default_palette_slug}`,
+  i.e. precisely the state a fresh `apply_preset` would produce.
+- Layout/composition: the preset's own real `pages["home"]` tuple, in its
+  real order, capped at 6 displayed rows (disclosed, not hidden) with each
+  row's relative height weighted by an archetype keyed on the section's
+  real `section_key` (`hero_banner` → dominant block, `category_grid`/
+  `story_rail` → chip row, any `section_registry.CARD_AWARE_SECTION_KEYS`
+  member → a product-card grid reusing that existing allowlist rather
+  than a second one, etc.) — a section type this module hasn't been
+  taught yet safely falls back to a generic content block, never a crash.
+- Header/footer density cues: real toggle counts
+  (`show_search`/`show_account`/`show_wishlist`/`show_cart`,
+  `show_about`/`show_contact`/`show_categories`/`show_quick_links`/
+  `show_social`) and the real `announcement_enabled` flag decide line
+  counts and whether an announcement strip is drawn.
+- The one deliberate exception, and it is a *variant-level*, not a
+  Template-level, fact: the registered `dark_tech` global header/footer
+  variant renders its own always-dark chrome via a dedicated CSS shell
+  (`storefront_builder.css`'s `.gh-shell--dark`) independent of the
+  active palette (documented in the Batch 1 ledger's Issue 2 audit) — the
+  thumbnail reads that variant's real, already-shipped hex values
+  (`#121218`/`#1b1b24`/`#f1f0f5`/`#2a2a37`, literally copied from that CSS
+  rule with a source comment) so `dark_digital`'s preview isn't
+  dishonestly light. This branches on the registered *variant key*
+  (`header_variant == "dark_tech"`), the same generic dispatch axis
+  `global_region_registry.resolve_global_renderer_template` already uses
+  for every Preset that ever selects that variant — never on a Preset/
+  Template key, never on a store slug. A source-level audit for
+  `preset.key ==`/`template_key ==`/`store.slug ==` patterns in the new
+  module found none.
+
+**Source/data safety:** the function takes only a `LayoutPresetDefinition`
+— no `request`, no `store`, no database query — so it is structurally
+incapable of leaking another store's products/categories/media/
+identity/orders. No product photography, no text strings, no external
+`<image>`/`xlink:href` references, no reference-store names anywhere in
+the generated markup (verified by a dedicated test). Two different stores
+requesting the Gallery for the same Template key get byte-identical
+thumbnail markup (determinism verified directly).
+
+**No-mutation behavior:** the thumbnail computation and its Gallery
+wiring add zero writes — `resolve_gallery_thumbnail` (the safe wrapper)
+never touches `layout_service`/`preset_service`. Verified end-to-end: a
+Gallery GET leaves the Draft's id/`appearance_config`/`header_config`/
+`footer_config`/`template_provenance`/`template_baseline_snapshot`
+byte-identical, leaves `Published`'s id/fingerprint untouched, creates no
+new `StorefrontLayoutVersion` row, and (via a mocked
+`preset_service.apply_preset`/`apply_preset_with_checkpoint`) never calls
+the mutation service at all.
+
+**Template/version mapping:** keyed purely by the stable
+`LayoutPresetDefinition.key` object identity already passed to the
+function — there is no separate manifest/lookup table that could drift
+out of sync with a key, so "Template A's thumbnail rendering on Template
+B's card" is structurally impossible (there is nothing to mismatch).
+`preset.version` is implicitly honored too: because the thumbnail is a
+pure function of the *live* preset object (never a cached/stored asset),
+it automatically reflects whatever that object's current fields are —
+there is no stale-version risk to guard against, unlike a generated file
+that would need its own version-keyed filename.
+
+**Performance:** zero database queries, zero template rendering, zero
+nested storefront requests — pure string-building over in-memory Python
+objects already loaded at import time. Confirmed manually: all 8 official
+Ready Templates' thumbnails render in a single `python manage.py shell`
+call as a batch with no measurable per-call cost; the Gallery view's own
+query count is unchanged from before this Batch (`_palette_swatch`/
+`_variant_label` were already O(1) per card; `thumbnail_svg` adds another
+O(1) per card, no new query source).
+
+**Accessibility:** each card's `<div class="tpl-thumb">` carries
+`role="img"` and a Persian `aria-label` naming the specific Template
+(`"پیش‌نمایشِ چیدمانِ قالبِ «...»"`); the inner `<svg>` itself is
+`aria-hidden="true" focusable="false"` so its dozens of decorative
+`<rect>`/`<circle>` primitives never produce per-shape screen-reader
+noise — assistive tech announces exactly one meaningful label per card.
+No existing keyboard-operable control (the Apply/current-state
+button, the Gallery↔Editor links) was touched.
+
+**Tests** — `test_acceptance_batch3.py` (15 tests): A (exactly the 8
+official keys), B (every official Template resolves a well-formed,
+non-trivial SVG, both at the service level and rendered into the real
+Gallery HTML), C (all 8 thumbnails are pairwise distinct and each is
+individually deterministic — rules out a broken shared constant), D (a
+forced exception in the real builder degrades to the safe placeholder,
+never propagates), E-H (the full no-mutation contract above), I (current-
+Template badge/disabled-action still correct, and the current card still
+gets a real thumbnail), J (no forbidden reference-store string or
+embedded/linked external image anywhere in any of the 8 thumbnails), K
+(the thumbnail's CSS uses percentage width, not a fixed pixel box, so it
+scales on mobile), L (thumbnail markup contains no store identity, and is
+byte-identical across two different stores requesting the same Template).
+Tests M-P from the master contract ("if implementing a thumbnail
+generation command/tool") do not apply — this Batch deliberately has no
+static-asset generation command, manifest, or file pipeline; the
+thumbnail is always computed live, so there is nothing to regenerate,
+version-stamp, or corrupt.
+
+### Files changed
+
+- `apps/storefront_builder/services/template_preview_service.py` — new;
+  the whole thumbnail architecture.
+- `apps/storefront_builder/views.py` — `storefront_template_gallery` adds
+  one `thumbnail_svg` key per card.
+- `apps/storefront_builder/templates/dashboard/storefront_builder/template_gallery.html` —
+  the new `.tpl-thumb` preview block (added above the existing swatch
+  strip, which is unchanged).
+- `apps/storefront_builder/tests/test_acceptance_batch3.py` — new.
+
+### Testing
+
+Ran, all green: the new `test_acceptance_batch3.py` (15 tests); that
+combined with `test_u8_template_gallery.py`/`test_u10_ready_template_catalog.py`/
+`test_acceptance_batch1.py`/`test_acceptance_batch2.py`/
+`test_phase39_full_site_palette_system.py` (the PDP-hotfix theme-palette
+regression tests)/`test_layout_preset_registry.py`/`test_render_service.py`
+(195 tests); the entire `apps.storefront_builder` suite (1635 tests, 1
+pre-existing unrelated skip). `apps.catalog` was not re-run — no file
+under `apps/catalog` changed and the new preview code never touches
+catalog models/services. `python manage.py check` → clean.
+`makemigrations --check --dry-run` → "No changes detected" (no model
+field was added — the thumbnail is computed, never stored). `git diff
+--check` → clean.
+
+### Known remaining limitations (explicit, not gaps to hide)
+
+1. The schematic caps displayed home-page rows at 6 — a Preset with more
+   than 6 home sections (none of the 8 official ones today; the max is
+   7, `premium_leather`) shows its first 6 in real order, not all of
+   them; disclosed here rather than silently truncated without mention.
+2. The preview is an abstract structural schematic, not photorealistic —
+   it communicates real header/hero/composition/footer differences
+   faithfully but does not (and is not meant to) simulate real product
+   photography or typography rendering.
+3. Non-home pages (listing/collection/search/product_detail/cart) are not
+   separately previewed — explicitly out of this Batch's scope (per its
+   own "Do NOT redesign PDP or Listing variants" exclusion); the Gallery
+   card represents the home-page baseline only, exactly as the old
+   3-swatch strip did.

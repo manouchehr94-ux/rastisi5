@@ -1857,6 +1857,7 @@ def storefront_template_gallery(request):
     صفحه‌ای از قبل section دارد، هرگز publish خودکار) انجام می‌شود؛ این ویو
     هیچ مسیرِ نوشتنِ جدیدی اضافه نمی‌کند."""
     from . import appearance_registry, global_region_registry, layout_preset_registry
+    from .services import template_preview_service
     from .variant_contract import validate_template_provenance
 
     store = _resolve_store(request)
@@ -1884,6 +1885,14 @@ def storefront_template_gallery(request):
             "is_current": preset.key == current_template_key,
             "would_replace_existing_content": _preset_would_replace_content(draft, preset),
             "palette_swatch": _palette_swatch(preset),
+            # Acceptance Batch 3 (post-U11) — a real, registry-derived
+            # visual schematic (never a screenshot, never a DB-backed
+            # asset) replacing the old flat 3-color swatch as the card's
+            # actual preview; see template_preview_service's own docstring
+            # for the full architecture rationale. Never raises — any
+            # future Preset shape this hasn't been taught yet degrades to
+            # a neutral placeholder rather than breaking the Gallery page.
+            "thumbnail_svg": template_preview_service.resolve_gallery_thumbnail(preset),
             "header_variant_label": _variant_label(
                 global_region_registry.GLOBAL_HEADER_REGION, (preset.header or {}).get("header_variant"),
             ),
