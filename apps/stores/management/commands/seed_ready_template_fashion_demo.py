@@ -125,7 +125,7 @@ _PARTIAL_HEALTHY_VARIANT_STOCK = 12
 PRODUCT_MATRIX = [
     ("FSH-001", "تی‌شرت و پولوشرت", "تی‌شرت کتان Oversize زنانه", "Demo Nova", 1890000, 1490000, ["سفید", "ذغالی", "زیتونی"], ["XS", "S", "M", "L", "XL"], PARTIAL_VARIANT_STOCK),
     ("FSH-002", "تی‌شرت و پولوشرت", "پولوشرت کلاسیک مردانه", "Demo Arden", 2290000, 1790000, ["سرمه‌ای"], ["S", "M", "L", "XL", "XXL"], IN_STOCK),
-    ("FSH-003", "تی‌شرت و پولوشرت", "تی‌شرت آستین‌بلند Ribbed", "Demo Mira", 1650000, None, ["کرم", "مشکی", "آجری"], ["XS", "S", "M", "L"], IN_STOCK),
+    ("FSH-003", "تی‌شرت و پولوشرت", "تی‌شرت آستین‌بلند Ribbed", "Demo Vero", 1650000, None, ["کرم", "مشکی", "آجری"], ["XS", "S", "M", "L"], IN_STOCK),
     ("FSH-004", "تی‌شرت و پولوشرت", "تی‌شرت Heavyweight مردانه", "Demo Rowe", 2450000, 1990000, ["سفید"], ["S", "M", "L", "XL", "XXL"], IN_STOCK),
     ("FSH-005", "تی‌شرت و پولوشرت", "پولوشرت بافت‌دار", "Demo Lunar", 2790000, None, ["سبز خزه‌ای"], ["S", "M", "L", "XL"], OUT_OF_STOCK),
 
@@ -136,7 +136,7 @@ PRODUCT_MATRIX = [
     ("FSH-010", "پیراهن و شومیز", "شومیز ساتن زنانه", "Demo Lunar", 3750000, None, ["عاجی"], ["XS", "S", "M", "L", "XL"], OUT_OF_STOCK),
 
     ("FSH-011", "شلوار پارچه‌ای", "شلوار Wide-leg زنانه", "Demo Rowe", 3950000, 3150000, ["مشکی", "سنگی", "موکا"], ["36", "38", "40", "42", "44"], PARTIAL_VARIANT_STOCK),
-    ("FSH-012", "شلوار پارچه‌ای", "شلوار Chino مردانه", "Demo Nova", 4150000, None, ["بژ"], ["30", "32", "34", "36", "38"], IN_STOCK),
+    ("FSH-012", "شلوار پارچه‌ای", "شلوار Chino مردانه", "Demo Vero", 4150000, None, ["بژ"], ["30", "32", "34", "36", "38"], IN_STOCK),
     ("FSH-013", "شلوار پارچه‌ای", "شلوار پلیسه زنانه", "Demo Mira", 4450000, 3550000, ["ذغالی", "سرمه‌ای", "کرم"], ["36", "38", "40", "42", "44"], IN_STOCK),
     ("FSH-014", "شلوار پارچه‌ای", "شلوار Cargo یونیسکس", "Demo Arden", 4790000, 3890000, ["زیتونی"], ["S", "M", "L", "XL"], IN_STOCK),
     ("FSH-015", "شلوار پارچه‌ای", "شلوار رسمی Straight مردانه", "Demo Lunar", 4350000, None, ["مشکی"], ["30", "32", "34", "36", "38"], OUT_OF_STOCK),
@@ -144,7 +144,7 @@ PRODUCT_MATRIX = [
     ("FSH-016", "شلوار جین", "جین Straight زنانه", "Demo Nova", 4950000, 3950000, ["آبی", "مشکی", "شیری"], ["26", "28", "30", "32"], PARTIAL_VARIANT_STOCK),
     ("FSH-017", "شلوار جین", "جین Slim مردانه", "Demo Rowe", 5250000, None, ["ایندیگو"], ["30", "32", "34", "36", "38"], IN_STOCK),
     ("FSH-018", "شلوار جین", "جین Wide زنانه", "Demo Mira", 5450000, 4350000, ["آبی روشن", "آبی تیره", "مشکی"], ["26", "28", "30", "32"], IN_STOCK),
-    ("FSH-019", "شلوار جین", "جین Relaxed مردانه", "Demo Arden", 5690000, 4590000, ["آبی سنگشور"], ["30", "32", "34", "36", "38"], IN_STOCK),
+    ("FSH-019", "شلوار جین", "جین Relaxed مردانه", "Demo Vero", 5690000, 4590000, ["آبی سنگشور"], ["30", "32", "34", "36", "38"], IN_STOCK),
     ("FSH-020", "شلوار جین", "جین Cropped زنانه", "Demo Lunar", 4890000, None, ["گرافیتی"], ["26", "28", "30", "32"], OUT_OF_STOCK),
 
     ("FSH-021", "هودی و سویشرت", "هودی زیپ‌دار یونیسکس", "Demo Arden", 3890000, 3090000, ["ذغالی", "کرم", "سبز"], ["S", "M", "L", "XL"], PARTIAL_VARIANT_STOCK),
@@ -155,7 +155,7 @@ PRODUCT_MATRIX = [
 
     ("FSH-026", "کت و ژاکت", "Bomber کوتاه زنانه", "Demo Mira", 6950000, 5490000, ["مشکی", "زیتونی", "سنگی"], ["XS", "S", "M", "L"], PARTIAL_VARIANT_STOCK),
     ("FSH-027", "کت و ژاکت", "Chore Jacket مردانه", "Demo Nova", 6490000, None, ["تنباکویی"], ["S", "M", "L", "XL", "XXL"], IN_STOCK),
-    ("FSH-028", "کت و ژاکت", "ژاکت Quilted زنانه", "Demo Rowe", 7250000, 5790000, ["سرمه‌ای", "کرم", "خاکی"], ["XS", "S", "M", "L", "XL"], IN_STOCK),
+    ("FSH-028", "کت و ژاکت", "ژاکت Quilted زنانه", "Demo Vero", 7250000, 5790000, ["سرمه‌ای", "کرم", "خاکی"], ["XS", "S", "M", "L", "XL"], IN_STOCK),
     ("FSH-029", "کت و ژاکت", "کت جین مردانه", "Demo Arden", 6790000, None, ["آبی متوسط"], ["S", "M", "L", "XL", "XXL"], IN_STOCK),
     ("FSH-030", "کت و ژاکت", "Blazer دو دکمه زنانه", "Demo Lunar", 8250000, None, ["مشکی"], ["36", "38", "40", "42", "44"], OUT_OF_STOCK),
 
@@ -169,7 +169,7 @@ PRODUCT_MATRIX = [
     ("FSH-037", "پیراهن و لباس زنانه", "Wrap Dress میدی", "Demo Nova", 6250000, None, ["سبز زمردی"], ["36", "38"], IN_STOCK),
     ("FSH-038", "پیراهن و لباس زنانه", "Knit Column Dress", "Demo Rowe", 5450000, None, ["کرم", "ذغالی"], ["S", "M"], IN_STOCK),
     ("FSH-039", "پیراهن و لباس زنانه", "Utility Dress کمربندی", "Demo Arden", 6750000, None, ["خاکی"], ["M", "L"], IN_STOCK),
-    ("FSH-040", "پیراهن و لباس زنانه", "Pleated Occasion Dress", "Demo Lunar", 8950000, None, ["آلویی"], ["38", "40"], OUT_OF_STOCK),
+    ("FSH-040", "پیراهن و لباس زنانه", "Pleated Occasion Dress", "Demo Vero", 8950000, None, ["آلویی"], ["38", "40"], OUT_OF_STOCK),
 
     ("FSH-041", "دامن", "دامن A-Line میدی", "Demo Nova", 4250000, 3350000, ["مشکی", "شتری", "جین"], ["36", "38"], IN_STOCK),
     ("FSH-042", "دامن", "دامن ساتن میدی", "Demo Mira", 4650000, None, ["شامپاینی"], ["38", "40"], IN_STOCK),
@@ -441,6 +441,9 @@ class Command(BaseCommand):
                 if product.product_type != Product.ProductType.VARIABLE:
                     product.product_type = Product.ProductType.VARIABLE
                     changed_fields.append("product_type")
+                if product.brand_id != brand.id:
+                    product.brand = brand
+                    changed_fields.append("brand")
                 if changed_fields:
                     product.save(update_fields=[*changed_fields, "updated_at"])
 

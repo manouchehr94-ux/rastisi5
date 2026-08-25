@@ -164,6 +164,109 @@ class ExactCountTests(SeedReadyTemplateFashionDemoCommandTests):
         self.assertEqual(MerchantCollection.objects.filter(store=store).count(), 4)
 
 
+class BrandDistributionTests(SeedReadyTemplateFashionDemoCommandTests):
+    """Phase 1.1 QA fix — «Demo Vero» previously had zero products; five
+    codes (FSH-003/012/019/028/040) are reassigned to it, one each from
+    Mira/Nova/Arden/Rowe/Lunar, giving every brand at least one product."""
+
+    _EXPECTED_DISTRIBUTION = {
+        "Demo Arden": 9, "Demo Lunar": 9, "Demo Mira": 9,
+        "Demo Nova": 9, "Demo Rowe": 9, "Demo Vero": 5,
+    }
+    _EXPECTED_VERO_SKUS = {"FSH-003", "FSH-012", "FSH-019", "FSH-028", "FSH-040"}
+
+    def _distribution(self, store):
+        return {
+            brand.name: Product.objects.filter(store=store, brand=brand).count()
+            for brand in Brand.objects.filter(store=store)
+        }
+
+    def test_exactly_6_brands_exist(self):
+        self._run()
+        self.assertEqual(Brand.objects.filter(store=self._store()).count(), 6)
+
+    def test_every_brand_has_at_least_one_product(self):
+        self._run()
+        store = self._store()
+        for brand in Brand.objects.filter(store=store):
+            self.assertGreater(Product.objects.filter(store=store, brand=brand).count(), 0, brand.name)
+
+    def test_exact_expected_brand_distribution(self):
+        self._run()
+        self.assertEqual(self._distribution(self._store()), self._EXPECTED_DISTRIBUTION)
+
+    def test_demo_vero_has_exactly_the_expected_five_products(self):
+        self._run()
+        store = self._store()
+        vero_skus = set(
+            Product.objects.filter(store=store, brand__name="Demo Vero").values_list("sku", flat=True)
+        )
+        self.assertEqual(vero_skus, self._EXPECTED_VERO_SKUS)
+
+    def test_product_names_are_unchanged_after_reassignment(self):
+        self._run()
+        store = self._store()
+        matrix_names = {code: name for code, _cat, name, *_rest in PRODUCT_MATRIX}
+        for product in Product.objects.filter(store=store):
+            self.assertEqual(product.name, matrix_names[product.sku], product.sku)
+
+    def test_rerunning_the_command_preserves_the_distribution(self):
+        self._run()
+        self._run()
+        self.assertEqual(self._distribution(self._store()), self._EXPECTED_DISTRIBUTION)
+
+    def test_reset_and_reseed_reproduces_the_distribution_exactly(self):
+        self._run()
+        self._run("--reset")
+        self.assertEqual(self._distribution(self._store()), self._EXPECTED_DISTRIBUTION)
+
+    def test_total_product_count_unaffected_by_reassignment(self):
+        self._run()
+        self.assertEqual(Product.objects.filter(store=self._store()).count(), 50)
+
+
+class PriceUnitContractTests(SeedReadyTemplateFashionDemoCommandTests):
+    """Phase 1.1 QA Finding 2 — audited evidence (see
+    ``apps.core.utils.format_toman`` and ``apps.catalog.templates.catalog.
+    partials.product_card`` for the code paths) shows ``Product.price`` is
+    stored directly in تومان with no scale factor anywhere in the
+    formatting or order pipeline: ``ShopSettings`` money fields are
+    explicitly labeled "(تومان)", ``format_toman`` only adds thousands
+    separators + the "تومان" unit (no division/multiplication), the
+    ``product_card.html`` template feeds ``product.final_price`` straight
+    into the ``|toman`` filter, and ``order_service.py`` computes
+    ``unit_price * quantity`` with no conversion. The seeded numeric
+    values therefore already represent the intended merchant-facing
+    تومان amounts — no price change was required."""
+
+    def test_fsh_001_price_and_discount_match_the_intended_toman_amounts(self):
+        from apps.core.utils import format_toman
+
+        self._run()
+        store = self._store()
+        product = Product.objects.get(store=store, sku="FSH-001")
+        self.assertEqual(int(product.price), 1_890_000)
+        self.assertEqual(product.discount_percent, 21)
+        # NOTE: Product.final_price is derived from the rounded integer
+        # discount_percent (price * (1 - discount_percent/100)), not from
+        # the original 1,490,000 sale price in the matrix — so it lands at
+        # 1,493,100 (a ~0.2% drift from integer-percent rounding). This is
+        # an existing, platform-wide property of the real discount_percent
+        # architecture (not a currency-unit bug, and not introduced by this
+        # seed), so it is asserted here rather than "corrected".
+        self.assertEqual(int(product.final_price), 1_493_100)
+        # The real template-level formatting path renders these amounts
+        # verbatim, with no hidden unit conversion.
+        self.assertEqual(format_toman(product.price), "۱٬۸۹۰٬۰۰۰ تومان")
+        self.assertEqual(format_toman(product.final_price), "۱٬۴۹۳٬۱۰۰ تومان")
+
+    def test_format_toman_applies_no_currency_scale_factor(self):
+        from apps.core.utils import format_toman
+
+        self.assertEqual(format_toman(1), "۱ تومان")
+        self.assertEqual(format_toman(1_000_000), "۱٬۰۰۰٬۰۰۰ تومان")
+
+
 class StockSemanticsTests(SeedReadyTemplateFashionDemoCommandTests):
     """Proves stock states use the real variant/inventory architecture, not
     a display-only flag — exactly what the mission demands verbatim."""
