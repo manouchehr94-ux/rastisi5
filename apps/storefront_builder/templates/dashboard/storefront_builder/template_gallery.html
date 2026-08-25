@@ -14,6 +14,8 @@
   .tpl-swatch-row span{flex:1}
   .tpl-thumb{aspect-ratio:300/188;width:100%;overflow:hidden;background:var(--bg);border-bottom:1px solid var(--line)}
   .tpl-thumb svg{display:block;width:100%;height:100%}
+  .tpl-thumb a{display:block;width:100%;height:100%}
+  .tpl-thumb img{display:block;width:100%;height:100%;object-fit:cover;object-position:top center}
   .tpl-card-body{padding:16px;display:flex;flex-direction:column;gap:8px;flex:1}
   .tpl-card-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .tpl-card-title strong{font-size:14.5px}
@@ -35,7 +37,13 @@
     {% with preset=card.preset %}
     <div class="tpl-card{% if card.is_current %} is-current{% endif %}">
       <div class="tpl-thumb" role="img" aria-label="پیش‌نمایشِ چیدمانِ قالبِ «{{ preset.label_fa }}»">
+        {% if card.thumbnail_kind == "screenshot" %}
+        <a href="{{ card.thumbnail_url }}" target="_blank" rel="noopener" title="مشاهده‌ی پیش‌نمایشِ بزرگ‌تر (بدونِ اعمالِ قالب)">
+          <img src="{{ card.thumbnail_url }}" alt="پیش‌نمایشِ واقعیِ فروشگاهِ نمایشیِ Rasti Mode با قالبِ «{{ preset.label_fa }}»" loading="lazy">
+        </a>
+        {% else %}
         {{ card.thumbnail_svg|safe }}
+        {% endif %}
       </div>
       <div class="tpl-swatch-row">
         {% if card.palette_swatch %}

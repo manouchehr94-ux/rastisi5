@@ -44,6 +44,10 @@ per-Template special case.
 
 from __future__ import annotations
 
+import hashlib
+import json
+from pathlib import Path
+
 from .. import appearance_registry
 from ..layout_preset_registry import LayoutPresetDefinition
 from ..section_registry import CARD_AWARE_SECTION_KEYS
@@ -328,3 +332,90 @@ def resolve_gallery_thumbnail(preset: LayoutPresetDefinition) -> str:
         return build_template_thumbnail_svg(preset)
     except Exception:
         return _FALLBACK_SVG
+
+
+# ------------------------------------------------------------------
+# Real Ready Template Gallery screenshots (Rasti Mode Demo mission).
+#
+# Everything above this point is untouched from Acceptance Batch 3 — the
+# pure, zero-I/O SVG schematic remains the permanent safe fallback and its
+# own tests keep passing unchanged. What follows is an ADDITIONAL,
+# independent resolution layer: a real browser-captured screenshot of the
+# actual Rasti Mode Demo public storefront, one canonical HOME shot per
+# Ready Template, generated OFFLINE by
+# ``apps.storefront_builder.management.commands.capture_ready_template_previews``
+# (a dev/build-time tool that applies+publishes each preset onto the
+# isolated demo store, launches Playwright, and saves a versioned WebP —
+# see that command's docstring for the full architecture). A normal
+# Gallery request never launches a browser, never calls Playwright/
+# Selenium, and never mutates data — ``resolve_real_screenshot`` below
+# only ever does a filesystem existence check plus reading one small JSON
+# sidecar file.
+#
+# Anti-staleness (mission Step 24: "do NOT silently show an old version
+# screenshot"): each captured screenshot is saved with a sidecar
+# ``.meta.json`` recording a content hash of the exact registry data the
+# SVG function above already reads (palette/appearance, header, footer,
+# home section-key order). If the registered Preset changes without a
+# matching re-capture, the stored hash no longer matches and this resolver
+# safely refuses the stale file — falling back to the always-fresh SVG
+# schematic rather than ever risking a misleading screenshot.
+
+SCREENSHOT_VERSION = 1
+
+#: Relative to this app's ``static/`` directory (matches the existing
+#: ``{% static 'css/storefront_builder.css' %}`` flat-namespace convention
+#: already used by ``template_gallery.html``).
+_PREVIEWS_STATIC_SUBDIR = "ready_template_previews"
+
+APP_STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
+
+
+def preview_content_hash(preset: LayoutPresetDefinition) -> str:
+    """A short, deterministic fingerprint of exactly the registry data the
+    real screenshot visually depends on — the same inputs
+    ``build_template_thumbnail_svg`` reads, so this hash changes if and
+    only if a real, screenshot-visible aspect of the Preset changed."""
+    home_section_keys = [entry.section_key for entry in preset.pages.get("home", ())]
+    payload = {
+        "appearance": preset.appearance,
+        "default_palette_slug": preset.default_palette_slug,
+        "header": preset.header,
+        "footer": preset.footer,
+        "home_section_keys": home_section_keys,
+    }
+    canonical = json.dumps(payload, sort_keys=True, ensure_ascii=True, default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def screenshot_relpath(template_key: str, version: int = SCREENSHOT_VERSION) -> str:
+    """The static-relative path a real capture is saved to / read from —
+    the exact ``ready_template_previews/<key>/v<version>.webp`` shape the
+    mission specifies."""
+    return f"{_PREVIEWS_STATIC_SUBDIR}/{template_key}/v{version}.webp"
+
+
+def meta_relpath(template_key: str, version: int = SCREENSHOT_VERSION) -> str:
+    return f"{_PREVIEWS_STATIC_SUBDIR}/{template_key}/v{version}.meta.json"
+
+
+def resolve_real_screenshot(preset: LayoutPresetDefinition) -> str | None:
+    """Returns the static-relative path to a real, still-fresh screenshot
+    for ``preset``, or ``None`` if none exists / it is stale — in which
+    case the caller must fall back to ``resolve_gallery_thumbnail``.
+
+    Pure filesystem read (existence check + one small JSON file) — no
+    browser, no network, no database write, safe to call on every normal
+    Gallery request."""
+    relpath = screenshot_relpath(preset.key)
+    image_path = APP_STATIC_DIR / relpath
+    meta_path = APP_STATIC_DIR / meta_relpath(preset.key)
+    if not image_path.is_file() or not meta_path.is_file():
+        return None
+    try:
+        meta = json.loads(meta_path.read_text())
+    except (OSError, ValueError):
+        return None
+    if meta.get("content_hash") != preview_content_hash(preset):
+        return None
+    return relpath

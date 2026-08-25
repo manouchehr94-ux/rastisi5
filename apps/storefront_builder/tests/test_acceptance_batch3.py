@@ -158,8 +158,13 @@ class GalleryPreviewIntegrationTests(TestCase):
         self.assertContains(response, "قالبِ فعلی")
         self.assertContains(response, "در حال استفاده")
         self.assertNotContains(response, 'name="preset_key" value="dark_digital"')
-        # the current card still gets a real thumbnail, not a blank slot.
-        self.assertTrue(cards["dark_digital"]["thumbnail_svg"].startswith("<svg"))
+        # the current card still gets a real thumbnail, not a blank slot —
+        # either the Batch 3 SVG schematic, or (post-Batch-4) a real
+        # captured screenshot when one exists for this Template.
+        card = cards["dark_digital"]
+        self.assertTrue(
+            card["thumbnail_svg"].startswith("<svg") or bool(card.get("thumbnail_url")),
+        )
 
     def test_k_mobile_usable_thumbnail_markup_is_responsive_not_fixed_pixels(self):
         response = self.admin_client.get(self.url)

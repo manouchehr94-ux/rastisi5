@@ -1,0 +1,10 @@
+{
+  "template_key": "dense_marketplace",
+  "version": 1,
+  "content_hash": "74b58e8302cd976068d37478ad842e99f6575bfb2226d3d8f145a453afba2b36",
+  "capture_source": "rasti-mode-demo",
+  "viewport": {
+    "width": 1440,
+    "height": 1100
+  }
+}

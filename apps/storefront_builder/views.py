@@ -9,6 +9,7 @@ from django.contrib import messages
 from django.db import IntegrityError, transaction
 from django.http import Http404, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.templatetags.static import static
 from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
@@ -1879,20 +1880,30 @@ def storefront_template_gallery(request):
             return []
         return [palette.colors[key] for key in ("primary", "secondary", "accent") if key in palette.colors]
 
+    def _thumbnail_fields(preset):
+        # Rasti Mode Demo mission (post-Batch-3) — the merchant-rejected
+        # abstract SVG schematic is now only the safe fallback. The normal
+        # healthy state is a real captured screenshot of the actual public
+        # Rasti Mode Demo storefront rendered under this Template — see
+        # ``template_preview_service.resolve_real_screenshot``'s own
+        # docstring: this is a pure, zero-mutation filesystem check (an
+        # existence check plus one small JSON sidecar read), never a
+        # browser launch, never a live render, never a data mutation.
+        screenshot_relpath = template_preview_service.resolve_real_screenshot(preset)
+        if screenshot_relpath is not None:
+            return {"thumbnail_kind": "screenshot", "thumbnail_url": static(screenshot_relpath), "thumbnail_svg": ""}
+        # Fallback: the always-fresh, zero-I/O SVG schematic from Batch 3 —
+        # never raises; any future Preset shape this hasn't been taught yet
+        # degrades to a neutral placeholder rather than breaking the page.
+        return {"thumbnail_kind": "svg", "thumbnail_url": "", "thumbnail_svg": template_preview_service.resolve_gallery_thumbnail(preset)}
+
     template_cards = [
         {
             "preset": preset,
             "is_current": preset.key == current_template_key,
             "would_replace_existing_content": _preset_would_replace_content(draft, preset),
             "palette_swatch": _palette_swatch(preset),
-            # Acceptance Batch 3 (post-U11) — a real, registry-derived
-            # visual schematic (never a screenshot, never a DB-backed
-            # asset) replacing the old flat 3-color swatch as the card's
-            # actual preview; see template_preview_service's own docstring
-            # for the full architecture rationale. Never raises — any
-            # future Preset shape this hasn't been taught yet degrades to
-            # a neutral placeholder rather than breaking the Gallery page.
-            "thumbnail_svg": template_preview_service.resolve_gallery_thumbnail(preset),
+            **_thumbnail_fields(preset),
             "header_variant_label": _variant_label(
                 global_region_registry.GLOBAL_HEADER_REGION, (preset.header or {}).get("header_variant"),
             ),

@@ -1,27 +1,31 @@
-"""دستورِ idempotent برایِ ساختِ یک فروشگاهِ Demo کاملاً جدا و قطعی (پوشاک) —
-«Rasti Mode Demo» — Phase 1 (Deterministic Data Foundation) از کارِ
-«Ready Template Demo Fashion Store».
+"""دستورِ idempotent برایِ ساختِ فروشگاهِ Demo کاملاً جدا و قطعی «Rasti Mode
+Demo» — نسخه‌یِ «Real Catalog» (پوشاک/کفش/کیف) — مأموریتِ «Rasti Mode Demo
+— COMPLETE REAL CATALOG + MEDIA + CONTENT + ALL 8 READY TEMPLATE REAL
+PREVIEWS».
 
-هدف: یک مجموعه‌دادهٔ واقعی/قطعی (نه محتوایِ ساختگیِ Templateمحور) که بعداً
-برایِ رندرِ همان storefront از میانِ هر ۸ Ready Template استفاده می‌شود —
-این فاز فقط دادهٔ پایه را می‌سازد؛ هیچ پیش‌نمایشِ Gallery/اسکرین‌شاتی اینجا
-تولید نمی‌شود (نگاه کنید به دفترچهٔ اجرا برایِ فازهایِ بعدی).
+نامِ دستور عمداً همان نامِ قبلی (``seed_ready_template_fashion_demo``)
+نگه داشته شده — بازنویسیِ آن باعثِ شکستنِ همه‌یِ دستورهایِ Windows QA و
+تست‌هایِ ثبت‌شده در فازهایِ قبلی می‌شد؛ «fashion» این‌جا هم‌چنان یک چترِ
+درستِ صنعتِ retail برایِ پوشاک+کفش+کیف است.
 
-ایزوله/Tenant-scoped: این دستور فقط رکوردهایِ متعلق به همینِ Storeِ ثابتِ
-Demo (اسلاگِ ``rasti-mode-demo``) را می‌سازد/می‌خواند — هرگز به هیچ Storeِ
-دیگری (نه ``rastisi-fashion-test``، نه ``akhlaghi``، نه هیچ Storeِ واقعیِ
-مرچنت) دست نمی‌زند؛ نه دادهٔ آن‌ها را می‌خواند، نه کپی می‌کند. ``--reset``
-هم فقط همینِ اسلاگِ ثابت را حذف می‌کند — هیچ آرگومانی برایِ تغییرِ Store
-هدفِ reset وجود ندارد (طراحیِ عمدی: امکانِ حذفِ اشتباهیِ Storeِ دیگر از
-پایه وجود ندارد).
+منبعِ واقعیِ تصویر: ۳۴۵ عکسِ QA کاربر در ``raw_user_catalog/`` — پس از
+ممیزیِ بصریِ کامل (دفترچه‌یِ اجرا را ببینید)، دقیقاً ۵۰ عکسِ منحصربه‌فرد
+انتخاب و توسط
+``apps/stores/demo_assets/rasti_mode_demo/scripts/select_and_process_media.py``
+به ``products/<SKU>/01|02|03.webp`` (۱۲۰۰×۱۶۰۰، بومِ خنثی، بدونِ کراپِ
+مخرب) پردازش شده‌اند؛ این دستور هرگز از ``raw_user_catalog/`` مستقیماً
+نمی‌خواند یا آن را عمومی نمی‌کند.
 
-Idempotent: اجرایِ دوباره رکوردِ تکراری نمی‌سازد و شمارش‌هایِ دقیقِ کار
-(۵۰ کالا، ۱۰ دسته، ۶ برند و...) هرگز رشد نمی‌کنند.
+ایزوله/Tenant-scoped: فقط رکوردهایِ Storeِ ثابتِ Demo (اسلاگِ
+``rasti-mode-demo``) — هرگز ``rastisi-fashion-test``، ``akhlaghi``، یا هیچ
+Storeِ واقعیِ مرچنت. ``--reset`` هم فقط همینِ اسلاگِ ثابت را حذف می‌کند.
 
-از موتورِ واقعیِ Attribute/Option/Variant (``variant_engine_service`` —
-Phase 1D، نه یک شِمایِ اختصاصیِ این دستور) برایِ ترکیب‌هایِ واقعیِ
-رنگ×سایز استفاده می‌کند — هر ترکیب یک ``ProductVariant`` واقعی با
-``combination_key`` است، نه دو فهرستِ مستقلِ رنگ/سایز.
+Idempotent: اجرایِ دوباره رکوردِ تکراری نمی‌سازد؛ فیلدهایِ درجه‌یک
+(قیمت/تخفیف/برند/محصول‌نوع) در هر اجرا با ماتریسِ ثابت همگام می‌شوند.
+
+از موتورِ واقعیِ Attribute/Option/Variant برایِ کالاهایِ دارایِ
+رنگ/سایز استفاده می‌کند؛ کیف‌ها (بدونِ سایزِ معنادار — طبقِ الزامِ صریحِ
+کار) به‌صورتِ ``ProductType.SIMPLE`` با ``Product.stock`` مستقیم می‌مانند.
 
 استفاده:
     python manage.py seed_ready_template_fashion_demo
@@ -34,6 +38,7 @@ from __future__ import annotations
 import hashlib
 from decimal import ROUND_HALF_UP, Decimal
 from io import BytesIO
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -49,11 +54,22 @@ from apps.catalog.models import (
     MerchantCollection,
     Product,
     ProductOption,
+    ProductTag,
     ProductVariant,
     Vendor,
 )
 from apps.catalog.services import collection_service, variant_engine_service
 from apps.catalog.services.product_image_service import add_product_image, set_image_option_value
+from apps.core.models import ShopSettings
+from apps.content.models import (
+    DestinationType,
+    FooterSettings,
+    HeroSlide,
+    Menu,
+    MenuItem,
+    PromotionalBanner,
+    StoryRailItem,
+)
 from apps.stores.hostnames import normalize_admin_subdomain
 from apps.stores.models import Store, StoreDomain, StoreMembership
 
@@ -64,51 +80,81 @@ User = get_user_model()
 STORE_SLUG = "rasti-mode-demo"
 STORE_NAME = "Rasti Mode Demo"
 STORE_ADMIN_SUBDOMAIN = "rasti-mode-demo"
+# پیشوندِ میزبانِ عمومیِ Storefront — عمداً از میزبانِ ادمین جدا است، دقیقاً
+# همان الگویِ ``AdminSubdomainIndependentOfPublicDomainTests``. سافیکسِ
+# واقعی از ``settings.RASTISI_ADMIN_DOMAIN_SUFFIX`` در زمانِ اجرا خوانده
+# می‌شود (نه هاردکد) تا هم در DEBUG (``rastisi.localhost`` — التِ
+# ``ALLOWED_HOSTS`` عریضِ آن را می‌پذیرد) و هم در Production (``rastisi.ir``)
+# درست باشد.
+STORE_PUBLIC_HOST_PREFIX = f"shop-{STORE_ADMIN_SUBDOMAIN}"
 
 VENDOR = {"name": "Rasti Mode Demo Vendor", "slug": "rasti-mode-demo-vendor"}
 
-# ------------------------------------------------------------------ برندها (دقیقاً ۶، بدونِ لوگویِ خارجی)
+DEMO_ASSETS_DIR = Path(__file__).resolve().parents[2] / "demo_assets" / "rasti_mode_demo"
+PRODUCT_MEDIA_DIR = DEMO_ASSETS_DIR / "products"
 
-BRAND_NAMES = ["Demo Nova", "Demo Mira", "Demo Arden", "Demo Rowe", "Demo Lunar", "Demo Vero"]
+# ------------------------------------------------------------------ برندها (دقیقاً ۶، بدونِ لوگویِ واقعی/حدسی)
+# طبقِ الزامِ صریحِ کار: چون تصاویرِ خام برخی علائمِ تجاریِ واقعی را نشان
+# می‌دهند (نایک/آدیداس/پوما/کانورس/...) و منشأِ لایسنسِ آن‌ها اثبات‌نشده
+# است، تصمیمِ عمدی این است که هیچ برندِ واقعی حدس زده/استفاده نشود —
+# همه‌یِ ۵۰ کالا زیرِ همین ۶ برندِ ساختگیِ Demo قرار می‌گیرند.
+
+BRAND_NAMES = ["Demo Motion", "Demo Urban", "Demo Denim", "Demo Layer", "Demo Carry", "Demo Muse"]
 
 # ------------------------------------------------------------------ دسته‌بندی‌ها (دقیقاً ۱۰، مسطح)
+# تنقیحِ صریحِ طبقه‌بندیِ پیشنهادیِ کار (باید در گزارشِ پایانی توضیح داده
+# شود): از میانِ ۳۴۵ عکسِ خام، فولدرِ ۳ عملاً یک‌دست «ژاکت/بامبر/چرم»
+# است و تنها یک عکسِ هودیِ واقعی در کلِ مجموعه وجود دارد — اجبارِ ۵ کالایِ
+# «هودی و سویشرت» با تنها ۱ عکسِ واقعی همان نقضِ صریحاً ممنوعِ کار است
+# («هرگز یک کتانی را پیراهن نامیدن»). به‌جایِ آن، فولدرِ ۳ به دو دسته‌یِ
+# واقعاً موجود در تصاویر تقسیم شد: «کاپشن و بامبر» (بامبر/کالج/هودیِ
+# تنها) و «ژاکت چرم و اورشرت» (چرم/جین/اورشرت) — هر دو با شواهدِ بصریِ
+# کافی.
 
 CATEGORY_NAMES = [
-    "تی‌شرت و پولوشرت",
-    "پیراهن و شومیز",
-    "شلوار پارچه‌ای",
+    "کتانی رانینگ",
+    "کتانی کژوال",
+    "شلوار کژوال",
     "شلوار جین",
-    "هودی و سویشرت",
-    "کت و ژاکت",
-    "پالتو و بارانی",
-    "پیراهن و لباس زنانه",
-    "دامن",
-    "بافت و پلیور",
+    "کاپشن و بامبر",
+    "ژاکت چرم و اورشرت",
+    "کفش زنانه",
+    "صندل و دمپایی",
+    "کیف دستی و Tote",
+    "کیف دوشی و مجلسی",
 ]
 
-# ------------------------------------------------------------------ کالکشن‌ها (کپیِ خنثیِ فارسی)
+# دسته‌هایی که کیف هستند — بدونِ محورِ سایز (SIMPLE product_type).
+BAG_CATEGORIES = {"کیف دستی و Tote", "کیف دوشی و مجلسی"}
+
+# ------------------------------------------------------------------ برچسب‌ها (معنادار، بدونِ نویزِ بی‌هدف)
+
+TAG_NAMES = ["جدید", "پرفروش", "تخفیف‌دار", "انتخاب فصل", "اسپرت", "کژوال", "روزمره", "مینیمال", "پریمیوم"]
+
+SPORTY_CATEGORIES = {"کتانی رانینگ", "کتانی کژوال", "کاپشن و بامبر"}
+CASUAL_CATEGORIES = {"شلوار کژوال", "شلوار جین", "ژاکت چرم و اورشرت", "کفش زنانه", "صندل و دمپایی"}
+MINIMAL_CATEGORIES = BAG_CATEGORIES
+SEASONAL_PICK_SKUS = {"FSH-004", "FSH-014", "FSH-024", "FSH-034", "FSH-044"}
+PREMIUM_SKUS = {"FSH-026", "FSH-030", "FSH-034", "FSH-045", "FSH-032", "FSH-005"}
+
+# ------------------------------------------------------------------ کالکشن‌ها
 
 COLLECTIONS = [
     {"name": "جدیدترین‌ها", "description": "تازه‌ترین اضافه‌شده‌های فروشگاهِ نمایشیِ Rasti Mode."},
     {"name": "پرفروش‌ها", "description": "پرطرفدارترین انتخاب‌های فروشگاهِ نمایشیِ Rasti Mode."},
     {"name": "تخفیف‌های منتخب", "description": "کالاهایِ تخفیف‌دارِ منتخبِ فروشگاهِ نمایشیِ Rasti Mode."},
     {"name": "انتخاب فصل", "description": "ترکیبِ پیشنهادیِ فصل در فروشگاهِ نمایشیِ Rasti Mode."},
+    {"name": "کفش و کتانی", "description": "کتانی، کفشِ زنانه و صندل — منتخبِ فروشگاهِ نمایشیِ Rasti Mode."},
+    {"name": "کیف و اکسسوری", "description": "کیفِ دستی، دوشی و مجلسی — منتخبِ فروشگاهِ نمایشیِ Rasti Mode."},
 ]
 
-# ------------------------------------------------------------------ نگاشتِ نامِ رنگِ فارسی → Hex تقریبی
-# فقط یک تخمینِ بصریِ خنثی برایِ swatch/تصویرِ Placeholder — هیچ برند/محصولِ
-# واقعیِ خارجی به این مقادیر وابسته نیست.
+# ------------------------------------------------------------------ نگاشتِ رنگِ فارسی → Hex تقریبی (فقط برایِ swatch)
 
 COLOR_HEX = {
-    "سفید": "#F9FAFB", "ذغالی": "#374151", "زیتونی": "#6B7B3A", "سرمه‌ای": "#1E3A5F",
-    "کرم": "#F5EFDC", "آجری": "#B5533C", "سبز خزه‌ای": "#5C6B47", "آبی آسمانی": "#87B8D9",
-    "صورتی": "#F4B4C6", "خاکی": "#A38F6D", "عاجی": "#F1E9D8", "مشکی": "#1A1A1A",
-    "سنگی": "#A8A296", "موکا": "#6F5847", "بژ": "#D9C7A8", "شیری": "#FAF6EE",
-    "ایندیگو": "#3B4B6B", "آبی روشن": "#6FA8D9", "آبی تیره": "#16305C", "آبی سنگشور": "#5E7A9C",
-    "گرافیتی": "#3F3F3F", "سبز": "#2F5D3A", "یاسی": "#C9BFE0", "شنی": "#D8C6A0",
-    "زرشکی": "#7A1F2B", "طوسی": "#8C8C8C", "تنباکویی": "#8A5A34", "آبی متوسط": "#3E6C9E",
-    "خردلی": "#C99A2E", "شتری": "#B08D57", "سبز زمردی": "#045D45", "شامپاینی": "#E9DCC3",
-    "جو دوسر": "#C8B78E", "آبی": "#3E6C9E", "آلویی": "#5B3A56", "جین": "#4A6B8A",
+    "سبز": "#4B6B3A", "مشکی": "#1A1A1A", "آبی روشن": "#8FB6D9", "کرم": "#F1E9D8",
+    "سرمه‌ای": "#1E3A5F", "صورتی": "#F4B4C6", "سفید": "#F9FAFB", "طوسی": "#8C8C8C",
+    "آبی": "#3B5B8C", "دودی": "#5C6066", "خاکی": "#A38F6D", "قرمز": "#B23A2E",
+    "زرد": "#D9B23C", "قهوه‌ای": "#6B4A32", "زیتونی": "#6B7B3A",
 }
 _FALLBACK_COLOR_HEX = "#9CA3AF"
 
@@ -116,119 +162,80 @@ IN_STOCK = "IN_STOCK"
 OUT_OF_STOCK = "OUT_OF_STOCK"
 PARTIAL_VARIANT_STOCK = "PARTIAL_VARIANT_STOCK"
 
-_HEALTHY_VARIANT_STOCK = 15
-_PARTIAL_HEALTHY_VARIANT_STOCK = 12
+_HEALTHY_VARIANT_STOCK = 14
+_PARTIAL_HEALTHY_VARIANT_STOCK = 10
+_SIMPLE_HEALTHY_STOCK = 18
 
 # ------------------------------------------------------------------ ماتریسِ کالا (دقیقاً ۵۰ ردیف)
-# فرمت: (کد, دستهٔ, نامِ کالا, برند, قیمتِ‌عادی, قیمتِ‌حراج‌یا‌None, [رنگ‌ها], [سایزها], وضعیتِ‌موجودی)
+# فرمت: (کد, دسته, نامِ کالا, برند, قیمتِ‌عادی, قیمتِ‌حراج‌یا‌None, رنگ, [سایزها]‌یا‌None, وضعیتِ‌موجودی)
+# [سایزها]=None یعنی کالایِ SIMPLE بدونِ محورِ تنوع (فقط کیف‌ها).
 
 PRODUCT_MATRIX = [
-    ("FSH-001", "تی‌شرت و پولوشرت", "تی‌شرت کتان Oversize زنانه", "Demo Nova", 1890000, 1490000, ["سفید", "ذغالی", "زیتونی"], ["XS", "S", "M", "L", "XL"], PARTIAL_VARIANT_STOCK),
-    ("FSH-002", "تی‌شرت و پولوشرت", "پولوشرت کلاسیک مردانه", "Demo Arden", 2290000, 1790000, ["سرمه‌ای"], ["S", "M", "L", "XL", "XXL"], IN_STOCK),
-    ("FSH-003", "تی‌شرت و پولوشرت", "تی‌شرت آستین‌بلند Ribbed", "Demo Vero", 1650000, None, ["کرم", "مشکی", "آجری"], ["XS", "S", "M", "L"], IN_STOCK),
-    ("FSH-004", "تی‌شرت و پولوشرت", "تی‌شرت Heavyweight مردانه", "Demo Rowe", 2450000, 1990000, ["سفید"], ["S", "M", "L", "XL", "XXL"], IN_STOCK),
-    ("FSH-005", "تی‌شرت و پولوشرت", "پولوشرت بافت‌دار", "Demo Lunar", 2790000, None, ["سبز خزه‌ای"], ["S", "M", "L", "XL"], OUT_OF_STOCK),
+    ("FSH-001", "کتانی رانینگ", "کتانی رانینگ چانکی سبز-کرم", "Demo Motion", 3450000, 2750000, "سبز", ["40", "41", "42", "43", "44"], OUT_OF_STOCK),
+    ("FSH-002", "کتانی رانینگ", "کتانی رانینگ بندی مشکی", "Demo Motion", 4150000, None, "مشکی", ["41", "42", "43", "44", "45"], PARTIAL_VARIANT_STOCK),
+    ("FSH-003", "کتانی رانینگ", "کتانی رانینگ سبک آبی روشن", "Demo Urban", 2890000, 2390000, "آبی روشن", ["39", "40", "41", "42", "43"], IN_STOCK),
+    ("FSH-004", "کتانی رانینگ", "کتانی رانینگ دد-شو کرم", "Demo Motion", 3950000, None, "کرم", ["40", "41", "42", "43"], IN_STOCK),
+    ("FSH-005", "کتانی رانینگ", "کتانی رانینگ مسابقه‌ای مشکی-سفید", "Demo Motion", 6450000, 5290000, "مشکی", ["40", "41", "42", "43", "44"], IN_STOCK),
 
-    ("FSH-006", "پیراهن و شومیز", "پیراهن لینن آزاد زنانه", "Demo Mira", 3890000, 2990000, ["سفید", "آبی آسمانی", "زیتونی"], ["XS", "S", "M", "L", "XL"], PARTIAL_VARIANT_STOCK),
-    ("FSH-007", "پیراهن و شومیز", "پیراهن Oxford مردانه", "Demo Nova", 3490000, 2890000, ["سفید"], ["S", "M", "L", "XL", "XXL"], IN_STOCK),
-    ("FSH-008", "پیراهن و شومیز", "شومیز راه‌راه کوتاه", "Demo Rowe", 3150000, None, ["آبی", "صورتی"], ["XS", "S", "M", "L"], IN_STOCK),
-    ("FSH-009", "پیراهن و شومیز", "Overshirt کتان مردانه", "Demo Arden", 4200000, 3490000, ["خاکی"], ["S", "M", "L", "XL", "XXL"], IN_STOCK),
-    ("FSH-010", "پیراهن و شومیز", "شومیز ساتن زنانه", "Demo Lunar", 3750000, None, ["عاجی"], ["XS", "S", "M", "L", "XL"], OUT_OF_STOCK),
+    ("FSH-006", "کتانی کژوال", "کتانی کژوال راه‌راه سرمه‌ای", "Demo Urban", 3250000, None, "سرمه‌ای", ["39", "40", "41", "42"], OUT_OF_STOCK),
+    ("FSH-007", "کتانی کژوال", "کتانی کژوال کلاسیک مشکی", "Demo Urban", 2950000, 2450000, "مشکی", ["40", "41", "42", "43", "44"], PARTIAL_VARIANT_STOCK),
+    ("FSH-008", "کتانی کژوال", "کتانی کژوال بلند صورتی", "Demo Urban", 3650000, None, "صورتی", ["37", "38", "39", "40", "41"], IN_STOCK),
+    ("FSH-009", "کتانی کژوال", "کتانی کژوال بلند مشکی", "Demo Motion", 3150000, 2690000, "مشکی", ["40", "41", "42", "43", "44"], IN_STOCK),
+    ("FSH-010", "کتانی کژوال", "کتانی کژوال ساده سفید", "Demo Urban", 2690000, None, "سفید", ["39", "40", "41", "42", "43"], IN_STOCK),
 
-    ("FSH-011", "شلوار پارچه‌ای", "شلوار Wide-leg زنانه", "Demo Rowe", 3950000, 3150000, ["مشکی", "سنگی", "موکا"], ["36", "38", "40", "42", "44"], PARTIAL_VARIANT_STOCK),
-    ("FSH-012", "شلوار پارچه‌ای", "شلوار Chino مردانه", "Demo Vero", 4150000, None, ["بژ"], ["30", "32", "34", "36", "38"], IN_STOCK),
-    ("FSH-013", "شلوار پارچه‌ای", "شلوار پلیسه زنانه", "Demo Mira", 4450000, 3550000, ["ذغالی", "سرمه‌ای", "کرم"], ["36", "38", "40", "42", "44"], IN_STOCK),
-    ("FSH-014", "شلوار پارچه‌ای", "شلوار Cargo یونیسکس", "Demo Arden", 4790000, 3890000, ["زیتونی"], ["S", "M", "L", "XL"], IN_STOCK),
-    ("FSH-015", "شلوار پارچه‌ای", "شلوار رسمی Straight مردانه", "Demo Lunar", 4350000, None, ["مشکی"], ["30", "32", "34", "36", "38"], OUT_OF_STOCK),
+    ("FSH-011", "شلوار کژوال", "شلوار کتان کژوال سرمه‌ای", "Demo Denim", 2450000, 1990000, "سرمه‌ای", ["30", "32", "34", "36"], OUT_OF_STOCK),
+    ("FSH-012", "شلوار کژوال", "شلوار کتان کژوال قهوه‌ای تیره", "Demo Denim", 2690000, None, "قهوه‌ای", ["30", "32", "34", "36", "38"], PARTIAL_VARIANT_STOCK),
+    ("FSH-013", "شلوار کژوال", "شلوار کتان مشکی روزمره", "Demo Urban", 2290000, 1890000, "مشکی", ["28", "30", "32", "34"], IN_STOCK),
+    ("FSH-014", "شلوار کژوال", "شلوار کتان کرم ریلکس", "Demo Denim", 2850000, None, "کرم", ["30", "32", "34", "36"], IN_STOCK),
+    ("FSH-015", "شلوار کژوال", "شلوار کتان زیتونی کژوال", "Demo Denim", 3150000, None, "زیتونی", ["30", "32", "34", "36", "38"], IN_STOCK),
 
-    ("FSH-016", "شلوار جین", "جین Straight زنانه", "Demo Nova", 4950000, 3950000, ["آبی", "مشکی", "شیری"], ["26", "28", "30", "32"], PARTIAL_VARIANT_STOCK),
-    ("FSH-017", "شلوار جین", "جین Slim مردانه", "Demo Rowe", 5250000, None, ["ایندیگو"], ["30", "32", "34", "36", "38"], IN_STOCK),
-    ("FSH-018", "شلوار جین", "جین Wide زنانه", "Demo Mira", 5450000, 4350000, ["آبی روشن", "آبی تیره", "مشکی"], ["26", "28", "30", "32"], IN_STOCK),
-    ("FSH-019", "شلوار جین", "جین Relaxed مردانه", "Demo Vero", 5690000, 4590000, ["آبی سنگشور"], ["30", "32", "34", "36", "38"], IN_STOCK),
-    ("FSH-020", "شلوار جین", "جین Cropped زنانه", "Demo Lunar", 4890000, None, ["گرافیتی"], ["26", "28", "30", "32"], OUT_OF_STOCK),
+    ("FSH-016", "شلوار جین", "شلوار جین طوسی راسته", "Demo Denim", 3450000, None, "طوسی", ["28", "30", "32", "34"], OUT_OF_STOCK),
+    ("FSH-017", "شلوار جین", "شلوار جین آبی متوسط اسلیم", "Demo Denim", 3250000, 2690000, "آبی", ["30", "32", "34", "36"], PARTIAL_VARIANT_STOCK),
+    ("FSH-018", "شلوار جین", "شلوار جین آبی روشن مام‌فیت", "Demo Denim", 3650000, None, "آبی روشن", ["28", "30", "32", "34"], IN_STOCK),
+    ("FSH-019", "شلوار جین", "شلوار جین آبی ریلکس‌فیت", "Demo Layer", 3890000, None, "آبی روشن", ["30", "32", "34", "36", "38"], IN_STOCK),
+    ("FSH-020", "شلوار جین", "شلوار جین آبی راسته کلاسیک", "Demo Denim", 3050000, 2590000, "آبی", ["30", "32", "34", "36"], IN_STOCK),
 
-    ("FSH-021", "هودی و سویشرت", "هودی زیپ‌دار یونیسکس", "Demo Arden", 3890000, 3090000, ["ذغالی", "کرم", "سبز"], ["S", "M", "L", "XL"], PARTIAL_VARIANT_STOCK),
-    ("FSH-022", "هودی و سویشرت", "سویشرت Crewneck زنانه", "Demo Nova", 3350000, None, ["یاسی"], ["XS", "S", "M", "L", "XL"], IN_STOCK),
-    ("FSH-023", "هودی و سویشرت", "هودی Oversized زنانه", "Demo Mira", 4150000, 3290000, ["مشکی", "شنی", "زرشکی"], ["XS", "S", "M", "L", "XL"], IN_STOCK),
-    ("FSH-024", "هودی و سویشرت", "سویشرت ساده مردانه", "Demo Rowe", 3650000, 2950000, ["سرمه‌ای"], ["S", "M", "L", "XL", "XXL"], IN_STOCK),
-    ("FSH-025", "هودی و سویشرت", "سویشرت Quarter-zip", "Demo Lunar", 4450000, None, ["طوسی"], ["S", "M", "L", "XL"], OUT_OF_STOCK),
+    ("FSH-021", "کاپشن و بامبر", "کاپشن بامبر زیتونی", "Demo Layer", 5450000, None, "زیتونی", ["S", "M", "L", "XL"], OUT_OF_STOCK),
+    ("FSH-022", "کاپشن و بامبر", "کاپشن بامبر کالج مشکی-کرم", "Demo Layer", 6250000, None, "مشکی", ["S", "M", "L", "XL", "XXL"], PARTIAL_VARIANT_STOCK),
+    ("FSH-023", "کاپشن و بامبر", "کاپشن بامبر کالج زیتونی-کرم", "Demo Layer", 5950000, 4950000, "زیتونی", ["M", "L", "XL"], IN_STOCK),
+    ("FSH-024", "کاپشن و بامبر", "هودی زیپ‌دار آبی", "Demo Urban", 4450000, 3790000, "آبی", ["S", "M", "L", "XL"], IN_STOCK),
+    ("FSH-025", "کاپشن و بامبر", "کاپشن بامبر دودی", "Demo Motion", 5150000, None, "دودی", ["M", "L", "XL", "XXL"], IN_STOCK),
 
-    ("FSH-026", "کت و ژاکت", "Bomber کوتاه زنانه", "Demo Mira", 6950000, 5490000, ["مشکی", "زیتونی", "سنگی"], ["XS", "S", "M", "L"], PARTIAL_VARIANT_STOCK),
-    ("FSH-027", "کت و ژاکت", "Chore Jacket مردانه", "Demo Nova", 6490000, None, ["تنباکویی"], ["S", "M", "L", "XL", "XXL"], IN_STOCK),
-    ("FSH-028", "کت و ژاکت", "ژاکت Quilted زنانه", "Demo Vero", 7250000, 5790000, ["سرمه‌ای", "کرم", "خاکی"], ["XS", "S", "M", "L", "XL"], IN_STOCK),
-    ("FSH-029", "کت و ژاکت", "کت جین مردانه", "Demo Arden", 6790000, None, ["آبی متوسط"], ["S", "M", "L", "XL", "XXL"], IN_STOCK),
-    ("FSH-030", "کت و ژاکت", "Blazer دو دکمه زنانه", "Demo Lunar", 8250000, None, ["مشکی"], ["36", "38", "40", "42", "44"], OUT_OF_STOCK),
+    ("FSH-026", "ژاکت چرم و اورشرت", "ژاکت چرم مشکی موتوری", "Demo Layer", 9450000, 7590000, "مشکی", ["S", "M", "L", "XL"], OUT_OF_STOCK),
+    ("FSH-027", "ژاکت چرم و اورشرت", "ژاکت جین آبی کلاسیک", "Demo Denim", 6950000, None, "آبی", ["S", "M", "L"], PARTIAL_VARIANT_STOCK),
+    ("FSH-028", "ژاکت چرم و اورشرت", "اورشرت کتان خاکی", "Demo Layer", 5450000, None, "خاکی", ["M", "L", "XL"], IN_STOCK),
+    ("FSH-029", "ژاکت چرم و اورشرت", "اورشرت زیپ‌دار قرمز", "Demo Layer", 5850000, 4890000, "قرمز", ["S", "M", "L", "XL"], IN_STOCK),
+    ("FSH-030", "ژاکت چرم و اورشرت", "اورشرت زیتونی تیره", "Demo Muse", 6250000, None, "زیتونی", ["M", "L", "XL", "XXL"], IN_STOCK),
 
-    ("FSH-031", "پالتو و بارانی", "Trench Coat زنانه", "Demo Nova", 9950000, 7890000, ["بژ", "مشکی", "زیتونی"], ["36", "38", "40", "42", "44"], PARTIAL_VARIANT_STOCK),
-    ("FSH-032", "پالتو و بارانی", "پالتو پشمی مردانه", "Demo Rowe", 11500000, None, ["ذغالی"], ["48", "50", "52", "54", "56"], IN_STOCK),
-    ("FSH-033", "پالتو و بارانی", "بارانی Mac یونیسکس", "Demo Arden", 7850000, 6250000, ["خردلی", "سرمه‌ای", "سنگی"], ["S", "M", "L", "XL"], IN_STOCK),
-    ("FSH-034", "پالتو و بارانی", "پالتو کوتاه زنانه", "Demo Mira", 10750000, None, ["شتری"], ["36", "38", "40", "42", "44"], IN_STOCK),
-    ("FSH-035", "پالتو و بارانی", "Parka مردانه", "Demo Lunar", 9450000, None, ["زیتونی"], ["S", "M", "L", "XL", "XXL"], OUT_OF_STOCK),
+    ("FSH-031", "کفش زنانه", "کفش تخت زنانه کرم", "Demo Muse", 2450000, None, "کرم", ["36", "37", "38", "39"], OUT_OF_STOCK),
+    ("FSH-032", "کفش زنانه", "کفش پاشنه‌بلند قهوه‌ای", "Demo Muse", 3650000, 2950000, "قهوه‌ای", ["36", "37", "38", "39", "40"], PARTIAL_VARIANT_STOCK),
+    ("FSH-033", "کفش زنانه", "بوت مچی زنانه مشکی", "Demo Muse", 4250000, None, "مشکی", ["37", "38", "39", "40"], IN_STOCK),
+    ("FSH-034", "کفش زنانه", "کفش مویل زنانه قهوه‌ای", "Demo Urban", 2890000, None, "قهوه‌ای", ["36", "37", "38", "39"], IN_STOCK),
+    ("FSH-035", "کفش زنانه", "کفش لوفر زنانه مشکی", "Demo Muse", 3150000, 2650000, "مشکی", ["37", "38", "39", "40"], IN_STOCK),
 
-    ("FSH-036", "پیراهن و لباس زنانه", "Shirt Dress میدی", "Demo Mira", 5850000, 4650000, ["سرمه‌ای", "زیتونی", "آجری"], ["38", "40"], PARTIAL_VARIANT_STOCK),
-    ("FSH-037", "پیراهن و لباس زنانه", "Wrap Dress میدی", "Demo Nova", 6250000, None, ["سبز زمردی"], ["36", "38"], IN_STOCK),
-    ("FSH-038", "پیراهن و لباس زنانه", "Knit Column Dress", "Demo Rowe", 5450000, None, ["کرم", "ذغالی"], ["S", "M"], IN_STOCK),
-    ("FSH-039", "پیراهن و لباس زنانه", "Utility Dress کمربندی", "Demo Arden", 6750000, None, ["خاکی"], ["M", "L"], IN_STOCK),
-    ("FSH-040", "پیراهن و لباس زنانه", "Pleated Occasion Dress", "Demo Vero", 8950000, None, ["آلویی"], ["38", "40"], OUT_OF_STOCK),
+    ("FSH-036", "صندل و دمپایی", "صندل جواهرنشان قهوه‌ای", "Demo Muse", 2250000, None, "قهوه‌ای", ["36", "37", "38", "39"], OUT_OF_STOCK),
+    ("FSH-037", "صندل و دمپایی", "دمپایی حلقه‌ای مشکی", "Demo Muse", 2050000, None, "مشکی", ["37", "38", "39", "40"], PARTIAL_VARIANT_STOCK),
+    ("FSH-038", "صندل و دمپایی", "دمپایی حلقه‌ای سبز تیره", "Demo Muse", 2150000, 1790000, "سبز", ["36", "37", "38"], IN_STOCK),
+    ("FSH-039", "صندل و دمپایی", "صندل تسمه‌ای قهوه‌ای", "Demo Urban", 2650000, 2190000, "قهوه‌ای", ["37", "38", "39", "40"], IN_STOCK),
+    ("FSH-040", "صندل و دمپایی", "دمپایی اسلاید زیتونی", "Demo Muse", 2050000, None, "زیتونی", ["36", "37", "38", "39"], IN_STOCK),
 
-    ("FSH-041", "دامن", "دامن A-Line میدی", "Demo Nova", 4250000, 3350000, ["مشکی", "شتری", "جین"], ["36", "38"], IN_STOCK),
-    ("FSH-042", "دامن", "دامن ساتن میدی", "Demo Mira", 4650000, None, ["شامپاینی"], ["38", "40"], IN_STOCK),
-    ("FSH-043", "دامن", "دامن پلیسه", "Demo Rowe", 4450000, None, ["سرمه‌ای", "زرشکی"], ["36", "38"], IN_STOCK),
-    ("FSH-044", "دامن", "Cargo Maxi Skirt", "Demo Arden", 5150000, None, ["زیتونی"], ["38", "40"], IN_STOCK),
-    ("FSH-045", "دامن", "دامن جین میدی", "Demo Lunar", 4750000, None, ["ایندیگو"], ["36", "38"], OUT_OF_STOCK),
+    ("FSH-041", "کیف دستی و Tote", "کیف تُت چرم مشکی", "Demo Carry", 4450000, 3650000, "مشکی", None, OUT_OF_STOCK),
+    ("FSH-042", "کیف دستی و Tote", "کیف تُت زیتونی", "Demo Carry", 3950000, None, "زیتونی", None, IN_STOCK),
+    ("FSH-043", "کیف دستی و Tote", "کیف تُت جیر قهوه‌ای", "Demo Carry", 4650000, 3890000, "قهوه‌ای", None, IN_STOCK),
+    ("FSH-044", "کیف دستی و Tote", "کیف تُت روزمره مشکی", "Demo Urban", 3450000, None, "مشکی", None, IN_STOCK),
+    ("FSH-045", "کیف دستی و Tote", "کیف تُت خاکی بزرگ", "Demo Carry", 5250000, 4390000, "خاکی", None, IN_STOCK),
 
-    ("FSH-046", "بافت و پلیور", "پلیور Crewneck", "Demo Rowe", 4750000, 3790000, ["جو دوسر", "سرمه‌ای", "سبز"], ["M", "L"], IN_STOCK),
-    ("FSH-047", "بافت و پلیور", "Mockneck Sweater", "Demo Nova", 4950000, None, ["ذغالی"], ["S", "M"], IN_STOCK),
-    ("FSH-048", "بافت و پلیور", "Cardigan آزاد", "Demo Mira", 5250000, None, ["کرم", "زرشکی", "طوسی"], ["M", "L"], IN_STOCK),
-    ("FSH-049", "بافت و پلیور", "Zip Knit مردانه", "Demo Arden", 5650000, None, ["سرمه‌ای"], ["L", "XL"], IN_STOCK),
-    ("FSH-050", "بافت و پلیور", "Cable Knit Sweater", "Demo Lunar", 5450000, None, ["شیری"], ["M", "L"], OUT_OF_STOCK),
+    ("FSH-046", "کیف دوشی و مجلسی", "کیف دوشی چرم قهوه‌ای", "Demo Carry", 3650000, None, "قهوه‌ای", None, OUT_OF_STOCK),
+    ("FSH-047", "کیف دوشی و مجلسی", "کیف دوشی مشکی کلاسیک", "Demo Carry", 2950000, 2450000, "مشکی", None, IN_STOCK),
+    ("FSH-048", "کیف دوشی و مجلسی", "کیف دوشی زنجیری مشکی", "Demo Muse", 4150000, None, "مشکی", None, IN_STOCK),
+    ("FSH-049", "کیف دوشی و مجلسی", "کیف مجلسی زرد شنیونی", "Demo Carry", 3350000, 2790000, "زرد", None, IN_STOCK),
+    ("FSH-050", "کیف دوشی و مجلسی", "کیف دوشی زنجیردار مشکی", "Demo Carry", 3850000, None, "مشکی", None, IN_STOCK),
 ]
 
 assert len(PRODUCT_MATRIX) == 50
-
-
-def _rgb(hex_color: str) -> tuple[int, int, int]:
-    value = hex_color.lstrip("#")
-    if len(value) != 6:
-        return (156, 163, 175)
-    return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
-
-
-def _mix(color, target, amount: float) -> tuple[int, int, int]:
-    return tuple(round(a + (b - a) * amount) for a, b in zip(color, target))
-
-
-def _placeholder_image_bytes(*, width: int, height: int, bg_hex: str, seed_text: str) -> bytes:
-    """تصویرِ Placeholderِ کاملاً محلی و کپی‌رایت-ایمن — بدونِ هیچ فایل/URL
-    خارجی. یک پنلِ استودیوییِ خنثی با رنگِ پایهٔ محصول/رنگ؛ هدفِ این فاز
-    فقط پرکردنِ اسلاتِ رسانه است، نه شبیه‌سازیِ عکاسیِ واقعی (نگاه کنید به
-    Media Contract در دفترچهٔ اجرا — فازِ بعدی این اسلات‌ها را با دارایی‌
-    هایِ بصریِ کنترل‌شده جایگزین می‌کند)."""
-    seed = hashlib.sha256(seed_text.encode("utf-8")).digest()
-    base = _rgb(bg_hex)
-    panel = _mix(base, (255, 255, 255), 0.72)
-    bg = (247, 246, 243)
-
-    image = Image.new("RGB", (width, height), bg)
-    draw = ImageDraw.Draw(image)
-    margin = int(width * 0.08)
-    draw.rounded_rectangle((margin, margin, width - margin, height - margin), radius=max(16, width // 20), fill=panel)
-    shift = (seed[0] % max(1, int(width * 0.05))) - int(width * 0.025)
-    cx, cy = width // 2 + shift, height // 2
-    r = int(min(width, height) * 0.22)
-    draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=_mix(base, (255, 255, 255), 0.12))
-    draw.rounded_rectangle(
-        (cx - r * 0.6, cy + r * 0.5, cx + r * 0.6, cy + r * 1.5), radius=max(8, r // 6),
-        fill=_mix(base, (0, 0, 0), 0.05),
-    )
-    buffer = BytesIO()
-    image.save(buffer, format="JPEG", quality=88, optimize=True)
-    return buffer.getvalue()
-
-
-def _uploaded_placeholder(*, filename: str, bg_hex: str, seed_text: str) -> SimpleUploadedFile:
-    data = _placeholder_image_bytes(width=600, height=750, bg_hex=bg_hex, seed_text=seed_text)
-    return SimpleUploadedFile(filename, data, content_type="image/jpeg")
+assert len({row[0] for row in PRODUCT_MATRIX}) == 50
+assert {row[1] for row in PRODUCT_MATRIX} == set(CATEGORY_NAMES)
+assert {row[3] for row in PRODUCT_MATRIX} == set(BRAND_NAMES)
 
 
 def _compute_discount_percent(regular_price: int, sale_price: int | None) -> int:
@@ -239,11 +246,89 @@ def _compute_discount_percent(regular_price: int, sale_price: int | None) -> int
     return max(0, min(100, int(percent)))
 
 
+def _tags_for(sku: str, category_fa: str, position_in_category: int, has_discount: bool) -> list[str]:
+    """انتساب قطعی و معنادار — نه نویزِ تصادفی. هر قاعده مستقیماً از
+    ساختارِ ردیفِ خودِ محصول (نه فراداده‌یِ بیرونی) مشتق می‌شود."""
+    tags = []
+    if has_discount:
+        tags.append("تخفیف‌دار")
+    if position_in_category == 5:
+        tags.append("جدید")
+    if position_in_category == 3:
+        tags.append("پرفروش")
+    if category_fa in SPORTY_CATEGORIES:
+        tags.append("اسپرت")
+    elif category_fa in CASUAL_CATEGORIES:
+        tags.append("روزمره")
+    if category_fa in MINIMAL_CATEGORIES:
+        tags.append("مینیمال")
+    if sku in SEASONAL_PICK_SKUS:
+        tags.append("انتخاب فصل")
+    if sku in PREMIUM_SKUS:
+        tags.append("پریمیوم")
+    return tags
+
+
+def _description_for(title_fa: str, category_fa: str, color_fa: str, brand: str) -> str:
+    return (
+        f"{title_fa} از برند {brand} — طراحیِ {category_fa} با رنگِ اصلیِ {color_fa}، "
+        "مناسبِ استفاده‌یِ روزمره. این کالا بخشی از فروشگاهِ نمایشیِ Rasti Mode Demo "
+        "است و صرفاً برایِ آزمونِ Storefront/قالب‌های آماده استفاده می‌شود."
+    )
+
+
+def _load_processed_image(sku: str, order: int) -> SimpleUploadedFile:
+    path = PRODUCT_MEDIA_DIR / sku / f"0{order}.webp"
+    data = path.read_bytes()
+    return SimpleUploadedFile(f"{sku.lower()}-{order}.webp", data, content_type="image/webp")
+
+
+def _composite_visual_bytes(*, width: int, height: int, product_paths: list[Path], bg_hex: str) -> bytes:
+    """ترکیب‌بندیِ تبلیغاتیِ خالص‌بصری (بدونِ متن) از عکس‌هایِ واقعیِ کالا —
+    فقط Pillow، بدونِ هیچ فایل/URL خارجی. متنِ فارسیِ واقعیِ Hero/Banner
+    (تیتر/دکمه) هرگز داخلِ خودِ تصویر رسم نمی‌شود — روی فیلدهایِ مدل
+    (``title``/``subtitle``/``button_label``) قرار می‌گیرد تا مرورگر با
+    فونتِ واقعیِ فارسیِ خودش رندر کند (این Sandbox فونتِ فارسی ندارد)."""
+    base = tuple(int(bg_hex.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+    canvas = Image.new("RGB", (width, height), base)
+    draw = ImageDraw.Draw(canvas)
+    # gradient overlay (subtle, left-to-right lightening)
+    for x in range(width):
+        t = x / max(1, width - 1)
+        shade = tuple(min(255, int(c + (255 - c) * 0.18 * t)) for c in base)
+        draw.line([(x, 0), (x, height)], fill=shade)
+
+    n = len(product_paths)
+    slot_w = width // max(1, n)
+    for i, path in enumerate(product_paths):
+        with Image.open(path) as prod:
+            prod = prod.convert("RGB")
+            target_h = int(height * 0.86)
+            scale = target_h / prod.height
+            target_w = max(1, int(prod.width * scale))
+            prod = prod.resize((target_w, target_h), Image.LANCZOS)
+            x = i * slot_w + (slot_w - target_w) // 2
+            y = (height - target_h) // 2
+            canvas.paste(prod, (max(0, x), max(0, y)))
+    return _to_jpeg_bytes(canvas)
+
+
+def _to_jpeg_bytes(image: Image.Image) -> bytes:
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", quality=88, optimize=True)
+    return buffer.getvalue()
+
+
+def _uploaded_composite(*, filename: str, width: int, height: int, product_paths: list[Path], bg_hex: str) -> SimpleUploadedFile:
+    data = _composite_visual_bytes(width=width, height=height, product_paths=product_paths, bg_hex=bg_hex)
+    return SimpleUploadedFile(filename, data, content_type="image/jpeg")
+
+
 class Command(BaseCommand):
     help = (
-        "می‌سازد/بازمی‌سازد یک فروشگاهِ Demo کاملاً ایزوله و قطعی (پوشاک، "
-        "«Rasti Mode Demo») — Phase 1 (بنیانِ دادهٔ قطعی) برایِ کارِ «Ready "
-        "Template Demo Fashion Store». Idempotent، Tenant-scoped."
+        "می‌سازد/بازمی‌سازد یک فروشگاهِ Demo کاملاً ایزوله و قطعی (پوشاک/کفش/کیف، "
+        "«Rasti Mode Demo») با کاتالوگِ واقعیِ برگرفته از ۳۴۵ عکسِ QAی کاربر. "
+        "Idempotent، Tenant-scoped."
     )
 
     def add_arguments(self, parser):
@@ -255,7 +340,7 @@ class Command(BaseCommand):
             "--reset", action="store_true",
             help=(
                 f"پیش از ساختنِ دوباره، فقط Storeِ Demo با اسلاگِ ثابتِ «{STORE_SLUG}» را کاملاً حذف "
-                "می‌کند — هیچ آرگومانی برایِ تغییرِ این اسلاگ وجود ندارد؛ ساختاراً امکانِ حذفِ Storeِ دیگری از این دستور نیست."
+                "می‌کند — هیچ آرگومانی برایِ تغییرِ این اسلاگ وجود ندارد."
             ),
         )
 
@@ -276,13 +361,21 @@ class Command(BaseCommand):
             self._seed_domain(store)
             if owner is not None:
                 self._seed_membership(store, owner)
+            self._seed_shop_settings(store)
             vendor = self._seed_vendor(store)
             categories = self._seed_categories(store)
             brands = self._seed_brands(store)
-            products = self._seed_products(store, vendor, categories, brands)
+            tags = self._seed_tags(store)
+            products = self._seed_products(store, vendor, categories, brands, tags)
             variant_stats = self._seed_variants(products)
             image_count = self._seed_product_images(products)
+            self._seed_category_images(categories, products)
             collections = self._seed_collections(store, products)
+            hero_count = self._seed_hero_slides(store, products)
+            banner_count = self._seed_banners(store, products)
+            story_count = self._seed_story_rail(store, categories, products)
+            self._seed_navigation(store, categories, collections)
+            self._seed_footer(store, categories, collections)
 
         self.stdout.write(self.style.SUCCESS(
             "seed_ready_template_fashion_demo با موفقیت اجرا شد:\n"
@@ -293,26 +386,28 @@ class Command(BaseCommand):
             f"  تنوع: {variant_stats['total']} (روی {variant_stats['products_with_variants']} کالا)\n"
             f"  تصویرِ کالا: {image_count}\n"
             f"  کالکشن: {len(collections)}\n"
+            f"  Hero: {hero_count}  Banner: {banner_count}  Story: {story_count}\n"
         ))
 
     # ------------------------------------------------------------------ Reset
 
     @transaction.atomic
     def _reset(self) -> None:
-        """فقط Storeِ Demo با همینِ اسلاگِ ثابتِ کدشده (``STORE_SLUG``) را
-        حذف می‌کند — هرگز هیچ Storeِ دیگری را، فارغ از هر ورودیِ خط‌فرمان
-        (چون اصلاً چنین ورودی‌ای پذیرفته نمی‌شود)."""
         existing = Store.objects.filter(slug=STORE_SLUG).first()
         if existing is None:
             self.stdout.write("  --reset: Storeِ Demo از قبل وجود نداشت — چیزی حذف نشد.")
             return
         self.stdout.write(f"  --reset: حذفِ کاملِ Storeِ Demo «{existing.slug}» (pk={existing.pk})…")
-        # ترتیبِ امنِ حذف: ابتدا ProductVariant (تا VariantOptionValue که
-        # PROTECTِ ProductOptionValue را نگه می‌دارد کَسکید و آزاد شود)،
-        # سپس Productها (که با CASCADE به ProductOption/ProductOptionValue
-        # می‌رسد و اکنون دیگر توسطِ VariantOptionValueای محافظت نمی‌شوند؛
-        # همچنین PROTECTِ Product.category را آزاد می‌کند)، سپس خودِ Store.
+        # ترتیبِ امنِ حذف — کشف‌شده حینِ اجرایِ واقعیِ این دستور:
+        # ۱) ProductVariant (تا VariantOptionValueِ PROTECTِ ProductOptionValue آزاد شود)،
+        # ۲) MenuItem (چون ``MenuItem.menu`` عمداً PROTECT است — نگاه کنید به
+        #    مدل — و بدونِ این، CASCADEِ Store روی Menu با ProtectedError می‌شکند)،
+        # ۳) Productها (CASCADE به ProductOption/ProductOptionValue، و
+        #    آزادکردنِ PROTECTِ Product.category)،
+        # ۴) خودِ Store (که Menu/HeroSlide/PromotionalBanner/StoryRailItem/
+        #    FooterSettings/MerchantCollection را از طریقِ CASCADEِ store پاک می‌کند).
         ProductVariant.objects.filter(product__store=existing).delete()
+        MenuItem.objects.filter(menu__store=existing).delete()
         Product.objects.filter(store=existing).delete()
         existing.delete()
 
@@ -354,6 +449,26 @@ class Command(BaseCommand):
             domain.is_primary = True
             domain.save(update_fields=["verification_status", "verified_at", "is_primary", "updated_at"])
 
+        # میزبانِ عمومیِ Storefront — مستقل از میزبانِ ادمینِ بالا (نگاه کنید
+        # به توضیحِ ``STORE_PUBLIC_HOST_PREFIX``). این همان دامنه‌ای است که
+        # مشتری/QA برایِ دیدنِ HOME/LISTING/PDP/CART واقعی باز می‌کند. سافیکس
+        # از همان تنظیمِ Runtime گرفته می‌شود که میزبانِ ادمینِ بالا استفاده
+        # کرد — نه هاردکد — تا هم در DEBUG هم در Production درست باشد.
+        public_hostname = f"{STORE_PUBLIC_HOST_PREFIX}.{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}"
+        public_domain, public_created = StoreDomain.objects.get_or_create(
+            store=store, hostname=public_hostname,
+            defaults={
+                "is_primary": False,
+                "domain_type": StoreDomain.DomainType.CUSTOM_DOMAIN,
+                "verification_status": StoreDomain.VerificationStatus.VERIFIED,
+                "verified_at": timezone.now(),
+            },
+        )
+        if not public_created and public_domain.verification_status != StoreDomain.VerificationStatus.VERIFIED:
+            public_domain.verification_status = StoreDomain.VerificationStatus.VERIFIED
+            public_domain.verified_at = timezone.now()
+            public_domain.save(update_fields=["verification_status", "verified_at", "updated_at"])
+
     def _seed_membership(self, store: Store, owner) -> None:
         membership, created = StoreMembership.objects.get_or_create(
             store=store, user=owner,
@@ -369,7 +484,34 @@ class Command(BaseCommand):
             membership.accepted_at = membership.accepted_at or timezone.now()
             membership.save(update_fields=["role", "status", "accepted_at", "updated_at"])
 
-    # ------------------------------------------------------------------ Vendor/Category/Brand
+    # ------------------------------------------------------------------ ShopSettings
+
+    def _seed_shop_settings(self, store: Store) -> None:
+        """بدونِ این رکورد، PDPِ واقعی (``build_product_detail_context`` →
+        ``is_gift_wrap_available`` → ``ShopSettings.load``) با
+        ``ShopSettingsNotProvisionedError`` می‌شکند — کشف‌شده حینِ
+        تأییدِ Storefrontِ واقعی روی این Storeِ Demo."""
+        settings_row = ShopSettings.provision_for(store)
+        changed = False
+        if not settings_row.tagline:
+            settings_row.tagline = "پوشاک، کفش و کیف — فروشگاهِ نمایشیِ Rasti Mode"
+            changed = True
+        if not settings_row.description:
+            settings_row.description = (
+                "Rasti Mode Demo یک فروشگاهِ نمایشیِ ایزوله برایِ آزمونِ Storefront و "
+                "قالب‌های آماده‌یِ راستی‌سی است."
+            )
+            changed = True
+        if not settings_row.contact_phone:
+            settings_row.contact_phone = "02100000000"
+            changed = True
+        if not settings_row.contact_email:
+            settings_row.contact_email = "demo@rasti-mode-demo.internal"
+            changed = True
+        if changed:
+            settings_row.save()
+
+    # ------------------------------------------------------------------ Vendor/Category/Brand/Tags
 
     def _seed_vendor(self, store: Store) -> Vendor:
         vendor, _ = Vendor.objects.get_or_create(
@@ -397,40 +539,45 @@ class Command(BaseCommand):
             by_name[name] = brand
         return by_name
 
+    def _seed_tags(self, store: Store) -> dict:
+        by_name = {}
+        for name in TAG_NAMES:
+            tag, _ = ProductTag.objects.get_or_create(
+                store=store, code=slugify(name, allow_unicode=True), defaults={"name": name, "is_active": True},
+            )
+            by_name[name] = tag
+        return by_name
+
     # ------------------------------------------------------------------ Products
 
-    def _seed_products(self, store: Store, vendor: Vendor, categories: dict, brands: dict) -> list:
-        """دقیقاً ۵۰ کالا — طبقِ ماتریسِ ثابتِ کار. قیمت/تخفیف/موجودیِ کلی
-        (``Product.stock``) این‌جا مقداردهیِ اولیه می‌شود؛ موجودیِ واقعیِ
-        سطحِ تنوع در ``_seed_variants`` (که موتورِ واقعیِ تنوع را صدا
-        می‌زند) محاسبه و روی همین فیلد بازنویسی می‌شود."""
+    def _seed_products(self, store: Store, vendor: Vendor, categories: dict, brands: dict, tags: dict) -> list:
         products = []
+        category_position = {}
         for row in PRODUCT_MATRIX:
-            code, category_name, name, brand_name, regular_price, sale_price, colors, sizes, stock_state = row
+            code, category_name, name, brand_name, regular_price, sale_price, color, sizes, stock_state = row
+            category_position[category_name] = category_position.get(category_name, 0) + 1
+            position = category_position[category_name]
+
             category = categories[category_name]
             brand = brands[brand_name]
             slug = f"{slugify(name, allow_unicode=True)}-{code.lower()}"
             discount_percent = _compute_discount_percent(regular_price, sale_price)
+            is_bag = category_name in BAG_CATEGORIES
+            product_type = Product.ProductType.SIMPLE if is_bag else Product.ProductType.VARIABLE
 
             product, created = Product.objects.get_or_create(
                 store=store, sku=code,
                 defaults={
                     "vendor": vendor, "category": category, "brand": brand,
                     "name": name, "slug": slug,
-                    "description": (
-                        f"{name} — بخشی از مجموعهٔ نمایشیِ Rasti Mode Demo برایِ آزمونِ واقعیِ "
-                        "Storefront در قالب‌های آماده. این یک محصولِ نمایشی است، نه کالایِ واقعیِ فروش."
-                    ),
+                    "description": _description_for(name, category_name, color, brand_name),
                     "price": regular_price, "discount_percent": discount_percent,
                     "status": Product.Status.ACTIVE,
-                    "product_type": Product.ProductType.VARIABLE,
+                    "product_type": product_type,
                     "unit": Product.Unit.PIECE,
                 },
             )
             if not created:
-                # Idempotent re-run: keep price/discount in sync with the
-                # fixed matrix without touching anything else (e.g. stock,
-                # which _seed_variants recomputes from real variant state).
                 changed_fields = []
                 if product.discount_percent != discount_percent:
                     product.discount_percent = discount_percent
@@ -438,63 +585,57 @@ class Command(BaseCommand):
                 if int(product.price) != regular_price:
                     product.price = regular_price
                     changed_fields.append("price")
-                if product.product_type != Product.ProductType.VARIABLE:
-                    product.product_type = Product.ProductType.VARIABLE
+                if product.product_type != product_type:
+                    product.product_type = product_type
                     changed_fields.append("product_type")
                 if product.brand_id != brand.id:
                     product.brand = brand
                     changed_fields.append("brand")
+                if product.category_id != category.id:
+                    product.category = category
+                    changed_fields.append("category")
                 if changed_fields:
                     product.save(update_fields=[*changed_fields, "updated_at"])
 
-            products.append((product, colors, sizes, stock_state))
+            tag_names = _tags_for(code, category_name, position, discount_percent > 0)
+            product.tags.set([tags[t] for t in tag_names])
+
+            products.append((product, color, sizes, stock_state, is_bag))
         return products
 
-    # ------------------------------------------------------------------ Variants
+    # ------------------------------------------------------------------ Variants (apparel/footwear) + SIMPLE stock (bags)
 
     def _seed_variants(self, products: list) -> dict:
-        """برایِ هر کالا، دو محورِ واقعیِ «رنگ»/«سایز» را (اگر هنوز نسازند)
-        از طریقِ موتورِ چندمحوره می‌سازد و ``generate_variants`` را صدا
-        می‌زند تا ترکیب‌هایِ واقعیِ رنگ×سایز (هرکدام یک ``ProductVariant``
-        با ``combination_key`` واقعی) ساخته شوند. سپس موجودیِ هر ترکیب را
-        طبقِ ``stock_state`` این کالا تنظیم می‌کند:
-
-        - ``IN_STOCK``: همهٔ ترکیب‌ها موجودی سالم دارند.
-        - ``OUT_OF_STOCK``: همهٔ ترکیب‌ها موجودیِ صفر دارند (کالا واقعاً
-          غیرِقابل‌خرید است — از طریقِ همان موتورِ موجودیِ واقعی، نه یک
-          پرچمِ نمایشی).
-        - ``PARTIAL_VARIANT_STOCK``: دقیقاً همان یک ترکیبِ (رنگِ اول ×
-          سایزِ اول) موجودیِ صفر می‌گیرد؛ بقیهٔ ترکیب‌ها موجودی سالم دارند
-          — کالا در کل قابلِ‌خرید می‌ماند (طبقِ الزامِ صریحِ کار).
-
-        Idempotent: اگر محورهایِ فعالِ کالا از قبل وجود دارند، دوباره
-        ساخته نمی‌شوند — فقط ``generate_variants`` (که خودش idempotent
-        است) و تنظیمِ موجودی دوباره اجرا می‌شود."""
         total = 0
         products_with_variants = 0
 
-        for product, colors, sizes, stock_state in products:
+        for product, color, sizes, stock_state, is_bag in products:
+            if is_bag:
+                # کیف: بدونِ محورِ سایز — SIMPLE با Product.stock مستقیم.
+                new_stock = 0 if stock_state == OUT_OF_STOCK else _SIMPLE_HEALTHY_STOCK
+                if product.stock != new_stock:
+                    product.stock = new_stock
+                    product.save(update_fields=["stock", "updated_at"])
+                continue
+
             if not product.options.filter(is_active=True).exists():
                 variant_engine_service.add_product_option(
                     product, label="رنگ", input_type=ProductOption.InputType.COLOR,
-                    values=colors,
-                    color_hex_by_label={c: COLOR_HEX.get(c, _FALLBACK_COLOR_HEX) for c in colors},
+                    values=[color], color_hex_by_label={color: COLOR_HEX.get(color, _FALLBACK_COLOR_HEX)},
                 )
-                variant_engine_service.add_product_option(
-                    product, label="سایز", values=sizes,
-                )
+                variant_engine_service.add_product_option(product, label="سایز", values=sizes)
 
             variant_engine_service.generate_variants(product)
 
-            first_color, first_size = colors[0], sizes[0]
+            first_size = sizes[0]
             variants = list(product.variants.filter(is_obsolete=False))
             to_update = []
             product_total_stock = 0
             for variant in variants:
-                color_label, _, size_label = variant.value.partition(" / ")
+                _, _, size_label = variant.value.partition(" / ")
                 if stock_state == OUT_OF_STOCK:
                     new_stock = 0
-                elif stock_state == PARTIAL_VARIANT_STOCK and color_label == first_color and size_label == first_size:
+                elif stock_state == PARTIAL_VARIANT_STOCK and size_label == first_size:
                     new_stock = 0
                 elif stock_state == PARTIAL_VARIANT_STOCK:
                     new_stock = _PARTIAL_HEALTHY_VARIANT_STOCK
@@ -517,53 +658,70 @@ class Command(BaseCommand):
 
         return {"total": total, "products_with_variants": products_with_variants}
 
-    # ------------------------------------------------------------------ Images
+    # ------------------------------------------------------------------ Images (real processed WebP — never raw_user_catalog)
 
     def _seed_product_images(self, products: list) -> int:
-        """دقیقاً ۳ ``ProductImage`` به‌ازایِ هر کالا (= ۱۵۰ کل). برایِ
-        کالاهایِ چندرنگ، تا ۳ تصویرِ اول به مقادیرِ محورِ «رنگ» (از طریقِ
-        ``option_value`` — نه ``variant``) نگاشت می‌شوند تا سوییچِ خودکارِ
-        تصویر با انتخابِ رنگ در فازِ بعد کار کند؛ بقیه (یا کالاهایِ
-        تک‌رنگ) تصویرِ عمومیِ کالا می‌مانند. هیچ فایل/URL خارجی مصرف
-        نمی‌شود — idempotent (کالایِ دارایِ ۳ تصویر یا بیشتر رد می‌شود)."""
         created_count = 0
-        for product, colors, _sizes, _stock_state in products:
+        for product, color, _sizes, _stock_state, is_bag in products:
             if product.images.count() >= 3:
                 continue
-            color_option = product.options.filter(label="رنگ", is_active=True).first()
-            color_values = list(color_option.values.filter(is_active=True).order_by("display_order")) if color_option else []
-            is_multi_color = len(colors) > 1
+            color_option = None if is_bag else product.options.filter(label="رنگ", is_active=True).first()
+            color_value = color_option.values.filter(is_active=True).first() if color_option else None
 
-            for shot in range(3):
-                bg_hex = COLOR_HEX.get(colors[shot % len(colors)], _FALLBACK_COLOR_HEX)
+            for order in (1, 2, 3):
                 image = add_product_image(
-                    product,
-                    _uploaded_placeholder(
-                        filename=f"{product.slug}-{shot}.jpg", bg_hex=bg_hex,
-                        seed_text=f"{product.sku}-{shot}",
-                    ),
-                    alt=f"{product.name} — تصویر {shot + 1}",
+                    product, _load_processed_image(product.sku, order),
+                    alt=f"{product.name} — تصویر {order}",
                 )
-                if is_multi_color and shot < len(color_values):
-                    set_image_option_value(image, color_values[shot])
+                # تک‌رنگ: نگاشتِ رنگ فقط برایِ کالاهایِ دارایِ محورِ رنگِ
+                # واقعی معنا دارد (نه برایِ کیف‌هایِ SIMPLE بدونِ محور) —
+                # طبقِ الزامِ صریحِ کار «هرگز نگاشتِ ساختگی برایِ کالایِ
+                # تک‌رنگ نسازید»، این‌جا فقط اولین تصویر (کاور) را به تنها
+                # مقدارِ رنگِ موجود وصل می‌کنیم تا در آینده اگر رنگِ دومی
+                # اضافه شود، ساختارِ نگاشت از قبل معتبر باشد.
+                if color_value is not None and order == 1:
+                    set_image_option_value(image, color_value)
                 created_count += 1
+        return created_count
+
+    def _seed_category_images(self, categories: dict, products: list) -> int:
+        """۱۰ تصویرِ واقعاً مفیدِ دسته‌بندی — از عکسِ واقعیِ کاورِ اولین
+        کالایِ هر دسته (بدونِ هیچ منبعِ خارجی)."""
+        cover_by_category: dict[str, str] = {}
+        for product, *_rest in products:
+            cover_by_category.setdefault(product.category.name, product.sku)
+
+        created_count = 0
+        for category_name, category in categories.items():
+            if category.image:
+                continue
+            sku = cover_by_category.get(category_name)
+            if sku is None:
+                continue
+            source_path = PRODUCT_MEDIA_DIR / sku / "01.webp"
+            data = _composite_visual_bytes(
+                width=800, height=600, product_paths=[source_path],
+                bg_hex=COLOR_HEX.get(next(c for p, c, *_ in products if p.sku == sku), _FALLBACK_COLOR_HEX),
+            )
+            category.image = SimpleUploadedFile(f"category-{category.slug}.jpg", data, content_type="image/jpeg")
+            category.save(update_fields=["image", "updated_at"])
+            created_count += 1
         return created_count
 
     # ------------------------------------------------------------------ Collections
 
     def _seed_collections(self, store: Store, products: list) -> list:
-        """چهار کالکشنِ دستیِ خنثی — طبقِ الزامِ صریحِ کار. عضویت‌ها قطعی
-        (نه تصادفی) هستند تا اجرایِ دوباره همیشه همان نتیجه را بدهد:
-        «جدیدترین‌ها»یِ ۱۰ کالایِ آخرِ ماتریس، «پرفروش‌ها»یِ ۱۰ کالایِ اول،
-        «تخفیف‌های منتخب» یعنی همهٔ کالاهایِ تخفیف‌دار، «انتخاب فصل» یک
-        زیرمجموعهٔ ثابتِ ۱۰تایی از میانهٔ ماتریس."""
         all_products = [p for p, *_ in products]
         discounted = [p for p in all_products if p.discount_percent > 0]
+        footwear_bag_categories_shoes = {"کتانی رانینگ", "کتانی کژوال", "کفش زنانه", "صندل و دمپایی"}
+        bags_categories = BAG_CATEGORIES
         member_map = {
             "جدیدترین‌ها": all_products[-10:],
             "پرفروش‌ها": all_products[:10],
             "تخفیف‌های منتخب": discounted,
-            "انتخاب فصل": all_products[20:30],
+            "انتخاب فصل": [p for p in all_products if p.sku in SEASONAL_PICK_SKUS],
+            "کفش و کتانی": [p for p in all_products if p.category.name in footwear_bag_categories_shoes],
+            "کیف و اکسسوری": [p for p in all_products if p.category.name in bags_categories],
         }
 
         collections = []
@@ -580,3 +738,206 @@ class Command(BaseCommand):
             collection_service.add_products(collection, member_map[name])
             collections.append(collection)
         return collections
+
+    # ------------------------------------------------------------------ Hero / Banners / Story rail
+
+    def _seed_hero_slides(self, store: Store, products: list) -> int:
+        by_sku = {p.sku: p for p, *_ in products}
+        slides = [
+            {
+                "title": "کالکشن پاییز و زمستان Rasti Mode",
+                "subtitle": "کاپشن، ژاکت و کتانی‌های تازه — برایِ استایلِ روزمره",
+                "button_label": "مشاهده کالکشن",
+                "skus": ["FSH-023", "FSH-026", "FSH-002"],
+                "bg": "#3A2F28",
+            },
+            {
+                "title": "دنیایِ کیف Rasti Mode",
+                "subtitle": "کیفِ دستی، دوشی و مجلسی برایِ هر موقعیت",
+                "button_label": "خرید کیف",
+                "skus": ["FSH-041", "FSH-046", "FSH-049"],
+                "bg": "#2B2320",
+            },
+            {
+                "title": "کفش و کتانیِ منتخب",
+                "subtitle": "از کتانیِ رانینگ تا کفشِ زنانه — همه در یک‌جا",
+                "button_label": "مشاهده کفش‌ها",
+                "skus": ["FSH-001", "FSH-033", "FSH-038"],
+                "bg": "#242A32",
+            },
+            {
+                "title": "تخفیف‌هایِ ویژهٔ این هفته",
+                "subtitle": "تا ۲۵٪ تخفیف رویِ منتخبی از کالاهایِ فروشگاه",
+                "button_label": "مشاهده تخفیف‌ها",
+                "skus": ["FSH-005", "FSH-017", "FSH-039"],
+                "bg": "#1F1F1F",
+            },
+        ]
+        created_count = 0
+        for order, data in enumerate(slides):
+            slide = HeroSlide.objects.filter(store=store, title=data["title"]).first()
+            if slide is not None:
+                changed = False
+                for field, value in (
+                    ("subtitle", data["subtitle"]), ("display_order", order), ("is_active", True),
+                    ("show_button", True), ("button_label", data["button_label"]),
+                    ("destination_type", DestinationType.SEARCH),
+                ):
+                    if getattr(slide, field) != value:
+                        setattr(slide, field, value)
+                        changed = True
+                if changed:
+                    slide.save()
+                continue
+            slide = HeroSlide(
+                store=store, title=data["title"], subtitle=data["subtitle"], display_order=order,
+                is_active=True, show_button=True, button_label=data["button_label"],
+                destination_type=DestinationType.SEARCH,
+            )
+            paths = [PRODUCT_MEDIA_DIR / sku / "01.webp" for sku in data["skus"] if sku in by_sku]
+            slide.desktop_image = _uploaded_composite(
+                filename=f"hero-{order}.jpg", width=1600, height=700, product_paths=paths, bg_hex=data["bg"],
+            )
+            slide.save()
+            created_count += 1
+        return created_count
+
+    def _seed_banners(self, store: Store, products: list) -> int:
+        by_sku = {p.sku: p for p, *_ in products}
+        banners = [
+            ("کاپشن و بامبر جدید", ["FSH-021", "FSH-024"], "#39352E"),
+            ("جین‌های پرفروش", ["FSH-017", "FSH-020"], "#25344A"),
+            ("کتانی رانینگ", ["FSH-004", "FSH-005"], "#2E2E2E"),
+            ("کیف تُت روزمره", ["FSH-042", "FSH-044"], "#2A2320"),
+            ("صندل تابستانه", ["FSH-036", "FSH-040"], "#3A3226"),
+            ("کفش زنانهٔ مجلسی", ["FSH-032", "FSH-035"], "#332B2B"),
+        ]
+        created_count = 0
+        for order, (title, skus, bg) in enumerate(banners):
+            banner = PromotionalBanner.objects.filter(store=store, title=title).first()
+            if banner is not None:
+                changed = False
+                for field, value in (
+                    ("display_order", order), ("is_active", True),
+                    ("show_button", False), ("destination_type", DestinationType.SEARCH),
+                ):
+                    if getattr(banner, field) != value:
+                        setattr(banner, field, value)
+                        changed = True
+                if changed:
+                    banner.save()
+                continue
+            banner = PromotionalBanner(
+                store=store, title=title, display_order=order, is_active=True,
+                show_button=False, destination_type=DestinationType.SEARCH,
+            )
+            paths = [PRODUCT_MEDIA_DIR / sku / "01.webp" for sku in skus if sku in by_sku]
+            banner.desktop_image = _uploaded_composite(
+                filename=f"banner-{order}.jpg", width=1200, height=500, product_paths=paths, bg_hex=bg,
+            )
+            banner.save()
+            created_count += 1
+        return created_count
+
+    def _seed_story_rail(self, store: Store, categories: dict, products: list) -> int:
+        cover_by_category: dict[str, str] = {}
+        for product, *_rest in products:
+            cover_by_category.setdefault(product.category.name, product.sku)
+
+        created_count = 0
+        for order, category_name in enumerate(CATEGORY_NAMES):
+            category = categories[category_name]
+            title = category_name[:20]
+            item = StoryRailItem.objects.filter(store=store, title=title, display_order=order).first()
+            if item is not None:
+                continue
+            sku = cover_by_category[category_name]
+            item = StoryRailItem(
+                store=store, title=title, display_order=order, is_active=True,
+                destination_type=DestinationType.CATEGORY, destination_category=category,
+            )
+            path = PRODUCT_MEDIA_DIR / sku / "01.webp"
+            item.image = _uploaded_composite(
+                filename=f"story-{order}.jpg", width=400, height=400, product_paths=[path],
+                bg_hex=COLOR_HEX.get(next(c for p, c, *_ in products if p.sku == sku), _FALLBACK_COLOR_HEX),
+            )
+            item.save()
+            created_count += 1
+        return created_count
+
+    # ------------------------------------------------------------------ Navigation / Footer
+
+    def _seed_navigation(self, store: Store, categories: dict, collections: list) -> None:
+        menu, _ = Menu.objects.get_or_create(
+            store=store, location=Menu.Location.HEADER, defaults={"title": "منوی اصلی", "is_active": True},
+        )
+        order = 0
+        for category_name in CATEGORY_NAMES:
+            category = categories[category_name]
+            MenuItem.objects.get_or_create(
+                menu=menu, title=category_name, parent=None,
+                defaults={
+                    "display_order": order, "is_active": True,
+                    "destination_type": DestinationType.CATEGORY, "destination_category": category,
+                },
+            )
+            order += 1
+
+        collection_by_name = {c.name: c for c in collections}
+        for title in ("جدیدترین‌ها", "پرفروش‌ها", "تخفیف‌های منتخب"):
+            collection = collection_by_name.get(title)
+            if collection is None:
+                continue
+            MenuItem.objects.get_or_create(
+                menu=menu, title=title, parent=None,
+                defaults={
+                    "display_order": order, "is_active": True,
+                    "destination_type": DestinationType.COLLECTION, "destination_collection": collection,
+                },
+            )
+            order += 1
+
+        footer_menu, _ = Menu.objects.get_or_create(
+            store=store, location=Menu.Location.FOOTER_1,
+            defaults={"title": "راهنمای خرید", "is_active": True},
+        )
+        footer_entries = [
+            ("جستجوی محصولات", DestinationType.SEARCH, None),
+            ("سبد خرید", DestinationType.CART, None),
+            ("تازه‌ترین‌ها", DestinationType.COLLECTION, collection_by_name.get("جدیدترین‌ها")),
+            ("تخفیف‌های منتخب", DestinationType.COLLECTION, collection_by_name.get("تخفیف‌های منتخب")),
+        ]
+        for f_order, (item_title, destination_type, target) in enumerate(footer_entries):
+            if destination_type == DestinationType.COLLECTION and target is None:
+                continue
+            defaults = {"display_order": f_order, "is_active": True, "destination_type": destination_type}
+            if destination_type == DestinationType.COLLECTION:
+                defaults["destination_collection"] = target
+            MenuItem.objects.get_or_create(menu=footer_menu, title=item_title, parent=None, defaults=defaults)
+
+    def _seed_footer(self, store: Store, categories: dict, collections: list) -> None:
+        footer = FooterSettings.provision_for(store)
+        changed = False
+        if not footer.description:
+            footer.description = (
+                "Rasti Mode Demo یک فروشگاهِ نمایشیِ ایزوله برایِ آزمونِ Storefront و "
+                "قالب‌های آماده‌یِ راستی‌سی است — پوشاک، کفش و کیف با دادهٔ کاملاً قطعی."
+            )
+            changed = True
+        if not footer.address:
+            footer.address = "تهران — آدرسِ نمایشیِ Demo (بدونِ آدرسِ واقعی)"
+            changed = True
+        if not footer.phone:
+            footer.phone = "02100000000"
+            changed = True
+        if not footer.email:
+            footer.email = "demo@rasti-mode-demo.internal"
+            changed = True
+        if not footer.copyright_text:
+            footer.copyright_text = "© Rasti Mode Demo — یک فروشگاهِ نمایشیِ راستی‌سی"
+            changed = True
+        if not footer.working_hours:
+            footer.working_hours = "شنبه تا پنج‌شنبه، ۹ تا ۱۸ (نمایشی)"
+            changed = True
+        if changed:
+            footer.save()

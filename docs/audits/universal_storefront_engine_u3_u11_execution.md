@@ -2053,3 +2053,422 @@ field was added — the thumbnail is computed, never stored). `git diff
    own "Do NOT redesign PDP or Listing variants" exclusion); the Gallery
    card represents the home-page baseline only, exactly as the old
    3-swatch strip did.
+
+## Post-U11 Acceptance Fix Batch 4 — Rasti Mode Demo Real Catalog, Media, Content & All 8 Ready Template Real Previews
+
+- **Starting SHA:** `63c490de765a51a7bb17924f3e7d00a1055486f4` (the commit
+  that added the raw 345-image QA catalog, immediately preceding this
+  Batch's own work).
+
+**Context.** Two earlier, narrower missions (untracked in this ledger —
+their own final reports are the record) built a *placeholder-data*
+version of the isolated `rasti-mode-demo` Store: "Phase 1" seeded 50
+apparel-only products with locally PIL-generated solid-color placeholder
+images; "Phase 1.1" fixed an unused demo brand and audited the currency
+contract. This Batch replaces that placeholder foundation entirely: the
+project owner supplied 345 real product photographs, and the mandate was
+to build the *real* Rasti Mode Demo catalog/media/content around what
+those photographs actually show, then render that same completed demo
+through all 8 official Ready Templates with real captured screenshots
+replacing the Batch 3 abstract SVG as the Gallery's normal preview.
+
+### Step 1 — Image forensics (345 raw photos)
+
+Verified the committed raw pool at
+`apps/stores/demo_assets/rasti_mode_demo/raw_user_catalog/`: folder 1 = 66
+JPG, folder 2 = 55, folder 3 = 70, folder 4 = 66, folder 5 = 88 — total
+345, matching `QA_SOURCE_ASSETS.md` exactly (preserved verbatim, not
+edited).
+
+Built `scripts/build_inventory.py` (Pillow-based, one-off, not a
+management command): computed per-image width/height/aspect-ratio,
+SHA-256, an average-hash for near-duplicate flagging, and dominant colors
+for all 345 files, and rendered 10 contact sheets (grids of labeled
+thumbnails, ≤48 images each) under a git-ignored `_work/` scratch
+directory. Every one of the 345 images was visually reviewed via these
+contact sheets (not filenames — the raw filenames are opaque scraper
+artifacts like `1_org_zoom-43.jpg` with no reliable per-product grouping).
+Two forensic findings worth recording:
+- All 345 raw files share the identical 401×601 pixel size (a
+  scraper-normalized "zoom" preview size) — this initially made the
+  average-hash near-duplicate detector flag many genuinely *different*
+  products as nightmarish near-duplicate clusters, since centered
+  studio product photography on a plain background produces very similar
+  coarse luminance hashes regardless of the actual product. Direct visual
+  inspection (not the hash) was treated as authoritative, per the
+  mission's own "do not rely on filenames alone" instruction extended to
+  "do not blindly trust a naive perceptual hash either."
+- The raw pool is a flat collection of single studio photos — one real
+  photograph per item, not multi-angle photo sets of the same product.
+  This confirmed upfront that nearly every one of the 50 selected products
+  would need the mission's explicitly-sanctioned "01 = real photo, 02/03 =
+  derived non-destructive crops of that same photo" fallback, rather than
+  three independent real angles.
+- Confirmed (matching the mission's own folder hypotheses): folder 1 =
+  sneakers (running + casual/lifestyle, several real, unverified brand
+  logos visible — New Balance, Puma, Adidas Samba, Converse, Nike);
+  folder 2 = men's trousers/chinos/jeans (mostly on-model shots); folder 3
+  = jackets (bomber/varsity/leather/overshirt — **only one genuine hoodie
+  photo in the entire 345**); folder 4 = a genuine *mix* of women's
+  footwear (flats/heels/sandals/boots) interleaved with handbags; folder 5
+  = handbags/totes/shoulder bags (several with visible luxury-brand-style
+  logos/plaques).
+
+### Step 2 — Taxonomy (one disclosed refinement)
+
+Final 10 categories: کتانی رانینگ, کتانی کژوال, شلوار کژوال, شلوار جین,
+**کاپشن و بامبر**, **ژاکت چرم و اورشرت**, کفش زنانه, صندل و دمپایی, کیف
+دستی و Tote, کیف دوشی و مجلسی.
+
+**Refinement (mission-authorized, explained per its own instruction):**
+the suggested 6th category was "هودی و سویشرت" (hoodie/sweatshirt). With
+only one real hoodie photo in the whole 345-image pool, forcing 5 hoodie
+products would have meant fabricating 4 out of 5 products' core identity
+— the exact "never call a sneaker a shirt" failure mode the mission
+explicitly forbids. Folder 3's actual, well-populated content splits
+cleanly into two real jacket-style clusters instead: bomber/varsity
+jackets (plus the one real hoodie, folded in as a casual-outerwear
+member) and leather jackets/denim jacket/overshirts. Categories 5–6 were
+relabeled accordingly; all 8 other suggested category labels are used
+verbatim. 10 categories × 5 products × 50 total preserved exactly.
+
+### Step 3 — 50 real products (SKUs reused, FSH-001…FSH-050)
+
+Every one of the 50 SKUs was reassigned to a genuinely different real
+photograph (verified unique `(folder, filename)` per SKU — see the
+`assert` in `select_and_process_media.py`'s `SELECTION` table). Each
+product got a Persian title/description honestly derived from what its
+own photo shows (color + category + style), never copied from any
+retailer, and never describing a feature the photo doesn't show. Real
+color per product = the one visible color in its one real photo (see
+Step 8 below on why no product was given fabricated multi-color
+variants). Brand: since several raw photos show unverified real
+third-party trademarks (Nike/Adidas/Puma/Converse/New Balance-style
+sneakers; unverified luxury-style handbag hardware/logos), the decision
+was to use **only the 6 recommended fictional brands** — Demo Motion,
+Demo Urban, Demo Denim, Demo Layer, Demo Carry, Demo Muse — for every
+single product, never a guessed real brand name, and product copy never
+names a real brand even where one is visually suggested by the photo.
+Final distribution: Motion 6, Urban 11, Denim 8, Layer 7, Muse 10, Carry
+8 (sums to 50; every brand has products — the mission's own explicit
+"don't leave an unused brand like Demo Vero last time" callout).
+
+### Step 4/5 — 150 final images + manifest
+
+`scripts/select_and_process_media.py` (one-off, not a management command)
+processes the 50 selected raw photos into
+`apps/stores/demo_assets/rasti_mode_demo/products/<SKU>/01|02|03.webp` —
+1200×1600, 3:4 neutral canvas (light `#F7F6F3` letterboxing, never a
+destructive crop of the product itself), WebP quality 88:
+- `01.webp` = the real source photo, canvas-normalized only (full frame,
+  zero crop).
+- `02.webp`/`03.webp` = deterministic derived crops of that *same* real
+  photo (82%/70% centered zoom, slightly offset) — explicitly flagged
+  `"derived": true` in the manifest with a plain-text transformation
+  description, per the mission's own fallback contract for products
+  without three true source photos (which is every product here).
+
+`selected_product_media_manifest.json` records exactly 150 entries, each
+with `sku`/`image_order`/`cover`/`raw_source_relpath`/
+`raw_source_sha256`/`final_relpath`/`final_sha256`/`derived`/
+`transformation`/`category`/`product_title_fa`/`brand`/
+`dominant_color_fa`/`provenance_status` (always
+`"user_supplied_qa_source"`). Verified: exactly 1 cover per SKU, no
+duplicate `final_relpath` values, every `final_relpath` file physically
+exists and its SHA-256 matches the recorded value.
+
+### Steps 6–11 — Brands / Tags / Colors / Sizes / Prices / Discount-Stock Matrix
+
+- **Tags:** 9 meaningful tags (جدید, پرفروش, تخفیف‌دار, انتخاب فصل, اسپرت,
+  کژوال, روزمره, مینیمال, پریمیوم), assigned by a small deterministic rule
+  keyed on each row's own real structure (discount → تخفیف‌دار; 5th
+  product per category → جدید; 3rd → پرفروش; sneaker/bomber categories →
+  اسپرت; trouser/jacket/shoe categories → روزمره; bag categories →
+  مینیمال; 5 specific seasonal picks → انتخاب فصل; 6 highest-value SKUs →
+  پریمیوم) — never meaningless noise tags.
+- **Colors:** exactly the one real visible color per product (see Step 8
+  below) — no invented second colorway.
+- **Sizes:** category-correct per mission Step 9 — sneakers/women's
+  shoes/sandals use numeric EU sizes in the 36–46 range; trousers/jeans
+  use numeric waist sizes; jackets use S/M/L/XL/XXL subsets; **bags get no
+  size option at all** (`ProductType.SIMPLE`, no `ProductOption` rows) —
+  not even a fake "one-size" value, since the model does not require one.
+- **Prices:** varied, non-round-number values within the mission's
+  suggested per-category ranges (sneakers 2.5–9M, trousers 2–6M, jackets
+  4–14M, women's shoes/sandals 2–8M, bags 2.5–12M تومان).
+- **Discount/stock matrix:** 22 discounted / 28 non-discounted; exactly 10
+  fully out-of-stock (one per category); exactly 8 partial-variant-stock
+  products (one per apparel/footwear category — bag categories are
+  `SIMPLE` products, so "partial variant stock" is not a meaningful state
+  for them and was not forced), each verified to have at least one
+  zero-stock and one purchasable real `ProductVariant` combination; the
+  remaining 32 fully in-stock. All spread across categories, not
+  clustered.
+
+### Step 12/13 — Real media import + color-image mapping
+
+`_seed_product_images` imports the 150 pre-processed WebP files through
+the real `add_product_image` service (never touching `raw_user_catalog/`
+— verified structurally: `_load_processed_image` only ever builds paths
+from `PRODUCT_MEDIA_DIR`). Every product ends with exactly 3
+`ProductImage` rows and exactly 1 cover. Since every product in this
+real-photo dataset has exactly one genuine visible color, the color→image
+`option_value` mapping is applied only to the cover image of each
+variable product (structurally correct, honest single-color mapping) —
+no fabricated multi-color mapping was created anywhere, per the mission's
+explicit "do not fake mappings for single-color products."
+
+### Step 14 — Category visuals
+
+10 real category tile images, each a Pillow composite (gradient +
+one real representative product photo, no external fetch) built from the
+category's own first real product image — `apps/stores/management/
+commands/seed_ready_template_fashion_demo.py::_seed_category_images`.
+
+### Steps 15–17 — Store identity, homepage content, hero/banner visuals
+
+Store identity: `Rasti Mode Demo`, neutral demo contact info (a placeholder
+phone/email/address, never a real merchant's). Content built from the real
+catalog: 4 `HeroSlide`s, 6 `PromotionalBanner`s, 10 `StoryRailItem`s (one
+per category, real category destination), a 10-category header `Menu`, a
+footer quick-link `Menu`, `FooterSettings`, and 6 `MerchantCollection`s
+(جدیدترین‌ها, پرفروش‌ها, تخفیف‌های منتخب, انتخاب فصل, plus two bonus
+category-flavored collections — کفش و کتانی, کیف و اکسسوری). Hero/banner
+visuals are Pillow compositions of 2–3 real processed product photos on a
+neutral gradient background — **no text is baked into these images**: the
+actual Persian headline/subtitle/CTA text lives in `HeroSlide.title`/
+`subtitle`/`button_label` model fields, rendered by the real template with
+the browser's own font (this sandbox has no Persian-capable font for
+Pillow to draw with — baking text into the raster would have produced
+garbled glyphs; the real architecture already separates copy from image
+for exactly this reason).
+
+**Real bug found and fixed during this step:** the real PDP view
+(`build_product_detail_context` → `is_gift_wrap_available` →
+`ShopSettings.load`) raised `ShopSettingsNotProvisionedError` for the demo
+store — discovered only by actually loading a real PDP, not by unit
+testing the seed command in isolation. Fixed by adding
+`ShopSettings.provision_for(store)` (`_seed_shop_settings`) to the seed
+command, with demo tagline/description/contact fields.
+
+### Step 18 — Seed command
+
+Kept the established name `seed_ready_template_fashion_demo` (renaming
+would break every previously-documented Windows QA command and existing
+test); "fashion" is read as the standard broad retail umbrella covering
+apparel/footwear/bags, which the new catalog still is. Deterministic,
+idempotent (a second run creates zero duplicate rows/images/content —
+verified), safe `--reset` (only ever deletes `Store.objects.filter(
+slug="rasti-mode-demo")`, structurally cannot target another Store — no
+CLI argument accepts a different slug), never touches
+`rastisi-fashion-test` or any real merchant Store (tested against a live
+fixture Store carrying that exact slug).
+
+**A second real bug found and fixed:** `--reset` raised `ProtectedError`
+on `MenuItem.menu` (that FK is `PROTECT`, not `CASCADE`, unlike every
+other content model's `store` FK) once real navigation content existed —
+discovered only by actually running `--reset` against a fully-seeded
+store, not by reasoning about the schema. Fixed by explicitly deleting
+`MenuItem.objects.filter(menu__store=existing)` before deleting `Product`s
+and the `Store` itself, in the same safe-ordering spirit as the existing
+`ProductVariant`-before-`Product` step.
+
+A separate `StoreDomain` was added for the *public* storefront
+(`shop-{admin_subdomain}.{RASTISI_ADMIN_DOMAIN_SUFFIX}`, `is_primary=False`),
+independent of the existing admin-dashboard `StoreDomain`
+(`is_primary=True`) — mirroring the codebase's own established
+`AdminSubdomainIndependentOfPublicDomainTests` pattern. Both hostnames
+resolve to `127.0.0.1` locally with zero hosts-file editing because they
+live under the `.localhost`-suffixed `RASTISI_ADMIN_DOMAIN_SUFFIX` DEBUG
+override, which itself sits under the RFC 6761-reserved `.localhost` TLD.
+
+### Step 19 — Real storefront verification (actually executed, not asserted)
+
+Ran the actual local dev server (`manage.py runserver`) and hit it with
+real HTTP requests (both Django's test client with `override_settings`
+*and*, separately, plain `curl`/a real browser against the unmodified
+`ALLOWED_HOSTS` — to prove the public host resolves for real, not just
+under a test-only override) against `shop-rasti-mode-demo.rastisi.
+localhost`: HOME (200, real hero/product content), LISTING (200, plus
+`?q=`, `?discounted=1`, `?in_stock=1` filters all 200), a variable
+product's PDP (price/size-options/color-option/"ناموجود" badge all
+present for an OOS product), a `SIMPLE` bag's PDP (price present, no
+size selector), COLLECTION detail (200), and a real cart-add POST for an
+in-stock variant (HTMX cart-count response confirms the add succeeded).
+
+### Steps 20–21/29 — All 8 official Ready Templates, same demo content
+
+`layout_preset_registry.list_ready_templates()` returns exactly the same
+8 official keys used throughout this ledger (`dense_marketplace`,
+`premium_leather`, `warm_boutique`, `fashion_promo_catalog`,
+`playful_lifestyle`, `utility_catalog`, `editorial_jewelry`,
+`dark_digital`) — the capture tool (below) iterates this list directly,
+never a second hard-coded Gallery list. Each Template was Applied +
+Published (via the existing real `preset_service.apply_preset_with_checkpoint`
++ `layout_service.publish` — the same production merchant flow) onto the
+*same* `rasti-mode-demo` Store, one at a time, so all 8 captures show the
+exact same 50 products/150 media/10 categories/brands/prices/discounts/
+stock/6 collections/hero/nav/footer — only the registered Template
+configuration differs. Visual inspection of the 8 resulting captures
+(see below) confirms genuinely distinct header styles, hero treatment,
+section density, and color roles per Template — no `if template_key ==
+"..."` special-casing was added to any renderer; differentiation comes
+entirely from each Preset's own registered configuration.
+
+### Steps 22–28 — Screenshot architecture (implemented AND executed)
+
+**Architecture:** `apps/storefront_builder/services/template_preview_service.py`
+gained an additive resolution layer (the pre-existing Batch 3 pure-SVG
+functions are byte-for-byte untouched — all 15 `test_acceptance_batch3.py`
+tests still pass unmodified): `resolve_real_screenshot(preset)` does a
+pure filesystem check (`ready_template_previews/<key>/v<version>.webp` +
+a `.meta.json` sidecar recording a SHA-256 **content hash of exactly the
+registry data the screenshot visually depends on** — appearance/palette,
+header, footer, home section-key order) and returns the static-relative
+path only if both the file and a matching hash exist; otherwise `None`.
+This function does zero browser/network/database work — the anti-
+staleness contract (Step 24: "do NOT silently show an old version
+screenshot") is enforced by the hash comparison, not by trusting a
+version number alone.
+
+The actual capture tool,
+`apps/storefront_builder/management/commands/capture_ready_template_previews.py`,
+is a **dev/build-time-only** script (never imported by the Gallery view
+or the preview service): it requires an already-running real
+`manage.py runserver` (it never starts/stops one itself), targets *only*
+the hardcoded `rasti-mode-demo` Store (no CLI argument can redirect it —
+tested), and for each of the 8 Templates: Applies+Publishes it (skipping
+the call if already current, mirroring the existing rate-limit-aware
+`seed_rastisi_fashion_demo._seed_builder` pattern) then uses Playwright +
+the sandbox's pre-installed Chromium to navigate to the real public host
+and capture a 1440×1100 JPEG, converts it to WebP (quality 88) via
+Pillow, and writes it + the hash sidecar.
+
+**This was actually run in this sandbox**, not merely built:
+`pip install playwright` (the browser binary was already pre-installed;
+only the Python wrapper needed installing) and 8 real canonical HOME
+captures were generated and are committed under
+`apps/storefront_builder/static/ready_template_previews/<key>/v1.webp`,
+plus (via `--full-qa`) 24 additional QA-evidence captures (HOME-mobile,
+LISTING-desktop, PDP-desktop per Template) under
+`docs/qa_evidence/ready_template_previews/<key>/` (not part of the
+Gallery; QA evidence only, `git`-tracked images, ~2.3 MB total).
+
+**Three real bugs found and fixed while actually running the capture, not
+anticipated in advance:**
+1. `sync_playwright()` installs a running asyncio event loop in the
+   calling thread; Django's ORM refuses `SynchronousOnlyOperation` for any
+   sync query issued from inside that thread. Fixed by running the
+   Apply+Publish DB write via a genuine separate OS thread
+   (`concurrent.futures.ThreadPoolExecutor`) for each Template iteration.
+2. The very first full run produced **8 byte-identical WebP files**
+   despite each Template genuinely differing server-side (proven via
+   direct `curl`) — root cause: the capture code navigated Playwright to
+   the bare `--base-url` IP (`http://127.0.0.1:8123/`) instead of the
+   Store's real public hostname, so Django's Host-based routing never saw
+   `shop-rasti-mode-demo...` and served an unrelated/default Store's page
+   every single time, regardless of which Template was actually applied
+   to the demo Store. Fixed by reconstructing the navigation URL from the
+   resolved public host (with `--host-resolver-rules=MAP <host> 127.0.0.1`
+   at the Chromium launch level so the name-based request still reaches
+   the local server). Verified after the fix: all 8 WebP files have
+   distinct sizes and hashes, and were visually confirmed to show
+   genuinely different header/hero/layout treatments of the same real
+   catalog.
+3. The QA-evidence PDP capture's "click a product" selector
+   (`a[href*='/products/']`) matched a category-filter link on the
+   listing page (which also contains `/products/` in its href) instead of
+   a real product card, producing a filtered-listing screenshot mislabeled
+   as a PDP. Fixed by targeting the real product-card link class
+   (`a.pcard-hitarea`, confirmed from `product_card.html`) — verified the
+   regenerated PDP captures show a genuine product detail page (price,
+   stock badge, gallery thumbnails, add-to-cart).
+
+### Step 30 — Gallery UX integration
+
+`storefront_template_gallery`'s `template_cards` now resolves
+`resolve_real_screenshot` first for each card; only when it returns `None`
+does the existing Batch 3 SVG (`resolve_gallery_thumbnail`) render as
+before. `template_gallery.html`'s `.tpl-thumb` branches on the new
+`thumbnail_kind` field: a real screenshot renders as an `<img>` wrapped in
+a plain `<a href>` to the same static image (opens larger in a new tab —
+a structurally non-mutating plain link, no view logic) with
+`object-fit:cover`; the SVG fallback path is completely unchanged.
+Persian names/descriptions, the current-Template badge, and the disabled
+"already applied" action are all unchanged from Batch 1/3. All 8 official
+cards currently render the real screenshot branch (verified: 0 SVG
+fallbacks in the live Gallery HTML today); a Template whose screenshot
+goes missing or stale still degrades safely to the SVG schematic — never
+a broken image, never a stale/misleading one.
+
+### No-mutation contract (re-verified under the new code path)
+
+`resolve_real_screenshot` contains no `import playwright`/`selenium`
+statement anywhere (checked structurally, not just by absence of a call).
+New tests re-prove, with real committed screenshots now present (so the
+"nothing to resolve, trivially passes" loophole does not apply): a Gallery
+GET creates no new `StorefrontLayoutVersion`, never calls
+`apply_preset`/`apply_preset_with_checkpoint`, and — swapping
+`sys.modules["playwright"]` to `None` for the duration of the request —
+the Gallery page still renders 200. All 15 pre-existing
+`test_acceptance_batch3.py` tests (the original no-mutation contract) were
+re-run unmodified and still pass.
+
+### Files changed
+
+- `apps/stores/demo_assets/rasti_mode_demo/scripts/build_inventory.py` — new (forensics tool).
+- `apps/stores/demo_assets/rasti_mode_demo/scripts/select_and_process_media.py` — new (media selection/processing tool).
+- `apps/stores/demo_assets/rasti_mode_demo/products/FSH-001…FSH-050/0{1,2,3}.webp` — new, 150 files.
+- `apps/stores/demo_assets/rasti_mode_demo/selected_product_media_manifest.json` — new.
+- `apps/stores/management/commands/seed_ready_template_fashion_demo.py` — fully rewritten catalog/content data and seeding logic (real media import, ShopSettings/public-domain provisioning, safe `--reset` MenuItem fix).
+- `apps/stores/tests/test_seed_ready_template_fashion_demo_command.py` — fully rewritten for the new real-catalog contract.
+- `apps/stores/tests/test_rasti_mode_demo_media_pipeline.py` — new (raw/manifest/media static tests).
+- `apps/storefront_builder/services/template_preview_service.py` — additive real-screenshot resolver (Batch 3 code untouched).
+- `apps/storefront_builder/management/commands/capture_ready_template_previews.py` — new (dev/build-time capture tool).
+- `apps/storefront_builder/static/ready_template_previews/<key>/v1.webp` + `.meta.json` — new, 8 real captures + sidecars.
+- `docs/qa_evidence/ready_template_previews/<key>/{home_mobile,listing_desktop,pdp_desktop}.jpg` — new, 24 QA-evidence captures.
+- `apps/storefront_builder/views.py` — `storefront_template_gallery` resolves a real screenshot before falling back to the SVG.
+- `apps/storefront_builder/templates/dashboard/storefront_builder/template_gallery.html` — `.tpl-thumb` branches on `thumbnail_kind`.
+- `apps/storefront_builder/tests/test_ready_template_real_previews.py` — new.
+
+### Testing
+
+Ran and green: `test_rasti_mode_demo_media_pipeline.py` (18 tests, static
+filesystem/manifest checks); `test_ready_template_real_previews.py` (19
+tests, resolver + Gallery integration + capture-command safety);
+`test_acceptance_batch3.py` re-run unmodified (15 tests, still green —
+the pre-existing no-mutation/SVG contract). `test_seed_ready_template_
+fashion_demo_command.py` (41 tests covering the full new real-catalog
+contract) — see the final report for its concrete pass count. Broader
+`apps.stores`/`apps.catalog`/`apps.content`/`apps.storefront_builder`
+regression suites, `manage.py check`, `makemigrations --check --dry-run`,
+and `git diff --check` results are recorded in the final report rather
+than duplicated here.
+
+### Known remaining limitations (explicit, not gaps to hide)
+
+1. The 345 raw source images' third-party licensing provenance has not
+   been independently verified, and several show visible real-brand
+   trademarks (sneakers, handbag hardware). They remain strictly QA/demo
+   internal material: never claimed copyright-free, never deployed to
+   production, never served directly to the public storefront (only the
+   processed, normalized `products/` copies are), and `QA_SOURCE_ASSETS.md`'s
+   warnings are preserved verbatim. All 50 assigned brands are fictional —
+   no real brand name is used or implied in any product title/description.
+2. Every product's "second/third image" is a derived crop of its single
+   real photo, not an independent real angle — disclosed explicitly in
+   the manifest (`"derived": true` + a transformation description) per
+   the mission's own fallback contract, not hidden as if it were a real
+   second photograph.
+3. The 8 real screenshots capture the canonical HOME page only, at one
+   fixed desktop viewport (1440×1100) — matching the mission's own
+   Gallery requirement (only the canonical HOME preview is required
+   there); the 24 additional mobile/listing/PDP captures are QA evidence
+   in `docs/qa_evidence/`, not wired into the Gallery.
+4. The capture command leaves the demo Store published on whichever
+   Template it processed last in a given run (currently `dark_digital`,
+   the final key `list_ready_templates()` yields) — this has no effect on
+   the Gallery (which reads static files, not the Store's live published
+   state) and is a reasonable, disclosed side effect of a dev/build-only
+   tool that intentionally cycles the *same* isolated demo Store through
+   all 8 Templates.
