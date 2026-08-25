@@ -1505,3 +1505,327 @@ introduced). `git diff --check` → clean.
    Template Gallery thumbnails remain out of scope for this batch, per
    its own explicit exclusions — deferred to a future acceptance batch,
    not started here.
+
+## Post-U11 Acceptance Fix Batch 2 — Ready Template Lifecycle / History / Baseline / Granular Reset
+
+- **Starting SHA:** `5dddc3fa0bff3fd3130f83c78e7f4b3e5f40516b` (the Batch 1
+  commit above)
+- One coherent commit on top of that SHA, per the batch's own explicit
+  instruction — see the session's final response for this commit's hash.
+
+Real QA against a live database found: before applying another Ready
+Template, `DRAFT=42 PUBLISHED=41 VERSION_COUNT=10`; after explicitly
+applying another Ready Template, `DRAFT=42 PUBLISHED=41 VERSION_COUNT=10` —
+unchanged. `preset_service.apply_preset` mutates the current Draft row
+in-place with no recoverable pre-switch checkpoint. Three problems this
+batch fixes, all built on the **existing** `StorefrontLayoutVersion`
+version/history/`restore_version` lifecycle — no parallel history system,
+no new top-level model.
+
+### Issue 1 — safe pre-apply/pre-reset recovery checkpoint
+
+**Root cause:** `apply_preset(draft, preset)` always writes onto the exact
+`StorefrontLayoutVersion` row it's given. The merchant-facing entry point
+(`storefront_apply_layout_preset`) always passes the *current* Draft, so an
+explicit Template switch silently destroyed the previous baseline with
+nothing recorded in version history.
+
+**Fix — `layout_service.checkpoint_draft_before_replacement(store, *,
+reason_label, user=None)`:** reuses the exact `restore_version` idiom
+(clone full content into a **new** `StorefrontLayoutVersion` row, make it
+`layout.draft_version`) with one deliberate difference — instead of
+deleting the old Draft, it **archives** it (`status=ARCHIVED`, labeled with
+`reason_label`), so it stays a normal entry in `layout.versions`, restorable
+through the unmodified `restore_version`. If the current Draft has no
+`StorefrontSection` at all (`_draft_has_any_content`), nothing is
+checkpointed and the *same* Draft row is reused — "no meaningful change, no
+checkpoint" (no version-history spam for a fresh/empty store's first
+apply). `_clone_version_content` (already used by `get_or_create_draft`/
+`restore_version`) was extended to also copy `template_provenance`/
+`template_baseline_snapshot` — a real, previously-latent gap: without it, a
+checkpoint's resulting new Draft would have silently lost "which Template
+it's built from," breaking Issue 2/3's reset entirely for any Draft that
+had ever gone through a clone.
+
+**Entry points:** `preset_service.apply_preset_with_checkpoint(store,
+preset, *, user=None)` (wired into `storefront_apply_layout_preset` —
+Issue 1's merchant-facing fix), `reset_page_with_checkpoint`, and
+`reset_storefront_with_checkpoint` (Issue 3's "page reset"/"storefront
+reset must preserve a recoverable pre-reset state" requirement) all share
+this one helper.
+
+**Undo/Redo interaction (a real, deliberate behavior change, not a
+regression):** `StorefrontEditHistoryEntry` rows are scoped to one Draft
+row's continuous lifetime (`draft_version` FK, `select_for_update(pk=...)`
+in `edit_history_service.record_change`) — `publish()` already wipes them
+for exactly this reason at its own Draft-identity boundary. A checkpoint is
+the same kind of boundary: once one fires, there is nothing correct to
+attach a local Undo entry to (the old row's timeline ends there; the new
+row starts clean, exactly like `restore_version`'s own result always has).
+The pre-switch/pre-reset state is not lost — it is durably recoverable via
+History → Restore, a strictly more robust mechanism (survives navigation/
+reload) than a local Undo stack entry. Two pre-existing tests encoded the
+old assumption and were updated to assert the new, intentional contract:
+`test_u1a_preset_edit_history_characterization.py` (rewritten with the
+full rationale in its module docstring) and
+`test_phase35_reference_editable_backgrounds.py::test_reference_preset_apply_is_one_undo_step_and_restores_previous_draft`.
+When nothing is checkpointed (empty Draft), Undo/Redo is completely
+unaffected — verified by a dedicated test.
+
+**Tests A-H** — `PreApplyCheckpointTests` in the new
+`test_acceptance_batch2.py`: (A) a different-Template apply creates a
+recoverable checkpoint; (B) the active Draft becomes a distinct version
+when (and only when) there was something to protect; (C) the published
+version's id/fingerprint are untouched; (D) the pre-switch state is
+recoverable via the unmodified `restore_version`; (E) restore always
+produces a `DRAFT`-status version and never touches `published_version`;
+(F) `CrossStoreVersionError` on a cross-store restore attempt; (G) a
+`LockedSectionsPresentError` mid-apply leaves the version count and
+`draft_version` pointer completely unchanged; (H) a mid-write-loop failure
+(mocked `rebuild_page_from_legacy_rows`) proves the whole checkpoint+apply
+transaction rolls back atomically, including the checkpoint itself.
+
+### Issue 2 — immutable Ready Template baseline snapshot
+
+**Root cause / motivating risk (as specified):** `template_provenance` only
+ever recorded `{key, version}`; a reset re-read the *live* `preset.pages`/
+`appearance`/`header`/`footer` from `layout_preset_registry` by that key. A
+future edit to a Preset's Python definition that forgets to bump `version`
+would silently change what an *already-applied* Draft resets to.
+
+**Data model — additive migration `0017_add_ready_template_baseline_snapshot_and_slot_key`:**
+- `StorefrontLayoutVersion.template_baseline_snapshot` (`JSONField`,
+  `default=dict`, `blank=True`) — an immutable, normalized record of the
+  *exact* baseline actually applied: `template_key`, `template_version`,
+  `default_palette_slug`, the fully-resolved `appearance`/`header_config`/
+  `footer_config`, and per-page section composition (`pages: {page_type:
+  [{slot_key, section_key, settings, row_key, row_span,
+  container_settings}, ...]}`). Contains only stable registry keys and
+  normalized configuration — no renderer template path, ever (verified by
+  a dedicated test).
+- `StorefrontSection.template_slot_key` (`CharField`, `blank=True,
+  default=""`) — see Stable Section Identity below.
+
+Both fields are nullable/default-safe for every historical row; the
+migration is purely additive (no data migration, no destructive
+operation) — verified by a clean forward `migrate` and an unchanged
+`makemigrations --check --dry-run`.
+
+**`preset_service.apply_preset`** now assembles and stores this snapshot
+on every call (Gallery apply, direct apply-preset endpoint, and
+`reset_storefront_to_baseline`'s legacy-compatibility path below all go
+through it) — computed from the exact same already-validated
+`cleaned_appearance`/`cleaned_header`/`cleaned_footer`/built
+`StorefrontSection` rows the write phase was already producing, so there is
+no second, possibly-diverging computation.
+
+**`preset_service.apply_baseline_snapshot(draft, snapshot)`** — the reset
+counterpart of `apply_preset`'s write phase, sourced entirely from a stored
+snapshot dict; it never reads `layout_preset_registry` for content (only
+`reset_storefront_to_baseline`'s *return value* — Persian label metadata —
+still does, harmlessly).
+
+**`reset_storefront_to_baseline(draft)`** now checks
+`draft.template_baseline_snapshot` first: if present and its recorded
+`template_key`/`template_version` match `template_provenance`, restores
+from it via `apply_baseline_snapshot` (registry-immune — Issue 2's core
+requirement). Otherwise it falls back to the **exact pre-Batch-2 behavior**
+(re-read from the live registry by key+version, `TemplateBaselineVersionChangedError`
+on mismatch) — the documented backward-compatibility path for a version
+created before this batch (`template_provenance` present, snapshot absent
+or empty). This never fabricates a baseline: it is the same trusted
+registry-read path the system already used exclusively before this batch.
+As a harmless side effect, that fallback's `apply_preset` call also records
+a snapshot going forward, so the *next* reset of that same Draft no longer
+needs the fallback.
+
+**Tests A-H** — `ImmutableBaselineSnapshotTests`: (A) an applied Ready
+Template stores an exact snapshot; (B) mutating the in-memory
+`LAYOUT_PRESET_REGISTRY` entry afterward (the literal motivating scenario —
+a temporarily swapped `LayoutPresetDefinition` with a changed `density`,
+restored in a `finally` block) does not change the reset result; (C)
+palette baseline included; (D) header/footer baseline included; (E) page/
+section baseline (including every section's `slot_key`) included; (F) the
+serialized snapshot contains no `.html`/`template_name`/section template
+path; (G) two stores applying different Templates get distinct,
+independently-scoped snapshots; (H) a simulated pre-Batch-2 Draft
+(snapshot cleared, provenance kept) resets safely via the fallback and
+"heals" its snapshot, and a version-mismatched legacy Draft still raises
+`TemplateBaselineVersionChangedError` rather than silently substituting.
+
+### Issue 3 — granular reset to Ready Template baseline
+
+All granular resets read from `template_baseline_snapshot` — never from
+`layout_preset_registry` — added to `preset_service.py` (no new module;
+reuses the same "preset baseline" home):
+
+- `reset_section_to_baseline(draft, section)` — RESET SECTION: restores
+  `section_key`/`settings`/`row_key`/`row_span` from the section's baseline
+  slot entry. Leaves `order`, Container/Cell placement, `is_active`,
+  `is_locked`, `collapsed_in_editor` untouched (layout position and editor
+  state are merchant decisions, not Template content) and never rebuilds
+  Containers — a single-section content reset must never disturb a
+  merchant's custom Free-Layout placement elsewhere on the page.
+- `reset_section_setting_to_baseline(draft, section, key)` — RESET FIELD
+  *and* RESET COMPONENT are the same operation in this architecture: a
+  "component" (`card`, `responsive`, `background`, ...) is just a named,
+  possibly-nested key inside a section's `settings`; restoring one key
+  wholesale while leaving every sibling key alone is exactly what a scalar
+  field-reset does too.
+- `reset_appearance_setting_to_baseline(draft, key)` — RESET FIELD for a
+  top-level `appearance_config` key, re-validated through the existing
+  `validate_appearance_config`.
+- `reset_page_to_baseline(draft, page_type)` — RESET PAGE: a full,
+  intentional replacement of one page's composition from its baseline —
+  the one granularity explicitly allowed to remove a merchant-added
+  section **on that same page** (documented, tested exception — "Do not
+  reset another section" does not mean "do not reset another page's rule
+  applies to a full page reset too").
+- `reset_header_to_baseline(draft)` / `reset_footer_to_baseline(draft)` —
+  independent, each restores only its own `*_config` from the snapshot.
+- `reset_storefront_to_baseline(draft)` (Issue 2, unchanged signature) —
+  RESET STOREFRONT's in-place primitive.
+
+**Stable Section Identity — `template_slot_key`:** a new,
+deterministic-at-apply-time identity
+(`f"{preset.key}:v{preset.version}:{page_type}:{index}"`, `index` being the
+section's fixed position in the Preset's authored `pages[page_type]`
+tuple) stamped onto every `StorefrontSection` `apply_preset` creates. It is
+**not** `stable_id` (an existing, unrelated field tracking "same logical
+section across a version clone", regenerated randomly on every fresh
+`apply_preset`/`apply_baseline_snapshot` call) and **not** derived from
+`order` (which a merchant freely changes by reordering) — a granular
+section reset looks the section up by this key inside
+`template_baseline_snapshot["pages"][page_type]`, so it keeps finding the
+right baseline entry after the merchant reorders, inserts, or deletes
+unrelated sections. An empty `template_slot_key` (the default, and what
+every merchant-created section keeps forever — `storefront_section_add`/
+`storefront_section_duplicate` never set it) means "not a Template-baseline
+section" — `reset_section_to_baseline`/`reset_section_setting_to_baseline`
+raise `NotABaselineSectionError` rather than silently no-op or guessing.
+`_clone_version_content` copies it like every other section field, so a
+checkpoint/restore/first-draft-bootstrap never loses this identity for the
+sections that survive.
+
+**Merchant-created content — explicit semantics, tested both ways:** a
+section/field/component reset never touches any section other than the one
+targeted (a merchant-added section on the same page survives a sibling
+baseline section's reset — tested directly). A whole-PAGE or whole-
+STOREFRONT reset **does** intentionally restore full Template-controlled
+composition, which can remove a merchant-added section on an affected page
+— this is the documented, confirmation-gated exception, never silent (the
+Builder's confirm dialogs say so explicitly; see UI below).
+
+**Merchant reset UI** — Persian-labeled controls, absent/disabled when
+their scope has no baseline, never exposing JSON/registry keys/renderer
+paths/internal IDs:
+- «⟲ بازنشانی این بخش به قالب» — `section_settings_form.html`'s existing
+  action toolbar, shown only when `section.template_slot_key` is set.
+- «⟲ بازنشانی عنوان به قالب» — one illustrative field-reset control on
+  `product_section`'s shared "title" field (RESET FIELD in the one
+  inspector location every product-section type shares).
+- «⟲ بازنشانی هدر به قالب» / «⟲ بازنشانی فوتر به قالب» —
+  `header_panel.html`/`header_editor.html` and their footer counterparts,
+  shown only when the snapshot defines that region's baseline.
+- «⟲ بازنشانی این صفحه به قالب» / «⟲ بازنشانی کل ظاهر فروشگاه به قالب» —
+  `editor.html`'s existing "صفحات فروشگاه" sidebar panel, next to "تاریخچه
+  نسخه‌ها".
+
+Every destructive control (section/page/storefront/header/footer reset)
+requires a native `confirm()` dialog stating in Persian exactly what will
+be lost before the POST fires.
+
+**Versioning interaction — proportional strategy (as required, documented
+here rather than left implicit):** page and storefront reset go through
+`reset_page_with_checkpoint`/`reset_storefront_with_checkpoint` (a full
+history checkpoint, same as Issue 1) — their blast radius (an entire page
+or the whole storefront's composition) matches the cost of a version row.
+Field/component/section/header/footer reset never create a checkpoint —
+only the lightweight, already-existing `@_record_edit_history`
+Undo/Redo entry — their blast radius (one key, one section, one config
+blob) does not justify permanent version-history rows, and this matches
+the explicit instruction against "excessive full-version history spam."
+No reset of any granularity ever auto-publishes.
+
+**Transaction/failure safety:** every mutating function above
+(`apply_preset`, `apply_baseline_snapshot`, `reset_page_to_baseline`, the
+three `*_with_checkpoint` wrappers) is `@transaction.atomic`; every
+destructive scope validates (locked-sections, unknown-page-type,
+unknown-field, not-a-baseline-section) **before** any write, matching the
+engine's existing "validate everything, then write" invariant. Verified
+directly for the checkpoint paths (Issue 1's G/H); granular resets raise
+before writing by construction (checked, not separately fuzz-tested beyond
+the direct error-path tests already listed).
+
+**Tests** — `GranularResetTests` (field/component/appearance-field resets;
+stable identity across reorder+insert+delete; merchant-created-section
+rejection and survival; stale-slot detection; page reset's documented
+merchant-content exception and its page/header/footer isolation; unknown-
+page-type and missing-header/footer-baseline errors) and
+`ResetCheckpointIntegrationTests` (page/storefront reset create a
+checkpoint, publish untouched) in `test_acceptance_batch2.py`;
+`MerchantResetUITests` covers the Persian labels, confirm dialogs, scope-
+based visibility, and the no-internal-detail-leak requirement end-to-end
+through the real views.
+
+### Files changed
+
+- `apps/storefront_builder/models.py` — the two new fields.
+- `apps/storefront_builder/migrations/0017_add_ready_template_baseline_snapshot_and_slot_key.py` — new, additive.
+- `apps/storefront_builder/services/layout_service.py` —
+  `checkpoint_draft_before_replacement`, `_draft_has_any_content`,
+  `_clone_version_content` now also copies `template_provenance`/
+  `template_baseline_snapshot`/`template_slot_key`.
+- `apps/storefront_builder/services/preset_service.py` — snapshot
+  assembly in `apply_preset`; `apply_baseline_snapshot`;
+  `apply_preset_with_checkpoint`; `reset_storefront_with_checkpoint`;
+  `reset_page_with_checkpoint`; `reset_page_to_baseline`;
+  `reset_section_to_baseline`; `reset_section_setting_to_baseline`;
+  `reset_appearance_setting_to_baseline`; `reset_header_to_baseline`;
+  `reset_footer_to_baseline`; `reset_storefront_to_baseline` rewritten for
+  snapshot-first/legacy-fallback; new `BaselineResetError` hierarchy.
+- `apps/storefront_builder/views.py` — `storefront_apply_layout_preset`
+  now calls `apply_preset_with_checkpoint`; six new reset views.
+- `apps/dashboard/urls.py` — seven new URLs.
+- `apps/storefront_builder/templates/dashboard/storefront_builder/{editor.html,header_editor.html,footer_editor.html,partials/header_panel.html,partials/footer_panel.html,partials/section_settings_form.html}` —
+  the merchant reset controls.
+- `apps/storefront_builder/tests/test_acceptance_batch2.py` — new; all
+  three issues.
+- `apps/storefront_builder/tests/test_u1a_preset_edit_history_characterization.py`,
+  `test_phase35_reference_editable_backgrounds.py` — updated for the
+  intentional checkpoint-vs-Undo/Redo interaction (see Issue 1).
+
+### Testing
+
+Ran, all green: the new `test_acceptance_batch2.py` (50 tests); that
+combined with `test_acceptance_batch1.py`/`test_layout_service.py`/
+`test_u7_ready_template_baseline.py`/`test_u8_template_gallery.py`/
+`test_u10_ready_template_catalog.py`/`test_preset_service.py`/
+`test_u1a_preset_edit_history_characterization.py`/
+`test_layout_preset_registry.py` (213 tests); the entire
+`apps.storefront_builder` suite (1618 tests, 1 pre-existing unrelated
+skip). `apps.catalog` was not re-run — no file under `apps/catalog`
+changed this batch. `python manage.py migrate storefront_builder` applied
+0017 cleanly forwards; `makemigrations --check --dry-run` → "No changes
+detected" both before recording data and after. `git diff --check` →
+clean.
+
+### Known limitations (explicit, not gaps to hide)
+
+1. Field/component reset UI is illustrative, not exhaustive — one shared
+   field (`product_section`'s title) got a real control; the service layer
+   (`reset_section_setting_to_baseline`) supports any settings key for any
+   baseline-origin section, so adding more controls to other section types'
+   forms is a template-only follow-up, not a new capability.
+2. A single-section content reset intentionally never rebuilds Container/
+   Cell placement (to avoid disturbing a merchant's custom Free-Layout
+   column structure elsewhere on the page) — if the restored baseline
+   `row_key`/`row_span` differ from the section's current placement, the
+   legacy row metadata and the actual Cell/Container structure can end up
+   cosmetically out of sync until the merchant manually adjusts layout;
+   this never affects public rendering (Container/Cell is the render
+   source of truth once Containers exist).
+3. Template Gallery screenshots/thumbnails, digital/service product
+   semantics, non-home Template differentiation, and general color-system
+   changes remain explicitly out of scope, per the batch's own exclusions
+   — not started here.

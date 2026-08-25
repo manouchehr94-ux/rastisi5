@@ -5,6 +5,13 @@
   <button type="button" class="btn btn-ghost btn-sm" @click="$dispatch('close-settings-drawer')">بستن</button>
   <div class="sfb-appearance-intro"><strong>فوتر فروشگاه</strong><p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">هر تغییر این پنل به‌صورت خودکار در پیش‌نویس ذخیره و در Canvas تازه‌سازی می‌شود.</p></div>
   {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
+  {% if draft.template_baseline_snapshot.footer_config %}
+  <form method="post" action="{% url 'dashboard:storefront-builder-footer-reset' %}"
+        onsubmit="return confirm('فوتر به پیکربندیِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-ghost btn-sm">⟲ بازنشانی فوتر به قالب</button>
+  </form>
+  {% endif %}
 
   <form method="post" action="{% url 'dashboard:storefront-builder-footer' %}" data-sfb-autosave="true">
     {% csrf_token %}

@@ -7,7 +7,7 @@ from PIL import Image
 
 from apps.content.models import MediaAsset
 from apps.storefront_builder import layout_preset_registry
-from apps.storefront_builder.models import StorefrontPage, StorefrontSection
+from apps.storefront_builder.models import StorefrontLayoutVersion, StorefrontPage, StorefrontSection
 from apps.storefront_builder.services import container_service, layout_service
 
 from .test_views import StorefrontBuilderViewsTestCase
@@ -267,6 +267,14 @@ class Phase35ReferencePresetUndoSafetyTests(StorefrontBuilderViewsTestCase):
         self.draft.edit_history_entries.all().delete()
 
     def test_reference_preset_apply_is_one_undo_step_and_restores_previous_draft(self):
+        """Acceptance Batch 2 (post-U11) correction: applying a Ready
+        Template over a Draft with real existing content (``original``
+        below) now preserves that content as a recoverable version-history
+        checkpoint (Issue 1) instead of a local Undo/Redo entry — the same
+        Draft-identity-boundary rule ``publish()`` already applies to
+        Undo/Redo (see ``test_u1a_preset_edit_history_characterization.py``
+        for the full rationale). The previous Draft state is still fully
+        recoverable, just via History → Restore instead of Undo."""
         original = StorefrontSection.objects.create(
             page=self.page,
             section_key="rich_text",
@@ -285,17 +293,25 @@ class Phase35ReferencePresetUndoSafetyTests(StorefrontBuilderViewsTestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        self.draft.refresh_from_db()
-        self.assertEqual(
-            self.draft.appearance_config.get("layout_preset_key"),
-            "v5_golden_homepage",
-        )
-        self.assertEqual(self.draft.edit_history_entries.count(), 1)
-        self.assertGreater(self.page.sections.count(), 1)
 
-        undo = self.client.post(reverse("dashboard:storefront-builder-undo"))
-        self.assertEqual(undo.status_code, 200)
-        self.assertTrue(undo.json()["ok"])
+        layout = layout_service.get_or_create_layout(self.store)
+        new_draft = layout.draft_version
+        self.assertNotEqual(new_draft.pk, self.draft.pk)
+        self.assertEqual(new_draft.appearance_config.get("layout_preset_key"), "v5_golden_homepage")
+        self.assertGreater(new_draft.get_page(StorefrontPage.PageType.HOME).sections.count(), 1)
+
+        # No Undo entry against either row — the checkpoint is the recovery
+        # mechanism for this action.
+        self.assertEqual(new_draft.edit_history_entries.count(), 0)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, StorefrontLayoutVersion.Status.ARCHIVED)
+        self.assertEqual(self.draft.edit_history_entries.count(), 0)
+
+        checkpoint = layout.versions.filter(status=StorefrontLayoutVersion.Status.ARCHIVED).latest("version_number")
+        self.assertEqual(checkpoint.pk, self.draft.pk)
+        restored = layout_service.restore_version(self.store, checkpoint.pk, user=self.staff)
+        restored_section = restored.get_page(StorefrontPage.PageType.HOME).sections.get(stable_id=original_stable_id)
+        self.assertEqual(restored_section.settings["body_html"], "<p>قبل از مرجع</p>")
 
         self.draft.refresh_from_db()
         restored_page = self.draft.get_page(StorefrontPage.PageType.HOME)

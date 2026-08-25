@@ -22,6 +22,16 @@
     <button type="button" class="danger" @click="if (confirm('این بخش برای همیشه حذف شود؟')) sectionCommand({{ section.pk }}, 'remove')" {% if section.is_locked or not definition.removable %}disabled{% endif %} title="حذف">×</button>
     {% endif %}
   </div>
+  {% if section.template_slot_key %}
+  {# Acceptance Batch 2 (post-U11) — only a section that actually came from #}
+  {# a Ready Template baseline can be reset to it; a fully merchant-created #}
+  {# section never shows this control at all. #}
+  <form method="post" action="{% url 'dashboard:storefront-builder-section-reset' section.pk %}"
+        onsubmit="return confirm('این بخش به حالتِ اولیه‌یِ قالب بازنشانی می‌شود — تغییراتِ شما رویِ این بخش از بین می‌رود. ادامه می‌دهید؟')">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-ghost btn-sm sfb-reset-to-template-btn" {% if section.is_locked %}disabled{% endif %}>⟲ بازنشانی این بخش به قالب</button>
+  </form>
+  {% endif %}
   <p class="sfb-drawer-subtitle">{{ definition.label_fa }} — این پنل فقط همین بلاک را تنظیم می‌کند{% if placement_cell %} · شکل و اندازه ستون از «تنظیم چیدمان» کنترل می‌شود{% endif %}{% if section.is_locked %} · این محتوا قفل است{% endif %}</p>
   {% if placement_cell %}
   <div class="sfb-v3-cell-context-actions">
@@ -108,6 +118,17 @@
     <div class="form-group">
       <label for="id_ps_title">عنوان بخش</label>
       <input type="text" name="title" id="id_ps_title" class="form-input" maxlength="60" value="{{ section.settings.title|default:'' }}">
+      {% if section.template_slot_key %}
+      {# Acceptance Batch 2 (post-U11) — illustrative field-level reset #}
+      {# control (RESET FIELD), placed on the one field every product #}
+      {# section type shares. A plain POST (not htmx) — this view returns #}
+      {# a normal editor redirect, not a partial. #}
+      <form method="post" action="{% url 'dashboard:storefront-builder-section-field-reset' section.pk %}" style="margin-top:6px"
+            onsubmit="return confirm('عنوانِ این بخش به مقدارِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+        {% csrf_token %}<input type="hidden" name="field" value="title">
+        <button type="submit" class="btn btn-ghost btn-sm sfb-reset-field-btn">⟲ بازنشانی عنوان به قالب</button>
+      </form>
+      {% endif %}
     </div>
 
     <div class="form-group">

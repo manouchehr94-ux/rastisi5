@@ -224,6 +224,20 @@
         </div>
         <div class="sfb-v3-sidebar-utility-links">
           <a href="{% url 'dashboard:storefront-builder-history' %}">تاریخچه نسخه‌ها</a>
+          {% if draft.template_baseline_snapshot.pages|dictget:page_type %}
+          <form method="post" action="{% url 'dashboard:storefront-builder-page-reset' %}"
+                onsubmit="return confirm('این صفحه به ترکیبِ اولیه‌یِ قالب بازنشانی می‌شود — بخش‌هایِ دستیِ همین صفحه هم از بین می‌روند. ادامه می‌دهید؟')">
+            {% csrf_token %}<input type="hidden" name="page" value="{{ page_type }}">
+            <button type="submit">⟲ بازنشانی این صفحه به قالب</button>
+          </form>
+          {% endif %}
+          {% if draft.template_baseline_snapshot %}
+          <form method="post" action="{% url 'dashboard:storefront-builder-reset-to-baseline' %}"
+                onsubmit="return confirm('کل ظاهر فروشگاه (همه‌یِ صفحاتِ پوشش‌داده‌شده، هدر، فوتر، ظاهر) به قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+            {% csrf_token %}
+            <button type="submit">⟲ بازنشانی کل ظاهر فروشگاه به قالب</button>
+          </form>
+          {% endif %}
           {% if industry_installation %}
           <form method="post" action="{% url 'dashboard:storefront-builder-apply-industry-layout' %}" {% if layout.published_version_id %}onsubmit="if(!confirm('اعمال چیدمان پیشنهادی، Draft فعلی را جایگزین می‌کند. ادامه می‌دهید؟')){return false;} this.confirm.value='1'; return true;"{% endif %}>
             {% csrf_token %}<input type="hidden" name="confirm" value="0"><button type="submit">چیدمان پیشنهادی صنف</button>

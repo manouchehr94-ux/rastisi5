@@ -4,39 +4,104 @@ R1 marked one thing UNVERIFIED: whether applying a ``LayoutPresetDefinition``
 (``services/preset_service.apply_preset``) currently produces exactly one
 logical Undo/Redo history event, or several/none.
 
-This file only characterizes the CURRENT behaviour — it does not change
-``preset_service.apply_preset``, ``views.storefront_apply_layout_preset``, or
-``edit_history_service`` in any way. Per the U1A brief: if the answer had
-turned out to be "not exactly one event", the correct move would be to
-report that and defer any behavioural change to U7 (Reset design), never to
-adjust application behaviour just to make a test pass. The finding recorded
-below (exactly one event) is what the existing code already does, traced
-directly from source before this file was written:
+This file originally characterized the answer (exactly one event) without
+changing behaviour, per the U1A brief's own explicit escape hatch: "if the
+answer had turned out to be 'not exactly one event', the correct move would
+be to report that and defer any behavioural change to U7 (Reset design)".
 
-- ``views.py::storefront_apply_layout_preset`` is decorated with
-  ``@_record_edit_history(...)`` (views.py), which wraps the *entire* view
-  call in exactly one ``_history_before``/``_history_record`` pair
-  (views.py::_record_edit_history).
-- ``edit_history_service.record_change`` creates at most one
-  ``StorefrontEditHistoryEntry`` row per call, comparing one full
-  before/after Draft snapshot.
-- ``preset_service.apply_preset`` itself is one ``@transaction.atomic``
-  function and never calls ``edit_history_service`` directly — history
-  recording happens entirely in the view layer that wraps it.
+Acceptance Batch 2 (post-U11) is that Reset-design batch, and it changes this
+on purpose: ``views.storefront_apply_layout_preset`` now calls
+``preset_service.apply_preset_with_checkpoint`` (Issue 1) instead of
+``apply_preset`` directly. Whenever the current Draft has real existing
+content, that function preserves it as a recoverable version-history
+checkpoint by ARCHIVING the current Draft row and making a brand-new row the
+active Draft — exactly the same Draft-identity boundary ``publish()`` already
+treats specially (it deletes ``draft.edit_history_entries.all()`` for exactly
+this reason: Undo/Redo entries are scoped to one Draft row's continuous
+lifetime via ``StorefrontEditHistoryEntry.draft_version`` and a
+``select_for_update().get(pk=draft.pk)`` lock inside
+``edit_history_service.record_change`` — they cannot meaningfully follow
+content across a row swap). So once a checkpoint fires, there is nothing
+correct to attach a local Undo entry to: the old row's timeline ends there
+(mirroring publish), and the new row starts with a clean, empty history
+(mirroring restore_version/apply_industry_layout, which also always hand
+back a brand-new Draft row with zero edit-history entries).
 
-Together this means: applying a preset that rewrites multiple pages in one
-request still yields exactly one row in ``StorefrontEditHistoryEntry``, and
-Undo restores every page it touched in a single step.
+The pre-apply state is not lost — it is now durably recoverable via
+``layout_service.restore_version`` on the archived checkpoint, a strictly
+more robust mechanism than a local Undo stack entry (survives navigation/
+reload, has its own dedicated UI at ``storefront-builder-history``).
+
+Only the "content already existed" scenario changes. When the Draft was
+already empty (nothing worth checkpointing), ``apply_preset_with_checkpoint``
+mutates the SAME Draft row in place exactly like plain ``apply_preset``
+always did — Undo/Redo for that case is completely unaffected, still
+verified below.
 """
 
-from apps.storefront_builder.models import StorefrontEditHistoryEntry
+from apps.storefront_builder.models import StorefrontEditHistoryEntry, StorefrontLayoutVersion
 from apps.storefront_builder.services import layout_service as svc
 from apps.storefront_builder.tests.test_preset_service import PresetServiceTestCase
 
 
 class PresetApplyEditHistoryCharacterizationTests(PresetServiceTestCase):
-    def test_applying_a_preset_via_the_view_creates_exactly_one_history_entry(self):
+    def test_applying_a_preset_over_existing_content_creates_a_checkpoint_not_an_undo_entry(self):
+        draft_before = svc.get_or_create_draft(self.store)
+        self.assertTrue(draft_before.sections.exists(), "bootstrap content must exist for this scenario")
+        before_count = StorefrontEditHistoryEntry.objects.filter(draft_version=draft_before).count()
+        layout = svc.get_or_create_layout(self.store)
+        versions_before = layout.versions.count()
+
+        resp = self.admin_client.post(
+            reverse_apply_preset_url(),
+            {"preset_key": "dense_catalog", "confirm_preset_apply": "1"},
+        )
+        self.assertEqual(resp.status_code, 302)
+
+        # No Undo entry against the old (now archived) row — the checkpoint
+        # is the recovery mechanism for this action, not the edit-history log.
+        after_count = StorefrontEditHistoryEntry.objects.filter(draft_version=draft_before).count()
+        self.assertEqual(after_count, before_count)
+
+        draft_before.refresh_from_db()
+        self.assertEqual(draft_before.status, StorefrontLayoutVersion.Status.ARCHIVED)
+        layout.refresh_from_db()
+        self.assertNotEqual(layout.draft_version_id, draft_before.pk)
+        self.assertEqual(layout.versions.count(), versions_before + 1)
+
+    def test_pre_apply_state_is_recoverable_via_history_restore_instead_of_undo(self):
         draft = svc.get_or_create_draft(self.store)
+        home_before = list(draft.home_page().sections.order_by("order").values_list("section_key", flat=True))
+
+        resp = self.admin_client.post(
+            reverse_apply_preset_url(),
+            {"preset_key": "dense_catalog", "confirm_preset_apply": "1"},
+        )
+        self.assertEqual(resp.status_code, 302)
+
+        layout = svc.get_or_create_layout(self.store)
+        new_draft = layout.draft_version
+        home_after_apply = list(new_draft.home_page().sections.order_by("order").values_list("section_key", flat=True))
+        self.assertNotEqual(home_before, home_after_apply)  # the preset really changed the page
+
+        # The new Draft row starts with a completely clean Undo/Redo history.
+        self.assertFalse(StorefrontEditHistoryEntry.objects.filter(draft_version=new_draft).exists())
+
+        checkpoint = layout.versions.filter(status=StorefrontLayoutVersion.Status.ARCHIVED).latest("version_number")
+        restored = svc.restore_version(self.store, checkpoint.pk, user=self.staff)
+        home_after_restore = list(restored.home_page().sections.order_by("order").values_list("section_key", flat=True))
+        self.assertEqual(
+            home_after_restore, home_before,
+            "the pre-apply state must remain fully recoverable, just via History → Restore instead of Undo",
+        )
+
+    def test_applying_a_preset_over_an_already_empty_draft_still_uses_plain_undo(self):
+        """No existing content → nothing to checkpoint → the SAME Draft row
+        is mutated in place, exactly like before this Batch — Undo/Redo for
+        this scenario is completely unaffected."""
+        draft = svc.get_or_create_draft(self.store)
+        for page_type in ("home", "product_detail", "listing", "collection", "search", "cart"):
+            draft.get_page(page_type).sections.all().delete()
         before_count = StorefrontEditHistoryEntry.objects.filter(draft_version=draft).count()
 
         resp = self.admin_client.post(
@@ -46,23 +111,7 @@ class PresetApplyEditHistoryCharacterizationTests(PresetServiceTestCase):
         self.assertEqual(resp.status_code, 302)
 
         after_count = StorefrontEditHistoryEntry.objects.filter(draft_version=draft).count()
-        self.assertEqual(
-            after_count - before_count, 1,
-            "applying one LayoutPresetDefinition must create exactly one edit-history entry",
-        )
-
-    def test_the_one_history_entry_undoes_every_page_the_preset_touched_at_once(self):
-        draft = svc.get_or_create_draft(self.store)
-        home_before = list(draft.home_page().sections.order_by("order").values_list("section_key", flat=True))
-
-        resp = self.admin_client.post(
-            reverse_apply_preset_url(),
-            {"preset_key": "dense_catalog", "confirm_preset_apply": "1"},
-        )
-        self.assertEqual(resp.status_code, 302)
-        draft.refresh_from_db()
-        home_after_apply = list(draft.home_page().sections.order_by("order").values_list("section_key", flat=True))
-        self.assertNotEqual(home_before, home_after_apply)  # the preset really changed the page
+        self.assertEqual(after_count - before_count, 1)
 
         entry = StorefrontEditHistoryEntry.objects.filter(draft_version=draft).latest("sequence")
         self.assertEqual(entry.action_label, "اعمال پیش‌تنظیم صفحه‌آرایی")
@@ -70,11 +119,7 @@ class PresetApplyEditHistoryCharacterizationTests(PresetServiceTestCase):
         undo_resp = self.admin_client.post(reverse_undo_url())
         self.assertEqual(undo_resp.status_code, 200)
         draft.refresh_from_db()
-        home_after_undo = list(draft.home_page().sections.order_by("order").values_list("section_key", flat=True))
-        self.assertEqual(
-            home_after_undo, home_before,
-            "one Undo must fully restore the pre-preset state of every page the preset touched",
-        )
+        self.assertFalse(draft.home_page().sections.exists())
 
     def test_a_rejected_preset_apply_creates_no_history_entry(self):
         """A no-op/failed submission must not pollute the history log — this

@@ -10,6 +10,16 @@
     <p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">هر تغییر این پنل به‌صورت خودکار در پیش‌نویس ذخیره و در Canvas تازه‌سازی می‌شود.</p>
   </div>
 
+  {% if draft.template_baseline_snapshot.header_config %}
+  {# Acceptance Batch 2 (post-U11) — only shown when the applied Ready #}
+  {# Template actually defines a header baseline to reset to. #}
+  <form method="post" action="{% url 'dashboard:storefront-builder-header-reset' %}"
+        onsubmit="return confirm('هدر به پیکربندیِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-ghost btn-sm">⟲ بازنشانی هدر به قالب</button>
+  </form>
+  {% endif %}
+
   {% if error %}
   <div class="form-error" role="alert" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin:12px 0">{{ error }}</div>
   {% endif %}

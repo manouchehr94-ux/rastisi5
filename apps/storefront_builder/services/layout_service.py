@@ -636,7 +636,19 @@ def _clone_version_content(source: StorefrontLayoutVersion | None, target: Store
     target.header_config = dict(source.header_config or {})
     target.footer_config = dict(source.footer_config or {})
     target.appearance_config = dict(source.appearance_config or {})
-    target.save(update_fields=["header_config", "footer_config", "appearance_config"])
+    # Acceptance Batch 2 (post-U11) — a cloned version is, logically, the
+    # exact same Ready Template baseline the source had (Published→Draft
+    # bootstrap, Restore, or a pre-switch/pre-reset checkpoint clone) —
+    # without copying these two, a Draft produced by any of those paths
+    # would silently lose "which Template it's built from" and its
+    # immutable baseline snapshot, breaking a later reset for no reason
+    # a merchant caused.
+    target.template_provenance = dict(source.template_provenance or {})
+    target.template_baseline_snapshot = dict(source.template_baseline_snapshot or {})
+    target.save(update_fields=[
+        "header_config", "footer_config", "appearance_config",
+        "template_provenance", "template_baseline_snapshot",
+    ])
 
     target_pages_by_type = {p.page_type: p for p in target.pages.all()}
     for source_page in source.pages.all():
@@ -656,6 +668,11 @@ def _clone_version_content(source: StorefrontLayoutVersion | None, target: Store
                 stable_id=s.stable_id,
                 row_key=s.row_key, row_span=s.row_span,
                 is_locked=s.is_locked,
+                # Acceptance Batch 2 (post-U11) — the same logical section
+                # keeps the same Template-baseline slot identity across a
+                # clone (Published→Draft bootstrap, Restore, checkpoint);
+                # only Duplicate (a genuinely new section) omits it.
+                template_slot_key=s.template_slot_key,
             )
             for s in source_sections
         ]
@@ -810,6 +827,59 @@ def restore_version(store, version_id, *, user=None) -> StorefrontLayoutVersion:
         created_by=user if (user and user.is_authenticated) else None,
     )
     _clone_version_content(source, new_draft)
+    layout.draft_version = new_draft
+    layout.save(update_fields=["draft_version", "updated_at"])
+    return new_draft
+
+
+def _draft_has_any_content(draft: StorefrontLayoutVersion) -> bool:
+    """Acceptance Batch 2 (post-U11) — آیا این Draft محتوایِ «معنادارِ»
+    واقعاً موجودی دارد (حداقل یک ``StorefrontSection`` در هرکدام از شش
+    صفحه‌اش)؟ یک Draftِ کاملاً خالی (فروشگاهِ تازه، پیش از اولین اعمال/
+    بازنشانی) چیزی برایِ از‌دست‌دادن ندارد — پس checkpoint کردنِ آن فقط
+    شلوغیِ بی‌فایده در تاریخچه‌یِ نسخه‌ها می‌سازد."""
+    return draft.sections.exists()
+
+
+@transaction.atomic
+def checkpoint_draft_before_replacement(store, *, reason_label: str, user=None) -> StorefrontLayoutVersion:
+    """Acceptance Batch 2 (post-U11) — پیش از یک جایگزینیِ مخربِ کلِ Draft
+    یا یک صفحه‌یِ کامل (اعمالِ Ready Templateِ دیگر، بازنشانیِ کلِ فروشگاه،
+    بازنشانیِ یک صفحه)، محتوایِ *فعلیِ* Draft را به‌عنوانِ یک چک‌پوینتِ
+    قابل‌بازیابی در همان تاریخچه‌یِ نسخه‌هایِ موجود (``StorefrontLayoutVersion``)
+    نگه می‌دارد — دقیقاً همان معماریِ ``restore_version`` (کلون + Draftِ
+    جدید)، با یک تفاوتِ عمدی: به‌جایِ حذفِ کاملِ Draftِ قدیمی، آن را
+    ``ARCHIVED`` می‌کند تا از طریقِ همان ``restore_version`` بعداً قابلِ
+    بازگردانی بماند — هرگز یک سیستمِ تاریخچه‌ی موازیِ جدید نیست.
+
+    اگر Draftِ فعلی هیچ محتوایِ معناداری نداشته باشد (نگاه کنید به
+    ``_draft_has_any_content``)، هیچ چک‌پوینتی ساخته نمی‌شود و همان
+    Draftِ فعلی بدونِ تغییر برگردانده می‌شود — «بدونِ تغییرِ معنادار،
+    بدونِ چک‌پوینتِ زائد» (الزامِ صریحِ Batch 2).
+
+    نسخه‌یِ برگشتی همیشه یک کلونِ **کاملِ** محتوایِ قبلی است (همه‌یِ شش
+    صفحه، نه فقط صفحاتی که عملیاتِ بعدی ممکن است لمس کند) — پس فراخوان
+    (مثلاً ``preset_service.apply_preset``) که فقط صفحاتِ پوشش‌داده‌شده
+    توسطِ Presetِ جدید را بازنویسی می‌کند، صفحاتِ لمس‌نشده را دقیقاً
+    همان‌طور که بودند حفظ می‌کند — نه خالی."""
+    layout = get_or_create_layout(store)
+    current_draft = get_or_create_draft(store, user=user)
+    if not _draft_has_any_content(current_draft):
+        return current_draft
+
+    enforce_rate_limit("storefront_layout.new_draft", str(store.pk), **_NEW_DRAFT_RATE_LIMIT)
+    new_draft = StorefrontLayoutVersion.objects.create(
+        layout=layout, version_number=_next_version_number(layout),
+        status=StorefrontLayoutVersion.Status.DRAFT,
+        source=StorefrontLayoutVersion.Source.MANUAL,
+        created_by=user if (user and user.is_authenticated) else None,
+    )
+    _clone_version_content(current_draft, new_draft)
+
+    current_draft.status = StorefrontLayoutVersion.Status.ARCHIVED
+    current_draft.label = reason_label[:150]
+    current_draft.save(update_fields=["status", "label", "updated_at"])
+
     layout.draft_version = new_draft
     layout.save(update_fields=["draft_version", "updated_at"])
     return new_draft

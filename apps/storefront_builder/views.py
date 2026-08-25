@@ -1940,8 +1940,170 @@ def storefront_apply_layout_preset(request):
         return redirect("dashboard:storefront-builder-editor")
 
     try:
-        preset_service.apply_preset(draft, preset)
+        # Acceptance Batch 2 (post-U11) — Issue 1: an explicit Template
+        # switch/apply must never silently mutate away meaningful existing
+        # Draft state; ``apply_preset_with_checkpoint`` preserves it as a
+        # recoverable version-history checkpoint first (never auto-publish,
+        # published version untouched) whenever there is anything worth
+        # preserving.
+        preset_service.apply_preset_with_checkpoint(store, preset, user=request.user)
         messages.success(request, f"پیش‌تنظیمِ «{preset.label_fa}» اعمال شد")
+    except preset_service.InvalidPresetError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:storefront-builder-editor")
+
+
+# Acceptance Batch 2 (post-U11) — Issue 3: granular reset-to-Ready-Template-
+# baseline merchant controls. Every view here returns to the same editor
+# redirect and reports failure via ``messages`` (matching every other
+# write view in this module) — never exposes JSON/registry keys/renderer
+# paths/internal baseline IDs to the merchant, only Persian sentences.
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+@_record_edit_history("بازنشانی بخش به قالب")
+def storefront_section_reset(request, pk):
+    """RESET SECTION — بازنشانیِ یک section به baselineِ Ready Template.
+
+    Proportional history strategy (طبقِ الزامِ صریحِ Batch 2 — «do NOT
+    create excessive full-version history spam for tiny resets»): این
+    granularityِ کوچک هرگز چک‌پوینتِ نسخه‌یِ جدید نمی‌سازد؛ فقط همان
+    Undo/Redoی سبکِ ادیتور (``@_record_edit_history``) کافی است."""
+    from .services import preset_service
+
+    section = _get_scoped_section(request, pk)
+    store = _resolve_store(request)
+    draft = layout_service.get_or_create_draft(store, user=request.user)
+    try:
+        preset_service.reset_section_to_baseline(draft, section)
+        messages.success(request, "بخش به قالب بازنشانی شد")
+    except preset_service.BaselineResetError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:storefront-builder-editor")
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+@_record_edit_history("بازنشانی فیلد بخش به قالب")
+def storefront_section_field_reset(request, pk):
+    """RESET FIELD / RESET COMPONENT — یک کلیدِ مشخص از ``settings`` این
+    section را به مقدارِ baseline بازمی‌گرداند؛ کلیدِ خواسته‌شده از
+    ``field`` در POST خوانده می‌شود (یک کلیدِ ``settings`` واقعی، هرگز
+    JSON/مسیر دلخواه)."""
+    from .services import preset_service
+
+    section = _get_scoped_section(request, pk)
+    store = _resolve_store(request)
+    draft = layout_service.get_or_create_draft(store, user=request.user)
+    field = request.POST.get("field", "")
+    try:
+        preset_service.reset_section_setting_to_baseline(draft, section, field)
+        messages.success(request, "فیلد به قالب بازنشانی شد")
+    except preset_service.BaselineResetError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:storefront-builder-editor")
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+@_record_edit_history("بازنشانی تنظیم ظاهر به قالب")
+def storefront_appearance_field_reset(request):
+    """RESET FIELD برایِ یک کلیدِ سطحِ‌بالایِ appearance_config (مثلاً
+    فونت/تراکم/پالت) — دقیقاً همان الگویِ ``storefront_section_field_reset``،
+    برایِ ظاهرِ سراسری به‌جایِ یک section."""
+    from .services import preset_service
+
+    store = _resolve_store(request)
+    draft = layout_service.get_or_create_draft(store, user=request.user)
+    field = request.POST.get("field", "")
+    try:
+        preset_service.reset_appearance_setting_to_baseline(draft, field)
+        messages.success(request, "تنظیمِ ظاهر به قالب بازنشانی شد")
+    except preset_service.BaselineResetError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:storefront-builder-editor")
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+@_record_edit_history("بازنشانی هدر به قالب")
+def storefront_header_reset(request):
+    """RESET HEADER — فقط هدر؛ فوتر/صفحات دست‌نخورده می‌مانند. Proportional
+    history: بدونِ چک‌پوینتِ نسخه‌یِ جدید (یک پیکربندیِ JSON، نه محتوایِ
+    section-محور)."""
+    from .services import preset_service
+
+    store = _resolve_store(request)
+    draft = layout_service.get_or_create_draft(store, user=request.user)
+    try:
+        preset_service.reset_header_to_baseline(draft)
+        messages.success(request, "هدر به قالب بازنشانی شد")
+    except preset_service.BaselineResetError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:storefront-builder-editor")
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+@_record_edit_history("بازنشانی فوتر به قالب")
+def storefront_footer_reset(request):
+    """RESET FOOTER — فقط فوتر؛ هدر/صفحات دست‌نخورده می‌مانند."""
+    from .services import preset_service
+
+    store = _resolve_store(request)
+    draft = layout_service.get_or_create_draft(store, user=request.user)
+    try:
+        preset_service.reset_footer_to_baseline(draft)
+        messages.success(request, "فوتر به قالب بازنشانی شد")
+    except preset_service.BaselineResetError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:storefront-builder-editor")
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+@_record_edit_history("بازنشانی صفحه به قالب")
+def storefront_page_reset(request):
+    """RESET PAGE — بازنشانیِ کاملِ ترکیبِ یک صفحه به baseline؛ صفحاتِ
+    دیگر و هدر/فوترِ سراسری دست‌نخورده می‌مانند. مخرب/گسترده است (ممکن
+    است sectionهایِ دستیِ همان صفحه را هم جایگزین کند) — طبقِ الزامِ
+    صریحِ Batch 2، پیش از انجام، وضعیتِ فعلی را به‌عنوانِ یک چک‌پوینتِ
+    قابل‌بازیابی در تاریخچه‌یِ نسخه‌ها نگه می‌دارد."""
+    from .services import preset_service
+
+    store = _resolve_store(request)
+    page_type = _resolve_page_type(request.POST.get("page"))
+    try:
+        preset_service.reset_page_with_checkpoint(store, page_type, user=request.user)
+        messages.success(request, "صفحه به قالب بازنشانی شد")
+    except preset_service.BaselineResetError as exc:
+        messages.error(request, str(exc))
+    return redirect("dashboard:storefront-builder-editor")
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+@_record_edit_history("بازنشانی کل فروشگاه به قالب")
+def storefront_reset_to_baseline(request):
+    """RESET STOREFRONT — بازنشانیِ کاملِ فروشگاه (ظاهر + هدر + فوتر + هر
+    صفحه‌ای که Ready Template پوشش می‌دهد) به baselineِ ثبت‌شده. مخرب‌ترین
+    granularity — پیش از انجام، وضعیتِ فعلی را چک‌پوینت می‌کند (همان
+    الگویِ ``storefront_apply_layout_preset``)."""
+    from .services import preset_service
+
+    store = _resolve_store(request)
+    try:
+        preset_service.reset_storefront_with_checkpoint(store, user=request.user)
+        messages.success(request, "کل ظاهر فروشگاه به قالب بازنشانی شد")
+    except preset_service.BaselineResetError as exc:
+        messages.error(request, str(exc))
     except preset_service.InvalidPresetError as exc:
         messages.error(request, str(exc))
     return redirect("dashboard:storefront-builder-editor")

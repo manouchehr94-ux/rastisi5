@@ -8,6 +8,13 @@
   {% if error %}
   <div class="form-error" role="alert" style="color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:14px">{{ error }}</div>
   {% endif %}
+  {% if draft.template_baseline_snapshot.header_config %}
+  <form method="post" action="{% url 'dashboard:storefront-builder-header-reset' %}" style="margin-bottom:14px"
+        onsubmit="return confirm('هدر به پیکربندیِ اولیه‌یِ قالب بازنشانی می‌شود. ادامه می‌دهید؟')">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-ghost btn-sm">⟲ بازنشانی هدر به قالب</button>
+  </form>
+  {% endif %}
   <form method="post">
     {% csrf_token %}
     <div class="form-group">

@@ -266,6 +266,27 @@ class StorefrontLayoutVersion(TimeStampedModel):
             "کاملاً معتبر، نه یک خطا."
         ),
     )
+    template_baseline_snapshot = models.JSONField(
+        "عکسِ Baselineِ Ready Template", default=dict, blank=True,
+        help_text=(
+            "Acceptance Batch 2 (post-U11) — عکسِ نرمال‌شده و immutable از "
+            "دقیقاً همان baselineِ Ready Templateای که در لحظه‌یِ اعمال، واقعاً "
+            "روی این Draft نوشته شد (پالتِ پیش‌فرض، appearance/header/footerِ "
+            "نهایی‌شده، ترکیبِ هر صفحه با کلیدِ اسلاتِ پایدارِ هر section) — "
+            "نگاه کنید به ``preset_service.apply_preset``/``build_template_baseline_snapshot``. "
+            "برخلافِ ``template_provenance`` (فقط کلید/نسخه)، بازنشانی از رویِ "
+            "این فیلد هرگز به تعریفِ *فعلیِ* Presetِ همان کلید در Registry "
+            "وابسته نیست — حتی اگر آن تعریفِ پایتونی بعداً (بدونِ افزایشِ "
+            "نسخه) تغییر کند، این عکس دقیقاً همان چیزی می‌ماند که مرچنت واقعاً "
+            "انتخاب کرده بود. دیکشنریِ خالی (پیش‌فرض) یعنی «این نسخه هرگز یک "
+            "Ready Template اعمال‌شده ندارد، یا قبل از این Batch ساخته شده و "
+            "فقط ``template_provenance``یِ قدیمی را دارد» — یک حالتِ کاملاً "
+            "معتبر و سازگار با گذشته (نگاه کنید به مسیرِ جایگزینِ "
+            "``reset_storefront_to_baseline`` برایِ این حالت)، نه یک خطا. "
+            "هرگز مسیرِ فایلِ renderer را ذخیره نمی‌کند — فقط کلیدهایِ پایدارِ "
+            "Registry و پیکربندیِ نرمال‌شده."
+        ),
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="ایجادکننده",
         on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
@@ -569,6 +590,26 @@ class StorefrontSection(TimeStampedModel):
             "Phase 1A: محدوده‌یِ یکتاییِ این فیلد از (نسخه، stable_id) به "
             "(صفحه، stable_id) تغییر کرده — همان معنایِ منطقی، فقط یک سطح "
             "دقیق‌تر (چون اکنون یک نسخه می‌تواند چند صفحه داشته باشد)."
+        ),
+    )
+    template_slot_key = models.CharField(
+        "کلیدِ اسلاتِ Baseline", max_length=160, blank=True, default="",
+        help_text=(
+            "Acceptance Batch 2 (post-U11) — هویتِ منطقیِ *جایگاهِ این section "
+            "درونِ ترکیبِ baselineِ Ready Templateای* که آن را ساخته (نه یک "
+            "بخشِ منطقیِ خاص مثلِ ``stable_id`` — آن UUID طیِ کلونِ نسخه حفظ "
+            "می‌شود، این کلید هرگز طیِ کلون تغییر نمی‌کند اما طیِ Duplicate "
+            "عمداً *کپی نمی‌شود* چون نسخه‌یِ تکرارشده دیگر «همان جایگاهِ "
+            "baseline» نیست). فرمت پایدار و بدونِ وابستگی به Store/مرچنت: "
+            "``<template_key>:v<template_version>:<page_type>:<index>``. "
+            "رشته‌ی خالی (پیش‌فرض) یعنی این section هرگز از یک Ready Template "
+            "اعمال نشده — یعنی محتوایِ دستیِ مرچنت (بازنشانیِ section/field/"
+            "component هرگز رویِ آن قابلِ‌اجرا نیست، نه اینکه بی‌صدا نادیده "
+            "گرفته شود؛ نگاه کنید به ``preset_service.reset_section_to_baseline``). "
+            "مستقل از ``order`` — بازچینیِ section توسطِ مرچنت هرگز این کلید "
+            "را تغییر نمی‌دهد، پس بازنشانیِ granular حتی پس از بازچینی/درجِ/"
+            "حذفِ sectionهایِ دیگر همچنان section درستِ baseline را پیدا "
+            "می‌کند."
         ),
     )
     row_key = models.CharField(
