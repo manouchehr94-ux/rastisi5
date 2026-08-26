@@ -64,7 +64,7 @@ class RealScreenshotResolverTests(TestCase):
         screenshot' — a mismatched stored hash must safely refuse the
         file, never serve it as if it were current."""
         preset = lpr.get_layout_preset("dense_marketplace")
-        real_relpath = tps.screenshot_relpath(preset.key)
+        real_relpath = tps.screenshot_relpath(preset.key, preset.version)
         real_image_path = tps.APP_STATIC_DIR / real_relpath
 
         with mock.patch.object(Path, "is_file", return_value=True), \
@@ -76,7 +76,7 @@ class RealScreenshotResolverTests(TestCase):
 
     def test_matching_content_hash_resolves_the_expected_relpath(self):
         preset = lpr.get_layout_preset("dense_marketplace")
-        expected_relpath = tps.screenshot_relpath(preset.key)
+        expected_relpath = tps.screenshot_relpath(preset.key, preset.version)
         real_fingerprint = tps.preview_input_fingerprint(preset)
 
         with mock.patch.object(Path, "is_file", return_value=True), \
@@ -145,7 +145,7 @@ class PreviewInputFingerprintTests(TestCase):
             fingerprint = tps.preview_input_fingerprint(preset)
             with mock.patch.object(Path, "is_file", return_value=True), \
                  mock.patch.object(Path, "read_text", return_value=json.dumps({"preview_input_fingerprint": fingerprint})):
-                self.assertEqual(tps.resolve_real_screenshot(preset), tps.screenshot_relpath(preset.key))
+                self.assertEqual(tps.resolve_real_screenshot(preset), tps.screenshot_relpath(preset.key, preset.version))
 
     def test_a_same_template_version_but_changed_media_manifest_is_stale(self):
         preset = lpr.get_layout_preset("dense_marketplace")
@@ -220,7 +220,8 @@ class CommittedScreenshotIntegrityTests(TestCase):
         if not keys:
             self.skipTest("no real screenshots committed yet")
         for key in keys:
-            meta_path = tps.APP_STATIC_DIR / tps.meta_relpath(key)
+            preset = lpr.get_layout_preset(key)
+            meta_path = tps.APP_STATIC_DIR / tps.meta_relpath(key, preset.version)
             self.assertTrue(meta_path.is_file(), key)
             meta = json.loads(meta_path.read_text())
             self.assertEqual(meta["template_key"], key)
@@ -234,6 +235,97 @@ class CommittedScreenshotIntegrityTests(TestCase):
         for key in READY_TEMPLATE_KEYS:
             preset = lpr.get_layout_preset(key)
             self.assertIsNotNone(tps.resolve_real_screenshot(preset), key)
+
+
+class VersionedPreviewIdentityTests(TestCase):
+    """Part 2B follow-up — merchant-side Windows QA found the committed
+    ``fashion_promo_catalog`` preview stayed named/labeled version 1 while
+    the registry had moved that Preset to ``version="2"`` (Part 2B's own
+    Home-rebuild version bump). Root cause: ``screenshot_relpath``/
+    ``meta_relpath`` used to default to a fixed, independent
+    ``SCREENSHOT_VERSION`` module constant instead of the Preset's own
+    ``version`` field. These tests prove the fix: the artifact identity
+    (file path AND the ``"version"`` field inside its sidecar) now always
+    tracks ``preset.version`` exactly, a stale lower-version file can never
+    satisfy a bumped Preset, and the other 7 Ready Templates (whose
+    ``version`` never moved) are provably unaffected."""
+
+    def test_1_registry_version_2_resolves_the_v2_preview_path(self):
+        preset = lpr.get_layout_preset("fashion_promo_catalog")
+        self.assertEqual(preset.version, "2")
+        expected = tps.screenshot_relpath(preset.key, preset.version)
+        self.assertEqual(expected, "ready_template_previews/fashion_promo_catalog/v2.webp")
+
+        real_fingerprint = tps.preview_input_fingerprint(preset)
+        with mock.patch.object(Path, "is_file", return_value=True), \
+             mock.patch.object(Path, "read_text", return_value=json.dumps({"preview_input_fingerprint": real_fingerprint})):
+            self.assertEqual(tps.resolve_real_screenshot(preset), expected)
+
+    def test_2_metadata_version_equals_registry_version_for_every_committed_template(self):
+        base = tps.APP_STATIC_DIR / "ready_template_previews"
+        if not base.is_dir():
+            self.skipTest("no real screenshots committed yet")
+        checked_any = False
+        for key in READY_TEMPLATE_KEYS:
+            preset = lpr.get_layout_preset(key)
+            meta_path = tps.APP_STATIC_DIR / tps.meta_relpath(key, preset.version)
+            if not meta_path.is_file():
+                continue
+            checked_any = True
+            meta = json.loads(meta_path.read_text())
+            self.assertEqual(meta["version"], preset.version, key)
+            self.assertEqual(meta["template_key"], key)
+        if not checked_any:
+            self.skipTest("no real screenshots committed yet")
+
+    def test_3_a_v1_file_on_disk_is_stale_and_ignored_once_the_registry_is_v2(self):
+        """Even if an old v1.webp/v1.meta.json physically exists (kept for
+        historical retention — never deleted by this fix), a Preset now at
+        version 2 must never resolve it: the resolver only ever looks at
+        the v2 path, because that path is built from ``preset.version``."""
+        preset = lpr.get_layout_preset("fashion_promo_catalog")
+        self.assertEqual(preset.version, "2")
+
+        def only_v1_exists(path_self):
+            return "v1." in path_self.name
+
+        with mock.patch.object(Path, "is_file", only_v1_exists):
+            self.assertIsNone(tps.resolve_real_screenshot(preset))
+
+    def test_4_missing_v2_falls_back_safely_to_the_svg_schematic(self):
+        preset = lpr.get_layout_preset("fashion_promo_catalog")
+        with mock.patch.object(Path, "is_file", return_value=False):
+            self.assertIsNone(tps.resolve_real_screenshot(preset))
+        fallback = tps.resolve_gallery_thumbnail(preset)
+        self.assertTrue(fallback.startswith("<svg"))
+        self.assertTrue(fallback.endswith("</svg>"))
+
+    def test_5_current_v2_resolves_normally_when_actually_captured(self):
+        preset = lpr.get_layout_preset("fashion_promo_catalog")
+        expected = tps.screenshot_relpath(preset.key, preset.version)
+        real_fingerprint = tps.preview_input_fingerprint(preset)
+        with mock.patch.object(Path, "is_file", return_value=True), \
+             mock.patch.object(Path, "read_text", return_value=json.dumps({"preview_input_fingerprint": real_fingerprint})):
+            self.assertEqual(tps.resolve_real_screenshot(preset), expected)
+
+    def test_6_capture_command_source_derives_version_from_the_preset_not_a_constant(self):
+        import apps.storefront_builder.management.commands.capture_ready_template_previews as cmd
+
+        source = Path(cmd.__file__).read_text()
+        self.assertIn("preset.version", source)
+        self.assertNotIn("SCREENSHOT_VERSION", source)
+
+    def test_9_the_other_seven_ready_templates_are_unaffected_by_the_v2_bump(self):
+        for key in READY_TEMPLATE_KEYS:
+            if key == "fashion_promo_catalog":
+                continue
+            preset = lpr.get_layout_preset(key)
+            self.assertEqual(preset.version, "1", key)
+            self.assertEqual(
+                tps.screenshot_relpath(preset.key, preset.version),
+                f"ready_template_previews/{key}/v1.webp",
+                key,
+            )
 
 
 @override_settings(ALLOWED_HOSTS=[ADMIN_HOST, "testserver"])

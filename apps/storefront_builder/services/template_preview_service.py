@@ -361,8 +361,6 @@ def resolve_gallery_thumbnail(preset: LayoutPresetDefinition) -> str:
 # safely refuses the stale file — falling back to the always-fresh SVG
 # schematic rather than ever risking a misleading screenshot.
 
-SCREENSHOT_VERSION = 1
-
 #: Relative to this app's ``static/`` directory (matches the existing
 #: ``{% static 'css/storefront_builder.css' %}`` flat-namespace convention
 #: already used by ``template_gallery.html``).
@@ -449,14 +447,31 @@ def preview_input_fingerprint(preset: LayoutPresetDefinition) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def screenshot_relpath(template_key: str, version: int = SCREENSHOT_VERSION) -> str:
+def screenshot_relpath(template_key: str, version: str) -> str:
     """The static-relative path a real capture is saved to / read from —
     the exact ``ready_template_previews/<key>/v<version>.webp`` shape the
-    mission specifies."""
+    mission specifies.
+
+    Part 2B follow-up (version-mismatch bug): ``version`` has no default.
+    It must always be the Ready Template's OWN registry
+    ``LayoutPresetDefinition.version`` (a string, e.g. ``"2"``) — never an
+    independent screenshot-format constant. A prior version of this module
+    defaulted this to a fixed, never-bumped ``SCREENSHOT_VERSION = 1``
+    module constant, so every capture kept writing to ``v1.webp``/
+    ``v1.meta.json`` no matter what the registry's own ``version`` field
+    said (confirmed: ``fashion_promo_catalog`` reached registry version
+    ``"2"`` while its committed preview stayed named/labeled version 1).
+    The underlying pixels were never actually stale — ``preview_input_
+    fingerprint`` below already hashes ``preset.version`` in, so a version
+    bump did correctly force a re-capture — but the file name and the
+    ``"version"`` field inside the sidecar disagreed with the registry,
+    which is exactly what a merchant-side audit correctly flagged as
+    inconsistent. Requiring the caller to pass the real version here
+    (no silent fallback) makes that class of drift impossible to reproduce."""
     return f"{_PREVIEWS_STATIC_SUBDIR}/{template_key}/v{version}.webp"
 
 
-def meta_relpath(template_key: str, version: int = SCREENSHOT_VERSION) -> str:
+def meta_relpath(template_key: str, version: str) -> str:
     return f"{_PREVIEWS_STATIC_SUBDIR}/{template_key}/v{version}.meta.json"
 
 
@@ -476,10 +491,16 @@ def resolve_real_screenshot(preset: LayoutPresetDefinition) -> str | None:
     sidecar captured under a different Template (or before this mission,
     with no ``preview_input_fingerprint`` key at all) simply never matches
     another Template's/the current fingerprint, so it safely falls back
-    rather than ever satisfying the wrong Template."""
-    relpath = screenshot_relpath(preset.key)
+    rather than ever satisfying the wrong Template.
+
+    Part 2B follow-up: the path itself is now keyed by ``preset.version``
+    (see ``screenshot_relpath``'s docstring) — a v1 file on disk is simply
+    never looked at once the registry moves a Template to v2; only a
+    genuinely re-captured v2 file (at the v2 path, with a matching v2
+    fingerprint) can ever resolve as current."""
+    relpath = screenshot_relpath(preset.key, preset.version)
     image_path = APP_STATIC_DIR / relpath
-    meta_path = APP_STATIC_DIR / meta_relpath(preset.key)
+    meta_path = APP_STATIC_DIR / meta_relpath(preset.key, preset.version)
     if not image_path.is_file() or not meta_path.is_file():
         return None
     try:

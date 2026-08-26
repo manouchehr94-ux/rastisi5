@@ -47,7 +47,6 @@ from apps.storefront_builder import layout_preset_registry as lpr
 from apps.storefront_builder.services import layout_service, preset_service
 from apps.storefront_builder.services.template_preview_service import (
     APP_STATIC_DIR,
-    SCREENSHOT_VERSION,
     meta_relpath,
     preview_content_hash,
     preview_input_fingerprint,
@@ -231,15 +230,22 @@ class Command(BaseCommand):
         image_bytes = page.screenshot(type="jpeg", quality=90)
         context.close()
 
-        target_relpath = screenshot_relpath(preset.key, SCREENSHOT_VERSION)
+        # Part 2B follow-up (version-mismatch bug): the artifact's own
+        # version identity is always the Ready Template's REAL registry
+        # ``preset.version`` — never a separate, independently-tracked
+        # screenshot-format constant. That older design let a Preset reach
+        # registry version 2 while its committed preview stayed forever
+        # named/labeled version 1, which is exactly the drift a merchant
+        # audit correctly flagged as inconsistent.
+        target_relpath = screenshot_relpath(preset.key, preset.version)
         target_path = APP_STATIC_DIR / target_relpath
         target_path.parent.mkdir(parents=True, exist_ok=True)
         self._save_as_webp(image_bytes, target_path)
 
-        meta_path = APP_STATIC_DIR / meta_relpath(preset.key, SCREENSHOT_VERSION)
+        meta_path = APP_STATIC_DIR / meta_relpath(preset.key, preset.version)
         meta_path.write_text(json.dumps({
             "template_key": preset.key,
-            "version": SCREENSHOT_VERSION,
+            "version": preset.version,
             "content_hash": preview_content_hash(preset),
             # Post-demo hardening pass (Issue 3) — the canonical staleness
             # identity ``resolve_real_screenshot`` actually validates against;

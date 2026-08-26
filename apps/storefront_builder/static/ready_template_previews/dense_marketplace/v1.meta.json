@@ -1,6 +1,6 @@
 {
   "template_key": "dense_marketplace",
-  "version": 1,
+  "version": "1",
   "content_hash": "74b58e8302cd976068d37478ad842e99f6575bfb2226d3d8f145a453afba2b36",
   "preview_input_fingerprint": "69343e6cef86abe3a91de0af2fd542e56e3ef061468db6e411700bd1ad7316b4",
   "capture_source": "rasti-mode-demo",
