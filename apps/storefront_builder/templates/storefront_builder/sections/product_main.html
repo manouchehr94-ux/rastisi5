@@ -23,7 +23,15 @@ Preview بدونِ هیچ محصولی در این فروشگاه — چیزی �
 
   {{ variant_selector|json_script:"variant-selector-data" }}
   {{ product_price_json|json_script:"product-price-data" }}
-  <div class="pdp" x-data="variantSelector(
+  {% comment %}
+  ``settings.layout_variant`` — Site-target-overhaul (ibolak reference): a
+  generic, reusable data attribute (same pattern as the listing section's
+  ``data-plp-layout``), consumed only by CSS. Absent/"standard" changes
+  nothing for the other 7 Ready Templates; "fashion" repositions the
+  thumbnail rail and restyles the variant chips/CTA row for a Ready
+  Template that opts in.
+  {% endcomment %}
+  <div class="pdp" data-pdp-layout="{{ settings.layout_variant|default:'standard' }}" x-data="variantSelector(
          JSON.parse(document.getElementById('variant-selector-data').textContent),
          JSON.parse(document.getElementById('product-price-data').textContent)
        )">

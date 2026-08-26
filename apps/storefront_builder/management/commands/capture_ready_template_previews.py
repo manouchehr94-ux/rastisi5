@@ -101,6 +101,15 @@ class Command(BaseCommand):
             "--qa-output-dir", default="docs/qa_evidence/ready_template_previews",
             help="پوشه‌یِ عکس‌هایِ QAیِ اضافی (--full-qa).",
         )
+        parser.add_argument(
+            "--only", default=None,
+            help=(
+                "فقط همین یک کلیدِ Ready Template را Apply/Publish/Capture کن "
+                "(بقیه‌یِ ۷ اسکرین‌شاتِ کامیت‌شده کاملاً دست‌نخورده می‌مانند) — "
+                "برایِ زمانی که فقط یک قالب در یک فازِ Overhaul تغییر کرده است، "
+                "نه هر ۸ تا."
+            ),
+        )
 
     def handle(self, *args, **options):
         store = Store.objects.filter(slug=STORE_SLUG).first()
@@ -142,6 +151,11 @@ class Command(BaseCommand):
             launch_kwargs["executable_path"] = chromium_path
 
         templates = lpr.list_ready_templates()
+        only_key = options.get("only")
+        if only_key:
+            templates = [t for t in templates if t.key == only_key]
+            if not templates:
+                raise CommandError(f"کلیدِ Ready Templateِ «{only_key}» در فهرستِ رسمی نیست.")
         self.stdout.write(f"تعدادِ Ready Templateِ رسمی: {len(templates)}")
 
         # sync_playwright() یک asyncio event loopِ درحالِ‌اجرا در همینِ

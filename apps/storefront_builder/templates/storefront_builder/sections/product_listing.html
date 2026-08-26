@@ -1,7 +1,97 @@
 {% comment %}
 Phase 5 — فیلتر/مرتب‌سازی/گریدِ محصولات؛ روی هر دو صفحه‌یِ listing و
 search مجاز است (همان مسیرِ کوئری/ویو، فقط نوعِ صفحه‌یِ V2 متفاوت است).
+
+``settings.layout_variant`` — Site-target-overhaul (ibolak reference):
+a generic, reusable presentation choice on this section's own settings,
+exactly like ``card.card_style``. ``"standard"`` (default, absent key)
+is the original markup below, byte-for-byte unchanged, so every other
+Ready Template (and every legacy/internal preset) keeps rendering exactly
+as before. ``"sidebar_dense"`` is a second, independent markup branch —
+same form fields, same ``hx-*`` contract, same real backend filters —
+only the visual grouping (a toolbar row with sort pulled out above the
+grid, real applied-filters affordance) differs. Any future Ready Template
+may opt into ``"sidebar_dense"`` too; nothing here names a Store/template.
 {% endcomment %}
+{% if settings.layout_variant == "sidebar_dense" %}
+<div class="wrap">
+  <div class="plp" data-plp-layout="sidebar_dense">
+    <form id="filterForm" class="plp-promo-form" hx-get="{% url 'catalog:product-list' %}" hx-target="#product-results"
+          hx-push-url="true" hx-trigger="submit, change" hx-indicator="#plpLoading">
+      <div class="plp-toolbar plp-toolbar-promo">
+        <span id="plpLoading" class="htmx-indicator plp-loading">⏳ در حال بارگذاری...</span>
+        <span class="plp-sort-label">مرتب‌سازی بر اساس:</span>
+        <select class="plp-sort-select" name="sort">
+          {% for key, opt in sort_options.items %}
+          <option value="{{ key }}" {% if sort_key == key %}selected{% endif %}>{{ opt.1 }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <details class="plp-filters plp-sidebar-promo" open>
+        <summary class="plp-filters-toggle">فیلترها و مرتب‌سازی</summary>
+        <div class="plp-applied-head">
+          <a href="{% url 'catalog:product-list' %}" class="plp-reset">حذف فیلترها</a>
+          <span>فیلترهای اعمال‌شده</span>
+        </div>
+
+        <h3>جستجو</h3>
+        <div class="plp-fg">
+          <input class="plp-inp" type="text" name="q" placeholder="نام کالا، برند یا دسته..." value="{{ query }}">
+        </div>
+
+        <h3>دسته‌بندی</h3>
+        <div class="plp-fg">
+          <select class="plp-inp" name="category">
+            <option value="">همه دسته‌ها</option>
+            {% for cat in filter_categories %}
+            <optgroup label="{{ cat.icon }} {{ cat.name }}">
+              <option value="{{ cat.slug }}" {% if selected_category == cat.slug %}selected{% endif %}>همه‌ی {{ cat.name }}</option>
+              {% for child in cat.children.all %}
+              <option value="{{ child.slug }}" {% if selected_category == child.slug %}selected{% endif %}>{{ child.icon }} {{ child.name }}</option>
+              {% endfor %}
+            </optgroup>
+            {% endfor %}
+          </select>
+        </div>
+
+        <h3>برند</h3>
+        <div class="plp-fg">
+          <select class="plp-inp" name="brand">
+            <option value="">همه برندها</option>
+            {% for b in brands %}
+            <option value="{{ b.slug }}" {% if selected_brand == b.slug %}selected{% endif %}>{{ b.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <h3>محدوده قیمت</h3>
+        <div class="plp-price-row">
+          <input class="plp-inp" type="number" name="min_price" placeholder="از" min="0" value="{{ min_price }}">
+          <input class="plp-inp" type="number" name="max_price" placeholder="تا" min="0" value="{{ max_price }}">
+        </div>
+
+        <label class="plp-check">
+          <input type="checkbox" name="discounted" value="1" {% if discounted_only %}checked{% endif %}>
+          فقط کالاهای تخفیف‌دار
+        </label>
+        <label class="plp-check">
+          <input type="checkbox" name="in_stock" value="1" {% if in_stock_only %}checked{% endif %}>
+          فقط کالاهای موجود
+        </label>
+
+        <button type="submit" class="btn btn-primary" style="width:100%">اعمال فیلتر</button>
+      </details>
+    </form>
+
+    <div class="plp-content">
+      <div id="product-results" class="plp-results">
+        {% include "catalog/partials/product_list_results.html" with card_settings=settings.card %}
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
 <div class="wrap">
   <div class="plp">
     <details class="plp-filters" open>
@@ -78,3 +168,4 @@ search مجاز است (همان مسیرِ کوئری/ویو، فقط نوعِ 
     </div>
   </div>
 </div>
+{% endif %}

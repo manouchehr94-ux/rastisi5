@@ -38,6 +38,47 @@
 
 .plp-filters-toggle{display:none}
 
+/* ========================================================================
+   Listing layout variant "sidebar_dense" (site-target-overhaul, ibolak
+   reference) -- a generic, reusable ``product_listing`` section setting
+   (``settings.layout_variant``), not a template-specific selector. Pulls
+   sort into its own toolbar row above the grid and gives the filter
+   sidebar a distinct card treatment/applied-filters affordance, using the
+   exact same real ``#filterForm`` fields/``hx-*`` contract as the
+   "standard" layout above -- only the grouping differs.
+   ======================================================================== */
+.plp[data-plp-layout="sidebar_dense"]{
+  display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start;
+  grid-template-areas:"sidebar toolbar" "sidebar results";padding-bottom:60px;
+}
+.plp[data-plp-layout="sidebar_dense"] .plp-promo-form{display:contents}
+.plp-toolbar-promo{
+  grid-area:toolbar;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:14px 20px;
+}
+.plp-sort-label{font-size:13px;font-weight:700;color:var(--muted)}
+.plp-sort-select{border:1.5px solid var(--line);border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;background:var(--bg);color:var(--ink);outline:0}
+.plp-sort-select:focus{border-color:var(--violet)}
+.plp[data-plp-layout="sidebar_dense"] .plp-sidebar-promo{
+  grid-area:sidebar;position:sticky;top:96px;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:20px;display:flex;flex-direction:column;gap:14px;
+}
+.plp-applied-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--line);font-size:13.5px;font-weight:800}
+.plp-applied-head .plp-reset{border:0;padding:0;color:var(--violet);font-size:12px}
+.plp[data-plp-layout="sidebar_dense"] .plp-content{grid-area:results}
+
+@media(max-width:1100px){
+  .plp[data-plp-layout="sidebar_dense"]{grid-template-columns:260px 1fr}
+}
+@media(max-width:860px){
+  .plp[data-plp-layout="sidebar_dense"]{grid-template-columns:1fr;grid-template-areas:"toolbar" "sidebar" "results"}
+  .plp[data-plp-layout="sidebar_dense"] .plp-sidebar-promo{position:static}
+  .plp[data-plp-layout="sidebar_dense"] .plp-sidebar-promo[open]{padding:0 18px 18px}
+  .plp-toolbar-promo{justify-content:space-between}
+}
+
 @media(max-width:860px){
   .plp{grid-template-columns:1fr}
   .plp-filters{position:static;padding:0;overflow:hidden}

@@ -210,6 +210,18 @@ _DARK_TECH_VARIANT = GlobalVariantDefinition(
     renderer="storefront_builder/partials/global_header/dark_tech.html",
 )
 
+#: Site-target-overhaul (ibolak reference) — a dominant campaign topbar
+#: over a search-centered main row, with a second row combining real
+#: social/contact chips (left) and category/nav links (right) in one
+#: line. Distinct from ``marketplace_search_first`` (whose second row is
+#: a single nav strip, no chip cluster) so that template stays untouched
+#: while a fashion/campaign-style Ready Template can adopt this one.
+_PROMO_SEARCH_NAV_VARIANT = GlobalVariantDefinition(
+    key="promo_search_nav",
+    label_fa="کمپینی (نوار پیشنهاد + جستجو)",
+    renderer="storefront_builder/partials/global_header/promo_search_nav.html",
+)
+
 GLOBAL_HEADER_REGION = GlobalRegionDefinition(
     key="header",
     label_fa="هدر فروشگاه",
@@ -219,6 +231,7 @@ GLOBAL_HEADER_REGION = GlobalRegionDefinition(
         _PREMIUM_THREE_COLUMN_VARIANT,
         _BOUTIQUE_CENTERED_VARIANT,
         _DARK_TECH_VARIANT,
+        _PROMO_SEARCH_NAV_VARIANT,
     ),
     default_variant="legacy_default",
     variant_setting_key="header_variant",
@@ -257,6 +270,16 @@ _FOOTER_DARK_TECH_VARIANT = GlobalVariantDefinition(
     renderer="storefront_builder/partials/global_footer/dark_tech.html",
 )
 
+#: Site-target-overhaul (ibolak reference) — a simple, contact-forward
+#: 4-column footer with a compact trust/payment row, lighter and less
+#: dense than ``marketplace_dense`` so ``dense_marketplace`` stays
+#: untouched while a fashion/campaign-style Ready Template can adopt this.
+_FOOTER_PROMO_COLUMNS_VARIANT = GlobalVariantDefinition(
+    key="promo_columns",
+    label_fa="کمپینی (چندستونه ساده)",
+    renderer="storefront_builder/partials/global_footer/promo_columns.html",
+)
+
 GLOBAL_FOOTER_REGION = GlobalRegionDefinition(
     key="footer",
     label_fa="فوتر فروشگاه",
@@ -266,6 +289,7 @@ GLOBAL_FOOTER_REGION = GlobalRegionDefinition(
         _FOOTER_PREMIUM_COLUMNS_VARIANT,
         _FOOTER_BOUTIQUE_EDITORIAL_VARIANT,
         _FOOTER_DARK_TECH_VARIANT,
+        _FOOTER_PROMO_COLUMNS_VARIANT,
     ),
     default_variant="legacy_default",
     variant_setting_key="footer_variant",

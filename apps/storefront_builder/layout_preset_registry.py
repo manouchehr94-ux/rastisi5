@@ -867,33 +867,68 @@ register_layout_preset(LayoutPresetDefinition(
     },
 ))
 
+#: Site-target-overhaul (ibolak reference) — the reusable card presentation
+#: this Ready Template opts into: the ``fashion_sale`` card style (see
+#: ``section_registry.CARD_STYLE_CHOICES``), a portrait product photo
+#: (already a registered ``image_ratio`` choice), and no quick-add bar —
+#: ibolak's own listing/home cards never offer a one-click add, since a
+#: real color/size choice is required first; hiding it here is an honest
+#: match, not a fabricated capability.
+_FASHION_PROMO_CARD = {"card_style": "fashion_sale", "image_ratio": "portrait", "show_quick_add": False}
+
 register_layout_preset(LayoutPresetDefinition(
     key="fashion_promo_catalog",
     is_ready_template=True,
     label_fa="کاتالوگِ پوشاک و پیشنهادها",
     description_fa="چیدمانِ کاتالوگ‌محور با بنرهایِ تبلیغاتیِ متعدد — مناسبِ پوشاک/مدی که مرتب کمپین/تخفیف اجرا می‌کند.",
     appearance={
-        "font": "Vazirmatn", "radius": 8, "button_radius": 8,
+        "font": "Vazirmatn", "radius": 14, "button_radius": 999,
         "density": "normal", "motion": "dynamic", "type_scale": "normal",
         "button_style": "filled", "image_fit": "cover", "image_hover": "zoom",
         "card_image_crossfade": True, "card_image_zoom": True,
     },
-    default_palette_slug="sunset",
-    header={"sticky": True, "announcement_enabled": True, "header_variant": "marketplace_search_first"},
-    footer={"footer_variant": "marketplace_dense"},
+    default_palette_slug="magenta-pop",
+    header={"sticky": True, "announcement_enabled": True, "header_variant": "promo_search_nav"},
+    footer={"footer_variant": "promo_columns"},
     pages={
         "home": (
-            PresetSectionEntry("multi_banner", settings={"layout_variant": "promo-4"}),
-            PresetSectionEntry("promo_cards"),
+            PresetSectionEntry("hero_banner", settings={"hero_style": "overlay"}),
+            PresetSectionEntry("category_grid", settings={"display_mode": "image_strip"}),
             PresetSectionEntry("product_section", settings={
                 "title": "تخفیف‌های این هفته", "data_source": "discounted", "display_mode": "carousel",
-                "item_limit": 10, "card": {"card_style": "standard", "show_badge": True},
+                "item_limit": 10, "card": _FASHION_PROMO_CARD,
+            }),
+            PresetSectionEntry("promo_cards"),
+            PresetSectionEntry("product_section", settings={
+                "title": "جدیدترین‌های فروشگاه", "data_source": "newest", "display_mode": "carousel",
+                "item_limit": 10, "card": _FASHION_PROMO_CARD,
             }),
             PresetSectionEntry("amazing_offers"),
-            PresetSectionEntry("category_grid", settings={"display_mode": "carousel"}),
             PresetSectionEntry("brand_carousel", settings={"display_mode": "carousel"}),
         ),
-        **_u10_standard_non_home_pages(),
+        **{
+            **_u10_standard_non_home_pages(),
+            # Site-target-overhaul — the master contract's shared
+            # listing/product_detail *composition* (which sections, in
+            # which order) is intentionally unchanged (still exactly
+            # ``_U10_STANDARD_LISTING_PAGE``/``_U10_STANDARD_PRODUCT_DETAIL_PAGE``'s
+            # one ``product_listing``/(``product_main``, ``product_description``,
+            # ``related_products``) section list) -- only each entry's own
+            # ``settings.layout_variant``/``settings.card`` differ, exactly
+            # the same axis ``card_style`` already varies on. No other Ready
+            # Template's ``pages[...]`` is touched by this override.
+            "listing": (PresetSectionEntry("product_listing", settings={
+                "layout_variant": "sidebar_dense", "card": _FASHION_PROMO_CARD,
+            }),),
+            "search": (PresetSectionEntry("product_listing", settings={
+                "layout_variant": "sidebar_dense", "card": _FASHION_PROMO_CARD,
+            }),),
+            "product_detail": (
+                PresetSectionEntry("product_main", settings={"layout_variant": "fashion"}),
+                PresetSectionEntry("product_description"),
+                PresetSectionEntry("related_products", settings={"card": _FASHION_PROMO_CARD}),
+            ),
+        },
     },
 ))
 

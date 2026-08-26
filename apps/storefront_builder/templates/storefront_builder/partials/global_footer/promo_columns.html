@@ -1,0 +1,98 @@
+{% comment %}
+Site-target-overhaul (ibolak reference) Global Footer Variant — Promo
+Columns (key: promo_columns).
+
+Archetype: a simple, contact-forward multi-column footer with a compact
+trust/payment row -- the same column building blocks as
+``marketplace_dense``, under a distinct ``.gf--promo`` modifier class and
+lighter spacing/typography so ``dense_marketplace`` (which keeps
+``marketplace_dense``) stays completely unchanged.
+
+Required context: ``footer_config``/``is_live_storefront``/``is_builder_preview``
+— the same three every other Global Footer Variant already receives.
+{% endcomment %}
+{% load storefront_builder_extras %}
+{% has_real_footer_contact_data FOOTER_SETTINGS SHOP_CONTACT_PHONE SHOP_CONTACT_EMAIL as gf_has_contact_data %}
+{% with fc=footer_config rc=footer_config.responsive %}
+<footer class="gf gf--promo">
+  {% if fc.show_newsletter and FOOTER_SETTINGS.show_newsletter %}
+  <div class="wrap gf-newsletter-row" {% if rc.show_newsletter.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_newsletter.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+    {% include "storefront_builder/partials/global_footer/_shared/newsletter.html" %}
+  </div>
+  {% endif %}
+
+  <div class="wrap">
+    {% if fc.show_about or fc.show_quick_links and NAV_FOOTER_1 or fc.show_categories and top_level_categories or fc.show_contact and gf_has_contact_data or fc.extra_blocks|has_renderable_footer_extra_block:SOCIAL_LINKS_FOOTER %}
+    <div class="gf-promo-grid">
+      {% if fc.show_quick_links %}
+      <div {% if rc.show_quick_links.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_quick_links.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/nav_column.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_categories %}
+      <div {% if rc.show_categories.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_categories.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/categories_column.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_contact %}
+      <div class="gf-col gf-col-contact" {% if rc.show_contact.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_contact.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/contact_column.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_about %}
+      <div class="gf-col gf-col-brand" {% if rc.show_about.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_about.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/brand.html" %}
+      </div>
+      {% endif %}
+      {% include "storefront_builder/partials/global_footer/_shared/extra_blocks.html" %}
+    </div>
+    {% endif %}
+
+    {% include "storefront_builder/partials/global_footer/_shared/trust_payment.html" %}
+
+    {% comment %}
+    Site-target-overhaul (ibolak reference) — a compact, always-real
+    guarantee row (the exact same platform facts already asserted on
+    every PDP's ``.guarantee`` block: real authenticity/shipping/return
+    policy, never a fabricated regulatory trust-mark). This is a
+    self-contained row local to this footer variant only -- it does not
+    read or depend on the shared ``FOOTER_TRUST_BADGES``/
+    ``FOOTER_PAYMENT_LOGOS`` merchant-uploaded querysets above, so it can
+    never change what any other Ready Template's footer renders.
+    {% endcomment %}
+    <div class="gf-promo-guarantee">
+      <div class="gf-promo-guarantee-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>ضمانت اصالت کالا</span>
+      </div>
+      <div class="gf-promo-guarantee-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        <span>ارسال سریع و بیمه‌شده</span>
+      </div>
+      <div class="gf-promo-guarantee-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>
+        <span>پرداخت امن آنلاین</span>
+      </div>
+      <div class="gf-promo-guarantee-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+        <span>۷ روز ضمانت بازگشت کالا</span>
+      </div>
+    </div>
+
+    {% if fc.show_copyright or fc.show_social and SOCIAL_LINKS_FOOTER %}
+    <div class="gf-legal-row">
+      {% if fc.show_social %}
+      <div {% if rc.show_social.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_social.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/social_links.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_copyright %}
+      <div {% if rc.show_copyright.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_copyright.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/legal_row.html" %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</footer>
+{% endwith %}

@@ -611,8 +611,11 @@ QUICK_ADD_REVEAL_CHOICES = ("hover_slide", "hover_fade", "always")
 #: closed, reusable presentation choice -- never a preset/store-specific
 #: renderer selector.  ``standard`` preserves the historical card, while
 #: ``compact`` is the denser marketplace treatment used by product-heavy
-#: storefronts.
-CARD_STYLE_CHOICES = ("standard", "compact", "minimal")
+#: storefronts. ``fashion_sale`` is a reusable apparel/campaign treatment
+#: (taller portrait image, prominent discount ribbon, two-line title,
+#: compare-price hierarchy) -- any future fashion-leaning Ready Template
+#: may adopt it, not just the one that introduces it.
+CARD_STYLE_CHOICES = ("standard", "compact", "minimal", "fashion_sale")
 
 _CARD_TOGGLE_FIELDS = (
     "show_brand", "show_price", "show_badge", "show_wishlist",

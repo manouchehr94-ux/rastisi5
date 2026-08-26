@@ -121,10 +121,35 @@
 .pdp-video-badge{font-size:11px;font-weight:700;color:var(--violet);background:var(--violet-softer);padding:3px 10px;border-radius:999px}
 .pdp-video-title{font-size:12.5px;color:#4b4560;font-weight:600}
 
+/* ========================================================================
+   PDP layout variant "fashion" (site-target-overhaul, ibolak reference)
+   ------------------------------------------------------------------------
+   A generic, reusable ``product_main`` section setting
+   (``settings.layout_variant``, read via the ``data-pdp-layout``
+   attribute), exactly like the listing section's ``data-plp-layout``.
+   Absent/"standard" changes nothing for the other 7 Ready Templates;
+   "fashion" moves the thumbnail rail beside the main image (a vertical
+   column at the gallery's outer edge, matching a fashion-catalog PDP)
+   and gives the variant chips/CTA row a bolder, apparel-style emphasis.
+   ======================================================================== */
+.pdp[data-pdp-layout="fashion"] .gallery{display:flex;gap:14px}
+.pdp[data-pdp-layout="fashion"] .gallery .main{flex:1;order:2;aspect-ratio:3/4}
+.pdp[data-pdp-layout="fashion"] .gallery .thumbs{order:1;flex-direction:column;margin-top:0;flex:0 0 auto}
+.pdp[data-pdp-layout="fashion"] .gallery .thumbs .th{width:64px;height:80px;border-radius:10px}
+.pdp[data-pdp-layout="fashion"] .swatch{width:40px;height:40px}
+.pdp[data-pdp-layout="fashion"] .size{min-width:64px;height:46px;border-radius:12px;font-size:13.5px}
+.pdp[data-pdp-layout="fashion"] .pdp-actions .btn-primary{height:56px;font-size:16px;border-radius:14px}
+.pdp[data-pdp-layout="fashion"] .pricebox{background:transparent;border:0;padding:0}
+.pdp[data-pdp-layout="fashion"] .pricebox .now{font-size:28px}
+
 @media(max-width:1000px){
   .pdp{grid-template-columns:1fr}
   .gallery{position:static}
   .review-sum{grid-template-columns:1fr}
+  .pdp[data-pdp-layout="fashion"] .gallery{flex-direction:column}
+  .pdp[data-pdp-layout="fashion"] .gallery .thumbs{flex-direction:row;order:2;margin-top:10px}
+  .pdp[data-pdp-layout="fashion"] .gallery .main{order:1}
+  .pdp[data-pdp-layout="fashion"] .gallery .thumbs .th{width:64px;height:64px}
 }
 @media(max-width:480px){
   .pdp-video-grid--multi{grid-template-columns:1fr}

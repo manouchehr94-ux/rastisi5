@@ -56,7 +56,7 @@ PUBLIC_HOST = "u2a-header-public.example.com"
 
 _ALL_VARIANT_KEYS = {
     "legacy_default", "marketplace_search_first", "premium_three_column",
-    "boutique_centered", "dark_tech",
+    "boutique_centered", "dark_tech", "promo_search_nav",
 }
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]

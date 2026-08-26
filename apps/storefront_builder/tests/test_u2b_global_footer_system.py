@@ -67,6 +67,7 @@ PUBLIC_HOST = "u2b-footer-public.example.com"
 
 _ALL_FOOTER_VARIANT_KEYS = {
     "legacy_default", "marketplace_dense", "premium_columns", "boutique_editorial", "dark_tech",
+    "promo_columns",
 }
 
 
@@ -423,7 +424,10 @@ class U2AHeaderBehaviorIntactTests(TestCase):
 
     def test_header_region_still_has_its_five_variants(self):
         keys = {v.key for v in g.GLOBAL_HEADER_REGION.variants}
-        expected = {"legacy_default", "marketplace_search_first", "premium_three_column", "boutique_centered", "dark_tech"}
+        expected = {
+            "legacy_default", "marketplace_search_first", "premium_three_column",
+            "boutique_centered", "dark_tech", "promo_search_nav",
+        }
         self.assertEqual(keys, expected)
 
     def test_header_default_variant_still_legacy_default(self):
