@@ -1123,7 +1123,7 @@ _MAX_SECTION_TITLE_LENGTH = 60
 #: compact flat rail (small image, short label, no card chrome) distinct
 #: from ``image_strip``'s own CSS (which ``dense_marketplace`` already
 #: uses) so that template's rendering stays completely untouched.
-CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular", "image_strip", "fashion_flat")
+CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular", "image_strip", "fashion_flat", "fashion_mosaic")
 
 
 def _validate_category_grid_settings(raw: dict) -> dict:
@@ -1656,6 +1656,11 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
             # independent of ``image_strip``'s CSS so dense_marketplace
             # (which already uses ``image_strip``) stays unaffected.
             VariantDefinition(key="fashion_flat", label_fa="نوار مسطح کمپینی"),
+            # Site-target-overhaul Part 2C (ibolak precision pass) — the
+            # reference's SECOND, distinct category moment: a larger
+            # post-hero mosaic (own CSS, ``.category-fashion-mosaic``),
+            # completely independent of ``fashion_flat``'s rail CSS.
+            VariantDefinition(key="fashion_mosaic", label_fa="موزاییک دسته‌بندی"),
         ),
         default_variant="grid", variant_setting_key="display_mode",
     ),

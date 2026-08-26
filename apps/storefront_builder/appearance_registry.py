@@ -451,7 +451,11 @@ _PALETTE_DATA = [
     ("royal", "آبی سلطنتی", "لوکس", "#273C75", "#7186C7", "#D4AF37", "#F8F9FD", "#FFFFFF", "#17213B", "#6E7690", "#DEE2EE"),
     ("plum", "آلویی", "لوکس", "#6D315F", "#A76591", "#C29B55", "#FFF8FD", "#FFFFFF", "#35222F", "#806A79", "#ECDCE7"),
     ("sunset", "غروب", "شاد", "#F05A47", "#8B5CF6", "#F4B740", "#FFF9F4", "#FFFFFF", "#312529", "#817175", "#F0DFDA"),
-    ("magenta-pop", "صورتی نئونی", "شاد", "#F4B21A", "#241947", "#FF1177", "#FFF7FB", "#FFFFFF", "#241522", "#7C6B78", "#F5DCE9"),
+    # Part 2C precision pass — background was "#FFF7FB" (a faint pink/lavender
+    # tint), which read on-screen as a visible pink cast across the whole
+    # page; the ibolak reference page background is overwhelmingly plain
+    # white, with pink reserved for discount/promo accents only.
+    ("magenta-pop", "صورتی نئونی", "شاد", "#F4B21A", "#241947", "#FF1177", "#FFFFFF", "#FFFFFF", "#241522", "#7C6B78", "#F5DCE9"),
 ]
 
 for _slug, _name, _group, _primary, _secondary, _accent, _background, _surface, _text, _muted, _border in _PALETTE_DATA:

@@ -252,33 +252,51 @@ html[data-sfb-density="relaxed"] .pcard .body{padding:18px 18px 20px;gap:10px}
    ======================================================================== */
 .pcard.style-fashion_sale{border-radius:0;box-shadow:none;border-color:transparent;background:transparent}
 .pcard.style-fashion_sale:hover{box-shadow:none;border-color:transparent;transform:none}
-.pcard.style-fashion_sale .img{background:#f4f2f5!important;border-radius:2px}
+.pcard.style-fashion_sale .img{background:#f4f2f5!important;border-radius:4px}
 /* Reference ribbon sits at the image's physical top-left corner and the
    wishlist heart at physical top-right -- the exact opposite of this
    shared card's own RTL-default placement (``.pcard .heart{left:10px}``/
    ``.pcard .badges{right:10px}``), so both are pinned with plain physical
    ``left``/``right`` here (not logical ``inset-inline-*``, which would
    just track text direction and not actually move anything). */
-.pcard.style-fashion_sale .badges{top:0;left:0;right:auto;align-items:flex-start}
+.pcard.style-fashion_sale .badges{top:8px;left:8px;right:auto;align-items:flex-start}
+/* Part 2C precision pass — the reference's discount marker is one of its
+   strongest repeating visual signals: a floating hot-pink capsule inset
+   from the corner, not a flush L-shaped corner flag. Fully rounded,
+   larger/bolder text, a small shadow so it reads as clearly "on top of"
+   the photo rather than part of it. */
 .pcard.style-fashion_sale .pill-disc{
-  background:var(--pink);color:#fff;border-radius:0 0 10px 0;
-  min-width:38px;padding:6px 10px 7px 8px;
+  background:var(--pink);color:#fff;border-radius:999px;
+  min-width:36px;padding:5px 11px;
   display:flex;align-items:center;justify-content:center;
-  font-size:11px;font-weight:800;line-height:1;
+  font-size:12px;font-weight:800;line-height:1;
+  box-shadow:0 2px 6px rgba(255,17,119,.35);
 }
-.pcard.style-fashion_sale .heart{top:10px;right:10px;left:auto;width:30px;height:30px}
-.pcard.style-fashion_sale .body{padding:10px 2px 2px;gap:6px}
-.pcard.style-fashion_sale .name{font-size:12.5px;font-weight:600;height:40px}
+.pcard.style-fashion_sale .heart{top:8px;right:8px;left:auto;width:28px;height:28px}
+.pcard.style-fashion_sale .body{padding:8px 2px 2px;gap:4px}
+.pcard.style-fashion_sale .name{font-size:12px;font-weight:600;height:32px;line-height:1.35}
 .pcard.style-fashion_sale .price{border-top:0;padding-top:0;display:block}
 .pcard.style-fashion_sale .price .now{
-  display:flex;flex-direction:column-reverse;align-items:flex-start;gap:2px;
-  font-size:14px;font-weight:800;color:var(--ink);
+  display:flex;flex-direction:column-reverse;align-items:flex-start;gap:1px;
+  font-size:13.5px;font-weight:800;color:var(--ink);
 }
-.pcard.style-fashion_sale .price .old{font-size:11.5px;color:var(--muted)}
+.pcard.style-fashion_sale .price .old{font-size:11px;color:var(--muted)}
 @media(max-width:680px){
-  .pcard.style-fashion_sale .pill-disc{min-width:30px;padding:5px 8px 6px 6px;font-size:9.5px}
-  .pcard.style-fashion_sale .name{font-size:11.5px;height:38px}
+  .pcard.style-fashion_sale .pill-disc{min-width:28px;padding:4px 9px;font-size:10.5px}
+  .pcard.style-fashion_sale .name{font-size:11.5px;height:30px}
 }
+
+/* Part 2C precision pass — section headings inside a fashion_sale product
+   row read as much more integrated/compact in the reference (small top/
+   bottom margin, almost touching the row below) than this shared
+   ``.sec-head`` rule's own default 18px margin, which is correct for
+   every other Ready Template. Scoped via :has() to the one card style
+   unique to fashion_promo_catalog so no other template's heading spacing
+   changes. */
+.product-section:has(.pcard.style-fashion_sale){margin:14px 0}
+.product-section:has(.pcard.style-fashion_sale) .sec-head{margin-bottom:8px}
+.product-section:has(.pcard.style-fashion_sale) .sec-head h2{font-size:16px}
+.product-section:has(.pcard.style-fashion_sale) .sec-head h2 .bar{height:16px}
 
 @media(max-width:680px){
   .pcard.style-compact .img{aspect-ratio:1.05/1}

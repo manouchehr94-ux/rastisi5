@@ -251,10 +251,15 @@ class VersionedPreviewIdentityTests(TestCase):
     ``version`` never moved) are provably unaffected."""
 
     def test_1_registry_version_2_resolves_the_v2_preview_path(self):
+        # Part 2C precision pass bumped fashion_promo_catalog to version
+        # "3" (a further real content change); the assertions below track
+        # whatever the registry's CURRENT version actually is rather than
+        # a second hardcoded literal, so this test keeps proving the same
+        # invariant across future version bumps without needing its own
+        # edit each time.
         preset = lpr.get_layout_preset("fashion_promo_catalog")
-        self.assertEqual(preset.version, "2")
         expected = tps.screenshot_relpath(preset.key, preset.version)
-        self.assertEqual(expected, "ready_template_previews/fashion_promo_catalog/v2.webp")
+        self.assertEqual(expected, f"ready_template_previews/fashion_promo_catalog/v{preset.version}.webp")
 
         real_fingerprint = tps.preview_input_fingerprint(preset)
         with mock.patch.object(Path, "is_file", return_value=True), \
@@ -281,10 +286,12 @@ class VersionedPreviewIdentityTests(TestCase):
     def test_3_a_v1_file_on_disk_is_stale_and_ignored_once_the_registry_is_v2(self):
         """Even if an old v1.webp/v1.meta.json physically exists (kept for
         historical retention — never deleted by this fix), a Preset now at
-        version 2 must never resolve it: the resolver only ever looks at
-        the v2 path, because that path is built from ``preset.version``."""
+        a higher version must never resolve it: the resolver only ever
+        looks at the CURRENT version's path, because that path is built
+        from ``preset.version`` (now "3" after the Part 2C precision pass,
+        but this test only needs "not the current version" to hold)."""
         preset = lpr.get_layout_preset("fashion_promo_catalog")
-        self.assertEqual(preset.version, "2")
+        self.assertNotEqual(preset.version, "1")
 
         def only_v1_exists(path_self):
             return "v1." in path_self.name

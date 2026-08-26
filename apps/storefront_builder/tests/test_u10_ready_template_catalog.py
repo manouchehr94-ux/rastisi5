@@ -168,6 +168,57 @@ class FashionPromoCatalogIsolationTests(TestCase):
             else:
                 self.assertNotEqual(preset.default_palette_slug, "magenta-pop", key)
 
+    def test_only_fashion_promo_catalog_uses_the_fashion_mosaic_category_moment(self):
+        """Part 2C (ibolak Home precision pass) — the reference's SECOND
+        category moment (a larger post-hero mosaic), reusing the same
+        ``category_grid`` section type as the top shortcut rail but a
+        completely separate, isolated ``fashion_mosaic`` display_mode."""
+        for key in REQUIRED_KEYS:
+            preset = lpr.get_layout_preset(key)
+            category_entries = [e for e in preset.pages["home"] if e.section_key == "category_grid"]
+            display_modes = {(e.settings or {}).get("display_mode") for e in category_entries}
+            if key == "fashion_promo_catalog":
+                self.assertIn("fashion_mosaic", display_modes, key)
+            else:
+                self.assertNotIn("fashion_mosaic", display_modes, key)
+
+    def test_fashion_promo_catalog_has_two_distinct_category_moments_in_the_right_order(self):
+        """Merchant visual QA #2 (Part 2C) required TWO distinct category
+        moments matching the reference: a compact shortcut rail close to
+        the header (BEFORE the hero) and a larger mosaic (AFTER the hero)
+        -- not the single post-hero rail Part 2B shipped."""
+        preset = lpr.get_layout_preset("fashion_promo_catalog")
+        keys_in_order = [(e.section_key, (e.settings or {}).get("display_mode")) for e in preset.pages["home"]]
+        rail_index = keys_in_order.index(("category_grid", "fashion_flat"))
+        hero_index = keys_in_order.index(("fashion_lifestyle_hero", None))
+        mosaic_index = keys_in_order.index(("category_grid", "fashion_mosaic"))
+        self.assertLess(rail_index, hero_index, "the compact shortcut rail must render before the hero")
+        self.assertLess(hero_index, mosaic_index, "the larger mosaic must render after the hero")
+
+    def test_fashion_promo_catalog_uses_the_widest_registered_content_width(self):
+        """Part 2C — the reference's product wall/hero/category mosaic read
+        as nearly full-bleed at a 1440 viewport; ``content_width`` is an
+        existing, generic, already-registered appearance field that flows
+        straight into ``--sfb-content-width`` via ``apply_preset``'s own
+        ``overlay = dict(preset.appearance)`` copy. No other Ready Template
+        sets this key, so the other 7 keep whatever their own Draft/CSS
+        default already is."""
+        for key in REQUIRED_KEYS:
+            preset = lpr.get_layout_preset(key)
+            if key == "fashion_promo_catalog":
+                self.assertEqual(preset.appearance.get("content_width"), 1500, key)
+            else:
+                self.assertNotIn("content_width", preset.appearance, key)
+
+    def test_magenta_pop_background_is_plain_white_not_tinted(self):
+        """Merchant visual QA #2 (Part 2C) — the reference page background
+        is overwhelmingly white; the old ``#FFF7FB`` background read as a
+        visible pink/lavender cast across the whole page."""
+        from apps.storefront_builder import appearance_registry
+
+        palette = appearance_registry.get_palette("magenta-pop")
+        self.assertEqual(palette.colors["background"], "#FFFFFF")
+
     def test_other_seven_templates_listing_and_pdp_layout_variants_are_untouched(self):
         """Complements Part 2's own isolation tests (sidebar_dense/fashion
         layout_variant) — the other 7 templates' listing/product_detail

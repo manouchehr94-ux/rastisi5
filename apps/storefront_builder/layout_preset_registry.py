@@ -885,21 +885,21 @@ _FASHION_PROMO_ROW = {"responsive": {"desktop_columns": 5}}
 def _fashion_promo_row(title: str, data_source: str) -> PresetSectionEntry:
     return PresetSectionEntry("product_section", settings={
         "title": title, "data_source": data_source, "display_mode": "carousel",
-        "item_limit": 12, "card": _FASHION_PROMO_CARD, **_FASHION_PROMO_ROW,
+        "item_limit": 14, "card": _FASHION_PROMO_CARD, **_FASHION_PROMO_ROW,
     })
 
 register_layout_preset(LayoutPresetDefinition(
     key="fashion_promo_catalog",
-    # Part 2B (ibolak Home rebuild) — the Home composition genuinely
-    # changed (new hero/category-rail/product-wall structure replacing
-    # the old hero_banner/promo_cards/amazing_offers/brand_carousel mix);
-    # bumped from the implicit default "1" so a Store whose Draft already
-    # recorded a "1" baseline snapshot is correctly recognized as
-    # *not* matching this new content on reapply (see ``version``'s own
-    # docstring above and ``preset_service._draft_already_matches_preset``)
-    # instead of being silently treated as a no-op re-application of an
-    # "unchanged" template.
-    version="2",
+    # Part 2C (ibolak Home precision pass) — merchant visual QA #2: the
+    # Part 2B structural rebuild was approved as an architecture, but the
+    # macro geometry (hero height, category moments, density, background,
+    # content width) still diverged materially from the reference. Bumped
+    # again from "2" for the same reason "2" was bumped from "1": the Home
+    # composition's real content changed (two category moments instead of
+    # one, a shorter/wider hero, denser product rows), so a Draft that
+    # already recorded a "2" baseline snapshot must be recognized as
+    # *not* matching this new content on reapply.
+    version="3",
     is_ready_template=True,
     label_fa="کاتالوگِ پوشاک و پیشنهادها",
     description_fa="چیدمانِ کاتالوگ‌محور با بنرهایِ تبلیغاتیِ متعدد — مناسبِ پوشاک/مدی که مرتب کمپین/تخفیف اجرا می‌کند.",
@@ -908,6 +908,20 @@ register_layout_preset(LayoutPresetDefinition(
         "density": "normal", "motion": "dynamic", "type_scale": "normal",
         "button_style": "filled", "image_fit": "cover", "image_hover": "zoom",
         "card_image_crossfade": True, "card_image_zoom": True,
+        # Part 2C — the reference's product wall/hero/category mosaic reads
+        # as nearly full-bleed at a 1440 viewport (~14px gutters), not a
+        # classic centered ~1200-1320 container. ``content_width`` is an
+        # existing, generic, already-registered structural appearance field
+        # (``appearance_registry.SITE_CONTENT_WIDTH_CHOICES``) that flows
+        # straight into ``--sfb-content-width`` via ``apply_preset``'s
+        # existing ``overlay = dict(preset.appearance)`` copy — no new
+        # mechanism, and no other Ready Template sets this key, so the
+        # other 7 keep whatever their own Draft/CSS default already is.
+        # 1500 is the largest registered choice; combined with the existing
+        # ``.wrap{width:min(var(--sfb-content-width),calc(100% - 28px))}``
+        # rule it resolves to ~1412px at a 1440 viewport — a ~14px gutter,
+        # matching the reference's measured content width almost exactly.
+        "content_width": 1500,
     },
     default_palette_slug="magenta-pop",
     header={"sticky": True, "announcement_enabled": True, "header_variant": "promo_search_nav"},
@@ -919,14 +933,29 @@ register_layout_preset(LayoutPresetDefinition(
         # colored promo blocks, a brand-name pill row) that has no
         # equivalent in the reference at all. Real merchant data behind
         # those sections is untouched — a merchant can still add any of
-        # them back in the editor — this Ready Template's own default
-        # composition simply no longer includes them, replaced by a
-        # self-contained campaign hero + flat category rail + a repeated,
-        # dense 5-per-row product wall matching the reference's actual
-        # macro structure.
+        # them back in the editor.
+        #
+        # Part 2C (precision pass) — the reference actually has TWO
+        # distinct category moments, not one: a compact circular shortcut
+        # rail close to the header (``fashion_flat``, moved here BEFORE the
+        # hero — it used to render after it), and a larger post-hero
+        # category mosaic (the new ``fashion_mosaic`` display_mode). Both
+        # reuse ``category_grid``'s existing empty-``category_ids``
+        # auto-pick behavior (real, active top-level Store categories —
+        # never a hardcoded Store-specific ID, safe for any merchant who
+        # applies this Ready Template). The product wall stays on the 4
+        # ID-free, Store-agnostic data sources (``PRODUCT_SECTION_
+        # DATA_SOURCES``'s "category"/"collection"/"brand" all require a
+        # real per-Store numeric ``source_id`` — hardcoding one of
+        # rasti-mode-demo's own here would either leak that Store's ID into
+        # every other merchant's copy of this Ready Template or silently
+        # render empty for them; neither is acceptable for an official,
+        # reusable Ready Template) — each row's ``item_limit`` raised for a
+        # visibly denser, longer carousel per section.
         "home": (
+            PresetSectionEntry("category_grid", settings={"display_mode": "fashion_flat", "item_limit": 12}),
             PresetSectionEntry("fashion_lifestyle_hero"),
-            PresetSectionEntry("category_grid", settings={"display_mode": "fashion_flat"}),
+            PresetSectionEntry("category_grid", settings={"display_mode": "fashion_mosaic", "item_limit": 8}),
             _fashion_promo_row("تخفیف‌های ویژه", "discounted"),
             _fashion_promo_row("جدیدترین‌ها", "newest"),
             _fashion_promo_row("پرفروش‌ترین‌ها", "best_sellers"),
