@@ -345,6 +345,16 @@ class Command(BaseCommand):
                 "می‌کند — هیچ آرگومانی برایِ تغییرِ این اسلاگ وجود ندارد."
             ),
         )
+        parser.add_argument(
+            "--ready-template", default="", metavar="KEY",
+            help=(
+                "Part 2B QA fix — پس از ساختنِ کاتالوگ، همین یک کلیدِ Ready "
+                "Template رسمی را روی این Storeِ Demo Apply+Publish کن (مثلاً "
+                "«fashion_promo_catalog»). بدونِ این آرگومان، Storeِ Demو دقیقاً "
+                "مثلِ قبل بدونِ هیچ Ready Templateِ اعمال‌شده‌ای باقی می‌ماند — "
+                "این دستور هرگز خودش، بی‌صدا، یک قالب را انتخاب/قفل نمی‌کند."
+            ),
+        )
 
     def handle(self, *args, **options):
         owner = None
@@ -354,6 +364,18 @@ class Command(BaseCommand):
                 owner = User.objects.get(username=owner_username)
             except User.DoesNotExist as exc:
                 raise CommandError(f"کاربری با یوزرنیمِ «{owner_username}» یافت نشد.") from exc
+
+        ready_template_key = (options.get("ready_template") or "").strip()
+        ready_template_preset = None
+        if ready_template_key:
+            from apps.storefront_builder.layout_preset_registry import get_layout_preset
+
+            ready_template_preset = get_layout_preset(ready_template_key)
+            if ready_template_preset is None or not ready_template_preset.is_ready_template:
+                raise CommandError(
+                    f"«{ready_template_key}» یک کلیدِ Ready Templateِ رسمی نیست — "
+                    "list_ready_templates() را برای فهرستِ معتبر ببینید."
+                )
 
         if options["reset"]:
             self._reset()
@@ -379,6 +401,14 @@ class Command(BaseCommand):
             self._seed_navigation(store, categories, collections)
             self._seed_footer(store, categories, collections)
 
+        applied_template_note = "  Ready Template: هیچ‌کدام (بدونِ --ready-template)\n"
+        if ready_template_preset is not None:
+            from apps.storefront_builder.services import layout_service, preset_service
+
+            preset_service.apply_preset_with_checkpoint(store, ready_template_preset)
+            layout_service.publish(store)
+            applied_template_note = f"  Ready Template: {ready_template_preset.key} (Apply + Publish شد)\n"
+
         self.stdout.write(self.style.SUCCESS(
             "seed_ready_template_fashion_demo با موفقیت اجرا شد:\n"
             f"  Store: {store.slug} (admin_subdomain={store.admin_subdomain})\n"
@@ -389,6 +419,7 @@ class Command(BaseCommand):
             f"  تصویرِ کالا: {image_count}\n"
             f"  کالکشن: {len(collections)}\n"
             f"  Hero: {hero_count}  Banner: {banner_count}  Story: {story_count}\n"
+            f"{applied_template_note}"
         ))
 
     # ------------------------------------------------------------------ Reset

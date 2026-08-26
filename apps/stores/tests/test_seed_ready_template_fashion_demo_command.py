@@ -26,6 +26,7 @@ from io import StringIO
 
 from django.core.cache import cache
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
 from apps.catalog.models import (
@@ -527,6 +528,73 @@ class IdempotencyTests(SeedReadyTemplateFashionDemoCommandTests):
         self._run()
         second = ProductVariant.objects.filter(product__store=self._store(), is_obsolete=False).count()
         self.assertEqual(first, second)
+
+
+class ReadyTemplateFlagTests(SeedReadyTemplateFashionDemoCommandTests):
+    """Part 2B (merchant-discovered QA bug) — ``--reset`` alone deletes and
+    recreates the Demo Store's catalog/content but never provisions a
+    StorefrontLayout/applied Ready Template, so QA silently landed on the
+    fallback/default storefront right after a reset. ``--ready-template
+    <key>`` makes the choice explicit and deterministic instead of
+    silently coupling this seed command to one hardcoded template
+    forever."""
+
+    def test_without_the_flag_no_ready_template_is_applied(self):
+        """The pre-existing, byte-identical default behavior — this flag
+        is additive, never a silent new default."""
+        self._run()
+        store = self._store()
+        from apps.storefront_builder.services import layout_service
+
+        layout = layout_service.get_or_create_layout(store)
+        self.assertIsNone(layout.published_version_id)
+
+    def test_ready_template_flag_provisions_a_published_layout(self):
+        self._run("--ready-template", "fashion_promo_catalog")
+        store = self._store()
+        from apps.storefront_builder.services import layout_service
+
+        layout = layout_service.get_or_create_layout(store)
+        self.assertIsNotNone(layout.published_version_id)
+        published = layout.published_version
+        self.assertEqual(published.template_provenance.get("template", {}).get("key"), "fashion_promo_catalog")
+        home = published.home_page()
+        self.assertIn("fashion_lifestyle_hero", list(home.sections.values_list("section_key", flat=True)))
+
+    def test_unknown_ready_template_key_raises_command_error(self):
+        with self.assertRaises(CommandError):
+            self._run("--ready-template", "__not_a_real_template__")
+
+    def test_non_ready_template_preset_key_is_rejected(self):
+        """Only the 8 official ``is_ready_template=True`` keys are valid
+        here — an internal/legacy preset key (real, registered, but not
+        one of the merchant-facing 8) must still be rejected, so this flag
+        can never be used to silently apply a non-Ready-Template preset."""
+        internal_preset = next(p for p in lpr.list_layout_presets() if not p.is_ready_template)
+        with self.assertRaises(CommandError):
+            self._run("--ready-template", internal_preset.key)
+
+    def test_ready_template_flag_never_touches_the_rastisi_fashion_test_store(self):
+        other = Store.objects.create(name="فروشگاه لباس تستی راستی سی", slug=OTHER_REAL_SLUG, status=Store.Status.ACTIVE)
+        self._run("--ready-template", "fashion_promo_catalog")
+        other.refresh_from_db()
+        self.assertEqual(other.name, "فروشگاه لباس تستی راستی سی")
+        from apps.storefront_builder.models import StorefrontLayout
+
+        self.assertFalse(StorefrontLayout.objects.filter(store=other).exists())
+
+    def test_reapplying_the_flag_on_reset_is_idempotent(self):
+        self._run("--reset", "--ready-template", "fashion_promo_catalog")
+        self._run("--reset", "--ready-template", "fashion_promo_catalog")
+        store = self._store()
+        from apps.storefront_builder.services import layout_service
+
+        layout = layout_service.get_or_create_layout(store)
+        self.assertIsNotNone(layout.published_version_id)
+        self.assertEqual(
+            layout.published_version.template_provenance.get("template", {}).get("key"),
+            "fashion_promo_catalog",
+        )
 
 
 class ResetSafetyTests(SeedReadyTemplateFashionDemoCommandTests):

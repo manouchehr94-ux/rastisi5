@@ -119,6 +119,11 @@ EXPECTED_KEYS = {
     # role in the V5→Universal Block mapping); dedicated coverage in
     # test_phase3_v5_golden.py.
     "blog_posts",
+    # Site-target-overhaul Part 2B (ibolak Home rebuild) — a self-contained
+    # campaign hero, deliberately independent of the shared HeroSlide model
+    # ``hero_banner``/``image_slider`` read from; dedicated coverage in
+    # test_u10_ready_template_catalog.py::FashionPromoCatalogIsolationTests.
+    "fashion_lifestyle_hero",
 }
 
 
@@ -1211,6 +1216,7 @@ class PageTypeAllowlistTests(TestCase):
         "collection_products": frozenset({PAGE_TYPE_COLLECTION}),
         "cart_items": frozenset({PAGE_TYPE_CART}),
         "cart_summary": frozenset({PAGE_TYPE_CART}),
+        "fashion_lifestyle_hero": frozenset({PAGE_TYPE_HOME}),
     }
 
     def test_existing_section_types_default_to_all_pages(self):
@@ -1277,7 +1283,7 @@ class U1ABackwardsCompatibilityTests(TestCase):
     """Test #1, #13, #14, #15 — nothing about the existing registry moved."""
 
     def test_all_34_definitions_still_construct_and_are_gettable(self):
-        self.assertEqual(len(list_definitions()), 34)
+        self.assertEqual(len(list_definitions()), 35)
         for key in U1A_EXPECTED_SECTION_KEYS:
             definition = get_definition(key)
             self.assertEqual(definition.key, key)
@@ -1385,7 +1391,7 @@ class U1AVariantContractTests(TestCase):
         """Test #3 — a definition can declare multiple variants."""
         definition = get_definition("category_grid")
         keys = {v.key for v in list_variants(definition)}
-        self.assertEqual(keys, {"grid", "carousel", "circular", "image_strip"})
+        self.assertEqual(keys, {"grid", "carousel", "circular", "image_strip", "fashion_flat"})
         self.assertEqual(definition.default_variant, "grid")
         self.assertEqual(definition.variant_setting_key, "display_mode")
 

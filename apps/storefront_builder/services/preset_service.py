@@ -319,6 +319,23 @@ def apply_preset(
     # moment of an explicit apply/reset, never on its own.
     if preset.default_palette_slug is not None:
         overlay["palette_slug"] = preset.default_palette_slug
+        # Part 2B (ibolak Home rebuild) — merchant-reported bug: the U7/U10
+        # fix above already replaces a stale ``palette_slug``, but
+        # ``color_overrides`` is a *separate* dict that takes precedence
+        # over the palette's own colors at render time (see
+        # ``appearance_registry.resolve_colors``); leaving it untouched let
+        # a Store's bootstrap-mirrored ShopSettings colors (see
+        # ``bootstrap_service.bootstrap_appearance_config`` —
+        # migration-safety carryover, never a deliberate in-editor choice)
+        # silently defeat every Ready Template's intended palette forever.
+        # Only clear it when it is NOT a genuine merchant customization
+        # (``color_overrides_customized`` is set exclusively by the
+        # dashboard's own color-editing view — see ``views.py``); a real
+        # merchant color choice made *after* bootstrap is respected here
+        # exactly like the palette itself is afterward, per this
+        # function's own established rule.
+        if not current_appearance.get("color_overrides_customized"):
+            overlay["color_overrides"] = {}
     overlay["layout_preset_key"] = preset.key
     try:
         cleaned_appearance = _validate_appearance_overlay(current_appearance, overlay)

@@ -389,7 +389,10 @@ class PaletteSeparationTests(PresetServiceTestCase):
         replaces the whole previous baseline — exactly like it already
         replaces section composition — not merely a passive suggestion."""
         draft = svc.get_or_create_draft(self.store)
-        draft.appearance_config = {**draft.effective_appearance_config(), "palette_slug": "rose", "color_overrides": {"primary": "#123456"}}
+        draft.appearance_config = {
+            **draft.effective_appearance_config(), "palette_slug": "rose",
+            "color_overrides": {"primary": "#123456"}, "color_overrides_customized": True,
+        }
         draft.save(update_fields=["appearance_config"])
 
         preset_service.apply_preset(draft, self.preset)
@@ -397,7 +400,9 @@ class PaletteSeparationTests(PresetServiceTestCase):
         self.assertEqual(draft.appearance_config.get("palette_slug"), self.preset.default_palette_slug)
         # color_overrides is a separate, always-free customization layer on
         # top of whichever palette is active — untouched by a Template
-        # apply, unlike palette_slug itself.
+        # apply when it is a genuine, flagged merchant customization
+        # (Part 2B: distinguished from a bootstrap-mirrored carryover,
+        # see ``StaleColorOverridesClearedOnApplyTests`` below).
         self.assertEqual(draft.appearance_config.get("color_overrides"), {"primary": "#123456"})
 
     def test_merchant_can_still_freely_change_palette_after_applying_template(self):
@@ -414,6 +419,113 @@ class PaletteSeparationTests(PresetServiceTestCase):
         draft.save(update_fields=["appearance_config"])
         draft.refresh_from_db()
         self.assertEqual(draft.appearance_config.get("palette_slug"), "rose")
+
+
+class StaleColorOverridesClearedOnApplyTests(PresetServiceTestCase):
+    """Part 2B (ibolak Home rebuild) — merchant-reported regression: a
+    Store's ``color_overrides`` mirrored once by
+    ``bootstrap_service.bootstrap_appearance_config`` (migration-safety
+    carryover of the live ``ShopSettings`` colors, never a deliberate
+    in-editor choice) survived an explicit Ready Template apply and
+    silently defeated that Template's ``default_palette_slug`` forever —
+    every Ready Template rendered with the Store's old purple identity
+    regardless of its own registered palette. ``color_overrides_customized``
+    (set only by the dashboard's own color-editing view) is the fix:
+    apply_preset now clears a *stale* (unflagged) override the same way it
+    already replaces ``palette_slug``, while a genuinely flagged merchant
+    customization (see ``PaletteSeparationTests`` above) is still
+    preserved exactly as before."""
+
+    def test_stale_bootstrap_mirrored_override_is_cleared_on_apply(self):
+        draft = svc.get_or_create_draft(self.store)
+        draft.appearance_config = {
+            **draft.effective_appearance_config(),
+            "palette_slug": None,
+            "color_overrides": {"primary": "#6D28D9", "accent": "#FF4D77"},
+            "color_overrides_customized": False,
+        }
+        draft.save(update_fields=["appearance_config"])
+
+        preset_service.apply_preset(draft, self.preset)
+        draft.refresh_from_db()
+        self.assertEqual(draft.appearance_config.get("palette_slug"), self.preset.default_palette_slug)
+        self.assertEqual(draft.appearance_config.get("color_overrides"), {})
+
+    def test_genuinely_customized_override_survives_apply(self):
+        draft = svc.get_or_create_draft(self.store)
+        draft.appearance_config = {
+            **draft.effective_appearance_config(),
+            "palette_slug": None,
+            "color_overrides": {"primary": "#123456"},
+            "color_overrides_customized": True,
+        }
+        draft.save(update_fields=["appearance_config"])
+
+        preset_service.apply_preset(draft, self.preset)
+        draft.refresh_from_db()
+        self.assertEqual(draft.appearance_config.get("color_overrides"), {"primary": "#123456"})
+
+    def test_preset_without_a_default_palette_never_touches_overrides_either_way(self):
+        """A legacy Preset with ``default_palette_slug=None`` never claims
+        to replace the palette baseline at all — so it must not clear
+        color_overrides either, flagged or not (the whole clearing branch
+        is nested under the same ``if preset.default_palette_slug is not
+        None`` condition as the pre-existing palette_slug replacement)."""
+        preset_without_palette = lpr.LayoutPresetDefinition(
+            key="__no_default_palette__", label_fa="x", description_fa="x",
+        )
+        self.assertIsNone(preset_without_palette.default_palette_slug)
+        # apply_preset resolves ``layout_preset_key`` against the registry
+        # (see ``validate_appearance_config``) — register this ad-hoc test
+        # preset so that lookup succeeds, exactly like every real preset.
+        lpr.LAYOUT_PRESET_REGISTRY[preset_without_palette.key] = preset_without_palette
+        self.addCleanup(lpr.LAYOUT_PRESET_REGISTRY.pop, preset_without_palette.key, None)
+        draft = svc.get_or_create_draft(self.store)
+        draft.appearance_config = {
+            **draft.effective_appearance_config(),
+            "color_overrides": {"primary": "#6D28D9"},
+            "color_overrides_customized": False,
+        }
+        draft.save(update_fields=["appearance_config"])
+
+        preset_service.apply_preset(draft, preset_without_palette)
+        draft.refresh_from_db()
+        self.assertEqual(draft.appearance_config.get("color_overrides"), {"primary": "#6D28D9"})
+
+    def test_bootstrap_appearance_config_never_marks_overrides_as_customized(self):
+        from apps.storefront_builder.services import bootstrap_service
+
+        config = bootstrap_service.bootstrap_appearance_config(self.store)
+        self.assertFalse(config.get("color_overrides_customized", False))
+
+    def test_dashboard_color_save_view_flags_a_genuine_override_as_customized(self):
+        svc.get_or_create_draft(self.store, user=self.staff)
+        response = self.admin_client.post(
+            reverse("dashboard:storefront-builder-appearance"),
+            {"color_primary": "#112233"},
+        )
+        self.assertIn(response.status_code, (302, 200))
+        draft = svc.get_or_create_draft(self.store)
+        self.assertTrue(draft.appearance_config.get("color_overrides_customized"))
+        self.assertEqual(draft.appearance_config.get("color_overrides", {}).get("primary"), "#112233")
+
+    def test_dashboard_reset_all_overrides_clears_the_customized_flag(self):
+        draft = svc.get_or_create_draft(self.store, user=self.staff)
+        draft.appearance_config = {
+            **draft.effective_appearance_config(),
+            "color_overrides": {"primary": "#112233"},
+            "color_overrides_customized": True,
+        }
+        draft.save(update_fields=["appearance_config"])
+
+        response = self.admin_client.post(
+            reverse("dashboard:storefront-builder-appearance"),
+            {"reset_all_overrides": "1"},
+        )
+        self.assertIn(response.status_code, (302, 200))
+        draft.refresh_from_db()
+        self.assertFalse(draft.appearance_config.get("color_overrides_customized"))
+        self.assertEqual(draft.appearance_config.get("color_overrides"), {})
 
 
 class ViewLevelTests(PresetServiceTestCase):

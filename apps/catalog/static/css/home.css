@@ -871,3 +871,54 @@ html[data-sfb-density="compact"][data-sfb-type-scale="normal"] .rcontainer .sec-
   }
   .category-image-strip{gap:12px}
 }
+
+/* ========================================================================
+   Fashion flat category rail (site-target-overhaul Part 2B, ibolak
+   reference) -- ``category_grid`` display_mode "fashion_flat". Distinct
+   class names from ``.category-image-strip`` (dense_marketplace) so that
+   template's rail keeps its own larger, unrelated CSS untouched.
+   ======================================================================== */
+.category-fashion-rail-section{margin:4px 0}
+.category-fashion-rail{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:10px}
+.category-fashion-tile{display:flex;flex-direction:column;align-items:center;gap:5px;color:#25282d;text-align:center;min-width:0}
+.category-fashion-media{width:100%;aspect-ratio:1/1;max-width:84px;border-radius:12px;overflow:hidden;background:#f4f2f5;display:grid;place-items:center}
+.category-fashion-media img{width:100%;height:100%;object-fit:cover}
+.category-fashion-fallback{font-size:26px}
+.category-fashion-label{font-size:11px;font-weight:700;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+@media(max-width:860px){
+  .category-fashion-rail{display:flex;overflow-x:auto;gap:14px;padding-inline:2px;scroll-snap-type:x proximity}
+  .category-fashion-tile{flex:0 0 72px}
+  .category-fashion-media{max-width:64px}
+}
+
+/* ========================================================================
+   Fashion campaign hero (site-target-overhaul Part 2B, ibolak reference)
+   ------------------------------------------------------------------------
+   Self-contained -- only ``fashion_lifestyle_hero`` (its own section type)
+   uses these classes, so this never affects any other Ready Template's
+   hero. The background composite already reserves its left third for
+   this copy block (see the Pillow script that produced it); the copy
+   sits absolutely inside that reserved zone.
+   ======================================================================== */
+.fashion-hero{margin-bottom:6px}
+.fashion-hero-inner{position:relative;border-radius:20px;overflow:hidden;background:var(--bg)}
+.fashion-hero-media{display:block;width:100%;height:auto;aspect-ratio:1600/1080}
+.fashion-hero-copy{
+  position:absolute;inset-inline-start:0;top:0;bottom:0;
+  width:32%;min-width:220px;display:flex;flex-direction:column;justify-content:center;
+  gap:14px;padding-inline-start:clamp(16px,4%,56px);padding-inline-end:16px;
+}
+.fashion-hero-eyebrow{font-size:12.5px;font-weight:800;color:var(--pink);letter-spacing:.02em}
+.fashion-hero-copy h1{font-size:clamp(22px,2.6vw,34px);font-weight:900;line-height:1.35;color:var(--ink);margin:0}
+.fashion-hero-subtitle{font-size:13.5px;color:var(--muted);line-height:1.8;margin:0;max-width:32ch}
+.fashion-hero-cta{
+  align-self:flex-start;background:var(--violet);color:var(--brand-primary-fg,#fff);
+  font-weight:800;font-size:13.5px;padding:12px 26px;border-radius:var(--button-radius,999px);
+}
+@media(max-width:860px){
+  .fashion-hero-inner{border-radius:14px}
+  .fashion-hero-copy{
+    position:static;width:auto;padding:16px 14px 4px;background:var(--bg);
+  }
+  .fashion-hero-media{aspect-ratio:4/3;object-fit:cover;object-position:right}
+}

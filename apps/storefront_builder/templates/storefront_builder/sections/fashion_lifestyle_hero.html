@@ -1,0 +1,23 @@
+{% load static %}
+{% comment %}
+Site-target-overhaul Part 2B (ibolak reference) — self-contained campaign
+hero. Unlike ``hero_banner``/``image_slider``, this never reads the shared
+Store-wide ``HeroSlide`` model — its background is a fixed static asset (a
+deterministic composite of real Rasti Mode Demo product photography, no
+merchant photo upload required), and its headline/subtitle/CTA are plain
+editable text with sensible defaults. ``settings`` keys: ``title``,
+``subtitle``, ``cta_label``, ``cta_url`` (all optional).
+{% endcomment %}
+<section class="section fashion-hero">
+  <div class="fashion-hero-inner">
+    <img class="fashion-hero-media" src="{% static 'storefront_builder/fashion_promo_catalog/campaign_hero.webp' %}" alt="" loading="eager">
+    <div class="fashion-hero-copy">
+      <p class="fashion-hero-eyebrow">{{ settings.eyebrow|default:"کالکشن تازه" }}</p>
+      <h1>{{ settings.title|default:"وقت تخفیف ویژه‌ی راستی مد!" }}</h1>
+      <p class="fashion-hero-subtitle">{{ settings.subtitle|default:"جدیدترین پوشاک و کیف و کفش فصل — با تخفیف‌های ویژه، همین امروز کشف کن." }}</p>
+      {% if settings.cta_label|default:"مشاهده کالکشن" %}
+      <a class="fashion-hero-cta" href="{{ settings.cta_url|default:view_all_url|default:'/products/' }}">{{ settings.cta_label|default:"مشاهده کالکشن" }}</a>
+      {% endif %}
+    </div>
+  </div>
+</section>

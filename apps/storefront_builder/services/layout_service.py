@@ -382,6 +382,7 @@ def validate_appearance_config(config: dict) -> dict:
             raise AppearanceConfigValidationError("; ".join(exc.messages)) from exc
         cleaned_overrides[key] = value
     cleaned["color_overrides"] = cleaned_overrides
+    cleaned["color_overrides_customized"] = bool(config.get("color_overrides_customized", False))
 
     raw_theme_overrides = config.get("theme_overrides") or {}
     if not isinstance(raw_theme_overrides, dict):
@@ -880,7 +881,7 @@ def _appearance_config_is_pristine(appearance_config: dict) -> bool:
     return all(
         appearance_config.get(key, default) == default
         for key, default in APPEARANCE_CONFIG_DEFAULTS.items()
-        if key != "color_overrides"
+        if key not in ("color_overrides", "color_overrides_customized")
     )
 
 

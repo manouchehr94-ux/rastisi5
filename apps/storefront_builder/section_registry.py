@@ -1119,7 +1119,11 @@ class CategoryGridSettingsError(ValueError):
 
 _MAX_CATEGORY_GRID_IDS = 12
 _MAX_SECTION_TITLE_LENGTH = 60
-CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular", "image_strip")
+#: ``fashion_flat`` (site-target-overhaul Part 2B, ibolak reference) — a
+#: compact flat rail (small image, short label, no card chrome) distinct
+#: from ``image_strip``'s own CSS (which ``dense_marketplace`` already
+#: uses) so that template's rendering stays completely untouched.
+CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular", "image_strip", "fashion_flat")
 
 
 def _validate_category_grid_settings(raw: dict) -> dict:
@@ -1576,6 +1580,26 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         ),
         default_variant="overlay", variant_setting_key="hero_style",
     ),
+    # Site-target-overhaul Part 2B (ibolak reference) — a self-contained
+    # campaign hero, deliberately independent of the shared Store-wide
+    # ``HeroSlide`` model ``hero_banner``/``image_slider`` read from: that
+    # model's content is real merchant data shared across every Ready
+    # Template, so restructuring it here would have silently changed the
+    # other 7 templates' Home too. This section instead reads its
+    # background image from a fixed, versioned static asset (a
+    # deterministic Pillow composite of real Rasti Mode Demo product
+    # photography — see ``fashion_promo_catalog/campaign_hero.webp`` and
+    # the script that produced it) plus editable headline/subtitle/CTA
+    # text in its own settings — a genuinely different, reusable
+    # registered structural variant any future campaign-style Ready
+    # Template may also adopt, never a template-key branch.
+    "fashion_lifestyle_hero": SectionDefinition(
+        key="fashion_lifestyle_hero", label_fa="هیرو کمپینی (سبک زندگی)", icon="image",
+        template_name="storefront_builder/sections/fashion_lifestyle_hero.html",
+        validate_settings=_passthrough_dict, default_settings=_empty_defaults,
+        max_instances=1, duplicable=False, removable=True, has_settings_form=True,
+        category_fa="تصاویر و تبلیغات", page_types=frozenset({PAGE_TYPE_HOME}),
+    ),
     "image_slider": SectionDefinition(
         key="image_slider", label_fa="اسلایدر تصویر", icon="images",
         template_name="storefront_builder/sections/image_slider.html",
@@ -1627,6 +1651,11 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
             VariantDefinition(key="carousel", label_fa="کاروسل"),
             VariantDefinition(key="circular", label_fa="دایره‌ای"),
             VariantDefinition(key="image_strip", label_fa="نوار تصویری"),
+            # Site-target-overhaul Part 2B (ibolak reference) — compact
+            # flat rail, own CSS (``.category-fashion-rail``), completely
+            # independent of ``image_strip``'s CSS so dense_marketplace
+            # (which already uses ``image_strip``) stays unaffected.
+            VariantDefinition(key="fashion_flat", label_fa="نوار مسطح کمپینی"),
         ),
         default_variant="grid", variant_setting_key="display_mode",
     ),

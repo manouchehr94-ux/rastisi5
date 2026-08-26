@@ -139,6 +139,19 @@ APPEARANCE_CONFIG_DEFAULTS = {
     "template_slug": "modern",
     "palette_slug": None,
     "color_overrides": {},
+    # Part 2B (ibolak Home rebuild) — distinguishes a genuine merchant color
+    # edit from ``bootstrap_service.bootstrap_appearance_config``'s
+    # migration-safety mirror of a Store's live ShopSettings colors into
+    # ``color_overrides`` at first-Draft-creation. ``False`` means whatever
+    # is in ``color_overrides`` (if anything) is that bootstrap carryover,
+    # not a deliberate choice made in this editor — so an explicit Ready
+    # Template apply/reset is free to clear it and let the template's own
+    # palette actually render. Flipped to ``True`` only by the dashboard's
+    # own color-editing view, the moment the merchant sets a real override
+    # that differs from the active palette (see ``views.py``). Never reset
+    # to ``False`` automatically — only a merchant action does that
+    # (resetting all colors, or an explicit palette switch there).
+    "color_overrides_customized": False,
     # Overrideهای نقش‌های ناحیه‌ای (هدر/منو/کارت/فوتر/قیمت).
     # داخل همان JSON نسخه ذخیره می‌شود؛ Model field جدید و migration ندارد.
     "theme_overrides": {},

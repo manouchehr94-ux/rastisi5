@@ -106,6 +106,80 @@ class MaterialDifferenceTests(TestCase):
         self.assertEqual(len(appearances), len(set(appearances)))
 
 
+class FashionPromoCatalogIsolationTests(TestCase):
+    """Site-target-overhaul Part 2B (ibolak Home rebuild) — the new
+    campaign-specific structural primitives (``fashion_lifestyle_hero``,
+    ``category_grid`` display_mode ``fashion_flat``, card_style
+    ``fashion_sale``, header_variant ``promo_search_nav``, footer_variant
+    ``promo_columns``, palette ``magenta-pop``) exist for one reason: to
+    give ``fashion_promo_catalog`` an ibolak-like identity WITHOUT
+    silently pulling any of the other 7 Ready Templates along with it.
+    Every assertion here is really the same shape: "only
+    fashion_promo_catalog opts into X"."""
+
+    _OTHER_SEVEN = tuple(k for k in REQUIRED_KEYS if k != "fashion_promo_catalog")
+
+    def test_only_fashion_promo_catalog_uses_the_campaign_hero_section(self):
+        for key in REQUIRED_KEYS:
+            preset = lpr.get_layout_preset(key)
+            section_keys = {entry.section_key for entry in preset.pages["home"]}
+            if key == "fashion_promo_catalog":
+                self.assertIn("fashion_lifestyle_hero", section_keys, key)
+            else:
+                self.assertNotIn("fashion_lifestyle_hero", section_keys, key)
+
+    def test_only_fashion_promo_catalog_uses_the_fashion_flat_category_rail(self):
+        for key in REQUIRED_KEYS:
+            preset = lpr.get_layout_preset(key)
+            category_entries = [e for e in preset.pages["home"] if e.section_key == "category_grid"]
+            display_modes = {(e.settings or {}).get("display_mode") for e in category_entries}
+            if key == "fashion_promo_catalog":
+                self.assertIn("fashion_flat", display_modes, key)
+            else:
+                self.assertNotIn("fashion_flat", display_modes, key)
+
+    def test_only_fashion_promo_catalog_uses_the_fashion_sale_card_style(self):
+        for key in REQUIRED_KEYS:
+            preset = lpr.get_layout_preset(key)
+            card_styles = {
+                (e.settings or {}).get("card", {}).get("card_style")
+                for e in preset.pages["home"] if e.section_key == "product_section"
+            }
+            if key == "fashion_promo_catalog":
+                self.assertEqual(card_styles, {"fashion_sale"}, key)
+            else:
+                self.assertNotIn("fashion_sale", card_styles, key)
+
+    def test_only_fashion_promo_catalog_uses_the_promo_header_and_footer_variants(self):
+        for key in REQUIRED_KEYS:
+            preset = lpr.get_layout_preset(key)
+            if key == "fashion_promo_catalog":
+                self.assertEqual(preset.header["header_variant"], "promo_search_nav", key)
+                self.assertEqual(preset.footer["footer_variant"], "promo_columns", key)
+            else:
+                self.assertNotEqual(preset.header["header_variant"], "promo_search_nav", key)
+                self.assertNotEqual(preset.footer["footer_variant"], "promo_columns", key)
+
+    def test_only_fashion_promo_catalog_uses_the_magenta_pop_palette(self):
+        for key in REQUIRED_KEYS:
+            preset = lpr.get_layout_preset(key)
+            if key == "fashion_promo_catalog":
+                self.assertEqual(preset.default_palette_slug, "magenta-pop", key)
+            else:
+                self.assertNotEqual(preset.default_palette_slug, "magenta-pop", key)
+
+    def test_other_seven_templates_listing_and_pdp_layout_variants_are_untouched(self):
+        """Complements Part 2's own isolation tests (sidebar_dense/fashion
+        layout_variant) — the other 7 templates' listing/product_detail
+        settings must not carry any Part 2/2B fashion-specific value."""
+        for key in self._OTHER_SEVEN:
+            preset = lpr.get_layout_preset(key)
+            listing_entry = preset.pages["listing"][0]
+            self.assertNotEqual((listing_entry.settings or {}).get("layout_variant"), "sidebar_dense", key)
+            product_main_entry = next(e for e in preset.pages["product_detail"] if e.section_key == "product_main")
+            self.assertNotEqual((product_main_entry.settings or {}).get("layout_variant"), "fashion", key)
+
+
 class AllPagesCoveredTests(TestCase):
     def test_every_required_template_covers_all_six_page_types(self):
         from apps.storefront_builder import section_registry

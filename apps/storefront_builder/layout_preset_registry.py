@@ -875,9 +875,31 @@ register_layout_preset(LayoutPresetDefinition(
 #: real color/size choice is required first; hiding it here is an honest
 #: match, not a fabricated capability.
 _FASHION_PROMO_CARD = {"card_style": "fashion_sale", "image_ratio": "portrait", "show_quick_add": False}
+#: Part 2B (ibolak Home rebuild) — 5 cards per row on desktop, matching
+#: the reference's dense product-wall rhythm (an already-registered
+#: ``responsive.desktop_columns`` choice, see ``section_registry.
+#: DESKTOP_COLUMN_CHOICES`` — no new primitive needed for this axis).
+_FASHION_PROMO_ROW = {"responsive": {"desktop_columns": 5}}
+
+
+def _fashion_promo_row(title: str, data_source: str) -> PresetSectionEntry:
+    return PresetSectionEntry("product_section", settings={
+        "title": title, "data_source": data_source, "display_mode": "carousel",
+        "item_limit": 12, "card": _FASHION_PROMO_CARD, **_FASHION_PROMO_ROW,
+    })
 
 register_layout_preset(LayoutPresetDefinition(
     key="fashion_promo_catalog",
+    # Part 2B (ibolak Home rebuild) — the Home composition genuinely
+    # changed (new hero/category-rail/product-wall structure replacing
+    # the old hero_banner/promo_cards/amazing_offers/brand_carousel mix);
+    # bumped from the implicit default "1" so a Store whose Draft already
+    # recorded a "1" baseline snapshot is correctly recognized as
+    # *not* matching this new content on reapply (see ``version``'s own
+    # docstring above and ``preset_service._draft_already_matches_preset``)
+    # instead of being silently treated as a no-op re-application of an
+    # "unchanged" template.
+    version="2",
     is_ready_template=True,
     label_fa="کاتالوگِ پوشاک و پیشنهادها",
     description_fa="چیدمانِ کاتالوگ‌محور با بنرهایِ تبلیغاتیِ متعدد — مناسبِ پوشاک/مدی که مرتب کمپین/تخفیف اجرا می‌کند.",
@@ -891,20 +913,24 @@ register_layout_preset(LayoutPresetDefinition(
     header={"sticky": True, "announcement_enabled": True, "header_variant": "promo_search_nav"},
     footer={"footer_variant": "promo_columns"},
     pages={
+        # Part 2B (ibolak Home rebuild) — the old ``hero_banner``/
+        # ``promo_cards``/``amazing_offers``/``brand_carousel`` mix left
+        # too much of the shared generic RastiSi Home rhythm (large
+        # colored promo blocks, a brand-name pill row) that has no
+        # equivalent in the reference at all. Real merchant data behind
+        # those sections is untouched — a merchant can still add any of
+        # them back in the editor — this Ready Template's own default
+        # composition simply no longer includes them, replaced by a
+        # self-contained campaign hero + flat category rail + a repeated,
+        # dense 5-per-row product wall matching the reference's actual
+        # macro structure.
         "home": (
-            PresetSectionEntry("hero_banner", settings={"hero_style": "overlay"}),
-            PresetSectionEntry("category_grid", settings={"display_mode": "image_strip"}),
-            PresetSectionEntry("product_section", settings={
-                "title": "تخفیف‌های این هفته", "data_source": "discounted", "display_mode": "carousel",
-                "item_limit": 10, "card": _FASHION_PROMO_CARD,
-            }),
-            PresetSectionEntry("promo_cards"),
-            PresetSectionEntry("product_section", settings={
-                "title": "جدیدترین‌های فروشگاه", "data_source": "newest", "display_mode": "carousel",
-                "item_limit": 10, "card": _FASHION_PROMO_CARD,
-            }),
-            PresetSectionEntry("amazing_offers"),
-            PresetSectionEntry("brand_carousel", settings={"display_mode": "carousel"}),
+            PresetSectionEntry("fashion_lifestyle_hero"),
+            PresetSectionEntry("category_grid", settings={"display_mode": "fashion_flat"}),
+            _fashion_promo_row("تخفیف‌های ویژه", "discounted"),
+            _fashion_promo_row("جدیدترین‌ها", "newest"),
+            _fashion_promo_row("پرفروش‌ترین‌ها", "best_sellers"),
+            _fashion_promo_row("پربازدیدترین‌ها", "most_viewed"),
         ),
         **{
             **_u10_standard_non_home_pages(),

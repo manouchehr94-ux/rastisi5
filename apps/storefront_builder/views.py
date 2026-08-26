@@ -2281,6 +2281,13 @@ def storefront_appearance_editor(request):
                         raw["theme_overrides"].pop(theme_key, None)
                     else:
                         raw["theme_overrides"][theme_key] = posted
+        # Part 2B (ibolak Home rebuild) — this view is the one real place a
+        # merchant deliberately customizes colors, so ``color_overrides``'s
+        # truthiness *here* (after the palette-switch/reset-all/reset-one/
+        # per-key logic above already ran) genuinely reflects merchant
+        # intent — unlike ``bootstrap_service.bootstrap_appearance_config``'s
+        # automatic migration mirror, which never passes through this view.
+        raw["color_overrides_customized"] = bool(raw["color_overrides"])
         try:
             config = layout_service.validate_appearance_config(raw)
         except layout_service.AppearanceConfigValidationError as exc:
