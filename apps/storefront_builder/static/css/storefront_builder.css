@@ -3650,6 +3650,21 @@ a.sfb-v3-component-item,
 .gh-shell--promo .gh-announce .wrap{height:44px;justify-content:center;gap:18px;font-weight:800;font-size:13.5px}
 .gh-shell--promo .gh-announce-links a{color:#fff;font-weight:800}
 .gh--promo .gh-row-main{display:flex;align-items:center;gap:16px;height:76px}
+/* Micro-fix pass — merchant: "hamburger does nothing" + header
+   composition feels displaced. Root cause: .gh-row-nav (the row the
+   burger toggles) is a "shared desktop+mobile nav bar, always visible"
+   by this codebase's own established convention (see the comment on
+   .gh--marketplace .gh-row-nav above) -- it only actually collapses
+   below the 680px breakpoint, so on desktop the always-visible burger
+   toggled nothing a merchant could see, AND it sat as the very first
+   (rightmost, in RTL) element ahead of the logo, displacing it from its
+   natural anchor position. Hiding the burger above the breakpoint where
+   it is genuinely functional fixes both: desktop no longer shows a dead
+   control, and the logo becomes the rightmost anchor exactly like the
+   reference. The mobile toggle itself (confirmed working: click removes
+   .gh-nav-hidden, the existing .gh--promo .gh-row-nav:not(.gh-nav-hidden)
+   rule below then reveals it) is completely unchanged. */
+.gh--promo .gh-burger{display:none}
 .gh--promo .gh-promo-search{flex:1;max-width:720px}
 .gh--promo .gh-promo-search .gh-search{height:48px;border-radius:24px;background:var(--gh-bg)}
 .gh--promo .gh-row-nav{background:var(--gh-surface);border-top:1px solid var(--gh-border)}
@@ -3665,6 +3680,7 @@ a.sfb-v3-component-item,
   .gh--promo .gh-promo-search{max-width:none}
 }
 @media(max-width:680px){
+  .gh--promo .gh-burger{display:inline-flex}
   .gh--promo .gh-row-nav{display:none}
   .gh--promo .gh-row-nav:not(.gh-nav-hidden){display:block;position:relative}
   .gh--promo .gh-logo-text small{display:none}

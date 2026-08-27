@@ -2,13 +2,66 @@
 {% comment %}
 Site-target-overhaul Part 2B (ibolak reference) — self-contained campaign
 hero. Unlike ``hero_banner``/``image_slider``, this never reads the shared
-Store-wide ``HeroSlide`` model — its background is a fixed static asset (a
-deterministic composite of real Rasti Mode Demo product photography, no
+Store-wide ``HeroSlide`` model — its background is a fixed set of
+deterministic composites of real Rasti Mode Demo product photography (no
 merchant photo upload required), and its headline/subtitle/CTA are plain
-editable text with sensible defaults. ``settings`` keys: ``title``,
-``subtitle``, ``cta_label``, ``cta_url`` (all optional).
+editable text with sensible defaults.
+
+Micro-fix pass — merchant: "hero must auto-slide". ``settings.slides`` is
+an optional list of ``{image, eyebrow, title, subtitle, cta_label,
+cta_url}`` dicts; each ``image`` is a filename under this template's own
+static folder. An absent/empty ``settings.slides`` falls back to the
+previous single-slide behavior (this section's original ``settings`` keys
+read directly), so any other adopter of this section that never set
+``slides`` keeps rendering exactly as before — no migration required.
+
+The auto-rotation itself reuses the EXACT same Alpine.js contract as the
+existing ``product_spotlight_slider`` in product_section.html
+(active/count/timer/next/prev/start/stop, the same enter/leave transition
+class names pattern) rather than inventing a second carousel mechanism.
 {% endcomment %}
+{% with slides=settings.slides|default:None %}
 <section class="section fashion-hero">
+  {% if slides %}
+  <div class="fashion-hero-inner"
+       x-data="{ active: 0, count: {{ slides|length }}, timer: null,
+                  next() { this.active = (this.active + 1) % this.count },
+                  prev() { this.active = (this.active - 1 + this.count) % this.count },
+                  start() { if (this.count > 1 && !this.timer) this.timer = setInterval(() => this.next(), {{ settings.carousel_interval_ms|default:4500 }}) },
+                  stop() { if (this.timer) { clearInterval(this.timer); this.timer = null } } }"
+       x-init="start()"
+       @mouseenter="stop()"
+       @mouseleave="start()">
+    {% for slide in slides %}
+    <div class="fashion-hero-slide"
+         x-show="active === {{ forloop.counter0 }}"
+         x-cloak
+         x-transition:enter="fashion-hero-enter"
+         x-transition:enter-start="fashion-hero-enter-start"
+         x-transition:enter-end="fashion-hero-enter-end"
+         x-transition:leave="fashion-hero-leave"
+         x-transition:leave-start="fashion-hero-leave-start"
+         x-transition:leave-end="fashion-hero-leave-end">
+      <img class="fashion-hero-media" src="{% static 'storefront_builder/fashion_promo_catalog/'|add:slide.image %}" alt="" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+      <div class="fashion-hero-copy">
+        <p class="fashion-hero-eyebrow">{{ slide.eyebrow|default:"کالکشن تازه" }}</p>
+        <h1>{{ slide.title|default:"وقت تخفیف ویژه‌ی راستی مد!" }}</h1>
+        <p class="fashion-hero-subtitle">{{ slide.subtitle|default:"جدیدترین پوشاک و کیف و کفش فصل — با تخفیف‌های ویژه، همین امروز کشف کن." }}</p>
+        {% if slide.cta_label|default:"مشاهده کالکشن" %}
+        <a class="fashion-hero-cta" href="{{ slide.cta_url|default:view_all_url|default:'/products/' }}">{{ slide.cta_label|default:"مشاهده کالکشن" }}</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% if slides|length > 1 %}
+    <div class="fashion-hero-dots" aria-label="اسلایدهای کمپین">
+      {% for slide in slides %}
+      <button type="button" @click="active={{ forloop.counter0 }}; start()" :class="{ 'active': active === {{ forloop.counter0 }} }" aria-label="اسلاید {{ forloop.counter }}"></button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
   <div class="fashion-hero-inner">
     <img class="fashion-hero-media" src="{% static 'storefront_builder/fashion_promo_catalog/campaign_hero.webp' %}" alt="" loading="eager">
     <div class="fashion-hero-copy">
@@ -20,4 +73,6 @@ editable text with sensible defaults. ``settings`` keys: ``title``,
       {% endif %}
     </div>
   </div>
+  {% endif %}
 </section>
+{% endwith %}

@@ -904,7 +904,12 @@ register_layout_preset(LayoutPresetDefinition(
     # composition now also includes the new ``catalog_product_wall``
     # section (several additional real category/collection product rows),
     # for the same "content genuinely changed" reason as every prior bump.
-    version="4",
+    #
+    # Micro-fix pass — bumped again: fashion_lifestyle_hero's settings now
+    # carry a real ``slides`` list (auto-rotating campaign slider, new
+    # composite images), a real content change for the same reason as
+    # every prior bump.
+    version="5",
     is_ready_template=True,
     label_fa="کاتالوگِ پوشاک و پیشنهادها",
     description_fa="چیدمانِ کاتالوگ‌محور با بنرهایِ تبلیغاتیِ متعدد — مناسبِ پوشاک/مدی که مرتب کمپین/تخفیف اجرا می‌کند.",
@@ -973,7 +978,32 @@ register_layout_preset(LayoutPresetDefinition(
         # product groups under different headings.
         "home": (
             PresetSectionEntry("category_grid", settings={"display_mode": "fashion_flat", "item_limit": 12}),
-            PresetSectionEntry("fashion_lifestyle_hero"),
+            # Micro-fix pass — merchant: "hero must auto-slide". Three
+            # slides, each a real deterministic Pillow composite of
+            # different brand-free Rasti Mode Demo product photos (own
+            # distinct headline/subtitle copy per slide) -- reuses the
+            # section's existing ``slides`` list support (see
+            # fashion_lifestyle_hero.html), never a new section type.
+            PresetSectionEntry("fashion_lifestyle_hero", settings={"slides": [
+                {
+                    "image": "campaign_hero.webp", "eyebrow": "کالکشن تازه",
+                    "title": "وقت تخفیف ویژه‌ی راستی مد!",
+                    "subtitle": "جدیدترین پوشاک و کیف و کفش فصل — با تخفیف‌های ویژه، همین امروز کشف کن.",
+                    "cta_label": "مشاهده کالکشن",
+                },
+                {
+                    "image": "campaign_hero_2.webp", "eyebrow": "پیشنهاد ویژه",
+                    "title": "استایل پاییزی، قیمت شگفت‌انگیز!",
+                    "subtitle": "ژاکت و شلوار جین منتخب فصل — همین حالا با بهترین قیمت سفارش بده.",
+                    "cta_label": "مشاهده محصولات",
+                },
+                {
+                    "image": "campaign_hero_3.webp", "eyebrow": "تازه‌های فروشگاه",
+                    "title": "کالکشن جدید کاپشن رسید!",
+                    "subtitle": "طرح‌ها و رنگ‌بندی‌های تازه — برای هر سبک، یک انتخاب مناسب.",
+                    "cta_label": "مشاهده کالکشن",
+                },
+            ]}),
             PresetSectionEntry("category_grid", settings={"display_mode": "fashion_mosaic", "item_limit": 8}),
             _fashion_promo_row("تخفیف‌های ویژه", "discounted"),
             _fashion_promo_row("جدیدترین‌ها", "newest"),
