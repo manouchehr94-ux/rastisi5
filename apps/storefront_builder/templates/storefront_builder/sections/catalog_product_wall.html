@@ -1,0 +1,25 @@
+{% comment %}
+Site-target-overhaul Part 2D — generic, ID-free multi-row merchandising
+wall. ``catalog_product_wall_groups`` is already fully resolved by
+``render_service._catalog_product_wall_context`` (real Store categories/
+collections, in their normal order, empty ones already skipped) — this
+template only ever loops and renders, it never queries or branches on a
+Store/template identity itself.
+{% endcomment %}
+{% if catalog_product_wall_groups %}
+<section class="section catalog-product-wall">
+  {% for group in catalog_product_wall_groups %}
+  <div class="catalog-product-wall-group">
+    <div class="sec-head">
+      <h2><span class="bar"></span>{{ group.title }}</h2>
+      {% if group.view_all_url %}
+      <a href="{{ group.view_all_url }}" class="btn btn-sm">مشاهده همه</a>
+      {% endif %}
+    </div>
+    <div class="pcarousel rsec-cols">
+      {% include "catalog/partials/product_grid.html" with products=group.products card_settings=catalog_product_wall_settings.card %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}

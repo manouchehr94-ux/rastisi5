@@ -909,10 +909,14 @@ html[data-sfb-density="compact"][data-sfb-type-scale="normal"] .rcontainer .sec-
 .category-fashion-mosaic-section{margin:10px 0}
 .category-fashion-mosaic{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
 .category-mosaic-tile{display:flex;flex-direction:column;gap:8px;color:#25282d;background:#fff;border-radius:10px;overflow:hidden}
-.category-mosaic-heading{display:flex;align-items:center;gap:4px;font-size:13.5px;font-weight:800;padding-inline:2px}
-.category-mosaic-chevron{color:var(--muted);font-size:12px}
-.category-mosaic-media{aspect-ratio:1/1;border-radius:10px;overflow:hidden;background:#f6f4f5;display:grid;place-items:center}
-.category-mosaic-media img{width:92%;height:92%;object-fit:contain}
+.category-mosaic-heading{display:flex;align-items:center;gap:4px;font-size:12.5px;font-weight:800;padding-inline:2px}
+.category-mosaic-chevron{color:var(--muted);font-size:11px}
+/* Part 2D — each category's real representative photo already carries
+   its own colored studio backdrop; more inset padding (70% vs. the
+   previous 92%) visibly dilutes that color's dominance within the tile,
+   without needing a different (unavailable, ID-free) image source. */
+.category-mosaic-media{aspect-ratio:1/1;border-radius:8px;overflow:hidden;background:#f6f4f5;display:grid;place-items:center}
+.category-mosaic-media img{width:70%;height:70%;object-fit:contain}
 .category-mosaic-fallback{font-size:30px}
 @media(max-width:1000px){
   .category-fashion-mosaic{grid-template-columns:repeat(3,1fr)}
@@ -921,6 +925,24 @@ html[data-sfb-density="compact"][data-sfb-type-scale="normal"] .rcontainer .sec-
   .category-fashion-mosaic{grid-template-columns:repeat(2,1fr);gap:10px}
   .category-mosaic-heading{font-size:12.5px}
 }
+
+/* ========================================================================
+   Catalog product wall (Part 2D, ibolak final fidelity pass)
+   ------------------------------------------------------------------------
+   One ``catalog_product_wall`` section instance renders several real
+   category/collection product rows -- each needs the exact same compact
+   heading/row rhythm Part 2C already tuned for ``product_section``
+   (``:has(.pcard.style-fashion_sale)`` in product_card.css), but since
+   these rows are all inside ONE outer <section>, that :has() scoping
+   would only apply once for the whole block. These are new, unique class
+   names instead (no other template renders ``catalog_product_wall``), so
+   plain unscoped rules are safe.
+   ======================================================================== */
+.catalog-product-wall{margin:8px 0}
+.catalog-product-wall-group{margin:14px 0}
+.catalog-product-wall-group .sec-head{margin-bottom:8px}
+.catalog-product-wall-group .sec-head h2{font-size:16px}
+.catalog-product-wall-group .sec-head h2 .bar{height:16px}
 
 /* ========================================================================
    Fashion campaign hero (site-target-overhaul Part 2B, ibolak reference)

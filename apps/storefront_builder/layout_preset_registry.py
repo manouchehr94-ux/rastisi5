@@ -899,7 +899,12 @@ register_layout_preset(LayoutPresetDefinition(
     # one, a shorter/wider hero, denser product rows), so a Draft that
     # already recorded a "2" baseline snapshot must be recognized as
     # *not* matching this new content on reapply.
-    version="3",
+    #
+    # Part 2D (final Home fidelity pass) — bumped again: the Home
+    # composition now also includes the new ``catalog_product_wall``
+    # section (several additional real category/collection product rows),
+    # for the same "content genuinely changed" reason as every prior bump.
+    version="4",
     is_ready_template=True,
     label_fa="کاتالوگِ پوشاک و پیشنهادها",
     description_fa="چیدمانِ کاتالوگ‌محور با بنرهایِ تبلیغاتیِ متعدد — مناسبِ پوشاک/مدی که مرتب کمپین/تخفیف اجرا می‌کند.",
@@ -952,6 +957,20 @@ register_layout_preset(LayoutPresetDefinition(
         # render empty for them; neither is acceptable for an official,
         # reusable Ready Template) — each row's ``item_limit`` raised for a
         # visibly denser, longer carousel per section.
+        #
+        # Part 2D (final Home fidelity pass) — merchant visual QA measured
+        # the Home page at only ~41% of the reference's merchandising
+        # length and asked for a GENERIC, ID-free fix rather than accepting
+        # that as a ceiling. ``catalog_product_wall`` is that fix: it never
+        # stores a category/collection id at all — at render time it
+        # resolves whichever real categories/collections the CURRENT Store
+        # actually has (the Store-agnostic auto-pick, see that section's
+        # own registration comment) and renders one compact product row per
+        # real, non-empty group it finds, up to ``max_groups``. Combined
+        # with the 4 explicit ID-free rows above, this brings the total
+        # merchandising-row count into the reference's own range without
+        # ever hardcoding a Store-specific id or duplicating identical
+        # product groups under different headings.
         "home": (
             PresetSectionEntry("category_grid", settings={"display_mode": "fashion_flat", "item_limit": 12}),
             PresetSectionEntry("fashion_lifestyle_hero"),
@@ -960,6 +979,11 @@ register_layout_preset(LayoutPresetDefinition(
             _fashion_promo_row("جدیدترین‌ها", "newest"),
             _fashion_promo_row("پرفروش‌ترین‌ها", "best_sellers"),
             _fashion_promo_row("پربازدیدترین‌ها", "most_viewed"),
+            PresetSectionEntry("catalog_product_wall", settings={
+                "source_mode": "categories_then_collections", "max_groups": 8,
+                "products_per_group": 14, "minimum_products": 3, "skip_empty_groups": True,
+                "show_view_all": True, "card": _FASHION_PROMO_CARD, **_FASHION_PROMO_ROW,
+            }),
         ),
         **{
             **_u10_standard_non_home_pages(),

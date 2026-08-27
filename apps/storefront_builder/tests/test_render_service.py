@@ -490,6 +490,100 @@ class CategoryGridRenderTests(TestCase):
         self.assertEqual(item["context"]["top_categories"], [])
 
 
+class CatalogProductWallContextTests(TestCase):
+    """Site-target-overhaul Part 2D — the generic, ID-free multi-row
+    merchandising wall. Every test here proves the same core claim: this
+    section resolves the CURRENT Store's real categories/collections at
+    render time, with no ``source_id`` stored anywhere, so it is safe for
+    ANY Store any Ready Template applies it to."""
+
+    def setUp(self):
+        cache.clear()
+        self.store = _akhlaghi()
+        self.draft = svc.get_or_create_draft(self.store)
+        self.draft.sections.all().delete()
+
+    def _product(self, slug, *, category, price="10000"):
+        vendor = Vendor.objects.create(store=self.store, name=f"فروشنده {slug}", slug=f"v-{slug}")
+        return Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name=f"کالای {slug}", slug=slug,
+            sku=f"SKU-{slug}", price=Decimal(price), status=Product.Status.ACTIVE,
+        )
+
+    def _wall_item(self, settings=None):
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="catalog_product_wall", order=900, settings=settings or {},
+        )
+        items = build_render_items(self.draft, self.store)
+        return next(i for i in items if i["section"].section_key == "catalog_product_wall")
+
+    def test_visible_categories_mode_resolves_real_categories_with_products(self):
+        cat_a = Category.objects.create(store=self.store, name="دستهٔ آ", slug="wall-cat-a", is_active=True, order=0)
+        cat_b = Category.objects.create(store=self.store, name="دستهٔ ب", slug="wall-cat-b", is_active=True, order=1)
+        for i in range(3):
+            self._product(f"wca-{i}", category=cat_a)
+        for i in range(3):
+            self._product(f"wcb-{i}", category=cat_b)
+
+        item = self._wall_item({"source_mode": "visible_categories", "minimum_products": 2})
+        groups = item["context"]["catalog_product_wall_groups"]
+        titles = [g["title"] for g in groups]
+        self.assertEqual(titles, ["دستهٔ آ", "دستهٔ ب"])
+        self.assertEqual(len(groups[0]["products"]), 3)
+
+    def test_category_below_minimum_products_is_skipped(self):
+        cat = Category.objects.create(store=self.store, name="دستهٔ کم‌کالا", slug="wall-cat-sparse", is_active=True)
+        self._product("wcs-0", category=cat)  # only 1 product
+
+        item = self._wall_item({"source_mode": "visible_categories", "minimum_products": 3, "skip_empty_groups": True})
+        self.assertEqual(item["context"]["catalog_product_wall_groups"], [])
+
+    def test_max_groups_caps_the_result(self):
+        for i in range(5):
+            cat = Category.objects.create(store=self.store, name=f"دستهٔ {i}", slug=f"wall-cap-{i}", is_active=True, order=i)
+            for j in range(3):
+                self._product(f"wcap-{i}-{j}", category=cat)
+
+        item = self._wall_item({"source_mode": "visible_categories", "max_groups": 2, "minimum_products": 1})
+        self.assertEqual(len(item["context"]["catalog_product_wall_groups"]), 2)
+
+    def test_visible_collections_mode_uses_collections_not_categories(self):
+        from apps.catalog.services import collection_service
+
+        cat = Category.objects.create(store=self.store, name="دستهٔ نادیده", slug="wall-ignored-cat", is_active=True)
+        for i in range(3):
+            self._product(f"wic-{i}", category=cat)
+        collection = collection_service.create_collection(self.store, name="کالکشنِ دیوار")
+        products = list(Product.objects.filter(store=self.store).order_by("id")[:3])
+        collection_service.add_products(collection, products)
+
+        item = self._wall_item({"source_mode": "visible_collections", "minimum_products": 1})
+        groups = item["context"]["catalog_product_wall_groups"]
+        self.assertEqual([g["title"] for g in groups], ["کالکشنِ دیوار"])
+
+    def test_sibling_product_section_products_are_excluded_from_wall_groups(self):
+        """Merchant visual QA (Part 2D) caught a real duplicate-row bug: a
+        small demo catalog let a per-category wall group show the exact
+        same handful of products (just reordered) as a sibling
+        ``product_section``'s generic row. The wall must exclude whatever
+        a sibling ``product_section`` on the same page already shows."""
+        cat = Category.objects.create(store=self.store, name="دستهٔ مشترک", slug="wall-shared-cat", is_active=True)
+        shared = [self._product(f"shared-{i}", category=cat) for i in range(3)]
+
+        StorefrontSection.objects.create(
+            version=self.draft, section_key="product_section", order=100,
+            settings={"data_source": "newest", "item_limit": 10},
+        )
+        item = self._wall_item({"source_mode": "visible_categories", "minimum_products": 1, "products_per_group": 10})
+        groups = item["context"]["catalog_product_wall_groups"]
+        shown_ids = {p.pk for g in groups for p in g["products"]}
+        self.assertFalse(shown_ids & {p.pk for p in shared})
+
+    def test_no_categories_or_collections_returns_empty_groups_not_an_error(self):
+        item = self._wall_item({"source_mode": "visible_categories"})
+        self.assertEqual(item["context"]["catalog_product_wall_groups"], [])
+
+
 class BrandCarouselRenderTests(TestCase):
     def setUp(self):
         cache.clear()

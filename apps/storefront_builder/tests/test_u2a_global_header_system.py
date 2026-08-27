@@ -400,7 +400,7 @@ class SectionRegistryUntouchedTests(TestCase):
     """Test R — U2A does not touch ``SECTION_REGISTRY`` at all."""
 
     def test_section_registry_still_has_exactly_34_keys(self):
-        self.assertEqual(len(SECTION_REGISTRY), 35)
+        self.assertEqual(len(SECTION_REGISTRY), 36)
 
 
 class U1CapabilityTripwireStillPassesTests(TestCase):

@@ -219,6 +219,18 @@ class FashionPromoCatalogIsolationTests(TestCase):
         palette = appearance_registry.get_palette("magenta-pop")
         self.assertEqual(palette.colors["background"], "#FFFFFF")
 
+    def test_only_fashion_promo_catalog_selects_the_catalog_product_wall(self):
+        """Part 2D (final Home fidelity pass) — the new generic, ID-free
+        multi-row merchandising wall is registered for ANY Ready Template
+        to select, but only ``fashion_promo_catalog`` actually opts in."""
+        for key in REQUIRED_KEYS:
+            preset = lpr.get_layout_preset(key)
+            section_keys = {entry.section_key for entry in preset.pages["home"]}
+            if key == "fashion_promo_catalog":
+                self.assertIn("catalog_product_wall", section_keys, key)
+            else:
+                self.assertNotIn("catalog_product_wall", section_keys, key)
+
     def test_other_seven_templates_listing_and_pdp_layout_variants_are_untouched(self):
         """Complements Part 2's own isolation tests (sidebar_dense/fashion
         layout_variant) — the other 7 templates' listing/product_detail

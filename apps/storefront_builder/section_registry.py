@@ -351,6 +351,100 @@ def _product_section_defaults() -> dict:
     }
 
 
+class CatalogProductWallSettingsError(ValueError):
+    """شکلِ خامِ تنظیماتِ ``catalog_product_wall`` نامعتبر است — پیامِ
+    فارسیِ قابل‌نمایشِ مستقیم به تاجر."""
+
+
+#: Site-target-overhaul Part 2D — generic, ID-free multi-row merchandising
+#: wall. Part 2C's own product rows were capped at the 4 ID-free
+#: ``product_section`` data sources (newest/discounted/best_sellers/
+#: most_viewed) because "category"/"collection" data sources require a
+#: real per-Store numeric ``source_id`` (see ``_SINGLE_REFERENCE_SOURCES``
+#: above) that a generic, reusable Ready Template preset cannot safely
+#: hardcode without leaking one Store's IDs into every other merchant's
+#: copy of that Template. This section closes that gap the correct way:
+#: it never stores an ID at all — at RENDER time (``render_service.
+#: _catalog_product_wall_context``) it resolves whichever categories/
+#: collections the CURRENT Store actually has (the exact same
+#: ``Category.objects.filter(store=store, parent__isnull=True,
+#: is_active=True)`` auto-pick ``category_grid`` already uses when its own
+#: ``category_ids`` is empty), and renders one compact product row per
+#: real group it finds — genuinely Store-agnostic, safe for ANY merchant
+#: who applies a Ready Template that selects this section.
+CATALOG_PRODUCT_WALL_SOURCE_MODES = ("visible_categories", "visible_collections", "categories_then_collections")
+
+_CATALOG_PRODUCT_WALL_MIN_GROUPS = 1
+_CATALOG_PRODUCT_WALL_MAX_GROUPS = 12
+_CATALOG_PRODUCT_WALL_DEFAULT_GROUPS = 6
+
+_CATALOG_PRODUCT_WALL_MIN_PER_GROUP = 2
+_CATALOG_PRODUCT_WALL_MAX_PER_GROUP = 24
+_CATALOG_PRODUCT_WALL_DEFAULT_PER_GROUP = 10
+
+_CATALOG_PRODUCT_WALL_MIN_MINIMUM_PRODUCTS = 1
+_CATALOG_PRODUCT_WALL_MAX_MINIMUM_PRODUCTS = 12
+_CATALOG_PRODUCT_WALL_DEFAULT_MINIMUM_PRODUCTS = 3
+
+
+def _validate_catalog_product_wall_settings(raw: dict) -> dict:
+    """چکپوینتِ Part 2D — بلوکِ خودِ این section (منابعِ ``card``/
+    ``responsive`` را لایه‌یِ عمومیِ ``_with_card``/``_with_responsive``
+    در ``_finalize_registry`` جدا اضافه می‌کند، دقیقاً همان الگویِ
+    ``product_section``). هیچ ``source_id``ای اینجا وجود ندارد — این
+    خودِ نکته‌یِ اصلیِ معماری است؛ منابع همیشه در زمانِ رندر، از رویِ
+    Storeِ واقعیِ جاری resolve می‌شوند."""
+    if not isinstance(raw, dict):
+        raise CatalogProductWallSettingsError("تنظیمات باید یک شیء JSON باشد")
+
+    source_mode = raw.get("source_mode")
+    if source_mode not in CATALOG_PRODUCT_WALL_SOURCE_MODES:
+        source_mode = "categories_then_collections"
+
+    def _clamped_int(key, default, lo, hi, error_message):
+        try:
+            value = int(raw.get(key, default))
+        except (TypeError, ValueError):
+            raise CatalogProductWallSettingsError(error_message) from None
+        return max(lo, min(hi, value))
+
+    max_groups = _clamped_int(
+        "max_groups", _CATALOG_PRODUCT_WALL_DEFAULT_GROUPS,
+        _CATALOG_PRODUCT_WALL_MIN_GROUPS, _CATALOG_PRODUCT_WALL_MAX_GROUPS,
+        "تعدادِ گروه باید عدد باشد",
+    )
+    products_per_group = _clamped_int(
+        "products_per_group", _CATALOG_PRODUCT_WALL_DEFAULT_PER_GROUP,
+        _CATALOG_PRODUCT_WALL_MIN_PER_GROUP, _CATALOG_PRODUCT_WALL_MAX_PER_GROUP,
+        "تعدادِ کالا در هر گروه باید عدد باشد",
+    )
+    minimum_products = _clamped_int(
+        "minimum_products", _CATALOG_PRODUCT_WALL_DEFAULT_MINIMUM_PRODUCTS,
+        _CATALOG_PRODUCT_WALL_MIN_MINIMUM_PRODUCTS, _CATALOG_PRODUCT_WALL_MAX_MINIMUM_PRODUCTS,
+        "حداقلِ کالای هر گروه باید عدد باشد",
+    )
+
+    skip_empty_groups = raw.get("skip_empty_groups", True)
+    if not isinstance(skip_empty_groups, bool):
+        skip_empty_groups = bool(skip_empty_groups)
+    show_view_all = raw.get("show_view_all", True)
+    if not isinstance(show_view_all, bool):
+        show_view_all = bool(show_view_all)
+
+    return {
+        "source_mode": source_mode,
+        "max_groups": max_groups,
+        "products_per_group": products_per_group,
+        "skip_empty_groups": skip_empty_groups,
+        "minimum_products": minimum_products,
+        "show_view_all": show_view_all,
+    }
+
+
+def default_catalog_product_wall_settings() -> dict:
+    return _validate_catalog_product_wall_settings({})
+
+
 #: انواعی که «ستون» به‌عنوان مفهوم قراردادی/دیتایی معنا دارد — تعدادِ
 #: ستون برایِ این‌ها اعتبارسنجی و ذخیره می‌شود (قراردادِ عمداً
 #: آینده‌نگر و عمومی، طبقِ بخشِ ۵ مشخصاتِ فیکسِ فازِ D: «Keep the
@@ -366,6 +460,10 @@ COLUMN_AWARE_SECTION_KEYS = frozenset({
     "product_section", "category_grid", "multi_banner", "promo_cards", "brand_carousel",
     "featured_products", "newest_products", "best_sellers", "discounted_products",
     "related_products", "product_listing", "collection_products",
+    # Site-target-overhaul Part 2D — ``catalog_product_wall``'s per-group
+    # rows reuse the exact same ``.pcarousel.rsec-cols`` column-count
+    # mechanism ``product_section`` already uses.
+    "catalog_product_wall",
 })
 
 #: زیرمجموعه‌یِ ``COLUMN_AWARE_SECTION_KEYS`` که تغییرِ تعدادِ ستون
@@ -389,6 +487,8 @@ COLUMN_VISUAL_SECTION_KEYS = frozenset({
     "product_section", "multi_banner", "featured_products", "newest_products",
     "best_sellers", "discounted_products", "related_products", "collection_products",
     "product_listing",
+    # Part 2D — same reason as COLUMN_AWARE_SECTION_KEYS above.
+    "catalog_product_wall",
 })
 
 #: مقادیرِ مجازِ enum بستهٔ تعدادِ ستون به‌ازای هر دستگاه — طبقِ بخشِ ۴
@@ -596,6 +696,9 @@ CARD_AWARE_SECTION_KEYS = frozenset({
     "product_section", "featured_products", "newest_products", "best_sellers",
     "discounted_products", "amazing_offers", "related_products", "product_listing",
     "collection_products",
+    # Part 2D — ``catalog_product_wall``'s per-group rows render real
+    # product cards via the same ``product_grid.html`` partial.
+    "catalog_product_wall",
 })
 
 #: enum بستهٔ نسبتِ تصویرِ کارتِ محصول — طبقِ اصلِ «۴-۵ انتخابِ معنادار
@@ -1752,6 +1855,22 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
             VariantDefinition(key="grid", label_fa="گرید"),
         ),
         default_variant="carousel", variant_setting_key="display_mode",
+    ),
+    # Site-target-overhaul Part 2D — the generic, ID-free, multi-row
+    # merchandising wall (see CATALOG_PRODUCT_WALL_SOURCE_MODES's own
+    # docstring above for the full architecture rationale). One instance
+    # of this section expands into several real category/collection
+    # product rows at render time — never a fixed count of registered
+    # section entries, never a Store-specific source_id. Restricted to
+    # PAGE_TYPE_HOME: it exists specifically to densify a Ready Template's
+    # Home merchandising wall, not a general-purpose block for every page.
+    "catalog_product_wall": SectionDefinition(
+        key="catalog_product_wall", label_fa="دیوار محصولاتِ فروشگاه", icon="grid",
+        template_name="storefront_builder/sections/catalog_product_wall.html",
+        validate_settings=_validate_catalog_product_wall_settings,
+        default_settings=default_catalog_product_wall_settings,
+        duplicable=True, removable=True, has_settings_form=True, category_fa="محصولات",
+        page_types=frozenset({PAGE_TYPE_HOME}),
     ),
     "trust_features": SectionDefinition(
         key="trust_features", label_fa="ردیف اعتماد و ویژگی‌ها", icon="shield-check",

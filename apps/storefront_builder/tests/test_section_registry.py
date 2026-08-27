@@ -124,6 +124,11 @@ EXPECTED_KEYS = {
     # ``hero_banner``/``image_slider`` read from; dedicated coverage in
     # test_u10_ready_template_catalog.py::FashionPromoCatalogIsolationTests.
     "fashion_lifestyle_hero",
+    # Site-target-overhaul Part 2D (ibolak final Home fidelity pass) — the
+    # generic, ID-free, multi-row merchandising wall; dedicated coverage in
+    # test_u10_ready_template_catalog.py::FashionPromoCatalogIsolationTests
+    # and test_render_service.py::CatalogProductWallContextTests.
+    "catalog_product_wall",
 }
 
 
@@ -911,6 +916,9 @@ class CardAwareIntegrationTests(TestCase):
             "product_section", "featured_products", "newest_products", "best_sellers",
             "discounted_products", "amazing_offers", "related_products", "product_listing",
             "collection_products",
+            # Part 2D — catalog_product_wall's per-group rows render real
+            # product cards too (see its own SectionDefinition comment).
+            "catalog_product_wall",
         }))
 
 
@@ -925,6 +933,9 @@ class Phase8ColumnExpansionTests(TestCase):
             "product_section", "multi_banner", "featured_products", "newest_products",
             "best_sellers", "discounted_products", "related_products", "collection_products",
             "product_listing",
+            # Part 2D — catalog_product_wall's rows use the same
+            # .rsec-cols mechanism as product_section.
+            "catalog_product_wall",
         }
         self.assertEqual(expected, COLUMN_VISUAL_SECTION_KEYS)
         for key in expected:
@@ -1217,6 +1228,7 @@ class PageTypeAllowlistTests(TestCase):
         "cart_items": frozenset({PAGE_TYPE_CART}),
         "cart_summary": frozenset({PAGE_TYPE_CART}),
         "fashion_lifestyle_hero": frozenset({PAGE_TYPE_HOME}),
+        "catalog_product_wall": frozenset({PAGE_TYPE_HOME}),
     }
 
     def test_existing_section_types_default_to_all_pages(self):
@@ -1283,7 +1295,7 @@ class U1ABackwardsCompatibilityTests(TestCase):
     """Test #1, #13, #14, #15 — nothing about the existing registry moved."""
 
     def test_all_34_definitions_still_construct_and_are_gettable(self):
-        self.assertEqual(len(list_definitions()), 35)
+        self.assertEqual(len(list_definitions()), 36)
         for key in U1A_EXPECTED_SECTION_KEYS:
             definition = get_definition(key)
             self.assertEqual(definition.key, key)
@@ -1883,3 +1895,47 @@ class U1AFinalDeepImmutabilityTests(TestCase):
         self.assertIsInstance(resolved["roles"], set)
         resolved["breakpoints"].append(1440)
         self.assertNotIn(1440, variant.responsive_defaults["breakpoints"])
+
+
+class CatalogProductWallSettingsTests(TestCase):
+    """Site-target-overhaul Part 2D — ``catalog_product_wall``'s own
+    settings never carry a ``source_id`` or any Store-specific reference;
+    they only ever describe HOW to resolve the current Store's real data
+    (which source, how many groups, how many products per group)."""
+
+    def _validate(self, raw):
+        return section_registry_module._validate_catalog_product_wall_settings(raw)
+
+    def test_registered_and_page_restricted_to_home(self):
+        definition = get_definition("catalog_product_wall")
+        self.assertEqual(definition.page_types, frozenset({"home"}))
+
+    def test_invalid_source_mode_falls_back_to_categories_then_collections(self):
+        cleaned = self._validate({"source_mode": "not-a-real-mode"})
+        self.assertEqual(cleaned["source_mode"], "categories_then_collections")
+
+    def test_all_three_real_source_modes_are_accepted(self):
+        for mode in section_registry_module.CATALOG_PRODUCT_WALL_SOURCE_MODES:
+            cleaned = self._validate({"source_mode": mode})
+            self.assertEqual(cleaned["source_mode"], mode)
+
+    def test_max_groups_is_clamped_to_the_registered_range(self):
+        self.assertEqual(self._validate({"max_groups": 0})["max_groups"], 1)
+        self.assertEqual(self._validate({"max_groups": 999})["max_groups"], 12)
+        self.assertEqual(self._validate({"max_groups": 6})["max_groups"], 6)
+
+    def test_non_numeric_max_groups_raises_a_clear_error(self):
+        with self.assertRaises(section_registry_module.CatalogProductWallSettingsError):
+            self._validate({"max_groups": "not-a-number"})
+
+    def test_no_source_id_field_exists_anywhere_in_the_cleaned_settings(self):
+        cleaned = self._validate({})
+        self.assertNotIn("source_id", cleaned)
+        self.assertNotIn("category_ids", cleaned)
+        self.assertNotIn("collection_ids", cleaned)
+
+    def test_default_settings_match_a_pass_through_empty_dict(self):
+        self.assertEqual(
+            section_registry_module.default_catalog_product_wall_settings(),
+            self._validate({}),
+        )

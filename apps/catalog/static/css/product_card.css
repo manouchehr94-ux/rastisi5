@@ -265,25 +265,32 @@ html[data-sfb-density="relaxed"] .pcard .body{padding:18px 18px 20px;gap:10px}
    from the corner, not a flush L-shaped corner flag. Fully rounded,
    larger/bolder text, a small shadow so it reads as clearly "on top of"
    the photo rather than part of it. */
+/* Part 2D — pushed saturation/contrast further (a deeper, more saturated
+   pink + a stronger shadow) so the badge stays unmistakable when scanning
+   the page quickly, per merchant feedback that it was still visually
+   weaker than the reference's repeated markers. */
 .pcard.style-fashion_sale .pill-disc{
-  background:var(--pink);color:#fff;border-radius:999px;
-  min-width:36px;padding:5px 11px;
+  background:#ff0e6e;color:#fff;border-radius:999px;
+  min-width:36px;padding:5px 12px;
   display:flex;align-items:center;justify-content:center;
-  font-size:12px;font-weight:800;line-height:1;
-  box-shadow:0 2px 6px rgba(255,17,119,.35);
+  font-size:12.5px;font-weight:800;line-height:1;
+  box-shadow:0 3px 8px rgba(255,14,110,.45);
 }
-.pcard.style-fashion_sale .heart{top:8px;right:8px;left:auto;width:28px;height:28px}
-.pcard.style-fashion_sale .body{padding:8px 2px 2px;gap:4px}
-.pcard.style-fashion_sale .name{font-size:12px;font-weight:600;height:32px;line-height:1.35}
+.pcard.style-fashion_sale .heart{top:8px;right:8px;left:auto;width:26px;height:26px}
+/* Part 2D — trimmed further: less body padding, shorter name block,
+   tighter title-to-price gap -- the reference's repeated cards read as
+   noticeably shorter/denser than a first-pass compact card. */
+.pcard.style-fashion_sale .body{padding:5px 2px 1px;gap:2px}
+.pcard.style-fashion_sale .name{font-size:11.5px;font-weight:600;height:24px;line-height:1.25}
 .pcard.style-fashion_sale .price{border-top:0;padding-top:0;display:block}
 .pcard.style-fashion_sale .price .now{
-  display:flex;flex-direction:column-reverse;align-items:flex-start;gap:1px;
-  font-size:13.5px;font-weight:800;color:var(--ink);
+  display:flex;flex-direction:column-reverse;align-items:flex-start;gap:0;
+  font-size:13px;font-weight:800;color:var(--ink);
 }
-.pcard.style-fashion_sale .price .old{font-size:11px;color:var(--muted)}
+.pcard.style-fashion_sale .price .old{font-size:10.5px;color:var(--muted)}
 @media(max-width:680px){
-  .pcard.style-fashion_sale .pill-disc{min-width:28px;padding:4px 9px;font-size:10.5px}
-  .pcard.style-fashion_sale .name{font-size:11.5px;height:30px}
+  .pcard.style-fashion_sale .pill-disc{min-width:28px;padding:4px 10px;font-size:11px}
+  .pcard.style-fashion_sale .name{font-size:11px;height:26px}
 }
 
 /* Part 2C precision pass — section headings inside a fashion_sale product

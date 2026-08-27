@@ -27,6 +27,30 @@ def _reorder_by_ids(products_by_id: dict, ordered_ids: list) -> list:
     return [products_by_id[pid] for pid in ordered_ids if pid in products_by_id]
 
 
+def products_in_collection(store, collection, limit: int) -> list:
+    """Real products for an already-resolved ``MerchantCollection`` object
+    — the ID-free half of ``_resolve_collection`` below, extracted so
+    Part 2D's ``catalog_product_wall`` (which resolves the Store's own
+    real collections directly, never by a stored ``source_id``) can reuse
+    the exact same product query."""
+    items = collection_service.collection_visible_items(collection, store)[:limit]
+    return [item.product for item in items]
+
+
+def products_in_category(store, category, limit: int) -> list:
+    """Real products for an already-resolved ``Category`` object — the
+    ID-free half of ``_resolve_category`` below, reused by Part 2D's
+    ``catalog_product_wall``. Same exact filter as
+    ``catalog.views._filtered_products``: a parent category also includes
+    its children's products."""
+    return list(
+        storefront_listing_products(store)
+        .filter(Q(category=category) | Q(category__parent=category))
+        .select_related("brand").prefetch_related("images")
+        .order_by("-created_at", "id")[:limit]
+    )
+
+
 def _resolve_collection(store, settings: dict):
     source_id = settings.get("source_id")
     if not source_id:
@@ -38,9 +62,7 @@ def _resolve_collection(store, settings: dict):
     if not collection.is_active:
         return [], None
 
-    limit = settings["item_limit"]
-    items = collection_service.collection_visible_items(collection, store)[:limit]
-    products = [item.product for item in items]
+    products = products_in_collection(store, collection, settings["item_limit"])
     view_all_url = reverse("catalog:collection-detail", args=[collection.slug])
     return products, view_all_url
 
@@ -54,15 +76,7 @@ def _resolve_category(store, settings: dict):
     except Category.DoesNotExist:
         return [], None
 
-    limit = settings["item_limit"]
-    # همان فیلترِ دقیقِ ``catalog.views._filtered_products``: انتخابِ یک
-    # دسته‌ی والد، محصولاتِ زیردسته‌هایش را هم شامل می‌شود.
-    products = list(
-        storefront_listing_products(store)
-        .filter(Q(category=category) | Q(category__parent=category))
-        .select_related("brand").prefetch_related("images")
-        .order_by("-created_at", "id")[:limit]
-    )
+    products = products_in_category(store, category, settings["item_limit"])
     view_all_url = reverse("catalog:product-list") + "?" + urlencode({"category": category.slug})
     return products, view_all_url
 
