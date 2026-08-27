@@ -224,15 +224,22 @@ def shop_settings(request):
     # /admin-portal/ keeps its existing authentication/authorization gates.
     # We only compute the correct per-Store host here, preserving a local
     # non-default port such as :8000.
+    #
+    # Final storefront polish pass — merchant QA: a real, live "پنل مدیریت"
+    # button was rendering in the PUBLIC shopper-facing header on
+    # ``catalog:home`` for ANY anonymous visitor (this flag was never
+    # staff/auth-gated — only page-gated). A public storefront must never
+    # expose an admin-panel control. The Builder's own HOME preview
+    # (``dashboard:storefront-builder-preview``) is a separate, authenticated
+    # merchant-admin surface, not the public storefront, so it keeps the
+    # shortcut unchanged; only the real public homepage loses it.
     resolver_match = getattr(request, "resolver_match", None)
     view_name = getattr(resolver_match, "view_name", "") if resolver_match else ""
-    is_home_surface = (
-        view_name == "catalog:home"
-        or (
-            view_name == "dashboard:storefront-builder-preview"
-            and request.GET.get("page", "home") == "home"
-        )
+    is_builder_preview_home = (
+        view_name == "dashboard:storefront-builder-preview"
+        and request.GET.get("page", "home") == "home"
     )
+    is_home_surface = view_name == "catalog:home" or is_builder_preview_home
     shop_admin_url = ""
     if is_home_surface:
         from django.conf import settings as django_settings
@@ -309,7 +316,7 @@ def shop_settings(request):
         "SHOP_THEME_FOOTER_BG": theme_roles["footer_bg"],
         "SHOP_THEME_FOOTER_TEXT": theme_roles["footer_text"],
         "SHOP_THEME_PRICE": theme_roles["price"],
-        "SHOW_ADMIN_SHORTCUT": bool(is_home_surface and shop_admin_url),
+        "SHOW_ADMIN_SHORTCUT": bool(is_builder_preview_home and shop_admin_url),
         "SHOP_ADMIN_URL": shop_admin_url,
         "SHOP_ENAMAD_VERIFICATION_META_NAME": (
             enamad_verification_meta.name if enamad_verification_meta else ""

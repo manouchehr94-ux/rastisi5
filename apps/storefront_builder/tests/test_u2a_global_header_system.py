@@ -848,20 +848,55 @@ class PromoHeaderDesktopGridStructureTests(TestCase):
         extracted by anchoring on the promo-only comment that opens it,
         since the file has many unrelated 680px blocks for other
         variants/sections."""
-        anchor = css.index("Mobile main row reverts to plain flex")
+        anchor = css.index("deliberate MOBILE-ONLY")
         start = css.rindex("@media(max-width:680px)", 0, anchor)
         end = css.index("\n}\n", anchor) + 3
         return css[start:end]
 
-    def test_mobile_breakpoint_fully_reverts_to_flex(self):
-        """Grid track minimums (``minmax(360px,1fr)``) are reserved
-        regardless of visibility — reusing the desktop grid unmodified at
-        390px would force horizontal overflow. The accepted mobile layout
-        (frozen by this mission) must be preserved via a full revert."""
+    def test_mobile_breakpoint_uses_a_deliberate_three_column_grid(self):
+        """Merchant QA addendum — the desktop composition (search fighting
+        the logo for space in a flex row) read as broken at 390px: the
+        store name visibly clipped, controls overcrowded. Mobile now gets
+        its OWN grid — RIGHT=burger, CENTER=logo, LEFT=actions — never a
+        reuse/revert of the desktop track sizing."""
         css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
         mobile_block = self._promo_mobile_block(css)
-        self.assertIn(".gh--promo .gh-row-main{display:flex}", mobile_block)
+        self.assertIn('grid-template-areas:"burger logo actions"', mobile_block)
+        self.assertIn(".gh--promo .gh-row-main > .gh-burger{grid-area:burger}", mobile_block)
+        self.assertIn(".gh--promo .gh-row-main > .gh-logo{grid-area:logo", mobile_block)
+        self.assertIn(".gh--promo .gh-row-main > .gh-actions{grid-area:actions}", mobile_block)
         self.assertIn(".gh--promo .gh-burger{display:inline-flex}", mobile_block)
+
+    def test_mobile_hides_the_desktop_inline_search_wrapper(self):
+        css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
+        mobile_block = self._promo_mobile_block(css)
+        self.assertIn(".gh--promo .gh-row-main > .gh-promo-search{display:none}", mobile_block)
+
+    def test_mobile_logo_can_shrink_to_the_grid_tracks_real_available_width(self):
+        """Root cause of the merchant-reported clipping ("...ti Mode
+        Demo"): a hardcoded px guess for the logo text's max-width still
+        ellipsized names that fit comfortably in the actual CENTER grid
+        track. The fix constrains the SHRINK path (min-width:0 up the
+        ancestor chain) instead of guessing a fixed width, so the text
+        renders at its real available size and only ellipsizes if it
+        truly doesn't fit."""
+        css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
+        mobile_block = self._promo_mobile_block(css)
+        self.assertIn(".gh--promo .gh-logo{min-width:0", mobile_block)
+        self.assertIn(".gh--promo .gh-logo-text{min-width:0}", mobile_block)
+
+    def test_mobile_search_moves_to_its_own_full_width_row(self):
+        """Same established pattern as premium_three_column/dark_tech's
+        own ``.gh-mobile-search`` second row — search never competes with
+        burger/logo/actions for space in the main row at phone widths."""
+        css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
+        self.assertIn(".gh--promo .gh-mobile-search:not([data-shell-hide-mobile]){display:block}", css)
+        self.assertIn(".gh--promo .gh-mobile-search .gh-search{display:flex", css)
+
+    def test_promo_template_includes_a_dedicated_mobile_search_row_with_unique_field_id(self):
+        source = _PROMO_HEADER_TEMPLATE_PATH.read_text(encoding="utf-8")
+        self.assertIn('class="gh-mobile-search gh-promo-mobile-search"', source)
+        self.assertIn('field_id="gh-search-input-promo-mobile"', source)
 
     def test_promo_template_markup_unchanged_by_css_only_fix(self):
         """This pass fixes the header via CSS structure, not by
@@ -898,3 +933,91 @@ class PromoHeaderMobileNavToggleContractTests(TestCase):
         css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
         mobile_block = PromoHeaderDesktopGridStructureTests._promo_mobile_block(css)
         self.assertNotIn(".gh--promo .gh-burger{display:none}", mobile_block)
+
+
+class PublicHeaderNeverShowsAdminShortcutTests(TestCase):
+    """Final storefront-polish pass — root cause: ``SHOW_ADMIN_SHORTCUT``
+    used to be true for ANY anonymous visitor of the real public
+    ``catalog:home`` (page-gated only, never staff/auth-gated). Every
+    Global Header Variant includes the same shared ``admin_shortcut.html``
+    partial, so this is verified once per variant at the template level;
+    the context-processor-level fix itself is covered by
+    ``test_page_shell.py``'s live-request tests."""
+
+    def test_admin_shortcut_never_renders_when_flag_is_false(self):
+        for template_name in (
+            "storefront_builder/partials/global_header/promo_search_nav.html",
+            "storefront_builder/partials/global_header/marketplace_search_first.html",
+            "storefront_builder/partials/global_header/premium_three_column.html",
+            "storefront_builder/partials/global_header/boutique_centered.html",
+            "storefront_builder/partials/global_header/dark_tech.html",
+        ):
+            html = _render_variant(template_name, SHOW_ADMIN_SHORTCUT=False, SHOP_ADMIN_URL="http://admin.example.com/admin-portal/")
+            self.assertNotIn("store-admin-shortcut", html, template_name)
+            self.assertNotIn("پنل مدیریت", html, template_name)
+
+    def test_shared_partial_guard_itself_still_works_given_the_flag(self):
+        """Sanity check that the assertions above are actually exercising
+        a real conditional (not one that's unconditionally False/broken):
+        the shared partial DOES render given the same flag/URL — proving
+        the fix lives in the context processor (now never sets this True
+        for ``catalog:home``), not in a disabled/dead template branch."""
+        html = _render_variant(
+            "storefront_builder/partials/global_header/promo_search_nav.html",
+            SHOW_ADMIN_SHORTCUT=True, SHOP_ADMIN_URL="http://admin.example.com/admin-portal/",
+        )
+        self.assertIn("store-admin-shortcut", html)
+        self.assertIn("پنل مدیریت", html)
+
+
+class CartLabelTests(TestCase):
+    """Final storefront-polish pass — merchant requirement: the promo
+    header's cart control must additionally carry the visible text
+    "سبد خرید" beside its icon, while every OTHER Global Header Variant's
+    cart button stays exactly icon-only (variant isolation — the label
+    is opt-in via ``cart_action.html``'s ``show_label``, and only
+    ``promo_search_nav.html`` passes it)."""
+
+    def test_promo_cart_shows_visible_label(self):
+        html = _render_variant("storefront_builder/partials/global_header/promo_search_nav.html")
+        self.assertIn('<span class="gh-cart-label">سبد خرید</span>', html)
+
+    def test_promo_cart_link_and_badge_unchanged(self):
+        html = _render_variant("storefront_builder/partials/global_header/promo_search_nav.html", cart_count=7)
+        self.assertIn('href="/cart/"', html)
+        self.assertIn('id="cart-count"', html)
+        self.assertIn(">۷<", html)
+
+    def test_promo_cart_action_include_passes_show_label_true(self):
+        source = _PROMO_HEADER_TEMPLATE_PATH.read_text(encoding="utf-8")
+        self.assertIn('cart_action.html" with show_label=True', source)
+
+    def test_other_variants_cart_stays_icon_only(self):
+        for template_name in (
+            "storefront_builder/partials/global_header/marketplace_search_first.html",
+            "storefront_builder/partials/global_header/premium_three_column.html",
+            "storefront_builder/partials/global_header/boutique_centered.html",
+            "storefront_builder/partials/global_header/dark_tech.html",
+        ):
+            html = _render_variant(template_name)
+            self.assertNotIn("gh-cart-label", html, template_name)
+
+    def test_cart_action_partial_label_is_opt_in_not_default(self):
+        """Isolation guarantee at the shared-partial level: omitting
+        ``show_label`` entirely (as every pre-existing call site does)
+        must never render the label."""
+        from django.template import Context, Template
+
+        template = Template(
+            '{% include "storefront_builder/partials/global_header/_shared/cart_action.html" %}'
+        )
+        html = template.render(Context({"is_live_storefront": True, "cart_count": 0}))
+        self.assertNotIn("gh-cart-label", html)
+
+    def test_cart_label_visually_hidden_at_mobile_breakpoint(self):
+        """Compact footprint requirement at 390px — the label becomes
+        accessible-only (same technique as ``.gh-account-link``'s
+        existing compact-label behavior), the link/icon/badge stay."""
+        css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
+        mobile_block = PromoHeaderDesktopGridStructureTests._promo_mobile_block(css)
+        self.assertIn(".gh--promo .gh-cart-label{position:absolute", mobile_block)

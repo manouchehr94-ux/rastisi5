@@ -3684,6 +3684,11 @@ a.sfb-v3-component-item,
 .gh--promo .gh-row-main > .gh-actions{grid-area:actions}
 .gh--promo .gh-burger{display:none}
 .gh--promo .gh-promo-search .gh-search{height:48px;border-radius:24px;background:var(--gh-bg);width:100%}
+/* Final storefront-polish pass — cart control must also carry the
+   visible "سبد خرید" text label (merchant requirement), scoped to this
+   variant only via cart_action.html's opt-in ``show_label`` so no other
+   Global Header Variant's icon-only cart button is affected. */
+.gh--promo .gh-cart-label{font-size:13px;font-weight:600;white-space:nowrap}
 .gh--promo .gh-row-nav{background:var(--gh-surface);border-top:1px solid var(--gh-border)}
 .gh--promo .gh-row-nav .wrap{height:auto;padding-block:10px}
 .gh-promo-nav-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
@@ -3697,22 +3702,49 @@ a.sfb-v3-component-item,
   .gh--promo .gh-promo-search{max-width:none}
 }
 @media(max-width:680px){
-  /* Mobile main row reverts to plain flex — the desktop-only grid's
-     column minimums (e.g. search's 360px floor) would force overflow at
-     phone widths regardless of which zones are actually visible there.
-     Mobile header behavior is explicitly "accepted, do not break" this
-     pass, so this is a full revert to the pre-grid flex row, not a new
-     mobile layout. */
-  .gh--promo .gh-row-main{display:flex}
-  .gh--promo .gh-row-main > .gh-logo,
-  .gh--promo .gh-row-main > .gh-promo-search,
-  .gh--promo .gh-row-main > .gh-actions{grid-area:unset}
+  /* Merchant QA addendum — the desktop composition (logo squeezed
+     between burger/search/actions in a flex row) reads as broken at
+     390px: the store name visibly clipped ("...ti Mode Demo"), controls
+     overcrowded with no clear hierarchy. This is a deliberate MOBILE-ONLY
+     structure, not a scaled-down desktop row: a real 3-column grid with
+     burger/logo/actions each their own track — RIGHT=burger,
+     CENTER=logo (flexible, truly centered, never fighting search for
+     space), LEFT=cart+account. Desktop search is hidden here entirely;
+     a full-width search row appears below instead (identical
+     established pattern to premium_three_column/dark_tech's own
+     ``.gh-mobile-search`` second row). */
+  .gh--promo .gh-row-main{
+    display:grid;
+    grid-template-columns:auto 1fr auto;
+    grid-template-areas:"burger logo actions";
+    align-items:center;
+    gap:8px;
+  }
+  .gh--promo .gh-row-main > .gh-burger{grid-area:burger}
+  .gh--promo .gh-row-main > .gh-logo{grid-area:logo;justify-content:center;min-width:0;max-width:100%}
+  .gh--promo .gh-row-main > .gh-promo-search{display:none}
+  .gh--promo .gh-row-main > .gh-actions{grid-area:actions}
   .gh--promo .gh-burger{display:inline-flex}
+  /* No fixed px cap here on purpose — the CENTER grid track's real
+     available width varies with shop-name length and viewport, and a
+     hardcoded guess (e.g. the 110px first tried) still triggered
+     ellipsis truncation ("...ti Mode Demo") on ordinary names that fit
+     comfortably in the actual track. Constraining the SHRINK, not the
+     text itself, lets it render fully whenever the track has room and
+     ellipsize only when it genuinely doesn't. */
+  .gh--promo .gh-logo{min-width:0;flex-shrink:1}
+  .gh--promo .gh-logo-text{min-width:0}
+  .gh--promo .gh-logo-text b{max-width:100%}
+  .gh--promo .gh-logo-text small{display:none}
   .gh--promo .gh-row-nav{display:none}
   .gh--promo .gh-row-nav:not(.gh-nav-hidden){display:block;position:relative}
-  .gh--promo .gh-logo-text small{display:none}
   .gh-promo-nav-row{flex-direction:column;align-items:stretch}
   .gh-promo-links{justify-content:flex-start;overflow-x:auto}
+  /* Space is extremely constrained at phone widths — keep the cart
+     control compact (icon + badge only), same visually-hidden-but-
+     accessible technique already used for .gh-account-link's label at
+     this breakpoint. The link/badge/count themselves are untouched. */
+  .gh--promo .gh-cart-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 }
 
 /* ---- premium_three_column ------------------------------------------------ */
@@ -3927,12 +3959,14 @@ a.sfb-v3-component-item,
   .gh--dark .gh-logo-text b{max-width:108px}
   .gh--dark .gh-dark-mobile-nav .wrap{height:auto;min-height:42px;padding-block:4px}
 
-  /* Shared mobile search rows for Premium + Dark. */
+  /* Shared mobile search rows for Premium + Dark + Promo. */
   .gh-mobile-search{width:calc(100% - 18px);margin-inline:auto;padding-bottom:7px}
   .gh--premium .gh-mobile-search:not([data-shell-hide-mobile]),
-  .gh--dark .gh-mobile-search:not([data-shell-hide-mobile]){display:block}
+  .gh--dark .gh-mobile-search:not([data-shell-hide-mobile]),
+  .gh--promo .gh-mobile-search:not([data-shell-hide-mobile]){display:block}
   .gh--premium .gh-mobile-search .gh-search,
-  .gh--dark .gh-mobile-search .gh-search{display:flex;width:100%;max-width:none;height:42px}
+  .gh--dark .gh-mobile-search .gh-search,
+  .gh--promo .gh-mobile-search .gh-search{display:flex;width:100%;max-width:none;height:42px;border-radius:12px}
   .gh-mobile-search .gh-search input{font-size:16px}
 
   /* Never let U2A header internals widen the page. Horizontal navigation

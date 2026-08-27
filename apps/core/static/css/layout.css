@@ -584,3 +584,33 @@ html[data-sfb-density="relaxed"] .rsec[data-width="full"] > .section{margin-inli
   }
   .store-admin-shortcut span{display:none}
 }
+
+/* Final storefront-polish pass — global RastiSi attribution line,
+   rendered once from templates/base.html right after the (swappable)
+   footer block, so it sits at the absolute bottom of every public
+   storefront page regardless of Ready Template/header-footer variant.
+   Intentionally subtle: small type, muted color, centered, never
+   competing visually with the merchant's own footer content above it. */
+.storefront-attribution{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:10px 12px;
+  font-size:11px;
+  color:#9aa0ab;
+  text-align:center;
+}
+.storefront-attribution-mark{
+  display:inline-grid;
+  place-items:center;
+  width:14px;
+  height:14px;
+  border-radius:4px;
+  background:linear-gradient(135deg,#6747e8,#8066ff);
+  color:#fff;
+  font-size:9px;
+  font-weight:900;
+  line-height:1;
+  flex:0 0 auto;
+}

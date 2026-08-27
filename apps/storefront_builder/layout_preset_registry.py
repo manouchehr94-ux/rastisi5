@@ -916,7 +916,14 @@ register_layout_preset(LayoutPresetDefinition(
     # ``category.image``, and the promo header's main row is a real CSS
     # Grid layout instead of flex — both genuinely change what a merchant
     # sees, for the same reason as every prior bump.
-    version="6",
+    #
+    # Final storefront-polish pass — bumped again: the public header no
+    # longer renders the admin-panel shortcut, the promo header's cart
+    # control now carries a visible "سبد خرید" label, and every public
+    # storefront page now shows the global RastiSi attribution line —
+    # all genuinely visible changes, for the same reason as every prior
+    # bump.
+    version="7",
     is_ready_template=True,
     label_fa="کاتالوگِ پوشاک و پیشنهادها",
     description_fa="چیدمانِ کاتالوگ‌محور با بنرهایِ تبلیغاتیِ متعدد — مناسبِ پوشاک/مدی که مرتب کمپین/تخفیف اجرا می‌کند.",

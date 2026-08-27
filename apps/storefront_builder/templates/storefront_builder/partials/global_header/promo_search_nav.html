@@ -30,7 +30,7 @@ Required context: ``header_config``/``is_live_storefront``/``is_builder_preview`
     <div class="gh-actions">
       {% include "storefront_builder/partials/global_header/_shared/admin_shortcut.html" %}
       {% if hc.show_cart %}
-      {% include "storefront_builder/partials/global_header/_shared/cart_action.html" %}
+      {% include "storefront_builder/partials/global_header/_shared/cart_action.html" with show_label=True %}
       {% endif %}
       {% if hc.show_account %}
       <div class="gh-inline-block" {% if rc.show_account.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_account.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
@@ -39,6 +39,12 @@ Required context: ``header_config``/``is_live_storefront``/``is_builder_preview`
       {% endif %}
     </div>
   </div>
+
+  {% if hc.show_search %}
+  <div class="gh-mobile-search gh-promo-mobile-search" {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+    {% include "storefront_builder/partials/global_header/_shared/search_form.html" with field_id="gh-search-input-promo-mobile" %}
+  </div>
+  {% endif %}
 
   <nav id="gh-mobile-nav" class="gh-row gh-row-nav" :class="{ 'gh-nav-hidden': !ghMobileOpen }">
     <div class="wrap gh-promo-nav-row">

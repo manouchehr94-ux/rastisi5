@@ -1,0 +1,24 @@
+{% comment %}
+Final storefront-polish pass — merchant requirement: every PUBLIC
+storefront page must carry a small, subtle RastiSi attribution line at
+its absolute lowest point. Implemented ONCE here and included from the
+single shared public-storefront base layer (``templates/base.html``,
+immediately after its swappable ``footer`` block) so every Ready
+Template/header-footer variant/public route inherits it automatically —
+no per-page copy/paste, no template_key branching.
+
+The small badge reuses RastiSi's own existing internal brand mark
+convention (the "ر" gradient badge already used for the platform's own
+identity in ``apps/portal/templates/portal/platform_admin/base.html``'s
+``.pa-logo``, same purple gradient) at a much smaller footprint — no
+external/third-party asset, no merchant logo. Styling lives in
+``apps/core/static/css/layout.css`` (loaded on every page that extends
+``base.html``, unlike ``storefront_builder.css`` which only a subset of
+pages load), so this partial renders correctly even on pages outside
+the Storefront Builder's own section rendering (checkout, payment
+result, 403/404).
+{% endcomment %}
+<div class="storefront-attribution">
+  <span class="storefront-attribution-mark" aria-hidden="true">ر</span>
+  <span>ساخته شده توسط راستی سی</span>
+</div>

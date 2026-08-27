@@ -201,17 +201,19 @@ class SharedPageShellTests(TestCase):
 
 
     # Phase 3.10 — دسترسی مستقیم از صفحه اصلی فروشگاه به پنل مدیریت همان Store.
-    def test_homepage_has_store_admin_shortcut_on_correct_admin_host(self):
+    #
+    # Final storefront polish pass — merchant QA: this shortcut used to
+    # render on the REAL PUBLIC storefront homepage for any anonymous
+    # visitor (it was page-gated, never staff/auth-gated). A public
+    # shopper-facing storefront must never expose an admin-panel control,
+    # so it is now removed from ``catalog:home`` entirely — it remains
+    # only on the Builder's own authenticated HOME preview surface.
+    def test_public_homepage_never_shows_the_admin_shortcut(self):
         svc.get_or_create_draft(self.store)
         svc.publish(self.store)
         body = self._storefront().content.decode()
-        expected = (
-            f"http://{self.store.admin_subdomain}."
-            f"{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}/admin-portal/"
-        )
-        self.assertIn('class="store-admin-shortcut"', body)
-        self.assertIn("پنل مدیریت", body)
-        self.assertIn(f'href="{expected}"', body)
+        self.assertNotIn('class="store-admin-shortcut"', body)
+        self.assertNotIn("پنل مدیریت", body)
 
     def test_builder_home_preview_has_admin_shortcut(self):
         svc.get_or_create_draft(self.store)
@@ -219,24 +221,28 @@ class SharedPageShellTests(TestCase):
         self.assertIn('class="store-admin-shortcut"', body)
         self.assertIn('target="_top"', body)
 
-    def test_admin_shortcut_is_homepage_only(self):
+    def test_builder_home_preview_admin_shortcut_preserves_local_non_default_port(self):
         svc.get_or_create_draft(self.store)
-        svc.publish(self.store)
-        body = self.public_client.get(reverse("catalog:product-list")).content.decode()
-        self.assertNotIn('class="store-admin-shortcut"', body)
-
-    def test_admin_shortcut_preserves_local_non_default_port(self):
-        svc.get_or_create_draft(self.store)
-        svc.publish(self.store)
-        response = self.public_client.get(
-            reverse("catalog:home"),
-            HTTP_HOST=f"{PUBLIC_HOST}:8765",
+        response = self.admin_client.get(
+            reverse("dashboard:storefront-builder-preview"),
+            HTTP_HOST=f"{ADMIN_HOST}:8765",
         )
         expected = (
             f"http://{self.store.admin_subdomain}."
             f"{settings.RASTISI_ADMIN_DOMAIN_SUFFIX}:8765/admin-portal/"
         )
         self.assertContains(response, f'href="{expected}"')
+
+    def test_admin_shortcut_is_never_on_any_public_storefront_route(self):
+        """Isolation: confirms the removal is not homepage-specific special
+        casing that happened to also need checking on other public
+        routes — the shortcut must never appear anywhere on the public
+        storefront, home included."""
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+        for url in (reverse("catalog:home"), reverse("catalog:product-list")):
+            body = self.public_client.get(url).content.decode()
+            self.assertNotIn('class="store-admin-shortcut"', body, url)
 
     # Phase 4 — بندهای ۲۱/۲۲: هر شیءِ ارجاع‌شده در هدر/فوتر (SocialLink،
     # Menu/MenuItem) باید در سطحِ کوئریِ رندر هم store-scoped باشد — این
@@ -281,3 +287,87 @@ class SharedPageShellTests(TestCase):
         self.assertIn("STORE-A-MENU-ITEM", body)
         self.assertNotIn("store-b-secret", body)
         self.assertNotIn("STORE-B-SECRET-MENU-ITEM", body)
+
+    # Final storefront-polish pass — merchant requirement: every PUBLIC
+    # storefront page must show a small "ساخته شده توسط راستی سی" line at
+    # its absolute bottom, implemented ONCE in ``templates/base.html``
+    # (right after the swappable footer block), never per-page copy/paste
+    # and never template_key-branched.
+    def _attribution_test_routes(self):
+        vendor = Vendor.objects.create(store=self.store, name="فروشنده اتریبیوشن", slug="vendor-attribution")
+        category = Category.objects.create(store=self.store, name="دسته اتریبیوشن", slug="cat-attribution", is_active=True)
+        product = Product.objects.create(
+            store=self.store, vendor=vendor, category=category, name="کالای اتریبیوشن", slug="product-attribution",
+            sku="ATTRIBUTION-1", price=Decimal("10000"), stock=5, status=Product.Status.ACTIVE,
+        )
+        collection = collection_service.create_collection(self.store, name="کالکشن اتریبیوشن")
+        collection_service.add_product(collection, product)
+        svc.get_or_create_draft(self.store)
+        svc.publish(self.store)
+        return [
+            reverse("catalog:home"),
+            reverse("catalog:product-detail", args=[product.slug]),
+            reverse("catalog:product-list"),
+            reverse("catalog:collection-detail", args=[collection.slug]),
+            reverse("catalog:product-list") + "?q=کالای",
+            reverse("cart:detail"),
+        ]
+
+    def test_attribution_appears_exactly_once_on_every_public_page_type(self):
+        for url in self._attribution_test_routes():
+            body = self.public_client.get(url).content.decode()
+            self.assertEqual(
+                body.count("ساخته شده توسط راستی سی"), 1, f"attribution not exactly once on {url}",
+            )
+            self.assertIn('class="storefront-attribution"', body, url)
+
+    def test_attribution_appears_on_home(self):
+        body = self._storefront().content.decode()
+        self.assertIn("ساخته شده توسط راستی سی", body)
+
+    def test_attribution_appears_on_listing(self):
+        self._attribution_test_routes()
+        body = self.public_client.get(reverse("catalog:product-list")).content.decode()
+        self.assertIn("ساخته شده توسط راستی سی", body)
+
+    def test_attribution_appears_on_pdp(self):
+        routes = self._attribution_test_routes()
+        pdp_url = reverse("catalog:product-detail", args=["product-attribution"])
+        self.assertIn(pdp_url, routes)
+        body = self.public_client.get(pdp_url).content.decode()
+        self.assertIn("ساخته شده توسط راستی سی", body)
+
+    def test_attribution_appears_on_builder_preview_too(self):
+        """The Builder preview renders the same shared base layer as the
+        live storefront (this is the exact WYSIWYG contract this test
+        suite already establishes for header/footer) — a merchant
+        previewing Home should see exactly what a real shopper will see,
+        attribution included."""
+        svc.get_or_create_draft(self.store)
+        body = self._preview().content.decode()
+        self.assertIn("ساخته شده توسط راستی سی", body)
+
+    def test_attribution_is_implemented_once_in_the_shared_base_layer(self):
+        """Architecture requirement: not copy/pasted per page, not
+        template_key-branched."""
+        from pathlib import Path
+
+        base_source = Path(settings.BASE_DIR, "templates", "base.html").read_text(encoding="utf-8")
+        self.assertIn(
+            'include "storefront_builder/shared/storefront_attribution.html"', base_source,
+        )
+        self.assertNotIn("template_key", base_source)
+
+    def test_attribution_absent_from_merchant_admin_dashboard(self):
+        """``dashboard/base_admin.html`` never extends the public
+        ``base.html`` — the merchant admin dashboard (as opposed to its
+        Builder HOME preview, tested separately above) must never carry
+        this public-storefront-only attribution."""
+        response = self.admin_client.get(reverse("dashboard:dashboard"))
+        self.assertNotIn("ساخته شده توسط راستی سی", response.content.decode())
+
+    def test_attribution_absent_from_admin_portal_login(self):
+        response = self.public_client.get(
+            "/admin-portal/login/", HTTP_HOST=self.store.admin_subdomain + "." + settings.RASTISI_ADMIN_DOMAIN_SUFFIX,
+        )
+        self.assertNotIn("ساخته شده توسط راستی سی", response.content.decode())

@@ -291,6 +291,10 @@ theme every storefront page without per-page forks.{% endcomment %}
 </div></footer>
 {% endblock %}
 
+{% block storefront_attribution %}
+{% include "storefront_builder/shared/storefront_attribution.html" %}
+{% endblock %}
+
 <!-- login modal -->
 <div class="overlay" :class="{ open: loginOpen }" x-cloak @click.self="loginOpen = false" @keydown.escape.window="loginOpen = false">
   <div class="modal">
