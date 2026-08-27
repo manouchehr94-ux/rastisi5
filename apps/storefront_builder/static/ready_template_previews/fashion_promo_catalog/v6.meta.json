@@ -1,0 +1,11 @@
+{
+  "template_key": "fashion_promo_catalog",
+  "version": "6",
+  "content_hash": "27b3b6aaf55250a715a9a7886e7da6add58598eae16cf624be1abc93a4e437db",
+  "preview_input_fingerprint": "2665dc9dff93f508c736e5ccac501eb4bd97d6506ad2593b82e5514b5f2ad9e9",
+  "capture_source": "rasti-mode-demo",
+  "viewport": {
+    "width": 1440,
+    "height": 1100
+  }
+}

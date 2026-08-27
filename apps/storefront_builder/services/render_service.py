@@ -134,10 +134,22 @@ def _category_grid_context(store, section):
         item_limit = max(2, min(12, int(settings.get("item_limit", 12))))
     except (TypeError, ValueError):
         item_limit = 12
+    top_categories = categories[:item_limit]
+    # Micro-fix pass — merchant: fashion_mosaic tiles must show the image
+    # edge-to-edge, but ``category.image`` is a deliberately composed
+    # thumbnail with large baked-in colored margins (see
+    # ``section_data_service.resolve_category_representative_media``'s own
+    # docstring for the full root-cause). Only THIS display_mode pays for
+    # the extra per-category product lookup; every other category_grid
+    # variant (fashion_flat, grid, circular, image_strip) is completely
+    # unaffected and keeps reading ``category.image`` exactly as before.
+    if settings.get("display_mode") == "fashion_mosaic":
+        for category in top_categories:
+            category.representative_media = section_data_service.resolve_category_representative_media(category)
     return {
         "tiles": list(zip(categories[:3], TILE_CLASSES)),
         "cream_category": categories[3] if len(categories) > 3 else None,
-        "top_categories": categories[:item_limit],
+        "top_categories": top_categories,
         "category_grid_settings": settings,
     }
 

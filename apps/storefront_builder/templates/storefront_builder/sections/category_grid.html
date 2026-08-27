@@ -28,7 +28,9 @@ renderer never needs tenant ids inside a global preset.
       <a class="category-mosaic-tile" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
         <span class="category-mosaic-heading">{{ cat.name }}<span class="category-mosaic-chevron" aria-hidden="true">‹</span></span>
         <span class="category-mosaic-media">
-          {% if cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">{% else %}<span class="category-mosaic-fallback">{{ cat.icon|default:"🏷️" }}</span>{% endif %}
+          {% if cat.representative_media %}<img src="{{ cat.representative_media.image.url }}" alt="{{ cat.name }}" loading="lazy">
+          {% elif cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">
+          {% else %}<span class="category-mosaic-fallback">{{ cat.icon|default:"🏷️" }}</span>{% endif %}
         </span>
       </a>
       {% endfor %}

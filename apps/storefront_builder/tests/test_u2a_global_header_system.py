@@ -797,3 +797,104 @@ class LegacyDefaultUnchangedByFixPassTwoTests(TestCase):
     def test_legacy_default_still_resolves_correctly_after_fix_pass_two(self):
         variant = g.get_global_variant(g.GLOBAL_HEADER_REGION, "legacy_default")
         self.assertEqual(variant.renderer, "storefront_builder/partials/page_shell_header.html")
+
+
+_PROMO_HEADER_TEMPLATE_PATH = (
+    _GLOBAL_HEADER_DIR / "promo_search_nav.html"
+)
+
+
+class PromoHeaderDesktopGridStructureTests(TestCase):
+    """Final Home micro-fix — merchant QA: the previous pass only hid the
+    inert desktop burger; the promo header's main row must actually read
+    as RIGHT=brand / CENTER=search / LEFT=actions in RTL. Implemented as
+    a real CSS Grid with explicit named areas (not flex order tricks),
+    verified here at the CSS-source level; the live pixel positions were
+    verified separately with a real browser render (see the mission's
+    final report)."""
+
+    def test_row_main_is_a_grid_with_named_areas(self):
+        css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
+        self.assertIn(".gh--promo .gh-row-main{", css)
+        self.assertIn('grid-template-areas:"brand search actions"', css)
+
+    def test_logo_is_the_brand_area(self):
+        css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
+        self.assertIn(".gh--promo .gh-row-main > .gh-logo{grid-area:brand", css)
+
+    def test_search_is_the_flexible_central_area(self):
+        css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
+        self.assertIn(".gh--promo .gh-row-main > .gh-promo-search{grid-area:search", css)
+
+    def test_actions_is_the_compact_auto_width_area(self):
+        css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
+        self.assertIn(".gh--promo .gh-row-main > .gh-actions{grid-area:actions}", css)
+
+    def test_search_area_overrides_the_shared_display_contents_wrapper(self):
+        """``.gh-promo-search`` also carries the shared ``gh-inline-block``
+        class, which sets ``display:contents`` — that makes an element
+        invalid as a grid item. The promo-specific override must restore
+        a real display value so the grid actually places it."""
+        css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
+        self.assertIn(".gh--promo .gh-row-main > .gh-promo-search{grid-area:search;display:block", css)
+
+    def test_desktop_burger_is_hidden(self):
+        css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
+        self.assertIn(".gh--promo .gh-burger{display:none}", css)
+
+    @staticmethod
+    def _promo_mobile_block(css: str) -> str:
+        """The ``.gh--promo``-specific ``@media(max-width:680px)`` block —
+        extracted by anchoring on the promo-only comment that opens it,
+        since the file has many unrelated 680px blocks for other
+        variants/sections."""
+        anchor = css.index("Mobile main row reverts to plain flex")
+        start = css.rindex("@media(max-width:680px)", 0, anchor)
+        end = css.index("\n}\n", anchor) + 3
+        return css[start:end]
+
+    def test_mobile_breakpoint_fully_reverts_to_flex(self):
+        """Grid track minimums (``minmax(360px,1fr)``) are reserved
+        regardless of visibility — reusing the desktop grid unmodified at
+        390px would force horizontal overflow. The accepted mobile layout
+        (frozen by this mission) must be preserved via a full revert."""
+        css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
+        mobile_block = self._promo_mobile_block(css)
+        self.assertIn(".gh--promo .gh-row-main{display:flex}", mobile_block)
+        self.assertIn(".gh--promo .gh-burger{display:inline-flex}", mobile_block)
+
+    def test_promo_template_markup_unchanged_by_css_only_fix(self):
+        """This pass fixes the header via CSS structure, not by
+        reordering the DOM — burger/logo/search/actions must still exist
+        in their original source order (grid-template-areas alone
+        determines the visual position)."""
+        source = _PROMO_HEADER_TEMPLATE_PATH.read_text(encoding="utf-8")
+        burger_pos = source.index("gh-burger")
+        logo_pos = source.index("_shared/logo.html")
+        search_pos = source.index("gh-promo-search")
+        actions_pos = source.index('class="gh-actions"')
+        self.assertLess(burger_pos, logo_pos)
+        self.assertLess(logo_pos, search_pos)
+        self.assertLess(search_pos, actions_pos)
+
+
+class PromoHeaderMobileNavToggleContractTests(TestCase):
+    """Re-verifies the mobile hamburger contract survives the desktop
+    grid restructuring — the toggle logic itself (Alpine ``ghMobileOpen``
+    state, ``gh-nav-hidden`` class binding) was never touched by this
+    pass, only the desktop CSS was."""
+
+    def test_burger_toggles_ghmobileopen_state(self):
+        html = _render_variant("storefront_builder/partials/global_header/promo_search_nav.html")
+        self.assertIn("@click=\"ghMobileOpen = !ghMobileOpen\"", html)
+        self.assertIn('aria-controls="gh-mobile-nav"', html)
+
+    def test_nav_row_binds_hidden_class_to_the_same_state(self):
+        html = _render_variant("storefront_builder/partials/global_header/promo_search_nav.html")
+        self.assertIn('id="gh-mobile-nav"', html)
+        self.assertIn("{ 'gh-nav-hidden': !ghMobileOpen }", html)
+
+    def test_burger_button_itself_is_never_css_hidden_below_the_desktop_breakpoint(self):
+        css = _GLOBAL_HEADER_CSS_PATH.read_text(encoding="utf-8")
+        mobile_block = PromoHeaderDesktopGridStructureTests._promo_mobile_block(css)
+        self.assertNotIn(".gh--promo .gh-burger{display:none}", mobile_block)

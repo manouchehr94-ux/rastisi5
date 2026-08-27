@@ -909,7 +909,14 @@ register_layout_preset(LayoutPresetDefinition(
     # carry a real ``slides`` list (auto-rotating campaign slider, new
     # composite images), a real content change for the same reason as
     # every prior bump.
-    version="5",
+    #
+    # Second micro-fix pass — bumped again: the category mosaic now reads
+    # a real per-product cover image (via the new
+    # ``resolve_category_representative_media`` resolver) instead of
+    # ``category.image``, and the promo header's main row is a real CSS
+    # Grid layout instead of flex — both genuinely change what a merchant
+    # sees, for the same reason as every prior bump.
+    version="6",
     is_ready_template=True,
     label_fa="کاتالوگِ پوشاک و پیشنهادها",
     description_fa="چیدمانِ کاتالوگ‌محور با بنرهایِ تبلیغاتیِ متعدد — مناسبِ پوشاک/مدی که مرتب کمپین/تخفیف اجرا می‌کند.",

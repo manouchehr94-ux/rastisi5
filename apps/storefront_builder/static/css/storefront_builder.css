@@ -3649,24 +3649,41 @@ a.sfb-v3-component-item,
 }
 .gh-shell--promo .gh-announce .wrap{height:44px;justify-content:center;gap:18px;font-weight:800;font-size:13.5px}
 .gh-shell--promo .gh-announce-links a{color:#fff;font-weight:800}
-.gh--promo .gh-row-main{display:flex;align-items:center;gap:16px;height:76px}
-/* Micro-fix pass — merchant: "hamburger does nothing" + header
-   composition feels displaced. Root cause: .gh-row-nav (the row the
-   burger toggles) is a "shared desktop+mobile nav bar, always visible"
-   by this codebase's own established convention (see the comment on
-   .gh--marketplace .gh-row-nav above) -- it only actually collapses
-   below the 680px breakpoint, so on desktop the always-visible burger
-   toggled nothing a merchant could see, AND it sat as the very first
-   (rightmost, in RTL) element ahead of the logo, displacing it from its
-   natural anchor position. Hiding the burger above the breakpoint where
-   it is genuinely functional fixes both: desktop no longer shows a dead
-   control, and the logo becomes the rightmost anchor exactly like the
-   reference. The mobile toggle itself (confirmed working: click removes
-   .gh-nav-hidden, the existing .gh--promo .gh-row-nav:not(.gh-nav-hidden)
-   rule below then reveals it) is completely unchanged. */
+/* Second micro-fix pass — merchant: hiding the burger alone did not fix
+   the actual structural problem. A plain flex row with the burger simply
+   hidden still let the browser's normal flex distribution decide widths
+   -- .gh-promo-search only had flex:1 (grow) with no floor, so on a
+   crowded row it could still end up visually thin/displaced relative to
+   logo and actions. An explicit CSS Grid with named areas makes the
+   three zones' relative importance an intentional layout decision
+   instead of an emergent one: brand gets a stable compact column, search
+   gets a wide, floor-guaranteed flexible column, actions get a compact
+   auto column. Column 1 in grid-template-areas is the START edge, which
+   the page's RTL direction renders as the visual RIGHT -- so writing
+   "brand search actions" in that (logical, reading-order) sequence
+   places brand at the right, search centered, actions at the left,
+   exactly the required RTL-aware order, with no manual reversal needed. */
+.gh--promo .gh-row-main{
+  display:grid;
+  grid-template-columns:minmax(150px,auto) minmax(360px,1fr) auto;
+  grid-template-areas:"brand search actions";
+  align-items:center;gap:16px;height:76px;
+}
+.gh--promo .gh-row-main > .gh-logo{grid-area:brand;min-width:0}
+/* .gh-promo-search normally also carries .gh-inline-block
+   (display:contents, this codebase's shared "transparent wrapper for a
+   responsive data-attribute" pattern -- see layout.css's own comment on
+   .sfb-shell-inline) so its own hide_on_tablet/hide_on_mobile toggle
+   keeps working. A display:contents element cannot itself be a grid
+   item, so it must be cancelled here to let this wrapper occupy the
+   "search" column; the [data-shell-hide-tablet]/[data-shell-hide-mobile]
+   overrides that implement the actual hide toggle only apply inside
+   narrower media queries (layout.css), so they still win there
+   regardless of this override. */
+.gh--promo .gh-row-main > .gh-promo-search{grid-area:search;display:block;width:100%;min-width:0}
+.gh--promo .gh-row-main > .gh-actions{grid-area:actions}
 .gh--promo .gh-burger{display:none}
-.gh--promo .gh-promo-search{flex:1;max-width:720px}
-.gh--promo .gh-promo-search .gh-search{height:48px;border-radius:24px;background:var(--gh-bg)}
+.gh--promo .gh-promo-search .gh-search{height:48px;border-radius:24px;background:var(--gh-bg);width:100%}
 .gh--promo .gh-row-nav{background:var(--gh-surface);border-top:1px solid var(--gh-border)}
 .gh--promo .gh-row-nav .wrap{height:auto;padding-block:10px}
 .gh-promo-nav-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
@@ -3680,6 +3697,16 @@ a.sfb-v3-component-item,
   .gh--promo .gh-promo-search{max-width:none}
 }
 @media(max-width:680px){
+  /* Mobile main row reverts to plain flex — the desktop-only grid's
+     column minimums (e.g. search's 360px floor) would force overflow at
+     phone widths regardless of which zones are actually visible there.
+     Mobile header behavior is explicitly "accepted, do not break" this
+     pass, so this is a full revert to the pre-grid flex row, not a new
+     mobile layout. */
+  .gh--promo .gh-row-main{display:flex}
+  .gh--promo .gh-row-main > .gh-logo,
+  .gh--promo .gh-row-main > .gh-promo-search,
+  .gh--promo .gh-row-main > .gh-actions{grid-area:unset}
   .gh--promo .gh-burger{display:inline-flex}
   .gh--promo .gh-row-nav{display:none}
   .gh--promo .gh-row-nav:not(.gh-nav-hidden){display:block;position:relative}

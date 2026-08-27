@@ -489,6 +489,50 @@ class CategoryGridRenderTests(TestCase):
         item = self._items_for(draft, store)[0]
         self.assertEqual(item["context"]["top_categories"], [])
 
+    def test_fashion_mosaic_attaches_representative_media_from_real_product(self):
+        """Micro-fix pass: ``fashion_mosaic`` tiles must read a real
+        product's cover image (edge-to-edge), not ``Category.image`` (a
+        composed thumbnail with baked-in colored margins)."""
+        from apps.catalog.services.product_image_service import add_product_image
+
+        store = _akhlaghi()
+        cat = Category.objects.create(store=store, name="موزاییک رندر", slug="cat-mosaic-render", is_active=True)
+        product = Product.objects.create(
+            store=store,
+            vendor=Vendor.objects.create(store=store, name="فروشنده موزاییک رندر", slug="v-mosaic-render"),
+            category=cat, name="کالای موزاییک رندر", slug="p-mosaic-render",
+            sku="SKU-MOSAIC-RENDER", price=Decimal("10000"), status=Product.Status.ACTIVE,
+        )
+        image = add_product_image(product, _img())
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="category_grid").delete()
+        StorefrontSection.objects.create(
+            version=draft, section_key="category_grid", order=900,
+            settings={"title": "", "display_mode": "fashion_mosaic", "category_ids": [cat.pk]},
+        )
+        item = self._items_for(draft, store)[0]
+        rendered_cat = item["context"]["top_categories"][0]
+        self.assertEqual(rendered_cat.representative_media.pk, image.pk)
+
+    def test_non_mosaic_display_modes_do_not_attach_representative_media(self):
+        """Isolation: the extra per-category product lookup must never run
+        for any other ``category_grid`` display_mode (fashion_flat, grid,
+        circular, image_strip) — those keep reading ``category.image``
+        exactly as before this micro-fix pass."""
+        from apps.catalog.models import Category
+
+        store = _akhlaghi()
+        cat = Category.objects.create(store=store, name="موزاییک غیر", slug="cat-non-mosaic-render", is_active=True)
+        draft = svc.get_or_create_draft(store)
+        draft.sections.filter(section_key="category_grid").delete()
+        StorefrontSection.objects.create(
+            version=draft, section_key="category_grid", order=900,
+            settings={"title": "", "display_mode": "grid", "category_ids": [cat.pk]},
+        )
+        item = self._items_for(draft, store)[0]
+        rendered_cat = item["context"]["top_categories"][0]
+        self.assertFalse(hasattr(rendered_cat, "representative_media"))
+
 
 class CatalogProductWallContextTests(TestCase):
     """Site-target-overhaul Part 2D — the generic, ID-free multi-row

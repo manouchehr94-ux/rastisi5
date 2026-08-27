@@ -51,6 +51,39 @@ def products_in_category(store, category, limit: int) -> list:
     )
 
 
+def resolve_category_representative_media(category):
+    """Generic, ID-free, Store-agnostic: the cover image of a real,
+    currently active product in this category (or its subcategories) —
+    reuses ``Product.cover_image``, the same N+1-safe cover-image
+    convention every product card already uses.
+
+    Root-cause note (mission: category mosaic "colored frame around a
+    small photo" complaint): ``Category.image`` is NOT a raw product
+    photo — it is a deliberately composed 800x600 canvas (a colored/
+    gradient background with the product pasted at ~86% height, centered
+    in its own narrower slot; see ``seed_ready_template_fashion_demo.
+    _composite_visual_bytes``/``_seed_category_images``). That framing is
+    baked into the image bytes themselves, so no CSS crop/object-fit
+    treatment can ever make it read as edge-to-edge — cropping a
+    fixed-margin image only removes a fraction of the margin before
+    cutting into the product itself. A real product photo has no such
+    guaranteed margin, so it is the correct source for an edge-to-edge
+    tile treatment. Returns ``None`` (never raises) if the category has
+    no active product with any image at all — callers must fall back
+    (e.g. to ``category.image`` or an icon), matching this module's own
+    fail-closed convention."""
+    product = (
+        storefront_listing_products(category.store)
+        .filter(Q(category=category) | Q(category__parent=category))
+        .prefetch_related("images")
+        .order_by("-created_at", "id")
+        .first()
+    )
+    if product is None:
+        return None
+    return product.cover_image
+
+
 def _resolve_collection(store, settings: dict):
     source_id = settings.get("source_id")
     if not source_id:

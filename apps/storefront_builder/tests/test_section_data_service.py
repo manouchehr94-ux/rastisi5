@@ -5,6 +5,7 @@ from django.test import TestCase
 
 from apps.catalog.models import Brand, Category, Product, Vendor
 from apps.catalog.services import collection_service
+from apps.catalog.services.product_image_service import add_product_image
 from apps.storefront_builder.services import section_data_service
 from apps.stores.models import Store
 
@@ -293,3 +294,61 @@ class ResolveManualSourceTests(TestCase):
             self.store, _manual_settings(product_ids=ordered_ids, item_limit=2),
         )
         self.assertEqual([p.pk for p in products], ordered_ids[:2])
+
+
+def _png(name="test.png"):
+    from io import BytesIO
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGB", (400, 400), (10, 20, 30)).save(buf, "PNG")
+    return SimpleUploadedFile(name, buf.getvalue(), content_type="image/png")
+
+
+class ResolveCategoryRepresentativeMediaTests(TestCase):
+    """Micro-fix pass: the category mosaic must show a real per-product
+    cover image (edge-to-edge) instead of ``Category.image`` (a
+    deliberately composed thumbnail with baked-in colored margins — see
+    ``section_data_service.resolve_category_representative_media``'s own
+    docstring for the full root-cause). Generic/ID-free: only
+    already-resolved Category objects go in, only real, currently
+    storefront-visible Products come out."""
+
+    def setUp(self):
+        self.store = _akhlaghi()
+        self.category = Category.objects.create(store=self.store, name="دسته موزاییک", slug="mosaic-cat")
+
+    def test_no_products_returns_none(self):
+        self.assertIsNone(section_data_service.resolve_category_representative_media(self.category))
+
+    def test_returns_cover_image_of_a_real_product_in_category(self):
+        product = _product(self.store, "mosaic-p1", category=self.category)
+        image = add_product_image(product, _png())
+        media = section_data_service.resolve_category_representative_media(self.category)
+        self.assertEqual(media.pk, image.pk)
+
+    def test_subcategory_product_counts_as_representative(self):
+        child = Category.objects.create(store=self.store, name="زیردسته موزاییک", slug="mosaic-cat-child", parent=self.category)
+        product = _product(self.store, "mosaic-child-p1", category=child)
+        image = add_product_image(product, _png())
+        media = section_data_service.resolve_category_representative_media(self.category)
+        self.assertEqual(media.pk, image.pk)
+
+    def test_product_with_no_images_returns_none(self):
+        _product(self.store, "mosaic-no-image", category=self.category)
+        self.assertIsNone(section_data_service.resolve_category_representative_media(self.category))
+
+    def test_non_storefront_visible_product_excluded(self):
+        _product(self.store, "mosaic-hidden", category=self.category, status=Product.Status.DRAFT)
+        self.assertIsNone(section_data_service.resolve_category_representative_media(self.category))
+
+    def test_cross_store_category_products_never_leak(self):
+        other_store = Store.objects.create(
+            name="فروشگاه دوم موزاییک", slug="section-data-svc-mosaic-other", admin_subdomain="section-data-svc-mosaic-other",
+        )
+        other_category = Category.objects.create(store=other_store, name="دسته فروشگاه دیگر موزاییک", slug="mosaic-other-cat")
+        other_product = _product(other_store, "mosaic-other-p1", category=other_category)
+        add_product_image(other_product, _png())
+        self.assertIsNone(section_data_service.resolve_category_representative_media(self.category))
