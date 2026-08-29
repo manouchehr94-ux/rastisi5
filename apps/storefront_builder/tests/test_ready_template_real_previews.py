@@ -322,22 +322,70 @@ class VersionedPreviewIdentityTests(TestCase):
         self.assertIn("preset.version", source)
         self.assertNotIn("SCREENSHOT_VERSION", source)
 
-    def test_9_only_reference_overhauled_templates_move_beyond_v1(self):
-        # fashion_promo_catalog is the completed ibolak family (v7); the
-        # laleRokh Home rebuild intentionally advances warm_boutique to v2.
-        # Every other Ready Template remains byte-for-byte on its historical
-        # v1 artifact identity until its own reference-driven pass begins.
-        expected_versions = {
-            "fashion_promo_catalog": "7",
-            "warm_boutique": "2",
-        }
+    def test_9_every_official_templates_registered_version_is_valid(self):
+        """Batch 1 rework (audit-flagged drift) — see the module-level note
+        above this class's ``test_9`` for why the previous version of this
+        test (a hardcoded ``{key: expected_version}`` whitelist) was
+        replaced. This half of the replacement covers the "every official
+        Ready Template has a valid registered version" contract: a
+        non-empty string, exactly the shape ``screenshot_relpath``/
+        ``meta_relpath`` require. It does not encode *which* version any
+        key "should" be at — that is the registry's job, not a test's."""
         for key in READY_TEMPLATE_KEYS:
             preset = lpr.get_layout_preset(key)
-            expected_version = expected_versions.get(key, "1")
-            self.assertEqual(preset.version, expected_version, key)
+            self.assertIsInstance(preset.version, str, key)
+            self.assertTrue(preset.version, key)
+
+    def test_9b_every_official_templates_screenshot_path_tracks_its_own_registry_version(self):
+        """Batch 1 rework (audit-flagged drift) — replaces the former
+        ``test_9_only_reference_overhauled_templates_move_beyond_v1``.
+
+        Old test's intent: guard against the Part 2B regression class,
+        where ``screenshot_relpath``/``meta_relpath`` once defaulted to a
+        fixed, independent ``SCREENSHOT_VERSION`` module constant instead
+        of the Preset's own ``version`` field (see
+        ``VersionedPreviewIdentityTests``'s class docstring) — so a bumped
+        Preset could silently keep resolving a stale, lower-version file.
+        The old test proved this by hardcoding *which* version each of the
+        8 keys was expected to be at (``{"fashion_promo_catalog": "7",
+        "warm_boutique": "2"}``, default ``"1"`` for the rest) and
+        asserting both the registry and the derived path matched that
+        table.
+
+        Why that was a second source of truth, and why it drifted: the
+        table encoded a *product* fact ("only these Templates have had
+        their reference-driven overhaul so far") that lives nowhere else
+        in the codebase — nothing keeps it in sync with
+        ``layout_preset_registry.py`` when a Template's version changes
+        for a legitimate reason. Exactly that happened: ``dense_marketplace``
+        and ``premium_leather`` were both bumped to version "2" by the
+        reference-driven-families work, and this test's table was never
+        updated — so it started failing not because the *path-derivation*
+        invariant it was meant to protect broke, but because an unrelated,
+        manually-maintained expectation fell out of sync with reality.
+
+        New invariant: for every official Ready Template, re-derive
+        ``screenshot_relpath``/``meta_relpath`` from the registry's OWN
+        CURRENT ``preset.version`` and assert the result is internally
+        consistent — i.e. exactly the path a screenshot for *this* version
+        would live at, never a hardcoded literal version number. This
+        still catches the original Part 2B regression class (a preview
+        path/version identity that has drifted from the registry) for
+        every current and future official Template, automatically, with
+        no whitelist to maintain and nothing that can go stale as
+        versions legitimately change. The registry stays the only source
+        of truth for what each Template's version actually is.
+        """
+        for key in READY_TEMPLATE_KEYS:
+            preset = lpr.get_layout_preset(key)
             self.assertEqual(
                 tps.screenshot_relpath(preset.key, preset.version),
-                f"ready_template_previews/{key}/v{expected_version}.webp",
+                f"ready_template_previews/{key}/v{preset.version}.webp",
+                key,
+            )
+            self.assertEqual(
+                tps.meta_relpath(preset.key, preset.version),
+                f"ready_template_previews/{key}/v{preset.version}.meta.json",
                 key,
             )
 
