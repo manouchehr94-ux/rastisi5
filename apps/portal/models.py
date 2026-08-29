@@ -49,6 +49,7 @@ class OwnerOtpChallenge(TimeStampedModel):
         REGISTER = "register", "ثبت‌نام"
         LOGIN = "login", "ورود"
         STEP_UP = "step_up", "تأییدِ عملیاتِ حساس (Section 10)"
+        PASSWORD_RESET = "reset", "بازیابیِ رمزِ عبور با موبایل"
 
     phone = models.CharField("موبایل", max_length=15, db_index=True)
     purpose = models.CharField("هدف", max_length=10, choices=Purpose.choices)

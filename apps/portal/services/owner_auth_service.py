@@ -35,7 +35,11 @@ def _normalize_email(email: str) -> str:
     return (email or "").strip().lower()
 
 
-def _looks_like_email(identifier: str) -> bool:
+def looks_like_email(identifier: str) -> bool:
+    """آیا این شناسه (ایمیل یا موبایل) به شکلِ ایمیل است؟ منطقِ اشتراکیِ
+    تشخیصِ نوعِ شناسه — هم اینجا (ورود)، هم در ``password_reset_request``ی
+    ویوها (بازیابیِ رمز) استفاده می‌شود، تا هر دو دقیقاً یک قاعده داشته
+    باشند."""
     return "@" in (identifier or "")
 
 
@@ -92,7 +96,7 @@ def authenticate_owner_by_identifier(request, *, identifier: str, password: str)
     if not identifier or not password:
         return None
 
-    if _looks_like_email(identifier):
+    if looks_like_email(identifier):
         user = User.objects.filter(email__iexact=_normalize_email(identifier)).first()
     else:
         try:

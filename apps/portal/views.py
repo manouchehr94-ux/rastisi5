@@ -1,5 +1,6 @@
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
+from django.contrib.auth import update_session_auth_hash
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import Http404
@@ -41,6 +42,7 @@ from .models import ContactMessage, OwnerOtpChallenge
 from .phone import InvalidPhoneError, normalize_iranian_phone
 from .services import (
     handoff_service,
+    mobile_reset_service,
     owner_auth_service,
     owner_otp_service,
     provisioning_service,
@@ -383,22 +385,16 @@ def otp_verify(request):
                     session_service.apply_remember_me(request, remember_me)
 
                     if created:
-                        # Section 3.1 ("onboarding mode C"): registration
-                        # provisions exactly one trial Store automatically —
-                        # the owner never sees an empty My Stores page or a
-                        # separate "create store" click on their very first visit.
-                        try:
-                            store = provisioning_service.provision_trial_store(
-                                owner=user, name=DEFAULT_TRIAL_STORE_NAME,
-                            )
-                        except provisioning_service.ProvisioningError:
-                            messages.error(
-                                request,
-                                "حساب شما ساخته شد، اما ساخت فروشگاه آزمایشی کامل نشد؛ "
-                                "از صفحه «فروشگاه‌های من» دوباره تلاش کنید.",
-                            )
-                        else:
-                            return redirect("portal:onboarding", store_public_id=store.public_id)
+                        # یک مالکِ تازه هنوز رمزِ عبورِ قابلِ‌استفاده ندارد
+                        # (``get_or_create_owner_by_phone`` عمداً
+                        # ``set_unusable_password()`` صدا زده) — پیش از هر
+                        # چیزِ دیگر باید یک رمز تعیین کند تا بعداً هم با
+                        # موبایل+رمز و هم موبایل+OTP بتواند وارد شود.
+                        # ساختِ فروشگاهِ آزمایشی عمداً اینجا اتفاق نمی‌افتد
+                        # (نگاه کنید به ``register_set_password``) تا هرگز
+                        # مالکی که OTP را تأیید کرده ولی تعیینِ رمز را ناتمام
+                        # گذاشته، یک فروشگاهِ نیمه‌رهاشده نداشته باشد.
+                        return redirect("portal:register-set-password")
 
                     return _post_login_redirect(request, user, next_url=next_url, admin_return=admin_return)
     else:
@@ -414,6 +410,69 @@ def otp_verify(request):
             "resend_remember_me": request.session.get(_OTP_SESSION_REMEMBER_KEY, False),
         },
     )
+
+
+@owner_required
+def register_set_password(request):
+    """آخرین گامِ ثبت‌نامِ موبایلی (Section 3.F): تعیینِ رمزِ عبورِ
+    قابلِ‌استفاده، پس از تأییدِ OTP و پیش از ساختِ فروشگاهِ آزمایشی.
+
+    ``request.user`` همیشه همان کاربریست که در ``otp_verify`` با
+    ``auth_login()`` واردِ همین نشست شد — رمزِ کاربرِ دیگری از این‌جا هرگز
+    قابلِ‌تنظیم نیست چون ورودی همیشه ``request.user`` است، نه یک شناسه‌ی
+    قابلِ‌دستکاری. ایمنی در برابرِ refresh/دکمه‌ی back: تشخیص با
+    ``user.has_usable_password()`` (وضعیتِ واقعیِ دیتابیس)، نه یک فلگِ
+    نشست — پس رفتار همیشه درست است، هر چند بار هم این صفحه دوباره بارگذاری
+    شود. ایمنی در برابرِ دوباره‌ساختنِ فروشگاه: قبل از
+    ``provision_trial_store`` همیشه چک می‌شود که ``StoreMembership`` فعالی
+    از قبل نساخته باشد."""
+    user = request.user
+
+    def _resume():
+        membership = (
+            StoreMembership.objects.filter(user=user, status=StoreMembership.MembershipStatus.ACTIVE)
+            .select_related("store").first()
+        )
+        if membership is not None:
+            return redirect("portal:onboarding", store_public_id=membership.store.public_id)
+        return redirect("portal:store-create")
+
+    if user.has_usable_password():
+        return _resume()
+
+    if request.method == "POST":
+        form = PasswordResetConfirmForm(request.POST)
+        if form.is_valid():
+            try:
+                owner_auth_service.set_new_password(user=user, password=form.cleaned_data["password"])
+            except owner_auth_service.OwnerAuthError as exc:
+                form.add_error("password", str(exc))
+            else:
+                # ``set_password()`` changes the hash Django's session
+                # middleware validates on every request — without this, the
+                # owner would be silently logged out mid-registration, right
+                # before the redirect into onboarding.
+                update_session_auth_hash(request, user)
+                membership = StoreMembership.objects.filter(
+                    user=user, status=StoreMembership.MembershipStatus.ACTIVE,
+                ).first()
+                if membership is not None:
+                    return redirect("portal:onboarding", store_public_id=membership.store.public_id)
+                try:
+                    store = provisioning_service.provision_trial_store(
+                        owner=user, name=DEFAULT_TRIAL_STORE_NAME,
+                    )
+                except provisioning_service.ProvisioningError:
+                    messages.error(
+                        request,
+                        "رمز عبور شما ثبت شد، اما ساخت فروشگاه آزمایشی کامل نشد؛ "
+                        "از صفحه «فروشگاه‌های من» دوباره تلاش کنید.",
+                    )
+                    return redirect("portal:app-home")
+                return redirect("portal:onboarding", store_public_id=store.public_id)
+    else:
+        form = PasswordResetConfirmForm()
+    return render(request, "portal/public/register_set_password.html", {"form": form})
 
 
 def register_email(request):
@@ -465,6 +524,10 @@ def logout_view(request):
 
 
 def password_reset_request(request):
+    """صفحه‌ی یکپارچه‌ی بازیابیِ رمز — شناسه می‌تواند ایمیل یا شماره موبایل
+    باشد (Section 4/E). مسیرِ ایمیل دقیقاً همان رفتارِ قبلی/موجود را دارد
+    (بدون تغییر)؛ مسیرِ موبایل واردِ جریانِ تازه‌ی
+    ``mobile_reset_service`` می‌شود که هرگز به‌تنهایی وارد حساب نمی‌کند."""
     if request.method == "POST":
         form = PasswordResetRequestForm(request.POST)
         try:
@@ -477,13 +540,83 @@ def password_reset_request(request):
         if form.is_valid() and _turnstile_form_is_valid(
             request, form, action="password_reset"
         ):
-            base_url = f"{request.scheme}://{request.get_host()}"
-            owner_auth_service.request_password_reset(email=form.cleaned_data["email"], base_url=base_url)
-            messages.success(request, "اگر این ایمیل ثبت‌نام کرده باشد، پیوند بازیابی رمز برای آن ارسال شد.")
-            return redirect("portal:login-email")
+            identifier = form.cleaned_data["identifier"]
+            if owner_auth_service.looks_like_email(identifier):
+                base_url = f"{request.scheme}://{request.get_host()}"
+                owner_auth_service.request_password_reset(email=identifier, base_url=base_url)
+                messages.success(request, "اگر این ایمیل ثبت‌نام کرده باشد، پیوند بازیابی رمز برای آن ارسال شد.")
+                return redirect("portal:login-email")
+
+            phone, error = mobile_reset_service.request_reset_otp(
+                phone_raw=identifier, client_ip=request.META.get("REMOTE_ADDR", "unknown"),
+            )
+            if error:
+                form.add_error(None, error)
+            else:
+                mobile_reset_service.begin_pending(request, phone=phone)
+                return redirect("portal:password-reset-otp-verify")
     else:
         form = PasswordResetRequestForm()
     return render(request, "portal/public/password_reset_request.html", {"form": form})
+
+
+def password_reset_otp_verify(request):
+    """تأییدِ کدِ ارسال‌شده برایِ بازیابیِ رمز با موبایل. هرگز کاربر را
+    واردِ حساب نمی‌کند — فقط در موفقیت، مجوزِ کوتاه‌مدتِ تعیینِ رمزِ جدید را
+    برایِ همان کاربر (تشخیص‌داده‌شده از رویِ ``OwnerProfile.phone``، نه
+    ورودیِ کاربر) در نشست ثبت می‌کند."""
+    phone = mobile_reset_service.pending_phone(request)
+    if not phone:
+        return redirect("portal:password-reset-request")
+
+    form = OwnerOtpVerifyForm(initial={"phone": phone})
+    if request.method == "POST":
+        if request.POST.get("resend"):
+            _, error = mobile_reset_service.request_reset_otp(
+                phone_raw=phone, client_ip=request.META.get("REMOTE_ADDR", "unknown"),
+            )
+            if error:
+                messages.error(request, error)
+            else:
+                messages.success(request, "در صورتی که این شماره ثبت‌نام کرده باشد، کد دوباره ارسال شد.")
+            return redirect("portal:password-reset-otp-verify")
+
+        form = OwnerOtpVerifyForm(request.POST)
+        if form.is_valid() and form.cleaned_data["phone"] == phone:
+            ok = mobile_reset_service.verify_reset_otp(request, phone=phone, code=form.cleaned_data["code"])
+            if not ok:
+                form.add_error(None, "کد نادرست یا منقضی‌شده است.")
+            else:
+                mobile_reset_service.clear_pending(request)
+                return redirect("portal:password-reset-set-password")
+    return render(
+        request, "portal/public/password_reset_otp_verify.html", {"form": form, "phone": phone},
+    )
+
+
+def password_reset_set_password(request):
+    """گامِ نهاییِ بازیابیِ رمز با موبایل — کاربر همیشه از رویِ مجوزِ
+    سمتِ‌سرورِ نشست تعیین می‌شود، هرگز از یک شناسه‌ی ورودی. بدونِ مجوزِ
+    معتبر (تأییدنشده/منقضی/کاربرِ غیرفعال)، به درخواستِ دوباره هدایت
+    می‌شود."""
+    user = mobile_reset_service.get_authorized_user(request)
+    if user is None:
+        return redirect("portal:password-reset-request")
+
+    if request.method == "POST":
+        form = PasswordResetConfirmForm(request.POST)
+        if form.is_valid():
+            try:
+                owner_auth_service.set_new_password(user=user, password=form.cleaned_data["password"])
+            except owner_auth_service.OwnerAuthError as exc:
+                form.add_error("password", str(exc))
+            else:
+                mobile_reset_service.clear_authorization(request)
+                messages.success(request, "رمز عبور با موفقیت تغییر کرد؛ اکنون می‌توانید وارد شوید.")
+                return redirect("portal:login")
+    else:
+        form = PasswordResetConfirmForm()
+    return render(request, "portal/public/password_reset_set_password.html", {"form": form})
 
 
 def password_reset_confirm(request, uidb64, token):

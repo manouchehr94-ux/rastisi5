@@ -310,12 +310,12 @@ class PasswordResetTests(TestCase):
         )
 
     def test_request_for_unknown_email_does_not_error_or_reveal_existence(self):
-        response = self.client.post("/reset-password/", {"email": "nobody@example.com"}, HTTP_HOST=_HOST)
+        response = self.client.post("/reset-password/", {"identifier": "nobody@example.com"}, HTTP_HOST=_HOST)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(len(mail.outbox), 0)
 
     def test_request_for_known_email_sends_mail(self):
-        response = self.client.post("/reset-password/", {"email": "reset@example.com"}, HTTP_HOST=_HOST)
+        response = self.client.post("/reset-password/", {"identifier": "reset@example.com"}, HTTP_HOST=_HOST)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("reset@example.com", mail.outbox[0].to)

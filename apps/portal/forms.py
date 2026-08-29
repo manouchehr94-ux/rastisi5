@@ -62,7 +62,13 @@ class OwnerIdentifierLoginForm(forms.Form):
 
 
 class PasswordResetRequestForm(forms.Form):
-    email = forms.EmailField(label="ایمیل")
+    """فرمِ یکپارچه‌ی بازیابیِ رمز — شناسه می‌تواند ایمیل یا شماره موبایل
+    باشد، دقیقاً همان مفهومِ شناسه‌ی ``OwnerIdentifierLoginForm``ی ورود."""
+
+    identifier = forms.CharField(
+        label="ایمیل یا شماره موبایل",
+        widget=forms.TextInput(attrs={"autocomplete": "username", "dir": "ltr"}),
+    )
 
 
 class PasswordResetConfirmForm(forms.Form):

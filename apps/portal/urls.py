@@ -23,6 +23,7 @@ urlpatterns = [
     path("login/", views.login_view, name="login"),
     path("login/password/", views.login_password, name="login-password"),
     path("verify/", views.otp_verify, name="otp-verify"),
+    path("register/set-password/", views.register_set_password, name="register-set-password"),
     path("logout/", views.logout_view, name="logout"),
     # Legacy email+password registration — kept for existing accounts/
     # platform-superuser recovery, not linked from the primary nav (Section
@@ -30,6 +31,8 @@ urlpatterns = [
     path("register-email/", views.register_email, name="register-email"),
     path("login-email/", views.login_email, name="login-email"),
     path("reset-password/", views.password_reset_request, name="password-reset-request"),
+    path("reset-password/verify/", views.password_reset_otp_verify, name="password-reset-otp-verify"),
+    path("reset-password/set/", views.password_reset_set_password, name="password-reset-set-password"),
     path("reset-password/<uidb64>/<token>/", views.password_reset_confirm, name="password-reset-confirm"),
     # Owner account portal (Section E/F/G/D)
     path("app/", views.app_home, name="app-home"),

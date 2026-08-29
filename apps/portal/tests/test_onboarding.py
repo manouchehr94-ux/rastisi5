@@ -379,11 +379,19 @@ class RegistrationAutoProvisionsTrialStoreTests(TestCase):
         self.addCleanup(setattr, svc, "_generate_code", original)
         return "222333"
 
+    def _complete_password_setup(self):
+        return self.client.post(
+            "/register/set-password/",
+            {"password": "Str0ng!Passw0rd", "password_confirm": "Str0ng!Passw0rd"},
+            HTTP_HOST=_HOST,
+        )
+
     @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
     def test_first_registration_creates_exactly_one_store(self):
         code = self._fixed_code()
         self.client.post("/register/", {"full_name": "First Timer", "phone": "09359990001"}, HTTP_HOST=_HOST)
         self.client.post("/verify/", {"phone": "09359990001", "code": code}, HTTP_HOST=_HOST)
+        self._complete_password_setup()
 
         user = User.objects.get(username="09359990001")
         memberships = StoreMembership.objects.filter(
@@ -397,6 +405,7 @@ class RegistrationAutoProvisionsTrialStoreTests(TestCase):
         code = self._fixed_code()
         self.client.post("/register/", {"full_name": "Second", "phone": "09359990002"}, HTTP_HOST=_HOST)
         self.client.post("/verify/", {"phone": "09359990002", "code": code}, HTTP_HOST=_HOST)
+        self._complete_password_setup()
 
         response = self.client.get("/app/", HTTP_HOST=_HOST)
         self.assertContains(response, "فروشگاه من")
@@ -407,6 +416,7 @@ class RegistrationAutoProvisionsTrialStoreTests(TestCase):
         code = self._fixed_code()
         self.client.post("/register/", {"full_name": "Third", "phone": "09359990003"}, HTTP_HOST=_HOST)
         self.client.post("/verify/", {"phone": "09359990003", "code": code}, HTTP_HOST=_HOST)
+        self._complete_password_setup()
 
         user = User.objects.get(username="09359990003")
         store = StoreMembership.objects.get(user=user).store
@@ -439,6 +449,7 @@ class RegistrationAutoProvisionsTrialStoreTests(TestCase):
         code = self._fixed_code()
         self.client.post("/register/", {"full_name": "Fourth", "phone": "09359990004"}, HTTP_HOST=_HOST)
         self.client.post("/verify/", {"phone": "09359990004", "code": code}, HTTP_HOST=_HOST)
+        self._complete_password_setup()
 
         user = User.objects.get(username="09359990004")
         membership = StoreMembership.objects.get(user=user)

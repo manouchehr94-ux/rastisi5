@@ -283,6 +283,8 @@ class OtpViewFlowTests(TestCase):
             HTTP_HOST=_HOST,
         )
 
+        self.client.post("/verify/", {"phone": "09121234583", "code": code}, HTTP_HOST=_HOST)
+
         from apps.portal.services import provisioning_service
 
         with patch(
@@ -290,8 +292,8 @@ class OtpViewFlowTests(TestCase):
             side_effect=provisioning_service.ProvisioningError("boom"),
         ):
             response = self.client.post(
-                "/verify/",
-                {"phone": "09121234583", "code": code},
+                "/register/set-password/",
+                {"password": "Str0ng!Passw0rd", "password_confirm": "Str0ng!Passw0rd"},
                 HTTP_HOST=_HOST,
                 follow=True,
             )
@@ -338,6 +340,14 @@ class OtpViewFlowTests(TestCase):
         self.client.post("/login/", {"phone": "09121234581"}, HTTP_HOST=_HOST)
         response = self.client.post(
             "/verify/", {"phone": "09121234581", "code": code}, HTTP_HOST=_HOST,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/register/set-password/", response["Location"])
+
+        response = self.client.post(
+            "/register/set-password/",
+            {"password": "Str0ng!Passw0rd", "password_confirm": "Str0ng!Passw0rd"},
+            HTTP_HOST=_HOST,
         )
         self.assertEqual(response.status_code, 302)
         self.assertIn("/onboarding/", response["Location"])

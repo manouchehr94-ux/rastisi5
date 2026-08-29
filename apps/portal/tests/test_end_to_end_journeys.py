@@ -104,13 +104,23 @@ class JourneyATestCase(TestCase):
         self.addCleanup(setattr, svc, "_generate_code", self._original_generate_code)
 
     def test_full_lifecycle(self):
-        # --- Register: phone + OTP, auto-provisions exactly one trial Store ---
+        # --- Register: phone + OTP, then a required password-set step,
+        # which is what auto-provisions exactly one trial Store ---
         self.client.post("/register/", {"full_name": "مالکِ اول", "phone": "09121400001"}, HTTP_HOST=_HOST)
         response = self.client.post("/verify/", {"phone": "09121400001", "code": "111111"}, HTTP_HOST=_HOST)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/register/set-password/", response["Location"])
+
+        response = self.client.post(
+            "/register/set-password/",
+            {"password": "Str0ng!Passw0rd", "password_confirm": "Str0ng!Passw0rd"},
+            HTTP_HOST=_HOST,
+        )
         self.assertEqual(response.status_code, 302)
         self.assertIn("/onboarding/", response["Location"])
 
         owner = User.objects.get(username="09121400001")
+        self.assertTrue(owner.has_usable_password())
         membership = StoreMembership.objects.get(user=owner, role=StoreMembership.Role.OWNER)
         store = membership.store
         trial_domain = store.domains.get(is_primary=True)
