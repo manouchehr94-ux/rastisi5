@@ -322,17 +322,34 @@ class VersionedPreviewIdentityTests(TestCase):
         self.assertIn("preset.version", source)
         self.assertNotIn("SCREENSHOT_VERSION", source)
 
-    def test_9_the_other_seven_ready_templates_are_unaffected_by_the_v2_bump(self):
+    def test_9_only_reference_overhauled_templates_move_beyond_v1(self):
+        # fashion_promo_catalog is the completed ibolak family (v7); the
+        # laleRokh Home rebuild intentionally advances warm_boutique to v2.
+        # Every other Ready Template remains byte-for-byte on its historical
+        # v1 artifact identity until its own reference-driven pass begins.
+        expected_versions = {
+            "fashion_promo_catalog": "7",
+            "warm_boutique": "2",
+        }
         for key in READY_TEMPLATE_KEYS:
-            if key == "fashion_promo_catalog":
-                continue
             preset = lpr.get_layout_preset(key)
-            self.assertEqual(preset.version, "1", key)
+            expected_version = expected_versions.get(key, "1")
+            self.assertEqual(preset.version, expected_version, key)
             self.assertEqual(
                 tps.screenshot_relpath(preset.key, preset.version),
-                f"ready_template_previews/{key}/v1.webp",
+                f"ready_template_previews/{key}/v{expected_version}.webp",
                 key,
             )
+
+    def test_10_warm_boutique_v1_preview_cannot_satisfy_v2(self):
+        preset = lpr.get_layout_preset("warm_boutique")
+        self.assertEqual(preset.version, "2")
+
+        def only_v1_exists(path_self):
+            return "v1." in path_self.name
+
+        with mock.patch.object(Path, "is_file", only_v1_exists):
+            self.assertIsNone(tps.resolve_real_screenshot(preset))
 
 
 @override_settings(ALLOWED_HOSTS=[ADMIN_HOST, "testserver"])

@@ -7,6 +7,7 @@ new capabilities (out-of-stock, quick-add eligibility) render safely."""
 
 from decimal import Decimal
 
+from django.template.loader import render_to_string
 from django.test import TestCase
 from django.urls import reverse
 
@@ -150,3 +151,50 @@ class ProductCardRenderRegressionTests(ProductCardServiceTestCase):
         self._product(name="پیراهن رنگی متنوع", stock=5, product_type=Product.ProductType.VARIABLE)
         response = self.client.get(reverse("catalog:product-list"), {"q": "متنوع"})
         self.assertNotContains(response, "addbar")
+
+
+class ReferenceRetailCardRenderTests(ProductCardServiceTestCase):
+    """Presentation-only contracts introduced by the laleRokh Home pass.
+
+    They consume the same product_card_data resolver as every other card; the
+    assertions below guard against a visual variant accidentally fabricating
+    a one-click capability for variable products.
+    """
+
+    def _render(self, product, *, style="beauty_retail", show_quick_add=True):
+        settings = {
+            "card_style": style, "image_ratio": "square",
+            "show_brand": False, "show_price": True, "show_badge": True,
+            "show_wishlist": False, "show_quick_add": show_quick_add,
+            "show_rating": False, "card_border": True,
+            "quick_add_reveal": "always",
+        }
+        return render_to_string(
+            "catalog/partials/product_card.html",
+            {"product": product, "card_settings": settings},
+        )
+
+    def test_beauty_simple_product_keeps_real_quick_add(self):
+        product = self._product(stock=5, product_type=Product.ProductType.SIMPLE)
+        html = self._render(product)
+        self.assertIn("افزودن به سبد خرید", html)
+        self.assertIn("hx-post=", html)
+
+    def test_beauty_variable_product_routes_to_option_selection(self):
+        product = self._product(stock=5, product_type=Product.ProductType.VARIABLE)
+        html = self._render(product)
+        self.assertIn("انتخاب گزینه‌ها", html)
+        self.assertNotIn("hx-post=", html)
+
+    def test_disabling_quick_add_uses_neutral_product_link_copy(self):
+        product = self._product(stock=5, product_type=Product.ProductType.SIMPLE)
+        html = self._render(product, show_quick_add=False)
+        self.assertIn("مشاهده محصول", html)
+        self.assertNotIn("hx-post=", html)
+
+    def test_retail_list_is_a_compact_read_only_merchandising_card(self):
+        product = self._product(stock=5, product_type=Product.ProductType.SIMPLE)
+        html = self._render(product, style="retail_list", show_quick_add=False)
+        self.assertIn("style-retail_list", html)
+        self.assertNotIn("beauty-actions", html)
+        self.assertNotIn("addbar", html)

@@ -211,7 +211,7 @@ PRODUCT_SECTION_DATA_SOURCES = (
 #: این‌ها به ``source_id`` نیاز دارند.
 _SINGLE_REFERENCE_SOURCES = {"collection", "category", "brand"}
 
-PRODUCT_SECTION_DISPLAY_MODES = ("carousel", "grid")
+PRODUCT_SECTION_DISPLAY_MODES = ("carousel", "grid", "campaign_band")
 
 _PRODUCT_SECTION_MIN_LIMIT = 2
 _PRODUCT_SECTION_MAX_LIMIT = 24
@@ -373,6 +373,11 @@ class CatalogProductWallSettingsError(ValueError):
 #: real group it finds — genuinely Store-agnostic, safe for ANY merchant
 #: who applies a Ready Template that selects this section.
 CATALOG_PRODUCT_WALL_SOURCE_MODES = ("visible_categories", "visible_collections", "categories_then_collections")
+# Generic structural presentations for the Store-resolved product wall.
+# ``rows`` preserves the Part 2D renderer byte-for-byte; ``group_columns``
+# and ``featured_row`` are reusable retail compositions introduced by the
+# laleRokh family, selected by settings rather than by Ready Template key.
+CATALOG_PRODUCT_WALL_LAYOUT_MODES = ("rows", "group_columns", "featured_row")
 
 _CATALOG_PRODUCT_WALL_MIN_GROUPS = 1
 _CATALOG_PRODUCT_WALL_MAX_GROUPS = 12
@@ -400,6 +405,11 @@ def _validate_catalog_product_wall_settings(raw: dict) -> dict:
     source_mode = raw.get("source_mode")
     if source_mode not in CATALOG_PRODUCT_WALL_SOURCE_MODES:
         source_mode = "categories_then_collections"
+
+    layout_mode = raw.get("layout_mode")
+    if layout_mode not in CATALOG_PRODUCT_WALL_LAYOUT_MODES:
+        layout_mode = "rows"
+    title = str(raw.get("title", "")).strip()[:_MAX_SECTION_TITLE_LENGTH]
 
     def _clamped_int(key, default, lo, hi, error_message):
         try:
@@ -433,6 +443,8 @@ def _validate_catalog_product_wall_settings(raw: dict) -> dict:
 
     return {
         "source_mode": source_mode,
+        "layout_mode": layout_mode,
+        "title": title,
         "max_groups": max_groups,
         "products_per_group": products_per_group,
         "skip_empty_groups": skip_empty_groups,
@@ -717,8 +729,10 @@ QUICK_ADD_REVEAL_CHOICES = ("hover_slide", "hover_fade", "always")
 #: storefronts. ``fashion_sale`` is a reusable apparel/campaign treatment
 #: (taller portrait image, prominent discount ribbon, two-line title,
 #: compare-price hierarchy) -- any future fashion-leaning Ready Template
-#: may adopt it, not just the one that introduces it.
-CARD_STYLE_CHOICES = ("standard", "compact", "minimal", "fashion_sale")
+#: may adopt it, not just the one that introduces it. ``beauty_retail`` is
+#: the equivalent commerce-forward cosmetics/perfume treatment: contained
+#: product media plus an always-visible, business-rule-aware bottom action.
+CARD_STYLE_CHOICES = ("standard", "compact", "minimal", "fashion_sale", "beauty_retail", "chocolate_retail", "retail_list")
 
 _CARD_TOGGLE_FIELDS = (
     "show_brand", "show_price", "show_badge", "show_wishlist",
@@ -788,7 +802,7 @@ BACKGROUND_AWARE_SECTION_KEYS = frozenset({
     "hero_banner", "image_slider", "single_banner", "multi_banner", "category_grid",
     "featured_products", "newest_products", "best_sellers", "discounted_products",
     "amazing_offers", "brand_carousel", "promo_cards", "rich_text", "image_text",
-    "product_section", "trust_features", "collection_tiles", "quick_links", "faq",
+    "product_section", "catalog_product_wall", "trust_features", "collection_tiles", "quick_links", "faq",
     "testimonials", "video_section", "story_rail", "newsletter",
     "product_description", "product_video", "related_products", "collection_header",
 })
@@ -1147,7 +1161,7 @@ _SLIDER_DEFAULT_INTERVAL_MS = 4500
 #: section that doesn't read it. Keeping the key in one shared validator
 #: (rather than forking a second near-identical function) is the same
 #: reuse choice already made for every other slider-level field.
-HERO_STYLE_CHOICES = ("overlay", "split")
+HERO_STYLE_CHOICES = ("overlay", "split", "beauty_editorial", "chocolate_carousel")
 
 
 def _validate_slider_settings(raw: dict) -> dict:
@@ -1185,7 +1199,7 @@ def _validate_slider_settings(raw: dict) -> dict:
         text_position = "end"
 
     # U4 — ``hero_style`` selects the registered structural variant
-    # (``overlay``/``split``, see ``HERO_STYLE_CHOICES``). Coerced here
+    # (``overlay``/``split``/``beauty_editorial``, see ``HERO_STYLE_CHOICES``). Coerced here
     # (not left to the generic ``variant_contract`` safety net alone) so an
     # unrecognized/legacy value never round-trips back into storage —
     # exactly the same discipline ``display_mode`` already gets in
@@ -1226,7 +1240,7 @@ _MAX_SECTION_TITLE_LENGTH = 60
 #: compact flat rail (small image, short label, no card chrome) distinct
 #: from ``image_strip``'s own CSS (which ``dense_marketplace`` already
 #: uses) so that template's rendering stays completely untouched.
-CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular", "image_strip", "fashion_flat", "fashion_mosaic")
+CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular", "image_strip", "fashion_flat", "fashion_mosaic", "beauty_icons", "chocolate_story", "chocolate_badges")
 
 
 def _validate_category_grid_settings(raw: dict) -> dict:
@@ -1382,7 +1396,7 @@ class BrandCarouselSettingsError(ValueError):
 
 
 _MAX_BRAND_CAROUSEL_IDS = 24
-BRAND_CAROUSEL_DISPLAY_MODES = ("grid", "carousel")
+BRAND_CAROUSEL_DISPLAY_MODES = ("grid", "carousel", "beauty_tabs")
 
 
 def _validate_brand_carousel_settings(raw: dict) -> dict:
@@ -1680,6 +1694,17 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         variants=(
             VariantDefinition(key="overlay", label_fa="روی تصویر (پیش‌فرض)"),
             VariantDefinition(key="split", label_fa="متن و تصویر جدا", renderer="storefront_builder/sections/hero_banner_split.html"),
+            # Full-width, image-first retail hero with dark editorial copy on
+            # light campaign photography. Reuses the same Store HeroSlide data
+            # and slider body; only a registered visual class is different.
+            VariantDefinition(
+                key="beauty_editorial", label_fa="کمپین روشن فروشگاهی",
+                renderer="storefront_builder/sections/hero_banner_beauty.html",
+            ),
+            VariantDefinition(
+                key="chocolate_carousel", label_fa="کاروسل فروشگاهی شکلاتی",
+                renderer="storefront_builder/sections/hero_banner_chocolate.html",
+            ),
         ),
         default_variant="overlay", variant_setting_key="hero_style",
     ),
@@ -1764,6 +1789,12 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
             # post-hero mosaic (own CSS, ``.category-fashion-mosaic``),
             # completely independent of ``fashion_flat``'s rail CSS.
             VariantDefinition(key="fashion_mosaic", label_fa="موزاییک دسته‌بندی"),
+            # Beauty retail shortcut rail — square brand-colour media tiles
+            # with labels below, matching cosmetics/perfume discovery flows
+            # while remaining Store-scoped and reusable.
+            VariantDefinition(key="beauty_icons", label_fa="آیکن‌های فروشگاه زیبایی"),
+            VariantDefinition(key="chocolate_story", label_fa="هایلایت‌های دایره‌ای شکلاتی"),
+            VariantDefinition(key="chocolate_badges", label_fa="میانبرهای تصویری شکلاتی"),
         ),
         default_variant="grid", variant_setting_key="display_mode",
     ),
@@ -1806,6 +1837,9 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         variants=(
             VariantDefinition(key="grid", label_fa="گرید"),
             VariantDefinition(key="carousel", label_fa="کاروسل"),
+            # Flat bordered name/logo cells for beauty and specialty retail.
+            # Same Brand records and links; presentation only.
+            VariantDefinition(key="beauty_tabs", label_fa="ردیف برندهای فروشگاهی"),
         ),
         default_variant="grid", variant_setting_key="display_mode",
     ),
@@ -1853,6 +1887,10 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         variants=(
             VariantDefinition(key="carousel", label_fa="کاروسل"),
             VariantDefinition(key="grid", label_fa="گرید"),
+            # Reusable retail campaign composition: a compact promotional
+            # rail beside a real product grid.  Copy, products and destination
+            # remain section data; the renderer contains no Ready Template key.
+            VariantDefinition(key="campaign_band", label_fa="نوار کمپینی کنار محصولات"),
         ),
         default_variant="carousel", variant_setting_key="display_mode",
     ),
@@ -1871,6 +1909,18 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         default_settings=default_catalog_product_wall_settings,
         duplicable=True, removable=True, has_settings_form=True, category_fa="محصولات",
         page_types=frozenset({PAGE_TYPE_HOME}),
+        variants=(
+            VariantDefinition(key="rows", label_fa="ردیف‌های پی‌درپی"),
+            VariantDefinition(
+                key="group_columns", label_fa="ستون‌های گروهی فشرده",
+                renderer="storefront_builder/sections/catalog_product_wall_group_columns.html",
+            ),
+            VariantDefinition(
+                key="featured_row", label_fa="ردیف پیشنهادی قاب‌دار",
+                renderer="storefront_builder/sections/catalog_product_wall_featured_row.html",
+            ),
+        ),
+        default_variant="rows", variant_setting_key="layout_mode",
     ),
     "trust_features": SectionDefinition(
         key="trust_features", label_fa="ردیف اعتماد و ویژگی‌ها", icon="shield-check",

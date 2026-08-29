@@ -195,17 +195,15 @@ class FashionPromoCatalogIsolationTests(TestCase):
         self.assertLess(rail_index, hero_index, "the compact shortcut rail must render before the hero")
         self.assertLess(hero_index, mosaic_index, "the larger mosaic must render after the hero")
 
-    def test_fashion_promo_catalog_uses_the_widest_registered_content_width(self):
-        """Part 2C — the reference's product wall/hero/category mosaic read
-        as nearly full-bleed at a 1440 viewport; ``content_width`` is an
-        existing, generic, already-registered appearance field that flows
-        straight into ``--sfb-content-width`` via ``apply_preset``'s own
-        ``overlay = dict(preset.appearance)`` copy. No other Ready Template
-        sets this key, so the other 7 keep whatever their own Draft/CSS
-        default already is."""
+    def test_reference_driven_retail_templates_use_the_widest_registered_content_width(self):
+        """The completed ibolak/laleRokh/shokolati families and the Beraito
+        dense-commerce rebuild all opt into the existing generic 1500px
+        content-width option. Other Ready Templates retain their previous
+        implicit/default width."""
+        wide_templates = {"fashion_promo_catalog", "warm_boutique", "premium_leather", "dense_marketplace"}
         for key in REQUIRED_KEYS:
             preset = lpr.get_layout_preset(key)
-            if key == "fashion_promo_catalog":
+            if key in wide_templates:
                 self.assertEqual(preset.appearance.get("content_width"), 1500, key)
             else:
                 self.assertNotIn("content_width", preset.appearance, key)
@@ -219,14 +217,14 @@ class FashionPromoCatalogIsolationTests(TestCase):
         palette = appearance_registry.get_palette("magenta-pop")
         self.assertEqual(palette.colors["background"], "#FFFFFF")
 
-    def test_only_fashion_promo_catalog_selects_the_catalog_product_wall(self):
-        """Part 2D (final Home fidelity pass) — the new generic, ID-free
-        multi-row merchandising wall is registered for ANY Ready Template
-        to select, but only ``fashion_promo_catalog`` actually opts in."""
+    def test_reference_driven_templates_can_reuse_the_catalog_product_wall(self):
+        """The generic, ID-free product wall was introduced by ibolak and is
+        now deliberately reused by laleRokh. No other Ready Template opts in."""
+        adopters = {"fashion_promo_catalog", "warm_boutique"}
         for key in REQUIRED_KEYS:
             preset = lpr.get_layout_preset(key)
             section_keys = {entry.section_key for entry in preset.pages["home"]}
-            if key == "fashion_promo_catalog":
+            if key in adopters:
                 self.assertIn("catalog_product_wall", section_keys, key)
             else:
                 self.assertNotIn("catalog_product_wall", section_keys, key)

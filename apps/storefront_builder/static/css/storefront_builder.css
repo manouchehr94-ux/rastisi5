@@ -4051,8 +4051,19 @@ a.sfb-v3-component-item,
 .gf-col-extra a{font-size:13px;color:var(--gf-muted)}
 
 /* ---- marketplace_dense --------------------------------------------------- */
+/* Dense marketplace footers are a distinct commercial surface.  U2B's base
+   `.gf` intentionally uses page tokens, but marketplace references such as
+   Beraito have a dark, high-density footer.  Read the existing editable
+   footer theme role here instead of hard-coding a Ready-Template color. */
+.gf--marketplace{
+  --gf-bg:var(--theme-footer-bg,var(--brand-background,var(--bg)));
+  --gf-ink:var(--theme-footer-text,var(--brand-text,var(--ink)));
+  --gf-muted:color-mix(in srgb,var(--gf-ink) 74%,transparent);
+  --gf-border:color-mix(in srgb,var(--gf-ink) 18%,transparent);
+}
 .gf--marketplace .gf-newsletter-row{padding-block:16px;border-bottom:1px solid var(--gf-border)}
-.gf--marketplace .gf-dense-grid{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:24px;padding-block:32px}
+.gf--marketplace .gf-dense-grid{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:24px;padding-block:42px 36px}
+.gf--marketplace .gf-brand-description{max-width:52ch;line-height:1.85}
 @media(max-width:1000px){
   .gf--marketplace .gf-dense-grid{grid-template-columns:repeat(3,1fr)}
 }
@@ -4133,3 +4144,177 @@ a.sfb-v3-component-item,
   .gf--dark .gf-dark-grid{grid-template-columns:1fr;gap:18px;padding-block:24px}
   .gf--dark .gf-legal-row{flex-direction:column;align-items:flex-start}
 }
+
+/* ========================================================================
+   beauty_search_nav — reference-driven beauty retail header
+   ======================================================================== */
+.gh-shell--beauty .gh-announce{background:#fff;color:var(--gh-muted);border-bottom:1px solid var(--gh-border)}
+.gh-shell--beauty .gh-announce .wrap{min-height:26px;height:auto;font-size:10.5px}
+.gh--beauty.header{background:var(--gh-surface)!important;color:var(--gh-ink)!important;border-color:var(--gh-border)!important}
+.gh--beauty .gh-beauty-main{
+  display:grid;grid-template-columns:minmax(150px,auto) minmax(360px,1fr) auto;
+  grid-template-areas:"brand search actions";align-items:center;gap:18px;height:78px
+}
+.gh--beauty .gh-burger{display:none}
+.gh--beauty .gh-beauty-main>.gh-logo{grid-area:brand;min-width:0}
+.gh--beauty .gh-beauty-main>.gh-beauty-search{grid-area:search;display:block;min-width:0;width:100%}
+.gh--beauty .gh-beauty-main>.gh-beauty-actions{grid-area:actions}
+.gh--beauty .gh-beauty-search .gh-search{height:44px;border-radius:3px;background:#f7f6f7;border:1px solid #eee9ee;padding-inline:0 10px}
+.gh--beauty .gh-beauty-search .gh-search button{height:42px;border-radius:3px 0 0 3px;min-width:48px;padding-inline:13px}
+.gh--beauty .gh-search.gh-search-compact button{background:var(--violet);color:var(--brand-primary-fg,#fff);padding-inline:13px;min-width:48px;border-radius:3px 0 0 3px}
+.gh--beauty .gh-search.gh-search-compact button svg{width:19px;height:19px;color:currentColor}
+.gh--beauty .gh-logo-mark{border-radius:4px}
+.gh--beauty .gh-logo-text b{font-weight:850}
+.gh-beauty-mobile-account{display:none!important}
+.gh-beauty-nav{background:#fff;border-top:1px solid var(--gh-border);border-bottom:1px solid var(--gh-border)}
+.gh-beauty-nav-row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:46px}
+.gh-beauty-nav-links{display:flex;align-items:center;justify-content:flex-start;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:none;flex:1}
+.gh-beauty-nav-links::-webkit-scrollbar{display:none}
+.gh--beauty .gh-nl,.gh--beauty .gh-cat-link{font-size:11.5px;font-weight:600;border-radius:3px;height:36px;padding-inline:9px}
+.gh-beauty-desktop-account .gh-account-link{height:34px;border-radius:4px;background:var(--violet);border-color:var(--violet);color:var(--brand-primary-fg,#fff);font-size:11px;font-weight:800}
+.gh-beauty-desktop-account .gh-account-link:hover{filter:brightness(.95);color:var(--brand-primary-fg,#fff)}
+@media(max-width:1000px){
+  .gh--beauty .gh-beauty-main{grid-template-columns:minmax(130px,auto) minmax(250px,1fr) auto;gap:10px;height:68px}
+}
+@media(min-width:681px){
+  .gh--beauty .gh-beauty-nav.gh-nav-hidden{display:block}
+}
+@media(max-width:680px){
+  .gh--beauty .gh-beauty-main{
+    display:grid;grid-template-columns:auto minmax(0,1fr) auto;
+    grid-template-areas:"burger brand actions";height:auto;min-height:58px;gap:7px;padding-block:7px
+  }
+  .gh--beauty .gh-beauty-main>.gh-burger{grid-area:burger;display:inline-flex}
+  .gh--beauty .gh-beauty-main>.gh-logo{grid-area:brand;justify-content:center;min-width:0;max-width:100%}
+  .gh--beauty .gh-logo-text{min-width:0}.gh--beauty .gh-logo-text b{max-width:100%}.gh--beauty .gh-logo-text small{display:none}
+  .gh--beauty .gh-beauty-main>.gh-beauty-search{display:none}
+  .gh--beauty .gh-beauty-main>.gh-beauty-actions{grid-area:actions}
+  .gh-beauty-mobile-account{display:contents!important}
+  .gh-beauty-desktop-account{display:none}
+  .gh-beauty-nav{display:none}
+  .gh-beauty-nav:not(.gh-nav-hidden){display:block}
+  .gh-beauty-nav-row{align-items:stretch;min-height:0;padding-block:7px}
+  .gh-beauty-nav-links{display:flex;flex-direction:column;align-items:stretch;width:100%;overflow:visible}
+  .gh--beauty .gh-nl,.gh--beauty .gh-cat-link{width:100%;justify-content:flex-start;height:38px}
+  .gh-mobile-search.gh-beauty-mobile-search:not([data-shell-hide-mobile]){display:block;width:calc(100% - 18px);margin-inline:auto;padding-bottom:7px}
+  .gh-beauty-mobile-search .gh-search{display:flex;width:100%;max-width:none;height:42px;border-radius:4px;background:#f7f6f7}
+  .gh-beauty-mobile-search .gh-search input{font-size:16px}
+}
+
+/* ========================================================================
+   beauty_retail_columns — guarantee-first light footer
+   ======================================================================== */
+.gf--beauty{background:var(--gf-bg);color:var(--gf-ink);border-top:1px solid color-mix(in srgb,var(--gf-accent) 52%,var(--gf-border))}
+.gf-beauty-guarantee{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:18px 22px;
+  margin-top:-1px;background:#fff;border:1px solid #d8d1da;border-radius:12px
+}
+.gf-beauty-guarantee-item{display:flex;align-items:center;justify-content:center;gap:9px;min-width:0;color:var(--gf-ink)}
+.gf-beauty-guarantee-icon{width:27px;height:27px;display:grid;place-items:center;color:var(--gf-accent);flex:0 0 auto}
+.gf-beauty-guarantee-icon svg{width:100%;height:100%}
+.gf-beauty-guarantee-item>span:last-child{display:flex;flex-direction:column;gap:2px}
+.gf-beauty-guarantee-item b{font-size:11px;color:var(--gf-accent);font-weight:800}
+.gf-beauty-guarantee-item small{font-size:9px;color:var(--gf-muted)}
+.gf--beauty .gf-beauty-newsletter{padding-block:20px;border-bottom:1px solid var(--gf-border)}
+.gf--beauty .gf-beauty-grid{display:grid;grid-template-columns:1.35fr repeat(3,1fr);gap:28px;padding-block:34px 22px}
+.gf--beauty .gf-col h5{font-size:12px;color:var(--gf-accent);font-weight:850;margin-bottom:10px}
+.gf--beauty .gf-col a,.gf--beauty .gf-col p{font-size:11px;line-height:1.8}
+.gf-beauty-social{display:flex;justify-content:center;padding:8px 0 16px}
+.gf-beauty-legal{justify-content:center;text-align:center;padding-block:13px}
+@media(max-width:1000px){
+  .gf-beauty-guarantee{grid-template-columns:repeat(2,1fr)}
+  .gf--beauty .gf-beauty-grid{grid-template-columns:repeat(2,1fr)}
+  .gf--beauty .gf-col-brand{grid-column:1/-1}
+}
+@media(max-width:680px){
+  .gf-beauty-guarantee{grid-template-columns:1fr 1fr;padding:14px 10px;gap:12px 8px;border-radius:9px}
+  .gf-beauty-guarantee-item{justify-content:flex-start}.gf-beauty-guarantee-icon{width:23px;height:23px}
+  .gf-beauty-guarantee-item b{font-size:10px}.gf-beauty-guarantee-item small{font-size:8.5px}
+  .gf--beauty .gf-beauty-grid{grid-template-columns:1fr;gap:20px;padding-block:26px 18px}
+  .gf--beauty .gf-col-brand{grid-column:auto}
+  .gf--beauty .gf-newsletter{flex-direction:column;align-items:stretch}
+}
+
+/* ========================================================================
+   Chocolate specialty-retail global shell
+   ======================================================================== */
+.gh-shell--chocolate{--gh-bg:#7B4518;--gh-ink:#fff;--gh-surface:rgba(255,255,255,.14);--gh-border:rgba(255,255,255,.24)}
+.gh--chocolate.header{background:#7B4518!important;color:#fff!important;border-color:#6d3c14!important}
+.gh--chocolate .gh-chocolate-main{display:grid;grid-template-columns:minmax(260px,1fr) auto minmax(260px,1fr);grid-template-areas:"search logo actions";align-items:center;gap:22px;min-height:74px}
+.gh--chocolate .gh-chocolate-search{grid-area:search;justify-self:stretch;max-width:430px;width:100%}
+.gh--chocolate .gh-chocolate-logo{grid-area:logo;justify-self:center}
+.gh--chocolate .gh-chocolate-actions{grid-area:actions;justify-self:start;display:flex;align-items:center;gap:8px}
+.gh--chocolate .gh-logo-text,.gh--chocolate .gh-logo-text b,.gh--chocolate .gh-logo-text small{color:#fff}
+.gh--chocolate .gh-search{max-width:none;background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.28);color:#fff}
+.gh--chocolate .gh-search input{color:#fff}
+.gh--chocolate .gh-search input::placeholder{color:rgba(255,255,255,.78)}
+.gh--chocolate .gh-btn,.gh--chocolate .gh-account-link{color:#fff;border-color:rgba(255,255,255,.28);background:rgba(255,255,255,.08)}
+.gh-chocolate-nav{background:#fff;color:#3c2b1d;border-bottom:1px solid #e8dfd5}
+.gh-chocolate-nav-links{display:flex;align-items:center;gap:3px;min-height:48px;overflow-x:auto;scrollbar-width:none}
+.gh-chocolate-nav-links::-webkit-scrollbar{display:none}
+.gh-chocolate-nav-links a{color:#3c2b1d;white-space:nowrap}
+.gh-chocolate-mobile-search{background:#7B4518;padding:0 12px 10px}
+.gh--chocolate .gh-burger{display:none}
+@media(max-width:1000px){
+  .gh--chocolate .gh-chocolate-main{grid-template-columns:1fr auto 1fr;gap:12px;min-height:66px}
+  .gh--chocolate .gh-chocolate-actions .gh-account-link span:not(.sr-only){display:none}
+}
+@media(max-width:680px){
+  .gh--chocolate .gh-chocolate-main{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"burger logo actions";min-height:58px;gap:8px}
+  .gh--chocolate .gh-burger{display:grid;grid-area:burger;justify-self:end}
+  .gh--chocolate .gh-chocolate-search{display:none}
+  .gh--chocolate .gh-chocolate-logo{min-width:0;max-width:100%}
+  .gh--chocolate .gh-logo-text{min-width:0;max-width:100%}
+  .gh--chocolate .gh-logo-text b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
+  .gh--chocolate .gh-chocolate-actions{justify-self:start}
+  .gh-chocolate-mobile-search{display:block}
+  .gh-chocolate-nav{display:none}
+  .gh-chocolate-nav:not(.gh-nav-hidden){display:block}
+}
+@media(min-width:681px){.gh-chocolate-nav.gh-nav-hidden{display:block}}
+
+.gf--chocolate{position:relative;background:#070707;color:#f5f1ec;padding-top:34px;border-top:5px solid #7B4518}
+.gf--chocolate a,.gf--chocolate .gf-title,.gf--chocolate b,.gf--chocolate strong{color:#f5f1ec}
+.gf--chocolate .gf-muted,.gf--chocolate small,.gf--chocolate p{color:#bfb7af}
+.gf-chocolate-wave{position:absolute;inset-inline:0;top:-18px;height:22px;background:radial-gradient(55px 16px at 55px 0,#EDF6FF 98%,transparent 100%) 0 0/110px 22px repeat-x;opacity:1;pointer-events:none}
+.gf-chocolate-brandline{display:flex;justify-content:center;padding:8px 0 18px;border-bottom:1px solid #25211e;margin-bottom:22px}
+.gf-chocolate-grid{display:grid;grid-template-columns:1.35fr 1fr 1fr 1.35fr;gap:30px;padding:8px 0 24px}
+.gf-chocolate-social{display:flex;justify-content:center;border-top:1px solid #25211e;padding:18px 0 8px}
+.gf-chocolate-legal{justify-content:center;border-top:1px solid #25211e;margin-top:16px;padding-top:16px}
+@media(max-width:900px){.gf-chocolate-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.gf-chocolate-grid{grid-template-columns:1fr;gap:20px}.gf--chocolate{padding-top:26px}}
+/* RASTISI_PREMIUM_LEATHER_HEADER_PALETTE_FIX_BEGIN */
+/* premium_leather / shokolati: interaction-safe high-contrast header and
+   warm neutral storefront surfaces.  Scoped to the registered chocolate
+   shell only; other Ready Templates are unaffected. */
+.gh--chocolate .gh-chocolate-main{grid-template-columns:minmax(320px,1fr) auto minmax(320px,1fr);grid-template-areas:"search logo actions";align-items:center;gap:18px;min-height:72px}
+.gh--chocolate .gh-chocolate-search{grid-area:search;justify-self:stretch;align-self:center;max-width:520px;width:100%}
+.gh--chocolate .gh-chocolate-logo{grid-area:logo;justify-self:center;min-width:180px}
+.gh--chocolate .gh-search{max-width:none;height:44px;border-radius:12px;background:#FFF9F0;border:1px solid #D8B88F;color:#3C2B1D;box-shadow:inset 0 1px 0 rgba(255,255,255,.62)}
+.gh--chocolate .gh-search:focus-within{background:#FFFDF9;border-color:#DDAE58;box-shadow:0 0 0 3px rgba(221,174,88,.22)}
+.gh--chocolate .gh-search input{color:#3C2B1D}
+.gh--chocolate .gh-search input::placeholder{color:#8A7565}
+.gh--chocolate .gh-search.gh-search-compact button{display:grid;place-items:center;min-width:38px;height:34px;padding-inline:8px;border-radius:9px;background:#F1E1CF;color:#7B4518}
+.gh--chocolate .gh-search.gh-search-compact button:hover,.gh--chocolate .gh-search.gh-search-compact button:focus-visible{background:#E8D1B7;color:#60340F}
+.gh--chocolate .gh-search.gh-search-compact button svg{color:currentColor}
+.gh--chocolate .gh-btn,.gh--chocolate .gh-account-link{color:#fff;border-color:rgba(255,255,255,.32);background:rgba(255,255,255,.08)}
+.gh-chocolate-nav{background:#FFFDF9;color:#3C2B1D;border-bottom-color:#E6D9CC}
+.gh-chocolate-nav-links a:hover,.gh-chocolate-nav-links a:focus-visible,
+.gh-chocolate-nav-links button:hover,.gh-chocolate-nav-links button:focus-visible,
+.gh-chocolate-nav-links .gh-nl:hover,.gh-chocolate-nav-links .gh-nl:focus-visible,
+.gh-chocolate-nav-links .gh-cat-link:hover,.gh-chocolate-nav-links .gh-cat-link:focus-visible,
+.gh-chocolate-nav-links .gh-nav-submenu-trigger:hover,.gh-chocolate-nav-links .gh-nav-submenu-trigger:focus-visible{background:#7B4518!important;color:#fff!important}
+.gh-chocolate-nav-links a:hover *,.gh-chocolate-nav-links a:focus-visible *,
+.gh-chocolate-nav-links button:hover *,.gh-chocolate-nav-links button:focus-visible *{color:#fff!important}
+.gf-chocolate-wave{background:radial-gradient(55px 16px at 55px 0,var(--theme-page,#F7F1E8) 98%,transparent 100%) 0 0/110px 22px repeat-x}
+@media(max-width:1000px){
+  .gh--chocolate .gh-chocolate-main{grid-template-columns:minmax(190px,1fr) auto minmax(190px,1fr);gap:12px;min-height:66px}
+  .gh--chocolate .gh-chocolate-logo{min-width:0}
+}
+@media(max-width:680px){
+  .gh--chocolate .gh-chocolate-main{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"burger logo actions";gap:8px;min-height:58px}
+  .gh--chocolate .gh-chocolate-logo{min-width:0}
+  .gh--chocolate .gh-chocolate-search{display:none}
+  .gh--chocolate .gh-search{height:44px}
+}
+/* RASTISI_PREMIUM_LEATHER_HEADER_PALETTE_FIX_END */

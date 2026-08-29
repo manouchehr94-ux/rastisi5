@@ -30,6 +30,7 @@ from apps.storefront_builder.section_registry import (
     PAGE_TYPE_LISTING,
     PAGE_TYPE_PRODUCT_DETAIL,
     PAGE_TYPE_SEARCH,
+    PRODUCT_SECTION_DISPLAY_MODES,
     SECTION_LIBRARY_CATEGORIES,
     SECTION_REGISTRY,
     SPACING_AWARE_SECTION_KEYS,
@@ -265,6 +266,16 @@ class ProductSectionSettingsTests(TestCase):
     def test_display_mode_grid_is_accepted(self):
         cleaned = self._validate(display_mode="grid")
         self.assertEqual(cleaned["display_mode"], "grid")
+
+    def test_display_mode_campaign_band_is_accepted(self):
+        cleaned = self._validate(display_mode="campaign_band")
+        self.assertEqual(cleaned["display_mode"], "campaign_band")
+
+    def test_product_section_registered_variants_match_closed_display_modes(self):
+        self.assertEqual(
+            {variant.key for variant in self.definition.variants},
+            set(PRODUCT_SECTION_DISPLAY_MODES),
+        )
 
     def test_item_limit_clamped_to_safe_range(self):
         self.assertEqual(self._validate(item_limit=0)["item_limit"], 2)
@@ -1403,7 +1414,7 @@ class U1AVariantContractTests(TestCase):
         """Test #3 — a definition can declare multiple variants."""
         definition = get_definition("category_grid")
         keys = {v.key for v in list_variants(definition)}
-        self.assertEqual(keys, {"grid", "carousel", "circular", "image_strip", "fashion_flat", "fashion_mosaic"})
+        self.assertEqual(keys, {"grid", "carousel", "circular", "image_strip", "fashion_flat", "fashion_mosaic", "beauty_icons", "chocolate_story", "chocolate_badges"})
         self.assertEqual(definition.default_variant, "grid")
         self.assertEqual(definition.variant_setting_key, "display_mode")
 
@@ -1918,6 +1929,26 @@ class CatalogProductWallSettingsTests(TestCase):
         for mode in section_registry_module.CATALOG_PRODUCT_WALL_SOURCE_MODES:
             cleaned = self._validate({"source_mode": mode})
             self.assertEqual(cleaned["source_mode"], mode)
+
+    def test_layout_modes_are_closed_and_invalid_values_fall_back_to_rows(self):
+        for mode in section_registry_module.CATALOG_PRODUCT_WALL_LAYOUT_MODES:
+            cleaned = self._validate({"layout_mode": mode})
+            self.assertEqual(cleaned["layout_mode"], mode)
+        self.assertEqual(self._validate({"layout_mode": "merchant-special"})["layout_mode"], "rows")
+
+    def test_layout_modes_are_registered_structural_variants(self):
+        definition = get_definition("catalog_product_wall")
+        self.assertEqual(
+            tuple(variant.key for variant in definition.variants),
+            section_registry_module.CATALOG_PRODUCT_WALL_LAYOUT_MODES,
+        )
+        self.assertEqual(definition.variant_setting_key, "layout_mode")
+        self.assertEqual(definition.default_variant, "rows")
+
+    def test_title_is_bounded_display_copy_not_a_data_reference(self):
+        cleaned = self._validate({"title": "فروش ویژه"})
+        self.assertEqual(cleaned["title"], "فروش ویژه")
+        self.assertNotIn("source_id", cleaned)
 
     def test_max_groups_is_clamped_to_the_registered_range(self):
         self.assertEqual(self._validate({"max_groups": 0})["max_groups"], 1)

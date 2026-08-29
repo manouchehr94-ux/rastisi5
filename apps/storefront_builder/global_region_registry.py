@@ -222,6 +222,26 @@ _PROMO_SEARCH_NAV_VARIANT = GlobalVariantDefinition(
     renderer="storefront_builder/partials/global_header/promo_search_nav.html",
 )
 
+#: Beauty retail archetype (laleRokh reference family) — keeps the proven
+#: search-centered three-zone topology from the campaign header, but removes
+#: campaign-specific chrome and gives account/navigation their own quiet
+#: utility row.  It is a generic registered option usable by any Store.
+_BEAUTY_SEARCH_NAV_VARIANT = GlobalVariantDefinition(
+    key="beauty_search_nav",
+    label_fa="زیبایی (جستجو + ناوبری فروشگاهی)",
+    renderer="storefront_builder/partials/global_header/beauty_search_nav.html",
+)
+
+#: Specialty/home-retail archetype (shokolati reference family): brown
+#: primary row with prominent search at visual right, centered merchant brand,
+#: shopper actions at visual left, then a separate white category/navigation
+#: row.  It reuses shared controls and contains no Ready Template condition.
+_CHOCOLATE_CENTERED_SEARCH_VARIANT = GlobalVariantDefinition(
+    key="chocolate_centered_search",
+    label_fa="شکلاتی (جستجو + لوگوی مرکزی)",
+    renderer="storefront_builder/partials/global_header/chocolate_centered_search.html",
+)
+
 GLOBAL_HEADER_REGION = GlobalRegionDefinition(
     key="header",
     label_fa="هدر فروشگاه",
@@ -232,6 +252,8 @@ GLOBAL_HEADER_REGION = GlobalRegionDefinition(
         _BOUTIQUE_CENTERED_VARIANT,
         _DARK_TECH_VARIANT,
         _PROMO_SEARCH_NAV_VARIANT,
+        _BEAUTY_SEARCH_NAV_VARIANT,
+        _CHOCOLATE_CENTERED_SEARCH_VARIANT,
     ),
     default_variant="legacy_default",
     variant_setting_key="header_variant",
@@ -280,6 +302,24 @@ _FOOTER_PROMO_COLUMNS_VARIANT = GlobalVariantDefinition(
     renderer="storefront_builder/partials/global_footer/promo_columns.html",
 )
 
+#: Beauty retail footer — a guarantee strip followed by a light, information-
+#: dense multi-column footer.  It deliberately reuses the same real merchant
+#: data partials as every other footer variant and never embeds merchant IDs.
+_FOOTER_BEAUTY_RETAIL_VARIANT = GlobalVariantDefinition(
+    key="beauty_retail_columns",
+    label_fa="زیبایی (اعتماد + چندستونه)",
+    renderer="storefront_builder/partials/global_footer/beauty_retail_columns.html",
+)
+
+#: Dark specialty-retail footer for pale storefronts.  Reuses only shared
+#: merchant/footer data partials; the decorative top edge is CSS, not copied
+#: reference artwork.
+_FOOTER_CHOCOLATE_DARK_VARIANT = GlobalVariantDefinition(
+    key="chocolate_dark_columns",
+    label_fa="شکلاتی (تیره چندستونه)",
+    renderer="storefront_builder/partials/global_footer/chocolate_dark_columns.html",
+)
+
 GLOBAL_FOOTER_REGION = GlobalRegionDefinition(
     key="footer",
     label_fa="فوتر فروشگاه",
@@ -290,6 +330,8 @@ GLOBAL_FOOTER_REGION = GlobalRegionDefinition(
         _FOOTER_BOUTIQUE_EDITORIAL_VARIANT,
         _FOOTER_DARK_TECH_VARIANT,
         _FOOTER_PROMO_COLUMNS_VARIANT,
+        _FOOTER_BEAUTY_RETAIL_VARIANT,
+        _FOOTER_CHOCOLATE_DARK_VARIANT,
     ),
     default_variant="legacy_default",
     variant_setting_key="footer_variant",

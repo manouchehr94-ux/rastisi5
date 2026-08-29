@@ -395,3 +395,159 @@ html[data-sfb-density="compact"] .pcarousel{--pcarousel-gap:8px}
   .pcard.style-compact .price .now{font-size:12.6px}
   .pcard.style-compact .compact-cart{min-width:68px;height:30px;font-size:10px}
 }
+
+/* ========================================================================
+   Beauty retail card (card_style="beauty_retail")
+   ------------------------------------------------------------------------
+   Generic cosmetics/perfume commerce treatment: quiet white card, product
+   image first, compact magenta price hierarchy, small status pills, and an
+   always-visible bottom commerce action.  The template still reads all
+   business semantics from product_card_data; when one-click add is unsafe
+   (required variant selection), the action becomes "انتخاب گزینه‌ها" rather
+   than pretending the item can be added directly.
+   ======================================================================== */
+.pcard.style-beauty_retail{
+  background:#fff;border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 2px 8px rgba(32,22,34,.055);overflow:hidden;transform:none;
+}
+.pcard.style-beauty_retail:hover{
+  transform:translateY(-2px);box-shadow:0 7px 18px rgba(45,20,43,.09);
+  border-color:color-mix(in srgb,var(--violet) 22%,var(--line));
+}
+.pcard.style-beauty_retail .img{background:#fff!important;aspect-ratio:1.12/1}
+.pcard.style-beauty_retail.ratio-portrait .img{aspect-ratio:4/5}
+.pcard.style-beauty_retail .cover-photo,
+.pcard.style-beauty_retail .cover-photo-2{object-fit:contain!important;padding:12px}
+.pcard.style-beauty_retail .heart{
+  top:8px;left:8px;width:28px;height:28px;background:rgba(255,255,255,.94);
+  border:1px solid rgba(120,90,115,.15);box-shadow:0 1px 4px rgba(50,20,45,.06)
+}
+.pcard.style-beauty_retail .badges{top:8px;right:8px;left:auto;gap:4px}
+.pcard.style-beauty_retail .pill{
+  border-radius:999px;padding:4px 8px;font-size:9.5px;font-weight:800;
+  box-shadow:none
+}
+.pcard.style-beauty_retail .pill-disc{background:var(--violet);color:var(--brand-primary-fg,#fff)}
+.pcard.style-beauty_retail .pill-new{background:var(--pink);color:var(--brand-accent-fg,#fff)}
+.pcard.style-beauty_retail .body{padding:8px 10px 7px;gap:4px;min-height:108px}
+.pcard.style-beauty_retail .brand{font-size:9.5px;color:var(--muted);min-height:13px}
+.pcard.style-beauty_retail .name{
+  font-size:11.5px;line-height:1.65;font-weight:600;height:38px;color:var(--ink)
+}
+.pcard.style-beauty_retail .rate{font-size:9px;min-height:13px}
+.pcard.style-beauty_retail .stars{font-size:9px}
+.pcard.style-beauty_retail .price{border-top:0;padding-top:1px;min-height:31px}
+.pcard.style-beauty_retail .price .now{
+  color:var(--violet);font-size:12.5px;font-weight:850;
+  display:flex;align-items:baseline;gap:5px;flex-wrap:wrap
+}
+.pcard.style-beauty_retail .price .old{font-size:9.5px;color:var(--muted);font-weight:500}
+.pcard.style-beauty_retail .beauty-actions{position:relative;z-index:3;padding:0 10px 10px}
+.pcard.style-beauty_retail .beauty-cart{
+  width:100%;min-height:34px;border:0;border-radius:4px;padding:7px 10px;
+  display:flex;align-items:center;justify-content:center;text-align:center;
+  background:var(--pink);color:var(--brand-accent-fg,#fff);
+  font-size:10.5px;font-weight:800;line-height:1.45;text-decoration:none;
+  transition:filter .15s ease,transform .15s ease
+}
+.pcard.style-beauty_retail .beauty-cart:hover{filter:brightness(.94);transform:translateY(-1px)}
+.pcard.style-beauty_retail .beauty-cart--select{background:var(--pink)}
+@media(max-width:680px){
+  .pcard.style-beauty_retail{border-radius:8px}
+  .pcard.style-beauty_retail .body{padding:7px 8px 6px;min-height:101px}
+  .pcard.style-beauty_retail .name{font-size:10.7px;height:36px}
+  .pcard.style-beauty_retail .price .now{font-size:11.5px}
+  .pcard.style-beauty_retail .beauty-actions{padding:0 8px 8px}
+  .pcard.style-beauty_retail .beauty-cart{min-height:32px;font-size:9.8px}
+}
+
+/* ========================================================================
+   Compact horizontal retail list card (card_style="retail_list")
+   ------------------------------------------------------------------------
+   Generic dense merchandising row for grouped/category spotlights. Business
+   semantics still come exclusively from product_card_data; this presentation
+   deliberately has no quick-add affordance and works with any Store data.
+   ======================================================================== */
+.pcard.style-retail_list{
+  display:grid;
+  grid-template-columns:78px minmax(0,1fr);
+  min-height:96px;
+  border:0;
+  border-bottom:1px solid #ece8ed;
+  border-radius:0;
+  box-shadow:none;
+  background:#fff;
+  overflow:hidden;
+  transform:none;
+}
+.pcard.style-retail_list:hover{transform:none;box-shadow:none;border-color:#e4dfe6}
+.pcard.style-retail_list:last-child{border-bottom:0}
+.pcard.style-retail_list .img{
+  grid-column:1;
+  grid-row:1;
+  aspect-ratio:auto;
+  min-height:94px;
+  background:#fff!important;
+  padding:8px;
+}
+.pcard.style-retail_list .img .cover-photo,
+.pcard.style-retail_list .img .cover-photo-2{
+  inset:8px!important;
+  width:calc(100% - 16px)!important;
+  height:calc(100% - 16px)!important;
+  object-fit:contain!important;
+}
+.pcard.style-retail_list .body{
+  grid-column:2;
+  grid-row:1;
+  min-height:94px;
+  padding:10px 10px 9px 5px;
+  gap:4px;
+  justify-content:center;
+  text-align:right;
+}
+.pcard.style-retail_list .name{
+  height:auto;
+  min-height:34px;
+  font-size:11px;
+  line-height:1.55;
+  font-weight:600;
+  -webkit-line-clamp:2;
+}
+.pcard.style-retail_list .price{padding-top:0;border-top:0;min-height:22px}
+.pcard.style-retail_list .price .now{font-size:11.5px;font-weight:800;color:var(--violet)}
+.pcard.style-retail_list .price .old{font-size:9px}
+.pcard.style-retail_list .badges{top:5px;right:5px}
+.pcard.style-retail_list .pill{font-size:8px;padding:3px 5px}
+@media(max-width:680px){
+  .pcard.style-retail_list{grid-template-columns:68px minmax(0,1fr);min-height:86px}
+  .pcard.style-retail_list .img,.pcard.style-retail_list .body{min-height:84px}
+  .pcard.style-retail_list .name{font-size:10.5px}
+}
+
+/* Chocolate specialty-retail card — generic registered card style. */
+.pcard.style-chocolate_retail{border:1px solid #e3ddd6;border-radius:13px;background:#fff;box-shadow:0 4px 12px rgba(71,47,27,.12);overflow:hidden}
+.pcard.style-chocolate_retail:hover{box-shadow:0 8px 20px rgba(71,47,27,.17);transform:translateY(-2px)}
+.pcard.style-chocolate_retail .img{background:#fff!important;aspect-ratio:1/1;border-radius:13px 13px 22% 0;overflow:hidden}
+.pcard.style-chocolate_retail .cover-photo,.pcard.style-chocolate_retail .cover-photo-2{object-fit:contain!important;padding:8px}
+.pcard.style-chocolate_retail .badges{top:8px;right:8px;left:auto}
+.pcard.style-chocolate_retail .pill-disc{background:#7B4518;color:#fff}
+.pcard.style-chocolate_retail .body{padding:10px 11px 7px;gap:4px;min-height:114px;text-align:right}
+.pcard.style-chocolate_retail .brand{font-size:9px;color:#8a8178}
+.pcard.style-chocolate_retail .name{font-size:11.5px;line-height:1.65;height:38px;color:#2b2520}
+.pcard.style-chocolate_retail .rate{font-size:9px}
+.pcard.style-chocolate_retail .price{border-top:0;padding-top:2px;min-height:30px}
+.pcard.style-chocolate_retail .price .now{color:#2b2520;font-size:12.5px;font-weight:800}
+.pcard.style-chocolate_retail .price .old{font-size:9px;color:#8a8178}
+.pcard.style-chocolate_retail .chocolate-actions{position:relative;z-index:3;padding:0 11px 11px}
+.pcard.style-chocolate_retail .chocolate-cart{width:100%;min-height:34px;display:flex;align-items:center;justify-content:center;border:0;border-radius:999px;background:#7B4518;color:#fff;font:inherit;font-size:10px;font-weight:800;cursor:pointer;text-decoration:none}
+.pcard.style-chocolate_retail .chocolate-cart:hover{background:#663811}
+.pcard.style-chocolate_retail .chocolate-cart--select{background:#9A622F}
+@media(max-width:680px){
+  .pcard.style-chocolate_retail{border-radius:10px}
+  .pcard.style-chocolate_retail .body{padding:8px 9px 6px;min-height:104px}
+  .pcard.style-chocolate_retail .name{font-size:10.5px;height:35px}
+  .pcard.style-chocolate_retail .price .now{font-size:11px}
+  .pcard.style-chocolate_retail .chocolate-actions{padding:0 9px 9px}
+  .pcard.style-chocolate_retail .chocolate-cart{min-height:32px;font-size:9.5px}
+}

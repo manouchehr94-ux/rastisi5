@@ -74,12 +74,11 @@ class HeaderNavContrastSpecificityTests(TestCase):
     — two different semantic pairings that only coincide for a palette
     with no independent header/nav role overrides. Confirmed via real QA
     against ``theme-forest-cream`` (cream ``header_text`` on a near-white
-    ``surface`` — nearly invisible). None of the 8 official U10 Ready
-    Templates define independent ``theme_roles`` (so they never hit this
-    specific bug even before the fix), but the defect itself is
-    palette-architecture-level, not Template-specific, so it is fixed
-    centrally rather than left as a latent trap for any merchant manually
-    selecting a full-site-theme."""
+    ``surface`` — nearly invisible). The defect is palette-architecture-
+    level, not Template-specific, so it is fixed centrally. Official Ready
+    Templates may therefore safely opt into reusable full-site palette roles;
+    the acceptance invariant below is the actual foreground/background
+    contrast they resolve to, not the historical absence of ``theme_roles``."""
 
     def test_the_broken_specificity_selector_is_gone(self):
         """The old selector is still named, on purpose, inside the fix's own
@@ -99,19 +98,40 @@ class HeaderNavContrastSpecificityTests(TestCase):
         for selector in (".gh-nl{", ".gh-btn{", ".gh-account-link{"):
             self.assertIn(selector, css)
 
-    def test_no_official_ready_template_relies_on_independent_theme_roles(self):
-        """Confirms the audit finding: all 8 official Ready Templates use a
-        plain palette (header/nav text always equal to ``colors.text``),
-        so this specific bug never manifested for any of them — the CSS
-        fix above is a genuine, general-purpose correction, not a
-        workaround for one of these 8."""
+    def test_official_ready_template_region_roles_are_contrast_safe(self):
+        """Ready Templates may now intentionally use full-site palette roles.
+
+        The original regression was caused by a CSS specificity bug that made
+        header/nav controls inherit a *different* semantic text color from the
+        surface they actually sat on.  The central ``:where(a,button)`` fix
+        above removes that coupling, so forbidding ``theme_roles`` entirely is
+        both stale and weaker than checking the real invariant.  Every official
+        Ready Template must resolve accessible header/nav/footer foreground ↔
+        background pairs regardless of whether those roles are derived from the
+        eight base colors or explicitly curated by its reusable palette.
+        """
+        from apps.core.color_utils import contrast_ratio
         from apps.storefront_builder import appearance_registry
 
         for key in READY_TEMPLATE_KEYS:
             preset = lpr.get_layout_preset(key)
             palette = appearance_registry.get_palette(preset.default_palette_slug)
             self.assertIsNotNone(palette, key)
-            self.assertFalse(getattr(palette, "theme_roles", None), key)
+            roles = appearance_registry.resolve_theme_roles({
+                **preset.appearance,
+                "palette_slug": preset.default_palette_slug,
+            })
+            self.assertEqual(set(roles), set(appearance_registry.THEME_ROLE_KEYS), key)
+            for foreground, background in (
+                ("header_text", "header_bg"),
+                ("nav_text", "nav_bg"),
+                ("footer_text", "footer_bg"),
+            ):
+                self.assertGreaterEqual(
+                    contrast_ratio(roles[foreground], roles[background]),
+                    4.5,
+                    f"{key}: {foreground} on {background}",
+                )
 
 
 @override_settings(ALLOWED_HOSTS=[ADMIN_HOST, PUBLIC_HOST, "testserver"])

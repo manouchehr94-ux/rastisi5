@@ -168,7 +168,7 @@ class HeroBannerVariantTests(TestCase):
     def test_registered_variants(self):
         definition = get_definition("hero_banner")
         keys = [v.key for v in definition.variants]
-        self.assertEqual(sorted(keys), ["overlay", "split"])
+        self.assertEqual(sorted(keys), ["beauty_editorial", "chocolate_carousel", "overlay", "split"])
         self.assertEqual(definition.default_variant, "overlay")
         self.assertEqual(definition.variant_setting_key, "hero_style")
 
@@ -193,6 +193,14 @@ class HeroBannerVariantTests(TestCase):
         self.assertEqual(
             resolve_renderer_template(definition, active),
             "storefront_builder/sections/hero_banner_split.html",
+        )
+
+    def test_beauty_editorial_resolves_to_shared_slider_wrapper(self):
+        definition = get_definition("hero_banner")
+        active = resolve_active_variant(definition, {"hero_style": "beauty_editorial"})
+        self.assertEqual(
+            resolve_renderer_template(definition, active),
+            "storefront_builder/sections/hero_banner_beauty.html",
         )
 
     def test_invalid_hero_style_coerces_to_overlay(self):
@@ -226,6 +234,22 @@ class HeroBannerVariantTests(TestCase):
         self.assertContains(resp, "هدرِ دوستونه")
         self.assertContains(resp, "زیرنویسِ واقعی")
         # Pattern B — the default overlay's carousel chrome must not leak in.
+        self.assertNotContains(resp, "hero-tabs")
+
+    def test_overlay_honors_explicitly_disabled_arrows_and_dots(self):
+        draft = svc.get_or_create_draft(self.store)
+        draft.sections.filter(section_key="hero_banner").delete()
+        section = StorefrontSection.objects.create(
+            version=draft, section_key="hero_banner", order=999,
+            settings={"show_arrows": False, "show_dots": False},
+        )
+        HeroSlide.objects.create(store=self.store, section=section, desktop_image=_img(), is_active=True, title="اول", display_order=0)
+        HeroSlide.objects.create(store=self.store, section=section, desktop_image=_img(), is_active=True, title="دوم", display_order=1)
+        svc.publish(self.store)
+
+        resp = self.client.get(reverse("catalog:home"), HTTP_HOST=HOST)
+        self.assertNotContains(resp, "hero-arrow-prev")
+        self.assertNotContains(resp, "hero-arrow-next")
         self.assertNotContains(resp, "hero-tabs")
 
     def test_split_variant_shows_only_first_slide_no_fabrication(self):

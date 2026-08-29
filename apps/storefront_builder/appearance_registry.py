@@ -469,9 +469,69 @@ for _slug, _name, _group, _primary, _secondary, _accent, _background, _surface, 
     ))
 del _slug, _name, _group, _primary, _secondary, _accent, _background, _surface, _text, _muted, _border
 
+# laleRokh-inspired beauty retail palette.  This remains a normal, reusable
+# merchant-selectable palette: warm_boutique opts into it, but neither the
+# renderer nor the palette knows any Ready Template key.  Magenta carries
+# brand/price emphasis while green is reserved for honest commerce actions.
+register_palette(PaletteDefinition(
+    slug="beauty-magenta",
+    name_fa="ارغوانی زیبایی",
+    group_fa="زیبایی",
+    colors={
+        "primary": "#8A007A", "secondary": "#C90A8B", "accent": "#63CF70",
+        "background": "#FFFFFF", "surface": "#FFFFFF", "text": "#26212A",
+        "muted": "#77717B", "border": "#E8E3E9",
+    },
+    section_tones=("#C90A8B", "#8A007A", "#63CF70", "#F7D6E9", "#F2EAF6"),
+))
+
 # پالتِ صفحه‌ی مرجع: هویتِ اصلی ساده/فروشگاهی است، ولی برای ردیف‌های
 # کاتالوگی پنج tone قوی و هماهنگ دارد. این یک Palette عمومی است و هر
 # فروشگاهی می‌تواند با یک کلیک آن را انتخاب کند.
+# shokolati-inspired specialty retail palette.  Generic merchant-selectable
+# presentation only: pale cool page field, chocolate chrome, warm caramel
+# commerce accent, and dark footer roles.
+register_palette(PaletteDefinition(
+    slug="chocolate-ice",
+    name_fa="شکلاتی یخی",
+    group_fa="خانه و سبک زندگی",
+    colors={
+        "primary": "#7B4518", "secondary": "#A56A32", "accent": "#DDAE58",
+        "background": "#F7F1E8", "surface": "#FFFDF9", "text": "#2C211A",
+        "muted": "#77685E", "border": "#E6D9CC",
+    },
+    theme_roles={
+        "header_bg": "#7B4518", "header_text": "#FFFFFF",
+        "nav_bg": "#FFFDF9", "nav_text": "#3C2B1D",
+        "card_bg": "#FFFDF9", "footer_bg": "#070707",
+        "footer_text": "#F5F1EC", "price": "#6F3F18",
+    },
+    section_tones=("#7B4518", "#A56A32", "#E7D1B7", "#F0E3D4", "#070707"),
+))
+
+# Beraito-inspired dense-marketplace palette.  This is intentionally a
+# distinct merchant-selectable U10 palette rather than reusing the internal
+# pre-U10 ``catalog-colorful`` palette.  It keeps the same semantic rail
+# roles (red / green / amber / violet / blue) while owning an independent
+# storefront identity and remaining fully generic.
+register_palette(PaletteDefinition(
+    slug="marketplace-spectrum",
+    name_fa="بازارگاه طیفی",
+    group_fa="پرفروش",
+    colors={
+        "primary": "#158A52", "secondary": "#156FA8", "accent": "#E13D58",
+        "background": "#F5F6F8", "surface": "#FFFFFF", "text": "#262A30",
+        "muted": "#727982", "border": "#DEE2E7",
+    },
+    theme_roles={
+        "header_bg": "#FFFFFF", "header_text": "#262A30",
+        "nav_bg": "#FFFFFF", "nav_text": "#262A30",
+        "card_bg": "#FFFFFF", "footer_bg": "#464B53",
+        "footer_text": "#F7F8FA", "price": "#158A52",
+    },
+    section_tones=("#EC3B50", "#19AD60", "#C77A13", "#49309A", "#156FA8"),
+))
+
 register_palette(PaletteDefinition(
     slug="catalog-colorful",
     name_fa="کاتالوگ رنگی",

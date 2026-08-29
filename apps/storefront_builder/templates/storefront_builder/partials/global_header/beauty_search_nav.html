@@ -1,0 +1,80 @@
+{% comment %}
+Reference-driven Global Header Variant — Beauty Search Nav
+(key: beauty_search_nav).
+
+Reusable cosmetics/beauty-retail archetype: brand at the logical start
+(visual right in RTL), a dominant search field in the middle, compact shopper
+actions at visual left, then a separate navigation/account row.  The mobile
+composition is deliberately independent from desktop: burger + centered brand
++ shopper actions, with search on its own full-width second row.
+
+No Ready Template key, Store id, merchant slug, or third-party brand asset is
+embedded here.  Every control is one of the shared Global Header components.
+{% endcomment %}
+{% with hc=header_config rc=header_config.responsive %}
+<div class="gh-shell gh-shell--beauty" x-data="{ ghMobileOpen: false }">
+{% include "storefront_builder/partials/global_header/_shared/announcement_bar.html" %}
+
+<header class="header gh gh--beauty{% if hc.sticky %} sfb-sticky{% endif %}">
+  <div class="wrap gh-beauty-main">
+    <button class="gh-btn gh-burger" @click="ghMobileOpen = !ghMobileOpen" :aria-expanded="ghMobileOpen.toString()" aria-controls="gh-mobile-nav" aria-label="منو">
+      {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="burger" %}
+    </button>
+
+    {% include "storefront_builder/partials/global_header/_shared/logo.html" with show_tagline=False %}
+
+    {% if hc.show_search %}
+    <div class="gh-inline-block gh-beauty-search" {% if rc.show_search.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+      {% include "storefront_builder/partials/global_header/_shared/search_form.html" with field_id="gh-search-input-beauty" compact=True icon_in_button=True %}
+    </div>
+    {% endif %}
+
+    <div class="gh-actions gh-beauty-actions">
+      {% include "storefront_builder/partials/global_header/_shared/admin_shortcut.html" %}
+      {% if hc.show_wishlist %}
+      <div class="gh-inline-block" {% if rc.show_wishlist.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_wishlist.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_header/_shared/wishlist_action.html" %}
+      </div>
+      {% endif %}
+      {% if hc.show_cart %}
+      {% include "storefront_builder/partials/global_header/_shared/cart_action.html" %}
+      {% endif %}
+      {% if hc.show_account %}
+      <div class="gh-inline-block gh-beauty-mobile-account" {% if rc.show_account.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_account.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_header/_shared/account_action.html" with show_label=False %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if hc.show_search %}
+  <div class="gh-mobile-search gh-beauty-mobile-search" {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+    {% include "storefront_builder/partials/global_header/_shared/search_form.html" with field_id="gh-search-input-beauty-mobile" compact=True icon_in_button=True %}
+  </div>
+  {% endif %}
+
+  <nav id="gh-mobile-nav" class="gh-beauty-nav" :class="{ 'gh-nav-hidden': !ghMobileOpen }">
+    <div class="wrap gh-beauty-nav-row">
+      <div class="gh-beauty-nav-links">
+        {% if NAV_HEADER %}
+        {% include "storefront_builder/partials/global_header/_shared/nav_header_items.html" %}
+        {% else %}
+        {% include "storefront_builder/partials/global_header/_shared/category_link_row.html" %}
+        {% endif %}
+      </div>
+      {% if hc.show_account %}
+      <div class="gh-beauty-desktop-account" {% if rc.show_account.hide_on_tablet %}data-shell-hide-tablet{% endif %}>
+        {% include "storefront_builder/partials/global_header/_shared/account_action.html" %}
+      </div>
+      {% endif %}
+    </div>
+  </nav>
+</header>
+
+{% for block in hc.extra_blocks %}
+{% if block.type == "tagline" and SHOP_TAGLINE %}
+<div class="gh-tagline-strip" role="note"><div class="wrap"><span>{{ SHOP_TAGLINE }}</span></div></div>
+{% endif %}
+{% endfor %}
+</div>
+{% endwith %}

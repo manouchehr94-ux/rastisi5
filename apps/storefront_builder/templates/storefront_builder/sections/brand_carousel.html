@@ -5,15 +5,21 @@
 انتخاب کرده (بدونِ مقصد = هیچ لینکی، طبقِ الزامِ «هرگز دکمه‌ی بی‌اثر»).
 {% endcomment %}
 {% if brands %}
-<section class="section">
+<section class="section{% if brand_carousel_settings.display_mode == 'beauty_tabs' %} brand-section--beauty-tabs{% endif %}">
+  {% if brand_carousel_settings.display_mode == 'beauty_tabs' %}
+  <div class="beauty-section-title beauty-brand-title">
+    <span aria-hidden="true"></span><h2>{{ brand_carousel_settings.title|default:"برندهای منتخب" }}</h2><span aria-hidden="true"></span>
+  </div>
+  {% else %}
   <div class="sec-head">
     <h2><span class="bar"></span>{{ brand_carousel_settings.title|default:"برندهای منتخب" }}</h2>
     {% if view_all_url %}<a class="more" href="{{ view_all_url }}">مشاهده همه ›</a>{% endif %}
   </div>
-  <div class="{% if brand_carousel_settings.display_mode == 'carousel' %}brand-carousel{% else %}grid{% endif %}"
-       {% if brand_carousel_settings.display_mode != 'carousel' %}style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px"{% endif %}>
+  {% endif %}
+  <div class="{% if brand_carousel_settings.display_mode == 'carousel' %}brand-carousel{% elif brand_carousel_settings.display_mode == 'beauty_tabs' %}brand-beauty-tabs{% else %}grid{% endif %}"
+       {% if brand_carousel_settings.display_mode == 'grid' %}style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px"{% endif %}>
     {% for brand in brands %}
-    <a href="{% url 'catalog:product-list' %}?brand={{ brand.slug }}" class="brand-tile">
+    <a href="{% url 'catalog:product-list' %}?brand={{ brand.slug }}" class="brand-tile{% if brand_carousel_settings.display_mode == 'beauty_tabs' %} brand-beauty-tab{% endif %}">
       {% if brand.logo %}
       <img src="{{ brand.logo.url }}" alt="{{ brand.name }}">
       {% else %}

@@ -1,0 +1,27 @@
+{% comment %}
+Generic structural variant for ``catalog_product_wall``.  The Store-resolved
+category/collection groups come from the same ID-free render service as the
+original rows renderer; this partial changes composition only: several groups
+sit side-by-side and each group is a compact vertical product list.
+{% endcomment %}
+{% if catalog_product_wall_groups %}
+<section class="section catalog-product-wall catalog-product-wall--group-columns">
+  {% if catalog_product_wall_settings.title %}
+  <div class="catalog-wall-title catalog-wall-title--inverse">
+    <h2>{{ catalog_product_wall_settings.title }}</h2>
+  </div>
+  {% endif %}
+  <div class="catalog-wall-columns">
+    {% for group in catalog_product_wall_groups %}
+    <article class="catalog-wall-column">
+      <div class="catalog-wall-column-title">
+        {% if group.view_all_url %}<a href="{{ group.view_all_url }}">{{ group.title }}</a>{% else %}{{ group.title }}{% endif %}
+      </div>
+      <div class="catalog-wall-compact-list">
+        {% include "catalog/partials/product_grid.html" with products=group.products card_settings=catalog_product_wall_settings.card %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

@@ -1,0 +1,26 @@
+{% comment %}
+Dark specialty-retail footer (key: chocolate_dark_columns).  All content is
+real Store/footer/navigation/contact/social data from shared footer partials.
+{% endcomment %}
+{% load storefront_builder_extras %}
+{% has_real_footer_contact_data FOOTER_SETTINGS SHOP_CONTACT_PHONE SHOP_CONTACT_EMAIL as gf_has_contact_data %}
+{% with fc=footer_config rc=footer_config.responsive %}
+<footer class="gf gf--chocolate">
+  <div class="gf-chocolate-wave" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="gf-chocolate-brandline">{% include "storefront_builder/partials/global_footer/_shared/brand.html" %}</div>
+    {% if fc.show_about or fc.show_quick_links and NAV_FOOTER_1 or fc.show_categories and top_level_categories or fc.show_contact and gf_has_contact_data %}
+    <div class="gf-chocolate-grid">
+      {% if fc.show_about %}<div class="gf-col gf-col-brand">{% include "storefront_builder/partials/global_footer/_shared/brand.html" %}</div>{% endif %}
+      {% if fc.show_quick_links %}<div>{% include "storefront_builder/partials/global_footer/_shared/nav_column.html" %}</div>{% endif %}
+      {% if fc.show_categories %}<div>{% include "storefront_builder/partials/global_footer/_shared/categories_column.html" %}</div>{% endif %}
+      {% if fc.show_contact and gf_has_contact_data %}<div class="gf-col gf-col-contact">{% include "storefront_builder/partials/global_footer/_shared/contact_column.html" %}</div>{% endif %}
+      {% include "storefront_builder/partials/global_footer/_shared/extra_blocks.html" %}
+    </div>
+    {% endif %}
+    {% if fc.show_social and SOCIAL_LINKS_FOOTER %}<div class="gf-chocolate-social">{% include "storefront_builder/partials/global_footer/_shared/social_links.html" %}</div>{% endif %}
+    {% include "storefront_builder/partials/global_footer/_shared/trust_payment.html" %}
+    {% if fc.show_copyright %}<div class="gf-legal-row gf-chocolate-legal">{% include "storefront_builder/partials/global_footer/_shared/legal_row.html" %}</div>{% endif %}
+  </div>
+</footer>
+{% endwith %}

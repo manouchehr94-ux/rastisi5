@@ -96,7 +96,7 @@ class ExistingThreePrecedentSectionsUnchangedTests(TestCase):
 
     def test_brand_carousel_every_registered_display_mode(self):
         definition = get_definition("brand_carousel")
-        for display_mode in ("grid", "carousel"):
+        for display_mode in ("grid", "carousel", "beauty_tabs"):
             self.draft.sections.all().delete()
             StorefrontSection.objects.create(
                 version=self.draft, section_key="brand_carousel", order=0,
@@ -108,7 +108,7 @@ class ExistingThreePrecedentSectionsUnchangedTests(TestCase):
 
     def test_product_section_every_registered_display_mode(self):
         definition = get_definition("product_section")
-        for display_mode in ("carousel", "grid"):
+        for display_mode in ("carousel", "grid", "campaign_band"):
             self.draft.sections.all().delete()
             StorefrontSection.objects.create(
                 version=self.draft, section_key="product_section", order=0,

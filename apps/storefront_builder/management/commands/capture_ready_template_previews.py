@@ -35,6 +35,8 @@ PREVIEWS».
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -69,11 +71,42 @@ _CHROMIUM_CANDIDATES = [
 
 
 def _find_chromium_executable() -> str | None:
+    """Resolve an already-installed Chromium-family browser cross-platform.
+
+    The preview pipeline is a dev/build tool and should not require a Playwright
+    browser download when Chrome/Edge is already installed on the operator's
+    machine. Linux CI keeps its existing /opt/pw-browsers lookup, while Windows
+    QA can reuse the locally installed Chrome/Edge executable.
+    """
     import glob
 
-    for candidate in _CHROMIUM_CANDIDATES:
-        if Path(candidate).is_file():
-            return candidate
+    candidates = [Path(candidate) for candidate in _CHROMIUM_CANDIDATES]
+
+    program_files = [
+        os.environ.get("PROGRAMFILES"),
+        os.environ.get("PROGRAMFILES(X86)"),
+        os.environ.get("LOCALAPPDATA"),
+    ]
+    for base in filter(None, program_files):
+        base_path = Path(base)
+        candidates.extend([
+            base_path / "Google/Chrome/Application/chrome.exe",
+            base_path / "Chromium/Application/chrome.exe",
+            base_path / "Microsoft/Edge/Application/msedge.exe",
+        ])
+
+    for executable_name in (
+        "chrome", "chrome.exe", "chromium", "chromium.exe",
+        "msedge", "msedge.exe",
+    ):
+        resolved = shutil.which(executable_name)
+        if resolved:
+            candidates.append(Path(resolved))
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+
     for match in glob.glob("/opt/pw-browsers/chromium*/chrome-linux/chrome"):
         return match
     return None

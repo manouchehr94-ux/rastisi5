@@ -137,8 +137,9 @@
     <div class="form-group">
       <label for="id_ps_display">نوع نمایش</label>
       <select name="display_mode" id="id_ps_display" class="form-select">
-        <option value="carousel" {% if section.settings.display_mode != "grid" %}selected{% endif %}>کاروسل (اسلایدی)</option>
+        <option value="carousel" {% if section.settings.display_mode != "grid" and section.settings.display_mode != "campaign_band" %}selected{% endif %}>کاروسل (اسلایدی)</option>
         <option value="grid" {% if section.settings.display_mode == "grid" %}selected{% endif %}>گرید (شبکه‌ای)</option>
+        <option value="campaign_band" {% if section.settings.display_mode == "campaign_band" %}selected{% endif %}>نوار کمپینی کنار محصولات</option>
       </select>
     </div>
 
@@ -323,8 +324,9 @@
     <div class="form-group">
       <label for="id_hero_style">سبک نمایش</label>
       <select name="hero_style" id="id_hero_style" class="form-select">
-        <option value="overlay" {% if section.settings.hero_style != "split" %}selected{% endif %}>روی تصویر (پیش‌فرض)</option>
+        <option value="overlay" {% if section.settings.hero_style != "split" and section.settings.hero_style != "beauty_editorial" %}selected{% endif %}>روی تصویر (پیش‌فرض)</option>
         <option value="split" {% if section.settings.hero_style == "split" %}selected{% endif %}>متن و تصویر جدا</option>
+        <option value="beauty_editorial" {% if section.settings.hero_style == "beauty_editorial" %}selected{% endif %}>کمپین روشن فروشگاهی</option>
       </select>
       <p style="color:var(--muted);font-size:12px;margin:6px 0 0">«متن و تصویر جدا» فقط اولین اسلاید را نشان می‌دهد؛ اسلایدهای دیگر همچنان از اینجا قابل مدیریت‌اند.</p>
       {% if section.template_slot_key %}
@@ -370,6 +372,9 @@
         <option value="carousel" {% if section.settings.display_mode == "carousel" %}selected{% endif %}>کاروسل (اسلایدی)</option>
         <option value="circular" {% if section.settings.display_mode == "circular" %}selected{% endif %}>دایره‌ای</option>
         <option value="image_strip" {% if section.settings.display_mode == "image_strip" %}selected{% endif %}>ردیف تصویری</option>
+        <option value="fashion_flat" {% if section.settings.display_mode == "fashion_flat" %}selected{% endif %}>نوار مسطح کمپینی</option>
+        <option value="fashion_mosaic" {% if section.settings.display_mode == "fashion_mosaic" %}selected{% endif %}>موزاییک دسته‌بندی</option>
+        <option value="beauty_icons" {% if section.settings.display_mode == "beauty_icons" %}selected{% endif %}>آیکن‌های فروشگاه زیبایی</option>
       </select>
     </div>
     <div class="form-group">
@@ -429,8 +434,9 @@
     <div class="form-group">
       <label for="id_bc_display">نوع نمایش</label>
       <select name="display_mode" id="id_bc_display" class="form-select">
-        <option value="grid" {% if section.settings.display_mode != "carousel" %}selected{% endif %}>گرید (شبکه‌ای)</option>
+        <option value="grid" {% if section.settings.display_mode == "grid" or not section.settings.display_mode %}selected{% endif %}>گرید (شبکه‌ای)</option>
         <option value="carousel" {% if section.settings.display_mode == "carousel" %}selected{% endif %}>کاروسل (اسلایدی)</option>
+        <option value="beauty_tabs" {% if section.settings.display_mode == "beauty_tabs" %}selected{% endif %}>ردیف برندهای فروشگاهی</option>
       </select>
     </div>
     <div class="form-group">

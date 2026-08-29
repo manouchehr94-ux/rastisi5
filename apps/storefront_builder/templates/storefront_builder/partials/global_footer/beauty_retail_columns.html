@@ -1,0 +1,82 @@
+{% comment %}
+Reference-driven Global Footer Variant — Beauty Retail Columns
+(key: beauty_retail_columns).
+
+A light guarantee strip precedes a practical multi-column footer.  All content
+comes from the same real Store-scoped footer/navigation/contact/social data used
+by the existing footer system.  The strip is deliberately neutral: it labels normal storefront capabilities
+without inventing delivery speed, authenticity guarantees, support hours, or
+regulatory marks that a Merchant did not configure.
+{% endcomment %}
+{% load storefront_builder_extras %}
+{% has_real_footer_contact_data FOOTER_SETTINGS SHOP_CONTACT_PHONE SHOP_CONTACT_EMAIL as gf_has_contact_data %}
+{% with fc=footer_config rc=footer_config.responsive %}
+<footer class="gf gf--beauty">
+  <div class="wrap gf-beauty-guarantee" aria-label="مزایای خرید">
+    <div class="gf-beauty-guarantee-item">
+      <span class="gf-beauty-guarantee-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11v10H3z"/><path d="M14 9h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></span>
+      <span><b>روش‌های ارسال</b><small>در فرایند ثبت سفارش</small></span>
+    </div>
+    <div class="gf-beauty-guarantee-item">
+      <span class="gf-beauty-guarantee-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 9h19M6 15h5"/></svg></span>
+      <span><b>روش‌های پرداخت</b><small>در مرحله پرداخت</small></span>
+    </div>
+    <div class="gf-beauty-guarantee-item">
+      <span class="gf-beauty-guarantee-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 2 3-.2.8 2.9 2.6 1.5-1.2 2.8 1.2 2.8-2.6 1.5-.8 2.9-3-.2-2.2 2-2.2-2-3 .2-.8-2.9-2.6-1.5L4.6 12 3.4 9.2 6 7.7l.8-2.9 3 .2L12 3z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      <span><b>اطلاعات محصول</b><small>پیش از انتخاب و خرید</small></span>
+    </div>
+    <div class="gf-beauty-guarantee-item">
+      <span class="gf-beauty-guarantee-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13a8 8 0 0116 0"/><path d="M4 13v5a2 2 0 002 2h2v-7H4zM20 13v5a2 2 0 01-2 2h-2v-7h4z"/></svg></span>
+      <span><b>ارتباط با فروشگاه</b><small>از راه‌های ثبت‌شده</small></span>
+    </div>
+  </div>
+
+  {% if fc.show_newsletter and FOOTER_SETTINGS.show_newsletter %}
+  <div class="wrap gf-beauty-newsletter" {% if rc.show_newsletter.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_newsletter.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+    {% include "storefront_builder/partials/global_footer/_shared/newsletter.html" %}
+  </div>
+  {% endif %}
+
+  <div class="wrap">
+    {% if fc.show_about or fc.show_quick_links and NAV_FOOTER_1 or fc.show_categories and top_level_categories or fc.show_contact and gf_has_contact_data or fc.extra_blocks|has_renderable_footer_extra_block:SOCIAL_LINKS_FOOTER %}
+    <div class="gf-beauty-grid">
+      {% if fc.show_about %}
+      <div class="gf-col gf-col-brand" {% if rc.show_about.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_about.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/brand.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_quick_links %}
+      <div {% if rc.show_quick_links.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_quick_links.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/nav_column.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_categories %}
+      <div {% if rc.show_categories.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_categories.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/categories_column.html" %}
+      </div>
+      {% endif %}
+      {% if fc.show_contact %}
+      <div class="gf-col gf-col-contact" {% if rc.show_contact.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_contact.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+        {% include "storefront_builder/partials/global_footer/_shared/contact_column.html" %}
+      </div>
+      {% endif %}
+      {% include "storefront_builder/partials/global_footer/_shared/extra_blocks.html" %}
+    </div>
+    {% endif %}
+
+    {% if fc.show_social and SOCIAL_LINKS_FOOTER %}
+    <div class="gf-beauty-social" {% if rc.show_social.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_social.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+      {% include "storefront_builder/partials/global_footer/_shared/social_links.html" %}
+    </div>
+    {% endif %}
+
+    {% include "storefront_builder/partials/global_footer/_shared/trust_payment.html" %}
+
+    {% if fc.show_copyright %}
+    <div class="gf-legal-row gf-beauty-legal" {% if rc.show_copyright.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_copyright.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+      {% include "storefront_builder/partials/global_footer/_shared/legal_row.html" %}
+    </div>
+    {% endif %}
+  </div>
+</footer>
+{% endwith %}

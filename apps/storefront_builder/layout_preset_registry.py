@@ -777,91 +777,293 @@ def _u10_standard_non_home_pages() -> dict:
     }
 
 
+#: Beraito is the dense-commerce reference family.  The internal
+#: ``v5_golden_homepage`` preset above was already built and regression-tested
+#: as a generic, Store-agnostic dense-commerce composition for that exact
+#: reference language (hero + side offer, image-strip discovery, service
+#: strip, promotional banners and alternating coloured six-card rows).  Reuse
+#: that *pure data* composition here instead of duplicating 20+ section
+#: entries or adding a Ready-Template-specific renderer branch.
+_DENSE_MARKETPLACE_BERAITO_GOLDEN_HOME = tuple(
+    dataclasses.replace(
+        entry,
+        settings={**entry.settings, "data_source": "best_sellers"},
+    )
+    if (
+        entry.section_key == "product_section"
+        and entry.settings
+        and entry.settings.get("title") == "پرفروش‌ترین‌های هفته"
+    )
+    else entry
+    for entry in get_layout_preset("v5_golden_homepage").pages["home"]
+)
+
+_DENSE_MARKETPLACE_BERAITO_HOME_V2 = (
+    *_DENSE_MARKETPLACE_BERAITO_GOLDEN_HOME,
+    # Beraito closes with brand discovery and editorial content before its
+    # dense commercial footer.  Both are existing generic Storefront blocks:
+    # brands resolve from the current Store and blog posts from the platform
+    # blog feed, so there are no tenant IDs or Ready-Template branches.
+    PresetSectionEntry(
+        "brand_carousel",
+        settings={
+            "title": "برترین برندها",
+            "display_mode": "grid",
+            "show_view_all": False,
+            "brand_ids": [],
+        },
+    ),
+    PresetSectionEntry(
+        "blog_posts",
+        settings={"title": "مجله فروشگاه", "item_limit": 6},
+    ),
+)
+
 register_layout_preset(LayoutPresetDefinition(
     key="dense_marketplace",
+    version="2",
     is_ready_template=True,
     label_fa="بازارگاه پرتراکم",
-    description_fa="چیدمانِ فشرده و پرمحصول برایِ فروشگاه‌هایی با کاتالوگِ بزرگ که می‌خواهند در نگاهِ اول محصولِ زیادی نشان دهند.",
+    description_fa="بازارگاه کاتالوگیِ رنگی و جستجو-محور با Hero تبلیغاتی، میانبرهای تصویری، ردیف‌های فشرده محصول و فوتر تجاری کامل.",
     appearance={
-        "font": "Vazirmatn", "radius": 6, "button_radius": 6,
-        "density": "compact", "motion": "none", "type_scale": "compact",
-        "button_style": "filled", "image_fit": "cover", "image_hover": "none",
+        "font": "Vazirmatn", "radius": 7, "button_radius": 4,
+        "density": "compact", "motion": "none", "type_scale": "normal",
+        "button_style": "filled", "image_fit": "contain", "image_hover": "none",
         "card_image_crossfade": False, "card_image_zoom": False,
+        "content_width": 1500, "grid_density": 6,
+        "card_shadow": "none", "card_hover": "none", "hero_style": "wide",
     },
-    default_palette_slug="digired",
-    header={"sticky": True, "announcement_enabled": True, "header_variant": "marketplace_search_first"},
-    footer={"show_newsletter": False, "footer_variant": "marketplace_dense"},
+    default_palette_slug="marketplace-spectrum",
+    header={
+        "sticky": True, "announcement_enabled": True,
+        "show_search": True, "show_account": True, "show_wishlist": False, "show_cart": True,
+        "header_variant": "marketplace_search_first",
+    },
+    footer={
+        "show_about": True, "show_contact": True, "show_categories": True,
+        "show_quick_links": True, "show_social": True,
+        "show_trust_badges": True, "show_payment_logos": True,
+        "show_newsletter": False, "show_copyright": True,
+        "footer_variant": "marketplace_dense",
+    },
     pages={
-        "home": (
-            PresetSectionEntry("category_grid", settings={"display_mode": "image_strip"}),
-            PresetSectionEntry("product_section", settings={
-                "title": "پرفروش‌ترین‌ها", "data_source": "best_sellers", "display_mode": "grid",
-                "item_limit": 12, "card": {"card_style": "compact"},
-            }),
-            PresetSectionEntry("discounted_products"),
-            PresetSectionEntry("amazing_offers"),
-            PresetSectionEntry("brand_carousel", settings={"display_mode": "carousel"}),
-            PresetSectionEntry("trust_features"),
-        ),
+        "home": _DENSE_MARKETPLACE_BERAITO_HOME_V2,
         **_u10_standard_non_home_pages(),
     },
 ))
+
+_CHOCOLATE_RETAIL_CARD = {
+    "card_style": "chocolate_retail",
+    "image_ratio": "square",
+    "show_quick_add": True,
+}
+_CHOCOLATE_PRODUCT_ROW = {
+    "responsive": {"desktop_columns": 4, "tablet_columns": 3, "mobile_columns": 2},
+}
+
+
+def _chocolate_product_row(title: str, data_source: str) -> PresetSectionEntry:
+    return PresetSectionEntry("product_section", settings={
+        "title": title, "data_source": data_source, "display_mode": "carousel",
+        "item_limit": 12, "card": _CHOCOLATE_RETAIL_CARD, **_CHOCOLATE_PRODUCT_ROW,
+    })
+
 
 register_layout_preset(LayoutPresetDefinition(
     key="premium_leather",
+    version="2",
     is_ready_template=True,
-    label_fa="چرمِ پرمیوم",
-    description_fa="چیدمانِ لوکس با تراکمِ باز و حرکتِ ملایم — مناسبِ برندهایِ چرم/کالایِ دستی با موضعِ قیمتیِ بالا.",
+    label_fa="فروشگاه پرمیوم",
+    description_fa="چیدمان فروشگاهی خانه و سبک زندگی با زمینه روشن، هدر شکلاتی، میانبرهای تصویری و کارت‌های محصول گرم و کاربردی.",
     appearance={
-        "font": "Georgia", "radius": 10, "button_radius": 10,
-        "density": "relaxed", "motion": "subtle", "type_scale": "large",
-        "button_style": "filled", "image_fit": "cover", "image_hover": "zoom",
+        "font": "Vazirmatn", "radius": 12, "button_radius": 10,
+        "density": "normal", "motion": "subtle", "type_scale": "normal",
+        "button_style": "filled", "image_fit": "contain", "image_hover": "zoom",
         "card_image_crossfade": True, "card_image_zoom": True,
+        "content_width": 1500,
     },
-    default_palette_slug="amber",
-    header={"sticky": True, "announcement_enabled": True, "header_variant": "premium_three_column"},
-    footer={"show_trust_badges": True, "show_payment_logos": True, "footer_variant": "premium_columns"},
+    default_palette_slug="chocolate-ice",
+    header={
+        "sticky": True, "announcement_enabled": False, "show_search": True,
+        "show_account": True, "show_wishlist": False, "show_cart": True,
+        "header_variant": "chocolate_centered_search",
+    },
+    footer={
+        "show_newsletter": False, "show_trust_badges": True,
+        "show_payment_logos": True, "footer_variant": "chocolate_dark_columns",
+    },
     pages={
         "home": (
-            PresetSectionEntry("hero_banner", settings={"hero_style": "split"}),
-            PresetSectionEntry("brand_carousel"),
-            PresetSectionEntry("product_section", settings={
-                "title": "منتخبِ فصل", "data_source": "newest", "display_mode": "carousel",
-                "item_limit": 8, "card": {"card_style": "standard"},
+            # Reference first-fold discovery row.  This is a registered
+            # category presentation variant (Store-scoped runtime data), not
+            # reference content or a Ready Template branch.  It also keeps the
+            # demo visually complete when no explicit StoryRailItem media has
+            # been authored yet.
+            PresetSectionEntry("category_grid", settings={
+                "title": "", "display_mode": "chocolate_story",
+                "item_limit": 10,
             }),
-            PresetSectionEntry("story_rail"),
-            PresetSectionEntry("testimonials"),
+            PresetSectionEntry("hero_banner", settings={
+                "hero_style": "chocolate_carousel", "text_position": "start",
+                "autoplay": True, "interval_ms": 4800,
+                "show_arrows": True, "show_dots": True,
+            }),
+            PresetSectionEntry("category_grid", settings={
+                "title": "", "display_mode": "chocolate_badges",
+                "item_limit": 12,
+            }),
+            PresetSectionEntry("multi_banner", settings={
+                "item_limit": 1, "offset": 0, "layout_variant": "wide-single",
+                "responsive": {"desktop_columns": 1, "tablet_columns": 1, "mobile_columns": 1},
+            }),
+            _chocolate_product_row("محصولات محبوب", "best_sellers"),
+            PresetSectionEntry("multi_banner", settings={
+                "item_limit": 4, "offset": 1, "layout_variant": "promo-4",
+                "responsive": {"desktop_columns": 4, "tablet_columns": 2, "mobile_columns": 2},
+            }),
+            _chocolate_product_row("جدیدترین محصولات", "newest"),
+            PresetSectionEntry("multi_banner", settings={
+                "item_limit": 1, "offset": 5, "layout_variant": "wide-single",
+                "responsive": {"desktop_columns": 1, "tablet_columns": 1, "mobile_columns": 1},
+            }),
+            _chocolate_product_row("پیشنهادهای فروشگاه", "discounted"),
+            PresetSectionEntry("category_grid", settings={
+                "title": "انتخاب بر اساس دسته‌بندی", "display_mode": "chocolate_badges",
+                "item_limit": 6,
+            }),
+            _chocolate_product_row("محصولات پربازدید", "most_viewed"),
+            PresetSectionEntry("blog_posts"),
             PresetSectionEntry("trust_features"),
-            PresetSectionEntry("newsletter"),
         ),
         **_u10_standard_non_home_pages(),
     },
 ))
 
+
+#: laleRokh reference family — reusable cosmetics/beauty retail card.
+#: All price/discount/quick-add semantics still come from product_card_data;
+#: this preset selects only presentation settings.
+_BEAUTY_RETAIL_CARD = {
+    "card_style": "beauty_retail", "image_ratio": "square",
+    "show_brand": False, "show_rating": True, "show_wishlist": False, "show_quick_add": True,
+    "quick_add_reveal": "always", "card_border": True,
+}
+_BEAUTY_RETAIL_ROW = {"responsive": {"desktop_columns": 4, "tablet_columns": 2, "mobile_columns": 2}}
+_BEAUTY_WALL_ROW = {"responsive": {"desktop_columns": 5, "tablet_columns": 3, "mobile_columns": 2}}
+_RETAIL_LIST_CARD = {
+    "card_style": "retail_list", "image_ratio": "square",
+    "show_brand": False, "show_rating": False, "show_wishlist": False,
+    "show_badge": False, "show_quick_add": False, "card_border": False,
+}
+
+
+def _beauty_retail_row(
+    title: str, data_source: str, *, background: dict | None = None, campaign: bool = False
+) -> PresetSectionEntry:
+    settings = {
+        "title": title, "data_source": data_source,
+        "display_mode": "campaign_band" if campaign else "carousel",
+        "item_limit": 4 if campaign else 12, "card": _BEAUTY_RETAIL_CARD, **_BEAUTY_RETAIL_ROW,
+    }
+    if background:
+        settings["background"] = background
+    return PresetSectionEntry("product_section", settings=settings)
+
+
 register_layout_preset(LayoutPresetDefinition(
     key="warm_boutique",
+    # Reference-driven rebuild: v1 was the original generic centered-boutique
+    # skeleton.  v2 changes the visible Home composition, palette, global
+    # header/footer variants, category treatment and product card treatment.
+    version="2",
     is_ready_template=True,
     label_fa="بوتیکِ گرم",
-    description_fa="چیدمانِ گرم و دعوت‌کننده با لوگویِ مرکزی — مناسبِ بوتیک‌ها و برندهایِ کوچکِ خانوادگی.",
+    description_fa="فروشگاه زیبایی و بوتیک با جستجوی برجسته، دسته‌بندی تصویری و ردیف‌های فروشگاهی رنگی — مناسب آرایشی، مراقبتی، عطر و سبک زندگی.",
     appearance={
-        "font": "Georgia", "radius": 14, "button_radius": 14,
-        "density": "relaxed", "motion": "subtle", "type_scale": "normal",
-        "button_style": "soft", "image_fit": "cover", "image_hover": "zoom",
+        "font": "Vazirmatn", "radius": 10, "button_radius": 6,
+        "density": "normal", "motion": "subtle", "type_scale": "normal",
+        "button_style": "filled", "image_fit": "contain", "image_hover": "zoom",
         "card_image_crossfade": True, "card_image_zoom": True,
+        "content_width": 1500,
     },
-    default_palette_slug="rose",
-    header={"sticky": True, "announcement_enabled": True, "header_variant": "boutique_centered"},
-    footer={"show_newsletter": True, "footer_variant": "boutique_editorial"},
+    default_palette_slug="beauty-magenta",
+    header={"sticky": True, "announcement_enabled": False, "show_search": True, "show_account": True, "show_wishlist": False, "show_cart": True, "header_variant": "beauty_search_nav"},
+    footer={"show_newsletter": False, "show_trust_badges": True, "show_payment_logos": True, "footer_variant": "beauty_retail_columns"},
     pages={
         "home": (
-            PresetSectionEntry("hero_banner", settings={"hero_style": "overlay"}),
-            PresetSectionEntry("image_text", settings={"image_position": "right"}),
-            PresetSectionEntry("product_section", settings={
-                "title": "پیشنهادِ فروشگاه", "data_source": "newest", "display_mode": "grid",
-                "item_limit": 8, "card": {"card_style": "minimal"},
+            # Wide, short, image-first campaign hero using the Store's own
+            # HeroSlide records; no reference merchant image/logo is embedded.
+            PresetSectionEntry("hero_banner", settings={
+                "hero_style": "beauty_editorial", "text_position": "end",
+                "autoplay": True, "interval_ms": 4500,
+                "show_arrows": False, "show_dots": False,
             }),
-            PresetSectionEntry("testimonials"),
-            PresetSectionEntry("newsletter"),
+            # Six compact visual discovery shortcuts, resolved from the
+            # current Store's real top-level categories and representative media.
+            PresetSectionEntry("category_grid", settings={
+                "title": "دسته‌بندی محصولات", "display_mode": "beauty_icons", "item_limit": 6,
+            }),
+            # Two high-signal campaign bands mirror the reference's magenta
+            # then green retail moments while retaining real product semantics.
+            _beauty_retail_row("شگفت‌انگیزهای فروشگاه", "discounted", campaign=True, background={
+                "mode": "palette_pattern", "palette_role": "tone-1", "pattern_slug": "commerce-doodle",
+            }),
+            PresetSectionEntry("multi_banner", settings={
+                # laleRokh's first post-campaign banner moment is a true four-card
+                # visual grid, not the tiny strip used by dense-marketplace
+                # families.  ``promo-4`` is an existing generic variant.
+                "item_limit": 4, "offset": 0, "layout_variant": "promo-4",
+                "responsive": {"desktop_columns": 4, "tablet_columns": 2, "mobile_columns": 2},
+            }),
+            _beauty_retail_row("جدیدترین‌های فروشگاه", "newest", campaign=True, background={
+                "mode": "palette", "palette_role": "tone-3",
+            }),
+            PresetSectionEntry("brand_carousel", settings={
+                "title": "محبوب‌ترین برندها", "display_mode": "beauty_tabs", "show_view_all": False,
+            }),
+            # The reference's dark category-special block is represented by a
+            # generic catalog-wall structural variant: three current-Store
+            # groups, three real products per group, compact list cards.
+            PresetSectionEntry("catalog_product_wall", settings={
+                "title": "فروش ویژه محصولات بر اساس دسته‌بندی",
+                "layout_mode": "group_columns",
+                "source_mode": "categories_then_collections", "max_groups": 3,
+                "products_per_group": 3, "minimum_products": 2, "skip_empty_groups": True,
+                "show_view_all": True, "card": _RETAIL_LIST_CARD,
+                "background": {"mode": "palette_pattern", "palette_role": "tone-2", "pattern_slug": "commerce-doodle"},
+            }),
+            # Second merchant-banner moment, matching the reference's paired
+            # mid-page beauty banners without carrying any fixed banner ID.
+            PresetSectionEntry("multi_banner", settings={
+                "item_limit": 2, "offset": 4, "layout_variant": "wide-single",
+                "responsive": {"desktop_columns": 2, "tablet_columns": 2, "mobile_columns": 1},
+            }),
+            # A separate collection-resolved row avoids coupling this later
+            # merchandising moment to the earlier category group columns.  If a
+            # Store has no active collections it fails closed by rendering none.
+            PresetSectionEntry("catalog_product_wall", settings={
+                "title": "دسته‌بندی محصولات پیشنهادی",
+                "layout_mode": "featured_row",
+                "source_mode": "visible_collections", "max_groups": 1,
+                "products_per_group": 10, "minimum_products": 3, "skip_empty_groups": True,
+                "show_view_all": True, "card": _BEAUTY_RETAIL_CARD, **_BEAUTY_WALL_ROW,
+                "background": {"mode": "palette_pattern", "palette_role": "tone-2", "pattern_slug": "commerce-doodle"},
+            }),
+            # The reference closes merchandising with a light final product
+            # discovery moment before newsletter/footer.  We do not fake a
+            # shopper-specific "recently viewed" history; ``most_viewed`` is
+            # the existing honest Store-wide semantic closest to that role.
+            PresetSectionEntry("product_section", settings={
+                "title": "محصولات پربازدید", "data_source": "most_viewed",
+                "display_mode": "carousel", "item_limit": 10,
+                "card": _BEAUTY_RETAIL_CARD, **_BEAUTY_WALL_ROW,
+            }),
+            PresetSectionEntry("newsletter", settings={
+                "title": "از تازه‌های فروشگاه باخبر شوید",
+                "subtitle": "ایمیل خود را ثبت کنید تا پیشنهادها و محصولات تازه را از دست ندهید.",
+                "button_label": "عضویت",
+                "background": {"mode": "color", "color": "#F6F6F6"},
+            }),
         ),
         **_u10_standard_non_home_pages(),
     },

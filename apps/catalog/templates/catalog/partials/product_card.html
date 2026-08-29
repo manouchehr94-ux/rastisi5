@@ -1,8 +1,7 @@
 {% load persian catalog_extras %}
 {% comment %}
-Universal product card.  Visual differences are closed settings on the card
-contract (``standard`` / ``compact`` / ``minimal``), never a preset-specific
-renderer.  The compact treatment is intentionally useful for any dense
+Universal product card. Visual differences are closed settings on the card
+contract (registered card styles), never a preset-specific renderer.  The compact treatment is intentionally useful for any dense
 marketplace storefront.
 
 Business data (price/discount/badges/availability/quick-add eligibility) is
@@ -44,7 +43,7 @@ here — so every future visual variant reads identical business semantics.
     {% endif %}
     {% if card.is_out_of_stock %}
     <div class="badges badges-stock"><span class="pill pill-outofstock">ناموجود</span></div>
-    {% elif card_settings.show_quick_add is not False and card.is_quick_add_eligible and card_settings.card_style != "compact" %}
+    {% elif card_settings.show_quick_add is not False and card.is_quick_add_eligible and card_settings.card_style != "compact" and card_settings.card_style != "beauty_retail" and card_settings.card_style != "chocolate_retail" %}
     <div class="addbar">
       <button type="button" hx-post="{% url 'cart:add' product.slug %}" hx-vals='{"quantity": 1}' hx-swap="none"
               onclick="event.preventDefault();event.stopPropagation()">
@@ -74,6 +73,32 @@ here — so every future visual variant reads identical business semantics.
     </div>
     {% endif %}
   </div>
+  {% if card_settings.card_style == "beauty_retail" and not card.is_out_of_stock %}
+  <div class="beauty-actions">
+    {% if card_settings.show_quick_add is False %}
+    <a class="beauty-cart beauty-cart--select" href="{{ card.url }}">مشاهده محصول</a>
+    {% elif card.is_quick_add_eligible %}
+    <button class="beauty-cart" type="button" hx-post="{% url 'cart:add' product.slug %}" hx-vals='{"quantity": 1}' hx-swap="none"
+            onclick="event.preventDefault();event.stopPropagation()">
+      افزودن به سبد خرید
+    </button>
+    {% else %}
+    <a class="beauty-cart beauty-cart--select" href="{{ card.url }}">انتخاب گزینه‌ها</a>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% if card_settings.card_style == "chocolate_retail" and not card.is_out_of_stock %}
+  <div class="chocolate-actions">
+    {% if card_settings.show_quick_add is False %}
+    <a class="chocolate-cart chocolate-cart--select" href="{{ card.url }}">مشاهده محصول</a>
+    {% elif card.is_quick_add_eligible %}
+    <button class="chocolate-cart" type="button" hx-post="{% url 'cart:add' product.slug %}" hx-vals='{"quantity": 1}' hx-swap="none"
+            onclick="event.preventDefault();event.stopPropagation()">افزودن به سبد خرید</button>
+    {% else %}
+    <a class="chocolate-cart chocolate-cart--select" href="{{ card.url }}">انتخاب گزینه‌ها</a>
+    {% endif %}
+  </div>
+  {% endif %}
   {% if not card.is_out_of_stock and card_settings.show_quick_add is not False and card.is_quick_add_eligible and card_settings.card_style == "compact" %}
   <div class="compact-actions">
     <button class="compact-cart" type="button" hx-post="{% url 'cart:add' product.slug %}" hx-vals='{"quantity": 1}' hx-swap="none" aria-label="افزودن به سبد خرید"

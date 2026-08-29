@@ -1,4 +1,26 @@
-<section class="section product-section{% if settings.carousel_autoplay and settings.display_mode == 'carousel' %} product-section--spotlight{% endif %}">
+<section class="section product-section{% if settings.carousel_autoplay and settings.display_mode == 'carousel' %} product-section--spotlight{% endif %}{% if settings.display_mode == 'campaign_band' %} product-section--campaign-band{% endif %}">
+  {% if settings.display_mode == "campaign_band" %}
+  <div class="beauty-section-title product-campaign-heading" aria-hidden="true">
+    <span></span><h2>{{ settings.title|default:"پیشنهادهای فروشگاه" }}</h2><span></span>
+  </div>
+  <div class="product-campaign-band">
+    <aside class="product-campaign-copy">
+      <span class="product-campaign-gift" aria-hidden="true">
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 27h44v29H10z"/><path d="M7 18h50v11H7z"/><path d="M32 18v38"/>
+          <path d="M32 18c-6 0-14-2-14-8 0-4 3-6 7-6 6 0 7 8 7 14z"/>
+          <path d="M32 18c6 0 14-2 14-8 0-4-3-6-7-6-6 0-7 8-7 14z"/>
+        </svg>
+      </span>
+      <h2>{{ settings.title|default:"پیشنهادهای فروشگاه" }}</h2>
+      {% if settings.subtitle %}<p>{{ settings.subtitle }}</p>{% endif %}
+      {% if view_all_url and settings.show_view_all %}<a href="{{ view_all_url }}" class="product-campaign-link">مشاهده همه محصولات</a>{% endif %}
+    </aside>
+    <div class="product-campaign-products grid rsec-cols">
+      {% include "catalog/partials/product_grid.html" with products=products card_settings=settings.card %}
+    </div>
+  </div>
+  {% else %}
   {% if settings.header_position != "inside" %}
   <div class="sec-head">
     <h2><span class="bar"></span>{{ settings.title|default:"محصولات" }}</h2>
@@ -67,5 +89,6 @@
   <div class="{% if settings.display_mode == "grid" %}grid{% else %}pcarousel{% endif %} rsec-cols">
     {% include "catalog/partials/product_grid.html" with products=products card_settings=settings.card %}
   </div>
+  {% endif %}
   {% endif %}
 </section>

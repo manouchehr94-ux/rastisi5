@@ -139,11 +139,11 @@ def _category_grid_context(store, section):
     # edge-to-edge, but ``category.image`` is a deliberately composed
     # thumbnail with large baked-in colored margins (see
     # ``section_data_service.resolve_category_representative_media``'s own
-    # docstring for the full root-cause). Only THIS display_mode pays for
-    # the extra per-category product lookup; every other category_grid
-    # variant (fashion_flat, grid, circular, image_strip) is completely
-    # unaffected and keeps reading ``category.image`` exactly as before.
-    if settings.get("display_mode") == "fashion_mosaic":
+    # docstring for the full root-cause). Only the two media-first display
+    # modes that explicitly need uncropped representative photography pay
+    # for the extra per-category product lookup; every other category_grid
+    # variant keeps reading ``category.image`` exactly as before.
+    if settings.get("display_mode") in {"fashion_mosaic", "beauty_icons"}:
         for category in top_categories:
             category.representative_media = section_data_service.resolve_category_representative_media(category)
     return {

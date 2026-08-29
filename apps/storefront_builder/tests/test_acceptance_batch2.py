@@ -46,6 +46,24 @@ def _akhlaghi():
     return Store.objects.get(slug="akhlaghi")
 
 
+def _baseline_section(draft, section_key=None):
+    """Return a deterministic baseline-origin section from ``draft``.
+
+    Ready Templates are allowed to contain the same reusable section type more
+    than once (dense commerce pages legitimately have several product rails).
+    Granular-reset identity is therefore ``template_slot_key`` — exactly the
+    invariant this acceptance batch is meant to exercise — not uniqueness of a
+    ``section_key``.
+    """
+    sections = draft.home_page().sections.exclude(template_slot_key="").order_by("order", "pk")
+    if section_key is not None:
+        sections = sections.filter(section_key=section_key)
+    section = sections.first()
+    if section is None:
+        raise AssertionError(f"No baseline-origin section found for {section_key!r}")
+    return section
+
+
 def _second_store():
     store, _ = Store.objects.get_or_create(
         slug="sfb-batch2-store-b", defaults=dict(name="فروشگاه دوم Batch 2", status=Store.Status.ACTIVE),
@@ -509,7 +527,7 @@ class GranularResetTests(TestCase):
         self.draft.refresh_from_db()
 
     def test_reset_field_restores_only_that_key(self):
-        section = self.draft.home_page().sections.get(section_key="product_section")
+        section = _baseline_section(self.draft, "product_section")
         baseline_title = section.settings["title"]
         section.settings = {**section.settings, "title": "عنوان دستی مرچنت", "item_limit": 99}
         section.save(update_fields=["settings"])
@@ -520,7 +538,7 @@ class GranularResetTests(TestCase):
         self.assertEqual(section.settings["item_limit"], 99)
 
     def test_reset_component_restores_a_nested_settings_dict(self):
-        section = self.draft.home_page().sections.get(section_key="product_section")
+        section = _baseline_section(self.draft, "product_section")
         baseline_card = dict(section.settings["card"])
         section.settings = {**section.settings, "card": {**section.settings["card"], "card_style": "minimal"}}
         section.save(update_fields=["settings"])
@@ -530,7 +548,7 @@ class GranularResetTests(TestCase):
         self.assertEqual(section.settings["card"], baseline_card)
 
     def test_reset_field_unknown_key_raises(self):
-        section = self.draft.home_page().sections.get(section_key="product_section")
+        section = _baseline_section(self.draft, "product_section")
         with self.assertRaises(preset_service.BaselineFieldNotFoundError):
             preset_service.reset_section_setting_to_baseline(self.draft, section, "not_a_real_field")
 
@@ -548,7 +566,7 @@ class GranularResetTests(TestCase):
 
     def test_reset_section_survives_reorder_insert_and_unrelated_delete(self):
         home = self.draft.home_page()
-        target = home.sections.get(section_key="discounted_products")
+        target = _baseline_section(self.draft)
         baseline_settings = dict(target.settings)
         baseline_row_key, baseline_row_span = target.row_key, target.row_span
 
@@ -579,7 +597,7 @@ class GranularResetTests(TestCase):
         row_span (e.g. a drag-and-drop resize/regroup), and a single-
         section reset must restore both back to the Template baseline."""
         home = self.draft.home_page()
-        target = home.sections.get(section_key="discounted_products")
+        target = _baseline_section(self.draft)
         baseline_row_key, baseline_row_span = target.row_key, target.row_span
 
         target.row_key = f"{baseline_row_key}-merchant-custom"
@@ -593,7 +611,7 @@ class GranularResetTests(TestCase):
 
     def test_reset_section_does_not_mutate_another_baseline_section(self):
         home = self.draft.home_page()
-        target = home.sections.get(section_key="discounted_products")
+        target = _baseline_section(self.draft)
         sibling = home.sections.exclude(pk=target.pk).first()
         sibling_settings_before = dict(sibling.settings)
         sibling_row_key_before, sibling_row_span_before = sibling.row_key, sibling.row_span
@@ -621,7 +639,7 @@ class GranularResetTests(TestCase):
         draft = svc.get_or_create_draft(self.store)
         preset_service.apply_preset(draft, self.preset)
         draft.refresh_from_db()
-        target = draft.home_page().sections.get(section_key="discounted_products")
+        target = _baseline_section(draft)
         mutated = dict(target.settings)
         mutated["merchant_marker"] = "changed"
         target.settings = mutated
@@ -644,7 +662,7 @@ class GranularResetTests(TestCase):
             preset_service.reset_section_setting_to_baseline(self.draft, custom, "content")
 
     def test_reset_section_stale_slot_raises_not_a_silent_noop(self):
-        section = self.draft.home_page().sections.get(section_key="product_section")
+        section = _baseline_section(self.draft, "product_section")
         section.template_slot_key = "dense_marketplace:v1:home:9999"
         section.save(update_fields=["template_slot_key"])
         with self.assertRaises(preset_service.BaselineSlotNotFoundError):
@@ -654,7 +672,7 @@ class GranularResetTests(TestCase):
         custom = StorefrontSection.objects.create(
             page=self.draft.home_page(), section_key="rich_text", order=999, settings={"content": "دستی"},
         )
-        target = self.draft.home_page().sections.get(section_key="discounted_products")
+        target = _baseline_section(self.draft)
         preset_service.reset_section_to_baseline(self.draft, target)
         self.assertTrue(StorefrontSection.objects.filter(pk=custom.pk).exists())
 
@@ -818,7 +836,7 @@ class MerchantResetUITests(TestCase):
         self.draft.refresh_from_db()
 
     def test_section_reset_control_shown_only_for_baseline_origin_sections(self):
-        target = self.draft.home_page().sections.get(section_key="product_section")
+        target = _baseline_section(self.draft, "product_section")
         custom = StorefrontSection.objects.create(
             page=self.draft.home_page(), section_key="product_section", order=999, settings={
                 "data_source": "newest", "item_limit": 8, "display_mode": "grid",
@@ -835,7 +853,7 @@ class MerchantResetUITests(TestCase):
         self.assertNotContains(resp_custom, "بازنشانی این بخش به قالب")
 
     def test_reset_section_view_works_end_to_end_with_confirm_dialog(self):
-        target = self.draft.home_page().sections.get(section_key="discounted_products")
+        target = _baseline_section(self.draft)
         resp = self.admin_client.get(
             reverse("dashboard:storefront-builder-section-settings", args=[target.pk]),
         )

@@ -7,7 +7,7 @@ second fixed column, which lets the same block reproduce image-led commerce
 banners without introducing a preset-specific template.
 {% endcomment %}
 {% if hero_slides %}
-<section class="section hero">
+<section class="section hero{% if hero_variant_class %} {{ hero_variant_class }}{% endif %}">
   {% if hero_slides|length > 1 %}
   <div class="hero-inner" data-text-position="{{ slider_settings.text_position|default:'end' }}"
        x-data="{ slide: 0, count: {{ hero_slides|length }}, autoplay: {{ slider_settings.autoplay|yesno:'true,false' }}, interval: {{ slider_settings.interval_ms|default:4500 }}, loop: {{ slider_settings.loop|yesno:'true,false' }}, _timer: null,
@@ -35,14 +35,14 @@ banners without introducing a preset-specific template.
     </article>
     {% endfor %}
 
-    {% if slider_settings.show_arrows|default:True %}
+    {% if slider_settings.show_arrows is not False %}
     <button type="button" class="hero-arrow hero-arrow-prev" @click="prev()" aria-label="اسلاید قبلی"
-            {% if not slider_settings.loop|default:True %}:disabled="slide === 0"{% endif %}>‹</button>
+            {% if slider_settings.loop is False %}:disabled="slide === 0"{% endif %}>‹</button>
     <button type="button" class="hero-arrow hero-arrow-next" @click="next()" aria-label="اسلاید بعدی"
-            {% if not slider_settings.loop|default:True %}:disabled="slide === count - 1"{% endif %}>›</button>
+            {% if slider_settings.loop is False %}:disabled="slide === count - 1"{% endif %}>›</button>
     {% endif %}
 
-    {% if slider_settings.show_dots|default:True %}
+    {% if slider_settings.show_dots is not False %}
     <div class="hero-tabs" aria-label="اسلایدها">
       {% for s in hero_slides %}
       <button type="button" @click="slide = {{ forloop.counter0 }}" :class="{ 'active': slide === {{ forloop.counter0 }} }">{{ s.title|default:"مشاهده" }}</button>

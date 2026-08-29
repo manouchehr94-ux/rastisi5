@@ -1,0 +1,39 @@
+{% comment %}
+Reference-driven specialty-retail header (key: chocolate_centered_search).
+Brown primary row: search at visual right, centered merchant brand, shopper
+actions at visual left.  Separate white navigation row.  Shared components
+only; no merchant/reference identity or Ready Template condition.
+{% endcomment %}
+{% with hc=header_config rc=header_config.responsive %}
+<div class="gh-shell gh-shell--chocolate" x-data="{ ghMobileOpen: false }">
+{% include "storefront_builder/partials/global_header/_shared/announcement_bar.html" %}
+<header class="header gh gh--chocolate{% if hc.sticky %} sfb-sticky{% endif %}">
+  <div class="wrap gh-chocolate-main">
+    <button class="gh-btn gh-burger" @click="ghMobileOpen = !ghMobileOpen" :aria-expanded="ghMobileOpen.toString()" aria-controls="gh-chocolate-nav" aria-label="منو">
+      {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="burger" %}
+    </button>
+    {% if hc.show_search %}
+    <div class="gh-chocolate-search" {% if rc.show_search.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+      {% include "storefront_builder/partials/global_header/_shared/search_form.html" with placeholder_text="جستجو در فروشگاه..." compact=True field_id="gh-search-input-chocolate" icon_in_button=True %}
+    </div>
+    {% endif %}
+    <div class="gh-chocolate-logo">{% include "storefront_builder/partials/global_header/_shared/logo.html" with show_tagline=False %}</div>
+    <div class="gh-actions gh-chocolate-actions">
+      {% include "storefront_builder/partials/global_header/_shared/admin_shortcut.html" %}
+      {% if hc.show_account %}<div class="gh-inline-block" {% if rc.show_account.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_account.hide_on_mobile %}data-shell-hide-mobile{% endif %}>{% include "storefront_builder/partials/global_header/_shared/account_action.html" with show_label=True %}</div>{% endif %}
+      {% if hc.show_cart %}{% include "storefront_builder/partials/global_header/_shared/cart_action.html" %}{% endif %}
+    </div>
+  </div>
+  {% if hc.show_search %}
+  <div class="gh-mobile-search gh-chocolate-mobile-search" {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+    {% include "storefront_builder/partials/global_header/_shared/search_form.html" with placeholder_text="جستجو در فروشگاه..." compact=True field_id="gh-search-input-chocolate-mobile" icon_in_button=True %}
+  </div>
+  {% endif %}
+  <nav id="gh-chocolate-nav" class="gh-chocolate-nav" :class="{ 'gh-nav-hidden': !ghMobileOpen }">
+    <div class="wrap gh-chocolate-nav-links">
+      {% if NAV_HEADER %}{% include "storefront_builder/partials/global_header/_shared/nav_header_items.html" %}{% else %}{% include "storefront_builder/partials/global_header/_shared/category_link_row.html" %}{% endif %}
+    </div>
+  </nav>
+</header>
+</div>
+{% endwith %}

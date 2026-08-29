@@ -1,0 +1,25 @@
+{% comment %}
+Generic framed-row structural variant for ``catalog_product_wall``.  It keeps
+all source resolution Store-scoped and ID-free, while exposing a strong retail
+merchandising frame suitable for any Ready Template that selects it.
+{% endcomment %}
+{% if catalog_product_wall_groups %}
+<section class="section catalog-product-wall catalog-product-wall--featured-row">
+  {% if catalog_product_wall_settings.title %}
+  <div class="catalog-wall-featured-title">
+    <h2>{{ catalog_product_wall_settings.title }}</h2>
+  </div>
+  {% endif %}
+  {% for group in catalog_product_wall_groups %}
+  <div class="catalog-wall-featured-group">
+    <div class="catalog-wall-featured-tabs">
+      <span>{{ group.title }}</span>
+      {% if group.view_all_url %}<a href="{{ group.view_all_url }}">مشاهده همه</a>{% endif %}
+    </div>
+    <div class="pcarousel rsec-cols catalog-wall-featured-grid">
+      {% include "catalog/partials/product_grid.html" with products=group.products card_settings=catalog_product_wall_settings.card %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
