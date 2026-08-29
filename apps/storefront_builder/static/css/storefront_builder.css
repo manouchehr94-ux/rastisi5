@@ -4318,3 +4318,51 @@ a.sfb-v3-component-item,
   .gh--chocolate .gh-search{height:44px}
 }
 /* RASTISI_PREMIUM_LEATHER_HEADER_PALETTE_FIX_END */
+
+/* ========================================================================
+   Editorial atelier global header (registered variant: atelier_nav)
+   ======================================================================== */
+.gh-shell--atelier{
+  --gh-bg:var(--theme-header-bg,var(--brand-background,var(--bg)));
+  --gh-surface:var(--theme-header-bg,var(--brand-surface,var(--card)));
+  --gh-ink:var(--theme-header-text,var(--brand-text,var(--ink)));
+}
+.gh--atelier.header{background:var(--theme-header-bg,var(--gh-surface))!important;color:var(--theme-header-text,var(--gh-ink))!important;border-color:var(--gh-border)!important}
+.gh--atelier .gh-atelier-row{display:flex;align-items:center;gap:16px;height:auto!important;min-height:64px;padding-block:7px}
+.gh-atelier-burger{display:none}
+.gh-atelier-brand{display:flex;align-items:center;flex:0 0 auto;min-width:118px}
+.gh--atelier .gh-logo img{max-height:34px}
+.gh--atelier .gh-logo-text b{font-size:15px;font-weight:850;color:var(--gh-ink)}
+.gh--atelier .gh-logo-text small{display:none}
+.gh-atelier-desktop-nav{flex:1;min-width:0}
+.gh-atelier-nav-links{display:flex;align-items:center;justify-content:safe center;gap:2px;overflow-x:auto;scrollbar-width:none;overscroll-behavior-inline:contain}
+.gh-atelier-nav-links::-webkit-scrollbar{display:none}
+.gh--atelier .gh-nl,.gh--atelier .gh-cat-link{font-size:11.5px;font-weight:650;color:var(--theme-nav-text,var(--gh-ink));height:34px;padding-inline:9px}
+.gh--atelier .gh-nl:hover,.gh--atelier .gh-nl:focus-visible,.gh--atelier .gh-cat-link:hover,.gh--atelier .gh-cat-link:focus-visible{background:color-mix(in srgb,var(--gh-accent) 8%,transparent);color:var(--gh-accent)}
+.gh-atelier-actions{flex:0 0 auto;gap:4px;min-width:170px;justify-content:flex-end}
+.gh--atelier .gh-btn,.gh--atelier .gh-account-link{height:36px;min-width:36px;border:0;background:transparent;border-radius:4px;padding-inline:7px;color:var(--gh-ink)}
+.gh--atelier .gh-account-link{font-size:11px;font-weight:650}
+.gh--atelier .gh-btn:hover,.gh--atelier .gh-account-link:hover{background:color-mix(in srgb,var(--gh-accent) 8%,transparent);color:var(--gh-accent)}
+.gh-atelier-search-panel{border-top:1px solid var(--gh-border);border-bottom:1px solid var(--gh-border);background:var(--gh-surface);padding-block:9px}
+.gh-atelier-search-panel .gh-search{max-width:560px;margin-inline:auto;height:40px;border-radius:3px;background:var(--brand-background,var(--bg));border-color:var(--gh-border)}
+.gh-atelier-mobile-nav{display:none;border-top:1px solid var(--gh-border);background:var(--theme-nav-bg,var(--gh-surface))}
+.gh-atelier-mobile-links{display:flex;align-items:center;gap:2px;overflow-x:auto;scrollbar-width:none;min-height:44px}
+.gh-atelier-mobile-links::-webkit-scrollbar{display:none}
+@media(max-width:900px){
+  .gh--atelier .gh-atelier-row{gap:8px;min-height:58px}
+  .gh-atelier-desktop-nav{display:none}
+  .gh-atelier-burger{display:inline-flex}
+  .gh-atelier-brand{flex:1;justify-content:center;min-width:0}
+  .gh-atelier-actions{min-width:0}
+  .gh--atelier .gh-account-link span:not(.sr-only){display:none}
+  .gh-atelier-mobile-nav:not(.gh-nav-hidden){display:block}
+}
+@media(max-width:680px){
+  .gh--atelier .gh-atelier-row{padding-block:5px;min-height:54px}
+  .gh--atelier .gh-logo-text b{max-width:132px;font-size:14px}
+  .gh--atelier .gh-btn,.gh--atelier .gh-account-link{height:34px;min-width:32px;padding-inline:5px}
+  .gh-atelier-actions{gap:1px}
+  .gh-atelier-search-panel{padding:7px 0}
+  .gh-atelier-search-panel .gh-search{width:100%;max-width:none;height:40px}
+  .gh-atelier-mobile-links{justify-content:flex-start}
+}

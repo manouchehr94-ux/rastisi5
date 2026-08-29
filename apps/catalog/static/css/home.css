@@ -1330,3 +1330,71 @@ html[data-sfb-density="compact"][data-sfb-type-scale="normal"] .rcontainer .sec-
   .category-chocolate-media{width:82px;height:68px}
   .category-chocolate-label{min-width:72px;padding:4px 8px;font-size:9px}
 }
+
+/* ========================================================================
+   Editorial atelier Home primitives — generic variants, Store-owned media
+   ======================================================================== */
+.hero-atelier{margin:8px 0 18px}
+.hero-atelier-inner{background:var(--palette-tone-4,#EEE4D6);padding:34px 38px 36px;border-radius:0;overflow:hidden}
+.hero-atelier-copy{text-align:right;margin-bottom:22px;position:relative;z-index:2}
+.hero-atelier-copy h1{margin:0;color:var(--ink);font-size:clamp(28px,3vw,48px);line-height:1.35;font-weight:950;letter-spacing:-.025em}
+.hero-atelier-copy p{margin:7px 0 0;color:var(--muted);font-size:13px;line-height:1.8;max-width:760px}
+.hero-atelier-cta{display:inline-flex;align-items:center;justify-content:center;margin-top:12px;min-height:35px;padding:7px 18px;border:1px solid var(--ink);border-radius:2px;color:var(--ink);background:transparent;font-size:11px;font-weight:750}
+.hero-atelier-cta:hover{background:var(--ink);color:var(--card)}
+.hero-atelier-arches{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;align-items:end}
+.hero-atelier-arch{margin:0;min-width:0;aspect-ratio:.68/1;overflow:hidden;border:3px solid var(--palette-tone-2,var(--accent));border-radius:999px 999px 0 0;background:var(--card);box-shadow:none}
+.hero-atelier-arch picture,.hero-atelier-arch img{display:block;width:100%;height:100%}
+.hero-atelier-arch img{object-fit:cover}
+
+.category-atelier-section{margin:16px 0 24px}
+.atelier-section-title{text-align:center;margin:0 0 15px}
+.atelier-section-title h2{margin:0;font-size:18px;font-weight:900;color:var(--ink)}
+.category-atelier-mosaic{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.category-atelier-tile{position:relative;display:block;min-width:0;aspect-ratio:.83/1;overflow:hidden;background:var(--palette-tone-4,#EEE4D6);color:#fff;text-decoration:none}
+.category-atelier-media{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden}
+.category-atelier-media img{width:100%;height:100%;object-fit:cover;transition:transform .35s ease}
+.category-atelier-tile:hover .category-atelier-media img{transform:scale(1.025)}
+.category-atelier-fallback{font-size:clamp(42px,6vw,80px);font-weight:900;color:color-mix(in srgb,var(--ink) 34%,transparent)}
+.category-atelier-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,16,12,.02) 45%,rgba(20,16,12,.64) 100%);pointer-events:none}
+.category-atelier-label{position:absolute;z-index:2;inset-inline:16px;bottom:15px;color:#fff;font-size:clamp(16px,1.8vw,27px);line-height:1.25;font-weight:950;text-shadow:0 1px 8px rgba(0,0,0,.22)}
+
+.promo-grid--atelier-duo{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.promo-grid--atelier-duo .promo-card{min-height:410px;border-radius:0}
+.promo-grid--atelier-wide{grid-template-columns:1fr}
+.promo-grid--atelier-wide .promo-card{min-height:300px;border-radius:0}
+.promo-grid--atelier-duo .promo-media img,.promo-grid--atelier-wide .promo-media img{object-fit:cover}
+.promo-grid--atelier-duo .promo-overlay,.promo-grid--atelier-wide .promo-overlay{padding:48px 20px 18px;background:linear-gradient(0deg,rgba(20,16,12,.58),rgba(20,16,12,.04) 72%,transparent);color:#fff}
+.promo-grid--atelier-duo .promo-overlay strong,.promo-grid--atelier-wide .promo-overlay strong{font-size:clamp(18px,2vw,30px);font-weight:950}
+.promo-grid--atelier-duo .promo-overlay small,.promo-grid--atelier-wide .promo-overlay small{font-size:11px;color:rgba(255,255,255,.9)}
+.promo-grid--atelier-duo .promo-overlay em,.promo-grid--atelier-wide .promo-overlay em{border-radius:2px;background:#fff;color:#201B17;padding:6px 12px;font-size:10px}
+
+/* The minimal card already exists as a reusable product-card style. These
+   spacing rules simply give any minimal-grid composition the editorial
+   breathing room its name promises, without template identity selectors. */
+.product-section:has(.pcard.style-minimal){margin:34px 0}
+.product-section:has(.pcard.style-minimal) .sec-head{justify-content:center;text-align:center;margin-bottom:18px}
+.product-section:has(.pcard.style-minimal) .sec-head h2{font-size:16px;font-weight:850}
+.product-section:has(.pcard.style-minimal) .sec-head h2 .bar{display:none}
+
+@media(max-width:900px){
+  .hero-atelier-inner{padding:28px 24px}
+  .hero-atelier-arches{gap:16px}
+  .category-atelier-mosaic{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .promo-grid--atelier-duo .promo-card{min-height:320px}
+}
+@media(max-width:680px){
+  .hero-atelier{margin-top:6px}
+  .hero-atelier-inner{padding:22px 12px 18px}
+  .hero-atelier-copy{text-align:center;margin-bottom:15px}
+  .hero-atelier-copy h1{font-size:24px}
+  .hero-atelier-copy p{font-size:10.5px;margin-inline:auto}
+  .hero-atelier-arches{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px;scrollbar-width:none}
+  .hero-atelier-arches::-webkit-scrollbar{display:none}
+  .hero-atelier-arch{flex:0 0 72%;max-width:250px;scroll-snap-align:center;border-width:2px}
+  .category-atelier-mosaic{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .category-atelier-label{inset-inline:10px;bottom:10px;font-size:16px}
+  .promo-grid--atelier-duo{grid-template-columns:1fr;gap:9px}
+  .promo-grid--atelier-duo .promo-card{min-height:250px}
+  .promo-grid--atelier-wide .promo-card{min-height:205px}
+  .product-section:has(.pcard.style-minimal){margin:25px 0}
+}

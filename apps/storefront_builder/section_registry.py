@@ -1161,7 +1161,7 @@ _SLIDER_DEFAULT_INTERVAL_MS = 4500
 #: section that doesn't read it. Keeping the key in one shared validator
 #: (rather than forking a second near-identical function) is the same
 #: reuse choice already made for every other slider-level field.
-HERO_STYLE_CHOICES = ("overlay", "split", "beauty_editorial", "chocolate_carousel")
+HERO_STYLE_CHOICES = ("overlay", "split", "beauty_editorial", "chocolate_carousel", "atelier_triptych")
 
 
 def _validate_slider_settings(raw: dict) -> dict:
@@ -1240,7 +1240,7 @@ _MAX_SECTION_TITLE_LENGTH = 60
 #: compact flat rail (small image, short label, no card chrome) distinct
 #: from ``image_strip``'s own CSS (which ``dense_marketplace`` already
 #: uses) so that template's rendering stays completely untouched.
-CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular", "image_strip", "fashion_flat", "fashion_mosaic", "beauty_icons", "chocolate_story", "chocolate_badges")
+CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular", "image_strip", "fashion_flat", "fashion_mosaic", "beauty_icons", "chocolate_story", "chocolate_badges", "atelier_mosaic")
 
 
 def _validate_category_grid_settings(raw: dict) -> dict:
@@ -1655,7 +1655,7 @@ def _validate_image_text_settings(raw: dict) -> dict:
 #: هیچ کنترلی برایِ این کلید ندارد، این فهرست تنها *مسیرِ نوشتنِ شناخته‌شده*
 #: را می‌پوشاند، نه لزوماً هر دیتایِ واقعاً ذخیره‌شده در تولید — پس هنوز
 #: enum بسته‌ی رسمی نیست.
-MULTI_BANNER_KNOWN_LAYOUT_VARIANTS = ("promo-4", "wide-single", "mini-4", "strip")
+MULTI_BANNER_KNOWN_LAYOUT_VARIANTS = ("promo-4", "wide-single", "mini-4", "strip", "atelier-duo", "atelier-wide")
 
 #: ترتیبِ نمایشِ گروه‌هایِ کتابخانه‌ی «افزودن بخش جدید» (چکپوینتِ ۱۰) —
 #: پنج گروهِ کسب‌وکاریِ ثابت، نه اصطلاحِ فنی؛ ``category_fa`` هر
@@ -1704,6 +1704,13 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
             VariantDefinition(
                 key="chocolate_carousel", label_fa="کاروسل فروشگاهی شکلاتی",
                 renderer="storefront_builder/sections/hero_banner_chocolate.html",
+            ),
+            # Editorial atelier hero: up to three real Store HeroSlide images
+            # are visible together in tall arch frames, with copy sourced from
+            # the first slide. It never embeds reference-site imagery or IDs.
+            VariantDefinition(
+                key="atelier_triptych", label_fa="سه‌قاب قوسی آتلیه",
+                renderer="storefront_builder/sections/hero_banner_atelier.html",
             ),
         ),
         default_variant="overlay", variant_setting_key="hero_style",
@@ -1795,6 +1802,9 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
             VariantDefinition(key="beauty_icons", label_fa="آیکن‌های فروشگاه زیبایی"),
             VariantDefinition(key="chocolate_story", label_fa="هایلایت‌های دایره‌ای شکلاتی"),
             VariantDefinition(key="chocolate_badges", label_fa="میانبرهای تصویری شکلاتی"),
+            # Editorial image mosaic — real Store category representative
+            # media, bold labels over imagery, no card chrome.
+            VariantDefinition(key="atelier_mosaic", label_fa="موزاییک تصویری آتلیه"),
         ),
         default_variant="grid", variant_setting_key="display_mode",
     ),

@@ -168,7 +168,7 @@ class HeroBannerVariantTests(TestCase):
     def test_registered_variants(self):
         definition = get_definition("hero_banner")
         keys = [v.key for v in definition.variants]
-        self.assertEqual(sorted(keys), ["beauty_editorial", "chocolate_carousel", "overlay", "split"])
+        self.assertEqual(sorted(keys), ["atelier_triptych", "beauty_editorial", "chocolate_carousel", "overlay", "split"])
         self.assertEqual(definition.default_variant, "overlay")
         self.assertEqual(definition.variant_setting_key, "hero_style")
 
@@ -201,6 +201,14 @@ class HeroBannerVariantTests(TestCase):
         self.assertEqual(
             resolve_renderer_template(definition, active),
             "storefront_builder/sections/hero_banner_beauty.html",
+        )
+
+    def test_atelier_triptych_resolves_to_its_registered_renderer(self):
+        definition = get_definition("hero_banner")
+        active = resolve_active_variant(definition, {"hero_style": "atelier_triptych"})
+        self.assertEqual(
+            resolve_renderer_template(definition, active),
+            "storefront_builder/sections/hero_banner_atelier.html",
         )
 
     def test_invalid_hero_style_coerces_to_overlay(self):

@@ -1,0 +1,49 @@
+{% comment %}
+Editorial/atelier header (key: atelier_nav). One quiet desktop row: burger is
+mobile-only, merchant brand at the RTL edge, real merchant navigation centered,
+and compact shopper utilities at the opposite edge. Search expands below the
+row. No Ready Template or Store identity is embedded here.
+{% endcomment %}
+{% with hc=header_config rc=header_config.responsive %}
+<div class="gh-shell gh-shell--atelier" x-data="{ ghMobileOpen: false, searchOpen: false }">
+{% include "storefront_builder/partials/global_header/_shared/announcement_bar.html" %}
+<header class="header gh gh--atelier{% if hc.sticky %} sfb-sticky{% endif %}">
+  <div class="wrap gh-atelier-row">
+    <button class="gh-btn gh-burger gh-atelier-burger" @click="ghMobileOpen = !ghMobileOpen" :aria-expanded="ghMobileOpen.toString()" aria-controls="gh-atelier-mobile-nav" aria-label="منو">
+      {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="burger" %}
+    </button>
+
+    <div class="gh-atelier-brand">{% include "storefront_builder/partials/global_header/_shared/logo.html" with show_tagline=False %}</div>
+
+    <nav class="gh-atelier-desktop-nav" aria-label="ناوبری فروشگاه">
+      <div class="gh-atelier-nav-links">
+        {% if NAV_HEADER %}{% include "storefront_builder/partials/global_header/_shared/nav_header_items.html" %}{% else %}{% include "storefront_builder/partials/global_header/_shared/category_link_row.html" %}{% endif %}
+      </div>
+    </nav>
+
+    <div class="gh-actions gh-atelier-actions">
+      {% include "storefront_builder/partials/global_header/_shared/admin_shortcut.html" %}
+      {% if hc.show_account %}<div class="gh-inline-block" {% if rc.show_account.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_account.hide_on_mobile %}data-shell-hide-mobile{% endif %}>{% include "storefront_builder/partials/global_header/_shared/account_action.html" with show_label=True %}</div>{% endif %}
+      {% if hc.show_cart %}{% include "storefront_builder/partials/global_header/_shared/cart_action.html" %}{% endif %}
+      {% if hc.show_search %}
+      <button type="button" class="gh-btn gh-atelier-search-toggle" @click="searchOpen = !searchOpen" :aria-expanded="searchOpen.toString()" aria-controls="gh-atelier-search-panel" aria-label="جستجو">
+        {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="search" %}
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if hc.show_search %}
+  <div id="gh-atelier-search-panel" class="gh-atelier-search-panel" x-show="searchOpen" x-cloak {% if rc.show_search.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+    <div class="wrap">{% include "storefront_builder/partials/global_header/_shared/search_form.html" with placeholder_text="جستجو در فروشگاه..." compact=True field_id="gh-search-input-atelier" icon_in_button=True %}</div>
+  </div>
+  {% endif %}
+
+  <nav id="gh-atelier-mobile-nav" class="gh-atelier-mobile-nav" :class="{ 'gh-nav-hidden': !ghMobileOpen }" aria-label="ناوبری موبایل فروشگاه">
+    <div class="wrap gh-atelier-mobile-links">
+      {% if NAV_HEADER %}{% include "storefront_builder/partials/global_header/_shared/nav_header_items.html" %}{% else %}{% include "storefront_builder/partials/global_header/_shared/category_link_row.html" %}{% endif %}
+    </div>
+  </nav>
+</header>
+</div>
+{% endwith %}

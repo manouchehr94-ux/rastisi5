@@ -242,6 +242,16 @@ _CHOCOLATE_CENTERED_SEARCH_VARIANT = GlobalVariantDefinition(
     renderer="storefront_builder/partials/global_header/chocolate_centered_search.html",
 )
 
+#: Editorial/atelier commerce header — one quiet row with merchant brand at
+#: the RTL edge, real Store navigation in the center and compact shopper
+#: utilities at the opposite edge. Search expands into a slim panel instead
+#: of permanently occupying the header. Generic and reusable by any Store.
+_ATELIER_NAV_VARIANT = GlobalVariantDefinition(
+    key="atelier_nav",
+    label_fa="آتلیه (ناوبری مینیمال)",
+    renderer="storefront_builder/partials/global_header/atelier_nav.html",
+)
+
 GLOBAL_HEADER_REGION = GlobalRegionDefinition(
     key="header",
     label_fa="هدر فروشگاه",
@@ -254,6 +264,7 @@ GLOBAL_HEADER_REGION = GlobalRegionDefinition(
         _PROMO_SEARCH_NAV_VARIANT,
         _BEAUTY_SEARCH_NAV_VARIANT,
         _CHOCOLATE_CENTERED_SEARCH_VARIANT,
+        _ATELIER_NAV_VARIANT,
     ),
     default_variant="legacy_default",
     variant_setting_key="header_variant",

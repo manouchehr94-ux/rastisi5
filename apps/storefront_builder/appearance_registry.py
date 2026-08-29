@@ -532,6 +532,27 @@ register_palette(PaletteDefinition(
     section_tones=("#EC3B50", "#19AD60", "#C77A13", "#49309A", "#156FA8"),
 ))
 
+# Atelier/editorial commerce palette — warm ivory fields, restrained gold
+# accents and near-black typography.  It is a generic merchant-selectable
+# palette: no renderer knows which Ready Template chooses it.
+register_palette(PaletteDefinition(
+    slug="atelier-ivory",
+    name_fa="عاجی آتلیه",
+    group_fa="لوکس",
+    colors={
+        "primary": "#986515", "secondary": "#29231E", "accent": "#D3A51F",
+        "background": "#FFFDF9", "surface": "#FFFFFF", "text": "#201B17",
+        "muted": "#736B63", "border": "#E7DED2",
+    },
+    theme_roles={
+        "header_bg": "#FFFFFF", "header_text": "#201B17",
+        "nav_bg": "#FFFFFF", "nav_text": "#201B17",
+        "card_bg": "#FFFFFF", "footer_bg": "#FFFFFF",
+        "footer_text": "#201B17", "price": "#7A4D05",
+    },
+    section_tones=("#F1DFC1", "#D7A720", "#B47A20", "#EEE4D6", "#201B17"),
+))
+
 register_palette(PaletteDefinition(
     slug="catalog-colorful",
     name_fa="کاتالوگ رنگی",

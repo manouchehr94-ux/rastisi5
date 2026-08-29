@@ -324,9 +324,11 @@
     <div class="form-group">
       <label for="id_hero_style">سبک نمایش</label>
       <select name="hero_style" id="id_hero_style" class="form-select">
-        <option value="overlay" {% if section.settings.hero_style != "split" and section.settings.hero_style != "beauty_editorial" %}selected{% endif %}>روی تصویر (پیش‌فرض)</option>
+        <option value="overlay" {% if section.settings.hero_style != "split" and section.settings.hero_style != "beauty_editorial" and section.settings.hero_style != "chocolate_carousel" and section.settings.hero_style != "atelier_triptych" %}selected{% endif %}>روی تصویر (پیش‌فرض)</option>
         <option value="split" {% if section.settings.hero_style == "split" %}selected{% endif %}>متن و تصویر جدا</option>
         <option value="beauty_editorial" {% if section.settings.hero_style == "beauty_editorial" %}selected{% endif %}>کمپین روشن فروشگاهی</option>
+        <option value="chocolate_carousel" {% if section.settings.hero_style == "chocolate_carousel" %}selected{% endif %}>کاروسل فروشگاهی شکلاتی</option>
+        <option value="atelier_triptych" {% if section.settings.hero_style == "atelier_triptych" %}selected{% endif %}>سه‌قاب قوسی آتلیه</option>
       </select>
       <p style="color:var(--muted);font-size:12px;margin:6px 0 0">«متن و تصویر جدا» فقط اولین اسلاید را نشان می‌دهد؛ اسلایدهای دیگر همچنان از اینجا قابل مدیریت‌اند.</p>
       {% if section.template_slot_key %}
@@ -375,6 +377,9 @@
         <option value="fashion_flat" {% if section.settings.display_mode == "fashion_flat" %}selected{% endif %}>نوار مسطح کمپینی</option>
         <option value="fashion_mosaic" {% if section.settings.display_mode == "fashion_mosaic" %}selected{% endif %}>موزاییک دسته‌بندی</option>
         <option value="beauty_icons" {% if section.settings.display_mode == "beauty_icons" %}selected{% endif %}>آیکن‌های فروشگاه زیبایی</option>
+        <option value="chocolate_story" {% if section.settings.display_mode == "chocolate_story" %}selected{% endif %}>هایلایت‌های دایره‌ای شکلاتی</option>
+        <option value="chocolate_badges" {% if section.settings.display_mode == "chocolate_badges" %}selected{% endif %}>میانبرهای تصویری شکلاتی</option>
+        <option value="atelier_mosaic" {% if section.settings.display_mode == "atelier_mosaic" %}selected{% endif %}>موزاییک تصویری آتلیه</option>
       </select>
     </div>
     <div class="form-group">

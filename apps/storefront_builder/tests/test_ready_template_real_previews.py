@@ -323,13 +323,16 @@ class VersionedPreviewIdentityTests(TestCase):
         self.assertNotIn("SCREENSHOT_VERSION", source)
 
     def test_9_only_reference_overhauled_templates_move_beyond_v1(self):
-        # fashion_promo_catalog is the completed ibolak family (v7); the
-        # laleRokh Home rebuild intentionally advances warm_boutique to v2.
-        # Every other Ready Template remains byte-for-byte on its historical
-        # v1 artifact identity until its own reference-driven pass begins.
+        # Every reference-driven family that has completed its Home rebuild
+        # owns a bumped preview identity.  The remaining untouched Ready
+        # Templates stay on their historical v1 artifact identity until
+        # their own reference-driven pass begins.
         expected_versions = {
             "fashion_promo_catalog": "7",
             "warm_boutique": "2",
+            "premium_leather": "2",
+            "dense_marketplace": "2",
+            "editorial_jewelry": "2",
         }
         for key in READY_TEMPLATE_KEYS:
             preset = lpr.get_layout_preset(key)

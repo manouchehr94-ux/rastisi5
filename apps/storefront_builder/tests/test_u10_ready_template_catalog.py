@@ -195,18 +195,31 @@ class FashionPromoCatalogIsolationTests(TestCase):
         self.assertLess(rail_index, hero_index, "the compact shortcut rail must render before the hero")
         self.assertLess(hero_index, mosaic_index, "the larger mosaic must render after the hero")
 
-    def test_reference_driven_retail_templates_use_the_widest_registered_content_width(self):
-        """The completed ibolak/laleRokh/shokolati families and the Beraito
-        dense-commerce rebuild all opt into the existing generic 1500px
-        content-width option. Other Ready Templates retain their previous
-        implicit/default width."""
-        wide_templates = {"fashion_promo_catalog", "warm_boutique", "premium_leather", "dense_marketplace"}
+    def test_reference_driven_templates_keep_their_registered_content_width_contract(self):
+        """Reference-driven families may opt into an existing generic site
+        content width when the reference silhouette needs it. The four dense/
+        retail families use the widest 1500px option, while the quieter Saremi
+        editorial family deliberately uses the registered 1320px option.
+        Ready Templates that have not opted in retain their previous implicit/
+        default width.
+
+        This locks the per-template data contract without adding renderer
+        branching or a second width mechanism.
+        """
+        explicit_widths = {
+            "fashion_promo_catalog": 1500,
+            "warm_boutique": 1500,
+            "premium_leather": 1500,
+            "dense_marketplace": 1500,
+            "editorial_jewelry": 1320,
+        }
         for key in REQUIRED_KEYS:
             preset = lpr.get_layout_preset(key)
-            if key in wide_templates:
-                self.assertEqual(preset.appearance.get("content_width"), 1500, key)
-            else:
+            expected = explicit_widths.get(key)
+            if expected is None:
                 self.assertNotIn("content_width", preset.appearance, key)
+            else:
+                self.assertEqual(preset.appearance.get("content_width"), expected, key)
 
     def test_magenta_pop_background_is_plain_white_not_tinted(self):
         """Merchant visual QA #2 (Part 2C) — the reference page background

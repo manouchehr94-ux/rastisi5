@@ -1,0 +1,33 @@
+{% load content_tags %}
+{% comment %}
+Reusable editorial atelier hero. It uses only the current Store's real
+HeroSlide records: copy/CTA from the first slide and up to three slide images
+shown simultaneously in tall arch frames. No copied reference artwork, IDs,
+or Ready Template branches.
+{% endcomment %}
+{% if hero_slides %}
+{% with lead=hero_slides.0 %}
+<section class="section hero-atelier">
+  <div class="hero-atelier-inner">
+    <div class="hero-atelier-copy">
+      {% if lead.title %}<h1>{{ lead.title }}</h1>{% endif %}
+      {% if lead.subtitle %}<p>{{ lead.subtitle }}</p>{% endif %}
+      {% if lead.show_button and lead.button_label %}
+        {% resolve_destination lead as dest %}
+        {% if dest.url %}<a class="hero-atelier-cta" href="{{ dest.url }}" {% if dest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ lead.button_label }}</a>{% endif %}
+      {% endif %}
+    </div>
+    <div class="hero-atelier-arches">
+      {% for s in hero_slides|slice:":3" %}
+      <figure class="hero-atelier-arch">
+        <picture>
+          {% if s.mobile_image %}<source media="(max-width:680px)" srcset="{{ s.mobile_image.url }}">{% endif %}
+          <img src="{{ s.desktop_image.url }}" alt="{{ s.title|default:'تصویر مجموعه' }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+        </picture>
+      </figure>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endwith %}
+{% endif %}

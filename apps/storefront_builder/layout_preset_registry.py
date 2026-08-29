@@ -1316,29 +1316,81 @@ register_layout_preset(LayoutPresetDefinition(
 
 register_layout_preset(LayoutPresetDefinition(
     key="editorial_jewelry",
+    version="2",
     is_ready_template=True,
     label_fa="جواهراتِ مجله‌ای",
-    description_fa="چیدمانِ روایت‌محور با تایپوگرافیِ بزرگ و فاصله‌ی باز — مناسبِ جواهر/اکسسوری‌یی که با تصویر و داستان می‌فروشد، نه فقط گرید.",
+    description_fa="چیدمان آتلیه‌ای و تصویرمحور با سه‌قاب قوسی، موزاییک دسته‌بندی، کارت‌های مینیمال و فوتر بسیار سبک — مناسب جواهر، اکسسوری و محصولات هنری.",
     appearance={
-        "font": "Georgia", "radius": 2, "button_radius": 2,
+        "font": "Vazirmatn", "radius": 4, "button_radius": 2,
         "density": "relaxed", "motion": "subtle", "type_scale": "large",
         "button_style": "outline", "image_fit": "cover", "image_hover": "zoom",
-        "card_image_crossfade": True, "card_image_zoom": True,
+        "card_image_crossfade": False, "card_image_zoom": False,
+        "content_width": 1320,
     },
-    default_palette_slug="plum",
-    header={"sticky": True, "announcement_enabled": True, "header_variant": "premium_three_column"},
-    footer={"show_trust_badges": True, "footer_variant": "premium_columns"},
+    default_palette_slug="atelier-ivory",
+    header={
+        "sticky": True, "announcement_enabled": False,
+        "show_search": True, "show_account": True, "show_wishlist": False, "show_cart": True,
+        "header_variant": "atelier_nav",
+    },
+    footer={
+        "show_about": False, "show_contact": False, "show_categories": False,
+        "show_quick_links": False, "show_social": False,
+        "show_trust_badges": False, "show_payment_logos": False,
+        "show_newsletter": False, "show_copyright": True,
+        "footer_variant": "boutique_editorial",
+    },
     pages={
         "home": (
-            PresetSectionEntry("story_rail"),
-            PresetSectionEntry("image_text", settings={"image_position": "left"}),
-            PresetSectionEntry("hero_banner", settings={"hero_style": "split"}),
-            PresetSectionEntry("product_section", settings={
-                "title": "مجموعه‌ی منتخب", "data_source": "newest", "display_mode": "grid",
-                "item_limit": 6, "card": {"card_style": "minimal", "show_badge": False},
+            # Store-owned HeroSlide photography is composed into a reusable
+            # editorial triptych; no reference imagery or merchant IDs live
+            # in the preset.
+            PresetSectionEntry("hero_banner", settings={
+                "hero_style": "atelier_triptych", "text_position": "end",
+                "autoplay": False, "show_arrows": False, "show_dots": False,
             }),
-            PresetSectionEntry("testimonials"),
-            PresetSectionEntry("newsletter"),
+            # Image-first category discovery from the current Store's real
+            # active top-level categories and representative product media.
+            PresetSectionEntry("category_grid", settings={
+                "title": "", "display_mode": "atelier_mosaic", "item_limit": 12,
+            }),
+            # Two editorial campaign panels sourced from real merchant banners.
+            PresetSectionEntry("multi_banner", settings={
+                "item_limit": 2, "offset": 0, "layout_variant": "atelier-duo",
+                "responsive": {"desktop_columns": 2, "tablet_columns": 2, "mobile_columns": 1},
+            }),
+            PresetSectionEntry("product_section", settings={
+                "title": "جدیدترین محصولات", "data_source": "newest", "display_mode": "grid",
+                "item_limit": 8, "show_view_all": False,
+                "responsive": {"desktop_columns": 4, "tablet_columns": 2, "mobile_columns": 2},
+                "card": {
+                    "card_style": "minimal", "image_ratio": "square",
+                    "show_brand": False, "show_rating": False, "show_wishlist": False,
+                    "show_badge": False, "show_quick_add": False, "card_border": True,
+                },
+            }),
+            PresetSectionEntry("product_section", settings={
+                "title": "پرفروش‌ترین محصولات", "data_source": "best_sellers", "display_mode": "grid",
+                "item_limit": 4, "show_view_all": False,
+                "responsive": {"desktop_columns": 4, "tablet_columns": 2, "mobile_columns": 2},
+                "card": {
+                    "card_style": "minimal", "image_ratio": "square",
+                    "show_brand": False, "show_rating": False, "show_wishlist": False,
+                    "show_badge": False, "show_quick_add": False, "card_border": True,
+                },
+            }),
+            # A second image-led story moment and one full-width informational
+            # banner use the same Store-owned PromotionalBanner pool. Empty
+            # merchant data simply renders nothing; no fake FAQ/size-guide
+            # copy is inserted by the Ready Template.
+            PresetSectionEntry("multi_banner", settings={
+                "item_limit": 2, "offset": 2, "layout_variant": "atelier-duo",
+                "responsive": {"desktop_columns": 2, "tablet_columns": 2, "mobile_columns": 1},
+            }),
+            PresetSectionEntry("multi_banner", settings={
+                "item_limit": 1, "offset": 4, "layout_variant": "atelier-wide",
+                "responsive": {"desktop_columns": 1, "tablet_columns": 1, "mobile_columns": 1},
+            }),
         ),
         **_u10_standard_non_home_pages(),
     },

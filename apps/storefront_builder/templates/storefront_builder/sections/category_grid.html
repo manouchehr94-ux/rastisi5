@@ -93,6 +93,25 @@ renderer never needs tenant ids inside a global preset.
     </div>
   </section>
   {% endif %}
+{% elif category_grid_settings.display_mode == 'atelier_mosaic' %}
+  {% if top_categories %}
+  <section class="section category-atelier-section">
+    {% if category_grid_settings.title %}<div class="atelier-section-title"><h2>{{ category_grid_settings.title }}</h2></div>{% endif %}
+    <div class="category-atelier-mosaic">
+      {% for cat in top_categories %}
+      <a class="category-atelier-tile" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+        <span class="category-atelier-media">
+          {% if cat.representative_media %}<img src="{{ cat.representative_media.image.url }}" alt="{{ cat.name }}" loading="lazy">
+          {% elif cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">
+          {% else %}<span class="category-atelier-fallback" aria-hidden="true">{{ cat.name|slice:":1" }}</span>{% endif %}
+        </span>
+        <span class="category-atelier-shade" aria-hidden="true"></span>
+        <span class="category-atelier-label">{{ cat.name }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 {% elif category_grid_settings.display_mode == 'image_strip' %}
   {% if top_categories %}
   <section class="section category-image-strip-section">
