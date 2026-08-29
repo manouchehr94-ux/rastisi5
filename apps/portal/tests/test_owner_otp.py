@@ -1,3 +1,4 @@
+from unittest import mock
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -157,6 +158,51 @@ class GetOrCreateOwnerByPhoneTests(TestCase):
         customer.refresh_from_db()
         self.assertEqual(customer.full_name, "Customer Person")  # untouched
 
+    def test_concurrent_create_race_recovers_via_the_winning_committed_row(self):
+        """Batch 1 (audit F-2/BUG-4) regression coverage for the
+        IntegrityError-recovery branch.
+
+        A real two-thread reproduction against PostgreSQL 16 (the audit's
+        own verification, not SQLite — SQLite's coarse table-level locking
+        can't reproduce true row-level concurrency the same way) confirmed
+        this exact race: two concurrent first-time OTP verifications for
+        the same brand-new phone number both pass the initial
+        ``select_for_update().first() is None`` check before either
+        commits, then both attempt ``create_user()`` — one succeeds, one
+        used to raise a raw, uncaught ``IntegrityError``.
+
+        This test can't spin up real concurrent threads inside the
+        standard (SQLite-backed) test suite, so it forces the identical
+        failure deterministically instead: the "winning" row is created
+        for real beforehand, the initial existence check is made to
+        report "nothing here yet" (exactly what the loser's own read
+        would have seen a moment earlier in a genuine race), and the
+        function's own subsequent ``create_user()`` call then hits a
+        *real* unique-constraint violation from Django's ORM — not a
+        faked exception — which is what actually exercises the recovery
+        branch under test.
+        """
+        winner = User.objects.create_user(username="09121234577")
+        winner.set_unusable_password()
+        winner.save(update_fields=["password"])
+
+        empty_lookup = mock.MagicMock()
+        empty_lookup.select_for_update.return_value.first.return_value = None
+
+        with mock.patch.object(User.objects, "filter", return_value=empty_lookup):
+            user, created = owner_auth_service.get_or_create_owner_by_phone(
+                phone="09121234577", full_name="Loser Request",
+            )
+
+        self.assertFalse(created)
+        self.assertEqual(user.pk, winner.pk)
+        self.assertFalse(user.has_usable_password())  # untouched by the recovery path
+        # No duplicate User was created for the loser.
+        self.assertEqual(User.objects.filter(username="09121234577").count(), 1)
+        # The loser still gets a real OwnerProfile pointed at the winner's User.
+        profile = OwnerProfile.objects.get(user=user)
+        self.assertEqual(profile.phone, "09121234577")
+
 
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
 class OtpViewFlowTests(TestCase):
@@ -312,3 +358,109 @@ class OtpViewFlowTests(TestCase):
         response = self.client.post("/login/", {"phone": "notaphone"}, HTTP_HOST=_HOST)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(OwnerOtpChallenge.objects.count(), 0)
+
+
+@override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])
+class InactiveOwnerOtpLoginTests(TestCase):
+    """Batch 1 (audit F-1) — otp_verify must refuse a code-correct login
+    for a suspended (is_active=False) owner, explicitly and enumeration-
+    safely, without ever calling auth_login()/emitting user_logged_in."""
+
+    def setUp(self):
+        cache.clear()
+
+    def _fixed_code(self, code="654321"):
+        import apps.portal.services.owner_otp_service as svc
+
+        original = svc._generate_code
+        svc._generate_code = lambda: code
+        self.addCleanup(setattr, svc, "_generate_code", original)
+        return code
+
+    def test_inactive_existing_owner_with_correct_otp_is_not_logged_in(self):
+        owner, _created = owner_auth_service.get_or_create_owner_by_phone(
+            phone="09121234590", full_name="Suspended Owner",
+        )
+        owner.is_active = False
+        owner.save(update_fields=["is_active"])
+
+        code = self._fixed_code()
+        self.client.post("/login/", {"phone": "09121234590"}, HTTP_HOST=_HOST)
+        response = self.client.post(
+            "/verify/", {"phone": "09121234590", "code": code}, HTTP_HOST=_HOST,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_inactive_owner_otp_rejection_uses_the_generic_error_message(self):
+        """Never reveals "this account is suspended" — the exact same
+        message as an incorrect/expired code, matching the enumeration-
+        safety pattern used everywhere else in this app (see
+        owner_auth_service.GENERIC_LOGIN_ERROR)."""
+        owner, _created = owner_auth_service.get_or_create_owner_by_phone(
+            phone="09121234591", full_name="Suspended Owner",
+        )
+        owner.is_active = False
+        owner.save(update_fields=["is_active"])
+
+        code = self._fixed_code()
+        self.client.post("/login/", {"phone": "09121234591"}, HTTP_HOST=_HOST)
+        response = self.client.post(
+            "/verify/", {"phone": "09121234591", "code": code}, HTTP_HOST=_HOST,
+        )
+
+        self.assertContains(response, "کد نادرست یا منقضی‌شده است.")
+        self.assertNotContains(response, "غیرفعال")
+        self.assertNotContains(response, "معلق")
+
+    def test_no_user_logged_in_signal_is_emitted_for_a_rejected_inactive_owner(self):
+        from django.contrib.auth.signals import user_logged_in
+
+        owner, _created = owner_auth_service.get_or_create_owner_by_phone(
+            phone="09121234592", full_name="Suspended Owner",
+        )
+        owner.is_active = False
+        owner.save(update_fields=["is_active"])
+
+        received = []
+        user_logged_in.connect(lambda **kwargs: received.append(kwargs.get("user")))
+
+        code = self._fixed_code()
+        self.client.post("/login/", {"phone": "09121234592"}, HTTP_HOST=_HOST)
+        self.client.post("/verify/", {"phone": "09121234592", "code": code}, HTTP_HOST=_HOST)
+
+        self.assertEqual(received, [])
+
+    def test_active_existing_owner_with_correct_otp_still_logs_in_unchanged(self):
+        """Regression guard — the new is_active check must never affect a
+        normal, active, returning owner's OTP login."""
+        owner_auth_service.get_or_create_owner_by_phone(
+            phone="09121234593", full_name="Active Owner",
+        )
+
+        code = self._fixed_code()
+        self.client.post("/login/", {"phone": "09121234593"}, HTTP_HOST=_HOST)
+        response = self.client.post(
+            "/verify/", {"phone": "09121234593", "code": code}, HTTP_HOST=_HOST,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("_auth_user_id", self.client.session)
+
+    def test_brand_new_phone_registration_is_unaffected_by_the_inactive_check(self):
+        """A genuinely new phone number always creates an active owner
+        (Django's create_user default) — the new check must never block
+        first-time registration."""
+        code = self._fixed_code()
+        self.client.post(
+            "/register/", {"full_name": "Brand New Owner", "phone": "09121234594"}, HTTP_HOST=_HOST,
+        )
+        response = self.client.post(
+            "/verify/", {"phone": "09121234594", "full_name": "Brand New Owner", "code": code}, HTTP_HOST=_HOST,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("_auth_user_id", self.client.session)
+        user = User.objects.get(username="09121234594")
+        self.assertTrue(user.is_active)

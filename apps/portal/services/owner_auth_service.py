@@ -11,7 +11,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import send_mail
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.template.loader import render_to_string
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -51,7 +51,20 @@ def register_owner(*, full_name: str, email: str, password: str) -> User:
     except DjangoValidationError as exc:
         raise OwnerAuthError(" ".join(exc.messages)) from exc
 
-    user = User.objects.create_user(username=email, email=email, password=password)
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(username=email, email=email, password=password)
+    except IntegrityError:
+        # User.email is not DB-unique (uniqueness comes from username,
+        # which we set equal to the normalized email), so two concurrent
+        # requests for the same email can both pass the .exists() check
+        # above. The inner atomic() is a savepoint, so this rollback
+        # doesn't poison the outer transaction — recover by re-checking
+        # the actual identity; only report "duplicate email" if that's
+        # really what happened, otherwise let the error propagate.
+        if User.objects.filter(username=email).exists():
+            raise OwnerAuthError("این ایمیل قبلاً ثبت‌نام کرده است") from None
+        raise
     OwnerProfile.objects.create(user=user, full_name=full_name.strip())
     return user
 
@@ -164,9 +177,21 @@ def get_or_create_owner_by_phone(*, phone: str, full_name: str = "") -> tuple[Us
     user = User.objects.filter(username=phone).select_for_update().first()
     created = user is None
     if user is None:
-        user = User.objects.create_user(username=phone)
-        user.set_unusable_password()
-        user.save(update_fields=["password"])
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(username=phone)
+                user.set_unusable_password()
+                user.save(update_fields=["password"])
+        except IntegrityError:
+            # A not-yet-existing row can't be protected by
+            # select_for_update(), so two concurrent first-time creates for
+            # the same phone can both reach here. The inner atomic() is a
+            # savepoint, so this rollback doesn't poison the outer
+            # transaction — recover by re-reading the row the other request
+            # just committed, never re-creating it or touching its
+            # is_active/password state.
+            created = False
+            user = User.objects.select_for_update().get(username=phone)
 
     existing_profile = OwnerProfile.objects.filter(user=user).first()
     if existing_profile is None:

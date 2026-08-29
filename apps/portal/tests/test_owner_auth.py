@@ -1,5 +1,8 @@
+from unittest import mock
+
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.db import IntegrityError
 from django.test import TestCase, override_settings
 
 from apps.customers.models import Customer
@@ -38,6 +41,67 @@ class OwnerRegistrationTests(TestCase):
         owner_auth_service.register_owner(full_name="A", email="owneronly@example.com", password="a-very-strong-pass-1")
         user = User.objects.get(username="owneronly@example.com")
         self.assertFalse(hasattr(user, "customer_profile"))
+
+    def test_concurrent_registration_race_recovers_as_duplicate_email(self):
+        """Batch 1 (audit F-2/BUG-5) regression coverage for the
+        IntegrityError-recovery branch in ``register_owner``.
+
+        A real 12-thread reproduction against PostgreSQL 16 (the audit's
+        own verification, not SQLite) confirmed that two concurrent
+        registration requests for the exact same email can both pass the
+        ``User.objects.filter(email__iexact=...).exists()`` pre-check
+        before either commits — ``User.email`` itself is not DB-unique;
+        uniqueness is enforced indirectly through ``username``, which this
+        function sets equal to the normalized email. One request used to
+        get a raw, uncaught ``IntegrityError`` instead of the intended
+        "این ایمیل قبلاً ثبت‌نام کرده است" error.
+
+        SQLite's own locking model can't reproduce true concurrent writes
+        the same way, so this test forces the identical failure
+        deterministically: the "winning" row is created for real
+        beforehand, only the pre-check's ``.filter(email__iexact=...)``
+        call is made to lie ("nothing here yet" — exactly what the loser's
+        own read would have seen a moment earlier in a genuine race), and
+        the function's own subsequent ``create_user()`` call then hits a
+        *real* unique-constraint violation — not a faked exception."""
+        winner = owner_auth_service.register_owner(
+            full_name="Winner", email="race@example.com", password="a-very-strong-pass-1",
+        )
+
+        real_filter = User.objects.filter
+        fake_precheck = mock.MagicMock()
+        fake_precheck.exists.return_value = False
+
+        def filter_side_effect(*args, **kwargs):
+            if "email__iexact" in kwargs:
+                return fake_precheck
+            return real_filter(*args, **kwargs)
+
+        with mock.patch.object(User.objects, "filter", side_effect=filter_side_effect):
+            with self.assertRaises(owner_auth_service.OwnerAuthError) as ctx:
+                owner_auth_service.register_owner(
+                    full_name="Loser Request", email="race@example.com", password="another-strong-pass-2",
+                )
+
+        self.assertEqual(str(ctx.exception), "این ایمیل قبلاً ثبت‌نام کرده است")
+        # No duplicate User/OwnerProfile was created for the loser.
+        self.assertEqual(User.objects.filter(username="race@example.com").count(), 1)
+        self.assertEqual(OwnerProfile.objects.filter(user=winner).count(), 1)
+
+    def test_unrelated_integrity_error_is_not_mislabeled_as_duplicate_email(self):
+        """The recovery branch must only translate an IntegrityError into
+        "duplicate email" when that is actually what happened — any other
+        integrity failure must surface unchanged, not be silently
+        swallowed and misreported."""
+        with mock.patch.object(
+            User.objects, "create_user",
+            side_effect=IntegrityError("some_unrelated_constraint_violation"),
+        ):
+            with self.assertRaises(IntegrityError):
+                owner_auth_service.register_owner(
+                    full_name="X", email="totally-unrelated@example.com", password="a-very-strong-pass-1",
+                )
+        self.assertFalse(User.objects.filter(username="totally-unrelated@example.com").exists())
 
 
 @override_settings(ALLOWED_HOSTS=[_HOST, "testserver"])

@@ -357,40 +357,50 @@ def otp_verify(request):
                 form.add_error(None, "کد نادرست یا منقضی‌شده است.")
             else:
                 full_name = request.session.get(_OTP_SESSION_FULL_NAME_KEY, "")
-                next_url = request.session.get(_OTP_SESSION_NEXT_KEY, "")
-                admin_return = request.session.get(_OTP_SESSION_ADMIN_RETURN_KEY, "")
-                remember_me = request.session.get(_OTP_SESSION_REMEMBER_KEY, False)
-                for key in (
-                    _OTP_SESSION_PHONE_KEY, _OTP_SESSION_PURPOSE_KEY,
-                    _OTP_SESSION_FULL_NAME_KEY, _OTP_SESSION_NEXT_KEY,
-                    _OTP_SESSION_ADMIN_RETURN_KEY, _OTP_SESSION_REMEMBER_KEY,
-                ):
-                    request.session.pop(key, None)
                 user, created = owner_auth_service.get_or_create_owner_by_phone(
                     phone=phone, full_name=full_name,
                 )
-                auth_login(request, user)
-                session_service.apply_remember_me(request, remember_me)
+                if not user.is_active:
+                    # Explicitly reject a suspended owner before auth_login()
+                    # runs, so no session/signal is ever created for them —
+                    # never rely solely on ModelBackend.get_user() catching
+                    # it on the next request. Message stays generic/
+                    # enumeration-safe (same as a wrong/expired code, never
+                    # "this account is suspended"); pending session keys are
+                    # left untouched so a resend still works normally.
+                    form.add_error(None, "کد نادرست یا منقضی‌شده است.")
+                else:
+                    next_url = request.session.get(_OTP_SESSION_NEXT_KEY, "")
+                    admin_return = request.session.get(_OTP_SESSION_ADMIN_RETURN_KEY, "")
+                    remember_me = request.session.get(_OTP_SESSION_REMEMBER_KEY, False)
+                    for key in (
+                        _OTP_SESSION_PHONE_KEY, _OTP_SESSION_PURPOSE_KEY,
+                        _OTP_SESSION_FULL_NAME_KEY, _OTP_SESSION_NEXT_KEY,
+                        _OTP_SESSION_ADMIN_RETURN_KEY, _OTP_SESSION_REMEMBER_KEY,
+                    ):
+                        request.session.pop(key, None)
+                    auth_login(request, user)
+                    session_service.apply_remember_me(request, remember_me)
 
-                if created:
-                    # Section 3.1 ("onboarding mode C"): registration
-                    # provisions exactly one trial Store automatically —
-                    # the owner never sees an empty My Stores page or a
-                    # separate "create store" click on their very first visit.
-                    try:
-                        store = provisioning_service.provision_trial_store(
-                            owner=user, name=DEFAULT_TRIAL_STORE_NAME,
-                        )
-                    except provisioning_service.ProvisioningError:
-                        messages.error(
-                            request,
-                            "حساب شما ساخته شد، اما ساخت فروشگاه آزمایشی کامل نشد؛ "
-                            "از صفحه «فروشگاه‌های من» دوباره تلاش کنید.",
-                        )
-                    else:
-                        return redirect("portal:onboarding", store_public_id=store.public_id)
+                    if created:
+                        # Section 3.1 ("onboarding mode C"): registration
+                        # provisions exactly one trial Store automatically —
+                        # the owner never sees an empty My Stores page or a
+                        # separate "create store" click on their very first visit.
+                        try:
+                            store = provisioning_service.provision_trial_store(
+                                owner=user, name=DEFAULT_TRIAL_STORE_NAME,
+                            )
+                        except provisioning_service.ProvisioningError:
+                            messages.error(
+                                request,
+                                "حساب شما ساخته شد، اما ساخت فروشگاه آزمایشی کامل نشد؛ "
+                                "از صفحه «فروشگاه‌های من» دوباره تلاش کنید.",
+                            )
+                        else:
+                            return redirect("portal:onboarding", store_public_id=store.public_id)
 
-                return _post_login_redirect(request, user, next_url=next_url, admin_return=admin_return)
+                    return _post_login_redirect(request, user, next_url=next_url, admin_return=admin_return)
     else:
         form = OwnerOtpVerifyForm(initial={"phone": phone})
     resend_url_name = "portal:register" if purpose == OwnerOtpChallenge.Purpose.REGISTER else "portal:login"
