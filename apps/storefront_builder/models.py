@@ -120,6 +120,10 @@ FOOTER_CONFIG_DEFAULTS = (
         #: نه یک مهاجرتِ دیتابیسی؛ دقیقاً همان الگویِ ``header_variant``یِ
         #: U2A در ``HEADER_CONFIG_DEFAULTS``).
         "footer_variant": "legacy_default",
+        #: Mobile-only persistent storefront navigation. ``hidden`` preserves
+        #: every existing Store until a Ready Template or merchant explicitly
+        #: opts into a registered mobile-navigation variant.
+        "mobile_nav_variant": "hidden",
     }
 )
 

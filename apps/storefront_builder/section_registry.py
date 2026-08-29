@@ -732,7 +732,7 @@ QUICK_ADD_REVEAL_CHOICES = ("hover_slide", "hover_fade", "always")
 #: may adopt it, not just the one that introduces it. ``beauty_retail`` is
 #: the equivalent commerce-forward cosmetics/perfume treatment: contained
 #: product media plus an always-visible, business-rule-aware bottom action.
-CARD_STYLE_CHOICES = ("standard", "compact", "minimal", "fashion_sale", "beauty_retail", "chocolate_retail", "retail_list")
+CARD_STYLE_CHOICES = ("standard", "compact", "minimal", "fashion_sale", "beauty_retail", "chocolate_retail", "retail_list", "luxury_dark")
 
 _CARD_TOGGLE_FIELDS = (
     "show_brand", "show_price", "show_badge", "show_wishlist",
@@ -1161,7 +1161,7 @@ _SLIDER_DEFAULT_INTERVAL_MS = 4500
 #: section that doesn't read it. Keeping the key in one shared validator
 #: (rather than forking a second near-identical function) is the same
 #: reuse choice already made for every other slider-level field.
-HERO_STYLE_CHOICES = ("overlay", "split", "beauty_editorial", "chocolate_carousel", "atelier_triptych")
+HERO_STYLE_CHOICES = ("overlay", "split", "beauty_editorial", "chocolate_carousel", "atelier_triptych", "luxury_showcase")
 
 
 def _validate_slider_settings(raw: dict) -> dict:
@@ -1240,7 +1240,7 @@ _MAX_SECTION_TITLE_LENGTH = 60
 #: compact flat rail (small image, short label, no card chrome) distinct
 #: from ``image_strip``'s own CSS (which ``dense_marketplace`` already
 #: uses) so that template's rendering stays completely untouched.
-CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular", "image_strip", "fashion_flat", "fashion_mosaic", "beauty_icons", "chocolate_story", "chocolate_badges", "atelier_mosaic")
+CATEGORY_GRID_DISPLAY_MODES = ("grid", "carousel", "circular", "image_strip", "fashion_flat", "fashion_mosaic", "beauty_icons", "chocolate_story", "chocolate_badges", "atelier_mosaic", "luxury_shortcuts")
 
 
 def _validate_category_grid_settings(raw: dict) -> dict:
@@ -1712,6 +1712,10 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
                 key="atelier_triptych", label_fa="سه‌قاب قوسی آتلیه",
                 renderer="storefront_builder/sections/hero_banner_atelier.html",
             ),
+            VariantDefinition(
+                key="luxury_showcase", label_fa="ویترین لوکس تیره",
+                renderer="storefront_builder/sections/hero_banner_luxury.html",
+            ),
         ),
         default_variant="overlay", variant_setting_key="hero_style",
     ),
@@ -1805,6 +1809,7 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
             # Editorial image mosaic — real Store category representative
             # media, bold labels over imagery, no card chrome.
             VariantDefinition(key="atelier_mosaic", label_fa="موزاییک تصویری آتلیه"),
+            VariantDefinition(key="luxury_shortcuts", label_fa="میانبرهای لوکس تصویری"),
         ),
         default_variant="grid", variant_setting_key="display_mode",
     ),

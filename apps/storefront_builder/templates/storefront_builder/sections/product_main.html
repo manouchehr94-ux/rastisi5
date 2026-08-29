@@ -162,16 +162,16 @@ Preview بدونِ هیچ محصولی در این فروشگاه — چیزی �
       </form>
 
       <div class="guarantee">
-        <div class="g"><span class="ic">🛡️</span>ضمانت اصالت کالا</div>
+        <div class="g"><span class="ic">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="shield-check" %}</span>ضمانت اصالت کالا</div>
         {% if product.requires_shipping %}
-        <div class="g"><span class="ic">🚚</span>ارسال سریع و بیمه‌شده</div>
+        <div class="g"><span class="ic">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="truck" %}</span>ارسال سریع و بیمه‌شده</div>
         {% else %}
         {% comment %}U6 — no physical shipping claim for a non-shippable
         (digital/service) product; a real, honest fact about this exact
         product rather than a removed/blank slot.{% endcomment %}
         <div class="g"><span class="ic">📦</span>بدون نیاز به ارسال فیزیکی</div>
         {% endif %}
-        <div class="g"><span class="ic">↩️</span>۷ روز ضمانت بازگشت</div>
+        <div class="g"><span class="ic">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="return-policy" %}</span>۷ روز ضمانت بازگشت</div>
       </div>
     </div>
   </div>

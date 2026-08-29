@@ -1,0 +1,44 @@
+{% load persian %}
+{% comment %}
+Reusable mobile storefront navigation. Live cart count is rendered only on
+public storefront requests; Builder Preview never exposes a viewer's real cart.
+{% endcomment %}
+<div class="gmn gmn--luxury" data-mobile-nav="luxury_floating_cart" x-data="{ gmnSearchOpen: false }">
+  <div class="gmn-search-sheet" x-show="gmnSearchOpen" x-cloak @click.outside="gmnSearchOpen=false" @keydown.escape.window="gmnSearchOpen=false">
+    {% if is_live_storefront %}
+    <form action="{% url 'catalog:product-list' %}" method="get" role="search">
+      <label class="sr-only" for="gmn-mobile-search">جستجو در محصولات</label>
+      <input id="gmn-mobile-search" type="search" name="q" placeholder="جستجو در محصولات..." autocomplete="off">
+      <button type="submit" aria-label="جستجو">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="search" %}</button>
+    </form>
+    {% else %}
+    <div class="gmn-search-preview">جستجو در پیش‌نمایش غیرفعال است</div>
+    {% endif %}
+  </div>
+  <nav class="gmn-bar" aria-label="ناوبری اصلی موبایل">
+    {% if is_live_storefront %}
+    <a class="gmn-item{% if page_type == 'home' %} is-active{% endif %}" href="{% url 'catalog:home' %}"{% if page_type == 'home' %} aria-current="page"{% endif %}>
+      <span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="home" %}</span><span>خانه</span>
+    </a>
+    <a class="gmn-item{% if page_type == 'listing' or page_type == 'collection' or page_type == 'product_detail' %} is-active{% endif %}" href="{% url 'catalog:product-list' %}"{% if page_type == 'listing' %} aria-current="page"{% endif %}>
+      <span class="gmn-icon gmn-grid-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span><span>دسته‌بندی</span>
+    </a>
+    <a class="gmn-item gmn-cart{% if page_type == 'cart' %} is-active{% endif %}" href="{% url 'cart:detail' %}"{% if page_type == 'cart' %} aria-current="page"{% endif %}>
+      <span class="gmn-cart-orb"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="cart" %}</span><span class="gmn-count{% if not cart_count %} is-empty{% endif %}" id="mobile-cart-count" aria-label="{{ cart_count }} کالا در سبد">{{ cart_count|fa_number }}</span></span><span>سبد خرید</span>
+    </a>
+    <button class="gmn-item gmn-search-trigger{% if page_type == 'search' %} is-active{% endif %}" type="button" @click="gmnSearchOpen = !gmnSearchOpen" :aria-expanded="gmnSearchOpen.toString()">
+      <span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="search" %}</span><span>جستجو</span>
+    </button>
+    <a class="gmn-item" href="{% url 'customers:account' %}">
+      <span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="account" %}</span><span>حساب</span>
+    </a>
+    {% else %}
+    <span class="gmn-item{% if page_type == 'home' %} is-active{% endif %}"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="home" %}</span><span>خانه</span></span>
+    <span class="gmn-item"><span class="gmn-grid-icon gmn-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span><span>دسته‌بندی</span></span>
+    <span class="gmn-item gmn-cart"><span class="gmn-cart-orb"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="cart" %}</span></span><span>سبد خرید</span></span>
+    <button class="gmn-item gmn-search-trigger" type="button" @click="gmnSearchOpen = !gmnSearchOpen"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="search" %}</span><span>جستجو</span></button>
+    <span class="gmn-item"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="account" %}</span><span>حساب</span></span>
+    {% endif %}
+  </nav>
+</div>
+<div class="gmn-spacer" aria-hidden="true"></div>

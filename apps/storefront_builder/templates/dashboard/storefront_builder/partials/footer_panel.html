@@ -25,6 +25,15 @@
           {% endfor %}
         </select>
       </div>
+      <div class="form-group">
+        <label for="mobile_nav_variant_select">ناوبری پایین موبایل</label>
+        <select id="mobile_nav_variant_select" name="mobile_nav_variant" class="form-select">
+          {% for variant in mobile_nav_variants %}
+          <option value="{{ variant.key }}" {% if config.mobile_nav_variant == variant.key %}selected{% endif %}>{{ variant.label_fa }}</option>
+          {% endfor %}
+        </select>
+        <p class="sfb-field-help">فقط در نمایش موبایل ظاهر می‌شود و از مسیرهای واقعی فروشگاه استفاده می‌کند.</p>
+      </div>
       <label class="toggle-field"><input type="checkbox" name="show_about" {% if config.show_about %}checked{% endif %}><div class="toggle-content"><span class="toggle-title">🏬 درباره فروشگاه</span></div></label>
       <label class="toggle-field"><input type="checkbox" name="show_contact" {% if config.show_contact %}checked{% endif %}><div class="toggle-content"><span class="toggle-title">☎️ تماس با ما</span></div></label>
       <label class="toggle-field"><input type="checkbox" name="show_quick_links" {% if config.show_quick_links %}checked{% endif %}><div class="toggle-content"><span class="toggle-title">🔗 لینک‌های مهم</span></div></label>

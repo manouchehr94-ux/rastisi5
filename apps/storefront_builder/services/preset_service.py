@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from django.db import transaction
 
-from .. import layout_preset_registry, section_registry
+from .. import global_region_registry, layout_preset_registry, section_registry
 from ..layout_preset_registry import LayoutPresetDefinition
 from ..models import StorefrontContainer, StorefrontLayoutVersion, StorefrontSection
 from ..variant_contract import build_template_provenance, validate_template_provenance
@@ -347,8 +347,23 @@ def apply_preset(
     except layout_service.HeaderConfigValidationError as exc:
         raise InvalidPresetError(f"Preset «{preset.key}» نامعتبر است: {exc}") from exc
 
+    # Mobile navigation is a global storefront region stored inside the
+    # existing footer-config JSON.  Ready Templates are full visual baselines:
+    # switching away from a Template that opted into a mobile nav must not let
+    # that nav leak into the next Ready Template merely because the older
+    # recipe predates this region and therefore has no selector key.  Reset the
+    # new region to its registered safe default before applying a Ready
+    # Template footer overlay; an explicitly authored selector (dark_digital
+    # v2 today, any future Template tomorrow) still wins through the overlay.
+    # Non-Ready structural presets keep the historical overlay semantics and
+    # therefore preserve a merchant's chosen mobile navigation.
+    footer_base = draft.effective_footer_config()
+    if preset.is_ready_template and preset.footer is not None:
+        footer_base[global_region_registry.GLOBAL_MOBILE_NAV_REGION.variant_setting_key] = (
+            global_region_registry.GLOBAL_MOBILE_NAV_REGION.default_variant
+        )
     try:
-        cleaned_footer = _validate_footer_overlay(draft.effective_footer_config(), preset.footer)
+        cleaned_footer = _validate_footer_overlay(footer_base, preset.footer)
     except layout_service.FooterConfigValidationError as exc:
         raise InvalidPresetError(f"Preset «{preset.key}» نامعتبر است: {exc}") from exc
 

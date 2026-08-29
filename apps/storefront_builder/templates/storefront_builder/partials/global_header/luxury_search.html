@@ -1,0 +1,40 @@
+{% comment %}
+Premium, search-led global header. Structure is generic and reusable; all
+colors come from the active theme tokens. Mobile primary navigation is
+handled independently by the registered mobile-bottom-nav region.
+{% endcomment %}
+{% with hc=header_config rc=header_config.responsive %}
+<div class="gh-shell gh-shell--luxury" x-data="{ ghLuxuryOpen: false }">
+{% include "storefront_builder/partials/global_header/_shared/announcement_bar.html" %}
+<header class="header gh gh--luxury{% if hc.sticky %} sfb-sticky{% endif %}">
+  <div class="wrap gh-luxury-main">
+    <button class="gh-btn gh-burger gh-luxury-burger" type="button" @click="ghLuxuryOpen = !ghLuxuryOpen" :aria-expanded="ghLuxuryOpen.toString()" aria-controls="gh-luxury-nav" aria-label="منو">
+      {% include "storefront_builder/partials/global_header/_shared/icon.html" with name="burger" %}
+    </button>
+    <div class="gh-luxury-brand">
+      {% include "storefront_builder/partials/global_header/_shared/logo.html" with show_tagline=True %}
+    </div>
+    {% if hc.show_search %}
+    <div class="gh-luxury-search" {% if rc.show_search.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+      {% include "storefront_builder/partials/global_header/_shared/search_form.html" with placeholder_text="جستجو در محصولات..." compact=True field_id="gh-search-input-luxury" icon_in_button=True %}
+    </div>
+    {% endif %}
+    <div class="gh-actions gh-luxury-actions">
+      {% include "storefront_builder/partials/global_header/_shared/admin_shortcut.html" %}
+      {% if hc.show_account %}<div class="gh-inline-block gh-luxury-account" {% if rc.show_account.hide_on_tablet %}data-shell-hide-tablet{% endif %} {% if rc.show_account.hide_on_mobile %}data-shell-hide-mobile{% endif %}>{% include "storefront_builder/partials/global_header/_shared/account_action.html" with show_label=False %}</div>{% endif %}
+      {% if hc.show_cart %}{% include "storefront_builder/partials/global_header/_shared/cart_action.html" %}{% endif %}
+    </div>
+  </div>
+  <nav id="gh-luxury-nav" class="gh-luxury-nav" :class="{ 'gh-nav-hidden': !ghLuxuryOpen }">
+    <div class="wrap gh-luxury-nav-links">
+      {% if NAV_HEADER %}{% include "storefront_builder/partials/global_header/_shared/nav_header_items.html" %}{% else %}{% include "storefront_builder/partials/global_header/_shared/category_link_row.html" %}{% endif %}
+    </div>
+  </nav>
+  {% if hc.show_search %}
+  <div class="gh-mobile-search gh-luxury-mobile-search" {% if rc.show_search.hide_on_mobile %}data-shell-hide-mobile{% endif %}>
+    {% include "storefront_builder/partials/global_header/_shared/search_form.html" with placeholder_text="جستجو در محصولات..." compact=True field_id="gh-search-input-luxury-mobile" icon_in_button=True %}
+  </div>
+  {% endif %}
+</header>
+</div>
+{% endwith %}

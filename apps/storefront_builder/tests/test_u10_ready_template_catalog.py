@@ -212,6 +212,7 @@ class FashionPromoCatalogIsolationTests(TestCase):
             "premium_leather": 1500,
             "dense_marketplace": 1500,
             "editorial_jewelry": 1320,
+            "dark_digital": 1320,
         }
         for key in REQUIRED_KEYS:
             preset = lpr.get_layout_preset(key)

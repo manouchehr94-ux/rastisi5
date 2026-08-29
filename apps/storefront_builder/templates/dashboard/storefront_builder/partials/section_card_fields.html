@@ -4,13 +4,14 @@
     <div class="form-group">
       <label>سبک کارت</label>
       <select name="card_style" class="form-select">
-        <option value="standard" {% if section.settings.card.card_style != "compact" and section.settings.card.card_style != "minimal" and section.settings.card.card_style != "fashion_sale" and section.settings.card.card_style != "beauty_retail" and section.settings.card.card_style != "chocolate_retail" and section.settings.card.card_style != "retail_list" %}selected{% endif %}>استاندارد</option>
+        <option value="standard" {% if section.settings.card.card_style != "compact" and section.settings.card.card_style != "minimal" and section.settings.card.card_style != "fashion_sale" and section.settings.card.card_style != "beauty_retail" and section.settings.card.card_style != "chocolate_retail" and section.settings.card.card_style != "retail_list" and section.settings.card.card_style != "luxury_dark" %}selected{% endif %}>استاندارد</option>
         <option value="compact" {% if section.settings.card.card_style == "compact" %}selected{% endif %}>فشرده فروشگاهی</option>
         <option value="minimal" {% if section.settings.card.card_style == "minimal" %}selected{% endif %}>مینیمال</option>
         <option value="fashion_sale" {% if section.settings.card.card_style == "fashion_sale" %}selected{% endif %}>فروش کمپینی پوشاک</option>
         <option value="beauty_retail" {% if section.settings.card.card_style == "beauty_retail" %}selected{% endif %}>فروشگاهی زیبایی</option>
         <option value="chocolate_retail" {% if section.settings.card.card_style == "chocolate_retail" %}selected{% endif %}>فروشگاهی شکلاتی</option>
         <option value="retail_list" {% if section.settings.card.card_style == "retail_list" %}selected{% endif %}>فهرستی فشرده</option>
+        <option value="luxury_dark" {% if section.settings.card.card_style == "luxury_dark" %}selected{% endif %}>لوکس تیره</option>
       </select>
     </div>
     <div class="form-group">

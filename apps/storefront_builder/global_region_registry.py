@@ -252,6 +252,15 @@ _ATELIER_NAV_VARIANT = GlobalVariantDefinition(
     renderer="storefront_builder/partials/global_header/atelier_nav.html",
 )
 
+#: Premium search-led commerce header.  Dark/gold is supplied by the active
+#: palette; this variant only owns structure, so any future template may reuse
+#: it without a template-key branch.
+_LUXURY_SEARCH_VARIANT = GlobalVariantDefinition(
+    key="luxury_search",
+    label_fa="لوکس (جستجوی برجسته)",
+    renderer="storefront_builder/partials/global_header/luxury_search.html",
+)
+
 GLOBAL_HEADER_REGION = GlobalRegionDefinition(
     key="header",
     label_fa="هدر فروشگاه",
@@ -265,6 +274,7 @@ GLOBAL_HEADER_REGION = GlobalRegionDefinition(
         _BEAUTY_SEARCH_NAV_VARIANT,
         _CHOCOLATE_CENTERED_SEARCH_VARIANT,
         _ATELIER_NAV_VARIANT,
+        _LUXURY_SEARCH_VARIANT,
     ),
     default_variant="legacy_default",
     variant_setting_key="header_variant",
@@ -348,12 +358,39 @@ GLOBAL_FOOTER_REGION = GlobalRegionDefinition(
     variant_setting_key="footer_variant",
 )
 
-#: Every ``GlobalRegionDefinition`` this module currently defines — U2A
-#: added Header, U2B extends this tuple with Footer (navigation/mobile
-#: shell are composed *within* each region's own variant renderer, not
-#: separate regions). A future phase may extend this tuple further; it
-#: never replaces an existing entry.
-_GLOBAL_REGIONS: tuple[GlobalRegionDefinition, ...] = (GLOBAL_HEADER_REGION, GLOBAL_FOOTER_REGION)
+#: Mobile bottom navigation is a third global chrome region.  Its selector is
+#: intentionally persisted inside the already-versioned ``footer_config`` JSON
+#: (``mobile_nav_variant``), so introducing the capability requires no schema
+#: migration and old Stores resolve to ``hidden`` byte-for-byte.
+_MOBILE_NAV_HIDDEN_VARIANT = GlobalVariantDefinition(
+    key="hidden",
+    label_fa="غیرفعال",
+    renderer="storefront_builder/partials/global_mobile_nav/hidden.html",
+)
+
+_MOBILE_NAV_LUXURY_FLOATING_CART_VARIANT = GlobalVariantDefinition(
+    key="luxury_floating_cart",
+    label_fa="لوکس شناور (سبد برجسته)",
+    renderer="storefront_builder/partials/global_mobile_nav/luxury_floating_cart.html",
+)
+
+GLOBAL_MOBILE_NAV_REGION = GlobalRegionDefinition(
+    key="mobile_bottom_nav",
+    label_fa="ناوبری پایین موبایل",
+    variants=(
+        _MOBILE_NAV_HIDDEN_VARIANT,
+        _MOBILE_NAV_LUXURY_FLOATING_CART_VARIANT,
+    ),
+    default_variant="hidden",
+    variant_setting_key="mobile_nav_variant",
+)
+
+#: Every global chrome region. Header/Footer retain their historical defaults;
+#: the new mobile region defaults to a no-op renderer for complete backwards
+#: compatibility.
+_GLOBAL_REGIONS: tuple[GlobalRegionDefinition, ...] = (
+    GLOBAL_HEADER_REGION, GLOBAL_FOOTER_REGION, GLOBAL_MOBILE_NAV_REGION,
+)
 
 for _region in _GLOBAL_REGIONS:
     _validate_global_region(_region)

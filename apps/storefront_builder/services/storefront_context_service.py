@@ -100,6 +100,7 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
             "page_type": page_type,
             "layout_header_config": None,
             "layout_footer_config": None,
+            "mobile_bottom_nav_template": None,
             # Phase 5: پنج صفحه‌ی محصول/لیست/کالکشن/جستجو/سبد پیش از این
             # فاز محتوایِ سخت‌کدشده‌ی خودشان را کاملاً مستقل از انتشارِ V2
             # نشان می‌دادند — این تابع همان تجربه را حفظ می‌کند (نگاه کنید
@@ -149,6 +150,9 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
         # U2B — همان الگویِ ``header_variant_template`` بالا، برایِ فوتر.
         "footer_variant_template": global_region_registry.resolve_global_renderer_template(
             global_region_registry.GLOBAL_FOOTER_REGION, footer_config,
+        ),
+        "mobile_bottom_nav_template": global_region_registry.resolve_global_renderer_template(
+            global_region_registry.GLOBAL_MOBILE_NAV_REGION, footer_config,
         ),
         "render_items": items,
         "rows": render_service.group_items_into_rows(items),

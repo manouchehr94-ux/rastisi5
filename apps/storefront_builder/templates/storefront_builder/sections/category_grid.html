@@ -112,6 +112,27 @@ renderer never needs tenant ids inside a global preset.
     </div>
   </section>
   {% endif %}
+{% elif category_grid_settings.display_mode == 'luxury_shortcuts' %}
+  {% if top_categories %}
+  <section class="section category-luxury-shortcuts">
+    {% if category_grid_settings.title %}<div class="sec-head category-luxury-head"><h2><span class="bar"></span>{{ category_grid_settings.title }}</h2></div>{% endif %}
+    <div class="category-luxury-track">
+      {% for c in top_categories %}
+      <a class="category-luxury-item" href="{% url 'catalog:product-list' %}?category={{ c.slug }}">
+        <span class="category-luxury-media">
+          {% if c.representative_media %}<img src="{{ c.representative_media.image.url }}" alt="{{ c.name }}" loading="lazy">{% elif c.image %}<img src="{{ c.image.url }}" alt="{{ c.name }}" loading="lazy">{% else %}<span aria-hidden="true">{{ c.name|slice:":1" }}</span>{% endif %}
+        </span>
+        <strong>{{ c.name }}</strong>
+      </a>
+      {% endfor %}
+      <a class="category-luxury-item category-luxury-all" href="{% url 'catalog:product-list' %}">
+        <span class="category-luxury-media" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+        <strong>همه دسته‌ها</strong>
+      </a>
+    </div>
+  </section>
+  {% endif %}
+
 {% elif category_grid_settings.display_mode == 'image_strip' %}
   {% if top_categories %}
   <section class="section category-image-strip-section">

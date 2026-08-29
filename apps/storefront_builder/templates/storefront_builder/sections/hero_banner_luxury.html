@@ -1,0 +1,35 @@
+{% load content_tags %}
+{% comment %}
+Generic premium showcase hero: one Store-owned HeroSlide at a time, strong
+copy/image split, no copied concept/reference imagery and no Store IDs.
+{% endcomment %}
+{% if hero_slides %}
+<section class="section hero-luxury" x-data="{ active: 0, total: {{ hero_slides|length }} }">
+  <div class="hero-luxury-stage">
+    {% for s in hero_slides %}
+    <article class="hero-luxury-slide" x-show="active === {{ forloop.counter0 }}"{% if not forloop.first %} x-cloak{% endif %} x-transition.opacity>
+      <div class="hero-luxury-copy">
+        <span class="hero-luxury-kicker">مجموعه ویژه</span>
+        {% if s.title %}<h1>{{ s.title }}</h1>{% endif %}
+        {% if s.subtitle %}<p>{{ s.subtitle }}</p>{% endif %}
+        {% if s.show_button and s.button_label %}
+          {% resolve_destination s as dest %}
+          {% if dest.url %}<a class="hero-luxury-cta" href="{{ dest.url }}"{% if dest.open_new_tab %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ s.button_label }} <span aria-hidden="true">‹</span></a>{% endif %}
+        {% endif %}
+      </div>
+      <figure class="hero-luxury-media">
+        <picture>
+          {% if s.mobile_image %}<source media="(max-width:680px)" srcset="{{ s.mobile_image.url }}">{% endif %}
+          <img src="{{ s.desktop_image.url }}" alt="{{ s.title|default:'تصویر مجموعه' }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+        </picture>
+      </figure>
+    </article>
+    {% endfor %}
+    {% if hero_slides|length > 1 and slider_settings.show_dots %}
+    <div class="hero-luxury-dots" aria-label="اسلایدهای ویترین">
+      {% for s in hero_slides %}<button type="button" @click="active={{ forloop.counter0 }}" :class="{ 'is-active': active === {{ forloop.counter0 }} }" aria-label="اسلاید {{ forloop.counter }}"></button>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}

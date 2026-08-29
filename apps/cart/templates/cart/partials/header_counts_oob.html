@@ -1,2 +1,3 @@
 {% load persian %}<span class="cnt" id="cart-count" hx-swap-oob="true">{{ cart_count|fa_number }}</span>
 <span class="cnt" id="wishlist-count" hx-swap-oob="true">{{ wishlist_count|fa_number }}</span>
+{% load persian %}{% comment %}Optional OOB target for the registered mobile bottom navigation; harmless when that region is not rendered.{% endcomment %}<span class="gmn-count{% if not cart_count %} is-empty{% endif %}" id="mobile-cart-count" hx-swap-oob="outerHTML:#mobile-cart-count" aria-label="{{ cart_count }} کالا در سبد">{{ cart_count|fa_number }}</span>

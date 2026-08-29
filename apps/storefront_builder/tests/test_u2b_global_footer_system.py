@@ -427,7 +427,7 @@ class U2AHeaderBehaviorIntactTests(TestCase):
         expected = {
             "legacy_default", "marketplace_search_first", "premium_three_column",
             "boutique_centered", "dark_tech", "promo_search_nav", "beauty_search_nav",
-            "chocolate_centered_search", "atelier_nav",
+            "chocolate_centered_search", "atelier_nav", "luxury_search",
         }
         self.assertEqual(keys, expected)
 

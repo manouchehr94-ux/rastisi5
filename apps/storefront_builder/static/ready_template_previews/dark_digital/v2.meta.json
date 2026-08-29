@@ -1,0 +1,11 @@
+{
+  "template_key": "dark_digital",
+  "version": "2",
+  "content_hash": "614451edd3fe87501483eedd96814c13bfa861835c99157c026720d187ca6834",
+  "preview_input_fingerprint": "7ae04425653049333fa80c38b9948ad5fa5061197e3a6d3114a96e5993bc1cc4",
+  "capture_source": "rasti-mode-demo",
+  "viewport": {
+    "width": 1440,
+    "height": 1100
+  }
+}

@@ -333,6 +333,7 @@ class VersionedPreviewIdentityTests(TestCase):
             "premium_leather": "2",
             "dense_marketplace": "2",
             "editorial_jewelry": "2",
+            "dark_digital": "2",
         }
         for key in READY_TEMPLATE_KEYS:
             preset = lpr.get_layout_preset(key)

@@ -323,6 +323,9 @@ def validate_footer_config(config: dict) -> dict:
         cleaned["footer_variant"] = global_region_registry.validate_global_variant_selection(
             global_region_registry.GLOBAL_FOOTER_REGION, config.get("footer_variant"),
         )
+        cleaned["mobile_nav_variant"] = global_region_registry.validate_global_variant_selection(
+            global_region_registry.GLOBAL_MOBILE_NAV_REGION, config.get("mobile_nav_variant"),
+        )
     except global_region_registry.UnknownGlobalVariantSelectionError as exc:
         raise FooterConfigValidationError(str(exc)) from exc
 

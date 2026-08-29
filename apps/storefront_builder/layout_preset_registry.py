@@ -1398,28 +1398,69 @@ register_layout_preset(LayoutPresetDefinition(
 
 register_layout_preset(LayoutPresetDefinition(
     key="dark_digital",
+    version="2",
     is_ready_template=True,
-    label_fa="دیجیتالِ تیره",
-    description_fa="چیدمانِ تیره و پرحرکت — مناسبِ فروشگاهِ لوازمِ دیجیتال/فناوری که هویتِ بصریِ تک‌محور می‌خواهد.",
+    label_fa="دیجیتالِ تیره لوکس",
+    description_fa="فروشگاه تیره و پرمیوم با جستجوی برجسته، ویترین تصویری لوکس، میانبرهای دسته‌بندی، کارت‌های طلایی و ناوبری پایین موبایل.",
     appearance={
-        "font": "Arial", "radius": 6, "button_radius": 6,
-        "density": "compact", "motion": "dynamic", "type_scale": "normal",
+        "font": "Vazirmatn", "radius": 18, "button_radius": 14,
+        "density": "normal", "motion": "subtle", "type_scale": "normal",
         "button_style": "filled", "image_fit": "cover", "image_hover": "zoom",
         "card_image_crossfade": True, "card_image_zoom": True,
+        "content_width": 1320,
     },
-    default_palette_slug="ocean",
-    header={"sticky": True, "announcement_enabled": True, "header_variant": "dark_tech"},
-    footer={"footer_variant": "dark_tech"},
+    default_palette_slug="theme-black-gold",
+    header={
+        "sticky": True, "announcement_enabled": False,
+        "show_search": True, "show_account": True, "show_wishlist": False, "show_cart": True,
+        "header_variant": "luxury_search",
+    },
+    footer={
+        "show_about": True, "show_contact": True, "show_categories": True,
+        "show_quick_links": True, "show_social": True,
+        "show_trust_badges": True, "show_payment_logos": True,
+        "show_newsletter": False, "show_copyright": True,
+        "footer_variant": "dark_tech",
+        "mobile_nav_variant": "luxury_floating_cart",
+    },
     pages={
         "home": (
-            PresetSectionEntry("hero_banner", settings={"hero_style": "overlay"}),
-            PresetSectionEntry("product_section", settings={
-                "title": "جدیدترین محصولات", "data_source": "newest", "display_mode": "grid",
-                "item_limit": 8, "card": {"card_style": "standard"},
+            PresetSectionEntry("hero_banner", settings={
+                "hero_style": "luxury_showcase", "text_position": "end",
+                "autoplay": False, "show_arrows": False, "show_dots": True,
             }),
-            PresetSectionEntry("discounted_products"),
-            PresetSectionEntry("brand_carousel", settings={"display_mode": "carousel"}),
+            PresetSectionEntry("category_grid", settings={
+                "title": "دسته‌بندی محصولات", "display_mode": "luxury_shortcuts", "item_limit": 5,
+            }),
+            PresetSectionEntry("product_section", settings={
+                "title": "منتخب امروز", "data_source": "newest", "display_mode": "grid",
+                "item_limit": 8, "show_view_all": True,
+                "responsive": {
+                    "desktop_columns": 4, "tablet_columns": 3, "mobile_columns": 2,
+                    "hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False,
+                },
+                "card": {
+                    "card_style": "luxury_dark", "image_ratio": "square",
+                    "show_brand": True, "show_price": True, "show_badge": True,
+                    "show_wishlist": True, "show_quick_add": True, "show_rating": False,
+                    "card_border": True, "quick_add_reveal": "always",
+                },
+            }),
             PresetSectionEntry("trust_features"),
+            PresetSectionEntry("product_section", settings={
+                "title": "پرفروش‌ترین‌ها", "data_source": "best_sellers", "display_mode": "carousel",
+                "item_limit": 8, "show_view_all": True,
+                "responsive": {
+                    "desktop_columns": 4, "tablet_columns": 3, "mobile_columns": 2,
+                    "hide_on_desktop": False, "hide_on_tablet": False, "hide_on_mobile": False,
+                },
+                "card": {
+                    "card_style": "luxury_dark", "image_ratio": "square",
+                    "show_brand": True, "show_price": True, "show_badge": True,
+                    "show_wishlist": True, "show_quick_add": True, "show_rating": False,
+                    "card_border": True, "quick_add_reveal": "always",
+                },
+            }),
         ),
         **_u10_standard_non_home_pages(),
     },
