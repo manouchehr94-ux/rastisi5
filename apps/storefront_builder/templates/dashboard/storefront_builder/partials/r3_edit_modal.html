@@ -21,7 +21,7 @@
       </div>
 
       <footer class="sfb-r3-modal__footer" x-show="r3ModalKind !== 'deep'">
-        <button type="button" class="sfb-r3-done" @click="closeR3Modal(); reloadPreview()">انجام شد</button>
+        <button type="button" class="sfb-r3-done" :disabled="r3SaveBusy" @click="saveActiveR3Settings({ closeOnSuccess: true })">انجام شد</button>
       </footer>
     </section>
   </div>

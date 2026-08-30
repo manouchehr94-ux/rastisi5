@@ -373,6 +373,22 @@
 
 {% block extra_js %}
 <script>
+// Shared low-level POST used by every settings form's save path (R2 sidebar
+// autosave and the R3 modal's explicit Save/Done buttons alike) — one
+// persistence implementation, not two. A successful save always redirects
+// (see storefront_section_settings' `return redirect(...)`); a validation
+// failure re-renders the same partial with field_errors instead, so
+// `redirected` doubles as the success/failure signal for callers.
+async function postFormAjax(form) {
+  const response = await fetch(form.action, {
+    method: 'POST',
+    body: new FormData(form),
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  });
+  return { ok: response.ok && response.redirected, response };
+}
+
 function storefrontEditor() {
   return {
     device: 'desktop',
@@ -387,6 +403,7 @@ function storefrontEditor() {
     r3StructureTick: 0,
     r3LastFocus: null,
     r3Error: '',
+    r3SaveBusy: false,
     deepWorkspaceOpen: false,
     deepWorkspaceUrl: '',
     deepWorkspaceTitle: '',
@@ -506,6 +523,19 @@ function storefrontEditor() {
         });
         inspector.addEventListener('submit', () => { this.inspectorDirty = false; });
       }
+      // #sfbR3ModalBody lives inside r3_edit_modal.html's <template
+      // x-teleport="body">, which Alpine only clones into <body> once its
+      // walker reaches that directive — strictly *after* this root's own
+      // x-init runs. document.getElementById('sfbR3ModalBody') here would
+      // therefore find nothing yet. document.body already exists, so
+      // delegate on it instead (submit bubbles); this also means the
+      // listener survives every htmx.ajax(...) innerHTML swap into
+      // #sfbR3ModalBody without ever needing to be re-registered.
+      document.body.addEventListener('submit', (evt) => {
+        if (!evt.target.matches('#sfbR3ModalBody form[data-sfb-autosave="true"]')) return;
+        evt.preventDefault();
+        this.saveActiveR3Settings({ closeOnSuccess: false });
+      });
       window.addEventListener('message', (evt) => {
         if (evt.origin !== window.location.origin) return;
         if (!evt.data || !evt.data.type) return;
@@ -1261,13 +1291,8 @@ function storefrontEditor() {
       this.inspectorSaving = true;
       this.inspectorSaveQueued = false;
       try {
-        const response = await fetch(form.action, {
-          method: 'POST',
-          body: new FormData(form),
-          credentials: 'same-origin',
-          headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        });
-        if (response.ok && response.redirected) {
+        const { ok } = await postFormAjax(form);
+        if (ok) {
           this.inspectorDirty = false;
           this.reloadPreview();
           await this.refreshHistoryState();
@@ -1282,6 +1307,50 @@ function storefrontEditor() {
           this.inspectorSaveQueued = false;
           this.$nextTick(() => this.autosaveInspectorForm(form));
         }
+      }
+    },
+    // Single shared save operation behind both R3 modal buttons:
+    // - inner "ذخیره تنظیمات" submit calls this with closeOnSuccess=false
+    //   (persist, modal stays open);
+    // - footer "انجام شد" calls this with closeOnSuccess=true (persist,
+    //   wait for success, then close + refresh preview).
+    // Validation/network errors always keep the modal open and surface
+    // r3Error, regardless of which button triggered the save.
+    async saveActiveR3Settings({ closeOnSuccess = false } = {}) {
+      const modalBody = document.getElementById('sfbR3ModalBody');
+      const form = modalBody && modalBody.querySelector('form[data-sfb-autosave="true"]');
+      if (!form) {
+        // Modal kinds with no managed settings form (add/structure/colors/...):
+        // Done has nothing of its own to persist, so it just closes.
+        if (closeOnSuccess) { this.closeR3Modal(); this.reloadPreview(); }
+        return true;
+      }
+      if (this.r3SaveBusy) return false;
+      this.r3SaveBusy = true;
+      this.r3Error = '';
+      const submitButtons = [...form.querySelectorAll('button[type="submit"]')];
+      submitButtons.forEach((btn) => { btn.disabled = true; });
+      try {
+        const { ok, response } = await postFormAjax(form);
+        if (ok) {
+          this.reloadPreview();
+          await this.refreshHistoryState();
+          if (closeOnSuccess) this.closeR3Modal();
+          return true;
+        }
+        const html = await response.text();
+        if (html && modalBody) {
+          modalBody.innerHTML = html;
+          htmx.process(modalBody);
+        }
+        this.r3Error = 'ذخیره نشد؛ خطاهای فرم را بررسی کنید.';
+        return false;
+      } catch (_error) {
+        this.r3Error = 'ذخیره انجام نشد. دوباره تلاش کنید.';
+        return false;
+      } finally {
+        this.r3SaveBusy = false;
+        submitButtons.forEach((btn) => { if (document.contains(btn)) btn.disabled = false; });
       }
     },
     reloadPreview() {
