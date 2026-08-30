@@ -1,0 +1,166 @@
+/* RastiSi Storefront Builder R3 — Simple Live Store Editor.
+   The storefront is the primary surface. Legacy V2/V3 panels stay in the DOM
+   only as compatibility machinery and are not part of the merchant-facing UI. */
+
+.sfb-r3-shell{
+  --r3-ink:#171923;
+  --r3-muted:#707787;
+  --r3-line:#e5e7ee;
+  --r3-soft:#f6f7fa;
+  --r3-accent:#6848ff;
+  --r3-accent-soft:#f2efff;
+  position:fixed !important;
+  inset:0 !important;
+  z-index:1450 !important;
+  width:100vw !important;
+  height:100vh !important;
+  min-height:0 !important;
+  display:grid !important;
+  grid-template-rows:auto minmax(0,1fr) !important;
+  overflow:hidden !important;
+  background:#fff !important;
+}
+
+/* Old chrome is deliberately hidden, not deleted: existing engine methods and
+   HTMX state mirrors remain available while merchants see one simple surface. */
+.sfb-r3-shell > .sfb-v3-topbar,
+.sfb-r3-shell .sfb-v3-sidebar-right,
+.sfb-r3-shell .sfb-v3-inspector,
+.sfb-r3-shell .sfb-v22-drawer-backdrop,
+.sfb-r3-shell .sfb-floating-add,
+.sfb-r3-shell .sfb-mobile-builder-nav,
+.sfb-r3-shell .sfb-v22-deep-workspace,
+.sfb-r3-shell .sfb-library-cell-drop-layer{
+  display:none !important;
+}
+
+.sfb-r3-toolbar{
+  position:relative;
+  z-index:20;
+  min-height:64px;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  padding:9px 14px;
+  background:rgba(255,255,255,.98);
+  border-bottom:1px solid var(--r3-line);
+  box-shadow:0 2px 12px rgba(20,25,40,.045);
+  direction:rtl;
+}
+.sfb-r3-toolbar__main,.sfb-r3-toolbar__secondary{display:flex;align-items:center;gap:7px;min-width:0}
+.sfb-r3-toolbar__main{flex:1 1 auto}
+.sfb-r3-toolbar__secondary{flex:0 0 auto;margin-inline-start:auto}
+.sfb-r3-back,.sfb-r3-btn,.sfb-r3-icon-btn,.sfb-r3-page select{
+  height:38px;border:1px solid var(--r3-line);background:#fff;color:#3f4654;border-radius:10px;
+  font:inherit;font-size:12px;font-weight:800;box-sizing:border-box;
+}
+.sfb-r3-back,.sfb-r3-btn,.sfb-r3-icon-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 11px;text-decoration:none;cursor:pointer;white-space:nowrap}
+.sfb-r3-btn:hover,.sfb-r3-icon-btn:hover,.sfb-r3-back:hover{border-color:#cbc3ff;color:#573bd0;background:#faf9ff}
+.sfb-r3-btn.is-accent{background:var(--r3-accent-soft);border-color:#d9d1ff;color:#573bd0}
+.sfb-r3-page{display:flex;align-items:center;gap:6px;color:var(--r3-muted);font-size:11px;font-weight:800;white-space:nowrap}
+.sfb-r3-page select{padding:0 10px;min-width:138px;cursor:pointer}
+.sfb-r3-mode{display:flex;gap:3px;padding:3px;background:#f0f1f5;border-radius:10px}
+.sfb-r3-mode button{height:32px;border:0;background:transparent;border-radius:8px;padding:0 11px;font:inherit;font-size:11.5px;font-weight:800;color:#737a89;cursor:pointer}
+.sfb-r3-mode button.active{background:#fff;color:#171923;box-shadow:0 1px 4px rgba(20,25,40,.09)}
+.sfb-r3-status{display:inline-flex;align-items:center;gap:5px;color:#46835d;font-size:11px;font-weight:800;white-space:nowrap}
+.sfb-r3-publish{height:38px;border:0;border-radius:10px;background:var(--r3-accent);color:#fff;padding:0 15px;font:inherit;font-size:12px;font-weight:900;cursor:pointer}
+.sfb-r3-more{position:relative}
+.sfb-r3-more-menu{position:absolute;top:45px;left:0;width:230px;padding:7px;border:1px solid var(--r3-line);border-radius:12px;background:#fff;box-shadow:0 18px 45px rgba(20,25,40,.15);z-index:40}
+.sfb-r3-more-menu button,.sfb-r3-more-menu a{width:100%;min-height:38px;border:0;background:transparent;border-radius:8px;padding:8px 10px;text-decoration:none;color:#343947;display:flex;align-items:center;text-align:right;font:inherit;font-size:12px;font-weight:750;cursor:pointer}
+.sfb-r3-more-menu button:hover,.sfb-r3-more-menu a:hover{background:#f6f4ff;color:#573bd0}
+
+/* The shop itself fills every remaining pixel. */
+.sfb-r3-shell .sfb-v3-main{position:relative !important;display:block !important;width:100% !important;height:100% !important;min-height:0 !important;background:#fff !important;overflow:hidden !important}
+.sfb-r3-shell .sfb-v3-canvas-area{position:absolute !important;inset:0 !important;padding:0 !important;margin:0 !important;background:#fff !important;background-image:none !important;overflow:hidden !important}
+.sfb-r3-shell .sfb-v3-canvas-breadcrumb{display:none !important}
+.sfb-r3-shell .sfb-v3-canvas-frame,.sfb-r3-shell .sfb-canvas-shell.sfb-v3-canvas-frame{width:100% !important;max-width:none !important;height:100% !important;min-height:0 !important;border:0 !important;border-radius:0 !important;box-shadow:none !important;margin:0 !important;background:#fff !important;overflow:hidden !important}
+.sfb-r3-shell .sfb-v3-canvas-frame .sfb-canvas{height:100% !important;min-height:0 !important;border-radius:0 !important;background:#fff !important}
+.sfb-r3-shell .sfb-v3-canvas-frame[data-device="desktop"] #sfbPreviewFrame{width:100% !important;height:100% !important;transform:none !important;left:0 !important;margin-left:0 !important;position:absolute !important;inset-block:0 !important;background:#fff !important}
+.sfb-r3-shell .sfb-v3-canvas-frame[data-device="tablet"],.sfb-r3-shell .sfb-v3-canvas-frame[data-device="mobile"]{margin-inline:auto !important;border-inline:1px solid #dfe2e8 !important;box-shadow:0 10px 28px rgba(20,25,40,.08) !important}
+
+/* 70% modal: the live shop remains visible behind it, so context is never lost. */
+html.sfb-r3-modal-open{overflow:hidden}
+.sfb-r3-modal-portal{--r3-ink:#171923;--r3-muted:#707787;--r3-line:#e5e7ee;--r3-soft:#f6f7fa;--r3-accent:#6848ff;--r3-accent-soft:#f2efff}
+.sfb-r3-modal-backdrop{position:fixed;inset:0;z-index:1550;background:rgba(17,24,39,.26);backdrop-filter:blur(2px);border:0;padding:0;margin:0}
+.sfb-r3-modal{position:fixed;z-index:1560;top:7vh;bottom:7vh;left:50%;transform:translateX(-50%);width:min(70vw,1100px);max-width:1100px;min-width:0;background:#fff;border:1px solid rgba(219,222,231,.9);border-radius:18px;overflow:hidden;box-shadow:0 24px 70px rgba(15,23,42,.24);display:flex;flex-direction:column;direction:rtl;outline:none}
+.sfb-r3-modal__head{flex:0 0 60px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--r3-line);background:#fff}
+.sfb-r3-modal__title{min-width:0;display:flex;flex-direction:column;gap:2px;flex:1}
+.sfb-r3-modal__title strong{font-size:15px;color:var(--r3-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sfb-r3-modal__title small{font-size:10.5px;color:var(--r3-muted)}
+.sfb-r3-modal__close,.sfb-r3-modal__back{height:36px;border:1px solid var(--r3-line);border-radius:9px;background:#fff;color:#525969;font:inherit;font-size:12px;font-weight:800;cursor:pointer;padding:0 10px}
+.sfb-r3-modal__body{flex:1 1 auto;min-height:0;overflow:auto;background:#fff;padding:16px}
+.sfb-r3-modal__body.is-deep{padding:0;overflow:hidden;background:#f5f6fa}
+.sfb-r3-modal__footer{flex:0 0 58px;border-top:1px solid var(--r3-line);display:flex;align-items:center;justify-content:flex-start;gap:8px;padding:0 16px;background:#fff}
+.sfb-r3-done{height:38px;border:0;border-radius:10px;background:var(--r3-accent);color:#fff;padding:0 18px;font:inherit;font-size:12px;font-weight:900;cursor:pointer}
+.sfb-r3-alert{margin:0 0 12px;padding:10px 12px;border:1px solid #f2c7c7;background:#fff7f7;color:#a43d3d;border-radius:10px;font-size:12px}
+.sfb-r3-deep-frame{width:100%;height:100%;border:0;background:#fff;display:block}
+
+/* Existing inspector forms are reused, but R3 hides the old expert chrome. */
+.sfb-r3-modal #sfbR3ModalBody{max-width:920px;margin:0 auto}
+.sfb-r3-modal #sfbR3ModalBody .sfb-inspector-section-actions,
+.sfb-r3-modal #sfbR3ModalBody .sfb-v3-cell-context-actions,
+.sfb-r3-modal #sfbR3ModalBody .sfb-drawer-subtitle{display:none !important}
+.sfb-r3-modal #sfbR3ModalBody .sfb-drawer-body{padding:0 !important}
+
+/* Add library */
+.sfb-r3-search{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.sfb-r3-search input{width:100%;height:42px;border:1px solid var(--r3-line);border-radius:11px;padding:0 13px;font:inherit;font-size:13px;outline:none}
+.sfb-r3-search input:focus{border-color:#b9adff;box-shadow:0 0 0 3px rgba(104,72,255,.09)}
+.sfb-r3-add-groups{display:grid;gap:16px}
+.sfb-r3-add-group h3{margin:0 0 8px;font-size:13px;color:#444a58}
+.sfb-r3-add-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.sfb-r3-add-card{min-height:72px;border:1px solid var(--r3-line);background:#fff;border-radius:12px;padding:10px 12px;text-align:right;display:flex;flex-direction:column;gap:4px;cursor:pointer;font:inherit;color:#303541}
+.sfb-r3-add-card:hover{border-color:#c9beff;background:#fbfaff;transform:translateY(-1px)}
+.sfb-r3-add-card strong{font-size:12.5px}.sfb-r3-add-card small{color:var(--r3-muted);font-size:10.5px;line-height:1.6}
+
+/* Simple structure list */
+.sfb-r3-structure{display:grid;gap:10px}
+.sfb-r3-structure-group{border:1px solid var(--r3-line);border-radius:13px;background:#fff;overflow:hidden}
+.sfb-r3-structure-group__head{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#fafbfc;border-bottom:1px solid #eef0f4}
+.sfb-r3-structure-group__head strong{font-size:12.5px;flex:1;color:#343946}
+.sfb-r3-structure-actions{display:flex;gap:5px}
+.sfb-r3-structure-actions button{height:30px;border:1px solid #e0e2e9;background:#fff;border-radius:8px;padding:0 8px;font:inherit;font-size:10.5px;font-weight:800;color:#555d6d;cursor:pointer}
+.sfb-r3-structure-actions button:hover{border-color:#c7bdff;color:#5940d5}
+.sfb-r3-structure-items{display:grid}
+.sfb-r3-structure-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid #f0f1f4}
+.sfb-r3-structure-item:first-child{border-top:0}
+.sfb-r3-structure-item__copy{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.sfb-r3-structure-item__copy strong{font-size:12px;color:#343946}.sfb-r3-structure-item__copy small{font-size:10px;color:#7b8392}
+.sfb-r3-empty{padding:28px;text-align:center;color:var(--r3-muted);font-size:12px}
+
+@media (max-width:1100px){
+  .sfb-r3-toolbar{padding-inline:9px;gap:6px}.sfb-r3-btn{padding-inline:8px}.sfb-r3-btn .r3-wide-label{display:none}.sfb-r3-page select{min-width:115px}.sfb-r3-status{display:none}
+  .sfb-r3-add-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:860px){
+  .sfb-r3-toolbar{min-height:58px;overflow-x:auto}.sfb-r3-back{display:none}.sfb-r3-toolbar__secondary{margin-inline-start:0}.sfb-r3-modal{width:calc(100vw - 20px);min-width:0;top:10px;bottom:10px;border-radius:14px}.sfb-r3-add-grid{grid-template-columns:1fr 1fr}
+}
+@media (max-width:620px){
+  .sfb-r3-btn.is-secondary-mobile{display:none}.sfb-r3-page span{display:none}.sfb-r3-page select{min-width:100px}.sfb-r3-add-grid{grid-template-columns:1fr}.sfb-r3-modal__body{padding:12px}
+}
+
+/* R3.3 Universal Selection Pattern */
+.sfb-r3-modal .sfb-universal-selection{margin:0 0 14px;border:1px solid var(--r3-line);border-radius:14px;padding:14px;background:#fff}
+.sfb-r3-modal .sfb-universal-selection__head{display:flex;align-items:flex-start;gap:12px;justify-content:space-between;margin-bottom:12px}
+.sfb-r3-modal .sfb-universal-selection__head>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.sfb-r3-modal .sfb-universal-selection__head strong{font-size:13px;color:var(--r3-ink)}
+.sfb-r3-modal .sfb-universal-selection__head small,.sfb-r3-modal .sfb-universal-selection__cap{font-size:10.5px;color:var(--r3-muted)}
+.sfb-r3-modal .sfb-universal-selection__cap{white-space:nowrap;background:var(--r3-soft);padding:4px 7px;border-radius:999px}
+.sfb-r3-modal .sfb-universal-selection__modes{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
+.sfb-r3-modal .sfb-universal-selection__modes button{min-height:38px;border:1px solid var(--r3-line);border-radius:10px;background:#fff;color:#555d6d;font:inherit;font-size:12px;font-weight:850;cursor:pointer}
+.sfb-r3-modal .sfb-universal-selection__modes button.active{border-color:#c9beff;background:var(--r3-accent-soft);color:#573bd0}
+.sfb-r3-modal .sfb-universal-selection__auto{margin:0;color:var(--r3-muted);font-size:11.5px;line-height:1.8}
+.sfb-r3-modal .sfb-universal-selection__manual{display:grid;gap:10px}
+.sfb-r3-modal .sfb-universal-selection__search{position:relative;display:grid;gap:5px}
+.sfb-r3-modal .sfb-universal-selection__choices{max-height:220px;overflow:auto;border:1px solid var(--r3-line);border-radius:10px;background:#fff;padding:5px;display:grid;gap:3px}
+.sfb-r3-modal .sfb-universal-selection__choices button{min-height:36px;border:0;border-radius:8px;background:#fff;padding:7px 9px;display:flex;align-items:center;justify-content:space-between;text-align:right;font:inherit;font-size:11.5px;color:#3f4654;cursor:pointer}
+.sfb-r3-modal .sfb-universal-selection__choices button:hover{background:#f7f5ff;color:#573bd0}
+.sfb-r3-modal .sfb-universal-selection__summary{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sfb-r3-modal .sfb-universal-selection__summary strong{font-size:11.5px;color:#424957}.sfb-r3-modal .sfb-universal-selection__summary small{font-size:10px;color:#a04a4a}
+.sfb-r3-modal .sfb-universal-selection__selected{display:grid;gap:5px}
+.sfb-r3-modal .sfb-universal-selection__item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;min-height:42px;border:1px solid #eceef3;border-radius:10px;padding:5px 7px;background:#fafbfc}
+.sfb-r3-modal .sfb-universal-selection__drag{color:#9aa0ad;font-size:12px}.sfb-r3-modal .sfb-universal-selection__name{font-size:11.5px;font-weight:750;color:#3b4250;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sfb-r3-modal .sfb-universal-selection__actions{display:flex;gap:3px}.sfb-r3-modal .sfb-universal-selection__actions button{width:30px;height:30px;border:1px solid #dfe2e9;border-radius:8px;background:#fff;color:#596170;cursor:pointer}.sfb-r3-modal .sfb-universal-selection__actions button.danger{color:#b04444}.sfb-r3-modal .sfb-universal-selection__actions button:disabled{opacity:.35;cursor:not-allowed}
+.sfb-r3-modal .sfb-universal-selection__empty{margin:0;padding:12px;border:1px dashed #dfe2e9;border-radius:10px;text-align:center;color:var(--r3-muted);font-size:11px}
+@media(max-width:620px){.sfb-r3-modal .sfb-universal-selection__modes{grid-template-columns:1fr}.sfb-r3-modal .sfb-universal-selection__head{align-items:stretch;flex-direction:column}.sfb-r3-modal .sfb-universal-selection__cap{align-self:flex-start}}
+

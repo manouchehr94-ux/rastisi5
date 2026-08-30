@@ -6,14 +6,18 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/storefront_builder.css' %}">
+<link rel="stylesheet" href="{% static 'css/storefront_builder_v22.css' %}">
+<link rel="stylesheet" href="{% static 'css/storefront_builder_r3.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="sfb-shell sfb-prototype-shell sfb-v3-shell"
+<div class="sfb-shell sfb-prototype-shell sfb-v3-shell sfb-v22-workspace sfb-r3-shell"
      :class="{
        'sfb-fullscreen': fullscreen,
        'sfb-v3-sidebar-collapsed': sidebarCollapsed,
-       'sfb-v3-inspector-collapsed': inspectorCollapsed
+       'sfb-v3-inspector-collapsed': inspectorCollapsed,
+       'sfb-v22-preview-mode': builderMode === 'preview',
+       'sfb-v22-edit-mode': builderMode === 'edit'
      }"
      x-data="storefrontEditor()"
      x-init="init()"
@@ -39,12 +43,15 @@
      @keydown.window="handleGlobalKeydown($event)"
      @close-settings-drawer.window="clearInspector()">
 
+  {% include "dashboard/storefront_builder/partials/r3_toolbar.html" %}
+
   <header class="sfb-prototype-topbar sfb-v3-topbar">
     <div class="sfb-v3-topbar-right">
       <div class="sfb-v3-brand" aria-label="RastiSi">
         <span class="sfb-v3-logo-mark">R</span>
         <strong>RastiSi</strong>
       </div>
+      <a class="sfb-v22-back-admin" href="{% url 'dashboard:dashboard' %}" title="بازگشت به مرکز مدیریت">← مدیریت</a>
       <span class="sfb-v3-top-sep" aria-hidden="true">/</span>
       <label class="sfb-v3-page-picker">
         <span class="sr-only">صفحه</span>
@@ -58,14 +65,13 @@
         <span aria-hidden="true" x-text="inspectorDirty ? '●' : '✓'"></span>
         <span x-text="saveStatusLabel">پیش‌نویس ذخیره شده</span>
       </span>
-      <button type="button" class="sfb-v3-icon-btn sfb-v3-sidebar-toggle"
-              :class="{ active: !sidebarCollapsed }"
-              :aria-pressed="!sidebarCollapsed"
-              @click="sidebarCollapsed = !sidebarCollapsed; $nextTick(() => syncPreviewViewport())"
-              title="نمایش/پنهان کردن پنل ابزارها" aria-label="نمایش یا پنهان کردن پنل ابزارها">◫</button>
     </div>
 
     <div class="sfb-v3-topbar-center">
+      <div class="sfb-v22-mode-switch" role="group" aria-label="حالت سازنده">
+        <button type="button" :class="{ active: builderMode === 'preview' }" @click="setBuilderMode('preview')">پیش‌نمایش</button>
+        <button type="button" :class="{ active: builderMode === 'edit' }" @click="setBuilderMode('edit')">ویرایش</button>
+      </div>
       <div class="sfb-v3-device-switcher" role="group" aria-label="اندازه پیش‌نمایش">
         <button type="button" class="sfb-v3-device-btn" :class="{ active: device === 'desktop' }" @click="setDevice('desktop')" title="دسکتاپ" aria-label="دسکتاپ">▱</button>
         <button type="button" class="sfb-v3-device-btn" :class="{ active: device === 'tablet' }" @click="setDevice('tablet')" title="تبلت" aria-label="تبلت">▯</button>
@@ -84,12 +90,9 @@
       <button type="button" class="sfb-v3-icon-btn" :disabled="historyBusy || !canRedo" @click="historyStep('redo')"
               :title="redoLabel ? 'جلو: ' + redoLabel : 'چیزی برای جلو رفتن نیست'" aria-label="Redo">↷</button>
       <span class="sfb-v3-divider" aria-hidden="true"></span>
-      <button type="button" class="sfb-v3-icon-btn"
-              :class="{ active: !inspectorCollapsed }"
-              :aria-pressed="!inspectorCollapsed"
-              @click="inspectorCollapsed = !inspectorCollapsed; $nextTick(() => syncPreviewViewport())"
-              title="نمایش/پنهان کردن Inspector" aria-label="نمایش یا پنهان کردن Inspector">☷</button>
-      <button type="button" class="sfb-v3-icon-btn" @click="fullscreen = !fullscreen" :aria-pressed="fullscreen" title="تمام‌صفحه" aria-label="تمام‌صفحه">⛶</button>
+      <button type="button" class="sfb-v22-action-btn" @click="openStructurePanel()" title="ساختار صفحه"><span class="sfb-v22-action-icon">☰</span><span>ساختار صفحه</span></button>
+      <button type="button" class="sfb-v22-action-btn" @click="openAddModal($event)" title="افزودن بخش"><span class="sfb-v22-action-icon">＋</span><span>افزودن بخش</span></button>
+      <button type="button" class="sfb-v22-action-btn is-primary-context" @click="openAppearancePanel()" title="ظاهر فروشگاه"><span class="sfb-v22-action-icon">◉</span><span>ظاهر فروشگاه</span></button>
       <a class="sfb-v3-ghost-btn" href="{% url 'dashboard:storefront-builder-templates' %}">▦ <span>قالب‌های آماده</span></a>
       <a class="sfb-v3-ghost-btn" href="{% url 'dashboard:storefront-builder-preview' %}?page={{ page_type }}" target="_blank" rel="noopener">◎ <span>پیش‌نمایش</span></a>
       <form method="post" action="{% url 'dashboard:storefront-builder-publish' %}" class="sfb-prototype-publish-form"
@@ -106,6 +109,10 @@
 
   <main class="sfb-prototype-main sfb-v3-main"
         :class="['sfb-mobile-panel-' + mobilePanel]">
+
+    <button type="button" class="sfb-v22-drawer-backdrop"
+            x-show="builderMode === 'edit' && (!sidebarCollapsed || !inspectorCollapsed)" x-cloak
+            @click="closeBuilderDrawers()" aria-label="بستن پنل ویرایش"></button>
 
     <aside class="sfb-library-panel sfb-v3-sidebar-right" aria-label="ابزارهای سازنده">
       <nav class="sfb-v3-sidebar-tabs" aria-label="پنل ابزارها">
@@ -261,7 +268,7 @@
                   data-desktop-viewport-width="1200"
                   data-tablet-viewport-width="768"
                   data-mobile-viewport-width="390"
-                  @load="syncPreviewViewport(); syncPreviewSelection()"
+                  @load="restorePreviewContext()"
                   title="پیش‌نمایش {{ page.get_page_type_display }}"
                   data-preview-url="{% url 'dashboard:storefront-builder-preview' %}?page={{ page_type }}"
                   data-settings-url-template="{% url 'dashboard:storefront-builder-section-settings' 0 %}"
@@ -317,6 +324,17 @@
     </template>
   </div>
 
+
+  {% include "dashboard/storefront_builder/partials/r3_edit_modal.html" %}
+
+  <div class="sfb-v22-deep-workspace" x-show="deepWorkspaceOpen" x-cloak @keydown.escape.window="if (deepWorkspaceOpen) closeDeepWorkspace()">
+    <div class="sfb-v22-deep-head">
+      <button type="button" class="sfb-v22-deep-back" @click="closeDeepWorkspace()">← بازگشت به سازنده</button>
+      <div class="sfb-v22-deep-title"><strong x-text="deepWorkspaceTitle">ویرایش مرتبط</strong><small>همان صفحه واقعی مدیریت؛ پس از بازگشت، پیش‌نمایش تازه می‌شود.</small></div>
+    </div>
+    <iframe class="sfb-v22-deep-frame" :src="deepWorkspaceUrl" title="ویرایش مرتبط"></iframe>
+  </div>
+
   <nav class="sfb-mobile-builder-nav" aria-label="ناوبری سازنده در موبایل">
     <button type="button" :class="{ active: mobilePanel === 'library' }" :aria-pressed="mobilePanel === 'library'" @click="setMobilePanel('library')"><span>＋</span><span>افزودن</span></button>
     <button type="button" :class="{ active: mobilePanel === 'canvas' }" :aria-pressed="mobilePanel === 'canvas'" @click="setMobilePanel('canvas')"><span>▣</span><span>صفحه</span></button>
@@ -359,12 +377,28 @@ function storefrontEditor() {
   return {
     device: 'desktop',
     fullscreen: false,
+    builderMode: 'edit',
+    r3ModalOpen: false,
+    r3ModalKind: '',
+    r3ModalTitle: '',
+    r3ModalReturnTitle: '',
+    r3LibraryQuery: '',
+    r3MoreOpen: false,
+    r3StructureTick: 0,
+    r3LastFocus: null,
+    r3Error: '',
+    deepWorkspaceOpen: false,
+    deepWorkspaceUrl: '',
+    deepWorkspaceTitle: '',
+    entryFocus: '',
+    previewScrollY: 0,
+    restorePreviewScroll: false,
     modalOpen: false,
     mobilePanel: 'canvas',
     sidebarTab: 'add',
     inspectorTab: 'design',
-    sidebarCollapsed: false,
-    inspectorCollapsed: false,
+    sidebarCollapsed: true,
+    inspectorCollapsed: true,
     zoom: 100,
     selectedSectionId: null,
     selectedContainerId: null,
@@ -425,6 +459,7 @@ function storefrontEditor() {
         if (evt.detail.target.id === 'sfbInspectorBody' && this.isCompactLayout() && this.mobilePanel === 'inspector') {
           this.$nextTick(() => this.focusPanel('inspector'));
         }
+        if (evt.detail.target.id === 'sfbInspectorBody') this.focusInspectorEntry();
       });
       document.body.addEventListener('sfbSectionAdded', (evt) => {
         const sectionId = parseInt(evt.detail && evt.detail.sectionId, 10);
@@ -474,9 +509,23 @@ function storefrontEditor() {
       window.addEventListener('message', (evt) => {
         if (evt.origin !== window.location.origin) return;
         if (!evt.data || !evt.data.type) return;
-        if (evt.data.type === 'sfb:selectSection') this.selectSection(evt.data.sectionId, { containerId: evt.data.containerId, cellId: evt.data.cellId, openInspector: true });
-        if (evt.data.type === 'sfb:openSectionSettings') this.selectSection(evt.data.sectionId, { containerId: evt.data.containerId, cellId: evt.data.cellId, openInspector: true });
-        if (evt.data.type === 'sfb:openHeaderSettings') this.openPanelUrl('{% url 'dashboard:storefront-builder-header' %}', 'هدر فروشگاه');
+        if (evt.data.type === 'sfb:selectSection' && this.builderMode === 'edit') this.openR3Section(evt.data.sectionId, evt.data);
+        if (evt.data.type === 'sfb:openSectionSettings' && this.builderMode === 'edit') this.openR3Section(evt.data.sectionId, evt.data);
+        if (evt.data.type === 'sfb:openHeaderSettings' && this.builderMode === 'edit') this.openR3Panel('{% url 'dashboard:storefront-builder-header' %}', 'ویرایش هدر', 'header');
+        if (evt.data.type === 'sfb:openFooterSettings' && this.builderMode === 'edit') this.openR3Panel('{% url 'dashboard:storefront-builder-footer' %}', 'ویرایش فوتر', 'footer');
+        if (evt.data.type === 'sfb:openEntityEditor' && this.builderMode === 'edit' && evt.data.entityId) {
+          const entityId = String(evt.data.entityId);
+          const kind = evt.data.entityKind || '';
+          let editUrl = '';
+          if (kind === 'product') editUrl = '{% url 'dashboard:product-edit' 0 %}'.replace('/products/0/edit/', '/products/' + entityId + '/edit/');
+          if (kind === 'category') editUrl = '{% url 'dashboard:category-edit' 0 %}'.replace('/categories/0/edit/', '/categories/' + entityId + '/edit/');
+          if (kind === 'brand') editUrl = '{% url 'dashboard:brand-edit' 0 %}'.replace('/brands/0/edit/', '/brands/' + entityId + '/edit/');
+          if (kind === 'collection') editUrl = '{% url 'dashboard:collection-edit' 0 %}'.replace('/collections/0/edit/', '/collections/' + entityId + '/edit/');
+          if (kind === 'media' && evt.data.sectionId && evt.data.mediaKind) {
+            editUrl = '{% url 'dashboard:storefront-builder-section-media-edit' 0 'hero-slides' 0 %}'.replace('/sections/0/media/hero-slides/0/edit/', '/sections/' + evt.data.sectionId + '/media/' + encodeURIComponent(evt.data.mediaKind) + '/' + entityId + '/edit/');
+          }
+          if (editUrl) this.openDeepWorkspace(editUrl, evt.data.entityTitle ? 'ویرایش «' + evt.data.entityTitle + '»' : 'ویرایش مورد انتخاب‌شده');
+        }
         if (evt.data.type === 'sfb:selectContainer') this.selectContainer(evt.data.containerId);
         if (evt.data.type === 'sfb:addToCell') this.openCellLibrary(evt.data.cellId, evt.data.containerId);
         if (evt.data.type === 'sfb:dropLibraryToCell') this.addContentBlockToCell(evt.data.sectionKey, evt.data.cellId, evt.data.containerId);
@@ -490,9 +539,254 @@ function storefrontEditor() {
       });
       const initialId = parseInt(this.$root.dataset.initialSectionId || '', 10);
       if (initialId) this.$nextTick(() => this.selectSection(initialId, { scroll: false, openInspector: false }));
-      this.$nextTick(() => this.installPreviewViewportObserver());
+      this.$nextTick(() => {
+        this.installPreviewViewportObserver();
+        this.applyEntryPointFromUrl();
+        this.syncBuilderMode();
+      });
     },
     isCompactLayout() { return window.matchMedia('(max-width: 860px)').matches; },
+    setBuilderMode(mode) {
+      if (!['preview', 'edit'].includes(mode)) return;
+      this.builderMode = mode;
+      if (mode === 'preview') {
+        this.sidebarCollapsed = true;
+        this.inspectorCollapsed = true;
+      }
+      this.$nextTick(() => {
+        this.syncPreviewViewport();
+        this.syncBuilderMode();
+      });
+    },
+    syncBuilderMode() {
+      const iframe = document.getElementById('sfbPreviewFrame');
+      if (!iframe || !iframe.contentWindow) return;
+      iframe.contentWindow.postMessage({ type: 'sfb:setMode', mode: this.builderMode }, window.location.origin);
+    },
+    openStructurePanel() {
+      this.setBuilderMode('edit');
+      this.sidebarTab = 'layers';
+      this.inspectorCollapsed = true;
+      if (this.isCompactLayout()) this.setMobilePanel('library');
+      this.sidebarCollapsed = false;
+      this.$nextTick(() => this.syncPreviewViewport());
+    },
+    openAppearancePanel() {
+      this.setBuilderMode('edit');
+      this.sidebarCollapsed = true;
+      this.inspectorCollapsed = false;
+      this.openPanelUrl('{% url 'dashboard:storefront-builder-appearance' %}', 'ظاهر فروشگاه');
+      this.$nextTick(() => this.syncPreviewViewport());
+    },
+    closeBuilderDrawers() {
+      this.sidebarCollapsed = true;
+      this.inspectorCollapsed = true;
+      this.$nextTick(() => this.syncPreviewViewport());
+    },
+    openDeepWorkspace(url, title) {
+      this.openR3Deep(url, title, this.r3ModalTitle || 'ویرایش');
+      return;
+      if (!url) return;
+      const iframe = document.getElementById('sfbPreviewFrame');
+      try { this.previewScrollY = iframe && iframe.contentWindow ? iframe.contentWindow.scrollY : 0; } catch (_error) { this.previewScrollY = 0; }
+      const target = new URL(url, window.location.origin);
+      target.searchParams.set('embed', '1');
+      this.deepWorkspaceUrl = target.toString();
+      this.deepWorkspaceTitle = title || 'ویرایش مرتبط';
+      this.deepWorkspaceOpen = true;
+    },
+    closeDeepWorkspace() {
+      this.deepWorkspaceOpen = false;
+      this.deepWorkspaceUrl = '';
+      const iframe = document.getElementById('sfbPreviewFrame');
+      this.restorePreviewScroll = true;
+      if (iframe && iframe.contentWindow) iframe.contentWindow.location.reload();
+      this.$nextTick(() => this.syncPreviewViewport());
+    },
+    restorePreviewContext() {
+      this.syncPreviewViewport();
+      this.syncPreviewSelection();
+      this.syncBuilderMode();
+      if (!this.restorePreviewScroll) return;
+      this.restorePreviewScroll = false;
+      const iframe = document.getElementById('sfbPreviewFrame');
+      try { if (iframe && iframe.contentWindow) iframe.contentWindow.scrollTo(0, this.previewScrollY || 0); } catch (_error) { /* same-origin preview expected */ }
+    },
+    focusInspectorEntry() {
+      if (!this.entryFocus) return;
+      const focusKey = this.entryFocus;
+      if (focusKey === 'logo') this.inspectorTab = 'content';
+      this.$nextTick(() => window.setTimeout(() => {
+        const body = document.getElementById('sfbInspectorBody');
+        if (!body) return;
+        let target = body.querySelector('[data-sfb-focus="' + focusKey + '"]');
+        if (!target && focusKey === 'logo') {
+          target = [...body.querySelectorAll('a,button,label,strong')].find((el) => /لوگو/.test(el.textContent || '')) || null;
+        }
+        if (target) {
+          target.classList.add('sfb-v22-focus-target');
+          if (!target.hasAttribute('tabindex') && !/^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) target.setAttribute('tabindex', '-1');
+          target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          if (typeof target.focus === 'function') target.focus({ preventScroll: true });
+          window.setTimeout(() => target.classList.remove('sfb-v22-focus-target'), 2400);
+        }
+        this.entryFocus = '';
+      }, 80));
+    },
+    applyEntryPointFromUrl() {
+      const params = new URL(window.location.href).searchParams;
+      const panel = params.get('panel');
+      this.entryFocus = params.get('focus') || '';
+      if (!panel) return;
+      this.setBuilderMode('edit');
+      this.inspectorCollapsed = false;
+      if (panel === 'appearance') this.openPanelUrl('{% url 'dashboard:storefront-builder-appearance' %}', 'ظاهر و طراحی');
+      if (panel === 'header') this.openPanelUrl('{% url 'dashboard:storefront-builder-header' %}', 'هدر فروشگاه');
+      if (panel === 'footer') this.openPanelUrl('{% url 'dashboard:storefront-builder-footer' %}', 'فوتر فروشگاه');
+    },
+    openR3Modal(kind, title, trigger = null) {
+      this.r3LastFocus = trigger || document.activeElement;
+      this.r3ModalKind = kind || 'panel';
+      this.r3ModalTitle = title || 'ویرایش';
+      this.r3Error = '';
+      this.r3MoreOpen = false;
+      this.r3ModalOpen = true;
+      document.documentElement.classList.add('sfb-r3-modal-open');
+      this.$nextTick(() => {
+        const modal = document.getElementById('sfbR3Modal');
+        if (modal) modal.focus({ preventScroll: true });
+      });
+    },
+    closeR3Modal() {
+      const returnTo = this.r3LastFocus;
+      this.r3ModalOpen = false;
+      this.r3ModalKind = '';
+      this.r3ModalTitle = '';
+      this.r3ModalReturnTitle = '';
+      this.r3Error = '';
+      this.r3LibraryQuery = '';
+      this.deepWorkspaceUrl = '';
+      this.selectedSectionId = null;
+      this.selectedContainerId = null;
+      this.targetCellId = null;
+      this.syncPreviewSelection();
+      document.documentElement.classList.remove('sfb-r3-modal-open');
+      this.$nextTick(() => {
+        if (returnTo && typeof returnTo.focus === 'function' && document.contains(returnTo)) returnTo.focus({ preventScroll: true });
+      });
+    },
+    openR3Add(trigger = null) {
+      this.targetCellId = null;
+      this.openR3Modal('add', 'افزودن به صفحه', trigger);
+    },
+    openR3Structure(trigger = null) {
+      this.setBuilderMode('edit');
+      this.r3StructureTick++;
+      this.openR3Modal('structure', 'ترتیب صفحه', trigger);
+    },
+    async r3AddSection(sectionKey) {
+      if (!sectionKey || this.contentBusy) return;
+      this.contentBusy = true;
+      this.r3Error = '';
+      const values = { section_key: sectionKey, page: this.pageType };
+      if (this.targetCellId) values.cell_id = this.targetCellId;
+      try {
+        const request = htmx.ajax('POST', this.$root.dataset.cellAddSectionUrl, {
+          values,
+          target: '#storefrontContainerState', swap: 'outerHTML'
+        });
+        await Promise.resolve(request);
+        this.r3StructureTick++;
+        this.closeR3Modal();
+        this.reloadPreview();
+        await this.refreshHistoryState();
+      } catch (_error) {
+        this.r3Error = 'افزودن این بخش انجام نشد. دوباره تلاش کنید.';
+      } finally {
+        this.contentBusy = false;
+      }
+    },
+    openR3Section(sectionId, detail = {}) {
+      sectionId = parseInt(sectionId, 10) || null;
+      if (!sectionId) return;
+      const placement = this.placementForSection(sectionId);
+      this.selectedSectionId = sectionId;
+      this.selectedContainerId = parseInt(detail.containerId, 10) || placement.containerId || null;
+      this.targetCellId = parseInt(detail.cellId, 10) || placement.cellId || null;
+      this.syncPreviewSelection();
+      this.openR3Modal('section', 'ویرایش «' + this.sectionLabel(sectionId) + '»');
+      const frame = document.getElementById('sfbPreviewFrame');
+      const template = frame && frame.getAttribute('data-settings-url-template');
+      if (!template) return;
+      const url = template.replace('/0/settings/', '/' + sectionId + '/settings/');
+      htmx.ajax('GET', url, { target: '#sfbR3ModalBody', swap: 'innerHTML' });
+    },
+    openR3Panel(url, title, kind = 'panel') {
+      if (!url) return;
+      this.openR3Modal(kind, title || 'ویرایش');
+      htmx.ajax('GET', url, { target: '#sfbR3ModalBody', swap: 'innerHTML' });
+    },
+    openR3Deep(url, title, parentTitle = '') {
+      if (!url) return;
+      const target = new URL(url, window.location.origin);
+      target.searchParams.set('embed', '1');
+      this.r3ModalReturnTitle = parentTitle || this.r3ModalTitle || 'ویرایش';
+      this.deepWorkspaceUrl = target.toString();
+      this.openR3Modal('deep', title || 'ویرایش مرتبط');
+    },
+    backR3Deep() {
+      const sectionId = this.selectedSectionId;
+      if (sectionId) {
+        this.openR3Section(sectionId, { containerId: this.selectedContainerId, cellId: this.targetCellId });
+        return;
+      }
+      this.closeR3Modal();
+      this.reloadPreview();
+    },
+    r3StructureGroups() {
+      this.r3StructureTick;
+      const root = document.getElementById('storefrontContainerState');
+      if (!root) return [];
+      return [...root.querySelectorAll(':scope > [data-container-id]')].map((container, groupIndex) => {
+        const items = [...container.querySelectorAll('[data-section-id]')]
+          .filter((node) => node.dataset.sectionId)
+          .map((node, itemIndex) => ({
+            id: parseInt(node.dataset.sectionId || '', 10),
+            key: node.dataset.sectionKey || '',
+            label: node.dataset.sectionLabel || 'بخش فروشگاه',
+            active: node.dataset.sectionActive !== '0',
+            locked: node.dataset.sectionLocked === '1',
+            cellId: parseInt(node.dataset.cellId || '', 10) || null,
+            itemIndex,
+          }));
+        return {
+          id: parseInt(container.dataset.containerId || '', 10),
+          order: parseInt(container.dataset.containerOrder || groupIndex, 10),
+          items,
+          label: items.length === 1 ? items[0].label : (items.length ? items.map((item) => item.label).join(' + ') : 'چیدمان خالی'),
+        };
+      }).filter((group) => group.id);
+    },
+    refreshR3StructureState() {
+      const url = this.$root.dataset.containerStateUrl + '?page=' + encodeURIComponent(this.pageType);
+      const request = htmx.ajax('GET', url, { target: '#storefrontContainerState', swap: 'outerHTML' });
+      Promise.resolve(request).then(() => { this.r3StructureTick++; this.reloadPreview(); });
+      return request;
+    },
+    r3MoveGroup(containerId, direction) {
+      this.containerCommand(containerId, direction);
+      window.setTimeout(() => this.refreshR3StructureState(), 260);
+    },
+    r3ItemCommand(item, command) {
+      if (!item || !item.id) return;
+      if (command === 'edit') { this.openR3Section(item.id, { cellId: item.cellId }); return; }
+      if (command === 'remove') this.blockCommand(item.id, 'remove');
+      else this.sectionCommand(item.id, command);
+      window.setTimeout(() => this.refreshR3StructureState(), 320);
+    },
+    r3OpenAppearance(kind = 'colors') {
+      this.openR3Panel('{% url 'dashboard:storefront-builder-appearance' %}', kind === 'colors' ? 'رنگ‌های فروشگاه' : 'ظاهر فروشگاه', kind);
+    },
     setDevice(device) {
       if (!['desktop', 'tablet', 'mobile'].includes(device)) return;
       this.device = device;
@@ -1099,6 +1393,7 @@ function storefrontEditor() {
       }
     },
     handleEscape() {
+      if (this.r3ModalOpen) { this.closeR3Modal(); return; }
       if (this.modalOpen) { this.closeAddModal(); return; }
       if (this.isCompactLayout() && this.mobilePanel !== 'canvas') { this.setMobilePanel('canvas'); return; }
       if (this.fullscreen) { this.fullscreen = false; return; }
@@ -1110,33 +1405,76 @@ function storefrontEditor() {
   };
 }
 
-function productSectionForm(initialDataSource, initialProducts) {
+function productSectionForm(initialDataSource, initialProducts, maxItems = 60) {
+  var autoSource = initialDataSource && initialDataSource !== 'manual' ? initialDataSource : 'newest';
   return {
-    dataSource: initialDataSource,
-    selected: initialProducts,
+    dataSource: initialDataSource || 'newest',
+    lastAutomaticSource: autoSource,
+    selectionMode: initialDataSource === 'manual' ? 'manual' : 'automatic',
+    selectionQuery: '',
+    selected: Array.isArray(initialProducts) ? initialProducts : [],
+    maxItems: parseInt(maxItems, 10) || 60,
+    get selectionLimitReached() { return this.selected.length >= this.maxItems; },
+    setSelectionMode(mode) {
+      if (mode === 'manual') {
+        if (this.dataSource && this.dataSource !== 'manual') this.lastAutomaticSource = this.dataSource;
+        this.selectionMode = 'manual';
+        this.dataSource = 'manual';
+        return;
+      }
+      this.selectionMode = 'automatic';
+      if (this.dataSource === 'manual') this.dataSource = this.lastAutomaticSource || 'newest';
+    },
     addProduct(id, name) {
       id = parseInt(id, 10);
-      if (!this.selected.some((p) => p.id === id)) this.selected.push({ id, name });
+      if (!id || this.selected.some((p) => p.id === id) || this.selectionLimitReached) return;
+      this.setSelectionMode('manual');
+      this.selected.push({ id, name });
     },
-    removeProduct(id) { this.selected = this.selected.filter((p) => p.id !== id); },
-  };
-}
-
-function multiPickerForm(initialSelected) {
-  return {
-    selected: initialSelected,
-    addItem(id, name) {
-      id = parseInt(id, 10);
-      if (!this.selected.some((item) => item.id === id)) this.selected.push({ id, name });
-    },
-    removeItem(id) { this.selected = this.selected.filter((item) => item.id !== id); },
+    addItem(id, name) { this.addProduct(id, name); },
+    removeProduct(id) { this.selected = this.selected.filter((p) => p.id !== parseInt(id, 10)); },
+    removeItem(id) { this.removeProduct(id); },
     moveUp(index) {
-      if (index === 0) return;
+      if (index <= 0) return;
       [this.selected[index - 1], this.selected[index]] = [this.selected[index], this.selected[index - 1]];
     },
     moveDown(index) {
-      if (index === this.selected.length - 1) return;
+      if (index < 0 || index >= this.selected.length - 1) return;
       [this.selected[index + 1], this.selected[index]] = [this.selected[index], this.selected[index + 1]];
+    },
+    isSelected(id) { return this.selected.some((item) => item.id === parseInt(id, 10)); },
+    matchesChoice(name) { return String(name || '').toLowerCase().includes(this.selectionQuery.toLowerCase()); },
+  };
+}
+
+function multiPickerForm(initialSelected, maxItems = 24) {
+  return {
+    selectionMode: Array.isArray(initialSelected) && initialSelected.length ? 'manual' : 'automatic',
+    selectionQuery: '',
+    selected: Array.isArray(initialSelected) ? initialSelected : [],
+    maxItems: parseInt(maxItems, 10) || 24,
+    get selectionLimitReached() { return this.selected.length >= this.maxItems; },
+    setSelectionMode(mode) { this.selectionMode = mode === 'manual' ? 'manual' : 'automatic'; },
+    addItem(id, name) {
+      id = parseInt(id, 10);
+      if (!id || this.selected.some((item) => item.id === id) || this.selectionLimitReached) return;
+      this.selectionMode = 'manual';
+      this.selected.push({ id, name });
+      this.selectionQuery = '';
+    },
+    removeItem(id) { this.selected = this.selected.filter((item) => item.id !== parseInt(id, 10)); },
+    moveUp(index) {
+      if (index <= 0) return;
+      [this.selected[index - 1], this.selected[index]] = [this.selected[index], this.selected[index - 1]];
+    },
+    moveDown(index) {
+      if (index < 0 || index >= this.selected.length - 1) return;
+      [this.selected[index + 1], this.selected[index]] = [this.selected[index], this.selected[index + 1]];
+    },
+    isSelected(id) { return this.selected.some((item) => item.id === parseInt(id, 10)); },
+    matchesChoice(name) {
+      var query = this.selectionQuery.trim().toLowerCase();
+      return !query || String(name || '').toLowerCase().includes(query);
     },
   };
 }

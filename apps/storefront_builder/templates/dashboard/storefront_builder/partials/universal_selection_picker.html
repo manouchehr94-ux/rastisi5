@@ -1,0 +1,82 @@
+<div class="sfb-universal-selection" data-selection-kind="{{ selection_kind }}">
+  <div class="sfb-universal-selection__head">
+    <div>
+      <strong>محتوای این بخش</strong>
+      <small>{{ selection_entity_label }}ها را خودکار نمایش بده یا دقیقاً موارد دلخواه را انتخاب کن.</small>
+    </div>
+    <span class="sfb-universal-selection__cap">حداکثر {{ selection_max_items }} مورد</span>
+  </div>
+
+  <div class="sfb-universal-selection__modes" role="radiogroup" aria-label="نحوه انتخاب">
+    <button type="button" role="radio"
+            :aria-checked="selectionMode === 'automatic'"
+            :class="{ active: selectionMode === 'automatic' }"
+            @click="setSelectionMode('automatic')">
+      انتخاب خودکار
+    </button>
+    <button type="button" role="radio"
+            :aria-checked="selectionMode === 'manual'"
+            :class="{ active: selectionMode === 'manual' }"
+            @click="setSelectionMode('manual')">
+      انتخاب دستی
+    </button>
+  </div>
+
+  <p class="sfb-universal-selection__auto" x-show="selectionMode === 'automatic'" x-cloak>
+    {{ selection_auto_text }}
+  </p>
+
+  <div class="sfb-universal-selection__manual" x-show="selectionMode === 'manual'" x-cloak>
+    {% if selection_kind == "product" %}
+    <input type="hidden" name="data_source" value="manual" :disabled="selectionMode !== 'manual'">
+    <div class="sfb-universal-selection__search">
+      <input type="search" class="form-input" id="id_ps_search" autocomplete="off"
+             placeholder="{{ selection_search_placeholder }}"
+             hx-get="{% url 'dashboard:storefront-builder-section-product-search' section.pk %}"
+             hx-trigger="keyup changed delay:300ms" hx-target="#ps-search-results"
+             hx-swap="innerHTML" name="q">
+      <div id="ps-search-results"></div>
+    </div>
+    {% else %}
+    <div class="sfb-universal-selection__search">
+      <input type="search" class="form-input" x-model.trim="selectionQuery" autocomplete="off"
+             placeholder="{{ selection_search_placeholder }}">
+      <div class="sfb-universal-selection__choices" x-show="selectionQuery.length > 0" x-cloak>
+        {% for choice in selection_choices %}
+        <button type="button"
+                x-show="matchesChoice('{{ choice.name|escapejs }}') && !isSelected({{ choice.pk }})"
+                @click="addItem({{ choice.pk }}, '{{ choice.name|escapejs }}')"
+                :disabled="selectionLimitReached">
+          <span>{{ choice.name }}</span><span aria-hidden="true">＋</span>
+        </button>
+        {% empty %}
+        <p>مورد فعالی برای انتخاب وجود ندارد.</p>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="sfb-universal-selection__summary">
+      <strong>انتخاب‌شده: <span x-text="selected.length"></span></strong>
+      <small x-show="selectionLimitReached" x-cloak>به حداکثر تعداد انتخاب رسیده‌اید.</small>
+    </div>
+
+    <div class="sfb-universal-selection__selected">
+      <template x-for="(item, index) in selected" :key="item.id">
+        <div class="sfb-universal-selection__item">
+          <input type="hidden" name="{{ selection_input_name }}" :value="item.id" :disabled="selectionMode !== 'manual'">
+          <span class="sfb-universal-selection__drag" aria-hidden="true">⋮⋮</span>
+          <span class="sfb-universal-selection__name" x-text="item.name"></span>
+          <div class="sfb-universal-selection__actions">
+            <button type="button" @click="moveUp(index)" :disabled="index === 0" aria-label="بالاتر">↑</button>
+            <button type="button" @click="moveDown(index)" :disabled="index === selected.length - 1" aria-label="پایین‌تر">↓</button>
+            <button type="button" class="danger" @click="removeItem(item.id)" aria-label="حذف">×</button>
+          </div>
+        </div>
+      </template>
+      <p class="sfb-universal-selection__empty" x-show="selected.length === 0" x-cloak>
+        هنوز {{ selection_entity_label }}ی انتخاب نشده است.
+      </p>
+    </div>
+  </div>
+</div>

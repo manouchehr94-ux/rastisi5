@@ -47,11 +47,11 @@
 
     <section class="sfb-v3-inspector-tab-panel" x-show="inspectorTab === 'content'" x-cloak>
       <div class="sfb-v3-tab-note">محتوای فوتر</div>
-      <p class="sfb-field-help">متن‌ها، خبرنامه، نشان‌های اعتماد و لینک‌ها از تنظیمات زنده فروشگاه خوانده می‌شوند.</p>
-      <a href="{% url 'dashboard:footer-settings' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش متن و خبرنامه فوتر</a>
-      <a href="{% url 'dashboard:footer-trust-badge-list' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش نشان‌های اعتماد</a>
-      <a href="{% url 'dashboard:footer-payment-logo-list' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش لوگوهای پرداخت</a>
-      <a href="{% url 'dashboard:menu-list' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش لینک‌های مفید فوتر</a>
+      <p class="sfb-field-help sfb-v22-footer-shortcuts">متن‌ها، خبرنامه، نشان‌های اعتماد و لینک‌ها از تنظیمات زنده فروشگاه خوانده می‌شوند.</p>
+      <button type="button" class="btn btn-sm" style="width:100%;margin-top:6px" @click="openDeepWorkspace('{% url 'dashboard:footer-settings' %}', 'متن و خبرنامه فوتر')">ویرایش متن و خبرنامه فوتر</button>
+      <button type="button" class="btn btn-sm" style="width:100%;margin-top:6px" @click="openDeepWorkspace('{% url 'dashboard:footer-trust-badge-list' %}', 'نشان‌های اعتماد')">ویرایش نشان‌های اعتماد</button>
+      <button type="button" class="btn btn-sm" style="width:100%;margin-top:6px" @click="openDeepWorkspace('{% url 'dashboard:footer-payment-logo-list' %}', 'لوگوهای پرداخت')">ویرایش لوگوهای پرداخت</button>
+      <button type="button" class="btn btn-sm" style="width:100%;margin-top:6px" @click="openDeepWorkspace('{% url 'dashboard:menu-list' %}', 'لینک‌های فوتر')">ویرایش لینک‌های مفید فوتر</button>
     </section>
 
     <section class="sfb-v3-inspector-tab-panel" x-show="inspectorTab === 'advanced'" x-cloak>

@@ -19,7 +19,7 @@ Phase 8 P0-7 — کارتِ مستقلِ «قالب فروشگاه» و گالر
 قدیمی‌تر که از قبل یک Templateِ غیرِ«modern» انتخاب کرده بودند) اما دیگر
 هیچ UIی مرچنت‌محور آن را مستقیماً عوض نمی‌کند.
 {% endcomment %}
-<div class="sfb-appearance-panel" x-data="{ view: 'hub' }">
+<div class="sfb-appearance-panel" x-data="{ view: 'hub', paletteQuery: '' }">
 
   <div x-show="view === 'hub'">
     <div class="sfb-appearance-intro">
@@ -90,9 +90,17 @@ Phase 8 P0-7 — کارتِ مستقلِ «قالب فروشگاه» و گالر
   <div x-show="view === 'palettes'">
     <button type="button" class="btn btn-ghost btn-sm" @click="view = 'hub'">← بازگشت</button>
     <p style="color:var(--muted);font-size:12.5px;margin:8px 0 12px"><strong>تم کامل:</strong> با یک کلیک پس‌زمینه صفحه، هدر، منو، کارت‌ها، متن‌ها، قیمت‌ها، ردیف‌های رنگی و فوتر تغییر می‌کنند. بعداً هر رنگ را جداگانه می‌توانی اصلاح کنی.</p>
+    <div class="form-group" style="margin:10px 0 14px">
+      <label for="sfbPaletteSearch" style="display:block;margin-bottom:6px">جستجو در ۶۴ پالت</label>
+      <input id="sfbPaletteSearch" type="search" class="form-input"
+             x-model.debounce.120ms="paletteQuery"
+             placeholder="نام یا گروه پالت را بنویسید..." autocomplete="off">
+      <p class="tiny" style="color:var(--muted);margin:6px 0 0">همه پالت‌ها برای همه قالب‌ها قابل انتخاب‌اند؛ بعد از انتخاب می‌توانید فقط یک رنگ را هم جداگانه تغییر دهید.</p>
+    </div>
     <div class="sfb-palette-gallery">
       {% for p in palettes %}
-      <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}">
+      <form method="post" action="{% url 'dashboard:storefront-builder-appearance' %}"
+            x-show="paletteQuery === '' || '{{ p.name_fa|escapejs }} {{ p.group_fa|escapejs }} {{ p.slug|escapejs }}'.toLowerCase().includes(paletteQuery.toLowerCase())">
         {% csrf_token %}
         <input type="hidden" name="palette_slug" value="{{ p.slug }}">
         <input type="hidden" name="template_slug" value="{{ config.template_slug }}">

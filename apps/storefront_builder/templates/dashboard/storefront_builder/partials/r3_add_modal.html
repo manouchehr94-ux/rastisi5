@@ -1,0 +1,21 @@
+<div class="sfb-r3-search">
+  <input type="search" x-model.trim="r3LibraryQuery" placeholder="جستجوی بخش؛ مثل کالا، تصویر، ویدیو، متن..." aria-label="جستجوی بخش">
+</div>
+<div class="sfb-r3-add-groups">
+  {% for category, definitions in section_library_groups %}
+  <section class="sfb-r3-add-group" x-show="!r3LibraryQuery || [...$el.querySelectorAll('[data-r3-library-label]')].some((node) => node.dataset.r3LibraryLabel.toLocaleLowerCase('fa').includes(r3LibraryQuery.toLocaleLowerCase('fa')))" x-cloak>
+    <h3>{{ category }}</h3>
+    <div class="sfb-r3-add-grid">
+      {% for definition in definitions %}
+      <button type="button" class="sfb-r3-add-card"
+              data-r3-library-label="{{ definition.label_fa }} {{ definition.description_fa }} {{ category }}"
+              x-show="!r3LibraryQuery || $el.dataset.r3LibraryLabel.toLocaleLowerCase('fa').includes(r3LibraryQuery.toLocaleLowerCase('fa'))"
+              @click="r3AddSection('{{ definition.key }}')">
+        <strong>{{ definition.label_fa }}</strong>
+        {% if definition.description_fa %}<small>{{ definition.description_fa }}</small>{% endif %}
+      </button>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+</div>

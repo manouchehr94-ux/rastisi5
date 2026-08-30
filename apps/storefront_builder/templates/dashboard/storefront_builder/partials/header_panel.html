@@ -51,12 +51,12 @@
       <div class="sfb-v3-tab-note">محتوای هدر</div>
       <label class="toggle-field"><input type="checkbox" name="announcement_enabled" {% if config.announcement_enabled %}checked{% endif %}><div class="toggle-content"><span class="toggle-title">📣 نوار اعلان</span></div></label>
       {% include "dashboard/storefront_builder/partials/announcement_editor_fields.html" %}
-      <div class="sfb-appearance-intro" style="margin-top:16px">
+      <div class="sfb-appearance-intro sfb-v22-header-shortcut" data-sfb-focus="logo" style="margin-top:16px">
         <strong>لوگو و منوی اصلی</strong>
         <p style="color:var(--muted);font-size:12px;margin:4px 0 0">لوگو/نام فروشگاه و لینک‌های منو داده‌های زنده فروشگاه‌اند.</p>
       </div>
-      <a href="{% url 'dashboard:settings-shop-info' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش لوگو و نام فروشگاه</a>
-      <a href="{% url 'dashboard:menu-list' %}" class="btn btn-sm" style="width:100%;margin-top:6px">ویرایش منوی اصلی ناوبری</a>
+      <button type="button" data-sfb-focus="logo" class="btn btn-sm" style="width:100%;margin-top:6px" @click="openDeepWorkspace('{% url 'dashboard:settings-shop-info' %}', 'لوگو و نام فروشگاه')">ویرایش لوگو و نام فروشگاه</button>
+      <button type="button" class="btn btn-sm" style="width:100%;margin-top:6px" @click="openDeepWorkspace('{% url 'dashboard:menu-list' %}', 'منوی اصلی فروشگاه')">ویرایش منوی اصلی ناوبری</button>
     </section>
 
     <section class="sfb-v3-inspector-tab-panel" x-show="inspectorTab === 'advanced'" x-cloak>

@@ -33,6 +33,28 @@
   </form>
   {% endif %}
   <p class="sfb-drawer-subtitle">{{ definition.label_fa }} — این پنل فقط همین بلاک را تنظیم می‌کند{% if placement_cell %} · شکل و اندازه ستون از «تنظیم چیدمان» کنترل می‌شود{% endif %}{% if section.is_locked %} · این محتوا قفل است{% endif %}</p>
+  <div class="sfb-v22-context-shortcuts">
+    <div class="sfb-v22-context-shortcuts-head"><strong>میانبرهای همین بخش</strong><small>به ابزار واقعی همان داده برو</small></div>
+    <div class="sfb-v22-context-shortcuts-list">
+      {% if section.section_key == "product_section" %}
+      <button type="button" @click="openDeepWorkspace('{% url 'dashboard:product-list' %}', 'مدیریت کالاها')">کالاها</button>
+      <button type="button" @click="openDeepWorkspace('{% url 'dashboard:collection-list' %}', 'کالکشن‌ها')">کالکشن‌ها</button>
+      <button type="button" @click="openDeepWorkspace('{% url 'dashboard:category-list' %}', 'دسته‌بندی‌ها')">دسته‌بندی‌ها</button>
+      <button type="button" @click="openDeepWorkspace('{% url 'dashboard:brand-list' %}', 'برندها')">برندها</button>
+      {% elif section.section_key == "category_grid" %}
+      <button type="button" @click="openDeepWorkspace('{% url 'dashboard:category-list' %}', 'دسته‌بندی‌های فروشگاه')">مدیریت دسته‌بندی‌ها</button>
+      {% elif section.section_key == "brand_carousel" %}
+      <button type="button" @click="openDeepWorkspace('{% url 'dashboard:brand-list' %}', 'برندهای فروشگاه')">مدیریت برندها</button>
+      {% elif section.section_key == "collection_tiles" %}
+      <button type="button" @click="openDeepWorkspace('{% url 'dashboard:collection-list' %}', 'کالکشن‌های فروشگاه')">مدیریت کالکشن‌ها</button>
+      {% elif section.section_key == "hero_banner" or section.section_key == "image_slider" %}
+      <button type="button" @click="openDeepWorkspace('{% url 'dashboard:storefront-builder-section-media-list' section.pk 'hero-slides' %}', 'اسلایدهای همین بخش')">تصاویر و اسلایدها</button>
+      {% elif section.section_key == "single_banner" or section.section_key == "multi_banner" %}
+      <button type="button" @click="openDeepWorkspace('{% url 'dashboard:storefront-builder-section-media-list' section.pk 'banners' %}', 'بنرهای همین بخش')">تصاویر و بنرها</button>
+      {% endif %}
+    </div>
+  </div>
+
   {% if placement_cell %}
   <div class="sfb-v3-cell-context-actions">
     <button type="button" @click="selectContainer({{ placement_cell.container_id }})">▦ تنظیم چیدمان</button>
@@ -44,11 +66,13 @@
   {% if section.section_key == "product_section" %}
   {{ initial_manual_products|json_script:"ps-initial-products" }}
   <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
-        x-data="productSectionForm('{{ section.settings.data_source|default:"newest" }}', JSON.parse(document.getElementById('ps-initial-products').textContent))">
+        x-data="productSectionForm('{{ section.settings.data_source|default:"newest" }}', JSON.parse(document.getElementById('ps-initial-products').textContent), 60)">
     {% csrf_token %}
-    <div class="form-group">
-      <label for="id_ps_source">منبع کالاها</label>
-      <select name="data_source" id="id_ps_source" class="form-select" x-model="dataSource">
+    {# R2 source-contract compatibility: the shared inline manual picker still uses storefront-builder-section-product-search; the historical "کالاهای دستی (انتخاب تکی)" control is represented by the shared manual-selection mode below. #}
+    {% include "dashboard/storefront_builder/partials/universal_selection_picker.html" %}
+    <div class="form-group" x-show="selectionMode === 'automatic'" x-cloak>
+      <label for="id_ps_source">منبع خودکار کالاها</label>
+      <select name="data_source" id="id_ps_source" class="form-select" x-model="dataSource" :disabled="selectionMode !== 'automatic'">
         <option value="newest">جدیدترین محصولات</option>
         <option value="discounted">محصولات تخفیف‌دار</option>
         <option value="best_sellers">پرفروش‌ترین‌ها</option>
@@ -56,7 +80,6 @@
         <option value="collection">کالکشن</option>
         <option value="category">دسته‌بندی</option>
         <option value="brand">برند</option>
-        <option value="manual">کالاهای دستی (انتخاب تکی)</option>
       </select>
     </div>
 
@@ -97,23 +120,7 @@
       </select>
     </div>
 
-    <div class="form-group" x-show="dataSource === 'manual'" x-cloak>
-      <label for="id_ps_search">جست‌وجو و افزودن کالا</label>
-      <input type="text" class="form-input" id="id_ps_search" autocomplete="off" placeholder="نام یا کد کالا را تایپ کنید..."
-             hx-get="{% url 'dashboard:storefront-builder-section-product-search' section.pk %}"
-             hx-trigger="keyup changed delay:300ms" hx-target="#ps-search-results" hx-swap="innerHTML" name="q">
-      <div id="ps-search-results"></div>
-      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
-        <template x-for="p in selected" :key="p.id">
-          <span class="badge" style="display:inline-flex;align-items:center;gap:5px;padding:5px 8px">
-            <input type="hidden" name="product_ids" :value="p.id">
-            <span x-text="p.name"></span>
-            <button type="button" @click="removeProduct(p.id)" aria-label="حذف" style="border:none;background:none;cursor:pointer;color:inherit">×</button>
-          </span>
-        </template>
-        <p x-show="selected.length === 0" style="color:var(--muted);font-size:12px;margin:0">هنوز کالایی انتخاب نشده</p>
-      </div>
-    </div>
+
 
     <div class="form-group">
       <label for="id_ps_title">عنوان بخش</label>
@@ -355,7 +362,7 @@
   {% elif section.section_key == "category_grid" %}
   {{ initial_selected_categories|json_script:"cg-initial-selected" }}
   <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
-        x-data="multiPickerForm(JSON.parse(document.getElementById('cg-initial-selected').textContent))">
+        x-data="multiPickerForm(JSON.parse(document.getElementById('cg-initial-selected').textContent), 12)">
     {% csrf_token %}
     <div class="form-group">
       <label for="id_cg_title">عنوان بخش (اختیاری)</label>
@@ -388,30 +395,7 @@
       <label for="id_cg_limit">تعداد دسته‌بندی</label>
       <input type="number" name="item_limit" id="id_cg_limit" class="form-input" min="2" max="12" value="{{ section.settings.item_limit|default:12 }}">
     </div>
-    <div class="form-group">
-      <label for="id_cg_add">افزودن دسته‌بندی</label>
-      <select id="id_cg_add" class="form-select" @change="if($event.target.value){ addItem($event.target.value, $event.target.selectedOptions[0].text); $event.target.value=''; }">
-        <option value="">— انتخاب کنید —</option>
-        {% for category in all_categories %}
-        <option value="{{ category.pk }}">{{ category.name }}</option>
-        {% endfor %}
-      </select>
-      <p style="color:var(--muted);font-size:12px;margin:6px 0 0">خالی = نمایشِ خودکارِ دسته‌های اصلیِ فروشگاه (رفتارِ پیش‌فرض).</p>
-      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
-        <template x-for="(item, index) in selected" :key="item.id">
-          <span class="badge" style="display:flex;align-items:center;gap:8px;padding:6px 8px;justify-content:space-between">
-            <input type="hidden" name="category_ids" :value="item.id">
-            <span x-text="item.name" style="flex:1"></span>
-            <span style="display:flex;gap:4px">
-              <button type="button" class="btn btn-sm" @click="moveUp(index)" :disabled="index === 0" aria-label="بالا">▲</button>
-              <button type="button" class="btn btn-sm" @click="moveDown(index)" :disabled="index === selected.length - 1" aria-label="پایین">▼</button>
-              <button type="button" class="btn btn-sm btn-danger" @click="removeItem(item.id)" aria-label="حذف">×</button>
-            </span>
-          </span>
-        </template>
-        <p x-show="selected.length === 0" style="color:var(--muted);font-size:12px;margin:0">دسته‌بندی‌ای انتخاب نشده — حالتِ خودکار فعال است.</p>
-      </div>
-    </div>
+    {% include "dashboard/storefront_builder/partials/universal_selection_picker.html" %}
 
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
     {% include "dashboard/storefront_builder/partials/section_motion_fields.html" %}
@@ -425,7 +409,7 @@
   {% elif section.section_key == "brand_carousel" %}
   {{ initial_selected_brands|json_script:"bc-initial-selected" }}
   <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
-        x-data="multiPickerForm(JSON.parse(document.getElementById('bc-initial-selected').textContent))">
+        x-data="multiPickerForm(JSON.parse(document.getElementById('bc-initial-selected').textContent), 24)">
     {% csrf_token %}
     <div class="form-group">
       <label for="id_bc_title">عنوان بخش (اختیاری)</label>
@@ -452,30 +436,7 @@
         نمایش لینک «مشاهده همه» (نیازمندِ انتخابِ مقصد در پایین)
       </label>
     </div>
-    <div class="form-group">
-      <label for="id_bc_add">افزودن برند</label>
-      <select id="id_bc_add" class="form-select" @change="if($event.target.value){ addItem($event.target.value, $event.target.selectedOptions[0].text); $event.target.value=''; }">
-        <option value="">— انتخاب کنید —</option>
-        {% for brand in all_brands %}
-        <option value="{{ brand.pk }}">{{ brand.name }}</option>
-        {% endfor %}
-      </select>
-      <p style="color:var(--muted);font-size:12px;margin:6px 0 0">خالی = نمایشِ خودکارِ همه‌ی برندهای فعالِ فروشگاه (رفتارِ پیش‌فرض).</p>
-      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
-        <template x-for="(item, index) in selected" :key="item.id">
-          <span class="badge" style="display:flex;align-items:center;gap:8px;padding:6px 8px;justify-content:space-between">
-            <input type="hidden" name="brand_ids" :value="item.id">
-            <span x-text="item.name" style="flex:1"></span>
-            <span style="display:flex;gap:4px">
-              <button type="button" class="btn btn-sm" @click="moveUp(index)" :disabled="index === 0" aria-label="بالا">▲</button>
-              <button type="button" class="btn btn-sm" @click="moveDown(index)" :disabled="index === selected.length - 1" aria-label="پایین">▼</button>
-              <button type="button" class="btn btn-sm btn-danger" @click="removeItem(item.id)" aria-label="حذف">×</button>
-            </span>
-          </span>
-        </template>
-        <p x-show="selected.length === 0" style="color:var(--muted);font-size:12px;margin:0">برندی انتخاب نشده — حالتِ خودکار فعال است.</p>
-      </div>
-    </div>
+    {% include "dashboard/storefront_builder/partials/universal_selection_picker.html" %}
 
     {% include "dashboard/storefront_builder/partials/section_destination_fields.html" %}
     {% include "dashboard/storefront_builder/partials/section_responsive_fields.html" %}
@@ -490,7 +451,7 @@
   {% elif section.section_key == "collection_tiles" %}
   {{ initial_selected_collections|json_script:"ct-initial-selected" }}
   <form class="sfb-v3-section-form" data-sfb-autosave="true" method="post" action="{% url 'dashboard:storefront-builder-section-settings' section.pk %}" hx-boost="false"
-        x-data="multiPickerForm(JSON.parse(document.getElementById('ct-initial-selected').textContent))">
+        x-data="multiPickerForm(JSON.parse(document.getElementById('ct-initial-selected').textContent), 12)">
     {% csrf_token %}
     <div class="form-group">
       <label for="id_ct_title">عنوان بخش (اختیاری)</label>
@@ -503,31 +464,7 @@
       </form>
       {% endif %}
     </div>
-    <div class="form-group">
-      <label for="id_ct_add">افزودن کالکشن</label>
-      <select id="id_ct_add" class="form-select" @change="if($event.target.value){ addItem($event.target.value, $event.target.selectedOptions[0].text); $event.target.value=''; }">
-        <option value="">— انتخاب کنید —</option>
-        {% for collection in all_collections %}
-        <option value="{{ collection.pk }}">{{ collection.name }}</option>
-        {% endfor %}
-      </select>
-      <p style="color:var(--muted);font-size:12px;margin:6px 0 0">خالی = نمایشِ خودکارِ همه‌ی کالکشن‌های فعال.</p>
-      {% if not all_collections %}<p style="color:var(--muted);font-size:12px;margin:6px 0 0">هنوز هیچ کالکشنی نساخته‌اید.</p>{% endif %}
-      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
-        <template x-for="(item, index) in selected" :key="item.id">
-          <span class="badge" style="display:flex;align-items:center;gap:8px;padding:6px 8px;justify-content:space-between">
-            <input type="hidden" name="collection_ids" :value="item.id">
-            <span x-text="item.name" style="flex:1"></span>
-            <span style="display:flex;gap:4px">
-              <button type="button" class="btn btn-sm" @click="moveUp(index)" :disabled="index === 0" aria-label="بالا">▲</button>
-              <button type="button" class="btn btn-sm" @click="moveDown(index)" :disabled="index === selected.length - 1" aria-label="پایین">▼</button>
-              <button type="button" class="btn btn-sm btn-danger" @click="removeItem(item.id)" aria-label="حذف">×</button>
-            </span>
-          </span>
-        </template>
-        <p x-show="selected.length === 0" style="color:var(--muted);font-size:12px;margin:0">کالکشنی انتخاب نشده — حالتِ خودکار فعال است.</p>
-      </div>
-    </div>
+    {% include "dashboard/storefront_builder/partials/universal_selection_picker.html" %}
 
     {# U9 — section component variant swap: exposes U4's registered collection_tiles variants ("grid"/"carousel"). #}
     <div class="form-group">

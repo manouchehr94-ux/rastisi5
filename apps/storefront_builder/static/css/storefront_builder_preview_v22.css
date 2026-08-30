@@ -1,0 +1,90 @@
+/* RastiSi Storefront Builder V2.2 R2 — direct, plain-language editing.
+   Preview mode is clean. Edit mode makes the visible storefront itself the
+   navigation map: click the thing you see, then edit that exact thing. */
+
+html[data-sfb-builder-mode="preview"] .sfb-rsec-toolbar,
+html[data-sfb-builder-mode="preview"] .sfb-rsec-drag-handle,
+html[data-sfb-builder-mode="preview"] [data-open-settings],
+html[data-sfb-builder-mode="preview"] [data-container-select],
+html[data-sfb-builder-mode="preview"] [data-container-remove],
+html[data-sfb-builder-mode="preview"] [data-empty-cell],
+html[data-sfb-builder-mode="preview"] [data-cell-add],
+html[data-sfb-builder-mode="preview"] [data-hidden-section],
+html[data-sfb-builder-mode="preview"] .sfb-builder-empty-cell,
+html[data-sfb-builder-mode="preview"] .sfb-builder-container-toolbar,
+html[data-sfb-builder-mode="preview"] .sfb-rcontainer-toolbar{
+  display:none !important;
+}
+
+html[data-sfb-builder-mode="preview"] .sfb-rsec-selected,
+html[data-sfb-builder-mode="preview"] .sfb-builder-container-selected,
+html[data-sfb-builder-mode="preview"] .sfb-cell-selected,
+html[data-sfb-builder-mode="preview"] [data-section-id]{
+  outline:0 !important;box-shadow:none !important;
+}
+html[data-sfb-builder-mode="preview"] [data-section-id],
+html[data-sfb-builder-mode="preview"] header,
+html[data-sfb-builder-mode="preview"] footer{cursor:default !important}
+
+/* Edit mode: section chrome is intentionally reduced to ONE obvious action.
+   Reorder/hide/duplicate/delete belong to the Structure drawer, not a seven-
+   icon strip floating over merchant content. */
+html[data-sfb-builder-mode="edit"] [data-section-id]{
+  cursor:pointer;transition:outline-color .14s ease,box-shadow .14s ease;
+}
+html[data-sfb-builder-mode="edit"] [data-section-id]:hover{
+  outline:2px solid rgba(104,72,255,.62);outline-offset:2px;
+}
+html[data-sfb-builder-mode="edit"] .sfb-rsec-drag-handle,
+html[data-sfb-builder-mode="edit"] .sfb-rcontainer-toolbar{
+  display:none !important;
+}
+html[data-sfb-builder-mode="edit"] .sfb-rsec-toolbar button:not([data-open-settings]){
+  display:none !important;
+}
+html[data-sfb-builder-mode="edit"] .sfb-rsec-toolbar [data-open-settings]{
+  width:auto !important;min-width:82px !important;height:34px !important;padding:0 11px !important;
+  display:inline-flex !important;align-items:center !important;justify-content:center !important;gap:6px !important;
+  border:1px solid rgba(255,255,255,.28) !important;border-radius:9px !important;background:#6848ff !important;
+  color:#fff !important;font:inherit !important;font-size:12px !important;font-weight:800 !important;
+  box-shadow:0 7px 18px rgba(71,47,190,.24) !important;
+}
+html[data-sfb-builder-mode="edit"] .sfb-rsec-toolbar [data-open-settings]::after{
+  content:"ویرایش";display:inline-block;font-size:11.5px;font-weight:800;
+}
+
+/* Exact child entities (product, slide, banner, category, brand, collection)
+   announce themselves on hover. Clicking the visible item opens its REAL
+   existing admin editor through the parent deep workspace. */
+html[data-sfb-builder-mode="edit"] [data-admin-edit-kind]{
+  position:relative !important;cursor:pointer !important;
+}
+html[data-sfb-builder-mode="edit"] [data-admin-edit-kind]::after{
+  content:"✎ ویرایش";
+  position:absolute;z-index:55;top:8px;left:8px;
+  padding:5px 8px;border-radius:8px;background:rgba(24,27,37,.90);color:#fff;
+  font:700 11px/1.4 Vazirmatn,Tahoma,sans-serif;
+  opacity:0;transform:translateY(-3px);pointer-events:none;
+  transition:opacity .13s ease,transform .13s ease;
+  box-shadow:0 5px 16px rgba(0,0,0,.15);
+}
+html[data-sfb-builder-mode="edit"] [data-admin-edit-kind]:hover::after{
+  opacity:1;transform:translateY(0);
+}
+
+html[data-sfb-builder-mode="edit"] header,
+html[data-sfb-builder-mode="edit"] footer{position:relative;cursor:pointer !important}
+html[data-sfb-builder-mode="edit"] header:hover,
+html[data-sfb-builder-mode="edit"] footer:hover{
+  outline:2px dashed rgba(104,72,255,.52);outline-offset:-2px;
+}
+html[data-sfb-builder-mode="edit"] header::after,
+html[data-sfb-builder-mode="edit"] footer::after{
+  position:absolute;z-index:80;top:8px;left:8px;padding:5px 9px;border-radius:8px;
+  background:rgba(24,27,37,.90);color:#fff;font:700 11px/1.4 Vazirmatn,Tahoma,sans-serif;
+  opacity:0;pointer-events:none;transition:opacity .13s ease;
+}
+html[data-sfb-builder-mode="edit"] header::after{content:"✎ ویرایش هدر"}
+html[data-sfb-builder-mode="edit"] footer::after{content:"✎ ویرایش فوتر"}
+html[data-sfb-builder-mode="edit"] header:hover::after,
+html[data-sfb-builder-mode="edit"] footer:hover::after{opacity:1}

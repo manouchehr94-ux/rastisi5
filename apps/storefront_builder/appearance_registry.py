@@ -572,6 +572,21 @@ register_palette(PaletteDefinition(
 ))
 
 
+# Curated release palette pack: 38 existing palettes + 26 reviewed additions = 64.
+# The pack is template-agnostic; every palette remains selectable with every template.
+from .palette_pack_64 import CURATED_PALETTE_PACK_64_ADDITIONS
+
+for _palette in CURATED_PALETTE_PACK_64_ADDITIONS:
+    register_palette(PaletteDefinition(
+        slug=_palette["slug"],
+        name_fa=_palette["name_fa"],
+        group_fa=_palette["group_fa"],
+        colors=_palette["colors"],
+        theme_roles=_palette["theme_roles"],
+    ))
+del _palette
+
+
 # ---------------------------------------------------------------- ۱۰ قالبِ واقعی
 #
 # «قالب صرفاً رنگ نیست» — طبقِ الزامِ صریحِ کار. تفاوتِ واقعیِ این ۱۰ قالب

@@ -4,7 +4,7 @@
   <div class="grid rsec-cols promo-grid promo-grid--{{ settings.layout_variant|default:'default' }}">
     {% for banner in banners %}
     {% resolve_destination banner as bdest %}
-    {% if bdest.url %}<a class="promo-card is-clickable" href="{{ bdest.url }}" aria-label="{{ banner.button_label|default:banner.title|default:'مشاهده پیشنهاد' }}" {% if bdest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{% else %}<div class="promo-card">{% endif %}
+    {% if bdest.url %}<a class="promo-card is-clickable"{% if is_builder_preview %} data-admin-edit-kind="media" data-admin-edit-id="{{ banner.pk }}" data-admin-edit-title="{{ banner.title|default:'بنر'|escape }}" data-admin-media-kind="banners"{% endif %} href="{{ bdest.url }}" aria-label="{{ banner.button_label|default:banner.title|default:'مشاهده پیشنهاد' }}" {% if bdest.open_new_tab %}target="_blank" rel="noopener noreferrer"{% endif %}>{% else %}<div class="promo-card"{% if is_builder_preview %} data-admin-edit-kind="media" data-admin-edit-id="{{ banner.pk }}" data-admin-edit-title="{{ banner.title|default:'بنر'|escape }}" data-admin-media-kind="banners"{% endif %}>{% endif %}
       <picture class="promo-media">
         {% if banner.mobile_image %}<source media="(max-width:680px)" srcset="{{ banner.mobile_image.url }}">{% endif %}
         <img src="{{ banner.desktop_image.url }}" alt="{{ banner.title|default:'بنر' }}" loading="lazy">

@@ -1,6 +1,6 @@
 {% load content_tags %}
 {% for banner in banners %}
-<section class="section">
+<section class="section"{% if is_builder_preview %} data-admin-edit-kind="media" data-admin-edit-id="{{ banner.pk }}" data-admin-edit-title="{{ banner.title|default:'بنر'|escape }}" data-admin-media-kind="banners"{% endif %}>
   <div class="promo-dark">
     <div>
       {% if banner.title %}<h3>{{ banner.title }}</h3>{% endif %}

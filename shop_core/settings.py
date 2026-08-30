@@ -146,6 +146,9 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Admin V2 Deep Workspace: explicit authenticated dashboard embeds
+    # are SAMEORIGIN-only; the global default remains DENY everywhere else.
+    "apps.dashboard.middleware.AdminEmbedFrameOptionsMiddleware",
 ]
 
 ROOT_URLCONF = "shop_core.urls"

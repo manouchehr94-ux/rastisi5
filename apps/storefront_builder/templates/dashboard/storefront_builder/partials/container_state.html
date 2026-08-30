@@ -15,7 +15,7 @@
           ``placementForSection()`` resolves the correct Cell regardless
           of which of the Cell's Blocks was clicked.
           {% endcomment %}
-          {% for block in blocks %}<i data-cell-id="{{ cell.pk }}" data-span="{{ cell.span }}" data-section-id="{{ block.pk }}" data-section-label="{{ block.section_key|section_label }}"></i>{% endfor %}
+          {% for block in blocks %}<i data-cell-id="{{ cell.pk }}" data-span="{{ cell.span }}" data-section-id="{{ block.pk }}" data-section-key="{{ block.section_key }}" data-section-label="{{ block.section_key|section_label }}" data-section-active="{% if block.is_active %}1{% else %}0{% endif %}" data-section-locked="{% if block.is_locked %}1{% else %}0{% endif %}"></i>{% endfor %}
         {% else %}
           <i data-cell-id="{{ cell.pk }}" data-span="{{ cell.span }}" data-section-id="" data-section-label=""></i>
         {% endif %}

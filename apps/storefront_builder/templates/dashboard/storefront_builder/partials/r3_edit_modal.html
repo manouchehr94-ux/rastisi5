@@ -1,0 +1,28 @@
+<template x-teleport="body">
+  <div class="sfb-r3-modal-portal" x-show="r3ModalOpen" x-cloak>
+    <button type="button" class="sfb-r3-modal-backdrop" @click="closeR3Modal()" aria-label="بستن پنجره ویرایش"></button>
+    <section id="sfbR3Modal" class="sfb-r3-modal" role="dialog" aria-modal="true" :aria-label="r3ModalTitle" tabindex="-1" @keydown.escape.stop.prevent="closeR3Modal()">
+      <header class="sfb-r3-modal__head">
+        <button type="button" class="sfb-r3-modal__back" @click="r3ModalKind === 'deep' ? backR3Deep() : closeR3Modal()">← بازگشت</button>
+        <div class="sfb-r3-modal__title">
+          <strong x-text="r3ModalTitle">ویرایش</strong>
+          <small x-show="r3ModalKind === 'deep' && r3ModalReturnTitle" x-text="'بازگشت به ' + r3ModalReturnTitle"></small>
+          <small x-show="r3ModalKind !== 'deep'">فروشگاه پشت این پنجره باقی می‌ماند؛ جای خود را گم نمی‌کنید.</small>
+        </div>
+        <button type="button" class="sfb-r3-modal__close" @click="closeR3Modal()">×</button>
+      </header>
+
+      <div class="sfb-r3-modal__body" :class="{'is-deep': r3ModalKind === 'deep'}">
+        <div class="sfb-r3-alert" x-show="r3Error" x-text="r3Error"></div>
+        <div x-show="r3ModalKind === 'add'">{% include "dashboard/storefront_builder/partials/r3_add_modal.html" %}</div>
+        <div x-show="r3ModalKind === 'structure'">{% include "dashboard/storefront_builder/partials/r3_structure_modal.html" %}</div>
+        <div id="sfbR3ModalBody" x-show="['section','panel','header','footer','colors','typography','advanced'].includes(r3ModalKind)"></div>
+        <iframe class="sfb-r3-deep-frame" x-show="r3ModalKind === 'deep'" :src="deepWorkspaceUrl" title="ویرایش مرتبط"></iframe>
+      </div>
+
+      <footer class="sfb-r3-modal__footer" x-show="r3ModalKind !== 'deep'">
+        <button type="button" class="sfb-r3-done" @click="closeR3Modal(); reloadPreview()">انجام شد</button>
+      </footer>
+    </section>
+  </div>
+</template>

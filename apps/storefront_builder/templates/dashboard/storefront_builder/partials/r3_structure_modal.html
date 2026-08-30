@@ -1,0 +1,30 @@
+<div class="sfb-r3-structure">
+  <template x-for="(group, groupIndex) in r3StructureGroups()" :key="group.id">
+    <section class="sfb-r3-structure-group">
+      <div class="sfb-r3-structure-group__head">
+        <strong x-text="group.label"></strong>
+        <div class="sfb-r3-structure-actions">
+          <button type="button" @click="r3MoveGroup(group.id, 'up')" :disabled="groupIndex === 0">↑ بالا</button>
+          <button type="button" @click="r3MoveGroup(group.id, 'down')" :disabled="groupIndex === r3StructureGroups().length - 1">↓ پایین</button>
+        </div>
+      </div>
+      <div class="sfb-r3-structure-items">
+        <template x-for="item in group.items" :key="item.id">
+          <div class="sfb-r3-structure-item">
+            <div class="sfb-r3-structure-item__copy">
+              <strong x-text="item.label"></strong>
+              <small x-text="item.active ? 'در فروشگاه نمایش داده می‌شود' : 'فعلاً مخفی است'"></small>
+            </div>
+            <div class="sfb-r3-structure-actions">
+              <button type="button" @click="r3ItemCommand(item, 'edit')">ویرایش</button>
+              <button type="button" @click="r3ItemCommand(item, 'toggle')" x-text="item.active ? 'مخفی' : 'نمایش'"></button>
+              <button type="button" @click="r3ItemCommand(item, 'duplicate')">تکثیر</button>
+              <button type="button" @click="r3ItemCommand(item, 'remove')" :disabled="item.locked">حذف</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+  </template>
+  <div class="sfb-r3-empty" x-show="r3StructureGroups().length === 0">هنوز بخشی در این صفحه وجود ندارد. از «افزودن» شروع کنید.</div>
+</div>

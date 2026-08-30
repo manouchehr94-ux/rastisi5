@@ -9,7 +9,7 @@ renderer never needs tenant ids inside a global preset.
     {% if category_grid_settings.title %}<div class="sec-head"><h2><span class="bar"></span>{{ category_grid_settings.title }}</h2></div>{% endif %}
     <div class="category-fashion-rail">
       {% for cat in top_categories %}
-      <a class="category-fashion-tile" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+      <a class="category-fashion-tile" {% if is_builder_preview %}data-admin-edit-kind="category" data-admin-edit-id="{{ cat.pk }}" data-admin-edit-title="{{ cat.name|escape }}" {% endif %}href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
         <span class="category-fashion-media">
           {% if cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">{% else %}<span class="category-fashion-fallback">{{ cat.icon|default:"🏷️" }}</span>{% endif %}
         </span>
@@ -25,7 +25,7 @@ renderer never needs tenant ids inside a global preset.
     {% if category_grid_settings.title %}<div class="sec-head"><h2><span class="bar"></span>{{ category_grid_settings.title }}</h2></div>{% endif %}
     <div class="category-fashion-mosaic">
       {% for cat in top_categories %}
-      <a class="category-mosaic-tile" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+      <a class="category-mosaic-tile" {% if is_builder_preview %}data-admin-edit-kind="category" data-admin-edit-id="{{ cat.pk }}" data-admin-edit-title="{{ cat.name|escape }}" {% endif %}href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
         <span class="category-mosaic-heading">{{ cat.name }}<span class="category-mosaic-chevron" aria-hidden="true">‹</span></span>
         <span class="category-mosaic-media">
           {% if cat.representative_media %}<img src="{{ cat.representative_media.image.url }}" alt="{{ cat.name }}" loading="lazy">
@@ -45,7 +45,7 @@ renderer never needs tenant ids inside a global preset.
     {% endif %}
     <div class="category-beauty-strip">
       {% for cat in top_categories %}
-      <a class="category-beauty-tile" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+      <a class="category-beauty-tile" {% if is_builder_preview %}data-admin-edit-kind="category" data-admin-edit-id="{{ cat.pk }}" data-admin-edit-title="{{ cat.name|escape }}" {% endif %}href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
         <span class="category-beauty-media">
           {% if cat.representative_media %}<img src="{{ cat.representative_media.image.url }}" alt="{{ cat.name }}" loading="lazy">
           {% elif cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">
@@ -63,7 +63,7 @@ renderer never needs tenant ids inside a global preset.
     {% if category_grid_settings.title %}<div class="chocolate-section-title"><h2>{{ category_grid_settings.title }}</h2></div>{% endif %}
     <div class="category-chocolate-story-rail">
       {% for cat in top_categories %}
-      <a class="category-chocolate-story-item" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+      <a class="category-chocolate-story-item" {% if is_builder_preview %}data-admin-edit-kind="category" data-admin-edit-id="{{ cat.pk }}" data-admin-edit-title="{{ cat.name|escape }}" {% endif %}href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
         <span class="category-chocolate-story-media">
           {% if cat.representative_media %}<img src="{{ cat.representative_media.image.url }}" alt="{{ cat.name }}" loading="lazy">
           {% elif cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">
@@ -81,7 +81,7 @@ renderer never needs tenant ids inside a global preset.
     {% if category_grid_settings.title %}<div class="chocolate-section-title"><h2>{{ category_grid_settings.title }}</h2></div>{% endif %}
     <div class="category-chocolate-grid">
       {% for cat in top_categories %}
-      <a class="category-chocolate-tile" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+      <a class="category-chocolate-tile" {% if is_builder_preview %}data-admin-edit-kind="category" data-admin-edit-id="{{ cat.pk }}" data-admin-edit-title="{{ cat.name|escape }}" {% endif %}href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
         <span class="category-chocolate-media">
           {% if cat.representative_media %}<img src="{{ cat.representative_media.image.url }}" alt="{{ cat.name }}" loading="lazy">
           {% elif cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">
@@ -99,7 +99,7 @@ renderer never needs tenant ids inside a global preset.
     {% if category_grid_settings.title %}<div class="atelier-section-title"><h2>{{ category_grid_settings.title }}</h2></div>{% endif %}
     <div class="category-atelier-mosaic">
       {% for cat in top_categories %}
-      <a class="category-atelier-tile" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+      <a class="category-atelier-tile" {% if is_builder_preview %}data-admin-edit-kind="category" data-admin-edit-id="{{ cat.pk }}" data-admin-edit-title="{{ cat.name|escape }}" {% endif %}href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
         <span class="category-atelier-media">
           {% if cat.representative_media %}<img src="{{ cat.representative_media.image.url }}" alt="{{ cat.name }}" loading="lazy">
           {% elif cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">
@@ -118,7 +118,7 @@ renderer never needs tenant ids inside a global preset.
     {% if category_grid_settings.title %}<div class="sec-head category-luxury-head"><h2><span class="bar"></span>{{ category_grid_settings.title }}</h2></div>{% endif %}
     <div class="category-luxury-track">
       {% for c in top_categories %}
-      <a class="category-luxury-item" href="{% url 'catalog:product-list' %}?category={{ c.slug }}">
+      <a class="category-luxury-item" {% if is_builder_preview %}data-admin-edit-kind="category" data-admin-edit-id="{{ c.pk }}" data-admin-edit-title="{{ c.name|escape }}" {% endif %}href="{% url 'catalog:product-list' %}?category={{ c.slug }}">
         <span class="category-luxury-media">
           {% if c.representative_media %}<img src="{{ c.representative_media.image.url }}" alt="{{ c.name }}" loading="lazy">{% elif c.image %}<img src="{{ c.image.url }}" alt="{{ c.name }}" loading="lazy">{% else %}<span aria-hidden="true">{{ c.name|slice:":1" }}</span>{% endif %}
         </span>
@@ -139,7 +139,7 @@ renderer never needs tenant ids inside a global preset.
     {% if category_grid_settings.title %}<div class="sec-head"><h2><span class="bar"></span>{{ category_grid_settings.title }}</h2></div>{% endif %}
     <div class="category-image-strip">
       {% for cat in top_categories %}
-      <a class="category-image-tile" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+      <a class="category-image-tile" {% if is_builder_preview %}data-admin-edit-kind="category" data-admin-edit-id="{{ cat.pk }}" data-admin-edit-title="{{ cat.name|escape }}" {% endif %}href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
         <span class="category-image-media">
           {% if cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">{% else %}<span class="category-image-fallback">{{ cat.icon|default:"🏷️" }}</span>{% endif %}
         </span>
@@ -155,7 +155,7 @@ renderer never needs tenant ids inside a global preset.
     {% if category_grid_settings.title %}<div class="sec-head"><h2><span class="bar"></span>{{ category_grid_settings.title }}</h2></div>{% endif %}
     <div class="tiles-circular">
       {% for cat in top_categories %}
-      <a class="tile-circle" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
+      <a class="tile-circle" {% if is_builder_preview %}data-admin-edit-kind="category" data-admin-edit-id="{{ cat.pk }}" data-admin-edit-title="{{ cat.name|escape }}" {% endif %}href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">
         <span class="tile-circle-img">
           {% if cat.image %}<img src="{{ cat.image.url }}" alt="{{ cat.name }}" loading="lazy">{% else %}<span class="tile-circle-wm">{{ cat.icon|default:"🏷️" }}</span>{% endif %}
         </span>
@@ -174,7 +174,7 @@ renderer never needs tenant ids inside a global preset.
       <div class="tile {% cycle 't1' 't2' 't3' %}">
         <span class="wm">{{ cat.icon }}</span>
         <h4>مشاهده محصولات {{ cat.name }}</h4>
-        <a class="btn" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">مشاهده محصولات</a>
+        <a class="btn" {% if is_builder_preview %}data-admin-edit-kind="category" data-admin-edit-id="{{ cat.pk }}" data-admin-edit-title="{{ cat.name|escape }}" {% endif %}href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">مشاهده محصولات</a>
       </div>
       {% endfor %}
     </div>
@@ -187,7 +187,7 @@ renderer never needs tenant ids inside a global preset.
     <div class="tile {{ tclass }}">
       <span class="wm">{{ cat.icon }}</span>
       <h4>مشاهده محصولات {{ cat.name }}</h4>
-      <a class="btn" href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">مشاهده محصولات</a>
+      <a class="btn" {% if is_builder_preview %}data-admin-edit-kind="category" data-admin-edit-id="{{ cat.pk }}" data-admin-edit-title="{{ cat.name|escape }}" {% endif %}href="{% url 'catalog:product-list' %}?category={{ cat.slug }}">مشاهده محصولات</a>
     </div>
     {% endfor %}
   </div></section>
@@ -197,7 +197,7 @@ renderer never needs tenant ids inside a global preset.
     <div>
       <h3>مجموعه‌ی {{ cream_category.name }}</h3>
       <p>کیفیت و تنوع در دسته‌ی {{ cream_category.name }} را تجربه کنید — انتخابی مطمئن برای خرید روزمره.</p>
-      <a class="btn btn-ghost" href="{% url 'catalog:product-list' %}?category={{ cream_category.slug }}">مشاهده مجموعه</a>
+      <a class="btn btn-ghost" {% if is_builder_preview %}data-admin-edit-kind="category" data-admin-edit-id="{{ cream_category.pk }}" data-admin-edit-title="{{ cream_category.name|escape }}" {% endif %}href="{% url 'catalog:product-list' %}?category={{ cream_category.slug }}">مشاهده مجموعه</a>
     </div>
     <div class="rack">{{ cream_category.icon }}</div>
   </div></section>

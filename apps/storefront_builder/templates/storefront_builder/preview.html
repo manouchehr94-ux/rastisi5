@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="{% static 'css/product_card.css' %}">
 <link rel="stylesheet" href="{% static 'css/home.css' %}">
 <link rel="stylesheet" href="{% static 'css/storefront_builder.css' %}?v=u2b-footer-v3-20260823">
+<link rel="stylesheet" href="{% static 'css/storefront_builder_preview_v22.css' %}">
 {% endblock %}
 
 {% block header %}
@@ -18,7 +19,9 @@
 {% if page_type != "home" %}<div class="storefront-page-title"><div class="wrap"><h1>{{ SHOP_NAME }}</h1></div></div>{% endif %}
 <div class="wrap sfb-preview-sections">
   {% if use_container_layout or rows %}
+{% with is_builder_preview=True %}
   {% include "storefront_builder/partials/render_rows.html" %}
+  {% endwith %}
   {% else %}
   <div class="sfb-empty-preview" style="padding:60px 20px;text-align:center;color:var(--muted)">
     هنوز هیچ بخش فعالی در این چیدمان وجود ندارد.
@@ -37,6 +40,14 @@
 (function () {
   var inParentFrame = window.parent && window.parent !== window;
   var justDragged = false;
+  var builderMode = 'edit';
+
+  function applyBuilderMode(mode) {
+    builderMode = mode === 'preview' ? 'preview' : 'edit';
+    document.documentElement.setAttribute('data-sfb-builder-mode', builderMode);
+    if (document.body) document.body.setAttribute('data-sfb-builder-mode', builderMode);
+    if (builderMode === 'preview') applyBuilderSelection({});
+  }
 
   function applyBuilderSelection(data) {
     data = data || {};
@@ -67,13 +78,14 @@
   window.addEventListener('message', function (evt) {
     if (!inParentFrame || evt.origin !== window.location.origin || !evt.data) return;
     if (evt.data.type === 'sfb:setSelection') applyBuilderSelection(evt.data);
+    if (evt.data.type === 'sfb:setMode') applyBuilderMode(evt.data.mode);
   });
 
   // V3 direct visual editing — one click selects the exact Block/Cell and
   // the parent opens the persistent Inspector immediately.  No second gear
   // click is required; the settings button remains only as an explicit shortcut.
   function selectSectionElement(el) {
-    if (!el || !inParentFrame) return;
+    if (!el || !inParentFrame || builderMode !== 'edit') return;
     applyBuilderSelection({
       sectionId: el.getAttribute('data-section-id'),
       cellId: el.getAttribute('data-cell-id'),
@@ -93,6 +105,70 @@
   // standalone Preview and on the live storefront, but while this document is
   // inside the Builder iframe they must never replace the iframe document.
   // Capture phase runs before section-specific link handlers/default navigation.
+  function openEntityEditor(target) {
+    if (!target || !inParentFrame || builderMode !== 'edit') return false;
+    var editable = target.closest ? target.closest('[data-admin-edit-kind]') : null;
+    if (!editable) return false;
+    var section = editable.closest('[data-section-id]');
+    window.parent.postMessage({
+      type: 'sfb:openEntityEditor',
+      entityKind: editable.getAttribute('data-admin-edit-kind') || '',
+      entityId: editable.getAttribute('data-admin-edit-id') || '',
+      entityTitle: editable.getAttribute('data-admin-edit-title') || '',
+      mediaKind: editable.getAttribute('data-admin-media-kind') || '',
+      sectionId: section ? section.getAttribute('data-section-id') : ''
+    }, window.location.origin);
+    return true;
+  }
+
+  function interceptBuilderEditClick(evt) {
+    if (!inParentFrame || builderMode !== 'edit') return;
+    var target = evt.target;
+    if (!target || !target.closest) return;
+
+    if (openEntityEditor(target)) {
+      evt.preventDefault();
+      evt.stopImmediatePropagation();
+      return;
+    }
+
+    var section = target.closest('[data-section-id]');
+    if (section) {
+      evt.preventDefault();
+      evt.stopImmediatePropagation();
+      window.parent.postMessage({
+        type: 'sfb:openSectionSettings',
+        sectionId: section.getAttribute('data-section-id') || '',
+        containerId: section.getAttribute('data-container-id') || '',
+        cellId: section.getAttribute('data-cell-id') || ''
+      }, window.location.origin);
+      return;
+    }
+
+    var footer = target.closest('footer');
+    if (footer) {
+      evt.preventDefault();
+      evt.stopImmediatePropagation();
+      window.parent.postMessage({ type: 'sfb:openFooterSettings' }, window.location.origin);
+      return;
+    }
+
+    var header = target.closest('header');
+    if (header) {
+      evt.preventDefault();
+      evt.stopImmediatePropagation();
+      window.parent.postMessage({ type: 'sfb:openHeaderSettings' }, window.location.origin);
+      return;
+    }
+
+    var interactive = target.closest('a,button,input,select,textarea,form,[role="button"]');
+    if (interactive) {
+      evt.preventDefault();
+      evt.stopImmediatePropagation();
+    }
+  }
+  document.addEventListener('click', interceptBuilderEditClick, true);
+
   function blockEmbeddedNavigation(evt) {
     if (!inParentFrame) return;
     var target = evt.target && evt.target.closest ? evt.target : null;
@@ -101,6 +177,7 @@
     if (!navigationTarget) return;
     evt.preventDefault();
     evt.stopPropagation();
+    if (builderMode === 'edit' && openEntityEditor(target)) return;
     var section = navigationTarget.closest('[data-section-id]');
     if (section) selectSectionElement(section);
   }
@@ -118,7 +195,12 @@
 
   document.addEventListener('click', function (evt) {
     if (justDragged) { justDragged = false; return; }
-    if (!inParentFrame) return;
+    if (!inParentFrame || builderMode !== 'edit') return;
+    if (openEntityEditor(evt.target)) { evt.preventDefault(); evt.stopPropagation(); return; }
+    var footerTarget = evt.target.closest('footer');
+    if (footerTarget) { window.parent.postMessage({ type: 'sfb:openFooterSettings' }, window.location.origin); return; }
+    var headerTarget = evt.target.closest('header');
+    if (headerTarget && !evt.target.closest('[data-section-id]')) { window.parent.postMessage({ type: 'sfb:openHeaderSettings' }, window.location.origin); return; }
     var headerSettingsBtn = evt.target.closest('[data-open-header-settings]');
     if (headerSettingsBtn) {
       window.parent.postMessage({ type: 'sfb:openHeaderSettings' }, window.location.origin);
@@ -242,7 +324,7 @@
   });
 
   document.addEventListener('dblclick', function (evt) {
-    if (!inParentFrame) return;
+    if (!inParentFrame || builderMode !== 'edit') return;
     var section = evt.target.closest('[data-section-id]');
     if (!section) return;
     evt.preventDefault();
@@ -385,6 +467,7 @@
   }
 
   container.addEventListener('dragstart', function (evt) {
+    if (builderMode !== 'edit') { evt.preventDefault(); return; }
     var handle = evt.target.closest('.sfb-rsec-drag-handle');
     if (!handle) return;
     var rsec = handle.closest('[data-section-id]');

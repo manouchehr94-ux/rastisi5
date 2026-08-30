@@ -9,7 +9,7 @@ resolved once, centrally, by ``product_card_data`` (U3) — never re-derived
 here — so every future visual variant reads identical business semantics.
 {% endcomment %}
 {% with card=product|product_card_data %}
-<article class="pcard style-{{ card_settings.card_style|default:'standard' }}{% if card_settings.card_border is False %} no-border{% endif %}{% if card_settings.image_ratio == "portrait" %} ratio-portrait{% elif card_settings.image_ratio == "landscape" %} ratio-landscape{% endif %}{% if card_settings.quick_add_reveal == "hover_fade" %} quickadd-hover-fade{% elif card_settings.quick_add_reveal == "always" %} quickadd-always{% endif %}{% if card.is_out_of_stock %} out-of-stock{% endif %}">
+<article class="pcard style-{{ card_settings.card_style|default:'standard' }}{% if card_settings.card_border is False %} no-border{% endif %}{% if card_settings.image_ratio == "portrait" %} ratio-portrait{% elif card_settings.image_ratio == "landscape" %} ratio-landscape{% endif %}{% if card_settings.quick_add_reveal == "hover_fade" %} quickadd-hover-fade{% elif card_settings.quick_add_reveal == "always" %} quickadd-always{% endif %}{% if card.is_out_of_stock %} out-of-stock{% endif %}"{% if is_builder_preview %} data-admin-edit-kind="product" data-admin-edit-id="{{ product.pk }}" data-admin-edit-title="{{ card.name|escape }}" data-admin-product-id="{{ product.pk }}" data-admin-product-title="{{ card.name|escape }}"{% endif %}>
   <a class="pcard-hitarea" href="{{ card.url }}" aria-label="مشاهده {{ card.name }}"></a>
   <div class="img" style="background:{{ product.tint|default:'#ffffff' }}">
     {% if card.image_url %}

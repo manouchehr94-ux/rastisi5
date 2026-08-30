@@ -6,6 +6,7 @@
 <title>{% block title %}پنل مدیریت فروشگاه | {{ SHOP_NAME }}{% endblock %}</title>
 <link rel="stylesheet" href="{% static 'css/admin.css' %}">
 <link rel="stylesheet" href="{% static 'css/product_entry_prototype.css' %}">
+<link rel="stylesheet" href="{% static 'css/admin_v2.css' %}">
 {% block extra_css %}{% endblock %}
 <script>
 // باید پیش از بارگذاریِ Alpine (که defer است) تعریف شود تا x-data="sidebarNav()"
@@ -13,8 +14,9 @@
 function sidebarNav() {
   return {
     groups: {
-      sales: false, products: false, shipping: false, appearance: false,
-      finance: false, reports: false, management: false,
+      // V2 keeps domains visible; server permissions remain authoritative.
+      sales: true, products: true, shipping: true, appearance: true,
+      finance: true, reports: true, management: true,
     },
     init() {
       // فقط گروهِ حاوی صفحه‌ی فعلاً فعال باز است — تشخیص از روی همان
@@ -115,8 +117,9 @@ ClassicEditor فراخوانی می‌شود و بی‌سروصدا (بدون خ
 <script src="{% static 'js/vendor/ckeditor5-classic/ckeditor.js' %}" defer></script>
 <script src="{% static 'js/vendor/ckeditor5-classic/translations-fa.js' %}" defer></script>
 <script src="{% static 'js/alpine.min.js' %}" defer></script>
+<script src="{% static 'js/admin_v2.js' %}" defer></script>
 </head>
-<body class="admin-body"
+<body class="admin-body admin-v2-body"
       x-data="{ sidebarOpen: false, modalOpen: false, theme: localStorage.getItem('adminTheme') || '' }"
       :data-theme="theme"
       x-init="$watch('theme', v => localStorage.setItem('adminTheme', v))"
@@ -278,18 +281,22 @@ ClassicEditor فراخوانی می‌شود و بی‌سروصدا (بدون خ
       <div class="nav-group" data-group="appearance">
         <button type="button" class="nav-group-head" @click="toggle('appearance')" :aria-expanded="groups.appearance.toString()">
           <span class="nav-group-icon">🎨</span>
-          <span class="nav-group-label">ظاهر فروشگاه</span>
+          <span class="nav-group-label">فروشگاه</span>
           <svg class="nav-group-chevron" :class="{ open: groups.appearance }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div class="nav-group-body" x-show="groups.appearance" x-cloak>
           {% if can_manage_storefront_layout %}
+          <a class="nav-item{% if active_page == 'storefront_builder' %} active{% endif %}" data-page="storefront_appearance" data-admin-v2-priority="2" href="{% url 'dashboard:storefront-builder-editor' %}?panel=appearance">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2a10 10 0 100 20 4 4 0 010-8 4 4 0 000-8 10 10 0 000-4z"/></svg>
+            ظاهر و طراحی
+          </a>
           <a class="nav-item{% if active_page == 'storefront_builder' %} active{% endif %}" data-page="storefront_builder" href="{% url 'dashboard:storefront-builder-templates' %}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
             قالب‌های آماده
           </a>
-          <a class="nav-item{% if active_page == 'storefront_builder' %} active{% endif %}" data-page="storefront_builder" href="{% url 'dashboard:storefront-builder-editor' %}">
+          <a class="nav-item{% if active_page == 'storefront_builder' %} active{% endif %}" data-page="storefront_builder" data-admin-v2-priority="1" href="{% url 'dashboard:storefront-builder-editor' %}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-            سازنده بصری صفحه اصلی
+            سازنده فروشگاه
           </a>
           {% endif %}
           {% if can_manage_collections %}
@@ -299,6 +306,10 @@ ClassicEditor فراخوانی می‌شود و بی‌سروصدا (بدون خ
           </a>
           {% endif %}
           {% if can_manage_content %}
+          <a class="nav-item{% if active_page == 'pages' %} active{% endif %}" data-page="content" data-admin-v2-priority="3" href="{% url 'dashboard:page-list' %}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg>
+            محتوا
+          </a>
           <a class="nav-item{% if active_page == 'homepage' %} active{% endif %}" data-page="homepage" href="{% url 'dashboard:hero-list' %}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
             صفحه اصلی
@@ -396,7 +407,7 @@ ClassicEditor فراخوانی می‌شود و بی‌سروصدا (بدون خ
       <div class="nav-group" data-group="management">
         <button type="button" class="nav-group-head" @click="toggle('management')" :aria-expanded="groups.management.toString()">
           <span class="nav-group-icon">🏬</span>
-          <span class="nav-group-label">مدیریت فروشگاه</span>
+          <span class="nav-group-label">مدیریت</span>
           <svg class="nav-group-chevron" :class="{ open: groups.management }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div class="nav-group-body" x-show="groups.management" x-cloak>
@@ -461,10 +472,12 @@ ClassicEditor فراخوانی می‌شود و بی‌سروصدا (بدون خ
         <h1>{% block page_title %}داشبورد{% endblock %}</h1>
         <div class="sub">{% block page_sub %}نمای کلی عملکرد فروشگاه{% endblock %}</div>
       </div>
-      <div class="search-box">
+      <div class="search-box" id="adminV2SearchTrigger" role="button" tabindex="0" aria-label="جستجو در پنل؛ میانبر کنترل K">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input placeholder="جستجوی سریع... (کالا، سفارش، مشتری)">
+        <input readonly tabindex="-1" placeholder="جستجو در پنل؛ کالا، لوگو، سفارش، تنظیمات...">
+        <span class="admin-v2-kbd">Ctrl K</span>
       </div>
+      <div class="admin-v2-page-actions">{% block page_actions %}{% endblock %}</div>
       <button class="icon-btn" @click="theme = theme === 'dark' ? '' : 'dark'" title="حالت شب / روز">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       </button>
@@ -493,6 +506,50 @@ ClassicEditor فراخوانی می‌شود و بی‌سروصدا (بدون خ
       {% endif %}
       {% block content %}{% endblock %}
     </main>
+  </div>
+</div>
+
+
+<!-- Admin V2 global command palette. Every result points at an existing
+     permission-aware RastiSi screen; no parallel CRUD is introduced. -->
+<div id="adminV2CommandIndex" aria-hidden="true">
+  <a data-search-item data-title="نمای کلی" data-path="داشبورد" data-keywords="خانه داشبورد فروش امروز سفارش امروز" data-icon="⌂" href="{% url 'dashboard:dashboard' %}"></a>
+  {% if can_view_orders %}<a data-search-item data-title="سفارش‌ها" data-path="فروش ← سفارش‌ها" data-keywords="سفارش سفارشات سفارش جدید پردازش" data-icon="▣" href="{% url 'dashboard:order-list' %}"></a>{% endif %}
+  {% if can_view_products %}<a data-search-item data-title="کالاها" data-path="کالاها ← همه کالاها" data-keywords="کالا محصول محصولات ویرایش محصول" data-icon="□" href="{% url 'dashboard:product-list' %}"></a>{% endif %}
+  {% if can_manage_categories %}<a data-search-item data-title="دسته‌بندی‌ها" data-path="کالاها ← دسته‌بندی‌ها" data-keywords="دسته دسته بندی دسته‌بندی category" data-icon="⌘" href="{% url 'dashboard:category-list' %}"></a>{% endif %}
+  {% if can_manage_brands %}<a data-search-item data-title="برندها" data-path="کالاها ← برندها" data-keywords="برند مارک brand" data-icon="B" href="{% url 'dashboard:brand-list' %}"></a>{% endif %}
+  {% if can_manage_inventory %}<a data-search-item data-title="انبار و موجودی" data-path="کالاها ← موجودی" data-keywords="انبار موجودی stock inventory" data-icon="▤" href="{% url 'dashboard:inventory-list' %}"></a>{% endif %}
+  {% if can_view_customers %}<a data-search-item data-title="مشتریان" data-path="فروش ← مشتریان" data-keywords="مشتری مشتریان customer" data-icon="♙" href="{% url 'dashboard:customer-list' %}"></a>{% endif %}
+  {% if can_view_shipping_settings %}<a data-search-item data-title="ارسال" data-path="ارسال و مالیات ← ارسال" data-keywords="ارسال پست روش ارسال shipping" data-icon="⇢" href="{% url 'dashboard:shipping-setup' %}"></a>{% endif %}
+  {% if can_view_coupons %}<a data-search-item data-title="تخفیف‌ها" data-path="فروش ← کدهای تخفیف" data-keywords="تخفیف کوپن جشنواره coupon" data-icon="%" href="{% url 'dashboard:coupon-list' %}"></a>{% endif %}
+  {% if can_manage_storefront_layout %}
+  <a data-search-item data-title="سازنده فروشگاه" data-path="فروشگاه ← سازنده فروشگاه" data-keywords="سازنده storefront builder طراحی صفحه سکشن section هیرو" data-icon="✦" href="{% url 'dashboard:storefront-builder-editor' %}"></a>
+  <a data-search-item data-title="ظاهر و طراحی" data-path="فروشگاه ← ظاهر و طراحی" data-keywords="ظاهر رنگ پالت فونت قالب استایل appearance palette" data-icon="◉" href="{% url 'dashboard:storefront-builder-editor' %}?panel=appearance"></a>
+  <a data-search-item data-title="لوگو" data-path="ظاهر و طراحی ← هدر ← لوگو" data-keywords="لوگو آرم نشان فروشگاه logo header" data-icon="R" href="{% url 'dashboard:storefront-builder-editor' %}?panel=header&focus=logo"></a>
+  <a data-search-item data-title="هدر فروشگاه" data-path="ظاهر و طراحی ← هدر" data-keywords="هدر سربرگ جستجو سبد حساب کاربری header" data-icon="⌃" href="{% url 'dashboard:storefront-builder-editor' %}?panel=header"></a>
+  <a data-search-item data-title="فوتر فروشگاه" data-path="ظاهر و طراحی ← فوتر" data-keywords="فوتر پایین صفحه شبکه اجتماعی footer" data-icon="⌄" href="{% url 'dashboard:storefront-builder-editor' %}?panel=footer"></a>
+  <a data-search-item data-title="قالب‌های آماده" data-path="ظاهر و طراحی ← قالب" data-keywords="قالب تم template ready" data-icon="▦" href="{% url 'dashboard:storefront-builder-templates' %}"></a>
+  {% endif %}
+  {% if can_manage_collections %}<a data-search-item data-title="کالکشن‌ها" data-path="فروشگاه ← کالکشن‌ها" data-keywords="کالکشن مجموعه محصولات collection" data-icon="◇" href="{% url 'dashboard:collection-list' %}"></a>{% endif %}
+  {% if can_manage_content %}
+  <a data-search-item data-title="محتوا" data-path="فروشگاه ← محتوا" data-keywords="محتوا صفحه صفحات بلاگ content" data-icon="▤" href="{% url 'dashboard:page-list' %}"></a>
+  <a data-search-item data-title="منوها" data-path="فروشگاه ← محتوا ← منوها" data-keywords="منو مگامنو navigation" data-icon="☰" href="{% url 'dashboard:menu-list' %}"></a>
+  {% endif %}
+  {% if can_manage_settings %}
+  <a data-search-item data-title="تنظیمات فروشگاه" data-path="مدیریت ← تنظیمات" data-keywords="تنظیمات دامنه پرداخت مالیات اعلان کاربران settings" data-icon="⚙" href="{% url 'dashboard:settings' %}"></a>
+  <a data-search-item data-title="پیامک‌ها" data-path="تنظیمات ← پیامک" data-keywords="پیامک sms اس ام اس اتصال پیامک پنل پیامکی قالب پیامک ارسال آزمایشی" data-icon="✉" href="{% url 'dashboard:settings-sms-connection' %}"></a>
+  <a data-search-item data-title="گزارش پیامک‌ها" data-path="تنظیمات ← پیامک ← گزارش ارسال" data-keywords="پیامک sms گزارش لاگ پیامک ارسال شده ناموفق retry" data-icon="≡" href="{% url 'dashboard:sms-log-list' %}"></a>
+  <a data-search-item data-title="صندوق خروجی پیامک" data-path="تنظیمات ← پیامک ← صندوق خروجی" data-keywords="پیامک sms صندوق خروجی صف ارسال outbox" data-icon="⇢" href="{% url 'dashboard:sms-outbox-list' %}"></a>
+  {% endif %}
+</div>
+<div id="adminV2CommandPalette" class="admin-v2-command-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-label="جستجو در پنل">
+  <div class="admin-v2-command">
+    <div class="admin-v2-command-head">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input id="adminV2CommandInput" class="admin-v2-command-input" autocomplete="off" placeholder="کجا می‌خواهید بروید؟ مثلاً لوگو، دسته‌بندی‌ها، سفارش‌ها...">
+      <span class="admin-v2-command-esc">Esc</span>
+    </div>
+    <div id="adminV2CommandResults" class="admin-v2-command-results"></div>
   </div>
 </div>
 

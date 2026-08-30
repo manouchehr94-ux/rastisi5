@@ -19,7 +19,7 @@
   <div class="{% if brand_carousel_settings.display_mode == 'carousel' %}brand-carousel{% elif brand_carousel_settings.display_mode == 'beauty_tabs' %}brand-beauty-tabs{% else %}grid{% endif %}"
        {% if brand_carousel_settings.display_mode == 'grid' %}style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px"{% endif %}>
     {% for brand in brands %}
-    <a href="{% url 'catalog:product-list' %}?brand={{ brand.slug }}" class="brand-tile{% if brand_carousel_settings.display_mode == 'beauty_tabs' %} brand-beauty-tab{% endif %}">
+    <a{% if is_builder_preview %} data-admin-edit-kind="brand" data-admin-edit-id="{{ brand.pk }}" data-admin-edit-title="{{ brand.name|escape }}"{% endif %} href="{% url 'catalog:product-list' %}?brand={{ brand.slug }}" class="brand-tile{% if brand_carousel_settings.display_mode == 'beauty_tabs' %} brand-beauty-tab{% endif %}">
       {% if brand.logo %}
       <img src="{{ brand.logo.url }}" alt="{{ brand.name }}">
       {% else %}

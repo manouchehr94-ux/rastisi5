@@ -17,7 +17,7 @@ banners without introducing a preset-specific template.
        @mouseenter="if (_timer) { clearInterval(_timer); _timer = null }"
        @mouseleave="if (autoplay && !_timer) { _timer = setInterval(() => next(), interval) }">
     {% for s in hero_slides %}
-    <article class="hero-slide" x-show="slide === {{ forloop.counter0 }}" x-cloak>
+    <article class="hero-slide" x-show="slide === {{ forloop.counter0 }}" x-cloak{% if is_builder_preview %} data-admin-edit-kind="media" data-admin-edit-id="{{ s.pk }}" data-admin-edit-title="{{ s.title|default:'اسلاید'|escape }}" data-admin-media-kind="hero-slides"{% endif %}>
       <picture class="hero-media">
         {% if s.mobile_image %}<source media="(max-width:680px)" srcset="{{ s.mobile_image.url }}">{% endif %}
         <img src="{{ s.desktop_image.url }}" alt="{{ s.title|default:'اسلاید' }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
@@ -53,7 +53,7 @@ banners without introducing a preset-specific template.
   {% else %}
   {% with slide=hero_slides.0 %}
   <div class="hero-inner" data-text-position="{{ slider_settings.text_position|default:'end' }}">
-    <article class="hero-slide single">
+    <article class="hero-slide single"{% if is_builder_preview %} data-admin-edit-kind="media" data-admin-edit-id="{{ slide.pk }}" data-admin-edit-title="{{ slide.title|default:'اسلاید'|escape }}" data-admin-media-kind="hero-slides"{% endif %}>
       <picture class="hero-media">
         {% if slide.mobile_image %}<source media="(max-width:680px)" srcset="{{ slide.mobile_image.url }}">{% endif %}
         <img src="{{ slide.desktop_image.url }}" alt="{{ slide.title|default:'اسلاید' }}" loading="eager">

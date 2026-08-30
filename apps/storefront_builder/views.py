@@ -896,6 +896,7 @@ def storefront_section_settings(request, pk):
             raw["layout"] = _extract_layout_raw(request)
         try:
             cleaned = definition.validate_settings(raw)
+            _validate_universal_selection_ownership(request, section.section_key, cleaned)
             if definition.supports_capability("background"):
                 _validate_background_asset_ownership(request, cleaned.get("background"))
             section.settings = cleaned
@@ -959,6 +960,7 @@ def storefront_section_settings(request, pk):
         context.update(_brand_carousel_picker_context(request, section))
     if section.section_key == "collection_tiles":
         context.update(_collection_tiles_picker_context(request, section))
+    context.update(_universal_selection_context(section, context))
     if section.section_key == "quick_links":
         context.update(_quick_links_picker_context(request, section))
     if definition.supports_capability("destination"):
@@ -967,6 +969,59 @@ def storefront_section_settings(request, pk):
         context.update(_background_picker_context(request, section))
     return render(request, "dashboard/storefront_builder/partials/section_settings_form.html", context)
 
+
+
+def _universal_selection_context(section, context) -> dict:
+    """Normalize the four existing list pickers for one shared merchant UI."""
+    specs = {
+        "product_section": ("product", "product_ids", 60, "initial_manual_products", None, "کالا", "جستجوی نام یا کد کالا...", "منبع خودکار انتخاب‌شده در پایین استفاده می‌شود."),
+        "category_grid": ("category", "category_ids", 12, "initial_selected_categories", "all_categories", "دسته‌بندی", "جستجوی دسته‌بندی...", "دسته‌های اصلی فعال فروشگاه به‌صورت خودکار نمایش داده می‌شوند."),
+        "brand_carousel": ("brand", "brand_ids", 24, "initial_selected_brands", "all_brands", "برند", "جستجوی برند...", "همه برندهای فعال فروشگاه به‌صورت خودکار نمایش داده می‌شوند."),
+        "collection_tiles": ("collection", "collection_ids", 12, "initial_selected_collections", "all_collections", "کالکشن", "جستجوی کالکشن...", "همه کالکشن‌های فعال فروشگاه به‌صورت خودکار نمایش داده می‌شوند."),
+    }
+    spec = specs.get(section.section_key)
+    if spec is None:
+        return {}
+    kind, input_name, max_items, selected_key, choices_key, entity_label, placeholder, auto_text = spec
+    settings = section.settings or {}
+    if section.section_key == "product_section":
+        mode = "manual" if settings.get("data_source") == "manual" else "automatic"
+    else:
+        mode = "manual" if settings.get(input_name) else "automatic"
+    return {
+        "selection_kind": kind,
+        "selection_mode": mode,
+        "selection_input_name": input_name,
+        "selection_max_items": max_items,
+        "selected_items": context.get(selected_key, []),
+        "selection_choices": context.get(choices_key, []) if choices_key else [],
+        "selection_entity_label": entity_label,
+        "selection_search_placeholder": placeholder,
+        "selection_auto_text": auto_text,
+    }
+
+
+def _validate_universal_selection_ownership(request, section_key, cleaned) -> None:
+    """Reject foreign/nonexistent explicit IDs before they are persisted."""
+    from apps.catalog.models import Brand, Category, MerchantCollection, Product
+
+    specs = {
+        "product_section": (Product, "product_ids"),
+        "category_grid": (Category, "category_ids"),
+        "brand_carousel": (Brand, "brand_ids"),
+        "collection_tiles": (MerchantCollection, "collection_ids"),
+    }
+    spec = specs.get(section_key)
+    if spec is None:
+        return
+    model, field = spec
+    ids = cleaned.get(field) or []
+    if not ids:
+        return
+    store = _resolve_store(request)
+    owned = set(model.objects.filter(store=store, pk__in=ids).values_list("pk", flat=True))
+    if any(item_id not in owned for item_id in ids):
+        raise ValueError("یک یا چند مورد انتخاب‌شده متعلق به این فروشگاه نیست")
 
 def _extract_background_raw(request, section) -> dict:
     """Read the shared merchant-facing background control.

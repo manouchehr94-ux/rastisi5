@@ -1,0 +1,41 @@
+<header class="sfb-r3-toolbar" aria-label="ابزارهای ساده سازنده فروشگاه">
+  <div class="sfb-r3-toolbar__main">
+    <a class="sfb-r3-back" href="{% url 'dashboard:dashboard' %}">← مدیریت</a>
+    <label class="sfb-r3-page">
+      <span>صفحه:</span>
+      <select aria-label="تعویض صفحه" @change="changePage($event.target.value)">
+        {% for value, label in page_types %}
+        <option value="{{ value }}" {% if value == page_type %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="button" class="sfb-r3-btn is-accent" @click="openR3Add($event.currentTarget)">＋ <span>افزودن</span></button>
+    <button type="button" class="sfb-r3-btn" @click="openR3Structure($event.currentTarget)">☰ <span class="r3-wide-label">ترتیب صفحه</span></button>
+    <button type="button" class="sfb-r3-btn" @click="openR3Deep('{% url 'dashboard:storefront-builder-templates' %}', 'قالب‌ها')">▦ <span>قالب‌ها</span></button>
+    <button type="button" class="sfb-r3-btn" @click="r3OpenAppearance('colors')">◉ <span>رنگ‌ها</span></button>
+    <div class="sfb-r3-more" @click.outside="r3MoreOpen = false">
+      <button type="button" class="sfb-r3-icon-btn" @click="r3MoreOpen = !r3MoreOpen" aria-label="گزینه‌های بیشتر">⋯</button>
+      <div class="sfb-r3-more-menu" x-show="r3MoreOpen" x-cloak>
+        <button type="button" @click="r3OpenAppearance('typography')">فونت و تایپوگرافی</button>
+        <button type="button" @click="r3OpenAppearance('advanced')">تنظیمات پیشرفته ظاهر</button>
+        <a href="{% url 'dashboard:storefront-builder-history' %}" @click.prevent="openR3Deep($el.href, 'تاریخچه نسخه‌ها')">تاریخچه نسخه‌ها</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="sfb-r3-toolbar__secondary">
+    <div class="sfb-r3-mode" role="group" aria-label="حالت سازنده">
+      <button type="button" :class="{active: builderMode === 'edit'}" @click="setBuilderMode('edit')">ویرایش</button>
+      <button type="button" :class="{active: builderMode === 'preview'}" @click="setBuilderMode('preview')">پیش‌نمایش</button>
+    </div>
+    <div class="sfb-r3-mode is-secondary-mobile" role="group" aria-label="اندازه نمایش">
+      <button type="button" :class="{active: device === 'desktop'}" @click="setDevice('desktop')">دسکتاپ</button>
+      <button type="button" :class="{active: device === 'tablet'}" @click="setDevice('tablet')">تبلت</button>
+      <button type="button" :class="{active: device === 'mobile'}" @click="setDevice('mobile')">موبایل</button>
+    </div>
+    <span class="sfb-r3-status" :class="{'is-dirty': inspectorDirty}" x-text="saveStatusLabel">پیش‌نویس ذخیره شده</span>
+    <form method="post" action="{% url 'dashboard:storefront-builder-publish' %}" onsubmit="return confirm('این پیش‌نویس روی فروشگاه عمومی منتشر شود؟')">
+      {% csrf_token %}<button type="submit" class="sfb-r3-publish">انتشار</button>
+    </form>
+  </div>
+</header>
