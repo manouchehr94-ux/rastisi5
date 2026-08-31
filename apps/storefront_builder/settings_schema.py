@@ -14,6 +14,7 @@ sanitizer's job, not this module's.
 from __future__ import annotations
 
 import dataclasses
+import json
 
 ALLOWED_FIELD_TYPES = frozenset({
     "text",
@@ -70,7 +71,8 @@ class SettingsField:
     widget_hint: str | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "choices", tuple(tuple(pair) for pair in (self.choices or ())))
+        if not self.key:
+            raise SettingsSchemaError("Settings field key must not be empty")
         if self.field_type not in ALLOWED_FIELD_TYPES:
             raise SettingsSchemaError(
                 f"Unsupported settings field_type {self.field_type!r} for key {self.key!r}"
@@ -79,6 +81,40 @@ class SettingsField:
             raise SettingsSchemaError(
                 f"Unsupported settings group {self.group!r} for key {self.key!r}"
             )
+
+        normalized_choices = []
+        for pair in self.choices or ():
+            pair = tuple(pair)
+            if len(pair) != 2:
+                raise SettingsSchemaError(
+                    f"Malformed choice pair for {self.key!r}: {pair!r} (must be a 2-item pair)"
+                )
+            value, label = pair
+            if not isinstance(value, str) or not isinstance(label, str):
+                raise SettingsSchemaError(
+                    f"Choice value/label for {self.key!r} must be strings (got {pair!r})"
+                )
+            normalized_choices.append(pair)
+        object.__setattr__(self, "choices", tuple(normalized_choices))
+
+        if (
+            self.min_value is not None
+            and self.max_value is not None
+            and self.min_value > self.max_value
+        ):
+            raise SettingsSchemaError(
+                f"min_value {self.min_value} must be <= max_value {self.max_value} for {self.key!r}"
+            )
+
+        if self.max_length is not None and self.max_length < 0:
+            raise SettingsSchemaError(f"max_length must not be negative for {self.key!r}")
+
+        try:
+            json.dumps(self.default)
+        except TypeError as exc:
+            raise SettingsSchemaError(
+                f"default for {self.key!r} is not JSON-safe: {self.default!r}"
+            ) from exc
 
 
 @dataclasses.dataclass(frozen=True)
@@ -90,6 +126,10 @@ class SettingsSchema:
         object.__setattr__(self, "fields", tuple(self.fields or ()))
         seen_keys: set[str] = set()
         for field in self.fields:
+            if not isinstance(field, SettingsField):
+                raise SettingsSchemaError(
+                    f"SettingsSchema.fields must contain SettingsField instances (got {field!r})"
+                )
             if field.key in seen_keys:
                 raise SettingsSchemaError(f"Duplicate settings field key {field.key!r}")
             seen_keys.add(field.key)
@@ -99,6 +139,36 @@ class SettingsSchema:
             if field.key == key:
                 return field
         return None
+
+
+_BOOLEAN_STRING_VALUES = {
+    "true": True,
+    "false": False,
+    "1": True,
+    "0": False,
+    "on": True,
+    "off": False,
+}
+
+
+def _clean_boolean_value(field: SettingsField, raw_value: object) -> bool:
+    """Explicit boolean parsing — never Python truthiness. ``bool("false")``
+    is ``True`` in Python, which is exactly the kind of surprise this must
+    not reproduce for merchant-facing settings."""
+    if isinstance(raw_value, bool):
+        return raw_value
+    if isinstance(raw_value, str):
+        normalized = raw_value.strip().lower()
+        if normalized in _BOOLEAN_STRING_VALUES:
+            return _BOOLEAN_STRING_VALUES[normalized]
+    elif isinstance(raw_value, int):
+        if raw_value == 1:
+            return True
+        if raw_value == 0:
+            return False
+    raise SettingsSchemaError(
+        f"Invalid boolean value for {field.key!r}: {raw_value!r}"
+    )
 
 
 def _clean_field_value(field: SettingsField, raw_value: object) -> object:
@@ -120,7 +190,7 @@ def _clean_field_value(field: SettingsField, raw_value: object) -> object:
         return cleaned
 
     if field.field_type == "boolean":
-        return bool(raw_value)
+        return _clean_boolean_value(field, raw_value)
 
     if field.field_type == "choice":
         allowed_values = {value for value, _label in field.choices}
@@ -167,7 +237,11 @@ def clean_schema_patch(schema: SettingsSchema, raw_patch: dict, current_settings
         merged.update(cleaned_patch)
         return merged
 
-    return dict(cleaned_patch)
+    declared_current = {
+        key: current_settings[key] for key in declared_keys if key in current_settings
+    }
+    declared_current.update(cleaned_patch)
+    return declared_current
 
 
 def serialize_schema(schema: SettingsSchema) -> dict:

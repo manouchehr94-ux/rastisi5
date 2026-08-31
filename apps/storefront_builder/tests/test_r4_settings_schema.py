@@ -186,3 +186,149 @@ class SectionDefinitionSettingsSchemaCompatibilityTests(SimpleTestCase):
             default_settings=lambda: {},
         )
         self.assertIsNone(definition.settings_schema)
+
+
+# ------------------------------------------------------------------------
+# Corrective review pass (post-acf7a48)
+# ------------------------------------------------------------------------
+
+
+class PreserveUnmanagedFalseRetainsDeclaredCurrentValuesTests(SimpleTestCase):
+    def test_partial_patch_retains_other_declared_current_values_and_drops_unmanaged(self):
+        schema = SettingsSchema(
+            fields=(
+                SettingsField("title", "عنوان", "text", "basic"),
+                SettingsField("subtitle", "زیرعنوان", "text", "basic"),
+            ),
+            preserve_unmanaged=False,
+        )
+        current = {
+            "title": "old title",
+            "subtitle": "old subtitle",
+            "responsive": {"hide_on_mobile": False},
+        }
+        cleaned = clean_schema_patch(schema, {"title": "new title"}, current)
+        self.assertEqual(cleaned, {"title": "new title", "subtitle": "old subtitle"})
+
+    def test_partial_patch_with_preserve_unmanaged_false_does_not_mutate_inputs(self):
+        schema = SettingsSchema(
+            fields=(
+                SettingsField("title", "عنوان", "text", "basic"),
+                SettingsField("subtitle", "زیرعنوان", "text", "basic"),
+            ),
+            preserve_unmanaged=False,
+        )
+        current = {
+            "title": "old title",
+            "subtitle": "old subtitle",
+            "responsive": {"hide_on_mobile": False},
+        }
+        raw_patch = {"title": "new title"}
+        clean_schema_patch(schema, raw_patch, current)
+        self.assertEqual(current, {
+            "title": "old title",
+            "subtitle": "old subtitle",
+            "responsive": {"hide_on_mobile": False},
+        })
+        self.assertEqual(raw_patch, {"title": "new title"})
+
+
+class BooleanCleaningTests(SimpleTestCase):
+    def _schema(self):
+        return SettingsSchema(fields=(
+            SettingsField("autoplay", "پخش خودکار", "boolean", "basic"),
+        ))
+
+    def test_python_booleans_pass_through(self):
+        schema = self._schema()
+        self.assertIs(clean_schema_patch(schema, {"autoplay": True}, {})["autoplay"], True)
+        self.assertIs(clean_schema_patch(schema, {"autoplay": False}, {})["autoplay"], False)
+
+    def test_string_true_false_case_insensitive_and_trimmed(self):
+        schema = self._schema()
+        self.assertIs(clean_schema_patch(schema, {"autoplay": "true"}, {})["autoplay"], True)
+        self.assertIs(clean_schema_patch(schema, {"autoplay": "  TRUE  "}, {})["autoplay"], True)
+        self.assertIs(clean_schema_patch(schema, {"autoplay": "false"}, {})["autoplay"], False)
+        self.assertIs(clean_schema_patch(schema, {"autoplay": "  FALSE  "}, {})["autoplay"], False)
+
+    def test_string_1_0_on_off(self):
+        schema = self._schema()
+        self.assertIs(clean_schema_patch(schema, {"autoplay": "1"}, {})["autoplay"], True)
+        self.assertIs(clean_schema_patch(schema, {"autoplay": "0"}, {})["autoplay"], False)
+        self.assertIs(clean_schema_patch(schema, {"autoplay": "on"}, {})["autoplay"], True)
+        self.assertIs(clean_schema_patch(schema, {"autoplay": "off"}, {})["autoplay"], False)
+
+    def test_integer_1_0(self):
+        schema = self._schema()
+        self.assertIs(clean_schema_patch(schema, {"autoplay": 1}, {})["autoplay"], True)
+        self.assertIs(clean_schema_patch(schema, {"autoplay": 0}, {})["autoplay"], False)
+
+    def test_ambiguous_string_values_are_rejected(self):
+        schema = self._schema()
+        for value in ("yes", "no", "anything"):
+            with self.assertRaises(SettingsSchemaError):
+                clean_schema_patch(schema, {"autoplay": value}, {})
+
+    def test_ambiguous_integer_values_are_rejected(self):
+        schema = self._schema()
+        for value in (2, -1):
+            with self.assertRaises(SettingsSchemaError):
+                clean_schema_patch(schema, {"autoplay": value}, {})
+
+    def test_none_is_rejected(self):
+        schema = self._schema()
+        with self.assertRaises(SettingsSchemaError):
+            clean_schema_patch(schema, {"autoplay": None}, {})
+
+
+class MalformedSchemaDefinitionTests(SimpleTestCase):
+    def test_empty_field_key_is_rejected(self):
+        with self.assertRaises(SettingsSchemaError):
+            SettingsField("", "عنوان", "text", "basic")
+
+    def test_malformed_choice_pair_is_rejected_at_field_construction(self):
+        with self.assertRaises(SettingsSchemaError):
+            SettingsField(
+                "hero_style", "مدل نمایش", "choice", "basic",
+                choices=(("overlay",),),
+            )
+
+    def test_choice_values_and_labels_must_be_strings(self):
+        with self.assertRaises(SettingsSchemaError):
+            SettingsField(
+                "item_limit", "تعداد", "choice", "basic",
+                choices=((1, "one"),),
+            )
+        with self.assertRaises(SettingsSchemaError):
+            SettingsField(
+                "item_limit", "تعداد", "choice", "basic",
+                choices=(("one", 1),),
+            )
+
+    def test_incoherent_integer_bounds_are_rejected(self):
+        with self.assertRaises(SettingsSchemaError):
+            SettingsField(
+                "item_limit", "تعداد", "integer", "basic",
+                min_value=10, max_value=2,
+            )
+
+    def test_negative_max_length_is_rejected(self):
+        with self.assertRaises(SettingsSchemaError):
+            SettingsField("title", "عنوان", "text", "basic", max_length=-1)
+
+    def test_schema_fields_must_be_settings_field_instances(self):
+        with self.assertRaises(SettingsSchemaError):
+            SettingsSchema(fields=("not-a-settings-field",))
+
+
+class JsonSafeDefaultTests(SimpleTestCase):
+    def test_non_json_safe_default_is_rejected_at_field_construction(self):
+        with self.assertRaises(SettingsSchemaError):
+            SettingsField("title", "عنوان", "text", "basic", default=object())
+
+    def test_json_compatible_primitive_defaults_are_accepted(self):
+        SettingsField("title", "عنوان", "text", "basic", default="")
+        SettingsField("item_limit", "تعداد", "integer", "basic", default=8)
+        SettingsField("autoplay", "پخش خودکار", "boolean", "basic", default=True)
+        SettingsField("tags", "برچسب‌ها", "text", "basic", default=["a", "b"])
+        SettingsField("meta", "متا", "text", "basic", default={"a": 1})
