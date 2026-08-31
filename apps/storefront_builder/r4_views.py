@@ -12,7 +12,7 @@ from apps.stores.resolution import resolve_store_for_service
 
 from . import appearance_registry, section_registry
 from .models import StorefrontLayoutVersion, StorefrontPage, StorefrontSection
-from .services import container_service, layout_service, r4_mutation_service
+from .services import container_service, layout_service, r4_mutation_service, section_structure_service
 
 #: Phase 0/1 R4 Inspector renderer capability — deliberately narrower than
 #: SettingsSchema's own ALLOWED_FIELD_TYPES. A schema field of another
@@ -50,6 +50,38 @@ def storefront_r4_editor(request):
     container_service.ensure_page_containers(page)
     sections = page.sections.select_related("cell", "cell__container").order_by("order", "id")
 
+    # R4 Task 8 — the Structure panel's read projection: the exact visual
+    # order Preview renders (Container.order -> Cell.order -> Block.cell_order),
+    # not the flat page-level `order`. A pure read — no additional placement
+    # mutation beyond the `ensure_page_containers` call already above.
+    structure_items = []
+    for item in section_structure_service.build_structure_projection(page):
+        section_obj = item["section"]
+        try:
+            item_definition = section_registry.get_definition(section_obj.section_key)
+        except section_registry.UnknownSectionTypeError:
+            item_definition = None
+        structure_items.append({
+            "id": section_obj.pk,
+            "label": item_definition.label_fa if item_definition else section_obj.section_key,
+            "duplicable": bool(item_definition and item_definition.duplicable),
+            "removable": bool(item_definition and item_definition.removable),
+            "is_locked": section_obj.is_locked,
+        })
+
+    # The safe "Add Section" library projection: only definitions allowed
+    # on Home and not hidden_from_library — Registry stays the single
+    # source of truth, never duplicated into JS.
+    structure_library = [
+        {
+            "category": category,
+            "items": [{"key": d.key, "label": d.label_fa} for d in members],
+        }
+        for category, members in section_registry.list_library_groups(
+            page_type=StorefrontPage.PageType.HOME,
+        )
+    ]
+
     # The shell has no <form>/{% csrf_token %} of its own, so the browser
     # mutation client (r4_editor.js) has no other trigger to guarantee a
     # csrftoken cookie exists before its first POST to the Task 5 endpoint.
@@ -65,6 +97,8 @@ def storefront_r4_editor(request):
             "page": page,
             "sections": sections,
             "r4_edit_revision": draft.edit_revision,
+            "structure_items": structure_items,
+            "structure_library": structure_library,
         },
     )
 

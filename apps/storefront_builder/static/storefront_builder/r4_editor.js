@@ -14,6 +14,8 @@ window.RastiSiR4 = {
   var previewFrame = document.getElementById('r4PreviewFrame');
   var saveStateEl = document.getElementById('r4SaveState');
   var sidebarToggle = document.getElementById('r4SidebarToggle');
+  var structurePanel = document.getElementById('r4Structure');
+  var structureToggle = document.getElementById('r4StructureToggle');
 
   // ---- Admin sidebar: R4-page-only, defaults to collapsed on every fresh
   // load (nothing persisted between page loads) — driven purely by a data
@@ -25,6 +27,17 @@ window.RastiSiR4 = {
       r4SidebarExpanded = !r4SidebarExpanded;
       shell.dataset.r4SidebarExpanded = r4SidebarExpanded ? 'true' : 'false';
       sidebarToggle.setAttribute('aria-expanded', r4SidebarExpanded ? 'true' : 'false');
+    });
+  }
+
+  // ---- Structure panel: R4 Task 8, CLOSED by default on every fresh load
+  // (nothing persisted), same toggle pattern as the admin sidebar above.
+  if (structureToggle && shell) {
+    structureToggle.addEventListener('click', function () {
+      var open = shell.dataset.r4StructureOpen === 'true';
+      open = !open;
+      shell.dataset.r4StructureOpen = open ? 'true' : 'false';
+      structureToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
   }
 
@@ -105,6 +118,49 @@ window.RastiSiR4 = {
       return R4.sendMutation(mutation);
     });
     return R4.queue;
+  };
+
+  // ---- R4 Task 8 — structural mutations (add/remove/duplicate/move) go
+  // through the SAME single queue/endpoint as every other mutation; this
+  // wrapper only adds the read-side refresh a successful structural change
+  // needs (existing Preview iframe reload + Structure panel re-fetch), per
+  // instruction Section 31. No new write endpoint, no fake client DOM
+  // renderer, no second renderer.
+  function refreshStructureAndPreview() {
+    if (previewFrame && previewFrame.contentWindow) {
+      previewFrame.contentWindow.location.reload();
+    }
+    if (!structurePanel) return Promise.resolve();
+    return fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (response) { return response.text(); })
+      .then(function (html) {
+        var freshDoc = new DOMParser().parseFromString(html, 'text/html');
+        var freshStructure = freshDoc.getElementById('r4Structure');
+        if (freshStructure) structurePanel.innerHTML = freshStructure.innerHTML;
+      })
+      .catch(function () {
+        // The mutation itself already succeeded and the server-authoritative
+        // revision already advanced — a failed read-side refresh just means
+        // the merchant sees the stale list until their next action.
+      });
+  }
+
+  R4.enqueueStructuralMutation = function (mutation) {
+    return R4.enqueueMutation(mutation).then(function (result) {
+      if (result && result.ok) {
+        if (mutation.type === 'section.remove' && R4.selected === mutation.section_id) {
+          closeInspector();
+        }
+        // Awaited: callers (and this session's own QA) must be able to
+        // trust that once this promise resolves, the Structure panel/
+        // Preview iframe reflect the just-applied mutation — not just that
+        // the server accepted it.
+        return refreshStructureAndPreview().then(function () {
+          return result;
+        });
+      }
+      return result;
+    });
   };
 
   // ---- Inspector: schema-driven, two tabs, current-value hydration.
@@ -309,19 +365,105 @@ window.RastiSiR4 = {
     });
   }
 
+  // ---- R4 Task 8 — Structure panel: one delegated click handler for
+  // select/move/duplicate/remove/add, bound to the stable container so it
+  // keeps working after refreshStructureAndPreview() replaces the panel's
+  // innerHTML (delegation, never re-bound per row).
+  if (structurePanel) {
+    structurePanel.addEventListener('click', function (evt) {
+      var moveBtn = evt.target.closest('[data-r4-structure-move]');
+      if (moveBtn) {
+        if (moveBtn.disabled) return;
+        var moveRow = moveBtn.closest('[data-r4-structure-row]');
+        if (!moveRow) return;
+        R4.enqueueStructuralMutation({
+          type: 'section.move',
+          section_id: Number(moveRow.getAttribute('data-r4-structure-section-id')),
+          direction: moveBtn.getAttribute('data-r4-structure-move'),
+        });
+        return;
+      }
+      var duplicateBtn = evt.target.closest('[data-r4-structure-duplicate]');
+      if (duplicateBtn) {
+        var duplicateRow = duplicateBtn.closest('[data-r4-structure-row]');
+        if (!duplicateRow) return;
+        R4.enqueueStructuralMutation({
+          type: 'section.duplicate',
+          section_id: Number(duplicateRow.getAttribute('data-r4-structure-section-id')),
+        });
+        return;
+      }
+      var removeBtn = evt.target.closest('[data-r4-structure-remove]');
+      if (removeBtn) {
+        if (removeBtn.disabled) return;
+        var removeRow = removeBtn.closest('[data-r4-structure-row]');
+        if (!removeRow) return;
+        R4.enqueueStructuralMutation({
+          type: 'section.remove',
+          section_id: Number(removeRow.getAttribute('data-r4-structure-section-id')),
+        });
+        return;
+      }
+      var addBtn = evt.target.closest('#r4StructureAddButton');
+      if (addBtn) {
+        var addSelect = structurePanel.querySelector('#r4StructureAddSelect');
+        var sectionKey = addSelect ? addSelect.value : '';
+        if (!sectionKey) return;
+        R4.enqueueStructuralMutation({ type: 'section.add', section_key: sectionKey });
+        if (addSelect) addSelect.value = '';
+        return;
+      }
+      var label = evt.target.closest('.r4-structure-label');
+      if (label) {
+        var labelRow = label.closest('[data-r4-structure-row]');
+        if (!labelRow) return;
+        R4.openSection(Number(labelRow.getAttribute('data-r4-structure-section-id')));
+      }
+    });
+  }
+
   // ---- Preview selection compatibility bridge (see Task 6 finding):
   // a normal click on a Preview section currently only ever reaches
   // sfb:openSectionSettings (interceptBuilderEditClick's capture-phase
   // stopImmediatePropagation prevents sfb:selectSection for that same
   // click) — both are accepted and routed to the same openSection().
+  //
+  // R4 Task 8 also maps the shared Preview toolbar's existing
+  // sfb:sectionCommand/sfb:blockCommand messages, but ONLY the four
+  // Task-8-supported commands (duplicate/remove/up/down) — toggle, lock,
+  // cellCommand and containerCommand are deliberately left unhandled
+  // (never routed to an R3 endpoint, never given a new mutation type).
   window.addEventListener('message', function (evt) {
     if (evt.origin !== window.location.origin) return;
     if (!previewFrame || evt.source !== previewFrame.contentWindow) return;
     if (!evt.data) return;
     var type = evt.data.type;
-    if (type !== 'sfb:selectSection' && type !== 'sfb:openSectionSettings') return;
-    var sectionId = evt.data.sectionId;
-    if (!sectionId) return;
-    R4.openSection(Number(sectionId));
+    if (type === 'sfb:selectSection' || type === 'sfb:openSectionSettings') {
+      var sectionId = evt.data.sectionId;
+      if (!sectionId) return;
+      R4.openSection(Number(sectionId));
+      return;
+    }
+    if (type === 'sfb:sectionCommand') {
+      var sectionCommandId = evt.data.sectionId;
+      if (!sectionCommandId) return;
+      if (evt.data.command === 'duplicate') {
+        R4.enqueueStructuralMutation({ type: 'section.duplicate', section_id: Number(sectionCommandId) });
+      } else if (evt.data.command === 'remove') {
+        R4.enqueueStructuralMutation({ type: 'section.remove', section_id: Number(sectionCommandId) });
+      }
+      return;
+    }
+    if (type === 'sfb:blockCommand') {
+      var blockCommandId = evt.data.sectionId;
+      if (!blockCommandId) return;
+      if (evt.data.command === 'up' || evt.data.command === 'down') {
+        R4.enqueueStructuralMutation({
+          type: 'section.move', section_id: Number(blockCommandId), direction: evt.data.command,
+        });
+      } else if (evt.data.command === 'remove') {
+        R4.enqueueStructuralMutation({ type: 'section.remove', section_id: Number(blockCommandId) });
+      }
+    }
   });
 })();

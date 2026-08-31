@@ -10,19 +10,49 @@
 
 {% block content %}
 <div class="r4-builder" data-r4-shell="true" data-r4-inspector-open="false"
-     data-r4-sidebar-expanded="false" data-edit-revision="{{ r4_edit_revision }}">
+     data-r4-sidebar-expanded="false" data-r4-structure-open="false" data-edit-revision="{{ r4_edit_revision }}">
   <header class="r4-topbar">
     <button type="button" id="r4SidebarToggle" class="r4-icon-btn"
             aria-label="نمایش/پنهان‌سازی نوار کناری مدیریت" aria-expanded="false">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
     </button>
     <strong>طراحی فروشگاه</strong>
+    <button type="button" id="r4StructureToggle" class="r4-icon-btn r4-structure-toggle-btn"
+            aria-label="نمایش/پنهان‌سازی ساختار صفحه" aria-expanded="false">ساختار</button>
     <span id="r4SaveState" aria-live="polite">ذخیره شد</span>
     <button type="button" id="r4PublishButton">انتشار</button>
   </header>
 
   <main class="r4-workspace">
-    <aside id="r4Structure" aria-label="ساختار صفحه"></aside>
+    <aside id="r4Structure" aria-label="ساختار صفحه">
+      <div class="r4-structure-header">ساختار صفحه</div>
+      <div class="r4-structure-list">
+        {% for item in structure_items %}
+        <div class="r4-structure-row" data-r4-structure-row data-r4-structure-section-id="{{ item.id }}">
+          <span class="r4-structure-label">{{ item.label }}</span>
+          <div class="r4-structure-actions">
+            <button type="button" data-r4-structure-move="up" aria-label="جابه‌جایی به بالا" {% if item.is_locked %}disabled{% endif %}>↑</button>
+            <button type="button" data-r4-structure-move="down" aria-label="جابه‌جایی به پایین" {% if item.is_locked %}disabled{% endif %}>↓</button>
+            {% if item.duplicable %}<button type="button" data-r4-structure-duplicate aria-label="تکرار بخش">⧉</button>{% endif %}
+            {% if item.removable %}<button type="button" data-r4-structure-remove aria-label="حذف بخش" {% if item.is_locked %}disabled{% endif %}>🗑</button>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="r4-structure-add">
+        <select id="r4StructureAddSelect" class="r4-control">
+          <option value="">افزودن بخش…</option>
+          {% for group in structure_library %}
+          <optgroup label="{{ group.category }}">
+            {% for entry in group.items %}
+            <option value="{{ entry.key }}">{{ entry.label }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+        <button type="button" id="r4StructureAddButton">افزودن</button>
+      </div>
+    </aside>
     <section class="r4-preview-pane">
       <iframe
         id="r4PreviewFrame"

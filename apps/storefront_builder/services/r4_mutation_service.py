@@ -14,7 +14,7 @@ from django.db import transaction
 
 from apps.storefront_builder import section_registry
 from apps.storefront_builder.models import StorefrontLayout, StorefrontLayoutVersion, StorefrontSection
-from apps.storefront_builder.services import edit_history_service
+from apps.storefront_builder.services import edit_history_service, section_structure_service
 from apps.storefront_builder.settings_schema import clean_section_schema_patch
 
 
@@ -30,6 +30,10 @@ class R4StaleRevision(R4MutationError):
 
 _MUTATION_HISTORY_LABELS = {
     "section.update_settings": "ویرایش تنظیمات بخش",
+    "section.add": "افزودن بخش",
+    "section.remove": "حذف بخش",
+    "section.duplicate": "تکرار بخش",
+    "section.move": "جابه‌جایی بخش",
 }
 
 
@@ -81,14 +85,69 @@ def _apply_section_update_settings(*, draft: StorefrontLayoutVersion, mutation: 
     section.save(update_fields=["settings"])
 
 
+def _apply_section_add(*, draft: StorefrontLayoutVersion, mutation: dict) -> None:
+    section_key = mutation.get("section_key")
+    if not isinstance(section_key, str) or not section_key:
+        raise R4MutationError("invalid_section_key")
+    try:
+        section_structure_service.add_section(draft=draft, section_key=section_key)
+    except section_structure_service.SectionStructureError as exc:
+        raise R4MutationError(exc.code) from exc
+
+
+def _apply_section_remove(*, draft: StorefrontLayoutVersion, mutation: dict) -> None:
+    section_id = mutation.get("section_id")
+    if not _is_strict_int(section_id):
+        raise R4MutationError("invalid_section_id")
+    try:
+        section_structure_service.remove_section(draft=draft, section_id=section_id)
+    except section_structure_service.SectionStructureError as exc:
+        raise R4MutationError(exc.code) from exc
+
+
+def _apply_section_duplicate(*, draft: StorefrontLayoutVersion, mutation: dict) -> None:
+    section_id = mutation.get("section_id")
+    if not _is_strict_int(section_id):
+        raise R4MutationError("invalid_section_id")
+    try:
+        section_structure_service.duplicate_section(draft=draft, section_id=section_id)
+    except section_structure_service.SectionStructureError as exc:
+        raise R4MutationError(exc.code) from exc
+
+
+def _apply_section_move(*, draft: StorefrontLayoutVersion, mutation: dict) -> None:
+    section_id = mutation.get("section_id")
+    direction = mutation.get("direction")
+    if not _is_strict_int(section_id):
+        raise R4MutationError("invalid_section_id")
+    if not isinstance(direction, str):
+        raise R4MutationError("invalid_direction")
+    try:
+        section_structure_service.move_section(draft=draft, section_id=section_id, direction=direction)
+    except section_structure_service.SectionStructureError as exc:
+        raise R4MutationError(exc.code) from exc
+
+
 def _dispatch_mutation(*, store, draft: StorefrontLayoutVersion, mutation: dict) -> None:
     """The one explicit, server-owned allowlist — no getattr-on-user-input,
     no globals(), no dynamic import, no eval. ``store`` is accepted (not
-    used by this Phase 0's single mutation type) to keep the dispatcher's
-    signature stable for future allowlisted mutation types that need it."""
+    used by every mutation type) to keep the dispatcher's signature stable
+    for future allowlisted mutation types that need it."""
     mutation_type = mutation.get("type")
     if mutation_type == "section.update_settings":
         _apply_section_update_settings(draft=draft, mutation=mutation)
+        return
+    if mutation_type == "section.add":
+        _apply_section_add(draft=draft, mutation=mutation)
+        return
+    if mutation_type == "section.remove":
+        _apply_section_remove(draft=draft, mutation=mutation)
+        return
+    if mutation_type == "section.duplicate":
+        _apply_section_duplicate(draft=draft, mutation=mutation)
+        return
+    if mutation_type == "section.move":
+        _apply_section_move(draft=draft, mutation=mutation)
         return
     raise R4MutationError("unknown_mutation_type")
 
