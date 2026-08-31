@@ -20,6 +20,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Callable
 
+from .settings_schema import SettingsSchema
 from .variant_contract import VariantDefinition, validate_variant_selection, validate_variants
 
 #: شش نوعِ صفحه — دقیقاً همان رشته‌های ``StorefrontPage.PageType.values``
@@ -122,6 +123,13 @@ class SectionDefinition:
     #: یعنی (اگر روزی این section Variant پیدا کند) پیش‌فرض ``"variant"``
     #: خوانده می‌شود — نگاه کنید به ``variant_contract.resolve_active_variant``.
     variant_setting_key: str | None = None
+    #: R4 Task 3 — اختیاریِ صرف: ``SettingsSchema`` اعلامیِ این section برایِ
+    #: لایه‌ی Inspector جدید (``settings_schema.py``). ``None`` (پیش‌فرض،
+    #: رفتارِ فعلیِ هر ۳۴ نوعِ موجود) یعنی «این section هنوز schema اعلام
+    #: نکرده» — ``validate_settings``/``default_settings`` دستیِ موجود
+    #: همچنان تنها مرجعِ معتبرسازی می‌مانند؛ Task 3 فقط زیرساخت را اضافه
+    #: می‌کند، هیچ سکشنی را اینجا schema-enabled نمی‌کند.
+    settings_schema: SettingsSchema | None = None
 
     def __post_init__(self) -> None:
         """External-review correction (U1A pre-commit pass, item 1) — same
