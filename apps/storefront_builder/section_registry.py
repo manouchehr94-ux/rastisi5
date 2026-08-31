@@ -20,6 +20,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Callable
 
+from . import resource_source as resource_source_module
 from .settings_schema import SettingsField, SettingsSchema, validate_appearance_overrides
 from .variant_contract import VariantDefinition, validate_variant_selection, validate_variants
 
@@ -377,6 +378,54 @@ def _product_section_defaults() -> dict:
     }
 
 
+#: R4 Task 9 — the declarative Inspector-facing schema for "بخش محصولات".
+#: ``source`` is the ONE typed ``resource_source`` field; ``product_ids``/
+#: ``source_id``/``data_source`` are deliberately NOT schema-registered —
+#: they are compatibility persistence details hidden behind ``source`` (see
+#: ``_with_resource_source`` below). Labels reuse the section's own
+#: registered variant labels for ``display_mode`` for consistency.
+PRODUCT_SECTION_SCHEMA = SettingsSchema(fields=(
+    SettingsField(
+        "title", "عنوان بخش", "text", "basic",
+        default="", max_length=_MAX_PRODUCT_SECTION_TITLE_LENGTH,
+    ),
+    SettingsField(
+        "source", "منبع محصولات", "resource_source", "basic",
+        default=resource_source_module.serialize_resource_source(
+            resource_source_module.ResourceSource(kind="product", mode="auto", auto_rule="newest"),
+        ),
+    ),
+    SettingsField(
+        "item_limit", "تعداد کالا", "integer", "basic",
+        default=_PRODUCT_SECTION_DEFAULT_LIMIT,
+        min_value=_PRODUCT_SECTION_MIN_LIMIT, max_value=_PRODUCT_SECTION_MAX_LIMIT,
+    ),
+    SettingsField(
+        "display_mode", "نوع نمایش", "choice", "basic", default="carousel",
+        choices=(
+            ("carousel", "کاروسل"),
+            ("grid", "گرید"),
+            ("campaign_band", "نوار کمپینی کنار محصولات"),
+        ),
+    ),
+    SettingsField("show_view_all", "نمایش دکمه «مشاهده همه»", "boolean", "basic", default=True),
+    SettingsField(
+        "subtitle", "زیرعنوان", "text", "advanced",
+        default="", max_length=_MAX_PRODUCT_SECTION_SUBTITLE_LENGTH,
+    ),
+    SettingsField("carousel_autoplay", "پخش خودکار کاروسل", "boolean", "advanced", default=False),
+    SettingsField(
+        "carousel_interval_ms", "فاصله پخش خودکار (میلی‌ثانیه)", "integer", "advanced",
+        default=3500, min_value=2000, max_value=10000,
+    ),
+    SettingsField("carousel_show_arrows", "نمایش فلش‌های کاروسل", "boolean", "advanced", default=True),
+    SettingsField(
+        "header_position", "جایگاه عنوان", "choice", "advanced", default="above",
+        choices=(("above", "بالای بخش"), ("inside", "داخل بخش")),
+    ),
+))
+
+
 class CatalogProductWallSettingsError(ValueError):
     """شکلِ خامِ تنظیماتِ ``catalog_product_wall`` نامعتبر است — پیامِ
     فارسیِ قابل‌نمایشِ مستقیم به تاجر."""
@@ -700,6 +749,65 @@ def validate_destination_settings(raw) -> dict:
 
 def default_destination_settings() -> dict:
     return dict(_DEFAULT_DESTINATION_SETTINGS)
+
+
+#: R4 Task 9 — sections whose Basic schema exposes a typed ``source``
+#: (resource_source) field. ``settings_schema.clean_section_schema_patch``
+#: already schema-cleans ``source`` into the generic typed shape (see
+#: settings_schema.py's ``_clean_field_value``), but that cleaned key would
+#: otherwise be silently DROPPED by the legacy validator — no existing
+#: wrapper here knows about it. This wrapper is deliberately the
+#: INNERMOST one (applied directly to the raw validator, before
+#: destination/responsive/motion/card/layout/background/spacing/...) so
+#: every outer wrapper's own key-stripping still runs on a dict that
+#: already carries only legacy-shaped keys.
+_RESOURCE_SOURCE_AWARE_SECTION_KEYS = frozenset({"product_section", "brand_carousel"})
+
+
+def _with_resource_source(section_key: str, validate_fn, default_fn):
+    if section_key not in _RESOURCE_SOURCE_AWARE_SECTION_KEYS:
+        return validate_fn, default_fn
+
+    # The existing section-specific error class each wrapped section already
+    # raises for an invalid raw settings shape — reused here so an invalid
+    # typed ``source`` surfaces through the exact same error contract as
+    # every other invalid field on that section (never a new/different
+    # exception type the caller has to additionally handle). Looked up
+    # lazily (inside the function body, not at module scope) because
+    # ``BrandCarouselSettingsError`` is declared further down this file,
+    # after this function — this call only ever happens from
+    # ``_finalize_registry`` at the bottom of the module, by which point
+    # every class below is already defined.
+    error_cls = {
+        "product_section": ProductSectionSettingsError,
+        "brand_carousel": BrandCarouselSettingsError,
+    }[section_key]
+
+    def wrapped_validate(raw: dict) -> dict:
+        if not isinstance(raw, dict) or "source" not in raw:
+            # No "source" key present — preserve current legacy behaviour
+            # exactly (including whatever data_source/source_id/product_ids
+            # or brand_ids the raw payload already carries).
+            return validate_fn(raw)
+
+        source_raw = raw["source"]
+        base_raw = {key: value for key, value in raw.items() if key != "source"}
+        try:
+            typed_source = resource_source_module.deserialize_resource_source(source_raw)
+            legacy_patch = resource_source_module.resource_source_to_legacy_patch(section_key, typed_source)
+        except resource_source_module.ResourceSourceError as exc:
+            raise error_cls(str(exc)) from exc
+
+        # The typed source is the merchant's INTENT for this patch — it must
+        # win over any stale legacy keys still sitting in ``base_raw`` from
+        # the section's previous persisted settings.
+        merged_raw = {**base_raw, **legacy_patch}
+        return validate_fn(merged_raw)
+
+    # default_fn is intentionally NOT wrapped: the default settings shape
+    # must remain exactly legacy-shaped (data_source/source_id/product_ids
+    # or brand_ids) — it must never begin persisting a "source" key.
+    return wrapped_validate, default_fn
 
 
 def _with_destination(section_key: str, validate_fn, default_fn):
@@ -1546,6 +1654,30 @@ def default_brand_carousel_settings() -> dict:
     return {"title": "", "display_mode": "grid", "show_view_all": False, "brand_ids": []}
 
 
+#: R4 Task 9 — the declarative Inspector-facing schema for "کاروسل برندها".
+#: ``brand_ids`` is deliberately NOT schema-registered directly — it is a
+#: compatibility persistence detail hidden behind the typed ``source`` field
+#: (see ``_with_resource_source`` below). No new Brand auto rules.
+BRAND_CAROUSEL_SCHEMA = SettingsSchema(fields=(
+    SettingsField("title", "عنوان بخش", "text", "basic", default="", max_length=_MAX_SECTION_TITLE_LENGTH),
+    SettingsField(
+        "source", "منبع برندها", "resource_source", "basic",
+        default=resource_source_module.serialize_resource_source(
+            resource_source_module.ResourceSource(kind="brand", mode="auto", auto_rule="all_active"),
+        ),
+    ),
+    SettingsField(
+        "display_mode", "نوع نمایش", "choice", "basic", default="grid",
+        choices=(
+            ("grid", "گرید"),
+            ("carousel", "کاروسل"),
+            ("beauty_tabs", "ردیف برندهای فروشگاهی"),
+        ),
+    ),
+    SettingsField("show_view_all", "نمایش دکمه «مشاهده همه»", "boolean", "basic", default=False),
+))
+
+
 class CollectionTilesSettingsError(ValueError):
     """شکلِ خامِ تنظیماتِ «کارت‌های کالکشن» نامعتبر است."""
 
@@ -1977,6 +2109,7 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
             VariantDefinition(key="beauty_tabs", label_fa="ردیف برندهای فروشگاهی"),
         ),
         default_variant="grid", variant_setting_key="display_mode",
+        settings_schema=BRAND_CAROUSEL_SCHEMA,
     ),
     "promo_cards": SectionDefinition(
         key="promo_cards", label_fa="کارت‌های تبلیغاتی", icon="layout",
@@ -2029,6 +2162,7 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
             VariantDefinition(key="campaign_band", label_fa="نوار کمپینی کنار محصولات"),
         ),
         default_variant="carousel", variant_setting_key="display_mode",
+        settings_schema=PRODUCT_SECTION_SCHEMA,
     ),
     # Site-target-overhaul Part 2D — the generic, ID-free, multi-row
     # merchandising wall (see CATALOG_PRODUCT_WALL_SOURCE_MODES's own
@@ -2291,7 +2425,8 @@ def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionD
     finalized = {}
     for key, definition in base.items():
         validate_variants(definition.variants, default_variant=definition.default_variant)
-        validate_fn, default_fn = _with_destination(key, definition.validate_settings, definition.default_settings)
+        validate_fn, default_fn = _with_resource_source(key, definition.validate_settings, definition.default_settings)
+        validate_fn, default_fn = _with_destination(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_responsive(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_motion(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_card(key, validate_fn, default_fn)

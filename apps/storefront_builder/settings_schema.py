@@ -16,7 +16,7 @@ from __future__ import annotations
 import dataclasses
 import json
 
-from . import appearance_registry
+from . import appearance_registry, resource_source
 
 ALLOWED_FIELD_TYPES = frozenset({
     "text",
@@ -213,9 +213,22 @@ def _clean_field_value(field: SettingsField, raw_value: object) -> object:
     if field.field_type == "appearance_override":
         return validate_appearance_overrides(raw_value)
 
-    # color / media / variant / resource_source: opaque, schema-declared
-    # but not type-coerced yet — passed through unchanged for the legacy
-    # validator to authoritatively check.
+    if field.field_type == "resource_source":
+        # R4 Task 9 — the generic typed shape only (kind/mode/auto_rule/
+        # auto_parameters/manual_ids); THIS module has no notion of which
+        # section owns the field, so it cannot check kind-compatibility or
+        # translate to legacy persisted keys — that section-specific step
+        # is section_registry.py's `_with_resource_source` wrapper, which
+        # runs on this cleaned, JSON-safe serialized form.
+        try:
+            typed = resource_source.deserialize_resource_source(raw_value)
+        except resource_source.ResourceSourceError as exc:
+            raise SettingsSchemaError(str(exc)) from exc
+        return resource_source.serialize_resource_source(typed)
+
+    # color / media / variant: opaque, schema-declared but not type-coerced
+    # yet — passed through unchanged for the legacy validator to
+    # authoritatively check.
     return raw_value
 
 

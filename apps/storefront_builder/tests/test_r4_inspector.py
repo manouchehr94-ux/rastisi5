@@ -411,3 +411,95 @@ class AppearanceOverrideWidgetTests(R4MutationApiTestCase):
         ):
             with self.assertRaises(ImproperlyConfigured):
                 self.client.get(_inspector_url(self.section.pk))
+
+
+# ------------------------------------------------------------------------
+# Task 9 — Product/Brand now attach a settings_schema containing a typed
+# resource_source ("source") field. The generic Inspector must render it
+# (no 500, no Product-/Brand-specific template branch) as a clean
+# READ-ONLY summary — Task 10 builds the actual interactive Picker.
+# ------------------------------------------------------------------------
+
+
+class ResourceSourceWidgetTests(R4MutationApiTestCase):
+    def setUp(self):
+        super().setUp()
+        self.product_section = StorefrontSection.objects.create(
+            version=self.draft, section_key="product_section", order=1,
+            settings={
+                "data_source": "manual", "source_id": None, "product_ids": [7, 3],
+                "item_limit": 8, "display_mode": "carousel", "show_view_all": True,
+                "title": "", "subtitle": "", "carousel_autoplay": False,
+                "carousel_interval_ms": 3500, "carousel_show_arrows": True,
+                "header_position": "above",
+            },
+        )
+        self.brand_section = StorefrontSection.objects.create(
+            version=self.draft, section_key="brand_carousel", order=2,
+            settings={"title": "", "display_mode": "grid", "show_view_all": False, "brand_ids": []},
+        )
+
+    def test_product_inspector_returns_200_with_no_r3_modal_or_form(self):
+        response = self.client.get(_inspector_url(self.product_section.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "<iframe")
+        self.assertNotContains(response, "sfb-modal")
+        self.assertNotContains(response, "<form")
+
+    def test_brand_inspector_returns_200_with_no_r3_modal_or_form(self):
+        response = self.client.get(_inspector_url(self.brand_section.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "<iframe")
+        self.assertNotContains(response, "sfb-modal")
+        self.assertNotContains(response, "<form")
+
+    def test_resource_source_rendered_generically_not_by_section_name(self):
+        template_source = Path(
+            settings.BASE_DIR,
+            "apps/storefront_builder/templates/dashboard/storefront_builder/r4/partials/settings_field.html",
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("product_section", template_source)
+        self.assertNotIn("brand_carousel", template_source)
+        self.assertIn('field.field_type == "resource_source"', template_source)
+
+    def test_product_current_value_projected_from_legacy_manual_settings(self):
+        response = self.client.get(_inspector_url(self.product_section.pk))
+        content = response.content.decode()
+        self.assertIn("دستی", content)  # mode label
+        self.assertIn("محصول", content)  # kind label
+        self.assertNotIn("جدیدترین", content)  # NOT the schema default ("newest")
+
+    def test_brand_current_value_projected_from_legacy_empty_brand_ids(self):
+        response = self.client.get(_inspector_url(self.brand_section.pk))
+        content = response.content.decode()
+        self.assertIn("خودکار", content)  # mode label
+        self.assertIn("همه‌ی موارد فعال", content)  # all_active auto_rule label
+        self.assertIn("برند", content)  # kind label
+
+    def test_no_picker_search_or_overlay_markup(self):
+        for pk in (self.product_section.pk, self.brand_section.pk):
+            response = self.client.get(_inspector_url(pk))
+            content = response.content.decode()
+            self.assertNotIn("data-r4-picker", content)
+            self.assertNotIn("data-r4-resource-search", content)
+            self.assertNotIn('type="search"', content)
+            self.assertNotIn("data-r4-manual-select", content)
+
+    def test_no_new_r4_urls_were_added_for_the_picker(self):
+        from apps.dashboard import urls as dashboard_urls
+        url_names = {pattern.name for pattern in dashboard_urls.urlpatterns if getattr(pattern, "name", None)}
+        for forbidden in ("storefront-builder-r4-resource-search", "storefront-builder-r4-picker"):
+            self.assertNotIn(forbidden, url_names)
+
+    def test_resource_source_field_is_read_only_no_input_control(self):
+        response = self.client.get(_inspector_url(self.product_section.pk))
+        content = response.content.decode()
+        basic_start = content.index('data-r4-tab-panel="basic"')
+        advanced_start = content.index('data-r4-tab-panel="advanced"')
+        source_field_start = content.index('data-r4-field-type="resource_source"', basic_start)
+        self.assertLess(source_field_start, advanced_start)
+        next_field_start = content.index('data-r4-field-row', source_field_start + 1)
+        source_chunk = content[source_field_start:next_field_start]
+        self.assertNotIn("<input", source_chunk)
+        self.assertNotIn("<select", source_chunk)
+        self.assertNotIn("<textarea", source_chunk)

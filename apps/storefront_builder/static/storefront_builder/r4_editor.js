@@ -229,8 +229,10 @@ window.RastiSiR4 = {
     inspector.querySelectorAll('[data-r4-field-key]').forEach(function (control) {
       var fieldType = control.getAttribute('data-r4-field-type');
       // Compound fields are hydrated separately below — this loop only
-      // handles scalar controls.
-      if (fieldType === 'appearance_override') return;
+      // handles scalar controls. resource_source (R4 Task 9) is a
+      // server-rendered READ-ONLY summary with no editable control at
+      // all — nothing to hydrate client-side.
+      if (fieldType === 'appearance_override' || fieldType === 'resource_source') return;
       var key = control.getAttribute('data-r4-field-key');
       if (!Object.prototype.hasOwnProperty.call(values, key)) return;
       var value = values[key];

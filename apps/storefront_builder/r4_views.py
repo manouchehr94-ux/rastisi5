@@ -10,7 +10,7 @@ from apps.dashboard.decorators import permission_required, staff_required
 from apps.stores.authorization import STOREFRONT_LAYOUT_MANAGE
 from apps.stores.resolution import resolve_store_for_service
 
-from . import appearance_registry, section_registry
+from . import appearance_registry, resource_source, section_registry
 from .models import StorefrontLayoutVersion, StorefrontPage, StorefrontSection
 from .services import container_service, layout_service, r4_mutation_service, section_structure_service
 
@@ -25,6 +25,7 @@ _INSPECTOR_SUPPORTED_FIELD_TYPES = frozenset({
     "boolean",
     "choice",
     "appearance_override",
+    "resource_source",
 })
 
 #: R4 Task 7 — merchant-facing Persian labels for the existing curated
@@ -34,6 +35,31 @@ _TYPE_SCALE_LABELS_FA = {
     "compact": "فشرده",
     "normal": "معمولی",
     "large": "بزرگ",
+}
+
+#: R4 Task 9 — merchant-facing Persian labels for the generic
+#: resource_source READ-ONLY summary. Task 9 renders a summary only (no
+#: Picker yet — see r4_views.py's Task 9 section); these labels never
+#: leave this presentation layer, resource_source.py itself stays UI-agnostic.
+_RESOURCE_SOURCE_KIND_LABELS_FA = {
+    "product": "محصول",
+    "brand": "برند",
+    "category": "دسته‌بندی",
+    "collection": "کالکشن",
+}
+_RESOURCE_SOURCE_MODE_LABELS_FA = {
+    "auto": "خودکار",
+    "manual": "دستی",
+}
+_RESOURCE_SOURCE_AUTO_RULE_LABELS_FA = {
+    "newest": "جدیدترین",
+    "discounted": "تخفیف‌دار",
+    "best_sellers": "پرفروش‌ترین",
+    "most_viewed": "پربازدیدترین",
+    "by_category": "بر اساس دسته‌بندی",
+    "by_brand": "بر اساس برند",
+    "by_collection": "بر اساس کالکشن",
+    "all_active": "همه‌ی موارد فعال",
 }
 
 
@@ -211,6 +237,33 @@ def storefront_r4_section_inspector(request, pk):
         if field.field_type == "appearance_override"
     }
 
+    # R4 Task 9 — a resource_source field's CURRENT value must be projected
+    # from the real legacy Section.settings (data_source/source_id/
+    # product_ids, or brand_ids) through the compatibility adapter, never
+    # blindly shown as the schema default — a Product already configured
+    # as manual/(7, 3) must project as exactly that, not "auto/newest".
+    # Task 9 renders a clean READ-ONLY summary only (no Picker yet).
+    resource_source_summary = None
+    for field in schema.fields:
+        if field.field_type != "resource_source":
+            continue
+        try:
+            projected_source = resource_source.resource_source_from_section_settings(
+                section.section_key, current_settings,
+            )
+        except resource_source.ResourceSourceError:
+            continue
+        field_values[field.key] = resource_source.serialize_resource_source(projected_source)
+        resource_source_summary = {
+            "kind_label": _RESOURCE_SOURCE_KIND_LABELS_FA.get(projected_source.kind, projected_source.kind),
+            "mode_label": _RESOURCE_SOURCE_MODE_LABELS_FA.get(projected_source.mode, projected_source.mode),
+            "auto_rule_label": (
+                _RESOURCE_SOURCE_AUTO_RULE_LABELS_FA.get(projected_source.auto_rule, projected_source.auto_rule)
+                if projected_source.auto_rule else None
+            ),
+            "manual_count": len(projected_source.manual_ids),
+        }
+
     return render(
         request,
         "dashboard/storefront_builder/r4/partials/section_inspector.html",
@@ -226,5 +279,6 @@ def storefront_r4_section_inspector(request, pk):
                 for value in appearance_registry.TYPE_SCALE_CHOICES
             ],
             "inherited_appearance_by_field": inherited_appearance_by_field,
+            "resource_source_summary": resource_source_summary,
         },
     )

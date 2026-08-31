@@ -79,5 +79,32 @@ must never silently fall back to a plain text input for an unsupported type.
       </select>
     </div>
   </div>
+
+  {% elif field.field_type == "resource_source" %}
+  {# R4 Task 9 — a clean READ-ONLY summary of the current typed source.   #}
+  {# The interactive Resource Picker (search/manual-select/overlay) is    #}
+  {# Task 10's job; this must never pretend to be editable yet.           #}
+  <div class="r4-resource-source-summary" id="r4Field-{{ field.key }}" data-r4-field-key="{{ field.key }}" data-r4-field-type="resource_source">
+    <div class="r4-resource-source-row">
+      <span class="r4-field-sublabel">نوع منبع</span>
+      <strong>{{ resource_source_summary.kind_label }}</strong>
+    </div>
+    <div class="r4-resource-source-row">
+      <span class="r4-field-sublabel">حالت انتخاب</span>
+      <strong>{{ resource_source_summary.mode_label }}</strong>
+    </div>
+    {% if resource_source_summary.auto_rule_label %}
+    <div class="r4-resource-source-row">
+      <span class="r4-field-sublabel">قانون خودکار</span>
+      <strong>{{ resource_source_summary.auto_rule_label }}</strong>
+    </div>
+    {% else %}
+    <div class="r4-resource-source-row">
+      <span class="r4-field-sublabel">تعداد انتخاب‌شده</span>
+      <strong>{{ resource_source_summary.manual_count }}</strong>
+    </div>
+    {% endif %}
+    <p class="r4-resource-source-note">انتخاب دستی/خودکار از این‌جا به‌زودی قابل ویرایش خواهد بود.</p>
+  </div>
   {% endif %}
 </div>
