@@ -295,10 +295,14 @@ class R4EditorJsSidebarContractTests(R4MutationApiTestCase):
     def test_js_does_not_persist_sidebar_state_across_loads(self):
         self.assertNotIn("localStorage", self.js_source)
 
-    def test_mutate_endpoint_remains_the_only_write_path(self):
+    def test_write_endpoints_are_only_the_sanctioned_r4_targets(self):
+        # R4 Task 11 legitimately adds two more sanctioned POST endpoints
+        # (history/, publish/) alongside the original mutate/ — this guard
+        # is "no ROGUE extra write path", not "exactly one POST forever".
         self.assertIn("mutate/", self.js_source)
-        # No second write endpoint is referenced anywhere in the source.
-        self.assertEqual(self.js_source.count("method: 'POST'"), 1)
+        self.assertIn("history/", self.js_source)
+        self.assertIn("publish/", self.js_source)
+        self.assertEqual(self.js_source.count("method: 'POST'"), 3)
 
     def test_rich_text_save_flows_through_enqueue_mutation(self):
         self.assertIn("sfb-rich-editor", self.js_source)

@@ -13,9 +13,15 @@ from apps.dashboard.decorators import permission_required, staff_required
 from apps.stores.authorization import STOREFRONT_LAYOUT_MANAGE
 from apps.stores.resolution import resolve_store_for_service
 
-from . import appearance_registry, resource_source, section_registry
+from . import appearance_registry, global_region_registry, resource_source, section_registry
 from .models import StorefrontLayoutVersion, StorefrontPage, StorefrontSection
-from .services import container_service, layout_service, r4_mutation_service, section_structure_service
+from .services import (
+    container_service,
+    edit_history_service,
+    layout_service,
+    r4_mutation_service,
+    section_structure_service,
+)
 
 #: Phase 0/1 R4 Inspector renderer capability — deliberately narrower than
 #: SettingsSchema's own ALLOWED_FIELD_TYPES. A schema field of another
@@ -142,6 +148,42 @@ def _resolve_selected_items(store, kind, ordered_ids):
     return [found[value] for value in ordered_ids if value in found]
 
 
+def _build_global_design_context(draft: StorefrontLayoutVersion) -> dict:
+    """R4 Task 11 (Section 23) — the Global Design panel's ENTIRE read
+    projection: server-authoritative current config + registry-driven
+    choice lists. No DB-backed duplicate design-option table; Templates/
+    Palettes come from appearance_registry, Header/Footer variants from
+    global_region_registry — never a hardcoded list here or in JS/HTML."""
+    return {
+        "appearance": draft.effective_appearance_config(),
+        "header": draft.effective_header_config(),
+        "footer": draft.effective_footer_config(),
+        "templates": [
+            {"slug": t.slug, "label_fa": t.name_fa, "group_fa": t.group_fa}
+            for t in appearance_registry.list_templates()
+        ],
+        "palettes": [
+            {"slug": p.slug, "label_fa": p.name_fa, "group_fa": p.group_fa}
+            for p in appearance_registry.list_palettes()
+        ],
+        "font_choices": appearance_registry.FONT_CHOICES,
+        "type_scale_choices": [
+            (value, _TYPE_SCALE_LABELS_FA.get(value, value))
+            for value in appearance_registry.TYPE_SCALE_CHOICES
+        ],
+        "motion_choices": appearance_registry.MOTION_CHOICES,
+        "button_style_choices": appearance_registry.BUTTON_STYLE_CHOICES,
+        "header_variants": [
+            {"key": v.key, "label_fa": v.label_fa}
+            for v in global_region_registry.list_global_variants(global_region_registry.GLOBAL_HEADER_REGION)
+        ],
+        "footer_variants": [
+            {"key": v.key, "label_fa": v.label_fa}
+            for v in global_region_registry.list_global_variants(global_region_registry.GLOBAL_FOOTER_REGION)
+        ],
+    }
+
+
 @staff_required
 @permission_required(STOREFRONT_LAYOUT_MANAGE)
 def storefront_r4_editor(request):
@@ -204,6 +246,8 @@ def storefront_r4_editor(request):
             "r4_edit_revision": draft.edit_revision,
             "structure_items": structure_items,
             "structure_library": structure_library,
+            "global_design": _build_global_design_context(draft),
+            "history": edit_history_service.history_state(draft),
         },
     )
 
@@ -412,3 +456,97 @@ def storefront_r4_resource_picker(request):
             "auto_rules": _PICKER_PRODUCT_AUTO_RULES if kind == "product" else _PICKER_BRAND_AUTO_RULES,
         },
     )
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+def storefront_r4_history_command(request):
+    """R4 Task 11 — the ONE Undo/Redo command endpoint. Deliberately
+    separate from the normal mutation endpoint (Section 13): Undo/Redo
+    never go through ``r4_mutation_service.apply_mutation``'s normal
+    record_change path, or Undo itself would become a new undoable edit."""
+    store = resolve_store_for_service(request)
+    layout = layout_service.get_or_create_layout(store)
+    if not layout.r4_editor_enabled:
+        raise Http404
+
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "code": "malformed_json"}, status=400)
+
+    if not isinstance(payload, dict):
+        return JsonResponse({"ok": False, "code": "invalid_request_shape"}, status=400)
+
+    base_revision = payload.get("base_revision")
+    if not _is_strict_int(base_revision) or base_revision < 0:
+        return JsonResponse({"ok": False, "code": "invalid_base_revision"}, status=400)
+
+    command = payload.get("command")
+    if command not in ("undo", "redo"):
+        return JsonResponse({"ok": False, "code": "invalid_command"}, status=400)
+
+    try:
+        result = r4_mutation_service.apply_history_command(
+            store=store, actor=request.user, base_revision=base_revision, command=command,
+        )
+    except r4_mutation_service.R4StaleRevision as exc:
+        return JsonResponse(
+            {"ok": False, "code": "stale_revision", "current_revision": exc.current_revision},
+            status=409,
+        )
+    except r4_mutation_service.R4MutationError as exc:
+        return JsonResponse({"ok": False, "code": str(exc)}, status=400)
+
+    return JsonResponse({
+        "ok": True,
+        "changed": result["changed"],
+        "new_revision": result["new_revision"],
+        "can_undo": result["can_undo"],
+        "can_redo": result["can_redo"],
+        "action_label": result["action_label"],
+    })
+
+
+@require_POST
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+def storefront_r4_publish(request):
+    """R4 Task 11 — stale-aware Publish. The entire release lifecycle
+    remains owned by ``layout_service.publish``; this view only adds the
+    R4 revision check and a JSON contract around it."""
+    store = resolve_store_for_service(request)
+    layout = layout_service.get_or_create_layout(store)
+    if not layout.r4_editor_enabled:
+        raise Http404
+
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "code": "malformed_json"}, status=400)
+
+    if not isinstance(payload, dict):
+        return JsonResponse({"ok": False, "code": "invalid_request_shape"}, status=400)
+
+    base_revision = payload.get("base_revision")
+    if not _is_strict_int(base_revision) or base_revision < 0:
+        return JsonResponse({"ok": False, "code": "invalid_base_revision"}, status=400)
+
+    try:
+        published = r4_mutation_service.publish_draft(
+            store=store, actor=request.user, base_revision=base_revision,
+        )
+    except r4_mutation_service.R4StaleRevision as exc:
+        return JsonResponse(
+            {"ok": False, "code": "stale_revision", "current_revision": exc.current_revision},
+            status=409,
+        )
+    except r4_mutation_service.R4MutationError as exc:
+        return JsonResponse({"ok": False, "code": str(exc)}, status=400)
+
+    return JsonResponse({
+        "ok": True,
+        "published_version_id": published.pk,
+        "published_version_number": published.version_number,
+    })

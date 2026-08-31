@@ -28,6 +28,12 @@ window.RastiSiR4 = {
     shell.appendChild(pickerRoot);
   }
   var pickerSearchTimer = null;
+  // R4 Task 11 — Global Design + Undo/Redo + Publish topbar controls.
+  var globalDesignToggle = document.getElementById('r4GlobalDesignToggle');
+  var globalDesignPanel = document.getElementById('r4GlobalDesign');
+  var undoButton = document.getElementById('r4UndoButton');
+  var redoButton = document.getElementById('r4RedoButton');
+  var publishButton = document.getElementById('r4PublishButton');
 
   // ---- Admin sidebar: R4-page-only, defaults to collapsed on every fresh
   // load (nothing persisted between page loads) — driven purely by a data
@@ -259,6 +265,9 @@ window.RastiSiR4 = {
 
   R4.openSection = function (sectionId) {
     if (!inspector || !sectionId) return Promise.resolve();
+    // Opening a Section Inspector always closes Global Design — the two
+    // never show at once (Task 11 Section 22).
+    closeGlobalDesign();
     var url = new URL('sections/' + sectionId + '/inspector/', window.location.href);
     return fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (response) {
@@ -811,4 +820,196 @@ window.RastiSiR4 = {
       }
     }
   });
+
+  // ---- R4 Task 11 — Global Design (appearance/header/footer selection),
+  // Undo/Redo, and Publish. Global Design edits go through the EXISTING
+  // R4.enqueueMutation queue (same as every Section edit); Undo/Redo/
+  // Publish are not shaped like a mutation, but still serialize behind
+  // the SAME R4.queue — never a second/independent queue of their own.
+  function closeGlobalDesign() {
+    if (!globalDesignPanel) return;
+    globalDesignPanel.hidden = true;
+    if (globalDesignToggle) globalDesignToggle.setAttribute('aria-expanded', 'false');
+    if (shell) shell.dataset.r4GlobalDesignOpen = 'false';
+  }
+
+  function openGlobalDesign() {
+    if (!globalDesignPanel) return;
+    closeInspector();
+    globalDesignPanel.hidden = false;
+    if (globalDesignToggle) globalDesignToggle.setAttribute('aria-expanded', 'true');
+    if (shell) shell.dataset.r4GlobalDesignOpen = 'true';
+  }
+
+  if (globalDesignToggle) {
+    globalDesignToggle.addEventListener('click', function () {
+      if (globalDesignPanel && globalDesignPanel.hidden) openGlobalDesign();
+      else closeGlobalDesign();
+    });
+  }
+
+  if (globalDesignPanel) {
+    globalDesignPanel.addEventListener('click', function (evt) {
+      if (evt.target.closest('[data-r4-global-design-close]')) closeGlobalDesign();
+    });
+
+    // One delegated change handler — the mutation `type` and patch `key`
+    // both come from data attributes already rendered by the server
+    // (section_registry/appearance_registry/global_region_registry), so
+    // Product/appearance/header/footer never need their own JS branch.
+    globalDesignPanel.addEventListener('change', function (evt) {
+      var field = evt.target.closest('[data-r4-global-field]');
+      if (!field) return;
+      var group = field.closest('[data-r4-global-mutation]');
+      if (!group) return;
+      var key = field.getAttribute('data-r4-global-field');
+      var value = field.value;
+      if (key === 'palette_slug' && value === '') value = null;
+      var patch = {};
+      patch[key] = value;
+      R4.enqueueMutation({
+        type: group.getAttribute('data-r4-global-mutation'),
+        patch: patch,
+      }).then(function (result) {
+        if (result && result.ok) refreshGlobalDesignAndPreview();
+      });
+    });
+  }
+
+  // Same "GET the R4 editor + DOMParser + swap one element's innerHTML"
+  // technique Task 8's refreshStructureAndPreview() already established —
+  // reused here for the Global Design panel's own server-authoritative
+  // read projection (e.g. a Template switch resetting font/type_scale).
+  function refreshGlobalDesignAndPreview() {
+    if (previewFrame && previewFrame.contentWindow) {
+      previewFrame.contentWindow.location.reload();
+    }
+    if (!globalDesignPanel) return Promise.resolve();
+    return fetch(window.location.href, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (response) { return response.text(); })
+      .then(function (html) {
+        var freshDoc = new DOMParser().parseFromString(html, 'text/html');
+        var freshPanel = freshDoc.getElementById('r4GlobalDesign');
+        if (freshPanel) globalDesignPanel.innerHTML = freshPanel.innerHTML;
+      })
+      .catch(function () {
+        // The mutation itself already succeeded — a failed read-side
+        // refresh just leaves the panel showing its pre-change values
+        // until the merchant's next action.
+      });
+  }
+
+  // ---- Undo/Redo: a dedicated command sender (not a `mutation` payload)
+  // that still updates R4.revision/save-state/conflict exactly like
+  // R4.sendMutation, and is still serialized behind the SAME R4.queue.
+  function sendHistoryCommand(command) {
+    if (R4.conflict) return Promise.resolve();
+    setSaveState('saving');
+    var url = new URL('history/', window.location.href);
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+      body: JSON.stringify({ base_revision: R4.revision, command: command }),
+    })
+      .then(function (response) {
+        return response.json().then(function (body) {
+          return { status: response.status, body: body };
+        });
+      })
+      .then(function (result) {
+        if (result.status === 200 && result.body && result.body.ok) {
+          R4.revision = result.body.new_revision;
+          if (shell) shell.dataset.editRevision = String(R4.revision);
+          setSaveState('saved');
+          return result.body;
+        }
+        if (result.status === 409) {
+          R4.conflict = true;
+          setSaveState('conflict');
+          showConflictBanner();
+          return result.body;
+        }
+        setSaveState('error');
+        return result.body;
+      })
+      .catch(function () {
+        setSaveState('error');
+      });
+  }
+
+  if (undoButton) {
+    undoButton.addEventListener('click', function () {
+      R4.queue = (R4.queue || Promise.resolve()).then(function () {
+        return sendHistoryCommand('undo');
+      });
+      R4.queue.then(function (result) {
+        // A restored Draft may change sections/containers/appearance/
+        // header/footer all at once — a full reload is the deliberate,
+        // non-fragile choice (Task 11 Section 21), never a partial
+        // fake re-render of a whole restored Draft.
+        if (result && result.ok && result.changed) window.location.reload();
+      });
+    });
+  }
+
+  if (redoButton) {
+    redoButton.addEventListener('click', function () {
+      R4.queue = (R4.queue || Promise.resolve()).then(function () {
+        return sendHistoryCommand('redo');
+      });
+      R4.queue.then(function (result) {
+        if (result && result.ok && result.changed) window.location.reload();
+      });
+    });
+  }
+
+  // ---- Publish: same queue, current R4.revision, existing conflict/error
+  // handling — never a second Publish-only queue.
+  function sendPublish() {
+    if (R4.conflict) return Promise.resolve();
+    setSaveState('saving');
+    var url = new URL('publish/', window.location.href);
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+      body: JSON.stringify({ base_revision: R4.revision }),
+    })
+      .then(function (response) {
+        return response.json().then(function (body) {
+          return { status: response.status, body: body };
+        });
+      })
+      .then(function (result) {
+        if (result.status === 200 && result.body && result.body.ok) {
+          setSaveState('saved');
+          return result.body;
+        }
+        if (result.status === 409) {
+          R4.conflict = true;
+          setSaveState('conflict');
+          showConflictBanner();
+          return result.body;
+        }
+        setSaveState('error');
+        return result.body;
+      })
+      .catch(function () {
+        setSaveState('error');
+      });
+  }
+
+  if (publishButton) {
+    publishButton.addEventListener('click', function () {
+      R4.queue = (R4.queue || Promise.resolve()).then(function () {
+        return sendPublish();
+      });
+      R4.queue.then(function (result) {
+        // A successful Publish must not continue editing the now-Published
+        // Draft — reload so the normal R4 GET resolves/creates the NEXT
+        // Draft through the existing layout_service.get_or_create_draft
+        // lifecycle (never manually cloned/created here).
+        if (result && result.ok) window.location.reload();
+      });
+    });
+  }
 })();

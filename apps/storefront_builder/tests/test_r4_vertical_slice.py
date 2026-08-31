@@ -1,7 +1,13 @@
 import dataclasses
+import json
+from pathlib import Path
 
 from unittest.mock import patch
 
+from django.test import TestCase
+from django.urls import reverse
+
+from apps.storefront_builder import appearance_registry, global_region_registry
 from apps.storefront_builder import section_registry as section_registry_module
 from apps.storefront_builder.models import (
     StorefrontCell,
@@ -10,7 +16,7 @@ from apps.storefront_builder.models import (
     StorefrontPage,
     StorefrontSection,
 )
-from apps.storefront_builder.services import container_service
+from apps.storefront_builder.services import container_service, layout_service
 from apps.stores.models import Store
 
 from .test_r4_mutation_api import R4MutationApiTestCase
@@ -770,3 +776,577 @@ class TenantAndScopeSecurityTests(R4VerticalSliceTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertTrue(StorefrontSection.objects.filter(pk=product_section.pk).exists())
         self.assertEqual(self._refresh_revision(), starting_revision)
+
+
+# ---------------------------------------------------------------------------
+# R4 Task 11 — Global Design + Header/Footer selection + Undo/Redo + Publish
+# ---------------------------------------------------------------------------
+
+
+class R4GlobalDesignTestCase(R4MutationApiTestCase):
+    def _refresh_revision(self):
+        self.draft.refresh_from_db()
+        return self.draft.edit_revision
+
+
+class GlobalMutationTests(R4GlobalDesignTestCase):
+    """Section 27 — appearance.update/header.update/footer.update: prove
+    RED (currently rejected as unknown_mutation_type) before implementation,
+    then that each successful mutation uses the active Draft, increments
+    revision exactly once, and creates exactly one normal history entry."""
+
+    def test_appearance_update_succeeds_and_increments_revision_once(self):
+        starting_revision = self.draft.edit_revision
+        before_count = self._history_count()
+        response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "appearance.update", "patch": {"font": "Tahoma"}},
+        })
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertIs(body["ok"], True)
+        self.assertEqual(body["new_revision"], starting_revision + 1)
+        self.assertEqual(self._refresh_revision(), starting_revision + 1)
+        self.assertEqual(self._history_count(), before_count + 1)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.appearance_config["font"], "Tahoma")
+
+    def test_header_update_succeeds_and_increments_revision_once(self):
+        starting_revision = self.draft.edit_revision
+        before_count = self._history_count()
+        response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "header.update", "patch": {"header_variant": "marketplace_search_first"}},
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["new_revision"], starting_revision + 1)
+        self.assertEqual(self._history_count(), before_count + 1)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.header_config["header_variant"], "marketplace_search_first")
+
+    def test_footer_update_succeeds_and_increments_revision_once(self):
+        starting_revision = self.draft.edit_revision
+        before_count = self._history_count()
+        response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "footer.update", "patch": {"footer_variant": "marketplace_dense"}},
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["new_revision"], starting_revision + 1)
+        self.assertEqual(self._history_count(), before_count + 1)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.footer_config["footer_variant"], "marketplace_dense")
+
+    def test_appearance_update_does_not_touch_published_version(self):
+        published = StorefrontLayoutVersion.objects.create(
+            layout=self.layout, version_number=999,
+            status=StorefrontLayoutVersion.Status.PUBLISHED,
+            appearance_config={"font": "Arial"},
+        )
+        response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "appearance.update", "patch": {"font": "Tahoma"}},
+        })
+        self.assertEqual(response.status_code, 200)
+        published.refresh_from_db()
+        self.assertEqual(published.appearance_config["font"], "Arial")
+
+
+class AppearanceDomainValidatorReuseTests(R4GlobalDesignTestCase):
+    """Section 28 — R4 must not invent Appearance validation; every rule
+    still comes from layout_service.validate_appearance_config /
+    appearance_registry."""
+
+    def test_invalid_template_slug_is_rejected(self):
+        starting_revision = self.draft.edit_revision
+        response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "appearance.update", "patch": {"template_slug": "not-a-real-template"}},
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self._refresh_revision(), starting_revision)
+
+    def test_invalid_palette_slug_is_rejected(self):
+        starting_revision = self.draft.edit_revision
+        response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "appearance.update", "patch": {"palette_slug": "not-a-real-palette"}},
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self._refresh_revision(), starting_revision)
+
+    def test_invalid_font_is_rejected(self):
+        starting_revision = self.draft.edit_revision
+        response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "appearance.update", "patch": {"font": "NotARealFont"}},
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self._refresh_revision(), starting_revision)
+
+    def test_invalid_type_scale_is_rejected(self):
+        response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "appearance.update", "patch": {"type_scale": "huge"}},
+        })
+        self.assertEqual(response.status_code, 400)
+
+    def test_invalid_motion_is_rejected(self):
+        response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "appearance.update", "patch": {"motion": "extreme"}},
+        })
+        self.assertEqual(response.status_code, 400)
+
+    def test_invalid_button_style_is_rejected(self):
+        response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "appearance.update", "patch": {"button_style": "glowing"}},
+        })
+        self.assertEqual(response.status_code, 400)
+
+    def test_unknown_appearance_patch_key_is_rejected(self):
+        starting_revision = self.draft.edit_revision
+        response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "appearance.update", "patch": {"raw_css": "body{color:red}"}},
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self._refresh_revision(), starting_revision)
+
+    def test_validate_appearance_config_is_the_validator_boundary(self):
+        with patch(
+            "apps.storefront_builder.services.r4_mutation_service.layout_service.validate_appearance_config",
+            wraps=layout_service.validate_appearance_config,
+        ) as mock_validate:
+            response = self._post_json({
+                "base_revision": self.draft.edit_revision,
+                "mutation": {"type": "appearance.update", "patch": {"font": "Tahoma"}},
+            })
+        self.assertEqual(response.status_code, 200)
+        mock_validate.assert_called_once()
+
+    def test_template_switch_applies_template_structural_defaults(self):
+        template = appearance_registry.get_template("boutique")
+        response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "appearance.update", "patch": {"template_slug": "boutique"}},
+        })
+        self.assertEqual(response.status_code, 200)
+        self.draft.refresh_from_db()
+        cfg = self.draft.appearance_config
+        self.assertEqual(cfg["template_slug"], "boutique")
+        for field in ("font", "radius", "button_radius", "button_style", "density", "motion", "type_scale"):
+            self.assertEqual(cfg[field], getattr(template, field), f"field={field}")
+
+    def test_template_switch_wins_over_explicit_field_in_the_same_patch(self):
+        # Exact R3 precedence (views.py's `_field`): Template > posted > current.
+        template = appearance_registry.get_template("boutique")
+        response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {
+                "type": "appearance.update",
+                "patch": {"template_slug": "boutique", "font": "Georgia"},
+            },
+        })
+        self.assertEqual(response.status_code, 200)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.appearance_config["font"], template.font)
+        self.assertNotEqual(self.draft.appearance_config["font"], "Georgia")
+
+    def test_palette_switch_clears_old_color_and_theme_overrides(self):
+        self.draft.appearance_config = {
+            **self.draft.effective_appearance_config(),
+            "color_overrides": {"primary": "#123456"},
+            "theme_overrides": {"header_bg": "#654321"},
+        }
+        self.draft.save(update_fields=["appearance_config"])
+        response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "appearance.update", "patch": {"palette_slug": "beauty-magenta"}},
+        })
+        self.assertEqual(response.status_code, 200)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.appearance_config["palette_slug"], "beauty-magenta")
+        self.assertEqual(self.draft.appearance_config["color_overrides"], {})
+        self.assertEqual(self.draft.appearance_config["theme_overrides"], {})
+
+
+class HeaderDomainValidatorReuseTests(R4GlobalDesignTestCase):
+    def test_registered_header_variant_succeeds(self):
+        response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "header.update", "patch": {"header_variant": "marketplace_search_first"}},
+        })
+        self.assertEqual(response.status_code, 200)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.header_config["header_variant"], "marketplace_search_first")
+
+    def test_unknown_header_variant_is_rejected(self):
+        starting_revision = self.draft.edit_revision
+        response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "header.update", "patch": {"header_variant": "not-a-real-variant"}},
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self._refresh_revision(), starting_revision)
+
+    def test_unknown_header_patch_key_is_rejected(self):
+        response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "header.update", "patch": {"show_search": False}},
+        })
+        self.assertEqual(response.status_code, 400)
+
+    def test_validate_header_config_is_the_validator_boundary(self):
+        with patch(
+            "apps.storefront_builder.services.r4_mutation_service.layout_service.validate_header_config",
+            wraps=layout_service.validate_header_config,
+        ) as mock_validate:
+            response = self._post_json({
+                "base_revision": self.draft.edit_revision,
+                "mutation": {"type": "header.update", "patch": {"header_variant": "premium_three_column"}},
+            })
+        self.assertEqual(response.status_code, 200)
+        mock_validate.assert_called_once()
+
+
+class FooterDomainValidatorReuseTests(R4GlobalDesignTestCase):
+    def test_registered_footer_variant_succeeds(self):
+        response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "footer.update", "patch": {"footer_variant": "marketplace_dense"}},
+        })
+        self.assertEqual(response.status_code, 200)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.footer_config["footer_variant"], "marketplace_dense")
+
+    def test_unknown_footer_variant_is_rejected(self):
+        starting_revision = self.draft.edit_revision
+        response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "footer.update", "patch": {"footer_variant": "not-a-real-variant"}},
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self._refresh_revision(), starting_revision)
+
+    def test_unknown_footer_patch_key_is_rejected(self):
+        response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "footer.update", "patch": {"show_about": False}},
+        })
+        self.assertEqual(response.status_code, 400)
+
+    def test_validate_footer_config_is_the_validator_boundary(self):
+        with patch(
+            "apps.storefront_builder.services.r4_mutation_service.layout_service.validate_footer_config",
+            wraps=layout_service.validate_footer_config,
+        ) as mock_validate:
+            response = self._post_json({
+                "base_revision": self.draft.edit_revision,
+                "mutation": {"type": "footer.update", "patch": {"footer_variant": "premium_columns"}},
+            })
+        self.assertEqual(response.status_code, 200)
+        mock_validate.assert_called_once()
+
+
+class UndoRedoTestCase(R4MutationApiTestCase):
+    def _post_history(self, payload):
+        return self.client.post(
+            reverse("dashboard:storefront-builder-r4-history"),
+            data=json.dumps(payload), content_type="application/json",
+        )
+
+
+class UndoTests(UndoRedoTestCase):
+    def test_undo_restores_prior_state_and_increments_revision_once(self):
+        starting_revision = self.draft.edit_revision
+        history_count_before = self._history_count()
+
+        mutation_response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "appearance.update", "patch": {"font": "Tahoma"}},
+        })
+        after_mutation_revision = mutation_response.json()["new_revision"]
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.appearance_config["font"], "Tahoma")
+        self.assertEqual(self._history_count(), history_count_before + 1)
+
+        undo_response = self._post_history({"base_revision": after_mutation_revision, "command": "undo"})
+        self.assertEqual(undo_response.status_code, 200)
+        body = undo_response.json()
+        self.assertIs(body["ok"], True)
+        self.assertIs(body["changed"], True)
+        self.assertEqual(body["new_revision"], after_mutation_revision + 1)
+        self.assertIs(body["can_redo"], True)
+
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.edit_revision, after_mutation_revision + 1)
+        self.assertNotEqual(self.draft.appearance_config.get("font"), "Tahoma")
+        # Undo must never itself create a NEW history row.
+        self.assertEqual(self._history_count(), history_count_before + 1)
+
+    def test_stale_mutation_after_undo_is_rejected(self):
+        mutation_response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "appearance.update", "patch": {"font": "Tahoma"}},
+        })
+        after_mutation_revision = mutation_response.json()["new_revision"]
+        self._post_history({"base_revision": after_mutation_revision, "command": "undo"})
+
+        stale_response = self._post_json({
+            "base_revision": after_mutation_revision,
+            "mutation": {"type": "appearance.update", "patch": {"font": "Arial"}},
+        })
+        self.assertEqual(stale_response.status_code, 409)
+        self.draft.refresh_from_db()
+        self.assertNotEqual(self.draft.appearance_config.get("font"), "Arial")
+
+    def test_stale_undo_is_rejected(self):
+        mutation_response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "appearance.update", "patch": {"font": "Tahoma"}},
+        })
+        after_mutation_revision = mutation_response.json()["new_revision"]
+        response = self._post_history({"base_revision": after_mutation_revision - 1, "command": "undo"})
+        self.assertEqual(response.status_code, 409)
+        body = response.json()
+        self.assertEqual(body["code"], "stale_revision")
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.appearance_config.get("font"), "Tahoma")
+        self.assertEqual(self.draft.edit_revision, after_mutation_revision)
+
+
+class RedoTests(UndoRedoTestCase):
+    def test_redo_restores_after_state_and_increments_revision_again(self):
+        mutation_response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "appearance.update", "patch": {"font": "Tahoma"}},
+        })
+        after_mutation_revision = mutation_response.json()["new_revision"]
+        undo_response = self._post_history({"base_revision": after_mutation_revision, "command": "undo"})
+        after_undo_revision = undo_response.json()["new_revision"]
+
+        redo_response = self._post_history({"base_revision": after_undo_revision, "command": "redo"})
+        self.assertEqual(redo_response.status_code, 200)
+        body = redo_response.json()
+        self.assertIs(body["ok"], True)
+        self.assertIs(body["changed"], True)
+        self.assertEqual(body["new_revision"], after_undo_revision + 1)
+        self.assertIs(body["can_undo"], True)
+
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.appearance_config.get("font"), "Tahoma")
+        self.assertEqual(self.draft.edit_revision, after_undo_revision + 1)
+
+    def test_stale_redo_is_rejected(self):
+        mutation_response = self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "appearance.update", "patch": {"font": "Tahoma"}},
+        })
+        after_mutation_revision = mutation_response.json()["new_revision"]
+        undo_response = self._post_history({"base_revision": after_mutation_revision, "command": "undo"})
+        after_undo_revision = undo_response.json()["new_revision"]
+
+        stale_redo = self._post_history({"base_revision": after_undo_revision - 1, "command": "redo"})
+        self.assertEqual(stale_redo.status_code, 409)
+        self.assertEqual(stale_redo.json()["code"], "stale_revision")
+        self.draft.refresh_from_db()
+        self.assertNotEqual(self.draft.appearance_config.get("font"), "Tahoma")
+        self.assertEqual(self.draft.edit_revision, after_undo_revision)
+
+
+class NoOpHistoryCommandTests(UndoRedoTestCase):
+    def test_undo_with_nothing_to_undo_is_a_controlled_noop(self):
+        starting_revision = self.draft.edit_revision
+        response = self._post_history({"base_revision": starting_revision, "command": "undo"})
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertIs(body["ok"], True)
+        self.assertIs(body["changed"], False)
+        self.assertEqual(body["new_revision"], starting_revision)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.edit_revision, starting_revision)
+
+    def test_redo_with_nothing_to_redo_is_a_controlled_noop(self):
+        starting_revision = self.draft.edit_revision
+        response = self._post_history({"base_revision": starting_revision, "command": "redo"})
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertIs(body["ok"], True)
+        self.assertIs(body["changed"], False)
+        self.assertEqual(body["new_revision"], starting_revision)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.edit_revision, starting_revision)
+
+    def test_invalid_history_command_is_rejected(self):
+        response = self._post_history({"base_revision": self.draft.edit_revision, "command": "rewind"})
+        self.assertEqual(response.status_code, 400)
+
+
+class PublishTests(R4MutationApiTestCase):
+    def _post_publish(self, payload):
+        return self.client.post(
+            reverse("dashboard:storefront-builder-r4-publish"),
+            data=json.dumps(payload), content_type="application/json",
+        )
+
+    def test_stale_publish_is_rejected_and_does_not_call_layout_service_publish(self):
+        self._post_json({
+            "base_revision": self.draft.edit_revision,
+            "mutation": {"type": "appearance.update", "patch": {"font": "Tahoma"}},
+        })
+        self.draft.refresh_from_db()
+        current_revision = self.draft.edit_revision
+        self.assertGreater(current_revision, 0)
+
+        with patch("apps.storefront_builder.services.r4_mutation_service.layout_service.publish") as mock_publish:
+            response = self._post_publish({"base_revision": current_revision - 1})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["code"], "stale_revision")
+        mock_publish.assert_not_called()
+
+        self.layout.refresh_from_db()
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, StorefrontLayoutVersion.Status.DRAFT)
+        self.assertIsNone(self.layout.published_version_id)
+        self.assertEqual(self.layout.draft_version_id, self.draft.pk)
+
+    def test_successful_publish_calls_layout_service_publish_exactly_once(self):
+        current_revision = self.draft.edit_revision
+        with patch(
+            "apps.storefront_builder.services.r4_mutation_service.layout_service.publish",
+            wraps=layout_service.publish,
+        ) as mock_publish:
+            response = self._post_publish({"base_revision": current_revision})
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertIs(body["ok"], True)
+        mock_publish.assert_called_once()
+
+        self.layout.refresh_from_db()
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, StorefrontLayoutVersion.Status.PUBLISHED)
+        self.assertEqual(self.layout.published_version_id, self.draft.pk)
+        self.assertIsNone(self.layout.draft_version_id)
+        self.assertEqual(body["published_version_id"], self.draft.pk)
+        self.assertEqual(body["published_version_number"], self.draft.version_number)
+
+    def test_publish_does_not_call_record_change(self):
+        current_revision = self.draft.edit_revision
+        with patch(
+            "apps.storefront_builder.services.r4_mutation_service.edit_history_service.record_change",
+        ) as mock_record:
+            response = self._post_publish({"base_revision": current_revision})
+        self.assertEqual(response.status_code, 200)
+        mock_record.assert_not_called()
+
+
+class PublishSecurityGateTests(R4MutationApiTestCase):
+    def _post_publish(self, payload):
+        return self.client.post(
+            reverse("dashboard:storefront-builder-r4-publish"),
+            data=json.dumps(payload), content_type="application/json",
+        )
+
+    def test_gate_off_returns_404(self):
+        self.layout.r4_editor_enabled = False
+        self.layout.save(update_fields=["r4_editor_enabled"])
+        response = self._post_publish({"base_revision": self.draft.edit_revision})
+        self.assertEqual(response.status_code, 404)
+
+    def test_anonymous_cannot_publish(self):
+        self.client.logout()
+        response = self._post_publish({"base_revision": self.draft.edit_revision})
+        self.assertNotEqual(response.status_code, 200)
+        self.layout.refresh_from_db()
+        self.assertEqual(self.layout.draft_version_id, self.draft.pk)
+
+    def test_malformed_json_is_rejected(self):
+        response = self.client.post(
+            reverse("dashboard:storefront-builder-r4-publish"),
+            data=b"{not valid json", content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_missing_base_revision_is_rejected(self):
+        response = self._post_publish({})
+        self.assertEqual(response.status_code, 400)
+
+    def test_boolean_base_revision_is_rejected(self):
+        response = self._post_publish({"base_revision": True})
+        self.assertEqual(response.status_code, 400)
+        self.layout.refresh_from_db()
+        self.assertEqual(self.layout.draft_version_id, self.draft.pk)
+
+    def test_get_is_rejected(self):
+        response = self.client.get(reverse("dashboard:storefront-builder-r4-publish"))
+        self.assertEqual(response.status_code, 405)
+
+
+class GlobalDesignUiContractTests(R4MutationApiTestCase):
+    def _get_editor(self):
+        return self.client.get(reverse("dashboard:storefront-builder-r4-editor"))
+
+    def test_editor_has_one_global_design_control_and_history_publish_buttons(self):
+        response = self._get_editor()
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        self.assertEqual(body.count('id="r4GlobalDesignToggle"'), 1)
+        self.assertEqual(body.count('id="r4UndoButton"'), 1)
+        self.assertEqual(body.count('id="r4RedoButton"'), 1)
+        self.assertIn('id="r4PublishButton"', body)
+
+    def test_global_design_toggle_is_in_topbar_not_structure_panel(self):
+        body = self._get_editor().content.decode()
+        structure_start = body.index('<aside id="r4Structure"')
+        structure_end = body.index("</aside>", structure_start)
+        self.assertNotIn("r4GlobalDesignToggle", body[structure_start:structure_end])
+
+    def test_no_r3_modal_iframe_or_editor_urls_in_response(self):
+        body = self._get_editor().content.decode()
+        self.assertNotIn("header_editor", body)
+        self.assertNotIn("footer_editor", body)
+        self.assertNotIn("appearance_editor", body)
+        self.assertNotIn("modal fade", body)
+
+    def test_registered_non_default_header_and_footer_variants_are_rendered(self):
+        body = self._get_editor().content.decode()
+        header_variant = next(
+            v for v in global_region_registry.list_global_variants(global_region_registry.GLOBAL_HEADER_REGION)
+            if v.key == "marketplace_search_first"
+        )
+        footer_variant = next(
+            v for v in global_region_registry.list_global_variants(global_region_registry.GLOBAL_FOOTER_REGION)
+            if v.key == "marketplace_dense"
+        )
+        self.assertIn(f'value="{header_variant.key}"', body)
+        self.assertIn(header_variant.label_fa, body)
+        self.assertIn(f'value="{footer_variant.key}"', body)
+        self.assertIn(footer_variant.label_fa, body)
+
+    def test_initial_undo_redo_disabled_state_reflects_history_service(self):
+        body = self._get_editor().content.decode()
+        undo_start = body.index("<button", body.index('id="r4UndoButton"') - 100)
+        undo_tag = body[undo_start:body.index(">", undo_start) + 1]
+        self.assertIn("disabled", undo_tag)
+
+
+class ClientQueueStaticContractTests(TestCase):
+    def setUp(self):
+        js_path = Path(__file__).resolve().parents[1] / "static" / "storefront_builder" / "r4_editor.js"
+        self.content = js_path.read_text(encoding="utf-8")
+
+    def test_no_independent_command_queues(self):
+        for forbidden in ("undoQueue", "publishQueue", "globalDesignQueue"):
+            self.assertNotIn(forbidden, self.content)
+
+    def test_global_design_uses_enqueue_mutation(self):
+        self.assertIn("r4GlobalDesign", self.content)
+        self.assertIn("R4.enqueueMutation", self.content)
+
+    def test_undo_redo_and_publish_reuse_the_shared_queue(self):
+        self.assertIn("R4.queue", self.content)
+        self.assertIn("r4UndoButton", self.content)
+        self.assertIn("r4RedoButton", self.content)
+        self.assertIn("r4PublishButton", self.content)

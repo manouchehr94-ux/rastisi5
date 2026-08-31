@@ -237,6 +237,16 @@ urlpatterns = [
         storefront_builder_r4_views.storefront_r4_resource_picker,
         name="storefront-builder-r4-resource-picker",
     ),
+    path(
+        "storefront-builder/r4/history/",
+        storefront_builder_r4_views.storefront_r4_history_command,
+        name="storefront-builder-r4-history",
+    ),
+    path(
+        "storefront-builder/r4/publish/",
+        storefront_builder_r4_views.storefront_r4_publish,
+        name="storefront-builder-r4-publish",
+    ),
     path("storefront-builder/templates/", storefront_builder_views.storefront_template_gallery, name="storefront-builder-templates"),
     path("storefront-builder/preview/", storefront_builder_views.storefront_preview, name="storefront-builder-preview"),
     path("storefront-builder/sections/", storefront_builder_views.storefront_section_list_partial, name="storefront-builder-section-list"),

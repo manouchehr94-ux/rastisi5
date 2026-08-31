@@ -19,6 +19,16 @@
     <strong>طراحی فروشگاه</strong>
     <button type="button" id="r4StructureToggle" class="r4-icon-btn r4-structure-toggle-btn"
             aria-label="نمایش/پنهان‌سازی ساختار صفحه" aria-expanded="false">ساختار</button>
+    <button type="button" id="r4GlobalDesignToggle" class="r4-icon-btn r4-structure-toggle-btn"
+            aria-label="طراحی کلی فروشگاه" aria-expanded="false">طراحی کلی</button>
+    <button type="button" id="r4UndoButton" class="r4-icon-btn" aria-label="واگرد آخرین تغییر"
+            {% if not history.can_undo %}disabled{% endif %}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/></svg>
+    </button>
+    <button type="button" id="r4RedoButton" class="r4-icon-btn" aria-label="ازنو انجام آخرین تغییر"
+            {% if not history.can_redo %}disabled{% endif %}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h1"/></svg>
+    </button>
     <span id="r4SaveState" aria-live="polite">ذخیره شد</span>
     <button type="button" id="r4PublishButton">انتشار</button>
   </header>
@@ -61,6 +71,82 @@
       </iframe>
     </section>
     <aside id="r4Inspector" hidden aria-label="تنظیمات بخش"></aside>
+    <aside id="r4GlobalDesign" hidden aria-label="طراحی کلی">
+      <div class="r4-global-design-header">
+        <strong>طراحی کلی</strong>
+        <button type="button" class="r4-icon-btn" data-r4-global-design-close aria-label="بستن طراحی کلی">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="r4-global-design-body">
+        <section class="r4-global-design-group" data-r4-global-mutation="appearance.update">
+          <h4>ظاهر کلی</h4>
+
+          <label class="r4-field-sublabel" for="r4GlobalTemplate">قالب</label>
+          <select id="r4GlobalTemplate" class="r4-control" data-r4-global-field="template_slug">
+            {% for t in global_design.templates %}
+            <option value="{{ t.slug }}" {% if t.slug == global_design.appearance.template_slug %}selected{% endif %}>{{ t.label_fa }}</option>
+            {% endfor %}
+          </select>
+
+          <label class="r4-field-sublabel" for="r4GlobalPalette">پالت رنگی</label>
+          <select id="r4GlobalPalette" class="r4-control" data-r4-global-field="palette_slug">
+            <option value="" {% if not global_design.appearance.palette_slug %}selected{% endif %}>— بدون پالت —</option>
+            {% for p in global_design.palettes %}
+            <option value="{{ p.slug }}" {% if p.slug == global_design.appearance.palette_slug %}selected{% endif %}>{{ p.label_fa }}</option>
+            {% endfor %}
+          </select>
+
+          <label class="r4-field-sublabel" for="r4GlobalFont">فونت</label>
+          <select id="r4GlobalFont" class="r4-control" data-r4-global-field="font">
+            {% for f in global_design.font_choices %}
+            <option value="{{ f }}" {% if f == global_design.appearance.font %}selected{% endif %}>{{ f }}</option>
+            {% endfor %}
+          </select>
+
+          <label class="r4-field-sublabel" for="r4GlobalTypeScale">اندازه تایپوگرافی</label>
+          <select id="r4GlobalTypeScale" class="r4-control" data-r4-global-field="type_scale">
+            {% for value, label in global_design.type_scale_choices %}
+            <option value="{{ value }}" {% if value == global_design.appearance.type_scale %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+
+          <label class="r4-field-sublabel" for="r4GlobalMotion">سبک حرکت</label>
+          <select id="r4GlobalMotion" class="r4-control" data-r4-global-field="motion">
+            {% for m in global_design.motion_choices %}
+            <option value="{{ m }}" {% if m == global_design.appearance.motion %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+          </select>
+
+          <label class="r4-field-sublabel" for="r4GlobalButtonStyle">سبک دکمه</label>
+          <select id="r4GlobalButtonStyle" class="r4-control" data-r4-global-field="button_style">
+            {% for b in global_design.button_style_choices %}
+            <option value="{{ b }}" {% if b == global_design.appearance.button_style %}selected{% endif %}>{{ b }}</option>
+            {% endfor %}
+          </select>
+        </section>
+
+        <section class="r4-global-design-group" data-r4-global-mutation="header.update">
+          <h4>هدر</h4>
+          <label class="r4-field-sublabel" for="r4GlobalHeaderVariant">نوع هدر</label>
+          <select id="r4GlobalHeaderVariant" class="r4-control" data-r4-global-field="header_variant">
+            {% for v in global_design.header_variants %}
+            <option value="{{ v.key }}" {% if v.key == global_design.header.header_variant %}selected{% endif %}>{{ v.label_fa }}</option>
+            {% endfor %}
+          </select>
+        </section>
+
+        <section class="r4-global-design-group" data-r4-global-mutation="footer.update">
+          <h4>فوتر</h4>
+          <label class="r4-field-sublabel" for="r4GlobalFooterVariant">نوع فوتر</label>
+          <select id="r4GlobalFooterVariant" class="r4-control" data-r4-global-field="footer_variant">
+            {% for v in global_design.footer_variants %}
+            <option value="{{ v.key }}" {% if v.key == global_design.footer.footer_variant %}selected{% endif %}>{{ v.label_fa }}</option>
+            {% endfor %}
+          </select>
+        </section>
+      </div>
+    </aside>
   </main>
 </div>
 {% endblock %}

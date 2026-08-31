@@ -12,9 +12,9 @@ from __future__ import annotations
 
 from django.db import transaction
 
-from apps.storefront_builder import resource_source, section_registry
+from apps.storefront_builder import appearance_registry, resource_source, section_registry
 from apps.storefront_builder.models import StorefrontLayout, StorefrontLayoutVersion, StorefrontSection
-from apps.storefront_builder.services import edit_history_service, section_structure_service
+from apps.storefront_builder.services import edit_history_service, layout_service, section_structure_service
 from apps.storefront_builder.settings_schema import clean_section_schema_patch
 
 
@@ -34,6 +34,9 @@ _MUTATION_HISTORY_LABELS = {
     "section.remove": "حذف بخش",
     "section.duplicate": "تکرار بخش",
     "section.move": "جابه‌جایی بخش",
+    "appearance.update": "ویرایش طراحی کلی",
+    "header.update": "ویرایش هدر",
+    "footer.update": "ویرایش فوتر",
 }
 
 
@@ -199,6 +202,111 @@ def _apply_section_move(*, draft: StorefrontLayoutVersion, mutation: dict) -> No
         raise R4MutationError(exc.code) from exc
 
 
+#: R4 Task 11 (Section 6) — Phase 1's narrow Global Design allowlist. Never
+#: raw CSS/JSON, never an arbitrary color/template path — every other
+#: appearance_config key (radius/button_radius/density/content_width/...)
+#: only ever changes as a side effect of a Template switch (see
+#: _TEMPLATE_OWNED_FIELDS below), exactly like R3's own editor (views.py).
+_APPEARANCE_UPDATE_ALLOWED_PATCH_KEYS = frozenset({
+    "template_slug", "palette_slug", "font", "type_scale", "motion", "button_style",
+})
+
+#: The fields a Template selection owns on transition — verified against
+#: R3's own real POST-time semantics (views.py's ``_field()``), not
+#: invented: exactly these 7 use "Template > posted > current" priority.
+#: TemplateDefinition's other 5 "structural" fields (content_width/
+#: grid_density/card_shadow/card_hover/hero_style — the Phase 8 P0-7
+#: fields) are validated against a DIFFERENT, independent choice domain
+#: (appearance_registry.SITE_CONTENT_WIDTH_CHOICES etc.) and are, by R3's
+#: own real behavior, deliberately NOT auto-applied on a Template switch —
+#: they only ever come from an explicit posted value or the current
+#: stored one. swatch/name_fa/group_fa/description_fa/slug are
+#: presentation-only / the key itself, also excluded.
+_TEMPLATE_OWNED_FIELDS = ("font", "radius", "button_radius", "button_style", "density", "motion", "type_scale")
+
+
+def _apply_appearance_update(*, draft: StorefrontLayoutVersion, mutation: dict) -> None:
+    patch = mutation.get("patch")
+    if not isinstance(patch, dict):
+        raise R4MutationError("invalid_patch")
+    if set(patch) - _APPEARANCE_UPDATE_ALLOWED_PATCH_KEYS:
+        raise R4MutationError("invalid_appearance_patch")
+
+    current = draft.effective_appearance_config()
+    candidate = dict(current)
+
+    # A Template switch wins over an explicit field value in the SAME
+    # patch — exact R3 precedence (views.py's `_field`: Template > posted
+    # > current) — never the other way around.
+    new_template_slug = patch.get("template_slug", current.get("template_slug"))
+    template_changed = new_template_slug != current.get("template_slug")
+    new_template = appearance_registry.get_template(new_template_slug) if template_changed else None
+    candidate["template_slug"] = new_template_slug
+    if new_template is not None:
+        for field in _TEMPLATE_OWNED_FIELDS:
+            candidate[field] = getattr(new_template, field)
+
+    # Switching Palette starts fresh — old color/theme overrides made no
+    # sense against the new palette (same rule R3's editor already applies).
+    new_palette_slug = patch.get("palette_slug", current.get("palette_slug"))
+    if new_palette_slug != current.get("palette_slug"):
+        candidate["color_overrides"] = {}
+        candidate["theme_overrides"] = {}
+    candidate["palette_slug"] = new_palette_slug
+
+    for field in ("font", "type_scale", "motion", "button_style"):
+        if new_template is None and field in patch:
+            candidate[field] = patch[field]
+
+    try:
+        cleaned = layout_service.validate_appearance_config(candidate)
+    except layout_service.AppearanceConfigValidationError as exc:
+        raise R4MutationError("invalid_appearance_config") from exc
+
+    draft.appearance_config = cleaned
+    draft.save(update_fields=["appearance_config"])
+
+
+def _apply_header_update(*, draft: StorefrontLayoutVersion, mutation: dict) -> None:
+    patch = mutation.get("patch")
+    if not isinstance(patch, dict):
+        raise R4MutationError("invalid_patch")
+    if set(patch) - {"header_variant"}:
+        raise R4MutationError("invalid_header_patch")
+
+    candidate = dict(draft.effective_header_config())
+    if "header_variant" in patch:
+        candidate["header_variant"] = patch["header_variant"]
+
+    try:
+        cleaned = layout_service.validate_header_config(candidate)
+    except layout_service.HeaderConfigValidationError as exc:
+        raise R4MutationError("invalid_header_config") from exc
+
+    draft.header_config = cleaned
+    draft.save(update_fields=["header_config"])
+
+
+def _apply_footer_update(*, draft: StorefrontLayoutVersion, mutation: dict) -> None:
+    patch = mutation.get("patch")
+    if not isinstance(patch, dict):
+        raise R4MutationError("invalid_patch")
+    if set(patch) - {"footer_variant"}:
+        raise R4MutationError("invalid_footer_patch")
+
+    candidate = dict(draft.effective_footer_config())
+    if "footer_variant" in patch:
+        candidate["footer_variant"] = patch["footer_variant"]
+
+    try:
+        cleaned = layout_service.validate_footer_config(candidate)
+    except layout_service.FooterConfigValidationError as exc:
+        raise R4MutationError("invalid_footer_config") from exc
+
+    draft.footer_config = cleaned
+    draft.save(update_fields=["footer_config"])
+
+
 def _dispatch_mutation(*, store, draft: StorefrontLayoutVersion, mutation: dict) -> None:
     """The one explicit, server-owned allowlist — no getattr-on-user-input,
     no globals(), no dynamic import, no eval. ``store`` is accepted (not
@@ -220,14 +328,25 @@ def _dispatch_mutation(*, store, draft: StorefrontLayoutVersion, mutation: dict)
     if mutation_type == "section.move":
         _apply_section_move(draft=draft, mutation=mutation)
         return
+    if mutation_type == "appearance.update":
+        _apply_appearance_update(draft=draft, mutation=mutation)
+        return
+    if mutation_type == "header.update":
+        _apply_header_update(draft=draft, mutation=mutation)
+        return
+    if mutation_type == "footer.update":
+        _apply_footer_update(draft=draft, mutation=mutation)
+        return
     raise R4MutationError("unknown_mutation_type")
 
 
-@transaction.atomic
-def apply_mutation(*, store, actor, base_revision: int, mutation: dict) -> int:
-    if not isinstance(mutation, dict):
-        raise R4MutationError("invalid_mutation")
-
+def _lock_active_draft(*, store, base_revision: int) -> StorefrontLayoutVersion:
+    """The ONE R4 concurrency boundary — select_for_update the Store's
+    StorefrontLayout, resolve ONLY its already-active ``draft_version``
+    (never silently create/switch one — see ``layout_service.
+    get_or_create_draft`` for that), require DRAFT status, and compare
+    ``base_revision``. Shared by normal mutations, Undo/Redo, and Publish;
+    every caller runs inside its own ``@transaction.atomic``."""
     layout = StorefrontLayout.objects.select_for_update().get(store=store)
 
     if layout.draft_version_id is None:
@@ -245,6 +364,16 @@ def apply_mutation(*, store, actor, base_revision: int, mutation: dict) -> int:
     if draft.edit_revision != base_revision:
         raise R4StaleRevision(draft.edit_revision)
 
+    return draft
+
+
+@transaction.atomic
+def apply_mutation(*, store, actor, base_revision: int, mutation: dict) -> int:
+    if not isinstance(mutation, dict):
+        raise R4MutationError("invalid_mutation")
+
+    draft = _lock_active_draft(store=store, base_revision=base_revision)
+
     before_state = edit_history_service.snapshot_draft(draft)
 
     _dispatch_mutation(store=store, draft=draft, mutation=mutation)
@@ -260,3 +389,57 @@ def apply_mutation(*, store, actor, base_revision: int, mutation: dict) -> int:
     )
 
     return draft.edit_revision
+
+
+@transaction.atomic
+def apply_history_command(*, store, actor, base_revision: int, command: str) -> dict:
+    """R4 Task 11 — thin command wrapper around edit_history_service.undo/
+    redo. Deliberately NEVER calls edit_history_service.record_change:
+    routing Undo/Redo through the normal history path would make Undo
+    itself a new undoable edit and corrupt history semantics (Section 13).
+    A successful Undo/Redo still owns the ONE R4 revision-monotonicity
+    guarantee: edit_revision always moves forward by exactly 1, even
+    though the restored *content* may be older."""
+    if command not in ("undo", "redo"):
+        raise R4MutationError("unknown_history_command")
+
+    draft = _lock_active_draft(store=store, base_revision=base_revision)
+
+    entry = edit_history_service.undo(draft) if command == "undo" else edit_history_service.redo(draft)
+
+    if entry is None:
+        # Nothing to Undo/Redo — a controlled no-op: no Draft mutation, no
+        # revision increment, no fake history entry.
+        history = edit_history_service.history_state(draft)
+        return {
+            "changed": False,
+            "new_revision": draft.edit_revision,
+            "can_undo": history["can_undo"],
+            "can_redo": history["can_redo"],
+            "action_label": None,
+        }
+
+    draft.edit_revision += 1
+    draft.save(update_fields=["edit_revision"])
+    history = edit_history_service.history_state(draft)
+    return {
+        "changed": True,
+        "new_revision": draft.edit_revision,
+        "can_undo": history["can_undo"],
+        "can_redo": history["can_redo"],
+        "action_label": entry.action_label,
+    }
+
+
+@transaction.atomic
+def publish_draft(*, store, actor, base_revision: int) -> StorefrontLayoutVersion:
+    """R4 Task 11 — stale-aware Publish. Locks/compares through the SAME
+    concurrency boundary as every other R4 write, then delegates the
+    entire release lifecycle to the existing, already-atomic
+    ``layout_service.publish`` — never a second, hand-rolled copy of it.
+    Publish is deliberately NOT a normal edit mutation (Section 18): no
+    history label, no edit_history_service.record_change call — the
+    Draft being published already clears its own short-lived edit history
+    as part of ``layout_service.publish`` itself."""
+    _lock_active_draft(store=store, base_revision=base_revision)
+    return layout_service.publish(store, user=actor)
