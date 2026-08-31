@@ -13,6 +13,20 @@ window.RastiSiR4 = {
   var inspector = document.getElementById('r4Inspector');
   var previewFrame = document.getElementById('r4PreviewFrame');
   var saveStateEl = document.getElementById('r4SaveState');
+  var sidebarToggle = document.getElementById('r4SidebarToggle');
+
+  // ---- Admin sidebar: R4-page-only, defaults to collapsed on every fresh
+  // load (nothing persisted between page loads) — driven purely by a data
+  // attribute on the R4 shell root that r4_editor.css's :has() selectors
+  // key off of.
+  if (sidebarToggle && shell) {
+    sidebarToggle.addEventListener('click', function () {
+      var r4SidebarExpanded = shell.dataset.r4SidebarExpanded === 'true';
+      r4SidebarExpanded = !r4SidebarExpanded;
+      shell.dataset.r4SidebarExpanded = r4SidebarExpanded ? 'true' : 'false';
+      sidebarToggle.setAttribute('aria-expanded', r4SidebarExpanded ? 'true' : 'false');
+    });
+  }
 
   var SAVE_STATE_LABELS = {
     saved: 'ذخیره شد',
@@ -145,7 +159,14 @@ window.RastiSiR4 = {
         R4.selected = sectionId;
         R4.inspectorOpen = true;
         activateTab('basic');
+        // Hydrate the raw backing values (incl. the rich_text textarea)
+        // BEFORE Alpine mounts CKEditor, so it initializes from the real
+        // current body_html rather than an empty source element.
         hydrateFieldValues();
+        // Alpine 3's own MutationObserver auto-initializes x-data elements
+        // added anywhere in the document (verified against this build) —
+        // it already mounts storefrontRichTextEditor()'s CKEditor here.
+        // Do NOT also call Alpine.initTree(): doing so double-mounts.
       })
       .catch(function () {
         // Network/render failure opening the Inspector — no R3 fallback,
@@ -177,11 +198,34 @@ window.RastiSiR4 = {
     inspector.addEventListener('change', function (evt) {
       var control = evt.target.closest('[data-r4-field-key]');
       if (!control || R4.selected == null) return;
+      // CKEditor mounts over the rich_text textarea (aria-hidden, no
+      // direct user interaction) — its save path is the dedicated
+      // focusout handler below, not this native 'change' listener.
+      if (control.getAttribute('data-r4-field-type') === 'rich_text') return;
       var key = control.getAttribute('data-r4-field-key');
       var fieldType = control.getAttribute('data-r4-field-type');
       var value = fieldType === 'boolean' ? control.checked : control.value;
       var patch = {};
       patch[key] = value;
+      R4.enqueueMutation({
+        type: 'section.update_settings',
+        section_id: R4.selected,
+        patch: patch,
+      });
+    });
+
+    // Rich text: enqueue one patch only when focus genuinely LEAVES the
+    // whole CKEditor wrapper (not on every keystroke, not when focus just
+    // moves between the toolbar and the editable area within it).
+    inspector.addEventListener('focusout', function (evt) {
+      var richEditorWrapper = evt.target.closest('.sfb-rich-editor');
+      if (!richEditorWrapper || R4.selected == null) return;
+      if (evt.relatedTarget && richEditorWrapper.contains(evt.relatedTarget)) return;
+      var textarea = richEditorWrapper.querySelector('[data-r4-field-key]');
+      if (!textarea) return;
+      var key = textarea.getAttribute('data-r4-field-key');
+      var patch = {};
+      patch[key] = textarea.value;
       R4.enqueueMutation({
         type: 'section.update_settings',
         section_id: R4.selected,

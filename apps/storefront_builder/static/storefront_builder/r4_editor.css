@@ -1,8 +1,103 @@
+/* R4 Task 6 visual correction — scoped entirely to this stylesheet
+   (loaded only on the R4 page) via `:has()`, never by editing the shared
+   admin.css/admin_v2.css/base_admin.html. */
+
+:root {
+  --r4-accent: #6d4aff;
+  --r4-accent-2: #7c5cff;
+  --r4-surface: #fff;
+  --r4-canvas: #f3f4f8;
+  --r4-line: #e6e8f0;
+  --r4-text: #171925;
+  --r4-muted: #7a8193;
+  --r4-radius: 12px;
+  --r4-sidebar-collapsed: 72px;
+  --r4-sidebar-expanded: 272px;
+  --r4-inspector-width: 380px;
+}
+
+@media (max-width: 1280px) {
+  :root { --r4-inspector-width: 340px; }
+}
+
+/* ---- Real available-viewport height chain, without editing the shared
+   admin.css/admin_v2.css .app/.main/.content rules globally. ---- */
+html:has(.r4-builder),
+body:has(.r4-builder) {
+  height: 100%;
+}
+.app:has(.r4-builder) {
+  height: 100vh;
+}
+.app:has(.r4-builder) .main {
+  height: 100vh;
+  overflow: hidden;
+}
+.app:has(.r4-builder) .content {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  max-width: none;
+  width: 100%;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ---- Admin sidebar: collapsed to an icon rail by default on this page
+   only, via :has() — never a body/global class, never base_admin.html. ---- */
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar {
+  width: var(--r4-sidebar-collapsed);
+  overflow: hidden;
+  transition: width .18s ease;
+}
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .main {
+  margin-right: var(--r4-sidebar-collapsed);
+  transition: margin-right .18s ease;
+}
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .brand {
+  justify-content: center;
+  padding-inline: 0;
+}
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .brand b,
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .brand span,
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .nav-label,
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .nav-group-label,
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .nav-group-chevron,
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .badge-nav,
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .sidebar-foot span,
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .sidebar-foot b,
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .nav-group-body {
+  display: none;
+}
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .nav-item {
+  font-size: 0;
+  justify-content: center;
+  gap: 0;
+}
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .nav-item svg {
+  width: 20px;
+  height: 20px;
+}
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .nav-group-head {
+  font-size: 0;
+  justify-content: center;
+}
+.app:has(.r4-builder:not([data-r4-sidebar-expanded="true"])) .sidebar .nav-group-icon {
+  font-size: 15px;
+}
+
+/* ---- R4 shell ---- */
 .r4-builder {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   height: 100%;
   min-height: 0;
+  background: var(--r4-canvas);
+  color: var(--r4-text);
+  font-size: 13px;
 }
 
 .r4-topbar {
@@ -10,24 +105,74 @@
   align-items: center;
   gap: 12px;
   flex: 0 0 auto;
+  padding: 12px 18px;
+  background: var(--r4-surface);
+  border-bottom: 1px solid var(--r4-line);
+}
+.r4-topbar strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+#r4SaveState {
+  margin-inline-start: auto;
+  font-size: 12px;
+  color: var(--r4-muted);
+}
+#r4PublishButton {
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--r4-accent), var(--r4-accent-2));
+  color: #fff;
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
 }
 
-.r4-workspace {
+.r4-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--r4-line);
+  background: var(--r4-surface);
+  color: var(--r4-muted);
   display: grid;
-  grid-template-columns: 260px 1fr 340px;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color .15s ease, border-color .15s ease;
+}
+.r4-icon-btn:hover {
+  color: var(--r4-accent);
+  border-color: var(--r4-accent);
+}
+#r4SidebarToggle svg {
+  transition: transform .18s ease;
+}
+.r4-builder[data-r4-sidebar-expanded="true"] #r4SidebarToggle svg {
+  transform: rotate(180deg);
+}
+
+/* ---- Workspace: Inspector (left, fixed width, only when open) + Preview
+   (flexible, dominant) — RTL flex row naturally puts the LAST DOM child
+   (#r4Inspector) on the visual left, no explicit `order` needed. #r4Structure
+   stays in the DOM for future architecture but consumes no space in Phase 0. ---- */
+.r4-workspace {
+  display: flex;
   flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
 }
 
 #r4Structure {
-  grid-column: 1;
-  overflow-y: auto;
+  display: none;
 }
 
 .r4-preview-pane {
-  grid-column: 2;
-  display: flex;
+  flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  background: var(--r4-canvas);
 }
 
 .r4-preview-pane #r4PreviewFrame {
@@ -38,10 +183,183 @@
 }
 
 #r4Inspector {
-  grid-column: 3;
+  flex: 0 0 var(--r4-inspector-width);
+  width: var(--r4-inspector-width);
+  min-width: 0;
   overflow-y: auto;
+  background: var(--r4-surface);
+  border-left: 1px solid var(--r4-line);
+  box-shadow: -8px 0 24px rgba(16, 24, 40, .04);
 }
 
 #r4Inspector[hidden] {
   display: none;
+}
+
+/* ---- Inspector surface ---- */
+.r4-inspector-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.r4-inspector-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--r4-line);
+  flex: 0 0 auto;
+}
+.r4-inspector-title {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.r4-inspector-header .r4-icon-btn {
+  margin-inline-start: auto;
+  width: 30px;
+  height: 30px;
+}
+
+.r4-inspector-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 18px 0;
+  flex: 0 0 auto;
+}
+.r4-inspector-tab {
+  flex: 1 1 0;
+  border: 0;
+  border-radius: 10px 10px 0 0;
+  padding: 10px 8px;
+  background: transparent;
+  color: var(--r4-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color .15s ease, border-color .15s ease;
+}
+.r4-inspector-tab[aria-selected="true"] {
+  color: var(--r4-accent);
+  border-bottom-color: var(--r4-accent);
+  background: rgba(109, 74, 255, .06);
+}
+
+.r4-inspector-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 18px 24px;
+}
+
+/* ---- Generic field controls ---- */
+.r4-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--r4-line);
+}
+.r4-field:last-child {
+  border-bottom: 0;
+}
+.r4-field-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--r4-text);
+}
+
+.r4-control {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--r4-line);
+  border-radius: 9px;
+  padding: 9px 11px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--r4-text);
+  background: var(--r4-surface);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.r4-control:focus {
+  outline: none;
+  border-color: var(--r4-accent);
+  box-shadow: 0 0 0 3px rgba(109, 74, 255, .12);
+}
+select.r4-control {
+  cursor: pointer;
+}
+
+/* boolean rows read as a labelled switch, not a floating checkbox */
+.r4-field--boolean {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.r4-field--boolean .r4-field-label {
+  flex: 1 1 auto;
+}
+.r4-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: #d8dbe6;
+  border: 1px solid #d0d3e0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .15s ease, border-color .15s ease;
+}
+.r4-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .2);
+  transition: transform .15s ease;
+}
+.r4-switch:checked {
+  background: var(--r4-accent);
+  border-color: var(--r4-accent);
+}
+.r4-switch:checked::after {
+  transform: translateX(-18px);
+}
+.r4-switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(109, 74, 255, .18);
+}
+
+/* rich_text: real CKEditor UI, sized to the Inspector column */
+.r4-rich-editor {
+  border: 0;
+  padding: 0;
+}
+.r4-rich-editor .sfb-rich-text-source {
+  width: 100%;
+  box-sizing: border-box;
+}
+.r4-rich-editor .ck.ck-editor {
+  width: 100%;
+}
+.r4-rich-editor .ck.ck-editor__main .ck-content {
+  min-height: 140px;
+  font-size: 13px;
+  border-radius: 0 0 9px 9px;
+}
+.r4-rich-editor .ck.ck-toolbar {
+  border-radius: 9px 9px 0 0;
+}
+.r4-rich-editor .ck.ck-editor__main .ck-content,
+.r4-rich-editor .ck.ck-toolbar {
+  border-color: var(--r4-line) !important;
 }

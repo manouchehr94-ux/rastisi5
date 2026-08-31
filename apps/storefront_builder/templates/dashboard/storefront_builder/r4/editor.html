@@ -10,8 +10,12 @@
 
 {% block content %}
 <div class="r4-builder" data-r4-shell="true" data-r4-inspector-open="false"
-     data-edit-revision="{{ r4_edit_revision }}">
+     data-r4-sidebar-expanded="false" data-edit-revision="{{ r4_edit_revision }}">
   <header class="r4-topbar">
+    <button type="button" id="r4SidebarToggle" class="r4-icon-btn"
+            aria-label="نمایش/پنهان‌سازی نوار کناری مدیریت" aria-expanded="false">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
     <strong>طراحی فروشگاه</strong>
     <span id="r4SaveState" aria-live="polite">ذخیره شد</span>
     <button type="button" id="r4PublishButton">انتشار</button>

@@ -5,24 +5,33 @@ field types are added to settings_schema.ALLOWED_FIELD_TYPES first, then to
 the R4 Inspector's Phase 0 renderer allowlist (r4_views.py); this partial
 must never silently fall back to a plain text input for an unsupported type.
 {% endcomment %}
-<div class="r4-field" data-r4-field-row data-r4-field-key="{{ field.key }}" data-r4-field-type="{{ field.field_type }}">
-  <label for="r4Field-{{ field.key }}">{{ field.label }}</label>
+<div class="r4-field r4-field--{{ field.field_type }}" data-r4-field-row data-r4-field-key="{{ field.key }}" data-r4-field-type="{{ field.field_type }}">
+  <label class="r4-field-label" for="r4Field-{{ field.key }}">{{ field.label }}</label>
 
   {% if field.field_type == "text" %}
   <input type="text"
+         class="r4-control"
          id="r4Field-{{ field.key }}"
          data-r4-field-key="{{ field.key }}"
          data-r4-field-type="text"
          {% if field.max_length %}maxlength="{{ field.max_length }}"{% endif %}>
 
   {% elif field.field_type == "rich_text" %}
-  <textarea id="r4Field-{{ field.key }}"
-            data-r4-field-key="{{ field.key }}"
-            data-r4-field-type="rich_text"
-            {% if field.max_length %}maxlength="{{ field.max_length }}"{% endif %}></textarea>
+  {# Reuses the site's existing merchant rich-text editor contract        #}
+  {# (base_admin.html's storefrontRichTextEditor(), CKEditor5 Classic) — #}
+  {# never a second rich-text library, never raw HTML shown to merchants. #}
+  <div class="r4-control r4-rich-editor sfb-rich-editor" x-data="storefrontRichTextEditor()" x-init="mount()">
+    <textarea id="r4Field-{{ field.key }}"
+              class="sfb-rich-text-source"
+              data-r4-field-key="{{ field.key }}"
+              data-r4-field-type="rich_text"
+              x-ref="source"
+              {% if field.max_length %}maxlength="{{ field.max_length }}"{% endif %}></textarea>
+  </div>
 
   {% elif field.field_type == "integer" %}
   <input type="text"
+         class="r4-control"
          inputmode="numeric"
          id="r4Field-{{ field.key }}"
          data-r4-field-key="{{ field.key }}"
@@ -30,12 +39,14 @@ must never silently fall back to a plain text input for an unsupported type.
 
   {% elif field.field_type == "boolean" %}
   <input type="checkbox"
+         class="r4-switch"
          id="r4Field-{{ field.key }}"
          data-r4-field-key="{{ field.key }}"
          data-r4-field-type="boolean">
 
   {% elif field.field_type == "choice" %}
   <select id="r4Field-{{ field.key }}"
+          class="r4-control"
           data-r4-field-key="{{ field.key }}"
           data-r4-field-type="choice">
     {% for value, label in field.choices %}

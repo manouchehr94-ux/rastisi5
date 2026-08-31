@@ -242,3 +242,93 @@ class R4EditorJsSourceContractTests(R4MutationApiTestCase):
 
     def test_does_not_open_a_modal(self):
         self.assertNotIn("modal", self.js_source.lower())
+
+
+# ------------------------------------------------------------------------
+# Task 6 visual/product correction pass — the owner rejected the raw
+# unstyled screenshots (visible <h2>/<p> tags, no sidebar collapse, no
+# Inspector polish). This is a presentation-layer-only correction; the
+# functional Task 6 contracts above must keep passing unmodified.
+# ------------------------------------------------------------------------
+
+
+class RichTextUsesMerchantEditorTests(R4MutationApiTestCase):
+    def setUp(self):
+        super().setUp()
+        self.rich_text_section = StorefrontSection.objects.create(
+            version=self.draft, section_key="rich_text", order=1,
+        )
+
+    def test_rich_text_field_requests_existing_ckeditor_mount_contract(self):
+        response = self.client.get(_inspector_url(self.rich_text_section.pk))
+        self.assertContains(response, 'x-data="storefrontRichTextEditor()"')
+        self.assertContains(response, 'x-init="mount()"')
+        self.assertContains(response, "sfb-rich-editor")
+        # The backing textarea must still carry the R4 field contract so
+        # hydration/mutation keep working — this is additive styling, not
+        # a second rich-text system.
+        self.assertContains(response, 'data-r4-field-key="body_html"')
+        self.assertContains(response, 'data-r4-field-type="rich_text"')
+
+
+class R4EditorSidebarToggleMarkupTests(R4MutationApiTestCase):
+    def test_editor_shell_includes_accessible_sidebar_toggle(self):
+        response = self.client.get(reverse("dashboard:storefront-builder-r4-editor"))
+        self.assertContains(response, 'id="r4SidebarToggle"')
+        self.assertContains(response, "aria-label=")
+        self.assertContains(response, 'aria-expanded="false"')
+
+
+class R4EditorJsSidebarContractTests(R4MutationApiTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.js_source = Path(
+            settings.BASE_DIR,
+            "apps/storefront_builder/static/storefront_builder/r4_editor.js",
+        ).read_text(encoding="utf-8")
+
+    def test_js_toggles_r4_specific_sidebar_expanded_state(self):
+        self.assertIn("r4SidebarToggle", self.js_source)
+        self.assertIn("r4SidebarExpanded", self.js_source)
+
+    def test_js_does_not_persist_sidebar_state_across_loads(self):
+        self.assertNotIn("localStorage", self.js_source)
+
+    def test_mutate_endpoint_remains_the_only_write_path(self):
+        self.assertIn("mutate/", self.js_source)
+        # No second write endpoint is referenced anywhere in the source.
+        self.assertEqual(self.js_source.count("method: 'POST'"), 1)
+
+    def test_rich_text_save_flows_through_enqueue_mutation(self):
+        self.assertIn("sfb-rich-editor", self.js_source)
+        self.assertIn("focusout", self.js_source)
+        # The focusout handler must itself call the same single queue —
+        # not a second/parallel save path.
+        focusout_idx = self.js_source.index("focusout")
+        self.assertIn("enqueueMutation", self.js_source[focusout_idx:focusout_idx + 800])
+
+
+class BaseAdminTemplateUntouchedTests(R4MutationApiTestCase):
+    def test_base_admin_template_has_no_r4_specific_markup(self):
+        base_admin_source = Path(
+            settings.BASE_DIR,
+            "apps/dashboard/templates/dashboard/base_admin.html",
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("r4Sidebar", base_admin_source)
+        self.assertNotIn("R4EditorSidebar", base_admin_source)
+        self.assertNotIn("data-r4", base_admin_source)
+
+
+class InspectorArchitectureUnchangedByPolishTests(R4MutationApiTestCase):
+    def test_inspector_still_has_exactly_basic_and_advanced_tabs(self):
+        response = self.client.get(_inspector_url(self.section.pk))
+        self.assertContains(response, 'data-r4-tab="basic"')
+        self.assertContains(response, 'data-r4-tab="advanced"')
+        self.assertEqual(response.content.decode().count('role="tab"'), 2)
+
+    def test_inspector_still_has_no_r3_modal_iframe_or_form_action(self):
+        response = self.client.get(_inspector_url(self.section.pk))
+        self.assertNotContains(response, "<iframe")
+        self.assertNotContains(response, "sfb-modal")
+        self.assertNotContains(response, "<form")
