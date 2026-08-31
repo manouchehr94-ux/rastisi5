@@ -222,6 +222,11 @@ urlpatterns = [
         storefront_builder_r4_views.storefront_r4_editor,
         name="storefront-builder-r4-editor",
     ),
+    path(
+        "storefront-builder/r4/mutate/",
+        storefront_builder_r4_views.storefront_r4_mutation,
+        name="storefront-builder-r4-mutation",
+    ),
     path("storefront-builder/templates/", storefront_builder_views.storefront_template_gallery, name="storefront-builder-templates"),
     path("storefront-builder/preview/", storefront_builder_views.storefront_preview, name="storefront-builder-preview"),
     path("storefront-builder/sections/", storefront_builder_views.storefront_section_list_partial, name="storefront-builder-section-list"),
