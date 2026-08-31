@@ -15,7 +15,7 @@ from django.db import transaction
 from apps.storefront_builder import section_registry
 from apps.storefront_builder.models import StorefrontLayout, StorefrontLayoutVersion, StorefrontSection
 from apps.storefront_builder.services import edit_history_service
-from apps.storefront_builder.settings_schema import SettingsSchemaError, clean_section_schema_patch
+from apps.storefront_builder.settings_schema import clean_section_schema_patch
 
 
 class R4MutationError(ValueError):
@@ -68,10 +68,14 @@ def _apply_section_update_settings(*, draft: StorefrontLayoutVersion, mutation: 
     if definition.settings_schema is None:
         raise R4MutationError("section_not_schema_enabled")
 
+    # Narrowly scoped: covers both SettingsSchemaError (schema cleaning)
+    # and a plain ValueError from the legacy validator bridge that
+    # clean_section_schema_patch calls internally — one stable external
+    # code either way, never the internal validator's own message text.
     try:
         cleaned = clean_section_schema_patch(definition, patch, section.settings or {})
-    except SettingsSchemaError as exc:
-        raise R4MutationError(str(exc)) from exc
+    except ValueError as exc:
+        raise R4MutationError("invalid_settings") from exc
 
     section.settings = cleaned
     section.save(update_fields=["settings"])

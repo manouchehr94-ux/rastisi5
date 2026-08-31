@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 from django.urls import reverse
 
@@ -384,3 +385,69 @@ class MalformedRequestShapeTests(R4MutationApiTestCase):
                 "patch": "autoplay=false",
             },
         }).encode())
+
+
+# ------------------------------------------------------------------------
+# Task 5 corrective review pass — stable settings error code
+# ------------------------------------------------------------------------
+
+
+class StableSettingsErrorCodeTests(R4MutationApiTestCase):
+    def test_schema_invalid_patch_returns_stable_code_and_leaks_nothing(self):
+        starting_revision = self.draft.edit_revision
+        original_settings = dict(self.section.settings)
+        before_count = self._history_count()
+
+        response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {
+                "type": "section.update_settings",
+                "section_id": self.section.pk,
+                "patch": {"not_a_real_hero_field": "value-that-must-not-appear-in-response"},
+            },
+        })
+
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertIs(body["ok"], False)
+        self.assertEqual(body["code"], "invalid_settings")
+
+        raw_body = response.content.decode()
+        self.assertNotIn("not_a_real_hero_field", raw_body)
+        self.assertNotIn("value-that-must-not-appear-in-response", raw_body)
+
+        self.section.refresh_from_db()
+        self.assertEqual(self.section.settings, original_settings)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.edit_revision, starting_revision)
+        self.assertEqual(self._history_count(), before_count)
+
+    def test_legacy_validator_plain_value_error_becomes_controlled_400(self):
+        starting_revision = self.draft.edit_revision
+        original_settings = dict(self.section.settings)
+        before_count = self._history_count()
+
+        with patch(
+            "apps.storefront_builder.services.r4_mutation_service.clean_section_schema_patch",
+            side_effect=ValueError("legacy-validation-details-must-not-leak"),
+        ):
+            response = self._post_json({
+                "base_revision": starting_revision,
+                "mutation": {
+                    "type": "section.update_settings",
+                    "section_id": self.section.pk,
+                    "patch": {"autoplay": False},
+                },
+            })
+
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["code"], "invalid_settings")
+        raw_body = response.content.decode()
+        self.assertNotIn("legacy-validation-details-must-not-leak", raw_body)
+
+        self.section.refresh_from_db()
+        self.assertEqual(self.section.settings, original_settings)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.edit_revision, starting_revision)
+        self.assertEqual(self._history_count(), before_count)
