@@ -1,6 +1,7 @@
 from django.urls import path
 
 from apps.storefront_builder import media_views as storefront_builder_media_views
+from apps.storefront_builder import r4_views as storefront_builder_r4_views
 from apps.storefront_builder import views as storefront_builder_views
 
 from . import views
@@ -216,6 +217,11 @@ urlpatterns = [
     # --- صفحه اصلی ---
     # --- سازنده بصری صفحه فروشگاه ---
     path("storefront-builder/", storefront_builder_views.storefront_editor, name="storefront-builder-editor"),
+    path(
+        "storefront-builder/r4/",
+        storefront_builder_r4_views.storefront_r4_editor,
+        name="storefront-builder-r4-editor",
+    ),
     path("storefront-builder/templates/", storefront_builder_views.storefront_template_gallery, name="storefront-builder-templates"),
     path("storefront-builder/preview/", storefront_builder_views.storefront_preview, name="storefront-builder-preview"),
     path("storefront-builder/sections/", storefront_builder_views.storefront_section_list_partial, name="storefront-builder-section-list"),

@@ -1,0 +1,36 @@
+{% extends "dashboard/base_admin.html" %}
+{% load static %}
+{% block title %}راستی‌سی — سازنده ظاهر R4{% endblock %}
+{% block page_title %}سازنده ظاهر (R4){% endblock %}
+{% block page_sub %}ویرایشگر جدید — در حال ساخت{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'storefront_builder/r4_editor.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="r4-builder" data-r4-shell="true" data-r4-inspector-open="false"
+     data-edit-revision="{{ r4_edit_revision }}">
+  <header class="r4-topbar">
+    <strong>طراحی فروشگاه</strong>
+    <span id="r4SaveState" aria-live="polite">ذخیره شد</span>
+    <button type="button" id="r4PublishButton">انتشار</button>
+  </header>
+
+  <main class="r4-workspace">
+    <aside id="r4Structure" aria-label="ساختار صفحه"></aside>
+    <section class="r4-preview-pane">
+      <iframe
+        id="r4PreviewFrame"
+        title="پیش‌نمایش فروشگاه"
+        src="{% url 'dashboard:storefront-builder-preview' %}?page=home">
+      </iframe>
+    </section>
+    <aside id="r4Inspector" hidden aria-label="تنظیمات بخش"></aside>
+  </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'storefront_builder/r4_editor.js' %}"></script>
+{% endblock %}
