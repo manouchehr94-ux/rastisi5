@@ -21,6 +21,7 @@ Two independent things live here:
 from __future__ import annotations
 
 import dataclasses
+from types import MappingProxyType
 from typing import Mapping
 
 
@@ -86,11 +87,10 @@ def _clean_manual_ids(raw_ids, *, kind: str) -> tuple[int, ...]:
     return tuple(cleaned)
 
 
-def _clean_auto_parameters(raw_parameters, *, kind: str, auto_rule: str) -> dict:
-    if raw_parameters is None:
-        raw_parameters = {}
-    if not isinstance(raw_parameters, Mapping):
-        raise ResourceSourceError("auto_parameters must be an object")
+def _clean_auto_parameters(raw_parameters: Mapping, *, kind: str, auto_rule: str) -> dict:
+    # Runtime container type is already validated by the caller
+    # (ResourceSource.__post_init__) before this is called — this only
+    # does the per-rule semantic cleaning (allowed keys / required values).
     if kind == "product" and auto_rule in _PRODUCT_AUTO_RULES_WITH_SOURCE_ID:
         unknown = set(raw_parameters) - {"source_id"}
         if unknown:
@@ -122,6 +122,21 @@ class ResourceSource:
         if self.mode not in ALLOWED_MODES:
             raise ResourceSourceError(f"unsupported mode {self.mode!r} (allowed: {list(ALLOWED_MODES)!r})")
 
+        # Runtime container type must be validated BEFORE any coercion — a
+        # falsey-but-wrong-type value (0, "", [], {}) must never silently
+        # become the valid empty structure for the other field. A string is
+        # deliberately excluded even though it is iterable (``tuple("73")``
+        # would silently become ('7', '3')), and a Mapping is never accepted
+        # as a stand-in for manual_ids.
+        if not isinstance(self.auto_parameters, Mapping):
+            raise ResourceSourceError(
+                f"auto_parameters must be a mapping (got {type(self.auto_parameters).__name__})"
+            )
+        if not isinstance(self.manual_ids, (list, tuple)):
+            raise ResourceSourceError(
+                f"manual_ids must be a list or tuple (got {type(self.manual_ids).__name__})"
+            )
+
         # Defensive copies — never retain a caller-owned mutable structure;
         # a list/dict the caller mutates afterward must never mutate this
         # (frozen, but auto_parameters/manual_ids would otherwise alias it).
@@ -149,7 +164,12 @@ class ResourceSource:
             manual_ids = ()
 
         object.__setattr__(self, "manual_ids", manual_ids)
-        object.__setattr__(self, "auto_parameters", auto_parameters)
+        # A frozen dataclass still lets a mutable dict be mutated THROUGH
+        # the attribute (``source.auto_parameters["x"] = ...``) — wrap it in
+        # a genuinely read-only view so the value contract holds all the
+        # way through. serialize_resource_source() still produces a plain
+        # JSON-safe dict via ``dict(source.auto_parameters)``.
+        object.__setattr__(self, "auto_parameters", MappingProxyType(auto_parameters))
 
 
 # --------------------------------------------------------------- serialization
@@ -186,10 +206,28 @@ def deserialize_resource_source(raw: object) -> ResourceSource:
     auto_rule = raw.get("auto_rule")
     if auto_rule is not None and not isinstance(auto_rule, str):
         raise ResourceSourceError("auto_rule must be a string or null")
-    auto_parameters = raw.get("auto_parameters") or {}
-    manual_ids_raw = raw.get("manual_ids") or []
-    if not isinstance(manual_ids_raw, (list, tuple)):
-        raise ResourceSourceError("manual_ids must be an array")
+
+    # A MISSING key legitimately defaults to the empty structure; a
+    # PRESENT-but-wrong-type value (including a falsey one — 0, "", [], {},
+    # explicit null) must be rejected outright, never silently coerced —
+    # falsiness must never change a value's runtime type contract.
+    if "auto_parameters" in raw:
+        auto_parameters = raw["auto_parameters"]
+        if not isinstance(auto_parameters, Mapping):
+            raise ResourceSourceError(
+                f"auto_parameters must be an object (got {type(auto_parameters).__name__})"
+            )
+    else:
+        auto_parameters = {}
+
+    if "manual_ids" in raw:
+        manual_ids_raw = raw["manual_ids"]
+        if not isinstance(manual_ids_raw, (list, tuple)):
+            raise ResourceSourceError(
+                f"manual_ids must be an array (got {type(manual_ids_raw).__name__})"
+            )
+    else:
+        manual_ids_raw = []
 
     return ResourceSource(
         kind=kind, mode=mode, auto_rule=auto_rule,

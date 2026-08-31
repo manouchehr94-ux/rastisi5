@@ -65,6 +65,118 @@ class ResourceSourceConstructionTests(SimpleTestCase):
             rs.ResourceSource(kind="collection", mode="manual", manual_ids=tuple(range(1, 14)))
 
 
+# ---------------------------------------------------------------------------
+# Corrective review pass — a falsey-but-wrong-type serialized value must
+# never silently become the valid empty structure for the other field, and
+# a non-Mapping/non-sequence value passed directly to the constructor must
+# raise ResourceSourceError rather than an uncontrolled Python TypeError.
+# ---------------------------------------------------------------------------
+
+
+class DeserializerStrictTypeTests(SimpleTestCase):
+    def _valid_auto_payload(self, **overrides):
+        payload = {
+            "kind": "product", "mode": "auto", "auto_rule": "newest",
+            "auto_parameters": {}, "manual_ids": [],
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_auto_parameters_list_rejected(self):
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.deserialize_resource_source(self._valid_auto_payload(auto_parameters=[]))
+
+    def test_auto_parameters_empty_string_rejected(self):
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.deserialize_resource_source(self._valid_auto_payload(auto_parameters=""))
+
+    def test_auto_parameters_zero_rejected(self):
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.deserialize_resource_source(self._valid_auto_payload(auto_parameters=0))
+
+    def test_auto_parameters_null_rejected(self):
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.deserialize_resource_source(self._valid_auto_payload(auto_parameters=None))
+
+    def test_manual_ids_empty_string_rejected(self):
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.deserialize_resource_source(self._valid_auto_payload(manual_ids=""))
+
+    def test_manual_ids_empty_dict_rejected(self):
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.deserialize_resource_source(self._valid_auto_payload(manual_ids={}))
+
+    def test_manual_ids_zero_rejected(self):
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.deserialize_resource_source(self._valid_auto_payload(manual_ids=0))
+
+    def test_manual_ids_null_rejected(self):
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.deserialize_resource_source(self._valid_auto_payload(manual_ids=None))
+
+    def test_missing_auto_parameters_key_still_uses_default(self):
+        payload = self._valid_auto_payload()
+        del payload["auto_parameters"]
+        source = rs.deserialize_resource_source(payload)
+        self.assertEqual(dict(source.auto_parameters), {})
+
+    def test_missing_manual_ids_key_still_uses_default(self):
+        payload = self._valid_auto_payload()
+        del payload["manual_ids"]
+        source = rs.deserialize_resource_source(payload)
+        self.assertEqual(source.manual_ids, ())
+
+
+class ConstructorRuntimeTypeTests(SimpleTestCase):
+    def test_auto_parameters_list_rejected(self):
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.ResourceSource(kind="product", mode="auto", auto_rule="newest", auto_parameters=[])
+
+    def test_auto_parameters_empty_string_rejected(self):
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.ResourceSource(kind="product", mode="auto", auto_rule="newest", auto_parameters="")
+
+    def test_auto_parameters_list_of_pairs_rejected(self):
+        # A list-of-pairs is NOT accepted as an accidental Mapping substitute,
+        # even though dict(list_of_pairs) would otherwise happily coerce it.
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.ResourceSource(
+                kind="product", mode="auto", auto_rule="by_category",
+                auto_parameters=[("source_id", 5)],
+            )
+
+    def test_manual_ids_scalar_int_rejected(self):
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.ResourceSource(kind="product", mode="manual", manual_ids=7)
+
+    def test_manual_ids_string_rejected(self):
+        # tuple("73") would silently become ('7', '3') without an upfront
+        # container-type check — must be rejected outright instead.
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.ResourceSource(kind="product", mode="manual", manual_ids="73")
+
+    def test_manual_ids_mapping_rejected(self):
+        with self.assertRaises(rs.ResourceSourceError):
+            rs.ResourceSource(kind="product", mode="manual", manual_ids={1: "x", 2: "y"})
+
+
+class InternalImmutabilityTests(SimpleTestCase):
+    def test_auto_parameters_mapping_is_not_writable(self):
+        source = rs.ResourceSource(
+            kind="product", mode="auto", auto_rule="by_category", auto_parameters={"source_id": 5},
+        )
+        with self.assertRaises(TypeError):
+            source.auto_parameters["source_id"] = 999
+
+    def test_caller_dict_aliasing_after_construction_still_impossible(self):
+        params = {"source_id": 5}
+        source = rs.ResourceSource(
+            kind="product", mode="auto", auto_rule="by_category", auto_parameters=params,
+        )
+        params["source_id"] = 999
+        self.assertEqual(dict(source.auto_parameters), {"source_id": 5})
+
+
 class ProductAutoRuleTests(SimpleTestCase):
     def test_exact_allowlist(self):
         for rule in ("newest", "discounted", "best_sellers", "most_viewed"):
