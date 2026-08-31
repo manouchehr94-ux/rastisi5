@@ -1,11 +1,14 @@
 import json
 
 from django.core.exceptions import ImproperlyConfigured
+from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.middleware.csrf import get_token
 from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
 
+from apps.catalog.models import Brand
+from apps.catalog.services.collection_service import searchable_products
 from apps.dashboard.decorators import permission_required, staff_required
 from apps.stores.authorization import STOREFRONT_LAYOUT_MANAGE
 from apps.stores.resolution import resolve_store_for_service
@@ -61,6 +64,82 @@ _RESOURCE_SOURCE_AUTO_RULE_LABELS_FA = {
     "by_collection": "بر اساس کالکشن",
     "all_active": "همه‌ی موارد فعال",
 }
+
+#: R4 Task 10 — the ONE shared Resource Picker's UI-exposed kinds. Category
+#: and Collection remain valid ResourceSource kinds (Task 9) but Task 10's
+#: Picker UI is Product/Brand only — anything else is a controlled 400, not
+#: a new picker lifecycle.
+_PICKER_UI_KINDS = ("product", "brand")
+_PICKER_SEARCH_RESULT_LIMIT = 20
+
+#: Task 10 Phase 1's directly-interactive auto rules per kind — the only
+#: automatic behaviours the Picker itself can set. Product's by_category/
+#: by_brand/by_collection stay valid ResourceSource states (still readable/
+#: preserved, per Section 17) but are not offered as a Picker control here.
+_PICKER_PRODUCT_AUTO_RULES = tuple(
+    (rule, _RESOURCE_SOURCE_AUTO_RULE_LABELS_FA[rule])
+    for rule in ("newest", "discounted", "best_sellers", "most_viewed")
+)
+_PICKER_BRAND_AUTO_RULES = (("all_active", _RESOURCE_SOURCE_AUTO_RULE_LABELS_FA["all_active"]),)
+
+
+def _search_products(store, query):
+    # Deliberately NOT reimplemented: the exact same Store-scoped,
+    # placeholder-excluding, name/SKU search the rest of the merchant admin
+    # already uses for Product selection.
+    return list(searchable_products(store, query=query)[:_PICKER_SEARCH_RESULT_LIMIT])
+
+
+def _search_brands(store, query):
+    qs = Brand.objects.filter(store=store)
+    if query:
+        qs = qs.filter(Q(name__icontains=query) | Q(name_en__icontains=query))
+    return list(qs.order_by("sort_order", "name", "id")[:_PICKER_SEARCH_RESULT_LIMIT])
+
+
+#: One explicit, server-owned map — no getattr/dynamic import/eval on
+#: user-supplied ``kind``, no separate Product/Brand picker lifecycle.
+_RESOURCE_SEARCHERS = {
+    "product": _search_products,
+    "brand": _search_brands,
+}
+
+
+def _serialize_picker_item(kind, obj):
+    if kind == "product":
+        return {"id": obj.pk, "label": obj.name, "sublabel": obj.sku}
+    return {"id": obj.pk, "label": obj.name, "sublabel": obj.name_en}
+
+
+def _parse_selected_ids(request) -> list[int]:
+    """Strictly positive integers only, deduplicated preserving first-seen
+    order — a malformed value is simply dropped, never a 400 (fail closed,
+    exactly like an unresolvable foreign/nonexistent id below)."""
+    ordered_ids: list[int] = []
+    seen: set[int] = set()
+    for raw in request.GET.getlist("selected"):
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if value <= 0 or value in seen:
+            continue
+        seen.add(value)
+        ordered_ids.append(value)
+    return ordered_ids
+
+
+def _resolve_selected_items(store, kind, ordered_ids):
+    """Fail closed, order-preserving: an id belonging to another Store and
+    an id that plain doesn't exist both simply fail to resolve here — never
+    a second query that would tell the two apart."""
+    if not ordered_ids:
+        return []
+    if kind == "product":
+        found = {obj.pk: obj for obj in searchable_products(store).filter(pk__in=ordered_ids)}
+    else:
+        found = {obj.pk: obj for obj in Brand.objects.filter(store=store, pk__in=ordered_ids)}
+    return [found[value] for value in ordered_ids if value in found]
 
 
 @staff_required
@@ -280,5 +359,51 @@ def storefront_r4_section_inspector(request, pk):
             ],
             "inherited_appearance_by_field": inherited_appearance_by_field,
             "resource_source_summary": resource_source_summary,
+        },
+    )
+
+
+@require_GET
+@staff_required
+@permission_required(STOREFRONT_LAYOUT_MANAGE)
+def storefront_r4_resource_picker(request):
+    """R4 Task 10 — the ONE shared search/selection endpoint behind the
+    Product+Brand Resource Picker. GET-only, read-only: it never writes a
+    Section. The only Section write remains the existing Task 5 mutation
+    endpoint (``section.update_settings`` with a ``source`` patch)."""
+    store = resolve_store_for_service(request)
+    layout = layout_service.get_or_create_layout(store)
+    if not layout.r4_editor_enabled:
+        raise Http404
+
+    kind = request.GET.get("kind")
+    if kind not in _PICKER_UI_KINDS:
+        return JsonResponse({"ok": False, "code": "unsupported_kind"}, status=400)
+
+    query = (request.GET.get("q") or "").strip()
+    max_items = resource_source.manual_id_limit(kind)
+
+    # Server-enforced max — never the client's own max_items — applied
+    # BEFORE resolving/rendering any selected item.
+    ordered_selected_ids = _parse_selected_ids(request)[:max_items]
+
+    searcher = _RESOURCE_SEARCHERS[kind]
+    results = [_serialize_picker_item(kind, obj) for obj in searcher(store, query)]
+    selected_items = [
+        _serialize_picker_item(kind, obj)
+        for obj in _resolve_selected_items(store, kind, ordered_selected_ids)
+    ]
+
+    return render(
+        request,
+        "dashboard/storefront_builder/r4/partials/resource_picker.html",
+        {
+            "kind": kind,
+            "kind_label": _RESOURCE_SOURCE_KIND_LABELS_FA.get(kind, kind),
+            "query": query,
+            "max_items": max_items,
+            "results": results,
+            "selected_items": selected_items,
+            "auto_rules": _PICKER_PRODUCT_AUTO_RULES if kind == "product" else _PICKER_BRAND_AUTO_RULES,
         },
     )

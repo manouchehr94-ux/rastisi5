@@ -1,0 +1,96 @@
+{% comment %}
+R4 Task 10 — the ONE shared Resource Picker for Product + Brand. Branches
+only on generic Picker contract metadata (kind/kind_label/max_items/
+auto_rules) passed in by the view — never on a section_key literal such as
+"product_section"/"brand_carousel". Read-only search/selection UI: no
+<form>, no action=, no Section-save endpoint of its own — the only Section
+write stays R4.enqueueMutation({type:"section.update_settings", ...})
+in r4_editor.js.
+{% endcomment %}
+<div class="r4-picker-overlay" data-r4-picker-root data-r4-picker-kind="{{ kind }}">
+  <div class="r4-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="r4PickerTitle">
+    <header class="r4-picker-header">
+      <strong id="r4PickerTitle" class="r4-picker-title">انتخاب {{ kind_label }}</strong>
+      <button type="button" class="r4-icon-btn" data-r4-picker-close aria-label="بستن">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </header>
+
+    <div class="r4-picker-mode-tabs" role="tablist">
+      <button type="button" class="r4-picker-mode-tab" role="tab" data-r4-picker-mode="manual">انتخاب دستی</button>
+      <button type="button" class="r4-picker-mode-tab" role="tab" data-r4-picker-mode="auto">خودکار</button>
+    </div>
+
+    <div class="r4-picker-body">
+      <section class="r4-picker-panel" data-r4-picker-panel="manual">
+        <input type="text"
+               class="r4-control r4-picker-search"
+               data-r4-picker-search
+               placeholder="جستجو…"
+               value="{{ query }}"
+               autocomplete="off">
+
+        <div class="r4-picker-columns">
+          <div class="r4-picker-column">
+            <div class="r4-picker-column-label">نتایج جستجو</div>
+            <div id="r4PickerResults" class="r4-picker-list" data-r4-picker-results>
+              {% for item in results %}
+              <button type="button"
+                      class="r4-picker-row r4-picker-row--result"
+                      data-r4-picker-add
+                      data-r4-picker-item-id="{{ item.id }}"
+                      data-r4-picker-item-label="{{ item.label }}"
+                      data-r4-picker-item-sublabel="{{ item.sublabel }}">
+                <span class="r4-picker-row-label">{{ item.label }}</span>
+                <span class="r4-picker-row-sublabel">{{ item.sublabel }}</span>
+              </button>
+              {% empty %}
+              <p class="r4-picker-empty">موردی یافت نشد.</p>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="r4-picker-column">
+            <div class="r4-picker-column-label">
+              انتخاب‌شده‌ها
+              (<span data-r4-picker-selected-count>{{ selected_items|length }}</span>/<span data-r4-picker-max-items>{{ max_items }}</span>)
+            </div>
+            <div id="r4PickerSelectedList" class="r4-picker-list" data-r4-picker-selected>
+              {% for item in selected_items %}
+              <div class="r4-picker-row r4-picker-row--selected"
+                   data-r4-picker-selected-item
+                   data-r4-picker-item-id="{{ item.id }}"
+                   data-r4-picker-item-label="{{ item.label }}"
+                   data-r4-picker-item-sublabel="{{ item.sublabel }}">
+                <span class="r4-picker-row-label">{{ item.label }}</span>
+                <span class="r4-picker-row-sublabel">{{ item.sublabel }}</span>
+                <span class="r4-picker-row-actions">
+                  <button type="button" data-r4-picker-move="up" aria-label="جابه‌جایی به بالا">↑</button>
+                  <button type="button" data-r4-picker-move="down" aria-label="جابه‌جایی به پایین">↓</button>
+                  <button type="button" data-r4-picker-remove aria-label="حذف">✕</button>
+                </span>
+              </div>
+              {% empty %}
+              <p class="r4-picker-empty" data-r4-picker-selected-empty-hint>هنوز چیزی انتخاب نشده است.</p>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="r4-picker-panel" data-r4-picker-panel="auto" hidden>
+        <div class="r4-picker-auto-rules">
+          {% for value, label in auto_rules %}
+          <button type="button" class="r4-picker-auto-rule" data-r4-picker-auto-rule="{{ value }}">{{ label }}</button>
+          {% endfor %}
+        </div>
+        <p class="r4-picker-auto-current" data-r4-picker-auto-current hidden></p>
+      </section>
+    </div>
+
+    <footer class="r4-picker-footer">
+      <button type="button" class="r4-picker-cancel" data-r4-picker-cancel>انصراف</button>
+      <button type="button" class="r4-picker-apply" data-r4-picker-apply>اعمال</button>
+    </footer>
+  </div>
+</div>

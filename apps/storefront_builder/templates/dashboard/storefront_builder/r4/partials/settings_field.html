@@ -81,9 +81,10 @@ must never silently fall back to a plain text input for an unsupported type.
   </div>
 
   {% elif field.field_type == "resource_source" %}
-  {# R4 Task 9 — a clean READ-ONLY summary of the current typed source.   #}
-  {# The interactive Resource Picker (search/manual-select/overlay) is    #}
-  {# Task 10's job; this must never pretend to be editable yet.           #}
+  {# R4 Task 9 — a clean READ-ONLY summary of the current typed source,   #}
+  {# upgraded in Task 10 with ONE generic open control shared by every    #}
+  {# resource_source-aware section (never a Product/Brand-specific        #}
+  {# branch here) — clicking it opens the shared R4 Resource Picker.      #}
   <div class="r4-resource-source-summary" id="r4Field-{{ field.key }}" data-r4-field-key="{{ field.key }}" data-r4-field-type="resource_source">
     <div class="r4-resource-source-row">
       <span class="r4-field-sublabel">نوع منبع</span>
@@ -104,7 +105,7 @@ must never silently fall back to a plain text input for an unsupported type.
       <strong>{{ resource_source_summary.manual_count }}</strong>
     </div>
     {% endif %}
-    <p class="r4-resource-source-note">انتخاب دستی/خودکار از این‌جا به‌زودی قابل ویرایش خواهد بود.</p>
+    <button type="button" class="r4-resource-source-open" data-r4-resource-picker-open>انتخاب / ویرایش</button>
   </div>
   {% endif %}
 </div>

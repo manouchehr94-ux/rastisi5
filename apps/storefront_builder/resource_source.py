@@ -67,6 +67,15 @@ _AUTO_RULES_BY_KIND = {
 }
 
 
+def manual_id_limit(kind: str) -> int:
+    """The existing, already-authoritative manual-ID cap for ``kind`` — a
+    tiny public accessor so Task 10's Picker never re-invents/duplicates
+    ``_MANUAL_ID_CAPS`` (never enlarges it either)."""
+    if kind not in ALLOWED_KINDS:
+        raise ResourceSourceError(f"unsupported kind {kind!r} (allowed: {list(ALLOWED_KINDS)!r})")
+    return _MANUAL_ID_CAPS[kind]
+
+
 def _is_strict_positive_int(value: object) -> bool:
     return type(value) is int and value > 0
 

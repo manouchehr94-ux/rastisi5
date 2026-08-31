@@ -5,6 +5,7 @@ window.RastiSiR4 = {
   saveState: 'saved',
   conflict: false,
   queue: null,
+  resourcePicker: null,
 };
 
 (function () {
@@ -16,6 +17,17 @@ window.RastiSiR4 = {
   var sidebarToggle = document.getElementById('r4SidebarToggle');
   var structurePanel = document.getElementById('r4Structure');
   var structureToggle = document.getElementById('r4StructureToggle');
+  // R4 Task 10 — the shared Resource Picker overlay root is created here
+  // (never added to editor.html's own markup, which Task 10 leaves
+  // untouched) so it always exists as a direct child of the R4 shell.
+  var pickerRoot = document.getElementById('r4ResourcePicker');
+  if (!pickerRoot && shell) {
+    pickerRoot = document.createElement('div');
+    pickerRoot.id = 'r4ResourcePicker';
+    pickerRoot.hidden = true;
+    shell.appendChild(pickerRoot);
+  }
+  var pickerSearchTimer = null;
 
   // ---- Admin sidebar: R4-page-only, defaults to collapsed on every fresh
   // load (nothing persisted between page loads) — driven purely by a data
@@ -294,7 +306,15 @@ window.RastiSiR4 = {
         return;
       }
       var closeButton = evt.target.closest('[data-r4-inspector-close]');
-      if (closeButton) closeInspector();
+      if (closeButton) { closeInspector(); return; }
+      // R4 Task 10 — the ONE generic open control on a resource_source
+      // field row; identical for product_section and brand_carousel, no
+      // Product/Brand-specific handler.
+      var pickerOpenButton = evt.target.closest('[data-r4-resource-picker-open]');
+      if (pickerOpenButton) {
+        var pickerFieldWrapper = pickerOpenButton.closest('[data-r4-field-key]');
+        R4.openResourcePicker(pickerFieldWrapper);
+      }
     });
 
     inspector.addEventListener('change', function (evt) {
@@ -423,6 +443,329 @@ window.RastiSiR4 = {
       }
     });
   }
+
+  // ---- R4 Task 10 — the ONE shared Resource Picker lifecycle for both
+  // Product and Brand. One state object (R4.resourcePicker), one fetch
+  // endpoint (resources/picker/), one apply path (the existing Task 5
+  // R4.enqueueMutation queue) — never a per-kind picker/component/endpoint.
+  function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
+  function pickerFetchUrl(kind, query, selectedIds) {
+    var url = new URL('resources/picker/', window.location.href);
+    url.searchParams.set('kind', kind);
+    if (query) url.searchParams.set('q', query);
+    selectedIds.forEach(function (id) { url.searchParams.append('selected', String(id)); });
+    return url;
+  }
+
+  function pickerAllowedAutoRules() {
+    var rules = [];
+    if (!pickerRoot) return rules;
+    pickerRoot.querySelectorAll('[data-r4-picker-auto-rule]').forEach(function (button) {
+      rules.push(button.getAttribute('data-r4-picker-auto-rule'));
+    });
+    return rules;
+  }
+
+  function pickerHasValidSelection() {
+    var state = R4.resourcePicker;
+    if (!state) return false;
+    if (state.mode === 'manual') return state.selectedIds.length > 0;
+    if (state.mode === 'auto') return pickerAllowedAutoRules().indexOf(state.autoRule) !== -1;
+    return false;
+  }
+
+  function updatePickerApplyEnabled() {
+    if (!pickerRoot) return;
+    var applyButton = pickerRoot.querySelector('[data-r4-picker-apply]');
+    if (applyButton) applyButton.disabled = !pickerHasValidSelection();
+  }
+
+  function buildPickerSelectedRowHTML(item) {
+    return (
+      '<div class="r4-picker-row r4-picker-row--selected" data-r4-picker-selected-item '
+      + 'data-r4-picker-item-id="' + item.id + '" '
+      + 'data-r4-picker-item-label="' + escapeHtml(item.label) + '" '
+      + 'data-r4-picker-item-sublabel="' + escapeHtml(item.sublabel || '') + '">'
+      + '<span class="r4-picker-row-label">' + escapeHtml(item.label) + '</span>'
+      + '<span class="r4-picker-row-sublabel">' + escapeHtml(item.sublabel || '') + '</span>'
+      + '<span class="r4-picker-row-actions">'
+      + '<button type="button" data-r4-picker-move="up" aria-label="جابه‌جایی به بالا">↑</button>'
+      + '<button type="button" data-r4-picker-move="down" aria-label="جابه‌جایی به پایین">↓</button>'
+      + '<button type="button" data-r4-picker-remove aria-label="حذف">✕</button>'
+      + '</span></div>'
+    );
+  }
+
+  function renderPickerSelectedList() {
+    var state = R4.resourcePicker;
+    if (!state || !pickerRoot) return;
+    var listEl = pickerRoot.querySelector('#r4PickerSelectedList');
+    if (!listEl) return;
+    if (state.selectedIds.length === 0) {
+      listEl.innerHTML = '<p class="r4-picker-empty" data-r4-picker-selected-empty-hint>هنوز چیزی انتخاب نشده است.</p>';
+    } else {
+      listEl.innerHTML = state.selectedIds.map(function (id) {
+        var item = state.itemCache[id] || { id: id, label: String(id), sublabel: '' };
+        return buildPickerSelectedRowHTML(item);
+      }).join('');
+    }
+    var countEl = pickerRoot.querySelector('[data-r4-picker-selected-count]');
+    if (countEl) countEl.textContent = String(state.selectedIds.length);
+    updatePickerApplyEnabled();
+  }
+
+  function syncPickerModeUI() {
+    var state = R4.resourcePicker;
+    if (!state || !pickerRoot) return;
+    var activeTabName = state.mode === 'manual' ? 'manual' : (state.mode === 'auto' ? 'auto' : null);
+    pickerRoot.querySelectorAll('[data-r4-picker-mode]').forEach(function (tabButton) {
+      var isActive = tabButton.getAttribute('data-r4-picker-mode') === activeTabName;
+      tabButton.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+    pickerRoot.querySelectorAll('[data-r4-picker-panel]').forEach(function (panel) {
+      var name = panel.getAttribute('data-r4-picker-panel');
+      var show = state.mode === 'manual' ? name === 'manual' : name === 'auto';
+      if (show) panel.removeAttribute('hidden'); else panel.setAttribute('hidden', '');
+    });
+    var allowedRules = pickerAllowedAutoRules();
+    pickerRoot.querySelectorAll('[data-r4-picker-auto-rule]').forEach(function (ruleButton) {
+      var isActive = ruleButton.getAttribute('data-r4-picker-auto-rule') === state.autoRule;
+      ruleButton.classList.toggle('r4-picker-auto-rule--active', isActive);
+      ruleButton.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+    // Task 9's typed Product auto rules (by_category/by_brand/by_collection)
+    // are preserved but not directly editable here (Section 17) — surfaced
+    // as read-only info, never silently replaced by opening/closing.
+    var currentNote = pickerRoot.querySelector('[data-r4-picker-auto-current]');
+    if (currentNote) {
+      if (state.mode === 'auto' && state.autoRule && allowedRules.indexOf(state.autoRule) === -1) {
+        currentNote.hidden = false;
+        currentNote.textContent = 'این بخش هم‌اکنون از یک قانون خودکار دیگر استفاده می‌کند که در این پنجره قابل تغییر مستقیم نیست. برای تغییر، حالت دستی یا یکی از گزینه‌های بالا را انتخاب کنید.';
+      } else {
+        currentNote.hidden = true;
+      }
+    }
+    updatePickerApplyEnabled();
+  }
+
+  function closeResourcePicker() {
+    if (!pickerRoot) return;
+    pickerRoot.hidden = true;
+    pickerRoot.innerHTML = '';
+    R4.resourcePicker = null;
+  }
+
+  function refreshPickerResults() {
+    var state = R4.resourcePicker;
+    if (!state || !pickerRoot) return Promise.resolve();
+    var url = pickerFetchUrl(state.kind, state.query, state.selectedIds);
+    return fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (response) { return response.text(); })
+      .then(function (html) {
+        var freshDoc = new DOMParser().parseFromString(html, 'text/html');
+        var freshResults = freshDoc.getElementById('r4PickerResults');
+        var currentResults = pickerRoot.querySelector('#r4PickerResults');
+        if (freshResults && currentResults) {
+          currentResults.innerHTML = freshResults.innerHTML;
+          currentResults.querySelectorAll('[data-r4-picker-item-id]').forEach(function (el) {
+            var id = Number(el.getAttribute('data-r4-picker-item-id'));
+            state.itemCache[id] = {
+              id: id,
+              label: el.getAttribute('data-r4-picker-item-label'),
+              sublabel: el.getAttribute('data-r4-picker-item-sublabel'),
+            };
+          });
+        }
+      })
+      .catch(function () {
+        // A failed search refresh leaves the previous results visible —
+        // never treated as "nothing found", never retried automatically.
+      });
+  }
+
+  function buildResourceSourcePayload() {
+    var state = R4.resourcePicker;
+    if (!state) return null;
+    if (state.mode === 'manual') {
+      if (!state.selectedIds.length) return null;
+      return {
+        kind: state.kind, mode: 'manual', auto_rule: null, auto_parameters: {},
+        manual_ids: state.selectedIds.slice(),
+      };
+    }
+    if (state.mode === 'auto' && pickerAllowedAutoRules().indexOf(state.autoRule) !== -1) {
+      return { kind: state.kind, mode: 'auto', auto_rule: state.autoRule, auto_parameters: {}, manual_ids: [] };
+    }
+    return null;
+  }
+
+  function applyResourcePicker() {
+    var state = R4.resourcePicker;
+    var payload = buildResourceSourcePayload();
+    if (!state || !payload) return Promise.resolve();
+    var sectionId = R4.selected;
+    var patch = {};
+    patch[state.fieldKey] = payload;
+    // The ONE Section write remains the existing Task 5 mutation queue —
+    // the Picker has no save endpoint/form of its own.
+    return R4.enqueueMutation({
+      type: 'section.update_settings',
+      section_id: sectionId,
+      patch: patch,
+    }).then(function (result) {
+      if (result && result.ok) {
+        closeResourcePicker();
+        if (previewFrame && previewFrame.contentWindow) {
+          previewFrame.contentWindow.location.reload();
+        }
+        // Re-open the Inspector so its summary comes back from the
+        // server-authoritative legacy -> ResourceSource projection —
+        // never reconstructed client-side.
+        return R4.openSection(sectionId);
+      }
+      // Controlled 400/409/network failure — overlay stays open, nothing
+      // is pretended to be saved; the existing save-state/conflict
+      // handling in R4.sendMutation already governs what happens next.
+      return result;
+    });
+  }
+
+  R4.openResourcePicker = function (fieldWrapper) {
+    if (!fieldWrapper || !pickerRoot || R4.selected == null) return Promise.resolve();
+    var fieldKey = fieldWrapper.getAttribute('data-r4-field-key');
+    var script = document.getElementById('r4InspectorFieldValues');
+    var values = {};
+    if (script) {
+      try { values = JSON.parse(script.textContent) || {}; } catch (err) { values = {}; }
+    }
+    // The CURRENT typed ResourceSource, already projected server-side
+    // (Task 9) from the real legacy Section.settings — never reconstructed
+    // from visible Persian summary text.
+    var current = values[fieldKey] || {};
+    if (!current.kind) return Promise.resolve();
+
+    R4.resourcePicker = {
+      fieldKey: fieldKey,
+      kind: current.kind,
+      mode: current.mode === 'manual' ? 'manual' : 'auto',
+      autoRule: current.auto_rule || null,
+      autoParameters: current.auto_parameters || {},
+      selectedIds: (current.manual_ids || []).slice(),
+      itemCache: {},
+      maxItems: 0,
+      query: '',
+    };
+
+    var url = pickerFetchUrl(current.kind, '', R4.resourcePicker.selectedIds);
+    return fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (response) { return response.ok ? response.text() : null; })
+      .then(function (html) {
+        if (html == null || !R4.resourcePicker) return;
+        pickerRoot.innerHTML = html;
+        pickerRoot.hidden = false;
+        var maxItemsEl = pickerRoot.querySelector('[data-r4-picker-max-items]');
+        R4.resourcePicker.maxItems = maxItemsEl ? Number(maxItemsEl.textContent) || 0 : 0;
+        pickerRoot.querySelectorAll('[data-r4-picker-item-id]').forEach(function (el) {
+          var id = Number(el.getAttribute('data-r4-picker-item-id'));
+          R4.resourcePicker.itemCache[id] = {
+            id: id,
+            label: el.getAttribute('data-r4-picker-item-label'),
+            sublabel: el.getAttribute('data-r4-picker-item-sublabel'),
+          };
+        });
+        syncPickerModeUI();
+        var searchInput = pickerRoot.querySelector('[data-r4-picker-search]');
+        if (searchInput) searchInput.focus();
+      })
+      .catch(function () {
+        closeResourcePicker();
+      });
+  };
+
+  if (pickerRoot) {
+    pickerRoot.addEventListener('input', function (evt) {
+      var searchInput = evt.target.closest('[data-r4-picker-search]');
+      if (!searchInput || !R4.resourcePicker) return;
+      R4.resourcePicker.query = searchInput.value;
+      if (pickerSearchTimer) clearTimeout(pickerSearchTimer);
+      pickerSearchTimer = setTimeout(refreshPickerResults, 300);
+    });
+
+    pickerRoot.addEventListener('click', function (evt) {
+      if (evt.target.closest('[data-r4-picker-close]') || evt.target.closest('[data-r4-picker-cancel]')) {
+        closeResourcePicker();
+        return;
+      }
+      var modeTab = evt.target.closest('[data-r4-picker-mode]');
+      if (modeTab && R4.resourcePicker) {
+        R4.resourcePicker.mode = modeTab.getAttribute('data-r4-picker-mode');
+        syncPickerModeUI();
+        return;
+      }
+      var ruleButton = evt.target.closest('[data-r4-picker-auto-rule]');
+      if (ruleButton && R4.resourcePicker) {
+        R4.resourcePicker.mode = 'auto';
+        R4.resourcePicker.autoRule = ruleButton.getAttribute('data-r4-picker-auto-rule');
+        syncPickerModeUI();
+        return;
+      }
+      var addButton = evt.target.closest('[data-r4-picker-add]');
+      if (addButton && R4.resourcePicker) {
+        var state = R4.resourcePicker;
+        if (state.selectedIds.length >= state.maxItems) return;
+        var addId = Number(addButton.getAttribute('data-r4-picker-item-id'));
+        if (state.selectedIds.indexOf(addId) !== -1) return;
+        state.itemCache[addId] = {
+          id: addId,
+          label: addButton.getAttribute('data-r4-picker-item-label'),
+          sublabel: addButton.getAttribute('data-r4-picker-item-sublabel'),
+        };
+        state.selectedIds.push(addId);
+        state.mode = 'manual';
+        renderPickerSelectedList();
+        syncPickerModeUI();
+        return;
+      }
+      var removeButton = evt.target.closest('[data-r4-picker-remove]');
+      if (removeButton && R4.resourcePicker) {
+        var removeRow = removeButton.closest('[data-r4-picker-selected-item]');
+        if (!removeRow) return;
+        var removeId = Number(removeRow.getAttribute('data-r4-picker-item-id'));
+        R4.resourcePicker.selectedIds = R4.resourcePicker.selectedIds.filter(function (v) { return v !== removeId; });
+        renderPickerSelectedList();
+        return;
+      }
+      var moveButton = evt.target.closest('[data-r4-picker-move]');
+      if (moveButton && R4.resourcePicker) {
+        var moveRow = moveButton.closest('[data-r4-picker-selected-item]');
+        if (!moveRow) return;
+        var moveId = Number(moveRow.getAttribute('data-r4-picker-item-id'));
+        var ids = R4.resourcePicker.selectedIds;
+        var idx = ids.indexOf(moveId);
+        var swapWith = moveButton.getAttribute('data-r4-picker-move') === 'up' ? idx - 1 : idx + 1;
+        if (idx === -1 || swapWith < 0 || swapWith >= ids.length) return;
+        var tmp = ids[idx];
+        ids[idx] = ids[swapWith];
+        ids[swapWith] = tmp;
+        renderPickerSelectedList();
+        return;
+      }
+      if (evt.target.closest('[data-r4-picker-apply]')) {
+        applyResourcePicker();
+      }
+    });
+  }
+
+  document.addEventListener('keydown', function (evt) {
+    if (evt.key === 'Escape' && pickerRoot && !pickerRoot.hidden) {
+      closeResourcePicker();
+    }
+  });
 
   // ---- Preview selection compatibility bridge (see Task 6 finding):
   // a normal click on a Preview section currently only ever reaches
