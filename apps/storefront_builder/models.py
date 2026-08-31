@@ -208,6 +208,10 @@ class StorefrontLayout(TimeStampedModel):
         "StorefrontLayoutVersion", verbose_name="نسخه پیش‌نویس",
         on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
     )
+    r4_editor_enabled = models.BooleanField(
+        default=False,
+        help_text="Feature gate for the R4 storefront-builder editor shell.",
+    )
 
     class Meta:
         verbose_name = "چیدمان صفحه فروشگاه"
@@ -309,6 +313,10 @@ class StorefrontLayoutVersion(TimeStampedModel):
         on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
     )
     published_at = models.DateTimeField("تاریخ انتشار", null=True, blank=True)
+    edit_revision = models.PositiveBigIntegerField(
+        default=0,
+        help_text="Monotonic optimistic-concurrency token for Draft mutations.",
+    )
 
     class Meta:
         verbose_name = "نسخه چیدمان"
