@@ -1,11 +1,13 @@
 from django.test import SimpleTestCase
 
+from apps.storefront_builder import section_registry
 from apps.storefront_builder.section_registry import SectionDefinition
 from apps.storefront_builder.settings_schema import (
     SettingsField,
     SettingsSchema,
     SettingsSchemaError,
     clean_schema_patch,
+    clean_section_schema_patch,
     normalize_digits,
     serialize_schema,
 )
@@ -332,3 +334,171 @@ class JsonSafeDefaultTests(SimpleTestCase):
         SettingsField("autoplay", "پخش خودکار", "boolean", "basic", default=True)
         SettingsField("tags", "برچسب‌ها", "text", "basic", default=["a", "b"])
         SettingsField("meta", "متا", "text", "basic", default={"a": 1})
+
+
+# ------------------------------------------------------------------------
+# Task 4 — register schemas for Rich Text and Hero without deleting the
+# legacy validators. All fixtures below are built from the ACTUAL
+# repository registry (get_definition(...).default_settings()/
+# validate_settings(...)), never invented shapes.
+# ------------------------------------------------------------------------
+
+
+class RichTextSchemaRegistrationTests(SimpleTestCase):
+    def test_rich_text_is_schema_enabled_with_exactly_body_html(self):
+        rich_text = section_registry.get_definition("rich_text")
+        self.assertIsNotNone(rich_text.settings_schema)
+        self.assertEqual(
+            [f.key for f in rich_text.settings_schema.fields],
+            ["body_html"],
+        )
+
+    def test_rich_text_body_html_field_metadata_matches_legacy_contract(self):
+        rich_text = section_registry.get_definition("rich_text")
+        field = rich_text.settings_schema.get_field("body_html")
+        self.assertEqual(field.field_type, "rich_text")
+        self.assertEqual(field.group, "basic")
+        self.assertEqual(field.default, "")
+        self.assertEqual(field.max_length, section_registry._MAX_RICH_TEXT_LENGTH)
+        self.assertEqual(field.widget_hint, "merchant_rich_text")
+
+
+class HeroBannerSchemaRegistrationTests(SimpleTestCase):
+    def test_hero_banner_is_schema_enabled(self):
+        hero = section_registry.get_definition("hero_banner")
+        self.assertIsNotNone(hero.settings_schema)
+
+    def test_hero_banner_field_keys_are_in_declared_order(self):
+        hero = section_registry.get_definition("hero_banner")
+        self.assertEqual(
+            [f.key for f in hero.settings_schema.fields],
+            [
+                "hero_style",
+                "autoplay",
+                "interval_ms",
+                "show_arrows",
+                "show_dots",
+                "loop",
+                "text_position",
+            ],
+        )
+
+    def test_hero_style_field_matches_legacy_contract(self):
+        hero = section_registry.get_definition("hero_banner")
+        field = hero.settings_schema.get_field("hero_style")
+        self.assertEqual(field.field_type, "choice")
+        self.assertEqual(field.default, "overlay")
+        self.assertEqual(
+            set(field.choices),
+            {(choice, choice) for choice in section_registry.HERO_STYLE_CHOICES},
+        )
+
+    def test_autoplay_field_matches_legacy_contract(self):
+        hero = section_registry.get_definition("hero_banner")
+        field = hero.settings_schema.get_field("autoplay")
+        self.assertEqual(field.field_type, "boolean")
+        self.assertEqual(field.default, True)
+
+    def test_interval_ms_field_matches_legacy_contract(self):
+        hero = section_registry.get_definition("hero_banner")
+        field = hero.settings_schema.get_field("interval_ms")
+        self.assertEqual(field.field_type, "integer")
+        self.assertEqual(field.default, section_registry._SLIDER_DEFAULT_INTERVAL_MS)
+        self.assertEqual(field.min_value, section_registry._SLIDER_MIN_INTERVAL_MS)
+        self.assertEqual(field.max_value, section_registry._SLIDER_MAX_INTERVAL_MS)
+        self.assertEqual(field.group, "advanced")
+
+    def test_show_arrows_show_dots_loop_fields_match_legacy_contract(self):
+        hero = section_registry.get_definition("hero_banner")
+        for key in ("show_arrows", "show_dots", "loop"):
+            field = hero.settings_schema.get_field(key)
+            self.assertEqual(field.field_type, "boolean")
+            self.assertEqual(field.default, True)
+            self.assertEqual(field.group, "advanced")
+
+    def test_text_position_field_matches_legacy_contract(self):
+        hero = section_registry.get_definition("hero_banner")
+        field = hero.settings_schema.get_field("text_position")
+        self.assertEqual(field.field_type, "choice")
+        self.assertEqual(field.default, "end")
+        self.assertEqual(
+            set(field.choices), {("start", "ابتدا"), ("center", "وسط"), ("end", "انتها")}
+        )
+        self.assertEqual(field.group, "advanced")
+
+
+class NoOtherSectionBecomesSchemaEnabledTests(SimpleTestCase):
+    def test_image_slider_shares_the_slider_validator_but_is_not_schema_enabled(self):
+        # image_slider uses the exact same _validate_slider_settings /
+        # default_slider_settings pair as hero_banner, but has no
+        # `variants` registered — Task 4 must not accidentally schema-
+        # enable it just because it shares the validator function.
+        image_slider = section_registry.get_definition("image_slider")
+        self.assertIsNone(image_slider.settings_schema)
+
+    def test_representative_unrelated_section_is_still_unschematized(self):
+        faq = section_registry.get_definition("faq")
+        self.assertIsNone(faq.settings_schema)
+
+
+class CleanSectionSchemaPatchBridgeTests(SimpleTestCase):
+    def test_definition_without_schema_is_rejected(self):
+        definition = SectionDefinition(
+            key="dummy",
+            label_fa="آزمایشی",
+            icon="icon",
+            template_name="dummy.html",
+            validate_settings=lambda settings: settings,
+            default_settings=lambda: {},
+        )
+        with self.assertRaisesMessage(SettingsSchemaError, "Section is not schema-enabled"):
+            clean_section_schema_patch(definition, {"anything": "x"}, {})
+
+    def test_rich_text_bridge_matches_legacy_validator_result(self):
+        rich_text = section_registry.get_definition("rich_text")
+        current = rich_text.validate_settings(rich_text.default_settings())
+
+        bridged = clean_section_schema_patch(
+            rich_text, {"body_html": "<p>سلام</p>"}, current,
+        )
+
+        expected = rich_text.validate_settings({**current, "body_html": "<p>سلام</p>"})
+        self.assertEqual(bridged, expected)
+
+    def test_hero_preserves_supported_legacy_wrapper_blocks(self):
+        hero = section_registry.get_definition("hero_banner")
+        current = hero.validate_settings(hero.default_settings())
+        # These are the ACTUAL wrapper blocks the finalized hero_banner
+        # validator chain supports (see _finalize_registry / the
+        # *_AWARE_SECTION_KEYS allowlists in section_registry.py):
+        # responsive (all sections), motion, layout, background, spacing.
+        for expected_block in ("responsive", "motion", "layout", "background", "spacing"):
+            self.assertIn(expected_block, current)
+
+        raw_patch = {"autoplay": False}
+        raw_patch_copy = dict(raw_patch)
+        current_copy = dict(current)
+
+        bridged = clean_section_schema_patch(hero, raw_patch, current)
+
+        self.assertIs(bridged["autoplay"], False)
+        for block_key in ("responsive", "motion", "layout", "background", "spacing"):
+            self.assertEqual(bridged[block_key], current[block_key])
+        # the bridge's final step already ran definition.validate_settings,
+        # so re-running it must be a no-op (proves it's an accepted shape).
+        self.assertEqual(hero.validate_settings(bridged), bridged)
+        self.assertEqual(raw_patch, raw_patch_copy)
+        self.assertEqual(current, current_copy)
+
+    def test_hero_interval_ms_accepts_persian_digits_through_the_bridge(self):
+        hero = section_registry.get_definition("hero_banner")
+        current = hero.validate_settings(hero.default_settings())
+        bridged = clean_section_schema_patch(hero, {"interval_ms": "۴۵۰۰"}, current)
+        self.assertEqual(bridged["interval_ms"], 4500)
+        self.assertIsInstance(bridged["interval_ms"], int)
+
+    def test_hero_unknown_key_is_rejected_before_reaching_legacy_validator(self):
+        hero = section_registry.get_definition("hero_banner")
+        current = hero.validate_settings(hero.default_settings())
+        with self.assertRaises(SettingsSchemaError):
+            clean_section_schema_patch(hero, {"not_a_real_field": "x"}, current)

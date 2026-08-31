@@ -20,7 +20,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Callable
 
-from .settings_schema import SettingsSchema
+from .settings_schema import SettingsField, SettingsSchema
 from .variant_contract import VariantDefinition, validate_variant_selection, validate_variants
 
 #: شش نوعِ صفحه — دقیقاً همان رشته‌های ``StorefrontPage.PageType.values``
@@ -205,6 +205,24 @@ def _validate_rich_text_settings(raw: dict) -> dict:
     if len(body_html) > _MAX_RICH_TEXT_LENGTH:
         raise ValueError(f"متن نباید بیشتر از {_MAX_RICH_TEXT_LENGTH} نویسه باشد")
     return {"body_html": body_html}
+
+
+#: R4 Task 4 — the declarative counterpart of ``_validate_rich_text_settings``
+#: above, for the new Inspector layer only. ``_validate_rich_text_settings``
+#: remains the authoritative post-validation step (see
+#: ``settings_schema.clean_section_schema_patch``); this schema exists only
+#: to describe the same single field declaratively.
+RICH_TEXT_SCHEMA = SettingsSchema(fields=(
+    SettingsField(
+        key="body_html",
+        label="متن",
+        field_type="rich_text",
+        group="basic",
+        default="",
+        max_length=_MAX_RICH_TEXT_LENGTH,
+        widget_hint="merchant_rich_text",
+    ),
+))
 
 
 #: منابع مجازِ داده‌یِ بخشِ محصول (فاز C) — enum بسته؛ هر مقدارِ دیگر رد
@@ -1236,6 +1254,50 @@ def default_slider_settings() -> dict:
     }
 
 
+#: R4 Task 4 — declarative counterpart of ``_validate_slider_settings``
+#: for ``hero_banner`` only (Phase 0 scope; NOT attached to
+#: ``image_slider``, which shares the same legacy validator but has no
+#: registered ``variants``). Only the existing high-level slider keys —
+#: no wrapper block (responsive/motion/layout/background/spacing) is
+#: schema-declared here; those keep surviving via
+#: ``SettingsSchema.preserve_unmanaged=True`` and the legacy validator's
+#: own post-validation, exactly as the architecture spec requires.
+HERO_BANNER_SCHEMA = SettingsSchema(fields=(
+    SettingsField(
+        "hero_style", "مدل نمایش", "choice", "basic",
+        default="overlay",
+        choices=tuple((x, x) for x in HERO_STYLE_CHOICES),
+    ),
+    SettingsField(
+        "autoplay", "پخش خودکار", "boolean", "basic",
+        default=True,
+    ),
+    SettingsField(
+        "interval_ms", "فاصله اسلاید", "integer", "advanced",
+        default=_SLIDER_DEFAULT_INTERVAL_MS,
+        min_value=_SLIDER_MIN_INTERVAL_MS,
+        max_value=_SLIDER_MAX_INTERVAL_MS,
+    ),
+    SettingsField(
+        "show_arrows", "نمایش فلش‌ها", "boolean", "advanced",
+        default=True,
+    ),
+    SettingsField(
+        "show_dots", "نمایش نقاط", "boolean", "advanced",
+        default=True,
+    ),
+    SettingsField(
+        "loop", "تکرار", "boolean", "advanced",
+        default=True,
+    ),
+    SettingsField(
+        "text_position", "جای متن", "choice", "advanced",
+        default="end",
+        choices=(("start", "ابتدا"), ("center", "وسط"), ("end", "انتها")),
+    ),
+))
+
+
 class CategoryGridSettingsError(ValueError):
     """شکلِ خامِ تنظیماتِ «گرید دسته‌بندی» نامعتبر است (فقط شکل/enum —
     مالکیتِ Storeِ ``category_ids`` در خودِ ``render_service`` چک می‌شود،
@@ -1726,6 +1788,7 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
             ),
         ),
         default_variant="overlay", variant_setting_key="hero_style",
+        settings_schema=HERO_BANNER_SCHEMA,
     ),
     # Site-target-overhaul Part 2B (ibolak reference) — a self-contained
     # campaign hero, deliberately independent of the shared Store-wide
@@ -1878,6 +1941,7 @@ _BASE_SECTION_REGISTRY: dict[str, SectionDefinition] = {
         validate_settings=_validate_rich_text_settings, default_settings=lambda: {"body_html": ""},
         duplicable=True, removable=True, has_settings_form=True, category_fa="محتوا",
         description_fa="عنوان، پاراگراف، فهرست و لینک؛ بدون نیاز به دیدن کد HTML.",
+        settings_schema=RICH_TEXT_SCHEMA,
     ),
     "image_text": SectionDefinition(
         key="image_text", label_fa="متن و تصویر", icon="image-plus",

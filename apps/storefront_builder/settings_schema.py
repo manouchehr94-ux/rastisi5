@@ -267,3 +267,16 @@ def serialize_schema(schema: SettingsSchema) -> dict:
             for field in schema.fields
         ],
     }
+
+
+def clean_section_schema_patch(definition, raw_patch: dict, current_settings: dict) -> dict:
+    """R4-only Strangler bridge: schema-clean the patch first, merge it into
+    ``current_settings``, then run the result through the section's own
+    existing ``validate_settings`` — which stays the sole authority (see
+    the architecture spec, Part V). Never called from R3, which keeps
+    posting straight to ``definition.validate_settings`` unchanged."""
+    if definition.settings_schema is None:
+        raise SettingsSchemaError("Section is not schema-enabled")
+
+    merged = clean_schema_patch(definition.settings_schema, raw_patch, current_settings)
+    return definition.validate_settings(merged)
