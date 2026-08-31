@@ -212,15 +212,51 @@ class SelectedOrderingTests(R4ResourcePickerTestCase):
 
 
 class OverCapSelectedTests(R4ResourcePickerTestCase):
-    def test_brand_over_cap_selected_is_bounded_to_server_max(self):
-        brands = [self._make_brand(name=f"برندِ سقف {i}", slug=f"cap-brand-{i}") for i in range(30)]
+    """R4 Task 10 corrective pass — an over-cap ``selected`` request must be
+    a controlled 400, never silently truncated/reinterpreted as "the first
+    N ids". The ResourceSource cap stays server-authoritative; the server
+    never guesses which of the client's requested ids to keep."""
+
+    def test_brand_over_cap_selected_is_rejected_with_stable_code(self):
+        brands = [self._make_brand(name=f"برندِ سقف {i}", slug=f"cap-brand-{i}") for i in range(25)]
+        ids = [b.pk for b in brands]
+        response = self.client.get(self._picker_url(kind="brand", selected=ids, q="no-such-query-xyz"))
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertIs(body["ok"], False)
+        self.assertEqual(body["code"], "too_many_selected_resources")
+        # a controlled rejection must never render a (silently truncated)
+        # Picker body at all.
+        raw_body = response.content.decode()
+        self.assertNotIn("r4-picker-dialog", raw_body)
+
+    def test_product_over_cap_selected_is_rejected_with_stable_code(self):
+        products = [
+            self._make_product(name=f"کالایِ سقف {i}", slug=f"cap-product-{i}", sku=f"SKU-CAP-{i}")
+            for i in range(61)
+        ]
+        ids = [p.pk for p in products]
+        response = self.client.get(self._picker_url(kind="product", selected=ids, q="no-such-query-xyz"))
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertIs(body["ok"], False)
+        self.assertEqual(body["code"], "too_many_selected_resources")
+
+    def test_brand_exactly_at_cap_is_accepted(self):
+        brands = [self._make_brand(name=f"برندِ دقیقاً سقف {i}", slug=f"exact-cap-brand-{i}") for i in range(24)]
         ids = [b.pk for b in brands]
         response = self.client.get(self._picker_url(kind="brand", selected=ids, q="no-such-query-xyz"))
         self.assertEqual(response.status_code, 200)
-        body = response.content.decode()
-        rendered = sum(1 for b in brands if b.name in body)
-        self.assertLessEqual(rendered, 24)
-        self.assertLess(rendered, len(brands))
+
+    def test_duplicate_ids_deduplicate_before_the_cap_check(self):
+        # 30 repeats of the SAME id normalize to exactly one selected id —
+        # this must stay valid, never a false over-cap rejection.
+        brand = self._make_brand(name="برندِ تکراریِ سقف", slug="dup-cap-brand")
+        response = self.client.get(self._picker_url(
+            kind="brand", selected=[brand.pk] * 30, q="no-such-query-xyz",
+        ))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(brand.name, response.content.decode())
 
 
 class NoSaveFormTests(R4ResourcePickerTestCase):

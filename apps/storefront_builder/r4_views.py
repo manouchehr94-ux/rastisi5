@@ -383,9 +383,14 @@ def storefront_r4_resource_picker(request):
     query = (request.GET.get("q") or "").strip()
     max_items = resource_source.manual_id_limit(kind)
 
-    # Server-enforced max — never the client's own max_items — applied
-    # BEFORE resolving/rendering any selected item.
-    ordered_selected_ids = _parse_selected_ids(request)[:max_items]
+    # Server-enforced max — never the client's own max_items, and never a
+    # silent truncation to "the first N ids": the ResourceSource cap stays
+    # authoritative, so an over-cap request is a controlled rejection, not
+    # a reinterpreted one. Checked AFTER parse-and-dedup, so duplicates of
+    # the same id never falsely trip this.
+    ordered_selected_ids = _parse_selected_ids(request)
+    if len(ordered_selected_ids) > max_items:
+        return JsonResponse({"ok": False, "code": "too_many_selected_resources"}, status=400)
 
     searcher = _RESOURCE_SEARCHERS[kind]
     results = [_serialize_picker_item(kind, obj) for obj in searcher(store, query)]
