@@ -363,3 +363,33 @@ select.r4-control {
 .r4-rich-editor .ck.ck-toolbar {
   border-color: var(--r4-line) !important;
 }
+
+/* appearance_override: typed toggle + font/type-scale selects — no JSON
+   or CSS free-text input is ever rendered for this field type. */
+.r4-appearance-override {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.r4-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--r4-text);
+  cursor: pointer;
+}
+.r4-appearance-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.r4-field-sublabel {
+  font-size: 11.5px;
+  color: var(--r4-muted, #6b7280);
+}
+.r4-appearance-controls select.r4-control:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}

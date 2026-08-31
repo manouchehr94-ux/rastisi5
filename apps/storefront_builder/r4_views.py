@@ -10,11 +10,11 @@ from apps.dashboard.decorators import permission_required, staff_required
 from apps.stores.authorization import STOREFRONT_LAYOUT_MANAGE
 from apps.stores.resolution import resolve_store_for_service
 
-from . import section_registry
+from . import appearance_registry, section_registry
 from .models import StorefrontLayoutVersion, StorefrontPage, StorefrontSection
 from .services import container_service, layout_service, r4_mutation_service
 
-#: Phase 0 R4 Inspector renderer capability — deliberately narrower than
+#: Phase 0/1 R4 Inspector renderer capability — deliberately narrower than
 #: SettingsSchema's own ALLOWED_FIELD_TYPES. A schema field of another
 #: otherwise-valid schema type (e.g. "color") reaching this Inspector is a
 #: developer contract failure, not a merchant free-text fallback.
@@ -24,7 +24,17 @@ _INSPECTOR_SUPPORTED_FIELD_TYPES = frozenset({
     "integer",
     "boolean",
     "choice",
+    "appearance_override",
 })
+
+#: R4 Task 7 — merchant-facing Persian labels for the existing curated
+#: type-scale enum (appearance_registry.TYPE_SCALE_CHOICES). Stored values
+#: remain the existing enum strings; only the label shown is translated.
+_TYPE_SCALE_LABELS_FA = {
+    "compact": "فشرده",
+    "normal": "معمولی",
+    "large": "بزرگ",
+}
 
 
 @staff_required
@@ -153,6 +163,20 @@ def storefront_r4_section_inspector(request, pk):
         for field in schema.fields
     }
 
+    # R4 Task 7 — the Inspector needs to show what an appearance_override
+    # field would inherit while disabled. Pass only the safe typed
+    # projection the widget actually renders (font/type_scale), never the
+    # whole arbitrary appearance_config.
+    global_appearance = draft.effective_appearance_config()
+    inherited_appearance_by_field = {
+        field.key: {
+            "font": global_appearance.get("font"),
+            "type_scale": global_appearance.get("type_scale"),
+        }
+        for field in schema.fields
+        if field.field_type == "appearance_override"
+    }
+
     return render(
         request,
         "dashboard/storefront_builder/r4/partials/section_inspector.html",
@@ -162,5 +186,11 @@ def storefront_r4_section_inspector(request, pk):
             "basic_fields": basic_fields,
             "advanced_fields": advanced_fields,
             "field_values": field_values,
+            "appearance_font_choices": appearance_registry.FONT_CHOICES,
+            "appearance_type_scale_choices": [
+                (value, _TYPE_SCALE_LABELS_FA.get(value, value))
+                for value in appearance_registry.TYPE_SCALE_CHOICES
+            ],
+            "inherited_appearance_by_field": inherited_appearance_by_field,
         },
     )

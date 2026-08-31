@@ -20,7 +20,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Callable
 
-from .settings_schema import SettingsField, SettingsSchema
+from .settings_schema import SettingsField, SettingsSchema, validate_appearance_overrides
 from .variant_contract import VariantDefinition, validate_variant_selection, validate_variants
 
 #: شش نوعِ صفحه — دقیقاً همان رشته‌های ``StorefrontPage.PageType.values``
@@ -1046,6 +1046,50 @@ def _with_spacing(section_key: str, validate_fn, default_fn):
     return wrapped_validate, wrapped_default
 
 
+#: R4 Task 7 — Phase 1 slice: only ``hero_banner`` gets a local typography
+#: override. An explicit allowlist, not a default-for-all-types — the same
+#: pattern as ``DESTINATION_AWARE_SECTION_KEYS``/``MOTION_AWARE_SECTION_KEYS``.
+APPEARANCE_OVERRIDE_AWARE_SECTION_KEYS = frozenset({
+    "hero_banner",
+})
+
+
+def _with_appearance_overrides(section_key: str, validate_fn, default_fn):
+    """Wraps (validate_settings, default_settings) with support for the
+    ``appearance_overrides`` block — ONLY for
+    ``APPEARANCE_OVERRIDE_AWARE_SECTION_KEYS``. Required because
+    ``settings_schema.clean_section_schema_patch`` already schema-cleans
+    ``appearance_overrides`` (see ``_clean_field_value``), but that cleaned
+    key would otherwise be silently dropped by
+    ``definition.validate_settings`` — no existing wrapper here knows about
+    it.
+
+    Deliberately DIFFERENT from every wrapper above: this one never
+    materializes a default block. A Hero settings dict with no
+    ``appearance_overrides`` key must stay byte-identical to the
+    pre-Task-7 shape — sparse inheritance from Global Design is the whole
+    point, not "every Hero secretly carries an empty override forever."
+    """
+    if section_key not in APPEARANCE_OVERRIDE_AWARE_SECTION_KEYS:
+        return validate_fn, default_fn
+
+    def wrapped_validate(raw: dict) -> dict:
+        if not isinstance(raw, dict):
+            return validate_fn(raw)
+        appearance_overrides_raw = raw.get("appearance_overrides")
+        base_raw = {k: v for k, v in raw.items() if k != "appearance_overrides"}
+        cleaned = validate_fn(base_raw)
+        if appearance_overrides_raw is not None:
+            cleaned_overrides = validate_appearance_overrides(appearance_overrides_raw)
+            if cleaned_overrides:
+                cleaned["appearance_overrides"] = cleaned_overrides
+        return cleaned
+
+    # default_fn is intentionally NOT wrapped: the default Hero settings
+    # shape must remain exactly what it was before Task 7.
+    return wrapped_validate, default_fn
+
+
 #: Phase 8 P0-5 — انواعی که «عرضِ محتوا» برایشان معنایِ بصریِ روشنی
 #: دارد (بلوک‌هایِ تصویری/بنری کاملاً عرض‌گیر) — یک allowlist صریح،
 #: دقیقاً همان الگویِ بالا.
@@ -1294,6 +1338,11 @@ HERO_BANNER_SCHEMA = SettingsSchema(fields=(
         "text_position", "جای متن", "choice", "advanced",
         default="end",
         choices=(("start", "ابتدا"), ("center", "وسط"), ("end", "انتها")),
+    ),
+    SettingsField(
+        "appearance_overrides", "تایپوگرافی این بخش", "appearance_override", "advanced",
+        default={},
+        widget_hint="typography_override",
     ),
 ))
 
@@ -2249,6 +2298,7 @@ def _finalize_registry(base: dict[str, SectionDefinition]) -> dict[str, SectionD
         validate_fn, default_fn = _with_layout(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_background(key, validate_fn, default_fn)
         validate_fn, default_fn = _with_spacing(key, validate_fn, default_fn)
+        validate_fn, default_fn = _with_appearance_overrides(key, validate_fn, default_fn)
         validate_fn = _with_variant_validation(definition, validate_fn)
         finalized[key] = dataclasses.replace(
             definition, validate_settings=validate_fn, default_settings=default_fn, has_settings_form=True,

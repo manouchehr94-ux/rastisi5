@@ -10,6 +10,7 @@ banners without introducing a preset-specific template.
 <section class="section hero{% if hero_variant_class %} {{ hero_variant_class }}{% endif %}">
   {% if hero_slides|length > 1 %}
   <div class="hero-inner" data-text-position="{{ slider_settings.text_position|default:'end' }}"
+       {% if effective_section_typography %}style="--sfb-hero-heading-size:{{ effective_section_typography.heading }}px;--sfb-hero-body-size:{{ effective_section_typography.body }}px;--sfb-hero-font:'{{ effective_section_appearance.font }}';"{% endif %}
        x-data="{ slide: 0, count: {{ hero_slides|length }}, autoplay: {{ slider_settings.autoplay|yesno:'true,false' }}, interval: {{ slider_settings.interval_ms|default:4500 }}, loop: {{ slider_settings.loop|yesno:'true,false' }}, _timer: null,
                   next() { this.slide = (this.slide + 1) % this.count; },
                   prev() { this.slide = (this.slide - 1 + this.count) % this.count; } }"
@@ -52,7 +53,8 @@ banners without introducing a preset-specific template.
   </div>
   {% else %}
   {% with slide=hero_slides.0 %}
-  <div class="hero-inner" data-text-position="{{ slider_settings.text_position|default:'end' }}">
+  <div class="hero-inner" data-text-position="{{ slider_settings.text_position|default:'end' }}"
+       {% if effective_section_typography %}style="--sfb-hero-heading-size:{{ effective_section_typography.heading }}px;--sfb-hero-body-size:{{ effective_section_typography.body }}px;--sfb-hero-font:'{{ effective_section_appearance.font }}';"{% endif %}>
     <article class="hero-slide single"{% if is_builder_preview %} data-admin-edit-kind="media" data-admin-edit-id="{{ slide.pk }}" data-admin-edit-title="{{ slide.title|default:'اسلاید'|escape }}" data-admin-media-kind="hero-slides"{% endif %}>
       <picture class="hero-media">
         {% if slide.mobile_image %}<source media="(max-width:680px)" srcset="{{ slide.mobile_image.url }}">{% endif %}

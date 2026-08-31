@@ -13,7 +13,8 @@ this single-hero visual metaphor.
 {% if hero_slides %}
 {% with slide=hero_slides.0 %}
 <section class="section hero hero-split">
-  <div class="hero-split-inner">
+  <div class="hero-split-inner"
+       {% if effective_section_typography %}style="--sfb-hero-heading-size:{{ effective_section_typography.heading }}px;--sfb-hero-body-size:{{ effective_section_typography.body }}px;--sfb-hero-font:'{{ effective_section_appearance.font }}';"{% endif %}>
     <div class="hero-split-text">
       {% if slide.title %}<h1>{{ slide.title }}</h1>{% endif %}
       {% if slide.subtitle %}<p>{{ slide.subtitle }}</p>{% endif %}

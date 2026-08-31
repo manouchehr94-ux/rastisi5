@@ -16,6 +16,8 @@ from __future__ import annotations
 import dataclasses
 import json
 
+from . import appearance_registry
+
 ALLOWED_FIELD_TYPES = frozenset({
     "text",
     "textarea",
@@ -208,10 +210,84 @@ def _clean_field_value(field: SettingsField, raw_value: object) -> object:
             )
         return cleaned
 
-    # color / media / variant / resource_source / appearance_override:
-    # opaque, schema-declared but not type-coerced in Task 3 — passed
-    # through unchanged for the legacy validator to authoritatively check.
+    if field.field_type == "appearance_override":
+        return validate_appearance_overrides(raw_value)
+
+    # color / media / variant / resource_source: opaque, schema-declared
+    # but not type-coerced yet — passed through unchanged for the legacy
+    # validator to authoritatively check.
     return raw_value
+
+
+#: R4 Task 7 — the only top-level appearance_overrides block Phase 1 supports.
+_APPEARANCE_TYPOGRAPHY_KEYS = frozenset({"enabled", "font", "type_scale"})
+
+
+def validate_appearance_overrides(raw: object) -> dict:
+    """Typed server-side contract for the sparse ``appearance_overrides``
+    section-settings block (Task 7 first slice: ``typography`` only).
+
+    No free-form CSS/JSON is ever accepted — ``font``/``type_scale`` are
+    checked against the existing curated ``appearance_registry`` allowlists,
+    never a second/duplicated allowlist. Never mutates ``raw``.
+
+    ``None``/``{}`` -> ``{}``. When ``typography.enabled`` is ``False``,
+    the cleaned result is sparse (``{"typography": {"enabled": False}}``) —
+    any stale ``font``/``type_scale`` in the input is dropped, never
+    resolved/applied.
+    """
+    if raw is None or raw == {}:
+        return {}
+    if not isinstance(raw, dict):
+        raise SettingsSchemaError("appearance_overrides must be an object")
+
+    unknown_top_keys = set(raw) - {"typography"}
+    if unknown_top_keys:
+        raise SettingsSchemaError(
+            f"Unknown appearance_overrides key(s): {sorted(unknown_top_keys)!r}"
+        )
+
+    if "typography" not in raw:
+        return {}
+
+    typography_raw = raw["typography"]
+    if not isinstance(typography_raw, dict):
+        raise SettingsSchemaError("appearance_overrides.typography must be an object")
+
+    unknown_typography_keys = set(typography_raw) - _APPEARANCE_TYPOGRAPHY_KEYS
+    if unknown_typography_keys:
+        raise SettingsSchemaError(
+            f"Unknown typography key(s): {sorted(unknown_typography_keys)!r}"
+        )
+
+    if "enabled" not in typography_raw:
+        raise SettingsSchemaError("appearance_overrides.typography.enabled is required")
+    enabled = typography_raw["enabled"]
+    if not isinstance(enabled, bool):
+        raise SettingsSchemaError("appearance_overrides.typography.enabled must be a boolean")
+
+    if not enabled:
+        return {"typography": {"enabled": False}}
+
+    cleaned_typography = {"enabled": True}
+    if "font" in typography_raw:
+        font = typography_raw["font"]
+        if font not in appearance_registry.FONT_CHOICES:
+            raise SettingsSchemaError(
+                f"appearance_overrides.typography.font must be one of "
+                f"{list(appearance_registry.FONT_CHOICES)!r} (got {font!r})"
+            )
+        cleaned_typography["font"] = font
+    if "type_scale" in typography_raw:
+        type_scale = typography_raw["type_scale"]
+        if type_scale not in appearance_registry.TYPE_SCALE_CHOICES:
+            raise SettingsSchemaError(
+                f"appearance_overrides.typography.type_scale must be one of "
+                f"{list(appearance_registry.TYPE_SCALE_CHOICES)!r} (got {type_scale!r})"
+            )
+        cleaned_typography["type_scale"] = type_scale
+
+    return {"typography": cleaned_typography}
 
 
 def clean_schema_patch(schema: SettingsSchema, raw_patch: dict, current_settings: dict) -> dict:

@@ -53,5 +53,31 @@ must never silently fall back to a plain text input for an unsupported type.
     <option value="{{ value }}">{{ label }}</option>
     {% endfor %}
   </select>
+
+  {% elif field.field_type == "appearance_override" %}
+  {# Compound widget — represents ONE schema field (an object), never a  #}
+  {# scalar. Nested controls intentionally carry no data-r4-field-key so #}
+  {# the generic scalar change handler never mistakes them for the field #}
+  {# itself; a dedicated r4_editor.js listener handles this widget.      #}
+  <div class="r4-appearance-override" id="r4Field-{{ field.key }}">
+    <label class="r4-checkbox-row">
+      <input type="checkbox" class="r4-switch" data-r4-appearance-enabled>
+      <span>استفاده از تایپوگرافی اختصاصی این بخش</span>
+    </label>
+    <div class="r4-appearance-controls">
+      <label class="r4-field-sublabel">فونت</label>
+      <select class="r4-control" data-r4-appearance-font>
+        {% for font in appearance_font_choices %}
+        <option value="{{ font }}">{{ font }}</option>
+        {% endfor %}
+      </select>
+      <label class="r4-field-sublabel">اندازه تایپوگرافی</label>
+      <select class="r4-control" data-r4-appearance-type-scale>
+        {% for value, label in appearance_type_scale_choices %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
   {% endif %}
 </div>

@@ -380,6 +380,7 @@ class HeroBannerSchemaRegistrationTests(SimpleTestCase):
                 "show_dots",
                 "loop",
                 "text_position",
+                "appearance_overrides",
             ],
         )
 

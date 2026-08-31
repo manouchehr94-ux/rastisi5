@@ -332,3 +332,82 @@ class InspectorArchitectureUnchangedByPolishTests(R4MutationApiTestCase):
         self.assertNotContains(response, "<iframe")
         self.assertNotContains(response, "sfb-modal")
         self.assertNotContains(response, "<form")
+
+
+# ------------------------------------------------------------------------
+# Task 7 — generic appearance_override Inspector widget (typography-only
+# first slice). Hero Advanced gains one typed compound field; every other
+# field type's rendering/unsupported-type contract must stay unchanged.
+# ------------------------------------------------------------------------
+
+
+class AppearanceOverrideWidgetTests(R4MutationApiTestCase):
+    def test_hero_advanced_renders_typed_typography_controls(self):
+        response = self.client.get(_inspector_url(self.section.pk))
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+
+        advanced_start = content.index('data-r4-tab-panel="advanced"')
+        advanced_chunk = content[advanced_start:]
+
+        self.assertIn('data-r4-field-key="appearance_overrides"', advanced_chunk)
+        self.assertIn('data-r4-field-type="appearance_override"', advanced_chunk)
+        self.assertIn("data-r4-appearance-enabled", advanced_chunk)
+        self.assertIn("data-r4-appearance-font", advanced_chunk)
+        self.assertIn("data-r4-appearance-type-scale", advanced_chunk)
+        # Curated font/type-scale choices are real <option> controls, not a
+        # free-text/JSON/CSS field.
+        self.assertIn("Vazirmatn", advanced_chunk)
+        self.assertIn("<select", advanced_chunk)
+
+    def test_no_json_or_css_free_text_input_for_appearance_override(self):
+        response = self.client.get(_inspector_url(self.section.pk))
+        content = response.content.decode()
+        self.assertNotIn('data-r4-field-type="json"', content)
+        # No CSS/style free-text input anywhere in the appearance widget.
+        advanced_start = content.index('data-r4-tab-panel="advanced"')
+        advanced_chunk = content[advanced_start:]
+        appearance_start = advanced_chunk.index('data-r4-field-type="appearance_override"')
+        appearance_chunk = advanced_chunk[appearance_start:appearance_start + 1500]
+        self.assertNotIn("<textarea", appearance_chunk)
+        self.assertNotIn('type="text"', appearance_chunk)
+
+    def test_uses_no_r3_endpoint_and_no_new_endpoint(self):
+        response = self.client.get(_inspector_url(self.section.pk))
+        content = response.content.decode()
+        self.assertNotIn("/admin-portal/", content)
+        self.assertNotIn("section-settings", content)
+
+    def test_inherited_appearance_projection_is_typed_and_minimal(self):
+        response = self.client.get(_inspector_url(self.section.pk))
+        content = response.content.decode()
+        script_start = content.index('id="r4InspectorInheritedAppearance"')
+        json_start = content.index(">", script_start) + 1
+        json_end = content.index("</script>", json_start)
+        inherited = json.loads(content[json_start:json_end])
+
+        self.assertIn("appearance_overrides", inherited)
+        projection = inherited["appearance_overrides"]
+        self.assertEqual(set(projection), {"font", "type_scale"})
+
+    def test_rich_text_inspector_unaffected_by_appearance_override_support(self):
+        rich_text_section = StorefrontSection.objects.create(
+            version=self.draft, section_key="rich_text", order=1,
+        )
+        response = self.client.get(_inspector_url(rich_text_section.pk))
+        content = response.content.decode()
+        self.assertNotIn("data-r4-appearance-enabled", content)
+        self.assertIn('data-r4-field-key="body_html"', content)
+
+    def test_color_field_type_remains_unsupported(self):
+        real_definition = section_registry_module.get_definition("hero_banner")
+        bad_schema = SettingsSchema(fields=(
+            SettingsField("swatch", "رنگ", "color", "basic"),
+        ))
+        bad_definition = dataclasses.replace(real_definition, settings_schema=bad_schema)
+        with patch(
+            "apps.storefront_builder.r4_views.section_registry.get_definition",
+            return_value=bad_definition,
+        ):
+            with self.assertRaises(ImproperlyConfigured):
+                self.client.get(_inspector_url(self.section.pk))

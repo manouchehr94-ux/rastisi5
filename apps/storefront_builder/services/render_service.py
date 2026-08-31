@@ -19,6 +19,7 @@ from apps.catalog.services.product_publish_service import storefront_listing_pro
 from apps.content.models import HeroSlide, PromotionalBanner
 from apps.orders.services import best_seller_service
 
+from .. import appearance_registry
 from ..section_registry import (
     UnknownSectionTypeError,
     default_brand_carousel_settings,
@@ -27,7 +28,7 @@ from ..section_registry import (
     get_definition,
 )
 from ..variant_contract import resolve_active_variant, resolve_renderer_template
-from . import section_data_service
+from . import section_appearance_service, section_data_service
 
 TILE_CLASSES = ["t1", "t2", "t3"]
 
@@ -671,10 +672,17 @@ def build_page_render_items(page, store, page_context: dict | None = None) -> li
     یک درخواست."""
     page_context = page_context or {}
     sections = page.sections.filter(is_active=True).order_by("order", "id")
-    return _build_items_from_sections(sections, store, page_context)
+    # R4 Task 7 — resolved ONCE per page render (not per Section) from the
+    # SAME version the caller already selected (page.version) — never
+    # layout.draft_version/published_version here, so Draft Preview and
+    # published public rendering stay isolated exactly as before.
+    global_appearance = page.version.effective_appearance_config()
+    return _build_items_from_sections(sections, store, page_context, global_appearance=global_appearance)
 
 
-def _build_items_from_sections(sections, store, page_context: dict) -> list[dict]:
+def _build_items_from_sections(
+    sections, store, page_context: dict, global_appearance: dict | None = None,
+) -> list[dict]:
     """پیاده‌سازیِ مشترکِ واقعی — رویِ هر iterableای از آبجکت‌هایِ
     ``StorefrontSection``-شکل کار می‌کند، نه فقط یک QuerySetِ ذخیره‌شده در
     دیتابیس. ``build_page_render_items`` (بالا) این را با سطرهایِ واقعیِ
@@ -706,6 +714,22 @@ def _build_items_from_sections(sections, store, page_context: dict) -> list[dict
         context = dict(context_cache[cache_key])
         context["section"] = section
         context["settings"] = section.settings or {}
+        # R4 Task 7 — computed AFTER copying the (possibly shared/cached)
+        # context, from THIS Section's own settings only, so one Hero's
+        # local override can never leak into a sibling instance's context,
+        # even when they share a cached context dict above. No DB access
+        # here — global_appearance was already resolved once for the
+        # whole page. Absent entirely for build_default_render_items's
+        # unsaved-section legacy path (global_appearance is None there —
+        # no persisted version to derive it from, and never fabricated).
+        if global_appearance is not None:
+            effective_appearance = section_appearance_service.resolve_section_appearance(
+                global_appearance, context["settings"],
+            )
+            context["effective_section_appearance"] = effective_appearance
+            context["effective_section_typography"] = appearance_registry.resolve_typography(
+                effective_appearance.get("type_scale", "normal"),
+            )
         # Phase 2: حلِ Store-scopedِ رسانه‌یِ پس‌زمینه (Phase 1:
         # ``background.media_asset_id``) — همینجا (نه در template) چون
         # نیازمندِ یک کوئریِ دیتابیسِ store-scoped است؛ همان تفکیکِ

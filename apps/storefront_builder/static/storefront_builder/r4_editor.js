@@ -121,6 +121,45 @@ window.RastiSiR4 = {
     });
   }
 
+  // ---- appearance_override: a compound field (one schema key, an object
+  // value) — hydrated from BOTH the persisted/current value and the
+  // inherited-global fallback (shown while disabled, per instruction
+  // Section 14), never from a second ad-hoc allowlist.
+  function hydrateAppearanceOverrideFields(values) {
+    if (!inspector) return;
+    var inheritedScript = document.getElementById('r4InspectorInheritedAppearance');
+    var inherited = {};
+    if (inheritedScript) {
+      try {
+        inherited = JSON.parse(inheritedScript.textContent) || {};
+      } catch (err) {
+        inherited = {};
+      }
+    }
+    inspector.querySelectorAll('[data-r4-field-type="appearance_override"]').forEach(function (wrapper) {
+      var key = wrapper.getAttribute('data-r4-field-key');
+      var stored = Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null;
+      var typography = (stored && stored.typography) || {};
+      var enabled = Boolean(typography.enabled);
+      var fallback = inherited[key] || {};
+      var font = typography.font != null ? typography.font : fallback.font;
+      var typeScale = typography.type_scale != null ? typography.type_scale : fallback.type_scale;
+
+      var enabledInput = wrapper.querySelector('[data-r4-appearance-enabled]');
+      var fontSelect = wrapper.querySelector('[data-r4-appearance-font]');
+      var scaleSelect = wrapper.querySelector('[data-r4-appearance-type-scale]');
+      if (enabledInput) enabledInput.checked = enabled;
+      if (fontSelect) {
+        if (font != null) fontSelect.value = font;
+        fontSelect.disabled = !enabled;
+      }
+      if (scaleSelect) {
+        if (typeScale != null) scaleSelect.value = typeScale;
+        scaleSelect.disabled = !enabled;
+      }
+    });
+  }
+
   function hydrateFieldValues() {
     if (!inspector) return;
     var script = document.getElementById('r4InspectorFieldValues');
@@ -132,15 +171,20 @@ window.RastiSiR4 = {
       return;
     }
     inspector.querySelectorAll('[data-r4-field-key]').forEach(function (control) {
+      var fieldType = control.getAttribute('data-r4-field-type');
+      // Compound fields are hydrated separately below — this loop only
+      // handles scalar controls.
+      if (fieldType === 'appearance_override') return;
       var key = control.getAttribute('data-r4-field-key');
       if (!Object.prototype.hasOwnProperty.call(values, key)) return;
       var value = values[key];
-      if (control.getAttribute('data-r4-field-type') === 'boolean') {
+      if (fieldType === 'boolean') {
         control.checked = Boolean(value);
       } else {
         control.value = value == null ? '' : value;
       }
     });
+    hydrateAppearanceOverrideFields(values);
   }
 
   R4.openSection = function (sectionId) {
@@ -198,15 +242,46 @@ window.RastiSiR4 = {
     inspector.addEventListener('change', function (evt) {
       var control = evt.target.closest('[data-r4-field-key]');
       if (!control || R4.selected == null) return;
+      var fieldType = control.getAttribute('data-r4-field-type');
       // CKEditor mounts over the rich_text textarea (aria-hidden, no
       // direct user interaction) — its save path is the dedicated
       // focusout handler below, not this native 'change' listener.
-      if (control.getAttribute('data-r4-field-type') === 'rich_text') return;
+      // appearance_override is a compound field handled by the dedicated
+      // listener below — it must never be sent as a scalar patch here.
+      if (fieldType === 'rich_text' || fieldType === 'appearance_override') return;
       var key = control.getAttribute('data-r4-field-key');
-      var fieldType = control.getAttribute('data-r4-field-type');
       var value = fieldType === 'boolean' ? control.checked : control.value;
       var patch = {};
       patch[key] = value;
+      R4.enqueueMutation({
+        type: 'section.update_settings',
+        section_id: R4.selected,
+        patch: patch,
+      });
+    });
+
+    // appearance_override: one compound patch per change, built from the
+    // widget's three nested controls — never a raw JSON/CSS input, never a
+    // new endpoint.
+    inspector.addEventListener('change', function (evt) {
+      var wrapper = evt.target.closest('[data-r4-field-type="appearance_override"]');
+      if (!wrapper || R4.selected == null) return;
+      if (!evt.target.closest('[data-r4-appearance-enabled],[data-r4-appearance-font],[data-r4-appearance-type-scale]')) return;
+      var key = wrapper.getAttribute('data-r4-field-key');
+      var enabledInput = wrapper.querySelector('[data-r4-appearance-enabled]');
+      var fontSelect = wrapper.querySelector('[data-r4-appearance-font]');
+      var scaleSelect = wrapper.querySelector('[data-r4-appearance-type-scale]');
+      var enabled = Boolean(enabledInput && enabledInput.checked);
+      if (fontSelect) fontSelect.disabled = !enabled;
+      if (scaleSelect) scaleSelect.disabled = !enabled;
+
+      var typography = { enabled: enabled };
+      if (enabled) {
+        if (fontSelect) typography.font = fontSelect.value;
+        if (scaleSelect) typography.type_scale = scaleSelect.value;
+      }
+      var patch = {};
+      patch[key] = { typography: typography };
       R4.enqueueMutation({
         type: 'section.update_settings',
         section_id: R4.selected,
