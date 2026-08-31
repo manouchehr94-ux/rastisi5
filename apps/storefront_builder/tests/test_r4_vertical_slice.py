@@ -420,6 +420,110 @@ class DuplicateSectionTests(R4VerticalSliceTestCase):
         self.assertEqual(self.home_page.sections.count(), count_after_first)
 
 
+class SparsePageOrderingTests(R4VerticalSliceTestCase):
+    """Corrective review pass — StorefrontSection.order has no database
+    uniqueness constraint on (page, order); add_section/duplicate_section
+    must never CREATE a duplicate page-level order when existing orders are
+    sparse (e.g. after a prior remove left a gap). Container/Cell visual
+    positioning stays authoritative and untouched by these tests — this is
+    purely about the legacy/row-layout-compatibility ``order`` field."""
+
+    def _create_placed(self, section_key, order, **kwargs):
+        section = StorefrontSection.objects.create(
+            page=self.home_page, section_key=section_key, order=order, **kwargs,
+        )
+        container = container_service.create_empty_container(self.home_page, "single")
+        cell = container.cells.order_by("order", "id").first()
+        container_service.place_section(cell, section)
+        return section, container, cell
+
+    def test_add_after_sparse_page_orders_gets_max_plus_one(self):
+        section_a, _, _ = self._create_placed("rich_text", order=0)
+        section_b, _, _ = self._create_placed("faq", order=2)  # order=1 deliberately never exists
+
+        starting_revision = self.draft.edit_revision
+        response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "section.add", "section_key": "faq"},
+        })
+        self.assertEqual(response.status_code, 200)
+
+        orders = list(self.home_page.sections.order_by("order").values_list("order", flat=True))
+        self.assertEqual(len(orders), len(set(orders)), "page-level order must stay unique")
+
+        new_section = StorefrontSection.objects.exclude(
+            pk__in=[section_a.pk, section_b.pk],
+        ).get(page=self.home_page)
+        self.assertEqual(new_section.order, 3)
+
+    def test_remove_then_add_through_real_mutation_api_does_not_duplicate_order(self):
+        section_a, container_a, _ = self._create_placed("rich_text", order=0)
+        section_b, container_b, _ = self._create_placed("faq", order=1)
+        section_c, container_c, _ = self._create_placed("rich_text", order=2)
+
+        starting_revision = self.draft.edit_revision
+        remove_response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "section.remove", "section_id": section_b.pk},
+        })
+        self.assertEqual(remove_response.status_code, 200)
+        revision_after_remove = self._refresh_revision()
+        self.assertEqual(revision_after_remove, starting_revision + 1)
+
+        add_response = self._post_json({
+            "base_revision": revision_after_remove,
+            "mutation": {"type": "section.add", "section_key": "faq"},
+        })
+        self.assertEqual(add_response.status_code, 200)
+        revision_after_add = self._refresh_revision()
+        self.assertEqual(revision_after_add, revision_after_remove + 1)
+
+        remaining_orders = list(self.home_page.sections.order_by("order").values_list("order", flat=True))
+        self.assertEqual(len(remaining_orders), len(set(remaining_orders)), "page-level order must stay unique")
+
+        new_section = StorefrontSection.objects.exclude(
+            pk__in=[section_a.pk, section_c.pk],
+        ).get(page=self.home_page)
+        section_a.refresh_from_db()
+        section_c.refresh_from_db()
+        self.assertGreater(new_section.order, section_a.order)
+        self.assertGreater(new_section.order, section_c.order)
+
+        # Real Containers/Cells remain intact: the removed section's own
+        # Container/Cell survive (Task 8's remove contract never deletes
+        # them), and the untouched siblings' Containers survive too.
+        self.assertTrue(StorefrontContainer.objects.filter(pk=container_a.pk).exists())
+        self.assertTrue(StorefrontContainer.objects.filter(pk=container_b.pk).exists())
+        self.assertTrue(StorefrontContainer.objects.filter(pk=container_c.pk).exists())
+        self.assertFalse(StorefrontSection.objects.filter(pk=section_b.pk).exists())
+
+    def test_duplicate_after_sparse_page_orders_gets_max_plus_one(self):
+        source, _, source_cell = self._create_placed("rich_text", order=0)
+        other, _, _ = self._create_placed("faq", order=2)  # order=1 deliberately never exists
+
+        starting_revision = self.draft.edit_revision
+        response = self._post_json({
+            "base_revision": starting_revision,
+            "mutation": {"type": "section.duplicate", "section_id": source.pk},
+        })
+        self.assertEqual(response.status_code, 200)
+
+        duplicate = StorefrontSection.objects.exclude(
+            pk__in=[source.pk, other.pk],
+        ).get(page=self.home_page)
+        self.assertNotEqual(duplicate.stable_id, source.stable_id)
+        self.assertEqual(duplicate.order, 3)
+
+        orders = list(self.home_page.sections.order_by("order").values_list("order", flat=True))
+        self.assertEqual(len(orders), len(set(orders)), "page-level order must stay unique")
+
+        # Visual same-Cell placement is a SEPARATE concern from page-level
+        # order and must remain unchanged: the duplicate sits immediately
+        # after the source in the source's own Cell.
+        blocks = container_service.get_cell_blocks(source_cell)
+        self.assertEqual([b.pk for b in blocks], [source.pk, duplicate.pk])
+
+
 class MoveSectionSameCellTests(R4VerticalSliceTestCase):
     def test_move_up_swaps_adjacent_blocks_in_same_cell(self):
         _, container, cell = self._place_new_section("rich_text")

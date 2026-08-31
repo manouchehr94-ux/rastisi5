@@ -62,6 +62,19 @@ def _get_definition(section_key: str):
         return None
 
 
+def _next_page_order(page) -> int:
+    """The page-level ``order`` field has no database uniqueness constraint
+    on (page, order), yet it remains an active legacy/row-layout
+    compatibility contract — a newly-created logical Section must never
+    collide with a surviving one's order. ``len(sections)`` is unsafe once
+    orders are sparse (e.g. after a prior remove left a gap); the only safe
+    value is one past the current maximum. Sparse orders themselves are
+    fine and never renumbered here — Container/Cell visual positioning
+    stays authoritative regardless of this field's exact values."""
+    last = page.sections.order_by("-order", "-id").only("order").first()
+    return (last.order + 1) if last is not None else 0
+
+
 def add_section(*, draft, section_key: str) -> StorefrontSection:
     if not isinstance(section_key, str) or not section_key:
         raise SectionStructureError("invalid_section_key")
@@ -83,9 +96,8 @@ def add_section(*, draft, section_key: str) -> StorefrontSection:
 
     container_service.ensure_page_containers(page)
 
-    ordered_sections = list(page.sections.order_by("order", "id"))
     new_section = StorefrontSection.objects.create(
-        page=page, section_key=section_key, order=len(ordered_sections),
+        page=page, section_key=section_key, order=_next_page_order(page),
         settings=definition.default_settings(),
     )
     container = container_service.create_empty_container(page, "single")
@@ -143,9 +155,8 @@ def duplicate_section(*, draft, section_id: int) -> StorefrontSection:
     if cell is not None and cell.container.is_locked:
         raise SectionStructureError("container_locked")
 
-    ordered_sections = list(page.sections.order_by("order", "id"))
     new_section = StorefrontSection.objects.create(
-        page=page, section_key=section.section_key, order=len(ordered_sections),
+        page=page, section_key=section.section_key, order=_next_page_order(page),
         is_active=section.is_active, settings=copy.deepcopy(section.settings or {}),
         # stable_id intentionally left to its default (uuid4) — a
         # duplicate is a NEW logical Section, not the same one cloned
