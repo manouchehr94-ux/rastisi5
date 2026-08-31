@@ -1,0 +1,46 @@
+{% comment %}
+Generic, schema-driven field control — branches only on field.field_type,
+never on section.section_key or a specific section-type name. New schema
+field types are added to settings_schema.ALLOWED_FIELD_TYPES first, then to
+the R4 Inspector's Phase 0 renderer allowlist (r4_views.py); this partial
+must never silently fall back to a plain text input for an unsupported type.
+{% endcomment %}
+<div class="r4-field" data-r4-field-row data-r4-field-key="{{ field.key }}" data-r4-field-type="{{ field.field_type }}">
+  <label for="r4Field-{{ field.key }}">{{ field.label }}</label>
+
+  {% if field.field_type == "text" %}
+  <input type="text"
+         id="r4Field-{{ field.key }}"
+         data-r4-field-key="{{ field.key }}"
+         data-r4-field-type="text"
+         {% if field.max_length %}maxlength="{{ field.max_length }}"{% endif %}>
+
+  {% elif field.field_type == "rich_text" %}
+  <textarea id="r4Field-{{ field.key }}"
+            data-r4-field-key="{{ field.key }}"
+            data-r4-field-type="rich_text"
+            {% if field.max_length %}maxlength="{{ field.max_length }}"{% endif %}></textarea>
+
+  {% elif field.field_type == "integer" %}
+  <input type="text"
+         inputmode="numeric"
+         id="r4Field-{{ field.key }}"
+         data-r4-field-key="{{ field.key }}"
+         data-r4-field-type="integer">
+
+  {% elif field.field_type == "boolean" %}
+  <input type="checkbox"
+         id="r4Field-{{ field.key }}"
+         data-r4-field-key="{{ field.key }}"
+         data-r4-field-type="boolean">
+
+  {% elif field.field_type == "choice" %}
+  <select id="r4Field-{{ field.key }}"
+          data-r4-field-key="{{ field.key }}"
+          data-r4-field-type="choice">
+    {% for value, label in field.choices %}
+    <option value="{{ value }}">{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+</div>

@@ -1,0 +1,25 @@
+<div data-r4-section-inspector data-r4-section-id="{{ section.pk }}">
+  <header>
+    <strong>{{ definition.label_fa }}</strong>
+    <button type="button" data-r4-inspector-close aria-label="بستن تنظیمات">×</button>
+  </header>
+
+  <div role="tablist">
+    <button type="button" role="tab" data-r4-tab="basic" aria-selected="true">تنظیمات اصلی</button>
+    <button type="button" role="tab" data-r4-tab="advanced" aria-selected="false">تنظیمات پیشرفته</button>
+  </div>
+
+  <section role="tabpanel" data-r4-tab-panel="basic">
+    {% for field in basic_fields %}
+      {% include "dashboard/storefront_builder/r4/partials/settings_field.html" with field=field %}
+    {% endfor %}
+  </section>
+
+  <section role="tabpanel" data-r4-tab-panel="advanced" hidden>
+    {% for field in advanced_fields %}
+      {% include "dashboard/storefront_builder/r4/partials/settings_field.html" with field=field %}
+    {% endfor %}
+  </section>
+
+  {{ field_values|json_script:"r4InspectorFieldValues" }}
+</div>
