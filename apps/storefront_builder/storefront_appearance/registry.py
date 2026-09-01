@@ -8,6 +8,10 @@ from .adapters import (
     build_existing_component_definitions,
     resolve_component_implementation,
 )
+from .compatibility import (
+    validate_compatibility_metadata,
+    validate_deprecation_chains,
+)
 from .contracts import (
     ComponentDefinition,
     InvalidStoreAppearanceContract,
@@ -19,11 +23,13 @@ from .families import COMPONENT_FAMILIES
 _DEFINITIONS = build_existing_component_definitions()
 validate_component_catalog(_DEFINITIONS, COMPONENT_FAMILIES)
 for _definition in _DEFINITIONS:
+    validate_compatibility_metadata(_definition, COMPONENT_FAMILIES)
     resolve_component_implementation(_definition)
 
 COMPONENT_REGISTRY = MappingProxyType(
     {definition.key: definition for definition in _DEFINITIONS}
 )
+validate_deprecation_chains(COMPONENT_REGISTRY)
 
 
 def get_component(key: str) -> ComponentDefinition | None:
@@ -54,4 +60,3 @@ def component_counts_by_family() -> dict[str, int]:
         family_key: len(list_components(family_key))
         for family_key in COMPONENT_FAMILIES
     }
-
