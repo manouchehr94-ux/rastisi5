@@ -77,7 +77,7 @@ const result = {
   mutation_posts: [],
   history_posts: [],
   publish_posts: [],
-  unexpected_http: [],
+  http_error_responses: [],
   console_errors: [],
   page_errors: [],
   request_failures: [],
@@ -275,6 +275,25 @@ async function closeInspectorIfOpen() {
   }
 }
 
+// Round-2 corrective Finding C — deterministic main-frame navigation
+// accounting. `framenavigated` fires synchronously on the Node event loop
+// for the single `page` instance, so array-length before/after a bracketed
+// `await actionFn()` captures precisely (and only) the main-frame
+// navigation(s) THAT action caused — not a timestamp guess. Every scenario
+// that intentionally navigates/reloads must go through this wrapper and
+// mark its own navigation(s) as expected; anything that ever lands in
+// main_frame_navigations without being marked here is, by construction, an
+// unexpected navigation and fails finalInstrumentationAssertions().
+async function withExpectedNavigation(actionFn, { count = 1 } = {}) {
+  const before = result.main_frame_navigations.length;
+  await actionFn();
+  const gained = result.main_frame_navigations.length - before;
+  assert(gained === count, `Expected exactly ${count} main-frame navigation(s) from this action, got ${gained}`);
+  for (let i = before; i < result.main_frame_navigations.length; i += 1) {
+    result.main_frame_navigations[i].expected = true;
+  }
+}
+
 // =============================================================================
 // Section 12 — Scenario 1: INITIAL R4
 // =============================================================================
@@ -321,7 +340,7 @@ async function scenario02HeroBasic() {
   assert(result.mutation_posts[result.mutation_posts.length - 1].status === 200, 'Hero Basic edit must return 200');
   assert(result.main_frame_navigations.length === beforeNavCount, 'The main R4 page must not navigate on an inline Inspector autosave');
 
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await withExpectedNavigation(() => page.reload({ waitUntil: 'domcontentloaded' }));
   await page.locator('[data-r4-shell]').waitFor({ state: 'visible' });
   await openSectionById(heroSectionId);
   const persisted = await fieldControl('hero_style').inputValue();
@@ -364,7 +383,7 @@ async function scenario03HeroAdvancedTypography() {
   await scaleSelect.selectOption(chosenScale);
   await waitSaved();
 
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await withExpectedNavigation(() => page.reload({ waitUntil: 'domcontentloaded' }));
   await page.locator('[data-r4-shell]').waitFor({ state: 'visible' });
   await openSectionById(heroSectionId);
   await activateAdvancedTab();
@@ -464,7 +483,7 @@ async function scenario05ProductAutoAndPersianDigits() {
   await itemLimitField.press('Tab');
   await waitSaved();
 
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await withExpectedNavigation(() => page.reload({ waitUntil: 'domcontentloaded' }));
   await page.locator('[data-r4-shell]').waitFor({ state: 'visible' });
   await openSectionById(productSectionId);
 
@@ -528,7 +547,7 @@ async function scenario06ProductManualPicker() {
   await waitSaved();
   assert(result.mutation_posts.length - beforeMutateCount === 1, `Expected exactly 1 mutation for the manual Apply, got ${result.mutation_posts.length - beforeMutateCount}`);
 
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await withExpectedNavigation(() => page.reload({ waitUntil: 'domcontentloaded' }));
   await page.locator('[data-r4-shell]').waitFor({ state: 'visible' });
   await openSectionById(productSectionId);
   const fieldValues = JSON.parse(await page.locator('#r4InspectorFieldValues').innerText());
@@ -563,7 +582,7 @@ async function scenario07BrandManualPicker() {
   await waitSaved();
   assert(result.mutation_posts.length - beforeMutateCount === 1, `Expected exactly 1 mutation for the Brand manual Apply, got ${result.mutation_posts.length - beforeMutateCount}`);
 
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await withExpectedNavigation(() => page.reload({ waitUntil: 'domcontentloaded' }));
   await page.locator('[data-r4-shell]').waitFor({ state: 'visible' });
   await openSectionById(brandSectionId);
   const fieldValues = JSON.parse(await page.locator('#r4InspectorFieldValues').innerText());
@@ -593,10 +612,10 @@ async function scenario08UndoRedo() {
   assert(revisionAfterEdit === revisionN + 1, `Expected revision N+1=${revisionN + 1} after the edit, got ${revisionAfterEdit}`);
 
   const beforeUndoHistoryCount = result.history_posts.length;
-  await Promise.all([
+  await withExpectedNavigation(() => Promise.all([
     page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
     page.click('#r4UndoButton'),
-  ]);
+  ]));
   await page.locator('[data-r4-shell]').waitFor({ state: 'visible' });
   assert(result.history_posts.length - beforeUndoHistoryCount === 1, `Expected exactly 1 history POST for Undo, got ${result.history_posts.length - beforeUndoHistoryCount}`);
   assert(result.history_posts[result.history_posts.length - 1].status === 200, 'Undo must return 200');
@@ -608,10 +627,10 @@ async function scenario08UndoRedo() {
   assert(titleAfterUndo === originalTitle, `Expected title restored to original "${originalTitle}" after Undo, got "${titleAfterUndo}"`);
 
   const beforeRedoHistoryCount = result.history_posts.length;
-  await Promise.all([
+  await withExpectedNavigation(() => Promise.all([
     page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
     page.click('#r4RedoButton'),
-  ]);
+  ]));
   await page.locator('[data-r4-shell]').waitFor({ state: 'visible' });
   assert(result.history_posts.length - beforeRedoHistoryCount === 1, `Expected exactly 1 history POST for Redo, got ${result.history_posts.length - beforeRedoHistoryCount}`);
   assert(result.history_posts[result.history_posts.length - 1].status === 200, 'Redo must return 200');
@@ -642,6 +661,16 @@ async function scenario09StaleConflict() {
   const serverRevision = await page.evaluate(() => window.RastiSiR4.revision);
   assert(serverRevision === oldRevision + 1, 'Server revision did not advance from the normal edit');
 
+  // Round-2 corrective Finding A — read the actual server-authoritative
+  // value of the field the stale mutation will target (autoplay) BEFORE
+  // sending the stale attempt, and choose the stale attempted value to be
+  // its exact opposite. Proving hero_style survived (the field the
+  // PRECEDING successful mutation touched) does not prove the stale patch
+  // itself was rejected — only a direct pre/post comparison of the field
+  // the REJECTED mutation targeted does that.
+  const autoplayBeforeStale = await fieldControl('autoplay').isChecked();
+  const staleAttemptedAutoplay = !autoplayBeforeStale;
+
   const beforeMutateCount = result.mutation_posts.length;
   const navCountBeforeStale = result.main_frame_navigations.length;
   await page.evaluate((old) => { window.RastiSiR4.revision = old; }, oldRevision);
@@ -656,8 +685,8 @@ async function scenario09StaleConflict() {
   const [staleResponse] = await Promise.all([
     page.waitForResponse((resp) => resp.url().includes('/r4/mutate/') && resp.request().method() === 'POST', { timeout: 10000 }),
     page.evaluate(
-      (sid) => window.RastiSiR4.enqueueMutation({ type: 'section.update_settings', section_id: Number(sid), patch: { autoplay: true } }),
-      heroSectionId,
+      (args) => window.RastiSiR4.enqueueMutation({ type: 'section.update_settings', section_id: Number(args.sectionId), patch: { autoplay: args.value } }),
+      { sectionId: heroSectionId, value: staleAttemptedAutoplay },
     ),
   ]);
   await waitSaved({ expectConflict: true });
@@ -681,7 +710,7 @@ async function scenario09StaleConflict() {
 
   await capture('07_conflict_detected.png');
 
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await withExpectedNavigation(() => page.reload({ waitUntil: 'domcontentloaded' }));
   await page.locator('[data-r4-shell]').waitFor({ state: 'visible' });
   assert(await page.evaluate(() => window.RastiSiR4.conflict) === false, 'R4.conflict must reset after reload');
   const revisionAfterReload = await page.evaluate(() => window.RastiSiR4.revision);
@@ -691,10 +720,27 @@ async function scenario09StaleConflict() {
   const persistedStyle = await fieldControl('hero_style').inputValue();
   assert(persistedStyle === advancedStyle, `The stale attempt must not have overwritten server state — expected ${advancedStyle}, got ${persistedStyle}`);
 
+  // Round-2 corrective Finding A — the direct proof: the field the stale
+  // mutation actually TARGETED (autoplay) must retain exactly its
+  // pre-stale-attempt value, and must NOT equal the rejected stale value.
+  // This is the assertion the prior round was missing — hero_style above
+  // only proves an unrelated, already-successful mutation was not clobbered.
+  const autoplayAfterReload = await fieldControl('autoplay').isChecked();
+  assert(
+    autoplayAfterReload === autoplayBeforeStale,
+    `The stale attempt must not have overwritten its targeted field — expected autoplay=${autoplayBeforeStale}, got ${autoplayAfterReload}`,
+  );
+  assert(
+    autoplayAfterReload !== staleAttemptedAutoplay,
+    `The rejected stale value must not have been applied — autoplay must not equal ${staleAttemptedAutoplay}`,
+  );
+
+  // A distinct, successful post-reload recovery mutation — proves normal
+  // editing works again after a conflict (separate from the no-overwrite
+  // proof above, which only reads state).
   const beforeRecoveryMutateCount = result.mutation_posts.length;
   const autoplayCheckbox = fieldControl('autoplay');
-  const beforeAutoplay = await autoplayCheckbox.isChecked();
-  await autoplayCheckbox.setChecked(!beforeAutoplay);
+  await autoplayCheckbox.setChecked(!autoplayAfterReload);
   await waitSaved();
   assert(result.mutation_posts.length - beforeRecoveryMutateCount === 1, `Expected exactly 1 mutate POST for the post-recovery edit, got ${result.mutation_posts.length - beforeRecoveryMutateCount}`);
   assert(result.mutation_posts[result.mutation_posts.length - 1].status === 200, 'Post-recovery edit must succeed');
@@ -707,10 +753,10 @@ async function scenario10Publish() {
   await closeInspectorIfOpen();
 
   const beforePublishCount = result.publish_posts.length;
-  await Promise.all([
+  await withExpectedNavigation(() => Promise.all([
     page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
     page.click('#r4PublishButton'),
-  ]);
+  ]));
   await page.locator('[data-r4-shell]').waitFor({ state: 'visible' });
   assert(result.publish_posts.length - beforePublishCount === 1, `Expected exactly 1 publish POST, got ${result.publish_posts.length - beforePublishCount}`);
   assert(result.publish_posts[result.publish_posts.length - 1].status === 200, 'Publish must return 200');
@@ -728,10 +774,12 @@ async function scenario10Publish() {
 // =============================================================================
 async function scenario11PublicParity() {
   publicPage = await context.newPage();
-  publicPage.on('console', (msg) => {
-    if (msg.type() === 'error') result.console_errors.push({ text: msg.text(), location: msg.location(), source: 'public', at: Date.now() });
-  });
-  publicPage.on('pageerror', (error) => result.page_errors.push({ text: String(error.message || error), source: 'public' }));
+  // Round-2 corrective Finding B — publicPage previously had only
+  // console/pageerror listeners (no response/requestfailed coverage at
+  // all), so a 4xx/5xx or a failed request on the public storefront could
+  // never be caught. It now gets the exact same instrumentation as the
+  // admin `page`.
+  attachNetworkInstrumentation(publicPage, { source: 'public' });
 
   await publicPage.goto(manifest.public_url, { waitUntil: 'domcontentloaded', timeout: 20000 });
   const html = await publicPage.content();
@@ -742,8 +790,23 @@ async function scenario11PublicParity() {
   assert(publishedProductTitleSentinel, 'No published Product-title sentinel was recorded');
   assert(html.includes(publishedProductTitleSentinel), `Public storefront missing the published sentinel "${publishedProductTitleSentinel}"`);
 
-  const labelHits = [...productManualLabels, ...brandManualLabels].filter((label) => label && html.includes(label));
-  assert(labelHits.length > 0, 'Public storefront shows none of the selected manual Product/Brand labels');
+  // Round-2 corrective "Additional hardening" — independently prove BOTH
+  // resource types render on Public, not merely "at least one of the two
+  // combined." A regression that dropped Brand entirely (or Product
+  // entirely) from the public render could previously still pass this
+  // assertion as long as the other type's label happened to appear.
+  assert(productManualLabels.length > 0, 'No selected manual Product labels were recorded to check against Public');
+  const productLabelHits = productManualLabels.filter((label) => label && html.includes(label));
+  assert(productLabelHits.length > 0, `Public storefront shows none of the selected manual Product labels: ${JSON.stringify(productManualLabels)}`);
+
+  assert(brandManualLabels.length > 0, 'No selected manual Brand labels were recorded to check against Public');
+  const brandLabelHits = brandManualLabels.filter((label) => label && html.includes(label));
+  assert(brandLabelHits.length > 0, `Public storefront shows none of the selected manual Brand labels: ${JSON.stringify(brandManualLabels)}`);
+
+  result.public_parity = {
+    product_label_hits: productLabelHits,
+    brand_label_hits: brandLabelHits,
+  };
 
   // capture() always screenshots the admin `page` — this must be the
   // separate publicPage/tab (Section 22: "Do NOT reuse the admin Preview
@@ -779,7 +842,7 @@ async function scenario12NewDraftOnlyChange() {
   // for next, and it also gives Preview a fresh, server-authoritative
   // render to check against — so the Preview assertion moves here rather
   // than expecting a live no-reload refresh that no R4 task ever built.
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await withExpectedNavigation(() => page.reload({ waitUntil: 'domcontentloaded' }));
   await page.locator('[data-r4-shell]').waitFor({ state: 'visible' });
   const frame = await previewFrame();
   await frame.locator('h2', { hasText: draftOnlyProductTitleSentinel }).first().waitFor({ state: 'visible', timeout: 10000 });
@@ -839,6 +902,64 @@ function isExpectedStaleConflictNoise(entry) {
   );
 }
 
+// Round-2 corrective Finding B — the same tight, three-way correlation
+// (exact URL + narrow timestamp window + expected status) applied to the
+// raw HTTP-error-response record itself, not just the derived console
+// noise line. This is what lets the ONE deliberate stale 409 be excluded
+// from the otherwise-total HTTP error gate below without opening a hole
+// any other error could hide in.
+function isExpectedStale409Response(entry) {
+  if (!staleConflictExpected) return false;
+  return (
+    entry.status === 409 &&
+    entry.url === staleConflictExpected.url &&
+    typeof entry.at === 'number' &&
+    entry.at >= staleConflictExpected.windowStart &&
+    entry.at <= staleConflictExpected.windowEnd
+  );
+}
+
+// Round-2 corrective Finding B — attached identically to the admin/Preview
+// `page` AND the standalone `publicPage` so a 4xx/5xx or a failed request
+// from ANY R4-owned surface (R4 shell/document, Preview iframe/resources,
+// Resource Picker/search endpoint, public storefront/resources) cannot
+// silently escape the HTTP gate the way the old three-endpoint-only bucket
+// allowlist did. Classification of "is this the one expected stale 409" is
+// deliberately deferred to finalInstrumentationAssertions() (via the `at`
+// timestamp recorded here) rather than decided inline — at the moment this
+// listener observes the stale response, Scenario 9 has not yet returned
+// from its own page.evaluate()/waitForResponse() call, so staleConflictExpected
+// is not populated yet; filtering later, once it is, avoids that race
+// instead of requiring one.
+function attachNetworkInstrumentation(targetPage, { source } = {}) {
+  targetPage.on('console', (message) => {
+    if (message.type() === 'error') {
+      result.console_errors.push({ text: message.text(), location: message.location(), source, at: Date.now() });
+    }
+  });
+  targetPage.on('pageerror', (error) => {
+    result.page_errors.push({ text: String(error.message || error), source });
+  });
+  targetPage.on('requestfailed', (request) => {
+    const url = request.url();
+    if (url.startsWith('data:')) return;
+    result.request_failures.push({ url, method: request.method(), error: request.failure()?.errorText || '', source });
+  });
+  targetPage.on('response', (response) => {
+    const url = response.url();
+    const status = response.status();
+    let bucket = null;
+    if (url.includes('/r4/mutate/')) bucket = 'mutation_posts';
+    else if (url.includes('/r4/history/')) bucket = 'history_posts';
+    else if (url.includes('/r4/publish/')) bucket = 'publish_posts';
+    if (bucket) result[bucket].push({ url, status, source });
+
+    if (status >= 400 && !FAVICON_URL_PATTERN.test(url)) {
+      result.http_error_responses.push({ url, status, source, bucket, at: Date.now() });
+    }
+  });
+}
+
 async function finalInstrumentationAssertions() {
   assert(staleConflictExpected, 'Scenario 9 must have recorded the identity of its one deliberate stale request before final assertions can run');
 
@@ -866,18 +987,40 @@ async function finalInstrumentationAssertions() {
   const unexpectedRequestFailures = result.request_failures.filter((f) => !FAVICON_URL_PATTERN.test(f.url || ''));
   assert(unexpectedRequestFailures.length === 0, `Failed requests: ${JSON.stringify(unexpectedRequestFailures.slice(0, 5))}`);
 
-  assert(result.unexpected_http.length === 0, `Unexpected R4 HTTP statuses: ${JSON.stringify(result.unexpected_http.slice(0, 5))}`);
+  // Round-2 corrective Finding B — the full R4/Preview/Public HTTP-error
+  // gate: every 4xx/5xx response attach{Network,}Instrumentation recorded,
+  // across BOTH page and publicPage, minus only the one tightly-correlated
+  // deliberate stale 409. No generic "contains 409" or bucket-shaped
+  // allowlist remains — an unrelated error on the Picker/search endpoint,
+  // Preview iframe resources, or public storefront resources now fails the
+  // run exactly like an unrelated error on /r4/mutate/ already did.
+  const expectedStale409Responses = result.http_error_responses.filter((e) => isExpectedStale409Response(e));
+  assert(
+    expectedStale409Responses.length === 1,
+    `Expected exactly 1 HTTP-error-response record correlated to the one deliberate stale 409, got ${expectedStale409Responses.length}`,
+  );
+  const unexpectedHttp = result.http_error_responses.filter((e) => !isExpectedStale409Response(e));
+  assert(unexpectedHttp.length === 0, `Unexpected HTTP errors: ${JSON.stringify(unexpectedHttp.slice(0, 5))}`);
 
-  // Explicit, disaggregated accounting (Finding 2) — no bucket may absorb
-  // an error it is not tightly correlated to.
+  // Round-2 corrective Finding C — every main-frame navigation must have
+  // been explicitly bracketed by withExpectedNavigation() at the point it
+  // happened; anything that was not is, by construction, unaccounted for.
+  const unexpectedNavigations = result.main_frame_navigations.filter((n) => !n.expected);
+  assert(unexpectedNavigations.length === 0, `Unexpected main-frame navigations: ${JSON.stringify(unexpectedNavigations.slice(0, 5))}`);
+
+  // Explicit, disaggregated accounting (Finding 2 / Round-2 Findings B & C)
+  // — no bucket may absorb an error/navigation it is not tightly
+  // correlated to.
   result.instrumentation_summary = {
     unexpected_console_errors: unexpectedConsoleErrors.length,
     expected_stale_409_console_events: expectedStaleConsoleEvents.length,
     expected_stale_409_http: total409,
     expected_stale_409_url: staleConflictExpected.url,
-    unexpected_http_errors: result.unexpected_http.length,
+    unexpected_http_errors: unexpectedHttp.length,
     unexpected_request_failures: unexpectedRequestFailures.length,
     page_errors: result.page_errors.length,
+    expected_main_frame_navigations: result.main_frame_navigations.length - unexpectedNavigations.length,
+    unexpected_main_frame_navigations: unexpectedNavigations.length,
   };
 }
 
@@ -897,30 +1040,12 @@ async function main() {
   await context.addCookies([manifest.session]);
   page = await context.newPage();
 
-  page.on('console', (message) => {
-    if (message.type() === 'error') result.console_errors.push({ text: message.text(), location: message.location(), at: Date.now() });
-  });
-  page.on('pageerror', (error) => result.page_errors.push(String(error.message || error)));
-  page.on('requestfailed', (request) => {
-    const url = request.url();
-    if (!url.startsWith('data:')) result.request_failures.push({ url, method: request.method(), error: request.failure()?.errorText || '' });
-  });
-  page.on('response', (response) => {
-    const url = response.url();
-    const status = response.status();
-    let bucket = null;
-    if (url.includes('/r4/mutate/')) bucket = 'mutation_posts';
-    else if (url.includes('/r4/history/')) bucket = 'history_posts';
-    else if (url.includes('/r4/publish/')) bucket = 'publish_posts';
-    if (!bucket) return;
-    result[bucket].push({ url, status });
-    if (status !== 200 && status !== 409) result.unexpected_http.push({ url, status, bucket });
-  });
+  attachNetworkInstrumentation(page, { source: 'admin' });
   page.on('framenavigated', (frame) => {
     if (page && frame === page.mainFrame()) result.main_frame_navigations.push({ url: frame.url(), at: new Date().toISOString() });
   });
 
-  await page.goto(manifest.builder_url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  await withExpectedNavigation(() => page.goto(manifest.builder_url, { waitUntil: 'domcontentloaded', timeout: 20000 }));
 
   await scenario('01-initial-r4', scenario01InitialR4);
   await scenario('02-hero-basic-autosave', scenario02HeroBasic);
