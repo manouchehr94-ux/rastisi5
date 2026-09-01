@@ -102,6 +102,14 @@ let productManualLabels = [];
 let brandManualLabels = [];
 let publishedProductTitleSentinel = null;
 let draftOnlyProductTitleSentinel = null;
+// Section 9/Corrective Finding 2 — identity of the ONE deliberate stale-revision
+// request Scenario 9 sends, captured directly off Playwright's own
+// waitForResponse (not inferred from array position). Used to tightly bind
+// the one browser-generated "Failed to load resource" console event Chromium
+// unconditionally logs for that specific non-2xx response — by exact URL AND
+// a narrow timestamp window — so no unrelated console error can hide behind
+// a generic "contains 409" text match.
+let staleConflictExpected = null;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -637,17 +645,39 @@ async function scenario09StaleConflict() {
   const beforeMutateCount = result.mutation_posts.length;
   const navCountBeforeStale = result.main_frame_navigations.length;
   await page.evaluate((old) => { window.RastiSiR4.revision = old; }, oldRevision);
-  await page.evaluate(
-    (sid) => window.RastiSiR4.enqueueMutation({ type: 'section.update_settings', section_id: Number(sid), patch: { autoplay: true } }),
-    heroSectionId,
-  );
+
+  // Bind directly to the ONE real server response this exact deliberate
+  // request receives — via Playwright's own waitForResponse, not by reading
+  // back the last entry of a shared array — so its identity (URL) and a
+  // narrow timestamp window can later tie the one expected browser-console
+  // "Failed to load resource" noise line to this specific request and no
+  // other (Finding 2 corrective).
+  const staleWindowStart = Date.now();
+  const [staleResponse] = await Promise.all([
+    page.waitForResponse((resp) => resp.url().includes('/r4/mutate/') && resp.request().method() === 'POST', { timeout: 10000 }),
+    page.evaluate(
+      (sid) => window.RastiSiR4.enqueueMutation({ type: 'section.update_settings', section_id: Number(sid), patch: { autoplay: true } }),
+      heroSectionId,
+    ),
+  ]);
   await waitSaved({ expectConflict: true });
+  // Short, bounded settle window (not an arbitrary sleep — it exists solely
+  // to let Chromium's own asynchronous DevTools console line for this exact
+  // response, if any, land before the correlation window closes).
+  await page.waitForTimeout(300);
+  const staleWindowEnd = Date.now();
 
   assert(result.mutation_posts.length - beforeMutateCount === 1, `Expected exactly 1 mutate POST for the deliberate stale attempt, got ${result.mutation_posts.length - beforeMutateCount}`);
-  assert(result.mutation_posts[result.mutation_posts.length - 1].status === 409, 'The deliberate stale mutation must return 409');
+  const staleEntry = result.mutation_posts[result.mutation_posts.length - 1];
+  assert(staleEntry.status === 409, 'The deliberate stale mutation must return a REAL server HTTP 409');
+  assert(staleResponse.url() === staleEntry.url && staleResponse.status() === 409, 'Playwright waitForResponse must observe the same single stale mutate response the global listener recorded');
+  const staleBody = await staleResponse.json();
+  assert(staleBody?.code === 'stale_revision', `Expected the 409 body code to be exactly "stale_revision", got ${JSON.stringify(staleBody)}`);
   assert(await page.evaluate(() => window.RastiSiR4.conflict) === true, 'R4.conflict must become true');
   assert(await page.locator('#r4ConflictBanner').isVisible(), 'Conflict banner must be visible');
   assert(result.main_frame_navigations.length === navCountBeforeStale, 'No auto-reload may occur immediately after the conflict');
+
+  staleConflictExpected = { url: staleEntry.url, windowStart: staleWindowStart, windowEnd: staleWindowEnd };
 
   await capture('07_conflict_detected.png');
 
@@ -699,7 +729,7 @@ async function scenario10Publish() {
 async function scenario11PublicParity() {
   publicPage = await context.newPage();
   publicPage.on('console', (msg) => {
-    if (msg.type() === 'error') result.console_errors.push({ text: msg.text(), location: msg.location(), source: 'public' });
+    if (msg.type() === 'error') result.console_errors.push({ text: msg.text(), location: msg.location(), source: 'public', at: Date.now() });
   });
   publicPage.on('pageerror', (error) => result.page_errors.push({ text: String(error.message || error), source: 'public' }));
 
@@ -774,37 +804,81 @@ async function scenario13PublicUnchanged() {
 // =============================================================================
 // Final cross-cutting instrumentation assertions (Section 9)
 // =============================================================================
+// A URL a real browser tab requests unprompted by any R4/Preview/Public
+// application code (the tab-icon fetch) and that a bare Django dev server
+// with no favicon route will answer 404 — Chromium logs its own
+// "Failed to load resource" console line for that too, same mechanism as
+// the deliberate 409 below, but it is not attributable to R4/Preview/
+// Public at all. Correlated by the console message's own `location.url`
+// (never by scanning `text`, which does not carry the failing URL).
+const FAVICON_URL_PATTERN = /\/favicon\.ico(\?|$)/i;
+
 function isExpectedStaleConflictNoise(entry) {
-  // Chromium logs a console.error for ANY non-2xx/3xx response automatically
-  // (DevTools' own "Failed to load resource" line, the failing URL carried
-  // in the console message's own `location.url`, not in its `text`) — this
-  // fires for Scenario 9's ONE deliberate stale mutate POST regardless of
-  // how correctly the app itself handled the 409 (R4.conflict/banner/no
-  // overwrite, all asserted separately in that scenario). Expected noise,
-  // not an application error.
+  // Chromium's DevTools protocol unconditionally logs a console.error for
+  // ANY non-2xx/3xx response, regardless of how correctly the application
+  // handled it — this is the one browser-generated line Scenario 9's SINGLE
+  // deliberate stale mutate POST can produce (0 or 1 times; best-effort,
+  // not guaranteed by Chromium on every run). It is bound tightly to that
+  // one physical request — never to "any 409 anywhere" — by requiring ALL
+  // three: (1) the exact response URL Scenario 9 itself captured via
+  // page.waitForResponse, (2) a narrow timestamp window bracketing only
+  // Scenario 9's own deliberate attempt, and (3) the expected Chromium
+  // message shape. No other console error, however its text is worded, can
+  // satisfy all three at once — so nothing can "hide" behind this exception.
+  if (!staleConflictExpected) return false;
   const text = entry?.text || '';
   const url = entry?.location?.url || '';
-  return /status of 409/.test(text) && /\/r4\/mutate\//.test(url);
+  const at = typeof entry?.at === 'number' ? entry.at : null;
+  return (
+    /Failed to load resource/i.test(text) &&
+    /409/.test(text) &&
+    url === staleConflictExpected.url &&
+    at !== null &&
+    at >= staleConflictExpected.windowStart &&
+    at <= staleConflictExpected.windowEnd
+  );
 }
 
 async function finalInstrumentationAssertions() {
-  // Chromium's own "Failed to load resource" console.error for a non-2xx/
-  // 3xx response is best-effort DevTools instrumentation, not guaranteed on
-  // every run — it is excluded from "meaningful" whenever it appears (0 or
-  // 1 times), never required. The real, deterministic proof of "exactly
-  // one deliberate 409" is the mutation_posts status check below, driven
-  // by Playwright's own response listener, not by browser console noise.
-  const expectedConflictNoise = result.console_errors.filter((e) => isExpectedStaleConflictNoise(e));
-  assert(expectedConflictNoise.length <= 1, `Expected at most 1 browser-logged 409 (the deliberate stale mutation), got ${expectedConflictNoise.length}`);
+  assert(staleConflictExpected, 'Scenario 9 must have recorded the identity of its one deliberate stale request before final assertions can run');
 
-  const meaningfulConsoleErrors = result.console_errors.filter((e) => !/favicon/i.test(e.text || '') && !isExpectedStaleConflictNoise(e));
-  assert(meaningfulConsoleErrors.length === 0, `Console errors: ${JSON.stringify(meaningfulConsoleErrors.slice(0, 5))}`);
-  assert(result.page_errors.length === 0, `Page errors: ${JSON.stringify(result.page_errors.slice(0, 5))}`);
-  const meaningfulFailures = result.request_failures.filter((f) => !/favicon/i.test(f.url || ''));
-  assert(meaningfulFailures.length === 0, `Failed requests: ${JSON.stringify(meaningfulFailures.slice(0, 5))}`);
-  assert(result.unexpected_http.length === 0, `Unexpected R4 HTTP statuses: ${JSON.stringify(result.unexpected_http.slice(0, 5))}`);
+  // The real, deterministic proof of "exactly one deliberate 409" is the
+  // mutation_posts status + body-code check Scenario 9 already made against
+  // Playwright's own response listener — never browser console noise.
   const total409 = result.mutation_posts.filter((p) => p.status === 409).length;
-  assert(total409 === 1, `Expected exactly one stale 409 across all mutate POSTs, got ${total409}`);
+  assert(total409 === 1, `Expected exactly one stale HTTP 409 across all mutate POSTs, got ${total409}`);
+  const the409 = result.mutation_posts.find((p) => p.status === 409);
+  assert(the409.url === staleConflictExpected.url, 'The one HTTP 409 must be the same request Scenario 9 deliberately triggered');
+
+  const expectedStaleConsoleEvents = result.console_errors.filter((e) => isExpectedStaleConflictNoise(e));
+  assert(
+    expectedStaleConsoleEvents.length <= 1,
+    `A single physical request cannot legitimately produce more than 1 browser console event; got ${expectedStaleConsoleEvents.length} correlated to ${staleConflictExpected.url}`,
+  );
+
+  const unexpectedConsoleErrors = result.console_errors.filter(
+    (e) => !isExpectedStaleConflictNoise(e) && !FAVICON_URL_PATTERN.test(e?.location?.url || ''),
+  );
+  assert(unexpectedConsoleErrors.length === 0, `Unexpected console errors: ${JSON.stringify(unexpectedConsoleErrors.slice(0, 5))}`);
+
+  assert(result.page_errors.length === 0, `Page errors: ${JSON.stringify(result.page_errors.slice(0, 5))}`);
+
+  const unexpectedRequestFailures = result.request_failures.filter((f) => !FAVICON_URL_PATTERN.test(f.url || ''));
+  assert(unexpectedRequestFailures.length === 0, `Failed requests: ${JSON.stringify(unexpectedRequestFailures.slice(0, 5))}`);
+
+  assert(result.unexpected_http.length === 0, `Unexpected R4 HTTP statuses: ${JSON.stringify(result.unexpected_http.slice(0, 5))}`);
+
+  // Explicit, disaggregated accounting (Finding 2) — no bucket may absorb
+  // an error it is not tightly correlated to.
+  result.instrumentation_summary = {
+    unexpected_console_errors: unexpectedConsoleErrors.length,
+    expected_stale_409_console_events: expectedStaleConsoleEvents.length,
+    expected_stale_409_http: total409,
+    expected_stale_409_url: staleConflictExpected.url,
+    unexpected_http_errors: result.unexpected_http.length,
+    unexpected_request_failures: unexpectedRequestFailures.length,
+    page_errors: result.page_errors.length,
+  };
 }
 
 async function verifyScreenshots() {
@@ -824,7 +898,7 @@ async function main() {
   page = await context.newPage();
 
   page.on('console', (message) => {
-    if (message.type() === 'error') result.console_errors.push({ text: message.text(), location: message.location() });
+    if (message.type() === 'error') result.console_errors.push({ text: message.text(), location: message.location(), at: Date.now() });
   });
   page.on('pageerror', (error) => result.page_errors.push(String(error.message || error)));
   page.on('requestfailed', (request) => {
