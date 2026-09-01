@@ -222,4 +222,3 @@ def normalize_persisted_manifest(raw) -> StoreAppearanceManifest:
         require_complete=False,
         base_manifest=DEFAULT_STORE_APPEARANCE_MANIFEST,
     ).manifest
-

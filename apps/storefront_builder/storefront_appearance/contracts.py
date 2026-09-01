@@ -227,4 +227,3 @@ def validate_manifest_families(
             raise InvalidStoreAppearanceContract(
                 f"selection {component_key} does not belong to family {family_key}"
             )
-

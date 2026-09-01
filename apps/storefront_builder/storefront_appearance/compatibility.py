@@ -170,4 +170,3 @@ def evaluate_manifest_compatibility(
         warnings=tuple(warnings),
         score=max(0, score),
     )
-

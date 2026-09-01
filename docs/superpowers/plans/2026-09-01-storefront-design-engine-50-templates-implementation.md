@@ -8,7 +8,7 @@
 
 **Canonical QA fixture:** `Rasti Mode Demo` (`rasti-mode-demo`). Demo content is never copied by a template apply operation.
 
-**Official branch:** `feature/storefront-builder-r4`  
+**Official branch:** `feature/storefront-builder-r4`
 **Phase-1 checkpoint:** `e869b6a2ffd258d067e3d81b67c63c57cec39dc0`
 
 ---

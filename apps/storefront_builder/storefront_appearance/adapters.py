@@ -226,4 +226,3 @@ def resolve_component_implementation(component: ComponentDefinition):
     if not isinstance(component, ComponentDefinition):
         raise InvalidStoreAppearanceContract("component definition is required")
     return resolve_registry_reference(component.registry_reference)
-

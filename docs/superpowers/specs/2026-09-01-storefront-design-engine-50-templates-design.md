@@ -1,9 +1,9 @@
 # RastiSi R4 Storefront Design Engine + 50 Ready Templates — Architecture Design
 
-**Version:** 1.0  
-**Date:** 2026-09-01  
-**Status:** Product/architecture decisions approved in conversation; written spec awaiting owner review before implementation planning.  
-**Scope:** R4 Phase 2+ storefront appearance engine, component library, Design Lab, 50 curated Ready Templates, and timed-offer presentation contract.  
+**Version:** 1.0
+**Date:** 2026-09-01
+**Status:** Product/architecture decisions approved in conversation; written spec awaiting owner review before implementation planning.
+**Scope:** R4 Phase 2+ storefront appearance engine, component library, Design Lab, 50 curated Ready Templates, and timed-offer presentation contract.
 
 ---
 
