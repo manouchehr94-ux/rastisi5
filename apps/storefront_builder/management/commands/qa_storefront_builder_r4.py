@@ -309,10 +309,10 @@ class Command(BaseCommand):
         if layout.draft_version_id:
             old_draft = layout.draft_version
             layout.draft_version = None
-            layout.save(update_fields=["published_version", "draft_version", "updated_at"])
+            layout.save(update_fields=["r4_editor_enabled", "published_version", "draft_version", "updated_at"])
             old_draft.delete()
         else:
-            layout.save(update_fields=["published_version", "draft_version", "updated_at"])
+            layout.save(update_fields=["r4_editor_enabled", "published_version", "draft_version", "updated_at"])
 
         draft = layout_service.get_or_create_draft(store, user=user)
         StorefrontEditHistoryEntry.objects.filter(draft_version=draft).delete()
