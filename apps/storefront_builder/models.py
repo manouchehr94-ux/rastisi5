@@ -392,6 +392,19 @@ class StorefrontLayoutVersion(TimeStampedModel):
         header/footer)."""
         return {**APPEARANCE_CONFIG_DEFAULTS, **(self.appearance_config or {})}
 
+    def effective_store_appearance_manifest(self):
+        """Return the typed Design Engine manifest for this exact version.
+
+        The local import keeps the persistence adapter outside the Django
+        model import graph while presenting callers with one logical boundary.
+        """
+
+        from .storefront_appearance.persistence import (
+            load_store_appearance_manifest,
+        )
+
+        return load_store_appearance_manifest(self)
+
     def compute_fingerprint(self) -> str:
         """هش SHA-256 قطعی از هدر/فوتر/ظاهر/بخش‌ها (روی **همه‌ی صفحات**، نه
         فقط صفحه اصلی — Phase 1A: یک نسخه یعنی یک عکسِ کاملِ چیدمانِ کلِ

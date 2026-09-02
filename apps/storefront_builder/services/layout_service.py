@@ -40,6 +40,12 @@ from ..models import (
     StorefrontLayoutVersion,
     StorefrontSection,
 )
+from ..storefront_appearance.contracts import InvalidStoreAppearanceContract
+from ..storefront_appearance.persistence import STORE_APPEARANCE_CONFIG_KEY
+from ..storefront_appearance.validation import (
+    manifest_to_primitive,
+    normalize_persisted_manifest,
+)
 
 _PUBLISH_RATE_LIMIT = dict(max_attempts=20, window_seconds=3600)
 _RESTORE_RATE_LIMIT = dict(max_attempts=20, window_seconds=3600)
@@ -462,6 +468,17 @@ def validate_appearance_config(config: dict) -> dict:
     if layout_preset_key is not None and layout_preset_registry.get_layout_preset(layout_preset_key) is None:
         raise AppearanceConfigValidationError(f"پیش‌تنظیمِ «{layout_preset_key}» در دسترس نیست")
     cleaned["layout_preset_key"] = layout_preset_key
+
+    if STORE_APPEARANCE_CONFIG_KEY in config:
+        try:
+            manifest = normalize_persisted_manifest(
+                config[STORE_APPEARANCE_CONFIG_KEY]
+            )
+        except InvalidStoreAppearanceContract as exc:
+            raise AppearanceConfigValidationError(
+                "پیکربندی موتور طراحی فروشگاه نامعتبر است"
+            ) from exc
+        cleaned[STORE_APPEARANCE_CONFIG_KEY] = manifest_to_primitive(manifest)
 
     # Phase 8 P0-7 — این ۵ فیلدِ *ساختاری* قبلاً فقط از طریقِ انتخابِ یک
     # Template به‌طورِ غیرمستقیم قابلِ‌تغییر بودند (نگاه کنید به

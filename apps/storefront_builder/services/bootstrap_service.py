@@ -18,6 +18,9 @@ from apps.content.models import HeroSlide, PromotionalBanner
 
 from .. import section_registry
 from ..models import StorefrontLayoutVersion, StorefrontSection
+from ..storefront_appearance.families import DEFAULT_STORE_APPEARANCE_MANIFEST
+from ..storefront_appearance.persistence import STORE_APPEARANCE_CONFIG_KEY
+from ..storefront_appearance.validation import manifest_to_primitive
 
 
 def _defaults(section_key: str) -> dict:
@@ -166,7 +169,12 @@ def apply_bootstrap_content(version: StorefrontLayoutVersion, store) -> None:
         for s in sections
     ])
     apply_default_non_home_sections(version)
-    version.appearance_config = bootstrap_appearance_config(store)
+    version.appearance_config = {
+        **bootstrap_appearance_config(store),
+        STORE_APPEARANCE_CONFIG_KEY: manifest_to_primitive(
+            DEFAULT_STORE_APPEARANCE_MANIFEST
+        ),
+    }
     version.save(update_fields=["appearance_config"])
 
 
