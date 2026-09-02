@@ -37,7 +37,6 @@ arbitrary visual blocks» برایِ صفحاتِ خالی؛ اینجا معاد
 
 from __future__ import annotations
 
-from .. import global_region_registry
 from . import page_resolution_service
 from . import render_service
 
@@ -100,6 +99,7 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
             "page_type": page_type,
             "layout_header_config": None,
             "layout_footer_config": None,
+            "store_appearance": None,
             "mobile_bottom_nav_template": None,
             # Phase 5: پنج صفحه‌ی محصول/لیست/کالکشن/جستجو/سبد پیش از این
             # فاز محتوایِ سخت‌کدشده‌ی خودشان را کاملاً مستقل از انتشارِ V2
@@ -126,7 +126,13 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
     # صفحه یکسان است، نه فقط صفحه‌ی اصلی.
     request.storefront_appearance_version = version
 
-    items = render_service.build_page_render_items(page, store, page_context=page_context)
+    store_appearance = render_service.resolve_store_appearance_render_state(version)
+    items = render_service.build_page_render_items(
+        page,
+        store,
+        page_context=page_context,
+        store_appearance=store_appearance,
+    )
     # Acceptance Batch 1 (post-U11) — see the note on the unresolved-store
     # branch above.
     items = render_service.hide_empty_public_sections(items)
@@ -138,21 +144,22 @@ def build_universal_storefront_context(request, store, page_type: str, page_cont
         "storefront_page": page,
         "page_type": page_type,
         "layout_header_config": header_config,
+        "store_appearance": store_appearance,
         # U2A — رشته‌ی نامِ Templateِ Djangoِ هدرِ فعال، از رویِ Registryِ
         # امن resolve شده (نگاه کنید به ``global_region_registry``)؛ هرگز
         # از JSONِ ذخیره‌شده مستقیماً خوانده نمی‌شود — فقط کلیدِ
         # ``header_variant``یِ آن بررسی می‌شود، خودِ مسیرِ Template همیشه
         # یک رشته‌ی ثابتِ نوشته‌شده در کدِ پایتونِ همان Registry است.
-        "header_variant_template": global_region_registry.resolve_global_renderer_template(
-            global_region_registry.GLOBAL_HEADER_REGION, header_config,
+        "header_variant_template": render_service.store_appearance_global_renderer_template(
+            store_appearance, "header", header_config,
         ),
         "layout_footer_config": footer_config,
         # U2B — همان الگویِ ``header_variant_template`` بالا، برایِ فوتر.
-        "footer_variant_template": global_region_registry.resolve_global_renderer_template(
-            global_region_registry.GLOBAL_FOOTER_REGION, footer_config,
+        "footer_variant_template": render_service.store_appearance_global_renderer_template(
+            store_appearance, "footer", footer_config,
         ),
-        "mobile_bottom_nav_template": global_region_registry.resolve_global_renderer_template(
-            global_region_registry.GLOBAL_MOBILE_NAV_REGION, footer_config,
+        "mobile_bottom_nav_template": render_service.store_appearance_global_renderer_template(
+            store_appearance, "bottom_nav", footer_config,
         ),
         "render_items": items,
         "rows": render_service.group_items_into_rows(items),

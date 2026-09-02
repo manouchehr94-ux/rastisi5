@@ -14,6 +14,8 @@ version=published — نه خودِ این سرویس هرگز تصمیم نمی
 
 from __future__ import annotations
 
+from copy import copy
+
 from apps.catalog.models import Brand, Category
 from apps.catalog.services.product_publish_service import storefront_listing_products
 from apps.content.models import HeroSlide, PromotionalBanner
@@ -26,6 +28,12 @@ from ..section_registry import (
     default_category_grid_settings,
     default_quick_links_settings,
     get_definition,
+)
+from ..storefront_appearance.rendering import (
+    ResolvedStoreAppearance,
+    global_renderer_template as store_appearance_global_renderer_template,
+    resolve_store_appearance_render_state,
+    section_variant_for as store_appearance_section_variant_for,
 )
 from ..variant_contract import resolve_active_variant, resolve_renderer_template
 from . import section_appearance_service, section_data_service
@@ -640,7 +648,13 @@ _CONTEXT_BUILDERS = {
 }
 
 
-def build_page_render_items(page, store, page_context: dict | None = None) -> list[dict]:
+def build_page_render_items(
+    page,
+    store,
+    page_context: dict | None = None,
+    *,
+    store_appearance: ResolvedStoreAppearance | None = None,
+) -> list[dict]:
     """فهرست بخش‌های فعالِ **یک ``StorefrontPage`` مشخص**، هرکدام با
     template_name + context آماده — Phase 1B: نسخه‌یِ صفحه‌آگاهِ عمومیِ
     این تابع؛ ``build_render_items(version, store)`` (پایین) اکنون فقط
@@ -672,16 +686,34 @@ def build_page_render_items(page, store, page_context: dict | None = None) -> li
     یک درخواست."""
     page_context = page_context or {}
     sections = page.sections.filter(is_active=True).order_by("order", "id")
-    # R4 Task 7 — resolved ONCE per page render (not per Section) from the
-    # SAME version the caller already selected (page.version) — never
-    # layout.draft_version/published_version here, so Draft Preview and
-    # published public rendering stay isolated exactly as before.
+    # A7 — resolve the typed Store Appearance state once for the exact
+    # version already selected by the caller. Public/Preview callers may
+    # pre-resolve and pass the same immutable state so global regions and
+    # section items share one resolution for the whole response.
+    if store_appearance is None:
+        store_appearance = resolve_store_appearance_render_state(page.version)
+    elif store_appearance.version_id != page.version_id:
+        raise ValueError("Store Appearance state belongs to another layout version")
+
+    # Existing typography/palette overrides remain sourced from the same
+    # physical version. Store Appearance augments this boundary; it does not
+    # duplicate or replace the existing appearance-token service.
     global_appearance = page.version.effective_appearance_config()
-    return _build_items_from_sections(sections, store, page_context, global_appearance=global_appearance)
+    return _build_items_from_sections(
+        sections,
+        store,
+        page_context,
+        global_appearance=global_appearance,
+        store_appearance=store_appearance,
+    )
 
 
 def _build_items_from_sections(
-    sections, store, page_context: dict, global_appearance: dict | None = None,
+    sections,
+    store,
+    page_context: dict,
+    global_appearance: dict | None = None,
+    store_appearance: ResolvedStoreAppearance | None = None,
 ) -> list[dict]:
     """پیاده‌سازیِ مشترکِ واقعی — رویِ هر iterableای از آبجکت‌هایِ
     ``StorefrontSection``-شکل کار می‌کند، نه فقط یک QuerySetِ ذخیره‌شده در
@@ -699,6 +731,28 @@ def _build_items_from_sections(
             definition = get_definition(section.section_key)
         except UnknownSectionTypeError:
             continue
+
+        # A7 — a non-default Store Appearance section component is a
+        # render-time selection over the existing registered Variant axis.
+        # The persisted Section itself is never rewritten here. The explicit
+        # safe ``legacy_default`` component deliberately defers to the
+        # Section's own saved setting, preserving every pre-engine template.
+        appearance_variant = (
+            store_appearance_section_variant_for(store_appearance, section.section_key)
+            if store_appearance is not None
+            else None
+        )
+        effective_settings = dict(section.settings or {})
+        render_section = section
+        if appearance_variant is not None:
+            variant_setting_key = definition.variant_setting_key or "variant"
+            effective_settings[variant_setting_key] = appearance_variant.key
+            # Context builders consistently read ``section.settings``. A
+            # shallow model copy preserves PK/FK identity for Store-scoped
+            # queries while keeping this overlay strictly in-memory.
+            render_section = copy(section)
+            render_section.settings = effective_settings
+
         cache_key = (
             (section.section_key, section.pk)
             if section.section_key in PER_INSTANCE_SECTION_KEYS
@@ -707,13 +761,15 @@ def _build_items_from_sections(
         if cache_key not in context_cache:
             if section.section_key in _CONTEXT_AWARE_BUILDERS:
                 builder = _CONTEXT_AWARE_BUILDERS[section.section_key]
-                context_cache[cache_key] = builder(store, section, page_context)
+                context_cache[cache_key] = builder(store, render_section, page_context)
             else:
                 builder = _CONTEXT_BUILDERS.get(section.section_key, _static_context)
-                context_cache[cache_key] = builder(store, section)
+                context_cache[cache_key] = builder(store, render_section)
         context = dict(context_cache[cache_key])
-        context["section"] = section
-        context["settings"] = section.settings or {}
+        context["section"] = render_section
+        context["settings"] = effective_settings
+        if store_appearance is not None:
+            context["store_appearance"] = store_appearance
         # R4 Task 7 — computed AFTER copying the (possibly shared/cached)
         # context, from THIS Section's own settings only, so one Hero's
         # local override can never leak into a sibling instance's context,
@@ -754,13 +810,20 @@ def _build_items_from_sections(
         # persisted value fails safely to ``default_variant`` here (never
         # raises, never rewrites the stored Section) — see
         # ``variant_contract.resolve_active_variant``'s own contract.
-        active_variant = resolve_active_variant(definition, section.settings)
+        active_variant = appearance_variant or resolve_active_variant(
+            definition, effective_settings
+        )
         items.append({
-            "section": section,
+            "section": render_section,
             "definition": definition,
             "template_name": resolve_renderer_template(definition, active_variant),
             "label_fa": definition.label_fa,
             "context": context,
+            # A7 — one immutable typed state is threaded through every item
+            # and its context. Existing templates may ignore it; component
+            # families added in later phases consume this same object rather
+            # than creating a Design-Lab-only renderer contract.
+            "store_appearance": store_appearance,
             # Exposed for testability/observability (U1B1 §4) and for a
             # future consumer (U1B2+) — no current template/consumer reads
             # this key, so adding it changes nothing for existing callers.

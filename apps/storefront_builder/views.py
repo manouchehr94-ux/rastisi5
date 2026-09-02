@@ -35,7 +35,13 @@ from .models import (
 )
 from .services import container_service, edit_history_service, layout_service, row_service
 from .services.layout_service import _clone_section_scoped_media
-from .services.render_service import build_container_render_items, build_page_render_items, group_items_into_rows
+from .services.render_service import (
+    build_container_render_items,
+    build_page_render_items,
+    group_items_into_rows,
+    resolve_store_appearance_render_state,
+    store_appearance_global_renderer_template,
+)
 
 
 def _resolve_store(request):
@@ -232,7 +238,13 @@ def storefront_preview(request):
     # forcing Container mode when none exist makes otherwise valid Draft
     # sections disappear from Preview.
     use_container_layout = page.containers.exists()
-    items = build_page_render_items(page, store, page_context=_preview_page_context(request, store, page_type))
+    store_appearance = resolve_store_appearance_render_state(draft)
+    items = build_page_render_items(
+        page,
+        store,
+        page_context=_preview_page_context(request, store, page_type),
+        store_appearance=store_appearance,
+    )
     top_level_categories = Category.objects.filter(store=store, parent__isnull=True, is_active=True).order_by("order", "name")
     # تنظیماتِ ظاهر باید از همین Draft خوانده شود، نه ShopSettings زنده —
     # نگاه کنید به ``apps.core.context_processors._versioned_colors``.
@@ -249,20 +261,23 @@ def storefront_preview(request):
         )
     else:
         request.storefront_appearance_version = draft
-    header_variant_template = global_region_registry.resolve_global_renderer_template(
-        global_region_registry.GLOBAL_HEADER_REGION, draft.effective_header_config(),
+    header_config = draft.effective_header_config()
+    footer_config = draft.effective_footer_config()
+    header_variant_template = store_appearance_global_renderer_template(
+        store_appearance, "header", header_config,
     )
-    footer_variant_template = global_region_registry.resolve_global_renderer_template(
-        global_region_registry.GLOBAL_FOOTER_REGION, draft.effective_footer_config(),
+    footer_variant_template = store_appearance_global_renderer_template(
+        store_appearance, "footer", footer_config,
     )
-    mobile_bottom_nav_template = global_region_registry.resolve_global_renderer_template(
-        global_region_registry.GLOBAL_MOBILE_NAV_REGION, draft.effective_footer_config(),
+    mobile_bottom_nav_template = store_appearance_global_renderer_template(
+        store_appearance, "bottom_nav", footer_config,
     )
     return render(request, "storefront_builder/preview.html", {
         "store": store, "version": draft, "page": page, "page_type": page_type,
         "header_variant_template": header_variant_template,
         "footer_variant_template": footer_variant_template,
         "mobile_bottom_nav_template": mobile_bottom_nav_template,
+        "store_appearance": store_appearance,
         "render_items": items,
         # Legacy rows remain as a compatibility fallback; Container/Cell is now
         # the primary Builder composition source. Empty cells are visible only here.
