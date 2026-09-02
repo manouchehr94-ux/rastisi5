@@ -157,18 +157,19 @@ LAYOUT_PRESET_REGISTRY: dict[str, LayoutPresetDefinition] = {}
 LAYOUT_PRESET_VERSION_REGISTRY: dict[tuple[str, str], LayoutPresetDefinition] = {}
 
 
-# Task 2 transition only: these eight published U10 recipes predate the Store
-# Appearance DNA field.  Task 4 replaces their registrations with complete
-# manifests.  New Ready Template keys must always provide one.
-_LEGACY_READY_TEMPLATE_KEYS = frozenset({
-    "dense_marketplace",
-    "premium_leather",
-    "warm_boutique",
-    "fashion_promo_catalog",
-    "playful_lifestyle",
-    "utility_catalog",
-    "editorial_jewelry",
-    "dark_digital",
+# Task 2 transition only: these eight *exact* published U10 recipe identities
+# predate the Store Appearance DNA field. Task 4 replaces their registrations
+# with complete manifests. A later version under any of these keys is new DNA
+# and must therefore supply a complete manifest.
+_LEGACY_READY_TEMPLATE_IDENTITIES = frozenset({
+    ("dense_marketplace", "2"),
+    ("premium_leather", "2"),
+    ("warm_boutique", "2"),
+    ("fashion_promo_catalog", "7"),
+    ("playful_lifestyle", "1"),
+    ("utility_catalog", "1"),
+    ("editorial_jewelry", "2"),
+    ("dark_digital", "2"),
 })
 _NUMERIC_VERSION_RE = re.compile(r"^[1-9][0-9]*$")
 
@@ -287,7 +288,7 @@ def _validate_ready_template_store_appearance(definition: LayoutPresetDefinition
     if not definition.is_ready_template:
         return
     if definition.store_appearance is None:
-        if definition.key in _LEGACY_READY_TEMPLATE_KEYS:
+        if (definition.key, definition.version) in _LEGACY_READY_TEMPLATE_IDENTITIES:
             return
         raise InvalidLayoutPresetError(
             f"Ready Template «{definition.key}» باید Store Appearance DNA کامل داشته باشد"

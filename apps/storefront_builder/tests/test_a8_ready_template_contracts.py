@@ -94,15 +94,46 @@ class ReadyTemplateContractTests(SimpleTestCase):
 
     def test_existing_ready_catalog_is_explicitly_transitional_until_task_four(self):
         """The eight historical recipes predate DNA and remain import-compatible only."""
-        self.assertTrue(lpr.get_layout_preset("dense_marketplace").is_ready_template)
-        self.assertIsNone(lpr.get_layout_preset("dense_marketplace").store_appearance)
+        expected_identities = {
+            ("dense_marketplace", "2"),
+            ("premium_leather", "2"),
+            ("warm_boutique", "2"),
+            ("fashion_promo_catalog", "7"),
+            ("playful_lifestyle", "1"),
+            ("utility_catalog", "1"),
+            ("editorial_jewelry", "2"),
+            ("dark_digital", "2"),
+        }
+        actual_identities = {
+            (preset.key, preset.version)
+            for preset in lpr.list_ready_templates()
+            if preset.store_appearance is None
+        }
+        self.assertEqual(actual_identities, expected_identities)
+
+    def test_new_version_of_legacy_ready_key_requires_a_manifest(self):
+        preset = lpr.LayoutPresetDefinition(
+            key="dense_marketplace",
+            label_fa="قرارداد",
+            description_fa="نسخه جدید",
+            version="3",
+            is_ready_template=True,
+        )
+
+        with self.assertRaises(lpr.InvalidLayoutPresetError):
+            lpr.register_layout_preset(preset)
 
     def test_ready_template_rejects_missing_schema_version(self):
         manifest = self._manifest()
         manifest.pop("schema_version")
+        latest_before = dict(lpr.LAYOUT_PRESET_REGISTRY)
+        versions_before = dict(lpr.LAYOUT_PRESET_VERSION_REGISTRY)
 
         with self.assertRaises(lpr.InvalidLayoutPresetError):
             lpr.register_layout_preset(self._ready(manifest=manifest))
+
+        self.assertEqual(lpr.LAYOUT_PRESET_REGISTRY, latest_before)
+        self.assertEqual(lpr.LAYOUT_PRESET_VERSION_REGISTRY, versions_before)
 
     def test_ready_template_rejects_incomplete_family_selections(self):
         manifest = self._manifest()
