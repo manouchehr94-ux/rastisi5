@@ -12,10 +12,34 @@ from __future__ import annotations
 
 from django.db import transaction
 
-from apps.storefront_builder import appearance_registry, resource_source, section_registry
+from apps.storefront_builder import (
+    appearance_registry,
+    layout_preset_registry,
+    resource_source,
+    section_registry,
+)
 from apps.storefront_builder.models import StorefrontLayout, StorefrontLayoutVersion, StorefrontSection
-from apps.storefront_builder.services import edit_history_service, layout_service, section_structure_service
+from apps.storefront_builder.services import (
+    edit_history_service,
+    layout_service,
+    preset_service,
+    section_structure_service,
+)
 from apps.storefront_builder.settings_schema import clean_section_schema_patch
+from apps.storefront_builder.storefront_appearance.contracts import (
+    InvalidStoreAppearanceContract,
+)
+from apps.storefront_builder.storefront_appearance.families import COMPONENT_FAMILIES
+from apps.storefront_builder.storefront_appearance.persistence import (
+    component_key_for_registry_reference,
+    load_store_appearance_manifest,
+    persist_store_appearance_manifest,
+)
+from apps.storefront_builder.storefront_appearance.registry import get_component
+from apps.storefront_builder.storefront_appearance.validation import (
+    manifest_to_primitive,
+    validate_store_appearance_manifest,
+)
 
 
 class R4MutationError(ValueError):
@@ -37,6 +61,9 @@ _MUTATION_HISTORY_LABELS = {
     "appearance.update": "ویرایش طراحی کلی",
     "header.update": "ویرایش هدر",
     "footer.update": "ویرایش فوتر",
+    "appearance.component.update": "تغییر جزء طراحی فروشگاه",
+    "appearance.manifest.apply": "اعمال طراحی فروشگاه",
+    "appearance.template.apply": "اعمال قالب آماده",
 }
 
 
@@ -225,6 +252,182 @@ _APPEARANCE_UPDATE_ALLOWED_PATCH_KEYS = frozenset({
 _TEMPLATE_OWNED_FIELDS = ("font", "radius", "button_radius", "button_style", "density", "motion", "type_scale")
 
 
+def _require_pinned_appearance_draft(*, draft: StorefrontLayoutVersion, mutation: dict) -> None:
+    """Pin A6 writes to the exact Draft the client previewed.
+
+    Store ownership still comes exclusively from ``_lock_active_draft``. The
+    explicit id prevents a stale browser tab from applying a candidate to a
+    newly-created active Draft that happens to share the same revision.
+    """
+    draft_id = mutation.get("draft_id")
+    if not _is_strict_int(draft_id):
+        raise R4MutationError("invalid_draft_id")
+    if draft_id != draft.pk:
+        # Nonexistent, inactive, Published and foreign Draft ids are deliberately
+        # indistinguishable to the caller.
+        raise R4MutationError("draft_not_found")
+
+
+_LEGACY_SELECTOR_FAMILIES = ("header", "footer", "bottom_nav", "motion")
+
+
+def _component_key_from_live_reference(*, family: str, reference: str) -> str:
+    component_key = component_key_for_registry_reference(reference, family_key=family)
+    if component_key is None:
+        # Every valid legacy selector should already be adapted into the central
+        # registry. Fail closed rather than preserve a stale typed manifest.
+        raise R4MutationError("invalid_store_appearance_manifest")
+    return component_key
+
+
+def _live_legacy_selection_updates(*, draft: StorefrontLayoutVersion) -> dict[str, str]:
+    header = draft.effective_header_config()
+    footer = draft.effective_footer_config()
+    appearance = draft.effective_appearance_config()
+    references = {
+        "header": f"global_region:header:{header['header_variant']}",
+        "footer": f"global_region:footer:{footer['footer_variant']}",
+        "bottom_nav": f"global_region:mobile_bottom_nav:{footer['mobile_nav_variant']}",
+        "motion": f"appearance_motion:{appearance['motion']}",
+    }
+    return {
+        family: _component_key_from_live_reference(
+            family=family, reference=references[family]
+        )
+        for family in _LEGACY_SELECTOR_FAMILIES
+    }
+
+
+def _persist_manifest_selection_updates(
+    *,
+    draft: StorefrontLayoutVersion,
+    updates: dict[str, str],
+    preserve_live_legacy_siblings: bool = False,
+) -> None:
+    try:
+        current = load_store_appearance_manifest(draft)
+    except InvalidStoreAppearanceContract as exc:
+        raise R4MutationError("invalid_store_appearance_manifest") from exc
+    current_primitive = manifest_to_primitive(current)
+    primitive = manifest_to_primitive(current)
+    live_legacy = _live_legacy_selection_updates(draft=draft)
+    if preserve_live_legacy_siblings:
+        primitive["selections"].update(
+            {family: key for family, key in live_legacy.items() if family not in updates}
+        )
+    primitive["selections"].update(updates)
+
+    # Do not turn a semantic no-op into explicit default JSON writes. A5's
+    # fresh Draft stores a typed default manifest while legacy selector dicts
+    # may remain sparse; effective selector equality is the relevant truth.
+    if primitive == current_primitive and all(
+        live_legacy[family] == primitive["selections"][family]
+        for family in _LEGACY_SELECTOR_FAMILIES
+    ):
+        return
+
+    try:
+        persist_store_appearance_manifest(draft, primitive)
+    except InvalidStoreAppearanceContract as exc:
+        raise R4MutationError("invalid_store_appearance_manifest") from exc
+
+
+def _sync_manifest_from_live_selectors(*, draft: StorefrontLayoutVersion) -> None:
+    _persist_manifest_selection_updates(
+        draft=draft, updates=_live_legacy_selection_updates(draft=draft)
+    )
+
+
+def _apply_appearance_component_update(
+    *, draft: StorefrontLayoutVersion, mutation: dict
+) -> None:
+    _require_pinned_appearance_draft(draft=draft, mutation=mutation)
+    family = mutation.get("family")
+    component_key = mutation.get("component_key")
+    if not isinstance(family, str) or family not in COMPONENT_FAMILIES:
+        raise R4MutationError("invalid_appearance_family")
+    if not isinstance(component_key, str):
+        raise R4MutationError("invalid_appearance_component")
+    component = get_component(component_key)
+    if component is None or component.family_key != family:
+        raise R4MutationError("invalid_appearance_component")
+    try:
+        _persist_manifest_selection_updates(
+            draft=draft,
+            updates={family: component_key},
+            preserve_live_legacy_siblings=True,
+        )
+    except R4MutationError as exc:
+        if str(exc) == "invalid_store_appearance_manifest":
+            raise R4MutationError("invalid_appearance_component") from exc
+        raise
+
+
+def _apply_appearance_manifest(
+    *, draft: StorefrontLayoutVersion, mutation: dict
+) -> None:
+    _require_pinned_appearance_draft(draft=draft, mutation=mutation)
+    candidate = mutation.get("manifest")
+    if not isinstance(candidate, dict):
+        raise R4MutationError("invalid_store_appearance_manifest")
+    try:
+        validated = validate_store_appearance_manifest(candidate).manifest
+        primitive = manifest_to_primitive(validated)
+        current = manifest_to_primitive(load_store_appearance_manifest(draft))
+    except InvalidStoreAppearanceContract as exc:
+        raise R4MutationError("invalid_store_appearance_manifest") from exc
+
+    live_legacy = _live_legacy_selection_updates(draft=draft)
+    if primitive == current and all(
+        live_legacy[family] == primitive["selections"][family]
+        for family in _LEGACY_SELECTOR_FAMILIES
+    ):
+        return
+
+    try:
+        persist_store_appearance_manifest(draft, primitive)
+    except InvalidStoreAppearanceContract as exc:
+        raise R4MutationError("invalid_store_appearance_manifest") from exc
+
+
+def _apply_appearance_template(
+    *, draft: StorefrontLayoutVersion, mutation: dict
+) -> None:
+    _require_pinned_appearance_draft(draft=draft, mutation=mutation)
+    template_key = mutation.get("template_key")
+    template_version = mutation.get("template_version")
+    if not isinstance(template_key, str) or not template_key:
+        raise R4MutationError("unknown_appearance_template")
+    if not isinstance(template_version, str) or not template_version:
+        raise R4MutationError("template_version_mismatch")
+
+    preset = layout_preset_registry.get_layout_preset(template_key)
+    if preset is None or not preset.is_ready_template:
+        raise R4MutationError("unknown_appearance_template")
+    if preset.version != template_version:
+        raise R4MutationError("template_version_mismatch")
+
+    try:
+        preset_service.apply_preset(draft, preset)
+    except preset_service.InvalidPresetError as exc:
+        raise R4MutationError("invalid_appearance_template") from exc
+
+    # A6 predates A8's complete Ready-Template DNA. Synchronize the component
+    # families that existing Ready Templates already own today.
+    _sync_manifest_from_live_selectors(draft=draft)
+
+    # ``apply_preset`` captured its baseline before the typed manifest sync.
+    # Make the immutable baseline describe the exact final state of this one
+    # atomic mutation, so Reset/Undo cannot reintroduce stale selectors.
+    if draft.template_baseline_snapshot:
+        snapshot = dict(draft.template_baseline_snapshot)
+        snapshot["appearance"] = dict(draft.appearance_config or {})
+        snapshot["header_config"] = dict(draft.header_config or {})
+        snapshot["footer_config"] = dict(draft.footer_config or {})
+        draft.template_baseline_snapshot = snapshot
+        draft.save(update_fields=["template_baseline_snapshot"])
+
+
 def _apply_appearance_update(*, draft: StorefrontLayoutVersion, mutation: dict) -> None:
     patch = mutation.get("patch")
     if not isinstance(patch, dict):
@@ -264,7 +467,13 @@ def _apply_appearance_update(*, draft: StorefrontLayoutVersion, mutation: dict) 
         raise R4MutationError("invalid_appearance_config") from exc
 
     draft.appearance_config = cleaned
+    # Persist the legacy appearance payload first. Manifest synchronization can
+    # be a semantic no-op (for example, boutique keeps the default motion),
+    # but template-owned fields such as template_slug/font still changed and
+    # must be visible to record_change(), which reloads the Draft from the DB.
     draft.save(update_fields=["appearance_config"])
+    if "motion" in patch or new_template is not None:
+        _sync_manifest_from_live_selectors(draft=draft)
 
 
 def _apply_header_update(*, draft: StorefrontLayoutVersion, mutation: dict) -> None:
@@ -284,7 +493,7 @@ def _apply_header_update(*, draft: StorefrontLayoutVersion, mutation: dict) -> N
         raise R4MutationError("invalid_header_config") from exc
 
     draft.header_config = cleaned
-    draft.save(update_fields=["header_config"])
+    _sync_manifest_from_live_selectors(draft=draft)
 
 
 def _apply_footer_update(*, draft: StorefrontLayoutVersion, mutation: dict) -> None:
@@ -304,7 +513,7 @@ def _apply_footer_update(*, draft: StorefrontLayoutVersion, mutation: dict) -> N
         raise R4MutationError("invalid_footer_config") from exc
 
     draft.footer_config = cleaned
-    draft.save(update_fields=["footer_config"])
+    _sync_manifest_from_live_selectors(draft=draft)
 
 
 def _dispatch_mutation(*, store, draft: StorefrontLayoutVersion, mutation: dict) -> None:
@@ -336,6 +545,15 @@ def _dispatch_mutation(*, store, draft: StorefrontLayoutVersion, mutation: dict)
         return
     if mutation_type == "footer.update":
         _apply_footer_update(draft=draft, mutation=mutation)
+        return
+    if mutation_type == "appearance.component.update":
+        _apply_appearance_component_update(draft=draft, mutation=mutation)
+        return
+    if mutation_type == "appearance.manifest.apply":
+        _apply_appearance_manifest(draft=draft, mutation=mutation)
+        return
+    if mutation_type == "appearance.template.apply":
+        _apply_appearance_template(draft=draft, mutation=mutation)
         return
     raise R4MutationError("unknown_mutation_type")
 
@@ -378,16 +596,18 @@ def apply_mutation(*, store, actor, base_revision: int, mutation: dict) -> int:
 
     _dispatch_mutation(store=store, draft=draft, mutation=mutation)
 
-    draft.edit_revision += 1
-    draft.save(update_fields=["edit_revision"])
-
-    edit_history_service.record_change(
+    changed = edit_history_service.record_change(
         draft=draft,
         actor=actor,
         action_label=_history_label(mutation),
         before_state=before_state,
     )
+    if not changed:
+        # Valid semantic no-op: no revision churn and no fake history entry.
+        return draft.edit_revision
 
+    draft.edit_revision += 1
+    draft.save(update_fields=["edit_revision"])
     return draft.edit_revision
 
 

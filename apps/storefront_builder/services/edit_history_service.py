@@ -30,6 +30,7 @@ _SECTION_FIELDS = (
     "settings",
     "collapsed_in_editor",
     "stable_id",
+    "template_slot_key",
     "row_key",
     "row_span",
     "is_locked",
@@ -137,6 +138,8 @@ def snapshot_draft(draft: StorefrontLayoutVersion) -> dict:
         "header_config": dict(draft.header_config or {}),
         "footer_config": dict(draft.footer_config or {}),
         "appearance_config": dict(draft.appearance_config or {}),
+        "template_provenance": dict(draft.template_provenance or {}),
+        "template_baseline_snapshot": dict(draft.template_baseline_snapshot or {}),
         "pages": pages,
         "containers": containers,
     }
@@ -159,7 +162,19 @@ def restore_draft_state(draft: StorefrontLayoutVersion, state: dict) -> None:
     locked_draft.header_config = dict(state.get("header_config") or {})
     locked_draft.footer_config = dict(state.get("footer_config") or {})
     locked_draft.appearance_config = dict(state.get("appearance_config") or {})
-    locked_draft.save(update_fields=["header_config", "footer_config", "appearance_config", "updated_at"])
+    update_fields = ["header_config", "footer_config", "appearance_config"]
+    # History rows created before A6 legitimately lack these metadata keys.
+    # Preserve their current values for those old snapshots instead of
+    # clearing template identity merely because the old schema could not save it.
+    if "template_provenance" in state:
+        locked_draft.template_provenance = dict(state.get("template_provenance") or {})
+        update_fields.append("template_provenance")
+    if "template_baseline_snapshot" in state:
+        locked_draft.template_baseline_snapshot = dict(
+            state.get("template_baseline_snapshot") or {}
+        )
+        update_fields.append("template_baseline_snapshot")
+    locked_draft.save(update_fields=[*update_fields, "updated_at"])
 
     # Layout and content are restored independently.  Containers are deleted
     # first; their Cells use SET_NULL towards Sections, so this never deletes
@@ -187,6 +202,7 @@ def restore_draft_state(draft: StorefrontLayoutVersion, state: dict) -> None:
                 "settings": dict(section_state.get("settings") or {}),
                 "collapsed_in_editor": section_state.get("collapsed_in_editor", False),
                 "stable_id": section_state["stable_id"],
+                "template_slot_key": section_state.get("template_slot_key", ""),
                 "row_key": section_state.get("row_key", ""),
                 "row_span": section_state.get("row_span", 12),
                 "is_locked": section_state.get("is_locked", False),

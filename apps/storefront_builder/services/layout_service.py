@@ -41,6 +41,7 @@ from ..models import (
     StorefrontSection,
 )
 from ..storefront_appearance.contracts import InvalidStoreAppearanceContract
+from ..storefront_appearance.families import DEFAULT_STORE_APPEARANCE_MANIFEST
 from ..storefront_appearance.persistence import STORE_APPEARANCE_CONFIG_KEY
 from ..storefront_appearance.validation import (
     manifest_to_primitive,
@@ -895,7 +896,22 @@ def _draft_has_any_content(draft: StorefrontLayoutVersion) -> bool:
 
 
 def _appearance_config_is_pristine(appearance_config: dict) -> bool:
-    appearance_config = appearance_config or {}
+    appearance_config = dict(appearance_config or {})
+
+    # A5 persists the canonical typed manifest on every new Draft. That is a
+    # platform default, not a merchant edit. A non-default (or malformed)
+    # manifest is meaningful and must still be checkpointed before replacement.
+    raw_manifest = appearance_config.pop(STORE_APPEARANCE_CONFIG_KEY, None)
+    if raw_manifest is not None:
+        try:
+            manifest = normalize_persisted_manifest(raw_manifest)
+        except InvalidStoreAppearanceContract:
+            return False
+        if manifest_to_primitive(manifest) != manifest_to_primitive(
+            DEFAULT_STORE_APPEARANCE_MANIFEST
+        ):
+            return False
+
     if not set(appearance_config) <= set(APPEARANCE_CONFIG_DEFAULTS):
         return False
     return all(

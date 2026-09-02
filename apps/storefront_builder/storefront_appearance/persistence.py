@@ -33,8 +33,25 @@ _COMPONENT_BY_REFERENCE = {
 }
 
 
+def component_key_for_registry_reference(
+    reference: str, *, family_key: str | None = None
+) -> str | None:
+    """Resolve a platform-owned registry reference to its stable component key.
+
+    Legacy R4 selector mutations use this inverse adapter to keep the typed
+    Store Appearance manifest synchronized without duplicating registry
+    knowledge in the mutation service.
+    """
+    component_key = _COMPONENT_BY_REFERENCE.get(reference)
+    if component_key is None:
+        return None
+    if family_key is not None and COMPONENT_REGISTRY[component_key].family_key != family_key:
+        return None
+    return component_key
+
+
 def _component_for_reference(reference: str, fallback: str) -> str:
-    return _COMPONENT_BY_REFERENCE.get(reference, fallback)
+    return component_key_for_registry_reference(reference) or fallback
 
 
 def _legacy_manifest(version) -> StoreAppearanceManifest:
