@@ -41,8 +41,10 @@ data, not a new family implementation»). اعمالِ آن هرگز:
 from __future__ import annotations
 
 import dataclasses
+import re
 
 from . import section_registry
+from .storefront_appearance.validation import validate_store_appearance_manifest
 
 
 class InvalidLayoutPresetError(Exception):
@@ -111,6 +113,10 @@ class LayoutPresetDefinition:
     #: future Ready Template only ever needs this one flag, not a parallel
     #: structure to keep in sync.
     is_ready_template: bool = False
+    #: A8 — the complete, typed Store Appearance recipe applied with a Ready
+    #: Template.  Historical pre-A8 Ready Templates are deliberately allowed
+    #: to omit this only by the narrowly-scoped transition below.
+    store_appearance: dict | None = None
     #: فقط کلیدهایِ ساختاریِ ``appearance_config`` (هرگز رنگ) — زیرمجموعه‌ای
     #: از: font/radius/button_radius/density/motion/type_scale/button_style/
     #: image_fit/image_hover/card_image_crossfade/card_image_zoom. کلیدِ
@@ -148,15 +154,50 @@ class LayoutPresetDefinition:
 
 
 LAYOUT_PRESET_REGISTRY: dict[str, LayoutPresetDefinition] = {}
+LAYOUT_PRESET_VERSION_REGISTRY: dict[tuple[str, str], LayoutPresetDefinition] = {}
+
+
+# Task 2 transition only: these eight published U10 recipes predate the Store
+# Appearance DNA field.  Task 4 replaces their registrations with complete
+# manifests.  New Ready Template keys must always provide one.
+_LEGACY_READY_TEMPLATE_KEYS = frozenset({
+    "dense_marketplace",
+    "premium_leather",
+    "warm_boutique",
+    "fashion_promo_catalog",
+    "playful_lifestyle",
+    "utility_catalog",
+    "editorial_jewelry",
+    "dark_digital",
+})
+_NUMERIC_VERSION_RE = re.compile(r"^[1-9][0-9]*$")
 
 
 def register_layout_preset(definition: LayoutPresetDefinition) -> None:
     _validate_page_composition_shape(definition)
-    LAYOUT_PRESET_REGISTRY[definition.key] = definition
+    _validate_ready_template_store_appearance(definition)
+
+    identity = (definition.key, definition.version)
+    if identity in LAYOUT_PRESET_VERSION_REGISTRY:
+        raise InvalidLayoutPresetError(
+            f"Preset «{definition.key}»: version «{definition.version}» قبلاً ثبت شده است"
+        )
+
+    # Mutate only after every validation and duplicate check has succeeded:
+    # exact historical recipes remain immutable even if a later import fails.
+    LAYOUT_PRESET_VERSION_REGISTRY[identity] = definition
+    current = LAYOUT_PRESET_REGISTRY.get(definition.key)
+    if current is None or _version_number(definition.version) > _version_number(current.version):
+        LAYOUT_PRESET_REGISTRY[definition.key] = definition
 
 
 def get_layout_preset(key: str) -> LayoutPresetDefinition | None:
     return LAYOUT_PRESET_REGISTRY.get(key)
+
+
+def get_layout_preset_version(key: str, version: str) -> LayoutPresetDefinition | None:
+    """Return exactly one immutable registered Ready Template/preset version."""
+    return LAYOUT_PRESET_VERSION_REGISTRY.get((key, version))
 
 
 def list_layout_presets() -> list[LayoutPresetDefinition]:
@@ -177,8 +218,10 @@ def _validate_page_composition_shape(definition: LayoutPresetDefinition) -> None
     ``section_registry`` (کاملاً خالص) وابسته است، پس اینجا امن است.
     اعتبارسنجیِ appearance/header/footer در ``preset_service`` است (به
     ``layout_service`` نیاز دارد — نگاه کنید به docstring بالایِ فایل)."""
-    if not isinstance(definition.version, str) or not definition.version.strip():
-        raise InvalidLayoutPresetError(f"Preset «{definition.key}»: version باید یک رشته‌ی غیرخالی باشد")
+    if not isinstance(definition.version, str) or not _NUMERIC_VERSION_RE.fullmatch(definition.version):
+        raise InvalidLayoutPresetError(
+            f"Preset «{definition.key}»: version باید یک رشته‌ی عددیِ مثبت باشد"
+        )
     for page_type, entries in definition.pages.items():
         if page_type not in section_registry.ALL_PAGE_TYPES:
             raise InvalidLayoutPresetError(
@@ -233,6 +276,32 @@ def _validate_page_composition_shape(definition: LayoutPresetDefinition) -> None
             raise InvalidLayoutPresetError(
                 f"Preset «{definition.key}»: ترکیبِ ردیفِ صفحه‌ی «{page_type}» نامعتبر است: {exc}"
             ) from exc
+
+
+def _version_number(version: str) -> int:
+    """Validated numeric versions have a stable, import-order-independent order."""
+    return int(version)
+
+
+def _validate_ready_template_store_appearance(definition: LayoutPresetDefinition) -> None:
+    if not definition.is_ready_template:
+        return
+    if definition.store_appearance is None:
+        if definition.key in _LEGACY_READY_TEMPLATE_KEYS:
+            return
+        raise InvalidLayoutPresetError(
+            f"Ready Template «{definition.key}» باید Store Appearance DNA کامل داشته باشد"
+        )
+    if not isinstance(definition.store_appearance, dict):
+        raise InvalidLayoutPresetError(
+            f"Ready Template «{definition.key}»: Store Appearance DNA باید دیکشنری باشد"
+        )
+    try:
+        validate_store_appearance_manifest(definition.store_appearance, require_complete=True)
+    except Exception as exc:  # validator owns the typed, allowlisted contract
+        raise InvalidLayoutPresetError(
+            f"Ready Template «{definition.key}»: Store Appearance DNA نامعتبر است: {exc}"
+        ) from exc
 
 
 # ==================================================================
