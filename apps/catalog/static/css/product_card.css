@@ -562,3 +562,98 @@ html[data-sfb-density="compact"] .pcarousel{--pcarousel-gap:8px}
 .pcard.style-luxury_dark .addbar{position:absolute;left:10px;right:auto;bottom:10px;width:auto;padding:0;opacity:1;transform:none;background:transparent}.pcard.style-luxury_dark .addbar button{width:36px;height:36px;padding:0;border-radius:10px;background:linear-gradient(135deg,var(--theme-primary,#d4af37),var(--theme-accent,#f59e0b));color:#090703;font-size:0;font-weight:900;box-shadow:0 6px 18px rgba(0,0,0,.28)}.pcard.style-luxury_dark .addbar button svg{width:17px;height:17px}
 .product-section:has(.pcard.style-luxury_dark) .sec-head h2{color:var(--theme-text,#f8f1cf)}.product-section:has(.pcard.style-luxury_dark) .sec-head h2 .bar{background:var(--theme-primary,#d4af37)}.product-section:has(.pcard.style-luxury_dark) .sec-head .btn{border-color:var(--theme-border,#3a3218);color:var(--theme-primary,#d4af37);background:var(--theme-card-bg,#171717)}
 @media(max-width:680px){.pcard.style-luxury_dark{border-radius:14px}.pcard.style-luxury_dark .body{padding:8px 9px 7px}.pcard.style-luxury_dark .name{font-size:10.5px;height:34px}.pcard.style-luxury_dark .addbar{left:7px;bottom:7px}.pcard.style-luxury_dark .addbar button{width:32px;height:32px}.pcard.style-luxury_dark .cover-photo,.pcard.style-luxury_dark .cover-photo-2{padding:5px}}
+
+/* A8 reusable card vocabulary. These selectors only shape presentation;
+   product truth continues to come from ProductCardData in the shared partial. */
+.pcard.style-marketplace_price,
+.pcard.style-price_first,
+.pcard.style-technical_spec{
+  border-radius:calc(var(--sfb-radius,12px) * .65);box-shadow:none;
+}
+.pcard.style-marketplace_price .img,
+.pcard.style-price_first .img,
+.pcard.style-technical_spec .img{background:var(--theme-card-bg,#fff)!important}
+.pcard.style-marketplace_price .price,
+.pcard.style-price_first .price{border-top:0;padding-top:2px}
+.pcard.style-marketplace_price .price .now,
+.pcard.style-price_first .price .now{font-size:clamp(14px,1.4vw,18px);color:var(--theme-price,var(--theme-primary,#6848ff))}
+.pcard.style-price_first .body{display:grid;grid-template-areas:"price" "name" "brand" "rate"}
+.pcard.style-price_first .price{grid-area:price;margin:0}.pcard.style-price_first .name{grid-area:name}.pcard.style-price_first .brand{grid-area:brand}.pcard.style-price_first .rate{grid-area:rate}
+
+.pcard.style-editorial_minimal,
+.pcard.style-shelf_editorial{
+  border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible;
+}
+.pcard.style-editorial_minimal:hover,
+.pcard.style-shelf_editorial:hover{box-shadow:none;transform:none}
+.pcard.style-editorial_minimal .img{aspect-ratio:4/5}
+.pcard.style-editorial_minimal .body,.pcard.style-shelf_editorial .body{padding-inline:0}
+.pcard.style-editorial_minimal .price,.pcard.style-shelf_editorial .price{border-top:0}
+.pcard.style-shelf_editorial{border-bottom:3px solid var(--theme-primary,var(--violet))}
+.pcard.style-shelf_editorial .img{aspect-ratio:3/4;border-radius:var(--sfb-radius,12px) var(--sfb-radius,12px) 0 0}
+
+.pcard.style-retail_row{
+  display:grid;grid-template-columns:minmax(88px,30%) 1fr;border-radius:8px;min-height:118px;
+}
+.pcard.style-retail_row .img{grid-column:1;grid-row:1;aspect-ratio:auto;min-height:116px}
+.pcard.style-retail_row .body{grid-column:2;grid-row:1;padding:12px;min-width:0}
+.pcard.style-retail_row .name{height:auto}.pcard.style-retail_row .price{border-top:0}
+
+.pcard.style-soft_capsule{border-radius:calc(var(--sfb-radius,18px) * 1.65);padding:7px;background:var(--theme-card-bg,#fff)}
+.pcard.style-soft_capsule .img{border-radius:calc(var(--sfb-radius,18px) * 1.25)}
+.pcard.style-soft_capsule .body{padding-inline:9px}.pcard.style-soft_capsule .price{border-top:0}
+
+.pcard.style-beauty_glass{
+  background:color-mix(in srgb,var(--theme-card-bg,#fff) 76%,transparent);
+  border-color:color-mix(in srgb,var(--theme-primary,#6848ff) 22%,transparent);
+  box-shadow:0 16px 38px color-mix(in srgb,var(--theme-primary,#6848ff) 10%,transparent);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+}
+.pcard.style-beauty_glass .img{margin:8px;border-radius:calc(var(--sfb-radius,14px) * .8);aspect-ratio:1/1}
+.pcard.style-beauty_glass .price{border-color:color-mix(in srgb,var(--theme-primary,#6848ff) 18%,transparent)}
+
+.pcard.style-paper_frame{padding:9px 9px 0;border-radius:2px;background:var(--theme-card-bg,#fff);box-shadow:0 8px 0 color-mix(in srgb,var(--theme-text,#161822) 8%,transparent)}
+.pcard.style-paper_frame .img{aspect-ratio:4/5}.pcard.style-paper_frame .body{padding-inline:3px}.pcard.style-paper_frame .price{border:0}
+
+.pcard.style-portrait_round{border:0;background:transparent;box-shadow:none;text-align:center}
+.pcard.style-portrait_round:hover{box-shadow:none}.pcard.style-portrait_round .img{aspect-ratio:1;border-radius:50%;margin:10px}
+.pcard.style-portrait_round .body{align-items:center}.pcard.style-portrait_round .price{border:0;justify-content:center}
+
+.pcard.style-catalog_index{border-radius:0;border-inline:0;border-top:0;box-shadow:none}
+.pcard.style-catalog_index:hover{transform:none;box-shadow:none}.pcard.style-catalog_index .img{aspect-ratio:4/3}
+.pcard.style-catalog_index .name{font-weight:800}.pcard.style-catalog_index .body{border-inline-start:4px solid var(--theme-primary,var(--violet))}
+
+.pcard.style-shipping_label{border:2px dashed var(--theme-border,var(--line));border-radius:4px;box-shadow:none}
+.pcard.style-shipping_label .body{font-family:ui-monospace,"Courier New",monospace}
+.pcard.style-shipping_label .price{border-top-style:solid}
+
+.pcard.style-technical_spec .body{font-family:ui-monospace,"Courier New",monospace;gap:4px}
+.pcard.style-technical_spec .name{font-weight:800}.pcard.style-technical_spec .price{border-top-style:solid}
+.pcard.style-technical_spec .brand{text-transform:uppercase;letter-spacing:.06em}
+
+.pcard.style-tech_neon{
+  background:var(--theme-card-bg,#111827);color:var(--theme-text,#f8fafc);
+  border-color:var(--theme-primary,#22d3ee);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--theme-primary,#22d3ee) 22%,transparent),0 0 24px color-mix(in srgb,var(--theme-primary,#22d3ee) 16%,transparent);
+}
+.pcard.style-tech_neon .name{color:inherit}.pcard.style-tech_neon .price .now{color:var(--theme-primary,#22d3ee)}
+.pcard.style-tech_neon .price{border-color:color-mix(in srgb,var(--theme-primary,#22d3ee) 34%,transparent)}
+
+.pcard.style-bold_outline{border:3px solid var(--theme-text,#161822);border-radius:0;box-shadow:6px 6px 0 var(--theme-primary,var(--violet));transform:none}
+.pcard.style-bold_outline:hover{transform:translate(-2px,-2px);box-shadow:8px 8px 0 var(--theme-primary,var(--violet))}
+.pcard.style-bold_outline .name{font-weight:900}.pcard.style-bold_outline .price{border-top:2px solid currentColor}
+
+.pcard.badge-treatment-sale .pill-disc{
+  border-radius:3px;padding:5px 9px;background:var(--theme-accent,var(--pink));
+  box-shadow:3px 3px 0 color-mix(in srgb,var(--theme-text,#161822) 82%,transparent);
+}
+
+@media(max-width:680px){
+  .pcard.style-retail_row{grid-template-columns:76px 1fr;min-height:96px}
+  .pcard.style-retail_row .img{min-height:94px}
+  .pcard.style-bold_outline{border-width:2px;box-shadow:4px 4px 0 var(--theme-primary,var(--violet))}
+  .pcard.style-soft_capsule{padding:5px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .pcard.style-bold_outline:hover{transform:none}
+}

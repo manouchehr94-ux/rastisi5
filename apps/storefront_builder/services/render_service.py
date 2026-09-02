@@ -23,6 +23,7 @@ from apps.orders.services import best_seller_service
 
 from .. import appearance_registry
 from ..section_registry import (
+    CARD_AWARE_SECTION_KEYS,
     UnknownSectionTypeError,
     default_brand_carousel_settings,
     default_category_grid_settings,
@@ -31,6 +32,8 @@ from ..section_registry import (
 )
 from ..storefront_appearance.rendering import (
     ResolvedStoreAppearance,
+    badge_settings_for,
+    card_settings_for,
     global_renderer_template as store_appearance_global_renderer_template,
     resolve_store_appearance_render_state,
     section_variant_for as store_appearance_section_variant_for,
@@ -744,12 +747,22 @@ def _build_items_from_sections(
         )
         effective_settings = dict(section.settings or {})
         render_section = section
+        if store_appearance is not None and section.section_key in CARD_AWARE_SECTION_KEYS:
+            presentation_overlay = {
+                **card_settings_for(store_appearance),
+                **badge_settings_for(store_appearance),
+            }
+            if presentation_overlay:
+                effective_card_settings = dict(effective_settings.get("card") or {})
+                effective_card_settings.update(presentation_overlay)
+                effective_settings["card"] = effective_card_settings
         if appearance_variant is not None:
             variant_setting_key = definition.variant_setting_key or "variant"
             effective_settings[variant_setting_key] = appearance_variant.key
             # Context builders consistently read ``section.settings``. A
             # shallow model copy preserves PK/FK identity for Store-scoped
             # queries while keeping this overlay strictly in-memory.
+        if effective_settings != (section.settings or {}):
             render_section = copy(section)
             render_section.settings = effective_settings
 

@@ -261,6 +261,27 @@ _LUXURY_SEARCH_VARIANT = GlobalVariantDefinition(
     renderer="storefront_builder/partials/global_header/luxury_search.html",
 )
 
+# A8 semantic header vocabulary.  Several identities deliberately reuse a
+# proven renderer when the inventory found the same topology; the identity is
+# still useful to recipes while renderer paths remain platform-owned.
+_A8_HEADER_VARIANTS = tuple(
+    GlobalVariantDefinition(key=key, label_fa=label, renderer=renderer)
+    for key, label, renderer in (
+        ("editorial_row", "ردیف نشریه‌ای", "storefront_builder/partials/global_header/editorial_row.html"),
+        ("marketplace_search", "بازارگاهی جستجو-محور", "storefront_builder/partials/global_header/marketplace_search.html"),
+        ("centered_brand", "برند مرکزی", "storefront_builder/partials/global_header/centered_brand.html"),
+        ("floating_compact", "شناور فشرده", "storefront_builder/partials/global_header/floating_compact.html"),
+        ("compact_drawer", "کشوی فشرده", "storefront_builder/partials/global_header/compact_drawer.html"),
+        ("promo_bar", "نوار کمپینی", "storefront_builder/partials/global_header/promo_bar.html"),
+        ("community_shortcuts", "میانبرهای اجتماعی", "storefront_builder/partials/global_header/community_shortcuts.html"),
+        ("overlay_transparent", "شفاف روی تصویر", "storefront_builder/partials/global_header/overlay_transparent.html"),
+        ("editorial_masthead", "سربرگ نشریه‌ای", "storefront_builder/partials/global_header/editorial_masthead.html"),
+        ("compact_menu", "منوی فشرده", "storefront_builder/partials/global_header/compact_menu.html"),
+        ("category_tabs", "زبانه‌های دسته‌بندی", "storefront_builder/partials/global_header/category_tabs.html"),
+        ("playful_canopy", "سایه‌بان بازیگوش", "storefront_builder/partials/global_header/playful_canopy.html"),
+    )
+)
+
 GLOBAL_HEADER_REGION = GlobalRegionDefinition(
     key="header",
     label_fa="هدر فروشگاه",
@@ -275,6 +296,7 @@ GLOBAL_HEADER_REGION = GlobalRegionDefinition(
         _CHOCOLATE_CENTERED_SEARCH_VARIANT,
         _ATELIER_NAV_VARIANT,
         _LUXURY_SEARCH_VARIANT,
+        *_A8_HEADER_VARIANTS,
     ),
     default_variant="legacy_default",
     variant_setting_key="header_variant",
@@ -341,6 +363,20 @@ _FOOTER_CHOCOLATE_DARK_VARIANT = GlobalVariantDefinition(
     renderer="storefront_builder/partials/global_footer/chocolate_dark_columns.html",
 )
 
+_A8_FOOTER_VARIANTS = tuple(
+    GlobalVariantDefinition(key=key, label_fa=label, renderer=renderer)
+    for key, label, renderer in (
+        ("minimal", "مینیمال", "storefront_builder/partials/global_footer/minimal.html"),
+        ("marketplace_columns", "ستون‌های بازارگاهی", "storefront_builder/partials/global_footer/marketplace_columns.html"),
+        ("editorial_wordmark", "نشریه‌ای با نشان‌نوشت", "storefront_builder/partials/global_footer/editorial_wordmark.html"),
+        ("brand_story", "روایت برند", "storefront_builder/partials/global_footer/brand_story.html"),
+        ("bold_columns", "ستون‌های جسور", "storefront_builder/partials/global_footer/bold_columns.html"),
+        ("centered", "فشرده و مرکزی", "storefront_builder/partials/global_footer/centered.html"),
+        ("app_download", "پیوندهای همراه", "storefront_builder/partials/global_footer/app_download.html"),
+        ("playful_wave", "موج بازیگوش", "storefront_builder/partials/global_footer/playful_wave.html"),
+    )
+)
+
 GLOBAL_FOOTER_REGION = GlobalRegionDefinition(
     key="footer",
     label_fa="فوتر فروشگاه",
@@ -353,6 +389,7 @@ GLOBAL_FOOTER_REGION = GlobalRegionDefinition(
         _FOOTER_PROMO_COLUMNS_VARIANT,
         _FOOTER_BEAUTY_RETAIL_VARIANT,
         _FOOTER_CHOCOLATE_DARK_VARIANT,
+        *_A8_FOOTER_VARIANTS,
     ),
     default_variant="legacy_default",
     variant_setting_key="footer_variant",
@@ -374,12 +411,30 @@ _MOBILE_NAV_LUXURY_FLOATING_CART_VARIANT = GlobalVariantDefinition(
     renderer="storefront_builder/partials/global_mobile_nav/luxury_floating_cart.html",
 )
 
+_A8_MOBILE_NAV_VARIANTS = tuple(
+    GlobalVariantDefinition(
+        key=key,
+        label_fa=label,
+        renderer=f"storefront_builder/partials/global_mobile_nav/{key}.html",
+    )
+    for key, label in (
+        ("four_item", "چهار مقصد"),
+        ("five_item", "پنج مقصد"),
+        ("raised_cart", "سبد برجسته"),
+        ("floating_dock", "داک شناور"),
+        ("glass_dock", "داک شیشه‌ای"),
+        ("minimal_icons", "آیکن‌های مینیمال"),
+        ("wide_cart", "سبد عریض"),
+    )
+)
+
 GLOBAL_MOBILE_NAV_REGION = GlobalRegionDefinition(
     key="mobile_bottom_nav",
     label_fa="ناوبری پایین موبایل",
     variants=(
         _MOBILE_NAV_HIDDEN_VARIANT,
         _MOBILE_NAV_LUXURY_FLOATING_CART_VARIANT,
+        *_A8_MOBILE_NAV_VARIANTS,
     ),
     default_variant="hidden",
     variant_setting_key="mobile_nav_variant",

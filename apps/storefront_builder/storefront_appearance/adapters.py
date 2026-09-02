@@ -28,6 +28,51 @@ _VIRTUAL_COMPONENTS = frozenset(
     }
 )
 
+_A8_HERO_ALIASES = (
+    ("none", "overlay", "بدون هیروی تصویری"),
+    ("immersive", "luxury_showcase", "فراگیر"),
+    ("editorial_split", "split", "دوپاره نشریه‌ای"),
+    ("promo_bento", "chocolate_carousel", "بنتوی کمپینی"),
+    ("typographic", "split", "تایپوگرافیک"),
+    ("product_focus", "beauty_editorial", "تمرکز محصول"),
+    ("image_collage", "atelier_triptych", "کلاژ تصویری"),
+    ("side_offer_slider", "chocolate_carousel", "اسلایدر با پیشنهاد جانبی"),
+    ("media_feature", "overlay", "رسانه شاخص"),
+    ("quiet", "split", "آرام"),
+    ("search_first", "split", "جستجو-محور"),
+    ("campaign_mosaic", "atelier_triptych", "موزاییک کمپین"),
+    ("social_gallery", "atelier_triptych", "گالری اجتماعی"),
+)
+
+_A8_LAYOUT_ALIASES = (
+    ("two_column", "half"),
+    ("three_column", "thirds"),
+    ("four_column", "quarters"),
+    ("dense_five", "quarters"),
+    ("horizontal_rail", "single"),
+    ("catalog_list", "single"),
+    ("bento_grid", "quarter_left"),
+    ("featured_split", "third_right"),
+    ("editorial_zigzag", "quarter_right"),
+)
+
+_A8_PRODUCT_VIEW_ALIASES = (
+    ("standard_grid", "product_section", "grid"),
+    ("carousel", "product_section", "carousel"),
+    ("dense_grid", "catalog_product_wall", "group_columns"),
+    ("editorial_grid", "product_section", "grid"),
+    ("catalog_list", "catalog_product_wall", "rows"),
+    ("bento", "catalog_product_wall", "featured_row"),
+    ("featured_wall", "catalog_product_wall", "featured_row"),
+)
+
+_A8_CARD_STYLES = (
+    "standard", "marketplace_price", "editorial_minimal", "retail_row",
+    "luxury_dark", "soft_capsule", "beauty_glass", "paper_frame",
+    "price_first", "portrait_round", "catalog_index", "shipping_label",
+    "shelf_editorial", "technical_spec", "tech_neon", "bold_outline",
+)
+
 
 def _component(
     *,
@@ -118,6 +163,15 @@ def build_existing_component_definitions() -> tuple[ComponentDefinition, ...]:
             "hero", "hero_banner", default_identity="legacy_default"
         )
     )
+    for identity, variant_key, label_fa in _A8_HERO_ALIASES:
+        definitions.append(
+            _component(
+                key=f"hero.{identity}.v1",
+                family_key="hero",
+                label_fa=label_fa,
+                registry_reference=f"section_variant:hero_banner:{variant_key}",
+            )
+        )
 
     for layout_key in container_service.LAYOUT_PRESETS:
         identity = "legacy_default" if layout_key == "single" else layout_key
@@ -129,12 +183,30 @@ def build_existing_component_definitions() -> tuple[ComponentDefinition, ...]:
                 registry_reference=f"composition:{layout_key}",
             )
         )
+    for identity, layout_key in _A8_LAYOUT_ALIASES:
+        definitions.append(
+            _component(
+                key=f"layout.{identity}.v1",
+                family_key="layout",
+                label_fa=f"چیدمان {identity}",
+                registry_reference=f"composition:{layout_key}",
+            )
+        )
 
     definitions.extend(
         _section_variant_components(
             "product_view", "product_section", default_identity="legacy_default"
         )
     )
+    for identity, section_key, variant_key in _A8_PRODUCT_VIEW_ALIASES:
+        definitions.append(
+            _component(
+                key=f"product_view.{identity}.v1",
+                family_key="product_view",
+                label_fa=f"نمای محصولات {identity}",
+                registry_reference=f"section_variant:{section_key}:{variant_key}",
+            )
+        )
     definitions.extend(
         _section_variant_components(
             "product_view",
@@ -152,12 +224,29 @@ def build_existing_component_definitions() -> tuple[ComponentDefinition, ...]:
             registry_reference="virtual:card:legacy_default",
         )
     )
+    for style in _A8_CARD_STYLES:
+        definitions.append(
+            _component(
+                key=f"card.{style}.v1",
+                family_key="card",
+                label_fa=f"کارت {style}",
+                registry_reference=f"card_style:{style}",
+            )
+        )
     definitions.append(
         _component(
             key="badge.none.v1",
             family_key="badge",
             label_fa="بدون نشان تزئینی",
             registry_reference="virtual:badge:none",
+        )
+    )
+    definitions.append(
+        _component(
+            key="badge.sale.v1",
+            family_key="badge",
+            label_fa="تأکید فروش",
+            registry_reference="badge_treatment:sale",
         )
     )
 
@@ -209,6 +298,12 @@ def resolve_registry_reference(reference: str):
         resolved = container_service.LAYOUT_PRESETS.get(parts[1])
     elif len(parts) == 2 and parts[0] == "appearance_motion":
         if parts[1] in appearance_registry.MOTION_CHOICES:
+            resolved = parts[1]
+    elif len(parts) == 2 and parts[0] == "card_style":
+        if parts[1] in section_registry.CARD_STYLE_CHOICES:
+            resolved = parts[1]
+    elif len(parts) == 2 and parts[0] == "badge_treatment":
+        if parts[1] in section_registry.BADGE_TREATMENT_CHOICES:
             resolved = parts[1]
     elif len(parts) == 3 and parts[0] == "virtual":
         token = (parts[1], parts[2])

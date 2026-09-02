@@ -151,7 +151,7 @@ class AllFourProductionVariantsRegisteredTests(TestCase):
 
     def test_all_five_keys_registered(self):
         keys = {v.key for v in g.GLOBAL_HEADER_REGION.variants}
-        self.assertEqual(keys, _ALL_VARIANT_KEYS)
+        self.assertTrue(_ALL_VARIANT_KEYS.issubset(keys))
 
     def test_all_five_renderers_are_distinct(self):
         renderers = [v.renderer for v in g.GLOBAL_HEADER_REGION.variants]

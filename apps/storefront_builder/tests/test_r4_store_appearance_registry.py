@@ -9,7 +9,6 @@ from apps.storefront_builder.storefront_appearance.contracts import (
 from apps.storefront_builder.storefront_appearance.families import COMPONENT_FAMILIES
 from apps.storefront_builder.storefront_appearance.registry import (
     COMPONENT_REGISTRY,
-    component_counts_by_family,
     get_component,
     list_components,
     require_component,
@@ -19,22 +18,31 @@ from apps.storefront_builder.storefront_appearance.registry import (
 
 class StoreAppearanceRegistryAdapterTests(SimpleTestCase):
     def test_existing_registry_inventory_is_adapted_without_copying_renderers(self):
-        self.assertEqual(
-            component_counts_by_family(),
-            {
-                "header": 10,
-                "mega_menu": 1,
-                "hero": 6,
-                "layout": 8,
-                "product_view": 6,
-                "card": 1,
-                "badge": 1,
-                "motion": 3,
-                "footer": 8,
-                "bottom_nav": 2,
-            },
-        )
-        self.assertEqual(len(COMPONENT_REGISTRY), 46)
+        historical_keys = {
+            "header.legacy_default.v1", "header.marketplace_search_first.v1",
+            "header.premium_three_column.v1", "header.boutique_centered.v1",
+            "header.dark_tech.v1", "header.promo_search_nav.v1",
+            "header.beauty_search_nav.v1", "header.chocolate_centered_search.v1",
+            "header.atelier_nav.v1", "header.luxury_search.v1",
+            "mega_menu.none.v1",
+            "hero.legacy_default.v1", "hero.split.v1", "hero.beauty_editorial.v1",
+            "hero.chocolate_carousel.v1", "hero.atelier_triptych.v1",
+            "hero.luxury_showcase.v1",
+            "layout.legacy_default.v1", "layout.half.v1", "layout.quarter_left.v1",
+            "layout.quarter_right.v1", "layout.third_left.v1", "layout.third_right.v1",
+            "layout.thirds.v1", "layout.quarters.v1",
+            "product_view.legacy_default.v1", "product_view.grid.v1",
+            "product_view.campaign_band.v1", "product_view.catalog_rows.v1",
+            "product_view.catalog_group_columns.v1", "product_view.catalog_featured_row.v1",
+            "card.legacy_default.v1", "badge.none.v1",
+            "motion.none.v1", "motion.subtle.v1", "motion.dynamic.v1",
+            "footer.legacy_default.v1", "footer.marketplace_dense.v1",
+            "footer.premium_columns.v1", "footer.boutique_editorial.v1",
+            "footer.dark_tech.v1", "footer.promo_columns.v1",
+            "footer.beauty_retail_columns.v1", "footer.chocolate_dark_columns.v1",
+            "bottom_nav.hidden.v1", "bottom_nav.luxury_floating_cart.v1",
+        }
+        self.assertTrue(historical_keys.issubset(COMPONENT_REGISTRY))
         self.assertTrue(all("/" not in item.registry_reference for item in list_components()))
 
     def test_every_family_safe_default_resolves(self):
@@ -114,7 +122,7 @@ class StoreAppearanceRegistryAdapterTests(SimpleTestCase):
         headers = list_components("header")
         self.assertEqual(headers, list_components("header"))
         self.assertEqual(headers[0].key, "header.legacy_default.v1")
-        self.assertEqual(len(headers), 10)
+        self.assertGreaterEqual(len(headers), 10)
 
     def test_unregistered_symbolic_reference_is_rejected(self):
         component = ComponentDefinition(

@@ -142,6 +142,32 @@ def global_renderer_template(
     return implementation.renderer
 
 
+def card_settings_for(state: ResolvedStoreAppearance) -> dict[str, str]:
+    """Return the selected card's bounded in-memory settings overlay."""
+
+    resolved = state.component("card")
+    if resolved.component.key == resolved.family.safe_default_component_key:
+        return {}
+    if not resolved.component.registry_reference.startswith("card_style:"):
+        raise InvalidStoreAppearanceContract(
+            f"{resolved.component.key} does not resolve to a card style"
+        )
+    return {"card_style": str(resolved.implementation)}
+
+
+def badge_settings_for(state: ResolvedStoreAppearance) -> dict[str, str]:
+    """Return the selected badge's bounded in-memory settings overlay."""
+
+    resolved = state.component("badge")
+    if resolved.component.key == resolved.family.safe_default_component_key:
+        return {}
+    if not resolved.component.registry_reference.startswith("badge_treatment:"):
+        raise InvalidStoreAppearanceContract(
+            f"{resolved.component.key} does not resolve to a badge treatment"
+        )
+    return {"badge_treatment": str(resolved.implementation)}
+
+
 def section_variant_for(
     state: ResolvedStoreAppearance,
     section_key: str,

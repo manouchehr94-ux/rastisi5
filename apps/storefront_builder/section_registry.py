@@ -866,7 +866,18 @@ QUICK_ADD_REVEAL_CHOICES = ("hover_slide", "hover_fade", "always")
 #: may adopt it, not just the one that introduces it. ``beauty_retail`` is
 #: the equivalent commerce-forward cosmetics/perfume treatment: contained
 #: product media plus an always-visible, business-rule-aware bottom action.
-CARD_STYLE_CHOICES = ("standard", "compact", "minimal", "fashion_sale", "beauty_retail", "chocolate_retail", "retail_list", "luxury_dark")
+CARD_STYLE_CHOICES = (
+    "standard", "compact", "minimal", "fashion_sale", "beauty_retail",
+    "chocolate_retail", "retail_list", "luxury_dark",
+    # A8 presentation-only vocabulary.  Every value is consumed by the one
+    # shared product-card partial; none is a renderer or template selector.
+    "marketplace_price", "editorial_minimal", "retail_row", "soft_capsule", "beauty_glass",
+    "paper_frame", "price_first", "portrait_round", "catalog_index",
+    "shipping_label", "shelf_editorial", "technical_spec", "tech_neon",
+    "bold_outline",
+)
+
+BADGE_TREATMENT_CHOICES = ("none", "sale")
 
 _CARD_TOGGLE_FIELDS = (
     "show_brand", "show_price", "show_badge", "show_wishlist",
