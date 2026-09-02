@@ -38,7 +38,7 @@
 - Consumes: prototype `C:/Users/hp/Downloads/RastiSi_50_Storefront_Design_Lab_TABBED_THEMES (1).html`, repository specs, `global_region_registry.py`, `section_registry.py`, `appearance_registry.py`, and `storefront_appearance/registry.py`.
 - Produces: one semantic mapping row for every prototype primitive and every `TPLS` entry 01..50; these stable keys are the single vocabulary used by Tasks 2-6.
 
-- [ ] **Step 1: Record the existing catalog and family counts**
+- [x] **Step 1: Record the existing catalog and family counts**
 
 Run:
 
@@ -48,15 +48,15 @@ python manage.py shell -c "from apps.storefront_builder.storefront_appearance.re
 
 Expected baseline: 10 families, 46 components, and 8 current official templates.
 
-- [ ] **Step 2: Inventory prototype primitives without copying prototype runtime code**
+- [x] **Step 2: Inventory prototype primitives without copying prototype runtime code**
 
 For each header, hero, category/discovery style, card, product composition, section-order pattern, footer, bottom nav, palette/type/density/width/radius concept, record prototype key/name/family, visual description, nearest existing production primitive, reuse/new decision, proposed semantic key, trusted renderer, responsive contract, compatibility notes, and recipe usage.
 
-- [ ] **Step 3: Map all 50 prototype identities**
+- [x] **Step 3: Map all 50 prototype identities**
 
 Write 50 numbered rows `01` through `50`, each with official semantic Ready Template key, version, palette/typography/density/width/radius, all ten Store Appearance selections, and section recipe. Preserve existing stable keys where they match a direction; never use `h1`, `x14`, `c-price`, `m5`, or another temporary prototype key as production identity.
 
-- [ ] **Step 4: Self-check completeness**
+- [x] **Step 4: Self-check completeness**
 
 Run:
 
@@ -66,7 +66,7 @@ rg -n '^\| (0[1-9]|[1-4][0-9]|50) ' docs/qa_evidence/storefront_design_engine/a8
 
 Expected: exactly 50 numbered mapping rows.
 
-- [ ] **Step 5: Commit inventory**
+- [x] **Step 5: Commit inventory**
 
 ```powershell
 git add docs/qa_evidence/storefront_design_engine/a8_component_inventory.md docs/qa_evidence/storefront_design_engine/a8_template_mapping.md
@@ -83,11 +83,11 @@ git commit -m "docs(storefront-builder): inventory A8 template DNA"
 - Consumes: `StoreAppearanceManifest`, `validate_store_appearance_manifest`, current `LayoutPresetDefinition` and registration functions.
 - Produces: `LayoutPresetDefinition.store_appearance`, `get_layout_preset_version(key, version)`, version-preserving registration, and import-time recipe shape validation.
 
-- [ ] **Step 1: Write RED contract tests**
+- [x] **Step 1: Write RED contract tests**
 
 Add focused tests that construct definitions with duplicate `(key, version)`, invalid/empty versions, missing `schema_version`, incomplete ten-family selections, unknown keys, and renderer/template-path payloads. Assert duplicate versions raise `InvalidLayoutPresetError`; valid older and latest versions resolve independently; `list_ready_templates()` returns only latest official versions.
 
-- [ ] **Step 2: Prove RED**
+- [x] **Step 2: Prove RED**
 
 Run:
 
@@ -97,7 +97,7 @@ python manage.py test apps.storefront_builder.tests.test_a8_ready_template_contr
 
 Expected: failures because version lookup and `store_appearance` do not exist.
 
-- [ ] **Step 3: Add the minimal versioned contract**
+- [x] **Step 3: Add the minimal versioned contract**
 
 Extend the frozen dataclass with:
 
@@ -114,7 +114,7 @@ def get_layout_preset_version(key: str, version: str) -> LayoutPresetDefinition 
 
 Validate Ready Template DNA with the existing Store Appearance validator without introducing renderer discovery or DB access.
 
-- [ ] **Step 4: Prove GREEN and regress current catalog behavior**
+- [x] **Step 4: Prove GREEN and regress current catalog behavior**
 
 Run:
 
@@ -122,7 +122,7 @@ Run:
 python manage.py test apps.storefront_builder.tests.test_a8_ready_template_contracts apps.storefront_builder.tests.test_u10_ready_template_catalog
 ```
 
-- [ ] **Step 5: Commit contract**
+- [x] **Step 5: Commit contract**
 
 ```powershell
 git add apps/storefront_builder/layout_preset_registry.py apps/storefront_builder/tests/test_a8_ready_template_contracts.py
@@ -384,4 +384,3 @@ git commit --allow-empty -m "feat(storefront-builder): add 50 Ready Template DNA
 ```
 
 Do not push. Preserve the host-managed worktree and report exact start/end SHA, counts, files by responsibility, component before/after counts, 50 keys/versions, commands/results, capture status, matrices, final status, and next-phase deferrals.
-
