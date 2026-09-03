@@ -148,35 +148,35 @@ git commit -m "feat(storefront-builder): version Ready Template DNA"
 - Consumes: Task 1 reuse/new decisions and existing global/section/card registries.
 - Produces: stable semantic component keys resolving to trusted existing or new generic implementations; `card_settings_for(state)` and `badge_settings_for(state)` pure presentation overlays consumed by the shared render service.
 
-- [ ] **Step 1: Write RED registry and rendering tests**
+- [x] **Step 1: Write RED registry and rendering tests**
 
 Assert every new semantic key is unique, has responsive/RTL capabilities, resolves from an allowlist, and has no prototype ID in its key. For each new global region assert the resolved path is under `storefront_builder/partials/`. For card/badge selections render real `ProductCardState` fixtures covering normal, sale, out-of-stock, variable-product, and quick-add eligibility; assert only presentation changes and commerce truth remains unchanged.
 
-- [ ] **Step 2: Prove RED**
+- [x] **Step 2: Prove RED**
 
 ```powershell
 python manage.py test apps.storefront_builder.tests.test_a8_component_library apps.catalog.tests.test_a8_product_card_presentations
 ```
 
-- [ ] **Step 3: Register only inventory-justified variants**
+- [x] **Step 3: Register only inventory-justified variants**
 
 Add missing generic variants from Task 1. Card references use `card_style:<registered-style>`; badges use a bounded symbolic `badge_treatment:<registered-treatment>`; global regions use their existing `global_region:<region>:<variant>` adapter. Extend `_VIRTUAL_COMPONENTS` only for true no-render/default identities.
 
-- [ ] **Step 4: Wire presentation overlays through A7**
+- [x] **Step 4: Wire presentation overlays through A7**
 
 In `_build_items_from_sections`, overlay the selected registered card/badge presentation into the in-memory `effective_settings["card"]` for product-bearing sections before context construction. Never mutate `section.settings` or write to DB. Continue using `product_card_service.build_product_card_state()` and the single shared product-card partial.
 
-- [ ] **Step 5: Implement responsive/RTL/accessibility CSS and partials**
+- [x] **Step 5: Implement responsive/RTL/accessibility CSS and partials**
 
 Bottom-nav partials use real named URLs/context actions, cart-count context, accessible labels, `env(safe-area-inset-bottom)`, mobile-only media queries, and content-offset classes. Header/footer/hero/card variants share tokens and existing partials rather than per-template bundles. No countdown is emitted unless backed by a real domain deadline supplied by existing commerce context.
 
-- [ ] **Step 6: Prove GREEN and neighboring regressions**
+- [x] **Step 6: Prove GREEN and neighboring regressions**
 
 ```powershell
 python manage.py test apps.storefront_builder.tests.test_a8_component_library apps.catalog.tests.test_a8_product_card_presentations apps.catalog.tests.test_product_card_service apps.storefront_builder.tests.test_r4_store_appearance_registry apps.storefront_builder.tests.test_r4_store_appearance_rendering apps.storefront_builder.tests.test_u2a_global_header_system apps.storefront_builder.tests.test_u2b_global_footer_system
 ```
 
-- [ ] **Step 7: Commit component library**
+- [x] **Step 7: Commit component library**
 
 ```powershell
 git add apps/storefront_builder apps/catalog/templates/catalog/partials/product_card.html apps/catalog/static/css/product_card.css apps/catalog/tests/test_a8_product_card_presentations.py
