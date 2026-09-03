@@ -156,7 +156,7 @@ class ReadyTemplateGallerySeparationTests(TestCase):
         self.admin_client.login(username="batch1_gallery_owner", password="pass12345")
         self.url = reverse("dashboard:storefront-builder-templates")
 
-    def test_a_gallery_returns_exactly_the_eight_official_ready_templates(self):
+    def test_a_gallery_keeps_the_original_eight_in_the_fifty_template_catalog(self):
         """Checked via ``response.context`` (the exact set of preset keys
         rendered as cards), not by scanning the page for a historical
         preset's Persian label text — a couple of the 8 official
@@ -165,17 +165,17 @@ class ReadyTemplateGallerySeparationTests(TestCase):
         "روایت‌محور", also ``editorial_story``'s label), which would make a
         naive text-absence check false-fail without indicating any real
         separation bug."""
-        self.assertEqual(len(lpr.list_ready_templates()), 8)
-        self.assertEqual({p.key for p in lpr.list_ready_templates()}, set(READY_TEMPLATE_KEYS))
+        self.assertEqual(len(lpr.list_ready_templates()), 50)
+        self.assertTrue(set(READY_TEMPLATE_KEYS).issubset({p.key for p in lpr.list_ready_templates()}))
         response = self.admin_client.get(self.url)
         cards = response.context["template_cards"]
-        self.assertEqual(len(cards), 8)
-        self.assertEqual({c["preset"].key for c in cards}, set(READY_TEMPLATE_KEYS))
+        self.assertEqual(len(cards), 50)
+        self.assertTrue(set(READY_TEMPLATE_KEYS).issubset({c["preset"].key for c in cards}))
         for key in READY_TEMPLATE_KEYS:
             self.assertContains(response, lpr.get_layout_preset(key).label_fa)
 
     def test_b_historical_presets_remain_registered_and_directly_applicable(self):
-        self.assertEqual(len(lpr.list_layout_presets()), 13)
+        self.assertEqual(len(lpr.list_layout_presets()), 55)
         for key in HISTORICAL_KEYS:
             preset = lpr.get_layout_preset(key)
             self.assertIsNotNone(preset, key)
@@ -250,7 +250,9 @@ class EmptyDataDrivenSectionsHiddenOnPublicTests(TestCase):
         # product_section ("پرفروش‌ترین‌ها") plus discounted_products and
         # amazing_offers — all genuinely empty for a fresh store with no
         # products yet.
-        preset_service.apply_preset(self.draft, lpr.get_layout_preset("dense_marketplace"))
+        preset_service.apply_preset(
+            self.draft, lpr.get_layout_preset_version("dense_marketplace", "2")
+        )
 
     def _make_discounted_product(self):
         from apps.catalog.models import Category, Product, Vendor
@@ -303,7 +305,9 @@ class EmptyDataDrivenSectionsHiddenOnPublicTests(TestCase):
             verification_status=StoreDomain.VerificationStatus.VERIFIED, verified_at=timezone.now(),
         )
         other_draft = svc.get_or_create_draft(other_store)
-        preset_service.apply_preset(other_draft, lpr.get_layout_preset("dense_marketplace"))
+        preset_service.apply_preset(
+            other_draft, lpr.get_layout_preset_version("dense_marketplace", "2")
+        )
         from apps.catalog.models import Category, Product, Vendor
 
         vendor = Vendor.objects.create(store=other_store, name="فروشنده استور دوم", slug="v-batch1-b")

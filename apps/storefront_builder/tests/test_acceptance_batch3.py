@@ -68,8 +68,10 @@ def _second_store():
 class ThumbnailServiceTests(TestCase):
     """Tests A-D, J, L at the pure-function level — no HTTP involved."""
 
-    def test_a_all_and_only_official_ready_templates_are_the_target_set(self):
-        self.assertEqual({p.key for p in lpr.list_ready_templates()}, set(READY_TEMPLATE_KEYS))
+    def test_a_original_preview_targets_remain_official_templates(self):
+        self.assertTrue(
+            set(READY_TEMPLATE_KEYS).issubset({p.key for p in lpr.list_ready_templates()})
+        )
 
     def test_b_every_official_ready_template_resolves_a_visual_thumbnail(self):
         for key in READY_TEMPLATE_KEYS:
@@ -146,8 +148,8 @@ class GalleryPreviewIntegrationTests(TestCase):
         response = self.admin_client.get(self.url)
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
-        self.assertEqual(content.count('<div class="tpl-thumb"'), 8)
-        self.assertGreaterEqual(content.count("<svg"), 8)
+        self.assertEqual(content.count('<div class="tpl-thumb"'), 50)
+        self.assertGreaterEqual(content.count("<svg"), 50)
 
     def test_i_current_template_badge_and_disabled_action_still_correct(self):
         draft = svc.get_or_create_draft(self.store)

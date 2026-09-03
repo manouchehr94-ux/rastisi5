@@ -92,8 +92,8 @@ class ReadyTemplateContractTests(SimpleTestCase):
         with self.assertRaises(lpr.InvalidLayoutPresetError):
             lpr.register_layout_preset(preset)
 
-    def test_existing_ready_catalog_is_explicitly_transitional_until_task_four(self):
-        """The eight historical recipes predate DNA and remain import-compatible only."""
+    def test_historical_ready_versions_have_complete_manifests_after_task_four(self):
+        """The eight pre-A8 exact identities remain strict, complete recipes."""
         expected_identities = {
             ("dense_marketplace", "2"),
             ("premium_leather", "2"),
@@ -104,12 +104,12 @@ class ReadyTemplateContractTests(SimpleTestCase):
             ("editorial_jewelry", "2"),
             ("dark_digital", "2"),
         }
-        actual_identities = {
-            (preset.key, preset.version)
-            for preset in lpr.list_ready_templates()
-            if preset.store_appearance is None
-        }
-        self.assertEqual(actual_identities, expected_identities)
+        self.assertFalse(hasattr(lpr, "_LEGACY_READY_TEMPLATE_IDENTITIES"))
+        for identity in expected_identities:
+            preset = lpr.get_layout_preset_version(*identity)
+            self.assertIsNotNone(preset, identity)
+            self.assertIsNotNone(preset.store_appearance, identity)
+            self.assertEqual(preset.store_appearance["schema_version"], 1)
 
     def test_new_version_of_legacy_ready_key_requires_a_manifest(self):
         preset = lpr.LayoutPresetDefinition(

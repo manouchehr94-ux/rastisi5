@@ -102,8 +102,8 @@ class LayoutPresetDefinition:
     #: existing ``template_version: str | None`` contract.
     version: str = "1"
     #: Acceptance Batch 1 (post-U11) — the explicit registry-level
-    #: distinction the master contract asked for: ``True`` only for the 8
-    #: official U10 Ready Template recipe keys. ``False`` (default) for
+    #: distinction the master contract asked for: ``True`` only for
+    #: official Ready Template recipe keys. ``False`` (default) for
     #: the 5 historical/internal presets (``clean_minimal``/
     #: ``editorial_story``/``dense_catalog``/``premium_boutique``/
     #: ``v5_golden_homepage``) — they remain fully registered and
@@ -114,8 +114,8 @@ class LayoutPresetDefinition:
     #: structure to keep in sync.
     is_ready_template: bool = False
     #: A8 — the complete, typed Store Appearance recipe applied with a Ready
-    #: Template.  Historical pre-A8 Ready Templates are deliberately allowed
-    #: to omit this only by the narrowly-scoped transition below.
+    #: Template. Every official identity, including retained history, carries
+    #: a strict schema-v1 manifest.
     store_appearance: dict | None = None
     #: فقط کلیدهایِ ساختاریِ ``appearance_config`` (هرگز رنگ) — زیرمجموعه‌ای
     #: از: font/radius/button_radius/density/motion/type_scale/button_style/
@@ -157,21 +157,31 @@ LAYOUT_PRESET_REGISTRY: dict[str, LayoutPresetDefinition] = {}
 LAYOUT_PRESET_VERSION_REGISTRY: dict[tuple[str, str], LayoutPresetDefinition] = {}
 
 
-# Task 2 transition only: these eight *exact* published U10 recipe identities
-# predate the Store Appearance DNA field. Task 4 replaces their registrations
-# with complete manifests. A later version under any of these keys is new DNA
-# and must therefore supply a complete manifest.
-_LEGACY_READY_TEMPLATE_IDENTITIES = frozenset({
-    ("dense_marketplace", "2"),
-    ("premium_leather", "2"),
-    ("warm_boutique", "2"),
-    ("fashion_promo_catalog", "7"),
-    ("playful_lifestyle", "1"),
-    ("utility_catalog", "1"),
-    ("editorial_jewelry", "2"),
-    ("dark_digital", "2"),
-})
 _NUMERIC_VERSION_RE = re.compile(r"^[1-9][0-9]*$")
+
+
+def _complete_store_appearance(
+    *, header: str, hero: str, layout: str, product_view: str, card: str,
+    badge: str, motion: str, footer: str, bottom_nav: str,
+) -> dict:
+    """Complete DNA for the retained pre-A8 official recipe versions."""
+
+    return {
+        "schema_version": 1,
+        "selections": {
+            "header": f"header.{header}.v1",
+            "mega_menu": "mega_menu.none.v1",
+            "hero": f"hero.{hero}.v1",
+            "layout": f"layout.{layout}.v1",
+            "product_view": f"product_view.{product_view}.v1",
+            "card": f"card.{card}.v1",
+            "badge": f"badge.{badge}.v1",
+            "motion": f"motion.{motion}.v1",
+            "footer": f"footer.{footer}.v1",
+            "bottom_nav": f"bottom_nav.{bottom_nav}.v1",
+        },
+        "settings": {},
+    }
 
 
 def register_layout_preset(definition: LayoutPresetDefinition) -> None:
@@ -206,11 +216,12 @@ def list_layout_presets() -> list[LayoutPresetDefinition]:
 
 
 def list_ready_templates() -> list[LayoutPresetDefinition]:
-    """Acceptance Batch 1 (post-U11) — the merchant-facing catalog: only
-    the presets explicitly marked ``is_ready_template=True`` (U10's 8
-    official recipe keys). ``list_layout_presets()`` above is unchanged
-    and still returns all 13 — the historical/internal presets remain
-    fully registered and applicable, just not surfaced here."""
+    """Return the latest version of every merchant-facing official recipe.
+
+    Historical/internal presets remain fully registered and applicable, but
+    are not surfaced here. Exact historical official versions stay available
+    through ``get_layout_preset_version``.
+    """
     return [preset for preset in list_layout_presets() if preset.is_ready_template]
 
 
@@ -288,8 +299,6 @@ def _validate_ready_template_store_appearance(definition: LayoutPresetDefinition
     if not definition.is_ready_template:
         return
     if definition.store_appearance is None:
-        if (definition.key, definition.version) in _LEGACY_READY_TEMPLATE_IDENTITIES:
-            return
         raise InvalidLayoutPresetError(
             f"Ready Template «{definition.key}» باید Store Appearance DNA کامل داشته باشد"
         )
@@ -893,6 +902,11 @@ register_layout_preset(LayoutPresetDefinition(
     key="dense_marketplace",
     version="2",
     is_ready_template=True,
+    store_appearance=_complete_store_appearance(
+        header="marketplace_search_first", hero="legacy_default", layout="quarters",
+        product_view="carousel", card="marketplace_price", badge="sale", motion="none",
+        footer="marketplace_dense", bottom_nav="hidden",
+    ),
     label_fa="بازارگاه پرتراکم",
     description_fa="بازارگاه کاتالوگیِ رنگی و جستجو-محور با Hero تبلیغاتی، میانبرهای تصویری، ردیف‌های فشرده محصول و فوتر تجاری کامل.",
     appearance={
@@ -943,6 +957,11 @@ register_layout_preset(LayoutPresetDefinition(
     key="premium_leather",
     version="2",
     is_ready_template=True,
+    store_appearance=_complete_store_appearance(
+        header="chocolate_centered_search", hero="chocolate_carousel", layout="quarters",
+        product_view="carousel", card="standard", badge="none", motion="subtle",
+        footer="chocolate_dark_columns", bottom_nav="hidden",
+    ),
     label_fa="فروشگاه پرمیوم",
     description_fa="چیدمان فروشگاهی خانه و سبک زندگی با زمینه روشن، هدر شکلاتی، میانبرهای تصویری و کارت‌های محصول گرم و کاربردی.",
     appearance={
@@ -1047,6 +1066,11 @@ register_layout_preset(LayoutPresetDefinition(
     # header/footer variants, category treatment and product card treatment.
     version="2",
     is_ready_template=True,
+    store_appearance=_complete_store_appearance(
+        header="beauty_search_nav", hero="beauty_editorial", layout="quarters",
+        product_view="carousel", card="beauty_glass", badge="none", motion="subtle",
+        footer="beauty_retail_columns", bottom_nav="hidden",
+    ),
     label_fa="بوتیکِ گرم",
     description_fa="فروشگاه زیبایی و بوتیک با جستجوی برجسته، دسته‌بندی تصویری و ردیف‌های فروشگاهی رنگی — مناسب آرایشی، مراقبتی، عطر و سبک زندگی.",
     appearance={
@@ -1197,6 +1221,11 @@ register_layout_preset(LayoutPresetDefinition(
     # bump.
     version="7",
     is_ready_template=True,
+    store_appearance=_complete_store_appearance(
+        header="promo_search_nav", hero="split", layout="quarters",
+        product_view="campaign_band", card="price_first", badge="sale", motion="dynamic",
+        footer="promo_columns", bottom_nav="hidden",
+    ),
     label_fa="کاتالوگِ پوشاک و پیشنهادها",
     description_fa="چیدمانِ کاتالوگ‌محور با بنرهایِ تبلیغاتیِ متعدد — مناسبِ پوشاک/مدی که مرتب کمپین/تخفیف اجرا می‌کند.",
     appearance={
@@ -1330,6 +1359,11 @@ register_layout_preset(LayoutPresetDefinition(
 register_layout_preset(LayoutPresetDefinition(
     key="playful_lifestyle",
     is_ready_template=True,
+    store_appearance=_complete_store_appearance(
+        header="boutique_centered", hero="split", layout="quarters",
+        product_view="carousel", card="soft_capsule", badge="none", motion="dynamic",
+        footer="boutique_editorial", bottom_nav="hidden",
+    ),
     label_fa="سبکِ زندگیِ شاد",
     description_fa="چیدمانِ رنگی و پرحرکت با گوشه‌هایِ گرد — مناسبِ برندهایِ سبکِ زندگی/کودک/سرگرمی.",
     appearance={
@@ -1359,6 +1393,11 @@ register_layout_preset(LayoutPresetDefinition(
 register_layout_preset(LayoutPresetDefinition(
     key="utility_catalog",
     is_ready_template=True,
+    store_appearance=_complete_store_appearance(
+        header="legacy_default", hero="none", layout="quarters",
+        product_view="grid", card="technical_spec", badge="none", motion="none",
+        footer="legacy_default", bottom_nav="hidden",
+    ),
     label_fa="کاتالوگِ ابزار و صنعتی",
     description_fa="چیدمانِ ساده و کارکردی، بدونِ حرکت/تزیینِ اضافه — مناسبِ ابزار/قطعات/کالایِ صنعتی که تمرکز باید کاملاً رویِ مشخصات و پیدا کردنِ سریعِ کالا باشد.",
     appearance={
@@ -1388,6 +1427,11 @@ register_layout_preset(LayoutPresetDefinition(
     key="editorial_jewelry",
     version="2",
     is_ready_template=True,
+    store_appearance=_complete_store_appearance(
+        header="atelier_nav", hero="atelier_triptych", layout="quarters",
+        product_view="grid", card="editorial_minimal", badge="none", motion="subtle",
+        footer="boutique_editorial", bottom_nav="hidden",
+    ),
     label_fa="جواهراتِ مجله‌ای",
     description_fa="چیدمان آتلیه‌ای و تصویرمحور با سه‌قاب قوسی، موزاییک دسته‌بندی، کارت‌های مینیمال و فوتر بسیار سبک — مناسب جواهر، اکسسوری و محصولات هنری.",
     appearance={
@@ -1470,6 +1514,11 @@ register_layout_preset(LayoutPresetDefinition(
     key="dark_digital",
     version="2",
     is_ready_template=True,
+    store_appearance=_complete_store_appearance(
+        header="luxury_search", hero="luxury_showcase", layout="quarters",
+        product_view="grid", card="luxury_dark", badge="sale", motion="subtle",
+        footer="dark_tech", bottom_nav="luxury_floating_cart",
+    ),
     label_fa="دیجیتالِ تیره لوکس",
     description_fa="فروشگاه تیره و پرمیوم با جستجوی برجسته، ویترین تصویری لوکس، میانبرهای دسته‌بندی، کارت‌های طلایی و ناوبری پایین موبایل.",
     appearance={
@@ -1535,3 +1584,8 @@ register_layout_preset(LayoutPresetDefinition(
         **_u10_standard_non_home_pages(),
     },
 ))
+
+
+# Importing the data-only A8 catalog registers its material revisions only
+# after all eight complete historical identities above have been retained.
+from . import a8_ready_templates as _a8_ready_templates  # noqa: E402,F401
