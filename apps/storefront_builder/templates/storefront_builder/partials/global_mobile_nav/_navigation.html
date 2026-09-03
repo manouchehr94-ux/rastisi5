@@ -1,0 +1,59 @@
+{% load persian %}
+{% comment %}
+Shared renderer for the registered A8 mobile-navigation presentations. The
+wrapper partials supply only bounded, platform-owned presentation choices;
+destinations and commerce state remain shared and real.
+{% endcomment %}
+<div class="gmn gmn--{{ mobile_nav_identity }}" data-mobile-nav="{{ mobile_nav_identity }}" data-mobile-nav-layout="{{ mobile_nav_layout }}"{% if mobile_nav_has_search %} x-data="{ gmnSearchOpen: false }"{% endif %}>
+  {% if mobile_nav_has_search %}
+  <div id="gmn-search-{{ mobile_nav_identity }}" class="gmn-search-sheet" data-mobile-nav-search x-show="gmnSearchOpen" x-cloak @click.outside="gmnSearchOpen=false" @keydown.escape.window="gmnSearchOpen=false">
+    {% if is_live_storefront %}
+    <form action="{% url 'catalog:product-list' %}" method="get" role="search">
+      <label class="sr-only" for="gmn-search-input-{{ mobile_nav_identity }}">جستجو در محصولات</label>
+      <input id="gmn-search-input-{{ mobile_nav_identity }}" type="search" name="q" placeholder="جستجو در محصولات..." autocomplete="off">
+      <button type="submit" aria-label="جستجو">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="search" %}</button>
+    </form>
+    {% else %}
+    <div class="gmn-search-preview">جستجو در پیش‌نمایش غیرفعال است</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <nav class="gmn-bar" aria-label="ناوبری اصلی موبایل">
+    {% if mobile_nav_layout == "glass" %}<span class="gmn-glass-highlight" aria-hidden="true"></span>{% endif %}
+    {% if is_live_storefront %}
+    <a class="gmn-item{% if page_type == 'home' %} is-active{% endif %}" data-mobile-nav-item="home" href="{% url 'catalog:home' %}"{% if page_type == 'home' %} aria-current="page"{% endif %}>
+      <span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="home" %}</span><span class="gmn-label{% if mobile_nav_hide_labels %} sr-only{% endif %}">خانه</span>
+    </a>
+    <a class="gmn-item{% if page_type == 'listing' or page_type == 'collection' or page_type == 'product_detail' %} is-active{% endif %}" data-mobile-nav-item="catalog" href="{% url 'catalog:product-list' %}"{% if page_type == 'listing' %} aria-current="page"{% endif %}>
+      <span class="gmn-icon gmn-grid-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span><span class="gmn-label{% if mobile_nav_hide_labels %} sr-only{% endif %}">دسته‌بندی</span>
+    </a>
+
+    {% if mobile_nav_cart_position == "middle" %}
+      {% include "storefront_builder/partials/global_mobile_nav/_cart_item.html" %}
+    {% endif %}
+
+    {% if mobile_nav_has_search %}
+    <button class="gmn-item gmn-search-trigger{% if page_type == 'search' %} is-active{% endif %}" data-mobile-nav-item="search" type="button" @click="gmnSearchOpen = !gmnSearchOpen" :aria-expanded="gmnSearchOpen.toString()" aria-controls="gmn-search-{{ mobile_nav_identity }}">
+      <span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="search" %}</span><span class="gmn-label">جستجو</span>
+    </button>
+    {% endif %}
+
+    <a class="gmn-item{% if page_type == 'account' %} is-active{% endif %}" data-mobile-nav-item="account" href="{% url 'customers:account' %}"{% if page_type == 'account' %} aria-current="page"{% endif %}>
+      <span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="account" %}</span><span class="gmn-label{% if mobile_nav_hide_labels %} sr-only{% endif %}">حساب</span>
+    </a>
+
+    {% if mobile_nav_cart_position == "end" %}
+      {% include "storefront_builder/partials/global_mobile_nav/_cart_item.html" %}
+    {% endif %}
+    {% else %}
+    <span class="gmn-item{% if page_type == 'home' %} is-active{% endif %}" data-mobile-nav-item="home"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="home" %}</span><span class="gmn-label{% if mobile_nav_hide_labels %} sr-only{% endif %}">خانه</span></span>
+    <span class="gmn-item" data-mobile-nav-item="catalog"><span class="gmn-icon gmn-grid-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span><span class="gmn-label{% if mobile_nav_hide_labels %} sr-only{% endif %}">دسته‌بندی</span></span>
+    {% if mobile_nav_cart_position == "middle" %}{% include "storefront_builder/partials/global_mobile_nav/_cart_item.html" %}{% endif %}
+    {% if mobile_nav_has_search %}<button class="gmn-item gmn-search-trigger" data-mobile-nav-item="search" type="button" @click="gmnSearchOpen = !gmnSearchOpen" aria-controls="gmn-search-{{ mobile_nav_identity }}"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="search" %}</span><span class="gmn-label">جستجو</span></button>{% endif %}
+    <span class="gmn-item" data-mobile-nav-item="account"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="account" %}</span><span class="gmn-label{% if mobile_nav_hide_labels %} sr-only{% endif %}">حساب</span></span>
+    {% if mobile_nav_cart_position == "end" %}{% include "storefront_builder/partials/global_mobile_nav/_cart_item.html" %}{% endif %}
+    {% endif %}
+  </nav>
+</div>
+<div class="gmn-spacer gmn-spacer--{{ mobile_nav_identity }}" aria-hidden="true"></div>

@@ -35,6 +35,26 @@ def _manifest_with(**selections):
     return raw
 
 
+A8_CARD_PRESENTATIONS = {
+    "card.standard.v1": "standard",
+    "card.marketplace_price.v1": "marketplace_price",
+    "card.editorial_minimal.v1": "editorial_minimal",
+    "card.retail_row.v1": "retail_row",
+    "card.luxury_dark.v1": "luxury_dark",
+    "card.soft_capsule.v1": "soft_capsule",
+    "card.beauty_glass.v1": "beauty_glass",
+    "card.paper_frame.v1": "paper_frame",
+    "card.price_first.v1": "price_first",
+    "card.portrait_round.v1": "portrait_round",
+    "card.catalog_index.v1": "catalog_index",
+    "card.shipping_label.v1": "shipping_label",
+    "card.shelf_editorial.v1": "shelf_editorial",
+    "card.technical_spec.v1": "technical_spec",
+    "card.tech_neon.v1": "tech_neon",
+    "card.bold_outline.v1": "bold_outline",
+}
+
+
 class A8ProductCardPresentationTests(TestCase):
     def setUp(self):
         self.store = _akhlaghi()
@@ -76,6 +96,33 @@ class A8ProductCardPresentationTests(TestCase):
         self.assertEqual(card_settings_for(state), {"card_style": "marketplace_price"})
         self.assertEqual(badge_settings_for(state), {"badge_treatment": "sale"})
         self.assertEqual(manifest_to_primitive(state.manifest), before)
+
+    def test_all_sixteen_symbolic_card_selections_render_their_literal_presentation_without_truth_drift(self):
+        product = self._product(
+            name="کالای تخفیف‌دار",
+            price=Decimal("100000"),
+            discount_percent=20,
+            stock=5,
+            product_type=Product.ProductType.SIMPLE,
+        )
+        expected_truth = build_product_card_data(product)
+
+        for component_key, expected_style in A8_CARD_PRESENTATIONS.items():
+            with self.subTest(component_key=component_key):
+                state = self._state(card=component_key, badge="badge.none.v1")
+                overlay = render_service.card_settings_for(state)
+                self.assertEqual(overlay, {"card_style": expected_style})
+                settings = default_card_settings()
+                settings.update(overlay)
+                html = render_to_string(
+                    "catalog/partials/product_card.html",
+                    {"product": product, "card_settings": settings},
+                )
+                self.assertIn(f"style-{expected_style}", html)
+                self.assertIn(expected_truth.url, html)
+                self.assertIn("pill-disc", html)
+                self.assertIn(reverse("cart:add", args=[product.slug]), html)
+                self.assertEqual(build_product_card_data(product), expected_truth)
 
     def test_render_service_overlays_product_sections_without_mutating_saved_settings(self):
         page = self.draft.get_page(StorefrontPage.PageType.HOME)

@@ -1,0 +1,16 @@
+{% load persian %}
+{% if is_live_storefront %}
+<a class="gmn-item gmn-cart gmn-cart--{{ mobile_nav_cart_mode }}{% if page_type == 'cart' %} is-active{% endif %}" data-mobile-nav-item="cart" href="{% url 'cart:detail' %}"{% if page_type == 'cart' %} aria-current="page"{% endif %}>
+  {% if mobile_nav_cart_mode == "wide" %}
+  <span class="gmn-wide-cart-content"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="cart" %}</span><span class="gmn-label">سبد خرید</span><span class="gmn-count{% if not cart_count %} is-empty{% endif %}" id="mobile-cart-count" aria-label="{{ cart_count|fa_number }} کالا در سبد">{{ cart_count|fa_number }}</span></span>
+  {% elif mobile_nav_cart_mode == "raised" %}
+  <span class="gmn-cart-orb"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="cart" %}</span><span class="gmn-count{% if not cart_count %} is-empty{% endif %}" id="mobile-cart-count" aria-label="{{ cart_count|fa_number }} کالا در سبد">{{ cart_count|fa_number }}</span></span><span class="gmn-label">سبد خرید</span>
+  {% else %}
+  <span class="gmn-cart-inline"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="cart" %}</span><span class="gmn-count{% if not cart_count %} is-empty{% endif %}" id="mobile-cart-count" aria-label="{{ cart_count|fa_number }} کالا در سبد">{{ cart_count|fa_number }}</span></span><span class="gmn-label{% if mobile_nav_hide_labels %} sr-only{% endif %}">سبد خرید</span>
+  {% endif %}
+</a>
+{% else %}
+<span class="gmn-item gmn-cart gmn-cart--{{ mobile_nav_cart_mode }}" data-mobile-nav-item="cart">
+  {% if mobile_nav_cart_mode == "wide" %}<span class="gmn-wide-cart-content"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="cart" %}</span><span class="gmn-label">سبد خرید</span></span>{% elif mobile_nav_cart_mode == "raised" %}<span class="gmn-cart-orb"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="cart" %}</span></span><span class="gmn-label">سبد خرید</span>{% else %}<span class="gmn-cart-inline"><span class="gmn-icon">{% include "storefront_builder/partials/global_header/_shared/icon.html" with name="cart" %}</span></span><span class="gmn-label{% if mobile_nav_hide_labels %} sr-only{% endif %}">سبد خرید</span>{% endif %}
+</span>
+{% endif %}

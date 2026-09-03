@@ -4420,3 +4420,50 @@ a.sfb-v3-component-item,
   .gmn-search-sheet{pointer-events:auto;position:absolute;inset-inline:4px;bottom:82px;padding:9px;border:1px solid var(--theme-border,#3a3218);border-radius:18px;background:color-mix(in srgb,var(--theme-footer-bg,#050505) 94%,transparent);box-shadow:0 16px 40px rgba(0,0,0,.35);backdrop-filter:blur(18px)}.gmn-search-sheet form{display:flex;align-items:center;gap:8px}.gmn-search-sheet input{flex:1;min-width:0;height:44px;border:1px solid var(--theme-border,#3a3218);border-radius:14px;background:var(--theme-card-bg,#171717);color:var(--theme-text,#fff);font-size:16px;padding-inline:14px;outline:none}.gmn-search-sheet input:focus{border-color:var(--theme-primary,#d4af37)}.gmn-search-sheet button{width:44px;height:44px;border-radius:14px;background:var(--theme-primary,#d4af37);color:#090703;display:grid;place-items:center}.gmn-search-sheet button svg{width:20px;height:20px}.gmn-search-preview{padding:12px;text-align:center;color:var(--theme-muted,#aaa);font-size:12px}
   .gmn-spacer{display:block;height:calc(100px + env(safe-area-inset-bottom,0px))}
 }
+
+/* A8 semantic mobile-navigation presentations. All identities share the same
+   trusted destinations while retaining observable layout and surface DNA. */
+@media(max-width:680px){
+  .gmn--four_item .gmn-bar{grid-template-columns:repeat(4,minmax(0,1fr));min-height:64px;border-radius:18px;background:var(--theme-card-bg,#fff);border-color:var(--theme-border,#e5e7eb);box-shadow:0 12px 28px rgba(15,23,42,.16);backdrop-filter:none;-webkit-backdrop-filter:none}
+  .gmn--four_item .gmn-item{min-height:50px;color:var(--theme-muted,#64748b)}
+  .gmn--four_item .gmn-cart{transform:none;color:var(--theme-primary,#2563eb)}
+
+  .gmn--five_item{inset-inline:0;bottom:env(safe-area-inset-bottom,0px)}
+  .gmn--five_item .gmn-bar{grid-template-columns:repeat(5,minmax(0,1fr));min-height:68px;border-width:1px 0 0;border-radius:0;background:var(--theme-card-bg,#fff);border-color:var(--theme-border,#e5e7eb);box-shadow:0 -8px 24px rgba(15,23,42,.1);backdrop-filter:none;-webkit-backdrop-filter:none}
+  .gmn--five_item .gmn-item{min-height:56px;color:var(--theme-muted,#64748b)}
+  .gmn--five_item .gmn-cart{transform:none;color:inherit}
+
+  .gmn--raised_cart .gmn-bar{grid-template-columns:repeat(5,minmax(0,1fr));border-radius:22px;background:var(--theme-card-bg,#fff);border-color:color-mix(in srgb,var(--theme-primary,#2563eb) 25%,var(--theme-border,#e5e7eb))}
+  .gmn--raised_cart .gmn-item{color:var(--theme-muted,#64748b)}
+  .gmn--raised_cart .gmn-cart--raised{transform:translateY(-12px);color:var(--theme-primary,#2563eb)}
+  .gmn--raised_cart .gmn-cart-orb{background:var(--theme-primary,#2563eb);color:#fff;border-color:var(--theme-card-bg,#fff);box-shadow:0 0 0 6px var(--theme-card-bg,#fff),0 9px 24px color-mix(in srgb,var(--theme-primary,#2563eb) 34%,transparent)}
+
+  .gmn--floating_dock{inset-inline:18px;bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+  .gmn--floating_dock .gmn-bar{grid-template-columns:repeat(5,minmax(0,1fr));min-height:62px;border-radius:999px;padding-inline:10px;align-items:center;background:var(--theme-card-bg,#fff);border-color:transparent;box-shadow:0 18px 42px rgba(15,23,42,.22);backdrop-filter:none;-webkit-backdrop-filter:none}
+  .gmn--floating_dock .gmn-item{min-height:48px;color:var(--theme-muted,#64748b);border-radius:999px}
+  .gmn--floating_dock .gmn-cart{transform:none;color:var(--theme-primary,#2563eb)}
+
+  .gmn--glass_dock{inset-inline:14px;bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+  .gmn--glass_dock .gmn-bar{grid-template-columns:repeat(5,minmax(0,1fr));overflow:hidden;min-height:70px;border-radius:24px;background:color-mix(in srgb,var(--theme-card-bg,#fff) 68%,transparent);border-color:rgba(255,255,255,.55);box-shadow:0 16px 38px rgba(15,23,42,.2),inset 0 1px 0 rgba(255,255,255,.7);backdrop-filter:blur(22px) saturate(145%);-webkit-backdrop-filter:blur(22px) saturate(145%)}
+  .gmn--glass_dock .gmn-glass-highlight{position:absolute;inset:1px 8% auto;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.9),transparent)}
+  .gmn--glass_dock .gmn-item{z-index:1;min-height:54px;color:var(--theme-text,#334155)}
+  .gmn--glass_dock .gmn-cart{transform:none;color:var(--theme-primary,#2563eb)}
+
+  .gmn--minimal_icons{inset-inline:22px;bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+  .gmn--minimal_icons .gmn-bar{grid-template-columns:repeat(4,minmax(0,1fr));min-height:56px;padding:4px;border:0;border-radius:16px;background:var(--theme-card-bg,#fff);box-shadow:0 10px 28px rgba(15,23,42,.13);backdrop-filter:none;-webkit-backdrop-filter:none}
+  .gmn--minimal_icons .gmn-item{min-height:46px;padding:0;color:var(--theme-muted,#64748b);border-radius:12px}
+  .gmn--minimal_icons .gmn-item.is-active{background:var(--theme-primary,#2563eb);color:#fff;box-shadow:none}
+  .gmn--minimal_icons .gmn-cart{transform:none;color:inherit}
+  .gmn--minimal_icons .gmn-icon,.gmn--minimal_icons .gmn-icon svg{width:24px;height:24px}
+
+  .gmn--wide_cart .gmn-bar{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.7fr) minmax(0,1fr);min-height:66px;border-radius:20px;background:var(--theme-card-bg,#fff);border-color:var(--theme-border,#e5e7eb);box-shadow:0 14px 32px rgba(15,23,42,.16);backdrop-filter:none;-webkit-backdrop-filter:none}
+  .gmn--wide_cart .gmn-item{min-height:52px;color:var(--theme-muted,#64748b)}
+  .gmn--wide_cart .gmn-cart--wide{transform:none;padding-inline:5px}
+  .gmn--wide_cart .gmn-wide-cart-content{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:42px;padding-inline:8px;border-radius:13px;background:var(--theme-primary,#2563eb);color:#fff}
+  .gmn--wide_cart .gmn-wide-cart-content .gmn-count{top:-7px;inset-inline-start:-3px;border-color:var(--theme-card-bg,#fff)}
+
+  .gmn-cart-inline{position:relative;display:grid;place-items:center}
+  .gmn-cart-inline .gmn-count{top:-7px;inset-inline-start:-9px}
+  .gmn-spacer--minimal_icons{height:calc(82px + env(safe-area-inset-bottom,0px))}
+  .gmn-spacer--five_item{height:calc(78px + env(safe-area-inset-bottom,0px))}
+}

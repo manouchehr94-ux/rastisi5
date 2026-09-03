@@ -1,7 +1,11 @@
 import re
+from pathlib import Path
 
+from django.conf import settings
 from django.template.loader import get_template
+from django.template.loader import render_to_string
 from django.test import SimpleTestCase
+from django.urls import reverse
 
 from apps.storefront_builder import global_region_registry
 from apps.storefront_builder.storefront_appearance.registry import (
@@ -94,6 +98,16 @@ A8_COMPONENT_KEYS = frozenset(
     }
 )
 
+A8_MOBILE_NAV_EXPECTATIONS = {
+    "four_item": {"item_count": 4, "has_search": False},
+    "five_item": {"item_count": 5, "has_search": True},
+    "raised_cart": {"item_count": 5, "has_search": True},
+    "floating_dock": {"item_count": 5, "has_search": True},
+    "glass_dock": {"item_count": 5, "has_search": True},
+    "minimal_icons": {"item_count": 4, "has_search": False},
+    "wide_cart": {"item_count": 4, "has_search": False},
+}
+
 
 class A8ComponentLibraryTests(SimpleTestCase):
     def test_a8_expands_the_component_catalog_to_the_reviewed_exact_counts(self):
@@ -174,3 +188,48 @@ class A8ComponentLibraryTests(SimpleTestCase):
                 "badge.none.v1",
             },
         )
+
+    def test_mobile_nav_identities_render_real_accessible_distinct_structures(self):
+        required_urls = {
+            reverse("catalog:home"),
+            reverse("catalog:product-list"),
+            reverse("cart:detail"),
+            reverse("customers:account"),
+        }
+        rendered = {}
+        for identity, expected in A8_MOBILE_NAV_EXPECTATIONS.items():
+            with self.subTest(identity=identity):
+                component = COMPONENT_REGISTRY[f"bottom_nav.{identity}.v1"]
+                variant = resolve_component_implementation(component)
+                html = render_to_string(
+                    variant.renderer,
+                    {"is_live_storefront": True, "page_type": "home", "cart_count": 7},
+                )
+                rendered[identity] = html
+                self.assertIn(f'data-mobile-nav="{identity}"', html)
+                self.assertIn(f"gmn--{identity}", html)
+                self.assertEqual(html.count("data-mobile-nav-item"), expected["item_count"])
+                self.assertEqual("data-mobile-nav-search" in html, expected["has_search"])
+                self.assertIn('aria-label="ناوبری اصلی موبایل"', html)
+                self.assertIn('aria-label="۷ کالا در سبد"', html)
+                self.assertIn(">۷</span>", html)
+                self.assertNotIn('href="#"', html)
+                for url in required_urls:
+                    self.assertIn(f'href="{url}"', html)
+
+        self.assertNotEqual(rendered["four_item"], rendered["five_item"])
+        self.assertNotIn("data-mobile-nav-search", rendered["four_item"])
+        self.assertIn("data-mobile-nav-search", rendered["five_item"])
+
+    def test_mobile_nav_css_is_mobile_only_rtl_safe_area_aware_and_identity_specific(self):
+        css_path = Path(settings.BASE_DIR) / "apps/storefront_builder/static/css/storefront_builder.css"
+        css = css_path.read_text(encoding="utf-8")
+
+        self.assertIn(".gmn,.gmn-spacer{display:none}", css)
+        self.assertIn("@media(max-width:680px)", css)
+        self.assertIn("env(safe-area-inset-bottom", css)
+        self.assertIn("direction:rtl", css)
+        self.assertIn(".gmn-spacer", css)
+        for identity in A8_MOBILE_NAV_EXPECTATIONS:
+            with self.subTest(identity=identity):
+                self.assertIn(f".gmn--{identity}", css)
