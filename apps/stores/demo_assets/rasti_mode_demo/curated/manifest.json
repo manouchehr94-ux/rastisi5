@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "store": {
+    "slug": "rasti-mode-demo",
+    "display_name": "فروشگاه پوشاک تستی راستی سی",
+    "tagline": "استایل امروز، انتخاب ماندگار",
+    "description": "فروشگاه نمایشی پوشاک، کفش و کیف راستی‌سی برای ارزیابی واقعی همه قالب‌های آماده."
+  },
+  "branding": {
+    "logo": "branding/store-logo.png",
+    "favicon": "branding/favicon.png"
+  },
+  "heroes": [
+    {
+      "order": 0,
+      "title": "بهترین برندها",
+      "subtitle": "کیف، کفش و پوشاک منتخب با قیمت‌های ویژه",
+      "button_label": "مشاهده محصولات",
+      "desktop": "hero/hero-01.webp",
+      "mobile": "hero/hero-01-mobile.webp"
+    },
+    {
+      "order": 1,
+      "title": "تی‌شرت‌های ترند",
+      "subtitle": "مدل‌های روزمره و مینیمال برای استایل شهری",
+      "button_label": "مشاهده محصولات",
+      "desktop": "hero/hero-02.webp",
+      "mobile": "hero/hero-02-mobile.webp"
+    },
+    {
+      "order": 2,
+      "title": "شلوارهای پرطرفدار",
+      "subtitle": "جین، پارچه‌ای و کژوال برای هر سلیقه",
+      "button_label": "مشاهده محصولات",
+      "desktop": "hero/hero-03.webp",
+      "mobile": "hero/hero-03-mobile.webp"
+    },
+    {
+      "order": 3,
+      "title": "کالکشن پاییزی",
+      "subtitle": "انتخاب‌های تازه برای استایل روزانه",
+      "button_label": "مشاهده کالکشن",
+      "desktop": "hero/hero-04.webp",
+      "mobile": "hero/hero-04-mobile.webp"
+    }
+  ],
+  "banners": [
+    {
+      "order": 0,
+      "title": "کالکشن چرم",
+      "desktop": "banners/banner-01.webp",
+      "mobile": "banners/banner-01-mobile.webp"
+    },
+    {
+      "order": 1,
+      "title": "استایل مینیمال",
+      "desktop": "banners/banner-02.webp",
+      "mobile": "banners/banner-02-mobile.webp"
+    },
+    {
+      "order": 2,
+      "title": "شلوارهای منتخب",
+      "desktop": "banners/banner-03.webp",
+      "mobile": "banners/banner-03-mobile.webp"
+    },
+    {
+      "order": 3,
+      "title": "پاییز مدرن",
+      "desktop": "banners/banner-04.webp",
+      "mobile": "banners/banner-04-mobile.webp"
+    },
+    {
+      "order": 4,
+      "title": "برندهای منتخب",
+      "desktop": "banners/banner-05.webp",
+      "mobile": "banners/banner-05-mobile.webp"
+    },
+    {
+      "order": 5,
+      "title": "کیف‌های منتخب",
+      "desktop": "banners/banner-06.webp",
+      "mobile": "banners/banner-06-mobile.webp"
+    }
+  ],
+  "categories": {
+    "کتانی رانینگ": "categories/running-sneakers.webp",
+    "کتانی کژوال": "categories/casual-sneakers.webp",
+    "شلوار کژوال": "categories/casual-trousers.webp",
+    "شلوار جین": "categories/denim.webp",
+    "کاپشن و بامبر": "categories/bomber.webp",
+    "ژاکت چرم و اورشرت": "categories/leather-overshirt.webp",
+    "کفش زنانه": "categories/womens-shoes.webp",
+    "صندل و دمپایی": "categories/sandals.webp",
+    "کیف دستی و Tote": "categories/tote-bag.webp",
+    "کیف دوشی و مجلسی": "categories/shoulder-bag.webp"
+  },
+  "brands": {
+    "Demo Motion": "brands/demo-motion.webp",
+    "Demo Urban": "brands/demo-urban.webp",
+    "Demo Denim": "brands/demo-denim.webp",
+    "Demo Layer": "brands/demo-layer.webp",
+    "Demo Carry": "brands/demo-carry.webp",
+    "Demo Muse": "brands/demo-muse.webp"
+  },
+  "notes": {
+    "product_images": "untouched",
+    "newsletter": "The current NewsletterSubscriber model has no image field; no template-wide newsletter renderer change is made by this demo-only refresh.",
+    "source": "Approved user-provided RastiSi mark plus AI-generated RastiSi fashion visuals from this conversation; crops remove baked-in banner copy for reuse across all Ready Template renderers."
+  }
+}
