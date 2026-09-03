@@ -559,7 +559,10 @@ class ReadyTemplateFlagTests(SeedReadyTemplateFashionDemoCommandTests):
         published = layout.published_version
         self.assertEqual(published.template_provenance.get("template", {}).get("key"), "fashion_promo_catalog")
         home = published.home_page()
-        self.assertIn("fashion_lifestyle_hero", list(home.sections.values_list("section_key", flat=True)))
+        self.assertEqual(
+            list(home.sections.values_list("section_key", flat=True)),
+            ["hero_banner", "category_grid", "product_section", "catalog_product_wall"],
+        )
 
     def test_unknown_ready_template_key_raises_command_error(self):
         with self.assertRaises(CommandError):
