@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.core.paginator import Paginator
 from django.db.models import Avg, F, Max, Prefetch, Q
 from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -193,6 +194,102 @@ def _querystring_without_page(request):
     return params.urlencode()
 
 
+# --- G2 (Golden Search/Category/Listing) — dynamic location context + chips ---
+# All derived server-side from data the view already resolves, so the full page
+# and the HTMX partial stay consistent and query-canonical. Tenant-scoped: the
+# resolved ``Category``/``Brand`` objects are already ``store=store`` filtered.
+
+def _listing_querystring_without(request, *drop_keys):
+    """The current query string with ``page`` and the given keys removed —
+    used to build a chip's "remove just this filter" URL (preserving the rest)."""
+    params = request.GET.copy()
+    params.pop("page", None)
+    for key in drop_keys:
+        params.pop(key, None)
+    return params.urlencode()
+
+
+def _resolve_listing_location(store, *, query, selected_category, selected_brand):
+    """Return ``(heading, breadcrumbs)`` for the listing/search page.
+
+    ``breadcrumbs`` is a list of ``{"label", "url"}`` (final crumb has ``url=None``).
+    Category resolution is tenant-scoped (``store=store``) and includes the
+    parent→child trail for a subcategory.
+    """
+    home = {"label": "خانه", "url": "/"}
+    shop = {"label": "فروشگاه", "url": reverse("catalog:product-list")}
+
+    if query:
+        heading = f"نتایج جستجو برای «{query}»"
+        return heading, [home, shop, {"label": heading, "url": None}]
+
+    if selected_category:
+        category = (
+            Category.objects.filter(store=store, slug=selected_category, is_active=True)
+            .select_related("parent")
+            .first()
+        )
+        if category is not None:
+            crumbs = [home, shop]
+            if category.parent_id is not None and getattr(category.parent, "is_active", True):
+                crumbs.append({
+                    "label": category.parent.name,
+                    "url": f"{reverse('catalog:product-list')}?category={category.parent.slug}",
+                })
+            crumbs.append({"label": category.name, "url": None})
+            return category.name, crumbs
+
+    if selected_brand:
+        brand = Brand.objects.filter(store=store, slug=selected_brand, is_active=True).first()
+        if brand is not None:
+            return brand.name, [home, shop, {"label": brand.name, "url": None}]
+
+    heading = "همه‌ی محصولات"
+    return heading, [home, {"label": heading, "url": None}]
+
+
+def _build_active_filter_chips(request, store, *, query, selected_category, selected_brand,
+                               min_price, max_price, discounted_only, in_stock_only):
+    """Visible, removable active-filter chips. Each chip is
+    ``{"kind", "label", "remove_url"}`` where ``remove_url`` drops only that
+    filter and preserves the rest (server/query canonical)."""
+    base = reverse("catalog:product-list")
+    chips = []
+
+    def add(kind, label, *drop_keys):
+        qs = _listing_querystring_without(request, *drop_keys)
+        chips.append({
+            "kind": kind,
+            "label": label,
+            "remove_url": f"{base}?{qs}" if qs else base,
+        })
+
+    if query:
+        add("q", f"جستجو: {query}", "q")
+    if selected_category:
+        category = Category.objects.filter(store=store, slug=selected_category, is_active=True).first()
+        if category is not None:
+            add("category", category.name, "category")
+    if selected_brand:
+        brand = Brand.objects.filter(store=store, slug=selected_brand, is_active=True).first()
+        if brand is not None:
+            add("brand", brand.name, "brand")
+    if min_price or max_price:
+        if min_price and max_price:
+            label = f"قیمت: {min_price} تا {max_price}"
+        elif min_price:
+            label = f"قیمت: از {min_price}"
+        else:
+            label = f"قیمت: تا {max_price}"
+        add("price", label, "min_price", "max_price")
+    if discounted_only:
+        add("discounted", "فقط تخفیف‌دار", "discounted")
+    if in_stock_only:
+        add("in_stock", "فقط موجود", "in_stock")
+
+    return chips
+
+
 def build_product_listing_context(request, store):
     """کانتکستِ کاملِ صفحه‌ی لیست/جستجو — هم برایِ ``product_list`` (مسیرِ
     عمومی) و هم برایِ Preview سازنده (Phase 5، section context-aware
@@ -207,6 +304,22 @@ def build_product_listing_context(request, store):
         Prefetch("children", queryset=Category.objects.filter(store=store, is_active=True).order_by("order", "name"))
     ).order_by("order", "name")
 
+    selected_category = request.GET.get("category", "").strip()
+    selected_brand = request.GET.get("brand", "").strip()
+    min_price = request.GET.get("min_price", "").strip()
+    max_price = request.GET.get("max_price", "").strip()
+    discounted_only = request.GET.get("discounted") == "1"
+    in_stock_only = request.GET.get("in_stock") == "1"
+
+    listing_heading, listing_breadcrumbs = _resolve_listing_location(
+        store, query=query, selected_category=selected_category, selected_brand=selected_brand,
+    )
+    active_filter_chips = _build_active_filter_chips(
+        request, store, query=query, selected_category=selected_category,
+        selected_brand=selected_brand, min_price=min_price, max_price=max_price,
+        discounted_only=discounted_only, in_stock_only=in_stock_only,
+    )
+
     return {
         "page_obj": page_obj,
         "products": page_obj.object_list,
@@ -215,13 +328,18 @@ def build_product_listing_context(request, store):
         "sort_options": LIST_SORT_OPTIONS,
         "filter_categories": filter_categories,
         "brands": Brand.objects.filter(store=store, is_active=True).order_by("name"),
-        "selected_category": request.GET.get("category", "").strip(),
-        "selected_brand": request.GET.get("brand", "").strip(),
-        "min_price": request.GET.get("min_price", "").strip(),
-        "max_price": request.GET.get("max_price", "").strip(),
-        "discounted_only": request.GET.get("discounted") == "1",
-        "in_stock_only": request.GET.get("in_stock") == "1",
+        "selected_category": selected_category,
+        "selected_brand": selected_brand,
+        "min_price": min_price,
+        "max_price": max_price,
+        "discounted_only": discounted_only,
+        "in_stock_only": in_stock_only,
         "querystring": _querystring_without_page(request),
+        # G2 — dynamic location context + removable active-filter chips.
+        "listing_heading": listing_heading,
+        "listing_breadcrumbs": listing_breadcrumbs,
+        "active_filter_chips": active_filter_chips,
+        "clear_all_url": reverse("catalog:product-list"),
     }
 
 

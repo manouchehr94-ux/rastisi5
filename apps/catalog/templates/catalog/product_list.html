@@ -13,13 +13,45 @@
 <link rel="stylesheet" href="{% static 'css/storefront_builder.css' %}">
 {% endblock %}
 
+{% block extra_js %}{{ block.super }}
+<script>
+// G2 mobile-first polish (progressive enhancement): the filter panel is a
+// native <details open> so it stays expanded as a desktop sidebar. On small
+// screens that would push products far down the page, so collapse it on load
+// (still one tap to open via its <summary>). No-JS keeps it open and fully
+// usable. Desktop (where the <summary> toggle is display:none) is untouched.
+(function () {
+  var MOBILE = window.matchMedia('(max-width: 860px)');
+  function syncFilters() {
+    document.querySelectorAll('details.plp-filters').forEach(function (d) {
+      if (MOBILE.matches) { d.removeAttribute('open'); }
+      else { d.setAttribute('open', ''); }
+    });
+  }
+  syncFilters();
+  if (MOBILE.addEventListener) { MOBILE.addEventListener('change', syncFilters); }
+  // Re-apply after HTMX swaps that may re-render the listing region.
+  document.body.addEventListener('htmx:afterSwap', syncFilters);
+})();
+</script>
+{% endblock %}
+
 {% block content %}
 <div class="wrap sfb-preview-sections">
-  <div class="breadcrumb">
-    <a href="/">خانه</a>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
-    <span style="color:var(--ink)">فروشگاه</span>
-  </div>
+  {% comment %}G2 — dynamic, query/category/brand-aware breadcrumb + page heading
+  (server-derived in build_product_listing_context; tenant-scoped).{% endcomment %}
+  <nav class="breadcrumb plp-breadcrumb" aria-label="مسیر">
+    {% for crumb in listing_breadcrumbs %}
+      {% if crumb.url and not forloop.last %}
+      <a href="{{ crumb.url }}">{{ crumb.label }}</a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      {% else %}
+      <span aria-current="page" style="color:var(--ink)">{{ crumb.label }}</span>
+      {% endif %}
+    {% endfor %}
+  </nav>
+
+  {% if listing_heading %}<h1 class="plp-heading">{{ listing_heading }}</h1>{% endif %}
 
   {% include "storefront_builder/partials/render_rows.html" %}
 </div>

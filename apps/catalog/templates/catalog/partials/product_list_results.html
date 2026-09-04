@@ -3,6 +3,27 @@
   <span class="plp-count"><b>{{ page_obj.paginator.count|fa_number }}</b> کالا یافت شد</span>
 </div>
 
+{% comment %}G2 — visible, removable active-filter chips. Each remove link drops
+only that filter (server/query canonical) and preserves the rest; the HTMX
+attributes let removal update the results in place, and hx-push-url keeps the
+URL/back-button honest.{% endcomment %}
+{% if active_filter_chips %}
+<div class="plp-chips" aria-label="فیلترهای فعال">
+  {% for chip in active_filter_chips %}
+  <a class="plp-chip" href="{{ chip.remove_url }}"
+     hx-get="{{ chip.remove_url }}" hx-target="#product-results" hx-push-url="true" hx-indicator="#plpLoading"
+     aria-label="حذف فیلتر {{ chip.label }}">
+    <span class="plp-chip-label">{{ chip.label }}</span>
+    <span class="plp-chip-x" aria-hidden="true">×</span>
+  </a>
+  {% endfor %}
+  <a class="plp-chip plp-chip-clear" href="{{ clear_all_url }}"
+     hx-get="{{ clear_all_url }}" hx-target="#product-results" hx-push-url="true" hx-indicator="#plpLoading">
+    حذف همه
+  </a>
+</div>
+{% endif %}
+
 {% if products %}
 <div class="grid rsec-cols">
   {% for product in products %}
