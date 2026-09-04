@@ -274,11 +274,26 @@ def _customize_golden_draft(draft) -> None:
 
 
 def _rebuild_home_composition(draft) -> None:
-    """Replace the Home page's sections with the Golden composition, using the
-    same section-registry + container primitives the preset path uses. Does not
-    touch any other page or any baseline metadata."""
+    """Replace the Home page's sections with the Golden composition.
+
+    Intentionally mirrors ``preset_service._build_sections_for_page``'s
+    registry-lookup → validate-settings → row loop rather than calling it,
+    because Golden sections are merchant-authored (their own ``golden:home:``
+    slot-key namespace), not template slots. Kept a deliberate, narrow fork; if
+    the preset row-building contract changes, revisit this. Touches only the
+    Home page's sections/containers — no other page, no baseline metadata.
+
+    The Golden entries deliberately carry no per-container settings, so — unlike
+    ``apply_preset`` — no post-rebuild ``StorefrontContainer.settings`` pass is
+    needed. The assertion below pins that assumption so a future entry that adds
+    ``container_settings`` fails loudly instead of silently dropping them.
+    """
     page = draft.get_page("home")
     entries = _golden_home_composition()
+    assert all(entry.container_settings is None for entry in entries), (
+        "Golden Home entries must not carry container_settings — "
+        "_rebuild_home_composition does not write StorefrontContainer.settings."
+    )
 
     rows = []
     for order, entry in enumerate(entries):
