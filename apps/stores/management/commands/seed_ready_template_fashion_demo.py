@@ -603,13 +603,58 @@ class Command(BaseCommand):
         return vendor
 
     def _seed_categories(self, store: Store) -> dict:
+        """Seed a real 2-level category tree (group parents -> the 10 leaves).
+
+        G2.1 Defect B: products may only be attached to LEAF categories
+        (``catalog_admin_service.leaf_categories`` = ``parent__isnull=False`` AND
+        no children), which the Product Editor uses. Flat root categories are
+        therefore never valid product categories. We keep the exact 10 semantic
+        categories but nest each under a group parent, so:
+          - the 10 remain the leaves products attach to (this method still
+            returns ``{leaf_name: leaf_category}`` — downstream seeding for
+            images / story-rail / navigation is unchanged);
+          - the storefront nav (``parent__isnull=True``) now shows the 3 groups
+            as top-level entries with the 10 as their populated children (a
+            better mega-menu), and the listing filter's parent→children match
+            (``category__parent__slug``) surfaces a group's leaf products.
+        Idempotent via ``get_or_create(store, slug)``; tenant-scoped.
+        """
+        # 3 group parents -> their leaf category names (order preserved to match
+        # CATEGORY_NAMES' original ordering within each group).
+        groups = {
+            "کفش": ["کتانی رانینگ", "کتانی کژوال", "کفش زنانه", "صندل و دمپایی"],
+            "پوشاک": ["شلوار کژوال", "شلوار جین", "کاپشن و بامبر", "ژاکت چرم و اورشرت"],
+            "کیف": ["کیف دستی و Tote", "کیف دوشی و مجلسی"],
+        }
+        # Preserve each leaf's original display order from CATEGORY_NAMES.
+        leaf_order = {name: index for index, name in enumerate(CATEGORY_NAMES)}
+
         by_name = {}
-        for order, name in enumerate(CATEGORY_NAMES):
-            slug = slugify(name, allow_unicode=True)
-            category, _ = Category.objects.get_or_create(
-                store=store, slug=slug, defaults={"name": name, "order": order, "is_active": True},
+        for group_order, (group_name, leaf_names) in enumerate(groups.items()):
+            group_slug = slugify(group_name, allow_unicode=True)
+            group, _ = Category.objects.get_or_create(
+                store=store, slug=group_slug,
+                defaults={"name": group_name, "order": group_order, "is_active": True},
             )
-            by_name[name] = category
+            # A pre-existing flat root from an older seed must become a group
+            # root too — it already has parent=None, so nothing to change; ensure
+            # it is not accidentally parented.
+            if group.parent_id is not None:
+                group.parent = None
+                group.save(update_fields=["parent", "updated_at"])
+            for name in leaf_names:
+                slug = slugify(name, allow_unicode=True)
+                leaf, created = Category.objects.get_or_create(
+                    store=store, slug=slug,
+                    defaults={
+                        "name": name, "order": leaf_order[name], "is_active": True, "parent": group,
+                    },
+                )
+                # Re-home a leaf that an older seed created as a flat root.
+                if leaf.parent_id != group.id:
+                    leaf.parent = group
+                    leaf.save(update_fields=["parent", "updated_at"])
+                by_name[name] = leaf
         return by_name
 
     def _seed_brands(self, store: Store) -> dict:

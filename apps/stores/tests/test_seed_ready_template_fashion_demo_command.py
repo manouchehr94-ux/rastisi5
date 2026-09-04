@@ -122,16 +122,22 @@ class ExactCatalogCountTests(SeedReadyTemplateFashionDemoCommandTests):
 
     def test_exactly_10_categories(self):
         self._run()
-        self.assertEqual(Category.objects.filter(store=self._store()).count(), 10)
-        self.assertEqual(
-            set(Category.objects.filter(store=self._store()).values_list("name", flat=True)),
-            set(CATEGORY_NAMES),
-        )
+        store = self._store()
+        # G2.1 Defect B: the 10 semantic categories are now LEAVES of a 2-level
+        # tree (nested under group parents) so they are valid Product-Editor
+        # categories. The 10 leaves are exactly CATEGORY_NAMES; group parents are
+        # additional roots.
+        leaves = Category.objects.filter(store=store, parent__isnull=False)
+        self.assertEqual(leaves.count(), 10)
+        self.assertEqual(set(leaves.values_list("name", flat=True)), set(CATEGORY_NAMES))
+        # groups are roots that own the leaves
+        self.assertGreater(Category.objects.filter(store=store, parent__isnull=True).count(), 0)
 
     def test_exactly_5_products_per_category(self):
         self._run()
         store = self._store()
-        for category in Category.objects.filter(store=store):
+        # Products attach to the leaf categories (CATEGORY_NAMES); each leaf has 5.
+        for category in Category.objects.filter(store=store, name__in=CATEGORY_NAMES):
             self.assertEqual(Product.objects.filter(store=store, category=category).count(), 5, category.name)
 
     def test_at_least_6_brands_and_every_brand_used(self):
@@ -467,7 +473,8 @@ class ContentTests(SeedReadyTemplateFashionDemoCommandTests):
     def test_category_visuals_exist_for_all_10_categories(self):
         self._run()
         store = self._store()
-        for category in Category.objects.filter(store=store):
+        # Category images are seeded for the 10 leaf categories (CATEGORY_NAMES).
+        for category in Category.objects.filter(store=store, name__in=CATEGORY_NAMES):
             self.assertTrue(category.image, category.name)
 
     def test_header_navigation_covers_all_categories(self):
