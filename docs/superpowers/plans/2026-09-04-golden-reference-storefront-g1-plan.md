@@ -117,5 +117,17 @@ baseline-apply is never used on protected/real stores.
 - **R3:** Header = `marketplace_search_first` (only premium header rendering the real category
   Mega Menu + search + full action cluster + mobile affordances).
 - **R4:** Footer = `premium_columns`; Bottom nav = `five_item` (search + cart badge).
-- **R5:** New Arrivals / Best Sellers / Special Offer are one reused `product_section` each with
-  `data_source` = `newest` / `best_sellers` / `discounted` — no duplicated catalog truth.
+- **R5:** New Arrivals / Most-Popular / Special Offer are one reused `product_section` each
+  with `data_source` = `newest` / `most_viewed` / `discounted` — no duplicated catalog truth.
+- **R6 (visual-QA):** The announcement is rendered by the global header
+  (`header_config.announcement_enabled`), not as a separate `announcement_bar` section —
+  rendering both duplicated the strip. Home is therefore 12 sections + footer.
+- **R7 (visual-QA):** The "Best Sellers" slot uses `data_source=most_viewed` (backed by
+  `views_count`, a production-written metric that the Golden setup seeds deterministically),
+  not `best_sellers`. Rationale: `best_sellers` is computed live from real `OrderItem` rows
+  (the only permitted algorithm), which would require seeding full `Order` + `PaymentGateway`
+  + `ShippingMethod` + `Customer` checkout infrastructure purely to populate one Home section
+  — disproportionate scaffolding that also reaches further into the Commerce domain than a G1
+  *storefront-visual* deliverable should. `views_count`-backed "most popular" is a legitimate,
+  boundary-respecting merchandising section. Real order-history-backed Best Sellers is
+  deferred to commerce-seeding scope.

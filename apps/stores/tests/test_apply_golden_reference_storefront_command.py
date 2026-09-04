@@ -45,14 +45,16 @@ STORE_SLUG = "rasti-mode-demo"
 OTHER_REAL_SLUG = "rastisi-fashion-test"
 
 GOLDEN_HOME_SECTIONS = [
-    "announcement_bar",
+    # The announcement is rendered by the global header
+    # (header_config.announcement_enabled), not as a page section — avoiding a
+    # duplicate announcement strip observed in visual QA.
     "hero_banner",
     "category_grid",
     "multi_banner",
     "product_section",   # newest
     "brand_carousel",
     "multi_banner",
-    "product_section",   # best sellers
+    "product_section",   # most viewed / popular
     "story_rail",
     "product_section",   # discounted / special offer
     "collection_tiles",
@@ -137,7 +139,7 @@ class ApplyGoldenReferenceStorefrontCommandTests(TestCase):
             s for s in home.sections.order_by("order") if s.section_key == "product_section"
         ]
         sources = [s.settings.get("data_source") for s in product_sections]
-        self.assertEqual(sources, ["newest", "best_sellers", "discounted"])
+        self.assertEqual(sources, ["newest", "most_viewed", "discounted"])
 
     def test_no_catalog_ids_are_hardcoded_into_product_section_settings(self):
         """Product data must resolve at render time from Catalog via
@@ -147,6 +149,32 @@ class ApplyGoldenReferenceStorefrontCommandTests(TestCase):
         home = published.home_page()
         for section in home.sections.filter(section_key="product_section"):
             self.assertEqual(section.settings.get("product_ids", []), [])
+
+    def test_all_three_product_sections_resolve_non_empty_so_they_render(self):
+        """Every product_section (newest, most_viewed, discounted) must resolve
+        real products and survive the empty-public-section filter — otherwise
+        the Home would silently drop a merchandising section."""
+        from apps.storefront_builder.services import render_service
+
+        self._run()
+        published = layout_service.get_or_create_layout(self._store()).published_version
+        home = published.home_page()
+        sa = render_service.resolve_store_appearance_render_state(published)
+        items = render_service.build_page_render_items(home, self._store(), store_appearance=sa)
+        for it in items:
+            if it["section"].section_key == "product_section":
+                self.assertGreater(
+                    len(it["context"].get("products", [])),
+                    0,
+                    it["section"].settings.get("data_source"),
+                )
+        visible_keys = [it["section"].section_key for it in render_service.hide_empty_public_sections(items)]
+        self.assertEqual(visible_keys.count("product_section"), 3)
+
+    def test_demo_products_have_deterministic_view_signals(self):
+        self._run()
+        store = self._store()
+        self.assertEqual(Product.objects.filter(store=store, views_count=0).count(), 0)
 
     # ------------------------------------------------------------------ Idempotence
 

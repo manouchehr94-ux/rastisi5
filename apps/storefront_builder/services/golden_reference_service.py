@@ -93,19 +93,23 @@ def _golden_home_composition() -> tuple[PresetSectionEntry, ...]:
     neutral, enum-driven settings are provided; no Store IDs, prices, SKUs, or
     inventory are ever written here.
     """
+    # Note on the announcement: it is rendered by the global header itself
+    # (``header_config.announcement_enabled`` -> the header partial includes
+    # ``_shared/announcement_bar.html``). Adding a separate ``announcement_bar``
+    # *section* here would render the strip twice (a real defect observed in
+    # visual QA), so the announcement lives only in the shell — not the page
+    # composition.
     return (
-        # 1) Announcement
-        PresetSectionEntry("announcement_bar"),
-        # 2) Editorial hero (store/section HeroSlides render at runtime)
+        # 1) Editorial hero (store/section HeroSlides render at runtime)
         PresetSectionEntry("hero_banner", {"hero_style": "overlay"}),
-        # 3) Quick categories (discovery)
+        # 2) Quick categories (discovery)
         PresetSectionEntry(
             "category_grid",
             {"display_mode": "circular", "item_limit": 8, "title": "دسته‌بندی‌ها"},
         ),
-        # 4) Featured campaign / editorial promotion
+        # 3) Featured campaign / editorial promotion
         PresetSectionEntry("multi_banner"),
-        # 5) New arrivals
+        # 4) New arrivals
         PresetSectionEntry(
             "product_section",
             {
@@ -115,26 +119,28 @@ def _golden_home_composition() -> tuple[PresetSectionEntry, ...]:
                 "item_limit": 8,
             },
         ),
-        # 6) Brand strip
+        # 5) Brand strip
         PresetSectionEntry(
             "brand_carousel",
             {"display_mode": "carousel", "title": "برندها"},
         ),
-        # 7) Promo banners
+        # 6) Promo banners
         PresetSectionEntry("multi_banner"),
-        # 8) Best sellers
+        # 7) Most popular / most viewed (uses views_count, a production-written
+        #    metric — see ruling in the G1 plan; avoids fabricating Order/
+        #    payment/shipping infrastructure just to populate a Home section).
         PresetSectionEntry(
             "product_section",
             {
-                "data_source": "best_sellers",
+                "data_source": "most_viewed",
                 "display_mode": "grid",
-                "title": "پرفروش‌ترین‌ها",
+                "title": "محبوب‌ترین‌ها",
                 "item_limit": 8,
             },
         ),
-        # 9) Story / editorial rail
+        # 8) Story / editorial rail
         PresetSectionEntry("story_rail"),
-        # 10) Special offer / promotion
+        # 9) Special offer / promotion
         PresetSectionEntry(
             "product_section",
             {
@@ -144,14 +150,14 @@ def _golden_home_composition() -> tuple[PresetSectionEntry, ...]:
                 "item_limit": 8,
             },
         ),
-        # 11) Curated collections
+        # 10) Curated collections
         PresetSectionEntry(
             "collection_tiles",
             {"tile_style": "grid", "title": "کالکشن‌های منتخب"},
         ),
-        # 12) Trust / service features
+        # 11) Trust / service features
         PresetSectionEntry("trust_features"),
-        # 13) Newsletter
+        # 12) Newsletter
         PresetSectionEntry(
             "newsletter",
             {
@@ -210,6 +216,27 @@ def build_golden_preset() -> LayoutPresetDefinition:
     )
 
 
+def ensure_golden_view_signals(store) -> int:
+    """Give the demo store's products deterministic ``views_count`` so a
+    ``most_viewed`` presentation (and general realism) has data.
+
+    ``views_count`` is a display/analytics metric that IS genuinely written in
+    production (``apps.catalog.views.product_detail`` on every view), so seeding
+    it for a demo store is legitimate content, not commerce truth. Deterministic
+    and idempotent (derived from the immutable PK). Returns rows rewritten.
+    """
+    from apps.catalog.models import Product
+
+    updated = 0
+    for product in Product.objects.filter(store=store).order_by("pk"):
+        views = 120 + (product.pk * 53) % 3400
+        if product.views_count != views:
+            product.views_count = views
+            product.save(update_fields=["views_count", "updated_at"])
+            updated += 1
+    return updated
+
+
 def apply_golden_reference_storefront(store, *, user=None):
     """Apply + publish the Golden composition onto ``store``.
 
@@ -235,6 +262,7 @@ def apply_golden_reference_storefront(store, *, user=None):
 
     Returns the published :class:`StorefrontLayoutVersion`.
     """
+    ensure_golden_view_signals(store)
     preset = build_golden_preset()
     draft = layout_service.get_or_create_draft(store, user=user)
     preset_service.apply_preset(draft, preset)

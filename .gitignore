@@ -51,3 +51,6 @@ tools/storefront_builder_qa/node_modules/
 /RastiSi4_phase35_complete_builder_handoff_20260817-123748.zip
 graphify-out/
 .graphify-venv/
+
+# Golden G1 local visual-QA tooling (never committed)
+.golden_qa/
