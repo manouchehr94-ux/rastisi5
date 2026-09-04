@@ -50,24 +50,51 @@ time from Catalog via `data_source`/store-scoped resolution).
 Rhythm: hero/editorial impact → discovery → products (new) → brand → campaign → products
 (best) → story → promotion → collections → trust → newsletter/footer.
 
-## C. Golden apply mechanism (idempotent, production contracts)
+## C. Golden apply mechanism (idempotent, production contracts) — CORRECTED MODEL
 
-Add a **focused, idempotent Golden composition applier** that runs *after* the existing seed
-establishes catalog/content + baseline template. It:
+A Ready Template's identity+version must always describe its **actual registered authored
+DNA**. Therefore the Golden setup must **not** hand a modified preset object to `apply_preset`
+while keeping the official `fashion_promo_catalog` key/version — that would make
+`template_baseline_snapshot` (the pure authored template truth the future Phase‑1 reset relies
+on) lie. The Golden setup instead mirrors exactly what a real merchant does:
 
-1. Loads the `rasti-mode-demo` store + its draft (`layout_service.get_or_create_draft`).
-2. Selects palette `theme-forest-cream`, header `marketplace_search_first`, footer
-   `premium_columns`, bottom nav `five_item` via the existing appearance/config contracts.
-3. Sets the Home composition from §B via the existing preset/section services.
-4. `layout_service.publish(store)`.
+1. Seed the resettable `rasti-mode-demo` (real catalog/content).
+2. Obtain the **REAL registered** `fashion_promo_catalog` recipe.
+3. Discard any stale draft, create a fresh draft, and apply that **unmodified** real preset via
+   `preset_service.apply_preset` → the Draft now carries **honest `template_provenance`** AND a
+   **truthful `template_baseline_snapshot`** = the authored `fashion_promo_catalog` baseline.
+4. **Customize the resulting Draft** the way a merchant would, through existing production
+   contracts — and these writes **never touch `template_baseline_snapshot`/`template_provenance`**:
+   - Store‑Appearance manifest (header `marketplace_search_first`, footer `premium_columns`,
+     bottom‑nav `five_item`; `mega_menu` inherited = `mega_menu.none.v1`) via
+     `storefront_appearance.persistence.persist_store_appearance_manifest` (Draft‑only).
+   - Identity palette `theme-forest-cream` via the validated `appearance_config`
+     (mirrors `apply_preset` palette semantics: set `palette_slug`, clear a
+     non‑merchant‑customized `color_overrides`).
+   - Header capability flags via `layout_service.validate_header_config`.
+   - Home composition (§B) via `section_registry` + `container_service.rebuild_page_from_legacy_rows`,
+     replacing **only** the Home page's sections/containers.
+5. `layout_service.publish(store)`.
 
-Re-running converges (idempotent): it rebuilds the Home page deterministically from the same
-spec and re-publishes; it never creates duplicate stores/products/collections (those come from
-the idempotent base seed). Preferred surface: extend the existing demo command with a
-`--golden` composition step (or a thin dedicated `apply_golden_reference_storefront` command
-that calls the base seed then applies §B), so `rasti-mode-demo` is reproducible with one
-documented command. **Only** the `rasti-mode-demo` slug is ever touched; destructive
-baseline-apply is never used on protected/real stores.
+Result: the live Draft/Published = **authored baseline + Golden merchant divergences**, exactly
+the model future Phase‑1 semantics expect. Re-running converges (fresh draft each run → re-apply
+authored baseline → re-apply Golden customizations); it never duplicates stores/products/
+collections (those come from the idempotent base seed). Surface: a thin dedicated
+`apply_golden_reference_storefront` command that runs the base seed (`--ready-template
+fashion_promo_catalog`) then the Golden apply. **Only** the `rasti-mode-demo` slug is ever
+touched; destructive baseline-apply is never used on protected/real stores. No 51st template,
+no second preset identity, no second renderer.
+
+### Mega Menu (verified source truth)
+
+The visible category mega menu is an **intrinsic authored feature of the
+`marketplace_search_first` header** (its partial renders the real Store category tree,
+`nav_categories`). Its truthful, future‑Builder‑editable source is therefore the **Header
+selection** (`header.marketplace_search_first.v1`), not a separate component. The `mega_menu`
+Store‑Appearance family exposes a single registered component `mega_menu.none.v1`
+(`virtual:mega_menu:none` — "no separate mega‑menu overlay"), which is the correct, consistent
+selection here; the render pipeline does not consume a `mega_menu` selection for the header, and
+`global_region_registry` has no mega‑menu region. No new Mega Menu architecture is introduced.
 
 ## D. Task breakdown (each: RED → implement → GREEN → self-review → fresh reviewer → commit)
 

@@ -102,6 +102,70 @@ class ApplyGoldenReferenceStorefrontCommandTests(TestCase):
             "fashion_promo_catalog",
         )
 
+    # ------------------- Baseline-truth invariants (Phase-1 reconstruction) ----
+    # These prove the Golden setup follows the correct model:
+    #   template_baseline_snapshot = pure authored registered template truth,
+    #   live Draft/Published = authored baseline + Golden merchant customizations.
+
+    def _authored_baseline(self):
+        """The ACTUAL authored registered fashion_promo_catalog baseline —
+        read straight from the registry, independent of anything Golden does."""
+        preset = lpr.get_layout_preset("fashion_promo_catalog")
+        home_keys = [entry.section_key for entry in preset.pages["home"]]
+        return preset, home_keys
+
+    def test_A_provenance_points_at_the_real_registered_template_key_and_version(self):
+        preset, _ = self._authored_baseline()
+        self._run()
+        published = layout_service.get_or_create_layout(self._store()).published_version
+        template = published.template_provenance.get("template", {})
+        self.assertEqual(template.get("key"), "fashion_promo_catalog")
+        self.assertEqual(template.get("version"), preset.version)
+
+    def test_B_baseline_snapshot_is_the_authored_template_not_the_golden_home(self):
+        preset, authored_home_keys = self._authored_baseline()
+        self._run()
+        published = layout_service.get_or_create_layout(self._store()).published_version
+        snapshot = published.template_baseline_snapshot
+        self.assertTrue(snapshot, "expected a recorded template_baseline_snapshot")
+        self.assertEqual(snapshot.get("template_key"), "fashion_promo_catalog")
+        self.assertEqual(snapshot.get("template_version"), preset.version)
+        # The snapshot must describe the AUTHORED baseline Home, NOT the Golden
+        # customized 12-section Home.
+        snapshot_home_keys = [entry["section_key"] for entry in snapshot["pages"]["home"]]
+        self.assertEqual(snapshot_home_keys, authored_home_keys)
+        self.assertNotEqual(snapshot_home_keys, GOLDEN_HOME_SECTIONS)
+        # The snapshot palette is the authored template palette, not the Golden
+        # identity palette.
+        self.assertEqual(snapshot.get("default_palette_slug"), preset.default_palette_slug)
+        self.assertNotEqual(snapshot.get("default_palette_slug"), "theme-forest-cream")
+
+    def test_C_live_draft_intentionally_differs_from_the_authored_baseline(self):
+        self._run()
+        published = layout_service.get_or_create_layout(self._store()).published_version
+        snapshot = published.template_baseline_snapshot
+        # Live composition is the Golden Home; authored baseline is different.
+        live_home_keys = list(
+            published.home_page().sections.order_by("order").values_list("section_key", flat=True)
+        )
+        snapshot_home_keys = [entry["section_key"] for entry in snapshot["pages"]["home"]]
+        self.assertEqual(live_home_keys, GOLDEN_HOME_SECTIONS)
+        self.assertNotEqual(live_home_keys, snapshot_home_keys)
+        # Live shell/palette are the Golden merchant selections; the authored
+        # baseline recorded the template's own (different) shell/palette.
+        self.assertEqual(published.effective_appearance_config().get("palette_slug"), "theme-forest-cream")
+        self.assertNotEqual(
+            published.effective_header_config().get("header_variant"),
+            snapshot["header_config"].get("header_variant"),
+        )
+
+    def test_D_official_a8_catalog_remains_exactly_fifty(self):
+        before = {p.key for p in lpr.list_ready_templates()}
+        self._run()
+        after = {p.key for p in lpr.list_ready_templates()}
+        self.assertEqual(before, after)
+        self.assertEqual(len(after), 50)
+
     # ------------------------------------------------------------------ Shell
 
     def test_golden_shell_variants_are_applied(self):

@@ -10,29 +10,45 @@ Design authority:
 Executable plan:
 ``docs/superpowers/plans/2026-09-04-golden-reference-storefront-g1-plan.md``
 
-This module deliberately reuses the existing production contracts and adds no
-parallel architecture:
+Architecture model (this is the load-bearing correctness contract):
 
-- It builds an **in-memory** ``LayoutPresetDefinition`` derived from the
-  officially registered ``fashion_promo_catalog`` Ready Template
-  (``dataclasses.replace`` over the registered recipe). It keeps that recipe's
-  ``key``/``version`` so ``template_provenance`` stays honest — the store is
-  still built from the ``fashion_promo_catalog`` baseline. It is **never
-  registered**, so the A8 catalog stays at exactly 50 templates (this is not a
-  51st Ready Template).
-- It customizes only what a merchant may legitimately customize through the
-  store contracts: the identity **palette** (``theme-forest-cream``), the
-  **global shell** variants (header/footer/mobile-nav), the typed
-  ``store_appearance`` manifest to match, and the **Home composition**.
-- It applies the customized recipe to the store's active Draft with the
-  ordinary Draft-only ``preset_service.apply_preset`` contract and publishes
-  with ``layout_service.publish``. (It deliberately does NOT use
-  ``apply_preset_with_checkpoint`` — see ``apply_golden_reference_storefront``'s
-  docstring for why the checkpoint path would be a no-op here.)
+  A Ready Template's identity + version must always describe its **actual
+  registered authored DNA**. So the Golden setup does NOT hand a modified
+  preset object to ``apply_preset`` while keeping the official key/version —
+  that would make ``template_baseline_snapshot`` (the pure authored template
+  truth the future Phase-1 reset relies on) lie about what the template
+  authored.
 
-Re-running converges (idempotent): ``apply_preset`` fully replaces the page
-composition and rewrites appearance/header/footer from the recipe every run, so
-repeated runs rebuild the same published state.
+  Instead the Golden setup mirrors exactly what a real merchant does:
+
+    1. Seed the resettable ``rasti-mode-demo`` (real catalog/content).
+    2. Obtain the REAL registered ``fashion_promo_catalog`` recipe.
+    3. Apply that real preset normally (``preset_service.apply_preset``) so the
+       Draft carries honest ``template_provenance`` AND a truthful
+       ``template_baseline_snapshot`` = the authored ``fashion_promo_catalog``
+       baseline.
+    4. Customize the resulting Draft the way a merchant would, through existing
+       production contracts — palette selection, Store-Appearance manifest
+       (header/footer/bottom-nav), header config, and Home section
+       composition. These writes NEVER touch ``template_baseline_snapshot``, so
+       the live Draft becomes ``authored baseline + Golden merchant
+       divergences`` — precisely the model future Phase-1 semantics expect.
+    5. Publish.
+
+The live Golden Draft may (and does) differ substantially from the
+``fashion_promo_catalog`` authored baseline. That is intended.
+
+No new Ready Template is created; the A8 catalog stays at exactly 50. No second
+preset identity, renderer, or Store-Appearance/Mega-Menu architecture is
+introduced — only existing registered contracts are used.
+
+Mega Menu note: the visible category mega menu is an intrinsic authored feature
+of the ``marketplace_search_first`` **header** identity (its partial renders the
+real Store category tree). Its truthful, future-Builder-editable source is the
+Header selection (``header.marketplace_search_first.v1``). The ``mega_menu``
+Store-Appearance family has a single registered component, ``mega_menu.none.v1``
+(``virtual:mega_menu:none`` — "no separate mega-menu overlay"), which is the
+correct, consistent selection here; the header owns its own category panel.
 
 Guardrails: this service only ever operates on the store handed to it (the
 management command scopes that to the fixed ``rasti-mode-demo`` slug). It never
@@ -43,63 +59,53 @@ writes commerce truth (price/stock/SKU) and bakes no catalog IDs into settings
 
 from __future__ import annotations
 
-import dataclasses
-
+from apps.storefront_builder import section_registry
 from apps.storefront_builder.layout_preset_registry import (
-    LayoutPresetDefinition,
     PresetSectionEntry,
     get_layout_preset,
 )
-from apps.storefront_builder.services import layout_service, preset_service
+from apps.storefront_builder.models import StorefrontSection
+from apps.storefront_builder.services import (
+    container_service,
+    layout_service,
+    preset_service,
+)
+from apps.storefront_builder.storefront_appearance import persistence as store_appearance_persistence
 
-#: The official Ready Template used as the Golden baseline (unchanged; still the
-#: recorded provenance). Chosen because it is already the ``rasti-mode-demo``
-#: seed's applied template and carries the widest commercial fashion vocabulary.
+#: The official Ready Template applied as the Golden baseline. It is applied
+#: UNMODIFIED, so ``template_provenance`` and ``template_baseline_snapshot`` both
+#: describe the real authored ``fashion_promo_catalog`` DNA. Chosen because it is
+#: already the demo seed's applied template and carries the widest commercial
+#: fashion vocabulary.
 GOLDEN_BASELINE_TEMPLATE_KEY = "fashion_promo_catalog"
 
-#: Identity palette (registered) — teal/green primary, charcoal contrast, gold
-#: accent, warm/light neutral surfaces. No new/parallel color system.
+#: Golden merchant customizations layered on top of the authored baseline
+#: (all existing registered values; the live Draft intentionally diverges here).
 GOLDEN_PALETTE_SLUG = "theme-forest-cream"
-
-#: Global shell variants (all existing registered variants).
 GOLDEN_HEADER_VARIANT = "marketplace_search_first"
 GOLDEN_FOOTER_VARIANT = "premium_columns"
 GOLDEN_BOTTOM_NAV_VARIANT = "five_item"
 
-
-def _golden_store_appearance(base_manifest: dict) -> dict:
-    """Return a schema-v1 store-appearance manifest matching the Golden shell.
-
-    Only the ``header``/``footer``/``bottom_nav`` family selections diverge from
-    the baseline recipe; everything else (hero/card/layout/etc.) is inherited so
-    the commercial DNA of ``fashion_promo_catalog`` is preserved.
-    """
-    selections = dict((base_manifest or {}).get("selections", {}))
-    selections["header"] = f"header.{GOLDEN_HEADER_VARIANT}.v1"
-    selections["footer"] = f"footer.{GOLDEN_FOOTER_VARIANT}.v1"
-    selections["bottom_nav"] = f"bottom_nav.{GOLDEN_BOTTOM_NAV_VARIANT}.v1"
-    return {
-        "schema_version": 1,
-        "selections": selections,
-        "settings": dict((base_manifest or {}).get("settings", {})),
-    }
+#: A slot-key namespace for the Golden-authored Home sections. Distinct from the
+#: baseline template's slot keys — these are merchant-authored sections, not the
+#: template's own slots.
+_GOLDEN_SLOT_PREFIX = "golden:home:"
 
 
 def _golden_home_composition() -> tuple[PresetSectionEntry, ...]:
     """The approved 12-section Home in commercial rhythm.
 
-    Editorial impact -> discovery -> products(new) -> campaign -> brand ->
-    promo -> products(best) -> story -> promotion -> collections -> trust ->
+    Editorial impact -> discovery -> campaign -> products(new) -> brand ->
+    promo -> products(popular) -> story -> promotion -> collections -> trust ->
     newsletter. Every ``section_key`` is an existing registered section. Only
     neutral, enum-driven settings are provided; no Store IDs, prices, SKUs, or
     inventory are ever written here.
     """
-    # Note on the announcement: it is rendered by the global header itself
+    # The announcement is rendered by the global header itself
     # (``header_config.announcement_enabled`` -> the header partial includes
     # ``_shared/announcement_bar.html``). Adding a separate ``announcement_bar``
-    # *section* here would render the strip twice (a real defect observed in
-    # visual QA), so the announcement lives only in the shell — not the page
-    # composition.
+    # *section* would render the strip twice (a real defect observed in visual
+    # QA), so the announcement lives only in the shell, not the composition.
     return (
         # 1) Editorial hero (store/section HeroSlides render at runtime)
         PresetSectionEntry("hero_banner", {"hero_style": "overlay"}),
@@ -128,7 +134,7 @@ def _golden_home_composition() -> tuple[PresetSectionEntry, ...]:
         # 6) Promo banners
         PresetSectionEntry("multi_banner"),
         # 7) Most popular / most viewed (uses views_count, a production-written
-        #    metric — see ruling in the G1 plan; avoids fabricating Order/
+        #    metric — see ruling R7 in the G1 plan; avoids fabricating Order/
         #    payment/shipping infrastructure just to populate a Home section).
         PresetSectionEntry(
             "product_section",
@@ -170,56 +176,29 @@ def _golden_home_composition() -> tuple[PresetSectionEntry, ...]:
     )
 
 
-def build_golden_preset() -> LayoutPresetDefinition:
-    """Build the in-memory Golden ``LayoutPresetDefinition``.
+def _golden_store_appearance_manifest(draft) -> dict:
+    """A schema-v1 Store-Appearance manifest = the authored baseline manifest
+    with only the Golden header/footer/bottom-nav family selections overlaid.
 
-    Derived from the registered ``fashion_promo_catalog`` recipe via
-    ``dataclasses.replace`` — same ``key``/``version`` (honest provenance),
-    customized palette/shell/manifest/Home composition. Never registered.
+    Everything else (hero/card/layout/badge/motion/mega_menu) is inherited from
+    the applied baseline, so the commercial DNA of ``fashion_promo_catalog`` is
+    preserved and only the merchant-chosen shell regions diverge.
     """
-    base = get_layout_preset(GOLDEN_BASELINE_TEMPLATE_KEY)
-    if base is None:  # pragma: no cover - defensive; the baseline is always registered
-        raise LookupError(
-            f"Golden baseline Ready Template «{GOLDEN_BASELINE_TEMPLATE_KEY}» is not registered."
-        )
-
-    header = dict(base.header or {})
-    header.update(
-        {
-            "header_variant": GOLDEN_HEADER_VARIANT,
-            "sticky": True,
-            "announcement_enabled": True,
-            "show_search": True,
-            "show_account": True,
-            "show_wishlist": True,
-            "show_cart": True,
-        }
-    )
-
-    footer = dict(base.footer or {})
-    footer.update(
-        {
-            "footer_variant": GOLDEN_FOOTER_VARIANT,
-            "mobile_nav_variant": GOLDEN_BOTTOM_NAV_VARIANT,
-        }
-    )
-
-    pages = dict(base.pages)
-    pages["home"] = _golden_home_composition()
-
-    return dataclasses.replace(
-        base,
-        default_palette_slug=GOLDEN_PALETTE_SLUG,
-        store_appearance=_golden_store_appearance(base.store_appearance),
-        header=header,
-        footer=footer,
-        pages=pages,
-    )
+    current = store_appearance_persistence.load_store_appearance_manifest(draft)
+    selections = dict(current.selections)
+    selections["header"] = f"header.{GOLDEN_HEADER_VARIANT}.v1"
+    selections["footer"] = f"footer.{GOLDEN_FOOTER_VARIANT}.v1"
+    selections["bottom_nav"] = f"bottom_nav.{GOLDEN_BOTTOM_NAV_VARIANT}.v1"
+    return {
+        "schema_version": 1,
+        "selections": selections,
+        "settings": dict(current.settings),
+    }
 
 
 def ensure_golden_view_signals(store) -> int:
-    """Give the demo store's products deterministic ``views_count`` so a
-    ``most_viewed`` presentation (and general realism) has data.
+    """Give the demo store's products deterministic ``views_count`` so the
+    ``most_viewed`` section (and general realism) has data.
 
     ``views_count`` is a display/analytics metric that IS genuinely written in
     production (``apps.catalog.views.product_detail`` on every view), so seeding
@@ -227,8 +206,8 @@ def ensure_golden_view_signals(store) -> int:
     derived purely from each product's stable PK, so within a store it is
     reproducible and idempotent — repeated runs recompute the same value and
     never accumulate. (Absolute values differ after a ``--reset`` that rebuilds
-    the store with fresh PKs; only the within-store ranking matters for the
-    "most viewed" section.) Returns rows rewritten.
+    the store with fresh PKs; only the within-store ranking matters here.)
+    Returns rows rewritten.
     """
     from apps.catalog.models import Product
 
@@ -242,33 +221,121 @@ def ensure_golden_view_signals(store) -> int:
     return updated
 
 
+def _customize_golden_draft(draft) -> None:
+    """Apply the Golden merchant customizations onto an already-baselined Draft.
+
+    Uses only existing production contracts and — critically — NEVER writes
+    ``template_baseline_snapshot`` or ``template_provenance``, so the recorded
+    authored baseline stays pure while the live Draft diverges:
+
+      * Store-Appearance manifest (header/footer/bottom-nav) via
+        ``persist_store_appearance_manifest`` (Draft-only; also writes the typed
+        manifest + the header/footer/mobile-nav selector keys).
+      * Identity palette via the validated ``appearance_config`` (mirrors
+        ``preset_service``'s palette semantics: set ``palette_slug`` and clear a
+        non-merchant-customized ``color_overrides``).
+      * Header capability flags (search/account/wishlist/cart, sticky,
+        announcement) via ``validate_header_config``.
+      * Home section composition via the section registry + container rebuild
+        (the same primitives ``apply_preset`` uses), replacing only the Home
+        page's sections/containers.
+    """
+    # 1) Store-Appearance manifest — header/footer/bottom-nav selections.
+    store_appearance_persistence.persist_store_appearance_manifest(
+        draft, _golden_store_appearance_manifest(draft)
+    )
+
+    # 2) Palette + header capability flags (re-read configs after step 1).
+    appearance = dict(draft.effective_appearance_config())
+    appearance["palette_slug"] = GOLDEN_PALETTE_SLUG
+    if not appearance.get("color_overrides_customized"):
+        appearance["color_overrides"] = {}
+    appearance = layout_service.validate_appearance_config(appearance)
+
+    header = dict(draft.effective_header_config())
+    header.update(
+        {
+            "sticky": True,
+            "announcement_enabled": True,
+            "show_search": True,
+            "show_account": True,
+            "show_wishlist": True,
+            "show_cart": True,
+        }
+    )
+    header = layout_service.validate_header_config(header)
+
+    draft.appearance_config = appearance
+    draft.header_config = header
+    draft.save(update_fields=["appearance_config", "header_config", "updated_at"])
+
+    # 3) Home composition — rebuild ONLY the Home page's sections/containers.
+    _rebuild_home_composition(draft)
+
+
+def _rebuild_home_composition(draft) -> None:
+    """Replace the Home page's sections with the Golden composition, using the
+    same section-registry + container primitives the preset path uses. Does not
+    touch any other page or any baseline metadata."""
+    page = draft.get_page("home")
+    entries = _golden_home_composition()
+
+    rows = []
+    for order, entry in enumerate(entries):
+        definition = section_registry.get_definition(entry.section_key)
+        settings = definition.default_settings() if entry.settings is None else definition.validate_settings(entry.settings)
+        rows.append(
+            StorefrontSection(
+                page=page,
+                section_key=entry.section_key,
+                order=order,
+                settings=settings,
+                row_key=entry.row_key,
+                row_span=entry.row_span,
+                template_slot_key=f"{_GOLDEN_SLOT_PREFIX}{order}",
+            )
+        )
+
+    page.containers.all().delete()
+    page.sections.all().delete()
+    StorefrontSection.objects.bulk_create(rows)
+    container_service.rebuild_page_from_legacy_rows(page)
+
+
 def apply_golden_reference_storefront(store, *, user=None):
-    """Apply + publish the Golden composition onto ``store``.
+    """Establish the Golden Reference Storefront on ``store`` and publish it.
 
-    Applies the in-memory Golden recipe to the store's active Draft via the
-    ordinary Draft-only contract (``preset_service.apply_preset`` on
-    ``layout_service.get_or_create_draft``), then ``layout_service.publish``.
+    The correct model (see module docstring): apply the REAL registered
+    ``fashion_promo_catalog`` baseline first (honest provenance + authored
+    ``template_baseline_snapshot``), then layer the Golden merchant
+    customizations on the Draft, then publish.
 
-    Why ``apply_preset`` and not ``apply_preset_with_checkpoint`` here: the
-    Golden recipe deliberately keeps the baseline's ``key``/``version`` (so
-    ``template_provenance`` honestly records ``fashion_promo_catalog``). The
-    checkpoint entry point treats a same-``(key, version)`` recipe whose
-    recorded baseline snapshot still matches the draft as a no-op (a
-    history-cleanliness optimization) — which would skip the Golden
-    customization entirely because the demo seed just applied that same
-    baseline key. The Golden setup is not a merchant "switch template" action
-    (it needs no undo checkpoint against merchant-authored content on the
-    resettable QA store); it is a deterministic composition apply, so the
-    plain Draft-only ``apply_preset`` is the correct, idempotent contract.
-
-    Idempotent: ``apply_preset`` fully replaces the page composition and rewrites
-    appearance/header/footer from the recipe every run, so repeated runs
-    converge to the same published state.
+    Idempotent: any stale Draft is discarded and a fresh one is created, the
+    authored baseline is fully re-applied, and the Golden customizations are
+    re-applied deterministically — repeated runs converge to the same published
+    state without accumulating rows.
 
     Returns the published :class:`StorefrontLayoutVersion`.
     """
     ensure_golden_view_signals(store)
-    preset = build_golden_preset()
+
+    baseline = get_layout_preset(GOLDEN_BASELINE_TEMPLATE_KEY)
+    if baseline is None:  # pragma: no cover - defensive; baseline is always registered
+        raise LookupError(
+            f"Golden baseline Ready Template «{GOLDEN_BASELINE_TEMPLATE_KEY}» is not registered."
+        )
+
+    # Start from a clean Draft so re-runs deterministically re-establish the
+    # authored baseline before customizing (converges, never accumulates).
+    layout_service.discard_draft(store)
     draft = layout_service.get_or_create_draft(store, user=user)
-    preset_service.apply_preset(draft, preset)
+
+    # 1) Apply the REAL registered baseline -> honest provenance + authored
+    #    template_baseline_snapshot.
+    preset_service.apply_preset(draft, baseline)
+
+    # 2) Customize the Draft as a merchant would (does not touch the snapshot).
+    _customize_golden_draft(draft)
+
+    # 3) Publish.
     return layout_service.publish(store, user=user)
