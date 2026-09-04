@@ -54,3 +54,6 @@ graphify-out/
 
 # Golden G1 local visual-QA tooling (never committed)
 .golden_qa/
+
+# Local pre-PR semantic-review artifacts (never committed)
+semantic-review/
