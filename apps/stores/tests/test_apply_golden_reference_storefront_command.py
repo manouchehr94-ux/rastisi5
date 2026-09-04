@@ -19,7 +19,7 @@ Contracts asserted here (see
 - The Golden shell selections are applied: header ``marketplace_search_first``,
   footer ``premium_columns``, mobile bottom nav ``five_item``, palette
   ``theme-forest-cream``.
-- The Home composition is the approved 13-section commercial rhythm.
+- The Home composition is the approved 12-section commercial rhythm.
 - Re-running converges (idempotent): no duplicate stores/products, exactly one
   published layout, identical section order.
 - Tenant isolation: only ``rasti-mode-demo`` is ever touched.

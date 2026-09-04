@@ -24,13 +24,15 @@ parallel architecture:
   store contracts: the identity **palette** (``theme-forest-cream``), the
   **global shell** variants (header/footer/mobile-nav), the typed
   ``store_appearance`` manifest to match, and the **Home composition**.
-- It applies the customized recipe with the ordinary
-  ``preset_service.apply_preset_with_checkpoint`` and publishes with
-  ``layout_service.publish`` — the very path the demo seed already uses.
+- It applies the customized recipe to the store's active Draft with the
+  ordinary Draft-only ``preset_service.apply_preset`` contract and publishes
+  with ``layout_service.publish``. (It deliberately does NOT use
+  ``apply_preset_with_checkpoint`` — see ``apply_golden_reference_storefront``'s
+  docstring for why the checkpoint path would be a no-op here.)
 
-Re-running converges (idempotent): ``apply_preset_with_checkpoint`` is a no-op
-when the draft already matches the recipe, and the composition is rebuilt
-deterministically from the same spec.
+Re-running converges (idempotent): ``apply_preset`` fully replaces the page
+composition and rewrites appearance/header/footer from the recipe every run, so
+repeated runs rebuild the same published state.
 
 Guardrails: this service only ever operates on the store handed to it (the
 management command scopes that to the fixed ``rasti-mode-demo`` slug). It never
@@ -43,7 +45,6 @@ from __future__ import annotations
 
 import dataclasses
 
-from apps.storefront_builder import layout_preset_registry as lpr
 from apps.storefront_builder.layout_preset_registry import (
     LayoutPresetDefinition,
     PresetSectionEntry,
@@ -85,7 +86,7 @@ def _golden_store_appearance(base_manifest: dict) -> dict:
 
 
 def _golden_home_composition() -> tuple[PresetSectionEntry, ...]:
-    """The approved 13-section Home in commercial rhythm.
+    """The approved 12-section Home in commercial rhythm.
 
     Editorial impact -> discovery -> products(new) -> campaign -> brand ->
     promo -> products(best) -> story -> promotion -> collections -> trust ->
@@ -222,8 +223,12 @@ def ensure_golden_view_signals(store) -> int:
 
     ``views_count`` is a display/analytics metric that IS genuinely written in
     production (``apps.catalog.views.product_detail`` on every view), so seeding
-    it for a demo store is legitimate content, not commerce truth. Deterministic
-    and idempotent (derived from the immutable PK). Returns rows rewritten.
+    it for a demo store is legitimate content, not commerce truth. The value is
+    derived purely from each product's stable PK, so within a store it is
+    reproducible and idempotent — repeated runs recompute the same value and
+    never accumulate. (Absolute values differ after a ``--reset`` that rebuilds
+    the store with fresh PKs; only the within-store ranking matters for the
+    "most viewed" section.) Returns rows rewritten.
     """
     from apps.catalog.models import Product
 
