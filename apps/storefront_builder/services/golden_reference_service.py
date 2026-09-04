@@ -59,6 +59,8 @@ writes commerce truth (price/stock/SKU) and bakes no catalog IDs into settings
 
 from __future__ import annotations
 
+from django.db import models
+
 from apps.storefront_builder import section_registry
 from apps.storefront_builder.layout_preset_registry import (
     PresetSectionEntry,
@@ -317,6 +319,119 @@ def _rebuild_home_composition(draft) -> None:
     container_service.rebuild_page_from_legacy_rows(page)
 
 
+#: Which published Home section (by key + occurrence index) owns which seeded
+#: media, and how the store-global pool is split across occurrences. The two
+#: ``multi_banner`` sections split the 6-banner pool 3/3 so they render DISTINCT
+#: content (fixing the duplicate-fallback defect) and each has its own editable
+#: rows.
+def _ensure_media_asset(row, file_field, asset_field):
+    """Backfill a MediaAsset FK from a legacy image file field if missing, using
+    the exact in-repo pattern of migration 0021 (reference the same stored file,
+    no byte copy). Returns True if a change was made. This is what lets the
+    section-scoped row survive the Draft clone (``_clone_section_scoped_media``
+    only clones asset-backed placements)."""
+    from apps.content.models import MediaAsset
+
+    if getattr(row, f"{asset_field}_id", None) is not None:
+        return False
+    file_obj = getattr(row, file_field, None)
+    if not file_obj:
+        return False
+    asset = MediaAsset.objects.create(store_id=row.store_id, image=file_obj.name)
+    setattr(row, f"{asset_field}_id", asset.pk)
+    return True
+
+
+def _attach_media_to_section(rows, section, *, asset_pairs):
+    """Move the given store-global media ``rows`` onto ``section`` (section-scoped)
+    and ensure each is MediaAsset-backed. Idempotent: rows already on this
+    section are left in place; ``display_order`` is re-sequenced deterministically."""
+    for order, row in enumerate(rows):
+        changed_fields = []
+        if row.section_id != section.id:
+            row.section = section
+            changed_fields.append("section")
+        if row.display_order != order:
+            row.display_order = order
+            changed_fields.append("display_order")
+        for file_field, asset_field in asset_pairs:
+            if _ensure_media_asset(row, file_field, asset_field):
+                changed_fields.append(asset_field)
+        if changed_fields:
+            row.save(update_fields=[*dict.fromkeys(changed_fields), "updated_at"])
+
+
+def _attach_golden_section_media(store, published_version) -> None:
+    """Make every Golden Home section that renders media OWN that media
+    (section-scoped, MediaAsset-backed) instead of relying on the store-global
+    fallback — so the Storefront Builder shows the same items it renders and a
+    visibly-rendered item always has a working (non-404) edit path.
+
+    Root cause (G2.1 Defect C): the seed creates store-global (section=NULL)
+    HeroSlide/PromotionalBanner/StoryRailItem rows. ``render_service`` falls back
+    to them, but the Builder media CRUD is strictly ``section=section`` — so the
+    manager showed "0 items" and direct edit URLs 404'd. Attaching the rows to
+    their sections removes the fallback ambiguity: render and editor read the
+    SAME rows.
+
+    Also fixes the two ``multi_banner`` sections silently sharing one global pool
+    (duplicate content) by splitting the 6 banners across them.
+
+    Idempotent + tenant-scoped: operates only on this store's rows and this
+    published version's Home sections; re-running converges (rows already on the
+    right section stay put, only order/asset backfill is synced). Making each row
+    MediaAsset-backed also ensures the Builder's Draft clone
+    (``_clone_section_scoped_media``) preserves them, so the editor Draft is
+    fully editable.
+    """
+    from apps.content.models import HeroSlide, PromotionalBanner, StoryRailItem
+
+    home = published_version.home_page()
+    ordered = list(home.sections.order_by("order"))
+
+    def sections_for(key):
+        return [s for s in ordered if s.section_key == key]
+
+    hero_pairs = [("desktop_image", "desktop_asset"), ("mobile_image", "mobile_asset")]
+    story_pairs = [("image", "image_asset")]
+
+    # Reclaim scope (idempotence across re-apply): the Golden setup rebuilds the
+    # Home page every run, so section IDs are ephemeral — a prior run's rows are
+    # attached to now-archived sections. On ``rasti-mode-demo`` all rows of a
+    # media type are Golden demo content, so we reclaim EVERY row of that type
+    # for this store (regardless of which section it currently points at) and
+    # re-attach it to the current published section. Tenant-scoped by ``store``.
+
+    # HeroSlide -> the single hero_banner section.
+    hero_sections = sections_for("hero_banner")
+    if hero_sections:
+        hero_rows = list(
+            HeroSlide.objects.filter(store=store).order_by("display_order", "id")
+        )
+        _attach_media_to_section(hero_rows, hero_sections[0], asset_pairs=hero_pairs)
+
+    # StoryRailItem -> the single story_rail section.
+    story_sections = sections_for("story_rail")
+    if story_sections:
+        story_rows = list(
+            StoryRailItem.objects.filter(store=store).order_by("display_order", "id")
+        )
+        _attach_media_to_section(story_rows, story_sections[0], asset_pairs=story_pairs)
+
+    # PromotionalBanner -> split the store's whole banner pool across the
+    # multi_banner sections so each renders (and owns) a DISTINCT set.
+    # Deterministic round-robin keeps the split stable across re-apply.
+    banner_sections = sections_for("multi_banner") + sections_for("single_banner")
+    if banner_sections:
+        banner_rows = list(
+            PromotionalBanner.objects.filter(store=store).order_by("display_order", "id")
+        )
+        n = len(banner_sections)
+        buckets = [banner_rows[i::n] for i in range(n)]
+        for section, rows in zip(banner_sections, buckets):
+            _attach_media_to_section(rows, section, asset_pairs=hero_pairs)
+
+
 def apply_golden_reference_storefront(store, *, user=None):
     """Establish the Golden Reference Storefront on ``store`` and publish it.
 
@@ -353,4 +468,11 @@ def apply_golden_reference_storefront(store, *, user=None):
     _customize_golden_draft(draft)
 
     # 3) Publish.
-    return layout_service.publish(store, user=user)
+    published = layout_service.publish(store, user=user)
+
+    # 4) Make each media-hosting Home section OWN its media (section-scoped,
+    #    MediaAsset-backed) so the Storefront Builder shows/edits exactly what the
+    #    storefront renders (G2.1 Defect C — no "0 items", no 404 edit path), and
+    #    the two multi_banner sections render distinct banner sets.
+    _attach_golden_section_media(store, published)
+    return published
