@@ -7,13 +7,16 @@ like.
 
 It is a thin, reproducible orchestration over existing infrastructure:
 
-1. Run the idempotent demo seed (``seed_ready_template_fashion_demo``) to
-   establish the real catalog/content and the ``fashion_promo_catalog`` Ready
-   Template baseline (Apply + Publish).
-2. Apply + publish the Golden customization
-   (``golden_reference_service.apply_golden_reference_storefront``): identity
-   palette, premium global shell variants, and the approved commercial Home
-   composition — all through the normal preset/appearance/publish contracts.
+1. Run the idempotent demo seed (``seed_ready_template_fashion_demo``) for the
+   real Catalog/content ONLY — it is NOT asked to Apply+Publish a Ready
+   Template (no ``--ready-template``).
+2. Apply the REAL registered ``fashion_promo_catalog`` baseline, layer the
+   Golden customization (identity palette, premium global shell variants, the
+   approved commercial Home composition), and publish — all via
+   ``golden_reference_service.apply_golden_reference_storefront`` through the
+   normal preset/appearance/publish contracts. This is the single,
+   architecturally-correct Apply+Publish mechanism (honest provenance + authored
+   ``template_baseline_snapshot`` + merchant divergence).
 
 Idempotent and tenant-scoped: only the fixed ``rasti-mode-demo`` slug is ever
 touched. Re-running converges to the same published state (no duplicate rows).
@@ -63,14 +66,18 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        seed_args = ["--ready-template", GOLDEN_BASELINE_TEMPLATE_KEY]
+        seed_args = []
         if options.get("reset"):
             seed_args.append("--reset")
         owner_username = (options.get("owner_username") or "").strip()
         if owner_username:
             seed_args += ["--owner-username", owner_username]
 
-        # Step 1 — real catalog/content + baseline Ready Template (idempotent).
+        # Step 1 — real demo Catalog/content ONLY (idempotent). The seed is
+        # deliberately NOT asked to Apply+Publish the Ready Template
+        # (no --ready-template): the Golden service below is the single,
+        # architecturally-correct Apply+Publish mechanism (real registered
+        # baseline Apply -> Golden merchant customization -> Publish).
         call_command("seed_ready_template_fashion_demo", *seed_args, stdout=StringIO())
 
         try:

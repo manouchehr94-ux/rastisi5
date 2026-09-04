@@ -31,6 +31,7 @@ project ``media/``.
 import shutil
 import tempfile
 from io import StringIO
+from unittest import mock
 
 from django.core.cache import cache
 from django.core.management import call_command
@@ -86,6 +87,43 @@ class ApplyGoldenReferenceStorefrontCommandTests(TestCase):
 
     def _store(self) -> Store:
         return Store.objects.get(slug=STORE_SLUG)
+
+    # ---------------------------------------------------- Orchestration boundary
+    # The Golden service is the ONE architecturally-correct Apply+Publish
+    # mechanism (real registered baseline -> Golden customization -> publish). The
+    # seed command must be used only for demo Catalog/content setup — the Golden
+    # command must NOT ask the seed to Apply+Publish the Ready Template first
+    # (a redundant orchestration step).
+
+    def test_seed_is_invoked_for_content_only_not_to_apply_publish_the_template(self):
+        import apps.stores.management.commands.apply_golden_reference_storefront as cmd
+
+        original_call_command = cmd.call_command
+        seen_seed_calls = []
+
+        def _spy(name, *args, **kwargs):
+            if name == "seed_ready_template_fashion_demo":
+                seen_seed_calls.append(list(args))
+            return original_call_command(name, *args, **kwargs)
+
+        with mock.patch.object(cmd, "call_command", side_effect=_spy):
+            self._run()
+
+        self.assertEqual(len(seen_seed_calls), 1, "seed should be invoked exactly once")
+        seed_args = seen_seed_calls[0]
+        self.assertNotIn(
+            "--ready-template",
+            seed_args,
+            "Golden command must not delegate Apply+Publish to the seed; the Golden "
+            "service owns baseline Apply -> customize -> Publish.",
+        )
+        # And the end state must still be fully correct without that delegation.
+        published = layout_service.get_or_create_layout(self._store()).published_version
+        self.assertIsNotNone(published)
+        self.assertEqual(
+            published.template_provenance.get("template", {}).get("key"),
+            "fashion_promo_catalog",
+        )
 
     # ------------------------------------------------------------------ Publish
 
