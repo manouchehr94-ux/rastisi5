@@ -1,0 +1,18 @@
+{% comment %}G2 — dynamic, query/category/brand-aware breadcrumb + page heading.
+Server-derived in build_product_listing_context (tenant-scoped). Wrapped in a
+stable-id container so the HTMX results partial can refresh it out-of-band
+(``hx-swap-oob``) and it never goes stale after a chip/pagination swap. The
+optional ``oob`` context flag marks it for out-of-band replacement.{% endcomment %}
+<div id="plp-listing-header"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <nav class="breadcrumb plp-breadcrumb" aria-label="مسیر">
+    {% for crumb in listing_breadcrumbs %}
+      {% if crumb.url and not forloop.last %}
+      <a href="{{ crumb.url }}">{{ crumb.label }}</a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      {% else %}
+      <span aria-current="page" style="color:var(--ink)">{{ crumb.label }}</span>
+      {% endif %}
+    {% endfor %}
+  </nav>
+  {% if listing_heading %}<h1 class="plp-heading">{{ listing_heading }}</h1>{% endif %}
+</div>

@@ -113,6 +113,27 @@ class G2ListingContextTests(TestCase):
         r = self._ctx({"category": "g2-running", "brand": "g2-nike"})
         self.assertEqual(r.context.get("clear_all_url"), reverse("catalog:product-list"))
 
+    def test_remove_one_chip_preserves_sort_and_drops_page(self):
+        r = self._ctx({"category": "g2-running", "sort": "price_asc", "page": "2"})
+        chips = {c["kind"]: c for c in r.context["active_filter_chips"]}
+        cat_remove = chips["category"]["remove_url"]
+        # sort survives, category is dropped, pagination is reset
+        self.assertIn("sort=price_asc", cat_remove)
+        self.assertNotIn("category=", cat_remove)
+        self.assertNotIn("page=", cat_remove)
+
+    def test_non_numeric_price_produces_no_phantom_chip(self):
+        # ?min_price=abc must NOT show a price chip (queryset only filters on
+        # .isdigit(); chip visibility must agree so state isn't misrepresented).
+        r = self._ctx({"min_price": "abc"})
+        self.assertNotIn("price", {c["kind"] for c in r.context["active_filter_chips"]})
+
+    def test_numeric_price_shows_a_removable_chip(self):
+        r = self._ctx({"min_price": "100000"})
+        chips = {c["kind"]: c for c in r.context["active_filter_chips"]}
+        self.assertIn("price", chips)
+        self.assertNotIn("min_price=", chips["price"]["remove_url"])
+
     # -------------------------------------------------- tenant isolation
 
     def test_context_is_tenant_scoped(self):

@@ -1,4 +1,10 @@
 {% load persian %}
+{% comment %}Keep the breadcrumb + heading (which live outside #product-results)
+in sync after an HTMX filter/pagination swap by re-rendering them out-of-band.
+``listing_header_oob`` is set by the view ONLY on the HTMX partial response, so a
+full-page load never emits a duplicate/oob header.{% endcomment %}
+{% if listing_header_oob %}{% include "catalog/partials/listing_header.html" with oob=True %}{% endif %}
+
 <div class="plp-toolbar">
   <span class="plp-count"><b>{{ page_obj.paginator.count|fa_number }}</b> کالا یافت شد</span>
 </div>

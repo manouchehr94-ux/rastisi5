@@ -6,6 +6,7 @@ from django.db.models import Avg, F, Max, Prefetch, Q
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import urlencode
 from django.views.decorators.http import require_POST
 
 from apps.blog.models import BlogPost
@@ -232,9 +233,10 @@ def _resolve_listing_location(store, *, query, selected_category, selected_brand
         if category is not None:
             crumbs = [home, shop]
             if category.parent_id is not None and getattr(category.parent, "is_active", True):
+                parent_qs = urlencode({"category": category.parent.slug})
                 crumbs.append({
                     "label": category.parent.name,
-                    "url": f"{reverse('catalog:product-list')}?category={category.parent.slug}",
+                    "url": f"{reverse('catalog:product-list')}?{parent_qs}",
                 })
             crumbs.append({"label": category.name, "url": None})
             return category.name, crumbs
@@ -274,13 +276,18 @@ def _build_active_filter_chips(request, store, *, query, selected_category, sele
         brand = Brand.objects.filter(store=store, slug=selected_brand, is_active=True).first()
         if brand is not None:
             add("brand", brand.name, "brand")
-    if min_price or max_price:
-        if min_price and max_price:
-            label = f"قیمت: {min_price} تا {max_price}"
-        elif min_price:
-            label = f"قیمت: از {min_price}"
+    # Gate the price chip on the SAME predicate the queryset uses (.isdigit()),
+    # so a non-numeric ?min_price=abc never shows a chip for a filter that is
+    # not actually applied.
+    price_min = min_price if min_price.isdigit() else ""
+    price_max = max_price if max_price.isdigit() else ""
+    if price_min or price_max:
+        if price_min and price_max:
+            label = f"قیمت: {price_min} تا {price_max}"
+        elif price_min:
+            label = f"قیمت: از {price_min}"
         else:
-            label = f"قیمت: تا {max_price}"
+            label = f"قیمت: تا {price_max}"
         add("price", label, "min_price", "max_price")
     if discounted_only:
         add("discounted", "فقط تخفیف‌دار", "discounted")
@@ -348,6 +355,10 @@ def product_list(request):
     context = build_product_listing_context(request, store)
 
     if request.headers.get("HX-Request") == "true":
+        # G2: on an HTMX filter/pagination swap, also refresh the breadcrumb +
+        # heading (which live outside #product-results) out-of-band so they never
+        # go stale relative to the pushed URL/results.
+        context["listing_header_oob"] = True
         return render(request, "catalog/partials/product_list_results.html", context)
 
     # Phase 1B: این یک route است که هم «لیست/دسته‌بندی» و هم «جستجو» را

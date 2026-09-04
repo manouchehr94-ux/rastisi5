@@ -38,20 +38,9 @@
 
 {% block content %}
 <div class="wrap sfb-preview-sections">
-  {% comment %}G2 — dynamic, query/category/brand-aware breadcrumb + page heading
-  (server-derived in build_product_listing_context; tenant-scoped).{% endcomment %}
-  <nav class="breadcrumb plp-breadcrumb" aria-label="مسیر">
-    {% for crumb in listing_breadcrumbs %}
-      {% if crumb.url and not forloop.last %}
-      <a href="{{ crumb.url }}">{{ crumb.label }}</a>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
-      {% else %}
-      <span aria-current="page" style="color:var(--ink)">{{ crumb.label }}</span>
-      {% endif %}
-    {% endfor %}
-  </nav>
-
-  {% if listing_heading %}<h1 class="plp-heading">{{ listing_heading }}</h1>{% endif %}
+  {% comment %}Dynamic breadcrumb + heading (kept fresh after HTMX swaps via an
+  out-of-band re-render from the results partial — see listing_header.html).{% endcomment %}
+  {% include "catalog/partials/listing_header.html" %}
 
   {% include "storefront_builder/partials/render_rows.html" %}
 </div>
