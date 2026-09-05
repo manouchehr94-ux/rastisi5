@@ -80,19 +80,12 @@ User = get_user_model()
 STORE_SLUG = "rasti-mode-demo"
 STORE_NAME = "Rasti Mode Demo"
 
-# G2.1 Defect A — the demo store must be login-ready by default. Unless an
-# operator passes ``--owner-username <existing user>`` (which still overrides),
-# the seed provisions this deterministic demo owner so the central portal
-# email+password login and the /app/ -> admin-portal handoff work out of the
-# box. Central login resolves an email identifier against ``User.email``, so an
-# email + usable password is sufficient; an OwnerProfile is also created so the
-# phone-identifier path and owner UIs resolve consistently. This is demo DATA
-# that satisfies the existing auth contract — the auth contract is NOT changed.
-DEMO_OWNER_USERNAME = "rasti_demo_admin"
-DEMO_OWNER_EMAIL = "rasti-demo-admin@local.test"
-DEMO_OWNER_PASSWORD = "RastiDemo!2026"
-DEMO_OWNER_FULL_NAME = "مدیرِ فروشگاهِ نمایشی"
-DEMO_OWNER_PHONE = "09120000050"
+# Owner provisioning (G2.1 hardening) — the seed NEVER auto-creates a
+# credentialed owner and NEVER mutates an existing user's authentication
+# credentials (password/email/phone/active state). The only owner path is the
+# explicit, safe ``--owner-username <existing user>``: that user is resolved and
+# given ONLY the OWNER StoreMembership for this demo store. Create the owner
+# separately in local development, then pass it explicitly.
 STORE_ADMIN_SUBDOMAIN = "rasti-mode-demo"
 # پیشوندِ میزبانِ عمومیِ Storefront — عمداً از میزبانِ ادمین جدا است، دقیقاً
 # همان الگویِ ``AdminSubdomainIndependentOfPublicDomainTests``. سافیکسِ
@@ -397,11 +390,11 @@ class Command(BaseCommand):
         with transaction.atomic():
             store = self._seed_store()
             self._seed_domain(store)
-            # If no explicit --owner-username was given, provision the
-            # deterministic, central-login-ready demo owner (G2.1 Defect A).
-            if owner is None:
-                owner = self._seed_default_owner()
-            self._seed_membership(store, owner)
+            # Owner is provisioned ONLY when an existing user is passed via
+            # --owner-username; that user gets ONLY the StoreMembership (no
+            # credential mutation). Without the flag, no owner is created.
+            if owner is not None:
+                self._seed_membership(store, owner)
             self._seed_shop_settings(store)
             vendor = self._seed_vendor(store)
             categories = self._seed_categories(store)
@@ -519,40 +512,11 @@ class Command(BaseCommand):
             public_domain.verified_at = timezone.now()
             public_domain.save(update_fields=["verification_status", "verified_at", "updated_at"])
 
-    def _seed_default_owner(self):
-        """Provision (idempotently) the deterministic demo owner so the central
-        portal login + admin handoff work by default. Central login resolves an
-        email identifier via ``User.email`` and a phone identifier via
-        ``OwnerProfile.phone`` — we set both so either path works. Re-running
-        converges: the user/profile are reused and the password/email/phone are
-        re-synced without creating duplicates."""
-        from apps.portal.models import OwnerProfile
-
-        user, created = User.objects.get_or_create(
-            username=DEMO_OWNER_USERNAME,
-            defaults={"email": DEMO_OWNER_EMAIL, "is_active": True},
-        )
-        changed = False
-        if user.email != DEMO_OWNER_EMAIL:
-            user.email = DEMO_OWNER_EMAIL
-            changed = True
-        if not user.is_active:
-            user.is_active = True
-            changed = True
-        # Always ensure the known demo password is usable (idempotent re-sync).
-        if created or not user.check_password(DEMO_OWNER_PASSWORD):
-            user.set_password(DEMO_OWNER_PASSWORD)
-            changed = True
-        if changed:
-            user.save()
-
-        OwnerProfile.objects.update_or_create(
-            user=user,
-            defaults={"full_name": DEMO_OWNER_FULL_NAME, "phone": DEMO_OWNER_PHONE},
-        )
-        return user
-
     def _seed_membership(self, store: Store, owner) -> None:
+        """Give the (explicitly-provided) ``owner`` user ONLY the OWNER
+        StoreMembership for this demo store. This never touches the user's
+        authentication credentials (password/email/phone/active state) — the
+        seed is not an identity-provisioning tool."""
         membership, created = StoreMembership.objects.get_or_create(
             store=store, user=owner,
             defaults={

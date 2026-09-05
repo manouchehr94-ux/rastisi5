@@ -28,12 +28,11 @@ from django.urls import reverse
 
 from apps.catalog.models import Product, ProductImage
 from apps.content.models import HeroSlide, PromotionalBanner, StoryRailItem
+from django.utils import timezone
+
 from apps.storefront_builder.services import layout_service, render_service
-from apps.stores.management.commands.seed_ready_template_fashion_demo import (
-    DEMO_OWNER_USERNAME,
-    STORE_SLUG,
-)
-from apps.stores.models import Store
+from apps.stores.management.commands.seed_ready_template_fashion_demo import STORE_SLUG
+from apps.stores.models import Store, StoreMembership
 
 User = get_user_model()
 
@@ -63,10 +62,15 @@ class G2_1MediaEditabilityRoundTripTests(TestCase):
         # editor. All media CRUD + this round-trip must work on the Draft.
         self.draft = layout_service.get_or_create_draft(self.store)
         self.home = self.draft.get_page("home")
-        # A staff user able to reach the Builder media CRUD (demo owner is staff-capable).
-        self.user = User.objects.get(username=DEMO_OWNER_USERNAME)
-        self.user.is_staff = True
-        self.user.save(update_fields=["is_staff"])
+        # A staff user with an OWNER membership can reach the Builder media CRUD.
+        # Created explicitly here (the seed no longer provisions any owner).
+        self.user = User.objects.create_user(
+            username="g21_media_staff", password="pass12345", is_staff=True
+        )
+        StoreMembership.objects.create(
+            store=self.store, user=self.user, role=StoreMembership.Role.OWNER,
+            status=StoreMembership.MembershipStatus.ACTIVE, accepted_at=timezone.now(),
+        )
         self.client.force_login(self.user)
 
     # --------------------------------------------------------------- helpers
