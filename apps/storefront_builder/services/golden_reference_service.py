@@ -59,7 +59,7 @@ writes commerce truth (price/stock/SKU) and bakes no catalog IDs into settings
 
 from __future__ import annotations
 
-from django.db import models
+from django.db import models, transaction
 
 from apps.storefront_builder import section_registry
 from apps.storefront_builder.layout_preset_registry import (
@@ -447,32 +447,45 @@ def apply_golden_reference_storefront(store, *, user=None):
 
     Returns the published :class:`StorefrontLayoutVersion`.
     """
-    ensure_golden_view_signals(store)
-
     baseline = get_layout_preset(GOLDEN_BASELINE_TEMPLATE_KEY)
     if baseline is None:  # pragma: no cover - defensive; baseline is always registered
         raise LookupError(
             f"Golden baseline Ready Template «{GOLDEN_BASELINE_TEMPLATE_KEY}» is not registered."
         )
 
-    # Start from a clean Draft so re-runs deterministically re-establish the
-    # authored baseline before customizing (converges, never accumulates).
-    layout_service.discard_draft(store)
-    draft = layout_service.get_or_create_draft(store, user=user)
+    # G2.1 hardening (Issue 2): the ENTIRE Golden setup must be all-or-nothing.
+    # ``layout_service.publish`` has its own (nested) atomic block and commits
+    # the new published pointer before media attachment runs; without this outer
+    # transaction, a failure in ``_attach_golden_section_media`` would leave a
+    # half-set-up Golden version live. Wrapping everything that mutates
+    # layout/media/catalog-signals in one outer ``transaction.atomic`` means any
+    # failure rolls back to the exact prior state (including the previous
+    # published pointer). Nested atomics (publish, apply_preset) are expected and
+    # fine — we do NOT rewrite them.
+    with transaction.atomic():
+        ensure_golden_view_signals(store)
 
-    # 1) Apply the REAL registered baseline -> honest provenance + authored
-    #    template_baseline_snapshot.
-    preset_service.apply_preset(draft, baseline)
+        # Start from a clean Draft so re-runs deterministically re-establish the
+        # authored baseline before customizing (converges, never accumulates).
+        layout_service.discard_draft(store)
+        draft = layout_service.get_or_create_draft(store, user=user)
 
-    # 2) Customize the Draft as a merchant would (does not touch the snapshot).
-    _customize_golden_draft(draft)
+        # 1) Apply the REAL registered baseline -> honest provenance + authored
+        #    template_baseline_snapshot.
+        preset_service.apply_preset(draft, baseline)
 
-    # 3) Publish.
-    published = layout_service.publish(store, user=user)
+        # 2) Customize the Draft as a merchant would (does not touch the snapshot).
+        _customize_golden_draft(draft)
 
-    # 4) Make each media-hosting Home section OWN its media (section-scoped,
-    #    MediaAsset-backed) so the Storefront Builder shows/edits exactly what the
-    #    storefront renders (G2.1 Defect C — no "0 items", no 404 edit path), and
-    #    the two multi_banner sections render distinct banner sets.
-    _attach_golden_section_media(store, published)
+        # 3) Publish.
+        published = layout_service.publish(store, user=user)
+
+        # 4) Make each media-hosting Home section OWN its media (section-scoped,
+        #    MediaAsset-backed) so the Storefront Builder shows/edits exactly what
+        #    the storefront renders (G2.1 Defect C — no "0 items", no 404 edit
+        #    path), and the two multi_banner sections render distinct banner sets.
+        #    If this step raises, the whole apply (including the publish above)
+        #    rolls back — the prior published version stays live.
+        _attach_golden_section_media(store, published)
+
     return published
