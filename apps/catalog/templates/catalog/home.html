@@ -34,8 +34,8 @@
     </div>
     <div class="hero-visual">
       <picture>
-        {% if slide.mobile_image %}<source media="(max-width:680px)" srcset="{{ slide.mobile_image.url }}">{% endif %}
-        <img src="{{ slide.desktop_image.url }}" alt="{{ slide.title|default:'اسلاید' }}" loading="eager">
+        {% if slide.mobile_image_url %}<source media="(max-width:680px)" srcset="{{ slide.mobile_image_url }}">{% endif %}
+        {% if slide.desktop_image_url %}<img src="{{ slide.desktop_image_url }}" alt="{{ slide.title|default:'اسلاید' }}" loading="eager">{% endif %}
       </picture>
     </div>
     {% endwith %}
@@ -89,8 +89,8 @@
       </div>
       <div class="mini">
         <picture>
-          {% if banner.mobile_image %}<source media="(max-width:680px)" srcset="{{ banner.mobile_image.url }}">{% endif %}
-          <img src="{{ banner.desktop_image.url }}" alt="{{ banner.title|default:'بنر' }}" loading="lazy" style="max-height:120px;border-radius:12px">
+          {% if banner.mobile_image_url %}<source media="(max-width:680px)" srcset="{{ banner.mobile_image_url }}">{% endif %}
+          {% if banner.desktop_image_url %}<img src="{{ banner.desktop_image_url }}" alt="{{ banner.title|default:'بنر' }}" loading="lazy" style="max-height:120px;border-radius:12px">{% endif %}
         </picture>
       </div>
     </div>

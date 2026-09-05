@@ -25,8 +25,8 @@ this single-hero visual metaphor.
     </div>
     <div class="hero-split-media">
       <picture>
-        {% if slide.mobile_image %}<source media="(max-width:680px)" srcset="{{ slide.mobile_image.url }}">{% endif %}
-        <img src="{{ slide.desktop_image.url }}" alt="{{ slide.title|default:'اسلاید' }}" loading="eager">
+        {% if slide.mobile_image_url %}<source media="(max-width:680px)" srcset="{{ slide.mobile_image_url }}">{% endif %}
+        {% if slide.desktop_image_url %}<img src="{{ slide.desktop_image_url }}" alt="{{ slide.title|default:'اسلاید' }}" loading="eager">{% endif %}
       </picture>
     </div>
   </div>

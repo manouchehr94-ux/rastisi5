@@ -353,6 +353,35 @@ class ContentPage(TimeStampedModel):
 # ---------------------------------------------------------------- Media Asset (Phase 0.5)
 
 
+def _resolve_placement_media_url(asset, legacy_field):
+    """G2.2 — نقطه‌ی *واحدِ* حلِ آدرسِ رسانه برای Placementهایِ
+    section-scoped (HeroSlide/PromotionalBanner/StoryRailItem).
+
+    ترتیبِ حلِ متعارف (تصمیمِ معماریِ Phase 0.5 — ``MediaAsset`` منبعِ
+    فیزیکیِ متعارف است، ``ImageField``هایِ legacy فقط برایِ سازگاریِ
+    گذشته باقی مانده‌اند):
+
+        ۱) تصویرِ ``MediaAsset``ِ متعارف (اگر موجود و دارایِ فایل)
+        ۲) در غیرِ این‌صورت، ``ImageField``ِ legacy (اگر دارایِ فایل)
+        ۳) در غیرِ این‌صورت، رشته‌ی خالی — **هرگز** ``ValueError``
+
+    چرا این لازم است: مسیرِ کلونِ نسخه (``layout_service.
+    _clone_section_scoped_media``) عمداً فقط FKِ ``MediaAsset`` را کلون
+    می‌کند، نه بایتِ فایلِ legacy را (تصمیمِ مالک ۵). پس یک Placementِ
+    کلون‌شده‌یِ Draft می‌تواند asset-backed باشد ولی ``ImageField``ِ
+    legacyِ آن خالی؛ دسترسیِ مستقیمِ قدیمیِ تمپلیت‌ها به
+    ``legacy_field.url`` در آن حالت ``ValueError`` می‌داد (باگِ ۵۰۰ِ
+    پیش‌نمایش). این helper همان معنایِ حل را برایِ **هردو**یِ پیش‌نمایشِ
+    Builder و ویترینِ عمومی فراهم می‌کند (بدونِ فورک)."""
+    if asset is not None:
+        asset_image = getattr(asset, "image", None)
+        if asset_image:
+            return asset_image.url
+    if legacy_field:
+        return legacy_field.url
+    return ""
+
+
 class MediaAsset(TimeStampedModel):
     """فایلِ فیزیکیِ رسانه — مالکیتِ آن مستقل از هر Placementِ خاص (Section/
     نسخه/صفحه) است.
@@ -474,6 +503,17 @@ class HeroSlide(TimeStampedModel, DestinationMixin):
             if asset is not None and self.store_id is not None and asset.store_id != self.store_id:
                 raise ValidationError({field_name: "فایلِ رسانه‌ی انتخاب‌شده متعلق به فروشگاهِ دیگری است"})
 
+    @property
+    def desktop_image_url(self):
+        """G2.2 — آدرسِ تصویرِ دسکتاپ با ترتیبِ متعارف: MediaAsset →
+        ImageFieldِ legacy → خالی (بدونِ ``ValueError``)."""
+        return _resolve_placement_media_url(self.desktop_asset, self.desktop_image)
+
+    @property
+    def mobile_image_url(self):
+        """G2.2 — همتایِ موبایلِ ``desktop_image_url``."""
+        return _resolve_placement_media_url(self.mobile_asset, self.mobile_image)
+
 
 class PromotionalBanner(TimeStampedModel, DestinationMixin):
     """بنر تبلیغاتی صفحه اصلی."""
@@ -536,6 +576,16 @@ class PromotionalBanner(TimeStampedModel, DestinationMixin):
             asset = getattr(self, field_name, None)
             if asset is not None and self.store_id is not None and asset.store_id != self.store_id:
                 raise ValidationError({field_name: "فایلِ رسانه‌ی انتخاب‌شده متعلق به فروشگاهِ دیگری است"})
+
+    @property
+    def desktop_image_url(self):
+        """G2.2 — همان معنایِ ``HeroSlide.desktop_image_url`` برای بنر."""
+        return _resolve_placement_media_url(self.desktop_asset, self.desktop_image)
+
+    @property
+    def mobile_image_url(self):
+        """G2.2 — همتایِ موبایلِ ``desktop_image_url``."""
+        return _resolve_placement_media_url(self.mobile_asset, self.mobile_image)
 
 
 
@@ -1001,6 +1051,12 @@ class StoryRailItem(TimeStampedModel, DestinationMixin):
         super().clean()
         if self.image_asset is not None and self.store_id is not None and self.image_asset.store_id != self.store_id:
             raise ValidationError({"image_asset": "فایلِ رسانه‌ی انتخاب‌شده متعلق به فروشگاهِ دیگری است"})
+
+    @property
+    def image_url(self):
+        """G2.2 — تصویرِ استوری با ترتیبِ متعارف: MediaAsset →
+        ImageFieldِ legacy → خالی (بدونِ ``ValueError``)."""
+        return _resolve_placement_media_url(self.image_asset, self.image)
 
 
 class NewsletterSubscriber(TimeStampedModel):
