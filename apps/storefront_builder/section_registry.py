@@ -960,6 +960,19 @@ SPACING_AWARE_SECTION_KEYS = BACKGROUND_AWARE_SECTION_KEYS
 BACKGROUND_MODE_CHOICES = ("theme", "palette", "palette_pattern", "color", "image", "pattern")
 BACKGROUND_PALETTE_ROLE_CHOICES = ("tone-1", "tone-2", "tone-3", "tone-4", "tone-5")
 
+#: G2.3 (Defect C) — وقتی مرچنت «رنگ از پالت» را انتخاب می‌کند اما نقشِ
+#: پالت (فیلدِ همراه) خالی/ارسال‌نشده است، به‌جایِ «سقوطِ بی‌صدا به theme»
+#: (باگِ «هیچ تغییری دیده نمی‌شد») از نقشِ پیش‌فرضِ ``tone-1`` استفاده
+#: می‌شود — همان گزینه‌یِ اولِ selectِ UI، و چون به پالتِ سایت گره خورده
+#: هرگز خارج از هویتِ رنگیِ فروشگاه دیده نمی‌شود.
+#:
+#: برایِ «رنگ دلخواه» عمداً هیچ پیش‌فرضِ رنگِ ثابتی گذاشته نمی‌شود: mode
+#: حفظ می‌شود ولی رنگ خالی می‌ماند تا مرچنت خودش انتخاب کند (wrapper بدونِ
+#: رنگ چیزی رنگ نمی‌زند) — پیش‌فرض‌کردنِ یک هگزِ ثابت می‌توانست یک
+#: پس‌زمینه‌ی ناخواسته/خارج از پالت رنگ بزند. ورودیِ **صریحاً نامعتبر**
+#: (نقشِ ناشناخته مثل tone-99 یا هگزِ بدشکل) همچنان امن رد/بازگردانده می‌شود.
+BACKGROUND_DEFAULT_PALETTE_ROLE = "tone-1"
+
 #: بخشِ ۹ مشخصات: Patternها دارایی‌هایِ قابل‌استفادهٔ مجددِ سیستم‌اند، نه
 #: CSS سفارشیِ یک preset.  V3 اولین مجموعهٔ واقعی را اضافه می‌کند؛ رندر از
 #: همان data-pattern عمومیِ wrapper استفاده می‌کند و هیچ renderer/preset
@@ -1017,7 +1030,15 @@ def validate_background_settings(raw) -> dict:
     palette_role = ""
     if mode in ("palette", "palette_pattern"):
         palette_role = str(raw.get("palette_role", "")).strip()
-        if palette_role not in BACKGROUND_PALETTE_ROLE_CHOICES:
+        # G2.3 (Defect C): یک انتخابِ معتبرِ «رنگ از پالت» نباید فقط به این
+        # دلیل که فیلدِ همراه (نقشِ پالت) خالی/ارسال‌نشده است بی‌صدا به
+        # theme سقوط کند — پیش‌فرضِ tone-1 (همان گزینه‌یِ اولِ selectِ UI)
+        # استفاده می‌شود تا انتخابِ مرچنت محترم بماند. اما یک نقشِ
+        # **صریحاً نامعتبر** (مثلِ tone-99) همچنان امن رد و به theme
+        # بازگردانده می‌شود (ایمنیِ ورودیِ نامعتبر).
+        if not palette_role:
+            palette_role = BACKGROUND_DEFAULT_PALETTE_ROLE
+        elif palette_role not in BACKGROUND_PALETTE_ROLE_CHOICES:
             mode = "theme"
             palette_role = ""
 
@@ -1029,8 +1050,13 @@ def validate_background_settings(raw) -> dict:
                 validate_hex_color(color)
             except DjangoValidationError as exc:
                 raise BackgroundSettingsError("; ".join(exc.messages)) from exc
-        elif mode == "color":
-            mode = "theme"
+        # G2.3 (Defect C): «رنگ دلخواه»یِ معتبر با فیلدِ رنگِ خالی، mode را
+        # حفظ می‌کند (نه سقوطِ بی‌صدا به theme — همان باگِ «هیچ تغییری دیده
+        # نمی‌شد») ولی رنگ را خالی نگه می‌دارد. wrapper فقط وقتی
+        # ``background-color`` می‌نویسد که ``mode == "color" and color`` باشد،
+        # پس رنگِ خالی هیچ پس‌زمینه‌ی ناخواسته‌ای (مثلاً یک قرمزِ ثابت) رنگ
+        # نمی‌زند — انتخابِ mode به‌خاطر سپرده می‌شود تا مرچنت رنگ را انتخاب
+        # کند. رنگِ **بدشکل** همچنان بالاتر ``BackgroundSettingsError`` می‌دهد.
 
     media_asset_id = None
     if mode == "image":

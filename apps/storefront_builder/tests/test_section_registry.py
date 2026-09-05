@@ -1038,9 +1038,18 @@ class BackgroundSettingsTests(TestCase):
         with self.assertRaises(BackgroundSettingsError):
             validate_background_settings({"mode": "color", "color": "not-a-color"})
 
-    def test_color_mode_without_color_falls_back_to_theme(self):
+    def test_color_mode_without_color_keeps_mode_but_leaves_color_empty(self):
+        """G2.3 (Defect C) — a VALID ``color`` selection with an empty color
+        field must NOT silently downgrade to ``theme`` (that was the observed
+        "I change نوع پس‌زمینه but nothing happens" bug): the merchant's
+        explicit "custom color" mode is honoured. The color itself stays
+        EMPTY (no hardcoded fallback hex) so the wrapper paints nothing until
+        the merchant picks a colour — the mode is remembered, but no
+        unwanted/off-palette background is applied. Malformed colours are
+        still rejected (see ``test_invalid_hex_color_rejected``)."""
         cleaned = validate_background_settings({"mode": "color", "color": ""})
-        self.assertEqual(cleaned["mode"], "theme")
+        self.assertEqual(cleaned["mode"], "color")
+        self.assertEqual(cleaned["color"], "")
 
     def test_valid_image_mode_stores_media_asset_id_not_a_url(self):
         """Phase 1 correction (tenant safety): تنظیماتِ خامِ mode=image فقط

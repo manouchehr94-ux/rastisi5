@@ -16,8 +16,19 @@
     {% if view_all_url %}<a class="more" href="{{ view_all_url }}">مشاهده همه ›</a>{% endif %}
   </div>
   {% endif %}
+  {% comment %}
+  G2.3 (Defect A): the carousel/grid containers carry an inline layout
+  fallback so the intended HORIZONTAL presentation survives even if the
+  external home.css rule (``.brand-carousel{display:flex}`` /
+  ``.grid{display:grid}``) is momentarily unapplied — the observed
+  "brand cards collapse into a narrow vertical column" in the reloaded
+  Builder Preview iframe. The inline values intentionally match home.css
+  exactly (same display/gap/overflow), so they never fight the richer
+  stylesheet rules; they only guarantee the block-level ``.brand-tile``
+  anchors never stack vertically for lack of a flex/grid parent.
+  {% endcomment %}
   <div class="{% if brand_carousel_settings.display_mode == 'carousel' %}brand-carousel{% elif brand_carousel_settings.display_mode == 'beauty_tabs' %}brand-beauty-tabs{% else %}grid{% endif %}"
-       {% if brand_carousel_settings.display_mode == 'grid' %}style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px"{% endif %}>
+       {% if brand_carousel_settings.display_mode == 'carousel' %}style="display:flex;gap:14px;overflow-x:auto"{% elif brand_carousel_settings.display_mode == 'beauty_tabs' %}style="display:flex;overflow-x:auto"{% else %}style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px"{% endif %}>
     {% for brand in brands %}
     <a{% if is_builder_preview %} data-admin-edit-kind="brand" data-admin-edit-id="{{ brand.pk }}" data-admin-edit-title="{{ brand.name|escape }}"{% endif %} href="{% url 'catalog:product-list' %}?brand={{ brand.slug }}" class="brand-tile{% if brand_carousel_settings.display_mode == 'beauty_tabs' %} brand-beauty-tab{% endif %}">
       {% if brand.logo %}
