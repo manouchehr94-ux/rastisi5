@@ -162,3 +162,28 @@ class G22OnGoldenG21IntegrationTests(TestCase):
         html = self._preview_html()
         self.assertNotIn("has no file associated with it", html)
         self.assertNotIn('src=""', html)
+
+
+
+    def test_media_manager_thumbnail_uses_canonical_asset_url(self):
+        """Review MINOR follow-up: an asset-backed placement (empty legacy
+        desktop_image) must still show a thumbnail in the Builder media
+        manager — the thumbnail must resolve from the canonical MediaAsset,
+        not only the legacy ImageField (the benign inverse of G2.1 Defect C)."""
+        hero = self._hero_section()
+        slide = list(render_service._scoped_hero_slides(self.store, hero))[0]
+        asset = MediaAsset.objects.create(store=self.store, image=_img("golden-thumb.png"))
+        slide.section = hero
+        slide.desktop_asset = asset
+        slide.desktop_image = ""
+        slide.save()
+
+        list_url = reverse(
+            "dashboard:storefront-builder-section-media-list", args=[hero.pk, "hero-slides"],
+        )
+        resp = self.client.get(list_url, HTTP_HOST=self.host)
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode("utf-8")
+        # The manager thumbnail <img> must use the MediaAsset URL.
+        self.assertIn(asset.image.url, html)
+        self.assertNotIn('src=""', html)
