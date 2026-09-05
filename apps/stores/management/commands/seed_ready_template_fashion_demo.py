@@ -529,7 +529,14 @@ class Command(BaseCommand):
                 "accepted_at": timezone.now(),
             },
         )
-        if not created and membership.status != StoreMembership.MembershipStatus.ACTIVE:
+        # Converge an EXISTING membership to OWNER+ACTIVE regardless of its
+        # prior role/status — the command contract is that the provided user
+        # becomes the OWNER of this store (an already-ACTIVE non-OWNER row, e.g.
+        # ADMINISTRATOR, must be promoted, not left as-is).
+        if not created and (
+            membership.role != StoreMembership.Role.OWNER
+            or membership.status != StoreMembership.MembershipStatus.ACTIVE
+        ):
             membership.role = StoreMembership.Role.OWNER
             membership.status = StoreMembership.MembershipStatus.ACTIVE
             membership.accepted_at = membership.accepted_at or timezone.now()

@@ -149,3 +149,34 @@ class GoldenDemoOwnerLoginReadinessTests(TestCase):
                 hasattr(seed_mod, name),
                 f"the seed module must not export {name} (no hardcoded demo owner/password)",
             )
+
+    def test_existing_active_non_owner_membership_is_promoted_to_owner(self):
+        # An existing ACTIVE membership with a NON-OWNER role must converge to
+        # OWNER+ACTIVE when the user is passed via --owner-username (the command
+        # contract: the provided user becomes the OWNER of rasti-mode-demo).
+        owner = self._make_explicit_owner()
+        # Seed once to create the store, then create the pre-existing membership.
+        self._seed("--owner-username", TEST_OWNER_USERNAME)
+        membership = StoreMembership.objects.get(store=self._store(), user=owner)
+        membership.role = StoreMembership.Role.ADMINISTRATOR
+        membership.status = StoreMembership.MembershipStatus.ACTIVE
+        membership.save(update_fields=["role", "status"])
+
+        password_hash_before = owner.password
+        email_before = owner.email
+        phone_before = OwnerProfile.objects.get(user=owner).phone
+
+        # Re-run with --owner-username: must promote the SAME row to OWNER+ACTIVE.
+        self._seed("--owner-username", TEST_OWNER_USERNAME)
+
+        membership.refresh_from_db()
+        self.assertEqual(membership.role, StoreMembership.Role.OWNER)
+        self.assertEqual(membership.status, StoreMembership.MembershipStatus.ACTIVE)
+        # still exactly one membership row (converged, not duplicated)
+        self.assertEqual(StoreMembership.objects.filter(store=self._store(), user=owner).count(), 1)
+
+        # credentials untouched
+        owner.refresh_from_db()
+        self.assertEqual(owner.password, password_hash_before)
+        self.assertEqual(owner.email, email_before)
+        self.assertEqual(OwnerProfile.objects.get(user=owner).phone, phone_before)
